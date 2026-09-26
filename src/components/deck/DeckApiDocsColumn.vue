@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ApiReference } from '@scalar/api-reference'
+import { i18n } from '@/i18n'
 import '@scalar/api-reference/style.css'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -47,7 +48,7 @@ const config = computed(() => ({
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'APIドキュメント'"
+    :title="column.name ?? i18n.ts._columns.apiDocs"
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
   >

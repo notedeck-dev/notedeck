@@ -14,6 +14,7 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -32,14 +33,14 @@ const cacheKeyDeps = accountsCacheKeyDeps()
 const config = computed(() =>
   isSpecified.value
     ? {
-        title: 'ダイレクト',
+        title: i18n.ts._columns.specified,
         icon: 'ti-mail',
-        emptyText: 'ダイレクトメッセージはありません',
+        emptyText: i18n.ts._deckMentionsColumn.directEmpty,
       }
     : {
-        title: 'あなた宛て',
+        title: i18n.ts._deckMentionsColumn.toYou,
         icon: 'ti-at',
-        emptyText: 'メンションはありません',
+        emptyText: i18n.ts._deckMentionsColumn.mentionsEmpty,
       },
 )
 
@@ -163,7 +164,7 @@ const {
       :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="connectCrossAccount"
     />
@@ -182,7 +183,7 @@ const {
           class="_button"
           @click="scrollToTop()"
         >
-          <i class="ti ti-arrow-up" />新しいノート
+          <i class="ti ti-arrow-up" />{{ i18n.ts._common.newNotes }}
         </button>
 
         <NoteScroller

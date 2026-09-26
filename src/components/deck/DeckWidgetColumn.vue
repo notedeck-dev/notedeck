@@ -8,6 +8,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import {
   findWidgetInstance,
   isStoreWidgetInstalled,
@@ -95,8 +96,8 @@ function scrollToTop() {
 function handleRemove(installId: string) {
   const undo = deckStore.removeWidget(props.column.id, installId)
   if (undo) {
-    useToast().show('ウィジットを外しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckWidgetColumn.detached, 'info', {
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -126,7 +127,7 @@ function handleDragStart(idx: number, e: PointerEvent) {
 }
 
 /**
- * 新規ローカル保存ウィジットをライブラリに追加し、ウィジット詳細ウィンドウで開く。
+ * 新規ローカル保存ウィジェットをライブラリに追加し、ウィジェット詳細ウィンドウで開く。
  * column.widgetIds には push しない (= 配置タブには出ない)。
  * 配置はピッカー (= showLibraryPicker) から行う。
  */
@@ -134,7 +135,7 @@ async function openNewWidgetEditor() {
   let accountId: string | undefined
   if (isAllAccounts(props.column)) {
     const picked = await pickAccount(
-      'ウィジットをどのアカウントで動かしますか？',
+      i18n.ts._deckWidgetColumn.pickAccountForNew,
     )
     if (!picked) return
     accountId = picked
@@ -181,10 +182,10 @@ function ownAccountLabelOf(widget: WidgetMeta): string | undefined {
 }
 
 /**
- * ウィジットを動かすアカウント (#1018)。ウィジット固有の指定 → カラムの順。
- * 全アカウントのカラムはそのままだと accountId が決まらず、ウィジットから
+ * ウィジェットを動かすアカウント (#1018)。ウィジェット固有の指定 → カラムの順。
+ * 全アカウントのカラムはそのままだと accountId が決まらず、ウィジェットから
  * Misskey API を一切呼べない (「開けるが使えない」)。まだ決まっていなければ
- * 選ばせて、以後そのウィジットに固定する。キャンセルは undefined。
+ * 選ばせて、以後そのウィジェットに固定する。キャンセルは undefined。
  */
 async function resolveWidgetAccountId(
   widget: WidgetMeta,
@@ -193,7 +194,7 @@ async function resolveWidgetAccountId(
   if (own) return own
   if (!isAllAccounts(props.column)) return props.column.accountId
   const picked = await pickAccount(
-    `「${widget.name}」をどのアカウントで動かしますか？`,
+    i18n.tsx._deckWidgetColumn.pickAccountFor({ name: widget.name }),
   )
   if (!picked) return undefined
   widgetsStore.setAccountKey(widget.installId, scopeKeyOf(picked))
@@ -245,17 +246,17 @@ const {
  *  (widgetsStore 側は sidebarWidgetIds の自動 cleanup のみ)。 */
 async function deleteFromLibrary(widget: WidgetMeta) {
   const ok = await confirm({
-    title: 'ウィジットを削除',
-    message: `「${widget.name}」をライブラリから削除しますか？ウィジットのコードも消えます。`,
-    okLabel: '削除',
+    title: i18n.ts._deckWidgetColumn.deleteTitle,
+    message: i18n.tsx._deckWidgetColumn.deleteConfirm({ name: widget.name }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   deckStore.detachWidgetFromAllColumns(widget.installId)
   const undo = widgetsStore.removeWidget(widget.installId)
   if (undo) {
-    useToast().show('ウィジットを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckWidgetColumn.deleted, 'info', {
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -269,8 +270,13 @@ const viewTab = ref<ViewTab>('installed')
 const columnContentRef = ref<HTMLElement | null>(null)
 
 const tabDefs = computed<ColumnTabDef[]>(() => [
-  { value: 'installed', label: `インストール済み ${widgets.value.length}` },
-  { value: 'store', label: 'ストア' },
+  {
+    value: 'installed',
+    label: i18n.tsx._common.installedTab({
+      count: widgets.value.length,
+    }),
+  },
+  { value: 'store', label: i18n.ts._common.store },
 ])
 
 function switchTab(tab: string) {
@@ -355,7 +361,7 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
       isAllAccounts(props.column)
     ) {
       const picked = await pickAccount(
-        `「${entry.name}」をどのアカウントで動かしますか？`,
+        i18n.tsx._deckWidgetColumn.pickAccountFor({ name: entry.name }),
       )
       if (!picked) return
       accountId = picked
@@ -376,7 +382,8 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
     deckStore.attachWidget(props.column.id, widget.installId)
     viewTab.value = 'installed'
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : 'インストール失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   } finally {
     installingId.value = null
   }
@@ -387,7 +394,8 @@ async function handleStoreUpdate(entry: StoreWidgetEntry) {
   try {
     await misStore.updateWidget(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : '更新失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 
@@ -397,7 +405,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 </script>
 
 <template>
-  <DeckColumn :column-id="column.id" :title="column.name ?? 'ウィジェット'" :theme-vars="columnThemeVars" data-column-type="widget" @header-click="scrollToTop">
+  <DeckColumn :column-id="column.id" :title="column.name ?? i18n.ts._columns.widget" :theme-vars="columnThemeVars" data-column-type="widget" @header-click="scrollToTop">
     <template #header-icon>
       <i class="ti ti-layout-dashboard" />
     </template>
@@ -407,7 +415,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
         v-if="viewTab === 'installed' && isWindowExposed('widget-edit')"
         class="_button"
         :class="$style.headerBtn"
-        title="新規ローカルウィジットを作成"
+        :title="i18n.ts._deckWidgetColumn.createLocal"
         @click.stop="openNewWidgetEditor"
       >
         <i class="ti ti-plus" />
@@ -427,7 +435,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
         <div ref="widgetBodyRef" :class="$style.widgetColumnBody">
           <ColumnEmptyState
             v-if="showEmptyState"
-            message="ウィジェットを追加してカスタマイズしよう"
+            :message="i18n.ts._deckWidgetColumn.empty"
             :image-url="serverInfoImageUrl"
           />
 
@@ -457,21 +465,21 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
               @click="toggleLibraryPicker"
             >
               <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? '閉じる' : 'ウィジットを追加' }}
+              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._deckWidgetColumn.addWidget }}
             </button>
           </div>
 
           <!-- ===== Library picker ===== -->
           <div v-if="showLibraryPicker" :class="$style.pickerWrap">
             <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              ライブラリに配置可能なウィジットがありません。
+              {{ i18n.ts._deckWidgetColumn.noLibraryWidgets }}
             </div>
             <WidgetCard
               v-for="w in libraryCandidates"
               :key="w.installId"
               mode="library"
               :name="w.name"
-              :description="w.src ? `${w.src.length} chars` : '空のコード'"
+              :description="w.src ? `${w.src.length} chars` : i18n.ts._deckWidgetColumn.emptyCode"
               :store-id="w.storeId"
               :icon-url="w.iconUrl"
               :account-label="ownAccountLabelOf(w)"
@@ -491,7 +499,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
             v-model="storeQuery"
             :class="$style.searchInput"
             type="text"
-            placeholder="ストアを探す"
+            :placeholder="i18n.ts._common.browseStore"
           />
         </div>
 
@@ -505,14 +513,14 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 
         <div v-if="misStore.widgetsLoading" :class="$style.storeLoading">
           <i class="ti ti-loader-2 nd-spin" />
-          読み込み中...
+          {{ i18n.ts._common.loading }}
         </div>
 
         <div v-else-if="misStore.widgetsError" :class="$style.empty">
           <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>ストアに接続できません</span>
+          <span>{{ i18n.ts._common.storeUnavailable }}</span>
           <button class="_button" :class="$style.emptyLink" @click="misStore.refreshWidgets()">
-            再試行
+            {{ i18n.ts._common.retry }}
           </button>
         </div>
 
@@ -539,7 +547,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
           />
 
           <div v-if="filteredStoreWidgets.length === 0 && !misStore.widgetsLoading" :class="$style.empty">
-            一致するウィジェットがありません
+            {{ i18n.ts._deckWidgetColumn.noMatches }}
           </div>
         </div>
       </template>
@@ -550,7 +558,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   <AccountPickerSheet
     :show="sheetPurpose !== null"
     :accounts="pickableAccounts"
-    title="アカウントを選択"
+    :title="i18n.ts._deckWidgetColumn.selectAccount"
     :description="sheetPurpose ?? undefined"
     @select="resolveSheet($event)"
     @close="resolveSheet(null)"

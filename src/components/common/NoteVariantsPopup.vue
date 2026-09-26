@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import type { NoteGroup } from '@/services/noteGroup'
 import { canonicalReactionKey } from '@/services/reactionKey'
 import {
@@ -91,9 +92,9 @@ defineExpose({ open, close })
     :class="[$style.root, leaving ? $style.leave : $style.enter]"
     :style="{ ...theme, left: `${pos.x}px`, top: `${pos.y}px` }"
     role="dialog"
-    aria-label="このノートが見えているアカウント"
+    :aria-label="i18n.ts._noteVariantsPopup.ariaLabel"
   >
-    <div :class="$style.title">見えているアカウント</div>
+    <div :class="$style.title">{{ i18n.ts._noteVariantsPopup.title }}</div>
     <ul :class="$style.list">
       <li v-for="row in rows" :key="row.key" :class="$style.row">
         <AccountAvatar
@@ -105,10 +106,10 @@ defineExpose({ open, close })
         <span :class="$style.label">{{ row.label }}</span>
         <span :class="$style.host">{{ row.host }}</span>
         <span :class="$style.marks">
-          <span v-if="row.isPrimary" :class="$style.mark" title="表示中の視点">表示中</span>
-          <span v-if="row.isOrigin" :class="$style.mark" title="このノートが最初に投稿されたサーバー">origin</span>
-          <span v-if="row.contentHidden" :class="[$style.mark, $style.muted]" title="このアカウントでは本文が非公開">非公開</span>
-          <i v-if="row.reacted" class="ti ti-mood-smile" :class="$style.reacted" title="このアカウントで反応済み" />
+          <span v-if="row.isPrimary" :class="$style.mark" :title="i18n.ts._noteVariantsPopup.primaryTitle">{{ i18n.ts._noteVariantsPopup.primary }}</span>
+          <span v-if="row.isOrigin" :class="$style.mark" :title="i18n.ts._noteVariantsPopup.originTitle">origin</span>
+          <span v-if="row.contentHidden" :class="[$style.mark, $style.muted]" :title="i18n.ts._noteVariantsPopup.contentHiddenTitle">{{ i18n.ts._common.private }}</span>
+          <i v-if="row.reacted" class="ti ti-mood-smile" :class="$style.reacted" :title="i18n.ts._noteVariantsPopup.reactedTitle" />
         </span>
       </li>
     </ul>

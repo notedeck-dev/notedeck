@@ -8,6 +8,7 @@ import {
   useAiConfig,
 } from '@/composables/useAiConfig'
 import { useClickOutside } from '@/composables/useClickOutside'
+import { i18n } from '@/i18n'
 import { FALLBACK_PRESET_OPTION, PRESET_OPTIONS } from '@/permissions/labels'
 import type { PresetKey } from '@/permissions/schema'
 import AiSettingsSection from './AiSettingsSection.vue'
@@ -23,31 +24,49 @@ interface DataSourceLabel {
 
 const DATA_SOURCE_LABELS: Record<DataSourceKey, DataSourceLabel> = {
   currentAccount: {
-    label: '現在のアカウント',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.currentAccount
+    },
     icon: 'ti-user',
-    description: 'ログイン中のアカウント情報を AI に渡す (トークン等は除外)',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.currentAccountDescription
+    },
   },
   currentColumn: {
-    label: '現在のカラム',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.currentColumn
+    },
     icon: 'ti-columns',
-    description: 'フォーカス中のカラムの種別と設定を渡す',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.currentColumnDescription
+    },
   },
   visibleNotes: {
-    label: '可視アイテム (上限 10 件)',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.visibleNotes
+    },
     icon: 'ti-list',
-    description:
-      '画面に表示中のアイテム (ノート / 通知 / ドライブファイル等) を context に含める',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.visibleNotesDescription
+    },
   },
   recentConversation: {
-    label: 'AI 会話履歴 (上限 20 ターン)',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.recentConversation
+    },
     icon: 'ti-messages',
-    description: '直近の会話を context に含める',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.recentConversationDescription
+    },
   },
   memos: {
-    label: 'ローカルメモ (上限 20 件)',
+    get label() {
+      return i18n.ts._aiDataSourcesSection.memos
+    },
     icon: 'ti-notes',
-    description:
-      'Zettelkasten 形式のローカルメモを context に含める (現在のアカウントのみ)',
+    get description() {
+      return i18n.ts._aiDataSourcesSection.memosDescription
+    },
   },
 }
 
@@ -93,13 +112,13 @@ const memoIncludeBacklinks = computed(
 // セクションヘッダーの現在値 chip (ペルソナ / データソースと同じ流儀)。
 // 両方 ON がデフォルトなので「標準」、変更時のみ内訳を出す
 const memosChip = computed(() => {
-  if (!resolvedDataSources.value.memos) return '無効'
+  if (!resolvedDataSources.value.memos) return i18n.ts._common.disabled
   const expand = memoExpandLinks.value
   const back = memoIncludeBacklinks.value
-  if (expand && back) return '標準'
-  if (expand) return 'リンク展開のみ'
-  if (back) return 'バックリンクのみ'
-  return '本文のみ'
+  if (expand && back) return i18n.ts._aiDataSourcesSection.memosStandard
+  if (expand) return i18n.ts._aiDataSourcesSection.memosLinksOnly
+  if (back) return i18n.ts._aiDataSourcesSection.memosBacklinksOnly
+  return i18n.ts._aiDataSourcesSection.memosBodyOnly
 })
 
 function ensureMemosConfig(): { excludeTags: string[] } & Record<
@@ -127,7 +146,7 @@ function toggleMemoIncludeBacklinks() {
 <template>
   <AiSettingsSection
     icon="ti-database-export"
-    title="データソース"
+    :title="i18n.ts._aiDataSourcesSection.title"
     :badge="currentPreset.label"
   >
     <div ref="presetRef" :class="$style.dropdown">
@@ -170,20 +189,20 @@ function toggleMemoIncludeBacklinks() {
   </AiSettingsSection>
 
   <!-- Memos (#494) — link expand / backlinks の詳細設定 -->
-  <AiSettingsSection icon="ti-notes" title="メモの渡し方" :badge="memosChip">
+  <AiSettingsSection icon="ti-notes" :title="i18n.ts._aiDataSourcesSection.memosTitle" :badge="memosChip">
     <div :class="$style.toggleList">
       <AiSwitchRow
         icon="ti-link"
-        label="リンク先メモを展開"
-        sub-label="本文の `[name](memo:<id>)` で参照されているメモを 1 階層自動で AI に渡す。OFF にすると AI は明示的に `memos.backlinks` 等を呼ばない限り参照先を見ない。"
+        :label="i18n.ts._aiDataSourcesSection.expandLinks"
+        :sub-label="i18n.ts._aiDataSourcesSection.expandLinksDescription"
         :on="memoExpandLinks"
         :disabled="!resolvedDataSources.memos"
         @toggle="toggleMemoExpandLinks"
       />
       <AiSwitchRow
         icon="ti-arrow-back-up"
-        label="バックリンクを添付"
-        sub-label="各メモに `referencedBy: [...]` を付けて「どのメモから参照されているか」を AI に伝える。"
+        :label="i18n.ts._aiDataSourcesSection.includeBacklinks"
+        :sub-label="i18n.ts._aiDataSourcesSection.includeBacklinksDescription"
         :on="memoIncludeBacklinks"
         :disabled="!resolvedDataSources.memos"
         @toggle="toggleMemoIncludeBacklinks"

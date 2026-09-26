@@ -9,6 +9,7 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { useNoteList } from '@/composables/useNoteList'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
+import { i18n } from '@/i18n'
 import {
   type ClientSearchFilter,
   dateBounds,
@@ -208,8 +209,8 @@ function scrollToTop() {
 
 const emptyMessage = computed(() =>
   hasSearched.value
-    ? '手元のキャッシュに一致するノートはありません'
-    : '検索語か絞り込みを入れると、手元に貯めたノートから引きます',
+    ? i18n.ts._deckClientSearchColumn.noMatches
+    : i18n.ts._deckClientSearchColumn.emptyHint,
 )
 
 onMounted(async () => {
@@ -222,7 +223,7 @@ onMounted(async () => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name || 'クライアント検索'"
+    :title="column.name || i18n.ts._columns.clientSearch"
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
     @refresh="search"
@@ -238,13 +239,13 @@ onMounted(async () => {
           v-model="query"
           :class="$style.searchInput"
           type="text"
-          placeholder="手元のノートを検索..."
+          :placeholder="i18n.ts._deckClientSearchColumn.searchPlaceholder"
           @keydown="onKeydown"
         />
         <button
           :class="[$style.iconBtn, { [$style.iconBtnActive]: showFilters || hasActiveFilter(filter) }]"
           class="_button"
-          title="絞り込み"
+          :title="i18n.ts._deckClientSearchColumn.filter"
           @click="showFilters = !showFilters"
         >
           <i class="ti ti-filter" />
@@ -252,7 +253,7 @@ onMounted(async () => {
         <button
           :class="[$style.iconBtn, { [$style.iconBtnActive]: filter.ascending }]"
           class="_button"
-          :title="filter.ascending ? '古い順' : '新しい順'"
+          :title="filter.ascending ? i18n.ts._deckClientSearchColumn.oldestFirst : i18n.ts._deckClientSearchColumn.newestFirst"
           @click="toggleSort"
         >
           <i :class="filter.ascending ? 'ti ti-sort-ascending' : 'ti ti-sort-descending'" />
@@ -261,11 +262,11 @@ onMounted(async () => {
 
       <div v-if="showFilters" :class="$style.filters">
         <label :class="$style.filterRow">
-          <span :class="$style.filterLabel">範囲</span>
+          <span :class="$style.filterLabel">{{ i18n.ts._deckClientSearchColumn.scope }}</span>
           <select v-model="filter.scope" :class="$style.filterInput">
-            <option value="">すべてのアカウント</option>
+            <option value="">{{ i18n.ts._deckClientSearchColumn.allAccounts }}</option>
             <option v-for="host in scopeOptions.servers" :key="`s:${host}`" :value="`server:${host}`">
-              {{ host }}（サーバー）
+              {{ i18n.tsx._deckClientSearchColumn.serverOption({ host }) }}
             </option>
             <option v-for="acc in scopeOptions.accounts" :key="acc.id" :value="`account:${acc.id}`">
               @{{ acc.username }}@{{ acc.host }}
@@ -273,26 +274,26 @@ onMounted(async () => {
           </select>
         </label>
         <label :class="$style.filterRow">
-          <span :class="$style.filterLabel">投稿者</span>
+          <span :class="$style.filterLabel">{{ i18n.ts._deckClientSearchColumn.author }}</span>
           <input
             v-model="filter.author"
             :class="$style.filterInput"
             type="text"
-            placeholder="name または name@host"
+            :placeholder="i18n.ts._deckClientSearchColumn.authorPlaceholder"
           />
         </label>
         <div :class="$style.filterRow">
-          <span :class="$style.filterLabel">期間</span>
-          <input v-model="filter.since" type="date" :class="$style.filterInput" title="開始日" />
+          <span :class="$style.filterLabel">{{ i18n.ts._deckClientSearchColumn.period }}</span>
+          <input v-model="filter.since" type="date" :class="$style.filterInput" :title="i18n.ts._deckClientSearchColumn.since" />
           <i :class="$style.dateSeparator" class="ti ti-minus" />
-          <input v-model="filter.until" type="date" :class="$style.filterInput" title="終了日" />
+          <input v-model="filter.until" type="date" :class="$style.filterInput" :title="i18n.ts._deckClientSearchColumn.until" />
         </div>
         <label :class="$style.filterRow">
-          <span :class="$style.filterLabel">添付</span>
+          <span :class="$style.filterLabel">{{ i18n.ts._deckClientSearchColumn.attachments }}</span>
           <select v-model="hasFilesValue" :class="$style.filterInput">
-            <option value="">問わない</option>
-            <option value="true">あり</option>
-            <option value="false">なし</option>
+            <option value="">{{ i18n.ts._deckClientSearchColumn.attachmentsAny }}</option>
+            <option value="true">{{ i18n.ts._deckClientSearchColumn.attachmentsYes }}</option>
+            <option value="false">{{ i18n.ts._deckClientSearchColumn.attachmentsNo }}</option>
           </select>
         </label>
         <button
@@ -302,7 +303,7 @@ onMounted(async () => {
           @click="clearFilters"
         >
           <i class="ti ti-x" />
-          絞り込みをクリア
+          {{ i18n.ts._deckClientSearchColumn.clearFilters }}
         </button>
       </div>
     </template>
@@ -313,7 +314,7 @@ onMounted(async () => {
       :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="search"
     />

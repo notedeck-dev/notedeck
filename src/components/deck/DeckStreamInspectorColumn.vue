@@ -16,6 +16,7 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useVerticalResize } from '@/composables/useVerticalResize'
+import { i18n } from '@/i18n'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
@@ -285,7 +286,7 @@ function onDetailWheel(e: WheelEvent) {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'ストリーム'"
+    :title="column.name ?? i18n.ts._columns.streamInspector"
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
   >
@@ -297,7 +298,7 @@ function onDetailWheel(e: WheelEvent) {
       <button
         class="_button"
         :class="[$style.headerBtn, paused && $style.headerBtnActive]"
-        :title="paused ? '再開' : '一時停止'"
+        :title="paused ? i18n.ts._deckStreamInspectorColumn.resume : i18n.ts._deckStreamInspectorColumn.pause"
         @click.stop="paused = !paused"
       >
         <i :class="paused ? 'ti ti-player-play' : 'ti ti-player-pause'" />
@@ -305,7 +306,7 @@ function onDetailWheel(e: WheelEvent) {
       <button
         class="_button"
         :class="$style.headerBtn"
-        title="クリア"
+        :title="i18n.ts._common.clear"
         @click.stop="clearBuffer()"
       >
         <i class="ti ti-trash" />
@@ -397,7 +398,7 @@ function onDetailWheel(e: WheelEvent) {
         </div>
         <ColumnEmptyState
           v-if="displayBuffer.length === 0"
-          message="イベント待機中..."
+          :message="i18n.ts._deckStreamInspectorColumn.waiting"
           :image-url="serverInfoImageUrl"
         />
       </div>

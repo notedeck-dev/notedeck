@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import {
@@ -52,9 +53,11 @@ const columnContentRef = ref<HTMLElement | null>(null)
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: `インストール済み ${skillsStore.skills.length}`,
+    label: i18n.tsx._common.installedTab({
+      count: skillsStore.skills.length,
+    }),
   },
-  { value: 'store', label: 'ストア' },
+  { value: 'store', label: i18n.ts._common.store },
 ])
 
 function switchTab(tab: string) {
@@ -106,8 +109,16 @@ const installedSections = computed<SkillSection[]>(() => {
   const sideloaded = visibleSkills.value.filter((s) => !s.storeId)
   const store = visibleSkills.value.filter((s) => !!s.storeId)
   const sections: SkillSection[] = [
-    { key: 'sideload', label: 'サイドロード', items: sideloaded },
-    { key: 'store', label: 'ストア配布', items: store },
+    {
+      key: 'sideload',
+      label: i18n.ts._common.sideload,
+      items: sideloaded,
+    },
+    {
+      key: 'store',
+      label: i18n.ts._common.storeDistributed,
+      items: store,
+    },
   ]
   return sections.filter((s) => s.items.length > 0)
 })
@@ -140,12 +151,12 @@ function createNewSkill() {
   const id = generateSkillId('skill')
   const skill = skillsStore.add({
     id,
-    name: '新規スキル',
+    name: i18n.ts._deckSkillColumn.newSkillName,
     version: '0.1.0',
     description: '',
     mode: 'manual',
     triggers: [],
-    body: '指示文をここに記述します。\n',
+    body: `${i18n.ts._deckSkillColumn.newSkillBody}\n`,
     cheapCheckCapabilities: [],
   })
   windowsStore.open('skill-edit', { skillId: skill.id })
@@ -155,24 +166,30 @@ const { confirm } = useConfirm()
 
 async function uninstall(skill: SkillMeta) {
   const ok = await confirm({
-    title: 'スキルを削除',
-    message: `「${skill.name}」を削除しますか？スキルの本文も消えます。`,
-    okLabel: '削除',
+    title: i18n.ts._deckSkillColumn.deleteTitle,
+    message: i18n.tsx._deckSkillColumn.deleteConfirm({ name: skill.name }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = skillsStore.remove(skill.id)
   if (undo) {
-    useToast().show('スキルを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckSkillColumn.deleted, 'info', {
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
 
 const modeLabel: Record<string, string> = {
-  always: '常時',
-  manual: '手動',
-  trigger: '自動',
+  get always() {
+    return i18n.ts._deckSkillColumn.modeAlways
+  },
+  get manual() {
+    return i18n.ts._deckSkillColumn.modeManual
+  },
+  get trigger() {
+    return i18n.ts._deckSkillColumn.modeTrigger
+  },
   heartbeat: 'HEARTBEAT',
 }
 
@@ -197,7 +214,8 @@ async function handleStoreInstall(entry: StoreSkillEntry) {
   try {
     await misStore.installSkill(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : 'インストール失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   }
 }
 
@@ -206,13 +224,17 @@ async function handleStoreUpdate(entry: StoreSkillEntry) {
   try {
     await misStore.updateSkill(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : '更新失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 
 /** 更新の主表示は updatedAt、version は補助 (#1040) */
 function storeUpdateTitle(entry: StoreSkillEntry): string {
-  return `ストア更新日: ${formatDate(entry.updatedAt)} / v${entry.version}`
+  return i18n.tsx._common.storeUpdatedWithVersion({
+    date: formatDate(entry.updatedAt),
+    version: entry.version,
+  })
 }
 
 function handleOpenStoreDetail(entry: StoreSkillEntry) {
@@ -223,7 +245,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'スキル'"
+    :title="column.name ?? i18n.ts._columns.skill"
     :theme-vars="columnThemeVars"
   >
     <template #header-icon>
@@ -235,7 +257,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
         v-if="viewTab === 'installed' && canEdit"
         class="_button"
         :class="$style.headerBtn"
-        title="新規スキルを作成"
+        :title="i18n.ts._deckSkillColumn.create"
         @click.stop="createNewSkill"
       >
         <i class="ti ti-plus" />
@@ -256,14 +278,14 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
           v-model="searchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="スキルを探す"
+          :placeholder="i18n.ts._deckSkillColumn.search"
         />
         <input
           v-else
           v-model="storeQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="ストアを探す"
+          :placeholder="i18n.ts._common.browseStore"
         />
       </div>
 
@@ -308,7 +330,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     <i v-if="skill.mode === 'heartbeat'" class="ti ti-activity-heartbeat" />
                     {{ modeLabel[skill.mode] }}
                   </span>
-                  <span v-if="!isActive(skill)" :class="$style.disabledBadge">無効</span>
+                  <span v-if="!isActive(skill)" :class="$style.disabledBadge">{{ i18n.ts._common.disabled }}</span>
                   <span :class="$style.spacer" />
                   <span :class="$style.version">v{{ skill.version }}</span>
                 </div>
@@ -322,7 +344,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     <button
                       class="_button"
                       :class="[$style.iconBtn, skill.mode === 'heartbeat' && $style.heartbeatActive]"
-                      :title="skill.mode === 'heartbeat' ? 'HEARTBEAT 対象から外す' : 'HEARTBEAT で定期実行する'"
+                      :title="skill.mode === 'heartbeat' ? i18n.ts._deckSkillColumn.removeFromHeartbeat : i18n.ts._deckSkillColumn.addToHeartbeat"
                       @click.stop="toggleHeartbeat(skill)"
                     >
                       <i class="ti ti-activity-heartbeat" />
@@ -330,7 +352,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     <button
                       class="_button"
                       :class="[$style.iconBtn, $style.iconBtnDanger]"
-                      title="ライブラリから削除 (本文も消えます)"
+                      :title="i18n.ts._deckSkillColumn.deleteFromLibrary"
                       @click.stop="uninstall(skill)"
                     >
                       <i class="ti ti-trash" />
@@ -339,7 +361,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                       v-if="canEdit"
                       class="_button"
                       :class="$style.iconBtn"
-                      title="編集"
+                      :title="i18n.ts._common.edit"
                       @click.stop="openInEditor(skill)"
                     >
                       <i class="ti ti-edit" />
@@ -352,10 +374,10 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                         !isToggleable(skill) && $style.btnLocked,
                       ]"
                       :disabled="!isToggleable(skill)"
-                      :title="isToggleable(skill) ? (isActive(skill) ? '無効化' : '有効化') : 'mode=always は常時有効'"
+                      :title="isToggleable(skill) ? (isActive(skill) ? i18n.ts._deckSkillColumn.deactivate : i18n.ts._deckSkillColumn.activate) : i18n.ts._deckSkillColumn.alwaysActive"
                       @click.stop="toggleActive(skill)"
                     >
-                      {{ isActive(skill) ? '無効にする' : '有効にする' }}
+                      {{ isActive(skill) ? i18n.ts._common.disable : i18n.ts._common.enable }}
                     </button>
                   </div>
                 </div>
@@ -365,8 +387,8 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
           <div v-if="visibleSkills.length === 0" :class="$style.empty">
             <i class="ti ti-sparkles" :class="$style.emptyIcon" />
-            <span v-if="searchQuery">一致するスキルがありません</span>
-            <span v-else>スキルがインストールされていません</span>
+            <span v-if="searchQuery">{{ i18n.ts._deckSkillColumn.noMatches }}</span>
+            <span v-else>{{ i18n.ts._deckSkillColumn.empty }}</span>
           </div>
         </div>
       </template>
@@ -387,18 +409,18 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
         <div v-if="misStore.skillsLoading" :class="$style.empty">
           <i class="ti ti-loader-2 nd-spin" />
-          読み込み中...
+          {{ i18n.ts._common.loading }}
         </div>
 
         <div v-else-if="misStore.skillsError" :class="$style.empty">
           <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>ストアに接続できません</span>
+          <span>{{ i18n.ts._common.storeUnavailable }}</span>
           <button
             class="_button"
             :class="$style.emptyLink"
             @click="misStore.refreshSkills()"
           >
-            再試行
+            {{ i18n.ts._common.retry }}
           </button>
         </div>
 
@@ -424,12 +446,12 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                   v-if="misStore.isSkillInstalled(entry) && misStore.hasSkillUpdate(entry)"
                   :class="$style.updateBadge"
                   :title="storeUpdateTitle(entry)"
-                >更新あり</span>
+                >{{ i18n.ts._common.updateAvailable }}</span>
                 <i
                   v-else-if="misStore.isSkillInstalled(entry)"
                   class="ti ti-circle-check-filled"
                   :class="$style.installedMark"
-                  title="インストール済"
+                  :title="i18n.ts._deckSkillColumn.installedMark"
                 />
                 <span :class="$style.spacer" />
                 <span :class="$style.version">v{{ entry.version }}</span>
@@ -445,7 +467,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                   <button
                     class="_button"
                     :class="$style.iconBtn"
-                    title="MisStore で詳細を開く"
+                    :title="i18n.ts._common.openInMisStore"
                     @click.stop="handleOpenStoreDetail(entry)"
                   >
                     <i class="ti ti-external-link" />
@@ -460,7 +482,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                   >
                     <i v-if="misStore.installingSkill === entry.id" class="ti ti-loader-2 nd-spin" />
                     <i v-else class="ti ti-refresh" />
-                    更新
+                    {{ i18n.ts._common.update }}
                   </button>
                   <button
                     v-else-if="misStore.isSkillInstalled(entry)"
@@ -468,7 +490,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     :class="$style.installedBadge"
                     disabled
                   >
-                    インストール済み
+                    {{ i18n.ts._common.installed }}
                   </button>
                   <button
                     v-else
@@ -479,7 +501,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                   >
                     <i v-if="misStore.installingSkill === entry.id" class="ti ti-loader-2 nd-spin" />
                     <i v-else class="ti ti-download" />
-                    {{ misStore.installingSkill === entry.id ? '...' : 'インストール' }}
+                    {{ misStore.installingSkill === entry.id ? '...' : i18n.ts._common.install }}
                   </button>
                 </div>
               </div>
@@ -488,8 +510,8 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
           <div v-if="filteredStoreSkills.length === 0" :class="$style.empty">
             <i class="ti ti-sparkles" :class="$style.emptyIcon" />
-            <span v-if="storeQuery">一致するスキルがありません</span>
-            <span v-else>ストアに登録済みのスキルはありません</span>
+            <span v-if="storeQuery">{{ i18n.ts._deckSkillColumn.noMatches }}</span>
+            <span v-else>{{ i18n.ts._deckSkillColumn.storeEmpty }}</span>
           </div>
         </div>
       </template>

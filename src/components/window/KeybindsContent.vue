@@ -10,6 +10,7 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { useKeybindsStore } from '@/stores/keybinds'
 import { STORAGE_KEYS, setStorageJson } from '@/utils/storage'
@@ -75,46 +76,47 @@ const commandIds = computed(() =>
     .filter((id) => isExposed(commandStore.commands.get(id)?.exposure)),
 )
 
-const COMMAND_LABELS: Record<string, string> = {
-  'command-palette': 'コマンドパレット',
-  search: 'サーバー検索',
-  notifications: '通知',
-  compose: 'ノート作成',
-  'add-column': 'カラム追加',
-  'toggle-sidebar': 'サイドバー切替',
-  'boss-key': 'ウィンドウを隠す',
-  'account-menu': 'アカウントメニュー',
-  'toggle-dark-mode': 'ダークモード切替',
-  'note-next': '次のノート',
-  'note-prev': '前のノート',
-  'note-reply': '返信',
-  'note-react': 'リアクション',
-  'note-renote': 'リノート / 引用',
-  'note-bookmark': 'ブックマーク',
-  'note-open': 'ノートを開く',
-  'note-cw': 'CW切替',
-  'column-next': '次のカラム',
-  'column-prev': '前のカラム',
-  'pop-out-column': 'カラムを別ウィンドウ',
-  'new-window': '新規ウィンドウ',
-  'close-all-windows': '全ウィンドウを閉じる',
-  'pip-window': 'PiPウィンドウ',
+// 文言は表示言語の切り替えに追従するよう、引くたびに辞書を読む (#135)
+const COMMAND_LABELS: Record<string, () => string> = {
+  'command-palette': () => i18n.ts._commands.commandPalette,
+  search: () => i18n.ts._commands.search,
+  notifications: () => i18n.ts._commands.notifications,
+  compose: () => i18n.ts._commands.compose,
+  'add-column': () => i18n.ts._commands.addColumn,
+  'toggle-sidebar': () => i18n.ts._commands.toggleSidebar,
+  'boss-key': () => i18n.ts._commands.bossKey,
+  'account-menu': () => i18n.ts._commands.accountMenu,
+  'toggle-dark-mode': () => i18n.ts._keybindsContent.toggleDarkMode,
+  'note-next': () => i18n.ts._commands.noteNext,
+  'note-prev': () => i18n.ts._commands.notePrev,
+  'note-reply': () => i18n.ts._commands.noteReply,
+  'note-react': () => i18n.ts._commands.noteReact,
+  'note-renote': () => i18n.ts._commands.noteRenote,
+  'note-bookmark': () => i18n.ts._commands.noteBookmark,
+  'note-open': () => i18n.ts._commands.noteOpen,
+  'note-cw': () => i18n.ts._commands.noteCw,
+  'column-next': () => i18n.ts._commands.columnNext,
+  'column-prev': () => i18n.ts._commands.columnPrev,
+  'pop-out-column': () => i18n.ts._keybindsContent.popOutColumn,
+  'new-window': () => i18n.ts._keybindsContent.newWindow,
+  'close-all-windows': () => i18n.ts._keybindsContent.closeAllWindows,
+  'pip-window': () => i18n.ts._keybindsContent.pipWindow,
   ...Object.fromEntries(
     Array.from({ length: 9 }, (_, i) => [
       `column-${i + 1}`,
-      `カラム ${i + 1} に移動`,
+      () => i18n.tsx._commands.focusColumn({ n: i + 1 }),
     ]),
   ),
   ...Object.fromEntries(
     Array.from({ length: 9 }, (_, i) => [
       `quick-react-${i + 1}`,
-      `クイックリアクション ${i + 1}`,
+      () => i18n.tsx._commands.quickReact({ n: i + 1 }),
     ]),
   ),
   ...Object.fromEntries(
     Array.from({ length: 9 }, (_, i) => [
       `profile-${i + 1}`,
-      `プロファイル ${i + 1}`,
+      () => i18n.tsx._keybindsContent.profileN({ n: i + 1 }),
     ]),
   ),
 }
@@ -165,13 +167,48 @@ const COMMAND_CATEGORIES: Record<string, string> = {
 }
 
 const CATEGORY_LABELS: Record<string, { label: string; icon: string }> = {
-  general: { label: '全般', icon: 'ti-settings' },
-  navigation: { label: 'ナビゲーション', icon: 'ti-compass' },
-  account: { label: 'アカウント', icon: 'ti-user' },
-  column: { label: 'カラム', icon: 'ti-columns' },
-  note: { label: 'ノート', icon: 'ti-note' },
-  window: { label: 'ウィンドウ', icon: 'ti-app-window' },
-  profile: { label: 'プロファイル', icon: 'ti-id-badge-2' },
+  general: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryGeneral
+    },
+    icon: 'ti-settings',
+  },
+  navigation: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryNavigation
+    },
+    icon: 'ti-compass',
+  },
+  account: {
+    get label() {
+      return i18n.ts._common.account
+    },
+    icon: 'ti-user',
+  },
+  column: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryColumn
+    },
+    icon: 'ti-columns',
+  },
+  note: {
+    get label() {
+      return i18n.ts._common.note
+    },
+    icon: 'ti-note',
+  },
+  window: {
+    get label() {
+      return i18n.ts._keybindsContent.categoryWindow
+    },
+    icon: 'ti-app-window',
+  },
+  profile: {
+    get label() {
+      return i18n.ts._common.profile
+    },
+    icon: 'ti-id-badge-2',
+  },
 }
 
 const expandedSections = reactive<Record<string, boolean>>({})
@@ -309,7 +346,8 @@ watch(jsonCode, (code) => {
       JSON.parse(code)
       codeError.value = null
     } catch (e) {
-      codeError.value = e instanceof Error ? e.message : 'JSONパースエラー'
+      codeError.value =
+        e instanceof Error ? e.message : i18n.ts._keybindsContent.jsonParseError
     }
   }, 400)
 })
@@ -323,7 +361,8 @@ function applyFromCode() {
     keybindsStore.overrides = parsed
     setStorageJson(STORAGE_KEYS.keybinds, parsed)
   } catch (e) {
-    codeError.value = e instanceof Error ? e.message : 'JSONパースエラー'
+    codeError.value =
+      e instanceof Error ? e.message : i18n.ts._keybindsContent.jsonParseError
   }
 }
 
@@ -378,9 +417,9 @@ function handleReset() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
+        { value: 'visual', icon: 'adjustments', label: i18n.ts._common.visual },
         ...(isExposed('developer')
-          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
           : []),
       ]"
     />
@@ -400,7 +439,7 @@ function handleReset() {
             :class="[$style.keybindRow, { [$style.customized]: keybindsStore.isCustomized(cmdId) }]"
           >
             <div :class="$style.keybindLabel">
-              {{ COMMAND_LABELS[cmdId] ?? cmdId }}
+              {{ COMMAND_LABELS[cmdId]?.() ?? cmdId }}
             </div>
             <div :class="$style.keybindShortcuts">
               <template v-for="(shortcut, idx) in keybindsStore.getShortcuts(cmdId)" :key="idx">
@@ -411,7 +450,7 @@ function handleReset() {
                   @keydown="onKeyDown($event, cmdId, idx)"
                 >
                   <template v-if="recordingCommandId === cmdId && recordingIndex === idx">
-                    <span :class="$style.recordingText">入力待ち...</span>
+                    <span :class="$style.recordingText">{{ i18n.ts._keybindsContent.recording }}</span>
                   </template>
                   <template v-else>
                     {{ formatShortcut(shortcut) }}
@@ -428,9 +467,9 @@ function handleReset() {
                 tabindex="0"
                 @keydown="onKeyDown($event, cmdId, recordingIndex)"
               >
-                <span :class="$style.recordingText">入力待ち...</span>
+                <span :class="$style.recordingText">{{ i18n.ts._keybindsContent.recording }}</span>
               </button>
-              <button class="_button" :class="$style.addShortcutBtn" title="ショートカットを追加" @click="addShortcut(cmdId)">
+              <button class="_button" :class="$style.addShortcutBtn" :title="i18n.ts._keybindsContent.addShortcut" @click="addShortcut(cmdId)">
                 <i class="ti ti-plus" />
               </button>
             </div>
@@ -438,7 +477,7 @@ function handleReset() {
               v-if="keybindsStore.isCustomized(cmdId)"
               class="_button"
               :class="$style.resetBtn"
-              title="デフォルトに戻す"
+              :title="i18n.ts._common.resetToDefault"
               @click="resetCommand(cmdId)"
             >
               <i class="ti ti-restore" />
@@ -451,7 +490,7 @@ function handleReset() {
     <!-- Code tab -->
     <div v-show="tab === 'code'" :class="$style.codePanel">
       <div :class="$style.codeHint">
-        ユーザーカスタマイズの JSON（デフォルトからの差分のみ）
+        {{ i18n.ts._keybindsContent.codeHint }}
       </div>
       <CodeEditor
         v-model="jsonCode"
@@ -466,7 +505,7 @@ function handleReset() {
       </div>
       <div v-if="!codeError && jsonCode.trim() && jsonCode.trim() !== '{}'" :class="$style.codeSuccess">
         <i class="ti ti-check" />
-        適用中
+        {{ i18n.ts._common.active }}
       </div>
       <button
         class="_button"
@@ -474,7 +513,7 @@ function handleReset() {
         @click="applyFromCode"
       >
         <i class="ti ti-refresh" />
-        ビジュアルに同期
+        {{ i18n.ts._common.syncToVisual }}
       </button>
     </div>
 
@@ -487,7 +526,7 @@ function handleReset() {
           @click="importKeybinds"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+          {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -495,7 +534,7 @@ function handleReset() {
           @click="exportKeybinds"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
       </div>
       <button
@@ -504,7 +543,7 @@ function handleReset() {
         @click="handleReset"
       >
         <i class="ti ti-trash" />
-        {{ confirmingReset ? '本当にリセット？' : 'すべてリセット' }}
+        {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._common.resetAll }}
       </button>
     </div>
   </div>

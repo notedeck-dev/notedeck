@@ -5,6 +5,7 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { safeUrl } from '@/composables/useDriveFolder'
 import { usePaginatedList } from '@/composables/usePaginatedList'
+import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -106,7 +107,7 @@ function openUserGallery(post: GalleryPost) {
     />
     <ColumnEmptyState
       v-else-if="userGalleryPosts.length === 0"
-      message="ギャラリー投稿がありません"
+      :message="i18n.ts._userProfileGalleryPane.empty"
       :image-url="infoImageUrl"
     />
   </div>

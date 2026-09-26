@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { destroyAdapter } from '@/adapters/factory'
 import type { ServerSoftware } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { invalidateResolutionCache } from '@/services/entityResolution'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
@@ -50,10 +51,22 @@ export function getAccountAvatarUrl(account: Account): string {
   return account.avatarUrl || '/avatar-default.svg'
 }
 
+/**
+ * ゲストの表示名 (#135)。作成時に振る連番の既定名 (旧「ゲストN」/ 現「Guest N」)
+ * は保存した時点の言語なので、表示言語で組み直す。利用者が付けた名前はそのまま。
+ */
+export function guestDisplayName(account: Account): string {
+  const name = account.displayName
+  if (!name) return i18n.ts._accounts.guest
+  const numbered = /^(?:ゲスト|Guest) ?(\d+)$/.exec(name) // i18n-ignore: data
+  return numbered
+    ? i18n.tsx._accounts.guestNumbered({ n: Number(numbered[1]) })
+    : name
+}
+
 export function getAccountLabel(account: Account): string {
   if (isGuestAccount(account)) {
-    const name = account.displayName || 'ゲスト'
-    return `${name}@${account.host}`
+    return `${guestDisplayName(account)}@${account.host}`
   }
   return `@${account.username}@${account.host}`
 }

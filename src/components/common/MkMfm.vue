@@ -3,6 +3,7 @@ import { computed, shallowRef, useCssModule } from 'vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
+import { i18n } from '@/i18n'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
@@ -416,7 +417,7 @@ function unixtimeDisplay(token: MfmToken & { type: 'fn' }): string {
   const ts = unixtimeValue(token)
   if (!ts) return '?'
   try {
-    return new Date(ts * 1000).toLocaleString()
+    return new Date(ts * 1000).toLocaleString(i18n.lang)
   } catch {
     return '?'
   }
@@ -441,7 +442,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
     --><!-- Strike --><s v-else-if="token.type === 'strike'"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></s><!--
     --><!-- Code Block --><div v-else-if="token.type === 'codeBlock'" :key="`cb-${i}-${highlightRevision}`" :class="$style.mfmCodeBlock" v-html="highlightCode(token.value, token.lang)"></div><!--
     --><!-- Inline Code --><code v-else-if="token.type === 'inlineCode'" :class="$style.mfmCode">{{ token.value }}</code><!--
-    --><!-- Custom Emoji (muted #612) --><span v-else-if="token.type === 'customEmoji' && isEmojiMuted(token.shortcode)" class="custom-emoji _emojiMuted" :class="plain ? $style.customEmojiPlain : $style.customEmoji" role="img" :aria-label="`:${token.shortcode}:`" :title="`:${token.shortcode}: (ミュート中)`"></span><!--
+    --><!-- Custom Emoji (muted #612) --><span v-else-if="token.type === 'customEmoji' && isEmojiMuted(token.shortcode)" class="custom-emoji _emojiMuted" :class="plain ? $style.customEmojiPlain : $style.customEmoji" role="img" :aria-label="`:${token.shortcode}:`" :title="i18n.tsx._common.mutedEmoji({ emoji: `:${token.shortcode}:` })"></span><!--
     --><!-- Custom Emoji (resolved) --><img v-else-if="token.type === 'customEmoji' && emojiUrls[token.shortcode]" :src="proxyEmojiUrl(emojiUrls[token.shortcode]!)" :alt="`:${token.shortcode}:`" class="custom-emoji" :class="plain ? $style.customEmojiPlain : $style.customEmoji" decoding="async" loading="lazy" @error="onCustomEmojiImgError" /><!--
     --><!-- Custom Emoji (unresolved — show fallback icon) --><img v-else-if="token.type === 'customEmoji'" src="/emoji-unknown.svg" :alt="`:${token.shortcode}:`" :title="`:${token.shortcode}:`" class="custom-emoji" :class="plain ? $style.customEmojiPlain : $style.customEmoji" /><!--
     --><!-- Unicode Emoji --><MkEmoji v-else-if="token.type === 'unicodeEmoji'" :emoji="token.value" class="twemoji" :class="$style.twemoji" /><!--
@@ -453,7 +454,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
     --><!-- Center --><span v-else-if="token.type === 'center'" :class="$style.mfmCenter"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></span><!--
     --><!-- Plain --><span v-else-if="token.type === 'plain'">{{ token.value }}</span><!--
     --><!-- Quote --><blockquote v-else-if="token.type === 'quote'" :class="$style.mfmQuote"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></blockquote><!--
-    --><!-- Search --><div v-else-if="token.type === 'search'" :class="$style.mfmSearch"><input :class="$style.mfmSearchInput" type="text" :value="token.query" readonly /><button :class="$style.mfmSearchButton" @click.stop="openSafeUrl(`https://www.google.com/search?q=${encodeURIComponent(token.query)}`)">検索</button></div><!--
+    --><!-- Search --><div v-else-if="token.type === 'search'" :class="$style.mfmSearch"><input :class="$style.mfmSearchInput" type="text" :value="token.query" readonly /><button :class="$style.mfmSearchButton" @click.stop="openSafeUrl(`https://www.google.com/search?q=${encodeURIComponent(token.query)}`)">{{ i18n.ts._mkMfm.search }}</button></div><!--
     --><!-- Math Inline --><span v-else-if="token.type === 'mathInline'" :class="$style.mfmMath" v-html="renderKatex(token.value, false)"></span><!--
     --><!-- Math Block --><div v-else-if="token.type === 'mathBlock'" :class="$style.mfmMathBlock" v-html="renderKatex(token.value, true)"></div><!--
     --><!-- Heading (Markdown 拡張) --><h1 v-else-if="token.type === 'heading' && token.level === 1" :class="[$style.mfmHeading, $style.mfmHeading1]"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></h1><!--

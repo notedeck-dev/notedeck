@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 import DevDashboard from '@/components/dev/DevDashboard.vue'
+import { i18n } from '@/i18n'
 
 /**
  * ブラウザ (`pnpm dev`) で開いたときのフォールバック画面 兼
@@ -45,13 +46,13 @@ onUnmounted(() => {
     <div v-else :class="$style.center">
       <img src="/favicon.svg" alt="" :class="$style.icon" />
       <h1 :class="$style.title">NoteDeck</h1>
-      <p :class="$style.tagline">Misskey Pro — Misskey廃人のための Misskey IDE</p>
+      <p :class="$style.tagline">{{ i18n.ts._devWelcome.tagline }}</p>
       <div :class="$style.notice">
-        <p>デスクトップアプリとして起動してください</p>
+        <p>{{ i18n.ts._devWelcome.launchAsDesktopApp }}</p>
         <div :class="$style.cmd">
           <code><span :class="$style.prompt">$</span> pnpm tauri:dev</code>
         </div>
-        <p :class="$style.hint">起動を検知すると自動で Dev Dashboard に切り替わります</p>
+        <p :class="$style.hint">{{ i18n.ts._devWelcome.autoSwitchHint }}</p>
       </div>
       <p :class="$style.version">v{{ appVersion }}</p>
     </div>

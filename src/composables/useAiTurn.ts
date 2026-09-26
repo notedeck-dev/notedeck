@@ -12,6 +12,7 @@ import {
 import { emitSpotlightFromCapability } from '@/capabilities/dispatcher'
 import { listCapabilities } from '@/capabilities/registry'
 import type { ChatMessage } from '@/composables/useAiChat'
+import { nativeError } from '@/i18n/native'
 import { messageFromWire } from '@/services/aiSessionCodec'
 import { useAiActivity } from '@/stores/aiActivity'
 import type { ConfirmOptions } from '@/stores/confirm'
@@ -147,7 +148,11 @@ export interface AiTurnEventPayload {
     | 'confirm_request'
     | 'confirm_closed'
   text?: string
+  /** `text` が定型の知らせを含むときの手がかり (#135) */
+  text_i18n?: unknown
   error?: string
+  /** `error` を表示言語で描き直す手がかり (#135) */
+  error_i18n?: unknown
   phase?: 'before_tool' | 'after_tool'
   stop_reason?: 'end' | 'tool_round_limit'
   /** done: ターンの token 使用量 (provider が返さなければ推定) */
@@ -177,7 +182,7 @@ export interface AiConfirmItem {
 
 export class AiTurnCancelledError extends Error {
   constructor() {
-    super('応答の生成を中断しました')
+    super('response generation was cancelled')
     this.name = 'AiTurnCancelledError'
   }
 }
@@ -254,7 +259,8 @@ export function useAiTurn(deps: AiTurnDeps) {
   }
 
   async function run(req: AiTurnRunRequest): Promise<AiTurnOutcome> {
-    if (isRunning.value) throw new Error('既に応答生成中です')
+    if (isRunning.value)
+      throw new Error('a response is already being generated')
     retryContext.value = null
 
     const now = Date.now()
@@ -427,7 +433,20 @@ export function useAiTurn(deps: AiTurnDeps) {
             const finalText = p.text ?? ''
             replaceLast((last) =>
               finalText
-                ? { ...last, id: p.message_id ?? last.id, content: finalText }
+                ? {
+                    ...last,
+                    id: p.message_id ?? last.id,
+                    content: finalText,
+                    // 定型の知らせ (tool 呼び出しの上限など) は notecore と同じ手がかりを持つ
+                    ...(p.text_i18n
+                      ? {
+                          i18n: { content: p.text_i18n } as Record<
+                            string,
+                            unknown
+                          >,
+                        }
+                      : {}),
+                  }
                 : // 本文なし (tool だけで完結) は notecore も書かない
                   null,
             )
@@ -438,7 +457,7 @@ export function useAiTurn(deps: AiTurnDeps) {
           case 'error': {
             activity.pulse('failed')
             console.error('[ai-turn] error event:', p.error)
-            const message = p.error ?? '不明なエラー'
+            const message = nativeError(p)
             // mid-stream 切断 (#508): 途中までの応答は温存 (notecore も同じ本文を書く)
             replaceLast((last) => ({
               ...last,

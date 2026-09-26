@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 生成物 — 編集しない。locales/ の _native.android から `pnpm gen:i18n` で作る (#135) -->
+<resources>
+    <plurals name="nd_new_notifications">
+        <item quantity="one">%1$d new notification</item>
+        <item quantity="other">%1$d new notifications</item>
+    </plurals>
+    <string name="nd_new_notification">You have a new notification</string>
+    <string name="nd_multiple_accounts">New notifications on multiple accounts</string>
+    <string name="nd_channel_name">Misskey notifications</string>
+    <string name="nd_channel_description">Follows, reactions, mentions and other notifications</string>
+</resources>

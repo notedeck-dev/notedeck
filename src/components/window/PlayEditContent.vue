@@ -7,6 +7,7 @@ import EditorTabs, {
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
@@ -57,8 +58,20 @@ const { tab, containerRef: editorRef } = useEditorTabs(
 )
 
 const tabDefs: EditorTabDef[] = [
-  { value: 'meta', icon: 'info-circle', label: '概要' },
-  { value: 'code', icon: 'code', label: 'コード' },
+  {
+    value: 'meta',
+    icon: 'info-circle',
+    get label() {
+      return i18n.ts._common.overview
+    },
+  },
+  {
+    value: 'code',
+    icon: 'code',
+    get label() {
+      return i18n.ts._common.code
+    },
+  },
 ]
 
 const dirty = computed(() => {
@@ -116,7 +129,7 @@ async function save() {
     original.value.summary = editingSummary.value
     original.value.script = editingScript.value
     saved.value = true
-    toast.show('保存しました', 'success')
+    toast.show(i18n.ts._common.saved, 'success')
     setTimeout(() => {
       saved.value = false
     }, 2000)
@@ -139,11 +152,11 @@ onMounted(load)
 
       <div v-show="tab === 'meta'" :class="$style.metaPanel">
         <div :class="$style.field">
-          <label :class="$style.label">タイトル</label>
+          <label :class="$style.label">{{ i18n.ts._playEditContent.title }}</label>
           <input v-model="editingTitle" :class="$style.input" type="text" />
         </div>
         <div :class="$style.field">
-          <label :class="$style.label">概要</label>
+          <label :class="$style.label">{{ i18n.ts._playEditContent.summary }}</label>
           <textarea v-model="editingSummary" :class="$style.textarea" />
         </div>
       </div>
@@ -162,7 +175,7 @@ onMounted(load)
           @click="save"
         >
           <i class="ti ti-device-floppy" />
-          {{ saving ? '保存中...' : saved ? '保存しました' : '保存' }}
+          {{ saving ? i18n.ts._common.saving : saved ? i18n.ts._common.saved : i18n.ts._common.save }}
         </button>
       </div>
     </template>

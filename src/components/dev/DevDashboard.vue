@@ -7,6 +7,8 @@ import {
   onUnmounted,
   ref,
 } from 'vue'
+import { i18n } from '@/i18n'
+import { formatTime } from '@/utils/formatTime'
 
 /**
  * Dev Dashboard (#977) — ブラウザ (5173) から実行中アプリの内蔵 HTTP サーバー
@@ -66,27 +68,75 @@ const NAV_GROUPS: {
   items: { id: ViewId; icon: string; label: string }[]
 }[] = [
   {
-    label: '観測',
+    get label() {
+      return i18n.ts._devDashboard.navObserve
+    },
     items: [
-      { id: 'overview', icon: 'ti ti-layout-columns', label: '概要' },
-      { id: 'sse', icon: 'ti ti-broadcast', label: 'SSE イベント' },
-      { id: 'timeline', icon: 'ti ti-terminal-2', label: '統合タイムライン' },
-      { id: 'inspector', icon: 'ti ti-search', label: 'Inspector 照合' },
+      {
+        id: 'overview',
+        icon: 'ti ti-layout-columns',
+        get label() {
+          return i18n.ts._common.overview
+        },
+      },
+      {
+        id: 'sse',
+        icon: 'ti ti-broadcast',
+        get label() {
+          return i18n.ts._devDashboard.sseEvents
+        },
+      },
+      {
+        id: 'timeline',
+        icon: 'ti ti-terminal-2',
+        get label() {
+          return i18n.ts._devDashboard.unifiedTimeline
+        },
+      },
+      {
+        id: 'inspector',
+        icon: 'ti ti-search',
+        get label() {
+          return i18n.ts._devDashboard.inspector
+        },
+      },
     ],
   },
   {
-    label: '実行',
+    get label() {
+      return i18n.ts._common.run
+    },
     items: [
       { id: 'caps', icon: 'ti ti-bolt', label: 'Capabilities' },
-      { id: 'perms', icon: 'ti ti-shield-lock', label: '実効権限' },
+      {
+        id: 'perms',
+        icon: 'ti ti-shield-lock',
+        get label() {
+          return i18n.ts._devDashboard.effectivePermissions
+        },
+      },
     ],
   },
   {
-    label: '診断',
+    get label() {
+      return i18n.ts._devDashboard.navDiagnose
+    },
     items: [
-      { id: 'startup', icon: 'ti ti-rocket', label: '起動計測' },
+      {
+        id: 'startup',
+        icon: 'ti ti-rocket',
+        get label() {
+          return i18n.ts._devDashboard.startup
+        },
+      },
       { id: 'heartbeat', icon: 'ti ti-heartbeat', label: 'HEARTBEAT' },
-      { id: 'caches', icon: 'ti ti-database', label: 'キャッシュ' },
+      {
+        id: 'caches',
+        icon: 'ti ti-database',
+        get label() {
+          return i18n.ts._devDashboard.navCaches
+        },
+      },
       { id: 'qbtrace', icon: 'ti ti-arrows-left-right', label: 'Query Bridge' },
     ],
   },
@@ -205,10 +255,7 @@ const heartbeat = ref<HeartbeatStatusView | null>(null)
 
 function relativeTime(epochMs: number | null): string {
   if (epochMs === null) return '—'
-  const mins = Math.floor((Date.now() - epochMs) / 60_000)
-  if (mins >= 60) return `${Math.floor(mins / 60)} 時間前`
-  if (mins >= 1) return `${mins} 分前`
-  return 'たった今'
+  return formatTime(epochMs)
 }
 
 // SSE ビューア。EventSource は event: 名ごとの addEventListener が必要で
@@ -273,7 +320,7 @@ function pushRow(type: string, data: string) {
   sseRows.value.unshift({
     seq: ++sseSeq,
     ts: now,
-    time: new Date(now).toLocaleTimeString('ja-JP', { hour12: false }),
+    time: new Date(now).toLocaleTimeString(i18n.lang, { hour12: false }),
     type,
     data,
     expanded: false,
@@ -487,7 +534,7 @@ async function executeCap() {
     capRunning.value = false
     capHistory.value.unshift({
       seq: ++capHistSeq,
-      time: new Date().toLocaleTimeString('ja-JP', { hour12: false }),
+      time: new Date().toLocaleTimeString(i18n.lang, { hour12: false }),
       capId: cap.id,
       status: capStatus.value,
       result: capResult.value,
@@ -830,7 +877,7 @@ onUnmounted(() => {
 <template>
   <div :class="$style.control">
     <div v-if="!appReachable" :class="$style.reconnectPill">
-      <i class="ti ti-plug-x" /> アプリ接続なし — 再接続待ち…
+      <i class="ti ti-plug-x" /> {{ i18n.ts._devDashboard.appDisconnected }}
     </div>
 
     <div :class="$style.body">
@@ -846,7 +893,7 @@ onUnmounted(() => {
           <button
             type="button"
             :class="$style.navToggle"
-            :title="navCollapsed ? 'ナビゲーションを開く' : 'ナビゲーションを畳む'"
+            :title="navCollapsed ? i18n.ts._devDashboard.expandNav : i18n.ts._devDashboard.collapseNav"
             @click="toggleNav"
           >
             <i :class="navCollapsed ? 'ti ti-chevrons-right' : 'ti ti-chevrons-left'" />
@@ -884,16 +931,16 @@ onUnmounted(() => {
             </button>
           </div>
           <div :class="$style.navGroup">
-            <p v-if="!navCollapsed" :class="$style.navGroupLabel">リソース</p>
+            <p v-if="!navCollapsed" :class="$style.navGroupLabel">{{ i18n.ts._devDashboard.resources }}</p>
             <a
               :class="$style.navItem"
               href="/api/docs"
               target="_blank"
               rel="noopener"
-              title="API ドキュメント"
+              :title="i18n.ts._devDashboard.apiDocs"
             >
               <i class="ti ti-book-2" />
-              <span v-if="!navCollapsed" :class="$style.navLabel">API ドキュメント</span>
+              <span v-if="!navCollapsed" :class="$style.navLabel">{{ i18n.ts._devDashboard.apiDocs }}</span>
             </a>
           </div>
         </nav>
@@ -904,15 +951,15 @@ onUnmounted(() => {
           <header :class="$style.viewHead">
             <div>
               <h2 :class="$style.viewTitle">
-                <i class="ti ti-layout-columns" /> 概要
+                <i class="ti ti-layout-columns" /> {{ i18n.ts._common.overview }}
               </h2>
               <p :class="$style.viewDesc">
-                実行中アプリのヘルスチェック — 127.0.0.1:19820<template v-if="app?.version"> · v{{ app.version }}</template>
+                {{ i18n.ts._devDashboard.overviewDesc }}<template v-if="app?.version"> · v{{ app.version }}</template>
               </p>
             </div>
             <div :class="$style.viewActions">
               <button type="button" :class="$style.btn" @click="refreshStatus">
-                <i class="ti ti-refresh" /> 更新
+                <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
               </button>
             </div>
           </header>
@@ -943,7 +990,7 @@ onUnmounted(() => {
             </div>
           </div>
           <div :class="$style.card">
-            <p :class="$style.cardTitle">デッキ — カラム {{ columns.length }} 本</p>
+            <p :class="$style.cardTitle">{{ i18n.tsx._devDashboard.deckColumns_plural({ count: columns.length }) }}</p>
             <div :class="$style.tableWrap">
               <table :class="$style.table">
                 <thead>
@@ -960,7 +1007,7 @@ onUnmounted(() => {
             </div>
           </div>
           <div :class="$style.card">
-            <p :class="$style.cardTitle">Raw データ</p>
+            <p :class="$style.cardTitle">{{ i18n.ts._devDashboard.rawData }}</p>
             <button
               type="button"
               :class="$style.summary"
@@ -994,15 +1041,15 @@ onUnmounted(() => {
           <header :class="$style.viewHead">
             <div>
               <h2 :class="$style.viewTitle">
-                <i class="ti ti-rocket" /> 起動計測
+                <i class="ti ti-rocket" /> {{ i18n.ts._devDashboard.startup }}
               </h2>
               <p :class="$style.viewDesc">
-                フロントの起動マークと WebView 起動固定費 (#985)。固定費は初回ナビゲーションのみ計測される
+                {{ i18n.ts._devDashboard.startupDesc }}
               </p>
             </div>
             <div :class="$style.viewActions">
               <button type="button" :class="$style.btn" @click="fetchStartup">
-                <i class="ti ti-refresh" /> 更新
+                <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
               </button>
             </div>
           </header>
@@ -1010,15 +1057,15 @@ onUnmounted(() => {
             <div :class="$style.statCards">
               <div :class="$style.statCard">
                 <span :class="$style.statValue">{{ startupTotal ?? '—' }}<small>ms</small></span>
-                <span :class="$style.statLabel">最終マークまで</span>
+                <span :class="$style.statLabel">{{ i18n.ts._devDashboard.untilLastMark }}</span>
               </div>
               <div :class="$style.statCard">
                 <span :class="$style.statValue">{{ startup.webviewFixedCost ?? '—' }}<small>ms</small></span>
-                <span :class="$style.statLabel">WebView 起動固定費</span>
+                <span :class="$style.statLabel">{{ i18n.ts._devDashboard.webviewFixedCost }}</span>
               </div>
             </div>
             <div :class="$style.card">
-              <p :class="$style.cardTitle">ウォーターフォール</p>
+              <p :class="$style.cardTitle">{{ i18n.ts._devDashboard.waterfall }}</p>
               <div :class="$style.tableWrap">
                 <table :class="$style.table">
                   <thead>
@@ -1043,7 +1090,7 @@ onUnmounted(() => {
           </template>
           <div v-else :class="$style.emptyBox">
             <i class="ti ti-rocket" />
-            計測データなし — アプリ起動後に「更新」で取得します
+            {{ i18n.ts._devDashboard.noStartupData }}
           </div>
         </section>
 
@@ -1055,7 +1102,7 @@ onUnmounted(() => {
                 HEARTBEAT
               </h2>
               <p :class="$style.viewDesc">
-                global daemon の観測面 (#411)。連続 3 回失敗で自動 disable する silent fail 防止機構つき
+                {{ i18n.ts._devDashboard.heartbeatDesc }}
               </p>
             </div>
           </header>
@@ -1068,11 +1115,11 @@ onUnmounted(() => {
                     heartbeat.mounted && heartbeat?.config?.enabled && $style.statusOk,
                   ]"
                 >{{ heartbeat.mounted ? (heartbeat?.config?.enabled ? 'ON' : 'OFF') : '—' }}</span>
-                <span :class="$style.statLabel">daemon{{ heartbeat.running ? ' (tick 実行中)' : '' }}</span>
+                <span :class="$style.statLabel">{{ heartbeat.running ? i18n.ts._devDashboard.daemonTickRunning : 'daemon' }}</span>
               </div>
               <div :class="$style.statCard">
                 <span :class="$style.statValue">{{ relativeTime(heartbeat.lastTickAt) }}</span>
-                <span :class="$style.statLabel">最終 tick{{ heartbeat.lastTickSource ? ` (${heartbeat.lastTickSource})` : '' }}</span>
+                <span :class="$style.statLabel">{{ heartbeat.lastTickSource ? i18n.tsx._devDashboard.lastTickWithSource({ source: heartbeat.lastTickSource }) : i18n.ts._devDashboard.lastTick }}</span>
               </div>
               <div :class="$style.statCard">
                 <span
@@ -1081,24 +1128,24 @@ onUnmounted(() => {
                     heartbeat.consecutiveFailures > 0 && $style.statusWarn,
                   ]"
                 >{{ heartbeat.consecutiveFailures }}</span>
-                <span :class="$style.statLabel">連続失敗</span>
+                <span :class="$style.statLabel">{{ i18n.ts._devDashboard.consecutiveFailures }}</span>
               </div>
               <div :class="$style.statCard">
                 <span :class="$style.statValue">{{ heartbeat.dailyCount }}<small>/{{ heartbeat?.config?.dailyMaxAiRuns }}</small></span>
-                <span :class="$style.statLabel">本日の AI 起動</span>
+                <span :class="$style.statLabel">{{ i18n.ts._devDashboard.aiRunsToday }}</span>
               </div>
             </div>
             <div :class="$style.card">
-              <p :class="$style.cardTitle">設定と直近の結末</p>
+              <p :class="$style.cardTitle">{{ i18n.ts._devDashboard.configAndLastOutcome }}</p>
               <div :class="$style.tableWrap">
                 <table :class="$style.table">
                   <tbody>
                     <tr>
                       <td>interval / target</td>
-                      <td :class="$style.mono">{{ heartbeat?.config?.intervalMinutes }} 分 / {{ heartbeat?.config?.target }}</td>
+                      <td :class="$style.mono">{{ i18n.tsx._devDashboard.intervalAndTarget({ minutes: heartbeat?.config?.intervalMinutes ?? '', target: heartbeat?.config?.target ?? '' }) }}</td>
                     </tr>
                     <tr>
-                      <td>直近の結末</td>
+                      <td>{{ i18n.ts._devDashboard.lastOutcome }}</td>
                       <td :class="$style.mono">{{ heartbeat.lastOutcome ?? '—' }}</td>
                     </tr>
                   </tbody>
@@ -1108,7 +1155,7 @@ onUnmounted(() => {
           </template>
           <div v-else :class="$style.emptyBox">
             <i class="ti ti-heartbeat" />
-            状態未取得 — アプリ接続後に自動で埋まります
+            {{ i18n.ts._devDashboard.noHeartbeatState }}
           </div>
         </section>
 
@@ -1116,15 +1163,15 @@ onUnmounted(() => {
           <header :class="$style.viewHead">
             <div>
               <h2 :class="$style.viewTitle">
-                <i class="ti ti-database" /> キャッシュ観測
+                <i class="ti ti-database" /> {{ i18n.ts._devDashboard.caches }}
               </h2>
               <p :class="$style.viewDesc">
-                上限つきキャッシュの実測 (#987)。「必ず上限」の不変条件が守られているかをここで確かめる
+                {{ i18n.ts._devDashboard.cachesDesc }}
               </p>
             </div>
             <div :class="$style.viewActions">
               <button type="button" :class="$style.btn" @click="fetchCaches">
-                <i class="ti ti-refresh" /> 更新
+                <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
               </button>
             </div>
           </header>
@@ -1153,7 +1200,7 @@ onUnmounted(() => {
           </div>
           <div v-else :class="$style.emptyBox">
             <i class="ti ti-database" />
-            登録済みキャッシュなし — 名前付きキャッシュが生成されると現れます
+            {{ i18n.ts._devDashboard.noCaches }}
           </div>
         </section>
 
@@ -1161,15 +1208,15 @@ onUnmounted(() => {
           <header :class="$style.viewHead">
             <div>
               <h2 :class="$style.viewTitle">
-                <i class="ti ti-arrows-left-right" /> Query Bridge トレース
+                <i class="ti ti-arrows-left-right" /> {{ i18n.ts._devDashboard.qbTrace }}
               </h2>
               <p :class="$style.viewDesc">
-                HTTP → WebView の query 往復と所要時間 (#897 の IPC 可視化)。エラー応答は赤、遅い往復は色付き
+                {{ i18n.ts._devDashboard.qbTraceDesc }}
               </p>
             </div>
             <div :class="$style.viewActions">
               <button type="button" :class="$style.btn" @click="fetchQbTrace">
-                <i class="ti ti-refresh" /> 更新
+                <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
               </button>
             </div>
           </header>
@@ -1181,7 +1228,7 @@ onUnmounted(() => {
                 </thead>
                 <tbody>
                   <tr v-for="(t, i) in qbTrace" :key="`${t.at}-${i}`">
-                    <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString('ja-JP', { hour12: false }) }}</td>
+                    <td :class="$style.mono">{{ new Date(t.at).toLocaleTimeString(i18n.lang, { hour12: false }) }}</td>
                     <td :class="[$style.mono, t.error && $style.logError]">{{ t.type }}</td>
                     <td
                       :class="[
@@ -1196,7 +1243,7 @@ onUnmounted(() => {
           </div>
           <div v-else :class="$style.emptyBox">
             <i class="ti ti-arrows-left-right" />
-            まだ記録なし — external API 経由の query が走ると溜まります
+            {{ i18n.ts._devDashboard.noQbTrace }}
           </div>
         </section>
 
@@ -1204,21 +1251,21 @@ onUnmounted(() => {
           <header :class="$style.viewHead">
             <div>
               <h2 :class="$style.viewTitle">
-                <i class="ti ti-search" /> Inspector 照合
+                <i class="ti ti-search" /> {{ i18n.ts._devDashboard.inspector }}
               </h2>
               <p :class="$style.viewDesc">
-                アダプタ層 (Misskey WS raw) と SSE (Rust イベントバス) の種別別カウントを突き合わせ、どの層までイベントが届いているかを切り分ける
+                {{ i18n.ts._devDashboard.inspectorDesc }}
               </p>
             </div>
             <div :class="$style.viewActions">
               <button type="button" :class="$style.btn" @click="fetchInspector">
-                <i class="ti ti-refresh" /> 更新
+                <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
               </button>
             </div>
           </header>
           <div :class="$style.inspectorCompare">
             <div :class="$style.card">
-              <p :class="$style.cardTitle">アダプタ層 (WS raw){{ inspector?.total ? ` — ${inspector.total} 件` : '' }}</p>
+              <p :class="$style.cardTitle">{{ inspector?.total ? i18n.tsx._devDashboard.adapterLayerCount_plural({ count: inspector.total }) : i18n.ts._devDashboard.adapterLayer }}</p>
               <div v-if="inspector?.total" :class="$style.tableWrap">
                 <table :class="$style.table">
                   <tbody>
@@ -1231,11 +1278,11 @@ onUnmounted(() => {
               </div>
               <div v-else :class="$style.emptyBox">
                 <i class="ti ti-plug" />
-                バッファ空 — Stream Inspector カラムを開くと流入します
+                {{ i18n.ts._devDashboard.bufferEmpty }}
               </div>
             </div>
             <div :class="$style.card">
-              <p :class="$style.cardTitle">SSE (イベントバス) — {{ sseCount }} 件</p>
+              <p :class="$style.cardTitle">{{ i18n.tsx._devDashboard.sseEventBusCount_plural({ count: sseCount }) }}</p>
               <div v-if="sseTopTypes.length" :class="$style.tableWrap">
                 <table :class="$style.table">
                   <tbody>
@@ -1248,7 +1295,7 @@ onUnmounted(() => {
               </div>
               <div v-else :class="$style.emptyBox">
                 <i class="ti ti-broadcast" />
-                受信なし
+                {{ i18n.ts._devDashboard.nothingReceived }}
               </div>
             </div>
           </div>
@@ -1258,15 +1305,15 @@ onUnmounted(() => {
           <header :class="$style.viewHead">
             <div>
               <h2 :class="$style.viewTitle">
-                <i class="ti ti-broadcast" /> SSE イベント
+                <i class="ti ti-broadcast" /> {{ i18n.ts._devDashboard.sseEvents }}
                 <span :class="[$style.sseBadge, sseState === 'open' && $style.sseOpen]">{{ sseState }}</span>
               </h2>
               <p :class="$style.viewDesc">
-                /api/events — Rust イベントバスのライブストリーム · {{ sseCount }} events · {{ sseRatePerMin }}/min
+                {{ i18n.tsx._devDashboard.sseDesc({ count: sseCount, rate: sseRatePerMin }) }}
               </p>
             </div>
             <div :class="$style.viewActions">
-              <span :class="$style.spark" title="直近 60 秒の流量">
+              <span :class="$style.spark" :title="i18n.ts._devDashboard.last60sRate">
                 <span
                   v-for="(h, i) in sparkBars"
                   :key="i"
@@ -1280,17 +1327,17 @@ onUnmounted(() => {
           <input
             v-model="sseFilter"
             :class="$style.filterInput"
-            placeholder="type prefix フィルタ (例: note,notification,main-)"
+            :placeholder="i18n.ts._devDashboard.sseFilterPlaceholder"
             @keydown.enter="connectSse"
           />
-          <button type="button" :class="$style.btn" @click="connectSse">適用 / 再接続</button>
-          <button type="button" :class="$style.btn" @click="stopSse">停止</button>
-          <button type="button" :class="$style.btn" @click="clearSse">クリア</button>
+          <button type="button" :class="$style.btn" @click="connectSse">{{ i18n.ts._devDashboard.applyReconnect }}</button>
+          <button type="button" :class="$style.btn" @click="stopSse">{{ i18n.ts._devDashboard.stop }}</button>
+          <button type="button" :class="$style.btn" @click="clearSse">{{ i18n.ts._common.clear }}</button>
           <button
             type="button"
             :class="$style.btn"
             :disabled="!sseRows.length"
-            title="バッファを JSON Lines でダウンロード"
+            :title="i18n.ts._devDashboard.downloadJsonl"
             @click="exportSse"
           >
             <i class="ti ti-download" /> JSONL
@@ -1304,7 +1351,7 @@ onUnmounted(() => {
             type="button"
             :class="$style.typeChip"
             :style="{ color: typeColor(t) }"
-            title="クリックでこの種別に絞る"
+            :title="i18n.ts._devDashboard.filterByType"
             @click="filterByType(t)"
           >
             {{ t }} ×{{ n }}
@@ -1336,7 +1383,7 @@ onUnmounted(() => {
           </div>
           <div v-if="!sseRows.length" :class="$style.emptyBox">
             <i class="ti ti-broadcast" />
-            イベント待機中 — デッキにノートや通知が流れると表示されます
+            {{ i18n.ts._devDashboard.waitingForEvents }}
           </div>
         </div>
         </div>
@@ -1349,7 +1396,7 @@ onUnmounted(() => {
                 <i class="ti ti-bolt" /> Capabilities
               </h2>
               <p :class="$style.viewDesc">
-                external principal として dispatcher を通す手動実行盤 — 権限ゲート (#712) の deny / 確認ダイアログを目視テストできる · {{ capabilities.length }} 件
+                {{ i18n.tsx._devDashboard.capsDesc_plural({ count: capabilities.length }) }}
               </p>
             </div>
           </header>
@@ -1360,7 +1407,7 @@ onUnmounted(() => {
               :class="$style.capSelect"
               @change="onSelectCap"
             >
-              <option value="" disabled>capability を選択…</option>
+              <option value="" disabled>{{ i18n.ts._devDashboard.selectCapability }}</option>
               <optgroup
                 v-for="[cat, caps] in capCategories"
                 :key="cat"
@@ -1384,10 +1431,10 @@ onUnmounted(() => {
                 <span
                   v-if="selectedCap.requiresConfirmation"
                   :class="$style.confirmChip"
-                >確認ダイアログあり (アプリ側に表示)</span>
+                >{{ i18n.ts._devDashboard.requiresConfirmation }}</span>
               </p>
               <details v-if="Object.keys(selectedCap.params).length">
-                <summary :class="$style.summary">params スキーマ</summary>
+                <summary :class="$style.summary">{{ i18n.ts._devDashboard.paramsSchema }}</summary>
                 <CodeEditor
                   :model-value="JSON.stringify(selectedCap.params, null, 2)"
                   :language="lang"
@@ -1398,7 +1445,7 @@ onUnmounted(() => {
             </template>
           </div>
           <div v-if="selectedCap" :class="$style.card">
-            <p :class="$style.cardTitle">パラメータと実行</p>
+            <p :class="$style.cardTitle">{{ i18n.ts._devDashboard.paramsAndRun }}</p>
             <CodeEditor v-model="capParams" :language="lang" auto-height />
             <div :class="$style.sseControls">
               <button
@@ -1407,7 +1454,7 @@ onUnmounted(() => {
                 :disabled="capRunning"
                 @click="executeCap"
               >
-                <i class="ti ti-player-play" /> {{ capRunning ? '実行中…' : '実行' }}
+                <i class="ti ti-player-play" /> {{ capRunning ? i18n.ts._devDashboard.running : i18n.ts._common.run }}
               </button>
               <span
                 v-if="capStatus !== null"
@@ -1432,14 +1479,14 @@ onUnmounted(() => {
             />
           </div>
           <div v-if="capHistory.length" :class="$style.card">
-            <p :class="$style.cardTitle">実行履歴</p>
+            <p :class="$style.cardTitle">{{ i18n.ts._devDashboard.runHistory }}</p>
             <div :class="$style.capHistory">
               <button
                 v-for="h in capHistory"
                 :key="h.seq"
                 type="button"
                 :class="$style.capHistoryRow"
-                title="クリックで結果を呼び戻す"
+                :title="i18n.ts._devDashboard.restoreResult"
                 @click="restoreCapHistory(h)"
               >
                 <span :class="$style.sseTime">{{ h.time }}</span>
@@ -1463,15 +1510,15 @@ onUnmounted(() => {
           <header :class="$style.viewHead">
             <div>
               <h2 :class="$style.viewTitle">
-                <i class="ti ti-shield-lock" /> 実効権限
+                <i class="ti ti-shield-lock" /> {{ i18n.ts._devDashboard.effectivePermissions }}
               </h2>
               <p :class="$style.viewDesc">
-                principal 別の granted マトリクス (#712)。{{ selectedCap ? `選択中の capability (${selectedCap.id}) の要求キー行をハイライト` : 'Capabilities で選択すると要求キー行がハイライトされる' }}
+                {{ selectedCap ? i18n.tsx._devDashboard.permsDescSelected({ id: selectedCap.id }) : i18n.ts._devDashboard.permsDesc }}
               </p>
             </div>
             <div :class="$style.viewActions">
               <button type="button" :class="$style.btn" @click="fetchPerms">
-                <i class="ti ti-refresh" /> 更新
+                <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
               </button>
             </div>
           </header>
@@ -1507,11 +1554,11 @@ onUnmounted(() => {
           <header :class="$style.viewHead">
             <div>
               <h2 :class="$style.viewTitle">
-                <i class="ti ti-terminal-2" /> 統合タイムライン
+                <i class="ti ti-terminal-2" /> {{ i18n.ts._devDashboard.unifiedTimeline }}
                 <span :class="[$style.sseBadge, logState === 'open' && $style.sseOpen]">rust: {{ logState }}</span>
               </h2>
               <p :class="$style.viewDesc">
-                Rust ログ + SSE イベント + フロントログを単一時系列にマージ — どの層でイベントが消えたかを 1 画面で追う
+                {{ i18n.ts._devDashboard.unifiedTimelineDesc }}
               </p>
             </div>
           </header>
@@ -1519,23 +1566,23 @@ onUnmounted(() => {
           <input
             v-model="logFilter"
             :class="$style.filterInput"
-            placeholder="絞り込み (部分一致)"
+            :placeholder="i18n.ts._devDashboard.logFilterPlaceholder"
           />
           <button
             type="button"
             :class="[$style.btn, logWarnOnly && $style.btnActive]"
-            title="WARN 以上のみ表示 (SSE イベントも隠れる)"
+            :title="i18n.ts._devDashboard.warnOnly"
             @click="logWarnOnly = !logWarnOnly"
           >
             WARN+
           </button>
-          <button type="button" :class="$style.btn" @click="connectLogs">再接続</button>
-          <button type="button" :class="$style.btn" @click="stopLogs">停止</button>
-          <button type="button" :class="$style.btn" @click="clearLogs">クリア</button>
+          <button type="button" :class="$style.btn" @click="connectLogs">{{ i18n.ts._devDashboard.reconnect }}</button>
+          <button type="button" :class="$style.btn" @click="stopLogs">{{ i18n.ts._devDashboard.stop }}</button>
+          <button type="button" :class="$style.btn" @click="clearLogs">{{ i18n.ts._common.clear }}</button>
         </div>
         <div :class="$style.chipRow">
           <label
-            v-for="(label, key) in { rust: 'Rust ログ', sse: 'SSE', front: 'フロント' }"
+            v-for="(label, key) in { rust: i18n.ts._devDashboard.rustLog, sse: 'SSE', front: i18n.ts._devDashboard.front }"
             :key="key"
             :class="$style.sourceToggle"
           >
@@ -1566,7 +1613,7 @@ onUnmounted(() => {
               @click="toggleUnifiedRow(row)"
             >
               <span :class="[$style.sourceBadge, $style.sourceSse]">{{ row.source }}</span>
-              <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span>
+              <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString(i18n.lang, { hour12: false }) }}</span>
               <span :class="$style.sseType" :style="{ color: typeColor(row.label) }">{{ row.label }}</span>
               <span :class="$style.unifiedSseText">{{ row.text }}</span>
             </button>
@@ -1576,7 +1623,7 @@ onUnmounted(() => {
                   $style.sourceBadge,
                   row.source === 'front' ? $style.sourceFront : $style.sourceRust,
                 ]"
-              >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString('ja-JP', { hour12: false }) }}</span> <span :class="$style.sseType">{{ row.label }}</span> {{ row.text }}
+              >{{ row.source }}</span> <span :class="$style.sseTime">{{ new Date(row.ts).toLocaleTimeString(i18n.lang, { hour12: false }) }}</span> <span :class="$style.sseType">{{ row.label }}</span> {{ row.text }}
             </template>
             <CodeEditor
               v-if="row.source === 'sse' && expandedUnified.has(row.key)"
@@ -1587,7 +1634,7 @@ onUnmounted(() => {
             />
           </div>
           <p v-if="!unifiedRows.length" :class="$style.sseEmpty">
-            待機中 — Rust ログ / SSE イベント / フロントログがここに時系列で流れます
+            {{ i18n.ts._devDashboard.waitingForLogs }}
           </p>
         </div>
         </div>

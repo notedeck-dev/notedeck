@@ -1,4 +1,6 @@
 import { reactive, shallowReactive } from 'vue'
+import { i18n } from '@/i18n'
+import { labelTable } from '@/i18n/labelTable'
 import type { ExposureTag } from '@/settings/exposure'
 import type { BuiltinColumnType, ColumnType, DeckColumn } from '@/stores/deck'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -102,7 +104,7 @@ async function fetchClipsWithFavorites(
   const ownItems: SelectableItem[] = own.map((c) => ({
     id: c.id,
     name: c.name,
-    group: 'マイクリップ',
+    group: i18n.ts._columnPicker.myClips,
   }))
   let favItems: SelectableItem[] = []
   try {
@@ -113,7 +115,7 @@ async function fetchClipsWithFavorites(
       .map((c) => ({
         id: c.id,
         name: c.name,
-        group: 'お気に入り',
+        group: i18n.ts._columnPicker.favorites,
         description: `by @${c.user.username}${c.user.host ? `@${c.user.host}` : ''}`,
       }))
   } catch {
@@ -141,7 +143,7 @@ async function fetchListsWithFavorites(
   const ownItems: SelectableItem[] = ownList.map((l) => ({
     id: l.id,
     name: l.name,
-    group: 'マイリスト',
+    group: i18n.ts._columnPicker.myLists,
   }))
 
   const favMap = settingsStore.get('lists.favoritedIdsByAccount') ?? {}
@@ -166,7 +168,7 @@ async function fetchListsWithFavorites(
       favItems.push({
         id: r.value.id,
         name: r.value.name,
-        group: 'お気に入り',
+        group: i18n.ts._columnPicker.favorites,
       })
     }
   }
@@ -185,7 +187,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
   // アカウント系
   // ============================================================
   timeline: {
-    label: 'タイムライン',
+    get label() {
+      return i18n.ts._columns.timeline
+    },
     icon: 'home',
     group: 'account',
     // 全アカウントはホーム / グローバルのみ (#1059)。同一ノートは束ねる (#1058)
@@ -194,7 +198,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     defaultProps: { tl: 'home', name: null },
   },
   notifications: {
-    label: '通知',
+    get label() {
+      return i18n.ts._columns.notifications
+    },
     icon: 'bell',
     group: 'account',
     crossAccount: true,
@@ -203,18 +209,24 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     guestAllowed: true,
   },
   drive: {
-    label: 'ドライブ',
+    get label() {
+      return i18n.ts._columns.drive
+    },
     icon: 'cloud',
     group: 'account',
   },
   followRequests: {
-    label: 'フォローリクエスト',
+    get label() {
+      return i18n.ts._columns.followRequests
+    },
     icon: 'user-plus',
     group: 'account',
     crossAccount: true,
   },
   list: {
-    label: 'リスト',
+    get label() {
+      return i18n.ts._columns.list
+    },
     icon: 'list',
     group: 'account',
     selectable: {
@@ -224,7 +236,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
   },
   antenna: {
-    label: 'アンテナ',
+    get label() {
+      return i18n.ts._columns.antenna
+    },
     icon: 'antenna-bars-5',
     group: 'account',
     selectable: {
@@ -243,7 +257,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
   },
   favorites: {
-    label: 'お気に入り',
+    get label() {
+      return i18n.ts._columns.favorites
+    },
     icon: 'star',
     group: 'account',
     // ログアウト中でも追加可能。ログアウト中は SQLite キャッシュ
@@ -255,7 +271,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     crossAccount: true,
   },
   clip: {
-    label: 'クリップ',
+    get label() {
+      return i18n.ts._columns.clip
+    },
     icon: 'paperclip',
     group: 'account',
     selectable: {
@@ -265,7 +283,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
   },
   mentions: {
-    label: 'メンション',
+    get label() {
+      return i18n.ts._columns.mentions
+    },
     icon: 'at',
     group: 'account',
     crossAccount: true,
@@ -274,7 +294,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     guestAllowed: true,
   },
   specified: {
-    label: 'ダイレクト',
+    get label() {
+      return i18n.ts._columns.specified
+    },
     icon: 'mail',
     group: 'account',
     crossAccount: true,
@@ -283,7 +305,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     guestAllowed: true,
   },
   chat: {
-    label: 'チャット',
+    get label() {
+      return i18n.ts._columns.chat
+    },
     icon: 'messages',
     group: 'account',
     crossAccount: true,
@@ -292,7 +316,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     guestAllowed: true,
   },
   achievements: {
-    label: '実績',
+    get label() {
+      return i18n.ts._columns.achievements
+    },
     icon: 'medal',
     group: 'account',
     // NoteDeck 独自実績 (#1029) はアカウントに紐づかないので、ログイン前でも
@@ -304,37 +330,49 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
   // サーバー系
   // ============================================================
   serverInfo: {
-    label: 'サーバー情報',
+    get label() {
+      return i18n.ts._columns.serverInfo
+    },
     icon: 'server',
     group: 'server',
     guestAllowed: true,
   },
   aboutMisskey: {
-    label: 'Misskeyについて',
+    get label() {
+      return i18n.ts._columns.aboutMisskey
+    },
     icon: 'info-circle',
     group: 'server',
     guestAllowed: true,
   },
   emoji: {
-    label: 'カスタム絵文字',
+    get label() {
+      return i18n.ts._columns.emoji
+    },
     icon: 'mood-smile',
     group: 'server',
     guestAllowed: true,
   },
   ads: {
-    label: '広告',
+    get label() {
+      return i18n.ts._columns.ads
+    },
     icon: 'ad-2',
     group: 'server',
     guestAllowed: true,
   },
   explore: {
-    label: 'みつける',
+    get label() {
+      return i18n.ts._columns.explore
+    },
     icon: 'compass',
     group: 'server',
     guestAllowed: true,
   },
   announcements: {
-    label: 'お知らせ',
+    get label() {
+      return i18n.ts._columns.announcements
+    },
     icon: 'speakerphone',
     group: 'server',
     guestAllowed: true,
@@ -342,7 +380,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
   search: {
     // Misskey サーバー側の検索 (各アカウントの notes/search)。キャッシュから引く
     // 「クライアント検索」(#945 / #958) とは別の面で並立する (#1058)
-    label: 'サーバー検索',
+    get label() {
+      return i18n.ts._columns.search
+    },
     icon: 'search',
     group: 'server',
     guestAllowed: true,
@@ -351,7 +391,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
   clientSearch: {
     // 手元のキャッシュ (SQLite) をサーバー・アカウント横断で引く (#945 / #958)。
     // サーバー検索と並立する別の面。アカウントに紐づかず、ログアウト中でも動く
-    label: 'クライアント検索',
+    get label() {
+      return i18n.ts._columns.clientSearch
+    },
     icon: 'archive',
     group: 'tool',
     guestAllowed: true,
@@ -359,14 +401,18 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     defaultProps: { accountId: null, query: '' },
   },
   lookup: {
-    label: '照会',
+    get label() {
+      return i18n.ts._columns.lookup
+    },
     icon: 'world-search',
     group: 'server',
     guestAllowed: true,
     crossAccount: true,
   },
   channel: {
-    label: 'チャンネル',
+    get label() {
+      return i18n.ts._columns.channel
+    },
     icon: 'device-tv',
     group: 'server',
     guestAllowed: true,
@@ -377,7 +423,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
   },
   role: {
-    label: 'ロール',
+    get label() {
+      return i18n.ts._columns.role
+    },
     icon: 'badge',
     group: 'server',
     selectable: {
@@ -394,27 +442,35 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
   },
   gallery: {
-    label: 'ギャラリー',
+    get label() {
+      return i18n.ts._columns.gallery
+    },
     icon: 'icons',
     group: 'server',
     guestAllowed: true,
   },
   play: {
-    label: 'Misskey Play',
+    get label() {
+      return i18n.ts._columns.play
+    },
     icon: 'player-play',
     group: 'server',
     guestAllowed: true,
     customAddFlow: true,
   },
   page: {
-    label: 'ページ',
+    get label() {
+      return i18n.ts._columns.page
+    },
     icon: 'note',
     group: 'server',
     guestAllowed: true,
     customAddFlow: true,
   },
   user: {
-    label: 'ユーザー',
+    get label() {
+      return i18n.ts._columns.user
+    },
     icon: 'user',
     group: 'server',
     guestAllowed: true,
@@ -428,13 +484,17 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
   },
   charts: {
-    label: 'チャート',
+    get label() {
+      return i18n.ts._columns.charts
+    },
     icon: 'chart-line',
     group: 'server',
     guestAllowed: true,
   },
   federation: {
-    label: '連合',
+    get label() {
+      return i18n.ts._columns.federation
+    },
     icon: 'planet',
     group: 'server',
     guestAllowed: true,
@@ -444,7 +504,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
   // ツール系
   // ============================================================
   themeManager: {
-    label: 'テーマ',
+    get label() {
+      return i18n.ts._columns.themeManager
+    },
     icon: 'palette',
     group: 'tool',
     guestAllowed: true,
@@ -454,7 +516,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     crossAccount: true,
   },
   pluginManager: {
-    label: 'プラグイン',
+    get label() {
+      return i18n.ts._columns.pluginManager
+    },
     icon: 'puzzle',
     group: 'tool',
     guestAllowed: true,
@@ -464,7 +528,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     crossAccount: true,
   },
   widget: {
-    label: 'ウィジェット',
+    get label() {
+      return i18n.ts._columns.widget
+    },
     icon: 'layout-dashboard',
     group: 'tool',
     guestAllowed: true,
@@ -477,7 +543,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     defaultProps: { widgets: [] },
   },
   queryManager: {
-    label: 'クエリ',
+    get label() {
+      return i18n.ts._columns.queryManager
+    },
     icon: 'filter',
     group: 'tool',
     guestAllowed: true,
@@ -486,7 +554,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     crossAccount: true,
   },
   memos: {
-    label: 'メモ',
+    get label() {
+      return i18n.ts._columns.memos
+    },
     icon: 'notes',
     group: 'tool',
     guestAllowed: true,
@@ -497,14 +567,18 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
   },
   // 「もっと」はこの並び順で出る。AI はスキル / スクラッチパッドの前
   ai: {
-    label: 'AI',
+    get label() {
+      return i18n.ts._columns.ai
+    },
     icon: 'brain',
     group: 'tool',
     accountIndependent: true,
     defaultProps: { accountId: null },
   },
   skill: {
-    label: 'スキル',
+    get label() {
+      return i18n.ts._columns.skill
+    },
     icon: 'sparkles',
     group: 'tool',
     guestAllowed: true,
@@ -512,7 +586,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     defaultProps: { accountId: null },
   },
   aiscript: {
-    label: 'スクラッチパッド',
+    get label() {
+      return i18n.ts._columns.aiscript
+    },
     icon: 'terminal-2',
     group: 'tool',
     exposure: 'developer',
@@ -522,13 +598,17 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     defaultProps: { aiscriptCode: '<: "Hello, AiScript!"' },
   },
   apiConsole: {
-    label: 'APIコンソール',
+    get label() {
+      return i18n.ts._columns.apiConsole
+    },
     icon: 'api',
     group: 'tool',
     exposure: 'developer',
   },
   apiDocs: {
-    label: 'APIドキュメント',
+    get label() {
+      return i18n.ts._columns.apiDocs
+    },
     icon: 'file-description',
     group: 'tool',
     exposure: 'developer',
@@ -539,7 +619,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     defaultProps: { accountId: null },
   },
   streamInspector: {
-    label: 'ストリーム',
+    get label() {
+      return i18n.ts._columns.streamInspector
+    },
     icon: 'activity-heartbeat',
     group: 'tool',
     exposure: 'developer',
@@ -547,7 +629,9 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     wide: true,
   },
   taskRunner: {
-    label: 'タスク',
+    get label() {
+      return i18n.ts._columns.taskRunner
+    },
     icon: 'player-play',
     group: 'tool',
     exposure: 'developer',
@@ -585,7 +669,11 @@ const BUILTIN_TYPES: ReadonlySet<string> = new Set(
 /** Registry 宣言順の全カラムタイプ */
 export const ALL_COLUMN_TYPES: ColumnType[] = reactive([])
 
-export const COLUMN_LABELS: Record<string, string> = reactive({})
+/** 種別 → 表示名。組込の表示名は辞書から引くので、参照した時点で引く (#135) */
+export const COLUMN_LABELS: Record<string, string> = labelTable(
+  () => Object.keys(COLUMN_REGISTRY),
+  (type) => COLUMN_REGISTRY[type]?.label,
+)
 
 export const COLUMN_ICONS: Record<string, string> = reactive({})
 
@@ -611,9 +699,30 @@ export interface ColumnGroupInfo {
 
 /** AddColumnDialog / コマンドパレット双方が使う UI グループ定義 */
 export const COLUMN_TYPE_GROUPS: ColumnGroupInfo[] = reactive([
-  { group: 'account', label: 'アカウント', icon: 'user', types: [] },
-  { group: 'server', label: 'サーバー', icon: 'server', types: [] },
-  { group: 'tool', label: 'ツール', icon: 'tool', types: [] },
+  {
+    group: 'account',
+    get label() {
+      return i18n.ts._common.account
+    },
+    icon: 'user',
+    types: [],
+  },
+  {
+    group: 'server',
+    get label() {
+      return i18n.ts._common.server
+    },
+    icon: 'server',
+    types: [],
+  },
+  {
+    group: 'tool',
+    get label() {
+      return i18n.ts._columnGroups.tool
+    },
+    icon: 'tool',
+    types: [],
+  },
 ])
 
 const FLAG_SETS: ReadonlyArray<[keyof ColumnSpec, Set<ColumnType>]> = [
@@ -630,7 +739,6 @@ function rebuildDerived(): void {
   ALL_COLUMN_TYPES.length = 0
   ALL_COLUMN_TYPES.push(...types)
 
-  for (const key of Object.keys(COLUMN_LABELS)) delete COLUMN_LABELS[key]
   for (const key of Object.keys(COLUMN_ICONS)) delete COLUMN_ICONS[key]
   for (const [, set] of FLAG_SETS) set.clear()
   PIP_ENABLED_TYPES.clear()
@@ -639,7 +747,6 @@ function rebuildDerived(): void {
   for (const type of types) {
     const spec = COLUMN_REGISTRY[type]
     if (!spec) continue
-    COLUMN_LABELS[type] = spec.label
     COLUMN_ICONS[type] = spec.icon
     for (const [flag, set] of FLAG_SETS) {
       if (spec[flag]) set.add(type)
@@ -709,7 +816,9 @@ export function buildColumnDefaults(
   // 描画する)。ここで throw すると、プラグイン起動前のデッキ復元が壊れる
   const spec = COLUMN_REGISTRY[type]
   return {
-    name: spec?.label ?? type,
+    // 組込種別は表示名を辞書から引くので保存しない (保存すると作った時点の言語の
+    // 表示名が残る, #135)。プラグインの種別は外されたあとの tombstone のために残す
+    name: BUILTIN_TYPES.has(type) ? null : (spec?.label ?? type),
     width: spec?.defaultWidth ?? DEFAULT_COLUMN_WIDTH,
     accountId,
     active: true,

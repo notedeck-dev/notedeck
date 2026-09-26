@@ -5,6 +5,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePaginatedList } from '@/composables/usePaginatedList'
+import { i18n } from '@/i18n'
 
 // プロフィールの notes 面 (#707): 内タブ (ハイライト/ノート/全て/ファイル付き)
 // とページングを所有する。MkNote のアクションは親へ forward する — post form・
@@ -33,10 +34,34 @@ const emit = defineEmits<{
 
 type ProfileTab = 'highlight' | 'notes' | 'all' | 'files'
 const PROFILE_TABS: { key: ProfileTab; label: string; icon: string }[] = [
-  { key: 'highlight', label: 'ハイライト', icon: 'ti ti-bolt' },
-  { key: 'notes', label: 'ノート', icon: 'ti ti-pencil' },
-  { key: 'all', label: '全て', icon: 'ti ti-notebook' },
-  { key: 'files', label: 'ファイル付き', icon: 'ti ti-photo' },
+  {
+    key: 'highlight',
+    get label() {
+      return i18n.ts._userProfileNotesList.tabHighlight
+    },
+    icon: 'ti ti-bolt',
+  },
+  {
+    key: 'notes',
+    get label() {
+      return i18n.ts._common.notes
+    },
+    icon: 'ti ti-pencil',
+  },
+  {
+    key: 'all',
+    get label() {
+      return i18n.ts._userProfileNotesList.tabAll
+    },
+    icon: 'ti ti-notebook',
+  },
+  {
+    key: 'files',
+    get label() {
+      return i18n.ts._userProfileNotesList.tabFiles
+    },
+    icon: 'ti ti-photo',
+  },
 ]
 const activeTab = ref<ProfileTab>('highlight')
 
@@ -176,7 +201,7 @@ defineExpose({ loadMore, removeNote, replaceNote, patchNote })
     </div>
 
     <div v-if="!isLoadingNotes && visibleNotes.length === 0" :class="$style.stateMessage">
-      ノートはありません
+      {{ i18n.ts._userProfileNotesList.empty }}
     </div>
   </div>
 </template>

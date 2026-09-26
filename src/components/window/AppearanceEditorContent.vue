@@ -8,7 +8,10 @@ import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import EmojiMuteSection from '@/components/window/EmojiMuteSection.vue'
 import PetSection from '@/components/window/PetSection.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useLocale } from '@/composables/useLocale'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
+import type { LocalePreference } from '@/services/localeSetting'
 import { isExposed } from '@/settings/exposure'
 import { CURRENT_SCHEMA_VERSION, parseSettings } from '@/settings/schema'
 import { useConfirm } from '@/stores/confirm'
@@ -88,6 +91,14 @@ function removeWallpaper() {
   deckStore.clearWallpaper()
 }
 
+// ── Visual tab: 表示言語 (#135) ──
+// 選べる言語が 1 つのうち (翻訳の公開前) は出さない。未公開の言語は開発者モードで出る
+const {
+  preference: localePreference,
+  choices: localeChoices,
+  setPreference: setLocalePreference,
+} = useLocale()
+
 // ── Visual tab: note view settings ──
 const nyaizeEnabled = computed(() => settingsStore.get('note.nyaize') !== false)
 
@@ -130,7 +141,7 @@ watch(jsonCode, (code) => {
     try {
       const parsed = JSON.parse(code)
       if (!parsed || typeof parsed !== 'object') {
-        error.value = 'トップレベルは JSON オブジェクト {} である必要があります'
+        error.value = i18n.ts._appearanceEditorContent.topLevelMustBeObject
         return
       }
       // Merge overrides with defaults and replace entire settings
@@ -145,7 +156,10 @@ watch(jsonCode, (code) => {
         saved.value = false
       }, 2000)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : '不正な JSON'
+      error.value =
+        e instanceof Error
+          ? e.message
+          : i18n.ts._appearanceEditorContent.invalidJson
     }
   }, 600)
 })
@@ -160,8 +174,8 @@ watch(tab, (t) => {
 // Status text
 const statusText = computed(() => {
   if (error.value) return error.value
-  if (saved.value) return '保存しました'
-  if (dirty.value) return '編集中...'
+  if (saved.value) return i18n.ts._common.saved
+  if (dirty.value) return i18n.ts._appearanceEditorContent.editing
   return ''
 })
 
@@ -177,15 +191,33 @@ const statusClass = computed(() => {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
+        { value: 'visual', icon: 'adjustments', label: i18n.ts._common.visual },
         ...(isExposed('developer')
-          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
           : []),
       ]"
     />
 
     <!-- Visual tab -->
     <div v-show="tab === 'visual'" :class="$style.visualPanel">
+      <!-- 表示言語 (#135) -->
+      <div v-if="localeChoices.length > 1" :class="$style.section">
+        <label :class="$style.languageRow">
+          <i class="ti ti-language" />
+          <span :class="$style.languageLabel">{{ i18n.ts._settings.language }}</span>
+          <select
+            :value="localePreference"
+            :class="$style.languageSelect"
+            @change="setLocalePreference(($event.target as HTMLSelectElement).value as LocalePreference)"
+          >
+            <option value="auto">{{ i18n.ts._settings.languageAuto }}</option>
+            <option v-for="lang in localeChoices" :key="lang.code" :value="lang.code">
+              {{ lang.published ? lang.name : i18n.tsx._settings.languageUnpublished({ name: lang.name }) }}
+            </option>
+          </select>
+        </label>
+      </div>
+
       <!-- Dark/Light toggle -->
       <div :class="$style.section">
         <DayNightToggle
@@ -208,19 +240,19 @@ const statusClass = computed(() => {
       <div :class="$style.section">
         <button v-if="deckStore.wallpaper == null" :class="$style.menuItem" @click="pickWallpaper">
           <i class="ti ti-photo" />
-          <span>壁紙を設定</span>
+          <span>{{ i18n.ts._appearanceEditorContent.setWallpaper }}</span>
         </button>
         <button v-else :class="$style.menuItem" @click="removeWallpaper">
           <i class="ti ti-photo-off" />
-          <span>壁紙を削除</span>
+          <span>{{ i18n.ts._appearanceEditorContent.removeWallpaper }}</span>
         </button>
       </div>
 
       <!-- Note view -->
       <div :class="$style.section">
         <AiSwitchRow
-          label="Catユーザーの語尾をにゃ化"
-          sub-label="本家 Web UI と同じ表示。コピー・検索は原文のまま"
+          :label="i18n.ts._appearanceEditorContent.nyaize"
+          :sub-label="i18n.ts._appearanceEditorContent.nyaizeDescription"
           icon="ti-cat"
           :on="nyaizeEnabled"
           @toggle="toggleNyaize"
@@ -245,7 +277,7 @@ const statusClass = computed(() => {
     <div v-show="tab === 'code'" :class="$style.codePanel">
       <div :class="$style.codeHint">
         <i class="ti ti-braces" />
-        デフォルト値からの差分のみ表示 — 変更は自動保存されます
+        {{ i18n.ts._appearanceEditorContent.codeHint }}
       </div>
 
       <CodeEditor
@@ -375,5 +407,25 @@ const statusClass = computed(() => {
 
 .statusSaved {
   color: var(--nd-accent);
+}
+
+.languageRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 4px;
+}
+
+.languageLabel {
+  flex: 1;
+}
+
+.languageSelect {
+  padding: 6px 8px;
+  border-radius: var(--nd-radius-sm);
+  border: 1px solid var(--nd-divider);
+  background: var(--nd-bg);
+  color: var(--nd-fg);
+  font-size: 0.85em;
 }
 </style>

@@ -6,6 +6,7 @@ import {
 import type { NormalizedNote } from '@/adapters/types'
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -61,7 +62,7 @@ const { rename, deleteEntity, config } = useEntityCrud(
 <template>
   <DeckNoteColumn
     :column="column"
-    title="アンテナ"
+    :title="i18n.ts._columns.antenna"
     icon="ti-antenna-bars-5"
     :web-ui-path="column.antennaId ? `/my/antennas/${column.antennaId}` : undefined"
     sound-enabled
@@ -71,11 +72,11 @@ const { rename, deleteEntity, config } = useEntityCrud(
     <template #menu-items="{ closeMenu }">
       <button class="_popupItem" @click="rename(closeMenu)">
         <i class="ti ti-edit" />
-        <span>名前を変更</span>
+        <span>{{ i18n.ts._common.rename }}</span>
       </button>
       <button class="_popupItem" style="color: var(--nd-love, #ff6b6b);" @click="deleteEntity(closeMenu)">
         <i class="ti ti-trash" style="opacity: 1;" />
-        <span>{{ config.label }}を削除</span>
+        <span>{{ i18n.tsx._common.deleteItem({ label: config.label }) }}</span>
       </button>
     </template>
   </DeckNoteColumn>

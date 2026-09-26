@@ -11,6 +11,7 @@ import { useCommandStore } from '@/commands/registry'
 import { useColumnHistory } from '@/composables/useColumnHistory'
 import { openDeckWindow } from '@/composables/useDeckWindow'
 import { openPipWindow } from '@/composables/usePipWindow'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
@@ -141,7 +142,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
 <template>
   <div :class="$style.titlebar" data-tauri-drag-region>
     <div :class="$style.titlebarLeft" data-tauri-drag-region>
-      <button :class="$style.titlebarBtn" title="メニュー" @click="menuRef?.toggleMenu()">
+      <button :class="$style.titlebarBtn" :title="i18n.ts._common.menu" @click="menuRef?.toggleMenu()">
         <i class="ti ti-menu-2" />
       </button>
     </div>
@@ -151,7 +152,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
         <button
           :class="[$style.navBtn, { [$style.navBtnDisabled]: !canGoBack }]"
           :disabled="!canGoBack"
-          title="戻る"
+          :title="i18n.ts._common.back"
           @click="goBack"
         >
           <i class="ti ti-arrow-left" />
@@ -159,14 +160,14 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
         <button
           :class="[$style.navBtn, { [$style.navBtnDisabled]: !canGoForward }]"
           :disabled="!canGoForward"
-          title="進む"
+          :title="i18n.ts._titleBar.forward"
           @click="goForward"
         >
           <i class="ti ti-arrow-right" />
         </button>
         <button
           :class="$style.navBtn"
-          title="リロード"
+          :title="i18n.ts._common.reload"
           @click="deckStore.refreshActiveColumn()"
         >
           <i class="ti ti-reload" />
@@ -186,40 +187,40 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
         <button
           v-if="isExposed('developer')"
           :class="[$style.titlebarBtn, $style.titlebarWindowBtn]"
-          title="開発者ツール"
+          :title="i18n.ts._commands.devtools"
           @click="commandStore.execute('devtools')"
         >
           <i class="ti ti-code" />
         </button>
         <button
           :class="[$style.titlebarBtn, $style.titlebarWindowBtn]"
-          title="新しいウィンドウ"
+          :title="i18n.ts._titleBar.newWindow"
           @click="openNewWindow"
         >
           <i class="ti ti-app-window" />
         </button>
         <button
           :class="[$style.titlebarBtn, $style.titlebarWindowBtn]"
-          title="ピクチャーインピクチャー"
+          :title="i18n.ts._titleBar.pip"
           @click="onPipClick"
         >
           <i class="ti ti-picture-in-picture" />
         </button>
         <button
           :class="[$style.titlebarBtn, $style.titlebarWindowBtn]"
-          :title="isCompact ? 'デスクトップサイズ' : 'モバイルサイズ'"
+          :title="isCompact ? i18n.ts._titleBar.desktopSize : i18n.ts._titleBar.mobileSize"
           @click="toggleMobileSize"
         >
           <i :class="isCompact ? 'ti ti-device-desktop' : 'ti ti-device-mobile'" />
         </button>
       </template>
       <template v-if="isDesktop">
-        <button :class="[$style.titlebarBtn, $style.titlebarWindowBtn]" title="最小化" @click="minimize">
+        <button :class="[$style.titlebarBtn, $style.titlebarWindowBtn]" :title="i18n.ts._titleBar.minimize" @click="minimize">
           <svg width="10" height="10" viewBox="0 0 10 10">
             <rect x="0" y="4.5" width="10" height="1" fill="currentColor" />
           </svg>
         </button>
-        <button :class="[$style.titlebarBtn, $style.titlebarWindowBtn]" title="最大化" @click="toggleMaximize">
+        <button :class="[$style.titlebarBtn, $style.titlebarWindowBtn]" :title="i18n.ts._titleBar.maximize" @click="toggleMaximize">
           <svg v-if="!isMaximized" width="10" height="10" viewBox="0 0 10 10">
             <rect x="0.5" y="0.5" width="9" height="9" rx="1" stroke="currentColor" stroke-width="1" fill="none" />
           </svg>
@@ -228,7 +229,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
             <rect x="0.5" y="2.5" width="7" height="7" rx="1" stroke="currentColor" stroke-width="1" fill="var(--nd-navBg, #1a1a2e)" />
           </svg>
         </button>
-        <button :class="[$style.titlebarBtn, $style.titlebarBtnClose]" title="閉じる" @click="close">
+        <button :class="[$style.titlebarBtn, $style.titlebarBtnClose]" :title="i18n.ts._common.close" @click="close">
           <svg width="10" height="10" viewBox="0 0 10 10">
             <path d="M1 1L9 9M9 1L1 9" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" />
           </svg>

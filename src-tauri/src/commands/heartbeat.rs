@@ -105,7 +105,7 @@ async fn run_tick(app: &tauri::AppHandle, source: &str) {
 fn clamp_interval(minutes: u32) -> Result<u32> {
     if !(MIN_INTERVAL_MINUTES..=MAX_INTERVAL_MINUTES).contains(&minutes) {
         return Err(NoteDeckError::InvalidInput(format!(
-            "interval_minutes out of range ({MIN_INTERVAL_MINUTES}〜{MAX_INTERVAL_MINUTES}): {minutes}"
+            "interval_minutes out of range ({MIN_INTERVAL_MINUTES}-{MAX_INTERVAL_MINUTES}): {minutes}"
         )));
     }
     Ok(minutes)

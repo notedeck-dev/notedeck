@@ -35,10 +35,10 @@ export interface WidgetMeta extends SidecarItemFile {
   iconUrl?: string
   /**
    * 実行アカウントの安定キー (`accountScopeKey`、#1018 / #1061)。全アカウントの
-   * カラムに置いたウィジットは、カラムからアカウントを決められないので
+   * カラムに置いたウィジェットは、カラムからアカウントを決められないので
    * インストール時に選んだものをここに持つ。同じ storeId でもキーが違えば
    * 別個体 (Mk:save 領域が個体単位なので本体を共有しない)。
-   * per-account カラムのウィジットは未設定 — カラムの accountId で動く。
+   * per-account カラムのウィジェットは未設定 — カラムの accountId で動く。
    */
   accountKey?: string
   /**
@@ -436,7 +436,7 @@ export const useWidgetsStore = defineStore('widgets', () => {
   }
 
   /**
-   * 実行アカウントを固定する (#1018)。全アカウントのカラムに置いたウィジットが
+   * 実行アカウントを固定する (#1018)。全アカウントのカラムに置いたウィジェットが
    * どのアカウントで動くかは、カラムからは決まらないのでここに持つ。
    */
   function setAccountKey(

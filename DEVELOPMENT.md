@@ -696,6 +696,40 @@ Vue 3.6 の Vapor モード（仮想DOMレス・コンパイル時DOM操作）�
 - `<Suspense>` / `<KeepAlive>`: 使用なし
 - `__VUE_OPTIONS_API__: false` 設定済み（vite.config.ts）
 
+### UI 文言と多言語化（[#135](https://github.com/notedeck-dev/notedeck/issues/135)）
+
+UI に出す文言は辞書に置き、コードに日本語を直書きしない。設計の正本は #135 の設計コメント。
+
+```vue
+<script setup lang="ts">
+import { i18n } from '@/i18n'
+</script>
+
+<template>
+  <span>{{ i18n.ts._settings.language }}</span>
+  <span>{{ i18n.tsx._settings.languageUnpublished({ name }) }}</span>
+</template>
+```
+
+- **正本は `locales/ja-JP.yml`**。キーを足したら `pnpm gen:i18n` で型 (`src/i18n/locale.generated.ts`) を再生成してコミットする。存在しないキーは型検査で落ちる
+- 補間は `{name}` で `i18n.tsx` から埋める。複数形はキー名を `_plural` で終え、値を CLDR カテゴリ (`other` 必須) で書く。数は `{count}`
+- 節 (名前空間) はコンポーネントごとに、ファイル名を lowerCamel にして `_` を付けたもの (`DeckAiColumn.vue` → `_deckAiColumn`)。複数の画面で同じ意味の語は `_common`、カラム名 / ウィンドウ名 / コマンド名と同じ文言は `_columns` / `_windows` / `_commands` を参照する
+- 数値の param はそのまま数で渡す。表示言語の書式で桁区切りされる (`toLocaleString()` を渡すと複数形の判定が効かない)
+- 文の途中にリンクやタグが入る文言は `<I18n :src="...">` に param 名の slot を渡す。辞書の文言を `v-html` / `MkMfm` に渡さない (param に他人の文字列が入ると表示を偽装できる)
+- **モジュールのトップレベルで辞書を読まない**。辞書は起動待ちの中で読むので、import 時に評価される定数からは読めない。定数は getter か辞書のキーで持つ
+- **文言は描画のたびに引く**。表示言語の切り替えはリロードせずに辞書を差し替え、辞書を読んだ描画や computed が描き直される。辞書の文言を一度だけ取り出して変数やオブジェクトに保存すると追従しないので、登録物の表示名などは getter で持つ
+- 語と表記 (英数字と和文の間の空白、半角括弧、長音、「〜に失敗しました」など) は `locales/GLOSSARY.md` に合わせる。表記は `tests/lint/i18nStyle.test.ts` が検査する。本家と揃えない語は理由をそこに書く
+- 訳は `locales/<lang>.yml` に書き、訳し終えたら `pnpm gen:i18n --stamp <lang>` で「どの原文から訳したか」を記録する。原文が後から変わると lint が訳の置き去りとして落とす。未訳のキーは実行時に en-US → ja-JP の順で埋まり、lint では落とさない
+- 表示言語は `locale.json5` (端末ごとの値なので `settings.json5` とは別) に `'auto'` か言語コードで持つ。`locales/languages.json5` で `published: false` の言語は開発者モードでだけ選べ、`'auto'` の解決対象にもならない。i18n 導入前からのインストールは日本語に固定される
+- **Rust (notecore / src-tauri) が画面向けに出す文言**は辞書の `_native` 節に置き、Rust のソースには書かない。`pnpm gen:i18n` が言語ごとの JSON (`crates/notecore/locales/`) と Android の文字列リソース (`src-tauri/android/res/`) に書き出し、Rust は埋め込んで使う。キーは必ず完全な文字列 (`"_native.xxx"`) で書く (lint がソースから拾って実在を検査する)
+  - notecore が返す値は「英語の正本文 + 表示言語で描き直す手がかり `{ key, params }`」(`i18n::text` / `localize_fields`、エラーは `i18n::error` = `NoteDeckError::Localized`)。英語の正本文は AI・HTTP・CLI、版ずれのときの fallback に使う。デバイスは `localizeNative` / `nativeField` / `AppError` で表示言語に描き直す。保存される定型の文言 (セッションタイトル、HEARTBEAT の受信箱カードなど) も同じ形で保存し、表示するときに描き直す
+  - 端末側 (OS 通知・トレイ・Android の通知チャネル) は `ui_lang` の表示言語で直接組む。表示言語は起動時に `locale.json5` と OS の言語から決め、切り替えたときはデバイスが `setUiLanguage` で知らせる
+  - AI にだけ渡る文字列 (プロンプト、tool の結果やエラー) は辞書に入れず英語で書く。利用者の表示言語はシステムプロンプトの `<user-language>` で渡す
+- 日付・数値の書式は `i18n.lang` を渡す。`'ja-JP'` の直書きと引数なしの `toLocale*()` は増やさない。経過時刻は `formatTime` (`src/utils/formatTime.ts`)、件数の短縮表記 (「1.2万」/「1.2K」) は `formatCount`、バイト数は `formatBytes` (本家に揃えて 1024 区切り。どちらも `src/utils/format.ts`) を使い、画面ごとに手組みしない
+- 保存する定型の名前 (ゲストの連番名、principal が書いたメモの作者名) は英語の正本で保存し、表示するときに組み直す (`guestDisplayName` / `memoAuthorDisplayName`)。利用者が付けた名前はそのまま出す
+- 英語化での崩れは疑似ロケール `en-XA` (開発者モードの言語選択に出る) で見る。英語の文をアクセント付きにして 1.4 倍程度に伸ばし、`[ ]` で囲む。括弧が欠けていれば切り詰め、アクセントの無い文字列は直書き。辞書ファイルは持たず `languages.json5` の `pseudo` から作り、Rust / Android には渡さない (端末側は英語になる)
+- 日本語の直書きは `pnpm lint:i18n` が検査する (CI と pre-push)。直書きは 1 行も許さない。AI・プラグイン・ログにだけ出る文字列は英語で書く。辞書に置けない文字列 (固有名詞、区切り文字などのデータ、MFM 仕様の変換表など) は行末に `i18n-ignore: <理由>` を書くか、`scripts/i18n-lint.ts` のファイル単位の免除に理由つきで足す
+
 ### Styling
 
 コンポーネントのスタイリングには **CSS Modules + SCSS** を使用しています。

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onErrorCaptured, ref } from 'vue'
+import { i18n } from '@/i18n'
 
 /**
  * カラム単位のエラーバウンダリ。子コンポーネントが描画中に throw しても
@@ -23,10 +24,10 @@ function retry() {
 <template>
   <div v-if="error" :class="$style.boundary">
     <i class="ti ti-alert-triangle" :class="$style.icon" />
-    <div :class="$style.title">カラムの表示中に問題が発生しました</div>
+    <div :class="$style.title">{{ i18n.ts._columnErrorBoundary.title }}</div>
     <button class="_button" :class="$style.retryBtn" @click="retry">
       <i class="ti ti-refresh" />
-      再読み込み
+      {{ i18n.ts._common.reload }}
     </button>
   </div>
   <div v-else :key="retryKey" :class="$style.content">

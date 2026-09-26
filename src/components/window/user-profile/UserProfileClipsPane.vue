@@ -2,6 +2,7 @@
 import { computed, watch } from 'vue'
 import type { Clip, JsonValue } from '@/bindings'
 import { usePaginatedList } from '@/composables/usePaginatedList'
+import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import ProfileItemCards from './ProfileItemCards.vue'
@@ -80,7 +81,7 @@ function openClip(clipId: string) {
       :cards="cards"
       :is-loading="isLoading"
       :error="error"
-      empty-message="クリップがありません"
+      :empty-message="i18n.ts._userProfileClipsPane.empty"
       :info-image-url="infoImageUrl"
       :error-image-url="errorImageUrl"
       @select="openClip"

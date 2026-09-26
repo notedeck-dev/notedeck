@@ -1,4 +1,5 @@
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import {
   generateWidgetId,
   useWidgetsStore,
@@ -37,18 +38,18 @@ export const widgetsCreateCapability = implement('widgets.create', {
     const src = typeof params?.src === 'string' ? params.src : ''
     const autoRun = params?.autoRun === true
     return {
-      title: 'ウィジェットをインストール',
+      title: i18n.ts._widgetsCapability.createTitle,
       message: autoRun
-        ? 'AI が生成したウィジェットをインストールします。カラム表示時に自動実行されます。'
-        : 'AI が生成したウィジェットをインストールします。自動実行は無効です (= 手動で起動)。',
+        ? i18n.ts._widgetsCapability.createMessageAutoRun
+        : i18n.ts._widgetsCapability.createMessageManual,
       installPreview: {
         kind: 'widget',
         name,
       },
       code: src,
       codeLanguage: 'is',
-      okLabel: 'インストール',
-      cancelLabel: 'やめる',
+      okLabel: i18n.ts._common.install,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'normal',
     }
   },
@@ -87,19 +88,21 @@ export const widgetsUpdateCapability = implement('widgets.update', {
     if (!cur) return null
     stageEdit(ctx, cur.src, src)
     return {
-      title: 'ウィジェットを更新',
-      message:
-        `${cur.name} の AiScript を ${cur.src.length} → ${src.length} 文字に置換します。` +
-        (useWidgetsStore().mountedCount(installId) > 0
-          ? '表示中のウィジェットは保存後すぐ新しいコードで再実行されます。'
-          : ''),
+      title: i18n.ts._widgetsCapability.updateTitle,
+      message: (useWidgetsStore().mountedCount(installId) > 0
+        ? i18n.tsx._widgetsCapability.updateMessageMounted
+        : i18n.tsx._widgetsCapability.updateMessage)({
+        name: cur.name,
+        from: cur.src.length,
+        to: src.length,
+      }),
       installPreview: {
         kind: 'widget',
         name: cur.name,
       },
       diff: { old: cur.src, new: src, language: 'aiscript' },
-      okLabel: '更新',
-      cancelLabel: 'やめる',
+      okLabel: i18n.ts._common.update,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'warning',
     }
   },

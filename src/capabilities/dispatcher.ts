@@ -22,6 +22,7 @@ import {
   useSpotlightStore,
   windowTargetId,
 } from '@/composables/useSpotlight'
+import { i18n } from '@/i18n'
 import {
   notifyPluginDenialInteraction,
   recordPluginDenial,
@@ -352,7 +353,7 @@ export function emitSpotlightFromCapability(
       const label = COLUMN_LABELS[type] ?? type
       const targetId = columnTargetId(newColumnId)
       useSpotlightStore().highlight(targetId, {
-        label: `${actor}が${label}カラムを追加しました`,
+        label: i18n.tsx._dispatcher.columnAdded({ actor, label }),
       })
     } else {
       console.warn(
@@ -370,33 +371,42 @@ export function emitSpotlightFromCapability(
       const label = COLUMN_LABELS[type] ?? type
       const targetId = navbarTargetId(type, accountId)
       useSpotlightStore().highlight(targetId, {
-        label: `${actor}が${label}カラムをサイドバーに開きました`,
+        label: i18n.tsx._dispatcher.columnOpenedInSidebar({ actor, label }),
       })
     }
   } else if (capId === 'column.remove') {
     // 削除は対象 DOM が消えるので視覚 spotlight 無し。SR テキストのみ announce。
     // type は ID から逆引きできない (既に削除済み) → 汎用文
-    useSpotlightStore().announce(`${actor}がカラムを削除しました`)
+    useSpotlightStore().announce(i18n.tsx._dispatcher.columnRemoved({ actor }))
   } else if (capId === 'column.move') {
     // 移動後の位置で該当カラムタブを光らせる
     const r = result as { columnId?: string } | null
     if (r?.columnId) {
       const col = useDeckStore().getColumn(r.columnId)
-      const label = col?.type ? (COLUMN_LABELS[col.type] ?? col.type) : 'カラム'
+      const label = col?.type
+        ? (COLUMN_LABELS[col.type] ?? col.type)
+        : i18n.ts._dispatcher.columnFallback
       const targetId = columnTargetId(r.columnId)
       useSpotlightStore().highlight(targetId, {
-        label: `${actor}が${label}カラムを移動しました`,
+        label: i18n.tsx._dispatcher.columnMoved({ actor, label }),
       })
     }
   } else if (capId === 'column.updateSettings') {
     const r = result as { columnId?: string; applied?: string[] } | null
     if (r?.columnId) {
       const col = useDeckStore().getColumn(r.columnId)
-      const label = col?.type ? (COLUMN_LABELS[col.type] ?? col.type) : 'カラム'
-      const fields = r.applied?.join(', ') ?? '設定'
+      const label = col?.type
+        ? (COLUMN_LABELS[col.type] ?? col.type)
+        : i18n.ts._dispatcher.columnFallback
+      const fields =
+        r.applied?.join(', ') ?? i18n.ts._dispatcher.settingsFallback
       const targetId = columnTargetId(r.columnId)
       useSpotlightStore().highlight(targetId, {
-        label: `${actor}が${label}カラムの${fields}を更新しました`,
+        label: i18n.tsx._dispatcher.columnSettingsUpdated({
+          actor,
+          label,
+          fields,
+        }),
       })
     }
   } else if (capId === 'notifications.markRead') {
@@ -405,17 +415,19 @@ export function emitSpotlightFromCapability(
       typeof params?.accountId === 'string' ? params.accountId : null
     const targetId = navbarTargetId('notifications', accountId)
     useSpotlightStore().highlight(targetId, {
-      label: `${actor}が通知を既読化しました`,
+      label: i18n.tsx._dispatcher.notificationsRead({ actor }),
     })
   } else if (capId === 'windows.open') {
     // 新規 or 既存 focus されたウィンドウを朱色 glow で枠を光らせる
     const r = result as { id?: string } | null
     const type = params?.type as string | undefined
     if (r?.id) {
-      const label = type ? (WINDOW_LABELS[type] ?? type) : 'ウィンドウ'
+      const label = type
+        ? (WINDOW_LABELS[type] ?? type)
+        : i18n.ts._dispatcher.windowFallback
       const targetId = windowTargetId(r.id)
       useSpotlightStore().highlight(targetId, {
-        label: `${actor}が${label}ウィンドウを開きました`,
+        label: i18n.tsx._dispatcher.windowOpened({ actor, label }),
       })
     }
   } else if (capId === 'windows.focus') {
@@ -423,17 +435,21 @@ export function emitSpotlightFromCapability(
     const r = result as { id?: string } | null
     if (r?.id) {
       const win = useWindowsStore().windows.find((w) => w.id === r.id)
-      const label = win ? (WINDOW_LABELS[win.type] ?? win.type) : 'ウィンドウ'
+      const label = win
+        ? (WINDOW_LABELS[win.type] ?? win.type)
+        : i18n.ts._dispatcher.windowFallback
       const targetId = windowTargetId(r.id)
       useSpotlightStore().highlight(targetId, {
-        label: `${actor}が${label}ウィンドウを前面に出しました`,
+        label: i18n.tsx._dispatcher.windowFocused({ actor, label }),
       })
     }
   } else if (capId === 'windows.close') {
     // 閉じた window の DOM は消えているので announce のみ
-    useSpotlightStore().announce(`${actor}がウィンドウを閉じました`)
+    useSpotlightStore().announce(i18n.tsx._dispatcher.windowClosed({ actor }))
   } else if (capId === 'windows.closeAll') {
-    useSpotlightStore().announce(`${actor}が全ウィンドウを閉じました`)
+    useSpotlightStore().announce(
+      i18n.tsx._dispatcher.allWindowsClosed({ actor }),
+    )
   } else if (capId === 'notes.react') {
     // リアクション付与: 戻り値 { ok, noteId, reaction } から noteId と
     // reaction を取り、対応する note 本体を spotlight する。
@@ -441,29 +457,32 @@ export function emitSpotlightFromCapability(
     if (r?.noteId) {
       useSpotlightStore().highlight(noteTargetId(r.noteId), {
         label: r.reaction
-          ? `${actor}がノートに ${r.reaction} でリアクションしました`
-          : `${actor}がノートにリアクションしました`,
+          ? i18n.tsx._dispatcher.noteReactedWith({
+              actor,
+              reaction: r.reaction,
+            })
+          : i18n.tsx._dispatcher.noteReacted({ actor }),
       })
     }
   } else if (capId === 'notes.unreact') {
     const r = result as { noteId?: string } | null
     if (r?.noteId) {
       useSpotlightStore().highlight(noteTargetId(r.noteId), {
-        label: `${actor}がノートのリアクションを取り消しました`,
+        label: i18n.tsx._dispatcher.noteUnreacted({ actor }),
       })
     }
   } else if (capId === 'notes.pin') {
     const r = result as { noteId?: string } | null
     if (r?.noteId) {
       useSpotlightStore().highlight(noteTargetId(r.noteId), {
-        label: `${actor}がノートをピン留めしました`,
+        label: i18n.tsx._dispatcher.notePinned({ actor }),
       })
     }
   } else if (capId === 'notes.unpin') {
     const r = result as { noteId?: string } | null
     if (r?.noteId) {
       useSpotlightStore().highlight(noteTargetId(r.noteId), {
-        label: `${actor}がノートのピン留めを外しました`,
+        label: i18n.tsx._dispatcher.noteUnpinned({ actor }),
       })
     }
   } else if (capId === 'notes.create') {
@@ -472,12 +491,12 @@ export function emitSpotlightFromCapability(
     const r = result as { id?: string } | null
     if (r?.id) {
       useSpotlightStore().highlight(noteTargetId(r.id), {
-        label: `${actor}がノートを投稿しました`,
+        label: i18n.tsx._dispatcher.noteCreated({ actor }),
       })
     }
   } else if (capId === 'notes.delete') {
     // 削除は対象 DOM が消えるので視覚 spotlight 無し。SR テキストのみ。
-    useSpotlightStore().announce(`${actor}がノートを削除しました`)
+    useSpotlightStore().announce(i18n.tsx._dispatcher.noteDeleted({ actor }))
   } else if (capId === 'account.switch') {
     // アクティブアカウント切替: navbar popup が開いていれば該当行が朱色 glow。
     // 閉じていれば視覚効果は無いが SR で読み上げ。
@@ -486,7 +505,7 @@ export function emitSpotlightFromCapability(
       const acc = useAccountsStore().accounts.find((a) => a.id === r.id)
       const label = acc ? getAccountLabel(acc) : r.id
       useSpotlightStore().highlight(accountTargetId(r.id), {
-        label: `${actor}がアクティブアカウントを ${label} に切り替えました`,
+        label: i18n.tsx._dispatcher.accountSwitched({ actor, label }),
       })
     }
   }
@@ -554,7 +573,9 @@ async function prepareConfirmation(
   // クロスアカウント実行: どのアカウントとして実行するかを必ず明示する
   if (crossAccount && crossAccountId) {
     const acc = useAccountsStore().accounts.find((a) => a.id === crossAccountId)
-    const line = `実行アカウント: ${acc ? getAccountLabel(acc) : crossAccountId}`
+    const line = i18n.tsx._dispatcher.executingAccount({
+      account: acc ? getAccountLabel(acc) : crossAccountId,
+    })
     confirmOpts.message = confirmOpts.message
       ? `${line}\n${confirmOpts.message}`
       : line
@@ -585,7 +606,7 @@ async function prepareConfirmation(
     confirmOpts.reason = reason
   }
   if (skipScope !== null && !confirmOpts.rememberLabel) {
-    confirmOpts.rememberLabel = '今後この操作を確認しない'
+    confirmOpts.rememberLabel = i18n.ts._dispatcher.rememberOperation
   }
   return { confirmOpts, skipScope }
 }
@@ -623,7 +644,7 @@ export async function previewConfirmation(
   // 宛先が AI の読んだ他人の内容に由来する (#1103): 旗は足さず、一文だけ添える。
   // 「次から確認しない」の対象外
   if (opts.destinationUntrusted) {
-    const line = DESTINATION_UNTRUSTED_NOTE
+    const line = i18n.ts._dispatcher.destinationUntrusted
     prepared.confirmOpts.message = prepared.confirmOpts.message
       ? `${prepared.confirmOpts.message}\n${line}`
       : line
@@ -638,10 +659,6 @@ export async function previewConfirmation(
       (prepared.skipScope !== null || Boolean(cap.onConfirmRemember)),
   }
 }
-
-/** 宛先の出所が untrusted なときに確認に添える一文 (#1103) */
-export const DESTINATION_UNTRUSTED_NOTE =
-  '宛先は AI が読んだ他人の内容に由来します。'
 
 /**
  * 確認要求で「次から確認しない」が ON のまま許可された (#1133)。dispatcher の
@@ -681,7 +698,7 @@ async function buildConfirmOptions(
   // 人間向けの確認には冗長 — 出さない (タイトル + 引数 JSON で足りる)。
   const hasArgs = params && Object.keys(params).length > 0
   return {
-    title: `${cap.label} を実行しますか?`,
+    title: i18n.tsx._dispatcher.confirmTitle({ label: cap.label }),
     message: '',
     // 引数 JSON は code block でシンタックスハイライト表示
     ...(hasArgs
@@ -690,8 +707,8 @@ async function buildConfirmOptions(
           codeLanguage: 'json',
         }
       : {}),
-    okLabel: '実行',
-    cancelLabel: 'やめる',
+    okLabel: i18n.ts._common.run,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'danger',
   }
 }

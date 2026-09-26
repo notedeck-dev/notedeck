@@ -4,6 +4,7 @@ import type { NormalizedUserDetail, ServerAdapter } from '@/adapters/types'
 import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkFollowButton from '@/components/common/MkFollowButton.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
+import { i18n } from '@/i18n'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -103,7 +104,10 @@ async function saveMemo() {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:memo]', err.code, err.message)
-    toast.show(`メモの保存に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileHero.memoSaveFailed({ code: err.displayCode }),
+      'error',
+    )
     memoDraft.value = props.user.memo ?? '' // 失敗時は元に戻す
   }
 }
@@ -139,7 +143,7 @@ onMounted(() => {
       <div :class="$style.bannerFade" />
 
       <!-- "Follows you" badge on banner -->
-      <div v-if="user.isFollowed" :class="$style.followedBadge">フォローされています</div>
+      <div v-if="user.isFollowed" :class="$style.followedBadge">{{ i18n.ts._common.followsYou }}</div>
 
       <!-- Name overlay on banner (desktop) -->
       <div :class="$style.bannerTitle">
@@ -171,7 +175,7 @@ onMounted(() => {
           v-if="!isOwnProfile"
           class="_button"
           :class="$style.bannerActionBtn"
-          title="その他"
+          :title="i18n.ts._userProfileHero.more"
           @click="emit('openMenu', $event)"
         >
           <i class="ti ti-dots" />
@@ -189,7 +193,7 @@ onMounted(() => {
           size="md"
           @update="onFollowUpdate"
         />
-        <button class="_button" :class="$style.bannerActionBtn" title="QRコード" @click="emit('openQr')">
+        <button class="_button" :class="$style.bannerActionBtn" :title="i18n.ts._userProfileHero.qrCode" @click="emit('openQr')">
           <i class="ti ti-qrcode" />
         </button>
       </div>
@@ -218,7 +222,7 @@ onMounted(() => {
             </g>
           </svg>
           <div :class="$style.fukidashiContent">
-            <div :class="$style.fukidashiHeader">フォロワーへのメッセージ</div>
+            <div :class="$style.fukidashiHeader">{{ i18n.ts._userProfileHero.followedMessage }}</div>
             <MkMfm :text="user.followedMessage" :emojis="user.emojis" :server-host="accountHost" plain />
           </div>
         </div>
@@ -242,13 +246,13 @@ onMounted(() => {
 
     <!-- User memo (self-only sticky note about this user, #458) -->
     <div v-if="canEditMemo" :class="$style.memo">
-      <div :class="$style.memoHeading">メモ（自分のみ）</div>
+      <div :class="$style.memoHeading">{{ i18n.ts._userProfileHero.memoHeading }}</div>
       <textarea
         ref="memoTextareaEl"
         v-model="memoDraft"
         :class="$style.memoTextarea"
         rows="1"
-        placeholder="このユーザーへのメモを追加..."
+        :placeholder="i18n.ts._userProfileHero.memoPlaceholder"
         @blur="saveMemo"
         @input="adjustMemoTextarea"
       />
@@ -293,15 +297,15 @@ onMounted(() => {
     <div class="user-stats" :class="$style.stats" :data-own="isOwnProfile">
       <div :class="$style.stat">
         <b class="user-stat-count">{{ formatCount(user.notesCount) }}</b>
-        <span>ノート</span>
+        <span>{{ i18n.ts._common.notes }}</span>
       </div>
       <button v-if="canSeeFollowing" :class="[$style.stat, $style.statLink]" class="_button" @click="openFollowList('following')">
         <b class="user-stat-count">{{ formatCount(user.followingCount) }}</b>
-        <span>フォロー</span>
+        <span>{{ i18n.ts._userProfileHero.following }}</span>
       </button>
       <button v-if="canSeeFollowers" :class="[$style.stat, $style.statLink]" class="_button" @click="openFollowList('followers')">
         <b class="user-stat-count">{{ formatCount(user.followersCount) }}</b>
-        <span>フォロワー</span>
+        <span>{{ i18n.ts._common.followers }}</span>
       </button>
     </div>
   </div>

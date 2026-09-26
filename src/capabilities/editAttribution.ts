@@ -26,6 +26,6 @@ export function editAttribution(
 export const REASON_PARAM = {
   type: 'string' as const,
   description:
-    'この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。' +
-    ' 後から履歴を読む人が意図を辿れるよう、必ず渡すこと',
+    'Why this edit is made. Shown in the approval dialog and recorded in the edit history.' +
+    ' Always pass it so that people reading the history later can follow the intent',
 }

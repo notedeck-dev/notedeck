@@ -5,9 +5,10 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkFileGrid from '@/components/common/MkFileGrid.vue'
 import MkFolderGrid from '@/components/common/MkFolderGrid.vue'
 import { useDriveFolder } from '@/composables/useDriveFolder'
+import { i18n } from '@/i18n'
 import { useThemeStore } from '@/stores/theme'
 import { useUiStore } from '@/stores/ui'
-import { AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
+import { AppError, authErrorMessage } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
@@ -114,21 +115,21 @@ fetchDrive()
       </button>
       <span :class="$style.dpTitle">
         <i class="ti ti-cloud" />
-        {{ folderStack.length > 0 ? folderStack[folderStack.length - 1]!.name : 'ドライブ' }}
+        {{ folderStack.length > 0 ? folderStack[folderStack.length - 1]!.name : i18n.ts._columns.drive }}
       </span>
-      <button class="_button" :class="$style.dpHeaderBtn" title="アップロード" aria-label="アップロード" :disabled="uploading" @click="openFilePicker">
+      <button class="_button" :class="$style.dpHeaderBtn" :title="i18n.ts._mkDrivePicker.upload" :aria-label="i18n.ts._mkDrivePicker.upload" :disabled="uploading" @click="openFilePicker">
         <i :class="uploading ? 'ti ti-loader-2 nd-spin' : 'ti ti-upload'" />
       </button>
       <button
         class="_button"
         :class="$style.dpConfirm"
         :disabled="selectedCount === 0"
-        :title="selectedCount === 0 ? 'ファイルを選択' : `${selectedCount}件を添付`"
+        :title="selectedCount === 0 ? i18n.ts._mkDrivePicker.selectFiles : i18n.tsx._mkDrivePicker.attachCount_plural({ count: selectedCount })"
         @click="confirm"
       >
-        添付<span v-if="selectedCount > 0" :class="$style.dpConfirmCount">{{ selectedCount }}</span>
+        {{ i18n.ts._mkDrivePicker.attach }}<span v-if="selectedCount > 0" :class="$style.dpConfirmCount">{{ selectedCount }}</span>
       </button>
-      <button class="_button" :class="$style.dpHeaderBtn" title="閉じる" @click="emit('close')">
+      <button class="_button" :class="$style.dpHeaderBtn" :title="i18n.ts._common.close" @click="emit('close')">
         <i class="ti ti-x" />
       </button>
     </div>
@@ -145,7 +146,7 @@ fetchDrive()
     <!-- Content -->
     <div :class="$style.dpContent">
       <div v-if="loading" :class="$style.dpEmpty"><LoadingSpinner /></div>
-      <div v-else-if="error" :class="[$style.dpEmpty, $style.dpError]">{{ error.isAuth ? AUTH_ERROR_MESSAGE : error.message }}</div>
+      <div v-else-if="error" :class="[$style.dpEmpty, $style.dpError]">{{ error.isAuth ? authErrorMessage() : error.message }}</div>
       <template v-else>
         <!-- ドライブカラムと同じ連続配置 (3 列固定)。アップロードはヘッダーに集約 -->
         <div :class="$style.dpItemsGrid">

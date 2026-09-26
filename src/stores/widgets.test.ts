@@ -191,7 +191,7 @@ describe('編集履歴の同値ガード (#981)', () => {
   })
 })
 
-describe('useWidgetsStore.setAccountKey — ウィジット単位の実行アカウント (#1018 / #1061)', () => {
+describe('useWidgetsStore.setAccountKey — ウィジェット単位の実行アカウント (#1018 / #1061)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
@@ -325,7 +325,7 @@ describe('useWidgetsStore.purgeAccount — アカウント削除で紐づく個�
   })
 })
 
-describe('読取専用 (ソース欠損) のウィジットは変更を拒否する (#1111)', () => {
+describe('読取専用 (ソース欠損) のウィジェットは変更を拒否する (#1111)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
@@ -345,7 +345,7 @@ describe('読取専用 (ソース欠損) のウィジットは変更を拒否す
     expect(store.getWidget('ro')?.accountKey).toBeUndefined()
   })
 
-  it('通常のウィジットでは true を返す', () => {
+  it('通常のウィジェットでは true を返す', () => {
     const store = useWidgetsStore()
     store.addWidget(makeWidget('ok'))
     expect(store.setAutoRun('ok', true)).toBe(true)

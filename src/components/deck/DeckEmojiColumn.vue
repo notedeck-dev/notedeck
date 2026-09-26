@@ -11,6 +11,7 @@ import {
   useGridVirtualizer,
 } from '@/composables/useGridVirtualizer'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useEmojisStore } from '@/stores/emojis'
@@ -107,15 +108,16 @@ const filteredEmojis = computed(() => {
 // Group emojis by category for display
 const emojiGroups = computed<GridGroup<ServerEmoji>[]>(() => {
   const groups = new Map<string, ServerEmoji[]>()
+  const uncategorized = i18n.ts._deckEmojiColumn.uncategorized
   for (const e of filteredEmojis.value) {
-    const cat = e.category || '未分類'
+    const cat = e.category || uncategorized
     if (!groups.has(cat)) groups.set(cat, [])
     groups.get(cat)?.push(e)
   }
   return [...groups.entries()]
     .sort((a, b) => {
-      if (a[0] === '未分類') return 1
-      if (b[0] === '未分類') return -1
+      if (a[0] === uncategorized) return 1
+      if (b[0] === uncategorized) return -1
       return a[0].localeCompare(b[0])
     })
     .map(([label, items]) => ({ label: `${label} (${items.length})`, items }))
@@ -204,7 +206,7 @@ function getRowItems(index: number): ServerEmoji[] {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'カスタム絵文字'"
+    :title="column.name ?? i18n.ts._columns.emoji"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -225,7 +227,7 @@ function getRowItems(index: number): ServerEmoji[] {
       :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="loadEmojis"
     />
@@ -238,9 +240,9 @@ function getRowItems(index: number): ServerEmoji[] {
           v-model="searchQuery"
           :class="$style.emojiSearchInput"
           type="text"
-          placeholder="絵文字を検索..."
+          :placeholder="i18n.ts._deckEmojiColumn.searchPlaceholder"
         />
-        <span v-if="searchQuery" :class="$style.emojiSearchCount">{{ filteredEmojis.length }}件</span>
+        <span v-if="searchQuery" :class="$style.emojiSearchCount">{{ i18n.tsx._deckEmojiColumn.count_plural({ count: filteredEmojis.length }) }}</span>
       </div>
 
       <!-- Category filter -->
@@ -250,7 +252,7 @@ function getRowItems(index: number): ServerEmoji[] {
           :class="[$style.categoryChip, { [$style.active]: !selectedCategory }]"
           @click="selectedCategory = null"
         >
-          すべて
+          {{ i18n.ts._deckEmojiColumn.all }}
         </button>
         <button
           v-for="cat in categories"
@@ -263,7 +265,7 @@ function getRowItems(index: number): ServerEmoji[] {
         </button>
       </div>
 
-      <ColumnEmptyState v-if="filteredEmojis.length === 0 && !isLoading" message="絵文字が見つかりません" :image-url="serverInfoImageUrl" />
+      <ColumnEmptyState v-if="filteredEmojis.length === 0 && !isLoading" :message="i18n.ts._deckEmojiColumn.noEmoji" :image-url="serverInfoImageUrl" />
 
       <!-- Virtualized emoji grid -->
       <div v-else ref="scrollContainer" :class="$style.emojiScroller">
@@ -291,7 +293,7 @@ function getRowItems(index: number): ServerEmoji[] {
                   :key="emoji.name"
                   class="_button"
                   :class="[$style.emojiCell, { [$style.copied]: copiedName === emoji.name }]"
-                  :title="`:${emoji.name}:${isEmojiMuted(`:${emoji.name}:`) ? ' (ミュート中)' : ''}`"
+                  :title="isEmojiMuted(`:${emoji.name}:`) ? i18n.tsx._deckEmojiColumn.emojiMuted({ name: `:${emoji.name}:` }) : `:${emoji.name}:`"
                   @click="copyEmojiCode(emoji)"
                   @contextmenu.prevent="openEmojiMenu(emoji, $event)"
                 >
@@ -311,17 +313,17 @@ function getRowItems(index: number): ServerEmoji[] {
           <img :src="emojiMenuTarget.url" :alt="emojiMenuTarget.name" decoding="async" />
           <div class="_popupHeaderText">
             <div class="_popupHeaderTitle">:{{ emojiMenuTarget.name }}:</div>
-            <div class="_popupHeaderSub">{{ emojiMenuTarget.category ?? '未分類' }}{{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? ' · ミュート中' : '' }}</div>
+            <div class="_popupHeaderSub">{{ emojiMenuTarget.category ?? i18n.ts._deckEmojiColumn.uncategorized }}{{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? ` · ${i18n.ts._deckEmojiColumn.muted}` : '' }}</div>
           </div>
         </div>
         <div class="_popupDivider" />
         <button class="_popupItem" @click="emojiMenuCopy">
           <i class="ti ti-copy" />
-          コードをコピー
+          {{ i18n.ts._common.copyCode }}
         </button>
         <button class="_popupItem" @click="emojiMenuToggleMute">
           <i :class="isEmojiMuted(`:${emojiMenuTarget.name}:`) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
-          {{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? 'ミュートを解除' : 'この絵文字をミュート' }}
+          {{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? i18n.ts._common.unmute : i18n.ts._deckEmojiColumn.muteEmoji }}
         </button>
       </template>
     </PopupMenu>

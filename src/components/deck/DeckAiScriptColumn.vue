@@ -29,6 +29,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useVerticalResize } from '@/composables/useVerticalResize'
+import { i18n } from '@/i18n'
 import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -242,7 +243,7 @@ async function run() {
       USER_ID: account.value?.userId ?? '',
       USER_NAME: '',
       USER_USERNAME: '',
-      LOCALE: navigator.language,
+      LOCALE: i18n.lang,
       SERVER_URL: serverUrl.value,
     },
   )
@@ -319,7 +320,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <DeckColumn :column-id="column.id" :title="column.name ?? 'スクラッチパッド'" :theme-vars="columnThemeVars" @header-click="scrollToTop">
+  <DeckColumn :column-id="column.id" :title="column.name ?? i18n.ts._columns.aiscript" :theme-vars="columnThemeVars" @header-click="scrollToTop">
     <template #header-icon>
       <i class="ti ti-terminal-2 tl-header-icon" />
     </template>
@@ -329,7 +330,7 @@ onUnmounted(() => {
         class="_button"
         :class="[$style.headerRunBtn, { [$style.running]: running }]"
         :disabled="running"
-        :title="running ? '実行中...' : '実行 (Ctrl+Enter)'"
+        :title="running ? i18n.ts._deckAiScriptColumn.running : i18n.ts._deckAiScriptColumn.runWithShortcut"
         @click.stop="run"
       >
         <i class="ti ti-player-play" />
@@ -366,7 +367,7 @@ onUnmounted(() => {
             @click="outputTab = 'output'"
           >
             <i class="ti ti-terminal" />
-            出力
+            {{ i18n.ts._deckAiScriptColumn.output }}
           </button>
           <button
             class="_button"
@@ -404,13 +405,13 @@ onUnmounted(() => {
             v-if="!error && !output.length && !uiComponents.length"
             :class="$style.outputEmpty"
           >
-            Ctrl+Enterで実行
+            {{ i18n.ts._deckAiScriptColumn.runHint }}
           </div>
         </div>
 
         <div v-show="outputTab === 'inspector'" :class="$style.inspectorPanel">
           <div v-if="!uiComponents.length" :class="$style.outputEmpty">
-            UIコンポーネントなし
+            {{ i18n.ts._deckAiScriptColumn.noUiComponents }}
           </div>
           <div v-else :class="$style.inspectorList">
             <div

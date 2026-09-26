@@ -6,6 +6,7 @@ import PopupMenu from '@/components/common/PopupMenu.vue'
 import { useDriveActions } from '@/composables/useDriveActions'
 import type { PendingUpload } from '@/composables/useFileAttachment'
 import { usePointerReorder } from '@/composables/usePointerReorder'
+import { i18n } from '@/i18n'
 import { usePrompt } from '@/stores/prompt'
 
 /**
@@ -86,7 +87,10 @@ async function onRename() {
   const file = menuFile.value
   if (!file) return
   const name = (
-    await prompt({ title: 'ファイル名を変更', defaultValue: file.name })
+    await prompt({
+      title: i18n.ts._postFormFilePreviews.renameFile,
+      defaultValue: file.name,
+    })
   )?.trim()
   if (!name || name === file.name) return
   emit('updateMeta', file.id, { name })
@@ -104,9 +108,9 @@ async function onEditCaption() {
   const file = menuFile.value
   if (!file) return
   const caption = await prompt({
-    title: 'キャプション',
-    message: '視覚に障害のあるユーザーなどに向けたファイルの説明を設定できます',
-    placeholder: 'ファイルの説明',
+    title: i18n.ts._postFormFilePreviews.caption,
+    message: i18n.ts._postFormFilePreviews.captionDescription,
+    placeholder: i18n.ts._postFormFilePreviews.captionPlaceholder,
     defaultValue: file.comment ?? '',
     multiline: true,
     allowEmpty: true,
@@ -198,7 +202,7 @@ async function onDelete() {
           <button
             class="_button"
             :class="$style.errorBtn"
-            title="再試行"
+            :title="i18n.ts._common.retry"
             @click="emit('retry', p.key)"
           >
             <i class="ti ti-refresh" />
@@ -206,7 +210,7 @@ async function onDelete() {
           <button
             class="_button"
             :class="$style.errorBtn"
-            title="破棄"
+            :title="i18n.ts._postFormFilePreviews.discard"
             @click="emit('dismiss', p.key)"
           >
             <i class="ti ti-x" />
@@ -218,15 +222,15 @@ async function onDelete() {
     <PopupMenu ref="popupMenuRef">
       <button class="_popupItem" @click="onRename">
         <i class="ti ti-pencil" />
-        ファイル名を変更
+        {{ i18n.ts._postFormFilePreviews.renameFile }}
       </button>
       <button class="_popupItem" @click="onToggleSensitive">
         <i :class="menuFile?.isSensitive ? 'ti ti-eye' : 'ti ti-eye-off'" />
-        {{ menuFile?.isSensitive ? 'センシティブを解除' : 'センシティブとして設定' }}
+        {{ menuFile?.isSensitive ? i18n.ts._postFormFilePreviews.unmarkSensitive : i18n.ts._postFormFilePreviews.markSensitive }}
       </button>
       <button class="_popupItem" @click="onEditCaption">
         <i class="ti ti-text-caption" />
-        {{ menuFile?.comment ? 'キャプションを編集' : 'キャプションを付ける' }}
+        {{ menuFile?.comment ? i18n.ts._postFormFilePreviews.editCaption : i18n.ts._postFormFilePreviews.addCaption }}
       </button>
       <button
         v-if="menuFile?.type.startsWith('image/')"
@@ -234,16 +238,16 @@ async function onDelete() {
         @click="onPreview"
       >
         <i class="ti ti-photo" />
-        プレビュー
+        {{ i18n.ts._postFormFilePreviews.preview }}
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem" @click="onDetach">
         <i class="ti ti-x" />
-        添付を取り消す
+        {{ i18n.ts._postFormFilePreviews.removeAttachment }}
       </button>
       <button class="_popupItem _popupItemDanger" @click="onDelete">
         <i class="ti ti-trash" />
-        削除
+        {{ i18n.ts._common.delete }}
       </button>
     </PopupMenu>
 

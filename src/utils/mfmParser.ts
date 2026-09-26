@@ -261,7 +261,7 @@ function parseSearchBlock(
   const line = nlIdx < 0 ? text.slice(pos) : text.slice(pos, nlIdx)
   const end = nlIdx < 0 ? text.length : nlIdx
 
-  const searchMatch = /^(.+?) (検索|\[検索\]|Search|\[Search\])$/.exec(line)
+  const searchMatch = /^(.+?) (検索|\[検索\]|Search|\[Search\])$/.exec(line) // i18n-ignore: mfm-spec
   if (!searchMatch) return null
 
   return {
@@ -443,7 +443,7 @@ function findFirstBlock(
 }
 
 function findFirstSearchBlock(text: string): BlockMatch | null {
-  const searchRe = /(?:^|\n)(.+?) (検索|\[検索\]|Search|\[Search\])(?:\n|$)/g
+  const searchRe = /(?:^|\n)(.+?) (検索|\[検索\]|Search|\[Search\])(?:\n|$)/g // i18n-ignore: mfm-spec
   const m = searchRe.exec(text)
   if (!m) return null
   const index = m[0].startsWith('\n') ? m.index + 1 : m.index

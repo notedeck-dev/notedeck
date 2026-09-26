@@ -16,6 +16,7 @@ import AddColumnDialog from '@/components/deck/AddColumnDialog.vue'
 import ColumnTombstone from '@/components/deck/ColumnTombstone.vue'
 import { COLUMN_COMPONENTS } from '@/components/deck/columnComponents'
 import { usePipAlwaysOnTop } from '@/composables/usePipAlwaysOnTop'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'
@@ -24,40 +25,41 @@ import { catchIgnore } from '@/utils/logger'
 
 type WindowPayload = { type: WindowType; props: Record<string, unknown> }
 
-const WINDOW_TITLES: Partial<Record<WindowType, string>> = {
-  'note-detail': 'ノート',
-  'note-inspector': 'ノート Inspector',
-  'notification-inspector': '通知 Inspector',
-  'user-profile': 'プロフィール',
-  'federation-instance': 'サーバー',
-  'follow-list': 'フォロー / フォロワー',
-  login: 'ログイン',
-  plugins: 'プラグイン',
-  keybinds: 'キーバインド',
-  cssEditor: 'カスタム CSS',
-  themeEditor: 'テーマ',
-  profileEditor: 'プロファイル',
-  aiSettings: 'エージェント',
-  permissions: '権限',
-  about: 'NoteDeck について',
-  navEditor: 'ナビバー',
-  performanceEditor: 'パフォーマンス',
-  appearanceEditor: '外観',
-  backup: 'バックアップ',
-  cacheEditor: 'キャッシュ',
-  tasksEditor: 'タスク',
-  snippetsEditor: 'スニペット',
-  memoEditor: 'メモ',
-  'page-detail': 'ページ',
-  'play-detail': 'Play',
-  'gallery-detail': 'ギャラリー',
-  'list-detail': 'リスト',
-  'clip-detail': 'クリップ',
-  'drive-file-detail': 'ファイル',
-  'page-edit': 'ページ編集',
-  'play-edit': 'Play 編集',
-  'widget-edit': 'ウィジット編集',
-  'skill-edit': 'スキル編集',
+// 表示言語の切り替えに追従するため、タイトルは参照のたびに辞書から引く
+const WINDOW_TITLES: Partial<Record<WindowType, () => string>> = {
+  'note-detail': () => i18n.ts._windows.noteDetail,
+  'note-inspector': () => i18n.ts._pipPage.noteInspector,
+  'notification-inspector': () => i18n.ts._pipPage.notificationInspector,
+  'user-profile': () => i18n.ts._windows.userProfile,
+  'federation-instance': () => i18n.ts._windows.federationInstance,
+  'follow-list': () => i18n.ts._windows.followList,
+  login: () => i18n.ts._pipPage.login,
+  plugins: () => i18n.ts._windows.plugins,
+  keybinds: () => i18n.ts._windows.keybinds,
+  cssEditor: () => i18n.ts._pipPage.cssEditor,
+  themeEditor: () => i18n.ts._windows.themeEditor,
+  profileEditor: () => i18n.ts._common.profile,
+  aiSettings: () => i18n.ts._windows.aiSettings,
+  permissions: () => i18n.ts._windows.permissions,
+  about: () => i18n.ts._windows.about,
+  navEditor: () => i18n.ts._windows.navEditor,
+  performanceEditor: () => i18n.ts._windows.performanceEditor,
+  appearanceEditor: () => i18n.ts._pipPage.appearanceEditor,
+  backup: () => i18n.ts._windows.backup,
+  cacheEditor: () => i18n.ts._windows.cacheEditor,
+  tasksEditor: () => i18n.ts._pipPage.tasksEditor,
+  snippetsEditor: () => i18n.ts._windows.snippetsEditor,
+  memoEditor: () => i18n.ts._windows.memoEditor,
+  'page-detail': () => i18n.ts._windows.pageDetail,
+  'play-detail': () => 'Play',
+  'gallery-detail': () => i18n.ts._windows.galleryDetail,
+  'list-detail': () => i18n.ts._windows.listDetail,
+  'clip-detail': () => i18n.ts._windows.clipDetail,
+  'drive-file-detail': () => i18n.ts._windows.driveFileDetail,
+  'page-edit': () => i18n.ts._pipPage.pageEdit,
+  'play-edit': () => i18n.ts._pipPage.playEdit,
+  'widget-edit': () => i18n.ts._windows.widgetEdit,
+  'skill-edit': () => i18n.ts._windows.skillEdit,
 }
 
 // Lazy-loaded window content components (same set as DeckWindowLayer uses).
@@ -186,7 +188,7 @@ const themeVars = computed(() => {
 const windowTitle = computed(() => {
   const t = windowPayload.value?.type
   if (!t) return ''
-  return WINDOW_TITLES[t] ?? t
+  return WINDOW_TITLES[t]?.() ?? t
 })
 
 // OS ウィンドウタイトルに表示内容を反映し、複数 PiP を区別可能にする (#748)
@@ -262,12 +264,12 @@ onMounted(async () => {
         <span :class="$style.pipDragTitle" data-tauri-drag-region>{{ windowTitle }}</span>
         <button
           :class="[$style.pipDragBtn, alwaysOnTop && $style.pipDragBtnActive]"
-          :title="alwaysOnTop ? '最前面固定を解除' : '最前面に固定'"
+          :title="alwaysOnTop ? i18n.ts._pipPage.unpin : i18n.ts._pipPage.pin"
           @click="toggleAlwaysOnTop"
         >
           <i :class="alwaysOnTop ? 'ti ti-pin-filled' : 'ti ti-pin'" />
         </button>
-        <button :class="$style.pipDragBtn" title="閉じる" @click="closeWindow">
+        <button :class="$style.pipDragBtn" :title="i18n.ts._common.close" @click="closeWindow">
           <i class="ti ti-x" />
         </button>
       </div>
@@ -432,15 +434,15 @@ onMounted(async () => {
     <template v-else-if="!selectedColumn">
       <!-- Drag bar for selector state -->
       <div :class="$style.pipDragBar" data-tauri-drag-region>
-        <span :class="$style.pipDragTitle" data-tauri-drag-region>カラムを追加</span>
+        <span :class="$style.pipDragTitle" data-tauri-drag-region>{{ i18n.ts._commands.addColumn }}</span>
         <button
           :class="[$style.pipDragBtn, alwaysOnTop && $style.pipDragBtnActive]"
-          :title="alwaysOnTop ? '最前面固定を解除' : '最前面に固定'"
+          :title="alwaysOnTop ? i18n.ts._pipPage.unpin : i18n.ts._pipPage.pin"
           @click="toggleAlwaysOnTop"
         >
           <i :class="alwaysOnTop ? 'ti ti-pin-filled' : 'ti ti-pin'" />
         </button>
-        <button :class="$style.pipDragBtn" title="閉じる" @click="closeWindow">
+        <button :class="$style.pipDragBtn" :title="i18n.ts._common.close" @click="closeWindow">
           <i class="ti ti-x" />
         </button>
       </div>

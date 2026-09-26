@@ -8,6 +8,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTutorialStore } from '@/composables/useTutorial'
+import { i18n } from '@/i18n'
 import {
   TUTORIAL_ACHIEVEMENT_BADGES,
   TUTORIAL_ACHIEVEMENT_LABELS,
@@ -43,7 +44,13 @@ const error = ref<AppError | null>(null)
  * カラムを増やさず、同じグリッドで出し分ける。
  */
 const SOURCE_TABS: ColumnTabDef[] = [
-  { value: 'server', label: 'サーバー', icon: 'server' },
+  {
+    value: 'server',
+    get label() {
+      return i18n.ts._common.server
+    },
+    icon: 'server',
+  },
   { value: 'notedeck', label: 'NoteDeck', icon: 'checkbox' },
 ]
 // ログイン前はサーバー実績を取れないので、見られる方を既定にする
@@ -119,7 +126,7 @@ function scrollToTop() {
 </script>
 
 <template>
-  <DeckColumn :column-id="column.id" :title="column.name ?? '実績'" :theme-vars="columnThemeVars" :pull-refresh="refresh" @refresh="refresh()" @header-click="scrollToTop">
+  <DeckColumn :column-id="column.id" :title="column.name ?? i18n.ts._columns.achievements" :theme-vars="columnThemeVars" :pull-refresh="refresh" @refresh="refresh()" @header-click="scrollToTop">
     <template #header-icon>
       <i class="ti ti-medal" :class="$style.tlHeaderIcon" />
     </template>
@@ -146,7 +153,7 @@ function scrollToTop() {
         :badges="TUTORIAL_ACHIEVEMENT_BADGES"
         :labels="TUTORIAL_ACHIEVEMENT_LABELS"
         :pending="ownView.pending"
-        pending-hint="開発者モードを有効にすると挑戦できます"
+        :pending-hint="i18n.ts._deckAchievementsColumn.pendingHint"
         @unlock="setDeveloperMode(true)"
       />
       <div v-else-if="loading && achievements.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
@@ -156,11 +163,11 @@ function scrollToTop() {
         :account-id="column.accountId"
         is-error
         :image-url="serverErrorImageUrl"
-        cta-label="再試行"
+        :cta-label="i18n.ts._common.retry"
         cta-icon="ti-refresh"
         @cta="fetchAchievements"
       />
-      <ColumnEmptyState v-else-if="achievements.length === 0 && !loading" message="実績がありません" :image-url="serverInfoImageUrl" />
+      <ColumnEmptyState v-else-if="achievements.length === 0 && !loading" :message="i18n.ts._deckAchievementsColumn.empty" :image-url="serverInfoImageUrl" />
       <MkAchievementsGrid v-else :achievements="achievements" />
     </div>
   </DeckColumn>

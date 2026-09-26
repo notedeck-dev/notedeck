@@ -109,6 +109,31 @@ describe('parseProfileFile', () => {
   })
 })
 
+describe('parseProfileFile — 既定の表示名を保存していたカラム (#135)', () => {
+  const columns = [
+    { id: 'a', type: 'mentions', name: 'メンション' },
+    { id: 'b', type: 'pluginManager', name: 'プラグイン' },
+    { id: 'c', type: 'notifications', name: '自分で付けた名前' },
+    { id: 'd', type: 'mentions', name: '通知' },
+    { id: 'e', type: 'timeline', name: null },
+    // 英語 UI で作ったカラム
+    { id: 'f', type: 'mentions', name: 'Mentions' },
+  ] as unknown as DeckColumn[]
+
+  it('種別の既定表示名 (どの言語でも) と同じ name は、名前なしとして読む', () => {
+    const { profile } = parseProfileFile({ columns }, 'id', 'p.json5')
+    expect(profile.columns.map((c) => c.name)).toEqual([
+      null,
+      null,
+      '自分で付けた名前',
+      // 別の種別の既定表示名は、利用者が付けた名前として残す
+      '通知',
+      null,
+      null,
+    ])
+  })
+})
+
 describe('toFileFormat', () => {
   it('id をファイルに書き、runtime-only の fileBase は書かない', () => {
     const out = toFileFormat({

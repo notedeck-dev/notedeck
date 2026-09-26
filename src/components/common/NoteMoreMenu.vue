@@ -9,6 +9,7 @@ import { useCommandStore } from '@/commands/registry'
 import { useAccountMode } from '@/composables/useAccountMode'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { i18n } from '@/i18n'
 import type { NoteGroup } from '@/services/noteGroup'
 import {
   getAccountAvatarUrl,
@@ -204,26 +205,30 @@ async function addToClip(clipId: string, clipName: string) {
   try {
     await adapter.api.addNoteToClip(clipId, props.note.id)
     useDeckStore().invalidateColumnByKey(clipCacheKey(clipId))
-    toast.show('クリップに追加しました')
+    toast.show(i18n.ts._noteMoreMenu.addedToClip)
   } catch (e) {
     const err = AppError.from(e)
     if (err.displayCode === 'ALREADY_CLIPPED') {
       const ok = await confirm({
-        title: 'クリップ解除',
-        message: `このノートは既に「${clipName}」にクリップされています。クリップを解除しますか？`,
+        title: i18n.ts._noteMoreMenu.removeFromClipTitle,
+        message: i18n.tsx._noteMoreMenu.confirmRemoveFromClip({
+          clip: clipName,
+        }),
         type: 'danger',
-        okLabel: '解除',
+        okLabel: i18n.ts._common.remove,
       })
       if (ok) {
         try {
           await adapter.api.removeNoteFromClip(clipId, props.note.id)
           useDeckStore().invalidateColumnByKey(clipCacheKey(clipId))
-          toast.show('クリップから解除しました')
+          toast.show(i18n.ts._noteMoreMenu.removedFromClip)
         } catch (e2) {
           const err2 = AppError.from(e2)
           console.error('[clip:remove]', err2.code, err2.message)
           toast.show(
-            `クリップの解除に失敗しました（${err2.displayCode}）`,
+            i18n.tsx._noteMoreMenu.removeFromClipFailed({
+              code: err2.displayCode,
+            }),
             'error',
           )
         }
@@ -231,7 +236,7 @@ async function addToClip(clipId: string, clipName: string) {
     } else {
       console.error('[clip:add]', err.code, err.message)
       toast.show(
-        `クリップへの追加に失敗しました（${err.displayCode}）`,
+        i18n.tsx._noteMoreMenu.addToClipFailed({ code: err.displayCode }),
         'error',
       )
     }
@@ -241,8 +246,8 @@ async function addToClip(clipId: string, clipName: string) {
 async function createClipAndAdd() {
   commandStore.close()
   const name = await prompt({
-    title: '新しいクリップを作成',
-    placeholder: 'クリップ名を入力...',
+    title: i18n.ts._noteMoreMenu.createClip,
+    placeholder: i18n.ts._noteMoreMenu.clipNamePlaceholder,
   })
   if (!name) return
   try {
@@ -253,7 +258,10 @@ async function createClipAndAdd() {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[clip:create]', err.code, err.message)
-    toast.show(`クリップの作成に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._noteMoreMenu.createClipFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -277,7 +285,7 @@ function actAsOperations(accountId: string) {
     return [
       {
         id: `${accountId}-hidden`,
-        label: 'このアカウントでは本文が非公開のため操作できません',
+        label: i18n.ts._noteMoreMenu.contentHiddenForAccount,
         icon: 'lock',
         action: () => commandStore.close(),
       },
@@ -288,7 +296,7 @@ function actAsOperations(accountId: string) {
     mine
       ? {
           id: `${accountId}-unreact`,
-          label: `リアクションを取り消す (${mine})`,
+          label: i18n.tsx._noteMoreMenu.unreactWith({ reaction: mine }),
           icon: 'mood-minus',
           action: () => {
             commandStore.close()
@@ -297,7 +305,7 @@ function actAsOperations(accountId: string) {
         }
       : {
           id: `${accountId}-react`,
-          label: 'リアクション',
+          label: i18n.ts._common.react,
           icon: 'mood-plus',
           action: () => {
             commandStore.close()
@@ -306,7 +314,7 @@ function actAsOperations(accountId: string) {
         },
     {
       id: `${accountId}-renote`,
-      label: 'リノート',
+      label: i18n.ts._common.renote,
       icon: 'repeat',
       action: () => {
         commandStore.close()
@@ -315,7 +323,7 @@ function actAsOperations(accountId: string) {
     },
     {
       id: `${accountId}-quote`,
-      label: '引用',
+      label: i18n.ts._common.quote,
       icon: 'quote',
       action: () => {
         commandStore.close()
@@ -338,8 +346,8 @@ function openActAs() {
   }
   close()
   commandStore.pushQuickPick({
-    title: '別のアカウントで…',
-    placeholder: 'アカウントを選択…',
+    title: i18n.ts._noteMoreMenu.actAs,
+    placeholder: i18n.ts._noteMoreMenu.selectAccountPlaceholder,
     items: actAsCandidates.value.map((acc) => ({
       id: acc.id,
       label: getAccountLabel(acc),
@@ -358,7 +366,7 @@ async function openClipQuickPick() {
     const items = [
       {
         id: 'create-new-clip',
-        label: '新しいクリップを作成',
+        label: i18n.ts._noteMoreMenu.createClip,
         icon: 'plus',
         action: () => createClipAndAdd(),
       },
@@ -373,15 +381,18 @@ async function openClipQuickPick() {
       })),
     ]
     commandStore.pushQuickPick({
-      title: 'クリップに追加',
-      placeholder: 'クリップを選択...',
+      title: i18n.ts._noteMoreMenu.addToClip,
+      placeholder: i18n.ts._noteMoreMenu.selectClipPlaceholder,
       items,
     })
     commandStore.open()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[clip:list]', err.code, err.message)
-    toast.show(`クリップの取得に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._noteMoreMenu.fetchClipsFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -391,12 +402,15 @@ async function submitReport() {
     const adapter = await getOrCreate(props.note._accountId)
     if (!adapter) return
     await adapter.api.reportUser(props.note.user.id, reportComment.value)
-    toast.show('通報しました')
+    toast.show(i18n.ts._common.reported)
     close()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:report]', err.code, err.message)
-    toast.show(`通報に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._common.reportFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -407,27 +421,27 @@ defineExpose({ open })
   <PopupMenu ref="popupMenuRef" @close="resetSubViews">
     <!-- Delete confirm -->
     <template v-if="currentView === 'deleteConfirm'">
-      <div class="_popupConfirmText">このノートを削除しますか？</div>
+      <div class="_popupConfirmText">{{ i18n.ts._noteMoreMenu.confirmDelete }}</div>
       <button class="_popupItem _popupItemDanger" @click="emit('delete', note); close()">
         <i class="ti ti-trash" />
-        削除
+        {{ i18n.ts._common.delete }}
       </button>
       <button class="_popupItem" @click="backToMain">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
     <!-- Delete and edit confirm -->
     <template v-else-if="currentView === 'deleteAndEditConfirm'">
-      <div class="_popupConfirmText">このノートを削除して再編集しますか？</div>
+      <div class="_popupConfirmText">{{ i18n.ts._noteMoreMenu.confirmDeleteAndEdit }}</div>
       <button class="_popupItem _popupItemDanger" @click="emit('deleteAndEdit', note); close()">
         <i class="ti ti-trash" />
-        削除して編集
+        {{ i18n.ts._noteMoreMenu.deleteAndEdit }}
       </button>
       <button class="_popupItem" @click="backToMain">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
@@ -435,12 +449,12 @@ defineExpose({ open })
 
     <!-- Report form -->
     <template v-else-if="currentView === 'reportForm'">
-      <div class="_popupConfirmText">@{{ note.user.username }} を通報</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: note.user.username }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          placeholder="通報理由を入力..."
+          :placeholder="i18n.ts._common.reportReasonPlaceholder"
           rows="3"
         />
       </div>
@@ -450,11 +464,11 @@ defineExpose({ open })
         @click="submitReport"
       >
         <i class="ti ti-alert-triangle" />
-        送信
+        {{ i18n.ts._common.send }}
       </button>
       <button class="_popupItem" @click="backToMain">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
@@ -466,32 +480,32 @@ defineExpose({ open })
         @click="canInteract ? (localIsFavorited = !localIsFavorited, emit('bookmark', note), close()) : (showLoginPrompt(), close())"
       >
         <i class="ti ti-star" />
-        {{ localIsFavorited ? 'お気に入り解除' : 'お気に入り' }}
+        {{ localIsFavorited ? i18n.ts._noteMoreMenu.unfavorite : i18n.ts._noteMoreMenu.favorite }}
       </button>
       <button v-if="!isGuest" class="_popupItem" @click="canInteract ? openClipQuickPick() : (showLoginPrompt(), close())">
         <i class="ti ti-paperclip" />
-        クリップに追加
+        {{ i18n.ts._noteMoreMenu.addToClip }}
       </button>
       <button v-if="actAsCandidates.length > 0" class="_popupItem" @click="openActAs">
         <i class="ti ti-users" />
-        別のアカウントで…
+        {{ i18n.ts._noteMoreMenu.actAs }}
       </button>
       <button v-if="isWindowExposed('note-inspector')" class="_popupItem" @click="openInspector">
         <i class="ti ti-code" />
-        Raw JSON を表示
+        {{ i18n.ts._noteMoreMenu.showRawJson }}
       </button>
       <div class="_popupDivider" />
       <button v-if="note.text" class="_popupItem" @click="copyAndClose(note.text!)">
         <i class="ti ti-copy" />
-        内容をコピー
+        {{ i18n.ts._noteMoreMenu.copyContent }}
       </button>
       <button class="_popupItem" @click="copyAndClose(noteWebUrl)">
         <i class="ti ti-link" />
-        リンクをコピー
+        {{ i18n.ts._noteMoreMenu.copyLink }}
       </button>
       <button v-if="canShare" class="_popupItem" @click="shareNote">
         <i class="ti ti-share" />
-        共有
+        {{ i18n.ts._noteMoreMenu.share }}
       </button>
       <template v-if="noteActions.length > 0">
         <div class="_popupDivider" />
@@ -512,7 +526,7 @@ defineExpose({ open })
           @click="localIsPinned = !localIsPinned; emit('pin', note); close()"
         >
           <i :class="localIsPinned ? 'ti ti-pinned-off' : 'ti ti-pin'" />
-          {{ localIsPinned ? 'ピン留め解除' : 'ピン留め' }}
+          {{ localIsPinned ? i18n.ts._noteMoreMenu.unpin : i18n.ts._noteMoreMenu.pin }}
         </button>
         <!--
           「編集」は出さない (#954)。本家 Misskey にノートを更新する API は無く、
@@ -524,18 +538,18 @@ defineExpose({ open })
         -->
         <button class="_popupItem" @click="showDeleteAndEditConfirm = true">
           <i class="ti ti-eraser" />
-          削除して編集
+          {{ i18n.ts._noteMoreMenu.deleteAndEdit }}
         </button>
         <button class="_popupItem _popupItemDanger" @click="showDeleteConfirm = true">
           <i class="ti ti-trash" />
-          削除
+          {{ i18n.ts._common.delete }}
         </button>
       </template>
       <template v-if="!isOwnNote && !isGuest">
         <div class="_popupDivider" />
         <button class="_popupItem _popupItemDanger" @click="canInteract ? (showReportForm = true) : (showLoginPrompt(), close())">
           <i class="ti ti-alert-triangle" />
-          通報
+          {{ i18n.ts._common.report }}
         </button>
       </template>
     </template>
@@ -545,8 +559,8 @@ defineExpose({ open })
   <AccountPickerSheet
     :show="showActAs"
     :accounts="actAsCandidates"
-    :title="actAsAccountId ? actAsAccountLabel : '別のアカウントで…'"
-    :description="actAsAccountId ? undefined : 'このノートを操作するアカウント'"
+    :title="actAsAccountId ? actAsAccountLabel : i18n.ts._noteMoreMenu.actAs"
+    :description="actAsAccountId ? undefined : i18n.ts._noteMoreMenu.actAsDescription"
     :stage="actAsAccountId ? 'detail' : 'accounts'"
     has-next
     @select="actAsAccountId = $event"
@@ -556,29 +570,29 @@ defineExpose({ open })
       <!-- 非公開 variant は desktop の actAsOperations と同じく全操作を出さない -->
       <div v-if="actAsAccountId && variantHidden(actAsAccountId)" class="_popupItem" aria-disabled="true" style="opacity: 0.6; cursor: default">
         <i class="ti ti-lock" />
-        このアカウントでは本文が非公開のため操作できません
+        {{ i18n.ts._noteMoreMenu.contentHiddenForAccount }}
       </div>
       <template v-else>
         <button v-if="actAsAccountId && variantReaction(actAsAccountId)" class="_popupItem" @click="actAs('unreactAs')">
           <i class="ti ti-mood-minus" />
-          リアクションを取り消す ({{ variantReaction(actAsAccountId) }})
+          {{ i18n.tsx._noteMoreMenu.unreactWith({ reaction: variantReaction(actAsAccountId) ?? '' }) }}
         </button>
         <button v-else class="_popupItem" @click="actAs('reactAs')">
           <i class="ti ti-mood-plus" />
-          リアクション
+          {{ i18n.ts._common.react }}
         </button>
         <button class="_popupItem" @click="actAs('renoteAs')">
           <i class="ti ti-repeat" />
-          リノート
+          {{ i18n.ts._common.renote }}
         </button>
         <button class="_popupItem" @click="actAs('quoteAs')">
           <i class="ti ti-quote" />
-          引用
+          {{ i18n.ts._common.quote }}
         </button>
       </template>
       <button class="_popupItem" @click="actAsAccountId = null">
         <i class="ti ti-arrow-left" />
-        戻る
+        {{ i18n.ts._common.back }}
       </button>
     </template>
   </AccountPickerSheet>

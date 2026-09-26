@@ -1,5 +1,6 @@
 import type { NormalizedNote } from '@/adapters/types'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { i18n } from '@/i18n'
 import { resolveNoteFor } from '@/services/entityResolution'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -34,17 +35,16 @@ export function useCrossAccountNoteActions() {
     const resolved = await resolveNoteFor(accountId, note)
     if (resolved.ok) return resolved.noteId
     if (resolved.code === 'no_token') {
-      toast.show('このアカウントでは操作できません（未ログイン）', 'error')
+      toast.show(i18n.ts._useCrossAccountNoteActions.notLoggedIn, 'error')
     } else if (resolved.code === 'not_found') {
       toast.show(
-        `${labelFor(accountId)} のサーバーからこのノートを見つけられませんでした`,
+        i18n.tsx._useCrossAccountNoteActions.noteNotFound({
+          account: labelFor(accountId),
+        }),
         'error',
       )
     } else {
-      toast.show(
-        'ノートの解決に失敗しました。あとで再試行してください',
-        'error',
-      )
+      toast.show(i18n.ts._useCrossAccountNoteActions.resolveFailed, 'error')
     }
     return null
   }
@@ -63,32 +63,47 @@ export function useCrossAccountNoteActions() {
     const label = labelFor(accountId)
     try {
       await adapter.api.createReaction(noteId, reaction)
-      toast.show(`${label} でリアクションしました`, 'success')
+      toast.show(
+        i18n.tsx._useCrossAccountNoteActions.reacted({ account: label }),
+        'success',
+      )
     } catch (e) {
       const err = AppError.from(e)
       if (err.displayCode === 'ALREADY_REACTED') {
         const ok = await confirm({
-          title: 'リアクション解除',
-          message: `${label} は既にこのノートにリアクションしています。リアクションを解除しますか？`,
+          title: i18n.ts._useCrossAccountNoteActions.unreactTitle,
+          message: i18n.tsx._useCrossAccountNoteActions.confirmUnreact({
+            account: label,
+          }),
           type: 'danger',
-          okLabel: '解除',
+          okLabel: i18n.ts._common.remove,
         })
         if (!ok) return
         try {
           await adapter.api.deleteReaction(noteId)
-          toast.show(`${label} のリアクションを解除しました`, 'success')
+          toast.show(
+            i18n.tsx._useCrossAccountNoteActions.unreacted({ account: label }),
+            'success',
+          )
         } catch (e2) {
           const err2 = AppError.from(e2)
           console.error('[crossAction:unreact]', err2.code, err2.message)
           toast.show(
-            `リアクションの解除に失敗しました（${err2.displayCode}）`,
+            i18n.tsx._useCrossAccountNoteActions.unreactFailed({
+              code: err2.displayCode,
+            }),
             'error',
           )
         }
         return
       }
       console.error('[crossAction:react]', err.code, err.message)
-      toast.show(`リアクションに失敗しました（${err.displayCode}）`, 'error')
+      toast.show(
+        i18n.tsx._useCrossAccountNoteActions.reactionFailed({
+          code: err.displayCode,
+        }),
+        'error',
+      )
     }
   }
 
@@ -104,11 +119,21 @@ export function useCrossAccountNoteActions() {
 
     try {
       await adapter.api.createNote({ renoteId: noteId })
-      toast.show(`${labelFor(accountId)} でリノートしました`, 'success')
+      toast.show(
+        i18n.tsx._useCrossAccountNoteActions.renoted({
+          account: labelFor(accountId),
+        }),
+        'success',
+      )
     } catch (e) {
       const err = AppError.from(e)
       console.error('[crossAction:renote]', err.code, err.message)
-      toast.show(`リノートに失敗しました（${err.displayCode}）`, 'error')
+      toast.show(
+        i18n.tsx._useCrossAccountNoteActions.renoteFailed({
+          code: err.displayCode,
+        }),
+        'error',
+      )
     }
   }
 

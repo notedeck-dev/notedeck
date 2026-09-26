@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { i18n } from '@/i18n'
+
 /**
  * Pull to Refresh の引き下げ枠 (本家 MkPullToRefresh 相当)。状態は
  * `usePullToRefresh` が持ち、ここは描くだけ。per-account (DeckNoteColumn) と
@@ -23,9 +25,9 @@ defineProps<{
       <i v-if="isRefreshing" class="ti ti-loader-2 nd-spin" />
       <i v-else class="ti ti-arrow-bar-to-down" :class="{ refresh: isPulledEnough }" />
       <div :class="$style.pullText">
-        <template v-if="isPulledEnough">離してリフレッシュ</template>
-        <template v-else-if="isRefreshing">リフレッシュ中…</template>
-        <template v-else>下に引いてリフレッシュ</template>
+        <template v-if="isPulledEnough">{{ i18n.ts._common.releaseToRefresh }}</template>
+        <template v-else-if="isRefreshing">{{ i18n.ts._common.refreshing }}</template>
+        <template v-else>{{ i18n.ts._common.pullToRefresh }}</template>
       </div>
     </div>
   </div>

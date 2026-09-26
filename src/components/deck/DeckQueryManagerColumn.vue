@@ -3,8 +3,9 @@ import { computed, ref } from 'vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
-import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
+import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   isQueryActive,
@@ -94,9 +95,11 @@ const scopeCount = computed(
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: `インストール済み ${scopeCount.value}`,
+    label: i18n.tsx._common.installedTab({
+      count: scopeCount.value,
+    }),
   },
-  { value: 'store', label: 'ストア' },
+  { value: 'store', label: i18n.ts._common.store },
 ])
 
 function switchTab(tab: string) {
@@ -160,8 +163,16 @@ const installedSections = computed<QuerySection[]>(() => {
   const sideloaded = visibleQueries.value.filter((q) => !q.storeId)
   const store = visibleQueries.value.filter((q) => !!q.storeId)
   const sections: QuerySection[] = [
-    { key: 'sideload', label: 'サイドロード', items: sideloaded },
-    { key: 'store', label: 'ストア配布', items: store },
+    {
+      key: 'sideload',
+      label: i18n.ts._common.sideload,
+      items: sideloaded,
+    },
+    {
+      key: 'store',
+      label: i18n.ts._common.storeDistributed,
+      items: store,
+    },
   ]
   return sections.filter((s) => s.items.length > 0)
 })
@@ -189,8 +200,10 @@ function openEditor(query: NamedQueryMeta): void {
 
 async function createNew(): Promise<void> {
   const query = await queriesStore.createQuery({
-    name: `新しいクエリ ${queriesStore.queries.length + 1}`,
-    src: 'note.text != null && note.text.incl("キーワード")',
+    name: i18n.tsx._deckQueryManagerColumn.newQueryName({
+      n: queriesStore.queries.length + 1,
+    }),
+    src: `note.text != null && note.text.incl("${i18n.ts._deckQueryManagerColumn.newQueryKeyword}")`,
     // このカラムの文脈で作る = そのスコープに参加した状態で始める
     ...(columnScope.value ? { scope: columnScope.value } : {}),
   })
@@ -205,19 +218,21 @@ function detachFromScope(query: NamedQueryMeta): void {
   const scope = columnScope.value
   if (!scope) return
   if (!queriesStore.unlinkScope(query.id, scope)) {
-    useToast().show(READ_ONLY_REASON, 'warning')
+    useToast().show(readOnlyReason(), 'warning')
     return
   }
-  useToast().show('クエリを外しました', 'info', {
+  useToast().show(i18n.ts._deckQueryManagerColumn.detached, 'info', {
     action: {
-      label: '元に戻す',
+      label: i18n.ts._common.undo,
       onClick: () => queriesStore.linkScope(query.id, scope),
     },
   })
 }
 
 const detachTitle = computed(() =>
-  isCrossAccount.value ? '全アカウント対象から外す' : 'このアカウントから外す',
+  isCrossAccount.value
+    ? i18n.ts._deckQueryManagerColumn.detachFromAllAccounts
+    : i18n.ts._common.detachFromAccount,
 )
 
 // --- Library picker (スコープ未参加のライブラリ本体の追加) ---
@@ -232,7 +247,7 @@ function placeFromLibrary(query: NamedQueryMeta): void {
   const scope = columnScope.value
   if (!scope) return
   if (!queriesStore.linkScope(query.id, scope)) {
-    useToast().show(READ_ONLY_REASON, 'warning')
+    useToast().show(readOnlyReason(), 'warning')
     return
   }
   showLibraryPicker.value = false
@@ -244,29 +259,35 @@ function placeFromLibrary(query: NamedQueryMeta): void {
  */
 async function toggleDisabled(query: NamedQueryMeta): Promise<void> {
   const ok = await queriesStore.setDisabled(query.id, isQueryActive(query))
-  if (!ok) useToast().show(READ_ONLY_REASON, 'warning')
+  if (!ok) useToast().show(readOnlyReason(), 'warning')
 }
 
 async function remove(query: NamedQueryMeta): Promise<void> {
   const used = refCount(query)
   // 無効中は今効いていないので、消すとカラムが止まる逆転を先に言う (#1043)
   const usedMessage = isQueryActive(query)
-    ? `「${query.name}」は ${used} 個のカラムに適用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？`
-    : `「${query.name}」は無効ですが、${used} 個のカラムに適用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？`
+    ? i18n.tsx._deckQueryManagerColumn.deleteConfirmInUse_plural({
+        name: query.name,
+        count: used,
+      })
+    : i18n.tsx._deckQueryManagerColumn.deleteConfirmInUseDisabled_plural({
+        name: query.name,
+        count: used,
+      })
   const ok = await confirm({
-    title: 'クエリを削除',
+    title: i18n.ts._deckQueryManagerColumn.deleteTitle,
     message:
       used > 0
         ? usedMessage
-        : `「${query.name}」を削除しますか？クエリの本文も消えます。`,
-    okLabel: '削除',
+        : i18n.tsx._deckQueryManagerColumn.deleteConfirm({ name: query.name }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = await queriesStore.removeQuery(query.id)
   if (undo) {
-    useToast().show('クエリを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckQueryManagerColumn.deleted, 'info', {
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -290,7 +311,8 @@ async function handleInstall(entry: StoreQueryEntry): Promise<void> {
     // 入れた場所のスコープに参加させる (#1018)
     await misStore.installQuery(entry, columnScope.value ?? undefined)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : 'インストール失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   }
 }
 
@@ -299,7 +321,8 @@ async function handleUpdate(entry: StoreQueryEntry): Promise<void> {
   try {
     await misStore.updateQuery(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : '更新失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 
@@ -311,7 +334,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'クエリ'"
+    :title="column.name ?? i18n.ts._columns.queryManager"
     :theme-vars="columnThemeVars"
   >
     <template #header-icon>
@@ -323,7 +346,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
         v-if="viewTab === 'installed' && canEdit"
         class="_button"
         :class="$style.headerBtn"
-        title="新規クエリを作成"
+        :title="i18n.ts._deckQueryManagerColumn.create"
         @click.stop="createNew"
       >
         <i class="ti ti-plus" />
@@ -331,7 +354,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
-      <SafeModeNotice subject="クエリ" />
+      <SafeModeNotice :subject="i18n.ts._deckQueryManagerColumn.safeModeSubject" />
 
       <ColumnTabs
         :tabs="tabDefs"
@@ -345,13 +368,13 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
           v-model="searchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="クエリを探す"
+          :placeholder="i18n.ts._deckQueryManagerColumn.search"
         />
         <div v-if="viewTab === 'installed'" :class="$style.searchActions">
           <button
             class="_button"
             :class="[$style.filterBtn, activeFilter === 'enabled' && $style.filterBtnActive]"
-            title="有効なクエリ"
+            :title="i18n.ts._deckQueryManagerColumn.enabledQueries"
             @click="setFilter(activeFilter === 'enabled' ? 'all' : 'enabled')"
           >
             <i class="ti ti-check" />
@@ -359,7 +382,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
           <button
             class="_button"
             :class="[$style.filterBtn, activeFilter === 'disabled' && $style.filterBtnActive]"
-            title="無効なクエリ"
+            :title="i18n.ts._deckQueryManagerColumn.disabledQueries"
             @click="setFilter(activeFilter === 'disabled' ? 'all' : 'disabled')"
           >
             <i class="ti ti-circle-off" />
@@ -372,12 +395,11 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
         <div :class="$style.list">
           <div v-if="visibleQueries.length === 0" :class="$style.empty">
             <i class="ti ti-filter" :class="$style.emptyIcon" />
-            <span v-if="searchQuery">一致するクエリがありません</span>
+            <span v-if="searchQuery">{{ i18n.ts._deckQueryManagerColumn.noMatches }}</span>
             <template v-else>
-              <span>名前付きクエリはまだありません</span>
+              <span>{{ i18n.ts._deckQueryManagerColumn.empty }}</span>
               <span :class="$style.emptyHint">
-                クエリはカラムの視界を定義する AiScript 式です。作成すると
-                各ノートカラムのクエリ設定からトグルで適用できます。
+                {{ i18n.ts._deckQueryManagerColumn.emptyHint }}
               </span>
               <button
                 v-if="canEdit"
@@ -385,7 +407,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
                 :class="$style.emptyLink"
                 @click="createNew"
               >
-                クエリを作成
+                {{ i18n.ts._deckQueryManagerColumn.createQuery }}
               </button>
             </template>
           </div>
@@ -423,13 +445,13 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
               @click="showLibraryPicker = !showLibraryPicker"
             >
               <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? '閉じる' : 'ライブラリから追加' }}
+              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._common.addFromLibrary }}
             </button>
           </div>
 
           <div v-if="showLibraryPicker" :class="$style.pickerWrap">
             <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              ライブラリに追加可能なクエリがありません。
+              {{ i18n.ts._deckQueryManagerColumn.noLibraryCandidates }}
             </div>
             <QueryCard
               v-for="query in libraryCandidates"
@@ -468,18 +490,18 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 
         <div v-if="misStore.queriesLoading" :class="$style.empty">
           <i class="ti ti-loader-2 nd-spin" />
-          読み込み中...
+          {{ i18n.ts._common.loading }}
         </div>
 
         <div v-else-if="misStore.queriesError" :class="$style.empty">
           <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>ストアに接続できません</span>
+          <span>{{ i18n.ts._common.storeUnavailable }}</span>
           <button
             class="_button"
             :class="$style.emptyLink"
             @click="misStore.refreshQueries()"
           >
-            再試行
+            {{ i18n.ts._common.retry }}
           </button>
         </div>
 
@@ -510,7 +532,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
             :class="$style.empty"
           >
             <i class="ti ti-filter" :class="$style.emptyIcon" />
-            <span>一致するクエリがありません</span>
+            <span>{{ i18n.ts._deckQueryManagerColumn.noMatches }}</span>
           </div>
         </div>
       </template>

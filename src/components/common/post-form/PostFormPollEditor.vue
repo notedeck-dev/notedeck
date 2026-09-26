@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { i18n } from '@/i18n'
 
 /**
  * 投稿フォームのアンケート編集ブロック (#707 MkPostForm 分割)。
@@ -27,12 +28,42 @@ const MINUTE = 60_000
 const HOUR = 3_600_000
 const DAY = 86_400_000
 const expiryPresets = [
-  { label: '30分', ms: 30 * MINUTE },
-  { label: '1時間', ms: HOUR },
-  { label: '6時間', ms: 6 * HOUR },
-  { label: '1日', ms: DAY },
-  { label: '3日', ms: 3 * DAY },
-  { label: '7日', ms: 7 * DAY },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry30m
+    },
+    ms: 30 * MINUTE,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry1h
+    },
+    ms: HOUR,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry6h
+    },
+    ms: 6 * HOUR,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry1d
+    },
+    ms: DAY,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry3d
+    },
+    ms: 3 * DAY,
+  },
+  {
+    get label() {
+      return i18n.ts._postFormPollEditor.expiry7d
+    },
+    ms: 7 * DAY,
+  },
 ]
 
 // '' = 無期限 / '<ms>' = 期間プリセット / 'at' = 日時指定
@@ -104,7 +135,7 @@ watch(
       <input
         v-model="choices[i]"
         :class="$style.pollChoiceInput"
-        :placeholder="`選択肢 ${i + 1}`"
+        :placeholder="i18n.tsx._postFormPollEditor.choicePlaceholder({ n: i + 1 })"
       />
       <button
         v-if="choices.length > 2"
@@ -122,24 +153,24 @@ watch(
         :class="$style.pollAddBtn"
         @click="addChoice"
       >
-        <i class="ti ti-plus" /> 選択肢を追加
+        <i class="ti ti-plus" /> {{ i18n.ts._postFormPollEditor.addChoice }}
       </button>
       <label :class="$style.pollMultipleLabel">
         <input v-model="multiple" type="checkbox" />
-        複数選択
+        {{ i18n.ts._postFormPollEditor.multiple }}
       </label>
       <label :class="$style.pollExpiryLabel">
-        期限
+        {{ i18n.ts._postFormPollEditor.expiry }}
         <select
           v-model="expiryMode"
           :class="$style.pollExpirySelect"
           @change="onExpiryModeChange"
         >
-          <option value="">無期限</option>
+          <option value="">{{ i18n.ts._postFormPollEditor.noExpiry }}</option>
           <option v-for="p in expiryPresets" :key="p.ms" :value="String(p.ms)">
             {{ p.label }}
           </option>
-          <option value="at">日時指定</option>
+          <option value="at">{{ i18n.ts._postFormPollEditor.specifyDate }}</option>
         </select>
       </label>
       <input

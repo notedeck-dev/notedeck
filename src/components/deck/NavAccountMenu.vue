@@ -3,6 +3,7 @@ import { computed, ref, toRef } from 'vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import { type Account, isGuestAccount } from '@/stores/accounts'
 import { modeIcon, modeLabel } from '@/utils/customTimelines'
 import { hapticSelection } from '@/utils/haptics'
@@ -82,44 +83,44 @@ const hasUpperSection = computed(
       <template v-if="!isGuestAccount(account)">
         <div v-if="account.hasToken && Object.keys(modes).length > 0" :class="$style.navAccountMenuDivider" />
         <button class="_button" :class="$style.navAccountMenuItem" @click="navigateToUser(account.id, account.userId)">
-          <span>プロフィール</span>
+          <span>{{ i18n.ts._windows.userProfile }}</span>
           <i class="ti ti-user" />
         </button>
         <div :class="$style.navAccountMenuDivider" />
         <button class="_button" :class="$style.navAccountMenuItem" @click="openSafeUrl(webUiUrl(account.host, '/settings'))">
-          <span>設定</span>
+          <span>{{ i18n.ts._common.settings }}</span>
           <i class="ti ti-external-link" />
         </button>
       </template>
       <button v-if="isAdmin" class="_button" :class="$style.navAccountMenuItem" @click="openSafeUrl(webUiUrl(account.host, '/admin'))">
-        <span>コントロールパネル</span>
+        <span>{{ i18n.ts._navAccountMenu.controlPanel }}</span>
         <i class="ti ti-external-link" />
       </button>
 
       <div v-if="hasUpperSection" :class="$style.navAccountMenuDivider" />
       <button class="_button" :class="$style.navAccountMenuItem" @click="emit('clear-cache')">
-        <span>キャッシュ削除</span>
+        <span>{{ i18n.ts._common.clearCache }}</span>
         <i class="ti ti-eraser" />
       </button>
       <template v-if="account.hasToken">
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
-          <span>ログアウト</span>
+          <span>{{ i18n.ts._common.logout }}</span>
           <i class="ti ti-logout" />
         </button>
       </template>
       <template v-else-if="isGuestAccount(account)">
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
-          <span>データを削除</span>
+          <span>{{ i18n.ts._common.deleteData }}</span>
           <i class="ti ti-trash" />
         </button>
       </template>
       <template v-else>
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountRelogin]" @click="emit('relogin', account.host)">
-          <span>再ログイン</span>
+          <span>{{ i18n.ts._common.relogin }}</span>
           <i class="ti ti-login" />
         </button>
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
-          <span>データを削除</span>
+          <span>{{ i18n.ts._common.deleteData }}</span>
           <i class="ti ti-trash" />
         </button>
       </template>

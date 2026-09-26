@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { NormalizedPoll } from '@/adapters/types'
+import { i18n } from '@/i18n'
 
 const props = defineProps<{
   poll: NormalizedPoll
@@ -28,7 +29,7 @@ function percentage(votes: number): number {
 
 function formatExpiry(iso: string): string {
   const d = new Date(iso)
-  return d.toLocaleString()
+  return d.toLocaleString(i18n.lang)
 }
 
 function canVote(isVoted: boolean): boolean {
@@ -66,10 +67,10 @@ function onClick(i: number, isVoted: boolean) {
       </div>
     </button>
     <div :class="$style.pollFooter">
-      <span :class="$style.pollTotal">{{ totalVotes }}票</span>
-      <span v-if="poll.multiple" :class="$style.pollBadge">複数選択</span>
+      <span :class="$style.pollTotal">{{ i18n.tsx._mkPoll.votes_plural({ count: totalVotes }) }}</span>
+      <span v-if="poll.multiple" :class="$style.pollBadge">{{ i18n.ts._mkPoll.multiple }}</span>
       <span v-if="poll.expiresAt" :class="$style.pollExpiry">
-        {{ isExpired ? '終了' : `${formatExpiry(poll.expiresAt)}まで` }}
+        {{ isExpired ? i18n.ts._mkPoll.ended : i18n.tsx._mkPoll.until({ date: formatExpiry(poll.expiresAt) }) }}
       </span>
     </div>
   </div>

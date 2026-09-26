@@ -9,6 +9,7 @@ import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteAccountId } from '@/composables/useNoteContext'
 import { usePortal } from '@/composables/usePortal'
+import { i18n } from '@/i18n'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -228,7 +229,7 @@ usePortal(lightboxPortalRef)
       <div :class="$style.chatMeta">
         <button
           :class="$style.chatMoreBtn"
-          title="メニュー"
+          :title="i18n.ts._common.menu"
           @click.stop="moreMenuRef?.open($event)"
         >
           <i class="ti ti-dots" />

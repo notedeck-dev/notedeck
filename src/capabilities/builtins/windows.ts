@@ -1,4 +1,5 @@
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import { useWindowsStore, type WindowType } from '@/stores/windows'
 import { WINDOW_SIZES } from '@/windows/registry'
 import { implement } from '../declare'
@@ -93,10 +94,10 @@ export const windowsFocusCapability = implement('windows.focus', {
 
 export const windowsCloseAllCapability = implement('windows.closeAll', {
   requiresConfirmation: () => ({
-    title: '全ウィンドウを閉じる',
-    message: '現在開いているすべての DeckWindow を閉じます。',
-    okLabel: 'すべて閉じる',
-    cancelLabel: 'やめる',
+    title: i18n.ts._windowsCapability.closeAllTitle,
+    message: i18n.ts._windowsCapability.closeAllMessage,
+    okLabel: i18n.ts._windowsCapability.closeAllOk,
+    cancelLabel: i18n.ts._windowsCapability.cancel,
     type: 'warning',
   }),
   execute: () => {

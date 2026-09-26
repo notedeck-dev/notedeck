@@ -1478,7 +1478,7 @@ const data: Record<CategoryName, string[]> = {
     '🔆',
     '🔱',
     '⚜',
-    '〽️',
+    '〽️', // i18n-ignore: data
     '⚠️',
     '🚸',
     '🔰',
@@ -1573,7 +1573,7 @@ const data: Record<CategoryName, string[]> = {
     '🔣',
     '🎵',
     '🎶',
-    '〰️',
+    '〰️', // i18n-ignore: data
     '➰',
     '✔️',
     '🔃',

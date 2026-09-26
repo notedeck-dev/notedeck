@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import MkEmoji from '@/components/common/MkEmoji.vue'
 import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useEmojisStore } from '@/stores/emojis'
 import { useSettingsStore } from '@/stores/settings'
@@ -53,8 +54,8 @@ function resolveCustomUrl(key: string): string | null {
 <template>
   <div :class="$style.root">
     <AiSwitchRow
-      label="ミュート・凍結ユーザーのリアクションを隠す"
-      sub-label="リアクション集計から抹消する。リアクションが非常に多いノートは対象外"
+      :label="i18n.ts._emojiMuteSection.hideMutedUserReactions"
+      :sub-label="i18n.ts._emojiMuteSection.hideMutedUserReactionsDescription"
       icon="ti-eye-off"
       :on="hideMutedUserReactions"
       @toggle="toggleHideMutedUserReactions"
@@ -63,11 +64,11 @@ function resolveCustomUrl(key: string): string | null {
     <details :class="$style.mutedEmojis">
       <summary :class="$style.mutedEmojisLabel">
         <i class="ti ti-chevron-right" :class="$style.chevron" />
-        ミュート中の絵文字
+        {{ i18n.ts._emojiMuteSection.mutedEmojis }}
         <span :class="$style.countBadge">{{ mutedEmojis.length }}</span>
       </summary>
       <p v-if="mutedEmojis.length === 0" :class="$style.empty">
-        なし — リアクションや絵文字カラムの右クリックから追加できます
+        {{ i18n.ts._emojiMuteSection.empty }}
       </p>
       <div v-else :class="$style.list">
         <button
@@ -75,7 +76,7 @@ function resolveCustomUrl(key: string): string | null {
           :key="key"
           class="_button"
           :class="$style.item"
-          :title="`${key} — クリックで解除`"
+          :title="i18n.tsx._emojiMuteSection.clickToUnmute({ emoji: key })"
           @click="toggleEmojiMuteWithConfirm(key)"
         >
           <img

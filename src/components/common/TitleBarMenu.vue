@@ -3,9 +3,9 @@ import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { onMounted, ref } from 'vue'
-
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import { getLogDir, getSettingsDir } from '@/utils/settingsFs'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -170,30 +170,30 @@ defineExpose({ toggleMenu })
       >
         <button class="_popupItem" :class="[activeCategory === 'file' && $style.itemActive]">
           <i class="ti ti-file" />
-          <span>ファイル</span>
+          <span>{{ i18n.ts._titleBarMenu.file }}</span>
           <i class="ti ti-chevron-right" :class="$style.chevron" />
         </button>
         <div v-if="activeCategory === 'file'" :class="$style.sub">
           <button class="_popupItem" @click="openSettingsDir">
             <i class="ti ti-folder-open" />
-            <span>設定フォルダを開く</span>
+            <span>{{ i18n.ts._titleBarMenu.openSettingsFolder }}</span>
           </button>
           <button class="_popupItem" @click="openLogDir">
             <i class="ti ti-folder-open" />
-            <span>ログフォルダを開く</span>
+            <span>{{ i18n.ts._titleBarMenu.openLogFolder }}</span>
           </button>
           <button class="_popupItem" @click="openDownloadDir">
             <i class="ti ti-folder-down" />
-            <span>ダウンロードフォルダを開く</span>
+            <span>{{ i18n.ts._titleBarMenu.openDownloadFolder }}</span>
           </button>
           <button class="_popupItem" @click="openBackupDir">
             <i class="ti ti-database-export" />
-            <span>バックアップフォルダを開く</span>
+            <span>{{ i18n.ts._titleBarMenu.openBackupFolder }}</span>
           </button>
           <div class="_popupDivider" />
           <button class="_popupItem" @click="toggleAutostart">
             <i class="ti ti-power" />
-            <span>OS起動時に自動起動</span>
+            <span>{{ i18n.ts._titleBarMenu.launchAtStartup }}</span>
             <i :class="[autostartEnabled ? 'ti ti-check' : 'ti ti-minus', $style.kbd]" />
           </button>
         </div>
@@ -205,24 +205,24 @@ defineExpose({ toggleMenu })
       >
         <button class="_popupItem" :class="[activeCategory === 'view' && $style.itemActive]">
           <i class="ti ti-layout" />
-          <span>表示</span>
+          <span>{{ i18n.ts._titleBarMenu.view }}</span>
           <i class="ti ti-chevron-right" :class="$style.chevron" />
         </button>
         <div v-if="activeCategory === 'view'" :class="$style.sub">
           <button class="_popupItem" @click="setZoom(0.1)">
             <i class="ti ti-zoom-in" />
-            <span>拡大</span>
+            <span>{{ i18n.ts._titleBarMenu.zoomIn }}</span>
             <kbd :class="$style.kbd">Ctrl++</kbd>
           </button>
           <button class="_popupItem" @click="setZoom(-0.1)">
             <i class="ti ti-zoom-out" />
-            <span>縮小</span>
+            <span>{{ i18n.ts._titleBarMenu.zoomOut }}</span>
             <kbd :class="$style.kbd">Ctrl+-</kbd>
           </button>
           <div class="_popupDivider" />
           <button class="_popupItem" @click="reloadApp">
             <i class="ti ti-refresh" />
-            <span>再読み込み</span>
+            <span>{{ i18n.ts._common.reload }}</span>
             <kbd :class="$style.kbd">Ctrl+Shift+R</kbd>
           </button>
         </div>

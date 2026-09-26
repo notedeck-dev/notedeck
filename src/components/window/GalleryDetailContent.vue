@@ -5,6 +5,7 @@ import MkMediaLightbox from '@/components/common/MkMediaLightbox.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { safeUrl } from '@/composables/useDriveFolder'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -193,7 +194,7 @@ function onKeydown(e: KeyboardEvent) {
                 v-if="currentFile.isSensitive && isRevealed(currentFile)"
                 class="_button"
                 :class="$style.hideBtn"
-                title="隠す"
+                :title="i18n.ts._common.hide"
                 @click.stop="toggleReveal(currentFile)"
               >
                 <i class="ti ti-eye" />

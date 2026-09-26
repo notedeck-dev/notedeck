@@ -6,6 +6,7 @@ import {
   isVideo,
   safeUrl,
 } from '@/composables/useDriveFolder'
+import { i18n } from '@/i18n'
 import { proxyUrl } from '@/utils/mediaProxy'
 
 /**
@@ -99,8 +100,8 @@ function onContextMenu(file: NormalizedDriveFile, e: MouseEvent) {
         v-if="showItemMenu && !selectMode"
         class="_button"
         :class="$style.cellMenuBtn"
-        :aria-label="`「${file.name}」のメニュー`"
-        title="メニュー"
+        :aria-label="i18n.tsx._mkFileGrid.menuFor({ name: file.name })"
+        :title="i18n.ts._common.menu"
         @click.stop="emit('file-menu', file, $event)"
       >
         <i class="ti ti-dots" />

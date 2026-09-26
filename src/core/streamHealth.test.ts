@@ -44,9 +44,9 @@ describe('streamHealth', () => {
 
   it('継続時間を秒/分/時間で表示する', () => {
     const now = Date.now()
-    expect(formatHealthDuration(now - 5_000)).toBe('5秒前から')
-    expect(formatHealthDuration(now - 3 * 60_000)).toBe('3分前から')
-    expect(formatHealthDuration(now - 2 * 3_600_000)).toBe('2時間前から')
+    expect(formatHealthDuration(now - 5_000)).toBe('5 秒前から')
+    expect(formatHealthDuration(now - 3 * 60_000)).toBe('3 分前から')
+    expect(formatHealthDuration(now - 2 * 3_600_000)).toBe('2 時間前から')
   })
 })
 

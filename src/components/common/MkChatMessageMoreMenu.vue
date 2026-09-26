@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import type { ChatMessage } from '@/adapters/types'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { i18n } from '@/i18n'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import PopupMenu from './PopupMenu.vue'
@@ -70,12 +71,15 @@ async function submitReport() {
     const adapter = await getOrCreate(props.accountId)
     if (!adapter) return
     await adapter.api.reportUser(props.message.fromUserId, reportComment.value)
-    toast.show('通報しました')
+    toast.show(i18n.ts._common.reported)
     close()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[chat:report]', err.code, err.message)
-    toast.show(`通報に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._common.reportFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -86,25 +90,25 @@ defineExpose({ open })
   <PopupMenu ref="popupMenuRef" @close="resetSubViews">
     <!-- Delete confirm -->
     <template v-if="showDeleteConfirm">
-      <div class="_popupConfirmText">このメッセージを削除しますか？</div>
+      <div class="_popupConfirmText">{{ i18n.ts._mkChatMessageMoreMenu.confirmDelete }}</div>
       <button class="_popupItem _popupItemDanger" @click="confirmDelete">
         <i class="ti ti-trash" />
-        削除
+        {{ i18n.ts._common.delete }}
       </button>
       <button class="_popupItem" @click="showDeleteConfirm = false">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
     <!-- Report form -->
     <template v-else-if="showReportForm">
-      <div class="_popupConfirmText">@{{ message.fromUser?.username }} を通報</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: message.fromUser?.username ?? '' }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          placeholder="通報理由を入力..."
+          :placeholder="i18n.ts._common.reportReasonPlaceholder"
           rows="3"
         />
       </div>
@@ -114,11 +118,11 @@ defineExpose({ open })
         @click="submitReport"
       >
         <i class="ti ti-alert-triangle" />
-        送信
+        {{ i18n.ts._common.send }}
       </button>
       <button class="_popupItem" @click="showReportForm = false">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
@@ -128,24 +132,24 @@ defineExpose({ open })
            fromUserId === userId で throw する) ので導線ごと出さない -->
       <button v-if="!isMine" class="_popupItem" @click.stop="reactAndClose">
         <i class="ti ti-mood-plus" />
-        リアクション
+        {{ i18n.ts._common.react }}
       </button>
       <button v-if="message.text" class="_popupItem" @click="copyAndClose(message.text!)">
         <i class="ti ti-copy" />
-        内容をコピー
+        {{ i18n.ts._mkChatMessageMoreMenu.copyContent }}
       </button>
       <template v-if="isMine">
         <div v-if="message.text" class="_popupDivider" />
         <button class="_popupItem _popupItemDanger" @click="showDeleteConfirm = true">
           <i class="ti ti-trash" />
-          削除
+          {{ i18n.ts._common.delete }}
         </button>
       </template>
       <template v-else>
         <div class="_popupDivider" />
         <button class="_popupItem _popupItemDanger" @click="showReportForm = true">
           <i class="ti ti-flag" />
-          通報
+          {{ i18n.ts._common.report }}
         </button>
       </template>
     </template>

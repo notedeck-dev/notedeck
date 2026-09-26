@@ -133,7 +133,7 @@ describe('preflightValidateSrc helper', () => {
   it('returns a PreflightFailure with diagnostics JSON when src is broken', () => {
     const r = preflightValidateSrc({ src: 'let x = (' }, 'plugin')
     expect(r).not.toBeNull()
-    expect(r?.error).toContain('構文エラー')
+    expect(r?.error).toContain('syntax errors')
     expect(r?.error).toContain('diagnostics:')
     // diagnostics JSON が AI 側で parse できる形で埋まっている
     const jsonStart = r?.error.indexOf('[')

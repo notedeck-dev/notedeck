@@ -12,6 +12,7 @@ import {
   withPluginAccountContext,
 } from '@/aiscript/plugin-api'
 import PopupMenu from '@/components/common/PopupMenu.vue'
+import { i18n } from '@/i18n'
 import { useDeckStore } from '@/stores/deck'
 import { useMutesStore } from '@/stores/mutes'
 import { useToast } from '@/stores/toast'
@@ -122,13 +123,16 @@ async function handleMuteUser() {
     await props.adapter.api.muteUser(props.user.id)
     // 過去ノートをリロード無しで即時非表示にする（#574）。表示述語が reactive に再評価。
     mutesStore.muteUser(props.accountId, props.user.id)
-    toast.show('ミュートしました')
+    toast.show(i18n.ts._userProfileMenu.muted)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:mute]', err.code, err.message)
-    toast.show(`ミュートに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.muteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -138,13 +142,16 @@ async function handleUnmuteUser() {
     await props.adapter.api.unmuteUser(props.user.id)
     // ミュート中に隠れていた過去ノートを即時復活させる（#574）。
     mutesStore.unmuteUser(props.accountId, props.user.id)
-    toast.show('ミュートを解除しました')
+    toast.show(i18n.ts._userProfileMenu.unmuted)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:unmute]', err.code, err.message)
-    toast.show(`ミュート解除に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.unmuteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -152,13 +159,16 @@ async function handleBlockUser() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.blockUser(props.user.id)
-    toast.show('ブロックしました')
+    toast.show(i18n.ts._userProfileMenu.blocked)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:block]', err.code, err.message)
-    toast.show(`ブロックに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.blockFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -166,13 +176,16 @@ async function handleUnblockUser() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.unblockUser(props.user.id)
-    toast.show('ブロックを解除しました')
+    toast.show(i18n.ts._userProfileMenu.unblocked)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:unblock]', err.code, err.message)
-    toast.show(`ブロック解除に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.unblockFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -180,13 +193,16 @@ async function handleRenoteMuteUser() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.renoteMuteUser(props.user.id)
-    toast.show('リノートをミュートしました')
+    toast.show(i18n.ts._userProfileMenu.renotesMuted)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:renote-mute]', err.code, err.message)
-    toast.show(`リノートミュートに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.renoteMuteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -194,14 +210,14 @@ async function handleUnrenoteMuteUser() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.unrenoteMuteUser(props.user.id)
-    toast.show('リノートのミュートを解除しました')
+    toast.show(i18n.ts._userProfileMenu.renotesUnmuted)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:renote-unmute]', err.code, err.message)
     toast.show(
-      `リノートミュート解除に失敗しました（${err.displayCode}）`,
+      i18n.tsx._userProfileMenu.renoteUnmuteFailed({ code: err.displayCode }),
       'error',
     )
   }
@@ -211,13 +227,18 @@ async function handleInvalidateFollower() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.invalidateFollower(props.user.id)
-    toast.show('フォロワーを解除しました')
+    toast.show(i18n.ts._userProfileMenu.followerInvalidated)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:invalidate-follower]', err.code, err.message)
-    toast.show(`フォロワー解除に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.invalidateFollowerFailed({
+        code: err.displayCode,
+      }),
+      'error',
+    )
   }
 }
 
@@ -225,12 +246,15 @@ async function handleReportUser() {
   if (!props.adapter || !props.user || !reportComment.value.trim()) return
   try {
     await props.adapter.api.reportUser(props.user.id, reportComment.value)
-    toast.show('通報しました')
+    toast.show(i18n.ts._common.reported)
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:report]', err.code, err.message)
-    toast.show(`通報に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.reportFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -240,7 +264,7 @@ async function copyText(text: string, successMessage: string) {
     toast.show(successMessage)
   } catch (e) {
     console.error('[user:copy]', e)
-    toast.show('コピーに失敗しました', 'error')
+    toast.show(i18n.ts._userProfileMenu.copyFailed, 'error')
   } finally {
     closeUserMenu()
   }
@@ -250,7 +274,10 @@ function handleCopyUsername() {
   if (!props.user) return
   const host = props.user.host ?? props.accountHost
   if (!host) return
-  copyText(`@${props.user.username}@${host}`, 'ユーザー名をコピーしました')
+  copyText(
+    `@${props.user.username}@${host}`,
+    i18n.ts._userProfileMenu.usernameCopied,
+  )
 }
 
 function handleCopyProfileUrl() {
@@ -260,7 +287,7 @@ function handleCopyProfileUrl() {
     : `@${props.user.username}`
   copyText(
     `https://${props.accountHost}/${canonical}`,
-    'プロフィール URL をコピーしました',
+    i18n.ts._userProfileMenu.profileUrlCopied,
   )
 }
 
@@ -270,7 +297,7 @@ function handleCopyRss() {
   if (!host) return
   copyText(
     `${host}/@${props.user.username}.atom`,
-    'RSS の URL をコピーしました',
+    i18n.ts._userProfileMenu.rssUrlCopied,
   )
 }
 
@@ -279,7 +306,7 @@ function handleCopyEmbedCode() {
   // リモートユーザーはホストサーバーで埋め込みを取得できないので除外 (Misskey 本家踏襲)
   if (props.user.host) return
   const code = generateUserEmbedCode(props.accountHost, props.user.id)
-  copyText(code, '埋め込みコードをコピーしました')
+  copyText(code, i18n.ts._userProfileMenu.embedCodeCopied)
 }
 
 async function openListPicker() {
@@ -290,7 +317,10 @@ async function openListPicker() {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[list:fetch]', err.code, err.message)
-    toast.show(`リストの取得に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.fetchListsFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -298,12 +328,15 @@ async function addToList(listId: string) {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.addUserToList(listId, props.user.id)
-    toast.show('リストに追加しました')
+    toast.show(i18n.ts._userProfileMenu.addedToList)
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[list:add]', err.code, err.message)
-    toast.show(`リストへの追加に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.addToListFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -328,7 +361,9 @@ function searchUserNotes() {
     type: 'search',
     accountId: props.accountId,
     userId: props.user.id,
-    name: `${userAcct.value ?? props.user.username} の検索`,
+    name: i18n.tsx._userProfileMenu.searchColumnName({
+      acct: userAcct.value ?? props.user.username,
+    }),
     width: 360,
   })
   closeUserMenu()
@@ -354,11 +389,18 @@ async function toggleWithReplies() {
       withReplies: next,
     })
     props.user.withReplies = next
-    toast.show(next ? 'TLに返信を含めます' : 'TLに返信を含めません')
+    toast.show(
+      next
+        ? i18n.ts._userProfileMenu.withRepliesOn
+        : i18n.ts._userProfileMenu.withRepliesOff,
+    )
   } catch (e) {
     const err = AppError.from(e)
     console.error('[following:withReplies]', err.code, err.message)
-    toast.show(`設定の更新に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.updateSettingsFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -368,11 +410,18 @@ async function toggleNotify() {
   try {
     await props.adapter.api.updateFollowing(props.user.id, { notify: next })
     props.user.notify = next
-    toast.show(next === 'normal' ? '投稿を通知します' : '投稿を通知しません')
+    toast.show(
+      next === 'normal'
+        ? i18n.ts._userProfileMenu.notifyOn
+        : i18n.ts._userProfileMenu.notifyOff,
+    )
   } catch (e) {
     const err = AppError.from(e)
     console.error('[following:notify]', err.code, err.message)
-    toast.show(`設定の更新に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.updateSettingsFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -386,7 +435,10 @@ async function openAntennaPicker() {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[antenna:fetch]', err.code, err.message)
-    toast.show(`アンテナの取得に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.fetchAntennasFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -400,7 +452,7 @@ async function addToAntenna(antenna: Antenna) {
     const current = await props.adapter.api.getAntenna(antenna.id)
     const existing = current.users ?? []
     if (existing.some((u) => u.toLowerCase() === acct.toLowerCase())) {
-      toast.show('すでに追加されています')
+      toast.show(i18n.ts._userProfileMenu.alreadyAdded)
       closeUserMenu()
       return
     }
@@ -408,12 +460,15 @@ async function addToAntenna(antenna: Antenna) {
       ...current,
       users: [...existing, acct],
     })
-    toast.show(`${antenna.name} に追加しました`)
+    toast.show(i18n.tsx._userProfileMenu.addedToAntenna({ name: antenna.name }))
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[antenna:add]', err.code, err.message)
-    toast.show(`アンテナへの追加に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.addToAntennaFailed({ code: err.displayCode }),
+      'error',
+    )
   } finally {
     antennaBusy.value = false
   }
@@ -426,28 +481,28 @@ async function addToAntenna(antenna: Antenna) {
     <template v-if="userMenuView === 'main'">
       <button class="_popupItem" @click="composeNoteToUser">
         <i class="ti ti-pencil" />
-        ユーザー指定ノートを作成
+        {{ i18n.ts._userProfileMenu.composeToUser }}
       </button>
       <button class="_popupItem" @click="searchUserNotes">
         <i class="ti ti-search" />
-        ユーザーのノートを検索
+        {{ i18n.ts._userProfileMenu.searchUserNotes }}
       </button>
       <button class="_popupItem" @click="openDirectMessage">
         <i class="ti ti-message" />
-        ダイレクトメッセージ
+        {{ i18n.ts._userProfileMenu.directMessage }}
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem" @click="handleCopyUsername">
         <i class="ti ti-at" />
-        ユーザー名をコピー
+        {{ i18n.ts._userProfileMenu.copyUsername }}
       </button>
       <button class="_popupItem" @click="handleCopyProfileUrl">
         <i class="ti ti-share" />
-        プロフィール URL をコピー
+        {{ i18n.ts._userProfileMenu.copyProfileUrl }}
       </button>
       <button class="_popupItem" @click="handleCopyRss">
         <i class="ti ti-rss" />
-        RSS をコピー
+        {{ i18n.ts._userProfileMenu.copyRss }}
       </button>
       <button
         v-if="!user?.host"
@@ -455,16 +510,16 @@ async function addToAntenna(antenna: Antenna) {
         @click="handleCopyEmbedCode"
       >
         <i class="ti ti-code" />
-        埋め込み
+        {{ i18n.ts._userProfileMenu.embed }}
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem" @click="openListPicker">
         <i class="ti ti-list" />
-        リストに追加
+        {{ i18n.ts._userProfileMenu.addToList }}
       </button>
       <button class="_popupItem" @click="openAntennaPicker">
         <i class="ti ti-antenna" />
-        アンテナに追加
+        {{ i18n.ts._userProfileMenu.addToAntenna }}
       </button>
       <template v-if="user?.isFollowing">
         <div class="_popupDivider" />
@@ -474,7 +529,7 @@ async function addToAntenna(antenna: Antenna) {
               user?.withReplies ? 'ti ti-checkbox' : 'ti ti-square'
             "
           />
-          TLに他の人への返信を含める
+          {{ i18n.ts._userProfileMenu.withReplies }}
         </button>
         <button class="_popupItem" @click="toggleNotify">
           <i
@@ -482,7 +537,7 @@ async function addToAntenna(antenna: Antenna) {
               user?.notify === 'normal' ? 'ti ti-bell-ringing' : 'ti ti-bell'
             "
           />
-          投稿を通知
+          {{ i18n.ts._userProfileMenu.notifyPosts }}
         </button>
       </template>
       <template v-if="user && userActions.length > 0">
@@ -505,7 +560,7 @@ async function addToAntenna(antenna: Antenna) {
         "
       >
         <i :class="userRelation?.isMuted ? 'ti ti-eye' : 'ti ti-eye-off'" />
-        {{ userRelation?.isMuted ? 'ミュート解除' : 'ミュート' }}
+        {{ userRelation?.isMuted ? i18n.ts._common.unmute : i18n.ts._common.mute }}
       </button>
       <button
         class="_popupItem"
@@ -520,7 +575,7 @@ async function addToAntenna(antenna: Antenna) {
             userRelation?.isRenoteMuted ? 'ti ti-repeat' : 'ti ti-repeat-off'
           "
         />
-        {{ userRelation?.isRenoteMuted ? 'リノートミュート解除' : 'リノートをミュート' }}
+        {{ userRelation?.isRenoteMuted ? i18n.ts._userProfileMenu.unmuteRenotes : i18n.ts._userProfileMenu.muteRenotes }}
       </button>
       <button
         class="_popupItem _popupItemDanger"
@@ -531,7 +586,7 @@ async function addToAntenna(antenna: Antenna) {
         "
       >
         <i class="ti ti-ban" />
-        {{ userRelation?.isBlocking ? 'ブロック解除' : 'ブロック' }}
+        {{ userRelation?.isBlocking ? i18n.ts._userProfileMenu.unblock : i18n.ts._userProfileMenu.block }}
       </button>
       <button
         v-if="userRelation?.isFollowed"
@@ -539,63 +594,63 @@ async function addToAntenna(antenna: Antenna) {
         @click="showInvalidateFollowerConfirm = true"
       >
         <i class="ti ti-link-off" />
-        フォロワーを解除
+        {{ i18n.ts._userProfileMenu.invalidateFollower }}
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem _popupItemDanger" @click="showReportForm = true">
         <i class="ti ti-alert-triangle" />
-        通報
+        {{ i18n.ts._common.report }}
       </button>
     </template>
     <!-- Mute confirm -->
     <template v-else-if="userMenuView === 'muteConfirm'">
-      <div class="_popupConfirmText">@{{ user?.username }} をミュートしますか？</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._userProfileMenu.muteConfirm({ username: user?.username ?? '' }) }}</div>
       <button class="_popupItem _popupItemDanger" @click="handleMuteUser">
         <i class="ti ti-eye-off" />
-        ミュート
+        {{ i18n.ts._common.mute }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
     <!-- Block confirm -->
     <template v-else-if="userMenuView === 'blockConfirm'">
-      <div class="_popupConfirmText">@{{ user?.username }} をブロックしますか？</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._userProfileMenu.blockConfirm({ username: user?.username ?? '' }) }}</div>
       <button class="_popupItem _popupItemDanger" @click="handleBlockUser">
         <i class="ti ti-ban" />
-        ブロック
+        {{ i18n.ts._userProfileMenu.block }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
     <!-- Invalidate follower confirm -->
     <template v-else-if="userMenuView === 'invalidateFollowerConfirm'">
       <div class="_popupConfirmText">
-        @{{ user?.username }} のフォロワーを解除しますか？
+        {{ i18n.tsx._userProfileMenu.invalidateFollowerConfirm({ username: user?.username ?? '' }) }}
       </div>
       <button
         class="_popupItem _popupItemDanger"
         @click="handleInvalidateFollower"
       >
         <i class="ti ti-link-off" />
-        解除
+        {{ i18n.ts._common.remove }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
     <!-- Report form -->
     <template v-else-if="userMenuView === 'reportForm'">
-      <div class="_popupConfirmText">@{{ user?.username }} を通報</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: user?.username ?? '' }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          placeholder="通報理由を入力..."
+          :placeholder="i18n.ts._common.reportReasonPlaceholder"
           rows="3"
         />
       </div>
@@ -605,18 +660,18 @@ async function addToAntenna(antenna: Antenna) {
         @click="handleReportUser"
       >
         <i class="ti ti-alert-triangle" />
-        送信
+        {{ i18n.ts._common.send }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
     <!-- List picker -->
     <template v-else-if="userMenuView === 'listPicker'">
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-arrow-left" />
-        戻る
+        {{ i18n.ts._common.back }}
       </button>
       <div class="_popupDivider" />
       <template v-if="userLists.length > 0">
@@ -630,13 +685,13 @@ async function addToAntenna(antenna: Antenna) {
           {{ list.name }}
         </button>
       </template>
-      <div v-else class="_popupConfirmText">リストがありません</div>
+      <div v-else class="_popupConfirmText">{{ i18n.ts._userProfileMenu.noLists }}</div>
     </template>
     <!-- Antenna picker -->
     <template v-else-if="userMenuView === 'antennaPicker'">
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-arrow-left" />
-        戻る
+        {{ i18n.ts._common.back }}
       </button>
       <div class="_popupDivider" />
       <template v-if="userAntennas.length > 0">
@@ -652,7 +707,7 @@ async function addToAntenna(antenna: Antenna) {
         </button>
       </template>
       <div v-else class="_popupConfirmText">
-        ユーザーソースのアンテナがありません
+        {{ i18n.ts._userProfileMenu.noUserAntennas }}
       </div>
     </template>
   </PopupMenu>

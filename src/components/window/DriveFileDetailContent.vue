@@ -10,14 +10,15 @@ import MkDriveFolderSelectDialog from '@/components/common/MkDriveFolderSelectDi
 import MkMediaLightbox from '@/components/common/MkMediaLightbox.vue'
 import { useDriveActions } from '@/composables/useDriveActions'
 import {
-  formatFileSize,
   isAudio,
   isImage,
   isVideo,
   safeUrl,
 } from '@/composables/useDriveFolder'
+import { i18n } from '@/i18n'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
+import { formatBytes } from '@/utils/format'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
@@ -159,7 +160,7 @@ fetchFile()
               v-if="file.isSensitive && revealed"
               class="_button"
               :class="$style.hideBtn"
-              title="隠す"
+              :title="i18n.ts._common.hide"
               @click.stop="toggleReveal"
             >
               <i class="ti ti-eye" />
@@ -181,7 +182,7 @@ fetchFile()
               v-if="file.isSensitive && revealed"
               class="_button"
               :class="$style.hideBtn"
-              title="隠す"
+              :title="i18n.ts._common.hide"
               @click.stop="toggleReveal"
             >
               <i class="ti ti-eye" />
@@ -204,8 +205,8 @@ fetchFile()
           <button
             class="_button"
             :class="$style.menuBtn"
-            aria-label="メニュー"
-            title="メニュー"
+            :aria-label="i18n.ts._common.menu"
+            :title="i18n.ts._common.menu"
             @click="openMenu"
           >
             <i class="ti ti-dots" />
@@ -213,7 +214,7 @@ fetchFile()
         </div>
         <div :class="$style.meta">
           <span>{{ file.type }}</span>
-          <span>{{ formatFileSize(file.size) }}</span>
+          <span>{{ formatBytes(file.size) }}</span>
           <span v-if="file.isSensitive" :class="$style.sensitiveBadge">
             <i class="ti ti-eye-off" /> NSFW
           </span>
@@ -225,19 +226,19 @@ fetchFile()
       <div v-if="isImage(file)" :class="$style.exifSection">
         <div :class="$style.exifHeader">
           <i class="ti ti-list-search" />
-          EXIF 情報
+          {{ i18n.ts._driveFileDetailContent.exif }}
         </div>
         <div v-if="exifLoading" :class="$style.exifEmpty">
-          <i class="ti ti-loader-2 nd-spin" /> 読み込み中...
+          <i class="ti ti-loader-2 nd-spin" /> {{ i18n.ts._common.loading }}
         </div>
         <div v-else-if="exifError" :class="$style.exifError">{{ exifError }}</div>
         <template v-else-if="exifFields !== null">
           <div v-if="exifHasGps" :class="$style.exifGpsWarning">
             <i class="ti ti-map-pin" />
-            位置情報 (GPS) が含まれています
+            {{ i18n.ts._driveFileDetailContent.exifHasGps }}
           </div>
           <div v-if="exifPrimary.length === 0" :class="$style.exifEmpty">
-            EXIF 情報は含まれていません
+            {{ i18n.ts._driveFileDetailContent.exifEmpty }}
           </div>
           <table v-else :class="$style.exifTable">
             <tbody>

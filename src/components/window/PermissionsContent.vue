@@ -13,6 +13,7 @@ import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useVault } from '@/composables/useVault'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { presetChipLabel } from '@/permissions/labels'
 import {
   type ProfiledPrincipalId,
@@ -102,7 +103,8 @@ const json5Linter = linter(
         from: 0,
         to: src.length,
         severity: 'error',
-        message: e instanceof Error ? e.message : 'JSON5 パースエラー',
+        message:
+          e instanceof Error ? e.message : i18n.ts._common.json5ParseError,
       })
     }
     return diagnostics
@@ -146,7 +148,8 @@ watch(rawJson, (v) => {
         rawSaved.value = false
       }, 1500)
     } catch (e) {
-      rawError.value = e instanceof Error ? e.message : '不正な JSON5'
+      rawError.value =
+        e instanceof Error ? e.message : i18n.ts._common.invalidJson5
     }
   }, 500)
 })
@@ -168,18 +171,23 @@ function chipFor(id: ProfiledPrincipalId): string {
 
 const INSTRUCTION_RULE = {
   keys: AI_INSTRUCTION_KEYS,
-  reason: 'AI への指示チャネルは第三者には開放できません',
+  get reason() {
+    return i18n.ts._permissionsContent.instructionRuleReason
+  },
   fixedValue: false,
 } as const
 const TASKS_RULE = {
   keys: ['tasks.run'],
-  reason: 'タスクは本人と AI のみが実行できます',
+  get reason() {
+    return i18n.ts._permissionsContent.tasksRuleReason
+  },
   fixedValue: false,
 } as const
 const EXTERNAL_FLOOR_RULE = {
   keys: EXTERNAL_READ_FLOOR,
-  reason:
-    '共有プロファイルでは Misskey の read は常に許可 — 遮断するにはトークンを失効',
+  get reason() {
+    return i18n.ts._permissionsContent.externalFloorReason
+  },
   fixedValue: true,
 } as const
 
@@ -264,7 +272,7 @@ function copyCreatedToken(): void {
 }
 
 function formatTokenDate(t: ApiTokenMeta): string {
-  return new Date(t.createdAtMs).toLocaleDateString()
+  return new Date(t.createdAtMs).toLocaleDateString(i18n.lang)
 }
 
 onMounted(refreshApiTokens)
@@ -278,32 +286,48 @@ const ROWS: readonly {
   {
     id: 'ai.chat',
     icon: 'ti-robot',
-    label: 'AI チャット',
-    hint: 'AI の tool calling (チャット / コマンド / タスク) に許可する操作',
+    get label() {
+      return i18n.ts._permissionsContent.aiChat
+    },
+    get hint() {
+      return i18n.ts._permissionsContent.aiChatHint
+    },
   },
   {
     id: 'ai.heartbeat',
     icon: 'ti-activity',
     label: 'HEARTBEAT',
-    hint: '無人で定期実行される AI daemon に許可する操作 (チャットとは独立)',
+    get hint() {
+      return i18n.ts._permissionsContent.heartbeatHint
+    },
   },
   {
     id: 'plugin',
     icon: 'ti-puzzle',
     label: 'AiScript',
-    hint: 'AiScript プラグイン / ウィジェット / Play に許可する操作',
+    get hint() {
+      return i18n.ts._permissionsContent.pluginHint
+    },
   },
   {
     id: 'external',
     icon: 'ti-plug-connected',
-    label: '外部アプリ',
-    hint: 'HTTP API (永続トークン) 経由の外部アプリに許可する操作',
+    get label() {
+      return i18n.ts._permissionsContent.external
+    },
+    get hint() {
+      return i18n.ts._permissionsContent.externalHint
+    },
   },
   {
     id: 'scratchpad',
     icon: 'ti-terminal-2',
-    label: 'スクラッチパッド',
-    hint: 'スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (既定は読み取りのみ)',
+    get label() {
+      return i18n.ts._columns.aiscript
+    },
+    get hint() {
+      return i18n.ts._permissionsContent.scratchpadHint
+    },
   },
 ]
 
@@ -409,7 +433,7 @@ function handleReset() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'adjustments', label: '権限' },
+        { value: 'visual', icon: 'adjustments', label: i18n.ts._windows.permissions },
         ...(isExposed('developer')
           ? [{ value: 'json', icon: 'braces', label: 'permissions.json5' }]
           : []),
@@ -441,9 +465,9 @@ function handleReset() {
           :class="$style.stateChip"
         >
           <i class="ti ti-info-circle" />
-          <span>開示された接続がまだありません —</span>
+          <span>{{ i18n.ts._permissionsContent.noExposedConnections }}</span>
           <button class="_button" :class="$style.chipAction" @click="openConnections">
-            接続一覧を開く
+            {{ i18n.ts._permissionsContent.openConnections }}
           </button>
         </div>
 
@@ -457,9 +481,9 @@ function handleReset() {
           v-if="confirmSkipEntriesFor(row.id).length > 0"
           :class="$style.tokenSection"
         >
-          <div :class="$style.tokenSectionLabel">確認なしで実行できる操作</div>
+          <div :class="$style.tokenSectionLabel">{{ i18n.ts._permissionsContent.confirmSkipTitle }}</div>
           <div :class="$style.hint">
-            確認ダイアログで「今後この操作を確認しない」を選んだ操作。取り消すと次回から再び確認されます。
+            {{ i18n.ts._permissionsContent.confirmSkipHint }}
           </div>
           <div :class="$style.tokenList">
             <div
@@ -473,7 +497,7 @@ function handleReset() {
               <button
                 class="_button"
                 :class="$style.tokenRevoke"
-                title="取り消す"
+                :title="i18n.ts._permissionsContent.revoke"
                 @click="removeConfirmSkip(entry.scope, entry.capabilityId)"
               >
                 <i class="ti ti-x" />
@@ -484,9 +508,9 @@ function handleReset() {
 
         <!-- 外部アプリ行: 永続 API トークン管理を併設 (#712 §8.1) -->
         <div v-if="row.id === 'external'" :class="$style.tokenSection">
-          <div :class="$style.tokenSectionLabel">永続 API トークン</div>
+          <div :class="$style.tokenSectionLabel">{{ i18n.ts._permissionsContent.apiTokens }}</div>
           <div :class="$style.hint">
-            再起動を跨いで使える名前付きトークン。本体はハッシュのみ保存され、発行時に一度だけ表示されます。
+            {{ i18n.ts._permissionsContent.apiTokensHint }}
           </div>
           <div v-if="apiTokens.length > 0" :class="$style.tokenList">
             <div v-for="t in apiTokens" :key="t.id" :class="$style.tokenRow">
@@ -496,7 +520,7 @@ function handleReset() {
               <button
                 class="_button"
                 :class="$style.tokenRevoke"
-                title="失効"
+                :title="i18n.ts._permissionsContent.revokeToken"
                 @click="revokeToken(t.id)"
               >
                 <i class="ti ti-trash" />
@@ -508,7 +532,7 @@ function handleReset() {
               v-model="newTokenName"
               :class="$style.input"
               type="text"
-              placeholder="トークン名 (例: Raycast, Claude Cowork)"
+              :placeholder="i18n.ts._permissionsContent.tokenNamePlaceholder"
               @keydown.enter="createToken"
             />
             <button
@@ -517,19 +541,19 @@ function handleReset() {
               :disabled="!newTokenName.trim()"
               @click="createToken"
             >
-              発行
+              {{ i18n.ts._permissionsContent.issueToken }}
             </button>
           </div>
           <div v-if="createdToken" :class="$style.tokenCreated">
             <div :class="$style.hint">
               <i class="ti ti-alert-triangle" />
-              「{{ createdToken.name }}」のトークン — この表示を閉じると再表示できません
+              {{ i18n.tsx._permissionsContent.createdTokenNotice({ name: createdToken.name }) }}
             </div>
             <div :class="$style.tokenValueRow">
               <code :class="$style.tokenValue">{{ createdToken.token }}</code>
               <button class="_button" :class="$style.tokenCreateButton" @click="copyCreatedToken">
                 <i class="ti ti-copy" />
-                {{ copied ? 'コピーしました' : 'コピー' }}
+                {{ copied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
               </button>
             </div>
           </div>
@@ -545,8 +569,7 @@ function handleReset() {
     <!-- permissions.json5 raw editor tab -->
     <div v-show="tab === 'json'" :class="$style.codePanel">
       <div :class="$style.codeHint">
-        permissions.json5 を直接編集できます。principal (ai.chat / ai.heartbeat /
-        plugin / external) ごとの preset と custom マップを持ちます。
+        {{ i18n.ts._permissionsContent.codeHint }}
       </div>
       <CodeEditor
         v-model="rawJson"
@@ -562,7 +585,7 @@ function handleReset() {
         </div>
         <div v-else-if="rawSaved" :class="$style.codeSuccess">
           <i class="ti ti-check" />
-          保存しました
+          {{ i18n.ts._common.saved }}
         </div>
       </div>
     </div>
@@ -576,7 +599,7 @@ function handleReset() {
           @click="importConfig"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+          {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -584,7 +607,7 @@ function handleReset() {
           @click="exportConfig"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
       </div>
       <button
@@ -593,7 +616,7 @@ function handleReset() {
         @click="handleReset"
       >
         <i class="ti ti-trash" />
-        {{ confirmingReset ? '本当にリセット？' : 'すべてリセット' }}
+        {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._common.resetAll }}
       </button>
     </div>
   </div>

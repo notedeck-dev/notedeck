@@ -2,6 +2,7 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 import type { UserList } from '@/adapters/types'
 import type { JsonValue } from '@/bindings'
+import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -74,7 +75,7 @@ function openList(listId: string) {
       :cards="cards"
       :is-loading="isLoading"
       :error="error"
-      empty-message="リストがありません"
+      :empty-message="i18n.ts._userProfileListsPane.empty"
       :info-image-url="infoImageUrl"
       :error-image-url="errorImageUrl"
       @select="openList"

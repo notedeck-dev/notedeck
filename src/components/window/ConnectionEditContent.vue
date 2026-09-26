@@ -9,6 +9,7 @@ import type {
 } from '@/bindings'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES } from '@/data/connectionTemplates'
+import { i18n } from '@/i18n'
 import { resolveForProfiled, usePermissionsConfig } from '@/permissions/store'
 import { useConfirm } from '@/stores/confirm'
 
@@ -184,19 +185,20 @@ function buildUpsert(): ConnectionUpsert {
 }
 
 function validateForm(): string | null {
-  if (!name.value.trim()) return '名前を入力してください'
-  if (!baseUrl.value.trim()) return 'URL を入力してください'
+  if (!name.value.trim()) return i18n.ts._connectionEditContent.nameRequired
+  if (!baseUrl.value.trim()) return i18n.ts._connectionEditContent.urlRequired
   if (authKind.value === 'header' && !headerName.value.trim())
-    return 'ヘッダー名を入力してください'
+    return i18n.ts._connectionEditContent.headerNameRequired
   if (authKind.value === 'query' && !queryParam.value.trim())
-    return 'クエリパラメータ名を入力してください'
+    return i18n.ts._connectionEditContent.queryParamRequired
   if (
     showSecretInput.value &&
     secretInput.value &&
     secretInput.value.length < 16
   )
-    return 'secret は 16 文字以上にしてください'
-  if (isNew.value && !secretInput.value) return 'secret を入力してください'
+    return i18n.ts._connectionEditContent.secretTooShort
+  if (isNew.value && !secretInput.value)
+    return i18n.ts._connectionEditContent.secretRequired
   return null
 }
 
@@ -266,7 +268,7 @@ async function revokeTrustedPlugin(pluginId: string) {
 
 async function runTest() {
   if (!props.connectionId) {
-    errorMessage.value = '先に接続を保存してからテストしてください'
+    errorMessage.value = i18n.ts._connectionEditContent.saveBeforeTest
     return
   }
   testing.value = true
@@ -287,9 +289,11 @@ async function runTest() {
 async function remove() {
   if (!props.connectionId) return
   const ok = await confirm({
-    title: '接続を削除',
-    message: `「${name.value}」を削除しますか？ secret も OS キーチェーンから完全に削除されます。`,
-    okLabel: '削除',
+    title: i18n.ts._connectionEditContent.deleteTitle,
+    message: i18n.tsx._connectionEditContent.deleteMessage({
+      name: name.value,
+    }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
@@ -313,9 +317,12 @@ function formatError(e: unknown): string {
 const testResultText = computed(() => {
   const r = testResult.value
   if (!r) return ''
-  if (r.ok) return `✓ 接続成功 (HTTP ${r.status})`
+  if (r.ok)
+    return i18n.tsx._connectionEditContent.testSuccess({
+      status: String(r.status),
+    })
   if (r.status != null) return `✗ HTTP ${r.status}`
-  return `✗ ${r.error ?? '失敗'}`
+  return `✗ ${r.error ?? i18n.ts._connectionEditContent.testFailed}`
 })
 </script>
 
@@ -324,7 +331,7 @@ const testResultText = computed(() => {
     <!-- 基本 -->
     <div :class="$style.section">
       <label :class="$style.field">
-        <span :class="$style.label">名前</span>
+        <span :class="$style.label">{{ i18n.ts._connectionEditContent.name }}</span>
         <input v-model="name" type="text" :class="$style.input" placeholder="GitHub PAT" />
       </label>
 
@@ -339,7 +346,7 @@ const testResultText = computed(() => {
       </label>
 
       <div :class="$style.field">
-        <span :class="$style.label">認証方式</span>
+        <span :class="$style.label">{{ i18n.ts._connectionEditContent.authMethod }}</span>
         <div :class="$style.radioGroup">
           <label :class="$style.radio">
             <input v-model="authKind" type="radio" value="bearer" />
@@ -347,36 +354,36 @@ const testResultText = computed(() => {
           </label>
           <label :class="$style.radio">
             <input v-model="authKind" type="radio" value="header" />
-            <span>任意ヘッダー</span>
+            <span>{{ i18n.ts._connectionEditContent.customHeader }}</span>
           </label>
           <input
             v-if="authKind === 'header'"
             v-model="headerName"
             type="text"
             :class="$style.subInput"
-            placeholder="ヘッダー名 (例: x-api-key)"
+            :placeholder="i18n.ts._connectionEditContent.headerNamePlaceholder"
           />
           <label :class="$style.radio">
             <input v-model="authKind" type="radio" value="query" />
-            <span>クエリパラメータ</span>
+            <span>{{ i18n.ts._connectionEditContent.queryParam }}</span>
           </label>
           <input
             v-if="authKind === 'query'"
             v-model="queryParam"
             type="text"
             :class="$style.subInput"
-            placeholder="パラメータ名 (例: api_key)"
+            :placeholder="i18n.ts._connectionEditContent.paramNamePlaceholder"
           />
           <label :class="$style.radio">
             <input v-model="authKind" type="radio" value="basic" />
-            <span>ベーシック認証</span>
+            <span>{{ i18n.ts._connectionEditContent.basicAuth }}</span>
           </label>
           <input
             v-if="authKind === 'basic'"
             v-model="basicUsername"
             type="text"
             :class="$style.subInput"
-            placeholder="ユーザー名"
+            :placeholder="i18n.ts._connectionEditContent.username"
           />
         </div>
       </div>
@@ -388,18 +395,18 @@ const testResultText = computed(() => {
     <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-key" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">シークレット</span>
+        <span :class="$style.sectionTitle">{{ i18n.ts._connectionEditContent.secret }}</span>
       </div>
 
       <div v-if="hasSecret && !showSecretInput" :class="$style.secretStatus">
-        <span>設定済み</span>
+        <span>{{ i18n.ts._connectionEditContent.secretSet }}</span>
         <button
           class="_button"
           :class="$style.rotateBtn"
           @click="rotatingSecret = true"
         >
           <i class="ti ti-refresh" />
-          鍵を入れ替える
+          {{ i18n.ts._connectionEditContent.rotateSecret }}
         </button>
       </div>
 
@@ -409,7 +416,7 @@ const testResultText = computed(() => {
           v-model="secretInput"
           type="password"
           :class="$style.input"
-          placeholder="16 文字以上"
+          :placeholder="i18n.ts._connectionEditContent.secretPlaceholder"
           autocomplete="off"
         />
         <a
@@ -419,7 +426,7 @@ const testResultText = computed(() => {
           rel="noopener"
           :class="$style.helpLink"
         >
-          発行手順を開く
+          {{ i18n.ts._connectionEditContent.openIssueGuide }}
         </a>
       </div>
     </div>
@@ -428,67 +435,67 @@ const testResultText = computed(() => {
 
     <!-- 詳細 -->
     <details :class="$style.details">
-      <summary :class="$style.summary">詳細</summary>
+      <summary :class="$style.summary">{{ i18n.ts._connectionEditContent.advanced }}</summary>
       <div :class="$style.section">
         <label :class="$style.field">
-          <span :class="$style.label">許可するホスト (カンマ区切り)</span>
+          <span :class="$style.label">{{ i18n.ts._connectionEditContent.allowedHosts }}</span>
           <input
             v-model="allowedHostsText"
             type="text"
             :class="$style.input"
-            placeholder="自動: baseUrl のホスト"
+            :placeholder="i18n.ts._connectionEditContent.allowedHostsPlaceholder"
           />
         </label>
         <label :class="$style.field">
-          <span :class="$style.label">メモ</span>
+          <span :class="$style.label">{{ i18n.ts._connectionEditContent.notes }}</span>
           <textarea
             v-model="notes"
             :class="$style.textarea"
             rows="2"
-            placeholder="ここにシークレットを書かないでください"
+            :placeholder="i18n.ts._connectionEditContent.notesPlaceholder"
           />
         </label>
         <label :class="$style.toggleRow">
           <input v-model="exposedAi" type="checkbox" />
           <span>
-            <span :class="$style.toggleLabel">AI に見せる</span>
+            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.exposeAi }}</span>
             <span :class="$style.toggleHint">
-              OFF だと AI (チャット / HEARTBEAT) には接続の存在自体が見えません
+              {{ i18n.ts._connectionEditContent.exposeAiHint }}
             </span>
           </span>
         </label>
         <div v-if="exposedAi && !aiVaultUseEnabled" :class="$style.gateChip">
           <i class="ti ti-info-circle" />
-          AI の vault.use が無効のため、この接続はまだ見えません — 権限ウィンドウを開いて許可してください
+          {{ i18n.ts._connectionEditContent.aiVaultUseDisabled }}
         </div>
         <label :class="[$style.toggleRow, $style.toggleSub, !exposedAi && $style.toggleDisabled]">
           <input v-model="trustedAi" type="checkbox" :disabled="!exposedAi" />
           <span>
-            <span :class="$style.toggleLabel">確認なしで使う (AI)</span>
+            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.trustAi }}</span>
             <span :class="$style.toggleHint">
-              AI がこの接続を使うとき確認ダイアログを出しません
+              {{ i18n.ts._connectionEditContent.trustAiHint }}
             </span>
           </span>
         </label>
         <label :class="$style.toggleRow">
           <input v-model="exposedPlugin" type="checkbox" />
           <span>
-            <span :class="$style.toggleLabel">プラグイン・ウィジェットに見せる</span>
+            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.exposePlugin }}</span>
             <span :class="$style.toggleHint">
-              AiScript プラグイン / ウィジェットからこの接続を使えるようにします
+              {{ i18n.ts._connectionEditContent.exposePluginHint }}
             </span>
           </span>
         </label>
         <div v-if="exposedPlugin && !pluginVaultUseEnabled" :class="$style.gateChip">
           <i class="ti ti-info-circle" />
-          プラグインの vault.use が無効のため、この接続はまだ見えません — 権限ウィンドウを開いて許可してください
+          {{ i18n.ts._connectionEditContent.pluginVaultUseDisabled }}
         </div>
         <div
           v-if="exposedPlugin && trustedPlugins.length > 0"
           :class="$style.trustedPluginList"
         >
           <span :class="$style.toggleHint">
-            確認なしで使えるプラグイン・ウィジェット (確認ダイアログの「今後確認なし」で追加されます)
+            {{ i18n.ts._connectionEditContent.trustedPlugins }}
           </span>
           <div
             v-for="tp in trustedPlugins"
@@ -500,7 +507,7 @@ const testResultText = computed(() => {
             <button
               class="_button"
               :class="$style.revokeBtn"
-              title="信頼を取り消す (次回から確認ダイアログが出ます)"
+              :title="i18n.ts._connectionEditContent.revokeTrust"
               @click="revokeTrustedPlugin(tp.id)"
             >
               <i class="ti ti-x" />
@@ -510,22 +517,22 @@ const testResultText = computed(() => {
         <label :class="$style.toggleRow">
           <input v-model="exposedExternal" type="checkbox" />
           <span>
-            <span :class="$style.toggleLabel">外部アプリに見せる</span>
+            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.exposeExternal }}</span>
             <span :class="$style.toggleHint">
-              HTTP API (永続トークン) 経由の外部アプリから使えるようにします
+              {{ i18n.ts._connectionEditContent.exposeExternalHint }}
             </span>
           </span>
         </label>
         <div v-if="exposedExternal && !externalVaultUseEnabled" :class="$style.gateChip">
           <i class="ti ti-info-circle" />
-          外部アプリの vault.use が無効のため、この接続はまだ見えません — 権限設定を開いて許可してください
+          {{ i18n.ts._connectionEditContent.externalVaultUseDisabled }}
         </div>
         <label :class="[$style.toggleRow, $style.toggleSub, !exposedExternal && $style.toggleDisabled]">
           <input v-model="trustedExternal" type="checkbox" :disabled="!exposedExternal" />
           <span>
-            <span :class="$style.toggleLabel">確認なしで使う (外部アプリ)</span>
+            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.trustExternal }}</span>
             <span :class="$style.toggleHint">
-              外部アプリがこの接続を使うとき確認ダイアログを出しません
+              {{ i18n.ts._connectionEditContent.trustExternalHint }}
             </span>
           </span>
         </label>
@@ -544,7 +551,7 @@ const testResultText = computed(() => {
         @click="runTest"
       >
         <i class="ti ti-plug" />
-        {{ testing ? 'テスト中...' : 'テスト' }}
+        {{ testing ? i18n.ts._connectionEditContent.testing : i18n.ts._connectionEditContent.test }}
       </button>
       <button
         class="_button"
@@ -552,7 +559,7 @@ const testResultText = computed(() => {
         :disabled="saving"
         @click="save"
       >
-        {{ saving ? '保存中...' : '保存' }}
+        {{ saving ? i18n.ts._common.saving : i18n.ts._common.save }}
       </button>
       <button
         v-if="!isNew"
@@ -560,7 +567,7 @@ const testResultText = computed(() => {
         :class="$style.deleteBtn"
         @click="remove"
       >
-        削除
+        {{ i18n.ts._common.delete }}
       </button>
     </div>
 

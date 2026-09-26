@@ -16,6 +16,7 @@ import {
   type StoredDraft,
 } from '@/composables/useDrafts'
 import { usePortal } from '@/composables/usePortal'
+import { i18n } from '@/i18n'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useServersStore } from '@/stores/servers'
@@ -207,14 +208,20 @@ const tabs = computed<ColumnTabDef[]>(() => {
   const out: ColumnTabDef[] = [
     {
       value: 'drafts',
-      label: regularCount.value ? `下書き ${regularCount.value}` : '下書き',
+      label: regularCount.value
+        ? i18n.tsx._mkDraftsPicker.draftsTabCount({ count: regularCount.value })
+        : i18n.ts._mkDraftsPicker.draftsTab,
       icon: 'notes',
     },
   ]
   if (showScheduledTab.value) {
     out.push({
       value: 'scheduled',
-      label: scheduledCount.value ? `予約 ${scheduledCount.value}` : '予約',
+      label: scheduledCount.value
+        ? i18n.tsx._mkDraftsPicker.scheduledTabCount({
+            count: scheduledCount.value,
+          })
+        : i18n.ts._mkDraftsPicker.scheduledTab,
       icon: 'calendar-time',
     })
   }
@@ -238,11 +245,11 @@ watch(
 function contextLabel(ctx: DraftContext): string {
   switch (ctx.kind) {
     case 'reply':
-      return '返信'
+      return i18n.ts._common.reply
     case 'renote':
-      return '引用'
+      return i18n.ts._common.quote
     case 'channel-note':
-      return 'チャンネル投稿'
+      return i18n.ts._mkDraftsPicker.contextChannel
     default:
       return ''
   }
@@ -304,23 +311,35 @@ function closeMenu() {
 async function onDelete(entry: DraftEntry) {
   const isScheduled = entry.draft.data.scheduledAt != null
   const ok = await confirm({
-    title: isScheduled ? '予約投稿を取消' : '下書きを削除',
+    title: isScheduled
+      ? i18n.ts._mkDraftsPicker.cancelScheduledTitle
+      : i18n.ts._mkDraftsPicker.deleteDraftTitle,
     message: isScheduled
-      ? '選択した予約投稿を取消しますか？'
-      : '選択した下書きを削除しますか？',
-    okLabel: isScheduled ? '取消' : '削除',
+      ? i18n.ts._mkDraftsPicker.confirmCancelScheduled
+      : i18n.ts._mkDraftsPicker.confirmDeleteDraft,
+    okLabel: isScheduled
+      ? i18n.ts._mkDraftsPicker.cancelOk
+      : i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   try {
     await deleteDraft(props.accountId, entry.key)
     toast.show(
-      isScheduled ? '予約投稿を取消しました' : '下書きを削除しました',
+      isScheduled
+        ? i18n.ts._mkDraftsPicker.scheduledCancelled
+        : i18n.ts._mkDraftsPicker.draftDeleted,
       'info',
     )
   } catch (e) {
     toast.show(
-      `${isScheduled ? '取消' : '削除'}に失敗しました: ${e instanceof Error ? e.message : String(e)}`,
+      isScheduled
+        ? i18n.tsx._mkDraftsPicker.cancelFailed({
+            error: e instanceof Error ? e.message : String(e),
+          })
+        : i18n.tsx._mkDraftsPicker.deleteFailed({
+            error: e instanceof Error ? e.message : String(e),
+          }),
       'error',
     )
   }
@@ -329,9 +348,11 @@ async function onDelete(entry: DraftEntry) {
 async function onDeleteAll() {
   if (regularCount.value === 0) return
   const ok = await confirm({
-    title: 'すべての下書きを削除',
-    message: `下書き ${regularCount.value} 件をすべて削除しますか？（予約投稿は対象外）`,
-    okLabel: 'すべて削除',
+    title: i18n.ts._mkDraftsPicker.deleteAll,
+    message: i18n.tsx._mkDraftsPicker.confirmDeleteAll_plural({
+      count: regularCount.value,
+    }),
+    okLabel: i18n.ts._mkDraftsPicker.deleteAllOk,
     type: 'danger',
   })
   if (!ok) return
@@ -340,10 +361,12 @@ async function onDeleteAll() {
     await Promise.allSettled(
       regularEntries.value.map((e) => deleteDraft(props.accountId, e.key)),
     )
-    toast.show('下書きをすべて削除しました', 'info')
+    toast.show(i18n.ts._mkDraftsPicker.allDeleted, 'info')
   } catch (e) {
     toast.show(
-      `削除に失敗しました: ${e instanceof Error ? e.message : String(e)}`,
+      i18n.tsx._mkDraftsPicker.deleteFailed({
+        error: e instanceof Error ? e.message : String(e),
+      }),
       'error',
     )
   }
@@ -365,7 +388,7 @@ async function onDeleteAll() {
             v-if="activeTab === 'drafts' && regularCount > 0"
             class="_button"
             :class="$style.dpHeaderBtn"
-            title="下書きをすべて削除"
+            :title="i18n.ts._mkDraftsPicker.deleteAll"
             @click="onDeleteAll"
           >
             <i class="ti ti-trash" />
@@ -373,7 +396,7 @@ async function onDeleteAll() {
           <button
             class="_button"
             :class="$style.dpHeaderBtn"
-            title="閉じる"
+            :title="i18n.ts._common.close"
             @click="emit('close')"
           >
             <i class="ti ti-x" />
@@ -384,10 +407,10 @@ async function onDeleteAll() {
 
     <!-- Body -->
     <div ref="bodyRef" :class="$style.dpBody">
-      <div v-if="!loaded" :class="$style.dpEmpty">読み込み中...</div>
+      <div v-if="!loaded" :class="$style.dpEmpty">{{ i18n.ts._common.loading }}</div>
       <ColumnEmptyState
         v-else-if="entries.length === 0"
-        :message="activeTab === 'scheduled' ? '予約投稿はありません' : '下書きはありません'"
+        :message="activeTab === 'scheduled' ? i18n.ts._mkDraftsPicker.noScheduled : i18n.ts._mkDraftsPicker.noDrafts"
         :image-url="serverInfoImage"
       />
       <div v-else :class="$style.dpList">
@@ -425,7 +448,7 @@ async function onDeleteAll() {
             :class="$style.itemNoteBtn"
             role="button"
             tabindex="0"
-            title="この下書きを復元"
+            :title="i18n.ts._mkDraftsPicker.restoreThis"
             @click.capture.prevent.stop="onPick(entry)"
             @keydown.enter="onPick(entry)"
           >
@@ -477,7 +500,7 @@ async function onDeleteAll() {
         @click="onPick(menuState.entry); closeMenu()"
       >
         <i :class="menuState.entry.draft.data.scheduledAt ? 'ti ti-pencil' : 'ti ti-arrow-back-up'" />
-        {{ menuState.entry.draft.data.scheduledAt ? '内容・時刻を編集' : '復元して投稿フォームに反映' }}
+        {{ menuState.entry.draft.data.scheduledAt ? i18n.ts._mkDraftsPicker.editContentAndTime : i18n.ts._mkDraftsPicker.restoreToForm }}
       </button>
       <div :class="$style.menuDivider" />
       <button
@@ -486,7 +509,7 @@ async function onDeleteAll() {
         @click="onDelete(menuState.entry); closeMenu()"
       >
         <i class="ti ti-trash" />
-        {{ menuState.entry.draft.data.scheduledAt ? '予約を取消' : '削除' }}
+        {{ menuState.entry.draft.data.scheduledAt ? i18n.ts._mkDraftsPicker.cancelSchedule : i18n.ts._common.delete }}
       </button>
     </div>
   </div>

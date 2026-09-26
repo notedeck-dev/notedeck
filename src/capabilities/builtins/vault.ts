@@ -1,6 +1,7 @@
 import type { Connection, PrincipalClass } from '@/bindings'
 import type { CapabilityContext } from '@/capabilities/types'
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import { type Principal, principalActorLabel } from '@/permissions/principal'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { implement } from '../declare'
@@ -33,7 +34,7 @@ function requirePrincipal(ctx: CapabilityContext | undefined): Principal {
   const principal = ctx?.principal
   if (!principal) {
     throw new Error(
-      'vault.fetch: principal が ctx に渡される dispatchCapability 経由で呼ばれる必要があります',
+      'vault.fetch: must be called through dispatchCapability with principal in ctx',
     )
   }
   return principal
@@ -103,14 +104,17 @@ export const vaultFetchCapability = implement('vault.fetch', {
       return null
     }
     return {
-      title: '外部接続へのリクエストを許可しますか?',
+      title: i18n.ts._vaultCapability.confirmTitle,
       message: conn
-        ? `接続「${conn.name}」(${conn.baseUrl}) に HTTP リクエストを送ります。`
-        : '登録済みの外部サービス接続に HTTP リクエストを送ります。',
+        ? i18n.tsx._vaultCapability.confirmMessage({
+            name: conn.name,
+            baseUrl: conn.baseUrl,
+          })
+        : i18n.ts._vaultCapability.confirmMessageUnknown,
       code: JSON.stringify(params ?? {}, null, 2),
       codeLanguage: 'json',
-      okLabel: '許可',
-      cancelLabel: 'やめる',
+      okLabel: i18n.ts._vaultCapability.allow,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'danger',
       // 接続が解決できた + remember の同意先が確定しているときだけ出す。
       // plugin は個体単位の記憶なので、同意の主体を文言でも明示する
@@ -118,8 +122,10 @@ export const vaultFetchCapability = implement('vault.fetch', {
         ? {
             rememberLabel:
               principal.kind === 'plugin'
-                ? `今後${principalActorLabel(principal)}からこの接続を確認なしで使う`
-                : '今後この接続を確認なしで使う',
+                ? i18n.tsx._vaultCapability.rememberForActor({
+                    actor: String(principalActorLabel(principal)),
+                  })
+                : i18n.ts._vaultCapability.remember,
           }
         : {}),
     }
@@ -158,8 +164,8 @@ export const vaultFetchCapability = implement('vault.fetch', {
     const conn = await resolveVisibleConnection(ref, principal)
     if (!conn) {
       throw new Error(
-        `connection "${ref}" は利用できません (存在しないか、この呼び出し元に開示されていません)。` +
-          '設定 → Secret Vault で接続を作成し、呼び出し元への開示を有効にしてください',
+        `connection "${ref}" is not available (it does not exist or is not disclosed to this caller). ` +
+          'Create the connection in Settings → Secret Vault and enable disclosure to this caller',
       )
     }
 

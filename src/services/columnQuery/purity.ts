@@ -1,4 +1,5 @@
 import type { Ast } from '@syuilo/aiscript'
+import { i18n } from '@/i18n'
 
 /**
  * カラムクエリの純粋性検査 (#783 Phase 2 / V15)。
@@ -232,7 +233,10 @@ export function collectImpureIdentifiers(
 
       // --- 未知・サブセット外の構文は安全側 (違反) に倒す ---
       default:
-        violate(`(構文: ${(node as Ast.Node).type})`, (node as Ast.Node).loc)
+        violate(
+          i18n.tsx._purity.syntaxName({ type: (node as Ast.Node).type }),
+          (node as Ast.Node).loc,
+        )
     }
   }
 

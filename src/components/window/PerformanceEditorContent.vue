@@ -8,6 +8,7 @@ import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import {
   CATEGORY_LABELS,
@@ -182,7 +183,7 @@ function syncVisualFromCode() {
     // Validate: only allow known keys
     for (const key of Object.keys(parsed)) {
       if (!(key in FIELD_META)) {
-        codeError.value = `不明なキー: ${key}`
+        codeError.value = i18n.tsx._performanceEditorContent.unknownKey({ key })
         return
       }
     }
@@ -192,7 +193,10 @@ function syncVisualFromCode() {
     }
     codeError.value = ''
   } catch (e) {
-    codeError.value = e instanceof Error ? e.message : 'JSON解析エラー'
+    codeError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._performanceEditorContent.jsonParseError
   }
 }
 
@@ -250,9 +254,9 @@ function handleReset() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'adjustments', label: 'ビジュアル' },
+        { value: 'visual', icon: 'adjustments', label: i18n.ts._common.visual },
         ...(isExposed('developer')
-          ? [{ value: 'code', icon: 'code', label: 'コード' }]
+          ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
           : []),
       ]"
     />
@@ -261,8 +265,8 @@ function handleReset() {
     <div v-show="tab === 'visual'" :class="$style.panel">
       <div :class="$style.section">
         <AiSwitchRow
-          label="電源・回線・ウィンドウの状態に合わせて自動調整する"
-          sub-label="バッテリー駆動・省電力モードでは画像の先読みとアニメーション絵文字を止め、従量制回線では画像・動画をタップで読み込み、ウィンドウを隠している間はタイムラインの購読を休止する"
+          :label="i18n.ts._performanceEditorContent.autoAdapt"
+          :sub-label="i18n.ts._performanceEditorContent.autoAdaptDescription"
           icon="ti-battery-eco"
           :on="systemStateStore.autoAdapt"
           @toggle="toggleAutoAdapt"
@@ -272,7 +276,7 @@ function handleReset() {
       <!-- マスターは横 1 本。各チャンネルの相対差を保ったまま全体を上下させる -->
       <div :class="$style.section">
         <div :class="$style.sliderRow">
-          <span :class="$style.sliderEndLabel">省メモリ</span>
+          <span :class="$style.sliderEndLabel">{{ i18n.ts._performanceEditorContent.lowMemory }}</span>
           <input
             type="range"
             :class="$style.masterSlider"
@@ -280,19 +284,19 @@ function handleReset() {
             min="0"
             max="100"
             step="1"
-            title="全体のバランスを保ったまま上下させる"
+            :title="i18n.ts._performanceEditorContent.masterTitle"
             :style="{ '--fill': sliderFill(masterValue, 0, 100) }"
             @input="handleMasterFader"
           />
-          <span :class="$style.sliderEndLabel">高性能</span>
+          <span :class="$style.sliderEndLabel">{{ i18n.ts._performanceEditorContent.highPerformance }}</span>
         </div>
       </div>
 
       <!-- 分野ごとの味付けは DAW のミキサー式に縦フェーダーで -->
       <div :class="[$style.section, $style.mixer]">
         <div :class="$style.scale">
-          <span>高性能</span>
-          <span>省メモリ</span>
+          <span>{{ i18n.ts._performanceEditorContent.highPerformance }}</span>
+          <span>{{ i18n.ts._performanceEditorContent.lowMemory }}</span>
         </div>
         <div :class="$style.channels">
           <div v-for="ch in channels" :key="ch.cat" :class="$style.channel">
@@ -353,7 +357,7 @@ function handleReset() {
                   v-if="perfStore.isCustomized(field.key)"
                   class="_button"
                   :class="$style.resetBtn"
-                  :title="'デフォルト: ' + perfStore.getDefault(field.key)"
+                  :title="i18n.tsx._performanceEditorContent.defaultValue({ value: perfStore.getDefault(field.key) })"
                   @click="perfStore.resetKey(field.key)"
                 >
                   <i class="ti ti-restore" />
@@ -385,7 +389,7 @@ function handleReset() {
     <!-- Code Tab -->
     <div v-show="tab === 'code'" :class="$style.codePanel">
       <div :class="$style.codeHint">
-        デフォルト値からの差分のみがJSON形式で保存されます
+        {{ i18n.ts._performanceEditorContent.codeHint }}
       </div>
       <CodeEditor
         v-model="code"
@@ -399,7 +403,7 @@ function handleReset() {
       </div>
       <div v-else-if="code.trim() && code.trim() !== '{}'" :class="$style.codeSuccess">
         <i class="ti ti-check" />
-        適用中
+        {{ i18n.ts._common.active }}
       </div>
     </div>
 
@@ -412,7 +416,7 @@ function handleReset() {
           @click="importConfig"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+          {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -420,7 +424,7 @@ function handleReset() {
           @click="exportConfig"
         >
           <i class="ti ti-clipboard-copy" />
-          {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+          {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
         </button>
       </div>
       <button
@@ -429,7 +433,7 @@ function handleReset() {
         @click="handleReset"
       >
         <i class="ti ti-trash" />
-        {{ confirmingReset ? '本当にリセット？' : 'すべてリセット' }}
+        {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._common.resetAll }}
       </button>
     </div>
   </div>

@@ -11,6 +11,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { useWindowsStore } from '@/stores/windows'
@@ -39,10 +40,30 @@ const serverIconUrl = computed(() => {
 // 全バージョン共通の `-firstRetrievedAt` (初回取得日時) に集約する。
 type SortKey = '-pubSub' | '-users' | '-notes' | '-firstRetrievedAt'
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
-  { key: '-pubSub', label: 'アクティブ' },
-  { key: '-users', label: 'ユーザー' },
-  { key: '-notes', label: 'ノート' },
-  { key: '-firstRetrievedAt', label: '新着' },
+  {
+    key: '-pubSub',
+    get label() {
+      return i18n.ts._deckFederationColumn.sortActive
+    },
+  },
+  {
+    key: '-users',
+    get label() {
+      return i18n.ts._common.users
+    },
+  },
+  {
+    key: '-notes',
+    get label() {
+      return i18n.ts._common.notes
+    },
+  },
+  {
+    key: '-firstRetrievedAt',
+    get label() {
+      return i18n.ts._deckFederationColumn.sortNewest
+    },
+  },
 ]
 const PAGE_SIZE = 30
 const COLS = 3
@@ -115,7 +136,7 @@ function softwareLabel(inst: FederationInstance): string {
 async function fetchInstances(reset: boolean): Promise<void> {
   const acc = account.value
   if (!acc) {
-    error.value = new AppError('UNKNOWN', 'アカウントが見つかりません')
+    error.value = new AppError('UNKNOWN', i18n.ts._common.accountNotFound)
     return
   }
 
@@ -193,7 +214,7 @@ function onInstanceClick(inst: FederationInstance) {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name || '連合'"
+    :title="column.name || i18n.ts._columns.federation"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -215,7 +236,7 @@ function onInstanceClick(inst: FederationInstance) {
           v-model="hostQuery"
           type="text"
           :class="$style.searchInput"
-          placeholder="ホスト名で検索..."
+          :placeholder="i18n.ts._deckFederationColumn.searchPlaceholder"
         />
       </div>
 
@@ -235,17 +256,17 @@ function onInstanceClick(inst: FederationInstance) {
         v-if="error && instances.length === 0"
         :error="error"
         :account-id="column.accountId"
-        subject="連合情報"
+        :subject="i18n.ts._deckFederationColumn.federationInfo"
         :has-token="!!account?.hasToken"
         :image-url="serverErrorImageUrl"
         :info-image-url="serverInfoImageUrl"
-        cta-label="再試行"
+        :cta-label="i18n.ts._common.retry"
         cta-icon="ti-refresh"
         @cta="fetchInstances(true)"
       />
       <ColumnEmptyState
         v-else-if="!isLoading && instances.length === 0"
-        message="連合中のサーバーが見つかりません"
+        :message="i18n.ts._deckFederationColumn.empty"
         :image-url="serverInfoImageUrl"
       />
 
@@ -280,7 +301,7 @@ function onInstanceClick(inst: FederationInstance) {
                   inst.isNotResponding && $style.cellDim,
                   inst.isSuspended && $style.cellDim,
                 ]"
-                :title="`${inst.host}\n${softwareLabel(inst)}\nユーザー: ${inst.usersCount.toLocaleString()} / ノート: ${inst.notesCount.toLocaleString()}\n最終通信: ${inst.latestRequestSentAt ? formatTime(inst.latestRequestSentAt) : '—'}`"
+                :title="i18n.tsx._deckFederationColumn.instanceTooltip({ host: inst.host, software: softwareLabel(inst), users: inst.usersCount, notes: inst.notesCount, lastSent: inst.latestRequestSentAt ? formatTime(inst.latestRequestSentAt) : '—' })"
                 @click="onInstanceClick(inst)"
               >
                 <div :class="$style.iconWrap">
@@ -300,10 +321,10 @@ function onInstanceClick(inst: FederationInstance) {
                     :class="$style.icon"
                     loading="lazy"
                   />
-                  <span v-if="inst.isSuspended" :class="[$style.badge, $style.badgeError]" title="停止中">
+                  <span v-if="inst.isSuspended" :class="[$style.badge, $style.badgeError]" :title="i18n.ts._deckFederationColumn.suspended">
                     <i class="ti ti-ban" />
                   </span>
-                  <span v-else-if="inst.isNotResponding" :class="[$style.badge, $style.badgeWarn]" title="無応答">
+                  <span v-else-if="inst.isNotResponding" :class="[$style.badge, $style.badgeWarn]" :title="i18n.ts._deckFederationColumn.notResponding">
                     <i class="ti ti-alert-triangle" />
                   </span>
                 </div>

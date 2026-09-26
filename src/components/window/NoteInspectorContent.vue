@@ -2,9 +2,11 @@
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import type { JsonValue } from '@/bindings'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import I18n from '@/components/common/I18n.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
+import { i18n } from '@/i18n'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -113,7 +115,7 @@ async function loadActivityPub() {
   if (apRaw.value != null || isLoadingAp.value) return
   const uri = derivedUri.value
   if (!uri) {
-    apError.value = 'URI を特定できませんでした'
+    apError.value = i18n.ts._noteInspectorContent.uriNotFound
     return
   }
   const gen = viewGeneration
@@ -162,7 +164,7 @@ watch(tab, (t) => {
 
     <div v-if="variantList" :class="$style.variantBar">
       <label :class="$style.variantLabel">
-        ビュー
+        {{ i18n.ts._noteInspectorContent.view }}
         <select v-model="activeVariant" :class="$style.variantSelect">
           <option v-for="(v, i) in variantList" :key="`${v.accountId}:${v.noteId}`" :value="i">
             {{ v.serverHost }} / {{ v.noteId }}
@@ -183,10 +185,10 @@ watch(tab, (t) => {
       <template #hint>
         <i class="ti ti-info-circle" />
         <template v-if="tab === 'misskey'">
-          <code>/api/notes/show</code> の生レスポンス
+          <I18n :src="i18n.ts._common.rawResponse"><template #endpoint><code>/api/notes/show</code></template></I18n>
         </template>
         <template v-else>
-          <code>/api/ap/show</code> 経由で解決した ActivityPub オブジェクト
+          <I18n :src="i18n.ts._noteInspectorContent.activityPubObject"><template #endpoint><code>/api/ap/show</code></template></I18n>
         </template>
       </template>
     </RawJsonView>

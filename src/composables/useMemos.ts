@@ -371,7 +371,7 @@ export function saveMemo(
   const stored: StoredMemo = { updatedAt: new Date().toISOString(), data }
   const isNew = !(memoKey in cache)
   // 編集前 snapshot を history sidecar に push (fire-and-forget)。
-  // 他のテキスト (スキル・ウィジット・テーマ・CSS) と同じ扱い。内容が同じ
+  // 他のテキスト (スキル・ウィジェット・テーマ・CSS) と同じ扱い。内容が同じ
   // 保存では積まない — 自動保存でリングを使い潰さないため
   const prev = cache[memoKey]?.data.text
   if (prev !== undefined && prev !== data.text) {

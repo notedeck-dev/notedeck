@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
+import { i18n } from '@/i18n'
+import { readOnlyHint } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 
@@ -73,8 +74,11 @@ const updateTitle = computed(() => {
   if (!props.updatedAt) return ''
   const date = formatDate(props.updatedAt)
   return props.version
-    ? `ストア更新日: ${date} / v${props.version}`
-    : `ストア更新日: ${date}`
+    ? i18n.tsx._common.storeUpdatedWithVersion({
+        date,
+        version: props.version,
+      })
+    : i18n.tsx._common.storeUpdated({ date })
 })
 </script>
 
@@ -96,23 +100,23 @@ const updateTitle = computed(() => {
     <div :class="$style.body">
       <div :class="$style.row1">
         <button type="button" :class="$style.name" @click.stop="emit('click')">{{ name }}</button>
-        <span v-if="incompatible" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
+        <span v-if="incompatible" :class="$style.incompatBadge">{{ capabilityBadge ?? i18n.ts._pluginCard.incompatible }}</span>
         <span
           v-else-if="mode !== 'store' && readOnly"
           :class="$style.incompatBadge"
-          :title="READ_ONLY_HINT"
-        >ソース欠損</span>
-        <span v-else-if="disabled" :class="$style.disabledBadge">無効</span>
+          :title="readOnlyHint()"
+        >{{ i18n.ts._common.sourceMissing }}</span>
+        <span v-else-if="disabled" :class="$style.disabledBadge">{{ i18n.ts._common.disabled }}</span>
         <span
           v-if="mode === 'store' && alreadyInstalled && hasUpdate"
           :class="$style.updateBadge"
           :title="updateTitle"
-        >更新あり</span>
+        >{{ i18n.ts._common.updateAvailable }}</span>
         <button
           v-if="deniedBadge"
           class="_button"
           :class="$style.deniedBadge"
-          :title="`権限がないため拒否されました: ${deniedBadge.lastTarget} (要求: ${deniedBadge.lastKeys.join(', ')} / ${deniedBadge.count} 回)。クリックでプラグイン権限を開く`"
+          :title="i18n.tsx._pluginCard.denied_plural({ target: deniedBadge.lastTarget, keys: deniedBadge.lastKeys.join(', '), count: deniedBadge.count })"
           @click.stop="emit('denied-click')"
         >
           <i class="ti ti-shield-x" />
@@ -136,7 +140,7 @@ const updateTitle = computed(() => {
             <button
               class="_button"
               :class="$style.iconBtn"
-              :title="detachTitle ?? 'このカラムから外す'"
+              :title="detachTitle ?? i18n.ts._pluginCard.detachFromColumn"
               @click.stop="emit('detach')"
             >
               <i class="ti ti-circle-minus" />
@@ -144,7 +148,7 @@ const updateTitle = computed(() => {
             <button
               class="_button"
               :class="$style.iconBtn"
-              title="設定"
+              :title="i18n.ts._common.settings"
               @click.stop="emit('settings')"
             >
               <i class="ti ti-settings" />
@@ -154,7 +158,7 @@ const updateTitle = computed(() => {
               :class="[$style.primaryBtn, active ? $style.secondaryBtn : '']"
               @click.stop="emit('toggle')"
             >
-              {{ active ? '無効にする' : '有効にする' }}
+              {{ active ? i18n.ts._common.disable : i18n.ts._common.enable }}
             </button>
           </template>
 
@@ -163,7 +167,7 @@ const updateTitle = computed(() => {
             <button
               class="_button"
               :class="[$style.iconBtn, $style.iconBtnDanger]"
-              title="ライブラリから削除 (コードも消えます)"
+              :title="i18n.ts._pluginCard.deleteFromLibrary"
               @click.stop="emit('delete')"
             >
               <i class="ti ti-trash" />
@@ -174,7 +178,7 @@ const updateTitle = computed(() => {
               @click.stop="emit('place')"
             >
               <i class="ti ti-plus" />
-              追加
+              {{ i18n.ts._common.add }}
             </button>
           </template>
 
@@ -183,7 +187,7 @@ const updateTitle = computed(() => {
             <button
               class="_button"
               :class="$style.iconBtn"
-              title="MisStore で詳細を開く"
+              :title="i18n.ts._common.openInMisStore"
               @click.stop="emit('open-detail')"
             >
               <i class="ti ti-external-link" />
@@ -198,7 +202,7 @@ const updateTitle = computed(() => {
             >
               <i v-if="installing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-refresh" />
-              更新
+              {{ i18n.ts._common.update }}
             </button>
             <button
               v-else-if="alreadyInstalled"
@@ -206,7 +210,7 @@ const updateTitle = computed(() => {
               :class="$style.installedBadge"
               disabled
             >
-              インストール済み
+              {{ i18n.ts._common.installed }}
             </button>
             <button
               v-else
@@ -217,7 +221,7 @@ const updateTitle = computed(() => {
             >
               <i v-if="installing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-download" />
-              インストール
+              {{ i18n.ts._common.install }}
             </button>
           </template>
         </div>

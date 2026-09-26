@@ -164,7 +164,7 @@ pub async fn export_settings_json(app: tauri::AppHandle) -> Result<bool> {
 #[serde(rename_all = "camelCase")]
 pub struct ImportSettingsResult {
     pub imported: bool,
-    pub warnings: Vec<String>,
+    pub warnings: Vec<notecore::i18n::LocalizedLine>,
 }
 
 /// Import settings from a JSON bundle via open dialog.

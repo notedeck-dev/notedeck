@@ -45,8 +45,8 @@ export function takeStagedEdit(
   ctx.stagedEdit = undefined
   if (staged.baseline !== current) {
     throw new Error(
-      `${capabilityId}: 確認後に対象が変更されたため書き込みを中止しました ` +
-        '(最新の内容を読み直してからやり直すこと)',
+      `${capabilityId}: aborted the write because the target changed after confirmation ` +
+        '(read the latest content and try again)',
     )
   }
   return staged.next

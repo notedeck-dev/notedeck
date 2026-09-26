@@ -22,6 +22,7 @@ import { openEditHistoryWindow } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -88,20 +89,90 @@ useWindowExternalFile(() => {
 
 // Primary color props that users typically want to edit directly
 const PRIMARY_PROPS: { key: string; label: string }[] = [
-  { key: 'accent', label: 'アクセント' },
-  { key: 'bg', label: '背景' },
-  { key: 'fg', label: '文字色' },
-  { key: 'panel', label: 'パネル' },
-  { key: 'navBg', label: 'ナビバー背景' },
-  { key: 'love', label: 'いいね' },
-  { key: 'link', label: 'リンク' },
-  { key: 'hashtag', label: 'ハッシュタグ' },
-  { key: 'mention', label: 'メンション' },
-  { key: 'renote', label: 'リノート' },
-  { key: 'divider', label: '区切り線' },
-  { key: 'success', label: '成功' },
-  { key: 'error', label: 'エラー' },
-  { key: 'warn', label: '警告' },
+  {
+    key: 'accent',
+    get label() {
+      return i18n.ts._themeEditorContent.propAccent
+    },
+  },
+  {
+    key: 'bg',
+    get label() {
+      return i18n.ts._themeEditorContent.propBg
+    },
+  },
+  {
+    key: 'fg',
+    get label() {
+      return i18n.ts._themeEditorContent.propFg
+    },
+  },
+  {
+    key: 'panel',
+    get label() {
+      return i18n.ts._themeEditorContent.propPanel
+    },
+  },
+  {
+    key: 'navBg',
+    get label() {
+      return i18n.ts._themeEditorContent.propNavBg
+    },
+  },
+  {
+    key: 'love',
+    get label() {
+      return i18n.ts._themeEditorContent.propLove
+    },
+  },
+  {
+    key: 'link',
+    get label() {
+      return i18n.ts._themeEditorContent.propLink
+    },
+  },
+  {
+    key: 'hashtag',
+    get label() {
+      return i18n.ts._common.hashtag
+    },
+  },
+  {
+    key: 'mention',
+    get label() {
+      return i18n.ts._common.mention
+    },
+  },
+  {
+    key: 'renote',
+    get label() {
+      return i18n.ts._common.renote
+    },
+  },
+  {
+    key: 'divider',
+    get label() {
+      return i18n.ts._themeEditorContent.propDivider
+    },
+  },
+  {
+    key: 'success',
+    get label() {
+      return i18n.ts._themeEditorContent.propSuccess
+    },
+  },
+  {
+    key: 'error',
+    get label() {
+      return i18n.ts._themeEditorContent.propError
+    },
+  },
+  {
+    key: 'warn',
+    get label() {
+      return i18n.ts._themeEditorContent.propWarn
+    },
+  },
 ]
 
 // Working props: only user overrides (not base theme defaults)
@@ -174,7 +245,7 @@ function syncVisualFromCode() {
   try {
     const parsed = JSON5.parse(codeContent.value)
     if (!parsed || typeof parsed !== 'object' || !parsed.props) {
-      codeError.value = 'テーマオブジェクトに props がありません'
+      codeError.value = i18n.ts._themeEditorContent.noProps
       return
     }
     themeName.value = parsed.name || 'Untitled'
@@ -190,7 +261,10 @@ function syncVisualFromCode() {
     overrides.value = filtered
     codeError.value = null
   } catch (e) {
-    codeError.value = e instanceof Error ? e.message : 'JSONパースエラー'
+    codeError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._themeEditorContent.jsonParseError
   }
 }
 
@@ -346,24 +420,34 @@ const barActions = computed<EditorAction[]>(() => {
     {
       key: 'import',
       label: importError.value
-        ? '無効'
+        ? i18n.ts._common.disabled
         : importedMessage.value
-          ? '読込済み'
-          : 'インポート',
+          ? i18n.ts._common.loaded
+          : i18n.ts._common.import,
       icon: importError.value ? 'alert-circle' : 'clipboard-text',
     },
     {
       key: 'export',
-      label: copiedMessage.value ? 'コピー済み' : 'エクスポート',
+      label: copiedMessage.value
+        ? i18n.ts._common.copied
+        : i18n.ts._common.export,
       icon: 'clipboard-copy',
     },
   ]
   // 履歴は開発者向けの面 (#1034)。入口だけ隠す
   if (editingThemeId.value && isExposed('developer')) {
-    list.push({ key: 'history', label: '履歴', icon: 'history' })
+    list.push({
+      key: 'history',
+      label: i18n.ts._common.history,
+      icon: 'history',
+    })
   }
   if (hasChangesFromSnapshot.value) {
-    list.push({ key: 'reset', icon: 'arrow-back-up', title: '元に戻す' })
+    list.push({
+      key: 'reset',
+      icon: 'arrow-back-up',
+      title: i18n.ts._common.undo,
+    })
   }
   return list
 })
@@ -371,10 +455,10 @@ const barActions = computed<EditorAction[]>(() => {
 const barPrimary = computed<EditorAction>(() => ({
   key: 'install',
   label: installedMessage.value
-    ? '保存しました'
+    ? i18n.ts._common.saved
     : editingThemeId.value
-      ? '上書き保存'
-      : 'インストール',
+      ? i18n.ts._themeEditorContent.overwriteSave
+      : i18n.ts._common.install,
   icon: installedMessage.value ? 'check' : 'device-floppy',
 }))
 
@@ -495,16 +579,16 @@ useExternalEditSync<string>({
 async function deleteInstalledTheme(theme: MisskeyTheme, e: Event) {
   e.stopPropagation()
   const ok = await confirm({
-    title: 'テーマを削除',
-    message: `「${theme.name}」を削除しますか？テーマの設定も消えます。`,
-    okLabel: '削除',
+    title: i18n.ts._themeEditorContent.deleteTitle,
+    message: i18n.tsx._themeEditorContent.deleteMessage({ name: theme.name }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = themeStore.removeTheme(theme.id)
   if (undo) {
-    useToast().show('テーマを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._themeEditorContent.deleted, 'info', {
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -614,16 +698,16 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           <ThemePreview :theme="previewTheme" :class="$style.headerPreview" />
         </template>
         <template #sub>
-          <span :class="$style.headerBadge">{{ baseMode === 'light' ? 'ライト' : 'ダーク' }}</span>
+          <span :class="$style.headerBadge">{{ baseMode === 'light' ? i18n.ts._themeEditorContent.light : i18n.ts._themeEditorContent.dark }}</span>
         </template>
       </EditorItemHeader>
 
       <EditorTabs
         v-model="tab"
         :tabs="[
-          { value: 'visual', icon: 'palette', label: 'ビジュアル' },
+          { value: 'visual', icon: 'palette', label: i18n.ts._common.visual },
           ...(isExposed('developer')
-            ? [{ value: 'code', icon: 'code', label: 'コード' }]
+            ? [{ value: 'code', icon: 'code', label: i18n.ts._common.code }]
             : []),
         ]"
       />
@@ -634,7 +718,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         <div :class="$style.section">
           <button class="_button" :class="$style.sectionLabel" @click="toggleSection('info')">
             <i class="ti ti-tag" />
-            テーマ情報
+            {{ i18n.ts._themeEditorContent.themeInfo }}
             <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.info }]" />
           </button>
           <template v-if="expandedSections.info">
@@ -642,7 +726,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               v-model="themeName"
               :class="$style.nameInput"
               type="text"
-              placeholder="テーマ名"
+              :placeholder="i18n.ts._themeEditorContent.themeName"
               spellcheck="false"
             />
             <div :class="$style.baseToggle">
@@ -670,7 +754,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
         <div v-if="themeStore.installedThemes.length" :class="$style.section">
           <button class="_button" :class="$style.sectionLabel" @click="toggleSection('existing')">
             <i class="ti ti-folder-open" />
-            既存テーマ
+            {{ i18n.ts._themeEditorContent.existingThemes }}
             <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.existing }]" />
           </button>
           <div v-if="expandedSections.existing" :class="$style.dropdown">
@@ -679,7 +763,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               :class="$style.dropdownTrigger"
               @click="showLoadDropdown = !showLoadDropdown"
             >
-              <span>テーマを選択...</span>
+              <span>{{ i18n.ts._themeEditorContent.selectTheme }}</span>
               <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
             </button>
             <div v-if="showLoadDropdown" :class="$style.dropdownPanel">
@@ -698,7 +782,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 <button
                   class="_button"
                   :class="$style.dropdownItemDelete"
-                  title="削除"
+                  :title="i18n.ts._common.delete"
                   @click="deleteInstalledTheme(t, $event)"
                 >
                   <i class="ti ti-trash" />
@@ -716,7 +800,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
             @click="toggleSection('primary')"
           >
             <i class="ti ti-palette" />
-            基本色
+            {{ i18n.ts._themeEditorContent.primaryColors }}
             <span v-if="primaryOverrideCount > 0" :class="$style.sectionValue">
               {{ primaryOverrideCount }}/{{ PRIMARY_PROPS.length }}
             </span>
@@ -749,7 +833,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                   v-if="isOverridden(prop.key)"
                   class="_button"
                   :class="$style.resetBtn"
-                  title="デフォルトに戻す"
+                  :title="i18n.ts._common.resetToDefault"
                   @click="resetProp(prop.key)"
                 >
                   <i class="ti ti-x" />
@@ -781,7 +865,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
             @click="toggleSection('secondary')"
           >
             <i class="ti ti-adjustments" />
-            追加プロパティ
+            {{ i18n.ts._themeEditorContent.extraProperties }}
             <span :class="$style.sectionValue">{{ secondaryOverrides.length }}</span>
             <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.secondary }]" />
           </button>
@@ -810,7 +894,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 <button
                   class="_button"
                   :class="$style.resetBtn"
-                  title="削除"
+                  :title="i18n.ts._common.delete"
                   @click="resetProp(key)"
                 >
                   <i class="ti ti-x" />
@@ -842,7 +926,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
               @click="showAddPropDropdown = !showAddPropDropdown"
             >
               <i class="ti ti-plus" />
-              <span>プロパティを追加 ({{ availableSecondaryProps.length }})</span>
+              <span>{{ i18n.tsx._themeEditorContent.addProperty({ n: availableSecondaryProps.length }) }}</span>
               <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
             </button>
             <div v-if="showAddPropDropdown" :class="$style.dropdownPanel">
@@ -852,7 +936,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                   v-model="addPropSearch"
                   :class="$style.searchInput"
                   type="text"
-                  placeholder="検索..."
+                  :placeholder="i18n.ts._themeEditorContent.search"
                   spellcheck="false"
                   @click.stop
                 />
@@ -871,7 +955,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
                 <span :class="$style.dropdownItemLabel">{{ key }}</span>
               </button>
               <div v-if="filteredSecondaryProps.length === 0" :class="$style.dropdownEmpty">
-                一致するプロパティがありません
+                {{ i18n.ts._themeEditorContent.noMatchingProperties }}
               </div>
             </div>
           </div>
@@ -893,7 +977,7 @@ onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
           @click="syncVisualFromCode"
         >
           <i class="ti ti-check" />
-          コードから反映
+          {{ i18n.ts._themeEditorContent.applyFromCode }}
         </button>
       </div>
 

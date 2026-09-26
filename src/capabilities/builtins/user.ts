@@ -1,4 +1,5 @@
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import { useMutesStore } from '@/stores/mutes'
 import { getApiAdapter, resolveAccountId } from '../accountContext'
 import { implement, implementCore } from '../declare'
@@ -32,14 +33,18 @@ export const userSearchCapability = implementCore('user.search')
  * 確認 UI は normal (= danger ではない)。可逆操作 (unmute / unrenoteMute あり)
  * かつ相手側に通知が飛ばないため心理的負荷が低い。
  */
-function muteConfirm(action: string, scope: string) {
+function muteConfirm(
+  text: (userId: string) => {
+    title: string
+    message: string
+    okLabel: string
+  },
+) {
   return (params: Record<string, unknown> | undefined) => {
     const userId = typeof params?.userId === 'string' ? params.userId : ''
     return {
-      title: `${scope}を${action}`,
-      message: `userId \`${userId}\` を ${scope}${action}します (相手に通知は飛びません)。`,
-      okLabel: action,
-      cancelLabel: 'やめる' as const,
+      ...text(userId),
+      cancelLabel: i18n.ts._common.cancel,
       type: 'normal' as const,
     }
   }
@@ -55,7 +60,11 @@ function pickUserId(
 }
 
 export const userMuteCapability = implement('user.mute', {
-  requiresConfirmation: muteConfirm('ミュート', 'ノート + 通知'),
+  requiresConfirmation: muteConfirm((userId) => ({
+    title: i18n.ts._userCapability.muteTitle,
+    message: i18n.tsx._userCapability.muteMessage({ userId }),
+    okLabel: i18n.ts._common.mute,
+  })),
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.mute')
     const accountId = resolveAccountId(params?.accountId, ctx)
@@ -68,7 +77,11 @@ export const userMuteCapability = implement('user.mute', {
 })
 
 export const userUnmuteCapability = implement('user.unmute', {
-  requiresConfirmation: muteConfirm('解除', 'ノート + 通知'),
+  requiresConfirmation: muteConfirm((userId) => ({
+    title: i18n.ts._userCapability.unmuteTitle,
+    message: i18n.tsx._userCapability.unmuteMessage({ userId }),
+    okLabel: i18n.ts._userCapability.unmuteOk,
+  })),
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.unmute')
     const accountId = resolveAccountId(params?.accountId, ctx)
@@ -81,7 +94,11 @@ export const userUnmuteCapability = implement('user.unmute', {
 })
 
 export const userRenoteMuteCapability = implement('user.renoteMute', {
-  requiresConfirmation: muteConfirm('リノートミュート', 'リノートだけ'),
+  requiresConfirmation: muteConfirm((userId) => ({
+    title: i18n.ts._userCapability.renoteMuteTitle,
+    message: i18n.tsx._userCapability.renoteMuteMessage({ userId }),
+    okLabel: i18n.ts._userCapability.renoteMuteOk,
+  })),
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.renoteMute')
     const accountId = resolveAccountId(params?.accountId, ctx)
@@ -94,7 +111,11 @@ export const userRenoteMuteCapability = implement('user.renoteMute', {
 })
 
 export const userUnrenoteMuteCapability = implement('user.unrenoteMute', {
-  requiresConfirmation: muteConfirm('リノートミュート解除', 'リノートだけ'),
+  requiresConfirmation: muteConfirm((userId) => ({
+    title: i18n.ts._userCapability.unrenoteMuteTitle,
+    message: i18n.tsx._userCapability.unrenoteMuteMessage({ userId }),
+    okLabel: i18n.ts._userCapability.unrenoteMuteOk,
+  })),
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.unrenoteMute')
     const accountId = resolveAccountId(params?.accountId, ctx)

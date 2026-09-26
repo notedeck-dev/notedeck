@@ -153,6 +153,11 @@
      カスタム CSS の「等幅フォント」プリセットが :root ごと上書きする */
   --nd-font-mono: 'Fira Code', 'Cascadia Code', Consolas, ui-monospace,
     'SF Mono', Menlo, monospace;
+  /* 本文フォント (#135)。言語ごとに字形を変えたいときは :root:lang(xx) で
+     この変数だけを上書きする (<html lang> は表示言語に合わせて設定される) */
+  --nd-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    'Hiragino Sans', 'Hiragino Maru Gothic Pro', 'BIZ UDGothic',
+    Roboto, HelveticaNeue, Arial, sans-serif;
   /* Non-theme layout constants */
   --nd-radius: 12px;
   --nd-radius-sm: 6px;
@@ -234,9 +239,7 @@ html[data-platform="ios"] {
 
 html {
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
-    'Hiragino Sans', 'Hiragino Maru Gothic Pro', 'BIZ UDGothic',
-    Roboto, HelveticaNeue, Arial, sans-serif;
+  font-family: var(--nd-font-sans);
   font-size: 14px;
   line-height: 1.35;
   -webkit-font-smoothing: antialiased;

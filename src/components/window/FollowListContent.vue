@@ -12,6 +12,7 @@ import MkFollowButton from '@/components/common/MkFollowButton.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
@@ -84,7 +85,10 @@ const {
   onError: (e) => {
     const err = AppError.from(e)
     console.error('[follow:load]', err.code, err.message)
-    toast.show(`取得に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._followListContent.fetchFailed({ code: err.displayCode }),
+      'error',
+    )
   },
 })
 
@@ -100,7 +104,10 @@ onMounted(async () => {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[follow:init]', err.code, err.message)
-    toast.show(`読み込みに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._followListContent.loadFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 })
 
@@ -178,14 +185,14 @@ function resolvePendingFor(userId: string) {
         :class="[$style.tab, { [$style.tabActive]: activeTab === 'following' }]"
         @click="activeTab = 'following'"
       >
-        フォロー
+        {{ i18n.ts._followListContent.following }}
       </button>
       <button
         class="_button"
         :class="[$style.tab, { [$style.tabActive]: activeTab === 'followers' }]"
         @click="activeTab = 'followers'"
       >
-        フォロワー
+        {{ i18n.ts._common.followers }}
       </button>
     </div>
 
@@ -220,7 +227,7 @@ function resolvePendingFor(userId: string) {
 
       <div v-if="isLoading" :class="$style.stateMsg"><LoadingSpinner /></div>
       <div v-else-if="users.length === 0" :class="$style.stateMsg">
-        {{ activeTab === 'following' ? 'フォローしているユーザーはいません' : 'フォロワーはいません' }}
+        {{ activeTab === 'following' ? i18n.ts._followListContent.noFollowing : i18n.ts._followListContent.noFollowers }}
       </div>
     </div>
   </div>

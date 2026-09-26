@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useClickOutside } from '@/composables/useClickOutside'
+import { i18n } from '@/i18n'
 import {
   FALLBACK_PRESET_OPTION,
   PERMISSION_CATEGORIES,
@@ -149,7 +150,7 @@ function toggle(key: PermissionKey) {
             v-if="HIGH_RISK_SET.has(key)"
             class="ti ti-alert-triangle"
             :class="$style.warningIcon"
-            title="高リスク操作"
+            :title="i18n.ts._permissionProfileEditor.highRisk"
           />
           <button
             class="nd-toggle-switch"

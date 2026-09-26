@@ -4,6 +4,7 @@ import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { useColumnTabs } from '@/composables/useColumnTabs'
 import { columnTargetId, useSpotlightStore } from '@/composables/useSpotlight'
+import { i18n } from '@/i18n'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 
 const props = defineProps<{
@@ -91,7 +92,7 @@ const {
     <button
       class="_button"
       :class="$style.addBtn"
-      title="カラムを追加"
+      :title="i18n.ts._commands.addColumn"
       @click="emit('toggle-add-menu')"
     >
       <i class="ti ti-plus" />

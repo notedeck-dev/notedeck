@@ -6,6 +6,7 @@ import MkMfm from '@/components/common/MkMfm.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
@@ -111,7 +112,7 @@ onUnmounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    title="お知らせ"
+    :title="i18n.ts._columns.announcements"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -131,7 +132,7 @@ onUnmounted(() => {
       :account-id="column.accountId"
       :image-url="serverErrorImageUrl"
       is-error
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="fetchAnnouncements"
     />
@@ -139,7 +140,7 @@ onUnmounted(() => {
     <div v-else :class="$style.announcementsBody">
       <ColumnEmptyState
         v-if="announcements.length === 0 && !isLoading"
-        message="お知らせはありません"
+        :message="i18n.ts._deckAnnouncementsColumn.empty"
         :image-url="serverInfoImageUrl"
       />
 
@@ -168,7 +169,7 @@ onUnmounted(() => {
 
           <div v-if="!item.isRead" :class="$style.announcementActions">
             <button class="_button" :class="$style.announcementReadBtn" @click="markAsRead(item)">
-              <i class="ti ti-check" /> 既読にする
+              <i class="ti ti-check" /> {{ i18n.ts._deckAnnouncementsColumn.markAsRead }}
             </button>
           </div>
         </div>

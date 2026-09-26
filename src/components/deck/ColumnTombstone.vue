@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { i18n } from '@/i18n'
 /**
  * 未登録カラム種別の墓標 (#794 未決事項 1)。
  *
@@ -27,13 +28,13 @@ function remove() {
 <template>
   <div :class="$style.tombstone">
     <i class="ti ti-puzzle-off" :class="$style.icon" />
-    <div :class="$style.title">拡張カラム「{{ type }}」は読み込まれていません</div>
+    <div :class="$style.title">{{ i18n.tsx._columnTombstone.notLoaded({ type }) }}</div>
     <div :class="$style.body">
-      提供元のプラグインが無効・削除されているか、まだ起動していません。
-      プラグインが起動すると自動的に表示されます。
+      {{ i18n.ts._columnTombstone.bodyReason }}
+      {{ i18n.ts._columnTombstone.bodyAuto }}
     </div>
     <button type="button" :class="$style.remove" @click="remove">
-      このカラムを削除
+      {{ i18n.ts._columnTombstone.removeColumn }}
     </button>
   </div>
 </template>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
@@ -44,7 +45,7 @@ const noteColumnConfig: NoteColumnConfig = {
   <!-- 単一ユーザーのカラムに Bot 除外は不要 (#841) -->
   <DeckNoteColumn
     :column="column"
-    :title="column.name || 'ユーザー'"
+    :title="column.name || i18n.ts._columns.user"
     icon="ti-user"
     :note-column-config="noteColumnConfig"
     :filter-keys="['withRenotes', 'withReplies', 'withFiles']"

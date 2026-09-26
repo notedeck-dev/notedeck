@@ -6,8 +6,9 @@ import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import { getPluginDenial } from '@/permissions/pluginDenials'
-import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
+import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import {
   accountScopeKey,
@@ -114,9 +115,11 @@ const scopeCount = computed(
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: `インストール済み ${scopeCount.value}`,
+    label: i18n.tsx._common.installedTab({
+      count: scopeCount.value,
+    }),
   },
-  { value: 'store', label: 'ストア' },
+  { value: 'store', label: i18n.ts._common.store },
 ])
 
 function switchTab(tab: string) {
@@ -186,8 +189,16 @@ const installedSections = computed<PluginSection[]>(() => {
   const sideloaded = visiblePlugins.value.filter((p) => !p.storeId)
   const store = visiblePlugins.value.filter((p) => !!p.storeId)
   const sections: PluginSection[] = [
-    { key: 'sideload', label: 'サイドロード', items: sideloaded },
-    { key: 'store', label: 'ストア配布', items: store },
+    {
+      key: 'sideload',
+      label: i18n.ts._common.sideload,
+      items: sideloaded,
+    },
+    {
+      key: 'store',
+      label: i18n.ts._common.storeDistributed,
+      items: store,
+    },
   ]
   return sections.filter((s) => s.items.length > 0)
 })
@@ -240,7 +251,8 @@ async function handleStoreInstall(entry: StorePluginEntry) {
     // 無ければ取得してこのスコープで有効化 (#771)
     await misStore.installPlugin(entry, scope)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : 'インストール失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   }
 }
 
@@ -249,7 +261,8 @@ async function handleStoreUpdate(entry: StorePluginEntry) {
   try {
     await misStore.updatePlugin(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : '更新失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 
@@ -268,7 +281,7 @@ async function toggleActive(plugin: PluginMeta) {
   const newActive = !plugin.active
   if (!pluginsStore.setActive(plugin.installId, newActive)) {
     // 読取専用 (ソース欠損) は保存されず巻き戻る。起動もしない (#1111)
-    useToast().show(READ_ONLY_REASON, 'warning')
+    useToast().show(readOnlyReason(), 'warning')
     return
   }
   if (newActive) {
@@ -306,19 +319,21 @@ function detachFromScope(plugin: PluginMeta) {
   const scope = columnScope.value
   if (!scope) return
   if (!pluginsStore.unlinkScope(plugin.installId, scope)) {
-    useToast().show(READ_ONLY_REASON, 'warning')
+    useToast().show(readOnlyReason(), 'warning')
     return
   }
-  useToast().show('プラグインを外しました', 'info', {
+  useToast().show(i18n.ts._deckPluginManagerColumn.detached, 'info', {
     action: {
-      label: '元に戻す',
+      label: i18n.ts._common.undo,
       onClick: () => pluginsStore.linkScope(plugin.installId, scope),
     },
   })
 }
 
 const detachTitle = computed(() =>
-  isCrossAccount.value ? '全アカウント対象から外す' : 'このアカウントから外す',
+  isCrossAccount.value
+    ? i18n.ts._deckPluginManagerColumn.detachFromAllAccounts
+    : i18n.ts._common.detachFromAccount,
 )
 
 // --- Library picker (スコープ未参加のライブラリ本体の追加/削除) ---
@@ -334,7 +349,7 @@ function placeFromLibrary(plugin: PluginMeta) {
   const scope = columnScope.value
   if (!scope) return
   if (!pluginsStore.linkScope(plugin.installId, scope)) {
-    useToast().show(READ_ONLY_REASON, 'warning')
+    useToast().show(readOnlyReason(), 'warning')
     return
   }
   showLibraryPicker.value = false
@@ -345,17 +360,19 @@ const { confirm } = useConfirm()
 /** ライブラリから本体ごと削除 (コードも消える)。 */
 async function deleteFromLibrary(plugin: PluginMeta) {
   const ok = await confirm({
-    title: 'プラグインを削除',
-    message: `「${plugin.name}」をライブラリから削除しますか？プラグインのコードも消えます。`,
-    okLabel: '削除',
+    title: i18n.ts._deckPluginManagerColumn.deleteTitle,
+    message: i18n.tsx._deckPluginManagerColumn.deleteConfirm({
+      name: plugin.name,
+    }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   abortPlugin(plugin.installId)
   const undo = pluginsStore.removePlugin(plugin.installId)
   if (undo) {
-    useToast().show('プラグインを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckPluginManagerColumn.deleted, 'info', {
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -364,7 +381,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'プラグイン'"
+    :title="column.name ?? i18n.ts._columns.pluginManager"
     :theme-vars="columnThemeVars"
     @header-click="() => {}"
   >
@@ -377,7 +394,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
         v-if="viewTab === 'installed' && canCreate"
         class="_button"
         :class="$style.headerBtn"
-        title="新規プラグインを作成"
+        :title="i18n.ts._deckPluginManagerColumn.create"
         @click.stop="openNewPlugin"
       >
         <i class="ti ti-plus" />
@@ -385,7 +402,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
-      <SafeModeNotice subject="プラグイン" />
+      <SafeModeNotice :subject="i18n.ts._deckPluginManagerColumn.safeModeSubject" />
 
       <ColumnTabs
         :tabs="tabDefs"
@@ -401,20 +418,20 @@ async function deleteFromLibrary(plugin: PluginMeta) {
           v-model="searchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="インストール済みを探す"
+          :placeholder="i18n.ts._deckPluginManagerColumn.searchInstalled"
         />
         <input
           v-else
           v-model="storeQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="ストアを探す"
+          :placeholder="i18n.ts._common.browseStore"
         />
         <div v-if="viewTab === 'installed'" :class="$style.searchActions">
           <button
             class="_button"
             :class="[$style.filterBtn, activeFilter === 'enabled' && $style.filterBtnActive]"
-            title="有効なプラグイン"
+            :title="i18n.ts._deckPluginManagerColumn.enabledPlugins"
             @click="setFilter('enabled')"
           >
             <i class="ti ti-check" />
@@ -422,7 +439,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
           <button
             class="_button"
             :class="[$style.filterBtn, activeFilter === 'disabled' && $style.filterBtnActive]"
-            title="無効なプラグイン"
+            :title="i18n.ts._deckPluginManagerColumn.disabledPlugins"
             @click="setFilter('disabled')"
           >
             <i class="ti ti-circle-off" />
@@ -463,11 +480,11 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 
           <template v-if="visiblePluginCount === 0">
             <div v-if="textQuery || activeFilter !== 'all'" :class="$style.empty">
-              一致するプラグインがありません
+              {{ i18n.ts._deckPluginManagerColumn.noMatches }}
             </div>
             <ColumnEmptyState
               v-else
-              message="このカラムに追加されたプラグインはありません"
+              :message="i18n.ts._deckPluginManagerColumn.emptyInColumn"
               :image-url="serverInfoImageUrl"
             />
           </template>
@@ -479,13 +496,13 @@ async function deleteFromLibrary(plugin: PluginMeta) {
               @click="showLibraryPicker = !showLibraryPicker"
             >
               <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? '閉じる' : 'ライブラリから追加' }}
+              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._common.addFromLibrary }}
             </button>
           </div>
 
           <div v-if="showLibraryPicker" :class="$style.pickerWrap">
             <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              ライブラリに追加可能なプラグインがありません。
+              {{ i18n.ts._deckPluginManagerColumn.noLibraryCandidates }}
             </div>
             <PluginCard
               v-for="plugin in libraryCandidates"
@@ -518,14 +535,14 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 
         <div v-if="misStore.loading" :class="$style.storeLoading">
           <i class="ti ti-loader-2 nd-spin" />
-          読み込み中...
+          {{ i18n.ts._common.loading }}
         </div>
 
         <div v-else-if="misStore.error" :class="$style.empty">
           <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>ストアに接続できません</span>
+          <span>{{ i18n.ts._common.storeUnavailable }}</span>
           <button class="_button" :class="$style.emptyLink" @click="misStore.refresh()">
-            再試行
+            {{ i18n.ts._common.retry }}
           </button>
         </div>
 
@@ -555,7 +572,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
           />
 
           <div v-if="filteredStorePlugins.length === 0 && !misStore.loading" :class="$style.empty">
-            一致するプラグインがありません
+            {{ i18n.ts._deckPluginManagerColumn.noMatches }}
           </div>
         </div>
       </template>

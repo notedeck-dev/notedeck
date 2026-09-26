@@ -9,12 +9,24 @@
  * scheduleFormat.ts が持つ。こちらは過去向き専用。
  */
 
-// 表示言語は日本語固定 (i18n は #135)
-const RELATIVE = new Intl.RelativeTimeFormat('ja', { numeric: 'always' })
-const ABSOLUTE = new Intl.DateTimeFormat('ja-JP', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
+import { i18n } from '@/i18n'
+
+// 表示言語が変わったときだけ作り直して使い回す
+let formatLang = ''
+let RELATIVE: Intl.RelativeTimeFormat
+let ABSOLUTE: Intl.DateTimeFormat
+
+function formatters() {
+  if (formatLang !== i18n.lang) {
+    formatLang = i18n.lang
+    RELATIVE = new Intl.RelativeTimeFormat(formatLang, { numeric: 'always' })
+    ABSOLUTE = new Intl.DateTimeFormat(formatLang, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+  }
+  return { RELATIVE, ABSOLUTE }
+}
 
 // ISO 文字列の parse 結果だけを持つ。ラベルは「今との差」で変わるので
 // キャッシュすると 11:59:30 の「たった今」が 12:00:30 まで居座る。
@@ -58,9 +70,10 @@ export function formatTime(
 }
 
 function relative(diffMs: number): string {
+  const { RELATIVE } = formatters()
   const minutes = Math.floor(diffMs / 60000)
   // 未来の時刻 (サーバーとの時計ずれ等) は「N 分後」にせず現在扱いにする
-  if (minutes < 1) return 'たった今'
+  if (minutes < 1) return i18n.ts._time.justNow
   if (minutes < 60) return RELATIVE.format(-minutes, 'minute')
 
   const hours = Math.floor(minutes / 60)
@@ -82,7 +95,7 @@ export function formatAbsoluteTime(
   if (at === null || at === undefined || at === '') return ''
   const date = new Date(at)
   if (Number.isNaN(date.getTime())) return ''
-  return ABSOLUTE.format(date)
+  return formatters().ABSOLUTE.format(date)
 }
 
 /** <time datetime> 属性の値 (ISO 8601)。読めない値では属性ごと落とす。 */

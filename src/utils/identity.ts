@@ -14,7 +14,12 @@
  * 既存 Account に追加しない)。Identity は別レイヤーとして並走する。
  */
 
-import { type Account, useAccountsStore } from '@/stores/accounts'
+import {
+  type Account,
+  guestDisplayName,
+  isGuestAccount,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 
 export type IdentityKind = 'account' | 'persona'
@@ -63,7 +68,9 @@ function fromAccount(account: Account): Identity {
   return {
     id: account.id,
     kind: 'account',
-    displayName: account.displayName || account.username,
+    displayName: isGuestAccount(account)
+      ? guestDisplayName(account)
+      : account.displayName || account.username,
     avatarUrl: account.avatarUrl ?? undefined,
   }
 }

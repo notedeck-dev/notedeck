@@ -37,6 +37,9 @@ jobs:
               - 'vite.config.ts'
               - 'vitest*.config.ts'
               - 'subset-font.d.ts'
+              - 'locales/**'
+              - 'scripts/gen-i18n.ts'
+              - 'scripts/i18n-lint.ts'
               - '.github/workflows/ci.yml'
             rust:
               - 'src-tauri/**'
@@ -75,6 +78,26 @@ jobs:
 
       - name: Lint docs
         run: node scripts/docs-lint.mjs
+
+  # 日本語の直書きを増やさない (#135)。src / Rust / Kotlin のどれを触っても
+  # 走らせたいので paths で絞らない (依存のインストールも要らず数秒で終わる)。
+  # 比較の基準は push 前の SHA / PR の base。develop へは PR ではなく直接
+  # push で入るので、push でも検査する
+  i18n:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+
+      - name: Lint hardcoded Japanese
+        run: node scripts/i18n-lint.ts --base "$BASE" --head HEAD
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
 
   frontend:
     needs: changes

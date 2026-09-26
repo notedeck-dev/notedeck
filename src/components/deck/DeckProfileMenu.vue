@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, toRef } from 'vue'
-
 import { refreshProfileCommands } from '@/commands/definitions'
 import { switchProfileWithWindows } from '@/composables/useDeckWindow'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
@@ -64,18 +64,18 @@ const { confirm } = useConfirm()
 
 async function remove(id: string) {
   const ok = await confirm({
-    title: 'プロファイルを削除',
-    message: 'このプロファイルを削除しますか？',
-    okLabel: '削除',
+    title: i18n.ts._deckProfileMenu.deleteTitle,
+    message: i18n.ts._deckProfileMenu.deleteConfirm,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = deckStore.deleteProfile(id)
   refreshProfileCommands()
   if (undo) {
-    useToast().show('プロファイルを削除しました', 'info', {
+    useToast().show(i18n.ts._deckProfileMenu.deleted, 'info', {
       action: {
-        label: '元に戻す',
+        label: i18n.ts._common.undo,
         onClick: () => {
           undo()
           refreshProfileCommands()
@@ -118,7 +118,7 @@ function openEditor(id: string) {
           <button
             class="_button"
             :class="$style.action"
-            title="エディタで開く"
+            :title="i18n.ts._deckProfileMenu.openInEditor"
             @click.stop="openEditor(p.id)"
           >
             <i class="ti ti-pencil" />
@@ -126,7 +126,7 @@ function openEditor(id: string) {
           <button
             class="_button"
             :class="[$style.action, $style.deleteAction]"
-            title="削除"
+            :title="i18n.ts._common.delete"
             @click.stop="remove(p.id)"
           >
             <i class="ti ti-trash" />
@@ -135,14 +135,14 @@ function openEditor(id: string) {
       </div>
 
       <div v-if="profiles.length === 0" :class="$style.empty">
-        保存されたプロファイルはありません
+        {{ i18n.ts._deckProfileMenu.noProfiles }}
       </div>
 
       <div :class="$style.divider" />
 
       <div :class="[$style.item, $style.newItem]" tabindex="0" @click="createProfile" @keydown.enter="createProfile">
         <i class="ti ti-plus" />
-        <span>新規プロファイル</span>
+        <span>{{ i18n.ts._deckProfileMenu.newProfile }}</span>
       </div>
     </div>
   </dialog>

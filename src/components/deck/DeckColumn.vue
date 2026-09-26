@@ -12,6 +12,7 @@ import { usePipAlwaysOnTop } from '@/composables/usePipAlwaysOnTop'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useServerImages } from '@/composables/useServerImages'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import {
   getAccountAvatarUrl,
   isGuestAccount,
@@ -147,16 +148,16 @@ async function close() {
     return
   }
   const ok = await confirm({
-    title: 'カラムを削除',
-    message: 'このカラムを削除しますか？',
-    okLabel: '削除',
+    title: i18n.ts._deckColumn.deleteTitle,
+    message: i18n.ts._deckColumn.deleteConfirm,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = deckStore.removeColumn(props.columnId)
   if (undo) {
-    useToast().show('カラムを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckColumn.deleted, 'info', {
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -287,7 +288,7 @@ function openAsPip() {
       <i
         v-else-if="isAllAccountsColumn && !isPipMode"
         :class="['ti ti-user', $style.headerAllAccounts]"
-        title="全アカウント"
+        :title="i18n.ts._common.allAccounts"
       />
       <slot name="header-icon" />
       <span :class="$style.headerTitle" :data-tauri-drag-region="isPipMode ? '' : undefined">{{ title }}</span>
@@ -301,7 +302,7 @@ function openAsPip() {
         v-if="soundEnabled"
         :class="[$style.headerBtn, isMuted && $style.headerBtnActive]"
         class="_button"
-        :title="isMuted ? 'ミュート解除' : 'ミュート'"
+        :title="isMuted ? i18n.ts._common.unmute : i18n.ts._common.mute"
         @pointerdown.stop
         @click.stop="toggleMute"
       >
@@ -312,7 +313,7 @@ function openAsPip() {
       <i v-if="!isPipMode && !isMobilePlatform && !isCompact" :class="$style.grabber" class="column-grabber ti ti-grip-vertical" />
 
       <!-- Menu button (shared between PiP and Deck) -->
-      <button ref="menuBtnEl" :class="$style.headerBtn" class="_button" title="メニュー" @pointerdown.stop @click.stop="toggleMenu">
+      <button ref="menuBtnEl" :class="$style.headerBtn" class="_button" :title="i18n.ts._common.menu" @pointerdown.stop @click.stop="toggleMenu">
         <i class="ti ti-dots" />
       </button>
     </header>
@@ -323,10 +324,10 @@ function openAsPip() {
 
     <div :class="$style.columnBody">
       <div v-if="isLoggedOut" :class="$style.loggedOutBanner">
-        <i class="ti ti-logout" />ログアウト中
+        <i class="ti ti-logout" />{{ i18n.ts._deckColumn.loggedOut }}
       </div>
       <div v-else-if="offlineModeStore.isOfflineMode && !isLoggedOut" :class="$style.offlineBanner">
-        <i class="ti ti-cloud-off" />オフライン
+        <i class="ti ti-cloud-off" />{{ i18n.ts._common.offline }}
       </div>
       <div
         v-if="showPullFrame"
@@ -337,15 +338,15 @@ function openAsPip() {
           <i v-if="isRefreshing" class="ti ti-loader-2 nd-spin" />
           <i v-else class="ti ti-arrow-bar-to-down" :class="{ refresh: isPulledEnough }" />
           <div :class="$style.pullText">
-            <template v-if="isPulledEnough">離してリフレッシュ</template>
-            <template v-else-if="isRefreshing">リフレッシュ中…</template>
-            <template v-else>下に引いてリフレッシュ</template>
+            <template v-if="isPulledEnough">{{ i18n.ts._common.releaseToRefresh }}</template>
+            <template v-else-if="isRefreshing">{{ i18n.ts._common.refreshing }}</template>
+            <template v-else>{{ i18n.ts._common.pullToRefresh }}</template>
           </div>
         </div>
       </div>
       <ColumnEmptyState
         v-if="shouldShowAccountNotFound"
-        message="アカウントが見つかりません"
+        :message="i18n.ts._common.accountNotFound"
         :image-url="serverNotFoundImageUrl"
         fallback-kind="notFound"
       />
@@ -359,45 +360,45 @@ function openAsPip() {
       <template v-if="isPipMode">
         <button class="_popupItem" @click="togglePipAlwaysOnTop">
           <i :class="pipAlwaysOnTop ? 'ti ti-pinned-off' : 'ti ti-pin'" />
-          <span>{{ pipAlwaysOnTop ? '最前面固定を解除' : '最前面に固定' }}</span>
+          <span>{{ pipAlwaysOnTop ? i18n.ts._deckColumn.unpinOnTop : i18n.ts._deckColumn.pinOnTop }}</span>
         </button>
         <button class="_popupItem" @click="returnToDeck">
           <i class="ti ti-arrow-back-up" />
-          <span>デッキに戻す</span>
+          <span>{{ i18n.ts._deckColumn.returnToDeck }}</span>
         </button>
         <div :class="$style.columnMenuDivider" />
         <button :class="$style.columnMenuDanger" class="_popupItem" @click="close">
           <i class="ti ti-x" />
-          <span>閉じる</span>
+          <span>{{ i18n.ts._common.close }}</span>
         </button>
       </template>
       <!-- Deck menu -->
       <template v-else>
         <button v-if="webUiUrl" class="_popupItem" @click="onOpenWebUi">
           <i class="ti ti-external-link" />
-          <span>Web UIで開く</span>
+          <span>{{ i18n.ts._deckColumn.openWebUi }}</span>
         </button>
         <button v-if="isStacked" class="_popupItem" @click="unstack">
           <i class="ti ti-layout-columns" />
-          <span>分割を解除</span>
+          <span>{{ i18n.ts._deckColumn.unstack }}</span>
         </button>
         <button v-if="canPopOut" class="_popupItem" @click="popOut">
           <i class="ti ti-app-window" />
-          <span>別ウィンドウで開く</span>
+          <span>{{ i18n.ts._deckColumn.popOut }}</span>
         </button>
         <button v-if="canPopOut" class="_popupItem" @click="openAsPip">
           <i class="ti ti-picture-in-picture" />
-          <span>PiPウィンドウとして開く</span>
+          <span>{{ i18n.ts._deckColumn.openAsPip }}</span>
         </button>
         <button v-if="canRecall" class="_popupItem" @click="recallToMain">
           <i class="ti ti-arrow-back-up" />
-          <span>メインウィンドウに戻す</span>
+          <span>{{ i18n.ts._deckColumn.recallToMain }}</span>
         </button>
         <slot name="menu-items" :close-menu="closeMenu" />
         <div :class="$style.columnMenuDivider" />
         <button :class="$style.columnMenuDanger" class="_popupItem" @click="close">
           <i class="ti ti-trash" />
-          <span>カラムを削除</span>
+          <span>{{ i18n.ts._commands.closeColumn }}</span>
         </button>
       </template>
     </div>

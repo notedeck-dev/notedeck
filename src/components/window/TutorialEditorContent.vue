@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { i18n } from '@/i18n'
 /**
  * TutorialEditorContent — チュートリアル (#1029)。
  *
@@ -111,11 +112,11 @@ function openDocs(path: string): void {
   <div :class="$style.root">
     <header :class="$style.head">
       <p :class="$style.lead">
-        操作するとチェックが付きます。カテゴリを終えると実績になり、通知に届きます。
+        {{ i18n.ts._tutorialEditorContent.lead }}
       </p>
       <button type="button" class="_button" :class="$style.docsBtn" @click="openDocs('/docs/')">
         <i class="ti ti-book" />
-        ドキュメントを読む
+        {{ i18n.ts._tutorialEditorContent.readDocs }}
       </button>
     </header>
 
@@ -176,7 +177,7 @@ function openDocs(path: string): void {
               type="button"
               class="_button"
               :class="$style.iconBtn"
-              title="このステップの解説を読む"
+              :title="i18n.ts._tutorialEditorContent.readStepDocs"
               @click="openDocs(item.docsPath)"
             >
               <i class="ti ti-external-link" />
@@ -191,7 +192,7 @@ function openDocs(path: string): void {
             :class="$style.linkBtn"
             @click="openDocs(group.category.docsPath)"
           >
-            読む
+            {{ i18n.ts._tutorialEditorContent.read }}
           </button>
           <button
             v-if="group.running"
@@ -200,17 +201,17 @@ function openDocs(path: string): void {
             :class="$style.runBtn"
             @click="tutorial.focusCard()"
           >
-            案内を表示
+            {{ i18n.ts._tutorialEditorContent.showGuide }}
           </button>
           <button
             v-else-if="group.locked"
             type="button"
             class="_button"
             :class="$style.runBtn"
-            title="このカテゴリで案内する機能を表示する"
+            :title="i18n.ts._tutorialEditorContent.unlockDescription"
             @click="unlockDeveloperCategories"
           >
-            開発者モードで開放
+            {{ i18n.ts._tutorialEditorContent.unlock }}
           </button>
           <button
             v-else
@@ -219,7 +220,7 @@ function openDocs(path: string): void {
             :class="$style.runBtn"
             @click="runCategory(group.category.id)"
           >
-            {{ group.complete ? 'もう一度' : group.doneCount === 0 ? 'はじめる' : '続きから' }}
+            {{ group.complete ? i18n.ts._tutorialEditorContent.again : group.doneCount === 0 ? i18n.ts._tutorialEditorContent.start : i18n.ts._tutorialEditorContent.resume }}
           </button>
         </div>
       </li>
@@ -232,7 +233,7 @@ function openDocs(path: string): void {
         :class="[$style.resetBtn, { [$style.resetArmed]: resetConfirm.confirming.value }]"
         @click="resetConfirm.trigger(() => tutorial.resetProgress())"
       >
-        {{ resetConfirm.confirming.value ? 'もう一度押すと消えます' : '達成記録を消す' }}
+        {{ resetConfirm.confirming.value ? i18n.ts._tutorialEditorContent.confirmReset : i18n.ts._tutorialEditorContent.reset }}
       </button>
     </footer>
   </div>

@@ -6,6 +6,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useServerPreview } from '@/composables/useServerPreview'
 import { useVaporTransitionSwitch } from '@/composables/useVaporTransition'
 import { detectServer } from '@/core/server'
+import { i18n } from '@/i18n'
 import type { Account } from '@/stores/accounts'
 import { useAccountsStore } from '@/stores/accounts'
 import { useServersStore } from '@/stores/servers'
@@ -149,12 +150,12 @@ onMounted(() => {
         <p
           v-if="subtitleSwitch.displayed.value === 'checking'"
           :class="[$style.subtitle, subtitleSwitch.leaving.value ? $style.logoLeave : $style.logoEnter]"
-        >確認中...</p>
+        >{{ i18n.ts._loginContent.checking }}</p>
         <p
           v-else-if="subtitleSwitch.displayed.value === 'ok'"
           :class="[$style.subtitle, $style.subtitleOk, subtitleSwitch.leaving.value ? $style.logoLeave : $style.logoEnter]"
         >
-          サーバーに接続できます
+          {{ i18n.ts._loginContent.serverReachable }}
         </p>
         <p
           v-else-if="subtitleSwitch.displayed.value === 'unsupported'"
@@ -171,11 +172,11 @@ onMounted(() => {
         <p
           v-else
           :class="[$style.subtitle, subtitleSwitch.leaving.value ? $style.logoLeave : $style.logoEnter]"
-        >Misskeyサーバーに接続</p>
+        >{{ i18n.ts._loginContent.connectToServer }}</p>
       </div>
 
       <div :class="$style.formArea">
-        <label :class="$style.inputLabel" for="host">サーバーアドレス</label>
+        <label :class="$style.inputLabel" for="host">{{ i18n.ts._loginContent.serverAddress }}</label>
         <input
           id="host"
           v-model="host"
@@ -191,21 +192,21 @@ onMounted(() => {
         <button
           :class="$style.btnLogin"
           :disabled="!host.trim()"
-          :title="!host.trim() ? 'ホスト名を入力してください' : ''"
+          :title="!host.trim() ? i18n.ts._loginContent.enterHost : ''"
           @click="startLogin"
         >
-          ログイン
+          {{ i18n.ts._loginContent.login }}
         </button>
         <button
           :class="$style.btnGuest"
           :disabled="!host.trim()"
-          :title="!host.trim() ? 'ホスト名を入力してください' : ''"
+          :title="!host.trim() ? i18n.ts._loginContent.enterHost : ''"
           @click="startGuest"
         >
-          ゲストとして閲覧
+          {{ i18n.ts._loginContent.browseAsGuest }}
         </button>
         <button class="_button" :class="$style.btnCancel" @click="emit('close')">
-          キャンセル
+          {{ i18n.ts._common.cancel }}
         </button>
       </div>
     </div>
@@ -217,7 +218,7 @@ onMounted(() => {
     >
       <div :class="$style.logoArea">
         <LoadingSpinner />
-        <p :class="$style.subtitle">サーバーに接続中...</p>
+        <p :class="$style.subtitle">{{ i18n.ts._loginContent.connecting }}</p>
       </div>
     </div>
 
@@ -228,20 +229,20 @@ onMounted(() => {
     >
       <div :class="$style.logoArea">
         <LoadingSpinner />
-        <p :class="$style.subtitle">認証待ち...</p>
+        <p :class="$style.subtitle">{{ i18n.ts._loginContent.waitingForAuth }}</p>
       </div>
 
       <div :class="$style.waitingInfo">
-        <p>ブラウザで認証画面が開きました。</p>
-        <p>認証が完了したら、下のボタンをクリックしてください。</p>
+        <p>{{ i18n.ts._loginContent.authOpened }}</p>
+        <p>{{ i18n.ts._loginContent.authInstruction }}</p>
       </div>
 
       <div :class="$style.actions">
         <button :class="$style.btnLogin" @click="completeLogin">
-          認証しました
+          {{ i18n.ts._loginContent.authDone }}
         </button>
         <button class="_button" :class="$style.btnCancel" @click="reset">
-          キャンセル
+          {{ i18n.ts._common.cancel }}
         </button>
       </div>
     </div>
@@ -261,7 +262,7 @@ onMounted(() => {
 
       <div :class="$style.actions">
         <button :class="$style.btnLogin" @click="reset">
-          やり直す
+          {{ i18n.ts._loginContent.startOver }}
         </button>
       </div>
     </div>

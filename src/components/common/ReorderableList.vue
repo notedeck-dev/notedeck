@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { usePointerReorder } from '@/composables/usePointerReorder'
+import { i18n } from '@/i18n'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 
 export interface ReorderableItem {
@@ -53,7 +54,7 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
       </button>
     </div>
     <div v-if="props.items.length === 0" :class="$style.empty">
-      {{ props.emptyText ?? '項目なし' }}
+      {{ props.emptyText ?? i18n.ts._reorderableList.empty }}
     </div>
   </div>
 </template>

@@ -27,10 +27,12 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
+import { formatBytes, formatCount } from '@/utils/format'
 import { applyAlpha } from '@/utils/initChart'
 // side-effect: Chart.register
 import '@/utils/initChart'
@@ -67,7 +69,7 @@ type DriveView = 'files' | 'size'
 
 // エンドポイント別の生 JSON タブはプロトコルが見える面 (#1034)
 const TAB_DEFS = computed<ColumnTabDef[]>(() => [
-  { value: 'charts', label: 'チャート', icon: 'chart-line' },
+  { value: 'charts', label: i18n.ts._columns.charts, icon: 'chart-line' },
   ...(isExposed('developer')
     ? [
         { value: 'active-users', label: 'active-users', icon: 'code' },
@@ -83,7 +85,7 @@ const TAB_DEFS = computed<ColumnTabDef[]>(() => [
 const activeTab = ref<Tab>('charts')
 const span = ref<Span>('hour')
 const state = ref<ViewState>('loading')
-const errorMessage = ref<string>('サーバー統計を取得できません')
+const errorMessage = ref<string | null>(null)
 
 const usersView = ref<UsersView>('inc-dec')
 const notesView = ref<NotesView>('inc-dec')
@@ -270,8 +272,7 @@ function buildConfig<T extends 'bar' | 'line'>(
           border: { display: false },
           ticks: (() => {
             const cb =
-              opts.yCallback ??
-              ((v: number | string) => formatCompactNumber(Number(v)))
+              opts.yCallback ?? ((v: number | string) => formatCount(Number(v)))
             return {
               display: true,
               font: { size: 10 },
@@ -304,26 +305,6 @@ function buildConfig<T extends 'bar' | 'line'>(
       },
     },
   }
-}
-
-function formatBytesFromKb(kb: number): string {
-  const bytes = kb * 1000
-  if (bytes < 1000) return `${bytes.toFixed(0)} B`
-  if (bytes < 1000 * 1000) return `${(bytes / 1000).toFixed(1)} KB`
-  if (bytes < 1000 * 1000 * 1000)
-    return `${(bytes / 1000 / 1000).toFixed(1)} MB`
-  return `${(bytes / 1000 / 1000 / 1000).toFixed(2)} GB`
-}
-
-const compactNumberFormat = new Intl.NumberFormat(undefined, {
-  notation: 'compact',
-  maximumFractionDigits: 1,
-})
-
-/** 数値を 1.2K / 3.4M 形式に (narrow column の y 軸/tooltip 用)。 */
-function formatCompactNumber(v: number): string {
-  if (Math.abs(v) < 1000) return String(v)
-  return compactNumberFormat.format(v)
 }
 
 // ── セクションごとの chart.js config ビルダー ──────────────────
@@ -487,7 +468,8 @@ function buildDrive(view: DriveView): any | null {
       ],
       {
         stacked: true,
-        yCallback: (v) => formatBytesFromKb(Number(v)),
+        // 本家のドライブチャートはサイズを KB (1000 バイト単位) で返す
+        yCallback: (v) => formatBytes(Number(v) * 1000),
       },
     )
   }
@@ -545,7 +527,7 @@ async function fetchAll(): Promise<void> {
   const acc = account.value
   if (!acc) {
     state.value = 'error'
-    errorMessage.value = 'アカウントが見つかりません'
+    errorMessage.value = i18n.ts._common.accountNotFound
     return
   }
 
@@ -578,8 +560,8 @@ async function fetchAll(): Promise<void> {
     // ゲスト / 未ログインで charts/* が制限されているサーバーは AUTH 系の
     // エラーを返すことがある。ログインを促すメッセージに切り替える。
     errorMessage.value = err.isAuth
-      ? 'このサーバーのチャートはログインユーザー限定です'
-      : 'このサーバーはチャート API を無効にしています'
+      ? i18n.ts._deckChartsColumn.loginRequired
+      : i18n.ts._deckChartsColumn.chartsDisabled
     state.value = 'error'
     return
   }
@@ -692,7 +674,7 @@ watch(driveView, (v) => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name || 'チャート'"
+    :title="column.name || i18n.ts._columns.charts"
     :theme-vars="columnThemeVars"
     require-account
     @refresh="fetchAll"
@@ -720,14 +702,14 @@ watch(driveView, (v) => {
             :class="[$style.pill, span === 'hour' && $style.pillActive]"
             @click="span = 'hour'"
           >
-            時
+            {{ i18n.ts._deckChartsColumn.hour }}
           </button>
           <button
             class="_button"
             :class="[$style.pill, span === 'day' && $style.pillActive]"
             @click="span = 'day'"
           >
-            日
+            {{ i18n.ts._deckChartsColumn.day }}
           </button>
         </div>
       </div>
@@ -738,10 +720,10 @@ watch(driveView, (v) => {
         </div>
         <ColumnEmptyState
           v-else-if="state === 'error'"
-          :message="errorMessage"
+          :message="errorMessage ?? i18n.ts._deckChartsColumn.fetchFailed"
           :image-url="serverErrorImageUrl"
           is-error
-          cta-label="再試行"
+          :cta-label="i18n.ts._common.retry"
           cta-icon="ti-refresh"
           @cta="fetchAll"
         />
@@ -774,7 +756,7 @@ watch(driveView, (v) => {
                   </div>
                   <div :class="$style.statBody">
                     <div :class="$style.statValue">
-                      {{ federationStats.subActive.toLocaleString() }}
+                      {{ federationStats.subActive.toLocaleString(i18n.lang) }}
                       <span
                         :class="[
                           $style.statDiff,
@@ -794,7 +776,7 @@ watch(driveView, (v) => {
                   </div>
                   <div :class="$style.statBody">
                     <div :class="$style.statValue">
-                      {{ federationStats.pubActive.toLocaleString() }}
+                      {{ federationStats.pubActive.toLocaleString(i18n.lang) }}
                       <span
                         :class="[
                           $style.statDiff,
@@ -873,7 +855,7 @@ watch(driveView, (v) => {
                     :class="[$style.pill, notesView === 'breakdown' && $style.pillActive]"
                     @click="notesView = 'breakdown'"
                   >
-                    内訳
+                    {{ i18n.ts._deckChartsColumn.breakdown }}
                   </button>
                   <button
                     class="_button"

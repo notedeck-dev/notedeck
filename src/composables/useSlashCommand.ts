@@ -14,6 +14,7 @@
 
 import { dispatchCapability } from '@/capabilities/dispatcher'
 import { listCapabilities } from '@/capabilities/registry'
+import { i18n } from '@/i18n'
 
 export interface ParsedSlashCommand {
   id: string
@@ -145,8 +146,8 @@ function coerceValue(raw: string): unknown {
  */
 export function buildSlashHelpText(): string {
   const caps = listCapabilities().filter((c) => c.aiTool && c.signature)
-  if (caps.length === 0) return '利用可能なコマンドはありません。'
-  const lines: string[] = ['利用可能な /コマンド:', '']
+  if (caps.length === 0) return i18n.ts._useSlashCommand.noCommands
+  const lines: string[] = [i18n.ts._useSlashCommand.availableCommands, '']
   for (const cap of caps) {
     const desc = cap.signature?.description ?? ''
     lines.push(`- \`/${cap.id}\` — ${desc}`)
@@ -160,7 +161,7 @@ export function buildSlashHelpText(): string {
           return `${k}${opt}=<${p?.type ?? 'any'}>`
         })
         .join(' ')
-      lines.push(`  - 引数: ${sig}`)
+      lines.push(`  - ${i18n.tsx._useSlashCommand.args({ signature: sig })}`)
     }
   }
   return lines.join('\n')
@@ -182,7 +183,9 @@ export async function runSlashCommand(text: string): Promise<SlashRunResult> {
       ok: false,
       kind: 'parse_error',
       displayName: text,
-      error: 'コマンドの構文が不正です。例: /notes.timeline type=local limit=5',
+      error: i18n.tsx._useSlashCommand.syntaxError({
+        example: '/notes.timeline type=local limit=5',
+      }),
       slashUseId,
     }
   }

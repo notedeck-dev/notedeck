@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import MkNote from '@/components/common/MkNote.vue'
 import { useNavigation } from '@/composables/useNavigation'
+import { i18n } from '@/i18n'
 
 export interface NoteTreeNode {
   note: NormalizedNote
@@ -67,7 +68,7 @@ const { navigateToNote } = useNavigation()
         @click="navigateToNote(accountId, node.note.id)"
       >
         <i class="ti ti-arrow-forward" />
-        スレッドを続ける
+        {{ i18n.ts._mkNoteTree.continueThread }}
       </button>
     </div>
   </div>

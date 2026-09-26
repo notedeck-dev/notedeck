@@ -6,6 +6,7 @@ import {
   ref,
   useTemplateRef,
 } from 'vue'
+import { i18n } from '@/i18n'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
@@ -134,7 +135,7 @@ const sponsors = [
     logo: 'https://assets.misskey-hub.net/sponsors/purple-dot-digital.jpg',
   },
   {
-    name: '合同会社サッズ',
+    name: '合同会社サッズ', // i18n-ignore: data
     url: 'https://sads-llc.co.jp/',
     logo: 'https://assets.misskey-hub.net/sponsors/sads-llc.png',
   },
@@ -173,7 +174,7 @@ onMounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'Misskeyについて'"
+    :title="column.name ?? i18n.ts._columns.aboutMisskey"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -205,9 +206,9 @@ onMounted(() => {
 
       <!-- Description -->
       <div :class="$style.aboutDesc">
-        Misskeyはオープンソースの分散型ソーシャルネットワーキングプラットフォームです。
+        {{ i18n.ts._deckAboutMisskeyColumn.description }}
         <button class="_button" :class="$style.aboutLearnMore" @click="openLink('https://misskey-hub.net/docs/about-misskey/')">
-          もっと詳しく
+          {{ i18n.ts._deckAboutMisskeyColumn.learnMore }}
         </button>
       </div>
 
@@ -223,17 +224,17 @@ onMounted(() => {
         <div :class="$style.aboutLinks">
           <button class="_button" :class="$style.aboutLink" @click="openLink('https://github.com/misskey-dev/misskey')">
             <i class="ti ti-code" :class="$style.aboutLinkIcon" />
-            <span>ソースコード (オリジナル)</span>
+            <span>{{ i18n.ts._deckAboutMisskeyColumn.sourceCodeOriginal }}</span>
             <span :class="$style.aboutLinkSuffix">GitHub</span>
           </button>
           <button class="_button" :class="$style.aboutLink" @click="openLink('https://crowdin.com/project/misskey')">
             <i class="ti ti-language-hiragana" :class="$style.aboutLinkIcon" />
-            <span>翻訳</span>
+            <span>{{ i18n.ts._deckAboutMisskeyColumn.translation }}</span>
             <span :class="$style.aboutLinkSuffix">Crowdin</span>
           </button>
           <button class="_button" :class="$style.aboutLink" @click="openLink('https://www.patreon.com/syuilo')">
             <i class="ti ti-pig-money" :class="$style.aboutLinkIcon" />
-            <span>寄付</span>
+            <span>{{ i18n.ts._deckAboutMisskeyColumn.donate }}</span>
             <span :class="$style.aboutLinkSuffix">Patreon</span>
           </button>
         </div>
@@ -243,12 +244,12 @@ onMounted(() => {
       <div v-if="isModifiedVersion" :class="$style.aboutSection">
         <div :class="$style.modifiedNotice">
           <i class="ti ti-info-circle" />
-          <span>このサーバーはMisskeyの改変版を使用しています。</span>
+          <span>{{ i18n.ts._deckAboutMisskeyColumn.modifiedNotice }}</span>
         </div>
         <div :class="$style.aboutLinks">
           <button v-if="meta.repositoryUrl" class="_button" :class="$style.aboutLink" @click="openLink(meta.repositoryUrl!)">
             <i class="ti ti-code" :class="$style.aboutLinkIcon" />
-            <span>ソースコード</span>
+            <span>{{ i18n.ts._deckAboutMisskeyColumn.sourceCode }}</span>
             <i class="ti ti-external-link" :class="$style.aboutLinkSuffix" />
           </button>
         </div>
@@ -256,7 +257,7 @@ onMounted(() => {
 
       <!-- Project members -->
       <div :class="$style.aboutSection">
-        <div :class="$style.aboutSectionLabel">プロジェクトメンバー</div>
+        <div :class="$style.aboutSectionLabel">{{ i18n.ts._deckAboutMisskeyColumn.projectMembers }}</div>
         <div :class="$style.membersGrid">
           <button
             v-for="m in members"
@@ -290,7 +291,7 @@ onMounted(() => {
     </div>
 
     <div v-else :class="$style.columnEmpty">
-      情報を取得できませんでした
+      {{ i18n.ts._deckAboutMisskeyColumn.fetchFailed }}
     </div>
   </DeckColumn>
 

@@ -32,8 +32,10 @@ pub fn create_api_token(
     name: String,
 ) -> Result<CreatedApiToken> {
     if name.trim().is_empty() {
-        return Err(NoteDeckError::InvalidInput(
-            "トークン名を入力してください".into(),
+        return Err(notecore::i18n::error(
+            "INVALID_INPUT",
+            "_native.apiTokens.nameRequired",
+            serde_json::json!({}),
         ));
     }
     let (meta, token) = store

@@ -21,6 +21,7 @@ import type {
 } from 'postcss'
 import type { Plugin, ProxyOptions } from 'vite'
 import { defineConfig } from 'vite'
+import { i18nLocalePlugin } from './scripts/gen-i18n.ts'
 
 const appVersion = JSON.parse(
   readFileSync(resolve(import.meta.dirname, 'package.json'), 'utf-8'),
@@ -429,6 +430,7 @@ export default defineConfig({
   plugins: [
     vue(),
     json5Plugin(),
+    i18nLocalePlugin(),
     stripUnusedFonts(),
     subsetTablerIcons(),
     preloadTablerFont(),

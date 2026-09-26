@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import type { ServerAd } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { openSafeUrl } from '@/utils/url'
 
 const props = withDefaults(
@@ -40,9 +41,9 @@ function reduceFrequency() {
       <div v-if="showMenu" :class="$style.adMenuOverlay" @click.stop>
         <div :class="$style.adMenuSource">Ads by {{ serverHost }}</div>
         <button :class="$style.adMenuReduce" @click="reduceFrequency">
-          この広告の表示頻度を下げる
+          {{ i18n.ts._mkAd.showLess }}
         </button>
-        <button :class="$style.adMenuBack" @click="showMenu = false">戻る</button>
+        <button :class="$style.adMenuBack" @click="showMenu = false">{{ i18n.ts._common.back }}</button>
       </div>
     </div>
   </div>

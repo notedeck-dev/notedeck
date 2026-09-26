@@ -1,4 +1,5 @@
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import { formatLocalTimestamp } from '@/utils/aiSessionId'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { implement } from '../declare'
@@ -19,15 +20,17 @@ import { implement } from '../declare'
 function describeTargets(params?: Record<string, unknown>): string {
   const db = params?.includeDb !== false
   const settings = params?.includeSettings !== false
-  if (db && settings) return 'ローカル DB と設定のスナップショット'
-  return db ? 'ローカル DB のスナップショット' : '設定のスナップショット'
+  if (db && settings) return i18n.ts._backupCapability.targetsBoth
+  return db
+    ? i18n.ts._backupCapability.targetsDb
+    : i18n.ts._backupCapability.targetsSettings
 }
 
 export const backupCreateCapability = implement('backup.create', {
   preflight: (params) => {
     if (params?.includeDb === false && params?.includeSettings === false) {
       return {
-        error: 'includeDb か includeSettings のどちらかは有効にしてください',
+        error: 'enable at least one of includeDb or includeSettings',
       }
     }
     return null
@@ -36,9 +39,11 @@ export const backupCreateCapability = implement('backup.create', {
     // 無人実行の HEARTBEAT では確認を出さない (出すと詰む)
     if (ctx?.principal?.kind === 'ai.heartbeat') return null
     return {
-      title: 'バックアップを作成',
-      message: `${describeTargets(params)}を ダウンロード/notedeck/backup/ に作成します。認証情報は含まれません。`,
-      okLabel: '作成',
+      title: i18n.ts._backupCapability.confirmTitle,
+      message: i18n.tsx._backupCapability.confirmMessage({
+        targets: describeTargets(params),
+      }),
+      okLabel: i18n.ts._backupCapability.confirmOk,
     }
   },
   execute: async (params) => {

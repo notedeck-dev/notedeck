@@ -26,6 +26,7 @@ import { provideScrollDirection } from '@/composables/useScrollDirection'
 import { useSpotlightStore } from '@/composables/useSpotlight'
 import { useUpdater } from '@/composables/useUpdater'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
@@ -110,7 +111,7 @@ function openCompose() {
     if (accounts.some((a) => !isGuestAccount(a))) {
       showLoginPrompt()
     } else {
-      useToast().show('ログインすると投稿できます', 'info')
+      useToast().show(i18n.ts._deckLayout.loginToPost, 'info')
     }
     return
   }
@@ -306,7 +307,7 @@ function acceptCrossWindowDrop() {
       v-if="fabT.visible.value"
       class="_button"
       :class="[$style.fab, fabT.entering.value && $style.fadeEnter, fabT.leaving.value && $style.fadeLeave]"
-      title="新しいノート"
+      :title="i18n.ts._deckLayout.newNote"
       @click="openCompose"
     >
       <i class="ti ti-pencil" />
@@ -355,7 +356,7 @@ function acceptCrossWindowDrop() {
     >
       <div :class="$style.dropContent">
         <i class="ti ti-upload" />
-        <span>ファイルをドロップしてアップロード</span>
+        <span>{{ i18n.ts._deckLayout.dropToUpload }}</span>
       </div>
     </div>
 
@@ -384,7 +385,7 @@ function acceptCrossWindowDrop() {
     >
       <div :class="$style.dropContent">
         <i class="ti ti-arrows-move" />
-        <span>ここにカラムを移動</span>
+        <span>{{ i18n.ts._deckLayout.moveColumnHere }}</span>
       </div>
     </div>
   </div>

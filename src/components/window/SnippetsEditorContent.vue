@@ -4,10 +4,11 @@ import { type Diagnostic, linter } from '@codemirror/lint'
 import JSON5 from 'json5'
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { reloadSnippets } from '@/aiscript/snippets/cache'
-import { DEFAULT_AISCRIPT_SNIPPETS } from '@/aiscript/snippets/defaultSnippets'
+import { defaultAiscriptSnippets } from '@/aiscript/snippets/defaultSnippets'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
 import { useToast } from '@/stores/toast'
 import {
   isTauri,
@@ -34,7 +35,8 @@ const jsonLinter = linter(
         from: 0,
         to: src.length,
         severity: 'error',
-        message: e instanceof Error ? e.message : 'JSON5 パースエラー',
+        message:
+          e instanceof Error ? e.message : i18n.ts._common.json5ParseError,
       })
     }
     return diagnostics
@@ -59,8 +61,8 @@ useWindowExternalFile(() =>
 
 const statusText = computed(() => {
   if (error.value) return error.value
-  if (saved.value) return '保存しました'
-  if (dirty.value) return '編集中...'
+  if (saved.value) return i18n.ts._common.saved
+  if (dirty.value) return i18n.ts._snippetsEditorContent.editing
   return ''
 })
 
@@ -77,7 +79,7 @@ async function refreshFiles() {
   }
   const list = await listSnippetFiles()
   if (list.length === 0) {
-    await writeSnippetFile(DEFAULT_FILE, DEFAULT_AISCRIPT_SNIPPETS)
+    await writeSnippetFile(DEFAULT_FILE, defaultAiscriptSnippets())
     files.value = [DEFAULT_FILE]
   } else {
     files.value = list
@@ -86,18 +88,21 @@ async function refreshFiles() {
 
 async function loadCurrent() {
   if (!isTauri) {
-    code.value = DEFAULT_AISCRIPT_SNIPPETS
+    code.value = defaultAiscriptSnippets()
     dirty.value = false
     return
   }
   try {
     const raw = await readSnippetFile(currentFile.value)
-    code.value = raw || DEFAULT_AISCRIPT_SNIPPETS
+    code.value = raw || defaultAiscriptSnippets()
     dirty.value = false
     error.value = null
   } catch (e) {
     toast.show(
-      `${currentFile.value} 読込失敗: ${(e as Error).message}`,
+      i18n.tsx._snippetsEditorContent.loadFailed({
+        file: currentFile.value,
+        error: (e as Error).message,
+      }),
       'error',
     )
   }
@@ -131,7 +136,7 @@ async function save() {
   try {
     if (code.value.trim()) JSON5.parse(code.value)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '不正な JSON5'
+    error.value = e instanceof Error ? e.message : i18n.ts._common.invalidJson5
     return
   }
   try {
@@ -144,7 +149,8 @@ async function save() {
       saved.value = false
     }, 2000)
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '保存失敗'
+    error.value =
+      e instanceof Error ? e.message : i18n.ts._snippetsEditorContent.saveFailed
   }
 }
 
@@ -189,7 +195,7 @@ const { confirming: confirmingReset, trigger: triggerReset } =
 
 function handleReset() {
   triggerReset(() => {
-    code.value = DEFAULT_AISCRIPT_SNIPPETS
+    code.value = defaultAiscriptSnippets()
     error.value = null
   })
 }
@@ -213,7 +219,7 @@ function handleReset() {
     <div :class="$style.editorPanel">
       <div :class="$style.codePanel">
         <div :class="$style.codeHint">
-          VSCode 互換のスニペット — prefix で補完に出ます
+          {{ i18n.ts._snippetsEditorContent.codeHint }}
         </div>
 
         <CodeEditor
@@ -243,7 +249,7 @@ function handleReset() {
             @click="importSnippets"
           >
             <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-            {{ importError ? '無効' : importedMessage ? '読込済み' : 'インポート' }}
+            {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
           </button>
           <button
             class="_button"
@@ -251,7 +257,7 @@ function handleReset() {
             @click="exportSnippets"
           >
             <i class="ti ti-clipboard-copy" />
-            {{ copiedMessage ? 'コピー済み' : 'エクスポート' }}
+            {{ copiedMessage ? i18n.ts._common.copied : i18n.ts._common.export }}
           </button>
         </div>
         <button
@@ -260,7 +266,7 @@ function handleReset() {
           @click="handleReset"
         >
           <i class="ti ti-refresh" />
-          {{ confirmingReset ? '本当に戻す？' : 'デフォルトに戻す' }}
+          {{ confirmingReset ? i18n.ts._snippetsEditorContent.confirmReset : i18n.ts._common.resetToDefault }}
         </button>
       </div>
     </div>

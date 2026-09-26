@@ -42,9 +42,10 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
+import { i18n } from '@/i18n'
 import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
-import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
+import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -93,7 +94,7 @@ function commitSave(src: string) {
   if (!widget.value) return
   if (!widgetsStore.updateSrc(widget.value.installId, src)) {
     // 読取専用 (ソース欠損) は保存されない。「保存しました」を出さない (#1111)
-    showToast(READ_ONLY_REASON, 'warning')
+    showToast(readOnlyReason(), 'warning')
     return
   }
   dirty.value = false
@@ -156,13 +157,21 @@ function openHistory() {
 // 履歴は開発者向けの面 (#1034)。入口だけ隠す
 const historyActions = computed<EditorAction[]>(() =>
   isExposed('developer')
-    ? [{ key: 'history', label: '履歴', icon: 'history' }]
+    ? [
+        {
+          key: 'history',
+          label: i18n.ts._common.history,
+          icon: 'history',
+        },
+      ]
     : [],
 )
 
 const barStatus = computed<EditorActionStatus | null>(() => {
-  if (saved.value) return { text: '保存しました', icon: 'check', tone: 'ok' }
-  if (dirty.value) return { text: '未保存の変更', icon: 'pencil' }
+  if (saved.value)
+    return { text: i18n.ts._common.saved, icon: 'check', tone: 'ok' }
+  if (dirty.value)
+    return { text: i18n.ts._widgetEditContent.unsaved, icon: 'pencil' }
   return null
 })
 
@@ -170,8 +179,8 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 const tabs = ['code', 'visual'] as const
 const { tab, containerRef } = useEditorTabs(tabs, 'code')
 const tabDefs = computed(() => [
-  { value: 'code', icon: 'code', label: 'コード' },
-  { value: 'visual', icon: 'eye', label: 'ビジュアル' },
+  { value: 'code', icon: 'code', label: i18n.ts._common.code },
+  { value: 'visual', icon: 'eye', label: i18n.ts._common.visual },
 ])
 
 // --- Run ---
@@ -258,7 +267,7 @@ async function run() {
           ?.userId ?? '',
       USER_NAME: '',
       USER_USERNAME: '',
-      LOCALE: navigator.language,
+      LOCALE: i18n.lang,
       SERVER_URL: serverUrl.value,
     },
   )
@@ -333,7 +342,7 @@ useWindowEditAction(() =>
   widget.value
     ? {
         onClick: () => run(),
-        title: '実行',
+        title: i18n.ts._common.run,
         icon: 'player-play',
         disabled: running.value,
       }
@@ -353,7 +362,7 @@ function commitRename() {
   const v = renamingValue.value.trim()
   if (v && v !== widget.value.name) {
     if (!widgetsStore.renameWidget(widget.value.installId, v)) {
-      showToast(READ_ONLY_REASON, 'warning')
+      showToast(readOnlyReason(), 'warning')
     }
   }
   isRenaming.value = false
@@ -394,28 +403,28 @@ function toggleAutoRun() {
         </div>
         <div v-else :class="$style.nameRow">
           <span :class="$style.headerName">{{ widget.name }}</span>
-          <button class="_button" :class="$style.renameBtn" title="名前を変更" @click="startRename">
+          <button class="_button" :class="$style.renameBtn" :title="i18n.ts._common.rename" @click="startRename">
             <i class="ti ti-pencil" />
           </button>
         </div>
         <div :class="$style.headerSub">
-          <span v-if="widget.storeId" :class="$style.statusBadge">ストア</span>
-          <span v-else :class="[$style.statusBadge, $style.statusBadgeLocal]">ローカル</span>
+          <span v-if="widget.storeId" :class="$style.statusBadge">{{ i18n.ts._common.store }}</span>
+          <span v-else :class="[$style.statusBadge, $style.statusBadgeLocal]">{{ i18n.ts._common.local }}</span>
           <button
             class="_button"
             :class="[$style.autoRunBtn, widget.autoRun && $style.autoRunBtnActive]"
-            :title="widget.autoRun ? '自動実行: 有効 (クリックで切替)' : '自動実行: 無効 (クリックで切替)'"
+            :title="widget.autoRun ? i18n.ts._widgetEditContent.autoRunOnTitle : i18n.ts._widgetEditContent.autoRunOffTitle"
             @click="toggleAutoRun"
           >
             <i :class="widget.autoRun ? 'ti ti-clock-play' : 'ti ti-clock-off'" />
-            <span>{{ widget.autoRun ? '自動実行 ON' : '自動実行 OFF' }}</span>
+            <span>{{ widget.autoRun ? i18n.ts._widgetEditContent.autoRunOn : i18n.ts._widgetEditContent.autoRunOff }}</span>
           </button>
         </div>
       </div>
     </div>
     <div v-else :class="$style.notFound">
       <i class="ti ti-alert-circle" />
-      ウィジットが見つかりません
+      {{ i18n.ts._widgetEditContent.notFound }}
     </div>
 
     <EditorTabs v-if="widget" v-model="tab" :tabs="tabDefs" />
@@ -437,10 +446,10 @@ function toggleAutoRun() {
         />
         <div v-else-if="!error" :class="$style.visualEmpty">
           <i class="ti ti-player-play" :class="$style.visualEmptyIcon" />
-          <span>右上の実行ボタンでウィジットを実行</span>
+          <span>{{ i18n.ts._widgetEditContent.runHint }}</span>
         </div>
         <details v-if="output.length" :class="$style.outputPanel">
-          <summary>出力 ({{ output.length }})</summary>
+          <summary>{{ i18n.tsx._widgetEditContent.output({ n: output.length }) }}</summary>
           <div
             v-for="(line, i) in output"
             :key="i"
@@ -458,7 +467,7 @@ function toggleAutoRun() {
       :actions="historyActions"
       :primary="{
         key: 'save',
-        label: '保存',
+        label: i18n.ts._common.save,
         icon: 'device-floppy',
         disabled: !dirty,
       }"

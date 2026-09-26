@@ -1,4 +1,5 @@
 import type { TimelineFilter, TimelineType } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import {
   getStorageJson,
@@ -402,7 +403,7 @@ export function clearAvailableTlCache(accountId: string) {
 export function modeLabel(key: string): string {
   const match = key.match(MODE_RE)
   if (!match?.[1]) return key
-  return `${match[1]}モード`
+  return i18n.tsx._customTimelines.modeLabel({ name: match[1] })
 }
 
 /**

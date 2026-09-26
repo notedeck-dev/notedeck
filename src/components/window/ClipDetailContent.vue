@@ -9,6 +9,7 @@ import MkNote from '@/components/common/MkNote.vue'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
@@ -89,7 +90,10 @@ async function handleReaction(reaction: string, target: NormalizedNote) {
     )
   } catch (e) {
     const err = AppError.from(e)
-    toast.show(`リアクションに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._clipDetailContent.reactionFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -102,7 +106,10 @@ async function handleVote(choice: number, target: NormalizedNote) {
     )
   } catch (e) {
     const err = AppError.from(e)
-    toast.show(`投票に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._clipDetailContent.voteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -156,7 +163,9 @@ async function toggleFavorite() {
     clip.value.favoritedCount += wasFav ? -1 : 1
   } catch (e) {
     toast.show(
-      `お気に入り操作に失敗しました（${AppError.from(e).displayCode}）`,
+      i18n.tsx._clipDetailContent.favoriteFailed({
+        code: AppError.from(e).displayCode,
+      }),
       'error',
     )
   } finally {
@@ -167,7 +176,7 @@ async function toggleFavorite() {
 onMounted(async () => {
   const acc = accountsStore.accounts.find((a) => a.id === props.accountId)
   if (!acc) {
-    clipError.value = 'アカウントが見つかりません'
+    clipError.value = i18n.ts._common.accountNotFound
     clipLoading.value = false
     return
   }
@@ -197,7 +206,7 @@ onMounted(async () => {
             v-if="!clip.isPublic"
             class="ti ti-lock"
             :class="$style.privateIcon"
-            title="非公開"
+            :title="i18n.ts._common.private"
           />
           <div :class="$style.title">{{ clip.name }}</div>
         </div>
@@ -243,7 +252,7 @@ onMounted(async () => {
         />
         <ColumnEmptyState
           v-else-if="visibleNotes.length === 0"
-          message="クリップにノートがありません"
+          :message="i18n.ts._clipDetailContent.empty"
         />
       </div>
     </template>

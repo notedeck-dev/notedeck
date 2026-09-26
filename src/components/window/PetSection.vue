@@ -6,6 +6,7 @@
  * petdex.dev を外部ブラウザで開く (#933 と同じ判断)。
  */
 import { computed, ref } from 'vue'
+import { i18n } from '@/i18n'
 import {
   clampPetScale,
   PET_COLUMNS,
@@ -69,7 +70,7 @@ function openPage() {
   <div :class="$style.root">
     <div :class="$style.heading">
       <i class="ti ti-paw" />
-      <span>ペット</span>
+      <span>{{ i18n.ts._petSection.title }}</span>
     </div>
 
     <div v-if="pet.info" :class="$style.current">
@@ -77,13 +78,13 @@ function openPage() {
       <div :class="$style.currentText">
         <span :class="$style.name">{{ pet.info.displayName }}</span>
         <button type="button" :class="$style.link" @click="openPage">
-          petdex.dev で見る
+          {{ i18n.ts._petSection.openPage }}
         </button>
       </div>
       <button
         type="button"
         :class="$style.removeBtn"
-        title="ペットを外す"
+        :title="i18n.ts._petSection.remove"
         @click="pet.clear()"
       >
         <i class="ti ti-x" />
@@ -99,8 +100,8 @@ function openPage() {
         :min="PET_SCALE_MIN * 100"
         :max="PET_SCALE_MAX * 100"
         step="5"
-        title="ペットの大きさ"
-        aria-label="ペットの大きさ"
+        :title="i18n.ts._petSection.size"
+        :aria-label="i18n.ts._petSection.size"
         :style="{ '--fill': scaleFill }"
         @input="onScaleInput"
       />
@@ -112,7 +113,7 @@ function openPage() {
         v-model="input"
         :class="$style.input"
         type="text"
-        placeholder="slug か petdex.dev のペット URL"
+        :placeholder="i18n.ts._petSection.inputPlaceholder"
         spellcheck="false"
         :disabled="pet.loading"
       />
@@ -122,7 +123,7 @@ function openPage() {
         :disabled="pet.loading || !input.trim()"
       >
         <i v-if="pet.loading" class="ti ti-loader-2" :class="$style.spin" />
-        <span v-else>{{ pet.info ? '替える' : '使う' }}</span>
+        <span v-else>{{ pet.info ? i18n.ts._petSection.replace : i18n.ts._petSection.use }}</span>
       </button>
     </form>
 
@@ -133,7 +134,7 @@ function openPage() {
 
     <button type="button" :class="$style.link" @click="browse">
       <i class="ti ti-external-link" />
-      petdex.dev で探す
+      {{ i18n.ts._petSection.browse }}
     </button>
   </div>
 </template>

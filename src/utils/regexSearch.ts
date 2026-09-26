@@ -89,12 +89,6 @@ export function filterNotesByRegexAsync(
 /** フィルタ条件の種別 */
 export type FilterConditionType = 'contains_any' | 'contains_all' | 'excludes'
 
-export const FILTER_CONDITION_LABELS: Record<FilterConditionType, string> = {
-  contains_any: 'いずれかを含む',
-  contains_all: 'すべてを含む',
-  excludes: '除外する',
-}
-
 export interface FilterCondition {
   type: FilterConditionType
   words: string
@@ -113,7 +107,7 @@ export function buildRegexFromConditions(
 
   for (const cond of conditions) {
     const words = cond.words
-      .split(/[,、\s]+/)
+      .split(/[,、\s]+/) // i18n-ignore: data
       .map((w) => w.trim())
       .filter(Boolean)
     if (words.length === 0) continue
@@ -165,7 +159,7 @@ export function extractHintFromConditions(
   for (const cond of conditions) {
     if (cond.type === 'excludes') continue
     const ws = cond.words
-      .split(/[,、\s]+/)
+      .split(/[,、\s]+/) // i18n-ignore: data
       .map((w) => w.trim())
       .filter(Boolean)
     words.push(...ws)

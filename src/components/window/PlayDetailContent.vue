@@ -17,6 +17,7 @@ import { useAiScriptRunner } from '@/composables/useAiScriptRunner'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -100,10 +101,14 @@ function closePostForm() {
 }
 
 const flashCreatedDate = computed(() =>
-  flash.value ? new Date(flash.value.createdAt).toLocaleDateString() : '',
+  flash.value
+    ? new Date(flash.value.createdAt).toLocaleDateString(i18n.lang)
+    : '',
 )
 const flashUpdatedDate = computed(() =>
-  flash.value ? new Date(flash.value.updatedAt).toLocaleDateString() : '',
+  flash.value
+    ? new Date(flash.value.updatedAt).toLocaleDateString(i18n.lang)
+    : '',
 )
 
 const isOwnPlay = computed(
@@ -130,7 +135,7 @@ function openEditWindow() {
 
 useWindowEditAction(() =>
   isOwnPlay.value && flash.value
-    ? { onClick: openEditWindow, title: '編集' }
+    ? { onClick: openEditWindow, title: i18n.ts._common.edit }
     : null,
 )
 
@@ -169,7 +174,7 @@ async function startPlay() {
       USER_ID: account.value?.userId ?? '',
       USER_NAME: account.value?.displayName ?? '',
       USER_USERNAME: account.value?.username ?? '',
-      LOCALE: navigator.language,
+      LOCALE: i18n.lang,
       SERVER_URL: serverUrl.value,
     },
     dialog: () => dialogRef.value,
@@ -227,7 +232,7 @@ onMounted(loadFlash)
               @click="showSource = !showSource"
             >
               <i class="ti ti-code" :class="$style.sourceToggleLeadIcon" />
-              <span :class="$style.sourceToggleLabel">ソースを表示</span>
+              <span :class="$style.sourceToggleLabel">{{ i18n.ts._playDetailContent.showSource }}</span>
               <i :class="showSource ? 'ti ti-chevron-down' : 'ti ti-chevron-right'" />
             </button>
             <div v-if="showSource" :class="$style.sourceWrap">
@@ -289,7 +294,7 @@ onMounted(loadFlash)
 
         <div v-if="!running" :class="$style.startedActions">
           <div :class="$style.actionsRow">
-            <button class="_button" :class="$style.actionBtn" title="リロード" @click="reload">
+            <button class="_button" :class="$style.actionBtn" :title="i18n.ts._common.reload" @click="reload">
               <i class="ti ti-reload" />
             </button>
           </div>

@@ -3,11 +3,13 @@
 
 use serde_json::{json, Value};
 
+use super::preview::confirm;
 use super::{staged, ExecContext};
 use crate::account_service;
 use crate::context::Core;
 use crate::edit_history::Attribution;
 use crate::error::Result;
+use crate::i18n::text;
 use crate::memos::{self, MemoAuthor, MemoData, StoredMemo};
 use crate::skills;
 use notecli::error::NoteDeckError;
@@ -51,6 +53,7 @@ fn invalid(msg: String) -> NoteDeckError {
 // --- author ---
 
 /// `authorFromPrincipal`: user は author なし、plugin は `plugin:<id>`、他は kind。
+/// 表示名は英語の正本で、表示するときにデバイスが id から組み直す (#135)。
 fn author_from_principal(ctx: &ExecContext) -> Option<MemoAuthor> {
     let kind = ctx.principal.as_str();
     match kind {
@@ -58,17 +61,17 @@ fn author_from_principal(ctx: &ExecContext) -> Option<MemoAuthor> {
         "plugin" => {
             let raw = ctx.plugin_id.clone().unwrap_or_default();
             let (noun, bare) = if let Some(r) = raw.strip_prefix("widget:") {
-                ("ウィジェット", r)
+                ("Widget", r)
             } else if let Some(r) = raw.strip_prefix("play:") {
                 ("Play", r)
             } else if let Some(r) = raw.strip_prefix("page:") {
-                ("ページ", r)
+                ("Page", r)
             } else {
-                ("プラグイン", raw.as_str())
+                ("Plugin", raw.as_str())
             };
             Some(MemoAuthor {
                 id: format!("plugin:{raw}"),
-                display_name: format!("{noun}「{bare}」"),
+                display_name: format!("{noun} \"{bare}\""),
                 avatar_url: None,
             })
         }
@@ -76,8 +79,8 @@ fn author_from_principal(ctx: &ExecContext) -> Option<MemoAuthor> {
             let label = match other {
                 "ai.chat" => "AI",
                 "ai.heartbeat" => "HEARTBEAT",
-                "external" => "外部アプリ",
-                "scratchpad" => "スクラッチパッド",
+                "external" => "External app",
+                "scratchpad" => "Scratchpad",
                 _ => other,
             };
             Some(MemoAuthor {
@@ -355,17 +358,20 @@ pub fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Op
         .unwrap_or("")
         .to_string();
     let next = staged::stage(staged::key(id, ctx, p), &cur.data.text, body);
-    Ok(Some(json!({
-        "title": "メモを過去の状態に戻す",
-        "message": format!(
-            "メモ {key} を編集履歴 #{index} ({}) の状態に戻します。現在の本文は上書きされます。",
-            super::time::iso_from_unix_ms(entry.at as i64)
-        ),
-        "diff": { "old": cur.data.text, "new": next, "language": "markdown" },
-        "okLabel": "この状態に戻す",
-        "cancelLabel": "やめる",
-        "type": "warning",
-    })))
+    Ok(Some(confirm(
+        "warning",
+        text("_native.preview.memos.revert.title", json!({})),
+        Some(text(
+            "_native.preview.memos.revert.message",
+            json!({
+                "key": key,
+                "index": index,
+                "at": super::time::iso_from_unix_ms(entry.at as i64),
+            }),
+        )),
+        text("_native.preview.memos.revert.ok", json!({})),
+        json!({ "diff": { "old": cur.data.text, "new": next, "language": "markdown" } }),
+    )))
 }
 
 #[cfg(test)]
@@ -400,7 +406,7 @@ mod tests {
         };
         let a = author_from_principal(&pl).unwrap();
         assert_eq!(a.id, "plugin:widget:clock");
-        assert_eq!(a.display_name, "ウィジェット「clock」");
+        assert_eq!(a.display_name, "Widget \"clock\"");
         assert_eq!(clamp_limit(&json!({})), 10);
         assert_eq!(clamp_limit(&json!({"limit": 500})), 50);
         assert_eq!(clamp_limit(&json!({"limit": 0})), 1);

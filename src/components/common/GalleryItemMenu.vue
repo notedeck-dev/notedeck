@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import type { GalleryPost } from '@/bindings'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { openSafeUrl, webUiUrl } from '@/utils/url'
 import PopupMenu from './PopupMenu.vue'
@@ -61,16 +62,16 @@ defineExpose({ open, close })
   <PopupMenu ref="popupMenuRef">
     <button class="_popupItem" @click="onOpen">
       <i class="ti ti-external-link" />
-      開く
+      {{ i18n.ts._galleryItemMenu.open }}
     </button>
     <div class="_popupDivider" />
     <button class="_popupItem" :disabled="!postWebUrl" @click="copyLink">
       <i class="ti ti-link" />
-      リンクをコピー
+      {{ i18n.ts._galleryItemMenu.copyLink }}
     </button>
     <button class="_popupItem" :disabled="!postWebUrl" @click="openInBrowser">
       <i class="ti ti-world" />
-      ブラウザで開く
+      {{ i18n.ts._galleryItemMenu.openInBrowser }}
     </button>
     <!-- 将来の register_gallery_post_action はここに getPluginHandlers computed +
          v-for セクションを足す（NoteMoreMenu と同型の拡張点） -->

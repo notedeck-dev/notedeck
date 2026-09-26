@@ -24,6 +24,8 @@ import { ensureMemosLoaded, loadAllMemos } from '@/composables/useMemos'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
+import { i18n } from '@/i18n'
+import { nativeField } from '@/i18n/native'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -174,12 +176,20 @@ const groupedSessions = computed<SessionGroup[]>(() => {
   const groups: SessionGroup[] = []
   if (heartbeatItems.length)
     groups.push({ label: '💓 HEARTBEAT', items: heartbeatItems })
-  if (todayItems.length) groups.push({ label: '今日', items: todayItems })
+  if (todayItems.length)
+    groups.push({ label: i18n.ts._deckAiColumn.today, items: todayItems })
   if (yesterdayItems.length)
-    groups.push({ label: '昨日', items: yesterdayItems })
+    groups.push({
+      label: i18n.ts._deckAiColumn.yesterday,
+      items: yesterdayItems,
+    })
   if (lastWeekItems.length)
-    groups.push({ label: '過去 7 日', items: lastWeekItems })
-  if (olderItems.length) groups.push({ label: 'それ以前', items: olderItems })
+    groups.push({
+      label: i18n.ts._deckAiColumn.last7Days,
+      items: lastWeekItems,
+    })
+  if (olderItems.length)
+    groups.push({ label: i18n.ts._deckAiColumn.older, items: olderItems })
   return groups
 })
 
@@ -193,7 +203,9 @@ const filteredGroupedSessions = computed<SessionGroup[]>(() => {
     .map((g) => ({
       label: g.label,
       items: g.items.filter((s) =>
-        (s.title || '無題のチャット').toLowerCase().includes(q),
+        (nativeField(s, 'title') || i18n.ts._deckAiColumn.untitledChat)
+          .toLowerCase()
+          .includes(q),
       ),
     }))
     .filter((g) => g.items.length > 0)
@@ -208,7 +220,7 @@ const hasNoSearchHits = computed(
 const currentSessionTitle = computed(() => {
   const id = currentSessionId.value
   if (!id) return null
-  return sessionsStore.get(id)?.title || '無題のチャット'
+  return sessionsStore.get(id)?.title || i18n.ts._deckAiColumn.untitledChat
 })
 
 const headerTitle = computed(() => {
@@ -250,13 +262,13 @@ async function onRenameSession(
   const cur = sessionsStore.get(sessionId)
   if (!cur) return
   const next = await prompt({
-    title: 'セッション名を変更',
+    title: i18n.ts._deckAiColumn.renameTitle,
     defaultValue: cur.title,
-    placeholder: 'セッション名',
+    placeholder: i18n.ts._deckAiColumn.renamePlaceholder,
   })
   if (next == null) return
   sessionsStore.setTitle(sessionId, next.trim())
-  toast.show('セッション名を変更しました')
+  toast.show(i18n.ts._deckAiColumn.renamed)
 }
 
 async function onDeleteSession(
@@ -268,9 +280,11 @@ async function onDeleteSession(
   const cur = sessionsStore.get(sessionId)
   if (!cur) return
   const ok = await confirm({
-    title: 'セッションを削除',
-    message: `「${cur.title || '無題のチャット'}」を削除しますか？この操作は取り消せません。`,
-    okLabel: '削除',
+    title: i18n.ts._deckAiColumn.deleteSessionTitle,
+    message: i18n.tsx._deckAiColumn.deleteSessionConfirm({
+      title: cur.title || i18n.ts._deckAiColumn.untitledChat,
+    }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
@@ -282,7 +296,7 @@ async function onDeleteSession(
     deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
   }
   await sessionsStore.deleteSession(sessionId)
-  toast.show('セッションを削除しました')
+  toast.show(i18n.ts._deckAiColumn.sessionDeleted)
 }
 
 // --- プロバイダー接続チェック ---
@@ -308,12 +322,6 @@ function checkProvider(): void {
   // 設定が済んだら導線は用済み
   if (ready) needsAiSetup.value = false
 }
-
-const AI_SETUP_REQUIRED_MESSAGE =
-  'AI の API キーが設定されていないため、この質問には応答できません。\n\n' +
-  'AI プロバイダの API キーを登録すると使えるようになります。' +
-  '下の「AI 設定を案内」からチュートリアルを開けます。\n\n' +
-  '`/help` などの / コマンドは API キーなしで実行できます。'
 
 /** API キー未設定で AI 応答を断った直後か (= 設定チュートリアルへ誘導する) */
 const needsAiSetup = ref(false)
@@ -605,7 +613,9 @@ async function appendAiSetupRequiredError(text: string): Promise<void> {
   const errorMsg: ChatMessage = {
     id: `msg-${now}-e`,
     role: 'assistant',
-    content: AI_SETUP_REQUIRED_MESSAGE,
+    content: i18n.tsx._deckAiColumn.setupRequiredMessage({
+      button: i18n.ts._deckAiColumn.aiSetupGuide,
+    }),
     timestamp: now,
   }
   sessionsStore.appendMessages(sessionId, [userMsg, errorMsg])
@@ -674,8 +684,11 @@ async function runSlashAndAppend(text: string): Promise<void> {
   // ユーザーが手動 rename している場合 (= timestamp 形式でない) は触らない。
   const afterRun = sessionsStore.get(sessionId)
   if (afterRun && isTimestampTitle(afterRun.title)) {
-    const cmdToken = text.split(/\s+/)[0]
-    sessionsStore.setTitle(sessionId, `${cmdToken} の実行`)
+    const cmdToken = text.split(/\s+/)[0] ?? text
+    sessionsStore.setTitle(
+      sessionId,
+      i18n.tsx._deckAiColumn.slashRunTitle({ command: cmdToken }),
+    )
   }
   scrollToBottom()
 }
@@ -704,13 +717,13 @@ function intentLabel(intent: AiIntent): string {
 function intentStatusLabel(intent: AiIntent): string {
   switch (intent.status) {
     case 'drafted':
-      return '下書きに保存済み'
+      return i18n.ts._deckAiColumn.intentDrafted
     case 'executed':
-      return '実行済み'
+      return i18n.ts._deckAiColumn.intentExecuted
     case 'dismissed':
-      return '却下'
+      return i18n.ts._deckAiColumn.intentDismissed
     default:
-      return '未処理'
+      return i18n.ts._deckAiColumn.intentPending
   }
 }
 
@@ -729,8 +742,8 @@ async function runIntent(msg: ChatMessage): Promise<void> {
   intentBusy.value = msg.id
   try {
     const note = intent.untrusted
-      ? '無人実行 (HEARTBEAT) が他人の内容を読んで作った操作です。宛先と本文を確かめてから許可してください。'
-      : '無人実行 (HEARTBEAT) が提案した操作です。'
+      ? i18n.ts._deckAiColumn.intentConfirmNoteUntrusted
+      : i18n.ts._deckAiColumn.intentConfirmNote
     const res = await dispatchCapability(
       intent.capabilityId as CapabilityId,
       intent.params,
@@ -740,7 +753,10 @@ async function runIntent(msg: ChatMessage): Promise<void> {
     if (res.ok) {
       updateIntent(msg, { status: 'executed' })
     } else if (res.code !== 'user_cancelled') {
-      toast.show(`実行できませんでした: ${res.error}`, 'warning')
+      toast.show(
+        i18n.tsx._deckAiColumn.intentRunFailed({ error: res.error }),
+        'warning',
+      )
     }
   } finally {
     intentBusy.value = null
@@ -784,7 +800,7 @@ const copiedMessageId = ref<string | null>(null)
 
 async function copyMessage(msg: ChatMessage) {
   try {
-    await navigator.clipboard.writeText(msg.content)
+    await navigator.clipboard.writeText(nativeField(msg, 'content'))
     copiedMessageId.value = msg.id
     setTimeout(() => {
       if (copiedMessageId.value === msg.id) copiedMessageId.value = null
@@ -835,10 +851,10 @@ function onAssistantContentClick(e: MouseEvent) {
       // 表示はメッセージ単位のコピーボタンと同じアイコン切替に揃える
       const icon = btn.querySelector('i')
       if (icon) icon.className = 'ti ti-check'
-      btn.title = 'コピーしました'
+      btn.title = i18n.ts._common.copiedToClipboard
       window.setTimeout(() => {
         if (icon) icon.className = 'ti ti-copy'
-        btn.title = 'コピー'
+        btn.title = i18n.ts._common.copy
       }, 1500)
     })
     .catch((err) => {
@@ -892,7 +908,7 @@ function onKeydown(e: KeyboardEvent) {
       <div
         v-if="currentPersona"
         :class="[$style.headerAction, $style.personaIndicator]"
-        :title="`Persona: ${currentPersona.displayName} (エージェント設定で変更)`"
+        :title="i18n.tsx._deckAiColumn.personaIndicator({ name: currentPersona.displayName })"
       >
         <span
           v-if="isProxiable(currentPersona.avatarUrl)"
@@ -905,7 +921,7 @@ function onKeydown(e: KeyboardEvent) {
       <button
         class="_button"
         :class="$style.headerAction"
-        title="セッション一覧へ戻る"
+        :title="i18n.ts._deckAiColumn.backToSessions"
         @click="backToSessions"
       >
         <i class="ti ti-arrow-left" />
@@ -919,7 +935,7 @@ function onKeydown(e: KeyboardEvent) {
           v-model="searchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="セッションを検索..."
+          :placeholder="i18n.ts._deckAiColumn.searchSessions"
         />
       </div>
     </template>
@@ -928,12 +944,12 @@ function onKeydown(e: KeyboardEvent) {
     <div v-if="viewMode === 'sessions'" :class="$style.sessionsBody">
       <ColumnEmptyState
         v-if="totalSessions === 0"
-        message="セッションはまだありません"
+        :message="i18n.ts._deckAiColumn.noSessions"
         fallback-kind="info"
       />
       <ColumnEmptyState
         v-else-if="hasNoSearchHits"
-        message="一致するセッションがありません"
+        :message="i18n.ts._deckAiColumn.noMatchingSessions"
         fallback-kind="info"
       />
       <div v-else ref="sessionsListRef" :class="$style.sessionsList">
@@ -966,7 +982,7 @@ function onKeydown(e: KeyboardEvent) {
             </div>
             <div :class="$style.rowMain">
               <div :class="$style.rowTitle">
-                {{ session.title || '無題のチャット' }}
+                {{ nativeField(session, 'title') || i18n.ts._deckAiColumn.untitledChat }}
               </div>
               <div v-if="session.lastMessagePreview" :class="$style.rowPreview">
                 {{ session.lastMessagePreview }}
@@ -978,7 +994,7 @@ function onKeydown(e: KeyboardEvent) {
                 <button
                   class="_button"
                   :class="$style.rowActionBtn"
-                  title="名前を変更"
+                  :title="i18n.ts._common.rename"
                   @click="onRenameSession($event, session.id)"
                 >
                   <i class="ti ti-pencil" />
@@ -986,7 +1002,7 @@ function onKeydown(e: KeyboardEvent) {
                 <button
                   class="_button"
                   :class="[$style.rowActionBtn, $style.rowActionBtnDanger]"
-                  title="削除"
+                  :title="i18n.ts._common.delete"
                   @click="onDeleteSession($event, session.id)"
                 >
                   <i class="ti ti-trash" />
@@ -1005,8 +1021,8 @@ function onKeydown(e: KeyboardEvent) {
             v-model="input"
             :class="$style.chatTextarea"
             :placeholder="providerStatus === 'connected'
-              ? '質問するか /help でコマンド一覧'
-              : '/help でコマンド一覧 (API キー未設定)'"
+              ? i18n.ts._deckAiColumn.inputPlaceholder
+              : i18n.ts._deckAiColumn.inputPlaceholderNoApiKey"
             rows="1"
             @keydown="onKeydown"
           />
@@ -1025,9 +1041,9 @@ function onKeydown(e: KeyboardEvent) {
     <div v-else :class="$style.aiColumnBody">
       <ColumnEmptyState
         v-if="messages.length === 0 && providerStatus !== 'connected'"
-        message="AI に質問するには API キーの設定が必要です (/help などのコマンドはそのまま使えます)"
+        :message="i18n.ts._deckAiColumn.apiKeyRequired"
         fallback-kind="info"
-        cta-label="AI 設定を案内"
+        :cta-label="i18n.ts._deckAiColumn.aiSetupGuide"
         cta-icon="ti-key"
         @cta="startAiSetupTutorial"
       />
@@ -1042,11 +1058,11 @@ function onKeydown(e: KeyboardEvent) {
             <button
               class="_button"
               :class="$style.toolEventHeader"
-              :title="expandedToolDetails[msg.id] ? '詳細を閉じる' : '詳細を開く'"
+              :title="expandedToolDetails[msg.id] ? i18n.ts._deckAiColumn.hideDetails : i18n.ts._deckAiColumn.showDetails"
               @click="toggleToolDetail(msg.id)"
             >
               <i class="ti ti-tool" :class="$style.toolIcon" />
-              <span :class="$style.toolEventLabel">ツール呼び出し</span>
+              <span :class="$style.toolEventLabel">{{ i18n.ts._deckAiColumn.toolCall }}</span>
               <code :class="$style.toolEventName">{{ msg.toolUseName }}</code>
               <i
                 class="ti"
@@ -1073,11 +1089,11 @@ function onKeydown(e: KeyboardEvent) {
             <button
               class="_button"
               :class="$style.toolEventHeader"
-              :title="expandedToolDetails[msg.id] ? '詳細を閉じる' : '詳細を開く'"
+              :title="expandedToolDetails[msg.id] ? i18n.ts._deckAiColumn.hideDetails : i18n.ts._deckAiColumn.showDetails"
               @click="toggleToolDetail(msg.id)"
             >
               <i class="ti ti-arrow-back-up" :class="$style.toolIcon" />
-              <span :class="$style.toolEventLabel">結果</span>
+              <span :class="$style.toolEventLabel">{{ i18n.ts._deckAiColumn.toolResult }}</span>
               <span v-if="!expandedToolDetails[msg.id]" :class="$style.toolEventPreview">{{ truncateToolPreview(msg.content) }}</span>
               <i
                 class="ti"
@@ -1102,14 +1118,14 @@ function onKeydown(e: KeyboardEvent) {
           <div v-else-if="msg.intent" :class="[$style.toolEvent, $style.intentCard]">
             <div :class="$style.intentHeader">
               <i class="ti ti-inbox" :class="$style.toolIcon" />
-              <span :class="$style.toolEventLabel">提案</span>
+              <span :class="$style.toolEventLabel">{{ i18n.ts._deckAiColumn.intent }}</span>
               <span :class="$style.intentTitle">{{ intentLabel(msg.intent) }}</span>
               <span :class="[$style.intentStatus, $style[`intentStatus_${msg.intent.status}`]]">{{ intentStatusLabel(msg.intent) }}</span>
             </div>
             <div :class="$style.intentNotes">
-              <div>無人実行 (HEARTBEAT) が提案した操作です。実行前に確認が出ます。</div>
-              <div v-if="msg.intent.untrusted" :class="$style.intentWarn">他人の内容を読んだ文脈で作られました。宛先と本文を確かめてください。</div>
-              <div v-if="msg.intent.error" :class="$style.intentWarn">下書きにできませんでした: {{ msg.intent.error }}</div>
+              <div>{{ i18n.ts._deckAiColumn.intentNote }}</div>
+              <div v-if="msg.intent.untrusted" :class="$style.intentWarn">{{ i18n.ts._deckAiColumn.intentUntrusted }}</div>
+              <div v-if="msg.intent.error" :class="$style.intentWarn">{{ i18n.tsx._deckAiColumn.intentDraftFailed({ error: nativeField(msg.intent, 'error') }) }}</div>
             </div>
             <div
               :key="`intent-${msg.id}-${highlightRevision}`"
@@ -1118,10 +1134,10 @@ function onKeydown(e: KeyboardEvent) {
             />
             <div v-if="msg.intent.status === 'pending' || msg.intent.status === 'drafted'" :class="$style.intentActions">
               <button class="_button" :class="$style.intentRun" :disabled="intentBusy === msg.id" @click="runIntent(msg)">
-                <i class="ti ti-player-play" /> 実行
+                <i class="ti ti-player-play" /> {{ i18n.ts._common.run }}
               </button>
               <button class="_button" :class="$style.intentDismiss" :disabled="intentBusy === msg.id" @click="dismissIntent(msg)">
-                却下
+                {{ i18n.ts._deckAiColumn.dismiss }}
               </button>
             </div>
           </div>
@@ -1154,16 +1170,16 @@ function onKeydown(e: KeyboardEvent) {
                   v-else-if="msg.role === 'assistant'"
                   :key="`md-${msg.id}-${highlightRevision}`"
                   :class="$style.markdownContent"
-                  v-html="renderAssistant(msg.id, msg.content)"
+                  v-html="renderAssistant(msg.id, nativeField(msg, 'content'))"
                   @click="onAssistantContentClick"
                 />
-                <div v-else :class="$style.chatText">{{ msg.content }}</div>
+                <div v-else :class="$style.chatText">{{ nativeField(msg, 'content') }}</div>
               </div>
               <button
                 v-if="msg.content && (msg.role === 'user' || (msg.role === 'assistant' && !isGenerating))"
                 class="_button"
                 :class="$style.copyBtn"
-                :title="copiedMessageId === msg.id ? 'コピーしました' : 'コピー'"
+                :title="copiedMessageId === msg.id ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy"
                 @click="copyMessage(msg)"
               >
                 <i :class="copiedMessageId === msg.id ? 'ti ti-check' : 'ti ti-copy'" />
@@ -1180,7 +1196,7 @@ function onKeydown(e: KeyboardEvent) {
       <div v-if="canRetry" :class="$style.retryBar">
         <button class="_button" :class="$style.retryBtn" @click="retryLastSend">
           <i class="ti ti-refresh" />
-          <span>再試行</span>
+          <span>{{ i18n.ts._common.retry }}</span>
         </button>
       </div>
 
@@ -1192,7 +1208,7 @@ function onKeydown(e: KeyboardEvent) {
           @click="startAiSetupTutorial"
         >
           <i class="ti ti-key" />
-          <span>AI 設定を案内</span>
+          <span>{{ i18n.ts._deckAiColumn.aiSetupGuide }}</span>
         </button>
       </div>
 
@@ -1203,15 +1219,15 @@ function onKeydown(e: KeyboardEvent) {
             v-model="input"
             :class="$style.chatTextarea"
             :placeholder="providerStatus === 'connected'
-              ? '質問するか /help でコマンド一覧'
-              : '/help でコマンド一覧 (API キー未設定)'"
+              ? i18n.ts._deckAiColumn.inputPlaceholder
+              : i18n.ts._deckAiColumn.inputPlaceholderNoApiKey"
             rows="1"
             @keydown="onKeydown"
           />
           <button
             v-if="isGenerating"
             :class="[$style.chatSend, $style.chatStop]"
-            title="停止"
+            :title="i18n.ts._deckAiColumn.stop"
             @click="turn.cancel()"
           >
             <i class="ti ti-player-stop" />
@@ -1220,7 +1236,7 @@ function onKeydown(e: KeyboardEvent) {
             v-else
             :class="$style.chatSend"
             :disabled="!canSubmit"
-            title="送信"
+            :title="i18n.ts._common.send"
             @click="sendMessage"
           >
             <i class="ti ti-send" />

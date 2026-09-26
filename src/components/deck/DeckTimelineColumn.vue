@@ -23,6 +23,7 @@ import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import type { VariantKey } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -110,8 +111,8 @@ const noteColumnConfig: NoteColumnConfig = {
     } catch (e) {
       // Promote server errors that mean "this tab is unreachable" into
       // runtime-denied state. Server error codes (LTL_DISABLED, GTL_DISABLED,
-      // CREDENTIAL_REQUIRED) arrive structured; the legacy "disabled" substring
-      // is still honored for servers that only put it in the message.
+      // CREDENTIAL_REQUIRED) arrive structured. Other *_DISABLED codes
+      // (STL_DISABLED, fork-specific timelines) disable the current tab.
       const err = AppError.from(e)
       const apiCode = err.displayCode
       const credentialRequired = apiCode === 'CREDENTIAL_REQUIRED'
@@ -124,7 +125,7 @@ const noteColumnConfig: NoteColumnConfig = {
       const isUnreachable =
         explicitTarget !== null ||
         credentialRequired ||
-        err.message.includes('disabled')
+        err.apiCode?.endsWith('_DISABLED') === true
       if (isUnreachable) {
         const target = explicitTarget ?? tlType.value
         const aid = props.column.accountId
@@ -188,10 +189,30 @@ const noteColumnConfig: NoteColumnConfig = {
 
 // --- TL type definitions ---
 const TL_TYPES: { value: TimelineType; label: string }[] = [
-  { value: 'home', label: 'ホーム' },
-  { value: 'local', label: 'ローカル' },
-  { value: 'social', label: 'ソーシャル' },
-  { value: 'global', label: 'グローバル' },
+  {
+    value: 'home',
+    get label() {
+      return i18n.ts._common.home
+    },
+  },
+  {
+    value: 'local',
+    get label() {
+      return i18n.ts._deckTimelineColumn.local
+    },
+  },
+  {
+    value: 'social',
+    get label() {
+      return i18n.ts._deckTimelineColumn.social
+    },
+  },
+  {
+    value: 'global',
+    get label() {
+      return i18n.ts._deckTimelineColumn.global
+    },
+  },
 ]
 
 const TL_ICONS: Record<TimelineType, string> = {
@@ -454,15 +475,17 @@ if (isCrossAccount.value) {
 /** 全アカウント面の空状態: クエリによる全件除外と「TL が空」を区別する (仕様追補 E) */
 const crossEmptyMessage = computed(() => {
   if (crossQueryState.value.status === 'invalid') {
-    return 'クエリを解釈できないため表示を停止中です'
+    return i18n.ts._deckTimelineColumn.queryInvalid
   }
   if (
     crossQueryState.value.status === 'active' &&
     crossQueryExcludedCount.value > 0
   ) {
-    return `クエリに合致するノートがありません (${crossQueryExcludedCount.value} 件を除外中)`
+    return i18n.tsx._deckTimelineColumn.queryExcludedAll_plural({
+      count: crossQueryExcludedCount.value,
+    })
   }
-  return 'ノートはありません'
+  return i18n.ts._deckTimelineColumn.noNotes
 })
 
 // --- Tab defs for ColumnTabs ---
@@ -624,7 +647,7 @@ onMounted(async () => {
   <DeckColumn
     v-if="isCrossAccount"
     :column-id="column.id"
-    :title="column.name || 'タイムライン'"
+    :title="column.name || i18n.ts._columns.timeline"
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
     @refresh="connectCrossAccount"
@@ -664,7 +687,7 @@ onMounted(async () => {
       :account-id="column.accountId"
       is-error
       :image-url="serverErrorImageUrl"
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="connectCrossAccount"
     />
@@ -698,7 +721,7 @@ onMounted(async () => {
           class="_button"
           @click="scrollToTop()"
         >
-          <i class="ti ti-arrow-up" />新しいノート
+          <i class="ti ti-arrow-up" />{{ i18n.ts._common.newNotes }}
         </button>
 
         <NoteScroller
@@ -746,7 +769,7 @@ onMounted(async () => {
     v-else
     ref="noteColumnRef"
     :column="column"
-    title="タイムライン"
+    :title="i18n.ts._columns.timeline"
     icon="ti-home"
     sound-enabled
     :note-column-config="noteColumnConfig"

@@ -9,6 +9,7 @@
  * の 4 種を扱う。visibleNotes / recentConversation は呼び出し側で取得して渡す。
  */
 
+import { i18n } from '@/i18n'
 import type { Account } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { extractMemoRefs } from '@/utils/memoLinks'
@@ -505,11 +506,9 @@ export function buildAiContextBlock(
   // ようにする (memos.create の authorId 規約も同 block 内で示す)。
   if (ctx.persona) {
     const lines: string[] = ['  <persona>']
+    lines.push(`    Act as ${ctx.persona.displayName} (id: ${ctx.persona.id}).`)
     lines.push(
-      `    あなたは ${ctx.persona.displayName} (id: ${ctx.persona.id}) として振る舞う。`,
-    )
-    lines.push(
-      `    memos.create / memos.update を呼ぶ際は authorId='${ctx.persona.id}' を指定する。`,
+      `    When calling memos.create / memos.update, pass authorId='${ctx.persona.id}'.`,
     )
     if (ctx.persona.bio) {
       lines.push(`    bio: ${ctx.persona.bio}`)
@@ -519,6 +518,8 @@ export function buildAiContextBlock(
   }
 
   if (parts.length === 0) return ''
+  // 利用者の表示言語 (#135)。応答やメモの言語を合わせる手がかり
+  parts.unshift(`  <user-language>${i18n.lang}</user-language>`)
   return `<notedeck-context>\n${parts.join('\n')}\n</notedeck-context>`
 }
 

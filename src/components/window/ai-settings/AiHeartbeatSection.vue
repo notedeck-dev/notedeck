@@ -9,6 +9,7 @@ import {
   HEARTBEAT_MAX_SKIP_HOURS_MIN,
   useAiConfig,
 } from '@/composables/useAiConfig'
+import { i18n } from '@/i18n'
 import { presetChipLabel } from '@/permissions/labels'
 import { usePermissionsConfig } from '@/permissions/store'
 import { useWindowsStore } from '@/stores/windows'
@@ -53,11 +54,11 @@ function openPermissionsWindow(): void {
   <AiSettingsSection
     icon="ti-activity-heartbeat"
     title="HEARTBEAT"
-    :badge="config.heartbeat.enabled ? `有効・${config.heartbeat.intervalMinutes} 分` : '無効'"
+    :badge="config.heartbeat.enabled ? i18n.tsx._aiHeartbeatSection.enabledWithInterval({ minutes: config.heartbeat.intervalMinutes }) : i18n.ts._common.disabled"
   >
     <!-- Basic: 有効化 (TL フィルターと同じトグル) + interval + notice -->
     <AiSwitchRow
-      label="HEARTBEAT を有効化"
+      :label="i18n.ts._aiHeartbeatSection.enable"
       :on="config.heartbeat.enabled"
       @toggle="config.heartbeat.enabled = !config.heartbeat.enabled"
     />
@@ -65,7 +66,7 @@ function openPermissionsWindow(): void {
     <!-- tick 間隔: 数値入力 (PerformanceEditor 風 1 行レイアウト) -->
     <div v-if="config.heartbeat.enabled" :class="$style.field">
       <div :class="$style.fieldHeader">
-        <span :class="$style.fieldLabel">tick 間隔</span>
+        <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.tickInterval }}</span>
         <div :class="$style.fieldValue">
           <input
             v-model.number="config.heartbeat.intervalMinutes"
@@ -74,7 +75,7 @@ function openPermissionsWindow(): void {
             :max="HEARTBEAT_INTERVAL_MAX_MINUTES"
             :class="$style.numberInput"
           />
-          <span :class="$style.fieldUnit">分</span>
+          <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.minutes }}</span>
         </div>
       </div>
     </div>
@@ -83,8 +84,8 @@ function openPermissionsWindow(): void {
          アプリにフォーカスがあるときは自動抑制。 -->
     <AiSwitchRow
       v-if="config.heartbeat.enabled"
-      label="デスクトップ通知"
-      sub-label="重要発見 (HEARTBEAT_OK 以外) を OS 通知で表示。アプリにフォーカスがあれば自動抑制"
+      :label="i18n.ts._aiHeartbeatSection.desktopNotification"
+      :sub-label="i18n.ts._aiHeartbeatSection.desktopNotificationDescription"
       :on="config.heartbeat.desktopNotification"
       @toggle="config.heartbeat.desktopNotification = !config.heartbeat.desktopNotification"
     />
@@ -96,14 +97,14 @@ function openPermissionsWindow(): void {
     <template v-if="config.heartbeat.enabled">
       <AiSwitchRow
         label="Cheap Check First"
-        sub-label="変化なしなら AI を起動せず HEARTBEAT_OK 扱い (skill 側で cheapCheckCapabilities の宣言が必要)"
+        :sub-label="i18n.ts._aiHeartbeatSection.cheapCheckDescription"
         :on="config.heartbeat.cheapCheck.enabled"
         @toggle="config.heartbeat.cheapCheck.enabled = !config.heartbeat.cheapCheck.enabled"
       />
 
       <div v-if="config.heartbeat.cheapCheck.enabled" :class="$style.field">
         <div :class="$style.fieldHeader">
-          <span :class="$style.fieldLabel">最大連続 skip 時間</span>
+          <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.maxSkipHours }}</span>
           <div :class="$style.fieldValue">
             <input
               v-model.number="config.heartbeat.cheapCheck.maxSkipHours"
@@ -112,7 +113,7 @@ function openPermissionsWindow(): void {
               :max="HEARTBEAT_MAX_SKIP_HOURS_MAX"
               :class="$style.numberInput"
             />
-            <span :class="$style.fieldUnit">時間</span>
+            <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.hours }}</span>
           </div>
         </div>
       </div>
@@ -122,7 +123,7 @@ function openPermissionsWindow(): void {
     <template v-if="config.heartbeat.enabled">
       <div :class="$style.field">
         <div :class="$style.fieldHeader">
-          <span :class="$style.fieldLabel">1 日の AI 起動上限</span>
+          <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.dailyMaxAiRuns }}</span>
           <div :class="$style.fieldValue">
             <input
               v-model.number="config.heartbeat.dailyMaxAiRuns"
@@ -131,14 +132,14 @@ function openPermissionsWindow(): void {
               :max="HEARTBEAT_DAILY_MAX_AI_RUNS_MAX"
               :class="$style.numberInput"
             />
-            <span :class="$style.fieldUnit">回 / 日</span>
+            <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.runsPerDay }}</span>
           </div>
         </div>
       </div>
 
       <AiSwitchRow
-        label="上限到達時に自動停止"
-        sub-label="OFF = 警告のみで継続 / ON = HEARTBEAT を自動 disable"
+        :label="i18n.ts._aiHeartbeatSection.disableOnDailyLimit"
+        :sub-label="i18n.ts._aiHeartbeatSection.disableOnDailyLimitDescription"
         :on="config.heartbeat.onDailyLimit === 'disable'"
         @toggle="config.heartbeat.onDailyLimit = config.heartbeat.onDailyLimit === 'disable' ? 'warn' : 'disable'"
       />
@@ -147,7 +148,7 @@ function openPermissionsWindow(): void {
     <!-- 接続ごとの token 予算 (#1133)。HEARTBEAT の日次 run 上限と同じ面に置く -->
     <div :class="$style.field">
       <div :class="$style.fieldHeader">
-        <span :class="$style.fieldLabel">1 日の token 予算 (現在の接続)</span>
+        <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.dailyTokenBudget }}</span>
         <div :class="$style.fieldValue">
           <input
             v-model.number="activeBudget"
@@ -157,7 +158,7 @@ function openPermissionsWindow(): void {
             :disabled="!config.activeConnectionId"
             :class="$style.numberInput"
           />
-          <span :class="$style.fieldUnit">tokens / 日 (0 = 無制限)</span>
+          <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.tokensPerDay }}</span>
         </div>
       </div>
     </div>
@@ -166,13 +167,13 @@ function openPermissionsWindow(): void {
     <template v-if="config.heartbeat.enabled">
       <div :class="$style.field">
         <label :class="$style.fieldLabel">
-          <span>HEARTBEAT 中の権限</span>
+          <span>{{ i18n.ts._aiHeartbeatSection.permissions }}</span>
         </label>
         <div :class="$style.keyHint">
           <i class="ti ti-shield-lock" />
           <span>{{ heartbeatPermChip }}</span>
           <button class="_button" :class="$style.inlineLink" @click="openPermissionsWindow">
-            権限設定で変更
+            {{ i18n.ts._aiHeartbeatSection.changeInPermissions }}
           </button>
         </div>
       </div>

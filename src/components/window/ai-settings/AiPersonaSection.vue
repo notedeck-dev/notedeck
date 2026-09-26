@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useAiConfig } from '@/composables/useAiConfig'
+import { i18n } from '@/i18n'
 import { useSkillsStore } from '@/stores/skills'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import AiSettingsSection from './AiSettingsSection.vue'
@@ -26,12 +27,12 @@ const currentPersonaSkill = computed(() => {
 <template>
   <AiSettingsSection
     icon="ti-user-circle"
-    title="ペルソナ"
-    :badge="currentPersonaSkill ? currentPersonaSkill.name : 'なし'"
+    :title="i18n.ts._aiPersonaSection.title"
+    :badge="currentPersonaSkill ? currentPersonaSkill.name : i18n.ts._aiPersonaSection.none"
   >
     <div :class="$style.keyHint">
       <i class="ti ti-info-circle" />
-      新規セッションのデフォルトです。過去のセッションは作成時のペルソナを保持します。
+      {{ i18n.ts._aiPersonaSection.hint }}
     </div>
     <div :class="$style.grid">
       <button
@@ -44,7 +45,7 @@ const currentPersonaSkill = computed(() => {
           <i class="ti ti-circle-check-filled" />
         </span>
         <i class="ti ti-user-off" :class="$style.logoFallback" />
-        <span>なし</span>
+        <span>{{ i18n.ts._aiPersonaSection.none }}</span>
       </button>
       <button
         v-for="s in personaCandidates"
@@ -73,7 +74,7 @@ const currentPersonaSkill = computed(() => {
     <div v-if="personaCandidates.length === 0" :class="$style.personaEmpty">
       <i class="ti ti-info-circle" />
       <span>
-        ペルソナ候補がありません。Skill 編集ウィンドウで「Persona」を ON にしたスキルがここに表示されます。
+        {{ i18n.ts._aiPersonaSection.noCandidates }}
       </span>
     </div>
   </AiSettingsSection>

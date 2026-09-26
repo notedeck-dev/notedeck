@@ -4,6 +4,7 @@ import { useAccountPicker } from '@/composables/useAccountPicker'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { isEntityType, useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteAction } from '@/composables/useNoteFocus'
+import { i18n } from '@/i18n'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
@@ -51,14 +52,16 @@ async function toggleAccountMode(
     unwrap(await commands.apiUpdateUserSetting(accountId, key, !current))
     clearAvailableTlCache(accountId)
     useAccountsStore().bumpModeVersion(accountId)
-    show(`${modeLabel(key)}を${current ? 'オフ' : 'オン'}にしました`, 'success')
+    show(
+      current
+        ? i18n.tsx._definitions.modeTurnedOff({ mode: modeLabel(key) })
+        : i18n.tsx._definitions.modeTurnedOn({ mode: modeLabel(key) }),
+      'success',
+    )
   } catch (e) {
     const err = AppError.from(e)
-    if (err.isAuth || String(err.message).includes('permission')) {
-      show(
-        '権限がありません。write:account を付与するため再ログインしてください。',
-        'error',
-      )
+    if (err.isAuth || err.apiCode === 'PERMISSION_DENIED') {
+      show(i18n.ts._definitions.permissionDenied, 'error')
     } else {
       show(err.message, 'error')
     }
@@ -82,7 +85,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'command-palette',
-    label: 'コマンドパレット',
+    get label() {
+      return i18n.ts._commands.commandPalette
+    },
     icon: 'search',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('command-palette'),
@@ -92,7 +97,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'search',
-    label: 'サーバー検索',
+    get label() {
+      return i18n.ts._commands.search
+    },
     icon: 'search',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('search'),
@@ -101,7 +108,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'client-search',
-    label: 'クライアント検索',
+    get label() {
+      return i18n.ts._commands.clientSearch
+    },
     icon: 'archive',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('client-search'),
@@ -110,7 +119,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'notifications',
-    label: '通知',
+    get label() {
+      return i18n.ts._commands.notifications
+    },
     icon: 'bell',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('notifications'),
@@ -119,7 +130,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'compose',
-    label: 'ノート作成',
+    get label() {
+      return i18n.ts._commands.compose
+    },
     icon: 'pencil',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('compose'),
@@ -128,7 +141,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'add-column',
-    label: 'カラム追加',
+    get label() {
+      return i18n.ts._commands.addColumn
+    },
     icon: 'plus',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('add-column'),
@@ -137,7 +152,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'move-column-left',
-    label: 'カラムを左に移動',
+    get label() {
+      return i18n.ts._commands.moveColumnLeft
+    },
     icon: 'arrow-bar-left',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('move-column-left'),
@@ -150,7 +167,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'move-column-right',
-    label: 'カラムを右に移動',
+    get label() {
+      return i18n.ts._commands.moveColumnRight
+    },
     icon: 'arrow-bar-right',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('move-column-right'),
@@ -163,7 +182,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'toggle-sidebar',
-    label: 'サイドバー切替',
+    get label() {
+      return i18n.ts._commands.toggleSidebar
+    },
     icon: 'layout-sidebar-left-collapse',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('toggle-sidebar'),
@@ -173,7 +194,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   if (useUiStore().isDesktop) {
     commandStore.register({
       id: 'boss-key',
-      label: 'ウィンドウを隠す',
+      get label() {
+        return i18n.ts._commands.bossKey
+      },
       icon: 'eye-off',
       category: 'general',
       shortcuts: keybindsStore.getShortcuts('boss-key'),
@@ -186,7 +209,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'account-menu',
-    label: 'アカウントメニュー',
+    get label() {
+      return i18n.ts._commands.accountMenu
+    },
     icon: 'user',
     category: 'account',
     shortcuts: keybindsStore.getShortcuts('account-menu'),
@@ -196,8 +221,8 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
       commandStore.open()
       commandStore.pushQuickPick({
-        title: 'アカウント',
-        placeholder: 'アカウントを選択…',
+        title: i18n.ts._common.account,
+        placeholder: i18n.ts._definitions.selectAccount,
         items: [
           ...accountsStore.accounts.map((acc) => ({
             id: acc.id,
@@ -231,7 +256,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               if (!actions.isGuestAccount(acc)) {
                 items.push({
                   id: `${acc.id}-profile`,
-                  label: 'プロフィール',
+                  label: i18n.ts._definitions.profile,
                   icon: 'user',
                   action: () => {
                     commandStore.close()
@@ -240,7 +265,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
                 })
                 items.push({
                   id: `${acc.id}-settings`,
-                  label: '設定',
+                  label: i18n.ts._common.settings,
                   icon: 'settings',
                   action: () => {
                     commandStore.close()
@@ -251,7 +276,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               if (acc.hasToken) {
                 items.push({
                   id: `${acc.id}-logout`,
-                  label: 'ログアウト',
+                  label: i18n.ts._common.logout,
                   icon: 'logout',
                   action: () => {
                     commandStore.close()
@@ -261,7 +286,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               } else if (actions.isGuestAccount(acc)) {
                 items.push({
                   id: `${acc.id}-delete`,
-                  label: 'データを削除',
+                  label: i18n.ts._common.deleteData,
                   icon: 'trash',
                   action: () => {
                     commandStore.close()
@@ -271,7 +296,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               } else {
                 items.push({
                   id: `${acc.id}-relogin`,
-                  label: '再ログイン',
+                  label: i18n.ts._common.relogin,
                   icon: 'login',
                   action: () => {
                     commandStore.close()
@@ -280,7 +305,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
                 })
                 items.push({
                   id: `${acc.id}-delete`,
-                  label: 'データを削除',
+                  label: i18n.ts._common.deleteData,
                   icon: 'trash',
                   action: () => {
                     commandStore.close()
@@ -290,15 +315,17 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               }
               items.push({
                 id: `${acc.id}-clear-cache`,
-                label: 'キャッシュ削除',
+                label: i18n.ts._common.clearCache,
                 icon: 'eraser',
                 action: async () => {
                   commandStore.close()
                   const { confirm } = useConfirm()
                   const ok = await confirm({
-                    title: 'キャッシュ削除',
-                    message: `${actions.getAccountLabel(acc)} のキャッシュを削除しますか？`,
-                    okLabel: '削除',
+                    title: i18n.ts._common.clearCache,
+                    message: i18n.tsx._definitions.clearAccountCacheMessage({
+                      account: actions.getAccountLabel(acc),
+                    }),
+                    okLabel: i18n.ts._common.delete,
                     type: 'danger',
                   })
                   if (ok) {
@@ -314,7 +341,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
           })),
           {
             id: 'account-add',
-            label: 'アカウント追加',
+            label: i18n.ts._commands.login,
             icon: 'user-plus',
             action: () => {
               commandStore.close()
@@ -328,7 +355,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'profile-menu',
-    label: 'プロファイル切替',
+    get label() {
+      return i18n.ts._commands.profileMenu
+    },
     icon: 'layout',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('profile-menu'),
@@ -337,7 +366,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'settings-menu',
-    label: '設定メニュー',
+    get label() {
+      return i18n.ts._commands.settingsMenu
+    },
     icon: 'settings',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('settings-menu'),
@@ -351,7 +382,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // 自動 popup なし、カラムでもなくユーザー明示起動)。
   commandStore.register({
     id: 'tutorial',
-    label: 'チュートリアル',
+    get label() {
+      return i18n.ts._commands.tutorial
+    },
     icon: 'presentation-analytics',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('tutorial'),
@@ -362,7 +395,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'toggle-dark-mode',
-    label: 'ダーク/ライトモード切替',
+    get label() {
+      return i18n.ts._commands.toggleDarkMode
+    },
     icon: 'sun-moon',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('toggle-dark-mode'),
@@ -371,7 +406,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'toggle-offline-mode',
-    label: 'オフラインモード切替',
+    get label() {
+      return i18n.ts._commands.toggleOfflineMode
+    },
     icon: 'wifi-off',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('toggle-offline-mode'),
@@ -380,7 +417,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'toggle-realtime-mode',
-    label: 'リアルタイムモード切替',
+    get label() {
+      return i18n.ts._commands.toggleRealtimeMode
+    },
     icon: 'bolt',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('toggle-realtime-mode'),
@@ -389,16 +428,18 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'clear-all-cache',
-    label: '全キャッシュ削除',
+    get label() {
+      return i18n.ts._commands.clearAllCache
+    },
     icon: 'eraser',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('clear-all-cache'),
     execute: async () => {
       const { confirm } = useConfirm()
       const ok = await confirm({
-        title: 'キャッシュ削除',
-        message: 'ノートキャッシュとOGPキャッシュをすべて削除しますか？',
-        okLabel: '削除',
+        title: i18n.ts._common.clearCache,
+        message: i18n.ts._definitions.clearAllCacheMessage,
+        okLabel: i18n.ts._common.delete,
         type: 'danger',
       })
       if (ok) {
@@ -411,7 +452,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // Note-level shortcuts (dispatched as CustomEvents to active column)
   commandStore.register({
     id: 'note-next',
-    label: '次のノート',
+    get label() {
+      return i18n.ts._commands.noteNext
+    },
     icon: 'arrow-down',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-next'),
@@ -420,7 +463,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-prev',
-    label: '前のノート',
+    get label() {
+      return i18n.ts._commands.notePrev
+    },
     icon: 'arrow-up',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-prev'),
@@ -429,7 +474,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-reply',
-    label: '返信',
+    get label() {
+      return i18n.ts._commands.noteReply
+    },
     icon: 'arrow-back-up',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-reply'),
@@ -438,7 +485,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-react',
-    label: 'リアクション',
+    get label() {
+      return i18n.ts._commands.noteReact
+    },
     icon: 'mood-plus',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-react'),
@@ -447,7 +496,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-renote',
-    label: 'リノート / 引用',
+    get label() {
+      return i18n.ts._commands.noteRenote
+    },
     icon: 'repeat',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-renote'),
@@ -456,7 +507,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-bookmark',
-    label: 'ブックマーク',
+    get label() {
+      return i18n.ts._commands.noteBookmark
+    },
     icon: 'star',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-bookmark'),
@@ -465,7 +518,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-open',
-    label: 'ノートを開く',
+    get label() {
+      return i18n.ts._commands.noteOpen
+    },
     icon: 'external-link',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-open'),
@@ -474,7 +529,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-cw',
-    label: 'CW切替',
+    get label() {
+      return i18n.ts._commands.noteCw
+    },
     icon: 'eye',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-cw'),
@@ -483,7 +540,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-delete',
-    label: 'ノートを削除',
+    get label() {
+      return i18n.ts._commands.noteDelete
+    },
     icon: 'trash',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-delete'),
@@ -495,7 +554,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-copy-link',
-    label: 'ノートのリンクをコピー',
+    get label() {
+      return i18n.ts._commands.noteCopyLink
+    },
     icon: 'link',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-copy-link'),
@@ -504,7 +565,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'note-copy-content',
-    label: 'ノートの内容をコピー',
+    get label() {
+      return i18n.ts._commands.noteCopyContent
+    },
     icon: 'copy',
     category: 'note',
     shortcuts: keybindsStore.getShortcuts('note-copy-content'),
@@ -516,7 +579,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'column-next',
-    label: '次のカラム',
+    get label() {
+      return i18n.ts._commands.columnNext
+    },
     icon: 'arrow-right',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('column-next'),
@@ -525,7 +590,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'column-prev',
-    label: '前のカラム',
+    get label() {
+      return i18n.ts._commands.columnPrev
+    },
     icon: 'arrow-left',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('column-prev'),
@@ -535,7 +602,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   for (let i = 1; i <= 9; i++) {
     commandStore.register({
       id: `column-${i}`,
-      label: `カラム ${i} に移動`,
+      get label() {
+        return i18n.tsx._commands.focusColumn({ n: i })
+      },
       icon: 'columns',
       category: 'column',
       shortcuts: keybindsStore.getShortcuts(`column-${i}`),
@@ -547,7 +616,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   for (let i = 0; i <= 9; i++) {
     commandStore.register({
       id: `quick-react-${i}`,
-      label: `クイックリアクション ${i || 10}`,
+      get label() {
+        return i18n.tsx._commands.quickReact({ n: i || 10 })
+      },
       icon: 'mood-plus',
       category: 'note',
       shortcuts: keybindsStore.getShortcuts(`quick-react-${i}`),
@@ -557,7 +628,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'profile-new',
-    label: '新しいプロファイルを作成',
+    get label() {
+      return i18n.ts._commands.profileNew
+    },
     icon: 'plus',
     category: 'general',
     shortcuts: [],
@@ -571,7 +644,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // Close active column
   commandStore.register({
     id: 'close-column',
-    label: 'カラムを削除',
+    get label() {
+      return i18n.ts._commands.closeColumn
+    },
     icon: 'trash',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('close-column'),
@@ -581,9 +656,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
       if (!id) return
       const { confirm } = useConfirm()
       const ok = await confirm({
-        title: 'カラムを削除',
-        message: 'このカラムを削除しますか？',
-        okLabel: '削除',
+        title: i18n.ts._commands.closeColumn,
+        message: i18n.ts._definitions.closeColumnMessage,
+        okLabel: i18n.ts._common.delete,
         type: 'danger',
       })
       if (ok) deckStore.removeColumn(id)
@@ -601,7 +676,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'rename-entity',
-    label: '名前を変更',
+    get label() {
+      return i18n.ts._commands.renameEntity
+    },
     icon: 'edit',
     category: 'column',
     shortcuts: [],
@@ -618,7 +695,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'delete-entity',
-    label: 'サーバーから削除',
+    get label() {
+      return i18n.ts._commands.deleteEntity
+    },
     icon: 'trash',
     category: 'column',
     shortcuts: [],
@@ -636,7 +715,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // Column mute toggle
   commandStore.register({
     id: 'toggle-column-mute',
-    label: 'カラムのミュート切替',
+    get label() {
+      return i18n.ts._commands.toggleColumnMute
+    },
     icon: 'volume-off',
     category: 'column',
     shortcuts: keybindsStore.getShortcuts('toggle-column-mute'),
@@ -652,7 +733,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // Tool windows
   commandStore.register({
     id: 'keybinds',
-    label: 'キーバインド設定',
+    get label() {
+      return i18n.ts._commands.keybinds
+    },
     icon: 'keyboard',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('keybinds'),
@@ -661,7 +744,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'css-editor',
-    label: 'カスタムCSS',
+    get label() {
+      return i18n.ts._commands.cssEditor
+    },
     icon: 'code',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('css-editor'),
@@ -672,7 +757,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   // 唯一の入口なので、off の状態からも必ず見つかる必要がある
   commandStore.register({
     id: 'developer-mode',
-    label: '開発者モードを切り替え',
+    get label() {
+      return i18n.ts._commands.developerMode
+    },
     icon: 'code',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('developer-mode'),
@@ -681,8 +768,8 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
       toggle()
       useToast().show(
         enabled.value
-          ? '開発者モードを有効にしました'
-          : '開発者モードを無効にしました',
+          ? i18n.ts._definitions.developerModeOn
+          : i18n.ts._definitions.developerModeOff,
         'success',
       )
     },
@@ -690,7 +777,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'tasks-editor',
-    label: 'タスク設定',
+    get label() {
+      return i18n.ts._commands.tasksEditor
+    },
     icon: 'player-play',
     category: 'general',
     exposure: 'developer',
@@ -700,7 +789,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'snippets-editor',
-    label: 'スニペット',
+    get label() {
+      return i18n.ts._commands.snippetsEditor
+    },
     icon: 'code-plus',
     category: 'general',
     exposure: 'developer',
@@ -710,7 +801,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'tasks.run-default',
-    label: 'デフォルトタスクを実行',
+    get label() {
+      return i18n.ts._commands.tasksRunDefault
+    },
     icon: 'player-play-filled',
     category: 'general',
     exposure: 'developer',
@@ -722,13 +815,15 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'plugins',
-    label: 'プラグインを管理 (このアカウント)',
+    get label() {
+      return i18n.ts._commands.plugins
+    },
     icon: 'puzzle',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('plugins'),
     execute: async () => {
       const accountId = await useAccountPicker().pickAccount(
-        'プラグインを管理するアカウント',
+        i18n.ts._definitions.pickPluginsAccount,
       )
       if (accountId)
         useDeckStore().toggleSidebarColumn('pluginManager', accountId)
@@ -737,7 +832,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'plugins-global',
-    label: 'プラグインを管理 (全アカウント)',
+    get label() {
+      return i18n.ts._commands.pluginsGlobal
+    },
     icon: 'puzzle',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('plugins-global'),
@@ -746,13 +843,15 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'theme-manager',
-    label: 'テーマを管理 (このアカウント)',
+    get label() {
+      return i18n.ts._commands.themeManager
+    },
     icon: 'palette',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('theme-manager'),
     execute: async () => {
       const accountId = await useAccountPicker().pickAccount(
-        'テーマを管理するアカウント',
+        i18n.ts._definitions.pickThemesAccount,
       )
       if (accountId)
         useDeckStore().toggleSidebarColumn('themeManager', accountId)
@@ -761,7 +860,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'theme-manager-global',
-    label: 'テーマを管理 (全アカウント)',
+    get label() {
+      return i18n.ts._commands.themeManagerGlobal
+    },
     icon: 'palette',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('theme-manager-global'),
@@ -770,7 +871,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'settings-editor',
-    label: 'アピアランス',
+    get label() {
+      return i18n.ts._commands.settingsEditor
+    },
     icon: 'brush',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('settings-editor'),
@@ -779,7 +882,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'login',
-    label: 'アカウント追加',
+    get label() {
+      return i18n.ts._commands.login
+    },
     icon: 'user-plus',
     category: 'account',
     shortcuts: keybindsStore.getShortcuts('login'),
@@ -788,7 +893,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'chat',
-    label: 'チャット',
+    get label() {
+      return i18n.ts._commands.chat
+    },
     icon: 'message-circle',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('chat'),
@@ -797,7 +904,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'ai',
-    label: 'AIアシスタント',
+    get label() {
+      return i18n.ts._commands.ai
+    },
     icon: 'robot',
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('ai'),
@@ -806,7 +915,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
   commandStore.register({
     id: 'close-all-floating-windows',
-    label: 'フローティングウィンドウをすべて閉じる',
+    get label() {
+      return i18n.ts._commands.closeAllFloatingWindows
+    },
     icon: 'x',
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('close-all-floating-windows'),
@@ -817,7 +928,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   if (useUiStore().isDesktop) {
     commandStore.register({
       id: 'pop-out-column',
-      label: 'カラムを別ウィンドウにポップアウト',
+      get label() {
+        return i18n.ts._commands.popOutColumn
+      },
       icon: 'external-link',
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('pop-out-column'),
@@ -835,7 +948,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'new-window',
-      label: '新しいウィンドウを開く',
+      get label() {
+        return i18n.ts._commands.newWindow
+      },
       icon: 'app-window',
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('new-window'),
@@ -851,7 +966,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'close-all-windows',
-      label: 'すべてのサブウィンドウを閉じる',
+      get label() {
+        return i18n.ts._commands.closeAllWindows
+      },
       icon: 'x',
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('close-all-windows'),
@@ -864,7 +981,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'pip-window',
-      label: 'PiPウィンドウを開く',
+      get label() {
+        return i18n.ts._commands.pipWindow
+      },
       icon: 'picture-in-picture',
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('pip-window'),
@@ -877,7 +996,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'devtools',
-      label: '開発者ツール',
+      get label() {
+        return i18n.ts._commands.devtools
+      },
       icon: 'code',
       category: 'general',
       exposure: 'developer',
@@ -894,7 +1015,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
     commandStore.register({
       id: 'profile-editor',
-      label: 'プロファイルエディタ',
+      get label() {
+        return i18n.ts._commands.profileEditor
+      },
       icon: 'layout-columns',
       category: 'column',
       shortcuts: keybindsStore.getShortcuts('profile-editor'),
@@ -930,7 +1053,9 @@ export function refreshProfileCommands() {
     const profileName = profile.name
     commandStore.register({
       id: `profile-${i}`,
-      label: `${profileName} に切替`,
+      get label() {
+        return i18n.tsx._commands.switchProfile({ name: profileName })
+      },
       icon: 'layout',
       category: 'general',
       shortcuts: keybindsStore.getShortcuts(`profile-${i}`),

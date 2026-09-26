@@ -16,5 +16,10 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["vite.config.ts", "vitest.config.ts", "subset-font.d.ts"]
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "subset-font.d.ts",
+    "scripts/gen-i18n.ts"
+  ]
 }

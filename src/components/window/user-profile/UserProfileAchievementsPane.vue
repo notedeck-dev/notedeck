@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAchievementsGrid from '@/components/common/MkAchievementsGrid.vue'
+import { i18n } from '@/i18n'
 import type { Achievement } from '@/utils/achievements'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -52,7 +53,7 @@ watch(
       {{ error }}
     </div>
     <div v-else-if="achievements.length === 0" :class="$style.stateMessage">
-      実績がありません
+      {{ i18n.ts._userProfileAchievementsPane.empty }}
     </div>
     <MkAchievementsGrid v-else :achievements="achievements" />
   </div>

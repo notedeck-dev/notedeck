@@ -32,6 +32,7 @@ use crate::capabilities::{self, exec::ExecContext};
 use crate::commands::settings::settings_base_dir;
 use crate::context::Core;
 use crate::error::Result;
+use crate::i18n;
 use crate::permissions_gate;
 use crate::permissions_profile::PrincipalId;
 use crate::skills::{self, SkillMeta};
@@ -47,11 +48,11 @@ const CONTEXT_QUERY_TYPE: &str = "heartbeat/context";
 const CONTEXT_TIMEOUT: Duration = Duration::from_secs(20);
 const TURN_HARD_LIMIT: Duration = Duration::from_secs(30 * 60);
 
-pub const INSTRUCTION: &str = "あなたは HEARTBEAT (定期チェック) として呼ばれています。
-上に記載された HEARTBEAT skill の指示に厳密に従ってください。
-過去の会話や前回の tick は参照しないでください。
-報告すべきことがある場合は heartbeat_report tool を呼び、body に簡潔な報告 (200 字以内推奨) を入れ、通知を出すべきなら notify を true にしてください。
-何も報告すべきことが無い場合は tool を呼ばず \"HEARTBEAT_OK\" の 1 行だけを返してください。";
+pub const INSTRUCTION: &str = "You are being called as HEARTBEAT (a periodic check).
+Follow the instructions of the HEARTBEAT skill above strictly.
+Do not refer to past conversations or previous ticks.
+If there is something to report, call the heartbeat_report tool with a concise report in body (200 characters or fewer recommended), and set notify to true if a notification should be shown.
+If there is nothing to report, do not call any tool and return only the single line \"HEARTBEAT_OK\".";
 
 // ---------------------------------------------------------------------------
 // デバイスへの口
@@ -80,6 +81,9 @@ pub struct HeartbeatEvent {
     pub level: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+    /// `text` を表示言語で描き直す手がかり (#135)
+    #[serde(rename = "i18n", skip_serializing_if = "Option::is_none")]
+    pub i18n: Option<Value>,
 }
 
 impl HeartbeatEvent {
@@ -94,6 +98,7 @@ impl HeartbeatEvent {
             body: None,
             level: None,
             text: None,
+            i18n: None,
         }
     }
 }
@@ -388,10 +393,10 @@ pub fn clean_report_title(raw: &str) -> String {
         .chars()
         .map(|c| if c == '\r' || c == '\n' { ' ' } else { c })
         .collect();
-    let is_lead = |c: char| c.is_whitespace() || matches!(c, '「' | '『' | '"' | '\'' | '“' | '”');
-    let is_trail = |c: char| {
-        c.is_whitespace() || matches!(c, '」' | '』' | '"' | '\'' | '“' | '”' | '。' | '．' | '、')
-    };
+    const LEADING: &[char] = &['「', '『', '"', '\'', '“', '”']; // i18n-ignore: data
+    const TRAILING: &[char] = &['」', '』', '"', '\'', '“', '”', '。', '．', '、']; // i18n-ignore: data
+    let is_lead = |c: char| c.is_whitespace() || LEADING.contains(&c);
+    let is_trail = |c: char| c.is_whitespace() || TRAILING.contains(&c);
     joined
         .trim_start_matches(is_lead)
         .trim_end_matches(is_trail)
@@ -415,7 +420,7 @@ pub fn report_tool(params: &Value, ctx: &ExecContext) -> Result<Value> {
         ));
     }
     if ctx.principal != "ai.heartbeat" {
-        return Ok(json!({ "recorded": false, "reason": "HEARTBEAT の実行中ではありません" }));
+        return Ok(json!({ "recorded": false, "reason": "HEARTBEAT is not running" }));
     }
     Ok(json!({ "recorded": true }))
 }
@@ -476,10 +481,11 @@ pub async fn run_once(core: &Core, source: &str) {
     emit(core, ev);
 }
 
-fn toast(core: &Core, level: &str, text: String) {
+fn toast(core: &Core, level: &str, message: i18n::Text) {
     let mut ev = HeartbeatEvent::new("toast");
     ev.level = Some(level.into());
-    ev.text = Some(text);
+    ev.text = Some(message.text);
+    ev.i18n = Some(json!({ "text": message.i18n }));
     emit(core, ev);
 }
 
@@ -543,7 +549,10 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
             toast(
                 core,
                 "warning",
-                format!("HEARTBEAT を停止しました (本日 {limit} 回の AI 起動上限に到達)"),
+                i18n::text(
+                    "_native.heartbeat.stoppedDailyLimit",
+                    json!({ "limit": limit }),
+                ),
             );
             return Ok("skip:daily-limit-disable".into());
         }
@@ -551,7 +560,10 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
             toast(
                 core,
                 "warning",
-                format!("HEARTBEAT: 本日の AI 起動上限 ({limit} 回) を超えました (継続中)"),
+                i18n::text(
+                    "_native.heartbeat.overDailyLimit",
+                    json!({ "limit": limit }),
+                ),
             );
         }
     }
@@ -576,7 +588,11 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
             // 理由を永続化し、同じ signature は初回だけ通知する
             if record_failure(&mut state, source, &e.to_string(), now) {
                 let short: String = e.to_string().chars().take(120).collect();
-                toast(core, "warning", format!("HEARTBEAT 失敗: {short}"));
+                toast(
+                    core,
+                    "warning",
+                    i18n::text("_native.heartbeat.failed", json!({ "error": short })),
+                );
             }
             append_error(core, &cfg, source, &e.to_string(), now).await;
             if n >= MAX_CONSECUTIVE_FAILURES {
@@ -586,7 +602,10 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
                 toast(
                     core,
                     "warning",
-                    format!("HEARTBEAT を停止しました ({MAX_CONSECUTIVE_FAILURES} 回連続失敗)"),
+                    i18n::text(
+                        "_native.heartbeat.stoppedFailures",
+                        json!({ "count": MAX_CONSECUTIVE_FAILURES }),
+                    ),
                 );
             } else {
                 save_state(&app_dir, &state);
@@ -624,7 +643,7 @@ async fn collect_cheap_results(core: &Core, hb_skills: &[SkillMeta]) -> HashMap<
                 tracing::warn!(
                     capability = %cap_id,
                     skill = %skill.id,
-                    "cheap check は notecore 単独で実行できる cheap な capability だけ。無視する"
+                    "cheap check only takes cheap capabilities notecore can run on its own; ignoring"
                 );
                 continue;
             }
@@ -872,18 +891,20 @@ async fn resolve_target(
                 id = format!("{stamp}{}", suffix as char);
                 suffix += 1;
             }
+            let title = i18n::text(
+                "_native.heartbeat.sessionTitle",
+                json!({ "time": local_title_time.unwrap_or_else(|| utc_title_time(now)) }),
+            );
             let created = ai_sessions::create(
                 &base,
                 AiSessionCreate {
                     id,
                     kind: "heartbeat".into(),
-                    title: format!(
-                        "{} のHEARTBEAT",
-                        local_title_time.unwrap_or_else(|| utc_title_time(now))
-                    ),
+                    title: title.text,
                     model: cfg.model_for_active().unwrap_or_default(),
                     connection_id: cfg.active_connection_id.clone(),
                     persona_skill_id: None,
+                    i18n: Some(json!({ "title": title.i18n })),
                 },
             )?;
             Ok(Some((created.id, true)))
@@ -910,17 +931,29 @@ fn hb_message(id: String, content: String, ts: u64) -> SessionMessage {
         tool_result_for: None,
         heartbeat: Some(true),
         intent: None,
+        i18n: None,
     }
+}
+
+/// 定型の本文 (英語の正本文 + 表示言語で描き直す手がかり) の HEARTBEAT メッセージ
+fn hb_text_message(id: String, content: i18n::Text, ts: u64) -> SessionMessage {
+    let mut msg = hb_message(id, content.text, ts);
+    msg.i18n = Some(json!({ "content": content.i18n }));
+    msg
 }
 
 /// 書込意図 → 受信箱カード (投稿系は下書きも作る)。
 async fn intent_message(core: &Core, intent: &Intent, now: u64, index: usize) -> SessionMessage {
-    let label = capabilities::find(&intent.capability_id)
-        .map(|d| d.label.to_string())
-        .unwrap_or_else(|| intent.capability_id.clone());
+    // 英語の正本文用の表示名。デバイスは capability の id で表示言語の表示名に引き直す
+    let label = i18n::render(
+        i18n::CANONICAL,
+        &format!("_capabilities.{}", intent.capability_id),
+        &json!({}),
+    );
     let mut status = "pending";
     let mut draft_id: Option<String> = None;
     let mut error: Option<String> = None;
+    let mut error_i18n: Option<Value> = None;
     if intent.capability_id == "notes.create" {
         // 投稿系は下書きに落とす (#1106 §4.8)。アカウントは引数から
         match intent.params.get("accountId").and_then(Value::as_str) {
@@ -947,12 +980,19 @@ async fn intent_message(core: &Core, intent: &Intent, now: u64, index: usize) ->
                     }
                 }
             }
-            _ => error = Some("accountId が無いので下書きにできません".into()),
+            _ => {
+                let t = i18n::text("_native.heartbeat.draftNeedsAccount", json!({}));
+                error = Some(t.text);
+                error_i18n = Some(t.i18n);
+            }
         }
     }
-    let mut msg = hb_message(
+    let mut msg = hb_text_message(
         format!("msg-{now}-hb-intent-{index}"),
-        format!("{label} の実行を提案しました"),
+        i18n::text(
+            "_native.heartbeat.intentProposed",
+            json!({ "label": label, "capability": intent.capability_id }),
+        ),
         now,
     );
     msg.intent = Some(json!({
@@ -965,6 +1005,9 @@ async fn intent_message(core: &Core, intent: &Intent, now: u64, index: usize) ->
         "source": "heartbeat",
         "createdAt": now,
     }));
+    if let (Some(intent_json), Some(hint)) = (msg.intent.as_mut(), error_i18n) {
+        intent_json["i18n"] = json!({ "error": hint });
+    }
     msg
 }
 
@@ -1032,9 +1075,12 @@ async fn append_error(core: &Core, cfg: &AiConfigLite, source: &str, err: &str, 
     let Ok(base) = settings_base_dir(core) else {
         return;
     };
-    let msg = hb_message(
+    let msg = hb_text_message(
         format!("msg-{now}-hb-err"),
-        format!("⚠ HEARTBEAT 失敗 (source={source}): {err}"),
+        i18n::text(
+            "_native.heartbeat.failedMessage",
+            json!({ "source": source, "error": err }),
+        ),
         now,
     );
     if ai_sessions::append(&base, &session_id, vec![msg]).is_ok() {
@@ -1045,7 +1091,7 @@ async fn append_error(core: &Core, cfg: &AiConfigLite, source: &str, err: &str, 
     }
 }
 
-const TITLE_SYSTEM: &str = "あなたは HEARTBEAT 通知の要約タイトル生成アシスタントです。与えられた通知内容を端的に表す短い日本語のタイトルを 1 行で出力してください。20 文字程度 (最大 40 文字) に収めること。引用符、前置き、改行、絵文字、文末句点は付けないでください。タイトルのみを返してください。";
+const TITLE_SYSTEM: &str = "You write titles for HEARTBEAT notifications. Output one short line that sums up the notification, in the same language as the notification. Keep it around 20 characters (at most 40). No quotes, preamble, line breaks, emoji, or trailing period. Return only the title.";
 
 struct TextSink(
     Mutex<String>,
@@ -1089,7 +1135,7 @@ async fn generate_title(core: &Core, cfg: &AiConfigLite, report: &str) -> Option
         messages: vec![AiChatMessage {
             role: AiChatRole::User,
             content: format!(
-                "次の HEARTBEAT 通知の主題を端的に表す短いタイトルを付けてください。タイトルだけを 1 行で出力。\n\n{report}"
+                "Give the following HEARTBEAT notification a short title that states its subject. Output only the title on one line.\n\n{report}"
             ),
             tool_use_id: None,
             tool_use_name: None,

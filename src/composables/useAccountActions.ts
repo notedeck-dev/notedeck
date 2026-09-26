@@ -1,4 +1,5 @@
 import { useVault } from '@/composables/useVault'
+import { i18n } from '@/i18n'
 import {
   type Account,
   accountScopeKey,
@@ -53,7 +54,9 @@ export function useAccountActions() {
       // アカウントは残るのにカラムが消えた中途半端な状態になる (#1091)
       const { useToast } = await import('@/stores/toast')
       useToast().show(
-        `アカウント削除に失敗しました: ${AppError.from(e).message}`,
+        i18n.tsx._useAccountActions.deleteAccountFailed({
+          error: AppError.from(e).message,
+        }),
         'error',
       )
       return
@@ -91,7 +94,9 @@ export function useAccountActions() {
     } catch (e) {
       const { useToast } = await import('@/stores/toast')
       useToast().show(
-        `Vault 接続の削除に失敗しました: ${AppError.from(e).message}`,
+        i18n.tsx._useAccountActions.deleteVaultFailed({
+          error: AppError.from(e).message,
+        }),
         'warning',
       )
     }
@@ -101,18 +106,20 @@ export function useAccountActions() {
   async function logout(acc: Account) {
     if (isGuestAccount(acc)) {
       const ok = await confirm({
-        title: 'ゲストを削除',
-        message: 'このゲストアカウントを削除しますか？',
-        okLabel: '削除',
+        title: i18n.ts._useAccountActions.deleteGuestTitle,
+        message: i18n.ts._useAccountActions.confirmDeleteGuest,
+        okLabel: i18n.ts._common.delete,
         type: 'danger',
       })
       if (ok) deleteAccountData(acc)
       return
     }
     const ok = await confirm({
-      title: 'ログアウト',
-      message: `${getAccountLabel(acc)} からログアウトしますか？\nローカルデータはこのデバイスに残ります。`,
-      okLabel: 'ログアウト',
+      title: i18n.ts._common.logout,
+      message: i18n.tsx._useAccountActions.confirmLogout({
+        account: getAccountLabel(acc),
+      }),
+      okLabel: i18n.ts._common.logout,
       type: 'danger',
     })
     if (ok) logoutKeepData(acc)
@@ -121,9 +128,11 @@ export function useAccountActions() {
   /** データ全削除確認ダイアログを表示し実行する */
   async function deleteAccount(acc: Account) {
     const ok = await confirm({
-      title: 'データを削除',
-      message: `${getAccountLabel(acc)} のローカルデータをすべて削除しますか？`,
-      okLabel: '削除',
+      title: i18n.ts._common.deleteData,
+      message: i18n.tsx._useAccountActions.confirmDeleteData({
+        account: getAccountLabel(acc),
+      }),
+      okLabel: i18n.ts._common.delete,
       type: 'danger',
     })
     if (ok) deleteAccountData(acc)

@@ -12,6 +12,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
+import { i18n } from '@/i18n'
 import { variantKeyOf } from '@/services/noteKey'
 
 const MkPostForm = defineAsyncComponent(
@@ -67,9 +68,7 @@ const props = withDefaults(
      */
     filterKeys?: (keyof TimelineFilter)[]
   }>(),
-  {
-    emptyMessage: 'まだノートがありません',
-  },
+  {},
 )
 
 const {
@@ -127,17 +126,19 @@ const isPollingMode = computed(() => !realtimeModeStore.isRealtime)
 // hover tooltip、モバイルは hover が無いのでタップで toast に出す。
 // cross-account カラム (accountId なし) や記録なしは既定文言のまま
 const offlineDetail = computed(() => {
-  if (offlineModeStore.isOfflineMode) return 'オフラインモード'
+  if (offlineModeStore.isOfflineMode) return i18n.ts._deckNoteColumn.offlineMode
   const accountId = props.column.accountId
-  if (!accountId) return 'オフライン'
+  if (!accountId) return i18n.ts._common.offline
   const h = getStreamHealth(accountId)
   // WS は connected のまま API fetch 失敗でバナーが出るケースがあるので、
   // reconnecting/disconnected 以外は既定文言に落とす
   if (!h || h.state === 'connected' || h.state === 'initializing') {
-    return 'オフライン (サーバーへのリクエストに失敗)'
+    return i18n.ts._deckNoteColumn.offlineRequestFailed
   }
-  const label = h.state === 'reconnecting' ? '再接続中' : '切断'
-  return `${label} (${formatHealthDuration(h.since)})`
+  const duration = formatHealthDuration(h.since)
+  return h.state === 'reconnecting'
+    ? i18n.tsx._deckNoteColumn.reconnectingSince({ duration })
+    : i18n.tsx._deckNoteColumn.disconnectedSince({ duration })
 })
 
 const toast = useToast()
@@ -164,15 +165,17 @@ function openQueryManager(): void {
 /** 空状態: クエリによる全件除外と「TL が空」を区別する (仕様追補 E) */
 const effectiveEmptyMessage = computed(() => {
   if (columnQueryState.value.status === 'invalid') {
-    return 'クエリを解釈できないため表示を停止中です'
+    return i18n.ts._deckNoteColumn.queryInvalid
   }
   if (
     columnQueryState.value.status === 'active' &&
     columnQueryExcludedCount.value > 0
   ) {
-    return `クエリに合致するノートがありません (${columnQueryExcludedCount.value} 件を除外中)`
+    return i18n.tsx._deckNoteColumn.queryExcludedAll_plural({
+      count: columnQueryExcludedCount.value,
+    })
   }
-  return props.emptyMessage
+  return props.emptyMessage ?? i18n.ts._deckNoteColumn.noNotesYet
 })
 
 defineExpose({
@@ -239,7 +242,7 @@ defineExpose({
       :account-id="column.accountId"
       :image-url="serverErrorImageUrl"
       is-error
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="refresh"
     />
@@ -259,10 +262,10 @@ defineExpose({
         :title="offlineDetail"
         @click="showOfflineDetail"
       >
-        <i class="ti ti-cloud-off" />オフライン
+        <i class="ti ti-cloud-off" />{{ i18n.ts._common.offline }}
       </div>
       <div v-else-if="isPollingMode && !isLoggedOut" :class="$style.pollingBanner">
-        <i class="ti ti-bolt-off" />ポーリング
+        <i class="ti ti-bolt-off" />{{ i18n.ts._common.polling }}
       </div>
 
       <ColumnQueryBanners
@@ -295,7 +298,7 @@ defineExpose({
           class="_button"
           @click="scrollToTop()"
         >
-          <i class="ti ti-arrow-up" />新しいノート
+          <i class="ti ti-arrow-up" />{{ i18n.ts._common.newNotes }}
         </button>
 
         <NoteScroller

@@ -17,6 +17,7 @@ import type {
   VaultFetchResponse,
   VaultTestResult,
 } from '@/bindings'
+import { i18n } from '@/i18n'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const connections = ref<Connection[]>([])
@@ -149,11 +150,11 @@ export function describeAuthType(authType: AuthType): string {
     case 'bearer':
       return 'Authorization: Bearer'
     case 'header':
-      return `ヘッダー: ${authType.name}`
+      return i18n.tsx._useVault.authHeader({ name: authType.name })
     case 'query':
-      return `クエリ: ?${authType.param}=`
+      return i18n.tsx._useVault.authQuery({ param: authType.param })
     case 'basic':
-      return `Basic 認証 (${authType.username})`
+      return i18n.tsx._useVault.authBasic({ username: authType.username })
   }
 }
 

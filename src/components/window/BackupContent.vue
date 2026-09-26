@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { relaunch } from '@tauri-apps/plugin-process'
 import { ref } from 'vue'
+import { i18n } from '@/i18n'
+import { nativeField } from '@/i18n/native'
 import { type ConfirmOptions, useConfirm } from '@/stores/confirm'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -51,22 +53,24 @@ const importSettings = () =>
       // 再起動後では警告が失われるのでここで見せるしかない
       if (result.warnings.length > 0) {
         await confirm({
-          title: '設定インポート完了',
-          message: `${result.warnings.length} 件のエントリをスキップまたは別名で復元しました。アプリを再起動します。`,
-          code: result.warnings.join('\n'),
+          title: i18n.ts._backupContent.importDoneTitle,
+          message: i18n.tsx._backupContent.importDoneMessage_plural({
+            count: result.warnings.length,
+          }),
+          code: result.warnings.map((w) => nativeField(w, 'text')).join('\n'),
           codeLanguage: 'text',
           type: 'warning',
           hideCancel: true,
-          okLabel: '再起動',
+          okLabel: i18n.ts._backupContent.restart,
         })
       }
       return true
     },
     {
       confirmOpts: {
-        title: '設定インポート',
-        message: '現在の設定が上書きされます。アプリを再起動します。',
-        okLabel: 'インポート',
+        title: i18n.ts._backupContent.importSettingsTitle,
+        message: i18n.ts._backupContent.importSettingsMessage,
+        okLabel: i18n.ts._common.import,
         type: 'danger',
       },
       relaunch: true,
@@ -82,9 +86,9 @@ const importDb = () =>
     () => commands.importDb().then((r) => unwrap(r)),
     {
       confirmOpts: {
-        title: 'DBインポート',
-        message: '現在のDBが上書きされます。アプリを再起動します。',
-        okLabel: 'インポート',
+        title: i18n.ts._backupContent.importDbTitle,
+        message: i18n.ts._backupContent.importDbMessage,
+        okLabel: i18n.ts._common.import,
         type: 'danger',
       },
       relaunch: true,
@@ -99,19 +103,19 @@ const importDb = () =>
       <div :class="$style.sectionHeader">
         <i class="ti ti-folder" :class="$style.sectionIcon" />
         <span :class="$style.sectionTitle">notedeck/</span>
-        <span :class="$style.sectionDesc">設定ファイル</span>
+        <span :class="$style.sectionDesc">{{ i18n.ts._backupContent.settingsFiles }}</span>
       </div>
       <p :class="$style.hint">
-        テーマ・プラグイン・ウィジット・スキル・プロファイル・各設定をひとつの notedeck.json にまとめてエクスポート / インポートします。
+        {{ i18n.ts._backupContent.settingsHint }}
       </p>
       <div :class="$style.btnRow">
         <button class="_button" :class="$style.actionBtn" :disabled="isExportingSettings" @click="exportSettings">
           <i class="ti ti-package-export" />
-          {{ isExportingSettings ? '処理中...' : 'エクスポート' }}
+          {{ isExportingSettings ? i18n.ts._backupContent.processing : i18n.ts._common.export }}
         </button>
         <button class="_button" :class="$style.actionBtn" :disabled="isImportingSettings" @click="importSettings">
           <i class="ti ti-package-import" />
-          {{ isImportingSettings ? '処理中...' : 'インポート' }}
+          {{ isImportingSettings ? i18n.ts._backupContent.processing : i18n.ts._common.import }}
         </button>
       </div>
     </div>
@@ -123,20 +127,20 @@ const importDb = () =>
       <div :class="$style.sectionHeader">
         <i class="ti ti-database" :class="$style.sectionIcon" />
         <span :class="$style.sectionTitle">notecli.db</span>
-        <span :class="$style.sectionDesc">データベース</span>
+        <span :class="$style.sectionDesc">{{ i18n.ts._backupContent.database }}</span>
       </div>
       <p :class="$style.hint">
-        ノート・通知・フォロー情報などのローカルキャッシュDBをバックアップ / リストアします。
-        認証情報は含まれないため、リストア後は各アカウントで再ログインしてください。
+        {{ i18n.ts._backupContent.databaseHint }}
+        {{ i18n.ts._backupContent.databaseCredentialsNote }}
       </p>
       <div :class="$style.btnRow">
         <button class="_button" :class="$style.actionBtn" :disabled="isExportingDb" @click="exportDb">
           <i class="ti ti-database-export" />
-          {{ isExportingDb ? '処理中...' : 'バックアップ' }}
+          {{ isExportingDb ? i18n.ts._backupContent.processing : i18n.ts._backupContent.backup }}
         </button>
         <button class="_button" :class="$style.actionBtn" :disabled="isImportingDb" @click="importDb">
           <i class="ti ti-database-import" />
-          {{ isImportingDb ? '処理中...' : 'リストア' }}
+          {{ isImportingDb ? i18n.ts._backupContent.processing : i18n.ts._backupContent.restore }}
         </button>
       </div>
     </div>

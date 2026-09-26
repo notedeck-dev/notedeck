@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: 22006b6e92e6
+// sourceHash: 06d2a9529ffe
 
 import type { Messages } from './ja'
 

@@ -52,7 +52,7 @@ pub struct CreatedDriveFolder {
 
 // --- Registry CRUD ---
 //
-// per-account 設定 (テーマ #339 / プラグイン #340 / ウィジット #387) で
+// per-account 設定 (テーマ #339 / プラグイン #340 / ウィジェット #387) で
 // 本家 Misskey Web UI と互換な scope/key を読み書きするための基盤コマンド群。
 // 実体は notecli の registry CRUD ラッパーを呼び出すだけの薄い Tauri command。
 

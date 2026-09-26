@@ -7,6 +7,7 @@
  * 戻り値の副産物を見て適用する。
  */
 
+import { COLUMN_LABELS_BY_TYPE } from '@/i18n/locale.generated'
 import type { DeckColumn, DeckProfile } from '@/stores/deck'
 import type { WidgetMeta } from '@/stores/widgets'
 
@@ -81,6 +82,21 @@ export function migrateWidgetColumns(
   }
 }
 
+/**
+ * 既定の表示名を保存していたカラムを「名前なし」に戻す (#135)。
+ * カラムの既定値 (buildColumnDefaults) が組込種別にも表示名を name に入れて
+ * いたので、作った時点の言語の表示名が保存されていた。name があるとヘッダーは
+ * name を出すので、表示言語を切り替えても変わらない。どれかの言語の既定表示名と
+ * 一致する name だけを消す (利用者が付けた名前は残す)。
+ */
+export function clearDefaultColumnNames(columns: DeckColumn[]): DeckColumn[] {
+  return columns.map((col) =>
+    col.name != null && COLUMN_LABELS_BY_TYPE[col.type]?.includes(col.name)
+      ? { ...col, name: null }
+      : col,
+  )
+}
+
 export interface ParsedProfileFile
   extends Omit<WidgetMigrationResult, 'columns'> {
   profile: DeckProfile
@@ -105,7 +121,7 @@ export function parseProfileFile(
     ...data,
     id,
     name: (data.name as string) || filename,
-    columns,
+    columns: clearDefaultColumnNames(columns),
     layout: (data.layout as string[][]) || [],
     createdAt: (data.createdAt as number) || Date.now(),
   } as DeckProfile

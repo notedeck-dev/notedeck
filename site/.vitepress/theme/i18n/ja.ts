@@ -145,7 +145,7 @@ const ja = {
       'NoteDeck の正体は <strong>Misskey 統合デッキ環境</strong> (Integrated Deck Environment)',
     store: {
       title: 'ストアで、着せ替えと機能追加',
-      strong: 'プラグイン・テーマ・ウィジットをワンクリックで。',
+      strong: 'プラグイン・テーマ・ウィジェットをワンクリックで。',
       bodyHtml:
         '専用ストア <a href="https://store.notedeck.io">misstore</a> から直接インストールして、アカウントごとに ON/OFF。AiScript エディタとライブプレビューも内蔵し、自作したものはその場で動きます。',
     },

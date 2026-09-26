@@ -1,4 +1,5 @@
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import {
   FIELD_META,
   type PerformanceKey,
@@ -52,13 +53,19 @@ export const performanceSetCapability = implement('performance.set', {
     const value = typeof params?.value === 'number' ? params.value : NaN
     const meta = isValidPerformanceKey(key) ? FIELD_META[key] : null
     return {
-      title: 'パフォーマンス値を変更',
+      title: i18n.ts._performanceCapability.setTitle,
       message: meta
-        ? `${meta.label} (\`${key}\`) を ${value}${meta.unit} に変更します。` +
-          ` 範囲外なら ${meta.min}..${meta.max} に自動 clamp されます。`
-        : `\`${key}\` を ${value} に変更します。`,
-      okLabel: '変更',
-      cancelLabel: 'やめる',
+        ? i18n.tsx._performanceCapability.setMessage({
+            label: meta.label,
+            key,
+            value,
+            unit: meta.unit,
+            min: meta.min,
+            max: meta.max,
+          })
+        : i18n.tsx._performanceCapability.setMessageUnknown({ key, value }),
+      okLabel: i18n.ts._performanceCapability.setOk,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'normal',
     }
   },
@@ -83,12 +90,15 @@ export const performanceResetCapability = implement('performance.reset', {
     const key = typeof params?.key === 'string' ? params.key : ''
     const meta = isValidPerformanceKey(key) ? FIELD_META[key] : null
     return {
-      title: 'パフォーマンス値を default に戻す',
+      title: i18n.ts._performanceCapability.resetTitle,
       message: meta
-        ? `${meta.label} (\`${key}\`) を default に戻します。`
-        : `\`${key}\` を default に戻します。`,
-      okLabel: 'default に戻す',
-      cancelLabel: 'やめる',
+        ? i18n.tsx._performanceCapability.resetMessage({
+            label: meta.label,
+            key,
+          })
+        : i18n.tsx._performanceCapability.resetMessageUnknown({ key }),
+      okLabel: i18n.ts._common.resetToDefault,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'normal',
     }
   },
@@ -106,11 +116,10 @@ export const performanceResetCapability = implement('performance.reset', {
 
 export const performanceResetAllCapability = implement('performance.resetAll', {
   requiresConfirmation: () => ({
-    title: '全パフォーマンス値を default に戻す',
-    message:
-      '全 override を破棄し、すべて default に戻します (= 設定をクリーン状態に)。',
-    okLabel: 'すべて default に戻す',
-    cancelLabel: 'やめる',
+    title: i18n.ts._performanceCapability.resetAllTitle,
+    message: i18n.ts._performanceCapability.resetAllMessage,
+    okLabel: i18n.ts._common.resetAllToDefault,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'warning',
   }),
   execute: () => {
@@ -126,12 +135,19 @@ export const performanceApplySliderCapability = implement(
     requiresConfirmation: (params) => {
       const t = typeof params?.t === 'number' ? params.t : NaN
       const label =
-        t <= 0.1 ? '省電力寄り' : t >= 0.9 ? 'リッチ寄り' : 'バランス'
+        t <= 0.1
+          ? i18n.ts._performanceCapability.presetPowerSaving
+          : t >= 0.9
+            ? i18n.ts._performanceCapability.presetRich
+            : i18n.ts._performanceCapability.presetBalanced
       return {
-        title: 'パフォーマンスプリセットを適用',
-        message: `スライダー位置 t=${t.toFixed(2)} (${label}) のプリセットを全 key に適用します。`,
-        okLabel: '適用',
-        cancelLabel: 'やめる',
+        title: i18n.ts._performanceCapability.applyTitle,
+        message: i18n.tsx._performanceCapability.applyMessage({
+          t: t.toFixed(2),
+          label,
+        }),
+        okLabel: i18n.ts._performanceCapability.applyOk,
+        cancelLabel: i18n.ts._common.cancel,
         type: 'warning',
       }
     },

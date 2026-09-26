@@ -26,6 +26,7 @@ import { useCommandStore } from '@/commands/registry'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import { usePortal } from '@/composables/usePortal'
+import { i18n } from '@/i18n'
 import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useToast } from '@/stores/toast'
@@ -77,7 +78,7 @@ const serverUrl = computed(() => {
   return account ? `https://${account.host}` : ''
 })
 /**
- * ウィジット固有の実行アカウント (#1018)。カラムから決まる場合は undefined —
+ * ウィジェット固有の実行アカウント (#1018)。カラムから決まる場合は undefined —
  * カラムヘッダーが既に示しているので重ねて出さない。
  */
 const ownAccount = computed(() => {
@@ -154,7 +155,7 @@ async function run() {
   // 自動実行 / 再実行シグナル / 手動実行が全部ここを通る。
   // 無言の空白にせず理由を出す (silent no-op はユーザーが原因を追えない)
   if (readSafeMode()) {
-    error.value = 'セーフモードのため実行されません'
+    error.value = i18n.ts._widgetAiScript.safeModeBlocked
     return
   }
   running.value = true
@@ -215,7 +216,7 @@ async function run() {
         '',
       USER_NAME: '',
       USER_USERNAME: '',
-      LOCALE: navigator.language,
+      LOCALE: i18n.lang,
       SERVER_URL: serverUrl.value,
     },
   )
@@ -292,8 +293,8 @@ onMounted(() => {
   <div :class="$style.widgetApp">
     <div :class="$style.widgetHeader">
       <span :class="$style.widgetLabel" :title="displayName">
-        <!-- ウィジット固有の実行アカウント (#1018)。全アカウントのカラムでは
-             ウィジットごとに動く先が違うので、ここに出さないと見分けが付かない。
+        <!-- ウィジェット固有の実行アカウント (#1018)。全アカウントのカラムでは
+             ウィジェットごとに動く先が違うので、ここに出さないと見分けが付かない。
              ラベルと同じ塊に入れる — 外に出すと余白を挟んで右のボタン群まで
              流れていく -->
         <AccountAvatar
@@ -311,7 +312,7 @@ onMounted(() => {
         <button
           v-if="isWindowExposed('widget-edit')"
           :class="$style.toolBtn"
-          title="コードを編集"
+          :title="i18n.ts._widgetAiScript.editCode"
           @click="openEditor"
         >
           <i class="ti ti-code" />
@@ -319,7 +320,7 @@ onMounted(() => {
         <button
           :class="[$style.toolBtn, $style.run]"
           :disabled="running"
-          :title="running ? '実行中...' : '実行'"
+          :title="running ? i18n.ts._widgetAiScript.running : i18n.ts._common.run"
           @click="run"
         >
           <i class="ti ti-player-play" />
@@ -327,14 +328,14 @@ onMounted(() => {
       </div>
       <div
         :class="$style.dragHandle"
-        title="ドラッグして並び替え"
+        :title="i18n.ts._widgetAiScript.dragToReorder"
         @pointerdown="emit('drag-start', $event)"
       >
         <i class="ti ti-grip-vertical" />
       </div>
       <button
         :class="$style.widgetRemove"
-        :title="isSidebar ? 'サイドバーから外す' : 'このカラムから外す'"
+        :title="isSidebar ? i18n.ts._widgetAiScript.removeFromSidebar : i18n.ts._widgetAiScript.removeFromColumn"
         @click="emit('remove')"
       >
         <i class="ti ti-circle-minus" />
@@ -355,7 +356,7 @@ onMounted(() => {
       />
 
       <details v-if="output.length" :class="$style.outputPanel">
-        <summary>出力 ({{ output.length }})</summary>
+        <summary>{{ i18n.tsx._widgetAiScript.outputCount({ n: output.length }) }}</summary>
         <div
           v-for="(line, i) in output"
           :key="i"

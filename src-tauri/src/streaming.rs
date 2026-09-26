@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 use notecli::models::NormalizedNotification;
 use notecli::streaming::FrontendEmitter;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use specta::Type;
 use tauri::{AppHandle, Manager};
 #[cfg(any(target_os = "macos", target_os = "android"))]
@@ -97,13 +98,20 @@ fn summarize_group(items: &[PendingOsNotification]) -> Option<PendingOsNotificat
                     names.push(&item.title);
                 }
             }
+            let sep = crate::ui_lang::t("_native.notification.listSeparator", json!({}));
             let body = if names.len() > GROUP_MAX_NAMES {
-                format!("{} ほか", names[..GROUP_MAX_NAMES].join("、"))
+                crate::ui_lang::t(
+                    "_native.notification.groupOthers",
+                    json!({ "names": names[..GROUP_MAX_NAMES].join(&sep) }),
+                )
             } else {
-                names.join("、")
+                names.join(&sep)
             };
             Some(PendingOsNotification {
-                title: format!("新着通知 {} 件", items.len()),
+                title: crate::ui_lang::t(
+                    "_native.notification.groupTitle_plural",
+                    json!({ "count": items.len() }),
+                ),
                 body: Some(body),
                 context: None,
                 media: None,
@@ -336,9 +344,12 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         #[cfg(target_os = "android")]
         {
             use tauri_plugin_notification::{Channel, Importance};
-            let channel = Channel::builder(NOTIFICATION_CHANNEL_ID, "通知")
-                .importance(Importance::Default)
-                .build();
+            let channel = Channel::builder(
+                NOTIFICATION_CHANNEL_ID,
+                crate::ui_lang::t("_native.notification.channelName", json!({})),
+            )
+            .importance(Importance::Default)
+            .build();
             let _ = app.notification().create_channel(channel);
         }
         Self {
@@ -417,8 +428,8 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 .user
                 .as_ref()
                 .and_then(|u| u.name.as_deref().or(Some(u.username.as_str())))
-                .unwrap_or("誰か")
-                .to_string()
+                .map(str::to_string)
+                .unwrap_or_else(|| label("_native.notification.someone"))
         };
 
         // Misskey 本家 (packages/sw/src/scripts/create-notification.ts) に合わせ、
@@ -428,36 +439,47 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 let body = notification
                     .reaction
                     .as_deref()
-                    .map(|r| format!("リアクション {r}"))
-                    .unwrap_or_else(|| "リアクション".to_string());
+                    .map(|r| {
+                        crate::ui_lang::t(
+                            "_native.notification.reactionWith",
+                            json!({ "reaction": r }),
+                        )
+                    })
+                    .unwrap_or_else(|| label("_native.notification.reaction"));
                 (actor_name(), Some(body))
             }
-            "reply" => (actor_name(), Some("リプライ".to_string())),
-            "renote" => (actor_name(), Some("リノート".to_string())),
-            "quote" => (actor_name(), Some("引用".to_string())),
-            "mention" => (actor_name(), Some("メンション".to_string())),
-            "follow" => (actor_name(), Some("フォロー".to_string())),
-            "followRequestAccepted" => (actor_name(), Some("フォローリクエスト承認".to_string())),
-            "receiveFollowRequest" => (actor_name(), Some("フォローリクエスト".to_string())),
+            "reply" => (actor_name(), Some(label("_native.notification.reply"))),
+            "renote" => (actor_name(), Some(label("_native.notification.renote"))),
+            "quote" => (actor_name(), Some(label("_native.notification.quote"))),
+            "mention" => (actor_name(), Some(label("_native.notification.mention"))),
+            "follow" => (actor_name(), Some(label("_native.notification.follow"))),
+            "followRequestAccepted" => (
+                actor_name(),
+                Some(label("_native.notification.followRequestAccepted")),
+            ),
+            "receiveFollowRequest" => (
+                actor_name(),
+                Some(label("_native.notification.receiveFollowRequest")),
+            ),
 
             // user フィールドを持たない自己/システム通知
             "achievementEarned" => {
-                let body = notification
-                    .achievement
-                    .as_deref()
-                    .map(|a| achievement_label(a).to_string());
-                ("実績獲得".to_string(), body)
+                let body = notification.achievement.as_deref().map(achievement_label);
+                (label("_native.notification.achievementEarned"), body)
             }
-            "login" => ("ログイン検知".to_string(), None),
-            "pollEnded" => ("投票終了".to_string(), None),
+            "login" => (label("_native.notification.login"), None),
+            "pollEnded" => (label("_native.notification.pollEnded"), None),
             // 外部アプリ (notifications/create) 由来。本家 sw に合わせ header が
             // あれば title=header / body=body、無ければ body を title に繰り上げる
             "app" => match (notification.header.as_deref(), notification.body.as_deref()) {
                 (Some(header), body) => (header.to_string(), body.map(str::to_string)),
                 (None, Some(body)) => (body.to_string(), None),
-                (None, None) => ("通知".to_string(), None),
+                (None, None) => (label("_native.notification.generic"), None),
             },
-            "test" => ("テスト通知".to_string(), Some("テスト通知".to_string())),
+            "test" => (
+                label("_native.notification.test"),
+                Some(label("_native.notification.test")),
+            ),
 
             _ => return OsNotifPlan::Suppress,
         };
@@ -544,88 +566,38 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
     }
 }
 
-fn achievement_label(name: &str) -> &str {
-    match name {
-        "notes1" => "はじめてのノート",
-        "notes10" => "10ノート",
-        "notes100" => "100ノート",
-        "notes500" => "500ノート",
-        "notes1000" => "1,000ノート",
-        "notes5000" => "5,000ノート",
-        "notes10000" => "10,000ノート",
-        "notes20000" => "20,000ノート",
-        "notes30000" => "30,000ノート",
-        "notes40000" => "40,000ノート",
-        "notes50000" => "50,000ノート",
-        "notes60000" => "60,000ノート",
-        "notes70000" => "70,000ノート",
-        "notes80000" => "80,000ノート",
-        "notes90000" => "90,000ノート",
-        "notes100000" => "100,000ノート",
-        "login3" => "ログイン3日",
-        "login7" => "ログイン7日",
-        "login15" => "ログイン15日",
-        "login30" => "ログイン30日",
-        "login60" => "ログイン60日",
-        "login100" => "ログイン100日",
-        "login200" => "ログイン200日",
-        "login300" => "ログイン300日",
-        "login400" => "ログイン400日",
-        "login500" => "ログイン500日",
-        "login600" => "ログイン600日",
-        "login700" => "ログイン700日",
-        "login800" => "ログイン800日",
-        "login900" => "ログイン900日",
-        "login1000" => "ログイン1,000日",
-        "passedSinceAccountCreated1" => "アカウント作成から1年",
-        "passedSinceAccountCreated2" => "アカウント作成から2年",
-        "passedSinceAccountCreated3" => "アカウント作成から3年",
-        "loggedInOnBirthday" => "誕生日にログイン",
-        "loggedInOnNewYearsDay" => "元日にログイン",
-        "noteClipped1" => "はじめてのクリップ",
-        "noteFavorited1" => "はじめてのお気に入り",
-        "myNoteFavorited1" => "お気に入りされた",
-        "profileFilled" => "プロフィール設定",
-        "markedAsCat" => "Cat",
-        "following1" => "はじめてのフォロー",
-        "following10" => "10フォロー",
-        "following50" => "50フォロー",
-        "following100" => "100フォロー",
-        "following300" => "300フォロー",
-        "followers1" => "はじめてのフォロワー",
-        "followers10" => "10フォロワー",
-        "followers50" => "50フォロワー",
-        "followers100" => "100フォロワー",
-        "followers300" => "300フォロワー",
-        "followers500" => "500フォロワー",
-        "followers1000" => "1,000フォロワー",
-        "collectAchievements30" => "実績コレクター",
-        "viewAchievements3min" => "実績を眺める",
-        "iLoveMisskey" => "I Love Misskey",
-        "foundTreasure" => "隠された宝物",
-        "client30min" => "30分利用",
-        "client60min" => "60分利用",
-        "noteDeletedWithin1min" => "1分以内に削除",
-        "postedAtLateNight" => "深夜の投稿",
-        "postedAt0min0sec" => "ジャスト0分0秒",
-        "selfQuote" => "セルフ引用",
-        "htl20npm" => "TLが速い",
-        "viewInstanceChart" => "インスタンスチャートを見る",
-        "outputHelloWorldOnScratchpad" => "Hello, World!",
-        "open3windows" => "3つのウィンドウ",
-        "driveFolderCircularReference" => "循環参照",
-        "reactWithoutRead" => "読まずにリアクション",
-        "clickedClickHere" => "ここをクリック",
-        "justPlainLucky" => "ただの幸運",
-        "setNameToSyuilo" => "しゅいろの名前",
-        "cookieClicked" => "クッキークリック",
-        "brainDiver" => "Brain Diver",
-        "smashTestNotificationButton" => "通知テスト連打",
-        "tutorialCompleted" => "チュートリアル完了",
-        "bubbleGameExplodingHead" => "バブルゲーム",
-        "bubbleGameDoubleExplodingHead" => "バブルゲーム(ダブル)",
-        _ => name,
+/// 実績の表示名 (TS と同じ辞書の `_achievementLabels`)。辞書に無い実績は id のまま
+fn achievement_label(name: &str) -> String {
+    let key = format!("_achievementLabels.{name}");
+    let text = crate::ui_lang::t(&key, json!({}));
+    if text == key {
+        name.to_string()
+    } else {
+        text
     }
+}
+
+/// OS 通知の固定の見出し
+fn label(key: &str) -> String {
+    crate::ui_lang::t(key, json!({}))
+}
+
+/// 表示言語が変わったら Android の通知チャネル名を付け直す (同じ id で作り直すと
+/// 名前だけ更新される)。ほかの OS では何もしない
+pub fn refresh_notification_channel(app: &tauri::AppHandle) {
+    #[cfg(target_os = "android")]
+    {
+        use tauri_plugin_notification::{Channel, Importance, NotificationExt};
+        let channel = Channel::builder(
+            NOTIFICATION_CHANNEL_ID,
+            crate::ui_lang::t("_native.notification.channelName", json!({})),
+        )
+        .importance(Importance::Default)
+        .build();
+        let _ = app.notification().create_channel(channel);
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = app;
 }
 
 impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
@@ -1049,6 +1021,7 @@ mod tests {
     /// 要約は単一の遷移先を持たないため context は落ちる。
     #[test]
     fn summarize_group_groups_and_dedups_actors() {
+        crate::ui_lang::set_for_tests("ja-JP");
         let items = vec![
             pending("アリス", Some("リアクション 👍")),
             pending("ボブ", Some("リプライ")),
@@ -1064,6 +1037,7 @@ mod tests {
     /// 通知元が GROUP_MAX_NAMES を超えたら「ほか」に畳む。空バッファは何も出さない。
     #[test]
     fn summarize_group_caps_names_and_skips_empty() {
+        crate::ui_lang::set_for_tests("ja-JP");
         let items = vec![
             pending("アリス", None),
             pending("ボブ", None),
@@ -1235,6 +1209,7 @@ mod tests {
 
     #[test]
     fn achievement_label_maps_known_and_falls_back() {
+        crate::ui_lang::set_for_tests("ja-JP");
         assert_eq!(achievement_label("notes1"), "はじめてのノート");
         assert_eq!(achievement_label("iLoveMisskey"), "I Love Misskey");
         // 未知の実績名はそのまま返す

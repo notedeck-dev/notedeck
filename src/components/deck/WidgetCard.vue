@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
+import { i18n } from '@/i18n'
+import { readOnlyHint } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { isWindowExposed } from '@/windows/exposure'
@@ -73,8 +74,11 @@ const updateTitle = computed(() => {
   if (!props.updatedAt) return ''
   const date = formatDate(props.updatedAt)
   return props.version
-    ? `ストア更新日: ${date} / v${props.version}`
-    : `ストア更新日: ${date}`
+    ? i18n.tsx._common.storeUpdatedWithVersion({
+        date,
+        version: props.version,
+      })
+    : i18n.tsx._common.storeUpdated({ date })
 })
 
 function handlePrimaryClick() {
@@ -111,17 +115,17 @@ function handlePrimaryClick() {
           :aria-disabled="cardDisabled || (isStore && (alreadyInstalled || installing))"
           @click.stop="handlePrimaryClick"
         >{{ name }}</button>
-        <span v-if="cardDisabled" :class="$style.incompatBadge">{{ capabilityBadge ?? '非対応' }}</span>
+        <span v-if="cardDisabled" :class="$style.incompatBadge">{{ capabilityBadge ?? i18n.ts._widgetCard.incompatible }}</span>
         <span
           v-else-if="isLibrary && readOnly"
           :class="$style.incompatBadge"
-          :title="READ_ONLY_HINT"
-        >ソース欠損</span>
+          :title="readOnlyHint()"
+        >{{ i18n.ts._common.sourceMissing }}</span>
         <span
           v-if="isStore && alreadyInstalled && hasUpdate"
           :class="$style.updateBadge"
           :title="updateTitle"
-        >更新あり</span>
+        >{{ i18n.ts._common.updateAvailable }}</span>
         <span :class="$style.spacer" />
         <span v-if="version" :class="$style.version">v{{ version }}</span>
       </div>
@@ -132,8 +136,8 @@ function handlePrimaryClick() {
         <span v-if="author" :class="$style.author">{{ author }}</span>
         <!-- library mode: ストア/ローカル バッジ -->
         <template v-if="isLibrary">
-          <span v-if="storeId" :class="$style.originBadge">ストア</span>
-          <span v-else :class="[$style.originBadge, $style.originBadgeLocal]">ローカル</span>
+          <span v-if="storeId" :class="$style.originBadge">{{ i18n.ts._common.store }}</span>
+          <span v-else :class="[$style.originBadge, $style.originBadgeLocal]">{{ i18n.ts._common.local }}</span>
           <span v-if="accountLabel" :class="$style.accountBadge" :title="accountLabel">
             {{ accountLabel }}
           </span>
@@ -145,7 +149,7 @@ function handlePrimaryClick() {
             <button
               class="_button"
               :class="$style.iconBtn"
-              title="MisStore で詳細を開く"
+              :title="i18n.ts._common.openInMisStore"
               @click.stop="emit('open-detail')"
             >
               <i class="ti ti-external-link" />
@@ -160,7 +164,7 @@ function handlePrimaryClick() {
             >
               <i v-if="installing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-refresh" />
-              更新
+              {{ i18n.ts._common.update }}
             </button>
             <button
               v-else-if="alreadyInstalled"
@@ -168,7 +172,7 @@ function handlePrimaryClick() {
               :class="$style.installedBadge"
               disabled
             >
-              インストール済み
+              {{ i18n.ts._common.installed }}
             </button>
             <button
               v-else
@@ -179,7 +183,7 @@ function handlePrimaryClick() {
             >
               <i v-if="installing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-download" />
-              インストール
+              {{ i18n.ts._common.install }}
             </button>
           </template>
           <!-- library mode -->
@@ -187,7 +191,7 @@ function handlePrimaryClick() {
             <button
               class="_button"
               :class="[$style.iconBtn, $style.iconBtnDanger]"
-              title="ライブラリから削除 (コードも消えます)"
+              :title="i18n.ts._widgetCard.deleteFromLibrary"
               @click.stop="emit('delete')"
             >
               <i class="ti ti-trash" />
@@ -196,7 +200,7 @@ function handlePrimaryClick() {
               v-if="isWindowExposed('widget-edit')"
               class="_button"
               :class="$style.iconBtn"
-              title="ウィジットを編集"
+              :title="i18n.ts._widgetCard.editWidget"
               @click.stop="emit('edit')"
             >
               <i class="ti ti-pencil" />
@@ -207,7 +211,7 @@ function handlePrimaryClick() {
               @click.stop="emit('place')"
             >
               <i class="ti ti-plus" />
-              配置
+              {{ i18n.ts._widgetCard.place }}
             </button>
           </template>
         </div>

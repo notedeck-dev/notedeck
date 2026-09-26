@@ -21,6 +21,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
+import { i18n } from '@/i18n'
 import type { NoteGroup } from '@/services/noteGroup'
 import { variantKeyOf } from '@/services/noteKey'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
@@ -338,7 +339,7 @@ watch(searchQuery, (val) => {
     return
   }
   if (regexMode.value && !isValidRegex(q)) {
-    regexError.value = '無効な正規表現です'
+    regexError.value = i18n.ts._deckSearchColumn.invalidRegex
     return
   }
   // Don't show preview if already showing confirmed results for this query
@@ -376,7 +377,7 @@ async function performSearch() {
   if (debounceTimer) clearTimeout(debounceTimer)
 
   if (regexMode.value && !isValidRegex(q)) {
-    regexError.value = '無効な正規表現です'
+    regexError.value = i18n.ts._deckSearchColumn.invalidRegex
     return
   }
 
@@ -698,7 +699,7 @@ onUnmounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    title="サーバー検索"
+    :title="i18n.ts._columns.search"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -718,14 +719,14 @@ onUnmounted(() => {
           v-model="searchQuery"
           :class="[$style.searchInput, { [$style.regexInput]: regexMode, [$style.regexInvalid]: regexMode && regexError }]"
           type="text"
-          :placeholder="regexMode ? '正規表現で検索...' : 'ノートを検索...'"
+          :placeholder="regexMode ? i18n.ts._deckSearchColumn.regexPlaceholder : i18n.ts._deckSearchColumn.placeholder"
           @keydown="onKeydown"
         />
         <div :class="$style.regexControls">
           <button
             :class="[$style.regexToggle, { [$style.regexToggleActive]: regexMode }]"
             class="_button"
-            title="正規表現モード"
+            :title="i18n.ts._deckSearchColumn.regexMode"
             @click="toggleRegexMode"
           >
             <span :class="$style.regexIconText">.*</span>
@@ -735,7 +736,7 @@ onUnmounted(() => {
             ref="regexGuideBtnRef"
             :class="[$style.regexGuideBtn, { [$style.regexGuideBtnActive]: showRegexGuide }]"
             class="_button"
-            title="正規表現ガイド"
+            :title="i18n.ts._deckSearchColumn.regexGuide"
             @click.stop="openRegexGuide"
           >
             <i class="ti ti-help" />
@@ -743,7 +744,7 @@ onUnmounted(() => {
           <button
             :class="[$style.filterToggle, { [$style.filterToggleActive]: showFilters || hasDateFilter() }]"
             class="_button"
-            title="日付フィルター"
+            :title="i18n.ts._deckSearchColumn.dateFilter"
             @click="toggleFilters"
           >
             <i class="ti ti-calendar" />
@@ -751,7 +752,7 @@ onUnmounted(() => {
           <button
             :class="[$style.sortToggle, { [$style.sortToggleActive]: ascending }]"
             class="_button"
-            :title="ascending ? '古い順' : '新しい順'"
+            :title="ascending ? i18n.ts._deckSearchColumn.oldestFirst : i18n.ts._deckSearchColumn.newestFirst"
             @click="toggleSort"
           >
             <i :class="ascending ? 'ti ti-sort-ascending' : 'ti ti-sort-descending'" />
@@ -772,20 +773,20 @@ onUnmounted(() => {
           v-model="sinceDate"
           type="date"
           :class="$style.dateInput"
-          title="開始日"
+          :title="i18n.ts._deckSearchColumn.startDate"
         />
         <i :class="$style.dateSeparator" class="ti ti-minus" />
         <input
           v-model="untilDate"
           type="date"
           :class="$style.dateInput"
-          title="終了日"
+          :title="i18n.ts._deckSearchColumn.endDate"
         />
         <button
           v-if="hasDateFilter()"
           :class="$style.dateClear"
           class="_button"
-          title="日付クリア"
+          :title="i18n.ts._deckSearchColumn.clearDate"
           @click="clearDateFilters"
         >
           <i class="ti ti-x" />
@@ -813,7 +814,7 @@ onUnmounted(() => {
       :account-id="column.accountId"
       :image-url="serverErrorImageUrl"
       is-error
-      cta-label="再試行"
+      :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
       @cta="performSearch"
     />
@@ -826,13 +827,13 @@ onUnmounted(() => {
 
       <ColumnEmptyState
         v-else-if="!searchQuery.trim() && notes.length === 0"
-        message="検索クエリを入力"
+        :message="i18n.ts._deckSearchColumn.enterQuery"
         :image-url="serverInfoImageUrl"
       />
 
       <ColumnEmptyState
         v-else-if="searchQuery.trim() && !isLoading && !isPreview && notes.length === 0"
-        message="結果が見つかりませんでした"
+        :message="i18n.ts._deckSearchColumn.noResults"
         :image-url="serverNotFoundImageUrl"
       />
 
@@ -865,7 +866,7 @@ onUnmounted(() => {
 
         <template #append>
           <div v-if="isPreview && notes.length > 0" :class="$style.searchPreviewHint">
-            Enterキーでサーバーを検索
+            {{ i18n.ts._deckSearchColumn.enterToSearch }}
           </div>
           <div v-else-if="isLoading && notes.length > 0" :class="$style.loadingMore">
             <CrossAccountProgress v-if="crossProgress" :progress="crossProgress" :size="20" />

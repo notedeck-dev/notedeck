@@ -7,6 +7,7 @@ import MkNote from '@/components/common/MkNote.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
+import { i18n } from '@/i18n'
 import { variantKeyOf } from '@/services/noteKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -35,9 +36,24 @@ const cacheKeyDeps = accountsCacheKeyDeps()
 // --- Tab ---
 type Tab = 'notes' | 'users' | 'roles'
 const ALL_TAB_DEFS: ColumnTabDef[] = [
-  { value: 'notes', label: 'ノート' },
-  { value: 'users', label: 'ユーザー' },
-  { value: 'roles', label: 'ロール' },
+  {
+    value: 'notes',
+    get label() {
+      return i18n.ts._common.notes
+    },
+  },
+  {
+    value: 'users',
+    get label() {
+      return i18n.ts._common.users
+    },
+  },
+  {
+    value: 'roles',
+    get label() {
+      return i18n.ts._deckExploreColumn.tabRoles
+    },
+  },
 ]
 const activeTab = ref<Tab>('notes')
 const columnContentRef = ref<HTMLElement | null>(null)
@@ -261,7 +277,7 @@ usePortal(postPortalRef)
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name || 'みつける'"
+    :title="column.name || i18n.ts._columns.explore"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="activeTab === 'notes' ? scrollToTop() : undefined"
@@ -272,7 +288,7 @@ usePortal(postPortalRef)
     </template>
 
     <template #header-meta>
-      <button v-if="selectedRole" class="_button" :class="$style.headerRefresh" title="戻る" @click.stop="closeRole">
+      <button v-if="selectedRole" class="_button" :class="$style.headerRefresh" :title="i18n.ts._common.back" @click.stop="closeRole">
         <i class="ti ti-arrow-left" />
       </button>
     </template>
@@ -293,7 +309,7 @@ usePortal(postPortalRef)
           :account-id="column.accountId"
           :image-url="serverErrorImageUrl"
           is-error
-          cta-label="再試行"
+          :cta-label="i18n.ts._common.retry"
           cta-icon="ti-refresh"
           @cta="refreshNotes"
         />
@@ -308,9 +324,9 @@ usePortal(postPortalRef)
               <i v-if="isRefreshing" class="ti ti-loader-2 nd-spin" />
               <i v-else class="ti ti-arrow-bar-to-down" :class="{ refresh: isPulledEnough }" />
               <div :class="$style.pullText">
-                <template v-if="isPulledEnough">離してリフレッシュ</template>
-                <template v-else-if="isRefreshing">リフレッシュ中…</template>
-                <template v-else>下に引いてリフレッシュ</template>
+                <template v-if="isPulledEnough">{{ i18n.ts._common.releaseToRefresh }}</template>
+                <template v-else-if="isRefreshing">{{ i18n.ts._common.refreshing }}</template>
+                <template v-else>{{ i18n.ts._common.pullToRefresh }}</template>
               </div>
             </div>
           </div>
@@ -319,7 +335,7 @@ usePortal(postPortalRef)
           </div>
           <ColumnEmptyState
             v-else-if="notes.length === 0"
-            message="ノートが見つかりません"
+            :message="i18n.ts._deckExploreColumn.noNotes"
             :image-url="serverInfoImageUrl"
           />
           <template v-else>
@@ -356,15 +372,15 @@ usePortal(postPortalRef)
           v-else-if="usersError"
           :error="usersError"
           :account-id="column.accountId"
-          subject="ユーザー情報"
+          :subject="i18n.ts._deckExploreColumn.userInfo"
           :has-token="!!account?.hasToken"
           :image-url="serverErrorImageUrl"
           :info-image-url="serverInfoImageUrl"
-          cta-label="再試行"
+          :cta-label="i18n.ts._common.retry"
           cta-icon="ti-refresh"
           @cta="fetchUsers"
         />
-        <ColumnEmptyState v-else-if="users.length === 0" message="ユーザーが見つかりません" :image-url="serverInfoImageUrl" />
+        <ColumnEmptyState v-else-if="users.length === 0" :message="i18n.ts._deckExploreColumn.noUsers" :image-url="serverInfoImageUrl" />
         <div v-else :class="$style.exploreList">
           <MkUserListItem
             v-for="user in users"
@@ -408,11 +424,11 @@ usePortal(postPortalRef)
             :account-id="column.accountId"
             :image-url="serverErrorImageUrl"
             is-error
-            cta-label="再試行"
+            :cta-label="i18n.ts._common.retry"
             cta-icon="ti-refresh"
             @cta="selectedRole && openRole(selectedRole)"
           />
-          <ColumnEmptyState v-else-if="roleUsers.length === 0" message="ユーザーがいません" :image-url="serverInfoImageUrl" />
+          <ColumnEmptyState v-else-if="roleUsers.length === 0" :message="i18n.ts._deckExploreColumn.noRoleUsers" :image-url="serverInfoImageUrl" />
           <div v-else :class="$style.exploreList">
             <MkUserListItem
               v-for="user in roleUsers"
@@ -434,11 +450,11 @@ usePortal(postPortalRef)
             :account-id="column.accountId"
             :image-url="serverErrorImageUrl"
             is-error
-            cta-label="再試行"
+            :cta-label="i18n.ts._common.retry"
             cta-icon="ti-refresh"
             @cta="fetchRoles"
           />
-          <ColumnEmptyState v-else-if="roles.length === 0" message="ロールが見つかりません" :image-url="serverInfoImageUrl" />
+          <ColumnEmptyState v-else-if="roles.length === 0" :message="i18n.ts._deckExploreColumn.noRoles" :image-url="serverInfoImageUrl" />
           <div v-else :class="$style.exploreList">
             <button
               v-for="role in roles"

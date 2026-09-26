@@ -1,4 +1,5 @@
 import type { NoteVisibility } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import type { useAccountsStore } from '@/stores/accounts'
 import type { useDeckStore } from '@/stores/deck'
 import { FAVORITES_CACHE_KEY } from '@/utils/columnCacheKey'
@@ -81,7 +82,7 @@ export function createCliHandlers(
   return {
     post: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount('投稿するアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickPost)
       if (!accountId) return
       const { flags, rest } = parseFlags(args, {
         cw: 'value',
@@ -117,7 +118,7 @@ export function createCliHandlers(
 
     search: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount('検索するアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickSearch)
       if (!accountId) return
       deps.deckStore.addColumn({
         type: 'search',
@@ -129,7 +130,9 @@ export function createCliHandlers(
     },
 
     timeline: async (args) => {
-      const accountId = await deps.pickAccount('タイムラインを開くアカウント')
+      const accountId = await deps.pickAccount(
+        i18n.ts._cliHandlers.pickTimeline,
+      )
       if (!accountId) return
       const type = (args.trim() || 'home') as string
       const existing = deps.deckStore.columns.find(
@@ -150,7 +153,9 @@ export function createCliHandlers(
     },
 
     notifications: async () => {
-      const accountId = await deps.pickAccount('通知を開くアカウント')
+      const accountId = await deps.pickAccount(
+        i18n.ts._cliHandlers.pickNotifications,
+      )
       if (!accountId) return
       const existing = deps.deckStore.columns.find(
         (c) => c.type === 'notifications' && c.accountId === accountId,
@@ -168,7 +173,9 @@ export function createCliHandlers(
     },
 
     mentions: async () => {
-      const accountId = await deps.pickAccount('メンションを開くアカウント')
+      const accountId = await deps.pickAccount(
+        i18n.ts._cliHandlers.pickMentions,
+      )
       if (!accountId) return
       const existing = deps.deckStore.columns.find(
         (c) => c.type === 'mentions' && c.accountId === accountId,
@@ -186,7 +193,9 @@ export function createCliHandlers(
     },
 
     favorites: async () => {
-      const accountId = await deps.pickAccount('お気に入りを開くアカウント')
+      const accountId = await deps.pickAccount(
+        i18n.ts._cliHandlers.pickFavorites,
+      )
       if (!accountId) return
       const existing = deps.deckStore.columns.find(
         (c) => c.type === 'favorites' && c.accountId === accountId,
@@ -205,34 +214,34 @@ export function createCliHandlers(
 
     note: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount('ノートを開くアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickNote)
       if (!accountId) return
       deps.navigateToNote(accountId, args.trim())
     },
 
     replies: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount('ノートを開くアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickNote)
       if (!accountId) return
       deps.navigateToNote(accountId, args.trim())
     },
 
     thread: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount('ノートを開くアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickNote)
       if (!accountId) return
       deps.navigateToNote(accountId, args.trim())
     },
 
     delete: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount('削除するアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickDelete)
       if (!accountId) return
       unwrap(await commands.apiDeleteNote(accountId, args.trim()))
     },
 
     update: async (args) => {
-      const accountId = await deps.pickAccount('編集するアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickEdit)
       if (!accountId) return
       // Format: update <id> [--cw <cw>] <text>
       const trimmed = args.trim()
@@ -260,7 +269,7 @@ export function createCliHandlers(
     },
 
     react: async (args) => {
-      const accountId = await deps.pickAccount('リアクションするアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickReact)
       if (!accountId) return
       // Format: react <note_id> <reaction>
       const parts = args.trim().split(/\s+/)
@@ -272,16 +281,14 @@ export function createCliHandlers(
 
     unreact: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount(
-        'リアクションを取り消すアカウント',
-      )
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickUnreact)
       if (!accountId) return
       unwrap(await commands.apiDeleteReaction(accountId, args.trim()))
     },
 
     renote: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount('リノートするアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickRenote)
       if (!accountId) return
       unwrap(
         await commands.apiCreateNote(
@@ -305,7 +312,7 @@ export function createCliHandlers(
 
     user: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount('ユーザーを開くアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickUser)
       if (!accountId) return
       deps.navigateToUser(accountId, args.trim())
     },
@@ -313,7 +320,7 @@ export function createCliHandlers(
     'user-notes': async (args) => {
       if (!args.trim()) return
       const accountId = await deps.pickAccount(
-        'ユーザーのノートを開くアカウント',
+        i18n.ts._cliHandlers.pickUserNotes,
       )
       if (!accountId) return
       deps.deckStore.addColumn({
@@ -327,27 +334,21 @@ export function createCliHandlers(
 
     follow: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount(
-        'このコマンドを実行するアカウント',
-      )
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickCommand)
       if (!accountId) return
       unwrap(await commands.apiFollowUser(accountId, args.trim()))
     },
 
     unfollow: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount(
-        'このコマンドを実行するアカウント',
-      )
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickCommand)
       if (!accountId) return
       unwrap(await commands.apiUnfollowUser(accountId, args.trim()))
     },
 
     favorite: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount(
-        'このコマンドを実行するアカウント',
-      )
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickCommand)
       if (!accountId) return
       unwrap(await commands.apiCreateFavorite(accountId, args.trim()))
       deps.deckStore.invalidateColumnByKey(FAVORITES_CACHE_KEY)
@@ -355,16 +356,14 @@ export function createCliHandlers(
 
     unfavorite: async (args) => {
       if (!args.trim()) return
-      const accountId = await deps.pickAccount(
-        'このコマンドを実行するアカウント',
-      )
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickCommand)
       if (!accountId) return
       unwrap(await commands.apiDeleteFavorite(accountId, args.trim()))
       deps.deckStore.invalidateColumnByKey(FAVORITES_CACHE_KEY)
     },
 
     emojis: async () => {
-      const accountId = await deps.pickAccount('絵文字を開くアカウント')
+      const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickEmojis)
       if (!accountId) return
       const existing = deps.deckStore.columns.find(
         (c) => c.type === 'emoji' && c.accountId === accountId,

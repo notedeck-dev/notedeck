@@ -13,10 +13,11 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use specta::Type;
 use tokio::task::JoinHandle;
 
-use notecli::error::{AuthErrorKind, NoteDeckError};
+use notecli::error::NoteDeckError;
 
 use crate::error::Result;
 
@@ -107,6 +108,9 @@ pub struct AiChatEvent {
     /// Present when `kind == "error"`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// `error` を表示言語で描き直す手がかり (#135)。定型のエラーにだけ付く
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_i18n: Option<Value>,
     /// Tool use call id (Anthropic `toolu_...`, OpenAI `call_...`).
     /// Present when `kind == "tool_use"`. Frontend echoes this back as
     /// `tool_result.tool_use_id` to close the round-trip.
@@ -157,21 +161,66 @@ const MAX_TRANSPARENT_RETRIES: u32 = 2;
 /// (4xx は再送しても同じ結果、429/5xx はユーザー側の再試行導線に委ねる)。
 struct AttemptError {
     message: String,
+    /// 表示言語で描き直す手がかり (#135)。定型のエラーにだけ付く
+    i18n: Option<Value>,
     retryable: bool,
 }
 
 impl AttemptError {
-    fn terminal(message: String) -> Self {
-        Self {
-            message,
-            retryable: false,
-        }
-    }
     fn retryable(message: String) -> Self {
         Self {
             message,
+            i18n: None,
             retryable: true,
         }
+    }
+    fn localized(t: crate::i18n::Text) -> Self {
+        Self {
+            message: t.text,
+            i18n: Some(t.i18n),
+            retryable: false,
+        }
+    }
+}
+
+/// 1 ラウンドの失敗。`message` は英語の正本文 (定型でないエラーはプロバイダー等の
+/// 文そのまま)、`i18n` はデバイスが表示言語で描き直す手がかり (#135)
+#[derive(Debug, Clone, PartialEq)]
+pub struct RoundError {
+    pub message: String,
+    pub i18n: Option<Value>,
+}
+
+impl RoundError {
+    /// 表示言語で組み直すときに param として渡す値 (手がかりがあればそれ、無ければ文)
+    pub fn as_param(&self) -> Value {
+        self.i18n
+            .clone()
+            .unwrap_or_else(|| Value::String(self.message.clone()))
+    }
+}
+
+impl From<String> for RoundError {
+    fn from(message: String) -> Self {
+        Self {
+            message,
+            i18n: None,
+        }
+    }
+}
+
+impl From<AttemptError> for RoundError {
+    fn from(e: AttemptError) -> Self {
+        Self {
+            message: e.message,
+            i18n: e.i18n,
+        }
+    }
+}
+
+impl std::fmt::Display for RoundError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.message)
     }
 }
 
@@ -274,11 +323,11 @@ pub fn validate_request(req: &AiChatRequest) -> Result<()> {
     let total_bytes: usize = req.messages.iter().map(|m| m.content.len()).sum::<usize>()
         + req.system.as_deref().map(str::len).unwrap_or(0);
     if total_bytes > MAX_REQUEST_BYTES {
-        return Err(NoteDeckError::InvalidInput(format!(
-            "リクエストが大きすぎます ({} KB / 上限 {} KB)。長文は分割するか、不要な履歴を削除してください。",
-            total_bytes / 1024,
-            MAX_REQUEST_BYTES / 1024
-        )));
+        return Err(crate::i18n::error(
+            "INVALID_INPUT",
+            "_native.ai.requestTooLarge",
+            json!({ "size": total_bytes / 1024, "max": MAX_REQUEST_BYTES / 1024 }),
+        ));
     }
     Ok(())
 }
@@ -309,10 +358,12 @@ pub fn resolve_connection(app_dir: &Path, connection_id: &str) -> Result<Resolve
         .connections
         .iter()
         .find(|c| c.id == connection_id)
-        .ok_or_else(|| NoteDeckError::InvalidInput("AI 接続が見つかりません".into()))?
+        .ok_or_else(|| {
+            crate::i18n::error("INVALID_INPUT", "_native.ai.connectionNotFound", json!({}))
+        })?
         .clone();
     let protocol = connection.protocol.ok_or_else(|| {
-        NoteDeckError::InvalidInput("選択された接続は AI プロバイダーではありません".into())
+        crate::i18n::error("INVALID_INPUT", "_native.ai.notAiProvider", json!({}))
     })?;
     let api_key = {
         use crate::vault::SecretBackend as _;
@@ -326,9 +377,11 @@ pub fn resolve_connection(app_dir: &Path, connection_id: &str) -> Result<Resolve
             .unwrap_or_default()
     };
     if api_key.is_empty() {
-        return Err(NoteDeckError::Auth(AuthErrorKind::CredentialMissing(
-            format!("接続「{}」の API キーが設定されていません", connection.name),
-        )));
+        return Err(crate::i18n::error(
+            "AUTH_CREDENTIAL_MISSING",
+            "_native.ai.apiKeyMissing",
+            json!({ "name": connection.name }),
+        ));
     }
     Ok(ResolvedConnection {
         protocol,
@@ -343,7 +396,7 @@ pub async fn run_round(
     req: &AiChatRequest,
     conn: &ResolvedConnection,
     sink: &dyn AiChatSink,
-) -> std::result::Result<(), String> {
+) -> std::result::Result<(), RoundError> {
     match conn.protocol {
         crate::vault::ConnectionProtocol::Anthropic => {
             run_anthropic(req, &conn.endpoint, &conn.api_key, sink).await
@@ -372,7 +425,7 @@ pub async fn start_stream(
     let handle = tokio::spawn(async move {
         match run_round(&req, &conn, sink.as_ref()).await {
             Ok(()) => emit_done(sink.as_ref(), &stream_id_for_task),
-            Err(message) => emit_error(sink.as_ref(), &stream_id_for_task, message),
+            Err(e) => emit_error(sink.as_ref(), &stream_id_for_task, e),
         }
         deregister_stream(&stream_id_for_task);
     });
@@ -403,6 +456,7 @@ fn emit_delta(sink: &dyn AiChatSink, stream_id: &str, text: String) {
         stream_id: stream_id.to_string(),
         kind: "delta".into(),
         text: Some(text),
+        error_i18n: None,
         error: None,
         tool_use_id: None,
         tool_use_name: None,
@@ -416,6 +470,7 @@ fn emit_usage(sink: &dyn AiChatSink, stream_id: &str, usage: crate::ai_budget::T
         stream_id: stream_id.to_string(),
         kind: "usage".into(),
         text: None,
+        error_i18n: None,
         error: None,
         tool_use_id: None,
         tool_use_name: None,
@@ -429,6 +484,7 @@ fn emit_done(sink: &dyn AiChatSink, stream_id: &str) {
         stream_id: stream_id.to_string(),
         kind: "done".into(),
         text: None,
+        error_i18n: None,
         error: None,
         tool_use_id: None,
         tool_use_name: None,
@@ -437,12 +493,13 @@ fn emit_done(sink: &dyn AiChatSink, stream_id: &str) {
     });
 }
 
-fn emit_error(sink: &dyn AiChatSink, stream_id: &str, message: String) {
+fn emit_error(sink: &dyn AiChatSink, stream_id: &str, e: RoundError) {
     sink.emit(AiChatEvent {
         stream_id: stream_id.to_string(),
         kind: "error".into(),
         text: None,
-        error: Some(message),
+        error: Some(e.message),
+        error_i18n: e.i18n,
         tool_use_id: None,
         tool_use_name: None,
         tool_use_input: None,
@@ -461,6 +518,7 @@ fn emit_tool_use(
         stream_id: stream_id.to_string(),
         kind: "tool_use".into(),
         text: None,
+        error_i18n: None,
         error: None,
         tool_use_id: Some(id),
         tool_use_name: Some(name),
@@ -569,7 +627,7 @@ async fn run_anthropic(
     endpoint: &str,
     api_key: &str,
     sink: &dyn AiChatSink,
-) -> std::result::Result<(), String> {
+) -> std::result::Result<(), RoundError> {
     let mut has_emitted = false;
     let mut attempt: u32 = 0;
     loop {
@@ -577,7 +635,7 @@ async fn run_anthropic(
             Ok(()) => return Ok(()),
             Err(e) => {
                 if has_emitted || !e.retryable || attempt >= MAX_TRANSPARENT_RETRIES {
-                    return Err(e.message);
+                    return Err(e.into());
                 }
                 attempt += 1;
                 tracing::warn!(
@@ -614,7 +672,7 @@ async fn run_anthropic_attempt(
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
         let text = resp.text().await.unwrap_or_default();
-        return Err(AttemptError::terminal(format_http_error(status, &text)));
+        return Err(AttemptError::localized(format_http_error(status, &text)));
     }
 
     let mut stream = resp.bytes_stream();
@@ -717,7 +775,7 @@ fn handle_anthropic_block(
             if let Some(msg) = value.pointer("/error/message").and_then(|v| v.as_str()) {
                 // SSE error イベントも UI に届く = このターンは透過リトライ不可
                 *has_emitted = true;
-                emit_error(sink, stream_id, format!("Anthropic: {msg}"));
+                emit_error(sink, stream_id, format!("Anthropic: {msg}").into());
             }
         }
         // usage: message_start に入力、message_delta に累積出力 (#1133 予算)
@@ -824,7 +882,7 @@ async fn run_openai_compat(
     endpoint: &str,
     api_key: &str,
     sink: &dyn AiChatSink,
-) -> std::result::Result<(), String> {
+) -> std::result::Result<(), RoundError> {
     let mut has_emitted = false;
     let mut attempt: u32 = 0;
     loop {
@@ -832,7 +890,7 @@ async fn run_openai_compat(
             Ok(()) => return Ok(()),
             Err(e) => {
                 if has_emitted || !e.retryable || attempt >= MAX_TRANSPARENT_RETRIES {
-                    return Err(e.message);
+                    return Err(e.into());
                 }
                 attempt += 1;
                 tracing::warn!(
@@ -871,7 +929,7 @@ async fn run_openai_compat_attempt(
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
         let text = resp.text().await.unwrap_or_default();
-        return Err(AttemptError::terminal(format_http_error(status, &text)));
+        return Err(AttemptError::localized(format_http_error(status, &text)));
     }
 
     let mut stream = resp.bytes_stream();
@@ -1033,25 +1091,30 @@ fn redact_secrets(s: &str) -> String {
     out
 }
 
-fn format_http_error(status: u16, body: &str) -> String {
+fn format_http_error(status: u16, body: &str) -> crate::i18n::Text {
     let snippet: String = redact_secrets(body).chars().take(300).collect();
     let detail = if snippet.trim().is_empty() {
         String::new()
     } else {
         format!(": {snippet}")
     };
-    match status {
-        // 401 はキーそのものが通っていない。403 はキーは通っていて権限・課金
-        // 状態が理由 (クレジット不足・キーの ACL・地域制限など) なので、対処が
-        // まったく別物になる。プロバイダーが返した理由もそのまま見せる。
-        401 => format!("APIキーが無効です (HTTP {status}){detail}"),
-        403 => format!(
-            "APIキーの権限または課金状態に問題があります (HTTP {status}){detail} — プロバイダーのコンソールで残高と API キーの権限を確認してください"
-        ),
-        429 => "レート制限に達しました。少し待ってから再試行してください".into(),
-        500..=599 => format!("サーバーエラー (HTTP {status}){detail}"),
-        _ => format!("HTTP {status}{detail}"),
-    }
+    let params = json!({ "status": status, "detail": detail });
+    // 401 はキーそのものが通っていない。403 はキーは通っていて権限・課金
+    // 状態が理由 (クレジット不足・キーの ACL・地域制限など) なので、対処が
+    // まったく別物になる。プロバイダーが返した理由もそのまま見せる。
+    let key = match status {
+        401 => "_native.ai.httpUnauthorized",
+        403 => "_native.ai.httpForbidden",
+        429 => "_native.ai.rateLimited",
+        500..=599 => "_native.ai.serverError",
+        _ => {
+            return crate::i18n::Text {
+                text: format!("HTTP {status}{detail}"),
+                i18n: Value::Null,
+            }
+        }
+    };
+    crate::i18n::text(key, params)
 }
 
 #[cfg(test)]
@@ -1240,8 +1303,10 @@ mod tests {
         // 対処が別物なので同じ文言に丸めない。
         let unauthorized = format_http_error(401, r#"{"error":"Incorrect API key"}"#);
         let forbidden = format_http_error(403, r#"{"error":"Your team has no credits"}"#);
-        assert!(unauthorized.contains("APIキーが無効"));
-        assert!(!forbidden.contains("APIキーが無効"));
+        assert!(unauthorized.text.contains("Invalid API key"));
+        assert!(!forbidden.text.contains("Invalid API key"));
+        assert_eq!(unauthorized.i18n["key"], "_native.ai.httpUnauthorized");
+        assert_eq!(forbidden.i18n["key"], "_native.ai.httpForbidden");
     }
 
     #[test]
@@ -1249,7 +1314,7 @@ mod tests {
         // プロバイダーが返した理由を捨てない (クレジット不足を「キーが無効」と
         // 誤読させない)。
         let msg = format_http_error(403, r#"{"error":"Your team has no credits"}"#);
-        assert!(msg.contains("Your team has no credits"));
+        assert!(msg.text.contains("Your team has no credits"));
     }
 
     #[test]
@@ -1258,14 +1323,23 @@ mod tests {
             401,
             r#"{"error":"bad key sk-ant-abcdefghijklmnopqrstuvwxyz0123"}"#,
         );
-        assert!(msg.contains("[REDACTED]"));
-        assert!(!msg.contains("sk-ant-"));
+        assert!(msg.text.contains("[REDACTED]"));
+        assert!(!msg.text.contains("sk-ant-"));
+        assert!(!msg.i18n.to_string().contains("sk-ant-"));
     }
 
     #[test]
     fn format_http_error_omits_empty_body() {
         // ボディが空のときに ": " だけがぶら下がらない。
-        assert_eq!(format_http_error(401, ""), "APIキーが無効です (HTTP 401)");
+        assert_eq!(
+            format_http_error(401, "").text,
+            "Invalid API key (HTTP 401)"
+        );
+        let hint = format_http_error(401, "").i18n;
+        assert_eq!(
+            crate::i18n::render("ja-JP", "_native.ai.httpUnauthorized", &hint["params"]),
+            "API キーが無効です (HTTP 401)"
+        );
     }
 
     fn request_with_tools(tools: Option<serde_json::Value>) -> AiChatRequest {

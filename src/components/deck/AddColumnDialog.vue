@@ -28,6 +28,7 @@ import {
   useSpotlightStore,
 } from '@/composables/useSpotlight'
 import { formatUserHandle, useUserSearch } from '@/composables/useUserSearch'
+import { i18n } from '@/i18n'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
@@ -132,7 +133,7 @@ function selectColumnType(type: ColumnType) {
   // ログイン誘導を返す (#693 と同原則、クイックピックと同挙動)
   if (accounts.length === 0 && !CROSS_ACCOUNT_TYPES.has(type)) {
     addColumnType.value = null
-    useToast().show('ログインすると利用できます', 'info')
+    useToast().show(i18n.ts._addColumnDialog.loginRequired, 'info')
     return
   }
   // Auto-select if only one valid account
@@ -359,7 +360,7 @@ function close() {
           <i class="ti ti-chevron-left" />
         </button>
         <span :class="$style.addPopupTitle">
-          {{ selectConfig ? `${selectConfig.label}を選択` : addColumnType ? 'アカウントを選択' : 'カラムを追加' }}
+          {{ selectConfig ? i18n.tsx._addColumnDialog.selectItem({ label: selectConfig.label }) : addColumnType ? i18n.ts._addColumnDialog.selectAccount : i18n.ts._commands.addColumn }}
         </span>
       </div>
 
@@ -398,7 +399,7 @@ function close() {
             v-model="searchQuery"
             :class="$style.selectSearchInput"
             type="text"
-            :placeholder="`${selectConfig.label}を検索...`"
+            :placeholder="i18n.tsx._common.searchItem({ label: selectConfig.label })"
           />
           <i v-if="selectLoading" class="ti ti-loader-2 nd-spin" :class="$style.selectSearchIcon" />
         </div>
@@ -410,16 +411,16 @@ function close() {
               v-model="createName"
               :class="$style.createInput"
               type="text"
-              :placeholder="`${selectConfig.label}名を入力...`"
+              :placeholder="i18n.tsx._addColumnDialog.itemNamePlaceholder({ label: selectConfig.label })"
               :disabled="createLoading"
             />
             <div :class="$style.createActions">
               <button type="button" class="_button" :class="$style.createCancelBtn" @click="showCreateForm = false; createName = ''">
-                キャンセル
+                {{ i18n.ts._common.cancel }}
               </button>
               <button type="submit" class="_button" :class="$style.createSubmitBtn" :disabled="!createName.trim() || createLoading">
                 <i v-if="createLoading" class="ti ti-loader-2 nd-spin" />
-                <template v-else>作成</template>
+                <template v-else>{{ i18n.ts._addColumnDialog.create }}</template>
               </button>
             </div>
           </form>
@@ -432,11 +433,11 @@ function close() {
           @click="showCreateForm = true"
         >
           <i class="ti ti-plus" />
-          <span>新しい{{ selectConfig.label }}を作成</span>
+          <span>{{ i18n.tsx._addColumnDialog.createNew({ label: selectConfig.label }) }}</span>
         </button>
 
         <div v-if="!selectConfig.spec.search && selectLoading" :class="$style.addPopupLoading"><LoadingSpinner /></div>
-        <div v-else-if="!selectLoading && selectItems.length === 0 && (!selectConfig.spec.search || searchQuery.trim())" :class="$style.addPopupEmpty">{{ selectConfig.label }}が見つかりません</div>
+        <div v-else-if="!selectLoading && selectItems.length === 0 && (!selectConfig.spec.search || searchQuery.trim())" :class="$style.addPopupEmpty">{{ i18n.tsx._addColumnDialog.notFound({ label: selectConfig.label }) }}</div>
         <button
           v-for="item in selectItems"
           :key="item.id"
@@ -456,7 +457,7 @@ function close() {
              開けることとの整合)。1 件のときだけ per-account 選択に譲って非表示 -->
         <AccountPickerRow
           v-if="addColumnType && CROSS_ACCOUNT_TYPES.has(addColumnType) && accountsStore.accounts.length !== 1"
-          label="全アカウント"
+          :label="i18n.ts._common.allAccounts"
           @click="addColumnForAccount(null)"
         >
           <!-- カラムヘッダーと同じ記号で示す (#1018)。誰が含まれるかは可変な
@@ -469,7 +470,7 @@ function close() {
              構造上できないのか未実装なのかを見て分かるようにする -->
         <AccountPickerRow
           v-else-if="addColumnType && crossAccountReason && accountsStore.accounts.length !== 1"
-          label="全アカウント"
+          :label="i18n.ts._common.allAccounts"
           :hint="CROSS_ACCOUNT_UNAVAILABLE_LABELS[crossAccountReason]"
           disabled
         >
@@ -479,7 +480,7 @@ function close() {
         </AccountPickerRow>
         <AccountPickerRow
           v-if="addColumnType && ACCOUNT_OPTIONAL_TYPES.has(addColumnType)"
-          label="アカウントなし"
+          :label="i18n.ts._addColumnDialog.noAccount"
           @click="addColumnForAccount(null)"
         >
           <template #avatar>
@@ -491,7 +492,7 @@ function close() {
           :key="account.id"
           :label="getAccountLabel(account)"
           :disabled="isGuestAccount(account) && requiresAuth"
-          :title="isGuestAccount(account) && requiresAuth ? 'ゲストアカウントではこのカラムを使えません' : ''"
+          :title="isGuestAccount(account) && requiresAuth ? i18n.ts._addColumnDialog.guestUnavailable : ''"
           @click="(!account.hasToken && requiresAuth) ? showLoginPrompt() : addColumnForAccount(account.id)"
         >
           <template #avatar>

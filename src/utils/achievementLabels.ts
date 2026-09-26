@@ -1,80 +1,239 @@
+import { i18n } from '@/i18n'
+
+/** 実績名の表。文言は参照した時点で辞書から引く (#135) */
 export const ACHIEVEMENT_LABELS: Record<string, string> = {
-  notes1: 'はじめてのノート',
-  notes10: '10ノート',
-  notes100: '100ノート',
-  notes500: '500ノート',
-  notes1000: '1,000ノート',
-  notes5000: '5,000ノート',
-  notes10000: '10,000ノート',
-  notes20000: '20,000ノート',
-  notes30000: '30,000ノート',
-  notes40000: '40,000ノート',
-  notes50000: '50,000ノート',
-  notes60000: '60,000ノート',
-  notes70000: '70,000ノート',
-  notes80000: '80,000ノート',
-  notes90000: '90,000ノート',
-  notes100000: '100,000ノート',
-  login3: 'ログイン3日',
-  login7: 'ログイン7日',
-  login15: 'ログイン15日',
-  login30: 'ログイン30日',
-  login60: 'ログイン60日',
-  login100: 'ログイン100日',
-  login200: 'ログイン200日',
-  login300: 'ログイン300日',
-  login400: 'ログイン400日',
-  login500: 'ログイン500日',
-  login600: 'ログイン600日',
-  login700: 'ログイン700日',
-  login800: 'ログイン800日',
-  login900: 'ログイン900日',
-  login1000: 'ログイン1,000日',
-  passedSinceAccountCreated1: 'アカウント作成から1年',
-  passedSinceAccountCreated2: 'アカウント作成から2年',
-  passedSinceAccountCreated3: 'アカウント作成から3年',
-  loggedInOnBirthday: '誕生日にログイン',
-  loggedInOnNewYearsDay: '元日にログイン',
-  noteClipped1: 'はじめてのクリップ',
-  noteFavorited1: 'はじめてのお気に入り',
-  myNoteFavorited1: 'お気に入りされた',
-  profileFilled: 'プロフィール設定',
-  markedAsCat: 'Cat',
-  following1: 'はじめてのフォロー',
-  following10: '10フォロー',
-  following50: '50フォロー',
-  following100: '100フォロー',
-  following300: '300フォロー',
-  followers1: 'はじめてのフォロワー',
-  followers10: '10フォロワー',
-  followers50: '50フォロワー',
-  followers100: '100フォロワー',
-  followers300: '300フォロワー',
-  followers500: '500フォロワー',
-  followers1000: '1,000フォロワー',
-  collectAchievements30: '実績コレクター',
-  viewAchievements3min: '実績を眺める',
-  iLoveMisskey: 'I Love Misskey',
-  foundTreasure: '隠された宝物',
-  client30min: '30分利用',
-  client60min: '60分利用',
-  noteDeletedWithin1min: '1分以内に削除',
-  postedAtLateNight: '深夜の投稿',
-  postedAt0min0sec: 'ジャスト0分0秒',
-  selfQuote: 'セルフ引用',
-  htl20npm: 'TLが速い',
-  viewInstanceChart: 'インスタンスチャートを見る',
-  outputHelloWorldOnScratchpad: 'Hello, World!',
-  open3windows: '3つのウィンドウ',
-  driveFolderCircularReference: '循環参照',
-  reactWithoutRead: '読まずにリアクション',
-  clickedClickHere: 'ここをクリック',
-  justPlainLucky: 'ただの幸運',
-  setNameToSyuilo: 'しゅいろの名前',
-  cookieClicked: 'クッキークリック',
-  brainDiver: 'Brain Diver',
-  smashTestNotificationButton: '通知テスト連打',
-  tutorialCompleted: 'チュートリアル完了',
-  bubbleGameExplodingHead: 'バブルゲーム',
-  bubbleGameDoubleExplodingHead: 'バブルゲーム(ダブル)',
+  get notes1() {
+    return i18n.ts._achievementLabels.notes1
+  },
+  get notes10() {
+    return i18n.ts._achievementLabels.notes10
+  },
+  get notes100() {
+    return i18n.ts._achievementLabels.notes100
+  },
+  get notes500() {
+    return i18n.ts._achievementLabels.notes500
+  },
+  get notes1000() {
+    return i18n.ts._achievementLabels.notes1000
+  },
+  get notes5000() {
+    return i18n.ts._achievementLabels.notes5000
+  },
+  get notes10000() {
+    return i18n.ts._achievementLabels.notes10000
+  },
+  get notes20000() {
+    return i18n.ts._achievementLabels.notes20000
+  },
+  get notes30000() {
+    return i18n.ts._achievementLabels.notes30000
+  },
+  get notes40000() {
+    return i18n.ts._achievementLabels.notes40000
+  },
+  get notes50000() {
+    return i18n.ts._achievementLabels.notes50000
+  },
+  get notes60000() {
+    return i18n.ts._achievementLabels.notes60000
+  },
+  get notes70000() {
+    return i18n.ts._achievementLabels.notes70000
+  },
+  get notes80000() {
+    return i18n.ts._achievementLabels.notes80000
+  },
+  get notes90000() {
+    return i18n.ts._achievementLabels.notes90000
+  },
+  get notes100000() {
+    return i18n.ts._achievementLabels.notes100000
+  },
+  get login3() {
+    return i18n.ts._achievementLabels.login3
+  },
+  get login7() {
+    return i18n.ts._achievementLabels.login7
+  },
+  get login15() {
+    return i18n.ts._achievementLabels.login15
+  },
+  get login30() {
+    return i18n.ts._achievementLabels.login30
+  },
+  get login60() {
+    return i18n.ts._achievementLabels.login60
+  },
+  get login100() {
+    return i18n.ts._achievementLabels.login100
+  },
+  get login200() {
+    return i18n.ts._achievementLabels.login200
+  },
+  get login300() {
+    return i18n.ts._achievementLabels.login300
+  },
+  get login400() {
+    return i18n.ts._achievementLabels.login400
+  },
+  get login500() {
+    return i18n.ts._achievementLabels.login500
+  },
+  get login600() {
+    return i18n.ts._achievementLabels.login600
+  },
+  get login700() {
+    return i18n.ts._achievementLabels.login700
+  },
+  get login800() {
+    return i18n.ts._achievementLabels.login800
+  },
+  get login900() {
+    return i18n.ts._achievementLabels.login900
+  },
+  get login1000() {
+    return i18n.ts._achievementLabels.login1000
+  },
+  get passedSinceAccountCreated1() {
+    return i18n.ts._achievementLabels.passedSinceAccountCreated1
+  },
+  get passedSinceAccountCreated2() {
+    return i18n.ts._achievementLabels.passedSinceAccountCreated2
+  },
+  get passedSinceAccountCreated3() {
+    return i18n.ts._achievementLabels.passedSinceAccountCreated3
+  },
+  get loggedInOnBirthday() {
+    return i18n.ts._achievementLabels.loggedInOnBirthday
+  },
+  get loggedInOnNewYearsDay() {
+    return i18n.ts._achievementLabels.loggedInOnNewYearsDay
+  },
+  get noteClipped1() {
+    return i18n.ts._achievementLabels.noteClipped1
+  },
+  get noteFavorited1() {
+    return i18n.ts._achievementLabels.noteFavorited1
+  },
+  get myNoteFavorited1() {
+    return i18n.ts._achievementLabels.myNoteFavorited1
+  },
+  get profileFilled() {
+    return i18n.ts._achievementLabels.profileFilled
+  },
+  get markedAsCat() {
+    return i18n.ts._achievementLabels.markedAsCat
+  },
+  get following1() {
+    return i18n.ts._achievementLabels.following1
+  },
+  get following10() {
+    return i18n.ts._achievementLabels.following10
+  },
+  get following50() {
+    return i18n.ts._achievementLabels.following50
+  },
+  get following100() {
+    return i18n.ts._achievementLabels.following100
+  },
+  get following300() {
+    return i18n.ts._achievementLabels.following300
+  },
+  get followers1() {
+    return i18n.ts._achievementLabels.followers1
+  },
+  get followers10() {
+    return i18n.ts._achievementLabels.followers10
+  },
+  get followers50() {
+    return i18n.ts._achievementLabels.followers50
+  },
+  get followers100() {
+    return i18n.ts._achievementLabels.followers100
+  },
+  get followers300() {
+    return i18n.ts._achievementLabels.followers300
+  },
+  get followers500() {
+    return i18n.ts._achievementLabels.followers500
+  },
+  get followers1000() {
+    return i18n.ts._achievementLabels.followers1000
+  },
+  get collectAchievements30() {
+    return i18n.ts._achievementLabels.collectAchievements30
+  },
+  get viewAchievements3min() {
+    return i18n.ts._achievementLabels.viewAchievements3min
+  },
+  get iLoveMisskey() {
+    return i18n.ts._achievementLabels.iLoveMisskey
+  },
+  get foundTreasure() {
+    return i18n.ts._achievementLabels.foundTreasure
+  },
+  get client30min() {
+    return i18n.ts._achievementLabels.client30min
+  },
+  get client60min() {
+    return i18n.ts._achievementLabels.client60min
+  },
+  get noteDeletedWithin1min() {
+    return i18n.ts._achievementLabels.noteDeletedWithin1min
+  },
+  get postedAtLateNight() {
+    return i18n.ts._achievementLabels.postedAtLateNight
+  },
+  get postedAt0min0sec() {
+    return i18n.ts._achievementLabels.postedAt0min0sec
+  },
+  get selfQuote() {
+    return i18n.ts._achievementLabels.selfQuote
+  },
+  get htl20npm() {
+    return i18n.ts._achievementLabels.htl20npm
+  },
+  get viewInstanceChart() {
+    return i18n.ts._achievementLabels.viewInstanceChart
+  },
+  get outputHelloWorldOnScratchpad() {
+    return i18n.ts._achievementLabels.outputHelloWorldOnScratchpad
+  },
+  get open3windows() {
+    return i18n.ts._achievementLabels.open3windows
+  },
+  get driveFolderCircularReference() {
+    return i18n.ts._achievementLabels.driveFolderCircularReference
+  },
+  get reactWithoutRead() {
+    return i18n.ts._achievementLabels.reactWithoutRead
+  },
+  get clickedClickHere() {
+    return i18n.ts._achievementLabels.clickedClickHere
+  },
+  get justPlainLucky() {
+    return i18n.ts._achievementLabels.justPlainLucky
+  },
+  get setNameToSyuilo() {
+    return i18n.ts._achievementLabels.setNameToSyuilo
+  },
+  get cookieClicked() {
+    return i18n.ts._achievementLabels.cookieClicked
+  },
+  get brainDiver() {
+    return i18n.ts._achievementLabels.brainDiver
+  },
+  get smashTestNotificationButton() {
+    return i18n.ts._achievementLabels.smashTestNotificationButton
+  },
+  get tutorialCompleted() {
+    return i18n.ts._achievementLabels.tutorialCompleted
+  },
+  get bubbleGameExplodingHead() {
+    return i18n.ts._achievementLabels.bubbleGameExplodingHead
+  },
+  get bubbleGameDoubleExplodingHead() {
+    return i18n.ts._achievementLabels.bubbleGameDoubleExplodingHead
+  },
 }

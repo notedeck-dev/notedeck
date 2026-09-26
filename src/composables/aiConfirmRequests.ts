@@ -1,5 +1,7 @@
 import { rememberConfirmation } from '@/capabilities/dispatcher'
 import type { AiConfirmItem } from '@/composables/useAiTurn'
+import { i18n } from '@/i18n'
+import { localizeNative } from '@/i18n/native'
 import { useAiActivity } from '@/stores/aiActivity'
 import { type ConfirmOptions, useConfirm } from '@/stores/confirm'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -35,9 +37,14 @@ const open = new Map<string, OpenRequest>()
 
 /** 束ねた項目を 1 枚のダイアログにする */
 export function bundleConfirmOptions(
-  items: AiConfirmItem[],
+  rawItems: AiConfirmItem[],
   onShow: () => void,
 ): ConfirmOptions {
+  // notecore が組んだプレビューは英語の正本文 + 辞書の手がかり。表示言語で描き直す
+  const items = rawItems.map((it) => ({
+    ...it,
+    preview: localizeNative(it.preview),
+  }))
   const allowRemember = items.some((it) => it.allowRemember)
   if (items.length === 1 && items[0]) {
     const single = { ...items[0].preview, onShow }
@@ -48,15 +55,17 @@ export function bundleConfirmOptions(
   const withCode = items.filter((it) => it.preview.code)
   const first = items[0]?.preview
   return {
-    title: `${items.length} 件の操作の許可を求めています`,
+    title: i18n.tsx._aiConfirmRequests.bundleTitle_plural({
+      count: items.length,
+    }),
     message: items
       .map((it, i) => {
         const head = `${i + 1}. ${it.preview.title}`
         return it.preview.message ? `${head}\n${it.preview.message}` : head
       })
       .join('\n\n'),
-    okLabel: 'すべて実行',
-    cancelLabel: 'やめる',
+    okLabel: i18n.ts._aiConfirmRequests.runAll,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'danger',
     trusted: true,
     ...(first?.attribution ? { attribution: first.attribution } : {}),
@@ -70,7 +79,9 @@ export function bundleConfirmOptions(
           codeLanguage: withCode[0].preview.codeLanguage,
         }
       : {}),
-    ...(allowRemember ? { rememberLabel: '今後これらの操作を確認しない' } : {}),
+    ...(allowRemember
+      ? { rememberLabel: i18n.ts._aiConfirmRequests.rememberAll }
+      : {}),
     onShow,
   }
 }

@@ -71,6 +71,15 @@ pub enum NoteDeckError {
     /// 起こり得ないはずの内部不整合（ロック汚染、保存直後の読み出し失敗等）。
     #[error("Internal error: {0}")]
     Internal(String),
+
+    /// 利用者に見せる文言を持つエラー (#135)。`message` は英語の正本文 (ログ・AI・
+    /// CLI が読む)、`i18n` はデバイスが表示言語で描き直すための `{ key, params }`
+    #[error("{message}")]
+    Localized {
+        code: &'static str,
+        message: String,
+        i18n: serde_json::Value,
+    },
 }
 
 impl NoteDeckError {
@@ -87,6 +96,15 @@ impl NoteDeckError {
             Self::InvalidInput(_) => "INVALID_INPUT",
             Self::Keychain(_) => "KEYCHAIN",
             Self::Internal(_) => "INTERNAL",
+            Self::Localized { code, .. } => code,
+        }
+    }
+
+    /// 表示言語で描き直す手がかり。`Localized` 以外では None
+    pub fn i18n(&self) -> Option<&serde_json::Value> {
+        match self {
+            Self::Localized { i18n, .. } => Some(i18n),
+            _ => None,
         }
     }
 
@@ -145,6 +163,7 @@ impl NoteDeckError {
             Self::NoConnection(id) => format!("No connection for account: {id}"),
             Self::ConnectionClosed => "Connection closed".to_string(),
             Self::InvalidInput(msg) => format!("Invalid input: {msg}"),
+            Self::Localized { message, .. } => message.clone(),
         }
     }
 }
@@ -158,6 +177,9 @@ struct NoteDeckErrorShape {
     code: String,
     message: String,
     api_code: Option<String>,
+    /// 表示言語で描き直す手がかり `{ key, params }` (#135)。`message` は英語の正本文
+    #[specta(rename = "i18n")]
+    i18n: Option<serde_json::Value>,
 }
 
 #[cfg(feature = "specta")]
@@ -176,10 +198,11 @@ impl serde::Serialize for NoteDeckError {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut s = serializer.serialize_struct("NoteDeckError", 3)?;
+        let mut s = serializer.serialize_struct("NoteDeckError", 4)?;
         s.serialize_field("code", self.code())?;
         s.serialize_field("message", &self.safe_message())?;
         s.serialize_field("apiCode", &self.api_code())?;
+        s.serialize_field("i18n", &self.i18n())?;
         s.end()
     }
 }

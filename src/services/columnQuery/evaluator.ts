@@ -71,10 +71,10 @@ class QirEvaluator {
         let cur: Json = this.note
         for (const key of node.path) {
           if (cur === null || cur === undefined) {
-            return FAIL(`null のプロパティ ${key} を参照しました`)
+            return FAIL(`read property ${key} of null`)
           }
           if (!isPlainObject(cur)) {
-            return FAIL(`プロパティ ${key} を参照できない値です`)
+            return FAIL(`cannot read property ${key} of this value`)
           }
           cur = cur[key] ?? null
         }
@@ -83,15 +83,14 @@ class QirEvaluator {
       case 'objIndex': {
         const target = this.evalNode(node.target, d)
         if (target === null || target === undefined) {
-          return FAIL('null への index 参照です')
+          return FAIL('index access on null')
         }
-        if (!isPlainObject(target))
-          return FAIL('index 対象が obj ではありません')
+        if (!isPlainObject(target)) return FAIL('index target is not an obj')
         return target[node.key] ?? null
       }
       case 'arrLen': {
         const target = this.evalNode(node.target, d)
-        if (!Array.isArray(target)) return FAIL('.len 対象が配列ではありません')
+        if (!Array.isArray(target)) return FAIL('.len target is not an array')
         return target.length
       }
       case 'let': {
@@ -105,40 +104,38 @@ class QirEvaluator {
         const v = this.slots.get(node.slot)
         // コンパイラが割当済みスロットのみ参照を出すため、未設定は QIR 破損
         if (v === undefined && !this.slots.has(node.slot)) {
-          return FAIL('未初期化スロット参照 (QIR 破損)')
+          return FAIL('uninitialized slot (corrupted QIR)')
         }
         return v ?? null
       }
       case 'not': {
         const v = this.evalNode(node.expr, d)
-        if (typeof v !== 'boolean') return FAIL('! の項が bool ではありません')
+        if (typeof v !== 'boolean') return FAIL('operand of ! is not a bool')
         return !v
       }
       case 'and': {
         const l = this.evalNode(node.left, d)
-        if (typeof l !== 'boolean')
-          return FAIL('&& の左辺が bool ではありません')
+        if (typeof l !== 'boolean') return FAIL('left side of && is not a bool')
         if (!l) return false
         const r = this.evalNode(node.right, d)
         if (typeof r !== 'boolean')
-          return FAIL('&& の右辺が bool ではありません')
+          return FAIL('right side of && is not a bool')
         return r
       }
       case 'or': {
         const l = this.evalNode(node.left, d)
-        if (typeof l !== 'boolean')
-          return FAIL('|| の左辺が bool ではありません')
+        if (typeof l !== 'boolean') return FAIL('left side of || is not a bool')
         if (l) return true
         const r = this.evalNode(node.right, d)
         if (typeof r !== 'boolean')
-          return FAIL('|| の右辺が bool ではありません')
+          return FAIL('right side of || is not a bool')
         return r
       }
       case 'cmp': {
         const l = this.evalNode(node.left, d)
         const r = this.evalNode(node.right, d)
         if (typeof l !== 'number' || typeof r !== 'number') {
-          return FAIL('比較は数値専用です')
+          return FAIL('comparison requires numbers')
         }
         switch (node.op) {
           case 'lt':
@@ -161,13 +158,13 @@ class QirEvaluator {
       case 'strTest': {
         const target = this.evalNode(node.target, d)
         if (target === null || target === undefined) {
-          return FAIL('null に文字列演算を適用しました')
+          return FAIL('string operation on null')
         }
         if (typeof target !== 'string')
-          return FAIL('文字列演算の対象が str ではありません')
+          return FAIL('string operation target is not a str')
         const needle = this.evalNode(node.needle, d)
         if (typeof needle !== 'string')
-          return FAIL('文字列演算の引数が str ではありません')
+          return FAIL('string operation argument is not a str')
         switch (node.op) {
           case 'incl':
             return target.includes(needle)
@@ -181,24 +178,23 @@ class QirEvaluator {
       case 'strMap': {
         const target = this.evalNode(node.target, d)
         if (target === null || target === undefined) {
-          return FAIL('null に文字列演算を適用しました')
+          return FAIL('string operation on null')
         }
         if (typeof target !== 'string')
-          return FAIL('文字列演算の対象が str ではありません')
+          return FAIL('string operation target is not a str')
         return node.op === 'lower' ? target.toLowerCase() : target.toUpperCase()
       }
       case 'arrIncl': {
         const target = this.evalNode(node.target, d)
         if (target === null || target === undefined) {
-          return FAIL('null に incl を適用しました')
+          return FAIL('incl on null')
         }
-        if (!Array.isArray(target))
-          return FAIL('incl の対象が配列ではありません')
+        if (!Array.isArray(target)) return FAIL('incl target is not an array')
         const needle = this.evalNode(node.needle, d)
         return target.some((el) => aiEq(el, needle))
       }
     }
-    return FAIL('未知の QIR ノードです')
+    return FAIL('unknown QIR node')
   }
 }
 

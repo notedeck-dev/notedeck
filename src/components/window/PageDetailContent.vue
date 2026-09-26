@@ -18,6 +18,7 @@ import { useAiScriptRunner } from '@/composables/useAiScriptRunner'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -109,10 +110,14 @@ function closePostForm() {
 }
 
 const pageCreatedDate = computed(() =>
-  page.value ? new Date(page.value.createdAt).toLocaleDateString() : '',
+  page.value
+    ? new Date(page.value.createdAt).toLocaleDateString(i18n.lang)
+    : '',
 )
 const pageUpdatedDate = computed(() =>
-  page.value ? new Date(page.value.updatedAt).toLocaleDateString() : '',
+  page.value
+    ? new Date(page.value.updatedAt).toLocaleDateString(i18n.lang)
+    : '',
 )
 
 const isOwnPage = computed(
@@ -139,7 +144,7 @@ function openEditWindow() {
 
 useWindowEditAction(() =>
   isOwnPage.value && page.value
-    ? { onClick: openEditWindow, title: '編集' }
+    ? { onClick: openEditWindow, title: i18n.ts._common.edit }
     : null,
 )
 
@@ -211,7 +216,7 @@ async function loadPage() {
           USER_ID: account.value?.userId ?? '',
           USER_NAME: account.value?.displayName ?? '',
           USER_USERNAME: account.value?.username ?? '',
-          LOCALE: navigator.language,
+          LOCALE: i18n.lang,
           SERVER_URL: serverUrl.value,
         },
         dialog: () => dialogRef.value,

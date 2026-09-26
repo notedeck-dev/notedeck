@@ -13,11 +13,13 @@ import {
   type OverallStreamHealth,
 } from '@/core/streamHealth'
 import type { QualityLevel } from '@/engine/telemetry/frameTelemetry'
+import { i18n } from '@/i18n'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
+import { formatBytes } from '@/utils/format'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -104,10 +106,14 @@ const streamChecks = computed<Check[]>(() => {
       status: h.state === 'disconnected' ? 'fail' : 'warn',
       message:
         h.state === 'disconnected'
-          ? `ストリーム切断 (${formatHealthDuration(h.since)})`
-          : `ストリーム再接続中 (${formatHealthDuration(h.since)})`,
+          ? i18n.tsx._aboutContent.streamDisconnected({
+              duration: formatHealthDuration(h.since),
+            })
+          : i18n.tsx._aboutContent.streamReconnecting({
+              duration: formatHealthDuration(h.since),
+            }),
       account: getAccountLabel(acc),
-      fix: 'ネットワークとサーバーの状態を確認',
+      fix: i18n.ts._aboutContent.streamFix,
     })
   }
   return checks
@@ -123,13 +129,16 @@ const crashChecks = computed<Check[]>(() => {
   if (!panic) return []
   // 1 行目に "panicked at <file>:<line>: <msg>" が入る。詳細は診断ログ側で見る
   const headline = panic.message.split('\n')[0]?.trim() ?? 'panic'
-  const when = panic.at > 0 ? new Date(panic.at).toLocaleString() : '時刻不明'
+  const when =
+    panic.at > 0
+      ? new Date(panic.at).toLocaleString(i18n.lang)
+      : i18n.ts._aboutContent.unknownTime
   return [
     {
       name: 'crash',
       status: 'warn',
-      message: `${when} に異常終了しました: ${headline}`,
-      fix: '下の診断ログをコピーして報告',
+      message: i18n.tsx._aboutContent.crashed({ when, headline }),
+      fix: i18n.ts._aboutContent.crashFix,
     },
   ]
 })
@@ -148,14 +157,14 @@ const overallStatus = computed<Status>(() => {
 })
 
 const healthSummary = computed(() => {
-  if (healthLoading.value) return '診断中...'
-  if (healthError.value) return '診断に失敗しました'
+  if (healthLoading.value) return i18n.ts._aboutContent.diagnosing
+  if (healthError.value) return i18n.ts._aboutContent.diagnosisFailed
   if (!health.value) return ''
   const fails = problemChecks.value.filter((c) => c.status === 'fail').length
   const warns = problemChecks.value.filter((c) => c.status === 'warn').length
-  if (fails > 0) return `${fails} 件の問題`
-  if (warns > 0) return `${warns} 件の警告`
-  return '正常'
+  if (fails > 0) return i18n.tsx._aboutContent.problems_plural({ count: fails })
+  if (warns > 0) return i18n.tsx._aboutContent.warnings_plural({ count: warns })
+  return i18n.ts._aboutContent.statusOk
 })
 
 async function runHealthcheck() {
@@ -234,16 +243,36 @@ const gitCommit = __GIT_COMMIT__
 // 例: main-eval の mark は評価開始点なので、区間の実体は「そこに到達する
 // までのモジュール読み込み + 依存の評価」(dev では vite の変換時間が乗る)
 const STARTUP_LABELS: Record<string, string> = {
-  'main-eval': 'スクリプト読み込み',
-  'settings-await': '初期化処理',
-  'settings-loaded': '設定読み込み',
-  mounted: 'Vue マウント',
-  'window-shown': 'ウィンドウ表示',
-  'deck-mounted': 'デッキ表示',
-  'column-setup': 'カラム setup',
-  'column-connect': 'カラム接続開始',
-  'cache-loaded': 'DB キャッシュ到着',
-  'first-notes': '初回ノート表示',
+  get 'main-eval'() {
+    return i18n.ts._aboutContent.startupMainEval
+  },
+  get 'settings-await'() {
+    return i18n.ts._aboutContent.startupSettingsAwait
+  },
+  get 'settings-loaded'() {
+    return i18n.ts._aboutContent.startupSettingsLoaded
+  },
+  get mounted() {
+    return i18n.ts._aboutContent.startupMounted
+  },
+  get 'window-shown'() {
+    return i18n.ts._aboutContent.startupWindowShown
+  },
+  get 'deck-mounted'() {
+    return i18n.ts._aboutContent.startupDeckMounted
+  },
+  get 'column-setup'() {
+    return i18n.ts._aboutContent.startupColumnSetup
+  },
+  get 'column-connect'() {
+    return i18n.ts._aboutContent.startupColumnConnect
+  },
+  get 'cache-loaded'() {
+    return i18n.ts._aboutContent.startupCacheLoaded
+  },
+  get 'first-notes'() {
+    return i18n.ts._aboutContent.startupFirstNotes
+  },
 }
 
 interface StartupRow {
@@ -274,7 +303,7 @@ const startupRows = computed<StartupRow[]>(() => {
   })
   const rows: StartupRow[] = [
     {
-      label: 'WebView 起動',
+      label: i18n.ts._aboutContent.startupWebview,
       delta: webviewFixedCost,
       cum: webviewFixedCost,
       ...(webviewFixedCost !== null
@@ -357,18 +386,36 @@ watch(developerMode, (on) => {
 })
 
 const QUALITY_LABELS: Record<QualityLevel, string> = {
-  low: '低',
-  balanced: 'バランス',
-  high: '高',
+  get low() {
+    return i18n.ts._aboutContent.qualityLow
+  },
+  get balanced() {
+    return i18n.ts._aboutContent.qualityBalanced
+  },
+  get high() {
+    return i18n.ts._aboutContent.qualityHigh
+  },
 }
 
 const STREAM_HEALTH_LABELS: Record<OverallStreamHealth, string> = {
-  unknown: '接続なし',
-  initializing: '接続中',
-  healthy: '正常',
-  degraded: '一部切断',
-  offline: '切断',
-  'manual-offline': 'オフラインモード',
+  get unknown() {
+    return i18n.ts._aboutContent.streamUnknown
+  },
+  get initializing() {
+    return i18n.ts._aboutContent.streamInitializing
+  },
+  get healthy() {
+    return i18n.ts._aboutContent.streamHealthy
+  },
+  get degraded() {
+    return i18n.ts._aboutContent.streamDegraded
+  },
+  get offline() {
+    return i18n.ts._aboutContent.streamOffline
+  },
+  get 'manual-offline'() {
+    return i18n.ts._aboutContent.streamManualOffline
+  },
 }
 
 interface MetricsRow {
@@ -399,18 +446,24 @@ const metricsRows = computed<MetricsRow[]>(() => {
     ? [
         { label: 'FPS', value: String(f.fps ?? '—') },
         {
-          label: 'フレーム時間',
-          value: `${ms(f.frameTimeEmaMs)} (予算 ${ms(f.frameBudgetMs)})`,
+          label: i18n.ts._aboutContent.frameTime,
+          value: i18n.tsx._aboutContent.frameTimeValue({
+            time: ms(f.frameTimeEmaMs),
+            budget: ms(f.frameBudgetMs),
+          }),
           status: timeStatus(f.frameTimeEmaMs),
         },
         {
-          label: 'p95 フレーム時間',
-          value: `${ms(f.p95FrameTimeMs)} (${f.sampleCount} サンプル)`,
+          label: i18n.ts._aboutContent.p95FrameTime,
+          value: i18n.tsx._aboutContent.p95FrameTimeValue_plural({
+            time: ms(f.p95FrameTimeMs),
+            count: f.sampleCount,
+          }),
           status: timeStatus(f.p95FrameTimeMs),
         },
         {
-          label: 'フレーム落ち',
-          value: `${jank} 回/秒`,
+          label: i18n.ts._aboutContent.frameDrops,
+          value: i18n.tsx._aboutContent.frameDropsValue({ count: jank }),
           // 閾値は snapshot が返す実効値 (performance.json5 で変更可能) を
           // 使い、自動調整の判定と診断がずれないようにする
           status:
@@ -421,29 +474,44 @@ const metricsRows = computed<MetricsRow[]>(() => {
                 : 'fail',
         },
       ]
-    : [{ label: 'フレーム計測', value: 'アイドル (描画作業なし)' }]
-  const mb = (bytes: number) => `${(bytes / 1024 / 1024).toFixed(1)}MB`
+    : [
+        {
+          label: i18n.ts._aboutContent.frameMeasurement,
+          value: i18n.ts._aboutContent.frameIdle,
+        },
+      ]
   const memoryRows: MetricsRow[] = []
   // JS ヒープは Chromium 系 WebView のみ。取れない環境では行ごと出さない
   if (m.memory.jsHeap) {
     memoryRows.push({
-      label: 'JS ヒープ',
-      value: `${mb(m.memory.jsHeap.usedBytes)} / ${mb(m.memory.jsHeap.totalBytes)}`,
+      label: i18n.ts._aboutContent.jsHeap,
+      value: `${formatBytes(m.memory.jsHeap.usedBytes)} / ${formatBytes(m.memory.jsHeap.totalBytes)}`,
     })
   }
   memoryRows.push({
-    label: '画像メモリ (推定)',
-    value: `${mb(m.memory.images.estimatedDecodedBytes)} (${m.memory.images.uniqueCount} URL / ${m.memory.images.elementCount} 要素)`,
+    label: i18n.ts._aboutContent.imageMemory,
+    value: i18n.tsx._aboutContent.imageMemoryValue({
+      size: formatBytes(m.memory.images.estimatedDecodedBytes),
+      urls: m.memory.images.uniqueCount,
+      elements: m.memory.images.elementCount,
+    }),
   })
   return [
     ...frameRows,
     {
-      label: '描画品質',
-      value: `${QUALITY_LABELS[m.adaptiveQuality.currentLevel]} (自動調整${m.adaptiveQuality.autoAdjustEnabled ? 'あり' : 'なし'})`,
+      label: i18n.ts._aboutContent.renderQuality,
+      value: (m.adaptiveQuality.autoAdjustEnabled
+        ? i18n.tsx._aboutContent.renderQualityAuto
+        : i18n.tsx._aboutContent.renderQualityManual)({
+        level: QUALITY_LABELS[m.adaptiveQuality.currentLevel],
+      }),
     },
     {
-      label: 'ストリーム接続',
-      value: `${STREAM_HEALTH_LABELS[m.streaming.overallHealth]} (${m.streaming.observedConnectionCount} 接続)`,
+      label: i18n.ts._aboutContent.streamConnection,
+      value: i18n.tsx._aboutContent.streamConnectionValue_plural({
+        health: STREAM_HEALTH_LABELS[m.streaming.overallHealth],
+        count: m.streaming.observedConnectionCount,
+      }),
     },
     ...memoryRows,
   ]
@@ -458,7 +526,7 @@ const metricsAdvice = computed<{ status: Status; text: string } | null>(() => {
   if (!m.frame.available) {
     return {
       status: 'ok',
-      text: 'アイドル中です。デッキを操作すると計測が始まります',
+      text: i18n.ts._aboutContent.adviceIdle,
     }
   }
   const statuses = metricsRows.value.map((r) => r.status)
@@ -467,36 +535,40 @@ const metricsAdvice = computed<{ status: Status; text: string } | null>(() => {
     return {
       status: 'fail',
       text: auto
-        ? '描画が追いついていません。自動調整が品質を下げて追従します。改善しない場合はパフォーマンス設定を省電力寄りにしてください'
-        : '描画が追いついていません。パフォーマンス設定で品質を下げるとカクつきが減ります',
+        ? i18n.ts._aboutContent.adviceFailAuto
+        : i18n.ts._aboutContent.adviceFail,
     }
   }
   if (statuses.includes('warn')) {
     return {
       status: 'warn',
-      text: '描画にやや負荷がかかっています。カクつきを感じる場合はパフォーマンス設定で品質を下げてください',
+      text: i18n.ts._aboutContent.adviceWarn,
     }
   }
   if (m.adaptiveQuality.currentLevel !== 'high') {
     return {
       status: 'ok',
       text: auto
-        ? '描画に余裕があります。安定が続けば自動調整が品質を上げます'
-        : '描画に余裕があります。パフォーマンス設定で品質を上げても快適に動く見込みです',
+        ? i18n.ts._aboutContent.adviceRoomAuto
+        : i18n.ts._aboutContent.adviceRoom,
     }
   }
-  return { status: 'ok', text: '描画は良好です' }
+  return { status: 'ok', text: i18n.ts._aboutContent.adviceGood }
 })
 
-const fmtMs = (ms: number) => `${ms.toLocaleString()}ms`
+const fmtMs = (ms: number) => `${ms.toLocaleString(i18n.lang)}ms`
 
 function getStartupText(): string {
   const lines = startupRows.value.map(
     (r) =>
-      `${r.label}: ${r.cum !== null ? fmtMs(r.cum) : 'N/A (リロード後)'}${r.delta !== null ? ` (+${fmtMs(r.delta)})` : ''}`,
+      `${r.label}: ${r.cum !== null ? fmtMs(r.cum) : i18n.ts._aboutContent.notAvailableAfterReload}${r.delta !== null ? ` (+${fmtMs(r.delta)})` : ''}`,
   )
   if (startupTotalMs.value !== null)
-    lines.push(`合計: ${fmtMs(startupTotalMs.value)}`)
+    lines.push(
+      i18n.tsx._aboutContent.startupTotal({
+        time: fmtMs(startupTotalMs.value),
+      }),
+    )
   return lines.join('\n')
 }
 
@@ -546,8 +618,12 @@ function getInfoText() {
   const info = infoRows.map((r) => `${r.label}: ${r.get()}`).join('\n')
   const diag = diagnosticsLog.value
   const parts = [info]
-  if (startupRows.value.length > 0) parts.push(`# 起動\n${getStartupText()}`)
-  if (diag) parts.push(`# 診断\n\`\`\`\n${diag}\n\`\`\``)
+  if (startupRows.value.length > 0)
+    parts.push(`# ${i18n.ts._aboutContent.infoStartup}\n${getStartupText()}`)
+  if (diag)
+    parts.push(
+      `# ${i18n.ts._aboutContent.infoDiagnostics}\n\`\`\`\n${diag}\n\`\`\``,
+    )
   return parts.join('\n\n')
 }
 
@@ -562,12 +638,14 @@ async function copyInfo() {
 function reportBug() {
   const env = infoRows.map((r) => `- **${r.label}**: ${r.get()}`).join('\n')
   const diag = reportDiagnostics.value
-  const diagSection = diag ? `\n\n## 診断\n\n\`\`\`\n${diag}\n\`\`\`` : ''
+  const diagSection = diag
+    ? `\n\n## ${i18n.ts._aboutContent.infoDiagnostics}\n\n\`\`\`\n${diag}\n\`\`\``
+    : ''
   // backtrace は URL に載せない。貼るかどうかは本人に委ねる
   const panicNote = health.value?.lastPanic
-    ? '\n\n<!-- 異常終了の backtrace は「情報をコピー」で取得して貼り付けてください -->'
+    ? `\n\n<!-- ${i18n.tsx._aboutContent.issuePanicNote({ copyInfo: i18n.ts._aboutContent.copyInfo })} -->`
     : ''
-  const body = `## 現象\n\n<!-- 何が起きたか -->\n\n## 再現手順\n\n1.\n2.\n3.\n\n## 期待する動作\n\n<!-- 本来どうなるべきか -->\n\n## 環境\n\n${env}${diagSection}${panicNote}\n\n## スクリーンショット\n\n<!-- あれば添付 -->`
+  const body = `## ${i18n.ts._aboutContent.issueWhat}\n\n<!-- ${i18n.ts._aboutContent.issueWhatHint} -->\n\n## ${i18n.ts._aboutContent.issueSteps}\n\n1.\n2.\n3.\n\n## ${i18n.ts._aboutContent.issueExpected}\n\n<!-- ${i18n.ts._aboutContent.issueExpectedHint} -->\n\n## ${i18n.ts._aboutContent.issueEnvironment}\n\n${env}${diagSection}${panicNote}\n\n## ${i18n.ts._aboutContent.issueScreenshot}\n\n<!-- ${i18n.ts._aboutContent.issueScreenshotHint} -->`
   const url = `${REPO_URL}/issues/new?labels=bug&body=${encodeURIComponent(body)}`
   openSafeUrl(url)
 }
@@ -589,7 +667,7 @@ function reportBug() {
         type="button"
         class="_button"
         :class="$style.aboutTitle"
-        title="公式サイトを開く"
+        :title="i18n.ts._aboutContent.openOfficialSite"
         @click="openSafeUrl(SITE_URL)"
       >
         NoteDeck
@@ -602,7 +680,7 @@ function reportBug() {
         type="button"
         class="_button"
         :class="[$style.aboutVersion, isUpToDate && $style.versionOk]"
-        title="アップデートを確認"
+        :title="i18n.ts._aboutContent.checkForUpdate"
         :disabled="isChecking"
         @click="checkForUpdate(true)"
       >
@@ -613,7 +691,7 @@ function reportBug() {
             $style.versionIcon,
           ]"
         />
-        <span v-if="isUpToDate">最新</span>
+        <span v-if="isUpToDate">{{ i18n.ts._aboutContent.upToDate }}</span>
       </button>
       <div v-else :class="$style.aboutVersion">v{{ appVersion }}</div>
     </div>
@@ -622,13 +700,13 @@ function reportBug() {
          「バッジで気づく → 明示的な行で実行」モデル)。hero にアクションを
          置かないことでチュートリアルとの誤タップも防ぐ -->
     <div v-if="showUpdateSection" :class="$style.formSection">
-      <div :class="$style.formSectionLabel">アップデート</div>
+      <div :class="$style.formSectionLabel">{{ i18n.ts._aboutContent.update }}</div>
       <div :class="$style.sectionBody">
         <div :class="$style.updateRow">
           <i :class="[updateIcon, $style.updateIcon]" />
           <span :class="$style.updateText">
-            <template v-if="updateReady">更新の準備ができました</template>
-            <template v-else-if="isInstalling">v{{ updateVersion }} をダウンロード中</template>
+            <template v-if="updateReady">{{ i18n.ts._aboutContent.updateReady }}</template>
+            <template v-else-if="isInstalling">{{ i18n.tsx._aboutContent.downloading({ version: updateVersion }) }}</template>
             <template v-else>{{ appVersion }} → {{ updateVersion }}</template>
           </span>
           <span v-if="isInstalling && downloadProgress !== null" :class="$style.updatePercent">
@@ -641,7 +719,7 @@ function reportBug() {
             :class="$style.updateAction"
             @click="updateReady ? restartToUpdate() : installUpdate()"
           >
-            {{ updateReady ? '再起動' : '更新' }}
+            {{ updateReady ? i18n.ts._aboutContent.restart : i18n.ts._common.update }}
           </button>
         </div>
         <div v-if="isInstalling" :class="$style.progressTrack">
@@ -659,7 +737,7 @@ function reportBug() {
     <div :class="$style.formSection">
       <div :class="$style.sectionBody">
         <AiSwitchRow
-          label="開発者モード"
+          :label="i18n.ts._aboutContent.developerMode"
           icon="ti-code"
           :on="developerMode"
           @toggle="toggleDeveloperMode"
@@ -670,7 +748,7 @@ function reportBug() {
     <!-- 本家 about-misskey の projectMembers 踏襲 (行の型は formLink に統一)。
          飛び先を Sponsors にすることで寄付導線を兼ねる -->
     <div :class="$style.formSection">
-      <div :class="$style.formSectionLabel">開発者</div>
+      <div :class="$style.formSectionLabel">{{ i18n.ts._aboutContent.developer }}</div>
       <div :class="$style.sectionBody">
         <button type="button" class="_button" :class="$style.formLink" @click="openSafeUrl(SPONSOR_URL)">
           <img src="https://github.com/hitalin.png?size=48" :class="$style.devAvatar" alt="" />
@@ -689,14 +767,14 @@ function reportBug() {
           :class="[$style.formSectionLabel, $style.infoToggle, infoOpen && $style.infoOpen]"
           @click="infoOpen = !infoOpen"
         >
-          バージョン情報
+          {{ i18n.ts._aboutContent.versionInfo }}
           <i class="ti ti-chevron-down" :class="$style.infoChevron" />
         </button>
         <!-- コピーされる本体はこのセクションの infoRows なのでここに置く -->
         <button
           class="_button"
           :class="[$style.infoCopy, copied && $style.infoCopied]"
-          :title="copied ? 'コピーしました' : '情報をコピー'"
+          :title="copied ? i18n.ts._common.copiedToClipboard : i18n.ts._aboutContent.copyInfo"
           @click="copyInfo"
         >
           <i :class="copied ? 'ti ti-check' : 'ti ti-copy'" />
@@ -712,7 +790,7 @@ function reportBug() {
       <div :class="$style.sectionBody">
         <button type="button" class="_button" :class="$style.formLink" @click="reportBug">
           <i class="ti ti-bug" :class="$style.formLinkIcon" />
-          <span>バグを報告</span>
+          <span>{{ i18n.ts._aboutContent.reportBug }}</span>
           <span :class="$style.formLinkSuffix">GitHub Issues <i class="ti ti-external-link" /></span>
         </button>
       </div>
@@ -729,7 +807,7 @@ function reportBug() {
           :class="[$style.formSectionLabel, $style.infoToggle, diagOpen && $style.infoOpen]"
           @click="diagOpen = !diagOpen"
         >
-          自己診断
+          {{ i18n.ts._aboutContent.selfDiagnosis }}
           <i class="ti ti-chevron-down" :class="$style.infoChevron" />
         </button>
         <span :class="$style.headBadge">
@@ -746,8 +824,8 @@ function reportBug() {
       </div>
       <div v-if="diagOpen" :class="$style.diag">
         <div :class="$style.diagHead">
-          <span :class="$style.diagSummary">{{ problemChecks.length === 0 && !healthError ? '問題は見つかりませんでした' : healthSummary }}</span>
-          <button class="_button" :class="$style.diagRefresh" :disabled="healthLoading" title="再診断" @click="runHealthcheck">
+          <span :class="$style.diagSummary">{{ problemChecks.length === 0 && !healthError ? i18n.ts._aboutContent.noProblems : healthSummary }}</span>
+          <button class="_button" :class="$style.diagRefresh" :disabled="healthLoading" :title="i18n.ts._aboutContent.rediagnose" @click="runHealthcheck">
             <i class="ti ti-refresh" />
           </button>
         </div>
@@ -774,17 +852,17 @@ function reportBug() {
           :class="[$style.formSectionLabel, $style.infoToggle, startupOpen && $style.infoOpen]"
           @click="startupOpen = !startupOpen"
         >
-          起動パフォーマンス
+          {{ i18n.ts._aboutContent.startupPerformance }}
           <i class="ti ti-chevron-down" :class="$style.infoChevron" />
         </button>
         <span v-if="startupTotalMs !== null" :class="[$style.headBadge, $style.startupTotal]">{{ fmtMs(startupTotalMs) }}</span>
       </div>
       <div v-if="startupOpen" :class="$style.startupTable">
         <div :class="[$style.startupRow, $style.startupHeader]" aria-hidden="true">
-          <span :class="$style.startupLabel">フェーズ</span>
+          <span :class="$style.startupLabel">{{ i18n.ts._aboutContent.phase }}</span>
           <span :class="$style.startupTrack" />
-          <span :class="$style.startupDelta">区間</span>
-          <span :class="$style.startupAt">累計</span>
+          <span :class="$style.startupDelta">{{ i18n.ts._aboutContent.segment }}</span>
+          <span :class="$style.startupAt">{{ i18n.ts._aboutContent.cumulative }}</span>
         </div>
         <div
           v-for="row in startupRows"
@@ -803,7 +881,7 @@ function reportBug() {
           <span :class="$style.startupAt">{{ row.cum !== null ? fmtMs(row.cum) : '—' }}</span>
         </div>
         <div v-if="webviewFixedCost === null" :class="$style.startupNote">
-          WebView 起動はプロセス初回のナビゲーションでのみ計測されます (累計は画面読み込み起点)
+          {{ i18n.ts._aboutContent.webviewStartupNote }}
         </div>
       </div>
     </div>
@@ -820,14 +898,14 @@ function reportBug() {
           :class="[$style.formSectionLabel, $style.infoToggle, metricsOpen && $style.infoOpen]"
           @click="metricsOpen = !metricsOpen"
         >
-          実行時パフォーマンス
+          {{ i18n.ts._aboutContent.runtimePerformance }}
           <i class="ti ti-chevron-down" :class="$style.infoChevron" />
         </button>
         <span v-if="metricsOpen && metrics?.frame.available" :class="$style.headBadge">{{ metrics.frame.fps }}fps</span>
       </div>
       <div v-if="metricsOpen" :class="$style.aboutInfo">
         <div v-if="metricsError" :class="$style.diagError">{{ metricsError }}</div>
-        <div v-else-if="!metrics">計測中...</div>
+        <div v-else-if="!metrics">{{ i18n.ts._aboutContent.measuring }}</div>
         <template v-else>
           <div v-for="row in metricsRows" :key="row.label" :class="$style.aboutRow">
             <span :class="$style.aboutLabel">{{ row.label }}:</span>
@@ -855,7 +933,7 @@ function reportBug() {
           @click="windowsStore.open('performanceEditor')"
         >
           <i class="ti ti-gauge" :class="$style.formLinkIcon" />
-          <span>パフォーマンス設定を開く</span>
+          <span>{{ i18n.ts._aboutContent.openPerformanceSettings }}</span>
         </button>
       </div>
     </div>

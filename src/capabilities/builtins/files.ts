@@ -2,6 +2,7 @@ import { normalizeDriveFile } from '@/adapters/misskey/api/drive'
 import type { ExportFileItem, ExportProgress } from '@/bindings'
 import { events } from '@/bindings'
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { resolveAccountId } from '../accountContext'
 import { implement } from '../declare'
@@ -138,21 +139,23 @@ export const filesExportCapability = implement('files.export', {
     const noteIds = asStringArray(params?.noteIds)
     if (fileIds.length === 0 && noteIds.length === 0) {
       return {
-        error: 'fileIds か noteIds のどちらかを 1 件以上指定してください',
+        error: 'specify at least one fileIds or noteIds entry',
       }
     }
     if (fileIds.length + noteIds.length > MAX_ITEMS_PER_CALL) {
       return {
-        error: `1 回の呼び出しで指定できるのは合計 ${MAX_ITEMS_PER_CALL} 件までです`,
+        error: `at most ${MAX_ITEMS_PER_CALL} items in total per call`,
       }
     }
     const subdir = params?.subdir
     if (subdir !== undefined) {
       if (typeof subdir !== 'string' || subdir.length === 0) {
-        return { error: 'subdir は空でない文字列で指定してください' }
+        return { error: 'subdir must be a non-empty string' }
       }
       if (/[/\\]/.test(subdir) || subdir === '..' || subdir === '.') {
-        return { error: 'subdir に階層やパス表現は使えません (1 段の名前のみ)' }
+        return {
+          error: 'subdir cannot contain nested paths (a single name only)',
+        }
       }
     }
     return null
@@ -164,22 +167,32 @@ export const filesExportCapability = implement('files.export', {
     const fileCount = asStringArray(params?.fileIds).length
     const noteCount = asStringArray(params?.noteIds).length
     const subdir = typeof params?.subdir === 'string' ? params.subdir : 'export'
-    const parts = [
-      fileCount > 0 ? `ファイル ${fileCount} 件` : null,
-      noteCount > 0 ? `ノート ${noteCount} 件の添付` : null,
-    ]
-      .filter(Boolean)
-      .join('と')
+    const parts =
+      fileCount > 0 && noteCount > 0
+        ? i18n.tsx._filesCapability.targetsBoth({
+            files: fileCount,
+            notes: noteCount,
+          })
+        : fileCount > 0
+          ? i18n.tsx._filesCapability.targetsFiles_plural({ count: fileCount })
+          : noteCount > 0
+            ? i18n.tsx._filesCapability.targetsNotes_plural({
+                count: noteCount,
+              })
+            : ''
     // 既定でセンシティブも保存する (本体のドライブ保存と同じ) ため、除外する
     // 場合のほうを明示する。含む側を毎回書くと定型文になり読まれなくなる
-    const sensitiveNote =
+    const message =
       params?.includeSensitive === false
-        ? '。センシティブ設定のファイルは除きます'
-        : ''
+        ? i18n.tsx._filesCapability.confirmMessageExcludeSensitive({
+            targets: parts,
+            subdir,
+          })
+        : i18n.tsx._filesCapability.confirmMessage({ targets: parts, subdir })
     return {
-      title: 'ファイルをローカルに保存',
-      message: `${parts}を ダウンロード/notedeck/${subdir}/ に保存します${sensitiveNote}。`,
-      okLabel: '保存',
+      title: i18n.ts._filesCapability.confirmTitle,
+      message,
+      okLabel: i18n.ts._common.save,
     }
   },
   execute: async (params, ctx) => {
@@ -202,7 +215,7 @@ export const filesExportCapability = implement('files.export', {
         failed: 0,
         excludedSensitive,
         unresolved,
-        message: '保存対象がありません',
+        message: 'nothing to save',
       }
     }
     const result = await runExportAndWait([subdir], items)

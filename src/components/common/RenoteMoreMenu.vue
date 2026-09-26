@@ -5,6 +5,7 @@ import { useAccountMode } from '@/composables/useAccountMode'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
@@ -91,7 +92,10 @@ async function deleteRenote() {
     close()
   } catch (e) {
     const err = AppError.from(e)
-    toast.show(`削除に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._renoteMoreMenu.deleteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -101,11 +105,14 @@ async function submitReport() {
     const adapter = await getOrCreate(props.note._accountId)
     if (!adapter) return
     await adapter.api.reportUser(props.note.user.id, reportComment.value)
-    toast.show('通報しました')
+    toast.show(i18n.ts._common.reported)
     close()
   } catch (e) {
     const err = AppError.from(e)
-    toast.show(`通報に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._common.reportFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -116,25 +123,25 @@ defineExpose({ open })
   <PopupMenu ref="popupMenuRef" @close="resetSubViews">
     <!-- Delete confirm -->
     <template v-if="currentView === 'deleteConfirm'">
-      <div class="_popupConfirmText">このリノートを削除しますか？</div>
+      <div class="_popupConfirmText">{{ i18n.ts._renoteMoreMenu.confirmDelete }}</div>
       <button class="_popupItem _popupItemDanger" @click="deleteRenote">
         <i class="ti ti-trash" />
-        削除
+        {{ i18n.ts._common.delete }}
       </button>
       <button class="_popupItem" @click="backToMain">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
     <!-- Report form -->
     <template v-else-if="currentView === 'reportForm'">
-      <div class="_popupConfirmText">@{{ note.user.username }} を通報</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: note.user.username }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          placeholder="通報理由を入力..."
+          :placeholder="i18n.ts._common.reportReasonPlaceholder"
           rows="3"
         />
       </div>
@@ -144,11 +151,11 @@ defineExpose({ open })
         @click="submitReport"
       >
         <i class="ti ti-alert-triangle" />
-        送信
+        {{ i18n.ts._common.send }}
       </button>
       <button class="_popupItem" @click="backToMain">
         <i class="ti ti-x" />
-        キャンセル
+        {{ i18n.ts._common.cancel }}
       </button>
     </template>
 
@@ -156,20 +163,20 @@ defineExpose({ open })
     <template v-else>
       <button class="_popupItem" @click="openRenoteDetail">
         <i class="ti ti-info-circle" />
-        リノートの詳細
+        {{ i18n.ts._renoteMoreMenu.details }}
       </button>
       <button class="_popupItem" @click="copyAndClose(noteWebUrl)">
         <i class="ti ti-link" />
-        リノートのリンクをコピー
+        {{ i18n.ts._renoteMoreMenu.copyLink }}
       </button>
       <div class="_popupDivider" />
       <button v-if="isMyRenote" class="_popupItem _popupItemDanger" @click="showDeleteConfirm = true">
         <i class="ti ti-trash" />
-        リノート削除
+        {{ i18n.ts._renoteMoreMenu.deleteRenote }}
       </button>
       <button v-else-if="!isGuest" class="_popupItem _popupItemDanger" @click="canInteract ? (showReportForm = true) : (showLoginPrompt(), close())">
         <i class="ti ti-alert-triangle" />
-        リノートを通報
+        {{ i18n.ts._renoteMoreMenu.reportRenote }}
       </button>
     </template>
   </PopupMenu>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
 import { usePerformanceStore } from '@/stores/performance'
 import { useSettingsStore } from '@/stores/settings'
@@ -8,6 +9,7 @@ import {
   PRESET_OPTIONS,
   resolveEvictionConfig,
 } from '@/utils/cacheEviction'
+import { formatBytes } from '@/utils/format'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const { confirm } = useConfirm()
@@ -33,14 +35,6 @@ const imageCacheTTLDays = computed({
   set: (v: number) => performanceStore.set('imageCacheTTLDays', v),
 })
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
-
 async function refreshStats() {
   try {
     const stats = unwrap(await commands.cacheStats())
@@ -56,9 +50,9 @@ async function refreshStats() {
 
 async function clearAll() {
   const ok = await confirm({
-    title: 'キャッシュ削除',
-    message: 'ノートキャッシュとOGPキャッシュをすべて削除しますか？',
-    okLabel: '削除',
+    title: i18n.ts._common.clearCache,
+    message: i18n.ts._cacheEditorContent.clearCacheConfirm,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
@@ -76,10 +70,9 @@ async function clearAll() {
 
 async function clearImages() {
   const ok = await confirm({
-    title: '画像キャッシュ削除',
-    message:
-      'ディスク上の画像キャッシュをすべて削除しますか？表示のたびにサーバーから再取得されます。',
-    okLabel: '削除',
+    title: i18n.ts._cacheEditorContent.clearImages,
+    message: i18n.ts._cacheEditorContent.clearImagesConfirm,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
@@ -108,18 +101,68 @@ const PER_ACCOUNT_OPTIONS: ReadonlyArray<{
   value: number | null
   label: string
 }> = [
-  { value: 10_000, label: '10,000 件' },
-  { value: 50_000, label: '50,000 件' },
-  { value: 100_000, label: '100,000 件' },
-  { value: 1_000_000, label: '1,000,000 件' },
-  { value: null, label: '無制限' },
+  {
+    value: 10_000,
+    get label() {
+      return i18n.tsx._cacheEditorContent.noteCount_plural({ count: 10_000 })
+    },
+  },
+  {
+    value: 50_000,
+    get label() {
+      return i18n.tsx._cacheEditorContent.noteCount_plural({ count: 50_000 })
+    },
+  },
+  {
+    value: 100_000,
+    get label() {
+      return i18n.tsx._cacheEditorContent.noteCount_plural({ count: 100_000 })
+    },
+  },
+  {
+    value: 1_000_000,
+    get label() {
+      return i18n.tsx._cacheEditorContent.noteCount_plural({ count: 1_000_000 })
+    },
+  },
+  {
+    value: null,
+    get label() {
+      return i18n.ts._cacheEditorContent.unlimited
+    },
+  },
 ]
 const TTL_OPTIONS: ReadonlyArray<{ value: number | null; label: string }> = [
-  { value: 30, label: '30 日' },
-  { value: 90, label: '90 日' },
-  { value: 180, label: '180 日' },
-  { value: 365, label: '365 日' },
-  { value: null, label: '無期限' },
+  {
+    value: 30,
+    get label() {
+      return i18n.tsx._cacheEditorContent.dayCount_plural({ count: 30 })
+    },
+  },
+  {
+    value: 90,
+    get label() {
+      return i18n.tsx._cacheEditorContent.dayCount_plural({ count: 90 })
+    },
+  },
+  {
+    value: 180,
+    get label() {
+      return i18n.tsx._cacheEditorContent.dayCount_plural({ count: 180 })
+    },
+  },
+  {
+    value: 365,
+    get label() {
+      return i18n.tsx._cacheEditorContent.dayCount_plural({ count: 365 })
+    },
+  },
+  {
+    value: null,
+    get label() {
+      return i18n.ts._cacheEditorContent.noExpiry
+    },
+  },
 ]
 
 async function applyAndPersist() {
@@ -185,23 +228,23 @@ onMounted(refreshStats)
     <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-chart-bar" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">使用状況</span>
+        <span :class="$style.sectionTitle">{{ i18n.ts._cacheEditorContent.usage }}</span>
       </div>
       <div :class="$style.statsRow">
         <div :class="$style.statBox">
-          <span :class="$style.statLabel">ノート</span>
+          <span :class="$style.statLabel">{{ i18n.ts._common.notes }}</span>
           <span :class="$style.statValue">
-            {{ noteCount == null ? '—' : noteCount.toLocaleString() }}
+            {{ noteCount == null ? '—' : noteCount.toLocaleString(i18n.lang) }}
           </span>
         </div>
         <div :class="$style.statBox">
-          <span :class="$style.statLabel">DB サイズ</span>
+          <span :class="$style.statLabel">{{ i18n.ts._cacheEditorContent.dbSize }}</span>
           <span :class="$style.statValue">
             {{ dbBytes == null ? '—' : formatBytes(dbBytes) }}
           </span>
         </div>
         <div :class="$style.statBox">
-          <span :class="$style.statLabel">画像キャッシュ</span>
+          <span :class="$style.statLabel">{{ i18n.ts._cacheEditorContent.imageCache }}</span>
           <span :class="$style.statValue">
             {{ imageBytes == null ? '—' : formatBytes(imageBytes) }}
           </span>
@@ -215,11 +258,11 @@ onMounted(refreshStats)
     <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-photo" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">画像キャッシュ</span>
+        <span :class="$style.sectionTitle">{{ i18n.ts._cacheEditorContent.imageCache }}</span>
       </div>
       <div :class="$style.fieldRow">
         <label :class="$style.field">
-          <span :class="$style.fieldLabel">上限</span>
+          <span :class="$style.fieldLabel">{{ i18n.ts._cacheEditorContent.maxSize }}</span>
           <input
             v-model.number="imageCacheMaxMB"
             type="number"
@@ -231,7 +274,7 @@ onMounted(refreshStats)
           <span :class="$style.fieldUnit">MB</span>
         </label>
         <label :class="$style.field">
-          <span :class="$style.fieldLabel">保持期間</span>
+          <span :class="$style.fieldLabel">{{ i18n.ts._cacheEditorContent.retention }}</span>
           <input
             v-model.number="imageCacheTTLDays"
             type="number"
@@ -240,7 +283,7 @@ onMounted(refreshStats)
             step="1"
             :class="$style.numberInput"
           />
-          <span :class="$style.fieldUnit">日</span>
+          <span :class="$style.fieldUnit">{{ i18n.ts._cacheEditorContent.days }}</span>
         </label>
       </div>
       <div :class="$style.btnRow">
@@ -251,7 +294,7 @@ onMounted(refreshStats)
           @click="clearImages"
         >
           <i class="ti ti-trash" />
-          {{ isClearingImages ? '処理中...' : `画像キャッシュ削除${imageFiles ? ` (${imageFiles.toLocaleString()} 件)` : ''}` }}
+          {{ isClearingImages ? i18n.ts._cacheEditorContent.processing : imageFiles ? i18n.tsx._cacheEditorContent.clearImagesWithCount_plural({ count: imageFiles }) : i18n.ts._cacheEditorContent.clearImages }}
         </button>
       </div>
     </div>
@@ -262,11 +305,11 @@ onMounted(refreshStats)
     <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-recycle" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">保存粒度</span>
+        <span :class="$style.sectionTitle">{{ i18n.ts._cacheEditorContent.granularity }}</span>
       </div>
       <p :class="$style.hint">{{ presetHint }}</p>
       <p :class="$style.hint">
-        このキャッシュはクライアント検索の索引でもあります。フォロワー限定やダイレクトを含む、自分の目を通った全ノートが暗号化されずに保存されます。
+        {{ i18n.ts._cacheEditorContent.searchIndexNote }}
       </p>
       <div :class="$style.presetRow">
         <button
@@ -283,7 +326,7 @@ onMounted(refreshStats)
       <!-- custom: 詳細スライダー -->
       <div v-if="preset === 'custom'" :class="$style.customGrid">
         <label :class="$style.customLabel">
-          <span>アカウントあたり上限</span>
+          <span>{{ i18n.ts._cacheEditorContent.perAccountLimit }}</span>
           <select
             :value="String(customLimit)"
             :class="$style.select"
@@ -323,10 +366,10 @@ onMounted(refreshStats)
     <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-eraser" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">手動削除</span>
+        <span :class="$style.sectionTitle">{{ i18n.ts._cacheEditorContent.manualClear }}</span>
       </div>
       <p :class="$style.hint">
-        ノートと OGP のキャッシュをすべて削除します。サーバーから再取得すれば復元されます。
+        {{ i18n.ts._cacheEditorContent.manualClearNote }}
       </p>
       <div :class="$style.btnRow">
         <button
@@ -336,7 +379,7 @@ onMounted(refreshStats)
           @click="clearAll"
         >
           <i class="ti ti-trash" />
-          {{ isClearing ? '処理中...' : '全キャッシュ削除' }}
+          {{ isClearing ? i18n.ts._cacheEditorContent.processing : i18n.ts._commands.clearAllCache }}
         </button>
       </div>
     </div>

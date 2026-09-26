@@ -4,6 +4,7 @@ import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { i18n } from '@/i18n'
 import {
   accountScopeKey,
   getAccountAvatarUrl,
@@ -126,7 +127,7 @@ const themeSections = computed<ThemeSection[]>(() => {
   if (isCrossAccount.value) {
     sections.push({
       key: 'default',
-      label: 'デフォルト',
+      label: i18n.ts._common.default,
       items: [
         {
           theme: mode === 'dark' ? MI_DARK : MI_LIGHT,
@@ -160,7 +161,7 @@ const themeSections = computed<ThemeSection[]>(() => {
     }))
   sections.push({
     key: 'sideload',
-    label: 'サイドロード',
+    label: i18n.ts._common.sideload,
     items: sideloadedThemes,
   })
 
@@ -185,13 +186,13 @@ const themeSections = computed<ThemeSection[]>(() => {
       }))
     sections.push({
       key: 'store',
-      label: 'ストア配布',
+      label: i18n.ts._common.storeDistributed,
       items: storeThemes,
     })
 
     sections.push({
       key: 'server',
-      label: 'サーバー',
+      label: i18n.ts._common.server,
       items: metaTheme
         ? [{ theme: metaTheme, source: 'server', removable: false }]
         : [],
@@ -213,7 +214,7 @@ const themeSections = computed<ThemeSection[]>(() => {
       }))
     sections.push({
       key: 'store',
-      label: 'ストア配布',
+      label: i18n.ts._common.storeDistributed,
       items: storeThemes,
     })
   }
@@ -229,9 +230,11 @@ const installedTotalCount = computed(() =>
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: `インストール済み ${installedTotalCount.value}`,
+    label: i18n.tsx._common.installedTab({
+      count: installedTotalCount.value,
+    }),
   },
-  { value: 'store', label: 'ストア' },
+  { value: 'store', label: i18n.ts._common.store },
 ])
 
 function switchTab(tab: string) {
@@ -380,9 +383,11 @@ async function removeTheme(entry: ThemeEntry) {
     const deletesBody = isLastAccountForTheme(entry.theme)
     if (deletesBody) {
       const ok = await confirm({
-        title: 'テーマを削除',
-        message: `「${entry.theme.name}」はこのアカウントにのみ紐付いています。外すとテーマ自体が削除されます。削除しますか？`,
-        okLabel: '削除',
+        title: i18n.ts._deckThemeManagerColumn.deleteTitle,
+        message: i18n.tsx._deckThemeManagerColumn.deleteLastAccountConfirm({
+          name: entry.theme.name,
+        }),
+        okLabel: i18n.ts._common.delete,
         type: 'danger',
       })
       if (!ok) return
@@ -394,10 +399,15 @@ async function removeTheme(entry: ThemeEntry) {
     themeStore.clearAccountTheme(mode, accountId.value)
     if (undo) {
       useToast().show(
-        deletesBody ? 'テーマを削除しました' : 'テーマを外しました',
+        deletesBody
+          ? i18n.ts._deckThemeManagerColumn.deleted
+          : i18n.ts._deckThemeManagerColumn.detached,
         'info',
         {
-          action: { label: '元に戻す', onClick: undo },
+          action: {
+            label: i18n.ts._common.undo,
+            onClick: undo,
+          },
         },
       )
     }
@@ -405,16 +415,18 @@ async function removeTheme(entry: ThemeEntry) {
     // cross-account (Global) からは完全削除。他の配布物 (skill / widget /
     // plugin / query) と同じく confirm → 元に戻せるトースト (#988)
     const ok = await confirm({
-      title: 'テーマを削除',
-      message: `「${entry.theme.name}」を削除しますか？テーマの設定も消えます。`,
-      okLabel: '削除',
+      title: i18n.ts._deckThemeManagerColumn.deleteTitle,
+      message: i18n.tsx._deckThemeManagerColumn.deleteConfirm({
+        name: entry.theme.name,
+      }),
+      okLabel: i18n.ts._common.delete,
       type: 'danger',
     })
     if (!ok) return
     const undo = themeStore.removeTheme(entry.theme.id)
     if (undo) {
-      useToast().show('テーマを削除しました', 'info', {
-        action: { label: '元に戻す', onClick: undo },
+      useToast().show(i18n.ts._deckThemeManagerColumn.deleted, 'info', {
+        action: { label: i18n.ts._common.undo, onClick: undo },
       })
     }
   }
@@ -430,7 +442,8 @@ async function handleStoreInstall(entry: StoreThemeEntry) {
     //   per-account カラムにも反映される (集約 viewer の semantics)
     await misStore.installTheme(entry, contextAccountKeys())
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : 'インストール失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   }
 }
 
@@ -440,7 +453,8 @@ async function handleStoreUpdate(entry: StoreThemeEntry) {
     // 更新はスコープ (installedFor) に触れない — 既存の適用範囲を維持する
     await misStore.updateTheme(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : '更新失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 
@@ -485,7 +499,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="column.name ?? 'テーマ'"
+    :title="column.name ?? i18n.ts._columns.themeManager"
     :theme-vars="columnThemeVars"
     @header-click="() => {}"
   >
@@ -498,7 +512,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
         v-if="viewTab === 'installed'"
         class="_button"
         :class="$style.headerBtn"
-        title="新規テーマを作成"
+        :title="i18n.ts._deckThemeManagerColumn.createTheme"
         @click.stop="openNewTheme"
       >
         <i class="ti ti-plus" />
@@ -506,7 +520,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
     </template>
 
     <div ref="columnContentRef" :class="$style.wrapper">
-      <SafeModeNotice subject="テーマ" />
+      <SafeModeNotice :subject="i18n.ts._deckThemeManagerColumn.safeModeSubject" />
 
       <ColumnTabs
         :tabs="tabDefs"
@@ -521,14 +535,14 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
           v-model="searchQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="インストール済みを探す"
+          :placeholder="i18n.ts._deckThemeManagerColumn.searchInstalled"
         />
         <input
           v-else
           v-model="storeQuery"
           :class="$style.searchInput"
           type="text"
-          placeholder="ストアを探す"
+          :placeholder="i18n.ts._common.browseStore"
         />
       </div>
 
@@ -569,12 +583,12 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
               @click="showLibraryPicker = !showLibraryPicker"
             >
               <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? '閉じる' : 'ライブラリから追加' }}
+              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._common.addFromLibrary }}
             </button>
           </div>
           <div v-if="!isCrossAccount && showLibraryPicker" :class="$style.pickerWrap">
             <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              ライブラリに追加可能なテーマがありません。
+              {{ i18n.ts._deckThemeManagerColumn.noLibraryThemes }}
             </div>
             <div v-else :class="$style.grid">
               <ThemeCard
@@ -590,13 +604,13 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 
           <div v-if="totalFilteredCount === 0" :class="$style.empty">
             <template v-if="searchQuery">
-              一致するテーマがありません
+              {{ i18n.ts._deckThemeManagerColumn.noMatches }}
             </template>
             <template v-else>
               <i class="ti ti-palette" :class="$style.emptyIcon" />
-              <span>テーマがありません</span>
+              <span>{{ i18n.ts._deckThemeManagerColumn.noThemes }}</span>
               <button class="_button" :class="$style.emptyLink" @click="viewTab = 'store'">
-                ストアからインストール...
+                {{ i18n.ts._deckThemeManagerColumn.installFromStore }}
               </button>
             </template>
           </div>
@@ -615,14 +629,14 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 
         <div v-if="misStore.themesLoading" :class="$style.storeLoading">
           <i class="ti ti-loader-2 nd-spin" />
-          読み込み中...
+          {{ i18n.ts._common.loading }}
         </div>
 
         <div v-else-if="misStore.themesError" :class="$style.empty">
           <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>ストアに接続できません</span>
+          <span>{{ i18n.ts._common.storeUnavailable }}</span>
           <button class="_button" :class="$style.emptyLink" @click="misStore.refreshThemes()">
-            再試行
+            {{ i18n.ts._common.retry }}
           </button>
         </div>
 
@@ -646,7 +660,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
           </div>
 
           <div v-if="filteredStoreThemes.length === 0 && !misStore.themesLoading" :class="$style.empty">
-            一致するテーマがありません
+            {{ i18n.ts._deckThemeManagerColumn.noMatches }}
           </div>
         </div>
       </template>

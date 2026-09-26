@@ -16,6 +16,8 @@ import {
   saveMemo,
 } from '@/composables/useMemos'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
+import { i18n } from '@/i18n'
+import { memoAuthorDisplayName } from '@/permissions/principal'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useServersStore } from '@/stores/servers'
@@ -77,7 +79,7 @@ const author = computed(() => {
   const embedded = memo.value?.data.author
   if (embedded) {
     const handle = embedded.id.replace(/^skill:/, '')
-    return `${embedded.displayName} (@${handle})`
+    return `${memoAuthorDisplayName(embedded)} (@${handle})`
   }
   const acc = account.value
   if (!acc) return null
@@ -87,7 +89,7 @@ const author = computed(() => {
 const updatedAt = computed(() => {
   const iso = memo.value?.updatedAt
   if (!iso) return null
-  return new Date(iso).toLocaleString()
+  return new Date(iso).toLocaleString(i18n.lang)
 })
 
 const notFound = computed(() => loaded.value && !memo.value)
@@ -155,7 +157,7 @@ function closeMenu() {
   popupMenuRef.value?.close()
 }
 
-/** 他のテキスト (スキル・ウィジット・テーマ・CSS) と同じ編集履歴を開く */
+/** 他のテキスト (スキル・ウィジェット・テーマ・CSS) と同じ編集履歴を開く */
 function openHistory() {
   closeMenu()
   openEditHistoryWindow({
@@ -169,14 +171,14 @@ function openHistory() {
 async function onDelete() {
   closeMenu()
   const ok = await confirm({
-    title: 'メモを削除',
-    message: '選択したメモを削除しますか？',
-    okLabel: '削除',
+    title: i18n.ts._memoEditorContent.deleteTitle,
+    message: i18n.ts._memoEditorContent.deleteMessage,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   deleteMemo(props.memoKey)
-  toast.show('メモを削除しました', 'info')
+  toast.show(i18n.ts._memoEditorContent.deleted, 'info')
   emit('close')
 }
 </script>
@@ -186,8 +188,8 @@ async function onDelete() {
     <EditorTabs
       v-model="tab"
       :tabs="[
-        { value: 'visual', icon: 'eye', label: 'ビジュアル' },
-        { value: 'code', icon: 'code', label: 'コード' },
+        { value: 'visual', icon: 'eye', label: i18n.ts._common.visual },
+        { value: 'code', icon: 'code', label: i18n.ts._common.code },
       ]"
     />
 
@@ -208,10 +210,10 @@ async function onDelete() {
 
     <!-- Visual tab: rendered preview -->
     <div v-show="tab === 'visual'" :class="$style.visualPanel">
-      <div v-if="!loaded" :class="$style.placeholder">読み込み中…</div>
+      <div v-if="!loaded" :class="$style.placeholder">{{ i18n.ts._memoEditorContent.loading }}</div>
       <ColumnEmptyState
         v-else-if="notFound"
-        message="このメモは見つかりません"
+        :message="i18n.ts._memoEditorContent.notFound"
         :image-url="serverNotFoundImageUrl"
         fallback-kind="notFound"
       />
@@ -228,10 +230,10 @@ async function onDelete() {
 
     <!-- Code tab: raw Markdown editor -->
     <div v-show="tab === 'code'" :class="$style.codePanel">
-      <div v-if="!loaded" :class="$style.placeholder">読み込み中…</div>
+      <div v-if="!loaded" :class="$style.placeholder">{{ i18n.ts._memoEditorContent.loading }}</div>
       <ColumnEmptyState
         v-else-if="notFound"
-        message="このメモは見つかりません"
+        :message="i18n.ts._memoEditorContent.notFound"
         :image-url="serverNotFoundImageUrl"
         fallback-kind="notFound"
       />
@@ -247,12 +249,12 @@ async function onDelete() {
     <PopupMenu ref="popupMenuRef">
       <button class="_popupItem" @click="openHistory">
         <i class="ti ti-history" />
-        編集履歴
+        {{ i18n.ts._windows.editHistory }}
       </button>
       <div class="_popupDivider" />
       <button class="_popupItem _popupItemDanger" @click="onDelete">
         <i class="ti ti-trash" />
-        削除
+        {{ i18n.ts._common.delete }}
       </button>
     </PopupMenu>
   </div>

@@ -156,8 +156,7 @@ export async function deleteDraft(
     unwrap(await commands.apiDeleteDraft(accountId, { draftId }))
   } catch (e) {
     // サーバー側で既に消えているケース (noSuchNoteDraft) はキャッシュ同期だけで良い
-    const msg = AppError.from(e).message
-    if (!/noSuchNoteDraft|NO_SUCH_NOTE_DRAFT/i.test(msg)) throw e
+    if (AppError.from(e).apiCode !== 'NO_SUCH_NOTE_DRAFT') throw e
   }
   const existing = cache[accountId]
   if (existing && draftId in existing) {

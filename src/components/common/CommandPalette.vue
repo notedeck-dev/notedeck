@@ -19,6 +19,7 @@ import {
   commandItemTargetId,
   useSpotlightStore,
 } from '@/composables/useSpotlight'
+import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
@@ -149,7 +150,7 @@ async function selectQuickPickItem(item: QuickPickItem) {
     if (!commandStore.isOpen || children.length === 0) return
     commandStore.pushQuickPick({
       title: item.label,
-      placeholder: `${item.label}を検索...`,
+      placeholder: i18n.tsx._common.searchItem({ label: item.label }),
       items: children,
     })
     selectedIndex.value = 0
@@ -188,11 +189,21 @@ interface CommandGroup {
 }
 
 const categoryLabels: Record<string, string> = {
-  general: '全般',
-  note: 'ノート',
-  navigation: 'ナビゲーション',
-  column: 'カラム',
-  account: 'アカウント',
+  get general() {
+    return i18n.ts._commandPalette.categoryGeneral
+  },
+  get note() {
+    return i18n.ts._common.note
+  },
+  get navigation() {
+    return i18n.ts._commandPalette.categoryNavigation
+  },
+  get column() {
+    return i18n.ts._commandPalette.categoryColumn
+  },
+  get account() {
+    return i18n.ts._common.account
+  },
 }
 
 const categoryOrder = ['general', 'note', 'navigation', 'column', 'account']
@@ -432,7 +443,7 @@ watch(
 
 const inputPlaceholder = computed(() => {
   if (currentQuickPickStep.value) return currentQuickPickStep.value.placeholder
-  return 'コマンドを入力...'
+  return i18n.ts._commandPalette.inputPlaceholder
 })
 
 /** グループ内インデックス → ヒントキー文字（1-9, 0, a-z） */
@@ -502,7 +513,7 @@ function primaryShortcut(cmd: Command): string | null {
         </button>
         <span :class="$style.quickPickTitle">{{ currentQuickPickStep.title }}</span>
       </div>
-      <div v-if="currentQuickPickStep?.loading" :class="$style.empty">読み込み中...</div>
+      <div v-if="currentQuickPickStep?.loading" :class="$style.empty">{{ i18n.ts._common.loading }}</div>
       <div v-else-if="flatQuickPickList.length" ref="listRef" :class="$style.list">
         <template v-for="(group, gi) in filteredQuickPickGroups" :key="group.group">
           <div v-if="gi > 0" :class="$style.separator" />
@@ -539,7 +550,7 @@ function primaryShortcut(cmd: Command): string | null {
           </button>
         </template>
       </div>
-      <div v-else :class="$style.empty">一致する項目がありません</div>
+      <div v-else :class="$style.empty">{{ i18n.ts._commandPalette.noMatchingItems }}</div>
     </template>
 
     <!-- Deep link URI mode -->
@@ -547,7 +558,7 @@ function primaryShortcut(cmd: Command): string | null {
       <div :class="$style.cliRow">
         <i :class="['ti ti-link', $style.itemIcon]" />
         <span :class="$style.cliAction">
-          ↵ Enterで開く:
+          {{ i18n.ts._commandPalette.enterToOpen }}
           <strong>{{ query }}</strong>
         </span>
       </div>
@@ -564,7 +575,7 @@ function primaryShortcut(cmd: Command): string | null {
           {{ cliMeta.usage }}
         </span>
         <span v-else :class="$style.cliAction">
-          ↵ Enterで実行:
+          {{ i18n.ts._commandPalette.enterToRun }}
           <strong>{{ cliMatch.name }}</strong>
           {{ cliMatch.args }}
         </span>
@@ -594,7 +605,7 @@ function primaryShortcut(cmd: Command): string | null {
       </template>
     </div>
 
-    <div v-else :class="$style.empty">一致するコマンドがありません</div>
+    <div v-else :class="$style.empty">{{ i18n.ts._commandPalette.noMatchingCommands }}</div>
   </div>
 </template>
 

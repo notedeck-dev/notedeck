@@ -1,5 +1,6 @@
 import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
 import { implement, implementCore } from '../declare'
 import { editAttribution } from '../editAttribution'
@@ -30,10 +31,8 @@ export const pluginsReadCapability = implementCore('plugins.read')
 export const pluginsCreateCapability = implement('plugins.create', {
   preflight: (params) => preflightValidateSrc(params, 'plugin'),
   requiresConfirmation: (params) => ({
-    title: 'プラグインをインストール',
-    message:
-      'AI が生成したプラグインをインストールします。作成直後は無効化された' +
-      '状態なので、有効化はプラグインカラムから手動で行ってください。',
+    title: i18n.ts._pluginsCapability.createTitle,
+    message: i18n.ts._pluginsCapability.createMessage,
     installPreview: {
       kind: 'plugin',
       name: typeof params?.name === 'string' ? params.name : '',
@@ -50,8 +49,8 @@ export const pluginsCreateCapability = implement('plugins.create', {
     },
     code: typeof params?.src === 'string' ? params.src : '',
     codeLanguage: 'is',
-    okLabel: 'インストール',
-    cancelLabel: 'やめる',
+    okLabel: i18n.ts._common.install,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'normal',
   }),
   execute: (params) => {
@@ -103,12 +102,14 @@ export const pluginsUpdateCapability = implement('plugins.update', {
     stageEdit(ctx, cur.src, src)
     const newMeta = parsePluginMeta(src)
     return {
-      title: 'プラグインを更新',
-      message:
-        `${cur.name} の AiScript を ${cur.src.length} → ${src.length} 文字に置換します。` +
-        (cur.active
-          ? 'アクティブなため、保存後すぐ新しいコードで再起動されます。'
-          : ''),
+      title: i18n.ts._pluginsCapability.updateTitle,
+      message: (cur.active
+        ? i18n.tsx._pluginsCapability.updateMessageActive
+        : i18n.tsx._pluginsCapability.updateMessage)({
+        name: cur.name,
+        from: cur.src.length,
+        to: src.length,
+      }),
       installPreview: {
         kind: 'plugin',
         name: newMeta?.name ?? cur.name,
@@ -118,8 +119,8 @@ export const pluginsUpdateCapability = implement('plugins.update', {
         permissions: newMeta?.permissions ?? cur.permissions ?? [],
       },
       diff: { old: cur.src, new: src, language: 'aiscript' },
-      okLabel: '更新',
-      cancelLabel: 'やめる',
+      okLabel: i18n.ts._common.update,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'warning',
     }
   },

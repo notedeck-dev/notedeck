@@ -5,6 +5,7 @@ import {
   type ParsedPluginMeta,
   parsePluginMeta,
 } from '@/aiscript/plugin-api'
+import { i18n } from '@/i18n'
 import { casefold, resolveAvailable } from '@/services/settingsSlug'
 import {
   findWidgetInstance,
@@ -229,7 +230,11 @@ function updateConfirmMessage(
   name: string,
   e: { updatedAt: string; version: string },
 ): string {
-  return `「${name}」をストアの内容で更新します。\nストア更新日: ${formatUpdatedAt(e.updatedAt)} / v${e.version}`
+  return i18n.tsx._misstore.updateConfirm({
+    name,
+    date: formatUpdatedAt(e.updatedAt),
+    version: e.version,
+  })
 }
 
 /**
@@ -520,7 +525,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
         return { source: retried, hash: retriedHash, entry: fresh }
       }
     }
-    throw new Error('ハッシュ不一致: ソースが改ざんされている可能性があります')
+    throw new Error(i18n.ts._misstore.hashMismatch)
   }
 
   async function fetchWidgetSource(entry: StoreWidgetEntry): Promise<string> {
@@ -706,7 +711,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
       const meta = parsePluginMeta(source)
       if (!meta) {
-        throw new Error('プラグインメタデータの解析に失敗しました')
+        throw new Error(i18n.ts._misstore.pluginMetaParseFailed)
       }
 
       if (existing) {
@@ -884,7 +889,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       )
       const ok = await themeStore.installTheme(JSON.stringify(withMeta))
       if (!ok) {
-        throw new Error('テーマのインストールに失敗しました')
+        throw new Error(i18n.ts._misstore.themeInstallFailed)
       }
     } finally {
       installingTheme.value = null
@@ -910,9 +915,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
     const { source, hash, entry: e } = fetched
     if (opts.alwaysConfirm || source !== existing.src) {
       const ok = await useConfirm().confirm({
-        title: 'ウィジェットを更新',
+        title: i18n.ts._misstore.updateWidget,
         message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: '更新',
+        okLabel: i18n.ts._common.update,
         diff: { old: existing.src, new: source, language: 'aiscript' },
       })
       if (!ok) return false
@@ -987,12 +992,12 @@ export const useMisStoreStore = defineStore('misstore', () => {
     if (opts.alwaysConfirm || added.length > 0) {
       let message = updateConfirmMessage(existing.name || e.name, e)
       if (added.length > 0) {
-        message += `\n新しい権限: ${added.join(', ')}`
+        message += `\n${i18n.tsx._misstore.newPermissions({ permissions: added.join(', ') })}`
       }
       const ok = await useConfirm().confirm({
-        title: 'プラグインを更新',
+        title: i18n.ts._misstore.updatePlugin,
         message,
-        okLabel: '更新',
+        okLabel: i18n.ts._common.update,
         ...(added.length > 0 ? { type: 'warning' as const } : {}),
         diff: { old: existing.src, new: source, language: 'aiscript' },
       })
@@ -1024,7 +1029,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
       )
       const meta = parsePluginMeta(fetched.source)
       if (!meta) {
-        throw new Error('プラグインメタデータの解析に失敗しました')
+        throw new Error(i18n.ts._misstore.pluginMetaParseFailed)
       }
       // 更新はスコープに触れない (linkScope しない — 有効範囲はローカル値)
       return await confirmPluginUpdate(existing, fetched, meta, {
@@ -1054,9 +1059,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
     const { meta, body } = parseSkillFile(source)
     if (opts.alwaysConfirm || body !== existing.body) {
       const ok = await useConfirm().confirm({
-        title: 'スキルを更新',
+        title: i18n.ts._misstore.updateSkill,
         message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: '更新',
+        okLabel: i18n.ts._common.update,
         // 本体 = frontmatter を除いた body 同士で比較する (ローカルは body
         // しか保持しない。frontmatter 由来メタは patch 側が反映する)
         diff: { old: existing.body, new: body, language: 'markdown' },
@@ -1102,9 +1107,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
     const { source, hash, entry: e } = fetched
     if (opts.alwaysConfirm || source !== existing.src) {
       const ok = await useConfirm().confirm({
-        title: 'クエリを更新',
+        title: i18n.ts._misstore.updateQuery,
         message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: '更新',
+        okLabel: i18n.ts._common.update,
         diff: { old: existing.src, new: source, language: 'aiscript' },
       })
       if (!ok) return false
@@ -1176,9 +1181,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
     const changed = themeBodyKey(withMeta) !== themeBodyKey(currentTheme)
     if (opts.alwaysConfirm || changed) {
       const ok = await useConfirm().confirm({
-        title: 'テーマを更新',
+        title: i18n.ts._misstore.updateTheme,
         message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: '更新',
+        okLabel: i18n.ts._common.update,
         diff: { old: currentJson, new: newJson, language: 'json5' },
       })
       if (!ok) return false
@@ -1186,7 +1191,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
     // 不変条件: 確認に使った全文をそのまま書き込む (#981)
     const applied = await useThemeStore().installTheme(newJson)
     if (!applied) {
-      throw new Error('テーマのインストールに失敗しました')
+      throw new Error(i18n.ts._misstore.themeInstallFailed)
     }
     return true
   }
