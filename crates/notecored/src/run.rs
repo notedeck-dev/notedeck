@@ -61,7 +61,7 @@ pub fn run(args: RunArgs) -> i32 {
             tracing::error!("no config directory for the secret key; pass --secret-key-file");
             return exit::SECRET_KEY;
         };
-        let data_path = data_dir.join("notecored").join("secrets.enc");
+        let data_path = crate::secrets::secrets_path(&data_dir);
         if let Err(e) = notecli::keychain::init_file_store(&key_path, &data_path) {
             tracing::error!(key = %key_path.display(), "secret store unavailable: {e}");
             return exit::SECRET_KEY;

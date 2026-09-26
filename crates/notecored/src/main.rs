@@ -9,6 +9,8 @@ mod lock;
 mod logging;
 mod rpc_server;
 mod run;
+mod secrets;
+mod service;
 mod sinks;
 mod status;
 
@@ -29,6 +31,12 @@ enum Command {
     Run(RunArgs),
     /// 動いている notecored の状態を socket 越しに表示する
     Status(SocketArgs),
+    /// systemd の user unit を用意 / 有効化 / 停止する
+    #[command(subcommand)]
+    Service(service::ServiceCommand),
+    /// secret の鍵と本体の面倒を見る
+    #[command(subcommand)]
+    Secrets(secrets::SecretsCommand),
 }
 
 #[derive(clap::Args, Debug, Clone, Default)]
@@ -61,6 +69,8 @@ fn main() {
     let code = match cli.command.unwrap_or(Command::Run(RunArgs::default())) {
         Command::Run(args) => run::run(args),
         Command::Status(args) => status::status(args),
+        Command::Service(cmd) => service::run(cmd),
+        Command::Secrets(cmd) => secrets::run(cmd),
     };
     std::process::exit(code);
 }
