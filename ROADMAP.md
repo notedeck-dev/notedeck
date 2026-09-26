@@ -189,7 +189,7 @@ Tauri 非依存のドメインを notecore に集め、アプリに埋め込む�
 - [ ] **コマンドの書き換えとクライアント層** — notecore クレートを作り、データ系コマンドをその関数に書き直し、コマンド表 (型付き + JSON アダプタ) と in-process の transport を通す
 - [x] **単独で価値のある修正** — ループの既知の欠陥、ファイル secret backend への自動劣化、notecli ルートの CORS、ログ世代上限、migration 検査
 - [ ] **AI エージェントループを Rust の notecore へ** — [#1133](https://github.com/notedeck-dev/notedeck/issues/1133)
-- [ ] **同一ホストの notecored** — headless バイナリ、RPC 面、橋、クエリ差分、購読のセッション所有。notecli 単体のデーモンモードはここで廃止
+- [x] **同一ホストの notecored** — headless バイナリ、RPC 面、橋、購読のセッション所有、切替導線 (クエリ差分は外向きへ)。notecli 単体のデーモンモードは廃止済み
 - [ ] **外向き** — 署名認証、ペアリング、TLS、移行パッケージ、配布
 - [ ] **モバイル** — Android / iOS でリモート構成を選べる
 
@@ -612,7 +612,7 @@ NoteDeck は Misskey クライアントであり、PKM ツールではない。
 
 **発展的な可能性: HTTP API をフロントエンドから叩く**
 
-notecli デーモンが localhost:19820 で全操作を API 公開しているため、
+NoteDeck 本体 (と notecored の `--api`) が localhost:19820 で操作を API 公開しているため、
 Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理論上はブラウザから NoteDeck の機能にアクセスできる。
 「ブラウザ版 NoteDeck」をそのまま作る価値はないが、この構造は以下のような拡張に活かせる可能性がある:
 
@@ -697,7 +697,7 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
 - [x] **CLI モード** — notecli 単体での CLI 実行（投稿・検索・TL 取得等）。
   clap ベースのサブコマンド: `accounts`, `post`, `tl`, `search`, `notifications`, `note`, `delete`。
   `--json` フラグで AI エージェント向けマシンリーダブル出力
-- [x] **デーモンモード** — バックグラウンドでストリーミング接続を維持し、HTTP API + SSE で配信。
+- [x] **デーモンモード** — バックグラウンドでストリーミング接続を維持し、HTTP API + SSE で配信 (単体の daemon は notecored に置き換えて廃止。ルート定義は残る)。
   `EventBusEmitter` により WebSocket → EventBus → SSE のパイプラインが完結
 
 ### 未完了: 外部ツール統合 — v1.0.0 以降

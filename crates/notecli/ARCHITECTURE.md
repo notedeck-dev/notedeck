@@ -5,7 +5,7 @@
 **notecli = Misskey クライアントライブラリ + CLI ツール（単一クレート）**
 
 - `lib.rs` でライブラリとして公開、`main.rs` で CLI バイナリを提供する単一クレート構成
-- コアロジック（api, models, db, streaming）がライブラリの本体。CLI と HTTP daemon はその消費者
+- コアロジック（api, models, db, streaming）がライブラリの本体。CLI と、HTTP のルート定義を取り込む NoteDeck / notecored がその消費者
 - NoteDeck が最大の消費者であり、Rust crate 依存としてコアモジュールを直接利用している
 - CLI は独立したフロントエンドとして、ライブラリと同じクレート内に同居する
 
@@ -25,7 +25,7 @@ block-beta
   block:frontend:3
     columns 3
     CLI["CLI\n(main.rs)"]
-    daemon["HTTP daemon\n(http_server)"]
+    routes["HTTP routes\n(http_server, 取り込み用)"]
     lib["lib.rs\n(crate)"]
   end
 
@@ -44,7 +44,7 @@ block-beta
   end
 
   CLI --> api
-  daemon --> api
+  routes --> api
   lib --> db
   lib --> keychain
   streaming --> event_bus
@@ -64,7 +64,7 @@ block-beta
 | `keychain.rs` | OS ネイティブ keychain 抽象化 | error |
 | `error.rs` | `NotecliError` 統一エラー型。トークン漏洩防止 | - |
 | `cli.rs` | clap コマンド定義 | - |
-| `main.rs` | CLI ディスパッチ + daemon 起動 + 出力フォーマット | 全モジュール |
+| `main.rs` | CLI ディスパッチ + 出力フォーマット | 全モジュール |
 | `lib.rs` | ライブラリ公開 API + `get_credentials()` | db, keychain |
 
 ## データフロー

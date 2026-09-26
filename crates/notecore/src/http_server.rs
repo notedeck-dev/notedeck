@@ -282,7 +282,6 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
                 client,
                 config.event_bus,
                 config.api_token.clone(),
-                config.token_path.clone(),
             );
             Some(notecli::http_server::build_core_routes(notecli_state).layer(cors_layer()))
         }

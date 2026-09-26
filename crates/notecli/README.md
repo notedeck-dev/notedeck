@@ -56,34 +56,10 @@ notecli post --help       # サブコマンドの詳細
 
 ## HTTP API
 
-デーモン起動後、`localhost:19820` で REST API を提供します。
-
-```sh
-TOKEN=$(cat ~/.local/share/notecli/api-token)
-
-# エンドポイント一覧（認証不要）
-curl http://localhost:19820/api
-
-# アカウント一覧（認証不要）
-curl http://localhost:19820/api/accounts
-
-# タイムライン
-curl -H "Authorization: Bearer $TOKEN" http://localhost:19820/api/{host}/timeline/home
-
-# ノート投稿
-curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-  -d '{"text": "Hello from notecli!"}' \
-  http://localhost:19820/api/{host}/note
-
-# SSE イベントストリーム
-curl -N -H "Authorization: Bearer $TOKEN" http://localhost:19820/api/events
-```
-
-全エンドポイントは `/api` で確認できます（認証不要）:
-
-```sh
-curl http://localhost:19820/api
-```
+notecli 単体では HTTP の面を出しません (以前の `daemon` サブコマンドは NoteDeck の常駐コア
+notecored に置き換わりました)。同じ REST + SSE の面は NoteDeck 本体の起動中と、
+`notecored run --api` で使えます。ルート定義はこのクレートのライブラリ側
+(`http_server::build_core_routes`) にあり、それらが取り込んでいます。
 
 ## ライブラリとして使う
 

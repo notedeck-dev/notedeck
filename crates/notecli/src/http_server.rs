@@ -1,26 +1,20 @@
 use axum::{
     extract::{Path, Query, Request, State},
-    http::{
-        header::{AUTHORIZATION, CONTENT_TYPE},
-        HeaderValue, Method, StatusCode,
-    },
+    http::{header::AUTHORIZATION, StatusCode},
     middleware::{self, Next},
     response::{
         sse::{Event, KeepAlive, Sse},
         IntoResponse, Response,
     },
-    routing::get,
-    Json, Router,
+    Json,
 };
 use futures_util::stream::Stream;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::net::SocketAddr;
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
 use tokio_stream::wrappers::BroadcastStream;
 use tokio_stream::StreamExt;
-use tower_http::cors::{AllowOrigin, CorsLayer};
 use utoipa::{IntoParams, OpenApi, ToSchema};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -32,11 +26,9 @@ use crate::models::{
     NormalizedNotification, NormalizedUserDetail, TimelineKey,
 };
 
-pub const DEFAULT_PORT: u16 = 19820;
-
 // --- OpenAPI ---
 
-/// OpenAPI metadata for the standalone notecli server.
+/// OpenAPI metadata for the notecli core routes (the host merges it into its own spec).
 /// When notecli routes are embedded in a larger app (e.g. NoteDeck), the host
 /// app provides its own `info`/`tags` and merges the `OpenApiRouter` returned
 /// by [`build_core_routes`].
@@ -80,7 +72,6 @@ pub struct AppState {
     client: Arc<MisskeyClient>,
     event_bus: Arc<EventBus>,
     api_token: String,
-    token_path: String,
 }
 
 impl AppState {
@@ -89,14 +80,12 @@ impl AppState {
         client: Arc<MisskeyClient>,
         event_bus: Arc<EventBus>,
         api_token: String,
-        token_path: String,
     ) -> Self {
         Self {
             db,
             client,
             event_bus,
             api_token,
-            token_path,
         }
     }
 
@@ -170,102 +159,6 @@ impl IntoResponse for ApiError {
 
 // --- Routes ---
 
-pub async fn start(
-    db: Arc<Database>,
-    client: Arc<MisskeyClient>,
-    event_bus: Arc<EventBus>,
-    api_token: String,
-    token_path: String,
-) {
-    start_on_port(db, client, event_bus, api_token, token_path, DEFAULT_PORT).await;
-}
-
-pub async fn start_on_port(
-    db: Arc<Database>,
-    client: Arc<MisskeyClient>,
-    event_bus: Arc<EventBus>,
-    api_token: String,
-    token_path: String,
-    port: u16,
-) {
-    let state = AppState {
-        db,
-        client,
-        event_bus,
-        api_token,
-        token_path,
-    };
-
-    let app = build_router(state);
-
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
-    tracing::info!(%addr, "HTTP server listening");
-
-    let listener = match tokio::net::TcpListener::bind(addr).await {
-        Ok(l) => l,
-        Err(e) => {
-            tracing::error!(%addr, error = %e, "failed to bind");
-            return;
-        }
-    };
-
-    if let Err(e) = axum::serve(listener, app).await {
-        tracing::error!(error = %e, "HTTP server error");
-    }
-}
-
-/// 単体デーモン用の CORS。ループバック bind なので、ブラウザから叩けるのは同じマシンの
-/// localhost / 127.0.0.1 の origin (ポートは問わない) だけに限る。以前の permissive は
-/// 任意の origin に応答を返していた (notedeck#1106 §9)。
-fn localhost_cors_layer() -> CorsLayer {
-    CorsLayer::new()
-        .allow_origin(AllowOrigin::predicate(|origin: &HeaderValue, _| {
-            is_localhost_origin(origin.to_str().unwrap_or(""))
-        }))
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::DELETE,
-            Method::PATCH,
-        ])
-        .allow_headers([AUTHORIZATION, CONTENT_TYPE])
-}
-
-/// `http://localhost[:port]` と `http://127.0.0.1[:port]` だけを許す。
-fn is_localhost_origin(origin: &str) -> bool {
-    let Some(rest) = origin.strip_prefix("http://") else {
-        return false;
-    };
-    let host = rest.split(':').next().unwrap_or("");
-    (host == "localhost" || host == "127.0.0.1")
-        && rest[host.len()..]
-            .strip_prefix(':')
-            .is_none_or(|port| !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()))
-}
-
-/// Full router with `/api` index, auth middleware, and CORS.
-/// Use this for standalone notecli server.
-pub fn build_router(state: AppState) -> Router {
-    let token_path = state.token_path.clone();
-
-    let (core_router, openapi) = OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .merge(build_core_routes(state))
-        .split_for_parts();
-
-    let index_route = Router::new()
-        .route("/api", get(index))
-        .with_state(IndexState {
-            openapi: Arc::new(openapi),
-            token_path,
-        });
-
-    Router::new()
-        .merge(index_route)
-        .merge(core_router)
-        .layer(localhost_cors_layer())
-}
-
 /// Route registration for the core API — no state, no layers.
 ///
 /// This is the single list of core routes. `routes!` ties each route to its
@@ -299,10 +192,9 @@ fn core_openapi_router() -> OpenApiRouter<AppState> {
 /// application that provides its own index endpoint and merges this into its
 /// own spec.
 pub fn build_core_routes(state: AppState) -> OpenApiRouter {
-    // CORS はここでは掛けない。埋め込む側 (notedeck) が自分の allowlist を、
-    // 単体デーモンは build_router が localhost 限定の layer を、それぞれ外側で掛ける。
-    // 以前はここに permissive が入っていて、notedeck の allowlist をすり抜けていた
-    // (notedeck#1106 §9)。
+    // CORS はここでは掛けない。埋め込む側 (notedeck / notecored) が自分の allowlist を
+    // 外側で掛ける。以前はここに permissive が入っていて、notedeck の allowlist を
+    // すり抜けていた (notedeck#1106 §9)。単体デーモンは 3a で廃止した
     core_openapi_router()
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -388,25 +280,6 @@ async fn auth_middleware(
 }
 
 // --- Handlers ---
-
-/// State for the `/api` index route — carries the generated spec so the
-/// endpoint list is always derived, never hand-maintained.
-#[derive(Clone)]
-struct IndexState {
-    openapi: Arc<utoipa::openapi::OpenApi>,
-    token_path: String,
-}
-
-async fn index(State(state): State<IndexState>) -> Json<Value> {
-    Json(json!({
-        "name": "notecli",
-        "version": env!("CARGO_PKG_VERSION"),
-        "auth": "Bearer token required. Read token from the file at tokenPath.",
-        "tokenPath": state.token_path,
-        "docs": "See /api/openapi.json when embedded in NoteDeck.",
-        "endpoints": endpoints_from_spec(&state.openapi),
-    }))
-}
 
 #[utoipa::path(
     get, path = "/api/accounts", tag = "accounts",
@@ -965,29 +838,6 @@ struct CreateNoteBody {
 mod tests {
     use super::*;
     use utoipa::Modify;
-
-    #[test]
-    fn localhost_origin_predicate() {
-        for ok in [
-            "http://localhost",
-            "http://localhost:5173",
-            "http://127.0.0.1",
-            "http://127.0.0.1:19820",
-        ] {
-            assert!(is_localhost_origin(ok), "{ok} should be allowed");
-        }
-        for ng in [
-            "https://evil.example",
-            "http://localhost.evil.example",
-            "http://localhost:abc",
-            "http://127.0.0.1:",
-            "https://localhost",
-            "http://[::1]:5173",
-            "",
-        ] {
-            assert!(!is_localhost_origin(ng), "{ng} should be rejected");
-        }
-    }
 
     /// Every core route must appear in the generated OpenAPI spec.
     /// `routes!` makes this structural — this test guards against the
