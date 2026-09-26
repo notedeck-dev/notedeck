@@ -169,16 +169,29 @@ fn install(exec_path: Option<PathBuf>) -> Result<(), String> {
         Some(p) => p,
         None => std::env::current_exe().map_err(|e| format!("current_exe: {e}"))?,
     };
-    let exec = exec
+    // 実パスは存在確認と書込可否の判定に使う。ExecStart に書くのは渡されたパスの方:
+    // ~/.nix-profile/bin/notecored のような profile の symlink は更新後も同じパスで
+    // 新しい世代を指すので、実パス (/nix/store/...) より安定する
+    let real = exec
         .canonicalize()
         .map_err(|e| format!("{}: {e}", exec.display()))?;
     if is_nix_store(&exec) {
         return Err(format!(
-            "{} is in the Nix store, which the garbage collector may remove; use the NixOS / home-manager module instead",
+            "{} is in the Nix store, which the garbage collector may remove; pass the profile path (e.g. ~/.nix-profile/bin/notecored) or use the NixOS / home-manager module",
             exec.display()
         ));
     }
-    if writable_by_me(&exec) {
+    let exec = if exec.is_absolute() {
+        exec
+    } else {
+        real.clone()
+    };
+    let exec = if is_nix_store(&real) {
+        exec
+    } else {
+        real.clone()
+    };
+    if writable_by_me(&real) {
         eprintln!(
             "warning: {} is writable by your user; anything running as you could replace the daemon. Prefer a package-managed path (--exec-path)",
             exec.display()
