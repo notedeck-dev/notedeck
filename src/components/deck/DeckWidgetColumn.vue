@@ -95,7 +95,7 @@ function scrollToTop() {
 function handleRemove(installId: string) {
   const undo = deckStore.removeWidget(props.column.id, installId)
   if (undo) {
-    useToast().show('ウィジットを外しました', 'info', {
+    useToast().show('ウィジェットを外しました', 'info', {
       action: { label: '元に戻す', onClick: undo },
     })
   }
@@ -126,7 +126,7 @@ function handleDragStart(idx: number, e: PointerEvent) {
 }
 
 /**
- * 新規ローカル保存ウィジットをライブラリに追加し、ウィジット詳細ウィンドウで開く。
+ * 新規ローカル保存ウィジェットをライブラリに追加し、ウィジェット詳細ウィンドウで開く。
  * column.widgetIds には push しない (= 配置タブには出ない)。
  * 配置はピッカー (= showLibraryPicker) から行う。
  */
@@ -134,7 +134,7 @@ async function openNewWidgetEditor() {
   let accountId: string | undefined
   if (isAllAccounts(props.column)) {
     const picked = await pickAccount(
-      'ウィジットをどのアカウントで動かしますか？',
+      'ウィジェットをどのアカウントで動かしますか？',
     )
     if (!picked) return
     accountId = picked
@@ -181,10 +181,10 @@ function ownAccountLabelOf(widget: WidgetMeta): string | undefined {
 }
 
 /**
- * ウィジットを動かすアカウント (#1018)。ウィジット固有の指定 → カラムの順。
- * 全アカウントのカラムはそのままだと accountId が決まらず、ウィジットから
+ * ウィジェットを動かすアカウント (#1018)。ウィジェット固有の指定 → カラムの順。
+ * 全アカウントのカラムはそのままだと accountId が決まらず、ウィジェットから
  * Misskey API を一切呼べない (「開けるが使えない」)。まだ決まっていなければ
- * 選ばせて、以後そのウィジットに固定する。キャンセルは undefined。
+ * 選ばせて、以後そのウィジェットに固定する。キャンセルは undefined。
  */
 async function resolveWidgetAccountId(
   widget: WidgetMeta,
@@ -245,8 +245,8 @@ const {
  *  (widgetsStore 側は sidebarWidgetIds の自動 cleanup のみ)。 */
 async function deleteFromLibrary(widget: WidgetMeta) {
   const ok = await confirm({
-    title: 'ウィジットを削除',
-    message: `「${widget.name}」をライブラリから削除しますか？ウィジットのコードも消えます。`,
+    title: 'ウィジェットを削除',
+    message: `「${widget.name}」をライブラリから削除しますか？ウィジェットのコードも消えます。`,
     okLabel: '削除',
     type: 'danger',
   })
@@ -254,7 +254,7 @@ async function deleteFromLibrary(widget: WidgetMeta) {
   deckStore.detachWidgetFromAllColumns(widget.installId)
   const undo = widgetsStore.removeWidget(widget.installId)
   if (undo) {
-    useToast().show('ウィジットを削除しました', 'info', {
+    useToast().show('ウィジェットを削除しました', 'info', {
       action: { label: '元に戻す', onClick: undo },
     })
   }
@@ -407,7 +407,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
         v-if="viewTab === 'installed' && isWindowExposed('widget-edit')"
         class="_button"
         :class="$style.headerBtn"
-        title="新規ローカルウィジットを作成"
+        title="新規ローカルウィジェットを作成"
         @click.stop="openNewWidgetEditor"
       >
         <i class="ti ti-plus" />
@@ -457,14 +457,14 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
               @click="toggleLibraryPicker"
             >
               <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? '閉じる' : 'ウィジットを追加' }}
+              {{ showLibraryPicker ? '閉じる' : 'ウィジェットを追加' }}
             </button>
           </div>
 
           <!-- ===== Library picker ===== -->
           <div v-if="showLibraryPicker" :class="$style.pickerWrap">
             <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              ライブラリに配置可能なウィジットがありません。
+              ライブラリに配置可能なウィジェットがありません。
             </div>
             <WidgetCard
               v-for="w in libraryCandidates"

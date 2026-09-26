@@ -78,7 +78,7 @@ const serverUrl = computed(() => {
   return account ? `https://${account.host}` : ''
 })
 /**
- * ウィジット固有の実行アカウント (#1018)。カラムから決まる場合は undefined —
+ * ウィジェット固有の実行アカウント (#1018)。カラムから決まる場合は undefined —
  * カラムヘッダーが既に示しているので重ねて出さない。
  */
 const ownAccount = computed(() => {
@@ -293,8 +293,8 @@ onMounted(() => {
   <div :class="$style.widgetApp">
     <div :class="$style.widgetHeader">
       <span :class="$style.widgetLabel" :title="displayName">
-        <!-- ウィジット固有の実行アカウント (#1018)。全アカウントのカラムでは
-             ウィジットごとに動く先が違うので、ここに出さないと見分けが付かない。
+        <!-- ウィジェット固有の実行アカウント (#1018)。全アカウントのカラムでは
+             ウィジェットごとに動く先が違うので、ここに出さないと見分けが付かない。
              ラベルと同じ塊に入れる — 外に出すと余白を挟んで右のボタン群まで
              流れていく -->
         <AccountAvatar

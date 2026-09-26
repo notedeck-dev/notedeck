@@ -102,7 +102,7 @@ const importDb = () =>
         <span :class="$style.sectionDesc">設定ファイル</span>
       </div>
       <p :class="$style.hint">
-        テーマ・プラグイン・ウィジット・スキル・プロファイル・各設定をひとつの notedeck.json にまとめてエクスポート / インポートします。
+        テーマ・プラグイン・ウィジェット・スキル・プロファイル・各設定をひとつの notedeck.json にまとめてエクスポート / インポートします。
       </p>
       <div :class="$style.btnRow">
         <button class="_button" :class="$style.actionBtn" :disabled="isExportingSettings" @click="exportSettings">

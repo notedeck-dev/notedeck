@@ -7,7 +7,7 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
 
 // per-account の i/registry/* 値をキャッシュする store。
 // 本家 Misskey Web UI と互換な scope/key を読み書きする薄い API 層で、
-// per-account 設定 (テーマ #339 / プラグイン #340 / ウィジット #387) の土台。
+// per-account 設定 (テーマ #339 / プラグイン #340 / ウィジェット #387) の土台。
 //
 // - in-memory cache: shallowRef<Map<accountId, Map<cacheKey, value>>>
 // - localStorage backing: 起動時の instant restore 用

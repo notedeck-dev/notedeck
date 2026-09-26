@@ -56,7 +56,7 @@ const WINDOW_TITLES: Partial<Record<WindowType, string>> = {
   'drive-file-detail': 'ファイル',
   'page-edit': 'ページ編集',
   'play-edit': 'Play 編集',
-  'widget-edit': 'ウィジット編集',
+  'widget-edit': 'ウィジェット編集',
   'skill-edit': 'スキル編集',
 }
 
