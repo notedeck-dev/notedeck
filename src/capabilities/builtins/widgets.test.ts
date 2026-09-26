@@ -1,7 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CapabilityContext } from '@/capabilities/types'
-import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 
 // unit プロジェクトは node 環境のため localStorage を stub する (deck.test.ts と同じ)
@@ -18,7 +17,6 @@ import {
   widgetsDeleteCapability,
   widgetsInstallCapability,
   widgetsListCapability,
-  widgetsReadCapability,
   widgetsSetAutoRunCapability,
   widgetsUninstallCapability,
   widgetsUpdateCapability,
@@ -34,14 +32,6 @@ describe('widget capabilities — declaration', () => {
     expect(widgetsListCapability.permissions).toEqual(['widgets.read'])
     expect(widgetsListCapability.aiTool).toBe(true)
     expect(widgetsListCapability.signature?.cheap).toBe(true)
-  })
-
-  it('widgets.read: read permission, requires installId', () => {
-    expect(widgetsReadCapability.id).toBe('widgets.read')
-    expect(widgetsReadCapability.permissions).toEqual(['widgets.read'])
-    expect(() => widgetsReadCapability.execute({})).toThrow(
-      /installId is required/,
-    )
   })
 
   it('widgets.create: write permission, install preview confirmation, requires name+src', () => {
@@ -91,15 +81,6 @@ describe('widget capabilities — declaration', () => {
     expect(widgetsSetAutoRunCapability.requiresConfirmation).not.toBe(true)
   })
 
-  it('widgets.delete: write permission, install preview confirmation (= 不可逆)', () => {
-    expect(widgetsDeleteCapability.id).toBe('widgets.delete')
-    expect(widgetsDeleteCapability.permissions).toEqual(['widgets.write'])
-    expect(typeof widgetsDeleteCapability.requiresConfirmation).toBe('function')
-    expect(() => widgetsDeleteCapability.execute({})).toThrow(
-      /installId is required/,
-    )
-  })
-
   it('widgets.create: autoRun is optional with default false (boolean)', () => {
     const params = widgetsCreateCapability.signature?.params
     expect(params?.autoRun?.optional).toBe(true)
@@ -122,24 +103,11 @@ describe('widgets.install capability', () => {
     )
   })
 
-  it('throws when id is missing', async () => {
-    await expect(widgetsInstallCapability.execute({})).rejects.toThrow(
-      /id is required/,
-    )
-  })
-
   it('marks id as the only required param; accountId is optional (#1061)', () => {
     const params = widgetsInstallCapability.signature?.params
     expect(params?.id?.optional).not.toBe(true)
     expect(params?.accountId?.optional).toBe(true)
     expect(Object.keys(params ?? {})).toEqual(['id', 'accountId'])
-  })
-
-  it('accountId が現存しないアカウントなら fetch 前に失敗する (#1061)', async () => {
-    setActivePinia(createPinia())
-    await expect(
-      widgetsInstallCapability.execute({ id: 'clock', accountId: 'nope' }),
-    ).rejects.toThrow(/account "nope" not found/)
   })
 })
 
@@ -150,12 +118,6 @@ describe('widgets.uninstall capability', () => {
     expect(widgetsUninstallCapability.aiTool).toBe(true)
     expect(typeof widgetsUninstallCapability.requiresConfirmation).toBe(
       'function',
-    )
-  })
-
-  it('throws when neither installId nor storeId is provided', () => {
-    expect(() => widgetsUninstallCapability.execute({})).toThrow(
-      /installId or storeId is required/,
     )
   })
 
@@ -191,45 +153,6 @@ describe('WIDGETS_BUILTIN_CAPABILITIES', () => {
       'widgets.uninstall',
       'widgets.update',
     ])
-  })
-})
-
-describe('widgets.list — 個体の実行アカウント (#1061)', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    storage.clear()
-  })
-
-  it('accountKey を現行アカウントの id に引き直して返し、未固定と孤児は null', () => {
-    const accounts = useAccountsStore()
-    accounts.accounts = [
-      {
-        id: 'uuid-yami',
-        host: 'yami.ski',
-        userId: 'u1',
-        username: 'alice',
-        hasToken: true,
-      } as Account,
-    ]
-    const widgets = useWidgetsStore()
-    const base = { src: '', autoRun: false, createdAt: 0, updatedAt: 0 }
-    widgets.addWidget({ ...base, installId: 'w1', name: 'a' })
-    widgets.addWidget({
-      ...base,
-      installId: 'w2',
-      name: 'b',
-      accountKey: 'yami.ski:u1',
-    })
-    widgets.addWidget({
-      ...base,
-      installId: 'w3',
-      name: 'c',
-      accountKey: 'gone.example:u9',
-    })
-
-    const rows = widgetsListCapability.execute({}) as { accountId: unknown }[]
-
-    expect(rows.map((r) => r.accountId)).toEqual([null, 'uuid-yami', null])
   })
 })
 

@@ -12,10 +12,12 @@ notecli = { path = "../notecli", features = ["specta"] }
 async-trait = "0.1"
 axum = "0.8"
 base64 = "0.22"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 bytes = "1"
 encoding_rs = "0.8"
 futures-util = "0.3"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+indexmap = { version = "2", features = ["serde"] }
 json5 = "1"
 kamadak-exif = "0.6.1"
 lru = "0.18"

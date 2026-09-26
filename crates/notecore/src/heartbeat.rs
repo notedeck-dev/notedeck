@@ -123,6 +123,86 @@ pub struct PersistedState {
     /// skill id → 前回 AI を起動した時刻 (ms)
     pub last_ai_run_at: HashMap<String, u64>,
     pub consecutive_failures: u32,
+    /// 直近の失敗 (理由の永続化、#1133 縦切り 6)。新しい順、上限あり
+    #[serde(default)]
+    pub failures: Vec<FailureRecord>,
+    /// 通知済みの失敗 signature → 最後に見た時刻 (同じ signature は初回だけ toast)
+    #[serde(default)]
+    pub notified_signatures: HashMap<String, u64>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct FailureRecord {
+    pub at: u64,
+    pub source: String,
+    pub signature: String,
+    pub message: String,
+}
+
+const FAILURES_LIMIT: usize = 20;
+/// 通知済み signature の保持上限。溢れたら古いものから忘れる (再発すれば再通知)
+const NOTIFIED_LIMIT: usize = 100;
+
+/// 失敗の signature: 可変値と空白の揺れを潰した先頭 (同じ原因を同じ鍵に)。
+/// 3 桁以下の数字 (HTTP ステータス等) は原因を表すので残し、4 桁以上の連続
+/// (request id / 時刻 / 件数) は `#` に潰す。
+pub fn failure_signature(message: &str) -> String {
+    let mut out = String::new();
+    let mut digits = String::new();
+    let flush = |out: &mut String, digits: &mut String| {
+        if digits.len() > 3 {
+            out.push('#');
+        } else {
+            out.push_str(digits);
+        }
+        digits.clear();
+    };
+    for c in message.chars() {
+        if c.is_ascii_digit() {
+            digits.push(c);
+            continue;
+        }
+        flush(&mut out, &mut digits);
+        if c.is_whitespace() {
+            if !out.ends_with(' ') {
+                out.push(' ');
+            }
+            continue;
+        }
+        out.push(c.to_ascii_lowercase());
+    }
+    flush(&mut out, &mut digits);
+    out.trim().chars().take(80).collect()
+}
+
+/// 失敗を記録し、初めて見る signature なら通知する (`true`)。
+pub fn record_failure(state: &mut PersistedState, source: &str, message: &str, now: u64) -> bool {
+    let signature = failure_signature(message);
+    state.failures.insert(
+        0,
+        FailureRecord {
+            at: now,
+            source: source.to_string(),
+            signature: signature.clone(),
+            message: message.chars().take(500).collect(),
+        },
+    );
+    state.failures.truncate(FAILURES_LIMIT);
+    let first = !state.notified_signatures.contains_key(&signature);
+    state.notified_signatures.insert(signature, now);
+    while state.notified_signatures.len() > NOTIFIED_LIMIT {
+        let Some(oldest) = state
+            .notified_signatures
+            .iter()
+            .min_by_key(|(_, at)| **at)
+            .map(|(k, _)| k.clone())
+        else {
+            break;
+        };
+        state.notified_signatures.remove(&oldest);
+    }
+    first
 }
 
 fn state_path(app_dir: &Path) -> PathBuf {
@@ -163,11 +243,23 @@ pub struct Status {
     pub daily_count: u32,
     /// 直近の実行で読んだ設定の断面 (未実行なら None)
     pub config: Option<Value>,
+    /// 直近の失敗 (状態ファイルの写し)
+    pub recent_failures: Vec<FailureRecord>,
 }
 
 fn status_slot() -> &'static Mutex<Status> {
     static S: OnceLock<Mutex<Status>> = OnceLock::new();
     S.get_or_init(|| Mutex::new(Status::default()))
+}
+
+/// 起動時に状態ファイルから観測値を戻す (再起動直後も直近の失敗が見える)。
+pub fn restore_status(app_dir: &Path) {
+    let st = load_state(app_dir);
+    with_status(|s| {
+        s.consecutive_failures = st.consecutive_failures;
+        s.daily_count = st.daily_count;
+        s.recent_failures = st.failures;
+    });
 }
 
 fn with_status(f: impl FnOnce(&mut Status)) {
@@ -189,6 +281,7 @@ pub fn status_json() -> Value {
         "consecutiveFailures": st.consecutive_failures,
         "dailyCount": st.daily_count,
         "config": st.config.unwrap_or(Value::Null),
+        "recentFailures": st.recent_failures,
     })
 }
 
@@ -372,6 +465,7 @@ pub async fn run_once(core: &Core, source: &str) {
             let st = load_state(dir);
             s.consecutive_failures = st.consecutive_failures;
             s.daily_count = st.daily_count;
+            s.recent_failures = st.failures;
         }
     });
     if let Ok(mut r) = running_flag().lock() {
@@ -479,6 +573,11 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
             state.consecutive_failures += 1;
             let n = state.consecutive_failures;
             tracing::warn!("heartbeat inference failed ({n}/{MAX_CONSECUTIVE_FAILURES}): {e}");
+            // 理由を永続化し、同じ signature は初回だけ通知する
+            if record_failure(&mut state, source, &e.to_string(), now) {
+                let short: String = e.to_string().chars().take(120).collect();
+                toast(core, "warning", format!("HEARTBEAT 失敗: {short}"));
+            }
             append_error(core, &cfg, source, &e.to_string(), now).await;
             if n >= MAX_CONSECUTIVE_FAILURES {
                 state.consecutive_failures = 0;
@@ -948,7 +1047,11 @@ async fn append_error(core: &Core, cfg: &AiConfigLite, source: &str, err: &str, 
 
 const TITLE_SYSTEM: &str = "あなたは HEARTBEAT 通知の要約タイトル生成アシスタントです。与えられた通知内容を端的に表す短い日本語のタイトルを 1 行で出力してください。20 文字程度 (最大 40 文字) に収めること。引用符、前置き、改行、絵文字、文末句点は付けないでください。タイトルのみを返してください。";
 
-struct TextSink(Mutex<String>, Mutex<Option<String>>);
+struct TextSink(
+    Mutex<String>,
+    Mutex<Option<String>>,
+    Mutex<Option<crate::ai_budget::TokenUsage>>,
+);
 
 impl AiChatSink for TextSink {
     fn emit(&self, event: crate::ai_chat_service::AiChatEvent) {
@@ -961,6 +1064,14 @@ impl AiChatSink for TextSink {
             "error" => {
                 if let Ok(mut e) = self.1.lock() {
                     *e = event.error;
+                }
+            }
+            "usage" => {
+                if let (Some(u), Ok(mut slot)) = (event.usage, self.2.lock()) {
+                    match slot.as_mut() {
+                        Some(cur) => cur.merge(u),
+                        None => *slot = Some(u),
+                    }
                 }
             }
             _ => {}
@@ -990,12 +1101,51 @@ async fn generate_title(core: &Core, cfg: &AiConfigLite, report: &str) -> Option
         read_timeout_ms: Some(u64::from(cfg.generation.read_timeout_seconds) * 1000),
         tools: None,
     };
-    let sink = TextSink(Mutex::new(String::new()), Mutex::new(None));
-    if let Err(e) = ai_chat_service::run_round(&req, &conn, &sink).await {
+    // タイトル生成も接続の token 予算に数える (超過なら呼ばない)
+    let budget = cfg.daily_budget_for(&cfg.active_connection_id);
+    let store_dir = ai_turn::checkpoint::dir(app_dir);
+    let chars = TITLE_SYSTEM.chars().count() + req.messages[0].content.chars().count();
+    if let Some(daily) = budget {
+        if let Err(exceeded) = crate::ai_budget::check(
+            &store_dir,
+            &cfg.active_connection_id,
+            daily,
+            crate::ai_budget::estimate_tokens(chars),
+            crate::ai_sessions::now_ms(),
+        ) {
+            tracing::info!("heartbeat title generation skipped: {exceeded}");
+            return None;
+        }
+    }
+    let sink = TextSink(
+        Mutex::new(String::new()),
+        Mutex::new(None),
+        Mutex::new(None),
+    );
+    let result = ai_chat_service::run_round(&req, &conn, &sink).await;
+    let text = sink.0.lock().ok()?.clone();
+    if budget.is_some() {
+        let usage = sink
+            .2
+            .lock()
+            .ok()
+            .and_then(|u| *u)
+            .unwrap_or(crate::ai_budget::TokenUsage {
+                input_tokens: crate::ai_budget::estimate_tokens(chars),
+                output_tokens: crate::ai_budget::estimate_tokens(text.chars().count()),
+                estimated: true,
+            });
+        crate::ai_budget::settle(
+            &store_dir,
+            &cfg.active_connection_id,
+            usage,
+            crate::ai_sessions::now_ms(),
+        );
+    }
+    if let Err(e) = result {
         tracing::warn!("heartbeat title generation failed: {e}");
         return None;
     }
-    let text = sink.0.lock().ok()?.clone();
     let title = clean_report_title(&text);
     (!title.is_empty()).then_some(title)
 }
@@ -1090,6 +1240,43 @@ mod tests {
             false
         );
         assert!(report_tool(&json!({"body": " "}), &hb).is_err());
+    }
+
+    #[test]
+    fn failure_signature_and_first_notification() {
+        // ステータスコード (3 桁以下) は原因なので残し、長い数字 (id 等) は潰す
+        assert_eq!(failure_signature("HTTP 503  from api"), "http 503 from api");
+        assert_eq!(failure_signature("HTTP 502 from api"), "http 502 from api");
+        assert_eq!(
+            failure_signature("timeout req 12345678 after 30s"),
+            "timeout req # after 30s"
+        );
+        let mut st = PersistedState::default();
+        assert!(record_failure(&mut st, "scheduled", "HTTP 503 from api", 1));
+        assert!(record_failure(&mut st, "scheduled", "HTTP 502 from api", 2));
+        assert!(!record_failure(
+            &mut st,
+            "scheduled",
+            "HTTP 502 from api",
+            3
+        ));
+        assert!(record_failure(&mut st, "manual", "network error", 4));
+        assert_eq!(st.failures.len(), 4);
+        assert_eq!(st.failures[0].message, "network error");
+        for i in 0..30 {
+            record_failure(&mut st, "s", &format!("x{i}"), 10 + i);
+        }
+        assert_eq!(st.failures.len(), FAILURES_LIMIT);
+        // 通知済み signature は上限まで。溢れたら古いものを忘れて再通知できる
+        for i in 0..(NOTIFIED_LIMIT as u64 + 10) {
+            record_failure(
+                &mut st,
+                "s",
+                &format!("kind-{}", "z".repeat(i as usize % 70 + 1)),
+                100 + i,
+            );
+        }
+        assert!(st.notified_signatures.len() <= NOTIFIED_LIMIT);
     }
 
     #[test]

@@ -1,7 +1,4 @@
-import { createPinia, setActivePinia } from 'pinia'
 import { describe, expect, it } from 'vitest'
-import type { CapabilityContext } from '@/capabilities/types'
-import { useThemeStore } from '@/stores/theme'
 import {
   THEME_BUILTIN_CAPABILITIES,
   themeApplyCapability,
@@ -53,10 +50,6 @@ describe('theme.read capability', () => {
     expect(themeReadCapability.signature?.cheap).toBe(true)
   })
 
-  it('throws when id is missing', () => {
-    expect(() => themeReadCapability.execute({})).toThrow(/id is required/)
-  })
-
   it('marks id as required (no other params)', () => {
     const params = themeReadCapability.signature?.params
     expect(params?.id?.optional).not.toBe(true)
@@ -70,35 +63,6 @@ describe('theme.create capability', () => {
     expect(themeCreateCapability.permissions).toEqual(['theme.write'])
     expect(themeCreateCapability.aiTool).toBe(true)
     expect(typeof themeCreateCapability.requiresConfirmation).toBe('function')
-  })
-
-  it('rejects missing name / invalid base / missing props', async () => {
-    await expect(themeCreateCapability.execute({})).rejects.toThrow(
-      /name is required/,
-    )
-    await expect(themeCreateCapability.execute({ name: 'X' })).rejects.toThrow(
-      /base must be/,
-    )
-    await expect(
-      themeCreateCapability.execute({ name: 'X', base: 'dark' }),
-    ).rejects.toThrow(/props must be/)
-    await expect(
-      themeCreateCapability.execute({
-        name: 'X',
-        base: 'invalid',
-        props: { a: '1' },
-      }),
-    ).rejects.toThrow(/base must be/)
-  })
-
-  it('rejects props containing non-string values', async () => {
-    await expect(
-      themeCreateCapability.execute({
-        name: 'X',
-        base: 'dark',
-        props: { accent: 123 } as unknown as Record<string, string>,
-      }),
-    ).rejects.toThrow(/props must be/)
   })
 
   it('declares base enum and id optional', () => {
@@ -120,45 +84,12 @@ describe('theme.update capability', () => {
     expect(typeof themeUpdateCapability.requiresConfirmation).toBe('function')
   })
 
-  it('throws when id is missing', async () => {
-    await expect(themeUpdateCapability.execute({})).rejects.toThrow(
-      /id is required/,
-    )
-  })
-
   it('marks all body fields except id as optional', () => {
     const params = themeUpdateCapability.signature?.params
     expect(params?.id?.optional).not.toBe(true)
     expect(params?.name?.optional).toBe(true)
     expect(params?.base?.optional).toBe(true)
     expect(params?.props?.optional).toBe(true)
-  })
-
-  it('確認は現在のテーマとマージ後を全文 diff で見せる (#981)', async () => {
-    setActivePinia(createPinia())
-    const confirm = themeUpdateCapability.requiresConfirmation
-    if (typeof confirm !== 'function') throw new Error('expected function')
-    const store = useThemeStore()
-    store.installedThemes = [
-      {
-        id: 'th-diff',
-        name: 'Diff Theme',
-        base: 'dark',
-        props: { accent: '#f00', panel: '#111' },
-      },
-    ]
-    const ctx: CapabilityContext = {}
-    const opts = await confirm(
-      { id: 'th-diff', props: { accent: '#0f0' } },
-      ctx,
-    )
-    expect(opts?.diff?.language).toBe('json5')
-    // patch だけでなく現在値が並ぶ (変化量を判断できる)
-    expect(opts?.diff?.old).toContain('"accent": "#f00"')
-    expect(opts?.diff?.new).toContain('"accent": "#0f0"')
-    // patch に無いキーは維持される
-    expect(opts?.diff?.new).toContain('"panel": "#111"')
-    expect(ctx.stagedEdit?.next).toBe(opts?.diff?.new)
   })
 })
 
@@ -171,12 +102,6 @@ describe('theme.install capability', () => {
     ])
     expect(themeInstallCapability.aiTool).toBe(true)
     expect(typeof themeInstallCapability.requiresConfirmation).toBe('function')
-  })
-
-  it('throws when id is missing', async () => {
-    await expect(themeInstallCapability.execute({})).rejects.toThrow(
-      /id is required/,
-    )
   })
 
   it('marks id as the only required param', () => {
@@ -194,10 +119,6 @@ describe('theme.uninstall capability', () => {
     expect(typeof themeUninstallCapability.requiresConfirmation).toBe(
       'function',
     )
-  })
-
-  it('throws when id is missing', () => {
-    expect(() => themeUninstallCapability.execute({})).toThrow(/id is required/)
   })
 
   it('marks id as the only required param', () => {

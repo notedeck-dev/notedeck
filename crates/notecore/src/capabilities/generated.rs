@@ -2311,7 +2311,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定したメモ id を `[name](memo:<id>)` 形式で参照しているメモを 返す (= バックリンク)。タグ整理 / 関連メモ把握に有用。本文に link が あるメモ全件を返す (limit / pagination なし、通常 backlinks は少数)。 検索範囲は accountId 指定のメモ空間のみ (cross-account はしない)。",
         params: &[
             ParamDecl {
@@ -2341,7 +2341,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "NoteDeck のローカル markdown メモを新規作成する。 text + 任意の tags / authorId 指定可。CW / visibility / poll 等の投稿用フィールドは触らない (= デフォルト値で作成)。memoKey は Zettelkasten 形式 (`YYYYMMDDHHmmss`) で自動採番。 authorId を渡すと <persona> block の指示通り memo に author 埋め込みブロックが 記録される (skill / account の表示情報を作成時に snapshot)。 投稿前に確認モーダルが出る。",
         params: &[
             ParamDecl {
@@ -2385,7 +2385,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "既存ローカルメモを削除する。削除前に確認モーダルが出る。 整理 skill の指示でユーザーが「古いメモを片付ける」フローで使う想定。 削除されたメモは復元できない (notedeck/memos/<id>.md ファイルが消える)。",
         params: &[
             ParamDecl {
@@ -2415,7 +2415,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "NoteDeck のローカル memo を絞り込んで列挙する。 tag / 経過日数 / 部分一致クエリ / 作者でフィルタ可能。 updatedAt 降順、limit 件で打ち切り (default 10、最大 50)。 AI は memos.search でキーワード検索する前に memos.list で全体像を 把握するのが効率的。",
         params: &[
             ParamDecl {
@@ -2473,7 +2473,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "メモを編集履歴の過去の状態に戻す。index は 0 が最新の履歴。",
         params: &[
             ParamDecl {
@@ -2517,7 +2517,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "NoteDeck のローカル memo を本文部分一致で検索する。 大小無視の substring + 直近更新の recency boost で並べ、 limit 件 (default 10、最大 50) を返す。embedding 由来の semantic 検索はないので、ヒットしない場合は AI が言い換え (例:「旅行」→「出張」「バカンス」) で再試行することを想定。 authorId で persona / 本人別のメモ検索も可能。",
         params: &[
             ParamDecl {
@@ -2561,7 +2561,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "既存ローカルメモの text / tags / authorId を更新する (すべて optional、未指定なら維持)。 CW / visibility 等の他のフィールドは既存値を保持。 id は <memos> ブロックで参照できる Zettelkasten 形式 memoKey。 投稿前に確認モーダルが出る。",
         params: &[
             ParamDecl {
@@ -3800,7 +3800,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "プラグインを削除する。AiScript ソース・メタ・Mk:save 領域すべて消える (= 不可逆)。confirm ダイアログで対象プラグインの name / version / permissions を表示してユーザー承認を取る。",
         params: &[
             ParamDecl {
@@ -3830,7 +3830,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 installId のプラグインの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。",
         params: &[
             ParamDecl {
@@ -3860,7 +3860,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "MisStore (store.notedeck.io) の既製プラグインをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 全体スコープ (全アカウント対象) でインストールされ、既に同 storeId の プラグインがあれば再インストールせず全体スコープへ追加するだけ。",
         params: &[
             ParamDecl {
@@ -3890,7 +3890,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みプラグインのメタデータ一覧を返す。 AiScript ソースは含まれない (= plugins.read で個別取得)。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -3912,7 +3912,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 installId のプラグインの AiScript ソースを返す。",
         params: &[
             ParamDecl {
@@ -3942,7 +3942,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "プラグイン src を編集履歴の index 番目に戻す。confirm ダイアログで 戻し先 snapshot の name / version / permissions / AiScript ソースを 表示してユーザー承認を取る。",
         params: &[
             ParamDecl {
@@ -3986,7 +3986,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "プラグインの active 状態を切り替える。有効化 (true) すると handler が起動して Misskey API 介入の副作用が走り得るので、AI が 呼ぶときは確認ダイアログでユーザー承認を取る。無効化 (false) は 即実行 (= 可逆な停止操作)。有効化後は aiscript.logs (source: plugin) に \"started\" が記録されるので起動確認に使える。",
         params: &[
             ParamDecl {
@@ -4023,7 +4023,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みプラグインを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。 plugins.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
         params: &[
             ParamDecl {
@@ -4104,7 +4104,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 id の名前付きクエリの編集前 snapshot 一覧 (新しい順) を返す。",
         params: &[
             ParamDecl {
@@ -4134,7 +4134,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "名前付きクエリのソースを編集履歴の index 番目に戻す。",
         params: &[
             ParamDecl {
@@ -4825,7 +4825,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "custom.css の末尾に CSS を追記する。既存ルールには触らない (= 学習が積み上がる、skills.append と対称)。",
         params: &[
             ParamDecl {
@@ -4862,7 +4862,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "custom.css の編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。 各エントリは { at: 時刻 ms, snapshot: { body } }。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -4884,7 +4884,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "現在の custom.css の内容を返す。CSS 変数の上書きや独自ルール等を AI が確認するために使う。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -4906,7 +4906,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "custom.css を編集履歴の index 番目の snapshot に戻す。 styles.history で index を取得。",
         params: &[
             ParamDecl {
@@ -4943,7 +4943,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "custom.css の内容を `body` で全置換する。差分編集ではなく完全上書きなので、styles.read で現状を取得してからマージした内容を渡すこと。",
         params: &[
             ParamDecl {
@@ -5054,7 +5054,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "新規テーマを作成して installedThemes に追加する。 props は Misskey 互換 CSS 変数 (例: { accent: \"#5f6\", panel: \"#0a0a0a\" })。 既存 id を指定した場合は theme.update と同等の挙動になる。",
         params: &[
             ParamDecl {
@@ -5112,7 +5112,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 id のテーマの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。",
         params: &[
             ParamDecl {
@@ -5142,7 +5142,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "MisStore (store.notedeck.io) の既製テーマをインストールする。 id は `misstore.search` で取得した値を渡す。 sha512 検証付き。インストール後は theme.apply で適用可能。",
         params: &[
             ParamDecl {
@@ -5172,7 +5172,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みテーマの一覧を返す。各要素は { id, name, base, author }",
         params: &[],
         returns: Some(ReturnDecl {
@@ -5194,7 +5194,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。 theme.update で差分編集する前の現状把握に使う。",
         params: &[
             ParamDecl {
@@ -5224,7 +5224,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "テーマ props を編集履歴の index 番目に戻す。",
         params: &[
             ParamDecl {
@@ -5268,7 +5268,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みテーマを完全削除する。選択中だった場合は selection も解除され、 デフォルトテーマにフォールバックする。",
         params: &[
             ParamDecl {
@@ -5298,7 +5298,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "既存テーマの props / name / base を部分更新する。指定されたフィールドだけ上書きされる。id は theme.list で取得した値を渡す。",
         params: &[
             ParamDecl {
@@ -5936,7 +5936,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "ウィジェットを削除する。AiScript ソース・メタ・Mk:save 領域すべて消える (= 不可逆)。",
         params: &[
             ParamDecl {
@@ -5966,7 +5966,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 installId のウィジェットの編集前 snapshot 一覧 (新しい順、最大 10 件) を返す。",
         params: &[
             ParamDecl {
@@ -5996,7 +5996,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "MisStore (store.notedeck.io) の既製ウィジェットをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 個体は storeId × 実行アカウントの組で 1 つ。同じ組が既にあれば更新して既存 installId を返す。",
         params: &[
             ParamDecl {
@@ -6033,7 +6033,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みウィジェットのメタデータ一覧を返す。 AiScript ソースは含まれない (src は widgets.read で個別取得)。",
         params: &[],
         returns: Some(ReturnDecl {
@@ -6055,7 +6055,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "指定 installId のウィジェットの AiScript ソースを返す。",
         params: &[
             ParamDecl {
@@ -6085,7 +6085,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "ウィジェット src を編集履歴の index 番目に戻す。",
         params: &[
             ParamDecl {
@@ -6129,7 +6129,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "ウィジェットの autoRun フラグを切り替える (可逆操作)。",
         params: &[
             ParamDecl {
@@ -6166,7 +6166,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         untrusted: false,
         unattended: false,
         destinations: &[],
-        exec: Exec::Device,
+        exec: Exec::Core,
         description: "インストール済みウィジェットを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。storeId 指定は 実行アカウント別の全個体を消す。 widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
         params: &[
             ParamDecl {

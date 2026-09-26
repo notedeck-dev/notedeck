@@ -1,24 +1,10 @@
-import {
-  abortPlugin,
-  launchPlugin,
-  parsePluginMeta,
-} from '@/aiscript/plugin-api'
+import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
 import type { Command } from '@/commands/registry'
-import { useMisStoreStore } from '@/stores/misstore'
 import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
-import { getSnapshotAt, listSnapshots } from '@/utils/historyFs'
-import { implement } from '../declare'
+import { implement, implementCore } from '../declare'
 import { editAttribution } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
 import { preflightValidateSrc } from './aiscript'
-
-interface PluginSnapshot {
-  src: string
-  name?: string
-  version?: string
-  permissions?: string[]
-  active?: boolean
-}
 
 /**
  * Plugin 系 capability — AI が AiScript プラグインを動的に作成・編集・有効化・
@@ -37,43 +23,9 @@ interface PluginSnapshot {
  * 読取系 (list / read / history) も `aiTool: true`。
  */
 
-export const pluginsListCapability = implement('plugins.list', {
-  execute: () => {
-    const store = usePluginsStore()
-    return store.plugins.map((p) => ({
-      installId: p.installId,
-      name: p.name,
-      version: p.version,
-      author: p.author ?? null,
-      description: p.description ?? null,
-      active: p.active,
-      permissions: p.permissions ?? [],
-      storeId: p.storeId ?? null,
-    }))
-  },
-})
+export const pluginsListCapability = implementCore('plugins.list')
 
-export const pluginsReadCapability = implement('plugins.read', {
-  execute: (params) => {
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    if (!installId) throw new Error('plugins.read: installId is required')
-    const store = usePluginsStore()
-    const plugin = store.getPlugin(installId)
-    if (!plugin) {
-      throw new Error(`plugins.read: plugin "${installId}" not found`)
-    }
-    return {
-      installId: plugin.installId,
-      name: plugin.name,
-      version: plugin.version,
-      src: plugin.src,
-      active: plugin.active,
-      permissions: plugin.permissions ?? [],
-      configData: plugin.configData,
-    }
-  },
-})
+export const pluginsReadCapability = implementCore('plugins.read')
 
 export const pluginsCreateCapability = implement('plugins.create', {
   preflight: (params) => preflightValidateSrc(params, 'plugin'),
@@ -196,169 +148,17 @@ export const pluginsUpdateCapability = implement('plugins.update', {
   },
 })
 
-export const pluginsSetActiveCapability = implement('plugins.setActive', {
-  // 有効化 (active=true) は handler が動き始める = Misskey API 介入の副作用が
-  // 走り得るので permissions を見せて確認。無効化 (active=false) は handler
-  // 停止 (= 安全方向への可逆動作) なので即実行で OK。
-  requiresConfirmation: (params) => {
-    const active = params?.active === true
-    if (!active) return null
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    const cur = usePluginsStore().getPlugin(installId)
-    if (!cur) return null
-    return {
-      title: 'プラグインを有効化',
-      message:
-        `${cur.name} を有効化します。handler が起動し、` +
-        '以下の permissions の操作が走り得ます。',
-      installPreview: {
-        kind: 'plugin',
-        name: cur.name,
-        version: cur.version,
-        author: cur.author,
-        description: cur.description,
-        permissions: cur.permissions ?? [],
-      },
-      okLabel: '有効化',
-      cancelLabel: 'やめる',
-      type: 'warning',
-    }
-  },
-  execute: async (params) => {
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    if (!installId) {
-      throw new Error('plugins.setActive: installId is required')
-    }
-    const active = params?.active === true
-    const store = usePluginsStore()
-    if (!store.getPlugin(installId)) {
-      throw new Error(`plugins.setActive: plugin "${installId}" not found`)
-    }
-    store.setActive(installId, active)
-    // フラグ更新だけでは handler は起動しない (UI トグルと同じく launch/abort が必要)
-    const updated = store.getPlugin(installId)
-    if (active && updated) {
-      await launchPlugin(updated)
-    } else {
-      abortPlugin(installId)
-    }
-    return { installId, active }
-  },
-})
+export const pluginsSetActiveCapability = implementCore('plugins.setActive')
 
-export const pluginsDeleteCapability = implement('plugins.delete', {
-  requiresConfirmation: (params) => {
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    const cur = usePluginsStore().getPlugin(installId)
-    if (!cur) return null
-    return {
-      title: 'プラグインを削除',
-      message:
-        `${cur.name} を削除します。AiScript ソース・メタ・` +
-        'Mk:save 領域がすべて消えます (= 不可逆)。',
-      installPreview: {
-        kind: 'plugin',
-        name: cur.name,
-        version: cur.version,
-        author: cur.author,
-        description: cur.description,
-        permissions: cur.permissions ?? [],
-      },
-      okLabel: '削除',
-      cancelLabel: 'やめる',
-      type: 'danger',
-    }
-  },
-  execute: (params) => {
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    if (!installId) throw new Error('plugins.delete: installId is required')
-    const store = usePluginsStore()
-    const existed = !!store.getPlugin(installId)
-    store.removePlugin(installId)
-    return { installId, removed: existed }
-  },
-})
+export const pluginsDeleteCapability = implementCore('plugins.delete')
 
 function isStringArray(v: unknown): v is string[] {
   return Array.isArray(v) && v.every((x) => typeof x === 'string')
 }
 
-export const pluginsHistoryCapability = implement('plugins.history', {
-  execute: async (params) => {
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    if (!installId) throw new Error('plugins.history: installId is required')
-    const store = usePluginsStore()
-    const plugin = store.getPlugin(installId)
-    if (!plugin) {
-      throw new Error(`plugins.history: plugin "${installId}" not found`)
-    }
-    const basename = plugin.fileBase ?? (plugin.name || plugin.installId)
-    return await listSnapshots<PluginSnapshot>('plugin', basename)
-  },
-})
+export const pluginsHistoryCapability = implementCore('plugins.history')
 
-export const pluginsRevertCapability = implement('plugins.revert', {
-  requiresConfirmation: async (params, ctx) => {
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    const index = typeof params?.index === 'number' ? params.index : -1
-    const cur = usePluginsStore().getPlugin(installId)
-    if (!cur || index < 0) return null
-    const basename = cur.fileBase ?? (cur.name || cur.installId)
-    const entry = await getSnapshotAt<PluginSnapshot>('plugin', basename, index)
-    if (!entry) return null
-    const snap = entry.snapshot
-    const next = stageEdit(ctx, cur.src, snap.src)
-    return {
-      title: 'プラグインを過去の状態に戻す',
-      message:
-        `${cur.name} を編集履歴 #${index} (${new Date(entry.at).toLocaleString()}) ` +
-        'の状態に戻します。現在の AiScript ソースは上書きされます。',
-      installPreview: {
-        kind: 'plugin',
-        name: snap.name ?? cur.name,
-        version: snap.version ?? cur.version,
-        author: cur.author,
-        description: cur.description,
-        permissions: snap.permissions ?? cur.permissions ?? [],
-      },
-      diff: { old: cur.src, new: next, language: 'aiscript' },
-      okLabel: 'この状態に戻す',
-      cancelLabel: 'やめる',
-      type: 'warning',
-    }
-  },
-  execute: async (params, ctx) => {
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    const index = typeof params?.index === 'number' ? params.index : -1
-    if (!installId) throw new Error('plugins.revert: installId is required')
-    if (index < 0) throw new Error('plugins.revert: index must be >= 0')
-    const store = usePluginsStore()
-    const plugin = store.getPlugin(installId)
-    if (!plugin) {
-      throw new Error(`plugins.revert: plugin "${installId}" not found`)
-    }
-    const basename = plugin.fileBase ?? (plugin.name || plugin.installId)
-    const entry = await getSnapshotAt<PluginSnapshot>('plugin', basename, index)
-    if (!entry) {
-      throw new Error(`plugins.revert: no snapshot at index ${index}`)
-    }
-    const next = takeStagedEdit(
-      ctx,
-      'plugins.revert',
-      plugin.src,
-      () => entry.snapshot.src,
-    )
-    store.updateSrc(installId, next, editAttribution(ctx, params))
-    return { installId, reverted: true, at: entry.at }
-  },
-})
+export const pluginsRevertCapability = implementCore('plugins.revert')
 
 /**
  * `plugins.install` — MisStore (store.notedeck.io) から既製プラグインを取得して
@@ -372,48 +172,7 @@ export const pluginsRevertCapability = implement('plugins.revert', {
  * (全アカウント対象、後から追加した分も含む #771) で入れる。インストール後は
  * active=true で自動起動される (misstore.ts installPlugin の挙動)。
  */
-export const pluginsInstallCapability = implement('plugins.install', {
-  requiresConfirmation: async (params) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) return null
-    const misStore = useMisStoreStore()
-    await misStore.fetchPlugins()
-    const entry = misStore.plugins.find((p) => p.id === id)
-    if (!entry) return null
-    return {
-      title: 'MisStore からプラグインを入れる',
-      message:
-        `${entry.name} (v${entry.version} / by ${entry.author}) を MisStore から取得します。` +
-        ' インストール直後に自動で active=true で起動されます。',
-      installPreview: {
-        kind: 'plugin',
-        name: entry.name,
-        version: entry.version,
-        author: entry.author,
-        description: entry.description,
-      },
-      code: entry.description,
-      codeLanguage: 'plaintext',
-      okLabel: 'インストール',
-      cancelLabel: 'やめる',
-      type: 'normal',
-    }
-  },
-  execute: async (params) => {
-    const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) throw new Error('plugins.install: id is required')
-    const misStore = useMisStoreStore()
-    await misStore.fetchPlugins()
-    const entry = misStore.plugins.find((p) => p.id === id)
-    if (!entry) {
-      throw new Error(
-        `plugins.install: plugin "${id}" not found in MisStore (try misstore.search first)`,
-      )
-    }
-    await misStore.installPlugin(entry, { kind: 'global' })
-    return { id: entry.id, name: entry.name, installed: true }
-  },
-})
+export const pluginsInstallCapability = implementCore('plugins.install')
 
 /**
  * `plugins.uninstall` — インストール済みプラグインを完全削除する。
@@ -421,54 +180,7 @@ export const pluginsInstallCapability = implement('plugins.install', {
  * 揃え、storeId からも引けるエイリアス。AI が「MisStore で入れた○○外して」
  * と発話したとき id ベースで消せるよう、両方を受け付ける。
  */
-export const pluginsUninstallCapability = implement('plugins.uninstall', {
-  requiresConfirmation: (params) => {
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    const storeId = typeof params?.storeId === 'string' ? params.storeId : ''
-    const pluginsStore = usePluginsStore()
-    const cur = installId
-      ? pluginsStore.getPlugin(installId)
-      : pluginsStore.plugins.find((p) => p.storeId === storeId)
-    if (!cur) return null
-    return {
-      title: 'プラグインを削除',
-      message:
-        `${cur.name} を削除します。AiScript ソース・メタ・Mk:save 領域が` +
-        'すべて消えます (= 不可逆)。',
-      installPreview: {
-        kind: 'plugin',
-        name: cur.name,
-        version: cur.version,
-        author: cur.author,
-        description: cur.description,
-        permissions: cur.permissions ?? [],
-      },
-      okLabel: '削除',
-      cancelLabel: 'やめる',
-      type: 'danger',
-    }
-  },
-  execute: (params) => {
-    const installId =
-      typeof params?.installId === 'string' ? params.installId : ''
-    const storeId = typeof params?.storeId === 'string' ? params.storeId : ''
-    if (!installId && !storeId) {
-      throw new Error('plugins.uninstall: installId or storeId is required')
-    }
-    const store = usePluginsStore()
-    const plugin = installId
-      ? store.getPlugin(installId)
-      : store.plugins.find((p) => p.storeId === storeId)
-    if (!plugin) {
-      throw new Error(
-        `plugins.uninstall: plugin not found (installId="${installId}" storeId="${storeId}")`,
-      )
-    }
-    store.removePlugin(plugin.installId)
-    return { installId: plugin.installId, removed: true }
-  },
-})
+export const pluginsUninstallCapability = implementCore('plugins.uninstall')
 
 export const PLUGINS_BUILTIN_CAPABILITIES: readonly Command[] = [
   pluginsListCapability,

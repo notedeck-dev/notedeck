@@ -3335,9 +3335,11 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "bytes",
+ "chrono",
  "encoding_rs",
  "futures-util",
  "image",
+ "indexmap 2.14.0",
  "json5",
  "kamadak-exif",
  "lru",
@@ -3367,7 +3369,7 @@ dependencies = [
 
 [[package]]
 name = "notedeck"
-version = "1.68.0"
+version = "1.69.0"
 dependencies = [
  "async-trait",
  "axum",

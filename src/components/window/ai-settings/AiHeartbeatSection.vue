@@ -16,6 +16,20 @@ import AiSettingsSection from './AiSettingsSection.vue'
 import AiSwitchRow from './AiSwitchRow.vue'
 
 const { config } = useAiConfig()
+
+/** 現在の接続の日次 token 予算 (0 = 無制限。チャットも HEARTBEAT も同じ勘定) */
+const activeBudget = computed<number>({
+  get: () => config.value.budgets[config.value.activeConnectionId] ?? 0,
+  set: (v) => {
+    const id = config.value.activeConnectionId
+    if (!id) return
+    const n = Number.isFinite(v) && v > 0 ? Math.floor(v) : 0
+    const next = { ...config.value.budgets }
+    if (n === 0) delete next[id]
+    else next[id] = n
+    config.value.budgets = next
+  },
+})
 const windowsStore = useWindowsStore()
 
 // どの skill を heartbeat 対象にするかは skill 側の frontmatter
@@ -129,6 +143,24 @@ function openPermissionsWindow(): void {
         @toggle="config.heartbeat.onDailyLimit = config.heartbeat.onDailyLimit === 'disable' ? 'warn' : 'disable'"
       />
     </template>
+
+    <!-- 接続ごとの token 予算 (#1133)。HEARTBEAT の日次 run 上限と同じ面に置く -->
+    <div :class="$style.field">
+      <div :class="$style.fieldHeader">
+        <span :class="$style.fieldLabel">1 日の token 予算 (現在の接続)</span>
+        <div :class="$style.fieldValue">
+          <input
+            v-model.number="activeBudget"
+            type="number"
+            min="0"
+            step="1000"
+            :disabled="!config.activeConnectionId"
+            :class="$style.numberInput"
+          />
+          <span :class="$style.fieldUnit">tokens / 日 (0 = 無制限)</span>
+        </div>
+      </div>
+    </div>
 
     <!-- HEARTBEAT 中の権限は権限ウィンドウで管理 (#712 PR 2) -->
     <template v-if="config.heartbeat.enabled">
