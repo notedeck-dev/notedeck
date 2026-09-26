@@ -7,6 +7,7 @@ import {
 } from '@syuilo/aiscript'
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import type { JsonValue } from '@/bindings'
+import { i18n } from '@/i18n'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import type { Principal } from '@/permissions/principal'
 import { pluginProviderKey } from '@/plugins/registrationId'
@@ -549,7 +550,7 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
       // 成否フィードバックが一切ユーザーに届かない (widget / Play は配線済み)
       onToast: (text, type) => useToast().show(text, type),
     },
-    { LOCALE: navigator.language },
+    { LOCALE: i18n.lang },
   )
   const pluginEnv = createPluginSpecificEnv(plugin, ctx, callers)
 

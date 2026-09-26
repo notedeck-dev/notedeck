@@ -26,6 +26,7 @@ import { useCommandStore } from '@/commands/registry'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import { usePortal } from '@/composables/usePortal'
+import { i18n } from '@/i18n'
 import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useToast } from '@/stores/toast'
@@ -215,7 +216,7 @@ async function run() {
         '',
       USER_NAME: '',
       USER_USERNAME: '',
-      LOCALE: navigator.language,
+      LOCALE: i18n.lang,
       SERVER_URL: serverUrl.value,
     },
   )

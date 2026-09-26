@@ -40,6 +40,8 @@ export interface TauriEventPayloads {
   'deck:profiles-changed': undefined
   /** settings.json5 が永続化された (テーマ等をウィンドウ間で同期する) */
   'nd:settings-changed': { sourceId: string }
+  /** 表示言語が変わった。送り元以外のウィンドウもリロードする (#135) */
+  'nd:locale-changed': { sourceId: string }
   'pip:return-to-deck': Omit<DeckColumn, 'id'>
 }
 

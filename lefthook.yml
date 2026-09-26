@@ -24,6 +24,13 @@ pre-commit:
       glob: "{src-tauri,crates}/**/*.{rs,toml,json}"
       run: cargo test -p notedeck --test openapi_snapshot --test bindings_snapshot --quiet
 
+# develop へは PR ではなくローカルで merge して push するので、直書きの
+# ラチェット (#135) は pre-commit ではなくここで push する範囲を検査する
+pre-push:
+  jobs:
+    - name: i18n-lint
+      run: node scripts/i18n-lint.ts --pre-push
+
 commit-msg:
   jobs:
     - name: conventional-commits

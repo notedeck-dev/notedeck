@@ -29,6 +29,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useVerticalResize } from '@/composables/useVerticalResize'
+import { i18n } from '@/i18n'
 import type { Principal } from '@/permissions/principal'
 import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -242,7 +243,7 @@ async function run() {
       USER_ID: account.value?.userId ?? '',
       USER_NAME: '',
       USER_USERNAME: '',
-      LOCALE: navigator.language,
+      LOCALE: i18n.lang,
       SERVER_URL: serverUrl.value,
     },
   )

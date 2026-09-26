@@ -3,6 +3,7 @@ import vue from '@vitejs/plugin-vue'
 import JSON5 from 'json5'
 import type { Plugin } from 'vite'
 import { defineConfig } from 'vitest/config'
+import { i18nLocalePlugin } from './scripts/gen-i18n.ts'
 
 function json5Plugin(): Plugin {
   return {
@@ -17,7 +18,7 @@ function json5Plugin(): Plugin {
 
 const shared = {
   // biome-ignore lint/suspicious/noExplicitAny: vite v7/v8 Plugin type mismatch
-  plugins: [vue() as any, json5Plugin() as any],
+  plugins: [vue() as any, json5Plugin() as any, i18nLocalePlugin() as any],
   resolve: {
     alias: {
       '@': resolve(import.meta.dirname, 'src'),
@@ -46,6 +47,7 @@ export default defineConfig({
           ],
           exclude: ['src/**/*.dom.test.ts'],
           environment: 'node',
+          setupFiles: ['tests/setup/i18n.ts'],
         },
       },
       {
@@ -54,6 +56,7 @@ export default defineConfig({
           name: 'dom',
           include: ['src/**/*.dom.test.ts', 'tests/adapters/**/*.test.ts'],
           environment: 'happy-dom',
+          setupFiles: ['tests/setup/i18n.ts'],
         },
       },
     ],

@@ -231,6 +231,16 @@ export async function writeThemeDropInRecord(content: string): Promise<void> {
   return writeRootSettingsFile('theme-dropins.json5', content)
 }
 
+// --- Locale helpers (#135) ---
+
+export async function readLocaleSettingFile(): Promise<string> {
+  return readRootSettingsFile('locale.json5')
+}
+
+export async function writeLocaleSettingFile(content: string): Promise<void> {
+  return writeRootSettingsFile('locale.json5', content)
+}
+
 // --- Tutorial helpers (#1029) ---
 
 export async function readTutorialProgress(): Promise<string> {

@@ -46,6 +46,9 @@ pub const ALLOWED_ROOT_FILES: &[&str] = &[
     // themes/ の素の .json5 を取り込んだ記録 (元ファイル名 → 採用 ID、#1041)。
     // 消えると次回起動で再取り込みされて複製が出るのでバックアップに含める
     "theme-dropins.json5",
+    // 表示言語 (#135)。端末ごとの値 (#1106 の手元側) なので settings.json5
+    // (notecore 側) に混ぜない。リモート構成で言語の違う端末が奪い合うため
+    "locale.json5",
 ];
 
 /// Validate a subdirectory name against the whitelist.

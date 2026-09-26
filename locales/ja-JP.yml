@@ -1,0 +1,17 @@
+# NoteDeck の UI 文言の正本 (#135)。ほかの言語はこのファイルから訳す。
+#
+# - キーを足したら `pnpm gen:i18n` で型を再生成してコミットする
+# - 補間は `{name}`。コードからは i18n.tsx.<key>({ name }) で埋める
+# - 複数形はキー名を `_plural` で終え、値を CLDR カテゴリ (other 必須) の
+#   オブジェクトで書く。数は `{count}` で受ける
+# - 名前空間は本家 (misskey-dev/misskey) と同じく `_` 始まりのキーで切る
+# - 用語は locales/GLOSSARY.md に合わせる
+
+_time:
+  justNow: "たった今"
+
+_settings:
+  language: "表示言語"
+  languageAuto: "システムに合わせる"
+  languageUnpublished: "{name} (翻訳中)"
+  languageReloadNote: "切り替えるとすべてのウィンドウを再読み込みします"
