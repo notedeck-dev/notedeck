@@ -52,6 +52,7 @@ pub mod permissions_profile;
 pub mod pet_store;
 pub mod query_runtime;
 pub mod rate_limit;
+pub mod rpc;
 pub mod settings_events;
 pub mod settings_slug;
 pub mod settings_store;

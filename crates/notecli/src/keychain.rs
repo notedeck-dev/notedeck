@@ -5,6 +5,20 @@ const SERVICE: &str = "notedeck";
 
 /// Initialize the platform-specific credential store.
 /// Must be called once before any keychain operations.
+/// OS キーチェーンを使わず、置き場を指定した暗号化ファイル store を既定にする
+/// (notecored 用、notedeck#1106 段階 3a)。secret-service の probe (D-Bus) に触らない。
+/// 鍵が無ければ生成する
+#[cfg(all(feature = "keyring", target_os = "linux"))]
+pub fn init_file_store(
+    key_path: &std::path::Path,
+    data_path: &std::path::Path,
+) -> Result<(), NoteDeckError> {
+    let store = crate::file_keyring::Store::with_paths(key_path, data_path)
+        .map_err(|e| NoteDeckError::Keychain(e.to_string()))?;
+    keyring_core::set_default_store(store);
+    Ok(())
+}
+
 #[cfg(feature = "keyring")]
 pub fn init_store() -> Result<(), NoteDeckError> {
     #[cfg(target_os = "android")]

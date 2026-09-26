@@ -3369,6 +3369,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "notecored"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "dirs 6.0.0",
+ "libc",
+ "notecli",
+ "notecore",
+ "rand 0.9.4",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "notedeck"
 version = "1.71.0"
 dependencies = [
