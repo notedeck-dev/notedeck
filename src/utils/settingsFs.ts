@@ -1,3 +1,4 @@
+import type { VersionedText } from '@/bindings'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export const isTauri =
@@ -49,7 +50,24 @@ export async function writeSettingsFile(
   content: string,
 ): Promise<void> {
   if (!isTauri) return
-  unwrap(await commands.writeSettingsFile(subdir, name, content))
+  unwrap(await commands.writeSettingsFile(subdir, name, content, null))
+}
+
+/**
+ * 条件付き書込 (#1106): `expected` は読んだときの版で、その間に別の書き手
+ * (notecore の AI / 別のデバイス) が変えていれば CONFLICT で拒まれる。
+ * 戻り値は書いた後の版
+ */
+export async function writeSettingsFileIf(
+  subdir: string,
+  name: string,
+  content: string,
+  expected: string | null,
+): Promise<string> {
+  if (!isTauri) return ''
+  return unwrap(
+    await commands.writeSettingsFile(subdir, name, content, expected),
+  )
 }
 
 export async function deleteSettingsFile(
@@ -131,12 +149,22 @@ async function readRootSettingsFile(name: string): Promise<string> {
   return unwrap(await commands.readRootSettingsFile(name))
 }
 
+/** 版つきで読む (丸ごと書き戻す store は次の書込にこの版を添える, #1106) */
+async function readRootSettingsFileVersioned(
+  name: string,
+): Promise<VersionedText> {
+  if (!isTauri) return { content: '', version: '' }
+  return unwrap(await commands.readRootSettingsFileVersioned(name))
+}
+
+/** `expected` があれば条件付き。戻り値は書いた後の版 */
 async function writeRootSettingsFile(
   name: string,
   content: string,
-): Promise<void> {
-  if (!isTauri) return
-  unwrap(await commands.writeRootSettingsFile(name, content))
+  expected: string | null = null,
+): Promise<string> {
+  if (!isTauri) return ''
+  return unwrap(await commands.writeRootSettingsFile(name, content, expected))
 }
 
 // --- Theme-specific helpers ---
@@ -178,7 +206,7 @@ export async function readCustomCss(): Promise<string> {
 }
 
 export async function writeCustomCss(css: string): Promise<void> {
-  return writeRootSettingsFile('custom.css', css)
+  await writeRootSettingsFile('custom.css', css)
 }
 
 // --- Keybinds helpers ---
@@ -188,7 +216,7 @@ export async function readKeybinds(): Promise<string> {
 }
 
 export async function writeKeybinds(content: string): Promise<void> {
-  return writeRootSettingsFile('keybinds.json5', content)
+  await writeRootSettingsFile('keybinds.json5', content)
 }
 
 // --- AI settings helpers ---
@@ -197,18 +225,28 @@ export async function readAiSettings(): Promise<string> {
   return readRootSettingsFile('ai.json5')
 }
 
-export async function writeAiSettings(content: string): Promise<void> {
-  return writeRootSettingsFile('ai.json5', content)
+export async function readAiSettingsVersioned(): Promise<VersionedText> {
+  return readRootSettingsFileVersioned('ai.json5')
+}
+
+export async function writeAiSettings(
+  content: string,
+  expected: string | null = null,
+): Promise<string> {
+  return writeRootSettingsFile('ai.json5', content, expected)
 }
 
 // --- Permissions helpers (#712) ---
 
-export async function readPermissionsSettings(): Promise<string> {
-  return readRootSettingsFile('permissions.json5')
+export async function readPermissionsSettingsVersioned(): Promise<VersionedText> {
+  return readRootSettingsFileVersioned('permissions.json5')
 }
 
-export async function writePermissionsSettings(content: string): Promise<void> {
-  return writeRootSettingsFile('permissions.json5', content)
+export async function writePermissionsSettings(
+  content: string,
+  expected: string | null = null,
+): Promise<string> {
+  return writeRootSettingsFile('permissions.json5', content, expected)
 }
 
 // --- Tasks helpers ---
@@ -217,18 +255,28 @@ export async function readTasks(): Promise<string> {
   return readRootSettingsFile('tasks.json5')
 }
 
-export async function writeTasks(content: string): Promise<void> {
-  return writeRootSettingsFile('tasks.json5', content)
+export async function readTasksVersioned(): Promise<VersionedText> {
+  return readRootSettingsFileVersioned('tasks.json5')
+}
+
+export async function writeTasks(
+  content: string,
+  expected: string | null = null,
+): Promise<string> {
+  return writeRootSettingsFile('tasks.json5', content, expected)
 }
 
 // --- Theme drop-in adoption record (#1041) ---
 
-export async function readThemeDropInRecord(): Promise<string> {
-  return readRootSettingsFile('theme-dropins.json5')
+export async function readThemeDropInRecordVersioned(): Promise<VersionedText> {
+  return readRootSettingsFileVersioned('theme-dropins.json5')
 }
 
-export async function writeThemeDropInRecord(content: string): Promise<void> {
-  return writeRootSettingsFile('theme-dropins.json5', content)
+export async function writeThemeDropInRecord(
+  content: string,
+  expected: string | null = null,
+): Promise<string> {
+  return writeRootSettingsFile('theme-dropins.json5', content, expected)
 }
 
 // --- Locale helpers (#135) ---
@@ -238,7 +286,7 @@ export async function readLocaleSettingFile(): Promise<string> {
 }
 
 export async function writeLocaleSettingFile(content: string): Promise<void> {
-  return writeRootSettingsFile('locale.json5', content)
+  await writeRootSettingsFile('locale.json5', content)
 }
 
 // --- Client config helpers (#1106 段階 3a) ---
@@ -248,7 +296,7 @@ export async function readClientConfigFile(): Promise<string> {
 }
 
 export async function writeClientConfigFile(content: string): Promise<void> {
-  return writeRootSettingsFile('client.json5', content)
+  await writeRootSettingsFile('client.json5', content)
 }
 
 // --- Tutorial helpers (#1029) ---
@@ -258,7 +306,7 @@ export async function readTutorialProgress(): Promise<string> {
 }
 
 export async function writeTutorialProgress(content: string): Promise<void> {
-  return writeRootSettingsFile('tutorial.json5', content)
+  await writeRootSettingsFile('tutorial.json5', content)
 }
 
 // --- Navbar helpers ---
@@ -268,7 +316,7 @@ export async function readNavbar(): Promise<string> {
 }
 
 export async function writeNavbar(content: string): Promise<void> {
-  return writeRootSettingsFile('navbar.json5', content)
+  await writeRootSettingsFile('navbar.json5', content)
 }
 
 // --- Post form button order helpers ---
@@ -278,7 +326,7 @@ export async function readPostForm(): Promise<string> {
 }
 
 export async function writePostForm(content: string): Promise<void> {
-  return writeRootSettingsFile('postform.json5', content)
+  await writeRootSettingsFile('postform.json5', content)
 }
 
 // --- Performance helpers ---
@@ -288,7 +336,7 @@ export async function readPerformance(): Promise<string> {
 }
 
 export async function writePerformance(content: string): Promise<void> {
-  return writeRootSettingsFile('performance.json5', content)
+  await writeRootSettingsFile('performance.json5', content)
 }
 
 // --- Snippet helpers ---
@@ -473,7 +521,8 @@ export async function writeHistorySidecar(
 ): Promise<void> {
   if (!isTauri) return
   if (kind === 'css') {
-    return writeRootSettingsFile(historyFilename(basename), content)
+    await writeRootSettingsFile(historyFilename(basename), content)
+    return
   }
   return writeSettingsFile(
     historyDirFor(kind),

@@ -27,7 +27,10 @@ vi.mock('@/utils/settingsFs', () => ({
     files.set(b, files.get(a) as string)
     files.delete(a)
   },
-  readThemeDropInRecord: async () => record,
+  readThemeDropInRecordVersioned: async () => ({
+    content: record,
+    version: 'v1',
+  }),
   writeThemeDropInRecord: async (c: string) => {
     record = c
   },

@@ -8,11 +8,14 @@ let resolveWrite: (() => void) | undefined
 
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
-  readPermissionsSettings: () => {
+  readPermissionsSettingsVersioned: () => {
     readCalls++
-    return Promise.resolve(
-      JSON.stringify({ confirmSkips: { 'ai.chat': ['persisted.cap'] } }),
-    )
+    return Promise.resolve({
+      content: JSON.stringify({
+        confirmSkips: { 'ai.chat': ['persisted.cap'] },
+      }),
+      version: 'v1',
+    })
   },
   readAiSettings: () => Promise.resolve(''),
   writeAiSettings: () => Promise.resolve(),

@@ -11,6 +11,8 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use notecli::error::NoteDeckError;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 
 use crate::error::Result;
 
@@ -298,6 +300,103 @@ pub fn read_root_file(base_dir: &Path, name: &str) -> Result<String> {
 pub fn write_root_file(base_dir: &Path, name: &str, content: &str) -> Result<()> {
     let path = resolve_root_file(base_dir, name)?;
     atomic_write(&path, content, None)
+}
+
+// --- 条件付き書込 (#1106 段階 3a 順序 5、仕様 §4.5) ---
+//
+// notecore 側のファイルは AI (notecore) とデバイスの両方が書くので、丸ごと書き戻す
+// 書き手は「読んだときの版」を添え、その間に変わっていれば拒む (If-Match 相当)。
+// 版は内容のダイジェストで、無いファイルは空文字の版。プロセスをまたいでも同じ値。
+
+/// 内容から版を作る
+pub fn content_version(content: &str) -> String {
+    let digest = Sha256::digest(content.as_bytes());
+    digest[..16].iter().map(|b| format!("{b:02x}")).collect()
+}
+
+/// 読んだ内容と、その版 (次の条件付き書込に添える)
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct VersionedText {
+    pub content: String,
+    pub version: String,
+}
+
+impl VersionedText {
+    pub fn of(content: String) -> Self {
+        let version = content_version(&content);
+        Self { content, version }
+    }
+}
+
+/// `expected` があれば今のファイルの版と照合し、違えば `CONFLICT` で拒む
+fn ensure_version(path: &Path, expected: Option<&str>) -> Result<()> {
+    let Some(expected) = expected else {
+        return Ok(());
+    };
+    let current = if path.exists() {
+        fs::read_to_string(path).map_err(|e| {
+            NoteDeckError::InvalidInput(format!("Failed to read {}: {e}", path.display()))
+        })?
+    } else {
+        String::new()
+    };
+    if content_version(&current) != expected {
+        let name = path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        return Err(NoteDeckError::Localized {
+            code: "CONFLICT",
+            message: format!("{name} was changed by another writer; reload and retry"),
+            i18n: serde_json::Value::Null,
+        });
+    }
+    Ok(())
+}
+
+/// 条件付きの `write_file`。戻り値は書いた後の版
+pub fn write_file_if(
+    base_dir: &Path,
+    subdir: &str,
+    name: &str,
+    content: &str,
+    expected: Option<&str>,
+) -> Result<String> {
+    ensure_version(&resolve_file(base_dir, subdir, name)?, expected)?;
+    write_file(base_dir, subdir, name, content)?;
+    Ok(content_version(content))
+}
+
+/// 条件付きの `write_root_file`。戻り値は書いた後の版
+pub fn write_root_file_if(
+    base_dir: &Path,
+    name: &str,
+    content: &str,
+    expected: Option<&str>,
+) -> Result<String> {
+    ensure_version(&resolve_root_file(base_dir, name)?, expected)?;
+    write_root_file(base_dir, name, content)?;
+    Ok(content_version(content))
+}
+
+/// 条件付きの `write_settings_json`。戻り値は書いた後の版
+pub fn write_settings_json_if(
+    base_dir: &Path,
+    content: &str,
+    expected: Option<&str>,
+) -> Result<String> {
+    ensure_version(&base_dir.join("settings.json5"), expected)?;
+    write_settings_json(base_dir, content)?;
+    Ok(content_version(content))
+}
+
+pub fn read_root_file_versioned(base_dir: &Path, name: &str) -> Result<VersionedText> {
+    read_root_file(base_dir, name).map(VersionedText::of)
+}
+
+pub fn read_settings_json_versioned(base_dir: &Path) -> Result<VersionedText> {
+    read_settings_json(base_dir).map(VersionedText::of)
 }
 
 /// Read `settings.json5` (missing file returns empty string — first run).
@@ -695,6 +794,45 @@ mod tests {
         // 上書きも旧内容を完全に置き換える
         atomic_write(&path, "{ v: 2 }", None).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), "{ v: 2 }");
+    }
+
+    #[test]
+    fn conditional_write_matches_the_version_read_and_rejects_stale_writers() {
+        let dir = tempfile::tempdir().unwrap();
+        let base = dir.path();
+        // 無いファイルは空文字の版
+        let first = read_root_file_versioned(base, "tasks.json5").unwrap();
+        assert_eq!(first.content, "");
+        assert_eq!(first.version, content_version(""));
+        let v1 = write_root_file_if(base, "tasks.json5", "{ a: 1 }", Some(&first.version)).unwrap();
+        assert_eq!(v1, content_version("{ a: 1 }"));
+        // 古い版で書くと CONFLICT
+        let stale = write_root_file_if(base, "tasks.json5", "{ a: 2 }", Some(&first.version));
+        assert_eq!(stale.unwrap_err().code(), "CONFLICT");
+        assert_eq!(
+            fs::read_to_string(base.join("tasks.json5")).unwrap(),
+            "{ a: 1 }"
+        );
+        // 今の版なら通り、無条件 (None) も通る
+        write_root_file_if(base, "tasks.json5", "{ a: 2 }", Some(&v1)).unwrap();
+        write_root_file_if(base, "tasks.json5", "{ a: 3 }", None).unwrap();
+        // settings.json5 と subdir も同じ
+        let s = read_settings_json_versioned(base).unwrap();
+        write_settings_json_if(base, "{ x: 1 }", Some(&s.version)).unwrap();
+        assert_eq!(
+            write_settings_json_if(base, "{ x: 2 }", Some(&s.version))
+                .unwrap_err()
+                .code(),
+            "CONFLICT"
+        );
+        let v = write_file_if(base, "skills", "a.md", "hello", Some(&content_version(""))).unwrap();
+        assert_eq!(
+            write_file_if(base, "skills", "a.md", "bye", Some(&content_version("")))
+                .unwrap_err()
+                .code(),
+            "CONFLICT"
+        );
+        write_file_if(base, "skills", "a.md", "bye", Some(&v)).unwrap();
     }
 
     #[test]
