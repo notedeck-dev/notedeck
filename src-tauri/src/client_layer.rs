@@ -35,6 +35,13 @@ pub struct ClientLayerState {
 
 type EventHook = Arc<dyn Fn(&str, Value) + Send + Sync>;
 type StateHook = Arc<dyn Fn(&ClientLayerState) + Send + Sync>;
+/// notecored からの橋の問い合わせ (確認内容 / 実行要求 / HEARTBEAT の文脈) を WebView に
+/// 渡して答えを返す。型・引数・上限時間は notecored が決める
+pub type QueryHook = Arc<
+    dyn Fn(String, Value, Duration) -> notecore::frontend_bridge::BridgeFuture<'static>
+        + Send
+        + Sync,
+>;
 
 pub struct RelayClient {
     socket: PathBuf,
@@ -45,6 +52,7 @@ pub struct RelayClient {
     state: Mutex<ClientLayerState>,
     on_event: EventHook,
     on_state: StateHook,
+    on_query: QueryHook,
 }
 
 static RELAY: OnceLock<Arc<RelayClient>> = OnceLock::new();
@@ -65,8 +73,13 @@ pub fn state() -> ClientLayerState {
 }
 
 /// 常駐構成で起動: 接続を始め、以後のデータ系コマンドは中継に流れる
-pub fn start(socket: PathBuf, on_event: EventHook, on_state: StateHook) -> Arc<RelayClient> {
-    let client = Arc::new(RelayClient::new(socket, on_event, on_state));
+pub fn start(
+    socket: PathBuf,
+    on_event: EventHook,
+    on_state: StateHook,
+    on_query: QueryHook,
+) -> Arc<RelayClient> {
+    let client = Arc::new(RelayClient::new(socket, on_event, on_state, on_query));
     let _ = RELAY.set(client.clone());
     let runner = client.clone();
     tauri::async_runtime::spawn(async move { runner.run().await });
@@ -82,7 +95,12 @@ fn unavailable(message: &str) -> RpcError {
 }
 
 impl RelayClient {
-    pub fn new(socket: PathBuf, on_event: EventHook, on_state: StateHook) -> Self {
+    pub fn new(
+        socket: PathBuf,
+        on_event: EventHook,
+        on_state: StateHook,
+        on_query: QueryHook,
+    ) -> Self {
         Self {
             state: Mutex::new(ClientLayerState {
                 backend: "resident".into(),
@@ -96,6 +114,7 @@ impl RelayClient {
             secret: Mutex::new(None),
             on_event,
             on_state,
+            on_query,
         }
     }
 
@@ -207,7 +226,25 @@ impl RelayClient {
                     }
                 }
                 Frame::Event { name, payload } => (self.on_event)(&name, payload),
-                Frame::Request { .. } | Frame::Batch { .. } => {}
+                Frame::Query {
+                    id,
+                    query_type,
+                    params,
+                    timeout_ms,
+                } => {
+                    // 端末側の処理は WebView 往復なので待たずに別 task で答える
+                    let fut =
+                        (self.on_query)(query_type, params, Duration::from_millis(timeout_ms));
+                    let tx = tx.clone();
+                    tokio::spawn(async move {
+                        let (result, error) = match fut.await {
+                            Ok(v) => (Some(v), None),
+                            Err(e) => (None, Some(e)),
+                        };
+                        let _ = tx.send(Frame::QueryResponse { id, result, error }).await;
+                    });
+                }
+                Frame::Request { .. } | Frame::Batch { .. } | Frame::QueryResponse { .. } => {}
             }
         }
         drop(tx);
@@ -369,8 +406,30 @@ mod tests {
         let mut line = serde_json::to_string(&ev).unwrap();
         line.push('\n');
         writer.write_all(line.as_bytes()).await.unwrap();
+        // 橋の問い合わせ: 端末が答えを返す
+        let q = Frame::Query {
+            id: 77,
+            query_type: "ai/confirm-preview".into(),
+            params: json!({ "capabilityId": "notes.create" }),
+            timeout_ms: 1000,
+        };
+        let mut line = serde_json::to_string(&q).unwrap();
+        line.push('\n');
+        writer.write_all(line.as_bytes()).await.unwrap();
         let mut lines = BufReader::new(reader).lines();
         while let Ok(Some(l)) = lines.next_line().await {
+            if let Ok(Frame::QueryResponse { id, result, .. }) = serde_json::from_str::<Frame>(&l) {
+                assert_eq!(id, 77);
+                assert_eq!(result.unwrap()["echo"]["capabilityId"], "notes.create");
+                let ev = Frame::Event {
+                    name: "nd:query-answered".into(),
+                    payload: json!({}),
+                };
+                let mut line = serde_json::to_string(&ev).unwrap();
+                line.push('\n');
+                writer.write_all(line.as_bytes()).await.unwrap();
+                continue;
+            }
             let Ok(Frame::Request {
                 id,
                 secret,
@@ -413,6 +472,12 @@ mod tests {
             socket,
             Arc::new(move |name, payload| ev.lock().unwrap().push((name.to_string(), payload))),
             Arc::new(move |s| st.lock().unwrap().push(s.clone())),
+            Arc::new(|query_type, params, _timeout| {
+                Box::pin(async move {
+                    assert_eq!(query_type, "ai/confirm-preview");
+                    Ok(json!({ "echo": params }))
+                })
+            }),
         ));
         let runner = client.clone();
         tokio::spawn(async move { runner.run().await });
@@ -449,7 +514,7 @@ mod tests {
             .await;
         assert_eq!(r.unwrap_err().code(), "JSON");
         for _ in 0..100 {
-            if !events.lock().unwrap().is_empty() {
+            if events.lock().unwrap().len() >= 2 {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -457,6 +522,8 @@ mod tests {
         let got = events.lock().unwrap();
         assert_eq!(got[0].0, "nd:settings-file-changed");
         assert_eq!(got[0].1["name"], "ai.json5");
+        // 偽 daemon は問い合わせの答えを受け取ってから 2 つ目のイベントを出す
+        assert_eq!(got[1].0, "nd:query-answered");
     }
 
     #[tokio::test]
@@ -466,6 +533,7 @@ mod tests {
             dir.path().join("none.sock"),
             Arc::new(|_, _| {}),
             Arc::new(|_| {}),
+            Arc::new(|_, _, _| Box::pin(async { Err("none".into()) })),
         );
         let r: Result<String, notecli::error::NoteDeckError> =
             client.call("api_note_identity", json!({}), None).await;

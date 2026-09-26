@@ -282,6 +282,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 Some(socket) => {
                     let emit_handle = app.handle().clone();
                     let state_handle = app.handle().clone();
+                    let query_handle = app.handle().clone();
                     client_layer::start(
                         socket,
                         std::sync::Arc::new(move |name, payload| {
@@ -291,6 +292,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         }),
                         std::sync::Arc::new(move |state| {
                             let _ = tauri::Emitter::emit(&state_handle, "nd:client-layer-state", state);
+                        }),
+                        std::sync::Arc::new(move |query_type, params, timeout| {
+                            let app = query_handle.clone();
+                            Box::pin(async move {
+                                query_bridge::query_frontend_with_timeout(&app, &query_type, params, timeout).await
+                            })
                         }),
                     );
                     tracing::info!("[client-layer] resident backend: relaying to notecored");
