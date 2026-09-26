@@ -44,14 +44,22 @@ pub async fn read_settings_file(core: &Core, subdir: String, name: String) -> Re
 }
 
 /// Write a settings file (creates parent directories if needed).
+/// `expected` (読んだときの版) があれば条件付き。戻り値は書いた後の版 (#1106)
 pub async fn write_settings_file(
     core: &Core,
     subdir: String,
     name: String,
     content: String,
-) -> Result<()> {
+    expected: Option<String>,
+) -> Result<String> {
     reject_sessions(&subdir)?;
-    store::write_file(&settings_base_dir(core)?, &subdir, &name, &content)
+    store::write_file_if(
+        &settings_base_dir(core)?,
+        &subdir,
+        &name,
+        &content,
+        expected.as_deref(),
+    )
 }
 
 /// Delete a settings file.
@@ -76,6 +84,33 @@ pub async fn read_root_settings_file(core: &Core, name: String) -> Result<String
     store::read_root_file(&settings_base_dir(core)?, &name)
 }
 
+/// ルート直下のファイルを版つきで読む (丸ごと書き戻す store 向け)
+pub async fn read_root_settings_file_versioned(
+    core: &Core,
+    name: String,
+) -> Result<store::VersionedText> {
+    store::read_root_file_versioned(&settings_base_dir(core)?, &name)
+}
+
+/// ルート直下のファイルを書く。`expected` があれば条件付き。戻り値は書いた後の版
+pub async fn write_root_settings_file(
+    core: &Core,
+    name: String,
+    content: String,
+    expected: Option<String>,
+) -> Result<String> {
+    store::write_root_file_if(
+        &settings_base_dir(core)?,
+        &name,
+        &content,
+        expected.as_deref(),
+    )
+}
+
+pub async fn read_notedeck_json_versioned(core: &Core) -> Result<store::VersionedText> {
+    store::read_settings_json_versioned(&settings_base_dir(core)?)
+}
+
 /// Read `settings.json5` (VSCode `settings.json` equivalent — single source of truth
 /// for scalar preferences). Returns empty string if the file does not exist (first run).
 ///
@@ -87,8 +122,13 @@ pub async fn read_notedeck_json(core: &Core) -> Result<String> {
 }
 
 /// Write `settings.json5`. Creates the settings directory if missing.
-pub async fn write_notedeck_json(core: &Core, content: String) -> Result<()> {
-    store::write_settings_json(&settings_base_dir(core)?, &content)?;
+pub async fn write_notedeck_json(
+    core: &Core,
+    content: String,
+    expected: Option<String>,
+) -> Result<String> {
+    let version =
+        store::write_settings_json_if(&settings_base_dir(core)?, &content, expected.as_deref())?;
     // デバイスは自分の写しを自分で更新しているので受け手が無いが、notecored は
     // これで接続モード (modes.realtime) を適用し直す (#1106)
     core.notify_settings_change(crate::settings_events::SettingsChange {
@@ -96,7 +136,7 @@ pub async fn write_notedeck_json(core: &Core, content: String) -> Result<()> {
         name: crate::stream_mode::SETTINGS_FILE.to_string(),
         op: crate::settings_events::SettingsChangeOp::Write,
     });
-    Ok(())
+    Ok(version)
 }
 
 /// Tauri command: update performance config at runtime.

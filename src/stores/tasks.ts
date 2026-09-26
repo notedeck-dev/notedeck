@@ -6,7 +6,8 @@ import { useToast } from '@/stores/toast'
 import { parseTasks, TasksParseError } from '@/tasks/schema'
 import { TASKS_FILE_VERSION, type TaskDefinition } from '@/tasks/types'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
-import { isTauri, readTasks, writeTasks } from '@/utils/settingsFs'
+import { isTauri, readTasksVersioned, writeTasks } from '@/utils/settingsFs'
+import { isConflictError } from '@/utils/tauriInvoke'
 
 export const useTasksStore = defineStore('tasks', () => {
   const definitions = ref<TaskDefinition[]>([])
@@ -17,6 +18,9 @@ export const useTasksStore = defineStore('tasks', () => {
     onError: (e) => console.warn('[tasks] persist failed:', e),
   })
 
+  /** 最後に読んだ / 書いたときの版 (条件付き書込に添える, #1106) */
+  let fileVersion: string | null = null
+
   async function persist(): Promise<void> {
     if (!isTauri) return
     const payload = {
@@ -24,7 +28,16 @@ export const useTasksStore = defineStore('tasks', () => {
       tasks: definitions.value,
     }
     const content = JSON5.stringify(payload, null, 2)
-    await writeTasks(`${content}\n`)
+    try {
+      fileVersion = await writeTasks(`${content}\n`, fileVersion)
+    } catch (e) {
+      if (!isConflictError(e)) throw e
+      // 別の書き手 (生ファイル編集タブや notecore) が先に書いた: 最新に揃える
+      console.warn('[tasks] tasks.json5 changed by another writer; reloading')
+      const latest = await readTasksVersioned()
+      fileVersion = latest.version
+      setFromRaw(latest.content)
+    }
   }
 
   function setFromRaw(raw: string): void {
@@ -58,12 +71,15 @@ export const useTasksStore = defineStore('tasks', () => {
   async function init(): Promise<void> {
     if (isTauri) {
       try {
-        const content = await readTasks()
+        const { content, version } = await readTasksVersioned()
+        fileVersion = version
         if (!content.trim()) {
           // First-run seed: write defaults so the file exists to edit
-          await writeTasks(defaultTasksJson5).catch((e) =>
-            console.warn('[tasks] seed failed:', e),
-          )
+          await writeTasks(defaultTasksJson5, fileVersion)
+            .then((v) => {
+              fileVersion = v
+            })
+            .catch((e) => console.warn('[tasks] seed failed:', e))
           setFromRaw(defaultTasksJson5)
         } else {
           const sourceVersion = peekVersion(content)

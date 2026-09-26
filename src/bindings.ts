@@ -2095,9 +2095,9 @@ async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { 
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async writeSettingsFile(subdir: string, name: string, content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async writeSettingsFile(subdir: string, name: string, content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("write_settings_file", { subdir, name, content }) };
+    return { status: "ok", data: await TAURI_INVOKE("write_settings_file", { subdir, name, content, expected }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2182,14 +2182,19 @@ async readRootSettingsFile(name: string) : Promise<Result<string, { code: string
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Write a root-level settings file.
- *
- * @see src-tauri/src/commands/settings.rs
- */
-async writeRootSettingsFile(name: string, content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+/** @see crates/notecore/src/commands/settings.rs */
+async readRootSettingsFileVersioned(name: string) : Promise<Result<VersionedText, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("write_root_settings_file", { name, content }) };
+    return { status: "ok", data: await TAURI_INVOKE("read_root_settings_file_versioned", { name }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/settings.rs */
+async writeRootSettingsFile(name: string, content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("write_root_settings_file", { name, content, expected }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2205,9 +2210,18 @@ async readNotedeckJson() : Promise<Result<string, { code: string; message: strin
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async writeNotedeckJson(content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async readNotedeckJsonVersioned() : Promise<Result<VersionedText, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("write_notedeck_json", { content }) };
+    return { status: "ok", data: await TAURI_INVOKE("read_notedeck_json_versioned") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/settings.rs */
+async writeNotedeckJson(content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("write_notedeck_json", { content, expected }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -4124,6 +4138,10 @@ verified: Partial<{ [key in string]: NormalizedNote }>;
  * (issue notecli#30 仕様 v5 §6-8)。
  */
 missing: string[] }
+/**
+ * 読んだ内容と、その版 (次の条件付き書込に添える)
+ */
+export type VersionedText = { content: string; version: string }
 
 /** tauri-specta globals **/
 

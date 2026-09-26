@@ -110,7 +110,8 @@ export async function adoptDropIns(
   installed: readonly MisskeyTheme[],
 ): Promise<MisskeyTheme[]> {
   const files = await settingsFs.listThemeDirFiles()
-  const before = parseDropInRecord(await settingsFs.readThemeDropInRecord())
+  const stored = await settingsFs.readThemeDropInRecordVersioned()
+  const before = parseDropInRecord(stored.content)
   const record = pruneDropInRecord(before, files)
   let changed = Object.keys(record).length !== Object.keys(before).length
   const all = [...installed]
@@ -140,7 +141,10 @@ export async function adoptDropIns(
     changed = true
   }
   if (changed) {
-    await settingsFs.writeThemeDropInRecord(serializeDropInRecord(record))
+    // 条件付き (#1106): 先を越されたら記録しない (次回起動で取り直す)
+    await settingsFs
+      .writeThemeDropInRecord(serializeDropInRecord(record), stored.version)
+      .catch((e) => console.warn('[theme] drop-in record write failed:', e))
   }
   return adopted
 }

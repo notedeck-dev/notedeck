@@ -23,7 +23,7 @@ import {
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri } from '@/utils/settingsFs'
 import { emitTauri, listenTauri } from '@/utils/tauriEvents'
-import { commands, unwrap } from '@/utils/tauriInvoke'
+import { commands, isConflictError, unwrap } from '@/utils/tauriInvoke'
 
 /** ウィンドウ間同期イベントで自分自身の emit を無視するための識別子 */
 const SYNC_SOURCE_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -79,13 +79,11 @@ export const useSettingsStore = defineStore('settings', () => {
     }
 
     try {
-      const raw = unwrap(await commands.readNotedeckJson())
-      if (raw.length === 0) {
-        settings.value = { ...DEFAULT_SETTINGS }
-      } else {
-        const parsed = JSON5.parse(raw) as Record<string, unknown>
-        settings.value = parseSettings(parsed)
-      }
+      const { content: raw, version: v } = unwrap(
+        await commands.readNotedeckJsonVersioned(),
+      )
+      settings.value = fromRaw(raw)
+      version = v
     } catch (e) {
       console.warn(
         '[settings] failed to load settings.json5, using defaults:',
@@ -110,11 +108,11 @@ export const useSettingsStore = defineStore('settings', () => {
     listenTauri('nd:settings-changed', async (payload) => {
       if (payload.sourceId === SYNC_SOURCE_ID) return
       try {
-        const raw = unwrap(await commands.readNotedeckJson())
-        settings.value =
-          raw.length === 0
-            ? { ...DEFAULT_SETTINGS }
-            : parseSettings(JSON5.parse(raw) as Record<string, unknown>)
+        const { content: raw, version: v } = unwrap(
+          await commands.readNotedeckJsonVersioned(),
+        )
+        settings.value = fromRaw(raw)
+        version = v
         // 読めるようになったら書き戻しを再開する。解除しないと、一度失敗した
         // セッションは再起動するまで保存できないままになる
         loadFailed.value = false
@@ -144,7 +142,22 @@ export const useSettingsStore = defineStore('settings', () => {
     value: NotedeckSettings[K],
   ): void {
     settings.value = { ...settings.value, [key]: value }
+    dirtyKeys.add(key)
     schedulePersist()
+  }
+
+  /** 最後に読んだ / 書いたときの版 (条件付き書込に添える, #1106) */
+  let version: string | null = null
+  /** 最後の書込以降に変えたキー (先を越されたら最新に載せ直す) */
+  const dirtyKeys = new Set<keyof NotedeckSettings>()
+
+  function fromRaw(raw: string): NotedeckSettings {
+    if (raw.length === 0) return { ...DEFAULT_SETTINGS }
+    return parseSettings(JSON5.parse(raw) as Record<string, unknown>)
+  }
+
+  function serialize(value: NotedeckSettings): string {
+    return `${JSON5.stringify({ ...value, _schema: CURRENT_SCHEMA_VERSION }, null, 2)}\n`
   }
 
   const { schedule: schedulePersist, flush } = createDebouncedPersist(persist, {
@@ -161,12 +174,27 @@ export const useSettingsStore = defineStore('settings', () => {
 
     saving.value = true
     try {
-      const toWrite = {
-        ...settings.value,
-        _schema: CURRENT_SCHEMA_VERSION,
+      try {
+        version = unwrap(
+          await commands.writeNotedeckJson(serialize(settings.value), version),
+        )
+      } catch (e) {
+        if (!isConflictError(e)) throw e
+        // 別の書き手 (notecore や別のデバイス) が先に書いた: 最新を土台に、
+        // こちらが変えたキーだけ載せ直して書く
+        const latest = unwrap(await commands.readNotedeckJsonVersioned())
+        const mine = Object.fromEntries(
+          [...dirtyKeys].map((k) => [k, settings.value[k]]),
+        )
+        settings.value = { ...fromRaw(latest.content), ...mine }
+        version = unwrap(
+          await commands.writeNotedeckJson(
+            serialize(settings.value),
+            latest.version,
+          ),
+        )
       }
-      const content = `${JSON5.stringify(toWrite, null, 2)}\n`
-      unwrap(await commands.writeNotedeckJson(content))
+      dirtyKeys.clear()
       lastError.value = null
       emitTauri('nd:settings-changed', { sourceId: SYNC_SOURCE_ID }).catch(
         () => {

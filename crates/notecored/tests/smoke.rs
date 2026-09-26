@@ -163,6 +163,23 @@ fn boots_answers_over_the_socket_and_stops_on_sigterm() {
     assert_eq!(r.error.as_ref().unwrap().code, "INVALID_INPUT");
     let r = outcome(s.request("api_note_identity", json!({}), Some("wrong")));
     assert_eq!(r.error.as_ref().unwrap().code, "UNAUTHORIZED");
+    // 公開 API 面の永続トークン (external principal) は RPC 面では通らない (仕様 §4.3 の golden)
+    let (_, external_token) = notecore::api_tokens::ApiTokenStore::load(&data_dir)
+        .create("golden")
+        .unwrap();
+    let r = outcome(s.request(
+        "api_note_identity",
+        json!({ "uri": "https://example.com/notes/abc" }),
+        Some(&external_token),
+    ));
+    assert!(!r.ok);
+    assert_eq!(r.error.as_ref().unwrap().code, "UNAUTHORIZED");
+    // hello の秘密を差し替えて繋ぎ直しても、秘密は起動毎で同じ値
+    let (mut s2, _) = Session::connect(&socket);
+    assert_eq!(s2.secret, s.secret);
+    let r = outcome(s2.request("api_note_identity", json!({}), Some(&external_token)));
+    assert_eq!(r.error.as_ref().unwrap().code, "UNAUTHORIZED");
+    drop(s2);
     // データディレクトリのロックが取られ、secret の鍵は指定した場所に生成されている
     assert!(data_dir.join("notecore.lock").exists());
     assert!(data_dir.join("test-secret.key").exists());

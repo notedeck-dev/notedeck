@@ -18,10 +18,11 @@ import { useToast } from '@/stores/toast'
 import {
   isTauri,
   readAiSettings,
-  readPermissionsSettings,
+  readPermissionsSettingsVersioned,
   writeAiSettings,
   writePermissionsSettings,
 } from '@/utils/settingsFs'
+import { isConflictError } from '@/utils/tauriInvoke'
 import type { Principal, ProfiledPrincipalId } from './principal'
 import {
   EXTERNAL_DEFAULT_PROFILE,
@@ -227,6 +228,8 @@ let _initPromise: Promise<void> | null = null
 // 内容を読み戻してメモリ上の変更・確認スキップ記憶を巻き戻さないよう、
 // 読込はこれを待ってから走る (#716)。
 let _pendingWrite: Promise<unknown> = Promise.resolve()
+/** 最後に読んだ / 書いたときの版 (条件付き書込に添える, #1106) */
+let _version: string | null = null
 
 /**
  * permissions.json5 の本文 → 正規化済みファイル構造 (純関数)。
@@ -257,7 +260,8 @@ async function _initFileStorage(): Promise<void> {
   // 進行中の save() の書き込みを待ってから読む (save→reload レースで
   // 未完了の書き込みより前の内容を読み戻さない #716)。
   await _pendingWrite.catch(() => {})
-  const content = await readPermissionsSettings()
+  const { content, version } = await readPermissionsSettingsVersioned()
+  _version = version
   if (content) {
     const { file, error } = parsePermissionsFile(content)
     _file.value = file
@@ -297,7 +301,10 @@ async function _initFileStorage(): Promise<void> {
   }
   _file.value = migrated
   try {
-    await writePermissionsSettings(`${JSON5.stringify(_file.value, null, 2)}\n`)
+    _version = await writePermissionsSettings(
+      `${JSON5.stringify(_file.value, null, 2)}\n`,
+      _version,
+    )
   } catch (e) {
     console.warn('[permissions] failed to write permissions.json5:', e)
   }
@@ -327,19 +334,33 @@ export function usePermissionsConfig() {
   function save(): void {
     _pendingWrite = writePermissionsSettings(
       `${JSON5.stringify(_file.value, null, 2)}\n`,
-    ).catch(async (e: unknown) => {
-      console.warn('[permissions] failed to write permissions.json5:', e)
-      // 書けなかった変更をメモリに残すと、UI は絞ったつもりでも Rust 側
-      // (ファイルを読む external gate) は旧権限のまま動く (#1099)。永続状態へ
-      // 戻して、無言にしない (#722)
-      try {
-        const content = await readPermissionsSettings()
-        if (content) _file.value = parsePermissionsFile(content).file
-      } catch (e2) {
-        console.warn('[permissions] failed to reload after write error:', e2)
-      }
-      useToast().show(i18n.ts._store.saveFailed, 'error')
-    })
+      _version,
+    )
+      .then((v) => {
+        _version = v
+      })
+      .catch(async (e: unknown) => {
+        if (isConflictError(e)) {
+          // 別の書き手が先に書いた (#1106): 最新に揃える。権限は広げる側に
+          // 倒さないのが原則なので、こちらの変更は載せ直さない
+          console.warn(
+            '[permissions] permissions.json5 changed by another writer',
+          )
+        } else {
+          console.warn('[permissions] failed to write permissions.json5:', e)
+        }
+        // 書けなかった変更をメモリに残すと、UI は絞ったつもりでも Rust 側
+        // (ファイルを読む external gate) は旧権限のまま動く (#1099)。永続状態へ
+        // 戻して、無言にしない (#722)
+        try {
+          const { content, version } = await readPermissionsSettingsVersioned()
+          _version = version
+          if (content) _file.value = parsePermissionsFile(content).file
+        } catch (e2) {
+          console.warn('[permissions] failed to reload after write error:', e2)
+        }
+        useToast().show(i18n.ts._store.saveFailed, 'error')
+      })
   }
 
   return {

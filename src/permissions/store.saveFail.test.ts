@@ -17,10 +17,13 @@ vi.mock('@/stores/toast', () => ({
 // 永続状態: external = readonly。書き込みは常に失敗する
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
-  readPermissionsSettings: () =>
-    Promise.resolve(
-      JSON.stringify({ principals: { external: { preset: 'readonly' } } }),
-    ),
+  readPermissionsSettingsVersioned: () =>
+    Promise.resolve({
+      content: JSON.stringify({
+        principals: { external: { preset: 'readonly' } },
+      }),
+      version: 'v1',
+    }),
   readAiSettings: () => Promise.resolve(''),
   writeAiSettings: () => Promise.resolve(),
   writePermissionsSettings: () => Promise.reject(new Error('disk full')),
