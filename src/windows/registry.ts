@@ -382,6 +382,10 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
       return i18n.ts._windows.core
     },
     icon: 'ti ti-server',
+    // 常駐への切り替えは作者の dogfooding 段階 (#1106 段階 3a): Linux 限定で secret の
+    // 保護も弱まるので、入口は開発者モードでだけ出す。常駐中 / 切り替え失敗のナビバーの
+    // 印は状態面なので露出タグに関係なく出る (隠すのは入口だけ)
+    exposure: 'developer',
     width: 460,
     maxHeight: 640,
   },
