@@ -15,6 +15,7 @@
 
 import type { JsonValue } from '@/bindings'
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import type { ConfirmOptions } from '@/stores/confirm'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import {
@@ -43,6 +44,14 @@ export interface CapabilityImpl {
   enumOf?: Record<string, () => readonly string[]>
 }
 
+/** capability の表示名 (辞書の `_capabilities.<id>`、原文は capabilities.json5 の label) */
+export function capabilityLabel(id: CapabilityId): string {
+  let node: unknown = i18n.ts._capabilities
+  for (const part of id.split('.'))
+    node = (node as Record<string, unknown> | undefined)?.[part]
+  return typeof node === 'string' ? node : CAPABILITY_DECLARATIONS[id].label
+}
+
 export function implement(id: CapabilityId, impl: CapabilityImpl): Command {
   const d = CAPABILITY_DECLARATIONS[id]
   let params = d.params
@@ -61,7 +70,11 @@ export function implement(id: CapabilityId, impl: CapabilityImpl): Command {
   }
   const cmd: Command = {
     id,
-    label: d.label,
+    // 表示名は辞書から引く (#135)。capability は import 時に組まれるので、
+    // 辞書を読む前に触らないよう参照した時点で引く
+    get label() {
+      return capabilityLabel(id)
+    },
     icon: d.icon,
     category: d.category,
     shortcuts: [],

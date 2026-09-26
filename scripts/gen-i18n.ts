@@ -25,6 +25,9 @@ const ROOT = join(import.meta.dirname, '..')
 export const LOCALES_DIR = join(ROOT, 'locales')
 export const LANGUAGES_PATH = join(LOCALES_DIR, 'languages.json5')
 export const GENERATED_PATH = join(ROOT, 'src/i18n/locale.generated.ts')
+/** capability の表示名の正本。辞書の `_capabilities` 節はここから作る */
+const CAPABILITIES_PATH = join(ROOT, 'crates/notecore/capabilities.json5')
+const CAPABILITIES_SECTION = '_capabilities'
 
 /** 正本の言語 */
 export const SOURCE_LANG = 'ja-JP'
@@ -52,11 +55,41 @@ export function loadLanguages(): LanguageEntry[] {
   return JSON5.parse(readFileSync(LANGUAGES_PATH, 'utf8')) as LanguageEntry[]
 }
 
+/**
+ * capability の表示名 (capabilities.json5 の label) を `_capabilities.<id>` の
+ * 形にする。id の `.` はそのまま入れ子になる (`note.create` → note: { create })。
+ * 宣言ファイルが正本なので ja-JP.yml には書かない (#135)
+ */
+export function capabilityLabels(): LocaleTree {
+  const doc = JSON5.parse(readFileSync(CAPABILITIES_PATH, 'utf8')) as {
+    capabilities: Record<string, { label: string }>
+  }
+  const tree: LocaleTree = {}
+  for (const [id, { label }] of Object.entries(doc.capabilities)) {
+    const path = id.split('.')
+    const leaf = path.pop() as string
+    let node = tree
+    for (const part of path) {
+      const next = node[part]
+      if (typeof next === 'string')
+        throw new Error(`capability id ${id} が別の id と入れ子で衝突する`)
+      node = (node[part] ??= {}) as LocaleTree
+    }
+    node[leaf] = label
+  }
+  return tree
+}
+
 export function loadLocale(lang: string): LocaleTree {
-  const parsed = yaml.load(
+  const parsed = (yaml.load(
     readFileSync(join(LOCALES_DIR, `${lang}.yml`), 'utf8'),
-  )
-  return (parsed ?? {}) as LocaleTree
+  ) ?? {}) as LocaleTree
+  if (lang !== SOURCE_LANG) return parsed
+  if (CAPABILITIES_SECTION in parsed)
+    throw new Error(
+      `${SOURCE_LANG}.yml に ${CAPABILITIES_SECTION} を書かない (capabilities.json5 の label が正本)`,
+    )
+  return { ...parsed, [CAPABILITIES_SECTION]: capabilityLabels() }
 }
 
 function sourceRecordPath(lang: string): string {
@@ -238,6 +271,7 @@ export function i18nLocalePlugin(): Plugin {
       const lang = id.slice(`\0${VIRTUAL_PREFIX}`.length)
       for (const f of readdirSync(LOCALES_DIR))
         if (f.endsWith('.yml')) this.addWatchFile(join(LOCALES_DIR, f))
+      this.addWatchFile(CAPABILITIES_PATH)
       return `export default JSON.parse(${JSON.stringify(JSON.stringify(compose(lang)))})`
     },
   }
