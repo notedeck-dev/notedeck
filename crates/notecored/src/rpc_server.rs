@@ -16,15 +16,7 @@ use tokio::sync::mpsc;
 
 use crate::sinks::Events;
 
-pub const SOCKET_DIR: &str = "notecored";
-pub const SOCKET_FILE: &str = "notecored.sock";
-
-/// socket の既定パス: `$XDG_RUNTIME_DIR/notecored/notecored.sock`。無ければ None
-pub fn default_socket_path() -> Option<PathBuf> {
-    std::env::var_os("XDG_RUNTIME_DIR")
-        .filter(|v| !v.is_empty())
-        .map(|dir| PathBuf::from(dir).join(SOCKET_DIR).join(SOCKET_FILE))
-}
+pub use notecore::rpc::default_socket_path;
 
 pub type StatusFn = Arc<dyn Fn() -> Value + Send + Sync>;
 

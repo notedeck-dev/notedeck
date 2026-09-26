@@ -25,7 +25,7 @@ serde_json = "1"
 specta = { version = "=2.0.0-rc.22", features = ["derive", "serde_json"] }
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
 specta-typescript = "0.0.9"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "net", "io-util", "sync"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 uuid = { version = "1", features = ["v4"] }
 ulid = "1"

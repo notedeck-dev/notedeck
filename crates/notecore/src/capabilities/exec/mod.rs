@@ -60,7 +60,7 @@ pub struct ExecContext {
 
 /// 実行結果。`tainted` は「ラベル付きの内容を返した」の申告 (呼び出し元の
 /// セッションを tainted にする)。
-#[derive(Debug, Clone, serde::Serialize, specta::Type)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ExecOutcome {
     pub value: Value,

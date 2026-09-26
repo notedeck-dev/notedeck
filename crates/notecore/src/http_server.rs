@@ -211,8 +211,10 @@ pub struct ServeConfig {
     pub app_version: String,
     /// 手元側 (WebView / Tauri の managed state) への問い合わせ口 (#1106)
     pub bridge: Arc<dyn FrontendBridge>,
-    pub db: Arc<Database>,
-    pub client: Arc<MisskeyClient>,
+    /// notecli 由来の Misskey API ルート用。中継構成のアプリは DB を持たないので None
+    /// (メディアプロキシとデッキ系ルートだけを出す)
+    pub db: Option<Arc<Database>>,
+    pub client: Option<Arc<MisskeyClient>>,
     pub event_bus: Arc<EventBus>,
     pub api_token: String,
     pub api_token_store: Arc<crate::api_tokens::ApiTokenStore>,
@@ -271,16 +273,21 @@ async fn persistent_token_middleware(
 pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<()>) {
     // Build core Misskey API routes from notecli (OpenApiRouter — route
     // registration and OpenAPI spec generation stay in lockstep).
-    let notecli_state = notecli::http_server::AppState::new(
-        config.db,
-        config.client,
-        config.event_bus,
-        config.api_token.clone(),
-        config.token_path.clone(),
-    );
     // notecli 由来のルートにも NoteDeck の allowlist CORS を掛ける。以前は notecli 側の
     // permissive が残っていて、#1099 の allowlist 化がここだけ効いていなかった (#1106 §9)
-    let core_routes = notecli::http_server::build_core_routes(notecli_state).layer(cors_layer());
+    let core_routes = match (config.db, config.client) {
+        (Some(db), Some(client)) => {
+            let notecli_state = notecli::http_server::AppState::new(
+                db,
+                client,
+                config.event_bus,
+                config.api_token.clone(),
+                config.token_path.clone(),
+            );
+            Some(notecli::http_server::build_core_routes(notecli_state).layer(cors_layer()))
+        }
+        _ => None,
+    };
 
     // NoteDeck-specific state
     let deck_state = DeckState {
@@ -330,8 +337,11 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
     // Merge every annotated route into one OpenApiRouter and serve the Router
     // half. The spec half is discarded — `build_openapi()` above is canonical
     // (identical content, shared with the snapshot test).
-    let (api_router, _) = OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .merge(core_routes)
+    let mut api_router = OpenApiRouter::with_openapi(ApiDoc::openapi());
+    if let Some(core_routes) = core_routes {
+        api_router = api_router.merge(core_routes);
+    }
+    let (api_router, _) = api_router
         .merge(deck_routes)
         .merge(proxy_routes)
         .merge(meta_routes)

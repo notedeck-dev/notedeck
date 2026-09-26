@@ -2438,6 +2438,14 @@ async systemStateGet() : Promise<Result<SystemState, { code: string; message: st
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * この端末の構成 (状態面用)
+ *
+ * @see src-tauri/src/client_layer.rs
+ */
+async clientLayerState() : Promise<ClientLayerState> {
+    return await TAURI_INVOKE("client_layer_state");
+},
 /** @see src-tauri/src/commands/health.rs */
 async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
@@ -3001,6 +3009,18 @@ export type CliArgInfo = { name: string; help: string | null; required: boolean;
  * Metadata for a CLI subcommand (exposed to external consumers like notedeck).
  */
 export type CliCommandInfo = { name: string; about: string | null; args: CliArgInfo[] }
+/**
+ * 状態面 (`nd:client-layer-state` と `client_layer_state` コマンド)
+ */
+export type ClientLayerState = { 
+/**
+ * `embedded` | `resident`
+ */
+backend: string; connected: boolean; socket: string | null; daemonVersion: string | null; 
+/**
+ * 接続先のマニフェストの指紋がこのアプリと一致するか (未接続なら None)
+ */
+fingerprintMatch: boolean | null; lastError: string | null }
 /**
  * Misskey `clips/*` (clips/list, clips/show, clips/create, users/clips,
  * clips/my-favorites) の共通レスポンス。本家 schema

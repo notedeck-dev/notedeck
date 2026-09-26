@@ -15,6 +15,7 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 mod app_dir;
+mod client_layer;
 mod commands;
 mod error;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
@@ -268,6 +269,37 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         app_state.set_app_version(env!("CARGO_PKG_VERSION").to_string());
         app.manage(app_state);
 
+        // クライアント層 (#1106 段階 3a): この端末の構成が resident なら、データ系
+        // コマンドは常駐の notecored に中継し、DB / ストリーム / HEARTBEAT は開かない。
+        // notecored が出すイベントは同じ名前で WebView に流す
+        let client_config = notecore::client_config::load(&app_dir.join(commands::SETTINGS_DIR));
+        let resident = matches!(
+            client_config.backend,
+            notecore::client_config::Backend::Resident
+        );
+        if resident {
+            match notecore::rpc::default_socket_path() {
+                Some(socket) => {
+                    let emit_handle = app.handle().clone();
+                    let state_handle = app.handle().clone();
+                    client_layer::start(
+                        socket,
+                        std::sync::Arc::new(move |name, payload| {
+                            if let Err(e) = tauri::Emitter::emit(&emit_handle, name, payload) {
+                                tracing::warn!(name, "[relay] emit failed: {e}");
+                            }
+                        }),
+                        std::sync::Arc::new(move |state| {
+                            let _ = tauri::Emitter::emit(&state_handle, "nd:client-layer-state", state);
+                        }),
+                    );
+                    tracing::info!("[client-layer] resident backend: relaying to notecored");
+                }
+                None => tracing::error!("[client-layer] resident backend but XDG_RUNTIME_DIR is unset; falling back to embedded"),
+            }
+        }
+        let resident = client_layer::relay().is_some();
+
         // Performance config: starts with defaults, updated dynamically via Tauri command
         let shared_perf: notecore::perf_config::SharedPerfConfig =
             std::sync::Arc::new(tokio::sync::RwLock::new(notecore::perf_config::PerformanceConfig::default()));
@@ -448,6 +480,40 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let stage = |name: &str| {
                 tracing::info!(stage = name, elapsed_ms = boot.elapsed().as_millis() as u64, "[startup]");
             };
+            if resident {
+                // 常駐構成: DB もストリームも開かない。メディアプロキシとデッキ系ルートの
+                // HTTP サーバーだけ手元で動かし、アカウント一覧は notecored から取る
+                ui_lang::init(&app_handle);
+                let bound_server = tauri::async_runtime::block_on(http_server::bind());
+                if let Some(server) = bound_server {
+                    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
+                    let bridge = std::sync::Arc::new(query_bridge::TauriBridge(app_handle.clone()));
+                    tauri::async_runtime::spawn(async move {
+                        http_server::serve(http_server::ServeConfig {
+                            server,
+                            app_version: env!("CARGO_PKG_VERSION").to_string(),
+                            bridge,
+                            db: None,
+                            client: None,
+                            event_bus,
+                            api_token,
+                            api_token_store,
+                            token_path: token_path_str,
+                            log_dir,
+                            image_cache: image_cache_bg,
+                            media_proxy_token,
+                            perf: shared_perf_bg,
+                            shutdown: shutdown_token,
+                        }, ready_tx)
+                        .await;
+                    });
+                    tauri::async_runtime::block_on(async { ready_rx.await.ok() });
+                }
+                tauri::async_runtime::block_on(client_layer::emit_accounts_early(&app_handle));
+                stage("backend-ready");
+                let _ = tauri::Emitter::emit(&app_handle, "nd:backend-ready", ());
+                return;
+            }
             // Parallel: DB open + MisskeyClient init + HTTP bind (all independent)
             let db_path = app_dir_bg.join("notecli.db");
             let db_handle = std::thread::spawn(move || notecli::db::Database::open(&db_path));
@@ -552,8 +618,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         server,
                         app_version: env!("CARGO_PKG_VERSION").to_string(),
                         bridge,
-                        db,
-                        client,
+                        db: Some(db),
+                        client: Some(client),
                         event_bus,
                         api_token,
                         api_token_store,
@@ -1144,6 +1210,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::heartbeat_status,
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,
+            client_layer::client_layer_state,
             // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
             commands::run_healthcheck,
             // 永続 API トークン (#709) — 外部アプリ向け名前付きトークンの発行/失効

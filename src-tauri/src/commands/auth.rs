@@ -16,6 +16,7 @@ pub async fn auth_complete_and_save(
     session: AuthSession,
     software: String,
 ) -> Result<AccountPublic> {
+    crate::client_layer::ensure_embedded("auth_complete_and_save")?;
     let (db, client) = app_state.ready().await;
 
     // Validate this session was created by auth_start and hasn't been replayed

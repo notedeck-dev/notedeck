@@ -51,7 +51,7 @@ impl Drop for Account {
 }
 
 /// Token を含まない、フロントエンド向け Account 構造体
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct AccountPublic {
@@ -1662,7 +1662,7 @@ pub enum MutedWord {
 
 /// `i`(meDetailed) から取得する word mute 設定（read のみ、#610）。
 /// soft = `mutedWords`（隠して展開可）、hard = `hardMutedWords`（完全非表示）。
-#[derive(Debug, Clone, Serialize, utoipa::ToSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "camelCase")]
 pub struct MutedWordsResult {
