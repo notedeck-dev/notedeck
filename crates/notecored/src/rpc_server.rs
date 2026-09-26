@@ -2,17 +2,21 @@
 //! hello で渡す。要求はコマンド表の JSON アダプタに流し、notecore のイベントは
 //! 全セッションに押し出す。
 
+use std::collections::HashMap;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use notecore::commands::{self, CallContext};
 use notecore::context::Core;
+use notecore::frontend_bridge::{BridgeFuture, FrontendBridge};
 use notecore::rpc::{BatchItem, Frame, Outcome, RpcError, SELF_PREFIX};
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 use crate::sinks::Events;
 
@@ -20,12 +24,141 @@ pub use notecore::rpc::default_socket_path;
 
 pub type StatusFn = Arc<dyn Fn() -> Value + Send + Sync>;
 
+type QueryReply = oneshot::Sender<Result<Value, String>>;
+type PendingQuery = (u64, QueryReply);
+
+/// 接続中のセッション (橋の問い合わせを投げる相手)。最後に繋いだセッションを優先する
+#[derive(Default)]
+pub struct Sessions {
+    next_session: AtomicU64,
+    next_query: AtomicU64,
+    /// session id → 書き手
+    live: Mutex<Vec<(u64, mpsc::Sender<Frame>)>>,
+    /// query id → (session id, 応答の受け口)
+    pending: Mutex<HashMap<u64, PendingQuery>>,
+}
+
+impl Sessions {
+    fn register(&self, tx: mpsc::Sender<Frame>) -> u64 {
+        let id = self.next_session.fetch_add(1, Ordering::Relaxed) + 1;
+        self.live
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push((id, tx));
+        id
+    }
+
+    fn unregister(&self, id: u64) {
+        self.live
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .retain(|(sid, _)| *sid != id);
+        let dead: Vec<QueryReply> = {
+            let mut p = self.pending.lock().unwrap_or_else(|e| e.into_inner());
+            let ids: Vec<u64> = p
+                .iter()
+                .filter(|(_, (sid, _))| *sid == id)
+                .map(|(qid, _)| *qid)
+                .collect();
+            ids.into_iter()
+                .filter_map(|qid| p.remove(&qid))
+                .map(|(_, tx)| tx)
+                .collect()
+        };
+        for tx in dead {
+            let _ = tx.send(Err("device disconnected".into()));
+        }
+    }
+
+    pub fn count(&self) -> usize {
+        self.live.lock().map(|l| l.len()).unwrap_or(0)
+    }
+
+    fn answer(&self, id: u64, result: Result<Value, String>) {
+        let tx = self
+            .pending
+            .lock()
+            .ok()
+            .and_then(|mut p| p.remove(&id))
+            .map(|(_, tx)| tx);
+        if let Some(tx) = tx {
+            let _ = tx.send(result);
+        }
+    }
+
+    /// 最後に繋いだセッションに問い合わせて答えを待つ。居なければ Err
+    pub async fn query(
+        &self,
+        query_type: &str,
+        params: Value,
+        timeout: Duration,
+    ) -> Result<Value, String> {
+        let (sid, tx) = self
+            .live
+            .lock()
+            .ok()
+            .and_then(|l| l.last().cloned())
+            .ok_or_else(|| format!("no device is connected (query {query_type})"))?;
+        let id = self.next_query.fetch_add(1, Ordering::Relaxed) + 1;
+        let (reply_tx, reply_rx) = oneshot::channel();
+        self.pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(id, (sid, reply_tx));
+        let frame = Frame::Query {
+            id,
+            query_type: query_type.to_string(),
+            params,
+            timeout_ms: timeout.as_millis() as u64,
+        };
+        if tx.send(frame).await.is_err() {
+            self.pending
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .remove(&id);
+            return Err("device session is closing".into());
+        }
+        match tokio::time::timeout(timeout, reply_rx).await {
+            Ok(Ok(r)) => r,
+            Ok(Err(_)) => Err("device disconnected".into()),
+            Err(_) => {
+                self.pending
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .remove(&id);
+                Err("Query timed out".into())
+            }
+        }
+    }
+}
+
+/// notecore の橋を接続中のセッションに繋ぐ (仕様 §4.4)。端末が居なければ Err で、
+/// ターン実行器は core の capability の確認内容を自分で組み、端末依存の capability を
+/// device_unavailable で返す
+pub struct SessionBridge(pub Arc<Sessions>);
+
+impl FrontendBridge for SessionBridge {
+    fn query<'a>(
+        &'a self,
+        query_type: &'a str,
+        params: Value,
+        timeout: Duration,
+    ) -> BridgeFuture<'a> {
+        Box::pin(self.0.query(query_type, params, timeout))
+    }
+
+    fn health_report(&self) -> BridgeFuture<'_> {
+        Box::pin(async { Ok(Value::Null) })
+    }
+}
+
 pub struct RpcServer {
     pub core: Arc<Core>,
     pub events: Events,
     pub secret: String,
     pub socket: PathBuf,
     pub status: StatusFn,
+    pub sessions: Arc<Sessions>,
 }
 
 impl RpcServer {
@@ -91,6 +224,7 @@ impl RpcServer {
         }
         let (reader, mut writer) = stream.into_split();
         let (tx, mut rx) = mpsc::channel::<Frame>(1024);
+        let session_id = self.sessions.register(tx.clone());
         let hello = Frame::Hello {
             protocol: notecore::rpc::PROTOCOL_VERSION,
             secret: self.secret.clone(),
@@ -134,6 +268,15 @@ impl RpcServer {
                     continue;
                 }
             };
+            if let Frame::QueryResponse { id, result, error } = frame {
+                self.sessions.answer(
+                    id,
+                    error
+                        .map(Err)
+                        .unwrap_or_else(|| Ok(result.unwrap_or(Value::Null))),
+                );
+                continue;
+            }
             let server = self.clone();
             let tx = tx.clone();
             tokio::spawn(async move {
@@ -143,6 +286,7 @@ impl RpcServer {
             });
         }
         drop(tx);
+        self.sessions.unregister(session_id);
         let _ = writer_task.await;
     }
 
@@ -188,6 +332,19 @@ impl RpcServer {
             return match own {
                 "status" => Outcome::success((self.status)()),
                 "ping" => Outcome::success(json!({ "pong": true })),
+                // 接続中の端末に橋の問い合わせが届くかの検査 (受け入れ試験と診断用)
+                "probe-device" => match self
+                    .sessions
+                    .query("notecored/probe", params, Duration::from_secs(5))
+                    .await
+                {
+                    Ok(v) => Outcome::success(v),
+                    Err(e) => Outcome::failure(RpcError {
+                        code: "NO_CONNECTION".into(),
+                        message: e,
+                        i18n: None,
+                    }),
+                },
                 _ => Outcome::failure(RpcError {
                     code: "INVALID_INPUT".into(),
                     message: format!("unknown daemon request: {name}"),

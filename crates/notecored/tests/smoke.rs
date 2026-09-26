@@ -69,6 +69,7 @@ impl Session {
         )
     }
 
+    /// 要求を送り、届く `query` には `{ echo: params }` で答えながら応答を待つ
     fn request(&mut self, name: &str, params: Value, secret: Option<&str>) -> Frame {
         let id = self.next_id;
         self.next_id += 1;
@@ -84,8 +85,21 @@ impl Session {
         self.writer.write_all(line.as_bytes()).unwrap();
         loop {
             let frame: Frame = serde_json::from_str(&self.lines.next().unwrap().unwrap()).unwrap();
-            if matches!(&frame, Frame::Response { id: got, .. } if *got == id) {
-                return frame;
+            match frame {
+                Frame::Response { id: got, .. } if got == id => return frame,
+                Frame::Query {
+                    id: qid, params, ..
+                } => {
+                    let reply = Frame::QueryResponse {
+                        id: qid,
+                        result: Some(json!({ "echo": params })),
+                        error: None,
+                    };
+                    let mut line = serde_json::to_string(&reply).unwrap();
+                    line.push('\n');
+                    self.writer.write_all(line.as_bytes()).unwrap();
+                }
+                _ => {}
             }
         }
     }
@@ -135,6 +149,14 @@ fn boots_answers_over_the_socket_and_stops_on_sigterm() {
     ));
     assert!(r.ok, "{r:?}");
     assert!(r.result.unwrap().as_str().unwrap().contains("example.com"));
+    // 橋の問い合わせが接続中の端末 (このセッション) に届いて答えが返る
+    let r = outcome(s.request("notecored.probe-device", json!({ "hello": 1 }), None));
+    assert!(r.ok, "{r:?}");
+    assert_eq!(r.result.unwrap()["echo"]["hello"], 1);
+    let st = outcome(s.request("notecored.status", json!({}), None))
+        .result
+        .unwrap();
+    assert_eq!(st["devices"], 1);
     // 未知のコマンドと秘密の不一致
     let r = outcome(s.request("no_such_command", json!({}), None));
     assert!(!r.ok);

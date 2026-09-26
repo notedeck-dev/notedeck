@@ -6,11 +6,10 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use notecore::context::Core;
-use notecore::frontend_bridge::NoDeviceBridge;
 use serde_json::json;
 
 use crate::heartbeat_timer::HeartbeatTimer;
-use crate::rpc_server::{default_socket_path, new_secret, RpcServer};
+use crate::rpc_server::{default_socket_path, new_secret, RpcServer, SessionBridge, Sessions};
 use crate::sinks::{self, Events};
 use crate::{exit, lock, logging, RunArgs};
 
@@ -145,10 +144,12 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
 
     let events = Events::new();
     let timer = Arc::new(HeartbeatTimer::default());
+    let sessions = Arc::new(Sessions::default());
     core.set_ai_chat_sink(Arc::new(sinks::ChatSink(events.clone())));
     core.set_ai_turn_sink(Arc::new(sinks::TurnSink(events.clone())));
     core.set_heartbeat_sink(Arc::new(sinks::HbSink(events.clone())));
-    core.set_frontend_bridge(Arc::new(NoDeviceBridge));
+    // 橋: 接続中の端末に確認内容の組み立てや実行要求を投げる。居なければ端末なし扱い
+    core.set_frontend_bridge(Arc::new(SessionBridge(sessions.clone())));
     core.set_core_executor(Arc::new(notecore::ai_turn::LocalCoreExecutor(core.clone())));
     {
         let core_for_timer = core.clone();
@@ -255,7 +256,7 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
                 let config = notecore::http_server::ServeConfig {
                     server,
                     app_version: env!("CARGO_PKG_VERSION").to_string(),
-                    bridge: Arc::new(NoDeviceBridge),
+                    bridge: Arc::new(SessionBridge(sessions.clone())),
                     db: Some(db.clone()),
                     client: Some(client.clone()),
                     event_bus: event_bus.clone(),
@@ -282,14 +283,17 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
     let status_timer = timer.clone();
     let status_socket = socket.clone();
     let status_dir = data_dir.clone();
+    let status_sessions = sessions.clone();
     let server = Arc::new(RpcServer {
         core: core.clone(),
         events: events.clone(),
         secret,
         socket: socket.clone(),
+        sessions: sessions.clone(),
         status: Arc::new(move || {
             json!({
                 "running": true,
+                "devices": status_sessions.count(),
                 "pid": std::process::id(),
                 "version": env!("CARGO_PKG_VERSION"),
                 "fingerprint": notecore::rpc::manifest_fingerprint(),

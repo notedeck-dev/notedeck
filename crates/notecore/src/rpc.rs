@@ -8,6 +8,7 @@
 //!   (`notecored.` で始まる名前はサーバー自身が答える)
 //! - 応答 `response` は要求の `id` を返す。batch の応答は `result` が要素ごとの配列
 //! - サーバーが押し出す `event` は Tauri のイベント名と同じ (`nd:ai-turn-event` など)
+//! - サーバーからの `query` は橋の問い合わせで、端末が `query_response` で答える
 
 use std::path::PathBuf;
 
@@ -116,6 +117,24 @@ pub enum Frame {
     },
     #[serde(rename_all = "camelCase")]
     Event { name: String, payload: Value },
+    /// notecored → 端末: 橋の問い合わせ (確認内容の組み立て / 実行要求 / HEARTBEAT の文脈)。
+    /// 端末は `query_response` で答える (仕様 §4.4 の「確認要求」「実行要求」の運び方)
+    #[serde(rename_all = "camelCase")]
+    Query {
+        id: u64,
+        query_type: String,
+        #[serde(default)]
+        params: Value,
+        timeout_ms: u64,
+    },
+    #[serde(rename_all = "camelCase")]
+    QueryResponse {
+        id: u64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        result: Option<Value>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        error: Option<String>,
+    },
 }
 
 /// 同一ホストの socket の既定: `$XDG_RUNTIME_DIR/notecored/notecored.sock` (無ければ None)
@@ -259,6 +278,27 @@ mod tests {
         .into();
         assert_eq!(e.code(), "REMOTE");
         assert_eq!(e.i18n().unwrap()["key"], "k");
+    }
+
+    #[test]
+    fn query_frames_round_trip() {
+        let q = Frame::Query {
+            id: 3,
+            query_type: "ai/confirm-preview".into(),
+            params: json!({ "capabilityId": "notes.create" }),
+            timeout_ms: 30_000,
+        };
+        let text = serde_json::to_string(&q).unwrap();
+        assert!(text.contains("\"type\":\"query\""));
+        assert_eq!(serde_json::from_str::<Frame>(&text).unwrap(), q);
+        let r = Frame::QueryResponse {
+            id: 3,
+            result: None,
+            error: Some("no handler".into()),
+        };
+        let text = serde_json::to_string(&r).unwrap();
+        assert!(!text.contains("result"));
+        assert_eq!(serde_json::from_str::<Frame>(&text).unwrap(), r);
     }
 
     #[test]
