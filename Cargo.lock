@@ -3336,6 +3336,7 @@ dependencies = [
  "base64 0.22.1",
  "bytes",
  "chrono",
+ "dirs 6.0.0",
  "encoding_rs",
  "futures-util",
  "image",

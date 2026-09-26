@@ -21,35 +21,86 @@ pub const ALLOWED_SUBDIRS: &[&str] = &[
     "queries",
 ];
 
-/// Allowed root-level filenames (no subdirectory).
-/// このリストは設定バックアップ (export/import) の対象も兼ねる。
-pub const ALLOWED_ROOT_FILES: &[&str] = &[
-    "custom.css",
-    "keybinds.json5",
-    "ai.json5",
-    "AI.md",
-    "performance.json5",
-    "navbar.json5",
-    "postform.json5",
-    "settings.json5",
-    "tasks.json5",
+/// ルート直下の設定ファイルの属性 (#1106 §4.2 / §4.5)。
+/// `side` は「デバイスが 1 台も繋がっていなくても意味を持つか」で、Core なら
+/// notecore (notecored) 側の束、Device なら手元側 (入力・画面・端末性能に依存) の束。
+/// `backup` は設定バックアップ (export / import) に含めるか。
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Side {
+    Core,
+    Device,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct RootFile {
+    pub name: &'static str,
+    pub side: Side,
+    pub backup: bool,
+}
+
+const fn core(name: &'static str) -> RootFile {
+    RootFile {
+        name,
+        side: Side::Core,
+        backup: true,
+    }
+}
+
+const fn device(name: &'static str) -> RootFile {
+    RootFile {
+        name,
+        side: Side::Device,
+        backup: true,
+    }
+}
+
+/// Allowed root-level filenames (no subdirectory) と属性。
+pub const ROOT_FILES: &[RootFile] = &[
+    device("custom.css"),
+    device("keybinds.json5"),
+    core("ai.json5"),
+    core("AI.md"),
+    device("performance.json5"),
+    device("navbar.json5"),
+    device("postform.json5"),
+    core("settings.json5"),
+    core("tasks.json5"),
     // チュートリアルの達成記録 + NoteDeck 独自実績 (#1029)。プロファイル・
     // アカウントから独立 (アプリ操作の習熟はアカウントに紐づかない)
-    "tutorial.json5",
+    device("tutorial.json5"),
     // principal 別権限 + 確認スキップ (#712 / #714)。capability 層に write を
     // 公開しない制約はここではなく capability registry 側で担保している
     // (settingsFs の固定名ラッパーのみが本コマンドに到達する)
-    "permissions.json5",
+    core("permissions.json5"),
     // custom.css の編集履歴サイドカー (#913 付随修正)。allowlist から漏れて
     // いたため、フロントの履歴 read/write が一度も成功していなかった
-    "custom.css.history.json5",
+    device("custom.css.history.json5"),
     // themes/ の素の .json5 を取り込んだ記録 (元ファイル名 → 採用 ID、#1041)。
     // 消えると次回起動で再取り込みされて複製が出るのでバックアップに含める
-    "theme-dropins.json5",
+    core("theme-dropins.json5"),
     // 表示言語 (#135)。端末ごとの値 (#1106 の手元側) なので settings.json5
     // (notecore 側) に混ぜない。リモート構成で言語の違う端末が奪い合うため
-    "locale.json5",
+    device("locale.json5"),
+    // この端末の構成 (embedded / resident、#1106 段階 3a)。復元先で存在しない
+    // 常駐を探さないよう、バックアップに含めない
+    RootFile {
+        name: "client.json5",
+        side: Side::Device,
+        backup: false,
+    },
 ];
+
+pub fn root_file(name: &str) -> Option<&'static RootFile> {
+    ROOT_FILES.iter().find(|f| f.name == name)
+}
+
+fn root_file_names() -> String {
+    ROOT_FILES
+        .iter()
+        .map(|f| f.name)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
 
 /// Validate a subdirectory name against the whitelist.
 pub fn validate_subdir(subdir: &str) -> Result<()> {
@@ -97,10 +148,10 @@ pub fn resolve_file(base_dir: &Path, subdir: &str, name: &str) -> Result<PathBuf
 
 /// Resolve the full path for a root-level settings file under `base_dir`.
 pub fn resolve_root_file(base_dir: &Path, name: &str) -> Result<PathBuf> {
-    if !ALLOWED_ROOT_FILES.contains(&name) {
+    if root_file(name).is_none() {
         return Err(NoteDeckError::InvalidInput(format!(
             "Invalid root file: {name}. Allowed: {}",
-            ALLOWED_ROOT_FILES.join(", ")
+            root_file_names()
         )));
     }
     validate_filename(name)?;
@@ -297,12 +348,12 @@ pub fn export_bundle(base_dir: &Path) -> Result<BTreeMap<String, String>> {
         }
     }
 
-    for root_file in ALLOWED_ROOT_FILES {
-        let path = base_dir.join(root_file);
+    for f in ROOT_FILES.iter().filter(|f| f.backup) {
+        let path = base_dir.join(f.name);
         if path.exists() {
             let content = fs::read_to_string(&path)
                 .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-            bundle.insert(root_file.to_string(), content);
+            bundle.insert(f.name.to_string(), content);
         }
     }
 
@@ -583,7 +634,12 @@ pub fn import_bundle(
     for (key, content) in bundle {
         let parts: Vec<&str> = key.split('/').collect();
         match parts.as_slice() {
-            [name] if ALLOWED_ROOT_FILES.contains(name) => {
+            [name] if root_file(name).is_some() => {
+                if !root_file(name).map(|f| f.backup).unwrap_or(false) {
+                    // この端末の構成など、復元先に持ち込まないファイル
+                    tracing::warn!("Import: skipping device-only file: {key}");
+                    continue;
+                }
                 atomic_write(&base_dir.join(name), content, None)?;
             }
             [subdir, name] if ALLOWED_SUBDIRS.contains(subdir) => {
@@ -707,21 +763,43 @@ mod tests {
     fn permissions_json5_is_allowed_root_file() {
         // #714: 権限プロファイル + 確認スキップの保存先。allowlist から漏れると
         // 読み書きもバックアップも黙って失敗する (#712〜v1.5.0 で実際に発生)
-        assert!(ALLOWED_ROOT_FILES.contains(&"permissions.json5"));
+        assert!(root_file("permissions.json5").is_some());
     }
 
     #[test]
     fn tutorial_json5_is_allowed_root_file() {
         // #1029: チュートリアルの達成記録と実績の保存先。allowlist から漏れると
         // 読み書きもバックアップも黙って失敗する
-        assert!(ALLOWED_ROOT_FILES.contains(&"tutorial.json5"));
+        assert!(root_file("tutorial.json5").is_some());
     }
 
     #[test]
     fn theme_dropins_json5_is_allowed_root_file() {
         // #1041: drop-in の採用記録。allowlist から漏れると記録できず、
         // 起動のたびに同じ元ファイルを再取り込みして複製が増える
-        assert!(ALLOWED_ROOT_FILES.contains(&"theme-dropins.json5"));
+        assert!(root_file("theme-dropins.json5").is_some());
+    }
+
+    #[test]
+    fn client_json5_is_device_side_and_never_backed_up() {
+        // #1106 段階 3a: この端末の構成。復元先で存在しない常駐を探さない
+        let f = root_file("client.json5").unwrap();
+        assert_eq!(f.side, Side::Device);
+        assert!(!f.backup);
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("client.json5"), "{ backend: 'resident' }").unwrap();
+        fs::write(dir.path().join("locale.json5"), "{ locale: 'auto' }").unwrap();
+        let bundle = export_bundle(dir.path()).unwrap();
+        assert!(!bundle.contains_key("client.json5"));
+        assert!(bundle.contains_key("locale.json5"));
+        let restore = tempfile::tempdir().unwrap();
+        let mut b = BTreeMap::new();
+        b.insert(
+            "client.json5".to_string(),
+            "{ backend: 'resident' }".to_string(),
+        );
+        import_bundle(restore.path(), &b).unwrap();
+        assert!(!restore.path().join("client.json5").exists());
     }
 
     #[cfg(unix)]
@@ -901,7 +979,7 @@ mod tests {
     fn custom_css_history_is_allowed_root_file() {
         // #913 付随修正: allowlist から漏れていて履歴の read/write が常に
         // reject されていた (フロントは settingsFs の history 系でこの名前を使う)
-        assert!(ALLOWED_ROOT_FILES.contains(&"custom.css.history.json5"));
+        assert!(root_file("custom.css.history.json5").is_some());
         let dir = tempfile::tempdir().unwrap();
         write_root_file(dir.path(), "custom.css.history.json5", "{ entries: [] }").unwrap();
         assert_eq!(

@@ -241,6 +241,16 @@ export async function writeLocaleSettingFile(content: string): Promise<void> {
   return writeRootSettingsFile('locale.json5', content)
 }
 
+// --- Client config helpers (#1106 段階 3a) ---
+
+export async function readClientConfigFile(): Promise<string> {
+  return readRootSettingsFile('client.json5')
+}
+
+export async function writeClientConfigFile(content: string): Promise<void> {
+  return writeRootSettingsFile('client.json5', content)
+}
+
 // --- Tutorial helpers (#1029) ---
 
 export async function readTutorialProgress(): Promise<string> {
