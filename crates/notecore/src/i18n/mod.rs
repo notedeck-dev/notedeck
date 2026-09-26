@@ -24,7 +24,7 @@ static DICTS: LazyLock<Vec<(&'static str, Value)>> = LazyLock::new(|| {
         .map(|(code, text)| {
             (
                 *code,
-                serde_json::from_str(text).expect("生成された辞書は JSON"),
+                serde_json::from_str(text).expect("generated dictionaries are JSON"),
             )
         })
         .collect()
@@ -109,6 +109,38 @@ pub fn render(lang: &str, key: &str, params: &Value) -> String {
         }
         _ => key.to_string(),
     }
+}
+
+fn primary(code: &str) -> String {
+    code.split(['-', '_']).next().unwrap_or("").to_lowercase()
+}
+
+/// 表示言語を決める (TS の `resolveLanguage` と同じ規則)。明示された言語は
+/// 辞書があればそのまま。`auto` は公開済みの言語から OS 言語の順に探す:
+/// 完全一致 → 言語部の一致 (zh は完全一致のみ)。無ければ en-US
+pub fn resolve_language(preference: &str, system: &[String]) -> String {
+    if dictionary(preference).is_some() {
+        return preference.to_string();
+    }
+    let published = dictionaries::PUBLISHED;
+    for sys in system {
+        let sys_norm = sys.replace('_', "-");
+        if let Some(code) = published.iter().find(|c| c.eq_ignore_ascii_case(&sys_norm)) {
+            return (*code).to_string();
+        }
+        if primary(sys) == "zh" {
+            continue;
+        }
+        if let Some(code) = published.iter().find(|c| primary(c) == primary(sys)) {
+            return (*code).to_string();
+        }
+    }
+    published
+        .iter()
+        .find(|c| **c == CANONICAL)
+        .or_else(|| published.first())
+        .map(|c| (*c).to_string())
+        .unwrap_or_else(|| CANONICAL.to_string())
 }
 
 /// 英語の正本文と、表示言語で引き直すための手がかり
@@ -244,6 +276,24 @@ mod tests {
         assert_eq!(
             render("en-US", "_native.preview.generic.title", &params),
             "Run Run?"
+        );
+    }
+
+    #[test]
+    fn resolves_the_display_language_like_the_device() {
+        assert_eq!(resolve_language("ja-JP", &[]), "ja-JP");
+        assert_eq!(resolve_language("auto", &["ja-JP".into()]), "ja-JP");
+        assert_eq!(resolve_language("auto", &["ja".into()]), "ja-JP");
+        assert_eq!(resolve_language("auto", &["en_GB".into()]), "en-US");
+        assert_eq!(resolve_language("auto", &["zh-TW".into()]), "en-US");
+        assert_eq!(resolve_language("auto", &["fr-FR".into()]), "en-US");
+    }
+
+    #[test]
+    fn achievement_labels_are_embedded() {
+        assert_eq!(
+            render("ja-JP", "_achievementLabels.notes10", &json!({})),
+            "10 ノート"
         );
     }
 

@@ -3134,6 +3134,39 @@ _native:
     restoredRenamed: "別名で復元 (既存と衝突): {items} → {renamed}"
     skippedBadFilename: "スキップ (不正なファイル名): {key}"
     skippedBadKey: "スキップ (不正なキー): {key}"
+  notification:
+    someone: "誰か"
+    reaction: "リアクション"
+    reactionWith: "リアクション {reaction}"
+    reply: "リプライ"
+    renote: "リノート"
+    quote: "引用"
+    mention: "メンション"
+    follow: "フォロー"
+    followRequestAccepted: "フォローリクエスト承認"
+    receiveFollowRequest: "フォローリクエスト"
+    achievementEarned: "実績獲得"
+    login: "ログイン検知"
+    pollEnded: "投票終了"
+    generic: "通知"
+    test: "テスト通知"
+    groupTitle_plural:
+      other: "新着通知 {count} 件"
+    groupOthers: "{names} ほか"
+    listSeparator: "、"
+    channelName: "通知"
+  tray:
+    unread_plural:
+      other: "NoteDeck — 未読 {count} 件"
+  apiTokens:
+    nameRequired: "トークン名を入力してください"
+  android:
+    newNotifications_plural:
+      other: "{count} 件の新しい通知があります"
+    newNotification: "新しい通知があります"
+    multipleAccounts: "複数のアカウントに新しい通知があります"
+    channelName: "Misskey の通知"
+    channelDescription: "フォロー、リアクション、メンションなどの通知"
 
 _useAiConfig:
   customProviderName: "Custom (OpenAI 互換)"

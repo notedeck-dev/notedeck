@@ -721,6 +721,10 @@ import { i18n } from '@/i18n'
 - 語と表記 (英数字と和文の間の空白、半角括弧、長音、「〜に失敗しました」など) は `locales/GLOSSARY.md` に合わせる。表記は `tests/lint/i18nStyle.test.ts` が検査する。本家と揃えない語は理由をそこに書く
 - 訳は `locales/<lang>.yml` に書き、訳し終えたら `pnpm gen:i18n --stamp <lang>` で「どの原文から訳したか」を記録する。原文が後から変わると lint が訳の置き去りとして落とす。未訳のキーは実行時に en-US → ja-JP の順で埋まり、lint では落とさない
 - 表示言語は `locale.json5` (端末ごとの値なので `settings.json5` とは別) に `'auto'` か言語コードで持つ。`locales/languages.json5` で `published: false` の言語は開発者モードでだけ選べ、`'auto'` の解決対象にもならない。i18n 導入前からのインストールは日本語に固定される
+- **Rust (notecore / src-tauri) が画面向けに出す文言**は辞書の `_native` 節に置き、Rust のソースには書かない。`pnpm gen:i18n` が言語ごとの JSON (`crates/notecore/locales/`) と Android の文字列リソース (`src-tauri/android/res/`) に書き出し、Rust は埋め込んで使う。キーは必ず完全な文字列 (`"_native.xxx"`) で書く (lint がソースから拾って実在を検査する)
+  - notecore が返す値は「英語の正本文 + 表示言語で描き直す手がかり `{ key, params }`」(`i18n::text` / `localize_fields`、エラーは `i18n::error` = `NoteDeckError::Localized`)。英語の正本文は AI・HTTP・CLI、版ずれのときの fallback に使う。デバイスは `localizeNative` / `nativeField` / `AppError` で表示言語に描き直す。保存される定型の文言 (セッションタイトル、HEARTBEAT の受信箱カードなど) も同じ形で保存し、表示するときに描き直す
+  - 端末側 (OS 通知・トレイ・Android の通知チャネル) は `ui_lang` の表示言語で直接組む。表示言語は起動時に `locale.json5` と OS の言語から決め、切り替えたときはデバイスが `setUiLanguage` で知らせる
+  - AI にだけ渡る文字列 (プロンプト、tool の結果やエラー) は辞書に入れず英語で書く。利用者の表示言語はシステムプロンプトの `<user-language>` で渡す
 - 日付・数値の書式は `i18n.lang` を渡す。`'ja-JP'` の直書きと引数なしの `toLocale*()` は増やさない
 - 日本語の直書きは `pnpm lint:i18n` が検査する (CI と pre-push)。変更したファイルの合計で増えていなければ通るラチェット。辞書に置けない文字列 (AI プロンプト、MFM 仕様の変換表など) は行末に `i18n-ignore: <理由>` を書くか、`scripts/i18n-lint.ts` のファイル単位の免除に理由つきで足す
 

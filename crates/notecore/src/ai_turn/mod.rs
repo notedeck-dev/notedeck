@@ -65,7 +65,7 @@ pub const DEFAULT_MAX_TOOL_ROUNDS: u32 = 10;
 /// 継続モード (#737) で system prompt 末尾に付ける通知。実行済み tool の
 /// 繰り返しをモデル側でも抑止する 2 重目の防壁 (1 重目は「実行済みラウンドを
 /// 再生成しない」という構造そのもの)。
-pub const CONTINUATION_NOTICE: &str = "直前の応答は途中で切断されました。会話履歴にある tool 実行結果は既に実行済みです。同じ書き込み操作を繰り返さず、既存の結果を使って応答の続きを完成させてください。";
+pub const CONTINUATION_NOTICE: &str = "The previous response was cut off. The tool results in the conversation history have already been executed. Do not repeat the same write operations; use the existing results to finish the response.";
 
 /// デバイスへの実行要求の待ち時間。確認は notecore 発 (`confirm.rs`) なので
 /// ここに確認待ちは含まれない (capability 本体の実行時間だけ)。
@@ -80,7 +80,7 @@ pub const PREVIEW_QUERY_TYPE: &str = "ai/confirm-preview";
 /// 「次から確認しない」の記憶のスコープ (permissions.json5 の `confirmSkips`)。
 const CHAT_SKIP_SCOPE: &str = "ai.chat";
 
-const TITLE_SYSTEM_PROMPT: &str = "あなたは会話セッションのタイトル生成アシスタントです。与えられた会話の内容を端的に表す短い日本語のタイトルを 1 行で出力してください。20 文字程度 (最大 40 文字) に収めること。引用符、前置き、改行、絵文字、文末句点は付けないでください。タイトルのみを返してください。";
+const TITLE_SYSTEM_PROMPT: &str = "You write titles for conversation sessions. Output one short line that sums up the conversation, in the same language as the conversation. Keep it around 20 characters (at most 40). No quotes, preamble, line breaks, emoji, or trailing period. Return only the title.";
 const TITLE_MAX_CHARS: usize = 40;
 
 /// デバイス側だけが知っている AI tool (plugin が動的登録した capability)。
@@ -780,7 +780,7 @@ async fn generate_title(
 ) -> Option<String> {
     let user_text = last_user_text(&req.messages)?;
     let prompt = format!(
-        "次の会話に短いタイトルを付けてください。タイトルだけを 1 行で出力。\n\nユーザー:\n{user_text}\n\nアシスタント:\n{final_text}"
+        "Give the following conversation a short title. Output only the title on one line.\n\nUser:\n{user_text}\n\nAssistant:\n{final_text}"
     );
     let title_req = AiChatRequest {
         stream_id: format!("{}:title", req.turn_id),

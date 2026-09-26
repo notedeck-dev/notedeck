@@ -20,6 +20,13 @@ mkdir -p "$GEN_DIR/res/xml" "$GEN_DIR/../debug/res/xml"
 cp "$SCRIPT_DIR/network_security_config.xml" "$GEN_DIR/res/xml/network_security_config.xml"
 cp "$SCRIPT_DIR/network_security_config_debug.xml" "$GEN_DIR/../debug/res/xml/network_security_config.xml"
 
+# 通知ワーカーの文言 (#135)。locales/ の _native.android から gen:i18n が書き出す
+for values_dir in "$SCRIPT_DIR"/res/values*; do
+    target="$GEN_DIR/res/$(basename "$values_dir")"
+    mkdir -p "$target"
+    cp "$values_dir/nd_strings.xml" "$target/nd_strings.xml"
+done
+
 # Add WorkManager dependency to build.gradle.kts if not already present
 BUILD_GRADLE="$SCRIPT_DIR/../gen/android/app/build.gradle.kts"
 WORK_DEP='implementation("androidx.work:work-runtime-ktx:2.10.1")'

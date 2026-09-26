@@ -3403,6 +3403,42 @@ _native:
     restoredRenamed: "Restored under another name (conflicts with existing): {items} → {renamed}"
     skippedBadFilename: "Skipped (invalid file name): {key}"
     skippedBadKey: "Skipped (invalid key): {key}"
+  notification:
+    someone: "Someone"
+    reaction: "Reaction"
+    reactionWith: "Reaction {reaction}"
+    reply: "Reply"
+    renote: "Renote"
+    quote: "Quote"
+    mention: "Mention"
+    follow: "Follow"
+    followRequestAccepted: "Follow request accepted"
+    receiveFollowRequest: "Follow request"
+    achievementEarned: "Achievement unlocked"
+    login: "New login"
+    pollEnded: "Poll ended"
+    generic: "Notification"
+    test: "Test notification"
+    groupTitle_plural:
+      one: "{count} new notification"
+      other: "{count} new notifications"
+    groupOthers: "{names} and others"
+    listSeparator: ", "
+    channelName: "Notifications"
+  tray:
+    unread_plural:
+      one: "NoteDeck — {count} unread"
+      other: "NoteDeck — {count} unread"
+  apiTokens:
+    nameRequired: "Enter a token name"
+  android:
+    newNotifications_plural:
+      one: "{count} new notification"
+      other: "{count} new notifications"
+    newNotification: "You have a new notification"
+    multipleAccounts: "New notifications on multiple accounts"
+    channelName: "Misskey notifications"
+    channelDescription: "Follows, reactions, mentions and other notifications"
 
 _useAiConfig:
   customProviderName: "Custom (OpenAI-compatible)"

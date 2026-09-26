@@ -1843,6 +1843,12 @@ async getCliCommands() : Promise<Result<CliCommandInfo[], { code: string; messag
 async getRustcVersion() : Promise<string> {
     return await TAURI_INVOKE("get_rustc_version");
 },
+/**
+ * デバイスが表示言語を切り替えた (解決済みの言語コード)
+ */
+async setUiLanguage(lang: string) : Promise<void> {
+    await TAURI_INVOKE("set_ui_language", { lang });
+},
 /** @see crates/notecore/src/commands/utility.rs */
 async getOpenapiSpec() : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {

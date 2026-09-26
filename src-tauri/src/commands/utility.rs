@@ -241,7 +241,10 @@ pub fn set_unread_badge(app: tauri::AppHandle, count: u32) {
 
         if let Some(tray) = app.tray_by_id("main") {
             let tooltip = if count > 0 {
-                format!("NoteDeck — 未読 {count} 件")
+                crate::ui_lang::t(
+                    "_native.tray.unread_plural",
+                    serde_json::json!({ "count": count }),
+                )
             } else {
                 "NoteDeck".to_string()
             };

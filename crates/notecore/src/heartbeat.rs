@@ -48,11 +48,11 @@ const CONTEXT_QUERY_TYPE: &str = "heartbeat/context";
 const CONTEXT_TIMEOUT: Duration = Duration::from_secs(20);
 const TURN_HARD_LIMIT: Duration = Duration::from_secs(30 * 60);
 
-pub const INSTRUCTION: &str = "あなたは HEARTBEAT (定期チェック) として呼ばれています。
-上に記載された HEARTBEAT skill の指示に厳密に従ってください。
-過去の会話や前回の tick は参照しないでください。
-報告すべきことがある場合は heartbeat_report tool を呼び、body に簡潔な報告 (200 字以内推奨) を入れ、通知を出すべきなら notify を true にしてください。
-何も報告すべきことが無い場合は tool を呼ばず \"HEARTBEAT_OK\" の 1 行だけを返してください。";
+pub const INSTRUCTION: &str = "You are being called as HEARTBEAT (a periodic check).
+Follow the instructions of the HEARTBEAT skill above strictly.
+Do not refer to past conversations or previous ticks.
+If there is something to report, call the heartbeat_report tool with a concise report in body (200 characters or fewer recommended), and set notify to true if a notification should be shown.
+If there is nothing to report, do not call any tool and return only the single line \"HEARTBEAT_OK\".";
 
 // ---------------------------------------------------------------------------
 // デバイスへの口
@@ -1091,7 +1091,7 @@ async fn append_error(core: &Core, cfg: &AiConfigLite, source: &str, err: &str, 
     }
 }
 
-const TITLE_SYSTEM: &str = "あなたは HEARTBEAT 通知の要約タイトル生成アシスタントです。与えられた通知内容を端的に表す短い日本語のタイトルを 1 行で出力してください。20 文字程度 (最大 40 文字) に収めること。引用符、前置き、改行、絵文字、文末句点は付けないでください。タイトルのみを返してください。";
+const TITLE_SYSTEM: &str = "You write titles for HEARTBEAT notifications. Output one short line that sums up the notification, in the same language as the notification. Keep it around 20 characters (at most 40). No quotes, preamble, line breaks, emoji, or trailing period. Return only the title.";
 
 struct TextSink(
     Mutex<String>,
@@ -1135,7 +1135,7 @@ async fn generate_title(core: &Core, cfg: &AiConfigLite, report: &str) -> Option
         messages: vec![AiChatMessage {
             role: AiChatRole::User,
             content: format!(
-                "次の HEARTBEAT 通知の主題を端的に表す短いタイトルを付けてください。タイトルだけを 1 行で出力。\n\n{report}"
+                "Give the following HEARTBEAT notification a short title that states its subject. Output only the title on one line.\n\n{report}"
             ),
             tool_use_id: None,
             tool_use_name: None,

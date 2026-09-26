@@ -70,7 +70,13 @@ export async function initLocale(): Promise<void> {
 
 async function applyPreference(value: LocalePreference): Promise<void> {
   preference.value = value
-  await loadLocale(resolveLanguage(value, systemLanguages(), LANGUAGES))
+  const lang = resolveLanguage(value, systemLanguages(), LANGUAGES)
+  await loadLocale(lang)
+  // 端末側 (OS 通知・トレイ・Android の通知チャネル) にも知らせる
+  if (isTauri)
+    void commands
+      .setUiLanguage(lang)
+      .catch((e) => console.warn('[i18n] setUiLanguage failed:', e))
 }
 
 export function useLocale() {

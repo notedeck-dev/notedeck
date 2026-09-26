@@ -36,6 +36,8 @@ const SRC = join(ROOT, 'src')
 const DYNAMIC_SECTIONS = [
   // capability id から引く (capabilityLabel)。正本は capabilities.json5
   '_capabilities',
+  // Kotlin の通知ワーカーが Android の文字列リソース (gen:i18n が書き出す) で引く
+  '_native.android',
 ]
 
 function collect(dir: string, exts: string[]): string[] {
@@ -112,7 +114,12 @@ describe('UI 文言の辞書 (#135)', () => {
   })
 
   it('Rust 用の辞書 (crates/notecore/locales) は辞書から再生成したものと一致する', () => {
-    const { files, rs } = generateNative()
+    const { files, rs, android } = generateNative()
+    for (const [path, text] of android)
+      expect(
+        readFileSync(path, 'utf8'),
+        `${path} が古い — \`pnpm gen:i18n\``,
+      ).toBe(text)
     for (const [code, text] of files)
       expect(
         readFileSync(join(NATIVE_DIR, `${code}.json`), 'utf8'),

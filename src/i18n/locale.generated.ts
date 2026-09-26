@@ -5652,6 +5652,66 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       /** スキップ (不正なキー): {key} */
       readonly "skippedBadKey": ParameterizedString<'key'>
     }
+    readonly "notification": {
+      /** 誰か */
+      readonly "someone": string
+      /** リアクション */
+      readonly "reaction": string
+      /** リアクション {reaction} */
+      readonly "reactionWith": ParameterizedString<'reaction'>
+      /** リプライ */
+      readonly "reply": string
+      /** リノート */
+      readonly "renote": string
+      /** 引用 */
+      readonly "quote": string
+      /** メンション */
+      readonly "mention": string
+      /** フォロー */
+      readonly "follow": string
+      /** フォローリクエスト承認 */
+      readonly "followRequestAccepted": string
+      /** フォローリクエスト */
+      readonly "receiveFollowRequest": string
+      /** 実績獲得 */
+      readonly "achievementEarned": string
+      /** ログイン検知 */
+      readonly "login": string
+      /** 投票終了 */
+      readonly "pollEnded": string
+      /** 通知 */
+      readonly "generic": string
+      /** テスト通知 */
+      readonly "test": string
+      /** 新着通知 {count} 件 */
+      readonly "groupTitle_plural": PluralString<'count'>
+      /** {names} ほか */
+      readonly "groupOthers": ParameterizedString<'names'>
+      /** 、 */
+      readonly "listSeparator": string
+      /** 通知 */
+      readonly "channelName": string
+    }
+    readonly "tray": {
+      /** NoteDeck — 未読 {count} 件 */
+      readonly "unread_plural": PluralString<'count'>
+    }
+    readonly "apiTokens": {
+      /** トークン名を入力してください */
+      readonly "nameRequired": string
+    }
+    readonly "android": {
+      /** {count} 件の新しい通知があります */
+      readonly "newNotifications_plural": PluralString<'count'>
+      /** 新しい通知があります */
+      readonly "newNotification": string
+      /** 複数のアカウントに新しい通知があります */
+      readonly "multipleAccounts": string
+      /** Misskey の通知 */
+      readonly "channelName": string
+      /** フォロー、リアクション、メンションなどの通知 */
+      readonly "channelDescription": string
+    }
   }
   readonly "_useAiConfig": {
     /** Custom (OpenAI 互換) */
