@@ -114,7 +114,7 @@ export const vaultFetchCapability = implement('vault.fetch', {
       code: JSON.stringify(params ?? {}, null, 2),
       codeLanguage: 'json',
       okLabel: i18n.ts._vaultCapability.allow,
-      cancelLabel: i18n.ts._vaultCapability.cancel,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'danger',
       // 接続が解決できた + remember の同意先が確定しているときだけ出す。
       // plugin は個体単位の記憶なので、同意の主体を文言でも明示する

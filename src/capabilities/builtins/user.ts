@@ -44,7 +44,7 @@ function muteConfirm(
     const userId = typeof params?.userId === 'string' ? params.userId : ''
     return {
       ...text(userId),
-      cancelLabel: i18n.ts._userCapability.cancel,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'normal' as const,
     }
   }
@@ -63,7 +63,7 @@ export const userMuteCapability = implement('user.mute', {
   requiresConfirmation: muteConfirm((userId) => ({
     title: i18n.ts._userCapability.muteTitle,
     message: i18n.tsx._userCapability.muteMessage({ userId }),
-    okLabel: i18n.ts._userCapability.muteOk,
+    okLabel: i18n.ts._common.mute,
   })),
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.mute')

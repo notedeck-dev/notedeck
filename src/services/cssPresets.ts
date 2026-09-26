@@ -23,7 +23,7 @@ export const FONT_OPTIONS: FontOption[] = [
   {
     value: '',
     get label() {
-      return i18n.ts._cssPresets.default
+      return i18n.ts._common.default
     },
   },
   { value: 'Noto Sans JP', label: 'Noto Sans JP' },
@@ -74,7 +74,7 @@ export const MONO_FONT_OPTIONS: FontOption[] = [
   {
     value: '',
     get label() {
-      return i18n.ts._cssPresets.default
+      return i18n.ts._common.default
     },
   },
   {
@@ -126,13 +126,13 @@ export const VISIBILITY_BG_COLORS: Record<
 > = {
   home: {
     get label() {
-      return i18n.ts._cssPresets.visibilityHome
+      return i18n.ts._common.home
     },
     color: 'rgba(51, 127, 255, 0.08)',
   },
   followers: {
     get label() {
-      return i18n.ts._cssPresets.visibilityFollowers
+      return i18n.ts._common.followers
     },
     color: 'rgba(0, 170, 100, 0.08)',
   },
@@ -148,7 +148,7 @@ export const VISIBILITY_BG_OPTIONS = [
   {
     value: '',
     get label() {
-      return i18n.ts._cssPresets.default
+      return i18n.ts._common.default
     },
   },
   {
@@ -166,7 +166,7 @@ export const HIDE_COUNT_OPTIONS = [
   {
     value: '',
     get label() {
-      return i18n.ts._cssPresets.default
+      return i18n.ts._common.default
     },
   },
   {

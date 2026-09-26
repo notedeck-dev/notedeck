@@ -150,7 +150,7 @@ async function selectQuickPickItem(item: QuickPickItem) {
     if (!commandStore.isOpen || children.length === 0) return
     commandStore.pushQuickPick({
       title: item.label,
-      placeholder: i18n.tsx._commandPalette.searchIn({ label: item.label }),
+      placeholder: i18n.tsx._common.searchItem({ label: item.label }),
       items: children,
     })
     selectedIndex.value = 0
@@ -193,7 +193,7 @@ const categoryLabels: Record<string, string> = {
     return i18n.ts._commandPalette.categoryGeneral
   },
   get note() {
-    return i18n.ts._commandPalette.categoryNote
+    return i18n.ts._common.note
   },
   get navigation() {
     return i18n.ts._commandPalette.categoryNavigation
@@ -202,7 +202,7 @@ const categoryLabels: Record<string, string> = {
     return i18n.ts._commandPalette.categoryColumn
   },
   get account() {
-    return i18n.ts._commandPalette.categoryAccount
+    return i18n.ts._common.account
   },
 }
 

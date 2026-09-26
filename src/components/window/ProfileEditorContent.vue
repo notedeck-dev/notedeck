@@ -301,9 +301,7 @@ function syncVisualFromCode() {
     codeError.value = null
   } catch (e) {
     codeError.value =
-      e instanceof Error
-        ? e.message
-        : i18n.ts._profileEditorContent.json5ParseError
+      e instanceof Error ? e.message : i18n.ts._common.json5ParseError
   }
 }
 
@@ -463,7 +461,7 @@ async function importFromClipboard() {
           <div
             v-if="!isOtherProfile"
             :class="[$style.columnTab, $style.addColumnTab]"
-            :title="i18n.ts._profileEditorContent.addColumn"
+            :title="i18n.ts._commands.addColumn"
             @click="showAddColumn = !showAddColumn"
           >
             <i class="ti ti-plus" />
@@ -474,7 +472,7 @@ async function importFromClipboard() {
         <div
           v-if="isCompact && !isOtherProfile"
           :class="[$style.columnTab, $style.addColumnTab]"
-          :title="i18n.ts._profileEditorContent.addColumn"
+          :title="i18n.ts._commands.addColumn"
           @click="showAddColumn = !showAddColumn"
         >
           <i class="ti ti-plus" />
@@ -521,7 +519,7 @@ async function importFromClipboard() {
           @click="importFromClipboard"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? i18n.ts._profileEditorContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
+          {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"

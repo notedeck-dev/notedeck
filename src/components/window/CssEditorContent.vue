@@ -260,19 +260,19 @@ function handleClear() {
 const selectedVisibilityBgLabel = computed(
   () =>
     VISIBILITY_BG_OPTIONS.find((o) => o.value === presets.value.visibilityBg)
-      ?.label ?? i18n.ts._cssEditorContent.default,
+      ?.label ?? i18n.ts._common.default,
 )
 
 const selectedMonoFontLabel = computed(
   () =>
     MONO_FONT_OPTIONS.find((o) => o.value === presets.value.monoFont)?.label ??
-    i18n.ts._cssEditorContent.default,
+    i18n.ts._common.default,
 )
 
 function hideCountLabel(key: string): string {
   return (
     HIDE_COUNT_OPTIONS.find((o) => o.value === key)?.label ??
-    i18n.ts._cssEditorContent.default
+    i18n.ts._common.default
   )
 }
 
@@ -531,7 +531,7 @@ const { isSyncing } = useExternalEditSync<string>({
           @click="importCss"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? i18n.ts._cssEditorContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
+          {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"
@@ -548,7 +548,7 @@ const { isSyncing } = useExternalEditSync<string>({
           @click="openHistory"
         >
           <i class="ti ti-history" />
-          {{ i18n.ts._cssEditorContent.history }}
+          {{ i18n.ts._common.history }}
         </button>
       </div>
       <button

@@ -581,7 +581,7 @@ function handleReset() {
             </div>
 
             <fieldset :class="$style.fieldset">
-              <legend :class="$style.legend">{{ i18n.ts._tasksEditorContent.account }}</legend>
+              <legend :class="$style.legend">{{ i18n.ts._common.account }}</legend>
               <label :class="$style.radioRow">
                 <input
                   type="radio"
@@ -784,7 +784,7 @@ function handleReset() {
           @click="importTasks"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? i18n.ts._tasksEditorContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
+          {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"

@@ -246,7 +246,7 @@ async function handleReportUser() {
   if (!props.adapter || !props.user || !reportComment.value.trim()) return
   try {
     await props.adapter.api.reportUser(props.user.id, reportComment.value)
-    toast.show(i18n.ts._userProfileMenu.reported)
+    toast.show(i18n.ts._common.reported)
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
@@ -558,7 +558,7 @@ async function addToAntenna(antenna: Antenna) {
         "
       >
         <i :class="userRelation?.isMuted ? 'ti ti-eye' : 'ti ti-eye-off'" />
-        {{ userRelation?.isMuted ? i18n.ts._userProfileMenu.unmute : i18n.ts._userProfileMenu.mute }}
+        {{ userRelation?.isMuted ? i18n.ts._common.unmute : i18n.ts._common.mute }}
       </button>
       <button
         class="_popupItem"
@@ -597,7 +597,7 @@ async function addToAntenna(antenna: Antenna) {
       <div class="_popupDivider" />
       <button class="_popupItem _popupItemDanger" @click="showReportForm = true">
         <i class="ti ti-alert-triangle" />
-        {{ i18n.ts._userProfileMenu.report }}
+        {{ i18n.ts._common.report }}
       </button>
     </template>
     <!-- Mute confirm -->
@@ -605,7 +605,7 @@ async function addToAntenna(antenna: Antenna) {
       <div class="_popupConfirmText">{{ i18n.tsx._userProfileMenu.muteConfirm({ username: user?.username ?? '' }) }}</div>
       <button class="_popupItem _popupItemDanger" @click="handleMuteUser">
         <i class="ti ti-eye-off" />
-        {{ i18n.ts._userProfileMenu.mute }}
+        {{ i18n.ts._common.mute }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
@@ -634,7 +634,7 @@ async function addToAntenna(antenna: Antenna) {
         @click="handleInvalidateFollower"
       >
         <i class="ti ti-link-off" />
-        {{ i18n.ts._userProfileMenu.invalidate }}
+        {{ i18n.ts._common.remove }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
@@ -643,12 +643,12 @@ async function addToAntenna(antenna: Antenna) {
     </template>
     <!-- Report form -->
     <template v-else-if="userMenuView === 'reportForm'">
-      <div class="_popupConfirmText">{{ i18n.tsx._userProfileMenu.reportTitle({ username: user?.username ?? '' }) }}</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: user?.username ?? '' }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          :placeholder="i18n.ts._userProfileMenu.reportPlaceholder"
+          :placeholder="i18n.ts._common.reportReasonPlaceholder"
           rows="3"
         />
       </div>

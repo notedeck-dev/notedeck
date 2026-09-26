@@ -66,7 +66,7 @@ async function loadRemoteMeta() {
 async function loadInstance() {
   const acc = accountsStore.accounts.find((a) => a.id === props.accountId)
   if (!acc) {
-    error.value = i18n.ts._instanceProfileContent.accountNotFound
+    error.value = i18n.ts._common.accountNotFound
     isLoading.value = false
     return
   }
@@ -352,11 +352,11 @@ const statusBadges = computed(() => {
             <div :class="$style.stats">
               <div :class="$style.stat">
                 <b>{{ formatCount(instance.usersCount) }}</b>
-                <span>{{ i18n.ts._instanceProfileContent.users }}</span>
+                <span>{{ i18n.ts._common.users }}</span>
               </div>
               <div :class="$style.stat">
                 <b>{{ formatCount(instance.notesCount) }}</b>
-                <span>{{ i18n.ts._instanceProfileContent.notes }}</span>
+                <span>{{ i18n.ts._common.notes }}</span>
               </div>
               <div :class="$style.stat">
                 <b>{{ formatCount(instance.followingCount) }}</b>
@@ -439,7 +439,7 @@ const statusBadges = computed(() => {
           <RawJsonView :json="rawJson" :loading="isLoading" :error="error">
             <template #hint>
               <i class="ti ti-info-circle" />
-              <I18n :src="i18n.ts._instanceProfileContent.rawResponse"><template #endpoint><code>/api/federation/show-instance</code></template></I18n>
+              <I18n :src="i18n.ts._common.rawResponse"><template #endpoint><code>/api/federation/show-instance</code></template></I18n>
             </template>
           </RawJsonView>
         </div>

@@ -320,7 +320,7 @@ onMounted(() => {
         <button
           :class="[$style.toolBtn, $style.run]"
           :disabled="running"
-          :title="running ? i18n.ts._widgetAiScript.running : i18n.ts._widgetAiScript.run"
+          :title="running ? i18n.ts._widgetAiScript.running : i18n.ts._common.run"
           @click="run"
         >
           <i class="ti ti-player-play" />

@@ -115,7 +115,7 @@ const scopeCount = computed(
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: i18n.tsx._deckPluginManagerColumn.installedTab({
+    label: i18n.tsx._common.installedTab({
       count: scopeCount.value,
     }),
   },
@@ -191,12 +191,12 @@ const installedSections = computed<PluginSection[]>(() => {
   const sections: PluginSection[] = [
     {
       key: 'sideload',
-      label: i18n.ts._deckPluginManagerColumn.sideload,
+      label: i18n.ts._common.sideload,
       items: sideloaded,
     },
     {
       key: 'store',
-      label: i18n.ts._deckPluginManagerColumn.storeDistributed,
+      label: i18n.ts._common.storeDistributed,
       items: store,
     },
   ]
@@ -252,9 +252,7 @@ async function handleStoreInstall(entry: StorePluginEntry) {
     await misStore.installPlugin(entry, scope)
   } catch (e) {
     installError.value =
-      e instanceof Error
-        ? e.message
-        : i18n.ts._deckPluginManagerColumn.installFailed
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   }
 }
 
@@ -264,9 +262,7 @@ async function handleStoreUpdate(entry: StorePluginEntry) {
     await misStore.updatePlugin(entry)
   } catch (e) {
     installError.value =
-      e instanceof Error
-        ? e.message
-        : i18n.ts._deckPluginManagerColumn.updateFailed
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 
@@ -328,7 +324,7 @@ function detachFromScope(plugin: PluginMeta) {
   }
   useToast().show(i18n.ts._deckPluginManagerColumn.detached, 'info', {
     action: {
-      label: i18n.ts._deckPluginManagerColumn.undo,
+      label: i18n.ts._common.undo,
       onClick: () => pluginsStore.linkScope(plugin.installId, scope),
     },
   })
@@ -337,7 +333,7 @@ function detachFromScope(plugin: PluginMeta) {
 const detachTitle = computed(() =>
   isCrossAccount.value
     ? i18n.ts._deckPluginManagerColumn.detachFromAllAccounts
-    : i18n.ts._deckPluginManagerColumn.detachFromAccount,
+    : i18n.ts._common.detachFromAccount,
 )
 
 // --- Library picker (スコープ未参加のライブラリ本体の追加/削除) ---
@@ -376,7 +372,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
   const undo = pluginsStore.removePlugin(plugin.installId)
   if (undo) {
     useToast().show(i18n.ts._deckPluginManagerColumn.deleted, 'info', {
-      action: { label: i18n.ts._deckPluginManagerColumn.undo, onClick: undo },
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }

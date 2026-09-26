@@ -51,7 +51,7 @@ const lang = jsonLang()
           @click="copyToClipboard(json)"
         >
           <i :class="copied ? 'ti ti-check' : 'ti ti-copy'" />
-          {{ copied ? i18n.ts._common.copied : i18n.ts._rawJsonView.copy }}
+          {{ copied ? i18n.ts._common.copied : i18n.ts._common.copy }}
         </button>
       </div>
     </div>

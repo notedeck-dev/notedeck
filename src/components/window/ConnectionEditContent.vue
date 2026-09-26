@@ -559,7 +559,7 @@ const testResultText = computed(() => {
         :disabled="saving"
         @click="save"
       >
-        {{ saving ? i18n.ts._connectionEditContent.saving : i18n.ts._common.save }}
+        {{ saving ? i18n.ts._common.saving : i18n.ts._common.save }}
       </button>
       <button
         v-if="!isNew"

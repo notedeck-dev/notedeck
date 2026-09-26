@@ -42,7 +42,7 @@ const author = computed(() => props.memo.data.author ?? null)
 const isPersona = computed(() => author.value?.id.startsWith('skill:') ?? false)
 
 const displayName = computed(
-  () => author.value?.displayName ?? i18n.ts._memoCard.defaultAuthor,
+  () => author.value?.displayName ?? i18n.ts._common.memo,
 )
 
 const avatarUrl = computed(() => author.value?.avatarUrl ?? '')

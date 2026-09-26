@@ -76,7 +76,7 @@ export function useCrossAccountNoteActions() {
             account: label,
           }),
           type: 'danger',
-          okLabel: i18n.ts._useCrossAccountNoteActions.unreactOk,
+          okLabel: i18n.ts._common.remove,
         })
         if (!ok) return
         try {

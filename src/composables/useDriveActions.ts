@@ -47,7 +47,7 @@ export function useDriveActions() {
     if (!accountId) return null
     const name = (
       await prompt({
-        title: i18n.ts._useDriveActions.newFolder,
+        title: i18n.ts._common.newFolder,
         placeholder: i18n.ts._useDriveActions.folderNamePlaceholder,
       })
     )?.trim()

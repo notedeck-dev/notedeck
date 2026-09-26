@@ -71,13 +71,13 @@ async function submitReport() {
     const adapter = await getOrCreate(props.accountId)
     if (!adapter) return
     await adapter.api.reportUser(props.message.fromUserId, reportComment.value)
-    toast.show(i18n.ts._mkChatMessageMoreMenu.reported)
+    toast.show(i18n.ts._common.reported)
     close()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[chat:report]', err.code, err.message)
     toast.show(
-      i18n.tsx._mkChatMessageMoreMenu.reportFailed({ code: err.displayCode }),
+      i18n.tsx._common.reportFailed({ code: err.displayCode }),
       'error',
     )
   }
@@ -103,12 +103,12 @@ defineExpose({ open })
 
     <!-- Report form -->
     <template v-else-if="showReportForm">
-      <div class="_popupConfirmText">{{ i18n.tsx._mkChatMessageMoreMenu.reportUser({ username: message.fromUser?.username ?? '' }) }}</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: message.fromUser?.username ?? '' }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          :placeholder="i18n.ts._mkChatMessageMoreMenu.reportReasonPlaceholder"
+          :placeholder="i18n.ts._common.reportReasonPlaceholder"
           rows="3"
         />
       </div>
@@ -132,7 +132,7 @@ defineExpose({ open })
            fromUserId === userId で throw する) ので導線ごと出さない -->
       <button v-if="!isMine" class="_popupItem" @click.stop="reactAndClose">
         <i class="ti ti-mood-plus" />
-        {{ i18n.ts._mkChatMessageMoreMenu.react }}
+        {{ i18n.ts._common.react }}
       </button>
       <button v-if="message.text" class="_popupItem" @click="copyAndClose(message.text!)">
         <i class="ti ti-copy" />
@@ -149,7 +149,7 @@ defineExpose({ open })
         <div class="_popupDivider" />
         <button class="_popupItem _popupItemDanger" @click="showReportForm = true">
           <i class="ti ti-flag" />
-          {{ i18n.ts._mkChatMessageMoreMenu.report }}
+          {{ i18n.ts._common.report }}
         </button>
       </template>
     </template>

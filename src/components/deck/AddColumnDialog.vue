@@ -360,7 +360,7 @@ function close() {
           <i class="ti ti-chevron-left" />
         </button>
         <span :class="$style.addPopupTitle">
-          {{ selectConfig ? i18n.tsx._addColumnDialog.selectItem({ label: selectConfig.label }) : addColumnType ? i18n.ts._addColumnDialog.selectAccount : i18n.ts._addColumnDialog.addColumn }}
+          {{ selectConfig ? i18n.tsx._addColumnDialog.selectItem({ label: selectConfig.label }) : addColumnType ? i18n.ts._addColumnDialog.selectAccount : i18n.ts._commands.addColumn }}
         </span>
       </div>
 
@@ -399,7 +399,7 @@ function close() {
             v-model="searchQuery"
             :class="$style.selectSearchInput"
             type="text"
-            :placeholder="i18n.tsx._addColumnDialog.searchItem({ label: selectConfig.label })"
+            :placeholder="i18n.tsx._common.searchItem({ label: selectConfig.label })"
           />
           <i v-if="selectLoading" class="ti ti-loader-2 nd-spin" :class="$style.selectSearchIcon" />
         </div>
@@ -457,7 +457,7 @@ function close() {
              開けることとの整合)。1 件のときだけ per-account 選択に譲って非表示 -->
         <AccountPickerRow
           v-if="addColumnType && CROSS_ACCOUNT_TYPES.has(addColumnType) && accountsStore.accounts.length !== 1"
-          :label="i18n.ts._addColumnDialog.allAccounts"
+          :label="i18n.ts._common.allAccounts"
           @click="addColumnForAccount(null)"
         >
           <!-- カラムヘッダーと同じ記号で示す (#1018)。誰が含まれるかは可変な
@@ -470,7 +470,7 @@ function close() {
              構造上できないのか未実装なのかを見て分かるようにする -->
         <AccountPickerRow
           v-else-if="addColumnType && crossAccountReason && accountsStore.accounts.length !== 1"
-          :label="i18n.ts._addColumnDialog.allAccounts"
+          :label="i18n.ts._common.allAccounts"
           :hint="CROSS_ACCOUNT_UNAVAILABLE_LABELS[crossAccountReason]"
           disabled
         >

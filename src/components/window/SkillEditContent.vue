@@ -165,7 +165,7 @@ const historyActions = computed<EditorAction[]>(() =>
     ? [
         {
           key: 'history',
-          label: i18n.ts._skillEditContent.history,
+          label: i18n.ts._common.history,
           icon: 'history',
         },
       ]

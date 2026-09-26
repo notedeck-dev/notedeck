@@ -53,7 +53,7 @@ const columnContentRef = ref<HTMLElement | null>(null)
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: i18n.tsx._deckSkillColumn.installedTab({
+    label: i18n.tsx._common.installedTab({
       count: skillsStore.skills.length,
     }),
   },
@@ -111,12 +111,12 @@ const installedSections = computed<SkillSection[]>(() => {
   const sections: SkillSection[] = [
     {
       key: 'sideload',
-      label: i18n.ts._deckSkillColumn.sideload,
+      label: i18n.ts._common.sideload,
       items: sideloaded,
     },
     {
       key: 'store',
-      label: i18n.ts._deckSkillColumn.storeDistributed,
+      label: i18n.ts._common.storeDistributed,
       items: store,
     },
   ]
@@ -175,7 +175,7 @@ async function uninstall(skill: SkillMeta) {
   const undo = skillsStore.remove(skill.id)
   if (undo) {
     useToast().show(i18n.ts._deckSkillColumn.deleted, 'info', {
-      action: { label: i18n.ts._deckSkillColumn.undo, onClick: undo },
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -215,7 +215,7 @@ async function handleStoreInstall(entry: StoreSkillEntry) {
     await misStore.installSkill(entry)
   } catch (e) {
     installError.value =
-      e instanceof Error ? e.message : i18n.ts._deckSkillColumn.installFailed
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   }
 }
 
@@ -225,13 +225,13 @@ async function handleStoreUpdate(entry: StoreSkillEntry) {
     await misStore.updateSkill(entry)
   } catch (e) {
     installError.value =
-      e instanceof Error ? e.message : i18n.ts._deckSkillColumn.updateFailed
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 
 /** 更新の主表示は updatedAt、version は補助 (#1040) */
 function storeUpdateTitle(entry: StoreSkillEntry): string {
-  return i18n.tsx._deckSkillColumn.storeUpdatedWithVersion({
+  return i18n.tsx._common.storeUpdatedWithVersion({
     date: formatDate(entry.updatedAt),
     version: entry.version,
   })
@@ -482,7 +482,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                   >
                     <i v-if="misStore.installingSkill === entry.id" class="ti ti-loader-2 nd-spin" />
                     <i v-else class="ti ti-refresh" />
-                    {{ i18n.ts._deckSkillColumn.update }}
+                    {{ i18n.ts._common.update }}
                   </button>
                   <button
                     v-else-if="misStore.isSkillInstalled(entry)"

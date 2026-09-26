@@ -40,7 +40,7 @@ useNativeDialog(dialogRef, visible, {
       >
         <div :class="$style.header">
           <i :class="[$style.icon, isGuest ? 'ti ti-user-off' : 'ti ti-logout']" />
-          <div :class="$style.title">{{ isGuest ? i18n.ts._logoutDialog.removeGuest : i18n.ts._logoutDialog.logout }}</div>
+          <div :class="$style.title">{{ isGuest ? i18n.ts._logoutDialog.removeGuest : i18n.ts._common.logout }}</div>
         </div>
 
         <div :class="$style.body">

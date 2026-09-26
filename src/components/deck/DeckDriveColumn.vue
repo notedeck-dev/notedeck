@@ -393,7 +393,7 @@ fetchDrive()
       <button v-if="canWrite" class="_button" :class="[$style.headerRefresh, { [$style.headerBtnActive]: selectMode }]" :title="i18n.ts._deckDriveColumn.select" @click.stop="toggleSelectMode">
         <i class="ti ti-checkbox" />
       </button>
-      <button v-if="!selectMode && canWrite" class="_button" :class="$style.headerRefresh" :title="i18n.ts._deckDriveColumn.newFolder" :aria-label="i18n.ts._deckDriveColumn.newFolder" @click.stop="onCreateFolder">
+      <button v-if="!selectMode && canWrite" class="_button" :class="$style.headerRefresh" :title="i18n.ts._common.newFolder" :aria-label="i18n.ts._common.newFolder" @click.stop="onCreateFolder">
         <i class="ti ti-folder-plus" />
       </button>
       <button v-if="!selectMode && canWrite" class="_button" :class="$style.headerRefresh" :title="i18n.ts._deckDriveColumn.upload" :aria-label="i18n.ts._deckDriveColumn.upload" :disabled="uploading" @click.stop="openFilePicker">

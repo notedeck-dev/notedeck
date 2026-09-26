@@ -52,8 +52,8 @@ export const aiSetPersonaCapability = implement('ai.setPersona', {
           ? i18n.tsx._personaCapability.switchMessage({ name: target.name })
           : i18n.tsx._personaCapability.unknownMessage({ id })
         : i18n.ts._personaCapability.clearMessage,
-      okLabel: i18n.ts._personaCapability.ok,
-      cancelLabel: i18n.ts._personaCapability.cancel,
+      okLabel: i18n.ts._common.switch,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'warning',
     }
   },

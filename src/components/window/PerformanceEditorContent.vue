@@ -416,7 +416,7 @@ function handleReset() {
           @click="importConfig"
         >
           <i class="ti" :class="importError ? 'ti-alert-circle' : 'ti-clipboard-text'" />
-          {{ importError ? i18n.ts._performanceEditorContent.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
+          {{ importError ? i18n.ts._common.invalid : importedMessage ? i18n.ts._common.loaded : i18n.ts._common.import }}
         </button>
         <button
           class="_button"

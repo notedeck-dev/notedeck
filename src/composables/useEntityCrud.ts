@@ -107,7 +107,7 @@ export function useEntityCrud(type: EntityType, getColumn: () => DeckColumn) {
     closeMenu()
     const col = getColumn()
     const ok = await confirm({
-      title: i18n.tsx._useEntityCrud.deleteTitle({ label: config.label }),
+      title: i18n.tsx._common.deleteItem({ label: config.label }),
       message: i18n.tsx._useEntityCrud.confirmDelete({ label: config.label }),
       okLabel: i18n.ts._common.delete,
       type: 'danger',

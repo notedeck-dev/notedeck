@@ -20,14 +20,14 @@ export const visibilityOptions: VisibilityOption[] = [
   {
     value: 'home',
     get label() {
-      return i18n.ts._postFormConstants.home
+      return i18n.ts._common.home
     },
     icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1m-2 0h2',
   },
   {
     value: 'followers',
     get label() {
-      return i18n.ts._postFormConstants.followers
+      return i18n.ts._common.followers
     },
     icon: 'M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z',
   },

@@ -47,7 +47,7 @@ const SOURCE_TABS: ColumnTabDef[] = [
   {
     value: 'server',
     get label() {
-      return i18n.ts._deckAchievementsColumn.server
+      return i18n.ts._common.server
     },
     icon: 'server',
   },

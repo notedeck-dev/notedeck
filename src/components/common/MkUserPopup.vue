@@ -196,7 +196,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           <I18n :src="i18n.ts._mkUserPopup.followersCount"><template #count><b class="user-stat-count">{{ formatCount(user.followersCount) }}</b></template></I18n>
         </div>
 
-        <div v-if="user.isFollowed" :class="$style.popupBadge">{{ i18n.ts._mkUserPopup.followsYou }}</div>
+        <div v-if="user.isFollowed" :class="$style.popupBadge">{{ i18n.ts._common.followsYou }}</div>
 
         <!-- ネイティブ action としてのフォローボタン (#752)。プラグイン action は
              引き続きメニュー面のみ (ポップアップ=プレビューの原則の例外判断) -->

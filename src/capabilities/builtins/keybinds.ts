@@ -79,7 +79,7 @@ export const keybindsSetCapability = implement('keybinds.set', {
       code: JSON.stringify(params?.shortcuts ?? [], null, 2),
       codeLanguage: 'json',
       okLabel: i18n.ts._keybindsCapability.setOk,
-      cancelLabel: i18n.ts._keybindsCapability.cancel,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'warning',
     }
   },
@@ -101,8 +101,8 @@ export const keybindsResetCapability = implement('keybinds.reset', {
     return {
       title: i18n.ts._keybindsCapability.resetTitle,
       message: i18n.tsx._keybindsCapability.resetMessage({ commandId }),
-      okLabel: i18n.ts._keybindsCapability.resetOk,
-      cancelLabel: i18n.ts._keybindsCapability.cancel,
+      okLabel: i18n.ts._common.resetToDefault,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'normal',
     }
   },
@@ -120,8 +120,8 @@ export const keybindsResetAllCapability = implement('keybinds.resetAll', {
   requiresConfirmation: () => ({
     title: i18n.ts._keybindsCapability.resetAllTitle,
     message: i18n.ts._keybindsCapability.resetAllMessage,
-    okLabel: i18n.ts._keybindsCapability.resetAllOk,
-    cancelLabel: i18n.ts._keybindsCapability.cancel,
+    okLabel: i18n.ts._common.resetAllToDefault,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'warning',
   }),
   execute: () => {

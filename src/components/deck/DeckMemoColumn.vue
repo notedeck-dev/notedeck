@@ -117,9 +117,9 @@ const memoCount = computed(() => entries.value.length)
 function contextLabel(ctx: MemoContext): string {
   switch (ctx.kind) {
     case 'reply':
-      return i18n.ts._deckMemoColumn.contextReply
+      return i18n.ts._common.reply
     case 'renote':
-      return i18n.ts._deckMemoColumn.contextQuote
+      return i18n.ts._common.quote
     case 'channel-note':
       return i18n.ts._deckMemoColumn.contextChannelNote
     default:

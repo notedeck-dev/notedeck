@@ -147,7 +147,7 @@ describe('MkMediaLightbox (#792)', () => {
     expect(e.defaultPrevented).toBe(true)
   })
 
-  it('メニュー項目にコピー / ダウンロード / リンク / ブラウザで開くがある', () => {
+  it('メニュー項目にコピー / ダウンロード / リンク / ブラウザーで開くがある', () => {
     mountLightbox([makeImage('a')])
     const labels = Array.from(
       container?.querySelectorAll('button._popupItem') ?? [],
@@ -155,6 +155,6 @@ describe('MkMediaLightbox (#792)', () => {
     expect(labels).toContain('画像をコピー')
     expect(labels).toContain('画像をダウンロード')
     expect(labels).toContain('画像のリンクをコピー')
-    expect(labels).toContain('ブラウザで開く')
+    expect(labels).toContain('ブラウザーで開く')
   })
 })

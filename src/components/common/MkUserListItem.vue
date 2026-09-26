@@ -143,7 +143,7 @@ function closePopup() {
           <span :class="$style.acct">@{{ user.username }}<template v-if="user.host">@{{ user.host }}</template></span>
         </div>
         <div v-if="relation?.isFollowed" :class="$style.relationBadgeRow">
-          <span :class="$style.relationBadge">{{ i18n.ts._mkUserListItem.followsYou }}</span>
+          <span :class="$style.relationBadge">{{ i18n.ts._common.followsYou }}</span>
         </div>
         <slot name="meta">
           <div v-if="description" :class="$style.desc" :style="descStyle">

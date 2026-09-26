@@ -105,12 +105,12 @@ async function submitReport() {
     const adapter = await getOrCreate(props.note._accountId)
     if (!adapter) return
     await adapter.api.reportUser(props.note.user.id, reportComment.value)
-    toast.show(i18n.ts._renoteMoreMenu.reported)
+    toast.show(i18n.ts._common.reported)
     close()
   } catch (e) {
     const err = AppError.from(e)
     toast.show(
-      i18n.tsx._renoteMoreMenu.reportFailed({ code: err.displayCode }),
+      i18n.tsx._common.reportFailed({ code: err.displayCode }),
       'error',
     )
   }
@@ -136,12 +136,12 @@ defineExpose({ open })
 
     <!-- Report form -->
     <template v-else-if="currentView === 'reportForm'">
-      <div class="_popupConfirmText">{{ i18n.tsx._renoteMoreMenu.reportUser({ username: note.user.username }) }}</div>
+      <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: note.user.username }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
           v-model="reportComment"
           class="_popupReportInput"
-          :placeholder="i18n.ts._renoteMoreMenu.reportReasonPlaceholder"
+          :placeholder="i18n.ts._common.reportReasonPlaceholder"
           rows="3"
         />
       </div>

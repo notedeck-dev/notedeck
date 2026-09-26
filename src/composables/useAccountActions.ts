@@ -115,11 +115,11 @@ export function useAccountActions() {
       return
     }
     const ok = await confirm({
-      title: i18n.ts._useAccountActions.logout,
+      title: i18n.ts._common.logout,
       message: i18n.tsx._useAccountActions.confirmLogout({
         account: getAccountLabel(acc),
       }),
-      okLabel: i18n.ts._useAccountActions.logout,
+      okLabel: i18n.ts._common.logout,
       type: 'danger',
     })
     if (ok) logoutKeepData(acc)
@@ -128,7 +128,7 @@ export function useAccountActions() {
   /** データ全削除確認ダイアログを表示し実行する */
   async function deleteAccount(acc: Account) {
     const ok = await confirm({
-      title: i18n.ts._useAccountActions.deleteDataTitle,
+      title: i18n.ts._common.deleteData,
       message: i18n.tsx._useAccountActions.confirmDeleteData({
         account: getAccountLabel(acc),
       }),

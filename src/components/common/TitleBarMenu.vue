@@ -222,7 +222,7 @@ defineExpose({ toggleMenu })
           <div class="_popupDivider" />
           <button class="_popupItem" @click="reloadApp">
             <i class="ti ti-refresh" />
-            <span>{{ i18n.ts._titleBarMenu.reload }}</span>
+            <span>{{ i18n.ts._common.reload }}</span>
             <kbd :class="$style.kbd">Ctrl+Shift+R</kbd>
           </button>
         </div>

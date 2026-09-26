@@ -766,7 +766,7 @@ function onPaste(e: ClipboardEvent) {
               <span :class="$style.postingDots">...</span>
             </template>
             <template v-else>
-              {{ memoMode ? i18n.ts._mkPostForm.submitMemo : editNote ? i18n.ts._common.edit : activeReplyId ? i18n.ts._mkPostForm.reply : activeRenoteId ? i18n.ts._mkPostForm.quote : scheduledAt ? i18n.ts._mkPostForm.schedule : i18n.ts._mkPostForm.note }}
+              {{ memoMode ? i18n.ts._common.memo : editNote ? i18n.ts._common.edit : activeReplyId ? i18n.ts._common.reply : activeRenoteId ? i18n.ts._common.quote : scheduledAt ? i18n.ts._mkPostForm.schedule : i18n.ts._common.note }}
               <svg viewBox="0 0 24 24" width="16" height="16" :class="$style.submitIcon">
                 <!-- メモはノートではないので送信アイコンにしない (#1018) -->
                 <template v-if="memoMode">
@@ -811,7 +811,7 @@ function onPaste(e: ClipboardEvent) {
         <svg viewBox="0 0 24 24" width="14" height="14">
           <path d="M9 14L4 9l5-5M4 9h10.5a5.5 5.5 0 010 11H11" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none" />
         </svg>
-        {{ i18n.ts._mkPostForm.reply }}
+        {{ i18n.ts._common.reply }}
       </div>
 
       <!-- Quote preview (#753)。取得前・取得失敗時はインジケータのみ -->
@@ -965,7 +965,7 @@ function onPaste(e: ClipboardEvent) {
               v-if="btnId === 'emoji'"
               class="_button"
               :class="[$style.footerBtn, { [$style.active]: showEmojiPopup }]"
-              :title="i18n.ts._mkPostForm.emoji"
+              :title="i18n.ts._common.emoji"
               @click.stop="toggleEmojiPopup"
             >
               <i class="ti ti-mood-happy" />
@@ -1010,7 +1010,7 @@ function onPaste(e: ClipboardEvent) {
               v-else-if="btnId === 'hashtag'"
               class="_button"
               :class="$style.footerBtn"
-              :title="i18n.ts._mkPostForm.hashtag"
+              :title="i18n.ts._common.hashtag"
               @click="insertHashtag"
             >
               <i class="ti ti-hash" />
@@ -1021,7 +1021,7 @@ function onPaste(e: ClipboardEvent) {
               v-else-if="btnId === 'mention'"
               class="_button"
               :class="$style.footerBtn"
-              :title="i18n.ts._mkPostForm.mention"
+              :title="i18n.ts._common.mention"
               @click="insertMention"
             >
               <i class="ti ti-at" />
@@ -1130,7 +1130,7 @@ function onPaste(e: ClipboardEvent) {
       <div :class="$style.emojiPickerHeader">
         <span :class="$style.emojiPickerTitle">
           <i class="ti ti-mood-happy" />
-          {{ i18n.ts._mkPostForm.emoji }}
+          {{ i18n.ts._common.emoji }}
         </span>
         <button class="_button" :class="$style.emojiPickerCloseBtn" :title="i18n.ts._common.close" @click="showEmojiPopup = false">
           <i class="ti ti-x" />

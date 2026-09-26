@@ -66,11 +66,11 @@ describe('formatScheduleRelative', () => {
 describe('SCHEDULE_PRESETS', () => {
   it('ラベル', () => {
     expect(SCHEDULE_PRESETS.map((p) => p.label)).toEqual([
-      '30分後',
-      '1時間後',
-      '3時間後',
-      '明日9:00',
-      '1週間後',
+      '30 分後',
+      '1 時間後',
+      '3 時間後',
+      '明日 9:00',
+      '1 週間後',
     ])
   })
 })

@@ -226,7 +226,7 @@ async function performLookup() {
 
   const acc = accountsStore.accountMap.get(props.column.accountId)
   if (!acc) {
-    lookupError.value = i18n.ts._deckLookupColumn.accountNotFound
+    lookupError.value = i18n.ts._common.accountNotFound
     lookupLoading.value = false
     return
   }

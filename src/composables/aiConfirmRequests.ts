@@ -59,7 +59,7 @@ export function bundleConfirmOptions(
       })
       .join('\n\n'),
     okLabel: i18n.ts._aiConfirmRequests.runAll,
-    cancelLabel: i18n.ts._aiConfirmRequests.stop,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'danger',
     trusted: true,
     ...(first?.attribution ? { attribution: first.attribution } : {}),

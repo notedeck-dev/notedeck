@@ -46,7 +46,7 @@ const changed = computed(() =>
   <AiSettingsSection
     icon="ti-adjustments"
     :title="i18n.ts._aiGenerationSection.title"
-    :badge="changed ? i18n.ts._aiGenerationSection.changedFromDefault : i18n.ts._aiGenerationSection.default"
+    :badge="changed ? i18n.ts._aiGenerationSection.changedFromDefault : i18n.ts._common.default"
     :badge-ok="changed"
   >
     <p :class="$style.note">

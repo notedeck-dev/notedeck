@@ -854,7 +854,7 @@ function onAssistantContentClick(e: MouseEvent) {
       btn.title = i18n.ts._common.copiedToClipboard
       window.setTimeout(() => {
         if (icon) icon.className = 'ti ti-copy'
-        btn.title = i18n.ts._deckAiColumn.copy
+        btn.title = i18n.ts._common.copy
       }, 1500)
     })
     .catch((err) => {
@@ -1134,7 +1134,7 @@ function onKeydown(e: KeyboardEvent) {
             />
             <div v-if="msg.intent.status === 'pending' || msg.intent.status === 'drafted'" :class="$style.intentActions">
               <button class="_button" :class="$style.intentRun" :disabled="intentBusy === msg.id" @click="runIntent(msg)">
-                <i class="ti ti-player-play" /> {{ i18n.ts._deckAiColumn.run }}
+                <i class="ti ti-player-play" /> {{ i18n.ts._common.run }}
               </button>
               <button class="_button" :class="$style.intentDismiss" :disabled="intentBusy === msg.id" @click="dismissIntent(msg)">
                 {{ i18n.ts._deckAiColumn.dismiss }}
@@ -1179,7 +1179,7 @@ function onKeydown(e: KeyboardEvent) {
                 v-if="msg.content && (msg.role === 'user' || (msg.role === 'assistant' && !isGenerating))"
                 class="_button"
                 :class="$style.copyBtn"
-                :title="copiedMessageId === msg.id ? i18n.ts._common.copiedToClipboard : i18n.ts._deckAiColumn.copy"
+                :title="copiedMessageId === msg.id ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy"
                 @click="copyMessage(msg)"
               >
                 <i :class="copiedMessageId === msg.id ? 'ti ti-check' : 'ti ti-copy'" />

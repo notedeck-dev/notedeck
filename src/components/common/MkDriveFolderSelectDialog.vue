@@ -116,7 +116,7 @@ fetchDrive()
           <i :class="currentName ? 'ti ti-folder' : 'ti ti-cloud'" />
           {{ currentName ?? i18n.ts._columns.drive }}
         </span>
-        <button class="_button" :class="$style.headerBtn" :title="i18n.ts._mkDriveFolderSelectDialog.newFolder" :aria-label="i18n.ts._mkDriveFolderSelectDialog.newFolder" @click="onCreateFolder">
+        <button class="_button" :class="$style.headerBtn" :title="i18n.ts._common.newFolder" :aria-label="i18n.ts._common.newFolder" @click="onCreateFolder">
           <i class="ti ti-folder-plus" />
         </button>
       </div>

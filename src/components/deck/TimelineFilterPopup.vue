@@ -46,7 +46,7 @@ useNativePopover(popoverRef, visible, {
 
 const FILTER_LABELS: Record<keyof TimelineFilter, string> = {
   get withRenotes() {
-    return i18n.ts._timelineFilterPopup.withRenotes
+    return i18n.ts._common.renotes
   },
   get withReplies() {
     return i18n.ts._timelineFilterPopup.withReplies

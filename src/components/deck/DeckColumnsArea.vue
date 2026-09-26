@@ -262,7 +262,7 @@ defineExpose({
       <ColumnEmptyState
         v-else
         :message="i18n.ts._deckColumnsArea.noColumns"
-        :cta-label="i18n.ts._deckColumnsArea.addColumn"
+        :cta-label="i18n.ts._commands.addColumn"
         cta-icon="ti-plus"
         @cta="emit('add-column')"
       />

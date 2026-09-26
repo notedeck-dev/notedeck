@@ -546,7 +546,7 @@ async function fetchAll(): Promise<void> {
   const acc = account.value
   if (!acc) {
     state.value = 'error'
-    errorMessage.value = i18n.ts._deckChartsColumn.accountNotFound
+    errorMessage.value = i18n.ts._common.accountNotFound
     return
   }
 

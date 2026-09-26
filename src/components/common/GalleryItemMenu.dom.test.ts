@@ -74,12 +74,12 @@ afterEach(() => {
 })
 
 describe('GalleryItemMenu (#793)', () => {
-  it('開く / リンクをコピー / ブラウザで開くの 3 項目を持つ', () => {
+  it('開く / リンクをコピー / ブラウザーで開くの 3 項目を持つ', () => {
     mountMenu()
     const labels = Array.from(
       container?.querySelectorAll('button._popupItem') ?? [],
     ).map((b) => b.textContent?.trim())
-    expect(labels).toEqual(['開く', 'リンクをコピー', 'ブラウザで開く'])
+    expect(labels).toEqual(['開く', 'リンクをコピー', 'ブラウザーで開く'])
   })
 
   it('「開く」で open-request が emit される', () => {
@@ -98,9 +98,9 @@ describe('GalleryItemMenu (#793)', () => {
     )
   })
 
-  it('「ブラウザで開く」で openSafeUrl が呼ばれる', async () => {
+  it('「ブラウザーで開く」で openSafeUrl が呼ばれる', async () => {
     mountMenu()
-    clickItem('ブラウザで開く')
+    clickItem('ブラウザーで開く')
     await vi.waitFor(() =>
       expect(openSafeUrlMock).toHaveBeenCalledWith(
         'https://misskey.test/gallery/p1',
@@ -117,7 +117,8 @@ describe('GalleryItemMenu (#793)', () => {
       buttons.find((b) => b.textContent?.includes('リンクをコピー'))?.disabled,
     ).toBe(true)
     expect(
-      buttons.find((b) => b.textContent?.includes('ブラウザで開く'))?.disabled,
+      buttons.find((b) => b.textContent?.includes('ブラウザーで開く'))
+        ?.disabled,
     ).toBe(true)
   })
 })

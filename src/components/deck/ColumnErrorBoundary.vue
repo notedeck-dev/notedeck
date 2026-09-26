@@ -27,7 +27,7 @@ function retry() {
     <div :class="$style.title">{{ i18n.ts._columnErrorBoundary.title }}</div>
     <button class="_button" :class="$style.retryBtn" @click="retry">
       <i class="ti ti-refresh" />
-      {{ i18n.ts._columnErrorBoundary.reload }}
+      {{ i18n.ts._common.reload }}
     </button>
   </div>
   <div v-else :key="retryKey" :class="$style.content">

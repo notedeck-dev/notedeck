@@ -44,7 +44,7 @@ const PROFILE_TABS: { key: ProfileTab; label: string; icon: string }[] = [
   {
     key: 'notes',
     get label() {
-      return i18n.ts._userProfileNotesList.tabNotes
+      return i18n.ts._common.notes
     },
     icon: 'ti ti-pencil',
   },

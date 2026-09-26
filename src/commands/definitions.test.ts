@@ -230,7 +230,7 @@ describe('refreshProfileCommands', () => {
     )
     const store = useCommandStore()
     refreshProfileCommands()
-    expect(store.commands.get('profile-1')?.label).toBe('Profile 1 に切替')
+    expect(store.commands.get('profile-1')?.label).toBe('Profile 1 に切り替え')
     expect(store.commands.get('profile-9')).toBeDefined()
     expect(store.commands.get('profile-10')).toBeUndefined()
   })

@@ -319,11 +319,11 @@ function getRowItems(index: number): ServerEmoji[] {
         <div class="_popupDivider" />
         <button class="_popupItem" @click="emojiMenuCopy">
           <i class="ti ti-copy" />
-          {{ i18n.ts._deckEmojiColumn.copyCode }}
+          {{ i18n.ts._common.copyCode }}
         </button>
         <button class="_popupItem" @click="emojiMenuToggleMute">
           <i :class="isEmojiMuted(`:${emojiMenuTarget.name}:`) ? 'ti ti-mood-smile' : 'ti ti-mood-off'" />
-          {{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? i18n.ts._deckEmojiColumn.unmute : i18n.ts._deckEmojiColumn.muteEmoji }}
+          {{ isEmojiMuted(`:${emojiMenuTarget.name}:`) ? i18n.ts._common.unmute : i18n.ts._deckEmojiColumn.muteEmoji }}
         </button>
       </template>
     </PopupMenu>

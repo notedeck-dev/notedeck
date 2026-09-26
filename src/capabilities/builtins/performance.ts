@@ -65,7 +65,7 @@ export const performanceSetCapability = implement('performance.set', {
           })
         : i18n.tsx._performanceCapability.setMessageUnknown({ key, value }),
       okLabel: i18n.ts._performanceCapability.setOk,
-      cancelLabel: i18n.ts._performanceCapability.cancel,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'normal',
     }
   },
@@ -97,8 +97,8 @@ export const performanceResetCapability = implement('performance.reset', {
             key,
           })
         : i18n.tsx._performanceCapability.resetMessageUnknown({ key }),
-      okLabel: i18n.ts._performanceCapability.resetOk,
-      cancelLabel: i18n.ts._performanceCapability.cancel,
+      okLabel: i18n.ts._common.resetToDefault,
+      cancelLabel: i18n.ts._common.cancel,
       type: 'normal',
     }
   },
@@ -118,8 +118,8 @@ export const performanceResetAllCapability = implement('performance.resetAll', {
   requiresConfirmation: () => ({
     title: i18n.ts._performanceCapability.resetAllTitle,
     message: i18n.ts._performanceCapability.resetAllMessage,
-    okLabel: i18n.ts._performanceCapability.resetAllOk,
-    cancelLabel: i18n.ts._performanceCapability.cancel,
+    okLabel: i18n.ts._common.resetAllToDefault,
+    cancelLabel: i18n.ts._common.cancel,
     type: 'warning',
   }),
   execute: () => {
@@ -147,7 +147,7 @@ export const performanceApplySliderCapability = implement(
           label,
         }),
         okLabel: i18n.ts._performanceCapability.applyOk,
-        cancelLabel: i18n.ts._performanceCapability.cancel,
+        cancelLabel: i18n.ts._common.cancel,
         type: 'warning',
       }
     },

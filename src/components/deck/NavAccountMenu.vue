@@ -99,28 +99,28 @@ const hasUpperSection = computed(
 
       <div v-if="hasUpperSection" :class="$style.navAccountMenuDivider" />
       <button class="_button" :class="$style.navAccountMenuItem" @click="emit('clear-cache')">
-        <span>{{ i18n.ts._navAccountMenu.clearCache }}</span>
+        <span>{{ i18n.ts._common.clearCache }}</span>
         <i class="ti ti-eraser" />
       </button>
       <template v-if="account.hasToken">
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
-          <span>{{ i18n.ts._navAccountMenu.logout }}</span>
+          <span>{{ i18n.ts._common.logout }}</span>
           <i class="ti ti-logout" />
         </button>
       </template>
       <template v-else-if="isGuestAccount(account)">
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
-          <span>{{ i18n.ts._navAccountMenu.deleteData }}</span>
+          <span>{{ i18n.ts._common.deleteData }}</span>
           <i class="ti ti-trash" />
         </button>
       </template>
       <template v-else>
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountRelogin]" @click="emit('relogin', account.host)">
-          <span>{{ i18n.ts._navAccountMenu.relogin }}</span>
+          <span>{{ i18n.ts._common.relogin }}</span>
           <i class="ti ti-login" />
         </button>
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
-          <span>{{ i18n.ts._navAccountMenu.deleteData }}</span>
+          <span>{{ i18n.ts._common.deleteData }}</span>
           <i class="ti ti-trash" />
         </button>
       </template>

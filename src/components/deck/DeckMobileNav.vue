@@ -92,7 +92,7 @@ const {
     <button
       class="_button"
       :class="$style.addBtn"
-      :title="i18n.ts._deckMobileNav.addColumn"
+      :title="i18n.ts._commands.addColumn"
       @click="emit('toggle-add-menu')"
     >
       <i class="ti ti-plus" />

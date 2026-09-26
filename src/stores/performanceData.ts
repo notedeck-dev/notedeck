@@ -764,16 +764,16 @@ export const CATEGORY_LABELS: Record<
       return i18n.ts._performanceData.categories.emoji.label
     },
     get short() {
-      return i18n.ts._performanceData.categories.emoji.short
+      return i18n.ts._common.emoji
     },
     icon: 'ti-mood-smile',
   },
   note: {
     get label() {
-      return i18n.ts._performanceData.categories.note.label
+      return i18n.ts._common.notes
     },
     get short() {
-      return i18n.ts._performanceData.categories.note.short
+      return i18n.ts._common.notes
     },
     icon: 'ti-note',
   },

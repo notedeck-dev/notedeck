@@ -33,7 +33,7 @@ export function showReloginPrompt(accountId?: string): void {
     const { relogin } = useAccountActions()
     toast.show(i18n.ts._useLoginPrompt.sessionExpired, 'warning', {
       action: {
-        label: i18n.ts._useLoginPrompt.relogin,
+        label: i18n.ts._common.relogin,
         onClick: () => relogin(account),
       },
     })

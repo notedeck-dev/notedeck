@@ -1141,7 +1141,7 @@ function handlePickerReaction(reaction: string) {
               @mouseenter="reactionUsersRef?.show($event, r.reaction, urlFor(r), r.count)"
               @mouseleave="reactionUsersRef?.hide()"
             >
-              <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.customEmoji" role="img" :aria-label="r.reaction" :title="i18n.tsx._mkNote.mutedTitle({ emoji: r.reaction })" />
+              <span v-if="isEmojiMuted(r.reaction)" class="_emojiMuted" :class="$style.customEmoji" role="img" :aria-label="r.reaction" :title="i18n.tsx._common.mutedEmoji({ emoji: r.reaction })" />
               <img v-else-if="urlFor(r)" :src="proxyEmojiUrl(urlFor(r)!)" :alt="r.reaction" :class="$style.customEmoji" decoding="async" loading="lazy" @error="onCustomEmojiImgError" />
               <img v-else-if="r.reaction.startsWith(':')" src="/emoji-unknown.svg" :alt="r.reaction" :title="r.reaction" :class="$style.customEmoji" />
               <MkEmoji v-else :emoji="r.reaction" :class="$style.reactionEmoji" />
@@ -1187,7 +1187,7 @@ function handlePickerReaction(reaction: string) {
           <button
             :class="[$style.footerButton, $style.reactionButton, { [$style.reacted]: effectiveNote.myReaction != null, [$style.footerDisabled]: isGuest || effectiveNote.contentHidden }]"
             :disabled="isGuest || effectiveNote.contentHidden"
-            :title="effectiveNote.myReaction != null ? i18n.ts._mkNote.unreact : i18n.ts._mkNote.react"
+            :title="effectiveNote.myReaction != null ? i18n.ts._mkNote.unreact : i18n.ts._common.react"
             @click.stop="canInteract ? toggleFooterReaction($event) : showLoginPrompt()"
           >
             <i :class="effectiveNote.myReaction != null ? 'ti ti-minus' : 'ti ti-plus'" />
@@ -1223,11 +1223,11 @@ function handlePickerReaction(reaction: string) {
         </button>
         <button v-else :class="$style.renotePopupItem" @click="emit('renote', effectiveNote); closeRenoteMenu(); isRenoted = true">
           <i class="ti ti-repeat" />
-          {{ i18n.ts._mkNote.renote }}
+          {{ i18n.ts._common.renote }}
         </button>
         <button :class="$style.renotePopupItem" @click="emit('quote', effectiveNote); closeRenoteMenu()">
           <i class="ti ti-quote" />
-          {{ i18n.ts._mkNote.quote }}
+          {{ i18n.ts._common.quote }}
         </button>
       </div>
     </div>

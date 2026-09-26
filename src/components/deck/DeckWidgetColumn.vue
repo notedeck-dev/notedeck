@@ -97,7 +97,7 @@ function handleRemove(installId: string) {
   const undo = deckStore.removeWidget(props.column.id, installId)
   if (undo) {
     useToast().show(i18n.ts._deckWidgetColumn.detached, 'info', {
-      action: { label: i18n.ts._deckWidgetColumn.undo, onClick: undo },
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -256,7 +256,7 @@ async function deleteFromLibrary(widget: WidgetMeta) {
   const undo = widgetsStore.removeWidget(widget.installId)
   if (undo) {
     useToast().show(i18n.ts._deckWidgetColumn.deleted, 'info', {
-      action: { label: i18n.ts._deckWidgetColumn.undo, onClick: undo },
+      action: { label: i18n.ts._common.undo, onClick: undo },
     })
   }
 }
@@ -272,7 +272,7 @@ const columnContentRef = ref<HTMLElement | null>(null)
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: i18n.tsx._deckWidgetColumn.installedTab({
+    label: i18n.tsx._common.installedTab({
       count: widgets.value.length,
     }),
   },
@@ -383,7 +383,7 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
     viewTab.value = 'installed'
   } catch (e) {
     installError.value =
-      e instanceof Error ? e.message : i18n.ts._deckWidgetColumn.installFailed
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   } finally {
     installingId.value = null
   }
@@ -395,7 +395,7 @@ async function handleStoreUpdate(entry: StoreWidgetEntry) {
     await misStore.updateWidget(entry)
   } catch (e) {
     installError.value =
-      e instanceof Error ? e.message : i18n.ts._deckWidgetColumn.updateFailed
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 

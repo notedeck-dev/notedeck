@@ -127,7 +127,7 @@ const themeSections = computed<ThemeSection[]>(() => {
   if (isCrossAccount.value) {
     sections.push({
       key: 'default',
-      label: i18n.ts._deckThemeManagerColumn.default,
+      label: i18n.ts._common.default,
       items: [
         {
           theme: mode === 'dark' ? MI_DARK : MI_LIGHT,
@@ -161,7 +161,7 @@ const themeSections = computed<ThemeSection[]>(() => {
     }))
   sections.push({
     key: 'sideload',
-    label: i18n.ts._deckThemeManagerColumn.sideload,
+    label: i18n.ts._common.sideload,
     items: sideloadedThemes,
   })
 
@@ -186,13 +186,13 @@ const themeSections = computed<ThemeSection[]>(() => {
       }))
     sections.push({
       key: 'store',
-      label: i18n.ts._deckThemeManagerColumn.storeDistributed,
+      label: i18n.ts._common.storeDistributed,
       items: storeThemes,
     })
 
     sections.push({
       key: 'server',
-      label: i18n.ts._deckThemeManagerColumn.server,
+      label: i18n.ts._common.server,
       items: metaTheme
         ? [{ theme: metaTheme, source: 'server', removable: false }]
         : [],
@@ -214,7 +214,7 @@ const themeSections = computed<ThemeSection[]>(() => {
       }))
     sections.push({
       key: 'store',
-      label: i18n.ts._deckThemeManagerColumn.storeDistributed,
+      label: i18n.ts._common.storeDistributed,
       items: storeThemes,
     })
   }
@@ -230,7 +230,7 @@ const installedTotalCount = computed(() =>
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: i18n.tsx._deckThemeManagerColumn.installedTab({
+    label: i18n.tsx._common.installedTab({
       count: installedTotalCount.value,
     }),
   },
@@ -405,7 +405,7 @@ async function removeTheme(entry: ThemeEntry) {
         'info',
         {
           action: {
-            label: i18n.ts._deckThemeManagerColumn.undo,
+            label: i18n.ts._common.undo,
             onClick: undo,
           },
         },
@@ -426,7 +426,7 @@ async function removeTheme(entry: ThemeEntry) {
     const undo = themeStore.removeTheme(entry.theme.id)
     if (undo) {
       useToast().show(i18n.ts._deckThemeManagerColumn.deleted, 'info', {
-        action: { label: i18n.ts._deckThemeManagerColumn.undo, onClick: undo },
+        action: { label: i18n.ts._common.undo, onClick: undo },
       })
     }
   }
@@ -443,9 +443,7 @@ async function handleStoreInstall(entry: StoreThemeEntry) {
     await misStore.installTheme(entry, contextAccountKeys())
   } catch (e) {
     installError.value =
-      e instanceof Error
-        ? e.message
-        : i18n.ts._deckThemeManagerColumn.installFailed
+      e instanceof Error ? e.message : i18n.ts._common.installFailed
   }
 }
 
@@ -456,9 +454,7 @@ async function handleStoreUpdate(entry: StoreThemeEntry) {
     await misStore.updateTheme(entry)
   } catch (e) {
     installError.value =
-      e instanceof Error
-        ? e.message
-        : i18n.ts._deckThemeManagerColumn.updateFailed
+      e instanceof Error ? e.message : i18n.ts._common.updateFailed
   }
 }
 

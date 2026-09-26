@@ -128,7 +128,7 @@ const topTabDefs = computed<TopTabDef[]>(() => {
     {
       value: 'notes',
       icon: 'pencil',
-      label: i18n.ts._userProfileContent.tabNotes,
+      label: i18n.ts._common.notes,
     },
     {
       value: 'files',
@@ -145,7 +145,7 @@ const topTabDefs = computed<TopTabDef[]>(() => {
     defs.push({
       value: 'reactions',
       icon: 'mood-smile',
-      label: i18n.ts._userProfileContent.tabReactions,
+      label: i18n.ts._common.reactions,
     })
   }
   defs.push({
@@ -378,7 +378,7 @@ onMounted(async () => {
   if (!account) {
     error.value = new AppError(
       'ACCOUNT_NOT_FOUND',
-      i18n.ts._userProfileContent.accountNotFound,
+      i18n.ts._common.accountNotFound,
     )
     isLoading.value = false
     return
@@ -849,7 +849,7 @@ async function handlePosted(editedNoteId?: string) {
                   class="_emojiMuted"
                   role="img"
                   :aria-label="entry.type"
-                  :title="i18n.tsx._userProfileContent.mutedReaction({ reaction: entry.type })"
+                  :title="i18n.tsx._common.mutedReaction({ reaction: entry.type })"
                 />
                 <img
                   v-else-if="getReactionEntryUrl(entry)"

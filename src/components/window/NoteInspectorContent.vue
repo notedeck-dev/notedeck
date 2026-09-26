@@ -185,7 +185,7 @@ watch(tab, (t) => {
       <template #hint>
         <i class="ti ti-info-circle" />
         <template v-if="tab === 'misskey'">
-          <I18n :src="i18n.ts._noteInspectorContent.rawResponse"><template #endpoint><code>/api/notes/show</code></template></I18n>
+          <I18n :src="i18n.ts._common.rawResponse"><template #endpoint><code>/api/notes/show</code></template></I18n>
         </template>
         <template v-else>
           <I18n :src="i18n.ts._noteInspectorContent.activityPubObject"><template #endpoint><code>/api/ap/show</code></template></I18n>

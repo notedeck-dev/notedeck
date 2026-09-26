@@ -709,7 +709,7 @@ function reportBug() {
             :class="$style.updateAction"
             @click="updateReady ? restartToUpdate() : installUpdate()"
           >
-            {{ updateReady ? i18n.ts._aboutContent.restart : i18n.ts._aboutContent.updateNow }}
+            {{ updateReady ? i18n.ts._aboutContent.restart : i18n.ts._common.update }}
           </button>
         </div>
         <div v-if="isInstalling" :class="$style.progressTrack">

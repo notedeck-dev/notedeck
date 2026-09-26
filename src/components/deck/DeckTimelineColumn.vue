@@ -192,7 +192,7 @@ const TL_TYPES: { value: TimelineType; label: string }[] = [
   {
     value: 'home',
     get label() {
-      return i18n.ts._deckTimelineColumn.home
+      return i18n.ts._common.home
     },
   },
   {
@@ -721,7 +721,7 @@ onMounted(async () => {
           class="_button"
           @click="scrollToTop()"
         >
-          <i class="ti ti-arrow-up" />{{ i18n.ts._deckTimelineColumn.newNotes }}
+          <i class="ti ti-arrow-up" />{{ i18n.ts._common.newNotes }}
         </button>
 
         <NoteScroller
