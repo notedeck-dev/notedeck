@@ -1,9 +1,9 @@
 # notedeck の Cargo workspace (#1106 段階 0)。
 # メンバー: src-tauri (アプリの Rust) / crates/notecli (Misskey クライアント + CLI) /
-# crates/notecore (Tauri 非依存のドメイン層)。今後 crates/notecored をここに足す。プロファイルは workspace root にしか置けない。
+# crates/notecore (Tauri 非依存のドメイン層) / crates/notecored (notecore を headless で常駐させるデーモン)。プロファイルは workspace root にしか置けない。
 [workspace]
 resolver = "2"
-members = ["src-tauri", "crates/notecli", "crates/notecore"]
+members = ["src-tauri", "crates/notecli", "crates/notecore", "crates/notecored"]
 
 # dev: 自分のコードは最速コンパイル、依存クレートだけ軽く最適化（実行速度とコンパイル速度のバランス）
 # debug 情報は target/ 肥大の主因（[lib] の 3 crate-type × 重量級依存ツリーで掛け算になる）。
