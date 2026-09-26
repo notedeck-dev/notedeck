@@ -7,10 +7,12 @@ use serde_json::{json, Value};
 use super::misstore::{
     ensure_approved_hash, fetch_verified_source, registry_entry, update_confirm_message,
 };
+use super::preview::confirm;
 use super::{staged, ExecContext};
 use crate::context::Core;
 use crate::edit_history::{Attribution, HistoryEntry};
 use crate::error::Result;
+use crate::i18n::{localize_fields, text};
 use crate::sidecar::widgets::{self, WidgetView};
 use crate::sidecar::Item;
 use notecli::error::NoteDeckError;
@@ -272,19 +274,24 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             let Some(cur) = targets.first() else {
                 return Ok(None);
             };
-            let others = if targets.len() > 1 {
-                format!(" ほか {} 件", targets.len() - 1)
+            let message = if targets.len() > 1 {
+                text(
+                    "_native.preview.widgets.delete.messageMany_plural",
+                    json!({ "name": cur.name(), "count": targets.len() - 1 }),
+                )
             } else {
-                String::new()
+                text(
+                    "_native.preview.widgets.delete.message",
+                    json!({ "name": cur.name() }),
+                )
             };
-            Some(json!({
-                "title": "ウィジェットを削除",
-                "message": format!("{}{others} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます (= 不可逆)。", cur.name()),
-                "installPreview": install_preview(&cur.name()),
-                "okLabel": "削除",
-                "cancelLabel": "やめる",
-                "type": "danger",
-            }))
+            Some(confirm(
+                "danger",
+                text("_native.preview.widgets.delete.title", json!({})),
+                Some(message),
+                text("_native.preview.widgets.delete.ok", json!({})),
+                json!({ "installPreview": install_preview(&cur.name()) }),
+            ))
         }
         "widgets.revert" => {
             let index = index_of(p);
@@ -309,19 +316,23 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 .and_then(Value::as_str)
                 .map(str::to_string)
                 .unwrap_or_else(|| cur.name());
-            Some(json!({
-                "title": "ウィジェットを過去の状態に戻す",
-                "message": format!(
-                    "{} を編集履歴 #{index} ({}) の状態に戻します。現在の AiScript ソースは上書きされます。",
-                    cur.name(),
-                    super::time::iso_from_unix_ms(entry.at as i64)
-                ),
-                "installPreview": install_preview(&name),
-                "diff": { "old": cur.src, "new": next, "language": "aiscript" },
-                "okLabel": "この状態に戻す",
-                "cancelLabel": "やめる",
-                "type": "warning",
-            }))
+            Some(confirm(
+                "warning",
+                text("_native.preview.widgets.revert.title", json!({})),
+                Some(text(
+                    "_native.preview.widgets.revert.message",
+                    json!({
+                        "name": cur.name(),
+                        "index": index,
+                        "at": super::time::iso_from_unix_ms(entry.at as i64),
+                    }),
+                )),
+                text("_native.preview.widgets.revert.ok", json!({})),
+                json!({
+                    "installPreview": install_preview(&name),
+                    "diff": { "old": cur.src, "new": next, "language": "aiscript" },
+                }),
+            ))
         }
         "widgets.install" => {
             let wid = s(p, "id");
@@ -335,26 +346,35 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 .get("autoRun")
                 .and_then(Value::as_bool)
                 .unwrap_or(false);
-            let mut out = json!({
-                "title": "MisStore からウィジェットを入れる",
-                "message": format!(
-                    "{} (v{} / by {}) を MisStore から取得します。{}",
-                    s(&entry, "name"), s(&entry, "version"), s(&entry, "author"),
-                    if auto_run { " カラム表示時に自動実行されます。" } else { " 自動実行は無効です (= 手動で起動)。" }
-                ),
-                "installPreview": {
-                    "kind": "widget",
-                    "name": s(&entry, "name"),
-                    "version": s(&entry, "version"),
-                    "author": s(&entry, "author"),
-                    "description": s(&entry, "description"),
-                },
-                "code": s(&entry, "description"),
-                "codeLanguage": "plaintext",
-                "okLabel": "インストール",
-                "cancelLabel": "やめる",
-                "type": "normal",
-            });
+            let message = if auto_run {
+                "_native.preview.widgets.install.messageAutoRun"
+            } else {
+                "_native.preview.widgets.install.messageManual"
+            };
+            let mut out = confirm(
+                "normal",
+                text("_native.preview.widgets.install.title", json!({})),
+                Some(text(
+                    message,
+                    json!({
+                        "name": s(&entry, "name"),
+                        "version": s(&entry, "version"),
+                        "author": s(&entry, "author"),
+                    }),
+                )),
+                text("_native.preview.widgets.install.ok", json!({})),
+                json!({
+                    "installPreview": {
+                        "kind": "widget",
+                        "name": s(&entry, "name"),
+                        "version": s(&entry, "version"),
+                        "author": s(&entry, "author"),
+                        "description": s(&entry, "description"),
+                    },
+                    "code": s(&entry, "description"),
+                    "codeLanguage": "plaintext",
+                }),
+            );
             // 既存 (同じ storeId × 実行アカウント) の更新: 本文の diff を 1 枚目に載せる
             let account_key = account_key_of(core, "widgets.install", p)
                 .await
@@ -364,17 +384,34 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             if let Some(cur) = widgets::find_instance(&all, wid, account_key.as_deref()) {
                 if let Ok((source, hash)) = fetch_verified_source(core, &entry).await {
                     if source != cur.src {
-                        out["title"] = json!("ウィジェットを更新");
-                        out["message"] = json!(update_confirm_message(&cur.name(), &entry));
-                        out["okLabel"] = json!("更新");
+                        localize_fields(
+                            &mut out,
+                            vec![
+                                (
+                                    "title",
+                                    text("_native.preview.widgets.install.titleUpdate", json!({})),
+                                ),
+                                ("message", update_confirm_message(&cur.name(), &entry, &[])),
+                                (
+                                    "okLabel",
+                                    text("_native.preview.widgets.install.okUpdate", json!({})),
+                                ),
+                            ],
+                        );
                         out["diff"] =
                             json!({ "old": cur.src, "new": source, "language": "aiscript" });
                         staged::stage(staged::key(id, ctx, p), &cur.src, hash);
                     } else {
-                        out["message"] = json!(format!(
-                            "{} は既にインストール済みで内容も最新です。",
-                            cur.name()
-                        ));
+                        localize_fields(
+                            &mut out,
+                            vec![(
+                                "message",
+                                text(
+                                    "_native.preview.widgets.install.upToDate",
+                                    json!({ "name": cur.name() }),
+                                ),
+                            )],
+                        );
                     }
                 }
             }
@@ -429,7 +466,12 @@ mod tests {
         assert!(pv["message"]
             .as_str()
             .unwrap()
-            .starts_with("W ほか 1 件 を削除します。"));
+            .starts_with("Deletes W and 1 other."));
+        let hint = &pv["i18n"]["message"];
+        assert!(
+            crate::i18n::render("ja-JP", hint["key"].as_str().unwrap(), &hint["params"])
+                .starts_with("W ほか 1 件を削除します。")
+        );
         // revert
         let mut w = widgets::get(&core, "w").unwrap().unwrap();
         widgets::update_src(&core, &mut w, "c", None).unwrap();

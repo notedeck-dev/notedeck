@@ -1,6 +1,7 @@
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { onScopeDispose, ref } from 'vue'
 import type { AiChatMessage, JsonValue } from '@/bindings'
+import { nativeError } from '@/i18n/native'
 import { useAiActivity } from '@/stores/aiActivity'
 import { extractErrorMessage } from '@/utils/errors'
 import { listenTauri } from '@/utils/tauriEvents'
@@ -31,6 +32,12 @@ export interface ChatMessage {
    * 受信箱カードとして残し、人がボタンを押して確認を経てから走る。
    */
   intent?: AiIntent
+  /**
+   * 本文を表示言語で描き直す手がかり (#135)。notecore が書く定型の本文
+   * (HEARTBEAT の失敗や受信箱カード) にだけ付き、`content` は英語の正本文。
+   * 表示は `localizeNative` を通す
+   */
+  i18n?: Record<string, unknown>
 }
 
 /** 受信箱カード (無人の書込意図) */
@@ -71,6 +78,8 @@ export interface AiChatEventPayload {
   kind: 'delta' | 'done' | 'error' | 'tool_use'
   text?: string
   error?: string
+  /** `error` を表示言語で描き直す手がかり (#135) */
+  error_i18n?: unknown
   tool_use_id?: string
   tool_use_name?: string
   tool_use_input?: Record<string, unknown>
@@ -202,11 +211,9 @@ export function useAiChat() {
           // p.error は型定義上 string だが、Rust 側から非文字列が来た場合の保険
           console.error('[ai-chat] stream error event:', p.error)
           const message =
-            p.error == null
-              ? '不明なエラー'
-              : typeof p.error === 'string'
-                ? p.error
-                : extractErrorMessage(p.error)
+            p.error == null || typeof p.error === 'string'
+              ? nativeError(p)
+              : extractErrorMessage(p.error)
           lastError.value = message
           cleanup()
           reject(new Error(message))
@@ -279,7 +286,7 @@ export async function sendAiChatOnce(opts: AiChatSendOptions): Promise<string> {
         resolve(accumulated)
       } else if (p.kind === 'error') {
         unlisten?.()
-        reject(new Error(p.error ?? '不明なエラー'))
+        reject(new Error(nativeError(p)))
       }
       // 'tool_use' は無視 (one-shot では tools を渡さない前提)
     })

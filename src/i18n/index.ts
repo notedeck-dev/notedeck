@@ -43,10 +43,22 @@ let tsxLang: LanguageCode | null = null
 // 呼び出し側に書かせると、複数形の数の判定に文字列が渡ってしまうため
 let numberFormat: Intl.NumberFormat | null = null
 
+function isHint(
+  value: unknown,
+): value is { key: string; params?: Record<string, unknown> } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { key?: unknown }).key === 'string'
+  )
+}
+
 function fill(template: string, args: Record<string, unknown>): string {
   return template.replace(PARAM, (whole, name: string) => {
     if (!Object.hasOwn(args, name)) return whole
     const value = args[name]
+    // Rust から届く param は、それ自体が辞書の手がかり { key, params } のことがある
+    if (isHint(value)) return i18n.byKey(value.key, value.params) ?? ''
     if (typeof value !== 'number') return String(value)
     numberFormat ??= new Intl.NumberFormat(lang.value)
     return numberFormat.format(value)

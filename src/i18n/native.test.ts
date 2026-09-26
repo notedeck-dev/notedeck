@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { loadLocale } from '.'
-import { localizeNative } from './native'
+import { localizeNative, nativeField } from './native'
 
 describe('localizeNative', () => {
   afterEach(async () => {
@@ -48,7 +48,42 @@ describe('localizeNative', () => {
     expect(out.title).toBe('Canonical')
   })
 
+  it('入れ子のオブジェクトの手がかりも描き直す', () => {
+    const out = localizeNative({
+      title: 'x',
+      installPreview: {
+        kind: 'theme',
+        description: 'dark theme',
+        i18n: {
+          description: {
+            key: '_native.preview.themes.update.description',
+            params: { base: 'dark' },
+          },
+        },
+      },
+    })
+    expect(out).toEqual({
+      title: 'x',
+      installPreview: { kind: 'theme', description: 'dark テーマ' },
+    })
+  })
+
   it('手がかりが無ければそのまま返す', () => {
     expect(localizeNative({ title: 'x' })).toEqual({ title: 'x' })
+  })
+
+  it('nativeField は 1 欄だけ描き直し、元の値は変えない', () => {
+    const msg = {
+      content: 'Run X?',
+      i18n: {
+        content: {
+          key: '_native.preview.generic.title',
+          params: { label: 'X' },
+        },
+      },
+    }
+    expect(nativeField(msg, 'content')).toBe('X を実行しますか？')
+    expect(msg.content).toBe('Run X?')
+    expect(nativeField({ title: 'plain' }, 'title')).toBe('plain')
   })
 })

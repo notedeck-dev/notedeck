@@ -38,14 +38,19 @@ fn lookup<'a>(dict: &'a Value, key: &str) -> Option<&'a Value> {
     key.split('.').try_fold(dict, |node, part| node.get(part))
 }
 
-fn param_text(value: &Value) -> String {
+/// param の値を文字列にする。値が辞書の手がかり `{ key, params }` なら同じ言語で組む
+fn param_text(lang: &str, value: &Value) -> String {
     match value {
         Value::String(s) => s.clone(),
+        Value::Object(o) if o.get("key").and_then(Value::as_str).is_some() => {
+            let key = o.get("key").and_then(Value::as_str).unwrap_or_default();
+            render(lang, key, o.get("params").unwrap_or(&Value::Null))
+        }
         other => other.to_string(),
     }
 }
 
-fn fill(template: &str, params: &Map<String, Value>) -> String {
+fn fill(lang: &str, template: &str, params: &Map<String, Value>) -> String {
     let mut out = String::with_capacity(template.len());
     let mut rest = template;
     while let Some(start) = rest.find('{') {
@@ -59,7 +64,7 @@ fn fill(template: &str, params: &Map<String, Value>) -> String {
             {
                 let name = &after[..end];
                 match params.get(name) {
-                    Some(v) => out.push_str(&param_text(v)),
+                    Some(v) => out.push_str(&param_text(lang, v)),
                     None => out.push_str(&rest[start..start + end + 2]),
                 }
                 rest = &after[end + 1..];
@@ -92,7 +97,7 @@ pub fn render(lang: &str, key: &str, params: &Value) -> String {
         .filter_map(|l| dictionary(l).and_then(|d| lookup(d, key)).map(|v| (*l, v)))
         .next();
     match found {
-        Some((_, Value::String(template))) => fill(template, params),
+        Some((_, Value::String(template))) => fill(lang, template, params),
         Some((l, Value::Object(forms))) => {
             let count = params.get("count").and_then(Value::as_f64).unwrap_or(0.0);
             let form = forms
@@ -100,7 +105,7 @@ pub fn render(lang: &str, key: &str, params: &Value) -> String {
                 .or_else(|| forms.get("other"))
                 .and_then(Value::as_str)
                 .unwrap_or(key);
-            fill(form, params)
+            fill(lang, form, params)
         }
         _ => key.to_string(),
     }
@@ -120,6 +125,35 @@ pub fn text(key: &str, params: Value) -> Text {
     Text {
         text: render(CANONICAL, key, &params),
         i18n: json!({ "key": key, "params": params }),
+    }
+}
+
+/// 表示言語で描き直せる 1 行 (一覧で返す警告など)。`i18n` は `{ text: { key, params } }`
+/// の形で、TS は `nativeField(line, 'text')` で表示言語の文にする
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+pub struct LocalizedLine {
+    pub text: String,
+    #[serde(rename = "i18n")]
+    pub i18n: Value,
+}
+
+impl From<Text> for LocalizedLine {
+    fn from(t: Text) -> Self {
+        Self {
+            text: t.text,
+            i18n: json!({ "text": t.i18n }),
+        }
+    }
+}
+
+/// 利用者に見せる文言を持つエラーを組む (英語の正本文 + 手がかり)。
+/// `code` は TS がエラーの種類を見分けるコード (`AUTH_CREDENTIAL_MISSING` など)
+pub fn error(code: &'static str, key: &str, params: Value) -> notecli::error::NoteDeckError {
+    let t = text(key, params);
+    notecli::error::NoteDeckError::Localized {
+        code,
+        message: t.text,
+        i18n: t.i18n,
     }
 }
 
@@ -170,9 +204,9 @@ mod tests {
     #[test]
     fn leaves_unknown_params_and_braces_alone() {
         let params = Map::new();
-        assert_eq!(fill("{label} と {x", &params), "{label} と {x");
+        assert_eq!(fill("ja-JP", "{label} と {x", &params), "{label} と {x");
         assert_eq!(
-            fill("a {n} b", json!({ "n": 3 }).as_object().unwrap()),
+            fill("ja-JP", "a {n} b", json!({ "n": 3 }).as_object().unwrap()),
             "a 3 b"
         );
     }
@@ -197,6 +231,20 @@ mod tests {
         assert_eq!(v["okLabel"], "Run");
         assert_eq!(v["i18n"]["okLabel"]["key"], "_native.preview.generic.ok");
         assert_eq!(v["type"], "danger");
+    }
+
+    #[test]
+    fn nested_hint_params_are_rendered_in_the_same_language() {
+        let inner = text("_native.preview.generic.ok", json!({}));
+        let params = json!({ "label": inner.i18n });
+        assert_eq!(
+            render("ja-JP", "_native.preview.generic.title", &params),
+            "実行 を実行しますか？"
+        );
+        assert_eq!(
+            render("en-US", "_native.preview.generic.title", &params),
+            "Run Run?"
+        );
     }
 
     #[test]

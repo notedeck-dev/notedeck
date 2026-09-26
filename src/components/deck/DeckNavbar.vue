@@ -325,7 +325,7 @@ async function toggleAccountMode(accountId: string, key: string) {
     accountsStore.bumpModeVersion(accountId)
   } catch (e) {
     const err = AppError.from(e)
-    if (err.isAuth || String(err.message).includes('permission')) {
+    if (err.isAuth || err.apiCode === 'PERMISSION_DENIED') {
       modeError.value = i18n.ts._deckNavbar.permissionDenied
     } else {
       modeError.value = err.message

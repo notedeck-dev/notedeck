@@ -17,6 +17,26 @@ describe('AppError.from()', () => {
     expect(err.apiCode).toBeNull()
   })
 
+  it('i18n の手がかりがあれば表示言語の文言にする (#135)', () => {
+    const err = AppError.from({
+      code: 'AUTH_CREDENTIAL_MISSING',
+      message: 'No API key is set for the connection “x”',
+      apiCode: null,
+      i18n: { key: '_native.ai.apiKeyMissing', params: { name: 'x' } },
+    })
+    expect(err.code).toBe('AUTH_CREDENTIAL_MISSING')
+    expect(err.message).toBe('接続「x」の API キーが設定されていません')
+  })
+
+  it('辞書に無い手がかりは英語の正本文のまま', () => {
+    const err = AppError.from({
+      code: 'INVALID_INPUT',
+      message: 'Canonical',
+      i18n: { key: '_native.gone', params: {} },
+    })
+    expect(err.message).toBe('Canonical')
+  })
+
   it('keeps the server-supplied apiCode', () => {
     const err = AppError.from({
       code: 'API',

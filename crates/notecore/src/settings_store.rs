@@ -424,7 +424,7 @@ fn import_group(
     base_dir: &Path,
     subdir: &str,
     members: &[(String, String)],
-    warnings: &mut Vec<String>,
+    warnings: &mut Vec<crate::i18n::LocalizedLine>,
 ) -> Result<()> {
     let dir = base_dir.join(subdir);
     fs::create_dir_all(&dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
@@ -505,7 +505,13 @@ fn import_group(
 
     if any_collision && all_identical {
         tracing::warn!("Import: skipping identical group: {}", member_keys());
-        warnings.push(format!("スキップ (既存と内容同一): {}", member_keys()));
+        warnings.push(
+            crate::i18n::text(
+                "_native.backup.skippedSame",
+                serde_json::json!({ "items": member_keys() }),
+            )
+            .into(),
+        );
         return Ok(());
     }
 
@@ -535,10 +541,13 @@ fn import_group(
             "Import: group collides, restored with suffix: {} -> {renamed}",
             member_keys()
         );
-        warnings.push(format!(
-            "別名で復元 (既存と衝突): {} → {renamed}",
-            member_keys()
-        ));
+        warnings.push(
+            crate::i18n::text(
+                "_native.backup.restoredRenamed",
+                serde_json::json!({ "items": member_keys(), "renamed": renamed }),
+            )
+            .into(),
+        );
         return Ok(());
     }
     Err(NoteDeckError::InvalidInput(format!(
@@ -559,8 +568,11 @@ fn import_group(
 ///   排他書込 (詳細は `import_group`)
 ///
 /// 戻り値はスキップ / 別名退避したエントリの警告リスト。
-pub fn import_bundle(base_dir: &Path, bundle: &BTreeMap<String, String>) -> Result<Vec<String>> {
-    let mut warnings: Vec<String> = Vec::new();
+pub fn import_bundle(
+    base_dir: &Path,
+    bundle: &BTreeMap<String, String>,
+) -> Result<Vec<crate::i18n::LocalizedLine>> {
+    let mut warnings: Vec<crate::i18n::LocalizedLine> = Vec::new();
     // (subdir, basename) → [(filename, content)]。BTreeMap なので処理順は決定的
     let mut groups: BTreeMap<(String, String), Vec<(String, String)>> = BTreeMap::new();
 
@@ -577,7 +589,13 @@ pub fn import_bundle(base_dir: &Path, bundle: &BTreeMap<String, String>) -> Resu
             [subdir, name] if ALLOWED_SUBDIRS.contains(subdir) => {
                 if let Err(e) = validate_import_filename(name) {
                     tracing::warn!("Import: skipping invalid filename: {key}: {e}");
-                    warnings.push(format!("スキップ (不正なファイル名): {key}"));
+                    warnings.push(
+                        crate::i18n::text(
+                            "_native.backup.skippedBadFilename",
+                            serde_json::json!({ "key": key }),
+                        )
+                        .into(),
+                    );
                     continue;
                 }
                 let (base, _) = split_compound_ext(name);
@@ -588,7 +606,13 @@ pub fn import_bundle(base_dir: &Path, bundle: &BTreeMap<String, String>) -> Resu
             }
             _ => {
                 tracing::warn!("Import: skipping unknown entry: {key}");
-                warnings.push(format!("スキップ (不正なキー): {key}"));
+                warnings.push(
+                    crate::i18n::text(
+                        "_native.backup.skippedBadKey",
+                        serde_json::json!({ "key": key }),
+                    )
+                    .into(),
+                );
             }
         }
     }
@@ -899,7 +923,7 @@ mod tests {
         let warnings = import_bundle(base, &bundle).unwrap();
         assert!(!base.join("themes/deep/evil.json5").exists());
         assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].contains("themes/deep/evil.json5"));
+        assert!(warnings[0].text.contains("themes/deep/evil.json5"));
     }
 
     #[test]
@@ -955,7 +979,7 @@ mod tests {
 
         let warnings = import_bundle(base, &bundle).unwrap();
         assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].contains("skills/weather.md"));
+        assert!(warnings[0].text.contains("skills/weather.md"));
         assert_eq!(list_files(base, "skills").unwrap(), vec!["weather.md"]);
     }
 

@@ -1178,7 +1178,8 @@ async function handleFollowRequest(
     }
   } catch (e) {
     const appErr = AppError.from(e)
-    if (appErr.message.includes('NO_SUCH_FOLLOW_REQUEST')) {
+    // リクエストが既に無い (following/requests/accept の NO_FOLLOW_REQUEST)
+    if (appErr.apiCode === 'NO_FOLLOW_REQUEST') {
       followRequestStates.value = {
         ...followRequestStates.value,
         [notificationKey(notif)]: action,

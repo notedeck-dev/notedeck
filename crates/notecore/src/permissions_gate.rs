@@ -233,7 +233,7 @@ fn forbidden(required: &[&str]) -> Response {
             "principal": "external",
             "required": required,
             "error": format!(
-                "denied for external principal: required [{}] (permissions.json5 の外部アプリ権限で許可すると使えます)",
+                "denied for external principal: required [{}] (allow it in the external app permissions of permissions.json5)",
                 required.join(", ")
             ),
         })),

@@ -283,6 +283,7 @@ _common:
   update: "更新"
   updateFailed: "更新に失敗しました"
   users: "ユーザー"
+  unknownError: "不明なエラー"
 
 _appConfirm:
   trustedHeader: "NoteDeck の権限確認"
@@ -525,6 +526,9 @@ _regexGuide:
   wordsPlaceholder: "カンマ区切りで単語を入力"
   addCondition: "条件を追加"
   apply: "適用"
+  containsAny: "いずれかを含む"
+  containsAll: "すべてを含む"
+  excludes: "除外する"
 
 _renoteMoreMenu:
   confirmDelete: "このリノートを削除しますか？"
@@ -848,6 +852,7 @@ _userProfileMenu:
   alreadyAdded: "すでに追加されています"
   addedToAntenna: "{name} に追加しました"
   addToAntennaFailed: "アンテナへの追加に失敗しました ({code})"
+  searchColumnName: "{acct} の検索"
 
 _notFoundPage:
   message: "ページが見つかりません"
@@ -1202,6 +1207,19 @@ _aboutContent:
   adviceRoomAuto: "描画に余裕があります。安定が続けば自動調整が品質を上げます"
   adviceRoom: "描画に余裕があります。パフォーマンス設定で品質を上げても快適に動く見込みです"
   adviceGood: "描画は良好です"
+  notAvailableAfterReload: "N/A (リロード後)"
+  startupTotal: "合計: {time}"
+  infoStartup: "起動"
+  infoDiagnostics: "診断"
+  issueWhat: "現象"
+  issueWhatHint: "何が起きたか"
+  issueSteps: "再現手順"
+  issueExpected: "期待する動作"
+  issueExpectedHint: "本来どうなるべきか"
+  issueEnvironment: "環境"
+  issueScreenshot: "スクリーンショット"
+  issueScreenshotHint: "あれば添付"
+  issuePanicNote: "異常終了の backtrace は「{copyInfo}」で取得して貼り付けてください"
 
 _cacheEditorContent:
   usage: "使用状況"
@@ -1431,6 +1449,8 @@ _tasksEditorContent:
   saveFailed: "保存に失敗しました: {error}"
   objectRequired: "オブジェクト ({}) が必要です"
   resetFailed: "リセットに失敗しました: {error}"
+  newTaskLabel: "新しいタスク"
+  newInputPrompt: "入力してください"
 
 _themeEditorContent:
   light: "ライト"
@@ -1501,6 +1521,8 @@ _deckAiColumn:
   intentConfirmNoteUntrusted: "無人実行 (HEARTBEAT) が他人の内容を読んで作った操作です。宛先と本文を確かめてから許可してください。"
   intentConfirmNote: "無人実行 (HEARTBEAT) が提案した操作です。"
   intentRunFailed: "実行できませんでした: {error}"
+  setupRequiredMessage: "AI の API キーが設定されていないため、この質問には応答できません。\n\nAI プロバイダーの API キーを登録すると使えるようになります。下の「{button}」からチュートリアルを開けます。\n\n`/help` などの / コマンドは API キーなしで実行できます。"
+  slashRunTitle: "{command} の実行"
 
 _deckClientSearchColumn:
   searchPlaceholder: "手元のノートを検索..."
@@ -1662,6 +1684,8 @@ _deckQueryManagerColumn:
   deleteTitle: "クエリを削除"
   deleteConfirm: "「{name}」を削除しますか？クエリの本文も消えます。"
   deleted: "クエリを削除しました"
+  newQueryName: "新しいクエリ {n}"
+  newQueryKeyword: "キーワード"
 
 _deckServerInfoColumn:
   noDescription: "(説明なし)"
@@ -1698,6 +1722,8 @@ _deckSkillColumn:
   modeAlways: "常時"
   modeManual: "手動"
   modeTrigger: "自動"
+  newSkillName: "新規スキル"
+  newSkillBody: "指示文をここに記述します。"
 
 _deckTaskRunnerColumn:
   clearHistory: "履歴をクリア"
@@ -2843,6 +2869,7 @@ _accounts:
 _deckProfile:
   consoleWidgetsRemoved_plural:
     other: "旧 AiScript Console widget を {count} 件削除しました。コードは失われています (スクラッチパッドカラムで同等の機能が使えます)。"
+  defaultName: "プロファイル {n}"
 
 _misstore:
   updateConfirm: "「{name}」をストアの内容で更新します。\nストア更新日: {date} / v{version}"
@@ -2945,4 +2972,180 @@ _native:
       title: "registry の値を削除"
       message: "Misskey サーバー側の registry の `{path}` を削除します。**Misskey 公式 Web Client と共有される設定エリア**なので、公式 UI でも該当する設定が初期化されます。"
       ok: "削除"
+    skills:
+      create:
+        title: "スキルを作成"
+        messageAlways: "AI が生成したスキル「{name}」を新規保存します。mode=always: 保存後は常に system prompt に注入されます。"
+        messageHeartbeat: "AI が生成したスキル「{name}」を新規保存します。mode=heartbeat: HEARTBEAT 有効中、tick ごとに自動実行されます。"
+        messageTrigger: "AI が生成したスキル「{name}」を新規保存します (mode=trigger: {triggers} で自動ロード)。"
+        messageManual: "AI が生成したスキル「{name}」を新規保存します (mode=manual: 有効化するまで使われません)。"
+        ok: "作成"
+      append:
+        title: "スキル本文に追記"
+        message_plural:
+          other: "{name} の本文に {count} 文字を追記します。frontmatter は触れません。"
+        ok: "追記"
+      replaceSection:
+        title: "スキルのセクションを置換"
+        message_plural:
+          other: "{name} の `## {heading}` セクションを {count} 文字に置換します。該当する heading が無ければ末尾に新規追加します (idempotent)。"
+        ok: "置換"
+      revert:
+        title: "スキルを過去の状態に戻す"
+        message: "{name} を編集履歴 #{index} ({at}) の本文に戻します。現在の body は上書きされます。"
+        ok: "この状態に戻す"
+      install:
+        titleNew: "MisStore からスキルを入れる"
+        titleUpdate: "MisStore からスキルを更新"
+        message: "{name} (v{version} / by {author}) を MisStore から取得します (mode={mode})。"
+        messageAlways: "{name} (v{version} / by {author}) を MisStore から取得します (mode=always: 常に system prompt に注入されます)。"
+        messageUpdate: "{name} (v{version} / by {author}) を MisStore から取得します (mode={mode})。既存の「{current}」を更新します。"
+        messageUpdateAlways: "{name} (v{version} / by {author}) を MisStore から取得します (mode=always: 常に system prompt に注入されます)。既存の「{current}」を更新します。"
+        okNew: "インストール"
+        okUpdate: "更新"
+      uninstall:
+        title: "スキルを削除"
+        message: "{name} (v{version} / {mode} mode) を完全に削除します。frontmatter・本文・編集履歴ファイルは残りません。この操作は取り消せません。"
+        ok: "削除"
+    themes:
+      create:
+        title: "テーマをインストール"
+        messageLight: "AI が生成したライトテーマをインストールします。"
+        messageDark: "AI が生成したダークテーマをインストールします。"
+        description_plural:
+          other: "{count} 個の CSS 変数を含む {base} テーマ"
+        ok: "インストール"
+      update:
+        title: "テーマを更新"
+        messageProps_plural:
+          other: "{name} の {count} 個の CSS 変数を更新します。"
+        messageMeta: "{name} のメタ情報を更新します。"
+        description: "{base} テーマ"
+        ok: "更新"
+      revert:
+        title: "テーマを過去の状態に戻す"
+        message: "{name} を編集履歴 #{index} ({at}) の状態に戻します。"
+        ok: "この状態に戻す"
+      install:
+        titleNew: "MisStore からテーマを入れる"
+        titleUpdate: "MisStore からテーマを更新"
+        message: "{name} ({base} / by {author}) を MisStore から取得してインストールします。"
+        okNew: "インストール"
+        okUpdate: "更新"
+      uninstall:
+        title: "テーマを削除"
+        message: "{name} ({base}) を完全に削除します。元に戻すには再インストールが必要です。"
+        ok: "削除"
+      summary_plural:
+        other: "{base} テーマ / {count} 変数"
+    plugins:
+      setActive:
+        title: "プラグインを有効化"
+        message: "{name} を有効化します。handler が起動し、以下の permissions の操作が走り得ます。"
+        ok: "有効化"
+      delete:
+        title: "プラグインを削除"
+        message: "{name} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。"
+        ok: "削除"
+      revert:
+        title: "プラグインを過去の状態に戻す"
+        message: "{name} を編集履歴 #{index} ({at}) の状態に戻します。現在の AiScript ソースは上書きされます。"
+        ok: "この状態に戻す"
+      install:
+        titleNew: "MisStore からプラグインを入れる"
+        titleUpdate: "MisStore からプラグインを更新"
+        message: "{name} (v{version} / by {author}) を MisStore から取得します。インストール直後に自動で active=true で起動されます。"
+        upToDate: "{name} は既にインストール済みで内容も最新です。全体スコープへの参照だけ追加します。"
+        okNew: "インストール"
+        okUpdate: "更新"
+    widgets:
+      delete:
+        title: "ウィジェットを削除"
+        message: "{name} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。"
+        messageMany_plural:
+          other: "{name} ほか {count} 件を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。"
+        ok: "削除"
+      revert:
+        title: "ウィジェットを過去の状態に戻す"
+        message: "{name} を編集履歴 #{index} ({at}) の状態に戻します。現在の AiScript ソースは上書きされます。"
+        ok: "この状態に戻す"
+      install:
+        title: "MisStore からウィジェットを入れる"
+        titleUpdate: "ウィジェットを更新"
+        messageAutoRun: "{name} (v{version} / by {author}) を MisStore から取得します。カラム表示時に自動実行されます。"
+        messageManual: "{name} (v{version} / by {author}) を MisStore から取得します。自動実行は無効です (手動で起動)。"
+        upToDate: "{name} は既にインストール済みで内容も最新です。"
+        ok: "インストール"
+        okUpdate: "更新"
+    misstore:
+      updateConfirm: "「{name}」をストアの内容で更新します。\nストア更新日: {date} / v{version}"
+      updateConfirmWithPermissions: "「{name}」をストアの内容で更新します。\nストア更新日: {date} / v{version}\n新しい権限: {permissions}"
+    styles:
+      write:
+        title: "カスタム CSS を全置換"
+        message_plural:
+          other: "custom.css の内容を {count} 文字に全置換します。現在の CSS は履歴に保存され、styles.revert で戻せます。"
+        ok: "上書き"
+      append:
+        title: "カスタム CSS に追記"
+        message_plural:
+          other: "custom.css の末尾に {count} 文字を追記します。既存ルールは保持されます。"
+        ok: "追記"
+      revert:
+        title: "カスタム CSS を過去の状態に戻す"
+        message: "custom.css を編集履歴 #{index} ({at}) の状態に戻します。現在の CSS は上書きされます (戻す操作自体も履歴に残ります)。"
+        ok: "この状態に戻す"
+    memos:
+      revert:
+        title: "メモを過去の状態に戻す"
+        message: "メモ {key} を編集履歴 #{index} ({at}) の状態に戻します。現在の本文は上書きされます。"
+        ok: "この状態に戻す"
+    queries:
+      revert:
+        title: "クエリを過去の状態に戻す"
+        message: "{name} を編集履歴 #{index} ({at}) の状態に戻します。現在のソースは上書きされます。"
+        ok: "この状態に戻す"
     cancel: "キャンセル"
+  heartbeat:
+    stoppedDailyLimit: "HEARTBEAT を停止しました (本日の AI 起動が上限の {limit} 回に達しました)"
+    overDailyLimit: "HEARTBEAT: 本日の AI 起動が上限の {limit} 回を超えました (継続中)"
+    failed: "HEARTBEAT に失敗しました: {error}"
+    stoppedFailures: "HEARTBEAT を停止しました ({count} 回連続で失敗しました)"
+    sessionTitle: "{time} の HEARTBEAT"
+    intentProposed: "「{label}」の実行を提案しました"
+    draftNeedsAccount: "accountId が無いので下書きにできません"
+    failedMessage: "⚠ HEARTBEAT に失敗しました (source={source}): {error}"
+  ai:
+    httpUnauthorized: "API キーが無効です (HTTP {status}){detail}"
+    httpForbidden: "API キーの権限または課金状態に問題があります (HTTP {status}){detail} — プロバイダーのコンソールで残高と API キーの権限を確認してください"
+    rateLimited: "レート制限に達しました。少し待ってから再試行してください"
+    serverError: "サーバーエラー (HTTP {status}){detail}"
+    connectionNotFound: "AI 接続が見つかりません"
+    notAiProvider: "選択された接続は AI プロバイダーではありません"
+    apiKeyMissing: "接続「{name}」の API キーが設定されていません"
+    requestTooLarge: "リクエストが大きすぎます ({size} KB / 上限 {max} KB)。長文は分割するか、不要な履歴を削除してください。"
+    budgetExceeded: "token 予算 (本日 {budget} tokens) を超えます: 使用済み {spent} + 見込み {estimate}"
+    resumeFailed: "ターンを再開できません: {error}"
+    errorContent: "⚠️ {error}"
+    errorContentAfter: "{partial}\n\n⚠️ {error}"
+    roundLimit: "{partial}\n\n⚠️ tool 呼び出しが上限 ({max} 回) に達しました。"
+  backup:
+    skippedSame: "スキップ (既存と内容が同じ): {items}"
+    restoredRenamed: "別名で復元 (既存と衝突): {items} → {renamed}"
+    skippedBadFilename: "スキップ (不正なファイル名): {key}"
+    skippedBadKey: "スキップ (不正なキー): {key}"
+
+_useAiConfig:
+  customProviderName: "Custom (OpenAI 互換)"
+
+_aiSessionTitle:
+  chatSuffix: "のチャット"
+
+_defaultSnippets:
+  headerTitle: "AiScript スニペット — VSCode の *.code-snippets と同じスキーマ"
+  headerSchema: "prefix: 補完のトリガー文字列  body: 展開後のコード  description: 説明 (任意)"
+  headerTabStops: "{placeholder} でタブストップ、{end} で終了位置。"
+  dialog: "ダイアログを表示"
+  forLoop: "for ループ"
+  eachLoop: "配列を each で走査"
+  apiCall: "Misskey API 呼び出し"

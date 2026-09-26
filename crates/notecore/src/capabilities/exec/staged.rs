@@ -79,7 +79,7 @@ pub fn take_or(
     let staged = table().lock().expect("staged lock").remove(key);
     match staged {
         Some(e) if e.baseline != current => Err(NoteDeckError::InvalidInput(format!(
-            "{capability}: 確認後に対象が変更されたため書き込みを中止しました (最新の内容を読み直してからやり直すこと)"
+            "{capability}: aborted the write because the target changed after confirmation (re-read the latest content and try again)"
         ))),
         Some(e) => Ok(e.next),
         None => Ok(fallback()),
@@ -114,6 +114,6 @@ mod tests {
         );
         stage(k.clone(), "old", "n".into());
         let err = take_or("skills.append", &k, "changed", || "f".into()).unwrap_err();
-        assert!(err.to_string().contains("確認後に対象が変更された"));
+        assert!(err.to_string().contains("changed after confirmation"));
     }
 }

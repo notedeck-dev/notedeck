@@ -147,7 +147,7 @@ pub async fn notes_react(core: &Core, params: &Value, ctx: &ExecContext) -> Resu
         };
         if !reaction_joinable(&reaction, &host, remote_ok) {
             return Err(NoteDeckError::InvalidInput(format!(
-                "notes.react: {host} はリモートの絵文字でリアクションできません"
+                "notes.react: {host} does not accept reactions with remote emojis"
             )));
         }
     }
@@ -330,7 +330,7 @@ pub async fn registry_set(core: &Core, params: &Value, ctx: &ExecContext) -> Res
     let key = require_str(params, "key", "registry.set")?.to_string();
     let value = params.get("value").cloned().ok_or_else(|| {
         NoteDeckError::InvalidInput(
-            "registry.set: value is required (null も可、未指定不可)".into(),
+            "registry.set: value is required (null is allowed, omitting it is not)".into(),
         )
     })?;
     let account_id = resolve_account_id(params, ctx)?;

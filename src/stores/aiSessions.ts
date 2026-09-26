@@ -97,6 +97,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
       messageCount: s.messages.length,
       lastMessagePreview: buildLastMessagePreview(s.messages),
       personaSkillId: s.personaSkillId,
+      i18n: s.i18n,
     }))
     arr.sort((a, b) => b.updatedAt - a.updatedAt)
     return arr
@@ -231,7 +232,9 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
   function setTitle(id: string, title: string): void {
     const cur = sessions.value.get(id)
     if (!cur || cur.title === title) return
-    commit({ ...cur, title, updatedAt: Date.now() })
+    // 利用者が付けた名前なので、定型タイトルの手がかりは捨てる (notecore と同じ, #135)
+    const { i18n: _templateTitle, ...rest } = cur
+    commit({ ...rest, title, updatedAt: Date.now() })
     send('rename', () => commands.aiSessionRename(id, title))
   }
 

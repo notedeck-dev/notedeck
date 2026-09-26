@@ -5,10 +5,12 @@ use indexmap::IndexMap;
 use serde_json::{json, Value};
 
 use super::misstore::{ensure_approved_hash, fetch_verified_source, registry_entry};
+use super::preview::confirm;
 use super::{staged, ExecContext};
 use crate::context::Core;
 use crate::edit_history::Attribution;
 use crate::error::Result;
+use crate::i18n::{localize_fields, text, Text};
 use crate::themes::{self, Theme, ThemePatch};
 use notecli::error::NoteDeckError;
 
@@ -231,9 +233,7 @@ pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value>
     };
     let (source, hash) = fetch_verified_source(core, &entry).await?;
     let Some((parsed, _)) = themes::parse_theme_code(&source) else {
-        return Err(invalid(
-            "theme.install: テーマのインストールに失敗しました".into(),
-        ));
+        return Err(invalid("theme.install: failed to install the theme".into()));
     };
     let existing = themes::list(core)?
         .into_iter()
@@ -262,8 +262,18 @@ pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value>
 
 // --- 確認内容 ---
 
-fn install_preview(name: &str, version: &str, description: &str) -> Value {
-    json!({ "kind": "theme", "name": name, "version": version, "description": description })
+/// `description` は表示言語で描き直す欄 (入れ子の `i18n` 欄に手がかりを置く)
+fn install_preview(name: &str, version: &str, description: Text) -> Value {
+    let mut v = json!({ "kind": "theme", "name": name, "version": version });
+    localize_fields(&mut v, vec![("description", description)]);
+    v
+}
+
+fn summary(base: &str, props: usize) -> Text {
+    text(
+        "_native.preview.themes.summary_plural",
+        json!({ "base": base, "count": props }),
+    )
 }
 
 pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Option<Value>> {
@@ -282,21 +292,36 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 pv["version"] = json!(explicit);
             }
             if let Some(pr) = props {
-                pv["description"] = json!(format!(
-                    "{} 個の CSS 変数を含む {base} テーマ",
-                    pr.as_object().map(|o| o.len()).unwrap_or(0)
-                ));
+                localize_fields(
+                    &mut pv,
+                    vec![(
+                        "description",
+                        text(
+                            "_native.preview.themes.create.description_plural",
+                            json!({
+                                "base": base,
+                                "count": pr.as_object().map(|o| o.len()).unwrap_or(0),
+                            }),
+                        ),
+                    )],
+                );
             }
-            Some(json!({
-                "title": "テーマをインストール",
-                "message": format!("AI が生成した{}テーマをインストールします。", if base == "light" { "ライト" } else { "ダーク" }),
-                "installPreview": pv,
-                "code": props.map(|v| serde_json::to_string_pretty(v).unwrap_or_default()).unwrap_or_default(),
-                "codeLanguage": "json",
-                "okLabel": "インストール",
-                "cancelLabel": "やめる",
-                "type": "normal",
-            }))
+            let message = if base == "light" {
+                "_native.preview.themes.create.messageLight"
+            } else {
+                "_native.preview.themes.create.messageDark"
+            };
+            Some(confirm(
+                "normal",
+                text("_native.preview.themes.create.title", json!({})),
+                Some(text(message, json!({}))),
+                text("_native.preview.themes.create.ok", json!({})),
+                json!({
+                    "installPreview": pv,
+                    "code": props.map(|v| serde_json::to_string_pretty(v).unwrap_or_default()).unwrap_or_default(),
+                    "codeLanguage": "json",
+                }),
+            ))
         }
         "theme.update" => {
             let Some(cur) = themes::get(core, s(p, "id"))? else {
@@ -313,22 +338,32 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 themes::serialize_theme_display(&themes::merge_theme_update(&cur, &patch)),
             );
             let message = match &patch.props {
-                Some(pr) => format!("{} の {} 個の CSS 変数を更新します。", cur.name, pr.len()),
-                None => format!("{} のメタ情報を更新します。", cur.name),
-            };
-            Some(json!({
-                "title": "テーマを更新",
-                "message": message,
-                "installPreview": install_preview(
-                    patch.name.as_deref().unwrap_or(&cur.name),
-                    &cur.id,
-                    &format!("{} テーマ", patch.base.as_deref().unwrap_or(&cur.base)),
+                Some(pr) => text(
+                    "_native.preview.themes.update.messageProps_plural",
+                    json!({ "name": cur.name, "count": pr.len() }),
                 ),
-                "diff": { "old": baseline, "new": next, "language": "json5" },
-                "okLabel": "更新",
-                "cancelLabel": "やめる",
-                "type": "warning",
-            }))
+                None => text(
+                    "_native.preview.themes.update.messageMeta",
+                    json!({ "name": cur.name }),
+                ),
+            };
+            Some(confirm(
+                "warning",
+                text("_native.preview.themes.update.title", json!({})),
+                Some(message),
+                text("_native.preview.themes.update.ok", json!({})),
+                json!({
+                    "installPreview": install_preview(
+                        patch.name.as_deref().unwrap_or(&cur.name),
+                        &cur.id,
+                        text(
+                            "_native.preview.themes.update.description",
+                            json!({ "base": patch.base.as_deref().unwrap_or(&cur.base) }),
+                        ),
+                    ),
+                    "diff": { "old": baseline, "new": next, "language": "json5" },
+                }),
+            ))
         }
         "theme.revert" => {
             let tid = s(p, "id");
@@ -354,19 +389,23 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 &baseline,
                 themes::serialize_theme_display(&snap),
             );
-            Some(json!({
-                "title": "テーマを過去の状態に戻す",
-                "message": format!(
-                    "{} を編集履歴 #{index} ({}) の状態に戻します。",
-                    snap.name,
-                    super::time::iso_from_unix_ms(entry.at as i64)
-                ),
-                "installPreview": install_preview(&snap.name, &snap.id, &format!("{} テーマ / {} 変数", snap.base, snap.props.len())),
-                "diff": { "old": baseline, "new": next, "language": "json5" },
-                "okLabel": "この状態に戻す",
-                "cancelLabel": "やめる",
-                "type": "warning",
-            }))
+            Some(confirm(
+                "warning",
+                text("_native.preview.themes.revert.title", json!({})),
+                Some(text(
+                    "_native.preview.themes.revert.message",
+                    json!({
+                        "name": snap.name,
+                        "index": index,
+                        "at": super::time::iso_from_unix_ms(entry.at as i64),
+                    }),
+                )),
+                text("_native.preview.themes.revert.ok", json!({})),
+                json!({
+                    "installPreview": install_preview(&snap.name, &snap.id, summary(&snap.base, snap.props.len())),
+                    "diff": { "old": baseline, "new": next, "language": "json5" },
+                }),
+            ))
         }
         "theme.install" => {
             let tid = s(p, "id");
@@ -379,25 +418,41 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             let existing = themes::list(core)?
                 .into_iter()
                 .find(|t| t.store_id() == Some(tid));
-            let mut out = json!({
-                "title": if existing.is_some() { "MisStore からテーマを更新" } else { "MisStore からテーマを入れる" },
-                "message": format!(
-                    "{} ({} / by {}) を MisStore から取得してインストールします。",
-                    s(&entry, "name"), s(&entry, "base"), s(&entry, "author")
-                ),
-                "installPreview": {
-                    "kind": "theme",
-                    "name": s(&entry, "name"),
-                    "version": s(&entry, "version"),
-                    "author": s(&entry, "author"),
-                    "description": s(&entry, "description"),
-                },
-                "code": serde_json::to_string_pretty(entry.get("themeProps").unwrap_or(&json!({}))).unwrap_or_default(),
-                "codeLanguage": "json",
-                "okLabel": if existing.is_some() { "更新" } else { "インストール" },
-                "cancelLabel": "やめる",
-                "type": "normal",
-            });
+            let (title, ok) = if existing.is_some() {
+                (
+                    "_native.preview.themes.install.titleUpdate",
+                    "_native.preview.themes.install.okUpdate",
+                )
+            } else {
+                (
+                    "_native.preview.themes.install.titleNew",
+                    "_native.preview.themes.install.okNew",
+                )
+            };
+            let mut out = confirm(
+                "normal",
+                text(title, json!({})),
+                Some(text(
+                    "_native.preview.themes.install.message",
+                    json!({
+                        "name": s(&entry, "name"),
+                        "base": s(&entry, "base"),
+                        "author": s(&entry, "author"),
+                    }),
+                )),
+                text(ok, json!({})),
+                json!({
+                    "installPreview": {
+                        "kind": "theme",
+                        "name": s(&entry, "name"),
+                        "version": s(&entry, "version"),
+                        "author": s(&entry, "author"),
+                        "description": s(&entry, "description"),
+                    },
+                    "code": serde_json::to_string_pretty(entry.get("themeProps").unwrap_or(&json!({}))).unwrap_or_default(),
+                    "codeLanguage": "json",
+                }),
+            );
             if let Some(cur) = existing {
                 // 既存の更新: 本文の diff を 1 枚目に載せる (移設前は 2 枚目の確認)
                 if let Ok((source, hash)) = fetch_verified_source(core, &entry).await {
@@ -422,16 +477,20 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             let Some(cur) = themes::get(core, s(p, "id"))? else {
                 return Ok(None);
             };
-            Some(json!({
-                "title": "テーマを削除",
-                "message": format!("{} ({}) を完全に削除します。元に戻すには再インストールが必要です。", cur.name, cur.base),
-                "installPreview": install_preview(&cur.name, &cur.id, &format!("{} テーマ / {} 変数", cur.base, cur.props.len())),
-                "code": serde_json::to_string_pretty(&cur.props).unwrap_or_default(),
-                "codeLanguage": "json",
-                "okLabel": "削除",
-                "cancelLabel": "やめる",
-                "type": "danger",
-            }))
+            Some(confirm(
+                "danger",
+                text("_native.preview.themes.uninstall.title", json!({})),
+                Some(text(
+                    "_native.preview.themes.uninstall.message",
+                    json!({ "name": cur.name, "base": cur.base }),
+                )),
+                text("_native.preview.themes.uninstall.ok", json!({})),
+                json!({
+                    "installPreview": install_preview(&cur.name, &cur.id, summary(&cur.base, cur.props.len())),
+                    "code": serde_json::to_string_pretty(&cur.props).unwrap_or_default(),
+                    "codeLanguage": "json",
+                }),
+            ))
         }
         _ => None,
     })
@@ -494,7 +553,18 @@ mod tests {
             .as_str()
             .unwrap()
             .contains("\"panel\": \"#111\""));
-        assert!(pv["message"].as_str().unwrap().contains("2 個の CSS 変数"));
+        assert_eq!(pv["message"], "Updates 2 CSS variables of Neo.");
+        let hint = &pv["i18n"]["message"];
+        assert_eq!(
+            crate::i18n::render("ja-JP", hint["key"].as_str().unwrap(), &hint["params"]),
+            "Neo の 2 個の CSS 変数を更新します。"
+        );
+        let desc = &pv["installPreview"]["i18n"]["description"];
+        assert_eq!(pv["installPreview"]["description"], "dark theme");
+        assert_eq!(
+            crate::i18n::render("ja-JP", desc["key"].as_str().unwrap(), &desc["params"]),
+            "dark テーマ"
+        );
         assert_eq!(update(&core, &p, &ctx).unwrap()["updated"], true);
         let t = themes::get(&core, "neo").unwrap().unwrap();
         assert_eq!(t.props.keys().collect::<Vec<_>>(), vec!["accent", "panel"]);

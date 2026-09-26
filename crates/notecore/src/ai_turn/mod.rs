@@ -150,6 +150,12 @@ pub struct AiTurnEvent {
     pub text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    /// `error` を表示言語で描き直す手がかり (#135)。定型のエラーにだけ付く
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_i18n: Option<Value>,
+    /// `text` (done の本文) が定型の知らせを含むときの手がかり (#135)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text_i18n: Option<Value>,
     /// error: `"before_tool"` (tool 未実行 = 再送で安全) | `"after_tool"`
     /// (実行済み = 継続モードで再試行する)
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -194,6 +200,8 @@ impl AiTurnEvent {
             kind: kind.to_string(),
             text: None,
             error: None,
+            error_i18n: None,
+            text_i18n: None,
             phase: None,
             stop_reason: None,
             tool_use_id: None,
@@ -271,7 +279,7 @@ pub trait ProviderRound: Send + Sync + 'static {
         &'a self,
         req: &'a AiChatRequest,
         sink: &'a dyn AiChatSink,
-    ) -> BoxFuture<'a, std::result::Result<(), String>>;
+    ) -> BoxFuture<'a, std::result::Result<(), ai_chat_service::RoundError>>;
 }
 
 /// Vault 接続で provider を叩く本番実装。
@@ -285,9 +293,30 @@ impl ProviderRound for VaultProvider {
         &'a self,
         req: &'a AiChatRequest,
         sink: &'a dyn AiChatSink,
-    ) -> BoxFuture<'a, std::result::Result<(), String>> {
+    ) -> BoxFuture<'a, std::result::Result<(), ai_chat_service::RoundError>> {
         Box::pin(ai_chat_service::run_round(req, &self.0, sink))
     }
+}
+
+/// 失敗したラウンドの本文 (途中までの応答 + ⚠️ エラー)。エラーに手がかりがあれば、
+/// 本文も表示言語で描き直せるように手がかりを付ける (#135)
+fn error_message(id: String, partial: &str, err: &ai_chat_service::RoundError) -> SessionMessage {
+    let t = if partial.is_empty() {
+        crate::i18n::text(
+            "_native.ai.errorContent",
+            json!({ "error": err.as_param() }),
+        )
+    } else {
+        crate::i18n::text(
+            "_native.ai.errorContentAfter",
+            json!({ "partial": partial, "error": err.as_param() }),
+        )
+    };
+    let mut msg = session_message(id, "assistant", t.text);
+    if err.i18n.is_some() {
+        msg.i18n = Some(json!({ "content": t.i18n }));
+    }
+    msg
 }
 
 /// `exec: core` な capability を notecore で実行する口。ローカル構成では
@@ -611,7 +640,7 @@ fn authorize<'a>(
 ) -> std::result::Result<&'a ResolvedTool, String> {
     let Some(tool) = index.get(name) else {
         return Err(format!(
-            "Error (unknown_capability): 未知の capability: {name}"
+            "Error (unknown_capability): unknown capability: {name}"
         ));
     };
     let missing: Vec<&str> = tool
@@ -622,7 +651,7 @@ fn authorize<'a>(
         .collect();
     if !missing.is_empty() {
         return Err(format!(
-            "Error (permission_denied): 権限がありません: {}",
+            "Error (permission_denied): missing permissions: {}",
             missing.join(", ")
         ));
     }
@@ -654,7 +683,7 @@ fn result_text(outcome: std::result::Result<Value, String>) -> (String, bool) {
                     "Error (execute_failed): {}",
                     v.get("error")
                         .and_then(Value::as_str)
-                        .unwrap_or("デバイスが不正な応答を返しました")
+                        .unwrap_or("the device returned an invalid response")
                 ),
                 true,
             ),
@@ -850,6 +879,9 @@ pub struct TurnState {
     pub messages: Vec<AiChatMessage>,
     pub rounds: u32,
     pub final_text: String,
+    /// `final_text` が定型の知らせを含むとき、表示言語で描き直す手がかり (#135)
+    #[serde(default)]
+    pub final_i18n: Option<Value>,
     pub tool_executed: bool,
     /// 現ラウンドの assistant 本文 (先頭の tool_use に付く)
     pub round_text: String,
@@ -872,6 +904,7 @@ impl TurnState {
             req,
             rounds: 0,
             final_text: String::new(),
+            final_i18n: None,
             round_text: String::new(),
             pending: Vec::new(),
             next_index: 0,
@@ -1216,9 +1249,9 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             let id = tu.capability_id.clone().unwrap_or_default();
             (
                 match state.reject_reason.as_deref() {
-                    Some(reason) => format!(
-                        "Error (confirm_{reason}): 確認が得られませんでした ({reason}): {id}"
-                    ),
+                    Some(reason) => {
+                        format!("Error (confirm_{reason}): not confirmed ({reason}): {id}")
+                    }
                     None => format!("Error (user_cancelled): User cancelled execution of {id}"),
                 },
                 true,
@@ -1388,18 +1421,18 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                     crate::ai_budget::estimate_tokens(request_chars),
                     ai_sessions::now_ms(),
                 ) {
-                    let message = format!("Error (budget_exceeded): {exceeded}");
+                    let err = ai_chat_service::RoundError {
+                        message: format!("Error (budget_exceeded): {exceeded}"),
+                        i18n: Some(exceeded.text().i18n),
+                    };
                     persist(
                         &rt,
                         state.req.session_id.as_deref(),
-                        vec![session_message(
-                            message_id.clone(),
-                            "assistant",
-                            format!("⚠️ {message}"),
-                        )],
+                        vec![error_message(message_id.clone(), "", &err)],
                     );
                     let mut e = AiTurnEvent::new(&turn_id, "error");
-                    e.error = Some(message);
+                    e.error = Some(err.message);
+                    e.error_i18n = err.i18n;
                     e.phase = Some(
                         if state.tool_executed {
                             "after_tool"
@@ -1437,21 +1470,17 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                     ai_sessions::now_ms(),
                 );
             }
-            if let Err(message) = run_result {
+            if let Err(err) = run_result {
                 // mid-stream の切断: 途中までの応答は温存して ⚠️ を添える
                 let partial = round_sink.take().0;
-                let content = if partial.is_empty() {
-                    format!("⚠️ {message}")
-                } else {
-                    format!("{partial}\n\n⚠️ {message}")
-                };
                 persist(
                     &rt,
                     state.req.session_id.as_deref(),
-                    vec![session_message(message_id.clone(), "assistant", content)],
+                    vec![error_message(message_id.clone(), &partial, &err)],
                 );
                 let mut e = AiTurnEvent::new(&turn_id, "error");
-                e.error = Some(message);
+                e.error = Some(err.message);
+                e.error_i18n = err.i18n;
                 e.phase = Some(
                     if state.tool_executed {
                         "after_tool"
@@ -1473,14 +1502,17 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                 break "end";
             }
             if state.rounds >= max_rounds {
-                state.final_text = format!(
-                    "{}\n\n⚠️ tool 呼び出しが上限 ({max_rounds} 回) に達しました。",
-                    if text.is_empty() {
-                        &state.final_text
-                    } else {
-                        &text
-                    }
+                let partial = if text.is_empty() {
+                    state.final_text.clone()
+                } else {
+                    text.clone()
+                };
+                let t = crate::i18n::text(
+                    "_native.ai.roundLimit",
+                    json!({ "partial": partial, "max": max_rounds }),
                 );
+                state.final_text = t.text;
+                state.final_i18n = Some(t.i18n);
                 break "tool_round_limit";
             }
             state.rounds += 1;
@@ -1519,18 +1551,13 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
 
     let final_id = assistant_message_id(&turn_id, state.rounds);
     if !state.final_text.is_empty() {
-        persist(
-            &rt,
-            state.req.session_id.as_deref(),
-            vec![session_message(
-                final_id.clone(),
-                "assistant",
-                state.final_text.clone(),
-            )],
-        );
+        let mut msg = session_message(final_id.clone(), "assistant", state.final_text.clone());
+        msg.i18n = state.final_i18n.as_ref().map(|h| json!({ "content": h }));
+        persist(&rt, state.req.session_id.as_deref(), vec![msg]);
     }
     let mut e = AiTurnEvent::new(&turn_id, "done");
     e.text = Some(state.final_text.clone());
+    e.text_i18n = state.final_i18n.clone();
     e.stop_reason = Some(stop_reason.into());
     e.usage = Some(state.usage);
     e.message_id = Some(final_id);
@@ -1634,7 +1661,7 @@ pub async fn start_turn_with_sink(
         Some(p @ (PrincipalId::AiChat | PrincipalId::AiHeartbeat)) => p,
         _ => {
             return Err(NoteDeckError::InvalidInput(format!(
-                "AI ループの principal ではありません: {}",
+                "not an AI loop principal: {}",
                 req.principal
             )))
         }
@@ -1762,6 +1789,7 @@ mod tests {
             kind: "delta".into(),
             text: Some(text.into()),
             error: None,
+            error_i18n: None,
             tool_use_id: None,
             tool_use_name: None,
             tool_use_input: None,
@@ -1775,6 +1803,7 @@ mod tests {
             kind: "tool_use".into(),
             text: None,
             error: None,
+            error_i18n: None,
             tool_use_id: Some(id.into()),
             tool_use_name: Some(name.into()),
             tool_use_input: Some(input),
@@ -1790,7 +1819,7 @@ mod tests {
             &'a self,
             req: &'a AiChatRequest,
             sink: &'a dyn AiChatSink,
-        ) -> BoxFuture<'a, std::result::Result<(), String>> {
+        ) -> BoxFuture<'a, std::result::Result<(), ai_chat_service::RoundError>> {
             Box::pin(async move {
                 let n = {
                     let mut reqs = self.requests.lock().unwrap();
@@ -1798,12 +1827,12 @@ mod tests {
                     reqs.len() - 1
                 };
                 if self.fail_at == Some(n) {
-                    return Err("接続が切断されました".into());
+                    return Err("connection dropped".to_string().into());
                 }
                 let events = {
                     let mut rounds = self.rounds.lock().unwrap();
                     if rounds.is_empty() {
-                        return Err("script exhausted".into());
+                        return Err("script exhausted".to_string().into());
                     }
                     rounds.remove(0)
                 };
@@ -2171,7 +2200,8 @@ mod tests {
         assert_eq!(device.executes().len(), 1);
         let done = h.sink.last();
         assert_eq!(done.stop_reason.as_deref(), Some("tool_round_limit"));
-        assert!(done.text.unwrap().contains("上限 (1 回)"));
+        assert!(done.text.unwrap().contains("limit of 1 tool calls"));
+        assert_eq!(done.text_i18n.unwrap()["key"], "_native.ai.roundLimit");
     }
 
     #[tokio::test]

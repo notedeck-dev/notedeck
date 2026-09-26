@@ -78,7 +78,7 @@ pub fn resolve_account_id(params: &Value, ctx: &ExecContext) -> Result<String> {
         .filter(|s| !s.is_empty())
         .ok_or_else(|| {
             NoteDeckError::InvalidInput(
-                "accountId が必要です (呼び出し文脈にアカウントが無いので、account.list から選んで渡してください)".into(),
+                "accountId is required (the calling context has no account; pick one from account.list and pass it)".into(),
             )
         })
 }
@@ -123,7 +123,7 @@ pub async fn preview(
 ) -> Result<Option<Value>> {
     if !is_core(id) {
         return Err(NoteDeckError::InvalidInput(format!(
-            "{id} は notecore では実行できません (exec が core ではない)"
+            "{id} cannot run in notecore (its exec is not core)"
         )));
     }
     let _ = (core, ctx);
@@ -188,7 +188,7 @@ pub async fn execute(
 async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) -> Result<Value> {
     if !is_core(id) {
         return Err(NoteDeckError::InvalidInput(format!(
-            "{id} は notecore では実行できません (exec が core ではない)"
+            "{id} cannot run in notecore (its exec is not core)"
         )));
     }
     let p = &params;
@@ -307,7 +307,7 @@ async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) 
         "http.fetch" => net::http_fetch(core, p).await,
         "misstore.search" => net::misstore_search(core, p).await,
         other => Err(NoteDeckError::Internal(format!(
-            "exec: core と宣言されているが本体が無い: {other}"
+            "declared as exec: core but has no implementation: {other}"
         ))),
     }
 }
@@ -440,12 +440,15 @@ mod tests {
             }
             assert!(
                 HAS_BODY.contains(&d.id),
-                "{}: exec: core だが本体の一覧に無い",
+                "{}: exec is core but it is missing from the implementation list",
                 d.id
             );
         }
         for id in HAS_BODY {
-            assert!(is_core(id), "{id}: 本体はあるが宣言が core ではない");
+            assert!(
+                is_core(id),
+                "{id}: has an implementation but is not declared as core"
+            );
         }
     }
 

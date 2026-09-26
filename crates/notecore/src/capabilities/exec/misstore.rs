@@ -2,12 +2,13 @@
 //! デバイス側 `src/stores/misstore.ts` の `fetchVerifiedSource` と同じ規則
 //! (改行を LF に揃えて hash、不一致は 1 回だけ取り直す)。
 
-use serde_json::Value;
+use serde_json::{json, Value};
 use sha2::{Digest, Sha512};
 
 use crate::commands::http::{self, HttpFetchRequest};
 use crate::context::Core;
 use crate::error::Result;
+use crate::i18n::{text, Text};
 use crate::settings_slug::casefold;
 use notecli::error::NoteDeckError;
 
@@ -66,7 +67,7 @@ pub async fn fetch_verified_source(core: &Core, entry: &Value) -> Result<(String
         }
     }
     Err(invalid(
-        "ハッシュ不一致: ソースが改ざんされている可能性があります".into(),
+        "hash mismatch: the source may have been tampered with".into(),
     ))
 }
 
@@ -76,7 +77,7 @@ pub async fn fetch_verified_source(core: &Core, entry: &Value) -> Result<(String
 pub fn ensure_approved_hash(capability: &str, key: &str, current: &str, hash: &str) -> Result<()> {
     let approved = super::staged::take_or(capability, key, current, || hash.to_string())?;
     if approved != hash {
-        return Err(invalid(format!("{capability}: 確認後に MisStore の配布内容が変わったため更新を中止しました (もう一度確認からやり直すこと)")));
+        return Err(invalid(format!("{capability}: aborted the update because the MisStore distribution changed after confirmation (start over from the confirmation)")));
     }
     Ok(())
 }
@@ -93,13 +94,26 @@ pub fn format_updated_at(iso: &str) -> String {
     }
 }
 
-/// `updateConfirmMessage(name, entry)`。
-pub fn update_confirm_message(name: &str, entry: &Value) -> String {
-    format!(
-        "「{name}」をストアの内容で更新します。\nストア更新日: {} / v{}",
-        format_updated_at(s(entry, "updatedAt")),
-        s(entry, "version")
-    )
+/// `updateConfirmMessage(name, entry)`。`added` は更新で新しく求める権限 (空なら行を出さない)
+pub fn update_confirm_message(name: &str, entry: &Value, added: &[&str]) -> Text {
+    let date = format_updated_at(s(entry, "updatedAt"));
+    let version = s(entry, "version");
+    if added.is_empty() {
+        text(
+            "_native.preview.misstore.updateConfirm",
+            json!({ "name": name, "date": date, "version": version }),
+        )
+    } else {
+        text(
+            "_native.preview.misstore.updateConfirmWithPermissions",
+            json!({
+                "name": name,
+                "date": date,
+                "version": version,
+                "permissions": added.join(", "),
+            }),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -123,6 +137,6 @@ mod approved_hash_tests {
         assert!(ensure_approved_hash("plugins.install", &key, "cur", "h2")
             .unwrap_err()
             .to_string()
-            .contains("配布内容が変わった"));
+            .contains("distribution changed after confirmation"));
     }
 }

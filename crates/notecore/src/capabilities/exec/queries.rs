@@ -3,10 +3,12 @@
 
 use serde_json::{json, Value};
 
+use super::preview::confirm;
 use super::{staged, ExecContext};
 use crate::context::Core;
 use crate::edit_history::{Attribution, HistoryEntry};
 use crate::error::Result;
+use crate::i18n::text;
 use crate::sidecar::queries::{self, QueryView};
 use crate::sidecar::Item;
 use notecli::error::NoteDeckError;
@@ -96,18 +98,20 @@ pub fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Op
         &cur.src,
         s(&entry.snapshot, "src").to_string(),
     );
-    Ok(Some(json!({
-        "title": "クエリを過去の状態に戻す",
-        "message": format!(
-            "{} を編集履歴 #{index} ({}) の状態に戻します。現在のソースは上書きされます。",
-            cur.name(),
-            super::time::iso_from_unix_ms(entry.at as i64)
-        ),
-        "diff": { "old": cur.src, "new": next, "language": "aiscript" },
-        "okLabel": "この状態に戻す",
-        "cancelLabel": "やめる",
-        "type": "warning",
-    })))
+    Ok(Some(confirm(
+        "warning",
+        text("_native.preview.queries.revert.title", json!({})),
+        Some(text(
+            "_native.preview.queries.revert.message",
+            json!({
+                "name": cur.name(),
+                "index": index,
+                "at": super::time::iso_from_unix_ms(entry.at as i64),
+            }),
+        )),
+        text("_native.preview.queries.revert.ok", json!({})),
+        json!({ "diff": { "old": cur.src, "new": next, "language": "aiscript" } }),
+    )))
 }
 
 #[cfg(test)]
@@ -180,6 +184,6 @@ mod tests {
         assert!(revert(&core, &json!({"id": "o", "index": 0}), &ctx)
             .unwrap_err()
             .to_string()
-            .contains("queries.revert: ソースファイルが見つからないため変更できません"));
+            .contains("queries.revert: cannot change it because its source file is missing"));
     }
 }

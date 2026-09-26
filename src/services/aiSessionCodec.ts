@@ -28,6 +28,8 @@ export interface AiSessionMeta {
   messageCount: number
   lastMessagePreview: string
   personaSkillId?: string
+  /** 定型のタイトルを表示言語で描き直す手がかり (#135)。`localizeNative` で使う */
+  i18n?: Record<string, unknown>
 }
 
 export interface AiSession extends AiSessionMeta {
@@ -59,6 +61,8 @@ export function messageFromWire(m: WireMessage): ChatMessage {
   if (m.intent && typeof m.intent === 'object') {
     out.intent = m.intent as unknown as AiIntent
   }
+  if (m.i18n && typeof m.i18n === 'object')
+    out.i18n = m.i18n as Record<string, unknown>
   return out
 }
 
@@ -74,6 +78,8 @@ export function messageToWire(m: ChatMessage): WireMessage {
     toolResultFor: m.toolResultFor ?? null,
     heartbeat: m.heartbeat ? true : null,
     intent: (m.intent ?? null) as WireMessage['intent'],
+    // 書き戻しで手がかりを落とさない (受信箱カードの状態更新など)
+    i18n: (m.i18n ?? null) as WireMessage['i18n'],
   }
 }
 
@@ -95,6 +101,8 @@ export function sessionFromWire(w: WireSession): AiSession {
     messages: w.messages.map(messageFromWire),
   }
   if (w.personaSkillId) session.personaSkillId = w.personaSkillId
+  if (w.i18n && typeof w.i18n === 'object')
+    session.i18n = w.i18n as Record<string, unknown>
   const triggered = w.triggeredSkillIds ?? []
   if (triggered.length > 0) session.triggeredSkillIds = [...triggered]
   return session

@@ -186,9 +186,11 @@ async function handleAction(
     actionStates.value = { ...actionStates.value, [req.id]: action }
   } catch (e) {
     const appErr = AppError.from(e)
+    // 相手が取り下げた等でリクエストが既に無い (accept: NO_FOLLOW_REQUEST /
+    // cancel: FOLLOW_REQUEST_NOT_FOUND)。reject はサーバーがエラーにしない
     if (
-      appErr.message.includes('NO_SUCH_FOLLOW_REQUEST') ||
-      appErr.message.includes('FOLLOW_REQUEST_NOT_FOUND')
+      appErr.apiCode === 'NO_FOLLOW_REQUEST' ||
+      appErr.apiCode === 'FOLLOW_REQUEST_NOT_FOUND'
     ) {
       actionStates.value = { ...actionStates.value, [req.id]: action }
     } else {

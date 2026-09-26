@@ -130,7 +130,7 @@ const crashChecks = computed<Check[]>(() => {
   const headline = panic.message.split('\n')[0]?.trim() ?? 'panic'
   const when =
     panic.at > 0
-      ? new Date(panic.at).toLocaleString()
+      ? new Date(panic.at).toLocaleString(i18n.lang)
       : i18n.ts._aboutContent.unknownTime
   return [
     {
@@ -556,15 +556,19 @@ const metricsAdvice = computed<{ status: Status; text: string } | null>(() => {
   return { status: 'ok', text: i18n.ts._aboutContent.adviceGood }
 })
 
-const fmtMs = (ms: number) => `${ms.toLocaleString()}ms`
+const fmtMs = (ms: number) => `${ms.toLocaleString(i18n.lang)}ms`
 
 function getStartupText(): string {
   const lines = startupRows.value.map(
     (r) =>
-      `${r.label}: ${r.cum !== null ? fmtMs(r.cum) : 'N/A (リロード後)'}${r.delta !== null ? ` (+${fmtMs(r.delta)})` : ''}`,
+      `${r.label}: ${r.cum !== null ? fmtMs(r.cum) : i18n.ts._aboutContent.notAvailableAfterReload}${r.delta !== null ? ` (+${fmtMs(r.delta)})` : ''}`,
   )
   if (startupTotalMs.value !== null)
-    lines.push(`合計: ${fmtMs(startupTotalMs.value)}`)
+    lines.push(
+      i18n.tsx._aboutContent.startupTotal({
+        time: fmtMs(startupTotalMs.value),
+      }),
+    )
   return lines.join('\n')
 }
 
@@ -614,8 +618,12 @@ function getInfoText() {
   const info = infoRows.map((r) => `${r.label}: ${r.get()}`).join('\n')
   const diag = diagnosticsLog.value
   const parts = [info]
-  if (startupRows.value.length > 0) parts.push(`# 起動\n${getStartupText()}`)
-  if (diag) parts.push(`# 診断\n\`\`\`\n${diag}\n\`\`\``)
+  if (startupRows.value.length > 0)
+    parts.push(`# ${i18n.ts._aboutContent.infoStartup}\n${getStartupText()}`)
+  if (diag)
+    parts.push(
+      `# ${i18n.ts._aboutContent.infoDiagnostics}\n\`\`\`\n${diag}\n\`\`\``,
+    )
   return parts.join('\n\n')
 }
 
@@ -630,12 +638,14 @@ async function copyInfo() {
 function reportBug() {
   const env = infoRows.map((r) => `- **${r.label}**: ${r.get()}`).join('\n')
   const diag = reportDiagnostics.value
-  const diagSection = diag ? `\n\n## 診断\n\n\`\`\`\n${diag}\n\`\`\`` : ''
+  const diagSection = diag
+    ? `\n\n## ${i18n.ts._aboutContent.infoDiagnostics}\n\n\`\`\`\n${diag}\n\`\`\``
+    : ''
   // backtrace は URL に載せない。貼るかどうかは本人に委ねる
   const panicNote = health.value?.lastPanic
-    ? '\n\n<!-- 異常終了の backtrace は「情報をコピー」で取得して貼り付けてください -->'
+    ? `\n\n<!-- ${i18n.tsx._aboutContent.issuePanicNote({ copyInfo: i18n.ts._aboutContent.copyInfo })} -->`
     : ''
-  const body = `## 現象\n\n<!-- 何が起きたか -->\n\n## 再現手順\n\n1.\n2.\n3.\n\n## 期待する動作\n\n<!-- 本来どうなるべきか -->\n\n## 環境\n\n${env}${diagSection}${panicNote}\n\n## スクリーンショット\n\n<!-- あれば添付 -->`
+  const body = `## ${i18n.ts._aboutContent.issueWhat}\n\n<!-- ${i18n.ts._aboutContent.issueWhatHint} -->\n\n## ${i18n.ts._aboutContent.issueSteps}\n\n1.\n2.\n3.\n\n## ${i18n.ts._aboutContent.issueExpected}\n\n<!-- ${i18n.ts._aboutContent.issueExpectedHint} -->\n\n## ${i18n.ts._aboutContent.issueEnvironment}\n\n${env}${diagSection}${panicNote}\n\n## ${i18n.ts._aboutContent.issueScreenshot}\n\n<!-- ${i18n.ts._aboutContent.issueScreenshotHint} -->`
   const url = `${REPO_URL}/issues/new?labels=bug&body=${encodeURIComponent(body)}`
   openSafeUrl(url)
 }

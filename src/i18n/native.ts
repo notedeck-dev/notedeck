@@ -15,13 +15,27 @@ interface Hint {
   params?: Record<string, unknown>
 }
 
-/** 描き直した写しを返す (`i18n` 欄は落とす) */
+function hasHints(value: unknown): value is object {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    'i18n' in value
+  )
+}
+
+/**
+ * 描き直した写しを返す (`i18n` 欄は落とす)。入れ子のオブジェクト
+ * (確認プレビューの `installPreview` など) も自分の `i18n` 欄を持っていれば描き直す
+ */
 export function localizeNative<T extends object>(value: T): T {
   const { i18n: hints, ...rest } = value as T & {
     i18n?: Record<string, Hint>
   }
-  if (!hints) return rest as T
   const out: Record<string, unknown> = { ...rest }
+  for (const [field, child] of Object.entries(out))
+    if (hasHints(child)) out[field] = localizeNative(child)
+  if (!hints) return out as T
   for (const [field, hint] of Object.entries(hints)) {
     const params = { ...(hint.params ?? {}) }
     // capability の表示名は Rust だと英語しか引けないので、ここで引き直す
@@ -31,4 +45,31 @@ export function localizeNative<T extends object>(value: T): T {
     if (text !== undefined) out[field] = text
   }
   return out as T
+}
+
+/**
+ * 1 つの欄だけを表示言語で描き直す。元の値を書き換えずに表示する箇所で使う
+ * (描き直した写しを保存し直すと、英語の正本文と手がかりが失われるため)
+ */
+export function nativeField(value: object, field: string): string {
+  const localized = localizeNative(value) as Record<string, unknown>
+  const text = localized[field]
+  return typeof text === 'string' ? text : ''
+}
+
+/**
+ * Rust のストリームのエラーイベント (`error` + `error_i18n`) を表示言語の文にする。
+ * 手がかりが無ければ文をそのまま、文も無ければ「不明なエラー」
+ */
+export function nativeError(event: {
+  error?: string | null
+  error_i18n?: unknown
+}): string {
+  const text = event.error_i18n
+    ? nativeField(
+        { error: event.error ?? '', i18n: { error: event.error_i18n } },
+        'error',
+      )
+    : event.error
+  return text || i18n.ts._common.unknownError
 }

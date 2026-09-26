@@ -417,7 +417,7 @@ function unixtimeDisplay(token: MfmToken & { type: 'fn' }): string {
   const ts = unixtimeValue(token)
   if (!ts) return '?'
   try {
-    return new Date(ts * 1000).toLocaleString()
+    return new Date(ts * 1000).toLocaleString(i18n.lang)
   } catch {
     return '?'
   }

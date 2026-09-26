@@ -8,12 +8,18 @@ use crate::i18n::{localize_fields, text, Text};
 use serde_json::{json, Value};
 
 /// 確認の取り消しボタン
-fn cancel() -> Text {
+pub(super) fn cancel() -> Text {
     text("_native.preview.cancel", json!({}))
 }
 
 /// 確認の JSON を組む。`extra` は code / diff など文言以外の欄
-fn confirm(kind: &str, title: Text, message: Option<Text>, ok: Text, mut extra: Value) -> Value {
+pub(super) fn confirm(
+    kind: &str,
+    title: Text,
+    message: Option<Text>,
+    ok: Text,
+    mut extra: Value,
+) -> Value {
     if !extra.is_object() {
         extra = json!({});
     }

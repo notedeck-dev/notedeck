@@ -241,7 +241,7 @@ onMounted(refreshStats)
         <div :class="$style.statBox">
           <span :class="$style.statLabel">{{ i18n.ts._common.notes }}</span>
           <span :class="$style.statValue">
-            {{ noteCount == null ? '—' : noteCount.toLocaleString() }}
+            {{ noteCount == null ? '—' : noteCount.toLocaleString(i18n.lang) }}
           </span>
         </div>
         <div :class="$style.statBox">

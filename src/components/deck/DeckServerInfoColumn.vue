@@ -105,7 +105,7 @@ function scrollToTop() {
 
 function formatNumber(n: number | undefined): string {
   if (n == null) return '-'
-  return n.toLocaleString()
+  return n.toLocaleString(i18n.lang)
 }
 
 const sanitizedDescription = computed(() => {

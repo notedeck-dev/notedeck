@@ -14,6 +14,7 @@
 
 import type { UnlistenFn } from '@tauri-apps/api/event'
 import { onScopeDispose, watch } from 'vue'
+import { localizeNative } from '@/i18n/native'
 import { useAiActivity } from '@/stores/aiActivity'
 import { useAiSessionsStore } from '@/stores/aiSessions'
 import { useToast } from '@/stores/toast'
@@ -96,7 +97,11 @@ export function useHeartbeatDaemon() {
           sendDesktopNotification(ev.title ?? 'HEARTBEAT', ev.body ?? '')
           return
         case 'toast':
-          toast.show(ev.text ?? '', ev.level === 'warning' ? 'warning' : 'info')
+          // notecore の文言は英語の正本文 + 辞書の手がかり。表示言語で描き直す
+          toast.show(
+            localizeNative(ev).text ?? '',
+            ev.level === 'warning' ? 'warning' : 'info',
+          )
           return
         default:
           return

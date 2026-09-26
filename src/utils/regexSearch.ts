@@ -89,12 +89,6 @@ export function filterNotesByRegexAsync(
 /** フィルタ条件の種別 */
 export type FilterConditionType = 'contains_any' | 'contains_all' | 'excludes'
 
-export const FILTER_CONDITION_LABELS: Record<FilterConditionType, string> = {
-  contains_any: 'いずれかを含む',
-  contains_all: 'すべてを含む',
-  excludes: '除外する',
-}
-
 export interface FilterCondition {
   type: FilterConditionType
   words: string

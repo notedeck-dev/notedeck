@@ -151,7 +151,7 @@ const bannerStyle = computed(() => {
 
 function formatAbsolute(iso: string | null | undefined): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('ja-JP', {
+  return new Date(iso).toLocaleString(i18n.lang, {
     year: 'numeric',
     month: 'numeric',
     day: 'numeric',
