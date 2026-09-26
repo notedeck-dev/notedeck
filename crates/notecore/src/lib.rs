@@ -60,6 +60,7 @@ pub mod shutdown;
 pub mod sidecar;
 pub mod skills;
 pub mod ssrf;
+pub mod stream_fanout;
 pub mod themes;
 pub mod vault;
 pub mod yaml_lite;

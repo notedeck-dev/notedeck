@@ -59,3 +59,15 @@ pub async fn stream_unsub_note(core: &Core, account_id: String, note_id: String)
     let streaming = core.streaming()?;
     streaming.unsub_note(&account_id, &note_id).await
 }
+
+/// Stream Inspector の観測を開く。開いている間だけ生封筒 (`stream-envelope`) が流れる。
+/// notecored ではセッションの持ち物で、切断時に閉じる
+pub async fn stream_observe_start(core: &Core) -> Result<()> {
+    core.stream_observation().start();
+    Ok(())
+}
+
+pub async fn stream_observe_stop(core: &Core) -> Result<()> {
+    core.stream_observation().stop();
+    Ok(())
+}

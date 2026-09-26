@@ -6,6 +6,7 @@ import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
+import { commands } from '@/utils/tauriInvoke'
 
 interface BadgePair {
   avatar: string | null
@@ -159,6 +160,13 @@ export const useStreamInspectorStore = defineStore('streamInspector', () => {
     if (pruneTimer == null) {
       pruneTimer = setInterval(pruneStaleEntries, PRUNE_INTERVAL_MS)
     }
+
+    // 生封筒 (stream-envelope) は観測を開いている間だけ Rust が流す (#1106)。
+    // 常駐構成ではセッションの持ち物なので、切断すれば向こうで閉じる
+    await commands.streamObserveStart()
+    cleanups.push(() => {
+      void commands.streamObserveStop()
+    })
 
     const accounts = accountsStore.accounts.filter((a) => a.hasToken)
     for (const acc of accounts) {

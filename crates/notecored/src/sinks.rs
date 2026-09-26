@@ -80,11 +80,12 @@ impl HintSink for Hints {
     }
 }
 
-/// Misskey ストリームのイベント: QueryRuntime に取り込み、Tauri と同じ専用チャネルと
-/// 統合チャネル (`stream-envelope`) で配る。OS 通知はデバイスが出す
+/// Misskey ストリームのイベント: QueryRuntime に取り込み、Tauri と同じ専用チャネルで配る。
+/// 統合チャネル (`stream-envelope`) は観測が開いている間だけ。OS 通知はデバイスが出す
 pub struct StreamEmitter {
     pub runtime: Arc<QueryRuntime>,
     pub events: Events,
+    pub observation: Arc<notecore::stream_fanout::StreamObservation>,
 }
 
 impl FrontendEmitter for StreamEmitter {
@@ -106,7 +107,14 @@ impl FrontendEmitter for StreamEmitter {
             StreamEvent::EmojiChanged(e) => self.events.emit("stream-emoji-changed", e),
             _ => {}
         }
-        self.events.emit("stream-envelope", &event);
+        if let Some(unread) = notecore::stream_fanout::unread_signal(&event) {
+            self.events
+                .emit(notecore::stream_fanout::UNREAD_EVENT, &unread);
+        }
+        if self.observation.is_on() {
+            self.events
+                .emit(notecore::stream_fanout::ENVELOPE_EVENT, &event);
+        }
     }
 }
 

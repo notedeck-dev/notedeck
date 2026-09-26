@@ -34,6 +34,8 @@ pub struct Owned {
     pub queries: Vec<String>,
     /// `stream_sub_note` の (account_id, note_id)
     pub captures: Vec<(String, String)>,
+    /// `stream_observe_start` で開いた観測の数 (Stream Inspector)
+    pub observing: u32,
 }
 
 /// 接続中のセッション (橋の問い合わせを投げる相手)。最後に繋いだセッションを優先する
@@ -94,6 +96,10 @@ impl Sessions {
             if let Some(i) = entry.captures.iter().position(|c| *c == key) {
                 entry.captures.remove(i);
             }
+        } else if name == "stream_observe_start" {
+            entry.observing += 1;
+        } else if name == "stream_observe_stop" {
+            entry.observing = entry.observing.saturating_sub(1);
         }
     }
 
@@ -369,6 +375,9 @@ impl RpcServer {
         for (account_id, note_id) in owned.captures {
             let _ = commands::streaming::stream_unsub_note(&self.core, account_id, note_id).await;
         }
+        for _ in 0..owned.observing {
+            let _ = commands::streaming::stream_observe_stop(&self.core).await;
+        }
         let _ = writer_task.await;
     }
 
@@ -516,10 +525,24 @@ mod tests {
             sessions.owned_by(a).captures,
             vec![("x".to_string(), "n1".to_string())]
         );
+        sessions.record(
+            a,
+            "stream_observe_start",
+            &json!({}),
+            &Outcome::success(Value::Null),
+        );
+        sessions.record(
+            b,
+            "stream_observe_stop",
+            &json!({}),
+            &Outcome::success(Value::Null),
+        );
+        assert_eq!(sessions.owned_by(b).observing, 0);
         assert_eq!(sessions.count(), 2);
         let owned = sessions.unregister(a);
         assert_eq!(owned.queries, vec!["q:1"]);
         assert_eq!(owned.captures.len(), 1);
+        assert_eq!(owned.observing, 1);
         assert_eq!(sessions.count(), 1);
         assert_eq!(sessions.owned_by(b).queries, vec!["q:1"]);
         assert_eq!(sessions.owned_by(a), Owned::default());

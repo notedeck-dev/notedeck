@@ -231,6 +231,7 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
         Arc::new(sinks::StreamEmitter {
             runtime: query_runtime.clone(),
             events: events.clone(),
+            observation: core.stream_observation().clone(),
         }),
         event_bus.clone(),
         db.clone(),

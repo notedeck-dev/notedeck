@@ -591,7 +591,10 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // になる race がある (query 購読は初回失敗すると再試行されない)。
             // 端末側の表示言語 (#135)。通知チャネルを作る前に決める
             ui_lang::init(&app_handle);
-            let emitter = std::sync::Arc::new(streaming::TauriEmitter::new(app_handle.clone()));
+            let emitter = std::sync::Arc::new(streaming::TauriEmitter::new(
+                app_handle.clone(),
+                app_state.stream_observation().clone(),
+            ));
             let streaming = std::sync::Arc::new(notecli::streaming::StreamingManager::new(
                 emitter,
                 event_bus.clone(),
@@ -1149,6 +1152,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::stream_set_mode,
             commands::stream_sub_note,
             commands::stream_unsub_note,
+            commands::stream_observe_start,
+            commands::stream_observe_stop,
             commands::fetch_ogp,
             commands::fetch_server_meta,
             commands::fetch_image_base64,
@@ -1258,6 +1263,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::QueryDeltaEvent,
             commands::NoteCaptureBatchEvent,
             streaming::StreamEnvelope,
+            streaming::StreamUnread,
             streaming::StreamStatus,
             streaming::StreamChatMessageReacted,
             streaming::StreamChatMessageUnreacted,
