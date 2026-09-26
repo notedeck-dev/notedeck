@@ -950,7 +950,7 @@ pub async fn api_delete_cached_note(
 const MAX_VERIFY_CONCURRENT: usize = 20;
 
 /// `api_verify_notes` の結果。
-#[derive(serde::Serialize, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VerifyNotesResult {
     /// サーバー上に現存が確認できたノート (note_id → 最新の NormalizedNote)

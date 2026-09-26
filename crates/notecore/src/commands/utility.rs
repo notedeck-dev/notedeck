@@ -21,7 +21,7 @@ pub async fn get_openapi_spec(core: &Core) -> Result<serde_json::Value> {
 // --- EXIF viewer (#797) ---
 
 /// EXIF 1 フィールド。tag はタグ名 (例: "DateTimeOriginal", "GPSLatitude")。
-#[derive(serde::Serialize, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ExifField {
     /// IFD 名 ("primary" / "thumbnail")
@@ -102,7 +102,7 @@ pub async fn read_image_exif(_core: &Core, url: String) -> Result<Vec<ExifField>
 }
 
 /// 画像ディスクキャッシュの使用量 (#815)。設定のキャッシュ画面で表示する
-#[derive(Debug, serde::Serialize, specta::Type)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ImageCacheStats {
     pub bytes: u64,

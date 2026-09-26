@@ -9,9 +9,14 @@
 //! - 応答 `response` は要求の `id` を返す。batch の応答は `result` が要素ごとの配列
 //! - サーバーが押し出す `event` は Tauri のイベント名と同じ (`nd:ai-turn-event` など)
 
+use std::path::PathBuf;
+
+use notecli::error::NoteDeckError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+
+use crate::vault::VaultError;
 
 /// wire 形式の版。破壊的に変えたら上げる
 pub const PROTOCOL_VERSION: u32 = 1;
@@ -113,6 +118,74 @@ pub enum Frame {
     Event { name: String, payload: Value },
 }
 
+/// 同一ホストの socket の既定: `$XDG_RUNTIME_DIR/notecored/notecored.sock` (無ければ None)
+pub fn default_socket_path() -> Option<PathBuf> {
+    std::env::var_os("XDG_RUNTIME_DIR")
+        .filter(|v| !v.is_empty())
+        .map(|dir| PathBuf::from(dir).join("notecored").join("notecored.sock"))
+}
+
+/// 引数名 (snake_case) を wire のキー (camelCase) に。コマンド表の JSON アダプタ
+/// (`serde(rename_all = "camelCase")`) と同じ規則
+pub fn camel_case(ident: &str) -> String {
+    let mut out = String::with_capacity(ident.len());
+    let mut upper = false;
+    for c in ident.chars() {
+        if c == '_' {
+            upper = true;
+        } else if upper {
+            out.extend(c.to_uppercase());
+            upper = false;
+        } else {
+            out.push(c);
+        }
+    }
+    out
+}
+
+/// 中継で戻ってきたエラーを型付き経路のエラーに戻す。code は既知のものだけ
+/// 静的な文字列に戻し、それ以外は `REMOTE`
+fn static_code(code: &str) -> &'static str {
+    const KNOWN: &[&str] = &[
+        "DATABASE",
+        "NETWORK",
+        "JSON",
+        "ACCOUNT_NOT_FOUND",
+        "API",
+        "NO_CONNECTION",
+        "CONNECTION_CLOSED",
+        "INVALID_INPUT",
+        "KEYCHAIN",
+        "INTERNAL",
+        "UNAUTHORIZED",
+        "AUTH_NO_TOKEN",
+        "AUTH_MIAUTH_FAILED",
+        "AUTH_MIAUTH_PENDING",
+        "AUTH_CREDENTIAL_MISSING",
+    ];
+    KNOWN
+        .iter()
+        .find(|k| **k == code)
+        .copied()
+        .unwrap_or("REMOTE")
+}
+
+impl From<RpcError> for NoteDeckError {
+    fn from(e: RpcError) -> Self {
+        NoteDeckError::Localized {
+            code: static_code(&e.code),
+            message: e.message,
+            i18n: e.i18n.unwrap_or(Value::Null),
+        }
+    }
+}
+
+impl From<RpcError> for VaultError {
+    fn from(e: RpcError) -> Self {
+        VaultError::RequestFailed { message: e.message }
+    }
+}
+
 /// マニフェストの指紋: コマンド表の名前と capability の id を並べた sha256 (仕様 §4.3)。
 /// 橋は毎応答ではなく hello で受け取り、不一致を状態面に出す
 pub fn manifest_fingerprint() -> String {
@@ -158,6 +231,34 @@ mod tests {
         assert!(text.contains("\"ok\":false"));
         assert!(!text.contains("i18n"));
         assert_eq!(serde_json::from_str::<Frame>(&text).unwrap(), r);
+    }
+
+    #[test]
+    fn camel_case_matches_the_json_adapter() {
+        assert_eq!(camel_case("account_id"), "accountId");
+        assert_eq!(camel_case("until_id"), "untilId");
+        assert_eq!(camel_case("query"), "query");
+        assert_eq!(camel_case("is_sensitive"), "isSensitive");
+    }
+
+    #[test]
+    fn remote_errors_map_back_to_typed_errors() {
+        let e: NoteDeckError = RpcError {
+            code: "INVALID_INPUT".into(),
+            message: "bad".into(),
+            i18n: None,
+        }
+        .into();
+        assert_eq!(e.code(), "INVALID_INPUT");
+        assert_eq!(e.safe_message(), "bad");
+        let e: NoteDeckError = RpcError {
+            code: "SOMETHING_NEW".into(),
+            message: "x".into(),
+            i18n: Some(json!({ "key": "k" })),
+        }
+        .into();
+        assert_eq!(e.code(), "REMOTE");
+        assert_eq!(e.i18n().unwrap()["key"], "k");
     }
 
     #[test]

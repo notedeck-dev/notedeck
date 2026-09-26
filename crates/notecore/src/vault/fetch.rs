@@ -58,7 +58,7 @@ pub struct VaultFetchRequest {
 }
 
 /// `vault_fetch` のレスポンス。
-#[derive(Debug, Serialize, specta::Type)]
+#[derive(Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultFetchResponse {
     pub status: u16,

@@ -14,7 +14,7 @@ pub enum ColorWhen {
 }
 
 /// Metadata for a CLI subcommand (exposed to external consumers like notedeck).
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct CliCommandInfo {
     pub name: String,
@@ -23,7 +23,7 @@ pub struct CliCommandInfo {
 }
 
 /// Metadata for a single CLI argument.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct CliArgInfo {
     pub name: String,

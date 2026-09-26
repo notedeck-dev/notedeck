@@ -54,7 +54,7 @@ pub struct HttpFetchRequest {
     pub timeout_ms: Option<u64>,
 }
 
-#[derive(Debug, Serialize, Type)]
+#[derive(Debug, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpFetchResponse {
     pub status: u16,
