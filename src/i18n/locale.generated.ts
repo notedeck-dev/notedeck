@@ -6181,52 +6181,173 @@ export const LANGUAGES = [
 ] as const
 
 /**
- * カラム種別の原文 (ja-JP) の表示名。以前のバージョンは既定の表示名を
+ * カラム種別ごとの既定の表示名 (全言語)。以前のバージョンは既定の表示名を
  * カラムの name に保存していたので、それを「名前なし」と見分けるのに使う
  * (表示中の言語に関係なく判定するため、辞書ではなくここに持つ)
  */
-export const SOURCE_COLUMN_LABELS: Readonly<Record<string, string>> = {
-  "timeline": "タイムライン",
-  "notifications": "通知",
-  "drive": "ドライブ",
-  "followRequests": "フォローリクエスト",
-  "list": "リスト",
-  "antenna": "アンテナ",
-  "favorites": "お気に入り",
-  "clip": "クリップ",
-  "mentions": "メンション",
-  "specified": "ダイレクト",
-  "chat": "チャット",
-  "achievements": "実績",
-  "serverInfo": "サーバー情報",
-  "aboutMisskey": "Misskey について",
-  "emoji": "カスタム絵文字",
-  "ads": "広告",
-  "explore": "みつける",
-  "announcements": "お知らせ",
-  "search": "サーバー検索",
-  "clientSearch": "クライアント検索",
-  "lookup": "照会",
-  "channel": "チャンネル",
-  "role": "ロール",
-  "gallery": "ギャラリー",
-  "play": "Misskey Play",
-  "page": "ページ",
-  "user": "ユーザー",
-  "charts": "チャート",
-  "federation": "連合",
-  "themeManager": "テーマ",
-  "pluginManager": "プラグイン",
-  "widget": "ウィジェット",
-  "queryManager": "クエリ",
-  "memos": "メモ",
-  "ai": "AI",
-  "skill": "スキル",
-  "aiscript": "スクラッチパッド",
-  "apiConsole": "API コンソール",
-  "apiDocs": "API ドキュメント",
-  "streamInspector": "ストリーム",
-  "taskRunner": "タスク"
+export const COLUMN_LABELS_BY_TYPE: Readonly<Record<string, readonly string[]>> = {
+  "timeline": [
+    "タイムライン",
+    "Timeline"
+  ],
+  "notifications": [
+    "通知",
+    "Notifications"
+  ],
+  "drive": [
+    "ドライブ",
+    "Drive"
+  ],
+  "followRequests": [
+    "フォローリクエスト",
+    "Follow requests"
+  ],
+  "list": [
+    "リスト",
+    "List"
+  ],
+  "antenna": [
+    "アンテナ",
+    "Antenna"
+  ],
+  "favorites": [
+    "お気に入り",
+    "Favorites"
+  ],
+  "clip": [
+    "クリップ",
+    "Clip"
+  ],
+  "mentions": [
+    "メンション",
+    "Mentions"
+  ],
+  "specified": [
+    "ダイレクト",
+    "Direct"
+  ],
+  "chat": [
+    "チャット",
+    "Chat"
+  ],
+  "achievements": [
+    "実績",
+    "Achievements"
+  ],
+  "serverInfo": [
+    "サーバー情報",
+    "Server info"
+  ],
+  "aboutMisskey": [
+    "Misskey について",
+    "About Misskey"
+  ],
+  "emoji": [
+    "カスタム絵文字",
+    "Custom emoji"
+  ],
+  "ads": [
+    "広告",
+    "Ads"
+  ],
+  "explore": [
+    "みつける",
+    "Explore"
+  ],
+  "announcements": [
+    "お知らせ",
+    "Announcements"
+  ],
+  "search": [
+    "サーバー検索",
+    "Server search"
+  ],
+  "clientSearch": [
+    "クライアント検索",
+    "Client search"
+  ],
+  "lookup": [
+    "照会",
+    "Lookup"
+  ],
+  "channel": [
+    "チャンネル",
+    "Channel"
+  ],
+  "role": [
+    "ロール",
+    "Role"
+  ],
+  "gallery": [
+    "ギャラリー",
+    "Gallery"
+  ],
+  "play": [
+    "Misskey Play"
+  ],
+  "page": [
+    "ページ",
+    "Page"
+  ],
+  "user": [
+    "ユーザー",
+    "User"
+  ],
+  "charts": [
+    "チャート",
+    "Charts"
+  ],
+  "federation": [
+    "連合",
+    "Federation"
+  ],
+  "themeManager": [
+    "テーマ",
+    "Themes"
+  ],
+  "pluginManager": [
+    "プラグイン",
+    "Plugins"
+  ],
+  "widget": [
+    "ウィジェット",
+    "Widget"
+  ],
+  "queryManager": [
+    "クエリ",
+    "Queries"
+  ],
+  "memos": [
+    "メモ",
+    "Memos"
+  ],
+  "ai": [
+    "AI"
+  ],
+  "skill": [
+    "スキル",
+    "Skills"
+  ],
+  "aiscript": [
+    "スクラッチパッド",
+    "Scratchpad"
+  ],
+  "apiConsole": [
+    "API コンソール",
+    "API console"
+  ],
+  "apiDocs": [
+    "API ドキュメント",
+    "API docs"
+  ],
+  "streamInspector": [
+    "ストリーム",
+    "Stream"
+  ],
+  "taskRunner": [
+    "タスク",
+    "Tasks"
+  ]
 }
 
 export type LanguageCode = (typeof LANGUAGES)[number]['code']
