@@ -11,12 +11,16 @@
 //! デバイスの dispatcher が済ませている)。
 
 mod account;
+mod keybinds;
 mod memos;
 mod meta;
 mod misc;
 mod misstore;
+mod navbar;
 mod net;
 mod notes;
+mod performance;
+mod persona;
 mod plugins;
 pub(crate) mod preview;
 mod project;
@@ -155,6 +159,18 @@ pub async fn preview(
     }
     if id.starts_with("queries.") {
         return queries::preview(core, id, &params, ctx);
+    }
+    if id.starts_with("keybinds.") {
+        return Ok(keybinds::preview(id, &params, ctx));
+    }
+    if id.starts_with("navbar.") {
+        return Ok(navbar::preview(id, &params, ctx));
+    }
+    if id.starts_with("performance.") {
+        return Ok(performance::preview(id, &params, ctx));
+    }
+    if id == "ai.setPersona" {
+        return persona::preview(core, id, &params, ctx);
     }
     Ok(Some(
         preview::custom(id, &params).unwrap_or_else(|| preview::generic(id, &params)),
@@ -301,6 +317,23 @@ async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) 
         "widgets.uninstall" => widgets::uninstall(core, p),
         "queries.history" => queries::history(core, p),
         "queries.revert" => queries::revert(core, p, ctx),
+        "keybinds.list" => keybinds::list(core),
+        "keybinds.set" => keybinds::set(core, p),
+        "keybinds.reset" => keybinds::reset(core, p),
+        "keybinds.resetAll" => keybinds::reset_all(core),
+        "navbar.list" => navbar::list(core),
+        "navbar.reset" => navbar::reset(core),
+        "performance.list" => performance::list(core),
+        "performance.set" => performance::set(core, p),
+        "performance.reset" => performance::reset(core, p),
+        "performance.resetAll" => performance::reset_all(core),
+        "performance.applySlider" => performance::apply_slider(core, p),
+        "ai.listPersonas" => persona::list_personas(core),
+        "ai.setPersona" => persona::set_persona(core, p),
+        "meta.persona" => persona::meta_persona(core),
+        "meta.activeSkills" => persona::meta_active_skills(core),
+        "meta.config" => persona::meta_config(core),
+        "meta.heartbeat" => persona::meta_heartbeat(core).await,
         // --- HEARTBEAT の応答契約 ---
         "heartbeat.report" => crate::heartbeat::report_tool(p, ctx),
         // --- 外部ネットワーク ---
@@ -425,6 +458,23 @@ const HAS_BODY: &[&str] = &[
     "widgets.uninstall",
     "queries.history",
     "queries.revert",
+    "keybinds.list",
+    "keybinds.set",
+    "keybinds.reset",
+    "keybinds.resetAll",
+    "navbar.list",
+    "navbar.reset",
+    "performance.list",
+    "performance.set",
+    "performance.reset",
+    "performance.resetAll",
+    "performance.applySlider",
+    "ai.listPersonas",
+    "ai.setPersona",
+    "meta.persona",
+    "meta.activeSkills",
+    "meta.config",
+    "meta.heartbeat",
 ];
 
 #[cfg(test)]

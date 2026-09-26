@@ -1,14 +1,8 @@
 import { isColumnType } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
 import { i18n } from '@/i18n'
-import {
-  type ColumnType,
-  DEFAULT_NAV_ITEMS,
-  isNavDivider,
-  type NavItem,
-  useDeckStore,
-} from '@/stores/deck'
-import { implement } from '../declare'
+import { type ColumnType, type NavItem, useDeckStore } from '@/stores/deck'
+import { implement, implementCore } from '../declare'
 
 /**
  * Navbar 系 capability — 「自己拡張する IDE」(memory:
@@ -61,19 +55,7 @@ function parseNavItems(input: unknown): NavItem[] {
   return result
 }
 
-export const navbarListCapability = implement('navbar.list', {
-  execute: () => {
-    const store = useDeckStore()
-    return store.navItems.map((item) => {
-      if (isNavDivider(item)) return { type: 'divider' as const }
-      return {
-        type: item.type,
-        accountId: item.accountId,
-        label: item.label ?? null,
-      }
-    })
-  },
-})
+export const navbarListCapability = implementCore('navbar.list')
 
 export const navbarSetCapability = implement('navbar.set', {
   requiresConfirmation: (params) => {
@@ -97,32 +79,7 @@ export const navbarSetCapability = implement('navbar.set', {
   },
 })
 
-export const navbarResetCapability = implement('navbar.reset', {
-  requiresConfirmation: () => ({
-    title: i18n.ts._navbarCapability.resetTitle,
-    message: i18n.tsx._navbarCapability.resetMessage_plural({
-      count: DEFAULT_NAV_ITEMS.length,
-    }),
-    code: JSON.stringify(
-      DEFAULT_NAV_ITEMS.map((i) =>
-        isNavDivider(i)
-          ? { type: 'divider' }
-          : { type: i.type, accountId: i.accountId },
-      ),
-      null,
-      2,
-    ),
-    codeLanguage: 'json',
-    okLabel: i18n.ts._common.resetToDefault,
-    cancelLabel: i18n.ts._common.cancel,
-    type: 'warning',
-  }),
-  execute: () => {
-    const store = useDeckStore()
-    store.setNavItems(undefined)
-    return { count: DEFAULT_NAV_ITEMS.length }
-  },
-})
+export const navbarResetCapability = implementCore('navbar.reset')
 
 export const NAVBAR_BUILTIN_CAPABILITIES: readonly Command[] = [
   navbarListCapability,

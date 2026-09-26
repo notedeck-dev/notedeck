@@ -2788,50 +2788,12 @@ _filesCapability:
   confirmMessage: "Saves {targets} to Downloads/notedeck/{subdir}/."
   confirmMessageExcludeSensitive: "Saves {targets} to Downloads/notedeck/{subdir}/. Files marked as sensitive are excluded."
 
-_keybindsCapability:
-  setTitle: "Change keybinding"
-  setMessage_plural:
-    one: "Sets {count} shortcut for `{commandId}`. keybinds.reset restores the default."
-    other: "Sets {count} shortcuts for `{commandId}`. keybinds.reset restores the default."
-  setOk: "Change"
-  resetTitle: "Reset keybinding to default"
-  resetMessage: "Discards the custom shortcuts of `{commandId}` and restores the default."
-  resetAllTitle: "Reset all keybindings to default"
-  resetAllMessage: "Discards the custom shortcuts of every command and restores all defaults."
-
 _navbarCapability:
   setTitle: "Overwrite navbar layout"
   setMessage_plural:
     one: "Replaces the whole navbar with {count} item. The current layout will be lost (navbar.reset restores the default)."
     other: "Replaces the whole navbar with {count} items. The current layout will be lost (navbar.reset restores the default)."
   setOk: "Overwrite"
-  resetTitle: "Reset navbar layout to default"
-  resetMessage_plural:
-    one: "Discards the current custom layout and restores the {count} default item."
-    other: "Discards the current custom layout and restores the {count} default items."
-
-_performanceCapability:
-  setTitle: "Change performance value"
-  setMessage: "Changes {label} (`{key}`) to {value}{unit}. Out-of-range values are clamped to {min}..{max}."
-  setMessageUnknown: "Changes `{key}` to {value}."
-  setOk: "Change"
-  resetTitle: "Reset performance value to default"
-  resetMessage: "Resets {label} (`{key}`) to default."
-  resetMessageUnknown: "Resets `{key}` to default."
-  resetAllTitle: "Reset all performance values to default"
-  resetAllMessage: "Discards every override and restores all defaults (a clean configuration)."
-  presetPowerSaving: "power saving"
-  presetRich: "rich"
-  presetBalanced: "balanced"
-  applyTitle: "Apply performance preset"
-  applyMessage: "Applies the preset at slider position t={t} ({label}) to every key."
-  applyOk: "Apply"
-
-_personaCapability:
-  title: "Switch AI persona"
-  switchMessage: "Switches the AI persona to \"{name}\". This applies to every chat / heartbeat / command / task session."
-  unknownMessage: "Trying to set the unknown skill id \"{id}\" as the persona."
-  clearMessage: "Clears the AI persona (the AI works as a general-purpose assistant)."
 
 _pluginsCapability:
   createTitle: "Install plugin"
@@ -3355,6 +3317,55 @@ _native:
     misstore:
       updateConfirm: "Updates “{name}” with the content from the store.\nStore updated: {date} / v{version}"
       updateConfirmWithPermissions: "Updates “{name}” with the content from the store.\nStore updated: {date} / v{version}\nNew permissions: {permissions}"
+    common:
+      resetToDefault: "Reset to default"
+      resetAllToDefault: "Reset all to default"
+      switch: "Switch"
+    keybinds:
+      set:
+        title: "Change keybinding"
+        message_plural:
+          one: "Sets {count} shortcut for `{commandId}`. keybinds.reset restores the default."
+          other: "Sets {count} shortcuts for `{commandId}`. keybinds.reset restores the default."
+        ok: "Change"
+      reset:
+        title: "Reset keybinding to default"
+        message: "Discards the custom shortcuts of `{commandId}` and restores the default."
+      resetAll:
+        title: "Reset all keybindings to default"
+        message: "Discards the custom shortcuts of every command and restores all defaults."
+    navbar:
+      reset:
+        title: "Reset navbar layout to default"
+        message_plural:
+          one: "Discards the current custom layout and restores the {count} default item."
+          other: "Discards the current custom layout and restores the {count} default items."
+    performance:
+      set:
+        title: "Change performance value"
+        message: "Changes {label} (`{key}`) to {value}{unit}. Out-of-range values are clamped to {min}..{max}."
+        messageUnknown: "Changes `{key}` to {value}."
+        ok: "Change"
+      reset:
+        title: "Reset performance value to default"
+        message: "Resets {label} (`{key}`) to default."
+        messageUnknown: "Resets `{key}` to default."
+      resetAll:
+        title: "Reset all performance values to default"
+        message: "Discards every override and restores all defaults (a clean configuration)."
+      applySlider:
+        title: "Apply performance preset"
+        message: "Applies the preset at slider position t={t} ({label}) to every key."
+        ok: "Apply"
+        presetPowerSaving: "power saving"
+        presetRich: "rich"
+        presetBalanced: "balanced"
+    persona:
+      set:
+        title: "Switch AI persona"
+        switchMessage: "Switches the AI persona to \"{name}\". This applies to every chat / heartbeat / command / task session."
+        unknownMessage: "Trying to set the unknown skill id \"{id}\" as the persona."
+        clearMessage: "Clears the AI persona (the AI works as a general-purpose assistant)."
     styles:
       write:
         title: "Replace custom CSS"
