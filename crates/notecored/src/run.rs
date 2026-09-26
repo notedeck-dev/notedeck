@@ -157,8 +157,15 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
         core.set_settings_sink(Arc::new(sinks::ConfigSink {
             events: events.clone(),
             on_change: Arc::new(move |change| {
-                if change.subdir.is_none() && change.name == notecore::ai_config::FILE_NAME {
+                if change.subdir.is_some() {
+                    return;
+                }
+                if change.name == notecore::ai_config::FILE_NAME {
                     timer_for_sink.reconfigure(core_for_timer.clone());
+                } else if change.name == notecore::stream_mode::SETTINGS_FILE {
+                    // 接続モードはアプリが居なくても notecored が適用する
+                    let core = core_for_timer.clone();
+                    tokio::spawn(async move { notecore::stream_mode::apply(&core, false).await });
                 }
             }),
         }));
@@ -244,6 +251,7 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
         perf.clone(),
     ));
     timer.reconfigure(core.clone());
+    notecore::stream_mode::apply(&core, true).await;
 
     // 公開 API 面は既定 off
     if args.api {

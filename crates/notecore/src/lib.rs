@@ -61,6 +61,7 @@ pub mod sidecar;
 pub mod skills;
 pub mod ssrf;
 pub mod stream_fanout;
+pub mod stream_mode;
 pub mod themes;
 pub mod vault;
 pub mod yaml_lite;

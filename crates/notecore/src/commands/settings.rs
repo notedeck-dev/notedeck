@@ -88,7 +88,15 @@ pub async fn read_notedeck_json(core: &Core) -> Result<String> {
 
 /// Write `settings.json5`. Creates the settings directory if missing.
 pub async fn write_notedeck_json(core: &Core, content: String) -> Result<()> {
-    store::write_settings_json(&settings_base_dir(core)?, &content)
+    store::write_settings_json(&settings_base_dir(core)?, &content)?;
+    // デバイスは自分の写しを自分で更新しているので受け手が無いが、notecored は
+    // これで接続モード (modes.realtime) を適用し直す (#1106)
+    core.notify_settings_change(crate::settings_events::SettingsChange {
+        subdir: None,
+        name: crate::stream_mode::SETTINGS_FILE.to_string(),
+        op: crate::settings_events::SettingsChangeOp::Write,
+    });
+    Ok(())
 }
 
 /// Tauri command: update performance config at runtime.
