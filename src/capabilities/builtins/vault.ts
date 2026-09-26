@@ -1,6 +1,7 @@
 import type { Connection, PrincipalClass } from '@/bindings'
 import type { CapabilityContext } from '@/capabilities/types'
 import type { Command } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import { type Principal, principalActorLabel } from '@/permissions/principal'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { implement } from '../declare'
@@ -103,14 +104,17 @@ export const vaultFetchCapability = implement('vault.fetch', {
       return null
     }
     return {
-      title: '外部接続へのリクエストを許可しますか?',
+      title: i18n.ts._vaultCapability.confirmTitle,
       message: conn
-        ? `接続「${conn.name}」(${conn.baseUrl}) に HTTP リクエストを送ります。`
-        : '登録済みの外部サービス接続に HTTP リクエストを送ります。',
+        ? i18n.tsx._vaultCapability.confirmMessage({
+            name: conn.name,
+            baseUrl: conn.baseUrl,
+          })
+        : i18n.ts._vaultCapability.confirmMessageUnknown,
       code: JSON.stringify(params ?? {}, null, 2),
       codeLanguage: 'json',
-      okLabel: '許可',
-      cancelLabel: 'やめる',
+      okLabel: i18n.ts._vaultCapability.allow,
+      cancelLabel: i18n.ts._vaultCapability.cancel,
       type: 'danger',
       // 接続が解決できた + remember の同意先が確定しているときだけ出す。
       // plugin は個体単位の記憶なので、同意の主体を文言でも明示する
@@ -118,8 +122,10 @@ export const vaultFetchCapability = implement('vault.fetch', {
         ? {
             rememberLabel:
               principal.kind === 'plugin'
-                ? `今後${principalActorLabel(principal)}からこの接続を確認なしで使う`
-                : '今後この接続を確認なしで使う',
+                ? i18n.tsx._vaultCapability.rememberForActor({
+                    actor: String(principalActorLabel(principal)),
+                  })
+                : i18n.ts._vaultCapability.remember,
           }
         : {}),
     }

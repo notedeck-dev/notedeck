@@ -71,12 +71,15 @@ async function submitReport() {
     const adapter = await getOrCreate(props.accountId)
     if (!adapter) return
     await adapter.api.reportUser(props.message.fromUserId, reportComment.value)
-    toast.show('通報しました')
+    toast.show(i18n.ts._mkChatMessageMoreMenu.reported)
     close()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[chat:report]', err.code, err.message)
-    toast.show(`通報に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._mkChatMessageMoreMenu.reportFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 

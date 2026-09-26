@@ -1,4 +1,5 @@
 import type { Command, Shortcut } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import { useKeybindsStore } from '@/stores/keybinds'
 import { implement } from '../declare'
 
@@ -70,14 +71,15 @@ export const keybindsSetCapability = implement('keybinds.set', {
       typeof params?.commandId === 'string' ? params.commandId : ''
     const count = Array.isArray(params?.shortcuts) ? params.shortcuts.length : 0
     return {
-      title: 'キーバインドを変更',
-      message:
-        `\`${commandId}\` の shortcut を ${count} 個に変更します。` +
-        ' keybinds.reset で default に戻せます。',
+      title: i18n.ts._keybindsCapability.setTitle,
+      message: i18n.tsx._keybindsCapability.setMessage_plural({
+        commandId,
+        count,
+      }),
       code: JSON.stringify(params?.shortcuts ?? [], null, 2),
       codeLanguage: 'json',
-      okLabel: '変更',
-      cancelLabel: 'やめる',
+      okLabel: i18n.ts._keybindsCapability.setOk,
+      cancelLabel: i18n.ts._keybindsCapability.cancel,
       type: 'warning',
     }
   },
@@ -97,10 +99,10 @@ export const keybindsResetCapability = implement('keybinds.reset', {
     const commandId =
       typeof params?.commandId === 'string' ? params.commandId : ''
     return {
-      title: 'キーバインドを default に戻す',
-      message: `\`${commandId}\` のカスタム shortcut を破棄し、default に戻します。`,
-      okLabel: 'default に戻す',
-      cancelLabel: 'やめる',
+      title: i18n.ts._keybindsCapability.resetTitle,
+      message: i18n.tsx._keybindsCapability.resetMessage({ commandId }),
+      okLabel: i18n.ts._keybindsCapability.resetOk,
+      cancelLabel: i18n.ts._keybindsCapability.cancel,
       type: 'normal',
     }
   },
@@ -116,11 +118,10 @@ export const keybindsResetCapability = implement('keybinds.reset', {
 
 export const keybindsResetAllCapability = implement('keybinds.resetAll', {
   requiresConfirmation: () => ({
-    title: '全キーバインドを default に戻す',
-    message:
-      '全コマンドのカスタム shortcut を破棄し、すべて default に戻します。',
-    okLabel: 'すべて default に戻す',
-    cancelLabel: 'やめる',
+    title: i18n.ts._keybindsCapability.resetAllTitle,
+    message: i18n.ts._keybindsCapability.resetAllMessage,
+    okLabel: i18n.ts._keybindsCapability.resetAllOk,
+    cancelLabel: i18n.ts._keybindsCapability.cancel,
     type: 'warning',
   }),
   execute: () => {

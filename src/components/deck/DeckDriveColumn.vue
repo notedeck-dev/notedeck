@@ -153,12 +153,16 @@ async function batchDelete() {
   const count = selectedIds.value.size
   const outside = selectedOutsideCount.value
   // 階層またぎ選択では表示外の選択の存在を confirm 文面で明示する (§2.5-3)
-  const outsideNote =
-    outside > 0 ? `（現在のフォルダ外で選択した ${outside} 件を含む）` : ''
   const ok = await confirm({
-    title: 'ファイルを一括削除',
-    message: `選択中の ${count} 件のファイルをドライブから削除しますか？${outsideNote}添付したノートからも消えます。この操作は取り消せません。`,
-    okLabel: '削除',
+    title: i18n.ts._deckDriveColumn.bulkDeleteTitle,
+    message:
+      outside > 0
+        ? i18n.tsx._deckDriveColumn.bulkDeleteConfirmWithOutside_plural({
+            count,
+            outside,
+          })
+        : i18n.tsx._deckDriveColumn.bulkDeleteConfirm_plural({ count }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok || batchDeleting.value) return
@@ -221,7 +225,7 @@ async function exportSelection() {
   const { targets, missing } = await resolveSelectedFiles()
   if (missing > 0) {
     toast.show(
-      `${missing} 件は情報を取得できず保存対象から外れました`,
+      i18n.tsx._deckDriveColumn.exportMissing_plural({ count: missing }),
       'warning',
     )
   }
@@ -235,24 +239,36 @@ async function exportSelection() {
 watch(fileExport.finished, (fin) => {
   if (!fin) return
   if (fileExport.cancelled.value) {
-    toast.show('保存を中断しました', 'info')
+    toast.show(i18n.ts._deckDriveColumn.exportCancelled, 'info')
     return
   }
   const failed = fileExport.failedCount.value
   if (failed > 0) {
-    toast.show(`${failed} 件の保存に失敗しました`, 'error', {
-      action: { label: '再試行', onClick: () => fileExport.retryFailed() },
-    })
+    toast.show(
+      i18n.tsx._deckDriveColumn.exportFailed_plural({ count: failed }),
+      'error',
+      {
+        action: {
+          label: i18n.ts._common.retry,
+          onClick: () => fileExport.retryFailed(),
+        },
+      },
+    )
     return
   }
   const skipped = fileExport.skippedCount.value
-  const skippedNote = skipped > 0 ? `（${skipped} 件は保存済み）` : ''
+  const done = fileExport.doneCount.value
   toast.show(
-    `${fileExport.doneCount.value} 件を保存しました${skippedNote}`,
+    skipped > 0
+      ? i18n.tsx._deckDriveColumn.exportedWithSkipped_plural({
+          count: done,
+          skipped,
+        })
+      : i18n.tsx._deckDriveColumn.exported_plural({ count: done }),
     'success',
     {
       action: {
-        label: 'フォルダを開く',
+        label: i18n.ts._deckDriveColumn.openFolder,
         onClick: () => {
           const dir = fileExport.savedDir.value
           if (dir) revealItemInDir(dir)

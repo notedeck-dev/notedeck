@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { showReloginPrompt } from '@/composables/useLoginPrompt'
-import { type AppError, AUTH_ERROR_MESSAGE } from '@/utils/errors'
+import { i18n } from '@/i18n'
+import { type AppError, authErrorMessage } from '@/utils/errors'
 import { proxyUrl } from '@/utils/mediaProxy'
 import { restrictedAccessNotice } from '@/utils/restrictedAccess'
 import SystemIcon from './SystemIcon.vue'
@@ -50,10 +51,9 @@ const emit = defineEmits<{
 
 /** 生の error.message を出さないフレンドリー文言。コードは括弧で残す */
 function friendlyErrorMessage(err: AppError): string {
-  if (err.isAuth) return AUTH_ERROR_MESSAGE
-  if (err.isNetwork)
-    return 'サーバーに接続できません。ネットワークを確認してください。'
-  return `読み込みに失敗しました（${err.displayCode}）`
+  if (err.isAuth) return authErrorMessage()
+  if (err.isNetwork) return i18n.ts._columnEmptyState.networkError
+  return i18n.tsx._columnEmptyState.loadFailed({ code: err.displayCode })
 }
 
 /** error 指定時、CREDENTIAL_REQUIRED 等を案内文に変換（該当しなければフレンドリー文言）。 */
@@ -62,7 +62,7 @@ const notice = computed(() => {
   return (
     restrictedAccessNotice(
       props.error,
-      props.subject ?? '情報',
+      props.subject ?? i18n.ts._columnEmptyState.defaultSubject,
       props.hasToken ?? false,
     ) ?? { message: friendlyErrorMessage(props.error), info: false }
   )
@@ -99,7 +99,7 @@ watch(
     if (
       restrictedAccessNotice(
         err,
-        props.subject ?? '情報',
+        props.subject ?? i18n.ts._columnEmptyState.defaultSubject,
         props.hasToken ?? false,
       )
     ) {

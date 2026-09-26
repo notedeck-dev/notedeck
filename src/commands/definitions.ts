@@ -52,14 +52,16 @@ async function toggleAccountMode(
     unwrap(await commands.apiUpdateUserSetting(accountId, key, !current))
     clearAvailableTlCache(accountId)
     useAccountsStore().bumpModeVersion(accountId)
-    show(`${modeLabel(key)}を${current ? 'オフ' : 'オン'}にしました`, 'success')
+    show(
+      current
+        ? i18n.tsx._definitions.modeTurnedOff({ mode: modeLabel(key) })
+        : i18n.tsx._definitions.modeTurnedOn({ mode: modeLabel(key) }),
+      'success',
+    )
   } catch (e) {
     const err = AppError.from(e)
     if (err.isAuth || String(err.message).includes('permission')) {
-      show(
-        '権限がありません。write:account を付与するため再ログインしてください。',
-        'error',
-      )
+      show(i18n.ts._definitions.permissionDenied, 'error')
     } else {
       show(err.message, 'error')
     }
@@ -219,8 +221,8 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
 
       commandStore.open()
       commandStore.pushQuickPick({
-        title: 'アカウント',
-        placeholder: 'アカウントを選択…',
+        title: i18n.ts._definitions.account,
+        placeholder: i18n.ts._definitions.selectAccount,
         items: [
           ...accountsStore.accounts.map((acc) => ({
             id: acc.id,
@@ -254,7 +256,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               if (!actions.isGuestAccount(acc)) {
                 items.push({
                   id: `${acc.id}-profile`,
-                  label: 'プロフィール',
+                  label: i18n.ts._definitions.profile,
                   icon: 'user',
                   action: () => {
                     commandStore.close()
@@ -263,7 +265,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
                 })
                 items.push({
                   id: `${acc.id}-settings`,
-                  label: '設定',
+                  label: i18n.ts._common.settings,
                   icon: 'settings',
                   action: () => {
                     commandStore.close()
@@ -274,7 +276,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               if (acc.hasToken) {
                 items.push({
                   id: `${acc.id}-logout`,
-                  label: 'ログアウト',
+                  label: i18n.ts._definitions.logout,
                   icon: 'logout',
                   action: () => {
                     commandStore.close()
@@ -284,7 +286,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               } else if (actions.isGuestAccount(acc)) {
                 items.push({
                   id: `${acc.id}-delete`,
-                  label: 'データを削除',
+                  label: i18n.ts._definitions.deleteData,
                   icon: 'trash',
                   action: () => {
                     commandStore.close()
@@ -294,7 +296,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               } else {
                 items.push({
                   id: `${acc.id}-relogin`,
-                  label: '再ログイン',
+                  label: i18n.ts._definitions.relogin,
                   icon: 'login',
                   action: () => {
                     commandStore.close()
@@ -303,7 +305,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
                 })
                 items.push({
                   id: `${acc.id}-delete`,
-                  label: 'データを削除',
+                  label: i18n.ts._definitions.deleteData,
                   icon: 'trash',
                   action: () => {
                     commandStore.close()
@@ -313,15 +315,17 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
               }
               items.push({
                 id: `${acc.id}-clear-cache`,
-                label: 'キャッシュ削除',
+                label: i18n.ts._definitions.clearCache,
                 icon: 'eraser',
                 action: async () => {
                   commandStore.close()
                   const { confirm } = useConfirm()
                   const ok = await confirm({
-                    title: 'キャッシュ削除',
-                    message: `${actions.getAccountLabel(acc)} のキャッシュを削除しますか？`,
-                    okLabel: '削除',
+                    title: i18n.ts._definitions.clearCache,
+                    message: i18n.tsx._definitions.clearAccountCacheMessage({
+                      account: actions.getAccountLabel(acc),
+                    }),
+                    okLabel: i18n.ts._common.delete,
                     type: 'danger',
                   })
                   if (ok) {
@@ -337,7 +341,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
           })),
           {
             id: 'account-add',
-            label: 'アカウント追加',
+            label: i18n.ts._commands.login,
             icon: 'user-plus',
             action: () => {
               commandStore.close()
@@ -433,9 +437,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     execute: async () => {
       const { confirm } = useConfirm()
       const ok = await confirm({
-        title: 'キャッシュ削除',
-        message: 'ノートキャッシュとOGPキャッシュをすべて削除しますか？',
-        okLabel: '削除',
+        title: i18n.ts._definitions.clearCache,
+        message: i18n.ts._definitions.clearAllCacheMessage,
+        okLabel: i18n.ts._common.delete,
         type: 'danger',
       })
       if (ok) {
@@ -652,9 +656,9 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
       if (!id) return
       const { confirm } = useConfirm()
       const ok = await confirm({
-        title: 'カラムを削除',
-        message: 'このカラムを削除しますか？',
-        okLabel: '削除',
+        title: i18n.ts._commands.closeColumn,
+        message: i18n.ts._definitions.closeColumnMessage,
+        okLabel: i18n.ts._common.delete,
         type: 'danger',
       })
       if (ok) deckStore.removeColumn(id)
@@ -764,8 +768,8 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
       toggle()
       useToast().show(
         enabled.value
-          ? '開発者モードを有効にしました'
-          : '開発者モードを無効にしました',
+          ? i18n.ts._definitions.developerModeOn
+          : i18n.ts._definitions.developerModeOff,
         'success',
       )
     },
@@ -819,7 +823,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     shortcuts: keybindsStore.getShortcuts('plugins'),
     execute: async () => {
       const accountId = await useAccountPicker().pickAccount(
-        'プラグインを管理するアカウント',
+        i18n.ts._definitions.pickPluginsAccount,
       )
       if (accountId)
         useDeckStore().toggleSidebarColumn('pluginManager', accountId)
@@ -847,7 +851,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     shortcuts: keybindsStore.getShortcuts('theme-manager'),
     execute: async () => {
       const accountId = await useAccountPicker().pickAccount(
-        'テーマを管理するアカウント',
+        i18n.ts._definitions.pickThemesAccount,
       )
       if (accountId)
         useDeckStore().toggleSidebarColumn('themeManager', accountId)

@@ -183,7 +183,7 @@ function syncVisualFromCode() {
     // Validate: only allow known keys
     for (const key of Object.keys(parsed)) {
       if (!(key in FIELD_META)) {
-        codeError.value = `不明なキー: ${key}`
+        codeError.value = i18n.tsx._performanceEditorContent.unknownKey({ key })
         return
       }
     }
@@ -193,7 +193,10 @@ function syncVisualFromCode() {
     }
     codeError.value = ''
   } catch (e) {
-    codeError.value = e instanceof Error ? e.message : 'JSON解析エラー'
+    codeError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._performanceEditorContent.jsonParseError
   }
 }
 

@@ -11,6 +11,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useScrollDirection } from '@/composables/useScrollDirection'
 import { useServerImages } from '@/composables/useServerImages'
+import { i18n } from '@/i18n'
 import { variantKeyOf } from '@/services/noteKey'
 import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -98,7 +99,7 @@ export function useColumnSetup(
     const acc = useAccountsStore().accountMap.get(note._accountId)
     if (acc?.hasToken) return acc
     console.warn('[column-setup] no token for account', note._accountId)
-    toast.show('このアカウントでは操作できません（未ログイン）', 'error')
+    toast.show(i18n.ts._useColumnSetup.notLoggedIn, 'error')
     return null
   }
 
@@ -123,7 +124,10 @@ export function useColumnSetup(
     } catch (e) {
       const err = AppError.from(e)
       console.error('[column-setup] adapter init failed', err.code, err.message)
-      toast.show(`サーバーに接続できません（${err.displayCode}）`, 'error')
+      toast.show(
+        i18n.tsx._useColumnSetup.connectFailed({ code: err.displayCode }),
+        'error',
+      )
       return null
     }
   }
@@ -252,7 +256,10 @@ export function useColumnSetup(
     } catch (e) {
       const err = AppError.from(e)
       console.error('[reaction]', err.code, err.message)
-      toast.show(`リアクションに失敗しました（${err.displayCode}）`, 'error')
+      toast.show(
+        i18n.tsx._useColumnSetup.reactionFailed({ code: err.displayCode }),
+        'error',
+      )
     }
   }
 
@@ -265,7 +272,10 @@ export function useColumnSetup(
     } catch (e) {
       const err = AppError.from(e)
       console.error('[vote]', err.code, err.message)
-      toast.show(`投票に失敗しました（${err.displayCode}）`, 'error')
+      toast.show(
+        i18n.tsx._useColumnSetup.voteFailed({ code: err.displayCode }),
+        'error',
+      )
     }
   }
 
@@ -284,7 +294,10 @@ export function useColumnSetup(
       }))
       const err = AppError.from(e)
       console.error('[renote]', err.code, err.message)
-      toast.show(`リノートに失敗しました（${err.displayCode}）`, 'error')
+      toast.show(
+        i18n.tsx._useColumnSetup.renoteFailed({ code: err.displayCode }),
+        'error',
+      )
     }
   }
 
@@ -317,7 +330,10 @@ export function useColumnSetup(
     } catch (e) {
       const err = AppError.from(e)
       console.error('[delete]', err.code, err.message)
-      toast.show(`削除に失敗しました（${err.displayCode}）`, 'error')
+      toast.show(
+        i18n.tsx._useColumnSetup.deleteFailed({ code: err.displayCode }),
+        'error',
+      )
       return false
     }
   }
@@ -360,7 +376,10 @@ export function useColumnSetup(
     } catch (e) {
       const err = AppError.from(e)
       console.error('[deleteAndEdit]', err.code, err.message)
-      toast.show(`削除に失敗しました（${err.displayCode}）`, 'error')
+      toast.show(
+        i18n.tsx._useColumnSetup.deleteFailed({ code: err.displayCode }),
+        'error',
+      )
       return false
     }
   }
@@ -380,11 +399,10 @@ export function useColumnSetup(
       if (err.displayCode === 'ALREADY_FAVORITED') {
         const { confirm } = useConfirm()
         const ok = await confirm({
-          title: 'お気に入り解除',
-          message:
-            'このノートは既にお気に入りに追加されています。お気に入りを解除しますか？',
+          title: i18n.ts._useColumnSetup.unfavoriteTitle,
+          message: i18n.ts._useColumnSetup.confirmUnfavorite,
           type: 'danger',
-          okLabel: '解除',
+          okLabel: i18n.ts._useColumnSetup.unfavoriteOk,
         })
         if (ok) {
           try {
@@ -398,7 +416,9 @@ export function useColumnSetup(
             const err2 = AppError.from(e2)
             console.error('[bookmark:unfavorite]', err2.code, err2.message)
             toast.show(
-              `お気に入り解除に失敗しました（${err2.displayCode}）`,
+              i18n.tsx._useColumnSetup.unfavoriteFailed({
+                code: err2.displayCode,
+              }),
               'error',
             )
           }
@@ -409,7 +429,10 @@ export function useColumnSetup(
         }
       } else {
         console.error('[bookmark]', err.code, err.message)
-        toast.show(`ブックマークに失敗しました（${err.displayCode}）`, 'error')
+        toast.show(
+          i18n.tsx._useColumnSetup.favoriteFailed({ code: err.displayCode }),
+          'error',
+        )
       }
     }
   }

@@ -1,6 +1,6 @@
 import { type Ast, Parser } from '@syuilo/aiscript'
-
 import type { QirBinding, QirNode, QirQuery } from '@/bindings'
+import { i18n } from '@/i18n'
 import { collectImpureIdentifiers } from '@/services/columnQuery/purity'
 
 /**
@@ -157,7 +157,7 @@ class Compiler {
     this.nodeCount += 1
     if (this.nodeCount > QIR_MAX_NODES) {
       throw new CompileFail(
-        `式が大きすぎます (関数展開後 ${QIR_MAX_NODES} ノード超)`,
+        i18n.tsx._compiler.tooLarge({ max: String(QIR_MAX_NODES) }),
       )
     }
     return node
@@ -172,14 +172,18 @@ class Compiler {
       return {
         ok: false,
         degradable: false,
-        diagnostics: [{ message: `構文エラー: ${String(e)}` }],
+        diagnostics: [
+          { message: i18n.tsx._compiler.syntaxError({ error: String(e) }) },
+        ],
       }
     }
     try {
       const root = this.compileTopLevel(statements)
       const depth = qirDepth(root)
       if (depth > QIR_MAX_DEPTH) {
-        throw new CompileFail(`式が深すぎます (深さ ${QIR_MAX_DEPTH} 超)`)
+        throw new CompileFail(
+          i18n.tsx._compiler.tooDeep({ max: String(QIR_MAX_DEPTH) }),
+        )
       }
       return {
         ok: true,
@@ -218,7 +222,7 @@ class Compiler {
       diagnostics: [
         diagnostic,
         ...impure.map((v) => ({
-          message: `${v.name} はフィルタから参照できません`,
+          message: i18n.tsx._compiler.notReferable({ name: v.name }),
           line: v.line,
           column: v.column,
         })),
@@ -229,17 +233,14 @@ class Compiler {
   private compileTopLevel(statements: Ast.Node[]): QirNode {
     const only = statements[0]
     if (only === undefined) {
-      throw new CompileFail('フィルタ式が空です')
+      throw new CompileFail(i18n.ts._compiler.emptyFilter)
     }
     // 名前付きクエリ形 `@(note) { ... }`: 単一の fn 式なら本体をフィルタとして扱う
     if (statements.length === 1 && only.type === 'fn') {
       const fn = only
       const param = fn.params[0]
       if (fn.params.length !== 1 || param === undefined) {
-        throw new CompileFail(
-          'フィルタ関数の引数は (note) の 1 つだけです',
-          fn.loc,
-        )
+        throw new CompileFail(i18n.ts._compiler.filterFnParams, fn.loc)
       }
       const paramName = identifierName(param.dest, fn.loc)
       // 警告・ガード検出はソース上の名前で行う (V25)
@@ -261,7 +262,7 @@ class Compiler {
     loc: Ast.Loc,
   ): QirNode {
     if (children.length === 0) {
-      throw new CompileFail('本体が空です', loc)
+      throw new CompileFail(i18n.ts._compiler.emptyBody, loc)
     }
     const bindings: QirBinding[] = []
     const localScope: Scope = new Map(scope)
@@ -269,22 +270,22 @@ class Compiler {
       const isLast = i === children.length - 1
       if (stmt.type === 'def') {
         if (isLast) {
-          throw new CompileFail('末尾は式である必要があります', stmt.loc)
+          throw new CompileFail(i18n.ts._compiler.lastMustBeExpr, stmt.loc)
         }
         this.compileDef(stmt, localScope, bindings)
         continue
       }
       if (!isAstExpression(stmt)) {
-        throw new CompileFail(`サブセット外の構文です: ${stmt.type}`, stmt.loc)
+        throw new CompileFail(
+          i18n.tsx._compiler.unsupportedSyntax({ type: stmt.type }),
+          stmt.loc,
+        )
       }
       const typed = this.compileExpr(stmt, localScope)
       if (isLast) {
         // トップレベル/本体の結果型は静的に bool (null は per-note エラー側)
         if ((typed.type & ~T_NULL) !== T_BOOL) {
-          throw new CompileFail(
-            '式の結果は bool である必要があります (true = 表示)',
-            stmt.loc,
-          )
+          throw new CompileFail(i18n.ts._compiler.resultMustBeBool, stmt.loc)
         }
         if (bindings.length === 0) return typed.qir
         return this.emit({ kind: 'let', bindings, body: typed.qir })
@@ -292,21 +293,21 @@ class Compiler {
       // 中間式: 値は捨てるが評価順とエラーは保存する
       bindings.push({ slot: this.allocSlot(), expr: typed.qir })
     }
-    throw new CompileFail('末尾に式がありません', loc)
+    throw new CompileFail(i18n.ts._compiler.noTrailingExpr, loc)
   }
 
   private compileDef(def: Ast.Definition, scope: Scope, out: QirBinding[]) {
     if (def.mut) {
+      throw new CompileFail(i18n.ts._compiler.varUnsupported, def.loc)
+    }
+    if (def.varType !== undefined) {
       throw new CompileFail(
-        'var はサブセット外です (let を使ってください)',
+        i18n.ts._compiler.typeAnnotationUnsupported,
         def.loc,
       )
     }
-    if (def.varType !== undefined) {
-      throw new CompileFail('型注釈はサブセット外です', def.loc)
-    }
     if (def.attr.length > 0) {
-      throw new CompileFail('属性はサブセット外です', def.loc)
+      throw new CompileFail(i18n.ts._compiler.attrUnsupported, def.loc)
     }
     const name = identifierName(def.dest, def.loc)
     if (def.expr.type === 'fn') {
@@ -345,7 +346,7 @@ class Compiler {
     this.warnings.set(field, {
       field,
       guard: `${field} != null`,
-      message: `${field} は null のことがあります。ガードしないと、そのノートが丸ごと除外されます`,
+      message: i18n.tsx._compiler.nullableField({ field }),
       line: loc.start.line,
       column: loc.start.column,
     })
@@ -415,7 +416,10 @@ class Compiler {
         const right = this.compileExpr(node.right, scope)
         for (const side of [left, right]) {
           if ((side.type & ~T_NULL) !== T_NUM) {
-            throw new CompileFail(`比較 ${node.type} は数値専用です`, node.loc)
+            throw new CompileFail(
+              i18n.tsx._compiler.comparisonNumericOnly({ op: node.type }),
+              node.loc,
+            )
           }
         }
         return {
@@ -439,10 +443,7 @@ class Compiler {
           isNullLiteral(left.type) ||
           isNullLiteral(right.type)
         if (!allowed) {
-          throw new CompileFail(
-            '== / != はスカラー同士か null との比較のみです (配列・オブジェクトの参照等価は QIR で再現できないため)',
-            node.loc,
-          )
+          throw new CompileFail(i18n.ts._compiler.eqScalarOnly, node.loc)
         }
         return {
           qir: this.emit({
@@ -455,7 +456,10 @@ class Compiler {
         }
       }
       default:
-        throw new CompileFail(`サブセット外の構文です: ${node.type}`, node.loc)
+        throw new CompileFail(
+          i18n.tsx._compiler.unsupportedSyntax({ type: node.type }),
+          node.loc,
+        )
     }
   }
 
@@ -467,7 +471,7 @@ class Compiler {
     const typed = this.compileExpr(node, scope)
     if ((typed.type & ~T_NULL) !== T_BOOL) {
       throw new CompileFail(
-        `${opName} の項は bool である必要があります`,
+        i18n.tsx._compiler.operandMustBeBool({ op: opName }),
         node.loc,
       )
     }
@@ -478,7 +482,7 @@ class Compiler {
     const entry = scope.get(node.name)
     if (!entry) {
       throw new CompileFail(
-        `未知の識別子です: ${node.name} (フィルタから参照できるのは note と自分で定義した let/関数のみ)`,
+        i18n.tsx._compiler.unknownIdentifier({ name: node.name }),
         node.loc,
       )
     }
@@ -491,7 +495,7 @@ class Compiler {
     }
     if (entry.kind === 'fn') {
       throw new CompileFail(
-        `関数 ${node.name} は呼び出しの形でのみ使えます`,
+        i18n.tsx._compiler.fnCallOnly({ name: node.name }),
         node.loc,
       )
     }
@@ -512,15 +516,12 @@ class Compiler {
           type: T_NUM,
         }
       }
-      throw new CompileFail(
-        '.len は配列フィールド専用です (str.len はサブセット外)',
-        node.loc,
-      )
+      throw new CompileFail(i18n.ts._compiler.lenArrayOnly, node.loc)
     }
     const target = this.compileExpr(node.target, scope)
     if (target.notePath === undefined) {
       throw new CompileFail(
-        `プロパティ ${node.name} はサブセット外です`,
+        i18n.tsx._compiler.propertyUnsupported({ name: node.name }),
         node.loc,
       )
     }
@@ -528,7 +529,7 @@ class Compiler {
     const type = NOTE_FIELD_TYPES[path.join('.')]
     if (type === undefined) {
       throw new CompileFail(
-        `note.${path.join('.')} はフィールド allowlist 外です`,
+        i18n.tsx._compiler.fieldNotAllowed({ path: path.join('.') }),
         node.loc,
       )
     }
@@ -545,13 +546,10 @@ class Compiler {
     const valueType =
       pathKey !== undefined ? NOTE_INDEXABLE_VALUE_TYPES[pathKey] : undefined
     if (valueType === undefined) {
-      throw new CompileFail(
-        'index はリテラルキーによる note.reactions[...] のみです',
-        node.loc,
-      )
+      throw new CompileFail(i18n.ts._compiler.indexReactionsOnly, node.loc)
     }
     if (node.index.type !== 'str') {
-      throw new CompileFail('index のキーは文字列リテラルのみです', node.loc)
+      throw new CompileFail(i18n.ts._compiler.indexKeyStringOnly, node.loc)
     }
     return {
       qir: this.emit({
@@ -573,9 +571,12 @@ class Compiler {
       if (entry?.kind === 'fn') {
         return this.inlineFnCall(node, entry, scope)
       }
-      throw new CompileFail(`未知の関数です: ${target.name}`, node.loc)
+      throw new CompileFail(
+        i18n.tsx._compiler.unknownFunction({ name: target.name }),
+        node.loc,
+      )
     }
-    throw new CompileFail('この呼び出し形はサブセット外です', node.loc)
+    throw new CompileFail(i18n.ts._compiler.callFormUnsupported, node.loc)
   }
 
   /** str.incl / starts_with / ends_with / lower / upper、arr.incl */
@@ -590,10 +591,13 @@ class Compiler {
     this.checkNullableReceiver(recv, prop.loc)
     if (name === 'lower' || name === 'upper') {
       if (call.args.length !== 0) {
-        throw new CompileFail(`${name}() は引数を取りません`, call.loc)
+        throw new CompileFail(i18n.tsx._compiler.noArgs({ name }), call.loc)
       }
       if (recvBase !== T_STR) {
-        throw new CompileFail(`${name}() は文字列専用です`, call.loc)
+        throw new CompileFail(
+          i18n.tsx._compiler.stringOnlyCall({ name }),
+          call.loc,
+        )
       }
       return {
         qir: this.emit({ kind: 'strMap', op: name, target: recv.qir }),
@@ -603,12 +607,12 @@ class Compiler {
     if (name === 'incl') {
       const argNode = call.args[0]
       if (call.args.length !== 1 || argNode === undefined) {
-        throw new CompileFail('incl は引数 1 つです', call.loc)
+        throw new CompileFail(i18n.ts._compiler.inclOneArg, call.loc)
       }
       const needle = this.compileExpr(argNode, scope)
       if (recvBase === T_STR) {
         if ((needle.type & ~T_NULL) !== T_STR) {
-          throw new CompileFail('str.incl の引数は文字列です', call.loc)
+          throw new CompileFail(i18n.ts._compiler.strInclArgString, call.loc)
         }
         return {
           qir: this.emit({
@@ -622,7 +626,7 @@ class Compiler {
       }
       if (recvBase === T_ARR) {
         if ((needle.type & ~(T_SCALAR | T_NULL)) !== 0) {
-          throw new CompileFail('arr.incl の引数はスカラーのみです', call.loc)
+          throw new CompileFail(i18n.ts._compiler.arrInclArgScalar, call.loc)
         }
         return {
           qir: this.emit({
@@ -633,22 +637,25 @@ class Compiler {
           type: T_BOOL,
         }
       }
-      throw new CompileFail('incl は文字列か配列専用です', call.loc)
+      throw new CompileFail(i18n.ts._compiler.inclStringOrArray, call.loc)
     }
     if (name === 'starts_with' || name === 'ends_with') {
       const argNode = call.args[0]
       if (call.args.length !== 1 || argNode === undefined) {
         throw new CompileFail(
-          `${name} は 1 引数形のみサブセットです (index 引数は UTF-16 依存のため降格)`,
+          i18n.tsx._compiler.oneArgFormOnly({ name }),
           call.loc,
         )
       }
       if (recvBase !== T_STR) {
-        throw new CompileFail(`${name} は文字列専用です`, call.loc)
+        throw new CompileFail(i18n.tsx._compiler.stringOnly({ name }), call.loc)
       }
       const needle = this.compileExpr(argNode, scope)
       if ((needle.type & ~T_NULL) !== T_STR) {
-        throw new CompileFail(`${name} の引数は文字列です`, call.loc)
+        throw new CompileFail(
+          i18n.tsx._compiler.argMustBeString({ name }),
+          call.loc,
+        )
       }
       return {
         qir: this.emit({
@@ -660,7 +667,10 @@ class Compiler {
         type: T_BOOL,
       }
     }
-    throw new CompileFail(`メソッド ${name} はサブセット外です`, call.loc)
+    throw new CompileFail(
+      i18n.tsx._compiler.methodUnsupported({ name }),
+      call.loc,
+    )
   }
 
   /** ユーザー定義関数のインライン脱糖 (V19: 引数 eager + 本体 Let 列)。 */
@@ -668,13 +678,16 @@ class Compiler {
     const fn = entry.node
     if (this.inlineStack.includes(fn)) {
       throw new CompileFail(
-        `関数 ${entry.name} は再帰しています (再帰はサブセット外)`,
+        i18n.tsx._compiler.recursive({ name: entry.name }),
         call.loc,
       )
     }
     if (call.args.length !== fn.params.length) {
       throw new CompileFail(
-        `関数 ${entry.name} の引数は ${fn.params.length} 個です`,
+        i18n.tsx._compiler.fnArgCount_plural({
+          name: entry.name,
+          count: fn.params.length,
+        }),
         call.loc,
       )
     }
@@ -684,7 +697,7 @@ class Compiler {
     for (const [i, param] of fn.params.entries()) {
       if (param.optional || param.default !== undefined) {
         throw new CompileFail(
-          'オプショナル引数・デフォルト値はサブセット外です',
+          i18n.ts._compiler.optionalParamUnsupported,
           fn.loc,
         )
       }
@@ -717,7 +730,7 @@ class Compiler {
     loc: Ast.Loc,
   ): Typed {
     if (children.length === 0) {
-      throw new CompileFail('関数本体が空です', loc)
+      throw new CompileFail(i18n.ts._compiler.emptyFnBody, loc)
     }
     const bindings: QirBinding[] = []
     const localScope: Scope = new Map(scope)
@@ -725,14 +738,14 @@ class Compiler {
       const isLast = i === children.length - 1
       if (stmt.type === 'def') {
         if (isLast) {
-          throw new CompileFail('末尾は式である必要があります', stmt.loc)
+          throw new CompileFail(i18n.ts._compiler.lastMustBeExpr, stmt.loc)
         }
         this.compileDef(stmt, localScope, bindings)
         continue
       }
       if (!isAstExpression(stmt)) {
         throw new CompileFail(
-          `関数本体で使えない構文です: ${stmt.type} (本体は let 列 + 末尾式のみ)`,
+          i18n.tsx._compiler.fnBodySyntax({ type: stmt.type }),
           stmt.loc,
         )
       }
@@ -746,7 +759,7 @@ class Compiler {
       }
       bindings.push({ slot: this.allocSlot(), expr: typed.qir })
     }
-    throw new CompileFail('末尾に式がありません', loc)
+    throw new CompileFail(i18n.ts._compiler.noTrailingExpr, loc)
   }
 }
 
@@ -779,7 +792,7 @@ function notePathOf(node: Ast.Expression): string | undefined {
 
 function identifierName(dest: Ast.Expression, loc: Ast.Loc): string {
   if (dest.type !== 'identifier') {
-    throw new CompileFail('分割代入はサブセット外です', loc)
+    throw new CompileFail(i18n.ts._compiler.destructuringUnsupported, loc)
   }
   return dest.name
 }

@@ -85,7 +85,10 @@ const {
   onError: (e) => {
     const err = AppError.from(e)
     console.error('[follow:load]', err.code, err.message)
-    toast.show(`取得に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._followListContent.fetchFailed({ code: err.displayCode }),
+      'error',
+    )
   },
 })
 
@@ -101,7 +104,10 @@ onMounted(async () => {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[follow:init]', err.code, err.message)
-    toast.show(`読み込みに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._followListContent.loadFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 })
 

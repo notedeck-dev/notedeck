@@ -13,6 +13,7 @@
  * 対応種別が増えるたびに虫食いが再発するため。
  */
 
+import { i18n } from '@/i18n'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import {
   ACCOUNT_INDEPENDENT_TYPES,
@@ -71,10 +72,15 @@ export const CROSS_ACCOUNT_UNAVAILABLE_LABELS: Record<
   CrossAccountUnavailableReason,
   string
 > = {
-  selectable:
-    'サーバーごとに選ぶ項目のため、全アカウントでの束ね方が決まっていません',
-  server: 'サーバー単位の面のため、アカウントをまたぐ意味がありません',
-  unsupported: 'このカラムはまだ全アカウントに対応していません',
+  get selectable() {
+    return i18n.ts._accountScope.selectable
+  },
+  get server() {
+    return i18n.ts._accountScope.server
+  },
+  get unsupported() {
+    return i18n.ts._accountScope.unsupported
+  },
 }
 
 /** 全アカウントで開ける (または アカウントに紐づかない) 種別なら null */

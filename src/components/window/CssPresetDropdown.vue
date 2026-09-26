@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useClickOutside } from '@/composables/useClickOutside'
+import { i18n } from '@/i18n'
 
 /**
  * CSS エディタのプリセット用ドロップダウン (#778)。
@@ -30,7 +31,8 @@ const rootRef = ref<HTMLElement | null>(null)
 
 const selectedLabel = computed(
   () =>
-    props.options.find((o) => o.value === model.value)?.label ?? 'デフォルト',
+    props.options.find((o) => o.value === model.value)?.label ??
+    i18n.ts._cssPresetDropdown.default,
 )
 
 function fontStyle(value: string) {

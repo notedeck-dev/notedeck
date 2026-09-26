@@ -13,6 +13,7 @@
  */
 
 import type { AuthType, ConnectionProtocol } from '@/bindings'
+import { i18n } from '@/i18n'
 import { proxyUrl } from '@/utils/mediaProxy'
 
 export interface ConnectionTemplate {
@@ -151,7 +152,9 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     authType: { kind: 'header', name: 'Authorization' },
     allowedHosts: ['api-free.deepl.com', 'api.deepl.com'],
     testPath: '/v2/usage',
-    secretLabel: 'Authorization ヘッダ値 (DeepL-Auth-Key <API キー>)',
+    get secretLabel() {
+      return i18n.ts._connectionTemplates.deeplAuthHeader
+    },
     secretHelpUrl: 'https://www.deepl.com/your-account/keys',
   },
   {
@@ -176,7 +179,9 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     authType: { kind: 'bearer' },
     allowedHosts: ['api.todoist.com'],
     testPath: '/api/v1/tasks',
-    secretLabel: 'API トークン',
+    get secretLabel() {
+      return i18n.ts._connectionTemplates.apiToken
+    },
     secretHelpUrl:
       'https://app.todoist.com/app/settings/integrations/developer',
   },
@@ -201,7 +206,9 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     authType: { kind: 'basic', username: '' },
     allowedHosts: ['api.hackerone.com'],
     testPath: '/v1/hackers/payments/balance',
-    secretLabel: 'API トークン (生の値)',
+    get secretLabel() {
+      return i18n.ts._connectionTemplates.apiTokenRaw
+    },
     secretHelpUrl: 'https://hackerone.com/settings/api_token/edit',
   },
   {
@@ -252,7 +259,9 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     // 認証つきの面は x-api-user (User ID) も要求し、それは接続ではなくウィジェット側が
     // 持つ。ここで見られるのは到達性まで
     testPath: '/api/v3/status',
-    secretLabel: 'API トークン',
+    get secretLabel() {
+      return i18n.ts._connectionTemplates.apiToken
+    },
     secretHelpUrl: 'https://habitica.com/user/settings/api',
   },
   {
@@ -265,7 +274,9 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     allowedHosts: ['www.commafeed.com'],
     // API キー認証で通るのは GET のみ
     testPath: '/rest/category/get',
-    secretLabel: 'API キー',
+    get secretLabel() {
+      return i18n.ts._connectionTemplates.apiKey
+    },
     secretHelpUrl: 'https://www.commafeed.com',
   },
   {
@@ -276,7 +287,9 @@ export const BUILTIN_TEMPLATES: ConnectionTemplate[] = [
     authType: { kind: 'bearer' },
     allowedHosts: ['mewk.app'],
     testPath: '/api/v1/users/me/stats',
-    secretLabel: 'API キー (mewk_...)',
+    get secretLabel() {
+      return i18n.ts._connectionTemplates.apiKeyMewk
+    },
     secretHelpUrl: 'https://mewk.app/settings/developer',
   },
 ]

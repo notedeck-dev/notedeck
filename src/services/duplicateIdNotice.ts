@@ -1,3 +1,5 @@
+import { i18n } from '@/i18n'
+
 /** 読込で ID が重複してスキップしたファイル (1 回の loadAll 分) */
 export interface DuplicateIdEntry {
   id: string
@@ -13,10 +15,12 @@ export function formatDuplicateIdNotice(
   entries: readonly DuplicateIdEntry[],
 ): string | null {
   if (entries.length === 0) return null
-  const tail = ' (ファイルは残っています — 不要なら手動で削除してください)'
   if (entries.length === 1) {
     const [e] = entries
-    return `同じ ID「${e?.id}」の設定ファイルが複数あります。${e?.file} は読み込まれていません${tail}`
+    return i18n.tsx._duplicateIdNotice.single({
+      id: String(e?.id),
+      file: String(e?.file),
+    })
   }
   const byId = new Map<string, string[]>()
   for (const e of entries) {
@@ -25,7 +29,12 @@ export function formatDuplicateIdNotice(
     byId.set(e.id, files)
   }
   const detail = [...byId]
-    .map(([id, files]) => `「${id}」: ${files.join(', ')}`)
+    .map(([id, files]) =>
+      i18n.tsx._duplicateIdNotice.entry({ id, files: files.join(', ') }),
+    )
     .join(' / ')
-  return `同じ ID の設定ファイルが ${entries.length} 件あります (${detail})。これらは読み込まれていません${tail}`
+  return i18n.tsx._duplicateIdNotice.multiple_plural({
+    count: entries.length,
+    detail,
+  })
 }

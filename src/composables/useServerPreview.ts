@@ -2,6 +2,7 @@ import { type Ref, ref, watch } from 'vue'
 import { isSupportedSoftware, softwareDisplayName } from '@/adapters/registry'
 import type { ServerInfo } from '@/adapters/types'
 import { detectServer } from '@/core/server'
+import { i18n } from '@/i18n'
 
 export type ServerStatus = 'idle' | 'checking' | 'ok' | 'unsupported' | 'error'
 
@@ -53,13 +54,13 @@ export function useServerPreview(host: Ref<string>, debounceMs = 350) {
         serverInfo.value = info
         const name = softwareDisplayName(info.software)
         errorMessage.value = name
-          ? `${name} は未対応です`
-          : 'Misskey サーバーではないため未対応です'
+          ? i18n.tsx._useServerPreview.unsupportedSoftware({ name })
+          : i18n.ts._useServerPreview.notMisskey
       }
     } catch {
       if (generation !== abortGeneration) return
       status.value = 'error'
-      errorMessage.value = 'サーバーが見つかりません'
+      errorMessage.value = i18n.ts._useServerPreview.notFound
     }
   }
 

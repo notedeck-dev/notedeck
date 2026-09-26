@@ -103,7 +103,10 @@ const json5Linter = linter(
         from: 0,
         to: src.length,
         severity: 'error',
-        message: e instanceof Error ? e.message : 'JSON5 パースエラー',
+        message:
+          e instanceof Error
+            ? e.message
+            : i18n.ts._permissionsContent.json5ParseError,
       })
     }
     return diagnostics
@@ -147,7 +150,10 @@ watch(rawJson, (v) => {
         rawSaved.value = false
       }, 1500)
     } catch (e) {
-      rawError.value = e instanceof Error ? e.message : '不正な JSON5'
+      rawError.value =
+        e instanceof Error
+          ? e.message
+          : i18n.ts._permissionsContent.invalidJson5
     }
   }, 500)
 })
@@ -169,18 +175,23 @@ function chipFor(id: ProfiledPrincipalId): string {
 
 const INSTRUCTION_RULE = {
   keys: AI_INSTRUCTION_KEYS,
-  reason: 'AI への指示チャネルは第三者には開放できません',
+  get reason() {
+    return i18n.ts._permissionsContent.instructionRuleReason
+  },
   fixedValue: false,
 } as const
 const TASKS_RULE = {
   keys: ['tasks.run'],
-  reason: 'タスクは本人と AI のみが実行できます',
+  get reason() {
+    return i18n.ts._permissionsContent.tasksRuleReason
+  },
   fixedValue: false,
 } as const
 const EXTERNAL_FLOOR_RULE = {
   keys: EXTERNAL_READ_FLOOR,
-  reason:
-    '共有プロファイルでは Misskey の read は常に許可 — 遮断するにはトークンを失効',
+  get reason() {
+    return i18n.ts._permissionsContent.externalFloorReason
+  },
   fixedValue: true,
 } as const
 
@@ -279,32 +290,48 @@ const ROWS: readonly {
   {
     id: 'ai.chat',
     icon: 'ti-robot',
-    label: 'AI チャット',
-    hint: 'AI の tool calling (チャット / コマンド / タスク) に許可する操作',
+    get label() {
+      return i18n.ts._permissionsContent.aiChat
+    },
+    get hint() {
+      return i18n.ts._permissionsContent.aiChatHint
+    },
   },
   {
     id: 'ai.heartbeat',
     icon: 'ti-activity',
     label: 'HEARTBEAT',
-    hint: '無人で定期実行される AI daemon に許可する操作 (チャットとは独立)',
+    get hint() {
+      return i18n.ts._permissionsContent.heartbeatHint
+    },
   },
   {
     id: 'plugin',
     icon: 'ti-puzzle',
     label: 'AiScript',
-    hint: 'AiScript プラグイン / ウィジェット / Play に許可する操作',
+    get hint() {
+      return i18n.ts._permissionsContent.pluginHint
+    },
   },
   {
     id: 'external',
     icon: 'ti-plug-connected',
-    label: '外部アプリ',
-    hint: 'HTTP API (永続トークン) 経由の外部アプリに許可する操作',
+    get label() {
+      return i18n.ts._permissionsContent.external
+    },
+    get hint() {
+      return i18n.ts._permissionsContent.externalHint
+    },
   },
   {
     id: 'scratchpad',
     icon: 'ti-terminal-2',
-    label: 'スクラッチパッド',
-    hint: 'スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (既定は読み取りのみ)',
+    get label() {
+      return i18n.ts._columns.aiscript
+    },
+    get hint() {
+      return i18n.ts._permissionsContent.scratchpadHint
+    },
   },
 ]
 

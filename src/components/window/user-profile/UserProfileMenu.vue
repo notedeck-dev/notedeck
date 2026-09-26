@@ -123,13 +123,16 @@ async function handleMuteUser() {
     await props.adapter.api.muteUser(props.user.id)
     // 過去ノートをリロード無しで即時非表示にする（#574）。表示述語が reactive に再評価。
     mutesStore.muteUser(props.accountId, props.user.id)
-    toast.show('ミュートしました')
+    toast.show(i18n.ts._userProfileMenu.muted)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:mute]', err.code, err.message)
-    toast.show(`ミュートに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.muteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -139,13 +142,16 @@ async function handleUnmuteUser() {
     await props.adapter.api.unmuteUser(props.user.id)
     // ミュート中に隠れていた過去ノートを即時復活させる（#574）。
     mutesStore.unmuteUser(props.accountId, props.user.id)
-    toast.show('ミュートを解除しました')
+    toast.show(i18n.ts._userProfileMenu.unmuted)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:unmute]', err.code, err.message)
-    toast.show(`ミュート解除に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.unmuteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -153,13 +159,16 @@ async function handleBlockUser() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.blockUser(props.user.id)
-    toast.show('ブロックしました')
+    toast.show(i18n.ts._userProfileMenu.blocked)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:block]', err.code, err.message)
-    toast.show(`ブロックに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.blockFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -167,13 +176,16 @@ async function handleUnblockUser() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.unblockUser(props.user.id)
-    toast.show('ブロックを解除しました')
+    toast.show(i18n.ts._userProfileMenu.unblocked)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:unblock]', err.code, err.message)
-    toast.show(`ブロック解除に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.unblockFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -181,13 +193,16 @@ async function handleRenoteMuteUser() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.renoteMuteUser(props.user.id)
-    toast.show('リノートをミュートしました')
+    toast.show(i18n.ts._userProfileMenu.renotesMuted)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:renote-mute]', err.code, err.message)
-    toast.show(`リノートミュートに失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.renoteMuteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -195,14 +210,14 @@ async function handleUnrenoteMuteUser() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.unrenoteMuteUser(props.user.id)
-    toast.show('リノートのミュートを解除しました')
+    toast.show(i18n.ts._userProfileMenu.renotesUnmuted)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:renote-unmute]', err.code, err.message)
     toast.show(
-      `リノートミュート解除に失敗しました（${err.displayCode}）`,
+      i18n.tsx._userProfileMenu.renoteUnmuteFailed({ code: err.displayCode }),
       'error',
     )
   }
@@ -212,13 +227,18 @@ async function handleInvalidateFollower() {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.invalidateFollower(props.user.id)
-    toast.show('フォロワーを解除しました')
+    toast.show(i18n.ts._userProfileMenu.followerInvalidated)
     void refreshUserRelation()
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:invalidate-follower]', err.code, err.message)
-    toast.show(`フォロワー解除に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.invalidateFollowerFailed({
+        code: err.displayCode,
+      }),
+      'error',
+    )
   }
 }
 
@@ -226,12 +246,15 @@ async function handleReportUser() {
   if (!props.adapter || !props.user || !reportComment.value.trim()) return
   try {
     await props.adapter.api.reportUser(props.user.id, reportComment.value)
-    toast.show('通報しました')
+    toast.show(i18n.ts._userProfileMenu.reported)
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:report]', err.code, err.message)
-    toast.show(`通報に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.reportFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -241,7 +264,7 @@ async function copyText(text: string, successMessage: string) {
     toast.show(successMessage)
   } catch (e) {
     console.error('[user:copy]', e)
-    toast.show('コピーに失敗しました', 'error')
+    toast.show(i18n.ts._userProfileMenu.copyFailed, 'error')
   } finally {
     closeUserMenu()
   }
@@ -251,7 +274,10 @@ function handleCopyUsername() {
   if (!props.user) return
   const host = props.user.host ?? props.accountHost
   if (!host) return
-  copyText(`@${props.user.username}@${host}`, 'ユーザー名をコピーしました')
+  copyText(
+    `@${props.user.username}@${host}`,
+    i18n.ts._userProfileMenu.usernameCopied,
+  )
 }
 
 function handleCopyProfileUrl() {
@@ -261,7 +287,7 @@ function handleCopyProfileUrl() {
     : `@${props.user.username}`
   copyText(
     `https://${props.accountHost}/${canonical}`,
-    'プロフィール URL をコピーしました',
+    i18n.ts._userProfileMenu.profileUrlCopied,
   )
 }
 
@@ -271,7 +297,7 @@ function handleCopyRss() {
   if (!host) return
   copyText(
     `${host}/@${props.user.username}.atom`,
-    'RSS の URL をコピーしました',
+    i18n.ts._userProfileMenu.rssUrlCopied,
   )
 }
 
@@ -280,7 +306,7 @@ function handleCopyEmbedCode() {
   // リモートユーザーはホストサーバーで埋め込みを取得できないので除外 (Misskey 本家踏襲)
   if (props.user.host) return
   const code = generateUserEmbedCode(props.accountHost, props.user.id)
-  copyText(code, '埋め込みコードをコピーしました')
+  copyText(code, i18n.ts._userProfileMenu.embedCodeCopied)
 }
 
 async function openListPicker() {
@@ -291,7 +317,10 @@ async function openListPicker() {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[list:fetch]', err.code, err.message)
-    toast.show(`リストの取得に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.fetchListsFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -299,12 +328,15 @@ async function addToList(listId: string) {
   if (!props.adapter || !props.user) return
   try {
     await props.adapter.api.addUserToList(listId, props.user.id)
-    toast.show('リストに追加しました')
+    toast.show(i18n.ts._userProfileMenu.addedToList)
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[list:add]', err.code, err.message)
-    toast.show(`リストへの追加に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.addToListFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -355,11 +387,18 @@ async function toggleWithReplies() {
       withReplies: next,
     })
     props.user.withReplies = next
-    toast.show(next ? 'TLに返信を含めます' : 'TLに返信を含めません')
+    toast.show(
+      next
+        ? i18n.ts._userProfileMenu.withRepliesOn
+        : i18n.ts._userProfileMenu.withRepliesOff,
+    )
   } catch (e) {
     const err = AppError.from(e)
     console.error('[following:withReplies]', err.code, err.message)
-    toast.show(`設定の更新に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.updateSettingsFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -369,11 +408,18 @@ async function toggleNotify() {
   try {
     await props.adapter.api.updateFollowing(props.user.id, { notify: next })
     props.user.notify = next
-    toast.show(next === 'normal' ? '投稿を通知します' : '投稿を通知しません')
+    toast.show(
+      next === 'normal'
+        ? i18n.ts._userProfileMenu.notifyOn
+        : i18n.ts._userProfileMenu.notifyOff,
+    )
   } catch (e) {
     const err = AppError.from(e)
     console.error('[following:notify]', err.code, err.message)
-    toast.show(`設定の更新に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.updateSettingsFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -387,7 +433,10 @@ async function openAntennaPicker() {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[antenna:fetch]', err.code, err.message)
-    toast.show(`アンテナの取得に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.fetchAntennasFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -401,7 +450,7 @@ async function addToAntenna(antenna: Antenna) {
     const current = await props.adapter.api.getAntenna(antenna.id)
     const existing = current.users ?? []
     if (existing.some((u) => u.toLowerCase() === acct.toLowerCase())) {
-      toast.show('すでに追加されています')
+      toast.show(i18n.ts._userProfileMenu.alreadyAdded)
       closeUserMenu()
       return
     }
@@ -409,12 +458,15 @@ async function addToAntenna(antenna: Antenna) {
       ...current,
       users: [...existing, acct],
     })
-    toast.show(`${antenna.name} に追加しました`)
+    toast.show(i18n.tsx._userProfileMenu.addedToAntenna({ name: antenna.name }))
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[antenna:add]', err.code, err.message)
-    toast.show(`アンテナへの追加に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._userProfileMenu.addToAntennaFailed({ code: err.displayCode }),
+      'error',
+    )
   } finally {
     antennaBusy.value = false
   }

@@ -20,6 +20,13 @@ describe('辞書を読む前の import (#135)', { timeout: 30_000 }, () => {
     await import('@/windows/registry')
     await import('@/capabilities/builtins')
     await import('@/commands/definitions')
+    // モジュール直下の表示名の表 (getter で持つ)
+    await import('@/permissions/labels')
+    await import('@/permissions/pluginDenials')
+    await import('@/permissions/principal')
+    await import('@/permissions/store')
+    await import('@/stores/performanceData')
+    await import('@/utils/achievementLabels')
   })
 
   it('読み直した後で辞書を読めば表示名が引ける', async () => {

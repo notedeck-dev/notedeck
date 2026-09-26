@@ -1,6 +1,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { computed, watch } from 'vue'
 import { COLUMN_LABELS } from '@/columns/registry'
+import { i18n } from '@/i18n'
 import type { DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { catchIgnore } from '@/utils/logger'
@@ -28,7 +29,10 @@ export function useOsWindowTitle() {
       if (!firstCol) return 'NoteDeck'
       const first = columnDisplayName(firstCol)
       return cols.length > 1
-        ? `${first} 他${cols.length - 1} — NoteDeck`
+        ? i18n.tsx._useOsWindowTitle.withOthers({
+            first,
+            count: cols.length - 1,
+          })
         : `${first} — NoteDeck`
     }
     const profile = deckStore.currentProfileName

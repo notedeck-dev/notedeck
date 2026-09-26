@@ -60,8 +60,20 @@ const bodyRef = ref<HTMLElement | null>(null)
 
 const activeTab = ref<TabValue>('received')
 const tabDefs: ColumnTabDef[] = [
-  { value: 'received', label: '受け取った申請', icon: 'download' },
-  { value: 'sent', label: '送った申請', icon: 'upload' },
+  {
+    value: 'received',
+    get label() {
+      return i18n.ts._deckFollowRequestsColumn.received
+    },
+    icon: 'download',
+  },
+  {
+    value: 'sent',
+    get label() {
+      return i18n.ts._deckFollowRequestsColumn.sent
+    },
+    icon: 'upload',
+  },
 ]
 const frTabIndex = computed(() =>
   tabDefs.findIndex((t) => t.value === activeTab.value),
@@ -75,8 +87,8 @@ function requestUser(req: FollowRequest): NormalizedUser {
 
 const emptyMessage = computed(() =>
   activeTab.value === 'sent'
-    ? '送信中のフォローリクエストはありません'
-    : 'フォローリクエストはありません',
+    ? i18n.ts._deckFollowRequestsColumn.noSentRequests
+    : i18n.ts._deckFollowRequestsColumn.noRequests,
 )
 
 function scrollToTop() {

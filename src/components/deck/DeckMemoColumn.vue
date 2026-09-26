@@ -117,11 +117,11 @@ const memoCount = computed(() => entries.value.length)
 function contextLabel(ctx: MemoContext): string {
   switch (ctx.kind) {
     case 'reply':
-      return '返信'
+      return i18n.ts._deckMemoColumn.contextReply
     case 'renote':
-      return '引用'
+      return i18n.ts._deckMemoColumn.contextQuote
     case 'channel-note':
-      return 'チャンネル投稿'
+      return i18n.ts._deckMemoColumn.contextChannelNote
     default:
       return ''
   }
@@ -183,14 +183,14 @@ function onPosted() {
 async function onDelete(entry: MemoEntry) {
   closeMenu()
   const ok = await confirm({
-    title: 'メモを削除',
-    message: '選択したメモを削除しますか？',
-    okLabel: '削除',
+    title: i18n.ts._deckMemoColumn.deleteTitle,
+    message: i18n.ts._deckMemoColumn.deleteConfirm,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   deleteMemo(entry.key)
-  toast.show('メモを削除しました', 'info')
+  toast.show(i18n.ts._deckMemoColumn.deleted, 'info')
   if (editingKey.value === entry.key) {
     editingKey.value = null
     editingMemo.value = null

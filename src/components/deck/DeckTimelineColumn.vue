@@ -189,10 +189,30 @@ const noteColumnConfig: NoteColumnConfig = {
 
 // --- TL type definitions ---
 const TL_TYPES: { value: TimelineType; label: string }[] = [
-  { value: 'home', label: 'ホーム' },
-  { value: 'local', label: 'ローカル' },
-  { value: 'social', label: 'ソーシャル' },
-  { value: 'global', label: 'グローバル' },
+  {
+    value: 'home',
+    get label() {
+      return i18n.ts._deckTimelineColumn.home
+    },
+  },
+  {
+    value: 'local',
+    get label() {
+      return i18n.ts._deckTimelineColumn.local
+    },
+  },
+  {
+    value: 'social',
+    get label() {
+      return i18n.ts._deckTimelineColumn.social
+    },
+  },
+  {
+    value: 'global',
+    get label() {
+      return i18n.ts._deckTimelineColumn.global
+    },
+  },
 ]
 
 const TL_ICONS: Record<TimelineType, string> = {
@@ -455,15 +475,17 @@ if (isCrossAccount.value) {
 /** 全アカウント面の空状態: クエリによる全件除外と「TL が空」を区別する (仕様追補 E) */
 const crossEmptyMessage = computed(() => {
   if (crossQueryState.value.status === 'invalid') {
-    return 'クエリを解釈できないため表示を停止中です'
+    return i18n.ts._deckTimelineColumn.queryInvalid
   }
   if (
     crossQueryState.value.status === 'active' &&
     crossQueryExcludedCount.value > 0
   ) {
-    return `クエリに合致するノートがありません (${crossQueryExcludedCount.value} 件を除外中)`
+    return i18n.tsx._deckTimelineColumn.queryExcludedAll_plural({
+      count: crossQueryExcludedCount.value,
+    })
   }
-  return 'ノートはありません'
+  return i18n.ts._deckTimelineColumn.noNotes
 })
 
 // --- Tab defs for ColumnTabs ---

@@ -57,8 +57,11 @@ const updateTitle = computed(() => {
   if (!props.updatedAt) return ''
   const date = formatDate(props.updatedAt)
   return props.version
-    ? `ストア更新日: ${date} / v${props.version}`
-    : `ストア更新日: ${date}`
+    ? i18n.tsx._themeCard.storeUpdatedWithVersion({
+        date,
+        version: props.version,
+      })
+    : i18n.tsx._themeCard.storeUpdated({ date })
 })
 
 function handleClick() {

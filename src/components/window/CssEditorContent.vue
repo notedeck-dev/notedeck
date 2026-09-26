@@ -96,7 +96,8 @@ function sliderFill(value: number, min: number, max: number): string {
 }
 
 const fontSizeLabel = computed(() => {
-  if (presets.value.fontSize === 0) return 'デフォルト (15px)'
+  if (presets.value.fontSize === 0)
+    return i18n.ts._cssEditorContent.defaultFontSize
   return `${FONT_SIZE_BASE + presets.value.fontSize}px`
 })
 
@@ -114,7 +115,9 @@ function validateCss(cssStr: string): string | null {
     sheet.replaceSync(testCss)
     return null
   } catch (e) {
-    return e instanceof Error ? e.message : 'CSSパースエラー'
+    return e instanceof Error
+      ? e.message
+      : i18n.ts._cssEditorContent.cssParseError
   }
 }
 
@@ -257,17 +260,20 @@ function handleClear() {
 const selectedVisibilityBgLabel = computed(
   () =>
     VISIBILITY_BG_OPTIONS.find((o) => o.value === presets.value.visibilityBg)
-      ?.label ?? 'デフォルト',
+      ?.label ?? i18n.ts._cssEditorContent.default,
 )
 
 const selectedMonoFontLabel = computed(
   () =>
     MONO_FONT_OPTIONS.find((o) => o.value === presets.value.monoFont)?.label ??
-    'デフォルト',
+    i18n.ts._cssEditorContent.default,
 )
 
 function hideCountLabel(key: string): string {
-  return HIDE_COUNT_OPTIONS.find((o) => o.value === key)?.label ?? 'デフォルト'
+  return (
+    HIDE_COUNT_OPTIONS.find((o) => o.value === key)?.label ??
+    i18n.ts._cssEditorContent.default
+  )
 }
 
 watch(tab, (t) => {

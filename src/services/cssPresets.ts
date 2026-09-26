@@ -6,6 +6,8 @@
  * 直接編集された CSS からも選択状態を復元できるようにしている。
  */
 
+import { i18n } from '@/i18n'
+
 export interface FontOption {
   value: string
   label: string
@@ -18,7 +20,12 @@ export interface FontOption {
 }
 
 export const FONT_OPTIONS: FontOption[] = [
-  { value: '', label: 'デフォルト' },
+  {
+    value: '',
+    get label() {
+      return i18n.ts._cssPresets.default
+    },
+  },
   { value: 'Noto Sans JP', label: 'Noto Sans JP' },
   { value: 'Noto Serif JP', label: 'Noto Serif JP' },
   { value: 'Sawarabi Gothic', label: 'Sawarabi Gothic' },
@@ -64,14 +71,48 @@ export const FONT_OPTIONS: FontOption[] = [
  * (PlemolJP, HackGen, Cica 等) は @import で取れないので入れていない。
  */
 export const MONO_FONT_OPTIONS: FontOption[] = [
-  { value: '', label: 'デフォルト' },
-  { value: 'M PLUS 1 Code', label: 'M PLUS 1 Code (日本語)' },
+  {
+    value: '',
+    get label() {
+      return i18n.ts._cssPresets.default
+    },
+  },
+  {
+    value: 'M PLUS 1 Code',
+    get label() {
+      return i18n.ts._cssPresets.mPlus1Code
+    },
+  },
   { value: 'Cascadia Code', label: 'Cascadia Code' },
   { value: 'Cascadia Mono', label: 'Cascadia Mono' },
-  { value: 'MS Gothic', label: 'MS ゴシック (システム)', system: true },
-  { value: 'Consolas', label: 'Consolas (システム)', system: true },
-  { value: 'Lucida Console', label: 'Lucida Console (システム)', system: true },
-  { value: 'Courier New', label: 'Courier New (システム)', system: true },
+  {
+    value: 'MS Gothic',
+    get label() {
+      return i18n.ts._cssPresets.msGothic
+    },
+    system: true,
+  },
+  {
+    value: 'Consolas',
+    get label() {
+      return i18n.tsx._cssPresets.systemFont({ name: 'Consolas' })
+    },
+    system: true,
+  },
+  {
+    value: 'Lucida Console',
+    get label() {
+      return i18n.tsx._cssPresets.systemFont({ name: 'Lucida Console' })
+    },
+    system: true,
+  },
+  {
+    value: 'Courier New',
+    get label() {
+      return i18n.tsx._cssPresets.systemFont({ name: 'Courier New' })
+    },
+    system: true,
+  },
 ]
 
 export const FONT_SIZE_BASE = 15
@@ -83,24 +124,69 @@ export const VISIBILITY_BG_COLORS: Record<
   string,
   { label: string; color: string }
 > = {
-  home: { label: 'ホーム', color: 'rgba(51, 127, 255, 0.08)' },
-  followers: { label: 'フォロワー', color: 'rgba(0, 170, 100, 0.08)' },
-  specified: { label: 'ダイレクト', color: 'rgba(255, 90, 120, 0.1)' },
+  home: {
+    get label() {
+      return i18n.ts._cssPresets.visibilityHome
+    },
+    color: 'rgba(51, 127, 255, 0.08)',
+  },
+  followers: {
+    get label() {
+      return i18n.ts._cssPresets.visibilityFollowers
+    },
+    color: 'rgba(0, 170, 100, 0.08)',
+  },
+  specified: {
+    get label() {
+      return i18n.ts._cssPresets.visibilitySpecified
+    },
+    color: 'rgba(255, 90, 120, 0.1)',
+  },
 }
 
 export const VISIBILITY_BG_OPTIONS = [
-  { value: '', label: 'デフォルト' },
-  { value: 'tint', label: '背景色で色分け' },
+  {
+    value: '',
+    get label() {
+      return i18n.ts._cssPresets.default
+    },
+  },
+  {
+    value: 'tint',
+    get label() {
+      return i18n.ts._cssPresets.tintByVisibility
+    },
+  },
 ]
 
 // 数字の非表示 (#593/#594)。yamisskey の hideReactionCount / hide*Count と
 // 同じ self/others/all の 3 段階。導線 (クリックで一覧を開く等) は残し数字だけ消す。
 // ノート側はリアクション数 + リノート数 (評価シグナル)。返信数は会話の量なので対象外
 export const HIDE_COUNT_OPTIONS = [
-  { value: '', label: 'デフォルト' },
-  { value: 'self', label: '自分のみ隠す' },
-  { value: 'others', label: '他人のみ隠す' },
-  { value: 'all', label: 'すべて隠す' },
+  {
+    value: '',
+    get label() {
+      return i18n.ts._cssPresets.default
+    },
+  },
+  {
+    value: 'self',
+    get label() {
+      return i18n.ts._cssPresets.hideSelf
+    },
+  },
+  {
+    value: 'others',
+    get label() {
+      return i18n.ts._cssPresets.hideOthers
+    },
+  },
+  {
+    value: 'all',
+    get label() {
+      return i18n.ts._cssPresets.hideAll
+    },
+  },
 ]
 
 export interface CssPresets {

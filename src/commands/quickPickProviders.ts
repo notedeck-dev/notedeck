@@ -16,6 +16,7 @@ import { refreshProfileCommands } from '@/commands/definitions'
 import { switchProfileWithWindows } from '@/composables/useDeckWindow'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { formatUserHandle, searchUsers } from '@/composables/useUserSearch'
+import { i18n } from '@/i18n'
 import { SETTINGS_SECTIONS } from '@/settings/sections'
 import {
   getAccountAvatarUrl,
@@ -71,13 +72,16 @@ export function getProfileItems(): QuickPickItem[] {
     id: `profile-${p.id}`,
     label: p.name,
     icon: 'layout',
-    description: p.id === activeId ? '現在のプロファイル' : undefined,
+    description:
+      p.id === activeId
+        ? i18n.ts._quickPickProviders.currentProfile
+        : undefined,
     children: () => getProfileActions(p.id, p.id === activeId),
   }))
 
   items.push({
     id: 'profile-new',
-    label: '新規プロファイル作成',
+    label: i18n.ts._quickPickProviders.newProfile,
     icon: 'plus',
     action: () => {
       deckStore.saveAsProfile()
@@ -97,7 +101,7 @@ function getProfileActions(
   if (!isActive) {
     items.push({
       id: `profile-switch-${profileId}`,
-      label: '切替',
+      label: i18n.ts._quickPickProviders.switch,
       icon: 'switch-horizontal',
       action: () => switchProfileWithWindows(profileId),
     })
@@ -105,7 +109,7 @@ function getProfileActions(
 
   items.push({
     id: `profile-edit-${profileId}`,
-    label: '編集',
+    label: i18n.ts._common.edit,
     icon: 'edit',
     action: () => useWindowsStore().open('profileEditor', { profileId }),
   })
@@ -113,14 +117,14 @@ function getProfileActions(
   if (!isActive) {
     items.push({
       id: `profile-delete-${profileId}`,
-      label: '削除',
+      label: i18n.ts._common.delete,
       icon: 'trash',
       action: async () => {
         const { confirm } = useConfirm()
         const ok = await confirm({
-          title: 'プロファイルを削除',
-          message: 'このプロファイルを削除しますか？',
-          okLabel: '削除',
+          title: i18n.ts._quickPickProviders.deleteProfileTitle,
+          message: i18n.ts._quickPickProviders.deleteProfileMessage,
+          okLabel: i18n.ts._common.delete,
           type: 'danger',
         })
         if (!ok) return
@@ -175,7 +179,7 @@ async function buildAccountStep(type: ColumnType): Promise<QuickPickItem[]> {
     !forceShowSelection &&
     !CROSS_ACCOUNT_TYPES.has(type)
   ) {
-    useToast().show('ログインすると利用できます', 'info')
+    useToast().show(i18n.ts._quickPickProviders.loginRequired, 'info')
     return []
   }
 
@@ -195,7 +199,7 @@ async function buildAccountStep(type: ColumnType): Promise<QuickPickItem[]> {
   if (CROSS_ACCOUNT_TYPES.has(type)) {
     items.push({
       id: 'account-all',
-      label: '全アカウント',
+      label: i18n.ts._quickPickProviders.allAccounts,
       icon: 'users',
       children: () => buildDetailStep(type, null),
     })
@@ -204,7 +208,7 @@ async function buildAccountStep(type: ColumnType): Promise<QuickPickItem[]> {
   if (ACCOUNT_OPTIONAL_TYPES.has(type)) {
     items.push({
       id: 'account-none',
-      label: 'アカウントなし',
+      label: i18n.ts._quickPickProviders.noAccount,
       icon: 'circle-off',
       children: () => buildDetailStep(type, null),
     })
@@ -267,7 +271,7 @@ async function buildDetailStep(
     if (selectable.spec.createEndpoint) {
       result.push({
         id: `create-new-${type}`,
-        label: `新しい${label}を作成`,
+        label: i18n.tsx._quickPickProviders.createNew({ label }),
         icon: 'plus',
         action: () => createNewItem(selectable, accountId),
       })
@@ -329,8 +333,12 @@ function buildSearchableStep(config: QPSelectable, accountId: string) {
   }
 
   const step = reactive({
-    title: `${COLUMN_LABELS[config.type] ?? config.type}を選択`,
-    placeholder: `${COLUMN_LABELS[config.type] ?? config.type}を検索...`,
+    title: i18n.tsx._quickPickProviders.selectItem({
+      label: COLUMN_LABELS[config.type] ?? config.type,
+    }),
+    placeholder: i18n.tsx._quickPickProviders.searchItem({
+      label: COLUMN_LABELS[config.type] ?? config.type,
+    }),
     items: [] as QuickPickItem[],
     loading: true,
     onQueryChange(q: string) {
@@ -369,8 +377,8 @@ function buildUserSearchStep(accountId: string) {
   let debounceTimer: ReturnType<typeof setTimeout> | undefined
 
   const step = reactive({
-    title: 'ユーザーを選択',
-    placeholder: 'ユーザーを検索...',
+    title: i18n.ts._quickPickProviders.selectUser,
+    placeholder: i18n.ts._quickPickProviders.searchUser,
     items: [] as QuickPickItem[],
     loading: false,
     onQueryChange(q: string) {
@@ -425,8 +433,8 @@ async function createNewItem(config: QPSelectable, accountId: string) {
   const label = COLUMN_LABELS[config.type] ?? config.type
   const { prompt } = usePrompt()
   const name = await prompt({
-    title: `新しい${label}を作成`,
-    placeholder: `${label}名を入力...`,
+    title: i18n.tsx._quickPickProviders.createNew({ label }),
+    placeholder: i18n.tsx._quickPickProviders.namePlaceholder({ label }),
   })
   if (!name) return
   try {

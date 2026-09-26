@@ -49,7 +49,7 @@ async function loadActivityPub() {
   if (apRaw.value != null || isLoadingAp.value) return
   const uri = noteUri.value
   if (!uri) {
-    apError.value = 'この通知には ActivityPub URI がありません'
+    apError.value = i18n.ts._notificationInspectorContent.noApUri
     return
   }
   isLoadingAp.value = true
@@ -76,8 +76,7 @@ const currentLoading = computed(() =>
 )
 const currentError = computed(() => {
   if (tab.value === 'misskey') return null
-  if (!hasApTab.value)
-    return 'この通知には紐づくノートがないため ActivityPub を解決できません'
+  if (!hasApTab.value) return i18n.ts._notificationInspectorContent.noNote
   return apError.value
 })
 </script>

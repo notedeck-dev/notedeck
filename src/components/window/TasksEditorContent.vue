@@ -107,7 +107,9 @@ onMounted(async () => {
   const initial = isTauri
     ? await readTasks().catch((e) => {
         useToast().show(
-          `tasks.json5 読込失敗: ${(e as Error).message}`,
+          i18n.tsx._tasksEditorContent.loadFailed({
+            error: (e as Error).message,
+          }),
           'error',
         )
         return ''
@@ -159,7 +161,10 @@ async function persist() {
     if (isTauri) await writeTasks(code.value)
     tasksStore.setFromRaw(code.value)
   } catch (e) {
-    useToast().show(`保存失敗: ${(e as Error).message}`, 'error')
+    useToast().show(
+      i18n.tsx._tasksEditorContent.saveFailed({ error: (e as Error).message }),
+      'error',
+    )
   } finally {
     saving.value = false
   }
@@ -235,7 +240,7 @@ function paramsErrorOf(text: string): string | null {
   try {
     const parsed = JSON5.parse(trimmed)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      return 'オブジェクト ({}) が必要です'
+      return i18n.ts._tasksEditorContent.objectRequired
     }
     return null
   } catch (e) {
@@ -407,7 +412,12 @@ function handleReset() {
       if (isTauri) await writeTasks(defaultTasksJson5)
       tasksStore.setFromRaw(defaultTasksJson5)
     } catch (e) {
-      useToast().show(`リセット失敗: ${(e as Error).message}`, 'error')
+      useToast().show(
+        i18n.tsx._tasksEditorContent.resetFailed({
+          error: (e as Error).message,
+        }),
+        'error',
+      )
     }
   })
 }

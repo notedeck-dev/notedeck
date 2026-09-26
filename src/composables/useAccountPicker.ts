@@ -17,6 +17,7 @@
 
 import { computed, ref, watch } from 'vue'
 import { useCommandStore } from '@/commands/registry'
+import { i18n } from '@/i18n'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
@@ -85,7 +86,7 @@ export function useAccountPicker() {
 
       commandStore.open()
       commandStore.pushQuickPick({
-        title: 'アカウントを選択',
+        title: i18n.ts._useAccountPicker.title,
         placeholder: purpose,
         items: pickableAccounts.value.map((a) => ({
           id: `pick-account-${a.id}`,

@@ -92,7 +92,10 @@ async function deleteRenote() {
     close()
   } catch (e) {
     const err = AppError.from(e)
-    toast.show(`削除に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._renoteMoreMenu.deleteFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -102,11 +105,14 @@ async function submitReport() {
     const adapter = await getOrCreate(props.note._accountId)
     if (!adapter) return
     await adapter.api.reportUser(props.note.user.id, reportComment.value)
-    toast.show('通報しました')
+    toast.show(i18n.ts._renoteMoreMenu.reported)
     close()
   } catch (e) {
     const err = AppError.from(e)
-    toast.show(`通報に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._renoteMoreMenu.reportFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 

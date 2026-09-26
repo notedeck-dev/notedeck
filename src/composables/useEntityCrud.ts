@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
@@ -31,21 +32,27 @@ export const ENTITY_CONFIGS: Record<
   }
 > = {
   clip: {
-    label: 'クリップ',
+    get label() {
+      return i18n.ts._useEntityCrud.clip
+    },
     idKey: 'clipId',
     updateEndpoint: 'clips/update',
     deleteEndpoint: 'clips/delete',
     cacheKey: clipCacheKey,
   },
   list: {
-    label: 'リスト',
+    get label() {
+      return i18n.ts._useEntityCrud.list
+    },
     idKey: 'listId',
     updateEndpoint: 'users/lists/update',
     deleteEndpoint: 'users/lists/delete',
     cacheKey: userListCacheKey,
   },
   antenna: {
-    label: 'アンテナ',
+    get label() {
+      return i18n.ts._useEntityCrud.antenna
+    },
     idKey: 'antennaId',
     updateEndpoint: 'antennas/update',
     deleteEndpoint: 'antennas/delete',
@@ -68,7 +75,7 @@ export function useEntityCrud(type: EntityType, getColumn: () => DeckColumn) {
     closeMenu()
     const col = getColumn()
     const newName = await prompt({
-      title: `${config.label}名を変更`,
+      title: i18n.tsx._useEntityCrud.renameTitle({ label: config.label }),
       defaultValue: col.name ?? '',
     })
     if (!newName) return
@@ -82,12 +89,15 @@ export function useEntityCrud(type: EntityType, getColumn: () => DeckColumn) {
         }),
       )
       deckStore.updateColumn(col.id, { name: newName })
-      toast.show(`${config.label}名を変更しました`)
+      toast.show(i18n.tsx._useEntityCrud.renamed({ label: config.label }))
     } catch (e) {
       const err = AppError.from(e)
       console.error('[entity:rename]', err.code, err.message)
       toast.show(
-        `${config.label}名の変更に失敗しました（${err.displayCode}）`,
+        i18n.tsx._useEntityCrud.renameFailed({
+          label: config.label,
+          code: err.displayCode,
+        }),
         'error',
       )
     }
@@ -97,9 +107,9 @@ export function useEntityCrud(type: EntityType, getColumn: () => DeckColumn) {
     closeMenu()
     const col = getColumn()
     const ok = await confirm({
-      title: `${config.label}を削除`,
-      message: `この${config.label}をサーバーから削除しますか？この操作は取り消せません。`,
-      okLabel: '削除',
+      title: i18n.tsx._useEntityCrud.deleteTitle({ label: config.label }),
+      message: i18n.tsx._useEntityCrud.confirmDelete({ label: config.label }),
+      okLabel: i18n.ts._common.delete,
       type: 'danger',
     })
     if (!ok) return
@@ -121,12 +131,15 @@ export function useEntityCrud(type: EntityType, getColumn: () => DeckColumn) {
           console.warn('[entity:delete] clear-timeline-cache failed:', e)
         })
       deckStore.removeColumn(col.id)
-      toast.show(`${config.label}を削除しました`)
+      toast.show(i18n.tsx._useEntityCrud.deleted({ label: config.label }))
     } catch (e) {
       const err = AppError.from(e)
       console.error('[entity:delete]', err.code, err.message)
       toast.show(
-        `${config.label}の削除に失敗しました（${err.displayCode}）`,
+        i18n.tsx._useEntityCrud.deleteFailed({
+          label: config.label,
+          code: err.displayCode,
+        }),
         'error',
       )
     }

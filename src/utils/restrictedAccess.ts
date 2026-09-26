@@ -1,3 +1,4 @@
+import { i18n } from '@/i18n'
 import type { AppError } from './errors'
 
 /**
@@ -23,11 +24,17 @@ export function restrictedAccessNotice(
 
   // 未ログイン: このサーバーが匿名公開していないだけ (ログインすれば見られる場合がある)
   if (credentialRequired && !hasToken) {
-    return { message: `このサーバーは${subject}を公開していません`, info: true }
+    return {
+      message: i18n.tsx._restrictedAccess.notPublic({ subject }),
+      info: true,
+    }
   }
   // ログイン済みでも弾かれる: 権限不足 (read:federation 不許可 / モデレーター権限要 等)
   if (credentialRequired || accessDenied) {
-    return { message: `${subject}の閲覧権限がありません`, info: false }
+    return {
+      message: i18n.tsx._restrictedAccess.noPermission({ subject }),
+      info: false,
+    }
   }
   return null
 }

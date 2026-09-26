@@ -7,6 +7,7 @@
  * 「ストレージ優先」を選びたいヘビーユーザーだけが明示的に下げる前提。
  */
 import type { ChatEvictionConfig, EvictionConfig } from '@/bindings'
+import { i18n } from '@/i18n'
 import type { NotedeckSettings } from '@/settings/schema'
 
 export type EvictionPreset = NonNullable<
@@ -88,22 +89,38 @@ export const PRESET_OPTIONS: ReadonlyArray<{
 }> = [
   {
     value: 'search-priority',
-    label: '検索優先',
-    hint: '永続保存。過去ノートをいつまでも全文検索できる',
+    get label() {
+      return i18n.ts._cacheEviction.searchPriority
+    },
+    get hint() {
+      return i18n.ts._cacheEviction.searchPriorityHint
+    },
   },
   {
     value: 'balanced',
-    label: 'バランス',
-    hint: '実質永続 (アカウントあたり 1,000,000 件で hard cap)',
+    get label() {
+      return i18n.ts._cacheEviction.balanced
+    },
+    get hint() {
+      return i18n.ts._cacheEviction.balancedHint
+    },
   },
   {
     value: 'storage-priority',
-    label: 'ストレージ優先',
-    hint: '90 日 / 50,000 件で自動削除。ディスク使用量を抑える',
+    get label() {
+      return i18n.ts._cacheEviction.storagePriority
+    },
+    get hint() {
+      return i18n.ts._cacheEviction.storagePriorityHint
+    },
   },
   {
     value: 'custom',
-    label: 'カスタム',
-    hint: '上限と TTL を個別に指定する',
+    get label() {
+      return i18n.ts._cacheEviction.custom
+    },
+    get hint() {
+      return i18n.ts._cacheEviction.customHint
+    },
   },
 ]

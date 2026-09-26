@@ -21,6 +21,7 @@ import {
   windowTargetId,
 } from '@/composables/useSpotlight'
 import { useVault } from '@/composables/useVault'
+import { i18n } from '@/i18n'
 import type { ExposureTag } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
@@ -185,7 +186,7 @@ function openAddColumnAndPoint(type: ColumnType, label: string): void {
     : commands.isOpen
   if (!alreadyOpen) commands.execute('add-column')
   useSpotlightStore().highlight(commandItemTargetId(`col-${type}`), {
-    label: `チュートリアルが${label}の項目を示しています`,
+    label: i18n.tsx._tutorialSteps.pointingItem({ label }),
     durationMs: SPOTLIGHT_MS,
   })
 }
@@ -226,26 +227,44 @@ function isAiColumnOpen(): boolean {
 export const TUTORIAL_CATEGORIES: TutorialCategory[] = [
   {
     id: 'getting-started',
-    title: 'はじめに',
-    description: 'アカウントをつなぎ、カラムを並べて使い始める',
-    achievementName: 'はじめの一歩',
+    get title() {
+      return i18n.ts._tutorialSteps.gettingStartedTitle
+    },
+    get description() {
+      return i18n.ts._tutorialSteps.gettingStartedDescription
+    },
+    get achievementName() {
+      return i18n.ts._tutorialSteps.gettingStartedAchievementName
+    },
     achievementEmoji: '🎴',
     docsPath: '/docs/first-run',
   },
   {
     id: 'mastery',
-    title: '使いこなす',
-    description: '外部の AI をつないで自分の環境を動かす',
-    achievementName: '使い手',
+    get title() {
+      return i18n.ts._tutorialSteps.masteryTitle
+    },
+    get description() {
+      return i18n.ts._tutorialSteps.masteryDescription
+    },
+    get achievementName() {
+      return i18n.ts._tutorialSteps.masteryAchievementName
+    },
     achievementEmoji: '⌨️',
     docsPath: '/docs/guide/ai',
   },
   {
     id: 'extend',
     exposure: 'developer',
-    title: '拡張をつくる',
-    description: '自分だけのプラグイン・テーマ・クエリを組み立てる',
-    achievementName: '拡張の作者',
+    get title() {
+      return i18n.ts._tutorialSteps.extendTitle
+    },
+    get description() {
+      return i18n.ts._tutorialSteps.extendDescription
+    },
+    get achievementName() {
+      return i18n.ts._tutorialSteps.extendAchievementName
+    },
     achievementEmoji: '🔧',
     docsPath: '/docs/dev/',
   },
@@ -273,27 +292,31 @@ export function buildTutorialSteps(): TutorialStep[] {
   return [
     {
       id: 'welcome',
-      title: 'NoteDeck へようこそ',
-      description:
-        'NoteDeck は Misskey を、カラムを並べたデッキとコマンドパレットで' +
-        '統合した環境です。基本を数ステップで案内します。' +
-        '途中でやめても、設定済みの内容は保たれます。',
+      get title() {
+        return i18n.ts._tutorialSteps.welcomeTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.welcomeDescription
+      },
     },
 
     {
       id: 'account-login',
       category: 'getting-started',
       docsPath: '/docs/first-run',
-      title: 'Misskey アカウントを追加',
-      description:
-        'ログインウィンドウで Misskey サーバーのホスト名' +
-        ' (例: misskey.io) を入れて認証してください。' +
-        'ログインが完了すると自動で次へ進みます。',
+      get title() {
+        return i18n.ts._tutorialSteps.accountLoginTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.accountLoginDescription
+      },
       precheck: () => (hasAuthenticatedAccount() ? 'skip' : 'show'),
       onEnter: () => {
         const id = useWindowsStore().open('login', {})
         useSpotlightStore().highlight(windowTargetId(id), {
-          label: `チュートリアルが${WINDOW_LABELS.login}を開きました`,
+          label: i18n.tsx._tutorialSteps.openedWindow({
+            name: String(WINDOW_LABELS.login),
+          }),
         })
       },
       completion: {
@@ -307,17 +330,17 @@ export function buildTutorialSteps(): TutorialStep[] {
       id: 'customize-deck',
       category: 'getting-started',
       docsPath: '/docs/deck/columns',
-      title: 'デッキを自分のものにする',
-      description:
-        'NoteDeck はカラムを並べて使います。最初から並んでいるのは、' +
-        '追加した全アカウントをまとめて表示するカラムです。' +
-        'カラムのヘッダーから並べ替え・削除ができ、' +
-        'カラム追加 (＋) から通知・検索・チャットなどを足せます。' +
-        '並びを 1 つ変えると自動で次へ進みます。',
+      get title() {
+        return i18n.ts._tutorialSteps.customizeDeckTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.customizeDeckDescription
+      },
       precheck: () => (hasCustomizedDeck() ? 'skip' : 'show'),
       onEnter: () => {
         // 空デッキ (全部消した後のやり直し) なら追加の入口を示す
-        if (!hasAnyColumn()) openAddColumnAndPoint('timeline', 'タイムライン')
+        if (!hasAnyColumn())
+          openAddColumnAndPoint('timeline', i18n.ts._columns.timeline)
       },
       completion: {
         watch: () => hasCustomizedDeck(),
@@ -329,11 +352,12 @@ export function buildTutorialSteps(): TutorialStep[] {
       id: 'open-notifications',
       category: 'getting-started',
       docsPath: '/docs/deck/navbar',
-      title: '通知をサイドバーに開く',
-      description:
-        'ナビバーの通知ボタン (光っています) を押してみましょう。' +
-        'ナビバーのボタンは、カラムをサイドバーに開いたり閉じたりします。' +
-        '開くと自動で次へ進みます。',
+      get title() {
+        return i18n.ts._tutorialSteps.openNotificationsTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.openNotificationsDescription
+      },
       precheck: () => (isNotificationsColumnOpen() ? 'skip' : 'show'),
       onEnter: () => {
         // compact (スマホ) は navbar がドロワーなので、まず開いて通知ボタンを
@@ -344,7 +368,7 @@ export function buildTutorialSteps(): TutorialStep[] {
         // ナビバーの通知ボタンを spotlight で指し示す (クリックで自動 clear)。
         // 開く動作はユーザーに任せ、completion で開いたことを検知する。
         useSpotlightStore().highlight(navbarTargetId('notifications', null), {
-          label: 'チュートリアルが通知カラムのボタンを示しています',
+          label: i18n.ts._tutorialSteps.pointingNotificationsButton,
           // 説明文に「光っています」と書く以上、読み終える前に消さない
           durationMs: SPOTLIGHT_MS,
         })
@@ -360,15 +384,19 @@ export function buildTutorialSteps(): TutorialStep[] {
       category: 'getting-started',
       wizard: false,
       docsPath: '/docs/deck/profiles',
-      title: 'プロファイルを作る',
-      description:
-        'カラムの並びをまるごと切り替えられます。用途ごとに作っておくと' +
-        '行き来が速くなります。',
+      get title() {
+        return i18n.ts._tutorialSteps.createProfileTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.createProfileDescription
+      },
       precheck: () => (hasExtraProfile() ? 'skip' : 'show'),
       onEnter: () => {
         const id = useWindowsStore().open('profileEditor', {})
         useSpotlightStore().highlight(windowTargetId(id), {
-          label: `チュートリアルが${WINDOW_LABELS.profileEditor}を開きました`,
+          label: i18n.tsx._tutorialSteps.openedWindow({
+            name: String(WINDOW_LABELS.profileEditor),
+          }),
           durationMs: SPOTLIGHT_MS,
         })
       },
@@ -386,12 +414,15 @@ export function buildTutorialSteps(): TutorialStep[] {
       category: 'extend',
       wizard: false,
       docsPath: '/docs/dev/plugin',
-      title: 'プラグインを作る',
-      description:
-        'プラグイン管理を開いて 1 つ追加してみましょう。AiScript で' +
-        'ノートの表示やアクションに手を入れられます。',
+      get title() {
+        return i18n.ts._tutorialSteps.createPluginTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.createPluginDescription
+      },
       precheck: () => (usePluginsStore().plugins.length > 0 ? 'skip' : 'show'),
-      onEnter: () => openAddColumnAndPoint('pluginManager', 'プラグイン'),
+      onEnter: () =>
+        openAddColumnAndPoint('pluginManager', i18n.ts._columns.pluginManager),
       completion: {
         watch: () => usePluginsStore().plugins.length,
         isComplete: () => usePluginsStore().plugins.length > 0,
@@ -403,12 +434,14 @@ export function buildTutorialSteps(): TutorialStep[] {
       category: 'extend',
       wizard: false,
       docsPath: '/docs/dev/widget',
-      title: 'ウィジェットを作る',
-      description:
-        'ウィジェットカラムを開いて 1 つ追加してみましょう。小さな' +
-        'AiScript を常に走らせておけます。',
+      get title() {
+        return i18n.ts._tutorialSteps.createWidgetTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.createWidgetDescription
+      },
       precheck: () => (useWidgetsStore().widgets.length > 0 ? 'skip' : 'show'),
-      onEnter: () => openAddColumnAndPoint('widget', 'ウィジェット'),
+      onEnter: () => openAddColumnAndPoint('widget', i18n.ts._columns.widget),
       completion: {
         watch: () => useWidgetsStore().widgets.length,
         isComplete: () => useWidgetsStore().widgets.length > 0,
@@ -420,13 +453,16 @@ export function buildTutorialSteps(): TutorialStep[] {
       category: 'extend',
       wizard: false,
       docsPath: '/docs/dev/theme',
-      title: 'テーマを作る',
-      description:
-        'テーマ管理を開いて 1 つ作ってみましょう。配色は変数の集まりで' +
-        '定義します。',
+      get title() {
+        return i18n.ts._tutorialSteps.createThemeTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.createThemeDescription
+      },
       precheck: () =>
         useThemeStore().installedThemes.length > 0 ? 'skip' : 'show',
-      onEnter: () => openAddColumnAndPoint('themeManager', 'テーマ'),
+      onEnter: () =>
+        openAddColumnAndPoint('themeManager', i18n.ts._columns.themeManager),
       completion: {
         watch: () => useThemeStore().installedThemes.length,
         isComplete: () => useThemeStore().installedThemes.length > 0,
@@ -438,13 +474,19 @@ export function buildTutorialSteps(): TutorialStep[] {
       category: 'extend',
       wizard: false,
       docsPath: '/docs/dev/query',
-      title: 'カラムクエリを作る',
-      description:
-        'カラムクエリを開いて 1 つ作ってみましょう。AiScript で' +
-        '自分だけのタイムラインを組み立てられます。',
+      get title() {
+        return i18n.ts._tutorialSteps.createQueryTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.createQueryDescription
+      },
       precheck: () =>
         useColumnQueriesStore().queries.length > 0 ? 'skip' : 'show',
-      onEnter: () => openAddColumnAndPoint('queryManager', 'カラムクエリ'),
+      onEnter: () =>
+        openAddColumnAndPoint(
+          'queryManager',
+          i18n.ts._tutorialSteps.columnQueryItem,
+        ),
       completion: {
         watch: () => useColumnQueriesStore().queries.length,
         isComplete: () => useColumnQueriesStore().queries.length > 0,
@@ -456,12 +498,14 @@ export function buildTutorialSteps(): TutorialStep[] {
       category: 'extend',
       wizard: false,
       docsPath: '/docs/dev/skill',
-      title: 'スキルを作る',
-      description:
-        'スキル管理を開いて 1 つ作ってみましょう。AI に渡す指示を' +
-        'まとめておけます。',
+      get title() {
+        return i18n.ts._tutorialSteps.createSkillTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.createSkillDescription
+      },
       precheck: () => (useSkillsStore().skills.length > 0 ? 'skip' : 'show'),
-      onEnter: () => openAddColumnAndPoint('skill', 'スキル'),
+      onEnter: () => openAddColumnAndPoint('skill', i18n.ts._columns.skill),
       completion: {
         watch: () => useSkillsStore().skills.length,
         isComplete: () => useSkillsStore().skills.length > 0,
@@ -475,11 +519,12 @@ export function buildTutorialSteps(): TutorialStep[] {
       category: 'mastery',
       docsPath: '/docs/guide/ai',
       wizard: false,
-      title: 'AI 接続を追加',
-      description:
-        '接続管理ウィンドウで、Anthropic / OpenAI など' +
-        ' AI プロバイダの API キーを Vault に登録してください。' +
-        '登録すると自動で次へ進みます。',
+      get title() {
+        return i18n.ts._tutorialSteps.aiSetupTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.aiSetupDescription
+      },
       precheck: () => {
         // active 接続が AI provider として解決済み、または AI 接続が登録済みなら skip
         if (hasResolvedAiProvider()) return 'skip'
@@ -488,7 +533,9 @@ export function buildTutorialSteps(): TutorialStep[] {
       onEnter: () => {
         const id = useWindowsStore().open('connections', {})
         useSpotlightStore().highlight(windowTargetId(id), {
-          label: `チュートリアルが${WINDOW_LABELS.connections}を開きました`,
+          label: i18n.tsx._tutorialSteps.openedWindow({
+            name: String(WINDOW_LABELS.connections),
+          }),
         })
       },
       completion: {
@@ -503,15 +550,19 @@ export function buildTutorialSteps(): TutorialStep[] {
       category: 'mastery',
       docsPath: '/docs/guide/ai',
       wizard: false,
-      title: 'AI プロバイダを選択',
-      description:
-        'エージェント設定を開きました。登録した接続を AI プロバイダとして選んでください。' +
-        '選ぶと自動で次へ進みます。',
+      get title() {
+        return i18n.ts._tutorialSteps.aiSelectProviderTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.aiSelectProviderDescription
+      },
       precheck: () => (hasResolvedAiProvider() ? 'skip' : 'show'),
       onEnter: () => {
         const id = useWindowsStore().open('aiSettings', {})
         useSpotlightStore().highlight(windowTargetId(id), {
-          label: `チュートリアルが${WINDOW_LABELS.aiSettings}を開きました`,
+          label: i18n.tsx._tutorialSteps.openedWindow({
+            name: String(WINDOW_LABELS.aiSettings),
+          }),
         })
       },
       completion: {
@@ -525,10 +576,12 @@ export function buildTutorialSteps(): TutorialStep[] {
       category: 'mastery',
       docsPath: '/docs/guide/ai',
       wizard: false,
-      title: 'AI カラムを開く',
-      description:
-        'ナビバーの AI ボタン (光っています) から AI カラムを開いて' +
-        'みましょう。ここで AI と対話できます。',
+      get title() {
+        return i18n.ts._tutorialSteps.aiColumnTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.aiColumnDescription
+      },
       precheck: () => (isAiColumnOpen() ? 'skip' : 'show'),
       onEnter: () => {
         // compact (スマホ) は navbar がドロワーなので、まず開いて AI ボタンを
@@ -539,7 +592,7 @@ export function buildTutorialSteps(): TutorialStep[] {
         // ナビバーの AI ボタンを spotlight で指し示す (クリックで自動 clear)。
         // 開く動作はユーザーに任せ、completion で開いたことを検知する。
         useSpotlightStore().highlight(navbarTargetId('ai', null), {
-          label: 'チュートリアルが AI カラムのボタンを示しています',
+          label: i18n.ts._tutorialSteps.pointingAiButton,
           durationMs: SPOTLIGHT_MS,
         })
       },
@@ -551,9 +604,12 @@ export function buildTutorialSteps(): TutorialStep[] {
 
     {
       id: 'complete',
-      title: 'セットアップ完了',
-      description:
-        'これで NoteDeck を使い始められます。あとは自由に触ってみてください。',
+      get title() {
+        return i18n.ts._tutorialSteps.completeTitle
+      },
+      get description() {
+        return i18n.ts._tutorialSteps.completeDescription
+      },
       isFinal: true,
     },
   ]

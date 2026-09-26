@@ -141,7 +141,9 @@ async function toggleFavorite() {
     syncFavoriteCache(props.accountId, list.value.id, !wasFav)
   } catch (e) {
     toast.show(
-      `お気に入り操作に失敗しました（${AppError.from(e).displayCode}）`,
+      i18n.tsx._listDetailContent.favoriteFailed({
+        code: AppError.from(e).displayCode,
+      }),
       'error',
     )
   } finally {

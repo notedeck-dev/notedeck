@@ -5,7 +5,7 @@ import { useColumnTheme } from '@/composables/useColumnTheme'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
-import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
+import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   isQueryActive,
@@ -95,9 +95,11 @@ const scopeCount = computed(
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
-    label: `インストール済み ${scopeCount.value}`,
+    label: i18n.tsx._deckQueryManagerColumn.installedTab({
+      count: scopeCount.value,
+    }),
   },
-  { value: 'store', label: 'ストア' },
+  { value: 'store', label: i18n.ts._common.store },
 ])
 
 function switchTab(tab: string) {
@@ -161,8 +163,16 @@ const installedSections = computed<QuerySection[]>(() => {
   const sideloaded = visibleQueries.value.filter((q) => !q.storeId)
   const store = visibleQueries.value.filter((q) => !!q.storeId)
   const sections: QuerySection[] = [
-    { key: 'sideload', label: 'サイドロード', items: sideloaded },
-    { key: 'store', label: 'ストア配布', items: store },
+    {
+      key: 'sideload',
+      label: i18n.ts._deckQueryManagerColumn.sideload,
+      items: sideloaded,
+    },
+    {
+      key: 'store',
+      label: i18n.ts._deckQueryManagerColumn.storeDistributed,
+      items: store,
+    },
   ]
   return sections.filter((s) => s.items.length > 0)
 })
@@ -206,19 +216,21 @@ function detachFromScope(query: NamedQueryMeta): void {
   const scope = columnScope.value
   if (!scope) return
   if (!queriesStore.unlinkScope(query.id, scope)) {
-    useToast().show(READ_ONLY_REASON, 'warning')
+    useToast().show(readOnlyReason(), 'warning')
     return
   }
-  useToast().show('クエリを外しました', 'info', {
+  useToast().show(i18n.ts._deckQueryManagerColumn.detached, 'info', {
     action: {
-      label: '元に戻す',
+      label: i18n.ts._deckQueryManagerColumn.undo,
       onClick: () => queriesStore.linkScope(query.id, scope),
     },
   })
 }
 
 const detachTitle = computed(() =>
-  isCrossAccount.value ? '全アカウント対象から外す' : 'このアカウントから外す',
+  isCrossAccount.value
+    ? i18n.ts._deckQueryManagerColumn.detachFromAllAccounts
+    : i18n.ts._deckQueryManagerColumn.detachFromAccount,
 )
 
 // --- Library picker (スコープ未参加のライブラリ本体の追加) ---
@@ -233,7 +245,7 @@ function placeFromLibrary(query: NamedQueryMeta): void {
   const scope = columnScope.value
   if (!scope) return
   if (!queriesStore.linkScope(query.id, scope)) {
-    useToast().show(READ_ONLY_REASON, 'warning')
+    useToast().show(readOnlyReason(), 'warning')
     return
   }
   showLibraryPicker.value = false
@@ -245,29 +257,35 @@ function placeFromLibrary(query: NamedQueryMeta): void {
  */
 async function toggleDisabled(query: NamedQueryMeta): Promise<void> {
   const ok = await queriesStore.setDisabled(query.id, isQueryActive(query))
-  if (!ok) useToast().show(READ_ONLY_REASON, 'warning')
+  if (!ok) useToast().show(readOnlyReason(), 'warning')
 }
 
 async function remove(query: NamedQueryMeta): Promise<void> {
   const used = refCount(query)
   // 無効中は今効いていないので、消すとカラムが止まる逆転を先に言う (#1043)
   const usedMessage = isQueryActive(query)
-    ? `「${query.name}」は ${used} 個のカラムに適用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？`
-    : `「${query.name}」は無効ですが、${used} 個のカラムに適用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？`
+    ? i18n.tsx._deckQueryManagerColumn.deleteConfirmInUse_plural({
+        name: query.name,
+        count: used,
+      })
+    : i18n.tsx._deckQueryManagerColumn.deleteConfirmInUseDisabled_plural({
+        name: query.name,
+        count: used,
+      })
   const ok = await confirm({
-    title: 'クエリを削除',
+    title: i18n.ts._deckQueryManagerColumn.deleteTitle,
     message:
       used > 0
         ? usedMessage
-        : `「${query.name}」を削除しますか？クエリの本文も消えます。`,
-    okLabel: '削除',
+        : i18n.tsx._deckQueryManagerColumn.deleteConfirm({ name: query.name }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = await queriesStore.removeQuery(query.id)
   if (undo) {
-    useToast().show('クエリを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckQueryManagerColumn.deleted, 'info', {
+      action: { label: i18n.ts._deckQueryManagerColumn.undo, onClick: undo },
     })
   }
 }
@@ -291,7 +309,10 @@ async function handleInstall(entry: StoreQueryEntry): Promise<void> {
     // 入れた場所のスコープに参加させる (#1018)
     await misStore.installQuery(entry, columnScope.value ?? undefined)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : 'インストール失敗'
+    installError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._deckQueryManagerColumn.installFailed
   }
 }
 
@@ -300,7 +321,10 @@ async function handleUpdate(entry: StoreQueryEntry): Promise<void> {
   try {
     await misStore.updateQuery(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : '更新失敗'
+    installError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._deckQueryManagerColumn.updateFailed
   }
 }
 

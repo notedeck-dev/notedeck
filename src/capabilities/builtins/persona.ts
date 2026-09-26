@@ -1,5 +1,6 @@
 import type { Command } from '@/commands/registry'
 import { useAiConfig } from '@/composables/useAiConfig'
+import { i18n } from '@/i18n'
 import { useSkillsStore } from '@/stores/skills'
 import { implement } from '../declare'
 
@@ -45,14 +46,14 @@ export const aiSetPersonaCapability = implement('ai.setPersona', {
     const skillsStore = useSkillsStore()
     const target = id ? skillsStore.skills.find((s) => s.id === id) : null
     return {
-      title: 'AI persona を切替',
+      title: i18n.ts._personaCapability.title,
       message: id
         ? target
-          ? `AI persona を「${target.name}」に切り替えます。chat / heartbeat / command / task すべての session に反映されます。`
-          : `不明な skill id "${id}" を persona にしようとしています。`
-        : 'AI persona を解除します (= 通常の汎用 AI として動作)。',
-      okLabel: '切替',
-      cancelLabel: 'やめる',
+          ? i18n.tsx._personaCapability.switchMessage({ name: target.name })
+          : i18n.tsx._personaCapability.unknownMessage({ id })
+        : i18n.ts._personaCapability.clearMessage,
+      okLabel: i18n.ts._personaCapability.ok,
+      cancelLabel: i18n.ts._personaCapability.cancel,
       type: 'warning',
     }
   },

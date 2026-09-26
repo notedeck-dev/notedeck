@@ -226,14 +226,14 @@ async function performLookup() {
 
   const acc = accountsStore.accountMap.get(props.column.accountId)
   if (!acc) {
-    lookupError.value = 'アカウントが見つかりません'
+    lookupError.value = i18n.ts._deckLookupColumn.accountNotFound
     lookupLoading.value = false
     return
   }
 
   const adapter = getAdapter()
   if (!adapter) {
-    lookupError.value = 'アダプターの初期化に失敗しました'
+    lookupError.value = i18n.ts._deckLookupColumn.adapterInitFailed
     lookupLoading.value = false
     return
   }
@@ -315,9 +315,9 @@ async function performLookup() {
       }
     }
 
-    lookupError.value = '照会できませんでした'
+    lookupError.value = i18n.ts._deckLookupColumn.lookupFailed
   } catch {
-    lookupError.value = '照会できませんでした'
+    lookupError.value = i18n.ts._deckLookupColumn.lookupFailed
   } finally {
     lookupLoading.value = false
   }
@@ -354,14 +354,14 @@ async function performLookupCrossAccount(q: string) {
 
   const accounts = accountsStore.accounts.filter((a) => a.hasToken)
   if (accounts.length === 0) {
-    lookupError.value = 'ログイン済みアカウントがありません'
+    lookupError.value = i18n.ts._deckLookupColumn.noLoggedInAccount
     lookupLoading.value = false
     return
   }
 
   // ユーザー照会は cross-account 非対応（ノート専用）
   if (parseUserQuery(q)) {
-    lookupError.value = 'ユーザー照会は単一アカウントモードで行ってください'
+    lookupError.value = i18n.ts._deckLookupColumn.userLookupSingleAccountOnly
     lookupLoading.value = false
     return
   }
@@ -455,7 +455,7 @@ async function performLookupCrossAccount(q: string) {
   lookupLoading.value = false
 
   if (allFragments.length === 0) {
-    lookupError.value = '照会できませんでした'
+    lookupError.value = i18n.ts._deckLookupColumn.lookupFailed
   }
 }
 

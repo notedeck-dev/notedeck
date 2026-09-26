@@ -3,6 +3,9 @@
  * per-account (DeckNoteColumn) と全アカウント面 (DeckTimelineColumn) で同じ
  * 表示を出すための純関数。
  */
+
+import { i18n } from '@/i18n'
+
 export type ColumnQueryStatus =
   | 'none'
   | 'safeMode'
@@ -17,29 +20,32 @@ export interface ColumnQueryBadgeState {
   disabled: readonly string[]
 }
 
-const HINT = ' — 押すとクエリ管理カラムを開きます'
-
 export function queryBadgeTitle(
   state: ColumnQueryBadgeState,
   errorCount: number,
 ): string {
   if (state.status === 'safeMode') {
-    return `セーフモード中はクエリを停止しています — 絞り込まずに全件表示中。押すとクエリ管理カラムを開きます`
+    return i18n.ts._badge.safeMode
   }
   if (state.status === 'invalid') {
-    return `クエリを解釈できません${HINT}`
+    return i18n.ts._badge.invalid
   }
   // 適用がすべて無効 (#1043): 意図的な停止なのでセーフモードとは別文言
   if (state.status === 'disabled') {
-    return '適用中のクエリはすべて無効です — 絞り込まずに全件表示中。押すとクエリ管理カラムを開きます'
+    return i18n.ts._badge.allDisabled
   }
-  const err = errorCount > 0 ? ` (評価エラー ${errorCount} 件を除外)` : ''
-  const off =
-    state.disabled.length > 0 ? ` (無効: ${state.disabled.join(', ')})` : ''
+  const errors =
+    errorCount > 0
+      ? i18n.tsx._badge.excludedErrors_plural({ count: errorCount })
+      : ''
+  const disabled =
+    state.disabled.length > 0
+      ? i18n.tsx._badge.disabledNames({ names: state.disabled.join(', ') })
+      : ''
   if (state.status === 'degraded') {
-    return `クエリ適用中 — 1 件ずつ判定するため検索では使えません${err}${off}${HINT}`
+    return i18n.tsx._badge.degraded({ errors, disabled })
   }
-  return `クエリ適用中${err}${off}${HINT}`
+  return i18n.tsx._badge.active({ errors, disabled })
 }
 
 /**

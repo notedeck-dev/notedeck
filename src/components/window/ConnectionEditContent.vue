@@ -185,19 +185,20 @@ function buildUpsert(): ConnectionUpsert {
 }
 
 function validateForm(): string | null {
-  if (!name.value.trim()) return '名前を入力してください'
-  if (!baseUrl.value.trim()) return 'URL を入力してください'
+  if (!name.value.trim()) return i18n.ts._connectionEditContent.nameRequired
+  if (!baseUrl.value.trim()) return i18n.ts._connectionEditContent.urlRequired
   if (authKind.value === 'header' && !headerName.value.trim())
-    return 'ヘッダー名を入力してください'
+    return i18n.ts._connectionEditContent.headerNameRequired
   if (authKind.value === 'query' && !queryParam.value.trim())
-    return 'クエリパラメータ名を入力してください'
+    return i18n.ts._connectionEditContent.queryParamRequired
   if (
     showSecretInput.value &&
     secretInput.value &&
     secretInput.value.length < 16
   )
-    return 'secret は 16 文字以上にしてください'
-  if (isNew.value && !secretInput.value) return 'secret を入力してください'
+    return i18n.ts._connectionEditContent.secretTooShort
+  if (isNew.value && !secretInput.value)
+    return i18n.ts._connectionEditContent.secretRequired
   return null
 }
 
@@ -267,7 +268,7 @@ async function revokeTrustedPlugin(pluginId: string) {
 
 async function runTest() {
   if (!props.connectionId) {
-    errorMessage.value = '先に接続を保存してからテストしてください'
+    errorMessage.value = i18n.ts._connectionEditContent.saveBeforeTest
     return
   }
   testing.value = true
@@ -288,9 +289,11 @@ async function runTest() {
 async function remove() {
   if (!props.connectionId) return
   const ok = await confirm({
-    title: '接続を削除',
-    message: `「${name.value}」を削除しますか？ secret も OS キーチェーンから完全に削除されます。`,
-    okLabel: '削除',
+    title: i18n.ts._connectionEditContent.deleteTitle,
+    message: i18n.tsx._connectionEditContent.deleteMessage({
+      name: name.value,
+    }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
@@ -314,9 +317,12 @@ function formatError(e: unknown): string {
 const testResultText = computed(() => {
   const r = testResult.value
   if (!r) return ''
-  if (r.ok) return `✓ 接続成功 (HTTP ${r.status})`
+  if (r.ok)
+    return i18n.tsx._connectionEditContent.testSuccess({
+      status: String(r.status),
+    })
   if (r.status != null) return `✗ HTTP ${r.status}`
-  return `✗ ${r.error ?? '失敗'}`
+  return `✗ ${r.error ?? i18n.ts._connectionEditContent.testFailed}`
 })
 </script>
 

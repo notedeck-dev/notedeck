@@ -44,7 +44,13 @@ const error = ref<AppError | null>(null)
  * カラムを増やさず、同じグリッドで出し分ける。
  */
 const SOURCE_TABS: ColumnTabDef[] = [
-  { value: 'server', label: 'サーバー', icon: 'server' },
+  {
+    value: 'server',
+    get label() {
+      return i18n.ts._deckAchievementsColumn.server
+    },
+    icon: 'server',
+  },
   { value: 'notedeck', label: 'NoteDeck', icon: 'checkbox' },
 ]
 // ログイン前はサーバー実績を取れないので、見られる方を既定にする

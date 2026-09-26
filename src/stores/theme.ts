@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { emitNoteDeckEvent } from '@/aiscript/events'
+import { i18n } from '@/i18n'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useSettingsStore } from '@/stores/settings'
@@ -930,11 +931,13 @@ export const useThemeStore = defineStore('theme', () => {
         })
       if (adopted.length > 0) {
         installedThemes.value = [...installedThemes.value, ...adopted]
-        const names = adopted.map((t) => `「${t.name}」`).join(' ')
         import('@/stores/toast')
-          .then(({ useToast }) =>
-            useToast().show(`テーマ ${names} を themes/ から取り込みました`),
-          )
+          .then(({ useToast }) => {
+            const names = adopted
+              .map((t) => i18n.tsx._theme.quotedName({ name: t.name }))
+              .join(' ')
+            useToast().show(i18n.tsx._theme.adoptedDropIns({ names }))
+          })
           .catch(() => {
             /* toast unavailable — skip */
           })

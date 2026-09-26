@@ -30,7 +30,7 @@ const accountsStore = useAccountsStore()
 type Tab = 'overview' | 'raw'
 // Raw はプロトコルが見える面 (#1034)
 const TAB_DEFS = computed(() => [
-  { value: 'overview', icon: 'home', label: '概要' },
+  { value: 'overview', icon: 'home', label: i18n.ts._common.overview },
   ...(isExposed('developer')
     ? [{ value: 'raw', icon: 'code', label: 'Raw' }]
     : []),
@@ -66,7 +66,7 @@ async function loadRemoteMeta() {
 async function loadInstance() {
   const acc = accountsStore.accounts.find((a) => a.id === props.accountId)
   if (!acc) {
-    error.value = 'アカウントが見つかりません'
+    error.value = i18n.ts._instanceProfileContent.accountNotFound
     isLoading.value = false
     return
   }
@@ -197,12 +197,25 @@ const statusBadges = computed(() => {
   const inst = instance.value
   if (!inst) return []
   const list: { label: string; kind: 'error' | 'warn' }[] = []
-  if (inst.isSuspended) list.push({ label: '停止中', kind: 'error' })
-  if (inst.isBlocked) list.push({ label: 'ブロック', kind: 'error' })
-  if (inst.isNotResponding) list.push({ label: '無応答', kind: 'warn' })
-  if (inst.isSilenced) list.push({ label: 'サイレンス', kind: 'warn' })
+  if (inst.isSuspended)
+    list.push({
+      label: i18n.ts._instanceProfileContent.suspended,
+      kind: 'error',
+    })
+  if (inst.isBlocked)
+    list.push({ label: i18n.ts._instanceProfileContent.blocked, kind: 'error' })
+  if (inst.isNotResponding)
+    list.push({
+      label: i18n.ts._instanceProfileContent.notResponding,
+      kind: 'warn',
+    })
+  if (inst.isSilenced)
+    list.push({ label: i18n.ts._instanceProfileContent.silenced, kind: 'warn' })
   if (inst.isMediaSilenced)
-    list.push({ label: 'メディアサイレンス', kind: 'warn' })
+    list.push({
+      label: i18n.ts._instanceProfileContent.mediaSilenced,
+      kind: 'warn',
+    })
   return list
 })
 </script>

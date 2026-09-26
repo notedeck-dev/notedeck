@@ -1,3 +1,5 @@
+import { i18n } from '@/i18n'
+
 /** 認証エラーの内訳。正本は notecli の `AuthErrorKind`。 */
 export type AuthErrorCode =
   | 'AUTH_NO_TOKEN'
@@ -22,8 +24,9 @@ export type ErrorCode =
   | 'INTERNAL'
   | 'UNKNOWN'
 
-export const AUTH_ERROR_MESSAGE =
-  'ログインが必要です。アカウントメニューから再ログインしてください。'
+export function authErrorMessage(): string {
+  return i18n.ts._errors.authRequired
+}
 
 /** サーバーが「この資格情報では通せない」と返すときの Misskey エラーコード */
 const AUTH_API_CODES = new Set(['AUTHENTICATION_FAILED', 'CREDENTIAL_REQUIRED'])

@@ -28,6 +28,7 @@ import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
 import type { VisibilityOpts } from '@/composables/useNoteVisibility'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
+import { i18n } from '@/i18n'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
@@ -262,7 +263,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         insertSilently: list.insertSilently,
         identityOf: (n) => (n._identityTrusted ? n._identity : variantKeyOf(n)),
         onOverflow: () => {
-          toast.show('新着が多すぎるため一部をスキップしました', 'warning')
+          toast.show(i18n.ts._useCrossAccountNotes.overflowSkipped, 'warning')
         },
       })
     : null

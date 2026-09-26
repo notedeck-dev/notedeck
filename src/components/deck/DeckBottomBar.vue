@@ -35,7 +35,7 @@ const platformLabel: Record<string, string> = {
 }
 
 const profileIndicatorLabel = computed(() => {
-  const profile = deckStore.currentProfileName ?? 'プロファイル'
+  const profile = deckStore.currentProfileName ?? i18n.ts._deckBottomBar.profile
   const os = platformName ? (platformLabel[platformName] ?? platformName) : null
   return os ? `${os}: ${profile}` : profile
 })

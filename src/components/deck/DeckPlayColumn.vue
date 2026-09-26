@@ -28,9 +28,24 @@ const windowsStore = useWindowsStore()
 
 type Tab = 'featured' | 'my' | 'likes'
 const TAB_DEFS: ColumnTabDef[] = [
-  { value: 'featured', label: '人気' },
-  { value: 'my', label: '自分の' },
-  { value: 'likes', label: 'いいね' },
+  {
+    value: 'featured',
+    get label() {
+      return i18n.ts._deckPlayColumn.featured
+    },
+  },
+  {
+    value: 'my',
+    get label() {
+      return i18n.ts._deckPlayColumn.my
+    },
+  },
+  {
+    value: 'likes',
+    get label() {
+      return i18n.ts._deckPlayColumn.likes
+    },
+  },
 ]
 const tabs: Tab[] = TAB_DEFS.map((t) => t.value as Tab)
 const activeTab = ref<Tab>('featured')

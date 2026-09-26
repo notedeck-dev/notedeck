@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { i18n } from '@/i18n'
-import { READ_ONLY_HINT } from '@/services/sidecarFileCollection'
+import { readOnlyHint } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { isWindowExposed } from '@/windows/exposure'
@@ -75,7 +75,7 @@ const emit = defineEmits<{
 const isStore = computed(() => props.mode === 'store')
 const isDisabled = computed(() => !isStore.value && props.disabled === true)
 const toggleTitle = computed(() =>
-  props.readOnly ? 'ソースファイルが見つからないため変更できません' : '',
+  props.readOnly ? i18n.ts._queryCard.readOnlyHint : '',
 )
 
 /** 編集はクエリを「作る」面なので開発者モードに従う (#1034)。導入・実行は一般側 */
@@ -86,8 +86,11 @@ const updateTitle = computed(() => {
   if (!props.updatedAt) return ''
   const date = formatDate(props.updatedAt)
   return props.version
-    ? `ストア更新日: ${date} / v${props.version}`
-    : `ストア更新日: ${date}`
+    ? i18n.tsx._queryCard.storeUpdatedWithVersion({
+        date,
+        version: props.version,
+      })
+    : i18n.tsx._queryCard.storeUpdated({ date })
 })
 
 function handlePrimaryClick() {
@@ -130,7 +133,7 @@ function handlePrimaryClick() {
         <span
           v-if="!isStore && readOnly"
           :class="$style.incompatBadge"
-          :title="READ_ONLY_HINT"
+          :title="readOnlyHint()"
         >{{ i18n.ts._common.sourceMissing }}</span>
         <!-- 無効は実行形態より前に出す: 止まっているものの実行形態は二の次 (#1043) -->
         <span

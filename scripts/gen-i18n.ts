@@ -320,6 +320,13 @@ export interface Locale ${body}
 
 export const LANGUAGES = ${JSON.stringify(languages, null, 2)} as const
 
+/**
+ * カラム種別の原文 (${SOURCE_LANG}) の表示名。以前のバージョンは既定の表示名を
+ * カラムの name に保存していたので、それを「名前なし」と見分けるのに使う
+ * (表示中の言語に関係なく判定するため、辞書ではなくここに持つ)
+ */
+export const SOURCE_COLUMN_LABELS: Readonly<Record<string, string>> = ${JSON.stringify(loadLocale(SOURCE_LANG)._columns ?? {}, null, 2)}
+
 export type LanguageCode = (typeof LANGUAGES)[number]['code']
 
 export const LOCALE_LOADERS: Record<

@@ -96,8 +96,8 @@ function scrollToTop() {
 function handleRemove(installId: string) {
   const undo = deckStore.removeWidget(props.column.id, installId)
   if (undo) {
-    useToast().show('ウィジェットを外しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckWidgetColumn.detached, 'info', {
+      action: { label: i18n.ts._deckWidgetColumn.undo, onClick: undo },
     })
   }
 }
@@ -135,7 +135,7 @@ async function openNewWidgetEditor() {
   let accountId: string | undefined
   if (isAllAccounts(props.column)) {
     const picked = await pickAccount(
-      'ウィジェットをどのアカウントで動かしますか？',
+      i18n.ts._deckWidgetColumn.pickAccountForNew,
     )
     if (!picked) return
     accountId = picked
@@ -194,7 +194,7 @@ async function resolveWidgetAccountId(
   if (own) return own
   if (!isAllAccounts(props.column)) return props.column.accountId
   const picked = await pickAccount(
-    `「${widget.name}」をどのアカウントで動かしますか？`,
+    i18n.tsx._deckWidgetColumn.pickAccountFor({ name: widget.name }),
   )
   if (!picked) return undefined
   widgetsStore.setAccountKey(widget.installId, scopeKeyOf(picked))
@@ -246,17 +246,17 @@ const {
  *  (widgetsStore 側は sidebarWidgetIds の自動 cleanup のみ)。 */
 async function deleteFromLibrary(widget: WidgetMeta) {
   const ok = await confirm({
-    title: 'ウィジェットを削除',
-    message: `「${widget.name}」をライブラリから削除しますか？ウィジェットのコードも消えます。`,
-    okLabel: '削除',
+    title: i18n.ts._deckWidgetColumn.deleteTitle,
+    message: i18n.tsx._deckWidgetColumn.deleteConfirm({ name: widget.name }),
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   deckStore.detachWidgetFromAllColumns(widget.installId)
   const undo = widgetsStore.removeWidget(widget.installId)
   if (undo) {
-    useToast().show('ウィジェットを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckWidgetColumn.deleted, 'info', {
+      action: { label: i18n.ts._deckWidgetColumn.undo, onClick: undo },
     })
   }
 }
@@ -270,8 +270,13 @@ const viewTab = ref<ViewTab>('installed')
 const columnContentRef = ref<HTMLElement | null>(null)
 
 const tabDefs = computed<ColumnTabDef[]>(() => [
-  { value: 'installed', label: `インストール済み ${widgets.value.length}` },
-  { value: 'store', label: 'ストア' },
+  {
+    value: 'installed',
+    label: i18n.tsx._deckWidgetColumn.installedTab({
+      count: widgets.value.length,
+    }),
+  },
+  { value: 'store', label: i18n.ts._common.store },
 ])
 
 function switchTab(tab: string) {
@@ -356,7 +361,7 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
       isAllAccounts(props.column)
     ) {
       const picked = await pickAccount(
-        `「${entry.name}」をどのアカウントで動かしますか？`,
+        i18n.tsx._deckWidgetColumn.pickAccountFor({ name: entry.name }),
       )
       if (!picked) return
       accountId = picked
@@ -377,7 +382,8 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
     deckStore.attachWidget(props.column.id, widget.installId)
     viewTab.value = 'installed'
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : 'インストール失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._deckWidgetColumn.installFailed
   } finally {
     installingId.value = null
   }
@@ -388,7 +394,8 @@ async function handleStoreUpdate(entry: StoreWidgetEntry) {
   try {
     await misStore.updateWidget(entry)
   } catch (e) {
-    installError.value = e instanceof Error ? e.message : '更新失敗'
+    installError.value =
+      e instanceof Error ? e.message : i18n.ts._deckWidgetColumn.updateFailed
   }
 }
 

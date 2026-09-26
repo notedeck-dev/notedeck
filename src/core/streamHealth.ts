@@ -1,5 +1,6 @@
 import { reactive } from 'vue'
 import type { StreamConnectionState } from '@/adapters/types'
+import { i18n } from '@/i18n'
 
 /**
  * アカウント別のストリーム接続状態 (#698)。
@@ -117,7 +118,13 @@ export function summarizeStreamHealth(
 export function formatHealthDuration(since: number): string {
   const elapsedMs = Date.now() - since
   const mins = Math.floor(elapsedMs / 60_000)
-  if (mins >= 60) return `${Math.floor(mins / 60)}時間前から`
-  if (mins >= 1) return `${mins}分前から`
-  return `${Math.max(1, Math.floor(elapsedMs / 1000))}秒前から`
+  if (mins >= 60)
+    return i18n.tsx._streamHealth.sinceHours_plural({
+      count: Math.floor(mins / 60),
+    })
+  if (mins >= 1)
+    return i18n.tsx._streamHealth.sinceMinutes_plural({ count: mins })
+  return i18n.tsx._streamHealth.sinceSeconds_plural({
+    count: Math.max(1, Math.floor(elapsedMs / 1000)),
+  })
 }

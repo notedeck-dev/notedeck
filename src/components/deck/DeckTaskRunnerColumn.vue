@@ -194,10 +194,7 @@ function runFromList(taskId: string) {
 async function runWithAi(def: TaskDefinition): Promise<void> {
   const resolved = resolveAiConnection(aiConfig.value, vault.connections.value)
   if (!resolved || !resolved.model) {
-    useToast().show(
-      'AI 接続が未選択、または model が未設定のため AI 実行できません',
-      'error',
-    )
+    useToast().show(i18n.ts._deckTaskRunnerColumn.aiNotConfigured, 'error')
     return
   }
 

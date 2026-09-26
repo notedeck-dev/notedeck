@@ -1,4 +1,5 @@
 import JSON5 from 'json5'
+import { i18n } from '@/i18n'
 
 import {
   type DuplicateIdEntry,
@@ -86,10 +87,13 @@ export interface SidecarCollectionConfig<T extends SidecarItemFile, M> {
  * 変更は保存できず端末ローカルにだけ載って次回起動で巻き戻るため、store の
  * 入口で拒否して UI がこの文言を出す
  */
-export const READ_ONLY_REASON = 'ソースファイルが見つからないため変更できません'
+export function readOnlyReason(): string {
+  return i18n.ts._sidecarFileCollection.readOnlyReason
+}
 /** 読取専用の印の tooltip。復旧導線をここで案内する */
-export const READ_ONLY_HINT =
-  'ソースファイルが見つかりません。ソースを置き直せば次回起動で復帰します。ストア配布物はストアから再導入、不要なら削除してください'
+export function readOnlyHint(): string {
+  return i18n.ts._sidecarFileCollection.readOnlyHint
+}
 
 export const META_SUFFIX = '.meta.json5'
 const SRC_SUFFIX = '.is'

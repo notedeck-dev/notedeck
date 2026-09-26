@@ -205,26 +205,30 @@ async function addToClip(clipId: string, clipName: string) {
   try {
     await adapter.api.addNoteToClip(clipId, props.note.id)
     useDeckStore().invalidateColumnByKey(clipCacheKey(clipId))
-    toast.show('クリップに追加しました')
+    toast.show(i18n.ts._noteMoreMenu.addedToClip)
   } catch (e) {
     const err = AppError.from(e)
     if (err.displayCode === 'ALREADY_CLIPPED') {
       const ok = await confirm({
-        title: 'クリップ解除',
-        message: `このノートは既に「${clipName}」にクリップされています。クリップを解除しますか？`,
+        title: i18n.ts._noteMoreMenu.removeFromClipTitle,
+        message: i18n.tsx._noteMoreMenu.confirmRemoveFromClip({
+          clip: clipName,
+        }),
         type: 'danger',
-        okLabel: '解除',
+        okLabel: i18n.ts._noteMoreMenu.removeFromClipOk,
       })
       if (ok) {
         try {
           await adapter.api.removeNoteFromClip(clipId, props.note.id)
           useDeckStore().invalidateColumnByKey(clipCacheKey(clipId))
-          toast.show('クリップから解除しました')
+          toast.show(i18n.ts._noteMoreMenu.removedFromClip)
         } catch (e2) {
           const err2 = AppError.from(e2)
           console.error('[clip:remove]', err2.code, err2.message)
           toast.show(
-            `クリップの解除に失敗しました（${err2.displayCode}）`,
+            i18n.tsx._noteMoreMenu.removeFromClipFailed({
+              code: err2.displayCode,
+            }),
             'error',
           )
         }
@@ -232,7 +236,7 @@ async function addToClip(clipId: string, clipName: string) {
     } else {
       console.error('[clip:add]', err.code, err.message)
       toast.show(
-        `クリップへの追加に失敗しました（${err.displayCode}）`,
+        i18n.tsx._noteMoreMenu.addToClipFailed({ code: err.displayCode }),
         'error',
       )
     }
@@ -242,8 +246,8 @@ async function addToClip(clipId: string, clipName: string) {
 async function createClipAndAdd() {
   commandStore.close()
   const name = await prompt({
-    title: '新しいクリップを作成',
-    placeholder: 'クリップ名を入力...',
+    title: i18n.ts._noteMoreMenu.createClip,
+    placeholder: i18n.ts._noteMoreMenu.clipNamePlaceholder,
   })
   if (!name) return
   try {
@@ -254,7 +258,10 @@ async function createClipAndAdd() {
   } catch (e) {
     const err = AppError.from(e)
     console.error('[clip:create]', err.code, err.message)
-    toast.show(`クリップの作成に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._noteMoreMenu.createClipFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -278,7 +285,7 @@ function actAsOperations(accountId: string) {
     return [
       {
         id: `${accountId}-hidden`,
-        label: 'このアカウントでは本文が非公開のため操作できません',
+        label: i18n.ts._noteMoreMenu.contentHiddenForAccount,
         icon: 'lock',
         action: () => commandStore.close(),
       },
@@ -289,7 +296,7 @@ function actAsOperations(accountId: string) {
     mine
       ? {
           id: `${accountId}-unreact`,
-          label: `リアクションを取り消す (${mine})`,
+          label: i18n.tsx._noteMoreMenu.unreactWith({ reaction: mine }),
           icon: 'mood-minus',
           action: () => {
             commandStore.close()
@@ -298,7 +305,7 @@ function actAsOperations(accountId: string) {
         }
       : {
           id: `${accountId}-react`,
-          label: 'リアクション',
+          label: i18n.ts._noteMoreMenu.react,
           icon: 'mood-plus',
           action: () => {
             commandStore.close()
@@ -307,7 +314,7 @@ function actAsOperations(accountId: string) {
         },
     {
       id: `${accountId}-renote`,
-      label: 'リノート',
+      label: i18n.ts._noteMoreMenu.renote,
       icon: 'repeat',
       action: () => {
         commandStore.close()
@@ -316,7 +323,7 @@ function actAsOperations(accountId: string) {
     },
     {
       id: `${accountId}-quote`,
-      label: '引用',
+      label: i18n.ts._noteMoreMenu.quote,
       icon: 'quote',
       action: () => {
         commandStore.close()
@@ -339,8 +346,8 @@ function openActAs() {
   }
   close()
   commandStore.pushQuickPick({
-    title: '別のアカウントで…',
-    placeholder: 'アカウントを選択…',
+    title: i18n.ts._noteMoreMenu.actAs,
+    placeholder: i18n.ts._noteMoreMenu.selectAccountPlaceholder,
     items: actAsCandidates.value.map((acc) => ({
       id: acc.id,
       label: getAccountLabel(acc),
@@ -359,7 +366,7 @@ async function openClipQuickPick() {
     const items = [
       {
         id: 'create-new-clip',
-        label: '新しいクリップを作成',
+        label: i18n.ts._noteMoreMenu.createClip,
         icon: 'plus',
         action: () => createClipAndAdd(),
       },
@@ -374,15 +381,18 @@ async function openClipQuickPick() {
       })),
     ]
     commandStore.pushQuickPick({
-      title: 'クリップに追加',
-      placeholder: 'クリップを選択...',
+      title: i18n.ts._noteMoreMenu.addToClip,
+      placeholder: i18n.ts._noteMoreMenu.selectClipPlaceholder,
       items,
     })
     commandStore.open()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[clip:list]', err.code, err.message)
-    toast.show(`クリップの取得に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._noteMoreMenu.fetchClipsFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 
@@ -392,12 +402,15 @@ async function submitReport() {
     const adapter = await getOrCreate(props.note._accountId)
     if (!adapter) return
     await adapter.api.reportUser(props.note.user.id, reportComment.value)
-    toast.show('通報しました')
+    toast.show(i18n.ts._noteMoreMenu.reported)
     close()
   } catch (e) {
     const err = AppError.from(e)
     console.error('[user:report]', err.code, err.message)
-    toast.show(`通報に失敗しました（${err.displayCode}）`, 'error')
+    toast.show(
+      i18n.tsx._noteMoreMenu.reportFailed({ code: err.displayCode }),
+      'error',
+    )
   }
 }
 

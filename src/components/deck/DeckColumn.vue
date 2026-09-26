@@ -148,16 +148,16 @@ async function close() {
     return
   }
   const ok = await confirm({
-    title: 'カラムを削除',
-    message: 'このカラムを削除しますか？',
-    okLabel: '削除',
+    title: i18n.ts._deckColumn.deleteTitle,
+    message: i18n.ts._deckColumn.deleteConfirm,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   const undo = deckStore.removeColumn(props.columnId)
   if (undo) {
-    useToast().show('カラムを削除しました', 'info', {
-      action: { label: '元に戻す', onClick: undo },
+    useToast().show(i18n.ts._deckColumn.deleted, 'info', {
+      action: { label: i18n.ts._deckColumn.undo, onClick: undo },
     })
   }
 }

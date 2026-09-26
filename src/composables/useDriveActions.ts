@@ -1,4 +1,5 @@
 import type { DriveFolder, NormalizedDriveFile } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
 import { usePrompt } from '@/stores/prompt'
 import { useToast } from '@/stores/toast'
@@ -11,10 +12,15 @@ const MOVE_BULK_CHUNK_SIZE = 100
 
 /** 既知の Misskey エラーコードの意訳（それ以外は AppError.message をそのまま出す） */
 const ERROR_TRANSLATIONS: Record<string, string> = {
-  RATE_LIMIT_EXCEEDED:
-    'フォルダ作成の回数制限に達しました。しばらく待ってからやり直してください',
-  HAS_CHILD_FILES_OR_FOLDERS: 'フォルダが空ではないため削除できません',
-  INVALID_FILE_NAME: '使用できないファイル名です',
+  get RATE_LIMIT_EXCEEDED() {
+    return i18n.ts._useDriveActions.rateLimitExceeded
+  },
+  get HAS_CHILD_FILES_OR_FOLDERS() {
+    return i18n.ts._useDriveActions.folderNotEmpty
+  },
+  get INVALID_FILE_NAME() {
+    return i18n.ts._useDriveActions.invalidFileName
+  },
 }
 
 function errorMessage(e: unknown): string {
@@ -40,7 +46,10 @@ export function useDriveActions() {
   ): Promise<DriveFolder | null> {
     if (!accountId) return null
     const name = (
-      await prompt({ title: '新規フォルダ', placeholder: 'フォルダ名' })
+      await prompt({
+        title: i18n.ts._useDriveActions.newFolder,
+        placeholder: i18n.ts._useDriveActions.folderNamePlaceholder,
+      })
     )?.trim()
     if (!name) return null
     try {
@@ -65,7 +74,10 @@ export function useDriveActions() {
   ): Promise<void> {
     if (!accountId) return
     const name = (
-      await prompt({ title: 'フォルダ名を変更', defaultValue: folder.name })
+      await prompt({
+        title: i18n.ts._useDriveActions.renameFolder,
+        defaultValue: folder.name,
+      })
     )?.trim()
     if (!name || name === folder.name) return
     try {
@@ -82,9 +94,11 @@ export function useDriveActions() {
   ): Promise<void> {
     if (!accountId) return
     const ok = await confirm({
-      title: 'フォルダを削除',
-      message: `フォルダ「${folder.name}」を削除しますか？`,
-      okLabel: '削除',
+      title: i18n.ts._useDriveActions.deleteFolderTitle,
+      message: i18n.tsx._useDriveActions.confirmDeleteFolder({
+        name: folder.name,
+      }),
+      okLabel: i18n.ts._common.delete,
       type: 'danger',
     })
     if (!ok) return
@@ -102,7 +116,10 @@ export function useDriveActions() {
   ): Promise<void> {
     if (!accountId) return
     const name = (
-      await prompt({ title: 'ファイル名を変更', defaultValue: file.name })
+      await prompt({
+        title: i18n.ts._useDriveActions.renameFile,
+        defaultValue: file.name,
+      })
     )?.trim()
     if (!name || name === file.name) return
     try {
@@ -147,9 +164,9 @@ export function useDriveActions() {
   ): Promise<boolean> {
     if (!accountId) return false
     const ok = await confirm({
-      title: 'ファイルを削除',
-      message: `「${file.name}」をドライブから削除しますか？このファイルを添付したノートからも消えます。この操作は取り消せません。`,
-      okLabel: '削除',
+      title: i18n.ts._useDriveActions.deleteFileTitle,
+      message: i18n.tsx._useDriveActions.confirmDeleteFile({ name: file.name }),
+      okLabel: i18n.ts._common.delete,
       type: 'danger',
     })
     if (!ok) return false

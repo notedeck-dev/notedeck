@@ -170,14 +170,14 @@ function openHistory() {
 async function onDelete() {
   closeMenu()
   const ok = await confirm({
-    title: 'メモを削除',
-    message: '選択したメモを削除しますか？',
-    okLabel: '削除',
+    title: i18n.ts._memoEditorContent.deleteTitle,
+    message: i18n.ts._memoEditorContent.deleteMessage,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
   deleteMemo(props.memoKey)
-  toast.show('メモを削除しました', 'info')
+  toast.show(i18n.ts._memoEditorContent.deleted, 'info')
   emit('close')
 }
 </script>

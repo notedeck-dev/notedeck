@@ -1,4 +1,5 @@
 import type { SystemState } from '@/bindings'
+import { i18n } from '@/i18n'
 
 /**
  * OS の状態 (#931 電源 / #935 従量制回線 / #928 集中モード) とウィンドウの
@@ -62,12 +63,12 @@ export function describeAdaptationEntry(
   state: SystemState,
 ): string | null {
   if (!prev.deferMedia && next.deferMedia) {
-    return '従量制回線のため、画像・動画はタップで読み込む表示にしました'
+    return i18n.ts._systemAdaptation.meteredDeferMedia
   }
   if (!prev.staticEmoji && next.staticEmoji) {
     return state.lowPowerMode === true
-      ? '省電力モードのため、画像の先読みとアニメーション絵文字を止めました'
-      : 'バッテリー駆動のため、画像の先読みとアニメーション絵文字を止めました'
+      ? i18n.ts._systemAdaptation.lowPowerStaticEmoji
+      : i18n.ts._systemAdaptation.batteryStaticEmoji
   }
   return null
 }

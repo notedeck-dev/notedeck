@@ -414,16 +414,76 @@ function loadCache(): NormalizedNotification[] {
 }
 
 const NOTIFICATION_FILTERS = [
-  { key: 'all', label: 'すべて', icon: 'ti ti-bell' },
-  { key: 'reaction', label: 'リアクション', icon: 'ti ti-mood-plus' },
-  { key: 'reply', label: 'リプライ', icon: 'ti ti-arrow-back-up' },
-  { key: 'renote', label: 'リノート', icon: 'ti ti-repeat' },
-  { key: 'quote', label: '引用', icon: 'ti ti-quote' },
-  { key: 'mention', label: 'メンション', icon: 'ti ti-at' },
-  { key: 'follow', label: 'フォロー', icon: 'ti ti-plus' },
-  { key: 'pollEnded', label: 'アンケート', icon: 'ti ti-chart-arrows' },
-  { key: 'achievementEarned', label: '実績', icon: 'ti ti-medal' },
-  { key: 'createToken', label: 'トークン', icon: 'ti ti-key' },
+  {
+    key: 'all',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterAll
+    },
+    icon: 'ti ti-bell',
+  },
+  {
+    key: 'reaction',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterReaction
+    },
+    icon: 'ti ti-mood-plus',
+  },
+  {
+    key: 'reply',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterReply
+    },
+    icon: 'ti ti-arrow-back-up',
+  },
+  {
+    key: 'renote',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterRenote
+    },
+    icon: 'ti ti-repeat',
+  },
+  {
+    key: 'quote',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterQuote
+    },
+    icon: 'ti ti-quote',
+  },
+  {
+    key: 'mention',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterMention
+    },
+    icon: 'ti ti-at',
+  },
+  {
+    key: 'follow',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterFollow
+    },
+    icon: 'ti ti-plus',
+  },
+  {
+    key: 'pollEnded',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterPollEnded
+    },
+    icon: 'ti ti-chart-arrows',
+  },
+  {
+    key: 'achievementEarned',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterAchievementEarned
+    },
+    icon: 'ti ti-medal',
+  },
+  {
+    key: 'createToken',
+    get label() {
+      return i18n.ts._deckNotificationColumn.filterCreateToken
+    },
+    icon: 'ti ti-key',
+  },
 ] as const
 
 type NotifFilterKey = (typeof NOTIFICATION_FILTERS)[number]['key']
@@ -431,7 +491,9 @@ const activeFilter = ref<NotifFilterKey>('all')
 
 const filterTabDefs: ColumnTabDef[] = NOTIFICATION_FILTERS.map((f) => ({
   value: f.key,
-  label: f.label,
+  get label() {
+    return f.label
+  },
   icon: f.icon.replace(/^ti ti-/, ''),
 }))
 
@@ -604,21 +666,51 @@ const NOTIFICATION_ICONS: Record<string, string> = {
 }
 
 const NOTIFICATION_LABELS: Record<string, string> = {
-  reaction: 'がリアクション',
-  reply: 'からのリプライ',
-  renote: 'がリノートしました',
-  quote: 'による引用',
-  mention: 'からのメンション',
-  follow: 'にフォローされました',
-  followRequestAccepted: 'がフォローリクエストを承認',
-  receiveFollowRequest: 'からフォローリクエスト',
-  pollEnded: 'アンケートの結果が出ました',
-  achievementEarned: '実績を獲得',
-  roleAssigned: 'ロールが付与されました',
-  app: '通知',
-  login: 'ログインがありました',
-  createToken: 'アクセストークンが作成されました',
-  test: 'テスト通知',
+  get reaction() {
+    return i18n.ts._deckNotificationColumn.labelReaction
+  },
+  get reply() {
+    return i18n.ts._deckNotificationColumn.labelReply
+  },
+  get renote() {
+    return i18n.ts._deckNotificationColumn.labelRenote
+  },
+  get quote() {
+    return i18n.ts._deckNotificationColumn.labelQuote
+  },
+  get mention() {
+    return i18n.ts._deckNotificationColumn.labelMention
+  },
+  get follow() {
+    return i18n.ts._deckNotificationColumn.labelFollow
+  },
+  get followRequestAccepted() {
+    return i18n.ts._deckNotificationColumn.labelFollowRequestAccepted
+  },
+  get receiveFollowRequest() {
+    return i18n.ts._deckNotificationColumn.labelReceiveFollowRequest
+  },
+  get pollEnded() {
+    return i18n.ts._deckNotificationColumn.labelPollEnded
+  },
+  get achievementEarned() {
+    return i18n.ts._deckNotificationColumn.labelAchievementEarned
+  },
+  get roleAssigned() {
+    return i18n.ts._deckNotificationColumn.labelRoleAssigned
+  },
+  get app() {
+    return i18n.ts._deckNotificationColumn.labelApp
+  },
+  get login() {
+    return i18n.ts._deckNotificationColumn.labelLogin
+  },
+  get createToken() {
+    return i18n.ts._deckNotificationColumn.labelCreateToken
+  },
+  get test() {
+    return i18n.ts._deckNotificationColumn.labelTest
+  },
 }
 
 const NOTIFICATION_COLORS: Record<string, string> = {

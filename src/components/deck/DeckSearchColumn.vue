@@ -339,7 +339,7 @@ watch(searchQuery, (val) => {
     return
   }
   if (regexMode.value && !isValidRegex(q)) {
-    regexError.value = '無効な正規表現です'
+    regexError.value = i18n.ts._deckSearchColumn.invalidRegex
     return
   }
   // Don't show preview if already showing confirmed results for this query
@@ -377,7 +377,7 @@ async function performSearch() {
   if (debounceTimer) clearTimeout(debounceTimer)
 
   if (regexMode.value && !isValidRegex(q)) {
-    regexError.value = '無効な正規表現です'
+    regexError.value = i18n.ts._deckSearchColumn.invalidRegex
     return
   }
 

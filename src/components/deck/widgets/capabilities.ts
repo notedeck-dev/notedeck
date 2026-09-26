@@ -11,6 +11,8 @@
  *   (実行時の認可は permissions.json5 の plugin principal 側で gate される)。
  */
 
+import { i18n } from '@/i18n'
+
 export interface CapabilityContext {
   /** Widget カラムの accountId (未設定なら null = cross-account / ゲスト)。 */
   accountId: string | null
@@ -64,8 +66,8 @@ export function checkKnownCapabilities(
     if (!KNOWN_CAPABILITIES.has(cap)) {
       return {
         ok: false,
-        badge: '要アップデート',
-        reason: `未対応の機能: ${cap} (NoteDeck のアップデートが必要です)`,
+        badge: i18n.ts._widgetCapabilities.needsUpdate,
+        reason: i18n.tsx._widgetCapabilities.unsupported({ capability: cap }),
       }
     }
   }
@@ -87,15 +89,15 @@ export function checkWidgetCapabilities(
     if (cap === 'misskey-api' && ctx.accountId === null) {
       return {
         ok: false,
-        badge: '要アカウント',
-        reason: 'アカウントが必要です (カラムにアカウントを設定してください)',
+        badge: i18n.ts._widgetCapabilities.needsAccount,
+        reason: i18n.ts._widgetCapabilities.accountRequired,
       }
     }
     if (cap === 'misskey-account' && ctx.accountId === null) {
       return {
         ok: false,
-        badge: '要ログイン',
-        reason: 'ログイン済みアカウントが必要です',
+        badge: i18n.ts._widgetCapabilities.needsLogin,
+        reason: i18n.ts._widgetCapabilities.loginRequired,
       }
     }
   }

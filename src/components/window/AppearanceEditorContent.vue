@@ -141,7 +141,7 @@ watch(jsonCode, (code) => {
     try {
       const parsed = JSON.parse(code)
       if (!parsed || typeof parsed !== 'object') {
-        error.value = 'トップレベルは JSON オブジェクト {} である必要があります'
+        error.value = i18n.ts._appearanceEditorContent.topLevelMustBeObject
         return
       }
       // Merge overrides with defaults and replace entire settings
@@ -156,7 +156,10 @@ watch(jsonCode, (code) => {
         saved.value = false
       }, 2000)
     } catch (e) {
-      error.value = e instanceof Error ? e.message : '不正な JSON'
+      error.value =
+        e instanceof Error
+          ? e.message
+          : i18n.ts._appearanceEditorContent.invalidJson
     }
   }, 600)
 })
@@ -171,8 +174,8 @@ watch(tab, (t) => {
 // Status text
 const statusText = computed(() => {
   if (error.value) return error.value
-  if (saved.value) return '保存しました'
-  if (dirty.value) return '編集中...'
+  if (saved.value) return i18n.ts._common.saved
+  if (dirty.value) return i18n.ts._appearanceEditorContent.editing
   return ''
 })
 

@@ -145,7 +145,7 @@ function applyFromCode() {
       return
     }
     if (!Array.isArray(parsed)) {
-      codeError.value = '配列または null が必要です'
+      codeError.value = i18n.ts._postFormEditorContent.arrayOrNullRequired
       return
     }
     const filtered = parsed.filter(
@@ -156,7 +156,10 @@ function applyFromCode() {
     items.value = [...new Set(filtered)]
     codeError.value = null
   } catch (e) {
-    codeError.value = e instanceof Error ? e.message : '無効な JSON5'
+    codeError.value =
+      e instanceof Error
+        ? e.message
+        : i18n.ts._postFormEditorContent.invalidJson5
   }
 }
 

@@ -19,7 +19,7 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { i18n } from '@/i18n'
-import { READ_ONLY_REASON } from '@/services/sidecarFileCollection'
+import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import {
@@ -113,14 +113,18 @@ const tabDefs = computed(() => {
   const defs: { value: string; icon: string; label: string }[] = []
   for (const t of tabOptions.value) {
     if (t === 'config')
-      defs.push({ value: 'config', icon: 'settings', label: '設定' })
+      defs.push({
+        value: 'config',
+        icon: 'settings',
+        label: i18n.ts._common.settings,
+      })
     if (t === 'code')
-      defs.push({ value: 'code', icon: 'code', label: 'コード' })
+      defs.push({ value: 'code', icon: 'code', label: i18n.ts._common.code })
     if (t === 'logs')
       defs.push({
         value: 'logs',
         icon: 'list',
-        label: 'ログ',
+        label: i18n.ts._pluginsContent.logs,
       })
   }
   return defs
@@ -171,7 +175,7 @@ async function saveCode() {
   if (!plugin.value) return
   if (!pluginsStore.updateSrc(plugin.value.installId, editingCode.value)) {
     // 読取専用 (ソース欠損) は保存されない (#1111)
-    useToast().show(READ_ONLY_REASON, 'warning')
+    useToast().show(readOnlyReason(), 'warning')
     return
   }
   codeModified.value = false
@@ -189,19 +193,20 @@ async function doInstall() {
   installError.value = null
   const code = editingCode.value.trim()
   if (!code) {
-    installError.value = 'コードを入力してください'
+    installError.value = i18n.ts._pluginsContent.codeRequired
     return
   }
 
   const meta = parsePluginMeta(code)
   if (!meta) {
-    installError.value =
-      'ヘッダーが不正です。先頭に /// @ 1.2.1 (AiScript >= 0.12) と ### { name: "...", version: "..." } が必要です'
+    installError.value = i18n.ts._pluginsContent.invalidHeader
     return
   }
 
   if (pluginsStore.isDuplicate(meta.name)) {
-    installError.value = `"${meta.name}" は既にインストールされています`
+    installError.value = i18n.tsx._pluginsContent.alreadyInstalled({
+      name: meta.name,
+    })
     return
   }
 
@@ -251,7 +256,7 @@ function commitRename() {
   const newName = renamingValue.value.trim()
   if (newName && newName !== plugin.value.name) {
     if (!pluginsStore.renamePlugin(plugin.value.installId, newName)) {
-      useToast().show(READ_ONLY_REASON, 'warning')
+      useToast().show(readOnlyReason(), 'warning')
     }
   }
   isRenaming.value = false
@@ -266,7 +271,7 @@ function updateConfig(key: string, value: unknown) {
   if (!plugin.value) return
   const newData = { ...plugin.value.configData, [key]: value }
   if (!pluginsStore.updateConfigData(plugin.value.installId, newData)) {
-    useToast().show(READ_ONLY_REASON, 'warning')
+    useToast().show(readOnlyReason(), 'warning')
   }
 }
 
@@ -326,20 +331,28 @@ const barActions = computed<EditorAction[]>(() => {
     {
       key: 'import',
       label: importClipError.value
-        ? '無効'
+        ? i18n.ts._pluginsContent.invalid
         : importedMessage.value
-          ? '読込済み'
-          : 'インポート',
+          ? i18n.ts._common.loaded
+          : i18n.ts._common.import,
       icon: importClipError.value ? 'alert-circle' : 'clipboard-text',
     },
     {
       key: 'export',
-      label: copiedMessage.value ? 'コピー済み' : 'エクスポート',
+      label: copiedMessage.value
+        ? i18n.ts._common.copied
+        : i18n.ts._common.export,
       icon: 'clipboard-copy',
     },
     // 履歴は開発者向けの面 (#1034)。入口だけ隠す
     ...(isExposed('developer')
-      ? [{ key: 'history', label: '履歴', icon: 'history' }]
+      ? [
+          {
+            key: 'history',
+            label: i18n.ts._pluginsContent.history,
+            icon: 'history',
+          },
+        ]
       : []),
   ]
 })
@@ -358,12 +371,12 @@ function openHistory() {
 
 const barPrimary = computed<EditorAction | null>(() => {
   if (!plugin.value) {
-    return { key: 'install', label: 'インストール', icon: 'download' }
+    return { key: 'install', label: i18n.ts._common.install, icon: 'download' }
   }
   if (!codeExposed.value) return null
   return {
     key: 'save',
-    label: '保存して再起動',
+    label: i18n.ts._pluginsContent.saveAndRestart,
     icon: 'device-floppy',
     disabled: !codeModified.value,
   }

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { destroyAdapter } from '@/adapters/factory'
 import type { ServerSoftware } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { invalidateResolutionCache } from '@/services/entityResolution'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
@@ -52,7 +53,7 @@ export function getAccountAvatarUrl(account: Account): string {
 
 export function getAccountLabel(account: Account): string {
   if (isGuestAccount(account)) {
-    const name = account.displayName || 'ゲスト'
+    const name = account.displayName || i18n.ts._accounts.guest
     return `${name}@${account.host}`
   }
   return `@${account.username}@${account.host}`

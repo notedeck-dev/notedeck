@@ -115,7 +115,7 @@ async function loadActivityPub() {
   if (apRaw.value != null || isLoadingAp.value) return
   const uri = derivedUri.value
   if (!uri) {
-    apError.value = 'URI を特定できませんでした'
+    apError.value = i18n.ts._noteInspectorContent.uriNotFound
     return
   }
   const gen = viewGeneration

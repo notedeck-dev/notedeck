@@ -13,6 +13,7 @@
 
 import JSON5 from 'json5'
 import { type Ref, ref } from 'vue'
+import { i18n } from '@/i18n'
 import { useToast } from '@/stores/toast'
 import {
   isTauri,
@@ -264,10 +265,7 @@ async function _initFileStorage(): Promise<void> {
       // 破損時はデフォルト (plugin=safe) でなく最小権限へ倒す (#719)
       console.warn('[permissions] failed to parse permissions.json5:', error)
       // 無言で権限を狭めない (#722): ユーザーに最小権限起動を知らせる
-      useToast().show(
-        '権限設定を読み込めなかったため、安全のため最小権限で起動しました。設定から権限を確認してください。',
-        'warning',
-      )
+      useToast().show(i18n.ts._store.loadFailedMinimal, 'warning')
     }
     _initialized.value = true
     return
@@ -340,10 +338,7 @@ export function usePermissionsConfig() {
       } catch (e2) {
         console.warn('[permissions] failed to reload after write error:', e2)
       }
-      useToast().show(
-        '権限の保存に失敗しました。変更は反映されていません。',
-        'error',
-      )
+      useToast().show(i18n.ts._store.saveFailed, 'error')
     })
   }
 

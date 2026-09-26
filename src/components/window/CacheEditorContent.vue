@@ -57,9 +57,9 @@ async function refreshStats() {
 
 async function clearAll() {
   const ok = await confirm({
-    title: 'キャッシュ削除',
-    message: 'ノートキャッシュとOGPキャッシュをすべて削除しますか？',
-    okLabel: '削除',
+    title: i18n.ts._cacheEditorContent.clearCacheTitle,
+    message: i18n.ts._cacheEditorContent.clearCacheConfirm,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
@@ -77,10 +77,9 @@ async function clearAll() {
 
 async function clearImages() {
   const ok = await confirm({
-    title: '画像キャッシュ削除',
-    message:
-      'ディスク上の画像キャッシュをすべて削除しますか？表示のたびにサーバーから再取得されます。',
-    okLabel: '削除',
+    title: i18n.ts._cacheEditorContent.clearImages,
+    message: i18n.ts._cacheEditorContent.clearImagesConfirm,
+    okLabel: i18n.ts._common.delete,
     type: 'danger',
   })
   if (!ok) return
@@ -109,18 +108,68 @@ const PER_ACCOUNT_OPTIONS: ReadonlyArray<{
   value: number | null
   label: string
 }> = [
-  { value: 10_000, label: '10,000 件' },
-  { value: 50_000, label: '50,000 件' },
-  { value: 100_000, label: '100,000 件' },
-  { value: 1_000_000, label: '1,000,000 件' },
-  { value: null, label: '無制限' },
+  {
+    value: 10_000,
+    get label() {
+      return i18n.tsx._cacheEditorContent.noteCount_plural({ count: 10_000 })
+    },
+  },
+  {
+    value: 50_000,
+    get label() {
+      return i18n.tsx._cacheEditorContent.noteCount_plural({ count: 50_000 })
+    },
+  },
+  {
+    value: 100_000,
+    get label() {
+      return i18n.tsx._cacheEditorContent.noteCount_plural({ count: 100_000 })
+    },
+  },
+  {
+    value: 1_000_000,
+    get label() {
+      return i18n.tsx._cacheEditorContent.noteCount_plural({ count: 1_000_000 })
+    },
+  },
+  {
+    value: null,
+    get label() {
+      return i18n.ts._cacheEditorContent.unlimited
+    },
+  },
 ]
 const TTL_OPTIONS: ReadonlyArray<{ value: number | null; label: string }> = [
-  { value: 30, label: '30 日' },
-  { value: 90, label: '90 日' },
-  { value: 180, label: '180 日' },
-  { value: 365, label: '365 日' },
-  { value: null, label: '無期限' },
+  {
+    value: 30,
+    get label() {
+      return i18n.tsx._cacheEditorContent.dayCount_plural({ count: 30 })
+    },
+  },
+  {
+    value: 90,
+    get label() {
+      return i18n.tsx._cacheEditorContent.dayCount_plural({ count: 90 })
+    },
+  },
+  {
+    value: 180,
+    get label() {
+      return i18n.tsx._cacheEditorContent.dayCount_plural({ count: 180 })
+    },
+  },
+  {
+    value: 365,
+    get label() {
+      return i18n.tsx._cacheEditorContent.dayCount_plural({ count: 365 })
+    },
+  },
+  {
+    value: null,
+    get label() {
+      return i18n.ts._cacheEditorContent.noExpiry
+    },
+  },
 ]
 
 async function applyAndPersist() {
