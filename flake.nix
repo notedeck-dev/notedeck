@@ -7,7 +7,65 @@
   };
 
   outputs = { self, nixpkgs, flake-utils }:
-    flake-utils.lib.eachDefaultSystem (system:
+    let
+      # home-manager module: notecored を user unit として常駐させる (#1106)。unit の中身は
+      # crates/notecored/deploy/notecored.service と同じ意味 (再起動しない終了コードは exit.rs)。
+      # Nix ではアプリの `service install` は unit を書かず、この module の unit をそのまま使う
+      notecoredModule = { config, lib, pkgs, ... }:
+        let cfg = config.services.notecored;
+        in {
+          options.services.notecored = {
+            enable = lib.mkEnableOption "NoteDeck resident core daemon (notecored)";
+            package = lib.mkOption {
+              type = lib.types.package;
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.notecored;
+              defaultText = lib.literalExpression "notedeck.packages.\${system}.notecored";
+              description = "notecored のパッケージ。アプリと同じ版でなければ繋げない";
+            };
+            api = lib.mkOption {
+              type = lib.types.bool;
+              default = false;
+              description = "公開 API 面 (localhost の HTTP、REST + SSE) も bind する";
+            };
+            extraArgs = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = [ ];
+              description = "notecored run に渡す追加の引数";
+            };
+          };
+          config = lib.mkIf cfg.enable {
+            systemd.user.services.notecored = {
+              Unit = {
+                Description = "NoteDeck resident core (notecored)";
+                Documentation = "https://github.com/notedeck-dev/notedeck/issues/1106";
+                StartLimitIntervalSec = 300;
+                StartLimitBurst = 5;
+              };
+              Service = {
+                Type = "simple";
+                ExecStart = lib.escapeShellArgs ([ "${cfg.package}/bin/notecored" "run" ]
+                  ++ lib.optional cfg.api "--api" ++ cfg.extraArgs);
+                Restart = "on-failure";
+                RestartSec = 5;
+                # exit.rs の NO_RESTART: ロック衝突 / DB がバイナリより新しい / runtime dir 不在 / secret の鍵
+                RestartPreventExitStatus = "10 11 12 13";
+                KillSignal = "SIGTERM";
+                TimeoutStopSec = 10;
+                NoNewPrivileges = true;
+                UMask = "0077";
+                RestrictAddressFamilies = "AF_UNIX AF_INET AF_INET6";
+              };
+              Install.WantedBy = [ "default.target" ];
+            };
+          };
+        };
+    in
+    {
+      homeManagerModules = {
+        notecored = notecoredModule;
+        default = notecoredModule;
+      };
+    } // flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
           inherit system;
