@@ -682,7 +682,11 @@ watch(
 )
 
 onMounted(() => document.addEventListener('click', handleOutsideClick))
-onUnmounted(() => document.removeEventListener('click', handleOutsideClick))
+onUnmounted(() => {
+  document.removeEventListener('click', handleOutsideClick)
+  // 50ms のプレビュー debounce が unmount 後に発火して document を触らないようにする
+  if (previewTimer) clearTimeout(previewTimer)
+})
 </script>
 
 <template>
