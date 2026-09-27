@@ -31,6 +31,16 @@ pub struct MigrateArgs {
     pub package_dir: Option<PathBuf>,
 }
 
+/// 同一ホストの移行は Linux だけ (移行パッケージと file store が Linux 限定)。
+/// 他の OS では断る (notecored 自体は動くが、切替導線が無い)
+#[cfg(not(target_os = "linux"))]
+pub fn run(cmd: MigrateCommand) -> i32 {
+    let _ = cmd;
+    eprintln!("notecored migrate is only available on Linux (same-host core switch)");
+    exit::FAILURE
+}
+
+#[cfg(target_os = "linux")]
 pub fn run(cmd: MigrateCommand) -> i32 {
     let (args, what) = match &cmd {
         MigrateCommand::Import(a) => (a, "import"),
