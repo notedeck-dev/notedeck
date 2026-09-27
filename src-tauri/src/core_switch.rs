@@ -38,6 +38,14 @@ pub struct CoreStatus {
     pub version_match: Option<bool>,
     /// user unit が動いているか (notecored が見つからなければ None)
     pub service_active: Option<bool>,
+    /// unit の状態: `active` | `inactive` | `not_installed` | `unavailable` (systemd の user
+    /// セッションが無い)。notecored が見つからなければ None
+    pub service_state: Option<String>,
+    /// `XDG_RUNTIME_DIR` があるか (socket と移行パッケージの置き場。無ければ常駐は動かない)
+    pub runtime_dir_present: bool,
+    /// 常駐中に notecored 自身が答えた状態 (稼働時間 / 接続端末 / HEARTBEAT など)。
+    /// 中継が繋がっていなければ None
+    pub daemon: Option<serde_json::Value>,
     /// notecored 側の secret store に中身があるか
     pub secrets_present: Option<bool>,
     /// 書き出した移行パッケージが残っているか (再起動待ち)
@@ -170,13 +178,25 @@ impl Cli {
 
     /// `service status` は systemctl の終了コードをそのまま返す (0 = active)
     fn service_active(&self) -> bool {
-        std::process::Command::new(&self.0)
+        self.service_state() == "active"
+    }
+
+    /// systemctl の終了コードを状態語に: 0 = active、3 = inactive、4 = unit 不在、
+    /// それ以外 (systemctl が無い / user セッションが無い) = unavailable
+    fn service_state(&self) -> &'static str {
+        let code = std::process::Command::new(&self.0)
             .args(["service", "status"])
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .status()
-            .map(|s| s.success())
-            .unwrap_or(false)
+            .ok()
+            .and_then(|s| s.code());
+        match code {
+            Some(0) => "active",
+            Some(3) => "inactive",
+            Some(4) => "not_installed",
+            _ => "unavailable",
+        }
     }
 
     fn migrate_status(&self, app_dir: &Path) -> Result<(bool, bool)> {
@@ -200,6 +220,7 @@ pub fn status(app_dir: &Path) -> CoreStatus {
         platform_supported: cfg!(target_os = "linux"),
         configured: client_config::serialize_backend(cfg.backend).to_string(),
         app_version: APP_VERSION.to_string(),
+        runtime_dir_present: notecore::rpc::default_socket_path().is_some(),
         switch_error: switch_error(),
         ..Default::default()
     };
@@ -208,13 +229,31 @@ pub fn status(app_dir: &Path) -> CoreStatus {
         st.notecored_path = Some(path.display().to_string());
         st.notecored_version = cli.version();
         st.version_match = st.notecored_version.as_deref().map(|v| v == APP_VERSION);
-        st.service_active = Some(cli.service_active());
+        let state = cli.service_state();
+        st.service_state = Some(state.to_string());
+        st.service_active = Some(state == "active");
         if let Ok((secrets, package)) = cli.migrate_status(app_dir) {
             st.secrets_present = Some(secrets);
             st.package_present = Some(package);
         }
     }
     st
+}
+
+/// 常駐中の notecored 自身の状態 (`notecored.status` を中継で聞く)。繋がっていなければ None
+pub async fn daemon_status() -> Option<serde_json::Value> {
+    let relay = crate::client_layer::relay()?;
+    if !relay.is_connected() {
+        return None;
+    }
+    let outcome = relay
+        .request(
+            "notecored.status",
+            serde_json::Value::Object(Default::default()),
+            None,
+        )
+        .await;
+    outcome.ok.then_some(outcome.result).flatten()
 }
 
 /// 常駐へ (埋め込みで動いているときに呼ぶ)。unit を用意し、パッケージを書き出し、
@@ -424,7 +463,7 @@ mod tests {
 echo "$*" >> "{log}"
 case "$1 $2" in
   "--version ") echo "notecored {version}" ;;
-  "service status") [ -e "{state}/active" ] ;;
+  "service status") if [ -e "{state}/active" ]; then exit 0; else exit 3; fi ;;
   "service install") : ;;
   "service enable") touch "{state}/active" ;;
   "service stop") rm -f "{state}/active" ;;
@@ -634,6 +673,8 @@ esac
         assert_eq!(st.app_version, APP_VERSION);
         assert_eq!(st.version_match, Some(true));
         assert_eq!(st.service_active, Some(true));
+        assert_eq!(st.service_state.as_deref(), Some("active"));
+        assert!(st.runtime_dir_present);
         assert_eq!(st.secrets_present, Some(false));
         assert_eq!(st.package_present, Some(false));
     }

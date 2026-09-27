@@ -29,7 +29,63 @@ const supported = computed(() => core.value?.platformSupported ?? false)
 const found = computed(() => !!core.value?.notecoredPath)
 /** notecored の版がアプリと違う (指紋で繋げないので、切り替えの前に更新を促す) */
 const versionMismatch = computed(() => core.value?.versionMatch === false)
-const canSwitch = computed(() => found.value && !versionMismatch.value)
+/** systemd の user セッションが無い / runtime dir が無い → 常駐は動かない */
+const systemdUnavailable = computed(
+  () => core.value?.serviceState === 'unavailable',
+)
+const runtimeDirMissing = computed(
+  () => core.value !== null && !core.value.runtimeDirPresent,
+)
+const canSwitch = computed(
+  () =>
+    found.value &&
+    !versionMismatch.value &&
+    !systemdUnavailable.value &&
+    !runtimeDirMissing.value,
+)
+
+const serviceStateLabel = computed(() => {
+  switch (core.value?.serviceState) {
+    case 'active':
+      return i18n.ts._coreContent.serviceActive
+    case 'inactive':
+      return i18n.ts._coreContent.serviceInactive
+    case 'not_installed':
+      return i18n.ts._coreContent.serviceNotInstalled
+    case 'unavailable':
+      return i18n.ts._coreContent.serviceUnavailable
+    default:
+      return ''
+  }
+})
+
+/** 常駐中の notecored 自身の状態 (稼働時間 / 接続端末 / HEARTBEAT)。中継が繋がっているときだけ */
+const daemonSummary = computed(() => {
+  // JsonValue (再帰型) からの直接キャストは型の展開が深くなりすぎるので unknown を経由する
+  const d = core.value?.daemon as unknown as
+    | {
+        uptimeSeconds?: number
+        devices?: number
+        heartbeatIntervalMinutes?: number | null
+      }
+    | null
+    | undefined
+  if (!d) return ''
+  const parts = [
+    i18n.tsx._coreContent.daemonUptime({
+      minutes: Math.floor((d.uptimeSeconds ?? 0) / 60),
+    }),
+    i18n.tsx._coreContent.daemonDevices({ devices: d.devices ?? 0 }),
+  ]
+  if (d.heartbeatIntervalMinutes != null) {
+    parts.push(
+      i18n.tsx._coreContent.daemonHeartbeat({
+        minutes: d.heartbeatIntervalMinutes,
+      }),
+    )
+  }
+  return parts.join(' · ')
+})
 
 const modeLabel = computed(() => {
   if (configured.value === 'resident') return i18n.ts._coreContent.modeResident
@@ -161,6 +217,8 @@ async function copyJournalHint(): Promise<void> {
         <p v-if="found && versionMismatch" :class="$style.warn">
           {{ i18n.tsx._coreContent.versionMismatch({ daemon: core?.notecoredVersion ?? '?', app: core?.appVersion ?? '?' }) }}
         </p>
+        <p v-if="systemdUnavailable" :class="$style.warn">{{ i18n.ts._coreContent.systemdUnavailable }}</p>
+        <p v-if="runtimeDirMissing" :class="$style.warn">{{ i18n.ts._coreContent.runtimeDirMissing }}</p>
         <template v-else>
           <p :class="$style.hint">{{ i18n.ts._coreContent.notFound }}</p>
           <pre :class="$style.code">nix profile add 'github:notedeck-dev/notedeck#notecored'</pre>
@@ -211,11 +269,12 @@ async function copyJournalHint(): Promise<void> {
           <span :class="$style.sectionTitle">{{ i18n.ts._coreContent.diagnostics }}</span>
         </div>
         <p :class="$style.hint">
-          {{ i18n.ts._coreContent.serviceState }}:
-          {{ core?.serviceActive ? i18n.ts._coreContent.serviceActive : i18n.ts._coreContent.serviceInactive }}
+          {{ i18n.ts._coreContent.serviceState }}: {{ serviceStateLabel }}
           · {{ i18n.ts._coreContent.secrets }}:
           {{ core?.secretsPresent ? i18n.ts._coreContent.secretsPresent : i18n.ts._coreContent.secretsAbsent }}
         </p>
+        <p v-if="daemonSummary" :class="$style.hint">{{ daemonSummary }}</p>
+        <p :class="$style.hint">{{ i18n.ts._coreContent.lingerHint }}</p>
         <div :class="$style.btnRow">
           <button class="_button" type="button" :class="$style.secondaryBtn" @click="copyJournalHint">
             {{ i18n.ts._coreContent.copyJournal }}

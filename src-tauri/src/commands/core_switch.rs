@@ -9,7 +9,9 @@ use crate::core_switch::{self, CoreStatus, SwitchBack, SwitchSummary};
 #[tauri::command]
 #[specta::specta]
 pub async fn core_status(app_state: State<'_, AppState>) -> Result<CoreStatus> {
-    Ok(core_switch::status(app_state.app_dir()?))
+    let mut status = core_switch::status(app_state.app_dir()?);
+    status.daemon = core_switch::daemon_status().await;
+    Ok(status)
 }
 
 /// 常駐へ切り替える (unit の用意 + 移行パッケージ + pending)。完了は再起動
