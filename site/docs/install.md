@@ -22,7 +22,10 @@ yay -S misskey-notedeck-bin
 ```
 
 ```bash [Nix Flake]
-nix run github:notedeck-dev/notedeck
+# アプリ本体は Nix では未配布 (AppImage か tarball を使う)。
+# flake が出すのは常駐コアと CLI
+nix profile add 'github:notedeck-dev/notedeck#notecored'
+nix profile add 'github:notedeck-dev/notedeck#notecli'
 ```
 
 :::
