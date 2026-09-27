@@ -1,5 +1,5 @@
 ---
-sourceHash: edb525000ecb
+sourceHash: 06d8975d083b
 ---
 
 # Installation
@@ -26,7 +26,10 @@ yay -S misskey-notedeck-bin
 ```
 
 ```bash [Nix Flake]
-nix run github:notedeck-dev/notedeck
+# The app itself is not packaged for Nix yet (use the AppImage or the tarball).
+# The flake provides the resident core and the CLI
+nix profile add 'github:notedeck-dev/notedeck#notecored'
+nix profile add 'github:notedeck-dev/notedeck#notecli'
 ```
 
 :::
