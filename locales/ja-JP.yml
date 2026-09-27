@@ -3220,6 +3220,7 @@ _coreContent:
   unsupported: "この OS では常駐に切り替えられません (Linux のみ)。"
   binary: "notecored"
   notFound: "notecored が見つかりません。次のコマンドで入れてから、このウィンドウを開き直してください:"
+  versionMismatch: "notecored の版 ({daemon}) がこのアプリ ({app}) と違います。notecored を更新してから切り替えてください。"
   switchTitle: "常駐のコアに切り替える"
   switchMessage: "notecored の user サービスを用意し、Misskey のトークンと接続の secret を notecored の暗号化ファイルに複製します。保護は OS のキーチェーンより弱くなります。切り替えはアプリの再起動で完了します。"
   switchOk: "常駐に切り替える"

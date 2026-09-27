@@ -3490,6 +3490,7 @@ _coreContent:
   unsupported: "The resident core is not available on this OS (Linux only)."
   binary: "notecored"
   notFound: "notecored was not found. Install it with the command below, then open this window again:"
+  versionMismatch: "notecored ({daemon}) does not match this app ({app}). Update notecored before switching."
   switchTitle: "Switch to the resident core"
   switchMessage: "Sets up the notecored user service and copies your Misskey tokens and connection secrets into notecored's encrypted file. That is weaker protection than the OS keychain. The switch completes when the app restarts."
   switchOk: "Switch to resident"

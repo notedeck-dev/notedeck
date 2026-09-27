@@ -27,6 +27,9 @@ const state = computed(() => store.state)
 const configured = computed(() => core.value?.configured ?? 'embedded')
 const supported = computed(() => core.value?.platformSupported ?? false)
 const found = computed(() => !!core.value?.notecoredPath)
+/** notecored の版がアプリと違う (指紋で繋げないので、切り替えの前に更新を促す) */
+const versionMismatch = computed(() => core.value?.versionMatch === false)
+const canSwitch = computed(() => found.value && !versionMismatch.value)
 
 const modeLabel = computed(() => {
   if (configured.value === 'resident') return i18n.ts._coreContent.modeResident
@@ -155,6 +158,9 @@ async function copyJournalHint(): Promise<void> {
           <code>{{ core?.notecoredPath }}</code>
           <span v-if="core?.notecoredVersion"> ({{ core.notecoredVersion }})</span>
         </p>
+        <p v-if="found && versionMismatch" :class="$style.warn">
+          {{ i18n.tsx._coreContent.versionMismatch({ daemon: core?.notecoredVersion ?? '?', app: core?.appVersion ?? '?' }) }}
+        </p>
         <template v-else>
           <p :class="$style.hint">{{ i18n.ts._coreContent.notFound }}</p>
           <pre :class="$style.code">nix profile add 'github:notedeck-dev/notedeck#notecored'</pre>
@@ -168,13 +174,13 @@ async function copyJournalHint(): Promise<void> {
             v-if="configured === 'embedded'"
             type="button"
             :class="$style.actionBtn"
-            :disabled="busy || !found"
+            :disabled="busy || !canSwitch"
             @click="switchToResident"
           >
             {{ i18n.ts._coreContent.switchOk }}
           </button>
           <template v-else-if="configured === 'pending-resident'">
-            <button class="_button" type="button" :class="$style.actionBtn" :disabled="busy || !found" @click="switchToResident">
+            <button class="_button" type="button" :class="$style.actionBtn" :disabled="busy || !canSwitch" @click="switchToResident">
               {{ i18n.ts._coreContent.retry }}
             </button>
             <button class="_button" type="button" :class="$style.secondaryBtn" :disabled="busy" @click="cancelPending">

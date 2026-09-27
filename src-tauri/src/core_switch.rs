@@ -32,6 +32,10 @@ pub struct CoreStatus {
     /// 見つかった notecored のパス (パッケージなら /usr/bin、それ以外は PATH)
     pub notecored_path: Option<String>,
     pub notecored_version: Option<String>,
+    /// このアプリの版。notecored は同じ版でないと繋げない (マニフェストの指紋)
+    pub app_version: String,
+    /// notecored の版がアプリと一致するか (見つからなければ None)
+    pub version_match: Option<bool>,
     /// user unit が動いているか (notecored が見つからなければ None)
     pub service_active: Option<bool>,
     /// notecored 側の secret store に中身があるか
@@ -57,6 +61,24 @@ pub type SwitchSummary = notecore::migration::MigrationSummary;
 pub type SwitchSummary = SwitchBack;
 
 static SWITCH_ERROR: Mutex<Option<String>> = Mutex::new(None);
+
+/// このアプリの版。notecored は同じ版だけ受け入れる (指紋の不一致で繋げないので、切替の前に弾く)
+const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+impl Cli {
+    /// 版がアプリと違えば切り替えない (繋いでから指紋で拒まれるより、先に「更新して」と言う)
+    fn require_same_version(&self) -> Result<()> {
+        let version = self
+            .version()
+            .ok_or_else(|| invalid("could not read the notecored version"))?;
+        if version != APP_VERSION {
+            return Err(invalid(format!(
+                "notecored {version} does not match this app ({APP_VERSION}); update notecored first"
+            )));
+        }
+        Ok(())
+    }
+}
 
 pub fn switch_error() -> Option<String> {
     SWITCH_ERROR.lock().ok().and_then(|e| e.clone())
@@ -177,6 +199,7 @@ pub fn status(app_dir: &Path) -> CoreStatus {
     let mut st = CoreStatus {
         platform_supported: cfg!(target_os = "linux"),
         configured: client_config::serialize_backend(cfg.backend).to_string(),
+        app_version: APP_VERSION.to_string(),
         switch_error: switch_error(),
         ..Default::default()
     };
@@ -184,6 +207,7 @@ pub fn status(app_dir: &Path) -> CoreStatus {
         let cli = Cli(path.clone());
         st.notecored_path = Some(path.display().to_string());
         st.notecored_version = cli.version();
+        st.version_match = st.notecored_version.as_deref().map(|v| v == APP_VERSION);
         st.service_active = Some(cli.service_active());
         if let Ok((secrets, package)) = cli.migrate_status(app_dir) {
             st.secrets_present = Some(secrets);
@@ -198,6 +222,7 @@ pub fn status(app_dir: &Path) -> CoreStatus {
 #[cfg(target_os = "linux")]
 pub fn switch_to_resident(app_dir: &Path, db: &notecli::db::Database) -> Result<SwitchSummary> {
     let cli = Cli::find()?;
+    cli.require_same_version()?;
     let exec = cli.0.to_string_lossy().into_owned();
     cli.run(&["service", "install", "--exec-path", &exec])?;
     let dir = notecore::migration::default_package_dir().ok_or_else(|| {
@@ -378,6 +403,11 @@ mod tests {
 
     impl Fake {
         fn new() -> Self {
+            Self::with_version(APP_VERSION)
+        }
+
+        /// 偽の notecored が名乗る版 (既定はアプリと同じ)
+        fn with_version(version: &str) -> Self {
             let guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
             let dir = tempfile::tempdir().unwrap();
             let app_dir = dir.path().join("app");
@@ -393,7 +423,7 @@ mod tests {
                 r#"#!/bin/sh
 echo "$*" >> "{log}"
 case "$1 $2" in
-  "--version ") echo "notecored 1.72.2" ;;
+  "--version ") echo "notecored {version}" ;;
   "service status") [ -e "{state}/active" ] ;;
   "service install") : ;;
   "service enable") touch "{state}/active" ;;
@@ -415,6 +445,7 @@ esac
                 log = log.display(),
                 state = state.display(),
                 pkg = pkg.display(),
+                version = version,
             );
             std::fs::write(&bin, script).unwrap();
             restrict(&bin, 0o755);
@@ -479,8 +510,11 @@ esac
             &f.run_dir.join("notecored")
         ));
         let calls = f.calls();
+        // 版の照合 (--version) の後に unit を用意する
         assert!(
-            calls[0].starts_with("service install --exec-path "),
+            calls
+                .iter()
+                .any(|c| c.starts_with("service install --exec-path ")),
             "{calls:?}"
         );
         // unit を用意するだけで enable / start はしない
@@ -596,10 +630,27 @@ esac
         let st = status(&f.app_dir);
         assert!(st.platform_supported);
         assert_eq!(st.configured, "embedded");
-        assert_eq!(st.notecored_version.as_deref(), Some("1.72.2"));
+        assert_eq!(st.notecored_version.as_deref(), Some(APP_VERSION));
+        assert_eq!(st.app_version, APP_VERSION);
+        assert_eq!(st.version_match, Some(true));
         assert_eq!(st.service_active, Some(true));
         assert_eq!(st.secrets_present, Some(false));
         assert_eq!(st.package_present, Some(false));
+    }
+
+    #[test]
+    fn switching_refuses_a_notecored_of_another_version() {
+        let f = Fake::with_version("0.0.1");
+        let db = notecli::db::Database::open(&f.app_dir.join("notecli.db")).unwrap();
+        let err = switch_to_resident(&f.app_dir, &db).unwrap_err();
+        assert!(err.safe_message().contains("does not match"), "{err}");
+        assert_eq!(f.configured(), Backend::Embedded);
+        assert!(
+            f.calls().iter().all(|c| c.starts_with("--version")),
+            "{:?}",
+            f.calls()
+        );
+        assert_eq!(status(&f.app_dir).version_match, Some(false));
     }
 
     fn restrict(path: &Path, mode: u32) {
