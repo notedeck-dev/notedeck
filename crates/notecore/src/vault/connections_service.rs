@@ -68,7 +68,8 @@ fn host_of(raw: &str) -> Option<String> {
 }
 
 /// 接続の作成 / 更新の入力。`id` が `None` なら新規作成。
-#[derive(Debug, Deserialize, specta::Type)]
+/// (Default / Serialize はコマンド表の見本パラメータのためで、既定値に意味は無い)
+#[derive(Debug, Default, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectionUpsert {
     pub id: Option<String>,

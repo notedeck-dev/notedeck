@@ -12,10 +12,11 @@ pub const DEFAULT_SLOT: &str = "primary";
 /// 認証方式。Rust 側で secret を注入する際の形を判別共用体で表現する。
 ///
 /// v2 で `oauth2` variant を追加する余地を残すため `#[serde(tag = "kind")]`。
-#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type, Default)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum AuthType {
     /// `Authorization: Bearer <secret>`
+    #[default]
     Bearer,
     /// `<name>: <secret>`
     Header { name: String },
@@ -38,10 +39,11 @@ pub enum ConnectionKind {
 /// `Some(_)` の接続は「AI プロバイダーとして使える接続」として AI 設定の
 /// ピッカーに出る。`ai_chat` の SSE パース分岐にも使う。
 /// 通常の vault 接続 (GitHub 等) は `None`。
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq, Default)]
 #[serde(rename_all = "kebab-case")]
 pub enum ConnectionProtocol {
     /// Anthropic Messages API (SSE: `content_block_delta`)。認証は `x-api-key`。
+    #[default]
     Anthropic,
     /// OpenAI Chat Completions 互換 (SSE: `data: {...}` + `[DONE]`)。
     /// 認証は `Authorization: Bearer`。OpenAI / OpenRouter / 自前ゲートウェイ等。
@@ -63,10 +65,11 @@ pub enum ConnectionOrigin {
 /// principal そのものより粗いクラス — 接続ごとに全 principal 分のトグルを
 /// 並べるのは Apple 式に反する。「AI に見せる」「プラグインに見せる」
 /// 「外部アプリに見せる」の 3 つの同意が、ユーザーのメンタルモデルの実際の粒度。
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, specta::Type, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum PrincipalClass {
     /// ai.chat + ai.heartbeat
+    #[default]
     Ai,
     /// AiScript プラグイン / ウィジェット (#759 — per-connection opt-in、default 非開示)
     Plugin,

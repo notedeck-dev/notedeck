@@ -26,7 +26,7 @@ async loadAccounts() : Promise<Result<AccountPublic[], { code: string; message: 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/admin.rs */
+/** @see crates/notecore/src/commands/admin.rs */
 async deleteAccount(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_account", { id }) };
@@ -35,11 +35,7 @@ async deleteAccount(id: string) : Promise<Result<null, { code: string; message: 
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * Logout: delete token only, keep account record and columns
- *
- * @see src-tauri/src/commands/admin.rs
- */
+/** @see crates/notecore/src/commands/admin.rs */
 async logoutAccount(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("logout_account", { id }) };
@@ -1740,7 +1736,7 @@ async authStart(host: string, permissions: string[] | null) : Promise<Result<Aut
     else return { status: "error", error: e  as any };
 }
 },
-/** @see src-tauri/src/commands/auth.rs */
+/** @see crates/notecore/src/commands/auth.rs */
 async authCompleteAndSave(session: AuthSession, software: string) : Promise<Result<AccountPublic, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("auth_complete_and_save", { session, software }) };
@@ -2434,12 +2430,7 @@ async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: str
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 即座に 1 回だけ tick を emit する。デバッグ用 + AI カラムの
- * 「💓 今すぐ実行」ボタンから呼ばれる。scheduler の interval state は変更しない。
- *
- * @see src-tauri/src/commands/heartbeat.rs
- */
+/** @see crates/notecore/src/commands/heartbeat.rs */
 async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_trigger_now") };
@@ -2539,6 +2530,15 @@ async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: s
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/health.rs */
+async healthCore() : Promise<Result<CoreHealth, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("health_core") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see src-tauri/src/commands/api_tokens.rs */
 async listApiTokens() : Promise<ApiTokenMeta[]> {
     return await TAURI_INVOKE("list_api_tokens");
@@ -2579,11 +2579,7 @@ async vaultGetConnection(id: string) : Promise<Result<Connection | null, VaultEr
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 接続のメタデータを作成 / 更新する (secret は別コマンド)。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultUpsertConnection(input: ConnectionUpsert) : Promise<Result<Connection, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_upsert_connection", { input }) };
@@ -2592,11 +2588,7 @@ async vaultUpsertConnection(input: ConnectionUpsert) : Promise<Result<Connection
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 接続のメタデータと secret を 1 トランザクションで作成 / 更新する。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultUpsertConnectionWithSecret(input: ConnectionUpsert, slot: string, secret: string) : Promise<Result<Connection, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_upsert_connection_with_secret", { input, slot, secret }) };
@@ -2605,11 +2597,7 @@ async vaultUpsertConnectionWithSecret(input: ConnectionUpsert, slot: string, sec
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 既存接続の secret を設定 / 入れ替える。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultSetSecret(id: string, slot: string, secret: string) : Promise<Result<Connection, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_set_secret", { id, slot, secret }) };
@@ -2627,11 +2615,7 @@ async vaultGetSecretStatus(id: string) : Promise<Result<SecretStatus, VaultError
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 接続の特定 slot の secret を削除する。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultDeleteSecret(id: string, slot: string) : Promise<Result<null, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_delete_secret", { id, slot }) };
@@ -2640,11 +2624,7 @@ async vaultDeleteSecret(id: string, slot: string) : Promise<Result<null, VaultEr
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 接続を削除する。全 slot の secret を keychain から消し、メタデータも削除する。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultDeleteConnection(id: string) : Promise<Result<null, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_delete_connection", { id }) };
@@ -2653,11 +2633,7 @@ async vaultDeleteConnection(id: string) : Promise<Result<null, VaultError>> {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 接続の開示先クラスを切り替える (#712 §6.1)。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultSetExposed(id: string, principalClass: PrincipalClass, exposed: boolean) : Promise<Result<null, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_set_exposed", { id, principalClass, exposed }) };
@@ -2666,13 +2642,7 @@ async vaultSetExposed(id: string, principalClass: PrincipalClass, exposed: boole
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 接続を「信頼済み」(確認なしで利用可) にするクラスを切り替える (#712 §6.2)。
- * 旧 `vault_set_ai_trusted(id, bool)` の置換 — クラスを明示することで
- * 「外部アプリでの確認同意が AI の trust に化ける」経路が構造的に消える。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultSetTrusted(id: string, principalClass: PrincipalClass, trusted: boolean) : Promise<Result<null, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_set_trusted", { id, principalClass, trusted }) };
@@ -2681,14 +2651,7 @@ async vaultSetTrusted(id: string, principalClass: PrincipalClass, trusted: boole
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * 接続を「信頼済み」にするプラグイン個体を切り替える。
- * 
- * plugin クラスの trust はクラス一括 (`trusted_for`) にせず個体単位で持つ —
- * 1 つのウィジェットの確認同意が全プラグイン / Play / Page に波及しない。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async vaultSetTrustedPlugin(id: string, pluginId: string, name: string | null, trusted: boolean) : Promise<Result<null, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("vault_set_trusted_plugin", { id, pluginId, name, trusted }) };
@@ -2715,11 +2678,7 @@ async vaultTestConnection(id: string, testPath: string | null) : Promise<Result<
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * AI プロバイダーの API キーを Vault 接続へ移行する (#564 後続)。
- *
- * @see src-tauri/src/commands/vault.rs
- */
+/** @see crates/notecore/src/commands/vault.rs */
 async aiMigrateProviderToVault(provider: string, name: string, baseUrl: string, protocol: ConnectionProtocol) : Promise<Result<Connection | null, VaultError>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_migrate_provider_to_vault", { provider, name, baseUrl, protocol }) };
@@ -3220,6 +3179,7 @@ export type ConnectionProtocol =
 "openai-compat"
 /**
  * 接続の作成 / 更新の入力。`id` が `None` なら新規作成。
+ * (Default / Serialize はコマンド表の見本パラメータのためで、既定値に意味は無い)
  */
 export type ConnectionUpsert = { id: string | null; name: string; baseUrl: string; authType: AuthType; allowedHosts?: string[]; accountScope?: string | null; notes?: string | null; 
 /**
@@ -3238,6 +3198,11 @@ origin?: ConnectionOrigin | null;
  * `origin = External` の詳細 (`ai-provider` 等)。
  */
 externalSource?: string | null }
+export type CoreHealth = { 
+/**
+ * notecli doctor の結果 (database / keychain / accounts / network / auth)
+ */
+doctor: Report; noteCacheCount: number; dbSizeBytes: number }
 /**
  * 状態面 (`core_status` コマンド)。WebView はこれから文言を組む
  */

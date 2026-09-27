@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { useThemeStore } from '@/stores/theme'
 import type { MisskeyTheme } from '@/theme/types'
@@ -17,12 +17,17 @@ function makeTheme(props: Record<string, string>): MisskeyTheme {
   return { id: 'th-sync', name: 'T', base: 'dark', props }
 }
 
+/** mount したものはテストの終わりで unmount する (プレビューの debounce が環境の
+ *  破棄後に発火して document を触らないように) */
+const mounted: { unmount: () => void }[] = []
+
 async function mountEditor(theme: MisskeyTheme) {
   useThemeStore().installedThemes = [theme]
   const wrapper = mount(ThemeEditorContent, {
     props: { initialThemeId: theme.id },
     shallow: true,
   })
+  mounted.push(wrapper)
   await nextTick()
   return wrapper
 }
@@ -47,6 +52,10 @@ function nameOf(wrapper: Awaited<ReturnType<typeof mountEditor>>): string {
 describe('ThemeEditorContent — 外部変更の取り込み (#981)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+  })
+
+  afterEach(() => {
+    for (const w of mounted.splice(0)) w.unmount()
   })
 
   it('未編集なら外部のテーマ変更を編集中の値へ取り込む', async () => {

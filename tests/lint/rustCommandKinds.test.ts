@@ -49,16 +49,29 @@ const AUTHZ_DENYLIST: { pattern: RegExp; why: string }[] = [
     pattern: /\bstore::(write_root_file|import_bundle)\(/,
     why: 'ルート設定ファイル (permissions.json5 を含む) の書き換え (#712)',
   },
-  {
-    pattern:
-      /\bservice::(upsert_metadata|upsert_with_secret|set_secret|delete_secret|delete_connection|update_connection|migrate_ai_provider)\(/,
-    why: 'Vault の secret 書込・接続の信頼設定の変更 (#564)',
-  },
-  {
-    pattern:
-      /\bauth_service::complete_and_save\(|\baccount_service::(logout|delete)\(/,
-    why: 'Misskey アカウント資格情報の保存・失効',
-  },
+]
+
+/**
+ * 認可境界の操作でコマンド表に載っているもの (本体は notecore、同一ホストでは中継する)。
+ * 表の行は本体を持たないので denylist では見えず、名前で種別を固定する (#1106 段階 3a)
+ */
+const TABLE_AUTHZ = [
+  // Vault の secret 書込・接続の信頼設定の変更 (#564)
+  'vault_upsert_connection',
+  'vault_upsert_connection_with_secret',
+  'vault_set_secret',
+  'vault_delete_secret',
+  'vault_delete_connection',
+  'vault_set_exposed',
+  'vault_set_trusted',
+  'vault_set_trusted_plugin',
+  'ai_migrate_provider_to_vault',
+  // Misskey アカウント資格情報の保存・失効
+  'auth_complete_and_save',
+  'delete_account',
+  'logout_account',
+  // ルート設定ファイル (permissions.json5 を含む) の書き換え (#712)
+  'write_root_settings_file',
 ]
 
 /** `#[tauri::command]` を文字列やマクロ内に持つだけで、実体のコマンドは持たないファイル */
@@ -197,6 +210,14 @@ describe('Rust IPC コマンドの種別宣言 (#1106 段階 0a)', () => {
       }
     }
     expect(violations).toEqual([])
+  })
+
+  it('認可境界の操作は表でも authz と宣言されている', () => {
+    const table = new Map(commandsInTable().map((c) => [c.name, c.kind]))
+    const wrong = TABLE_AUTHZ.filter((name) => table.get(name) !== 'authz').map(
+      (name) => `${name}: ${table.get(name) ?? '表に無い'}`,
+    )
+    expect(wrong).toEqual([])
   })
 
   it('denylist の各パターンは実在するコマンドに当たる (腐った denylist を検出)', () => {

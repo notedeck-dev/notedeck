@@ -1,8 +1,9 @@
 //! auth のデータ系コマンド本体 (#1106 段階 0b)。各関数は `&Core` と引数を取り、
 //! コマンド表 (commands/table.rs) から呼ばれる。
 
-//! MiAuth 認証: セッション追跡 (リプレイ防止) と `auth_start`。完了 (資格情報の保存) は
-//! 認可境界なので src-tauri 側に残る。
+//! MiAuth 認証: セッション追跡 (リプレイ防止)、`auth_start`、完了 (資格情報の保存)。
+//! 完了は認可境界 (表の種別 authz) だが本体は notecore にあり、常駐構成では notecored が
+//! 自分の secret store に保存する (#1106 段階 3a)。
 
 use notecli::models::AuthSession;
 
@@ -38,6 +39,23 @@ pub async fn auth_start(
         url,
         host,
     })
+}
+
+/// MiAuth を完了して資格情報を保存する。`auth_start` が登録したセッションを消費する
+/// (リプレイ防止) ので、開始と完了は同じプロセス (同じ Core) で行われる必要がある
+pub async fn auth_complete_and_save(
+    core: &Core,
+    session: AuthSession,
+    software: String,
+) -> Result<notecli::models::AccountPublic> {
+    let (db, client) = core.ready().await;
+    core.auth_sessions()
+        .consume(&session.session_id, &session.host)?;
+    let saved =
+        auth_service::complete_and_save(&db, &client, &session.host, &session.session_id, software)
+            .await?;
+    crate::commands::export_account_list(core, &db);
+    Ok(saved)
 }
 
 /// Tracks MiAuth sessions to prevent replay attacks.

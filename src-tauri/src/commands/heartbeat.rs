@@ -142,19 +142,6 @@ pub async fn heartbeat_unconfigure(scheduler: State<'_, Arc<HeartbeatScheduler>>
     Ok(())
 }
 
-/// 即座に 1 回だけ tick を emit する。デバッグ用 + AI カラムの
-/// 「💓 今すぐ実行」ボタンから呼ばれる。scheduler の interval state は変更しない。
-// nd-command: local
-#[tauri::command]
-#[specta::specta]
-pub async fn heartbeat_trigger_now(app: tauri::AppHandle) -> Result<()> {
-    crate::client_layer::ensure_embedded("heartbeat_trigger_now")?;
-    tauri::async_runtime::spawn(async move {
-        run_tick(&app, "manual").await;
-    });
-    Ok(())
-}
-
 /// 現在 scheduler に登録されているかどうかを返す (デバッグ / UI ヘルパ)。
 // nd-command: local
 #[tauri::command]

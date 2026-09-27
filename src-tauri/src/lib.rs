@@ -1234,6 +1234,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::core_cancel_pending,
             // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
             commands::run_healthcheck,
+            commands::health_core,
             // 永続 API トークン (#709) — 外部アプリ向け名前付きトークンの発行/失効
             commands::list_api_tokens,
             commands::create_api_token,
