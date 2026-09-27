@@ -57,6 +57,9 @@ jobs:
     needs: check
     permissions:
       contents: write
+      # build provenance の attestation (Linux の成果物, #1106)
+      id-token: write
+      attestations: write
     strategy:
       fail-fast: false
       matrix:
@@ -111,6 +114,16 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install
+
+      # notecored (常駐コア, #1106) はアプリと同じ target からビルドし、deb には bundler の
+      # files 指定 (tauri.conf.json) で、tarball と AUR には同版を同梱する。unit は ExecStart を
+      # /usr/bin/notecored に埋めた完成形を書き出す。standalone のバイナリは別 job (notecored)
+      - name: Build notecored (Linux)
+        if: matrix.platform == 'ubuntu-24.04'
+        run: |
+          cargo build --release -p notecored
+          target/release/notecored service render --exec-path /usr/bin/notecored > target/release/notecored.service
+          cat target/release/notecored.service
 
       - name: Build
         run: pnpm tauri build ${{ matrix.tauri_args }}
@@ -221,7 +234,7 @@ jobs:
           ls -la target/release/bundle/appimage/ || true
           ls -la target/release/bundle/deb/ || true
           cd target/release
-          tar czf "${GITHUB_WORKSPACE}/NoteDeck-${VERSION}-linux-x64.tar.gz" notedeck
+          tar czf "${GITHUB_WORKSPACE}/NoteDeck-${VERSION}-linux-x64.tar.gz" notedeck notecored notecored.service
           cd "${GITHUB_WORKSPACE}"
           cp target/release/bundle/appimage/*.AppImage "NoteDeck-${VERSION}-linux-x64.AppImage"
           cp target/release/bundle/deb/*.deb "NoteDeck-${VERSION}-linux-x64.deb"
@@ -262,6 +275,12 @@ jobs:
           if ($nsisZipSig) {
             Copy-Item $nsisZipSig.FullName "NoteDeck-${version}-windows-x64-setup.nsis.zip.sig"
           } else { Write-Host "WARN: Windows updater signature not found" }
+
+      - name: Attest build provenance (Linux)
+        if: matrix.platform == 'ubuntu-24.04'
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: NoteDeck-*
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -513,8 +532,10 @@ jobs:
             --repo "${{ github.repository }}" \
             --draft=false
 
+  # AUR は split package (pkgbase misskey-notedeck-bin → アプリ / notecored-bin / notecli-bin)。
+  # notecli のバイナリは notecli job が Release に足すので、その後に走る
   aur:
-    needs: publish
+    needs: [publish, notecli]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -528,6 +549,26 @@ jobs:
           VERSION=${{ steps.version.outputs.version }}
           sed -i "s/^pkgver=.*/pkgver=${VERSION}/" packaging/aur/PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" packaging/aur/PKGBUILD
+
+      # sha256sums は SKIP でなく実値を書く (#1106)。tarball は publish が作った
+      # SHA256SUMS.txt から、notecli のバイナリは Release から取って計算、desktop は
+      # リポジトリの実体、アイコンはタグの raw から
+      - name: Fill PKGBUILD checksums
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION=${{ steps.version.outputs.version }}
+          REPO="${{ github.repository }}"
+          gh release download "v${VERSION}" --repo "${REPO}" --pattern SHA256SUMS.txt --pattern "notecli-${VERSION}-linux-amd64" --dir sums
+          TARBALL=$(grep " NoteDeck-${VERSION}-linux-x64.tar.gz$" sums/SHA256SUMS.txt | cut -d' ' -f1)
+          test -n "$TARBALL"
+          NOTECLI=$(sha256sum "sums/notecli-${VERSION}-linux-amd64" | cut -d' ' -f1)
+          DESKTOP=$(sha256sum packaging/aur/notedeck.desktop | cut -d' ' -f1)
+          ICON128=$(curl -fsSL "https://raw.githubusercontent.com/${REPO}/v${VERSION}/src-tauri/icons/128x128.png" | sha256sum | cut -d' ' -f1)
+          ICON32=$(curl -fsSL "https://raw.githubusercontent.com/${REPO}/v${VERSION}/src-tauri/icons/32x32.png" | sha256sum | cut -d' ' -f1)
+          python3 scripts/pkgbuild-checksums.py packaging/aur/PKGBUILD "$TARBALL" "$NOTECLI" "$DESKTOP" "$ICON128" "$ICON32"
+          cat packaging/aur/PKGBUILD
 
       - name: Publish to AUR
         uses: KSXGitHub/github-actions-deploy-aur@v4.1.3
