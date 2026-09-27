@@ -253,7 +253,7 @@ macro_rules! with_command_table {
         data rename_settings_file(subdir: String, old_name: String, new_name: String) -> () = $crate::commands::settings::rename_settings_file;
         data read_root_settings_file(name: String) -> String = $crate::commands::settings::read_root_settings_file;
         data read_root_settings_file_versioned(name: String) -> $crate::settings_store::VersionedText = $crate::commands::settings::read_root_settings_file_versioned;
-        data write_root_settings_file(name: String, content: String, expected: Option<String>) -> String = $crate::commands::settings::write_root_settings_file;
+        authz write_root_settings_file(name: String, content: String, expected: Option<String>) -> String = $crate::commands::settings::write_root_settings_file;
         data read_notedeck_json() -> String = $crate::commands::settings::read_notedeck_json;
         data read_notedeck_json_versioned() -> $crate::settings_store::VersionedText = $crate::commands::settings::read_notedeck_json_versioned;
         data write_notedeck_json(content: String, expected: Option<String>) -> String = $crate::commands::settings::write_notedeck_json;
@@ -265,6 +265,20 @@ macro_rules! with_command_table {
         data (window = main) vault_get_secret_status(id: String) -> $crate::vault::connections_service::SecretStatus | $crate::vault::VaultError = $crate::commands::vault::vault_get_secret_status;
         data (window = main) vault_fetch(id: String, request: $crate::vault::fetch::VaultFetchRequest) -> $crate::vault::fetch::VaultFetchResponse | $crate::vault::VaultError = $crate::commands::vault::vault_fetch;
         data (window = main) vault_test_connection(id: String, test_path: Option<String>) -> $crate::vault::connections_service::VaultTestResult | $crate::vault::VaultError = $crate::commands::vault::vault_test_connection;
+        authz (window = main) vault_upsert_connection(input: $crate::vault::connections_service::ConnectionUpsert) -> $crate::vault::Connection | $crate::vault::VaultError = $crate::commands::vault::vault_upsert_connection;
+        authz (window = main) vault_upsert_connection_with_secret(input: $crate::vault::connections_service::ConnectionUpsert, slot: String, secret: String) -> $crate::vault::Connection | $crate::vault::VaultError = $crate::commands::vault::vault_upsert_connection_with_secret;
+        authz (window = main) vault_set_secret(id: String, slot: String, secret: String) -> $crate::vault::Connection | $crate::vault::VaultError = $crate::commands::vault::vault_set_secret;
+        authz (window = main) vault_delete_secret(id: String, slot: String) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_delete_secret;
+        authz (window = main) vault_delete_connection(id: String) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_delete_connection;
+        authz (window = main) vault_set_exposed(id: String, principal_class: $crate::vault::model::PrincipalClass, exposed: bool) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_set_exposed;
+        authz (window = main) vault_set_trusted(id: String, principal_class: $crate::vault::model::PrincipalClass, trusted: bool) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_set_trusted;
+        authz (window = main) vault_set_trusted_plugin(id: String, plugin_id: String, name: Option<String>, trusted: bool) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_set_trusted_plugin;
+        authz (window = main) ai_migrate_provider_to_vault(provider: String, name: String, base_url: String, protocol: $crate::vault::ConnectionProtocol) -> Option<$crate::vault::Connection> | $crate::vault::VaultError = $crate::commands::vault::ai_migrate_provider_to_vault;
+        authz auth_complete_and_save(session: notecli::models::AuthSession, software: String) -> notecli::models::AccountPublic = $crate::commands::auth::auth_complete_and_save;
+        authz delete_account(id: String) -> () = $crate::commands::admin::delete_account;
+        authz logout_account(id: String) -> () = $crate::commands::admin::logout_account;
+        data heartbeat_trigger_now() -> () = $crate::commands::heartbeat::heartbeat_trigger_now;
+        data health_core() -> $crate::commands::health::CoreHealth = $crate::commands::health::health_core;
 
             // --- http (crates/notecore/src/commands/http.rs) ---
         data http_fetch(request: $crate::commands::http::HttpFetchRequest) -> $crate::commands::http::HttpFetchResponse = $crate::commands::http::http_fetch;

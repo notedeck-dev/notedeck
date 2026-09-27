@@ -28,6 +28,8 @@ pub mod content;
 pub mod drafts;
 pub mod enrichment;
 pub mod federation;
+pub mod health;
+pub mod heartbeat;
 pub mod http;
 pub mod lists;
 pub mod messaging;
@@ -189,6 +191,10 @@ pub fn validate_host(host: &str) -> Result<String> {
 pub enum CommandKind {
     /// データ系。デバイスが 1 台も繋がっていなくても意味を持ち、notecored で実行できる
     Data,
+    /// 認可境界を動かす操作 (資格情報の保存・失効、Vault の secret と信頼、ルート設定の書換)。
+    /// 本体は notecore にあり同一ホストでは data と同じく中継するが、外向き (3b) では
+    /// 手元の Rust の本人確認と署名を要する。lint は表の行の種別で見る
+    Authz,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -256,6 +262,9 @@ fn camel(snake: &str) -> String {
 macro_rules! command_kind {
     (data) => {
         $crate::commands::CommandKind::Data
+    };
+    (authz) => {
+        $crate::commands::CommandKind::Authz
     };
 }
 

@@ -185,6 +185,22 @@ pub fn replace_database_file(app_dir: &std::path::Path, src: &std::path::Path) -
     Ok(())
 }
 
+/// アカウントを削除する (資格情報の失効を含む認可境界、表の種別 authz)
+pub async fn delete_account(core: &Core, id: String) -> Result<()> {
+    let db = core.db().await;
+    crate::account_service::delete(&db, &id)?;
+    crate::commands::export_account_list(core, &db);
+    Ok(())
+}
+
+/// ログアウト: トークンだけ消し、アカウントの記録とカラムは残す
+pub async fn logout_account(core: &Core, id: String) -> Result<()> {
+    let db = core.db().await;
+    crate::account_service::logout(&db, &id)?;
+    crate::commands::export_account_list(core, &db);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
