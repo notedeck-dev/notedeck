@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, shallowRef } from 'vue'
 import type {
   ClientLayerState,
   CoreStatus,
@@ -20,7 +20,8 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
  */
 export const useClientLayerStore = defineStore('clientLayer', () => {
   const state = ref<ClientLayerState | null>(null)
-  const core = ref<CoreStatus | null>(null)
+  // daemon の生 JSON (再帰型) を deep に unwrap させない (型の展開が深くなりすぎる)。丸ごと差し替えるだけなので shallow で足りる
+  const core = shallowRef<CoreStatus | null>(null)
   let started = false
 
   async function refreshState(): Promise<void> {

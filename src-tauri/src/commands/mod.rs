@@ -1,7 +1,5 @@
-mod admin;
 mod ai_chat;
 mod api_tokens;
-mod auth;
 mod backup;
 mod core_switch;
 mod export;
@@ -14,13 +12,10 @@ mod system_state;
 mod table;
 mod timeline;
 mod utility;
-mod vault;
 
 // Re-export all commands so lib.rs `commands::xxx` paths remain unchanged
-pub use admin::*;
 pub use ai_chat::*;
 pub use api_tokens::*;
-pub use auth::*;
 pub use backup::*;
 pub use core_switch::*;
 pub use export::*;
@@ -32,7 +27,6 @@ pub use system_state::*;
 pub use table::*;
 pub use timeline::*;
 pub use utility::*;
-pub use vault::*;
 
 use notecli::db::Database;
 

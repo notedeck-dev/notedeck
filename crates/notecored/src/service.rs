@@ -38,6 +38,12 @@ pub enum ServiceCommand {
     Restart,
     /// systemctl --user status
     Status,
+    /// パッケージ同梱用に、ExecStart を埋めた unit を標準出力へ書く
+    Render {
+        /// unit の ExecStart に書くバイナリ (パッケージなら /usr/bin/notecored)
+        #[arg(long, default_value = "/usr/bin/notecored")]
+        exec_path: PathBuf,
+    },
 }
 
 /// テンプレートに ExecStart と終了コードを埋める
@@ -164,6 +170,10 @@ fn linger_hint() {
 pub fn run(cmd: ServiceCommand) -> i32 {
     let result = match cmd {
         ServiceCommand::Install { exec_path } => install(exec_path),
+        ServiceCommand::Render { exec_path } => {
+            print!("{}", render_unit(&exec_path));
+            Ok(())
+        }
         ServiceCommand::Uninstall => uninstall(),
         ServiceCommand::Enable => ensure_user_manager()
             .and_then(|_| systemctl(&["enable", "--now", UNIT_NAME]))
@@ -234,10 +244,14 @@ fn install(exec_path: Option<PathBuf>) -> Result<(), String> {
     let unit_path = user_unit_path().ok_or("no config directory for systemd user units")?;
     if let Ok(existing) = std::fs::read_to_string(&unit_path) {
         if !has_marker(&existing) {
-            return Err(format!(
-                "{} exists and was not written by notecored (NixOS / home-manager / handwritten). Not overwriting; manage it there",
+            // home-manager / NixOS / 手書きの unit。上書きはしないが、unit は用意されている
+            // ので切替導線はそのまま進める (enable / start はその unit に対して行う)
+            println!(
+                "{} exists and is managed elsewhere (NixOS / home-manager / handwritten); keeping it. Next: notecored service enable",
                 unit_path.display()
-            ));
+            );
+            linger_hint();
+            return Ok(());
         }
     }
     if let Some(dir) = unit_path.parent() {

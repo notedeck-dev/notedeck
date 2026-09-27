@@ -5816,6 +5816,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "binary": string
     /** notecored が見つかりません。次のコマンドで入れてから、このウィンドウを開き直してください: */
     readonly "notFound": string
+    /** notecored の版 ({daemon}) がこのアプリ ({app}) と違います。notecored を更新してから切り替えてください。 */
+    readonly "versionMismatch": ParameterizedString<'app' | 'daemon'>
     /** 常駐のコアに切り替える */
     readonly "switchTitle": string
     /** notecored の user サービスを用意し、Misskey のトークンと接続の secret を notecored の暗号化ファイルに複製します。保護は OS のキーチェーンより弱くなります。切り替えはアプリの再起動で完了します。 */
@@ -5850,6 +5852,22 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "serviceActive": string
     /** 停止 */
     readonly "serviceInactive": string
+    /** 未登録 (切り替え時に用意します) */
+    readonly "serviceNotInstalled": string
+    /** systemd の user セッションが見つかりません */
+    readonly "serviceUnavailable": string
+    /** systemd の user セッションが使えないため、常駐に切り替えられません。WSL2 なら wsl.conf で systemd を有効にしてください。 */
+    readonly "systemdUnavailable": string
+    /** XDG_RUNTIME_DIR が設定されていないため、常駐に切り替えられません (socket と移行パッケージの置き場です)。 */
+    readonly "runtimeDirMissing": string
+    /** 稼働 {minutes} 分 */
+    readonly "daemonUptime": ParameterizedString<'minutes'>
+    /** 接続端末 {devices} */
+    readonly "daemonDevices": ParameterizedString<'devices'>
+    /** HEARTBEAT {minutes} 分おき */
+    readonly "daemonHeartbeat": ParameterizedString<'minutes'>
+    /** ログアウト後も動かし続けるには loginctl enable-linger を設定します。 */
+    readonly "lingerHint": string
     /** notecored 側の secret */
     readonly "secrets": string
     /** あり */

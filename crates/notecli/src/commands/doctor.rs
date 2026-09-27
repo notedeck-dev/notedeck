@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::api::MisskeyClient;
 use crate::db::Database;
@@ -9,7 +9,7 @@ use crate::format::{theme, OutputFormat};
 use crate::keychain;
 use crate::models::Account;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 #[serde(rename_all = "lowercase")]
 pub enum Status {
@@ -18,7 +18,7 @@ pub enum Status {
     Fail,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Check {
     /// チェック項目名 (database, keychain, credentials, network, auth)
@@ -58,7 +58,7 @@ impl Check {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(feature = "specta", derive(specta::Type))]
 pub struct Report {
     pub ok: bool,
