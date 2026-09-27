@@ -80,6 +80,11 @@ fn invalid(msg: impl Into<String>) -> NoteDeckError {
 /// (デスクトップから起動したアプリの PATH には無いことがある)、最後に PATH。
 /// 返すのは見つけたパスそのもの (profile の symlink は更新後も同じパスで新しい世代を指す)
 pub fn find_notecored() -> Option<PathBuf> {
+    // 明示の上書き (PATH 外に置いた人向け。テストは偽の notecored をここで差す)
+    if let Some(p) = std::env::var_os("NOTEDECK_NOTECORED").filter(|v| !v.is_empty()) {
+        let p = PathBuf::from(p);
+        return p.is_file().then_some(p);
+    }
     let mut candidates = vec![PathBuf::from("/usr/bin/notecored")];
     if let Some(home) = std::env::var_os("HOME") {
         candidates.push(
@@ -351,4 +356,254 @@ pub fn cancel_pending(app_dir: &Path) -> Result<()> {
     )?;
     set_switch_error(None);
     Ok(())
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    //! 偽の notecored (引数を記録して決まった答えを返すシェルスクリプト) で切替導線の
+    //! 4 経路を回す。systemd も本物の notecored も要らない。環境変数を触るので直列に走らせる
+
+    use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    struct Fake {
+        dir: tempfile::TempDir,
+        app_dir: PathBuf,
+        run_dir: PathBuf,
+        log: PathBuf,
+        _guard: std::sync::MutexGuard<'static, ()>,
+    }
+
+    impl Fake {
+        fn new() -> Self {
+            let guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+            let dir = tempfile::tempdir().unwrap();
+            let app_dir = dir.path().join("app");
+            let run_dir = dir.path().join("run");
+            let pkg = run_dir.join("notecored");
+            let state = dir.path().join("state");
+            std::fs::create_dir_all(app_dir.join(crate::commands::SETTINGS_DIR)).unwrap();
+            std::fs::create_dir_all(&pkg).unwrap();
+            std::fs::create_dir_all(&state).unwrap();
+            let log = dir.path().join("calls.log");
+            let bin = dir.path().join("notecored");
+            let script = format!(
+                r#"#!/bin/sh
+echo "$*" >> "{log}"
+case "$1 $2" in
+  "--version ") echo "notecored 1.72.2" ;;
+  "service status") [ -e "{state}/active" ] ;;
+  "service install") : ;;
+  "service enable") touch "{state}/active" ;;
+  "service stop") rm -f "{state}/active" ;;
+  "service uninstall") rm -f "{state}/active" ;;
+  "migrate status")
+    if [ -e "{state}/secrets" ]; then S=true; else S=false; fi
+    if [ -e "{pkg}/migration.json" ]; then P=true; else P=false; fi
+    echo "{{\"secretsPresent\":$S,\"packagePresent\":$P}}" ;;
+  "migrate import") rm -f "{pkg}"/migration.*; touch "{state}/secrets"; echo '{{"written":[],"missing":[]}}' ;;
+  "migrate export")
+    echo '{{"version":1,"entries":[]}}' > "{pkg}/migration.json"
+    head -c 32 /dev/urandom > "{pkg}/migration.key"
+    echo '{{"written":[],"missing":[]}}' ;;
+  "secrets purge") rm -f "{state}/secrets" ;;
+  *) echo "unexpected: $*" >&2; exit 1 ;;
+esac
+"#,
+                log = log.display(),
+                state = state.display(),
+                pkg = pkg.display(),
+            );
+            std::fs::write(&bin, script).unwrap();
+            restrict(&bin, 0o755);
+            std::env::set_var("NOTEDECK_NOTECORED", &bin);
+            std::env::set_var("XDG_RUNTIME_DIR", &run_dir);
+            set_switch_error(None);
+            Self {
+                dir,
+                app_dir,
+                run_dir,
+                log,
+                _guard: guard,
+            }
+        }
+
+        fn calls(&self) -> Vec<String> {
+            std::fs::read_to_string(&self.log)
+                .unwrap_or_default()
+                .lines()
+                .map(str::to_string)
+                .collect()
+        }
+
+        fn state(&self, name: &str) -> PathBuf {
+            self.dir.path().join("state").join(name)
+        }
+
+        fn configured(&self) -> Backend {
+            client_config::load(&settings_dir(&self.app_dir)).backend
+        }
+
+        fn set_configured(&self, backend: Backend) {
+            client_config::save(
+                &settings_dir(&self.app_dir),
+                &client_config::ClientConfig { backend },
+            )
+            .unwrap();
+        }
+
+        fn write_package(&self) {
+            let pkg = self.run_dir.join("notecored");
+            std::fs::write(pkg.join("migration.json"), r#"{"version":1,"entries":[]}"#).unwrap();
+            std::fs::write(pkg.join("migration.key"), [7u8; 32]).unwrap();
+        }
+    }
+
+    impl Drop for Fake {
+        fn drop(&mut self) {
+            std::env::remove_var("NOTEDECK_NOTECORED");
+            std::env::remove_var("XDG_RUNTIME_DIR");
+        }
+    }
+
+    #[test]
+    fn switching_to_resident_prepares_the_unit_and_package_then_waits_for_restart() {
+        let f = Fake::new();
+        let db = notecli::db::Database::open(&f.app_dir.join("notecli.db")).unwrap();
+        let summary = switch_to_resident(&f.app_dir, &db).unwrap();
+        assert!(summary.written.is_empty());
+        assert_eq!(f.configured(), Backend::PendingResident);
+        assert!(notecore::migration::package_exists(
+            &f.run_dir.join("notecored")
+        ));
+        let calls = f.calls();
+        assert!(
+            calls[0].starts_with("service install --exec-path "),
+            "{calls:?}"
+        );
+        // unit を用意するだけで enable / start はしない
+        assert!(!calls.iter().any(|c| c.starts_with("service enable")));
+        assert_eq!(status(&f.app_dir).configured, "pending-resident");
+    }
+
+    #[test]
+    fn next_start_imports_the_package_enables_the_unit_and_goes_resident() {
+        let f = Fake::new();
+        f.set_configured(Backend::PendingResident);
+        f.write_package();
+        assert_eq!(resolve_pending(&f.app_dir), Backend::Resident);
+        assert_eq!(f.configured(), Backend::Resident);
+        assert!(switch_error().is_none());
+        let calls = f.calls();
+        let import = calls
+            .iter()
+            .position(|c| c.starts_with("migrate import"))
+            .unwrap();
+        let enable = calls.iter().position(|c| c == "service enable").unwrap();
+        assert!(import < enable, "{calls:?}");
+        assert!(f.state("active").exists());
+        assert!(!f.run_dir.join("notecored").join("migration.json").exists());
+    }
+
+    #[test]
+    fn next_start_stops_a_leftover_daemon_before_importing() {
+        let f = Fake::new();
+        f.set_configured(Backend::PendingResident);
+        f.write_package();
+        std::fs::write(f.state("active"), "").unwrap();
+        assert_eq!(resolve_pending(&f.app_dir), Backend::Resident);
+        let calls = f.calls();
+        let stop = calls.iter().position(|c| c == "service stop").unwrap();
+        let import = calls
+            .iter()
+            .position(|c| c.starts_with("migrate import"))
+            .unwrap();
+        assert!(stop < import, "{calls:?}");
+    }
+
+    #[test]
+    fn next_start_without_package_or_secrets_stays_embedded_and_reports_why() {
+        let f = Fake::new();
+        f.set_configured(Backend::PendingResident);
+        assert_eq!(resolve_pending(&f.app_dir), Backend::Embedded);
+        // 望む構成は触らない (状態面から「やり直す」「やめる」を選ばせる)
+        assert_eq!(f.configured(), Backend::PendingResident);
+        assert!(switch_error().is_some());
+        assert!(!f.calls().iter().any(|c| c == "service enable"));
+        assert_eq!(status(&f.app_dir).switch_error, switch_error());
+    }
+
+    #[test]
+    fn next_start_with_secrets_but_no_package_still_goes_resident() {
+        let f = Fake::new();
+        f.set_configured(Backend::PendingResident);
+        std::fs::write(f.state("secrets"), "").unwrap();
+        assert_eq!(resolve_pending(&f.app_dir), Backend::Resident);
+        assert!(!f.calls().iter().any(|c| c.starts_with("migrate import")));
+    }
+
+    #[test]
+    fn going_back_exports_imports_purges_and_uninstalls_in_order() {
+        let f = Fake::new();
+        f.set_configured(Backend::Resident);
+        std::fs::write(f.state("active"), "").unwrap();
+        std::fs::write(f.state("secrets"), "").unwrap();
+        let back = switch_to_embedded(&f.app_dir).unwrap();
+        assert!(back.imported.is_empty());
+        assert!(back.remaining.is_empty());
+        assert_eq!(f.configured(), Backend::Embedded);
+        let calls = f.calls();
+        let order: Vec<usize> = [
+            "service stop",
+            "migrate export",
+            "service uninstall",
+            "secrets purge",
+        ]
+        .iter()
+        .map(|k| {
+            calls
+                .iter()
+                .position(|c| c.starts_with(k))
+                .unwrap_or_else(|| panic!("{k} missing: {calls:?}"))
+        })
+        .collect();
+        assert!(order.windows(2).all(|w| w[0] < w[1]), "{calls:?}");
+        assert!(!f.state("secrets").exists());
+        assert!(!f.run_dir.join("notecored").join("migration.json").exists());
+    }
+
+    #[test]
+    fn cancelling_a_pending_switch_removes_the_unit_and_package() {
+        let f = Fake::new();
+        f.set_configured(Backend::PendingResident);
+        f.write_package();
+        set_switch_error(Some("stale".into()));
+        cancel_pending(&f.app_dir).unwrap();
+        assert_eq!(f.configured(), Backend::Embedded);
+        assert!(switch_error().is_none());
+        assert!(!notecore::migration::package_exists(
+            &f.run_dir.join("notecored")
+        ));
+        assert!(f.calls().iter().any(|c| c == "service uninstall"));
+    }
+
+    #[test]
+    fn status_reports_the_binary_and_daemon_state() {
+        let f = Fake::new();
+        std::fs::write(f.state("active"), "").unwrap();
+        let st = status(&f.app_dir);
+        assert!(st.platform_supported);
+        assert_eq!(st.configured, "embedded");
+        assert_eq!(st.notecored_version.as_deref(), Some("1.72.2"));
+        assert_eq!(st.service_active, Some(true));
+        assert_eq!(st.secrets_present, Some(false));
+        assert_eq!(st.package_present, Some(false));
+    }
+
+    fn restrict(path: &Path, mode: u32) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).unwrap();
+    }
 }
