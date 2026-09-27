@@ -3220,6 +3220,14 @@ configured: string;
  */
 notecoredPath: string | null; notecoredVersion: string | null; 
 /**
+ * このアプリの版。notecored は同じ版でないと繋げない (マニフェストの指紋)
+ */
+appVersion: string; 
+/**
+ * notecored の版がアプリと一致するか (見つからなければ None)
+ */
+versionMatch: boolean | null; 
+/**
  * user unit が動いているか (notecored が見つからなければ None)
  */
 serviceActive: boolean | null; 

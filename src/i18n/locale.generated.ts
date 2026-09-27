@@ -5816,6 +5816,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "binary": string
     /** notecored が見つかりません。次のコマンドで入れてから、このウィンドウを開き直してください: */
     readonly "notFound": string
+    /** notecored の版 ({daemon}) がこのアプリ ({app}) と違います。notecored を更新してから切り替えてください。 */
+    readonly "versionMismatch": ParameterizedString<'app' | 'daemon'>
     /** 常駐のコアに切り替える */
     readonly "switchTitle": string
     /** notecored の user サービスを用意し、Misskey のトークンと接続の secret を notecored の暗号化ファイルに複製します。保護は OS のキーチェーンより弱くなります。切り替えはアプリの再起動で完了します。 */
