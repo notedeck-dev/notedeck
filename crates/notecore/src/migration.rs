@@ -123,7 +123,16 @@ pub fn export_with(
         Store::with_paths(&dir.join(KEY_FILE), &dir.join(DATA_FILE)).map_err(keychain_err)?;
     let mut summary = MigrationSummary::default();
     for e in entries {
-        let value = match read(&e.name)? {
+        // 必須でない名前 (旧 AI キー) は読めなくても失敗にしない
+        let read_value = match read(&e.name) {
+            Ok(v) => v,
+            Err(e2) if !e.required => {
+                tracing::debug!(name = e.name, "[migration] optional entry unreadable: {e2}");
+                None
+            }
+            Err(e2) => return Err(e2),
+        };
+        let value = match read_value {
             Some(v) => Some(v),
             None => e.fallback.clone(),
         };
