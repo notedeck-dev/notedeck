@@ -6,6 +6,10 @@
 //! 望む構成は `client.json5` の `backend`。`resident` のときだけ起動時に接続を始め、
 //! 切れたら再接続する (待っている要求は device_unavailable 相当のエラーで返す)。
 
+// Unix socket の中継は unix 限定 (Windows の常駐構成は 3b 以降)。非 unix では
+// 接続経路が無いので、それに連なる関数が dead になるのを許す
+#![cfg_attr(not(unix), allow(dead_code))]
+
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -16,6 +20,7 @@ use notecore::rpc::{Frame, Outcome, RpcError};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+#[cfg(unix)]
 use tokio::net::UnixStream;
 use tokio::sync::{mpsc, oneshot};
 
@@ -178,6 +183,7 @@ impl RelayClient {
     }
 
     /// 接続し、切れたら待っている要求を失敗させて再接続する
+    #[cfg(unix)]
     pub async fn run(self: Arc<Self>) {
         let mut backoff = Duration::from_millis(500);
         loop {
@@ -199,6 +205,16 @@ impl RelayClient {
         }
     }
 
+    /// 非 unix には Unix socket が無いので繋がない (状態面に理由だけ残す)
+    #[cfg(not(unix))]
+    pub async fn run(self: Arc<Self>) {
+        self.update_state(|s| {
+            s.connected = false;
+            s.last_error = Some("notecored relay is not available on this platform".into());
+        });
+    }
+
+    #[cfg(unix)]
     fn disconnected(&self, reason: &str) {
         *self.tx.lock().unwrap_or_else(|e| e.into_inner()) = None;
         *self.secret.lock().unwrap_or_else(|e| e.into_inner()) = None;
@@ -218,6 +234,7 @@ impl RelayClient {
         });
     }
 
+    #[cfg(unix)]
     async fn session(self: &Arc<Self>, stream: UnixStream) {
         let (reader, mut writer) = stream.into_split();
         let (tx, mut rx) = mpsc::channel::<Frame>(1024);
@@ -662,7 +679,7 @@ pub fn ensure_embedded(what: &str) -> notecore::error::Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use serde_json::json;

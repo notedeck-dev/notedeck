@@ -176,6 +176,29 @@ jobs:
       - name: Rust tests (incl. OpenAPI snapshot)
         run: cargo test --workspace
 
+  # 非 unix のコンパイル検査 (#1106)。PR の CI は Linux でしか cargo を回さないので、
+  # Unix socket や Linux 限定モジュールの cfg 漏れがタグ push の release で初めて落ちていた
+  # (v1.72.0 / v1.72.1)。Windows は unix ですらないので、ここで check だけ回す
+  rust-windows:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          shared-key: rust-windows
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Type check (app + notecore, Windows)
+        run: cargo check -p notedeck --lib -p notecore
+
   # E2E (#702): 実アプリを xvfb 上の隔離プロファイルで起動し、
   # 外部アプリと同じ HTTP API 面 (#709) で駆動する
   e2e:
