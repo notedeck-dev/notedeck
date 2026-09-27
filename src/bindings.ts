@@ -3232,6 +3232,20 @@ versionMatch: boolean | null;
  */
 serviceActive: boolean | null; 
 /**
+ * unit の状態: `active` | `inactive` | `not_installed` | `unavailable` (systemd の user
+ * セッションが無い)。notecored が見つからなければ None
+ */
+serviceState: string | null; 
+/**
+ * `XDG_RUNTIME_DIR` があるか (socket と移行パッケージの置き場。無ければ常駐は動かない)
+ */
+runtimeDirPresent: boolean; 
+/**
+ * 常駐中に notecored 自身が答えた状態 (稼働時間 / 接続端末 / HEARTBEAT など)。
+ * 中継が繋がっていなければ None
+ */
+daemon: JsonValue | null; 
+/**
  * notecored 側の secret store に中身があるか
  */
 secretsPresent: boolean | null; 
