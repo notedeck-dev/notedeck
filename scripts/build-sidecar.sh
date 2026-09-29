@@ -25,6 +25,10 @@ case "$target" in
   universal-apple-darwin)
     a="$(build_one aarch64-apple-darwin)"
     x="$(build_one x86_64-apple-darwin)"
+    # Tauri の universal ビルドはアーキごとに build.rs を回し、その都度
+    # notemaid-<アーキの triple> を要求する。束ねるときは universal を使うので 3 つとも置く
+    cp "$a" "$out_dir/notemaid-aarch64-apple-darwin"
+    cp "$x" "$out_dir/notemaid-x86_64-apple-darwin"
     lipo -create -output "$out_dir/notemaid-universal-apple-darwin" "$a" "$x"
     ;;
   *-windows-*)
