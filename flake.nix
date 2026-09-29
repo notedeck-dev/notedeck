@@ -8,19 +8,19 @@
 
   outputs = { self, nixpkgs, flake-utils }:
     let
-      # home-manager module: notecored を user unit として常駐させる (#1106)。unit の中身は
-      # crates/notecored/deploy/notecored.service と同じ意味 (再起動しない終了コードは exit.rs)。
+      # home-manager module: notemaid を user unit として常駐させる (#1106)。unit の中身は
+      # crates/notemaid/deploy/notemaid.service と同じ意味 (再起動しない終了コードは exit.rs)。
       # Nix ではアプリの `service install` は unit を書かず、この module の unit をそのまま使う
-      notecoredModule = { config, lib, pkgs, ... }:
-        let cfg = config.services.notecored;
+      notemaidModule = { config, lib, pkgs, ... }:
+        let cfg = config.services.notemaid;
         in {
-          options.services.notecored = {
-            enable = lib.mkEnableOption "NoteDeck resident core daemon (notecored)";
+          options.services.notemaid = {
+            enable = lib.mkEnableOption "NoteDeck AI process (notemaid)";
             package = lib.mkOption {
               type = lib.types.package;
-              default = self.packages.${pkgs.stdenv.hostPlatform.system}.notecored;
-              defaultText = lib.literalExpression "notedeck.packages.\${system}.notecored";
-              description = "notecored のパッケージ。アプリと同じ版でなければ繋げない";
+              default = self.packages.${pkgs.stdenv.hostPlatform.system}.notemaid;
+              defaultText = lib.literalExpression "notedeck.packages.\${system}.notemaid";
+              description = "notemaid のパッケージ。アプリと同じ版でなければ繋げない";
             };
             api = lib.mkOption {
               type = lib.types.bool;
@@ -30,20 +30,20 @@
             extraArgs = lib.mkOption {
               type = lib.types.listOf lib.types.str;
               default = [ ];
-              description = "notecored run に渡す追加の引数";
+              description = "notemaid run に渡す追加の引数";
             };
           };
           config = lib.mkIf cfg.enable {
-            systemd.user.services.notecored = {
+            systemd.user.services.notemaid = {
               Unit = {
-                Description = "NoteDeck resident core (notecored)";
+                Description = "NoteDeck resident core (notemaid)";
                 Documentation = "https://github.com/notedeck-dev/notedeck/issues/1106";
                 StartLimitIntervalSec = 300;
                 StartLimitBurst = 5;
               };
               Service = {
                 Type = "simple";
-                ExecStart = lib.escapeShellArgs ([ "${cfg.package}/bin/notecored" "run" ]
+                ExecStart = lib.escapeShellArgs ([ "${cfg.package}/bin/notemaid" "run" ]
                   ++ lib.optional cfg.api "--api" ++ cfg.extraArgs);
                 Restart = "on-failure";
                 RestartSec = 5;
@@ -62,8 +62,8 @@
     in
     {
       homeManagerModules = {
-        notecored = notecoredModule;
-        default = notecoredModule;
+        notemaid = notemaidModule;
+        default = notemaidModule;
       };
     } // flake-utils.lib.eachDefaultSystem (system:
       let
@@ -115,10 +115,10 @@
           pkg-config
         ] ++ desktopDeps;
 
-        # 配布 (#1106 段階 3a): notecored (常駐コア) と notecli (CLI) を flake の
+        # 配布 (#1106 段階 3a): notemaid (AI (notemaid)) と notecli (CLI) を flake の
         # packages として出す。どちらも Tauri 非依存の純 Rust なので WebKit 等は要らない。
-        # `nix profile install github:notedeck-dev/notedeck#notecored` で ~/.nix-profile/bin に
-        # 安定したパスで入り、`notecored service install --exec-path ~/.nix-profile/bin/notecored`
+        # `nix profile install github:notedeck-dev/notedeck#notemaid` で ~/.nix-profile/bin に
+        # 安定したパスで入り、`notemaid service install --exec-path ~/.nix-profile/bin/notemaid`
         # で user unit を用意できる (/nix/store の実パスは GC で消えうるので unit に書かない)。
         # ソースは Rust のワークスペースに要るものだけ (node_modules / target / dist / site は除く)
         rustSource = pkgs.lib.cleanSourceWith {
@@ -180,15 +180,15 @@
       in
       {
         packages = {
-          notecored = rustCrate {
-            pname = "notecored";
+          notemaid = rustCrate {
+            pname = "notemaid";
             description = "NoteDeck resident core daemon (headless notecore)";
           };
           notecli = rustCrate {
             pname = "notecli";
             description = "Misskey CLI from NoteDeck";
           };
-          default = self.packages.${system}.notecored;
+          default = self.packages.${system}.notemaid;
         };
 
         devShells = {

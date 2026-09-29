@@ -1,4 +1,4 @@
-//! `notecored run`: notemaid (AI) を headless に常駐させる (#1106 案 B の途中段階)。
+//! `notemaid run`: notemaid (AI) を headless に常駐させる (#1106 案 B の途中段階)。
 //! 常駐するのはエージェントループ / HEARTBEAT と AI 系コマンドの RPC 面だけで、
 //! データ面 (ストリーミング / クエリランタイム / OGP / 画像キャッシュ / 公開 HTTP API)
 //! は持たない (デバイスのアプリが持つ)。notes DB を開くのは資格情報とキャッシュ読みの
@@ -10,11 +10,11 @@ use std::time::{Duration, Instant};
 use notecore::context::Core;
 use serde_json::json;
 
-use crate::heartbeat_timer::HeartbeatTimer;
-use crate::rpc_server::{default_socket_path, new_secret, RpcServer, SessionBridge, Sessions};
-use crate::sinks::{self, Events};
-use crate::{exit, lock, logging, RunArgs};
-use notemaid::CoreMaidExt;
+use crate::daemon::heartbeat_timer::HeartbeatTimer;
+use crate::daemon::rpc_server::{new_secret, RpcServer, SessionBridge, Sessions};
+use crate::daemon::sinks::{self, Events};
+use crate::daemon::{exit, lock, logging, RunArgs};
+use crate::CoreMaidExt;
 
 pub fn run(args: RunArgs) -> i32 {
     let Some(data_dir) = args
@@ -30,13 +30,13 @@ pub fn run(args: RunArgs) -> i32 {
         return exit::FAILURE;
     }
     logging::init(logging::resolve(args.log), &data_dir);
-    tracing::info!(data_dir = %data_dir.display(), version = env!("CARGO_PKG_VERSION"), "notecored starting");
+    tracing::info!(data_dir = %data_dir.display(), version = env!("CARGO_PKG_VERSION"), "notemaid starting");
 
-    // ロック: 同じ data-dir で notecored を動かすのは 1 プロセスだけ (アプリとは併存する)
+    // ロック: 同じ data-dir で notemaid を動かすのは 1 プロセスだけ (アプリとは併存する)
     let _lock = match lock::acquire(&data_dir) {
         Ok(l) => l,
         Err(lock::LockError::Held) => {
-            tracing::error!("another notecored is running on this data directory");
+            tracing::error!("another notemaid is running on this data directory");
             return exit::LOCK_HELD;
         }
         Err(lock::LockError::Io(e)) => {
@@ -45,36 +45,62 @@ pub fn run(args: RunArgs) -> i32 {
         }
     };
 
-    // socket の置き場
-    let Some(socket) = args.socket.socket.clone().or_else(default_socket_path) else {
+    // RPC 面の場所
+    let Some(socket) = args
+        .socket
+        .socket
+        .clone()
+        .map(|s| crate::transport::Endpoint::parse(&s))
+        .or_else(crate::transport::default_endpoint)
+    else {
         tracing::error!("XDG_RUNTIME_DIR is not set; pass --socket");
         return exit::RUNTIME_DIR_MISSING;
     };
 
-    // secret: ファイル backend 固定 (OS キーチェーンは probe しない)
-    #[cfg(target_os = "linux")]
-    {
-        let key_path = args
-            .secret_key_file
-            .clone()
-            .or_else(|| dirs::config_dir().map(|d| d.join("notecored").join("secret.key")));
-        let Some(key_path) = key_path else {
-            tracing::error!("no config directory for the secret key; pass --secret-key-file");
-            return exit::SECRET_KEY;
-        };
-        let data_path = crate::secrets::secrets_path(&data_dir);
-        if let Err(e) = notecli::keychain::init_file_store(&key_path, &data_path) {
-            tracing::error!(key = %key_path.display(), "secret store unavailable: {e}");
-            return exit::SECRET_KEY;
+    // secret の置き場: 常駐 / サーバーは暗号化ファイル、アプリの子プロセスは OS キーチェーン
+    match args.secrets {
+        crate::daemon::SecretsBackend::Keychain => {
+            if let Err(e) = notecli::keychain::init_store() {
+                tracing::error!("secret store unavailable: {e}");
+                return exit::SECRET_KEY;
+            }
+        }
+        crate::daemon::SecretsBackend::File => {
+            let key_path = args
+                .secret_key_file
+                .clone()
+                .or_else(|| dirs::config_dir().map(|d| d.join("notemaid").join("secret.key")));
+            let Some(key_path) = key_path else {
+                tracing::error!("no config directory for the secret key; pass --secret-key-file");
+                return exit::SECRET_KEY;
+            };
+            let data_path = crate::daemon::secrets::secrets_path(&data_dir);
+            if let Err(e) = notecli::keychain::init_file_store(&key_path, &data_path) {
+                tracing::error!(key = %key_path.display(), "secret store unavailable: {e}");
+                return exit::SECRET_KEY;
+            }
         }
     }
-    #[cfg(not(target_os = "linux"))]
-    {
-        if let Err(e) = notecli::keychain::init_store() {
-            tracing::error!("secret store unavailable: {e}");
-            return exit::SECRET_KEY;
-        }
-    }
+
+    // 親 (アプリ) が死んだら一緒に終わる: stdin の EOF を別スレッドで待つ
+    let parent_gone = if args.exit_on_stdin_close {
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        std::thread::spawn(move || {
+            use std::io::Read;
+            let mut buf = [0u8; 64];
+            let mut stdin = std::io::stdin().lock();
+            loop {
+                match stdin.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {}
+                }
+            }
+            let _ = tx.send(());
+        });
+        Some(rx)
+    } else {
+        None
+    };
 
     // DB がこのバイナリより新しければ再起動しても直らない
     if let Err(e) = notecore::migrations::run_fs(&data_dir) {
@@ -88,7 +114,7 @@ pub fn run(args: RunArgs) -> i32 {
             Ok(status) => {
                 tracing::error!(
                     ?status,
-                    "database is newer than this notecored; update notecored"
+                    "database is newer than this notemaid; update notemaid"
                 );
                 return exit::DB_NEWER;
             }
@@ -110,15 +136,19 @@ pub fn run(args: RunArgs) -> i32 {
             return exit::FAILURE;
         }
     };
-    runtime.block_on(serve(data_dir, socket))
+    runtime.block_on(serve(data_dir, socket, parent_gone))
 }
 
-async fn serve(data_dir: std::path::PathBuf, socket: std::path::PathBuf) -> i32 {
+async fn serve(
+    data_dir: std::path::PathBuf,
+    socket: crate::transport::Endpoint,
+    parent_gone: Option<tokio::sync::oneshot::Receiver<()>>,
+) -> i32 {
     let started = Instant::now();
     notecore::crash_report::install_panic_hook(data_dir.join("logs"));
     notecore::permissions_gate::init(&data_dir.join(notecore::commands::settings::SETTINGS_DIR));
-    notemaid::ai_turn::recover(&data_dir);
-    notemaid::heartbeat::restore_status(&data_dir);
+    crate::ai_turn::recover(&data_dir);
+    crate::heartbeat::restore_status(&data_dir);
 
     let core = Arc::new(Core::new());
     core.set_app_dir(data_dir.clone());
@@ -146,13 +176,13 @@ async fn serve(data_dir: std::path::PathBuf, socket: std::path::PathBuf) -> i32 
     let events = Events::new();
     let timer = Arc::new(HeartbeatTimer::default());
     let sessions = Arc::new(Sessions::default());
-    notemaid::install(&core);
+    crate::install(&core);
     core.set_ai_chat_sink(Arc::new(sinks::ChatSink(events.clone())));
     core.set_ai_turn_sink(Arc::new(sinks::TurnSink(events.clone())));
     core.set_heartbeat_sink(Arc::new(sinks::HbSink(events.clone())));
     // 橋: 接続中の端末に確認内容の組み立てや実行要求を投げる。居なければ端末なし扱い
     core.set_frontend_bridge(Arc::new(SessionBridge(sessions.clone())));
-    core.set_core_executor(Arc::new(notemaid::ai_turn::LocalCoreExecutor(core.clone())));
+    core.set_core_executor(Arc::new(crate::ai_turn::LocalCoreExecutor(core.clone())));
     {
         let core_for_timer = core.clone();
         let timer_for_sink = timer.clone();
@@ -162,7 +192,7 @@ async fn serve(data_dir: std::path::PathBuf, socket: std::path::PathBuf) -> i32 
                 if change.subdir.is_some() {
                     return;
                 }
-                if change.name == notemaid::ai_config::FILE_NAME {
+                if change.name == crate::ai_config::FILE_NAME {
                     timer_for_sink.reconfigure(core_for_timer.clone());
                 }
             }),
@@ -203,7 +233,7 @@ async fn serve(data_dir: std::path::PathBuf, socket: std::path::PathBuf) -> i32 
         core: core.clone(),
         events: events.clone(),
         secret,
-        socket: socket.clone(),
+        endpoint: socket.clone(),
         sessions: sessions.clone(),
         status: Arc::new(move || {
             json!({
@@ -213,11 +243,11 @@ async fn serve(data_dir: std::path::PathBuf, socket: std::path::PathBuf) -> i32 
                 "version": env!("CARGO_PKG_VERSION"),
                 "fingerprint": notecore::rpc::manifest_fingerprint(),
                 "dataDir": status_dir.display().to_string(),
-                "socket": status_socket.display().to_string(),
+                "socket": status_socket.to_string(),
                 "uptimeSeconds": started.elapsed().as_secs(),
                 "ready": status_core.is_ready(),
                 "heartbeatIntervalMinutes": status_timer.interval_minutes(),
-                "heartbeat": notemaid::heartbeat::status_json(),
+                "heartbeat": crate::heartbeat::status_json(),
                 "exitCodes": exit::NO_RESTART.iter().map(|c| json!({ "code": c, "name": exit::name(*c) })).collect::<Vec<_>>(),
             })
         }),
@@ -225,26 +255,42 @@ async fn serve(data_dir: std::path::PathBuf, socket: std::path::PathBuf) -> i32 
     let listener = match server.bind().await {
         Ok(l) => l,
         Err(e) => {
-            tracing::error!(socket = %socket.display(), "socket bind failed: {e}");
+            tracing::error!(socket = %socket, "socket bind failed: {e}");
             return exit::FAILURE;
         }
     };
-    tracing::info!(socket = %socket.display(), "RPC surface ready");
+    tracing::info!(socket = %socket, "RPC surface ready");
     let serve_task = tokio::spawn(server.clone().serve(listener, shutdown.token()));
 
-    // 停止: SIGTERM / SIGINT → 再起動予告 → graceful
-    wait_for_signal().await;
+    // 停止: SIGTERM / SIGINT (または親の stdin が閉じた) → 再起動予告 → graceful
+    match parent_gone {
+        Some(rx) => {
+            tokio::select! {
+                _ = wait_for_signal() => {}
+                _ = rx => tracing::info!("parent closed stdin; exiting"),
+            }
+        }
+        None => wait_for_signal().await,
+    }
     tracing::info!("shutting down");
-    events.emit("nd:notecored-restarting", &json!({ "graceMs": 5000 }));
+    events.emit("nd:notemaid-restarting", &json!({ "graceMs": 5000 }));
     timer.stop();
     shutdown.trigger();
-    notemaid::ai_chat_service::abort_all_streams();
-    notemaid::ai_turn::abort_all_turns();
+    crate::ai_chat_service::abort_all_streams();
+    crate::ai_turn::abort_all_turns();
     let _ = tokio::time::timeout(Duration::from_secs(5), serve_task).await;
-    let _ = std::fs::remove_file(&socket);
+    if let crate::transport::Endpoint::Unix(path) = &socket {
+        let _ = std::fs::remove_file(path);
+    }
     0
 }
 
+#[cfg(not(unix))]
+async fn wait_for_signal() {
+    let _ = tokio::signal::ctrl_c().await;
+}
+
+#[cfg(unix)]
 async fn wait_for_signal() {
     use tokio::signal::unix::{signal, SignalKind};
     let mut term = match signal(SignalKind::terminate()) {

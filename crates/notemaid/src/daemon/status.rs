@@ -1,60 +1,62 @@
-//! `notecored status`: socket に繋いで状態を表示する。
+//! `notemaid status`: socket に繋いで状態を表示する。
 
+use crate::daemon::SocketArgs;
+use crate::transport::{self, Endpoint};
 use notecore::rpc::Frame;
 use serde_json::json;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::UnixStream;
-
-use crate::rpc_server::default_socket_path;
-use crate::SocketArgs;
 
 pub fn status(args: SocketArgs) -> i32 {
-    let Some(socket) = args.socket.or_else(default_socket_path) else {
+    let Some(socket) = args
+        .socket
+        .map(|s| Endpoint::parse(&s))
+        .or_else(transport::default_endpoint)
+    else {
         eprintln!("no socket path: set --socket or XDG_RUNTIME_DIR");
-        return crate::exit::RUNTIME_DIR_MISSING;
+        return crate::daemon::exit::RUNTIME_DIR_MISSING;
     };
     let rt = match tokio::runtime::Runtime::new() {
         Ok(rt) => rt,
         Err(e) => {
             eprintln!("runtime: {e}");
-            return crate::exit::FAILURE;
+            return crate::daemon::exit::FAILURE;
         }
     };
     rt.block_on(async move {
-        let stream = match UnixStream::connect(&socket).await {
+        let stream = match transport::connect(&socket).await {
             Ok(s) => s,
             Err(e) => {
                 println!(
                     "{}",
-                    json!({ "running": false, "socket": socket.display().to_string(), "error": e.to_string() })
+                    json!({ "running": false, "socket": socket.to_string(), "error": e.to_string() })
                 );
-                return crate::exit::FAILURE;
+                return crate::daemon::exit::FAILURE;
             }
         };
-        let (reader, mut writer) = stream.into_split();
+        let (reader, mut writer) = tokio::io::split(stream);
         let mut lines = BufReader::new(reader).lines();
         let Ok(Some(first)) = lines.next_line().await else {
-            eprintln!("no hello from notecored");
-            return crate::exit::FAILURE;
+            eprintln!("no hello from notemaid");
+            return crate::daemon::exit::FAILURE;
         };
         let secret = match serde_json::from_str::<Frame>(&first) {
             Ok(Frame::Hello { secret, .. }) => secret,
             _ => {
                 eprintln!("unexpected first frame: {first}");
-                return crate::exit::FAILURE;
+                return crate::daemon::exit::FAILURE;
             }
         };
         let req = Frame::Request {
             id: 1,
             secret,
-            name: "notecored.status".into(),
+            name: "notemaid.status".into(),
             params: json!({}),
             window: None,
         };
         let mut line = serde_json::to_string(&req).unwrap_or_default();
         line.push('\n');
         if writer.write_all(line.as_bytes()).await.is_err() {
-            return crate::exit::FAILURE;
+            return crate::daemon::exit::FAILURE;
         }
         while let Ok(Some(l)) = lines.next_line().await {
             if let Ok(Frame::Response { id: 1, outcome }) = serde_json::from_str::<Frame>(&l) {
@@ -65,6 +67,6 @@ pub fn status(args: SocketArgs) -> i32 {
                 return 0;
             }
         }
-        crate::exit::FAILURE
+        crate::daemon::exit::FAILURE
     })
 }

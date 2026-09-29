@@ -9,7 +9,7 @@ import { commands } from '@/utils/tauriInvoke'
  * クライアント層の状態の写し (#1106 案 B)。
  *
  * `state` は今このプロセスが AI 系のコマンドをどこに送っているか (この端末で回す /
- * 常駐の notecored に中継) と接続の様子 (`nd:client-layer-state` で更新)。
+ * 別プロセスの notemaid に中継) と接続の様子 (`nd:client-layer-state` で更新)。
  * データ面は常にこの端末で動くので、切替導線はここには無い (構成は client.json5)。
  */
 export const useClientLayerStore = defineStore('clientLayer', () => {
@@ -35,7 +35,7 @@ export const useClientLayerStore = defineStore('clientLayer', () => {
     })
   }
 
-  /** 今のプロセスが AI 系を常駐の notecored に中継しているか */
+  /** 今のプロセスが AI 系を別プロセスの notemaid に中継しているか */
   const isResident = computed(() => state.value?.backend === 'resident')
 
   return { state, isResident, refreshState, start }

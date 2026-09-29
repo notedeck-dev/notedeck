@@ -3367,27 +3367,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "notecored"
-version = "1.73.0"
-dependencies = [
- "clap",
- "dirs 6.0.0",
- "libc",
- "notecli",
- "notecore",
- "notemaid",
- "rand 0.9.4",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "notedeck"
 version = "1.73.0"
 dependencies = [
@@ -3402,6 +3381,7 @@ dependencies = [
  "jni 0.21.1",
  "json5",
  "kamadak-exif",
+ "libc",
  "lru",
  "mime_guess",
  "ndk-context",
@@ -3456,12 +3436,15 @@ dependencies = [
 
 [[package]]
 name = "notemaid"
-version = "0.1.0"
+version = "1.73.0"
 dependencies = [
  "chrono",
+ "clap",
+ "dirs 6.0.0",
  "futures-util",
  "indexmap 2.14.0",
  "json5",
+ "libc",
  "notecli",
  "notecore",
  "rand 0.9.4",
@@ -3475,6 +3458,8 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
 ]
 
 [[package]]

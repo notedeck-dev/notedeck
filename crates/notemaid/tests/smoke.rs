@@ -1,4 +1,4 @@
-//! notecored の受け入れ (段階 3a 順序 2): 実バイナリを空のデータディレクトリで起動し、
+//! notemaid の受け入れ (段階 3a 順序 2): 実バイナリを空のデータディレクトリで起動し、
 //! socket 越しに status とコマンド表を叩き、SIGTERM で行儀よく止まり、二重起動は
 //! ロック衝突の終了コードで抜けること。
 
@@ -12,7 +12,7 @@ use notecore::rpc::Frame;
 use serde_json::{json, Value};
 
 fn spawn(data_dir: &Path, socket: &Path) -> Child {
-    Command::new(env!("CARGO_BIN_EXE_notecored"))
+    Command::new(env!("CARGO_BIN_EXE_notemaid"))
         .args(["run", "--log", "stdout"])
         .arg("--data-dir")
         .arg(data_dir)
@@ -24,7 +24,7 @@ fn spawn(data_dir: &Path, socket: &Path) -> Child {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .spawn()
-        .expect("spawn notecored")
+        .expect("spawn notemaid")
 }
 
 fn wait_socket(socket: &Path) {
@@ -116,7 +116,7 @@ fn outcome(frame: Frame) -> notecore::rpc::Outcome {
 fn boots_answers_over_the_socket_and_stops_on_sigterm() {
     let dir = tempfile::tempdir().unwrap();
     let data_dir = dir.path().join("data");
-    let socket = dir.path().join("run").join("notecored.sock");
+    let socket = dir.path().join("run").join("notemaid.sock");
     let mut child = spawn(&data_dir, &socket);
     wait_socket(&socket);
 
@@ -135,7 +135,7 @@ fn boots_answers_over_the_socket_and_stops_on_sigterm() {
         _ => unreachable!(),
     }
     // 自身の状態
-    let st = outcome(s.request("notecored.status", json!({}), None));
+    let st = outcome(s.request("notemaid.status", json!({}), None));
     assert!(st.ok, "{st:?}");
     let st = st.result.unwrap();
     assert_eq!(st["running"], true);
@@ -153,10 +153,10 @@ fn boots_answers_over_the_socket_and_stops_on_sigterm() {
     ));
     assert!(!r.ok);
     // 橋の問い合わせが接続中の端末 (このセッション) に届いて答えが返る
-    let r = outcome(s.request("notecored.probe-device", json!({ "hello": 1 }), None));
+    let r = outcome(s.request("notemaid.probe-device", json!({ "hello": 1 }), None));
     assert!(r.ok, "{r:?}");
     assert_eq!(r.result.unwrap()["echo"]["hello"], 1);
-    let st = outcome(s.request("notecored.status", json!({}), None))
+    let st = outcome(s.request("notemaid.status", json!({}), None))
         .result
         .unwrap();
     assert_eq!(st["devices"], 1);
@@ -180,7 +180,7 @@ fn boots_answers_over_the_socket_and_stops_on_sigterm() {
     assert_eq!(r.error.as_ref().unwrap().code, "UNAUTHORIZED");
     drop(s2);
     // データディレクトリのロックが取られ、secret の鍵は指定した場所に生成されている
-    assert!(data_dir.join("notecore.lock").exists());
+    assert!(data_dir.join("notemaid.lock").exists());
     assert!(data_dir.join("test-secret.key").exists());
 
     // 二重起動はロック衝突の終了コードで抜ける
@@ -202,7 +202,7 @@ fn boots_answers_over_the_socket_and_stops_on_sigterm() {
 #[test]
 fn refuses_to_start_without_a_socket_location() {
     let dir = tempfile::tempdir().unwrap();
-    let out = Command::new(env!("CARGO_BIN_EXE_notecored"))
+    let out = Command::new(env!("CARGO_BIN_EXE_notemaid"))
         .args(["run", "--log", "stdout"])
         .arg("--data-dir")
         .arg(dir.path().join("data"))
@@ -212,4 +212,51 @@ fn refuses_to_start_without_a_socket_location() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(12));
+}
+
+/// アプリの子プロセスとしての契約: `--exit-on-stdin-close` で起動し、親が stdin の
+/// 書き口を閉じたら自分から終わる (kill しなくてよい)。socket も片付ける
+#[test]
+fn exits_when_the_parent_closes_stdin() {
+    use std::io::Write;
+    let dir = tempfile::tempdir().unwrap();
+    let data_dir = dir.path().join("data");
+    let socket = dir.path().join("run").join("child.sock");
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_notemaid"))
+        .args(["run", "--log", "stdout", "--exit-on-stdin-close"])
+        .arg("--data-dir")
+        .arg(&data_dir)
+        .arg("--socket")
+        .arg(&socket)
+        .arg("--secret-key-file")
+        .arg(data_dir.join("test-secret.key"))
+        .env("RUST_LOG", "warn")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn notemaid");
+    wait_socket(&socket);
+    // 親が生きている間は繋がる
+    let (mut s, _) = Session::connect(&socket);
+    let st = outcome(s.request("notemaid.status", json!({}), None));
+    assert!(st.ok, "{st:?}");
+    drop(s);
+    // 書き口を閉じる = 親の死
+    let mut stdin = child.stdin.take().unwrap();
+    let _ = stdin.flush();
+    drop(stdin);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let status = loop {
+        if let Some(status) = child.try_wait().unwrap() {
+            break status;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "child did not exit after stdin closed"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    };
+    assert_eq!(status.code(), Some(0));
+    assert!(!socket.exists());
 }

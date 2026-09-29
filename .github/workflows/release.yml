@@ -65,12 +65,15 @@ jobs:
       matrix:
         include:
           - platform: macos-latest
+            sidecar_target: universal-apple-darwin
             rust_targets: aarch64-apple-darwin,x86_64-apple-darwin
             tauri_args: --target universal-apple-darwin --bundles app,dmg
           - platform: ubuntu-24.04
+            sidecar_target: x86_64-unknown-linux-gnu
             rust_targets: ''
             tauri_args: --bundles appimage,deb
           - platform: windows-latest
+            sidecar_target: x86_64-pc-windows-msvc
             rust_targets: ''
             tauri_args: --bundles nsis
 
@@ -115,18 +118,24 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install
 
-      # notecored (常駐コア, #1106) はアプリと同じ target からビルドし、deb には bundler の
-      # files 指定 (tauri.conf.json) で、tarball と AUR には同版を同梱する。unit は ExecStart を
-      # /usr/bin/notecored に埋めた完成形を書き出す。standalone のバイナリは別 job (notecored)
-      - name: Build notecored (Linux)
+      # notemaid (AI の別プロセス, #1106 案 B) はアプリと同じ target で sidecar としてビルドし、
+      # Tauri の externalBin が bundle に同梱する。Linux は user unit も完成形で書き出し、
+      # deb (tauri.conf.json の files) と tarball に入れる。standalone のバイナリは別 job (notemaid)
+      - name: Build notemaid sidecar
+        shell: bash
+        run: pnpm build:sidecar ${{ matrix.sidecar_target }}
+
+      - name: Render notemaid unit (Linux)
         if: matrix.platform == 'ubuntu-24.04'
         run: |
-          cargo build --release -p notecored
-          target/release/notecored service render --exec-path /usr/bin/notecored > target/release/notecored.service
-          cat target/release/notecored.service
+          cp src-tauri/binaries/notemaid-x86_64-unknown-linux-gnu target/release/notemaid
+          target/release/notemaid service render --exec-path /usr/bin/notemaid > target/release/notemaid.service
+          cat target/release/notemaid.service
 
       - name: Build
-        run: pnpm tauri build ${{ matrix.tauri_args }}
+        # sidecar (notemaid) は release のときだけ config で足す。手元の cargo check / tauri dev は
+        # バイナリが無くても通り、アプリは AI を in-process で回す (scripts/build-sidecar.sh 参照)
+        run: pnpm tauri build ${{ matrix.tauri_args }} --config src-tauri/tauri.sidecar.conf.json
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -234,7 +243,7 @@ jobs:
           ls -la target/release/bundle/appimage/ || true
           ls -la target/release/bundle/deb/ || true
           cd target/release
-          tar czf "${GITHUB_WORKSPACE}/NoteDeck-${VERSION}-linux-x64.tar.gz" notedeck notecored notecored.service
+          tar czf "${GITHUB_WORKSPACE}/NoteDeck-${VERSION}-linux-x64.tar.gz" notedeck notemaid notemaid.service
           cd "${GITHUB_WORKSPACE}"
           cp target/release/bundle/appimage/*.AppImage "NoteDeck-${VERSION}-linux-x64.AppImage"
           cp target/release/bundle/deb/*.deb "NoteDeck-${VERSION}-linux-x64.deb"
@@ -367,10 +376,9 @@ jobs:
         with:
           files: ${{ steps.artifact.outputs.name }}
 
-  # notecored (常駐コア, #1106) も notecli と同じ形で同じタグから配布する。
-  # Unix socket の RPC 面を持つので Windows は対象外。keyring 系はファイル backend に
-  # 要るので default features のまま (cross でも純 Rust)。
-  notecored:
+  # notemaid (AI の別プロセス, #1106) も notecli と同じ形で同じタグから配布する
+  # (常駐タスク / 自分のサーバーで動かす人向け。アプリには sidecar として同梱済み)。
+  notemaid:
     needs: publish
     permissions:
       contents: write
@@ -404,7 +412,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: '. -> target'
-          prefix-key: notecored-v1
+          prefix-key: notemaid-v1
 
       - name: Install cross
         if: matrix.cross
@@ -412,19 +420,19 @@ jobs:
 
       - name: Build (cross)
         if: matrix.cross
-        run: cross build --release -p notecored --target ${{ matrix.target }}
+        run: cross build --release -p notemaid --features daemon --target ${{ matrix.target }}
 
       - name: Build (native)
         if: ${{ !matrix.cross }}
-        run: cargo build --release -p notecored --target ${{ matrix.target }}
+        run: cargo build --release -p notemaid --features daemon --target ${{ matrix.target }}
 
       - name: Artifact name
         id: artifact
         shell: bash
-        run: echo "name=notecored-${GITHUB_REF#refs/tags/v}-${{ matrix.suffix }}" >> "$GITHUB_OUTPUT"
+        run: echo "name=notemaid-${GITHUB_REF#refs/tags/v}-${{ matrix.suffix }}" >> "$GITHUB_OUTPUT"
 
       - name: Rename binary
-        run: cp target/${{ matrix.target }}/release/notecored ${{ steps.artifact.outputs.name }}
+        run: cp target/${{ matrix.target }}/release/notemaid ${{ steps.artifact.outputs.name }}
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
@@ -532,7 +540,7 @@ jobs:
             --repo "${{ github.repository }}" \
             --draft=false
 
-  # AUR は split package (pkgbase misskey-notedeck-bin → アプリ / notecored-bin / notecli-bin)。
+  # AUR は split package (pkgbase misskey-notedeck-bin → アプリ / notemaid-bin / notecli-bin)。
   # notecli のバイナリは notecli job が Release に足すので、その後に走る
   aur:
     needs: [publish, notecli]

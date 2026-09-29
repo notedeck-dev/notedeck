@@ -192,7 +192,7 @@ fn core_openapi_router() -> OpenApiRouter<AppState> {
 /// application that provides its own index endpoint and merges this into its
 /// own spec.
 pub fn build_core_routes(state: AppState) -> OpenApiRouter {
-    // CORS はここでは掛けない。埋め込む側 (notedeck / notecored) が自分の allowlist を
+    // CORS はここでは掛けない。埋め込む側 (notedeck / notemaid) が自分の allowlist を
     // 外側で掛ける。以前はここに permissive が入っていて、notedeck の allowlist を
     // すり抜けていた (notedeck#1106 §9)。単体デーモンは 3a で廃止した
     core_openapi_router()

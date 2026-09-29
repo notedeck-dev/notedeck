@@ -1,4 +1,4 @@
-//! データディレクトリのロック (`<data-dir>/notecore.lock`、flock)。意味は
+//! データディレクトリのロック (`<data-dir>/notemaid.lock`、flock)。意味は
 //! 「その data-dir で notecore を起動する権利」(ストリーム / HEARTBEAT / notecore 側
 //! ファイルの書き手)。SQLite の排他ではない。クラッシュで自動解放。NFS 非対応。
 
@@ -6,7 +6,7 @@ use std::fs::{File, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 
-pub const LOCK_FILE: &str = "notecore.lock";
+pub const LOCK_FILE: &str = "notemaid.lock";
 
 pub struct Lock {
     _file: File,

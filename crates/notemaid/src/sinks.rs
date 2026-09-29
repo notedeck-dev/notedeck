@@ -1,4 +1,4 @@
-//! 手元側 (WebView / notecored のイベント面) への口。Core はこれらの trait を
+//! 手元側 (WebView / notemaid のイベント面) への口。Core はこれらの trait を
 //! 知らないので、Core の拡張スロット (`Core::ext_or_init`) に吊るし、
 //! [`CoreMaidExt`] で従来どおり `core.ai_chat_sink()` の形で引く。
 

@@ -1,8 +1,8 @@
 # Maintainer: hitalin <https://github.com/hitalin>
-# split package: アプリ (misskey-notedeck-bin) / 常駐コア (notecored-bin) / CLI (notecli-bin) を
+# split package: アプリ (misskey-notedeck-bin) / AI (notemaid) (notemaid-bin) / CLI (notecli-bin) を
 # 同じタグの Release から同版で出す (#1106)。sha256sums は release.yml が実値で埋める
 pkgbase=misskey-notedeck-bin
-pkgname=('misskey-notedeck-bin' 'notecored-bin' 'notecli-bin')
+pkgname=('misskey-notedeck-bin' 'notemaid-bin' 'notecli-bin')
 pkgver=0.1.3
 pkgrel=1
 arch=('x86_64')
@@ -22,7 +22,7 @@ sha256sums=('SKIP'
 package_misskey-notedeck-bin() {
     pkgdesc='Misskey Pro — integrated deck environment (IDE) for Misskey power users'
     depends=('webkit2gtk-4.1' 'gtk3' 'libayatana-appindicator' 'librsvg' 'glib-networking')
-    optdepends=("notecored-bin=${pkgver}: 常駐コア (アプリを閉じても動き続ける。アプリと同じ版が要る)"
+    optdepends=("notemaid-bin=${pkgver}: AI (notemaid) (アプリを閉じても動き続ける。アプリと同じ版が要る)"
                 "notecli-bin=${pkgver}: CLI")
     provides=('notedeck')
     conflicts=('notedeck' 'notedeck-bin')
@@ -32,13 +32,13 @@ package_misskey-notedeck-bin() {
     install -Dm644 "${srcdir}/notedeck-icon-32.png" "${pkgdir}/usr/share/icons/hicolor/32x32/apps/com.notedeck.desktop.png"
 }
 
-package_notecored-bin() {
+package_notemaid-bin() {
     pkgdesc='NoteDeck resident core daemon (headless notecore)'
     depends=('systemd')
-    provides=('notecored')
-    conflicts=('notecored')
-    install -Dm755 "${srcdir}/notecored" "${pkgdir}/usr/bin/notecored"
-    install -Dm644 "${srcdir}/notecored.service" "${pkgdir}/usr/lib/systemd/user/notecored.service"
+    provides=('notemaid')
+    conflicts=('notemaid')
+    install -Dm755 "${srcdir}/notemaid" "${pkgdir}/usr/bin/notemaid"
+    install -Dm644 "${srcdir}/notemaid.service" "${pkgdir}/usr/lib/systemd/user/notemaid.service"
 }
 
 package_notecli-bin() {

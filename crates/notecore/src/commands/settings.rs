@@ -133,7 +133,7 @@ pub async fn write_notedeck_json(
 ) -> Result<String> {
     let version =
         store::write_settings_json_if(&settings_base_dir(core)?, &content, expected.as_deref())?;
-    // デバイスは自分の写しを自分で更新しているので受け手が無いが、notecored は
+    // デバイスは自分の写しを自分で更新しているので受け手が無いが、notemaid は
     // これで接続モード (modes.realtime) を適用し直す (#1106)
     core.notify_settings_change(crate::settings_events::SettingsChange {
         subdir: None,

@@ -7,7 +7,7 @@ license = "AGPL-3.0-only"
 [dependencies]
 notecli = { path = "../crates/notecli", features = ["specta"] }
 notecore = { path = "../crates/notecore" }
-notemaid = { path = "../crates/notemaid" }
+notemaid = { path = "../crates/notemaid", default-features = false }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"
@@ -94,6 +94,8 @@ starship-battery = "0.11"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 zbus = "5"
+# notemaid の子プロセスに PDEATHSIG を掛ける (maid_launcher)
+libc = "0.2"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-foundation = { version = "0.3", features = ["NSProcessInfo"] }

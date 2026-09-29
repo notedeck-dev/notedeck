@@ -25,7 +25,7 @@ pub fn resolve(target: Option<LogTarget>) -> LogTarget {
 
 pub fn init(target: LogTarget, data_dir: &Path) {
     let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        "notecored=info,notecore=info,notecli=info,warn"
+        "notemaid=info,notecore=info,notecli=info,warn"
             .parse()
             .expect("default tracing filter must parse")
     });
@@ -38,7 +38,7 @@ pub fn init(target: LogTarget, data_dir: &Path) {
                 .and_then(|_| {
                     tracing_appender::rolling::RollingFileAppender::builder()
                         .rotation(tracing_appender::rolling::Rotation::DAILY)
-                        .filename_prefix("notecored.log")
+                        .filename_prefix("notemaid.log")
                         .max_log_files(LOG_FILE_GENERATIONS)
                         .build(&dir)
                         .ok()

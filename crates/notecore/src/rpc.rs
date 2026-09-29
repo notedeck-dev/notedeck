@@ -1,16 +1,14 @@
-//! notecored の RPC 面の wire 形式 (#1106 §4.3、段階 3a)。
+//! notemaid の RPC 面の wire 形式 (#1106 §4.3、段階 3a)。
 //!
-//! 同一ホストでは Unix socket 上の改行区切り JSON。notecored (サーバー) と
+//! 同一ホストでは Unix socket 上の改行区切り JSON。notemaid (サーバー) と
 //! アプリのクライアント層 (橋) が同じ型を使う。transport はここに無い。
 //!
 //! - 接続直後にサーバーが `hello` を 1 つ送る (起動毎の秘密、版、マニフェストの指紋)
 //! - 要求 `request` / `batch` は秘密を添える。`name` はコマンド表の名前
-//!   (`notecored.` で始まる名前はサーバー自身が答える)
+//!   (`notemaid.` で始まる名前はサーバー自身が答える)
 //! - 応答 `response` は要求の `id` を返す。batch の応答は `result` が要素ごとの配列
 //! - サーバーが押し出す `event` は Tauri のイベント名と同じ (`nd:ai-turn-event` など)
 //! - サーバーからの `query` は橋の問い合わせで、端末が `query_response` で答える
-
-use std::path::PathBuf;
 
 use notecli::error::NoteDeckError;
 use serde::{Deserialize, Serialize};
@@ -23,7 +21,7 @@ use crate::vault::VaultError;
 pub const PROTOCOL_VERSION: u32 = 1;
 
 /// サーバー自身が答える要求名の接頭辞
-pub const SELF_PREFIX: &str = "notecored.";
+pub const SELF_PREFIX: &str = "notemaid.";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -108,7 +106,7 @@ pub enum Frame {
         #[serde(default)]
         seq: u64,
     },
-    /// notecored → 端末: 橋の問い合わせ (確認内容の組み立て / 実行要求 / HEARTBEAT の文脈)。
+    /// notemaid → 端末: 橋の問い合わせ (確認内容の組み立て / 実行要求 / HEARTBEAT の文脈)。
     /// 端末は `query_response` で答える (仕様 §4.4 の「確認要求」「実行要求」の運び方)
     #[serde(rename_all = "camelCase")]
     Query {
@@ -126,13 +124,6 @@ pub enum Frame {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         error: Option<String>,
     },
-}
-
-/// 同一ホストの socket の既定: `$XDG_RUNTIME_DIR/notecored/notecored.sock` (無ければ None)
-pub fn default_socket_path() -> Option<PathBuf> {
-    std::env::var_os("XDG_RUNTIME_DIR")
-        .filter(|v| !v.is_empty())
-        .map(|dir| PathBuf::from(dir).join("notecored").join("notecored.sock"))
 }
 
 /// 引数名 (snake_case) を wire のキー (camelCase) に。コマンド表の JSON アダプタ

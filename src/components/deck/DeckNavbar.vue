@@ -75,7 +75,7 @@ const navItems = computed(() =>
   ),
 )
 const offlineModeStore = useOfflineModeStore()
-// コアの状態 (常駐の notecored に中継中か、切替が完了していないか)。常設なのでここで始める (#1106)
+// コアの状態 (常駐の notemaid に中継中か、切替が完了していないか)。常設なのでここで始める (#1106)
 const clientLayerStore = useClientLayerStore()
 clientLayerStore.start()
 const realtimeModeStore = useRealtimeModeStore()
