@@ -13,6 +13,7 @@ import { i18n } from '@/i18n'
 import { presetChipLabel } from '@/permissions/labels'
 import { usePermissionsConfig } from '@/permissions/store'
 import { useWindowsStore } from '@/stores/windows'
+import AiHeartbeatResidentRow from './AiHeartbeatResidentRow.vue'
 import AiSettingsSection from './AiSettingsSection.vue'
 import AiSwitchRow from './AiSwitchRow.vue'
 
@@ -58,10 +59,14 @@ function openPermissionsWindow(): void {
   >
     <!-- Basic: 有効化 (TL フィルターと同じトグル) + interval + notice -->
     <AiSwitchRow
+      icon="ti-activity-heartbeat"
       :label="i18n.ts._aiHeartbeatSection.enable"
       :on="config.heartbeat.enabled"
       @toggle="config.heartbeat.enabled = !config.heartbeat.enabled"
     />
+
+    <!-- 常駐 (#1106): 巡回をアプリ終了後も続けるかは HEARTBEAT の一部として見せる -->
+    <AiHeartbeatResidentRow v-if="config.heartbeat.enabled" />
 
     <!-- tick 間隔: 数値入力 (PerformanceEditor 風 1 行レイアウト) -->
     <div v-if="config.heartbeat.enabled" :class="$style.field">
@@ -84,6 +89,7 @@ function openPermissionsWindow(): void {
          アプリにフォーカスがあるときは自動抑制。 -->
     <AiSwitchRow
       v-if="config.heartbeat.enabled"
+      icon="ti-bell"
       :label="i18n.ts._aiHeartbeatSection.desktopNotification"
       :sub-label="i18n.ts._aiHeartbeatSection.desktopNotificationDescription"
       :on="config.heartbeat.desktopNotification"
@@ -96,6 +102,7 @@ function openPermissionsWindow(): void {
          opt-out 可能 (= 常に AI を叩きたい場合は OFF にする)。 -->
     <template v-if="config.heartbeat.enabled">
       <AiSwitchRow
+        icon="ti-bolt"
         label="Cheap Check First"
         :sub-label="i18n.ts._aiHeartbeatSection.cheapCheckDescription"
         :on="config.heartbeat.cheapCheck.enabled"
@@ -138,6 +145,7 @@ function openPermissionsWindow(): void {
       </div>
 
       <AiSwitchRow
+        icon="ti-hand-stop"
         :label="i18n.ts._aiHeartbeatSection.disableOnDailyLimit"
         :sub-label="i18n.ts._aiHeartbeatSection.disableOnDailyLimitDescription"
         :on="config.heartbeat.onDailyLimit === 'disable'"
@@ -182,12 +190,11 @@ function openPermissionsWindow(): void {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/settingsFields' as *;
+
 .keyHint {
-  display: flex;
+  @include key-hint;
   align-items: center;
-  gap: 4px;
-  font-size: 0.7em;
-  opacity: 0.5;
 }
 
 // HEARTBEAT 権限 chip の「権限設定で変更」導線 (#712 PR 2)
@@ -197,56 +204,10 @@ function openPermissionsWindow(): void {
   font-size: 1em;
 }
 
-// 設定項目の数値入力レイアウト (PerformanceEditor の field/fieldHeader 等と
-// 揃える: label 左 / [input] [単位] 右の 1 行)
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 0;
-}
-
-.fieldHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.fieldValue {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.numberInput {
-  width: 64px;
-  padding: 2px 4px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.85em;
-  text-align: right;
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
-
-  // spinner 矢印は隠す (input on hover でも醜くならないように)
-  &::-webkit-inner-spin-button,
-  &::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  -moz-appearance: textfield;
-}
-
-.fieldUnit {
-  font-size: 0.8em;
-  opacity: 0.55;
-  min-width: 18px;
-}
+.field { @include field; }
+.fieldHeader { @include field-header; }
+.fieldLabel { @include field-label; }
+.fieldValue { @include field-value; }
+.numberInput { @include number-input; }
+.fieldUnit { @include field-unit; }
 </style>

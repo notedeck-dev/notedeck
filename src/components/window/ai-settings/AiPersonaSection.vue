@@ -81,12 +81,10 @@ const currentPersonaSkill = computed(() => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/settingsFields' as *;
 .keyHint {
-  display: flex;
+  @include key-hint;
   align-items: center;
-  gap: 4px;
-  font-size: 0.7em;
-  opacity: 0.5;
 }
 
 // --- Persona selector (#491) ---

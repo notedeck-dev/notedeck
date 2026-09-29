@@ -126,14 +126,12 @@ function openConnectionsWindow(): void {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/settingsFields' as *;
 @use '@/styles/buttons' as *;
 
 .keyHint {
-  display: flex;
+  @include key-hint;
   align-items: center;
-  gap: 4px;
-  font-size: 0.7em;
-  opacity: 0.5;
 }
 
 .keyBtn {

@@ -1,5 +1,5 @@
 ---
-sourceHash: 6d7c164e6b8b
+sourceHash: 34e9f16c85b1
 ---
 
 # The AI process (notemaid)
@@ -18,7 +18,7 @@ At startup the app first checks whether a resident notemaid is there, connects i
 
 ## Making it resident
 
-Only needed if you want HEARTBEAT to keep running after you quit the app completely. Turn on "Start as a login task" under **AI settings** → "Where the AI runs": it registers a login task with your OS (a systemd user unit on Linux, a LaunchAgent on macOS, Task Scheduler on Windows) and switches over on the spot, no restart needed. Turning it off removes the task and goes back to the child process.
+Only needed if you want HEARTBEAT to keep running after you quit the app completely. Turn on "Keep running after the app exits" under **AI settings** → HEARTBEAT: it registers a login task with your OS (a systemd user unit on Linux, a LaunchAgent on macOS, Task Scheduler on Windows) and switches over on the spot, no restart needed. Turning it off removes the task and goes back to the child process.
 
 The AppImage mounts at a different path every launch, so the toggle is not available there. Put the standalone binary from Releases somewhere on your PATH and register it by hand.
 

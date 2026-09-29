@@ -1354,6 +1354,28 @@ export interface Locale {
     readonly "permissions": string
     /** 権限設定で変更 */
     readonly "changeInPermissions": string
+    /** アプリを終了しても続ける */
+    readonly "keepRunning": string
+    /** OS のログイン時タスクとして AI を常駐させ、アプリを終了しても巡回が続きます。報告は次にアプリを開いたときに届きます。再起動は不要です。 */
+    readonly "keepRunningDescription": string
+    /** 切り替え中... */
+    readonly "keepRunningSwitching": string
+    /** この環境では常駐できません: {reason} */
+    readonly "keepRunningUnavailable": ParameterizedString<'reason'>
+    /** AI はアプリの中で動いています */
+    readonly "runtimeEmbedded": string
+    /** AI はアプリの子プロセスで動いています */
+    readonly "runtimeChild": string
+    /** AI は常駐タスクで動いています */
+    readonly "runtimeResident": string
+    /** AI のプロセスに接続しています... */
+    readonly "runtimeConnecting": string
+    /** AI のプロセスに繋がっていません: {reason} */
+    readonly "runtimeDisconnected": ParameterizedString<'reason'>
+    /** 常駐タスクは停止中 */
+    readonly "residentStopped": string
+    /** AI のプロセスの版がこのアプリと一致していません。更新してください。 */
+    readonly "versionMismatch": string
   }
   readonly "_aiPersonaSection": {
     /** ペルソナ */
@@ -5784,38 +5806,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "eachLoop": string
     /** Misskey API 呼び出し */
     readonly "apiCall": string
-  }
-  readonly "_aiRuntime": {
-    /** AI の実行 */
-    readonly "title": string
-    /** アプリの中で実行しています */
-    readonly "modeEmbedded": string
-    /** 別プロセス (notemaid) で実行しています */
-    readonly "modeResident": string
-    /** 接続中 */
-    readonly "connected": string
-    /** 未接続 */
-    readonly "disconnected": string
-    /** notemaid の版がこのアプリと一致していません。notemaid を更新してください。 */
-    readonly "fingerprintMismatch": string
-    /** 常駐タスクとして起動する */
-    readonly "residentToggle": string
-    /** オンにすると OS のログイン時タスクに登録し、アプリなしで HEARTBEAT が続きます。オフならアプリと一緒に終わります。再起動は不要です。 */
-    readonly "residentHint": string
-    /** この環境では使えません: {reason} */
-    readonly "residentUnavailable": ParameterizedString<'reason'>
-    /** 常駐タスク */
-    readonly "residentService": string
-    /** 登録済み */
-    readonly "residentInstalled": string
-    /** 未登録 */
-    readonly "residentNotInstalled": string
-    /** 動作中 */
-    readonly "residentActive": string
-    /** 停止 */
-    readonly "residentInactive": string
-    /** 切り替え中... */
-    readonly "residentSwitching": string
   }
   readonly "_capabilities": {
     readonly "account": {
