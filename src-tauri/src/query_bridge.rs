@@ -61,6 +61,20 @@ pub async fn answer_archive_search(
     serde_json::to_value(notes).map_err(|e| e.to_string())
 }
 
+/// 手元の CLI (#1104) に渡す外部アプリ用の永続トークンを発行する。権限ウィンドウで
+/// 発行するものと同じ store なので、external principal の権限がそのまま効く
+pub fn issue_external_token(app: &AppHandle, name: &str) -> Result<Value, String> {
+    let store = app.state::<Arc<notecore::api_tokens::ApiTokenStore>>();
+    let (meta, token) = store.create(name).map_err(|e| e.to_string())?;
+    Ok(serde_json::json!({ "id": meta.id, "token": token }))
+}
+
+pub fn revoke_external_token(app: &AppHandle, id: &str) -> Result<Value, String> {
+    let store = app.state::<Arc<notecore::api_tokens::ApiTokenStore>>();
+    store.revoke(id).map_err(|e| e.to_string())?;
+    Ok(Value::Null)
+}
+
 /// [`FrontendBridge`] の Tauri 実装。HTTP サーバー (core) はこれを通して WebView と
 /// managed state に届く (#1106)。
 pub struct TauriBridge(pub AppHandle);
@@ -79,6 +93,14 @@ impl FrontendBridge for TauriBridge {
 
     fn archive_search(&self, req: ArchiveSearchRequest) -> BridgeFuture<'_> {
         Box::pin(answer_archive_search(&self.0, req))
+    }
+
+    fn issue_external_token(&self, name: String) -> BridgeFuture<'_> {
+        Box::pin(async move { issue_external_token(&self.0, &name) })
+    }
+
+    fn revoke_external_token(&self, id: String) -> BridgeFuture<'_> {
+        Box::pin(async move { revoke_external_token(&self.0, &id) })
     }
 
     fn health_report(&self) -> BridgeFuture<'_> {

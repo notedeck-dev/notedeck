@@ -304,6 +304,15 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                             let req = serde_json::from_value(params).map_err(|e| e.to_string())?;
                             return query_bridge::answer_archive_search(&app, req).await;
                         }
+                        // 手元の CLI (#1104) に渡す MCP 用トークンも端末の Rust が発行 / 失効する
+                        if query_type == notecore::frontend_bridge::TOKEN_ISSUE_QUERY {
+                            let name = params.get("name").and_then(|v| v.as_str()).unwrap_or("AI harness").to_string();
+                            return query_bridge::issue_external_token(&app, &name);
+                        }
+                        if query_type == notecore::frontend_bridge::TOKEN_REVOKE_QUERY {
+                            let id = params.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                            return query_bridge::revoke_external_token(&app, &id);
+                        }
                         query_bridge::query_frontend_with_timeout(&app, &query_type, params, timeout).await
                     })
                 }),
@@ -955,6 +964,13 @@ fn begin_shutdown(app: &tauri::AppHandle) {
     }
     notemaid::ai_chat_service::abort_all_streams();
     notemaid::ai_turn::abort_all_turns();
+    // in-process の手元の CLI (#1104): 子プロセスを止め、MCP 用トークンを失効させる
+    if let Some(bridge) = app
+        .try_state::<commands::AppState>()
+        .and_then(|s| s.frontend_bridge().ok())
+    {
+        tauri::async_runtime::block_on(notemaid::acp::shutdown_all(Some(bridge)));
+    }
     #[cfg(desktop)]
     maid_launcher::stop();
 }
@@ -1223,6 +1239,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ai_turn_cancel,
             commands::ai_confirm_respond,
             commands::ai_confirm_shown,
+            commands::ai_harness_list,
             commands::capability_execute,
             commands::capability_preview,
             commands::ai_sessions_load_all,

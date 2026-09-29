@@ -1165,6 +1165,7 @@ async fn generate_title(core: &Core, cfg: &AiConfigLite, report: &str) -> Option
             tool_result_for: None,
         }],
         system: Some(TITLE_SYSTEM.into()),
+        session_id: None,
         max_tokens: Some(cfg.generation.title_max_tokens),
         read_timeout_ms: Some(u64::from(cfg.generation.read_timeout_seconds) * 1000),
         tools: None,

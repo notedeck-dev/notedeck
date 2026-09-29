@@ -81,6 +81,12 @@
   // 無い provider では文字数から推定する。
   budgets: {},
 
+  // 手元の CLI (#1104)。ACP (Agent Client Protocol) を stdio で話すエージェントを
+  // AI の接続として使う。Claude Code / Codex / OpenCode / Gemini CLI / Hermes Agent / Grok Build は
+  // 組み込みで、PATH にあれば AI 設定の接続ピッカーに出る (接続 id は `harness:<id>`)。
+  // 自分のコマンドを足すときはここに { id, name, command, args } を書く。
+  harnesses: [],
+
   // 生成まわりの調整値。既定のまま使えることを前提に、実行先のモデルに
   // よって既定が合わなくなるものだけを開けている。範囲外の値は読み込み時に
   // clamp される (useAiConfig の normalizeGenerationConfig)。

@@ -43,7 +43,7 @@ export const aiChatCapability = implement('ai.chat', {
         : resolved.model
 
     const response = await sendAiChatOnce({
-      connectionId: resolved.connection.id,
+      connectionId: resolved.connectionId,
       model,
       history: [
         {

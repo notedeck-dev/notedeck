@@ -148,6 +148,30 @@ impl FrontendBridge for SessionBridge {
         Box::pin(async { Ok(Value::Null) })
     }
 
+    fn issue_external_token(&self, name: String) -> BridgeFuture<'_> {
+        Box::pin(async move {
+            self.0
+                .query(
+                    notecore::frontend_bridge::TOKEN_ISSUE_QUERY,
+                    json!({ "name": name }),
+                    Duration::from_secs(10),
+                )
+                .await
+        })
+    }
+
+    fn revoke_external_token(&self, id: String) -> BridgeFuture<'_> {
+        Box::pin(async move {
+            self.0
+                .query(
+                    notecore::frontend_bridge::TOKEN_REVOKE_QUERY,
+                    json!({ "id": id }),
+                    Duration::from_secs(10),
+                )
+                .await
+        })
+    }
+
     /// 索引は端末にしか無いので、接続中の端末に `archive/search` で聞く (端末の Rust が答える)
     fn archive_search(&self, req: ArchiveSearchRequest) -> BridgeFuture<'_> {
         Box::pin(async move {

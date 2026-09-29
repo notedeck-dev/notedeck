@@ -29,16 +29,52 @@ fi
 echo "installing $APK"
 adb install -r "$APK"
 
-adb logcat -c
-adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
+# pidof はプロセスが無いと非 0 で終わるので set -e に巻き込ませない
+pid_of_app() {
+  adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r\n' || true
+}
+
+# 起動を頼んでから、プロセスが「現れた」ことを先に確かめる。エミュレータが
+# 起動直後で monkey の intent を取りこぼすことがあり (v1.74.3 の Android job)、
+# 「現れなかった」を「落ちた」と誤判定しないため。現れなければ 1 回だけ起こし直す
+launch() {
+  adb logcat -c
+  adb shell monkey -p "$PACKAGE" -c android.intent.category.LAUNCHER 1
+}
+launch
+STARTED=""
+for _ in $(seq 1 15); do
+  sleep 1
+  if [ -n "$(pid_of_app)" ]; then STARTED=1; break; fi
+done
+if [ -z "$STARTED" ]; then
+  echo "アプリのプロセスが 15 秒待っても現れない。起こし直す"
+  adb shell ps -A | grep -i notedeck || true
+  launch
+  for _ in $(seq 1 15); do
+    sleep 1
+    if [ -n "$(pid_of_app)" ]; then STARTED=1; break; fi
+  done
+fi
+if [ -z "$STARTED" ]; then
+  echo "::error::アプリのプロセスが起動しなかった (エミュレータ側の問題の可能性。logcat を確認)"
+  adb logcat -d -t 400 | tail -120 || true
+  exit 1
+fi
 
 sleep "$SURVIVE_SECONDS"
 
-# pidof はプロセスが無いと非 0 で終わるので set -e に巻き込ませない
-PID=$(adb shell pidof "$PACKAGE" 2>/dev/null | tr -d '\r\n' || true)
+PID=$(pid_of_app)
 if [ -z "$PID" ]; then
   echo "::error::アプリが起動後 ${SURVIVE_SECONDS} 秒以内に終了した (起動クラッシュ)"
-  adb logcat -d -t 300 | grep -iE 'notedeck|FATAL|AndroidRuntime|libc|DEBUG' | tail -80 || true
+  # `-t N` は末尾 N 行だけで、Google API 入りのエミュレータでは 20 秒分のノイズに
+  # 押し出されて crash の本文が残らない。起動 (logcat -c) 以降を全部取り、アプリと
+  # crash の印 (tombstone の "F DEBUG" / Java の AndroidRuntime / Rust の panic) で絞る
+  adb logcat -d > /tmp/logcat-all.txt || true
+  echo "--- app / crash lines ---"
+  grep -iE 'notedeck|com\.notedeck|F DEBUG|AndroidRuntime|panicked|RustStdoutStderr|Fatal signal' /tmp/logcat-all.txt | tail -150 || true
+  echo "--- raw tail ---"
+  tail -60 /tmp/logcat-all.txt || true
   exit 1
 fi
 

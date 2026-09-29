@@ -33,6 +33,18 @@ pub async fn ai_turn_run(core: &Core, req: AiTurnRequest) -> Result<()> {
     ai_turn::start_turn(core, req).await
 }
 
+/// 手元の CLI (ACP、#1104) の一覧。PATH で検出し、使えないものは理由つきで返す
+pub async fn ai_harness_list(core: &Core) -> Result<Vec<crate::acp::HarnessInfo>> {
+    let custom = crate::ai_config::load(core)
+        .map(|c| c.harnesses)
+        .unwrap_or_default();
+    Ok(
+        tokio::task::spawn_blocking(move || crate::acp::harness::list(&custom))
+            .await
+            .unwrap_or_default(),
+    )
+}
+
 /// 進行中のターンを中断する。冪等。確認待ちなら要求を cancelled で閉じる。
 /// 途中までの応答があればセッションに書き、そのメッセージを返す。
 pub async fn ai_turn_cancel(

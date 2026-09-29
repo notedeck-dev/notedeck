@@ -283,6 +283,12 @@ mod tests {
                 *self.0.lock().unwrap() = Some(req);
                 Box::pin(async { Ok(json!([])) })
             }
+            fn issue_external_token(&self, _n: String) -> BridgeFuture<'_> {
+                Box::pin(async { Err("no".into()) })
+            }
+            fn revoke_external_token(&self, _i: String) -> BridgeFuture<'_> {
+                Box::pin(async { Ok(json!(null)) })
+            }
         }
 
         let recorder = Arc::new(Recorder(Mutex::new(None)));

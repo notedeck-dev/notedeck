@@ -1,6 +1,6 @@
 import JSON5 from 'json5'
 import { type Ref, ref } from 'vue'
-import type { Connection, ConnectionProtocol } from '@/bindings'
+import type { Connection, ConnectionProtocol, HarnessInfo } from '@/bindings'
 import defaultAiJson5 from '@/defaults/ai.json5?raw'
 import { i18n } from '@/i18n'
 import type { PresetKey } from '@/permissions/schema'
@@ -12,6 +12,7 @@ import {
 } from '@/utils/settingsFs'
 import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { commands, isConflictError, unwrap } from '@/utils/tauriInvoke'
+import { isHarnessConnectionId } from './useAiHarnesses'
 
 // --- Type definitions ---
 //
@@ -228,6 +229,12 @@ export interface AiConfig {
    */
   budgets: Record<string, number>
   /**
+   * 利用者が足した手元の CLI (#1104)。組み込み (Claude Code / Codex / OpenCode /
+   * Gemini CLI / Hermes Agent / Grok Build) 以外の ACP エージェント。検出と起動は Rust 側で、
+   * ここは ai.json5 を書き戻すときに落とさないための写し。
+   */
+  harnesses: CustomHarness[]
+  /**
    * このアプリで AI が振る舞う persona (#491)。skill で `isPersona: true`
    * を設定したものから 1 つ選択する。空文字 / 未指定 = 通常の汎用 AI として
    * 動作 (chat / heartbeat / command / task すべて persona なし)。
@@ -242,23 +249,52 @@ export interface AiConfig {
  * AI 設定から解決した「使用する接続 + モデル + protocol」。
  * チャット送信 / ツール整形に必要な情報をまとめたもの。
  */
-export interface ResolvedAiConnection {
-  connection: Connection
-  model: string
-  protocol: ConnectionProtocol
+/** ai.json5 の `harnesses[]` の 1 件 (Rust の `acp::harness::CustomHarness` と同形) */
+export interface CustomHarness {
+  id: string
+  name: string
+  command: string
+  args: string[]
 }
+
+export type ResolvedAiConnection =
+  | {
+      kind: 'vault'
+      /** Rust に渡す接続 id */
+      connectionId: string
+      connection: Connection
+      model: string
+      protocol: ConnectionProtocol
+    }
+  | {
+      /** 手元の CLI (#1104)。`harness:<id>`。model は CLI 側が決めるので空でよい */
+      kind: 'harness'
+      connectionId: string
+      /** 一覧が未取得なら null (使えるかは Rust が起動時に判定する) */
+      harness: HarnessInfo | null
+      model: string
+    }
 
 /**
  * `activeConnectionId` から実際の接続を解決する。接続が存在しない /
  * protocol 未設定 (= AI プロバイダーでない) 場合は `null`。
+ * `harness:` で始まる id は手元の CLI で、Vault の接続は見ない。
  */
 export function resolveAiConnection(
   cfg: AiConfig,
   connections: readonly Connection[],
+  harnesses: readonly HarnessInfo[] = [],
 ): ResolvedAiConnection | null {
-  const connection = connections.find((c) => c.id === cfg.activeConnectionId)
+  const id = cfg.activeConnectionId
+  if (isHarnessConnectionId(id)) {
+    const harness = harnesses.find((h) => `harness:${h.id}` === id) ?? null
+    return { kind: 'harness', connectionId: id, harness, model: '' }
+  }
+  const connection = connections.find((c) => c.id === id)
   if (!connection || !connection.protocol) return null
   return {
+    kind: 'vault',
+    connectionId: connection.id,
     connection,
     model: cfg.models[connection.id] ?? '',
     protocol: connection.protocol,
@@ -329,6 +365,7 @@ export function defaultConfig(): AiConfig {
     budgets: normalizeBudgets(
       (defaultFileConfig as { budgets?: Record<string, unknown> }).budgets,
     ),
+    harnesses: normalizeHarnesses(defaultFileConfig.harnesses),
     dataSources: {
       preset: defaultFileConfig.dataSources.preset,
       custom: { ...defaultFileConfig.dataSources.custom },
@@ -490,7 +527,29 @@ function mergeConfig(base: AiConfig, partial: Partial<AiConfig>): AiConfig {
     ...base.budgets,
     ...(partial.budgets ?? {}),
   })
+  result.harnesses = normalizeHarnesses(partial.harnesses ?? base.harnesses)
   return result
+}
+
+/** 手元の CLI の定義は id と command のある行だけ残す (Rust 側と同じ読み飛ばし) */
+export function normalizeHarnesses(raw: unknown): CustomHarness[] {
+  if (!Array.isArray(raw)) return []
+  const out: CustomHarness[] = []
+  for (const v of raw) {
+    if (typeof v !== 'object' || v === null) continue
+    const h = v as Record<string, unknown>
+    if (typeof h.id !== 'string' || typeof h.command !== 'string') continue
+    if (h.id.trim() === '' || h.command.trim() === '') continue
+    out.push({
+      id: h.id,
+      name: typeof h.name === 'string' && h.name.trim() !== '' ? h.name : h.id,
+      command: h.command,
+      args: Array.isArray(h.args)
+        ? h.args.filter((a): a is string => typeof a === 'string')
+        : [],
+    })
+  }
+  return out
 }
 
 /** 予算は非負の整数だけ残す (壊れた値は落とす = 無制限扱い) */

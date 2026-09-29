@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import type { HarnessInfo } from '@/bindings'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
+import {
+  harnessConnectionId,
+  useAiHarnesses,
+} from '@/composables/useAiHarnesses'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES, faviconUrl } from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
@@ -9,10 +14,12 @@ import AiSettingsSection from './AiSettingsSection.vue'
 
 const { config } = useAiConfig()
 const vault = useVault()
+const harnesses = useAiHarnesses()
 const windowsStore = useWindowsStore()
 
 onMounted(() => {
   void vault.refresh()
+  void harnesses.refresh()
 })
 
 // favicon の取得に失敗した接続 id。tabler icon に fallback する。
@@ -24,9 +31,42 @@ const aiConnections = computed(() =>
 )
 
 // 現在選択中の接続 (resolveAiConnection で解決)。未選択 / 不在なら null。
-const currentConnection = computed(
-  () => resolveAiConnection(config.value, vault.connections.value)?.connection,
+const current = computed(() =>
+  resolveAiConnection(
+    config.value,
+    vault.connections.value,
+    harnesses.harnesses.value,
+  ),
 )
+const currentConnection = computed(() =>
+  current.value?.kind === 'vault' ? current.value.connection : null,
+)
+/** 選択中の手元の CLI (#1104)。一覧未取得なら null */
+const currentHarness = computed(() =>
+  current.value?.kind === 'harness' ? current.value.harness : null,
+)
+const badgeLabel = computed(() => {
+  if (currentConnection.value) return currentConnection.value.name
+  if (current.value?.kind === 'harness') {
+    return currentHarness.value?.name ?? current.value.connectionId
+  }
+  return i18n.ts._aiConnectionSection.notSelected
+})
+const badgeOk = computed(
+  () =>
+    !!currentConnection.value ||
+    (current.value?.kind === 'harness' && !!currentHarness.value?.available),
+)
+
+/** 手元の CLI のアイコン。接続カードと同じく提供元サイトの favicon (無ければ端末アイコン) */
+function harnessIconUrl(h: HarnessInfo): string | null {
+  if (!h.homepage || failedIcons.value.has(harnessConnectionId(h))) return null
+  return faviconUrl(h.homepage)
+}
+
+function selectHarness(id: string): void {
+  config.value.activeConnectionId = harnessConnectionId({ id })
+}
 
 // 選択中接続のモデル名。`config.models[connectionId]` に保存する。
 const currentModel = computed<string>({
@@ -78,9 +118,9 @@ function openConnectionsWindow(): void {
   <AiSettingsSection
     icon="ti-plug-connected"
     :title="i18n.ts._aiConnectionSection.title"
-    :badge="currentConnection ? currentConnection.name : i18n.ts._aiConnectionSection.notSelected"
-    :badge-icon="currentConnection ? 'ti-shield-check' : 'ti-shield-off'"
-    :badge-ok="!!currentConnection"
+    :badge="badgeLabel"
+    :badge-icon="badgeOk ? 'ti-shield-check' : 'ti-shield-off'"
+    :badge-ok="badgeOk"
   >
     <div :class="$style.keyHint">
       <i class="ti ti-info-circle" />
@@ -127,6 +167,58 @@ function openConnectionsWindow(): void {
       <i class="ti ti-plug" />
       {{ i18n.ts._aiConnectionSection.manageConnections }}
     </button>
+
+    <!-- 手元の CLI (#1104)。API キーの代わりに、ログイン済みの CLI を ACP で借りる -->
+    <div :class="$style.subTitle">
+      <i class="ti ti-terminal-2" />
+      {{ i18n.ts._aiConnectionSection.harnessTitle }}
+    </div>
+    <div :class="$style.keyHint">
+      <i class="ti ti-info-circle" />
+      {{ i18n.ts._aiConnectionSection.harnessHint }}
+    </div>
+    <div :class="$style.grid">
+      <!-- 見つかったかどうかはボタンの外 (下) に添える。カード本体は接続カードと同じ形 -->
+      <div v-for="h in harnesses.harnesses.value" :key="h.id" :class="$style.cell">
+        <button
+          class="_button"
+          :class="[
+            $style.card,
+            {
+              [$style.cardActive]: config.activeConnectionId === harnessConnectionId(h),
+              [$style.cardUnavailable]: !h.available,
+            },
+          ]"
+          :aria-pressed="config.activeConnectionId === harnessConnectionId(h)"
+          :title="h.detail ?? [h.command, ...h.args].join(' ')"
+          @click="selectHarness(h.id)"
+        >
+          <span
+            v-if="config.activeConnectionId === harnessConnectionId(h)"
+            :class="$style.activeBadge"
+          >
+            <i class="ti ti-circle-check-filled" />
+          </span>
+          <img
+            v-if="harnessIconUrl(h)"
+            :src="harnessIconUrl(h)!"
+            :class="$style.logo"
+            alt=""
+            @error="failedIcons.add(harnessConnectionId(h))"
+          />
+          <i v-else class="ti ti-terminal-2" :class="$style.logoFallback" />
+          <span>{{ h.name }}</span>
+        </button>
+        <span :class="[$style.cellState, { [$style.cellStateOk]: h.available }]">
+          <i class="ti" :class="h.available ? 'ti-circle-check' : 'ti-circle-dashed'" />
+          {{ h.available ? i18n.ts._aiConnectionSection.harnessFound : i18n.ts._aiConnectionSection.harnessNotFound }}
+        </span>
+      </div>
+    </div>
+    <div v-if="currentHarness && !currentHarness.available" :class="$style.connEmpty">
+      <i class="ti ti-alert-triangle" />
+      <span>{{ currentHarness.detail }}</span>
+    </div>
   </AiSettingsSection>
 
   <AiSettingsSection v-if="currentConnection" icon="ti-cube" :title="i18n.ts._aiConnectionSection.model">
@@ -167,6 +259,44 @@ function openConnectionsWindow(): void {
 
 .keyBtn {
   @include btn-secondary;
+}
+
+.subTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 0.8em;
+  font-weight: 600;
+  color: var(--nd-fg);
+}
+
+.cardUnavailable.cardUnavailable {
+  opacity: 0.55;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cellState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.7em;
+  color: var(--nd-fgMuted);
+
+  i {
+    font-size: 1.2em;
+  }
+}
+
+.cellStateOk {
+  color: var(--nd-accent);
 }
 
 .field { @include field; }

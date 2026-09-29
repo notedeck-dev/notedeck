@@ -1254,6 +1254,14 @@ export interface Locale {
     readonly "tokensPerDay": string
     /** この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。 */
     readonly "dailyTokenBudgetHint": string
+    /** 手元の CLI で動かす */
+    readonly "harnessTitle": string
+    /** ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。 */
+    readonly "harnessHint": string
+    /** 見つかりました */
+    readonly "harnessFound": string
+    /** 見つかりません */
+    readonly "harnessNotFound": string
   }
   readonly "_aiDataSourcesSection": {
     /** データソース */
@@ -2508,6 +2516,8 @@ export interface Locale {
     readonly "issueToken": string
     /** 「{name}」のトークン — この表示を閉じると再表示できません */
     readonly "createdTokenNotice": ParameterizedString<'name'>
+    /** MCP: Claude Code などの AI エージェントからこのトークンで NoteDeck の capability を tool として呼べます (権限は上の「外部アプリ」に従います)。Claude Code なら次のコマンドで登録できます。 */
+    readonly "mcpHint": string
     /** permissions.json5 を直接編集できます。principal (ai.chat / ai.heartbeat / plugin / external) ごとの preset と custom マップを持ちます。 */
     readonly "codeHint": string
     /** AI への指示チャネルは第三者には開放できません */

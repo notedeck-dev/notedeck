@@ -700,6 +700,10 @@ _aiConnectionSection:
   dailyTokenBudget: "1 日の token 予算"
   tokensPerDay: "tokens / 日"
   dailyTokenBudgetHint: "この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。"
+  harnessTitle: "手元の CLI で動かす"
+  harnessHint: "ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。"
+  harnessFound: "見つかりました"
+  harnessNotFound: "見つかりません"
 
 _aiDataSourcesSection:
   title: "データソース"
@@ -1394,6 +1398,7 @@ _permissionsContent:
   tokenNamePlaceholder: "トークン名 (例: Raycast, Claude Cowork)"
   issueToken: "発行"
   createdTokenNotice: "「{name}」のトークン — この表示を閉じると再表示できません"
+  mcpHint: "MCP: Claude Code などの AI エージェントからこのトークンで NoteDeck の capability を tool として呼べます (権限は上の「外部アプリ」に従います)。Claude Code なら次のコマンドで登録できます。"
   codeHint: "permissions.json5 を直接編集できます。principal (ai.chat / ai.heartbeat / plugin / external) ごとの preset と custom マップを持ちます。"
   instructionRuleReason: "AI への指示チャネルは第三者には開放できません"
   tasksRuleReason: "タスクは本人と AI のみが実行できます"

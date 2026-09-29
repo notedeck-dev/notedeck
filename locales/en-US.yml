@@ -919,6 +919,10 @@ _aiConnectionSection:
   dailyTokenBudget: "Daily token budget"
   tokensPerDay: "tokens / day"
   dailyTokenBudgetHint: "Cap for chat and HEARTBEAT combined on this connection. 0 = unlimited."
+  harnessTitle: "Run with a local CLI"
+  harnessHint: "Use a logged-in CLI as the AI (no API key needed). Permission requests from the CLI appear as confirmations in the chat. HEARTBEAT does not run."
+  harnessFound: "found"
+  harnessNotFound: "not found"
 
 _aiDataSourcesSection:
   title: "Data sources"
@@ -1624,6 +1628,7 @@ _permissionsContent:
   tokenNamePlaceholder: "Token name (e.g. Raycast, Claude Cowork)"
   issueToken: "Issue"
   createdTokenNotice: "Token for “{name}” — it can’t be shown again once you close this"
+  mcpHint: "MCP: AI agents such as Claude Code can call NoteDeck capabilities as tools with this token (governed by the “External apps” permissions above). For Claude Code, register it with this command."
   codeHint: "Edit permissions.json5 directly. Each principal (ai.chat / ai.heartbeat / plugin / external) has a preset and a custom map."
   instructionRuleReason: "Instruction channels to the AI can't be opened to third parties"
   tasksRuleReason: "Only you and the AI can run tasks"

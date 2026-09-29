@@ -175,8 +175,66 @@ fn deadline_of(r: &Record) -> (Instant, &'static str) {
     }
 }
 
+/// その場で答える要求 (手元の CLI の許可要求、#1104)。チェックポイントを持たず、
+/// 答えは待っている future に oneshot で届く。request id はターン id で始まる
+fn live() -> &'static Mutex<HashMap<String, tokio::sync::oneshot::Sender<bool>>> {
+    static L: std::sync::OnceLock<Mutex<HashMap<String, tokio::sync::oneshot::Sender<bool>>>> =
+        std::sync::OnceLock::new();
+    L.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+pub(crate) fn live_register(request_id: &str) -> tokio::sync::oneshot::Receiver<bool> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    if let Ok(mut m) = live().lock() {
+        m.insert(request_id.to_string(), tx);
+    }
+    rx
+}
+
+pub(crate) fn live_forget(request_id: &str) {
+    if let Ok(mut m) = live().lock() {
+        m.remove(request_id);
+    }
+}
+
+fn live_answer(request_id: &str, accepted: bool) -> bool {
+    let tx = live().lock().ok().and_then(|mut m| m.remove(request_id));
+    match tx {
+        Some(tx) => {
+            let _ = tx.send(accepted);
+            true
+        }
+        None => false,
+    }
+}
+
+fn live_cancel_for_turn(turn_id: &str) {
+    let prefix = format!("{turn_id}:");
+    let taken: Vec<_> = live()
+        .lock()
+        .map(|mut m| {
+            let keys: Vec<String> = m
+                .keys()
+                .filter(|k| k.starts_with(&prefix))
+                .cloned()
+                .collect();
+            keys.into_iter().filter_map(|k| m.remove(&k)).collect()
+        })
+        .unwrap_or_default();
+    for tx in taken {
+        let _ = tx.send(false);
+    }
+}
+
 /// デバイスが要求を表示した。表示 TTL の起点になる。
 pub fn shown(request_id: &str) -> Result<()> {
+    if live()
+        .lock()
+        .map(|m| m.contains_key(request_id))
+        .unwrap_or(false)
+    {
+        return Ok(());
+    }
     let mut map = requests()
         .lock()
         .map_err(|_| NoteDeckError::Internal("confirm registry poisoned".into()))?;
@@ -192,6 +250,9 @@ pub fn shown(request_id: &str) -> Result<()> {
 
 /// デバイスの応答。最初の 1 つだけが効き、遅れた応答は明示エラー。
 pub fn respond(request_id: &str, accepted: bool) -> Result<()> {
+    if live_answer(request_id, accepted) {
+        return Ok(());
+    }
     let record = requests()
         .lock()
         .map_err(|_| NoteDeckError::Internal("confirm registry poisoned".into()))?
@@ -244,6 +305,7 @@ fn resume(record: Record, request_id: &str, accepted: bool, reason: Option<&'sta
 
 /// turn の中断: その turn の pending を cancelled で閉じる。
 pub(crate) fn cancel_for_turn(turn_id: &str) {
+    live_cancel_for_turn(turn_id);
     let removed: Vec<(String, Record)> = match requests().lock() {
         Ok(mut map) => {
             let ids: Vec<String> = map
@@ -269,6 +331,11 @@ pub(crate) fn cancel_for_turn(turn_id: &str) {
 /// 終了処理: 全部の pending を破棄する (チェックポイントは残り、次回起動の
 /// 復旧で「再起動」として閉じる)。
 pub fn abort_all() {
+    if let Ok(mut m) = live().lock() {
+        for (_, tx) in m.drain() {
+            let _ = tx.send(false);
+        }
+    }
     let handles: Vec<JoinHandle<()>> = match requests().lock() {
         Ok(mut map) => map.drain().filter_map(|(_, r)| r.watchdog).collect(),
         Err(_) => Vec::new(),

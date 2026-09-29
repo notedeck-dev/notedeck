@@ -18,6 +18,9 @@ use serde_json::Value;
 
 /// `archive_search` の wire 上の問い合わせ名 (notemaid → 端末)
 pub const ARCHIVE_SEARCH_QUERY: &str = "archive/search";
+/// 外部アプリ用の永続トークンの発行 / 失効 (手元の CLI に MCP サーバーを渡すため、#1104)
+pub const TOKEN_ISSUE_QUERY: &str = "api-token/issue";
+pub const TOKEN_REVOKE_QUERY: &str = "api-token/revoke";
 
 /// 手元の索引の横断検索 (#947)。`commands::timeline::search_archive` の引数と同じ
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -55,6 +58,12 @@ pub trait FrontendBridge: Send + Sync + 'static {
 
     /// 手元の索引を検索する (`Vec<NormalizedNote>` の JSON)。索引は端末にしか無い
     fn archive_search(&self, req: ArchiveSearchRequest) -> BridgeFuture<'_>;
+
+    /// 外部アプリ用の永続トークンを発行する (`{ id, token }`)。手元の CLI (#1104) に
+    /// NoteDeck の MCP サーバーを渡すためで、external principal の権限がそのまま効く
+    fn issue_external_token(&self, name: String) -> BridgeFuture<'_>;
+    /// 発行したトークンを失効させる (CLI を終えたとき)
+    fn revoke_external_token(&self, id: String) -> BridgeFuture<'_>;
 }
 
 /// 既定 (5 秒) のタイムアウトで問い合わせる。
@@ -87,5 +96,13 @@ impl FrontendBridge for NoDeviceBridge {
 
     fn archive_search(&self, _req: ArchiveSearchRequest) -> BridgeFuture<'_> {
         Box::pin(async { Err("no device is connected (the archive lives on the device)".into()) })
+    }
+
+    fn issue_external_token(&self, _name: String) -> BridgeFuture<'_> {
+        Box::pin(async { Err("no device is connected (tokens are issued on the device)".into()) })
+    }
+
+    fn revoke_external_token(&self, _id: String) -> BridgeFuture<'_> {
+        Box::pin(async { Err("no device is connected (tokens are revoked on the device)".into()) })
     }
 }

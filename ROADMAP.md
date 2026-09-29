@@ -728,9 +728,15 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
 - [ ] **`notedeck://` カスタム URI スキーム OS 登録** (#512) — ROADMAP「部分採用で完成していない機能」を
   正式実装。`tauri-plugin-deep-link` で macOS / Windows / Linux に登録し、外部アプリ・ブラウザ
   ブックマークレット・OS Shortcuts から `notedeck://compose` / `notedeck://search` などを起動可能に
-- [ ] **MCP サーバー公開** (#513) — Claude Desktop / Cursor / Cline 等の MCP クライアントから
-  NoteDeck capability を呼び出せるようにする。`notecli mcp-server` サブコマンド + capability registry
-  → MCP tool schema 自動変換。credential proxy 実行モデルを継承し AI に Misskey トークンを渡さない
+- [x] **MCP サーバー公開** (#513 / #555) — 内蔵 HTTP サーバーの `POST /mcp` (Streamable HTTP) で、
+  Claude Code / Codex / Cursor 等の MCP クライアントから NoteDeck の capability を tool として呼べる。
+  tool の集合と schema は AI プロバイダーに渡すものと同じ、実行は既存の dispatcher (external principal の
+  認可と汚染がそのまま効く)。AI に Misskey トークンは渡さない (2026-09-30)。stdio transport と
+  「GUI の AI セッションに話しかける」(#555 Phase 2) は未
+- [x] **手元の CLI を AI にする (ACP)** (#1104) — ログイン済みの Claude Code / Codex / OpenCode /
+  Gemini CLI / Hermes Agent / Grok Build を notemaid が ACP の子プロセスとして抱え、AI カラムの provider にする。
+  API キー不要 (CLI の契約で動く)。NoteDeck の capability は MCP で CLI に渡し、CLI の許可要求は
+  確認ダイアログに出る。HEARTBEAT はこの経路では回さない (2026-09-30)。CLI のセッション読み込みは未
 - [ ] **OS グローバルホットキー（任意 capability bind）** (#514) — 現状 Quick Note / Boss Key の
   2 つだけハードコードされているグローバルホットキーを、任意の capability に bind 可能に拡張。
   `settings.json` の `globalShortcuts` セクションで管理。Stream Deck / Raycast 未導入のユーザー

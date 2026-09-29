@@ -12,6 +12,7 @@ import {
   useAiConfig,
 } from '@/composables/useAiConfig'
 import { useAiConversation } from '@/composables/useAiConversation'
+import { useAiHarnesses } from '@/composables/useAiHarnesses'
 import {
   buildAiContextBlock,
   joinSystemPrompt,
@@ -69,6 +70,7 @@ const sessionsStore = useAiSessionsStore()
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
 const vault = useVault()
+const harnesses = useAiHarnesses()
 
 void sessionsStore.loadAllMeta()
 // メモは <memos> データソースとして AI context に注入し得るので、
@@ -313,11 +315,18 @@ async function onDeleteSession(
 // reactive な connections.value から同期的に判定するだけにする。
 
 function checkProvider(): void {
-  const resolved = resolveAiConnection(aiConfig.value, vault.connections.value)
+  const resolved = resolveAiConnection(
+    aiConfig.value,
+    vault.connections.value,
+    harnesses.harnesses.value,
+  )
+  // 手元の CLI (#1104) は PATH に見つかれば繋がったとみなす (ログイン状態は起動時に分かる)
   const ready =
     resolved !== null &&
-    resolved.model.length > 0 &&
-    (resolved.connection.slots?.length ?? 0) > 0
+    (resolved.kind === 'harness'
+      ? (resolved.harness?.available ?? false)
+      : resolved.model.length > 0 &&
+        (resolved.connection.slots?.length ?? 0) > 0)
   providerStatus.value = ready ? 'connected' : 'disconnected'
   // 設定が済んだら導線は用済み
   if (ready) needsAiSetup.value = false
@@ -334,12 +343,14 @@ function startAiSetupTutorial(): void {
 // カラム表示時に接続一覧を最新化する (watch が connections.value の変化を
 // 拾って checkProvider を再評価する)。
 void vault.refresh()
+void harnesses.refresh()
 
 watch(
   () => [
     aiConfig.value.activeConnectionId,
     aiConfig.value.models[aiConfig.value.activeConnectionId],
     vault.connections.value,
+    harnesses.harnesses.value,
   ],
   () => {
     checkProvider()
@@ -504,7 +515,7 @@ async function sendMessage(
     // per-account の AI カラムはそのアカウントを呼び出し文脈にする。全アカウント
     // のカラムは文脈なし = capability 側で accountId を明示させる (#941)
     accountId: props.column.accountId ?? null,
-    connectionId: resolved.connection.id,
+    connectionId: resolved.connectionId,
     model: resolved.model,
     continuation,
     // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す

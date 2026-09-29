@@ -229,6 +229,25 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 本格クライアント（dogfooding）を兼ねる。19820 に新しい面を足すときの
 テストベンチとして育てる。
 
+## MCP サーバー ([#555](https://github.com/notedeck-dev/notedeck/issues/555) / [#513](https://github.com/notedeck-dev/notedeck/issues/513))
+
+外部の AI エージェント (Claude Code / Codex / Cursor など) が動作中の NoteDeck の capability を tool として呼ぶ面。内蔵 HTTP サーバーの `POST /mcp` (Streamable HTTP、JSON-RPC を JSON で返す。状態なし、サーバー発のストリーム無し、GET は 405) で、本体は `crates/notecore/src/mcp.rs`。
+
+- **tool の集合と schema は AI プロバイダーに渡すものと同じ** (宣言表の `ai_tool` な capability、名前は `.` を `_` にした形、schema は `capabilities::input_schema`)。実行は既存の `capabilities/execute` (橋 → デバイスの dispatcher) なので、認可 (external principal、#712) と汚染 (#1103) は HTTP の `/api/capabilities/{id}/execute` と同じ 1 か所で効く。tool の失敗は JSON-RPC のエラーではなく `isError` の結果 (dispatcher の `code: error` をそのまま文面に)
+- **認証は HTTP API と同じ Bearer**。永続トークンで繋ぐと external principal になる。権限ウィンドウの「外部アプリ」でトークンを発行すると、Claude Code 向けの登録コマンド (`claude mcp add ... --transport http`) が一緒に出る
+- external gate の対応表では `/mcp` は免除 (tools/list は静的 metadata、tools/call は dispatcher が enforce)。OpenAPI には載せない (JSON-RPC のため)。単体テストは `mcp.rs` (版の交渉 / 一覧 / 実行の写像 / 通知と batch)
+- ACP (#1104) で手元の CLI を抱えるときは、この URL とトークンを CLI に渡すだけで NoteDeck の capability が使える
+
+## 手元の CLI を AI にする — ACP ([#1104](https://github.com/notedeck-dev/notedeck/issues/1104))
+
+ログイン済みの Claude Code / Codex / OpenCode / Gemini CLI / Hermes Agent / Grok Build を、API キー無しで AI カラムの provider にする面。CLI は ACP (Agent Client Protocol) を stdio で話す子プロセスで、**notemaid が抱える** (本体は `crates/notemaid/src/acp/`)。CLI が持つ資格情報には触れず、公式 CLI か公式アダプタをそのまま起動するだけ (規約の線引き)。
+
+- **接続の 1 種**: 接続 id は `harness:<id>`。組み込みの一覧 (`acp/harness.rs`) は PATH で検出し、AI 設定の接続ピッカーに「手元の CLI」として並ぶ (`commands.aiHarnessList`)。利用者は ai.json5 の `harnesses[]` に自分のコマンドを足せる。`resolveAiConnection` は `kind: 'vault' | 'harness'` の直和を返し、呼び出し側は `connectionId` だけ使う
+- **ターン実行器はそのまま**: `AcpProvider` は `ProviderRound` の実装で、1 ラウンド = CLI の 1 ターン。NoteDeck のセッションごとに ACP セッションを 1 つ持ち (`Registry`)、新規セッションの初回はそれまでの会話と context を prompt に畳み、以降は最新の入力だけ送る。`session/update` の `agent_message_chunk` は `delta`、`tool_call` は 1 行の見出しに写像。タイトル生成は行わない (CLI のセッションを汚す)。1 往復の経路 (`aiChatSend`) は harness を受けない
+- **capability は MCP で渡す**: セッション開始時に橋 `api-token/issue` で external principal の永続トークンを発行し、`POST /mcp` の URL と一緒に `session/new` の `mcpServers` に載せる。CLI の tool 呼び出しは MCP サーバー (#555) を通り、認可 (external principal) と汚染は同じ dispatcher で効く。トークンは notemaid / アプリの終了時に橋 `api-token/revoke` で失効 (`acp::shutdown_all`)
+- **許可要求は確認ダイアログ**: `session/request_permission` は `confirm::live_register` で即答型の確認要求 (チェックポイント無し、`capabilityId: acp.permission`) としてフロントの `confirm_request` に出し、答えを ACP の `optionId` (allow / reject) に写像する。ターン中断で `session/cancel`
+- **やらないこと**: HEARTBEAT はこの経路で回さない (`model_for_active` が harness を返さない)。モバイルは対象外。CLI のセッション読み込み (`session/load`) と fs / terminal の提供は未 (-32601)。実機での確認は `cargo test -p notemaid acp::client::live -- --ignored` (CLI の契約を 1 リクエスト使う)
+
 ## Architecture
 
 NoteDeck は 1 つのリポジトリ (Cargo workspace) で、`crates/notecli` (Misskey クライアント + CLI) と `src-tauri` (アプリの Rust) を持ちます (notecli は 2026-09-23 に別リポジトリから取り込んだ、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。

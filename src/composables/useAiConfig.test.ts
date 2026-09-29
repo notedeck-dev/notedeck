@@ -16,6 +16,8 @@ import {
   HEARTBEAT_INTERVAL_MIN_MINUTES,
   type HeartbeatConfig,
   normalizeGenerationConfig,
+  normalizeHarnesses,
+  resolveAiConnection,
   resolveDataSources,
   setDataSourcePreset,
 } from './useAiConfig'
@@ -251,5 +253,52 @@ describe('generation config', () => {
     })
     expect(merged.generation.maxToolRounds).toBe(20)
     expect(merged.generation.titleMaxTokens).toBe(AI_TITLE_MAX_TOKENS_DEFAULT)
+  })
+})
+
+describe('local CLI harness (#1104)', () => {
+  it('resolves a harness: id without looking at the vault', () => {
+    const cfg = { ...defaultConfig(), activeConnectionId: 'harness:codex' }
+    const r = resolveAiConnection(
+      cfg,
+      [],
+      [
+        {
+          id: 'codex',
+          name: 'Codex',
+          command: 'npx',
+          args: [],
+          available: true,
+          detail: null,
+          custom: false,
+          homepage: null,
+        },
+      ],
+    )
+    expect(r).toMatchObject({
+      kind: 'harness',
+      connectionId: 'harness:codex',
+      harness: { name: 'Codex', available: true },
+    })
+    // 一覧が未取得でも id は解決する (使えるかは Rust が起動時に判定)
+    expect(resolveAiConnection(cfg, [])).toMatchObject({
+      kind: 'harness',
+      harness: null,
+    })
+  })
+
+  it('keeps custom harness rows across a merge and drops broken ones', () => {
+    const merged = mergeConfig(defaultConfig(), {
+      harnesses: normalizeHarnesses([
+        { id: 'mine', command: 'my-agent', args: ['acp', 1] },
+        { id: '', command: 'x' },
+        { id: 'nocmd' },
+        'junk',
+      ]),
+    })
+    expect(merged.harnesses).toEqual([
+      { id: 'mine', name: 'mine', command: 'my-agent', args: ['acp'] },
+    ])
+    expect(mergeConfig(defaultConfig(), {}).harnesses).toEqual([])
   })
 })
