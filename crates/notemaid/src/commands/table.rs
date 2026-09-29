@@ -17,6 +17,7 @@ macro_rules! with_maid_command_table {
         data ai_turn_cancel(turn_id: String) -> Option<$crate::ai_sessions::SessionMessage> = $crate::commands::ai_chat::ai_turn_cancel;
         data ai_confirm_respond(request_id: String, accepted: bool) -> () = $crate::commands::ai_chat::ai_confirm_respond;
         data ai_confirm_shown(request_id: String) -> () = $crate::commands::ai_chat::ai_confirm_shown;
+        data ai_harness_list() -> Vec<$crate::acp::HarnessInfo> = $crate::commands::ai_chat::ai_harness_list;
         data capability_execute(id: String, params: serde_json::Value, principal: String, account_id: Option<String>, tainted: bool, plugin_id: Option<String>) -> $crate::exec::ExecOutcome = $crate::commands::ai_chat::capability_execute;
         data capability_preview(id: String, params: serde_json::Value, principal: String, account_id: Option<String>, tainted: bool, plugin_id: Option<String>) -> Option<serde_json::Value> = $crate::commands::ai_chat::capability_preview;
             // --- ai_sessions (crates/notemaid/src/commands/ai_sessions.rs) ---

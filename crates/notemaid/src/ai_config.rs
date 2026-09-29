@@ -62,6 +62,8 @@ pub struct AiConfigLite {
     pub generation: GenerationConfig,
     /// 接続 id → 日次 token 予算 (0 / 無し = 無制限、#1133 縦切り 6)
     pub budgets: std::collections::HashMap<String, u64>,
+    /// 利用者が足した手元の CLI (`harnesses: [{ id, name, command, args }]`、#1104)
+    pub harnesses: Vec<crate::acp::harness::CustomHarness>,
 }
 
 impl AiConfigLite {
@@ -72,6 +74,10 @@ impl AiConfigLite {
 
     pub fn model_for_active(&self) -> Option<String> {
         if self.active_connection_id.is_empty() {
+            return None;
+        }
+        // 手元の CLI (#1104) は無人実行 (HEARTBEAT) の provider にしない
+        if crate::acp::harness_id(&self.active_connection_id).is_some() {
             return None;
         }
         self.models
@@ -110,6 +116,15 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
             .unwrap_or(default)
     };
     AiConfigLite {
+        harnesses: doc
+            .get("harnesses")
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|v| serde_json::from_value(v.clone()).ok())
+                    .collect()
+            })
+            .unwrap_or_default(),
         active_connection_id: doc
             .get("activeConnectionId")
             .and_then(Value::as_str)
@@ -283,6 +298,14 @@ mod tests {
         assert_eq!(c.daily_budget_for("c1"), Some(5000));
         assert_eq!(c.daily_budget_for("c2"), None);
         assert_eq!(c.daily_budget_for("c3"), None);
+        // 手元の CLI (#1104) はモデル名があっても無人実行の provider にならない
+        let h = from_document(&json!({
+            "activeConnectionId": "harness:codex", "models": {"harness:codex": "x"},
+            "harnesses": [{"id": "mine", "command": "my-agent", "args": ["acp"]}, {"id": ""}]
+        }));
+        assert_eq!(h.model_for_active(), None);
+        assert_eq!(h.harnesses.len(), 1);
+        assert_eq!(h.harnesses[0].id, "mine");
         assert_eq!(c.heartbeat.interval_minutes, 1440);
         assert_eq!(c.heartbeat.target, "auto");
         assert_eq!(c.heartbeat.on_daily_limit, "disable");

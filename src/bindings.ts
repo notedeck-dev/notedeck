@@ -2304,6 +2304,15 @@ async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; m
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
+async aiHarnessList() : Promise<Result<HarnessInfo[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("ai_harness_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted, pluginId }) };
@@ -2866,7 +2875,11 @@ read_timeout_ms: number | null;
  * フロントが provider に応じて事前変換した形で渡す。空 / None なら
  * tool calling は無効 (= 既存挙動と同じ)。
  */
-tools: JsonValue | null }
+tools: JsonValue | null; 
+/**
+ * 書込先の NoteDeck セッション (手元の CLI が自分のセッションと対応づけるため、#1104)
+ */
+session_id?: string | null }
 export type AiChatRole = "system" | "user" | "assistant"
 /**
  * セッション (wire)。`message_count` / `last_message_preview` は算出値。
@@ -3275,6 +3288,26 @@ export type FollowChartSection = { followings: FollowChartGroup; followers: Foll
  * packages/backend/src/models/GalleryPost.ts。
  */
 export type GalleryPost = { id: string; createdAt: string; updatedAt: string; title: string; description: string | null; userId: string; user?: NormalizedUser | null; files: NormalizedDriveFile[]; isSensitive?: boolean; likedCount?: number; isLiked?: boolean | null }
+/**
+ * 接続ピッカーに並べる 1 件。`available` が false なら `detail` に足りないものを書く
+ */
+export type HarnessInfo = { 
+/**
+ * `claude-code` など。接続 id は `harness:` + これ
+ */
+id: string; name: string; 
+/**
+ * 起動コマンド (PATH で解決した実体、または利用者の指定)
+ */
+command: string; args: string[]; available: boolean; 
+/**
+ * 使えないときの理由 / 補足 (英語のまま。開発者向け)
+ */
+detail: string | null; 
+/**
+ * 利用者が ai.json5 に書いた定義か
+ */
+custom: boolean }
 export type HealthReport = { 
 /**
  * notecli doctor の結果 (database / keychain / accounts / network / auth)。

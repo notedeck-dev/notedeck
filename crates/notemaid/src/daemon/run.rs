@@ -267,6 +267,7 @@ async fn serve(
     shutdown.trigger();
     crate::ai_chat_service::abort_all_streams();
     crate::ai_turn::abort_all_turns();
+    crate::acp::shutdown_all(core.frontend_bridge().ok()).await;
     let _ = tokio::time::timeout(Duration::from_secs(5), serve_task).await;
     if let crate::transport::Endpoint::Unix(path) = &socket {
         let _ = std::fs::remove_file(path);

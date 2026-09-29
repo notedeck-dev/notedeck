@@ -228,6 +228,12 @@ mod tests {
         ) -> BridgeFuture<'_> {
             Box::pin(async { Ok(json!([])) })
         }
+        fn issue_external_token(&self, _n: String) -> BridgeFuture<'_> {
+            Box::pin(async { Err("no".into()) })
+        }
+        fn revoke_external_token(&self, _i: String) -> BridgeFuture<'_> {
+            Box::pin(async { Ok(Value::Null) })
+        }
     }
     fn fake(reply: Result<Value, String>) -> Fake {
         Fake {

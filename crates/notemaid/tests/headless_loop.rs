@@ -66,6 +66,9 @@ fn event(kind: &str) -> AiChatEvent {
         tool_use_name: None,
         tool_use_input: None,
         usage: None,
+        confirm_request_id: None,
+        confirm_items: None,
+        expires_at_ms: None,
     }
 }
 

@@ -919,6 +919,10 @@ _aiConnectionSection:
   dailyTokenBudget: "Daily token budget"
   tokensPerDay: "tokens / day"
   dailyTokenBudgetHint: "Cap for chat and HEARTBEAT combined on this connection. 0 = unlimited."
+  harnessTitle: "Run with a local CLI"
+  harnessHint: "Use a logged-in Claude Code / Codex / OpenCode / Gemini CLI / Hermes Agent as the AI. No API key is needed; it runs on the CLI's own plan (Max / Pro, etc.). NoteDeck's operations become the CLI's tools over MCP, and permissions the CLI asks for show up as confirmations in the chat. HEARTBEAT does not run through this route."
+  harnessFound: "found"
+  harnessNotFound: "not found"
 
 _aiDataSourcesSection:
   title: "Data sources"

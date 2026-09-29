@@ -489,6 +489,14 @@ impl AiChatSink for RoundSink {
                     }
                 }
             }
+            // 手元の CLI (#1104) の許可要求。ターンの確認要求と同じ形でデバイスに出す
+            "confirm_request" => {
+                let mut e = AiTurnEvent::new(&self.turn_id, "confirm_request");
+                e.confirm_request_id = event.confirm_request_id;
+                e.confirm_items = event.confirm_items;
+                e.expires_at_ms = event.expires_at_ms;
+                self.sink.emit(e);
+            }
             _ => {}
         }
     }
@@ -769,6 +777,7 @@ fn round_request(
         } else {
             Some(Value::Array(tools.to_vec()))
         },
+        session_id: req.session_id.clone(),
     }
 }
 
@@ -836,6 +845,7 @@ async fn generate_title(
         max_tokens: req.title_max_tokens,
         read_timeout_ms: req.read_timeout_ms,
         tools: None,
+        session_id: None,
     };
     let chars = request_chars(&title_req);
     if let Some((dir, daily)) = budget {
@@ -1727,10 +1737,38 @@ pub async fn start_turn_with_sink(
             )))
         }
     };
+    // 手元の CLI (#1104): 接続 id が harness: なら ACP の provider。model は名前で埋める
+    let mut req = req;
+    let harness = match crate::acp::harness_id(&req.connection_id) {
+        Some(id) => {
+            let custom = ai_config::load_from_app_dir(app_dir).harnesses;
+            let info = crate::acp::harness::find(&custom, id)
+                .ok_or_else(|| NoteDeckError::InvalidInput(format!("unknown CLI harness: {id}")))?;
+            if req.model.trim().is_empty() {
+                req.model = info.name.clone();
+            }
+            // タイトル生成は CLI のセッションを汚すので使わない (時刻の題のまま)
+            req.generate_title = false;
+            Some(info)
+        }
+        None => None,
+    };
     ai_chat_service::validate_request(&round_request(&req, 0, &req.messages, &[]))?;
-    let conn = ai_chat_service::resolve_connection(app_dir, &req.connection_id)?;
+    let provider: Arc<dyn ProviderRound> = match harness {
+        Some(info) => Arc::new(crate::acp::AcpProvider {
+            harness: info,
+            registry: crate::acp::registry(),
+            bridge: bridge.clone(),
+            workspace: crate::acp::workspace(app_dir),
+            mcp_url: Some(notecore::http_server::mcp_url()),
+        }),
+        None => Arc::new(VaultProvider(ai_chat_service::resolve_connection(
+            app_dir,
+            &req.connection_id,
+        )?)),
+    };
     let rt = Arc::new(TurnRuntime {
-        provider: Arc::new(VaultProvider(conn)),
+        provider,
         granted: Arc::new(FileGranted(principal)),
         skips: Arc::new(FileSkips),
         bridge,
@@ -1855,6 +1893,9 @@ mod tests {
             tool_use_name: None,
             tool_use_input: None,
             usage: None,
+            confirm_request_id: None,
+            confirm_items: None,
+            expires_at_ms: None,
         }
     }
 
@@ -1869,6 +1910,9 @@ mod tests {
             tool_use_name: Some(name.into()),
             tool_use_input: Some(input),
             usage: None,
+            confirm_request_id: None,
+            confirm_items: None,
+            expires_at_ms: None,
         }
     }
 
@@ -1977,6 +2021,12 @@ mod tests {
             _req: notecore::frontend_bridge::ArchiveSearchRequest,
         ) -> BridgeFuture<'_> {
             Box::pin(async { Ok(Value::Array(Vec::new())) })
+        }
+        fn issue_external_token(&self, _n: String) -> BridgeFuture<'_> {
+            Box::pin(async { Err("no".into()) })
+        }
+        fn revoke_external_token(&self, _i: String) -> BridgeFuture<'_> {
+            Box::pin(async { Ok(Value::Null) })
         }
     }
 

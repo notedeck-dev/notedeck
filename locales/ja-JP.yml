@@ -700,6 +700,10 @@ _aiConnectionSection:
   dailyTokenBudget: "1 日の token 予算"
   tokensPerDay: "tokens / 日"
   dailyTokenBudgetHint: "この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。"
+  harnessTitle: "手元の CLI で動かす"
+  harnessHint: "ログイン済みの Claude Code / Codex / OpenCode / Gemini CLI / Hermes Agent を AI として使います。API キーは要らず、CLI の契約 (Max / Pro など) で動きます。NoteDeck の操作は MCP 経由で CLI の tool になり、CLI が要求する許可はチャットに確認として出ます。HEARTBEAT はこの経路では動きません。"
+  harnessFound: "見つかりました"
+  harnessNotFound: "見つかりません"
 
 _aiDataSourcesSection:
   title: "データソース"

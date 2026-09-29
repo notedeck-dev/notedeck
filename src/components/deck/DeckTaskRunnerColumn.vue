@@ -193,7 +193,7 @@ function runFromList(taskId: string) {
  */
 async function runWithAi(def: TaskDefinition): Promise<void> {
   const resolved = resolveAiConnection(aiConfig.value, vault.connections.value)
-  if (!resolved || !resolved.model) {
+  if (!resolved || (resolved.kind === 'vault' && !resolved.model)) {
     useToast().show(i18n.ts._deckTaskRunnerColumn.aiNotConfigured, 'error')
     return
   }
@@ -202,7 +202,7 @@ async function runWithAi(def: TaskDefinition): Promise<void> {
     kind: 'task',
     title: def.label,
     model: resolved.model,
-    connectionId: resolved.connection.id,
+    connectionId: resolved.connectionId,
   })
 
   const now = Date.now()

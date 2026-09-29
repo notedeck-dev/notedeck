@@ -80,7 +80,12 @@ struct ApiErrorResponse {
     message: String,
 }
 
-const PORT: u16 = 19820;
+pub const PORT: u16 = 19820;
+
+/// MCP サーバー (#555) の URL。手元の CLI (#1104) に渡す
+pub fn mcp_url() -> String {
+    format!("http://127.0.0.1:{PORT}/mcp")
+}
 
 // --- NoteDeck-specific state (for deck, commands, proxy routes) ---
 

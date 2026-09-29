@@ -93,6 +93,9 @@ pub struct AiChatRequest {
     /// フロントが provider に応じて事前変換した形で渡す。空 / None なら
     /// tool calling は無効 (= 既存挙動と同じ)。
     pub tools: Option<serde_json::Value>,
+    /// 書込先の NoteDeck セッション (手元の CLI が自分のセッションと対応づけるため、#1104)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
 }
 
 /// Wire-format event sent over the `nd:ai-chat-event` channel.
@@ -128,6 +131,14 @@ pub struct AiChatEvent {
     /// 来うる: 入力が先、出力は累積)。返さない provider では来ない
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<crate::ai_budget::TokenUsage>,
+    /// `kind == "confirm_request"` (手元の CLI からの許可要求、#1104)。ターンの
+    /// `confirm_request` と同じ形でデバイスの確認ダイアログに写す
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirm_request_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub confirm_items: Option<serde_json::Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at_ms: Option<u64>,
 }
 
 /// ストリームのイベントの届け先。Tauri 側は `nd:ai-chat-event` へ emit する実装を渡す。
@@ -417,6 +428,12 @@ pub async fn start_stream(
     req: AiChatRequest,
 ) -> Result<()> {
     validate_request(&req)?;
+    if crate::acp::harness_id(&req.connection_id).is_some() {
+        // 手元の CLI (#1104) はターン実行器 (ai_turn) だけが回す。1 往復の経路は無い
+        return Err(NoteDeckError::InvalidInput(
+            "a CLI harness cannot answer a single-shot request; use the AI column".into(),
+        ));
+    }
     let conn = resolve_connection(app_dir, &req.connection_id)?;
 
     let stream_id = req.stream_id.clone();
@@ -462,6 +479,9 @@ fn emit_delta(sink: &dyn AiChatSink, stream_id: &str, text: String) {
         tool_use_name: None,
         tool_use_input: None,
         usage: None,
+        confirm_request_id: None,
+        confirm_items: None,
+        expires_at_ms: None,
     });
 }
 
@@ -476,6 +496,9 @@ fn emit_usage(sink: &dyn AiChatSink, stream_id: &str, usage: crate::ai_budget::T
         tool_use_name: None,
         tool_use_input: None,
         usage: Some(usage),
+        confirm_request_id: None,
+        confirm_items: None,
+        expires_at_ms: None,
     });
 }
 
@@ -490,6 +513,9 @@ fn emit_done(sink: &dyn AiChatSink, stream_id: &str) {
         tool_use_name: None,
         tool_use_input: None,
         usage: None,
+        confirm_request_id: None,
+        confirm_items: None,
+        expires_at_ms: None,
     });
 }
 
@@ -504,6 +530,9 @@ fn emit_error(sink: &dyn AiChatSink, stream_id: &str, e: RoundError) {
         tool_use_name: None,
         tool_use_input: None,
         usage: None,
+        confirm_request_id: None,
+        confirm_items: None,
+        expires_at_ms: None,
     });
 }
 
@@ -524,6 +553,9 @@ fn emit_tool_use(
         tool_use_name: Some(name),
         tool_use_input: Some(input),
         usage: None,
+        confirm_request_id: None,
+        confirm_items: None,
+        expires_at_ms: None,
     });
 }
 
@@ -1352,6 +1384,7 @@ mod tests {
             max_tokens: None,
             read_timeout_ms: None,
             tools,
+            session_id: None,
         }
     }
 
