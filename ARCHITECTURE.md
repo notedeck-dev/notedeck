@@ -136,26 +136,25 @@ sequenceDiagram
 
 ---
 
-### 目指す構成: notecore と notecored（[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)、未実装）
+### 目指す構成: notecore と notemaid（[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)）
 
-上の全体像は現状で、Rust Backend の中に Tauri 非依存のドメインと Tauri アダプタが同居している。目指す構成では前者を **notecore** クレートに集め、同じ notecore を「Tauri の殻 (手元)」と「notecored の殻 (自分のサーバー)」の両方で動かす。
+上の全体像のうち Tauri 非依存のドメインは **notecore** クレートに切り出し済み。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) は **notemaid** (lib + bin の 1 クレート) に置く (2026-09-29 に決定、切り出しは未着手)。常駐 (自分のサーバーで動かす) の対象は notemaid だけで、データ面は常に手元で動く。「notecore 全体を notecored として自分のサーバーで常駐させる」旧計画は #1106 で中止した (理由は同 issue の 2026-09-29 コメント)。
 
 ```
 フロントエンド (Vue)
       │ IPC (常に手元の Rust とだけ話す)
-┌─ 殻: Tauri ─────────────┐  中継  ┌─ 殻: notecored ───────────┐
-│ OS 統合 + クライアント層 │ ─────▶ │ 常駐、RPC + SSE、ペアリング │
-└──────────┬──────────────┘        └───────────┬──────────────┘
-           ▼                                   ▼
-        notecore ────────── 同じクレート ──── notecore
-           ▼                                   ▼
-        notecli                             notecli
+┌─ アプリ (Tauri、手元) ──────────────┐  AI 系コマンドだけ  ┌─ notemaid bin (自分のサーバー、任意) ─┐
+│ OS 統合 + クライアント層             │ ───────────────▶ │ メイド (ループ / HEARTBEAT / 配送)      │
+│  notemaid lib (埋め込みのメイド)     │  socket           │  notecore (自分の Core)                │
+│  notecore (データ面、常に手元)       │                  │  notecli                               │
+│  notecli                           │                  └───────────────────────────────────────┘
+└────────────────────────────────────┘
 ```
 
-- 依存の向きは一方向: フロント → Tauri → notecore → notecli、notecored → notecore → notecli。notecore は Tauri を知らず、notecli は notecore を知らない。4 つは同じリポジトリの workspace クレートで、notecli は取り込む (別リポジトリの固定版更新をなくす)
-- 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通り、ローカル構成では in-process、リモート構成では notecored への中継になる。フロントは違いを知らず、接続 / 互換 / 同期の状態面だけを知る
-- AI エージェントループは Rust で notecore に置く（[#1133](https://github.com/notedeck-dev/notedeck/issues/1133)）
-- 認証 (デバイスの鍵対とペアリング)、イベント面 (購読宣言とクエリ単位の差分)、状態の所有 (notecore 側と手元側の設定の分け方) は #1106 の仕様コメントが正本
+- 依存の向きは一方向: notecli ← notecore ← notemaid ← アプリ。notecore は Tauri も AI も知らず、notemaid は notecore の Core を借りて読み書きする。包含ではなく積み木で、両方を含むのはアプリ。4 つは同じリポジトリの workspace クレート
+- 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通って常に in-process の notecore へ、AI 系コマンドは notemaid の表を通って「AI の実行先」設定に従い in-process の notemaid lib か socket 越しの notemaid bin へ。フロントは違いを知らず、接続 / 互換の状態面だけを知る
+- リモートモードでは notecore のインスタンスが端末とサーバーに 1 つずつあり、同期しない。メイドの持ち物 (セッション / メモ / skill) はメイドの居る側にあり、端末はそれをリモート編集する
+- 認証、イベント面、状態の所在は #1106 の仕様コメントが正本 (2026-09-29 のコメントで AI 面に縮めた後の読み方が優先)
 
 ---
 

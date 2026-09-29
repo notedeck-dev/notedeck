@@ -68,8 +68,8 @@ Layer 3: 検索・整理 ──────────────────�
 Layer 4: 拡張 ─────────────────────────────────
   HTTP API │ CLI │ AI 統合 │ Nd:* API
                    ↓
-常駐: notecore / notecored ──────────────────────
-  Tauri 非依存の中核を切り出し、自分のサーバーで常駐させる（#1106）
+常駐: notemaid ──────────────────────────────────
+  AI (メイド) だけを自分のサーバーで常駐させる。データ面は手元のまま（#1106）
 ```
 
 ---
@@ -180,18 +180,24 @@ notecli は NoteDeck の Rust バックエンドから Tauri 非依存のコー�
   同じノートが複数のカラムに現れても所属が後勝ちで上書きされなくなり、
   カラムの所属で絞った検索が取りこぼさなくなった（カラムクエリのキャッシュ検索の前提）
 
-### notecore / notecored（目指す構成、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)）
+### notecore / notemaid（目指す構成、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)）
 
-Tauri 非依存のドメインを notecore に集め、アプリに埋め込む構成と、自分のサーバーで常駐させる notecored の両方で使う。ローカル構成は残り、リモート構成は追加の構成。リポジトリは notedeck 1 つで、notecli / notecore / notecored / アプリの 4 クレート。順序は #1106 本文の「なぜ」のとおり。
+Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) を notemaid (lib + bin の 1 クレート) に置く。埋め込みが既定で、自分のサーバーで常駐させられるのは notemaid だけ。データ面は常に手元。リポジトリは notedeck 1 つで、notecli / notecore / notemaid / アプリの 4 クレート。
 
 - [x] **notecli の取り込み** — notecli を notedeck の workspace に履歴ごと取り込み、git 依存をパス依存に替えた。CLI バイナリはリリースの成果物として残す
 - [x] **境界と検査** — `crates/notecore/src/` (Tauri 非依存) と全コマンドの種別マーカー `// nd-command:` を lint で固定した
-- [ ] **コマンドの書き換えとクライアント層** — notecore クレートを作り、データ系コマンドをその関数に書き直し、コマンド表 (型付き + JSON アダプタ) と in-process の transport を通す
+- [x] **コマンドの書き換えとクライアント層** — notecore クレートを作り、データ系コマンドをその関数に書き直し、コマンド表 (型付き + JSON アダプタ) と in-process の transport を通した
 - [x] **単独で価値のある修正** — ループの既知の欠陥、ファイル secret backend への自動劣化、notecli ルートの CORS、ログ世代上限、migration 検査
-- [ ] **AI エージェントループを Rust の notecore へ** — [#1133](https://github.com/notedeck-dev/notedeck/issues/1133)
-- [x] **同一ホストの notecored** — headless バイナリ、RPC 面、橋、購読のセッション所有、切替導線 (クエリ差分は外向きへ)。notecli 単体のデーモンモードは廃止済み
-- [ ] **外向き** — 署名認証、ペアリング、TLS、移行パッケージ、配布
-- [ ] **モバイル** — Android / iOS でリモート構成を選べる
+- [x] **AI エージェントループを Rust へ** — [#1133](https://github.com/notedeck-dev/notedeck/issues/1133)
+- [x] **同一ホストの notecored** — headless バイナリ、RPC 面、橋、購読のセッション所有、切替導線。notecli 単体のデーモンモードは廃止済み。**2026-09-29 に方針転換**: データ面の常駐は中止し、部品を notemaid へ移す (下記)
+- [ ] **notemaid クレートの新設** — AI 系の移設、コマンド表を notecore の表と notemaid の表に 2 分割、Core を包む notemaid 側のコンテキストに sink を持たせる
+- [ ] **中継を AI 系に縮小** — コアの切替と再起動 / 移行パッケージ / 購読の中継 / 埋め込み専用の門番を削除し、「AI の実行先: この端末 / リモート」の設定 1 つにする
+- [ ] **notecored の削除** — 残す部品 (RPC フレーム / socket / service 管理 / secrets の file backend / HEARTBEAT timer / sink) を notemaid の bin (`daemon` feature) に移し、unit / socket / runtime dir / CI の build job と AUR も改名
+- [ ] **daemon の認証と結果の配送** — サーバー側でのアカウントログイン (bot 流、トークンは二重に持ち移行しない)、HEARTBEAT の結果を届ける経路 ([#1103](https://github.com/notedeck-dev/notedeck/issues/1103) のチャット / [#330](https://github.com/notedeck-dev/notedeck/issues/330) の push)。**これが無いと AI 面の常駐も価値が出ない**
+- [ ] **外向き** — 署名認証、ペアリング、TLS (AI 面のみ)
+- [ ] **モバイル** — Android / iOS からリモートの notemaid を AI の実行先に選べる
+
+採用しない (理由ごと残す): **データ面の常駐** (旧 3b / 4 = 蓄積・購読・デッキを自分のサーバーへ)。同一ホスト版の実測で、購読がセッション所有なのでアプリを閉じている間の蓄積が無く、中継の直列化の税だけが残った。SNS クライアントに daemon 形態の前例は無く、常駐状態は Misskey サーバー側が持っている。データ面を含めても AI 面だけでも届く層は自前サーバー派だけで、違うのは両モードで動かし続ける面の広さだけ。戻す条件は「複数端末で同じアーカイブを見たい需要が実際に見えたとき」。
 
 ### 未完了
 
