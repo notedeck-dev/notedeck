@@ -2,8 +2,8 @@
 //! コマンド表 (commands/table.rs) から呼ばれる。
 
 //! MiAuth 認証: セッション追跡 (リプレイ防止)、`auth_start`、完了 (資格情報の保存)。
-//! 完了は認可境界 (表の種別 authz) だが本体は notecore にあり、常駐構成では notecored が
-//! 自分の secret store に保存する (#1106 段階 3a)。
+//! 完了は認可境界 (表の種別 authz) だが本体は notecore にあり、資格情報は
+//! このプロセスの secret store (アプリでは OS キーチェーン) に保存する (#1106)。
 
 use notecli::models::AuthSession;
 
@@ -48,7 +48,8 @@ pub async fn auth_complete_and_save(
     session: AuthSession,
     software: String,
 ) -> Result<notecli::models::AccountPublic> {
-    let (db, client) = core.ready().await;
+    let db = core.db().await;
+    let client = core.client().await;
     core.auth_sessions()
         .consume(&session.session_id, &session.host)?;
     let saved =

@@ -283,9 +283,7 @@ pub async fn user_unfollow(core: &Core, params: &Value, ctx: &ExecContext) -> Re
 pub async fn notifications_mark_read(core: &Core, params: &Value) -> Result<Value> {
     let targets: Vec<String> = match param_str(params, "accountId") {
         Some(id) => vec![id.to_string()],
-        None => core
-            .blocking(account_service::list_public)
-            .await?
+        None => account_service::list_public_from(&*core.accounts()?)?
             .into_iter()
             .filter(|a| a.has_token)
             .map(|a| a.id)

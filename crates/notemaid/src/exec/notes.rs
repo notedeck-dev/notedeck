@@ -94,11 +94,11 @@ pub(crate) fn archive_args(params: &Value, known: &[String]) -> ArchiveArgs {
     }
 }
 
-/// `notes.searchArchive`: 手元の索引の横断検索 (#947)。
+/// `notes.searchArchive`: 手元の索引の横断検索 (#947)。索引は端末にしか無いので
+/// 橋 (`FrontendBridge::archive_search`) で聞く。アプリの中では自分の Core が答え、
+/// 別プロセスの notemaid では接続中の端末が答える (居なければエラー)
 pub async fn search_archive(core: &Core, params: &Value) -> Result<Value> {
-    let known: Vec<String> = core
-        .blocking(account_service::list_public)
-        .await?
+    let known: Vec<String> = account_service::list_public_from(&*core.accounts()?)?
         .into_iter()
         .map(|a| a.id)
         .collect();
@@ -106,22 +106,30 @@ pub async fn search_archive(core: &Core, params: &Value) -> Result<Value> {
     if a.account_ids.is_empty() {
         return Ok(Value::Array(Vec::new()));
     }
-    let notes = timeline::api_search_notes_cached_across(
-        core,
-        a.account_ids,
-        a.query,
-        Some(a.limit as i64),
-        a.since,
-        a.until,
-        Some(false),
-        a.author,
-        a.has_files,
-        Some(a.public_only),
-    )
-    .await?;
+    let limit = a.limit as usize;
+    let req = notecore::frontend_bridge::ArchiveSearchRequest {
+        account_ids: a.account_ids,
+        query: a.query,
+        limit: a.limit,
+        since: a.since,
+        until: a.until,
+        author: a.author,
+        has_files: a.has_files,
+        public_only: a.public_only,
+    };
+    let raw = core
+        .frontend_bridge()?
+        .archive_search(req)
+        .await
+        .map_err(|e| {
+            NoteDeckError::Internal(format!(
+                "notes.searchArchive: the archive lives on the device: {e}"
+            ))
+        })?;
+    let notes: Vec<notecli::models::NormalizedNote> = serde_json::from_value(raw)?;
     let rows = notes
         .iter()
-        .take(a.limit as usize)
+        .take(limit)
         .map(|n| {
             let mut row = project::note(n);
             if let Value::Object(m) = &mut row {
@@ -226,5 +234,72 @@ mod tests {
             .to_string()
             .contains("notes.show: noteId is required"));
         assert!(require_str(&json!({}), "query", "notes.search").is_err());
+    }
+
+    /// 索引は端末にしか無い: DB を持たない Core でも待ち続けず、橋に整形済みの要求が届く
+    #[tokio::test]
+    async fn search_archive_asks_the_device_through_the_bridge() {
+        use notecore::frontend_bridge::{ArchiveSearchRequest, BridgeFuture, FrontendBridge};
+        use std::sync::{Arc, Mutex};
+
+        struct TwoAccounts;
+        impl notecore::accounts::AccountStore for TwoAccounts {
+            fn get(&self, id: &str) -> Result<Option<notecli::models::Account>> {
+                Ok(self.list()?.into_iter().find(|a| a.id == id))
+            }
+            fn list(&self) -> Result<Vec<notecli::models::Account>> {
+                Ok(["a", "b"]
+                    .iter()
+                    .map(|id| notecli::models::Account {
+                        id: (*id).into(),
+                        host: "example.com".into(),
+                        token: String::new(),
+                        user_id: "u".into(),
+                        username: "n".into(),
+                        display_name: None,
+                        avatar_url: None,
+                        software: "misskey".into(),
+                    })
+                    .collect())
+            }
+            fn clear_token(&self, _id: &str) -> Result<()> {
+                Ok(())
+            }
+        }
+        struct Recorder(Mutex<Option<ArchiveSearchRequest>>);
+        impl FrontendBridge for Recorder {
+            fn query<'a>(
+                &'a self,
+                query_type: &'a str,
+                _params: Value,
+                _t: std::time::Duration,
+            ) -> BridgeFuture<'a> {
+                Box::pin(async move { Err(format!("unexpected query {query_type}")) })
+            }
+            fn health_report(&self) -> BridgeFuture<'_> {
+                Box::pin(async { Ok(Value::Null) })
+            }
+            fn archive_search(&self, req: ArchiveSearchRequest) -> BridgeFuture<'_> {
+                *self.0.lock().unwrap() = Some(req);
+                Box::pin(async { Ok(json!([])) })
+            }
+        }
+
+        let recorder = Arc::new(Recorder(Mutex::new(None)));
+        let core = Core::new_shared();
+        core.set_account_store(Arc::new(TwoAccounts));
+        core.set_frontend_bridge(recorder.clone());
+        let out = search_archive(
+            &core,
+            &json!({"query": "hello", "accountIds": ["a", "zzz"]}),
+        )
+        .await
+        .unwrap();
+        assert_eq!(out, json!([]));
+        let req = recorder.0.lock().unwrap().take().unwrap();
+        assert_eq!(req.account_ids, vec!["a".to_string()]);
+        assert_eq!(req.query, "hello");
+        assert!(req.public_only);
+        assert_eq!(req.limit, DEFAULT_LIMIT);
     }
 }

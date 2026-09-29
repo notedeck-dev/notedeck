@@ -8,7 +8,7 @@ use notecli::models::{GalleryPost, Page, ServerEmoji};
 
 use crate::commands::{typed_request, validate_host};
 use crate::context::Core;
-use crate::credentials::{get_credentials, get_credentials_or_anon};
+use crate::credentials::get_credentials_or_anon;
 use crate::error::Result;
 
 // --- Server metadata ---
@@ -95,14 +95,13 @@ pub async fn api_update_user_setting(
     key: String,
     value: bool,
 ) -> Result<()> {
-    let (db, client) = core.ready().await;
     // Only allow mode-flag toggles (e.g., isInYamiMode, isInHanamiMode)
     if !(key.starts_with("isIn") && key.ends_with("Mode") && key.len() <= 30) {
         return Err(NoteDeckError::InvalidInput(format!(
             "Disallowed setting key: {key}"
         )));
     }
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client.update_user_setting(&host, &token, &key, value).await
 }
 
@@ -172,10 +171,9 @@ pub async fn api_get_meta_detail(core: &Core, account_id: String) -> Result<serd
 }
 
 pub async fn api_get_roles(core: &Core, account_id: String) -> Result<serde_json::Value> {
-    let (db, client) = core.ready().await;
     // roles/list は本家 Misskey で requireCredential: true（roles/users は匿名可）。
     // 匿名トークンでは必ず 401 になるため認証必須として扱う。
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     client.get_roles(&host, &token).await
 }
 
@@ -232,7 +230,6 @@ pub async fn api_get_pages(
     endpoint: String,
     limit: Option<i64>,
 ) -> Result<Vec<Page>> {
-    let (db, client) = core.ready().await;
     // Validate endpoint to only allow page-related endpoints
     let allowed = ["pages/featured", "i/pages", "i/page-likes"];
     if !allowed.contains(&endpoint.as_str()) {
@@ -240,7 +237,7 @@ pub async fn api_get_pages(
             "Invalid page endpoint".to_string(),
         ));
     }
-    let (host, token) = get_credentials_or_anon(&db, &account_id)?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     let raw = client
         .get_pages(&host, &token, &endpoint, limit.unwrap_or(30).clamp(1, 100))
         .await?;
@@ -309,14 +306,13 @@ pub async fn api_get_flashes(
     endpoint: String,
     limit: Option<i64>,
 ) -> Result<serde_json::Value> {
-    let (db, client) = core.ready().await;
     let allowed = ["flash/featured", "flash/my", "flash/my-likes"];
     if !allowed.contains(&endpoint.as_str()) {
         return Err(NoteDeckError::InvalidInput(
             "Invalid flash endpoint".to_string(),
         ));
     }
-    let (host, token) = get_credentials_or_anon(&db, &account_id)?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     client
         .get_flashes(&host, &token, &endpoint, limit.unwrap_or(30).clamp(1, 100))
         .await
@@ -512,7 +508,6 @@ pub async fn api_request(
     endpoint: String,
     params: Option<serde_json::Value>,
 ) -> Result<serde_json::Value> {
-    let (db, client) = core.ready().await;
     if endpoint.is_empty() || endpoint.len() > 100 {
         return Err(NoteDeckError::InvalidInput(
             "Invalid endpoint name".to_string(),
@@ -529,7 +524,7 @@ pub async fn api_request(
     // 匿名フォールバック: ゲストアカウントでも public エンドポイント
     // (charts/*, meta, users/show 等) を呼び出せるようにする。
     // 認証必須エンドポイントはサーバーが 401 を返し上位でハンドリングされる。
-    let (host, token) = get_credentials_or_anon(&db, &account_id)?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     client
         .request(
             &host,

@@ -258,7 +258,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             tracing::warn!("keychain unavailable ({e})");
         }
         notecore::migrations::run_fs(&app_dir)?;
-        // この端末の構成 (client.json5): AI 系コマンドを in-process で回すか notecored に中継するか
+        // この端末の構成 (client.json5): AI 系コマンドを in-process で回すか notemaid に中継するか
         let configured_backend =
             notecore::client_config::load(&app_dir.join(commands::SETTINGS_DIR)).backend;
         // external gate が permissions.json5 を直接読むための所在 (#1099)
@@ -299,6 +299,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 std::sync::Arc::new(move |query_type, params, timeout| {
                     let app = query_handle.clone();
                     Box::pin(async move {
+                        // 索引の検索だけは WebView に回さず手元の Rust が答える
+                        if query_type == notecore::frontend_bridge::ARCHIVE_SEARCH_QUERY {
+                            let req = serde_json::from_value(params).map_err(|e| e.to_string())?;
+                            return query_bridge::answer_archive_search(&app, req).await;
+                        }
                         query_bridge::query_frontend_with_timeout(&app, &query_type, params, timeout).await
                     })
                 }),

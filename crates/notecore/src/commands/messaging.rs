@@ -7,7 +7,6 @@ use notecli::db::Database;
 use notecli::models::{ChatMessage, NormalizedNotification, TimelineOptions};
 
 use crate::context::Core;
-use crate::credentials::get_credentials;
 use crate::error::Result;
 
 /// REST レスポンスで取得した chat メッセージを fire-and-forget で DB に upsert する。
@@ -86,11 +85,10 @@ pub async fn api_mark_all_notifications_as_read(core: &Core, account_id: String)
 }
 
 pub async fn api_get_unread_chat(core: &Core, account_id: String) -> Result<bool> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     // notecli #9 (#469) で `messaging/unread` 廃止に伴い `chat/history` の
     // isRead 集計に切り替わったため、自分送信メッセージ除外用に user_id を渡す。
-    let me_user_id = match db.get_account(&account_id) {
+    let me_user_id = match core.accounts()?.get(&account_id) {
         Ok(Some(account)) => account.user_id.clone(),
         _ => return Ok(false),
     };
@@ -104,12 +102,13 @@ pub async fn api_get_chat_history(
     room: Option<bool>,
     cache: Option<bool>,
 ) -> Result<Vec<ChatMessage>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let msgs = client
         .get_chat_history(&host, &token, limit.unwrap_or(100), room.unwrap_or(false))
         .await?;
-    cache_chat_response(&db, &msgs, &account_id, &host, cache);
+    if let Some(db) = core.try_db() {
+        cache_chat_response(&db, &msgs, &account_id, &host, cache);
+    }
     Ok(msgs)
 }
 
@@ -122,8 +121,7 @@ pub async fn api_get_chat_user_messages(
     until_id: Option<String>,
     cache: Option<bool>,
 ) -> Result<Vec<ChatMessage>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let msgs = client
         .get_chat_user_messages(
             &host,
@@ -134,7 +132,9 @@ pub async fn api_get_chat_user_messages(
             until_id.as_deref(),
         )
         .await?;
-    cache_chat_response(&db, &msgs, &account_id, &host, cache);
+    if let Some(db) = core.try_db() {
+        cache_chat_response(&db, &msgs, &account_id, &host, cache);
+    }
     Ok(msgs)
 }
 
@@ -147,8 +147,7 @@ pub async fn api_get_chat_room_messages(
     until_id: Option<String>,
     cache: Option<bool>,
 ) -> Result<Vec<ChatMessage>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let msgs = client
         .get_chat_room_messages(
             &host,
@@ -159,7 +158,9 @@ pub async fn api_get_chat_room_messages(
             until_id.as_deref(),
         )
         .await?;
-    cache_chat_response(&db, &msgs, &account_id, &host, cache);
+    if let Some(db) = core.try_db() {
+        cache_chat_response(&db, &msgs, &account_id, &host, cache);
+    }
     Ok(msgs)
 }
 
@@ -175,8 +176,7 @@ pub async fn api_create_chat_message(
     text: Option<String>,
     file_id: Option<String>,
 ) -> Result<ChatMessage> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let text_ref = text.as_deref();
     let file_id_ref = file_id.as_deref();
     let msg = match (user_id, room_id) {
@@ -196,8 +196,10 @@ pub async fn api_create_chat_message(
             ))
         }
     };
-    // 送信メッセージも DB に書く (WS で同じ msg が往復するが UPSERT で冪等)
-    cache_chat_response(&db, std::slice::from_ref(&msg), &account_id, &host, None);
+    // 送信メッセージも DB に書く (WS で同じ msg が往復するが UPSERT で冪等)。索引が無ければ省く
+    if let Some(db) = core.try_db() {
+        cache_chat_response(&db, std::slice::from_ref(&msg), &account_id, &host, None);
+    }
     Ok(msg)
 }
 

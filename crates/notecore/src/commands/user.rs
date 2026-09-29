@@ -10,7 +10,6 @@ use notecli::models::{
 
 use crate::commands::{typed_request, validate_host};
 use crate::context::Core;
-use crate::credentials::get_credentials_or_anon;
 use crate::error::Result;
 
 // --- User profile ---
@@ -73,8 +72,7 @@ pub async fn api_get_user_notes(
     user_id: String,
     options: Option<TimelineOptions>,
 ) -> Result<Vec<NormalizedNote>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials_or_anon(&db, &account_id)?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     let notes = client
         .get_user_notes(
             &host,
@@ -85,7 +83,7 @@ pub async fn api_get_user_notes(
         )
         .await?;
     let notes = core
-        .blocking(move |db| {
+        .with_archive(notes, move |db, notes| {
             if let Err(e) = db.ingest_notes(
                 &notes,
                 &TimelineKey::UserNotes {
@@ -147,8 +145,7 @@ pub async fn api_lookup_user(
         return Err(NoteDeckError::InvalidInput("Invalid username".to_string()));
     }
     let validated_host = host.map(|h| validate_host(&h)).transpose()?;
-    let (db, client) = core.ready().await;
-    let (server_host, token) = get_credentials_or_anon(&db, &account_id)?;
+    let (client, server_host, token) = core.authed_or_anon(&account_id).await?;
     client
         .lookup_user(&server_host, &token, &username, validated_host.as_deref())
         .await
@@ -390,8 +387,11 @@ pub async fn api_remove_user_from_list(
         .await?;
     // 除外ユーザーの既存ノートは個別逆引き不能のためバケット破棄 →
     // 次回フェッチで再構築 (失敗は warn + Ok)。破棄の完了は待ってから返す —
-    // detach するとフロントの再フェッチ ingest 後に破棄が走るレースになる
-    let db = core.db().await;
+    // detach するとフロントの再フェッチ ingest 後に破棄が走るレースになる。
+    // 索引を持たないプロセス (notemaid) では何もしない
+    let Some(db) = core.try_db() else {
+        return Ok(());
+    };
     let account_id_owned = account_id.clone();
     let key = TimelineKey::UserList {
         list_id: list_id.clone(),

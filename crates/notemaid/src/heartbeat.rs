@@ -13,7 +13,7 @@
 //!
 //! 状態 (日次カウンタ / cheap check の前回値 / 連続失敗) は `ai-turns/heartbeat.json`。
 //! デバイスに要るもの (メモ等の文脈、ローカル時刻の刻印) は橋で聞き、無ければ
-//! 無しで進む (notecored)。
+//! 無しで進む (端末が繋がっていない notemaid)。
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -499,9 +499,7 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
     if !cfg.heartbeat.enabled {
         return Ok("skip:disabled".into());
     }
-    let accounts = core
-        .blocking(notecore::account_service::list_public)
-        .await?;
+    let accounts = notecore::account_service::list_public_from(&*core.accounts()?)?;
     if !accounts.iter().any(|a| a.has_token) {
         tracing::debug!("heartbeat: no active account, skip");
         return Ok("skip:no-account".into());

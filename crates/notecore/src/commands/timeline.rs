@@ -14,7 +14,6 @@ use notecli::models::{
 
 use crate::commands::{extract_ogp_urls, MAX_UPLOAD_BYTES};
 use crate::context::Core;
-use crate::credentials::{get_credentials, get_credentials_or_anon};
 use crate::error::Result;
 
 /// Maximum number of concurrent OGP prefetch requests per timeline load
@@ -28,8 +27,7 @@ pub async fn api_get_timeline(
     timeline_type: String,
     options: Option<TimelineOptions>,
 ) -> Result<Vec<NormalizedNote>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials_or_anon(&db, &account_id)?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     let opts = options.unwrap_or_default();
     // 境界アダプタ: フロントの呼び出し規約 getTimeline('user-list', {listId}) を
     // canonical キーへ合成する (parse の前段。api 層は options.list_id を読まない)
@@ -51,7 +49,7 @@ pub async fn api_get_timeline(
         .get_timeline(&host, &token, &account_id, &key, opts)
         .await?;
     let notes = core
-        .blocking(move |db| {
+        .with_archive(notes, move |db, notes| {
             if let Err(e) = db.ingest_notes(&notes, &key) {
                 tracing::warn!("[cache] failed to cache timeline notes: {e}");
             }
@@ -198,8 +196,7 @@ pub async fn api_get_antenna_notes(
     since_id: Option<String>,
     until_id: Option<String>,
 ) -> Result<Vec<NormalizedNote>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let notes = client
         .get_antenna_notes(
             &host,
@@ -212,7 +209,7 @@ pub async fn api_get_antenna_notes(
         )
         .await?;
     let notes = core
-        .blocking(move |db| {
+        .with_archive(notes, move |db, notes| {
             if let Err(e) = db.ingest_notes(
                 &notes,
                 &TimelineKey::Antenna {
@@ -234,8 +231,7 @@ pub async fn api_get_favorites(
     since_id: Option<String>,
     until_id: Option<String>,
 ) -> Result<Vec<NormalizedNote>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let notes = client
         .get_favorites(
             &host,
@@ -247,7 +243,7 @@ pub async fn api_get_favorites(
         )
         .await?;
     let notes = core
-        .blocking(move |db| {
+        .with_archive(notes, move |db, notes| {
             if let Err(e) = db.ingest_notes(&notes, &TimelineKey::Favorites) {
                 tracing::warn!("[cache] failed to cache favorites: {e}");
             }
@@ -277,8 +273,7 @@ pub async fn api_get_mentions(
     until_id: Option<String>,
     visibility: Option<String>,
 ) -> Result<Vec<NormalizedNote>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let notes = client
         .get_mentions(
             &host,
@@ -298,7 +293,7 @@ pub async fn api_get_mentions(
         TimelineKey::Mentions
     };
     let notes = core
-        .blocking(move |db| {
+        .with_archive(notes, move |db, notes| {
             if let Err(e) = db.ingest_notes(&notes, &cache_key) {
                 tracing::warn!("[cache] failed to cache mentions: {e}");
             }
@@ -323,8 +318,7 @@ pub async fn api_get_clip_notes(
     since_id: Option<String>,
     until_id: Option<String>,
 ) -> Result<Vec<NormalizedNote>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (client, host, token) = core.authed(&account_id).await?;
     let notes = client
         .get_clip_notes(
             &host,
@@ -337,7 +331,7 @@ pub async fn api_get_clip_notes(
         )
         .await?;
     let notes = core
-        .blocking(move |db| {
+        .with_archive(notes, move |db, notes| {
             if let Err(e) = db.ingest_notes(
                 &notes,
                 &TimelineKey::Clip {
@@ -376,8 +370,7 @@ pub async fn api_get_channel_notes(
     since_id: Option<String>,
     until_id: Option<String>,
 ) -> Result<Vec<NormalizedNote>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials_or_anon(&db, &account_id)?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     let notes = client
         .get_channel_notes(
             &host,
@@ -390,7 +383,7 @@ pub async fn api_get_channel_notes(
         )
         .await?;
     let notes = core
-        .blocking(move |db| {
+        .with_archive(notes, move |db, notes| {
             if let Err(e) = db.ingest_notes(
                 &notes,
                 &TimelineKey::Channel {
@@ -415,8 +408,7 @@ pub async fn api_get_role_notes(
     since_id: Option<String>,
     until_id: Option<String>,
 ) -> Result<Vec<NormalizedNote>> {
-    let (db, client) = core.ready().await;
-    let (host, token) = get_credentials_or_anon(&db, &account_id)?;
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
     let notes = client
         .get_role_notes(
             &host,
@@ -429,7 +421,7 @@ pub async fn api_get_role_notes(
         )
         .await?;
     let notes = core
-        .blocking(move |db| {
+        .with_archive(notes, move |db, notes| {
             if let Err(e) = db.ingest_notes(
                 &notes,
                 &TimelineKey::Role {
@@ -602,8 +594,8 @@ pub async fn api_delete_favorite(core: &Core, account_id: String, note_id: Strin
     let (client, host, token) = core.authed(&account_id).await?;
     client.delete_favorite(&host, &token, &note_id).await?;
     // サーバー成功後に favorites バケットの所属を外す (失敗は warn + Ok —
-    // サーバー状態は成功済みのため。stale は TTL/cap で最終解消)
-    core.blocking(move |db| {
+    // サーバー状態は成功済みのため。stale は TTL/cap で最終解消)。索引が無ければ何もしない
+    core.with_archive((), move |db, ()| {
         if let Err(e) = db.remove_membership(&account_id, &TimelineKey::Favorites, &note_id) {
             tracing::warn!("[cache] failed to remove favorites membership: {e}");
         }
@@ -649,7 +641,7 @@ pub async fn api_remove_note_from_clip(
     client
         .remove_note_from_clip(&host, &token, &clip_id, &note_id)
         .await?;
-    core.blocking(move |db| {
+    core.with_archive((), move |db, ()| {
         if let Err(e) = db.remove_membership(
             &account_id,
             &TimelineKey::Clip {
@@ -933,6 +925,27 @@ pub async fn api_search_notes_cached_across(
             },
         )
     })
+    .await
+}
+
+/// 手元の索引の横断検索 (`FrontendBridge::archive_search` の本体)。端末側 (アプリ) が
+/// 自分の Core で回し、notemaid は橋を通してここに届く
+pub async fn search_archive(
+    core: &Core,
+    req: crate::frontend_bridge::ArchiveSearchRequest,
+) -> Result<Vec<NormalizedNote>> {
+    api_search_notes_cached_across(
+        core,
+        req.account_ids,
+        req.query,
+        Some(i64::from(req.limit)),
+        req.since,
+        req.until,
+        Some(false),
+        req.author,
+        req.has_files,
+        Some(req.public_only),
+    )
     .await
 }
 

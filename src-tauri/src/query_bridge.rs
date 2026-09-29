@@ -4,7 +4,7 @@ use std::time::Duration;
 use serde_json::Value;
 use tauri::{AppHandle, Emitter, Listener, Manager};
 
-use notecore::frontend_bridge::{BridgeFuture, FrontendBridge};
+use notecore::frontend_bridge::{ArchiveSearchRequest, BridgeFuture, FrontendBridge};
 
 /// Bridges HTTP API requests to the frontend (Pinia stores) via Tauri events.
 ///
@@ -48,6 +48,19 @@ pub async fn query_frontend_with_timeout(
         .map_err(|_| "Channel closed".to_string())
 }
 
+/// 手元の索引の検索を自分の Core で答える。in-process の notemaid は `TauriBridge` から、
+/// 別プロセスの notemaid は中継の `archive/search` 問い合わせから、ここに届く
+pub async fn answer_archive_search(
+    app: &AppHandle,
+    req: ArchiveSearchRequest,
+) -> Result<Value, String> {
+    let core = app.state::<crate::commands::AppState>();
+    let notes = notecore::commands::timeline::search_archive(&core, req)
+        .await
+        .map_err(|e| e.to_string())?;
+    serde_json::to_value(notes).map_err(|e| e.to_string())
+}
+
 /// [`FrontendBridge`] の Tauri 実装。HTTP サーバー (core) はこれを通して WebView と
 /// managed state に届く (#1106)。
 pub struct TauriBridge(pub AppHandle);
@@ -62,6 +75,10 @@ impl FrontendBridge for TauriBridge {
         Box::pin(query_frontend_with_timeout(
             &self.0, query_type, params, timeout,
         ))
+    }
+
+    fn archive_search(&self, req: ArchiveSearchRequest) -> BridgeFuture<'_> {
+        Box::pin(answer_archive_search(&self.0, req))
     }
 
     fn health_report(&self) -> BridgeFuture<'_> {

@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use notecore::commands::CallContext;
 use notecore::context::Core;
-use notecore::frontend_bridge::{BridgeFuture, FrontendBridge};
+use notecore::frontend_bridge::{ArchiveSearchRequest, BridgeFuture, FrontendBridge};
 use notecore::rpc::{Frame, Outcome, RpcError, SELF_PREFIX};
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -146,6 +146,20 @@ impl FrontendBridge for SessionBridge {
 
     fn health_report(&self) -> BridgeFuture<'_> {
         Box::pin(async { Ok(Value::Null) })
+    }
+
+    /// 索引は端末にしか無いので、接続中の端末に `archive/search` で聞く (端末の Rust が答える)
+    fn archive_search(&self, req: ArchiveSearchRequest) -> BridgeFuture<'_> {
+        Box::pin(async move {
+            let params = serde_json::to_value(&req).map_err(|e| e.to_string())?;
+            self.0
+                .query(
+                    notecore::frontend_bridge::ARCHIVE_SEARCH_QUERY,
+                    params,
+                    Duration::from_secs(15),
+                )
+                .await
+        })
     }
 }
 

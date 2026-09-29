@@ -185,7 +185,7 @@ pub fn validate_host(host: &str) -> Result<String> {
 /// コマンドの種別 (仕様 §4.1)。表に載るのは data だけ。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandKind {
-    /// データ系。デバイスが 1 台も繋がっていなくても意味を持ち、notecored で実行できる
+    /// データ系。デバイスが 1 台も繋がっていなくても意味を持つ (常にアプリの中の notecore で実行)
     Data,
     /// 認可境界を動かす操作 (資格情報の保存・失効、Vault の secret と信頼、ルート設定の書換)。
     /// 本体は notecore にあり同一ホストでは data と同じく中継するが、外向き (3b) では

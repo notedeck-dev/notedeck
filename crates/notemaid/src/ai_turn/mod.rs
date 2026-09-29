@@ -1972,6 +1972,12 @@ mod tests {
         fn health_report(&self) -> BridgeFuture<'_> {
             Box::pin(async { Ok(Value::Null) })
         }
+        fn archive_search(
+            &self,
+            _req: notecore::frontend_bridge::ArchiveSearchRequest,
+        ) -> BridgeFuture<'_> {
+            Box::pin(async { Ok(Value::Array(Vec::new())) })
+        }
     }
 
     /// メモリ上のセッション書き手 (append の記録)。

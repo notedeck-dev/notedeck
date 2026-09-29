@@ -49,7 +49,9 @@ fn now_ms() -> i64 {
 }
 
 pub struct ServerInfoService {
-    db: Arc<Database>,
+    /// 検出結果の置き場。DB を持たないプロセス (notemaid) は `memory` だけを使う
+    db: Option<Arc<Database>>,
+    memory: Mutex<HashMap<String, ServerDetection>>,
     client: Arc<MisskeyClient>,
     /// miss 時の per-host dedup ロック。同一 host への同時要求を直列化し、
     /// 2 本目以降はロック取得後の DB 再読込で検出済みの行を拾う。
@@ -60,12 +62,47 @@ pub struct ServerInfoService {
 
 impl ServerInfoService {
     pub fn new(db: Arc<Database>, client: Arc<MisskeyClient>) -> Arc<Self> {
+        Self::build(Some(db), client)
+    }
+
+    /// DB を持たないプロセス用。検出結果はプロセスの寿命の間だけメモリに持つ
+    pub fn new_in_memory(client: Arc<MisskeyClient>) -> Arc<Self> {
+        Self::build(None, client)
+    }
+
+    fn build(db: Option<Arc<Database>>, client: Arc<MisskeyClient>) -> Arc<Self> {
         Arc::new(Self {
             db,
+            memory: Mutex::new(HashMap::new()),
             client,
             inflight: tokio::sync::Mutex::new(HashMap::new()),
             revalidating: Mutex::new(HashSet::new()),
         })
+    }
+
+    fn load(&self, host: &str) -> Result<Option<ServerDetection>, NoteDeckError> {
+        match &self.db {
+            Some(db) => db.get_server_detection(host),
+            None => Ok(self
+                .memory
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(host)
+                .cloned()),
+        }
+    }
+
+    fn store(&self, det: &ServerDetection) -> Result<(), NoteDeckError> {
+        match &self.db {
+            Some(db) => db.upsert_server_detection(det),
+            None => {
+                self.memory
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .insert(det.host.clone(), det.clone());
+                Ok(())
+            }
+        }
     }
 
     /// SWR 取得。fresh は即返し、stale は返しつつ背景再検出、miss は検出して保存。
@@ -73,7 +110,7 @@ impl ServerInfoService {
         self: &Arc<Self>,
         host: &str,
     ) -> Result<ServerDetection, NoteDeckError> {
-        let row = self.db.get_server_detection(host)?;
+        let row = self.load(host)?;
         match plan_for(row.as_ref(), now_ms(), SERVER_DETECTION_TTL_MS) {
             CachePlan::Fresh => Ok(row.expect("fresh implies row")),
             CachePlan::StaleRevalidate => {
@@ -84,7 +121,7 @@ impl ServerInfoService {
                 let lock = self.host_lock(host).await;
                 let _guard = lock.lock().await;
                 // ロック待機中に先行リクエストが保存した行を拾う (dedup)
-                if let Some(det) = self.db.get_server_detection(host)? {
+                if let Some(det) = self.load(host)? {
                     if plan_for(Some(&det), now_ms(), SERVER_DETECTION_TTL_MS) == CachePlan::Fresh {
                         return Ok(det);
                     }
@@ -98,7 +135,7 @@ impl ServerInfoService {
     /// 確実に上書きしたい場面で使う。
     pub async fn detect_and_store(&self, host: &str) -> Result<ServerDetection, NoteDeckError> {
         let det = self.detect(host).await?;
-        self.db.upsert_server_detection(&det)?;
+        self.store(&det)?;
         Ok(det)
     }
 
@@ -312,5 +349,16 @@ mod tests {
         assert_eq!(det.software_name, "misskey");
         assert_eq!(det.meta_json, "{}");
         assert_eq!(det.software_repository, None);
+    }
+
+    #[test]
+    fn in_memory_store_round_trips_without_a_database() {
+        let svc = ServerInfoService::new_in_memory(Arc::new(MisskeyClient::new().unwrap()));
+        let host = "mem.example".to_string();
+        assert!(svc.load(&host).unwrap().is_none());
+        let mut det = sample(now_ms());
+        det.host = host.clone();
+        svc.store(&det).unwrap();
+        assert_eq!(svc.load(&host).unwrap().unwrap().host, host);
     }
 }

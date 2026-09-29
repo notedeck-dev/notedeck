@@ -2,8 +2,8 @@
 //!
 //! 生封筒 (`stream-envelope`、全イベントの tagged union) は Stream Inspector の観測が
 //! 開いているときだけ流す。未読カウンタが要る合図は専用イベント (`stream-unread`) に
-//! 切り出し、生封筒に依存する消費者を無くす。アプリ (Tauri) と notecored の両方の
-//! emitter がここを通るので、どちらの構成でも同じ判断になる。
+//! 切り出し、生封筒に依存する消費者を無くす。emitter はすべてここを通るので、
+//! どの構成でも同じ判断になる。
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
