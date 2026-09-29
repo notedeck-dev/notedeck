@@ -1,9 +1,9 @@
 # notedeck:notemaid-unit v1
 # notemaid の user unit の正本 (#1106 段階 3a)。`notemaid service install` がこれを
 # ~/.config/systemd/user/ に書き、パッケージは /usr/lib/systemd/user/ にコピーする。
-# 再起動しても直らない終了コード (ロック衝突 / DB がバイナリより新しい / runtime dir
-# 不在 / secret の鍵) は RestartPreventExitStatus に載せる。mount namespace 系の
-# hardening は user unit に入れない (userns の無い環境で起動不能になる)。
+# 再起動しても直らない終了コード (ロック衝突 / runtime dir 不在 / secret の鍵) は
+# RestartPreventExitStatus に載せる。mount namespace 系の hardening は user unit に
+# 入れない (userns の無い環境で起動不能になる)。
 [Unit]
 Description=NoteDeck AI (notemaid)
 Documentation=https://github.com/notedeck-dev/notedeck/issues/1106

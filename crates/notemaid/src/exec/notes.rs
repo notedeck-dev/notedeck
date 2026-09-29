@@ -21,7 +21,10 @@ fn until_id(params: &Value) -> Option<String> {
 /// はなみすきーは検索エンドポイントが違う (TS の adapter 選択と同じ判定:
 /// nodeinfo の repository が hanamisskey/misskey)。
 async fn is_hanamisskey(core: &Core, account_id: &str) -> bool {
-    let Ok(accounts) = core.blocking(account_service::list_public).await else {
+    let Ok(accounts) = core
+        .accounts()
+        .and_then(|s| account_service::list_public_from(&*s))
+    else {
         return false;
     };
     let Some(host) = accounts

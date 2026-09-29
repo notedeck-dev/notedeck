@@ -150,6 +150,8 @@ impl FrontendBridge for SessionBridge {
 }
 
 pub struct RpcServer {
+    /// 口座の写し (アプリが `notemaid.accounts` で同期する)
+    pub accounts: Arc<crate::daemon::accounts::SyncedAccounts>,
     pub core: Arc<Core>,
     pub events: Events,
     pub secret: String,
@@ -328,8 +330,8 @@ impl RpcServer {
 }
 
 impl RpcServer {
-    /// アプリから受けた口座の一覧を自分の DB に写す。一覧に無い口座は消す。
-    /// トークン列はアプリの DB の写しで、キーチェーンが使える環境では空 (キーチェーンから同じ id で読む)
+    /// アプリから受けた口座の一覧を写す (一覧に無い口座は消える)。トークン列はアプリの DB の写しで、
+    /// キーチェーンが使える環境では空。資格情報のメモリキャッシュは写しに合わせて捨てる
     async fn sync_accounts(&self, params: Value) -> notecore::error::Result<usize> {
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
@@ -338,19 +340,10 @@ impl RpcServer {
         }
         let incoming: Incoming = serde_json::from_value(params)
             .map_err(|e| notecli::error::NoteDeckError::InvalidInput(e.to_string()))?;
-        let db = self.core.db().await;
-        let existing = db.load_accounts()?;
-        let wanted: std::collections::HashSet<&str> =
-            incoming.accounts.iter().map(|a| a.id.as_str()).collect();
-        for a in &existing {
-            if !wanted.contains(a.id.as_str()) {
-                db.delete_account(&a.id)?;
-            }
-        }
         for a in &incoming.accounts {
-            db.upsert_account(a)?;
+            notecore::credentials::invalidate_credentials(&a.id);
         }
-        Ok(incoming.accounts.len())
+        self.accounts.replace(incoming.accounts)
     }
 }
 

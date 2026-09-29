@@ -195,7 +195,7 @@ Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI �
 - [x] **transport と sidecar** — `notemaid::transport` (Unix socket / Windows named pipe)、release で notemaid を sidecar として同梱 (デスクトップ 3 OS)、アプリは常駐が居なければ子プロセスで起動 (`client.json5` の `auto`)、子は stdin の EOF (+ Linux は PDEATHSIG) で親に追随、AI 系の要求は接続を上限つきで待つ (2026-09-29)。Android の子プロセス化は未 (in-process)
 - [x] **常駐のトグル** — AI 設定の「AI の実行」にある「常駐タスクとして起動する」1 つで、ログイン時のユーザー権限タスクを登録 / 解除し、中継を子プロセス ⇄ 常駐で再起動なしに付け替える (Linux = systemd user unit、macOS = LaunchAgent、Windows = Task Scheduler ONLOGON。macOS / Windows は未検証、2026-09-29)。版ずれの自動再起動は未
 - [x] **notecored の削除** — 残す部品を notemaid の bin (`daemon` feature) に移し、unit / socket / secret の置き場 / CI の build job / AUR / flake を notemaid に改名 (2026-09-29)
-- [x] **notemaid は notes DB を開かない** — 自分の DB (`notemaid.db`、口座の一覧だけ) を持ち、接続したアプリが一覧を写す。トークンは OS キーチェーンから同じ id で読む (2026-09-29)
+- [x] **notemaid は SQLite を開かない** — 口座の所在は notecore の `AccountStore` (アプリは notecli.db、notemaid は接続したアプリが写した一覧をメモリ + 小さなファイルに持つ)。トークンは OS キーチェーンから同じ id で読む (2026-09-29)
 - [ ] **リモートの認証と結果の配送** — サーバー側でのアカウントログイン (bot 流、トークンは二重に持ち移行しない)、HEARTBEAT の結果を届ける経路 ([#1103](https://github.com/notedeck-dev/notedeck/issues/1103) のチャット / [#330](https://github.com/notedeck-dev/notedeck/issues/330) の push)。**これが無いと AI 面の常駐も価値が出ない**
 - [ ] **外向き** — 署名認証、ペアリング、TLS (AI 面のみ)
 - [ ] **モバイル** — Android は sidecar の子プロセス (未)、iOS は in-process。どちらもリモートの notemaid に繋ぐ選択も持つ

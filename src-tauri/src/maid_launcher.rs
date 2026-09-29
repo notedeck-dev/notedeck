@@ -340,6 +340,9 @@ mod tests {
             !app_dir.join("notecli.db").exists(),
             "the sidecar must not open the app database"
         );
-        assert!(app_dir.join("notemaid.db").exists());
+        assert!(
+            !app_dir.join("notemaid.db").exists(),
+            "notemaid must not open any SQLite database"
+        );
     }
 }

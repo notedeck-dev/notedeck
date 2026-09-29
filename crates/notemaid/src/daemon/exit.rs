@@ -3,8 +3,6 @@
 
 /// 同じデータディレクトリで別の notecore (アプリの埋め込み / 別の notemaid) が動いている
 pub const LOCK_HELD: i32 = 10;
-/// DB がこのバイナリより新しい (新しい版で migrate 済み)
-pub const DB_NEWER: i32 = 11;
 /// runtime ディレクトリ ($XDG_RUNTIME_DIR) が無く、socket の置き場も指定されていない
 pub const RUNTIME_DIR_MISSING: i32 = 12;
 /// secret の鍵が無い、または読めない
@@ -13,12 +11,11 @@ pub const SECRET_KEY: i32 = 13;
 pub const FAILURE: i32 = 1;
 
 /// `RestartPreventExitStatus=` に書く一覧
-pub const NO_RESTART: &[i32] = &[LOCK_HELD, DB_NEWER, RUNTIME_DIR_MISSING, SECRET_KEY];
+pub const NO_RESTART: &[i32] = &[LOCK_HELD, RUNTIME_DIR_MISSING, SECRET_KEY];
 
 pub fn name(code: i32) -> &'static str {
     match code {
         LOCK_HELD => "lock_held",
-        DB_NEWER => "db_newer",
         RUNTIME_DIR_MISSING => "runtime_dir_missing",
         SECRET_KEY => "secret_key",
         FAILURE => "failure",

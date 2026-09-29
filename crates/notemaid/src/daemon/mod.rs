@@ -13,6 +13,7 @@ pub enum SecretsBackend {
     Keychain,
 }
 
+pub mod accounts;
 pub mod exit;
 pub mod heartbeat_timer;
 pub mod lock;

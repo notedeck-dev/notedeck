@@ -109,7 +109,7 @@ async fn build_author_block(core: &Core, author_id: &str) -> Result<MemoAuthor> 
             avatar_url: sk.icon_url,
         });
     }
-    let accounts = core.blocking(account_service::list_public).await?;
+    let accounts = account_service::list_public_from(&*core.accounts()?)?;
     let acc = accounts
         .into_iter()
         .find(|a| a.id == author_id)

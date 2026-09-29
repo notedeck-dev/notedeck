@@ -13,6 +13,7 @@
 //! 拡張スロットに吊るす。tests/lint/rustCoreBoundary.test.ts が機械検査する。
 
 pub mod account_service;
+pub mod accounts;
 pub mod ai_keys;
 pub mod api_tokens;
 pub mod app_dir;

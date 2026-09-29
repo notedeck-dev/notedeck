@@ -27,7 +27,14 @@ pub fn to_public(account: &Account) -> AccountPublic {
 }
 
 pub fn list_public(db: &Database) -> Result<Vec<AccountPublic>> {
-    Ok(db.load_accounts()?.iter().map(to_public).collect())
+    list_public_from(db)
+}
+
+/// 口座の所在 (`AccountStore`) から一覧を作る。notemaid は DB を持たないのでこちら
+pub fn list_public_from<S: crate::accounts::AccountStore + ?Sized>(
+    store: &S,
+) -> Result<Vec<AccountPublic>> {
+    Ok(store.list()?.iter().map(to_public).collect())
 }
 
 /// アカウント完全削除。cache 無効化 → keychain → DB の順で行う

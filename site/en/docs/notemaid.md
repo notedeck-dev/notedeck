@@ -1,5 +1,5 @@
 ---
-sourceHash: d29b07c21af5
+sourceHash: 6d7c164e6b8b
 ---
 
 # The AI process (notemaid)
@@ -40,7 +40,7 @@ If you only want to connect to the resident one (never start a child process), s
 
 - **Logs**: the child process and the resident one on macOS / Windows write to `logs/notemaid.log` in the data directory; on Linux the resident one goes to `journalctl --user -u notemaid -e` (AI settings has a button that copies the command)
 - **Version mismatch**: update notemaid to the same version as the app. The child process is bundled, so it always matches
-- **notemaid stops by itself**: for states a restart cannot fix (another notemaid owns the data directory, the database is newer than notemaid, the secret key cannot be read) it exits with a dedicated code and systemd does not restart it. The reason is in the log
+- **notemaid stops by itself**: for states a restart cannot fix (another notemaid owns the data directory, the secret key cannot be read) it exits with a dedicated code and systemd does not restart it. The reason is in the log
 
 ## Commands
 

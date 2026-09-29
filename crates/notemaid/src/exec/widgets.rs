@@ -55,7 +55,7 @@ fn history_of(core: &Core, item: &Item) -> Result<Vec<HistoryEntry>> {
 }
 
 async fn accounts(core: &Core) -> Result<Vec<AccountPublic>> {
-    core.blocking(notecore::account_service::list_public).await
+    notecore::account_service::list_public_from(&*core.accounts()?)
 }
 
 fn scope_key(a: &AccountPublic) -> String {

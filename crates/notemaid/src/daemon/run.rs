@@ -1,8 +1,8 @@
 //! `notemaid run`: notemaid (AI) を headless に常駐させる (#1106 案 B の途中段階)。
 //! 常駐するのはエージェントループ / HEARTBEAT と AI 系コマンドの RPC 面だけで、
 //! データ面 (ストリーミング / クエリランタイム / OGP / 画像キャッシュ / 公開 HTTP API)
-//! は持たない (デバイスのアプリが持つ)。アプリの notes DB は開かず、自分の小さな DB
-//! (`notemaid.db`: 口座の一覧だけ。接続したアプリが `notemaid.accounts` で同期する) を持つ。
+//! は持たない (デバイスのアプリが持つ)。SQLite は開かない。口座は接続したアプリが
+//! `notemaid.accounts` で写した一覧 (`SyncedAccounts`、メモリ + 小さなファイル) で、
 //! トークンは OS キーチェーン (`--secrets keychain`) から同じ id で読む。
 
 use std::sync::Arc;
@@ -15,9 +15,6 @@ use crate::daemon::heartbeat_timer::HeartbeatTimer;
 use crate::daemon::rpc_server::{new_secret, RpcServer, SessionBridge, Sessions};
 use crate::daemon::sinks::{self, Events};
 use crate::daemon::{exit, lock, logging, RunArgs};
-
-/// notemaid 自身の DB。アプリの notecli.db とは別 (版ずれと排他を持ち込まない)
-pub const DB_FILE: &str = "notemaid.db";
 
 pub fn run(args: RunArgs) -> i32 {
     let Some(data_dir) = args
@@ -106,27 +103,9 @@ pub fn run(args: RunArgs) -> i32 {
         None
     };
 
-    // DB がこのバイナリより新しければ再起動しても直らない
     if let Err(e) = notecore::migrations::run_fs(&data_dir) {
         tracing::error!("filesystem migration failed: {e}");
         return exit::FAILURE;
-    }
-    let db_path = data_dir.join(DB_FILE);
-    if db_path.exists() {
-        match notecli::db::Database::migration_status(&db_path) {
-            Ok(status) if status.is_openable() => {}
-            Ok(status) => {
-                tracing::error!(
-                    ?status,
-                    "database is newer than this notemaid; update notemaid"
-                );
-                return exit::DB_NEWER;
-            }
-            Err(e) => {
-                tracing::error!("migration check failed: {e}");
-                return exit::FAILURE;
-            }
-        }
     }
 
     let runtime = match tokio::runtime::Builder::new_multi_thread()
@@ -202,14 +181,7 @@ async fn serve(
         tokio::runtime::Handle::current(),
     ));
 
-    // DB と Misskey クライアント
-    let db = match notecli::db::Database::open(&data_dir.join(DB_FILE)) {
-        Ok(db) => Arc::new(db),
-        Err(e) => {
-            tracing::error!("database open failed: {}", e.safe_message());
-            return exit::FAILURE;
-        }
-    };
+    // Misskey クライアントと口座の写し (SQLite は開かない)
     let client = match notecli::api::MisskeyClient::new() {
         Ok(c) => Arc::new(c),
         Err(e) => {
@@ -217,9 +189,9 @@ async fn serve(
             return exit::FAILURE;
         }
     };
-    notecore::migrations::run_db(&db);
-    core.initialize_db(db.clone());
-    core.initialize(db.clone(), client.clone());
+    let accounts = Arc::new(crate::daemon::accounts::SyncedAccounts::load(&data_dir));
+    core.set_account_store(accounts.clone());
+    core.initialize_client(client);
     timer.reconfigure(core.clone());
 
     // RPC 面
@@ -230,6 +202,7 @@ async fn serve(
     let status_dir = data_dir.clone();
     let status_sessions = sessions.clone();
     let server = Arc::new(RpcServer {
+        accounts: accounts.clone(),
         core: core.clone(),
         events: events.clone(),
         secret,

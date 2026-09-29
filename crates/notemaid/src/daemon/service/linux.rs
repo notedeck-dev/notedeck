@@ -273,7 +273,7 @@ mod tests {
         let unit = render_unit(Path::new("/usr/bin/notemaid"));
         assert!(has_marker(&unit));
         assert!(unit.contains("ExecStart=/usr/bin/notemaid run --secrets keychain --log stdout\n"));
-        assert!(unit.contains("RestartPreventExitStatus=10 11 12 13\n"));
+        assert!(unit.contains("RestartPreventExitStatus=10 12 13\n"));
         assert!(!unit.contains("ProtectHome"));
         assert!(unit.contains("StartLimitBurst"));
         assert!(!has_marker("[Unit]\nDescription=x\n"));

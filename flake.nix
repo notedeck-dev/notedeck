@@ -43,7 +43,7 @@
                 Restart = "on-failure";
                 RestartSec = 5;
                 # exit.rs の NO_RESTART: ロック衝突 / DB がバイナリより新しい / runtime dir 不在 / secret の鍵
-                RestartPreventExitStatus = "10 11 12 13";
+                RestartPreventExitStatus = "10 12 13";
                 KillSignal = "SIGTERM";
                 TimeoutStopSec = 10;
                 NoNewPrivileges = true;

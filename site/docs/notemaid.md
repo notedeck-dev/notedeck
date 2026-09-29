@@ -36,7 +36,7 @@ Linux でログアウト後も動かし続けるには `loginctl enable-linger` 
 
 - **ログ**: 子プロセスと macOS / Windows の常駐はデータディレクトリの `logs/notemaid.log`、Linux の常駐は `journalctl --user -u notemaid -e` (AI 設定のボタンでコマンドをコピーできます)
 - **版が違う**: notemaid をアプリと同じ版に更新してください。子プロセスは同梱なので常に同じ版です
-- **notemaid が自分で止まる**: 再起動しても直らない状態 (別の notemaid が同じデータディレクトリで動いている、データベースが notemaid より新しい、secret の鍵が読めない) では専用の終了コードで止まり、systemd は再起動しません。理由はログに出ます
+- **notemaid が自分で止まる**: 再起動しても直らない状態 (別の notemaid が同じデータディレクトリで動いている、secret の鍵が読めない) では専用の終了コードで止まり、systemd は再起動しません。理由はログに出ます
 
 ## コマンド
 

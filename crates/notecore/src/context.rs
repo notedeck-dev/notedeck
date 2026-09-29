@@ -53,6 +53,11 @@ pub struct Core {
     // DB-only early init — used by db()
     db_rx: tokio::sync::watch::Receiver<Option<Arc<Database>>>,
     db_tx: tokio::sync::watch::Sender<Option<Arc<Database>>>,
+    // Misskey クライアントだけの初期化 — DB を持たない構成 (notemaid) は `client()` だけを使う
+    client_rx: tokio::sync::watch::Receiver<Option<Arc<MisskeyClient>>>,
+    client_tx: tokio::sync::watch::Sender<Option<Arc<MisskeyClient>>>,
+    /// 口座の所在 (`AccountStore`)。DB を開く構成では `initialize_db` が DB を差す
+    accounts: OnceLock<Arc<dyn crate::accounts::AccountStore>>,
     /// OGP キャッシュ。初期化後に 1 度だけ差される (無ければ先読みを省く)
     ogp: OnceLock<OgpCache>,
     /// 手元側へのヒント通知。無ければ黙って捨てる (notecored の既定)
@@ -98,11 +103,15 @@ impl Core {
     pub fn new() -> Self {
         let (tx, rx) = tokio::sync::watch::channel(None);
         let (db_tx, db_rx) = tokio::sync::watch::channel(None);
+        let (client_tx, client_rx) = tokio::sync::watch::channel(None);
         Self {
             rx,
             tx,
             db_rx,
             db_tx,
+            client_rx,
+            client_tx,
+            accounts: OnceLock::new(),
             ogp: OnceLock::new(),
             hints: OnceLock::new(),
             stream_observation: Arc::default(),
@@ -125,13 +134,37 @@ impl Core {
     /// Called as soon as DB is ready (after migrations, before client).
     /// Unblocks all commands that only need `db()`.
     pub fn initialize_db(&self, db: Arc<Database>) {
+        let _ = self
+            .accounts
+            .set(Arc::clone(&db) as Arc<dyn crate::accounts::AccountStore>);
         let _ = self.db_tx.send(Some(db));
+    }
+
+    /// DB を持たない構成 (notemaid): Misskey クライアントだけを差す。口座は `set_account_store` で
+    pub fn initialize_client(&self, client: Arc<MisskeyClient>) {
+        let _ = self.client_tx.send(Some(client));
+    }
+
+    /// 口座の所在を差し替える (`initialize_db` より前に呼ぶ)。notemaid は写しを差す
+    pub fn set_account_store(&self, store: Arc<dyn crate::accounts::AccountStore>) {
+        let _ = self.accounts.set(store);
+    }
+
+    pub fn accounts(&self) -> Result<Arc<dyn crate::accounts::AccountStore>> {
+        self.accounts
+            .get()
+            .cloned()
+            .ok_or_else(|| NoteDeckError::Internal("account store is not set".into()))
     }
 
     /// Called once from the background init thread when DB + client are ready.
     pub fn initialize(&self, db: Arc<Database>, client: Arc<MisskeyClient>) {
         // Also signal DB channel in case initialize_db() wasn't called
+        let _ = self
+            .accounts
+            .set(Arc::clone(&db) as Arc<dyn crate::accounts::AccountStore>);
         let _ = self.db_tx.send(Some(Arc::clone(&db)));
+        let _ = self.client_tx.send(Some(Arc::clone(&client)));
         let server_info =
             notecli::server_info::ServerInfoService::new(Arc::clone(&db), Arc::clone(&client));
         let _ = self.tx.send(Some(Arc::new(Inner {
@@ -317,7 +350,7 @@ impl Core {
     /// Non-blocking check of full readiness (DB + MisskeyClient). Used by the
     /// healthcheck so it can report startup state without awaiting init.
     pub fn is_ready(&self) -> bool {
-        self.rx.borrow().is_some()
+        self.rx.borrow().is_some() || self.client_rx.borrow().is_some()
     }
 
     /// Await until DB is ready (fast path — does not wait for MisskeyClient).
@@ -345,11 +378,11 @@ impl Core {
             .map_err(|e| NoteDeckError::Internal(format!("blocking task failed: {e}")))?
     }
 
-    /// Await until fully initialized, then return MisskeyClient reference.
+    /// Await until the Misskey client is set (DB を持たない構成でも待てる)。
     pub async fn client(&self) -> Arc<MisskeyClient> {
-        let mut rx = self.rx.clone();
+        let mut rx = self.client_rx.clone();
         let r = rx.wait_for(|v| v.is_some()).await.unwrap();
-        Arc::clone(&r.as_ref().unwrap().client)
+        Arc::clone(r.as_ref().unwrap())
     }
 
     /// Await until fully initialized, then return the server-info SWR service.
@@ -362,8 +395,8 @@ impl Core {
     /// `ready()` + `get_credentials` の定型を 1 行に畳む (#782 R2)。
     /// db を後続で使わないコマンド用 — 使う場合は従来どおり `ready()` を使う。
     pub async fn authed(&self, account_id: &str) -> Result<(Arc<MisskeyClient>, String, String)> {
-        let (db, client) = self.ready().await;
-        let (host, token) = get_credentials(&db, account_id)?;
+        let client = self.client().await;
+        let (host, token) = get_credentials(&*self.accounts()?, account_id)?;
         Ok((client, host, token))
     }
 
@@ -372,8 +405,8 @@ impl Core {
         &self,
         account_id: &str,
     ) -> Result<(Arc<MisskeyClient>, String, String)> {
-        let (db, client) = self.ready().await;
-        let (host, token) = get_credentials_or_anon(&db, account_id)?;
+        let client = self.client().await;
+        let (host, token) = get_credentials_or_anon(&*self.accounts()?, account_id)?;
         Ok((client, host, token))
     }
 

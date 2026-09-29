@@ -132,7 +132,7 @@ pub async fn notes_react(core: &Core, params: &Value, ctx: &ExecContext) -> Resu
     let reaction = require_str(params, "reaction", "notes.react")?.to_string();
     let account_id = resolve_account_id(params, ctx)?;
     // リモート絵文字は受け付けるサーバー (tempura) 以外では弾く
-    let accounts = core.blocking(account_service::list_public).await?;
+    let accounts = account_service::list_public_from(&*core.accounts()?)?;
     if let Some(host) = accounts
         .iter()
         .find(|a| a.id == account_id)

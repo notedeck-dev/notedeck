@@ -22,7 +22,7 @@ fn project(a: &AccountPublic) -> Value {
 
 /// `account.list`: ログイン中の全アカウント。
 pub async fn list(core: &Core) -> Result<Value> {
-    let accounts = core.blocking(account_service::list_public).await?;
+    let accounts = account_service::list_public_from(&*core.accounts()?)?;
     Ok(Value::Array(accounts.iter().map(project).collect()))
 }
 
@@ -31,7 +31,7 @@ pub async fn current(core: &Core, ctx: &ExecContext) -> Result<Value> {
     let Some(id) = ctx.account_id.clone().filter(|s| !s.is_empty()) else {
         return Ok(Value::Null);
     };
-    let accounts = core.blocking(account_service::list_public).await?;
+    let accounts = account_service::list_public_from(&*core.accounts()?)?;
     Ok(accounts
         .iter()
         .find(|a| a.id == id)

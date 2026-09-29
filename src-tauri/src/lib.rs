@@ -328,8 +328,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     });
                 }));
             }
-            // 接続したら口座の一覧を写す (notemaid は自分の DB に口座だけ持ち、トークンは
-            // OS キーチェーンから同じ id で読む)。口座が変わったときは core_sync_accounts が呼ぶ
+            // 接続したら口座の一覧を写す (notemaid は SQLite を開かず、写し (`SyncedAccounts`) を
+            // 口座の所在にし、トークンは OS キーチェーンから同じ id で読む)。口座が変わったときは core_sync_accounts が呼ぶ
             let sync_handle = app.handle().clone();
             relay.set_on_connected(std::sync::Arc::new(move || {
                 let app = sync_handle.clone();
