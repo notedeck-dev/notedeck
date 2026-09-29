@@ -697,6 +697,9 @@ _aiConnectionSection:
   manageConnections: "接続を追加 / 管理"
   model: "モデル"
   modelPlaceholder: "claude-sonnet-5, gpt-5.4-mini, moonshotai/kimi-k3 など"
+  dailyTokenBudget: "1 日の token 予算"
+  tokensPerDay: "tokens / 日"
+  dailyTokenBudgetHint: "この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。"
 
 _aiDataSourcesSection:
   title: "データソース"
@@ -749,8 +752,6 @@ _aiHeartbeatSection:
   runsPerDay: "回 / 日"
   disableOnDailyLimit: "上限到達時に自動停止"
   disableOnDailyLimitDescription: "OFF = 警告のみで継続 / ON = HEARTBEAT を自動 disable"
-  dailyTokenBudget: "1 日の token 予算 (現在の接続)"
-  tokensPerDay: "tokens / 日 (0 = 無制限)"
   permissions: "HEARTBEAT 中の権限"
   changeInPermissions: "権限設定で変更"
   keepRunning: "アプリを終了しても続ける"

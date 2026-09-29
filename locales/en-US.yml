@@ -916,6 +916,9 @@ _aiConnectionSection:
   manageConnections: "Add / manage connections"
   model: "Model"
   modelPlaceholder: "claude-sonnet-5, gpt-5.4-mini, moonshotai/kimi-k3, etc."
+  dailyTokenBudget: "Daily token budget"
+  tokensPerDay: "tokens / day"
+  dailyTokenBudgetHint: "Cap for chat and HEARTBEAT combined on this connection. 0 = unlimited."
 
 _aiDataSourcesSection:
   title: "Data sources"
@@ -968,8 +971,6 @@ _aiHeartbeatSection:
   runsPerDay: "runs / day"
   disableOnDailyLimit: "Stop automatically at the limit"
   disableOnDailyLimitDescription: "OFF = keep going with a warning / ON = disable HEARTBEAT automatically"
-  dailyTokenBudget: "Daily token budget (current connection)"
-  tokensPerDay: "tokens / day (0 = unlimited)"
   permissions: "Permissions during HEARTBEAT"
   changeInPermissions: "Change in permission settings"
   keepRunning: "Keep running after the app exits"

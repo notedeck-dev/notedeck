@@ -1248,6 +1248,12 @@ export interface Locale {
     readonly "model": string
     /** claude-sonnet-5, gpt-5.4-mini, moonshotai/kimi-k3 など */
     readonly "modelPlaceholder": string
+    /** 1 日の token 予算 */
+    readonly "dailyTokenBudget": string
+    /** tokens / 日 */
+    readonly "tokensPerDay": string
+    /** この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。 */
+    readonly "dailyTokenBudgetHint": string
   }
   readonly "_aiDataSourcesSection": {
     /** データソース */
@@ -1346,10 +1352,6 @@ export interface Locale {
     readonly "disableOnDailyLimit": string
     /** OFF = 警告のみで継続 / ON = HEARTBEAT を自動 disable */
     readonly "disableOnDailyLimitDescription": string
-    /** 1 日の token 予算 (現在の接続) */
-    readonly "dailyTokenBudget": string
-    /** tokens / 日 (0 = 無制限) */
-    readonly "tokensPerDay": string
     /** HEARTBEAT 中の権限 */
     readonly "permissions": string
     /** 権限設定で変更 */
