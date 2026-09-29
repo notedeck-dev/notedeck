@@ -165,6 +165,11 @@ fn explicit_route_rule(method: &Method, path: &str) -> Option<RouteRule> {
         // principal で enforce する (単一 enforce 点の維持)
         return Some(Exempt);
     }
+    if path == "/mcp" {
+        // MCP (#555): tools/list は静的 metadata、tools/call は dispatcher に届く
+        // (dispatcher が external principal で enforce する)。GET は 405
+        return Some(Exempt);
+    }
     if path == "/api/health" && method == Method::GET {
         // self-diagnosis の summary は免除。streams 詳細 (接続先 host 等) の
         // deck.read gate はハンドラ側で応答から間引く

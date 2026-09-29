@@ -301,6 +301,8 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
         ai_status: config.ai_status.clone(),
     };
 
+    let deck_state_for_mcp = deck_state.clone();
+
     // Authenticated NoteDeck-specific routes (deck, commands)
     let deck_routes = deck_openapi_router()
         .layer(middleware::from_fn_with_state(
@@ -352,11 +354,31 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
         .merge(meta_routes)
         .split_for_parts();
 
+    // MCP (#555): JSON-RPC なので OpenAPI には載せない。認証と CORS は deck ルートと同じ
+    let mcp_routes = Router::new()
+        .route(
+            "/mcp",
+            axum::routing::post(mcp_post)
+                .get(mcp_get)
+                .delete(mcp_delete),
+        )
+        .layer(middleware::from_fn_with_state(
+            McpState {
+                deck: deck_state_for_mcp.clone(),
+            },
+            mcp_auth_middleware,
+        ))
+        .layer(cors_layer())
+        .with_state(McpState {
+            deck: deck_state_for_mcp,
+        });
+
     // Rate limiter for upstream Misskey API requests
     let rate_limiter = RateLimiter::new(config.perf);
 
     let app = Router::new()
         .merge(api_router)
+        .merge(mcp_routes)
         // external principal gate (#712 §5.3): 永続トークン由来のリクエストを
         // per-route 対応表で enforce する。persistent_token_middleware (外側)
         // が付けた marker を見るため、その内側に置く
@@ -754,6 +776,68 @@ async fn execute_capability(
             )
         }
     }
+}
+
+// --- MCP (#555): 外部の AI エージェントが capability を tool として呼ぶ面 ---
+
+#[derive(Clone)]
+struct McpState {
+    deck: DeckState,
+}
+
+/// deck ルートと同じ Bearer 検査 (state の形だけ違う)
+async fn mcp_auth_middleware(
+    State(state): State<McpState>,
+    req: Request,
+    next: Next,
+) -> Result<Response, Response> {
+    deck_auth_middleware(State(state.deck), req, next).await
+}
+
+/// `POST /mcp`: JSON-RPC を 1 つ (か配列) 受けて JSON で答える。通知だけなら 202
+async fn mcp_post(
+    State(state): State<McpState>,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> Response {
+    let requested = headers
+        .get("mcp-protocol-version")
+        .and_then(|v| v.to_str().ok());
+    let version = crate::mcp::negotiate_version(requested);
+    let parsed: Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(e) => {
+            return mcp_json(
+                StatusCode::BAD_REQUEST,
+                version,
+                json!({ "jsonrpc": "2.0", "id": null, "error": { "code": -32700, "message": format!("parse error: {e}") } }),
+            );
+        }
+    };
+    let app_version = env!("CARGO_PKG_VERSION");
+    match crate::mcp::handle_body(state.deck.bridge.as_ref(), parsed, app_version).await {
+        Ok(Some(reply)) => mcp_json(StatusCode::OK, version, reply),
+        Ok(None) => (StatusCode::ACCEPTED, [("mcp-protocol-version", version)]).into_response(),
+        Err(err) => mcp_json(StatusCode::BAD_REQUEST, version, err),
+    }
+}
+
+fn mcp_json(status: StatusCode, version: &str, body: Value) -> Response {
+    (status, [("mcp-protocol-version", version)], Json(body)).into_response()
+}
+
+/// サーバー発のストリームは持たない (状態なし)
+async fn mcp_get() -> Response {
+    (
+        StatusCode::METHOD_NOT_ALLOWED,
+        [(axum::http::header::ALLOW, "POST, DELETE")],
+    )
+        .into_response()
+}
+
+/// セッションを持たないので、終了要求は受け取るだけ
+async fn mcp_delete() -> StatusCode {
+    StatusCode::OK
 }
 
 // --- Health (#709: readiness + doctor + ストリーム状態) ---

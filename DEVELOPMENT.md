@@ -229,6 +229,15 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 本格クライアント（dogfooding）を兼ねる。19820 に新しい面を足すときの
 テストベンチとして育てる。
 
+## MCP サーバー ([#555](https://github.com/notedeck-dev/notedeck/issues/555) / [#513](https://github.com/notedeck-dev/notedeck/issues/513))
+
+外部の AI エージェント (Claude Code / Codex / Cursor など) が動作中の NoteDeck の capability を tool として呼ぶ面。内蔵 HTTP サーバーの `POST /mcp` (Streamable HTTP、JSON-RPC を JSON で返す。状態なし、サーバー発のストリーム無し、GET は 405) で、本体は `crates/notecore/src/mcp.rs`。
+
+- **tool の集合と schema は AI プロバイダーに渡すものと同じ** (宣言表の `ai_tool` な capability、名前は `.` を `_` にした形、schema は `capabilities::input_schema`)。実行は既存の `capabilities/execute` (橋 → デバイスの dispatcher) なので、認可 (external principal、#712) と汚染 (#1103) は HTTP の `/api/capabilities/{id}/execute` と同じ 1 か所で効く。tool の失敗は JSON-RPC のエラーではなく `isError` の結果 (dispatcher の `code: error` をそのまま文面に)
+- **認証は HTTP API と同じ Bearer**。永続トークンで繋ぐと external principal になる。権限ウィンドウの「外部アプリ」でトークンを発行すると、Claude Code 向けの登録コマンド (`claude mcp add ... --transport http`) が一緒に出る
+- external gate の対応表では `/mcp` は免除 (tools/list は静的 metadata、tools/call は dispatcher が enforce)。OpenAPI には載せない (JSON-RPC のため)。単体テストは `mcp.rs` (版の交渉 / 一覧 / 実行の写像 / 通知と batch)
+- ACP (#1104) で手元の CLI を抱えるときは、この URL とトークンを CLI に渡すだけで NoteDeck の capability が使える
+
 ## Architecture
 
 NoteDeck は 1 つのリポジトリ (Cargo workspace) で、`crates/notecli` (Misskey クライアント + CLI) と `src-tauri` (アプリの Rust) を持ちます (notecli は 2026-09-23 に別リポジトリから取り込んだ、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。

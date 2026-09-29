@@ -271,6 +271,24 @@ function copyCreatedToken(): void {
   }, 1500)
 }
 
+// MCP (#555): 発行したトークンで外部の AI エージェントを繋ぐコマンド。表示は
+// 発行直後だけ (トークン本体を含むため)。URL は内蔵 HTTP サーバーの /mcp
+const MCP_URL = 'http://127.0.0.1:19820/mcp'
+const mcpCommand = computed(() =>
+  createdToken.value
+    ? `claude mcp add notedeck --transport http ${MCP_URL} --header "Authorization: Bearer ${createdToken.value.token}"`
+    : '',
+)
+const mcpCopied = ref(false)
+function copyMcpCommand(): void {
+  if (!mcpCommand.value) return
+  navigator.clipboard.writeText(mcpCommand.value)
+  mcpCopied.value = true
+  setTimeout(() => {
+    mcpCopied.value = false
+  }, 1500)
+}
+
 function formatTokenDate(t: ApiTokenMeta): string {
   return new Date(t.createdAtMs).toLocaleDateString(i18n.lang)
 }
@@ -554,6 +572,15 @@ function handleReset() {
               <button class="_button" :class="$style.tokenCreateButton" @click="copyCreatedToken">
                 <i class="ti ti-copy" />
                 {{ copied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
+              </button>
+            </div>
+            <!-- MCP (#555): このトークンで Claude Code 等から NoteDeck の capability を tool として呼べる -->
+            <div :class="$style.hint">{{ i18n.ts._permissionsContent.mcpHint }}</div>
+            <div :class="$style.tokenValueRow">
+              <code :class="$style.tokenValue">{{ mcpCommand }}</code>
+              <button class="_button" :class="$style.tokenCreateButton" @click="copyMcpCommand">
+                <i class="ti ti-copy" />
+                {{ mcpCopied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
               </button>
             </div>
           </div>
