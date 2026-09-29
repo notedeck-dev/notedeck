@@ -1,7 +1,7 @@
 // 「notecore は Tauri に依存しない」を機械検査に落とす (#1106 段階 0a / 0b)。
 //
 // crates/notecore は「デバイスが 1 台も繋がっていなくても意味を持つ処理」の置き場で、
-// アプリ (src-tauri) に埋め込む構成と notecored で常駐させる構成の両方で使う。
+// アプリ (src-tauri) に埋め込む構成と notemaid で常駐させる構成の両方で使う。
 // Cargo の依存方向 (notecore は notedeck を知らない) はコンパイラが守るが、
 // 「tauri 系クレートを notecore の依存に足す」「`#[tauri::command]` を置く」は
 // コンパイルが通ってしまうので、ここで落とす。
@@ -14,8 +14,8 @@ import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const ROOT = resolve(import.meta.dirname, '../..')
-const CRATE = resolve(ROOT, 'crates/notecore')
-const SRC = resolve(CRATE, 'src')
+// notemaid (AI 面) も同じ規則: Tauri に依存せず、手元側は trait で受ける
+const CRATES = ['crates/notecore', 'crates/notemaid']
 
 function rustFiles(dir: string): string[] {
   const out: string[] = []
@@ -27,9 +27,10 @@ function rustFiles(dir: string): string[] {
   return out.sort()
 }
 
-const files = rustFiles(SRC)
+describe.each(CRATES)('%s の境界 (#1106)', (crate) => {
+  const CRATE = resolve(ROOT, crate)
+  const files = rustFiles(resolve(CRATE, 'src'))
 
-describe('notecore (crates/notecore) の境界 (#1106)', () => {
   it('ソースがある (検査対象を見失っていない)', () => {
     expect(files.length).toBeGreaterThan(10)
   })

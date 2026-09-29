@@ -9,6 +9,8 @@ import type {
 // notecore (単一の書き手) をメモリで模す。構造化された操作だけを受ける。
 const backend = new Map<string, WireSession>()
 const calls: string[] = []
+/** create の応答を遅らせる (別プロセスの notemaid の往復を模す) */
+let holdCreate: Promise<void> | null = null
 
 function ok<T>(data: T) {
   return { status: 'ok' as const, data }
@@ -43,6 +45,7 @@ vi.mock('@/utils/tauriInvoke', async () => {
       },
       aiSessionCreate: async (req: AiSessionCreate) => {
         calls.push(`create:${req.id}`)
+        if (holdCreate) await holdCreate
         const s: WireSession = {
           schemaVersion: 1,
           id: req.id,
@@ -148,6 +151,50 @@ describe('useAiSessionsStore (#1133: notecore が単一の書き手)', () => {
     ])
     expect(backend.get(s.id)?.messages).toHaveLength(2)
     expect(store.listSorted()[0]?.lastMessagePreview).toBe('a')
+  })
+
+  it('create / rename の応答は、ターン中に写しへ載せた user と placeholder を消さない (#1106)', async () => {
+    // 別プロセスの notemaid では応答が遅れて届くので、run() が写しに載せた後に
+    // create の応答が来る。応答は本体の情報 (updatedAt 等) だけを取り込み、
+    // 写しのメッセージはターンの終わりの reload まで触らない
+    const store = useAiSessionsStore()
+    const s = store.createNew({ model: 'm', connectionId: 'c' })
+    store.setTitle(s.id, 'とりあえずの題')
+    store.setLocalMessages(s.id, [
+      { id: 'u1', role: 'user', content: 'q', timestamp: 1 },
+      { id: 't1-placeholder', role: 'assistant', content: '', timestamp: 2 },
+    ])
+    await flush()
+    expect(calls).toEqual([`create:${s.id}`, `rename:${s.id}:とりあえずの題`])
+    expect(store.get(s.id)?.messages.map((m) => m.id)).toEqual([
+      'u1',
+      't1-placeholder',
+    ])
+    expect(store.get(s.id)?.title).toBe('とりあえずの題')
+    expect(store.get(s.id)?.updatedAt).toBeGreaterThanOrEqual(100)
+  })
+
+  it('settled は送信済みの操作が notecore に届くまで待つ', async () => {
+    let release: () => void = () => {}
+    holdCreate = new Promise<void>((r) => {
+      release = r
+    })
+    const store = useAiSessionsStore()
+    const s = store.createNew({ model: 'm', connectionId: 'c' })
+    await flush()
+    expect(backend.has(s.id)).toBe(false)
+    let done = false
+    const waiting = store.settled(s.id).then(() => {
+      done = true
+    })
+    await flush()
+    expect(done).toBe(false)
+    release()
+    holdCreate = null
+    await waiting
+    expect(backend.has(s.id)).toBe(true)
+    // 送っていないセッションは即座に返る
+    await store.settled('none')
   })
 
   it('setLocalMessages は notecore に書かず、reload で揃う', async () => {

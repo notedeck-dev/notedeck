@@ -3334,7 +3334,6 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "bytes",
- "chrono",
  "dirs 6.0.0",
  "encoding_rs",
  "futures-util",
@@ -3368,28 +3367,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "notecored"
-version = "1.73.0"
-dependencies = [
- "clap",
- "dirs 6.0.0",
- "libc",
- "notecli",
- "notecore",
- "rand 0.9.4",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tracing",
- "tracing-appender",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "notedeck"
-version = "1.73.0"
+version = "1.74.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -3402,11 +3381,13 @@ dependencies = [
  "jni 0.21.1",
  "json5",
  "kamadak-exif",
+ "libc",
  "lru",
  "mime_guess",
  "ndk-context",
  "notecli",
  "notecore",
+ "notemaid",
  "objc2-foundation",
  "rand 0.9.4",
  "regex",
@@ -3451,6 +3432,34 @@ dependencies = [
  "windows",
  "zbus",
  "zeroize",
+]
+
+[[package]]
+name = "notemaid"
+version = "1.74.0"
+dependencies = [
+ "chrono",
+ "clap",
+ "dirs 6.0.0",
+ "futures-util",
+ "indexmap 2.14.0",
+ "json5",
+ "libc",
+ "notecli",
+ "notecore",
+ "rand 0.9.4",
+ "regex",
+ "reqwest 0.12.28",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha2",
+ "specta",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
 ]
 
 [[package]]

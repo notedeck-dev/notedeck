@@ -40,6 +40,20 @@ const currentModel = computed<string>({
   },
 })
 
+/** 現在の接続の 1 日の token 予算 (0 = 無制限)。チャットも HEARTBEAT も同じ勘定 (#1133) */
+const activeBudget = computed<number>({
+  get: () => config.value.budgets[config.value.activeConnectionId] ?? 0,
+  set: (v) => {
+    const id = config.value.activeConnectionId
+    if (!id) return
+    const n = Number.isFinite(v) && v > 0 ? Math.floor(v) : 0
+    const next = { ...config.value.budgets }
+    if (n === 0) delete next[id]
+    else next[id] = n
+    config.value.budgets = next
+  },
+})
+
 function selectConnection(id: string): void {
   config.value.activeConnectionId = id
   // モデル未設定の接続はテンプレートの defaultModel で初期化する —
@@ -122,23 +136,46 @@ function openConnectionsWindow(): void {
       type="text"
       :placeholder="i18n.ts._aiConnectionSection.modelPlaceholder"
     />
+    <!-- 接続ごとの 1 日の token 予算 (#1133)。チャットと HEARTBEAT の合計なので接続の面に置く -->
+    <div :class="$style.field">
+      <div :class="$style.fieldHeader">
+        <span :class="$style.fieldLabel">{{ i18n.ts._aiConnectionSection.dailyTokenBudget }}</span>
+        <div :class="$style.fieldValue">
+          <input
+            v-model.number="activeBudget"
+            type="number"
+            min="0"
+            step="1000"
+            :class="$style.numberInput"
+          />
+          <span :class="$style.fieldUnit">{{ i18n.ts._aiConnectionSection.tokensPerDay }}</span>
+        </div>
+      </div>
+      <p :class="$style.fieldHint">{{ i18n.ts._aiConnectionSection.dailyTokenBudgetHint }}</p>
+    </div>
   </AiSettingsSection>
 </template>
 
 <style lang="scss" module>
+@use '@/styles/settingsFields' as *;
 @use '@/styles/buttons' as *;
 
 .keyHint {
-  display: flex;
+  @include key-hint;
   align-items: center;
-  gap: 4px;
-  font-size: 0.7em;
-  opacity: 0.5;
 }
 
 .keyBtn {
   @include btn-secondary;
 }
+
+.field { @include field; }
+.fieldHeader { @include field-header; }
+.fieldLabel { @include field-label; }
+.fieldValue { @include field-value; }
+.fieldHint { @include field-hint; }
+.numberInput { @include number-input; }
+.fieldUnit { @include field-unit; }
 
 .input {
   width: 100%;

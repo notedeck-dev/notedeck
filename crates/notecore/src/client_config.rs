@@ -1,10 +1,10 @@
-//! 手元側の構成ファイル `client.json5` (#1106 段階 3a)。
+//! 手元側の構成ファイル `client.json5` (#1106 案 B)。
 //!
-//! 端末ごとの「望む構成」を持つ: `backend` が `embedded` (アプリに埋め込んだ
-//! notecore) か `resident` (常駐の notecored に中継) か、その切替の途中
-//! (`pending-resident`: 移行パッケージを書き出してアプリの再起動待ち) か。
-//! 手元側のファイルなので設定バックアップに含めず、capability からも書けない
-//! (アプリの切替導線だけが書く)。無い / 壊れているときは `embedded`。
+//! 端末ごとの「AI (notemaid) をどこで動かすか」を持つ: `auto` (既定。常駐の notemaid が
+//! 居れば繋ぎ、居なければ同梱の sidecar を子プロセスで起動、どちらも無ければ in-process) /
+//! `embedded` (常に in-process、開発と切り分け用) / `resident` (常駐の notemaid にだけ繋ぐ、
+//! 子プロセスは起動しない)。データ面は構成に関わらず常にアプリの中。手元側のファイル
+//! なので設定バックアップに含めず、capability からも書けない。無い / 壊れているときは `auto`。
 
 use std::path::Path;
 
@@ -19,9 +19,8 @@ pub const FILE_NAME: &str = "client.json5";
 #[serde(rename_all = "kebab-case")]
 pub enum Backend {
     #[default]
+    Auto,
     Embedded,
-    /// 切替の途中: 移行パッケージを書き出し済み、次の起動で import して常駐に切り替える
-    PendingResident,
     Resident,
 }
 
@@ -31,7 +30,7 @@ pub struct ClientConfig {
     pub backend: Backend,
 }
 
-/// 空 (= ファイル未作成) や壊れた内容は既定 (`embedded`)
+/// 空 (= ファイル未作成) や壊れた内容は既定 (`auto`)
 pub fn parse(raw: &str) -> ClientConfig {
     if raw.trim().is_empty() {
         return ClientConfig::default();
@@ -41,8 +40,8 @@ pub fn parse(raw: &str) -> ClientConfig {
 
 pub fn serialize_backend(backend: Backend) -> &'static str {
     match backend {
+        Backend::Auto => "auto",
         Backend::Embedded => "embedded",
-        Backend::PendingResident => "pending-resident",
         Backend::Resident => "resident",
     }
 }
@@ -50,7 +49,7 @@ pub fn serialize_backend(backend: Backend) -> &'static str {
 pub fn serialize(cfg: &ClientConfig) -> String {
     let backend = serialize_backend(cfg.backend);
     format!(
-        "// この端末の構成 (#1106)。embedded = アプリに埋め込んだ notecore、resident = 常駐の notecored に中継\n{{\n  backend: '{backend}',\n}}\n"
+        "// この端末の AI (notemaid) の動かし方 (#1106)。auto = 常駐が居れば繋ぎ、無ければ子プロセス / embedded = 常に in-process / resident = 常駐にだけ繋ぐ\n{{\n  backend: '{backend}',\n}}\n"
     )
 }
 
@@ -72,21 +71,18 @@ mod tests {
 
     #[test]
     fn parses_missing_broken_and_valid() {
-        assert_eq!(parse("").backend, Backend::Embedded);
-        assert_eq!(parse("{{{").backend, Backend::Embedded);
-        assert_eq!(parse("{ backend: 'nope' }").backend, Backend::Embedded);
+        assert_eq!(parse("").backend, Backend::Auto);
+        assert_eq!(parse("{{{").backend, Backend::Auto);
+        assert_eq!(parse("{ backend: 'nope' }").backend, Backend::Auto);
+        assert_eq!(parse("{ backend: 'embedded' }").backend, Backend::Embedded);
         assert_eq!(parse("{ backend: 'resident' }").backend, Backend::Resident);
-        assert_eq!(
-            parse("{ backend: 'pending-resident' }").backend,
-            Backend::PendingResident
-        );
-        assert_eq!(parse("{}").backend, Backend::Embedded);
+        assert_eq!(parse("{}").backend, Backend::Auto);
     }
 
     #[test]
     fn round_trips_through_the_file() {
         let dir = tempfile::tempdir().unwrap();
-        assert_eq!(load(dir.path()).backend, Backend::Embedded);
+        assert_eq!(load(dir.path()).backend, Backend::Auto);
         let cfg = ClientConfig {
             backend: Backend::Resident,
         };
@@ -96,7 +92,7 @@ mod tests {
         assert_eq!(load(dir.path()), cfg);
         assert_eq!(
             parse(&serialize(&ClientConfig::default())).backend,
-            Backend::Embedded
+            Backend::Auto
         );
     }
 }

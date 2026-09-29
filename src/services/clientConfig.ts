@@ -1,28 +1,24 @@
 /**
- * この端末の構成 (client.json5) の codec (#1106 段階 3a)。
+ * この端末の構成 (client.json5) の codec (#1106 案 B)。
  *
- * `backend` は「アプリに埋め込んだ notecore を使う (embedded)」か「常駐の
- * notecored に中継する (resident)」か。`pending-resident` は切替の途中 (移行
- * パッケージを書き出し済みで、次の起動で import して常駐に切り替える)。
- * 手元側のファイルなので設定バックアップに含めず、書くのはアプリの切替導線だけ。
- * 無い / 壊れているときは embedded。Rust 側の codec と同じ規則。
+ * `backend` は AI (notemaid) をどこで動かすか: auto (既定。常駐の notemaid が居れば
+ * 繋ぎ、居なければ同梱の sidecar を子プロセスで起動、どちらも無ければ in-process) /
+ * embedded (常に in-process) / resident (常駐にだけ繋ぐ)。データ面は構成に関わらず
+ * 常にアプリの中。手元側のファイルなので設定バックアップに含めない。
+ * 無い / 壊れているときは auto。Rust 側の codec と同じ規則。
  */
 
 import JSON5 from 'json5'
 
-export type ClientBackend = 'embedded' | 'pending-resident' | 'resident'
+export type ClientBackend = 'auto' | 'embedded' | 'resident'
 
 export interface ClientConfig {
   backend: ClientBackend
 }
 
-const BACKENDS: readonly ClientBackend[] = [
-  'embedded',
-  'pending-resident',
-  'resident',
-]
+const BACKENDS: readonly ClientBackend[] = ['auto', 'embedded', 'resident']
 
-export const DEFAULT_CLIENT_CONFIG: ClientConfig = { backend: 'embedded' }
+export const DEFAULT_CLIENT_CONFIG: ClientConfig = { backend: 'auto' }
 
 export function parseClientConfig(raw: string): ClientConfig {
   if (raw.trim() === '') return { ...DEFAULT_CLIENT_CONFIG }
@@ -38,5 +34,5 @@ export function parseClientConfig(raw: string): ClientConfig {
 }
 
 export function serializeClientConfig(cfg: ClientConfig): string {
-  return `// この端末の構成 (#1106)。embedded = アプリに埋め込んだ notecore、resident = 常駐の notecored に中継\n{\n  backend: '${cfg.backend}',\n}\n`
+  return `// この端末の AI (notemaid) の動かし方 (#1106)。auto = 常駐が居れば繋ぎ、無ければ子プロセス / embedded = 常に in-process / resident = 常駐にだけ繋ぐ\n{\n  backend: '${cfg.backend}',\n}\n`
 }

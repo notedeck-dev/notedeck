@@ -1,27 +1,21 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
-import type {
-  ClientLayerState,
-  CoreStatus,
-  MigrationSummary,
-  SwitchBack,
-} from '@/bindings'
+import { computed, ref } from 'vue'
+import type { ClientLayerState, ResidentStatus } from '@/bindings'
 import { isTauri } from '@/utils/settingsFs'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
- * クライアント層の状態の写し (#1106 段階 3a)。
+ * クライアント層の状態の写し (#1106 案 B)。
  *
- * `state` は今このプロセスがどちらのコア (埋め込み / 常駐の notecored) と話して
- * いるかと接続の様子 (`nd:client-layer-state` で更新)。`core` は切替導線の
- * 状態面 (望む構成 / notecored の所在 / unit / secret / 前回の失敗) で、
- * 「コア」ウィンドウが開いたときとアクションの後に読み直す。
+ * `state` は今このプロセスが AI 系のコマンドをどこに送っているか (in-process /
+ * 別プロセスの notemaid に中継) と接続の様子 (`nd:client-layer-state` で更新)。
+ * `resident` は「アプリを閉じても AI を動かす」(ログイン時タスク) の状態で、「コア」
+ * ウィンドウが開いたときとトグルの後に読み直す。データ面は常にこの端末で動く。
  */
 export const useClientLayerStore = defineStore('clientLayer', () => {
   const state = ref<ClientLayerState | null>(null)
-  // daemon の生 JSON (再帰型) を deep に unwrap させない (型の展開が深くなりすぎる)。丸ごと差し替えるだけなので shallow で足りる
-  const core = shallowRef<CoreStatus | null>(null)
+  const resident = ref<ResidentStatus | null>(null)
   let started = false
 
   async function refreshState(): Promise<void> {
@@ -33,12 +27,12 @@ export const useClientLayerStore = defineStore('clientLayer', () => {
     }
   }
 
-  async function refreshCore(): Promise<void> {
+  async function refreshResident(): Promise<void> {
     if (!isTauri) return
     try {
-      core.value = unwrap(await commands.coreStatus())
+      resident.value = await commands.coreResidentStatus()
     } catch (e) {
-      console.warn('[client-layer] core status failed:', e)
+      console.warn('[client-layer] resident status failed:', e)
     }
   }
 
@@ -52,38 +46,33 @@ export const useClientLayerStore = defineStore('clientLayer', () => {
     })
   }
 
-  /** 今のプロセスが常駐の notecored に中継しているか */
+  /** 今のプロセスが AI 系を別プロセスの notemaid に中継しているか */
   const isResident = computed(() => state.value?.backend === 'resident')
-  /** ナビバーに出す必要があるか (常駐か、前回の切替が完了していない) */
-  const needsAttention = computed(
-    () => isResident.value || !!state.value?.switchError,
-  )
 
-  /** 常駐へ (unit の用意 + 移行パッケージ + pending)。完了は再起動 */
-  async function switchToResident(): Promise<MigrationSummary> {
-    return unwrap(await commands.coreSwitchToResident())
+  /** 「アプリを閉じても AI を動かす」を切り替える (再起動不要) */
+  async function setResident(enabled: boolean): Promise<void> {
+    state.value = unwrap(await commands.coreSetResident(enabled))
+    await refreshResident()
   }
 
-  /** 埋め込みへ戻す (常駐を止めて secret を取り戻す)。完了は再起動 */
-  async function switchToEmbedded(): Promise<SwitchBack> {
-    return unwrap(await commands.coreSwitchToEmbedded())
-  }
-
-  /** 切り替えの途中をやめる */
-  async function cancelPending(): Promise<void> {
-    unwrap(await commands.coreCancelPending())
+  /** 口座が変わったとき、別プロセスの notemaid に一覧を写し直す */
+  async function syncAccounts(): Promise<void> {
+    if (!isTauri) return
+    try {
+      await commands.coreSyncAccounts()
+    } catch (e) {
+      console.warn('[client-layer] account sync failed:', e)
+    }
   }
 
   return {
     state,
-    core,
+    resident,
     isResident,
-    needsAttention,
     refreshState,
-    refreshCore,
+    refreshResident,
     start,
-    switchToResident,
-    switchToEmbedded,
-    cancelPending,
+    setResident,
+    syncAccounts,
   }
 })

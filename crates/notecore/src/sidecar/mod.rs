@@ -241,7 +241,7 @@ pub fn push_snapshot(
         base,
         snapshot,
         attribution,
-        crate::ai_sessions::now_ms(),
+        crate::clock::now_ms(),
     )
 }
 
@@ -271,11 +271,13 @@ pub fn generate_id(prefix: &str) -> String {
     format!("{prefix}-{now}-{rand}")
 }
 
-#[cfg(test)]
-pub(crate) mod tests {
+/// テスト用: サイドカーの置き場を作った Core。`test-support` feature で他クレート
+/// (notemaid の capability 実行のテスト) にも開く
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support {
     use super::*;
 
-    pub(crate) fn temp_core() -> (tempfile::TempDir, Core, PathBuf) {
+    pub fn temp_core() -> (tempfile::TempDir, Core, PathBuf) {
         let dir = tempfile::tempdir().unwrap();
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
@@ -285,6 +287,12 @@ pub(crate) mod tests {
         std::fs::create_dir_all(base.join("queries")).unwrap();
         (dir, core, base)
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_support::temp_core;
+    use super::*;
 
     const WIDGETS: Kind = Kind {
         subdir: "widgets",

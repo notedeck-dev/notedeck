@@ -89,6 +89,8 @@ struct DeckState {
     bridge: Arc<dyn FrontendBridge>,
     api_token: String,
     image_cache: Arc<ImageCache>,
+    /// AI (HEARTBEAT) の状態。埋め込む側 (notemaid を持つアプリ) が渡す
+    ai_status: Arc<dyn Fn() -> Value + Send + Sync>,
 }
 
 /// 画像プロキシ (`/proxy/image`) 用の起動毎トークン (#1099)。`<img src>` は
@@ -226,6 +228,9 @@ pub struct ServeConfig {
     pub perf: crate::perf_config::SharedPerfConfig,
     /// 終了通知 (#1098)。受けたら新規接続を止めて graceful に閉じる
     pub shutdown: crate::shutdown::ShutdownToken,
+    /// `/api/heartbeat/status` が返す AI (HEARTBEAT) の snapshot。notecore は AI を知らないので
+    /// 埋め込む側が渡す
+    pub ai_status: Arc<dyn Fn() -> Value + Send + Sync>,
 }
 
 /// 永続トークン → ephemeral トークンのブリッジ用 state。
@@ -293,6 +298,7 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
         bridge: config.bridge,
         api_token: config.api_token.clone(),
         image_cache: config.image_cache,
+        ai_status: config.ai_status.clone(),
     };
 
     // Authenticated NoteDeck-specific routes (deck, commands)
@@ -635,8 +641,8 @@ async fn get_inspector_recent(State(state): State<DeckState>) -> Result<Json<Val
         (status = 401, description = "Unauthorized", body = ApiErrorResponse),
     )
 )]
-async fn get_heartbeat_status() -> Result<Json<Value>, ApiError> {
-    Ok(Json(crate::heartbeat::status_json()))
+async fn get_heartbeat_status(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    Ok(Json((state.ai_status)()))
 }
 
 #[utoipa::path(get, path = "/api/permissions/resolved", tag = "dev",

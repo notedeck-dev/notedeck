@@ -1,6 +1,6 @@
 //! 接続モード (settings.json5 の `modes.realtime`) をコアが自分で適用する
-//! (#1106 段階 3a の順序 4)。notecored はアプリが居なくても、起動時と設定の変更時に
-//! polling / realtime を token のある全アカウントへ反映する。
+//! (#1106)。起動時と設定の変更時に polling / realtime を token のある全アカウントへ
+//! 反映する (データ面は常にアプリの中で動く)。
 
 use crate::commands;
 use crate::context::Core;

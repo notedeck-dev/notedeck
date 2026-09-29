@@ -53,7 +53,11 @@ pub fn collect_command_locations(src_root: &Path) -> HashMap<String, String> {
 /// notecore のコマンド表 (#1106) の行から、コマンド名 → 本体のファイルを拾う。
 /// 表の行は `data name(...) -> T = $crate::commands::timeline::name;` の形で、
 /// 本体のモジュールパスがそのままファイルパスになる。
-pub fn collect_table_locations(table_path: &Path, map: &mut HashMap<String, String>) {
+pub fn collect_table_locations(
+    table_path: &Path,
+    crate_dir: &str,
+    map: &mut HashMap<String, String>,
+) {
     let Ok(text) = std::fs::read_to_string(table_path) else {
         return;
     };
@@ -81,13 +85,13 @@ pub fn collect_table_locations(table_path: &Path, map: &mut HashMap<String, Stri
             continue;
         };
         let body_path = body_path.trim_end_matches(';').trim();
-        // `commands::timeline::api_get_note` → crates/notecore/src/commands/timeline.rs
+        // `commands::timeline::api_get_note` → <crate_dir>/src/commands/timeline.rs
         let segments: Vec<&str> = body_path.split("::").collect();
         if segments.len() < 2 {
             continue;
         }
         let module = segments[..segments.len() - 1].join("/");
-        map.insert(name.to_string(), format!("crates/notecore/src/{module}.rs"));
+        map.insert(name.to_string(), format!("{crate_dir}/src/{module}.rs"));
     }
 }
 
@@ -278,7 +282,7 @@ async setStatusBarStyle(light: boolean) : Promise<void> {
         )
         .unwrap();
         let mut map = HashMap::new();
-        collect_table_locations(&table, &mut map);
+        collect_table_locations(&table, "crates/notecore", &mut map);
         assert_eq!(
             map.get("api_get_note").map(String::as_str),
             Some("crates/notecore/src/commands/timeline.rs")

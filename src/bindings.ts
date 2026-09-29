@@ -2249,7 +2249,7 @@ async importSettingsJson() : Promise<Result<ImportSettingsResult, { code: string
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_send", { req }) };
@@ -2258,7 +2258,7 @@ async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; mess
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_cancel", { streamId }) };
@@ -2267,7 +2267,7 @@ async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; mess
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiTurnRun(req: AiTurnRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_turn_run", { req }) };
@@ -2276,7 +2276,7 @@ async aiTurnRun(req: AiTurnRequest) : Promise<Result<null, { code: string; messa
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiTurnCancel(turnId: string) : Promise<Result<SessionMessage | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_turn_cancel", { turnId }) };
@@ -2285,7 +2285,7 @@ async aiTurnCancel(turnId: string) : Promise<Result<SessionMessage | null, { cod
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiConfirmRespond(requestId: string, accepted: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_confirm_respond", { requestId, accepted }) };
@@ -2294,7 +2294,7 @@ async aiConfirmRespond(requestId: string, accepted: boolean) : Promise<Result<nu
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_confirm_shown", { requestId }) };
@@ -2303,7 +2303,7 @@ async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; m
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted, pluginId }) };
@@ -2312,7 +2312,7 @@ async capabilityExecute(id: string, params: JsonValue, principal: string, accoun
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted, pluginId }) };
@@ -2321,7 +2321,7 @@ async capabilityPreview(id: string, params: JsonValue, principal: string, accoun
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_sessions_load_all") };
@@ -2330,7 +2330,7 @@ async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message:
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionGet(id: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_get", { id }) };
@@ -2339,7 +2339,7 @@ async aiSessionGet(id: string) : Promise<Result<AiSession, { code: string; messa
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionCreate(req: AiSessionCreate) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_create", { req }) };
@@ -2348,7 +2348,7 @@ async aiSessionCreate(req: AiSessionCreate) : Promise<Result<AiSession, { code: 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionAppend(id: string, messages: SessionMessage[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_append", { id, messages }) };
@@ -2357,7 +2357,7 @@ async aiSessionAppend(id: string, messages: SessionMessage[]) : Promise<Result<A
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionRemoveMessages(id: string, messageIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_remove_messages", { id, messageIds }) };
@@ -2366,7 +2366,7 @@ async aiSessionRemoveMessages(id: string, messageIds: string[]) : Promise<Result
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionRename(id: string, title: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_rename", { id, title }) };
@@ -2375,7 +2375,7 @@ async aiSessionRename(id: string, title: string) : Promise<Result<AiSession, { c
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionAddTriggeredSkills(id: string, skillIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_add_triggered_skills", { id, skillIds }) };
@@ -2384,7 +2384,7 @@ async aiSessionAddTriggeredSkills(id: string, skillIds: string[]) : Promise<Resu
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionDelete(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_delete", { id }) };
@@ -2430,7 +2430,7 @@ async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: str
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/heartbeat.rs */
+/** @see crates/notemaid/src/commands/heartbeat.rs */
 async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_trigger_now") };
@@ -2461,65 +2461,33 @@ async systemStateGet() : Promise<Result<SystemState, { code: string; message: st
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * この端末の構成 (状態面用)
- *
- * @see src-tauri/src/client_layer.rs
- */
 async clientLayerState() : Promise<ClientLayerState> {
     return await TAURI_INVOKE("client_layer_state");
 },
+/** @see src-tauri/src/commands/resident.rs */
+async coreResidentStatus() : Promise<ResidentStatus> {
+    return await TAURI_INVOKE("core_resident_status");
+},
 /**
- * 状態面。WebView の「コア」設定がこれから文言を組む
+ * 「アプリを閉じても AI を動かす」を切り替え、新しい中継の状態を返す
  *
- * @see src-tauri/src/commands/core_switch.rs
+ * @see src-tauri/src/commands/resident.rs
  */
-async coreStatus() : Promise<Result<CoreStatus, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async coreSetResident(enabled: boolean) : Promise<Result<ClientLayerState, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("core_status") };
+    return { status: "ok", data: await TAURI_INVOKE("core_set_resident", { enabled }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * 常駐へ切り替える (unit の用意 + 移行パッケージ + pending)。完了は再起動
+ * 口座が変わったとき、別プロセスの notemaid に一覧を写し直す (in-process なら何もしない)
  *
- * @see src-tauri/src/commands/core_switch.rs
+ * @see src-tauri/src/commands/resident.rs
  */
-async coreSwitchToResident() : Promise<Result<MigrationSummary, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("core_switch_to_resident") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * 埋め込みへ戻す (常駐を止めて secret を取り戻す)。完了は再起動
- *
- * @see src-tauri/src/commands/core_switch.rs
- */
-async coreSwitchToEmbedded() : Promise<Result<SwitchBack, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("core_switch_to_embedded") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * 切替の途中をやめる
- *
- * @see src-tauri/src/commands/core_switch.rs
- */
-async coreCancelPending() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("core_cancel_pending") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
+async coreSyncAccounts() : Promise<void> {
+    await TAURI_INVOKE("core_sync_accounts");
 },
 /** @see src-tauri/src/commands/health.rs */
 async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
@@ -3067,17 +3035,13 @@ backend: string; connected: boolean; socket: string | null; daemonVersion: strin
  */
 fingerprintMatch: boolean | null; lastError: string | null; 
 /**
- * 再接続の回数 (購読を再宣言した回数)
+ * 再接続の回数
  */
 reconnects: number; 
 /**
  * イベントの連番に欠落を見た回数 (再送はしない。復帰の catch-up が埋める)
  */
-eventGaps: number; 
-/**
- * 前回の起動で切替 (pending-resident) を完了できなかった理由 (#1106 順序 7)
- */
-switchError: string | null }
+eventGaps: number }
 /**
  * Misskey `clips/*` (clips/list, clips/show, clips/create, users/clips,
  * clips/my-favorites) の共通レスポンス。本家 schema
@@ -3203,60 +3167,6 @@ export type CoreHealth = {
  * notecli doctor の結果 (database / keychain / accounts / network / auth)
  */
 doctor: Report; noteCacheCount: number; dbSizeBytes: number }
-/**
- * 状態面 (`core_status` コマンド)。WebView はこれから文言を組む
- */
-export type CoreStatus = { 
-/**
- * この OS で常駐に切り替えられるか (同一ホストの 3a は Linux だけ)
- */
-platformSupported: boolean; 
-/**
- * `client.json5` の望む構成: `embedded` | `pending-resident` | `resident`
- */
-configured: string; 
-/**
- * 見つかった notecored のパス (パッケージなら /usr/bin、それ以外は PATH)
- */
-notecoredPath: string | null; notecoredVersion: string | null; 
-/**
- * このアプリの版。notecored は同じ版でないと繋げない (マニフェストの指紋)
- */
-appVersion: string; 
-/**
- * notecored の版がアプリと一致するか (見つからなければ None)
- */
-versionMatch: boolean | null; 
-/**
- * user unit が動いているか (notecored が見つからなければ None)
- */
-serviceActive: boolean | null; 
-/**
- * unit の状態: `active` | `inactive` | `not_installed` | `unavailable` (systemd の user
- * セッションが無い)。notecored が見つからなければ None
- */
-serviceState: string | null; 
-/**
- * `XDG_RUNTIME_DIR` があるか (socket と移行パッケージの置き場。無ければ常駐は動かない)
- */
-runtimeDirPresent: boolean; 
-/**
- * 常駐中に notecored 自身が答えた状態 (稼働時間 / 接続端末 / HEARTBEAT など)。
- * 中継が繋がっていなければ None
- */
-daemon: JsonValue | null; 
-/**
- * notecored 側の secret store に中身があるか
- */
-secretsPresent: boolean | null; 
-/**
- * 書き出した移行パッケージが残っているか (再起動待ち)
- */
-packagePresent: boolean | null; 
-/**
- * 前回の起動で切替を完了できなかった理由
- */
-switchError: string | null }
 export type CreateNoteParams = { text: string | null; cw: string | null; visibility: string | null; localOnly: boolean | null; modeFlags: Partial<{ [key in string]: boolean }> | null; replyId: string | null; renoteId: string | null; fileIds: string[] | null; poll: CreateNotePoll | null; scheduledAt: string | null }
 export type CreateNotePoll = { choices: string[]; multiple: boolean | null; expiresAt: number | null }
 export type CreatedApiToken = { meta: ApiTokenMeta; 
@@ -3398,8 +3308,8 @@ export type HeartbeatEvent = { kind: string; source?: string | null; outcome?: s
  */
 i18n?: JsonValue | null }
 /**
- * HEARTBEAT の出来事 (開始 / 終了 / 報告 / 通知 / toast) を `nd:ai-heartbeat-event` で
- * WebView へ流す (#1133 縦切り 5)。
+ * HEARTBEAT の出来事 (開始 / 終了 / 報告 / 通知 / toast) の型を bindings に出すための宣言。
+ * 実際の emit は `TauriAiEvents` (notemaid の sink 1 つ) が同じ名前で行う (#1133 縦切り 5)。
  */
 export type HeartbeatEventWire = HeartbeatEvent
 /**
@@ -3423,10 +3333,6 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | Partial
  * の形で、TS は `nativeField(line, 'text')` で表示言語の文にする
  */
 export type LocalizedLine = { text: string; i18n: JsonValue }
-/**
- * 移した結果。`missing` は読めなかった名前 (必須なら呼び出し側が失敗にする)
- */
-export type MigrationSummary = { written: string[]; missing: string[] }
 /**
  * Misskey の `mutedWords` / `hardMutedWords` の 1 要素。
  * 文字列配列なら AND 語群（全語含むとマッチ）、文字列なら `/regex/flags` 形式の正規表現。
@@ -3824,6 +3730,18 @@ export type QuerySnapshot = { queryId: string; key: QueryKey; runtimeState: Quer
 export type ReactionEmoji = { name: string; url: string } | string
 export type ReactionInfo = { user: NormalizedUser; reaction: string }
 export type Report = { ok: boolean; checks: Check[] }
+/**
+ * 常駐 (ログイン時のユーザータスク) の状態。`notemaid service status` の JSON をそのまま
+ */
+export type ResidentStatus = { 
+/**
+ * トグルが使えるか (sidecar があり、そのパスがログイン後も同じか)
+ */
+available: boolean; 
+/**
+ * 使えないときの理由 (英語のまま。開発者向け)
+ */
+reason: string | null; sidecar: string | null; installed: boolean; active: boolean; detail: string | null }
 export type SearchOptions = { limit?: number; sinceId: string | null; untilId: string | null; sinceDate: number | null; untilDate: number | null; 
 /**
  * 指定ユーザーのノートのみに絞る (notes/search の userId)
@@ -3976,10 +3894,6 @@ export type StreamUnread = StreamUnreadEvent
  */
 export type StreamUnreadEvent = { accountId: string; kind: UnreadKind; op: UnreadOp }
 export type SummaryData = { title: string | null; description: string | null; icon: string | null; sitename: string | null; thumbnail: string | null; medias: string[]; player: Player | null; url: string; sensitive: boolean }
-/**
- * 戻した結果。`remaining` が空でなければ notecored 側の secret は消していない
- */
-export type SwitchBack = { imported: string[]; remaining: string[] }
 /**
  * OS 状態のスナップショット。`None` = その項目をこのプラットフォームでは
  * 取得できない (または取得に失敗した)。

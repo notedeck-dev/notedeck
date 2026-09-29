@@ -15,7 +15,7 @@ const JA_SIDEBAR: DefaultTheme.Sidebar = {
       items: [
         { text: 'NoteDeck とは', link: '/docs/' },
         { text: 'インストール', link: '/docs/install' },
-        { text: '常駐コア (notecored)', link: '/docs/notecored' },
+        { text: 'AI の別プロセス (notemaid)', link: '/docs/notemaid' },
         { text: '最初のセットアップ', link: '/docs/first-run' },
         { text: 'ログインせずに試す', link: '/docs/guest' },
       ],
@@ -80,7 +80,7 @@ const EN_SIDEBAR: DefaultTheme.Sidebar = {
       items: [
         { text: 'What is NoteDeck', link: '/en/docs/' },
         { text: 'Installation', link: '/en/docs/install' },
-        { text: 'Resident core (notecored)', link: '/en/docs/notecored' },
+        { text: 'The AI process (notemaid)', link: '/en/docs/notemaid' },
         { text: 'First-run setup', link: '/en/docs/first-run' },
         { text: 'Try without logging in', link: '/en/docs/guest' },
       ],

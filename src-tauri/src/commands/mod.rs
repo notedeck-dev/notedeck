@@ -1,11 +1,11 @@
 mod ai_chat;
 mod api_tokens;
 mod backup;
-mod core_switch;
 mod export;
 mod health;
 mod heartbeat;
 mod query;
+mod resident;
 mod settings;
 pub(crate) use settings::SETTINGS_DIR;
 mod system_state;
@@ -17,11 +17,11 @@ mod utility;
 pub use ai_chat::*;
 pub use api_tokens::*;
 pub use backup::*;
-pub use core_switch::*;
 pub use export::*;
 pub use health::*;
 pub use heartbeat::*;
 pub use query::*;
+pub use resident::*;
 pub use settings::*;
 pub use system_state::*;
 pub use table::*;
@@ -34,7 +34,8 @@ pub(crate) use crate::error::Result;
 
 pub use notecore::commands::export_account_list;
 /// notecore の実行文脈。旧 `AppState` (二段階初期化) はそのまま notecore へ移った。
-pub use notecore::context::Core as AppState;
+/// managed state は `Arc<Core>` (長生きする task が `Core::shared()` で自分の Arc を取れる)
+pub type AppState = std::sync::Arc<notecore::context::Core>;
 
 /// タイムライン取得時の OGP 先読み結果を WebView へ `nd:ogp-hints` で流す。
 pub struct TauriHintSink(pub tauri::AppHandle);
@@ -57,24 +58,15 @@ impl tauri_specta::Event for SettingsFileChangedEvent {
     const NAME: &'static str = "nd:settings-file-changed";
 }
 
-/// HEARTBEAT の出来事 (開始 / 終了 / 報告 / 通知 / toast) を `nd:ai-heartbeat-event` で
-/// WebView へ流す (#1133 縦切り 5)。
+/// HEARTBEAT の出来事 (開始 / 終了 / 報告 / 通知 / toast) の型を bindings に出すための宣言。
+/// 実際の emit は `TauriAiEvents` (notemaid の sink 1 つ) が同じ名前で行う (#1133 縦切り 5)。
 #[derive(Clone, serde::Serialize, specta::Type)]
 #[serde(transparent)]
 #[specta(transparent)]
-pub struct HeartbeatEventWire(pub notecore::heartbeat::HeartbeatEvent);
+pub struct HeartbeatEventWire(pub notemaid::heartbeat::HeartbeatEvent);
 
 impl tauri_specta::Event for HeartbeatEventWire {
     const NAME: &'static str = "nd:ai-heartbeat-event";
-}
-
-pub struct TauriHeartbeatSink(pub tauri::AppHandle);
-
-impl notecore::heartbeat::HeartbeatSink for TauriHeartbeatSink {
-    fn emit(&self, event: notecore::heartbeat::HeartbeatEvent) {
-        use tauri_specta::Event;
-        let _ = HeartbeatEventWire(event).emit(&self.0);
-    }
 }
 
 pub struct TauriSettingsSink(pub tauri::AppHandle);

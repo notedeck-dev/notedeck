@@ -17,8 +17,9 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 mod app_dir;
 mod client_layer;
 mod commands;
-mod core_switch;
 mod error;
+#[cfg(desktop)]
+mod maid_launcher;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
 /// notecore の HTTP サーバーの再公開。`build_openapi` はアプリのバージョンを埋めた形で
@@ -257,58 +258,109 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             tracing::warn!("keychain unavailable ({e})");
         }
         notecore::migrations::run_fs(&app_dir)?;
-        // 切替の途中 (pending-resident) なら、埋め込みを開く前に完了させる (#1106 順序 7)
-        let configured_backend = core_switch::resolve_pending(&app_dir);
+        // この端末の構成 (client.json5): AI 系コマンドを in-process で回すか notemaid に中継するか
+        let configured_backend =
+            notecore::client_config::load(&app_dir.join(commands::SETTINGS_DIR)).backend;
         // external gate が permissions.json5 を直接読むための所在 (#1099)
         notecore::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
         // 前回、確認待ちのまま残った AI ターンを閉じる (#1133)
-        notecore::ai_turn::recover(&app_dir);
+        notemaid::ai_turn::recover(&app_dir);
         // HEARTBEAT の観測値 (直近の失敗など) を状態ファイルから戻す
-        notecore::heartbeat::restore_status(&app_dir);
+        notemaid::heartbeat::restore_status(&app_dir);
 
         // AppState: empty wrapper — commands await until Phase 2 fills it
-        let app_state = commands::AppState::new();
+        let app_state = notecore::context::Core::new_shared();
         app_state.set_app_dir(app_dir.clone());
         app_state.set_app_version(env!("CARGO_PKG_VERSION").to_string());
         app.manage(app_state);
 
-        // クライアント層 (#1106 段階 3a): この端末の構成が resident なら、データ系
-        // コマンドは常駐の notecored に中継し、DB / ストリーム / HEARTBEAT は開かない。
-        // notecored が出すイベントは同じ名前で WebView に流す
-        let resident = matches!(
-            configured_backend,
-            notecore::client_config::Backend::Resident
-        );
-        if resident {
-            core_switch::ensure_started();
-            match notecore::rpc::default_socket_path() {
-                Some(socket) => {
-                    let emit_handle = app.handle().clone();
-                    let state_handle = app.handle().clone();
-                    let query_handle = app.handle().clone();
-                    client_layer::start(
-                        socket,
-                        std::sync::Arc::new(move |name, payload| {
-                            if let Err(e) = tauri::Emitter::emit(&emit_handle, name, payload) {
-                                tracing::warn!(name, "[relay] emit failed: {e}");
-                            }
-                        }),
-                        std::sync::Arc::new(move |state| {
-                            let _ = tauri::Emitter::emit(&state_handle, "nd:client-layer-state", state);
-                        }),
-                        std::sync::Arc::new(move |query_type, params, timeout| {
-                            let app = query_handle.clone();
-                            Box::pin(async move {
-                                query_bridge::query_frontend_with_timeout(&app, &query_type, params, timeout).await
-                            })
-                        }),
-                    );
-                    tracing::info!("[client-layer] resident backend: relaying to notecored");
-                }
-                None => tracing::error!("[client-layer] resident backend but XDG_RUNTIME_DIR is unset; falling back to embedded"),
+        // クライアント層 (#1106 案 B): AI 系コマンドを別プロセスの notemaid に送る。既定 (auto) は
+        // 常駐の notemaid が居れば繋ぎ、居なければ同梱の sidecar を子プロセスで起動する。sidecar が
+        // 無い (開発時) / iOS / Android は in-process で回す。データ面は常にこのプロセスで開く。
+        // notemaid が出す AI のイベントは同じ名前で WebView に流す
+        #[cfg(desktop)]
+        if let Some(launched) =
+            tauri::async_runtime::block_on(maid_launcher::launch(&app_dir, configured_backend))
+        {
+            let emit_handle = app.handle().clone();
+            let state_handle = app.handle().clone();
+            let query_handle = app.handle().clone();
+            let watch_endpoint = launched.endpoint.clone();
+            let relay = client_layer::start(
+                launched.endpoint,
+                std::sync::Arc::new(move |name, payload| {
+                    if let Err(e) = tauri::Emitter::emit(&emit_handle, name, payload) {
+                        tracing::warn!(name, "[relay] emit failed: {e}");
+                    }
+                }),
+                std::sync::Arc::new(move |state| {
+                    let _ = tauri::Emitter::emit(&state_handle, "nd:client-layer-state", state);
+                }),
+                std::sync::Arc::new(move |query_type, params, timeout| {
+                    let app = query_handle.clone();
+                    Box::pin(async move {
+                        // 索引の検索だけは WebView に回さず手元の Rust が答える
+                        if query_type == notecore::frontend_bridge::ARCHIVE_SEARCH_QUERY {
+                            let req = serde_json::from_value(params).map_err(|e| e.to_string())?;
+                            return query_bridge::answer_archive_search(&app, req).await;
+                        }
+                        query_bridge::query_frontend_with_timeout(&app, &query_type, params, timeout).await
+                    })
+                }),
+            );
+            let is_child = launched.child.is_some();
+            maid_launcher::keep(launched.child);
+            if is_child {
+                // 子が bind するまで裏で待つ。死んだ / 答えないなら中継を無効化して in-process に落とす
+                // (デッキ描画はこれを待たない。AI 系の要求は接続を上限つきで待つ)
+                tauri::async_runtime::spawn(async move {
+                    if !maid_launcher::wait_ready(&watch_endpoint, std::time::Duration::from_secs(8)).await {
+                        client_layer::disable("notemaid sidecar did not start; running the AI in-process");
+                        maid_launcher::stop();
+                    }
+                });
             }
+            // 常駐の版がこのアプリと違う (更新の直後) なら、同梱の sidecar で起動し直す。1 回だけ
+            if !is_child {
+                let restarted = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                relay.set_on_mismatch(std::sync::Arc::new(move || {
+                    if restarted.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                        return;
+                    }
+                    tauri::async_runtime::spawn_blocking(|| match maid_launcher::restart_resident() {
+                        Ok(()) => tracing::info!("[notemaid] restarted the resident notemaid to match this app"),
+                        Err(e) => tracing::warn!("[notemaid] could not restart the resident notemaid: {e}"),
+                    });
+                }));
+            }
+            // 接続したら口座の一覧を写す (notemaid は SQLite を開かず、写し (`SyncedAccounts`) を
+            // 口座の所在にし、トークンは OS キーチェーンから同じ id で読む)。口座が変わったときは core_sync_accounts が呼ぶ
+            let sync_handle = app.handle().clone();
+            relay.set_on_connected(std::sync::Arc::new(move || {
+                let app = sync_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    let Some(relay) = client_layer::relay() else { return };
+                    let core = app.state::<commands::AppState>();
+                    // 口座の行をそのまま写す (トークン列を含む)。キーチェーンが使える環境では列は空で
+                    // notemaid もキーチェーンから読む。無い環境 (WSL2 など) ではこの列が唯一の経路で、
+                    // アプリ自身の DB と同じ保護水準 (同じデータディレクトリ、同じユーザー)
+                    let db = core.db().await;
+                    match db.load_accounts() {
+                        Ok(list) => {
+                            let outcome = relay
+                                .request("notemaid.accounts", serde_json::json!({ "accounts": list }), None)
+                                .await;
+                            if !outcome.ok {
+                                tracing::warn!("[notemaid] account sync failed: {:?}", outcome.error);
+                            }
+                        }
+                        Err(e) => tracing::warn!("[notemaid] account list unavailable: {e}"),
+                    }
+                });
+            }));
         }
-        let resident = client_layer::relay().is_some();
+        #[cfg(not(desktop))]
+        let _ = configured_backend;
 
         // Performance config: starts with defaults, updated dynamically via Tauri command
         let shared_perf: notecore::perf_config::SharedPerfConfig =
@@ -334,19 +386,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         app.manage(shared_http.clone());
         app.state::<commands::AppState>().set_http(shared_http.clone());
         app.state::<commands::AppState>()
-            .set_ai_chat_sink(std::sync::Arc::new(commands::TauriSink(app.handle().clone())));
-        app.state::<commands::AppState>()
-            .set_ai_turn_sink(std::sync::Arc::new(commands::TauriTurnSink(app.handle().clone())));
+            .set_event_sink(std::sync::Arc::new(commands::TauriAiEvents(app.handle().clone())));
         // ターン実行器 (#1133) が capability の実行要求を WebView に投げる口。
         // HTTP サーバー (Phase 2) と同じ橋の実装
         app.state::<commands::AppState>()
             .set_frontend_bridge(std::sync::Arc::new(query_bridge::TauriBridge(app.handle().clone())));
         app.state::<commands::AppState>()
-            .set_core_executor(std::sync::Arc::new(commands::TauriCoreExecutor(app.handle().clone())));
-        app.state::<commands::AppState>()
             .set_settings_sink(std::sync::Arc::new(commands::TauriSettingsSink(app.handle().clone())));
-        app.state::<commands::AppState>()
-            .set_heartbeat_sink(std::sync::Arc::new(commands::TauriHeartbeatSink(app.handle().clone())));
 
         // Image cache — 必ず Phase 1 で manage する (#921)。フロントは
         // nd:accounts-early を受けた瞬間にカラムを mount して絵文字を要求する
@@ -490,40 +536,6 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let stage = |name: &str| {
                 tracing::info!(stage = name, elapsed_ms = boot.elapsed().as_millis() as u64, "[startup]");
             };
-            if resident {
-                // 常駐構成: DB もストリームも開かない。メディアプロキシとデッキ系ルートの
-                // HTTP サーバーだけ手元で動かし、アカウント一覧は notecored から取る
-                ui_lang::init(&app_handle);
-                let bound_server = tauri::async_runtime::block_on(http_server::bind());
-                if let Some(server) = bound_server {
-                    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
-                    let bridge = std::sync::Arc::new(query_bridge::TauriBridge(app_handle.clone()));
-                    tauri::async_runtime::spawn(async move {
-                        http_server::serve(http_server::ServeConfig {
-                            server,
-                            app_version: env!("CARGO_PKG_VERSION").to_string(),
-                            bridge,
-                            db: None,
-                            client: None,
-                            event_bus,
-                            api_token,
-                            api_token_store,
-                            token_path: token_path_str,
-                            log_dir,
-                            image_cache: image_cache_bg,
-                            media_proxy_token,
-                            perf: shared_perf_bg,
-                            shutdown: shutdown_token,
-                        }, ready_tx)
-                        .await;
-                    });
-                    tauri::async_runtime::block_on(async { ready_rx.await.ok() });
-                }
-                tauri::async_runtime::block_on(client_layer::emit_accounts_early(&app_handle));
-                stage("backend-ready");
-                let _ = tauri::Emitter::emit(&app_handle, "nd:backend-ready", ());
-                return;
-            }
             // Parallel: DB open + MisskeyClient init + HTTP bind (all independent)
             let db_path = app_dir_bg.join("notecli.db");
             let db_handle = std::thread::spawn(move || notecli::db::Database::open(&db_path));
@@ -642,6 +654,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         media_proxy_token,
                         perf: shared_perf_bg,
                         shutdown: shutdown_token,
+                            ai_status: std::sync::Arc::new(notemaid::heartbeat::status_json),
                     }, ready_tx)
                     .await;
                 });
@@ -940,8 +953,10 @@ fn begin_shutdown(app: &tauri::AppHandle) {
     if let Some(h) = app.try_state::<std::sync::Arc<commands::HeartbeatScheduler>>() {
         h.unregister();
     }
-    notecore::ai_chat_service::abort_all_streams();
-    notecore::ai_turn::abort_all_turns();
+    notemaid::ai_chat_service::abort_all_streams();
+    notemaid::ai_turn::abort_all_turns();
+    #[cfg(desktop)]
+    maid_launcher::stop();
 }
 
 /// Build the tauri-specta builder shared by the runtime, the `gen_bindings`
@@ -1228,10 +1243,9 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,
             client_layer::client_layer_state,
-            commands::core_status,
-            commands::core_switch_to_resident,
-            commands::core_switch_to_embedded,
-            commands::core_cancel_pending,
+            commands::core_resident_status,
+            commands::core_set_resident,
+            commands::core_sync_accounts,
             // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
             commands::run_healthcheck,
             commands::health_core,
@@ -1329,9 +1343,17 @@ fn annotate_bindings_with_impl_paths(
     let generated = std::fs::read_to_string(target)?;
     let mut locations = ipc_index::collect_command_locations(&src_root);
     // コマンド表 (#1106) 経由のコマンドは本体が notecore にある
-    let table = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../crates/notecore/src/commands/table.rs");
-    ipc_index::collect_table_locations(&table, &mut locations);
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    ipc_index::collect_table_locations(
+        &manifest.join("../crates/notecore/src/commands/table.rs"),
+        "crates/notecore",
+        &mut locations,
+    );
+    ipc_index::collect_table_locations(
+        &manifest.join("../crates/notemaid/src/commands/table.rs"),
+        "crates/notemaid",
+        &mut locations,
+    );
     std::fs::write(target, ipc_index::annotate(&generated, &locations))?;
     Ok(())
 }

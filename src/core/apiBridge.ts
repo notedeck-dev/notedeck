@@ -106,7 +106,7 @@ const handlers: Record<string, QueryHandler> = {
 
   // HEARTBEAT daemon (notecore) がデバイスに要るもの (#1133 縦切り 5): メモ等の
   // 文脈ブロックと、セッション id / タイトル用のローカル時刻の刻印。届かなければ
-  // notecore は無しで進む (notecored)
+  // notecore は無しで進む (notemaid)
   'heartbeat/context': async (params) => {
     const { config } = useAiConfig()
     const accountsStore = useAccountsStore()

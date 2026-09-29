@@ -59,7 +59,7 @@ impl QueryView for Item {
 }
 
 fn now() -> f64 {
-    crate::ai_sessions::now_ms() as f64
+    crate::clock::now_ms() as f64
 }
 
 /// `toFileMeta`: 規定のキー順。真偽の印 (global / scoped / disabled) は true のときだけ。
@@ -157,7 +157,7 @@ pub fn update_src(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sidecar::tests::temp_core;
+    use crate::sidecar::test_support::temp_core;
 
     #[test]
     fn update_src_keeps_flags_and_pushes_history() {

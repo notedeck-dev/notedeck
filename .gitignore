@@ -31,6 +31,8 @@ dist-ssr
 # Tauri
 src-tauri/.cargo/config.toml
 src-tauri/target/
+# notemaid の sidecar (scripts/build-sidecar.sh が置く。release は tauri.sidecar.conf.json で externalBin に足す)
+src-tauri/binaries/
 /target/
 src-tauri/gen/
 *.db

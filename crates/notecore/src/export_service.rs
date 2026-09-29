@@ -62,7 +62,7 @@ pub struct ExportProgress {
     pub total: u32,
 }
 
-/// 進捗の届け先。手元側は Tauri イベントに流し、notecored はセッションのイベント面に流す。
+/// 進捗の届け先。手元側は Tauri イベントに流す (Tauri 非依存にするための関数型)。
 pub type ProgressSink = Arc<dyn Fn(ExportProgress) + Send + Sync>;
 
 /// ユーザーのキャンセル。`start` した task_id に対して呼ぶ。

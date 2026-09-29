@@ -11,7 +11,7 @@
 // 種別:
 //   data   データ系。Misskey API / DB / キャッシュ / 設定ファイルなど、デバイスが
 //          1 台も繋がっていなくても意味を持つ処理。段階 0b でコマンド表に載り、
-//          リモート構成では notecored で実行される
+//          リモート構成では notemaid で実行される
 //   local  OS 統合。ウィンドウ / トレイ / クリップボード / dialog / OS 通知の表示 /
 //          端末の状態など、UI のある端末でしか意味を持たない処理。手元に残る
 //   authz  認可境界を動かす操作。権限ファイル / 信頼設定 / 公開 API トークン /
@@ -140,26 +140,31 @@ function commandsIn(path: string): Command[] {
  * その種別を採る。本体は notecore にあり Tauri ラッパーは生成されるので、
  * denylist 検査の対象 (本体) はここには無い。
  */
-const TABLE = resolve(ROOT, 'crates/notecore/src/commands/table.rs')
+const TABLES = [
+  resolve(ROOT, 'crates/notecore/src/commands/table.rs'),
+  resolve(ROOT, 'crates/notemaid/src/commands/table.rs'),
+]
 const TABLE_ROW =
   /^\s*(data|local|authz|mixed)\b(?:\s*\([^)]*\))?\s+([A-Za-z0-9_]+)\s*\(/
 
 function commandsInTable(): Command[] {
-  const lines = readFileSync(TABLE, 'utf-8').split('\n')
-  const file = relative(ROOT, TABLE)
   const out: Command[] = []
-  lines.forEach((line, i) => {
-    const m = line.match(TABLE_ROW)
-    if (!m) return
-    out.push({
-      file,
-      name: m[2],
-      line: i + 1,
-      kind: m[1] as Kind,
-      rawKind: m[1],
-      body: '',
+  for (const TABLE of TABLES) {
+    const lines = readFileSync(TABLE, 'utf-8').split('\n')
+    const file = relative(ROOT, TABLE)
+    lines.forEach((line, i) => {
+      const m = line.match(TABLE_ROW)
+      if (!m) return
+      out.push({
+        file,
+        name: m[2],
+        line: i + 1,
+        kind: m[1] as Kind,
+        rawKind: m[1],
+        body: '',
+      })
     })
-  })
+  }
   return out
 }
 

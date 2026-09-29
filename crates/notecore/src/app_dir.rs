@@ -1,6 +1,6 @@
 //! アプリデータディレクトリの解決 (#1106 段階 3a)。
 //!
-//! アプリ (Tauri) と notecored が同じ場所を指すための 1 箇所。Tauri の
+//! アプリ (Tauri) と notemaid が同じ場所を指すための 1 箇所。Tauri の
 //! `app_data_dir()` は「OS のデータディレクトリ / bundle identifier」なので、
 //! identifier をここに定数として持ち、アプリ側は tauri.conf.json の identifier と
 //! 一致することをテストで保証する。デバッグビルドに限り `NOTEDECK_APP_DIR` で

@@ -1,0 +1,90 @@
+// AI 設定のセクションで共有する行のレイアウト。
+// Usage: @use '@/styles/settingsFields' as *;
+//
+// - 数値入力の行: label 左 / [input] [単位] 右の 1 行 + 下に補足 (PerformanceEditor と同じ)
+// - 補足の 1 行 (key-hint): アイコン + 小さめの文字。接続 / ペルソナのセクションと同じ見た目
+// 各セクションが同じ値を別々に持っていたのをここに寄せた (#1106 の整理)。
+
+@mixin field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+@mixin field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+@mixin field-label {
+  font-size: 0.85em;
+}
+
+@mixin field-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+@mixin field-hint {
+  margin: 0;
+  font-size: 0.7em;
+  opacity: 0.5;
+  line-height: 1.5;
+}
+
+@mixin field-unit {
+  font-size: 0.8em;
+  opacity: 0.55;
+  min-width: 18px;
+}
+
+@mixin number-input {
+  width: 72px;
+  padding: 2px 4px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg);
+  color: var(--nd-fg);
+  font-size: 0.85em;
+  text-align: right;
+  outline: none;
+  transition: border-color var(--nd-duration-base);
+
+  &:focus {
+    border-color: var(--nd-accent);
+  }
+
+  // spinner 矢印は隠す (hover でも醜くならないように)
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  -moz-appearance: textfield;
+}
+
+@mixin key-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 0;
+  font-size: 0.7em;
+  opacity: 0.5;
+  line-height: 1.5;
+
+  i {
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+}
+
+// 失敗や不一致の 1 行 (key-hint と同じ寸法で色だけ変える)
+@mixin key-warn {
+  @include key-hint;
+  opacity: 1;
+  color: var(--nd-error, #ec4137);
+}

@@ -41,7 +41,6 @@ export type WindowType =
   | 'skill-edit'
   | 'edit-history'
   | 'connections'
-  | 'core'
   | 'connectionEdit'
   | 'tutorial'
   | 'tutorialEditor'
@@ -122,7 +121,6 @@ export const useWindowsStore = defineStore('windows', () => {
     'tasksEditor',
     'snippetsEditor',
     'connections',
-    'core',
     'tutorial',
     'tutorialEditor',
   ])

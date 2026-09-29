@@ -1,5 +1,5 @@
-//! アカウント資格情報の解決 (メモリキャッシュ → keychain → DB の順、lazy migration つき)。
-//! commands/mod.rs から移動 (#1106 段階 0b)。account_service / migrations もここに依存する。
+//! アカウント資格情報の解決 (メモリキャッシュ → keychain → 口座の所在の順、lazy migration つき)。
+//! 口座は `AccountStore` 越しに見る (アプリは DB、notemaid は写し)。account_service / migrations もここに依存する。
 
 use std::collections::HashMap;
 use std::sync::{LazyLock, Mutex};
@@ -7,10 +7,10 @@ use std::time::{Duration, Instant};
 
 use zeroize::Zeroize;
 
-use notecli::db::Database;
 use notecli::error::{AuthErrorKind, NoteDeckError};
 use notecli::keychain;
 
+use crate::accounts::AccountStore;
 use crate::error::Result;
 
 const CREDENTIAL_CACHE_TTL: Duration = Duration::from_secs(60);
@@ -80,15 +80,18 @@ impl CredentialCache {
 
 static CREDENTIAL_CACHE: LazyLock<CredentialCache> = LazyLock::new(CredentialCache::new);
 
-/// Look up account credentials: uses in-memory cache, then keychain, then DB (lazy migration)
-pub fn get_credentials(db: &Database, account_id: &str) -> Result<(String, String)> {
+/// Look up account credentials: uses in-memory cache, then keychain, then the store (lazy migration)
+pub fn get_credentials<S: AccountStore + ?Sized>(
+    db: &S,
+    account_id: &str,
+) -> Result<(String, String)> {
     // Fast path: check in-memory cache first
     if let Some(cached) = CREDENTIAL_CACHE.get(account_id) {
         return Ok(cached);
     }
 
     let account = db
-        .get_account(account_id)?
+        .get(account_id)?
         .ok_or_else(|| NoteDeckError::AccountNotFound(account_id.to_string()))?;
     let host = account.host.clone();
 
@@ -135,9 +138,9 @@ pub fn cleanup_expired_credentials() {
 }
 
 /// Get host only from account_id (no token required).
-fn get_host(db: &Database, account_id: &str) -> Result<String> {
+fn get_host<S: AccountStore + ?Sized>(db: &S, account_id: &str) -> Result<String> {
     let account = db
-        .get_account(account_id)?
+        .get(account_id)?
         .ok_or_else(|| NoteDeckError::AccountNotFound(account_id.to_string()))?;
     Ok(account.host.clone())
 }
@@ -145,7 +148,10 @@ fn get_host(db: &Database, account_id: &str) -> Result<String> {
 /// Get credentials with anonymous fallback.
 /// Returns (host, token) where token is empty if not authenticated.
 /// Public Misskey endpoints work with empty token (skipped by notecli).
-pub fn get_credentials_or_anon(db: &Database, account_id: &str) -> Result<(String, String)> {
+pub fn get_credentials_or_anon<S: AccountStore + ?Sized>(
+    db: &S,
+    account_id: &str,
+) -> Result<(String, String)> {
     match get_credentials(db, account_id) {
         Ok(creds) => Ok(creds),
         Err(_) => Ok((get_host(db, account_id)?, String::new())),

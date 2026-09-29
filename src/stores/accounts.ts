@@ -4,6 +4,7 @@ import { destroyAdapter } from '@/adapters/factory'
 import type { ServerSoftware } from '@/adapters/types'
 import { i18n } from '@/i18n'
 import { invalidateResolutionCache } from '@/services/entityResolution'
+import { useClientLayerStore } from '@/stores/clientLayer'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { listenTauri } from '@/utils/tauriEvents'
@@ -127,6 +128,8 @@ export const useAccountsStore = defineStore('accounts', () => {
   function applyAccounts(stored: Account[]): void {
     accounts.value = stored
     isLoaded.value = true
+    // 別プロセスの notemaid に口座の一覧を写す (in-process なら何もしない、#1106)
+    void useClientLayerStore().syncAccounts()
   }
 
   onEarlyArrive = (payload) => {
@@ -160,6 +163,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     } else {
       accounts.value.push(account)
     }
+    void useClientLayerStore().syncAccounts()
   }
 
   // 削除/ログアウトは「資格情報の無効化 → backend 切断」の順に行う (#700)。
@@ -173,6 +177,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     const account = accounts.value.find((a) => a.id === id)
     unwrap(await commands.deleteAccount(id))
     accounts.value = accounts.value.filter((a) => a.id !== id)
+    void useClientLayerStore().syncAccounts()
     if (account) invalidateResolutionCache(accountScopeKey(account))
     destroyAdapter(id)
     // Clean up localStorage caches associated with this account
@@ -187,6 +192,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     unwrap(await commands.logoutAccount(id))
     const account = accounts.value.find((a) => a.id === id)
     if (account) account.hasToken = false
+    void useClientLayerStore().syncAccounts()
     destroyAdapter(id)
   }
 

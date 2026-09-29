@@ -182,7 +182,7 @@ const ja = {
     desc: 'NoteDeck はオープンソース (AGPL-3.0)。本家と同じ Vue 3 + TypeScript なので、本家のコードが読める人ならそのまま読めます。',
     device: {
       label: '手元の端末',
-      desc: 'OS 統合 + クライアント層。ウィンドウ、トレイ、OS 通知、キーチェーン、自動更新。WebView は手元の Rust とだけ話し、データ系の呼び出しをここで notecore に素通りさせるか notecored に中継するかが決まります。',
+      desc: 'OS 統合 + クライアント層。ウィンドウ、トレイ、OS 通知、キーチェーン、自動更新。WebView は手元の Rust とだけ話し、データ系の呼び出しは notecore へ、AI 系の呼び出しは notemaid へ渡します。',
     },
     frontend: {
       label: 'フロントエンド',
@@ -190,12 +190,12 @@ const ja = {
       vaporTag: 'Vapor 準備済み',
     },
     remote: {
-      label: '自分のサーバー (任意)',
-      desc: '常駐 + RPC/SSE + ペアリング。notecore を headless で包む殻。ここを経由すると notecore から下は自分のサーバーで動き、端末を閉じても蓄積・通知受信・AI が続き、複数の端末が同じデッキに繋がります。',
+      label: 'AI のプロセス',
+      desc: 'AI (エージェントループ / HEARTBEAT) はいつも別プロセス。既定ではアプリが起動して一緒に終わります。ログイン時タスクとして常駐させれば、アプリを終了しても HEARTBEAT が続きます。データは端末に残り、notemaid はノートの DB を開きません。',
     },
     core: {
       label: 'コア',
-      desc: 'Tauri に依存しないドメイン。Vault、クエリランタイム、AI エージェントループ、設定、認可、キャッシュ。「端末が 1 台も繋がっていなくても意味を持つ処理」だけを持ち、どちらの殻に包まれても同じクレートです。',
+      desc: 'Tauri に依存しないデータ面。キャッシュ DB、クエリランタイム、Vault、設定、認可。「端末が 1 台も繋がっていなくても意味を持つ処理」だけを持ち、AI は知りません。notemaid が借りるのは Vault / 認可 / 設定だけです。',
     },
     client: {
       label: 'Misskey クライアント',

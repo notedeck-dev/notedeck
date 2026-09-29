@@ -2,7 +2,7 @@
   "name": "notedeck",
   "description": "Misskey Pro — integrated deck environment (IDE) for Misskey power users",
   "private": true,
-  "version": "1.73.0",
+  "version": "1.74.0",
   "type": "module",
   "packageManager": "pnpm@11.18.0",
   "engines": {
@@ -25,6 +25,7 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "build:sidecar": "bash scripts/build-sidecar.sh",
     "tauri:android": "pnpm android:dev",
     "tauri:android:build": "pnpm android:build",
     "tauri:ios": "tauri ios dev",

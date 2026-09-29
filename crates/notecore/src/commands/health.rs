@@ -1,6 +1,6 @@
 //! 自己診断のうち notecore が答えられる部分 (#644 / #1106)。doctor の検査とキャッシュの
 //! 統計。手元のランタイム状態 (ログ場所 / HEARTBEAT の timer / 直近の panic) は
-//! アプリ側が足す。常駐構成では notecored のこれを中継で取る
+//! アプリ側が足す。常駐構成では notemaid のこれを中継で取る
 
 use serde::{Deserialize, Serialize};
 

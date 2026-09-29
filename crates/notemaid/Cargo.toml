@@ -1,0 +1,47 @@
+[package]
+name = "notemaid"
+version = "1.74.0"
+edition = "2021"
+description = "NoteDeck の AI (メイド): エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ。アプリが使うライブラリと、別プロセスとして走るバイナリの 1 クレート (#1106)"
+repository = "https://github.com/notedeck-dev/notedeck"
+license = "AGPL-3.0-only"
+publish = false
+
+[features]
+default = ["daemon"]
+# バイナリ (別プロセスの本体)。アプリはライブラリだけ使うので default-features = false
+daemon = ["dep:clap", "dep:dirs", "dep:tracing-appender", "dep:tracing-subscriber", "tokio/signal"]
+[[bin]]
+name = "notemaid"
+path = "src/main.rs"
+required-features = ["daemon"]
+
+[dependencies]
+notecore = { path = "../notecore" }
+notecli = { path = "../notecli", features = ["specta"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+futures-util = "0.3"
+indexmap = { version = "2", features = ["serde"] }
+json5 = "1"
+rand = "0.9"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "stream", "json"] }
+secrecy = { version = "0.10", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+specta = { version = "=2.0.0-rc.22", features = ["derive", "serde_json"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "sync", "net", "io-util"] }
+clap = { version = "4", features = ["derive"], optional = true }
+dirs = { version = "6", optional = true }
+tracing-appender = { version = "0.2", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
+tracing = "0.1"
+
+[target.'cfg(unix)'.dependencies]
+# transport: Unix socket の peer_cred (同じ uid の照合)
+libc = "0.2"
+
+[dev-dependencies]
+notecore = { path = "../notecore", features = ["test-support"] }
+tempfile = "3"

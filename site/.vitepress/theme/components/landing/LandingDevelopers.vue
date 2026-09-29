@@ -44,7 +44,7 @@ const DOC_LINKS = [
           </div>
           <div class="arch-box arch-box-remote">
             <div class="arch-label">{{ t.developers.remote.label }}</div>
-            <div class="arch-title">notecored</div>
+            <div class="arch-title">notemaid</div>
             <div class="arch-desc">{{ t.developers.remote.desc }}</div>
           </div>
           <div class="arch-arrow" aria-hidden="true">

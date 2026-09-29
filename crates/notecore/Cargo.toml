@@ -12,7 +12,6 @@ notecli = { path = "../notecli", features = ["specta"] }
 async-trait = "0.1"
 axum = "0.8"
 base64 = "0.22"
-chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 dirs = "6"
 bytes = "1"
 encoding_rs = "0.8"
@@ -41,6 +40,11 @@ utoipa = { version = "5", features = ["axum_extras"] }
 utoipa-axum = "0.2"
 uuid = { version = "1", features = ["v4"] }
 zeroize = "1"
+tempfile = { version = "3", optional = true }
+
+[features]
+# 他クレートのテストが `context::test_support::temp_core` を使うための口 (notemaid)
+test-support = ["dep:tempfile"]
 
 [dev-dependencies]
 tempfile = "3"

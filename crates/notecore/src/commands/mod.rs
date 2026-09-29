@@ -18,8 +18,6 @@
 //! 文字列化して NoteDeckError::InvalidInput に包む。
 
 pub mod admin;
-pub mod ai_chat;
-pub mod ai_sessions;
 pub mod auth;
 pub mod charts;
 pub mod clips;
@@ -29,7 +27,6 @@ pub mod drafts;
 pub mod enrichment;
 pub mod federation;
 pub mod health;
-pub mod heartbeat;
 pub mod http;
 pub mod lists;
 pub mod messaging;
@@ -48,7 +45,6 @@ use std::sync::LazyLock;
 use notecli::api::MisskeyClient;
 use notecli::db::Database;
 use notecli::error::NoteDeckError;
-use serde_json::Value;
 
 use crate::context::Core;
 use crate::error::Result;
@@ -189,7 +185,7 @@ pub fn validate_host(host: &str) -> Result<String> {
 /// コマンドの種別 (仕様 §4.1)。表に載るのは data だけ。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommandKind {
-    /// データ系。デバイスが 1 台も繋がっていなくても意味を持ち、notecored で実行できる
+    /// データ系。デバイスが 1 台も繋がっていなくても意味を持つ (常にアプリの中の notecore で実行)
     Data,
     /// 認可境界を動かす操作 (資格情報の保存・失効、Vault の secret と信頼、ルート設定の書換)。
     /// 本体は notecore にあり同一ホストでは data と同じく中継するが、外向き (3b) では
@@ -220,9 +216,9 @@ impl CallContext {
     }
 }
 
-/// 本体を呼ぶ前の属性検査。型付き経路と JSON 経路で同じものを通す。
-pub fn check(id: CommandId, ctx: &CallContext) -> Result<()> {
-    let meta = id.meta();
+/// 本体を呼ぶ前の属性検査。型付き経路と JSON 経路で同じものを通す。表ごとに
+/// 生成される `check(id, ctx)` はここに委ねる (notecore の表も notemaid の表も同じ規則)。
+pub fn check_meta(meta: &CommandMeta, ctx: &CallContext) -> Result<()> {
     if let Some(required) = meta.window {
         if ctx.window.as_deref() != Some(required) {
             return Err(NoteDeckError::InvalidInput(format!(
@@ -234,16 +230,19 @@ pub fn check(id: CommandId, ctx: &CallContext) -> Result<()> {
     Ok(())
 }
 
-fn unknown_command(name: &str) -> NoteDeckError {
+#[doc(hidden)]
+pub fn unknown_command(name: &str) -> NoteDeckError {
     NoteDeckError::InvalidInput(format!("unknown command: {name}"))
 }
 
-fn invalid_params(name: &str, e: serde_json::Error) -> NoteDeckError {
+#[doc(hidden)]
+pub fn invalid_params(name: &str, e: serde_json::Error) -> NoteDeckError {
     NoteDeckError::InvalidInput(format!("invalid params for {name}: {e}"))
 }
 
 /// フィクスチャ用: snake_case → camelCase (serde の rename_all と同じ規則)
-fn camel(snake: &str) -> String {
+#[doc(hidden)]
+pub fn camel(snake: &str) -> String {
     let mut out = String::with_capacity(snake.len());
     let mut upper = false;
     for c in snake.chars() {
@@ -259,7 +258,9 @@ fn camel(snake: &str) -> String {
     out
 }
 
-macro_rules! command_kind {
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __nd_command_kind {
     (data) => {
         $crate::commands::CommandKind::Data
     };
@@ -268,7 +269,9 @@ macro_rules! command_kind {
     };
 }
 
-macro_rules! command_window {
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __nd_command_window {
     () => {
         None
     };
@@ -278,18 +281,22 @@ macro_rules! command_window {
 }
 
 /// JSON 経路のエラー変換: 既定 (NoteDeckError) はそのまま、独自エラー型は文字列化して包む。
-macro_rules! command_json_err {
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __nd_command_json_err {
     ($e:expr,) => {
         $e
     };
     ($e:expr, $err:ty) => {
-        NoteDeckError::InvalidInput($e.to_string())
+        ::notecli::error::NoteDeckError::InvalidInput($e.to_string())
     };
 }
 
-/// 表の行を受け取る側のマクロ。`$name(...)` の 1 行ごとに Tauri ラッパーや
-/// dispatch の腕を生成する。
-macro_rules! define_table {
+/// 表の行を受け取って、その表の `CommandId` / `COMMANDS` / `check` / `dispatch` /
+/// `fixture_params` を呼び出し元のモジュールに生成する。notecore 自身の表と
+/// notemaid の表が同じ生成器を使う (`$crate` は notecore)。
+#[macro_export]
+macro_rules! define_command_table {
     ($( $kind:ident $( ( $($attr:tt)* ) )? $name:ident ( $( $arg:ident : $ty:ty ),* $(,)? ) -> $ret:ty $( | $err:ty )? = $path:path ; )*) => {
         /// 表に載っている全コマンド。variant 名はコマンド名そのもの (snake_case)。
         #[allow(non_camel_case_types)]
@@ -303,12 +310,12 @@ macro_rules! define_table {
                 self.meta().name
             }
 
-            pub fn meta(self) -> &'static CommandMeta {
+            pub fn meta(self) -> &'static $crate::commands::CommandMeta {
                 match self {
-                    $( Self::$name => &CommandMeta {
+                    $( Self::$name => &$crate::commands::CommandMeta {
                         name: stringify!($name),
-                        kind: command_kind!($kind),
-                        window: command_window!($( $($attr)* )?),
+                        kind: $crate::__nd_command_kind!($kind),
+                        window: $crate::__nd_command_window!($( $($attr)* )?),
                     }, )*
                 }
             }
@@ -323,49 +330,60 @@ macro_rules! define_table {
 
         pub const COMMANDS: &[CommandId] = &[ $( CommandId::$name, )* ];
 
+        /// 本体を呼ぶ前の属性検査 (型付き経路と JSON 経路で同じ)。
+        pub fn check(id: CommandId, ctx: &$crate::commands::CallContext) -> $crate::error::Result<()> {
+            $crate::commands::check_meta(id.meta(), ctx)
+        }
+
         /// JSON アダプタ。`params` は引数名 (camelCase) をキーにしたオブジェクト。
-        pub async fn dispatch(core: &Core, ctx: &CallContext, name: &str, params: Value) -> Result<Value> {
+        pub async fn dispatch(
+            core: &$crate::context::Core,
+            ctx: &$crate::commands::CallContext,
+            name: &str,
+            params: ::serde_json::Value,
+        ) -> $crate::error::Result<::serde_json::Value> {
             let Some(id) = CommandId::parse(name) else {
-                return Err(unknown_command(name));
+                return Err($crate::commands::unknown_command(name));
             };
             check(id, ctx)?;
-            let params = if params.is_null() { Value::Object(Default::default()) } else { params };
+            let params = if params.is_null() { ::serde_json::Value::Object(Default::default()) } else { params };
             match id {
                 $( CommandId::$name => {
-                    #[derive(serde::Deserialize)]
+                    #[derive(::serde::Deserialize)]
                     #[serde(rename_all = "camelCase")]
                     struct Params { $( $arg: $ty, )* }
                     #[allow(unused_variables)]
-                    let p: Params = serde_json::from_value(params).map_err(|e| invalid_params(name, e))?;
+                    let p: Params = ::serde_json::from_value(params).map_err(|e| $crate::commands::invalid_params(name, e))?;
                     let out = $path(core, $( p.$arg, )*)
                         .await
-                        .map_err(|e| command_json_err!(e, $($err)?))?;
-                    Ok(serde_json::to_value(out)?)
+                        .map_err(|e| $crate::__nd_command_json_err!(e, $($err)?))?;
+                    Ok(::serde_json::to_value(out)?)
                 } )*
             }
         }
 
         /// 各引数の `Default` を camelCase キーで並べた最小の params。
         /// 「全コマンドを JSON 経路で往復させる」テストの入力。
-        pub fn fixture_params(id: CommandId) -> Value {
+        pub fn fixture_params(id: CommandId) -> ::serde_json::Value {
             match id {
                 $( CommandId::$name => {
                     #[allow(unused_mut)]
-                    let mut m = serde_json::Map::new();
-                    $( m.insert(camel(stringify!($arg)), serde_json::to_value(<$ty as Default>::default()).unwrap_or(Value::Null)); )*
-                    Value::Object(m)
+                    let mut m = ::serde_json::Map::new();
+                    $( m.insert($crate::commands::camel(stringify!($arg)), ::serde_json::to_value(<$ty as Default>::default()).unwrap_or(::serde_json::Value::Null)); )*
+                    ::serde_json::Value::Object(m)
                 } )*
             }
         }
     };
 }
 
-crate::with_command_table!(define_table);
+crate::with_command_table!(define_command_table);
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::context::test_support::temp_core;
+    use serde_json::Value;
 
     #[test]
     fn names_are_unique_and_parse_back() {

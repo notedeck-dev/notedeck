@@ -50,6 +50,7 @@ const changed = computed(() =>
     :badge-ok="changed"
   >
     <p :class="$style.note">
+      <i class="ti ti-info-circle" />
       {{ i18n.ts._aiGenerationSection.note }}
     </p>
 
@@ -136,73 +137,14 @@ const changed = computed(() =>
 </template>
 
 <style lang="scss" module>
-// 数値入力のレイアウトは AiHeartbeatSection と揃える
-// (label 左 / [input] [単位] 右の 1 行 + 下に補足)
-.note {
-  margin: 0;
-  font-size: 0.75em;
-  opacity: 0.6;
-}
+@use '@/styles/settingsFields' as *;
 
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 4px 0;
-}
-
-.fieldHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.fieldLabel {
-  font-size: 0.85em;
-}
-
-.fieldValue {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.fieldHint {
-  margin: 0;
-  font-size: 0.7em;
-  opacity: 0.5;
-  line-height: 1.5;
-}
-
-.numberInput {
-  width: 72px;
-  padding: 2px 4px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.85em;
-  text-align: right;
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
-
-  // spinner 矢印は隠す (AiHeartbeatSection と同じ)
-  &::-webkit-inner-spin-button,
-  &::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  -moz-appearance: textfield;
-}
-
-.fieldUnit {
-  font-size: 0.8em;
-  opacity: 0.55;
-  min-width: 18px;
-}
+.note { @include key-hint; }
+.field { @include field; }
+.fieldHeader { @include field-header; }
+.fieldLabel { @include field-label; }
+.fieldValue { @include field-value; }
+.fieldHint { @include field-hint; }
+.numberInput { @include number-input; }
+.fieldUnit { @include field-unit; }
 </style>

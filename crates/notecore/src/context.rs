@@ -2,22 +2,25 @@
 //!
 //! データ系コマンドの本体は「`&Core` と引数を取る関数」で、Misskey クライアント / DB /
 //! server_info / OGP キャッシュなど notecore 側の状態はすべてここから引く。アプリ
-//! (src-tauri) は 1 つを managed state に置き、notecored も同じものを 1 つ作る。
+//! (src-tauri) は 1 つを managed state に置き、notemaid も自分のプロセスに 1 つ作る。
 //!
 //! 二段階初期化 (旧 `AppState`): DB が先に使えるようになり (migration 後)、Misskey
-//! クライアントは後から揃う。`db()` は前者を、`ready()` / `authed()` は後者を待つ。
+//! クライアントは後から揃う。`db()` は前者を、`client()` / `authed()` は後者を待つ。
+//!
+//! **DB を持たない構成** (notemaid): `initialize_client` + `set_account_store` だけで
+//! 組み立てる。索引 (notes キャッシュ) はこのプロセスに無いので、取得系の書込は
+//! `with_archive` で「索引があるときだけ」にし、`blocking` は待たずに Err で返る。
+//! 手元の索引を読む用途は `FrontendBridge::archive_search` で端末に聞く。
 //!
 //! 手元側にしか無いもの (UI へのヒント通知) は trait で受ける (`HintSink`)。
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, Weak};
 
 use notecli::api::MisskeyClient;
 use notecli::db::Database;
 
-use crate::ai_chat_service::AiChatSink;
-use crate::ai_turn::{AiTurnSink, CoreExecutor};
 use crate::commands::auth::AuthSessionTracker;
 use crate::credentials::{get_credentials, get_credentials_or_anon};
 use crate::error::Result;
@@ -31,27 +34,37 @@ use notecli::error::NoteDeckError;
 use notecli::streaming::StreamingManager;
 
 /// 手元側 (WebView) へのヒント通知。データ系コマンドの副産物で、無くても処理は成立する。
+/// 名前つきイベントの届け先 (AI の出来事など、上に載るクレートが出すもの)。Tauri は WebView へ
+/// emit し、別プロセスは socket のイベント frame にする。notecore は名前も payload も解釈しない
+pub trait EventSink: Send + Sync + 'static {
+    fn emit(&self, name: &'static str, payload: serde_json::Value);
+}
+
 pub trait HintSink: Send + Sync + 'static {
     /// タイムライン取得時に先読みした OGP (`nd:ogp-hints`)
     fn ogp_hints(&self, hints: HashMap<String, OgpData>);
 }
 
+/// Misskey クライアントと、それに紐づく server_info (DB があれば DB に、無ければメモリに保存)
 struct Inner {
-    db: Arc<Database>,
     client: Arc<MisskeyClient>,
     server_info: Arc<notecli::server_info::ServerInfoService>,
 }
 
 pub struct Core {
-    // Full init (DB + client) — used by client() and ready()
+    // Misskey client init — used by client() / server_info() / authed()
     rx: tokio::sync::watch::Receiver<Option<Arc<Inner>>>,
     tx: tokio::sync::watch::Sender<Option<Arc<Inner>>>,
     // DB-only early init — used by db()
     db_rx: tokio::sync::watch::Receiver<Option<Arc<Database>>>,
     db_tx: tokio::sync::watch::Sender<Option<Arc<Database>>>,
+    /// このプロセスは DB を持たない (`initialize_client` で組み立てた)。`blocking` は待たずに Err
+    db_absent: std::sync::atomic::AtomicBool,
+    /// 口座の所在 (`AccountStore`)。DB を開く構成では `initialize_db` が DB を差す
+    accounts: OnceLock<Arc<dyn crate::accounts::AccountStore>>,
     /// OGP キャッシュ。初期化後に 1 度だけ差される (無ければ先読みを省く)
     ogp: OnceLock<OgpCache>,
-    /// 手元側へのヒント通知。無ければ黙って捨てる (notecored の既定)
+    /// 手元側へのヒント通知。無ければ黙って捨てる (notemaid の既定)
     hints: OnceLock<Arc<dyn HintSink>>,
     /// アプリデータディレクトリ (notecli.db / notedeck/ 設定 / キャッシュの置き場)
     app_dir: OnceLock<PathBuf>,
@@ -71,21 +84,17 @@ pub struct Core {
     stream_observation: Arc<crate::stream_fanout::StreamObservation>,
     /// パフォーマンス設定 (実行時に更新される)
     perf: OnceLock<SharedPerfConfig>,
-    /// AI チャットのイベントの届け先 (Tauri 側は WebView へ emit)
-    ai_chat_sink: OnceLock<Arc<dyn AiChatSink>>,
-    /// AI ターン実行器 (#1133) のイベントの届け先
-    ai_turn_sink: OnceLock<Arc<dyn AiTurnSink>>,
     /// 手元側 (WebView / managed state) への問い合わせ口。ターン実行器が
     /// capability の実行要求に使う
     frontend_bridge: OnceLock<Arc<dyn FrontendBridge>>,
     /// 設定ファイルの変更通知 (`settings_events`)。未設定なら黙って捨てる
     settings_sink: OnceLock<Arc<dyn crate::settings_events::SettingsSink>>,
-    /// HEARTBEAT の出来事 (`heartbeat`)。未設定なら黙って捨てる
-    heartbeat_sink: OnceLock<Arc<dyn crate::heartbeat::HeartbeatSink>>,
-    /// `exec: core` な capability の本体を呼ぶ口 (#1133 縦切り 4)
-    core_executor: OnceLock<Arc<dyn CoreExecutor>>,
     /// MiAuth セッションの追跡 (リプレイ防止)
     auth_sessions: AuthSessionTracker,
+    /// 名前つきイベントの届け先 (`EventSink`)。未設定なら `event_sink()` が Err
+    events: OnceLock<Arc<dyn EventSink>>,
+    /// `new_shared` で作ったときの自分への弱参照。spawn した task に `Arc<Core>` を渡すため
+    weak: OnceLock<Weak<Core>>,
 }
 
 impl Default for Core {
@@ -103,6 +112,8 @@ impl Core {
             tx,
             db_rx,
             db_tx,
+            db_absent: std::sync::atomic::AtomicBool::new(false),
+            accounts: OnceLock::new(),
             ogp: OnceLock::new(),
             hints: OnceLock::new(),
             stream_observation: Arc::default(),
@@ -114,30 +125,67 @@ impl Core {
             streaming: OnceLock::new(),
             query_runtime: OnceLock::new(),
             perf: OnceLock::new(),
-            ai_chat_sink: OnceLock::new(),
-            ai_turn_sink: OnceLock::new(),
             frontend_bridge: OnceLock::new(),
             settings_sink: OnceLock::new(),
-            heartbeat_sink: OnceLock::new(),
-            core_executor: OnceLock::new(),
             auth_sessions: AuthSessionTracker::new(),
+            events: OnceLock::new(),
+            weak: OnceLock::new(),
         }
     }
 
     /// Called as soon as DB is ready (after migrations, before client).
     /// Unblocks all commands that only need `db()`.
     pub fn initialize_db(&self, db: Arc<Database>) {
+        let _ = self
+            .accounts
+            .set(Arc::clone(&db) as Arc<dyn crate::accounts::AccountStore>);
         let _ = self.db_tx.send(Some(db));
+    }
+
+    /// DB を持たない構成 (notemaid): Misskey クライアントだけを差す。口座は `set_account_store` で。
+    /// 以後 `has_db()` は false、`blocking` は Err、`with_archive` は素通しになる
+    pub fn initialize_client(&self, client: Arc<MisskeyClient>) {
+        self.db_absent
+            .store(true, std::sync::atomic::Ordering::Release);
+        let server_info =
+            notecli::server_info::ServerInfoService::new_in_memory(Arc::clone(&client));
+        let _ = self.tx.send(Some(Arc::new(Inner {
+            client,
+            server_info,
+        })));
+    }
+
+    /// このプロセスに索引 (DB) があるか。無い構成では取得系の書込を省く
+    pub fn has_db(&self) -> bool {
+        !self.db_absent.load(std::sync::atomic::Ordering::Acquire)
+    }
+
+    /// 今すぐ使える DB (待たない)。初期化前と DB を持たない構成では None
+    pub fn try_db(&self) -> Option<Arc<Database>> {
+        self.db_rx.borrow().clone()
+    }
+
+    /// 口座の所在を差し替える (`initialize_db` より前に呼ぶ)。notemaid は写しを差す
+    pub fn set_account_store(&self, store: Arc<dyn crate::accounts::AccountStore>) {
+        let _ = self.accounts.set(store);
+    }
+
+    pub fn accounts(&self) -> Result<Arc<dyn crate::accounts::AccountStore>> {
+        self.accounts
+            .get()
+            .cloned()
+            .ok_or_else(|| NoteDeckError::Internal("account store is not set".into()))
     }
 
     /// Called once from the background init thread when DB + client are ready.
     pub fn initialize(&self, db: Arc<Database>, client: Arc<MisskeyClient>) {
         // Also signal DB channel in case initialize_db() wasn't called
+        let _ = self
+            .accounts
+            .set(Arc::clone(&db) as Arc<dyn crate::accounts::AccountStore>);
         let _ = self.db_tx.send(Some(Arc::clone(&db)));
-        let server_info =
-            notecli::server_info::ServerInfoService::new(Arc::clone(&db), Arc::clone(&client));
+        let server_info = notecli::server_info::ServerInfoService::new(db, Arc::clone(&client));
         let _ = self.tx.send(Some(Arc::new(Inner {
-            db,
             client,
             server_info,
         })));
@@ -232,25 +280,6 @@ impl Core {
             .ok_or_else(|| NoteDeckError::Internal("perf config is not set".into()))
     }
 
-    pub fn set_ai_chat_sink(&self, sink: Arc<dyn AiChatSink>) {
-        let _ = self.ai_chat_sink.set(sink);
-    }
-
-    pub fn ai_chat_sink(&self) -> Result<Arc<dyn AiChatSink>> {
-        self.ai_chat_sink
-            .get()
-            .cloned()
-            .ok_or_else(|| NoteDeckError::Internal("ai chat sink is not set".into()))
-    }
-
-    pub fn set_heartbeat_sink(&self, sink: Arc<dyn crate::heartbeat::HeartbeatSink>) {
-        let _ = self.heartbeat_sink.set(sink);
-    }
-
-    pub fn heartbeat_sink(&self) -> Option<Arc<dyn crate::heartbeat::HeartbeatSink>> {
-        self.heartbeat_sink.get().cloned()
-    }
-
     pub fn set_settings_sink(&self, sink: Arc<dyn crate::settings_events::SettingsSink>) {
         let _ = self.settings_sink.set(sink);
     }
@@ -261,17 +290,6 @@ impl Core {
         if let Some(sink) = self.settings_sink.get() {
             sink.settings_changed(change);
         }
-    }
-
-    pub fn set_ai_turn_sink(&self, sink: Arc<dyn AiTurnSink>) {
-        let _ = self.ai_turn_sink.set(sink);
-    }
-
-    pub fn ai_turn_sink(&self) -> Result<Arc<dyn AiTurnSink>> {
-        self.ai_turn_sink
-            .get()
-            .cloned()
-            .ok_or_else(|| NoteDeckError::Internal("ai turn sink is not set".into()))
     }
 
     pub fn set_frontend_bridge(&self, bridge: Arc<dyn FrontendBridge>) {
@@ -285,15 +303,31 @@ impl Core {
             .ok_or_else(|| NoteDeckError::Internal("frontend bridge is not set".into()))
     }
 
-    pub fn set_core_executor(&self, executor: Arc<dyn CoreExecutor>) {
-        let _ = self.core_executor.set(executor);
+    /// `Arc` で作る。長生きする task (AI のターンなど) が `shared()` で自分の `Arc` を取れる
+    pub fn new_shared() -> Arc<Core> {
+        Arc::new_cyclic(|w| {
+            let core = Core::new();
+            let _ = core.weak.set(w.clone());
+            core
+        })
     }
 
-    pub fn core_executor(&self) -> Result<Arc<dyn CoreExecutor>> {
-        self.core_executor
+    /// `new_shared` で作った Core の `Arc`。`new()` で作った (テストなど) 場合は Err
+    pub fn shared(&self) -> Result<Arc<Core>> {
+        self.weak.get().and_then(Weak::upgrade).ok_or_else(|| {
+            NoteDeckError::Internal("core is not shared (use Core::new_shared)".into())
+        })
+    }
+
+    pub fn set_event_sink(&self, sink: Arc<dyn EventSink>) {
+        let _ = self.events.set(sink);
+    }
+
+    pub fn event_sink(&self) -> Result<Arc<dyn EventSink>> {
+        self.events
             .get()
             .cloned()
-            .ok_or_else(|| NoteDeckError::Internal("core executor is not set".into()))
+            .ok_or_else(|| NoteDeckError::Internal("event sink is not set".into()))
     }
 
     pub fn auth_sessions(&self) -> &AuthSessionTracker {
@@ -355,31 +389,48 @@ impl Core {
         T: Send + 'static,
         F: FnOnce(&Database) -> Result<T> + Send + 'static,
     {
+        if !self.has_db() {
+            return Err(NoteDeckError::Internal(
+                "this process has no database (the archive lives on the device)".into(),
+            ));
+        }
         let db = self.db().await;
         tokio::task::spawn_blocking(move || f(&db))
             .await
             .map_err(|e| NoteDeckError::Internal(format!("blocking task failed: {e}")))?
     }
 
-    /// Await until fully initialized, then return MisskeyClient reference.
+    /// 索引 (DB) があるときだけ `f` を blocking で回し、無ければ `value` をそのまま返す。
+    /// 取得したノートをキャッシュへ取り込む類の「あれば書く」処理用 (notemaid は素通し)
+    pub async fn with_archive<T, F>(&self, value: T, f: F) -> Result<T>
+    where
+        T: Send + 'static,
+        F: FnOnce(&Database, T) -> Result<T> + Send + 'static,
+    {
+        if !self.has_db() {
+            return Ok(value);
+        }
+        self.blocking(move |db| f(db, value)).await
+    }
+
+    /// Await until the Misskey client is set (DB を持たない構成でも待てる)。
     pub async fn client(&self) -> Arc<MisskeyClient> {
         let mut rx = self.rx.clone();
         let r = rx.wait_for(|v| v.is_some()).await.unwrap();
         Arc::clone(&r.as_ref().unwrap().client)
     }
 
-    /// Await until fully initialized, then return the server-info SWR service.
+    /// Await until the client is set, then return the server-info SWR service.
     pub async fn server_info(&self) -> Arc<notecli::server_info::ServerInfoService> {
         let mut rx = self.rx.clone();
         let r = rx.wait_for(|v| v.is_some()).await.unwrap();
         Arc::clone(&r.as_ref().unwrap().server_info)
     }
 
-    /// `ready()` + `get_credentials` の定型を 1 行に畳む (#782 R2)。
-    /// db を後続で使わないコマンド用 — 使う場合は従来どおり `ready()` を使う。
+    /// `client()` + `get_credentials` の定型を 1 行に畳む (#782 R2)。DB を持たない構成でも動く。
     pub async fn authed(&self, account_id: &str) -> Result<(Arc<MisskeyClient>, String, String)> {
-        let (db, client) = self.ready().await;
-        let (host, token) = get_credentials(&db, account_id)?;
+        let client = self.client().await;
+        let (host, token) = get_credentials(&*self.accounts()?, account_id)?;
         Ok((client, host, token))
     }
 
@@ -388,22 +439,58 @@ impl Core {
         &self,
         account_id: &str,
     ) -> Result<(Arc<MisskeyClient>, String, String)> {
-        let (db, client) = self.ready().await;
-        let (host, token) = get_credentials_or_anon(&db, account_id)?;
+        let client = self.client().await;
+        let (host, token) = get_credentials_or_anon(&*self.accounts()?, account_id)?;
         Ok((client, host, token))
-    }
-
-    /// Await until fully initialized, then return both.
-    pub async fn ready(&self) -> (Arc<Database>, Arc<MisskeyClient>) {
-        let mut rx = self.rx.clone();
-        let r = rx.wait_for(|v| v.is_some()).await.unwrap();
-        let inner = r.as_ref().unwrap();
-        (Arc::clone(&inner.db), Arc::clone(&inner.client))
     }
 }
 
 #[cfg(test)]
-pub(crate) mod test_support {
+mod tests {
+    use super::*;
+
+    struct OneAccount;
+    impl crate::accounts::AccountStore for OneAccount {
+        fn get(&self, id: &str) -> Result<Option<notecli::models::Account>> {
+            Ok((id == "a").then(|| notecli::models::Account {
+                id: "a".into(),
+                host: "example.com".into(),
+                token: String::new(),
+                user_id: "u".into(),
+                username: "n".into(),
+                display_name: None,
+                avatar_url: None,
+                software: "misskey".into(),
+            }))
+        }
+        fn list(&self) -> Result<Vec<notecli::models::Account>> {
+            Ok(self.get("a")?.into_iter().collect())
+        }
+        fn clear_token(&self, _id: &str) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    /// notemaid の組み立て: DB なしでも資格情報 / server_info / 取得系の書込が返る (待ち続けない)
+    #[tokio::test]
+    async fn client_only_core_never_waits_for_a_database() {
+        let core = Core::new_shared();
+        core.set_account_store(Arc::new(OneAccount));
+        core.initialize_client(Arc::new(MisskeyClient::new().unwrap()));
+        assert!(core.is_ready());
+        assert!(!core.has_db());
+        assert!(core.try_db().is_none());
+        let (_, host, token) = core.authed_or_anon("a").await.unwrap();
+        assert_eq!((host.as_str(), token.as_str()), ("example.com", ""));
+        let _ = core.server_info().await;
+        assert!(core.blocking(|_db| Ok(())).await.is_err());
+        assert_eq!(core.with_archive(7, |_db, v| Ok(v + 1)).await.unwrap(), 7);
+    }
+}
+
+/// テスト用の Core。`test-support` feature で他クレート (notemaid) のテストにも開く
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support {
     use super::*;
 
     /// 一時 DB + 実クライアント (ネットワークには出ない) で初期化済みの Core。

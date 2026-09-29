@@ -3,8 +3,8 @@
 
 //! Secret Vault ([#564](https://github.com/notedeck-dev/notedeck/issues/564)) の読み取り面、
 //! secret を使う (開示しない) 操作、そして secret や信頼設定を書く操作 (表の種別 authz)。
-//! 許可ウィンドウ属性 (main) は表の行が持つ。書込も notecore にあるので、常駐構成では
-//! notecored が自分の secret store に書く (#1106 段階 3a)。
+//! 許可ウィンドウ属性 (main) は表の行が持つ。書込も notecore にあり、このプロセスの
+//! secret store に書く (#1106)。
 
 use crate::context::Core;
 use crate::vault::connections_service::{
