@@ -4659,7 +4659,6 @@
             'edit-history',
             'connections',
             'connectionEdit',
-            'core',
             'tutorial',
             'tutorialEditor',
           ],

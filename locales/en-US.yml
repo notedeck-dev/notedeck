@@ -101,7 +101,6 @@ _windows:
   connectionEdit: "Edit connection"
   tutorial: "Tutorial"
   tutorialEditor: "Tutorial"
-  core: "Core"
 
 _commands:
   commandPalette: "Command palette"
@@ -1825,8 +1824,6 @@ _deckDriveColumn:
   openFolder: "Open folder"
 
 _deckNavbar:
-  coreConnected: "Connected to the resident core (notemaid)"
-  coreTrouble: "The core connection needs attention"
   switchToOnline: "Switch to online mode"
   switchToOffline: "Switch to offline mode"
   switchToPolling: "Switch to polling mode"
@@ -3477,16 +3474,13 @@ _defaultSnippets:
   eachLoop: "Iterate over an array with each"
   apiCall: "Call the Misskey API"
 
-_coreContent:
-  current: "Where the AI runs"
-  currentDesc: "Data stays on this device. The AI is a separate process (notemaid)"
-  modeEmbedded: "Inside the app"
-  modeResident: "Relayed to a separate process"
+_aiRuntime:
+  title: "Where the AI runs"
+  modeEmbedded: "Running inside the app"
+  modeResident: "Running in a separate process (notemaid)"
   connected: "Connected"
   disconnected: "Not connected"
   fingerprintMismatch: "The notemaid version does not match this app. Update notemaid."
-  residentTitle: "Keep running after the app closes"
-  residentDesc: "A login task of your OS"
   residentToggle: "Start as a login task"
   residentHint: "When on, it is registered as a login task of your OS and HEARTBEAT keeps going without the app. When off, it exits with the app. No restart needed."
   residentUnavailable: "Not available here: {reason}"

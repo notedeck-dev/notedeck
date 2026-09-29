@@ -285,6 +285,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let emit_handle = app.handle().clone();
             let state_handle = app.handle().clone();
             let query_handle = app.handle().clone();
+            let watch_endpoint = launched.endpoint.clone();
             let relay = client_layer::start(
                 launched.endpoint,
                 std::sync::Arc::new(move |name, payload| {
@@ -304,6 +305,16 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             );
             let is_child = launched.child.is_some();
             maid_launcher::keep(launched.child);
+            if is_child {
+                // 子が bind するまで裏で待つ。死んだ / 答えないなら中継を無効化して in-process に落とす
+                // (デッキ描画はこれを待たない。AI 系の要求は接続を上限つきで待つ)
+                tauri::async_runtime::spawn(async move {
+                    if !maid_launcher::wait_ready(&watch_endpoint, std::time::Duration::from_secs(8)).await {
+                        client_layer::disable("notemaid sidecar did not start; running the AI in-process");
+                        maid_launcher::stop();
+                    }
+                });
+            }
             // 常駐の版がこのアプリと違う (更新の直後) なら、同梱の sidecar で起動し直す。1 回だけ
             if !is_child {
                 let restarted = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));

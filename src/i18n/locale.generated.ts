@@ -190,8 +190,6 @@ export interface Locale {
     readonly "tutorial": string
     /** チュートリアル */
     readonly "tutorialEditor": string
-    /** コア */
-    readonly "core": string
   }
   readonly "_commands": {
     /** コマンドパレット */
@@ -2868,10 +2866,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "openFolder": string
   }
   readonly "_deckNavbar": {
-    /** 常駐のコア (notemaid) に接続中 */
-    readonly "coreConnected": string
-    /** コアの接続に問題があります */
-    readonly "coreTrouble": string
     /** オンラインモードに切り替え */
     readonly "switchToOnline": string
     /** オフラインモードに切り替え */
@@ -5791,14 +5785,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     /** Misskey API 呼び出し */
     readonly "apiCall": string
   }
-  readonly "_coreContent": {
+  readonly "_aiRuntime": {
     /** AI の実行 */
-    readonly "current": string
-    /** データはこの端末。AI は別プロセス (notemaid) */
-    readonly "currentDesc": string
-    /** アプリの中で実行 */
+    readonly "title": string
+    /** アプリの中で実行しています */
     readonly "modeEmbedded": string
-    /** 別プロセスに中継 */
+    /** 別プロセス (notemaid) で実行しています */
     readonly "modeResident": string
     /** 接続中 */
     readonly "connected": string
@@ -5806,10 +5798,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "disconnected": string
     /** notemaid の版がこのアプリと一致していません。notemaid を更新してください。 */
     readonly "fingerprintMismatch": string
-    /** アプリを閉じても動かす */
-    readonly "residentTitle": string
-    /** ログイン時に起動する常駐タスク */
-    readonly "residentDesc": string
     /** 常駐タスクとして起動する */
     readonly "residentToggle": string
     /** オンにすると OS のログイン時タスクに登録し、アプリなしで HEARTBEAT が続きます。オフならアプリと一緒に終わります。再起動は不要です。 */

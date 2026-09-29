@@ -121,7 +121,9 @@ pub async fn bind(endpoint: &Endpoint) -> io::Result<Listener> {
             use std::os::unix::fs::PermissionsExt;
             if let Some(dir) = path.parent() {
                 std::fs::create_dir_all(dir)?;
-                std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+                // 自分のディレクトリ (runtime dir 配下) は 0700 に絞る。/tmp のような共有の親を
+                // 指定されたときは所有者でないので失敗するが、socket 自体は 0600 にするので続ける
+                let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
             }
             if path.exists() {
                 if tokio::net::UnixStream::connect(path).await.is_ok() {

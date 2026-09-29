@@ -108,7 +108,6 @@ _windows:
   connectionEdit: "接続を編集"
   tutorial: "チュートリアル"
   tutorialEditor: "チュートリアル"
-  core: "コア"
 
 _commands:
   commandPalette: "コマンドパレット"
@@ -1587,8 +1586,6 @@ _deckDriveColumn:
   openFolder: "フォルダを開く"
 
 _deckNavbar:
-  coreConnected: "常駐のコア (notemaid) に接続中"
-  coreTrouble: "コアの接続に問題があります"
   switchToOnline: "オンラインモードに切り替え"
   switchToOffline: "オフラインモードに切り替え"
   switchToPolling: "ポーリングモードに切り替え"
@@ -3207,16 +3204,13 @@ _defaultSnippets:
   eachLoop: "配列を each で走査"
   apiCall: "Misskey API 呼び出し"
 
-_coreContent:
-  current: "AI の実行"
-  currentDesc: "データはこの端末。AI は別プロセス (notemaid)"
-  modeEmbedded: "アプリの中で実行"
-  modeResident: "別プロセスに中継"
+_aiRuntime:
+  title: "AI の実行"
+  modeEmbedded: "アプリの中で実行しています"
+  modeResident: "別プロセス (notemaid) で実行しています"
   connected: "接続中"
   disconnected: "未接続"
   fingerprintMismatch: "notemaid の版がこのアプリと一致していません。notemaid を更新してください。"
-  residentTitle: "アプリを閉じても動かす"
-  residentDesc: "ログイン時に起動する常駐タスク"
   residentToggle: "常駐タスクとして起動する"
   residentHint: "オンにすると OS のログイン時タスクに登録し、アプリなしで HEARTBEAT が続きます。オフならアプリと一緒に終わります。再起動は不要です。"
   residentUnavailable: "この環境では使えません: {reason}"

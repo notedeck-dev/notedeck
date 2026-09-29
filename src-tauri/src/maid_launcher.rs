@@ -68,28 +68,10 @@ pub async fn launch(app_dir: &Path, backend: Backend) -> Option<Launched> {
             };
             let endpoint = transport::child_endpoint(std::process::id());
             match spawn(&bin, app_dir, &endpoint) {
-                Ok(mut child) => {
-                    // 子が bind するまで待つ。先に死んだら (鍵 / ロック / 版の問題) in-process に落ちる。
-                    // ここで待つのは AI 系の初回呼び出しを確実にするためで、デッキ描画はこの前に始まっている
-                    let pid = child.id();
-                    let deadline = std::time::Instant::now() + Duration::from_secs(8);
-                    loop {
-                        if let Ok(Some(status)) = child.try_wait() {
-                            tracing::warn!(%status, bin = %bin.display(), "[notemaid] sidecar exited before answering; running the AI in-process");
-                            return None;
-                        }
-                        if answering(&endpoint).await {
-                            break;
-                        }
-                        if std::time::Instant::now() >= deadline {
-                            tracing::warn!(%endpoint, "[notemaid] sidecar did not answer in time; running the AI in-process");
-                            let _ = child.kill();
-                            let _ = child.wait();
-                            return None;
-                        }
-                        tokio::time::sleep(Duration::from_millis(100)).await;
-                    }
-                    tracing::info!(%endpoint, bin = %bin.display(), pid, "[notemaid] started sidecar");
+                Ok(child) => {
+                    // bind を待たずに返す (デッキ描画を待たせない)。繋がるまでは呼び出し側が
+                    // `wait_ready` を裏で回し、死んでいたら中継を無効化して in-process に落とす
+                    tracing::info!(%endpoint, bin = %bin.display(), pid = child.id(), "[notemaid] started sidecar");
                     Some(Launched {
                         endpoint,
                         child: Some(child),
@@ -137,6 +119,29 @@ fn spawn(bin: &Path, app_dir: &Path, endpoint: &Endpoint) -> std::io::Result<Chi
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
     cmd.spawn()
+}
+
+/// 子プロセスが答えるまで待つ。先に死んだ / 期限までに答えなければ false (呼び出し側が退避する)
+pub async fn wait_ready(endpoint: &Endpoint, timeout: Duration) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        let exited = CHILD
+            .lock()
+            .ok()
+            .and_then(|mut c| c.as_mut().and_then(|ch| ch.try_wait().ok().flatten()));
+        if let Some(status) = exited {
+            tracing::warn!(%status, "[notemaid] sidecar exited before answering");
+            return false;
+        }
+        if answering(endpoint).await {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            tracing::warn!(%endpoint, "[notemaid] sidecar did not answer in time");
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 /// 子プロセスの handle を持ち続ける (stdin の書き口を開いたままにするため)
@@ -277,6 +282,10 @@ pub async fn set_resident(app_dir: &Path, enabled: bool) -> Result<(), String> {
             .ok_or("could not start the notemaid child process")?;
         let endpoint = launched.endpoint.clone();
         keep(launched.child);
+        if !wait_ready(&endpoint, Duration::from_secs(8)).await {
+            stop();
+            return Err("the notemaid child process did not start".into());
+        }
         relay.switch_to(endpoint);
     }
     Ok(())

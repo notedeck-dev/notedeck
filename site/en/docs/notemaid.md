@@ -1,5 +1,5 @@
 ---
-sourceHash: 2eeb78a0c511
+sourceHash: d29b07c21af5
 ---
 
 # The AI process (notemaid)
@@ -11,14 +11,14 @@ NoteDeck's AI (the agent loop and HEARTBEAT) runs in a separate process, **notem
 | Form | Who starts it | What you get |
 |---|---|---|
 | Default (child process) | The app | No setup. Starts and stops with the app. If you close the window to the tray, the AI stays alive |
-| Resident | A login task of your OS (the toggle under **Core** in settings) | HEARTBEAT keeps going after you quit the app. The next launch connects to it automatically |
+| Resident | A login task of your OS (the toggle in AI settings) | HEARTBEAT keeps going after you quit the app. The next launch connects to it automatically |
 | Your own server | Started on the server | The AI runs regardless of your device's power (outbound connections come in a later stage) |
 
-At startup the app first checks whether a resident notemaid is there, connects if so, and otherwise starts a child process. In every form your data (archive, subscriptions, deck) stays on the device, and notemaid uses the app settings and the tokens of the same accounts from the OS keychain (it never opens the app database). The version has to match the app (if not, **Core** in the settings menu shows why).
+At startup the app first checks whether a resident notemaid is there, connects if so, and otherwise starts a child process. In every form your data (archive, subscriptions, deck) stays on the device, and notemaid uses the app settings and the tokens of the same accounts from the OS keychain (it never opens the app database). The version has to match the app (if not, AI settings shows why).
 
 ## Making it resident
 
-Only needed if you want HEARTBEAT to keep running after you quit the app completely. Turn on "Keep the AI running after the app closes" under **Core** in the settings menu: it registers a login task with your OS (a systemd user unit on Linux, a LaunchAgent on macOS, Task Scheduler on Windows) and switches over on the spot, no restart needed. Turning it off removes the task and goes back to the child process.
+Only needed if you want HEARTBEAT to keep running after you quit the app completely. Turn on "Start as a login task" under **AI settings** → "Where the AI runs": it registers a login task with your OS (a systemd user unit on Linux, a LaunchAgent on macOS, Task Scheduler on Windows) and switches over on the spot, no restart needed. Turning it off removes the task and goes back to the child process.
 
 The AppImage mounts at a different path every launch, so the toggle is not available there. Put the standalone binary from Releases somewhere on your PATH and register it by hand.
 
@@ -38,7 +38,7 @@ If you only want to connect to the resident one (never start a child process), s
 
 ## Troubleshooting
 
-- **Logs**: the child process and the resident one on macOS / Windows write to `logs/notemaid.log` in the data directory; on Linux the resident one goes to `journalctl --user -u notemaid -e` (Core has a button that copies the command)
+- **Logs**: the child process and the resident one on macOS / Windows write to `logs/notemaid.log` in the data directory; on Linux the resident one goes to `journalctl --user -u notemaid -e` (AI settings has a button that copies the command)
 - **Version mismatch**: update notemaid to the same version as the app. The child process is bundled, so it always matches
 - **notemaid stops by itself**: for states a restart cannot fix (another notemaid owns the data directory, the database is newer than notemaid, the secret key cannot be read) it exits with a dedicated code and systemd does not restart it. The reason is in the log
 

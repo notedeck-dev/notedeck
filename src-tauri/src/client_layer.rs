@@ -73,10 +73,28 @@ pub struct RelayClient {
 }
 
 static RELAY: OnceLock<Arc<RelayClient>> = OnceLock::new();
+/// 子プロセスが繋がらなかったとき false になり、以後の AI 系コマンドは in-process に落ちる
+static ENABLED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
 
-/// 中継先。None = 埋め込み (既定)
+/// 中継先。None = in-process (既定、または子プロセスの起動に失敗して退避した後)
 pub fn relay() -> Option<&'static Arc<RelayClient>> {
+    if !ENABLED.load(std::sync::atomic::Ordering::Relaxed) {
+        return None;
+    }
     RELAY.get()
+}
+
+/// 中継をやめて in-process に退避する (子プロセスが起動直後に死んだ / 答えなかった)。
+/// 状態面には理由を残す。再有効化はしない (次の起動でまた試す)
+pub fn disable(reason: &str) {
+    ENABLED.store(false, std::sync::atomic::Ordering::Relaxed);
+    if let Some(r) = RELAY.get() {
+        r.update_state(|s| {
+            s.backend = "embedded".into();
+            s.connected = false;
+            s.last_error = Some(reason.to_string());
+        });
+    }
 }
 
 pub fn state() -> ClientLayerState {
