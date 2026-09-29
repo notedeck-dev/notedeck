@@ -1454,6 +1454,7 @@ _aboutContent:
   startupTotal: "Total: {time}"
   infoStartup: "Startup"
   infoDiagnostics: "Diagnostics"
+  infoRecentLog: "Recent log (in-app)"
   issueWhat: "What happened"
   issueWhatHint: "Describe what happened"
   issueSteps: "Steps to reproduce"

@@ -15,6 +15,7 @@ import {
 import type { QualityLevel } from '@/engine/telemetry/frameTelemetry'
 import { i18n } from '@/i18n'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
+import { useLogsStore } from '@/stores/logs'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
@@ -230,6 +231,23 @@ const aiRuntimeLabel = computed(() => {
         : i18n.ts._aboutContent.aiInProcess
   const version = n.relay?.daemonVersion ? ` v${n.relay.daemonVersion}` : ''
   return `${mode}${version}`
+})
+
+/**
+ * 「情報をコピー」に載せる、アプリ内の直近の warn / error (最大 30 行)。
+ * Android は adb 無しではコンソールが見えないので、AI が応答しない等の原因を
+ * ここから持ち出す。ローカルの内容を含むので issue の URL には載せない
+ */
+const recentLogText = computed(() => {
+  const rows = useLogsStore()
+    .recent('all', 30)
+    .filter((e) => e.level === 'warn' || e.level === 'error')
+  return rows
+    .map(
+      (e) =>
+        `${new Date(e.at).toISOString()} ${e.level.toUpperCase()} ${e.message.slice(0, 400)}`,
+    )
+    .join('\n')
 })
 
 /** バグ報告のコピー用: notemaid の事実をそのまま (ローカルのパスを含むので URL には載せない) */
@@ -747,6 +765,10 @@ function getInfoText() {
     parts.push(`# ${i18n.ts._aboutContent.infoStartup}\n${getStartupText()}`)
   if (notemaidFactsText.value)
     parts.push(`# AI (notemaid)\n\`\`\`\n${notemaidFactsText.value}\n\`\`\``)
+  if (recentLogText.value)
+    parts.push(
+      `# ${i18n.ts._aboutContent.infoRecentLog}\n\`\`\`\n${recentLogText.value}\n\`\`\``,
+    )
   if (diag)
     parts.push(
       `# ${i18n.ts._aboutContent.infoDiagnostics}\n\`\`\`\n${diag}\n\`\`\``,

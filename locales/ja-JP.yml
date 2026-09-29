@@ -1229,6 +1229,7 @@ _aboutContent:
   startupTotal: "合計: {time}"
   infoStartup: "起動"
   infoDiagnostics: "診断"
+  infoRecentLog: "直近のログ (アプリ内)"
   issueWhat: "現象"
   issueWhatHint: "何が起きたか"
   issueSteps: "再現手順"

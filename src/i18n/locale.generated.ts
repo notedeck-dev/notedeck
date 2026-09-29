@@ -2202,6 +2202,8 @@ export interface Locale {
     readonly "infoStartup": string
     /** 診断 */
     readonly "infoDiagnostics": string
+    /** 直近のログ (アプリ内) */
+    readonly "infoRecentLog": string
     /** 現象 */
     readonly "issueWhat": string
     /** 何が起きたか */
