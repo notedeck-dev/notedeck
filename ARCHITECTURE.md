@@ -136,26 +136,27 @@ sequenceDiagram
 
 ---
 
-### 目指す構成: notecore と notecored（[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)、未実装）
+### 目指す構成: notecore と notemaid（[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)）
 
-上の全体像は現状で、Rust Backend の中に Tauri 非依存のドメインと Tauri アダプタが同居している。目指す構成では前者を **notecore** クレートに集め、同じ notecore を「Tauri の殻 (手元)」と「notecored の殻 (自分のサーバー)」の両方で動かす。
+上の全体像のうち Tauri 非依存のドメインは **notecore** クレートに切り出し済み。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) は **notemaid** (lib + bin の 1 クレート) に置く (2026-09-29 に決定、切り出しは未着手)。notemaid は常に別プロセスで、アプリが sidecar として子プロセス起動する (既定、設定ゼロ) / ログイン時のユーザータスクで常駐 (任意) / 自分のサーバー (リモート) の 3 通りを同じプロトコルで受ける。iOS だけ in-process の transport。常駐 (自分のサーバーで動かす) の対象は notemaid だけで、データ面は常に手元で動く。「notecore 全体を notecored として自分のサーバーで常駐させる」旧計画は #1106 で中止した (理由は同 issue の 2026-09-29 コメント)。
 
 ```
-フロントエンド (Vue)
-      │ IPC (常に手元の Rust とだけ話す)
-┌─ 殻: Tauri ─────────────┐  中継  ┌─ 殻: notecored ───────────┐
-│ OS 統合 + クライアント層 │ ─────▶ │ 常駐、RPC + SSE、ペアリング │
-└──────────┬──────────────┘        └───────────┬──────────────┘
-           ▼                                   ▼
-        notecore ────────── 同じクレート ──── notecore
-           ▼                                   ▼
-        notecli                             notecli
+フロントエンド (Vue)                WebView は常に手元の Rust とだけ話す
+      │ IPC
+┌─ アプリ (Tauri、手元) ────────┐   AI 系コマンド    ┌─ notemaid (常に別プロセス) ───────────────────┐
+│ OS 統合 + クライアント層     │ ───────────────▶ │ メイド (ループ / HEARTBEAT / 配送)           │
+│  notecore (データ面、常に手元)│  socket /        │  notecore (共有基盤: Vault / 認可 / 設定だけ。│
+│  notecli                     │  named pipe      │            notes DB は開かない)              │
+└──────────────────────────────┘                  │  notecli                                     │
+                                                  └──────────────────────────────────────────────┘
+誰が notemaid を起動するか: アプリが sidecar を子プロセスで (既定、設定ゼロ) / ログイン時のユーザータスク (任意、常駐) / 自分のサーバー (リモート)
+iOS だけは別プロセスを持てないので in-process の transport (コマンド面は同じ)
 ```
 
-- 依存の向きは一方向: フロント → Tauri → notecore → notecli、notecored → notecore → notecli。notecore は Tauri を知らず、notecli は notecore を知らない。4 つは同じリポジトリの workspace クレートで、notecli は取り込む (別リポジトリの固定版更新をなくす)
-- 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通り、ローカル構成では in-process、リモート構成では notecored への中継になる。フロントは違いを知らず、接続 / 互換 / 同期の状態面だけを知る
-- AI エージェントループは Rust で notecore に置く（[#1133](https://github.com/notedeck-dev/notedeck/issues/1133)）
-- 認証 (デバイスの鍵対とペアリング)、イベント面 (購読宣言とクエリ単位の差分)、状態の所有 (notecore 側と手元側の設定の分け方) は #1106 の仕様コメントが正本
+- クレートの依存は一方向: notecli ← notecore ← notemaid ← アプリ。notemaid が notecore から借りるのは共有基盤 (Vault / 認可 / 設定 store / アカウント情報) だけで、データ面 (notes DB / ストリーミング / クエリランタイム) には依存しない。notecore は Tauri も AI も知らない。プロセスとしては並列で、両方を含むのはアプリの配布物。4 つは同じリポジトリの workspace クレート
+- 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通って常に in-process の notecore へ、AI 系コマンドは notemaid の表を通って常に socket / named pipe で notemaid のプロセスへ (iOS は in-process transport)。フロントは違いを知らず、接続 / 互換の状態面だけを知る
+- データ面の notecore はデバイスに 1 つ (アプリの中) だけで、notemaid は notes DB を開かない。Misskey は notecli で直接叩き、アプリが生きていれば socket でアプリ側の notecore にキャッシュを聞く。同一端末では設定ディレクトリを共有し、書くのは自分の持ち物 (セッション / メモ / skill / AI 設定) だけ。トークンは OS キーチェーンを読み、アカウント一覧は接続時にアプリから受け取る。リモートではメイドが自分のディレクトリとトークンを持ち、端末とは同期しない。メイドの持ち物はメイドの居る側にあり、端末はそれを編集する
+- 認証、イベント面、状態の所在は #1106 の仕様コメントが正本 (2026-09-29 のコメントで AI 面に縮めた後の読み方が優先)
 
 ---
 

@@ -1,6 +1,10 @@
 # 常駐コア (notecored)
 
-NoteDeck の「コア」は、Misskey との通信・データの保存・AI を担う部分です。既定ではアプリに埋め込まれていて、アプリと一緒に起動して終了します。**notecored** は同じコアを systemd の user サービスとして常駐させるもので、アプリを閉じても通知の受信や HEARTBEAT が止まりません。
+NoteDeck の「コア」は、Misskey との通信・データの保存・AI を担う部分です。既定ではアプリに埋め込まれていて、アプリと一緒に起動して終了します。**notecored** は同じコアを systemd の user サービスとして常駐させるもので、アプリを閉じても HEARTBEAT が止まりません。
+
+::: info notecored は notemaid に置き換わります
+今後、常駐するのは AI (エージェントループ / HEARTBEAT / 結果の配送) だけになり、名前は **notemaid** です。AI はアプリが自動で起動する別プロセスとして設定なしで動き、「アプリを閉じても動かす」と「自分のサーバーに置く」は任意になります。データはこれまでどおり端末の上にあり、コアの切り替えと secret の移行はなくなります。このページは現行版の notecored の説明です ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。
+:::
 
 ::: warning 対象は Linux のみ
 同じデバイスの常駐 (この段階) は Linux (systemd の user セッションがある環境) だけです。macOS / Windows と、別デバイスの notecored への接続は今後の段階で扱います。Android / iOS はアプリ外のプロセスを常駐させられないため、将来はデスクトップやサーバーの notecored に繋ぐ形になります。
