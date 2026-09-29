@@ -255,18 +255,18 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 ```
 フロントエンド (Vue)                WebView は常に手元の Rust とだけ話す
       │ IPC
-┌─ アプリ (Tauri、手元) ───────────┐   AI 系コマンド    ┌─ notemaid (常に別プロセス) ─────────────────┐
-│ OS 統合 + クライアント層          │ ───────────────▶ │ メイド (ループ / HEARTBEAT / 配送)            │
-│  notecore (データ面、常に手元)    │  socket /        │  notecore (同一端末: アプリと同じデータを読む /  │
-│  notecli                        │  named pipe      │           リモート: 自分のディレクトリとトークン) │
-└─────────────────────────────────┘                  │  notecli                                     │
-                                                     └─────────────────────────────────────────────┘
+┌─ アプリ (Tauri、手元) ────────┐   AI 系コマンド    ┌─ notemaid (常に別プロセス) ───────────────────┐
+│ OS 統合 + クライアント層     │ ───────────────▶ │ メイド (ループ / HEARTBEAT / 配送)           │
+│  notecore (データ面、常に手元)│  socket /        │  notecore (共有基盤: Vault / 認可 / 設定だけ。│
+│  notecli                     │  named pipe      │            notes DB は開かない)              │
+└──────────────────────────────┘                  │  notecli                                     │
+                                                  └──────────────────────────────────────────────┘
 誰が notemaid を起動するか: アプリが sidecar を子プロセスで (既定、設定ゼロ) / ログイン時のユーザータスク (任意、常駐) / 自分のサーバー (リモート)
 iOS だけは別プロセスを持てないので in-process の transport (コマンド面は同じ)
 ```
 
 - **切る基準**: 「その処理はデバイスが 1 台も繋がっていない状態で意味を持つか」。持つなら notecore、持たないなら手元 (ウィンドウ / トレイ / OS 通知 / クリップボード / dialog / OS キーチェーン)。AI が所有するものは notemaid
-- **notecore と notemaid の関係は包含ではなく積み木**。依存は notecli ← notecore ← notemaid ← アプリの一方向で、notecore は AI を知らず、notemaid は notecore の Core を借りて読み書きする (Core を包む notemaid 側のコンテキストが sink と AI 設定を持つ)。capability の**宣言表** (語彙) は認可と HTTP API 面も参照するので notecore、**実行**は notemaid。同一端末ではアプリと notemaid が同じデータディレクトリを共有し、メイドはノートの DB を読むだけ (WAL の複数プロセス読み) で、書くのは自分の持ち物 (セッション / メモ / skill / AI 設定) だけ。鍵は同じユーザーセッションなので OS キーチェーンをそのまま読む (file backend はリモートだけ)。リモートではメイドが自分のディレクトリとトークンを持ち、端末とは同期しない。メイドの持ち物はメイドの居る側にあり、端末はそれを編集する
+- **notecore と notemaid の関係は、クレートでは「上に載る」、プロセスでは「並列」**。クレートの依存は notecli ← notecore ← notemaid ← アプリの一方向で、notemaid が notecore から借りるのは共有基盤 (Vault / principal の認可 / 設定ディレクトリと設定ファイルの store / アカウント情報 / i18n) だけ。データ面 (notes DB / ストリーミング / クエリランタイム) には依存しない。依存先が共有基盤に限ると確かめられたら、それを notecore の下層に割ってデータ面と AI 面を並列にしてもよい。notecore は AI を知らない。capability の**宣言表** (語彙) は認可と HTTP API 面も参照するので notecore、**実行**は notemaid。**データ面の notecore はデバイスに 1 つ (アプリの中) だけで、notemaid は notes DB を開かない** (2 プロセスで同じ DB を触ると、常駐タスクの notemaid がアプリ更新後に古い版のまま新しいスキーマを開く事故と排他ロックが戻ってくる)。Misskey は notecli で直接叩き、アプリが生きていれば socket でアプリ側の notecore にキャッシュを聞く。HEARTBEAT の cheap check も API で足りる。同一端末では設定ディレクトリを共有し、書くのは自分の持ち物 (セッション / メモ / skill / AI 設定) だけ。トークンは同じユーザーセッションの OS キーチェーンを読み、アカウント一覧は接続時にアプリから受け取る (file backend と自分でのログインはリモートだけ)。リモートではメイドが自分のディレクトリとトークンを持ち、端末とは同期しない。メイドの持ち物はメイドの居る側にあり、端末はそれを編集する
 - **クライアント層**は手元の Rust の中の切替点 1 箇所。データ系コマンドはコマンド表 (型付き関数 + JSON アダプタを 1 つの宣言から生成) を通り、常に in-process の埋め込み notecore を呼ぶ。AI 系コマンドは notemaid 側の表を通り、常に socket / named pipe (iOS は in-process transport) で notemaid のプロセスに送る。アプリは起動時にまず socket を叩き、居れば繋ぎ (常駐タスクかリモート)、居なければ sidecar を子プロセスで起動する。子は親が死んだら一緒に死ぬ (PDEATHSIG / Job Object / 親 pid 監視)。デッキ描画は notemaid の起動を待たず、AI の初回呼び出しだけが readiness を待つ。版は sidecar なら常に同じ、常駐タスクは指紋照合でずれを検知して再起動する。表に載っていないデータ系コマンドはどの構成でも存在しない
 - **AI エージェントループは Rust で notemaid に置く** (現状は `crates/notecore` 配下、切り出し前) ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行。チャット 1 ターンの状態機械 (ターン実行器)、確認要求、セッションの書込 (単一の書き手) と汚染の記録は移設済み。純データ系の capability (ノート / ユーザー / 通知 / アンテナ / チャンネル / ロール / リスト / クリップ / ドライブ / お気に入り / チャット / registry / アナウンス / Pages / Play / ギャラリー / 連合 / 外部 HTTP / MisStore の読取と書込、AI セッションの読取、principal の権限解決、skill / メモ / テーマ / カスタム CSS / プラグイン / ウィジェット / クエリの読み書き (AiScript の構文検証が要る作成・更新はデバイス)、キーバインド / ナビバー / パフォーマンス設定の読み書き (ナビバーの全置換はカラム種別の実行時レジストリで検証するのでデバイス)、persona の切替と AI の自己参照 (`meta.*`)。正本は宣言表の `exec` 属性) は `exec: core` で notecore が直接実行し、確認内容の組み立て (プレビュー) も notecore 側 (`capabilities/exec/preview.rs`)。デバイスの状態に触るもの (UI / ミュート / Vault / 下書き / 設定系) はデバイスへの実行要求 (詳細は [AI Chat Streaming](#ai-chat-streaming))。設定系の `exec: core` 化 (#1098 の services が前提) / HEARTBEAT の無人契約は後続
 - notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notemaid / アプリの 4 つ。`notecli` の CLI と `notemaid` の daemon はクレートからバイナリとして出し、notemaid の daemon 専用依存は `daemon` feature の裏に置いてアプリには乗せない)
