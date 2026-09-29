@@ -159,7 +159,9 @@ function resolveRevs(argv: string[]): { base: string; head: string | null } {
 
 function changedFiles(base: string, head: string | null): string[] {
   const range = head === null ? [base] : [base, head]
-  const tracked = git('diff', '--name-only', ...range).split('\n')
+  // rename は旧パス (消えた分) と新パス (増えた分) の両方を数える。rename 検出に任せると
+  // 新パスしか出ず、移設しただけで i18n-ignore が「増えた」ことになる (notemaid の切り出しで踏んだ)
+  const tracked = git('diff', '--no-renames', '--name-only', ...range).split('\n')
   const untracked =
     head === null ? git('ls-files', '--others', '--exclude-standard').split('\n') : []
   return [...new Set([...tracked, ...untracked])].filter(Boolean)

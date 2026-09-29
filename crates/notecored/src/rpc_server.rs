@@ -9,10 +9,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use notecore::commands::{self, CallContext};
+use notecore::commands::CallContext;
 use notecore::context::Core;
 use notecore::frontend_bridge::{BridgeFuture, FrontendBridge};
-use notecore::rpc::{BatchItem, Frame, Outcome, RpcError, SELF_PREFIX};
+use notecore::rpc::{Frame, Outcome, RpcError, SELF_PREFIX};
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
@@ -27,17 +27,6 @@ pub type StatusFn = Arc<dyn Fn() -> Value + Send + Sync>;
 type QueryReply = oneshot::Sender<Result<Value, String>>;
 type PendingQuery = (u64, QueryReply);
 
-/// セッションが開いた購読 (仕様 §4.4: 購読はデバイスセッションの所有物。切断で回収する)
-#[derive(Default, Debug, Clone, PartialEq)]
-pub struct Owned {
-    /// `query_subscribe_*` が返した query id (同じ id を複数回開いた分だけ数える)
-    pub queries: Vec<String>,
-    /// `stream_sub_note` の (account_id, note_id)
-    pub captures: Vec<(String, String)>,
-    /// `stream_observe_start` で開いた観測の数 (Stream Inspector)
-    pub observing: u32,
-}
-
 /// 接続中のセッション (橋の問い合わせを投げる相手)。最後に繋いだセッションを優先する
 #[derive(Default)]
 pub struct Sessions {
@@ -47,8 +36,6 @@ pub struct Sessions {
     live: Mutex<Vec<(u64, mpsc::Sender<Frame>)>>,
     /// query id → (session id, 応答の受け口)
     pending: Mutex<HashMap<u64, PendingQuery>>,
-    /// session id → 開いている購読
-    owned: Mutex<HashMap<u64, Owned>>,
 }
 
 impl Sessions {
@@ -61,65 +48,8 @@ impl Sessions {
         id
     }
 
-    /// 要求の名前と結果から、このセッションの購読の帳簿を更新する
-    pub fn record(&self, session: u64, name: &str, params: &Value, outcome: &Outcome) {
-        if !outcome.ok {
-            return;
-        }
-        let mut owned = self.owned.lock().unwrap_or_else(|e| e.into_inner());
-        let entry = owned.entry(session).or_default();
-        let s = |k: &str| {
-            params
-                .get(k)
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string()
-        };
-        if name.starts_with("query_subscribe_") {
-            if let Some(qid) = outcome
-                .result
-                .as_ref()
-                .and_then(|r| r.get("queryId"))
-                .and_then(Value::as_str)
-            {
-                entry.queries.push(qid.to_string());
-            }
-        } else if name == "query_close" {
-            let qid = s("queryId");
-            if let Some(i) = entry.queries.iter().position(|q| *q == qid) {
-                entry.queries.remove(i);
-            }
-        } else if name == "stream_sub_note" {
-            entry.captures.push((s("accountId"), s("noteId")));
-        } else if name == "stream_unsub_note" {
-            let key = (s("accountId"), s("noteId"));
-            if let Some(i) = entry.captures.iter().position(|c| *c == key) {
-                entry.captures.remove(i);
-            }
-        } else if name == "stream_observe_start" {
-            entry.observing += 1;
-        } else if name == "stream_observe_stop" {
-            entry.observing = entry.observing.saturating_sub(1);
-        }
-    }
-
-    #[cfg(test)]
-    pub fn owned_by(&self, session: u64) -> Owned {
-        self.owned
-            .lock()
-            .ok()
-            .and_then(|o| o.get(&session).cloned())
-            .unwrap_or_default()
-    }
-
-    /// セッションを外し、開いたままの購読を返す (呼び出し側が閉じる)
-    fn unregister(&self, id: u64) -> Owned {
-        let owned = self
-            .owned
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .remove(&id)
-            .unwrap_or_default();
+    /// セッションを外し、答え待ちの橋の問い合わせを失敗で閉じる
+    fn unregister(&self, id: u64) {
         self.live
             .lock()
             .unwrap_or_else(|e| e.into_inner())
@@ -139,7 +69,6 @@ impl Sessions {
         for tx in dead {
             let _ = tx.send(Err("device disconnected".into()));
         }
-        owned
     }
 
     pub fn count(&self) -> usize {
@@ -359,29 +288,17 @@ impl RpcServer {
             let server = self.clone();
             let tx = tx.clone();
             tokio::spawn(async move {
-                if let Some(reply) = server.handle(session_id, frame).await {
+                if let Some(reply) = server.handle(frame).await {
                     let _ = tx.send(reply).await;
                 }
             });
         }
         drop(tx);
-        // 購読はセッションの所有物: 切断で回収する (仕様 §4.4)
-        let owned = self.sessions.unregister(session_id);
-        for qid in owned.queries {
-            if let Err(e) = commands::query::query_close(&self.core, qid.clone()).await {
-                tracing::warn!(query = qid, "[rpc] close on disconnect failed: {e}");
-            }
-        }
-        for (account_id, note_id) in owned.captures {
-            let _ = commands::streaming::stream_unsub_note(&self.core, account_id, note_id).await;
-        }
-        for _ in 0..owned.observing {
-            let _ = commands::streaming::stream_observe_stop(&self.core).await;
-        }
+        self.sessions.unregister(session_id);
         let _ = writer_task.await;
     }
 
-    async fn handle(&self, session_id: u64, frame: Frame) -> Option<Frame> {
+    async fn handle(&self, frame: Frame) -> Option<Frame> {
         match frame {
             Frame::Request {
                 id,
@@ -393,28 +310,7 @@ impl RpcServer {
                 let outcome = if secret != self.secret {
                     Outcome::failure(unauthorized())
                 } else {
-                    let outcome = self.call(&name, params.clone(), window).await;
-                    self.sessions.record(session_id, &name, &params, &outcome);
-                    outcome
-                };
-                Some(Frame::Response { id, outcome })
-            }
-            Frame::Batch { id, secret, items } => {
-                let outcome = if secret != self.secret {
-                    Outcome::failure(unauthorized())
-                } else {
-                    let mut results = Vec::with_capacity(items.len());
-                    for BatchItem {
-                        name,
-                        params,
-                        window,
-                    } in items
-                    {
-                        let outcome = self.call(&name, params.clone(), window).await;
-                        self.sessions.record(session_id, &name, &params, &outcome);
-                        results.push(outcome);
-                    }
-                    Outcome::success(serde_json::to_value(results).unwrap_or(Value::Null))
+                    self.call(&name, params, window).await
                 };
                 Some(Frame::Response { id, outcome })
             }
@@ -448,13 +344,8 @@ impl RpcServer {
             };
         }
         let ctx = CallContext { window };
-        // データ系は notecore の表、AI 系は notemaid の表 (#1106)
-        let dispatched = if commands::CommandId::parse(name).is_some() {
-            commands::dispatch(&self.core, &ctx, name, params).await
-        } else {
-            notemaid::commands::dispatch(&self.core, &ctx, name, params).await
-        };
-        match dispatched {
+        // 中継されるのは AI 系 (notemaid の表) だけ。データ系はデバイスの notecore が持つ (#1106 案 B)
+        match notemaid::commands::dispatch(&self.core, &ctx, name, params).await {
             Ok(v) => Outcome::success(v),
             Err(e) => Outcome::failure(RpcError::from(&e)),
         }
@@ -475,82 +366,4 @@ pub fn new_secret() -> String {
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn sessions_keep_their_subscriptions_until_unregistered() {
-        let sessions = Sessions::default();
-        let (tx, _rx) = mpsc::channel::<Frame>(4);
-        let a = sessions.register(tx.clone());
-        let b = sessions.register(tx);
-        let opened = Outcome::success(json!({ "queryId": "q:1" }));
-        sessions.record(
-            a,
-            "query_subscribe_timeline",
-            &json!({ "accountId": "x" }),
-            &opened,
-        );
-        sessions.record(
-            a,
-            "query_subscribe_timeline",
-            &json!({ "accountId": "x" }),
-            &opened,
-        );
-        sessions.record(
-            b,
-            "query_subscribe_timeline",
-            &json!({ "accountId": "x" }),
-            &opened,
-        );
-        sessions.record(
-            a,
-            "stream_sub_note",
-            &json!({ "accountId": "x", "noteId": "n1" }),
-            &Outcome::success(Value::Null),
-        );
-        // 失敗した要求は数えない
-        sessions.record(
-            a,
-            "query_subscribe_antenna",
-            &json!({}),
-            &Outcome::failure(unauthorized()),
-        );
-        assert_eq!(sessions.owned_by(a).queries, vec!["q:1", "q:1"]);
-        sessions.record(
-            a,
-            "query_close",
-            &json!({ "queryId": "q:1" }),
-            &Outcome::success(Value::Null),
-        );
-        assert_eq!(sessions.owned_by(a).queries, vec!["q:1"]);
-        assert_eq!(
-            sessions.owned_by(a).captures,
-            vec![("x".to_string(), "n1".to_string())]
-        );
-        sessions.record(
-            a,
-            "stream_observe_start",
-            &json!({}),
-            &Outcome::success(Value::Null),
-        );
-        sessions.record(
-            b,
-            "stream_observe_stop",
-            &json!({}),
-            &Outcome::success(Value::Null),
-        );
-        assert_eq!(sessions.owned_by(b).observing, 0);
-        assert_eq!(sessions.count(), 2);
-        let owned = sessions.unregister(a);
-        assert_eq!(owned.queries, vec!["q:1"]);
-        assert_eq!(owned.captures.len(), 1);
-        assert_eq!(owned.observing, 1);
-        assert_eq!(sessions.count(), 1);
-        assert_eq!(sessions.owned_by(b).queries, vec!["q:1"]);
-        assert_eq!(sessions.owned_by(a), Owned::default());
-    }
 }

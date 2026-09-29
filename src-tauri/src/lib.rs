@@ -17,7 +17,6 @@ use tauri_plugin_global_shortcut::GlobalShortcutExt;
 mod app_dir;
 mod client_layer;
 mod commands;
-mod core_switch;
 mod error;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
@@ -257,8 +256,9 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             tracing::warn!("keychain unavailable ({e})");
         }
         notecore::migrations::run_fs(&app_dir)?;
-        // 切替の途中 (pending-resident) なら、埋め込みを開く前に完了させる (#1106 順序 7)
-        let configured_backend = core_switch::resolve_pending(&app_dir);
+        // この端末の構成 (client.json5): AI 系コマンドを in-process で回すか notecored に中継するか
+        let configured_backend =
+            notecore::client_config::load(&app_dir.join(commands::SETTINGS_DIR)).backend;
         // external gate が permissions.json5 を直接読むための所在 (#1099)
         notecore::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
         // 前回、確認待ちのまま残った AI ターンを閉じる (#1133)
@@ -272,15 +272,14 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         app_state.set_app_version(env!("CARGO_PKG_VERSION").to_string());
         app.manage(app_state);
 
-        // クライアント層 (#1106 段階 3a): この端末の構成が resident なら、データ系
-        // コマンドは常駐の notecored に中継し、DB / ストリーム / HEARTBEAT は開かない。
-        // notecored が出すイベントは同じ名前で WebView に流す
+        // クライアント層 (#1106 案 B): この端末の構成が resident なら、AI 系コマンドを
+        // 常駐の notecored に中継する。データ面 (DB / ストリーム) は常にこのプロセスで開く。
+        // notecored が出す AI のイベントは同じ名前で WebView に流す
         let resident = matches!(
             configured_backend,
             notecore::client_config::Backend::Resident
         );
         if resident {
-            core_switch::ensure_started();
             match notecore::rpc::default_socket_path() {
                 Some(socket) => {
                     let emit_handle = app.handle().clone();
@@ -308,7 +307,6 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 None => tracing::error!("[client-layer] resident backend but XDG_RUNTIME_DIR is unset; falling back to embedded"),
             }
         }
-        let resident = client_layer::relay().is_some();
 
         // Performance config: starts with defaults, updated dynamically via Tauri command
         let shared_perf: notecore::perf_config::SharedPerfConfig =
@@ -492,40 +490,6 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let stage = |name: &str| {
                 tracing::info!(stage = name, elapsed_ms = boot.elapsed().as_millis() as u64, "[startup]");
             };
-            if resident {
-                // 常駐構成: DB もストリームも開かない。メディアプロキシとデッキ系ルートの
-                // HTTP サーバーだけ手元で動かし、アカウント一覧は notecored から取る
-                ui_lang::init(&app_handle);
-                let bound_server = tauri::async_runtime::block_on(http_server::bind());
-                if let Some(server) = bound_server {
-                    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
-                    let bridge = std::sync::Arc::new(query_bridge::TauriBridge(app_handle.clone()));
-                    tauri::async_runtime::spawn(async move {
-                        http_server::serve(http_server::ServeConfig {
-                            server,
-                            app_version: env!("CARGO_PKG_VERSION").to_string(),
-                            bridge,
-                            db: None,
-                            client: None,
-                            event_bus,
-                            api_token,
-                            api_token_store,
-                            token_path: token_path_str,
-                            log_dir,
-                            image_cache: image_cache_bg,
-                            media_proxy_token,
-                            perf: shared_perf_bg,
-                            shutdown: shutdown_token,
-                        }, ready_tx)
-                        .await;
-                    });
-                    tauri::async_runtime::block_on(async { ready_rx.await.ok() });
-                }
-                tauri::async_runtime::block_on(client_layer::emit_accounts_early(&app_handle));
-                stage("backend-ready");
-                let _ = tauri::Emitter::emit(&app_handle, "nd:backend-ready", ());
-                return;
-            }
             // Parallel: DB open + MisskeyClient init + HTTP bind (all independent)
             let db_path = app_dir_bg.join("notecli.db");
             let db_handle = std::thread::spawn(move || notecli::db::Database::open(&db_path));
@@ -1230,10 +1194,6 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,
             client_layer::client_layer_state,
-            commands::core_status,
-            commands::core_switch_to_resident,
-            commands::core_switch_to_embedded,
-            commands::core_cancel_pending,
             // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
             commands::run_healthcheck,
             commands::health_core,

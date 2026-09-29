@@ -1,7 +1,6 @@
 mod ai_chat;
 mod api_tokens;
 mod backup;
-mod core_switch;
 mod export;
 mod health;
 mod heartbeat;
@@ -17,7 +16,6 @@ mod utility;
 pub use ai_chat::*;
 pub use api_tokens::*;
 pub use backup::*;
-pub use core_switch::*;
 pub use export::*;
 pub use health::*;
 pub use heartbeat::*;

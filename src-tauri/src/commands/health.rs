@@ -7,11 +7,9 @@
 
 use std::sync::Arc;
 
-use notecli::error::NoteDeckError;
 use tauri::{Manager, State};
 
 use super::{AppState, HeartbeatScheduler, Result};
-use notecore::commands::health::CoreHealth;
 
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -51,19 +49,9 @@ pub async fn build_health_report(
     app_state: &AppState,
     scheduler: &HeartbeatScheduler,
 ) -> Result<HealthReport> {
-    // doctor とキャッシュの統計は notecore の担当。常駐構成では notecored のものを中継で取る
-    let (core, backend_ready) = match crate::client_layer::relay() {
-        Some(relay) => (
-            relay
-                .call::<CoreHealth, NoteDeckError>("health_core", serde_json::json!({}), None)
-                .await?,
-            relay.is_connected(),
-        ),
-        None => (
-            notecore::commands::health::health_core(app_state).await?,
-            app_state.is_ready(),
-        ),
-    };
+    // doctor とキャッシュの統計は notecore の担当 (データ面は常にこのプロセス)
+    let core = notecore::commands::health::health_core(app_state).await?;
+    let backend_ready = app_state.is_ready();
     let log_dir_path = app.path().app_log_dir().ok();
     let last_panic = log_dir_path
         .as_deref()

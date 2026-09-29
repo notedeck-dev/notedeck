@@ -2,7 +2,6 @@
 //!
 //! 端末ごとの「望む構成」を持つ: `backend` が `embedded` (アプリに埋め込んだ
 //! notecore) か `resident` (常駐の notecored に中継) か、その切替の途中
-//! (`pending-resident`: 移行パッケージを書き出してアプリの再起動待ち) か。
 //! 手元側のファイルなので設定バックアップに含めず、capability からも書けない
 //! (アプリの切替導線だけが書く)。無い / 壊れているときは `embedded`。
 
@@ -20,8 +19,6 @@ pub const FILE_NAME: &str = "client.json5";
 pub enum Backend {
     #[default]
     Embedded,
-    /// 切替の途中: 移行パッケージを書き出し済み、次の起動で import して常駐に切り替える
-    PendingResident,
     Resident,
 }
 
@@ -42,7 +39,6 @@ pub fn parse(raw: &str) -> ClientConfig {
 pub fn serialize_backend(backend: Backend) -> &'static str {
     match backend {
         Backend::Embedded => "embedded",
-        Backend::PendingResident => "pending-resident",
         Backend::Resident => "resident",
     }
 }
@@ -76,10 +72,6 @@ mod tests {
         assert_eq!(parse("{{{").backend, Backend::Embedded);
         assert_eq!(parse("{ backend: 'nope' }").backend, Backend::Embedded);
         assert_eq!(parse("{ backend: 'resident' }").backend, Backend::Resident);
-        assert_eq!(
-            parse("{ backend: 'pending-resident' }").backend,
-            Backend::PendingResident
-        );
         assert_eq!(parse("{}").backend, Backend::Embedded);
     }
 

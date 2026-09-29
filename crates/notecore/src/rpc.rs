@@ -44,17 +44,7 @@ impl From<&notecli::error::NoteDeckError> for RpcError {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct BatchItem {
-    pub name: String,
-    #[serde(default)]
-    pub params: Value,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub window: Option<String>,
-}
-
-/// 1 要求の結果 (batch の要素にも使う)
+/// 1 要求の結果
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Outcome {
@@ -102,12 +92,6 @@ pub enum Frame {
         params: Value,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         window: Option<String>,
-    },
-    #[serde(rename_all = "camelCase")]
-    Batch {
-        id: u64,
-        secret: String,
-        items: Vec<BatchItem>,
     },
     #[serde(rename_all = "camelCase")]
     Response {

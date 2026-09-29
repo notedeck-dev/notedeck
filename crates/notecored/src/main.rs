@@ -7,7 +7,6 @@ mod exit;
 mod heartbeat_timer;
 mod lock;
 mod logging;
-mod migrate;
 mod rpc_server;
 mod run;
 mod secrets;
@@ -38,9 +37,6 @@ enum Command {
     /// secret の鍵と本体の面倒を見る
     #[command(subcommand)]
     Secrets(secrets::SecretsCommand),
-    /// 移行パッケージの取り込み / 書き出し (停止中限定)
-    #[command(subcommand)]
-    Migrate(migrate::MigrateCommand),
 }
 
 #[derive(clap::Args, Debug, Clone, Default)]
@@ -63,9 +59,6 @@ pub struct RunArgs {
     /// ログの出力先。既定は JOURNAL_STREAM があれば stdout、無ければ file
     #[arg(long, value_enum)]
     pub log: Option<logging::LogTarget>,
-    /// 公開 API 面 (HTTP、既定 off) を bind する
-    #[arg(long)]
-    pub api: bool,
 }
 
 fn main() {
@@ -75,7 +68,6 @@ fn main() {
         Command::Status(args) => status::status(args),
         Command::Service(cmd) => service::run(cmd),
         Command::Secrets(cmd) => secrets::run(cmd),
-        Command::Migrate(cmd) => migrate::run(cmd),
     };
     std::process::exit(code);
 }

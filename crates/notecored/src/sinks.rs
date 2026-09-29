@@ -1,13 +1,8 @@
-//! notecore が出すものをイベント frame に変えて接続中のセッションに配る。
-//! Tauri 側の各 Sink / TauriEmitter / delta flusher に相当する。
+//! notemaid が出すもの (AI のイベント / 設定変更) をイベント frame に変えて
+//! 接続中のセッションに配る。Tauri 側の各 Sink に相当する。
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
-use notecli::streaming::{FrontendEmitter, StreamEvent};
-use notecore::context::HintSink;
-use notecore::ogp::OgpData;
-use notecore::query_runtime::{NoteCaptureBatch, QueryRuntime};
 use notecore::rpc::Frame;
 use notecore::settings_events::{SettingsChange, SettingsSink};
 use notemaid::ai_chat_service::{AiChatEvent, AiChatSink};
@@ -70,66 +65,5 @@ impl SettingsSink for ConfigSink {
     fn settings_changed(&self, change: SettingsChange) {
         (self.on_change)(&change);
         self.events.emit("nd:settings-file-changed", &change);
-    }
-}
-
-pub struct Hints(pub Events);
-impl HintSink for Hints {
-    fn ogp_hints(&self, hints: HashMap<String, OgpData>) {
-        self.0.emit("nd:ogp-hints", &hints);
-    }
-}
-
-/// Misskey ストリームのイベント: QueryRuntime に取り込み、Tauri と同じ専用チャネルで配る。
-/// 統合チャネル (`stream-envelope`) は観測が開いている間だけ。OS 通知はデバイスが出す
-pub struct StreamEmitter {
-    pub runtime: Arc<QueryRuntime>,
-    pub events: Events,
-    pub observation: Arc<notecore::stream_fanout::StreamObservation>,
-}
-
-impl FrontendEmitter for StreamEmitter {
-    fn emit(&self, event: StreamEvent) {
-        if self.runtime.ingest_stream_event(&event) {
-            self.runtime.flush_notify().notify_one();
-        }
-        if matches!(event, StreamEvent::NoteCaptureUpdated(_)) {
-            return;
-        }
-        match &event {
-            StreamEvent::Status(e) => self.events.emit("stream-status", e),
-            StreamEvent::ChatMessageReacted(e) => {
-                self.events.emit("stream-chat-message-reacted", e)
-            }
-            StreamEvent::ChatMessageUnreacted(e) => {
-                self.events.emit("stream-chat-message-unreacted", e)
-            }
-            StreamEvent::EmojiChanged(e) => self.events.emit("stream-emoji-changed", e),
-            _ => {}
-        }
-        if let Some(unread) = notecore::stream_fanout::unread_signal(&event) {
-            self.events
-                .emit(notecore::stream_fanout::UNREAD_EVENT, &unread);
-        }
-        if self.observation.is_on() {
-            self.events
-                .emit(notecore::stream_fanout::ENVELOPE_EVENT, &event);
-        }
-    }
-}
-
-/// クエリ差分の flusher (Tauri の run_delta_flusher と同じ窓)
-pub async fn run_delta_flusher(runtime: Arc<QueryRuntime>, events: Events) {
-    let notify = runtime.flush_notify();
-    loop {
-        notify.notified().await;
-        tokio::time::sleep(notecore::query_runtime::DELTA_FLUSH_WINDOW).await;
-        for delta in runtime.drain_pending() {
-            events.emit("query-delta", &delta);
-        }
-        let captures = runtime.drain_captures();
-        if !captures.is_empty() {
-            events.emit("note-capture-batch", &NoteCaptureBatch { captures });
-        }
     }
 }

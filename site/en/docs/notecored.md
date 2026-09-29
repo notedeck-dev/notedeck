@@ -1,5 +1,5 @@
 ---
-sourceHash: d820959a0114
+sourceHash: 26466340ee24
 ---
 
 # Resident core (notecored)
@@ -16,9 +16,9 @@ Running the core on the same device (this stage) is Linux only, on systems with 
 
 ## What changes
 
-- **The data is the same.** notecored uses the same data directory as the app; switching changes who runs the core, not where the data lives. A lock keeps two processes from touching the same data at once
-- **Secrets move.** The app keeps your Misskey tokens and connection secrets in the OS keychain; notecored keeps them in an encrypted file. Switching copies them through a migration package, and switching back takes them back. This is weaker protection than the OS keychain, and the confirmation says so
-- **The version must match the app.** The app refuses to connect to a notecored of a different version, checks before switching, and asks you to update if they differ
+- **Only the AI stays resident.** The agent loop and HEARTBEAT run in notecored, and the app relays AI calls to it. Fetching timelines, archiving, subscriptions and the deck keep running inside the app; notecored does not hold them
+- **The data is in the same place.** notecored uses the same data directory as the app and reads the account credentials and the cache. Nothing moves
+- **The version has to match the app.** A notecored of a different version is not connected (the status view shows why)
 
 ## Install
 
@@ -51,25 +51,23 @@ If you use the AppImage, put the standalone binary from Releases (`notecored-<ve
 
 ## Switching
 
-1. Turn on **developer mode** in the settings (switching to the resident core is a developer entry point for now)
-2. Open **Core** in the settings menu. If notecored is found, its path and version are shown
-3. Press **Switch to resident**, read the confirmation and continue. It reports how many secrets were exported and asks you to restart
-4. **Restart** the app. On start it imports the secrets, enables the resident service and connects
+Switching is manual for now (the app starting it as a child process, and a toggle in settings, come in later stages).
 
-Once switched, a server mark appears at the top of the navbar. It opens Core, where you can see the connection and what notecored reports about itself.
+1. Run `notecored service enable` to enable the user service
+2. In the settings folder ("File → Open settings folder"), set `client.json5` to `{ backend: "resident" }`
+3. Restart the app. **Core** in the settings menu shows the connection state, and a server mark appears at the top of the navbar
 
-To go back, use **Go back to embedded** on the same window, confirm, and restart. The secrets return to this app's store, and once all of them are back the copy held by notecored is deleted.
+To go back, set `client.json5` to `{ backend: "embedded" }`, restart, and run `notecored service stop` (or `uninstall` if you no longer need it).
 
 ## Requirements
 
 - A running systemd **user session** (`systemctl --user status` works). On WSL2, enable systemd in `/etc/wsl.conf`
-- `XDG_RUNTIME_DIR` is set (it holds the socket and the migration package)
+- `XDG_RUNTIME_DIR` is set (it holds the socket)
 - To keep it running after you log out, set `loginctl enable-linger` (the app does not do this for you)
 
 ## Troubleshooting
 
 - **Logs**: `journalctl --user -u notecored -e` (Core has a button that copies the command). Without a journal, they go to `logs/notecored.log` in the data directory
-- **The switch does not complete**: Core shows the reason. If the migration package is gone (for example the temporary directory was cleared by logging in again), choose "Switch again" or "Stop and stay embedded"
 - **Version mismatch**: update notecored to the app's version before switching
 - **notecored stops by itself**: for states a restart cannot fix (another process owns the data directory, the database is newer than notecored, no runtime dir, the secret key cannot be read) it exits with a dedicated code and systemd does not restart it. The reason is in `journalctl`
 
@@ -81,8 +79,6 @@ notecored status              # what the running notecored reports
 notecored service install     # prepare the user unit (does not enable or start)
 notecored service enable      # enable + start
 notecored service status | stop | restart | uninstall
-notecored migrate status      # whether secrets and a migration package exist
-notecored run --api           # also serve the public API (REST + SSE on localhost)
 ```
 
-If you run or enable it by hand while the app is still configured as "embedded", the app tries to start its embedded core and the lock collides. The app's switch keeps both sides in step, so keep manual use to checks and the `--api` case.
+If `client.json5` on the app side is still `embedded`, the app keeps running the AI inside itself even while notecored is running (both only read the same data directory; they do not conflict).

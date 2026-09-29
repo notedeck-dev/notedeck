@@ -436,7 +436,7 @@ defineExpose({
             <i :class="realtimeModeStore.enabled ? 'ti ti-bolt' : 'ti ti-bolt-off'" />
           </button>
           <button
-            v-if="(!navCollapsed || isCompact) && clientLayerStore.needsAttention"
+            v-if="(!navCollapsed || isCompact) && clientLayerStore.isResident"
             class="_button"
             :class="[$style.topBtn, clientLayerStore.state?.connected ? $style.coreConnected : $style.coreTrouble]"
             :title="clientLayerStore.state?.connected ? i18n.ts._deckNavbar.coreConnected : i18n.ts._deckNavbar.coreTrouble"
