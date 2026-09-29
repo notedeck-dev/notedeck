@@ -145,7 +145,7 @@ describe('UI 文言の辞書 (#135)', () => {
         !rustSources.includes(`"${key}"`),
     )
     expect(dead, '使われていないキーは辞書から消す').toEqual([])
-  })
+  }, 30_000) // 全ソースを走査するので、フルスイート実行時の負荷で既定の 5 秒を超えることがある
 
   it('モジュールのトップレベルで辞書を読まない', () => {
     const offenders = sources
