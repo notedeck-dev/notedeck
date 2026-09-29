@@ -209,7 +209,9 @@ async fn serve(
     let status_socket = socket.clone();
     let status_dir = data_dir.clone();
     let status_sessions = sessions.clone();
+    let stop = Arc::new(tokio::sync::Notify::new());
     let server = Arc::new(RpcServer {
+        stop: stop.clone(),
         accounts: accounts.clone(),
         core: core.clone(),
         events: events.clone(),
@@ -248,10 +250,16 @@ async fn serve(
         Some(rx) => {
             tokio::select! {
                 _ = wait_for_signal() => {}
+                _ = stop.notified() => tracing::info!("stop requested over RPC"),
                 _ = rx => tracing::info!("parent closed stdin; exiting"),
             }
         }
-        None => wait_for_signal().await,
+        None => {
+            tokio::select! {
+                _ = wait_for_signal() => {}
+                _ = stop.notified() => tracing::info!("stop requested over RPC"),
+            }
+        }
     }
     tracing::info!("shutting down");
     events.emit("nd:notemaid-restarting", &json!({ "graceMs": 5000 }));

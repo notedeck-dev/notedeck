@@ -228,9 +228,16 @@ fn stable_sidecar() -> Result<PathBuf, String> {
 }
 
 fn service(bin: &Path, args: &[&str]) -> Result<String, String> {
-    let out = Command::new(bin)
-        .arg("service")
-        .args(args)
+    let mut cmd = Command::new(bin);
+    cmd.arg("service").args(args);
+    // AI 設定を開くたびに状態を聞くので、Windows でコンソール窓がちらつかないように
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    let out = cmd
         .output()
         .map_err(|e| format!("notemaid service {}: {e}", args.join(" ")))?;
     if out.status.success() {
@@ -286,47 +293,64 @@ pub async fn set_resident(app_dir: &Path, enabled: bool) -> Result<(), String> {
     if enabled {
         let target = transport::default_endpoint()
             .ok_or("no place for the resident socket (XDG_RUNTIME_DIR)")?;
-        stop();
+        // 登録が先。失敗しても子プロセスは動いたまま (繋ぎ先を失わない)
         service(
             &bin,
             &["install", "--exec-path", &bin.display().to_string()],
         )?;
-        service(&bin, &["enable"])?;
-        write_backend(app_dir, Backend::Resident);
+        // 子を止めてから常駐を起こす (同じデータディレクトリのロック)。失敗したら子に戻す
+        stop();
+        if let Err(e) = service(&bin, &["enable"]) {
+            let _ = service(&bin, &["uninstall"]);
+            back_to_child(app_dir, relay).await?;
+            return Err(e);
+        }
         relay.switch_to(target.clone());
         if !relay.wait_connected(Duration::from_secs(8)).await {
+            let _ = service(&bin, &["uninstall"]);
+            back_to_child(app_dir, relay).await?;
             return Err(format!(
-                "the login task is installed but nothing answered at {target}; see the service log"
+                "the login task was registered but nothing answered at {target}; see the service log"
             ));
         }
+        write_backend(app_dir, Backend::Resident);
     } else {
         let _ = service(&bin, &["stop"]);
         service(&bin, &["uninstall"])?;
-        // 常駐が socket を片付けるまで少し待ってから子を起こす (同じデータディレクトリのロック)
-        for _ in 0..30 {
-            if let Some(ep) = transport::default_endpoint() {
-                if !answering(&ep).await {
-                    break;
-                }
+        back_to_child(app_dir, relay).await?;
+    }
+    Ok(())
+}
+
+/// 子プロセスを起こし直して中継を付け替える (常駐をやめたとき / 常駐への切替に失敗したとき)
+async fn back_to_child(
+    app_dir: &Path,
+    relay: &crate::client_layer::RelayClient,
+) -> Result<(), String> {
+    // 常駐が socket を片付けるまで少し待ってから子を起こす (同じデータディレクトリのロック)
+    for _ in 0..30 {
+        if let Some(ep) = transport::default_endpoint() {
+            if !answering(&ep).await {
+                break;
             }
-            tokio::time::sleep(Duration::from_millis(100)).await;
         }
-        let launched = launch(app_dir, Backend::Auto)
-            .await
-            .ok_or("could not start the notemaid child process")?;
-        let endpoint = launched.endpoint.clone();
-        keep(launched.child);
-        if !wait_ready(&endpoint, Duration::from_secs(8)).await {
-            stop();
-            return Err("the notemaid child process did not start".into());
-        }
-        write_backend(app_dir, Backend::Auto);
-        relay.switch_to(endpoint.clone());
-        if !relay.wait_connected(Duration::from_secs(8)).await {
-            return Err(format!(
-                "the notemaid child process did not answer at {endpoint}"
-            ));
-        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let launched = launch(app_dir, Backend::Auto)
+        .await
+        .ok_or("could not start the notemaid child process")?;
+    let endpoint = launched.endpoint.clone();
+    keep(launched.child);
+    if !wait_ready(&endpoint, Duration::from_secs(8)).await {
+        stop();
+        return Err("the notemaid child process did not start".into());
+    }
+    write_backend(app_dir, Backend::Auto);
+    relay.switch_to(endpoint.clone());
+    if !relay.wait_connected(Duration::from_secs(8)).await {
+        return Err(format!(
+            "the notemaid child process did not answer at {endpoint}"
+        ));
     }
     Ok(())
 }

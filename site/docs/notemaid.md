@@ -15,7 +15,7 @@ NoteDeck の AI (エージェントループと HEARTBEAT) は、アプリとは
 
 ## 常駐にする
 
-アプリを完全に閉じても HEARTBEAT を回したいときだけ設定します。設定メニューの **AI 設定** → HEARTBEAT にある「アプリを終了しても続ける」をオンにすると、OS のログイン時タスク (Linux は systemd の user unit、macOS は LaunchAgent、Windows はタスク スケジューラ) に登録され、その場で切り替わります (再起動不要)。オフに戻すと登録を外し、子プロセスに戻ります。
+アプリを完全に閉じても HEARTBEAT を回したいときだけ設定します。設定メニューの **AI 設定** → HEARTBEAT にある「アプリを終了しても続ける」をオンにすると、OS のログイン時タスク (Linux は systemd の user unit、macOS は LaunchAgent、Windows はユーザーごとの Run キー (ログイン時の自動起動)) に登録され、その場で切り替わります (再起動不要)。オフに戻すと登録を外し、子プロセスに戻ります。
 
 AppImage は起動のたびにマウント先が変わるので、トグルは使えません。Releases の standalone バイナリを PATH の通った場所に置き、手で登録します。
 

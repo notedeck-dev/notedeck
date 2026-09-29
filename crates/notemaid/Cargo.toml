@@ -38,6 +38,10 @@ tracing-appender = { version = "0.2", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 tracing = "0.1"
 
+# Windows: GUI サブシステムのまま端末から使うときに親のコンソールへ繋ぐ (main.rs)
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
+
 [target.'cfg(unix)'.dependencies]
 # transport: Unix socket の peer_cred (同じ uid の照合)
 libc = "0.2"

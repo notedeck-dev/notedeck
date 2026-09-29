@@ -3,7 +3,7 @@
 //!
 //! - Linux: systemd の user unit (`linux.rs`)
 //! - macOS: LaunchAgent (`~/Library/LaunchAgents`、`macos.rs`)
-//! - Windows: Task Scheduler の ONLOGON タスク (`windows.rs`)。Hermes / OpenClaw と同じ形
+//! - Windows: ユーザーごとの Run キー (`windows.rs`)。Task Scheduler の ONLOGON は一般ユーザーでは作れない (管理者が要る) ので使わない
 //!
 //! `status` はどの OS でも同じ JSON (`installed` / `active` / `detail`) を出し、アプリの
 //! トグルはそれを読む。常駐は OS キーチェーンを使う (`run --secrets keychain`)。

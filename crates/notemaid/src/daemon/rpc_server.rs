@@ -172,6 +172,8 @@ pub struct RpcServer {
     pub endpoint: Endpoint,
     pub status: StatusFn,
     pub sessions: Arc<Sessions>,
+    /// `notemaid.shutdown` で鳴らす停止の合図 (Windows の常駐はシグナルで止められないので RPC で頼む)
+    pub stop: Arc<tokio::sync::Notify>,
 }
 
 impl RpcServer {
@@ -309,6 +311,11 @@ impl RpcServer {
             return match own {
                 "status" => Outcome::success((self.status)()),
                 "ping" => Outcome::success(json!({ "pong": true })),
+                // 同じユーザーからの停止依頼 (graceful)。常駐の止め方が OS のシグナルに無い Windows 用
+                "shutdown" => {
+                    self.stop.notify_one();
+                    Outcome::success(json!({ "stopping": true }))
+                }
                 // 接続したアプリが口座の一覧を写す (トークンは含まない。OS キーチェーンから同じ id で読む)
                 "accounts" => match self.sync_accounts(params).await {
                     Ok(n) => Outcome::success(json!({ "accounts": n })),

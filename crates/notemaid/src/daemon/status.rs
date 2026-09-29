@@ -70,3 +70,42 @@ pub fn status(args: SocketArgs) -> i32 {
         crate::daemon::exit::FAILURE
     })
 }
+
+/// 動いている notemaid に自己コマンドを 1 つ送り、結果を返す (`notemaid.shutdown` など)
+pub async fn request(socket: &Endpoint, name: &str) -> Result<serde_json::Value, String> {
+    let stream = transport::connect(socket)
+        .await
+        .map_err(|e| format!("{socket}: {e}"))?;
+    let (reader, mut writer) = tokio::io::split(stream);
+    let mut lines = BufReader::new(reader).lines();
+    let first = lines
+        .next_line()
+        .await
+        .map_err(|e| e.to_string())?
+        .ok_or("no hello from notemaid")?;
+    let Ok(Frame::Hello { secret, .. }) = serde_json::from_str::<Frame>(&first) else {
+        return Err(format!("unexpected first frame: {first}"));
+    };
+    let req = Frame::Request {
+        id: 1,
+        secret,
+        name: name.to_string(),
+        params: json!({}),
+        window: None,
+    };
+    let mut line = serde_json::to_string(&req).map_err(|e| e.to_string())?;
+    line.push('\n');
+    writer
+        .write_all(line.as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+    while let Ok(Some(l)) = lines.next_line().await {
+        if let Ok(Frame::Response { id: 1, outcome }) = serde_json::from_str::<Frame>(&l) {
+            return match outcome.result {
+                Some(v) if outcome.ok => Ok(v),
+                _ => Err(format!("{name} failed: {:?}", outcome.error)),
+            };
+        }
+    }
+    Err("notemaid closed the connection".into())
+}
