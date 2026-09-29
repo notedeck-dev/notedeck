@@ -174,7 +174,11 @@ impl RelayClient {
     pub fn switch_to(&self, endpoint: Endpoint) {
         let display = endpoint.to_string();
         *self.endpoint.lock().unwrap_or_else(|e| e.into_inner()) = endpoint;
-        self.update_state(|s| s.socket = Some(display));
+        // 前の繋ぎ先で出た失敗 (常駐の socket が無い等) は新しい繋ぎ先には関係ない
+        self.update_state(|s| {
+            s.socket = Some(display);
+            s.last_error = None;
+        });
         self.switch.notify_one();
     }
 
@@ -223,9 +227,10 @@ impl RelayClient {
                     self.disconnected("connection closed");
                 }
                 Err(e) => {
+                    // 生の io エラーだけでは何処に繋ごうとしたか分からないので、繋ぐ先を添える
                     self.update_state(|s| {
                         s.connected = false;
-                        s.last_error = Some(e.to_string());
+                        s.last_error = Some(format!("{endpoint}: {e}"));
                     });
                 }
             }
@@ -645,6 +650,22 @@ mod tests {
         assert_eq!(got[0].1["name"], "ai.json5");
         // 偽 daemon は問い合わせの答えを受け取ってから 2 つ目のイベントを出す
         assert_eq!(got[1].0, "nd:query-answered");
+    }
+
+    #[tokio::test]
+    async fn switching_endpoint_drops_the_previous_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let client = RelayClient::new(
+            Endpoint::Unix(dir.path().join("old.sock")),
+            Arc::new(|_, _| {}),
+            Arc::new(|_| {}),
+            Arc::new(|_, _, _| Box::pin(async { Err("none".into()) })),
+        );
+        client.update_state(|s| s.last_error = Some("old.sock: gone".into()));
+        client.switch_to(Endpoint::Unix(dir.path().join("new.sock")));
+        let s = client.state_snapshot();
+        assert!(s.last_error.is_none());
+        assert!(s.socket.unwrap().ends_with("new.sock"));
     }
 
     #[tokio::test]

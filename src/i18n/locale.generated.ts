@@ -5816,10 +5816,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "residentInactive": string
     /** 切り替え中... */
     readonly "residentSwitching": string
-    /** ログを見るコマンドをコピー */
-    readonly "copyJournal": string
-    /** コピーしました */
-    readonly "copied": string
   }
   readonly "_capabilities": {
     readonly "account": {

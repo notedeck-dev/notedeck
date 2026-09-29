@@ -3220,5 +3220,3 @@ _aiRuntime:
   residentActive: "動作中"
   residentInactive: "停止"
   residentSwitching: "切り替え中..."
-  copyJournal: "ログを見るコマンドをコピー"
-  copied: "コピーしました"

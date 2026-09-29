@@ -2,7 +2,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { i18n } from '@/i18n'
 import { useClientLayerStore } from '@/stores/clientLayer'
-import { useToast } from '@/stores/toast'
 import AiSettingsSection from './AiSettingsSection.vue'
 import AiSwitchRow from './AiSwitchRow.vue'
 
@@ -65,15 +64,6 @@ async function toggleResident(): Promise<void> {
     busy.value = false
   }
 }
-
-async function copyJournalHint(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText('journalctl --user -u notemaid -e')
-    useToast().show(i18n.ts._aiRuntime.copied, 'success')
-  } catch {
-    // clipboard が使えない環境では黙る (文言は画面に出ている)
-  }
-}
 </script>
 
 <template>
@@ -113,16 +103,10 @@ async function copyJournalHint(): Promise<void> {
       {{ i18n.ts._aiRuntime.residentService }}: {{ residentSummary }}
     </p>
     <p v-if="errorMessage" :class="$style.warn">{{ errorMessage }}</p>
-    <button v-if="residentOn" class="_button" :class="$style.linkBtn" @click="copyJournalHint">
-      <i class="ti ti-clipboard" />
-      {{ i18n.ts._aiRuntime.copyJournal }}
-    </button>
   </AiSettingsSection>
 </template>
 
 <style lang="scss" module>
-@use '@/styles/buttons' as *;
-
 .hint {
   font-size: 0.8em;
   color: var(--nd-fgMuted);
@@ -140,10 +124,5 @@ async function copyJournalHint(): Promise<void> {
   color: var(--nd-error, #ec4137);
   line-height: 1.5;
   margin: 0;
-}
-
-.linkBtn {
-  @include btn-secondary;
-  align-self: flex-start;
 }
 </style>

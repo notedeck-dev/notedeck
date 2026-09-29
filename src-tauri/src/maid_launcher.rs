@@ -44,15 +44,43 @@ async fn answering(endpoint: &Endpoint) -> bool {
     )
 }
 
+/// この端末の構成 (`client.json5`) を書く。常駐トグルの結果を次回起動に残す
+fn write_backend(app_dir: &Path, backend: Backend) {
+    let base = app_dir.join(notecore::commands::settings::SETTINGS_DIR);
+    let cfg = notecore::client_config::ClientConfig { backend };
+    if let Err(e) = notecore::client_config::save(&base, &cfg) {
+        tracing::warn!("[notemaid] could not write client.json5: {e}");
+    }
+}
+
 /// 構成に従って繋ぐ先を決める。None = in-process で回す
 pub async fn launch(app_dir: &Path, backend: Backend) -> Option<Launched> {
     match backend {
         Backend::Embedded => None,
-        Backend::Resident => transport::default_endpoint().map(|endpoint| Launched {
-            endpoint,
-            child: None,
-        }),
-        Backend::Auto => {
+        Backend::Resident => {
+            // 常駐にだけ繋ぐ構成。ログイン時タスクが無い (外した / 古い構成ファイルが残った) なら
+            // 繋ぐ先が永遠に現れないので、auto に戻して子プロセスで動かす
+            let status = tokio::task::spawn_blocking(resident_status)
+                .await
+                .unwrap_or_default();
+            if status.available && !status.installed {
+                tracing::warn!("[notemaid] client.json5 says resident but no login task is installed; falling back to auto");
+                write_backend(app_dir, Backend::Auto);
+                return launch_auto(app_dir).await;
+            }
+            transport::default_endpoint().map(|endpoint| Launched {
+                endpoint,
+                child: None,
+            })
+        }
+        Backend::Auto => launch_auto(app_dir).await,
+    }
+}
+
+/// 既定: 常駐が答えれば繋ぎ、居なければ同梱の sidecar を子プロセスで起動する
+async fn launch_auto(app_dir: &Path) -> Option<Launched> {
+    {
+        {
             if let Some(endpoint) = transport::default_endpoint() {
                 if answering(&endpoint).await {
                     tracing::info!(%endpoint, "[notemaid] resident notemaid is answering");
@@ -264,7 +292,13 @@ pub async fn set_resident(app_dir: &Path, enabled: bool) -> Result<(), String> {
             &["install", "--exec-path", &bin.display().to_string()],
         )?;
         service(&bin, &["enable"])?;
-        relay.switch_to(target);
+        write_backend(app_dir, Backend::Resident);
+        relay.switch_to(target.clone());
+        if !relay.wait_connected(Duration::from_secs(8)).await {
+            return Err(format!(
+                "the login task is installed but nothing answered at {target}; see the service log"
+            ));
+        }
     } else {
         let _ = service(&bin, &["stop"]);
         service(&bin, &["uninstall"])?;
@@ -286,7 +320,13 @@ pub async fn set_resident(app_dir: &Path, enabled: bool) -> Result<(), String> {
             stop();
             return Err("the notemaid child process did not start".into());
         }
-        relay.switch_to(endpoint);
+        write_backend(app_dir, Backend::Auto);
+        relay.switch_to(endpoint.clone());
+        if !relay.wait_connected(Duration::from_secs(8)).await {
+            return Err(format!(
+                "the notemaid child process did not answer at {endpoint}"
+            ));
+        }
     }
     Ok(())
 }
