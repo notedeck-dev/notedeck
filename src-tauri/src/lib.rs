@@ -382,10 +382,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         app.state::<commands::AppState>().set_http(shared_http.clone());
             use notemaid::CoreMaidExt;
             notemaid::install(&app.state::<notecore::context::Core>());
-        app.state::<commands::AppState>()
-            .set_ai_chat_sink(std::sync::Arc::new(commands::TauriSink(app.handle().clone())));
-        app.state::<commands::AppState>()
-            .set_ai_turn_sink(std::sync::Arc::new(commands::TauriTurnSink(app.handle().clone())));
+        app.state::<notecore::context::Core>()
+            .set_ai_event_sink(std::sync::Arc::new(commands::TauriAiEvents(app.handle().clone())));
         // ターン実行器 (#1133) が capability の実行要求を WebView に投げる口。
         // HTTP サーバー (Phase 2) と同じ橋の実装
         app.state::<commands::AppState>()
@@ -394,8 +392,6 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .set_core_executor(std::sync::Arc::new(commands::TauriCoreExecutor(app.handle().clone())));
         app.state::<commands::AppState>()
             .set_settings_sink(std::sync::Arc::new(commands::TauriSettingsSink(app.handle().clone())));
-        app.state::<commands::AppState>()
-            .set_heartbeat_sink(std::sync::Arc::new(commands::TauriHeartbeatSink(app.handle().clone())));
 
         // Image cache — 必ず Phase 1 で manage する (#921)。フロントは
         // nd:accounts-early を受けた瞬間にカラムを mount して絵文字を要求する

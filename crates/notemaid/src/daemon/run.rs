@@ -182,9 +182,7 @@ async fn serve(
     let timer = Arc::new(HeartbeatTimer::default());
     let sessions = Arc::new(Sessions::default());
     crate::install(&core);
-    core.set_ai_chat_sink(Arc::new(sinks::ChatSink(events.clone())));
-    core.set_ai_turn_sink(Arc::new(sinks::TurnSink(events.clone())));
-    core.set_heartbeat_sink(Arc::new(sinks::HbSink(events.clone())));
+    core.set_ai_event_sink(Arc::new(events.clone()));
     // 橋: 接続中の端末に確認内容の組み立てや実行要求を投げる。居なければ端末なし扱い
     core.set_frontend_bridge(Arc::new(SessionBridge(sessions.clone())));
     core.set_core_executor(Arc::new(crate::ai_turn::LocalCoreExecutor(core.clone())));

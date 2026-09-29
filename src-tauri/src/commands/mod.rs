@@ -57,8 +57,8 @@ impl tauri_specta::Event for SettingsFileChangedEvent {
     const NAME: &'static str = "nd:settings-file-changed";
 }
 
-/// HEARTBEAT の出来事 (開始 / 終了 / 報告 / 通知 / toast) を `nd:ai-heartbeat-event` で
-/// WebView へ流す (#1133 縦切り 5)。
+/// HEARTBEAT の出来事 (開始 / 終了 / 報告 / 通知 / toast) の型を bindings に出すための宣言。
+/// 実際の emit は `TauriAiEvents` (notemaid の sink 1 つ) が同じ名前で行う (#1133 縦切り 5)。
 #[derive(Clone, serde::Serialize, specta::Type)]
 #[serde(transparent)]
 #[specta(transparent)]
@@ -66,15 +66,6 @@ pub struct HeartbeatEventWire(pub notemaid::heartbeat::HeartbeatEvent);
 
 impl tauri_specta::Event for HeartbeatEventWire {
     const NAME: &'static str = "nd:ai-heartbeat-event";
-}
-
-pub struct TauriHeartbeatSink(pub tauri::AppHandle);
-
-impl notemaid::heartbeat::HeartbeatSink for TauriHeartbeatSink {
-    fn emit(&self, event: notemaid::heartbeat::HeartbeatEvent) {
-        use tauri_specta::Event;
-        let _ = HeartbeatEventWire(event).emit(&self.0);
-    }
 }
 
 pub struct TauriSettingsSink(pub tauri::AppHandle);

@@ -8,9 +8,51 @@ use notecli::error::NoteDeckError;
 use notecore::context::Core;
 use notecore::error::Result;
 
-use crate::ai_chat_service::AiChatSink;
-use crate::ai_turn::{AiTurnSink, CoreExecutor};
-use crate::heartbeat::HeartbeatSink;
+use crate::ai_chat_service::{AiChatEvent, AiChatSink};
+use crate::ai_turn::{AiTurnEvent, AiTurnSink, CoreExecutor};
+use crate::heartbeat::{HeartbeatEvent, HeartbeatSink};
+
+/// チャットのストリーム (`nd:ai-chat-event`)
+pub const CHAT_EVENT: &str = "nd:ai-chat-event";
+/// ターン実行器の出来事 (`nd:ai-turn-event`)
+pub const TURN_EVENT: &str = "nd:ai-turn-event";
+/// HEARTBEAT の出来事 (`nd:ai-heartbeat-event`)
+pub const HEARTBEAT_EVENT: &str = "nd:ai-heartbeat-event";
+
+/// AI のイベントの届け先。名前は上の定数のどれか、payload はイベントの JSON
+pub trait AiEventSink: Send + Sync + 'static {
+    fn emit(&self, name: &'static str, payload: serde_json::Value);
+}
+
+/// 1 つの [`AiEventSink`] を 3 つの trait に見せる
+struct Fanout(Arc<dyn AiEventSink>);
+
+impl Fanout {
+    fn send<T: serde::Serialize>(&self, name: &'static str, event: &T) {
+        match serde_json::to_value(event) {
+            Ok(v) => self.0.emit(name, v),
+            Err(e) => tracing::warn!(name, "ai event serialize failed: {e}"),
+        }
+    }
+}
+
+impl AiChatSink for Fanout {
+    fn emit(&self, event: AiChatEvent) {
+        self.send(CHAT_EVENT, &event);
+    }
+}
+
+impl AiTurnSink for Fanout {
+    fn emit(&self, event: AiTurnEvent) {
+        self.send(TURN_EVENT, &event);
+    }
+}
+
+impl HeartbeatSink for Fanout {
+    fn emit(&self, event: HeartbeatEvent) {
+        self.send(HEARTBEAT_EVENT, &event);
+    }
+}
 
 #[derive(Default)]
 struct MaidSinks {
@@ -26,6 +68,8 @@ fn slot(core: &Core) -> Arc<MaidSinks> {
 
 /// Core に AI 側の sink を出し入れする口。
 pub trait CoreMaidExt {
+    /// 届け先を 1 つ渡す。チャット / ターン / HEARTBEAT の 3 つの sink はこれに束ねられる
+    fn set_ai_event_sink(&self, sink: Arc<dyn AiEventSink>);
     fn set_ai_chat_sink(&self, sink: Arc<dyn AiChatSink>);
     fn ai_chat_sink(&self) -> Result<Arc<dyn AiChatSink>>;
     fn set_ai_turn_sink(&self, sink: Arc<dyn AiTurnSink>);
@@ -37,6 +81,13 @@ pub trait CoreMaidExt {
 }
 
 impl CoreMaidExt for Core {
+    fn set_ai_event_sink(&self, sink: Arc<dyn AiEventSink>) {
+        let fan = Arc::new(Fanout(sink));
+        self.set_ai_chat_sink(fan.clone());
+        self.set_ai_turn_sink(fan.clone());
+        self.set_heartbeat_sink(fan);
+    }
+
     fn set_ai_chat_sink(&self, sink: Arc<dyn AiChatSink>) {
         let _ = slot(self).chat.set(sink);
     }

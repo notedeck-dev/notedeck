@@ -3308,8 +3308,8 @@ export type HeartbeatEvent = { kind: string; source?: string | null; outcome?: s
  */
 i18n?: JsonValue | null }
 /**
- * HEARTBEAT の出来事 (開始 / 終了 / 報告 / 通知 / toast) を `nd:ai-heartbeat-event` で
- * WebView へ流す (#1133 縦切り 5)。
+ * HEARTBEAT の出来事 (開始 / 終了 / 報告 / 通知 / toast) の型を bindings に出すための宣言。
+ * 実際の emit は `TauriAiEvents` (notemaid の sink 1 つ) が同じ名前で行う (#1133 縦切り 5)。
  */
 export type HeartbeatEventWire = HeartbeatEvent
 /**

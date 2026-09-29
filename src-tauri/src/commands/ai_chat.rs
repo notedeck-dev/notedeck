@@ -1,30 +1,18 @@
-//! AI チャット / ターン実行器の Tauri 側: イベントを WebView へ流す sink だけ (#1106)。
-//! コマンド本体は notecore のコマンド表 (commands/ai_chat.rs)。
+//! AI の Tauri 側: イベントを WebView へ流す sink と、`exec: core` な capability の実行口 (#1106)。
+//! コマンド本体は notemaid のコマンド表 (commands/ai_chat.rs)。
 
 use tauri::{Emitter, Manager};
 
-use notemaid::ai_chat_service::{AiChatEvent, AiChatSink};
-use notemaid::ai_turn::{AiTurnEvent, AiTurnSink, BoxFuture, CoreExecutor};
+use notemaid::ai_turn::{BoxFuture, CoreExecutor};
 use notemaid::exec::ExecContext;
+use notemaid::sinks::AiEventSink;
 
-const EVENT_NAME: &str = "nd:ai-chat-event";
-const TURN_EVENT_NAME: &str = "nd:ai-turn-event";
+/// AI のイベント (チャット / ターン / HEARTBEAT) を同じ名前で WebView へ流す
+pub struct TauriAiEvents(pub tauri::AppHandle);
 
-/// ストリームのイベントを `nd:ai-chat-event` として WebView へ流す。
-pub struct TauriSink(pub tauri::AppHandle);
-
-impl AiChatSink for TauriSink {
-    fn emit(&self, event: AiChatEvent) {
-        let _ = self.0.emit(EVENT_NAME, event);
-    }
-}
-
-/// ターン実行器 (#1133) のイベントを `nd:ai-turn-event` として WebView へ流す。
-pub struct TauriTurnSink(pub tauri::AppHandle);
-
-impl AiTurnSink for TauriTurnSink {
-    fn emit(&self, event: AiTurnEvent) {
-        let _ = self.0.emit(TURN_EVENT_NAME, event);
+impl AiEventSink for TauriAiEvents {
+    fn emit(&self, name: &'static str, payload: serde_json::Value) {
+        let _ = self.0.emit(name, payload);
     }
 }
 

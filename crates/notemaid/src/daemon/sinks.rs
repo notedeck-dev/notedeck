@@ -3,9 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::ai_chat_service::{AiChatEvent, AiChatSink};
-use crate::ai_turn::{AiTurnEvent, AiTurnSink};
-use crate::heartbeat::{HeartbeatEvent, HeartbeatSink};
+use crate::sinks::AiEventSink;
 use notecore::rpc::Frame;
 use notecore::settings_events::{SettingsChange, SettingsSink};
 use serde::Serialize;
@@ -41,24 +39,13 @@ impl Events {
     }
 }
 
-pub struct ChatSink(pub Events);
-impl AiChatSink for ChatSink {
-    fn emit(&self, event: AiChatEvent) {
-        self.0.emit("nd:ai-chat-event", &event);
-    }
-}
-
-pub struct TurnSink(pub Events);
-impl AiTurnSink for TurnSink {
-    fn emit(&self, event: AiTurnEvent) {
-        self.0.emit("nd:ai-turn-event", &event);
-    }
-}
-
-pub struct HbSink(pub Events);
-impl HeartbeatSink for HbSink {
-    fn emit(&self, event: HeartbeatEvent) {
-        self.0.emit("nd:ai-heartbeat-event", &event);
+impl AiEventSink for Events {
+    fn emit(&self, name: &'static str, payload: serde_json::Value) {
+        let _ = self.0.send(Frame::Event {
+            name: name.to_string(),
+            payload,
+            seq: 0,
+        });
     }
 }
 
