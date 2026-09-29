@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: 6f31cf9985b7
+// sourceHash: c5de170a6acf
 
 import type { Messages } from './ja'
 
@@ -183,7 +183,7 @@ const en: Messages = {
     desc: 'NoteDeck is open source (AGPL-3.0). It uses Vue 3 + TypeScript like upstream Misskey, so if you can read the Misskey codebase, you can read this one.',
     device: {
       label: 'Your device',
-      desc: 'OS integration and the client layer: windows, tray, OS notifications, keychain, auto-update. The WebView only ever talks to the local Rust side. Data calls always go to the local notecore; only AI calls are either run here or sent to a notemaid on your own server, and that choice is made here.',
+      desc: 'OS integration and the client layer: windows, tray, OS notifications, keychain, auto-update. The WebView only ever talks to the local Rust side. Data calls always go to the local notecore; AI calls always go to the notemaid process. By default that is a child process the app starts itself, and a login task or your own server use the same path.',
     },
     frontend: {
       label: 'Frontend',
@@ -192,7 +192,7 @@ const en: Messages = {
     },
     remote: {
       label: 'Your own server (optional)',
-      desc: 'A shell that keeps only the AI (the maid) resident on your own server. HEARTBEAT and replies keep going with your devices closed. Your data (archive, deck) stays on the device and is never sent to the server. The current release still calls it notecored; the move is in progress.',
+      desc: 'The AI is always a separate process (notemaid). By default the app starts it and it exits with the app; optionally it stays resident from login or lives on your own server. HEARTBEAT and replies keep going with your devices closed, and your data (archive, deck) stays on the device. The current release still calls it notecored; the move is in progress.',
     },
     core: {
       label: 'Core',

@@ -1,5 +1,5 @@
 ---
-sourceHash: 6097390200e1
+sourceHash: 10467320d4c8
 ---
 
 # Resident core (notecored)
@@ -7,7 +7,7 @@ sourceHash: 6097390200e1
 NoteDeck's "core" is the part that talks to Misskey, stores your data and runs the AI. By default it is embedded in the app and starts and stops with it. **notecored** runs the same core as a systemd user service, so HEARTBEAT keeps going after the app closes.
 
 ::: info This stage of notecored will be replaced by notemaid
-We changed direction. In the next stage only the AI (the agent loop, HEARTBEAT and delivery of results) stays resident, and the binary is renamed **notemaid**. Your data (archive, subscriptions, deck) keeps running on the device, the core switch and the secret migration go away, and what remains is a single setting that picks where the AI runs. This page describes the current notecored. Background: [#1106](https://github.com/notedeck-dev/notedeck/issues/1106).
+We changed direction. In the next stage only the AI (the agent loop, HEARTBEAT and delivery of results) stays resident, and the binary is renamed **notemaid**. Your data (archive, subscriptions, deck) keeps running on the device, and the core switch and the secret migration go away. The AI becomes a separate process (notemaid) that the app starts by itself, so it works as before with no setup. Keeping it running after the app closes, or placing it on your own server, are both optional. This page describes the current notecored. Background: [#1106](https://github.com/notedeck-dev/notedeck/issues/1106).
 :::
 
 ::: warning Linux only
