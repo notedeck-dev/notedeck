@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "1.74.2"
+    "version": "1.74.3"
   },
   "paths": {
     "/api": {
