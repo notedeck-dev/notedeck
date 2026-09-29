@@ -357,7 +357,7 @@ pub fn install_new(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sidecar::tests::temp_core;
+    use crate::sidecar::test_support::temp_core;
 
     fn put(base: &Path, name: &str, body: &str) {
         std::fs::write(base.join("plugins").join(name), body).unwrap();

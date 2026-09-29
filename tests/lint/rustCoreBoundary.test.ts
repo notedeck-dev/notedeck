@@ -14,8 +14,8 @@ import { join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const ROOT = resolve(import.meta.dirname, '../..')
-const CRATE = resolve(ROOT, 'crates/notecore')
-const SRC = resolve(CRATE, 'src')
+// notemaid (AI 面) も同じ規則: Tauri に依存せず、手元側は trait で受ける
+const CRATES = ['crates/notecore', 'crates/notemaid']
 
 function rustFiles(dir: string): string[] {
   const out: string[] = []
@@ -27,9 +27,10 @@ function rustFiles(dir: string): string[] {
   return out.sort()
 }
 
-const files = rustFiles(SRC)
+describe.each(CRATES)('%s の境界 (#1106)', (crate) => {
+  const CRATE = resolve(ROOT, crate)
+  const files = rustFiles(resolve(CRATE, 'src'))
 
-describe('notecore (crates/notecore) の境界 (#1106)', () => {
   it('ソースがある (検査対象を見失っていない)', () => {
     expect(files.length).toBeGreaterThan(10)
   })

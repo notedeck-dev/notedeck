@@ -69,7 +69,7 @@ impl WidgetView for Item {
 }
 
 fn now() -> u64 {
-    crate::ai_sessions::now_ms()
+    crate::clock::now_ms()
 }
 
 /// `toFileMeta`: 規定のキー順。旧 `accountId` は accountKey があれば書き戻さない。
@@ -263,7 +263,7 @@ pub fn install_new(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sidecar::tests::temp_core;
+    use crate::sidecar::test_support::temp_core;
 
     fn put(base: &Path, name: &str, body: &str) {
         std::fs::write(base.join("widgets").join(name), body).unwrap();

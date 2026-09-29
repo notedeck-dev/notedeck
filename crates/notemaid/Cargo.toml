@@ -1,0 +1,30 @@
+[package]
+name = "notemaid"
+version = "0.1.0"
+edition = "2021"
+description = "NoteDeck's AI agent (the maid): agent loop, HEARTBEAT, capability execution, sessions, skills and memos. Library for the app, binary for the resident process"
+repository = "https://github.com/notedeck-dev/notedeck"
+license = "AGPL-3.0-only"
+publish = false
+
+[dependencies]
+notecore = { path = "../notecore" }
+notecli = { path = "../notecli", features = ["specta"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+futures-util = "0.3"
+indexmap = { version = "2", features = ["serde"] }
+json5 = "1"
+rand = "0.9"
+regex = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "stream", "json"] }
+secrecy = { version = "0.10", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+specta = { version = "=2.0.0-rc.22", features = ["derive", "serde_json"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "sync"] }
+tracing = "0.1"
+
+[dev-dependencies]
+notecore = { path = "../notecore", features = ["test-support"] }
+tempfile = "3"

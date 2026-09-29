@@ -140,26 +140,31 @@ function commandsIn(path: string): Command[] {
  * その種別を採る。本体は notecore にあり Tauri ラッパーは生成されるので、
  * denylist 検査の対象 (本体) はここには無い。
  */
-const TABLE = resolve(ROOT, 'crates/notecore/src/commands/table.rs')
+const TABLES = [
+  resolve(ROOT, 'crates/notecore/src/commands/table.rs'),
+  resolve(ROOT, 'crates/notemaid/src/commands/table.rs'),
+]
 const TABLE_ROW =
   /^\s*(data|local|authz|mixed)\b(?:\s*\([^)]*\))?\s+([A-Za-z0-9_]+)\s*\(/
 
 function commandsInTable(): Command[] {
-  const lines = readFileSync(TABLE, 'utf-8').split('\n')
-  const file = relative(ROOT, TABLE)
   const out: Command[] = []
-  lines.forEach((line, i) => {
-    const m = line.match(TABLE_ROW)
-    if (!m) return
-    out.push({
-      file,
-      name: m[2],
-      line: i + 1,
-      kind: m[1] as Kind,
-      rawKind: m[1],
-      body: '',
+  for (const TABLE of TABLES) {
+    const lines = readFileSync(TABLE, 'utf-8').split('\n')
+    const file = relative(ROOT, TABLE)
+    lines.forEach((line, i) => {
+      const m = line.match(TABLE_ROW)
+      if (!m) return
+      out.push({
+        file,
+        name: m[2],
+        line: i + 1,
+        kind: m[1] as Kind,
+        rawKind: m[1],
+        body: '',
+      })
     })
-  })
+  }
   return out
 }
 

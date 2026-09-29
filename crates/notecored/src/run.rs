@@ -12,6 +12,7 @@ use crate::heartbeat_timer::HeartbeatTimer;
 use crate::rpc_server::{default_socket_path, new_secret, RpcServer, SessionBridge, Sessions};
 use crate::sinks::{self, Events};
 use crate::{exit, lock, logging, RunArgs};
+use notemaid::CoreMaidExt;
 
 pub fn run(args: RunArgs) -> i32 {
     let Some(data_dir) = args
@@ -116,8 +117,8 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
     let started = Instant::now();
     notecore::crash_report::install_panic_hook(data_dir.join("logs"));
     notecore::permissions_gate::init(&data_dir.join(notecore::commands::settings::SETTINGS_DIR));
-    notecore::ai_turn::recover(&data_dir);
-    notecore::heartbeat::restore_status(&data_dir);
+    notemaid::ai_turn::recover(&data_dir);
+    notemaid::heartbeat::restore_status(&data_dir);
 
     let core = Arc::new(Core::new());
     core.set_app_dir(data_dir.clone());
@@ -145,12 +146,13 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
     let events = Events::new();
     let timer = Arc::new(HeartbeatTimer::default());
     let sessions = Arc::new(Sessions::default());
+    notemaid::install(&core);
     core.set_ai_chat_sink(Arc::new(sinks::ChatSink(events.clone())));
     core.set_ai_turn_sink(Arc::new(sinks::TurnSink(events.clone())));
     core.set_heartbeat_sink(Arc::new(sinks::HbSink(events.clone())));
     // 橋: 接続中の端末に確認内容の組み立てや実行要求を投げる。居なければ端末なし扱い
     core.set_frontend_bridge(Arc::new(SessionBridge(sessions.clone())));
-    core.set_core_executor(Arc::new(notecore::ai_turn::LocalCoreExecutor(core.clone())));
+    core.set_core_executor(Arc::new(notemaid::ai_turn::LocalCoreExecutor(core.clone())));
     {
         let core_for_timer = core.clone();
         let timer_for_sink = timer.clone();
@@ -160,7 +162,7 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
                 if change.subdir.is_some() {
                     return;
                 }
-                if change.name == notecore::ai_config::FILE_NAME {
+                if change.name == notemaid::ai_config::FILE_NAME {
                     timer_for_sink.reconfigure(core_for_timer.clone());
                 } else if change.name == notecore::stream_mode::SETTINGS_FILE {
                     // 接続モードはアプリが居なくても notecored が適用する
@@ -311,7 +313,7 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
                 "uptimeSeconds": started.elapsed().as_secs(),
                 "ready": status_core.is_ready(),
                 "heartbeatIntervalMinutes": status_timer.interval_minutes(),
-                "heartbeat": notecore::heartbeat::status_json(),
+                "heartbeat": notemaid::heartbeat::status_json(),
                 "exitCodes": exit::NO_RESTART.iter().map(|c| json!({ "code": c, "name": exit::name(*c) })).collect::<Vec<_>>(),
             })
         }),
@@ -332,8 +334,8 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
     events.emit("nd:notecored-restarting", &json!({ "graceMs": 5000 }));
     timer.stop();
     shutdown.trigger();
-    notecore::ai_chat_service::abort_all_streams();
-    notecore::ai_turn::abort_all_turns();
+    notemaid::ai_chat_service::abort_all_streams();
+    notemaid::ai_turn::abort_all_turns();
     let _ = tokio::time::timeout(Duration::from_secs(5), serve_task).await;
     let _ = std::fs::remove_file(&socket);
     0

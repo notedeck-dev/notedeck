@@ -262,9 +262,9 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // external gate が permissions.json5 を直接読むための所在 (#1099)
         notecore::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
         // 前回、確認待ちのまま残った AI ターンを閉じる (#1133)
-        notecore::ai_turn::recover(&app_dir);
+        notemaid::ai_turn::recover(&app_dir);
         // HEARTBEAT の観測値 (直近の失敗など) を状態ファイルから戻す
-        notecore::heartbeat::restore_status(&app_dir);
+        notemaid::heartbeat::restore_status(&app_dir);
 
         // AppState: empty wrapper — commands await until Phase 2 fills it
         let app_state = commands::AppState::new();
@@ -333,6 +333,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .build()?;
         app.manage(shared_http.clone());
         app.state::<commands::AppState>().set_http(shared_http.clone());
+            use notemaid::CoreMaidExt;
+            notemaid::install(&app.state::<notecore::context::Core>());
         app.state::<commands::AppState>()
             .set_ai_chat_sink(std::sync::Arc::new(commands::TauriSink(app.handle().clone())));
         app.state::<commands::AppState>()
@@ -940,8 +942,8 @@ fn begin_shutdown(app: &tauri::AppHandle) {
     if let Some(h) = app.try_state::<std::sync::Arc<commands::HeartbeatScheduler>>() {
         h.unregister();
     }
-    notecore::ai_chat_service::abort_all_streams();
-    notecore::ai_turn::abort_all_turns();
+    notemaid::ai_chat_service::abort_all_streams();
+    notemaid::ai_turn::abort_all_turns();
 }
 
 /// Build the tauri-specta builder shared by the runtime, the `gen_bindings`
@@ -1329,9 +1331,17 @@ fn annotate_bindings_with_impl_paths(
     let generated = std::fs::read_to_string(target)?;
     let mut locations = ipc_index::collect_command_locations(&src_root);
     // コマンド表 (#1106) 経由のコマンドは本体が notecore にある
-    let table = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../crates/notecore/src/commands/table.rs");
-    ipc_index::collect_table_locations(&table, &mut locations);
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    ipc_index::collect_table_locations(
+        &manifest.join("../crates/notecore/src/commands/table.rs"),
+        "crates/notecore",
+        &mut locations,
+    );
+    ipc_index::collect_table_locations(
+        &manifest.join("../crates/notemaid/src/commands/table.rs"),
+        "crates/notemaid",
+        &mut locations,
+    );
     std::fs::write(target, ipc_index::annotate(&generated, &locations))?;
     Ok(())
 }

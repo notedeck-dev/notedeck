@@ -62,7 +62,7 @@ impl tauri_specta::Event for SettingsFileChangedEvent {
 #[derive(Clone, serde::Serialize, specta::Type)]
 #[serde(transparent)]
 #[specta(transparent)]
-pub struct HeartbeatEventWire(pub notecore::heartbeat::HeartbeatEvent);
+pub struct HeartbeatEventWire(pub notemaid::heartbeat::HeartbeatEvent);
 
 impl tauri_specta::Event for HeartbeatEventWire {
     const NAME: &'static str = "nd:ai-heartbeat-event";
@@ -70,8 +70,8 @@ impl tauri_specta::Event for HeartbeatEventWire {
 
 pub struct TauriHeartbeatSink(pub tauri::AppHandle);
 
-impl notecore::heartbeat::HeartbeatSink for TauriHeartbeatSink {
-    fn emit(&self, event: notecore::heartbeat::HeartbeatEvent) {
+impl notemaid::heartbeat::HeartbeatSink for TauriHeartbeatSink {
+    fn emit(&self, event: notemaid::heartbeat::HeartbeatEvent) {
         use tauri_specta::Event;
         let _ = HeartbeatEventWire(event).emit(&self.0);
     }

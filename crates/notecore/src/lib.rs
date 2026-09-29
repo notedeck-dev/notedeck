@@ -2,27 +2,25 @@
 //!
 //! 「デバイスが 1 台も繋がっていなくても意味を持つ処理」の置き場。Misskey 通信・DB・
 //! ストリーミングは notecli に任せ、その上の NoteDeck 固有ドメイン (Vault / クエリ
-//! ランタイム / 画像キャッシュ / OGP / AI SSE クライアント / 設定ファイル store /
-//! 認可解決 / 公開 HTTP API) をここに置く。アプリ (src-tauri) に埋め込む構成と、
-//! notecored で常駐させる構成の両方で同じクレートを使う。
+//! ランタイム / 画像キャッシュ / OGP / 設定ファイル store / 認可解決 / 公開 HTTP API)
+//! をここに置く。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 /
+//! セッション / skill / メモ / AI 設定) は上に載る notemaid クレートにあり、notecore は
+//! AI を知らない (capability の宣言表だけは認可と HTTP API が参照するのでここ)。
 //!
 //! Tauri に依存しない (Cargo.toml に tauri 系を足さない、`#[tauri::command]` を
 //! 置かない)。手元側 (WebView / OS 統合) が要る処理は trait (`FrontendBridge` /
-//! `AiChatSink` 等) で受け取る。tests/lint/rustCoreBoundary.test.ts が機械検査する。
+//! `SettingsSink` 等) で受け取り、上に載るクレートの状態は `Core::ext_or_init` の
+//! 拡張スロットに吊るす。tests/lint/rustCoreBoundary.test.ts が機械検査する。
 
 pub mod account_service;
-pub mod ai_budget;
-pub mod ai_chat_service;
-pub mod ai_config;
 pub mod ai_keys;
-pub mod ai_sessions;
-pub mod ai_turn;
 pub mod api_tokens;
 pub mod app_dir;
 pub mod auth_service;
 pub mod backup_service;
 pub mod capabilities;
 pub mod client_config;
+pub mod clock;
 pub mod commands;
 pub mod context;
 pub mod crash_report;
@@ -32,7 +30,6 @@ pub mod emoji_cache_store;
 pub mod error;
 pub mod export_service;
 pub mod frontend_bridge;
-pub mod heartbeat;
 pub mod http_server;
 pub mod i18n;
 pub mod image_cache;
@@ -40,7 +37,6 @@ pub mod json5_out;
 pub mod keybinds;
 pub mod media_proxy;
 pub mod media_warm;
-pub mod memos;
 #[cfg(target_os = "linux")]
 pub mod migration;
 pub mod migrations;
@@ -60,8 +56,8 @@ pub mod settings_slug;
 pub mod settings_store;
 pub mod shutdown;
 pub mod sidecar;
-pub mod skills;
 pub mod ssrf;
+pub mod status_providers;
 pub mod stream_fanout;
 pub mod stream_mode;
 pub mod themes;

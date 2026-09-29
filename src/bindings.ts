@@ -2249,7 +2249,7 @@ async importSettingsJson() : Promise<Result<ImportSettingsResult, { code: string
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_send", { req }) };
@@ -2258,7 +2258,7 @@ async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; mess
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_cancel", { streamId }) };
@@ -2267,7 +2267,7 @@ async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; mess
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiTurnRun(req: AiTurnRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_turn_run", { req }) };
@@ -2276,7 +2276,7 @@ async aiTurnRun(req: AiTurnRequest) : Promise<Result<null, { code: string; messa
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiTurnCancel(turnId: string) : Promise<Result<SessionMessage | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_turn_cancel", { turnId }) };
@@ -2285,7 +2285,7 @@ async aiTurnCancel(turnId: string) : Promise<Result<SessionMessage | null, { cod
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiConfirmRespond(requestId: string, accepted: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_confirm_respond", { requestId, accepted }) };
@@ -2294,7 +2294,7 @@ async aiConfirmRespond(requestId: string, accepted: boolean) : Promise<Result<nu
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_confirm_shown", { requestId }) };
@@ -2303,7 +2303,7 @@ async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; m
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted, pluginId }) };
@@ -2312,7 +2312,7 @@ async capabilityExecute(id: string, params: JsonValue, principal: string, accoun
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_chat.rs */
+/** @see crates/notemaid/src/commands/ai_chat.rs */
 async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted, pluginId }) };
@@ -2321,7 +2321,7 @@ async capabilityPreview(id: string, params: JsonValue, principal: string, accoun
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_sessions_load_all") };
@@ -2330,7 +2330,7 @@ async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message:
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionGet(id: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_get", { id }) };
@@ -2339,7 +2339,7 @@ async aiSessionGet(id: string) : Promise<Result<AiSession, { code: string; messa
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionCreate(req: AiSessionCreate) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_create", { req }) };
@@ -2348,7 +2348,7 @@ async aiSessionCreate(req: AiSessionCreate) : Promise<Result<AiSession, { code: 
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionAppend(id: string, messages: SessionMessage[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_append", { id, messages }) };
@@ -2357,7 +2357,7 @@ async aiSessionAppend(id: string, messages: SessionMessage[]) : Promise<Result<A
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionRemoveMessages(id: string, messageIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_remove_messages", { id, messageIds }) };
@@ -2366,7 +2366,7 @@ async aiSessionRemoveMessages(id: string, messageIds: string[]) : Promise<Result
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionRename(id: string, title: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_rename", { id, title }) };
@@ -2375,7 +2375,7 @@ async aiSessionRename(id: string, title: string) : Promise<Result<AiSession, { c
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionAddTriggeredSkills(id: string, skillIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_add_triggered_skills", { id, skillIds }) };
@@ -2384,7 +2384,7 @@ async aiSessionAddTriggeredSkills(id: string, skillIds: string[]) : Promise<Resu
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/ai_sessions.rs */
+/** @see crates/notemaid/src/commands/ai_sessions.rs */
 async aiSessionDelete(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_delete", { id }) };
@@ -2430,7 +2430,7 @@ async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: str
     else return { status: "error", error: e  as any };
 }
 },
-/** @see crates/notecore/src/commands/heartbeat.rs */
+/** @see crates/notemaid/src/commands/heartbeat.rs */
 async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_trigger_now") };

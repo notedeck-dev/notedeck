@@ -5,14 +5,14 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use notecli::streaming::{FrontendEmitter, StreamEvent};
-use notecore::ai_chat_service::{AiChatEvent, AiChatSink};
-use notecore::ai_turn::{AiTurnEvent, AiTurnSink};
 use notecore::context::HintSink;
-use notecore::heartbeat::{HeartbeatEvent, HeartbeatSink};
 use notecore::ogp::OgpData;
 use notecore::query_runtime::{NoteCaptureBatch, QueryRuntime};
 use notecore::rpc::Frame;
 use notecore::settings_events::{SettingsChange, SettingsSink};
+use notemaid::ai_chat_service::{AiChatEvent, AiChatSink};
+use notemaid::ai_turn::{AiTurnEvent, AiTurnSink};
+use notemaid::heartbeat::{HeartbeatEvent, HeartbeatSink};
 use serde::Serialize;
 use tokio::sync::broadcast;
 

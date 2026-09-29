@@ -14,6 +14,10 @@ use crate::error::Result;
 use notecli::error::NoteDeckError;
 
 /// Settings subdirectory name under app_data_dir.
+/// AI セッションの置き場 (設定ディレクトリ直下)。書き手は notemaid だけで、
+/// notecore は設定ファイルの列挙から除くためだけに名前を知る
+pub const AI_SESSIONS_SUBDIR: &str = "sessions";
+
 pub const SETTINGS_DIR: &str = "notedeck";
 
 /// Resolve the settings base directory: `app_data_dir/notedeck/`.
@@ -24,7 +28,7 @@ pub fn settings_base_dir(core: &Core) -> Result<PathBuf> {
 /// AI セッションは notecore が単一の書き手 (#1133)。汎用のファイル操作では
 /// 触らせず、`ai_session_*` の構造化された操作に限る。
 fn reject_sessions(subdir: &str) -> Result<()> {
-    if subdir == crate::ai_sessions::SUBDIR {
+    if subdir == AI_SESSIONS_SUBDIR {
         return Err(NoteDeckError::InvalidInput(
             "sessions are written by notecore (use ai_session_*)".into(),
         ));

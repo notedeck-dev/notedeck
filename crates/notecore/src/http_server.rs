@@ -636,7 +636,9 @@ async fn get_inspector_recent(State(state): State<DeckState>) -> Result<Json<Val
     )
 )]
 async fn get_heartbeat_status() -> Result<Json<Value>, ApiError> {
-    Ok(Json(crate::heartbeat::status_json()))
+    Ok(Json(
+        crate::status_providers::get("heartbeat").unwrap_or_else(|| serde_json::json!({})),
+    ))
 }
 
 #[utoipa::path(get, path = "/api/permissions/resolved", tag = "dev",
