@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: 8585366132ec
+// sourceHash: 744d7c22947c
 
 import type { Messages } from './ja'
 
@@ -192,7 +192,7 @@ const en: Messages = {
     },
     remote: {
       label: 'The AI process',
-      desc: 'The AI (agent loop, HEARTBEAT, delivery of results) is always a separate process. By default the app starts it and it exits with the app. It can also stay resident from login or live on your own server, and then HEARTBEAT keeps going with your devices closed. Your data stays on the device; notemaid never opens the notes database.',
+      desc: 'The AI (agent loop, HEARTBEAT) is always a separate process. By default the app starts it and it exits with the app. Run it as a login task and HEARTBEAT keeps going after you quit the app. Your data stays on the device; notemaid never opens the notes database.',
     },
     core: {
       label: 'Core',
