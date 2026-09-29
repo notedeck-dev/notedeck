@@ -228,8 +228,22 @@ fn stable_sidecar() -> Result<PathBuf, String> {
 }
 
 fn service(bin: &Path, args: &[&str]) -> Result<String, String> {
+    // 出力は pipe ではなくファイルで受ける。Windows の `service enable` は常駐を孫プロセスとして
+    // 起こし、孫が親 (この呼び出し) の stdout / stderr の pipe を継承して握ったままになるので、
+    // `output()` (EOF 待ち) が常駐の寿命まで返らず、トグルが「切り替え中」で止まっていた。
+    // ファイルなら孫が握っていても終了を待つだけで済む
+    let dir = std::env::temp_dir().join(format!("notedeck-service-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).map_err(|e| format!("notemaid service: temp dir: {e}"))?;
+    let label = args.first().copied().unwrap_or("service");
+    let out_path = dir.join(format!("{label}.out"));
+    let err_path = dir.join(format!("{label}.err"));
+    let open = |p: &Path| std::fs::File::create(p).map_err(|e| format!("notemaid service: {e}"));
     let mut cmd = Command::new(bin);
-    cmd.arg("service").args(args);
+    cmd.arg("service")
+        .args(args)
+        .stdin(Stdio::null())
+        .stdout(open(&out_path)?)
+        .stderr(open(&err_path)?);
     // AI 設定を開くたびに状態を聞くので、Windows でコンソール窓がちらつかないように
     #[cfg(windows)]
     {
@@ -237,16 +251,35 @@ fn service(bin: &Path, args: &[&str]) -> Result<String, String> {
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
-    let out = cmd
-        .output()
+    let mut child = cmd
+        .spawn()
         .map_err(|e| format!("notemaid service {}: {e}", args.join(" ")))?;
-    if out.status.success() {
-        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    // 上限つきで終了を待つ (UI を「切り替え中」のまま放置しない)
+    let deadline = std::time::Instant::now() + Duration::from_secs(60);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if std::time::Instant::now() >= deadline => {
+                let _ = child.kill();
+                return Err(format!(
+                    "notemaid service {} did not finish within 60 seconds",
+                    args.join(" ")
+                ));
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(100)),
+            Err(e) => return Err(format!("notemaid service {}: {e}", args.join(" "))),
+        }
+    };
+    let stdout = std::fs::read_to_string(&out_path).unwrap_or_default();
+    let stderr = std::fs::read_to_string(&err_path).unwrap_or_default();
+    let _ = std::fs::remove_dir_all(&dir);
+    if status.success() {
+        Ok(stdout)
     } else {
         Err(format!(
             "notemaid service {} failed: {}",
             args.join(" "),
-            String::from_utf8_lossy(&out.stderr).trim()
+            stderr.trim()
         ))
     }
 }
