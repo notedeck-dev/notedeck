@@ -240,7 +240,7 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 
 ## 手元の CLI を AI にする — ACP ([#1104](https://github.com/notedeck-dev/notedeck/issues/1104))
 
-ログイン済みの Claude Code / Codex / OpenCode / Gemini CLI / Hermes Agent を、API キー無しで AI カラムの provider にする面。CLI は ACP (Agent Client Protocol) を stdio で話す子プロセスで、**notemaid が抱える** (本体は `crates/notemaid/src/acp/`)。CLI が持つ資格情報には触れず、公式 CLI か公式アダプタをそのまま起動するだけ (規約の線引き)。
+ログイン済みの Claude Code / Codex / OpenCode / Gemini CLI / Hermes Agent / Grok Build を、API キー無しで AI カラムの provider にする面。CLI は ACP (Agent Client Protocol) を stdio で話す子プロセスで、**notemaid が抱える** (本体は `crates/notemaid/src/acp/`)。CLI が持つ資格情報には触れず、公式 CLI か公式アダプタをそのまま起動するだけ (規約の線引き)。
 
 - **接続の 1 種**: 接続 id は `harness:<id>`。組み込みの一覧 (`acp/harness.rs`) は PATH で検出し、AI 設定の接続ピッカーに「手元の CLI」として並ぶ (`commands.aiHarnessList`)。利用者は ai.json5 の `harnesses[]` に自分のコマンドを足せる。`resolveAiConnection` は `kind: 'vault' | 'harness'` の直和を返し、呼び出し側は `connectionId` だけ使う
 - **ターン実行器はそのまま**: `AcpProvider` は `ProviderRound` の実装で、1 ラウンド = CLI の 1 ターン。NoteDeck のセッションごとに ACP セッションを 1 つ持ち (`Registry`)、新規セッションの初回はそれまでの会話と context を prompt に畳み、以降は最新の入力だけ送る。`session/update` の `agent_message_chunk` は `delta`、`tool_call` は 1 行の見出しに写像。タイトル生成は行わない (CLI のセッションを汚す)。1 往復の経路 (`aiChatSend`) は harness を受けない

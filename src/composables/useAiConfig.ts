@@ -230,7 +230,7 @@ export interface AiConfig {
   budgets: Record<string, number>
   /**
    * 利用者が足した手元の CLI (#1104)。組み込み (Claude Code / Codex / OpenCode /
-   * Gemini CLI / Hermes Agent) 以外の ACP エージェント。検出と起動は Rust 側で、
+   * Gemini CLI / Hermes Agent / Grok Build) 以外の ACP エージェント。検出と起動は Rust 側で、
    * ここは ai.json5 を書き戻すときに落とさないための写し。
    */
   harnesses: CustomHarness[]

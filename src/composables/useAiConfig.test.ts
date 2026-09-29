@@ -271,6 +271,7 @@ describe('local CLI harness (#1104)', () => {
           available: true,
           detail: null,
           custom: false,
+          homepage: null,
         },
       ],
     )

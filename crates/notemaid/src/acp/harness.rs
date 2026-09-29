@@ -26,6 +26,8 @@ pub struct HarnessInfo {
     pub detail: Option<String>,
     /// 利用者が ai.json5 に書いた定義か
     pub custom: bool,
+    /// 提供元のサイト (ピッカーのアイコンは接続カードと同じ favicon 経由で出す)
+    pub homepage: Option<String>,
 }
 
 impl HarnessInfo {
@@ -49,6 +51,7 @@ struct Builtin {
     /// ほかに PATH に要るもの (CLI 本体など。起動には使わない)
     requires: &'static [&'static str],
     hint: &'static str,
+    homepage: &'static str,
 }
 
 const BUILTINS: &[Builtin] = &[
@@ -59,6 +62,7 @@ const BUILTINS: &[Builtin] = &[
         args: &["-y", "@agentclientprotocol/claude-agent-acp"],
         requires: &["claude"],
         hint: "needs the `claude` CLI (logged in) and `npx`",
+        homepage: "https://claude.com/product/claude-code",
     },
     Builtin {
         id: "codex",
@@ -67,6 +71,7 @@ const BUILTINS: &[Builtin] = &[
         args: &["-y", "@agentclientprotocol/codex-acp"],
         requires: &["codex"],
         hint: "needs the `codex` CLI (logged in) and `npx`",
+        homepage: "https://openai.com/codex/",
     },
     Builtin {
         id: "opencode",
@@ -75,14 +80,16 @@ const BUILTINS: &[Builtin] = &[
         args: &["acp"],
         requires: &[],
         hint: "needs the `opencode` CLI",
+        homepage: "https://opencode.ai",
     },
     Builtin {
         id: "gemini",
         name: "Gemini CLI",
         command: "gemini",
-        args: &["--experimental-acp"],
+        args: &["--acp"],
         requires: &[],
         hint: "needs the `gemini` CLI (logged in)",
+        homepage: "https://gemini.google.com",
     },
     Builtin {
         id: "hermes",
@@ -91,6 +98,17 @@ const BUILTINS: &[Builtin] = &[
         args: &["acp"],
         requires: &[],
         hint: "needs the `hermes` CLI",
+        homepage: "https://hermes-agent.nousresearch.com",
+    },
+    Builtin {
+        id: "grok-build",
+        name: "Grok Build",
+        command: "grok",
+        // `--always-approve` は付けない (許可要求を確認ダイアログに出す)
+        args: &["agent", "stdio"],
+        requires: &[],
+        hint: "needs the `grok` CLI (logged in)",
+        homepage: "https://x.ai",
     },
 ];
 
@@ -183,6 +201,7 @@ pub fn list(custom: &[CustomHarness]) -> Vec<HarnessInfo> {
                 available,
                 detail,
                 custom: false,
+                homepage: Some(b.homepage.into()),
             }
         })
         .collect();
@@ -206,6 +225,7 @@ pub fn list(custom: &[CustomHarness]) -> Vec<HarnessInfo> {
             available,
             detail: (!available).then(|| format!("`{}` not found in PATH", c.command)),
             custom: true,
+            homepage: None,
         });
     }
     out
@@ -219,6 +239,10 @@ pub fn find(custom: &[CustomHarness], id: &str) -> Option<HarnessInfo> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn mine_has_no_homepage(all: &[HarnessInfo]) -> bool {
+        all.iter().any(|h| h.id == "mine" && h.homepage.is_none())
+    }
 
     #[test]
     fn resolves_executables_on_the_given_path_only() {
@@ -267,6 +291,10 @@ mod tests {
         ];
         let all = list(&custom);
         assert!(all.iter().any(|h| h.id == "claude-code" && !h.custom));
+        assert!(all
+            .iter()
+            .any(|h| h.id == "grok-build" && h.homepage.is_some()));
+        assert!(mine_has_no_homepage(&all));
         let mine = all.iter().find(|h| h.id == "mine").unwrap();
         assert!(mine.custom && !mine.available);
         assert_eq!(mine.name, "mine");

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import type { HarnessInfo } from '@/bindings'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
 import {
   harnessConnectionId,
@@ -57,13 +58,10 @@ const badgeOk = computed(
     (current.value?.kind === 'harness' && !!currentHarness.value?.available),
 )
 
-const HARNESS_ICONS: Record<string, string> = {
-  'claude-code': 'ti-brand-anthropic',
-  codex: 'ti-brand-openai',
-  gemini: 'ti-brand-google',
-}
-function harnessIcon(id: string): string {
-  return HARNESS_ICONS[id] ?? 'ti-terminal-2'
+/** 手元の CLI のアイコン。接続カードと同じく提供元サイトの favicon (無ければ端末アイコン) */
+function harnessIconUrl(h: HarnessInfo): string | null {
+  if (!h.homepage || failedIcons.value.has(harnessConnectionId(h))) return null
+  return faviconUrl(h.homepage)
 }
 
 function selectHarness(id: string): void {
@@ -180,33 +178,42 @@ function openConnectionsWindow(): void {
       {{ i18n.ts._aiConnectionSection.harnessHint }}
     </div>
     <div :class="$style.grid">
-      <button
-        v-for="h in harnesses.harnesses.value"
-        :key="h.id"
-        class="_button"
-        :class="[
-          $style.card,
-          {
-            [$style.cardActive]: config.activeConnectionId === harnessConnectionId(h),
-            [$style.cardUnavailable]: !h.available,
-          },
-        ]"
-        :aria-pressed="config.activeConnectionId === harnessConnectionId(h)"
-        :title="h.detail ?? [h.command, ...h.args].join(' ')"
-        @click="selectHarness(h.id)"
-      >
-        <span
-          v-if="config.activeConnectionId === harnessConnectionId(h)"
-          :class="$style.activeBadge"
+      <!-- 見つかったかどうかはボタンの外 (下) に添える。カード本体は接続カードと同じ形 -->
+      <div v-for="h in harnesses.harnesses.value" :key="h.id" :class="$style.cell">
+        <button
+          class="_button"
+          :class="[
+            $style.card,
+            {
+              [$style.cardActive]: config.activeConnectionId === harnessConnectionId(h),
+              [$style.cardUnavailable]: !h.available,
+            },
+          ]"
+          :aria-pressed="config.activeConnectionId === harnessConnectionId(h)"
+          :title="h.detail ?? [h.command, ...h.args].join(' ')"
+          @click="selectHarness(h.id)"
         >
-          <i class="ti ti-circle-check-filled" />
-        </span>
-        <i class="ti" :class="[harnessIcon(h.id), $style.logoFallback]" />
-        <span>{{ h.name }}</span>
-        <span :class="$style.cardState">
+          <span
+            v-if="config.activeConnectionId === harnessConnectionId(h)"
+            :class="$style.activeBadge"
+          >
+            <i class="ti ti-circle-check-filled" />
+          </span>
+          <img
+            v-if="harnessIconUrl(h)"
+            :src="harnessIconUrl(h)!"
+            :class="$style.logo"
+            alt=""
+            @error="failedIcons.add(harnessConnectionId(h))"
+          />
+          <i v-else class="ti ti-terminal-2" :class="$style.logoFallback" />
+          <span>{{ h.name }}</span>
+        </button>
+        <span :class="[$style.cellState, { [$style.cellStateOk]: h.available }]">
+          <i class="ti" :class="h.available ? 'ti-circle-check' : 'ti-circle-dashed'" />
           {{ h.available ? i18n.ts._aiConnectionSection.harnessFound : i18n.ts._aiConnectionSection.harnessNotFound }}
         </span>
-      </button>
+      </div>
     </div>
     <div v-if="currentHarness && !currentHarness.available" :class="$style.connEmpty">
       <i class="ti ti-alert-triangle" />
@@ -268,9 +275,28 @@ function openConnectionsWindow(): void {
   opacity: 0.55;
 }
 
-.cardState {
-  font-size: 0.85em;
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cellState {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 0.7em;
   color: var(--nd-fgMuted);
+
+  i {
+    font-size: 1.2em;
+  }
+}
+
+.cellStateOk {
+  color: var(--nd-accent);
 }
 
 .field { @include field; }

@@ -1,5 +1,5 @@
 //! ACP (Agent Client Protocol) で手元の CLI (Claude Code / Codex / OpenCode / Gemini CLI /
-//! Hermes Agent) を AI の provider として使う (#1104)。
+//! Hermes Agent / Grok Build) を AI の provider として使う (#1104)。
 //!
 //! - `harness`: 一覧と検出。接続 id は `harness:<id>`
 //! - `client`: 子プロセスと stdio の JSON-RPC

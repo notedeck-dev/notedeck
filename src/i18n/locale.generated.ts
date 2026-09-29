@@ -1256,7 +1256,7 @@ export interface Locale {
     readonly "dailyTokenBudgetHint": string
     /** 手元の CLI で動かす */
     readonly "harnessTitle": string
-    /** ログイン済みの Claude Code / Codex / OpenCode / Gemini CLI / Hermes Agent を AI として使います。API キーは要らず、CLI の契約 (Max / Pro など) で動きます。NoteDeck の操作は MCP 経由で CLI の tool になり、CLI が要求する許可はチャットに確認として出ます。HEARTBEAT はこの経路では動きません。 */
+    /** ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。 */
     readonly "harnessHint": string
     /** 見つかりました */
     readonly "harnessFound": string

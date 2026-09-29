@@ -3307,7 +3307,11 @@ detail: string | null;
 /**
  * 利用者が ai.json5 に書いた定義か
  */
-custom: boolean }
+custom: boolean; 
+/**
+ * 提供元のサイト (ピッカーのアイコンは接続カードと同じ favicon 経由で出す)
+ */
+homepage: string | null }
 export type HealthReport = { 
 /**
  * notecli doctor の結果 (database / keychain / accounts / network / auth)。
