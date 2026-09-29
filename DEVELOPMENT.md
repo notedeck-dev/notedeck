@@ -1266,7 +1266,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 
 ### HEARTBEAT Daemon ([#411](https://github.com/notedeck-dev/notedeck/issues/411))
 
-OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に倣った **アプリ起動中ずっと走る global daemon**。本体は notemaid (`crates/notemaid/src/heartbeat.rs`) にあり、WebView が無くても走る ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133) 縦切り 5)。tick の周期だけ手元側の timer (Tauri は `src-tauri/src/commands/heartbeat.rs`、常駐バイナリは自前) が持ち、tick ごとに notecore の `run_once` を呼ぶ。ターン (ラウンドの反復と tool の実行) は notecore のターン実行器 ([AI Chat Streaming](#ai-chat-streaming)) を `ai.heartbeat` principal で使う。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
+OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に倣った **アプリ起動中ずっと走る global daemon**。本体は notemaid (`crates/notemaid/src/heartbeat.rs`) にあり、WebView が無くても走る ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133) 縦切り 5)。tick の周期だけ手元側の timer (Tauri は `src-tauri/src/commands/heartbeat.rs`、常駐バイナリは自前) が持ち、tick ごとに notecore の `run_once` を呼ぶ。**刻み方は両方とも `notemaid::heartbeat_schedule`**: 期限は実時計で見る (前回の巡回 + 間隔、寝ていた時間も数える)。OS のスリープ / ハイバネート中はプロセスごと止まり単調時計は進まないので、実時計と単調時計の進み方の差で復帰を検知し、期限を過ぎていれば少し待って (ネットワークの復帰待ち) 1 回だけ巡回する。溜まった回数はまとめて走らせない。復帰後の巡回は source が `resumed` で、前回からの経過を user メッセージに添え (寝ている間のまとめを書けるように)、その失敗は連続失敗 (自動停止) に数えない。スリープ中に起こして巡回させることはしない。ターン (ラウンドの反復と tool の実行) は notecore のターン実行器 ([AI Chat Streaming](#ai-chat-streaming)) を `ai.heartbeat` principal で使う。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
 
 #### アーキテクチャ
 

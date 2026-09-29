@@ -58,7 +58,12 @@ pub fn run(args: RunArgs) -> i32 {
     };
 
     // secret の置き場: 常駐 / サーバーは暗号化ファイル、アプリの子プロセスは OS キーチェーン
-    match args.secrets {
+    // ファイル backend は Linux だけ (notecli の file store)。他の OS はキーチェーンに寄せる
+    #[cfg(not(target_os = "linux"))]
+    let secrets_backend = crate::daemon::SecretsBackend::Keychain;
+    #[cfg(target_os = "linux")]
+    let secrets_backend = args.secrets;
+    match secrets_backend {
         crate::daemon::SecretsBackend::Keychain => {
             // アプリと同じ扱い: キーチェーンが無くても起動は続け、トークンが要る呼び出しが
             // 個別に失敗する (子プロセスが即死するとアプリ側の中継が宙に浮くため)
@@ -66,6 +71,9 @@ pub fn run(args: RunArgs) -> i32 {
                 tracing::warn!("keychain unavailable ({e}); AI calls that need tokens will fail");
             }
         }
+        #[cfg(not(target_os = "linux"))]
+        crate::daemon::SecretsBackend::File => unreachable!("file secrets are Linux-only"),
+        #[cfg(target_os = "linux")]
         crate::daemon::SecretsBackend::File => {
             let key_path = args
                 .secret_key_file

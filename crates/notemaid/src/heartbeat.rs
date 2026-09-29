@@ -438,6 +438,15 @@ fn running_flag() -> &'static Mutex<bool> {
 
 /// tick を 1 回処理する。実行中なら捨てる (後で実行し直さない)。
 pub async fn run_once(core: &Core, source: &str) {
+    run_once_with_gap(core, source, None).await
+}
+
+/// 復帰後の巡回 (`heartbeat_schedule::Due::Resumed`): 前回からの経過を AI に渡す
+pub async fn run_due(core: &Core, due: crate::heartbeat_schedule::Due) {
+    run_once_with_gap(core, due.source(), due.gap()).await
+}
+
+async fn run_once_with_gap(core: &Core, source: &str, gap: Option<Duration>) {
     let now = ai_sessions::now_ms();
     with_status(|s| {
         s.last_tick_at = Some(now);
@@ -458,7 +467,7 @@ pub async fn run_once(core: &Core, source: &str) {
     let mut ev = HeartbeatEvent::new("started");
     ev.source = Some(source.to_string());
     emit(core, ev);
-    let outcome = match run_body(core, source, now).await {
+    let outcome = match run_body(core, source, now, gap).await {
         Ok(o) => o,
         Err(e) => {
             tracing::warn!("heartbeat daemon error: {e}");
@@ -491,7 +500,7 @@ fn toast(core: &Core, level: &str, message: i18n::Text) {
     emit(core, ev);
 }
 
-async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
+async fn run_body(core: &Core, source: &str, now: u64, gap: Option<Duration>) -> Result<String> {
     let app_dir = core.app_dir()?.to_path_buf();
     let cfg = ai_config::load(core)?;
     let snapshot = config_snapshot(&cfg);
@@ -571,7 +580,7 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
     }
 
     // AI
-    let inference = run_inference(core, &cfg, &heartbeat_skills, &skill_bodies, now).await;
+    let inference = run_inference(core, &cfg, &heartbeat_skills, &skill_bodies, now, gap).await;
     let report = match inference {
         Ok(r) => {
             state.consecutive_failures = 0;
@@ -583,7 +592,10 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
             r
         }
         Err(e) => {
-            state.consecutive_failures += 1;
+            // 復帰直後はネットワークが戻っていないことがあるので、連続失敗 (自動停止) には数えない
+            if source != "resumed" {
+                state.consecutive_failures += 1;
+            }
             let n = state.consecutive_failures;
             tracing::warn!("heartbeat inference failed ({n}/{MAX_CONSECUTIVE_FAILURES}): {e}");
             // 理由を永続化し、同じ signature は初回だけ通知する
@@ -703,12 +715,28 @@ impl AiTurnSink for CollectSink {
     }
 }
 
+/// 巡回の user メッセージ。復帰後は前回からの経過を添え、寝ている間のまとめを書けるようにする
+fn tick_message(now: u64, gap: Option<Duration>) -> String {
+    let at = crate::exec::iso_from_unix_ms(now as i64);
+    match gap {
+        None => format!("Heartbeat tick at {at}"),
+        Some(g) => {
+            let minutes = g.as_secs() / 60;
+            let (h, m) = (minutes / 60, minutes % 60);
+            format!(
+                "Heartbeat tick at {at}. The device was asleep; the previous round was {h}h {m}m ago. Cover what happened since then."
+            )
+        }
+    }
+}
+
 async fn run_inference(
     core: &Core,
     cfg: &AiConfigLite,
     hb_skills: &[SkillMeta],
     skill_bodies: &[String],
     now: u64,
+    gap: Option<Duration>,
 ) -> Result<Option<Report>> {
     let Some(model) = cfg.model_for_active() else {
         tracing::debug!("heartbeat: AI provider not configured, skip");
@@ -761,10 +789,7 @@ async fn run_inference(
         system: Some(system),
         messages: vec![AiChatMessage {
             role: AiChatRole::User,
-            content: format!(
-                "Heartbeat tick at {}",
-                crate::exec::iso_from_unix_ms(now as i64)
-            ),
+            content: tick_message(now, gap),
             tool_use_id: None,
             tool_use_name: None,
             tool_use_input: None,
@@ -1191,6 +1216,20 @@ async fn generate_title(core: &Core, cfg: &AiConfigLite, report: &str) -> Option
     }
     let title = clean_report_title(&text);
     (!title.is_empty()).then_some(title)
+}
+
+#[cfg(test)]
+mod tick_message_tests {
+    use super::*;
+
+    #[test]
+    fn resumed_rounds_mention_the_gap() {
+        let plain = tick_message(0, None);
+        assert!(plain.starts_with("Heartbeat tick at "));
+        assert!(!plain.contains("asleep"));
+        let resumed = tick_message(0, Some(Duration::from_secs(9 * 3600 + 5 * 60)));
+        assert!(resumed.contains("9h 5m ago"), "{resumed}");
+    }
 }
 
 #[cfg(test)]
