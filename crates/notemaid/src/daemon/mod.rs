@@ -20,6 +20,8 @@ pub mod lock;
 pub mod logging;
 pub mod rpc_server;
 pub mod run;
+// secret のファイル backend は notecli の file store が Linux 専用なので Linux だけ
+#[cfg(target_os = "linux")]
 pub mod secrets;
 pub mod service;
 pub mod sinks;
