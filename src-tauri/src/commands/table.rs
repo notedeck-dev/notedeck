@@ -10,10 +10,11 @@
 //! 検査する。持たない行には注入しない (specta の関数引数数の上限に当たるため、要らない
 //! ものは足さない)。
 
-/// 1 行ぶんのラッパー。属性の有無で腕を分ける。
+/// 1 行ぶんのラッパー (notecore の表 = データ系)。属性の有無で腕を分ける。
+/// データ面はデバイスに 1 つなので中継は無く、常に in-process の notecore を呼ぶ (#1106 案 B)
 macro_rules! tauri_wrapper_one {
     // 許可ウィンドウあり: Window を注入して label を検査
-    ($tc:ident $kind:ident [window = $w:ident] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty [$err:ty] = $path:path) => {
+    ($kind:ident [window = $w:ident] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty [$err:ty] = $path:path) => {
         #[tauri::command]
         #[specta::specta]
         #[allow(clippy::too_many_arguments)]
@@ -22,12 +23,50 @@ macro_rules! tauri_wrapper_one {
             core: tauri::State<'_, notecore::context::Core>,
             $( $arg: $ty, )*
         ) -> std::result::Result<$ret, $err> {
-            $tc::commands::check(
-                $tc::commands::CommandId::$name,
+            notecore::commands::check(
+                notecore::commands::CommandId::$name,
                 &notecore::commands::CallContext::window(window.label()),
             )
             .map_err(<$err>::from)?;
-            // クライアント層の切替点 (#1106 §4.1): 常駐構成なら中継、それ以外は埋め込み
+            $path(&core, $( $arg, )*).await
+        }
+    };
+    // 属性なし
+    ($kind:ident [] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty [$err:ty] = $path:path) => {
+        #[tauri::command]
+        #[specta::specta]
+        #[allow(clippy::too_many_arguments)]
+        pub async fn $name(
+            core: tauri::State<'_, notecore::context::Core>,
+            $( $arg: $ty, )*
+        ) -> std::result::Result<$ret, $err> {
+            notecore::commands::check(
+                notecore::commands::CommandId::$name,
+                &notecore::commands::CallContext::default(),
+            )
+            .map_err(<$err>::from)?;
+            $path(&core, $( $arg, )*).await
+        }
+    };
+}
+
+/// 1 行ぶんのラッパー (notemaid の表 = AI 系)。クライアント層の切替点 (#1106 案 B):
+/// 常駐構成なら notecored に中継し、それ以外は in-process の notemaid を呼ぶ
+macro_rules! maid_wrapper_one {
+    ($kind:ident [window = $w:ident] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty [$err:ty] = $path:path) => {
+        #[tauri::command]
+        #[specta::specta]
+        #[allow(clippy::too_many_arguments)]
+        pub async fn $name(
+            window: tauri::Window,
+            core: tauri::State<'_, notecore::context::Core>,
+            $( $arg: $ty, )*
+        ) -> std::result::Result<$ret, $err> {
+            notemaid::commands::check(
+                notemaid::commands::CommandId::$name,
+                &notecore::commands::CallContext::window(window.label()),
+            )
+            .map_err(<$err>::from)?;
             if let Some(relay) = crate::client_layer::relay() {
                 #[allow(unused_mut)]
                 let mut params = crate::client_layer::Params::default();
@@ -39,8 +78,7 @@ macro_rules! tauri_wrapper_one {
             $path(&core, $( $arg, )*).await
         }
     };
-    // 属性なし
-    ($tc:ident $kind:ident [] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty [$err:ty] = $path:path) => {
+    ($kind:ident [] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty [$err:ty] = $path:path) => {
         #[tauri::command]
         #[specta::specta]
         #[allow(clippy::too_many_arguments)]
@@ -48,8 +86,8 @@ macro_rules! tauri_wrapper_one {
             core: tauri::State<'_, notecore::context::Core>,
             $( $arg: $ty, )*
         ) -> std::result::Result<$ret, $err> {
-            $tc::commands::check(
-                $tc::commands::CommandId::$name,
+            notemaid::commands::check(
+                notemaid::commands::CommandId::$name,
                 &notecore::commands::CallContext::default(),
             )
             .map_err(<$err>::from)?;
@@ -79,7 +117,7 @@ macro_rules! command_error_type {
 macro_rules! tauri_wrappers {
     ($( $kind:ident $( ( $($attr:tt)* ) )? $name:ident ( $( $arg:ident : $ty:ty ),* $(,)? ) -> $ret:ty $( | $err:ty )? = $path:path ; )*) => {
         $(
-            tauri_wrapper_one! { notecore $kind [ $( $($attr)* )? ] $name ( $( $arg : $ty ),* ) -> $ret [command_error_type!($($err)?)] = $path }
+            tauri_wrapper_one! { $kind [ $( $($attr)* )? ] $name ( $( $arg : $ty ),* ) -> $ret [command_error_type!($($err)?)] = $path }
         )*
     };
 }
@@ -87,7 +125,7 @@ macro_rules! tauri_wrappers {
 macro_rules! maid_tauri_wrappers {
     ($( $kind:ident $( ( $($attr:tt)* ) )? $name:ident ( $( $arg:ident : $ty:ty ),* $(,)? ) -> $ret:ty $( | $err:ty )? = $path:path ; )*) => {
         $(
-            tauri_wrapper_one! { notemaid $kind [ $( $($attr)* )? ] $name ( $( $arg : $ty ),* ) -> $ret [command_error_type!($($err)?)] = $path }
+            maid_wrapper_one! { $kind [ $( $($attr)* )? ] $name ( $( $arg : $ty ),* ) -> $ret [command_error_type!($($err)?)] = $path }
         )*
     };
 }

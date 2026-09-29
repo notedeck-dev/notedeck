@@ -191,7 +191,7 @@ Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI �
 - [x] **AI エージェントループを Rust へ** — [#1133](https://github.com/notedeck-dev/notedeck/issues/1133)
 - [x] **同一ホストの notecored** — headless バイナリ、RPC 面、橋、購読のセッション所有、切替導線。notecli 単体のデーモンモードは廃止済み。**2026-09-29 に方針転換**: データ面の常駐は中止し、部品を notemaid へ移す (下記)
 - [x] **notemaid クレートの新設** — AI 系 (ループ / HEARTBEAT / capability 実行 / セッション / 予算 / skill / メモ / AI 設定) を `crates/notemaid` に移し、コマンド表を notecore の表と notemaid の表に 2 分割 (生成器は notecore の `define_command_table!` を共有)、AI の sink は Core の拡張スロットに吊るす (`CoreMaidExt`)。この段はライブラリだけで、アプリと notecored は in-process で使う (挙動は変えない)
-- [ ] **中継を AI 系に縮小** — コアの切替と再起動 / 移行パッケージ / 購読の中継 / 埋め込み専用の門番 / データディレクトリの排他ロックを削除する
+- [x] **中継を AI 系に縮小** — データ系は常に in-process、notemaid の表だけを中継。コアの切替と再起動 / 移行パッケージ / 購読のセッション所有と中継 / 埋め込み専用の門番 / notecored のデータ面 (ストリーミング / クエリランタイム / OGP / 画像キャッシュ / 公開 API 面) を削除 (2026-09-29)。ロックは notecored 同士だけに (アプリとは併存)。切替は当面手動 (`client.json5` + `notecored service enable`)
 - [ ] **transport と sidecar** — Unix socket / Windows named pipe / iOS 用 in-process の transport 抽象、notemaid を sidecar として同梱 (デスクトップ 3 OS + Android)、子は親が死んだら一緒に死ぬ、readiness の待ち合わせは AI の初回呼び出しだけ
 - [ ] **常駐のトグル** — 「アプリを閉じてもメイドを動かす」1 つで、ログイン時のユーザー権限タスクを登録 / 解除 (systemd user unit は済、LaunchAgent / Task Scheduler ONLOGON は未)。アプリは起動時に居れば繋ぎ、居なければ子プロセス。版ずれは指紋照合で検知して再起動
 - [ ] **notecored の削除** — 残す部品 (RPC フレーム / socket / service 管理 / secrets の file backend / HEARTBEAT timer / sink) を notemaid の bin (`daemon` feature) に移し、unit / socket / runtime dir / CI の build job と AUR も改名

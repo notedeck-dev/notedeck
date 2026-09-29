@@ -5794,86 +5794,24 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_coreContent": {
     /** 今のコア */
     readonly "current": string
-    /** コアは Misskey との通信・データの保存・AI を担う部分です。「アプリに埋め込み」はアプリと一緒に起動して終了します。「常駐 (notecored)」は systemd の user サービスとして動き続け、アプリを閉じても通知の受信や HEARTBEAT が止まりません。どちらも同じデータを使い、切り替えはアプリの再起動で完了します。 */
+    /** AI (エージェントループ / HEARTBEAT) をこのアプリの中で回しているか、常駐の notecored に中継しているかの状態です。データ (蓄積・購読・デッキ) は常にこの端末で動きます。 */
     readonly "description": string
-    /** アプリに埋め込み */
+    /** アプリの中で実行 */
     readonly "modeEmbedded": string
-    /** 常駐 (notecored) */
+    /** 常駐 (notecored) に中継 */
     readonly "modeResident": string
-    /** 常駐へ切り替え中 (再起動待ち) */
-    readonly "modePending": string
     /** 接続中 */
     readonly "connected": string
     /** 未接続 */
     readonly "disconnected": string
     /** notecored の版がこのアプリと一致していません。notecored を更新してください。 */
     readonly "fingerprintMismatch": string
-    /** 前回の起動で切り替えを完了できませんでした: */
-    readonly "switchFailed": string
-    /** この OS では常駐に切り替えられません (Linux のみ)。 */
-    readonly "unsupported": string
-    /** notecored */
-    readonly "binary": string
-    /** notecored が見つかりません。次のコマンドで入れてから、このウィンドウを開き直してください: */
-    readonly "notFound": string
-    /** notecored の版 ({daemon}) がこのアプリ ({app}) と違います。notecored を更新してから切り替えてください。 */
-    readonly "versionMismatch": ParameterizedString<'app' | 'daemon'>
-    /** 常駐のコアに切り替える */
-    readonly "switchTitle": string
-    /** notecored の user サービスを用意し、Misskey のトークンと接続の secret を notecored の暗号化ファイルに複製します。保護は OS のキーチェーンより弱くなります。切り替えはアプリの再起動で完了します。 */
-    readonly "switchMessage": string
-    /** 常駐に切り替える */
-    readonly "switchOk": string
-    /** もう一度切り替える */
-    readonly "retry": string
-    /** やめて埋め込みのまま使う */
-    readonly "cancel": string
-    /** 切り替えをやめました。埋め込みのまま使います。 */
-    readonly "cancelled": string
-    /** アプリを再起動すると切り替えが完了します (再起動時に secret を取り込み、常駐サービスを有効化します)。 */
-    readonly "restartToFinish": string
-    /** {count} 件の secret を書き出しました。アプリを再起動すると常駐に切り替わります。 */
-    readonly "exportedRestart_plural": PluralString<'count'>
-    /** 埋め込みに戻す */
-    readonly "backTitle": string
-    /** 常駐の notecored を止め、secret をこのアプリの保管先に戻します。全部戻せたら notecored 側の複製は消します。切り替えはアプリの再起動で完了します。 */
-    readonly "backMessage": string
-    /** 埋め込みに戻す */
-    readonly "backOk": string
-    /** {count} 件の secret を戻しました。アプリを再起動すると埋め込みに切り替わります。 */
-    readonly "importedRestart_plural": PluralString<'count'>
-    /** {count} 件の secret がこのアプリの保管先に入りませんでした。notecored 側の secret は消していません。 */
-    readonly "backRemaining_plural": PluralString<'count'>
-    /** 診断 */
-    readonly "diagnostics": string
-    /** 常駐サービス */
-    readonly "serviceState": string
-    /** 動作中 */
-    readonly "serviceActive": string
-    /** 停止 */
-    readonly "serviceInactive": string
-    /** 未登録 (切り替え時に用意します) */
-    readonly "serviceNotInstalled": string
-    /** systemd の user セッションが見つかりません */
-    readonly "serviceUnavailable": string
-    /** systemd の user セッションが使えないため、常駐に切り替えられません。WSL2 なら wsl.conf で systemd を有効にしてください。 */
-    readonly "systemdUnavailable": string
-    /** XDG_RUNTIME_DIR が設定されていないため、常駐に切り替えられません (socket と移行パッケージの置き場です)。 */
-    readonly "runtimeDirMissing": string
-    /** 稼働 {minutes} 分 */
-    readonly "daemonUptime": ParameterizedString<'minutes'>
-    /** 接続端末 {devices} */
-    readonly "daemonDevices": ParameterizedString<'devices'>
-    /** HEARTBEAT {minutes} 分おき */
-    readonly "daemonHeartbeat": ParameterizedString<'minutes'>
+    /** 常駐に切り替える (手動) */
+    readonly "howToTitle": string
+    /** 常駐は Linux の systemd user サービスです。次のコマンドで notecored を有効にし、設定フォルダの client.json5 の backend を resident にしてアプリを再起動します。戻すときは embedded にします。 */
+    readonly "howTo": string
     /** ログアウト後も動かし続けるには loginctl enable-linger を設定します。 */
     readonly "lingerHint": string
-    /** notecored 側の secret */
-    readonly "secrets": string
-    /** あり */
-    readonly "secretsPresent": string
-    /** なし */
-    readonly "secretsAbsent": string
     /** ログを見るコマンドをコピー */
     readonly "copyJournal": string
     /** コピーしました */

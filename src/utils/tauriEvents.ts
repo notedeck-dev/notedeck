@@ -38,7 +38,6 @@ export interface TauriEventPayloads {
   /** クライアント層の状態 (常駐の notecored への接続 / 版 / 指紋の一致, #1106) */
   'nd:client-layer-state': ClientLayerState
   /** 常駐の notecored に繋ぎ直して購読を出し直した。デッキは復帰の catch-up を走らせる (#1106) */
-  'nd:client-layer-resumed': undefined
   // JS ↔ JS (ウィンドウ間 IPC)
   'deck:move-column': { columnId: string; targetWindowId: string | null }
   'deck:window-closed': { windowId: string }

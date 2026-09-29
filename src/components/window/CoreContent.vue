@@ -1,171 +1,38 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted } from 'vue'
 import { i18n } from '@/i18n'
 import { useClientLayerStore } from '@/stores/clientLayer'
-import { useConfirm } from '@/stores/confirm'
 import { useToast } from '@/stores/toast'
 
 /**
- * 「コア」設定 (#1106 段階 3a 順序 7): このデバイスが使うコアを、アプリに埋め込んだ
- * notecore と常駐の notecored の間で切り替える。切替はアプリの再起動で完了する。
- * 文言はすべて Rust の状態面 (coreStatus / clientLayerState) から組む。
+ * 「コア」の状態面 (#1106 案 B): AI 系のコマンドをこの端末で回しているか、常駐の
+ * notecored に中継しているかと、その接続の様子。データ面は常にこの端末で動く。
+ * 構成の切り替えは client.json5 と notecored の CLI で行い、ここでは表示だけ
+ * (sidecar の子プロセス化と「アプリを閉じても動かす」トグルは次の段)。
  */
 
 const store = useClientLayerStore()
-const { confirm } = useConfirm()
-const busy = ref(false)
-const notice = ref('')
-const errorMessage = ref('')
 
 onMounted(() => {
   store.start()
-  void store.refreshCore()
+  void store.refreshState()
 })
 
-const core = computed(() => store.core)
 const state = computed(() => store.state)
-const configured = computed(() => core.value?.configured ?? 'embedded')
-const supported = computed(() => core.value?.platformSupported ?? false)
-const found = computed(() => !!core.value?.notecoredPath)
-/** notecored の版がアプリと違う (指紋で繋げないので、切り替えの前に更新を促す) */
-const versionMismatch = computed(() => core.value?.versionMatch === false)
-/** systemd の user セッションが無い / runtime dir が無い → 常駐は動かない */
-const systemdUnavailable = computed(
-  () => core.value?.serviceState === 'unavailable',
-)
-const runtimeDirMissing = computed(
-  () => core.value !== null && !core.value.runtimeDirPresent,
-)
-const canSwitch = computed(
-  () =>
-    found.value &&
-    !versionMismatch.value &&
-    !systemdUnavailable.value &&
-    !runtimeDirMissing.value,
-)
+const resident = computed(() => state.value?.backend === 'resident')
 
-const serviceStateLabel = computed(() => {
-  switch (core.value?.serviceState) {
-    case 'active':
-      return i18n.ts._coreContent.serviceActive
-    case 'inactive':
-      return i18n.ts._coreContent.serviceInactive
-    case 'not_installed':
-      return i18n.ts._coreContent.serviceNotInstalled
-    case 'unavailable':
-      return i18n.ts._coreContent.serviceUnavailable
-    default:
-      return ''
-  }
-})
-
-/** 常駐中の notecored 自身の状態 (稼働時間 / 接続端末 / HEARTBEAT)。中継が繋がっているときだけ */
-const daemonSummary = computed(() => {
-  // JsonValue (再帰型) からの直接キャストは型の展開が深くなりすぎるので unknown を経由する
-  const d = core.value?.daemon as unknown as
-    | {
-        uptimeSeconds?: number
-        devices?: number
-        heartbeatIntervalMinutes?: number | null
-      }
-    | null
-    | undefined
-  if (!d) return ''
-  const parts = [
-    i18n.tsx._coreContent.daemonUptime({
-      minutes: Math.floor((d.uptimeSeconds ?? 0) / 60),
-    }),
-    i18n.tsx._coreContent.daemonDevices({ devices: d.devices ?? 0 }),
-  ]
-  if (d.heartbeatIntervalMinutes != null) {
-    parts.push(
-      i18n.tsx._coreContent.daemonHeartbeat({
-        minutes: d.heartbeatIntervalMinutes,
-      }),
-    )
-  }
-  return parts.join(' · ')
-})
-
-const modeLabel = computed(() => {
-  if (configured.value === 'resident') return i18n.ts._coreContent.modeResident
-  if (configured.value === 'pending-resident')
-    return i18n.ts._coreContent.modePending
-  return i18n.ts._coreContent.modeEmbedded
-})
+const modeLabel = computed(() =>
+  resident.value
+    ? i18n.ts._coreContent.modeResident
+    : i18n.ts._coreContent.modeEmbedded,
+)
 
 const connectionLabel = computed(() => {
-  if (!state.value || state.value.backend !== 'resident') return ''
-  return state.value.connected
+  if (!resident.value) return ''
+  return state.value?.connected
     ? i18n.ts._coreContent.connected
     : i18n.ts._coreContent.disconnected
 })
-
-function describeError(e: unknown): string {
-  if (typeof e === 'object' && e !== null && 'message' in e) {
-    return String((e as { message: unknown }).message)
-  }
-  return String(e)
-}
-
-async function run(action: () => Promise<string>): Promise<void> {
-  busy.value = true
-  errorMessage.value = ''
-  notice.value = ''
-  try {
-    notice.value = await action()
-  } catch (e) {
-    errorMessage.value = describeError(e)
-  } finally {
-    busy.value = false
-    await store.refreshCore()
-    await store.refreshState()
-  }
-}
-
-async function switchToResident(): Promise<void> {
-  const ok = await confirm({
-    title: i18n.ts._coreContent.switchTitle,
-    message: i18n.ts._coreContent.switchMessage,
-    okLabel: i18n.ts._coreContent.switchOk,
-    type: 'warning',
-  })
-  if (!ok) return
-  await run(async () => {
-    const summary = await store.switchToResident()
-    return i18n.tsx._coreContent.exportedRestart_plural({
-      count: summary.written.length,
-    })
-  })
-}
-
-async function switchToEmbedded(): Promise<void> {
-  const ok = await confirm({
-    title: i18n.ts._coreContent.backTitle,
-    message: i18n.ts._coreContent.backMessage,
-    okLabel: i18n.ts._coreContent.backOk,
-    type: 'warning',
-  })
-  if (!ok) return
-  await run(async () => {
-    const result = await store.switchToEmbedded()
-    if (result.remaining.length > 0) {
-      return i18n.tsx._coreContent.backRemaining_plural({
-        count: result.remaining.length,
-      })
-    }
-    return i18n.tsx._coreContent.importedRestart_plural({
-      count: result.imported.length,
-    })
-  })
-}
-
-async function cancelPending(): Promise<void> {
-  await run(async () => {
-    await store.cancelPending()
-    return i18n.ts._coreContent.cancelled
-  })
-}
 
 async function copyJournalHint(): Promise<void> {
   try {
@@ -187,101 +54,32 @@ async function copyJournalHint(): Promise<void> {
       <p :class="$style.mode">
         {{ modeLabel }}
         <span v-if="connectionLabel" :class="[$style.badge, state?.connected ? $style.badgeOk : $style.badgeBad]">{{ connectionLabel }}</span>
+        <span v-if="resident && state?.daemonVersion" :class="$style.hint">({{ state.daemonVersion }})</span>
       </p>
       <p :class="$style.hint">{{ i18n.ts._coreContent.description }}</p>
-      <p v-if="state?.backend === 'resident' && state.fingerprintMatch === false" :class="$style.warn">
+      <p v-if="resident && state?.fingerprintMatch === false" :class="$style.warn">
         {{ i18n.ts._coreContent.fingerprintMismatch }}
       </p>
-      <p v-if="state?.backend === 'resident' && state.lastError" :class="$style.hint">
+      <p v-if="resident && state?.lastError" :class="$style.hint">
         {{ state.lastError }}
       </p>
-      <p v-if="core?.switchError" :class="$style.warn">
-        {{ i18n.ts._coreContent.switchFailed }} {{ core.switchError }}
-      </p>
     </section>
 
-    <section v-if="!supported" :class="$style.section">
-      <p :class="$style.hint">{{ i18n.ts._coreContent.unsupported }}</p>
+    <section :class="$style.section">
+      <div :class="$style.sectionHeader">
+        <i class="ti ti-terminal-2" :class="$style.sectionIcon" />
+        <span :class="$style.sectionTitle">{{ i18n.ts._coreContent.howToTitle }}</span>
+      </div>
+      <p :class="$style.hint">{{ i18n.ts._coreContent.howTo }}</p>
+      <pre :class="$style.code">notecored service enable
+# settings/client.json5: { backend: "resident" }</pre>
+      <p :class="$style.hint">{{ i18n.ts._coreContent.lingerHint }}</p>
+      <div :class="$style.btnRow">
+        <button class="_button" type="button" :class="$style.secondaryBtn" @click="copyJournalHint">
+          {{ i18n.ts._coreContent.copyJournal }}
+        </button>
+      </div>
     </section>
-
-    <template v-else>
-      <section :class="$style.section">
-        <div :class="$style.sectionHeader">
-          <i class="ti ti-package" :class="$style.sectionIcon" />
-          <span :class="$style.sectionTitle">{{ i18n.ts._coreContent.binary }}</span>
-        </div>
-        <p v-if="found" :class="$style.hint">
-          <code>{{ core?.notecoredPath }}</code>
-          <span v-if="core?.notecoredVersion"> ({{ core.notecoredVersion }})</span>
-        </p>
-        <p v-if="found && versionMismatch" :class="$style.warn">
-          {{ i18n.tsx._coreContent.versionMismatch({ daemon: core?.notecoredVersion ?? '?', app: core?.appVersion ?? '?' }) }}
-        </p>
-        <p v-if="systemdUnavailable" :class="$style.warn">{{ i18n.ts._coreContent.systemdUnavailable }}</p>
-        <p v-if="runtimeDirMissing" :class="$style.warn">{{ i18n.ts._coreContent.runtimeDirMissing }}</p>
-        <template v-else>
-          <p :class="$style.hint">{{ i18n.ts._coreContent.notFound }}</p>
-          <pre :class="$style.code">nix profile add 'github:notedeck-dev/notedeck#notecored'</pre>
-        </template>
-      </section>
-
-      <section :class="$style.section">
-        <div :class="$style.btnRow">
-          <button
-            class="_button"
-            v-if="configured === 'embedded'"
-            type="button"
-            :class="$style.actionBtn"
-            :disabled="busy || !canSwitch"
-            @click="switchToResident"
-          >
-            {{ i18n.ts._coreContent.switchOk }}
-          </button>
-          <template v-else-if="configured === 'pending-resident'">
-            <button class="_button" type="button" :class="$style.actionBtn" :disabled="busy || !canSwitch" @click="switchToResident">
-              {{ i18n.ts._coreContent.retry }}
-            </button>
-            <button class="_button" type="button" :class="$style.secondaryBtn" :disabled="busy" @click="cancelPending">
-              {{ i18n.ts._coreContent.cancel }}
-            </button>
-          </template>
-          <button
-            class="_button"
-            v-else
-            type="button"
-            :class="$style.dangerBtn"
-            :disabled="busy || !found"
-            @click="switchToEmbedded"
-          >
-            {{ i18n.ts._coreContent.backOk }}
-          </button>
-        </div>
-        <p v-if="configured === 'pending-resident' && !core?.switchError" :class="$style.hint">
-          {{ i18n.ts._coreContent.restartToFinish }}
-        </p>
-        <p v-if="notice" :class="$style.notice">{{ notice }}</p>
-        <p v-if="errorMessage" :class="$style.warn">{{ errorMessage }}</p>
-      </section>
-
-      <section v-if="found" :class="$style.section">
-        <div :class="$style.sectionHeader">
-          <i class="ti ti-stethoscope" :class="$style.sectionIcon" />
-          <span :class="$style.sectionTitle">{{ i18n.ts._coreContent.diagnostics }}</span>
-        </div>
-        <p :class="$style.hint">
-          {{ i18n.ts._coreContent.serviceState }}: {{ serviceStateLabel }}
-          · {{ i18n.ts._coreContent.secrets }}:
-          {{ core?.secretsPresent ? i18n.ts._coreContent.secretsPresent : i18n.ts._coreContent.secretsAbsent }}
-        </p>
-        <p v-if="daemonSummary" :class="$style.hint">{{ daemonSummary }}</p>
-        <p :class="$style.hint">{{ i18n.ts._coreContent.lingerHint }}</p>
-        <div :class="$style.btnRow">
-          <button class="_button" type="button" :class="$style.secondaryBtn" @click="copyJournalHint">
-            {{ i18n.ts._coreContent.copyJournal }}
-          </button>
-        </div>
-      </section>
-    </template>
   </div>
 </template>
 
@@ -354,12 +152,6 @@ async function copyJournalHint(): Promise<void> {
   margin: 0;
 }
 
-.notice {
-  font-size: 0.85em;
-  color: var(--nd-fg);
-  margin: 0;
-}
-
 .warn {
   font-size: 0.8em;
   color: var(--nd-error, #ec4137);
@@ -384,16 +176,7 @@ async function copyJournalHint(): Promise<void> {
   gap: 8px;
 }
 
-// 隣の設定ウィンドウ (バックアップ / キャッシュ / 権限) と同じ見た目に揃える
-.actionBtn {
-  @include btn-action;
-}
-
 .secondaryBtn {
   @include btn-action;
-}
-
-.dangerBtn {
-  @include btn-danger-ghost;
 }
 </style>

@@ -1,6 +1,8 @@
-//! `notecored run`: notecore を headless に組み立てて常駐する。Tauri アプリの
-//! 起動手順 (Phase 1 / 2) と同じ順で、デバイス依存の物 (ウィンドウ / トレイ /
-//! OS 通知 / WebView) だけが無い。
+//! `notecored run`: notemaid (AI) を headless に常駐させる (#1106 案 B の途中段階)。
+//! 常駐するのはエージェントループ / HEARTBEAT と AI 系コマンドの RPC 面だけで、
+//! データ面 (ストリーミング / クエリランタイム / OGP / 画像キャッシュ / 公開 HTTP API)
+//! は持たない (デバイスのアプリが持つ)。notes DB を開くのは資格情報とキャッシュ読みの
+//! ための暫定で、鍵と口座一覧をデバイスから受ける段で閉じる。
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -30,13 +32,11 @@ pub fn run(args: RunArgs) -> i32 {
     logging::init(logging::resolve(args.log), &data_dir);
     tracing::info!(data_dir = %data_dir.display(), version = env!("CARGO_PKG_VERSION"), "notecored starting");
 
-    // ロック: 同じ data-dir で notecore を動かすのは 1 プロセスだけ
+    // ロック: 同じ data-dir で notecored を動かすのは 1 プロセスだけ (アプリとは併存する)
     let _lock = match lock::acquire(&data_dir) {
         Ok(l) => l,
         Err(lock::LockError::Held) => {
-            tracing::error!(
-                "another notecore is running on this data directory (app embedded or notecored)"
-            );
+            tracing::error!("another notecored is running on this data directory");
             return exit::LOCK_HELD;
         }
         Err(lock::LockError::Io(e)) => {
@@ -110,10 +110,10 @@ pub fn run(args: RunArgs) -> i32 {
             return exit::FAILURE;
         }
     };
-    runtime.block_on(serve(args, data_dir, socket))
+    runtime.block_on(serve(data_dir, socket))
 }
 
-async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::PathBuf) -> i32 {
+async fn serve(data_dir: std::path::PathBuf, socket: std::path::PathBuf) -> i32 {
     let started = Instant::now();
     notecore::crash_report::install_panic_hook(data_dir.join("logs"));
     notecore::permissions_gate::init(&data_dir.join(notecore::commands::settings::SETTINGS_DIR));
@@ -164,47 +164,13 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
                 }
                 if change.name == notemaid::ai_config::FILE_NAME {
                     timer_for_sink.reconfigure(core_for_timer.clone());
-                } else if change.name == notecore::stream_mode::SETTINGS_FILE {
-                    // 接続モードはアプリが居なくても notecored が適用する
-                    let core = core_for_timer.clone();
-                    tokio::spawn(async move { notecore::stream_mode::apply(&core, false).await });
                 }
             }),
         }));
     }
-    core.set_hint_sink(Arc::new(sinks::Hints(events.clone())));
-
-    let image_cache = Arc::new(notecore::image_cache::ImageCache::with_client(
-        &data_dir,
-        http.clone(),
-        perf.clone(),
-    ));
-    core.set_image_cache(image_cache.clone());
-    let warmer = notecore::media_warm::MediaWarmer::new(image_cache.clone());
-    core.set_media_warmer(warmer.clone());
-    tokio::spawn(async move { warmer.spawn_workers() });
-
     let shutdown = Arc::new(notecore::shutdown::Shutdown::new(
         tokio::runtime::Handle::current(),
     ));
-    {
-        let cache = image_cache.clone();
-        shutdown.spawn(async move {
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            loop {
-                cache.sweep_disk().await;
-                tokio::time::sleep(Duration::from_secs(6 * 3600)).await;
-            }
-        });
-    }
-
-    let query_runtime = Arc::new(notecore::query_runtime::QueryRuntime::default());
-    core.set_query_runtime(query_runtime.clone());
-    shutdown.spawn(sinks::run_delta_flusher(
-        query_runtime.clone(),
-        events.clone(),
-    ));
-    let event_bus = Arc::new(notecli::event_bus::EventBus::new());
 
     // DB と Misskey クライアント
     let db = match notecli::db::Database::open(&data_dir.join("notecli.db")) {
@@ -223,70 +189,8 @@ async fn serve(args: RunArgs, data_dir: std::path::PathBuf, socket: std::path::P
     };
     notecore::migrations::run_db(&db);
     core.initialize_db(db.clone());
-    {
-        let db = db.clone();
-        std::thread::spawn(move || {
-            while db
-                .backfill_identity_chunk(2000)
-                .map(|n| n > 0)
-                .unwrap_or(false)
-            {
-                std::thread::sleep(Duration::from_millis(20));
-            }
-        });
-    }
-    notecore::commands::export_account_list(&core, &db);
-    let streaming = Arc::new(notecli::streaming::StreamingManager::new(
-        Arc::new(sinks::StreamEmitter {
-            runtime: query_runtime.clone(),
-            events: events.clone(),
-            observation: core.stream_observation().clone(),
-        }),
-        event_bus.clone(),
-        db.clone(),
-    ));
-    core.set_streaming(streaming);
     core.initialize(db.clone(), client.clone());
-    core.set_ogp(notecore::ogp::OgpCache::with_client(
-        db.clone(),
-        http.clone(),
-        perf.clone(),
-    ));
     timer.reconfigure(core.clone());
-    notecore::stream_mode::apply(&core, true).await;
-
-    // 公開 API 面は既定 off
-    if args.api {
-        match notecore::http_server::bind().await {
-            Some(server) => {
-                let api_token = new_secret();
-                let token_path = data_dir.join("api-token");
-                if let Err(e) = write_private(&token_path, &api_token) {
-                    tracing::warn!("api token write failed: {e}");
-                }
-                let config = notecore::http_server::ServeConfig {
-                    server,
-                    app_version: env!("CARGO_PKG_VERSION").to_string(),
-                    bridge: Arc::new(SessionBridge(sessions.clone())),
-                    db: Some(db.clone()),
-                    client: Some(client.clone()),
-                    event_bus: event_bus.clone(),
-                    api_token,
-                    api_token_store: Arc::new(notecore::api_tokens::ApiTokenStore::load(&data_dir)),
-                    token_path: token_path.display().to_string(),
-                    log_dir: Some(data_dir.join("logs").display().to_string()),
-                    image_cache: image_cache.clone(),
-                    media_proxy_token: notecore::http_server::MediaProxyToken(new_secret()),
-                    perf: perf.clone(),
-                    shutdown: shutdown.token(),
-                };
-                let (ready_tx, _ready_rx) = tokio::sync::oneshot::channel();
-                tokio::spawn(notecore::http_server::serve(config, ready_tx));
-                tracing::info!("public API surface enabled");
-            }
-            None => tracing::warn!("public API surface could not bind; continuing without it"),
-        }
-    }
 
     // RPC 面
     let secret = new_secret();
@@ -355,16 +259,4 @@ async fn wait_for_signal() {
         _ = term.recv() => {}
         _ = tokio::signal::ctrl_c() => {}
     }
-}
-
-fn write_private(path: &std::path::Path, content: &str) -> std::io::Result<()> {
-    use std::io::Write;
-    use std::os::unix::fs::OpenOptionsExt;
-    let mut f = std::fs::OpenOptions::new()
-        .write(true)
-        .create(true)
-        .truncate(true)
-        .mode(0o600)
-        .open(path)?;
-    f.write_all(content.as_bytes())
 }
