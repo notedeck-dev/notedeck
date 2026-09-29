@@ -53,6 +53,8 @@ export interface AiTurnSessionPort {
   setLocalMessages(id: string, messages: ChatMessage[]): void
   /** 確定分を notecore から読み直して写しを揃える */
   reload(id: string): Promise<void>
+  /** 送信済みの書込 (作成 / 改名) が notecore に届くまで待つ。無ければ即座に返る */
+  settled?(id: string): Promise<void>
   /** メッセージを id で取り除く (notecore にも送る) */
   removeMessages(id: string, messageIds: readonly string[]): void
 }
@@ -498,8 +500,11 @@ export function useAiTurn(deps: AiTurnDeps) {
 
       // Subscribe BEFORE invoking, so we never miss the first delta.
       listenTauri('nd:ai-turn-event', onEvent)
-        .then((un) => {
+        .then(async (un) => {
           activeUnlisten = un
+          // 作成 / 改名が notecore に届く前にターンが書き始めないよう待つ
+          // (別プロセスの notemaid では要求ごとに task が分かれ、順序が保証されない)
+          await deps.sessions.settled?.(req.sessionId)
           return commands.aiTurnRun({
             turn_id: turnId,
             session_id: req.persist === false ? null : req.sessionId,

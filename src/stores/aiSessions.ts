@@ -59,6 +59,37 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
   }
 
   /**
+   * 書込操作の応答で本体の情報 (updatedAt / title など) だけを取り込む。
+   * メッセージは写しの側を残す: 別プロセスの notemaid では応答が遅れて届くので、
+   * 進行中のターンが写しに載せた user / placeholder / ストリーミング本文を
+   * 消してしまう (#1106)。確定分はターンの終わりの `reload` で揃える
+   */
+  function absorbMeta(wire: Parameters<typeof sessionFromWire>[0]): void {
+    const session = sessionFromWire(wire)
+    const cur = sessions.value.get(session.id)
+    if (!cur) {
+      commit(session)
+      return
+    }
+    commit({
+      ...session,
+      messages: cur.messages,
+      messageCount: cur.messageCount,
+      lastMessagePreview: cur.lastMessagePreview,
+    })
+  }
+
+  /** セッションごとの送信中の書込 (`settled` が待つ) */
+  const pending = new Map<string, Set<Promise<unknown>>>()
+
+  /** 送った書込が notecore に届くまで待つ。ターンを始める前に呼ぶ (作成より先にターンが書かないように) */
+  async function settled(id: string): Promise<void> {
+    const set = pending.get(id)
+    if (!set || set.size === 0) return
+    await Promise.all([...set])
+  }
+
+  /**
    * 全セッションを notecore から一括ロード。失敗は warn (メモリ上の写しは
    * そのまま)。Tauri の外 (ブラウザ開発) ではメモリだけで動く。
    */
@@ -105,6 +136,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
 
   /** notecore への操作。失敗は warn に残し、写しは楽観的更新のまま。 */
   function send(
+    id: string,
     label: string,
     op: () => Promise<
       | { status: 'ok'; data: Parameters<typeof sessionFromWire>[0] }
@@ -112,13 +144,24 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
     >,
   ): void {
     if (!isTauri) return
-    void op()
+    const p = op()
       .then((res) => {
-        absorb(unwrap(res))
+        absorbMeta(unwrap(res))
       })
       .catch((e) => {
         console.warn(`[ai-sessions] ${label} failed:`, e)
       })
+      .finally(() => {
+        const set = pending.get(id)
+        set?.delete(p)
+        if (set && set.size === 0) pending.delete(id)
+      })
+    let set = pending.get(id)
+    if (!set) {
+      set = new Set()
+      pending.set(id, set)
+    }
+    set.add(p)
   }
 
   /**
@@ -152,7 +195,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
       personaSkillId: opts.personaSkillId || undefined,
     }
     commit(session)
-    send('create', () =>
+    send(id, 'create', () =>
       commands.aiSessionCreate({
         id,
         kind: session.kind,
@@ -185,7 +228,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
       messageCount: next.length,
       updatedAt: Date.now(),
     })
-    send('append', () =>
+    send(id, 'append', () =>
       commands.aiSessionAppend(id, messages.map(messageToWire)),
     )
   }
@@ -205,7 +248,9 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
       messages: cur.messages.filter((m) => !messageIds.includes(m.id)),
       updatedAt: Date.now(),
     })
-    send('remove', () => commands.aiSessionRemoveMessages(id, [...messageIds]))
+    send(id, 'remove', () =>
+      commands.aiSessionRemoveMessages(id, [...messageIds]),
+    )
   }
 
   /**
@@ -235,7 +280,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
     // 利用者が付けた名前なので、定型タイトルの手がかりは捨てる (notecore と同じ, #135)
     const { i18n: _templateTitle, ...rest } = cur
     commit({ ...rest, title, updatedAt: Date.now() })
-    send('rename', () => commands.aiSessionRename(id, title))
+    send(id, 'rename', () => commands.aiSessionRename(id, title))
   }
 
   /**
@@ -256,7 +301,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
     }
     if (merged.length === (cur.triggeredSkillIds?.length ?? 0)) return
     commit({ ...cur, triggeredSkillIds: merged, updatedAt: Date.now() })
-    send('add-triggered-skills', () =>
+    send(id, 'add-triggered-skills', () =>
       commands.aiSessionAddTriggeredSkills(id, [...skillIds]),
     )
   }
@@ -283,6 +328,7 @@ export const useAiSessionsStore = defineStore('aiSessions', () => {
     replaceMessage,
     removeMessages,
     setLocalMessages,
+    settled,
     reload,
     setTitle,
     addTriggeredSkillIds,

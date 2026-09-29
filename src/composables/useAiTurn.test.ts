@@ -220,6 +220,27 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
     expect(listeners).toHaveLength(0)
   })
 
+  it('セッションへの書込が届くまで notecore にターンを投げない (#1106)', async () => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>((r) => {
+      release = r
+    })
+    const sessions = Object.assign(memorySessions(), {
+      settled: async (id: string) => {
+        if (id === 's1') await gate
+      },
+    })
+    const turn = useAiTurn({ sessions })
+    const outcome = turn.run(baseRequest())
+    await flush()
+    expect(aiTurnRun).not.toHaveBeenCalled()
+    release()
+    await flush()
+    expect(aiTurnRun).toHaveBeenCalledTimes(1)
+    emit({ kind: 'done', text: 'ok', stop_reason: 'end' })
+    await outcome
+  })
+
   it('title イベントは onTitle に渡る', async () => {
     const sessions = memorySessions()
     const turn = useAiTurn({ sessions })
