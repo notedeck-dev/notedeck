@@ -30,6 +30,7 @@ pub mod commands;
 pub mod daemon;
 pub mod exec;
 pub mod heartbeat;
+pub mod heartbeat_schedule;
 pub mod memos;
 pub mod sinks;
 pub mod skills;

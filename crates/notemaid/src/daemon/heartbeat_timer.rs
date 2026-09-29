@@ -1,5 +1,5 @@
 //! HEARTBEAT の timer (Tauri の HeartbeatScheduler に相当)。設定は ai.json5 から読み、
-//! 変更通知で組み直す。tick ごとに notecore の run_once を呼ぶ。
+//! 変更通知で組み直す。刻み方 (実時計の期限 / スリープからの復帰) は `heartbeat_schedule`。
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -34,12 +34,11 @@ impl HeartbeatTimer {
             h.abort();
         }
         let handle = tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(Duration::from_secs(u64::from(interval) * 60));
-            ticker.tick().await;
-            loop {
-                ticker.tick().await;
-                crate::heartbeat::run_once(&core, "scheduled").await;
-            }
+            crate::heartbeat_schedule::run(Duration::from_secs(u64::from(interval) * 60), |due| {
+                let core = core.clone();
+                async move { crate::heartbeat::run_due(&core, due).await }
+            })
+            .await;
         });
         tracing::info!(interval_minutes = interval, "[heartbeat] timer configured");
         *slot = Some((interval, handle));

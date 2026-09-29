@@ -57,15 +57,17 @@ impl HeartbeatScheduler {
         }
 
         let app_for_task = app.clone();
+        // 刻み方 (実時計の期限 / スリープからの復帰で 1 回) は notemaid と同じ規則
         let handle = tauri::async_runtime::spawn(async move {
             let dur = Duration::from_secs(u64::from(interval_minutes) * 60);
-            let mut ticker = tokio::time::interval(dur);
-            // 初回 tick は drop (起動直後の意図しない発火を避ける)
-            ticker.tick().await;
-            loop {
-                ticker.tick().await;
-                run_tick(&app_for_task, "scheduled").await;
-            }
+            notemaid::heartbeat_schedule::run(dur, |due| {
+                let app = app_for_task.clone();
+                async move {
+                    let core = app.state::<crate::commands::AppState>();
+                    notemaid::heartbeat::run_due(&core, due).await;
+                }
+            })
+            .await;
         });
 
         *slot = Some(ScheduledTask {
@@ -94,12 +96,6 @@ impl HeartbeatScheduler {
             .ok()
             .and_then(|slot| slot.as_ref().map(|t| t.interval_minutes))
     }
-}
-
-/// tick の本体は notecore。実行中なら notecore 側で捨てる
-async fn run_tick(app: &tauri::AppHandle, source: &str) {
-    let core = app.state::<crate::commands::AppState>();
-    notemaid::heartbeat::run_once(&core, source).await;
 }
 
 fn clamp_interval(minutes: u32) -> Result<u32> {
