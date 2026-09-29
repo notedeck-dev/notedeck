@@ -324,15 +324,14 @@ crates/notecore/src/        # notecore (Tauri 非依存のデータ領域、#110
 ├── frontend_bridge.rs  # HTTP API → 手元側 (WebView / managed state) の問い合わせ口 trait
 ├── perf_config.rs      # パフォーマンス設定 (Rust 側)
 ├── clock.rs            # now_ms (notemaid のセッション / メモと notecore のテーマ / サイドカーが同じ時計を使う)
-├── status_providers.rs # 状態面の差し込み口 (notemaid が HEARTBEAT の snapshot を登録し、公開 HTTP API が引く)
 ├── capabilities/       # capability の宣言表 (generated.rs、認可と HTTP API が参照する語彙)。実行は notemaid
 
 crates/notemaid/src/        # notemaid (AI、#1106)。notecore の上に載り、データ面 (notes DB / ストリーミング) には依存しない
-├── lib.rs                  # モジュール一覧、install (状態面への差し込み)
+├── lib.rs                  # モジュール一覧
 ├── main.rs                 # バイナリの入口 (`daemon` feature): run / status / service / secrets
 ├── daemon/                 # 別プロセスの本体: run (Core の組み立て / HEARTBEAT timer / RPC 面)、rpc_server、sinks、service (systemd)、lock、logging、exit
 ├── transport.rs            # アプリ ⇄ notemaid の経路 (Unix socket / Windows named pipe)、既定の場所と子プロセスの場所
-├── sinks.rs                # CoreMaidExt: AI 側の sink (AiChatSink / AiTurnSink / HeartbeatSink / CoreExecutor) を Core の拡張スロットに吊るす
+├── sinks.rs                # CoreMaidExt: Core の EventSink (名前 + JSON、notecore の型) を AI 側の 3 つの sink の形で引く薄い変換
 ├── commands/               # AI 系のコマンド表 (table.rs) と本体 (ai_chat.rs / ai_sessions.rs / heartbeat.rs)。生成器は notecore の define_command_table!
 ├── ai_turn/                # ターン実行器 (#1133): ラウンドの反復 / 確認 / 汚染 / チェックポイント
 ├── exec/                   # `exec: core` な capability の本体と確認プレビュー

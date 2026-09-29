@@ -30,14 +30,7 @@ pub async fn ai_chat_cancel(_core: &Core, stream_id: String) -> Result<()> {
 /// AI エージェントのターン (#1133) を開始する。即座に返り、以後のイベントは
 /// `nd:ai-turn-event` に流れる。tool の実行はデバイスへの実行要求 (橋) で行う。
 pub async fn ai_turn_run(core: &Core, req: AiTurnRequest) -> Result<()> {
-    ai_turn::start_turn(
-        req,
-        core.app_dir()?,
-        core.frontend_bridge()?,
-        core.ai_turn_sink()?,
-        core.core_executor()?,
-    )
-    .await
+    ai_turn::start_turn(core, req).await
 }
 
 /// 進行中のターンを中断する。冪等。確認待ちなら要求を cancelled で閉じる。

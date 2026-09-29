@@ -98,7 +98,7 @@ impl HeartbeatScheduler {
 
 /// tick の本体は notecore。実行中なら notecore 側で捨てる
 async fn run_tick(app: &tauri::AppHandle, source: &str) {
-    let core = app.state::<notecore::context::Core>();
+    let core = app.state::<crate::commands::AppState>();
     notemaid::heartbeat::run_once(&core, source).await;
 }
 

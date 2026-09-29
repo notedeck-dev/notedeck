@@ -269,7 +269,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         notemaid::heartbeat::restore_status(&app_dir);
 
         // AppState: empty wrapper — commands await until Phase 2 fills it
-        let app_state = commands::AppState::new();
+        let app_state = notecore::context::Core::new_shared();
         app_state.set_app_dir(app_dir.clone());
         app_state.set_app_version(env!("CARGO_PKG_VERSION").to_string());
         app.manage(app_state);
@@ -335,7 +335,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 let app = sync_handle.clone();
                 tauri::async_runtime::spawn(async move {
                     let Some(relay) = client_layer::relay() else { return };
-                    let core = app.state::<notecore::context::Core>();
+                    let core = app.state::<commands::AppState>();
                     // 口座の行をそのまま写す (トークン列を含む)。キーチェーンが使える環境では列は空で
                     // notemaid もキーチェーンから読む。無い環境 (WSL2 など) ではこの列が唯一の経路で、
                     // アプリ自身の DB と同じ保護水準 (同じデータディレクトリ、同じユーザー)
@@ -380,16 +380,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .build()?;
         app.manage(shared_http.clone());
         app.state::<commands::AppState>().set_http(shared_http.clone());
-            use notemaid::CoreMaidExt;
-            notemaid::install(&app.state::<notecore::context::Core>());
-        app.state::<notecore::context::Core>()
-            .set_ai_event_sink(std::sync::Arc::new(commands::TauriAiEvents(app.handle().clone())));
+        app.state::<commands::AppState>()
+            .set_event_sink(std::sync::Arc::new(commands::TauriAiEvents(app.handle().clone())));
         // ターン実行器 (#1133) が capability の実行要求を WebView に投げる口。
         // HTTP サーバー (Phase 2) と同じ橋の実装
         app.state::<commands::AppState>()
             .set_frontend_bridge(std::sync::Arc::new(query_bridge::TauriBridge(app.handle().clone())));
-        app.state::<commands::AppState>()
-            .set_core_executor(std::sync::Arc::new(commands::TauriCoreExecutor(app.handle().clone())));
         app.state::<commands::AppState>()
             .set_settings_sink(std::sync::Arc::new(commands::TauriSettingsSink(app.handle().clone())));
 
@@ -653,6 +649,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         media_proxy_token,
                         perf: shared_perf_bg,
                         shutdown: shutdown_token,
+                            ai_status: std::sync::Arc::new(notemaid::heartbeat::status_json),
                     }, ready_tx)
                     .await;
                 });

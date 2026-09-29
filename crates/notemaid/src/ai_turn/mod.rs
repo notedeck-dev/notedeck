@@ -49,6 +49,7 @@ use crate::ai_chat_service::{
 };
 use crate::ai_config;
 use crate::ai_sessions::{self, SessionMessage};
+use crate::sinks::CoreMaidExt;
 use notecli::error::NoteDeckError;
 use notecore::capabilities;
 use notecore::error::Result;
@@ -298,30 +299,8 @@ impl ProviderRound for VaultProvider {
     }
 }
 
-/// 失敗したラウンドの本文 (途中までの応答 + ⚠️ エラー)。エラーに手がかりがあれば、
-/// 本文も表示言語で描き直せるように手がかりを付ける (#135)
-fn error_message(id: String, partial: &str, err: &ai_chat_service::RoundError) -> SessionMessage {
-    let t = if partial.is_empty() {
-        notecore::i18n::text(
-            "_native.ai.errorContent",
-            json!({ "error": err.as_param() }),
-        )
-    } else {
-        notecore::i18n::text(
-            "_native.ai.errorContentAfter",
-            json!({ "partial": partial, "error": err.as_param() }),
-        )
-    };
-    let mut msg = session_message(id, "assistant", t.text);
-    if err.i18n.is_some() {
-        msg.i18n = Some(json!({ "content": t.i18n }));
-    }
-    msg
-}
-
-/// `exec: core` な capability を notecore で実行する口。ローカル構成では
-/// Tauri 側が managed state の Core を引いて `crate::exec::execute` を呼ぶ
-/// 実装を渡し、notemaid は Core を直接持つ実装を渡す。
+/// `exec: core` な capability の実行口。本番は `Core` 自身がこれを実装し (`crate::exec` を呼ぶ)、
+/// テストは台本を差す。アプリ / 別プロセスが実装を渡すことはない (ターン実行器は Core を直接持つ)。
 pub trait CoreExecutor: Send + Sync + 'static {
     fn execute<'a>(
         &'a self,
@@ -341,10 +320,7 @@ pub trait CoreExecutor: Send + Sync + 'static {
     }
 }
 
-/// notecore が Core を所有する構成 (headless / notemaid) の CoreExecutor。
-pub struct LocalCoreExecutor(pub Arc<notecore::context::Core>);
-
-impl CoreExecutor for LocalCoreExecutor {
+impl CoreExecutor for notecore::context::Core {
     fn execute<'a>(
         &'a self,
         id: &'a str,
@@ -352,7 +328,7 @@ impl CoreExecutor for LocalCoreExecutor {
         ctx: crate::exec::ExecContext,
     ) -> BoxFuture<'a, std::result::Result<crate::exec::ExecOutcome, String>> {
         Box::pin(async move {
-            crate::exec::execute(&self.0, id, params, &ctx)
+            crate::exec::execute(self, id, params, &ctx)
                 .await
                 .map_err(|e| e.to_string())
         })
@@ -365,11 +341,32 @@ impl CoreExecutor for LocalCoreExecutor {
         ctx: crate::exec::ExecContext,
     ) -> BoxFuture<'a, std::result::Result<Option<Value>, String>> {
         Box::pin(async move {
-            crate::exec::preview(&self.0, id, params, &ctx)
+            crate::exec::preview(self, id, params, &ctx)
                 .await
                 .map_err(|e| e.to_string())
         })
     }
+}
+
+/// 失敗したラウンドの本文 (途中までの応答 + ⚠️ エラー)。エラーに手がかりがあれば、
+/// 本文も表示言語で描き直せるように手がかりを付ける (#135)
+fn error_message(id: String, partial: &str, err: &ai_chat_service::RoundError) -> SessionMessage {
+    let t = if partial.is_empty() {
+        notecore::i18n::text(
+            "_native.ai.errorContent",
+            json!({ "error": err.as_param() }),
+        )
+    } else {
+        notecore::i18n::text(
+            "_native.ai.errorContentAfter",
+            json!({ "partial": partial, "error": err.as_param() }),
+        )
+    };
+    let mut msg = session_message(id, "assistant", t.text);
+    if err.i18n.is_some() {
+        msg.i18n = Some(json!({ "content": t.i18n }));
+    }
+    msg
 }
 
 /// principal の実効 granted の供給元。tool 一覧の組み立てと tool 呼び出しごとに
@@ -967,8 +964,8 @@ pub struct TurnRuntime {
     pub policy: confirm::ConfirmPolicy,
     pub sessions: Arc<dyn SessionSink>,
     pub taint: Arc<dyn taint::TaintStore>,
-    /// `exec: core` の本体。None なら core の capability もデバイスに投げる
-    /// (ハーネスの既定)
+    /// `exec: core` の本体 (本番は Core 自身、テストは台本)。None なら core の capability も
+    /// デバイスに投げる (ハーネスの既定)
     pub core: Option<Arc<dyn CoreExecutor>>,
     /// 接続の日次 token 予算 (None = 無制限)。台帳は `store_dir` (#1133 縦切り 6)
     pub budget: Option<u64>,
@@ -1703,25 +1700,21 @@ pub(crate) fn spawn_drive(rt: Arc<TurnRuntime>, state: TurnState) {
 
 /// ターンを開始する。入力検証と接続解決はここで行い (エラーは呼び出し元へ)、
 /// 本体は background task。以後のイベントは sink に流れる。
-pub async fn start_turn(
-    req: AiTurnRequest,
-    app_dir: &Path,
-    bridge: Arc<dyn FrontendBridge>,
-    sink: Arc<dyn AiTurnSink>,
-    core_executor: Arc<dyn CoreExecutor>,
-) -> Result<()> {
-    start_turn_with_sink(req, app_dir, bridge, sink, core_executor).await
+pub async fn start_turn(core: &notecore::context::Core, req: AiTurnRequest) -> Result<()> {
+    let sink = core.ai_turn_sink()?;
+    start_turn_with_sink(core, req, sink).await
 }
 
 /// `start_turn` と同じだが、イベントの届け先を呼び出し側が差す (HEARTBEAT daemon
 /// のように notecore 内でターンの完了を待つ用途)。
 pub async fn start_turn_with_sink(
+    core: &notecore::context::Core,
     req: AiTurnRequest,
-    app_dir: &Path,
-    bridge: Arc<dyn FrontendBridge>,
     sink: Arc<dyn AiTurnSink>,
-    core_executor: Arc<dyn CoreExecutor>,
 ) -> Result<()> {
+    let app_dir = core.app_dir()?;
+    let bridge = core.frontend_bridge()?;
+    let shared = core.shared()?;
     if req.turn_id.trim().is_empty() {
         return Err(NoteDeckError::InvalidInput("turn_id is empty".into()));
     }
@@ -1748,7 +1741,7 @@ pub async fn start_turn_with_sink(
             app_dir.join(notecore::commands::settings::SETTINGS_DIR),
         )),
         taint: Arc::new(taint::FileTaint::new(app_dir)),
-        core: Some(core_executor),
+        core: Some(shared),
         budget: ai_config::load_from_app_dir(app_dir).daily_budget_for(&req.connection_id),
     });
     begin_turn(rt, req)
@@ -2003,19 +1996,6 @@ mod tests {
                 .iter()
                 .map(|(_, m)| m.clone())
                 .collect()
-        }
-    }
-
-    /// core 実行を持たない偽 executor (start_turn の入力検証テスト用)
-    struct NoCore;
-    impl CoreExecutor for NoCore {
-        fn execute<'a>(
-            &'a self,
-            _id: &'a str,
-            _params: Value,
-            _ctx: crate::exec::ExecContext,
-        ) -> BoxFuture<'a, std::result::Result<crate::exec::ExecOutcome, String>> {
-            Box::pin(async { Err("no core".into()) })
         }
     }
 
@@ -3068,9 +3048,10 @@ mod tests {
         let sink = Arc::new(RecordingSink::default());
         let mut req = request();
         req.principal = "external".into();
-        let err = start_turn(req, dir.path(), device, sink, Arc::new(NoCore))
-            .await
-            .unwrap_err();
+        let core = notecore::context::Core::new_shared();
+        core.set_app_dir(dir.path().to_path_buf());
+        core.set_frontend_bridge(device);
+        let err = start_turn_with_sink(&core, req, sink).await.unwrap_err();
         assert!(err.to_string().contains("principal"));
     }
 }

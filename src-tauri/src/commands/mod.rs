@@ -34,7 +34,8 @@ pub(crate) use crate::error::Result;
 
 pub use notecore::commands::export_account_list;
 /// notecore の実行文脈。旧 `AppState` (二段階初期化) はそのまま notecore へ移った。
-pub use notecore::context::Core as AppState;
+/// managed state は `Arc<Core>` (長生きする task が `Core::shared()` で自分の Arc を取れる)
+pub type AppState = std::sync::Arc<notecore::context::Core>;
 
 /// タイムライン取得時の OGP 先読み結果を WebView へ `nd:ogp-hints` で流す。
 pub struct TauriHintSink(pub tauri::AppHandle);

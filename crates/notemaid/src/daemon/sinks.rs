@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::sinks::AiEventSink;
+use notecore::context::EventSink;
 use notecore::rpc::Frame;
 use notecore::settings_events::{SettingsChange, SettingsSink};
 use serde::Serialize;
@@ -39,7 +39,7 @@ impl Events {
     }
 }
 
-impl AiEventSink for Events {
+impl EventSink for Events {
     fn emit(&self, name: &'static str, payload: serde_json::Value) {
         let _ = self.0.send(Frame::Event {
             name: name.to_string(),

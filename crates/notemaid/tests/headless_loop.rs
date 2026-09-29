@@ -21,7 +21,7 @@ use notemaid::ai_chat_service::{
 use notemaid::ai_sessions::{self, AiSessionCreate};
 use notemaid::ai_turn::{
     self, checkpoint, confirm, taint, AiTurnEvent, AiTurnRequest, AiTurnSink, BoxFuture,
-    FileSessions, GrantedSource, LocalCoreExecutor, ProviderRound, TurnRuntime,
+    FileSessions, GrantedSource, ProviderRound, TurnRuntime,
 };
 use serde_json::{json, Value};
 
@@ -170,7 +170,7 @@ fn settings_dir(app_dir: &Path) -> PathBuf {
 fn headless(rounds: Vec<Vec<AiChatEvent>>) -> Headless {
     let dir = tempfile::tempdir().unwrap();
     let app_dir = dir.path().to_path_buf();
-    let core = Arc::new(Core::new());
+    let core = Core::new_shared();
     core.set_app_dir(app_dir.clone());
     std::fs::create_dir_all(settings_dir(&app_dir)).unwrap();
     let changes = Arc::new(ChangeLog::default());
@@ -186,7 +186,7 @@ fn headless(rounds: Vec<Vec<AiChatEvent>>) -> Headless {
         policy: confirm::ConfirmPolicy::default(),
         sessions: Arc::new(FileSessions(settings_dir(&app_dir))),
         taint: Arc::new(taint::FileTaint::new(&app_dir)),
-        core: Some(Arc::new(LocalCoreExecutor(core))),
+        core: Some(core),
         budget: None,
     });
     Headless {

@@ -573,8 +573,7 @@ async fn run_body(core: &Core, source: &str, now: u64) -> Result<String> {
     }
 
     // AI
-    let inference =
-        run_inference(core, &app_dir, &cfg, &heartbeat_skills, &skill_bodies, now).await;
+    let inference = run_inference(core, &cfg, &heartbeat_skills, &skill_bodies, now).await;
     let report = match inference {
         Ok(r) => {
             state.consecutive_failures = 0;
@@ -708,7 +707,6 @@ impl AiTurnSink for CollectSink {
 
 async fn run_inference(
     core: &Core,
-    app_dir: &Path,
     cfg: &AiConfigLite,
     hb_skills: &[SkillMeta],
     skill_bodies: &[String],
@@ -788,14 +786,7 @@ async fn run_inference(
         events: Mutex::new(Vec::new()),
         done: tokio::sync::Notify::new(),
     });
-    ai_turn::start_turn_with_sink(
-        req,
-        app_dir,
-        core.frontend_bridge()?,
-        sink.clone(),
-        core.core_executor()?,
-    )
-    .await?;
+    ai_turn::start_turn_with_sink(core, req, sink.clone()).await?;
     let budget = Duration::from_secs(
         u64::from(cfg.generation.read_timeout_seconds)
             * u64::from(cfg.generation.max_tool_rounds + 2),

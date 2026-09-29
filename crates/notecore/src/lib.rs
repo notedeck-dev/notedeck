@@ -57,7 +57,6 @@ pub mod settings_store;
 pub mod shutdown;
 pub mod sidecar;
 pub mod ssrf;
-pub mod status_providers;
 pub mod stream_fanout;
 pub mod stream_mode;
 pub mod themes;

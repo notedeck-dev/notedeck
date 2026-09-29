@@ -35,7 +35,7 @@ macro_rules! wrapper_one {
         #[allow(clippy::too_many_arguments)]
         pub async fn $name(
             window: tauri::Window,
-            core: tauri::State<'_, notecore::context::Core>,
+            core: tauri::State<'_, crate::commands::AppState>,
             $( $arg: $ty, )*
         ) -> std::result::Result<$ret, $err> {
             $tc::commands::check(
@@ -53,7 +53,7 @@ macro_rules! wrapper_one {
         #[specta::specta]
         #[allow(clippy::too_many_arguments)]
         pub async fn $name(
-            core: tauri::State<'_, notecore::context::Core>,
+            core: tauri::State<'_, crate::commands::AppState>,
             $( $arg: $ty, )*
         ) -> std::result::Result<$ret, $err> {
             $tc::commands::check(

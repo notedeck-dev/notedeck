@@ -18,7 +18,6 @@ use crate::daemon::{exit, lock, logging, RunArgs};
 
 /// notemaid 自身の DB。アプリの notecli.db とは別 (版ずれと排他を持ち込まない)
 pub const DB_FILE: &str = "notemaid.db";
-use crate::CoreMaidExt;
 
 pub fn run(args: RunArgs) -> i32 {
     let Some(data_dir) = args
@@ -155,7 +154,7 @@ async fn serve(
     crate::ai_turn::recover(&data_dir);
     crate::heartbeat::restore_status(&data_dir);
 
-    let core = Arc::new(Core::new());
+    let core = Core::new_shared();
     core.set_app_dir(data_dir.clone());
     core.set_app_version(env!("CARGO_PKG_VERSION").to_string());
     let perf: notecore::perf_config::SharedPerfConfig = Arc::new(tokio::sync::RwLock::new(
@@ -181,11 +180,9 @@ async fn serve(
     let events = Events::new();
     let timer = Arc::new(HeartbeatTimer::default());
     let sessions = Arc::new(Sessions::default());
-    crate::install(&core);
-    core.set_ai_event_sink(Arc::new(events.clone()));
+    core.set_event_sink(Arc::new(events.clone()));
     // 橋: 接続中の端末に確認内容の組み立てや実行要求を投げる。居なければ端末なし扱い
     core.set_frontend_bridge(Arc::new(SessionBridge(sessions.clone())));
-    core.set_core_executor(Arc::new(crate::ai_turn::LocalCoreExecutor(core.clone())));
     {
         let core_for_timer = core.clone();
         let timer_for_sink = timer.clone();

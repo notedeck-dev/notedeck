@@ -17,7 +17,8 @@
 //!
 //! Tauri に依存しない (tests/lint/rustCoreBoundary.test.ts が notecore と同じ検査をする)。
 //! 手元側が要る処理は trait (`AiChatSink` / `AiTurnSink` / `HeartbeatSink` /
-//! `CoreExecutor`) で受け取り、`sinks::CoreMaidExt` で Core の拡張スロットに吊るす。
+//! ...) で受け取る。イベントの届け先は notecore の `EventSink` 1 つ (`sinks::CoreMaidExt` が
+//! AI 側の 3 つの sink の形に変換する)。
 
 pub mod ai_budget;
 pub mod ai_chat_service;
@@ -35,10 +36,3 @@ pub mod skills;
 pub mod transport;
 
 pub use sinks::CoreMaidExt;
-
-/// 起動時に 1 回呼ぶ。notecore の状態面 (公開 HTTP API の HEARTBEAT status) に
-/// この側の値を差し込む。sink の配線は [`CoreMaidExt`] で別途行う
-pub fn install(core: &notecore::context::Core) {
-    let _ = core;
-    notecore::status_providers::register("heartbeat", std::sync::Arc::new(heartbeat::status_json));
-}

@@ -9,10 +9,9 @@
 //!
 //! 手元側にしか無いもの (UI へのヒント通知) は trait で受ける (`HintSink`)。
 
-use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock, RwLock};
+use std::sync::{Arc, OnceLock, Weak};
 
 use notecli::api::MisskeyClient;
 use notecli::db::Database;
@@ -30,6 +29,12 @@ use notecli::error::NoteDeckError;
 use notecli::streaming::StreamingManager;
 
 /// 手元側 (WebView) へのヒント通知。データ系コマンドの副産物で、無くても処理は成立する。
+/// 名前つきイベントの届け先 (AI の出来事など、上に載るクレートが出すもの)。Tauri は WebView へ
+/// emit し、別プロセスは socket のイベント frame にする。notecore は名前も payload も解釈しない
+pub trait EventSink: Send + Sync + 'static {
+    fn emit(&self, name: &'static str, payload: serde_json::Value);
+}
+
 pub trait HintSink: Send + Sync + 'static {
     /// タイムライン取得時に先読みした OGP (`nd:ogp-hints`)
     fn ogp_hints(&self, hints: HashMap<String, OgpData>);
@@ -77,8 +82,10 @@ pub struct Core {
     settings_sink: OnceLock<Arc<dyn crate::settings_events::SettingsSink>>,
     /// MiAuth セッションの追跡 (リプレイ防止)
     auth_sessions: AuthSessionTracker,
-    /// 上に載るクレート (notemaid 等) が自分の状態を吊るす拡張スロット。型ごとに 1 つ
-    ext: RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>,
+    /// 名前つきイベントの届け先 (`EventSink`)。未設定なら `event_sink()` が Err
+    events: OnceLock<Arc<dyn EventSink>>,
+    /// `new_shared` で作ったときの自分への弱参照。spawn した task に `Arc<Core>` を渡すため
+    weak: OnceLock<Weak<Core>>,
 }
 
 impl Default for Core {
@@ -110,7 +117,8 @@ impl Core {
             frontend_bridge: OnceLock::new(),
             settings_sink: OnceLock::new(),
             auth_sessions: AuthSessionTracker::new(),
-            ext: RwLock::new(HashMap::new()),
+            events: OnceLock::new(),
+            weak: OnceLock::new(),
         }
     }
 
@@ -245,24 +253,31 @@ impl Core {
             .ok_or_else(|| NoteDeckError::Internal("frontend bridge is not set".into()))
     }
 
-    /// 拡張スロット: 型 `T` の値を初回だけ作って保持し、以後は同じものを返す。
-    /// notecore が知らない型 (notemaid の sink 束など) を Core にぶら下げるための口
-    pub fn ext_or_init<T: Any + Send + Sync>(&self, init: impl FnOnce() -> T) -> Arc<T> {
-        if let Some(v) = self.ext::<T>() {
-            return v;
-        }
-        let mut w = self.ext.write().unwrap_or_else(|e| e.into_inner());
-        let entry = w
-            .entry(TypeId::of::<T>())
-            .or_insert_with(|| Arc::new(init()) as Arc<dyn Any + Send + Sync>);
-        Arc::clone(entry).downcast::<T>().expect("ext slot holds T")
+    /// `Arc` で作る。長生きする task (AI のターンなど) が `shared()` で自分の `Arc` を取れる
+    pub fn new_shared() -> Arc<Core> {
+        Arc::new_cyclic(|w| {
+            let core = Core::new();
+            let _ = core.weak.set(w.clone());
+            core
+        })
     }
 
-    pub fn ext<T: Any + Send + Sync>(&self) -> Option<Arc<T>> {
-        let r = self.ext.read().unwrap_or_else(|e| e.into_inner());
-        r.get(&TypeId::of::<T>())
+    /// `new_shared` で作った Core の `Arc`。`new()` で作った (テストなど) 場合は Err
+    pub fn shared(&self) -> Result<Arc<Core>> {
+        self.weak.get().and_then(Weak::upgrade).ok_or_else(|| {
+            NoteDeckError::Internal("core is not shared (use Core::new_shared)".into())
+        })
+    }
+
+    pub fn set_event_sink(&self, sink: Arc<dyn EventSink>) {
+        let _ = self.events.set(sink);
+    }
+
+    pub fn event_sink(&self) -> Result<Arc<dyn EventSink>> {
+        self.events
+            .get()
             .cloned()
-            .and_then(|v| v.downcast::<T>().ok())
+            .ok_or_else(|| NoteDeckError::Internal("event sink is not set".into()))
     }
 
     pub fn auth_sessions(&self) -> &AuthSessionTracker {
