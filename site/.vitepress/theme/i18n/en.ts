@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: c5de170a6acf
+// sourceHash: 8585366132ec
 
 import type { Messages } from './ja'
 
@@ -183,7 +183,7 @@ const en: Messages = {
     desc: 'NoteDeck is open source (AGPL-3.0). It uses Vue 3 + TypeScript like upstream Misskey, so if you can read the Misskey codebase, you can read this one.',
     device: {
       label: 'Your device',
-      desc: 'OS integration and the client layer: windows, tray, OS notifications, keychain, auto-update. The WebView only ever talks to the local Rust side. Data calls always go to the local notecore; AI calls always go to the notemaid process. By default that is a child process the app starts itself, and a login task or your own server use the same path.',
+      desc: 'OS integration and the client layer: windows, tray, OS notifications, keychain, auto-update. The WebView only ever talks to the local Rust side, which hands data calls to notecore and AI calls to notemaid.',
     },
     frontend: {
       label: 'Frontend',
@@ -191,12 +191,12 @@ const en: Messages = {
       vaporTag: 'Vapor-ready',
     },
     remote: {
-      label: 'Your own server (optional)',
-      desc: 'The AI is always a separate process (notemaid). By default the app starts it and it exits with the app; optionally it stays resident from login or lives on your own server. HEARTBEAT and replies keep going with your devices closed, and your data (archive, deck) stays on the device. The current release still calls it notecored; the move is in progress.',
+      label: 'The AI process',
+      desc: 'The AI (agent loop, HEARTBEAT, delivery of results) is always a separate process. By default the app starts it and it exits with the app. It can also stay resident from login or live on your own server, and then HEARTBEAT keeps going with your devices closed. Your data stays on the device; notemaid never opens the notes database.',
     },
     core: {
       label: 'Core',
-      desc: 'The domain that does not depend on Tauri: vault, query runtime, settings, authorization, caches. It only holds work that makes sense with no device connected, and it knows nothing about AI. The AI agent loop lives in notemaid, which borrows notecore to read and write.',
+      desc: 'The data side that does not depend on Tauri: cache database, query runtime, vault, settings, authorization. It only holds work that makes sense with no device connected, and it knows nothing about AI. notemaid borrows only the vault, authorization and settings from it.',
     },
     client: {
       label: 'Misskey client',
