@@ -369,7 +369,7 @@ pub fn install_theme(
         ));
     };
     if theme.id.is_empty() {
-        theme.id = format!("custom-{}", crate::ai_sessions::now_ms());
+        theme.id = format!("custom-{}", crate::clock::now_ms());
     }
     if theme.name.is_empty() {
         theme.name = "Untitled".into();
@@ -403,7 +403,7 @@ pub fn install_theme(
                 base,
                 snapshot_of(ex),
                 attribution,
-                crate::ai_sessions::now_ms(),
+                crate::clock::now_ms(),
             )?;
         }
     }
@@ -464,7 +464,7 @@ pub fn write_css(core: &Core, css: &str, attribution: Option<&Attribution>) -> R
             CSS_FILE,
             json!({ "body": prev }),
             attribution,
-            crate::ai_sessions::now_ms(),
+            crate::clock::now_ms(),
         )?;
     }
     settings_events::write_root_file(core, CSS_FILE, css)

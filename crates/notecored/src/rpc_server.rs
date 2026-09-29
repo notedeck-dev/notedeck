@@ -448,7 +448,13 @@ impl RpcServer {
             };
         }
         let ctx = CallContext { window };
-        match commands::dispatch(&self.core, &ctx, name, params).await {
+        // データ系は notecore の表、AI 系は notemaid の表 (#1106)
+        let dispatched = if commands::CommandId::parse(name).is_some() {
+            commands::dispatch(&self.core, &ctx, name, params).await
+        } else {
+            notemaid::commands::dispatch(&self.core, &ctx, name, params).await
+        };
+        match dispatched {
             Ok(v) => Outcome::success(v),
             Err(e) => Outcome::failure(RpcError::from(&e)),
         }

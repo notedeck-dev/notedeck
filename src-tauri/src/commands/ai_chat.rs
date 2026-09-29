@@ -3,9 +3,9 @@
 
 use tauri::{Emitter, Manager};
 
-use notecore::ai_chat_service::{AiChatEvent, AiChatSink};
-use notecore::ai_turn::{AiTurnEvent, AiTurnSink, BoxFuture, CoreExecutor};
-use notecore::capabilities::exec::ExecContext;
+use notemaid::ai_chat_service::{AiChatEvent, AiChatSink};
+use notemaid::ai_turn::{AiTurnEvent, AiTurnSink, BoxFuture, CoreExecutor};
+use notemaid::exec::ExecContext;
 
 const EVENT_NAME: &str = "nd:ai-chat-event";
 const TURN_EVENT_NAME: &str = "nd:ai-turn-event";
@@ -38,10 +38,10 @@ impl CoreExecutor for TauriCoreExecutor {
         id: &'a str,
         params: serde_json::Value,
         ctx: ExecContext,
-    ) -> BoxFuture<'a, Result<notecore::capabilities::exec::ExecOutcome, String>> {
+    ) -> BoxFuture<'a, Result<notemaid::exec::ExecOutcome, String>> {
         Box::pin(async move {
             let core = self.0.state::<notecore::context::Core>();
-            notecore::capabilities::exec::execute(&core, id, params, &ctx)
+            notemaid::exec::execute(&core, id, params, &ctx)
                 .await
                 .map_err(|e| e.to_string())
         })
@@ -55,7 +55,7 @@ impl CoreExecutor for TauriCoreExecutor {
     ) -> BoxFuture<'a, Result<Option<serde_json::Value>, String>> {
         Box::pin(async move {
             let core = self.0.state::<notecore::context::Core>();
-            notecore::capabilities::exec::preview(&core, id, params, &ctx)
+            notemaid::exec::preview(&core, id, params, &ctx)
                 .await
                 .map_err(|e| e.to_string())
         })

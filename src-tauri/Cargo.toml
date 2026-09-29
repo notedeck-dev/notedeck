@@ -7,6 +7,7 @@ license = "AGPL-3.0-only"
 [dependencies]
 notecli = { path = "../crates/notecli", features = ["specta"] }
 notecore = { path = "../crates/notecore" }
+notemaid = { path = "../crates/notemaid" }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-opener = "2"
 tauri-plugin-notification = "2"

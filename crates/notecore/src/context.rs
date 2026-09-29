@@ -9,15 +9,14 @@
 //!
 //! 手元側にしか無いもの (UI へのヒント通知) は trait で受ける (`HintSink`)。
 
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, OnceLock, RwLock};
 
 use notecli::api::MisskeyClient;
 use notecli::db::Database;
 
-use crate::ai_chat_service::AiChatSink;
-use crate::ai_turn::{AiTurnSink, CoreExecutor};
 use crate::commands::auth::AuthSessionTracker;
 use crate::credentials::{get_credentials, get_credentials_or_anon};
 use crate::error::Result;
@@ -71,21 +70,15 @@ pub struct Core {
     stream_observation: Arc<crate::stream_fanout::StreamObservation>,
     /// パフォーマンス設定 (実行時に更新される)
     perf: OnceLock<SharedPerfConfig>,
-    /// AI チャットのイベントの届け先 (Tauri 側は WebView へ emit)
-    ai_chat_sink: OnceLock<Arc<dyn AiChatSink>>,
-    /// AI ターン実行器 (#1133) のイベントの届け先
-    ai_turn_sink: OnceLock<Arc<dyn AiTurnSink>>,
     /// 手元側 (WebView / managed state) への問い合わせ口。ターン実行器が
     /// capability の実行要求に使う
     frontend_bridge: OnceLock<Arc<dyn FrontendBridge>>,
     /// 設定ファイルの変更通知 (`settings_events`)。未設定なら黙って捨てる
     settings_sink: OnceLock<Arc<dyn crate::settings_events::SettingsSink>>,
-    /// HEARTBEAT の出来事 (`heartbeat`)。未設定なら黙って捨てる
-    heartbeat_sink: OnceLock<Arc<dyn crate::heartbeat::HeartbeatSink>>,
-    /// `exec: core` な capability の本体を呼ぶ口 (#1133 縦切り 4)
-    core_executor: OnceLock<Arc<dyn CoreExecutor>>,
     /// MiAuth セッションの追跡 (リプレイ防止)
     auth_sessions: AuthSessionTracker,
+    /// 上に載るクレート (notemaid 等) が自分の状態を吊るす拡張スロット。型ごとに 1 つ
+    ext: RwLock<HashMap<TypeId, Arc<dyn Any + Send + Sync>>>,
 }
 
 impl Default for Core {
@@ -114,13 +107,10 @@ impl Core {
             streaming: OnceLock::new(),
             query_runtime: OnceLock::new(),
             perf: OnceLock::new(),
-            ai_chat_sink: OnceLock::new(),
-            ai_turn_sink: OnceLock::new(),
             frontend_bridge: OnceLock::new(),
             settings_sink: OnceLock::new(),
-            heartbeat_sink: OnceLock::new(),
-            core_executor: OnceLock::new(),
             auth_sessions: AuthSessionTracker::new(),
+            ext: RwLock::new(HashMap::new()),
         }
     }
 
@@ -232,25 +222,6 @@ impl Core {
             .ok_or_else(|| NoteDeckError::Internal("perf config is not set".into()))
     }
 
-    pub fn set_ai_chat_sink(&self, sink: Arc<dyn AiChatSink>) {
-        let _ = self.ai_chat_sink.set(sink);
-    }
-
-    pub fn ai_chat_sink(&self) -> Result<Arc<dyn AiChatSink>> {
-        self.ai_chat_sink
-            .get()
-            .cloned()
-            .ok_or_else(|| NoteDeckError::Internal("ai chat sink is not set".into()))
-    }
-
-    pub fn set_heartbeat_sink(&self, sink: Arc<dyn crate::heartbeat::HeartbeatSink>) {
-        let _ = self.heartbeat_sink.set(sink);
-    }
-
-    pub fn heartbeat_sink(&self) -> Option<Arc<dyn crate::heartbeat::HeartbeatSink>> {
-        self.heartbeat_sink.get().cloned()
-    }
-
     pub fn set_settings_sink(&self, sink: Arc<dyn crate::settings_events::SettingsSink>) {
         let _ = self.settings_sink.set(sink);
     }
@@ -261,17 +232,6 @@ impl Core {
         if let Some(sink) = self.settings_sink.get() {
             sink.settings_changed(change);
         }
-    }
-
-    pub fn set_ai_turn_sink(&self, sink: Arc<dyn AiTurnSink>) {
-        let _ = self.ai_turn_sink.set(sink);
-    }
-
-    pub fn ai_turn_sink(&self) -> Result<Arc<dyn AiTurnSink>> {
-        self.ai_turn_sink
-            .get()
-            .cloned()
-            .ok_or_else(|| NoteDeckError::Internal("ai turn sink is not set".into()))
     }
 
     pub fn set_frontend_bridge(&self, bridge: Arc<dyn FrontendBridge>) {
@@ -285,15 +245,24 @@ impl Core {
             .ok_or_else(|| NoteDeckError::Internal("frontend bridge is not set".into()))
     }
 
-    pub fn set_core_executor(&self, executor: Arc<dyn CoreExecutor>) {
-        let _ = self.core_executor.set(executor);
+    /// 拡張スロット: 型 `T` の値を初回だけ作って保持し、以後は同じものを返す。
+    /// notecore が知らない型 (notemaid の sink 束など) を Core にぶら下げるための口
+    pub fn ext_or_init<T: Any + Send + Sync>(&self, init: impl FnOnce() -> T) -> Arc<T> {
+        if let Some(v) = self.ext::<T>() {
+            return v;
+        }
+        let mut w = self.ext.write().unwrap_or_else(|e| e.into_inner());
+        let entry = w
+            .entry(TypeId::of::<T>())
+            .or_insert_with(|| Arc::new(init()) as Arc<dyn Any + Send + Sync>);
+        Arc::clone(entry).downcast::<T>().expect("ext slot holds T")
     }
 
-    pub fn core_executor(&self) -> Result<Arc<dyn CoreExecutor>> {
-        self.core_executor
-            .get()
+    pub fn ext<T: Any + Send + Sync>(&self) -> Option<Arc<T>> {
+        let r = self.ext.read().unwrap_or_else(|e| e.into_inner());
+        r.get(&TypeId::of::<T>())
             .cloned()
-            .ok_or_else(|| NoteDeckError::Internal("core executor is not set".into()))
+            .and_then(|v| v.downcast::<T>().ok())
     }
 
     pub fn auth_sessions(&self) -> &AuthSessionTracker {
@@ -402,8 +371,9 @@ impl Core {
     }
 }
 
-#[cfg(test)]
-pub(crate) mod test_support {
+/// テスト用の Core。`test-support` feature で他クレート (notemaid) のテストにも開く
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support {
     use super::*;
 
     /// 一時 DB + 実クライアント (ネットワークには出ない) で初期化済みの Core。

@@ -3334,7 +3334,6 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "bytes",
- "chrono",
  "dirs 6.0.0",
  "encoding_rs",
  "futures-util",
@@ -3376,6 +3375,7 @@ dependencies = [
  "libc",
  "notecli",
  "notecore",
+ "notemaid",
  "rand 0.9.4",
  "reqwest 0.12.28",
  "serde",
@@ -3407,6 +3407,7 @@ dependencies = [
  "ndk-context",
  "notecli",
  "notecore",
+ "notemaid",
  "objc2-foundation",
  "rand 0.9.4",
  "regex",
@@ -3451,6 +3452,29 @@ dependencies = [
  "windows",
  "zbus",
  "zeroize",
+]
+
+[[package]]
+name = "notemaid"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "futures-util",
+ "indexmap 2.14.0",
+ "json5",
+ "notecli",
+ "notecore",
+ "rand 0.9.4",
+ "regex",
+ "reqwest 0.12.28",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha2",
+ "specta",
+ "tempfile",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
