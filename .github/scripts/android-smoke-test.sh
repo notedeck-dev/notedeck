@@ -67,10 +67,14 @@ sleep "$SURVIVE_SECONDS"
 PID=$(pid_of_app)
 if [ -z "$PID" ]; then
   echo "::error::アプリが起動後 ${SURVIVE_SECONDS} 秒以内に終了した (起動クラッシュ)"
-  # crash の本文 (tombstone / panic) は絞り込みで消えることがあるので、絞った分と生の末尾を両方出す
-  adb logcat -d -t 400 | grep -iE 'notedeck|FATAL|AndroidRuntime|libc|DEBUG|panicked' | tail -80 || true
-  echo "--- raw logcat tail ---"
-  adb logcat -d -t 120 || true
+  # `-t N` は末尾 N 行だけで、Google API 入りのエミュレータでは 20 秒分のノイズに
+  # 押し出されて crash の本文が残らない。起動 (logcat -c) 以降を全部取り、アプリと
+  # crash の印 (tombstone の "F DEBUG" / Java の AndroidRuntime / Rust の panic) で絞る
+  adb logcat -d > /tmp/logcat-all.txt || true
+  echo "--- app / crash lines ---"
+  grep -iE 'notedeck|com\.notedeck|F DEBUG|AndroidRuntime|panicked|RustStdoutStderr|Fatal signal' /tmp/logcat-all.txt | tail -150 || true
+  echo "--- raw tail ---"
+  tail -60 /tmp/logcat-all.txt || true
   exit 1
 fi
 
