@@ -3296,7 +3296,11 @@ logDir: string | null;
  * 記録されている直近の Rust panic。adb を繋げない Android でも
  * ここから内容を読めるようにするのが主目的。無ければ null。
  */
-lastPanic: PanicReport | null }
+lastPanic: PanicReport | null; 
+/**
+ * AI (notemaid) がどこでどう動いているか (#1106)。繋がらない / 起動しない理由も含む
+ */
+notemaid: NotemaidDiagnostics }
 /**
  * デバイスへ流す出来事 (flat。Tauri は `nd:ai-heartbeat-event`)。
  * kind: `started` (source) / `finished` (outcome) / `report` (session_id, created) /
@@ -3328,6 +3332,26 @@ export type ImageCacheStats = { bytes: number; files: number }
  */
 export type ImportSettingsResult = { imported: boolean; warnings: LocalizedLine[] }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+/**
+ * 自己診断 (About) 向けの、この端末の notemaid の様子。判断はせず事実だけ返す
+ */
+export type LauncherDiagnostics = { 
+/**
+ * 同梱の sidecar のパス (無ければ None = in-process しかない)
+ */
+sidecar: string | null; 
+/**
+ * アプリが起動した子プロセスの pid (居なければ None)
+ */
+childPid: number | null; 
+/**
+ * 子プロセスが既に終わっていればその終了コード (シグナルなら None のまま exited=true)
+ */
+childExited: boolean; childExitCode: number | null; 
+/**
+ * 常駐 (ログイン時タスク) の登録状態
+ */
+resident: ResidentStatus }
 /**
  * 表示言語で描き直せる 1 行 (一覧で返す警告など)。`i18n` は `{ text: { key, params } }`
  * の形で、TS は `nativeField(line, 'text')` で表示言語の文にする
@@ -3471,6 +3495,38 @@ export type NoteUpdate =
  * flatten でワイヤ形 `{ noteId, updateType, body }` を維持する
  */
 ({ updateType: "reacted"; body: NoteReactedBody } | { updateType: "unreacted"; body: NoteUnreactedBody } | { updateType: "pollVoted"; body: NotePollVotedBody } | { updateType: "deleted"; body: NoteDeletedBody }) & { noteId: string }
+/**
+ * AI の別プロセス (notemaid) の自己診断。事実だけを集め、判定は表示側が行う
+ */
+export type NotemaidDiagnostics = { 
+/**
+ * `in-process` (アプリの中) | `child` (アプリが起こした子プロセス) | `resident` (ログイン時タスク)
+ */
+mode: string; 
+/**
+ * in-process に退避した理由 (子が起動しなかった等)。退避していなければ null
+ */
+fallbackReason: string | null; 
+/**
+ * 中継の状態 (別プロセスのときだけ)
+ */
+relay: ClientLayerState | null; 
+/**
+ * sidecar / 子プロセス / 常駐の登録 (デスクトップだけ)
+ */
+launcher: LauncherDiagnostics | null; 
+/**
+ * 動いている notemaid 自身の申告 (`notemaid.status`)。繋がっていなければ null
+ */
+daemon: JsonValue | null; 
+/**
+ * HEARTBEAT の直近 (in-process ならこのプロセス、別プロセスなら notemaid の申告)
+ */
+heartbeat: JsonValue; 
+/**
+ * notemaid のログの置き場 (データディレクトリの logs/)
+ */
+logDir: string | null }
 /**
  * OS 通知クリック時にフロントへ渡す遷移コンテキスト。
  * noteId があればノート詳細、なければ userId でユーザー詳細を開く。

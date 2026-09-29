@@ -3368,7 +3368,7 @@ dependencies = [
 
 [[package]]
 name = "notedeck"
-version = "1.74.2"
+version = "1.74.3"
 dependencies = [
  "async-trait",
  "axum",
@@ -3436,7 +3436,7 @@ dependencies = [
 
 [[package]]
 name = "notemaid"
-version = "1.74.2"
+version = "1.74.3"
 dependencies = [
  "chrono",
  "clap",
@@ -3460,6 +3460,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

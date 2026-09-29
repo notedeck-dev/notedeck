@@ -5,6 +5,10 @@
 //! (既定) / ログイン時のユーザータスク (常駐)。本体は
 //! ライブラリ側 (`notemaid::daemon`) にあり、ここは CLI の入口だけ。
 
+// Windows ではログイン時の自動起動やアプリからの呼び出しでコンソール窓を出さない。
+// コマンドとして端末から使うときは、起動直後に親のコンソールへ繋ぐ (attach_parent_console)
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 use clap::{Parser, Subcommand};
 #[cfg(target_os = "linux")]
 use notemaid::daemon::secrets;
@@ -23,7 +27,7 @@ enum Command {
     Run(RunArgs),
     /// 動いている notemaid の状態を socket 越しに表示する
     Status(SocketArgs),
-    /// ログイン時に起動するユーザー権限のタスク (systemd user unit / LaunchAgent / Task Scheduler) を用意 / 有効化 / 停止する
+    /// ログイン時に起動するユーザー権限のタスク (systemd user unit / LaunchAgent / Run キー) を用意 / 有効化 / 停止する
     #[command(subcommand)]
     Service(service::ServiceCommand),
     /// secret の鍵と本体の面倒を見る (ファイル backend は Linux だけ)
@@ -32,7 +36,20 @@ enum Command {
     Secrets(secrets::SecretsCommand),
 }
 
+/// 端末から起動されたときは親のコンソールに出力する (GUI サブシステムなので既定では出ない)
+#[cfg(windows)]
+fn attach_parent_console() {
+    // リダイレクトされた標準出力 (アプリからの呼び出し) はそのまま使われる
+    unsafe {
+        windows_sys::Win32::System::Console::AttachConsole(
+            windows_sys::Win32::System::Console::ATTACH_PARENT_PROCESS,
+        );
+    }
+}
+
 fn main() {
+    #[cfg(windows)]
+    attach_parent_console();
     let cli = Cli::parse();
     let code = match cli.command.unwrap_or(Command::Run(RunArgs::default())) {
         Command::Run(args) => run::run(args),
