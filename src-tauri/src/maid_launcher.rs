@@ -355,6 +355,41 @@ async fn back_to_child(
     Ok(())
 }
 
+/// 自己診断 (About) 向けの、この端末の notemaid の様子。判断はせず事実だけ返す
+#[derive(Debug, Clone, Default, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LauncherDiagnostics {
+    /// 同梱の sidecar のパス (無ければ None = in-process しかない)
+    pub sidecar: Option<String>,
+    /// アプリが起動した子プロセスの pid (居なければ None)
+    pub child_pid: Option<u32>,
+    /// 子プロセスが既に終わっていればその終了コード (シグナルなら None のまま exited=true)
+    pub child_exited: bool,
+    pub child_exit_code: Option<i32>,
+    /// 常駐 (ログイン時タスク) の登録状態
+    pub resident: ResidentStatus,
+}
+
+pub fn diagnostics() -> LauncherDiagnostics {
+    let (child_pid, child_exited, child_exit_code) = {
+        let mut guard = CHILD.lock().unwrap_or_else(|e| e.into_inner());
+        match guard.as_mut() {
+            Some(child) => match child.try_wait() {
+                Ok(Some(status)) => (Some(child.id()), true, status.code()),
+                _ => (Some(child.id()), false, None),
+            },
+            None => (None, false, None),
+        }
+    };
+    LauncherDiagnostics {
+        sidecar: sidecar_path().map(|p| p.display().to_string()),
+        child_pid,
+        child_exited,
+        child_exit_code,
+        resident: resident_status(),
+    }
+}
+
 /// 常駐の版がこのアプリと違うとき (アプリ更新の直後) に、常駐を今のバイナリで起動し直す。
 /// 常駐の ExecStart は同梱の sidecar を指しているので、再起動で新しい版になる
 pub fn restart_resident() -> Result<(), String> {

@@ -27,6 +27,80 @@ pub struct HealthReport {
     /// 記録されている直近の Rust panic。adb を繋げない Android でも
     /// ここから内容を読めるようにするのが主目的。無ければ null。
     pub last_panic: Option<notecore::crash_report::PanicReport>,
+    /// AI (notemaid) がどこでどう動いているか (#1106)。繋がらない / 起動しない理由も含む
+    pub notemaid: NotemaidDiagnostics,
+}
+
+/// AI の別プロセス (notemaid) の自己診断。事実だけを集め、判定は表示側が行う
+#[derive(serde::Serialize, specta::Type, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct NotemaidDiagnostics {
+    /// `in-process` (アプリの中) | `child` (アプリが起こした子プロセス) | `resident` (ログイン時タスク)
+    pub mode: String,
+    /// in-process に退避した理由 (子が起動しなかった等)。退避していなければ null
+    pub fallback_reason: Option<String>,
+    /// 中継の状態 (別プロセスのときだけ)
+    pub relay: Option<crate::client_layer::ClientLayerState>,
+    /// sidecar / 子プロセス / 常駐の登録 (デスクトップだけ)
+    #[cfg(desktop)]
+    pub launcher: Option<crate::maid_launcher::LauncherDiagnostics>,
+    /// 動いている notemaid 自身の申告 (`notemaid.status`)。繋がっていなければ null
+    pub daemon: Option<serde_json::Value>,
+    /// HEARTBEAT の直近 (in-process ならこのプロセス、別プロセスなら notemaid の申告)
+    pub heartbeat: serde_json::Value,
+    /// notemaid のログの置き場 (データディレクトリの logs/)
+    pub log_dir: Option<String>,
+}
+
+async fn notemaid_diagnostics(app_state: &AppState) -> NotemaidDiagnostics {
+    let mut d = NotemaidDiagnostics {
+        mode: "in-process".into(),
+        heartbeat: notemaid::heartbeat::status_json(),
+        log_dir: app_state
+            .app_dir()
+            .ok()
+            .map(|p| p.join("logs").display().to_string()),
+        ..Default::default()
+    };
+    #[cfg(desktop)]
+    {
+        d.launcher = Some(
+            tokio::task::spawn_blocking(crate::maid_launcher::diagnostics)
+                .await
+                .unwrap_or_default(),
+        );
+        let state = crate::client_layer::state();
+        if let Some(relay) = crate::client_layer::relay() {
+            d.mode = if d.launcher.as_ref().and_then(|l| l.child_pid).is_some() {
+                "child".into()
+            } else {
+                "resident".into()
+            };
+            if state.connected {
+                // 短く待つ: 診断で固まらない
+                let outcome = tokio::time::timeout(
+                    std::time::Duration::from_secs(3),
+                    relay.request("notemaid.status", serde_json::json!({}), None),
+                )
+                .await;
+                if let Ok(outcome) = outcome {
+                    if outcome.ok {
+                        if let Some(v) = outcome.result {
+                            if let Some(hb) = v.get("heartbeat") {
+                                d.heartbeat = hb.clone();
+                            }
+                            d.daemon = Some(v);
+                        }
+                    }
+                }
+            }
+        } else if state.backend == "embedded" && state.last_error.is_some() {
+            // 中継を作ったが退避した (子が起動しなかった等)
+            d.fallback_reason = state.last_error.clone();
+        }
+        d.relay = crate::client_layer::relay().map(|_| state);
+    }
+    d
 }
 
 // 手元のランタイム状態 (ログ場所 / HEARTBEAT scheduler) を含むので local。doctor 部分は
@@ -58,6 +132,7 @@ pub async fn build_health_report(
         .and_then(notecore::crash_report::read_last_panic);
     let log_dir = log_dir_path.map(|p| p.to_string_lossy().into_owned());
 
+    let notemaid = notemaid_diagnostics(app_state).await;
     Ok(HealthReport {
         doctor: core.doctor,
         backend_ready,
@@ -66,5 +141,6 @@ pub async fn build_health_report(
         heartbeat_interval_minutes: scheduler.current_interval(),
         log_dir,
         last_panic,
+        notemaid,
     })
 }

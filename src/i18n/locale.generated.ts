@@ -2076,6 +2076,28 @@ export interface Locale {
     readonly "crashed": ParameterizedString<'headline' | 'when'>
     /** 下の診断ログをコピーして報告 */
     readonly "crashFix": string
+    /** アプリの中 */
+    readonly "aiInProcess": string
+    /** 子プロセス */
+    readonly "aiChild": string
+    /** 常駐タスク */
+    readonly "aiResident": string
+    /** AI を別プロセスで起動できず、アプリの中で実行しています: {reason} */
+    readonly "aiFallback": ParameterizedString<'reason'>
+    /** データフォルダの logs/notemaid.log を確認 */
+    readonly "aiLogFix": string
+    /** AI のプロセスに繋がっていません: {error} */
+    readonly "aiDisconnected": ParameterizedString<'error'>
+    /** AI 設定の HEARTBEAT で常駐を切り替えるか、アプリを再起動 */
+    readonly "aiDisconnectedFix": string
+    /** AI の子プロセスが終了しています (終了コード {code}) */
+    readonly "aiChildExited": ParameterizedString<'code'>
+    /** 常駐タスクは登録されていますが動いていません ({detail}) */
+    readonly "aiResidentInactive": ParameterizedString<'detail'>
+    /** HEARTBEAT の直近の巡回が失敗しています ({count} 回連続): {message} */
+    readonly "aiHeartbeatFailing": ParameterizedString<'count' | 'message'>
+    /** AI 設定の接続とモデル、HEARTBEAT の権限を確認 */
+    readonly "aiHeartbeatFix": string
     /** 診断中... */
     readonly "diagnosing": string
     /** 診断に失敗しました */

@@ -143,11 +143,135 @@ const crashChecks = computed<Check[]>(() => {
   ]
 })
 
+/**
+ * AI の別プロセス (notemaid、#1106) の診断。繋がらない / 起動しない / 版が違う /
+ * 子が死んだ / 常駐が止まっている / HEARTBEAT が失敗し続けている、を doctor と
+ * 同じ形に整形する。事実は Rust (HealthReport.notemaid) が集め、判定はここ
+ */
+const notemaidChecks = computed<Check[]>(() => {
+  const n = health.value?.notemaid
+  if (!n) return []
+  const checks: Check[] = []
+  if (n.fallbackReason) {
+    checks.push({
+      name: 'ai',
+      status: 'warn',
+      message: i18n.tsx._aboutContent.aiFallback({ reason: n.fallbackReason }),
+      fix: i18n.ts._aboutContent.aiLogFix,
+    })
+  }
+  if (n.relay && n.mode !== 'in-process' && !n.relay.connected) {
+    checks.push({
+      name: 'ai',
+      status: 'fail',
+      message: i18n.tsx._aboutContent.aiDisconnected({
+        error: n.relay.lastError ?? '',
+      }),
+      fix: i18n.ts._aboutContent.aiDisconnectedFix,
+    })
+  }
+  if (n.relay?.fingerprintMatch === false) {
+    checks.push({
+      name: 'ai',
+      status: 'warn',
+      message: i18n.ts._aiHeartbeatSection.versionMismatch,
+    })
+  }
+  const l = n.launcher
+  if (l?.childExited) {
+    checks.push({
+      name: 'ai',
+      status: 'fail',
+      message: i18n.tsx._aboutContent.aiChildExited({
+        code: l.childExitCode ?? '?',
+      }),
+      fix: i18n.ts._aboutContent.aiLogFix,
+    })
+  }
+  if (n.mode === 'resident' && l?.resident.installed && !l.resident.active) {
+    checks.push({
+      name: 'ai',
+      status: 'warn',
+      message: i18n.tsx._aboutContent.aiResidentInactive({
+        detail: l.resident.detail ?? '',
+      }),
+      fix: i18n.ts._aboutContent.aiDisconnectedFix,
+    })
+  }
+  const hb = n.heartbeat as {
+    consecutiveFailures?: number
+    lastOutcome?: string | null
+    recentFailures?: { message?: string }[]
+  } | null
+  const failures = hb?.consecutiveFailures ?? 0
+  if (failures > 0 || hb?.lastOutcome === 'error') {
+    checks.push({
+      name: 'heartbeat',
+      status: 'warn',
+      message: i18n.tsx._aboutContent.aiHeartbeatFailing({
+        count: failures,
+        message: hb?.recentFailures?.[0]?.message ?? '',
+      }),
+      fix: i18n.ts._aboutContent.aiHeartbeatFix,
+    })
+  }
+  return checks
+})
+
+/** 「AI の実行」の 1 行 (情報の表と、コピーする本文) */
+const aiRuntimeLabel = computed(() => {
+  const n = health.value?.notemaid
+  if (!n) return '...'
+  const mode =
+    n.mode === 'child'
+      ? i18n.ts._aboutContent.aiChild
+      : n.mode === 'resident'
+        ? i18n.ts._aboutContent.aiResident
+        : i18n.ts._aboutContent.aiInProcess
+  const version = n.relay?.daemonVersion ? ` v${n.relay.daemonVersion}` : ''
+  return `${mode}${version}`
+})
+
+/** バグ報告のコピー用: notemaid の事実をそのまま (ローカルのパスを含むので URL には載せない) */
+const notemaidFactsText = computed(() => {
+  const n = health.value?.notemaid
+  if (!n) return ''
+  const daemon = n.daemon as {
+    pid?: number
+    uptimeSeconds?: number
+    devices?: number
+  } | null
+  const hb = n.heartbeat as {
+    lastTickAt?: number | null
+    lastOutcome?: string | null
+    consecutiveFailures?: number
+  } | null
+  const lines = [
+    `mode: ${n.mode}`,
+    n.fallbackReason ? `fallback: ${n.fallbackReason}` : null,
+    n.relay
+      ? `relay: ${n.relay.connected ? 'connected' : 'disconnected'} socket=${n.relay.socket ?? '-'} version=${n.relay.daemonVersion ?? '-'} fingerprint=${n.relay.fingerprintMatch ?? '-'} reconnects=${n.relay.reconnects} gaps=${n.relay.eventGaps}${n.relay.lastError ? ` error=${n.relay.lastError}` : ''}`
+      : null,
+    n.launcher
+      ? `sidecar: ${n.launcher.sidecar ?? '-'}; child: ${n.launcher.childPid ?? '-'}${n.launcher.childExited ? ` (exited ${n.launcher.childExitCode ?? '?'})` : ''}; resident: installed=${n.launcher.resident.installed} active=${n.launcher.resident.active}${n.launcher.resident.detail ? ` (${n.launcher.resident.detail})` : ''}${n.launcher.resident.reason ? ` reason=${n.launcher.resident.reason}` : ''}`
+      : null,
+    daemon
+      ? `daemon: pid=${daemon.pid ?? '-'} uptime=${daemon.uptimeSeconds ?? '-'}s devices=${daemon.devices ?? '-'}`
+      : null,
+    hb
+      ? `heartbeat: lastTick=${hb.lastTickAt ? new Date(hb.lastTickAt).toISOString() : '-'} outcome=${hb.lastOutcome ?? '-'} failures=${hb.consecutiveFailures ?? 0}`
+      : null,
+    n.logDir ? `log: ${n.logDir}` : null,
+  ]
+  return lines.filter((l): l is string => l != null).join('\n')
+})
+
 // 正常な項目は畳んで、注意・問題だけ出す (健康なら "正常" の一行で済む)。
 const problemChecks = computed(() => [
   ...(health.value?.doctor.checks ?? []).filter((c) => c.status !== 'ok'),
   ...streamChecks.value,
   ...crashChecks.value,
+  ...notemaidChecks.value,
 ])
 
 const overallStatus = computed<Status>(() => {
@@ -612,6 +736,7 @@ const infoRows = [
   { label: 'Rust', get: () => rustVersion.value || '...' },
   { label: 'WebView', get: () => webView },
   { label: 'OS', get: () => os },
+  { label: 'AI', get: () => aiRuntimeLabel.value },
 ]
 
 function getInfoText() {
@@ -620,6 +745,8 @@ function getInfoText() {
   const parts = [info]
   if (startupRows.value.length > 0)
     parts.push(`# ${i18n.ts._aboutContent.infoStartup}\n${getStartupText()}`)
+  if (notemaidFactsText.value)
+    parts.push(`# AI (notemaid)\n\`\`\`\n${notemaidFactsText.value}\n\`\`\``)
   if (diag)
     parts.push(
       `# ${i18n.ts._aboutContent.infoDiagnostics}\n\`\`\`\n${diag}\n\`\`\``,
