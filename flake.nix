@@ -22,11 +22,6 @@
               defaultText = lib.literalExpression "notedeck.packages.\${system}.notemaid";
               description = "notemaid のパッケージ。アプリと同じ版でなければ繋げない";
             };
-            api = lib.mkOption {
-              type = lib.types.bool;
-              default = false;
-              description = "公開 API 面 (localhost の HTTP、REST + SSE) も bind する";
-            };
             extraArgs = lib.mkOption {
               type = lib.types.listOf lib.types.str;
               default = [ ];
@@ -36,15 +31,15 @@
           config = lib.mkIf cfg.enable {
             systemd.user.services.notemaid = {
               Unit = {
-                Description = "NoteDeck resident core (notemaid)";
+                Description = "NoteDeck AI (notemaid)";
                 Documentation = "https://github.com/notedeck-dev/notedeck/issues/1106";
                 StartLimitIntervalSec = 300;
                 StartLimitBurst = 5;
               };
               Service = {
                 Type = "simple";
-                ExecStart = lib.escapeShellArgs ([ "${cfg.package}/bin/notemaid" "run" ]
-                  ++ lib.optional cfg.api "--api" ++ cfg.extraArgs);
+                ExecStart = lib.escapeShellArgs ([ "${cfg.package}/bin/notemaid" "run" "--secrets" "keychain" ]
+                  ++ cfg.extraArgs);
                 Restart = "on-failure";
                 RestartSec = 5;
                 # exit.rs の NO_RESTART: ロック衝突 / DB がバイナリより新しい / runtime dir 不在 / secret の鍵

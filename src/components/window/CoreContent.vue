@@ -5,9 +5,9 @@ import { useClientLayerStore } from '@/stores/clientLayer'
 import { useToast } from '@/stores/toast'
 
 /**
- * 「コア」の状態面 (#1106 案 B): AI 系のコマンドを in-process で回しているか、別プロセスの
- * notemaid (子プロセス / 常駐) に中継しているかと、その接続の様子。データ面は常にこの端末で動く。
- * 「アプリを閉じても AI を動かす」トグルはログイン時タスクの登録 / 解除で、再起動は要らない。
+ * 「コア」(#1106 案 B): AI をアプリの中で回しているか別プロセスの notemaid に中継しているかと、
+ * 「アプリを閉じても動かす」(ログイン時タスク) のトグル。データ面は常にこの端末。
+ * 見た目は隣の設定ウィンドウ (バックアップ / 接続) と同じ部品で組む。
  */
 
 const store = useClientLayerStore()
@@ -23,24 +23,15 @@ onMounted(() => {
 const state = computed(() => store.state)
 const resident = computed(() => store.resident)
 const relayed = computed(() => state.value?.backend === 'resident')
+const residentOn = computed(() => resident.value?.installed ?? false)
+const canToggle = computed(
+  () => !busy.value && relayed.value && (resident.value?.available ?? false),
+)
 
 const modeLabel = computed(() =>
   relayed.value
     ? i18n.ts._coreContent.modeResident
     : i18n.ts._coreContent.modeEmbedded,
-)
-
-const connectionLabel = computed(() => {
-  if (!relayed.value) return ''
-  return state.value?.connected
-    ? i18n.ts._coreContent.connected
-    : i18n.ts._coreContent.disconnected
-})
-
-/** トグルの現在値 = ログイン時タスクが登録されているか */
-const residentOn = computed(() => resident.value?.installed ?? false)
-const canToggle = computed(
-  () => !busy.value && relayed.value && (resident.value?.available ?? false),
 )
 
 const residentSummary = computed(() => {
@@ -52,8 +43,7 @@ const residentSummary = computed(() => {
   const active = r.active
     ? i18n.ts._coreContent.residentActive
     : i18n.ts._coreContent.residentInactive
-  const detail = r.detail ? ` (${r.detail})` : ''
-  return `${i18n.ts._coreContent.residentService}: ${installed} · ${active}${detail}`
+  return `${installed} · ${active}${r.detail ? ` (${r.detail})` : ''}`
 })
 
 async function toggleResident(): Promise<void> {
@@ -85,29 +75,42 @@ async function copyJournalHint(): Promise<void> {
 
 <template>
   <div :class="$style.content">
-    <section :class="$style.section">
+    <!-- AI をどこで回しているか -->
+    <div :class="$style.section">
       <div :class="$style.sectionHeader">
-        <i class="ti ti-server" :class="$style.sectionIcon" />
+        <i class="ti ti-cpu" :class="$style.sectionIcon" />
         <span :class="$style.sectionTitle">{{ i18n.ts._coreContent.current }}</span>
+        <span :class="$style.sectionDesc">{{ i18n.ts._coreContent.currentDesc }}</span>
       </div>
-      <p :class="$style.mode">
-        {{ modeLabel }}
-        <span v-if="connectionLabel" :class="[$style.badge, state?.connected ? $style.badgeOk : $style.badgeBad]">{{ connectionLabel }}</span>
-        <span v-if="relayed && state?.daemonVersion" :class="$style.hint">({{ state.daemonVersion }})</span>
-      </p>
-      <p :class="$style.hint">{{ i18n.ts._coreContent.description }}</p>
+      <div :class="$style.statusRow">
+        <span :class="$style.statusMain">{{ modeLabel }}</span>
+        <span
+          v-if="relayed"
+          :class="[$style.badge, state?.connected ? $style.badgeOk : $style.badgeBad]"
+        >
+          {{ state?.connected ? i18n.ts._coreContent.connected : i18n.ts._coreContent.disconnected }}
+        </span>
+        <span v-if="relayed && state?.daemonVersion" :class="$style.statusSub">v{{ state.daemonVersion }}</span>
+      </div>
       <p v-if="relayed && state?.fingerprintMatch === false" :class="$style.warn">
         {{ i18n.ts._coreContent.fingerprintMismatch }}
       </p>
-      <p v-if="relayed && state?.lastError" :class="$style.hint">
+      <p v-else-if="relayed && !state?.connected && state?.lastError" :class="$style.hint">
         {{ state.lastError }}
       </p>
-    </section>
+      <p v-else-if="!relayed && resident?.reason" :class="$style.hint">
+        {{ resident.reason }}
+      </p>
+    </div>
 
-    <section :class="$style.section">
+    <div :class="$style.divider" />
+
+    <!-- アプリを閉じても動かす -->
+    <div :class="$style.section">
       <div :class="$style.sectionHeader">
         <i class="ti ti-moon-stars" :class="$style.sectionIcon" />
         <span :class="$style.sectionTitle">{{ i18n.ts._coreContent.residentTitle }}</span>
+        <span :class="$style.sectionDesc">{{ i18n.ts._coreContent.residentDesc }}</span>
       </div>
       <label :class="[$style.toggleRow, !canToggle && $style.toggleDisabled]">
         <input
@@ -116,21 +119,27 @@ async function copyJournalHint(): Promise<void> {
           :disabled="!canToggle"
           @change="toggleResident"
         />
-        <span>{{ busy ? i18n.ts._coreContent.residentSwitching : i18n.ts._coreContent.residentToggle }}</span>
+        <span>
+          <span :class="$style.toggleLabel">
+            {{ busy ? i18n.ts._coreContent.residentSwitching : i18n.ts._coreContent.residentToggle }}
+          </span>
+          <span :class="$style.toggleHint">{{ i18n.ts._coreContent.residentHint }}</span>
+        </span>
       </label>
-      <p :class="$style.hint">{{ i18n.ts._coreContent.residentHint }}</p>
-      <p v-if="resident && !resident.available" :class="$style.warn">
+      <p v-if="resident && !resident.available" :class="$style.hint">
         {{ i18n.tsx._coreContent.residentUnavailable({ reason: resident.reason ?? '' }) }}
       </p>
-      <p v-if="residentSummary" :class="$style.hint">{{ residentSummary }}</p>
-      <p v-if="residentOn" :class="$style.hint">{{ i18n.ts._coreContent.lingerHint }}</p>
+      <p v-else-if="residentSummary" :class="$style.hint">
+        {{ i18n.ts._coreContent.residentService }}: {{ residentSummary }}
+      </p>
       <p v-if="errorMessage" :class="$style.warn">{{ errorMessage }}</p>
       <div v-if="residentOn" :class="$style.btnRow">
-        <button class="_button" type="button" :class="$style.secondaryBtn" @click="copyJournalHint">
+        <button class="_button" :class="$style.actionBtn" @click="copyJournalHint">
+          <i class="ti ti-clipboard" />
           {{ i18n.ts._coreContent.copyJournal }}
         </button>
       </div>
-    </section>
+    </div>
   </div>
 </template>
 
@@ -144,7 +153,6 @@ async function copyJournalHint(): Promise<void> {
   min-height: 0;
   overflow-y: auto;
   padding: 16px;
-  gap: 16px;
 }
 
 .section {
@@ -170,17 +178,35 @@ async function copyJournalHint(): Promise<void> {
   color: var(--nd-fg);
 }
 
-.mode {
-  margin: 0;
-  font-size: 1.05em;
-  color: var(--nd-fg);
+.sectionDesc {
+  font-size: 0.8em;
+  color: var(--nd-fgMuted);
+}
+
+.statusRow {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--nd-divider);
+  border-radius: 6px;
+  background: var(--nd-bg);
+}
+
+.statusMain {
+  font-size: 0.9em;
+  color: var(--nd-fg);
+}
+
+.statusSub {
+  margin-left: auto;
+  font-size: 0.75em;
+  color: var(--nd-fgMuted);
+  font-variant-numeric: tabular-nums;
 }
 
 .badge {
-  font-size: 0.75em;
+  font-size: 0.72em;
   padding: 1px 8px;
   border-radius: 999px;
   border: 1px solid var(--nd-divider);
@@ -210,19 +236,16 @@ async function copyJournalHint(): Promise<void> {
   margin: 0;
 }
 
-.btnRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .toggleRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  font-size: 0.9em;
-  color: var(--nd-fg);
   cursor: pointer;
+  user-select: none;
+
+  input {
+    margin: 3px 0 0;
+  }
 }
 
 .toggleDisabled {
@@ -230,7 +253,32 @@ async function copyJournalHint(): Promise<void> {
   cursor: default;
 }
 
-.secondaryBtn {
+.toggleLabel {
+  display: block;
+  font-size: 0.9em;
+  color: var(--nd-fg);
+}
+
+.toggleHint {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.78em;
+  color: var(--nd-fgMuted);
+  line-height: 1.5;
+}
+
+.btnRow {
+  display: flex;
+  gap: 8px;
+}
+
+.actionBtn {
   @include btn-action;
+}
+
+.divider {
+  height: 1px;
+  background: var(--nd-divider);
+  margin: 16px 0;
 }
 </style>

@@ -328,12 +328,13 @@ impl RpcServer {
 }
 
 impl RpcServer {
-    /// アプリから受けた口座の一覧を自分の DB に写す。一覧に無い口座は消す
+    /// アプリから受けた口座の一覧を自分の DB に写す。一覧に無い口座は消す。
+    /// トークン列はアプリの DB の写しで、キーチェーンが使える環境では空 (キーチェーンから同じ id で読む)
     async fn sync_accounts(&self, params: Value) -> notecore::error::Result<usize> {
         #[derive(serde::Deserialize)]
         #[serde(rename_all = "camelCase")]
         struct Incoming {
-            accounts: Vec<notecli::models::AccountPublic>,
+            accounts: Vec<notecli::models::Account>,
         }
         let incoming: Incoming = serde_json::from_value(params)
             .map_err(|e| notecli::error::NoteDeckError::InvalidInput(e.to_string()))?;
@@ -347,16 +348,7 @@ impl RpcServer {
             }
         }
         for a in &incoming.accounts {
-            db.upsert_account(&notecli::models::Account {
-                id: a.id.clone(),
-                host: a.host.clone(),
-                token: String::new(),
-                user_id: a.user_id.clone(),
-                username: a.username.clone(),
-                display_name: a.display_name.clone(),
-                avatar_url: a.avatar_url.clone(),
-                software: a.software.clone(),
-            })?;
+            db.upsert_account(a)?;
         }
         Ok(incoming.accounts.len())
     }

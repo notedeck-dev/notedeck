@@ -68,8 +68,28 @@ pub async fn launch(app_dir: &Path, backend: Backend) -> Option<Launched> {
             };
             let endpoint = transport::child_endpoint(std::process::id());
             match spawn(&bin, app_dir, &endpoint) {
-                Ok(child) => {
-                    tracing::info!(%endpoint, bin = %bin.display(), pid = child.id(), "[notemaid] started sidecar");
+                Ok(mut child) => {
+                    // 子が bind するまで待つ。先に死んだら (鍵 / ロック / 版の問題) in-process に落ちる。
+                    // ここで待つのは AI 系の初回呼び出しを確実にするためで、デッキ描画はこの前に始まっている
+                    let pid = child.id();
+                    let deadline = std::time::Instant::now() + Duration::from_secs(8);
+                    loop {
+                        if let Ok(Some(status)) = child.try_wait() {
+                            tracing::warn!(%status, bin = %bin.display(), "[notemaid] sidecar exited before answering; running the AI in-process");
+                            return None;
+                        }
+                        if answering(&endpoint).await {
+                            break;
+                        }
+                        if std::time::Instant::now() >= deadline {
+                            tracing::warn!(%endpoint, "[notemaid] sidecar did not answer in time; running the AI in-process");
+                            let _ = child.kill();
+                            let _ = child.wait();
+                            return None;
+                        }
+                        tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                    tracing::info!(%endpoint, bin = %bin.display(), pid, "[notemaid] started sidecar");
                     Some(Launched {
                         endpoint,
                         child: Some(child),
@@ -260,4 +280,57 @@ pub async fn set_resident(app_dir: &Path, enabled: bool) -> Result<(), String> {
         relay.switch_to(endpoint);
     }
     Ok(())
+}
+
+/// 常駐の版がこのアプリと違うとき (アプリ更新の直後) に、常駐を今のバイナリで起動し直す。
+/// 常駐の ExecStart は同梱の sidecar を指しているので、再起動で新しい版になる
+pub fn restart_resident() -> Result<(), String> {
+    let bin = stable_sidecar()?;
+    service(&bin, &["restart"]).map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 子プロセス経路の通し: sidecar を起動 → 繋がる → 親が止めると終わる。
+    /// notemaid の debug バイナリ (cargo build -p notemaid) が無ければ何もせず通す
+    #[tokio::test]
+    async fn spawns_connects_and_stops_the_sidecar() {
+        let bin = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../target/debug")
+            .join(format!("notemaid{}", std::env::consts::EXE_SUFFIX));
+        if !bin.is_file() {
+            eprintln!("skip: {} is not built", bin.display());
+            return;
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let app_dir = dir.path().join("data");
+        std::fs::create_dir_all(&app_dir).unwrap();
+        let endpoint = transport::child_endpoint(std::process::id());
+        let mut child = spawn(&bin, &app_dir, &endpoint).expect("spawn");
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        loop {
+            assert!(
+                !matches!(child.try_wait(), Ok(Some(_))),
+                "sidecar exited early"
+            );
+            if answering(&endpoint).await {
+                break;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "sidecar did not answer"
+            );
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        keep(Some(child));
+        stop();
+        assert!(!answering(&endpoint).await);
+        assert!(
+            !app_dir.join("notecli.db").exists(),
+            "the sidecar must not open the app database"
+        );
+        assert!(app_dir.join("notemaid.db").exists());
+    }
 }

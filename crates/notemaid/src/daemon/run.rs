@@ -64,9 +64,10 @@ pub fn run(args: RunArgs) -> i32 {
     // secret の置き場: 常駐 / サーバーは暗号化ファイル、アプリの子プロセスは OS キーチェーン
     match args.secrets {
         crate::daemon::SecretsBackend::Keychain => {
+            // アプリと同じ扱い: キーチェーンが無くても起動は続け、トークンが要る呼び出しが
+            // 個別に失敗する (子プロセスが即死するとアプリ側の中継が宙に浮くため)
             if let Err(e) = notecli::keychain::init_store() {
-                tracing::error!("secret store unavailable: {e}");
-                return exit::SECRET_KEY;
+                tracing::warn!("keychain unavailable ({e}); AI calls that need tokens will fail");
             }
         }
         crate::daemon::SecretsBackend::File => {

@@ -41,8 +41,8 @@ pub struct ClientLayerState {
 
 type EventHook = Arc<dyn Fn(&str, Value) + Send + Sync>;
 type StateHook = Arc<dyn Fn(&ClientLayerState) + Send + Sync>;
-/// notecored からの橋の問い合わせ (確認内容 / 実行要求 / HEARTBEAT の文脈) を WebView に
-/// 渡して答えを返す。型・引数・上限時間は notecored が決める
+/// notemaid からの橋の問い合わせ (確認内容 / 実行要求 / HEARTBEAT の文脈) を WebView に
+/// 渡して答えを返す。型・引数・上限時間は notemaid が決める
 pub type QueryHook = Arc<
     dyn Fn(String, Value, Duration) -> notecore::frontend_bridge::BridgeFuture<'static>
         + Send
@@ -56,6 +56,8 @@ pub struct RelayClient {
     switch: Notify,
     /// 接続が立ったときに呼ぶ (口座一覧の同期など)
     on_connected: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
+    /// 相手の版 (指紋) がこのアプリと違ったときに呼ぶ (常駐の起動し直しなど)
+    on_mismatch: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     tx: Mutex<Option<mpsc::Sender<Frame>>>,
     pending: Mutex<HashMap<u64, oneshot::Sender<Outcome>>>,
     next_id: AtomicU64,
@@ -125,6 +127,7 @@ impl RelayClient {
             endpoint: Mutex::new(endpoint),
             switch: Notify::new(),
             on_connected: Mutex::new(None),
+            on_mismatch: Mutex::new(None),
             tx: Mutex::new(None),
             pending: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
@@ -159,6 +162,10 @@ impl RelayClient {
 
     pub fn set_on_connected(&self, hook: Arc<dyn Fn() + Send + Sync>) {
         *self.on_connected.lock().unwrap_or_else(|e| e.into_inner()) = Some(hook);
+    }
+
+    pub fn set_on_mismatch(&self, hook: Arc<dyn Fn() + Send + Sync>) {
+        *self.on_mismatch.lock().unwrap_or_else(|e| e.into_inner()) = Some(hook);
     }
 
     /// 接続中なら接続時の hook をもう一度呼ぶ (口座が変わったとき)
@@ -297,7 +304,11 @@ impl RelayClient {
                     *self.tx.lock().unwrap_or_else(|e| e.into_inner()) = Some(tx.clone());
                     let matches = fingerprint == notecore::rpc::manifest_fingerprint();
                     if !matches {
-                        tracing::warn!(version, "[relay] notecored manifest differs from this app");
+                        tracing::warn!(version, "[relay] notemaid manifest differs from this app");
+                        let hook = self.on_mismatch.lock().ok().and_then(|h| h.clone());
+                        if let Some(hook) = hook {
+                            hook();
+                        }
                     }
                     self.update_state(|s| {
                         s.connected = true;
@@ -391,7 +402,7 @@ impl RelayClient {
             (tx, secret)
         };
         let (Some(tx), Some(secret)) = (tx, secret) else {
-            return Outcome::failure(unavailable("notecored is not connected"));
+            return Outcome::failure(unavailable("notemaid is not connected"));
         };
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let (reply_tx, reply_rx) = oneshot::channel();
@@ -411,11 +422,11 @@ impl RelayClient {
                 .lock()
                 .unwrap_or_else(|e| e.into_inner())
                 .remove(&id);
-            return Outcome::failure(unavailable("notecored connection is closing"));
+            return Outcome::failure(unavailable("notemaid connection is closing"));
         }
         match reply_rx.await {
             Ok(outcome) => outcome,
-            Err(_) => Outcome::failure(unavailable("notecored connection was lost")),
+            Err(_) => Outcome::failure(unavailable("notemaid connection was lost")),
         }
     }
 
@@ -475,7 +486,7 @@ mod tests {
     use serde_json::json;
     use std::path::PathBuf;
 
-    /// 偽の notecored: hello を送り、要求に答え、イベントを 1 つ押し出す
+    /// 偽の notemaid: hello を送り、要求に答え、イベントを 1 つ押し出す
     async fn fake_daemon(socket: PathBuf) {
         let listener = tokio::net::UnixListener::bind(&socket).unwrap();
         let (stream, _) = listener.accept().await.unwrap();

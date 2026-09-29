@@ -5792,13 +5792,13 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "apiCall": string
   }
   readonly "_coreContent": {
-    /** 今のコア */
+    /** AI の実行 */
     readonly "current": string
-    /** AI (エージェントループ / HEARTBEAT) をこのアプリの中で回しているか、常駐の notemaid に中継しているかの状態です。データ (蓄積・購読・デッキ) は常にこの端末で動きます。 */
-    readonly "description": string
-    /** アプリの中で実行 (in-process) */
+    /** データはこの端末。AI は別プロセス (notemaid) */
+    readonly "currentDesc": string
+    /** アプリの中で実行 */
     readonly "modeEmbedded": string
-    /** 別プロセス (notemaid) に中継 */
+    /** 別プロセスに中継 */
     readonly "modeResident": string
     /** 接続中 */
     readonly "connected": string
@@ -5806,13 +5806,15 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "disconnected": string
     /** notemaid の版がこのアプリと一致していません。notemaid を更新してください。 */
     readonly "fingerprintMismatch": string
-    /** アプリを閉じても AI を動かす */
+    /** アプリを閉じても動かす */
     readonly "residentTitle": string
-    /** ログイン時に notemaid を起動し、アプリを閉じても動かし続ける */
+    /** ログイン時に起動する常駐タスク */
+    readonly "residentDesc": string
+    /** 常駐タスクとして起動する */
     readonly "residentToggle": string
-    /** オフのときはアプリが notemaid を子プロセスとして起動し、アプリと一緒に終わります。オンにすると OS のログイン時タスク (Linux は systemd の user unit、macOS は LaunchAgent、Windows はタスク スケジューラ) に登録し、HEARTBEAT がアプリなしで続きます。切り替えに再起動は要りません。 */
+    /** オンにすると OS のログイン時タスクに登録し、アプリなしで HEARTBEAT が続きます。オフならアプリと一緒に終わります。再起動は不要です。 */
     readonly "residentHint": string
-    /** この環境では切り替えられません: {reason} */
+    /** この環境では使えません: {reason} */
     readonly "residentUnavailable": ParameterizedString<'reason'>
     /** 常駐タスク */
     readonly "residentService": string
@@ -5826,8 +5828,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "residentInactive": string
     /** 切り替え中... */
     readonly "residentSwitching": string
-    /** ログアウト後も動かし続けるには loginctl enable-linger を設定します。 */
-    readonly "lingerHint": string
     /** ログを見るコマンドをコピー */
     readonly "copyJournal": string
     /** コピーしました */

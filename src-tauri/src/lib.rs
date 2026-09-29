@@ -302,7 +302,21 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     })
                 }),
             );
+            let is_child = launched.child.is_some();
             maid_launcher::keep(launched.child);
+            // 常駐の版がこのアプリと違う (更新の直後) なら、同梱の sidecar で起動し直す。1 回だけ
+            if !is_child {
+                let restarted = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                relay.set_on_mismatch(std::sync::Arc::new(move || {
+                    if restarted.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                        return;
+                    }
+                    tauri::async_runtime::spawn_blocking(|| match maid_launcher::restart_resident() {
+                        Ok(()) => tracing::info!("[notemaid] restarted the resident notemaid to match this app"),
+                        Err(e) => tracing::warn!("[notemaid] could not restart the resident notemaid: {e}"),
+                    });
+                }));
+            }
             // 接続したら口座の一覧を写す (notemaid は自分の DB に口座だけ持ち、トークンは
             // OS キーチェーンから同じ id で読む)。口座が変わったときは core_sync_accounts が呼ぶ
             let sync_handle = app.handle().clone();
@@ -311,7 +325,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 tauri::async_runtime::spawn(async move {
                     let Some(relay) = client_layer::relay() else { return };
                     let core = app.state::<notecore::context::Core>();
-                    match notecore::commands::admin::load_accounts(&core).await {
+                    // 口座の行をそのまま写す (トークン列を含む)。キーチェーンが使える環境では列は空で
+                    // notemaid もキーチェーンから読む。無い環境 (WSL2 など) ではこの列が唯一の経路で、
+                    // アプリ自身の DB と同じ保護水準 (同じデータディレクトリ、同じユーザー)
+                    let db = core.db().await;
+                    match db.load_accounts() {
                         Ok(list) => {
                             let outcome = relay
                                 .request("notemaid.accounts", serde_json::json!({ "accounts": list }), None)
