@@ -196,8 +196,9 @@ jobs:
           shared-key: rust-windows
           save-if: ${{ github.event_name == 'push' }}
 
-      - name: Type check (app + notecore, Windows)
-        run: cargo check -p notedeck --lib -p notecore
+      # notemaid の bin (named pipe / 非 unix のシグナル処理) もここでしか Windows で検査されない
+      - name: Type check (app + notecore + notemaid, Windows)
+        run: cargo check -p notedeck --lib -p notecore -p notemaid --features notemaid/daemon
 
   # E2E (#702): 実アプリを xvfb 上の隔離プロファイルで起動し、
   # 外部アプリと同じ HTTP API 面 (#709) で駆動する
