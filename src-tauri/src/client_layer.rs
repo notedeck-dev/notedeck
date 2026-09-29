@@ -19,7 +19,7 @@ use notemaid::transport::{self, Endpoint};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{mpsc, oneshot, watch, Notify};
 
 /// 状態面 (`nd:client-layer-state` と `client_layer_state` コマンド)
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -50,7 +50,12 @@ pub type QueryHook = Arc<
 >;
 
 pub struct RelayClient {
-    endpoint: Endpoint,
+    /// 繋ぐ先。子プロセス ⇄ 常駐の切り替えで差し替わる
+    endpoint: Mutex<Endpoint>,
+    /// 繋ぎ先を差し替えたとき、今のセッションを閉じて run ループに繋ぎ直させる
+    switch: Notify,
+    /// 接続が立ったときに呼ぶ (口座一覧の同期など)
+    on_connected: Mutex<Option<Arc<dyn Fn() + Send + Sync>>>,
     tx: Mutex<Option<mpsc::Sender<Frame>>>,
     pending: Mutex<HashMap<u64, oneshot::Sender<Outcome>>>,
     next_id: AtomicU64,
@@ -117,7 +122,9 @@ impl RelayClient {
                 socket: Some(endpoint.to_string()),
                 ..Default::default()
             }),
-            endpoint,
+            endpoint: Mutex::new(endpoint),
+            switch: Notify::new(),
+            on_connected: Mutex::new(None),
             tx: Mutex::new(None),
             pending: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
@@ -133,6 +140,36 @@ impl RelayClient {
 
     pub fn state_snapshot(&self) -> ClientLayerState {
         self.state.lock().map(|s| s.clone()).unwrap_or_default()
+    }
+
+    pub fn endpoint(&self) -> Endpoint {
+        self.endpoint
+            .lock()
+            .map(|e| e.clone())
+            .unwrap_or_else(|e| e.into_inner().clone())
+    }
+
+    /// 繋ぎ先を差し替えて繋ぎ直す (子プロセス ⇄ 常駐)。再起動は要らない
+    pub fn switch_to(&self, endpoint: Endpoint) {
+        let display = endpoint.to_string();
+        *self.endpoint.lock().unwrap_or_else(|e| e.into_inner()) = endpoint;
+        self.update_state(|s| s.socket = Some(display));
+        self.switch.notify_one();
+    }
+
+    pub fn set_on_connected(&self, hook: Arc<dyn Fn() + Send + Sync>) {
+        *self.on_connected.lock().unwrap_or_else(|e| e.into_inner()) = Some(hook);
+    }
+
+    /// 接続中なら接続時の hook をもう一度呼ぶ (口座が変わったとき)
+    pub fn resync(&self) {
+        if !self.state_snapshot().connected {
+            return;
+        }
+        let hook = self.on_connected.lock().ok().and_then(|h| h.clone());
+        if let Some(hook) = hook {
+            hook();
+        }
     }
 
     #[cfg(test)]
@@ -153,7 +190,8 @@ impl RelayClient {
     pub async fn run(self: Arc<Self>) {
         let mut backoff = Duration::from_millis(500);
         loop {
-            match transport::connect(&self.endpoint).await {
+            let endpoint = self.endpoint();
+            match transport::connect(&endpoint).await {
                 Ok(stream) => {
                     backoff = Duration::from_millis(500);
                     self.session(stream).await;
@@ -166,7 +204,14 @@ impl RelayClient {
                     });
                 }
             }
-            tokio::time::sleep(backoff).await;
+            // 差し替えの通知が来ていればすぐ繋ぎ直す (待ちの途中でも)
+            tokio::select! {
+                _ = tokio::time::sleep(backoff) => {}
+                _ = self.switch.notified() => {
+                    backoff = Duration::from_millis(500);
+                    continue;
+                }
+            }
             backoff = (backoff * 2).min(Duration::from_secs(10));
         }
     }
@@ -224,7 +269,16 @@ impl RelayClient {
             }
         });
         let mut lines = BufReader::new(reader).lines();
-        while let Ok(Some(line)) = lines.next_line().await {
+        loop {
+            let line = tokio::select! {
+                l = lines.next_line() => match l { Ok(Some(l)) => l, _ => break },
+                _ = self.switch.notified() => {
+                    tracing::info!("[relay] switching endpoint; closing session");
+                    // run ループ側でもう一度拾えるよう通知を残す
+                    self.switch.notify_one();
+                    break;
+                }
+            };
             let frame: Frame = match serde_json::from_str(&line) {
                 Ok(f) => f,
                 Err(e) => {
@@ -252,6 +306,10 @@ impl RelayClient {
                         s.last_error = None;
                     });
                     let _ = self.ready.send(true);
+                    let hook = self.on_connected.lock().ok().and_then(|h| h.clone());
+                    if let Some(hook) = hook {
+                        hook();
+                    }
                     *self.last_seq.lock().unwrap_or_else(|e| e.into_inner()) = 0;
                     let first = {
                         let mut h = self.had_session.lock().unwrap_or_else(|e| e.into_inner());

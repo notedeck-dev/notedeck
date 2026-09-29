@@ -540,7 +540,7 @@ jobs:
             --repo "${{ github.repository }}" \
             --draft=false
 
-  # AUR は split package (pkgbase misskey-notedeck-bin → アプリ / notemaid-bin / notecli-bin)。
+  # AUR は split package (pkgbase misskey-notedeck-bin → アプリ (notemaid 同梱) / notecli-bin)。
   # notecli のバイナリは notecli job が Release に足すので、その後に走る
   aur:
     needs: [publish, notecli]

@@ -12,7 +12,7 @@ StartLimitBurst=5
 
 [Service]
 Type=simple
-ExecStart=@EXEC_START@ run
+ExecStart=@EXEC_START@ run --secrets keychain --log stdout
 Restart=on-failure
 RestartSec=5
 RestartPreventExitStatus=@NO_RESTART@

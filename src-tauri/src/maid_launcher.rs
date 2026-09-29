@@ -141,3 +141,123 @@ pub fn stop() {
     let _ = child.kill();
     let _ = child.wait();
 }
+
+/// 常駐 (ログイン時のユーザータスク) の状態。`notemaid service status` の JSON をそのまま
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ResidentStatus {
+    /// トグルが使えるか (sidecar があり、そのパスがログイン後も同じか)
+    pub available: bool,
+    /// 使えないときの理由 (英語のまま。開発者向け)
+    pub reason: Option<String>,
+    pub sidecar: Option<String>,
+    pub installed: bool,
+    pub active: bool,
+    pub detail: Option<String>,
+}
+
+/// 常駐の ExecStart に書いてよいパスか。AppImage のマウント先や Nix store はログインごと /
+/// 更新ごとに変わるので拒む (standalone のバイナリを入れてもらう)
+fn stable_sidecar() -> Result<PathBuf, String> {
+    let p = sidecar_path().ok_or("no notemaid sidecar next to the app")?;
+    let text = p.display().to_string();
+    if text.contains("/.mount_") || text.starts_with("/tmp/") {
+        return Err(format!(
+            "{text} is a temporary mount (AppImage); install the standalone notemaid"
+        ));
+    }
+    if text.starts_with("/nix/store/") {
+        return Err(format!(
+            "{text} is in the Nix store; use the flake's home-manager module"
+        ));
+    }
+    Ok(p)
+}
+
+fn service(bin: &Path, args: &[&str]) -> Result<String, String> {
+    let out = Command::new(bin)
+        .arg("service")
+        .args(args)
+        .output()
+        .map_err(|e| format!("notemaid service {}: {e}", args.join(" ")))?;
+    if out.status.success() {
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    } else {
+        Err(format!(
+            "notemaid service {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&out.stderr).trim()
+        ))
+    }
+}
+
+pub fn resident_status() -> ResidentStatus {
+    let bin = match stable_sidecar() {
+        Ok(b) => b,
+        Err(reason) => {
+            return ResidentStatus {
+                available: false,
+                reason: Some(reason),
+                sidecar: sidecar_path().map(|p| p.display().to_string()),
+                ..Default::default()
+            }
+        }
+    };
+    let mut st = ResidentStatus {
+        available: true,
+        sidecar: Some(bin.display().to_string()),
+        ..Default::default()
+    };
+    match service(&bin, &["status"]) {
+        Ok(out) => {
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(out.trim()) {
+                st.installed = v["installed"].as_bool().unwrap_or(false);
+                st.active = v["active"].as_bool().unwrap_or(false);
+                st.detail = v["detail"].as_str().map(str::to_string);
+            }
+        }
+        Err(e) => {
+            st.available = false;
+            st.reason = Some(e);
+        }
+    }
+    st
+}
+
+/// 「アプリを閉じても AI を動かす」の実体。on: 子プロセスを止め、ログイン時タスクを登録して
+/// 起動し、中継を常駐の場所に付け替える。off: タスクを外し、子プロセスを起動し直して付け替える
+pub async fn set_resident(app_dir: &Path, enabled: bool) -> Result<(), String> {
+    let bin = stable_sidecar()?;
+    let relay =
+        crate::client_layer::relay().ok_or("the AI is running in-process; nothing to switch")?;
+    if enabled {
+        let target = transport::default_endpoint()
+            .ok_or("no place for the resident socket (XDG_RUNTIME_DIR)")?;
+        stop();
+        service(
+            &bin,
+            &["install", "--exec-path", &bin.display().to_string()],
+        )?;
+        service(&bin, &["enable"])?;
+        relay.switch_to(target);
+    } else {
+        let _ = service(&bin, &["stop"]);
+        service(&bin, &["uninstall"])?;
+        // 常駐が socket を片付けるまで少し待ってから子を起こす (同じデータディレクトリのロック)
+        for _ in 0..30 {
+            if let Some(ep) = transport::default_endpoint() {
+                if !answering(&ep).await {
+                    break;
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        let launched = launch(app_dir, Backend::Auto)
+            .await
+            .ok_or("could not start the notemaid child process")?;
+        let endpoint = launched.endpoint.clone();
+        keep(launched.child);
+        relay.switch_to(endpoint);
+    }
+    Ok(())
+}

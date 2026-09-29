@@ -293,6 +293,11 @@ impl RpcServer {
             return match own {
                 "status" => Outcome::success((self.status)()),
                 "ping" => Outcome::success(json!({ "pong": true })),
+                // 接続したアプリが口座の一覧を写す (トークンは含まない。OS キーチェーンから同じ id で読む)
+                "accounts" => match self.sync_accounts(params).await {
+                    Ok(n) => Outcome::success(json!({ "accounts": n })),
+                    Err(e) => Outcome::failure(RpcError::from(&e)),
+                },
                 // 接続中の端末に橋の問い合わせが届くかの検査 (受け入れ試験と診断用)
                 "probe-device" => match self
                     .sessions
@@ -319,6 +324,41 @@ impl RpcServer {
             Ok(v) => Outcome::success(v),
             Err(e) => Outcome::failure(RpcError::from(&e)),
         }
+    }
+}
+
+impl RpcServer {
+    /// アプリから受けた口座の一覧を自分の DB に写す。一覧に無い口座は消す
+    async fn sync_accounts(&self, params: Value) -> notecore::error::Result<usize> {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Incoming {
+            accounts: Vec<notecli::models::AccountPublic>,
+        }
+        let incoming: Incoming = serde_json::from_value(params)
+            .map_err(|e| notecli::error::NoteDeckError::InvalidInput(e.to_string()))?;
+        let db = self.core.db().await;
+        let existing = db.load_accounts()?;
+        let wanted: std::collections::HashSet<&str> =
+            incoming.accounts.iter().map(|a| a.id.as_str()).collect();
+        for a in &existing {
+            if !wanted.contains(a.id.as_str()) {
+                db.delete_account(&a.id)?;
+            }
+        }
+        for a in &incoming.accounts {
+            db.upsert_account(&notecli::models::Account {
+                id: a.id.clone(),
+                host: a.host.clone(),
+                token: String::new(),
+                user_id: a.user_id.clone(),
+                username: a.username.clone(),
+                display_name: a.display_name.clone(),
+                avatar_url: a.avatar_url.clone(),
+                software: a.software.clone(),
+            })?;
+        }
+        Ok(incoming.accounts.len())
     }
 }
 

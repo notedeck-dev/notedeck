@@ -23,8 +23,7 @@ enum Command {
     Run(RunArgs),
     /// 動いている notemaid の状態を socket 越しに表示する
     Status(SocketArgs),
-    /// systemd の user unit を用意 / 有効化 / 停止する (Linux)
-    #[cfg(target_os = "linux")]
+    /// ログイン時に起動するユーザー権限のタスク (systemd user unit / LaunchAgent / Task Scheduler) を用意 / 有効化 / 停止する
     #[command(subcommand)]
     Service(service::ServiceCommand),
     /// secret の鍵と本体の面倒を見る
@@ -37,7 +36,6 @@ fn main() {
     let code = match cli.command.unwrap_or(Command::Run(RunArgs::default())) {
         Command::Run(args) => run::run(args),
         Command::Status(args) => status::status(args),
-        #[cfg(target_os = "linux")]
         Command::Service(cmd) => service::run(cmd),
         Command::Secrets(cmd) => secrets::run(cmd),
     };

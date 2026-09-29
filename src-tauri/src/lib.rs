@@ -285,7 +285,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             let emit_handle = app.handle().clone();
             let state_handle = app.handle().clone();
             let query_handle = app.handle().clone();
-            client_layer::start(
+            let relay = client_layer::start(
                 launched.endpoint,
                 std::sync::Arc::new(move |name, payload| {
                     if let Err(e) = tauri::Emitter::emit(&emit_handle, name, payload) {
@@ -303,6 +303,27 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 }),
             );
             maid_launcher::keep(launched.child);
+            // 接続したら口座の一覧を写す (notemaid は自分の DB に口座だけ持ち、トークンは
+            // OS キーチェーンから同じ id で読む)。口座が変わったときは core_sync_accounts が呼ぶ
+            let sync_handle = app.handle().clone();
+            relay.set_on_connected(std::sync::Arc::new(move || {
+                let app = sync_handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    let Some(relay) = client_layer::relay() else { return };
+                    let core = app.state::<notecore::context::Core>();
+                    match notecore::commands::admin::load_accounts(&core).await {
+                        Ok(list) => {
+                            let outcome = relay
+                                .request("notemaid.accounts", serde_json::json!({ "accounts": list }), None)
+                                .await;
+                            if !outcome.ok {
+                                tracing::warn!("[notemaid] account sync failed: {:?}", outcome.error);
+                            }
+                        }
+                        Err(e) => tracing::warn!("[notemaid] account list unavailable: {e}"),
+                    }
+                });
+            }));
         }
         #[cfg(not(desktop))]
         let _ = configured_backend;
@@ -1195,6 +1216,9 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,
             client_layer::client_layer_state,
+            commands::core_resident_status,
+            commands::core_set_resident,
+            commands::core_sync_accounts,
             // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
             commands::run_healthcheck,
             commands::health_core,

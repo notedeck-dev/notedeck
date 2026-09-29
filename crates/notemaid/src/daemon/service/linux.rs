@@ -1,4 +1,4 @@
-//! `notemaid service <install|uninstall|enable|start|stop|restart|status>`:
+//! Linux: systemd の user unit で常駐させる。`notemaid service <install|uninstall|enable|start|stop|restart|status>`:
 //! systemd の user unit の面倒を見る (#1106 段階 3a の補遺 §6)。
 //!
 //! - unit の正本は `deploy/notemaid.service` 1 ファイル (生成マーカー入り)
@@ -12,39 +12,13 @@ use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use clap::Subcommand;
-
+use super::ServiceCommand;
 use crate::daemon::exit;
 
 pub const MARKER: &str = "# notedeck:notemaid-unit";
 pub const UNIT_NAME: &str = "notemaid.service";
-const TEMPLATE: &str = include_str!("../../deploy/notemaid.service");
+const TEMPLATE: &str = include_str!("../../../deploy/notemaid.service");
 const PACKAGE_UNIT: &str = "/usr/lib/systemd/user/notemaid.service";
-
-#[derive(Subcommand, Debug, Clone)]
-pub enum ServiceCommand {
-    /// user unit を用意する (enable / start はしない)
-    Install {
-        /// unit の ExecStart に書くバイナリ。既定は自分自身
-        #[arg(long)]
-        exec_path: Option<PathBuf>,
-    },
-    /// disable --now → 自分が書いた unit の削除 → daemon-reload → reset-failed
-    Uninstall,
-    /// enable + start (secret の import が済んでから)
-    Enable,
-    Start,
-    Stop,
-    Restart,
-    /// systemctl --user status
-    Status,
-    /// パッケージ同梱用に、ExecStart を埋めた unit を標準出力へ書く
-    Render {
-        /// unit の ExecStart に書くバイナリ (パッケージなら /usr/bin/notemaid)
-        #[arg(long, default_value = "/usr/bin/notemaid")]
-        exec_path: PathBuf,
-    },
-}
 
 /// テンプレートに ExecStart と終了コードを埋める
 pub fn render_unit(exec_path: &Path) -> String {
@@ -167,8 +141,8 @@ fn linger_hint() {
     }
 }
 
-pub fn run(cmd: ServiceCommand) -> i32 {
-    let result = match cmd {
+pub fn run(cmd: ServiceCommand) -> Result<(), String> {
+    match cmd {
         ServiceCommand::Install { exec_path } => install(exec_path),
         ServiceCommand::Render { exec_path } => {
             print!("{}", render_unit(&exec_path));
@@ -181,17 +155,16 @@ pub fn run(cmd: ServiceCommand) -> i32 {
         ServiceCommand::Start => systemctl(&["start", UNIT_NAME]).map(|_| ()),
         ServiceCommand::Stop => systemctl(&["stop", UNIT_NAME]).map(|_| ()),
         ServiceCommand::Restart => systemctl(&["restart", UNIT_NAME]).map(|_| ()),
-        ServiceCommand::Status => Command::new("systemctl")
-            .args(["--user", "status", "--no-pager", UNIT_NAME])
-            .status()
-            .map(|_| ())
-            .map_err(|e| e.to_string()),
-    };
-    match result {
-        Ok(()) => 0,
-        Err(e) => {
-            eprintln!("{e}");
-            exit::FAILURE
+        ServiceCommand::Status => {
+            let installed = user_unit_path().map(|p| p.exists()).unwrap_or(false)
+                || Path::new(PACKAGE_UNIT).exists();
+            let active = Command::new("systemctl")
+                .args(["--user", "is-active", "--quiet", UNIT_NAME])
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            super::print_status(installed, active, "systemd user unit");
+            Ok(())
         }
     }
 }
@@ -299,7 +272,7 @@ mod tests {
     fn unit_template_renders_exec_and_exit_codes() {
         let unit = render_unit(Path::new("/usr/bin/notemaid"));
         assert!(has_marker(&unit));
-        assert!(unit.contains("ExecStart=/usr/bin/notemaid run\n"));
+        assert!(unit.contains("ExecStart=/usr/bin/notemaid run --secrets keychain --log stdout\n"));
         assert!(unit.contains("RestartPreventExitStatus=10 11 12 13\n"));
         assert!(!unit.contains("ProtectHome"));
         assert!(unit.contains("StartLimitBurst"));

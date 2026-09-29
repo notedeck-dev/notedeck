@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { i18n } from '@/i18n'
 import { useClientLayerStore } from '@/stores/clientLayer'
 import { useToast } from '@/stores/toast'
@@ -7,31 +7,71 @@ import { useToast } from '@/stores/toast'
 /**
  * 「コア」の状態面 (#1106 案 B): AI 系のコマンドを in-process で回しているか、別プロセスの
  * notemaid (子プロセス / 常駐) に中継しているかと、その接続の様子。データ面は常にこの端末で動く。
- * 常駐化は notemaid の CLI で行い、ここでは表示だけ (「アプリを閉じても動かす」トグルは次の段)。
+ * 「アプリを閉じても AI を動かす」トグルはログイン時タスクの登録 / 解除で、再起動は要らない。
  */
 
 const store = useClientLayerStore()
+const busy = ref(false)
+const errorMessage = ref('')
 
 onMounted(() => {
   store.start()
   void store.refreshState()
+  void store.refreshResident()
 })
 
 const state = computed(() => store.state)
-const resident = computed(() => state.value?.backend === 'resident')
+const resident = computed(() => store.resident)
+const relayed = computed(() => state.value?.backend === 'resident')
 
 const modeLabel = computed(() =>
-  resident.value
+  relayed.value
     ? i18n.ts._coreContent.modeResident
     : i18n.ts._coreContent.modeEmbedded,
 )
 
 const connectionLabel = computed(() => {
-  if (!resident.value) return ''
+  if (!relayed.value) return ''
   return state.value?.connected
     ? i18n.ts._coreContent.connected
     : i18n.ts._coreContent.disconnected
 })
+
+/** トグルの現在値 = ログイン時タスクが登録されているか */
+const residentOn = computed(() => resident.value?.installed ?? false)
+const canToggle = computed(
+  () => !busy.value && relayed.value && (resident.value?.available ?? false),
+)
+
+const residentSummary = computed(() => {
+  const r = resident.value
+  if (!r?.available) return ''
+  const installed = r.installed
+    ? i18n.ts._coreContent.residentInstalled
+    : i18n.ts._coreContent.residentNotInstalled
+  const active = r.active
+    ? i18n.ts._coreContent.residentActive
+    : i18n.ts._coreContent.residentInactive
+  const detail = r.detail ? ` (${r.detail})` : ''
+  return `${i18n.ts._coreContent.residentService}: ${installed} · ${active}${detail}`
+})
+
+async function toggleResident(): Promise<void> {
+  if (!canToggle.value) return
+  busy.value = true
+  errorMessage.value = ''
+  try {
+    await store.setResident(!residentOn.value)
+  } catch (e) {
+    errorMessage.value =
+      typeof e === 'object' && e !== null && 'message' in e
+        ? String((e as { message: unknown }).message)
+        : String(e)
+    await store.refreshResident()
+  } finally {
+    busy.value = false
+  }
+}
 
 async function copyJournalHint(): Promise<void> {
   try {
@@ -53,27 +93,39 @@ async function copyJournalHint(): Promise<void> {
       <p :class="$style.mode">
         {{ modeLabel }}
         <span v-if="connectionLabel" :class="[$style.badge, state?.connected ? $style.badgeOk : $style.badgeBad]">{{ connectionLabel }}</span>
-        <span v-if="resident && state?.daemonVersion" :class="$style.hint">({{ state.daemonVersion }})</span>
+        <span v-if="relayed && state?.daemonVersion" :class="$style.hint">({{ state.daemonVersion }})</span>
       </p>
       <p :class="$style.hint">{{ i18n.ts._coreContent.description }}</p>
-      <p v-if="resident && state?.fingerprintMatch === false" :class="$style.warn">
+      <p v-if="relayed && state?.fingerprintMatch === false" :class="$style.warn">
         {{ i18n.ts._coreContent.fingerprintMismatch }}
       </p>
-      <p v-if="resident && state?.lastError" :class="$style.hint">
+      <p v-if="relayed && state?.lastError" :class="$style.hint">
         {{ state.lastError }}
       </p>
     </section>
 
     <section :class="$style.section">
       <div :class="$style.sectionHeader">
-        <i class="ti ti-terminal-2" :class="$style.sectionIcon" />
-        <span :class="$style.sectionTitle">{{ i18n.ts._coreContent.howToTitle }}</span>
+        <i class="ti ti-moon-stars" :class="$style.sectionIcon" />
+        <span :class="$style.sectionTitle">{{ i18n.ts._coreContent.residentTitle }}</span>
       </div>
-      <p :class="$style.hint">{{ i18n.ts._coreContent.howTo }}</p>
-      <pre :class="$style.code">notemaid service install
-notemaid service enable</pre>
-      <p :class="$style.hint">{{ i18n.ts._coreContent.lingerHint }}</p>
-      <div :class="$style.btnRow">
+      <label :class="[$style.toggleRow, !canToggle && $style.toggleDisabled]">
+        <input
+          type="checkbox"
+          :checked="residentOn"
+          :disabled="!canToggle"
+          @change="toggleResident"
+        />
+        <span>{{ busy ? i18n.ts._coreContent.residentSwitching : i18n.ts._coreContent.residentToggle }}</span>
+      </label>
+      <p :class="$style.hint">{{ i18n.ts._coreContent.residentHint }}</p>
+      <p v-if="resident && !resident.available" :class="$style.warn">
+        {{ i18n.tsx._coreContent.residentUnavailable({ reason: resident.reason ?? '' }) }}
+      </p>
+      <p v-if="residentSummary" :class="$style.hint">{{ residentSummary }}</p>
+      <p v-if="residentOn" :class="$style.hint">{{ i18n.ts._coreContent.lingerHint }}</p>
+      <p v-if="errorMessage" :class="$style.warn">{{ errorMessage }}</p>
+      <div v-if="residentOn" :class="$style.btnRow">
         <button class="_button" type="button" :class="$style.secondaryBtn" @click="copyJournalHint">
           {{ i18n.ts._coreContent.copyJournal }}
         </button>
@@ -158,21 +210,24 @@ notemaid service enable</pre>
   margin: 0;
 }
 
-.code {
-  margin: 0;
-  padding: 8px;
-  font-size: 0.8em;
-  background: var(--nd-bg);
-  border: 1px solid var(--nd-divider);
-  border-radius: 6px;
-  overflow-x: auto;
-  user-select: all;
-}
-
 .btnRow {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9em;
+  color: var(--nd-fg);
+  cursor: pointer;
+}
+
+.toggleDisabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .secondaryBtn {

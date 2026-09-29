@@ -1,8 +1,9 @@
 //! `notemaid run`: notemaid (AI) を headless に常駐させる (#1106 案 B の途中段階)。
 //! 常駐するのはエージェントループ / HEARTBEAT と AI 系コマンドの RPC 面だけで、
 //! データ面 (ストリーミング / クエリランタイム / OGP / 画像キャッシュ / 公開 HTTP API)
-//! は持たない (デバイスのアプリが持つ)。notes DB を開くのは資格情報とキャッシュ読みの
-//! ための暫定で、鍵と口座一覧をデバイスから受ける段で閉じる。
+//! は持たない (デバイスのアプリが持つ)。アプリの notes DB は開かず、自分の小さな DB
+//! (`notemaid.db`: 口座の一覧だけ。接続したアプリが `notemaid.accounts` で同期する) を持つ。
+//! トークンは OS キーチェーン (`--secrets keychain`) から同じ id で読む。
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -14,6 +15,9 @@ use crate::daemon::heartbeat_timer::HeartbeatTimer;
 use crate::daemon::rpc_server::{new_secret, RpcServer, SessionBridge, Sessions};
 use crate::daemon::sinks::{self, Events};
 use crate::daemon::{exit, lock, logging, RunArgs};
+
+/// notemaid 自身の DB。アプリの notecli.db とは別 (版ずれと排他を持ち込まない)
+pub const DB_FILE: &str = "notemaid.db";
 use crate::CoreMaidExt;
 
 pub fn run(args: RunArgs) -> i32 {
@@ -107,7 +111,7 @@ pub fn run(args: RunArgs) -> i32 {
         tracing::error!("filesystem migration failed: {e}");
         return exit::FAILURE;
     }
-    let db_path = data_dir.join("notecli.db");
+    let db_path = data_dir.join(DB_FILE);
     if db_path.exists() {
         match notecli::db::Database::migration_status(&db_path) {
             Ok(status) if status.is_openable() => {}
@@ -203,7 +207,7 @@ async fn serve(
     ));
 
     // DB と Misskey クライアント
-    let db = match notecli::db::Database::open(&data_dir.join("notecli.db")) {
+    let db = match notecli::db::Database::open(&data_dir.join(DB_FILE)) {
         Ok(db) => Arc::new(db),
         Err(e) => {
             tracing::error!("database open failed: {}", e.safe_message());

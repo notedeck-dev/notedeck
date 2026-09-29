@@ -20,7 +20,6 @@ pub mod logging;
 pub mod rpc_server;
 pub mod run;
 pub mod secrets;
-#[cfg(target_os = "linux")]
 pub mod service;
 pub mod sinks;
 pub mod status;

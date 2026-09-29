@@ -2464,6 +2464,31 @@ async systemStateGet() : Promise<Result<SystemState, { code: string; message: st
 async clientLayerState() : Promise<ClientLayerState> {
     return await TAURI_INVOKE("client_layer_state");
 },
+/** @see src-tauri/src/commands/resident.rs */
+async coreResidentStatus() : Promise<ResidentStatus> {
+    return await TAURI_INVOKE("core_resident_status");
+},
+/**
+ * 「アプリを閉じても AI を動かす」を切り替え、新しい中継の状態を返す
+ *
+ * @see src-tauri/src/commands/resident.rs
+ */
+async coreSetResident(enabled: boolean) : Promise<Result<ClientLayerState, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_set_resident", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 口座が変わったとき、別プロセスの notemaid に一覧を写し直す (in-process なら何もしない)
+ *
+ * @see src-tauri/src/commands/resident.rs
+ */
+async coreSyncAccounts() : Promise<void> {
+    await TAURI_INVOKE("core_sync_accounts");
+},
 /** @see src-tauri/src/commands/health.rs */
 async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
@@ -3705,6 +3730,18 @@ export type QuerySnapshot = { queryId: string; key: QueryKey; runtimeState: Quer
 export type ReactionEmoji = { name: string; url: string } | string
 export type ReactionInfo = { user: NormalizedUser; reaction: string }
 export type Report = { ok: boolean; checks: Check[] }
+/**
+ * 常駐 (ログイン時のユーザータスク) の状態。`notemaid service status` の JSON をそのまま
+ */
+export type ResidentStatus = { 
+/**
+ * トグルが使えるか (sidecar があり、そのパスがログイン後も同じか)
+ */
+available: boolean; 
+/**
+ * 使えないときの理由 (英語のまま。開発者向け)
+ */
+reason: string | null; sidecar: string | null; installed: boolean; active: boolean; detail: string | null }
 export type SearchOptions = { limit?: number; sinceId: string | null; untilId: string | null; sinceDate: number | null; untilDate: number | null; 
 /**
  * 指定ユーザーのノートのみに絞る (notes/search の userId)

@@ -5806,10 +5806,26 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "disconnected": string
     /** notemaid の版がこのアプリと一致していません。notemaid を更新してください。 */
     readonly "fingerprintMismatch": string
-    /** アプリを閉じても動かす (常駐、Linux) */
-    readonly "howToTitle": string
-    /** ふだんはアプリが notemaid を子プロセスとして起動します。アプリを完全に閉じても HEARTBEAT を回したいときは、systemd の user サービスとして常駐させます。次のコマンドで有効にすると、次回起動からアプリはそちらに繋ぎます。 */
-    readonly "howTo": string
+    /** アプリを閉じても AI を動かす */
+    readonly "residentTitle": string
+    /** ログイン時に notemaid を起動し、アプリを閉じても動かし続ける */
+    readonly "residentToggle": string
+    /** オフのときはアプリが notemaid を子プロセスとして起動し、アプリと一緒に終わります。オンにすると OS のログイン時タスク (Linux は systemd の user unit、macOS は LaunchAgent、Windows はタスク スケジューラ) に登録し、HEARTBEAT がアプリなしで続きます。切り替えに再起動は要りません。 */
+    readonly "residentHint": string
+    /** この環境では切り替えられません: {reason} */
+    readonly "residentUnavailable": ParameterizedString<'reason'>
+    /** 常駐タスク */
+    readonly "residentService": string
+    /** 登録済み */
+    readonly "residentInstalled": string
+    /** 未登録 */
+    readonly "residentNotInstalled": string
+    /** 動作中 */
+    readonly "residentActive": string
+    /** 停止 */
+    readonly "residentInactive": string
+    /** 切り替え中... */
+    readonly "residentSwitching": string
     /** ログアウト後も動かし続けるには loginctl enable-linger を設定します。 */
     readonly "lingerHint": string
     /** ログを見るコマンドをコピー */
