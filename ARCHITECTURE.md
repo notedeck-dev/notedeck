@@ -138,7 +138,7 @@ sequenceDiagram
 
 ### 目指す構成: notecore と notemaid（[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)）
 
-上の全体像のうち Tauri 非依存のドメインは **notecore** クレートに切り出し済み。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) は **notemaid** (lib + bin の 1 クレート) に置く (2026-09-29 に決定、ライブラリ部分は切り出し済み。bin と socket の transport は未)。notemaid は常に別プロセスで、アプリが sidecar として子プロセス起動する (既定、設定ゼロ) / ログイン時のユーザータスクで常駐 (任意) / 自分のサーバー (リモート) の 3 通りを同じプロトコルで受ける。iOS だけ in-process の transport。常駐 (自分のサーバーで動かす) の対象は notemaid だけで、データ面は常に手元で動く。「notecore 全体を notecored として自分のサーバーで常駐させる」旧計画は #1106 で中止した (理由は同 issue の 2026-09-29 コメント)。
+上の全体像のうち Tauri 非依存のドメインは **notecore** クレートに切り出し済み。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) は **notemaid** (lib + bin の 1 クレート) に置く (2026-09-29 に切り出し済み)。notemaid は常に別プロセスで、アプリが sidecar として子プロセス起動する (既定、設定ゼロ) / ログイン時のユーザータスクで常駐 (任意) / 自分のサーバー (リモート) の 3 通りを同じプロトコルで受ける。iOS だけ in-process の transport。常駐 (自分のサーバーで動かす) の対象は notemaid だけで、データ面は常に手元で動く。「notecore 全体を notecored として自分のサーバーで常駐させる」旧計画は #1106 で中止した (理由は同 issue の 2026-09-29 コメント)。
 
 ```
 フロントエンド (Vue)                WebView は常に手元の Rust とだけ話す

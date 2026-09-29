@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use tauri::Manager;
 
 pub fn resolve_app_dir<M: Manager<tauri::Wry>>(app: &M) -> tauri::Result<PathBuf> {
-    // 上書きの seam は notecore と共有する (notecored も同じ環境変数を見る、#1106 段階 3a)。
+    // 上書きの seam は notecore と共有する (notemaid も同じ環境変数を見る、#1106 段階 3a)。
     // 通常経路は Tauri の app_data_dir() = OS のデータディレクトリ / identifier で、
     // identifier が notecore の定数と一致することは tests/app_dir_identifier.rs が保証する
     if let Some(dir) = notecore::app_dir::override_from_env() {

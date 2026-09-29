@@ -3,17 +3,23 @@
 
 use std::sync::Arc;
 
+use crate::ai_chat_service::{AiChatEvent, AiChatSink};
+use crate::ai_turn::{AiTurnEvent, AiTurnSink};
+use crate::heartbeat::{HeartbeatEvent, HeartbeatSink};
 use notecore::rpc::Frame;
 use notecore::settings_events::{SettingsChange, SettingsSink};
-use notemaid::ai_chat_service::{AiChatEvent, AiChatSink};
-use notemaid::ai_turn::{AiTurnEvent, AiTurnSink};
-use notemaid::heartbeat::{HeartbeatEvent, HeartbeatSink};
 use serde::Serialize;
 use tokio::sync::broadcast;
 
 /// 接続中の全セッションへの配信路
 #[derive(Clone)]
 pub struct Events(pub broadcast::Sender<Frame>);
+
+impl Default for Events {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Events {
     pub fn new() -> Self {

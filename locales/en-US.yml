@@ -1825,7 +1825,7 @@ _deckDriveColumn:
   openFolder: "Open folder"
 
 _deckNavbar:
-  coreConnected: "Connected to the resident core (notecored)"
+  coreConnected: "Connected to the resident core (notemaid)"
   coreTrouble: "The core connection needs attention"
   switchToOnline: "Switch to online mode"
   switchToOffline: "Switch to offline mode"
@@ -3479,14 +3479,14 @@ _defaultSnippets:
 
 _coreContent:
   current: "Current core"
-  description: "Whether the AI (agent loop and HEARTBEAT) runs inside this app or is relayed to the resident notecored. Your data (archive, subscriptions, deck) always runs on this device."
-  modeEmbedded: "Running inside the app"
-  modeResident: "Relayed to notecored (resident)"
+  description: "Whether the AI (agent loop and HEARTBEAT) runs inside this app or is relayed to the resident notemaid. Your data (archive, subscriptions, deck) always runs on this device."
+  modeEmbedded: "Running inside the app (in-process)"
+  modeResident: "Relayed to notemaid (separate process)"
   connected: "Connected"
   disconnected: "Not connected"
-  fingerprintMismatch: "The notecored version does not match this app. Update notecored."
-  howToTitle: "Switch to resident (manual)"
-  howTo: "Resident mode is a systemd user service on Linux. Enable notecored with the command below, set backend to resident in client.json5 in the settings folder, and restart the app. Set it back to embedded to return."
+  fingerprintMismatch: "The notemaid version does not match this app. Update notemaid."
+  howToTitle: "Keep running after the app closes (resident, Linux)"
+  howTo: "Normally the app starts notemaid as a child process. To keep HEARTBEAT running after you quit the app completely, run it as a systemd user service. Enable it with the command below and the app connects to it from the next launch."
   lingerHint: "To keep it running after logout, set loginctl enable-linger."
   copyJournal: "Copy the command to view logs"
   copied: "Copied"

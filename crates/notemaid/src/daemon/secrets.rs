@@ -1,11 +1,11 @@
-//! `notecored secrets <keygen|purge>`: ファイル backend の鍵と本体の面倒を見る
+//! `notemaid secrets <keygen|purge>`: ファイル backend の鍵と本体の面倒を見る
 //! (#1106 段階 3a の補遺 §7)。移行パッケージの import / export は順序 7。
 
 use std::path::{Path, PathBuf};
 
 use clap::Subcommand;
 
-use crate::exit;
+use crate::daemon::exit;
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum SecretsCommand {
@@ -14,7 +14,7 @@ pub enum SecretsCommand {
         #[arg(long)]
         out: PathBuf,
     },
-    /// notecored の secret (本体と鍵) を消す。アプリ側の劣化先 (notecli/) は触らない
+    /// notemaid の secret (本体と鍵) を消す。アプリ側の劣化先 (notecli/) は触らない
     Purge {
         /// データディレクトリ。既定はアプリと同じ場所
         #[arg(long)]
@@ -28,11 +28,11 @@ pub enum SecretsCommand {
 }
 
 pub fn default_key_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("notecored").join("secret.key"))
+    dirs::config_dir().map(|d| d.join("notemaid").join("secret.key"))
 }
 
 pub fn secrets_path(data_dir: &Path) -> PathBuf {
-    data_dir.join("notecored").join("secrets.enc")
+    data_dir.join("notemaid").join("secrets.enc")
 }
 
 pub fn keygen(out: &Path) -> Result<(), String> {

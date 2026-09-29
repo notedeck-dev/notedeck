@@ -15,7 +15,7 @@ pub struct HeartbeatTimer {
 impl HeartbeatTimer {
     /// ai.json5 の断面から組み直す (enabled でなければ止める)
     pub fn reconfigure(&self, core: Arc<Core>) {
-        let cfg = notemaid::ai_config::load(&core).ok();
+        let cfg = crate::ai_config::load(&core).ok();
         let (enabled, interval) = cfg
             .map(|c| (c.heartbeat.enabled, c.heartbeat.interval_minutes))
             .unwrap_or((false, 0));
@@ -38,7 +38,7 @@ impl HeartbeatTimer {
             ticker.tick().await;
             loop {
                 ticker.tick().await;
-                notemaid::heartbeat::run_once(&core, "scheduled").await;
+                crate::heartbeat::run_once(&core, "scheduled").await;
             }
         });
         tracing::info!(interval_minutes = interval, "[heartbeat] timer configured");

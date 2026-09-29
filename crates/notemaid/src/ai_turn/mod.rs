@@ -321,7 +321,7 @@ fn error_message(id: String, partial: &str, err: &ai_chat_service::RoundError) -
 
 /// `exec: core` な capability を notecore で実行する口。ローカル構成では
 /// Tauri 側が managed state の Core を引いて `crate::exec::execute` を呼ぶ
-/// 実装を渡し、notecored は Core を直接持つ実装を渡す。
+/// 実装を渡し、notemaid は Core を直接持つ実装を渡す。
 pub trait CoreExecutor: Send + Sync + 'static {
     fn execute<'a>(
         &'a self,
@@ -341,7 +341,7 @@ pub trait CoreExecutor: Send + Sync + 'static {
     }
 }
 
-/// notecore が Core を所有する構成 (headless / notecored) の CoreExecutor。
+/// notecore が Core を所有する構成 (headless / notemaid) の CoreExecutor。
 pub struct LocalCoreExecutor(pub Arc<notecore::context::Core>);
 
 impl CoreExecutor for LocalCoreExecutor {
@@ -1227,7 +1227,7 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                     && !p.destination_untrusted,
             ),
             Err(e) => {
-                // デバイスが居ない (headless / notecored) — core の capability なら
+                // デバイスが居ない (headless / notemaid) — core の capability なら
                 // notecore が自分で組む。帰属や理由の行は付かない
                 tracing::warn!(capability_id, "confirm preview unavailable: {e}");
                 match (&rt.core, crate::exec::is_core(&capability_id)) {

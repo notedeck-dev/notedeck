@@ -18,6 +18,8 @@ mod app_dir;
 mod client_layer;
 mod commands;
 mod error;
+#[cfg(desktop)]
+mod maid_launcher;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
 /// notecore の HTTP サーバーの再公開。`build_openapi` はアプリのバージョンを埋めた形で
@@ -272,41 +274,38 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         app_state.set_app_version(env!("CARGO_PKG_VERSION").to_string());
         app.manage(app_state);
 
-        // クライアント層 (#1106 案 B): この端末の構成が resident なら、AI 系コマンドを
-        // 常駐の notecored に中継する。データ面 (DB / ストリーム) は常にこのプロセスで開く。
-        // notecored が出す AI のイベントは同じ名前で WebView に流す
-        let resident = matches!(
-            configured_backend,
-            notecore::client_config::Backend::Resident
-        );
-        if resident {
-            match notecore::rpc::default_socket_path() {
-                Some(socket) => {
-                    let emit_handle = app.handle().clone();
-                    let state_handle = app.handle().clone();
-                    let query_handle = app.handle().clone();
-                    client_layer::start(
-                        socket,
-                        std::sync::Arc::new(move |name, payload| {
-                            if let Err(e) = tauri::Emitter::emit(&emit_handle, name, payload) {
-                                tracing::warn!(name, "[relay] emit failed: {e}");
-                            }
-                        }),
-                        std::sync::Arc::new(move |state| {
-                            let _ = tauri::Emitter::emit(&state_handle, "nd:client-layer-state", state);
-                        }),
-                        std::sync::Arc::new(move |query_type, params, timeout| {
-                            let app = query_handle.clone();
-                            Box::pin(async move {
-                                query_bridge::query_frontend_with_timeout(&app, &query_type, params, timeout).await
-                            })
-                        }),
-                    );
-                    tracing::info!("[client-layer] resident backend: relaying to notecored");
-                }
-                None => tracing::error!("[client-layer] resident backend but XDG_RUNTIME_DIR is unset; falling back to embedded"),
-            }
+        // クライアント層 (#1106 案 B): AI 系コマンドを別プロセスの notemaid に送る。既定 (auto) は
+        // 常駐の notemaid が居れば繋ぎ、居なければ同梱の sidecar を子プロセスで起動する。sidecar が
+        // 無い (開発時) / iOS / Android は in-process で回す。データ面は常にこのプロセスで開く。
+        // notemaid が出す AI のイベントは同じ名前で WebView に流す
+        #[cfg(desktop)]
+        if let Some(launched) =
+            tauri::async_runtime::block_on(maid_launcher::launch(&app_dir, configured_backend))
+        {
+            let emit_handle = app.handle().clone();
+            let state_handle = app.handle().clone();
+            let query_handle = app.handle().clone();
+            client_layer::start(
+                launched.endpoint,
+                std::sync::Arc::new(move |name, payload| {
+                    if let Err(e) = tauri::Emitter::emit(&emit_handle, name, payload) {
+                        tracing::warn!(name, "[relay] emit failed: {e}");
+                    }
+                }),
+                std::sync::Arc::new(move |state| {
+                    let _ = tauri::Emitter::emit(&state_handle, "nd:client-layer-state", state);
+                }),
+                std::sync::Arc::new(move |query_type, params, timeout| {
+                    let app = query_handle.clone();
+                    Box::pin(async move {
+                        query_bridge::query_frontend_with_timeout(&app, &query_type, params, timeout).await
+                    })
+                }),
+            );
+            maid_launcher::keep(launched.child);
         }
+        #[cfg(not(desktop))]
+        let _ = configured_backend;
 
         // Performance config: starts with defaults, updated dynamically via Tauri command
         let shared_perf: notecore::perf_config::SharedPerfConfig =
@@ -908,6 +907,8 @@ fn begin_shutdown(app: &tauri::AppHandle) {
     }
     notemaid::ai_chat_service::abort_all_streams();
     notemaid::ai_turn::abort_all_turns();
+    #[cfg(desktop)]
+    maid_launcher::stop();
 }
 
 /// Build the tauri-specta builder shared by the runtime, the `gen_bindings`

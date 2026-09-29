@@ -51,8 +51,7 @@
     "linux": {
       "deb": {
         "files": {
-          "/usr/bin/notecored": "../target/release/notecored",
-          "/usr/lib/systemd/user/notecored.service": "../target/release/notecored.service"
+          "/usr/lib/systemd/user/notemaid.service": "../target/release/notemaid.service"
         }
       }
     }

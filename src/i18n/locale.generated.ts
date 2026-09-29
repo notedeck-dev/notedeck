@@ -2868,7 +2868,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "openFolder": string
   }
   readonly "_deckNavbar": {
-    /** 常駐のコア (notecored) に接続中 */
+    /** 常駐のコア (notemaid) に接続中 */
     readonly "coreConnected": string
     /** コアの接続に問題があります */
     readonly "coreTrouble": string
@@ -5794,21 +5794,21 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_coreContent": {
     /** 今のコア */
     readonly "current": string
-    /** AI (エージェントループ / HEARTBEAT) をこのアプリの中で回しているか、常駐の notecored に中継しているかの状態です。データ (蓄積・購読・デッキ) は常にこの端末で動きます。 */
+    /** AI (エージェントループ / HEARTBEAT) をこのアプリの中で回しているか、常駐の notemaid に中継しているかの状態です。データ (蓄積・購読・デッキ) は常にこの端末で動きます。 */
     readonly "description": string
-    /** アプリの中で実行 */
+    /** アプリの中で実行 (in-process) */
     readonly "modeEmbedded": string
-    /** 常駐 (notecored) に中継 */
+    /** 別プロセス (notemaid) に中継 */
     readonly "modeResident": string
     /** 接続中 */
     readonly "connected": string
     /** 未接続 */
     readonly "disconnected": string
-    /** notecored の版がこのアプリと一致していません。notecored を更新してください。 */
+    /** notemaid の版がこのアプリと一致していません。notemaid を更新してください。 */
     readonly "fingerprintMismatch": string
-    /** 常駐に切り替える (手動) */
+    /** アプリを閉じても動かす (常駐、Linux) */
     readonly "howToTitle": string
-    /** 常駐は Linux の systemd user サービスです。次のコマンドで notecored を有効にし、設定フォルダの client.json5 の backend を resident にしてアプリを再起動します。戻すときは embedded にします。 */
+    /** ふだんはアプリが notemaid を子プロセスとして起動します。アプリを完全に閉じても HEARTBEAT を回したいときは、systemd の user サービスとして常駐させます。次のコマンドで有効にすると、次回起動からアプリはそちらに繋ぎます。 */
     readonly "howTo": string
     /** ログアウト後も動かし続けるには loginctl enable-linger を設定します。 */
     readonly "lingerHint": string

@@ -1,7 +1,7 @@
 //! 終了コード (#1106 段階 3a の補遺 §4)。unit の `RestartPreventExitStatus=` に
 //! 載せるものは再起動しても直らない状態で、systemd は再起動ループを作らない。
 
-/// 同じデータディレクトリで別の notecore (アプリの埋め込み / 別の notecored) が動いている
+/// 同じデータディレクトリで別の notecore (アプリの埋め込み / 別の notemaid) が動いている
 pub const LOCK_HELD: i32 = 10;
 /// DB がこのバイナリより新しい (新しい版で migrate 済み)
 pub const DB_NEWER: i32 = 11;

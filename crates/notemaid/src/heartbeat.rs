@@ -1,6 +1,6 @@
 //! HEARTBEAT (#411) の daemon 本体 (#1133 縦切り 5)。
 //!
-//! tick の周期は手元側の timer (Tauri は `commands/heartbeat.rs`、notecored は
+//! tick の周期は手元側の timer (Tauri は `commands/heartbeat.rs`、別プロセスの notemaid は
 //! 自前の timer) が持ち、tick ごとに [`run_once`] を呼ぶ。1 回の実行は
 //!
 //! 1. 設定 (ai.json5) と skill (`mode: heartbeat`) を読む

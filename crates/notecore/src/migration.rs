@@ -1,9 +1,9 @@
 //! 同一ホストの移行パッケージ (#1106 段階 3a 順序 7、配布設計 §7 / §9)。
 //!
-//! アプリの secret backend (OS キーチェーンか劣化先のファイル) と notecored のファイル
+//! アプリの secret backend (OS キーチェーンか劣化先のファイル) と notemaid のファイル
 //! backend の間で secret を移す。パッケージは一回限りの鍵で暗号化した notecli の file
 //! store と、その中にある名前の索引 (名前は secret ではない: アカウント ID / Vault の接続
-//! ID と slot / 旧 AI キーの provider)。置き場は `$XDG_RUNTIME_DIR/notecored/` (0700 /
+//! ID と slot / 旧 AI キーの provider)。置き場は `$XDG_RUNTIME_DIR/notemaid/` (0700 /
 //! 0600) で、取り込みは成功・失敗どちらでもパッケージを消す。同一 uid のプロセスは読める
 //! が、それはファイル backend 自体と同じ脅威モデル。
 //!
@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use crate::error::Result;
 
 /// `$XDG_RUNTIME_DIR` 配下のディレクトリ名 (socket と同じ場所)
-pub const DIR_NAME: &str = "notecored";
+pub const DIR_NAME: &str = "notemaid";
 const INDEX_FILE: &str = "migration.json";
 const DATA_FILE: &str = "migration.enc";
 const KEY_FILE: &str = "migration.key";
@@ -28,7 +28,7 @@ const INDEX_VERSION: u32 = 1;
 /// 旧 AI キー (Vault へ移行済みなら無い)。無くても失敗にしない
 const LEGACY_AI_PROVIDERS: &[&str] = &["anthropic", "openai", "custom"];
 
-/// 既定の置き場 (`$XDG_RUNTIME_DIR/notecored`)。無ければ None
+/// 既定の置き場 (`$XDG_RUNTIME_DIR/notemaid`)。無ければ None
 pub fn default_package_dir() -> Option<PathBuf> {
     std::env::var_os("XDG_RUNTIME_DIR")
         .filter(|v| !v.is_empty())

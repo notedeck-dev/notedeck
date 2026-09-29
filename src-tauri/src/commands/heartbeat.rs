@@ -125,8 +125,8 @@ pub async fn heartbeat_configure(
 ) -> Result<()> {
     let interval = clamp_interval(interval_minutes)?;
     if crate::client_layer::relay().is_some() {
-        // 常駐構成では notecored が timer を持つ (ai.json5 から組む)
-        tracing::info!("[heartbeat] resident backend: timer is owned by notecored");
+        // 常駐構成では notemaid が timer を持つ (ai.json5 から組む)
+        tracing::info!("[heartbeat] resident backend: timer is owned by notemaid");
         return Ok(());
     }
     scheduler.replace(interval, app);

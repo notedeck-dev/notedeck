@@ -7,7 +7,7 @@ pub const SERVICE: &str = "notedeck";
 /// Initialize the platform-specific credential store.
 /// Must be called once before any keychain operations.
 /// OS キーチェーンを使わず、置き場を指定した暗号化ファイル store を既定にする
-/// (notecored 用、notedeck#1106 段階 3a)。secret-service の probe (D-Bus) に触らない。
+/// (notemaid 用、notedeck#1106 段階 3a)。secret-service の probe (D-Bus) に触らない。
 /// 鍵が無ければ生成する
 #[cfg(all(feature = "keyring", target_os = "linux"))]
 pub fn init_file_store(

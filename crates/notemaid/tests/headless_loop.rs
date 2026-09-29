@@ -1,7 +1,7 @@
 //! 受け入れ検査 (#1133 / #1106 段階 2a の前提): WebView (デバイス) が 1 台も
 //! 繋がっていなくても、AI のターンが notecore だけで同じように回ること。
 //!
-//! 使うのは notecore の公開 API だけ (notecored が使うものと同じ):
+//! 使うのは notecore の公開 API だけ (notemaid が使うものと同じ):
 //! ターン実行器 + `LocalCoreExecutor` + `NoDeviceBridge` + ファイルの
 //! セッション / 汚染 / チェックポイント。provider だけ台本に差し替える。
 

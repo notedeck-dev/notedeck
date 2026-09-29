@@ -25,7 +25,7 @@ pub const ALLOWED_SUBDIRS: &[&str] = &[
 
 /// ルート直下の設定ファイルの属性 (#1106 §4.2 / §4.5)。
 /// `side` は「デバイスが 1 台も繋がっていなくても意味を持つか」で、Core なら
-/// notecore (notecored) 側の束、Device なら手元側 (入力・画面・端末性能に依存) の束。
+/// notecore (notemaid) 側の束、Device なら手元側 (入力・画面・端末性能に依存) の束。
 /// `backup` は設定バックアップ (export / import) に含めるか。
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Side {

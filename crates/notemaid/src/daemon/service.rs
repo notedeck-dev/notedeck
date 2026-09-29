@@ -1,12 +1,12 @@
-//! `notecored service <install|uninstall|enable|start|stop|restart|status>`:
+//! `notemaid service <install|uninstall|enable|start|stop|restart|status>`:
 //! systemd の user unit の面倒を見る (#1106 段階 3a の補遺 §6)。
 //!
-//! - unit の正本は `deploy/notecored.service` 1 ファイル (生成マーカー入り)
+//! - unit の正本は `deploy/notemaid.service` 1 ファイル (生成マーカー入り)
 //! - install は unit を用意するだけで enable も start もしない (secret の import 前に
 //!   起動させない)。enable / start は切替導線が import の後に呼ぶ
 //! - パッケージ同梱の unit (`/usr/lib/systemd/user/`) があれば書かない。手書きや
 //!   NixOS / home-manager の unit (マーカー無し) は上書きせず拒否する
-//! - systemd が無ければ拒否して `notecored run` を案内する
+//! - systemd が無ければ拒否して `notemaid run` を案内する
 
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
@@ -14,12 +14,12 @@ use std::process::Command;
 
 use clap::Subcommand;
 
-use crate::exit;
+use crate::daemon::exit;
 
-pub const MARKER: &str = "# notedeck:notecored-unit";
-pub const UNIT_NAME: &str = "notecored.service";
-const TEMPLATE: &str = include_str!("../deploy/notecored.service");
-const PACKAGE_UNIT: &str = "/usr/lib/systemd/user/notecored.service";
+pub const MARKER: &str = "# notedeck:notemaid-unit";
+pub const UNIT_NAME: &str = "notemaid.service";
+const TEMPLATE: &str = include_str!("../../deploy/notemaid.service");
+const PACKAGE_UNIT: &str = "/usr/lib/systemd/user/notemaid.service";
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ServiceCommand {
@@ -40,8 +40,8 @@ pub enum ServiceCommand {
     Status,
     /// パッケージ同梱用に、ExecStart を埋めた unit を標準出力へ書く
     Render {
-        /// unit の ExecStart に書くバイナリ (パッケージなら /usr/bin/notecored)
-        #[arg(long, default_value = "/usr/bin/notecored")]
+        /// unit の ExecStart に書くバイナリ (パッケージなら /usr/bin/notemaid)
+        #[arg(long, default_value = "/usr/bin/notemaid")]
         exec_path: PathBuf,
     },
 }
@@ -143,12 +143,12 @@ fn ensure_user_manager() -> Result<(), String> {
                 Ok(())
             } else {
                 Err(format!(
-                    "systemd user manager is not available ({state}); run `notecored run` yourself or enable systemd"
+                    "systemd user manager is not available ({state}); run `notemaid run` yourself or enable systemd"
                 ))
             }
         }
         Err(e) => Err(format!(
-            "systemctl is not available ({e}); run `notecored run` yourself or use a container"
+            "systemctl is not available ({e}); run `notemaid run` yourself or use a container"
         )),
     }
 }
@@ -162,7 +162,7 @@ fn linger_hint() {
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string());
     if linger.as_deref() != Some("yes") {
         eprintln!(
-            "note: linger is not enabled; notecored stops at logout. Run: loginctl enable-linger {user}"
+            "note: linger is not enabled; notemaid stops at logout. Run: loginctl enable-linger {user}"
         );
     }
 }
@@ -200,7 +200,7 @@ fn install(exec_path: Option<PathBuf>) -> Result<(), String> {
     ensure_user_manager()?;
     if let Ok(pkg) = std::fs::read_to_string(PACKAGE_UNIT) {
         if has_marker(&pkg) {
-            println!("package unit found at {PACKAGE_UNIT}; nothing to write. Next: notecored service enable");
+            println!("package unit found at {PACKAGE_UNIT}; nothing to write. Next: notemaid service enable");
             linger_hint();
             return Ok(());
         }
@@ -214,14 +214,14 @@ fn install(exec_path: Option<PathBuf>) -> Result<(), String> {
         }
     };
     // 実パスは存在確認と書込可否の判定に使う。ExecStart に書くのは渡されたパスの方:
-    // ~/.nix-profile/bin/notecored のような profile の symlink は更新後も同じパスで
+    // ~/.nix-profile/bin/notemaid のような profile の symlink は更新後も同じパスで
     // 新しい世代を指すので、実パス (/nix/store/...) より安定する
     let real = exec
         .canonicalize()
         .map_err(|e| format!("{}: {e}", exec.display()))?;
     if is_nix_store(&exec) {
         return Err(format!(
-            "{} is in the Nix store, which the garbage collector may remove; pass the profile path (e.g. ~/.nix-profile/bin/notecored) or use the NixOS / home-manager module",
+            "{} is in the Nix store, which the garbage collector may remove; pass the profile path (e.g. ~/.nix-profile/bin/notemaid) or use the NixOS / home-manager module",
             exec.display()
         ));
     }
@@ -247,7 +247,7 @@ fn install(exec_path: Option<PathBuf>) -> Result<(), String> {
             // home-manager / NixOS / 手書きの unit。上書きはしないが、unit は用意されている
             // ので切替導線はそのまま進める (enable / start はその unit に対して行う)
             println!(
-                "{} exists and is managed elsewhere (NixOS / home-manager / handwritten); keeping it. Next: notecored service enable",
+                "{} exists and is managed elsewhere (NixOS / home-manager / handwritten); keeping it. Next: notemaid service enable",
                 unit_path.display()
             );
             linger_hint();
@@ -265,7 +265,7 @@ fn install(exec_path: Option<PathBuf>) -> Result<(), String> {
         unit_path.display(),
         exec.display()
     );
-    println!("next: import secrets, then `notecored service enable`");
+    println!("next: import secrets, then `notemaid service enable`");
     linger_hint();
     Ok(())
 }
@@ -280,7 +280,7 @@ fn uninstall() -> Result<(), String> {
                 println!("removed {}", unit_path.display());
             } else {
                 println!(
-                    "{} was not written by notecored; left in place",
+                    "{} was not written by notemaid; left in place",
                     unit_path.display()
                 );
             }
@@ -297,9 +297,9 @@ mod tests {
 
     #[test]
     fn unit_template_renders_exec_and_exit_codes() {
-        let unit = render_unit(Path::new("/usr/bin/notecored"));
+        let unit = render_unit(Path::new("/usr/bin/notemaid"));
         assert!(has_marker(&unit));
-        assert!(unit.contains("ExecStart=/usr/bin/notecored run\n"));
+        assert!(unit.contains("ExecStart=/usr/bin/notemaid run\n"));
         assert!(unit.contains("RestartPreventExitStatus=10 11 12 13\n"));
         assert!(!unit.contains("ProtectHome"));
         assert!(unit.contains("StartLimitBurst"));
@@ -310,26 +310,26 @@ mod tests {
     fn stable_alias_prefers_a_symlink_outside_the_store() {
         let dir = tempfile::tempdir().unwrap();
         // 実体が store の外なら何もしない
-        let plain = dir.path().join("notecored");
+        let plain = dir.path().join("notemaid");
         std::fs::write(&plain, "x").unwrap();
         assert_eq!(stable_alias_for(&plain), None);
         // PATH 上の symlink が実体を指していればそれを返す (実体は store 風のパスにできない
         // ので、PATH 側の探索だけを検査する: 実体と一致しない候補は選ばれない)
         let bin = dir.path().join("bin");
         std::fs::create_dir_all(&bin).unwrap();
-        std::os::unix::fs::symlink(&plain, bin.join("notecored")).unwrap();
+        std::os::unix::fs::symlink(&plain, bin.join("notemaid")).unwrap();
         assert_eq!(stable_alias_for(&plain), None);
     }
 
     #[test]
     fn detects_writable_and_nix_paths() {
         let dir = tempfile::tempdir().unwrap();
-        let mine = dir.path().join("notecored");
+        let mine = dir.path().join("notemaid");
         std::fs::write(&mine, "x").unwrap();
         assert!(writable_by_me(&mine));
         assert!(!writable_by_me(Path::new("/proc/version")));
         assert!(is_nix_store(Path::new(
-            "/nix/store/abc-notecored/bin/notecored"
+            "/nix/store/abc-notemaid/bin/notemaid"
         )));
         assert!(!is_nix_store(&mine));
     }

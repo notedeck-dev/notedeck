@@ -1,11 +1,20 @@
 [package]
 name = "notemaid"
-version = "0.1.0"
+version = "1.73.0"
 edition = "2021"
-description = "NoteDeck's AI agent (the maid): agent loop, HEARTBEAT, capability execution, sessions, skills and memos. Library for the app, binary for the resident process"
+description = "NoteDeck の AI (メイド): エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ。アプリが使うライブラリと、別プロセスとして走るバイナリの 1 クレート (#1106)"
 repository = "https://github.com/notedeck-dev/notedeck"
 license = "AGPL-3.0-only"
 publish = false
+
+[features]
+default = ["daemon"]
+# バイナリ (別プロセスの本体)。アプリはライブラリだけ使うので default-features = false
+daemon = ["dep:clap", "dep:dirs", "dep:tracing-appender", "dep:tracing-subscriber", "tokio/signal"]
+[[bin]]
+name = "notemaid"
+path = "src/main.rs"
+required-features = ["daemon"]
 
 [dependencies]
 notecore = { path = "../notecore" }
@@ -22,8 +31,16 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
 specta = { version = "=2.0.0-rc.22", features = ["derive", "serde_json"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "sync"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time", "fs", "sync", "net", "io-util"] }
+clap = { version = "4", features = ["derive"], optional = true }
+dirs = { version = "6", optional = true }
+tracing-appender = { version = "0.2", optional = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 tracing = "0.1"
+
+[target.'cfg(unix)'.dependencies]
+# transport: Unix socket の peer_cred (同じ uid の照合)
+libc = "0.2"
 
 [dev-dependencies]
 notecore = { path = "../notecore", features = ["test-support"] }

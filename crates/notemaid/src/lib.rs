@@ -10,9 +10,10 @@
 //! AI を知らない。capability の宣言表 (語彙) は認可と公開 HTTP API も参照するので
 //! notecore (`notecore::capabilities`) に残り、実行だけがここにある。
 //!
-//! 目指す形はライブラリ + バイナリの 1 クレート (notecli と同形) で、バイナリが
-//! 常に別プロセスとして走る。現状はライブラリだけで、アプリと notecored が
-//! in-process で使う (移行の第 1 段: 挙動を変えない移設)。
+//! ライブラリ + バイナリの 1 クレート (notecli と同形)。バイナリ (`daemon` feature、
+//! `src/main.rs` と `daemon/`) が別プロセスとして走り、アプリは AI 系コマンドを
+//! socket 越しに送る。ライブラリはアプリ側の型 / コマンド表と、別プロセスを
+//! 持てない環境 (iOS) や sidecar が見つからないとき (開発時) の in-process 実行が使う。
 //!
 //! Tauri に依存しない (tests/lint/rustCoreBoundary.test.ts が notecore と同じ検査をする)。
 //! 手元側が要る処理は trait (`AiChatSink` / `AiTurnSink` / `HeartbeatSink` /
@@ -24,11 +25,14 @@ pub mod ai_config;
 pub mod ai_sessions;
 pub mod ai_turn;
 pub mod commands;
+#[cfg(feature = "daemon")]
+pub mod daemon;
 pub mod exec;
 pub mod heartbeat;
 pub mod memos;
 pub mod sinks;
 pub mod skills;
+pub mod transport;
 
 pub use sinks::CoreMaidExt;
 

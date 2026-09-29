@@ -444,7 +444,7 @@
 
 /* ===== Architecture — 縦 1 列 =====
    手元の端末 (Tauri) → notecore → notecli。Tauri と notecore の間は 2 経路で、
-   左の縦線が「素通り (既定)」、右が notecored (任意、点線) を経由する「中継」 */
+   左の縦線が「素通り (既定)」、右が notemaid (任意、点線) を経由する「中継」 */
 .arch-grid { display: flex; flex-direction: column; }
 .arch-box {
   border: 1px solid var(--border); border-radius: var(--radius);

@@ -5,10 +5,9 @@ import { useClientLayerStore } from '@/stores/clientLayer'
 import { useToast } from '@/stores/toast'
 
 /**
- * 「コア」の状態面 (#1106 案 B): AI 系のコマンドをこの端末で回しているか、常駐の
- * notecored に中継しているかと、その接続の様子。データ面は常にこの端末で動く。
- * 構成の切り替えは client.json5 と notecored の CLI で行い、ここでは表示だけ
- * (sidecar の子プロセス化と「アプリを閉じても動かす」トグルは次の段)。
+ * 「コア」の状態面 (#1106 案 B): AI 系のコマンドを in-process で回しているか、別プロセスの
+ * notemaid (子プロセス / 常駐) に中継しているかと、その接続の様子。データ面は常にこの端末で動く。
+ * 常駐化は notemaid の CLI で行い、ここでは表示だけ (「アプリを閉じても動かす」トグルは次の段)。
  */
 
 const store = useClientLayerStore()
@@ -36,7 +35,7 @@ const connectionLabel = computed(() => {
 
 async function copyJournalHint(): Promise<void> {
   try {
-    await navigator.clipboard.writeText('journalctl --user -u notecored -e')
+    await navigator.clipboard.writeText('journalctl --user -u notemaid -e')
     useToast().show(i18n.ts._coreContent.copied, 'success')
   } catch {
     // clipboard が使えない環境では黙る (文言は画面に出ている)
@@ -71,8 +70,8 @@ async function copyJournalHint(): Promise<void> {
         <span :class="$style.sectionTitle">{{ i18n.ts._coreContent.howToTitle }}</span>
       </div>
       <p :class="$style.hint">{{ i18n.ts._coreContent.howTo }}</p>
-      <pre :class="$style.code">notecored service enable
-# settings/client.json5: { backend: "resident" }</pre>
+      <pre :class="$style.code">notemaid service install
+notemaid service enable</pre>
       <p :class="$style.hint">{{ i18n.ts._coreContent.lingerHint }}</p>
       <div :class="$style.btnRow">
         <button class="_button" type="button" :class="$style.secondaryBtn" @click="copyJournalHint">

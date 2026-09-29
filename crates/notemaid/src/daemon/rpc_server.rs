@@ -1,10 +1,8 @@
-//! RPC 面 (Unix socket、#1106 §4.3)。接続ごとに所有者 (uid) を照合し、起動毎の秘密を
+//! RPC 面 (Unix socket / named pipe、#1106 §4.3)。接続ごとに所有者を照合し、起動毎の秘密を
 //! hello で渡す。要求はコマンド表の JSON アダプタに流し、notecore のイベントは
 //! 全セッションに押し出す。
 
 use std::collections::HashMap;
-use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -15,12 +13,10 @@ use notecore::frontend_bridge::{BridgeFuture, FrontendBridge};
 use notecore::rpc::{Frame, Outcome, RpcError, SELF_PREFIX};
 use serde_json::{json, Value};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::{mpsc, oneshot};
 
-use crate::sinks::Events;
-
-pub use notecore::rpc::default_socket_path;
+use crate::daemon::sinks::Events;
+use crate::transport::{self, Endpoint, Listener, Peer, Stream};
 
 pub type StatusFn = Arc<dyn Fn() -> Value + Send + Sync>;
 
@@ -157,35 +153,20 @@ pub struct RpcServer {
     pub core: Arc<Core>,
     pub events: Events,
     pub secret: String,
-    pub socket: PathBuf,
+    pub endpoint: Endpoint,
     pub status: StatusFn,
     pub sessions: Arc<Sessions>,
 }
 
 impl RpcServer {
     /// 置き場を用意して bind する。残骸の socket は繋がらなければ消す
-    pub async fn bind(&self) -> std::io::Result<UnixListener> {
-        if let Some(dir) = self.socket.parent() {
-            std::fs::create_dir_all(dir)?;
-            std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
-        }
-        if self.socket.exists() {
-            if UnixStream::connect(&self.socket).await.is_ok() {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::AddrInUse,
-                    "another notecored is answering on the socket",
-                ));
-            }
-            std::fs::remove_file(&self.socket)?;
-        }
-        let listener = UnixListener::bind(&self.socket)?;
-        std::fs::set_permissions(&self.socket, std::fs::Permissions::from_mode(0o600))?;
-        Ok(listener)
+    pub async fn bind(&self) -> std::io::Result<Listener> {
+        transport::bind(&self.endpoint).await
     }
 
     pub async fn serve(
         self: Arc<Self>,
-        listener: UnixListener,
+        mut listener: Listener,
         shutdown: notecore::shutdown::ShutdownToken,
     ) {
         loop {
@@ -194,9 +175,9 @@ impl RpcServer {
                 r = listener.accept() => r,
             };
             match accepted {
-                Ok((stream, _)) => {
+                Ok((stream, peer)) => {
                     let server = self.clone();
-                    tokio::spawn(async move { server.session(stream).await });
+                    tokio::spawn(async move { server.session(stream, peer).await });
                 }
                 Err(e) => {
                     tracing::warn!("[rpc] accept failed: {e}");
@@ -204,26 +185,15 @@ impl RpcServer {
                 }
             }
         }
-        let _ = std::fs::remove_file(&self.socket);
+        listener.cleanup();
     }
 
-    async fn session(self: Arc<Self>, stream: UnixStream) {
-        // 所有者の照合: 同じ uid だけ (仕様 §4.3)
-        match stream.peer_cred() {
-            Ok(cred) if cred.uid() == unsafe { libc::getuid() } => {}
-            Ok(cred) => {
-                tracing::warn!(
-                    uid = cred.uid(),
-                    "[rpc] refused connection from another uid"
-                );
-                return;
-            }
-            Err(e) => {
-                tracing::warn!("[rpc] peer credentials unavailable: {e}");
-                return;
-            }
+    async fn session(self: Arc<Self>, stream: Stream, peer: Peer) {
+        if !peer.same_user {
+            tracing::warn!("[rpc] refused connection from another user");
+            return;
         }
-        let (reader, mut writer) = stream.into_split();
+        let (reader, mut writer) = tokio::io::split(stream);
         let (tx, mut rx) = mpsc::channel::<Frame>(1024);
         let session_id = self.sessions.register(tx.clone());
         let hello = Frame::Hello {
@@ -326,7 +296,7 @@ impl RpcServer {
                 // 接続中の端末に橋の問い合わせが届くかの検査 (受け入れ試験と診断用)
                 "probe-device" => match self
                     .sessions
-                    .query("notecored/probe", params, Duration::from_secs(5))
+                    .query("notemaid/probe", params, Duration::from_secs(5))
                     .await
                 {
                     Ok(v) => Outcome::success(v),
@@ -345,7 +315,7 @@ impl RpcServer {
         }
         let ctx = CallContext { window };
         // 中継されるのは AI 系 (notemaid の表) だけ。データ系はデバイスの notecore が持つ (#1106 案 B)
-        match notemaid::commands::dispatch(&self.core, &ctx, name, params).await {
+        match crate::commands::dispatch(&self.core, &ctx, name, params).await {
             Ok(v) => Outcome::success(v),
             Err(e) => Outcome::failure(RpcError::from(&e)),
         }
@@ -355,7 +325,7 @@ impl RpcServer {
 fn unauthorized() -> RpcError {
     RpcError {
         code: "UNAUTHORIZED".into(),
-        message: "secret does not match this notecored".into(),
+        message: "secret does not match this notemaid".into(),
         i18n: None,
     }
 }

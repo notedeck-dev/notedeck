@@ -1,7 +1,7 @@
 // 「notecore は Tauri に依存しない」を機械検査に落とす (#1106 段階 0a / 0b)。
 //
 // crates/notecore は「デバイスが 1 台も繋がっていなくても意味を持つ処理」の置き場で、
-// アプリ (src-tauri) に埋め込む構成と notecored で常駐させる構成の両方で使う。
+// アプリ (src-tauri) に埋め込む構成と notemaid で常駐させる構成の両方で使う。
 // Cargo の依存方向 (notecore は notedeck を知らない) はコンパイラが守るが、
 // 「tauri 系クレートを notecore の依存に足す」「`#[tauri::command]` を置く」は
 // コンパイルが通ってしまうので、ここで落とす。

@@ -9,23 +9,17 @@
 //! 切れたら再接続する (待っている要求は NO_CONNECTION で返す)。購読の帳簿は持たない
 //! (データ面の中継は #1106 の 2026-09-29 の転換で廃止)。
 
-// Unix socket の中継は unix 限定 (Windows の常駐構成は 3b 以降)。非 unix では
-// 接続経路が無いので、それに連なる関数が dead になるのを許す
-#![cfg_attr(not(unix), allow(dead_code))]
-
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 
 use notecore::rpc::{Frame, Outcome, RpcError};
+use notemaid::transport::{self, Endpoint};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
-#[cfg(unix)]
-use tokio::net::UnixStream;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 
 /// 状態面 (`nd:client-layer-state` と `client_layer_state` コマンド)
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -56,7 +50,7 @@ pub type QueryHook = Arc<
 >;
 
 pub struct RelayClient {
-    socket: PathBuf,
+    endpoint: Endpoint,
     tx: Mutex<Option<mpsc::Sender<Frame>>>,
     pending: Mutex<HashMap<u64, oneshot::Sender<Outcome>>>,
     next_id: AtomicU64,
@@ -64,6 +58,8 @@ pub struct RelayClient {
     state: Mutex<ClientLayerState>,
     last_seq: Mutex<u64>,
     had_session: Mutex<bool>,
+    /// 接続の有無。起動直後 (子プロセスがまだ bind していない) の要求はこれを待つ
+    ready: watch::Sender<bool>,
     on_event: EventHook,
     on_state: StateHook,
     on_query: QueryHook,
@@ -88,12 +84,12 @@ pub fn state() -> ClientLayerState {
 
 /// 常駐構成で起動: 接続を始め、以後の AI 系コマンドは中継に流れる
 pub fn start(
-    socket: PathBuf,
+    endpoint: Endpoint,
     on_event: EventHook,
     on_state: StateHook,
     on_query: QueryHook,
 ) -> Arc<RelayClient> {
-    let client = Arc::new(RelayClient::new(socket, on_event, on_state, on_query));
+    let client = Arc::new(RelayClient::new(endpoint, on_event, on_state, on_query));
     let _ = RELAY.set(client.clone());
     let runner = client.clone();
     tauri::async_runtime::spawn(async move { runner.run().await });
@@ -110,7 +106,7 @@ fn unavailable(message: &str) -> RpcError {
 
 impl RelayClient {
     pub fn new(
-        socket: PathBuf,
+        endpoint: Endpoint,
         on_event: EventHook,
         on_state: StateHook,
         on_query: QueryHook,
@@ -118,16 +114,17 @@ impl RelayClient {
         Self {
             state: Mutex::new(ClientLayerState {
                 backend: "resident".into(),
-                socket: Some(socket.display().to_string()),
+                socket: Some(endpoint.to_string()),
                 ..Default::default()
             }),
-            socket,
+            endpoint,
             tx: Mutex::new(None),
             pending: Mutex::new(HashMap::new()),
             next_id: AtomicU64::new(1),
             secret: Mutex::new(None),
             last_seq: Mutex::new(0),
             had_session: Mutex::new(false),
+            ready: watch::channel(false).0,
             on_event,
             on_state,
             on_query,
@@ -153,11 +150,10 @@ impl RelayClient {
     }
 
     /// 接続し、切れたら待っている要求を失敗させて再接続する
-    #[cfg(unix)]
     pub async fn run(self: Arc<Self>) {
         let mut backoff = Duration::from_millis(500);
         loop {
-            match UnixStream::connect(&self.socket).await {
+            match transport::connect(&self.endpoint).await {
                 Ok(stream) => {
                     backoff = Duration::from_millis(500);
                     self.session(stream).await;
@@ -175,17 +171,26 @@ impl RelayClient {
         }
     }
 
-    /// 非 unix には Unix socket が無いので繋がない (状態面に理由だけ残す)
-    #[cfg(not(unix))]
-    pub async fn run(self: Arc<Self>) {
-        self.update_state(|s| {
-            s.connected = false;
-            s.last_error = Some("notecored relay is not available on this platform".into());
-        });
+    /// 接続が立つまで待つ (上限つき)。起動直後に AI 系の要求が来たときの readiness
+    pub async fn wait_connected(&self, timeout: Duration) -> bool {
+        let mut rx = self.ready.subscribe();
+        if *rx.borrow() {
+            return true;
+        }
+        tokio::time::timeout(timeout, async {
+            while rx.changed().await.is_ok() {
+                if *rx.borrow() {
+                    return true;
+                }
+            }
+            false
+        })
+        .await
+        .unwrap_or(false)
     }
 
-    #[cfg(unix)]
     fn disconnected(&self, reason: &str) {
+        let _ = self.ready.send(false);
         *self.tx.lock().unwrap_or_else(|e| e.into_inner()) = None;
         *self.secret.lock().unwrap_or_else(|e| e.into_inner()) = None;
         let pending: Vec<oneshot::Sender<Outcome>> = self
@@ -204,9 +209,8 @@ impl RelayClient {
         });
     }
 
-    #[cfg(unix)]
-    async fn session(self: &Arc<Self>, stream: UnixStream) {
-        let (reader, mut writer) = stream.into_split();
+    async fn session(self: &Arc<Self>, stream: transport::Stream) {
+        let (reader, mut writer) = tokio::io::split(stream);
         let (tx, mut rx) = mpsc::channel::<Frame>(1024);
         let writer_task = tokio::spawn(async move {
             while let Some(frame) = rx.recv().await {
@@ -247,6 +251,7 @@ impl RelayClient {
                         s.fingerprint_match = Some(matches);
                         s.last_error = None;
                     });
+                    let _ = self.ready.send(true);
                     *self.last_seq.lock().unwrap_or_else(|e| e.into_inner()) = 0;
                     let first = {
                         let mut h = self.had_session.lock().unwrap_or_else(|e| e.into_inner());
@@ -314,6 +319,10 @@ impl RelayClient {
 
     /// 生の要求 (コマンド表の名前 + camelCase の引数)
     pub async fn request(&self, name: &str, params: Value, window: Option<String>) -> Outcome {
+        if self.tx.lock().map(|t| t.is_none()).unwrap_or(true) {
+            // 起動直後は子プロセスがまだ bind していないことがある。少しだけ待つ
+            self.wait_connected(Duration::from_secs(8)).await;
+        }
         let (tx, secret) = {
             let tx = self.tx.lock().unwrap_or_else(|e| e.into_inner()).clone();
             let secret = self
@@ -406,6 +415,7 @@ pub async fn client_layer_state() -> ClientLayerState {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::path::PathBuf;
 
     /// 偽の notecored: hello を送り、要求に答え、イベントを 1 つ押し出す
     async fn fake_daemon(socket: PathBuf) {
@@ -493,7 +503,7 @@ mod tests {
         let ev = events.clone();
         let st = states.clone();
         let client = Arc::new(RelayClient::new(
-            socket,
+            Endpoint::Unix(socket),
             Arc::new(move |name, payload| ev.lock().unwrap().push((name.to_string(), payload))),
             Arc::new(move |s| st.lock().unwrap().push(s.clone())),
             Arc::new(|query_type, params, _timeout| {
@@ -554,7 +564,7 @@ mod tests {
     async fn unconnected_relay_fails_fast() {
         let dir = tempfile::tempdir().unwrap();
         let client = RelayClient::new(
-            dir.path().join("none.sock"),
+            Endpoint::Unix(dir.path().join("none.sock")),
             Arc::new(|_, _| {}),
             Arc::new(|_| {}),
             Arc::new(|_, _, _| Box::pin(async { Err("none".into()) })),

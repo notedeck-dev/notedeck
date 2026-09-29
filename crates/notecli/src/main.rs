@@ -20,7 +20,7 @@ async fn main() {
     notecli::format::init_color(cli.color);
 
     // HTTP の面は notecli 単体では出さない (notedeck#1106 段階 3a で廃止)。
-    // ルート定義はライブラリに残り、NoteDeck 本体と notecored の公開 API 面が取り込む
+    // ルート定義はライブラリに残り、NoteDeck 本体と notemaid の公開 API 面が取り込む
     match cli.command {
         None => {
             let _ = Cli::command().print_help();
