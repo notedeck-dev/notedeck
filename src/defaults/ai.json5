@@ -82,7 +82,7 @@
   budgets: {},
 
   // 手元の CLI (#1104)。ACP (Agent Client Protocol) を stdio で話すエージェントを
-  // AI の接続として使う。Claude Code / Codex / OpenCode / Gemini CLI / Hermes Agent / Grok Build は
+  // AI の接続として使う。Claude Agent (Claude Code) / Codex / OpenCode / Hermes Agent / Grok Build は
   // 組み込みで、PATH にあれば AI 設定の接続ピッカーに出る (接続 id は `harness:<id>`)。
   // 自分のコマンドを足すときはここに { id, name, command, args } を書く。
   harnesses: [],

@@ -1,5 +1,5 @@
 /**
- * 手元の CLI (Claude Code / Codex / OpenCode / Gemini CLI / Hermes Agent / Grok Build) の一覧 (#1104)。
+ * 手元の CLI (Claude Agent (Claude Code) / Codex / OpenCode / Hermes Agent / Grok Build) の一覧 (#1104)。
  *
  * ACP (Agent Client Protocol) を話す CLI を AI の接続の 1 種 (`harness:<id>`) として
  * 扱う。検出は Rust 側 (PATH を見る) で、ここは写しと読み直しだけ。

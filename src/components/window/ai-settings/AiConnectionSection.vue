@@ -64,9 +64,13 @@ function harnessIconUrl(h: HarnessInfo): string | null {
   return faviconUrl(h.homepage)
 }
 
-function selectHarness(id: string): void {
-  config.value.activeConnectionId = harnessConnectionId({ id })
+function selectHarness(h: HarnessInfo): void {
+  if (h.blocked) return
+  config.value.activeConnectionId = harnessConnectionId(h)
 }
+
+/** 中で他社のサブスクに繋げる CLI。Claude のサブスクをここ経由で使うのは規約違反 */
+const RELAY_HARNESSES = new Set(['opencode', 'hermes'])
 
 // 選択中接続のモデル名。`config.models[connectionId]` に保存する。
 const currentModel = computed<string>({
@@ -187,11 +191,13 @@ function openConnectionsWindow(): void {
             {
               [$style.cardActive]: config.activeConnectionId === harnessConnectionId(h),
               [$style.cardUnavailable]: !h.available,
+              [$style.cardBlocked]: h.blocked,
             },
           ]"
+          :disabled="h.blocked"
           :aria-pressed="config.activeConnectionId === harnessConnectionId(h)"
-          :title="h.detail ?? [h.command, ...h.args].join(' ')"
-          @click="selectHarness(h.id)"
+          :title="h.blocked ? i18n.ts._aiConnectionSection.harnessBlockedHint : (h.detail ?? [h.command, ...h.args].join(' '))"
+          @click="selectHarness(h)"
         >
           <span
             v-if="config.activeConnectionId === harnessConnectionId(h)"
@@ -210,14 +216,25 @@ function openConnectionsWindow(): void {
           <span>{{ h.name }}</span>
         </button>
         <span :class="[$style.cellState, { [$style.cellStateOk]: h.available }]">
-          <i class="ti" :class="h.available ? 'ti-circle-check' : 'ti-circle-dashed'" />
-          {{ h.available ? i18n.ts._aiConnectionSection.harnessFound : i18n.ts._aiConnectionSection.harnessNotFound }}
+          <i class="ti" :class="h.blocked ? 'ti-ban' : h.available ? 'ti-circle-check' : 'ti-circle-dashed'" />
+          {{
+            h.blocked
+              ? i18n.ts._aiConnectionSection.harnessBlocked
+              : h.available
+                ? i18n.ts._aiConnectionSection.harnessFound
+                : i18n.ts._aiConnectionSection.harnessNotFound
+          }}
         </span>
       </div>
     </div>
     <div v-if="currentHarness && !currentHarness.available" :class="$style.connEmpty">
       <i class="ti ti-alert-triangle" />
-      <span>{{ currentHarness.detail }}</span>
+      <span>{{ currentHarness.blocked ? i18n.ts._aiConnectionSection.harnessBlockedHint : currentHarness.detail }}</span>
+    </div>
+    <!-- 選んだときだけ出す一文。カードには載せない -->
+    <div v-else-if="currentHarness && RELAY_HARNESSES.has(currentHarness.id)" :class="$style.connEmpty">
+      <i class="ti ti-info-circle" />
+      <span>{{ i18n.ts._aiConnectionSection.harnessRelayNote }}</span>
     </div>
   </AiSettingsSection>
 
@@ -273,6 +290,12 @@ function openConnectionsWindow(): void {
 
 .cardUnavailable.cardUnavailable {
   opacity: 0.55;
+}
+
+.cardBlocked.cardBlocked {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(1);
 }
 
 .cell {

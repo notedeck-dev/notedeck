@@ -26,6 +26,8 @@ pub struct HarnessInfo {
     pub detail: Option<String>,
     /// 利用者が ai.json5 に書いた定義か
     pub custom: bool,
+    /// 提供元の規約上、NoteDeck から使えない (一覧には出すが選べない)。理由は `detail`
+    pub blocked: bool,
     /// 提供元のサイト (ピッカーのアイコンは接続カードと同じ favicon 経由で出す)
     pub homepage: Option<String>,
 }
@@ -52,17 +54,22 @@ struct Builtin {
     requires: &'static [&'static str],
     hint: &'static str,
     homepage: &'static str,
+    /// 提供元の規約上、第三者アプリから起動して使えないときの理由
+    blocked: Option<&'static str>,
 }
 
 const BUILTINS: &[Builtin] = &[
     Builtin {
+        // id は保存済みの接続 id なので変えない。表示名は Anthropic の規約
+        // (Agent SDK 製の製品は "Claude Code" を名乗れない) に合わせて Claude Agent
         id: "claude-code",
-        name: "Claude Code",
+        name: "Claude Agent",
         command: "npx",
         args: &["-y", "@agentclientprotocol/claude-agent-acp"],
         requires: &["claude"],
         hint: "needs the `claude` CLI (logged in) and `npx`",
         homepage: "https://claude.com/product/claude-code",
+        blocked: None,
     },
     Builtin {
         id: "codex",
@@ -72,6 +79,7 @@ const BUILTINS: &[Builtin] = &[
         requires: &["codex"],
         hint: "needs the `codex` CLI (logged in) and `npx`",
         homepage: "https://openai.com/codex/",
+        blocked: None,
     },
     Builtin {
         id: "opencode",
@@ -81,6 +89,7 @@ const BUILTINS: &[Builtin] = &[
         requires: &[],
         hint: "needs the `opencode` CLI",
         homepage: "https://opencode.ai",
+        blocked: None,
     },
     Builtin {
         id: "gemini",
@@ -90,6 +99,9 @@ const BUILTINS: &[Builtin] = &[
         requires: &[],
         hint: "needs the `gemini` CLI (logged in)",
         homepage: "https://gemini.google.com",
+        // 個人の Google ログインは 2026-06-18 に廃止され、Gemini CLI の OAuth を第三者
+        // ソフトから使うことは規約違反と明記されている (gemini-cli の tos-privacy.md)
+        blocked: Some("Google's terms do not allow third-party apps to use Gemini CLI's login"),
     },
     Builtin {
         id: "hermes",
@@ -99,6 +111,7 @@ const BUILTINS: &[Builtin] = &[
         requires: &[],
         hint: "needs the `hermes` CLI",
         homepage: "https://hermes-agent.nousresearch.com",
+        blocked: None,
     },
     Builtin {
         id: "grok-build",
@@ -109,6 +122,7 @@ const BUILTINS: &[Builtin] = &[
         requires: &[],
         hint: "needs the `grok` CLI (logged in)",
         homepage: "https://x.ai",
+        blocked: None,
     },
 ];
 
@@ -186,8 +200,10 @@ pub fn list(custom: &[CustomHarness]) -> Vec<HarnessInfo> {
                 .copied()
                 .filter(|r| find_in_path(r).is_none())
                 .collect();
-            let available = command.is_some() && missing.is_empty();
-            let detail = if available {
+            let available = b.blocked.is_none() && command.is_some() && missing.is_empty();
+            let detail = if let Some(reason) = b.blocked {
+                Some(reason.to_string())
+            } else if available {
                 None
             } else {
                 let mut need: Vec<String> = Vec::new();
@@ -209,6 +225,7 @@ pub fn list(custom: &[CustomHarness]) -> Vec<HarnessInfo> {
                 available,
                 detail,
                 custom: false,
+                blocked: b.blocked.is_some(),
                 homepage: Some(b.homepage.into()),
             }
         })
@@ -233,6 +250,7 @@ pub fn list(custom: &[CustomHarness]) -> Vec<HarnessInfo> {
             available,
             detail: (!available).then(|| format!("`{}` not found in PATH", c.command)),
             custom: true,
+            blocked: false,
             homepage: None,
         });
     }
@@ -329,6 +347,9 @@ mod tests {
             .iter()
             .any(|h| h.id == "grok-build" && h.homepage.is_some()));
         assert!(mine_has_no_homepage(&all));
+        // 規約で使えないものは PATH にあっても選べない
+        let gemini = all.iter().find(|h| h.id == "gemini").unwrap();
+        assert!(gemini.blocked && !gemini.available && gemini.detail.is_some());
         let mine = all.iter().find(|h| h.id == "mine").unwrap();
         assert!(mine.custom && !mine.available);
         assert_eq!(mine.name, "mine");

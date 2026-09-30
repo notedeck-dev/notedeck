@@ -733,10 +733,11 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   tool の集合と schema は AI プロバイダーに渡すものと同じ、実行は既存の dispatcher (external principal の
   認可と汚染がそのまま効く)。AI に Misskey トークンは渡さない (2026-09-30)。stdio transport と
   「GUI の AI セッションに話しかける」(#555 Phase 2) は未
-- [x] **手元の CLI を AI にする (ACP)** (#1104) — ログイン済みの Claude Code / Codex / OpenCode /
-  Gemini CLI / Hermes Agent / Grok Build を notemaid が ACP の子プロセスとして抱え、AI カラムの provider にする。
+- [x] **手元の CLI を AI にする (ACP)** (#1104) — ログイン済みの Claude Agent (Claude Code) / Codex /
+  OpenCode / Hermes Agent / Grok Build を notemaid が ACP の子プロセスとして抱え、AI カラムの provider にする。
   API キー不要 (CLI の契約で動く)。NoteDeck の capability は MCP で CLI に渡し、CLI の許可要求は
-  確認ダイアログに出る。HEARTBEAT はこの経路では回さない (2026-09-30)。CLI のセッション読み込みは未
+  確認ダイアログに出る。HEARTBEAT はこの経路では回さない (2026-09-30)。Gemini CLI は
+  規約上使えないので選べない形で残す。CLI のセッション読み込みは未
 - [ ] **OS グローバルホットキー（任意 capability bind）** (#514) — 現状 Quick Note / Boss Key の
   2 つだけハードコードされているグローバルホットキーを、任意の capability に bind 可能に拡張。
   `settings.json` の `globalShortcuts` セクションで管理。Stream Deck / Raycast 未導入のユーザー
