@@ -1262,6 +1262,12 @@ export interface Locale {
     readonly "harnessFound": string
     /** 見つかりません */
     readonly "harnessNotFound": string
+    /** 利用不可 */
+    readonly "harnessBlocked": string
+    /** Google の規約で、Gemini CLI のログインを他のアプリから使うことは禁止されています。 */
+    readonly "harnessBlockedHint": string
+    /** Claude を使うときはこの CLI 経由ではなく Claude Agent を選んでください。 */
+    readonly "harnessRelayNote": string
   }
   readonly "_aiDataSourcesSection": {
     /** データソース */

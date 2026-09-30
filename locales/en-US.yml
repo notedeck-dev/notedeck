@@ -923,6 +923,9 @@ _aiConnectionSection:
   harnessHint: "Use a logged-in CLI as the AI (no API key needed). Permission requests from the CLI appear as confirmations in the chat. HEARTBEAT does not run."
   harnessFound: "found"
   harnessNotFound: "not found"
+  harnessBlocked: "unavailable"
+  harnessBlockedHint: "Google's terms prohibit other apps from using Gemini CLI's login."
+  harnessRelayNote: "To use Claude, pick Claude Agent instead of routing through this CLI."
 
 _aiDataSourcesSection:
   title: "Data sources"

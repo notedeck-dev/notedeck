@@ -3309,6 +3309,10 @@ detail: string | null;
  */
 custom: boolean; 
 /**
+ * 提供元の規約上、NoteDeck から使えない (一覧には出すが選べない)。理由は `detail`
+ */
+blocked: boolean; 
+/**
  * 提供元のサイト (ピッカーのアイコンは接続カードと同じ favicon 経由で出す)
  */
 homepage: string | null }
