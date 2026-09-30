@@ -16,7 +16,30 @@ pub fn run_fs(app_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     rename_settings_json_to_json5(app_dir)?;
     rename_performance_json_to_json5(app_dir)?;
     rename_ai_json_to_json5(app_dir)?;
+    remove_notecored_leftovers(app_dir, dirs::config_dir().as_deref());
     Ok(())
+}
+
+/// v1.74 で削除した notecored (データ面の常駐、#1106) が Linux に残した secret の
+/// 保管 (`<data-dir>/notecored/secrets.enc` と `<config-dir>/notecored/secret.key`) を消す。
+/// 中身は暗号化したトークンの写しで、今の notemaid は `<config-dir>/notemaid/` を使う。
+/// 失敗しても起動は止めない。
+fn remove_notecored_leftovers(app_dir: &Path, config_dir: Option<&Path>) {
+    let mut targets = vec![app_dir.join("notecored")];
+    if let Some(c) = config_dir {
+        targets.push(c.join("notecored"));
+    }
+    for dir in targets {
+        if !dir.is_dir() {
+            continue;
+        }
+        match fs::remove_dir_all(&dir) {
+            Ok(()) => tracing::info!(path = %dir.display(), "removed the notecored leftovers"),
+            Err(e) => {
+                tracing::warn!(path = %dir.display(), %e, "cannot remove the notecored leftovers")
+            }
+        }
+    }
 }
 
 /// Run DB-dependent migrations. Called after DB and keychain are initialized.
@@ -114,4 +137,32 @@ fn move_settings_to_subdir(app_dir: &Path) -> Result<(), Box<dyn std::error::Err
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn notecored_leftovers_are_removed_from_both_dirs_and_nothing_else() {
+        let data = tempfile::tempdir().unwrap();
+        let config = tempfile::tempdir().unwrap();
+        fs::create_dir_all(data.path().join("notecored")).unwrap();
+        fs::write(data.path().join("notecored/secrets.enc"), b"x").unwrap();
+        fs::create_dir_all(config.path().join("notecored")).unwrap();
+        fs::write(config.path().join("notecored/secret.key"), b"k").unwrap();
+        // 今の持ち物は触らない
+        fs::create_dir_all(config.path().join("notemaid")).unwrap();
+        fs::write(config.path().join("notemaid/secret.key"), b"k").unwrap();
+        fs::write(data.path().join("notemaid.lock"), b"1").unwrap();
+
+        remove_notecored_leftovers(data.path(), Some(config.path()));
+        // 2 回目も安全 (冪等)
+        remove_notecored_leftovers(data.path(), Some(config.path()));
+
+        assert!(!data.path().join("notecored").exists());
+        assert!(!config.path().join("notecored").exists());
+        assert!(config.path().join("notemaid/secret.key").exists());
+        assert!(data.path().join("notemaid.lock").exists());
+    }
 }
