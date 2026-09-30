@@ -24,6 +24,10 @@ const METHOD_NOT_FOUND: i64 = -32601;
 /// 起動 (initialize の往復) の上限。npx の初回はパッケージ取得で時間がかかる
 const INITIALIZE_TIMEOUT: Duration = Duration::from_secs(120);
 const SESSION_NEW_TIMEOUT: Duration = Duration::from_secs(60);
+/// ACP の「認証が要る」エラー
+const AUTH_REQUIRED: i64 = -32000;
+/// そのエラーを文字列で運ぶときの印 (provider が利用者向けの文に直す)
+pub const AUTH_REQUIRED_PREFIX: &str = "auth_required: ";
 
 /// 進行中の prompt が受け取るもの (更新は通知、許可要求は答えを要求する)
 pub enum Incoming {
@@ -148,18 +152,6 @@ impl AcpAgent {
                 false
             }
         }
-    }
-
-    /// 認証が要ると申告している (authMethods が空でない) か
-    pub fn needs_auth(&self) -> bool {
-        self.info
-            .lock()
-            .map(|i| {
-                i.get("authMethods")
-                    .and_then(Value::as_array)
-                    .is_some_and(|a| !a.is_empty())
-            })
-            .unwrap_or(false)
     }
 
     /// NoteDeck の MCP サーバーを渡してセッションを作る。戻り値は ACP のセッション id
@@ -295,11 +287,19 @@ impl AcpAgent {
                     .remove(&id);
                 if let Some(tx) = tx {
                     let outcome = if let Some(err) = msg.get("error") {
-                        Err(err
+                        let text = err
                             .get("message")
                             .and_then(Value::as_str)
-                            .unwrap_or("agent error")
-                            .to_string())
+                            .unwrap_or("agent error");
+                        // ACP の auth_required。authMethods の申告はログイン済みでも来るので、
+                        // 要るかどうかはこのエラーで判断する
+                        Err(
+                            if err.get("code").and_then(Value::as_i64) == Some(AUTH_REQUIRED) {
+                                format!("{AUTH_REQUIRED_PREFIX}{text}")
+                            } else {
+                                text.to_string()
+                            },
+                        )
                     } else {
                         Ok(msg.get("result").cloned().unwrap_or(Value::Null))
                     };
@@ -428,7 +428,6 @@ mod live {
         let dir = tempfile::tempdir().unwrap();
         let agent = AcpAgent::spawn(h, dir.path()).await.expect("spawn");
         eprintln!("initialize -> {}", agent.info.lock().unwrap());
-        assert!(!agent.needs_auth(), "claude is not logged in");
         let sid = agent
             .new_session(dir.path(), None)
             .await
