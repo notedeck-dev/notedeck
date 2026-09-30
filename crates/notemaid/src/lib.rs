@@ -36,5 +36,6 @@ pub mod memos;
 pub mod sinks;
 pub mod skills;
 pub mod transport;
+pub mod workspace;
 
 pub use sinks::CoreMaidExt;
