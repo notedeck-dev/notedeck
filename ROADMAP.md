@@ -733,6 +733,12 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   tool の集合と schema は AI プロバイダーに渡すものと同じ、実行は既存の dispatcher (external principal の
   認可と汚染がそのまま効く)。AI に Misskey トークンは渡さない (2026-09-30)。stdio transport と
   「GUI の AI セッションに話しかける」(#555 Phase 2) は未
+- [ ] **AI の人格と記憶 — ワークスペースファイル** (#1162) — notemaid の売りは人格なので、
+  OpenClaw / Hermes Agent 流の固定名 markdown で持つ: `notemaid/` に SOUL.md (核) / USER.md (相手) /
+  MEMORY.md (覚え書き) / BOOTSTRAP.md (初回の儀式)、`skills/` に予約 skill AGENTS.md / HEARTBEAT.md。
+  組み立ては notemaid 一本、turn 単位のスナップショット、Hermes 同形の `memory.update`、tainted からの
+  書込は確認強制 (承認後はラベル無し)・無人は拒否。4 視点 × 2 巡の敵対的レビューで 2026-09-30 に
+  設計確定 (正本は issue の v4 コメント、要約は DEVELOPMENT.md「AI の人格と記憶」)。実装中
 - [x] **手元の CLI を AI にする (ACP)** (#1104) — ログイン済みの Claude Agent (Claude Code) / Codex /
   OpenCode / Hermes Agent / Grok Build を notemaid が ACP の子プロセスとして抱え、AI カラムの provider にする。
   API キー不要 (CLI の契約で動く)。NoteDeck の capability は MCP で CLI に渡し、CLI の許可要求は
@@ -846,9 +852,10 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
   「あなたは <displayName> として振る舞え」「`memos.create` 呼び出し時は
   `authorId='<id>'`」と指示される。persona indicator UI (settings selector /
   session snapshot / chat header) + theme accent 色のアバター
-- [x] **永続記憶 (memos)** — 専用 MEMORY/SOUL 機構は作らず、既存プリミティブで再現:
+- [x] **永続記憶 (memos)** — 当初は専用 MEMORY/SOUL 機構を作らず、既存プリミティブで再現:
   メモ + `dataSources.memos` + `memos.write` permission + `notedeck-memo` always skill
-  の 4 要素 (PR #489)。`memos.{create,update,delete,list,search,backlinks}` capability、
+  の 4 要素 (PR #489)。2026-09-30 に #1162 で方針転換 (下記): 常駐するのは MEMORY.md だけで
+  `dataSources.memos` は廃止、生のメモは検索で読む。`memos.{create,update,delete,list,search,backlinks}` capability、
   `memo:<id>` markdown link の link expand + `referencedBy` 添付、
   author 埋め込みブロック (#493) で persona との紐付けが完成
 - [x] **`notedeck-memo` (永続記憶の運用手順) / `self-profile` (`skills.replaceSection`

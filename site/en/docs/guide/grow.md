@@ -1,5 +1,5 @@
 ---
-sourceHash: f28e191a8d71
+sourceHash: 266c208c49fc
 ---
 
 # Growing your environment
@@ -29,6 +29,8 @@ The AI knows **what you are looking at right now**, so there is no need to paste
 
 Say "remember this" and it goes into a memo that **survives closing the conversation**. From then on, it answers with that in mind.
 
+The AI also keeps its own **notes**, where it jots down small facts and decisions it picks up from your exchanges. You can read what it remembers in the AI settings at any time, and fix or delete it line by line.
+
 ## 3. Hand over the deck
 
 The AI does not just look at the screen; it can operate the deck itself.
@@ -43,13 +45,13 @@ Places the AI touched flash briefly. You can learn the app in this order: **say 
 
 NoteDeck keeps the notes that flow past on your device, and [search](/en/docs/guide/search) lets you go back through them across servers. Connect the AI to that and it **can answer "who was talking about that last week?"**. Only the side that holds the history locally can do this.
 
-There is no need to enter your preferences in a settings screen. Your record of use becomes your profile as it is.
+There is no need to enter your preferences in a settings screen. Your record of use becomes your profile as it is. Tell it how to address you or how you like it to talk during a conversation and the AI writes that down under "About you". If you would rather it did not remember, you can turn that off.
 
 ## 5. Give it a persona
 
-Write a role or tone into a skill and it behaves that way from then on. No more typing "keep it short" every time.
+The AI has a **core personality** that stays the same even when you switch characters. On top of it you can dress it in a tone or a role, so you never have to type "keep it short" again. The first time you talk to it, you can decide its name and vibe together (it will not ask unless you do).
 
-Go further and **the AI rewrites its own skills**. It adds the preferences it picked up from conversations to its own settings.
+Go further and **the AI proposes changes to its own personality and notes**. It adds the preferences it picked up from conversations to its own settings. Only the core changes when you approve it.
 
 ## 6. Have it design the look
 
