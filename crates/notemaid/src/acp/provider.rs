@@ -97,13 +97,6 @@ impl AcpProvider {
         let agent = AcpAgent::spawn(self.harness.clone(), &self.workspace)
             .await
             .map_err(RoundError::from)?;
-        if agent.needs_auth() {
-            agent.shutdown();
-            return Err(RoundError::from(format!(
-                "{} asks for authentication; log in with the CLI first",
-                self.harness.name
-            )));
-        }
         self.registry
             .agents
             .lock()
@@ -165,10 +158,15 @@ impl AcpProvider {
             }
         }
         let mcp = self.mcp_server().await;
-        let sid = agent
-            .new_session(&self.workspace, mcp)
-            .await
-            .map_err(RoundError::from)?;
+        let sid = agent.new_session(&self.workspace, mcp).await.map_err(|e| {
+            match e.strip_prefix(super::client::AUTH_REQUIRED_PREFIX) {
+                Some(detail) => RoundError::from(format!(
+                    "{} needs you to log in with its CLI first ({detail})",
+                    self.harness.name
+                )),
+                None => RoundError::from(e),
+            }
+        })?;
         if notedeck_session.is_some() {
             self.registry
                 .sessions

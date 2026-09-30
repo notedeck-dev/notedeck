@@ -130,6 +130,7 @@ pub fn find_in_path(name: &str) -> Option<PathBuf> {
         name,
         std::env::var_os("PATH").as_deref(),
         std::env::var_os("PATHEXT").as_deref(),
+        cfg!(windows),
     )
 }
 
@@ -137,21 +138,28 @@ fn find_in(
     name: &str,
     path: Option<&std::ffi::OsStr>,
     pathext: Option<&std::ffi::OsStr>,
+    windows: bool,
 ) -> Option<PathBuf> {
     let p = Path::new(name);
     if p.components().count() > 1 {
         return p.is_file().then(|| p.to_path_buf());
     }
-    let exts: Vec<String> = if cfg!(windows) {
-        let mut v: Vec<String> = pathext
+    let exts: Vec<String> = if windows {
+        let v: Vec<String> = pathext
             .map(|e| e.to_string_lossy().to_string())
             .unwrap_or_else(|| ".COM;.EXE;.BAT;.CMD".into())
             .split(';')
             .filter(|s| !s.is_empty())
             .map(|s| s.to_lowercase())
             .collect();
-        v.insert(0, String::new());
-        v
+        // Windows では拡張子の無いファイルを起動できない (npm は `npx` という sh
+        // スクリプトと `npx.cmd` を並べて置く)。名前に拡張子があるときだけそのまま探す
+        let has_ext = v.iter().any(|e| name.to_lowercase().ends_with(e.as_str()));
+        if has_ext {
+            vec![String::new()]
+        } else {
+            v
+        }
     } else {
         vec![String::new()]
     };
@@ -263,15 +271,41 @@ mod tests {
             find_in(
                 "mytool",
                 Some(path.as_os_str()),
-                Some(std::ffi::OsStr::new(".CMD;.EXE"))
+                Some(std::ffi::OsStr::new(".CMD;.EXE")),
+                cfg!(windows),
             ),
             Some(exe.clone())
         );
-        assert!(find_in("nope", Some(path.as_os_str()), None).is_none());
+        assert!(find_in("nope", Some(path.as_os_str()), None, cfg!(windows)).is_none());
         // 絶対パスはそのまま
         assert_eq!(
-            find_in(exe.to_str().unwrap(), Some(path.as_os_str()), None),
+            find_in(
+                exe.to_str().unwrap(),
+                Some(path.as_os_str()),
+                None,
+                cfg!(windows)
+            ),
             Some(exe)
+        );
+    }
+
+    #[test]
+    fn windows_skips_the_extensionless_npm_shim() {
+        // npm は `npx` (sh スクリプト) と `npx.cmd` を同じ場所に置く。前者は
+        // CreateProcess できない (os error 193)
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("npx"), "#!/bin/sh").unwrap();
+        std::fs::write(dir.path().join("npx.cmd"), "@echo off").unwrap();
+        let path = std::env::join_paths([dir.path()]).unwrap();
+        let ext = Some(std::ffi::OsStr::new(".COM;.EXE;.BAT;.CMD"));
+        assert_eq!(
+            find_in("npx", Some(path.as_os_str()), ext, true),
+            Some(dir.path().join("npx.cmd"))
+        );
+        // 拡張子つきで指定されたらそのまま
+        assert_eq!(
+            find_in("npx.cmd", Some(path.as_os_str()), ext, true),
+            Some(dir.path().join("npx.cmd"))
         );
     }
 
