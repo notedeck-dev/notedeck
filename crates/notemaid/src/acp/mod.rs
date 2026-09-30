@@ -37,7 +37,5 @@ pub async fn shutdown_all(bridge: Option<Arc<dyn notecore::frontend_bridge::Fron
 
 /// 作業ディレクトリ (設定フォルダの中。CLI はここを project root として見る)
 pub fn workspace(app_dir: &std::path::Path) -> std::path::PathBuf {
-    app_dir
-        .join(notecore::commands::settings::SETTINGS_DIR)
-        .join("ai-workspace")
+    crate::migrations::workspace_dir(app_dir)
 }

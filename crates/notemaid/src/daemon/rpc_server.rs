@@ -243,6 +243,7 @@ impl RpcServer {
             secret: self.secret.clone(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             fingerprint: notecore::rpc::manifest_fingerprint(),
+            fs_layout: crate::migrations::FS_LAYOUT,
         };
         if tx.send(hello).await.is_err() {
             return;
