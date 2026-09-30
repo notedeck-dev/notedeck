@@ -956,10 +956,20 @@ pub struct TurnState {
     /// 出所判定で trusted に数える skill 本文 (store 由来とワークスペースは含めない)
     #[serde(default)]
     pub trusted_skill_bodies: Vec<String>,
+    /// turn 内の汚染 (#1162、セッション汚染とは別。継続 turn には引き継がない):
+    /// 「次から確認しない」を無視して必ず確認する。他人の内容を読んだ / デバイス文脈に
+    /// 他人の内容がある / store 由来の skill が文脈にある、で立つ
+    #[serde(default)]
+    pub confirm_forced: bool,
+    /// turn 内の汚染: 書いたメモ / skill にラベルを付ける。store 由来の skill では立てない
+    /// (ラベルの伝播で全セッションを汚さない)
+    #[serde(default)]
+    pub label_writes: bool,
 }
 
 impl TurnState {
     pub fn new(req: AiTurnRequest) -> Self {
+        let req_untrusted = req.context_untrusted;
         Self {
             messages: req.messages.clone(),
             tool_executed: req.continuation,
@@ -974,18 +984,39 @@ impl TurnState {
             usage: crate::ai_budget::TokenUsage::default(),
             system: None,
             trusted_skill_bodies: Vec::new(),
+            confirm_forced: req_untrusted,
+            label_writes: req_untrusted,
         }
     }
 
-    /// notemaid が組んだ system prompt を持たせる (テストや in-process の呼び手向け)
-    pub fn with_system(
-        mut self,
-        system: Option<String>,
-        trusted_skill_bodies: Vec<String>,
-    ) -> Self {
-        self.system = system;
-        self.trusted_skill_bodies = trusted_skill_bodies;
+    /// notemaid が組んだ system prompt と、文脈から分かった汚染を持たせる
+    pub fn with_composition(mut self, composed: compose::Composed) -> Self {
+        self.system = composed.system;
+        self.trusted_skill_bodies = composed.trusted_skill_bodies;
+        if composed.store_skill_in_context {
+            self.confirm_forced = true;
+        }
         self
+    }
+
+    /// テストや in-process の呼び手向け: system だけ差す
+    pub fn with_system(mut self, system: Option<String>) -> Self {
+        self.system = system;
+        self
+    }
+
+    /// この turn で他人の内容を読んだ (両方のビットを立てる)
+    fn taint_turn(&mut self) {
+        self.confirm_forced = true;
+        self.label_writes = true;
+    }
+}
+
+/// セッション単位の汚染 (#1103)。session の無い turn (HEARTBEAT) は false
+async fn session_tainted(rt: &TurnRuntime, req: &AiTurnRequest) -> bool {
+    match req.session_id.as_deref() {
+        Some(sid) => rt.taint.is_tainted(sid).await,
+        None => false,
     }
 }
 
@@ -1136,11 +1167,9 @@ async fn prepare_pending(
     let corpus = ProvenanceCorpus::build(req, &state.trusted_skill_bodies, &state.messages, index);
     let granted = rt.granted.granted().await;
     let unattended = req.principal == "ai.heartbeat";
-    // tainted なセッション (#1103): 「次から確認しない」を無視して必ず確認する
-    let tainted = match req.session_id.as_deref() {
-        Some(sid) => rt.taint.is_tainted(sid).await,
-        None => false,
-    };
+    // tainted なセッション (#1103) か turn 内の汚染 (#1162、無人でも効く):
+    // 「次から確認しない」を無視して必ず確認する
+    let tainted = state.confirm_forced || session_tainted(rt, req).await;
     let mut out = Vec::with_capacity(tool_uses.len());
     for tu in tool_uses {
         let mut p = PendingToolUse {
@@ -1214,6 +1243,11 @@ async fn prepare_pending(
 /// needs_confirm を下ろす。
 async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value> {
     let mut items = Vec::new();
+    // 汚染中は「次から確認しない」を出さない (tainted な turn で付けた記憶が次の
+    // 綺麗なセッションで効いてしまうため)。ラベルはメモ / skill の書込に付ける側
+    let session_is_tainted = session_tainted(rt, &state.req).await;
+    let forced = state.confirm_forced || session_is_tainted;
+    let labels = state.label_writes || session_is_tainted;
     for p in state.pending.iter_mut() {
         if !p.needs_confirm || p.decision.is_some() {
             continue;
@@ -1263,7 +1297,8 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                     .and_then(Value::as_bool)
                     .unwrap_or(false)
                     && !cross
-                    && !p.destination_untrusted,
+                    && !p.destination_untrusted
+                    && !forced,
             ),
             Err(e) => {
                 // デバイスが居ない (headless / notemaid) — core の capability なら
@@ -1271,14 +1306,10 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                 tracing::warn!(capability_id, "confirm preview unavailable: {e}");
                 match (&rt.core, crate::exec::is_core(&capability_id)) {
                     (Some(core), true) => {
-                        let session_tainted = match state.req.session_id.as_deref() {
-                            Some(sid) => rt.taint.is_tainted(sid).await,
-                            None => false,
-                        };
                         let ctx = crate::exec::ExecContext {
                             principal: state.req.principal.clone(),
                             account_id: state.req.account_id.clone(),
-                            tainted: session_tainted,
+                            tainted: labels,
                             plugin_id: None,
                         };
                         match core.preview(&capability_id, p.input.clone(), ctx).await {
@@ -1344,10 +1375,9 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             e.tool_use_id = Some(tu.id.clone());
             e.tool_use_name = tu.capability_id.clone();
             e.tool_use_input = Some(tu.input.clone());
-            e.reason = state
-                .req
-                .context_untrusted
-                .then(|| "context_untrusted".to_string());
+            // 生成元の汚染 (デバイス文脈 / この turn で読んだ他人の内容 / ラベル付きの
+            // 内容)。人がボタンを押すときの一文と、実行時のラベル付けに使う
+            e.reason = state.label_writes.then(|| "untrusted".to_string());
             rt.sink.emit(e);
         }
         let (result, is_error) = if let Some(deny) = tu.deny.clone() {
@@ -1367,14 +1397,11 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             // notecore 単独で実行できる capability はデバイスに投げない
             state.tool_executed = true;
             let executor = rt.core.as_ref().expect("checked");
-            let session_tainted = match state.req.session_id.as_deref() {
-                Some(sid) => rt.taint.is_tainted(sid).await,
-                None => false,
-            };
+            let labels = state.label_writes || session_tainted(rt, &state.req).await;
             let ctx = crate::exec::ExecContext {
                 principal: state.req.principal.clone(),
                 account_id: state.req.account_id.clone(),
-                tainted: session_tainted,
+                tainted: labels,
                 plugin_id: None,
             };
             match executor
@@ -1386,8 +1413,9 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                 .await
             {
                 Ok(outcome) => {
-                    // ラベル付きの内容を返した (tainted なメモ / skill) → セッションを汚染
+                    // ラベル付きの内容を返した (tainted なメモ / skill) → turn とセッションを汚染
                     if outcome.tainted {
+                        state.taint_turn();
                         if let Some(sid) = state.req.session_id.as_deref() {
                             rt.taint
                                 .mark(sid, tu.capability_id.as_deref().unwrap_or(&tu.name))
@@ -1403,10 +1431,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             }
         } else {
             state.tool_executed = true;
-            let session_tainted = match state.req.session_id.as_deref() {
-                Some(sid) => rt.taint.is_tainted(sid).await,
-                None => false,
-            };
+            let labels = state.label_writes || session_tainted(rt, &state.req).await;
             let outcome = rt
                 .bridge
                 .query(
@@ -1419,8 +1444,8 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                         "params": tu.input,
                         // notecore で確認済み (デバイス側は確認を出さない)
                         "confirmed": tu.needs_confirm,
-                        // tainted なセッションからの書込 (メモ / skill にラベルを付ける)
-                        "tainted": session_tainted,
+                        // tainted なセッション / turn からの書込 (メモ / skill にラベルを付ける)
+                        "tainted": labels,
                     }),
                     DEVICE_EXECUTE_TIMEOUT,
                 )
@@ -1428,6 +1453,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             // デバイス側の capability が「ラベル付きの内容を返した」と申告したら汚染
             if let Ok(v) = &outcome {
                 if v.get("tainted").and_then(Value::as_bool) == Some(true) {
+                    state.taint_turn();
                     if let Some(sid) = state.req.session_id.as_deref() {
                         rt.taint
                             .mark(sid, tu.capability_id.as_deref().unwrap_or(&tu.name))
@@ -1438,7 +1464,8 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             result_text(outcome)
         };
         if !is_error && tu.untrusted {
-            // 他人の内容を読んだ: 以後このセッションは tainted (ターンで消えない)
+            // 他人の内容を読んだ: この turn (無人でも) と、以後このセッションは tainted
+            state.taint_turn();
             if let Some(sid) = state.req.session_id.as_deref() {
                 rt.taint
                     .mark(sid, tu.capability_id.as_deref().unwrap_or(&tu.name))
@@ -1858,10 +1885,7 @@ pub async fn start_turn_with_sink(
         core: Some(shared),
         budget: cfg.daily_budget_for(&req.connection_id),
     });
-    begin_turn(
-        rt,
-        TurnState::new(req).with_system(composed.system, composed.trusted_skill_bodies),
-    )
+    begin_turn(rt, TurnState::new(req).with_composition(composed))
 }
 
 /// ユーザー入力をセッションに書いてから turn を起動する (書けなければ始めない)。
@@ -2414,7 +2438,7 @@ mod tests {
         req.continuation = true;
         drive(
             h.rt.clone(),
-            TurnState::new(req).with_system(Some("base".into()), Vec::new()),
+            TurnState::new(req).with_system(Some("base".into())),
         )
         .await;
         assert_eq!(h.sink.last().phase.as_deref(), Some("after_tool"));
@@ -2972,6 +2996,70 @@ mod tests {
         assert_eq!(h.sink.last().kind, "confirm_request");
     }
 
+    #[tokio::test]
+    async fn unattended_turn_that_read_others_content_marks_its_intents_untrusted() {
+        // HEARTBEAT には session が無いので、turn 内の汚染 (#1162) だけが頼り:
+        // ラウンド 1 で untrusted を読み、ラウンド 2 の書込意図に汚染の印が付く
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "notes_show", json!({"noteId": "n1"}))],
+            vec![tool_use("tu2", "notes_create", json!({"text": "reply"}))],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "note"}));
+        let h = harness(provider, &["notes.read", "notes.write"], device.clone());
+        let mut req = request();
+        req.principal = "ai.heartbeat".into();
+        req.session_id = None;
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        let intent = h.sink.find("intent").unwrap();
+        assert_eq!(intent.tool_use_name.as_deref(), Some("notes.create"));
+        assert_eq!(intent.reason.as_deref(), Some("untrusted"));
+        // 読む前に出た意図には印が付かない
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "notes_create", json!({"text": "x"}))],
+            vec![delta("done")],
+        ]);
+        let h = harness(provider, &["notes.write"], device);
+        let mut req = request();
+        req.principal = "ai.heartbeat".into();
+        req.session_id = None;
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        assert_eq!(h.sink.find("intent").unwrap().reason, None);
+    }
+
+    #[tokio::test]
+    async fn a_store_skill_in_context_forces_confirmation_but_does_not_label_writes() {
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "notes_create", json!({"text": "x"}))],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "note"}));
+        let mut skips = HashSet::new();
+        skips.insert("ai.chat:notes.create".to_string());
+        let h = harness_with(
+            provider,
+            &["notes.write"],
+            device.clone(),
+            skips,
+            confirm::ConfirmPolicy::default(),
+        );
+        let composed = compose::Composed {
+            store_skill_in_context: true,
+            ..Default::default()
+        };
+        drive(
+            h.rt.clone(),
+            TurnState::new(request()).with_composition(composed),
+        )
+        .await;
+        // 記憶があっても確認になり、「次から確認しない」は出さない
+        let request_ev = h.sink.find("confirm_request").unwrap();
+        let items = request_ev.confirm_items.unwrap();
+        assert_eq!(items[0]["allowRemember"], false);
+        // セッション自体は汚れない (ラベルの伝播はしない)
+        assert!(!h.rt.taint.is_tainted("s1").await);
+    }
+
     // --- 宛先の出所 (#1103) ---
 
     #[tokio::test]
@@ -3023,12 +3111,13 @@ mod tests {
         let mut req = request();
         req.messages = vec![user("note-from-user に返信して")];
         drive(h.rt.clone(), TurnState::new(req)).await;
-        // untrusted を読んだので tainted → 確認は出るが、宛先はユーザー由来
+        // untrusted を読んだので tainted → 確認は出るが、宛先はユーザー由来。
+        // 汚染中は「次から確認しない」を出さない (#1162)
         let request = h.sink.last();
         assert_eq!(request.kind, "confirm_request");
         let items = request.confirm_items.unwrap();
         assert_eq!(items[0]["destinationUntrusted"], false);
-        assert_eq!(items[0]["allowRemember"], true);
+        assert_eq!(items[0]["allowRemember"], false);
     }
 
     #[tokio::test]

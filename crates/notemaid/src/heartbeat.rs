@@ -842,7 +842,7 @@ async fn run_inference(
             Some(Intent {
                 capability_id: e.tool_use_name.clone()?,
                 params: e.tool_use_input.clone().unwrap_or(json!({})),
-                untrusted: e.reason.as_deref() == Some("context_untrusted"),
+                untrusted: e.reason.as_deref() == Some("untrusted"),
             })
         })
         .collect();
