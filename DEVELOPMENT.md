@@ -252,7 +252,7 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 
 ## AI の人格と記憶 — ワークスペースファイル ([#1162](https://github.com/notedeck-dev/notedeck/issues/1162))
 
-notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agent 流の**固定名の markdown**で持つ。ファイルが正本で、人が読み書きでき、AI 自身も認可と汚染の規則の下で更新する。設計は 4 視点 (安全 / アーキテクチャ / 上流への忠実度 / 製品) の敵対的レビューを 2 巡回して 2026-09-30 に確定した (正本は issue の「設計 v4」コメント)。**実装は段階的に進行中**で、ここには確定した設計だけを書く。語彙と挙動は上流に寄せ、逸脱は NoteDeck の不変条件 (汚染 #1103 / principal 認可 #712 / notemaid の所有 / 無人の予算) が要求する所だけ。逸脱は理由ごと残す。
+notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agent 流の**固定名の markdown**で持つ。ファイルが正本で、人が読み書きでき、AI 自身も認可と汚染の規則の下で更新する。設計は 4 視点 (安全 / アーキテクチャ / 上流への忠実度 / 製品) の敵対的レビューを 2 巡回して 2026-09-30 に確定した (正本は issue の「設計 v4」コメント)。**実装は段階的に進行中** (2026-09-30 に段階 1 = notemaid 側の読み書き / 注入 / turn 内汚染 / HEARTBEAT / 配置の移行を develop に入れた。capability と UI は未) で、ここには確定した設計だけを書く。語彙と挙動は上流に寄せ、逸脱は NoteDeck の不変条件 (汚染 #1103 / principal 認可 #712 / notemaid の所有 / 無人の予算) が要求する所だけ。逸脱は理由ごと残す。
 
 ### ファイルと置き場
 
@@ -1327,7 +1327,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 - **認可は notecore で決める**: tool 一覧の絞り込みと呼び出しごとの権限検査は Rust。デバイス側の dispatcher は同じ判定を写しとして二重に通す (golden で一致を検査)
 - **確認要求は notecore 発** (`ai_turn/confirm.rs`): 要否 (宣言の `confirm` / クロスアカウント / `confirmSkips` の記憶) は Rust が決め、表示内容は capability の実装がデバイスで組む。1 ラウンドの複数の呼び出しは 1 枚の要求に束ね、決定は全項目に効く。要求を出したループは turn を**チェックポイント** (`<app dir>/notedeck/ai-turns/`、notecore 専有で生ファイル書込の対象外) に書いて解放し、応答で読み戻して再開する。表示してからの TTL と生成してからの絶対 TTL のどちらかを超えると拒否して理由を記録し、応答は compare-and-set で最初の 1 つだけが効く (遅れた応答は明示エラー)。起動時に停止中のまま残った turn は「再起動」の理由で閉じる。無人 HEARTBEAT は確認が要る呼び出しを聞かずに拒否する
 - **セッションは notecore が単一の書き手** (`ai_sessions.rs`): ターン実行器がユーザー入力 / tool_use / tool_result / 最終応答 / 失敗の partial をその場で書く。メッセージ id は turn id から決定的に振り (ユーザー入力は `<turn>-u`)、イベントの `message_id` でデバイスが写しを揃える。デバイスの表示用 placeholder はローカルだけで、ターンの終わりに読み直す。HEARTBEAT の使い捨て履歴は `session_id` 無しで書かない
-- **汚染 (taint)** (`ai_turn/taint.rs`、#1103 Phase 1): 宣言 `untrusted: true` の capability (他人の投稿 / プロフィール / 通知 / fetch 結果を返す読取) の結果を読んだセッションと、デバイスが「文脈に他人の内容 (可視ノート) を入れた」と申告したターンのセッションは以後 tainted (`<app dir>/notedeck/ai-turns/taint.json`、生ファイル書込の対象外)。tainted なセッションの書き込みは「次から確認しない」を無視して必ず確認する。**宛先の出所**: 宣言 `destinations` の引数 (返信先 / 対象ユーザー / URL など) の値がどこに出てきたかを 3 値で判定する (ユーザー入力 / 信頼済みの結果 / untrusted な本文の中だけ。どこにも無い値も 3 番目に倒す)。3 番目なら確認に「宛先は AI が読んだ他人の内容に由来します」と一文添え (旗は足さない)、記憶の対象外にし、無人実行は聞かずに拒否して理由を記録する。**メモ / skill のラベル**: tainted なセッションからの書込 (実行要求の `tainted`) で作った / 更新したメモと skill には `tainted: true` の frontmatter が付き (一度付いたら外れない)、それを返す読取 capability は `ctx.markTainted()` で申告して読んだセッションを tainted にし、system prompt に注入するときはデバイスが文脈の申告 (`contextUntrusted`) に含める。[#1162](https://github.com/notedeck-dev/notedeck/issues/1162) で turn 内の汚染 2 ビットと「人が承認した人格 / 記憶ファイルへの書込にはラベルを付けない」例外を足す (設計確定、実装中。詳細は「AI の人格と記憶」)
+- **汚染 (taint)** (`ai_turn/taint.rs`、#1103 Phase 1): 宣言 `untrusted: true` の capability (他人の投稿 / プロフィール / 通知 / fetch 結果を返す読取) の結果を読んだセッションと、デバイスが「文脈に他人の内容 (可視ノート) を入れた」と申告したターンのセッションは以後 tainted (`<app dir>/notedeck/notemaid/turns/taint.json`、生ファイル書込の対象外)。tainted なセッションの書き込みは「次から確認しない」を無視して必ず確認する。**宛先の出所**: 宣言 `destinations` の引数 (返信先 / 対象ユーザー / URL など) の値がどこに出てきたかを 3 値で判定する (ユーザー入力 / 信頼済みの結果 / untrusted な本文の中だけ。どこにも無い値も 3 番目に倒す)。3 番目なら確認に「宛先は AI が読んだ他人の内容に由来します」と一文添え (旗は足さない)、記憶の対象外にし、無人実行は聞かずに拒否して理由を記録する。**メモ / skill のラベル**: tainted なセッションからの書込 (実行要求の `tainted`) で作った / 更新したメモと skill には `tainted: true` の frontmatter が付き (一度付いたら外れない)、それを返す読取 capability は `ctx.markTainted()` で申告して読んだセッションを tainted にし、system prompt に注入するときはデバイスが文脈の申告 (`contextUntrusted`) に含める。[#1162](https://github.com/notedeck-dev/notedeck/issues/1162) で turn 内の汚染 2 ビットと「人が承認した人格 / 記憶ファイルへの書込にはラベルを付けない」例外を足す (設計確定、実装中。詳細は「AI の人格と記憶」)
 - **中断** (`ai_turn_cancel`): Rust の task を止め、確認待ちなら要求を cancelled で閉じて (デバイス側はダイアログを畳む)、デバイスが待っている実行要求の確認 (保険の経路) も `AbortSignal` で閉じる。途中までの応答は notecore がセッションに書いて返し、デバイスは写しに載せる
 - **失敗の段階**: `before_tool` (tool 未実行) なら user + placeholder を外して再送、`after_tool` (実行済み) なら placeholder だけ外して継続モード (`continuation: true`、system 末尾に切断通知)。実行済み write capability を二重実行する経路は構造的に無い (#737)
 - **デバイス文脈はスナップショット**: メモ / 可視ノート / vault の開示状態はターン開始時に 1 回だけ組む (以前はラウンドごと)
@@ -1346,7 +1346,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 | `src/composables/useAiChat.ts` | `sendMessage(opts)` で 1 往復の chat 呼び出し (tool なし)。`currentText` ref が delta で更新される。`cancel()` で進行中 stream を中断 (Rust 側 `ai_chat_cancel` 経由) |
 | `src/composables/useAiConversation.ts` | 指定 sessionId のメッセージ配列に対する reactive な参照を返す薄いラッパー。本文の永続化と debounce は `useAiSessionsStore` 側で集中管理 |
 | `src/stores/aiSessions.ts` | AI セッション (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`) のデバイス側の写し。書き手は notecore (`crates/notemaid/src/ai_sessions.rs`、#1133) で、ストアは「作成 / メッセージ追加 / メッセージ削除 / 改名 / trigger skill の累積 / 削除」の構造化された操作を送って写しを揃える (楽観的更新)。進行中のターンの表示は `setLocalMessages` (notecore には書かない)。汎用の設定ファイル操作は `sessions` を受け付けない |
-| `src/stores/skills.ts` の `composedSystemPrompt()` | `mode: 'always'` + active な `mode: 'manual'` + extraSkillIds (= session persona + そのターンの trigger マッチ) の skill body を結合した system prompt。trigger マッチは `triggerMatchingSkillIds(text)` が user 入力を部分一致検索して算出 |
+| `crates/notemaid/src/ai_turn/compose.rs` | system prompt の組み立て (#1162)。SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → AGENTS → 他の `mode: 'always'` / active な `mode: 'manual'` / セッションに累積した trigger skill → デバイス文脈。デバイスは `device_context` (`<notedeck-context>`) と trigger skill の id だけを送り、trigger マッチは `triggerMatchingSkillIds(text)` (`src/stores/skills.ts`) が user 入力を部分一致検索して算出 |
 | `src/utils/aiSessionId.ts` | Zettelkasten ID (`YYYYMMDDhhmmss`) 生成。同一秒衝突は `a`, `b`, `c`, ... サフィックスで回避 |
 | `src/utils/aiSessionTitle.ts` | `timestampTitle(now)` 初期プレースホルダー / `generateSessionTitle()` 決定論的フォールバック |
 
@@ -1386,14 +1386,15 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 │    設定 (enabled / interval) → timer                    │
 │    'nd:ai-heartbeat-event' → セッション写しの読み直し / │
 │      OS 通知 / toast / ペットの活動表示                  │
-│    橋 'heartbeat/context' → メモ等の文脈、ローカル時刻   │
 └────────────────────────────────────────────────────────┘
-┌─ notecore ─────────────────────────────────────────────┐
-│  run_once: 設定 (ai.json5) → skill (mode: heartbeat)   │
-│    → cheap check (core の cheap な capability だけ)     │
-│    → 日次上限 → ターン (session 無し) → 応答契約        │
-│    → 報告先 session に書く → HeartbeatSink で通知        │
-│  状態: ai-turns/heartbeat.json (日次 / cheap check /    │
+┌─ notemaid ─────────────────────────────────────────────┐
+│  run_once: 設定 (ai.json5) → skill (mode: heartbeat、   │
+│    実質空なら skip) → cheap check (core の cheap な      │
+│    capability だけ) → 日次上限 → ターン (session 無し。  │
+│    system は SOUL / キャラクター / USER / MEMORY /       │
+│    AGENTS の上に固定 INSTRUCTION、手順は user 側)        │
+│    → 応答契約 → 報告先 session に書く → HeartbeatSink   │
+│  状態: notemaid/turns/heartbeat.json (日次 / cheap check /│
 │    連続失敗)。連続失敗と日次上限の自動停止は ai.json5 の │
 │    heartbeat.enabled を notecore が書き換える            │
 └────────────────────────────────────────────────────────┘
@@ -1407,12 +1408,11 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 | `crates/notemaid/src/ai_config.rs` | ai.json5 の読取断面 (HEARTBEAT / 接続 / 生成の値、正規化はデバイスの `useAiConfig` と同じ規則) と `heartbeat.enabled` の書換 |
 | `src-tauri/src/commands/heartbeat.rs` | timer (global single scheduler)。tick で notecore を呼ぶ。`HeartbeatSink` の Tauri 実装は `commands/mod.rs` |
 | `src/composables/useHeartbeatDaemon.ts` | 設定を timer に伝え、notecore の出来事をデバイスに反映する |
-| `src/core/apiBridge.ts` | `heartbeat/context`: メモの文脈ブロックとローカル時刻の刻印 (無くても notecore は進む) |
 | `src/composables/useAiConfig.ts` | `HeartbeatConfig` の正本 (デバイス側)。notecore が ai.json5 を書いたら変更通知で読み直す |
 
 #### Skill 駆動
 
-OpenClaw `HEARTBEAT.md` の `tasks:` に相当するのが NoteDeck の `mode: heartbeat` skill。MisStore 配布の skill は frontmatter で `mode: heartbeat` を宣言しておけば install 直後に daemon が拾う。tick ごとに全 heartbeat skill body を結合して 1 回の AI inference にまとめて投げる。skill の `cheapCheckCapabilities` は notecore 単独で実行できる cheap な capability だけ。notecore 経由の登録 (AI の作成 / 更新、MisStore からのインストール) では他を含む skill を拒み、外部エディタで直接書かれたものは実行時に無視する (warn)。
+NoteDeck の巡回の手順は `mode: heartbeat` の skill (予約 skill `HEARTBEAT.md` を含む、#1162)。MisStore 配布の skill は frontmatter で `mode: heartbeat` を宣言しておけば install 直後に daemon が拾う。tick ごとに全 heartbeat skill body を結合し、OpenClaw の scratch と同じく **user 側のメッセージ**に付けて 1 回の AI inference に投げる (system は notemaid が組む人格と記憶の上に固定 INSTRUCTION)。本文が全部「実質空」(空行 / コメント / 見出し / fence / 空のチェックリストだけ) なら tick を skip する。skill の `cheapCheckCapabilities` は notecore 単独で実行できる cheap な capability だけ。notecore 経由の登録 (AI の作成 / 更新、MisStore からのインストール) では他を含む skill を拒み、外部エディタで直接書かれたものは実行時に無視する (warn)。
 
 #### 応答契約 (`heartbeat.report` tool と legacy の `HEARTBEAT_OK`)
 
@@ -1420,7 +1420,7 @@ AI は報告すべきことがあるときだけ `heartbeat.report` tool を呼�
 
 #### 停止条件と失敗 (token 予算 / 失敗の永続化)
 
-- **token 予算** (`crates/notemaid/src/ai_budget.rs`): Vault 接続ごとの日次 token 予算を ai.json5 の `budgets` に持ち (0 / 無し = 無制限)、台帳は `ai-turns/budget.json` (日境界は UTC)。チャットも HEARTBEAT も同じ勘定。ラウンドの前に「使用済み + 見込み (要求の文字数からの推定)」が予算を超えるなら provider を呼ばずに `budget_exceeded` のエラーで止め、ラウンドの後に応答の usage (Anthropic は message_start / message_delta、OpenAI 互換は最終チャンクの usage。来なければ文字数からの推定) で精算する。OpenAI 互換に usage を返させる指定は送らない (厳格な互換サーバーが拒むため。来たときだけ読む)。ターンの `done` に累計の usage を載せる
+- **token 予算** (`crates/notemaid/src/ai_budget.rs`): Vault 接続ごとの日次 token 予算を ai.json5 の `budgets` に持ち (0 / 無し = 無制限)、台帳は `notemaid/turns/budget.json` (日境界は UTC)。チャットも HEARTBEAT も同じ勘定。ラウンドの前に「使用済み + 見込み (要求の文字数からの推定)」が予算を超えるなら provider を呼ばずに `budget_exceeded` のエラーで止め、ラウンドの後に応答の usage (Anthropic は message_start / message_delta、OpenAI 互換は最終チャンクの usage。来なければ文字数からの推定) で精算する。OpenAI 互換に usage を返させる指定は送らない (厳格な互換サーバーが拒むため。来たときだけ読む)。ターンの `done` に累計の usage を載せる
 - **失敗の永続化**: HEARTBEAT の失敗は理由を状態ファイルに残し (上限つき)、数字と空白の揺れを潰した signature が初めてのときだけ toast で知らせる (同じ原因の連続失敗で通知を繰り返さない)。連続 3 回で自動停止するのは従来どおり。直近の失敗は DevDashboard の HEARTBEAT 面 (`/api/heartbeat/status`) に出る
 
 #### 無人の書込意図 (受信箱カード / 下書き)
