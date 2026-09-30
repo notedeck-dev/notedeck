@@ -2917,9 +2917,14 @@ principal: string;
  */
 account_id: string | null; connection_id: string; model: string; 
 /**
- * デバイスが組んだ system prompt (skill + デバイス文脈のスナップショット)
+ * デバイス文脈 (`<notedeck-context>`) のスナップショット。人格 / 記憶 / skill の
+ * 本文は notemaid が組む (#1162) ので、デバイスはここに文脈だけを入れる
  */
-system: string | null; 
+device_context?: string | null; 
+/**
+ * セッションに累積した trigger skill の id (デバイスが入力との一致で足す)
+ */
+trigger_skill_ids?: string[]; 
 /**
  * 履歴。今回のユーザー入力を含み、placeholder / heartbeat 由来を含まない
  */

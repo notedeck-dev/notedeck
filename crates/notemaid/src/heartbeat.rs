@@ -786,7 +786,8 @@ async fn run_inference(
         account_id: None,
         connection_id: cfg.active_connection_id.clone(),
         model,
-        system: Some(system),
+        device_context: Some(system),
+        trigger_skill_ids: Vec::new(),
         messages: vec![AiChatMessage {
             role: AiChatRole::User,
             content: tick_message(now, gap),

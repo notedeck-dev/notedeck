@@ -64,6 +64,8 @@ pub struct AiConfigLite {
     pub budgets: std::collections::HashMap<String, u64>,
     /// 利用者が足した手元の CLI (`harnesses: [{ id, name, command, args }]`、#1104)
     pub harnesses: Vec<crate::acp::harness::CustomHarness>,
+    /// 「あなたのことを覚える」(USER.md の注入と書込、#1162)。既定 true
+    pub user_memory: bool,
 }
 
 impl AiConfigLite {
@@ -116,6 +118,10 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
             .unwrap_or(default)
     };
     AiConfigLite {
+        user_memory: doc
+            .get("userMemory")
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
         harnesses: doc
             .get("harnesses")
             .and_then(Value::as_array)

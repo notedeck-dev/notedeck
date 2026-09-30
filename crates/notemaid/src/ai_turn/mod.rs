@@ -29,6 +29,7 @@
 //! + 偽デバイス) で同じループが走る (テスト参照)。
 
 pub mod checkpoint;
+pub mod compose;
 pub mod confirm;
 pub mod taint;
 
@@ -116,8 +117,13 @@ pub struct AiTurnRequest {
     pub account_id: Option<String>,
     pub connection_id: String,
     pub model: String,
-    /// デバイスが組んだ system prompt (skill + デバイス文脈のスナップショット)
-    pub system: Option<String>,
+    /// デバイス文脈 (`<notedeck-context>`) のスナップショット。人格 / 記憶 / skill の
+    /// 本文は notemaid が組む (#1162) ので、デバイスはここに文脈だけを入れる
+    #[serde(default)]
+    pub device_context: Option<String>,
+    /// セッションに累積した trigger skill の id (デバイスが入力との一致で足す)
+    #[serde(default)]
+    pub trigger_skill_ids: Vec<String>,
     /// 履歴。今回のユーザー入力を含み、placeholder / heartbeat 由来を含まない
     pub messages: Vec<AiChatMessage>,
     pub max_tokens: Option<u32>,
@@ -752,17 +758,18 @@ fn request_chars(req: &AiChatRequest) -> usize {
 
 fn round_request(
     req: &AiTurnRequest,
+    system: Option<&str>,
     round: u32,
     messages: &[AiChatMessage],
     tools: &[Value],
 ) -> AiChatRequest {
     let system = if req.continuation {
-        Some(match req.system.as_deref().filter(|s| !s.is_empty()) {
+        Some(match system.filter(|s| !s.is_empty()) {
             Some(base) => format!("{base}\n\n{CONTINUATION_NOTICE}"),
             None => CONTINUATION_NOTICE.to_string(),
         })
     } else {
-        req.system.clone()
+        system.map(str::to_string)
     };
     AiChatRequest {
         stream_id: format!("{}:{}", req.turn_id, round),
@@ -942,6 +949,13 @@ pub struct TurnState {
     /// ターン累計の token 使用量 (ラウンドごとに精算して足す)
     #[serde(default)]
     pub usage: crate::ai_budget::TokenUsage,
+    /// notemaid が turn 開始時に組んだ system prompt (#1162)。この turn の間 (tool 反復 /
+    /// 継続 / 再開) は変えない。checkpoint に残るので再開でも同じ
+    #[serde(default)]
+    pub system: Option<String>,
+    /// 出所判定で trusted に数える skill 本文 (store 由来とワークスペースは含めない)
+    #[serde(default)]
+    pub trusted_skill_bodies: Vec<String>,
 }
 
 impl TurnState {
@@ -958,7 +972,20 @@ impl TurnState {
             next_index: 0,
             reject_reason: None,
             usage: crate::ai_budget::TokenUsage::default(),
+            system: None,
+            trusted_skill_bodies: Vec::new(),
         }
+    }
+
+    /// notemaid が組んだ system prompt を持たせる (テストや in-process の呼び手向け)
+    pub fn with_system(
+        mut self,
+        system: Option<String>,
+        trusted_skill_bodies: Vec<String>,
+    ) -> Self {
+        self.system = system;
+        self.trusted_skill_bodies = trusted_skill_bodies;
+        self
     }
 }
 
@@ -1019,6 +1046,7 @@ struct ProvenanceCorpus {
 impl ProvenanceCorpus {
     fn build(
         req: &AiTurnRequest,
+        trusted_skill_bodies: &[String],
         messages: &[AiChatMessage],
         index: &HashMap<String, ResolvedTool>,
     ) -> Self {
@@ -1027,13 +1055,17 @@ impl ProvenanceCorpus {
             trusted: Vec::new(),
             untrusted: Vec::new(),
         };
-        if let Some(system) = req.system.as_deref() {
+        // デバイス文脈だけを出所に数える。ワークスペースファイル (SOUL / USER / MEMORY /
+        // AGENTS) と store 由来の skill は入れない: そこにしか無い宛先は untrusted に倒れる
+        // (承認済みの記憶に書かれた宛先が次の turn で trusted になる経路を塞ぐ、#1162)
+        if let Some(ctx) = req.device_context.as_deref() {
             if req.context_untrusted {
-                c.untrusted.push(system.to_string());
+                c.untrusted.push(ctx.to_string());
             } else {
-                c.trusted.push(system.to_string());
+                c.trusted.push(ctx.to_string());
             }
         }
+        c.trusted.extend(trusted_skill_bodies.iter().cloned());
         // tool_use id → その tool が untrusted か
         let mut untrusted_by_use: HashMap<&str, bool> = HashMap::new();
         for m in messages {
@@ -1101,7 +1133,7 @@ async fn prepare_pending(
     tool_uses: Vec<ToolUse>,
 ) -> Vec<PendingToolUse> {
     let req = &state.req;
-    let corpus = ProvenanceCorpus::build(req, &state.messages, index);
+    let corpus = ProvenanceCorpus::build(req, &state.trusted_skill_bodies, &state.messages, index);
     let granted = rt.granted.granted().await;
     let unattended = req.principal == "ai.heartbeat";
     // tainted なセッション (#1103): 「次から確認しない」を無視して必ず確認する
@@ -1477,7 +1509,13 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
 
     let stop_reason = loop {
         if state.pending.is_empty() {
-            let round_req = round_request(&state.req, state.rounds, &state.messages, &tools);
+            let round_req = round_request(
+                &state.req,
+                state.system.as_deref(),
+                state.rounds,
+                &state.messages,
+                &tools,
+            );
             let message_id = assistant_message_id(&turn_id, state.rounds);
             if let Ok(mut l) = live.lock() {
                 l.text.clear();
@@ -1753,7 +1791,45 @@ pub async fn start_turn_with_sink(
         }
         None => None,
     };
-    ai_chat_service::validate_request(&round_request(&req, 0, &req.messages, &[]))?;
+    // system prompt は notemaid が組む (#1162)。persona はセッションの snapshot
+    // (無人 = session 無しなら ai.json5)、trigger はデバイスの申告とセッションの累積の和
+    let cfg = ai_config::load_from_app_dir(app_dir);
+    let settings_dir = app_dir.join(notecore::commands::settings::SETTINGS_DIR);
+    let session = req
+        .session_id
+        .as_deref()
+        .and_then(|sid| crate::ai_sessions::get(&settings_dir, sid).ok());
+    let persona_skill_id: Option<String> = match &session {
+        Some(s) => s.persona_skill_id.clone().filter(|p| !p.is_empty()),
+        None => Some(cfg.persona_skill_id.clone()).filter(|p| !p.is_empty()),
+    };
+    let mut trigger_ids = req.trigger_skill_ids.clone();
+    if let Some(s) = &session {
+        for id in &s.triggered_skill_ids {
+            if !trigger_ids.contains(id) {
+                trigger_ids.push(id.clone());
+            }
+        }
+    }
+    let composed = compose::compose(compose::Input {
+        app_dir,
+        lang: &crate::workspace::language(app_dir),
+        persona_skill_id: persona_skill_id.as_deref(),
+        trigger_skill_ids: &trigger_ids,
+        device_context: req.device_context.as_deref(),
+        user_memory_enabled: cfg.user_memory,
+    });
+    // ラベル付き skill が文脈に入るなら、このセッションはこの turn から tainted (#1103)
+    if composed.tainted_skill_in_context {
+        req.context_untrusted = true;
+    }
+    ai_chat_service::validate_request(&round_request(
+        &req,
+        composed.system.as_deref(),
+        0,
+        &req.messages,
+        &[],
+    ))?;
     let provider: Arc<dyn ProviderRound> = match harness {
         Some(info) => Arc::new(crate::acp::AcpProvider {
             harness: info,
@@ -1780,27 +1856,32 @@ pub async fn start_turn_with_sink(
         )),
         taint: Arc::new(taint::FileTaint::new(app_dir)),
         core: Some(shared),
-        budget: ai_config::load_from_app_dir(app_dir).daily_budget_for(&req.connection_id),
+        budget: cfg.daily_budget_for(&req.connection_id),
     });
-    begin_turn(rt, req)
+    begin_turn(
+        rt,
+        TurnState::new(req).with_system(composed.system, composed.trusted_skill_bodies),
+    )
 }
 
 /// ユーザー入力をセッションに書いてから turn を起動する (書けなければ始めない)。
-pub fn begin_turn(rt: Arc<TurnRuntime>, req: AiTurnRequest) -> Result<()> {
-    if !req.continuation {
-        if let (Some(sid), Some(text)) = (req.session_id.as_deref(), last_user_text(&req.messages))
-        {
+pub fn begin_turn(rt: Arc<TurnRuntime>, state: TurnState) -> Result<()> {
+    if !state.req.continuation {
+        if let (Some(sid), Some(text)) = (
+            state.req.session_id.as_deref(),
+            last_user_text(&state.req.messages),
+        ) {
             rt.sessions.append(
                 sid,
                 vec![session_message(
-                    user_message_id(&req.turn_id),
+                    user_message_id(&state.req.turn_id),
                     "user",
                     text.to_string(),
                 )],
             )?;
         }
     }
-    spawn_drive(rt, TurnState::new(req));
+    spawn_drive(rt, state);
     Ok(())
 }
 
@@ -2331,8 +2412,11 @@ mod tests {
         let h = harness(provider.clone(), &[], device);
         let mut req = request();
         req.continuation = true;
-        req.system = Some("base".into());
-        drive(h.rt.clone(), TurnState::new(req)).await;
+        drive(
+            h.rt.clone(),
+            TurnState::new(req).with_system(Some("base".into()), Vec::new()),
+        )
+        .await;
         assert_eq!(h.sink.last().phase.as_deref(), Some("after_tool"));
         let reqs = provider.requests.lock().unwrap();
         assert_eq!(
@@ -2760,7 +2844,7 @@ mod tests {
         let device = FakeDevice::new(json!({"ok": true, "result": "12:00"}));
         let h = harness(provider, &[], device);
         let req = request();
-        begin_turn(h.rt.clone(), req.clone()).unwrap();
+        begin_turn(h.rt.clone(), TurnState::new(req.clone())).unwrap();
         h.sink.wait_for("done").await;
         let written = sessions_of(&h);
         let ids: Vec<&str> = written.iter().map(|m| m.id.as_str()).collect();
@@ -2834,7 +2918,7 @@ mod tests {
         let h = harness(provider, &[], FakeDevice::new(Value::Null));
         let mut req = request();
         req.session_id = None;
-        begin_turn(h.rt.clone(), req).unwrap();
+        begin_turn(h.rt.clone(), TurnState::new(req)).unwrap();
         h.sink.wait_for("done").await;
         assert!(sessions_of(&h).is_empty());
     }

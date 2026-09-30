@@ -119,7 +119,7 @@ beforeEach(() => {
 })
 
 describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
-  it('履歴と system のスナップショットを notecore に渡し、イベントを session に投影する', async () => {
+  it('履歴とデバイス文脈のスナップショットを notecore に渡し、イベントを session に投影する', async () => {
     const sessions = memorySessions()
     const turn = useAiTurn({ sessions })
     const outcome = turn.run({ ...baseRequest(), generateTitle: true })
@@ -137,7 +137,8 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
       principal: 'ai.chat',
       connection_id: 'conn-1',
       model: 'model-1',
-      system: 'SYSTEM',
+      device_context: 'SYSTEM',
+      trigger_skill_ids: [],
       continuation: false,
       generate_title: true,
       device_tools: [],

@@ -10,7 +10,6 @@ import {
   buildAiContextBlock,
   buildHeartbeatContextBlock,
   composeHeartbeatSystemPrompt,
-  joinSystemPrompt,
   MAX_MEMOS,
   MAX_RECENT_TURNS,
   MAX_VISIBLE_NOTES,
@@ -950,81 +949,6 @@ describe('buildAiContextBlock — memos', () => {
       currentColumn: null,
     })
     expect(block).not.toContain('<memos>')
-  })
-})
-
-describe('buildAiContextBlock — persona (#491)', () => {
-  it('emits <persona> block with id, displayName, and authorId instruction', () => {
-    const cfg = configWithDataSources('readonly')
-    const block = buildAiContextBlock(cfg, {
-      currentAccount: null,
-      currentColumn: null,
-      persona: {
-        id: 'skill:aizu-9k2x',
-        displayName: '藍',
-      },
-    })
-    expect(block).toContain('<persona>')
-    expect(block).toContain('藍')
-    expect(block).toContain('skill:aizu-9k2x')
-    // memos.create / authorId 規約も注入されること
-    expect(block).toContain('authorId')
-  })
-
-  it('includes bio line when persona has bio', () => {
-    const cfg = configWithDataSources('readonly')
-    const block = buildAiContextBlock(cfg, {
-      currentAccount: null,
-      currentColumn: null,
-      persona: {
-        id: 'skill:aizu',
-        displayName: 'aizu',
-        bio: 'Misskey の妖精',
-      },
-    })
-    expect(block).toContain('Misskey の妖精')
-  })
-
-  it('omits <persona> block when persona is undefined', () => {
-    const cfg = configWithDataSources('readonly')
-    const block = buildAiContextBlock(cfg, {
-      currentAccount: null,
-      currentColumn: null,
-    })
-    expect(block).not.toContain('<persona>')
-  })
-
-  it('persona is session-driven, not gated by dataSources flags', () => {
-    // dataSources で memos / visibleNotes 等を全部切っても persona は渡せば出る
-    const cfg = configWithDataSources('readonly')
-    const block = buildAiContextBlock(cfg, {
-      currentAccount: null,
-      currentColumn: null,
-      persona: { id: 'skill:p', displayName: 'P' },
-    })
-    expect(block).toContain('<persona>')
-  })
-})
-
-describe('joinSystemPrompt', () => {
-  it('returns undefined when both inputs are empty', () => {
-    expect(joinSystemPrompt('', '')).toBeUndefined()
-  })
-
-  it('returns skills prompt alone when context is empty', () => {
-    expect(joinSystemPrompt('You are helpful.', '')).toBe('You are helpful.')
-  })
-
-  it('returns context block alone when skills prompt is empty', () => {
-    expect(joinSystemPrompt('', '<notedeck-context></notedeck-context>')).toBe(
-      '<notedeck-context></notedeck-context>',
-    )
-  })
-
-  it('joins both with double newline separator', () => {
-    expect(joinSystemPrompt('You are helpful.', '<notedeck-context/>')).toBe(
-      'You are helpful.\n\n<notedeck-context/>',
-    )
   })
 })
 

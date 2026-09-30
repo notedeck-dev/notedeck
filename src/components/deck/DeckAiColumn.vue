@@ -15,7 +15,6 @@ import { useAiConversation } from '@/composables/useAiConversation'
 import { useAiHarnesses } from '@/composables/useAiHarnesses'
 import {
   buildAiContextBlock,
-  joinSystemPrompt,
   projectMemos,
   projectRecentConversation,
   projectVisibleItems,
@@ -466,33 +465,14 @@ async function sendMessage(
   // rename していたら上書きしない
   const titleBefore = sessionsStore.get(sessionId)?.title ?? ''
 
-  // Persona (#491) — session 作成時 snapshot された personaSkillId を読む
-  // (= 過去 session は当時の persona、新規 session は aiConfig 由来のデフォルト)。
-  // skill body を skillsPrompt に session-only で含め、<persona> block を
-  // system prompt に注入。dangling 時は通常チャット動作。
-  const personaSkillId =
-    sessionsStore.get(sessionId)?.personaSkillId || undefined
-  const personaIdentity = personaSkillId
-    ? resolveIdentity(`skill:${personaSkillId}`)
-    : null
-  // identity が解決できない (= 該当 skill 不在 or isPersona=false) なら扱わない
-  const effectivePersonaSkillId = personaIdentity ? personaSkillId : undefined
   // mode='trigger' な skill のうち、今回の user 入力に triggers が部分一致した
   // ものをセッションへ累積し、以降のターンはトリガー語なしでも維持する
-  // (#725 session-sticky)。activeIds は汚さず、新規セッション作成で空に戻る。
-  // 削除済み skill の dangling id は composedSystemPrompt が無視する。
-  // ターン中 (tool round 反復) は同じ skillsPrompt を使う = 初回入力で確定。
+  // (#725 session-sticky)。本文の注入と persona (session の snapshot) の解決は
+  // notemaid が行う (#1162)。削除済み skill の dangling id は notemaid が無視する
   const triggerIds = skillsStore.triggerMatchingSkillIds(text)
   sessionsStore.addTriggeredSkillIds(sessionId, triggerIds)
   const sessionTriggerIds =
     sessionsStore.get(sessionId)?.triggeredSkillIds ?? []
-  const extraSkillIds = [
-    ...(effectivePersonaSkillId ? [effectivePersonaSkillId] : []),
-    ...sessionTriggerIds,
-  ]
-  const skillsPrompt =
-    skillsStore.composedSystemPrompt(extraSkillIds, effectivePersonaSkillId) ||
-    ''
   // ユーザーが Timeline をクリックしていないケースに備えて、fallback として
   // 画面上に存在する最初の TIMELINE_LIKE カラムを使う。
   const focusedColumnId =
@@ -520,12 +500,10 @@ async function sendMessage(
     continuation,
     // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す
     generation: normalizeGenerationConfig(aiConfig.value.generation),
-    // 可視ノート (他人の投稿) やラベル付きのメモ / skill を文脈に入れるなら、
-    // このセッションは tainted (#1103)。メモは buildSystem で決まる
-    contextUntrusted: () =>
-      visibleItems.length > 0 ||
-      injectedMemosTainted ||
-      skillsStore.composedSkillsTainted(extraSkillIds, effectivePersonaSkillId),
+    // 可視ノート (他人の投稿) やラベル付きのメモを文脈に入れるなら、このセッションは
+    // tainted (#1103)。メモは buildSystem で決まる。ラベル付き skill は notemaid が見る
+    contextUntrusted: () => visibleItems.length > 0 || injectedMemosTainted,
+    triggerSkillIds: sessionTriggerIds,
     generateTitle: true,
     onTitle: (title) => {
       const cur = sessionsStore.get(sessionId)
@@ -574,16 +552,9 @@ async function sendMessage(
         recentConversation: projectRecentConversation(history),
         memos: injectedMemos,
         accounts: accountsStore.accounts,
-        persona: personaIdentity
-          ? {
-              id: personaIdentity.id,
-              displayName: personaIdentity.displayName,
-              bio: personaIdentity.bio,
-            }
-          : undefined,
         availableConnections,
       })
-      return joinSystemPrompt(skillsPrompt, contextBlock)
+      return contextBlock || undefined
     },
   })
 

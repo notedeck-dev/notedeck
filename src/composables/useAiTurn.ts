@@ -73,11 +73,14 @@ export interface AiTurnRunRequest {
    */
   persist?: boolean
   /**
-   * デバイスが組んだ文脈に他人の内容 (可視ノート / ラベル付きのメモ・skill) が
+   * デバイスが組んだ文脈に他人の内容 (可視ノート / ラベル付きのメモ) が
    * 含まれる。true ならこのセッションはこのターンから tainted (#1103)。
-   * 関数なら buildSystem の後に評価する (文脈を組んで初めて分かるため)
+   * 関数なら buildSystem の後に評価する (文脈を組んで初めて分かるため)。
+   * ラベル付きの skill は notemaid が組むときに自分で判定する (#1162)
    */
   contextUntrusted?: boolean | (() => boolean)
+  /** セッションに累積した trigger skill の id (本文の注入は notemaid、#1162) */
+  triggerSkillIds?: readonly string[]
   /**
    * ユーザー入力テキスト (user メッセージとして追加される)。
    * continuation では追加されない (元ターンの user メッセージが履歴に残っている)。
@@ -97,8 +100,9 @@ export interface AiTurnRunRequest {
   /** 切断ターンの継続モード (#737) */
   continuation?: boolean
   /**
-   * wire history から system prompt を組み立てる。ターン開始時に 1 回だけ呼ぶ
-   * (デバイス文脈のスナップショット)。undefined は「system prompt なし」。
+   * wire history からデバイス文脈 (`<notedeck-context>`) を組み立てる。ターン開始時に
+   * 1 回だけ呼ぶ (スナップショット)。人格 / 記憶 / skill の本文は notemaid が
+   * この前に足す (#1162)。undefined は「文脈なし」。
    */
   buildSystem(
     history: ChatMessage[],
@@ -516,7 +520,8 @@ export function useAiTurn(deps: AiTurnDeps) {
             account_id: req.accountId ?? null,
             connection_id: req.connectionId,
             model: req.model,
-            system: system && system.length > 0 ? system : null,
+            device_context: system && system.length > 0 ? system : null,
+            trigger_skill_ids: [...(req.triggerSkillIds ?? [])],
             messages: history.map(toWireMessage),
             // 0 は「プロバイダー既定に任せる」なので送らない
             max_tokens: req.generation?.maxTokens || null,

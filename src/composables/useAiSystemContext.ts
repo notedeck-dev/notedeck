@@ -70,19 +70,6 @@ export interface AiContextInput {
    */
   accounts?: readonly Account[]
   /**
-   * セッションの persona (#491)。session.personaSkillId が指定された
-   * チャットでこのフィールドが渡され、`<persona>` block が system prompt
-   * 末尾の `<notedeck-context>` 内に注入される。AI は block の指示を読んで
-   * `authorId='<id>'` で memos.create を呼ぶ。
-   *
-   * avatarUrl は AI に不要なので含めない (= UI 表示専用)。
-   */
-  persona?: {
-    id: string
-    displayName: string
-    bio?: string
-  }
-  /**
    * AI に開示する外部サービス接続 (Secret Vault, #564)。
    * `aiVisible: true` な接続のみを呼び出し側で projection 済みで渡す。
    * secret / id は含めず、AI が `vault.fetch` の connectionRef に使う
@@ -500,41 +487,12 @@ export function buildAiContextBlock(
       `  <available-connections>\n${jsonBlock(ctx.availableConnections)}\n  </available-connections>`,
     )
   }
-  // persona block (#491) — session.personaSkillId 由来。dataSources で
-  // on/off せず、session 自身が persona を持っていれば常に注入する。
-  // block + instruction を一体型 prose で書き、AI が役割を確実に把握できる
-  // ようにする (memos.create の authorId 規約も同 block 内で示す)。
-  if (ctx.persona) {
-    const lines: string[] = ['  <persona>']
-    lines.push(`    Act as ${ctx.persona.displayName} (id: ${ctx.persona.id}).`)
-    lines.push(
-      `    When calling memos.create / memos.update, pass authorId='${ctx.persona.id}'.`,
-    )
-    if (ctx.persona.bio) {
-      lines.push(`    bio: ${ctx.persona.bio}`)
-    }
-    lines.push('  </persona>')
-    parts.push(lines.join('\n'))
-  }
+  // persona ブロックは notemaid が組む (#1162)。ここはデバイス文脈だけ
 
   if (parts.length === 0) return ''
   // 利用者の表示言語 (#135)。応答やメモの言語を合わせる手がかり
   parts.unshift(`  <user-language>${i18n.lang}</user-language>`)
   return `<notedeck-context>\n${parts.join('\n')}\n</notedeck-context>`
-}
-
-/**
- * skills 由来の system prompt と <notedeck-context> ブロックを連結する。
- * どちらも空なら undefined を返す (= system prompt なしで API を呼ぶ既存挙動)。
- */
-export function joinSystemPrompt(
-  skillsPrompt: string,
-  contextBlock: string,
-): string | undefined {
-  if (skillsPrompt && contextBlock) {
-    return `${skillsPrompt}\n\n${contextBlock}`
-  }
-  return skillsPrompt || contextBlock || undefined
 }
 
 /**

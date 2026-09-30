@@ -22,7 +22,7 @@ import { notifyWarningToast } from '@/utils/toastNotify'
  * - `trigger`: user 入力に triggers[] のいずれかが部分一致したら active 化し、
  *   そのセッション中は維持される (#725 session-sticky)。
  *   `triggerMatchingSkillIds` で判定 → session の triggeredSkillIds に累積 →
- *   `composedSystemPrompt` の extraSkillIds 経由で注入する
+ *   セッションに累積した id を notemaid に渡して注入する (#1162)
  * - `heartbeat`: AI 設定の heartbeat 有効化中、tick ごとに body を AI に読ませる
  *   (OpenClaw HEARTBEAT.md 相当 / #411)
  */
@@ -344,55 +344,8 @@ export const useSkillsStore = defineStore('skills', () => {
       .map((s) => s.id),
   )
 
-  /**
-   * Phase 2 で AI provider に渡す system prompt を組み立てるためのヘルパ。
-   * mode='always' + 明示的に active な mode='manual' のスキルを宣言順で結合する。
-   *
-   * #491 拡張:
-   * - `extraSkillIds`: session-only に追加する skill (= activeIds を汚さず
-   *   その session だけで含める。session.personaSkillId 注入で使う)
-   * - `excludePersonaSkillsExcept`: 指定 id 以外の `isPersona: true` skill を
-   *   除外 (= 複数 always-persona があるとき session の persona 以外を抑制)
-   */
-  /** system prompt に合流する skill (composedSystemPrompt と同じ選び方) */
-  function composedSkills(
-    extraSkillIds: readonly string[] = [],
-    excludePersonaSkillsExcept?: string,
-  ): SkillMeta[] {
-    const set = new Set(effectiveActiveIds.value)
-    for (const id of extraSkillIds) set.add(id)
-    return skills.value
-      .filter((s) => set.has(s.id))
-      .filter((s) => {
-        if (excludePersonaSkillsExcept === undefined) return true
-        if (!s.isPersona) return true
-        return s.id === excludePersonaSkillsExcept
-      })
-  }
-
-  function composedSystemPrompt(
-    extraSkillIds: readonly string[] = [],
-    excludePersonaSkillsExcept?: string,
-  ): string {
-    return composedSkills(extraSkillIds, excludePersonaSkillsExcept)
-      .map((s) => s.body.trim())
-      .filter((b) => b.length > 0)
-      .join('\n\n')
-  }
-
-  /**
-   * system prompt に合流する skill にラベル付き (tainted) が含まれるか (#1103)。
-   * 含まれるなら、そのターンのセッションは文脈から tainted になる
-   */
-  function composedSkillsTainted(
-    extraSkillIds: readonly string[] = [],
-    excludePersonaSkillsExcept?: string,
-  ): boolean {
-    return composedSkills(extraSkillIds, excludePersonaSkillsExcept).some(
-      (s) => s.tainted === true && s.body.trim().length > 0,
-    )
-  }
-
+  // system prompt への skill 本文の合流は notemaid が行う (#1162)。ここは一覧と
+  // 有効化の状態だけを持つ
   /** ファイルへの直接反映 (初期化・seed 用。通常経路は ready ゲート越し)。 */
   async function persist(skill: SkillMeta): Promise<void> {
     if (!settingsFs.isTauri) return
@@ -674,7 +627,7 @@ export const useSkillsStore = defineStore('skills', () => {
   /**
    * `mode: 'trigger'` の skill のうち、`triggers[]` のいずれかが `input` に
    * 部分一致したものの id を返す。AI チャット送信時に呼び、戻り id を
-   * session の `triggeredSkillIds` に累積して `composedSystemPrompt` の
+   * session の `triggeredSkillIds` に累積して notemaid の組み立ての
    * `extraSkillIds` に渡すと、そのセッション中は skill body が system prompt
    * に注入され続ける (#725 session-sticky)。
    *
@@ -705,8 +658,6 @@ export const useSkillsStore = defineStore('skills', () => {
     ensureLoaded,
     isActive,
     setActive,
-    composedSystemPrompt,
-    composedSkillsTainted,
     get,
     add,
     update,

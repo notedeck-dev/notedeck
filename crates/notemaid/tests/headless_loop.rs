@@ -209,7 +209,8 @@ fn request(turn_id: &str, session_id: Option<&str>, principal: &str, text: &str)
         account_id: None,
         connection_id: "conn".into(),
         model: "m".into(),
-        system: Some("headless".into()),
+        device_context: Some("headless".into()),
+        trigger_skill_ids: Vec::new(),
         messages: vec![AiChatMessage {
             role: AiChatRole::User,
             content: text.into(),
@@ -282,12 +283,12 @@ async fn reads_across_the_core_capabilities_need_no_device() {
     create_session(&h, "20260927120000");
     ai_turn::begin_turn(
         h.rt.clone(),
-        request(
+        ai_turn::TurnState::new(request(
             "t-reads",
             Some("20260927120000"),
             "ai.chat",
             "list everything",
-        ),
+        )),
     )
     .unwrap();
     h.sink.wait_for("done").await;
@@ -337,12 +338,12 @@ async fn confirmed_writes_are_previewed_and_written_by_notecore() {
     create_session(&h, "20260927120100");
     ai_turn::begin_turn(
         h.rt.clone(),
-        request(
+        ai_turn::TurnState::new(request(
             "t-writes",
             Some("20260927120100"),
             "ai.chat",
             "bind j and take a note",
-        ),
+        )),
     )
     .unwrap();
     let req = h.sink.wait_for("confirm_request").await;
@@ -413,7 +414,7 @@ async fn unattended_turn_queues_confirmed_writes_as_intents() {
     ]);
     ai_turn::begin_turn(
         h.rt.clone(),
-        request("t-unattended", None, "ai.heartbeat", "tick"),
+        ai_turn::TurnState::new(request("t-unattended", None, "ai.heartbeat", "tick")),
     )
     .unwrap();
     h.sink.wait_for("done").await;
@@ -447,7 +448,7 @@ async fn device_capabilities_fail_softly_without_a_device() {
     ]);
     ai_turn::begin_turn(
         h.rt.clone(),
-        request("t-device", None, "ai.chat", "columns?"),
+        ai_turn::TurnState::new(request("t-device", None, "ai.chat", "columns?")),
     )
     .unwrap();
     h.sink.wait_for("done").await;

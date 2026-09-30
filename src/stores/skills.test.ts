@@ -210,13 +210,5 @@ describe('スキルの有効 / 無効はファイル (frontmatter) に持つ (#1
       _internal.metaFromFrontmatter({ id: 'a', tainted: true }, 'body', 'a')
         .tainted,
     ).toBe(true)
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'clean', mode: 'always' }))
-    expect(store.composedSkillsTainted()).toBe(false)
-    store.add({ ...makeSkill({ id: 'dirty', mode: 'always' }), tainted: true })
-    expect(store.composedSkillsTainted()).toBe(true)
-    // ラベル付きでも本文が空なら合流しない
-    store.update('dirty', { body: '   ' })
-    expect(store.composedSkillsTainted()).toBe(false)
   })
 })
