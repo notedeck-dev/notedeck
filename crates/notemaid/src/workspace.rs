@@ -19,6 +19,8 @@ use notecore::error::Result;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::injection_patterns::PATTERNS;
+
 /// 設定フォルダ内のディレクトリ名 (所有者の名前。種類名の複数形ではない)
 pub const DIR: &str = "notemaid";
 
@@ -391,41 +393,6 @@ pub fn has_invisible_unicode(s: &str) -> bool {
 /// 「確認を強制」に使うので、誤検知は害にならない
 pub fn looks_like_instruction(s: &str) -> bool {
     let l = s.to_lowercase();
-    const PATTERNS: &[&str] = &[
-        "ignore previous",
-        "ignore all previous",
-        "ignore prior",
-        "disregard",
-        "system prompt",
-        "you are now",
-        "from now on",
-        "always call",
-        "always run",
-        "always send",
-        "never ask",
-        "without confirm",
-        "without asking",
-        "api key",
-        "api_key",
-        "apikey",
-        "token",
-        "password",
-        "secret",
-        "http://",
-        "https://",
-        "curl ",
-        "wget ",
-        "base64",
-        "<script",
-        "指示を無視",
-        "以前の指示",
-        "確認なし",
-        "確認せず",
-        "常に実行",
-        "必ず実行",
-        "パスワード",
-        "トークン",
-    ];
     PATTERNS.iter().any(|p| l.contains(p))
 }
 

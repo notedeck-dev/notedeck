@@ -41,6 +41,8 @@ const EXEMPT_FILES: Record<string, string> = {
   'crates/notecli/src/cli.rs': 'notecli の CLI は端末の利用者向けで、#135 の範囲外',
   'crates/notecli/src/commands/auth.rs':
     'notecli の CLI (ログインの手順表示) は #135 の範囲外',
+  'crates/notemaid/src/injection_patterns.rs':
+    'data: 記憶への注入 / 持ち出しの匂いを見る検出語彙 (#1162)。UI 文言ではない',
 }
 
 /**
