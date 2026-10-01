@@ -65,6 +65,9 @@ pub struct AiConfigLite {
     pub harnesses: Vec<crate::acp::harness::CustomHarness>,
     /// 「あなたのことを覚える」(USER.md の注入と書込、#1162)。既定 true
     pub user_memory: bool,
+    /// 手元の CLI (ACP、#1104) にも USER.md を渡す。既定 false (CLI ベンダーへ送られ、
+    /// CLI 自身の記憶に写り得るため opt-in)
+    pub harness_user_memory: bool,
 }
 
 impl AiConfigLite {
@@ -121,6 +124,10 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
             .get("userMemory")
             .and_then(Value::as_bool)
             .unwrap_or(true),
+        harness_user_memory: doc
+            .get("harnessUserMemory")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         harnesses: doc
             .get("harnesses")
             .and_then(Value::as_array)

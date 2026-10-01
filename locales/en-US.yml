@@ -3470,6 +3470,11 @@ _native:
   backup:
     skippedSame: "Skipped (same as existing): {items}"
     restoredRenamed: "Restored under another name (conflicts with existing): {items} → {renamed}"
+    workspaceImportTitle: "Replace the AI's personality and memory?"
+    workspaceImportMessage: "The backup contains the AI's personality and memory ({items}); this replaces the current ones. The rest of the settings are restored either way."
+    workspaceSoul: "Personality"
+    workspaceUser: "What it remembers about you"
+    workspaceMemory: "Notes"
     skippedBadFilename: "Skipped (invalid file name): {key}"
     skippedBadKey: "Skipped (invalid key): {key}"
   notification:

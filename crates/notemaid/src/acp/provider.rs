@@ -191,10 +191,11 @@ pub fn compose_prompt(messages: &[AiChatMessage], system: Option<&str>, fresh: b
         return last_user;
     }
     let mut out = String::new();
+    // system は notemaid が組んだもの (人格 / 記憶 / skill / <notedeck-context>) なので
+    // そのまま先頭に置く (文脈タグで包み直さない、#1162)
     if let Some(sys) = system.filter(|s| !s.trim().is_empty()) {
-        out.push_str("<notedeck-context>\n");
         out.push_str(sys.trim());
-        out.push_str("\n</notedeck-context>\n\n");
+        out.push_str("\n\n");
     }
     let prior: Vec<&AiChatMessage> = messages
         .iter()
@@ -397,7 +398,17 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
                                 Shown::Nothing => {}
                             },
                             Ok(Some(Incoming::Permission { params, reply: permission_reply })) => {
-                                let accepted = ask_permission(&self.harness.name, &req.stream_id, sink, &params).await;
+                                // 人格 / 記憶のファイルは CLI からは書かせない (認可と汚染規則を通らないため)。
+                                // 人に聞かずに拒否し、本文に一行残す (#1162)
+                                let accepted = if touches_protected_paths(&params, &self.workspace) {
+                                    sink.emit(text_event(
+                                        &req.stream_id,
+                                        "\n> ⛔ blocked: the AI's personality and memory files are only edited through NoteDeck\n".into(),
+                                    ));
+                                    false
+                                } else {
+                                    ask_permission(&self.harness.name, &req.stream_id, sink, &params).await
+                                };
                                 let options = params.get("options").and_then(Value::as_array).cloned().unwrap_or_default();
                                 let outcome = match choose_option(&options, accepted) {
                                     Some(option_id) => json!({ "outcome": "selected", "optionId": option_id }),
@@ -415,6 +426,40 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
             result
         })
     }
+}
+
+/// 許可要求が人格 / 記憶のファイル (`notemaid/` の中、`workspace/` 以外) に触るか。
+/// rawInput の文字列値と locations のパスを見る
+pub fn touches_protected_paths(params: &Value, workspace_dir: &std::path::Path) -> bool {
+    let Some(protected) = workspace_dir.parent() else {
+        return false;
+    };
+    let protected = protected.to_string_lossy().replace('\\', "/");
+    let workspace = workspace_dir.to_string_lossy().replace('\\', "/");
+    let mut candidates: Vec<String> = Vec::new();
+    let tool = params.get("toolCall").cloned().unwrap_or(Value::Null);
+    if let Some(locs) = tool.get("locations").and_then(Value::as_array) {
+        candidates.extend(
+            locs.iter()
+                .filter_map(|l| l.get("path").and_then(Value::as_str))
+                .map(str::to_string),
+        );
+    }
+    fn walk(v: &Value, out: &mut Vec<String>) {
+        match v {
+            Value::String(s) => out.push(s.clone()),
+            Value::Array(a) => a.iter().for_each(|x| walk(x, out)),
+            Value::Object(o) => o.values().for_each(|x| walk(x, out)),
+            _ => {}
+        }
+    }
+    if let Some(raw) = tool.get("rawInput") {
+        walk(raw, &mut candidates);
+    }
+    candidates.iter().any(|c| {
+        let p = c.replace('\\', "/");
+        p.starts_with(&protected) && !p.starts_with(&workspace)
+    })
 }
 
 /// 許可要求を確認ダイアログに写し、答えを待つ (期限切れは拒否)
@@ -471,6 +516,22 @@ impl Drop for CancelGuard {
 mod tests {
     use super::*;
 
+    #[test]
+    fn protected_paths_are_the_workspace_parent_except_the_cli_workspace() {
+        let ws = std::path::Path::new("/data/notedeck/notemaid/workspace");
+        let hit =
+            json!({ "toolCall": { "rawInput": { "path": "/data/notedeck/notemaid/USER.md" } } });
+        assert!(touches_protected_paths(&hit, ws));
+        let via_loc =
+            json!({ "toolCall": { "locations": [{ "path": "/data/notedeck/notemaid/SOUL.md" }] } });
+        assert!(touches_protected_paths(&via_loc, ws));
+        let ok = json!({ "toolCall": { "rawInput": { "path": "/data/notedeck/notemaid/workspace/notes.txt" } } });
+        assert!(!touches_protected_paths(&ok, ws));
+        let elsewhere =
+            json!({ "toolCall": { "rawInput": { "command": "ls /data/notedeck/skills" } } });
+        assert!(!touches_protected_paths(&elsewhere, ws));
+    }
+
     fn msg(role: AiChatRole, content: &str) -> AiChatMessage {
         AiChatMessage {
             role,
@@ -490,9 +551,7 @@ mod tests {
             msg(AiChatRole::User, "what's new?"),
         ];
         let fresh = compose_prompt(&history, Some("You are NoteDeck's AI."), true);
-        assert!(
-            fresh.starts_with("<notedeck-context>\nYou are NoteDeck's AI.\n</notedeck-context>")
-        );
+        assert!(fresh.starts_with("You are NoteDeck's AI.\n\n"));
         assert!(fresh.contains("User: hi\nAssistant: hello\n"));
         assert!(fresh.ends_with("what's new?"));
         assert_eq!(compose_prompt(&history, Some("sys"), false), "what's new?");

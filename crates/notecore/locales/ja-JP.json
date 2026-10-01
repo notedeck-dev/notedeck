@@ -321,6 +321,11 @@
     "backup": {
       "skippedSame": "スキップ (既存と内容が同じ): {items}",
       "restoredRenamed": "別名で復元 (既存と衝突): {items} → {renamed}",
+      "workspaceImportTitle": "AI の人格と記憶を置き換えますか？",
+      "workspaceImportMessage": "バックアップに含まれる AI の人格と記憶 ({items}) で、今のものを置き換えます。置き換えない場合も、ほかの設定は復元されます。",
+      "workspaceSoul": "人格",
+      "workspaceUser": "あなたについて覚えていること",
+      "workspaceMemory": "覚え書き",
       "skippedBadFilename": "スキップ (不正なファイル名): {key}",
       "skippedBadKey": "スキップ (不正なキー): {key}"
     },

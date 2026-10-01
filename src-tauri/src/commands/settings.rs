@@ -192,6 +192,41 @@ pub async fn import_settings_json(app: tauri::AppHandle) -> Result<ImportSetting
     let bundle: BTreeMap<String, String> = serde_json::from_str(&raw)
         .map_err(|e| NoteDeckError::InvalidInput(format!("Invalid JSON: {e}")))?;
 
+    // 人格 / 記憶 (#1162) が入っていれば、置き換える前に一覧つきで 1 回だけ聞く。
+    // 断られたらその分だけ外して残りを入れる
+    let mut bundle = bundle;
+    let personality = store::workspace_entries(&bundle);
+    if !personality.is_empty() {
+        let labels: Vec<String> = personality
+            .iter()
+            .map(|n| {
+                crate::ui_lang::t(
+                    match *n {
+                        "SOUL.md" => "_native.backup.workspaceSoul",
+                        "USER.md" => "_native.backup.workspaceUser",
+                        _ => "_native.backup.workspaceMemory",
+                    },
+                    serde_json::json!({}),
+                )
+            })
+            .collect();
+        let ok = app
+            .dialog()
+            .message(crate::ui_lang::t(
+                "_native.backup.workspaceImportMessage",
+                serde_json::json!({ "items": labels.join(" / ") }),
+            ))
+            .title(crate::ui_lang::t(
+                "_native.backup.workspaceImportTitle",
+                serde_json::json!({}),
+            ))
+            .buttons(tauri_plugin_dialog::MessageDialogButtons::OkCancel)
+            .blocking_show();
+        if !ok {
+            bundle.retain(|k, _| !k.starts_with(&format!("{}/", store::WORKSPACE_DIR)));
+        }
+    }
+
     let warnings = store::import_bundle(&base_dir, &bundle)?;
 
     Ok(ImportSettingsResult {

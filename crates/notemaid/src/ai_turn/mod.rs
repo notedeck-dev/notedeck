@@ -2005,7 +2005,8 @@ pub async fn start_turn_with_sink(
         persona_skill_id: persona_skill_id.as_deref(),
         trigger_skill_ids: &trigger_ids,
         device_context: req.device_context.as_deref(),
-        user_memory_enabled: cfg.user_memory,
+        // 手元の CLI には既定で USER.md を渡さない (opt-in、#1162)
+        user_memory_enabled: cfg.user_memory && (harness.is_none() || cfg.harness_user_memory),
     });
     // ラベル付き skill が文脈に入るなら、このセッションはこの turn から tainted (#1103)
     if composed.tainted_skill_in_context {

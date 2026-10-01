@@ -5787,6 +5787,16 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "skippedSame": ParameterizedString<'items'>
       /** 別名で復元 (既存と衝突): {items} → {renamed} */
       readonly "restoredRenamed": ParameterizedString<'items' | 'renamed'>
+      /** AI の人格と記憶を置き換えますか？ */
+      readonly "workspaceImportTitle": string
+      /** バックアップに含まれる AI の人格と記憶 ({items}) で、今のものを置き換えます。置き換えない場合も、ほかの設定は復元されます。 */
+      readonly "workspaceImportMessage": ParameterizedString<'items'>
+      /** 人格 */
+      readonly "workspaceSoul": string
+      /** あなたについて覚えていること */
+      readonly "workspaceUser": string
+      /** 覚え書き */
+      readonly "workspaceMemory": string
       /** スキップ (不正なファイル名): {key} */
       readonly "skippedBadFilename": ParameterizedString<'key'>
       /** スキップ (不正なキー): {key} */

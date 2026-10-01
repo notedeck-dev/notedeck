@@ -255,6 +255,26 @@ pub fn write_file(base_dir: &Path, subdir: &str, name: &str, content: &str) -> R
     atomic_write(&path, content, mode)
 }
 
+/// AI の人格と記憶のファイル (#1162)。`notemaid/` は allowlist (汎用の読み書き) には
+/// 入れず、バックアップの対象としてだけ名指しで扱う。notecore は名前を知るだけ
+pub const WORKSPACE_DIR: &str = "notemaid";
+pub const WORKSPACE_FILES: &[&str] = &["SOUL.md", "USER.md", "MEMORY.md"];
+
+/// zero-width / bidi 制御など、見えないのに意味を変える文字
+fn has_invisible_unicode(s: &str) -> bool {
+    s.chars().any(|c| {
+        matches!(
+            c,
+            '\u{200B}'..='\u{200F}'
+                | '\u{2060}'..='\u{2064}'
+                | '\u{FEFF}'
+                | '\u{202A}'..='\u{202E}'
+                | '\u{2066}'..='\u{2069}'
+                | '\u{00AD}'
+        )
+    })
+}
+
 /// 予約された skill ファイル (#1162)。汎用の rename / delete では触れない (削除・改名は
 /// AI の指示チャネルの入口を消す / 隠す操作なので、notemaid の予約 skill の規則で止める)。
 /// notecore は名前を知るだけで中身は知らない
@@ -473,7 +493,26 @@ pub fn export_bundle(base_dir: &Path) -> Result<BTreeMap<String, String>> {
         }
     }
 
+    // AI の人格と記憶 (#1162): 名指しの 3 ファイルだけ (BOOTSTRAP / turns / workspace は端末の都合)
+    for name in WORKSPACE_FILES {
+        let path = base_dir.join(WORKSPACE_DIR).join(name);
+        if path.is_file() {
+            let content = fs::read_to_string(&path)
+                .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+            bundle.insert(format!("{WORKSPACE_DIR}/{name}"), content);
+        }
+    }
+
     Ok(bundle)
+}
+
+/// バンドルに含まれる人格 / 記憶のファイル名 (import 前の確認に使う)
+pub fn workspace_entries(bundle: &BTreeMap<String, String>) -> Vec<&'static str> {
+    WORKSPACE_FILES
+        .iter()
+        .copied()
+        .filter(|n| bundle.contains_key(&format!("{WORKSPACE_DIR}/{n}")))
+        .collect()
 }
 
 /// import キー内ファイル名の強化検証 (#913)。「新しく置くファイル」にのみ適用し、
@@ -758,6 +797,25 @@ pub fn import_bundle(
                 }
                 atomic_write(&base_dir.join(name), content, None)?;
             }
+            [dir, name] if *dir == WORKSPACE_DIR => {
+                // 人格 / 記憶 (#1162): 名指しの 3 ファイルだけ、そのまま置く (上限超過は
+                // 読む側が「注入しない」で受ける)。見えない文字を含むものは入れない
+                if !WORKSPACE_FILES.contains(name) || has_invisible_unicode(content) {
+                    tracing::warn!("Import: skipping workspace entry: {key}");
+                    warnings.push(
+                        crate::i18n::text(
+                            "_native.backup.skippedBadKey",
+                            serde_json::json!({ "key": key }),
+                        )
+                        .into(),
+                    );
+                    continue;
+                }
+                let dir_path = base_dir.join(WORKSPACE_DIR);
+                fs::create_dir_all(&dir_path)
+                    .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+                atomic_write(&dir_path.join(name), content, None)?;
+            }
             [subdir, name] if ALLOWED_SUBDIRS.contains(subdir) => {
                 if let Err(e) = validate_import_filename(name) {
                     tracing::warn!("Import: skipping invalid filename: {key}: {e}");
@@ -799,6 +857,39 @@ pub fn import_bundle(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn workspace_files_round_trip_through_the_bundle_but_stay_out_of_the_allowlist() {
+        let src = tempfile::tempdir().unwrap();
+        let ws = src.path().join("notemaid");
+        fs::create_dir_all(ws.join("turns")).unwrap();
+        fs::write(ws.join("SOUL.md"), "# SOUL\n").unwrap();
+        fs::write(ws.join("USER.md"), "# USER\n- Always call them Taka\n").unwrap();
+        fs::write(ws.join("BOOTSTRAP.md"), "ritual").unwrap();
+        fs::write(ws.join("turns/taint.json"), "{}").unwrap();
+        let bundle = export_bundle(src.path()).unwrap();
+        assert!(bundle.contains_key("notemaid/SOUL.md"));
+        assert!(bundle.contains_key("notemaid/USER.md"));
+        assert!(!bundle.contains_key("notemaid/MEMORY.md"));
+        assert!(!bundle.contains_key("notemaid/BOOTSTRAP.md"));
+        assert!(!bundle.keys().any(|k| k.contains("turns")));
+        assert_eq!(workspace_entries(&bundle), vec!["SOUL.md", "USER.md"]);
+
+        let dst = tempfile::tempdir().unwrap();
+        let mut b = bundle.clone();
+        b.insert("notemaid/BOOTSTRAP.md".into(), "x".into());
+        b.insert("notemaid/MEMORY.md".into(), "zero\u{200B}width".into());
+        let warnings = import_bundle(dst.path(), &b).unwrap();
+        assert_eq!(
+            fs::read_to_string(dst.path().join("notemaid/USER.md")).unwrap(),
+            "# USER\n- Always call them Taka\n"
+        );
+        assert!(!dst.path().join("notemaid/BOOTSTRAP.md").exists());
+        assert!(!dst.path().join("notemaid/MEMORY.md").exists());
+        assert_eq!(warnings.len(), 2);
+        // 汎用の読み書きは受け付けない
+        assert!(validate_subdir("notemaid").is_err());
+    }
 
     #[test]
     fn reserved_skill_files_cannot_be_renamed_or_deleted_through_the_generic_path() {
