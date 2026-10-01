@@ -254,6 +254,10 @@ _capabilities:
     revert: "Revert memo to a past state"
     search: "Search memos"
     update: "Update memo"
+  memory:
+    update: "Update memory"
+  soul:
+    propose: "Propose a personality change"
   meta:
     activeSkills: "List active skills"
     config: "Current AI settings snapshot"
@@ -2609,6 +2613,7 @@ _labels:
     tasksRun: "Run user-defined tasks"
     aiInvoke: "Invoke AI (from plugins / external routes)"
     aiPersonaWrite: "Switch AI persona"
+    aiMemoryWrite: "Update the AI's memory (about you / notes)"
     skillsRead: "Read skills"
     skillsWrite: "Append to / edit skills"
     themeWrite: "Create / edit themes"
@@ -3392,6 +3397,21 @@ _native:
         presetPowerSaving: "power saving"
         presetRich: "rich"
         presetBalanced: "balanced"
+    memory:
+      update:
+        title:
+          user: "Update what the AI remembers about you"
+          memory: "Update the AI's notes"
+        add: "Add: {content}"
+        replace: "Replace \"{old}\" with \"{content}\" (the previous entry stays in the history)"
+        remove: "Remove: {old}"
+        ok: "Update"
+    soul:
+      propose:
+        title: "The AI proposes a change to its personality"
+        message: "The AI proposes rewriting the core of its personality (SOUL). Nothing changes unless you approve."
+        messageWithReason: "The AI proposes rewriting the core of its personality (SOUL): {reason}. Nothing changes unless you approve."
+        ok: "Approve and rewrite"
     persona:
       set:
         title: "Switch AI persona"

@@ -100,6 +100,12 @@ pub struct CapabilityDecl {
     pub untrusted: bool,
     /// 無人実行 (HEARTBEAT) でも確認なしで走ってよい (権限だけで gate)
     pub unattended: bool,
+    /// 「次から確認しない」の記憶で省略できない (毎回確認、#1162)
+    pub always_confirm: bool,
+    /// 「次から確認しない」の記憶キーに混ぜる引数名 (引数の値ごとに別々に覚える)
+    pub confirm_key_params: &'static [&'static str],
+    /// 無人実行 (HEARTBEAT) からは実行しない (書込意図にもしない)
+    pub unattended_deny: bool,
     /// 書き込みの宛先になる引数 (返信先 / 対象ユーザー / URL)。値の出所を判定する
     pub destinations: &'static [&'static str],
     pub exec: Exec,

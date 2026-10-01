@@ -2362,6 +2362,7 @@ _labels:
     tasksRun: "ユーザー定義タスクの実行"
     aiInvoke: "AI 呼び出し (プラグイン / 外部経路から)"
     aiPersonaWrite: "AI persona の切り替え"
+    aiMemoryWrite: "AI の記憶の更新 (あなたについて / 覚え書き)"
     skillsRead: "スキルの読取"
     skillsWrite: "スキルの追記/編集"
     themeWrite: "テーマの作成/編集"
@@ -3127,6 +3128,21 @@ _native:
         presetPowerSaving: "省電力寄り"
         presetRich: "リッチ寄り"
         presetBalanced: "バランス"
+    memory:
+      update:
+        title:
+          user: "あなたについて覚えていることを更新"
+          memory: "AI の覚え書きを更新"
+        add: "追加: {content}"
+        replace: "「{old}」を「{content}」に置き換え (前の項目は履歴に残ります)"
+        remove: "削除: {old}"
+        ok: "更新する"
+    soul:
+      propose:
+        title: "AI の人格の書き換えの提案"
+        message: "AI が自分の人格の核 (SOUL) の書き換えを提案しています。承認したときだけ変わります。"
+        messageWithReason: "AI が自分の人格の核 (SOUL) の書き換えを提案しています: {reason}。承認したときだけ変わります。"
+        ok: "承認して書き換える"
     persona:
       set:
         title: "AI persona を切り替え"

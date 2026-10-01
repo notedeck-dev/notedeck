@@ -13,6 +13,10 @@
 
 import JSON5 from 'json5'
 import { type Ref, ref } from 'vue'
+import {
+  CAPABILITY_DECLARATIONS,
+  type CapabilityId,
+} from '@/capabilities/declarations.generated'
 import { i18n } from '@/i18n'
 import { useToast } from '@/stores/toast'
 import {
@@ -521,6 +525,27 @@ export function confirmSkipScope(principal: Principal): string | null {
 }
 
 /** scope × capability が「今後確認しない」記憶済みかを返す。 */
+/**
+ * 「次から確認しない」の記憶キー (#1162)。宣言の `confirmKeyParams` があれば引数の値を
+ * 混ぜる (`memory.update?target=user`)。notemaid の `confirm_skip_key` と同じ規則
+ */
+export function confirmSkipKey(
+  capabilityId: string,
+  params: Record<string, unknown> | undefined,
+): string {
+  const keyParams =
+    CAPABILITY_DECLARATIONS[capabilityId as CapabilityId]?.confirmKeyParams ??
+    []
+  if (keyParams.length === 0) return capabilityId
+  const parts = keyParams.map((k) => {
+    const v = params?.[k]
+    const s =
+      typeof v === 'string' ? v : v === undefined ? '' : JSON.stringify(v)
+    return `${k}=${s}`
+  })
+  return `${capabilityId}?${parts.join('&')}`
+}
+
 export function isConfirmSkipped(scope: string, capabilityId: string): boolean {
   usePermissionsConfig()
   return _file.value.confirmSkips[scope]?.includes(capabilityId) ?? false

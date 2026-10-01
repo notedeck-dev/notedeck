@@ -236,6 +236,26 @@
           "presetBalanced": "balanced"
         }
       },
+      "memory": {
+        "update": {
+          "title": {
+            "user": "Update what the AI remembers about you",
+            "memory": "Update the AI's notes"
+          },
+          "add": "Add: {content}",
+          "replace": "Replace \"{old}\" with \"{content}\" (the previous entry stays in the history)",
+          "remove": "Remove: {old}",
+          "ok": "Update"
+        }
+      },
+      "soul": {
+        "propose": {
+          "title": "The AI proposes a change to its personality",
+          "message": "The AI proposes rewriting the core of its personality (SOUL). Nothing changes unless you approve.",
+          "messageWithReason": "The AI proposes rewriting the core of its personality (SOUL): {reason}. Nothing changes unless you approve.",
+          "ok": "Approve and rewrite"
+        }
+      },
       "persona": {
         "set": {
           "title": "Switch AI persona",
@@ -372,6 +392,12 @@
         "search": "Search AI session contents"
       },
       "setPersona": "Switch AI persona"
+    },
+    "memory": {
+      "update": "Update memory"
+    },
+    "soul": {
+      "propose": "Propose a personality change"
     },
     "aiscript": {
       "logs": "Get AiScript logs",

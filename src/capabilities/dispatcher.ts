@@ -31,6 +31,7 @@ import { type Principal, principalActorLabel } from '@/permissions/principal'
 import type { PermissionKey } from '@/permissions/schema'
 import {
   addConfirmSkip,
+  confirmSkipKey,
   confirmSkipScope,
   isConfirmSkipped,
   resolveFor,
@@ -565,7 +566,7 @@ async function prepareConfirmation(
   if (
     rawScope !== null &&
     !crossAccount &&
-    isConfirmSkipped(rawScope, cap.id)
+    isConfirmSkipped(rawScope, confirmSkipKey(cap.id, params))
   ) {
     return null
   }
@@ -681,7 +682,7 @@ export async function rememberConfirmation(
     return
   }
   const scope = confirmSkipScope(ctx.principal)
-  if (scope !== null) addConfirmSkip(scope, cap.id)
+  if (scope !== null) addConfirmSkip(scope, confirmSkipKey(cap.id, params))
 }
 
 async function buildConfirmOptions(

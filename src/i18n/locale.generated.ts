@@ -4286,6 +4286,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "aiInvoke": string
       /** AI persona の切り替え */
       readonly "aiPersonaWrite": string
+      /** AI の記憶の更新 (あなたについて / 覚え書き) */
+      readonly "aiMemoryWrite": string
       /** スキルの読取 */
       readonly "skillsRead": string
       /** スキルの追記/編集 */
@@ -5643,6 +5645,36 @@ AI プロバイダーの API キーを登録すると使えるようになりま
           readonly "presetBalanced": string
         }
       }
+      readonly "memory": {
+        readonly "update": {
+          readonly "title": {
+            /** あなたについて覚えていることを更新 */
+            readonly "user": string
+            /** AI の覚え書きを更新 */
+            readonly "memory": string
+          }
+          /** 追加: {content} */
+          readonly "add": ParameterizedString<'content'>
+          /** 「{old}」を「{content}」に置き換え (前の項目は履歴に残ります) */
+          readonly "replace": ParameterizedString<'content' | 'old'>
+          /** 削除: {old} */
+          readonly "remove": ParameterizedString<'old'>
+          /** 更新する */
+          readonly "ok": string
+        }
+      }
+      readonly "soul": {
+        readonly "propose": {
+          /** AI の人格の書き換えの提案 */
+          readonly "title": string
+          /** AI が自分の人格の核 (SOUL) の書き換えを提案しています。承認したときだけ変わります。 */
+          readonly "message": string
+          /** AI が自分の人格の核 (SOUL) の書き換えを提案しています: {reason}。承認したときだけ変わります。 */
+          readonly "messageWithReason": ParameterizedString<'reason'>
+          /** 承認して書き換える */
+          readonly "ok": string
+        }
+      }
       readonly "persona": {
         readonly "set": {
           /** AI persona を切り替え */
@@ -5871,6 +5903,14 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       }
       /** AI persona を切替 */
       readonly "setPersona": string
+    }
+    readonly "memory": {
+      /** 記憶を更新 */
+      readonly "update": string
+    }
+    readonly "soul": {
+      /** 人格の書き換えを提案 */
+      readonly "propose": string
     }
     readonly "aiscript": {
       /** AiScript 実行ログを取得 */

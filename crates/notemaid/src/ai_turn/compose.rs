@@ -70,7 +70,14 @@ pub fn compose(input: Input<'_>) -> Composed {
         if let Ok(Some(body)) = workspace::read(input.app_dir, kind) {
             out.workspace_hashes
                 .insert(kind, workspace::content_hash(&body));
-            parts.push(workspace::render_block(kind, &body));
+            let mut block = workspace::render_block(kind, &body);
+            if workspace::externally_changed(input.app_dir, kind, &body) {
+                // 1 行目 (見出し) に添える。次に notemaid が書くまで出続ける
+                block =
+                    block.replacen('\n', " (edited outside NoteDeck since the last write)\n", 1);
+                workspace::record_hash(input.app_dir, kind, &body);
+            }
+            parts.push(block);
         }
     };
 

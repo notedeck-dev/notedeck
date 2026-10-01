@@ -230,6 +230,39 @@ pub fn remove_bootstrap(app_dir: &Path) {
     }
 }
 
+/// notemaid が最後に書いた内容の hash の記録 (`notemaid/turns/workspace-hashes.json`)。
+/// 外部エディタで変えられたかを turn 開始時に見るためのもの
+fn hashes_path(app_dir: &Path) -> PathBuf {
+    crate::migrations::turns_dir(app_dir).join("workspace-hashes.json")
+}
+
+fn read_hashes(app_dir: &Path) -> std::collections::BTreeMap<String, String> {
+    fs::read_to_string(hashes_path(app_dir))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+/// notemaid 自身が書いたあとに呼ぶ
+pub fn record_hash(app_dir: &Path, kind: Kind, body: &str) {
+    let mut m = read_hashes(app_dir);
+    m.insert(kind.file_name().to_string(), content_hash(body));
+    let p = hashes_path(app_dir);
+    if let Some(parent) = p.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    if let Ok(s) = serde_json::to_string_pretty(&m) {
+        let _ = fs::write(p, s);
+    }
+}
+
+/// 最後に notemaid が書いた内容と違う (= 外部エディタで変えられた)。記録が無ければ false
+pub fn externally_changed(app_dir: &Path, kind: Kind, body: &str) -> bool {
+    read_hashes(app_dir)
+        .get(kind.file_name())
+        .is_some_and(|h| h != &content_hash(body))
+}
+
 /// 外部で変えられたかを見るための内容 hash (短縮)
 pub fn content_hash(body: &str) -> String {
     let h = Sha256::digest(body.as_bytes());

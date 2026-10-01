@@ -10,7 +10,6 @@ pub const PATTERNS: &[&str] = &[
     "system prompt",
     "you are now",
     "from now on",
-    "always call",
     "always run",
     "always send",
     "never ask",
