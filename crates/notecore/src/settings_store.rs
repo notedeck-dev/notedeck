@@ -255,8 +255,23 @@ pub fn write_file(base_dir: &Path, subdir: &str, name: &str, content: &str) -> R
     atomic_write(&path, content, mode)
 }
 
+/// 予約された skill ファイル (#1162)。汎用の rename / delete では触れない (削除・改名は
+/// AI の指示チャネルの入口を消す / 隠す操作なので、notemaid の予約 skill の規則で止める)。
+/// notecore は名前を知るだけで中身は知らない
+pub const RESERVED_SKILL_FILES: &[&str] = &["AGENTS.md", "HEARTBEAT.md"];
+
+fn reject_reserved(subdir: &str, name: &str) -> Result<()> {
+    if subdir == "skills" && RESERVED_SKILL_FILES.contains(&name) {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "{name} is a reserved skill file and cannot be renamed or deleted"
+        )));
+    }
+    Ok(())
+}
+
 /// Delete a settings file (missing file is a no-op).
 pub fn delete_file(base_dir: &Path, subdir: &str, name: &str) -> Result<()> {
+    reject_reserved(subdir, name)?;
     let path = resolve_file(base_dir, subdir, name)?;
     if path.exists() {
         fs::remove_file(&path).map_err(|e| {
@@ -268,6 +283,8 @@ pub fn delete_file(base_dir: &Path, subdir: &str, name: &str) -> Result<()> {
 
 /// Rename a settings file within the same subdirectory.
 pub fn rename_file(base_dir: &Path, subdir: &str, old_name: &str, new_name: &str) -> Result<()> {
+    reject_reserved(subdir, old_name)?;
+    reject_reserved(subdir, new_name)?;
     let old_path = resolve_file(base_dir, subdir, old_name)?;
     let new_path = resolve_file(base_dir, subdir, new_name)?;
     if !old_path.exists() {
@@ -782,6 +799,21 @@ pub fn import_bundle(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reserved_skill_files_cannot_be_renamed_or_deleted_through_the_generic_path() {
+        let dir = tempfile::tempdir().unwrap();
+        write_file(dir.path(), "skills", "AGENTS.md", "# AGENTS").unwrap();
+        assert!(delete_file(dir.path(), "skills", "AGENTS.md").is_err());
+        assert!(rename_file(dir.path(), "skills", "AGENTS.md", "rules.md").is_err());
+        assert!(rename_file(dir.path(), "skills", "other.md", "HEARTBEAT.md").is_err());
+        assert!(dir.path().join("skills/AGENTS.md").exists());
+        // 他の skill と、他のディレクトリの同名は従来どおり
+        write_file(dir.path(), "skills", "other.md", "x").unwrap();
+        assert!(delete_file(dir.path(), "skills", "other.md").is_ok());
+        write_file(dir.path(), "memos", "AGENTS.md", "x").unwrap();
+        assert!(delete_file(dir.path(), "memos", "AGENTS.md").is_ok());
+    }
 
     #[test]
     fn atomic_write_creates_and_overwrites() {

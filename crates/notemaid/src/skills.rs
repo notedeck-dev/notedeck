@@ -257,6 +257,10 @@ pub struct SkillMeta {
     pub tainted: Option<bool>,
     pub cheap_check_capabilities: Vec<String>,
     pub is_persona: bool,
+    /// 予約 skill (`skills/AGENTS.md` = 運用規約、`skills/HEARTBEAT.md` = 巡回の手順、#1162)。
+    /// id / ファイル名 / mode は固定で、削除・改名・toggle できない。ファイル名から決まる
+    #[serde(default)]
+    pub reserved: bool,
     /// ファイル名 (拡張子なし)。実行時に決まり、frontmatter には書かない
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_base: Option<String>,
@@ -313,8 +317,64 @@ pub fn meta_from_frontmatter(
         tainted: is_true(fm_get(fm, "tainted")).then_some(true),
         cheap_check_capabilities: as_list(fm_get(fm, "cheapCheckCapabilities")),
         is_persona: is_true(fm_get(fm, "isPersona")),
+        reserved: false,
         file_base: None,
     }
+}
+
+/// 予約 skill の種類。ファイル名 (拡張子なし) で決まる
+pub fn reserved_kind(file_base: &str) -> Option<crate::workspace::Reserved> {
+    match file_base {
+        "AGENTS" => Some(crate::workspace::Reserved::Agents),
+        "HEARTBEAT" => Some(crate::workspace::Reserved::Heartbeat),
+        _ => None,
+    }
+}
+
+fn reserved_mode(which: crate::workspace::Reserved) -> &'static str {
+    match which {
+        crate::workspace::Reserved::Agents => "always",
+        crate::workspace::Reserved::Heartbeat => "heartbeat",
+    }
+}
+
+fn reject_reserved(item: &SkillMeta, what: &str) -> Result<()> {
+    if item.reserved {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "{} is a reserved skill; it cannot be {what}",
+            item.id
+        )));
+    }
+    Ok(())
+}
+
+/// 予約 skill をテンプレから置く (無いときだけ)。AGENTS は最初の組み立てで、
+/// HEARTBEAT は「巡回の手順を編集」で初めて置く。戻り値は置いたか
+pub fn seed_reserved(
+    base_dir: &Path,
+    which: crate::workspace::Reserved,
+    lang: &str,
+    now: u64,
+) -> Result<bool> {
+    let base = which.file_name().trim_end_matches(EXT);
+    let name = format!("{base}{EXT}");
+    if store::resolve_file(base_dir, SUBDIR, &name)?.exists() {
+        return Ok(false);
+    }
+    let item = SkillMeta {
+        id: base.to_string(),
+        name: base.to_string(),
+        version: DEFAULT_VERSION.to_string(),
+        mode: reserved_mode(which).to_string(),
+        body: crate::workspace::reserved_template(which, lang).to_string(),
+        created_at: now,
+        updated_at: now,
+        reserved: true,
+        file_base: Some(base.to_string()),
+        ..SkillMeta::default()
+    };
+    store::write_file(base_dir, SUBDIR, &name, &serialize_skill(&item))?;
+    Ok(true)
 }
 
 fn push_str(fm: &mut Frontmatter, k: &str, v: &Option<String>) {
@@ -431,6 +491,12 @@ pub fn load_all(base_dir: &Path, now: u64) -> Loaded {
         }
         let mut meta = meta_from_frontmatter(&fm, &body, &base, now);
         meta.id = id;
+        if let Some(which) = reserved_kind(&base) {
+            // 予約 skill: mode はファイルが何と言おうと固定 (人が書き換えても戻る)
+            meta.reserved = true;
+            meta.mode = reserved_mode(which).to_string();
+            meta.is_persona = false;
+        }
         meta.file_base = Some(base);
         items.push(meta);
     }
@@ -640,6 +706,18 @@ pub fn update(
         .map(|(_, s)| s.clone())
         .collect();
     let mut item = loaded[pos].clone();
+    if item.reserved {
+        // 予約 skill は本文 (と説明) だけ変えられる。名前 / mode / persona 化は固定
+        if matches!(&patch.name, Some(n) if *n != item.name) {
+            reject_reserved(&item, "renamed")?;
+        }
+        if matches!(&patch.mode, Some(m) if *m != item.mode) {
+            reject_reserved(&item, "given another mode")?;
+        }
+        if patch.is_persona == Some(true) {
+            reject_reserved(&item, "made a persona")?;
+        }
+    }
     let prev = json!({
         "body": item.body,
         "name": item.name,
@@ -714,6 +792,7 @@ pub fn set_active(core: &Core, id: &str, active: bool) -> Result<SkillMeta> {
     let Some(mut item) = loaded.into_iter().find(|s| s.id == id) else {
         return Err(not_found("skills.toggle", id));
     };
+    reject_reserved(&item, "toggled (empty its body to silence it)")?;
     let next = active.then_some(true);
     if item.active != next {
         item.active = next;
@@ -729,6 +808,7 @@ pub fn remove(core: &Core, id: &str) -> Result<()> {
     let Some(item) = loaded.into_iter().find(|s| s.id == id) else {
         return Err(not_found("skills.uninstall", id));
     };
+    reject_reserved(&item, "removed")?;
     if let Some(base) = item.file_base {
         settings_events::delete_file(core, SUBDIR, &format!("{base}{EXT}"))?;
         settings_events::delete_file(core, SUBDIR, &edit_history::history_file_name(&base))?;
@@ -798,6 +878,60 @@ mod tests {
         let core = Core::new();
         core.set_app_dir(dir.to_path_buf());
         core
+    }
+
+    #[test]
+    fn reserved_skills_keep_their_mode_and_refuse_rename_toggle_and_removal() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = core_in(dir.path());
+        let base = settings_base_dir(&core).unwrap();
+        assert!(seed_reserved(&base, crate::workspace::Reserved::Agents, "ja", 1).unwrap());
+        assert!(!seed_reserved(&base, crate::workspace::Reserved::Agents, "ja", 2).unwrap());
+        // 人が mode を書き換えても読取で戻る
+        let p = base.join("skills/AGENTS.md");
+        let raw = std::fs::read_to_string(&p)
+            .unwrap()
+            .replace("mode: always", "mode: manual");
+        std::fs::write(&p, raw).unwrap();
+        let agents = get(&core, "AGENTS").unwrap().unwrap();
+        assert!(agents.reserved);
+        assert_eq!(agents.mode, "always");
+        assert!(agents.body.contains("## Tools"));
+        // 本文は変えられる、名前 / mode / persona 化 / toggle / 削除は拒否
+        let patched = update(
+            &core,
+            "AGENTS",
+            SkillPatch {
+                body: Some("- be kind".into()),
+                ..Default::default()
+            },
+            None,
+        )
+        .unwrap();
+        assert_eq!(patched.body, "- be kind");
+        assert_eq!(patched.file_base.as_deref(), Some("AGENTS"));
+        for patch in [
+            SkillPatch {
+                name: Some("rules".into()),
+                ..Default::default()
+            },
+            SkillPatch {
+                mode: Some("manual".into()),
+                ..Default::default()
+            },
+            SkillPatch {
+                is_persona: Some(true),
+                ..Default::default()
+            },
+        ] {
+            assert!(update(&core, "AGENTS", patch, None).is_err());
+        }
+        assert!(set_active(&core, "AGENTS", false).is_err());
+        assert!(remove(&core, "AGENTS").is_err());
+        assert!(p.exists());
+        // HEARTBEAT は heartbeat mode に固定
+        assert!(seed_reserved(&base, crate::workspace::Reserved::Heartbeat, "en", 3).unwrap());
+        assert_eq!(get(&core, "HEARTBEAT").unwrap().unwrap().mode, "heartbeat");
     }
 
     #[test]

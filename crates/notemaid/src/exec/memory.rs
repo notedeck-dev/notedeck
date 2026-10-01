@@ -142,22 +142,6 @@ pub fn propose_soul(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> 
     Ok(json!({ "success": true, "usage": usage_json(u) }))
 }
 
-/// 人間語の差分 1 行 (確認カードと tool カードに使う)。例: 「あなたについて: + Always …」
-pub fn human_line(p: &Value) -> Option<String> {
-    let t = parse_target(p).ok()?;
-    let target = match t.kind {
-        Kind::User => "user",
-        _ => "memory",
-    };
-    let content = s(p, "content").unwrap_or("").trim();
-    let old = s(p, "old_text").unwrap_or("").trim();
-    Some(match t.action {
-        Action::Add => format!("{target}: + {content}"),
-        Action::Replace => format!("{target}: {old} → {content}"),
-        Action::Remove => format!("{target}: − {old}"),
-    })
-}
-
 /// 確認内容。`memory.update` は項目の差分 1 行 + ファイル全文の diff、
 /// `soul.propose` は理由 + 全文の diff
 pub fn preview(core: &Core, id: &str, p: &Value, _ctx: &ExecContext) -> Result<Option<Value>> {
@@ -359,10 +343,5 @@ mod tests {
         )
         .unwrap();
         assert!(pv.is_none());
-        assert_eq!(
-            human_line(&json!({"action": "replace", "target": "user", "old_text": "Taka", "content": "たか"}))
-                .as_deref(),
-            Some("user: Taka → たか")
-        );
     }
 }

@@ -64,6 +64,17 @@ pub fn compose(input: Input<'_>) -> Composed {
     if let Err(e) = workspace::seed(input.app_dir, input.lang) {
         tracing::warn!("cannot seed the workspace files: {e}");
     }
+    let settings_dir = input
+        .app_dir
+        .join(notecore::commands::settings::SETTINGS_DIR);
+    if let Err(e) = skills::seed_reserved(
+        &settings_dir,
+        workspace::Reserved::Agents,
+        input.lang,
+        skills::now_ms(),
+    ) {
+        tracing::warn!("cannot seed AGENTS.md: {e}");
+    }
     let mut parts: Vec<String> = Vec::new();
 
     let push_ws = |kind: Kind, parts: &mut Vec<String>, out: &mut Composed| {
@@ -83,9 +94,6 @@ pub fn compose(input: Input<'_>) -> Composed {
 
     push_ws(Kind::Soul, &mut parts, &mut out);
 
-    let settings_dir = input
-        .app_dir
-        .join(notecore::commands::settings::SETTINGS_DIR);
     let all = skills::load_all(&settings_dir, skills::now_ms()).items;
     let persona = input
         .persona_skill_id
