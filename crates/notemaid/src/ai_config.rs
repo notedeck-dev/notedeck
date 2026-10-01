@@ -47,7 +47,6 @@ pub struct DataSources {
     pub current_column: bool,
     pub visible_notes: bool,
     pub recent_conversation: bool,
-    pub memos: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -146,7 +145,6 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
             current_column: ds("currentColumn", true),
             visible_notes: ds("visibleNotes", false),
             recent_conversation: ds("recentConversation", false),
-            memos: ds("memos", true),
         },
         models: doc
             .get("models")
@@ -292,13 +290,13 @@ mod tests {
     fn defaults_and_clamps_match_use_ai_config() {
         let c = from_document(&json!({}));
         assert_eq!(c.persona_skill_id, "");
-        assert!(c.data_sources.current_account && c.data_sources.memos);
+        assert!(c.data_sources.current_account && c.data_sources.current_column);
         assert!(!c.data_sources.visible_notes);
         let c2 = from_document(
-            &json!({ "personaSkillId": "p", "dataSources": { "custom": { "memos": false } } }),
+            &json!({ "personaSkillId": "p", "dataSources": { "custom": { "currentColumn": false } } }),
         );
         assert_eq!(c2.persona_skill_id, "p");
-        assert!(!c2.data_sources.memos);
+        assert!(!c2.data_sources.current_column);
         assert!(!c.heartbeat.enabled);
         assert_eq!(c.heartbeat.interval_minutes, 30);
         assert_eq!(c.heartbeat.target, "auto");

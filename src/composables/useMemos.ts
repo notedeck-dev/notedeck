@@ -26,9 +26,7 @@ export interface MemoData {
   scheduledAt: string | null
   /**
    * 自由記述タグ (#492)。NoteDeck は値を enumerate しない (= ユーザー / AI が
-   * 任意の string を付ける)。memo の分類 / フィルタ用途。
-   * dataSources の `memosConfig.excludeTags` で AI 注入から除外する tag を
-   * 設定可能。default: `[]`。
+   * 任意の string を付ける)。memo の分類 / フィルタ用途。default: `[]`。
    */
   tags: string[]
   /**

@@ -219,7 +219,7 @@ NoteDeck の AI 統合は「AI とチャットする SNS クライアント」�
 ### Permission 設計 — Claude Code 流の preset
 
 - `readonly` (default) / `safe` / `full` / `custom` の 4 段階プリセット
-- AI に渡すデータソース (`<currentAccount>` / `<currentColumn>` / `<visibleNotes>` / `<recentConversation>` / `<memos>` / `<persona>`) を個別 on/off
+- AI に渡すデータソース (`<currentAccount>` / `<currentColumn>` / `<visibleNotes>` / `<recentConversation>` / `<persona>`) を個別 on/off
 - 書き込み系は確認ダイアログで dispatch 直前に enforce
 - skill / widget / plugin / theme の自己改変系は、権限・確認ダイアログ・capability 個別ガードの 3 層で守る (詳細は [SECURITY.md](SECURITY.md) §10)
 
@@ -236,8 +236,7 @@ NoteDeck の AI 統合は「AI とチャットする SNS クライアント」�
 ### AI Persona と永続記憶
 
 - **AI Persona**: `skill.isPersona` フラグで AI に固定の identity を持たせる。`<persona>` block で AI に「あなたは <displayName> として振る舞え」と指示
-- **永続記憶 (memos)**: 専用 MEMORY 機構は作らず、**既存プリミティブの組み合わせ**で再現 — メモ + `dataSources.memos` + `memos.write` permission + `notedeck-memo` always skill の 4 要素
-- AI が `memos.create` / `memos.update` で書き込み → 次ターンで `<memos>` として読み戻す = persistent memory の最小実装
+- **永続記憶**: 常駐するのは MEMORY.md (#1162) だけ。生のメモは AI が `memos.search` / `memos.list` で必要なときに読む (`dataSources.memos` による system prompt への注入は廃止)
 
 ### 自己拡張する IDE
 
