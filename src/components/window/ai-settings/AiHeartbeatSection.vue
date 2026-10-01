@@ -89,7 +89,7 @@ function openPermissionsWindow(): void {
     <template v-if="config.heartbeat.enabled">
       <AiSwitchRow
         icon="ti-bolt"
-        label="Cheap Check First"
+        :label="i18n.ts._aiHeartbeatSection.cheapCheck"
         :sub-label="i18n.ts._aiHeartbeatSection.cheapCheckDescription"
         :on="config.heartbeat.cheapCheck.enabled"
         @toggle="config.heartbeat.cheapCheck.enabled = !config.heartbeat.cheapCheck.enabled"

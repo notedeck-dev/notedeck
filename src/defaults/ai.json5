@@ -43,6 +43,11 @@
   // task すべての session に同じ persona が反映される (= 同一性設定)。
   personaSkillId: '',
 
+  // 「あなたのことを覚える」(#1162)。false にすると、あなたについての記憶
+  // (USER.md) を AI に渡さず、新しく記録もしない (ファイルは消さない。
+  // 「すべて忘れる」は AI 設定から)。書き手は notemaid で、ここは写し。
+  userMemory: true,
+
   heartbeat: {
     enabled: false,
     intervalMinutes: 30,

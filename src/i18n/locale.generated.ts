@@ -1102,7 +1102,7 @@ export interface Locale {
     readonly "waterfall": string
     /** 計測データなし — アプリ起動後に「更新」で取得します */
     readonly "noStartupData": string
-    /** global daemon の観測面 (#411)。連続 3 回失敗で自動 disable する silent fail 防止機構つき */
+    /** 定期的に様子を見て、必要なときだけ知らせます。連続 3 回失敗すると自動で止まります */
     readonly "heartbeatDesc": string
     /** daemon (tick 実行中) */
     readonly "daemonTickRunning": string
@@ -1330,6 +1330,8 @@ export interface Locale {
     readonly "desktopNotification": string
     /** 重要発見 (HEARTBEAT_OK 以外) を OS 通知で表示。アプリにフォーカスがあれば自動抑制 */
     readonly "desktopNotificationDescription": string
+    /** まず軽く確認 */
+    readonly "cheapCheck": string
     /** 変化なしなら AI を起動せず HEARTBEAT_OK 扱い (skill 側で cheapCheckCapabilities の宣言が必要) */
     readonly "cheapCheckDescription": string
     /** 最大連続 skip 時間 */
@@ -1371,15 +1373,45 @@ export interface Locale {
     /** AI のプロセスの版がこのアプリと一致していません。更新してください。 */
     readonly "versionMismatch": string
   }
-  readonly "_aiPersonaSection": {
-    /** ペルソナ */
+  readonly "_aiPersonalitySection": {
+    /** AI の人格と記憶 */
     readonly "title": string
+    /** 人格 */
+    readonly "soul": string
+    /** AI の核になる人格。キャラクターを切り替えても変わりません。 */
+    readonly "soulPlaceholder": string
+    /** キャラクター */
+    readonly "character": string
     /** なし */
-    readonly "none": string
-    /** 新規セッションのデフォルトです。過去のセッションは作成時のペルソナを保持します。 */
-    readonly "hint": string
-    /** ペルソナ候補がありません。Skill 編集ウィンドウで「Persona」を ON にしたスキルがここに表示されます。 */
-    readonly "noCandidates": string
+    readonly "characterNone": string
+    /** 新しいセッションから反映されます。過去のセッションは作成時のキャラクターのままです。 */
+    readonly "characterHint": string
+    /** 候補がありません。スキルの編集で「キャラクター候補にする」を ON にしたスキルがここに出ます。 */
+    readonly "noCharacters": string
+    /** あなたについて覚えていること */
+    readonly "userTitle": string
+    /** あなたのことを覚える */
+    readonly "userToggle": string
+    /** あなたについての記憶は OFF です。新しいことは記録されません。「すべて忘れる」までは、この内容はバックアップに含まれたままです。 */
+    readonly "userOffNote": string
+    /** この内容は使用中の AI プロバイダーに送られます。手元の CLI を選んでいるときは、その CLI にも渡ります。 */
+    readonly "sentNote": string
+    /** 覚え書き */
+    readonly "memoryTitle": string
+    /** まだ何も覚えていません。 */
+    readonly "empty": string
+    /** すべて忘れる */
+    readonly "forgetAll": string
+    /** あなたについて覚えていることをすべて消します。この操作は取り消せません。 */
+    readonly "forgetAllUserConfirm": string
+    /** 覚え書きをすべて消します。この操作は取り消せません。 */
+    readonly "forgetAllMemoryConfirm": string
+    /** いっぱいです。AI に整理を頼めます。 */
+    readonly "full": string
+    /** NoteDeck の外で変更されています。 */
+    readonly "externallyChanged": string
+    /** 保存できませんでした: {message} */
+    readonly "saveFailed": ParameterizedString<'message'>
   }
   readonly "_userProfileAchievementsPane": {
     /** 実績がありません */
@@ -2556,7 +2588,7 @@ export interface Locale {
     readonly "modeTrigger": string
     /** HEARTBEAT (定期実行) */
     readonly "modeHeartbeat": string
-    /** HEARTBEAT 有効時、tick ごとにこの skill body を AI に読ませます (#411 / OpenClaw HEARTBEAT.md 相当)。 */
+    /** HEARTBEAT 有効時、巡回のたびにこのスキルの本文を AI に読ませます。 */
     readonly "heartbeatHint": string
     /** 自動起動: ユーザーの入力に下のトリガー語のいずれかが含まれたターンだけ、この skill body が system prompt に注入されます (大文字小文字無視の部分一致)。 */
     readonly "triggerHint": string
@@ -2568,9 +2600,9 @@ help */
     readonly "triggersPlaceholder": string
     /** トリガー語はモードを「自動」にしたときだけ反応します */
     readonly "triggersOnlyInTriggerMode": string
-    /** このスキルを AI セッションの persona 候補にする */
+    /** このスキルを AI のキャラクター候補にする */
     readonly "personaToggle": string
-    /** ON にすると、AI セッションヘッダーの persona セレクターにこのスキルが表示されます。選択中のセッションで AI はこの persona として振る舞い、memo の作者として記録されます (#491)。 */
+    /** ON にすると、AI 設定の「キャラクター」にこのスキルが出ます。選ぶと AI はこのキャラクターとして振る舞い、メモの作者として記録されます。 */
     readonly "personaHint": string
     /** ストア由来のスキル — 編集内容はローカルファイルに保存されます (再インストールで上書きされる可能性あり) */
     readonly "fromStoreNote": string
@@ -2722,7 +2754,7 @@ help */
       /** 人格の書き換えを提案: {reason} */
       readonly "soulProposeWithReason": ParameterizedString<'reason'>
     }
-    /** Persona: {name} (エージェント設定で変更) */
+    /** キャラクター: {name} (AI 設定で変更) */
     readonly "personaIndicator": ParameterizedString<'name'>
     /** セッション一覧へ戻る */
     readonly "backToSessions": string
@@ -3142,7 +3174,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "deactivate": string
     /** 有効化 */
     readonly "activate": string
-    /** mode=always は常時有効 */
+    /** 常時有効のスキルです */
     readonly "alwaysActive": string
     /** 一致するスキルがありません */
     readonly "noMatches": string
