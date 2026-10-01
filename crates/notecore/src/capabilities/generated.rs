@@ -6948,7 +6948,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
                 ty: ParamType::String,
                 description: "開く WindowType",
                 optional: false,
-                enum_values: Some(&["note-detail", "note-inspector", "notification-inspector", "user-profile", "federation-instance", "follow-list", "aiSettings", "permissions", "plugins", "keybinds", "cssEditor", "themeEditor", "profileEditor", "login", "about", "navEditor", "performanceEditor", "appearanceEditor", "backup", "cacheEditor", "tasksEditor", "snippetsEditor", "memoEditor", "column-query-editor", "page-detail", "play-detail", "gallery-detail", "list-detail", "clip-detail", "drive-file-detail", "page-edit", "play-edit", "widget-edit", "skill-edit", "edit-history", "connections", "connectionEdit", "tutorial", "tutorialEditor"]),
+                enum_values: Some(&["note-detail", "note-inspector", "notification-inspector", "user-profile", "federation-instance", "follow-list", "aiSettings", "permissions", "plugins", "keybinds", "cssEditor", "themeEditor", "profileEditor", "login", "about", "navEditor", "performanceEditor", "appearanceEditor", "backup", "cacheEditor", "tasksEditor", "snippetsEditor", "memoEditor", "column-query-editor", "page-detail", "play-detail", "gallery-detail", "list-detail", "clip-detail", "drive-file-detail", "page-edit", "play-edit", "widget-edit", "skill-edit", "edit-history", "connections", "connectionEdit", "tutorial", "tutorialEditor", "ai-turn-prompt"]),
             },
             ParamDecl {
                 name: "props",

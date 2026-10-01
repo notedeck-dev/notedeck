@@ -108,6 +108,7 @@ _windows:
   connectionEdit: "接続を編集"
   tutorial: "チュートリアル"
   tutorialEditor: "チュートリアル"
+  aiTurnPrompt: "この応答に送った指示"
 
 _commands:
   commandPalette: "コマンドパレット"
@@ -1012,6 +1013,9 @@ _noteInspectorContent:
   activityPubObject: "{endpoint} 経由で解決した ActivityPub オブジェクト"
   uriNotFound: "URI を特定できませんでした"
 
+_aiTurnPromptContent:
+  hint: "この応答のために AI に送った指示 (system prompt) です。保存はされず、直近の数ターンだけ見られます。"
+  gone: "この応答の指示はもう残っていません (直近の数ターンだけ保持します)。"
 _notificationInspectorContent:
   inMemoryObject: "メモリ上の通知オブジェクト"
   activityPubObject: "{endpoint} 経由で解決した ActivityPub オブジェクト"
@@ -1544,6 +1548,9 @@ _deckAiColumn:
   intentRunFailed: "実行できませんでした: {error}"
   setupRequiredMessage: "AI の API キーが設定されていないため、この質問には応答できません。\n\nAI プロバイダーの API キーを登録すると使えるようになります。下の「{button}」からチュートリアルを開けます。\n\n`/help` などの / コマンドは API キーなしで実行できます。"
   slashRunTitle: "{command} の実行"
+  bootstrapGreeting: "まだ何も覚えていません。呼び方を教えてもらえれば、次から名前で話します。"
+  bootstrapCta: "呼び方を教える"
+  bootstrapKickoff: "はじめまして。まずあなたの名前と雰囲気を一緒に決めて、それから私の呼び方を聞いてください。"
 
 _deckClientSearchColumn:
   searchPlaceholder: "手元のノートを検索..."

@@ -3542,7 +3542,8 @@
               "connections",
               "connectionEdit",
               "tutorial",
-              "tutorialEditor"
+              "tutorialEditor",
+              "ai-turn-prompt"
             ]
           },
           "props": {
