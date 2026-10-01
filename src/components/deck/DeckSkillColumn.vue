@@ -14,6 +14,7 @@ import {
 import {
   generateSkillId,
   type SkillMeta,
+  skillDisplayName,
   useSkillsStore,
 } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
@@ -88,7 +89,7 @@ const visibleSkills = computed(() => {
   if (!q) return list
   return list.filter(
     (s) =>
-      s.name.toLowerCase().includes(q) ||
+      skillDisplayName(s).toLowerCase().includes(q) ||
       (s.description?.toLowerCase().includes(q) ?? false),
   )
 })
@@ -123,12 +124,26 @@ const installedSections = computed<SkillSection[]>(() => {
   return sections.filter((s) => s.items.length > 0)
 })
 
+// 予約 skill (AGENTS / HEARTBEAT、#1162) は有効/無効を持たない (巡回は mode だけ
+// を見る)。黙らせるには本文を空にする
 function isToggleable(skill: SkillMeta): boolean {
-  return skill.mode !== 'always'
+  return !skill.reserved && skill.mode !== 'always'
 }
 
 function isActive(skill: SkillMeta): boolean {
-  return skillsStore.isActive(skill.id) || skill.mode === 'always'
+  return (
+    skillsStore.isActive(skill.id) ||
+    skill.mode === 'always' ||
+    skill.reserved === true
+  )
+}
+
+function toggleTitle(skill: SkillMeta): string {
+  if (skill.mode === 'always') return i18n.ts._deckSkillColumn.alwaysActive
+  if (skill.reserved) return i18n.ts._deckSkillColumn.reservedHint
+  return isActive(skill)
+    ? i18n.ts._deckSkillColumn.deactivate
+    : i18n.ts._deckSkillColumn.activate
 }
 
 function toggleActive(skill: SkillMeta) {
@@ -324,8 +339,14 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     type="button"
                     :class="$style.name"
                     @click.stop="openInEditor(skill)"
-                  >{{ skill.name }}</button>
-                  <span v-else :class="[$style.name, $style.cardStatic]">{{ skill.name }}</span>
+                  >{{ skillDisplayName(skill) }}</button>
+                  <span v-else :class="[$style.name, $style.cardStatic]">{{ skillDisplayName(skill) }}</span>
+                  <i
+                    v-if="skill.reserved"
+                    class="ti ti-lock"
+                    :class="$style.lockIcon"
+                    :title="i18n.ts._deckSkillColumn.reservedHint"
+                  />
                   <span :class="$style.modeBadge" :data-mode="skill.mode">
                     <i v-if="skill.mode === 'heartbeat'" class="ti ti-activity-heartbeat" />
                     {{ modeLabel[skill.mode] }}
@@ -342,6 +363,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                   <span :class="$style.spacer" />
                   <div :class="$style.actions">
                     <button
+                      v-if="!skill.reserved"
                       class="_button"
                       :class="[$style.iconBtn, skill.mode === 'heartbeat' && $style.heartbeatActive]"
                       :title="skill.mode === 'heartbeat' ? i18n.ts._deckSkillColumn.removeFromHeartbeat : i18n.ts._deckSkillColumn.addToHeartbeat"
@@ -350,6 +372,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                       <i class="ti ti-activity-heartbeat" />
                     </button>
                     <button
+                      v-if="!skill.reserved"
                       class="_button"
                       :class="[$style.iconBtn, $style.iconBtnDanger]"
                       :title="i18n.ts._deckSkillColumn.deleteFromLibrary"
@@ -374,7 +397,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                         !isToggleable(skill) && $style.btnLocked,
                       ]"
                       :disabled="!isToggleable(skill)"
-                      :title="isToggleable(skill) ? (isActive(skill) ? i18n.ts._deckSkillColumn.deactivate : i18n.ts._deckSkillColumn.activate) : i18n.ts._deckSkillColumn.alwaysActive"
+                      :title="toggleTitle(skill)"
                       @click.stop="toggleActive(skill)"
                     >
                       {{ isActive(skill) ? i18n.ts._common.disable : i18n.ts._common.enable }}
@@ -670,6 +693,14 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
     outline-offset: 2px;
     border-radius: 3px;
   }
+}
+
+// 予約 skill の錠 (#1162): 名前とモードが固定で消せない印
+.lockIcon {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--nd-fg);
+  opacity: 0.55;
 }
 
 .modeBadge {

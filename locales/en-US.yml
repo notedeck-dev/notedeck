@@ -984,6 +984,10 @@ _aiHeartbeatSection:
   runtimeDisconnected: "Not connected to the AI process: {reason}"
   residentStopped: "login task is stopped"
   versionMismatch: "The AI process does not match this app's version. Update it."
+  steps: "Steps for the rounds"
+  editSteps: "Edit the steps"
+  stepsEmpty: "The steps for the rounds are empty. No rounds run until you edit them."
+  stepsOpenFailed: "Could not open the steps: {reason}"
 
 _aiPersonaSection:
   title: "Persona"
@@ -1637,6 +1641,11 @@ _permissionsContent:
   externalHint: "Operations allowed for external apps via the HTTP API (persistent tokens)"
   scratchpadHint: "Operations allowed for code you write and run in the scratchpad column (read-only by default)"
 
+_skills:
+  reservedAgents: "Rules"
+  reservedHeartbeat: "Rounds"
+  reservedLocked: "A reserved skill cannot be renamed, given another mode, made a persona, toggled or deleted. To silence it, empty its body."
+
 _skillEditContent:
   notFound: "Skill not found"
   meta: "Meta"
@@ -1662,6 +1671,7 @@ _skillEditContent:
   personaHint: "When on, this skill appears in the persona selector in the AI session header. In the selected session, AI acts as this persona and is recorded as the author of memos (#491)."
   fromStoreNote: "Skill from the store — edits are saved to a local file (reinstalling may overwrite them)"
   unsavedChanges: "Unsaved changes"
+  reservedNote: "To silence it, empty the body."
 
 _tasksEditorContent:
   visualHint: "Declared tasks can be run from the command palette and the Task Runner column."
@@ -1990,6 +2000,7 @@ _deckSkillColumn:
   modeTrigger: "Auto"
   newSkillName: "New skill"
   newSkillBody: "Write the instructions here."
+  reservedHint: "Reserved skill: its name and mode are fixed and it cannot be deleted"
 
 _deckTaskRunnerColumn:
   clearHistory: "Clear history"

@@ -251,3 +251,74 @@ describe('useSkillsStore — 旧 active 一覧が壊れていても初期化を�
     expect(localStorage.getItem('nd-skills-active')).toBeNull()
   })
 })
+
+describe('useSkillsStore — 予約 skill AGENTS.md / HEARTBEAT.md (#1162)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    files.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  it('ファイル名から reserved を立て、mode はファイルが何と言おうと固定する', async () => {
+    files.set(
+      'AGENTS.md',
+      skillFile('AGENTS', 'AGENTS').replace(
+        'mode: manual',
+        'mode: manual\nisPersona: true',
+      ),
+    )
+    files.set('HEARTBEAT.md', skillFile('HEARTBEAT', 'HEARTBEAT'))
+    files.set('agents-guide.md', skillFile('agents-guide', 'Agents Guide'))
+    const store = await initStore()
+    const agents = store.get('AGENTS')
+    expect(agents?.reserved).toBe(true)
+    expect(agents?.mode).toBe('always')
+    expect(agents?.isPersona).toBe(false)
+    expect(agents?.fileBase).toBe('AGENTS')
+    const heartbeat = store.get('HEARTBEAT')
+    expect(heartbeat?.reserved).toBe(true)
+    expect(heartbeat?.mode).toBe('heartbeat')
+    expect(store.heartbeatSkills.map((s) => s.id)).toEqual(['HEARTBEAT'])
+    // 似た名前の普通の skill は予約にならない
+    expect(store.get('agents-guide')?.reserved).toBeUndefined()
+  })
+
+  it('大文字のファイル名は規約外名の copy-adopt 移行の対象にしない', async () => {
+    files.set('AGENTS.md', skillFile('AGENTS', 'AGENTS'))
+    await initStore()
+    expect(files.has('AGENTS.md')).toBe(true)
+    expect(files.has('agents.md')).toBe(false)
+  })
+
+  it('改名 / mode 変更 / persona 化 / 有効無効 / 削除を拒否し、本文は書ける', async () => {
+    files.set('HEARTBEAT.md', skillFile('HEARTBEAT', 'HEARTBEAT'))
+    const store = await initStore()
+    expect(() => store.update('HEARTBEAT', { name: 'rounds' })).toThrow()
+    expect(() => store.update('HEARTBEAT', { mode: 'manual' })).toThrow()
+    expect(() => store.update('HEARTBEAT', { isPersona: true })).toThrow()
+    expect(() => store.setHeartbeat('HEARTBEAT', false)).toThrow()
+    expect(() => store.setActive('HEARTBEAT', true)).toThrow()
+    expect(() => store.remove('HEARTBEAT')).toThrow()
+    expect(store.get('HEARTBEAT')?.mode).toBe('heartbeat')
+    // 同じ値を送るのは改名でも mode 変更でもない (エディタの自動保存)
+    store.update('HEARTBEAT', {
+      name: 'HEARTBEAT',
+      mode: 'heartbeat',
+      body: '- check drafts\n',
+    })
+    await vi.waitFor(() => {
+      expect(files.get('HEARTBEAT.md')).toContain('- check drafts')
+    })
+  })
+
+  it('reloadFile は notemaid が置いたファイルを写しに載せる', async () => {
+    const store = await initStore()
+    files.set('HEARTBEAT.md', skillFile('HEARTBEAT', 'HEARTBEAT', ''))
+    await store.reloadFile('HEARTBEAT.md')
+    const s = store.get('HEARTBEAT')
+    expect(s?.reserved).toBe(true)
+    expect(s?.mode).toBe('heartbeat')
+    expect(s?.fileBase).toBe('HEARTBEAT')
+  })
+})
