@@ -1,6 +1,10 @@
 //! 手元の CLI を provider として使う (#1104)。ターン実行器から見ると 1 ラウンド = CLI の 1 ターン。
 //! ツールのループは CLI の中で回る (NoteDeck の capability は MCP サーバー越し) ので、
-//! こちらは本文の断片を流し、ツールの動きを 1 行ずつ添え、許可要求を確認ダイアログに写すだけ。
+//! こちらは本文の断片を流し、ツールの動きを通常経路と同じ tool_use / tool_result に写し
+//! (`ai_turn::external`)、CLI 自身のツールの許可要求を確認ダイアログに写すだけ。
+//! NoteDeck の capability への許可要求は通す: 認可と確認は実行時に NoteDeck 自身
+//! (external principal の権限 + dispatcher の確認ダイアログ) が行うので、ここで聞くと
+//! 同じ操作を 2 度聞くことになる。
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -8,6 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use notecore::frontend_bridge::FrontendBridge;
+use notecore::i18n::{localize_fields, text as i18n_text};
 use serde_json::{json, Value};
 
 use super::client::{AcpAgent, Incoming};
@@ -224,9 +229,131 @@ pub fn compose_prompt(messages: &[AiChatMessage], system: Option<&str>, fresh: b
 /// `session/update` を表示に写す
 pub enum Shown {
     Text(String),
-    /// 新しいツール呼び出し (1 行で添える)
-    Tool(String),
+    /// CLI が tool を始めた (結果まで同時に来ていれば `outcome` 付き)
+    Call {
+        call: ToolCallShown,
+        outcome: Option<ToolOutcomeShown>,
+    },
+    /// tool が終わった
+    Result {
+        id: String,
+        outcome: ToolOutcomeShown,
+    },
     Nothing,
+}
+
+/// CLI の tool 呼び出し (通常経路の tool_use と同じ欄)
+#[derive(Debug, Clone, PartialEq)]
+pub struct ToolCallShown {
+    pub id: String,
+    /// NoteDeck の capability なら通常経路と同じ tool 名 (`notes_search` の形)、
+    /// CLI 自身の tool ならその表示名
+    pub name: String,
+    pub input: Value,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ToolOutcomeShown {
+    pub text: String,
+    pub is_error: bool,
+}
+
+/// CLI 側の tool 名が NoteDeck の MCP サーバーの tool なら、その tool 名
+/// (`notes_search` の形) を返す。CLI ごとの接頭辞 (Claude Code は
+/// `mcp__notedeck__`) を剥がし、宣言表にある capability だけを認める
+pub fn notedeck_tool_name(title: &str) -> Option<String> {
+    const PREFIXES: &[&str] = &[
+        "mcp__notedeck__",
+        "notedeck__",
+        "notedeck:",
+        "notedeck/",
+        "notedeck.",
+    ];
+    let name = PREFIXES.iter().find_map(|p| title.strip_prefix(p))?.trim();
+    let id = notecore::capabilities::id_from_tool_name(name);
+    notecore::capabilities::find(&id)
+        .filter(|d| d.ai_tool)
+        .map(|_| name.to_string())
+}
+
+fn tool_call_shown(tool: &Value) -> Option<ToolCallShown> {
+    let id = tool.get("toolCallId").and_then(Value::as_str)?;
+    let title = tool.get("title").and_then(Value::as_str).unwrap_or("tool");
+    let name = notedeck_tool_name(title).unwrap_or_else(|| title.to_string());
+    let input = match tool.get("rawInput") {
+        Some(v @ Value::Object(_)) => v.clone(),
+        Some(Value::Null) | None => json!({}),
+        Some(other) => json!({ "input": other }),
+    };
+    Some(ToolCallShown {
+        id: id.to_string(),
+        name,
+        input,
+    })
+}
+
+/// `content` (ACP の ToolCallContent の列) を本文にする
+fn content_text(content: &Value) -> String {
+    let Some(items) = content.as_array() else {
+        return String::new();
+    };
+    let parts: Vec<String> = items
+        .iter()
+        .filter_map(|c| match c.get("type").and_then(Value::as_str) {
+            Some("content") => c
+                .get("content")
+                .and_then(|b| b.get("text"))
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            Some("diff") => c
+                .get("path")
+                .and_then(Value::as_str)
+                .map(|p| format!("(diff) {p}")),
+            Some("terminal") => Some("(terminal output)".to_string()),
+            _ => None,
+        })
+        .filter(|t| !t.is_empty())
+        .collect();
+    parts.join("\n")
+}
+
+/// 終わった tool の結果。`status` が completed / failed のときだけ Some
+fn tool_outcome(tool: &Value) -> Option<ToolOutcomeShown> {
+    let status = tool.get("status").and_then(Value::as_str)?;
+    let mut is_error = match status {
+        "completed" => false,
+        "failed" => true,
+        _ => return None,
+    };
+    let mut text = tool.get("content").map(content_text).unwrap_or_default();
+    if text.is_empty() {
+        match tool.get("rawOutput") {
+            // MCP の tool 結果 (`{ content: [{type: text}], isError }`) はその本文
+            Some(raw @ Value::Object(_)) if raw.get("content").is_some() => {
+                if raw.get("isError").and_then(Value::as_bool) == Some(true) {
+                    is_error = true;
+                }
+                text = raw
+                    .get("content")
+                    .and_then(Value::as_array)
+                    .map(|items| {
+                        items
+                            .iter()
+                            .filter_map(|b| b.get("text").and_then(Value::as_str))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    })
+                    .unwrap_or_default();
+            }
+            Some(Value::String(s)) => text = s.clone(),
+            Some(Value::Null) | None => {}
+            Some(other) => text = serde_json::to_string_pretty(other).unwrap_or_default(),
+        }
+    }
+    if text.is_empty() {
+        text = status.to_string();
+    }
+    Some(ToolOutcomeShown { text, is_error })
 }
 
 pub fn map_update(update: &Value) -> Shown {
@@ -243,12 +370,22 @@ pub fn map_update(update: &Value) -> Shown {
                 Shown::Text(text.to_string())
             }
         }
-        Some("tool_call") => {
-            let title = update
-                .get("title")
-                .and_then(Value::as_str)
-                .unwrap_or("tool");
-            Shown::Tool(title.to_string())
+        Some("tool_call") => match tool_call_shown(update) {
+            Some(call) => Shown::Call {
+                call,
+                outcome: tool_outcome(update),
+            },
+            None => Shown::Nothing,
+        },
+        Some("tool_call_update") => {
+            let id = update.get("toolCallId").and_then(Value::as_str);
+            match (id, tool_outcome(update)) {
+                (Some(id), Some(outcome)) => Shown::Result {
+                    id: id.to_string(),
+                    outcome,
+                },
+                _ => Shown::Nothing,
+            }
         }
         _ => Shown::Nothing,
     }
@@ -287,14 +424,19 @@ pub fn choose_option(options: &[Value], accepted: bool) -> Option<String> {
         .and_then(id_of)
 }
 
-/// 確認ダイアログに出す項目 (デバイスの `AiConfirmRequestPayload` の形)
+/// 確認ダイアログに出す項目 (デバイスの `AiConfirmRequestPayload` の形)。CLI 自身の
+/// tool (ファイル編集 / コマンド実行など) 用で、通常経路の汎用プレビュー
+/// (`exec::preview::generic`) と同じ見た目: 誰が何を + 引数の JSON + 「実行」
 pub fn permission_items(harness_name: &str, params: &Value) -> Vec<Value> {
     let tool = params.get("toolCall").cloned().unwrap_or(Value::Null);
     let title = tool
         .get("title")
         .and_then(Value::as_str)
         .unwrap_or("tool call");
-    let raw_input = tool.get("rawInput").cloned().unwrap_or(json!({}));
+    let raw_input = match tool.get("rawInput") {
+        Some(v @ Value::Object(_)) => v.clone(),
+        _ => json!({}),
+    };
     let mut message = String::new();
     if let Some(kind) = tool.get("kind").and_then(Value::as_str) {
         message.push_str(kind);
@@ -311,14 +453,39 @@ pub fn permission_items(harness_name: &str, params: &Value) -> Vec<Value> {
             message.push_str(&paths.join(", "));
         }
     }
+    let mut preview = json!({ "type": "danger" });
+    if !message.is_empty() {
+        preview["message"] = Value::String(message);
+    }
+    if raw_input.as_object().is_some_and(|o| !o.is_empty()) {
+        preview["code"] = json!(serde_json::to_string_pretty(&raw_input).unwrap_or_default());
+        preview["codeLanguage"] = json!("json");
+    }
+    localize_fields(
+        &mut preview,
+        vec![
+            (
+                "title",
+                i18n_text(
+                    "_native.acp.permission.title",
+                    json!({ "harness": harness_name, "tool": title }),
+                ),
+            ),
+            (
+                "okLabel",
+                i18n_text("_native.preview.generic.ok", json!({})),
+            ),
+            (
+                "cancelLabel",
+                i18n_text("_native.preview.cancel", json!({})),
+            ),
+        ],
+    );
     vec![json!({
         "toolUseId": tool.get("toolCallId").and_then(Value::as_str).unwrap_or("acp"),
         "capabilityId": "acp.permission",
         "params": raw_input,
-        "preview": {
-            "title": format!("{harness_name}: {title}"),
-            "message": if message.is_empty() { Value::Null } else { Value::String(message) },
-        },
+        "preview": preview,
         "allowRemember": false,
     })]
 }
@@ -338,6 +505,41 @@ fn text_event(stream_id: &str, text: String) -> AiChatEvent {
         confirm_items: None,
         expires_at_ms: None,
     }
+}
+
+/// CLI が tool を始めた (`ai_turn::external` が tool_use のカードにする)
+fn tool_call_event(stream_id: &str, call: &ToolCallShown) -> AiChatEvent {
+    let mut e = text_event(stream_id, String::new());
+    e.kind = "tool_call".into();
+    e.text = None;
+    e.tool_use_id = Some(call.id.clone());
+    e.tool_use_name = Some(call.name.clone());
+    e.tool_use_input = Some(call.input.clone());
+    e
+}
+
+/// tool が終わった (tool_result のカード)。`call` を添えると、tool_call を
+/// 見ていない id でもカードを起こせる
+fn tool_result_event(
+    stream_id: &str,
+    id: &str,
+    call: Option<&ToolCallShown>,
+    outcome: &ToolOutcomeShown,
+) -> AiChatEvent {
+    let mut e = text_event(stream_id, String::new());
+    e.kind = "tool_call_result".into();
+    e.tool_use_id = Some(id.to_string());
+    if outcome.is_error {
+        e.text = None;
+        e.error = Some(outcome.text.clone());
+    } else {
+        e.text = Some(outcome.text.clone());
+    }
+    if let Some(c) = call {
+        e.tool_use_name = Some(c.name.clone());
+        e.tool_use_input = Some(c.input.clone());
+    }
+    e
 }
 
 impl crate::ai_turn::ProviderRound for AcpProvider {
@@ -394,16 +596,38 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
                             Ok(None) => break Err(RoundError::from(format!("{} went away", self.harness.name))),
                             Ok(Some(Incoming::Update(u))) => match map_update(&u) {
                                 Shown::Text(t) => sink.emit(text_event(&req.stream_id, t)),
-                                Shown::Tool(title) => sink.emit(text_event(&req.stream_id, format!("\n> 🔧 {title}\n"))),
+                                Shown::Call { call, outcome } => {
+                                    sink.emit(tool_call_event(&req.stream_id, &call));
+                                    if let Some(outcome) = outcome {
+                                        sink.emit(tool_result_event(&req.stream_id, &call.id, None, &outcome));
+                                    }
+                                }
+                                Shown::Result { id, outcome } => {
+                                    sink.emit(tool_result_event(&req.stream_id, &id, None, &outcome));
+                                }
                                 Shown::Nothing => {}
                             },
                             Ok(Some(Incoming::Permission { params, reply: permission_reply })) => {
-                                // 人格 / 記憶のファイルは CLI からは書かせない (認可と汚染規則を通らないため)。
-                                // 人に聞かずに拒否し、本文に一行残す (#1162)
-                                let accepted = if touches_protected_paths(&params, &self.workspace) {
-                                    sink.emit(text_event(
+                                let tool = params.get("toolCall").cloned().unwrap_or(Value::Null);
+                                let title = tool.get("title").and_then(Value::as_str).unwrap_or("");
+                                let accepted = if notedeck_tool_name(title).is_some() {
+                                    // NoteDeck の capability: 認可と確認は実行時に NoteDeck 自身が
+                                    // 行う (external principal の権限 + dispatcher の確認ダイアログ)。
+                                    // ここで聞くと同じ操作を 2 度聞くことになる
+                                    true
+                                } else if touches_protected_paths(&params, &self.workspace) {
+                                    // 人格 / 記憶のファイルは CLI からは書かせない (認可と汚染規則を
+                                    // 通らないため)。人に聞かずに拒否し、tool の結果として残す (#1162)
+                                    let call = tool_call_shown(&tool);
+                                    let id = call.as_ref().map(|c| c.id.clone()).unwrap_or_else(|| "acp".into());
+                                    sink.emit(tool_result_event(
                                         &req.stream_id,
-                                        "\n> ⛔ blocked: the AI's personality and memory files are only edited through NoteDeck\n".into(),
+                                        &id,
+                                        call.as_ref(),
+                                        &ToolOutcomeShown {
+                                            text: "Error (blocked): the AI's personality and memory files are only edited through NoteDeck".into(),
+                                            is_error: true,
+                                        },
                                     ));
                                     false
                                 } else {
@@ -559,15 +783,128 @@ mod tests {
     }
 
     #[test]
-    fn updates_map_to_text_and_tool_lines() {
+    fn updates_map_to_text_and_tool_cards() {
         let chunk = json!({ "sessionUpdate": "agent_message_chunk", "content": { "type": "text", "text": "Hel" } });
         assert!(matches!(map_update(&chunk), Shown::Text(t) if t == "Hel"));
-        let tool = json!({ "sessionUpdate": "tool_call", "toolCallId": "c1", "title": "Read notes", "kind": "read", "status": "pending" });
-        assert!(matches!(map_update(&tool), Shown::Tool(t) if t == "Read notes"));
+        let tool = json!({ "sessionUpdate": "tool_call", "toolCallId": "c1", "title": "Read notes", "kind": "read", "status": "pending", "rawInput": { "path": "/x" } });
+        match map_update(&tool) {
+            Shown::Call { call, outcome } => {
+                assert_eq!(call.id, "c1");
+                assert_eq!(call.name, "Read notes");
+                assert_eq!(call.input["path"], "/x");
+                assert!(outcome.is_none());
+            }
+            other => panic!("unexpected {}", describe(&other)),
+        }
         let thought = json!({ "sessionUpdate": "agent_thought_chunk", "content": { "type": "text", "text": "hmm" } });
         assert!(matches!(map_update(&thought), Shown::Nothing));
-        let progress = json!({ "sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "completed" });
+        let progress = json!({ "sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "in_progress" });
         assert!(matches!(map_update(&progress), Shown::Nothing));
+        let done = json!({ "sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "completed",
+            "content": [{ "type": "content", "content": { "type": "text", "text": "line 1" } }] });
+        match map_update(&done) {
+            Shown::Result { id, outcome } => {
+                assert_eq!(id, "c1");
+                assert_eq!(outcome.text, "line 1");
+                assert!(!outcome.is_error);
+            }
+            other => panic!("unexpected {}", describe(&other)),
+        }
+        let failed =
+            json!({ "sessionUpdate": "tool_call_update", "toolCallId": "c1", "status": "failed" });
+        match map_update(&failed) {
+            Shown::Result { outcome, .. } => {
+                assert!(outcome.is_error);
+                assert_eq!(outcome.text, "failed");
+            }
+            other => panic!("unexpected {}", describe(&other)),
+        }
+    }
+
+    fn describe(s: &Shown) -> &'static str {
+        match s {
+            Shown::Text(_) => "text",
+            Shown::Call { .. } => "call",
+            Shown::Result { .. } => "result",
+            Shown::Nothing => "nothing",
+        }
+    }
+
+    #[test]
+    fn notedeck_mcp_tools_take_the_capability_tool_name() {
+        // Claude Code の MCP tool 名 → 通常経路と同じ tool 名 (宣言表にあるものだけ)
+        assert_eq!(
+            notedeck_tool_name("mcp__notedeck__notes_search").as_deref(),
+            Some("notes_search")
+        );
+        assert_eq!(
+            notedeck_tool_name("notedeck:account_list").as_deref(),
+            Some("account_list")
+        );
+        assert_eq!(notedeck_tool_name("mcp__notedeck__nope_nope"), None);
+        assert_eq!(notedeck_tool_name("Bash"), None);
+        assert_eq!(notedeck_tool_name("mcp__other__notes_search"), None);
+
+        let tool = json!({ "sessionUpdate": "tool_call", "toolCallId": "c2", "title": "mcp__notedeck__notes_search",
+            "kind": "other", "status": "completed", "rawInput": { "query": "misskey" },
+            "rawOutput": { "content": [{ "type": "text", "text": "{\"notes\":[]}" }] } });
+        match map_update(&tool) {
+            Shown::Call { call, outcome } => {
+                assert_eq!(call.name, "notes_search");
+                assert_eq!(call.input["query"], "misskey");
+                let outcome = outcome.expect("completed in the same update");
+                assert_eq!(outcome.text, "{\"notes\":[]}");
+                assert!(!outcome.is_error);
+            }
+            other => panic!("unexpected {}", describe(&other)),
+        }
+        let failed = json!({ "sessionUpdate": "tool_call_update", "toolCallId": "c2", "status": "completed",
+            "rawOutput": { "content": [{ "type": "text", "text": "permission_denied: no" }], "isError": true } });
+        match map_update(&failed) {
+            Shown::Result { outcome, .. } => {
+                assert!(outcome.is_error);
+                assert_eq!(outcome.text, "permission_denied: no");
+            }
+            other => panic!("unexpected {}", describe(&other)),
+        }
+    }
+
+    #[test]
+    fn tool_events_carry_the_turn_shapes() {
+        let call = ToolCallShown {
+            id: "c1".into(),
+            name: "Bash".into(),
+            input: json!({ "command": "ls" }),
+        };
+        let e = tool_call_event("t1:0", &call);
+        assert_eq!(e.kind, "tool_call");
+        assert_eq!(e.tool_use_id.as_deref(), Some("c1"));
+        assert_eq!(e.tool_use_name.as_deref(), Some("Bash"));
+        assert_eq!(e.tool_use_input.as_ref().unwrap()["command"], "ls");
+        let ok = tool_result_event(
+            "t1:0",
+            "c1",
+            None,
+            &ToolOutcomeShown {
+                text: "out".into(),
+                is_error: false,
+            },
+        );
+        assert_eq!(ok.kind, "tool_call_result");
+        assert_eq!(ok.text.as_deref(), Some("out"));
+        assert!(ok.error.is_none());
+        let bad = tool_result_event(
+            "t1:0",
+            "c1",
+            Some(&call),
+            &ToolOutcomeShown {
+                text: "boom".into(),
+                is_error: true,
+            },
+        );
+        assert!(bad.text.is_none());
+        assert_eq!(bad.error.as_deref(), Some("boom"));
+        assert_eq!(bad.tool_use_name.as_deref(), Some("Bash"));
     }
 
     #[test]
@@ -588,7 +925,7 @@ mod tests {
     }
 
     #[test]
-    fn permission_items_take_the_dialog_shape() {
+    fn permission_items_take_the_generic_preview_shape() {
         let params = json!({
             "sessionId": "s",
             "toolCall": { "toolCallId": "c9", "title": "Write file", "kind": "edit", "rawInput": { "path": "/x" }, "locations": [{ "path": "/x" }] },
@@ -597,9 +934,39 @@ mod tests {
         let items = permission_items("Claude Code", &params);
         assert_eq!(items.len(), 1);
         assert_eq!(items[0]["toolUseId"], "c9");
-        assert_eq!(items[0]["preview"]["title"], "Claude Code: Write file");
-        assert_eq!(items[0]["preview"]["message"], "edit · /x");
+        assert_eq!(items[0]["capabilityId"], "acp.permission");
+        let preview = &items[0]["preview"];
+        // 通常経路の汎用プレビューと同じ欄: 英語の正本文 + 表示言語で引き直す手がかり
+        assert_eq!(preview["title"], "Claude Code wants to run Write file");
+        assert_eq!(
+            preview["i18n"]["title"]["key"],
+            "_native.acp.permission.title"
+        );
+        assert_eq!(preview["i18n"]["title"]["params"]["harness"], "Claude Code");
+        assert_eq!(preview["i18n"]["title"]["params"]["tool"], "Write file");
+        assert_eq!(preview["okLabel"], "Run");
+        assert_eq!(
+            preview["i18n"]["okLabel"]["key"],
+            "_native.preview.generic.ok"
+        );
+        assert_eq!(
+            preview["i18n"]["cancelLabel"]["key"],
+            "_native.preview.cancel"
+        );
+        assert_eq!(preview["type"], "danger");
+        assert_eq!(preview["message"], "edit · /x");
+        assert_eq!(preview["codeLanguage"], "json");
+        assert!(preview["code"]
+            .as_str()
+            .unwrap()
+            .contains("\"path\": \"/x\""));
         assert_eq!(items[0]["allowRemember"], false);
         assert_eq!(items[0]["params"]["path"], "/x");
+
+        // 引数の無い tool はコード欄も message も無い
+        let bare = json!({ "toolCall": { "toolCallId": "c1", "title": "ToolSearch" } });
+        let items = permission_items("Claude Code", &bare);
+        assert!(items[0]["preview"].get("code").is_none());
+        assert!(items[0]["preview"].get("message").is_none());
     }
 }

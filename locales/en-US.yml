@@ -3245,6 +3245,9 @@ _scheduleFormat:
   in1Week: "In 1 week"
 
 _native:
+  acp:
+    permission:
+      title: "{harness} wants to run {tool}"
   preview:
     generic:
       title: "Run {label}?"

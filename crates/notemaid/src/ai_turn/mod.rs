@@ -31,6 +31,7 @@
 pub mod checkpoint;
 pub mod compose;
 pub mod confirm;
+mod external;
 pub mod taint;
 
 use std::collections::HashMap;
@@ -433,6 +434,10 @@ struct RoundSink {
     tool_uses: Mutex<Vec<ToolUse>>,
     /// provider が返した usage (来なければ None → 推定)
     usage: Mutex<Option<crate::ai_budget::TokenUsage>>,
+    /// 手元の CLI (#1104) が自分で回した tool の写し (tool_use / tool_result を
+    /// 通常経路と同じ形で出し、セッションにも書く)
+    external: Mutex<external::ExternalTools>,
+    sessions: Arc<dyn SessionSink>,
 }
 
 /// 進行中ラウンドの本文 (中断で partial をセッションに書くために台帳が見る)。
@@ -445,18 +450,41 @@ struct LiveText {
 }
 
 impl RoundSink {
-    fn new(turn_id: &str, sink: Arc<dyn AiTurnSink>, live: Arc<Mutex<LiveText>>) -> Self {
+    fn new(
+        turn_id: &str,
+        sink: Arc<dyn AiTurnSink>,
+        live: Arc<Mutex<LiveText>>,
+        sessions: Arc<dyn SessionSink>,
+        round: u32,
+    ) -> Self {
         Self {
             turn_id: turn_id.to_string(),
             sink,
             live,
             tool_uses: Mutex::new(Vec::new()),
             usage: Mutex::new(None),
+            external: Mutex::new(external::ExternalTools::new(turn_id, round)),
+            sessions,
         }
     }
     fn take(self) -> (String, Vec<ToolUse>) {
         let text = self.live.lock().map(|l| l.text.clone()).unwrap_or_default();
         (text, self.tool_uses.into_inner().unwrap_or_default())
+    }
+
+    fn external_ctx(&self) -> external::Ctx<'_> {
+        external::Ctx {
+            sink: self.sink.as_ref(),
+            live: &self.live,
+            sessions: self.sessions.as_ref(),
+        }
+    }
+
+    /// provider のラウンドが終わった。CLI の tool で結果が無いものを閉じ、
+    /// それらが消費したラウンド数を返す
+    fn close_external(&self) -> u32 {
+        let ctx = self.external_ctx();
+        self.external.lock().map(|mut x| x.close(&ctx)).unwrap_or(0)
     }
 
     fn usage(&self) -> Option<crate::ai_budget::TokenUsage> {
@@ -477,12 +505,50 @@ impl AiChatSink for RoundSink {
             }
             "delta" => {
                 let Some(text) = event.text else { return };
-                if let Ok(mut live) = self.live.lock() {
-                    live.text.push_str(&text);
+                let ctx = self.external_ctx();
+                if let Ok(mut x) = self.external.lock() {
+                    x.delta(&text, &ctx);
                 }
-                let mut e = AiTurnEvent::new(&self.turn_id, "delta");
-                e.text = Some(text);
-                self.sink.emit(e);
+            }
+            // 手元の CLI (#1104) が自分で回した tool: 実行はしない。通常経路と同じ
+            // tool_use / tool_result のカードに写す
+            "tool_call" => {
+                let (Some(id), Some(name)) = (event.tool_use_id, event.tool_use_name) else {
+                    return;
+                };
+                let ctx = self.external_ctx();
+                if let Ok(mut x) = self.external.lock() {
+                    x.call(
+                        external::ToolCall {
+                            id,
+                            name,
+                            input: event.tool_use_input.unwrap_or_else(|| json!({})),
+                        },
+                        &ctx,
+                    );
+                }
+            }
+            "tool_call_result" => {
+                let Some(id) = event.tool_use_id else { return };
+                let call = event.tool_use_name.map(|name| external::ToolCall {
+                    id: id.clone(),
+                    name,
+                    input: event.tool_use_input.unwrap_or_else(|| json!({})),
+                });
+                let outcome = match event.error {
+                    Some(err) => external::ToolOutcome {
+                        text: err,
+                        is_error: true,
+                    },
+                    None => external::ToolOutcome {
+                        text: event.text.unwrap_or_default(),
+                        is_error: false,
+                    },
+                };
+                let ctx = self.external_ctx();
+                if let Ok(mut x) = self.external.lock() {
+                    x.result(&id, call, outcome, &ctx);
+                }
             }
             "tool_use" => {
                 if let (Some(id), Some(name)) = (event.tool_use_id, event.tool_use_name) {
@@ -1708,7 +1774,13 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                 l.message_id = message_id.clone();
                 l.session_id = state.req.session_id.clone();
             }
-            let round_sink = RoundSink::new(&turn_id, rt.sink.clone(), live.clone());
+            let round_sink = RoundSink::new(
+                &turn_id,
+                rt.sink.clone(),
+                live.clone(),
+                rt.sessions.clone(),
+                state.rounds,
+            );
             // token 予算 (#1133 縦切り 6): 使用済み + 見込みが予算を超えるなら
             // provider を呼ばずに止める
             let request_chars = request_chars(&round_req);
@@ -1747,6 +1819,10 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                 }
             }
             let run_result = rt.provider.run(&round_req, &round_sink).await;
+            // 手元の CLI が自分で回した tool (#1104) は 1 件 1 ラウンドとして採番済み。
+            // 続く本文 / エラーの id をそれに合わせる
+            state.rounds += round_sink.close_external();
+            let message_id = assistant_message_id(&turn_id, state.rounds);
             // 精算: 実測が無ければ推定 (入力は要求の文字数、出力は応答の文字数)
             let round_usage = round_sink.usage().unwrap_or_else(|| {
                 let out_chars = round_sink
@@ -2184,6 +2260,25 @@ mod tests {
         }
     }
 
+    fn tool_call(id: &str, name: &str, input: Value) -> AiChatEvent {
+        let mut e = tool_use(id, name, input);
+        e.kind = "tool_call".into();
+        e
+    }
+
+    fn tool_call_result(id: &str, text: &str, is_error: bool) -> AiChatEvent {
+        let mut e = delta("");
+        e.kind = "tool_call_result".into();
+        e.tool_use_id = Some(id.into());
+        if is_error {
+            e.text = None;
+            e.error = Some(text.into());
+        } else {
+            e.text = Some(text.into());
+        }
+        e
+    }
+
     impl ProviderRound for ScriptedProvider {
         fn protocol(&self) -> ConnectionProtocol {
             ConnectionProtocol::Anthropic
@@ -2535,6 +2630,130 @@ mod tests {
         assert_eq!(done.stop_reason.as_deref(), Some("end"));
         // 確認で停止していないのでチェックポイントは無い
         assert!(checkpoint::read(&h.rt.store_dir, &req.turn_id).is_err());
+    }
+
+    #[tokio::test]
+    async fn cli_tool_calls_become_tool_cards_and_session_messages() {
+        // 手元の CLI (#1104) は tool を自分で回す: 1 ラウンドの中に本文 → tool → 本文。
+        // 通常経路と同じ tool_use / tool_result のカードと採番でデバイスに届き、
+        // セッションにも書かれる。tool の実行はデバイスに届かない
+        let provider = ScriptedProvider::new(vec![vec![
+            delta("見ます"),
+            tool_call("c1", "account_current", json!({})),
+            delta("途中"),
+            tool_call_result("c1", "{\"id\":\"a\"}", false),
+            delta("結果です"),
+        ]]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "never"}));
+        let h = harness(provider, &["account.read"], device.clone());
+        let req = request();
+        drive(h.rt.clone(), TurnState::new(req.clone())).await;
+
+        assert_eq!(
+            h.sink.kinds(),
+            ["delta", "tool_use", "tool_result", "delta", "delta", "done"]
+        );
+        assert!(device.executes().is_empty());
+        let events = h.sink.all();
+        let tu = &events[1];
+        assert_eq!(tu.text.as_deref(), Some("見ます"));
+        assert_eq!(tu.tool_use_id.as_deref(), Some("c1"));
+        assert_eq!(tu.tool_use_name.as_deref(), Some("account_current"));
+        assert_eq!(
+            tu.message_id.as_deref(),
+            Some(&*format!("{}-a0-0", req.turn_id))
+        );
+        let tr = &events[2];
+        assert_eq!(tr.tool_use_id.as_deref(), Some("c1"));
+        assert_eq!(tr.is_error, Some(false));
+        assert_eq!(
+            tr.message_id.as_deref(),
+            Some(&*format!("{}-r0-0", req.turn_id))
+        );
+        // tool 表示中に届いた本文は tool_result の後に流れる
+        assert_eq!(events[3].text.as_deref(), Some("途中"));
+        let done = h.sink.last();
+        assert_eq!(done.text.as_deref(), Some("途中結果です"));
+        assert_eq!(
+            done.message_id.as_deref(),
+            Some(&*format!("{}-a1", req.turn_id))
+        );
+
+        let written = h.written.written();
+        let ids: Vec<&str> = written.iter().map(|m| m.id.as_str()).collect();
+        // (ユーザー入力の `-u` はコマンド層が書く)
+        assert_eq!(
+            ids,
+            [
+                format!("{}-a0-0", req.turn_id),
+                format!("{}-r0-0", req.turn_id),
+                format!("{}-a1", req.turn_id),
+            ]
+        );
+        assert_eq!(written[0].tool_use_id.as_deref(), Some("c1"));
+        assert_eq!(written[0].content, "見ます");
+        assert_eq!(written[1].tool_result_for.as_deref(), Some("c1"));
+        assert_eq!(written[1].content, "{\"id\":\"a\"}");
+        assert_eq!(written[2].content, "途中結果です");
+    }
+
+    #[tokio::test]
+    async fn parallel_cli_tool_calls_are_shown_one_at_a_time() {
+        // CLI が tool を 2 つ同時に始め、2 つ目が先に終わる。デバイスの写しは
+        // 「tool_use の次はその tool_result」しか扱えないので 1 件ずつ順に見せる。
+        // 結果の無いまま CLI のターンが終わった tool は失敗として閉じる
+        let provider = ScriptedProvider::new(vec![vec![
+            tool_call("c1", "Bash", json!({"command": "ls"})),
+            tool_call("c2", "notes_search", json!({"query": "a"})),
+            tool_call("c3", "Read", json!({"path": "/x"})),
+            tool_call_result("c2", "[]", false),
+            tool_call_result("c1", "a b", false),
+            delta("おわり"),
+        ]]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "never"}));
+        let h = harness(provider, &["notes.read"], device);
+        let req = request();
+        drive(h.rt.clone(), TurnState::new(req.clone())).await;
+
+        // c3 は c2 の結果の直後に表示され、「おわり」は c3 の表示中に届くので
+        // c3 が閉じる (ラウンドの終わり) まで保留される
+        assert_eq!(
+            h.sink.kinds(),
+            [
+                "tool_use",
+                "tool_result",
+                "tool_use",
+                "tool_result",
+                "tool_use",
+                "tool_result",
+                "delta",
+                "done"
+            ]
+        );
+        let events = h.sink.all();
+        let ids: Vec<&str> = events
+            .iter()
+            .filter_map(|e| e.tool_use_id.as_deref())
+            .collect();
+        assert_eq!(ids, ["c1", "c1", "c2", "c2", "c3", "c3"]);
+        assert_eq!(events[5].is_error, Some(true));
+        assert!(events[5]
+            .text
+            .as_deref()
+            .unwrap()
+            .starts_with("Error (no_result)"));
+        assert_eq!(
+            events[4].message_id.as_deref(),
+            Some(&*format!("{}-a2-0", req.turn_id))
+        );
+        assert_eq!(events[4].text.as_deref(), Some(""));
+        // 3 つの tool で 3 ラウンド消費: 最終本文は a3
+        let done = h.sink.last();
+        assert_eq!(
+            done.message_id.as_deref(),
+            Some(&*format!("{}-a3", req.turn_id))
+        );
+        assert_eq!(done.text.as_deref(), Some("おわり"));
     }
 
     #[tokio::test]

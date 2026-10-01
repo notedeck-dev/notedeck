@@ -5369,6 +5369,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "in1Week": string
   }
   readonly "_native": {
+    readonly "acp": {
+      readonly "permission": {
+        /** {harness} が {tool} を実行しようとしています */
+        readonly "title": ParameterizedString<'harness' | 'tool'>
+      }
+    }
     readonly "preview": {
       readonly "generic": {
         /** {label} を実行しますか？ */
