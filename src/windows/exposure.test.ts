@@ -21,6 +21,8 @@ const DEVELOPER_WINDOWS = [
   'edit-history',
   'tasksEditor',
   'snippetsEditor',
+  // 「この応答に送った指示」(#1162): Raw JSON インスペクタと同族
+  'ai-turn-prompt',
 ]
 
 describe('ウィンドウの帰属タグ', () => {

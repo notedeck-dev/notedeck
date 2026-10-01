@@ -402,6 +402,17 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     width: 500,
     maxHeight: 700,
   },
+  // 「この応答に送った指示」(#1162): Raw JSON インスペクタと同族の開発者向け面。
+  // notemaid がメモリに残す直近ターンの system prompt を読むだけで、永続化しない
+  'ai-turn-prompt': {
+    get label() {
+      return i18n.ts._windows.aiTurnPrompt
+    },
+    icon: 'ti ti-file-text',
+    exposure: 'developer',
+    width: 620,
+    maxHeight: 720,
+  },
 }
 
 // ============================================================

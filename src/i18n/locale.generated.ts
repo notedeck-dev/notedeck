@@ -190,6 +190,8 @@ export interface Locale {
     readonly "tutorial": string
     /** チュートリアル */
     readonly "tutorialEditor": string
+    /** この応答に送った指示 */
+    readonly "aiTurnPrompt": string
   }
   readonly "_commands": {
     /** コマンドパレット */
@@ -1855,6 +1857,12 @@ export interface Locale {
     /** URI を特定できませんでした */
     readonly "uriNotFound": string
   }
+  readonly "_aiTurnPromptContent": {
+    /** この応答のために AI に送った指示 (system prompt) です。保存はされず、直近の数ターンだけ見られます。 */
+    readonly "hint": string
+    /** この応答の指示はもう残っていません (直近の数ターンだけ保持します)。 */
+    readonly "gone": string
+  }
   readonly "_notificationInspectorContent": {
     /** メモリ上の通知オブジェクト */
     readonly "inMemoryObject": string
@@ -2858,6 +2866,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "setupRequiredMessage": ParameterizedString<'button'>
     /** {command} の実行 */
     readonly "slashRunTitle": ParameterizedString<'command'>
+    /** まだ何も覚えていません。呼び方を教えてもらえれば、次から名前で話します。 */
+    readonly "bootstrapGreeting": string
+    /** 呼び方を教える */
+    readonly "bootstrapCta": string
+    /** はじめまして。まずあなたの名前と雰囲気を一緒に決めて、それから私の呼び方を聞いてください。 */
+    readonly "bootstrapKickoff": string
   }
   readonly "_deckClientSearchColumn": {
     /** 手元のノートを検索... */

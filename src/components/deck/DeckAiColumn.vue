@@ -19,12 +19,14 @@ import {
   projectVisibleItems,
 } from '@/composables/useAiSystemContext'
 import { useAiTurn } from '@/composables/useAiTurn'
+import { useBootstrapPending } from '@/composables/useAiWorkspace'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
 import { i18n } from '@/i18n'
 import { nativeField } from '@/i18n/native'
 import { describeToolUse } from '@/services/aiToolSummary'
+import { turnIdOf } from '@/services/aiTurnIds'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -36,6 +38,7 @@ import {
 import { usePrompt } from '@/stores/prompt'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
+import { useWindowsStore } from '@/stores/windows'
 import {
   generateSessionTitle,
   isTimestampTitle,
@@ -47,6 +50,7 @@ import { isImeComposing } from '@/utils/ime'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { createRenderCache } from '@/utils/renderCache'
 import { renderSimpleMarkdown } from '@/utils/simpleMarkdown'
+import { isWindowExposed } from '@/windows/exposure'
 import DeckColumnComponent from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -332,6 +336,36 @@ const needsAiSetup = ref(false)
 /** AI 設定チュートリアル (「使いこなす」カテゴリ) を開く (#1071) */
 function startAiSetupTutorial(): void {
   useTutorialStore().startCategory('mastery')
+}
+
+// --- 初回の挨拶 (#1162) ---
+//
+// notemaid は新品のワークスペースに BOOTSTRAP.md (first-run ritual) を置き、人格か
+// 記憶が変わるか「あなたのことを覚える」が OFF になると消す。それがある間だけ、
+// セッション一覧の空状態に AI を呼ばずに出せるローカル文の挨拶と「呼び方を教える」
+// を出す。儀式そのものは BOOTSTRAP.md を読んだ AI が進めるので、ボタンは最初の
+// 一言を普通の送信経路で送るだけ (新規セッションは sendMessage が作る)。
+const { pending: bootstrapPending, refresh: refreshBootstrap } =
+  useBootstrapPending()
+
+const showBootstrapGreeting = computed(
+  () => bootstrapPending.value && providerStatus.value === 'connected',
+)
+
+function startBootstrap(): void {
+  void sendMessage(i18n.ts._deckAiColumn.bootstrapKickoff)
+}
+
+// 接続が後から整った (起動直後の Vault 読込待ち) ときに拾い直す
+watch(providerStatus, (s) => {
+  if (s === 'connected') void refreshBootstrap()
+})
+
+/** 「この応答に送った指示」(#1162、開発者モード): そのターンの system prompt を窓で開く */
+function openTurnPrompt(msg: ChatMessage): void {
+  const turnId = turnIdOf(msg.id)
+  if (!turnId) return
+  useWindowsStore().open('ai-turn-prompt', { turnId })
 }
 
 // カラム表示時に接続一覧を最新化する (watch が connections.value の変化を
@@ -898,8 +932,17 @@ function onKeydown(e: KeyboardEvent) {
 
     <!-- View: sessions list (master) -->
     <div v-if="viewMode === 'sessions'" :class="$style.sessionsBody">
+      <!-- 初回の挨拶 (#1162): BOOTSTRAP.md がある間だけ。AI は呼ばないローカル文 -->
       <ColumnEmptyState
-        v-if="totalSessions === 0"
+        v-if="totalSessions === 0 && showBootstrapGreeting"
+        :message="i18n.ts._deckAiColumn.bootstrapGreeting"
+        fallback-kind="info"
+        :cta-label="i18n.ts._deckAiColumn.bootstrapCta"
+        cta-icon="ti-message-circle"
+        @cta="startBootstrap"
+      />
+      <ColumnEmptyState
+        v-else-if="totalSessions === 0"
         :message="i18n.ts._deckAiColumn.noSessions"
         fallback-kind="info"
       />
@@ -1141,6 +1184,16 @@ function onKeydown(e: KeyboardEvent) {
                 @click="copyMessage(msg)"
               >
                 <i :class="copiedMessageId === msg.id ? 'ti ti-check' : 'ti ti-copy'" />
+              </button>
+              <!-- 「この応答に送った指示」(#1162): 開発者モードのときだけ、hover で出す -->
+              <button
+                v-if="msg.role === 'assistant' && !isGenerating && isWindowExposed('ai-turn-prompt') && turnIdOf(msg.id)"
+                class="_button"
+                :class="$style.copyBtn"
+                :title="i18n.ts._windows.aiTurnPrompt"
+                @click="openTurnPrompt(msg)"
+              >
+                <i class="ti ti-file-text" />
               </button>
             </div>
           </div>

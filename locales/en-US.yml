@@ -101,6 +101,7 @@ _windows:
   connectionEdit: "Edit connection"
   tutorial: "Tutorial"
   tutorialEditor: "Tutorial"
+  aiTurnPrompt: "Instructions sent for this reply"
 
 _commands:
   commandPalette: "Command palette"
@@ -1259,6 +1260,9 @@ _noteInspectorContent:
   activityPubObject: "ActivityPub object resolved via {endpoint}"
   uriNotFound: "Couldn't determine the URI"
 
+_aiTurnPromptContent:
+  hint: "The instructions (system prompt) sent to the AI for this reply. Nothing is saved; only the last few turns can be viewed."
+  gone: "The instructions for this reply are no longer available (only the last few turns are kept)."
 _notificationInspectorContent:
   inMemoryObject: "Notification object in memory"
   activityPubObject: "ActivityPub object resolved via {endpoint}"
@@ -1807,6 +1811,9 @@ _deckAiColumn:
   intentRunFailed: "Could not run: {error}"
   setupRequiredMessage: "This question can't be answered because no AI API key is set.\n\nRegister an API key for an AI provider to start using it. You can open the tutorial from \"{button}\" below.\n\nSlash commands such as `/help` work without an API key."
   slashRunTitle: "Run {command}"
+  bootstrapGreeting: "I don't remember anything yet. Tell me what to call you and I'll use your name from now on."
+  bootstrapCta: "Tell me what to call you"
+  bootstrapKickoff: "Nice to meet you. Let's first decide your name and vibe together, then ask me how I'd like to be addressed."
 
 _deckClientSearchColumn:
   searchPlaceholder: "Search local notes..."

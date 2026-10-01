@@ -252,7 +252,7 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 
 ## AI の人格と記憶 — ワークスペースファイル ([#1162](https://github.com/notedeck-dev/notedeck/issues/1162))
 
-notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agent 流の**固定名の markdown**で持つ。ファイルが正本で、人が読み書きでき、AI 自身も認可と汚染の規則の下で更新する。設計は 4 視点 (安全 / アーキテクチャ / 上流への忠実度 / 製品) の敵対的レビューを 2 巡回して 2026-09-30 に確定した (正本は issue の「設計 v4」コメント)。**実装は段階的に進行中** (2026-09-30 に段階 1 = notemaid 側の読み書き / 注入 / turn 内汚染 / HEARTBEAT / 配置の移行を develop に入れた。capability と UI は未) で、ここには確定した設計だけを書く。語彙と挙動は上流に寄せ、逸脱は NoteDeck の不変条件 (汚染 #1103 / principal 認可 #712 / notemaid の所有 / 無人の予算) が要求する所だけ。逸脱は理由ごと残す。
+notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agent 流の**固定名の markdown**で持つ。ファイルが正本で、人が読み書きでき、AI 自身も認可と汚染の規則の下で更新する。設計は 4 視点 (安全 / アーキテクチャ / 上流への忠実度 / 製品) の敵対的レビューを 2 巡回して 2026-09-30 に確定した (正本は issue の「設計 v4」コメント)。**2026-10-01 に段階 1〜6 (notemaid 側 / capability / デバイス側 / UI / バックアップ / 手元の CLI) を develop に入れた**。実機確認は未。ここには確定した設計と、実装で決まった細部を書く。語彙と挙動は上流に寄せ、逸脱は NoteDeck の不変条件 (汚染 #1103 / principal 認可 #712 / notemaid の所有 / 無人の予算) が要求する所だけ。逸脱は理由ごと残す。
 
 ### ファイルと置き場
 
@@ -321,7 +321,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 ### UI
 
 - 一般側の面は 3 枚 (セクション「AI の人格と記憶」): **「人格」** (SOUL の本文 + 1 行「キャラクター: なし ▾」= persona ピッカー。ファイルは 2 つのまま面は 1 つ) / **「あなたについて覚えていること」** (本文、行の inline 編集と削除、トグル「あなたのことを覚える」、「すべて忘れる」) / **「覚え書き」** (本文、行の inline 編集と削除)
-- **USER OFF の意味** = 注入停止 + `memory.update` の `target: user` を tool から外す + 定数 1 行「利用者に関する記憶は OFF」を system に + MEMORY の書込規則に「本人に関する事実は書かない」。削除はしない (「すべて忘れる」が別)。OFF 中もバックアップには入る旨を説明文に
+- **USER OFF の意味** = 注入停止 + `memory.update` の `target: user` を本体が拒否 (tool 一覧からは外さず、エラーで知らせる) + 定数 1 行「利用者に関する記憶は OFF」を system に + MEMORY の書込規則に「本人に関する事実は書かない」。削除はしない (「すべて忘れる」が別)。OFF 中もバックアップには入る旨を説明文に
 - ファイル名は UI に出さない (「設定フォルダを開く」で見える。OpenClaw は Settings → Files で編集、Hermes はパスを直接教える。これは製品判断)。使用率バーは出さず、上限に近いときだけ 1 行。書込の tool カードは人間語の差分 1 行、「覚えました」トーストは作らない
 - 予約 skill は `reserved` フラグで削除 / HEARTBEAT 化を非表示、mode と名前を固定、錠アイコン。名前は「ルール」(AGENTS) と「巡回」(HEARTBEAT)。HEARTBEAT セクションの「巡回の手順を編集」は HEARTBEAT 有効時だけ
 - 「送った system prompt」は開発者モードのウィンドウ (Raw JSON インスペクタと同族)。入口はメッセージ / tool カードのメニュー。メモリ保持のみで永続化しない (sessions/ に写すとバックアップにも複製される)
@@ -329,7 +329,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 ### 移行・バックアップ・RPC
 
 - `ai-turns/` → `notemaid/turns/`、`ai-workspace/` → `notemaid/workspace/` の rename は `notemaid::migrations::run_fs` (notemaid クレート)。daemon は lock 取得後、アプリは in-process のときだけ呼ぶ。sidecar / 常駐時は transport の `Hello` に `fs_layout` を足し、不一致なら `restart_resident()` で古い daemon を先に止める。失敗しても起動は止めず、新パスに無ければ旧パスを読む
-- バックアップ: `ALLOWED_SUBDIRS` に `notemaid` を**足さない** (汎用 list / read / write / delete / rename が allowlist だけで通り、上限・承認・汚染規則を素通りする)。`export_bundle` に SOUL / USER / MEMORY を明示列挙。import は専用分岐で「人格 / 記憶を置き換えます」の一覧付き確認 + 上限 + 不可視 Unicode 検査 + notemaid へ reload 通知
+- バックアップ: `ALLOWED_SUBDIRS` に `notemaid` を**足さない** (汎用 list / read / write / delete / rename が allowlist だけで通り、上限・承認・汚染規則を素通りする)。`export_bundle` に SOUL / USER / MEMORY を明示列挙。import は専用分岐で名指しの 3 ファイルだけを置き、見えない文字を含むものは外す (上限超過は読む側の「注入しない」で受ける)。アプリの import は人格 / 記憶が入っていれば置き換える前に一覧つきで 1 回聞き、断られたらその分だけ外して残りを入れる。notemaid は毎 turn ファイルを読むので reload 通知は要らない
 - UI 編集の RPC (`data` 級、notemaid 経由): `maid_workspace_read(kind)` / `maid_workspace_write(kind, body)` / `maid_user_memory_toggle`。変更通知は `SettingsChange { subdir: "notemaid" }` を relay し、`settingsFileSync` に `notemaid` 用ハンドラを 1 つ足す
 
 ### 製品判断として確定したもの (2026-09-30)
