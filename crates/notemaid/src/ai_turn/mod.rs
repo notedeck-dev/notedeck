@@ -1063,6 +1063,35 @@ impl TurnState {
     }
 }
 
+/// 直近の turn に送った system prompt (開発者モードの「この応答に送った指示」、#1162)。
+/// 永続化しない (sessions/ に写すとバックアップにも複製される)
+fn recent_systems() -> &'static Mutex<std::collections::VecDeque<(String, String)>> {
+    static R: std::sync::OnceLock<Mutex<std::collections::VecDeque<(String, String)>>> =
+        std::sync::OnceLock::new();
+    R.get_or_init(|| Mutex::new(std::collections::VecDeque::new()))
+}
+
+const RECENT_SYSTEMS_MAX: usize = 32;
+
+fn remember_system(turn_id: &str, system: Option<&str>) {
+    let Some(system) = system else { return };
+    if let Ok(mut q) = recent_systems().lock() {
+        q.retain(|(id, _)| id != turn_id);
+        q.push_back((turn_id.to_string(), system.to_string()));
+        while q.len() > RECENT_SYSTEMS_MAX {
+            q.pop_front();
+        }
+    }
+}
+
+pub fn recent_system(turn_id: &str) -> Option<String> {
+    recent_systems().lock().ok().and_then(|q| {
+        q.iter()
+            .find(|(id, _)| id == turn_id)
+            .map(|(_, s)| s.clone())
+    })
+}
+
 /// セッション単位の汚染 (#1103)。session の無い turn (HEARTBEAT) は false
 async fn session_tainted(rt: &TurnRuntime, req: &AiTurnRequest) -> bool {
     match req.session_id.as_deref() {
@@ -2017,6 +2046,7 @@ pub async fn start_turn_with_sink(
         core: Some(shared),
         budget: cfg.daily_budget_for(&req.connection_id),
     });
+    remember_system(&req.turn_id, composed.system.as_deref());
     begin_turn(rt, TurnState::new(req).with_composition(composed))
 }
 

@@ -31,9 +31,12 @@ pub const MEMORY_LIMIT: usize = 2_200;
 pub const SOUL_LIMIT: usize = 8_000;
 pub const BOOTSTRAP_LIMIT: usize = 4_000;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, specta::Type, Default,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
+    #[default]
     Soul,
     User,
     Memory,

@@ -251,6 +251,19 @@ pub fn set_persona_skill_id(core: &Core, skill_id: &str) -> Result<()> {
     settings_events::write_root_file(core, FILE_NAME, &text)
 }
 
+/// 「あなたのことを覚える」(USER.md の注入と書込、#1162)
+pub fn set_user_memory(core: &Core, enabled: bool) -> Result<()> {
+    let mut doc = read_document(core)?;
+    if !doc.is_object() {
+        doc = Value::Object(Default::default());
+    }
+    doc.as_object_mut()
+        .expect("object")
+        .insert("userMemory".into(), Value::Bool(enabled));
+    let text = serde_json::to_string_pretty(&doc)? + "\n";
+    settings_events::write_root_file(core, FILE_NAME, &text)
+}
+
 pub fn set_heartbeat_enabled(core: &Core, enabled: bool) -> Result<()> {
     let mut doc = read_document(core)?;
     if !doc.is_object() {
