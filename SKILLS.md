@@ -254,6 +254,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | list | `list.list` | 自分のリスト一覧 | `account.read` | — |
 | list | `list.removeUser` | リストからユーザーを削除 | `account.write` | あり |
 | logs | `logs.recent` | 最近のログを取得 | `logs.read` | — |
+| memory | `memory.update` | 記憶を更新 | `ai.memory.write` | あり |
 | memos | `memos.backlinks` | メモのバックリンク | `memos.read` | — |
 | memos | `memos.create` | メモを作成 | `memos.write` | あり |
 | memos | `memos.delete` | メモを削除 | `memos.write` | あり |
@@ -320,6 +321,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | skills | `skills.revert` | スキルを過去の編集前状態に戻す | `skills.write` | あり |
 | skills | `skills.toggle` | スキルの有効/無効を切替 | `skills.write` | — |
 | skills | `skills.uninstall` | スキルを削除 | `skills.write` | あり |
+| soul | `soul.propose` | 人格の書き換えを提案 | `ai.persona.write` | あり |
 | styles | `styles.append` | カスタム CSS に追記 | `styles.write` | あり |
 | styles | `styles.history` | カスタム CSS の編集履歴 | — | — |
 | styles | `styles.read` | カスタム CSS を読む | — | — |
