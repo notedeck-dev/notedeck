@@ -2734,6 +2734,16 @@ help */
     readonly "deleted": string
   }
   readonly "_deckAiColumn": {
+    readonly "_toolSummary": {
+      /** あなたについて */
+      readonly "targetUser": string
+      /** 覚え書き */
+      readonly "targetMemory": string
+      /** 人格の書き換えを提案 */
+      readonly "soulPropose": string
+      /** 人格の書き換えを提案: {reason} */
+      readonly "soulProposeWithReason": ParameterizedString<'reason'>
+    }
     /** Persona: {name} (エージェント設定で変更) */
     readonly "personaIndicator": ParameterizedString<'name'>
     /** セッション一覧へ戻る */
@@ -4393,6 +4403,14 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "readUpToHere": string
   }
   readonly "_aiConfirmRequests": {
+    /** ⚠ この文は AI が読んだ他人の投稿にそのまま出てきたものです。 */
+    readonly "matchesUntrusted": string
+    /** このセッションで読んだ他人の内容: {sources} */
+    readonly "taintSources": ParameterizedString<'sources'>
+    /** 画面に見えていたノート */
+    readonly "taintSourceContext": string
+    /** ストアから入れたキャラクター / スキルが有効なため、毎回確認します。 */
+    readonly "storeSkill": string
     /** {count} 件の操作の許可を求めています */
     readonly "bundleTitle_plural": PluralString<'count'>
     /** すべて実行 */

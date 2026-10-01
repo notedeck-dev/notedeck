@@ -1511,6 +1511,11 @@ _themeEditorContent:
   deleted: "テーマを削除しました"
 
 _deckAiColumn:
+  _toolSummary:
+    targetUser: "あなたについて"
+    targetMemory: "覚え書き"
+    soulPropose: "人格の書き換えを提案"
+    soulProposeWithReason: "人格の書き換えを提案: {reason}"
   personaIndicator: "Persona: {name} (エージェント設定で変更)"
   backToSessions: "セッション一覧へ戻る"
   searchSessions: "セッションを検索..."
@@ -2423,6 +2428,10 @@ _readMarkerDivider:
   readUpToHere: "ここまで読みました"
 
 _aiConfirmRequests:
+  matchesUntrusted: "⚠ この文は AI が読んだ他人の投稿にそのまま出てきたものです。"
+  taintSources: "このセッションで読んだ他人の内容: {sources}"
+  taintSourceContext: "画面に見えていたノート"
+  storeSkill: "ストアから入れたキャラクター / スキルが有効なため、毎回確認します。"
   bundleTitle_plural:
     other: "{count} 件の操作の許可を求めています"
   runAll: "すべて実行"

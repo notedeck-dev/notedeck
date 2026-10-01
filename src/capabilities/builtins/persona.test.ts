@@ -30,9 +30,14 @@ describe('persona capabilities — declaration', () => {
 // の unit 環境ではメッセージ生成テストは走らない。実 confirmation UX は実機で確認。
 
 describe('PERSONA_BUILTIN_CAPABILITIES', () => {
-  it('contains listPersonas / setPersona', () => {
+  it('contains listPersonas / setPersona and the memory / soul writes (#1162)', () => {
     const ids = PERSONA_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
-    expect(ids).toEqual(['ai.listPersonas', 'ai.setPersona'])
+    expect(ids).toEqual([
+      'ai.listPersonas',
+      'ai.setPersona',
+      'memory.update',
+      'soul.propose',
+    ])
   })
 
   it('all capabilities are exposed to AI (aiTool: true)', () => {

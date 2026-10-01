@@ -26,6 +26,7 @@ import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
 import { i18n } from '@/i18n'
 import { nativeField } from '@/i18n/native'
+import { describeToolUse } from '@/services/aiToolSummary'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -1046,6 +1047,8 @@ function onKeydown(e: KeyboardEvent) {
               <i class="ti ti-tool" :class="$style.toolIcon" />
               <span :class="$style.toolEventLabel">{{ i18n.ts._deckAiColumn.toolCall }}</span>
               <code :class="$style.toolEventName">{{ msg.toolUseName }}</code>
+              <!-- 記憶 / 人格の更新は引数 JSON の代わりに人間語の差分 1 行 (#1162) -->
+              <span v-if="describeToolUse(msg.toolUseName, msg.toolUseInput)" :class="$style.toolEventSummary">{{ describeToolUse(msg.toolUseName, msg.toolUseInput) }}</span>
               <i
                 class="ti"
                 :class="[
@@ -1725,6 +1728,15 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
   color: var(--nd-accent);
+}
+
+.toolEventSummary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85em;
+  color: var(--nd-fgMuted);
 }
 
 .toolEventPreview {

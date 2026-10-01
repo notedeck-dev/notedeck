@@ -1746,6 +1746,11 @@ _themeEditorContent:
   deleted: "Theme deleted"
 
 _deckAiColumn:
+  _toolSummary:
+    targetUser: "About you"
+    targetMemory: "Notes"
+    soulPropose: "Proposes a personality change"
+    soulProposeWithReason: "Proposes a personality change: {reason}"
   personaIndicator: "Persona: {name} (change in agent settings)"
   backToSessions: "Back to sessions"
   searchSessions: "Search sessions..."
@@ -2674,6 +2679,10 @@ _readMarkerDivider:
   readUpToHere: "You've read up to here"
 
 _aiConfirmRequests:
+  matchesUntrusted: "⚠ This text appeared verbatim in someone else's post the AI read."
+  taintSources: "Other people's content read in this session: {sources}"
+  taintSourceContext: "notes visible on screen"
+  storeSkill: "A character / skill installed from the store is active, so this is confirmed every time."
   bundleTitle_plural:
     one: "Asking permission for {count} action"
     other: "Asking permission for {count} actions"

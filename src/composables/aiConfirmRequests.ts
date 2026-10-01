@@ -40,11 +40,18 @@ export function bundleConfirmOptions(
   rawItems: AiConfirmItem[],
   onShow: () => void,
 ): ConfirmOptions {
-  // notecore が組んだプレビューは英語の正本文 + 辞書の手がかり。表示言語で描き直す
-  const items = rawItems.map((it) => ({
-    ...it,
-    preview: localizeNative(it.preview),
-  }))
+  // notecore が組んだプレビューは英語の正本文 + 辞書の手がかり。表示言語で描き直す。
+  // 汚染の経路 / ストア由来 / 他人の本文との一致は、人が判断できるよう本文に一文ずつ添える (#1162)
+  const items = rawItems.map((it) => {
+    const preview = localizeNative(it.preview)
+    const notes = provenanceNotes(it)
+    if (notes.length > 0) {
+      preview.message = preview.message
+        ? `${preview.message}\n${notes.join('\n')}`
+        : notes.join('\n')
+    }
+    return { ...it, preview }
+  })
   const allowRemember = items.some((it) => it.allowRemember)
   if (items.length === 1 && items[0]) {
     const single = { ...items[0].preview, onShow }
@@ -84,6 +91,25 @@ export function bundleConfirmOptions(
       : {}),
     onShow,
   }
+}
+
+/** 生成元の注意書き。順に: 他人の本文との一致 / 読んだ経路 / ストア由来 */
+export function provenanceNotes(it: AiConfirmItem): string[] {
+  const notes: string[] = []
+  if (it.matchesUntrusted) {
+    notes.push(i18n.ts._aiConfirmRequests.matchesUntrusted)
+  }
+  if (it.taintSources && it.taintSources.length > 0) {
+    const sources = it.taintSources
+      .map((s) =>
+        s === 'context' ? i18n.ts._aiConfirmRequests.taintSourceContext : s,
+      )
+      .join(' / ')
+    notes.push(i18n.tsx._aiConfirmRequests.taintSources({ sources }))
+  } else if (it.storeSkill) {
+    notes.push(i18n.ts._aiConfirmRequests.storeSkill)
+  }
+  return notes
 }
 
 /** 要求を表示し、決定を notecore に返す */

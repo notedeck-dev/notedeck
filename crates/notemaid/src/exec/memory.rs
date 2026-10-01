@@ -163,29 +163,24 @@ pub fn preview(core: &Core, id: &str, p: &Value, _ctx: &ExecContext) -> Result<O
                 // 失敗する書込は確認を出さず、実行で error を返して AI に直させる
                 Err(_) => return Ok(None),
             };
-            let target_key = if t.kind == Kind::User {
-                "user"
-            } else {
-                "memory"
+            // 辞書の死にキー検査のため、キーは動的に組まず字面で書く
+            let title = match t.kind {
+                Kind::User => text("_native.preview.memory.update.title.user", json!({})),
+                _ => text("_native.preview.memory.update.title.memory", json!({})),
             };
-            let action_key = match t.action {
-                Action::Add => "add",
-                Action::Replace => "replace",
-                Action::Remove => "remove",
+            let params = json!({
+                "content": s(p, "content").unwrap_or(""),
+                "old": s(p, "old_text").unwrap_or(""),
+            });
+            let message = match t.action {
+                Action::Add => text("_native.preview.memory.update.add", params),
+                Action::Replace => text("_native.preview.memory.update.replace", params),
+                Action::Remove => text("_native.preview.memory.update.remove", params),
             };
             Ok(Some(confirm(
                 "warning",
-                text(
-                    &format!("_native.preview.memory.update.title.{target_key}"),
-                    json!({}),
-                ),
-                Some(text(
-                    &format!("_native.preview.memory.update.{action_key}"),
-                    json!({
-                        "content": s(p, "content").unwrap_or(""),
-                        "old": s(p, "old_text").unwrap_or(""),
-                    }),
-                )),
+                title,
+                Some(message),
                 text("_native.preview.memory.update.ok", json!({})),
                 json!({
                     "diff": { "old": before, "new": after, "language": "markdown" },

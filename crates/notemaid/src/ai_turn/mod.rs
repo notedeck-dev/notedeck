@@ -1000,6 +1000,12 @@ pub struct TurnState {
     /// (ラベルの伝播で全セッションを汚さない)
     #[serde(default)]
     pub label_writes: bool,
+    /// この turn で他人の内容を読んだ経路 (capability id か `context`)。確認カードに出す
+    #[serde(default)]
+    pub taint_sources: Vec<String>,
+    /// 文脈に store 由来の skill がある (確認を強制する理由として、他人の内容とは別の一文を出す)
+    #[serde(default)]
+    pub store_skill_in_context: bool,
 }
 
 impl TurnState {
@@ -1021,6 +1027,12 @@ impl TurnState {
             trusted_skill_bodies: Vec::new(),
             confirm_forced: req_untrusted,
             label_writes: req_untrusted,
+            taint_sources: if req_untrusted {
+                vec!["context".to_string()]
+            } else {
+                Vec::new()
+            },
+            store_skill_in_context: false,
         }
     }
 
@@ -1030,6 +1042,7 @@ impl TurnState {
         self.trusted_skill_bodies = composed.trusted_skill_bodies;
         if composed.store_skill_in_context {
             self.confirm_forced = true;
+            self.store_skill_in_context = true;
         }
         self
     }
@@ -1041,9 +1054,12 @@ impl TurnState {
     }
 
     /// この turn で他人の内容を読んだ (両方のビットを立てる)
-    fn taint_turn(&mut self) {
+    fn taint_turn(&mut self, source: &str) {
         self.confirm_forced = true;
         self.label_writes = true;
+        if !self.taint_sources.iter().any(|s| s == source) {
+            self.taint_sources.push(source.to_string());
+        }
     }
 }
 
@@ -1159,6 +1175,16 @@ impl ProvenanceCorpus {
             }
         }
         c
+    }
+
+    /// 値が untrusted な本文の中に (そのまま) 出てきて、ユーザー入力にも信頼済みの
+    /// 結果にも無い。記憶に書こうとした文が他人の投稿由来だと示すのに使う
+    fn appears_only_in_untrusted(&self, value: &str) -> bool {
+        let v = value.trim();
+        !v.is_empty()
+            && self.untrusted.iter().any(|t| t.contains(v))
+            && !self.user.iter().any(|t| t.contains(v))
+            && !self.trusted.iter().any(|t| t.contains(v))
     }
 
     fn origin_of(&self, value: &str) -> Origin {
@@ -1306,11 +1332,48 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
     let session_is_tainted = session_tainted(rt, &state.req).await;
     let forced = state.confirm_forced || session_is_tainted;
     let labels = state.label_writes || session_is_tainted;
+    // 記憶 / 人格の項目は束ねず 1 枚 1 件 (束ねると diff が落ちる、#1162)。未決のうち
+    // 先頭の solo 項目があればそれだけ、無ければ残り全部を 1 枚にする
+    let is_solo = |p: &PendingToolUse| {
+        p.remember_blocked
+            || matches!(
+                p.capability_id.as_deref(),
+                Some("memory.update") | Some("soul.propose")
+            )
+    };
+    let solo_id: Option<String> = state
+        .pending
+        .iter()
+        .find(|p| p.needs_confirm && p.decision.is_none() && is_solo(p))
+        .map(|p| p.id.clone());
+    let taint_sources = state.taint_sources.clone();
+    let state_store_skill = state.store_skill_in_context;
+    let corpus = ProvenanceCorpus::build(
+        &state.req,
+        &state.trusted_skill_bodies,
+        &state.messages,
+        &HashMap::new(),
+    );
     for p in state.pending.iter_mut() {
         if !p.needs_confirm || p.decision.is_some() {
             continue;
         }
+        if let Some(solo) = &solo_id {
+            if &p.id != solo {
+                continue;
+            }
+        } else if is_solo(p) {
+            continue;
+        }
         let capability_id = p.capability_id.clone().unwrap_or_default();
+        // 記憶に書こうとした文が他人の本文にそのまま出てくる (注入の疑い)
+        let written = p
+            .input
+            .get("content")
+            .or_else(|| p.input.get("body"))
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        let matches_untrusted = corpus.appears_only_in_untrusted(written);
         let cross = capabilities::find(&capability_id)
             .map(|d| d.acts_as_account)
             .unwrap_or(false)
@@ -1402,6 +1465,11 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
             "preview": preview,
             "allowRemember": allow_remember,
             "destinationUntrusted": p.destination_untrusted,
+            // この turn / セッションで読んだ他人の内容の経路 (空なら汚染なし)
+            "taintSources": if forced { taint_sources.clone() } else { Vec::new() },
+            // 他人の内容ではなく、自分で選んだストアのキャラクター / skill が理由で確認している
+            "storeSkill": state_store_skill,
+            "matchesUntrusted": matches_untrusted,
         }));
     }
     items
@@ -1477,7 +1545,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                 Ok(outcome) => {
                     // ラベル付きの内容を返した (tainted なメモ / skill) → turn とセッションを汚染
                     if outcome.tainted {
-                        state.taint_turn();
+                        state.taint_turn(tu.capability_id.as_deref().unwrap_or(&tu.name));
                         if let Some(sid) = state.req.session_id.as_deref() {
                             rt.taint
                                 .mark(sid, tu.capability_id.as_deref().unwrap_or(&tu.name))
@@ -1515,7 +1583,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             // デバイス側の capability が「ラベル付きの内容を返した」と申告したら汚染
             if let Ok(v) = &outcome {
                 if v.get("tainted").and_then(Value::as_bool) == Some(true) {
-                    state.taint_turn();
+                    state.taint_turn(tu.capability_id.as_deref().unwrap_or(&tu.name));
                     if let Some(sid) = state.req.session_id.as_deref() {
                         rt.taint
                             .mark(sid, tu.capability_id.as_deref().unwrap_or(&tu.name))
@@ -1527,7 +1595,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
         };
         if !is_error && tu.untrusted {
             // 他人の内容を読んだ: この turn (無人でも) と、以後このセッションは tainted
-            state.taint_turn();
+            state.taint_turn(tu.capability_id.as_deref().unwrap_or(&tu.name));
             if let Some(sid) = state.req.session_id.as_deref() {
                 rt.taint
                     .mark(sid, tu.capability_id.as_deref().unwrap_or(&tu.name))
@@ -1722,27 +1790,29 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
             state.next_index = 0;
             state.reject_reason = None;
             state.pending = prepare_pending(&rt, &state, &index, tool_uses).await;
-
-            if state
-                .pending
-                .iter()
-                .any(|p| p.needs_confirm && p.decision.is_none())
-            {
-                let items = collect_previews(&rt, &mut state).await;
-                if !items.is_empty() {
-                    match confirm::suspend(rt.clone(), &state, items) {
-                        Ok(()) => return,
-                        Err(e) => {
-                            // 要求を出せない (書込失敗) なら聞かずに拒否する
-                            tracing::warn!(turn_id, "cannot suspend for confirmation: {e}");
-                            for p in state.pending.iter_mut() {
-                                if p.needs_confirm && p.decision.is_none() {
-                                    p.decision = Some(false);
-                                }
-                            }
-                            state.reject_reason = Some("unavailable".into());
+        }
+        // 未決の確認があれば要求を出して戻る。再開後も残りがあればまた出す
+        // (記憶 / 人格の項目は 1 枚 1 件で順に聞く、#1162)
+        while state
+            .pending
+            .iter()
+            .any(|p| p.needs_confirm && p.decision.is_none())
+        {
+            let items = collect_previews(&rt, &mut state).await;
+            if items.is_empty() {
+                break;
+            }
+            match confirm::suspend(rt.clone(), &state, items) {
+                Ok(()) => return,
+                Err(e) => {
+                    // 要求を出せない (書込失敗) なら聞かずに拒否する
+                    tracing::warn!(turn_id, "cannot suspend for confirmation: {e}");
+                    for p in state.pending.iter_mut() {
+                        if p.needs_confirm && p.decision.is_none() {
+                            p.decision = Some(false);
                         }
                     }
+                    state.reject_reason = Some("unavailable".into());
                 }
             }
         }
@@ -2263,6 +2333,9 @@ mod tests {
                 .map(|e| e.kind.clone())
                 .collect()
         }
+        fn all(&self) -> Vec<AiTurnEvent> {
+            self.0.lock().unwrap().clone()
+        }
         fn last(&self) -> AiTurnEvent {
             self.0.lock().unwrap().last().unwrap().clone()
         }
@@ -2283,6 +2356,17 @@ mod tests {
                 tokio::time::sleep(Duration::from_millis(5)).await;
             }
             panic!("event {kind} did not arrive; got {:?}", self.kinds());
+        }
+        /// `kind` の n 番目 (0 始まり) が届くまで待つ
+        async fn wait_for_nth(&self, kind: &str, n: usize) -> AiTurnEvent {
+            for _ in 0..500 {
+                let hit = self.all().into_iter().filter(|e| e.kind == kind).nth(n);
+                if let Some(e) = hit {
+                    return e;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+            panic!("event {kind} #{n} did not arrive; got {:?}", self.kinds());
         }
     }
 
@@ -3254,6 +3338,56 @@ mod tests {
         assert!(h.sink.find("intent").is_none());
         let r = h.sink.find("tool_result").unwrap();
         assert!(r.text.unwrap().contains("unattended_denied"));
+    }
+
+    #[tokio::test]
+    async fn memory_items_are_confirmed_one_at_a_time_before_the_rest_of_the_round() {
+        // 1 ラウンドに notes.create と memory.update: 記憶は 1 枚 1 件で先に聞き、
+        // 承認したら残り (notes.create) が次の要求になる。他人の本文を読んだ経路と、
+        // 書こうとした文が他人の本文にそのまま出てくることも項目に乗る
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu0", "notes_show", json!({"noteId": "n1"}))],
+            vec![
+                tool_use("tu1", "notes_create", json!({"text": "hello"})),
+                tool_use(
+                    "tu2",
+                    "memory_update",
+                    json!({"action": "add", "target": "memory", "content": "secret phrase"}),
+                ),
+            ],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "the note says: secret phrase"}));
+        let h = harness(
+            provider,
+            &["notes.read", "notes.write", "ai.memory.write"],
+            device.clone(),
+        );
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        let first = h.sink.last();
+        assert_eq!(first.kind, "confirm_request");
+        let items = first.confirm_items.clone().unwrap();
+        assert_eq!(items.as_array().unwrap().len(), 1);
+        assert_eq!(items[0]["capabilityId"], "memory.update");
+        assert_eq!(items[0]["taintSources"], json!(["notes.show"]));
+        assert_eq!(items[0]["matchesUntrusted"], true);
+        assert_eq!(items[0]["storeSkill"], false);
+        confirm::respond(&first.confirm_request_id.clone().unwrap(), true).unwrap();
+        let second = h.sink.wait_for_nth("confirm_request", 1).await;
+        let items = second.confirm_items.clone().unwrap();
+        assert_eq!(items.as_array().unwrap().len(), 1);
+        assert_eq!(items[0]["capabilityId"], "notes.create");
+        assert_eq!(items[0]["matchesUntrusted"], false);
+        confirm::respond(&second.confirm_request_id.clone().unwrap(), false).unwrap();
+        h.sink.wait_for("done").await;
+        // 記憶は実行され、投稿は拒否された
+        let executed: Vec<String> = device
+            .executes()
+            .iter()
+            .map(|e| e["capabilityId"].as_str().unwrap_or("").to_string())
+            .collect();
+        assert!(executed.contains(&"memory.update".to_string()));
+        assert!(!executed.contains(&"notes.create".to_string()));
     }
 
     // --- 宛先の出所 (#1103) ---

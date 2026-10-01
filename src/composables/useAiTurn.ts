@@ -184,6 +184,12 @@ export interface AiConfirmItem {
   allowRemember: boolean
   /** 宛先が AI の読んだ他人の内容に由来する (プレビューに一文が添えてある) */
   destinationUntrusted?: boolean
+  /** この turn / セッションで読んだ他人の内容の経路 (capability id か context)。空なら汚染なし (#1162) */
+  taintSources?: string[]
+  /** 自分で選んだストアのキャラクター / skill が理由で確認している */
+  storeSkill?: boolean
+  /** 書こうとした文が他人の本文にそのまま出てくる (注入の疑い) */
+  matchesUntrusted?: boolean
 }
 
 export class AiTurnCancelledError extends Error {
