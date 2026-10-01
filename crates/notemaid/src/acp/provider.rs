@@ -609,13 +609,8 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
                             },
                             Ok(Some(Incoming::Permission { params, reply: permission_reply })) => {
                                 let tool = params.get("toolCall").cloned().unwrap_or(Value::Null);
-                                let title = tool.get("title").and_then(Value::as_str).unwrap_or("");
-                                let accepted = if notedeck_tool_name(title).is_some() {
-                                    // NoteDeck の capability: 認可と確認は実行時に NoteDeck 自身が
-                                    // 行う (external principal の権限 + dispatcher の確認ダイアログ)。
-                                    // ここで聞くと同じ操作を 2 度聞くことになる
-                                    true
-                                } else if touches_protected_paths(&params, &self.workspace) {
+                                // 保護パスの拒否は tool 名に関わらず最初に効かせる (名前は CLI の申告)
+                                let accepted = if touches_protected_paths(&params, &self.workspace) {
                                     // 人格 / 記憶のファイルは CLI からは書かせない (認可と汚染規則を
                                     // 通らないため)。人に聞かずに拒否し、tool の結果として残す (#1162)
                                     let call = tool_call_shown(&tool);
@@ -630,6 +625,11 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
                                         },
                                     ));
                                     false
+                                } else if passes_to_notedeck(&params) {
+                                    // NoteDeck の capability: 認可と確認は実行時に NoteDeck 自身が
+                                    // 行う (external principal の権限 + dispatcher の確認ダイアログ)。
+                                    // ここで聞くと同じ操作を 2 度聞くことになる
+                                    true
                                 } else {
                                     ask_permission(&self.harness.name, &req.stream_id, sink, &params).await
                                 };
@@ -650,6 +650,27 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
             result
         })
     }
+}
+
+/// 許可要求を聞かずに通してよいか: NoteDeck の MCP tool への要求で、ファイルやコマンドに
+/// 触る兆候が無いもの。tool 名は CLI の申告で出自の証明にならないので、名前だけでは
+/// 通さない (ファイル編集などを NoteDeck の tool 名で申告されても確認を出す)。MCP tool の
+/// 呼び出しは ACP では `kind: other` (または省略) で、`locations` を持たない
+pub fn passes_to_notedeck(params: &Value) -> bool {
+    let tool = params.get("toolCall").cloned().unwrap_or(Value::Null);
+    let title = tool.get("title").and_then(Value::as_str).unwrap_or("");
+    if notedeck_tool_name(title).is_none() {
+        return false;
+    }
+    let kind_ok = matches!(
+        tool.get("kind").and_then(Value::as_str),
+        None | Some("other")
+    );
+    let no_locations = tool
+        .get("locations")
+        .and_then(Value::as_array)
+        .is_none_or(|l| l.is_empty());
+    kind_ok && no_locations
 }
 
 /// 許可要求が人格 / 記憶のファイル (`notemaid/` の中、`workspace/` 以外) に触るか。
@@ -867,6 +888,30 @@ mod tests {
             }
             other => panic!("unexpected {}", describe(&other)),
         }
+    }
+
+    #[test]
+    fn only_plain_notedeck_mcp_calls_pass_without_asking() {
+        let ask = |tool: Value| passes_to_notedeck(&json!({ "toolCall": tool }));
+        assert!(ask(
+            json!({ "title": "mcp__notedeck__notes_search", "kind": "other", "rawInput": { "query": "a" } })
+        ));
+        assert!(ask(json!({ "title": "mcp__notedeck__account_list" })));
+        // NoteDeck の名前を名乗っても、ファイル / コマンドの兆候があれば聞く
+        assert!(!ask(
+            json!({ "title": "mcp__notedeck__notes_search", "kind": "edit" })
+        ));
+        assert!(!ask(
+            json!({ "title": "mcp__notedeck__notes_search", "kind": "execute" })
+        ));
+        assert!(!ask(
+            json!({ "title": "mcp__notedeck__notes_search", "kind": "other", "locations": [{ "path": "/x" }] })
+        ));
+        // NoteDeck 以外の tool は聞く
+        assert!(!ask(json!({ "title": "Bash", "kind": "other" })));
+        assert!(!ask(
+            json!({ "title": "mcp__notedeck__nope_nope", "kind": "other" })
+        ));
     }
 
     #[test]
