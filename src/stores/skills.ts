@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { emitNoteDeckEvent } from '@/aiscript/events'
+import { i18n } from '@/i18n'
 import { injectFrontmatterId } from '@/services/idFreeze'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { createSingleFileCollection } from '@/services/singleFileCollection'
@@ -13,6 +14,7 @@ import {
   serializeSkillFile,
 } from '@/utils/skillFrontmatter'
 import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 import { notifyWarningToast } from '@/utils/toastNotify'
 
 /**
@@ -96,6 +98,40 @@ export interface SkillMeta {
    * frontmatter には書かない (frontmatterFromMeta に含めないこと)。
    */
   fileBase?: string
+  /**
+   * 予約 skill (`skills/AGENTS.md` = 運用規約、`skills/HEARTBEAT.md` = 巡回の
+   * 手順、#1162)。ファイル名から決まる runtime-only の印で、id / ファイル名 /
+   * mode は固定、削除・改名・toggle・persona 化できない (notemaid も拒否する。
+   * ここは UI に出さないため)。黙らせるには本文を空にする
+   */
+  reserved?: boolean
+}
+
+export type ReservedSkillKind = 'agents' | 'heartbeat'
+
+/** 予約 skill のファイル名 (拡張子なし) → 種別。大文字小文字は区別する */
+export function reservedSkillKind(
+  fileBase: string,
+): ReservedSkillKind | undefined {
+  if (fileBase === 'AGENTS') return 'agents'
+  if (fileBase === 'HEARTBEAT') return 'heartbeat'
+  return undefined
+}
+
+const RESERVED_MODE: Record<ReservedSkillKind, SkillMode> = {
+  agents: 'always',
+  heartbeat: 'heartbeat',
+}
+
+/**
+ * 一覧・エディタに出す名前。予約 skill はファイル名ではなく役割の語
+ * (「ルール」/「巡回」) で見せる
+ */
+export function skillDisplayName(skill: SkillMeta): string {
+  const kind = skill.fileBase ? reservedSkillKind(skill.fileBase) : undefined
+  if (kind === 'agents') return i18n.ts._skills.reservedAgents
+  if (kind === 'heartbeat') return i18n.ts._skills.reservedHeartbeat
+  return skill.name
 }
 
 export function generateSkillId(name: string): string {
@@ -161,17 +197,23 @@ function frontmatterFromMeta(skill: SkillMeta): Record<string, unknown> {
   return out
 }
 
+/**
+ * `fallbackId` はファイルの basename (ID 凍結の実効値)。予約 skill の判定も
+ * ここから引く (mode はファイルが何と言おうと固定。notemaid の規則と同じ)
+ */
 function metaFromFrontmatter(
   fm: SkillFrontmatter,
   body: string,
   fallbackId: string,
 ): SkillMeta {
   const now = Date.now()
-  const mode: SkillMode =
-    fm.mode === 'always' ||
-    fm.mode === 'trigger' ||
-    fm.mode === 'heartbeat' ||
-    fm.mode === 'manual'
+  const reserved = reservedSkillKind(fallbackId)
+  const mode: SkillMode = reserved
+    ? RESERVED_MODE[reserved]
+    : fm.mode === 'always' ||
+        fm.mode === 'trigger' ||
+        fm.mode === 'heartbeat' ||
+        fm.mode === 'manual'
       ? fm.mode
       : 'manual'
   return {
@@ -192,8 +234,9 @@ function metaFromFrontmatter(
     builtIn: !!fm.builtIn,
     iconUrl: fm.iconUrl,
     cheapCheckCapabilities: asArray(fm.cheapCheckCapabilities),
-    isPersona: !!fm.isPersona,
+    isPersona: reserved ? false : !!fm.isPersona,
     ...(fm.tainted === true ? { tainted: true } : {}),
+    ...(reserved ? { reserved: true } : {}),
   }
 }
 
@@ -261,16 +304,27 @@ export const useSkillsStore = defineStore('skills', () => {
   // 持たないので無視する
   registerSettingsFileHandler('skills', async (change) => {
     if (!change.name.endsWith(settingsFs.SKILL_EXT)) return
-    const base = change.name.slice(0, -settingsFs.SKILL_EXT.length)
     if (change.op === 'delete') {
+      const base = change.name.slice(0, -settingsFs.SKILL_EXT.length)
       skills.value = skills.value.filter((s) => s.fileBase !== base)
       return
     }
+    await reloadFile(change.name)
+  })
+
+  /**
+   * 1 ファイルを読み直して写しに載せる (notemaid が書いた skill の取り込み。
+   * 変更通知と、通知を待たずに結果が要る呼び出し側の両方から使う)
+   */
+  async function reloadFile(filename: string): Promise<void> {
+    const base = filename.endsWith(settingsFs.SKILL_EXT)
+      ? filename.slice(0, -settingsFs.SKILL_EXT.length)
+      : filename
     let raw: string
     try {
-      raw = await settingsFs.readSkillFile(change.name)
+      raw = await settingsFs.readSkillFile(filename)
     } catch (e) {
-      console.warn(`[skills] reload ${change.name} failed:`, e)
+      console.warn(`[skills] reload ${filename} failed:`, e)
       return
     }
     const parsed = parseSkillFile(raw)
@@ -291,7 +345,7 @@ export const useSkillsStore = defineStore('skills', () => {
         ? skills.value.map((s, i) => (i === idx ? next : s))
         : [...skills.value, next]
     emitNoteDeckEvent('skill:edited', { id: next.id })
-  })
+  }
   let loaded = false
   // 変更系操作 (新規作成・リネーム・保存・削除) のファイル反映は
   // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)
@@ -326,6 +380,7 @@ export const useSkillsStore = defineStore('skills', () => {
     const idx = skills.value.findIndex((s) => s.id === id)
     const current = skills.value[idx]
     if (!current) return
+    if (current.reserved) throw new Error(i18n.ts._skills.reservedLocked)
     if ((current.active === true) === active) return
     const { active: _omit, ...rest } = current
     const next: SkillMeta = active ? { ...rest, active: true } : rest
@@ -377,8 +432,9 @@ export const useSkillsStore = defineStore('skills', () => {
     // スキルは本文の localStorage ミラーが無いため (b) 再作成は非適用
     // (外部削除 = 削除確定)
     if (settingsFs.isMainDeckWindow()) {
-      // (a) 規約外名の copy-adopt 正規化
-      await skillFiles.migrateItems(skills.value)
+      // (a) 規約外名の copy-adopt 正規化。予約 skill (AGENTS / HEARTBEAT) は
+      // 大文字のファイル名が正なので対象外 (notecore も改名を拒否する)
+      await skillFiles.migrateItems(skills.value.filter((s) => !s.reserved))
       // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
       await skillFiles
         .sweepHistory()
@@ -489,6 +545,16 @@ export const useSkillsStore = defineStore('skills', () => {
     if (idx < 0) return
     const current = skills.value[idx]
     if (!current) return
+    if (current.reserved) {
+      // 予約 skill は本文 (と説明) だけ。名前 / mode / persona 化は固定
+      const renaming =
+        typeof patch.name === 'string' && patch.name !== current.name
+      const remoding =
+        typeof patch.mode === 'string' && patch.mode !== current.mode
+      if (renaming || remoding || patch.isPersona === true) {
+        throw new Error(i18n.ts._skills.reservedLocked)
+      }
+    }
     const prevSnapshot = {
       body: current.body,
       name: current.name,
@@ -578,6 +644,7 @@ export const useSkillsStore = defineStore('skills', () => {
     const idx = skills.value.findIndex((s) => s.id === id)
     const target = skills.value[idx]
     if (!target) return undefined
+    if (target.reserved) throw new Error(i18n.ts._skills.reservedLocked)
     skills.value = skills.value.filter((s) => s.id !== id)
     if (settingsFs.isTauri) {
       // 主ファイル + 履歴サイドカーを削除 (ready 待ち)
@@ -622,6 +689,21 @@ export const useSkillsStore = defineStore('skills', () => {
     update(id, { mode: enabled ? 'heartbeat' : 'manual' })
   }
 
+  /**
+   * 巡回の手順 (予約 skill `HEARTBEAT.md`、#1162) を無ければ置いて (冪等)、
+   * その skill id を返す。置くのは notemaid で、デバイスは結果を写しに載せる
+   * だけ (変更通知を待たずに読み直し、開いたエディタが「見つかりません」を
+   * 挟まないようにする)
+   */
+  async function seedHeartbeatSteps(): Promise<string> {
+    ensureLoaded()
+    const meta = unwrap(await commands.maidHeartbeatStepsSeed())
+    if (meta.fileBase) {
+      await reloadFile(`${meta.fileBase}${settingsFs.SKILL_EXT}`)
+    }
+    return meta.id
+  }
+
   // --- trigger mode ---
 
   /**
@@ -663,8 +745,10 @@ export const useSkillsStore = defineStore('skills', () => {
     update,
     recordStoreBaseline,
     remove,
+    reloadFile,
     heartbeatSkills,
     setHeartbeat,
+    seedHeartbeatSteps,
     triggerMatchingSkillIds,
   }
 })

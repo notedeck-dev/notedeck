@@ -1370,6 +1370,14 @@ export interface Locale {
     readonly "residentStopped": string
     /** AI のプロセスの版がこのアプリと一致していません。更新してください。 */
     readonly "versionMismatch": string
+    /** 巡回の手順 */
+    readonly "steps": string
+    /** 巡回の手順を編集 */
+    readonly "editSteps": string
+    /** 巡回の手順が空です。編集するまで巡回は行われません。 */
+    readonly "stepsEmpty": string
+    /** 巡回の手順を開けませんでした: {reason} */
+    readonly "stepsOpenFailed": ParameterizedString<'reason'>
   }
   readonly "_aiPersonaSection": {
     /** ペルソナ */
@@ -2525,6 +2533,14 @@ export interface Locale {
     /** スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (デフォルトは読み取りのみ) */
     readonly "scratchpadHint": string
   }
+  readonly "_skills": {
+    /** ルール */
+    readonly "reservedAgents": string
+    /** 巡回 */
+    readonly "reservedHeartbeat": string
+    /** 予約スキルの名前・モード・ペルソナ・有効/無効・削除は変えられません。黙らせるには本文を空にします。 */
+    readonly "reservedLocked": string
+  }
   readonly "_skillEditContent": {
     /** スキルが見つかりません */
     readonly "notFound": string
@@ -2576,6 +2592,8 @@ help */
     readonly "fromStoreNote": string
     /** 未保存の変更 */
     readonly "unsavedChanges": string
+    /** 黙らせるには本文を空にします。 */
+    readonly "reservedNote": string
   }
   readonly "_tasksEditorContent": {
     /** 宣言したタスクはコマンドパレットと Task Runner カラムから実行できます。 */
@@ -3168,6 +3186,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "newSkillName": string
     /** 指示文をここに記述します。 */
     readonly "newSkillBody": string
+    /** 予約スキル: 名前とモードは固定で、削除できません */
+    readonly "reservedHint": string
   }
   readonly "_deckTaskRunnerColumn": {
     /** 履歴をクリア */
