@@ -220,6 +220,12 @@ export interface AiConfig {
    * いう同一性設定として扱う (= AI 設定全体の一部)。
    */
   personaSkillId?: string
+  /**
+   * 「あなたのことを覚える」(#1162)。false で USER.md の注入と記録を止める
+   * (削除はしない。「すべて忘れる」が別)。書くのは notemaid (`maidUserMemorySet`)
+   * で、デバイスは ai.json5 の変更通知で追従する。default: true
+   */
+  userMemory: boolean
 }
 
 /**
@@ -357,6 +363,7 @@ export function defaultConfig(): AiConfig {
       desktopNotification: defaultFileConfig.heartbeat.desktopNotification,
     },
     generation: normalizeGenerationConfig(defaultFileConfig.generation),
+    userMemory: defaultFileConfig.userMemory !== false,
   }
 }
 
@@ -502,6 +509,7 @@ function mergeConfig(base: AiConfig, partial: Partial<AiConfig>): AiConfig {
     ...(partial.budgets ?? {}),
   })
   result.harnesses = normalizeHarnesses(partial.harnesses ?? base.harnesses)
+  result.userMemory = partial.userMemory ?? base.userMemory
   return result
 }
 
