@@ -139,6 +139,9 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       visible: d.visible === true,
       untrusted: d.untrusted === true,
       unattended: d.unattended === true,
+      alwaysConfirm: d.alwaysConfirm === true,
+      confirmKeyParams: Array.isArray(d.confirmKeyParams) ? [...d.confirmKeyParams] : [],
+      unattendedDeny: d.unattendedDeny === true,
       destinations,
       exec,
       description: expand(d.description ?? ''),
@@ -194,6 +197,12 @@ export function renderTs(decls) {
     '  untrusted: boolean',
     '  /** 無人実行 (HEARTBEAT) でも確認なしで走ってよい (権限だけで gate) */',
     '  unattended: boolean',
+    '  /** 「次から確認しない」の記憶で省略できない (毎回確認、#1162) */',
+    '  alwaysConfirm: boolean',
+    '  /** 「次から確認しない」の記憶キーに混ぜる引数名 (引数の値ごとに別々に覚える) */',
+    '  confirmKeyParams: readonly string[]',
+    '  /** 無人実行 (HEARTBEAT) からは実行しない (書込意図にもしない) */',
+    '  unattendedDeny: boolean',
     '  /** 書き込みの宛先になる引数 (値の出所を判定する) */',
     '  destinations: readonly string[]',
     '  exec: CapabilityExec',
@@ -227,6 +236,9 @@ export function renderTs(decls) {
     lines.push(`    visible: ${d.visible},`)
     lines.push(`    untrusted: ${d.untrusted},`)
     lines.push(`    unattended: ${d.unattended},`)
+    lines.push(`    alwaysConfirm: ${d.alwaysConfirm},`)
+    lines.push(`    confirmKeyParams: ${ts(d.confirmKeyParams)},`)
+    lines.push(`    unattendedDeny: ${d.unattendedDeny},`)
     lines.push(`    destinations: ${ts(d.destinations)},`)
     lines.push(`    exec: ${ts(d.exec)},`)
     lines.push(`    description: ${ts(d.description)},`)
@@ -281,6 +293,9 @@ export function renderRs(decls) {
       `        visible: ${d.visible},`,
       `        untrusted: ${d.untrusted},`,
       `        unattended: ${d.unattended},`,
+      `        always_confirm: ${d.alwaysConfirm},`,
+      `        confirm_key_params: &[${d.confirmKeyParams.map(rs).join(', ')}],`,
+      `        unattended_deny: ${d.unattendedDeny},`,
       `        destinations: &[${d.destinations.map(rs).join(', ')}],`,
       `        exec: Exec::${pascal(d.exec)},`,
       `        description: ${rs(d.description)},`,

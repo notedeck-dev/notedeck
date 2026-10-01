@@ -15,18 +15,18 @@ import { useAiConversation } from '@/composables/useAiConversation'
 import { useAiHarnesses } from '@/composables/useAiHarnesses'
 import {
   buildAiContextBlock,
-  joinSystemPrompt,
-  projectMemos,
   projectRecentConversation,
   projectVisibleItems,
 } from '@/composables/useAiSystemContext'
 import { useAiTurn } from '@/composables/useAiTurn'
-import { ensureMemosLoaded, loadAllMemos } from '@/composables/useMemos'
+import { useBootstrapPending } from '@/composables/useAiWorkspace'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
 import { i18n } from '@/i18n'
 import { nativeField } from '@/i18n/native'
+import { describeToolUse } from '@/services/aiToolSummary'
+import { turnIdOf } from '@/services/aiTurnIds'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -38,6 +38,7 @@ import {
 import { usePrompt } from '@/stores/prompt'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
+import { useWindowsStore } from '@/stores/windows'
 import {
   generateSessionTitle,
   isTimestampTitle,
@@ -49,6 +50,7 @@ import { isImeComposing } from '@/utils/ime'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { createRenderCache } from '@/utils/renderCache'
 import { renderSimpleMarkdown } from '@/utils/simpleMarkdown'
+import { isWindowExposed } from '@/windows/exposure'
 import DeckColumnComponent from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -73,10 +75,6 @@ const vault = useVault()
 const harnesses = useAiHarnesses()
 
 void sessionsStore.loadAllMeta()
-// メモは <memos> データソースとして AI context に注入し得るので、
-// AI カラムが mount された時点で in-memory cache をウォームアップしておく
-// (sendMessage は同期 cache 取得しか行わないため)。
-void ensureMemosLoaded()
 
 const { config: aiConfig } = useAiConfig()
 
@@ -340,6 +338,36 @@ function startAiSetupTutorial(): void {
   useTutorialStore().startCategory('mastery')
 }
 
+// --- 初回の挨拶 (#1162) ---
+//
+// notemaid は新品のワークスペースに BOOTSTRAP.md (first-run ritual) を置き、人格か
+// 記憶が変わるか「あなたのことを覚える」が OFF になると消す。それがある間だけ、
+// セッション一覧の空状態に AI を呼ばずに出せるローカル文の挨拶と「呼び方を教える」
+// を出す。儀式そのものは BOOTSTRAP.md を読んだ AI が進めるので、ボタンは最初の
+// 一言を普通の送信経路で送るだけ (新規セッションは sendMessage が作る)。
+const { pending: bootstrapPending, refresh: refreshBootstrap } =
+  useBootstrapPending()
+
+const showBootstrapGreeting = computed(
+  () => bootstrapPending.value && providerStatus.value === 'connected',
+)
+
+function startBootstrap(): void {
+  void sendMessage(i18n.ts._deckAiColumn.bootstrapKickoff)
+}
+
+// 接続が後から整った (起動直後の Vault 読込待ち) ときに拾い直す
+watch(providerStatus, (s) => {
+  if (s === 'connected') void refreshBootstrap()
+})
+
+/** 「この応答に送った指示」(#1162、開発者モード): そのターンの system prompt を窓で開く */
+function openTurnPrompt(msg: ChatMessage): void {
+  const turnId = turnIdOf(msg.id)
+  if (!turnId) return
+  useWindowsStore().open('ai-turn-prompt', { turnId })
+}
+
 // カラム表示時に接続一覧を最新化する (watch が connections.value の変化を
 // 拾って checkProvider を再評価する)。
 void vault.refresh()
@@ -466,33 +494,14 @@ async function sendMessage(
   // rename していたら上書きしない
   const titleBefore = sessionsStore.get(sessionId)?.title ?? ''
 
-  // Persona (#491) — session 作成時 snapshot された personaSkillId を読む
-  // (= 過去 session は当時の persona、新規 session は aiConfig 由来のデフォルト)。
-  // skill body を skillsPrompt に session-only で含め、<persona> block を
-  // system prompt に注入。dangling 時は通常チャット動作。
-  const personaSkillId =
-    sessionsStore.get(sessionId)?.personaSkillId || undefined
-  const personaIdentity = personaSkillId
-    ? resolveIdentity(`skill:${personaSkillId}`)
-    : null
-  // identity が解決できない (= 該当 skill 不在 or isPersona=false) なら扱わない
-  const effectivePersonaSkillId = personaIdentity ? personaSkillId : undefined
   // mode='trigger' な skill のうち、今回の user 入力に triggers が部分一致した
   // ものをセッションへ累積し、以降のターンはトリガー語なしでも維持する
-  // (#725 session-sticky)。activeIds は汚さず、新規セッション作成で空に戻る。
-  // 削除済み skill の dangling id は composedSystemPrompt が無視する。
-  // ターン中 (tool round 反復) は同じ skillsPrompt を使う = 初回入力で確定。
+  // (#725 session-sticky)。本文の注入と persona (session の snapshot) の解決は
+  // notemaid が行う (#1162)。削除済み skill の dangling id は notemaid が無視する
   const triggerIds = skillsStore.triggerMatchingSkillIds(text)
   sessionsStore.addTriggeredSkillIds(sessionId, triggerIds)
   const sessionTriggerIds =
     sessionsStore.get(sessionId)?.triggeredSkillIds ?? []
-  const extraSkillIds = [
-    ...(effectivePersonaSkillId ? [effectivePersonaSkillId] : []),
-    ...sessionTriggerIds,
-  ]
-  const skillsPrompt =
-    skillsStore.composedSystemPrompt(extraSkillIds, effectivePersonaSkillId) ||
-    ''
   // ユーザーが Timeline をクリックしていないケースに備えて、fallback として
   // 画面上に存在する最初の TIMELINE_LIKE カラムを使う。
   const focusedColumnId =
@@ -507,7 +516,6 @@ async function sendMessage(
     : undefined
   const visibleItems = projectVisibleItems(visibleNotesRaw, focusedColumn?.type)
 
-  let injectedMemosTainted = false
   const outcome = await turn.run({
     sessionId,
     text,
@@ -520,30 +528,19 @@ async function sendMessage(
     continuation,
     // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す
     generation: normalizeGenerationConfig(aiConfig.value.generation),
-    // 可視ノート (他人の投稿) やラベル付きのメモ / skill を文脈に入れるなら、
-    // このセッションは tainted (#1103)。メモは buildSystem で決まる
-    contextUntrusted: () =>
-      visibleItems.length > 0 ||
-      injectedMemosTainted ||
-      skillsStore.composedSkillsTainted(extraSkillIds, effectivePersonaSkillId),
+    // 可視ノート (他人の投稿) を文脈に入れるなら、このセッションは tainted (#1103)。
+    // ラベル付き skill は notemaid が見る
+    contextUntrusted: () => visibleItems.length > 0,
+    triggerSkillIds: sessionTriggerIds,
     generateTitle: true,
     onTitle: (title) => {
       const cur = sessionsStore.get(sessionId)
       if (cur && cur.title === titleBefore)
         sessionsStore.setTitle(sessionId, title)
     },
-    // デバイス文脈 (メモ / 可視ノート / vault 開示状態) はターン開始時の
+    // デバイス文脈 (可視ノート / vault 開示状態) はターン開始時の
     // スナップショット。history は turn が組み立てた wire history
     buildSystem: async (history) => {
-      // メモはアカウントに紐づかない (#1018) ので全件を context に含める。
-      // AI カラム自体もアカウントなしなので、参照範囲が食い違わない。
-      const memoEntries = Object.entries(loadAllMemos())
-
-      // memosConfig.excludeTags があれば AI 注入から該当 tag メモを除外 (#492)。
-      // expandLinks / includeBacklinks (#494) も同 config で制御 (default true)。
-      const memosCfg = aiConfig.value.dataSources.memosConfig
-      const allMemosByAccount = new Map([['', loadAllMemos()]])
-
       // Secret Vault (#564): Ai クラスに開示された接続を AI に見せる (#712 §6.1)。
       // secret / id は渡さず name / baseUrl / auth のみ projection する。
       await vault.refresh()
@@ -555,16 +552,6 @@ async function sendMessage(
           auth: describeAuthType(c.authType),
         }))
 
-      const injectedMemos = projectMemos(memoEntries, {
-        excludeTags: memosCfg?.excludeTags,
-        expandLinks: memosCfg?.expandLinks !== false,
-        includeBacklinks: memosCfg?.includeBacklinks !== false,
-        allMemosByAccount,
-      })
-      const memosAll = loadAllMemos()
-      injectedMemosTainted = injectedMemos.some(
-        (m) => memosAll[m.id]?.data.tainted === true,
-      )
       const contextBlock = buildAiContextBlock(aiConfig.value, {
         currentAccount: props.column.accountId
           ? (accountsStore.accountMap.get(props.column.accountId) ?? null)
@@ -572,18 +559,10 @@ async function sendMessage(
         currentColumn: focusedColumn ?? props.column,
         visibleNotes: visibleItems,
         recentConversation: projectRecentConversation(history),
-        memos: injectedMemos,
         accounts: accountsStore.accounts,
-        persona: personaIdentity
-          ? {
-              id: personaIdentity.id,
-              displayName: personaIdentity.displayName,
-              bio: personaIdentity.bio,
-            }
-          : undefined,
         availableConnections,
       })
-      return joinSystemPrompt(skillsPrompt, contextBlock)
+      return contextBlock || undefined
     },
   })
 
@@ -953,8 +932,17 @@ function onKeydown(e: KeyboardEvent) {
 
     <!-- View: sessions list (master) -->
     <div v-if="viewMode === 'sessions'" :class="$style.sessionsBody">
+      <!-- 初回の挨拶 (#1162): BOOTSTRAP.md がある間だけ。AI は呼ばないローカル文 -->
       <ColumnEmptyState
-        v-if="totalSessions === 0"
+        v-if="totalSessions === 0 && showBootstrapGreeting"
+        :message="i18n.ts._deckAiColumn.bootstrapGreeting"
+        fallback-kind="info"
+        :cta-label="i18n.ts._deckAiColumn.bootstrapCta"
+        cta-icon="ti-message-circle"
+        @cta="startBootstrap"
+      />
+      <ColumnEmptyState
+        v-else-if="totalSessions === 0"
         :message="i18n.ts._deckAiColumn.noSessions"
         fallback-kind="info"
       />
@@ -1075,6 +1063,8 @@ function onKeydown(e: KeyboardEvent) {
               <i class="ti ti-tool" :class="$style.toolIcon" />
               <span :class="$style.toolEventLabel">{{ i18n.ts._deckAiColumn.toolCall }}</span>
               <code :class="$style.toolEventName">{{ msg.toolUseName }}</code>
+              <!-- 記憶 / 人格の更新は引数 JSON の代わりに人間語の差分 1 行 (#1162) -->
+              <span v-if="describeToolUse(msg.toolUseName, msg.toolUseInput)" :class="$style.toolEventSummary">{{ describeToolUse(msg.toolUseName, msg.toolUseInput) }}</span>
               <i
                 class="ti"
                 :class="[
@@ -1194,6 +1184,16 @@ function onKeydown(e: KeyboardEvent) {
                 @click="copyMessage(msg)"
               >
                 <i :class="copiedMessageId === msg.id ? 'ti ti-check' : 'ti ti-copy'" />
+              </button>
+              <!-- 「この応答に送った指示」(#1162): 開発者モードのときだけ、hover で出す -->
+              <button
+                v-if="msg.role === 'assistant' && !isGenerating && isWindowExposed('ai-turn-prompt') && turnIdOf(msg.id)"
+                class="_button"
+                :class="$style.copyBtn"
+                :title="i18n.ts._windows.aiTurnPrompt"
+                @click="openTurnPrompt(msg)"
+              >
+                <i class="ti ti-file-text" />
               </button>
             </div>
           </div>
@@ -1754,6 +1754,15 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
   color: var(--nd-accent);
+}
+
+.toolEventSummary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85em;
+  color: var(--nd-fgMuted);
 }
 
 .toolEventPreview {

@@ -17,7 +17,6 @@ use super::TurnState;
 use notecli::error::NoteDeckError;
 use notecore::error::Result;
 
-const DIR_NAME: &str = "ai-turns";
 /// 閉じた記録を残す期間
 const CLOSED_RETENTION: Duration = Duration::from_secs(7 * 24 * 60 * 60);
 
@@ -36,8 +35,9 @@ enum Stored {
     Closed(ClosedTurn),
 }
 
+/// turn の状態の置き場 (`notedeck/notemaid/turns/`。移行前の `ai-turns/` に fallback、#1162)
 pub fn dir(app_dir: &Path) -> PathBuf {
-    app_dir.join("notedeck").join(DIR_NAME)
+    crate::migrations::turns_dir(app_dir)
 }
 
 fn file_name(turn_id: &str) -> String {

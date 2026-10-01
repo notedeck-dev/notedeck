@@ -1,5 +1,5 @@
 ---
-sourceHash: 574a2e64954a
+sourceHash: f6d58ea6d289
 ---
 
 # Settings files
@@ -39,9 +39,11 @@ The same menu also opens the log, download and backup folders.
 
 Some things are kept as folders.
 
-`profiles/` `themes/` `plugins/` `widgets/` `skills/` `queries/` `snippets/` `memos/` `sessions/`
+`profiles/` `themes/` `plugins/` `widgets/` `skills/` `queries/` `snippets/` `memos/` `sessions/` `notemaid/`
 
 `memos/` contains plain Markdown files, so you can open it as an Obsidian vault.
+
+`notemaid/` holds the AI's personality and memory: three Markdown files, `SOUL.md` (personality), `USER.md` (what it remembers about you) and `MEMORY.md` (notes), plus a first-run-only `BOOTSTRAP.md`. Editing them in an external editor takes effect from the next conversation (the AI is told they were changed outside NoteDeck). `AGENTS.md` (rules) and `HEARTBEAT.md` (rounds) under `skills/` have fixed names and roles and cannot be deleted or renamed. Only the three Markdown files go into backups.
 
 ::: tip API keys are not here
 Access tokens and AI API keys are in the OS keychain. Even if you hand the settings folder to someone as is, no keys are included.

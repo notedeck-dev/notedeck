@@ -44,6 +44,7 @@ export type WindowType =
   | 'connectionEdit'
   | 'tutorial'
   | 'tutorialEditor'
+  | 'ai-turn-prompt'
 
 export interface DeckWindow {
   id: string
@@ -100,6 +101,7 @@ export const useWindowsStore = defineStore('windows', () => {
     'skill-edit': ['skillId'],
     'edit-history': ['kind', 'basename'],
     connectionEdit: ['connectionId'],
+    'ai-turn-prompt': ['turnId'],
   }
 
   /** Types that are always singletons (at most one instance). */

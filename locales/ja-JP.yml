@@ -108,6 +108,7 @@ _windows:
   connectionEdit: "接続を編集"
   tutorial: "チュートリアル"
   tutorialEditor: "チュートリアル"
+  aiTurnPrompt: "この応答に送った指示"
 
 _commands:
   commandPalette: "コマンドパレット"
@@ -619,7 +620,7 @@ _devDashboard:
   webviewFixedCost: "WebView 起動固定費"
   waterfall: "ウォーターフォール"
   noStartupData: "計測データなし — アプリ起動後に「更新」で取得します"
-  heartbeatDesc: "global daemon の観測面 (#411)。連続 3 回失敗で自動 disable する silent fail 防止機構つき"
+  heartbeatDesc: "定期的に様子を見て、必要なときだけ知らせます。連続 3 回失敗すると自動で止まります"
   daemonTickRunning: "daemon (tick 実行中)"
   lastTick: "最終 tick"
   lastTickWithSource: "最終 tick ({source})"
@@ -704,17 +705,14 @@ _aiConnectionSection:
   harnessHint: "ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。"
   harnessFound: "見つかりました"
   harnessNotFound: "見つかりません"
+  harnessUserMemory: "あなたについての記憶も渡す"
+  harnessUserMemoryHint: "オンにすると「あなたについて覚えていること」が CLI の提供元に送られ、CLI 自身の記憶に残ることがあります。"
   harnessBlocked: "利用不可"
   harnessBlockedHint: "Google の規約で、Gemini CLI のログインを他のアプリから使うことは禁止されています。"
   harnessRelayNote: "Claude を使うときはこの CLI 経由ではなく Claude Agent を選んでください。"
 
 _aiDataSourcesSection:
   title: "データソース"
-  memosTitle: "メモの渡し方"
-  expandLinks: "リンク先メモを展開"
-  expandLinksDescription: "本文の `[name](memo:<id>)` で参照されているメモを 1 階層自動で AI に渡す。OFF にすると AI は明示的に `memos.backlinks` 等を呼ばない限り参照先を見ない。"
-  includeBacklinks: "バックリンクを添付"
-  includeBacklinksDescription: "各メモに `referencedBy: [...]` を付けて「どのメモから参照されているか」を AI に伝える。"
   currentAccount: "現在のアカウント"
   currentAccountDescription: "ログイン中のアカウント情報を AI に渡す (トークン等は除外)"
   currentColumn: "現在のカラム"
@@ -723,12 +721,6 @@ _aiDataSourcesSection:
   visibleNotesDescription: "画面に表示中のアイテム (ノート / 通知 / ドライブファイル等) を context に含める"
   recentConversation: "AI 会話履歴 (上限 20 ターン)"
   recentConversationDescription: "直近の会話を context に含める"
-  memos: "ローカルメモ (上限 20 件)"
-  memosDescription: "Zettelkasten 形式のローカルメモを context に含める (現在のアカウントのみ)"
-  memosStandard: "標準"
-  memosLinksOnly: "リンク展開のみ"
-  memosBacklinksOnly: "バックリンクのみ"
-  memosBodyOnly: "本文のみ"
 
 _aiGenerationSection:
   title: "生成"
@@ -752,6 +744,7 @@ _aiHeartbeatSection:
   minutes: "分"
   desktopNotification: "デスクトップ通知"
   desktopNotificationDescription: "重要発見 (HEARTBEAT_OK 以外) を OS 通知で表示。アプリにフォーカスがあれば自動抑制"
+  cheapCheck: "まず軽く確認"
   cheapCheckDescription: "変化なしなら AI を起動せず HEARTBEAT_OK 扱い (skill 側で cheapCheckCapabilities の宣言が必要)"
   maxSkipHours: "最大連続 skip 時間"
   hours: "時間"
@@ -772,12 +765,31 @@ _aiHeartbeatSection:
   runtimeDisconnected: "AI のプロセスに繋がっていません: {reason}"
   residentStopped: "常駐タスクは停止中"
   versionMismatch: "AI のプロセスの版がこのアプリと一致していません。更新してください。"
+  steps: "巡回の手順"
+  editSteps: "巡回の手順を編集"
+  stepsEmpty: "巡回の手順が空です。編集するまで巡回は行われません。"
+  stepsOpenFailed: "巡回の手順を開けませんでした: {reason}"
 
-_aiPersonaSection:
-  title: "ペルソナ"
-  none: "なし"
-  hint: "新規セッションのデフォルトです。過去のセッションは作成時のペルソナを保持します。"
-  noCandidates: "ペルソナ候補がありません。Skill 編集ウィンドウで「Persona」を ON にしたスキルがここに表示されます。"
+_aiPersonalitySection:
+  title: "AI の人格と記憶"
+  soul: "人格"
+  soulPlaceholder: "AI の核になる人格。キャラクターを切り替えても変わりません。"
+  character: "キャラクター"
+  characterNone: "なし"
+  characterHint: "新しいセッションから反映されます。過去のセッションは作成時のキャラクターのままです。"
+  noCharacters: "候補がありません。スキルの編集で「キャラクター候補にする」を ON にしたスキルがここに出ます。"
+  userTitle: "あなたについて覚えていること"
+  userToggle: "あなたのことを覚える"
+  userOffNote: "あなたについての記憶は OFF です。新しいことは記録されません。「すべて忘れる」までは、この内容はバックアップに含まれたままです。"
+  sentNote: "この内容は使用中の AI プロバイダーに送られます。手元の CLI を選んでいるときは、その CLI にも渡ります。"
+  memoryTitle: "覚え書き"
+  empty: "まだ何も覚えていません。"
+  forgetAll: "すべて忘れる"
+  forgetAllUserConfirm: "あなたについて覚えていることをすべて消します。この操作は取り消せません。"
+  forgetAllMemoryConfirm: "覚え書きをすべて消します。この操作は取り消せません。"
+  full: "いっぱいです。AI に整理を頼めます。"
+  externallyChanged: "NoteDeck の外で変更されています。"
+  saveFailed: "保存できませんでした: {message}"
 
 _userProfileAchievementsPane:
   empty: "実績がありません"
@@ -1023,6 +1035,9 @@ _noteInspectorContent:
   activityPubObject: "{endpoint} 経由で解決した ActivityPub オブジェクト"
   uriNotFound: "URI を特定できませんでした"
 
+_aiTurnPromptContent:
+  hint: "この応答のために AI に送った指示 (system prompt) です。保存はされず、直近の数ターンだけ見られます。"
+  gone: "この応答の指示はもう残っていません (直近の数ターンだけ保持します)。"
 _notificationInspectorContent:
   inMemoryObject: "メモリ上の通知オブジェクト"
   activityPubObject: "{endpoint} 経由で解決した ActivityPub オブジェクト"
@@ -1414,6 +1429,11 @@ _permissionsContent:
   externalHint: "HTTP API (永続トークン) 経由の外部アプリに許可する操作"
   scratchpadHint: "スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (デフォルトは読み取りのみ)"
 
+_skills:
+  reservedAgents: "ルール"
+  reservedHeartbeat: "巡回"
+  reservedLocked: "予約スキルの名前・モード・ペルソナ・有効/無効・削除は変えられません。黙らせるには本文を空にします。"
+
 _skillEditContent:
   notFound: "スキルが見つかりません"
   meta: "メタ"
@@ -1430,15 +1450,16 @@ _skillEditContent:
   modeManual: "手動"
   modeTrigger: "自動"
   modeHeartbeat: "HEARTBEAT (定期実行)"
-  heartbeatHint: "HEARTBEAT 有効時、tick ごとにこの skill body を AI に読ませます (#411 / OpenClaw HEARTBEAT.md 相当)。"
+  heartbeatHint: "HEARTBEAT 有効時、巡回のたびにこのスキルの本文を AI に読ませます。"
   triggerHint: "自動起動: ユーザーの入力に下のトリガー語のいずれかが含まれたターンだけ、この skill body が system prompt に注入されます (大文字小文字無視の部分一致)。"
   triggers: "トリガー語 (1 行に 1 つ)"
   triggersPlaceholder: "どこ\n使い方\nhelp"
   triggersOnlyInTriggerMode: "トリガー語はモードを「自動」にしたときだけ反応します"
-  personaToggle: "このスキルを AI セッションの persona 候補にする"
-  personaHint: "ON にすると、AI セッションヘッダーの persona セレクターにこのスキルが表示されます。選択中のセッションで AI はこの persona として振る舞い、memo の作者として記録されます (#491)。"
+  personaToggle: "このスキルを AI のキャラクター候補にする"
+  personaHint: "ON にすると、AI 設定の「キャラクター」にこのスキルが出ます。選ぶと AI はこのキャラクターとして振る舞い、メモの作者として記録されます。"
   fromStoreNote: "ストア由来のスキル — 編集内容はローカルファイルに保存されます (再インストールで上書きされる可能性あり)"
   unsavedChanges: "未保存の変更"
+  reservedNote: "黙らせるには本文を空にします。"
 
 _tasksEditorContent:
   visualHint: "宣言したタスクはコマンドパレットと Task Runner カラムから実行できます。"
@@ -1511,7 +1532,12 @@ _themeEditorContent:
   deleted: "テーマを削除しました"
 
 _deckAiColumn:
-  personaIndicator: "Persona: {name} (エージェント設定で変更)"
+  _toolSummary:
+    targetUser: "あなたについて"
+    targetMemory: "覚え書き"
+    soulPropose: "人格の書き換えを提案"
+    soulProposeWithReason: "人格の書き換えを提案: {reason}"
+  personaIndicator: "キャラクター: {name} (AI 設定で変更)"
   backToSessions: "セッション一覧へ戻る"
   searchSessions: "セッションを検索..."
   noSessions: "セッションはまだありません"
@@ -1550,6 +1576,9 @@ _deckAiColumn:
   intentRunFailed: "実行できませんでした: {error}"
   setupRequiredMessage: "AI の API キーが設定されていないため、この質問には応答できません。\n\nAI プロバイダーの API キーを登録すると使えるようになります。下の「{button}」からチュートリアルを開けます。\n\n`/help` などの / コマンドは API キーなしで実行できます。"
   slashRunTitle: "{command} の実行"
+  bootstrapGreeting: "まだ何も覚えていません。呼び方を教えてもらえれば、次から名前で話します。"
+  bootstrapCta: "呼び方を教える"
+  bootstrapKickoff: "はじめまして。まずあなたの名前と雰囲気を一緒に決めて、それから私の呼び方を聞いてください。"
 
 _deckClientSearchColumn:
   searchPlaceholder: "手元のノートを検索..."
@@ -1738,7 +1767,7 @@ _deckSkillColumn:
   deleteFromLibrary: "ライブラリから削除 (本文も消えます)"
   deactivate: "無効化"
   activate: "有効化"
-  alwaysActive: "mode=always は常時有効"
+  alwaysActive: "常時有効のスキルです"
   noMatches: "一致するスキルがありません"
   empty: "スキルがインストールされていません"
   installedMark: "インストール済み"
@@ -1751,6 +1780,7 @@ _deckSkillColumn:
   modeTrigger: "自動"
   newSkillName: "新規スキル"
   newSkillBody: "指示文をここに記述します。"
+  reservedHint: "予約スキル: 名前とモードは固定で、削除できません"
 
 _deckTaskRunnerColumn:
   clearHistory: "履歴をクリア"
@@ -2362,6 +2392,7 @@ _labels:
     tasksRun: "ユーザー定義タスクの実行"
     aiInvoke: "AI 呼び出し (プラグイン / 外部経路から)"
     aiPersonaWrite: "AI persona の切り替え"
+    aiMemoryWrite: "AI の記憶の更新 (あなたについて / 覚え書き)"
     skillsRead: "スキルの読取"
     skillsWrite: "スキルの追記/編集"
     themeWrite: "テーマの作成/編集"
@@ -2422,6 +2453,10 @@ _readMarkerDivider:
   readUpToHere: "ここまで読みました"
 
 _aiConfirmRequests:
+  matchesUntrusted: "⚠ この文は AI が読んだ他人の投稿にそのまま出てきたものです。"
+  taintSources: "このセッションで読んだ他人の内容: {sources}"
+  taintSourceContext: "画面に見えていたノート"
+  storeSkill: "ストアから入れたキャラクター / スキルが有効なため、毎回確認します。"
   bundleTitle_plural:
     other: "{count} 件の操作の許可を求めています"
   runAll: "すべて実行"
@@ -3127,6 +3162,21 @@ _native:
         presetPowerSaving: "省電力寄り"
         presetRich: "リッチ寄り"
         presetBalanced: "バランス"
+    memory:
+      update:
+        title:
+          user: "あなたについて覚えていることを更新"
+          memory: "AI の覚え書きを更新"
+        add: "追加: {content}"
+        replace: "「{old}」を「{content}」に置き換え (前の項目は履歴に残ります)"
+        remove: "削除: {old}"
+        ok: "更新する"
+    soul:
+      propose:
+        title: "AI の人格の書き換えの提案"
+        message: "AI が自分の人格の核 (SOUL) の書き換えを提案しています。承認したときだけ変わります。"
+        messageWithReason: "AI が自分の人格の核 (SOUL) の書き換えを提案しています: {reason}。承認したときだけ変わります。"
+        ok: "承認して書き換える"
     persona:
       set:
         title: "AI persona を切り替え"
@@ -3185,6 +3235,11 @@ _native:
   backup:
     skippedSame: "スキップ (既存と内容が同じ): {items}"
     restoredRenamed: "別名で復元 (既存と衝突): {items} → {renamed}"
+    workspaceImportTitle: "AI の人格と記憶を置き換えますか？"
+    workspaceImportMessage: "バックアップに含まれる AI の人格と記憶 ({items}) で、今のものを置き換えます。置き換えない場合も、ほかの設定は復元されます。"
+    workspaceSoul: "人格"
+    workspaceUser: "あなたについて覚えていること"
+    workspaceMemory: "覚え書き"
     skippedBadFilename: "スキップ (不正なファイル名): {key}"
     skippedBadKey: "スキップ (不正なキー): {key}"
   notification:

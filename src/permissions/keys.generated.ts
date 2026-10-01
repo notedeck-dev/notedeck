@@ -24,6 +24,7 @@ export const PERMISSION_KEYS = [
   "tasks.run",
   "ai.invoke",
   "ai.persona.write",
+  "ai.memory.write",
   "skills.read",
   "skills.write",
   "theme.write",
@@ -73,6 +74,7 @@ export const PERMISSION_PRESETS: Record<
     "tasks.run": false,
     "ai.invoke": false,
     "ai.persona.write": false,
+    "ai.memory.write": false,
     "skills.read": true,
     "skills.write": false,
     "theme.write": false,
@@ -116,6 +118,7 @@ export const PERMISSION_PRESETS: Record<
     "tasks.run": true,
     "ai.invoke": true,
     "ai.persona.write": false,
+    "ai.memory.write": true,
     "skills.read": true,
     "skills.write": true,
     "theme.write": false,
@@ -159,6 +162,7 @@ export const PERMISSION_PRESETS: Record<
     "tasks.run": true,
     "ai.invoke": true,
     "ai.persona.write": true,
+    "ai.memory.write": true,
     "skills.read": true,
     "skills.write": true,
     "theme.write": true,
@@ -199,12 +203,14 @@ export const HIGH_RISK_PERMISSION_KEYS: readonly PermissionKey[] = [
 
 export const AI_INSTRUCTION_KEYS: readonly PermissionKey[] = [
   "ai.persona.write",
+  "ai.memory.write",
   "skills.write",
 ]
 
 export const THIRD_PARTY_DENY_KEYS: readonly PermissionKey[] = [
   "tasks.run",
   "ai.persona.write",
+  "ai.memory.write",
   "skills.write",
   "backup.create",
 ]

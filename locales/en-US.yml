@@ -101,6 +101,7 @@ _windows:
   connectionEdit: "Edit connection"
   tutorial: "Tutorial"
   tutorialEditor: "Tutorial"
+  aiTurnPrompt: "Instructions sent for this reply"
 
 _commands:
   commandPalette: "Command palette"
@@ -254,6 +255,10 @@ _capabilities:
     revert: "Revert memo to a past state"
     search: "Search memos"
     update: "Update memo"
+  memory:
+    update: "Update memory"
+  soul:
+    propose: "Propose a personality change"
   meta:
     activeSkills: "List active skills"
     config: "Current AI settings snapshot"
@@ -835,7 +840,7 @@ _devDashboard:
   webviewFixedCost: "WebView fixed startup cost"
   waterfall: "Waterfall"
   noStartupData: "No timing data — press Refresh after the app starts"
-  heartbeatDesc: "Observation panel for the global daemon (#411). Auto-disables after 3 consecutive failures to prevent silent failure"
+  heartbeatDesc: "Checks in periodically and only speaks up when needed. Stops automatically after 3 consecutive failures"
   daemonTickRunning: "daemon (tick running)"
   lastTick: "Last tick"
   lastTickWithSource: "Last tick ({source})"
@@ -923,17 +928,14 @@ _aiConnectionSection:
   harnessHint: "Use a logged-in CLI as the AI (no API key needed). Permission requests from the CLI appear as confirmations in the chat. HEARTBEAT does not run."
   harnessFound: "found"
   harnessNotFound: "not found"
+  harnessUserMemory: "Also share what it remembers about you"
+  harnessUserMemoryHint: "When on, \"What it remembers about you\" is sent to the CLI's provider and may end up in the CLI's own memory."
   harnessBlocked: "unavailable"
   harnessBlockedHint: "Google's terms prohibit other apps from using Gemini CLI's login."
   harnessRelayNote: "To use Claude, pick Claude Agent instead of routing through this CLI."
 
 _aiDataSourcesSection:
   title: "Data sources"
-  memosTitle: "How memos are passed"
-  expandLinks: "Expand linked memos"
-  expandLinksDescription: "Automatically passes memos referenced as `[name](memo:<id>)` in the body to the AI, one level deep. When OFF, the AI does not see referenced memos unless it explicitly calls `memos.backlinks` or similar."
-  includeBacklinks: "Attach backlinks"
-  includeBacklinksDescription: "Adds `referencedBy: [...]` to each memo to tell the AI which memos reference it."
   currentAccount: "Current account"
   currentAccountDescription: "Pass the signed-in account’s info to the AI (tokens and the like are excluded)"
   currentColumn: "Current column"
@@ -942,12 +944,6 @@ _aiDataSourcesSection:
   visibleNotesDescription: "Include the items on screen (notes / notifications / drive files, etc.) in the context"
   recentConversation: "AI conversation history (up to 20 turns)"
   recentConversationDescription: "Include the recent conversation in the context"
-  memos: "Local memos (up to 20)"
-  memosDescription: "Include Zettelkasten-style local memos in the context (current account only)"
-  memosStandard: "Standard"
-  memosLinksOnly: "Expand links only"
-  memosBacklinksOnly: "Backlinks only"
-  memosBodyOnly: "Body only"
 
 _aiGenerationSection:
   title: "Generation"
@@ -971,6 +967,7 @@ _aiHeartbeatSection:
   minutes: "min"
   desktopNotification: "Desktop notifications"
   desktopNotificationDescription: "Shows important findings (anything other than HEARTBEAT_OK) as OS notifications. Suppressed while the app has focus"
+  cheapCheck: "Quick check first"
   cheapCheckDescription: "If nothing changed, treat it as HEARTBEAT_OK without starting the AI (the skill must declare cheapCheckCapabilities)"
   maxSkipHours: "Max consecutive skip time"
   hours: "hours"
@@ -991,12 +988,31 @@ _aiHeartbeatSection:
   runtimeDisconnected: "Not connected to the AI process: {reason}"
   residentStopped: "login task is stopped"
   versionMismatch: "The AI process does not match this app's version. Update it."
+  steps: "Steps for the rounds"
+  editSteps: "Edit the steps"
+  stepsEmpty: "The steps for the rounds are empty. No rounds run until you edit them."
+  stepsOpenFailed: "Could not open the steps: {reason}"
 
-_aiPersonaSection:
-  title: "Persona"
-  none: "None"
-  hint: "Default for new sessions. Existing sessions keep the persona they were created with."
-  noCandidates: "No persona candidates. Skills with \"Persona\" turned ON in the Skill edit window appear here."
+_aiPersonalitySection:
+  title: "AI personality and memory"
+  soul: "Personality"
+  soulPlaceholder: "The core of the AI's personality. It stays the same when you switch characters."
+  character: "Character"
+  characterNone: "None"
+  characterHint: "Applies from the next session. Existing sessions keep the character they were created with."
+  noCharacters: "No candidates. Skills with \"Offer this skill as a character\" turned on in the skill editor appear here."
+  userTitle: "What it remembers about you"
+  userToggle: "Remember things about me"
+  userOffNote: "Memory about you is off. Nothing new is recorded. Until you choose \"Forget everything\", this content is still included in backups."
+  sentNote: "This content is sent to the AI provider in use. When a local CLI is selected, it is passed to that CLI as well."
+  memoryTitle: "Notes to self"
+  empty: "Nothing remembered yet."
+  forgetAll: "Forget everything"
+  forgetAllUserConfirm: "Erases everything it remembers about you. This cannot be undone."
+  forgetAllMemoryConfirm: "Erases all notes to self. This cannot be undone."
+  full: "It is full. You can ask the AI to tidy it up."
+  externallyChanged: "Changed outside NoteDeck."
+  saveFailed: "Could not save: {message}"
 
 _userProfileAchievementsPane:
   empty: "No achievements"
@@ -1244,6 +1260,9 @@ _noteInspectorContent:
   activityPubObject: "ActivityPub object resolved via {endpoint}"
   uriNotFound: "Couldn't determine the URI"
 
+_aiTurnPromptContent:
+  hint: "The instructions (system prompt) sent to the AI for this reply. Nothing is saved; only the last few turns can be viewed."
+  gone: "The instructions for this reply are no longer available (only the last few turns are kept)."
 _notificationInspectorContent:
   inMemoryObject: "Notification object in memory"
   activityPubObject: "ActivityPub object resolved via {endpoint}"
@@ -1644,6 +1663,11 @@ _permissionsContent:
   externalHint: "Operations allowed for external apps via the HTTP API (persistent tokens)"
   scratchpadHint: "Operations allowed for code you write and run in the scratchpad column (read-only by default)"
 
+_skills:
+  reservedAgents: "Rules"
+  reservedHeartbeat: "Rounds"
+  reservedLocked: "A reserved skill cannot be renamed, given another mode, made a persona, toggled or deleted. To silence it, empty its body."
+
 _skillEditContent:
   notFound: "Skill not found"
   meta: "Meta"
@@ -1660,15 +1684,16 @@ _skillEditContent:
   modeManual: "Manual"
   modeTrigger: "Auto"
   modeHeartbeat: "HEARTBEAT (scheduled)"
-  heartbeatHint: "When HEARTBEAT is on, AI reads this skill body on every tick (#411 / equivalent to OpenClaw HEARTBEAT.md)."
+  heartbeatHint: "When HEARTBEAT is on, the AI reads this skill body on every round."
   triggerHint: "Auto: this skill body is injected into the system prompt only on turns where your input contains one of the trigger words below (case-insensitive partial match)."
   triggers: "Trigger words (one per line)"
   triggersPlaceholder: "where\nhow to\nhelp"
   triggersOnlyInTriggerMode: "Trigger words only work when the mode is “Auto”"
-  personaToggle: "Offer this skill as a persona for AI sessions"
-  personaHint: "When on, this skill appears in the persona selector in the AI session header. In the selected session, AI acts as this persona and is recorded as the author of memos (#491)."
+  personaToggle: "Offer this skill as a character for the AI"
+  personaHint: "When on, this skill appears under \"Character\" in AI settings. When chosen, the AI acts as this character and is recorded as the author of memos."
   fromStoreNote: "Skill from the store — edits are saved to a local file (reinstalling may overwrite them)"
   unsavedChanges: "Unsaved changes"
+  reservedNote: "To silence it, empty the body."
 
 _tasksEditorContent:
   visualHint: "Declared tasks can be run from the command palette and the Task Runner column."
@@ -1742,7 +1767,12 @@ _themeEditorContent:
   deleted: "Theme deleted"
 
 _deckAiColumn:
-  personaIndicator: "Persona: {name} (change in agent settings)"
+  _toolSummary:
+    targetUser: "About you"
+    targetMemory: "Notes"
+    soulPropose: "Proposes a personality change"
+    soulProposeWithReason: "Proposes a personality change: {reason}"
+  personaIndicator: "Character: {name} (change in AI settings)"
   backToSessions: "Back to sessions"
   searchSessions: "Search sessions..."
   noSessions: "No sessions yet"
@@ -1781,6 +1811,9 @@ _deckAiColumn:
   intentRunFailed: "Could not run: {error}"
   setupRequiredMessage: "This question can't be answered because no AI API key is set.\n\nRegister an API key for an AI provider to start using it. You can open the tutorial from \"{button}\" below.\n\nSlash commands such as `/help` work without an API key."
   slashRunTitle: "Run {command}"
+  bootstrapGreeting: "I don't remember anything yet. Tell me what to call you and I'll use your name from now on."
+  bootstrapCta: "Tell me what to call you"
+  bootstrapKickoff: "Nice to meet you. Let's first decide your name and vibe together, then ask me how I'd like to be addressed."
 
 _deckClientSearchColumn:
   searchPlaceholder: "Search local notes..."
@@ -1979,7 +2012,7 @@ _deckSkillColumn:
   deleteFromLibrary: "Delete from library (the content is deleted too)"
   deactivate: "Deactivate"
   activate: "Activate"
-  alwaysActive: "mode=always is always active"
+  alwaysActive: "Always-on skill"
   noMatches: "No matching skills"
   empty: "No skills installed"
   installedMark: "Installed"
@@ -1992,6 +2025,7 @@ _deckSkillColumn:
   modeTrigger: "Auto"
   newSkillName: "New skill"
   newSkillBody: "Write the instructions here."
+  reservedHint: "Reserved skill: its name and mode are fixed and it cannot be deleted"
 
 _deckTaskRunnerColumn:
   clearHistory: "Clear history"
@@ -2609,6 +2643,7 @@ _labels:
     tasksRun: "Run user-defined tasks"
     aiInvoke: "Invoke AI (from plugins / external routes)"
     aiPersonaWrite: "Switch AI persona"
+    aiMemoryWrite: "Update the AI's memory (about you / notes)"
     skillsRead: "Read skills"
     skillsWrite: "Append to / edit skills"
     themeWrite: "Create / edit themes"
@@ -2669,6 +2704,10 @@ _readMarkerDivider:
   readUpToHere: "You've read up to here"
 
 _aiConfirmRequests:
+  matchesUntrusted: "⚠ This text appeared verbatim in someone else's post the AI read."
+  taintSources: "Other people's content read in this session: {sources}"
+  taintSourceContext: "notes visible on screen"
+  storeSkill: "A character / skill installed from the store is active, so this is confirmed every time."
   bundleTitle_plural:
     one: "Asking permission for {count} action"
     other: "Asking permission for {count} actions"
@@ -3392,6 +3431,21 @@ _native:
         presetPowerSaving: "power saving"
         presetRich: "rich"
         presetBalanced: "balanced"
+    memory:
+      update:
+        title:
+          user: "Update what the AI remembers about you"
+          memory: "Update the AI's notes"
+        add: "Add: {content}"
+        replace: "Replace \"{old}\" with \"{content}\" (the previous entry stays in the history)"
+        remove: "Remove: {old}"
+        ok: "Update"
+    soul:
+      propose:
+        title: "The AI proposes a change to its personality"
+        message: "The AI proposes rewriting the core of its personality (SOUL). Nothing changes unless you approve."
+        messageWithReason: "The AI proposes rewriting the core of its personality (SOUL): {reason}. Nothing changes unless you approve."
+        ok: "Approve and rewrite"
     persona:
       set:
         title: "Switch AI persona"
@@ -3452,6 +3506,11 @@ _native:
   backup:
     skippedSame: "Skipped (same as existing): {items}"
     restoredRenamed: "Restored under another name (conflicts with existing): {items} → {renamed}"
+    workspaceImportTitle: "Replace the AI's personality and memory?"
+    workspaceImportMessage: "The backup contains the AI's personality and memory ({items}); this replaces the current ones. The rest of the settings are restored either way."
+    workspaceSoul: "Personality"
+    workspaceUser: "What it remembers about you"
+    workspaceMemory: "Notes"
     skippedBadFilename: "Skipped (invalid file name): {key}"
     skippedBadKey: "Skipped (invalid key): {key}"
   notification:

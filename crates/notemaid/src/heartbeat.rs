@@ -46,14 +46,12 @@ pub const OK_TOKEN: &str = "HEARTBEAT_OK";
 pub const ACK_MAX_CHARS: usize = 300;
 pub const MAX_CONSECUTIVE_FAILURES: u32 = 3;
 const STATE_FILE: &str = "heartbeat.json";
-const CONTEXT_QUERY_TYPE: &str = "heartbeat/context";
-const CONTEXT_TIMEOUT: Duration = Duration::from_secs(20);
 const TURN_HARD_LIMIT: Duration = Duration::from_secs(30 * 60);
 
 pub const INSTRUCTION: &str = "You are being called as HEARTBEAT (a periodic check).
-Follow the instructions of the HEARTBEAT skill above strictly.
-Do not refer to past conversations or previous ticks.
-If there is something to report, call the heartbeat_report tool with a concise report in body (200 characters or fewer recommended), and set notify to true if a notification should be shown.
+Follow HEARTBEAT.md and the other heartbeat instructions given in the user message, when provided.
+Do not infer or repeat old tasks from past conversations or previous ticks.
+If there is something to report, call the heartbeat_report tool with a concise report in body (200 characters or fewer recommended), and set notify to true if a notification should be shown. Never put what you remember about the person into a notification.
 If there is nothing to report, do not call any tool and return only the single line \"HEARTBEAT_OK\".";
 
 // ---------------------------------------------------------------------------
@@ -520,9 +518,11 @@ async fn run_body(core: &Core, source: &str, now: u64, gap: Option<Duration>) ->
     if heartbeat_skills.is_empty() {
         return Ok("skip:no-skills".into());
     }
+    // 実質空 (コメントと見出しだけ) の手順は無いのと同じ。全部空なら巡回しない
+    // (OpenClaw の empty-heartbeat-file。無人の予算のため NoteDeck は走らせない)
     let skill_bodies: Vec<String> = heartbeat_skills
         .iter()
-        .filter(|s| !s.body.trim().is_empty())
+        .filter(|s| !crate::workspace::is_effectively_empty(&s.body))
         .map(|s| format!("# Skill: {}\n\n{}", s.name, s.body.trim()))
         .collect();
     if skill_bodies.is_empty() {
@@ -716,6 +716,35 @@ impl AiTurnSink for CollectSink {
 }
 
 /// 巡回の user メッセージ。復帰後は前回からの経過を添え、寝ている間のまとめを書けるようにする
+/// heartbeat の user メッセージ: tick の知らせ + 巡回の手順 (HEARTBEAT.md と heartbeat skill)
+fn heartbeat_user_message(now: u64, gap: Option<Duration>, skill_bodies: &[String]) -> String {
+    format!(
+        "{}\n\n<heartbeat-skills>\n{}\n</heartbeat-skills>",
+        tick_message(now, gap),
+        skill_bodies.join("\n\n---\n\n")
+    )
+}
+
+/// デバイスの `formatLocalTimestamp` と同じ `YYYYMMDDhhmmss` (ローカル時刻)
+fn local_stamp(ms: u64) -> String {
+    use chrono::TimeZone;
+    chrono::Local
+        .timestamp_millis_opt(ms as i64)
+        .single()
+        .map(|d| d.format("%Y%m%d%H%M%S").to_string())
+        .unwrap_or_else(|| utc_stamp(ms))
+}
+
+/// デバイスの `timestampTitle(now, "")` と同じ `YYYY-MM-DD hh:mm` (ローカル時刻)
+fn local_title_time(ms: u64) -> String {
+    use chrono::TimeZone;
+    chrono::Local
+        .timestamp_millis_opt(ms as i64)
+        .single()
+        .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
+        .unwrap_or_else(|| utc_title_time(ms))
+}
+
 fn tick_message(now: u64, gap: Option<Duration>) -> String {
     let at = crate::exec::iso_from_unix_ms(now as i64);
     match gap {
@@ -742,42 +771,11 @@ async fn run_inference(
         tracing::debug!("heartbeat: AI provider not configured, skip");
         return Ok(None);
     };
-    // デバイスに要るもの (メモ等の文脈、ローカル時刻の刻印)。無ければ無しで進む
-    let device = match core.frontend_bridge() {
-        Ok(bridge) => bridge
-            .query(
-                CONTEXT_QUERY_TYPE,
-                json!({ "triggeredAtMs": now }),
-                CONTEXT_TIMEOUT,
-            )
-            .await
-            .unwrap_or_else(|e| {
-                tracing::debug!("heartbeat: device context unavailable: {e}");
-                Value::Null
-            }),
-        Err(_) => Value::Null,
-    };
-    let notedeck_context = device
-        .get("system")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    let context_untrusted = device.get("untrusted").and_then(Value::as_bool) == Some(true)
-        || hb_skills.iter().any(|s| s.tainted == Some(true));
-    let heartbeat_context = format!(
-        "<heartbeat-skills>\n{}\n</heartbeat-skills>",
-        skill_bodies.join("\n\n---\n\n")
-    );
-    let system = [
-        notedeck_context.as_str(),
-        heartbeat_context.as_str(),
-        INSTRUCTION,
-    ]
-    .iter()
-    .filter(|s| !s.is_empty())
-    .copied()
-    .collect::<Vec<_>>()
-    .join("\n\n");
+    // system (SOUL / キャラクター / USER / MEMORY / AGENTS / always skill) は notemaid が
+    // 組む (#1162)。HEARTBEAT.md と heartbeat skill の本文は OpenClaw の scratch と同じく
+    // user 側のメッセージに付け、固定の INSTRUCTION を system の末尾に置く。
+    // デバイスへの問い合わせ (橋 heartbeat/context) は無い
+    let context_untrusted = hb_skills.iter().any(|s| s.tainted == Some(true));
     let turn_id = format!("hb-{now}-{}", &utc_stamp(now)[8..]);
     let req = AiTurnRequest {
         turn_id: turn_id.clone(),
@@ -786,10 +784,11 @@ async fn run_inference(
         account_id: None,
         connection_id: cfg.active_connection_id.clone(),
         model,
-        system: Some(system),
+        device_context: Some(INSTRUCTION.to_string()),
+        trigger_skill_ids: Vec::new(),
         messages: vec![AiChatMessage {
             role: AiChatRole::User,
-            content: tick_message(now, gap),
+            content: heartbeat_user_message(now, gap, skill_bodies),
             tool_use_id: None,
             tool_use_name: None,
             tool_use_input: None,
@@ -841,18 +840,14 @@ async fn run_inference(
             Some(Intent {
                 capability_id: e.tool_use_name.clone()?,
                 params: e.tool_use_input.clone().unwrap_or(json!({})),
-                untrusted: e.reason.as_deref() == Some("context_untrusted"),
+                untrusted: e.reason.as_deref() == Some("untrusted"),
             })
         })
         .collect();
-    let local_stamp = device
-        .get("localStamp")
-        .and_then(Value::as_str)
-        .map(str::to_string);
-    let local_title_time = device
-        .get("localTitleTime")
-        .and_then(Value::as_str)
-        .map(str::to_string);
+    // セッション id とタイトル用のローカル時刻 (デバイスと同じ書式。notemaid は同じ
+    // 端末で動くので OS のタイムゾーンでよい)
+    let local_stamp = Some(local_stamp(now));
+    let local_title_time = Some(local_title_time(now));
     if let Some(input) = tool_report {
         let body = input
             .get("body")
@@ -1291,6 +1286,20 @@ mod tests {
         );
         let later = 1_000 + 24 * 3_600_000;
         assert!(decide_cheap_check(&hashes, &prev, true, 24, later).0);
+    }
+
+    #[test]
+    fn heartbeat_user_message_carries_the_tick_and_the_steps() {
+        let m = heartbeat_user_message(0, None, &["# Skill: A\n\ncheck drafts".into()]);
+        assert!(m.starts_with("Heartbeat tick at "));
+        assert!(m.contains("<heartbeat-skills>\n# Skill: A\n\ncheck drafts\n</heartbeat-skills>"));
+        // ローカル時刻の刻印はデバイスと同じ書式
+        assert_eq!(local_stamp(0).len(), 14);
+        assert!(local_stamp(0).chars().all(|c| c.is_ascii_digit()));
+        let title = local_title_time(0);
+        assert_eq!(title.len(), 16);
+        assert_eq!(&title[4..5], "-");
+        assert_eq!(&title[10..11], " ");
     }
 
     #[test]

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import {
   HEARTBEAT_DAILY_MAX_AI_RUNS_MAX,
   HEARTBEAT_DAILY_MAX_AI_RUNS_MIN,
@@ -12,6 +12,8 @@ import {
 import { i18n } from '@/i18n'
 import { presetChipLabel } from '@/permissions/labels'
 import { usePermissionsConfig } from '@/permissions/store'
+import { isHeartbeatStepsEmpty } from '@/services/heartbeatSteps'
+import { useSkillsStore } from '@/stores/skills'
 import { useWindowsStore } from '@/stores/windows'
 import AiHeartbeatResidentRow from './AiHeartbeatResidentRow.vue'
 import AiSettingsSection from './AiSettingsSection.vue'
@@ -19,9 +21,37 @@ import AiSwitchRow from './AiSwitchRow.vue'
 
 const { config } = useAiConfig()
 const windowsStore = useWindowsStore()
+const skillsStore = useSkillsStore()
+skillsStore.ensureLoaded()
 
 // どの skill を heartbeat 対象にするかは skill 側の frontmatter
 // (`mode: heartbeat`) で持つので、AI 設定では skill 一覧を扱わない。
+// 巡回の手順 (#1162) は予約 skill `HEARTBEAT.md` で、ここからは「編集」の入口と
+// 「空なら巡回しない」の案内だけを出す。
+
+/** heartbeat mode の skill 本文がすべて実質空 (= notemaid は tick を skip する) */
+const stepsEmpty = computed(() =>
+  skillsStore.heartbeatSkills.every((s) => isHeartbeatStepsEmpty(s.body)),
+)
+const stepsOpening = ref(false)
+const stepsError = ref<string | null>(null)
+
+/** HEARTBEAT.md を無ければ置いて (冪等)、skill エディタで開く */
+async function editSteps(): Promise<void> {
+  if (stepsOpening.value) return
+  stepsOpening.value = true
+  stepsError.value = null
+  try {
+    const skillId = await skillsStore.seedHeartbeatSteps()
+    windowsStore.open('skill-edit', { skillId })
+  } catch (e) {
+    stepsError.value = i18n.tsx._aiHeartbeatSection.stepsOpenFailed({
+      reason: e instanceof Error ? e.message : String(e),
+    })
+  } finally {
+    stepsOpening.value = false
+  }
+}
 
 // --- 権限は権限ウィンドウ (#712 PR 2) に移動した ---
 // 現在値の read-only chip + 導線だけ残す。
@@ -50,6 +80,30 @@ function openPermissionsWindow(): void {
       :on="config.heartbeat.enabled"
       @toggle="config.heartbeat.enabled = !config.heartbeat.enabled"
     />
+
+    <!-- 巡回の手順 (#1162): 予約 skill HEARTBEAT.md の編集入口。空なら巡回しない -->
+    <div v-if="config.heartbeat.enabled" :class="$style.field">
+      <div :class="$style.fieldHeader">
+        <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.steps }}</span>
+        <button
+          class="_button"
+          :class="$style.stepsBtn"
+          :disabled="stepsOpening"
+          @click="editSteps"
+        >
+          <i class="ti ti-edit" />
+          {{ i18n.ts._aiHeartbeatSection.editSteps }}
+        </button>
+      </div>
+      <div v-if="stepsError" :class="$style.warn">
+        <i class="ti ti-alert-circle" />
+        <span>{{ stepsError }}</span>
+      </div>
+      <div v-else-if="stepsEmpty" :class="$style.warn">
+        <i class="ti ti-alert-triangle" />
+        <span>{{ i18n.ts._aiHeartbeatSection.stepsEmpty }}</span>
+      </div>
+    </div>
 
     <!-- 常駐 (#1106): 巡回をアプリ終了後も続けるかは HEARTBEAT の一部として見せる -->
     <AiHeartbeatResidentRow v-if="config.heartbeat.enabled" />
@@ -89,7 +143,7 @@ function openPermissionsWindow(): void {
     <template v-if="config.heartbeat.enabled">
       <AiSwitchRow
         icon="ti-bolt"
-        label="Cheap Check First"
+        :label="i18n.ts._aiHeartbeatSection.cheapCheck"
         :sub-label="i18n.ts._aiHeartbeatSection.cheapCheckDescription"
         :on="config.heartbeat.cheapCheck.enabled"
         @toggle="config.heartbeat.cheapCheck.enabled = !config.heartbeat.cheapCheck.enabled"
@@ -159,10 +213,18 @@ function openPermissionsWindow(): void {
 
 <style lang="scss" module>
 @use '@/styles/settingsFields' as *;
+@use '@/styles/buttons' as *;
 
 .keyHint {
   @include key-hint;
   align-items: center;
+}
+
+.warn { @include key-warn; }
+
+// 「巡回の手順を編集」(#1162)。接続セクションの keyBtn と同じ見た目
+.stepsBtn {
+  @include btn-secondary;
 }
 
 // HEARTBEAT 権限 chip の「権限設定で変更」導線 (#712 PR 2)

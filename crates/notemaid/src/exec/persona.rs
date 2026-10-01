@@ -116,7 +116,6 @@ pub fn meta_config(core: &Core) -> Result<Value> {
             "currentColumn": ds.current_column,
             "visibleNotes": ds.visible_notes,
             "recentConversation": ds.recent_conversation,
-            "memos": ds.memos,
         },
     }))
 }
@@ -231,6 +230,6 @@ mod tests {
         );
         let cfg = meta_config(&core).unwrap();
         assert_eq!(cfg["protocol"], "");
-        assert_eq!(cfg["dataSourcesEnabled"]["memos"], true);
+        assert_eq!(cfg["dataSourcesEnabled"]["currentAccount"], true);
     }
 }

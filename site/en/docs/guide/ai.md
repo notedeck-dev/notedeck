@@ -1,5 +1,5 @@
 ---
-sourceHash: 04f3f7a371d2
+sourceHash: 356f1b030130
 ---
 
 # Using AI
@@ -35,9 +35,22 @@ You choose in the settings what information is passed to the AI.
 - Open columns
 - Notes visible on screen
 - Conversation history
-- Memos
 
 Turn off whatever it does not need.
+
+Memos are not passed all the time. The memory the AI carries over lives in its "Notes" (below), and it searches for individual memos only when it needs them.
+
+## Personality and memory
+
+The AI has a **personality** that stays the same when you switch characters, and two kinds of memory. You can read them any time under "AI personality and memory" in the AI settings, and fix or delete them line by line.
+
+- **Personality**: the core of its values, boundaries and tone. The AI never rewrites it on its own; it proposes a change and waits for your approval
+- **What it remembers about you**: how to address you, how you like it to talk, and other things you told it in conversation. Turn off "Remember things about me" and it is neither passed on nor added to ("Forget everything" is a separate action)
+- **Notes**: small facts and decisions the AI picked up itself
+
+The first time you open an AI column you can start with "Tell it what to call you". The AI decides its own name and vibe with you and asks only how to address you. It will not ask unless you do.
+
+Right after the AI has read someone else's posts, writing memory always asks for confirmation. The confirmation says which posts were read and whether the text it wants to write appears verbatim in someone else's post. While it is house-sitting (HEARTBEAT) it never writes memory. When a local CLI is the AI, "What it remembers about you" is not shared with the CLI by default (a toggle in the AI connection settings allows it).
 
 ## Permissions
 

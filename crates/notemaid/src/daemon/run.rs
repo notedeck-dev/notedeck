@@ -115,6 +115,11 @@ pub fn run(args: RunArgs) -> i32 {
         tracing::error!("filesystem migration failed: {e}");
         return exit::FAILURE;
     }
+    // notemaid の持ち物の配置 (#1162)。lock を取ったこのプロセスだけが動かす。失敗しても
+    // 読む側は旧パスに fallback するので起動は止めない
+    if let Err(e) = crate::migrations::run_fs(&data_dir) {
+        tracing::warn!("notemaid layout migration failed: {e}");
+    }
 
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)

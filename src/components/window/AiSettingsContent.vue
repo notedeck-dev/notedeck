@@ -9,7 +9,7 @@ import AiConnectionSection from '@/components/window/ai-settings/AiConnectionSec
 import AiDataSourcesSection from '@/components/window/ai-settings/AiDataSourcesSection.vue'
 import AiGenerationSection from '@/components/window/ai-settings/AiGenerationSection.vue'
 import AiHeartbeatSection from '@/components/window/ai-settings/AiHeartbeatSection.vue'
-import AiPersonaSection from '@/components/window/ai-settings/AiPersonaSection.vue'
+import AiPersonalitySection from '@/components/window/ai-settings/AiPersonalitySection.vue'
 import {
   type AiConfig,
   defaultConfig,
@@ -189,7 +189,7 @@ function handleReset() {
     <!-- API Settings Tab -->
     <div v-show="tab === 'api'" :class="$style.panel">
       <AiConnectionSection />
-      <AiPersonaSection />
+      <AiPersonalitySection />
       <AiDataSourcesSection />
       <AiHeartbeatSection />
       <AiGenerationSection />

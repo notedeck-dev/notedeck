@@ -53,6 +53,9 @@ pub const REASON_EXPIRED_DISPLAY: &str = "expired_display";
 
 struct Record {
     turn_id: String,
+    /// この要求に含めた tool_use の id。決定はこれにだけ効く (記憶 / 人格の項目は
+    /// 1 枚 1 件で順に聞くため、同じラウンドの他の項目は次の要求に回る、#1162)
+    item_ids: Vec<String>,
     rt: Arc<TurnRuntime>,
     created: Instant,
     shown: Option<Instant>,
@@ -83,10 +86,23 @@ fn emit_closed(rt: &TurnRuntime, turn_id: &str, request_id: &str, reason: &str) 
 pub(crate) fn suspend(rt: Arc<TurnRuntime>, state: &TurnState, items: Vec<Value>) -> Result<()> {
     checkpoint::write(&rt.store_dir, state)?;
     let turn_id = state.req.turn_id.clone();
-    let request_id = format!("{turn_id}:confirm{}", state.rounds);
+    // 同じラウンドで 2 枚目以降の要求が出ることがある (1 枚 1 件の項目) ので、
+    // 未決の項目数で id を分ける
+    let undecided = state
+        .pending
+        .iter()
+        .filter(|p| p.needs_confirm && p.decision.is_none())
+        .count();
+    let request_id = format!("{turn_id}:confirm{}-{undecided}", state.rounds);
     let notify = Arc::new(Notify::new());
+    let item_ids: Vec<String> = items
+        .iter()
+        .filter_map(|it| it.get("toolUseId").and_then(Value::as_str))
+        .map(str::to_string)
+        .collect();
     let record = Record {
         turn_id: turn_id.clone(),
+        item_ids,
         rt: rt.clone(),
         created: Instant::now(),
         shown: None,
@@ -272,7 +288,12 @@ pub fn respond(request_id: &str, accepted: bool) -> Result<()> {
 /// チェックポイントを読み戻し、確認待ちだった tool 呼び出しに決定を入れて
 /// turn を再開する。
 fn resume(record: Record, request_id: &str, accepted: bool, reason: Option<&'static str>) {
-    let Record { turn_id, rt, .. } = record;
+    let Record {
+        turn_id,
+        rt,
+        item_ids,
+        ..
+    } = record;
     emit_closed(&rt, &turn_id, request_id, reason.unwrap_or(REASON_DECIDED));
     let mut state = match checkpoint::read(&rt.store_dir, &turn_id) {
         Ok(s) => s,
@@ -291,7 +312,10 @@ fn resume(record: Record, request_id: &str, accepted: bool, reason: Option<&'sta
         }
     };
     for p in &mut state.pending {
-        if p.needs_confirm && p.decision.is_none() {
+        if p.needs_confirm
+            && p.decision.is_none()
+            && (item_ids.is_empty() || item_ids.contains(&p.id))
+        {
             p.decision = Some(accepted);
         }
     }

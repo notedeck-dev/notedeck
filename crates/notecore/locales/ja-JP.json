@@ -228,6 +228,26 @@
           "presetBalanced": "バランス"
         }
       },
+      "memory": {
+        "update": {
+          "title": {
+            "user": "あなたについて覚えていることを更新",
+            "memory": "AI の覚え書きを更新"
+          },
+          "add": "追加: {content}",
+          "replace": "「{old}」を「{content}」に置き換え (前の項目は履歴に残ります)",
+          "remove": "削除: {old}",
+          "ok": "更新する"
+        }
+      },
+      "soul": {
+        "propose": {
+          "title": "AI の人格の書き換えの提案",
+          "message": "AI が自分の人格の核 (SOUL) の書き換えを提案しています。承認したときだけ変わります。",
+          "messageWithReason": "AI が自分の人格の核 (SOUL) の書き換えを提案しています: {reason}。承認したときだけ変わります。",
+          "ok": "承認して書き換える"
+        }
+      },
       "persona": {
         "set": {
           "title": "AI persona を切り替え",
@@ -301,6 +321,11 @@
     "backup": {
       "skippedSame": "スキップ (既存と内容が同じ): {items}",
       "restoredRenamed": "別名で復元 (既存と衝突): {items} → {renamed}",
+      "workspaceImportTitle": "AI の人格と記憶を置き換えますか？",
+      "workspaceImportMessage": "バックアップに含まれる AI の人格と記憶 ({items}) で、今のものを置き換えます。置き換えない場合も、ほかの設定は復元されます。",
+      "workspaceSoul": "人格",
+      "workspaceUser": "あなたについて覚えていること",
+      "workspaceMemory": "覚え書き",
       "skippedBadFilename": "スキップ (不正なファイル名): {key}",
       "skippedBadKey": "スキップ (不正なキー): {key}"
     },
@@ -359,6 +384,12 @@
         "search": "AI セッション本文を検索"
       },
       "setPersona": "AI persona を切替"
+    },
+    "memory": {
+      "update": "記憶を更新"
+    },
+    "soul": {
+      "propose": "人格の書き換えを提案"
     },
     "aiscript": {
       "logs": "AiScript 実行ログを取得",

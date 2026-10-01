@@ -37,7 +37,6 @@ NoteDeck に入っている最適化と、検討したうえで採用しない�
 | Emoji grid 仮想化 | 行ベースの仮想スクロール | `src/composables/useGridVirtualizer.ts` |
 | キャッシュ eviction 制御 | preset (省メモリ / バランス / 高パフォーマンス) + 個別調整 | `src/components/window/CacheEditorContent.vue` |
 | Chat メッセージキャッシュ | ローカル DB cache + ログアウト後閲覧 + 起動時 hydrate + thread prefetch | `src/components/deck/DeckChatColumn.vue` + Rust `chat_messages_cache` |
-| Memo link expand | `memo:<id>` markdown link で本文展開 + `referencedBy` 添付 | `src/composables/useAiSystemContext.ts` |
 | Vapor Mode 対応 | 既知のブロッカーゼロ。errorHandler も `onErrorCaptured` へ移行済み | `src/composables/useVaporTransition.ts` |
 
 ### Rust 側の並列処理

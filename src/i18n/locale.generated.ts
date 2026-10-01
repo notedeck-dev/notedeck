@@ -190,6 +190,8 @@ export interface Locale {
     readonly "tutorial": string
     /** チュートリアル */
     readonly "tutorialEditor": string
+    /** この応答に送った指示 */
+    readonly "aiTurnPrompt": string
   }
   readonly "_commands": {
     /** コマンドパレット */
@@ -1102,7 +1104,7 @@ export interface Locale {
     readonly "waterfall": string
     /** 計測データなし — アプリ起動後に「更新」で取得します */
     readonly "noStartupData": string
-    /** global daemon の観測面 (#411)。連続 3 回失敗で自動 disable する silent fail 防止機構つき */
+    /** 定期的に様子を見て、必要なときだけ知らせます。連続 3 回失敗すると自動で止まります */
     readonly "heartbeatDesc": string
     /** daemon (tick 実行中) */
     readonly "daemonTickRunning": string
@@ -1262,6 +1264,10 @@ export interface Locale {
     readonly "harnessFound": string
     /** 見つかりません */
     readonly "harnessNotFound": string
+    /** あなたについての記憶も渡す */
+    readonly "harnessUserMemory": string
+    /** オンにすると「あなたについて覚えていること」が CLI の提供元に送られ、CLI 自身の記憶に残ることがあります。 */
+    readonly "harnessUserMemoryHint": string
     /** 利用不可 */
     readonly "harnessBlocked": string
     /** Google の規約で、Gemini CLI のログインを他のアプリから使うことは禁止されています。 */
@@ -1272,16 +1278,6 @@ export interface Locale {
   readonly "_aiDataSourcesSection": {
     /** データソース */
     readonly "title": string
-    /** メモの渡し方 */
-    readonly "memosTitle": string
-    /** リンク先メモを展開 */
-    readonly "expandLinks": string
-    /** 本文の `[name](memo:<id>)` で参照されているメモを 1 階層自動で AI に渡す。OFF にすると AI は明示的に `memos.backlinks` 等を呼ばない限り参照先を見ない。 */
-    readonly "expandLinksDescription": string
-    /** バックリンクを添付 */
-    readonly "includeBacklinks": string
-    /** 各メモに `referencedBy: [...]` を付けて「どのメモから参照されているか」を AI に伝える。 */
-    readonly "includeBacklinksDescription": string
     /** 現在のアカウント */
     readonly "currentAccount": string
     /** ログイン中のアカウント情報を AI に渡す (トークン等は除外) */
@@ -1298,18 +1294,6 @@ export interface Locale {
     readonly "recentConversation": string
     /** 直近の会話を context に含める */
     readonly "recentConversationDescription": string
-    /** ローカルメモ (上限 20 件) */
-    readonly "memos": string
-    /** Zettelkasten 形式のローカルメモを context に含める (現在のアカウントのみ) */
-    readonly "memosDescription": string
-    /** 標準 */
-    readonly "memosStandard": string
-    /** リンク展開のみ */
-    readonly "memosLinksOnly": string
-    /** バックリンクのみ */
-    readonly "memosBacklinksOnly": string
-    /** 本文のみ */
-    readonly "memosBodyOnly": string
   }
   readonly "_aiGenerationSection": {
     /** 生成 */
@@ -1352,6 +1336,8 @@ export interface Locale {
     readonly "desktopNotification": string
     /** 重要発見 (HEARTBEAT_OK 以外) を OS 通知で表示。アプリにフォーカスがあれば自動抑制 */
     readonly "desktopNotificationDescription": string
+    /** まず軽く確認 */
+    readonly "cheapCheck": string
     /** 変化なしなら AI を起動せず HEARTBEAT_OK 扱い (skill 側で cheapCheckCapabilities の宣言が必要) */
     readonly "cheapCheckDescription": string
     /** 最大連続 skip 時間 */
@@ -1392,16 +1378,54 @@ export interface Locale {
     readonly "residentStopped": string
     /** AI のプロセスの版がこのアプリと一致していません。更新してください。 */
     readonly "versionMismatch": string
+    /** 巡回の手順 */
+    readonly "steps": string
+    /** 巡回の手順を編集 */
+    readonly "editSteps": string
+    /** 巡回の手順が空です。編集するまで巡回は行われません。 */
+    readonly "stepsEmpty": string
+    /** 巡回の手順を開けませんでした: {reason} */
+    readonly "stepsOpenFailed": ParameterizedString<'reason'>
   }
-  readonly "_aiPersonaSection": {
-    /** ペルソナ */
+  readonly "_aiPersonalitySection": {
+    /** AI の人格と記憶 */
     readonly "title": string
+    /** 人格 */
+    readonly "soul": string
+    /** AI の核になる人格。キャラクターを切り替えても変わりません。 */
+    readonly "soulPlaceholder": string
+    /** キャラクター */
+    readonly "character": string
     /** なし */
-    readonly "none": string
-    /** 新規セッションのデフォルトです。過去のセッションは作成時のペルソナを保持します。 */
-    readonly "hint": string
-    /** ペルソナ候補がありません。Skill 編集ウィンドウで「Persona」を ON にしたスキルがここに表示されます。 */
-    readonly "noCandidates": string
+    readonly "characterNone": string
+    /** 新しいセッションから反映されます。過去のセッションは作成時のキャラクターのままです。 */
+    readonly "characterHint": string
+    /** 候補がありません。スキルの編集で「キャラクター候補にする」を ON にしたスキルがここに出ます。 */
+    readonly "noCharacters": string
+    /** あなたについて覚えていること */
+    readonly "userTitle": string
+    /** あなたのことを覚える */
+    readonly "userToggle": string
+    /** あなたについての記憶は OFF です。新しいことは記録されません。「すべて忘れる」までは、この内容はバックアップに含まれたままです。 */
+    readonly "userOffNote": string
+    /** この内容は使用中の AI プロバイダーに送られます。手元の CLI を選んでいるときは、その CLI にも渡ります。 */
+    readonly "sentNote": string
+    /** 覚え書き */
+    readonly "memoryTitle": string
+    /** まだ何も覚えていません。 */
+    readonly "empty": string
+    /** すべて忘れる */
+    readonly "forgetAll": string
+    /** あなたについて覚えていることをすべて消します。この操作は取り消せません。 */
+    readonly "forgetAllUserConfirm": string
+    /** 覚え書きをすべて消します。この操作は取り消せません。 */
+    readonly "forgetAllMemoryConfirm": string
+    /** いっぱいです。AI に整理を頼めます。 */
+    readonly "full": string
+    /** NoteDeck の外で変更されています。 */
+    readonly "externallyChanged": string
+    /** 保存できませんでした: {message} */
+    readonly "saveFailed": ParameterizedString<'message'>
   }
   readonly "_userProfileAchievementsPane": {
     /** 実績がありません */
@@ -1832,6 +1856,12 @@ export interface Locale {
     readonly "activityPubObject": ParameterizedString<'endpoint'>
     /** URI を特定できませんでした */
     readonly "uriNotFound": string
+  }
+  readonly "_aiTurnPromptContent": {
+    /** この応答のために AI に送った指示 (system prompt) です。保存はされず、直近の数ターンだけ見られます。 */
+    readonly "hint": string
+    /** この応答の指示はもう残っていません (直近の数ターンだけ保持します)。 */
+    readonly "gone": string
   }
   readonly "_notificationInspectorContent": {
     /** メモリ上の通知オブジェクト */
@@ -2547,6 +2577,14 @@ export interface Locale {
     /** スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (デフォルトは読み取りのみ) */
     readonly "scratchpadHint": string
   }
+  readonly "_skills": {
+    /** ルール */
+    readonly "reservedAgents": string
+    /** 巡回 */
+    readonly "reservedHeartbeat": string
+    /** 予約スキルの名前・モード・ペルソナ・有効/無効・削除は変えられません。黙らせるには本文を空にします。 */
+    readonly "reservedLocked": string
+  }
   readonly "_skillEditContent": {
     /** スキルが見つかりません */
     readonly "notFound": string
@@ -2578,7 +2616,7 @@ export interface Locale {
     readonly "modeTrigger": string
     /** HEARTBEAT (定期実行) */
     readonly "modeHeartbeat": string
-    /** HEARTBEAT 有効時、tick ごとにこの skill body を AI に読ませます (#411 / OpenClaw HEARTBEAT.md 相当)。 */
+    /** HEARTBEAT 有効時、巡回のたびにこのスキルの本文を AI に読ませます。 */
     readonly "heartbeatHint": string
     /** 自動起動: ユーザーの入力に下のトリガー語のいずれかが含まれたターンだけ、この skill body が system prompt に注入されます (大文字小文字無視の部分一致)。 */
     readonly "triggerHint": string
@@ -2590,14 +2628,16 @@ help */
     readonly "triggersPlaceholder": string
     /** トリガー語はモードを「自動」にしたときだけ反応します */
     readonly "triggersOnlyInTriggerMode": string
-    /** このスキルを AI セッションの persona 候補にする */
+    /** このスキルを AI のキャラクター候補にする */
     readonly "personaToggle": string
-    /** ON にすると、AI セッションヘッダーの persona セレクターにこのスキルが表示されます。選択中のセッションで AI はこの persona として振る舞い、memo の作者として記録されます (#491)。 */
+    /** ON にすると、AI 設定の「キャラクター」にこのスキルが出ます。選ぶと AI はこのキャラクターとして振る舞い、メモの作者として記録されます。 */
     readonly "personaHint": string
     /** ストア由来のスキル — 編集内容はローカルファイルに保存されます (再インストールで上書きされる可能性あり) */
     readonly "fromStoreNote": string
     /** 未保存の変更 */
     readonly "unsavedChanges": string
+    /** 黙らせるには本文を空にします。 */
+    readonly "reservedNote": string
   }
   readonly "_tasksEditorContent": {
     /** 宣言したタスクはコマンドパレットと Task Runner カラムから実行できます。 */
@@ -2734,7 +2774,17 @@ help */
     readonly "deleted": string
   }
   readonly "_deckAiColumn": {
-    /** Persona: {name} (エージェント設定で変更) */
+    readonly "_toolSummary": {
+      /** あなたについて */
+      readonly "targetUser": string
+      /** 覚え書き */
+      readonly "targetMemory": string
+      /** 人格の書き換えを提案 */
+      readonly "soulPropose": string
+      /** 人格の書き換えを提案: {reason} */
+      readonly "soulProposeWithReason": ParameterizedString<'reason'>
+    }
+    /** キャラクター: {name} (AI 設定で変更) */
     readonly "personaIndicator": ParameterizedString<'name'>
     /** セッション一覧へ戻る */
     readonly "backToSessions": string
@@ -2816,6 +2866,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "setupRequiredMessage": ParameterizedString<'button'>
     /** {command} の実行 */
     readonly "slashRunTitle": ParameterizedString<'command'>
+    /** まだ何も覚えていません。呼び方を教えてもらえれば、次から名前で話します。 */
+    readonly "bootstrapGreeting": string
+    /** 呼び方を教える */
+    readonly "bootstrapCta": string
+    /** はじめまして。まずあなたの名前と雰囲気を一緒に決めて、それから私の呼び方を聞いてください。 */
+    readonly "bootstrapKickoff": string
   }
   readonly "_deckClientSearchColumn": {
     /** 手元のノートを検索... */
@@ -3154,7 +3210,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "deactivate": string
     /** 有効化 */
     readonly "activate": string
-    /** mode=always は常時有効 */
+    /** 常時有効のスキルです */
     readonly "alwaysActive": string
     /** 一致するスキルがありません */
     readonly "noMatches": string
@@ -3180,6 +3236,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "newSkillName": string
     /** 指示文をここに記述します。 */
     readonly "newSkillBody": string
+    /** 予約スキル: 名前とモードは固定で、削除できません */
+    readonly "reservedHint": string
   }
   readonly "_deckTaskRunnerColumn": {
     /** 履歴をクリア */
@@ -4286,6 +4344,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "aiInvoke": string
       /** AI persona の切り替え */
       readonly "aiPersonaWrite": string
+      /** AI の記憶の更新 (あなたについて / 覚え書き) */
+      readonly "aiMemoryWrite": string
       /** スキルの読取 */
       readonly "skillsRead": string
       /** スキルの追記/編集 */
@@ -4391,6 +4451,14 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "readUpToHere": string
   }
   readonly "_aiConfirmRequests": {
+    /** ⚠ この文は AI が読んだ他人の投稿にそのまま出てきたものです。 */
+    readonly "matchesUntrusted": string
+    /** このセッションで読んだ他人の内容: {sources} */
+    readonly "taintSources": ParameterizedString<'sources'>
+    /** 画面に見えていたノート */
+    readonly "taintSourceContext": string
+    /** ストアから入れたキャラクター / スキルが有効なため、毎回確認します。 */
+    readonly "storeSkill": string
     /** {count} 件の操作の許可を求めています */
     readonly "bundleTitle_plural": PluralString<'count'>
     /** すべて実行 */
@@ -5643,6 +5711,36 @@ AI プロバイダーの API キーを登録すると使えるようになりま
           readonly "presetBalanced": string
         }
       }
+      readonly "memory": {
+        readonly "update": {
+          readonly "title": {
+            /** あなたについて覚えていることを更新 */
+            readonly "user": string
+            /** AI の覚え書きを更新 */
+            readonly "memory": string
+          }
+          /** 追加: {content} */
+          readonly "add": ParameterizedString<'content'>
+          /** 「{old}」を「{content}」に置き換え (前の項目は履歴に残ります) */
+          readonly "replace": ParameterizedString<'content' | 'old'>
+          /** 削除: {old} */
+          readonly "remove": ParameterizedString<'old'>
+          /** 更新する */
+          readonly "ok": string
+        }
+      }
+      readonly "soul": {
+        readonly "propose": {
+          /** AI の人格の書き換えの提案 */
+          readonly "title": string
+          /** AI が自分の人格の核 (SOUL) の書き換えを提案しています。承認したときだけ変わります。 */
+          readonly "message": string
+          /** AI が自分の人格の核 (SOUL) の書き換えを提案しています: {reason}。承認したときだけ変わります。 */
+          readonly "messageWithReason": ParameterizedString<'reason'>
+          /** 承認して書き換える */
+          readonly "ok": string
+        }
+      }
       readonly "persona": {
         readonly "set": {
           /** AI persona を切り替え */
@@ -5759,6 +5857,16 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "skippedSame": ParameterizedString<'items'>
       /** 別名で復元 (既存と衝突): {items} → {renamed} */
       readonly "restoredRenamed": ParameterizedString<'items' | 'renamed'>
+      /** AI の人格と記憶を置き換えますか？ */
+      readonly "workspaceImportTitle": string
+      /** バックアップに含まれる AI の人格と記憶 ({items}) で、今のものを置き換えます。置き換えない場合も、ほかの設定は復元されます。 */
+      readonly "workspaceImportMessage": ParameterizedString<'items'>
+      /** 人格 */
+      readonly "workspaceSoul": string
+      /** あなたについて覚えていること */
+      readonly "workspaceUser": string
+      /** 覚え書き */
+      readonly "workspaceMemory": string
       /** スキップ (不正なファイル名): {key} */
       readonly "skippedBadFilename": ParameterizedString<'key'>
       /** スキップ (不正なキー): {key} */
@@ -5871,6 +5979,14 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       }
       /** AI persona を切替 */
       readonly "setPersona": string
+    }
+    readonly "memory": {
+      /** 記憶を更新 */
+      readonly "update": string
+    }
+    readonly "soul": {
+      /** 人格の書き換えを提案 */
+      readonly "propose": string
     }
     readonly "aiscript": {
       /** AiScript 実行ログを取得 */

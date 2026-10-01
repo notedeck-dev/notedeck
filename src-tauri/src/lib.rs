@@ -279,7 +279,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // 無い (開発時) / iOS / Android は in-process で回す。データ面は常にこのプロセスで開く。
         // notemaid が出す AI のイベントは同じ名前で WebView に流す
         #[cfg(desktop)]
-        if let Some(launched) =
+        let relayed = if let Some(launched) =
             tauri::async_runtime::block_on(maid_launcher::launch(&app_dir, configured_backend))
         {
             let emit_handle = app.handle().clone();
@@ -318,6 +318,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 }),
             );
             let is_child = launched.child.is_some();
+            let fallback_app_dir = app_dir.clone();
             maid_launcher::keep(launched.child);
             if is_child {
                 // 子が bind するまで裏で待つ。死んだ / 答えないなら中継を無効化して in-process に落とす
@@ -326,6 +327,10 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     if !maid_launcher::wait_ready(&watch_endpoint, std::time::Duration::from_secs(8)).await {
                         client_layer::disable("notemaid sidecar did not start; running the AI in-process");
                         maid_launcher::stop();
+                        // in-process に落ちたので、notemaid の持ち物の配置 (#1162) はこのプロセスが動かす
+                        if let Err(e) = notemaid::migrations::run_fs(&fallback_app_dir) {
+                            tracing::warn!("[notemaid] layout migration failed: {e}");
+                        }
                     }
                 });
             }
@@ -367,9 +372,22 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 });
             }));
-        }
+            true
+        } else {
+            false
+        };
         #[cfg(not(desktop))]
-        let _ = configured_backend;
+        let relayed = {
+            let _ = configured_backend;
+            false
+        };
+        // in-process で AI を回すときは、notemaid の持ち物の配置 (#1162) をこのプロセスが動かす
+        // (別プロセスなら lock を取った daemon がやる)
+        if !relayed {
+            if let Err(e) = notemaid::migrations::run_fs(&app_dir) {
+                tracing::warn!("[notemaid] layout migration failed: {e}");
+            }
+        }
 
         // Performance config: starts with defaults, updated dynamically via Tauri command
         let shared_perf: notecore::perf_config::SharedPerfConfig =
@@ -1240,6 +1258,11 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ai_confirm_respond,
             commands::ai_confirm_shown,
             commands::ai_harness_list,
+            commands::maid_workspace_list,
+            commands::maid_workspace_write,
+            commands::maid_user_memory_set,
+            commands::maid_heartbeat_steps_seed,
+            commands::maid_turn_system,
             commands::capability_execute,
             commands::capability_preview,
             commands::ai_sessions_load_all,

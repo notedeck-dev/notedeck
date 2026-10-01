@@ -24,35 +24,12 @@ export const DATA_SOURCE_KEYS = [
   'currentColumn',
   'visibleNotes',
   'recentConversation',
-  'memos',
 ] as const
 export type DataSourceKey = (typeof DATA_SOURCE_KEYS)[number]
 
 export interface DataSourcesConfig {
   preset: PresetKey
   custom: Record<DataSourceKey, boolean>
-  /**
-   * memos データソースの追加詳細設定 (#492)。`custom.memos: false` で
-   * 無効化された場合は本設定は無視される (= enabled は cap layer)。
-   * - `excludeTags`: AI への注入から除外する tag (= 「AI に見せたくない
-   *   private メモ」をユーザーが任意の tag 名で指定可能)。
-   *   default `[]` (= 何も除外しない)。
-   * - `expandLinks`: メモ本文の `[name](memo:<id>)` link 先メモを 1 階層
-   *   AI context に展開する (#494)。default `true`。 token を抑えたい場合
-   *   off にすると link 先メモは AI には見えなくなる (= AI が
-   *   `memos.backlinks` を呼ぶか手動で参照する必要)。
-   * - `includeBacklinks`: 各メモに `referencedBy: [memoKey, ...]` を opt-in
-   *   添付して AI に渡す (#494)。default `true`。
-   *
-   * 値は free string (NoteDeck は enumerate しない)。skill body 等で
-   * 「私のところでは hidden tag を AI に見せない」のようにユーザーが
-   * 各自のポリシーを書ける。
-   */
-  memosConfig?: {
-    excludeTags: string[]
-    expandLinks?: boolean
-    includeBacklinks?: boolean
-  }
 }
 
 // --- Heartbeat (Phase 6, #411) ---
@@ -243,6 +220,17 @@ export interface AiConfig {
    * いう同一性設定として扱う (= AI 設定全体の一部)。
    */
   personaSkillId?: string
+  /**
+   * 「あなたのことを覚える」(#1162)。false で USER.md の注入と記録を止める
+   * (削除はしない。「すべて忘れる」が別)。書くのは notemaid (`maidUserMemorySet`)
+   * で、デバイスは ai.json5 の変更通知で追従する。default: true
+   */
+  userMemory: boolean
+  /**
+   * 手元の CLI (ACP、#1104) にも、あなたについての記憶 (USER.md) を渡す (#1162)。
+   * CLI ベンダーへ送られ CLI 自身の記憶に写り得るので既定 false (opt-in)
+   */
+  harnessUserMemory: boolean
 }
 
 /**
@@ -314,21 +302,18 @@ const DATA_SOURCE_PRESETS: Record<
     currentColumn: true,
     visibleNotes: false,
     recentConversation: false,
-    memos: true,
   },
   safe: {
     currentAccount: true,
     currentColumn: true,
     visibleNotes: true,
     recentConversation: true,
-    memos: true,
   },
   full: {
     currentAccount: true,
     currentColumn: true,
     visibleNotes: true,
     recentConversation: true,
-    memos: true,
   },
 }
 
@@ -383,6 +368,8 @@ export function defaultConfig(): AiConfig {
       desktopNotification: defaultFileConfig.heartbeat.desktopNotification,
     },
     generation: normalizeGenerationConfig(defaultFileConfig.generation),
+    userMemory: defaultFileConfig.userMemory !== false,
+    harnessUserMemory: defaultFileConfig.harnessUserMemory === true,
   }
 }
 
@@ -528,6 +515,8 @@ function mergeConfig(base: AiConfig, partial: Partial<AiConfig>): AiConfig {
     ...(partial.budgets ?? {}),
   })
   result.harnesses = normalizeHarnesses(partial.harnesses ?? base.harnesses)
+  result.userMemory = partial.userMemory ?? base.userMemory
+  result.harnessUserMemory = partial.harnessUserMemory ?? base.harnessUserMemory
   return result
 }
 

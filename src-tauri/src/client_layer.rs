@@ -321,13 +321,20 @@ impl RelayClient {
                     secret,
                     version,
                     fingerprint,
+                    fs_layout,
                     ..
                 } => {
                     *self.secret.lock().unwrap_or_else(|e| e.into_inner()) = Some(secret);
                     *self.tx.lock().unwrap_or_else(|e| e.into_inner()) = Some(tx.clone());
-                    let matches = fingerprint == notecore::rpc::manifest_fingerprint();
+                    // manifest が同じでもファイル配置の版 (#1162) が違えば「版が違う」扱い
+                    let matches = fingerprint == notecore::rpc::manifest_fingerprint()
+                        && fs_layout == notemaid::migrations::FS_LAYOUT;
                     if !matches {
-                        tracing::warn!(version, "[relay] notemaid manifest differs from this app");
+                        tracing::warn!(
+                            version,
+                            fs_layout,
+                            "[relay] notemaid differs from this app"
+                        );
                         let hook = self.on_mismatch.lock().ok().and_then(|h| h.clone());
                         if let Some(hook) = hook {
                             hook();
@@ -519,6 +526,7 @@ mod tests {
             secret: "s3cret".into(),
             version: "9.9.9".into(),
             fingerprint: notecore::rpc::manifest_fingerprint(),
+            fs_layout: notemaid::migrations::FS_LAYOUT,
         };
         let mut line = serde_json::to_string(&hello).unwrap();
         line.push('\n');

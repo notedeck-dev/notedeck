@@ -2312,6 +2312,51 @@ async aiHarnessList() : Promise<Result<HarnessInfo[], { code: string; message: s
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notemaid/src/commands/workspace.rs */
+async maidWorkspaceList() : Promise<Result<WorkspaceFile[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("maid_workspace_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notemaid/src/commands/workspace.rs */
+async maidWorkspaceWrite(kind: Kind, body: string) : Promise<Result<WorkspaceFile, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("maid_workspace_write", { kind, body }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notemaid/src/commands/workspace.rs */
+async maidUserMemorySet(enabled: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("maid_user_memory_set", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notemaid/src/commands/workspace.rs */
+async maidHeartbeatStepsSeed() : Promise<Result<SkillMeta, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("maid_heartbeat_steps_seed") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notemaid/src/commands/workspace.rs */
+async maidTurnSystem(turnId: string) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("maid_turn_system", { turnId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see crates/notemaid/src/commands/ai_chat.rs */
 async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
@@ -2917,9 +2962,14 @@ principal: string;
  */
 account_id: string | null; connection_id: string; model: string; 
 /**
- * デバイスが組んだ system prompt (skill + デバイス文脈のスナップショット)
+ * デバイス文脈 (`<notedeck-context>`) のスナップショット。人格 / 記憶 / skill の
+ * 本文は notemaid が組む (#1162) ので、デバイスはここに文脈だけを入れる
  */
-system: string | null; 
+device_context?: string | null; 
+/**
+ * セッションに累積した trigger skill の id (デバイスが入力との一致で足す)
+ */
+trigger_skill_ids?: string[]; 
 /**
  * 履歴。今回のユーザー入力を含み、placeholder / heartbeat 由来を含まない
  */
@@ -3373,6 +3423,7 @@ export type ImageCacheStats = { bytes: number; files: number }
  */
 export type ImportSettingsResult = { imported: boolean; warnings: LocalizedLine[] }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
+export type Kind = "soul" | "user" | "memory" | "bootstrap"
 /**
  * 自己診断 (About) 向けの、この端末の notemaid の様子。判断はせず事実だけ返す
  */
@@ -3931,6 +3982,24 @@ export type SettingsChangeOp = "write" | "delete"
  * (#1133)。デバイスの store は該当ファイルの写しだけ読み直す。
  */
 export type SettingsFileChangedEvent = SettingsChange
+export type SkillMeta = { id: string; name: string; version: string; description?: string | null; author?: string | null; mode: string; triggers: string[]; 
+/**
+ * 有効のときだけ Some(true) (#1116)
+ */
+active?: boolean | null; storeId?: string | null; storeSha512?: string | null; storeVersion?: string | null; body: string; createdAt: number; updatedAt: number; builtIn: boolean; iconUrl?: string | null; 
+/**
+ * tainted なセッションが書いた (#1103)。付いたら外れない
+ */
+tainted?: boolean | null; cheapCheckCapabilities: string[]; isPersona: boolean; 
+/**
+ * 予約 skill (`skills/AGENTS.md` = 運用規約、`skills/HEARTBEAT.md` = 巡回の手順、#1162)。
+ * id / ファイル名 / mode は固定で、削除・改名・toggle できない。ファイル名から決まる
+ */
+reserved?: boolean; 
+/**
+ * ファイル名 (拡張子なし)。実行時に決まり、frontmatter には書かない
+ */
+fileBase?: string | null }
 export type Status = "ok" | "warn" | "fail"
 export type StreamChatMessageDeletedEvent = { accountId: string; subscriptionId: string; messageId: string }
 export type StreamChatMessageEvent = { accountId: string; subscriptionId: string; message: ChatMessage }
@@ -4042,6 +4111,7 @@ export type UnreadOp =
  * サーバー側で既読になった (0 に戻す)
  */
 "clear"
+export type Usage = { chars: number; limit: number }
 export type UserField = { name: string; value: string }
 /**
  * `charts/user/following`
@@ -4236,6 +4306,18 @@ missing: string[] }
  * 読んだ内容と、その版 (次の条件付き書込に添える)
  */
 export type VersionedText = { content: string; version: string }
+/**
+ * 1 ファイルの写し (UI 表示用)
+ */
+export type WorkspaceFile = { kind: Kind; exists: boolean; body: string; 
+/**
+ * 現役の項目 (USER / MEMORY だけ。他は空)
+ */
+entries: string[]; usage: Usage; 
+/**
+ * notemaid が最後に書いた内容と違う (外部エディタで変えられた)
+ */
+externallyChanged: boolean }
 
 /** tauri-specta globals **/
 

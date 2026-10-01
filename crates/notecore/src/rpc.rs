@@ -71,6 +71,10 @@ impl Outcome {
     }
 }
 
+fn first_fs_layout() -> u32 {
+    1
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Frame {
@@ -80,6 +84,10 @@ pub enum Frame {
         secret: String,
         version: String,
         fingerprint: String,
+        /// notemaid の持ち物のファイル配置の版 (#1162)。manifest が同じでも配置が違えば
+        /// 古い常駐を起動し直す。無い (古い daemon) は 1 と読む
+        #[serde(default = "first_fs_layout")]
+        fs_layout: u32,
     },
     #[serde(rename_all = "camelCase")]
     Request {

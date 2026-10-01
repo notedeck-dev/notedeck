@@ -101,7 +101,6 @@ system prompt 末尾に注入される `<notedeck-context>` ブロックの構�
   <currentColumn>{ ... }</currentColumn>
   <visibleNotes|visibleNotifications|visibleDriveItems|visibleItems>[ ... ]</visibleNotes>
   <recentConversation>[ ... ]</recentConversation>
-  <memos>[ ... ]</memos>
   <persona>...</persona>
 </notedeck-context>
 ```
@@ -171,17 +170,7 @@ system prompt 末尾に注入される `<notedeck-context>` ブロックの構�
 
 注: API への `messages` パラメータでも history は渡されるので、これは「テキスト形式の補助参照」として AI に再度提示する目的です (= 長い会話で AI が context を見失うのを防ぐ)。
 
-### 3.5 `<memos>` (`dataSources.memos`)
-
-ユーザーのローカルメモを AI に永続記憶として渡すブロック。`memo:<id>` markdown link を経由して **link expand** (本文展開) + **referencedBy** (被参照リスト) が組み立てられる (#494)。AI が `memos.create` / `memos.update` で書き込み、次ターンで `<memos>` として読み戻す = persistent memory の最小プリミティブ。
-
-```json
-[
-  { "id": "memo-abc", "title": "...", "body": "...", "tags": ["..."], "referencedBy": ["memo-xyz"] }
-]
-```
-
-### 3.6 `<persona>` (session 由来、dataSources では制御しない)
+### 3.5 `<persona>` (session 由来、dataSources では制御しない)
 
 `session.personaSkillId` が指定された AI セッションでのみ注入される (#491)。AI に「あなたは <displayName> として振る舞え」「memos.create を呼ぶときは `authorId='<id>'` を指定」と明示する。テンプレートに `<persona>` block を使う skill は `isPersona: true` フラグで宣言する。
 
@@ -254,6 +243,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | list | `list.list` | 自分のリスト一覧 | `account.read` | — |
 | list | `list.removeUser` | リストからユーザーを削除 | `account.write` | あり |
 | logs | `logs.recent` | 最近のログを取得 | `logs.read` | — |
+| memory | `memory.update` | 記憶を更新 | `ai.memory.write` | あり |
 | memos | `memos.backlinks` | メモのバックリンク | `memos.read` | — |
 | memos | `memos.create` | メモを作成 | `memos.write` | あり |
 | memos | `memos.delete` | メモを削除 | `memos.write` | あり |
@@ -320,6 +310,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | skills | `skills.revert` | スキルを過去の編集前状態に戻す | `skills.write` | あり |
 | skills | `skills.toggle` | スキルの有効/無効を切替 | `skills.write` | — |
 | skills | `skills.uninstall` | スキルを削除 | `skills.write` | あり |
+| soul | `soul.propose` | 人格の書き換えを提案 | `ai.persona.write` | あり |
 | styles | `styles.append` | カスタム CSS に追記 | `styles.write` | あり |
 | styles | `styles.history` | カスタム CSS の編集履歴 | — | — |
 | styles | `styles.read` | カスタム CSS を読む | — | — |

@@ -9,6 +9,7 @@ pub mod ai_chat;
 pub mod ai_sessions;
 pub mod heartbeat;
 pub mod table;
+pub mod workspace;
 
 use notecore::define_command_table;
 

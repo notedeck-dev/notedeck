@@ -206,6 +206,12 @@ export const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     },
     icon: 'ti-user-circle',
   },
+  'ai.memory.write': {
+    get label() {
+      return i18n.ts._labels.permissions.aiMemoryWrite
+    },
+    icon: 'ti-brain',
+  },
   'skills.read': {
     get label() {
       return i18n.ts._labels.permissions.skillsRead
@@ -369,6 +375,7 @@ export const PERMISSION_CATEGORIES: readonly {
     keys: [
       'ai.invoke',
       'ai.persona.write',
+      'ai.memory.write',
       'skills.write',
       'vault.use',
       'tasks.run',

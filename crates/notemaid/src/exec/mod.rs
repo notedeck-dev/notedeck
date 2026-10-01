@@ -12,6 +12,7 @@
 
 mod account;
 mod keybinds;
+mod memory;
 mod memos;
 mod meta;
 mod misc;
@@ -172,6 +173,9 @@ pub async fn preview(
     if id == "ai.setPersona" {
         return persona::preview(core, id, &params, ctx);
     }
+    if id == "memory.update" || id == "soul.propose" {
+        return memory::preview(core, id, &params, ctx);
+    }
     Ok(Some(
         preview::custom(id, &params).unwrap_or_else(|| preview::generic(id, &params)),
     ))
@@ -330,6 +334,9 @@ async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) 
         "performance.applySlider" => performance::apply_slider(core, p),
         "ai.listPersonas" => persona::list_personas(core),
         "ai.setPersona" => persona::set_persona(core, p),
+        // --- AI の人格と記憶 (#1162) ---
+        "memory.update" => memory::update(core, p, ctx),
+        "soul.propose" => memory::propose_soul(core, p, ctx),
         "meta.persona" => persona::meta_persona(core),
         "meta.activeSkills" => persona::meta_active_skills(core),
         "meta.config" => persona::meta_config(core),
@@ -471,6 +478,8 @@ const HAS_BODY: &[&str] = &[
     "performance.applySlider",
     "ai.listPersonas",
     "ai.setPersona",
+    "memory.update",
+    "soul.propose",
     "meta.persona",
     "meta.activeSkills",
     "meta.config",

@@ -47,7 +47,6 @@ pub struct DataSources {
     pub current_column: bool,
     pub visible_notes: bool,
     pub recent_conversation: bool,
-    pub memos: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -64,6 +63,11 @@ pub struct AiConfigLite {
     pub budgets: std::collections::HashMap<String, u64>,
     /// 利用者が足した手元の CLI (`harnesses: [{ id, name, command, args }]`、#1104)
     pub harnesses: Vec<crate::acp::harness::CustomHarness>,
+    /// 「あなたのことを覚える」(USER.md の注入と書込、#1162)。既定 true
+    pub user_memory: bool,
+    /// 手元の CLI (ACP、#1104) にも USER.md を渡す。既定 false (CLI ベンダーへ送られ、
+    /// CLI 自身の記憶に写り得るため opt-in)
+    pub harness_user_memory: bool,
 }
 
 impl AiConfigLite {
@@ -116,6 +120,14 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
             .unwrap_or(default)
     };
     AiConfigLite {
+        user_memory: doc
+            .get("userMemory")
+            .and_then(Value::as_bool)
+            .unwrap_or(true),
+        harness_user_memory: doc
+            .get("harnessUserMemory")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
         harnesses: doc
             .get("harnesses")
             .and_then(Value::as_array)
@@ -140,7 +152,6 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
             current_column: ds("currentColumn", true),
             visible_notes: ds("visibleNotes", false),
             recent_conversation: ds("recentConversation", false),
-            memos: ds("memos", true),
         },
         models: doc
             .get("models")
@@ -245,6 +256,19 @@ pub fn set_persona_skill_id(core: &Core, skill_id: &str) -> Result<()> {
     settings_events::write_root_file(core, FILE_NAME, &text)
 }
 
+/// 「あなたのことを覚える」(USER.md の注入と書込、#1162)
+pub fn set_user_memory(core: &Core, enabled: bool) -> Result<()> {
+    let mut doc = read_document(core)?;
+    if !doc.is_object() {
+        doc = Value::Object(Default::default());
+    }
+    doc.as_object_mut()
+        .expect("object")
+        .insert("userMemory".into(), Value::Bool(enabled));
+    let text = serde_json::to_string_pretty(&doc)? + "\n";
+    settings_events::write_root_file(core, FILE_NAME, &text)
+}
+
 pub fn set_heartbeat_enabled(core: &Core, enabled: bool) -> Result<()> {
     let mut doc = read_document(core)?;
     if !doc.is_object() {
@@ -273,13 +297,13 @@ mod tests {
     fn defaults_and_clamps_match_use_ai_config() {
         let c = from_document(&json!({}));
         assert_eq!(c.persona_skill_id, "");
-        assert!(c.data_sources.current_account && c.data_sources.memos);
+        assert!(c.data_sources.current_account && c.data_sources.current_column);
         assert!(!c.data_sources.visible_notes);
         let c2 = from_document(
-            &json!({ "personaSkillId": "p", "dataSources": { "custom": { "memos": false } } }),
+            &json!({ "personaSkillId": "p", "dataSources": { "custom": { "currentColumn": false } } }),
         );
         assert_eq!(c2.persona_skill_id, "p");
-        assert!(!c2.data_sources.memos);
+        assert!(!c2.data_sources.current_column);
         assert!(!c.heartbeat.enabled);
         assert_eq!(c.heartbeat.interval_minutes, 30);
         assert_eq!(c.heartbeat.target, "auto");

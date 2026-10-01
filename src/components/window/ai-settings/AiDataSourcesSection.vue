@@ -59,15 +59,6 @@ const DATA_SOURCE_LABELS: Record<DataSourceKey, DataSourceLabel> = {
       return i18n.ts._aiDataSourcesSection.recentConversationDescription
     },
   },
-  memos: {
-    get label() {
-      return i18n.ts._aiDataSourcesSection.memos
-    },
-    icon: 'ti-notes',
-    get description() {
-      return i18n.ts._aiDataSourcesSection.memosDescription
-    },
-  },
 }
 
 const showPresetDropdown = ref(false)
@@ -98,49 +89,6 @@ function toggleCustom(key: DataSourceKey) {
 useClickOutside(presetRef, () => {
   showPresetDropdown.value = false
 })
-
-// --- memosConfig (#494) — expandLinks / includeBacklinks toggle ---
-// undefined はどちらも default true として解釈する (= 後付け設定なので既存
-// プロファイルが false に倒れないよう、明示的に false を書いた場合のみ off)。
-const memoExpandLinks = computed(
-  () => config.value.dataSources.memosConfig?.expandLinks !== false,
-)
-const memoIncludeBacklinks = computed(
-  () => config.value.dataSources.memosConfig?.includeBacklinks !== false,
-)
-
-// セクションヘッダーの現在値 chip (ペルソナ / データソースと同じ流儀)。
-// 両方 ON がデフォルトなので「標準」、変更時のみ内訳を出す
-const memosChip = computed(() => {
-  if (!resolvedDataSources.value.memos) return i18n.ts._common.disabled
-  const expand = memoExpandLinks.value
-  const back = memoIncludeBacklinks.value
-  if (expand && back) return i18n.ts._aiDataSourcesSection.memosStandard
-  if (expand) return i18n.ts._aiDataSourcesSection.memosLinksOnly
-  if (back) return i18n.ts._aiDataSourcesSection.memosBacklinksOnly
-  return i18n.ts._aiDataSourcesSection.memosBodyOnly
-})
-
-function ensureMemosConfig(): { excludeTags: string[] } & Record<
-  string,
-  unknown
-> {
-  const cfg = config.value.dataSources
-  if (!cfg.memosConfig) {
-    cfg.memosConfig = { excludeTags: [] }
-  }
-  return cfg.memosConfig
-}
-
-function toggleMemoExpandLinks() {
-  const m = ensureMemosConfig()
-  m.expandLinks = !memoExpandLinks.value
-}
-
-function toggleMemoIncludeBacklinks() {
-  const m = ensureMemosConfig()
-  m.includeBacklinks = !memoIncludeBacklinks.value
-}
 </script>
 
 <template>
@@ -184,28 +132,6 @@ function toggleMemoIncludeBacklinks() {
         :on="resolvedDataSources[key]"
         :disabled="config.dataSources.preset !== 'custom'"
         @toggle="toggleCustom(key)"
-      />
-    </div>
-  </AiSettingsSection>
-
-  <!-- Memos (#494) — link expand / backlinks の詳細設定 -->
-  <AiSettingsSection icon="ti-notes" :title="i18n.ts._aiDataSourcesSection.memosTitle" :badge="memosChip">
-    <div :class="$style.toggleList">
-      <AiSwitchRow
-        icon="ti-link"
-        :label="i18n.ts._aiDataSourcesSection.expandLinks"
-        :sub-label="i18n.ts._aiDataSourcesSection.expandLinksDescription"
-        :on="memoExpandLinks"
-        :disabled="!resolvedDataSources.memos"
-        @toggle="toggleMemoExpandLinks"
-      />
-      <AiSwitchRow
-        icon="ti-arrow-back-up"
-        :label="i18n.ts._aiDataSourcesSection.includeBacklinks"
-        :sub-label="i18n.ts._aiDataSourcesSection.includeBacklinksDescription"
-        :on="memoIncludeBacklinks"
-        :disabled="!resolvedDataSources.memos"
-        @toggle="toggleMemoIncludeBacklinks"
       />
     </div>
   </AiSettingsSection>

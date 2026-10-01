@@ -13,8 +13,8 @@
 
   // データソース: AI に送る system prompt に含める情報
   // permissions と違い、Phase 1 から即動作する (system prompt 末尾に <notedeck-context> として注入)
-  // - memos: ローカル Zettelkasten 形式の markdown メモを <memos> ブロックとして
-  //   注入。active account のみ、updatedAt 降順で上限 20 件。
+  // 生のメモはここでは渡さない。常駐するのは MEMORY.md だけで、メモは AI が
+  // memos.search / memos.list で読む (#1162)。
   dataSources: {
     preset: 'readonly',
     custom: {
@@ -22,7 +22,6 @@
       'currentColumn': true,
       'visibleNotes': false,
       'recentConversation': false,
-      'memos': true,
     },
   },
 
@@ -43,6 +42,15 @@
   // 未指定 = 汎用 AI。AI 設定ウィンドウで切替可能。chat / heartbeat / command /
   // task すべての session に同じ persona が反映される (= 同一性設定)。
   personaSkillId: '',
+
+  // 「あなたのことを覚える」(#1162)。false にすると、あなたについての記憶
+  // (USER.md) を AI に渡さず、新しく記録もしない (ファイルは消さない。
+  // 「すべて忘れる」は AI 設定から)。書き手は notemaid で、ここは写し。
+  userMemory: true,
+
+  // 手元の CLI (Claude Agent / Codex など) にも、あなたについての記憶を渡す。
+  // CLI の提供元へ送られ、CLI 自身の記憶に写ることがあるので既定は渡さない。
+  harnessUserMemory: false,
 
   heartbeat: {
     enabled: false,

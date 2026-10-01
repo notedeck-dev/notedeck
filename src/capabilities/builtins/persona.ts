@@ -24,7 +24,15 @@ export const aiListPersonasCapability = implementCore('ai.listPersonas')
 
 export const aiSetPersonaCapability = implementCore('ai.setPersona')
 
+/** AI 自身の記憶 (USER.md / MEMORY.md) の項目更新。本体は notemaid の workspace (#1162) */
+export const memoryUpdateCapability = implementCore('memory.update')
+
+/** 人格の核 (SOUL.md) の書き換え提案。常に人が承認する (#1162) */
+export const soulProposeCapability = implementCore('soul.propose')
+
 export const PERSONA_BUILTIN_CAPABILITIES: readonly Command[] = [
   aiListPersonasCapability,
   aiSetPersonaCapability,
+  memoryUpdateCapability,
+  soulProposeCapability,
 ]

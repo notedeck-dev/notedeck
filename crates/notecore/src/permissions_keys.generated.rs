@@ -25,6 +25,7 @@ pub const PERMISSION_KEYS: &[&str] = &[
     "tasks.run",
     "ai.invoke",
     "ai.persona.write",
+    "ai.memory.write",
     "skills.read",
     "skills.write",
     "theme.write",
@@ -74,6 +75,7 @@ pub const SAFE_EXTRA_KEYS: &[&str] = &[
     "notifications",
     "tasks.run",
     "ai.invoke",
+    "ai.memory.write",
     "skills.write",
     "widgets.write",
     "plugins.write",
@@ -85,6 +87,7 @@ pub const SAFE_EXTRA_KEYS: &[&str] = &[
 pub const THIRD_PARTY_DENY_KEYS: &[&str] = &[
     "tasks.run",
     "ai.persona.write",
+    "ai.memory.write",
     "skills.write",
     "backup.create",
 ];
