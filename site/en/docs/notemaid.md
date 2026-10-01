@@ -1,5 +1,5 @@
 ---
-sourceHash: d80cb9dce208
+sourceHash: 0af060a8bcf3
 ---
 
 # The AI process (notemaid)
@@ -42,6 +42,10 @@ If you only want to connect to the resident one (never start a child process), s
 - **Logs**: the child process and the resident one on macOS / Windows write to `logs/notemaid.log` in the data directory; on Linux the resident one goes to `journalctl --user -u notemaid -e`
 - **Version mismatch**: update notemaid to the same version as the app. The child process is bundled, so it always matches
 - **notemaid stops by itself**: for states a restart cannot fix (another notemaid owns the data directory, the secret key cannot be read) it exits with a dedicated code and systemd does not restart it. The reason is in the log
+
+## What notemaid owns
+
+notemaid writes only its own things inside the settings folder: the AI's personality and memory (`notemaid/`), AI sessions (`sessions/`), memos (`memos/`), skills (`skills/`) and the AI settings (`ai.json5`). It never opens the app database. You read and edit the personality and memory under "AI personality and memory" in the AI settings; the file list is in [Settings files](/en/docs/config/files).
 
 ## Commands
 

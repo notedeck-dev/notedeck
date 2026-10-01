@@ -35,9 +35,11 @@ NoteDeck の設定はすべてファイルとして手元にあります。UI �
 
 フォルダとして持つものもあります。
 
-`profiles/` `themes/` `plugins/` `widgets/` `skills/` `queries/` `snippets/` `memos/` `sessions/`
+`profiles/` `themes/` `plugins/` `widgets/` `skills/` `queries/` `snippets/` `memos/` `sessions/` `notemaid/`
 
 `memos/` は Markdown ファイルがそのまま入っているので、Obsidian の vault として開けます。
+
+`notemaid/` は AI の人格と記憶です。`SOUL.md` (人格) / `USER.md` (あなたについて覚えていること) / `MEMORY.md` (覚え書き) の 3 つの Markdown と、初回だけの `BOOTSTRAP.md`。外部エディタで直接書き換えても次の会話から効きます (AI には「NoteDeck の外で変更された」と伝わります)。`skills/` の `AGENTS.md` (ルール) と `HEARTBEAT.md` (巡回の手順) は名前と役割が固定で、消したり改名したりできません。バックアップに入るのは 3 つの Markdown だけです。
 
 ::: tip API キーはここにありません
 アクセストークンや AI の API キーは OS のキーチェーンに入っています。設定フォルダをそのまま誰かに渡しても、鍵は含まれません。
