@@ -127,7 +127,13 @@ impl ExternalTools {
             return;
         }
         if !self.is_known(id) {
-            let Some(call) = call else { return };
+            let Some(call) = call else {
+                tracing::debug!(
+                    tool_call_id = id,
+                    "dropped a CLI tool result for an unknown call"
+                );
+                return;
+            };
             self.early.insert(id.to_string(), outcome);
             self.call(call, ctx);
             return;

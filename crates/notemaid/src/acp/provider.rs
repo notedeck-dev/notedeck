@@ -701,9 +701,12 @@ pub fn touches_protected_paths(params: &Value, workspace_dir: &std::path::Path) 
     if let Some(raw) = tool.get("rawInput") {
         walk(raw, &mut candidates);
     }
+    // パスは文字列の途中にも埋まる (`echo x > <dir>/USER.md` のようなコマンド) ので、
+    // 保護された場所が現れる位置ごとに見る
     candidates.iter().any(|c| {
         let p = c.replace('\\', "/");
-        p.starts_with(&protected) && !p.starts_with(&workspace)
+        p.match_indices(&protected)
+            .any(|(i, _)| !p[i..].starts_with(&workspace))
     })
 }
 
@@ -770,6 +773,12 @@ mod tests {
         let via_loc =
             json!({ "toolCall": { "locations": [{ "path": "/data/notedeck/notemaid/SOUL.md" }] } });
         assert!(touches_protected_paths(&via_loc, ws));
+        let embedded = json!({ "toolCall": { "rawInput": { "command": "echo hi > /data/notedeck/notemaid/USER.md" } } });
+        assert!(touches_protected_paths(&embedded, ws));
+        let both = json!({ "toolCall": { "rawInput": { "command": "cp /data/notedeck/notemaid/workspace/a /data/notedeck/notemaid/SOUL.md" } } });
+        assert!(touches_protected_paths(&both, ws));
+        let inside = json!({ "toolCall": { "rawInput": { "command": "cat /data/notedeck/notemaid/workspace/a.txt" } } });
+        assert!(!touches_protected_paths(&inside, ws));
         let ok = json!({ "toolCall": { "rawInput": { "path": "/data/notedeck/notemaid/workspace/notes.txt" } } });
         assert!(!touches_protected_paths(&ok, ws));
         let elsewhere =
