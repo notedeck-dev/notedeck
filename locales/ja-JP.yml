@@ -2984,6 +2984,9 @@ _scheduleFormat:
 
 # Rust (notecore / src-tauri) が描く文言。この節は Rust に埋め込まれる (#135 段 4)
 _native:
+  acp:
+    permission:
+      title: "{harness} が {tool} を実行しようとしています"
   preview:
     generic:
       title: "{label} を実行しますか？"

@@ -103,7 +103,10 @@ pub struct AiChatRequest {
 #[derive(Debug, Clone, Serialize, Type)]
 pub struct AiChatEvent {
     pub stream_id: String,
-    /// `"delta" | "done" | "error" | "tool_use" | "usage"`
+    /// `"delta" | "done" | "error" | "tool_use" | "usage"`。手元の CLI (#1104) は
+    /// 自分で回した tool を `"tool_call"` (tool_use_* の欄) / `"tool_call_result"`
+    /// (tool_use_id + text、失敗は error) で流し、ターン実行器が通常経路と同じ
+    /// tool_use / tool_result のカードに写す
     pub kind: String,
     /// Present when `kind == "delta"`.
     #[serde(skip_serializing_if = "Option::is_none")]

@@ -1,5 +1,10 @@
 {
   "_native": {
+    "acp": {
+      "permission": {
+        "title": "{harness} が {tool} を実行しようとしています"
+      }
+    },
     "preview": {
       "generic": {
         "title": "{label} を実行しますか？",
