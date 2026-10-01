@@ -933,11 +933,6 @@ _aiConnectionSection:
 
 _aiDataSourcesSection:
   title: "Data sources"
-  memosTitle: "How memos are passed"
-  expandLinks: "Expand linked memos"
-  expandLinksDescription: "Automatically passes memos referenced as `[name](memo:<id>)` in the body to the AI, one level deep. When OFF, the AI does not see referenced memos unless it explicitly calls `memos.backlinks` or similar."
-  includeBacklinks: "Attach backlinks"
-  includeBacklinksDescription: "Adds `referencedBy: [...]` to each memo to tell the AI which memos reference it."
   currentAccount: "Current account"
   currentAccountDescription: "Pass the signed-in account’s info to the AI (tokens and the like are excluded)"
   currentColumn: "Current column"
@@ -946,12 +941,6 @@ _aiDataSourcesSection:
   visibleNotesDescription: "Include the items on screen (notes / notifications / drive files, etc.) in the context"
   recentConversation: "AI conversation history (up to 20 turns)"
   recentConversationDescription: "Include the recent conversation in the context"
-  memos: "Local memos (up to 20)"
-  memosDescription: "Include Zettelkasten-style local memos in the context (current account only)"
-  memosStandard: "Standard"
-  memosLinksOnly: "Expand links only"
-  memosBacklinksOnly: "Backlinks only"
-  memosBodyOnly: "Body only"
 
 _aiGenerationSection:
   title: "Generation"

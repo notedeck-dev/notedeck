@@ -15,12 +15,10 @@ import { useAiConversation } from '@/composables/useAiConversation'
 import { useAiHarnesses } from '@/composables/useAiHarnesses'
 import {
   buildAiContextBlock,
-  projectMemos,
   projectRecentConversation,
   projectVisibleItems,
 } from '@/composables/useAiSystemContext'
 import { useAiTurn } from '@/composables/useAiTurn'
-import { ensureMemosLoaded, loadAllMemos } from '@/composables/useMemos'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
@@ -72,10 +70,6 @@ const vault = useVault()
 const harnesses = useAiHarnesses()
 
 void sessionsStore.loadAllMeta()
-// メモは <memos> データソースとして AI context に注入し得るので、
-// AI カラムが mount された時点で in-memory cache をウォームアップしておく
-// (sendMessage は同期 cache 取得しか行わないため)。
-void ensureMemosLoaded()
 
 const { config: aiConfig } = useAiConfig()
 
@@ -487,7 +481,6 @@ async function sendMessage(
     : undefined
   const visibleItems = projectVisibleItems(visibleNotesRaw, focusedColumn?.type)
 
-  let injectedMemosTainted = false
   const outcome = await turn.run({
     sessionId,
     text,
@@ -500,9 +493,9 @@ async function sendMessage(
     continuation,
     // 入力途中の空欄・範囲外がそのまま送られないよう、使う直前に必ず通す
     generation: normalizeGenerationConfig(aiConfig.value.generation),
-    // 可視ノート (他人の投稿) やラベル付きのメモを文脈に入れるなら、このセッションは
-    // tainted (#1103)。メモは buildSystem で決まる。ラベル付き skill は notemaid が見る
-    contextUntrusted: () => visibleItems.length > 0 || injectedMemosTainted,
+    // 可視ノート (他人の投稿) を文脈に入れるなら、このセッションは tainted (#1103)。
+    // ラベル付き skill は notemaid が見る
+    contextUntrusted: () => visibleItems.length > 0,
     triggerSkillIds: sessionTriggerIds,
     generateTitle: true,
     onTitle: (title) => {
@@ -510,18 +503,9 @@ async function sendMessage(
       if (cur && cur.title === titleBefore)
         sessionsStore.setTitle(sessionId, title)
     },
-    // デバイス文脈 (メモ / 可視ノート / vault 開示状態) はターン開始時の
+    // デバイス文脈 (可視ノート / vault 開示状態) はターン開始時の
     // スナップショット。history は turn が組み立てた wire history
     buildSystem: async (history) => {
-      // メモはアカウントに紐づかない (#1018) ので全件を context に含める。
-      // AI カラム自体もアカウントなしなので、参照範囲が食い違わない。
-      const memoEntries = Object.entries(loadAllMemos())
-
-      // memosConfig.excludeTags があれば AI 注入から該当 tag メモを除外 (#492)。
-      // expandLinks / includeBacklinks (#494) も同 config で制御 (default true)。
-      const memosCfg = aiConfig.value.dataSources.memosConfig
-      const allMemosByAccount = new Map([['', loadAllMemos()]])
-
       // Secret Vault (#564): Ai クラスに開示された接続を AI に見せる (#712 §6.1)。
       // secret / id は渡さず name / baseUrl / auth のみ projection する。
       await vault.refresh()
@@ -533,16 +517,6 @@ async function sendMessage(
           auth: describeAuthType(c.authType),
         }))
 
-      const injectedMemos = projectMemos(memoEntries, {
-        excludeTags: memosCfg?.excludeTags,
-        expandLinks: memosCfg?.expandLinks !== false,
-        includeBacklinks: memosCfg?.includeBacklinks !== false,
-        allMemosByAccount,
-      })
-      const memosAll = loadAllMemos()
-      injectedMemosTainted = injectedMemos.some(
-        (m) => memosAll[m.id]?.data.tainted === true,
-      )
       const contextBlock = buildAiContextBlock(aiConfig.value, {
         currentAccount: props.column.accountId
           ? (accountsStore.accountMap.get(props.column.accountId) ?? null)
@@ -550,7 +524,6 @@ async function sendMessage(
         currentColumn: focusedColumn ?? props.column,
         visibleNotes: visibleItems,
         recentConversation: projectRecentConversation(history),
-        memos: injectedMemos,
         accounts: accountsStore.accounts,
         availableConnections,
       })

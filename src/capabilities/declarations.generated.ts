@@ -1785,7 +1785,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "既存ローカルメモの text / tags / authorId を更新する (すべて optional、未指定なら維持)。 CW / visibility 等の他のフィールドは既存値を保持。 id は <memos> ブロックで参照できる Zettelkasten 形式 memoKey。 投稿前に確認モーダルが出る。",
+    description: "既存ローカルメモの text / tags / authorId を更新する (すべて optional、未指定なら維持)。 CW / visibility 等の他のフィールドは既存値を保持。 id は memos.list / memos.search で得られる Zettelkasten 形式 memoKey。 投稿前に確認モーダルが出る。",
     params: {"id":{"type":"string","description":"更新対象の memoKey (Zettelkasten id, `YYYYMMDDHHmmss`)"},"text":{"type":"string","description":"新しい本文 (未指定なら既存維持、空文字 \"\" 不可)","optional":true},"tags":{"type":"array","description":"新しい tags 配列 (未指定なら既存維持)。空配列 [] を渡すと tags を全削除","optional":true},"authorId":{"type":"string","description":"作者を変更する場合の Identity ID (空文字 \"\" を渡すと author を消す)。 通常は memo の作者を変える用途なし。AI が persona として書いた memo を ユーザー本人に戻す等の特殊操作で使う","optional":true}},
     returns: {"type":"object","description":"`{ id, text, updatedAt, tags?, author? }`"},
   },

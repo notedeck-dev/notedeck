@@ -1272,16 +1272,6 @@ export interface Locale {
   readonly "_aiDataSourcesSection": {
     /** データソース */
     readonly "title": string
-    /** メモの渡し方 */
-    readonly "memosTitle": string
-    /** リンク先メモを展開 */
-    readonly "expandLinks": string
-    /** 本文の `[name](memo:<id>)` で参照されているメモを 1 階層自動で AI に渡す。OFF にすると AI は明示的に `memos.backlinks` 等を呼ばない限り参照先を見ない。 */
-    readonly "expandLinksDescription": string
-    /** バックリンクを添付 */
-    readonly "includeBacklinks": string
-    /** 各メモに `referencedBy: [...]` を付けて「どのメモから参照されているか」を AI に伝える。 */
-    readonly "includeBacklinksDescription": string
     /** 現在のアカウント */
     readonly "currentAccount": string
     /** ログイン中のアカウント情報を AI に渡す (トークン等は除外) */
@@ -1298,18 +1288,6 @@ export interface Locale {
     readonly "recentConversation": string
     /** 直近の会話を context に含める */
     readonly "recentConversationDescription": string
-    /** ローカルメモ (上限 20 件) */
-    readonly "memos": string
-    /** Zettelkasten 形式のローカルメモを context に含める (現在のアカウントのみ) */
-    readonly "memosDescription": string
-    /** 標準 */
-    readonly "memosStandard": string
-    /** リンク展開のみ */
-    readonly "memosLinksOnly": string
-    /** バックリンクのみ */
-    readonly "memosBacklinksOnly": string
-    /** 本文のみ */
-    readonly "memosBodyOnly": string
   }
   readonly "_aiGenerationSection": {
     /** 生成 */

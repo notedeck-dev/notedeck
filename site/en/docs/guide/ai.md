@@ -1,5 +1,5 @@
 ---
-sourceHash: 04f3f7a371d2
+sourceHash: e4600537a300
 ---
 
 # Using AI
@@ -35,9 +35,10 @@ You choose in the settings what information is passed to the AI.
 - Open columns
 - Notes visible on screen
 - Conversation history
-- Memos
 
 Turn off whatever it does not need.
+
+Memos are not passed all the time. The memory the AI carries over lives in MEMORY.md, and it searches for individual memos only when it needs them.
 
 ## Permissions
 

@@ -710,11 +710,6 @@ _aiConnectionSection:
 
 _aiDataSourcesSection:
   title: "データソース"
-  memosTitle: "メモの渡し方"
-  expandLinks: "リンク先メモを展開"
-  expandLinksDescription: "本文の `[name](memo:<id>)` で参照されているメモを 1 階層自動で AI に渡す。OFF にすると AI は明示的に `memos.backlinks` 等を呼ばない限り参照先を見ない。"
-  includeBacklinks: "バックリンクを添付"
-  includeBacklinksDescription: "各メモに `referencedBy: [...]` を付けて「どのメモから参照されているか」を AI に伝える。"
   currentAccount: "現在のアカウント"
   currentAccountDescription: "ログイン中のアカウント情報を AI に渡す (トークン等は除外)"
   currentColumn: "現在のカラム"
@@ -723,12 +718,6 @@ _aiDataSourcesSection:
   visibleNotesDescription: "画面に表示中のアイテム (ノート / 通知 / ドライブファイル等) を context に含める"
   recentConversation: "AI 会話履歴 (上限 20 ターン)"
   recentConversationDescription: "直近の会話を context に含める"
-  memos: "ローカルメモ (上限 20 件)"
-  memosDescription: "Zettelkasten 形式のローカルメモを context に含める (現在のアカウントのみ)"
-  memosStandard: "標準"
-  memosLinksOnly: "リンク展開のみ"
-  memosBacklinksOnly: "バックリンクのみ"
-  memosBodyOnly: "本文のみ"
 
 _aiGenerationSection:
   title: "生成"

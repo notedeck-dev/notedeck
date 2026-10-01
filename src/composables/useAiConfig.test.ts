@@ -33,13 +33,12 @@ describe('defaultConfig', () => {
     expect(cfg.dataSources.preset).toBe('readonly')
   })
 
-  it('default dataSources include account/column/memos but not visibleNotes/recentConversation', () => {
+  it('default dataSources include account/column but not visibleNotes/recentConversation', () => {
     const resolved = resolveDataSources(defaultConfig().dataSources)
     expect(resolved.currentAccount).toBe(true)
     expect(resolved.currentColumn).toBe(true)
     expect(resolved.visibleNotes).toBe(false)
     expect(resolved.recentConversation).toBe(false)
-    expect(resolved.memos).toBe(true)
   })
 
   it('権限プロファイルは ai.json5 から撤去済み (#712)', () => {
@@ -58,13 +57,6 @@ describe('setDataSourcePreset', () => {
     expect(next.preset).toBe('full')
     expect(next.custom.visibleNotes).toBe(true)
     expect(next.custom.recentConversation).toBe(true)
-    expect(next.custom.memos).toBe(true)
-  })
-
-  it('safe preset enables memos (PKM 用 markdown はユーザー自身の note として送って良い)', () => {
-    const next = setDataSourcePreset(defaultConfig().dataSources, 'safe')
-    expect(next.preset).toBe('safe')
-    expect(next.custom.memos).toBe(true)
   })
 })
 
