@@ -704,6 +704,8 @@ _aiConnectionSection:
   harnessHint: "ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。"
   harnessFound: "見つかりました"
   harnessNotFound: "見つかりません"
+  harnessUserMemory: "あなたについての記憶も渡す"
+  harnessUserMemoryHint: "オンにすると「あなたについて覚えていること」が CLI の提供元に送られ、CLI 自身の記憶に残ることがあります。"
   harnessBlocked: "利用不可"
   harnessBlockedHint: "Google の規約で、Gemini CLI のログインを他のアプリから使うことは禁止されています。"
   harnessRelayNote: "Claude を使うときはこの CLI 経由ではなく Claude Agent を選んでください。"

@@ -1262,6 +1262,10 @@ export interface Locale {
     readonly "harnessFound": string
     /** 見つかりません */
     readonly "harnessNotFound": string
+    /** あなたについての記憶も渡す */
+    readonly "harnessUserMemory": string
+    /** オンにすると「あなたについて覚えていること」が CLI の提供元に送られ、CLI 自身の記憶に残ることがあります。 */
+    readonly "harnessUserMemoryHint": string
     /** 利用不可 */
     readonly "harnessBlocked": string
     /** Google の規約で、Gemini CLI のログインを他のアプリから使うことは禁止されています。 */

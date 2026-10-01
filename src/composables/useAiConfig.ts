@@ -226,6 +226,11 @@ export interface AiConfig {
    * で、デバイスは ai.json5 の変更通知で追従する。default: true
    */
   userMemory: boolean
+  /**
+   * 手元の CLI (ACP、#1104) にも、あなたについての記憶 (USER.md) を渡す (#1162)。
+   * CLI ベンダーへ送られ CLI 自身の記憶に写り得るので既定 false (opt-in)
+   */
+  harnessUserMemory: boolean
 }
 
 /**
@@ -364,6 +369,7 @@ export function defaultConfig(): AiConfig {
     },
     generation: normalizeGenerationConfig(defaultFileConfig.generation),
     userMemory: defaultFileConfig.userMemory !== false,
+    harnessUserMemory: defaultFileConfig.harnessUserMemory === true,
   }
 }
 
@@ -510,6 +516,7 @@ function mergeConfig(base: AiConfig, partial: Partial<AiConfig>): AiConfig {
   })
   result.harnesses = normalizeHarnesses(partial.harnesses ?? base.harnesses)
   result.userMemory = partial.userMemory ?? base.userMemory
+  result.harnessUserMemory = partial.harnessUserMemory ?? base.harnessUserMemory
   return result
 }
 

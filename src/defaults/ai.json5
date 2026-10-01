@@ -48,6 +48,10 @@
   // 「すべて忘れる」は AI 設定から)。書き手は notemaid で、ここは写し。
   userMemory: true,
 
+  // 手元の CLI (Claude Agent / Codex など) にも、あなたについての記憶を渡す。
+  // CLI の提供元へ送られ、CLI 自身の記憶に写ることがあるので既定は渡さない。
+  harnessUserMemory: false,
+
   heartbeat: {
     enabled: false,
     intervalMinutes: 30,

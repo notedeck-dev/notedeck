@@ -927,6 +927,8 @@ _aiConnectionSection:
   harnessHint: "Use a logged-in CLI as the AI (no API key needed). Permission requests from the CLI appear as confirmations in the chat. HEARTBEAT does not run."
   harnessFound: "found"
   harnessNotFound: "not found"
+  harnessUserMemory: "Also share what it remembers about you"
+  harnessUserMemoryHint: "When on, \"What it remembers about you\" is sent to the CLI's provider and may end up in the CLI's own memory."
   harnessBlocked: "unavailable"
   harnessBlockedHint: "Google's terms prohibit other apps from using Gemini CLI's login."
   harnessRelayNote: "To use Claude, pick Claude Agent instead of routing through this CLI."
