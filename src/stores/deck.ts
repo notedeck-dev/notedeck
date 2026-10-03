@@ -6,13 +6,13 @@ import { buildColumnDefaults, DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import defaultDeckJson5 from '@/defaults/deck.json5?raw'
 import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
-import type { ClientSearchFilter } from '@/services/clientSearch'
 import {
   buildDefaultDeck,
   type DefaultDeckColumn,
   expandDefaultDeckColumns,
 } from '@/services/defaultDeck'
 import type { VariantKey } from '@/services/noteKey'
+import { externalQueryPatch, type SearchFilter } from '@/services/searchFilter'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
@@ -161,12 +161,16 @@ export interface DeckColumn {
   width: number
   accountId: string | null
   tl?: TimelineType
-  /** サーバー検索 / クライアント検索の検索語 */
+  /** サーバー検索 / クライアント検索の検索語 (母集合を取る語) */
   query?: string
   active?: boolean
   filters?: TimelineFilter
-  /** クライアント検索 (#945 / #958) の絞り込み。カラムに永続化する */
-  clientSearchFilter?: ClientSearchFilter
+  /**
+   * サーバー検索 / クライアント検索の絞り込み (#1180)。面を問わず 1 つの属性に
+   * 保存し、同じ行でも意味が違うもの (範囲 / 投稿者) は中で別の鍵に分ける。
+   * 検索語 (`query`) とカラムクエリの適用 (`noteQueryRefs`) は別の属性
+   */
+  searchFilter?: SearchFilter
   /**
    * カラムクエリ (#783 層 2)。AiScript 式のソース。空/未定義 = クエリなし。
    * 検索カラム用の `query` とは別物 (仕様追補 A)。
@@ -459,11 +463,19 @@ export const useDeckStore = defineStore('deck', () => {
   }
 
   /** ハッシュタグクリック等から検索カラムをクエリ付きで開く。 */
+  /**
+   * 外部 (ハッシュタグのクリック / メンション / CLI) から検索語を差し替えて
+   * サイドバーのサーバー検索を開く。欄への手入力ではないので、期間と範囲を
+   * 消し正規表現モードを切る (#1180)。投稿者は残す
+   */
   function openSearchWith(query: string) {
     const existing = columns.value.find((c) => c.sidebar)
     if (existing && existing.type === 'search') {
       // 既に開いている → query を差し替え (DeckSearchColumn 側の watch が再検索する)
-      updateColumn(existing.id, { query })
+      updateColumn(existing.id, {
+        query,
+        searchFilter: externalQueryPatch(existing.searchFilter),
+      })
       activeColumnId.value = null
       nextTick(() => {
         activeColumnId.value = existing.id
@@ -474,6 +486,7 @@ export const useDeckStore = defineStore('deck', () => {
         accountId: null,
         name: null,
         query,
+        searchFilter: externalQueryPatch(existing.searchFilter),
       })
       activeColumnId.value = null
       nextTick(() => {
