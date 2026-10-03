@@ -114,6 +114,8 @@ export interface SearchOptions {
   untilDate?: number
   /** 指定ユーザーのノートのみに絞る (notes/search の userId) */
   userId?: string
+  /** 検索範囲のサーバー (notes/search の host。`.` = ローカルのみ、未指定 = 全体) */
+  host?: string
 }
 
 // `UserList` は specta 経由で Rust 側から自動生成される正規化型 (notecli の

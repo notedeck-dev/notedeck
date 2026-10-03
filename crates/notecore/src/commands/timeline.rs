@@ -889,6 +889,26 @@ pub async fn api_search_notes_local(
     .await
 }
 
+/// クライアント検索の絞り込み (notedeck#1180)。各項目の意味は
+/// `notecli::db::CachedSearchOptions` の同名フィールド。1 引数に束ねるのは
+/// specta の Tauri コマンド引数の上限 (State 込みで 10) のため。
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CachedSearchFilters {
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub has_files: Option<bool>,
+    #[serde(default)]
+    pub public_only: Option<bool>,
+    #[serde(default)]
+    pub text_any: Option<Vec<String>>,
+    #[serde(default)]
+    pub text_all: Option<Vec<String>>,
+    #[serde(default)]
+    pub text_exclude: Option<Vec<String>>,
+}
+
 /// クライアント検索 (notedeck#945 / #958): 複数アカウントのキャッシュを横断して
 /// 引く。結果は取得元アカウントごとの variant のまま返し、束ねはフロントが行う。
 #[allow(clippy::too_many_arguments)]
@@ -900,15 +920,14 @@ pub async fn api_search_notes_cached_across(
     since_date: Option<String>,
     until_date: Option<String>,
     ascending: Option<bool>,
-    author: Option<String>,
-    has_files: Option<bool>,
-    public_only: Option<bool>,
+    filters: Option<CachedSearchFilters>,
 ) -> Result<Vec<NormalizedNote>> {
     if query.len() > 1000 {
         return Err(NoteDeckError::InvalidInput(
             "Search query too long".to_string(),
         ));
     }
+    let filters = filters.unwrap_or_default();
     core.blocking(move |db| {
         let ids: Vec<&str> = account_ids.iter().map(String::as_str).collect();
         db.search_cached_notes_across(
@@ -919,9 +938,12 @@ pub async fn api_search_notes_cached_across(
                 since_date: since_date.as_deref(),
                 until_date: until_date.as_deref(),
                 ascending: ascending.unwrap_or(false),
-                author: author.as_deref().filter(|a| !a.trim().is_empty()),
-                has_files,
-                public_only: public_only.unwrap_or(false),
+                author: filters.author.as_deref().filter(|a| !a.trim().is_empty()),
+                has_files: filters.has_files,
+                public_only: filters.public_only.unwrap_or(false),
+                text_any: filters.text_any.as_deref().unwrap_or(&[]),
+                text_all: filters.text_all.as_deref().unwrap_or(&[]),
+                text_exclude: filters.text_exclude.as_deref().unwrap_or(&[]),
             },
         )
     })
@@ -942,9 +964,12 @@ pub async fn search_archive(
         req.since,
         req.until,
         Some(false),
-        req.author,
-        req.has_files,
-        Some(req.public_only),
+        Some(CachedSearchFilters {
+            author: req.author,
+            has_files: req.has_files,
+            public_only: Some(req.public_only),
+            ..Default::default()
+        }),
     )
     .await
 }
