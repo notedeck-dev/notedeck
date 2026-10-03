@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
 import {
-  buildRegexFromConditions,
-  extractHintFromConditions,
   extractLiterals,
   filterNotesByRegex,
+  filterNotesByRegexAsync,
   isValidRegex,
+  RegexFilterError,
   safeRegex,
 } from '@/utils/regexSearch'
 
@@ -141,95 +141,13 @@ describe('filterNotesByRegex', () => {
   })
 })
 
-describe('buildRegexFromConditions', () => {
-  it('builds an alternation for contains_any', () => {
-    const pattern = buildRegexFromConditions([
-      { type: 'contains_any', words: 'cat dog' },
-    ])
-    expect(pattern).toBe('(?:cat|dog)')
-    const re = new RegExp(pattern)
-    expect(re.test('I have a dog')).toBe(true)
-    expect(re.test('I have a bird')).toBe(false)
-  })
-
-  it('builds lookaheads for contains_all', () => {
-    const pattern = buildRegexFromConditions([
-      { type: 'contains_all', words: 'foo bar' },
-    ])
-    expect(pattern).toBe('^(?=.*foo)(?=.*bar)')
-    const re = new RegExp(pattern)
-    expect(re.test('bar then foo')).toBe(true)
-    expect(re.test('only foo')).toBe(false)
-  })
-
-  it('builds negative lookaheads for excludes', () => {
-    const pattern = buildRegexFromConditions([
-      { type: 'excludes', words: 'spam' },
-    ])
-    expect(pattern).toBe('^(?!.*spam)')
-    const re = new RegExp(pattern)
-    expect(re.test('clean text')).toBe(true)
-    expect(re.test('this is spam')).toBe(false)
-  })
-
-  it('combines lookaheads and matches', () => {
-    const pattern = buildRegexFromConditions([
-      { type: 'contains_all', words: 'foo' },
-      { type: 'contains_any', words: 'x y' },
-    ])
-    expect(pattern).toBe('^(?=.*foo).*(?:x|y)')
-    const re = new RegExp(pattern)
-    expect(re.test('foo with x')).toBe(true)
-    expect(re.test('foo without')).toBe(false)
-    expect(re.test('x without f-o-o')).toBe(false)
-  })
-
-  it('escapes regex metacharacters in words', () => {
-    const pattern = buildRegexFromConditions([
-      { type: 'contains_any', words: 'c++' },
-    ])
-    expect(new RegExp(pattern).test('I like c++')).toBe(true)
-    expect(new RegExp(pattern).test('I like c')).toBe(false)
-  })
-
-  it('splits words on comma, Japanese comma and whitespace', () => {
-    const pattern = buildRegexFromConditions([
-      { type: 'contains_any', words: 'a1,b2、c3 d4' },
-    ])
-    expect(pattern).toBe('(?:a1|b2|c3|d4)')
-  })
-
-  it('returns empty string for empty or whitespace-only conditions', () => {
-    expect(buildRegexFromConditions([])).toBe('')
-    expect(
-      buildRegexFromConditions([{ type: 'contains_any', words: '  , ' }]),
-    ).toBe('')
-  })
-})
-
-describe('extractHintFromConditions', () => {
-  it('returns the longest word from contains conditions', () => {
-    expect(
-      extractHintFromConditions([
-        { type: 'contains_any', words: 'ab longest' },
-        { type: 'contains_all', words: 'mid' },
-      ]),
-    ).toBe('longest')
-  })
-
-  it('ignores excludes conditions', () => {
-    expect(
-      extractHintFromConditions([
-        { type: 'excludes', words: 'verylongexcludedword' },
-        { type: 'contains_any', words: 'hint' },
-      ]),
-    ).toBe('hint')
-  })
-
-  it('returns empty string when no usable words', () => {
-    expect(extractHintFromConditions([])).toBe('')
-    expect(
-      extractHintFromConditions([{ type: 'excludes', words: 'spam' }]),
-    ).toBe('')
+describe('filterNotesByRegexAsync', () => {
+  it('無効なパターンは素通しせず、照合の失敗として拒否する', async () => {
+    await expect(
+      filterNotesByRegexAsync([makeNote()], '(unclosed'),
+    ).rejects.toMatchObject({ kind: 'invalid' })
+    await expect(
+      filterNotesByRegexAsync([makeNote()], '(unclosed'),
+    ).rejects.toBeInstanceOf(RegexFilterError)
   })
 })

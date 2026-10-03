@@ -99,6 +99,7 @@ const ALLOWED: Record<string, string> = {
   'src/core/queryRegistry.ts:entriesByQueryId': 'keyed: 登録済みクエリ',
   'src/composables/useAds.ts:adsCache': 'keyed: アカウント',
   'src/composables/useLoginPrompt.ts:reloginPromptShownAt': 'keyed: アカウント',
+  'src/composables/useSearchScopeMeta.ts:cache': 'keyed: アカウント',
   'src/composables/useUnreadCounter.ts:sharedStates': 'keyed: カラム',
   'src/composables/useNoteSound.ts:failedHosts': 'keyed: ホスト',
   'src/utils/customTimelines.ts:customTlMemCache': 'keyed: アカウント',

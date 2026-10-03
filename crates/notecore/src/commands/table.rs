@@ -51,7 +51,7 @@ macro_rules! with_command_table {
         data api_find_notes_by_identity(uri: String) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_find_notes_by_identity;
         data api_note_identity(uri: String) -> String = $crate::commands::timeline::api_note_identity;
         data api_search_notes_local(account_id: String, query: String, limit: Option<i64>, since_date: Option<String>, until_date: Option<String>, ascending: Option<bool>) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_search_notes_local;
-        data api_search_notes_cached_across(account_ids: Vec<String>, query: String, limit: Option<i64>, since_date: Option<String>, until_date: Option<String>, ascending: Option<bool>, author: Option<String>, has_files: Option<bool>, public_only: Option<bool>) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_search_notes_cached_across;
+        data api_search_notes_cached_across(account_ids: Vec<String>, query: String, limit: Option<i64>, since_date: Option<String>, until_date: Option<String>, ascending: Option<bool>, filters: Option<$crate::commands::timeline::CachedSearchFilters>) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_search_notes_cached_across;
         data api_delete_cached_note(account_id: String, note_id: String) -> () = $crate::commands::timeline::api_delete_cached_note;
         data api_verify_notes(account_id: String, note_ids: Vec<String>) -> $crate::commands::timeline::VerifyNotesResult = $crate::commands::timeline::api_verify_notes;
             // --- user (crates/notecore/src/commands/user.rs) ---

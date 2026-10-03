@@ -898,6 +898,9 @@ impl MisskeyClient {
         if let Some(ref uid) = options.user_id {
             params["userId"] = json!(uid);
         }
+        if let Some(h) = options.host.as_deref().filter(|h| !h.is_empty()) {
+            params["host"] = json!(h);
+        }
         let data = self.request(host, token, "notes/search", params).await?;
         let raw: Vec<RawNote> = serde_json::from_value(data)?;
         Ok(raw
@@ -934,6 +937,7 @@ impl MisskeyClient {
         if let Some(ref uid) = options.user_id {
             params["userId"] = json!(uid);
         }
+        // options.host は渡さない (hanamisearch-v1 が host を受けるかは未確認)
         let data = self
             .request(host, token, "notes/hanamisearch-v1", params)
             .await?;
@@ -3857,6 +3861,57 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(notes.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn search_notes_sends_host_filter() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/notes/search"))
+            .and(body_partial_json(json!({ "query": "rust", "host": "." })))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!([raw_note_json("n1", "rust note")])),
+            )
+            .mount(&server)
+            .await;
+
+        let mut options = SearchOptions::default();
+        options.host = Some(".".to_string());
+        let client = MisskeyClient::with_base_url(&server.uri());
+        let notes = client
+            .search_notes("h", "token", "acc1", "rust", options)
+            .await
+            .unwrap();
+        assert_eq!(notes.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn search_notes_omits_host_when_unset_or_empty() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/notes/search"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&server)
+            .await;
+
+        let client = MisskeyClient::with_base_url(&server.uri());
+        client
+            .search_notes("h", "token", "acc1", "rust", SearchOptions::default())
+            .await
+            .unwrap();
+        let mut empty = SearchOptions::default();
+        empty.host = Some(String::new());
+        client
+            .search_notes("h", "token", "acc1", "rust", empty)
+            .await
+            .unwrap();
+
+        let requests = server.received_requests().await.unwrap();
+        assert_eq!(requests.len(), 2);
+        for req in &requests {
+            let body: serde_json::Value = serde_json::from_slice(&req.body).unwrap();
+            assert!(body.get("host").is_none(), "host must be absent: {body}");
+        }
     }
 
     #[tokio::test]

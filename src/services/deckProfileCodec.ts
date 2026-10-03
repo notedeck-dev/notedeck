@@ -8,6 +8,7 @@
  */
 
 import { COLUMN_LABELS_BY_TYPE } from '@/i18n/locale.generated'
+import { migrateSearchColumns } from '@/services/searchFilter'
 import type { DeckColumn, DeckProfile } from '@/stores/deck'
 import type { WidgetMeta } from '@/stores/widgets'
 
@@ -100,6 +101,8 @@ export function clearDefaultColumnNames(columns: DeckColumn[]): DeckColumn[] {
 export interface ParsedProfileFile
   extends Omit<WidgetMigrationResult, 'columns'> {
   profile: DeckProfile
+  /** 検索カラムの絞り込みを旧属性から移した数 (#1180)。0 でなければ書き戻す */
+  migratedSearchColumns: number
 }
 
 /**
@@ -115,8 +118,14 @@ export function parseProfileFile(
   filename: string,
 ): ParsedProfileFile {
   const rawColumns = (data.columns as DeckColumn[]) || []
-  const { columns, droppedConsoleCount, extractedWidgets, sidebarSeed } =
-    migrateWidgetColumns(rawColumns)
+  const {
+    columns: widgetMigrated,
+    droppedConsoleCount,
+    extractedWidgets,
+    sidebarSeed,
+  } = migrateWidgetColumns(rawColumns)
+  const { columns, migrated: migratedSearchColumns } =
+    migrateSearchColumns(widgetMigrated)
   const profile = {
     ...data,
     id,
@@ -130,5 +139,6 @@ export function parseProfileFile(
     droppedConsoleCount,
     extractedWidgets,
     sidebarSeed,
+    migratedSearchColumns,
   }
 }

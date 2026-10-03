@@ -123,6 +123,7 @@ export function createNotesApi(ctx: MisskeyApiContext): NotesApi {
           sinceDate: options.sinceDate ?? null,
           untilDate: options.untilDate ?? null,
           userId: options.userId ?? null,
+          host: options.host ?? null,
         }),
       )
     },

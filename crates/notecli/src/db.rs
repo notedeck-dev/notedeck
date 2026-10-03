@@ -166,6 +166,12 @@ pub struct CachedSearchOptions<'a> {
     pub has_files: Option<bool>,
     /// true なら visibility が public のノートだけ (AI など第三者に見せる面用)
     pub public_only: bool,
+    /// 本文の構造化条件 (notedeck#1180)。語ごとに `query` と同じ FTS / LIKE の
+    /// 切り替えで述語を作り、`text_any` はいずれか、`text_all` はすべて、
+    /// `text_exclude` はどれも含まないノートに絞る。`query` の意味は変えない
+    pub text_any: &'a [String],
+    pub text_all: &'a [String],
+    pub text_exclude: &'a [String],
 }
 
 /// 起動前の migration 検査の結果 (notedeck#1106)。`Database::open` は migration を
@@ -1009,6 +1015,9 @@ impl Database {
             author,
             has_files,
             public_only,
+            text_any,
+            text_all,
+            text_exclude,
         } = *opts;
         let conn = self.lock_read()?;
         let order = if ascending { "ASC" } else { "DESC" };
@@ -1042,6 +1051,42 @@ impl Database {
             param_idx += 1;
         } else {
             like_pattern = String::new();
+        }
+
+        // 構造化の本文条件 (notedeck#1180)。語ごとに 1 パラメータ消費する。
+        // 除外は本文 NULL のノートを落とさないよう LIKE 側を COALESCE で '' に寄せる
+        // (FTS 側は rowid IN なので NULL の問題はない)
+        let mut word_params: Vec<String> = Vec::new();
+        let mut word_predicate = |word: &str, param_idx: &mut u32| -> String {
+            let idx = *param_idx;
+            *param_idx += 1;
+            if word.chars().count() >= 3 {
+                let escaped = word.replace('"', "\"\"");
+                word_params.push(format!("\"{escaped}\""));
+                format!("nc.rowid IN (SELECT rowid FROM notes_fts WHERE notes_fts MATCH ?{idx})")
+            } else {
+                word_params.push(format!("%{word}%"));
+                format!("COALESCE(nc.text, '') LIKE ?{idx}")
+            }
+        };
+        let any_words: Vec<&str> = text_any
+            .iter()
+            .map(String::as_str)
+            .filter(|w| !w.is_empty())
+            .collect();
+        if !any_words.is_empty() {
+            let preds: Vec<String> = any_words
+                .iter()
+                .map(|w| word_predicate(w, &mut param_idx))
+                .collect();
+            conditions.push(format!("({})", preds.join(" OR ")));
+        }
+        for word in text_all.iter().filter(|w| !w.is_empty()) {
+            conditions.push(word_predicate(word, &mut param_idx));
+        }
+        for word in text_exclude.iter().filter(|w| !w.is_empty()) {
+            let pred = word_predicate(word, &mut param_idx);
+            conditions.push(format!("NOT ({pred})"));
         }
 
         if since_date.is_some() {
@@ -1102,6 +1147,9 @@ impl Database {
         }
         if use_like {
             dynamic_params.push(Box::new(like_pattern));
+        }
+        for p in word_params {
+            dynamic_params.push(Box::new(p));
         }
         if let Some(d) = since_date {
             dynamic_params.push(Box::new(d.to_string()));
@@ -4389,6 +4437,136 @@ mod tests {
             )
             .unwrap();
         assert_eq!(without_files.len(), 2);
+    }
+
+    fn text_variant(id: &str, text: Option<&str>) -> NormalizedNote {
+        let mut n = variant(id, "acc-1", "a.example", None);
+        n.text = text.map(str::to_string);
+        n
+    }
+
+    fn ids(notes: &[NormalizedNote]) -> Vec<&str> {
+        let mut v: Vec<&str> = notes.iter().map(|n| n.id.as_str()).collect();
+        v.sort_unstable();
+        v
+    }
+
+    fn seed_text_notes(db: &Database) {
+        db.ingest_notes(
+            &[
+                text_variant("n1", Some("rust and tokio")),
+                text_variant("n2", Some("python asyncio")),
+                text_variant("n3", Some("rust only")),
+                text_variant("n4", None),
+            ],
+            &tk("home"),
+        )
+        .unwrap();
+    }
+
+    #[test]
+    fn search_cached_notes_across_text_any_matches_either_word() {
+        let (_dir, db) = temp_db();
+        seed_text_notes(&db);
+        let hits = db
+            .search_cached_notes_across(
+                &["acc-1"],
+                &CachedSearchOptions {
+                    limit: 10,
+                    text_any: &["tokio".to_string(), "python".to_string()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&hits), vec!["n1", "n2"]);
+    }
+
+    #[test]
+    fn search_cached_notes_across_text_all_requires_every_word() {
+        let (_dir, db) = temp_db();
+        seed_text_notes(&db);
+        let hits = db
+            .search_cached_notes_across(
+                &["acc-1"],
+                &CachedSearchOptions {
+                    limit: 10,
+                    text_all: &["rust".to_string(), "tokio".to_string()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&hits), vec!["n1"]);
+    }
+
+    #[test]
+    fn search_cached_notes_across_text_exclude_keeps_null_text() {
+        let (_dir, db) = temp_db();
+        seed_text_notes(&db);
+        // query 空 + exclude だけ: 母集合は全件で、本文が NULL のノートは落とさない
+        let hits = db
+            .search_cached_notes_across(
+                &["acc-1"],
+                &CachedSearchOptions {
+                    limit: 10,
+                    text_exclude: &["rust".to_string()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&hits), vec!["n2", "n4"]);
+        // 2 文字の除外語は LIKE 経路。NULL 本文はここでも残る
+        let hits = db
+            .search_cached_notes_across(
+                &["acc-1"],
+                &CachedSearchOptions {
+                    limit: 10,
+                    text_exclude: &["io".to_string()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&hits), vec!["n3", "n4"]);
+        // 既存の検索語と組み合わせても検索語の意味は変わらない
+        let hits = db
+            .search_cached_notes_across(
+                &["acc-1"],
+                &CachedSearchOptions {
+                    query: "rust",
+                    limit: 10,
+                    text_exclude: &["tokio".to_string()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&hits), vec!["n3"]);
+    }
+
+    #[test]
+    fn search_cached_notes_across_short_word_uses_like() {
+        let (_dir, db) = temp_db();
+        seed_text_notes(&db);
+        let hits = db
+            .search_cached_notes_across(
+                &["acc-1"],
+                &CachedSearchOptions {
+                    limit: 10,
+                    text_any: &["py".to_string()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&hits), vec!["n2"]);
+        let hits = db
+            .search_cached_notes_across(
+                &["acc-1"],
+                &CachedSearchOptions {
+                    limit: 10,
+                    text_all: &["ru".to_string(), "to".to_string()],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&hits), vec!["n1"]);
     }
 
     #[test]
