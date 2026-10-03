@@ -24,10 +24,17 @@ export interface ProfileLoadByproducts {
   droppedConsoleCount: number
   extractedWidgets: WidgetMeta[]
   sidebarSeed: string[]
+  /** 検索カラムの絞り込みを旧属性から移した数 (#1180) */
+  migratedSearchColumns: number
 }
 
 function emptyByproducts(): ProfileLoadByproducts {
-  return { droppedConsoleCount: 0, extractedWidgets: [], sidebarSeed: [] }
+  return {
+    droppedConsoleCount: 0,
+    extractedWidgets: [],
+    sidebarSeed: [],
+    migratedSearchColumns: 0,
+  }
 }
 
 let pendingByproducts = emptyByproducts()
@@ -63,11 +70,17 @@ export function createProfileFiles(notify: (message: string) => void) {
     effectiveIdOf: (filename) => filename,
     injectId: (raw, id) => injectJson5Id(raw, 'id', id),
     fromFile: (p, id, filename) => {
-      const { profile, droppedConsoleCount, extractedWidgets, sidebarSeed } =
-        parseProfileFile(p, id, filename)
+      const {
+        profile,
+        droppedConsoleCount,
+        extractedWidgets,
+        sidebarSeed,
+        migratedSearchColumns,
+      } = parseProfileFile(p, id, filename)
       pendingByproducts.droppedConsoleCount += droppedConsoleCount
       pendingByproducts.extractedWidgets.push(...extractedWidgets)
       pendingByproducts.sidebarSeed.push(...sidebarSeed)
+      pendingByproducts.migratedSearchColumns += migratedSearchColumns
       return profile
     },
     displayNameOf: (p) => (typeof p.name === 'string' ? p.name : ''),

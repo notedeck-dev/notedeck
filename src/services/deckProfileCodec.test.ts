@@ -109,6 +109,40 @@ describe('parseProfileFile', () => {
   })
 })
 
+describe('parseProfileFile — 検索カラムの絞り込みの移行 (#1180)', () => {
+  it('旧 clientSearchFilter と search の userId を searchFilter へ移し、件数を返す', () => {
+    const { profile, migratedSearchColumns } = parseProfileFile(
+      {
+        columns: [
+          {
+            id: 'c1',
+            type: 'clientSearch',
+            clientSearchFilter: { author: 'alice', ascending: true },
+          },
+          { id: 's1', type: 'search', accountId: 'a1', userId: 'u1' },
+          { id: 't1', type: 'timeline', accountId: 'a1' },
+        ],
+      },
+      'my-id',
+      'main.ndprofile.json5',
+    )
+    expect(migratedSearchColumns).toBe(2)
+    expect(profile.columns[0]).toMatchObject({
+      searchFilter: { author: 'alice', ascending: true },
+    })
+    expect(profile.columns[0]).not.toHaveProperty('clientSearchFilter')
+    expect(profile.columns[1]).toMatchObject({
+      searchFilter: { authorIds: { a1: { id: 'u1', acct: '' } } },
+    })
+    expect(profile.columns[1]).not.toHaveProperty('userId')
+    expect(profile.columns[2]).toEqual({
+      id: 't1',
+      type: 'timeline',
+      accountId: 'a1',
+    })
+  })
+})
+
 describe('parseProfileFile — 既定の表示名を保存していたカラム (#135)', () => {
   const columns = [
     { id: 'a', type: 'mentions', name: 'メンション' },

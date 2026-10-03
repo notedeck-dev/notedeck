@@ -931,21 +931,67 @@ export interface Locale {
     /** データがありません */
     readonly "noData": string
   }
-  readonly "_regexGuide": {
-    /** フィルター条件 */
-    readonly "filterConditions": string
+  readonly "_conditionBuilder": {
+    /** 本文の条件 */
+    readonly "title": string
     /** カンマ区切りで単語を入力 */
     readonly "wordsPlaceholder": string
     /** 条件を追加 */
     readonly "addCondition": string
-    /** 適用 */
-    readonly "apply": string
     /** いずれかを含む */
     readonly "containsAny": string
     /** すべてを含む */
     readonly "containsAll": string
     /** 除外する */
     readonly "excludes": string
+    /** 検索語が外から差し替えられたため、本文の条件は止まっています。検索語を手で入力すると戻ります */
+    readonly "paused": string
+  }
+  readonly "_searchFilterPanel": {
+    /** フィルター */
+    readonly "filter": string
+    /** フィルターをクリア */
+    readonly "clearFilters": string
+    /** 範囲 */
+    readonly "scope": string
+    /** すべてのアカウント */
+    readonly "allAccounts": string
+    /** {host} (サーバー) */
+    readonly "serverOption": ParameterizedString<'host'>
+    /** すべて */
+    readonly "hostAll": string
+    /** ローカル */
+    readonly "hostLocal": string
+    /** ホスト指定 */
+    readonly "hostSpecify": string
+    /** example.com */
+    readonly "hostPlaceholder": string
+    /** 投稿者 */
+    readonly "author": string
+    /** name または name@host */
+    readonly "authorPlaceholder": string
+    /** 確認中... */
+    readonly "authorResolving": string
+    /** 未解決 */
+    readonly "authorUnresolved": string
+    /** 期間 */
+    readonly "period": string
+    /** 開始日 */
+    readonly "since": string
+    /** 終了日 */
+    readonly "until": string
+    /** 添付 */
+    readonly "attachments": string
+    /** 問わない */
+    readonly "attachmentsAny": string
+    /** あり */
+    readonly "attachmentsYes": string
+    /** なし */
+    readonly "attachmentsNo": string
+    /** このカラムでは効きません */
+    readonly "staleHint": string
+    /** 外す */
+    readonly "remove": string
   }
   readonly "_renoteMoreMenu": {
     /** このリノートを削除しますか？ */
@@ -2874,43 +2920,15 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "bootstrapKickoff": string
   }
   readonly "_deckClientSearchColumn": {
-    /** 手元のノートを検索... */
+    /** 手元のノートを検索 (入力すると検索) */
     readonly "searchPlaceholder": string
-    /** 絞り込み */
-    readonly "filter": string
     /** 古い順 */
     readonly "oldestFirst": string
     /** 新しい順 */
     readonly "newestFirst": string
-    /** 範囲 */
-    readonly "scope": string
-    /** すべてのアカウント */
-    readonly "allAccounts": string
-    /** {host} (サーバー) */
-    readonly "serverOption": ParameterizedString<'host'>
-    /** 投稿者 */
-    readonly "author": string
-    /** name または name@host */
-    readonly "authorPlaceholder": string
-    /** 期間 */
-    readonly "period": string
-    /** 開始日 */
-    readonly "since": string
-    /** 終了日 */
-    readonly "until": string
-    /** 添付 */
-    readonly "attachments": string
-    /** 問わない */
-    readonly "attachmentsAny": string
-    /** あり */
-    readonly "attachmentsYes": string
-    /** なし */
-    readonly "attachmentsNo": string
-    /** 絞り込みをクリア */
-    readonly "clearFilters": string
     /** 手元のキャッシュに一致するノートはありません */
     readonly "noMatches": string
-    /** 検索語か絞り込みを入れると、手元に貯めたノートから引きます */
+    /** 検索語かフィルターを入れると、手元に貯めたノートから引きます */
     readonly "emptyHint": string
   }
   readonly "_deckColumn": {
@@ -3667,27 +3685,17 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "deleted": string
   }
   readonly "_deckSearchColumn": {
-    /** 正規表現で検索... */
+    /** 正規表現で検索 (Enter で検索) */
     readonly "regexPlaceholder": string
-    /** ノートを検索... */
+    /** ノートを検索 (Enter で検索) */
     readonly "placeholder": string
     /** 正規表現モード */
     readonly "regexMode": string
-    /** 正規表現ガイド */
-    readonly "regexGuide": string
-    /** 日付フィルター */
-    readonly "dateFilter": string
     /** 古い順 */
     readonly "oldestFirst": string
     /** 新しい順 */
     readonly "newestFirst": string
-    /** 開始日 */
-    readonly "startDate": string
-    /** 終了日 */
-    readonly "endDate": string
-    /** 日付クリア */
-    readonly "clearDate": string
-    /** 検索クエリを入力 */
+    /** 検索語を入力 */
     readonly "enterQuery": string
     /** 結果が見つかりませんでした */
     readonly "noResults": string
@@ -3695,6 +3703,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "enterToSearch": string
     /** 無効な正規表現です */
     readonly "invalidRegex": string
+    /** 正規表現の照合が時間内に終わらなかったため、この検索は中止しました */
+    readonly "regexTimeout": string
+    /** 正規表現の照合ができないため、この検索は中止しました */
+    readonly "regexUnavailable": string
+    /** 投稿者を解決できなかったため、このアカウントでは検索していません */
+    readonly "authorUnresolved": string
   }
   readonly "_deckStreamInspectorColumn": {
     /** 再開 */

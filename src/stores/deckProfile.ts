@@ -7,6 +7,7 @@ import {
   drainProfileLoadByproducts,
 } from '@/services/deckProfileFiles'
 import { selectMemoryOnlyProfiles } from '@/services/deckProfileMerge'
+import { migrateSearchColumns } from '@/services/searchFilter'
 import {
   casefold,
   resolveAvailable,
@@ -42,6 +43,8 @@ let pendingConsoleMigrationFilesDirty = false
 
 /** マイグレーションで widgets[] → widgetIds[] への変換が起きたか。プロファイル再書込判定用 */
 let pendingWidgetExtractionDirty = false
+/** 検索カラムの絞り込みを旧属性から移したので、古い形を残さず書き戻す (#1180) */
+let pendingSearchMigrationDirty = false
 
 /** 抽出した widget を widgetsStore に流し込む (重複 installId は skip)。 */
 function pushExtractedWidgets(extracted: WidgetMeta[], sidebarSeed: string[]) {
@@ -291,10 +294,16 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
         return true
       })
       .map((p) => {
-        const { columns, droppedConsoleCount, extractedWidgets, sidebarSeed } =
-          migrateWidgetColumns(p.columns ?? [])
+        const {
+          columns: widgetMigrated,
+          droppedConsoleCount,
+          extractedWidgets,
+          sidebarSeed,
+        } = migrateWidgetColumns(p.columns ?? [])
         pendingConsoleMigrationCount += droppedConsoleCount
         pushExtractedWidgets(extractedWidgets, sidebarSeed)
+        const { columns, migrated } = migrateSearchColumns(widgetMigrated)
+        if (migrated > 0) pendingSearchMigrationDirty = true
         return { ...p, columns }
       })
   }
@@ -609,6 +618,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     const { items: fileProfiles } = await profileFiles.loadAll()
     const byproducts = drainProfileLoadByproducts()
     pendingConsoleMigrationCount += byproducts.droppedConsoleCount
+    if (byproducts.migratedSearchColumns > 0) pendingSearchMigrationDirty = true
     pushExtractedWidgets(byproducts.extractedWidgets, byproducts.sidebarSeed)
 
     // Merge: file profiles are authoritative, but keep in-memory-only
@@ -666,9 +676,14 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     flushConsoleMigrationNotice()
 
     // Rewrite files with migrated content so the next load is clean
-    if (pendingConsoleMigrationFilesDirty || pendingWidgetExtractionDirty) {
+    if (
+      pendingConsoleMigrationFilesDirty ||
+      pendingWidgetExtractionDirty ||
+      pendingSearchMigrationDirty
+    ) {
       pendingConsoleMigrationFilesDirty = false
       pendingWidgetExtractionDirty = false
+      pendingSearchMigrationDirty = false
       persistAllProfilesToFiles()
     }
   }

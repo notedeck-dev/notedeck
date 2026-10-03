@@ -6,24 +6,39 @@ import {
   onMounted,
   onUnmounted,
   ref,
-  shallowRef,
   useTemplateRef,
   watch,
 } from 'vue'
-import type { NormalizedNote } from '@/adapters/types'
+import type {
+  NormalizedNote,
+  NormalizedUser,
+  SearchOptions,
+} from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
-import RegexGuide from '@/components/common/RegexGuide.vue'
 import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { usePortal } from '@/composables/usePortal'
-import { useVaporTransition } from '@/composables/useVaporTransition'
+import { useSearchScopeMeta } from '@/composables/useSearchScopeMeta'
 import { i18n } from '@/i18n'
 import type { NoteGroup } from '@/services/noteGroup'
 import { variantKeyOf } from '@/services/noteKey'
+import {
+  type AuthorResolution,
+  dateBounds,
+  effectiveConditions,
+  effectiveHostParam,
+  hasActiveFilter,
+  matchesPlainTerm,
+  matchesTextConditions,
+  parseAuthor,
+  type SearchFilter,
+  type SearchFilterRow,
+  serverHostOptions,
+} from '@/services/searchFilter'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -35,7 +50,6 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNoteFocus } from '@/composables/useNoteFocus'
 import { useNoteList } from '@/composables/useNoteList'
-import { useSearchFilters } from '@/composables/useSearchFilters'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
@@ -45,9 +59,11 @@ import {
   extractLiterals,
   filterNotesByRegexAsync,
   isValidRegex,
+  RegexFilterError,
 } from '@/utils/regexSearch'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
+import SearchFilterPanel from './SearchFilterPanel.vue'
 
 function collectFulfilled<T>(results: PromiseSettledResult<T[]>[]): T[] {
   return results.flatMap((r) => (r.status === 'fulfilled' ? r.value : []))
@@ -142,8 +158,6 @@ const { focusedNoteId } = useNoteFocus(
   undefined,
   (index) => noteScrollerRef.value?.scrollToIndex(index),
 )
-const regexGuidePortalRef = useTemplateRef<HTMLElement>('regexGuidePortalRef')
-usePortal(regexGuidePortalRef)
 
 const postPortalRef = useTemplateRef<HTMLElement>('postPortalRef')
 usePortal(postPortalRef)
@@ -153,88 +167,248 @@ const searchInput = ref<HTMLInputElement | null>(null)
 const hasLocalResults = ref(false)
 const isPreview = ref(false)
 const confirmedQuery = ref('')
+/** 検索バーの下に出す検索の失敗 (無効な正規表現 / 照合の失敗 / 投稿者の未解決) */
+const inlineError = ref<string | null>(null)
 
-// Regex mode
-const regexMode = ref(false)
-const showRegexGuide = ref(false)
-const regexError = ref<string | null>(null)
-const regexGuidePos = ref({ top: 0, right: 0 })
-const regexGuideBtnRef = ref<HTMLElement | null>(null)
-const { visible: regexGuideVisible, leaving: regexGuideLeaving } =
-  useVaporTransition(showRegexGuide, { enterDuration: 180, leaveDuration: 200 })
+// --- 絞り込み (#1180)。正本は column.searchFilter、ここはその写し ---
+const filter = ref<SearchFilter>({ ...props.column.searchFilter })
+// 外部からの差し替え (ハッシュタグ / CLI / AI) を取り込む
+watch(
+  () => props.column.searchFilter,
+  (f) => {
+    filter.value = { ...f }
+  },
+)
+function saveFilter(next: SearchFilter) {
+  filter.value = next
+  deckStore.updateColumn(props.column.id, { searchFilter: next })
+}
+const regexMode = computed(() => filter.value.regex === true)
+const ascending = computed(() => filter.value.ascending === true)
+const regexInvalid = computed(() => {
+  const q = searchQuery.value.trim()
+  return regexMode.value && !!q && !isValidRegex(q)
+})
 
-// Date filter & sort
-const {
-  sinceDate,
-  untilDate,
-  ascending,
-  showFilters,
-  toggleFilters,
-  clearDateFilters,
-  toggleSort,
-  getSinceDateMs,
-  getUntilDateMs,
-  getSinceDateISO,
-  getUntilDateISO,
-  hasDateFilter,
-} = useSearchFilters()
+const showFilters = ref(false)
+const scopeMeta = useSearchScopeMeta(computed(() => props.column.accountId))
+// 全アカウント面はホストと投稿者を出さない (per-account の意味しか持たない)
+const hostOptions = computed(() =>
+  isCrossAccount.value ? undefined : serverHostOptions(scopeMeta.value),
+)
+const hiddenRows = computed<SearchFilterRow[] | undefined>(() =>
+  isCrossAccount.value ? ['host', 'author'] : undefined,
+)
+
+// --- 条件の変更 → 再検索 (短時間の連続変更は 1 回にまとめる) ---
+let filterTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleResearch() {
+  if (filterTimer) clearTimeout(filterTimer)
+  filterTimer = setTimeout(() => {
+    filterTimer = null
+    if (confirmedQuery.value) performSearch()
+  }, 400)
+}
+
+function onFilterUpdate(next: SearchFilter) {
+  saveFilter(next)
+  scheduleResearch()
+}
 
 function toggleRegexMode() {
-  regexMode.value = !regexMode.value
-  showRegexGuide.value = false
-  regexError.value = null
+  const next = { ...filter.value }
+  if (next.regex) delete next.regex
+  else next.regex = true
+  saveFilter(next)
+  inlineError.value = null
+  scheduleResearch()
 }
 
-function openRegexGuide() {
-  if (showRegexGuide.value) {
-    showRegexGuide.value = false
-    return
+function toggleSort() {
+  const next = { ...filter.value }
+  if (next.ascending) delete next.ascending
+  else next.ascending = true
+  saveFilter(next)
+  scheduleResearch()
+}
+
+// 検索語の欄に手で打ったら、外部差し替えで止めていた本文の条件を戻す
+function onQueryInput() {
+  if (!filter.value.conditionsPaused) return
+  const next = { ...filter.value }
+  delete next.conditionsPaused
+  saveFilter(next)
+}
+
+// --- 投稿者の解決 (per-account のみ) ---
+const authorResolving = ref(false)
+const authorState = computed<'resolving' | 'resolved' | 'unresolved' | null>(
+  () => {
+    const accountId = props.column.accountId
+    if (!accountId) return null
+    if (authorResolving.value) return 'resolving'
+    const res = filter.value.authorIds?.[accountId]
+    if (res === null) return 'unresolved'
+    if (res) return 'resolved'
+    return null
+  },
+)
+const authorResolvedLabel = computed(() => {
+  const accountId = props.column.accountId
+  const res = accountId ? filter.value.authorIds?.[accountId] : undefined
+  return res ? res.acct || res.id : ''
+})
+
+function acctOf(user: NormalizedUser): string {
+  return `${user.username}@${user.host ?? account.value?.host ?? ''}`
+}
+
+function saveAuthorId(
+  accountId: string,
+  res: AuthorResolution | null,
+  author?: string,
+) {
+  const next: SearchFilter = {
+    ...filter.value,
+    authorIds: { ...filter.value.authorIds, [accountId]: res },
   }
-  if (regexGuideBtnRef.value) {
-    const rect = regexGuideBtnRef.value.getBoundingClientRect()
-    regexGuidePos.value = {
-      top: rect.bottom + 4,
-      right: document.documentElement.clientWidth - rect.right,
-    }
+  if (author) next.author = author
+  saveFilter(next)
+}
+
+/**
+ * 投稿者の条件をこのアカウントの ID に解決する。undefined = 条件なし、
+ * null = 未解決 (このアカウントでは検索しない)。表記が変わるまで結果は保存し、
+ * 変わると panel 側が authorIds を捨てるので解決し直す
+ */
+async function resolveAuthor(
+  accountId: string,
+): Promise<AuthorResolution | null | undefined> {
+  const known = filter.value.authorIds?.[accountId]
+  if (known !== undefined) return known
+  const parsed = parseAuthor(filter.value.author ?? '')
+  if (!parsed) return undefined
+  authorResolving.value = true
+  try {
+    const adapter = await initAdapter()
+    if (!adapter) return null
+    const user = await adapter.api.lookupUser(parsed.username, parsed.host)
+    const res: AuthorResolution = { id: user.id, acct: acctOf(user) }
+    saveAuthorId(accountId, res)
+    return res
+  } catch {
+    saveAuthorId(accountId, null)
+    return null
+  } finally {
+    authorResolving.value = false
   }
-  showRegexGuide.value = true
-  // Remove any stale listener before adding a new one
-  document.removeEventListener('click', closeRegexGuide)
-  setTimeout(() => {
-    document.addEventListener('click', closeRegexGuide, { once: true })
-  }, 0)
 }
 
-function closeRegexGuide() {
-  showRegexGuide.value = false
+/** 移行で入った ID だけの条件 (acct 無し) に、表示のため一度だけ表記を補う */
+async function hydrateMigratedAuthor(accountId: string) {
+  const res = filter.value.authorIds?.[accountId]
+  if (!res || res.acct) return
+  try {
+    const adapter = await initAdapter()
+    if (!adapter) return
+    const user = await adapter.api.getUser(res.id)
+    // 待っている間に表記が変わっていたら触らない
+    if (filter.value.authorIds?.[accountId]?.id !== res.id) return
+    const acct = acctOf(user)
+    saveAuthorId(
+      accountId,
+      { id: res.id, acct },
+      filter.value.author ? undefined : acct,
+    )
+  } catch {
+    // 表記が無くても ID で検索はできる
+  }
 }
 
-function onFilterApply(pattern: string) {
-  searchQuery.value = pattern
-  showRegexGuide.value = false
-  searchInput.value?.focus()
-}
-
+// --- 評価 ---
 function getSearchHint(q: string): string {
   if (!regexMode.value) return q
   return extractLiterals(q)
 }
 
-// サーバー検索はバックエンド (Meilisearch 等) がトークナイズで `#` 等の記号を
-// 落とし曖昧マッチを返すことがある。ローカル DB 検索 (trigram FTS) のリテラル
-// 一致と意味論を揃えるため、単一語クエリはリテラル含有でフィルタする。
-// 複数語 (空白区切り AND) はサーバーの挙動を尊重してそのまま通す。
-function filterServerNotes(
-  results: NormalizedNote[],
+/**
+ * 手元の照合 (1 層)。母集合は検索語の結果で、正規表現モードならパターン、
+ * そうでなければリテラル含有 (サーバーのトークナイズによる曖昧一致を揃える)
+ * で絞り、そのあと本文の条件を当てる。ローカル先行表示 / 確定 / 段階表示 /
+ * 追加読み込みのすべてがここを通る
+ */
+async function applyLocalFilter(
+  notes: NormalizedNote[],
   q: string,
-): NormalizedNote[] {
-  if (regexMode.value || /\s/.test(q)) return results
-  const needle = q.toLowerCase()
-  return results.filter(
-    (n) =>
-      n.text?.toLowerCase().includes(needle) ||
-      n.cw?.toLowerCase().includes(needle),
-  )
+): Promise<NormalizedNote[]> {
+  const byTerm = regexMode.value
+    ? await filterNotesByRegexAsync(notes, q)
+    : notes.filter((n) => matchesPlainTerm(n, q))
+  const conditions = effectiveConditions(filter.value)
+  if (conditions.length === 0) return byTerm
+  return byTerm.filter((n) => matchesTextConditions(n, conditions))
+}
+
+/** 照合の失敗は検索の失敗として見せる (素通しにしない)。それ以外なら false */
+function reportFilterFailure(e: unknown): boolean {
+  if (!(e instanceof RegexFilterError)) return false
+  inlineError.value =
+    e.kind === 'invalid'
+      ? i18n.ts._deckSearchColumn.invalidRegex
+      : e.kind === 'timeout'
+        ? i18n.ts._deckSearchColumn.regexTimeout
+        : i18n.ts._deckSearchColumn.regexUnavailable
+  return true
+}
+
+/** サーバーへ渡す条件。per-account ではホストと投稿者も渡す */
+function serverOptions(accountId: string | null): SearchOptions {
+  const { since, until } = dateBounds(filter.value)
+  const opts: SearchOptions = {}
+  if (since) opts.sinceDate = Date.parse(since)
+  if (until) opts.untilDate = Date.parse(until)
+  if (accountId && account.value) {
+    const host = effectiveHostParam(filter.value.host, account.value.host)
+    if (host) opts.host = host
+    const author = filter.value.authorIds?.[accountId]
+    if (author) opts.userId = author.id
+  }
+  return opts
+}
+
+/**
+ * 手元の索引にはサーバーの host / userId が効かないので、per-account の
+ * ローカル結果を同じ範囲に揃える
+ */
+function matchesServerScope(
+  note: NormalizedNote,
+  authorId: string | undefined,
+): boolean {
+  if (authorId && note.user.id !== authorId) return false
+  const host = account.value
+    ? effectiveHostParam(filter.value.host, account.value.host)
+    : undefined
+  if (!host) return true
+  if (host === '.') return note.user.host === null
+  return (note.user.host ?? note._serverHost).toLowerCase() === host
+}
+
+async function searchLocalDb(
+  accountId: string,
+  hint: string,
+  limit: number | null,
+): Promise<NormalizedNote[]> {
+  const { since, until } = dateBounds(filter.value)
+  return unwrap(
+    await commands.apiSearchNotesLocal(
+      accountId,
+      hint,
+      limit,
+      since,
+      until,
+      ascending.value,
+    ),
+  ) as NormalizedNote[]
 }
 
 function mergeNotes(
@@ -256,6 +430,41 @@ function mergeNotes(
   return merged.sort((a, b) => dir * a.createdAt.localeCompare(b.createdAt))
 }
 
+// --- ページング: 位置は照合前の生ページで持つ (1 ページ丸ごと落ちても進む) ---
+/** per-account: 最後に取得した生ページの最古 id。尽きたら以後は問い合わせない */
+let fetchCursor: string | null = null
+let fetchExhausted = false
+/** 全アカウント: アカウントごとの位置と、結果が尽きたアカウント */
+const crossCursors = new Map<string, string>()
+const crossExhausted = new Set<string>()
+
+function resetCursors() {
+  fetchCursor = null
+  fetchExhausted = false
+  crossCursors.clear()
+  crossExhausted.clear()
+}
+
+function oldestIdOf(page: NormalizedNote[]): string | null {
+  let oldest: NormalizedNote | undefined
+  for (const n of page) {
+    if (!oldest || n.createdAt < oldest.createdAt) oldest = n
+  }
+  return oldest?.id ?? null
+}
+
+function advanceCursor(page: NormalizedNote[]) {
+  const id = oldestIdOf(page)
+  if (id) fetchCursor = id
+  else fetchExhausted = true
+}
+
+function advanceCrossCursor(accountId: string, page: NormalizedNote[]) {
+  const id = oldestIdOf(page)
+  if (id) crossCursors.set(accountId, id)
+  else crossExhausted.add(accountId)
+}
+
 // Incremental local search (typeahead)
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -272,28 +481,27 @@ async function searchLocal(q: string) {
 }
 
 async function searchLocalPerAccount(q: string, hint: string) {
-  if (!props.column.accountId) return
+  const accountId = props.column.accountId
+  if (!accountId) return
+  const authorId = filter.value.authorIds?.[accountId]?.id
+  // 投稿者が未解決のうちは範囲を揃えられないので先行表示しない
+  if (filter.value.author && !authorId) return
   try {
-    let local = unwrap(
-      await commands.apiSearchNotesLocal(
-        props.column.accountId,
-        hint,
-        regexMode.value ? 50 : 10,
-        getSinceDateISO() ?? null,
-        getUntilDateISO() ?? null,
-        ascending.value,
-      ),
-    ) as NormalizedNote[]
+    const local = await searchLocalDb(
+      accountId,
+      hint,
+      regexMode.value ? 50 : 10,
+    )
+    const matched = (await applyLocalFilter(local, q)).filter((n) =>
+      matchesServerScope(n, authorId),
+    )
     if (searchQuery.value.trim() === q) {
-      if (regexMode.value) {
-        local = await filterNotesByRegexAsync(local, q)
-      }
-      rawNotes.value = local
+      rawNotes.value = matched
       isPreview.value = true
-      hasLocalResults.value = local.length > 0
+      hasLocalResults.value = matched.length > 0
     }
-  } catch {
-    // non-critical
+  } catch (e) {
+    if (searchQuery.value.trim() === q) reportFilterFailure(e)
   }
 }
 
@@ -302,36 +510,24 @@ async function searchLocalCrossAccount(q: string, hint: string) {
   try {
     const results = await Promise.allSettled(
       accounts.map((acc) =>
-        commands
-          .apiSearchNotesLocal(
-            acc.id,
-            hint,
-            regexMode.value ? 50 : 10,
-            getSinceDateISO() ?? null,
-            getUntilDateISO() ?? null,
-            ascending.value,
-          )
-          .then((r) => unwrap(r) as NormalizedNote[]),
+        searchLocalDb(acc.id, hint, regexMode.value ? 50 : 10),
       ),
     )
+    const matched = await applyLocalFilter(collectFulfilled(results), q)
     if (searchQuery.value.trim() === q) {
-      let merged = collectFulfilled(results)
-      if (regexMode.value) {
-        merged = await filterNotesByRegexAsync(merged, q)
-      }
-      rawNotes.value = mergeNotes([], merged)
+      rawNotes.value = mergeNotes([], matched)
       isPreview.value = true
-      hasLocalResults.value = merged.length > 0
+      hasLocalResults.value = matched.length > 0
     }
-  } catch {
-    // non-critical
+  } catch (e) {
+    if (searchQuery.value.trim() === q) reportFilterFailure(e)
   }
 }
 
 watch(searchQuery, (val) => {
   const q = val.trim()
   if (debounceTimer) clearTimeout(debounceTimer)
-  regexError.value = null
+  inlineError.value = null
   if (!q) {
     rawNotes.value = []
     isPreview.value = false
@@ -339,7 +535,7 @@ watch(searchQuery, (val) => {
     return
   }
   if (regexMode.value && !isValidRegex(q)) {
-    regexError.value = i18n.ts._deckSearchColumn.invalidRegex
+    inlineError.value = i18n.ts._deckSearchColumn.invalidRegex
     return
   }
   // Don't show preview if already showing confirmed results for this query
@@ -347,12 +543,14 @@ watch(searchQuery, (val) => {
   debounceTimer = setTimeout(() => searchLocal(q), 200)
 })
 
-// ハッシュタグクリック等で外部から query が差し替えられたとき (deck.openSearchWith)
+// ハッシュタグクリック等で外部から query が差し替えられたとき (deck.openSearchWith)。
+// 条件も store 側で差し替え済み (externalQueryPatch) なので一緒に取り込む
 watch(
   () => props.column.query,
   (q) => {
     if (!q || q === confirmedQuery.value) return
     searchQuery.value = q
+    filter.value = { ...props.column.searchFilter }
     // 手入力フローと違いプレビュー検索を経ないため、前クエリの結果に
     // server 結果が merge されないようリセットしてから検索する
     rawNotes.value = []
@@ -361,32 +559,27 @@ watch(
   },
 )
 
-// Re-search when date filters or sort order change (debounced)
-let filterTimer: ReturnType<typeof setTimeout> | null = null
-watch([sinceDate, untilDate, ascending], () => {
-  if (filterTimer) clearTimeout(filterTimer)
-  filterTimer = setTimeout(() => {
-    const q = confirmedQuery.value || searchQuery.value.trim()
-    if (q) performSearch()
-  }, 400)
-})
-
 async function performSearch() {
   const q = searchQuery.value.trim()
   if (!q) return
   if (debounceTimer) clearTimeout(debounceTimer)
+  if (filterTimer) {
+    clearTimeout(filterTimer)
+    filterTimer = null
+  }
 
   if (regexMode.value && !isValidRegex(q)) {
-    regexError.value = i18n.ts._deckSearchColumn.invalidRegex
+    inlineError.value = i18n.ts._deckSearchColumn.invalidRegex
     return
   }
 
   error.value = null
-  regexError.value = null
+  inlineError.value = null
   isLoading.value = true
   isPreview.value = false
   confirmedQuery.value = q
   const gen = ++searchGeneration
+  resetCursors()
 
   deckStore.updateColumn(props.column.id, { query: q })
 
@@ -395,59 +588,69 @@ async function performSearch() {
   if (isCrossAccount.value) {
     await performSearchCrossAccount(q, hint, gen)
   } else {
-    await performSearchPerAccount(q, hint)
+    await performSearchPerAccount(q, hint, gen)
   }
 
   // 走行中に別の検索が始まっていたら、その表示状態を奪わない
   if (gen === searchGeneration) isLoading.value = false
 }
 
-async function performSearchPerAccount(q: string, hint: string) {
+async function performSearchPerAccount(q: string, hint: string, gen: number) {
+  const accountId = props.column.accountId
+  if (!accountId || !hint) return
+
+  const author = await resolveAuthor(accountId)
+  if (gen !== searchGeneration) return
+  if (author === null) {
+    inlineError.value = i18n.ts._deckSearchColumn.authorUnresolved
+    rawNotes.value = []
+    hasLocalResults.value = false
+    return
+  }
+
   // Local search first (instant) if not already showing preview
-  if (!hasLocalResults.value && props.column.accountId && hint) {
+  if (!hasLocalResults.value) {
     try {
-      let local = unwrap(
-        await commands.apiSearchNotesLocal(
-          props.column.accountId,
-          hint,
-          regexMode.value ? 100 : null,
-          getSinceDateISO() ?? null,
-          getUntilDateISO() ?? null,
-          ascending.value,
-        ),
-      ) as NormalizedNote[]
-      if (regexMode.value) {
-        local = await filterNotesByRegexAsync(local, q)
-      }
-      if (local.length > 0) {
-        rawNotes.value = local
+      const local = await searchLocalDb(
+        accountId,
+        hint,
+        regexMode.value ? 100 : null,
+      )
+      const matched = (await applyLocalFilter(local, q)).filter((n) =>
+        matchesServerScope(n, author?.id),
+      )
+      if (gen !== searchGeneration) return
+      if (matched.length > 0) {
+        rawNotes.value = matched
         hasLocalResults.value = true
       }
-    } catch {
-      // non-critical
+    } catch (e) {
+      if (gen !== searchGeneration) return
+      if (reportFilterFailure(e)) return
+      // ローカル索引の失敗は致命ではない
     }
   }
 
   // Server search
-  if (hint && account.value) {
+  if (account.value) {
     try {
       const adapter = await initAdapter()
-      if (adapter) {
-        let results = await adapter.api.searchNotes(hint, {
-          sinceDate: getSinceDateMs(),
-          untilDate: getUntilDateMs(),
-          userId: props.column.userId,
-        })
-        results = filterServerNotes(results, q)
-        if (regexMode.value) {
-          results = await filterNotesByRegexAsync(results, q)
-        }
-        rawNotes.value = mergeNotes(
-          hasLocalResults.value ? rawNotes.value : [],
-          results,
-        )
-      }
+      if (!adapter) return
+      const page = await adapter.api.searchNotes(hint, serverOptions(accountId))
+      if (gen !== searchGeneration) return
+      advanceCursor(page)
+      const matched = await applyLocalFilter(page, q)
+      if (gen !== searchGeneration) return
+      rawNotes.value = mergeNotes(
+        hasLocalResults.value ? rawNotes.value : [],
+        matched,
+      )
     } catch (e) {
+      if (gen !== searchGeneration) return
+      if (reportFilterFailure(e)) {
+        if (!hasLocalResults.value) rawNotes.value = []
+        return
+      }
       if (!hasLocalResults.value) {
         error.value = AppError.from(e)
       }
@@ -457,34 +660,25 @@ async function performSearchPerAccount(q: string, hint: string) {
 
 async function performSearchCrossAccount(q: string, hint: string, gen: number) {
   const accounts = accountsStore.accounts
+  if (!hint) return
 
   // Local search first (instant) if not already showing preview
-  if (!hasLocalResults.value && hint) {
+  if (!hasLocalResults.value) {
     try {
       const localResults = await Promise.allSettled(
         accounts.map((acc) =>
-          commands
-            .apiSearchNotesLocal(
-              acc.id,
-              hint,
-              regexMode.value ? 100 : null,
-              getSinceDateISO() ?? null,
-              getUntilDateISO() ?? null,
-              ascending.value,
-            )
-            .then((r) => unwrap(r) as NormalizedNote[]),
+          searchLocalDb(acc.id, hint, regexMode.value ? 100 : null),
         ),
       )
-      let merged = collectFulfilled(localResults)
-      if (regexMode.value) {
-        merged = await filterNotesByRegexAsync(merged, q)
-      }
-      if (merged.length > 0) {
-        rawNotes.value = mergeNotes([], merged)
+      const matched = await applyLocalFilter(collectFulfilled(localResults), q)
+      if (gen !== searchGeneration) return
+      if (matched.length > 0) {
+        rawNotes.value = mergeNotes([], matched)
         hasLocalResults.value = true
       }
-    } catch {
-      // non-critical
+    } catch (e) {
+      if (gen !== searchGeneration) return
+      if (reportFilterFailure(e)) return
     }
   }
 
@@ -492,42 +686,40 @@ async function performSearchCrossAccount(q: string, hint: string, gen: number) {
   // (#1095)。Meilisearch 未導入のサーバーは PostgreSQL 走査で遅く、1 つの
   // 遅いサーバーが他の結果まで止めていた。検索は「速い分から」で素直に
   // 良くなる面なので初回から段階的に描く
-  if (hint) {
-    crossProgress.value = { done: 0, total: accounts.length }
-    let merged = hasLocalResults.value ? rawNotes.value : []
-    try {
-      await mapWithConcurrency(
-        accounts,
-        async (acc) => {
-          const adapter = await multiAdapters.getOrCreate(acc.id)
-          if (!adapter) return []
-          return adapter.api.searchNotes(hint, {
-            sinceDate: getSinceDateMs(),
-            untilDate: getUntilDateMs(),
-          })
-        },
-        accounts.length,
-        async (r, _acc, progress) => {
-          // 走行中に別の検索が始まっていたら、その結果に上書きしない
+  crossProgress.value = { done: 0, total: accounts.length }
+  let merged = hasLocalResults.value ? rawNotes.value : []
+  try {
+    await mapWithConcurrency(
+      accounts,
+      async (acc) => {
+        const adapter = await multiAdapters.getOrCreate(acc.id)
+        if (!adapter) return []
+        return adapter.api.searchNotes(hint, serverOptions(null))
+      },
+      accounts.length,
+      async (r, acc, progress) => {
+        // 走行中に別の検索が始まっていたら、その結果に上書きしない
+        if (gen !== searchGeneration) return
+        crossProgress.value = progress
+        if (r.status !== 'fulfilled') return
+        advanceCrossCursor(acc.id, r.value)
+        try {
+          const matched = await applyLocalFilter(r.value, q)
           if (gen !== searchGeneration) return
-          crossProgress.value = progress
-          if (r.status !== 'fulfilled') return
-          let notes = filterServerNotes(r.value, q)
-          if (regexMode.value) {
-            notes = await filterNotesByRegexAsync(notes, q)
-          }
-          merged = mergeNotes(merged, notes)
+          merged = mergeNotes(merged, matched)
           rawNotes.value = merged
-        },
-      )
-      if (gen === searchGeneration) rawNotes.value = merged
-    } catch (e) {
-      if (gen === searchGeneration && !hasLocalResults.value) {
-        error.value = AppError.from(e)
-      }
-    } finally {
-      if (gen === searchGeneration) crossProgress.value = null
+        } catch (e) {
+          if (gen === searchGeneration) reportFilterFailure(e)
+        }
+      },
+    )
+    if (gen === searchGeneration) rawNotes.value = merged
+  } catch (e) {
+    if (gen === searchGeneration && !hasLocalResults.value) {
+      error.value = AppError.from(e)
     }
+  } finally {
+    if (gen === searchGeneration) crossProgress.value = null
   }
 }
 
@@ -540,47 +732,51 @@ async function loadMore() {
 }
 
 async function loadMorePerAccount() {
+  const accountId = props.column.accountId
   const adapter = getAdapter()
-  if (!adapter || isLoading.value || rawNotes.value.length === 0) return
-  const lastNote = rawNotes.value.at(-1)
-  if (!lastNote) return
+  if (!adapter || !accountId || isLoading.value) return
+  if (fetchExhausted || !fetchCursor) return
 
-  const q = confirmedQuery.value || searchQuery.value.trim()
+  const q = confirmedQuery.value
   const hint = getSearchHint(q)
   if (!hint) return
 
+  const gen = searchGeneration
   isLoading.value = true
   try {
-    let older = await adapter.api.searchNotes(hint, {
-      untilId: lastNote.id,
-      sinceDate: getSinceDateMs(),
-      untilDate: getUntilDateMs(),
-      userId: props.column.userId,
+    const page = await adapter.api.searchNotes(hint, {
+      ...serverOptions(accountId),
+      untilId: fetchCursor,
     })
-    older = filterServerNotes(older, q)
-    if (regexMode.value) {
-      older = await filterNotesByRegexAsync(older, q)
-    }
+    if (gen !== searchGeneration) return
+    advanceCursor(page)
+    const older = await applyLocalFilter(page, q)
+    if (gen !== searchGeneration) return
     // 古い側を足したので、昇順なら先頭 (古い側) を、降順なら末尾を残す
     setNotes(
       mergeNotes(rawNotes.value, older),
       ascending.value ? 'oldest' : 'newest',
     )
   } catch (e) {
-    error.value = AppError.from(e)
+    if (gen !== searchGeneration) return
+    if (!reportFilterFailure(e)) error.value = AppError.from(e)
   } finally {
-    isLoading.value = false
+    if (gen === searchGeneration) isLoading.value = false
   }
 }
 
 async function loadMoreCrossAccount() {
-  if (isLoading.value || rawNotes.value.length === 0) return
+  if (isLoading.value) return
 
-  const q = confirmedQuery.value || searchQuery.value.trim()
+  const q = confirmedQuery.value
   const hint = getSearchHint(q)
   if (!hint) return
 
-  const accounts = accountsStore.accounts
+  // 尽きたアカウントには問い合わせない。位置が無いアカウント (初回が落ちた) は先頭から
+  const accounts = accountsStore.accounts.filter(
+    (acc) => !crossExhausted.has(acc.id),
+  )
+  if (accounts.length === 0 || crossCursors.size === 0) return
   const gen = searchGeneration
   isLoading.value = true
 
@@ -591,32 +787,29 @@ async function loadMoreCrossAccount() {
       async (acc) => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return []
-        // Find this account's oldest note for pagination
-        const lastForAccount = [...rawNotes.value]
-          .reverse()
-          .find((n) => n._accountId === acc.id)
         return adapter.api.searchNotes(hint, {
-          untilId: lastForAccount?.id,
-          sinceDate: getSinceDateMs(),
-          untilDate: getUntilDateMs(),
+          ...serverOptions(null),
+          untilId: crossCursors.get(acc.id),
         })
       },
       accounts.length,
       // 返ったアカウントの分から順に足す (#1095)。untilId で古い側へ進むほど
       // 遅くなるサーバーを、速いサーバーの分まで待たせない
-      async (r, _acc, progress) => {
+      async (r, acc, progress) => {
         if (gen !== searchGeneration) return
         crossProgress.value = progress
         if (r.status !== 'fulfilled') return
-        let older = filterServerNotes(r.value, q)
-        if (regexMode.value) {
-          older = await filterNotesByRegexAsync(older, q)
+        advanceCrossCursor(acc.id, r.value)
+        try {
+          const older = await applyLocalFilter(r.value, q)
+          if (gen !== searchGeneration || older.length === 0) return
+          setNotes(
+            mergeNotes(rawNotes.value, older),
+            ascending.value ? 'oldest' : 'newest',
+          )
+        } catch (e) {
+          if (gen === searchGeneration) reportFilterFailure(e)
         }
-        if (gen !== searchGeneration || older.length === 0) return
-        setNotes(
-          mergeNotes(rawNotes.value, older),
-          ascending.value ? 'oldest' : 'newest',
-        )
       },
     )
   } catch (e) {
@@ -680,6 +873,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  if (props.column.accountId) hydrateMigratedAuthor(props.column.accountId)
   if (searchQuery.value) {
     performSearch()
   } else {
@@ -691,7 +885,6 @@ onMounted(() => {
 onUnmounted(() => {
   if (debounceTimer) clearTimeout(debounceTimer)
   if (filterTimer) clearTimeout(filterTimer)
-  document.removeEventListener('click', closeRegexGuide)
   disconnect()
 })
 </script>
@@ -699,7 +892,7 @@ onUnmounted(() => {
 <template>
   <DeckColumn
     :column-id="column.id"
-    :title="i18n.ts._columns.search"
+    :title="column.name || i18n.ts._columns.search"
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
@@ -717,9 +910,10 @@ onUnmounted(() => {
         <input
           ref="searchInput"
           v-model="searchQuery"
-          :class="[$style.searchInput, { [$style.regexInput]: regexMode, [$style.regexInvalid]: regexMode && regexError }]"
+          :class="[$style.searchInput, { [$style.regexInput]: regexMode, [$style.regexInvalid]: regexInvalid }]"
           type="text"
           :placeholder="regexMode ? i18n.ts._deckSearchColumn.regexPlaceholder : i18n.ts._deckSearchColumn.placeholder"
+          @input="onQueryInput"
           @keydown="onKeydown"
         />
         <div :class="$style.regexControls">
@@ -732,22 +926,12 @@ onUnmounted(() => {
             <span :class="$style.regexIconText">.*</span>
           </button>
           <button
-            v-if="regexMode"
-            ref="regexGuideBtnRef"
-            :class="[$style.regexGuideBtn, { [$style.regexGuideBtnActive]: showRegexGuide }]"
+            :class="[$style.filterToggle, { [$style.filterToggleActive]: showFilters || hasActiveFilter(filter) }]"
             class="_button"
-            :title="i18n.ts._deckSearchColumn.regexGuide"
-            @click.stop="openRegexGuide"
+            :title="i18n.ts._searchFilterPanel.filter"
+            @click="showFilters = !showFilters"
           >
-            <i class="ti ti-help" />
-          </button>
-          <button
-            :class="[$style.filterToggle, { [$style.filterToggleActive]: showFilters || hasDateFilter() }]"
-            class="_button"
-            :title="i18n.ts._deckSearchColumn.dateFilter"
-            @click="toggleFilters"
-          >
-            <i class="ti ti-calendar" />
+            <i class="ti ti-filter" />
           </button>
           <button
             :class="[$style.sortToggle, { [$style.sortToggleActive]: ascending }]"
@@ -761,51 +945,28 @@ onUnmounted(() => {
         <button
           :class="$style.searchBtn"
           class="_button"
-          :disabled="!searchQuery.trim() || isLoading || (regexMode && !!regexError)"
+          :disabled="!searchQuery.trim() || isLoading || regexInvalid"
           @click="performSearch"
         >
           <i class="ti ti-arrow-right" />
         </button>
       </div>
 
-      <div v-if="showFilters" :class="$style.dateFilters">
-        <input
-          v-model="sinceDate"
-          type="date"
-          :class="$style.dateInput"
-          :title="i18n.ts._deckSearchColumn.startDate"
-        />
-        <i :class="$style.dateSeparator" class="ti ti-minus" />
-        <input
-          v-model="untilDate"
-          type="date"
-          :class="$style.dateInput"
-          :title="i18n.ts._deckSearchColumn.endDate"
-        />
-        <button
-          v-if="hasDateFilter()"
-          :class="$style.dateClear"
-          class="_button"
-          :title="i18n.ts._deckSearchColumn.clearDate"
-          @click="clearDateFilters"
-        >
-          <i class="ti ti-x" />
-        </button>
+      <SearchFilterPanel
+        v-if="showFilters"
+        face="server"
+        :filter="filter"
+        :host-options="hostOptions"
+        :hidden-rows="hiddenRows"
+        :author-state="authorState"
+        :author-resolved-label="authorResolvedLabel"
+        @update="onFilterUpdate"
+      />
+
+      <div v-if="inlineError" :class="$style.inlineError">
+        {{ inlineError }}
       </div>
 
-      <div v-if="regexError" :class="$style.regexError">
-        {{ regexError }}
-      </div>
-
-      <div
-        v-if="regexGuideVisible"
-        ref="regexGuidePortalRef"
-        :class="[$style.regexGuidePopup, regexGuideLeaving ? $style.regexGuideLeave : $style.regexGuideEnter]"
-        :style="{ top: regexGuidePos.top + 'px', right: regexGuidePos.right + 'px' }"
-        @click.stop
-      >
-        <RegexGuide @select="onFilterApply" />
-      </div>
     </template>
 
     <ColumnEmptyState
@@ -967,28 +1128,6 @@ onUnmounted(() => {
   font-weight: 700;
 }
 
-.regexGuideBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  font-size: 0.8em;
-  opacity: 0.35;
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
-
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-    opacity: 0.7;
-  }
-}
-
-.regexGuideBtnActive {
-  background: var(--nd-buttonHoverBg);
-  opacity: 0.7;
-}
-
 .regexInput {
   font-family: var(--nd-font-mono);
 }
@@ -1021,55 +1160,9 @@ onUnmounted(() => {
   color: var(--nd-accent);
 }
 
-.dateFilters {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-}
+// 外部からの検索語の差し替えで本文の条件が止まっている
 
-.dateInput {
-  flex: 1;
-  min-width: 0;
-  background: var(--nd-buttonBg);
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  padding: 4px 6px;
-  font-size: 0.8em;
-  color: var(--nd-fg);
-  color-scheme: dark;
-  outline: none;
-
-  &:focus {
-    box-shadow: 0 0 0 2px var(--nd-accent);
-  }
-}
-
-.dateSeparator {
-  flex-shrink: 0;
-  opacity: 0.25;
-  font-size: 0.7em;
-}
-
-.dateClear {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  flex-shrink: 0;
-  opacity: 0.35;
-  font-size: 0.75em;
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
-
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-    opacity: 0.7;
-  }
-}
-
-.regexError {
+.inlineError {
   padding: 4px 12px;
   font-size: 0.75em;
   color: var(--nd-love);
@@ -1115,27 +1208,17 @@ onUnmounted(() => {
   border-top: 1px solid var(--nd-divider);
 }
 
-.regexGuidePopup {
-  position: fixed;
-  z-index: calc(var(--nd-z-popup) + 1);
-}
 
-.regexGuideEnter {
-  animation: regexGuideIn 0.2s var(--nd-ease-pop);
-}
 
-.regexGuideLeave {
-  animation: regexGuideOut 0.2s var(--nd-ease-pop) forwards;
-}
 
-@keyframes regexGuideIn {
+@keyframes conditionsIn {
   from {
     opacity: 0;
     transform: scale(0.95) translateY(-4px);
   }
 }
 
-@keyframes regexGuideOut {
+@keyframes conditionsOut {
   to {
     opacity: 0;
     transform: scale(0.95) translateY(-4px);

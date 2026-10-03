@@ -729,9 +729,9 @@ async apiSearchNotesLocal(accountId: string, query: string, limit: number | null
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null, author: string | null, hasFiles: boolean | null, publicOnly: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null, filters: CachedSearchFilters | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_search_notes_cached_across", { accountIds, query, limit, sinceDate, untilDate, ascending, author, hasFiles, publicOnly }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_search_notes_cached_across", { accountIds, query, limit, sinceDate, untilDate, ascending, filters }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -3051,6 +3051,12 @@ settingsFiles: number | null;
  */
 rotatedRemoved: number }
 export type CacheStats = { noteCount: number; dbSizeBytes: number }
+/**
+ * クライアント検索の絞り込み (notedeck#1180)。各項目の意味は
+ * `notecli::db::CachedSearchOptions` の同名フィールド。1 引数に束ねるのは
+ * specta の Tauri コマンド引数の上限 (State 込みで 10) のため。
+ */
+export type CachedSearchFilters = { author?: string | null; hasFiles?: boolean | null; publicOnly?: boolean | null; textAny?: string[] | null; textAll?: string[] | null; textExclude?: string[] | null }
 export type Channel = { id: string; name: string; color?: string | null }
 export type ChatCacheStats = { messageCount: number; bytes: number }
 /**
@@ -3894,7 +3900,11 @@ export type SearchOptions = { limit?: number; sinceId: string | null; untilId: s
 /**
  * 指定ユーザーのノートのみに絞る (notes/search の userId)
  */
-userId?: string | null }
+userId?: string | null; 
+/**
+ * 検索範囲のサーバー (notes/search の host。`.` = ローカルのみ、None/空 = 全体)
+ */
+host?: string | null }
 /**
  * secret slot の設定状況。
  */

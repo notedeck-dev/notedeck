@@ -1,6 +1,7 @@
 import { ALL_COLUMN_TYPES, COLUMN_REGISTRY } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
 import { parseVariantKey } from '@/services/noteKey'
+import { externalQueryPatch } from '@/services/searchFilter'
 import { useAccountsStore } from '@/stores/accounts'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
@@ -262,6 +263,12 @@ export const columnUpdateSettingsCapability = implement(
         )
       }
       const store = useDeckStore()
+      if (updates.query !== undefined) {
+        // 本人の欄への入力ではない差し替え: 期間と範囲を消し、正規表現モードを
+        // 切る (AI の文字列が正規表現として実行されないように、#1180)
+        const current = store.getColumn(columnId)
+        updates.searchFilter = externalQueryPatch(current?.searchFilter)
+      }
       store.updateColumn(columnId, updates)
       return { updated: true, columnId, applied }
     },

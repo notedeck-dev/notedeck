@@ -1284,6 +1284,9 @@ pub struct SearchOptions {
     /// 指定ユーザーのノートのみに絞る (notes/search の userId)
     #[serde(default)]
     pub user_id: Option<String>,
+    /// 検索範囲のサーバー (notes/search の host。`.` = ローカルのみ、None/空 = 全体)
+    #[serde(default)]
+    pub host: Option<String>,
 }
 
 impl SearchOptions {
@@ -1295,6 +1298,7 @@ impl SearchOptions {
             since_date: None,
             until_date: None,
             user_id: None,
+            host: None,
         }
     }
 
@@ -1312,6 +1316,7 @@ impl Default for SearchOptions {
             since_date: None,
             until_date: None,
             user_id: None,
+            host: None,
         }
     }
 }
