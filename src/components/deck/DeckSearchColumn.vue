@@ -902,6 +902,15 @@ onUnmounted(() => {
     </template>
 
     <template #header-meta>
+      <button
+        class="_button"
+        :class="[$style.headerRunBtn, { [$style.loading]: isLoading }]"
+        :disabled="!searchQuery.trim() || isLoading || regexInvalid"
+        :title="i18n.ts._common.run"
+        @click.stop="performSearch"
+      >
+        <i class="ti ti-arrow-right" />
+      </button>
     </template>
 
     <template #header-extra>
@@ -934,14 +943,6 @@ onUnmounted(() => {
             <i :class="ascending ? 'ti ti-sort-ascending' : 'ti ti-sort-descending'" />
           </button>
         </div>
-        <button
-          :class="$style.searchBtn"
-          class="_button"
-          :disabled="!searchQuery.trim() || isLoading || regexInvalid"
-          @click="performSearch"
-        >
-          <i class="ti ti-arrow-right" />
-        </button>
         <!-- 絞り込みはノートカラムと同じ漏斗 → ポップアップ (#1180)。検索の行を差し込む -->
         <ColumnFilterButton
           :column="column"
@@ -1170,26 +1171,6 @@ onUnmounted(() => {
   color: var(--nd-love);
 }
 
-.searchBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  flex-shrink: 0;
-  opacity: 0.6;
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
-
-  &:hover:not(:disabled) {
-    background: var(--nd-buttonHoverBg);
-    opacity: 1;
-  }
-
-  &:disabled {
-    opacity: 0.2;
-  }
-}
 
 .searchBody {
   composes: tlBody from './column-common.module.scss';
@@ -1224,6 +1205,33 @@ onUnmounted(() => {
   to {
     opacity: 0;
     transform: scale(0.95) translateY(-4px);
+  }
+}
+
+/* 実行ボタンはヘッダーバーに置く (API コンソールなど他のカラムの実行操作と同じ位置) */
+.headerRunBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-accent);
+  color: var(--nd-fgOnAccent);
+  font-size: 0.85em;
+  transition: background var(--nd-duration-base), opacity var(--nd-duration-base);
+
+  &:hover:not(:disabled) {
+    background: var(--nd-accentDarken);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  &.loading i {
+    animation: nd-spin 0.8s linear infinite;
   }
 }
 </style>
