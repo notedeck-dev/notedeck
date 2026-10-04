@@ -873,7 +873,7 @@ onUnmounted(() => {
           :column="column"
           :filter-keys="BUILTIN_FILTER_KEYS"
           :active="hasActiveFilter(filter)"
-          :show-queries="false"
+          hide-queries
           :theme-vars="columnThemeVars"
           wide
           compact

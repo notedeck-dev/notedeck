@@ -26,10 +26,11 @@ const props = defineProps<{
   /** 面が持つ別の絞り込み (検索カラムの条件) が効いているときの点灯 */
   active?: boolean
   /**
-   * 名前付きクエリのトグルを出すか。クエリの評価経路を持たない面 (検索カラム、
-   * #1178 まで) は false にして、効かないスイッチを出さない
+   * 名前付きクエリのトグルを出さない。クエリの評価経路を持たない面 (サーバー検索)
+   * が立てて、効かないスイッチを出さない。省略 = 出す (boolean prop は省略時に
+   * false へ畳まれるので、既定が「出す」になる向きで持つ)
    */
-  showQueries?: boolean
+  hideQueries?: boolean
   /** 入力欄を持つ行を差し込むときの広いポップアップ */
   wide?: boolean
   /** 検索バーのアイコンボタン列に並べる小さい見た目 (サブヘッダー行の下線なし) */
@@ -70,7 +71,7 @@ const namedQueryToggles = computed(() => {
 })
 const effectiveFilterKeys = computed(() => props.filterKeys ?? [])
 const offeredQueries = computed(() =>
-  props.showQueries === false ? [] : namedQueryToggles.value,
+  props.hideQueries ? [] : namedQueryToggles.value,
 )
 const showFilterBtn = computed(
   () =>
