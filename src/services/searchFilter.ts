@@ -309,6 +309,41 @@ export function serverHostOptions(
 }
 
 /**
+ * 全アカウント面の範囲の選択肢: 各アカウントのサーバーの選択肢の和集合。
+ * 選べないサーバーには投げない (投げなかったことは別に見せる)
+ */
+export function unionHostOptions(
+  metas: readonly (SearchScopeMeta | null | undefined)[],
+): ServerHostOption[] {
+  const set = new Set<ServerHostOption>()
+  for (const m of metas) for (const o of serverHostOptions(m)) set.add(o)
+  const order: ServerHostOption[] = ['all', 'local', 'host']
+  return order.filter((o) => set.has(o))
+}
+
+export type HostPlan = { kind: 'skip' } | { kind: 'ok'; host?: string }
+
+/**
+ * そのアカウントのサーバーに範囲の条件をどう渡すか。「すべて」と「ホスト指定」は
+ * サーバーが選択肢として出せるときだけ (索引に無いものを探しに行かない)。
+ * ローカルはどのサーバーにもある。指定ホストがそのサーバー自身ならローカル
+ */
+export function hostPlanForAccount(
+  host: string | undefined,
+  accountHost: string,
+  options: readonly ServerHostOption[],
+): HostPlan {
+  const effective = effectiveHostParam(host, accountHost)
+  if (effective === undefined) {
+    return options.includes('all') ? { kind: 'ok' } : { kind: 'skip' }
+  }
+  if (effective === '.') return { kind: 'ok', host: '.' }
+  return options.includes('host')
+    ? { kind: 'ok', host: effective }
+    : { kind: 'skip' }
+}
+
+/**
  * 検索 API に渡すホスト。空は渡さない。指定ホストが問い合わせ先のサーバー
  * 自身ならローカル (`.`) に読み替える (自分のホスト名で問い合わせると 0 件に
  * なり、検閲や故障に見えるため)

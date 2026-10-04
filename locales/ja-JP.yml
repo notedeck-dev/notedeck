@@ -2064,6 +2064,9 @@ _deckSearchColumn:
   noResults: "結果が見つかりませんでした"
   enterToSearch: "Enter キーでサーバーを検索"
   authorUnresolved: "投稿者を解決できなかったため、このアカウントでは検索していません"
+  authorResolvedAcross: "{resolved}/{total} アカウントで解決"
+  skippedAccounts_plural:
+    other: "{count} アカウントは範囲か投稿者の条件で対象外"
 
 _deckStreamInspectorColumn:
   resume: "再開"

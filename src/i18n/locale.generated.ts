@@ -3713,6 +3713,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "enterToSearch": string
     /** 投稿者を解決できなかったため、このアカウントでは検索していません */
     readonly "authorUnresolved": string
+    /** {resolved}/{total} アカウントで解決 */
+    readonly "authorResolvedAcross": ParameterizedString<'resolved' | 'total'>
+    /** {count} アカウントは範囲か投稿者の条件で対象外 */
+    readonly "skippedAccounts_plural": PluralString<'count'>
   }
   readonly "_deckStreamInspectorColumn": {
     /** 再開 */

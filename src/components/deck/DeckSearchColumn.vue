@@ -23,7 +23,10 @@ import NoteScroller from '@/components/common/NoteScroller.vue'
 import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { usePortal } from '@/composables/usePortal'
-import { useSearchScopeMeta } from '@/composables/useSearchScopeMeta'
+import {
+  loadSearchScopeMeta,
+  useSearchScopeMeta,
+} from '@/composables/useSearchScopeMeta'
 import { i18n } from '@/i18n'
 import type { NoteGroup } from '@/services/noteGroup'
 import { variantKeyOf } from '@/services/noteKey'
@@ -33,12 +36,15 @@ import {
   effectiveConditions,
   effectiveHostParam,
   hasActiveFilter,
+  hostPlanForAccount,
   matchesPlainTerm,
   matchesTextConditions,
   parseAuthor,
   type SearchFilter,
-  type SearchFilterRow,
+  type SearchScopeMeta,
+  type ServerHostOption,
   serverHostOptions,
+  unionHostOptions,
 } from '@/services/searchFilter'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -183,13 +189,42 @@ function saveFilter(next: SearchFilter) {
 const ascending = computed(() => filter.value.ascending === true)
 
 const scopeMeta = useSearchScopeMeta(computed(() => props.column.accountId))
-// 全アカウント面はホストと投稿者を出さない (per-account の意味しか持たない)
+/** 全アカウント面: アカウントごとのサーバーの検索範囲の設定 (#1182) */
+const crossMetas = ref<Record<string, SearchScopeMeta>>({})
+watch(
+  () => (isCrossAccount.value ? accountsStore.accounts.map((a) => a.id) : []),
+  (ids) => {
+    for (const id of ids) {
+      if (crossMetas.value[id]) continue
+      void loadSearchScopeMeta(id).then((m) => {
+        crossMetas.value = { ...crossMetas.value, [id]: m }
+      })
+    }
+  },
+  { immediate: true },
+)
+function hostOptionsFor(accountId: string): ServerHostOption[] {
+  return serverHostOptions(
+    isCrossAccount.value ? crossMetas.value[accountId] : scopeMeta.value,
+  )
+}
+/** 範囲の選択肢。全アカウント面は各サーバーの和集合 (出せないサーバーには投げない) */
 const hostOptions = computed(() =>
-  isCrossAccount.value ? undefined : serverHostOptions(scopeMeta.value),
+  isCrossAccount.value
+    ? unionHostOptions(
+        accountsStore.accounts.map((a) => crossMetas.value[a.id]),
+      )
+    : serverHostOptions(scopeMeta.value),
 )
-const hiddenRows = computed<SearchFilterRow[] | undefined>(() =>
-  isCrossAccount.value ? ['host', 'author'] : undefined,
-)
+/** 範囲か投稿者の条件で問い合わせなかったアカウント数 (0 件と見分けるために見せる) */
+const crossSkipped = ref(0)
+function hostOf(accountId: string): string {
+  return (
+    accountsStore.accounts.find((a) => a.id === accountId)?.host ??
+    account.value?.host ??
+    ''
+  )
+}
 
 // --- 条件の変更 → 再検索 (短時間の連続変更は 1 回にまとめる) ---
 let filterTimer: ReturnType<typeof setTimeout> | null = null
@@ -240,27 +275,50 @@ function onQueryInput() {
   saveFilter(next)
 }
 
-// --- 投稿者の解決 (per-account のみ) ---
-const authorResolving = ref(false)
+// --- 投稿者の解決 (アカウントごとに ID が違う。全アカウント面は各アカウントで解決、#1182) ---
+/** 解決中のアカウント数 */
+const authorResolving = ref(0)
+const authorAccountIds = computed<string[]>(() =>
+  isCrossAccount.value
+    ? accountsStore.accounts.map((a) => a.id)
+    : props.column.accountId
+      ? [props.column.accountId]
+      : [],
+)
 const authorState = computed<'resolving' | 'resolved' | 'unresolved' | null>(
   () => {
-    const accountId = props.column.accountId
-    if (!accountId) return null
-    if (authorResolving.value) return 'resolving'
-    const res = filter.value.authorIds?.[accountId]
-    if (res === null) return 'unresolved'
-    if (res) return 'resolved'
+    const ids = authorAccountIds.value
+    if (ids.length === 0) return null
+    if (authorResolving.value > 0) return 'resolving'
+    const results = ids.map((id) => filter.value.authorIds?.[id])
+    if (results.some((r) => r)) return 'resolved'
+    if (results.every((r) => r === null)) return 'unresolved'
     return null
   },
 )
 const authorResolvedLabel = computed(() => {
-  const accountId = props.column.accountId
-  const res = accountId ? filter.value.authorIds?.[accountId] : undefined
-  return res ? res.acct || res.id : ''
+  const ids = authorAccountIds.value
+  const resolved = ids
+    .map((id) => filter.value.authorIds?.[id])
+    .filter((r): r is AuthorResolution => Boolean(r))
+  const first = resolved[0]
+  if (!first) return ''
+  if (!isCrossAccount.value) return first.acct || first.id
+  return i18n.tsx._deckSearchColumn.authorResolvedAcross({
+    resolved: resolved.length,
+    total: ids.length,
+  })
 })
 
-function acctOf(user: NormalizedUser): string {
-  return `${user.username}@${user.host ?? account.value?.host ?? ''}`
+function acctOf(user: NormalizedUser, accountHost: string): string {
+  return `${user.username}@${user.host ?? accountHost}`
+}
+
+/** 単一アカウントはカラムの adapter、全アカウント面はアカウントごとの adapter */
+async function adapterFor(accountId: string) {
+  return isCrossAccount.value
+    ? multiAdapters.getOrCreate(accountId)
+    : initAdapter()
 }
 
 function saveAuthorId(
@@ -288,19 +346,22 @@ async function resolveAuthor(
   if (known !== undefined) return known
   const parsed = parseAuthor(filter.value.author ?? '')
   if (!parsed) return undefined
-  authorResolving.value = true
+  authorResolving.value++
   try {
-    const adapter = await initAdapter()
+    const adapter = await adapterFor(accountId)
     if (!adapter) return null
     const user = await adapter.api.lookupUser(parsed.username, parsed.host)
-    const res: AuthorResolution = { id: user.id, acct: acctOf(user) }
+    const res: AuthorResolution = {
+      id: user.id,
+      acct: acctOf(user, hostOf(accountId)),
+    }
     saveAuthorId(accountId, res)
     return res
   } catch {
     saveAuthorId(accountId, null)
     return null
   } finally {
-    authorResolving.value = false
+    authorResolving.value--
   }
 }
 
@@ -309,12 +370,12 @@ async function hydrateMigratedAuthor(accountId: string) {
   const res = filter.value.authorIds?.[accountId]
   if (!res || res.acct) return
   try {
-    const adapter = await initAdapter()
+    const adapter = await adapterFor(accountId)
     if (!adapter) return
     const user = await adapter.api.getUser(res.id)
     // 待っている間に表記が変わっていたら触らない
     if (filter.value.authorIds?.[accountId]?.id !== res.id) return
-    const acct = acctOf(user)
+    const acct = acctOf(user, hostOf(accountId))
     saveAuthorId(
       accountId,
       { id: res.id, acct },
@@ -344,19 +405,47 @@ function applyLocalFilter(
   return byTerm.filter((n) => matchesTextConditions(n, conditions))
 }
 
-/** サーバーへ渡す条件。per-account ではホストと投稿者も渡す */
-function serverOptions(accountId: string | null): SearchOptions {
+/**
+ * そのアカウントのサーバーへ渡す条件。null = このアカウントには投げない
+ * (範囲の選択肢を出せないサーバー / 投稿者が未解決)。全アカウント面では
+ * 「すべて」「ホスト指定」を出せるサーバーだけに投げ、指定ホストがそのサーバー
+ * 自身ならローカルとして渡す (#1182)
+ */
+function serverOptionsFor(accountId: string): SearchOptions | null {
   const { since, until } = dateBounds(filter.value)
   const opts: SearchOptions = {}
   if (since) opts.sinceDate = Date.parse(since)
   if (until) opts.untilDate = Date.parse(until)
-  if (accountId && account.value) {
-    const host = effectiveHostParam(filter.value.host, account.value.host)
+  if (isCrossAccount.value) {
+    const plan = hostPlanForAccount(
+      filter.value.host,
+      hostOf(accountId),
+      hostOptionsFor(accountId),
+    )
+    if (plan.kind === 'skip') return null
+    if (plan.host) opts.host = plan.host
+  } else {
+    const host = effectiveHostParam(filter.value.host, hostOf(accountId))
     if (host) opts.host = host
+  }
+  if (filter.value.author) {
     const author = filter.value.authorIds?.[accountId]
-    if (author) opts.userId = author.id
+    if (!author) return null
+    opts.userId = author.id
   }
   return opts
+}
+
+/** 全アカウント面のローカル先行表示を、各ノートの取得元アカウントの範囲 / 投稿者に揃える */
+function matchesScopeCross(note: NormalizedNote): boolean {
+  if (filter.value.author) {
+    const res = filter.value.authorIds?.[note._accountId]
+    if (!res || note.user.id !== res.id) return false
+  }
+  const host = effectiveHostParam(filter.value.host, note._serverHost)
+  if (!host) return true
+  if (host === '.') return note.user.host === null
+  return (note.user.host ?? note._serverHost).toLowerCase() === host
 }
 
 /**
@@ -489,7 +578,9 @@ async function searchLocalCrossAccount(q: string, hint: string) {
     const results = await Promise.allSettled(
       accounts.map((acc) => searchLocalDb(acc.id, hint, 10)),
     )
-    const matched = applyLocalFilter(collectFulfilled(results), q)
+    const matched = applyLocalFilter(collectFulfilled(results), q).filter(
+      matchesScopeCross,
+    )
     if (searchQuery.value.trim() === q) {
       rawNotes.value = mergeNotes([], matched)
       isPreview.value = true
@@ -547,6 +638,7 @@ async function performSearch() {
   confirmedQuery.value = q
   const gen = ++searchGeneration
   resetCursors()
+  crossSkipped.value = 0
 
   deckStore.updateColumn(props.column.id, { query: q })
 
@@ -597,7 +689,10 @@ async function performSearchPerAccount(q: string, hint: string, gen: number) {
     try {
       const adapter = await initAdapter()
       if (!adapter) return
-      const page = await adapter.api.searchNotes(hint, serverOptions(accountId))
+      const page = await adapter.api.searchNotes(
+        hint,
+        serverOptionsFor(accountId) ?? {},
+      )
       if (gen !== searchGeneration) return
       advanceCursor(page)
       const matched = applyLocalFilter(page, q)
@@ -624,7 +719,10 @@ async function performSearchCrossAccount(q: string, hint: string, gen: number) {
       const localResults = await Promise.allSettled(
         accounts.map((acc) => searchLocalDb(acc.id, hint, null)),
       )
-      const matched = applyLocalFilter(collectFulfilled(localResults), q)
+      const matched = applyLocalFilter(
+        collectFulfilled(localResults),
+        q,
+      ).filter(matchesScopeCross)
       if (gen !== searchGeneration) return
       if (matched.length > 0) {
         rawNotes.value = mergeNotes([], matched)
@@ -639,18 +737,28 @@ async function performSearchCrossAccount(q: string, hint: string, gen: number) {
   // (#1095)。Meilisearch 未導入のサーバーは PostgreSQL 走査で遅く、1 つの
   // 遅いサーバーが他の結果まで止めていた。検索は「速い分から」で素直に
   // 良くなる面なので初回から段階的に描く
-  crossProgress.value = { done: 0, total: accounts.length }
+  // 投稿者はアカウントごとに解決し、解決できたアカウントだけに投げる (#1182)
+  if (filter.value.author) {
+    await Promise.all(accounts.map((acc) => resolveAuthor(acc.id)))
+    if (gen !== searchGeneration) return
+  }
+  const targets = accounts.flatMap((acc) => {
+    const opts = serverOptionsFor(acc.id)
+    return opts ? [{ acc, opts }] : []
+  })
+  crossSkipped.value = accounts.length - targets.length
+  crossProgress.value = { done: 0, total: targets.length }
   let merged = hasLocalResults.value ? rawNotes.value : []
   try {
     await mapWithConcurrency(
-      accounts,
-      async (acc) => {
+      targets,
+      async ({ acc, opts }) => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return []
-        return adapter.api.searchNotes(hint, serverOptions(null))
+        return adapter.api.searchNotes(hint, opts)
       },
-      accounts.length,
-      async (r, acc, progress) => {
+      Math.max(1, targets.length),
+      async (r, { acc }, progress) => {
         // 走行中に別の検索が始まっていたら、その結果に上書きしない
         if (gen !== searchGeneration) return
         crossProgress.value = progress
@@ -692,7 +800,7 @@ async function loadMorePerAccount() {
   isLoading.value = true
   try {
     const page = await adapter.api.searchNotes(hint, {
-      ...serverOptions(accountId),
+      ...(serverOptionsFor(accountId) ?? {}),
       untilId: fetchCursor,
     })
     if (gen !== searchGeneration) return
@@ -718,30 +826,33 @@ async function loadMoreCrossAccount() {
   const hint = q
   if (!hint) return
 
-  // 尽きたアカウントには問い合わせない。位置が無いアカウント (初回が落ちた) は先頭から
-  const accounts = accountsStore.accounts.filter(
-    (acc) => !crossExhausted.has(acc.id),
-  )
-  if (accounts.length === 0 || crossCursors.size === 0) return
+  // 尽きたアカウントと、範囲 / 投稿者の条件で対象外のアカウントには問い合わせない。
+  // 位置が無いアカウント (初回が落ちた) は先頭から
+  const targets = accountsStore.accounts.flatMap((acc) => {
+    if (crossExhausted.has(acc.id)) return []
+    const opts = serverOptionsFor(acc.id)
+    return opts ? [{ acc, opts }] : []
+  })
+  if (targets.length === 0 || crossCursors.size === 0) return
   const gen = searchGeneration
   isLoading.value = true
 
   try {
-    crossProgress.value = { done: 0, total: accounts.length }
+    crossProgress.value = { done: 0, total: targets.length }
     await mapWithConcurrency(
-      accounts,
-      async (acc) => {
+      targets,
+      async ({ acc, opts }) => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return []
         return adapter.api.searchNotes(hint, {
-          ...serverOptions(null),
+          ...opts,
           untilId: crossCursors.get(acc.id),
         })
       },
-      accounts.length,
+      targets.length,
       // 返ったアカウントの分から順に足す (#1095)。untilId で古い側へ進むほど
       // 遅くなるサーバーを、速いサーバーの分まで待たせない
-      async (r, acc, progress) => {
+      async (r, { acc }, progress) => {
         if (gen !== searchGeneration) return
         crossProgress.value = progress
         if (r.status !== 'fulfilled') return
@@ -883,7 +994,6 @@ onUnmounted(() => {
               face="server"
               :filter="filter"
               :host-options="hostOptions"
-              :hidden-rows="hiddenRows"
               :author-state="authorState"
               :author-resolved-label="authorResolvedLabel"
               @update="onFilterUpdate"
@@ -894,6 +1004,9 @@ onUnmounted(() => {
 
       <div v-if="inlineError" :class="$style.inlineError">
         {{ inlineError }}
+      </div>
+      <div v-if="isCrossAccount && crossSkipped > 0" :class="$style.inlineNote">
+        {{ i18n.tsx._deckSearchColumn.skippedAccounts_plural({ count: crossSkipped }) }}
       </div>
 
     </template>
@@ -1064,6 +1177,12 @@ onUnmounted(() => {
   padding: 4px 12px;
   font-size: 0.75em;
   color: var(--nd-love);
+}
+
+.inlineNote {
+  padding: 4px 12px;
+  font-size: 0.75em;
+  opacity: 0.6;
 }
 
 

@@ -8,6 +8,7 @@ import {
   externalQueryPatch,
   FACE_ROWS,
   hasActiveFilter,
+  hostPlanForAccount,
   matchesPlainTerm,
   matchesTextConditions,
   migrateSearchColumns,
@@ -18,6 +19,7 @@ import {
   type SearchFilter,
   serverHostOptions,
   staleRows,
+  unionHostOptions,
 } from './searchFilter'
 
 const accounts = [
@@ -269,6 +271,45 @@ describe('サーバー検索の範囲', () => {
     expect(effectiveHostParam('.', 'a.example')).toBe('.')
     expect(effectiveHostParam('A.example', 'a.example')).toBe('.')
     expect(effectiveHostParam('b.example', 'a.example')).toBe('b.example')
+  })
+})
+
+describe('全アカウント面の範囲 (#1182)', () => {
+  const global = { noteSearchableScope: 'global', federation: 'all' }
+  const local = { noteSearchableScope: 'local', federation: 'all' }
+
+  it('選択肢は各サーバーの和集合で、順序は すべて / ローカル / ホスト指定', () => {
+    expect(unionHostOptions([local, global])).toEqual(['all', 'local', 'host'])
+    expect(unionHostOptions([local, null])).toEqual(['local'])
+    expect(unionHostOptions([])).toEqual([])
+  })
+
+  it('「すべて」と「ホスト指定」は出せるサーバーにだけ投げ、ローカルは常に投げる', () => {
+    const g = serverHostOptions(global)
+    const l = serverHostOptions(local)
+    expect(hostPlanForAccount(undefined, 'a.example', g)).toEqual({
+      kind: 'ok',
+    })
+    expect(hostPlanForAccount(undefined, 'a.example', l)).toEqual({
+      kind: 'skip',
+    })
+    expect(hostPlanForAccount('.', 'a.example', l)).toEqual({
+      kind: 'ok',
+      host: '.',
+    })
+    expect(hostPlanForAccount('b.example', 'a.example', g)).toEqual({
+      kind: 'ok',
+      host: 'b.example',
+    })
+    expect(hostPlanForAccount('b.example', 'a.example', l)).toEqual({
+      kind: 'skip',
+    })
+  })
+
+  it('指定ホストがそのサーバー自身ならローカルとして投げる (ローカルだけのサーバーでも)', () => {
+    expect(
+      hostPlanForAccount('A.example', 'a.example', serverHostOptions(local)),
+    ).toEqual({ kind: 'ok', host: '.' })
   })
 })
 

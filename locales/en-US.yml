@@ -2316,6 +2316,10 @@ _deckSearchColumn:
   noResults: "No results found"
   enterToSearch: "Press Enter to search the server"
   authorUnresolved: "The author could not be resolved, so this account was not searched"
+  authorResolvedAcross: "Resolved on {resolved}/{total} accounts"
+  skippedAccounts_plural:
+    one: "{count} account was skipped because of the scope or author condition"
+    other: "{count} accounts were skipped because of the scope or author condition"
 
 _deckStreamInspectorColumn:
   resume: "Resume"

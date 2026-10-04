@@ -18,7 +18,6 @@ import {
   hasActiveFilter,
   resolveScopeAccounts,
   type SearchFilter,
-  type TextCondition,
 } from '@/services/searchFilter'
 import {
   allowsAutoContinue,
@@ -195,27 +194,28 @@ watch(
 )
 
 /**
- * 本文の条件を索引側の引数に畳む。段階 1 では同じ type の行の語をまとめて
- * 1 つの群にする (`contains_any` が 2 行あっても OR 群は 1 つ)。行ごとの
- * 評価 (any 行どうしの AND) は #1182
+ * 本文の条件を索引側の引数に畳む。「いずれかを含む」は行ごとに 1 つの OR 群に
+ * して群どうしを AND (#1182)。「すべて」と「除外」は語をまとめてよい (AND / NOT
+ * は行をまたいでも意味が変わらない)
  */
 function textArgs(): Pick<
   NonNullable<Parameters<typeof commands.apiSearchNotesCachedAcross>[6]>,
   'textAny' | 'textAll' | 'textExclude'
 > {
-  const byType: Record<TextCondition['type'], string[]> = {
-    contains_any: [],
-    contains_all: [],
-    excludes: [],
-  }
+  const anyGroups: string[][] = []
+  const all: string[] = []
+  const exclude: string[] = []
   for (const cond of effectiveConditions(filter.value)) {
-    byType[cond.type].push(...cond.words.filter(Boolean))
+    const words = cond.words.filter(Boolean)
+    if (words.length === 0) continue
+    if (cond.type === 'contains_any') anyGroups.push(words)
+    else if (cond.type === 'contains_all') all.push(...words)
+    else exclude.push(...words)
   }
-  const orNull = (words: string[]) => (words.length > 0 ? words : null)
   return {
-    textAny: orNull(byType.contains_any),
-    textAll: orNull(byType.contains_all),
-    textExclude: orNull(byType.excludes),
+    textAny: anyGroups.length > 0 ? anyGroups : null,
+    textAll: all.length > 0 ? all : null,
+    textExclude: exclude.length > 0 ? exclude : null,
   }
 }
 
