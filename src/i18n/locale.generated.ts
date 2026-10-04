@@ -958,8 +958,12 @@ export interface Locale {
     readonly "serverOption": ParameterizedString<'host'>
     /** すべて */
     readonly "hostAll": string
+    /** すべてのサーバー (リモートも) */
+    readonly "hostAllAcross": string
     /** ローカル */
     readonly "hostLocal": string
+    /** 各サーバーのローカル */
+    readonly "hostLocalAcross": string
     /** ホスト指定 */
     readonly "hostSpecify": string
     /** example.com */
@@ -3713,10 +3717,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "enterToSearch": string
     /** 投稿者を解決できなかったため、このアカウントでは検索していません */
     readonly "authorUnresolved": string
-    /** {resolved}/{total} アカウントで解決 */
-    readonly "authorResolvedAcross": ParameterizedString<'resolved' | 'total'>
-    /** {count} アカウントは範囲か投稿者の条件で対象外 */
-    readonly "skippedAccounts_plural": PluralString<'count'>
+    /** {host}: この範囲はこのサーバーでは検索できません */
+    readonly "skippedScope": ParameterizedString<'host'>
+    /** {host}: 投稿者が見つかりません */
+    readonly "skippedAuthor": ParameterizedString<'host'>
   }
   readonly "_deckStreamInspectorColumn": {
     /** 再開 */

@@ -755,7 +755,9 @@ _searchFilterPanel:
   allAccounts: "All accounts"
   serverOption: "{host} (server)"
   hostAll: "All"
+  hostAllAcross: "All servers (including remote)"
   hostLocal: "Local"
+  hostLocalAcross: "Local on each server"
   hostSpecify: "Specific host"
   hostPlaceholder: "example.com"
   author: "Author"
@@ -2316,10 +2318,8 @@ _deckSearchColumn:
   noResults: "No results found"
   enterToSearch: "Press Enter to search the server"
   authorUnresolved: "The author could not be resolved, so this account was not searched"
-  authorResolvedAcross: "Resolved on {resolved}/{total} accounts"
-  skippedAccounts_plural:
-    one: "{count} account was skipped because of the scope or author condition"
-    other: "{count} accounts were skipped because of the scope or author condition"
+  skippedScope: "{host}: this scope cannot be searched on this server"
+  skippedAuthor: "{host}: author not found"
 
 _deckStreamInspectorColumn:
   resume: "Resume"

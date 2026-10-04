@@ -216,8 +216,9 @@ const hostOptions = computed(() =>
       )
     : serverHostOptions(scopeMeta.value),
 )
-/** 範囲か投稿者の条件で問い合わせなかったアカウント数 (0 件と見分けるために見せる) */
-const crossSkipped = ref(0)
+/** 範囲か投稿者の条件で問い合わせなかったアカウント (0 件と見分けるため、サーバーごとに理由を見せる) */
+type SkipReason = 'scope' | 'author'
+const crossSkipped = ref<{ host: string; reason: SkipReason }[]>([])
 function hostOf(accountId: string): string {
   return (
     accountsStore.accounts.find((a) => a.id === accountId)?.host ??
@@ -301,13 +302,9 @@ const authorResolvedLabel = computed(() => {
   const resolved = ids
     .map((id) => filter.value.authorIds?.[id])
     .filter((r): r is AuthorResolution => Boolean(r))
-  const first = resolved[0]
-  if (!first) return ''
-  if (!isCrossAccount.value) return first.acct || first.id
-  return i18n.tsx._deckSearchColumn.authorResolvedAcross({
-    resolved: resolved.length,
-    total: ids.length,
-  })
+  if (resolved.length === 0) return ''
+  // 全アカウント面は解決できた acct を並べる (見つからなかったサーバーは対象外の一覧に出る)
+  return resolved.map((r) => r.acct || r.id).join(', ')
 })
 
 function acctOf(user: NormalizedUser, accountHost: string): string {
@@ -405,13 +402,17 @@ function applyLocalFilter(
   return byTerm.filter((n) => matchesTextConditions(n, conditions))
 }
 
+type SearchPlan =
+  | { kind: 'ok'; opts: SearchOptions }
+  | { kind: 'skip'; reason: SkipReason }
+
 /**
- * そのアカウントのサーバーへ渡す条件。null = このアカウントには投げない
- * (範囲の選択肢を出せないサーバー / 投稿者が未解決)。全アカウント面では
- * 「すべて」「ホスト指定」を出せるサーバーだけに投げ、指定ホストがそのサーバー
- * 自身ならローカルとして渡す (#1182)
+ * そのアカウントのサーバーへ渡す条件。skip = このアカウントには投げない
+ * (範囲の選択肢を出せないサーバー / 投稿者が未解決) で、理由ごと見せる。
+ * 全アカウント面では「すべて」「ホスト指定」を出せるサーバーだけに投げ、
+ * 指定ホストがそのサーバー自身ならローカルとして渡す (#1182)
  */
-function serverOptionsFor(accountId: string): SearchOptions | null {
+function planFor(accountId: string): SearchPlan {
   const { since, until } = dateBounds(filter.value)
   const opts: SearchOptions = {}
   if (since) opts.sinceDate = Date.parse(since)
@@ -422,7 +423,7 @@ function serverOptionsFor(accountId: string): SearchOptions | null {
       hostOf(accountId),
       hostOptionsFor(accountId),
     )
-    if (plan.kind === 'skip') return null
+    if (plan.kind === 'skip') return { kind: 'skip', reason: 'scope' }
     if (plan.host) opts.host = plan.host
   } else {
     const host = effectiveHostParam(filter.value.host, hostOf(accountId))
@@ -430,10 +431,16 @@ function serverOptionsFor(accountId: string): SearchOptions | null {
   }
   if (filter.value.author) {
     const author = filter.value.authorIds?.[accountId]
-    if (!author) return null
+    if (!author) return { kind: 'skip', reason: 'author' }
     opts.userId = author.id
   }
-  return opts
+  return { kind: 'ok', opts }
+}
+
+/** 単一アカウント面の条件 (投げない理由は別に表示するので、条件だけ取り出す) */
+function serverOptionsOrEmpty(accountId: string): SearchOptions {
+  const plan = planFor(accountId)
+  return plan.kind === 'ok' ? plan.opts : {}
 }
 
 /** 全アカウント面のローカル先行表示を、各ノートの取得元アカウントの範囲 / 投稿者に揃える */
@@ -638,7 +645,7 @@ async function performSearch() {
   confirmedQuery.value = q
   const gen = ++searchGeneration
   resetCursors()
-  crossSkipped.value = 0
+  crossSkipped.value = []
 
   deckStore.updateColumn(props.column.id, { query: q })
 
@@ -691,7 +698,7 @@ async function performSearchPerAccount(q: string, hint: string, gen: number) {
       if (!adapter) return
       const page = await adapter.api.searchNotes(
         hint,
-        serverOptionsFor(accountId) ?? {},
+        serverOptionsOrEmpty(accountId),
       )
       if (gen !== searchGeneration) return
       advanceCursor(page)
@@ -742,11 +749,16 @@ async function performSearchCrossAccount(q: string, hint: string, gen: number) {
     await Promise.all(accounts.map((acc) => resolveAuthor(acc.id)))
     if (gen !== searchGeneration) return
   }
+  const skipped: { host: string; reason: SkipReason }[] = []
   const targets = accounts.flatMap((acc) => {
-    const opts = serverOptionsFor(acc.id)
-    return opts ? [{ acc, opts }] : []
+    const plan = planFor(acc.id)
+    if (plan.kind === 'skip') {
+      skipped.push({ host: acc.host, reason: plan.reason })
+      return []
+    }
+    return [{ acc, opts: plan.opts }]
   })
-  crossSkipped.value = accounts.length - targets.length
+  crossSkipped.value = skipped
   crossProgress.value = { done: 0, total: targets.length }
   let merged = hasLocalResults.value ? rawNotes.value : []
   try {
@@ -800,7 +812,7 @@ async function loadMorePerAccount() {
   isLoading.value = true
   try {
     const page = await adapter.api.searchNotes(hint, {
-      ...(serverOptionsFor(accountId) ?? {}),
+      ...serverOptionsOrEmpty(accountId),
       untilId: fetchCursor,
     })
     if (gen !== searchGeneration) return
@@ -830,8 +842,8 @@ async function loadMoreCrossAccount() {
   // 位置が無いアカウント (初回が落ちた) は先頭から
   const targets = accountsStore.accounts.flatMap((acc) => {
     if (crossExhausted.has(acc.id)) return []
-    const opts = serverOptionsFor(acc.id)
-    return opts ? [{ acc, opts }] : []
+    const plan = planFor(acc.id)
+    return plan.kind === 'ok' ? [{ acc, opts: plan.opts }] : []
   })
   if (targets.length === 0 || crossCursors.size === 0) return
   const gen = searchGeneration
@@ -994,6 +1006,7 @@ onUnmounted(() => {
               face="server"
               :filter="filter"
               :host-options="hostOptions"
+              :cross-account="isCrossAccount"
               :author-state="authorState"
               :author-resolved-label="authorResolvedLabel"
               @update="onFilterUpdate"
@@ -1005,8 +1018,13 @@ onUnmounted(() => {
       <div v-if="inlineError" :class="$style.inlineError">
         {{ inlineError }}
       </div>
-      <div v-if="isCrossAccount && crossSkipped > 0" :class="$style.inlineNote">
-        {{ i18n.tsx._deckSearchColumn.skippedAccounts_plural({ count: crossSkipped }) }}
+      <!-- 投げなかったサーバーは理由ごとに一覧で見せる (0 件と見分ける、#1182) -->
+      <div v-if="isCrossAccount && crossSkipped.length > 0" :class="$style.inlineNote">
+        <div v-for="s in crossSkipped" :key="s.host">
+          {{ s.reason === 'scope'
+            ? i18n.tsx._deckSearchColumn.skippedScope({ host: s.host })
+            : i18n.tsx._deckSearchColumn.skippedAuthor({ host: s.host }) }}
+        </div>
       </div>
 
     </template>

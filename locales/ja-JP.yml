@@ -536,7 +536,9 @@ _searchFilterPanel:
   allAccounts: "すべてのアカウント"
   serverOption: "{host} (サーバー)"
   hostAll: "すべて"
+  hostAllAcross: "すべてのサーバー (リモートも)"
   hostLocal: "ローカル"
+  hostLocalAcross: "各サーバーのローカル"
   hostSpecify: "ホスト指定"
   hostPlaceholder: "example.com"
   author: "投稿者"
@@ -2064,9 +2066,8 @@ _deckSearchColumn:
   noResults: "結果が見つかりませんでした"
   enterToSearch: "Enter キーでサーバーを検索"
   authorUnresolved: "投稿者を解決できなかったため、このアカウントでは検索していません"
-  authorResolvedAcross: "{resolved}/{total} アカウントで解決"
-  skippedAccounts_plural:
-    other: "{count} アカウントは範囲か投稿者の条件で対象外"
+  skippedScope: "{host}: この範囲はこのサーバーでは検索できません"
+  skippedAuthor: "{host}: 投稿者が見つかりません"
 
 _deckStreamInspectorColumn:
   resume: "再開"
