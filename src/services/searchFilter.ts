@@ -41,8 +41,6 @@ export interface SearchFilter {
   conditions?: TextCondition[]
   /** 外部から検索語を差し替えたとき、構造を消さずに効かない状態にする印 */
   conditionsPaused?: true
-  /** 正規表現モード (サーバー検索だけ意味を持つ)。パターンは検索語の欄そのもの */
-  regex?: boolean
   /**
    * クライアント検索の範囲: `''` = 全アカウント、`server:<host>`、`account:<id>`
    */
@@ -106,7 +104,7 @@ function hasAnyAuthorId(filter: SearchFilter): boolean {
   return Object.values(filter.authorIds ?? {}).some((r) => r !== null)
 }
 
-/** パネルの行が 1 つでも効いているか (漏斗の点灯)。並び順と正規表現モードは含めない */
+/** パネルの行が 1 つでも効いているか (漏斗の点灯)。並び順は含めない */
 export function hasActiveFilter(filter: SearchFilter | undefined): boolean {
   return ALL_ROWS.some((row) => rowHasValue(filter, row))
 }
@@ -154,7 +152,7 @@ export function clearRow(
   return next
 }
 
-/** 「フィルターをクリア」: パネルの行だけ消し、並び順と正規表現モードは残す */
+/** 「フィルターをクリア」: パネルの行だけ消し、並び順は残す */
 export function clearPanelRows(filter: SearchFilter): SearchFilter {
   return ALL_ROWS.reduce<SearchFilter>((acc, row) => clearRow(acc, row), filter)
 }
@@ -229,8 +227,8 @@ export function matchesPlainTerm(note: NoteText, term: string): boolean {
 
 /**
  * 検索語の欄の入力以外 (ハッシュタグのクリック / CLI / AI) から検索語が
- * 差し替えられたときの条件: 期間と範囲を消し、正規表現を切り、本文の条件は
- * 消さずに止める。投稿者と並び順は残す
+ * 差し替えられたときの条件: 期間と範囲を消し、本文の条件は消さずに止める。
+ * 投稿者と並び順は残す
  */
 export function externalQueryPatch(
   filter: SearchFilter | undefined,
@@ -241,7 +239,6 @@ export function externalQueryPatch(
   delete next.until
   delete next.scope
   delete next.host
-  delete next.regex
   delete next.conditionsPaused
   if (next.conditions && next.conditions.length > 0) {
     next.conditionsPaused = true

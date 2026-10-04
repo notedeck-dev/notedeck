@@ -2297,17 +2297,12 @@ _deckProfileMenu:
   deleted: "Profile deleted"
 
 _deckSearchColumn:
-  regexPlaceholder: "Search with regex (press Enter)"
   placeholder: "Search notes (press Enter)"
-  regexMode: "Regex mode"
   oldestFirst: "Oldest first"
   newestFirst: "Newest first"
   enterQuery: "Enter a search term"
   noResults: "No results found"
   enterToSearch: "Press Enter to search the server"
-  invalidRegex: "Invalid regular expression"
-  regexTimeout: "The regex match did not finish in time, so this search was stopped"
-  regexUnavailable: "Regex matching is unavailable, so this search was stopped"
   authorUnresolved: "The author could not be resolved, so this account was not searched"
 
 _deckStreamInspectorColumn:

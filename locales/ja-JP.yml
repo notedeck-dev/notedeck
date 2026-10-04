@@ -2047,17 +2047,12 @@ _deckProfileMenu:
   deleted: "プロファイルを削除しました"
 
 _deckSearchColumn:
-  regexPlaceholder: "正規表現で検索 (Enter で検索)"
   placeholder: "ノートを検索 (Enter で検索)"
-  regexMode: "正規表現モード"
   oldestFirst: "古い順"
   newestFirst: "新しい順"
   enterQuery: "検索語を入力"
   noResults: "結果が見つかりませんでした"
   enterToSearch: "Enter キーでサーバーを検索"
-  invalidRegex: "無効な正規表現です"
-  regexTimeout: "正規表現の照合が時間内に終わらなかったため、この検索は中止しました"
-  regexUnavailable: "正規表現の照合ができないため、この検索は中止しました"
   authorUnresolved: "投稿者を解決できなかったため、このアカウントでは検索していません"
 
 _deckStreamInspectorColumn:

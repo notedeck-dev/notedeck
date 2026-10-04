@@ -77,9 +77,8 @@ describe('面ごとの行と「効いている」判定', () => {
     ])
   })
 
-  it('並び順と正規表現モードはパネルの行ではないので点灯しない。本文の条件は行なので点灯する', () => {
+  it('並び順はパネルの行ではないので点灯しない。本文の条件は行なので点灯する', () => {
     expect(hasActiveFilter({ ascending: true })).toBe(false)
-    expect(hasActiveFilter({ regex: true })).toBe(false)
     expect(
       hasActiveFilter({
         conditions: [{ type: 'excludes', words: ['bot'] }],
@@ -121,12 +120,11 @@ describe('クリア', () => {
     until: '2026-01-31',
     hasFiles: true,
     ascending: true,
-    regex: true,
     conditions: [{ type: 'excludes', words: ['bot'] }],
   }
 
-  it('clearPanelRows はパネルの行 (本文の条件を含む) を消し、並び順と正規表現モードは残す', () => {
-    expect(clearPanelRows(full)).toEqual({ ascending: true, regex: true })
+  it('clearPanelRows はパネルの行 (本文の条件を含む) を消し、並び順は残す', () => {
+    expect(clearPanelRows(full)).toEqual({ ascending: true })
   })
 
   it('clearRow(conditions) は一時停止の印も一緒に消す', () => {
@@ -214,7 +212,7 @@ describe('本文の条件', () => {
 })
 
 describe('外部からの検索語の差し替え', () => {
-  it('期間と範囲を消し、正規表現を切り、本文の条件は消さずに止める。投稿者と並び順は残す', () => {
+  it('期間と範囲を消し、本文の条件は消さずに止める。投稿者と並び順は残す', () => {
     const patched = externalQueryPatch({
       scope: 'account:a1',
       host: '.',
@@ -223,7 +221,6 @@ describe('外部からの検索語の差し替え', () => {
       author: 'alice',
       authorIds: { a1: { id: 'u1', acct: 'alice@a.example' } },
       ascending: true,
-      regex: true,
       conditions: [{ type: 'excludes', words: ['bot'] }],
     })
     expect(patched).toEqual({
@@ -236,7 +233,7 @@ describe('外部からの検索語の差し替え', () => {
   })
 
   it('本文の条件が無ければ一時停止の印は付けない', () => {
-    expect(externalQueryPatch({ regex: true })).toEqual({})
+    expect(externalQueryPatch({ since: '2026-01-01' })).toEqual({})
     expect(externalQueryPatch(undefined)).toEqual({})
   })
 })

@@ -573,15 +573,6 @@ async function handlePosted(editedNoteId?: string) {
     </template>
 
     <template #header-meta>
-      <button
-        class="_button"
-        :class="[$style.headerRunBtn, { [$style.loading]: lookupLoading }]"
-        :disabled="!queryInput.trim() || lookupLoading"
-        :title="i18n.ts._common.run"
-        @click.stop="performLookup"
-      >
-        <i class="ti ti-arrow-right" />
-      </button>
     </template>
 
     <template #header-extra>
@@ -802,30 +793,4 @@ async function handlePosted(editedNoteId?: string) {
 
 
 
-/* 実行ボタンはヘッダーバーに置く (API コンソールなど他のカラムの実行操作と同じ位置) */
-.headerRunBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-accent);
-  color: var(--nd-fgOnAccent);
-  font-size: 0.85em;
-  transition: background var(--nd-duration-base), opacity var(--nd-duration-base);
-
-  &:hover:not(:disabled) {
-    background: var(--nd-accentDarken);
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  &.loading i {
-    animation: nd-spin 0.8s linear infinite;
-  }
-}
 </style>

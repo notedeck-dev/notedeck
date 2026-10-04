@@ -55,12 +55,6 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
-import {
-  extractLiterals,
-  filterNotesByRegexAsync,
-  isValidRegex,
-  RegexFilterError,
-} from '@/utils/regexSearch'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -184,12 +178,7 @@ function saveFilter(next: SearchFilter) {
   filter.value = next
   deckStore.updateColumn(props.column.id, { searchFilter: next })
 }
-const regexMode = computed(() => filter.value.regex === true)
 const ascending = computed(() => filter.value.ascending === true)
-const regexInvalid = computed(() => {
-  const q = searchQuery.value.trim()
-  return regexMode.value && !!q && !isValidRegex(q)
-})
 
 const scopeMeta = useSearchScopeMeta(computed(() => props.column.accountId))
 // 全アカウント面はホストと投稿者を出さない (per-account の意味しか持たない)
@@ -212,15 +201,6 @@ function scheduleResearch() {
 
 function onFilterUpdate(next: SearchFilter) {
   saveFilter(next)
-  scheduleResearch()
-}
-
-function toggleRegexMode() {
-  const next = { ...filter.value }
-  if (next.regex) delete next.regex
-  else next.regex = true
-  saveFilter(next)
-  inlineError.value = null
   scheduleResearch()
 }
 
@@ -326,39 +306,19 @@ async function hydrateMigratedAuthor(accountId: string) {
 }
 
 // --- 評価 ---
-function getSearchHint(q: string): string {
-  if (!regexMode.value) return q
-  return extractLiterals(q)
-}
-
 /**
- * 手元の照合 (1 層)。母集合は検索語の結果で、正規表現モードならパターン、
- * そうでなければリテラル含有 (サーバーのトークナイズによる曖昧一致を揃える)
- * で絞り、そのあと本文の条件を当てる。ローカル先行表示 / 確定 / 段階表示 /
- * 追加読み込みのすべてがここを通る
+ * 手元の照合 (1 層)。母集合は検索語の結果で、リテラル含有 (サーバーの
+ * トークナイズによる曖昧一致を揃える) で絞り、そのあと本文の条件を当てる。
+ * ローカル先行表示 / 確定 / 段階表示 / 追加読み込みのすべてがここを通る
  */
-async function applyLocalFilter(
+function applyLocalFilter(
   notes: NormalizedNote[],
   q: string,
-): Promise<NormalizedNote[]> {
-  const byTerm = regexMode.value
-    ? await filterNotesByRegexAsync(notes, q)
-    : notes.filter((n) => matchesPlainTerm(n, q))
+): NormalizedNote[] {
+  const byTerm = notes.filter((n) => matchesPlainTerm(n, q))
   const conditions = effectiveConditions(filter.value)
   if (conditions.length === 0) return byTerm
   return byTerm.filter((n) => matchesTextConditions(n, conditions))
-}
-
-/** 照合の失敗は検索の失敗として見せる (素通しにしない)。それ以外なら false */
-function reportFilterFailure(e: unknown): boolean {
-  if (!(e instanceof RegexFilterError)) return false
-  inlineError.value =
-    e.kind === 'invalid'
-      ? i18n.ts._deckSearchColumn.invalidRegex
-      : e.kind === 'timeout'
-        ? i18n.ts._deckSearchColumn.regexTimeout
-        : i18n.ts._deckSearchColumn.regexUnavailable
-  return true
 }
 
 /** サーバーへ渡す条件。per-account ではホストと投稿者も渡す */
@@ -470,8 +430,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 async function searchLocal(q: string) {
   if (!q) return
-  const hint = getSearchHint(q)
-  if (!hint) return
+  const hint = q
 
   if (isCrossAccount.value) {
     await searchLocalCrossAccount(q, hint)
@@ -487,12 +446,8 @@ async function searchLocalPerAccount(q: string, hint: string) {
   // 投稿者が未解決のうちは範囲を揃えられないので先行表示しない
   if (filter.value.author && !authorId) return
   try {
-    const local = await searchLocalDb(
-      accountId,
-      hint,
-      regexMode.value ? 50 : 10,
-    )
-    const matched = (await applyLocalFilter(local, q)).filter((n) =>
+    const local = await searchLocalDb(accountId, hint, 10)
+    const matched = applyLocalFilter(local, q).filter((n) =>
       matchesServerScope(n, authorId),
     )
     if (searchQuery.value.trim() === q) {
@@ -500,8 +455,8 @@ async function searchLocalPerAccount(q: string, hint: string) {
       isPreview.value = true
       hasLocalResults.value = matched.length > 0
     }
-  } catch (e) {
-    if (searchQuery.value.trim() === q) reportFilterFailure(e)
+  } catch {
+    // ローカル索引の失敗は致命ではない
   }
 }
 
@@ -509,18 +464,16 @@ async function searchLocalCrossAccount(q: string, hint: string) {
   const accounts = accountsStore.accounts
   try {
     const results = await Promise.allSettled(
-      accounts.map((acc) =>
-        searchLocalDb(acc.id, hint, regexMode.value ? 50 : 10),
-      ),
+      accounts.map((acc) => searchLocalDb(acc.id, hint, 10)),
     )
-    const matched = await applyLocalFilter(collectFulfilled(results), q)
+    const matched = applyLocalFilter(collectFulfilled(results), q)
     if (searchQuery.value.trim() === q) {
       rawNotes.value = mergeNotes([], matched)
       isPreview.value = true
       hasLocalResults.value = matched.length > 0
     }
-  } catch (e) {
-    if (searchQuery.value.trim() === q) reportFilterFailure(e)
+  } catch {
+    // ローカル索引の失敗は致命ではない
   }
 }
 
@@ -532,10 +485,6 @@ watch(searchQuery, (val) => {
     rawNotes.value = []
     isPreview.value = false
     hasLocalResults.value = false
-    return
-  }
-  if (regexMode.value && !isValidRegex(q)) {
-    inlineError.value = i18n.ts._deckSearchColumn.invalidRegex
     return
   }
   // Don't show preview if already showing confirmed results for this query
@@ -568,11 +517,6 @@ async function performSearch() {
     filterTimer = null
   }
 
-  if (regexMode.value && !isValidRegex(q)) {
-    inlineError.value = i18n.ts._deckSearchColumn.invalidRegex
-    return
-  }
-
   error.value = null
   inlineError.value = null
   isLoading.value = true
@@ -583,7 +527,7 @@ async function performSearch() {
 
   deckStore.updateColumn(props.column.id, { query: q })
 
-  const hint = getSearchHint(q)
+  const hint = q
 
   if (isCrossAccount.value) {
     await performSearchCrossAccount(q, hint, gen)
@@ -611,12 +555,8 @@ async function performSearchPerAccount(q: string, hint: string, gen: number) {
   // Local search first (instant) if not already showing preview
   if (!hasLocalResults.value) {
     try {
-      const local = await searchLocalDb(
-        accountId,
-        hint,
-        regexMode.value ? 100 : null,
-      )
-      const matched = (await applyLocalFilter(local, q)).filter((n) =>
+      const local = await searchLocalDb(accountId, hint, null)
+      const matched = applyLocalFilter(local, q).filter((n) =>
         matchesServerScope(n, author?.id),
       )
       if (gen !== searchGeneration) return
@@ -624,9 +564,7 @@ async function performSearchPerAccount(q: string, hint: string, gen: number) {
         rawNotes.value = matched
         hasLocalResults.value = true
       }
-    } catch (e) {
-      if (gen !== searchGeneration) return
-      if (reportFilterFailure(e)) return
+    } catch {
       // ローカル索引の失敗は致命ではない
     }
   }
@@ -639,18 +577,13 @@ async function performSearchPerAccount(q: string, hint: string, gen: number) {
       const page = await adapter.api.searchNotes(hint, serverOptions(accountId))
       if (gen !== searchGeneration) return
       advanceCursor(page)
-      const matched = await applyLocalFilter(page, q)
-      if (gen !== searchGeneration) return
+      const matched = applyLocalFilter(page, q)
       rawNotes.value = mergeNotes(
         hasLocalResults.value ? rawNotes.value : [],
         matched,
       )
     } catch (e) {
       if (gen !== searchGeneration) return
-      if (reportFilterFailure(e)) {
-        if (!hasLocalResults.value) rawNotes.value = []
-        return
-      }
       if (!hasLocalResults.value) {
         error.value = AppError.from(e)
       }
@@ -666,19 +599,16 @@ async function performSearchCrossAccount(q: string, hint: string, gen: number) {
   if (!hasLocalResults.value) {
     try {
       const localResults = await Promise.allSettled(
-        accounts.map((acc) =>
-          searchLocalDb(acc.id, hint, regexMode.value ? 100 : null),
-        ),
+        accounts.map((acc) => searchLocalDb(acc.id, hint, null)),
       )
-      const matched = await applyLocalFilter(collectFulfilled(localResults), q)
+      const matched = applyLocalFilter(collectFulfilled(localResults), q)
       if (gen !== searchGeneration) return
       if (matched.length > 0) {
         rawNotes.value = mergeNotes([], matched)
         hasLocalResults.value = true
       }
-    } catch (e) {
-      if (gen !== searchGeneration) return
-      if (reportFilterFailure(e)) return
+    } catch {
+      // ローカル索引の失敗は致命ではない
     }
   }
 
@@ -703,14 +633,8 @@ async function performSearchCrossAccount(q: string, hint: string, gen: number) {
         crossProgress.value = progress
         if (r.status !== 'fulfilled') return
         advanceCrossCursor(acc.id, r.value)
-        try {
-          const matched = await applyLocalFilter(r.value, q)
-          if (gen !== searchGeneration) return
-          merged = mergeNotes(merged, matched)
-          rawNotes.value = merged
-        } catch (e) {
-          if (gen === searchGeneration) reportFilterFailure(e)
-        }
+        merged = mergeNotes(merged, applyLocalFilter(r.value, q))
+        rawNotes.value = merged
       },
     )
     if (gen === searchGeneration) rawNotes.value = merged
@@ -738,7 +662,7 @@ async function loadMorePerAccount() {
   if (fetchExhausted || !fetchCursor) return
 
   const q = confirmedQuery.value
-  const hint = getSearchHint(q)
+  const hint = q
   if (!hint) return
 
   const gen = searchGeneration
@@ -750,8 +674,7 @@ async function loadMorePerAccount() {
     })
     if (gen !== searchGeneration) return
     advanceCursor(page)
-    const older = await applyLocalFilter(page, q)
-    if (gen !== searchGeneration) return
+    const older = applyLocalFilter(page, q)
     // 古い側を足したので、昇順なら先頭 (古い側) を、降順なら末尾を残す
     setNotes(
       mergeNotes(rawNotes.value, older),
@@ -759,7 +682,7 @@ async function loadMorePerAccount() {
     )
   } catch (e) {
     if (gen !== searchGeneration) return
-    if (!reportFilterFailure(e)) error.value = AppError.from(e)
+    error.value = AppError.from(e)
   } finally {
     if (gen === searchGeneration) isLoading.value = false
   }
@@ -769,7 +692,7 @@ async function loadMoreCrossAccount() {
   if (isLoading.value) return
 
   const q = confirmedQuery.value
-  const hint = getSearchHint(q)
+  const hint = q
   if (!hint) return
 
   // 尽きたアカウントには問い合わせない。位置が無いアカウント (初回が落ちた) は先頭から
@@ -800,16 +723,12 @@ async function loadMoreCrossAccount() {
         crossProgress.value = progress
         if (r.status !== 'fulfilled') return
         advanceCrossCursor(acc.id, r.value)
-        try {
-          const older = await applyLocalFilter(r.value, q)
-          if (gen !== searchGeneration || older.length === 0) return
-          setNotes(
-            mergeNotes(rawNotes.value, older),
-            ascending.value ? 'oldest' : 'newest',
-          )
-        } catch (e) {
-          if (gen === searchGeneration) reportFilterFailure(e)
-        }
+        const older = applyLocalFilter(r.value, q)
+        if (older.length === 0) return
+        setNotes(
+          mergeNotes(rawNotes.value, older),
+          ascending.value ? 'oldest' : 'newest',
+        )
       },
     )
   } catch (e) {
@@ -902,15 +821,6 @@ onUnmounted(() => {
     </template>
 
     <template #header-meta>
-      <button
-        class="_button"
-        :class="[$style.headerRunBtn, { [$style.loading]: isLoading }]"
-        :disabled="!searchQuery.trim() || isLoading || regexInvalid"
-        :title="i18n.ts._common.run"
-        @click.stop="performSearch"
-      >
-        <i class="ti ti-arrow-right" />
-      </button>
     </template>
 
     <template #header-extra>
@@ -919,21 +829,13 @@ onUnmounted(() => {
         <input
           ref="searchInput"
           v-model="searchQuery"
-          :class="[$style.searchInput, { [$style.regexInput]: regexMode, [$style.regexInvalid]: regexInvalid }]"
+          :class="$style.searchInput"
           type="text"
-          :placeholder="regexMode ? i18n.ts._deckSearchColumn.regexPlaceholder : i18n.ts._deckSearchColumn.placeholder"
+          :placeholder="i18n.ts._deckSearchColumn.placeholder"
           @input="onQueryInput"
           @keydown="onKeydown"
         />
-        <div :class="$style.regexControls">
-          <button
-            :class="[$style.regexToggle, { [$style.regexToggleActive]: regexMode }]"
-            class="_button"
-            :title="i18n.ts._deckSearchColumn.regexMode"
-            @click="toggleRegexMode"
-          >
-            <span :class="$style.regexIconText">.*</span>
-          </button>
+        <div :class="$style.barControls">
           <button
             :class="[$style.sortToggle, { [$style.sortToggleActive]: ascending }]"
             class="_button"
@@ -1096,48 +998,17 @@ onUnmounted(() => {
   }
 }
 
-.regexControls {
+.barControls {
   display: flex;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
 }
 
-.regexToggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
-  opacity: 0.35;
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base), color var(--nd-duration-base);
 
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-    opacity: 0.7;
-  }
-}
 
-.regexToggleActive {
-  opacity: 1;
-  color: var(--nd-accent);
-  background: var(--nd-accent-hover);
-}
 
-.regexIconText {
-  font-family: var(--nd-font-mono);
-  font-size: 0.8em;
-  font-weight: 700;
-}
 
-.regexInput {
-  font-family: var(--nd-font-mono);
-}
-
-.regexInvalid {
-  box-shadow: 0 0 0 2px var(--nd-love) !important;
-}
 
 .filterToggle,
 .sortToggle {
@@ -1209,30 +1080,5 @@ onUnmounted(() => {
 }
 
 /* 実行ボタンはヘッダーバーに置く (API コンソールなど他のカラムの実行操作と同じ位置) */
-.headerRunBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-accent);
-  color: var(--nd-fgOnAccent);
-  font-size: 0.85em;
-  transition: background var(--nd-duration-base), opacity var(--nd-duration-base);
-
-  &:hover:not(:disabled) {
-    background: var(--nd-accentDarken);
-  }
-
-  &:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  &.loading i {
-    animation: nd-spin 0.8s linear infinite;
-  }
-}
 </style>
 

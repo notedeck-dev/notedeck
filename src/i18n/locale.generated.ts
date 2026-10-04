@@ -3683,12 +3683,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "deleted": string
   }
   readonly "_deckSearchColumn": {
-    /** 正規表現で検索 (Enter で検索) */
-    readonly "regexPlaceholder": string
     /** ノートを検索 (Enter で検索) */
     readonly "placeholder": string
-    /** 正規表現モード */
-    readonly "regexMode": string
     /** 古い順 */
     readonly "oldestFirst": string
     /** 新しい順 */
@@ -3699,12 +3695,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "noResults": string
     /** Enter キーでサーバーを検索 */
     readonly "enterToSearch": string
-    /** 無効な正規表現です */
-    readonly "invalidRegex": string
-    /** 正規表現の照合が時間内に終わらなかったため、この検索は中止しました */
-    readonly "regexTimeout": string
-    /** 正規表現の照合ができないため、この検索は中止しました */
-    readonly "regexUnavailable": string
     /** 投稿者を解決できなかったため、このアカウントでは検索していません */
     readonly "authorUnresolved": string
   }
