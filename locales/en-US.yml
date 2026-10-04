@@ -750,7 +750,6 @@ _conditionBuilder:
   paused: "The search term was replaced from outside, so the text conditions are paused. Typing a search term brings them back"
 
 _searchFilterPanel:
-  filter: "Filter"
   clearFilters: "Clear filters"
   scope: "Scope"
   allAccounts: "All accounts"

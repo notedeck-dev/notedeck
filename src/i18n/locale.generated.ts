@@ -948,8 +948,6 @@ export interface Locale {
     readonly "paused": string
   }
   readonly "_searchFilterPanel": {
-    /** フィルター */
-    readonly "filter": string
     /** フィルターをクリア */
     readonly "clearFilters": string
     /** 範囲 */

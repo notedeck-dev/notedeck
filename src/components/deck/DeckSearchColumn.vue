@@ -62,6 +62,7 @@ import {
   RegexFilterError,
 } from '@/utils/regexSearch'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
+import ColumnFilterButton from './ColumnFilterButton.vue'
 import DeckColumn from './DeckColumn.vue'
 import SearchFilterPanel from './SearchFilterPanel.vue'
 
@@ -190,7 +191,6 @@ const regexInvalid = computed(() => {
   return regexMode.value && !!q && !isValidRegex(q)
 })
 
-const showFilters = ref(false)
 const scopeMeta = useSearchScopeMeta(computed(() => props.column.accountId))
 // 全アカウント面はホストと投稿者を出さない (per-account の意味しか持たない)
 const hostOptions = computed(() =>
@@ -925,14 +925,27 @@ onUnmounted(() => {
           >
             <span :class="$style.regexIconText">.*</span>
           </button>
-          <button
-            :class="[$style.filterToggle, { [$style.filterToggleActive]: showFilters || hasActiveFilter(filter) }]"
-            class="_button"
-            :title="i18n.ts._searchFilterPanel.filter"
-            @click="showFilters = !showFilters"
+          <!-- 絞り込みはノートカラムと同じ漏斗 → ポップアップ (#1180)。検索の行を差し込む -->
+          <ColumnFilterButton
+            :column="column"
+            :active="hasActiveFilter(filter)"
+            :show-queries="false"
+            :theme-vars="columnThemeVars"
+            wide
+            compact
           >
-            <i class="ti ti-filter" />
-          </button>
+            <template #extra>
+              <SearchFilterPanel
+                face="server"
+                :filter="filter"
+                :host-options="hostOptions"
+                :hidden-rows="hiddenRows"
+                :author-state="authorState"
+                :author-resolved-label="authorResolvedLabel"
+                @update="onFilterUpdate"
+              />
+            </template>
+          </ColumnFilterButton>
           <button
             :class="[$style.sortToggle, { [$style.sortToggleActive]: ascending }]"
             class="_button"
@@ -951,17 +964,6 @@ onUnmounted(() => {
           <i class="ti ti-arrow-right" />
         </button>
       </div>
-
-      <SearchFilterPanel
-        v-if="showFilters"
-        face="server"
-        :filter="filter"
-        :host-options="hostOptions"
-        :hidden-rows="hiddenRows"
-        :author-state="authorState"
-        :author-resolved-label="authorResolvedLabel"
-        @update="onFilterUpdate"
-      />
 
       <div v-if="inlineError" :class="$style.inlineError">
         {{ inlineError }}

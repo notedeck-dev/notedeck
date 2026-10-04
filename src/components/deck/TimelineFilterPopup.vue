@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, toRef } from 'vue'
+import { computed, ref, toRef, useSlots } from 'vue'
 import type { TimelineFilter } from '@/adapters/types'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useVaporTransition } from '@/composables/useVaporTransition'
@@ -18,7 +18,13 @@ const props = defineProps<{
   namedQueries?: { id: string; name: string; disabled?: boolean }[]
   /** このカラムに適用中のクエリ id 列 (有効/無効はアイテム側の別軸) */
   appliedQueryIds?: string[]
+  /** 入力欄を持つ行 (検索カラムの絞り込み、#1180) が入るときの広い幅 */
+  wide?: boolean
 }>()
+
+const slots = useSlots()
+/** 面ごとの追加の行 (検索カラムの絞り込み)。組込トグルと同じ見出しの下に並ぶ */
+const hasExtra = computed(() => Boolean(slots.extra))
 
 const { visible, leaving } = useVaporTransition(toRef(props, 'show'), {
   enterDuration: 180,
@@ -72,12 +78,12 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
     v-if="visible"
     ref="popoverRef"
     popover="auto"
-    :class="[$style.filterPopup, leaving ? $style.filterPopupLeave : $style.filterPopupEnter, '_popup']"
+    :class="[$style.filterPopup, wide && $style.filterPopupWide, leaving ? $style.filterPopupLeave : $style.filterPopupEnter, '_popup']"
     :style="{ ...themeVars, top: position.top + 'px', left: position.left + 'px' }"
     @click.stop
   >
     <!-- 組込トグルが無いカラム (クエリトグルのみ) では見出しごと隠す (#841) -->
-    <div v-if="filterKeys.length > 0" :class="$style.filterPopupHeader">{{ i18n.ts._timelineFilterPopup.filter }}</div>
+    <div v-if="filterKeys.length > 0 || hasExtra" :class="$style.filterPopupHeader">{{ i18n.ts._timelineFilterPopup.filter }}</div>
     <div
       v-for="key in filterKeys"
       :key="key"
@@ -94,6 +100,9 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
         <span class="nd-toggle-switch-knob" />
       </button>
     </div>
+
+    <!-- 面ごとの追加の行 (検索カラムの範囲 / 投稿者 / 期間 / 本文の条件、#1180) -->
+    <slot name="extra" />
 
     <!-- 名前付きクエリのカスタムフィルタトグル (#783、AND 合成) -->
     <template v-if="namedQueries && namedQueries.length > 0">
@@ -135,6 +144,10 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   padding: 8px 0;
   color: var(--nd-fg, #fff);
   font-size: 0.9em;
+}
+
+.filterPopupWide {
+  width: 300px;
 }
 
 .filterPopupHeader {

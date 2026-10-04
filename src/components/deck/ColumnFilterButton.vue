@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, useSlots } from 'vue'
 import type { TimelineFilter } from '@/adapters/types'
 import { i18n } from '@/i18n'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
@@ -22,7 +22,20 @@ const props = defineProps<{
   /** 組込トグル。未指定 / 空はクエリトグルのみ */
   filterKeys?: (keyof TimelineFilter)[]
   themeVars?: Record<string, string>
+  /** 面が持つ別の絞り込み (検索カラムの条件) が効いているときの点灯 */
+  active?: boolean
+  /**
+   * 名前付きクエリのトグルを出すか。クエリの評価経路を持たない面 (検索カラム、
+   * #1178 まで) は false にして、効かないスイッチを出さない
+   */
+  showQueries?: boolean
+  /** 入力欄を持つ行を差し込むときの広いポップアップ */
+  wide?: boolean
+  /** 検索バーのアイコンボタン列に並べる小さい見た目 (サブヘッダー行の下線なし) */
+  compact?: boolean
 }>()
+
+const slots = useSlots()
 
 const deckStore = useDeckStore()
 const columnQueriesStore = useColumnQueriesStore()
@@ -47,14 +60,22 @@ const namedQueryToggles = computed(() => {
     .map((q) => ({ id: q.id, name: q.name, disabled: !isQueryActive(q) }))
 })
 const effectiveFilterKeys = computed(() => props.filterKeys ?? [])
+const offeredQueries = computed(() =>
+  props.showQueries === false ? [] : namedQueryToggles.value,
+)
 const showFilterBtn = computed(
   () =>
-    effectiveFilterKeys.value.length > 0 || namedQueryToggles.value.length > 0,
+    effectiveFilterKeys.value.length > 0 ||
+    offeredQueries.value.length > 0 ||
+    Boolean(slots.extra),
 )
 const columnFilters = computed<TimelineFilter>(() => props.column.filters ?? {})
-const hasActiveFilter = computed(() =>
-  Object.values(columnFilters.value).some((v) => v !== undefined),
+const hasActiveFilter = computed(
+  () =>
+    props.active === true ||
+    Object.values(columnFilters.value).some((v) => v !== undefined),
 )
+const popupWidth = computed(() => (props.wide ? 300 : 220))
 
 const showFilterMenu = ref(false)
 const filterBtnRef = ref<HTMLButtonElement | null>(null)
@@ -69,7 +90,7 @@ function toggleFilterMenu() {
         const rect = btn.getBoundingClientRect()
         filterPopupPos.value = {
           top: rect.bottom + 4,
-          left: Math.max(8, rect.right - 220),
+          left: Math.max(8, rect.right - popupWidth.value),
         }
       }
     })
@@ -116,7 +137,7 @@ function openQueryManager(): void {
     v-if="showFilterBtn"
     ref="filterBtnRef"
     class="_button"
-    :class="[$style.filterBtn, { [$style.filterBtnActive]: hasActiveFilter }]"
+    :class="[$style.filterBtn, { [$style.filterBtnActive]: hasActiveFilter, [$style.filterBtnCompact]: compact }]"
     :title="i18n.ts._columnFilterButton.filter"
     @click.stop="toggleFilterMenu"
   >
@@ -128,13 +149,18 @@ function openQueryManager(): void {
     :filters="columnFilters"
     :position="filterPopupPos"
     :theme-vars="themeVars"
-    :named-queries="namedQueryToggles"
+    :named-queries="offeredQueries"
     :applied-query-ids="column.noteQueryRefs ?? []"
+    :wide="wide"
     @close="showFilterMenu = false"
     @toggle="toggleFilter"
     @toggle-query="toggleNamedQuery"
     @open-manager="openQueryManager"
-  />
+  >
+    <template v-if="slots.extra" #extra>
+      <slot name="extra" />
+    </template>
+  </TimelineFilterPopup>
 </template>
 
 <style lang="scss" module>
@@ -162,6 +188,16 @@ function openQueryManager(): void {
   &.filterBtnActive {
     opacity: 1;
     color: var(--nd-accent);
+  }
+
+  /* 検索バーのアイコンボタン列に合わせる (#1180) */
+  &.filterBtnCompact {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border-bottom: none;
+    border-radius: 4px;
+    font-size: 0.9em;
   }
 }
 </style>

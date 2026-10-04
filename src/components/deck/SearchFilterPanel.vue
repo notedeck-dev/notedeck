@@ -324,20 +324,19 @@ function clearAll() {
 </template>
 
 <style lang="scss" module>
+/* ノートカラムのフィルターメニューと同じポップアップの中に並ぶ行 (#1180)。
+   見出し・幅・余白はポップアップ側 (TimelineFilterPopup) が持つ */
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px 12px 8px;
-  border-bottom: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
+  padding: 6px 14px;
 }
 
 .rowTop {
@@ -349,9 +348,8 @@ function clearAll() {
 }
 
 .label {
-  flex: 0 0 3em;
-  font-size: 0.75em;
-  opacity: 0.6;
+  flex: 0 0 3.5em;
+  font-size: 0.9em;
 }
 
 .input {
@@ -361,7 +359,7 @@ function clearAll() {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 4px 6px;
-  font-size: 0.8em;
+  font-size: 0.85em;
   color: var(--nd-fg);
   color-scheme: dark;
   outline: none;
@@ -378,8 +376,8 @@ function clearAll() {
 
 .hint {
   flex-basis: 100%;
-  padding-left: 3.5em;
-  font-size: 0.7em;
+  padding-left: calc(3.5em + 8px);
+  font-size: 0.75em;
   opacity: 0.6;
 }
 
@@ -389,7 +387,7 @@ function clearAll() {
 }
 
 .stale {
-  font-size: 0.75em;
+  font-size: 0.8em;
   opacity: 0.7;
 }
 
@@ -408,7 +406,7 @@ function clearAll() {
   gap: 4px;
   padding: 2px 8px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.75em;
+  font-size: 0.8em;
   opacity: 0.6;
 
   &:hover {
@@ -419,5 +417,6 @@ function clearAll() {
 
 .clearBtn {
   align-self: flex-end;
+  margin: 4px 14px 0;
 }
 </style>

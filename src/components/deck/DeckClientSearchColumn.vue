@@ -25,6 +25,7 @@ import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
+import ColumnFilterButton from './ColumnFilterButton.vue'
 import DeckColumn from './DeckColumn.vue'
 import SearchFilterPanel from './SearchFilterPanel.vue'
 
@@ -69,7 +70,6 @@ const { notes, groups, rawNotes, setNotes, removeNote } = useNoteList({
 // --- 検索条件。正本は column.query / column.searchFilter、ここはその写し ---
 const query = ref(props.column.query ?? '')
 const filter = ref<SearchFilter>({ ...props.column.searchFilter })
-const showFilters = ref(hasActiveFilter(filter.value))
 const hasSearched = ref(false)
 const hasMore = ref(false)
 
@@ -309,14 +309,24 @@ onMounted(async () => {
           @input="onQueryInput"
           @keydown="onKeydown"
         />
-        <button
-          :class="[$style.iconBtn, { [$style.iconBtnActive]: showFilters || hasActiveFilter(filter) }]"
-          class="_button"
-          :title="i18n.ts._searchFilterPanel.filter"
-          @click="showFilters = !showFilters"
+        <!-- 絞り込みはノートカラムと同じ漏斗 → ポップアップ (#1180)。検索の行を差し込む -->
+        <ColumnFilterButton
+          :column="column"
+          :active="hasActiveFilter(filter)"
+          :show-queries="false"
+          :theme-vars="columnThemeVars"
+          wide
+          compact
         >
-          <i class="ti ti-filter" />
-        </button>
+          <template #extra>
+            <SearchFilterPanel
+              face="client"
+              :filter="filter"
+              :scope-options="scopeOptions"
+              @update="onFilterUpdate"
+            />
+          </template>
+        </ColumnFilterButton>
         <button
           :class="[$style.iconBtn, { [$style.iconBtnActive]: filter.ascending }]"
           class="_button"
@@ -326,14 +336,6 @@ onMounted(async () => {
           <i :class="filter.ascending ? 'ti ti-sort-ascending' : 'ti ti-sort-descending'" />
         </button>
       </div>
-
-      <SearchFilterPanel
-        v-if="showFilters"
-        face="client"
-        :filter="filter"
-        :scope-options="scopeOptions"
-        @update="onFilterUpdate"
-      />
 
     </template>
 

@@ -531,7 +531,6 @@ _conditionBuilder:
   paused: "検索語が外から差し替えられたため、本文の条件は止まっています。検索語を手で入力すると戻ります"
 
 _searchFilterPanel:
-  filter: "フィルター"
   clearFilters: "フィルターをクリア"
   scope: "範囲"
   allAccounts: "すべてのアカウント"
