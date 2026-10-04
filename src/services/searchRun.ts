@@ -7,6 +7,7 @@
  * 直前のページで 1 件も足せなかった間、走査した件数の上限まで続ける。
  */
 
+import type { TimelineFilter } from '@/adapters/types'
 import type { ColumnQueryStatus } from '@/services/columnQuery/badge'
 import {
   effectiveConditions,
@@ -36,14 +37,22 @@ export function queryCountsAsCondition(status: ColumnQueryStatus): boolean {
   }
 }
 
+/** 組込トグル (リノート / 返信 / 添付 / Bot / センシティブ) が 1 つでも効いているか */
+export function hasBuiltinFilter(filter: TimelineFilter | undefined): boolean {
+  return Object.values(filter ?? {}).some((v) => v !== undefined)
+}
+
 export function shouldStartSearch(input: {
   term: string
   filter: SearchFilter
   queryStatus: ColumnQueryStatus
+  /** ノートカラムと同じ組込トグル (カラムの属性) */
+  builtin?: TimelineFilter
 }): boolean {
   return (
     input.term.trim().length > 0 ||
     hasActiveFilter(input.filter) ||
+    hasBuiltinFilter(input.builtin) ||
     effectiveConditions(input.filter).length > 0 ||
     queryCountsAsCondition(input.queryStatus)
   )

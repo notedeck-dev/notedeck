@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue'
-import type { NormalizedNote } from '@/adapters/types'
+import type { NormalizedNote, TimelineFilter } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
@@ -31,6 +31,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { matchesFilter } from '@/utils/timelineFilter'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import ColumnQueryBadge from './ColumnQueryBadge.vue'
@@ -167,14 +168,31 @@ function openQueryManager(): void {
 
 // --- 検索 ---
 
+/**
+ * ノートカラムと同じ組込トグル (#841 の規則で意味を持つものだけ)。添付は
+ * フィルターの行にあるので出さない。評価は索引から返ったページへの手元判定
+ */
+const BUILTIN_FILTER_KEYS: (keyof TimelineFilter)[] = [
+  'withRenotes',
+  'withReplies',
+  'withBots',
+  'withSensitive',
+]
+
 /** 検索を始める規則 (1 本)。開いた時点 / 条件の変更 / クエリの切替 / 外の変化で同じ */
 function shouldSearch(): boolean {
   return shouldStartSearch({
     term: query.value,
     filter: filter.value,
     queryStatus: columnQueryState.value.status,
+    builtin: props.column.filters,
   })
 }
+// 組込トグルはフィルターメニューがカラムに直接書くので、変化を見て引き直す
+watch(
+  () => JSON.stringify(props.column.filters ?? null),
+  () => scheduleSearch('explicit'),
+)
 
 /**
  * 本文の条件を索引側の引数に畳む。段階 1 では同じ type の行の語をまとめて
@@ -249,10 +267,12 @@ const scanning = ref(false)
 /** 自動続行が上限で止まった (理由を見せる) */
 const stoppedAtLimit = ref(false)
 
-/** 列に入れるすべての入口はここを通る (判定を通さない入口を残さない) */
+/** 列に入れるすべての入口はここを通る (判定を通さない入口を残さない)。組込 (最安) → クエリ */
 async function admit(page: NormalizedNote[]): Promise<NormalizedNote[]> {
-  const admitted = await applyQueryFilter(page)
-  const dropped = page.length - admitted.length
+  const builtin = page.filter((n) => matchesFilter(n, props.column.filters))
+  const admitted = await applyQueryFilter(builtin)
+  // 組込トグルで落ちた分は「クエリで除外」ではないので数えない
+  const dropped = builtin.length - admitted.length
   if (queryBlocked.value) heldCount.value += dropped
   else excludedCount.value += dropped
   return admitted
@@ -496,6 +516,7 @@ onMounted(async () => {
              クエリのトグルも同じポップアップに出る (#1178) -->
         <ColumnFilterButton
           :column="column"
+          :filter-keys="BUILTIN_FILTER_KEYS"
           :active="hasActiveFilter(filter)"
           :theme-vars="columnThemeVars"
           wide

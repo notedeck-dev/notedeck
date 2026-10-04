@@ -13,6 +13,7 @@ import type {
   NormalizedNote,
   NormalizedUser,
   SearchOptions,
+  TimelineFilter,
 } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
@@ -55,6 +56,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
+import { matchesFilter } from '@/utils/timelineFilter'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -191,6 +193,24 @@ const hiddenRows = computed<SearchFilterRow[] | undefined>(() =>
 
 // --- 条件の変更 → 再検索 (短時間の連続変更は 1 回にまとめる) ---
 let filterTimer: ReturnType<typeof setTimeout> | null = null
+/**
+ * ノートカラムと同じ組込トグル (#841 の規則で意味を持つものだけ)。リノートは
+ * 本文照合の検索に出てこないので出さない。評価はサーバーから返ったページへの
+ * 手元判定 (検索 API に返信 / Bot のパラメータは無い)
+ */
+const BUILTIN_FILTER_KEYS: (keyof TimelineFilter)[] = [
+  'withReplies',
+  'withBots',
+  'withSensitive',
+]
+// 組込トグルはフィルターメニューがカラムに直接書くので、変化を見て引き直す
+watch(
+  () => JSON.stringify(props.column.filters ?? null),
+  (next, prev) => {
+    if (next !== prev) scheduleResearch()
+  },
+)
+
 function scheduleResearch() {
   if (filterTimer) clearTimeout(filterTimer)
   filterTimer = setTimeout(() => {
@@ -315,7 +335,10 @@ function applyLocalFilter(
   notes: NormalizedNote[],
   q: string,
 ): NormalizedNote[] {
-  const byTerm = notes.filter((n) => matchesPlainTerm(n, q))
+  // 組込トグル (最安) → 検索語の含有 → 本文の条件
+  const byTerm = notes.filter(
+    (n) => matchesFilter(n, props.column.filters) && matchesPlainTerm(n, q),
+  )
   const conditions = effectiveConditions(filter.value)
   if (conditions.length === 0) return byTerm
   return byTerm.filter((n) => matchesTextConditions(n, conditions))
@@ -848,6 +871,7 @@ onUnmounted(() => {
         <!-- 絞り込みはノートカラムと同じ漏斗 → ポップアップ (#1180)。検索の行を差し込む -->
         <ColumnFilterButton
           :column="column"
+          :filter-keys="BUILTIN_FILTER_KEYS"
           :active="hasActiveFilter(filter)"
           :show-queries="false"
           :theme-vars="columnThemeVars"

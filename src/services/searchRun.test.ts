@@ -39,6 +39,22 @@ describe('shouldStartSearch (規則は 1 つ)', () => {
     expect(
       shouldStartSearch({ term: '', filter: {}, queryStatus: 'active' }),
     ).toBe(true)
+    expect(
+      shouldStartSearch({
+        term: '',
+        filter: {},
+        queryStatus: 'none',
+        builtin: { withBots: false },
+      }),
+    ).toBe(true)
+    expect(
+      shouldStartSearch({
+        term: '',
+        filter: {},
+        queryStatus: 'none',
+        builtin: {},
+      }),
+    ).toBe(false)
   })
 
   it('条件が 1 つも無ければ始めない。止まっている本文の条件も数えない', () => {
