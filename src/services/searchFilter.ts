@@ -96,7 +96,8 @@ export function rowHasValue(
     case 'attachments':
       return filter.hasFiles !== undefined
     case 'conditions':
-      return (filter.conditions?.length ?? 0) > 0
+      // 止まっている条件 (外部からの検索語の差し替え) は効いていないので数えない
+      return effectiveConditions(filter).length > 0
   }
 }
 

@@ -85,6 +85,12 @@ describe('面ごとの行と「効いている」判定', () => {
       }),
     ).toBe(true)
     expect(hasActiveFilter({ conditions: [] })).toBe(false)
+    expect(
+      hasActiveFilter({
+        conditions: [{ type: 'excludes', words: ['bot'] }],
+        conditionsPaused: true,
+      }),
+    ).toBe(false)
     expect(hasActiveFilter({ author: '  ' })).toBe(false)
     expect(hasActiveFilter({ hasFiles: false })).toBe(true)
     expect(hasActiveFilter({ scope: 'server:a.example' })).toBe(true)

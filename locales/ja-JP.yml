@@ -1609,6 +1609,16 @@ _deckClientSearchColumn:
   newestFirst: "新しい順"
   noMatches: "手元のキャッシュに一致するノートはありません"
   emptyHint: "検索語かフィルターを入れると、手元に貯めたノートから引きます"
+  queryExcludedAll_plural:
+    other: "クエリに合致するノートがありません ({count} 件を除外中)"
+  queryExcluded_plural:
+    other: "クエリで {count} 件を除外"
+  queryPending: "クエリを解釈できないか参照先が無いため、結果を保留しています"
+  queryNotCountedSafeMode: "クエリは適用されていますが、セーフモード中は検索を始める条件に数えません。検索語かフィルターを入れると検索します"
+  queryNotCountedDisabled: "適用中のクエリはすべて無効なので、検索を始める条件に数えません。検索語かフィルターを入れると検索します"
+  readMore: "続きを読む"
+  scanning: "索引を走査中..."
+  stoppedAtLimit: "クエリによる除外が続いたため、ここで止めました"
 
 _deckColumn:
   loggedOut: "ログアウト中"

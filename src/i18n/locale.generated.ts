@@ -2928,6 +2928,22 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "noMatches": string
     /** 検索語かフィルターを入れると、手元に貯めたノートから引きます */
     readonly "emptyHint": string
+    /** クエリに合致するノートがありません ({count} 件を除外中) */
+    readonly "queryExcludedAll_plural": PluralString<'count'>
+    /** クエリで {count} 件を除外 */
+    readonly "queryExcluded_plural": PluralString<'count'>
+    /** クエリを解釈できないか参照先が無いため、結果を保留しています */
+    readonly "queryPending": string
+    /** クエリは適用されていますが、セーフモード中は検索を始める条件に数えません。検索語かフィルターを入れると検索します */
+    readonly "queryNotCountedSafeMode": string
+    /** 適用中のクエリはすべて無効なので、検索を始める条件に数えません。検索語かフィルターを入れると検索します */
+    readonly "queryNotCountedDisabled": string
+    /** 続きを読む */
+    readonly "readMore": string
+    /** 索引を走査中... */
+    readonly "scanning": string
+    /** クエリによる除外が続いたため、ここで止めました */
+    readonly "stoppedAtLimit": string
   }
   readonly "_deckColumn": {
     /** ログアウト中 */
