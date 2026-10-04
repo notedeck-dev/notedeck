@@ -741,8 +741,8 @@ _rawJsonView:
   noData: "No data"
 
 _conditionBuilder:
-  title: "Text conditions"
-  wordsPlaceholder: "Enter words separated by commas"
+  title: "Conditions"
+  wordsPlaceholder: "Comma-separated words"
   addCondition: "Add condition"
   containsAny: "Contains any"
   containsAll: "Contains all"
@@ -2391,6 +2391,7 @@ _themeCard:
   installing: "Installing"
 
 _timelineFilterPopup:
+  search: "Search"
   filter: "Filters"
   disabledQueryHint: "This query is disabled — click to open the query manager column"
   withReplies: "Replies"

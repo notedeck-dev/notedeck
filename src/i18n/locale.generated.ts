@@ -932,9 +932,9 @@ export interface Locale {
     readonly "noData": string
   }
   readonly "_conditionBuilder": {
-    /** 本文の条件 */
+    /** 条件 */
     readonly "title": string
-    /** カンマ区切りで単語を入力 */
+    /** カンマ区切りの単語 */
     readonly "wordsPlaceholder": string
     /** 条件を追加 */
     readonly "addCondition": string
@@ -3839,6 +3839,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "installing": string
   }
   readonly "_timelineFilterPopup": {
+    /** 検索 */
+    readonly "search": string
     /** フィルター */
     readonly "filter": string
     /** このクエリは無効です — 押すとクエリ管理カラムを開きます */

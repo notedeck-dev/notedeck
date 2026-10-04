@@ -522,8 +522,8 @@ _rawJsonView:
   noData: "データがありません"
 
 _conditionBuilder:
-  title: "本文の条件"
-  wordsPlaceholder: "カンマ区切りで単語を入力"
+  title: "条件"
+  wordsPlaceholder: "カンマ区切りの単語"
   addCondition: "条件を追加"
   containsAny: "いずれかを含む"
   containsAll: "すべてを含む"
@@ -2138,6 +2138,7 @@ _themeCard:
   installing: "インストール中"
 
 _timelineFilterPopup:
+  search: "検索"
   filter: "フィルター"
   disabledQueryHint: "このクエリは無効です — 押すとクエリ管理カラムを開きます"
   withReplies: "リプライ"

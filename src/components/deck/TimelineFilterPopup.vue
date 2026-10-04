@@ -82,8 +82,15 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
     :style="{ ...themeVars, top: position.top + 'px', left: position.left + 'px', maxHeight: `calc(100vh - ${position.top}px - 8px)` }"
     @click.stop
   >
+    <!-- 面ごとの追加の行 (検索カラムの範囲 / 投稿者 / 期間 / 添付 / 条件、#1180)。
+         ノートカラムに無い、検索カラムだけの項目なので一番上に置く -->
+    <template v-if="hasExtra">
+      <div :class="$style.filterPopupHeader">{{ i18n.ts._timelineFilterPopup.search }}</div>
+      <slot name="extra" />
+    </template>
+
     <!-- 組込トグルが無いカラム (クエリトグルのみ) では見出しごと隠す (#841) -->
-    <div v-if="filterKeys.length > 0 || hasExtra" :class="$style.filterPopupHeader">{{ i18n.ts._timelineFilterPopup.filter }}</div>
+    <div v-if="filterKeys.length > 0" :class="$style.filterPopupHeader">{{ i18n.ts._timelineFilterPopup.filter }}</div>
     <div
       v-for="key in filterKeys"
       :key="key"
@@ -101,10 +108,7 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
       </button>
     </div>
 
-    <!-- 面ごとの追加の行 (検索カラムの範囲 / 投稿者 / 期間 / 本文の条件、#1180) -->
-    <slot name="extra" />
-
-    <!-- 名前付きクエリのカスタムフィルタトグル (#783、AND 合成) -->
+    <!-- 名前付きクエリのカスタムフィルタトグル (#783、AND 合成)。フィルターの次 -->
     <template v-if="namedQueries && namedQueries.length > 0">
       <div :class="$style.filterPopupHeader">{{ i18n.ts._columns.queryManager }}</div>
       <div
