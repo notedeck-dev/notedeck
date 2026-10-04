@@ -925,27 +925,6 @@ onUnmounted(() => {
           >
             <span :class="$style.regexIconText">.*</span>
           </button>
-          <!-- 絞り込みはノートカラムと同じ漏斗 → ポップアップ (#1180)。検索の行を差し込む -->
-          <ColumnFilterButton
-            :column="column"
-            :active="hasActiveFilter(filter)"
-            :show-queries="false"
-            :theme-vars="columnThemeVars"
-            wide
-            compact
-          >
-            <template #extra>
-              <SearchFilterPanel
-                face="server"
-                :filter="filter"
-                :host-options="hostOptions"
-                :hidden-rows="hiddenRows"
-                :author-state="authorState"
-                :author-resolved-label="authorResolvedLabel"
-                @update="onFilterUpdate"
-              />
-            </template>
-          </ColumnFilterButton>
           <button
             :class="[$style.sortToggle, { [$style.sortToggleActive]: ascending }]"
             class="_button"
@@ -963,6 +942,27 @@ onUnmounted(() => {
         >
           <i class="ti ti-arrow-right" />
         </button>
+        <!-- 絞り込みはノートカラムと同じ漏斗 → ポップアップ (#1180)。検索の行を差し込む -->
+        <ColumnFilterButton
+          :column="column"
+          :active="hasActiveFilter(filter)"
+          :show-queries="false"
+          :theme-vars="columnThemeVars"
+          wide
+          compact
+        >
+          <template #extra>
+            <SearchFilterPanel
+              face="server"
+              :filter="filter"
+              :host-options="hostOptions"
+              :hidden-rows="hiddenRows"
+              :author-state="authorState"
+              :author-resolved-label="authorResolvedLabel"
+              @update="onFilterUpdate"
+            />
+          </template>
+        </ColumnFilterButton>
       </div>
 
       <div v-if="inlineError" :class="$style.inlineError">

@@ -309,6 +309,14 @@ onMounted(async () => {
           @input="onQueryInput"
           @keydown="onKeydown"
         />
+        <button
+          :class="[$style.iconBtn, { [$style.iconBtnActive]: filter.ascending }]"
+          class="_button"
+          :title="filter.ascending ? i18n.ts._deckClientSearchColumn.oldestFirst : i18n.ts._deckClientSearchColumn.newestFirst"
+          @click="toggleSort"
+        >
+          <i :class="filter.ascending ? 'ti ti-sort-ascending' : 'ti ti-sort-descending'" />
+        </button>
         <!-- 絞り込みはノートカラムと同じ漏斗 → ポップアップ (#1180)。検索の行を差し込む -->
         <ColumnFilterButton
           :column="column"
@@ -327,14 +335,6 @@ onMounted(async () => {
             />
           </template>
         </ColumnFilterButton>
-        <button
-          :class="[$style.iconBtn, { [$style.iconBtnActive]: filter.ascending }]"
-          class="_button"
-          :title="filter.ascending ? i18n.ts._deckClientSearchColumn.oldestFirst : i18n.ts._deckClientSearchColumn.newestFirst"
-          @click="toggleSort"
-        >
-          <i :class="filter.ascending ? 'ti ti-sort-ascending' : 'ti ti-sort-descending'" />
-        </button>
       </div>
 
     </template>
