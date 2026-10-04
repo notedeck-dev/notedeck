@@ -79,7 +79,7 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
     ref="popoverRef"
     popover="auto"
     :class="[$style.filterPopup, wide && $style.filterPopupWide, leaving ? $style.filterPopupLeave : $style.filterPopupEnter, '_popup']"
-    :style="{ ...themeVars, top: position.top + 'px', left: position.left + 'px' }"
+    :style="{ ...themeVars, top: position.top + 'px', left: position.left + 'px', maxHeight: `calc(100vh - ${position.top}px - 8px)` }"
     @click.stop
   >
     <!-- 組込トグルが無いカラム (クエリトグルのみ) では見出しごと隠す (#841) -->
@@ -144,6 +144,11 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   padding: 8px 0;
   color: var(--nd-fg, #fff);
   font-size: 0.9em;
+  /* 行が多い (検索の行 + クエリの一覧) と画面の下にはみ出して届かないので、
+     ボタンの下から画面の端までに収めて中をスクロールさせる (#1178) */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--nd-scrollbarHandle) transparent;
 }
 
 .filterPopupWide {

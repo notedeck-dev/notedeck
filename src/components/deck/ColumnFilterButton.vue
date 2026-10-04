@@ -6,6 +6,7 @@ import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   isQueryActive,
   isQueryOfferedFor,
+  isQueryOfferedForAny,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -45,18 +46,26 @@ columnQueriesStore.ensureLoaded()
 /**
  * このカラムで選べる名前付きクエリ (#1018 / #1043)。全体スコープのクエリは
  * どのカラムでも、アカウント別スコープのクエリはそのアカウントのカラムでだけ
- * 出す (全アカウント面は accountId が無いので全体スコープのみ)。未適用の
+ * 出す (アカウントに紐づかない面は全体スコープと、ログイン中のどれかのアカウントのスコープ)。未適用の
  * 無効なクエリは出さない。既に適用済みのものは、スコープ外でも無効でも出す —
  * 黙って選択肢から消えると、なぜ効いている / 効いていないのか追えないため。
  */
 const namedQueryToggles = computed(() => {
-  const account = accountsStore.accounts.find(
-    (a) => a.id === props.column.accountId,
-  )
-  const scopeKey = account ? accountScopeKey(account) : null
   const applied = new Set(props.column.noteQueryRefs ?? [])
+  if (props.column.accountId) {
+    const account = accountsStore.accounts.find(
+      (a) => a.id === props.column.accountId,
+    )
+    const scopeKey = account ? accountScopeKey(account) : null
+    return columnQueriesStore.queries
+      .filter((q) => isQueryOfferedFor(q, scopeKey, applied))
+      .map((q) => ({ id: q.id, name: q.name, disabled: !isQueryActive(q) }))
+  }
+  // アカウントに紐づかない面 (全アカウント TL / クライアント検索) は全体スコープと、
+  // ログイン中のどれかのアカウントのスコープに入っているクエリを出す
+  const scopeKeys = accountsStore.accounts.map(accountScopeKey)
   return columnQueriesStore.queries
-    .filter((q) => isQueryOfferedFor(q, scopeKey, applied))
+    .filter((q) => isQueryOfferedForAny(q, scopeKeys, applied))
     .map((q) => ({ id: q.id, name: q.name, disabled: !isQueryActive(q) }))
 })
 const effectiveFilterKeys = computed(() => props.filterKeys ?? [])

@@ -23,6 +23,7 @@ import {
   isQueryActive,
   isQueryEffectiveFor,
   isQueryOfferedFor,
+  isQueryOfferedForAny,
   type NamedQueryMeta,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
@@ -466,6 +467,49 @@ describe('アカウント削除でスコープ参加を掃除する (#1114)', ()
     expect(store.getQuery(b.id)?.installedFor).toBeUndefined()
     expect(store.getQuery(b.id)).toBeDefined()
     expect(store.getQuery(c.id)?.global).toBe(true)
+  })
+})
+
+describe('アカウントに紐づかない面の候補 (#1178) — 全体 + ログイン中のどれかのアカウントのスコープ', () => {
+  const scoped: NamedQueryMeta = {
+    id: 's',
+    name: 's',
+    src: 'true',
+    installedFor: ['alice@a.example'],
+    createdAt: 0,
+    updatedAt: 0,
+  }
+  const global: NamedQueryMeta = {
+    ...scoped,
+    id: 'g',
+    installedFor: undefined,
+    global: true,
+  }
+  const none = new Set<string>()
+
+  it('どれかのアカウントのスコープに入っていれば出す。入っていなければ出さない', () => {
+    expect(
+      isQueryOfferedForAny(scoped, ['bob@b.example', 'alice@a.example'], none),
+    ).toBe(true)
+    expect(isQueryOfferedForAny(scoped, ['bob@b.example'], none)).toBe(false)
+  })
+
+  it('全体スコープは常に出す。アカウントが 1 つも無ければ全体スコープだけ', () => {
+    expect(isQueryOfferedForAny(global, [], none)).toBe(true)
+    expect(isQueryOfferedForAny(scoped, [], none)).toBe(false)
+  })
+
+  it('無効なら未適用では出さず、適用済みなら出す (#1043 と同じ)', () => {
+    expect(
+      isQueryOfferedForAny(
+        { ...scoped, disabled: true },
+        ['alice@a.example'],
+        none,
+      ),
+    ).toBe(false)
+    expect(
+      isQueryOfferedForAny({ ...scoped, disabled: true }, [], new Set(['s'])),
+    ).toBe(true)
   })
 })
 

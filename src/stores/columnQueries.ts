@@ -89,6 +89,24 @@ export function isQueryOfferedFor(
   return isQueryActive(query) && isQueryEffectiveFor(query, scopeKey)
 }
 
+/**
+ * アカウントに紐づかないカラム (全アカウント TL / クライアント検索) で選べるか。
+ * 面はログイン中の全アカウントを横断するので、どれかのアカウントのスコープに
+ * 入っているクエリも候補に出す (全体スコープだけだと、アカウントのカラムで
+ * 作ったクエリが 1 つも出ずトグルの節ごと消える、2026-10-04)。アカウントが
+ * 1 つも無ければ全体スコープだけ
+ */
+export function isQueryOfferedForAny(
+  query: NamedQueryMeta,
+  scopeKeys: readonly string[],
+  applied: ReadonlySet<string>,
+): boolean {
+  if (applied.has(query.id)) return true
+  if (!isQueryActive(query)) return false
+  if (scopeKeys.length === 0) return isQueryEffectiveFor(query, null)
+  return scopeKeys.some((key) => isQueryEffectiveFor(query, key))
+}
+
 /** インストール/追加先スコープ (#1018)。カラムの文脈から決まる。 */
 export type QueryScope = { kind: 'global' } | { kind: 'account'; key: string }
 
