@@ -932,9 +932,9 @@ export interface Locale {
     readonly "noData": string
   }
   readonly "_conditionBuilder": {
-    /** 本文の条件 */
+    /** 条件 */
     readonly "title": string
-    /** カンマ区切りで単語を入力 */
+    /** カンマ区切りの単語 */
     readonly "wordsPlaceholder": string
     /** 条件を追加 */
     readonly "addCondition": string
@@ -948,8 +948,6 @@ export interface Locale {
     readonly "paused": string
   }
   readonly "_searchFilterPanel": {
-    /** フィルター */
-    readonly "filter": string
     /** フィルターをクリア */
     readonly "clearFilters": string
     /** 範囲 */
@@ -960,8 +958,12 @@ export interface Locale {
     readonly "serverOption": ParameterizedString<'host'>
     /** すべて */
     readonly "hostAll": string
+    /** すべてのサーバー (リモートも) */
+    readonly "hostAllAcross": string
     /** ローカル */
     readonly "hostLocal": string
+    /** 各サーバーのローカル */
+    readonly "hostLocalAcross": string
     /** ホスト指定 */
     readonly "hostSpecify": string
     /** example.com */
@@ -2930,6 +2932,22 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "noMatches": string
     /** 検索語かフィルターを入れると、手元に貯めたノートから引きます */
     readonly "emptyHint": string
+    /** クエリに合致するノートがありません ({count} 件を除外中) */
+    readonly "queryExcludedAll_plural": PluralString<'count'>
+    /** クエリで {count} 件を除外 */
+    readonly "queryExcluded_plural": PluralString<'count'>
+    /** クエリを解釈できないか参照先が無いため、結果を保留しています */
+    readonly "queryPending": string
+    /** クエリは適用されていますが、セーフモード中は検索を始める条件に数えません。検索語かフィルターを入れると検索します */
+    readonly "queryNotCountedSafeMode": string
+    /** 適用中のクエリはすべて無効なので、検索を始める条件に数えません。検索語かフィルターを入れると検索します */
+    readonly "queryNotCountedDisabled": string
+    /** 続きを読む */
+    readonly "readMore": string
+    /** 索引を走査中... */
+    readonly "scanning": string
+    /** クエリによる除外が続いたため、ここで止めました */
+    readonly "stoppedAtLimit": string
   }
   readonly "_deckColumn": {
     /** ログアウト中 */
@@ -3685,12 +3703,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "deleted": string
   }
   readonly "_deckSearchColumn": {
-    /** 正規表現で検索 (Enter で検索) */
-    readonly "regexPlaceholder": string
     /** ノートを検索 (Enter で検索) */
     readonly "placeholder": string
-    /** 正規表現モード */
-    readonly "regexMode": string
     /** 古い順 */
     readonly "oldestFirst": string
     /** 新しい順 */
@@ -3701,14 +3715,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "noResults": string
     /** Enter キーでサーバーを検索 */
     readonly "enterToSearch": string
-    /** 無効な正規表現です */
-    readonly "invalidRegex": string
-    /** 正規表現の照合が時間内に終わらなかったため、この検索は中止しました */
-    readonly "regexTimeout": string
-    /** 正規表現の照合ができないため、この検索は中止しました */
-    readonly "regexUnavailable": string
     /** 投稿者を解決できなかったため、このアカウントでは検索していません */
     readonly "authorUnresolved": string
+    /** {host}: この範囲はこのサーバーでは検索できません */
+    readonly "skippedScope": ParameterizedString<'host'>
+    /** {host}: 投稿者が見つかりません */
+    readonly "skippedAuthor": ParameterizedString<'host'>
   }
   readonly "_deckStreamInspectorColumn": {
     /** 再開 */
@@ -3835,6 +3847,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "installing": string
   }
   readonly "_timelineFilterPopup": {
+    /** 検索 */
+    readonly "search": string
     /** フィルター */
     readonly "filter": string
     /** このクエリは無効です — 押すとクエリ管理カラムを開きます */

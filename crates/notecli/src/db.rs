@@ -166,10 +166,11 @@ pub struct CachedSearchOptions<'a> {
     pub has_files: Option<bool>,
     /// true なら visibility が public のノートだけ (AI など第三者に見せる面用)
     pub public_only: bool,
-    /// 本文の構造化条件 (notedeck#1180)。語ごとに `query` と同じ FTS / LIKE の
-    /// 切り替えで述語を作り、`text_any` はいずれか、`text_all` はすべて、
-    /// `text_exclude` はどれも含まないノートに絞る。`query` の意味は変えない
-    pub text_any: &'a [String],
+    /// 本文の構造化条件 (notedeck#1180 / #1182)。語ごとに `query` と同じ FTS / LIKE の
+    /// 切り替えで述語を作り、`text_any` は群ごとに「いずれか」を作って群同士を AND
+    /// (行ごとの「いずれかを含む」)、`text_all` はすべて、`text_exclude` はどれも
+    /// 含まないノートに絞る。空の群は条件に数えない。`query` の意味は変えない
+    pub text_any: &'a [Vec<String>],
     pub text_all: &'a [String],
     pub text_exclude: &'a [String],
 }
@@ -1069,17 +1070,15 @@ impl Database {
                 format!("COALESCE(nc.text, '') LIKE ?{idx}")
             }
         };
-        let any_words: Vec<&str> = text_any
-            .iter()
-            .map(String::as_str)
-            .filter(|w| !w.is_empty())
-            .collect();
-        if !any_words.is_empty() {
-            let preds: Vec<String> = any_words
+        for group in text_any {
+            let preds: Vec<String> = group
                 .iter()
+                .filter(|w| !w.is_empty())
                 .map(|w| word_predicate(w, &mut param_idx))
                 .collect();
-            conditions.push(format!("({})", preds.join(" OR ")));
+            if !preds.is_empty() {
+                conditions.push(format!("({})", preds.join(" OR ")));
+            }
         }
         for word in text_all.iter().filter(|w| !w.is_empty()) {
             conditions.push(word_predicate(word, &mut param_idx));
@@ -4473,7 +4472,45 @@ mod tests {
                 &["acc-1"],
                 &CachedSearchOptions {
                     limit: 10,
-                    text_any: &["tokio".to_string(), "python".to_string()],
+                    text_any: &[vec!["tokio".to_string(), "python".to_string()]],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&hits), vec!["n1", "n2"]);
+    }
+
+    #[test]
+    fn search_cached_notes_across_text_any_groups_are_anded() {
+        let (_dir, db) = temp_db();
+        seed_text_notes(&db);
+        // (rust OR python) AND (tokio OR asyncio): n1 = rust+tokio、n2 = python+asyncio
+        // は通り、rust だけの n3 は落ちる
+        let hits = db
+            .search_cached_notes_across(
+                &["acc-1"],
+                &CachedSearchOptions {
+                    limit: 10,
+                    text_any: &[
+                        vec!["rust".to_string(), "python".to_string()],
+                        vec!["tokio".to_string(), "asyncio".to_string()],
+                    ],
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(ids(&hits), vec!["n1", "n2"]);
+        // 空の群と空語だけの群は条件に数えない
+        let hits = db
+            .search_cached_notes_across(
+                &["acc-1"],
+                &CachedSearchOptions {
+                    limit: 10,
+                    text_any: &[
+                        vec![],
+                        vec![String::new()],
+                        vec!["tokio".to_string(), "asyncio".to_string()],
+                    ],
                     ..Default::default()
                 },
             )
@@ -4550,7 +4587,7 @@ mod tests {
                 &["acc-1"],
                 &CachedSearchOptions {
                     limit: 10,
-                    text_any: &["py".to_string()],
+                    text_any: &[vec!["py".to_string()]],
                     ..Default::default()
                 },
             )

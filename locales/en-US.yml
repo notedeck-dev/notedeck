@@ -741,8 +741,8 @@ _rawJsonView:
   noData: "No data"
 
 _conditionBuilder:
-  title: "Text conditions"
-  wordsPlaceholder: "Enter words separated by commas"
+  title: "Conditions"
+  wordsPlaceholder: "Comma-separated words"
   addCondition: "Add condition"
   containsAny: "Contains any"
   containsAll: "Contains all"
@@ -750,13 +750,14 @@ _conditionBuilder:
   paused: "The search term was replaced from outside, so the text conditions are paused. Typing a search term brings them back"
 
 _searchFilterPanel:
-  filter: "Filter"
   clearFilters: "Clear filters"
   scope: "Scope"
   allAccounts: "All accounts"
   serverOption: "{host} (server)"
   hostAll: "All"
+  hostAllAcross: "All servers (including remote)"
   hostLocal: "Local"
+  hostLocalAcross: "Local on each server"
   hostSpecify: "Specific host"
   hostPlaceholder: "example.com"
   author: "Author"
@@ -1845,6 +1846,18 @@ _deckClientSearchColumn:
   newestFirst: "Newest first"
   noMatches: "No notes in the local cache match"
   emptyHint: "Enter a search term or a filter to search the notes stored on this device"
+  queryExcludedAll_plural:
+    one: "No notes match the query ({count} excluded)"
+    other: "No notes match the query ({count} excluded)"
+  queryExcluded_plural:
+    one: "{count} note excluded by the query"
+    other: "{count} notes excluded by the query"
+  queryPending: "Results are on hold because a query cannot be parsed or its reference is missing"
+  queryNotCountedSafeMode: "A query is applied, but it does not count as a search condition while in safe mode. Enter a search term or a filter to search"
+  queryNotCountedDisabled: "All applied queries are disabled, so they do not count as a search condition. Enter a search term or a filter to search"
+  readMore: "Read more"
+  scanning: "Scanning the index..."
+  stoppedAtLimit: "Stopped here because the query kept excluding results"
 
 _deckColumn:
   loggedOut: "Logged out"
@@ -2298,18 +2311,15 @@ _deckProfileMenu:
   deleted: "Profile deleted"
 
 _deckSearchColumn:
-  regexPlaceholder: "Search with regex (press Enter)"
   placeholder: "Search notes (press Enter)"
-  regexMode: "Regex mode"
   oldestFirst: "Oldest first"
   newestFirst: "Newest first"
   enterQuery: "Enter a search term"
   noResults: "No results found"
   enterToSearch: "Press Enter to search the server"
-  invalidRegex: "Invalid regular expression"
-  regexTimeout: "The regex match did not finish in time, so this search was stopped"
-  regexUnavailable: "Regex matching is unavailable, so this search was stopped"
   authorUnresolved: "The author could not be resolved, so this account was not searched"
+  skippedScope: "{host}: this scope cannot be searched on this server"
+  skippedAuthor: "{host}: author not found"
 
 _deckStreamInspectorColumn:
   resume: "Resume"
@@ -2385,6 +2395,7 @@ _themeCard:
   installing: "Installing"
 
 _timelineFilterPopup:
+  search: "Search"
   filter: "Filters"
   disabledQueryHint: "This query is disabled — click to open the query manager column"
   withReplies: "Replies"

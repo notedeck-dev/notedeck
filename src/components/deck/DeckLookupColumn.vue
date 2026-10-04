@@ -585,14 +585,6 @@ async function handlePosted(editedNoteId?: string) {
           :placeholder="i18n.ts._deckLookupColumn.placeholder"
           @keydown="onKeydown"
         />
-        <button
-          class="_button"
-          :class="$style.lookupBtn"
-          :disabled="!queryInput.trim() || lookupLoading"
-          @click="performLookup"
-        >
-          <i class="ti ti-arrow-right" />
-        </button>
       </div>
     </template>
 
@@ -774,26 +766,6 @@ async function handlePosted(editedNoteId?: string) {
   }
 }
 
-.lookupBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  flex-shrink: 0;
-  opacity: 0.6;
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
-
-  &:hover:not(:disabled) {
-    background: var(--nd-buttonHoverBg);
-    opacity: 1;
-  }
-
-  &:disabled {
-    opacity: 0.2;
-  }
-}
 
 .lookupResult {
   composes: columnScroller from './column-common.module.scss';
@@ -818,6 +790,7 @@ async function handlePosted(editedNoteId?: string) {
   font-size: 0.9em;
   opacity: 0.7;
 }
+
 
 
 </style>

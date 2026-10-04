@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, toRaw, watch } from 'vue'
-import type { NormalizedNote } from '@/adapters/types'
+import { computed, nextTick, onMounted, ref, toRaw, watch } from 'vue'
+import type { NormalizedNote, TimelineFilter } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
+import { useColumnQuery } from '@/composables/useColumnQuery'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { useNoteList } from '@/composables/useNoteList'
@@ -17,14 +18,23 @@ import {
   hasActiveFilter,
   resolveScopeAccounts,
   type SearchFilter,
-  type TextCondition,
 } from '@/services/searchFilter'
+import {
+  allowsAutoContinue,
+  decideContinue,
+  type SearchTrigger,
+  shouldStartSearch,
+} from '@/services/searchRun'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { matchesFilter } from '@/utils/timelineFilter'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
+import ColumnFilterButton from './ColumnFilterButton.vue'
+import ColumnQueryBadge from './ColumnQueryBadge.vue'
+import ColumnQueryBanners from './ColumnQueryBanners.vue'
 import DeckColumn from './DeckColumn.vue'
 import SearchFilterPanel from './SearchFilterPanel.vue'
 
@@ -33,6 +43,8 @@ import SearchFilterPanel from './SearchFilterPanel.vue'
  * 引く面。サーバー検索 (Misskey の notes/search) とは並立する。
  * 検索語が空でも絞り込みだけで引ける (「直近 1 週間の画像付き」など)。
  * 絞り込みパネルと本文の条件はサーバー検索と共有 (#1180)。
+ * カラムクエリ (#783) はノートカラムと同じ縫い目 (useColumnQuery) で、索引から
+ * 返ったページを列に入れる前に判定する (#1178)。
  */
 const props = defineProps<{
   column: DeckColumnType
@@ -59,17 +71,17 @@ const {
 } = useColumnSetup(() => props.column)
 const { noteScrollerRef } = useNoteScrollerRef(scroller)
 
-const { notes, groups, rawNotes, setNotes, removeNote } = useNoteList({
-  bundle: true,
-  getAdapter: () => null,
-  deleteHandler: handlers.delete,
-  closePostForm: postForm.close,
-})
+const { notes, groups, rawNotes, setNotes, removeNote, onNoteUpdate } =
+  useNoteList({
+    bundle: true,
+    getAdapter: () => null,
+    deleteHandler: handlers.delete,
+    closePostForm: postForm.close,
+  })
 
 // --- 検索条件。正本は column.query / column.searchFilter、ここはその写し ---
 const query = ref(props.column.query ?? '')
 const filter = ref<SearchFilter>({ ...props.column.searchFilter })
-const showFilters = ref(hasActiveFilter(filter.value))
 const hasSearched = ref(false)
 const hasMore = ref(false)
 
@@ -120,46 +132,97 @@ function onQueryInput() {
   saveFilter(next)
 }
 
-// --- 検索 ---
+// --- カラムクエリ (#1178)。評価器はノートカラムと共有。streaming は無い ---
+const {
+  columnQueryState,
+  queryErrorCount,
+  suspendedQueryKeys,
+  querySuspendedCount,
+  missingQueryIds,
+  resumeSuspendedQueries,
+  dropMissingQueryRefs,
+  applyQueryFilter,
+} = useColumnQuery({
+  getColumn: () => props.column,
+  rawNotes,
+  setNotes: (n) => setNotes(n),
+  // クエリの変更と「再開」は同じ条件で検索をやり直す (落とした結果は保持していない)
+  refresh: () => search('explicit'),
+  enqueue: () => {
+    // streaming は無い (索引から取るだけ)
+  },
+  onNoteUpdate,
+})
 
-/** 検索を始める規則 (1 本): 検索語 / パネルの行 / 本文の条件のいずれかがある */
-function shouldSearch(): boolean {
-  return (
-    query.value.trim().length > 0 ||
-    hasActiveFilter(filter.value) ||
-    effectiveConditions(filter.value).length > 0
-  )
+/** クエリが止まっている (fail-closed / サスペンド)。この間は保留で、走査を続けない */
+const queryBlocked = computed(
+  () =>
+    columnQueryState.value.status === 'invalid' ||
+    suspendedQueryKeys.value.length > 0,
+)
+
+function openQueryManager(): void {
+  deckStore.toggleSidebarColumn('queryManager', null)
 }
 
+// --- 検索 ---
+
 /**
- * 本文の条件を索引側の引数に畳む。段階 1 では同じ type の行の語をまとめて
- * 1 つの群にする (`contains_any` が 2 行あっても OR 群は 1 つ)。行ごとの
- * 評価 (any 行どうしの AND) は段階 2
+ * ノートカラムと同じ組込トグル (#841 の規則で意味を持つものだけ)。添付は
+ * フィルターの行にあるので出さない。評価は索引から返ったページへの手元判定
+ */
+const BUILTIN_FILTER_KEYS: (keyof TimelineFilter)[] = [
+  'withRenotes',
+  'withReplies',
+  'withBots',
+  'withSensitive',
+]
+
+/** 検索を始める規則 (1 本)。開いた時点 / 条件の変更 / クエリの切替 / 外の変化で同じ */
+function shouldSearch(): boolean {
+  return shouldStartSearch({
+    term: query.value,
+    filter: filter.value,
+    queryStatus: columnQueryState.value.status,
+    builtin: props.column.filters,
+  })
+}
+// 組込トグルはフィルターメニューがカラムに直接書くので、変化を見て引き直す
+watch(
+  () => JSON.stringify(props.column.filters ?? null),
+  () => scheduleSearch('explicit'),
+)
+
+/**
+ * 本文の条件を索引側の引数に畳む。「いずれかを含む」は行ごとに 1 つの OR 群に
+ * して群どうしを AND (#1182)。「すべて」と「除外」は語をまとめてよい (AND / NOT
+ * は行をまたいでも意味が変わらない)
  */
 function textArgs(): Pick<
   NonNullable<Parameters<typeof commands.apiSearchNotesCachedAcross>[6]>,
   'textAny' | 'textAll' | 'textExclude'
 > {
-  const byType: Record<TextCondition['type'], string[]> = {
-    contains_any: [],
-    contains_all: [],
-    excludes: [],
-  }
+  const anyGroups: string[][] = []
+  const all: string[] = []
+  const exclude: string[] = []
   for (const cond of effectiveConditions(filter.value)) {
-    byType[cond.type].push(...cond.words.filter(Boolean))
+    const words = cond.words.filter(Boolean)
+    if (words.length === 0) continue
+    if (cond.type === 'contains_any') anyGroups.push(words)
+    else if (cond.type === 'contains_all') all.push(...words)
+    else exclude.push(...words)
   }
-  const orNull = (words: string[]) => (words.length > 0 ? words : null)
   return {
-    textAny: orNull(byType.contains_any),
-    textAll: orNull(byType.contains_all),
-    textExclude: orNull(byType.excludes),
+    textAny: anyGroups.length > 0 ? anyGroups : null,
+    textAll: all.length > 0 ? all : null,
+    textExclude: exclude.length > 0 ? exclude : null,
   }
 }
 
 /**
  * ページ位置は照合前の生ページの末尾 (最新順なら最古、古い順なら最新) の
- * created_at。索引側で絞るので表示中の末尾と一致するが、後段で落とす段
- * (クエリ #1178) が載っても位置がずれないよう生ページで持つ
+ * created_at。クエリで 1 ページ丸ごと落ちても位置が進むよう、表示中の
+ * 末尾ではなく生ページで持つ
  */
 let pageCursor: string | null = null
 
@@ -191,18 +254,50 @@ async function fetchPage(cursor: string | null): Promise<NormalizedNote[]> {
   ) as NormalizedNote[]
 }
 
+/**
+ * クエリで除外した件数 (確定した検索 1 回分、追加読み込みと自動続行は累積)。
+ * 評価器の件数はクエリ変更時の表示中への再判定も数えるので、ここでは取り直し後の
+ * 走査で数えたものだけを持つ (同じノートを二重に数えない)
+ */
+const excludedCount = ref(0)
+/** クエリが止まっている間に取れたが列に入れられない件数 (除外ではなく保留) */
+const heldCount = ref(0)
+/** 自動続行が走っている */
+const scanning = ref(false)
+/** 自動続行が上限で止まった (理由を見せる) */
+const stoppedAtLimit = ref(false)
+
+/** 列に入れるすべての入口はここを通る (判定を通さない入口を残さない)。組込 (最安) → クエリ */
+async function admit(page: NormalizedNote[]): Promise<NormalizedNote[]> {
+  const builtin = page.filter((n) => matchesFilter(n, props.column.filters))
+  const admitted = await applyQueryFilter(builtin)
+  // 組込トグルで落ちた分は「クエリで除外」ではないので数えない
+  const dropped = builtin.length - admitted.length
+  if (queryBlocked.value) heldCount.value += dropped
+  else excludedCount.value += dropped
+  return admitted
+}
+
 let generation = 0
 
-async function search() {
+function resetRun() {
+  pageCursor = null
+  excludedCount.value = 0
+  heldCount.value = 0
+  stoppedAtLimit.value = false
+}
+
+async function search(trigger: SearchTrigger = 'explicit') {
   const gen = ++generation
   error.value = null
+  scanning.value = false
   if (query.value !== (props.column.query ?? '')) {
     deckStore.updateColumn(props.column.id, { query: query.value })
   }
   // 条件が 1 つも無ければ案内に戻す (索引全件は出さない)
   if (!shouldSearch()) {
     setNotes([])
-    pageCursor = null
+    resetRun()
     hasMore.value = false
     hasSearched.value = false
     isLoading.value = false
@@ -211,11 +306,18 @@ async function search() {
   isLoading.value = true
   hasSearched.value = true
   try {
-    const found = await fetchPage(null)
+    const page = await fetchPage(null)
     if (gen !== generation) return
-    setNotes(found)
-    pageCursor = found.at(-1)?.createdAt ?? null
-    hasMore.value = found.length >= PAGE_SIZE
+    resetRun()
+    const admitted = await admit(page)
+    if (gen !== generation) return
+    // やり直しが終わるまで表示中の結果は消さない (ここで初めて差し替える)
+    setNotes(admitted)
+    pageCursor = page.at(-1)?.createdAt ?? null
+    hasMore.value = page.length >= PAGE_SIZE
+    if (allowsAutoContinue(trigger)) {
+      await continueRun(gen, page.length, admitted.length)
+    }
   } catch (e) {
     if (gen === generation) error.value = AppError.from(e)
   } finally {
@@ -223,18 +325,83 @@ async function search() {
   }
 }
 
+/** 次の生ページを取り、判定を通ったものを列に足す。走査した件数と足せた件数を返す */
+async function loadPage(
+  gen: number,
+): Promise<{ scanned: number; added: number }> {
+  const page = await fetchPage(pageCursor)
+  if (gen !== generation) return { scanned: 0, added: 0 }
+  const known = new Set(rawNotes.value.map(variantKeyOf))
+  const fresh = page.filter((n) => !known.has(variantKeyOf(n)))
+  pageCursor = page.at(-1)?.createdAt ?? pageCursor
+  hasMore.value = page.length >= PAGE_SIZE && fresh.length > 0
+  const admitted = await admit(fresh)
+  if (gen !== generation) return { scanned: 0, added: 0 }
+  if (admitted.length > 0) {
+    setNotes([...rawNotes.value, ...admitted], 'newest')
+  }
+  return { scanned: page.length, added: admitted.length }
+}
+
+/** 描画が済んでから、表示が一画面を超えているかを測る (ノートの高さは可変) */
+async function viewportFilled(): Promise<boolean> {
+  await nextTick()
+  await new Promise<void>((resolve) => {
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => resolve())
+    } else {
+      resolve()
+    }
+  })
+  const el = scroller.value
+  if (!el) return true
+  return el.scrollHeight > el.clientHeight + 1
+}
+
+/**
+ * 自動続行。明示の操作で始まった走査だけが入り、表示が一画面に満たない間か
+ * 直前のページで 1 件も足せなかった間、走査件数の上限まで続ける。クエリが
+ * 止まっている間は続けない。新しい検索が始まったら次のページを取らずに止める
+ */
+async function continueRun(gen: number, scanned: number, lastAdded: number) {
+  scanning.value = true
+  try {
+    let total = scanned
+    let added = lastAdded
+    for (;;) {
+      if (gen !== generation) return
+      const decision = decideContinue({
+        hasMore: hasMore.value,
+        queryBlocked: queryBlocked.value,
+        scanned: total,
+        viewportFilled: await viewportFilled(),
+        lastAdded: added,
+      })
+      if (gen !== generation) return
+      if (decision === 'stop:limit') {
+        stoppedAtLimit.value = true
+        return
+      }
+      if (decision !== 'continue') return
+      const r = await loadPage(gen)
+      total += r.scanned
+      added = r.added
+    }
+  } finally {
+    if (gen === generation) scanning.value = false
+  }
+}
+
+/** 追加読み込み (スクロールの末尾到達 / 続きを読む)。明示の操作なので続行してよい */
 async function loadMore() {
-  if (isLoading.value || !hasMore.value || !pageCursor) return
+  if (isLoading.value || scanning.value || !hasMore.value || !pageCursor) return
   const gen = generation
   isLoading.value = true
+  stoppedAtLimit.value = false
   try {
-    const found = await fetchPage(pageCursor)
+    const r = await loadPage(gen)
     if (gen !== generation) return
-    const known = new Set(rawNotes.value.map(variantKeyOf))
-    const fresh = found.filter((n) => !known.has(variantKeyOf(n)))
-    pageCursor = found.at(-1)?.createdAt ?? pageCursor
-    hasMore.value = found.length >= PAGE_SIZE && fresh.length > 0
-    if (fresh.length > 0) setNotes([...rawNotes.value, ...fresh], 'newest')
+    await continueRun(gen, r.scanned, r.added)
   } catch (e) {
     if (gen === generation) error.value = AppError.from(e)
   } finally {
@@ -242,23 +409,24 @@ async function loadMore() {
   }
 }
 
-// 入力のたびに引き直す (手元のキャッシュなので安い)。300ms でまとめる
+// 入力のたびに引き直す (手元のキャッシュなので安い)。300ms でまとめる。
+// 入力中の検索は最初のページで止める (1 打鍵ごとに上限まで走査しない)
 let debounce: ReturnType<typeof setTimeout> | null = null
-function scheduleSearch() {
+function scheduleSearch(trigger: SearchTrigger) {
   if (debounce) clearTimeout(debounce)
   debounce = setTimeout(() => {
     debounce = null
-    void search()
+    void search(trigger)
   }, 300)
 }
+watch(query, () => scheduleSearch('typed'))
 // filter は常に新しいオブジェクトで差し替えるので浅い watch でよい
-watch(query, scheduleSearch)
-watch(filter, scheduleSearch)
+watch(filter, () => scheduleSearch('explicit'))
 
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.isComposing) {
     if (debounce) clearTimeout(debounce)
-    void search()
+    void search('explicit')
   }
 }
 
@@ -273,16 +441,37 @@ function scrollToTop() {
   }
 }
 
-const emptyMessage = computed(() =>
-  hasSearched.value
-    ? i18n.ts._deckClientSearchColumn.noMatches
-    : i18n.ts._deckClientSearchColumn.emptyHint,
-)
+/**
+ * 空状態の区別: 条件なし (案内) / クエリは適用してあるが条件に数えていない
+ * (理由つき) / 保留 (fail-closed) / クエリで全件除外 / 結果なし
+ */
+const emptyMessage = computed(() => {
+  // 文言はフルパスで引く (辞書の参照検査が間接参照を拾わない)
+  if (!hasSearched.value) {
+    if (columnQueryState.value.status === 'safeMode') {
+      return i18n.ts._deckClientSearchColumn.queryNotCountedSafeMode
+    }
+    if (columnQueryState.value.status === 'disabled') {
+      return i18n.ts._deckClientSearchColumn.queryNotCountedDisabled
+    }
+    return i18n.ts._deckClientSearchColumn.emptyHint
+  }
+  if (queryBlocked.value && heldCount.value > 0) {
+    return i18n.ts._deckClientSearchColumn.queryPending
+  }
+  if (excludedCount.value > 0) {
+    return i18n.tsx._deckClientSearchColumn.queryExcludedAll_plural({
+      count: excludedCount.value,
+    })
+  }
+  return i18n.ts._deckClientSearchColumn.noMatches
+})
 
 onMounted(async () => {
   if (!accountsStore.isLoaded) await accountsStore.loadAccounts()
-  // 保存された条件があれば開いた時点で引く (無ければ案内のまま)
-  void search()
+  // 保存された条件があれば開いた時点で引く (無ければ案内のまま)。
+  // 起動時は最初のページで止め、続きは利用者の操作から
+  void search('restore')
 })
 </script>
 
@@ -292,7 +481,7 @@ onMounted(async () => {
     :title="column.name || i18n.ts._columns.clientSearch"
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
-    @refresh="search"
+    @refresh="search('explicit')"
   >
     <template #header-icon>
       <i :class="$style.tlHeaderIcon" class="ti ti-archive" />
@@ -310,14 +499,6 @@ onMounted(async () => {
           @keydown="onKeydown"
         />
         <button
-          :class="[$style.iconBtn, { [$style.iconBtnActive]: showFilters || hasActiveFilter(filter) }]"
-          class="_button"
-          :title="i18n.ts._searchFilterPanel.filter"
-          @click="showFilters = !showFilters"
-        >
-          <i class="ti ti-filter" />
-        </button>
-        <button
           :class="[$style.iconBtn, { [$style.iconBtnActive]: filter.ascending }]"
           class="_button"
           :title="filter.ascending ? i18n.ts._deckClientSearchColumn.oldestFirst : i18n.ts._deckClientSearchColumn.newestFirst"
@@ -325,16 +506,32 @@ onMounted(async () => {
         >
           <i :class="filter.ascending ? 'ti ti-sort-ascending' : 'ti ti-sort-descending'" />
         </button>
+        <!-- クエリバッジは漏斗の隣 (どちらも絞り込みの状態、ノートカラムと同じ) -->
+        <ColumnQueryBadge
+          :state="columnQueryState"
+          :error-count="queryErrorCount"
+          @open="openQueryManager"
+        />
+        <!-- 絞り込みはノートカラムと同じ漏斗 → ポップアップ (#1180)。検索の行を差し込み、
+             クエリのトグルも同じポップアップに出る (#1178) -->
+        <ColumnFilterButton
+          :column="column"
+          :filter-keys="BUILTIN_FILTER_KEYS"
+          :active="hasActiveFilter(filter)"
+          :theme-vars="columnThemeVars"
+          wide
+          compact
+        >
+          <template #extra>
+            <SearchFilterPanel
+              face="client"
+              :filter="filter"
+              :scope-options="scopeOptions"
+              @update="onFilterUpdate"
+            />
+          </template>
+        </ColumnFilterButton>
       </div>
-
-      <SearchFilterPanel
-        v-if="showFilters"
-        face="client"
-        :filter="filter"
-        :scope-options="scopeOptions"
-        @update="onFilterUpdate"
-      />
-
     </template>
 
     <ColumnEmptyState
@@ -345,14 +542,28 @@ onMounted(async () => {
       :image-url="serverErrorImageUrl"
       :cta-label="i18n.ts._common.retry"
       cta-icon="ti-refresh"
-      @cta="search"
+      @cta="search('explicit')"
     />
 
     <div v-else :class="$style.tlBody">
+      <ColumnQueryBanners
+        :state="columnQueryState"
+        :error-count="queryErrorCount"
+        :missing-ids="missingQueryIds"
+        :suspended-keys="suspendedQueryKeys"
+        :suspended-count="querySuspendedCount"
+        @resume="resumeSuspendedQueries"
+        @drop-missing="dropMissingQueryRefs"
+      />
+
+      <!-- 0 件でも索引に続きがあれば続きを読める (全除外でスクロールが起こせないため) -->
       <ColumnEmptyState
-        v-if="notes.length === 0 && !isLoading"
+        v-if="notes.length === 0 && !isLoading && !scanning"
         :message="emptyMessage"
         :image-url="serverInfoImageUrl"
+        :cta-label="hasMore && !queryBlocked ? i18n.ts._deckClientSearchColumn.readMore : undefined"
+        cta-icon="ti-arrow-down"
+        @cta="loadMore"
       />
 
       <NoteScroller
@@ -382,8 +593,30 @@ onMounted(async () => {
         </template>
 
         <template #append>
-          <div v-if="isLoading && notes.length > 0" :class="$style.loadingMore">
+          <div v-if="scanning || (isLoading && notes.length > 0)" :class="$style.loadingMore">
             <LoadingSpinner />
+            <span v-if="scanning" :class="$style.footerText">{{ i18n.ts._deckClientSearchColumn.scanning }}</span>
+          </div>
+          <!-- 検索は有限の答えなので、結果が残っていても除外した件数を見せる -->
+          <div
+            v-else-if="hasSearched && (excludedCount > 0 || hasMore || stoppedAtLimit)"
+            :class="$style.footer"
+          >
+            <span v-if="excludedCount > 0" :class="$style.footerText">
+              {{ i18n.tsx._deckClientSearchColumn.queryExcluded_plural({ count: excludedCount }) }}
+            </span>
+            <span v-if="stoppedAtLimit" :class="$style.footerText">
+              {{ i18n.ts._deckClientSearchColumn.stoppedAtLimit }}
+            </span>
+            <button
+              v-if="hasMore && !queryBlocked"
+              class="_button"
+              :class="$style.readMoreBtn"
+              @click="loadMore"
+            >
+              <i class="ti ti-arrow-down" />
+              {{ i18n.ts._deckClientSearchColumn.readMore }}
+            </button>
           </div>
         </template>
       </NoteScroller>
@@ -453,22 +686,29 @@ onMounted(async () => {
   color: var(--nd-accent);
 }
 
-// 外部からの検索語の差し替えで本文の条件が止まっている
-
-
-
-
-@keyframes conditionsIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95) translateY(-4px);
-  }
+.footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  font-size: 0.8em;
 }
 
-@keyframes conditionsOut {
-  to {
-    opacity: 0;
-    transform: scale(0.95) translateY(-4px);
+.footerText {
+  opacity: 0.6;
+}
+
+.readMoreBtn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-buttonBg);
+
+  &:hover {
+    background: var(--nd-buttonHoverBg);
   }
 }
 </style>

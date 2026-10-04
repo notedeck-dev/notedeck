@@ -3056,7 +3056,11 @@ export type CacheStats = { noteCount: number; dbSizeBytes: number }
  * `notecli::db::CachedSearchOptions` の同名フィールド。1 引数に束ねるのは
  * specta の Tauri コマンド引数の上限 (State 込みで 10) のため。
  */
-export type CachedSearchFilters = { author?: string | null; hasFiles?: boolean | null; publicOnly?: boolean | null; textAny?: string[] | null; textAll?: string[] | null; textExclude?: string[] | null }
+export type CachedSearchFilters = { author?: string | null; hasFiles?: boolean | null; publicOnly?: boolean | null; 
+/**
+ * 「いずれかを含む」の行の並び。行の中は OR、行同士は AND (notedeck#1182)
+ */
+textAny?: string[][] | null; textAll?: string[] | null; textExclude?: string[] | null }
 export type Channel = { id: string; name: string; color?: string | null }
 export type ChatCacheStats = { messageCount: number; bytes: number }
 /**

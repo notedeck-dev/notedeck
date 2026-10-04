@@ -522,8 +522,8 @@ _rawJsonView:
   noData: "データがありません"
 
 _conditionBuilder:
-  title: "本文の条件"
-  wordsPlaceholder: "カンマ区切りで単語を入力"
+  title: "条件"
+  wordsPlaceholder: "カンマ区切りの単語"
   addCondition: "条件を追加"
   containsAny: "いずれかを含む"
   containsAll: "すべてを含む"
@@ -531,13 +531,14 @@ _conditionBuilder:
   paused: "検索語が外から差し替えられたため、本文の条件は止まっています。検索語を手で入力すると戻ります"
 
 _searchFilterPanel:
-  filter: "フィルター"
   clearFilters: "フィルターをクリア"
   scope: "範囲"
   allAccounts: "すべてのアカウント"
   serverOption: "{host} (サーバー)"
   hostAll: "すべて"
+  hostAllAcross: "すべてのサーバー (リモートも)"
   hostLocal: "ローカル"
+  hostLocalAcross: "各サーバーのローカル"
   hostSpecify: "ホスト指定"
   hostPlaceholder: "example.com"
   author: "投稿者"
@@ -1610,6 +1611,16 @@ _deckClientSearchColumn:
   newestFirst: "新しい順"
   noMatches: "手元のキャッシュに一致するノートはありません"
   emptyHint: "検索語かフィルターを入れると、手元に貯めたノートから引きます"
+  queryExcludedAll_plural:
+    other: "クエリに合致するノートがありません ({count} 件を除外中)"
+  queryExcluded_plural:
+    other: "クエリで {count} 件を除外"
+  queryPending: "クエリを解釈できないか参照先が無いため、結果を保留しています"
+  queryNotCountedSafeMode: "クエリは適用されていますが、セーフモード中は検索を始める条件に数えません。検索語かフィルターを入れると検索します"
+  queryNotCountedDisabled: "適用中のクエリはすべて無効なので、検索を始める条件に数えません。検索語かフィルターを入れると検索します"
+  readMore: "続きを読む"
+  scanning: "索引を走査中..."
+  stoppedAtLimit: "クエリによる除外が続いたため、ここで止めました"
 
 _deckColumn:
   loggedOut: "ログアウト中"
@@ -2048,18 +2059,15 @@ _deckProfileMenu:
   deleted: "プロファイルを削除しました"
 
 _deckSearchColumn:
-  regexPlaceholder: "正規表現で検索 (Enter で検索)"
   placeholder: "ノートを検索 (Enter で検索)"
-  regexMode: "正規表現モード"
   oldestFirst: "古い順"
   newestFirst: "新しい順"
   enterQuery: "検索語を入力"
   noResults: "結果が見つかりませんでした"
   enterToSearch: "Enter キーでサーバーを検索"
-  invalidRegex: "無効な正規表現です"
-  regexTimeout: "正規表現の照合が時間内に終わらなかったため、この検索は中止しました"
-  regexUnavailable: "正規表現の照合ができないため、この検索は中止しました"
   authorUnresolved: "投稿者を解決できなかったため、このアカウントでは検索していません"
+  skippedScope: "{host}: この範囲はこのサーバーでは検索できません"
+  skippedAuthor: "{host}: 投稿者が見つかりません"
 
 _deckStreamInspectorColumn:
   resume: "再開"
@@ -2134,6 +2142,7 @@ _themeCard:
   installing: "インストール中"
 
 _timelineFilterPopup:
+  search: "検索"
   filter: "フィルター"
   disabledQueryHint: "このクエリは無効です — 押すとクエリ管理カラムを開きます"
   withReplies: "リプライ"

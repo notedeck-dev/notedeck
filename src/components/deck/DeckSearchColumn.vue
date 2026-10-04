@@ -13,6 +13,7 @@ import type {
   NormalizedNote,
   NormalizedUser,
   SearchOptions,
+  TimelineFilter,
 } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
@@ -22,7 +23,10 @@ import NoteScroller from '@/components/common/NoteScroller.vue'
 import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { usePortal } from '@/composables/usePortal'
-import { useSearchScopeMeta } from '@/composables/useSearchScopeMeta'
+import {
+  loadSearchScopeMeta,
+  useSearchScopeMeta,
+} from '@/composables/useSearchScopeMeta'
 import { i18n } from '@/i18n'
 import type { NoteGroup } from '@/services/noteGroup'
 import { variantKeyOf } from '@/services/noteKey'
@@ -32,12 +36,15 @@ import {
   effectiveConditions,
   effectiveHostParam,
   hasActiveFilter,
+  hostPlanForAccount,
   matchesPlainTerm,
   matchesTextConditions,
   parseAuthor,
   type SearchFilter,
-  type SearchFilterRow,
+  type SearchScopeMeta,
+  type ServerHostOption,
   serverHostOptions,
+  unionHostOptions,
 } from '@/services/searchFilter'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -55,13 +62,9 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
-import {
-  extractLiterals,
-  filterNotesByRegexAsync,
-  isValidRegex,
-  RegexFilterError,
-} from '@/utils/regexSearch'
+import { matchesFilter } from '@/utils/timelineFilter'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
+import ColumnFilterButton from './ColumnFilterButton.vue'
 import DeckColumn from './DeckColumn.vue'
 import SearchFilterPanel from './SearchFilterPanel.vue'
 
@@ -183,25 +186,67 @@ function saveFilter(next: SearchFilter) {
   filter.value = next
   deckStore.updateColumn(props.column.id, { searchFilter: next })
 }
-const regexMode = computed(() => filter.value.regex === true)
 const ascending = computed(() => filter.value.ascending === true)
-const regexInvalid = computed(() => {
-  const q = searchQuery.value.trim()
-  return regexMode.value && !!q && !isValidRegex(q)
-})
 
-const showFilters = ref(false)
 const scopeMeta = useSearchScopeMeta(computed(() => props.column.accountId))
-// 全アカウント面はホストと投稿者を出さない (per-account の意味しか持たない)
+/** 全アカウント面: アカウントごとのサーバーの検索範囲の設定 (#1182) */
+const crossMetas = ref<Record<string, SearchScopeMeta>>({})
+watch(
+  () => (isCrossAccount.value ? accountsStore.accounts.map((a) => a.id) : []),
+  (ids) => {
+    for (const id of ids) {
+      if (crossMetas.value[id]) continue
+      void loadSearchScopeMeta(id).then((m) => {
+        crossMetas.value = { ...crossMetas.value, [id]: m }
+      })
+    }
+  },
+  { immediate: true },
+)
+function hostOptionsFor(accountId: string): ServerHostOption[] {
+  return serverHostOptions(
+    isCrossAccount.value ? crossMetas.value[accountId] : scopeMeta.value,
+  )
+}
+/** 範囲の選択肢。全アカウント面は各サーバーの和集合 (出せないサーバーには投げない) */
 const hostOptions = computed(() =>
-  isCrossAccount.value ? undefined : serverHostOptions(scopeMeta.value),
+  isCrossAccount.value
+    ? unionHostOptions(
+        accountsStore.accounts.map((a) => crossMetas.value[a.id]),
+      )
+    : serverHostOptions(scopeMeta.value),
 )
-const hiddenRows = computed<SearchFilterRow[] | undefined>(() =>
-  isCrossAccount.value ? ['host', 'author'] : undefined,
-)
+/** 範囲か投稿者の条件で問い合わせなかったアカウント (0 件と見分けるため、サーバーごとに理由を見せる) */
+type SkipReason = 'scope' | 'author'
+const crossSkipped = ref<{ host: string; reason: SkipReason }[]>([])
+function hostOf(accountId: string): string {
+  return (
+    accountsStore.accounts.find((a) => a.id === accountId)?.host ??
+    account.value?.host ??
+    ''
+  )
+}
 
 // --- 条件の変更 → 再検索 (短時間の連続変更は 1 回にまとめる) ---
 let filterTimer: ReturnType<typeof setTimeout> | null = null
+/**
+ * ノートカラムと同じ組込トグル (#841 の規則で意味を持つものだけ)。リノートは
+ * 本文照合の検索に出てこないので出さない。評価はサーバーから返ったページへの
+ * 手元判定 (検索 API に返信 / Bot のパラメータは無い)
+ */
+const BUILTIN_FILTER_KEYS: (keyof TimelineFilter)[] = [
+  'withReplies',
+  'withBots',
+  'withSensitive',
+]
+// 組込トグルはフィルターメニューがカラムに直接書くので、変化を見て引き直す
+watch(
+  () => JSON.stringify(props.column.filters ?? null),
+  (next, prev) => {
+    if (next !== prev) scheduleResearch()
+  },
+)
+
 function scheduleResearch() {
   if (filterTimer) clearTimeout(filterTimer)
   filterTimer = setTimeout(() => {
@@ -212,15 +257,6 @@ function scheduleResearch() {
 
 function onFilterUpdate(next: SearchFilter) {
   saveFilter(next)
-  scheduleResearch()
-}
-
-function toggleRegexMode() {
-  const next = { ...filter.value }
-  if (next.regex) delete next.regex
-  else next.regex = true
-  saveFilter(next)
-  inlineError.value = null
   scheduleResearch()
 }
 
@@ -240,27 +276,46 @@ function onQueryInput() {
   saveFilter(next)
 }
 
-// --- 投稿者の解決 (per-account のみ) ---
-const authorResolving = ref(false)
+// --- 投稿者の解決 (アカウントごとに ID が違う。全アカウント面は各アカウントで解決、#1182) ---
+/** 解決中のアカウント数 */
+const authorResolving = ref(0)
+const authorAccountIds = computed<string[]>(() =>
+  isCrossAccount.value
+    ? accountsStore.accounts.map((a) => a.id)
+    : props.column.accountId
+      ? [props.column.accountId]
+      : [],
+)
 const authorState = computed<'resolving' | 'resolved' | 'unresolved' | null>(
   () => {
-    const accountId = props.column.accountId
-    if (!accountId) return null
-    if (authorResolving.value) return 'resolving'
-    const res = filter.value.authorIds?.[accountId]
-    if (res === null) return 'unresolved'
-    if (res) return 'resolved'
+    const ids = authorAccountIds.value
+    if (ids.length === 0) return null
+    if (authorResolving.value > 0) return 'resolving'
+    const results = ids.map((id) => filter.value.authorIds?.[id])
+    if (results.some((r) => r)) return 'resolved'
+    if (results.every((r) => r === null)) return 'unresolved'
     return null
   },
 )
 const authorResolvedLabel = computed(() => {
-  const accountId = props.column.accountId
-  const res = accountId ? filter.value.authorIds?.[accountId] : undefined
-  return res ? res.acct || res.id : ''
+  const ids = authorAccountIds.value
+  const resolved = ids
+    .map((id) => filter.value.authorIds?.[id])
+    .filter((r): r is AuthorResolution => Boolean(r))
+  if (resolved.length === 0) return ''
+  // 全アカウント面は解決できた acct を並べる (見つからなかったサーバーは対象外の一覧に出る)
+  return resolved.map((r) => r.acct || r.id).join(', ')
 })
 
-function acctOf(user: NormalizedUser): string {
-  return `${user.username}@${user.host ?? account.value?.host ?? ''}`
+function acctOf(user: NormalizedUser, accountHost: string): string {
+  return `${user.username}@${user.host ?? accountHost}`
+}
+
+/** 単一アカウントはカラムの adapter、全アカウント面はアカウントごとの adapter */
+async function adapterFor(accountId: string) {
+  return isCrossAccount.value
+    ? multiAdapters.getOrCreate(accountId)
+    : initAdapter()
 }
 
 function saveAuthorId(
@@ -288,19 +343,22 @@ async function resolveAuthor(
   if (known !== undefined) return known
   const parsed = parseAuthor(filter.value.author ?? '')
   if (!parsed) return undefined
-  authorResolving.value = true
+  authorResolving.value++
   try {
-    const adapter = await initAdapter()
+    const adapter = await adapterFor(accountId)
     if (!adapter) return null
     const user = await adapter.api.lookupUser(parsed.username, parsed.host)
-    const res: AuthorResolution = { id: user.id, acct: acctOf(user) }
+    const res: AuthorResolution = {
+      id: user.id,
+      acct: acctOf(user, hostOf(accountId)),
+    }
     saveAuthorId(accountId, res)
     return res
   } catch {
     saveAuthorId(accountId, null)
     return null
   } finally {
-    authorResolving.value = false
+    authorResolving.value--
   }
 }
 
@@ -309,12 +367,12 @@ async function hydrateMigratedAuthor(accountId: string) {
   const res = filter.value.authorIds?.[accountId]
   if (!res || res.acct) return
   try {
-    const adapter = await initAdapter()
+    const adapter = await adapterFor(accountId)
     if (!adapter) return
     const user = await adapter.api.getUser(res.id)
     // 待っている間に表記が変わっていたら触らない
     if (filter.value.authorIds?.[accountId]?.id !== res.id) return
-    const acct = acctOf(user)
+    const acct = acctOf(user, hostOf(accountId))
     saveAuthorId(
       accountId,
       { id: res.id, acct },
@@ -326,54 +384,75 @@ async function hydrateMigratedAuthor(accountId: string) {
 }
 
 // --- 評価 ---
-function getSearchHint(q: string): string {
-  if (!regexMode.value) return q
-  return extractLiterals(q)
-}
-
 /**
- * 手元の照合 (1 層)。母集合は検索語の結果で、正規表現モードならパターン、
- * そうでなければリテラル含有 (サーバーのトークナイズによる曖昧一致を揃える)
- * で絞り、そのあと本文の条件を当てる。ローカル先行表示 / 確定 / 段階表示 /
- * 追加読み込みのすべてがここを通る
+ * 手元の照合 (1 層)。母集合は検索語の結果で、リテラル含有 (サーバーの
+ * トークナイズによる曖昧一致を揃える) で絞り、そのあと本文の条件を当てる。
+ * ローカル先行表示 / 確定 / 段階表示 / 追加読み込みのすべてがここを通る
  */
-async function applyLocalFilter(
+function applyLocalFilter(
   notes: NormalizedNote[],
   q: string,
-): Promise<NormalizedNote[]> {
-  const byTerm = regexMode.value
-    ? await filterNotesByRegexAsync(notes, q)
-    : notes.filter((n) => matchesPlainTerm(n, q))
+): NormalizedNote[] {
+  // 組込トグル (最安) → 検索語の含有 → 本文の条件
+  const byTerm = notes.filter(
+    (n) => matchesFilter(n, props.column.filters) && matchesPlainTerm(n, q),
+  )
   const conditions = effectiveConditions(filter.value)
   if (conditions.length === 0) return byTerm
   return byTerm.filter((n) => matchesTextConditions(n, conditions))
 }
 
-/** 照合の失敗は検索の失敗として見せる (素通しにしない)。それ以外なら false */
-function reportFilterFailure(e: unknown): boolean {
-  if (!(e instanceof RegexFilterError)) return false
-  inlineError.value =
-    e.kind === 'invalid'
-      ? i18n.ts._deckSearchColumn.invalidRegex
-      : e.kind === 'timeout'
-        ? i18n.ts._deckSearchColumn.regexTimeout
-        : i18n.ts._deckSearchColumn.regexUnavailable
-  return true
-}
+type SearchPlan =
+  | { kind: 'ok'; opts: SearchOptions }
+  | { kind: 'skip'; reason: SkipReason }
 
-/** サーバーへ渡す条件。per-account ではホストと投稿者も渡す */
-function serverOptions(accountId: string | null): SearchOptions {
+/**
+ * そのアカウントのサーバーへ渡す条件。skip = このアカウントには投げない
+ * (範囲の選択肢を出せないサーバー / 投稿者が未解決) で、理由ごと見せる。
+ * 全アカウント面では「すべて」「ホスト指定」を出せるサーバーだけに投げ、
+ * 指定ホストがそのサーバー自身ならローカルとして渡す (#1182)
+ */
+function planFor(accountId: string): SearchPlan {
   const { since, until } = dateBounds(filter.value)
   const opts: SearchOptions = {}
   if (since) opts.sinceDate = Date.parse(since)
   if (until) opts.untilDate = Date.parse(until)
-  if (accountId && account.value) {
-    const host = effectiveHostParam(filter.value.host, account.value.host)
+  if (isCrossAccount.value) {
+    const plan = hostPlanForAccount(
+      filter.value.host,
+      hostOf(accountId),
+      hostOptionsFor(accountId),
+    )
+    if (plan.kind === 'skip') return { kind: 'skip', reason: 'scope' }
+    if (plan.host) opts.host = plan.host
+  } else {
+    const host = effectiveHostParam(filter.value.host, hostOf(accountId))
     if (host) opts.host = host
-    const author = filter.value.authorIds?.[accountId]
-    if (author) opts.userId = author.id
   }
-  return opts
+  if (filter.value.author) {
+    const author = filter.value.authorIds?.[accountId]
+    if (!author) return { kind: 'skip', reason: 'author' }
+    opts.userId = author.id
+  }
+  return { kind: 'ok', opts }
+}
+
+/** 単一アカウント面の条件 (投げない理由は別に表示するので、条件だけ取り出す) */
+function serverOptionsOrEmpty(accountId: string): SearchOptions {
+  const plan = planFor(accountId)
+  return plan.kind === 'ok' ? plan.opts : {}
+}
+
+/** 全アカウント面のローカル先行表示を、各ノートの取得元アカウントの範囲 / 投稿者に揃える */
+function matchesScopeCross(note: NormalizedNote): boolean {
+  if (filter.value.author) {
+    const res = filter.value.authorIds?.[note._accountId]
+    if (!res || note.user.id !== res.id) return false
+  }
+  const host = effectiveHostParam(filter.value.host, note._serverHost)
+  if (!host) return true
+  if (host === '.') return note.user.host === null
+  return (note.user.host ?? note._serverHost).toLowerCase() === host
 }
 
 /**
@@ -470,8 +549,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
 async function searchLocal(q: string) {
   if (!q) return
-  const hint = getSearchHint(q)
-  if (!hint) return
+  const hint = q
 
   if (isCrossAccount.value) {
     await searchLocalCrossAccount(q, hint)
@@ -487,12 +565,8 @@ async function searchLocalPerAccount(q: string, hint: string) {
   // 投稿者が未解決のうちは範囲を揃えられないので先行表示しない
   if (filter.value.author && !authorId) return
   try {
-    const local = await searchLocalDb(
-      accountId,
-      hint,
-      regexMode.value ? 50 : 10,
-    )
-    const matched = (await applyLocalFilter(local, q)).filter((n) =>
+    const local = await searchLocalDb(accountId, hint, 10)
+    const matched = applyLocalFilter(local, q).filter((n) =>
       matchesServerScope(n, authorId),
     )
     if (searchQuery.value.trim() === q) {
@@ -500,8 +574,8 @@ async function searchLocalPerAccount(q: string, hint: string) {
       isPreview.value = true
       hasLocalResults.value = matched.length > 0
     }
-  } catch (e) {
-    if (searchQuery.value.trim() === q) reportFilterFailure(e)
+  } catch {
+    // ローカル索引の失敗は致命ではない
   }
 }
 
@@ -509,18 +583,18 @@ async function searchLocalCrossAccount(q: string, hint: string) {
   const accounts = accountsStore.accounts
   try {
     const results = await Promise.allSettled(
-      accounts.map((acc) =>
-        searchLocalDb(acc.id, hint, regexMode.value ? 50 : 10),
-      ),
+      accounts.map((acc) => searchLocalDb(acc.id, hint, 10)),
     )
-    const matched = await applyLocalFilter(collectFulfilled(results), q)
+    const matched = applyLocalFilter(collectFulfilled(results), q).filter(
+      matchesScopeCross,
+    )
     if (searchQuery.value.trim() === q) {
       rawNotes.value = mergeNotes([], matched)
       isPreview.value = true
       hasLocalResults.value = matched.length > 0
     }
-  } catch (e) {
-    if (searchQuery.value.trim() === q) reportFilterFailure(e)
+  } catch {
+    // ローカル索引の失敗は致命ではない
   }
 }
 
@@ -532,10 +606,6 @@ watch(searchQuery, (val) => {
     rawNotes.value = []
     isPreview.value = false
     hasLocalResults.value = false
-    return
-  }
-  if (regexMode.value && !isValidRegex(q)) {
-    inlineError.value = i18n.ts._deckSearchColumn.invalidRegex
     return
   }
   // Don't show preview if already showing confirmed results for this query
@@ -568,11 +638,6 @@ async function performSearch() {
     filterTimer = null
   }
 
-  if (regexMode.value && !isValidRegex(q)) {
-    inlineError.value = i18n.ts._deckSearchColumn.invalidRegex
-    return
-  }
-
   error.value = null
   inlineError.value = null
   isLoading.value = true
@@ -580,10 +645,11 @@ async function performSearch() {
   confirmedQuery.value = q
   const gen = ++searchGeneration
   resetCursors()
+  crossSkipped.value = []
 
   deckStore.updateColumn(props.column.id, { query: q })
 
-  const hint = getSearchHint(q)
+  const hint = q
 
   if (isCrossAccount.value) {
     await performSearchCrossAccount(q, hint, gen)
@@ -611,12 +677,8 @@ async function performSearchPerAccount(q: string, hint: string, gen: number) {
   // Local search first (instant) if not already showing preview
   if (!hasLocalResults.value) {
     try {
-      const local = await searchLocalDb(
-        accountId,
-        hint,
-        regexMode.value ? 100 : null,
-      )
-      const matched = (await applyLocalFilter(local, q)).filter((n) =>
+      const local = await searchLocalDb(accountId, hint, null)
+      const matched = applyLocalFilter(local, q).filter((n) =>
         matchesServerScope(n, author?.id),
       )
       if (gen !== searchGeneration) return
@@ -624,9 +686,7 @@ async function performSearchPerAccount(q: string, hint: string, gen: number) {
         rawNotes.value = matched
         hasLocalResults.value = true
       }
-    } catch (e) {
-      if (gen !== searchGeneration) return
-      if (reportFilterFailure(e)) return
+    } catch {
       // ローカル索引の失敗は致命ではない
     }
   }
@@ -636,21 +696,19 @@ async function performSearchPerAccount(q: string, hint: string, gen: number) {
     try {
       const adapter = await initAdapter()
       if (!adapter) return
-      const page = await adapter.api.searchNotes(hint, serverOptions(accountId))
+      const page = await adapter.api.searchNotes(
+        hint,
+        serverOptionsOrEmpty(accountId),
+      )
       if (gen !== searchGeneration) return
       advanceCursor(page)
-      const matched = await applyLocalFilter(page, q)
-      if (gen !== searchGeneration) return
+      const matched = applyLocalFilter(page, q)
       rawNotes.value = mergeNotes(
         hasLocalResults.value ? rawNotes.value : [],
         matched,
       )
     } catch (e) {
       if (gen !== searchGeneration) return
-      if (reportFilterFailure(e)) {
-        if (!hasLocalResults.value) rawNotes.value = []
-        return
-      }
       if (!hasLocalResults.value) {
         error.value = AppError.from(e)
       }
@@ -666,19 +724,19 @@ async function performSearchCrossAccount(q: string, hint: string, gen: number) {
   if (!hasLocalResults.value) {
     try {
       const localResults = await Promise.allSettled(
-        accounts.map((acc) =>
-          searchLocalDb(acc.id, hint, regexMode.value ? 100 : null),
-        ),
+        accounts.map((acc) => searchLocalDb(acc.id, hint, null)),
       )
-      const matched = await applyLocalFilter(collectFulfilled(localResults), q)
+      const matched = applyLocalFilter(
+        collectFulfilled(localResults),
+        q,
+      ).filter(matchesScopeCross)
       if (gen !== searchGeneration) return
       if (matched.length > 0) {
         rawNotes.value = mergeNotes([], matched)
         hasLocalResults.value = true
       }
-    } catch (e) {
-      if (gen !== searchGeneration) return
-      if (reportFilterFailure(e)) return
+    } catch {
+      // ローカル索引の失敗は致命ではない
     }
   }
 
@@ -686,31 +744,40 @@ async function performSearchCrossAccount(q: string, hint: string, gen: number) {
   // (#1095)。Meilisearch 未導入のサーバーは PostgreSQL 走査で遅く、1 つの
   // 遅いサーバーが他の結果まで止めていた。検索は「速い分から」で素直に
   // 良くなる面なので初回から段階的に描く
-  crossProgress.value = { done: 0, total: accounts.length }
+  // 投稿者はアカウントごとに解決し、解決できたアカウントだけに投げる (#1182)
+  if (filter.value.author) {
+    await Promise.all(accounts.map((acc) => resolveAuthor(acc.id)))
+    if (gen !== searchGeneration) return
+  }
+  const skipped: { host: string; reason: SkipReason }[] = []
+  const targets = accounts.flatMap((acc) => {
+    const plan = planFor(acc.id)
+    if (plan.kind === 'skip') {
+      skipped.push({ host: acc.host, reason: plan.reason })
+      return []
+    }
+    return [{ acc, opts: plan.opts }]
+  })
+  crossSkipped.value = skipped
+  crossProgress.value = { done: 0, total: targets.length }
   let merged = hasLocalResults.value ? rawNotes.value : []
   try {
     await mapWithConcurrency(
-      accounts,
-      async (acc) => {
+      targets,
+      async ({ acc, opts }) => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return []
-        return adapter.api.searchNotes(hint, serverOptions(null))
+        return adapter.api.searchNotes(hint, opts)
       },
-      accounts.length,
-      async (r, acc, progress) => {
+      Math.max(1, targets.length),
+      async (r, { acc }, progress) => {
         // 走行中に別の検索が始まっていたら、その結果に上書きしない
         if (gen !== searchGeneration) return
         crossProgress.value = progress
         if (r.status !== 'fulfilled') return
         advanceCrossCursor(acc.id, r.value)
-        try {
-          const matched = await applyLocalFilter(r.value, q)
-          if (gen !== searchGeneration) return
-          merged = mergeNotes(merged, matched)
-          rawNotes.value = merged
-        } catch (e) {
-          if (gen === searchGeneration) reportFilterFailure(e)
-        }
+        merged = mergeNotes(merged, applyLocalFilter(r.value, q))
+        rawNotes.value = merged
       },
     )
     if (gen === searchGeneration) rawNotes.value = merged
@@ -738,20 +805,19 @@ async function loadMorePerAccount() {
   if (fetchExhausted || !fetchCursor) return
 
   const q = confirmedQuery.value
-  const hint = getSearchHint(q)
+  const hint = q
   if (!hint) return
 
   const gen = searchGeneration
   isLoading.value = true
   try {
     const page = await adapter.api.searchNotes(hint, {
-      ...serverOptions(accountId),
+      ...serverOptionsOrEmpty(accountId),
       untilId: fetchCursor,
     })
     if (gen !== searchGeneration) return
     advanceCursor(page)
-    const older = await applyLocalFilter(page, q)
-    if (gen !== searchGeneration) return
+    const older = applyLocalFilter(page, q)
     // 古い側を足したので、昇順なら先頭 (古い側) を、降順なら末尾を残す
     setNotes(
       mergeNotes(rawNotes.value, older),
@@ -759,7 +825,7 @@ async function loadMorePerAccount() {
     )
   } catch (e) {
     if (gen !== searchGeneration) return
-    if (!reportFilterFailure(e)) error.value = AppError.from(e)
+    error.value = AppError.from(e)
   } finally {
     if (gen === searchGeneration) isLoading.value = false
   }
@@ -769,47 +835,46 @@ async function loadMoreCrossAccount() {
   if (isLoading.value) return
 
   const q = confirmedQuery.value
-  const hint = getSearchHint(q)
+  const hint = q
   if (!hint) return
 
-  // 尽きたアカウントには問い合わせない。位置が無いアカウント (初回が落ちた) は先頭から
-  const accounts = accountsStore.accounts.filter(
-    (acc) => !crossExhausted.has(acc.id),
-  )
-  if (accounts.length === 0 || crossCursors.size === 0) return
+  // 尽きたアカウントと、範囲 / 投稿者の条件で対象外のアカウントには問い合わせない。
+  // 位置が無いアカウント (初回が落ちた) は先頭から
+  const targets = accountsStore.accounts.flatMap((acc) => {
+    if (crossExhausted.has(acc.id)) return []
+    const plan = planFor(acc.id)
+    return plan.kind === 'ok' ? [{ acc, opts: plan.opts }] : []
+  })
+  if (targets.length === 0 || crossCursors.size === 0) return
   const gen = searchGeneration
   isLoading.value = true
 
   try {
-    crossProgress.value = { done: 0, total: accounts.length }
+    crossProgress.value = { done: 0, total: targets.length }
     await mapWithConcurrency(
-      accounts,
-      async (acc) => {
+      targets,
+      async ({ acc, opts }) => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return []
         return adapter.api.searchNotes(hint, {
-          ...serverOptions(null),
+          ...opts,
           untilId: crossCursors.get(acc.id),
         })
       },
-      accounts.length,
+      targets.length,
       // 返ったアカウントの分から順に足す (#1095)。untilId で古い側へ進むほど
       // 遅くなるサーバーを、速いサーバーの分まで待たせない
-      async (r, acc, progress) => {
+      async (r, { acc }, progress) => {
         if (gen !== searchGeneration) return
         crossProgress.value = progress
         if (r.status !== 'fulfilled') return
         advanceCrossCursor(acc.id, r.value)
-        try {
-          const older = await applyLocalFilter(r.value, q)
-          if (gen !== searchGeneration || older.length === 0) return
-          setNotes(
-            mergeNotes(rawNotes.value, older),
-            ascending.value ? 'oldest' : 'newest',
-          )
-        } catch (e) {
-          if (gen === searchGeneration) reportFilterFailure(e)
-        }
+        const older = applyLocalFilter(r.value, q)
+        if (older.length === 0) return
+        setNotes(
+          mergeNotes(rawNotes.value, older),
+          ascending.value ? 'oldest' : 'newest',
+        )
       },
     )
   } catch (e) {
@@ -910,29 +975,13 @@ onUnmounted(() => {
         <input
           ref="searchInput"
           v-model="searchQuery"
-          :class="[$style.searchInput, { [$style.regexInput]: regexMode, [$style.regexInvalid]: regexInvalid }]"
+          :class="$style.searchInput"
           type="text"
-          :placeholder="regexMode ? i18n.ts._deckSearchColumn.regexPlaceholder : i18n.ts._deckSearchColumn.placeholder"
+          :placeholder="i18n.ts._deckSearchColumn.placeholder"
           @input="onQueryInput"
           @keydown="onKeydown"
         />
-        <div :class="$style.regexControls">
-          <button
-            :class="[$style.regexToggle, { [$style.regexToggleActive]: regexMode }]"
-            class="_button"
-            :title="i18n.ts._deckSearchColumn.regexMode"
-            @click="toggleRegexMode"
-          >
-            <span :class="$style.regexIconText">.*</span>
-          </button>
-          <button
-            :class="[$style.filterToggle, { [$style.filterToggleActive]: showFilters || hasActiveFilter(filter) }]"
-            class="_button"
-            :title="i18n.ts._searchFilterPanel.filter"
-            @click="showFilters = !showFilters"
-          >
-            <i class="ti ti-filter" />
-          </button>
+        <div :class="$style.barControls">
           <button
             :class="[$style.sortToggle, { [$style.sortToggleActive]: ascending }]"
             class="_button"
@@ -942,29 +991,40 @@ onUnmounted(() => {
             <i :class="ascending ? 'ti ti-sort-ascending' : 'ti ti-sort-descending'" />
           </button>
         </div>
-        <button
-          :class="$style.searchBtn"
-          class="_button"
-          :disabled="!searchQuery.trim() || isLoading || regexInvalid"
-          @click="performSearch"
+        <!-- 絞り込みはノートカラムと同じ漏斗 → ポップアップ (#1180)。検索の行を差し込む -->
+        <ColumnFilterButton
+          :column="column"
+          :filter-keys="BUILTIN_FILTER_KEYS"
+          :active="hasActiveFilter(filter)"
+          hide-queries
+          :theme-vars="columnThemeVars"
+          wide
+          compact
         >
-          <i class="ti ti-arrow-right" />
-        </button>
+          <template #extra>
+            <SearchFilterPanel
+              face="server"
+              :filter="filter"
+              :host-options="hostOptions"
+              :cross-account="isCrossAccount"
+              :author-state="authorState"
+              :author-resolved-label="authorResolvedLabel"
+              @update="onFilterUpdate"
+            />
+          </template>
+        </ColumnFilterButton>
       </div>
-
-      <SearchFilterPanel
-        v-if="showFilters"
-        face="server"
-        :filter="filter"
-        :host-options="hostOptions"
-        :hidden-rows="hiddenRows"
-        :author-state="authorState"
-        :author-resolved-label="authorResolvedLabel"
-        @update="onFilterUpdate"
-      />
 
       <div v-if="inlineError" :class="$style.inlineError">
         {{ inlineError }}
+      </div>
+      <!-- 投げなかったサーバーは理由ごとに一覧で見せる (0 件と見分ける、#1182) -->
+      <div v-if="isCrossAccount && crossSkipped.length > 0" :class="$style.inlineNote">
+        <div v-for="s in crossSkipped" :key="s.host">
+          {{ s.reason === 'scope'
+            ? i18n.tsx._deckSearchColumn.skippedScope({ host: s.host })
+            : i18n.tsx._deckSearchColumn.skippedAuthor({ host: s.host }) }}
+        </div>
       </div>
 
     </template>
@@ -1093,48 +1153,17 @@ onUnmounted(() => {
   }
 }
 
-.regexControls {
+.barControls {
   display: flex;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
 }
 
-.regexToggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 4px;
-  opacity: 0.35;
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base), color var(--nd-duration-base);
 
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-    opacity: 0.7;
-  }
-}
 
-.regexToggleActive {
-  opacity: 1;
-  color: var(--nd-accent);
-  background: var(--nd-accent-hover);
-}
 
-.regexIconText {
-  font-family: var(--nd-font-mono);
-  font-size: 0.8em;
-  font-weight: 700;
-}
 
-.regexInput {
-  font-family: var(--nd-font-mono);
-}
-
-.regexInvalid {
-  box-shadow: 0 0 0 2px var(--nd-love) !important;
-}
 
 .filterToggle,
 .sortToggle {
@@ -1168,26 +1197,12 @@ onUnmounted(() => {
   color: var(--nd-love);
 }
 
-.searchBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  flex-shrink: 0;
+.inlineNote {
+  padding: 4px 12px;
+  font-size: 0.75em;
   opacity: 0.6;
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
-
-  &:hover:not(:disabled) {
-    background: var(--nd-buttonHoverBg);
-    opacity: 1;
-  }
-
-  &:disabled {
-    opacity: 0.2;
-  }
 }
+
 
 .searchBody {
   composes: tlBody from './column-common.module.scss';
@@ -1224,5 +1239,7 @@ onUnmounted(() => {
     transform: scale(0.95) translateY(-4px);
   }
 }
+
+/* 実行ボタンはヘッダーバーに置く (API コンソールなど他のカラムの実行操作と同じ位置) */
 </style>
 

@@ -45,7 +45,7 @@ describe('SearchFilterPanel (#1180)', () => {
     expect(text).toContain('投稿者')
     expect(text).toContain('期間')
     expect(text).toContain('添付')
-    expect(text).toContain('本文の条件')
+    expect(text).toContain('条件')
     expect(container?.querySelector('select')).toBeTruthy()
   })
 

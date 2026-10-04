@@ -34,6 +34,8 @@ const props = defineProps<{
   }
   /** サーバー検索の範囲の選択肢。1 つしか無ければ行を出さない (選ぶものが無い) */
   hostOptions?: ServerHostOption[]
+  /** 全アカウント面: 「すべて」「ローカル」が各サーバーの束ねになるので語を変える */
+  crossAccount?: boolean
   /** サーバー検索の投稿者の解決状態 */
   authorState?: 'resolving' | 'resolved' | 'unresolved' | null
   authorResolvedLabel?: string
@@ -233,8 +235,8 @@ function clearAll() {
     <div v-if="rows.includes('host')" :class="$style.row">
       <span :class="$style.label">{{ i18n.ts._searchFilterPanel.scope }}</span>
       <select :class="$style.input" :value="hostKindDraft" @change="onHostKindChange">
-        <option v-if="hostOptions?.includes('all')" value="all">{{ i18n.ts._searchFilterPanel.hostAll }}</option>
-        <option v-if="hostOptions?.includes('local')" value="local">{{ i18n.ts._searchFilterPanel.hostLocal }}</option>
+        <option v-if="hostOptions?.includes('all')" value="all">{{ crossAccount ? i18n.ts._searchFilterPanel.hostAllAcross : i18n.ts._searchFilterPanel.hostAll }}</option>
+        <option v-if="hostOptions?.includes('local')" value="local">{{ crossAccount ? i18n.ts._searchFilterPanel.hostLocalAcross : i18n.ts._searchFilterPanel.hostLocal }}</option>
         <option v-if="hostOptions?.includes('host')" value="host">{{ i18n.ts._searchFilterPanel.hostSpecify }}</option>
       </select>
       <input
@@ -324,20 +326,19 @@ function clearAll() {
 </template>
 
 <style lang="scss" module>
+/* ノートカラムのフィルターメニューと同じポップアップの中に並ぶ行 (#1180)。
+   見出し・幅・余白はポップアップ側 (TimelineFilterPopup) が持つ */
 .panel {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px 12px 8px;
-  border-bottom: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
 }
 
 .row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   flex-wrap: wrap;
+  padding: 6px 14px;
 }
 
 .rowTop {
@@ -349,9 +350,8 @@ function clearAll() {
 }
 
 .label {
-  flex: 0 0 3em;
-  font-size: 0.75em;
-  opacity: 0.6;
+  flex: 0 0 3.5em;
+  font-size: 0.9em;
 }
 
 .input {
@@ -361,7 +361,7 @@ function clearAll() {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 4px 6px;
-  font-size: 0.8em;
+  font-size: 0.85em;
   color: var(--nd-fg);
   color-scheme: dark;
   outline: none;
@@ -378,8 +378,8 @@ function clearAll() {
 
 .hint {
   flex-basis: 100%;
-  padding-left: 3.5em;
-  font-size: 0.7em;
+  padding-left: calc(3.5em + 8px);
+  font-size: 0.75em;
   opacity: 0.6;
 }
 
@@ -389,7 +389,7 @@ function clearAll() {
 }
 
 .stale {
-  font-size: 0.75em;
+  font-size: 0.8em;
   opacity: 0.7;
 }
 
@@ -408,7 +408,7 @@ function clearAll() {
   gap: 4px;
   padding: 2px 8px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.75em;
+  font-size: 0.8em;
   opacity: 0.6;
 
   &:hover {
@@ -419,5 +419,6 @@ function clearAll() {
 
 .clearBtn {
   align-self: flex-end;
+  margin: 4px 14px 0;
 }
 </style>

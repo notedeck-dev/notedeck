@@ -901,8 +901,9 @@ pub struct CachedSearchFilters {
     pub has_files: Option<bool>,
     #[serde(default)]
     pub public_only: Option<bool>,
+    /// 「いずれかを含む」の行の並び。行の中は OR、行同士は AND (notedeck#1182)
     #[serde(default)]
-    pub text_any: Option<Vec<String>>,
+    pub text_any: Option<Vec<Vec<String>>>,
     #[serde(default)]
     pub text_all: Option<Vec<String>>,
     #[serde(default)]

@@ -8,6 +8,7 @@ import {
   externalQueryPatch,
   FACE_ROWS,
   hasActiveFilter,
+  hostPlanForAccount,
   matchesPlainTerm,
   matchesTextConditions,
   migrateSearchColumns,
@@ -18,6 +19,7 @@ import {
   type SearchFilter,
   serverHostOptions,
   staleRows,
+  unionHostOptions,
 } from './searchFilter'
 
 const accounts = [
@@ -77,15 +79,20 @@ describe('面ごとの行と「効いている」判定', () => {
     ])
   })
 
-  it('並び順と正規表現モードはパネルの行ではないので点灯しない。本文の条件は行なので点灯する', () => {
+  it('並び順はパネルの行ではないので点灯しない。本文の条件は行なので点灯する', () => {
     expect(hasActiveFilter({ ascending: true })).toBe(false)
-    expect(hasActiveFilter({ regex: true })).toBe(false)
     expect(
       hasActiveFilter({
         conditions: [{ type: 'excludes', words: ['bot'] }],
       }),
     ).toBe(true)
     expect(hasActiveFilter({ conditions: [] })).toBe(false)
+    expect(
+      hasActiveFilter({
+        conditions: [{ type: 'excludes', words: ['bot'] }],
+        conditionsPaused: true,
+      }),
+    ).toBe(false)
     expect(hasActiveFilter({ author: '  ' })).toBe(false)
     expect(hasActiveFilter({ hasFiles: false })).toBe(true)
     expect(hasActiveFilter({ scope: 'server:a.example' })).toBe(true)
@@ -121,12 +128,11 @@ describe('クリア', () => {
     until: '2026-01-31',
     hasFiles: true,
     ascending: true,
-    regex: true,
     conditions: [{ type: 'excludes', words: ['bot'] }],
   }
 
-  it('clearPanelRows はパネルの行 (本文の条件を含む) を消し、並び順と正規表現モードは残す', () => {
-    expect(clearPanelRows(full)).toEqual({ ascending: true, regex: true })
+  it('clearPanelRows はパネルの行 (本文の条件を含む) を消し、並び順は残す', () => {
+    expect(clearPanelRows(full)).toEqual({ ascending: true })
   })
 
   it('clearRow(conditions) は一時停止の印も一緒に消す', () => {
@@ -214,7 +220,7 @@ describe('本文の条件', () => {
 })
 
 describe('外部からの検索語の差し替え', () => {
-  it('期間と範囲を消し、正規表現を切り、本文の条件は消さずに止める。投稿者と並び順は残す', () => {
+  it('期間と範囲を消し、本文の条件は消さずに止める。投稿者と並び順は残す', () => {
     const patched = externalQueryPatch({
       scope: 'account:a1',
       host: '.',
@@ -223,7 +229,6 @@ describe('外部からの検索語の差し替え', () => {
       author: 'alice',
       authorIds: { a1: { id: 'u1', acct: 'alice@a.example' } },
       ascending: true,
-      regex: true,
       conditions: [{ type: 'excludes', words: ['bot'] }],
     })
     expect(patched).toEqual({
@@ -236,7 +241,7 @@ describe('外部からの検索語の差し替え', () => {
   })
 
   it('本文の条件が無ければ一時停止の印は付けない', () => {
-    expect(externalQueryPatch({ regex: true })).toEqual({})
+    expect(externalQueryPatch({ since: '2026-01-01' })).toEqual({})
     expect(externalQueryPatch(undefined)).toEqual({})
   })
 })
@@ -266,6 +271,45 @@ describe('サーバー検索の範囲', () => {
     expect(effectiveHostParam('.', 'a.example')).toBe('.')
     expect(effectiveHostParam('A.example', 'a.example')).toBe('.')
     expect(effectiveHostParam('b.example', 'a.example')).toBe('b.example')
+  })
+})
+
+describe('全アカウント面の範囲 (#1182)', () => {
+  const global = { noteSearchableScope: 'global', federation: 'all' }
+  const local = { noteSearchableScope: 'local', federation: 'all' }
+
+  it('選択肢は各サーバーの和集合で、順序は すべて / ローカル / ホスト指定', () => {
+    expect(unionHostOptions([local, global])).toEqual(['all', 'local', 'host'])
+    expect(unionHostOptions([local, null])).toEqual(['local'])
+    expect(unionHostOptions([])).toEqual([])
+  })
+
+  it('「すべて」と「ホスト指定」は出せるサーバーにだけ投げ、ローカルは常に投げる', () => {
+    const g = serverHostOptions(global)
+    const l = serverHostOptions(local)
+    expect(hostPlanForAccount(undefined, 'a.example', g)).toEqual({
+      kind: 'ok',
+    })
+    expect(hostPlanForAccount(undefined, 'a.example', l)).toEqual({
+      kind: 'skip',
+    })
+    expect(hostPlanForAccount('.', 'a.example', l)).toEqual({
+      kind: 'ok',
+      host: '.',
+    })
+    expect(hostPlanForAccount('b.example', 'a.example', g)).toEqual({
+      kind: 'ok',
+      host: 'b.example',
+    })
+    expect(hostPlanForAccount('b.example', 'a.example', l)).toEqual({
+      kind: 'skip',
+    })
+  })
+
+  it('指定ホストがそのサーバー自身ならローカルとして投げる (ローカルだけのサーバーでも)', () => {
+    expect(
+      hostPlanForAccount('A.example', 'a.example', serverHostOptions(local)),
+    ).toEqual({ kind: 'ok', host: '.' })
   })
 })
 

@@ -41,8 +41,6 @@ export interface SearchFilter {
   conditions?: TextCondition[]
   /** 外部から検索語を差し替えたとき、構造を消さずに効かない状態にする印 */
   conditionsPaused?: true
-  /** 正規表現モード (サーバー検索だけ意味を持つ)。パターンは検索語の欄そのもの */
-  regex?: boolean
   /**
    * クライアント検索の範囲: `''` = 全アカウント、`server:<host>`、`account:<id>`
    */
@@ -98,7 +96,8 @@ export function rowHasValue(
     case 'attachments':
       return filter.hasFiles !== undefined
     case 'conditions':
-      return (filter.conditions?.length ?? 0) > 0
+      // 止まっている条件 (外部からの検索語の差し替え) は効いていないので数えない
+      return effectiveConditions(filter).length > 0
   }
 }
 
@@ -106,7 +105,7 @@ function hasAnyAuthorId(filter: SearchFilter): boolean {
   return Object.values(filter.authorIds ?? {}).some((r) => r !== null)
 }
 
-/** パネルの行が 1 つでも効いているか (漏斗の点灯)。並び順と正規表現モードは含めない */
+/** パネルの行が 1 つでも効いているか (漏斗の点灯)。並び順は含めない */
 export function hasActiveFilter(filter: SearchFilter | undefined): boolean {
   return ALL_ROWS.some((row) => rowHasValue(filter, row))
 }
@@ -154,7 +153,7 @@ export function clearRow(
   return next
 }
 
-/** 「フィルターをクリア」: パネルの行だけ消し、並び順と正規表現モードは残す */
+/** 「フィルターをクリア」: パネルの行だけ消し、並び順は残す */
 export function clearPanelRows(filter: SearchFilter): SearchFilter {
   return ALL_ROWS.reduce<SearchFilter>((acc, row) => clearRow(acc, row), filter)
 }
@@ -229,8 +228,8 @@ export function matchesPlainTerm(note: NoteText, term: string): boolean {
 
 /**
  * 検索語の欄の入力以外 (ハッシュタグのクリック / CLI / AI) から検索語が
- * 差し替えられたときの条件: 期間と範囲を消し、正規表現を切り、本文の条件は
- * 消さずに止める。投稿者と並び順は残す
+ * 差し替えられたときの条件: 期間と範囲を消し、本文の条件は消さずに止める。
+ * 投稿者と並び順は残す
  */
 export function externalQueryPatch(
   filter: SearchFilter | undefined,
@@ -241,7 +240,6 @@ export function externalQueryPatch(
   delete next.until
   delete next.scope
   delete next.host
-  delete next.regex
   delete next.conditionsPaused
   if (next.conditions && next.conditions.length > 0) {
     next.conditionsPaused = true
@@ -308,6 +306,41 @@ export function serverHostOptions(
   const federates = meta?.federation !== 'none'
   if (scope === 'global' && federates) return ['all', 'local', 'host']
   return ['local']
+}
+
+/**
+ * 全アカウント面の範囲の選択肢: 各アカウントのサーバーの選択肢の和集合。
+ * 選べないサーバーには投げない (投げなかったことは別に見せる)
+ */
+export function unionHostOptions(
+  metas: readonly (SearchScopeMeta | null | undefined)[],
+): ServerHostOption[] {
+  const set = new Set<ServerHostOption>()
+  for (const m of metas) for (const o of serverHostOptions(m)) set.add(o)
+  const order: ServerHostOption[] = ['all', 'local', 'host']
+  return order.filter((o) => set.has(o))
+}
+
+export type HostPlan = { kind: 'skip' } | { kind: 'ok'; host?: string }
+
+/**
+ * そのアカウントのサーバーに範囲の条件をどう渡すか。「すべて」と「ホスト指定」は
+ * サーバーが選択肢として出せるときだけ (索引に無いものを探しに行かない)。
+ * ローカルはどのサーバーにもある。指定ホストがそのサーバー自身ならローカル
+ */
+export function hostPlanForAccount(
+  host: string | undefined,
+  accountHost: string,
+  options: readonly ServerHostOption[],
+): HostPlan {
+  const effective = effectiveHostParam(host, accountHost)
+  if (effective === undefined) {
+    return options.includes('all') ? { kind: 'ok' } : { kind: 'skip' }
+  }
+  if (effective === '.') return { kind: 'ok', host: '.' }
+  return options.includes('host')
+    ? { kind: 'ok', host: effective }
+    : { kind: 'skip' }
 }
 
 /**
