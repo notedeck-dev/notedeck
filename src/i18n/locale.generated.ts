@@ -36,7 +36,7 @@ export interface Locale {
     readonly "mentions": string
     /** ダイレクト */
     readonly "specified": string
-    /** チャット */
+    /** メッセージ */
     readonly "chat": string
     /** 実績 */
     readonly "achievements": string
@@ -294,7 +294,7 @@ export interface Locale {
     readonly "settingsEditor": string
     /** アカウント追加 */
     readonly "login": string
-    /** チャット */
+    /** メッセージ */
     readonly "chat": string
     /** AI アシスタント */
     readonly "ai": string
@@ -3482,11 +3482,11 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "closeSearch": string
     /** メッセージを検索 */
     readonly "searchMessages": string
-    /** チャットを検索... */
+    /** 会話を検索... */
     readonly "searchChatsPlaceholder": string
     /** 会話はありません */
     readonly "noConversations": string
-    /** 一致するチャットがありません */
+    /** 一致する会話がありません */
     readonly "noMatchingChats": string
     /** (ファイル) */
     readonly "fileOnly": string
@@ -3960,7 +3960,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "noteListMax": string
       /** 通知保持上限 */
       readonly "maxNotifications": string
-      /** チャットメッセージストア上限 */
+      /** メッセージストア上限 */
       readonly "chatMessageStoreMax": string
       /** MFM キャッシュ */
       readonly "mfmCacheMax": string
@@ -4018,7 +4018,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "streamPollingInterval": string
       /** 通知ポーリング間隔 */
       readonly "notificationPollInterval": string
-      /** チャットポーリング間隔 */
+      /** メッセージポーリング間隔 */
       readonly "chatPollInterval": string
       /** 同時 live カラム数 */
       readonly "maxLiveColumns": string
@@ -4064,7 +4064,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "noteListMax": string
       /** 通知カラムに保持する通知の最大数 */
       readonly "maxNotifications": string
-      /** グローバル chatMessageStore の保持上限。長時間チャットしている場合のメモリに影響 (#460) */
+      /** グローバル chatMessageStore の保持上限。長時間メッセージをやり取りしている場合のメモリに影響 (#460) */
       readonly "chatMessageStoreMax": string
       /** MFM パース結果の LRU キャッシュ上限 */
       readonly "mfmCacheMax": string
@@ -4122,7 +4122,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "streamPollingInterval": string
       /** 通知未読数の確認間隔。短いほどリアルタイム、長いほどバッテリー節約 */
       readonly "notificationPollInterval": string
-      /** チャット未読の確認間隔 */
+      /** メッセージ未読の確認間隔 */
       readonly "chatPollInterval": string
       /** ストリーミング接続を維持するカラムの上限。超過分は一時停止される */
       readonly "maxLiveColumns": string
@@ -5022,7 +5022,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "accountLoginDescription": string
     /** デッキを自分のものにする */
     readonly "customizeDeckTitle": string
-    /** NoteDeck はカラムを並べて使います。最初から並んでいるのは、追加した全アカウントをまとめて表示するカラムです。カラムのヘッダーから並べ替え・削除ができ、カラム追加 (＋) から通知・検索・チャットなどを足せます。並びを 1 つ変えると自動で次へ進みます。 */
+    /** NoteDeck はカラムを並べて使います。最初から並んでいるのは、追加した全アカウントをまとめて表示するカラムです。カラムのヘッダーから並べ替え・削除ができ、カラム追加 (＋) から通知・検索・メッセージなどを足せます。並びを 1 つ変えると自動で次へ進みます。 */
     readonly "customizeDeckDescription": string
     /** 通知をサイドバーに開く */
     readonly "openNotificationsTitle": string
@@ -6505,9 +6505,9 @@ export const COLUMN_LABELS_BY_TYPE: Readonly<Record<string, readonly string[]>> 
     "[Đíŕéçť ĺó]"
   ],
   "chat": [
-    "チャット",
-    "Chat",
-    "[Çĥáť ĺ]"
+    "メッセージ",
+    "Messages",
+    "[Méššáğéš ĺóŕ]"
   ],
   "achievements": [
     "実績",
