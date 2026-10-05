@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import type { PrincipalClass } from '@/bindings'
+import ChoiceCard from '@/components/common/ChoiceCard.vue'
+import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES, faviconUrl } from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
@@ -54,95 +56,70 @@ function classBadge(
     <p :class="$style.sectionTitle">
       {{ isEmpty ? i18n.ts._connectionsContent.chooseService : i18n.ts._connectionsContent.addConnection }}
     </p>
-    <div :class="$style.grid">
-      <button
+    <ChoiceCardGrid>
+      <ChoiceCard
         v-for="tpl in BUILTIN_TEMPLATES"
         :key="tpl.id"
-        class="_button"
-        :class="$style.card"
+        :label="tpl.name"
+        :icon-url="failedIcons.has(tpl.id) ? null : faviconUrl(tpl.baseUrl)"
+        :icon="tpl.icon"
+        @icon-error="failedIcons.add(tpl.id)"
         @click="openEdit({ templateId: tpl.id })"
-      >
-        <img
-          v-if="faviconUrl(tpl.baseUrl) && !failedIcons.has(tpl.id)"
-          :src="faviconUrl(tpl.baseUrl)!"
-          :class="$style.logo"
-          alt=""
-          @error="failedIcons.add(tpl.id)"
-        />
-        <i v-else class="ti" :class="[`ti-${tpl.icon}`, $style.logoFallback]" />
-        <span>{{ tpl.name }}</span>
-      </button>
-
+      />
       <!-- 手動追加も同じグリッドの「＋」カードに統一。 -->
-      <button
-        class="_button"
-        :class="[$style.card, $style.addCard]"
-        @click="openEdit({})"
-      >
-        <i class="ti ti-plus" :class="$style.logoFallback" />
-        <span>{{ i18n.ts._connectionsContent.addManually }}</span>
-      </button>
-    </div>
+      <ChoiceCard dashed icon="plus" :label="i18n.ts._connectionsContent.addManually" @click="openEdit({})" />
+    </ChoiceCardGrid>
 
     <!-- 登録済みの接続: 同じグリッド UI で表示。 -->
     <template v-if="connections.length > 0">
       <p :class="$style.sectionTitle">{{ i18n.ts._connectionsContent.registered }}</p>
-      <div :class="$style.grid">
-        <button
+      <ChoiceCardGrid>
+        <ChoiceCard
           v-for="conn in connections"
           :key="conn.id"
-          class="_button"
-          :class="$style.card"
+          :label="conn.name"
+          :icon-url="failedIcons.has(conn.id) ? null : faviconUrl(conn.baseUrl)"
+          icon="plug-connected"
+          @icon-error="failedIcons.add(conn.id)"
           @click="openEdit({ connectionId: conn.id })"
         >
-          <span
-            v-if="classBadge(conn, 'ai') !== 'hidden'"
-            :class="[$style.connBadge, $style[`cls_${classBadge(conn, 'ai')}`]]"
-            :title="
-              classBadge(conn, 'ai') === 'active'
-                ? i18n.ts._connectionsContent.aiActive
-                : i18n.ts._connectionsContent.aiPending
-            "
-          >
-            <i class="ti ti-robot" />
-          </span>
-          <span
-            v-if="classBadge(conn, 'plugin') !== 'hidden'"
-            :class="[$style.connBadge, $style[`cls_${classBadge(conn, 'plugin')}`]]"
-            :title="
-              classBadge(conn, 'plugin') === 'active'
-                ? i18n.ts._connectionsContent.pluginActive
-                : i18n.ts._connectionsContent.pluginPending
-            "
-          >
-            <i class="ti ti-puzzle" />
-          </span>
-          <span
-            v-if="classBadge(conn, 'external') !== 'hidden'"
-            :class="[$style.connBadge, $style[`cls_${classBadge(conn, 'external')}`]]"
-            :title="
-              classBadge(conn, 'external') === 'active'
-                ? i18n.ts._connectionsContent.externalActive
-                : i18n.ts._connectionsContent.externalPending
-            "
-          >
-            <i class="ti ti-plug" />
-          </span>
-          <img
-            v-if="faviconUrl(conn.baseUrl) && !failedIcons.has(conn.id)"
-            :src="faviconUrl(conn.baseUrl)!"
-            :class="$style.logo"
-            alt=""
-            @error="failedIcons.add(conn.id)"
-          />
-          <i
-            v-else
-            class="ti ti-plug-connected"
-            :class="$style.logoFallback"
-          />
-          <span>{{ conn.name }}</span>
-        </button>
-      </div>
+          <template #badge>
+            <span
+              v-if="classBadge(conn, 'ai') !== 'hidden'"
+              :class="$style[`cls_${classBadge(conn, 'ai')}`]"
+              :title="
+                classBadge(conn, 'ai') === 'active'
+                  ? i18n.ts._connectionsContent.aiActive
+                  : i18n.ts._connectionsContent.aiPending
+              "
+            >
+              <i class="ti ti-robot" />
+            </span>
+            <span
+              v-if="classBadge(conn, 'plugin') !== 'hidden'"
+              :class="$style[`cls_${classBadge(conn, 'plugin')}`]"
+              :title="
+                classBadge(conn, 'plugin') === 'active'
+                  ? i18n.ts._connectionsContent.pluginActive
+                  : i18n.ts._connectionsContent.pluginPending
+              "
+            >
+              <i class="ti ti-puzzle" />
+            </span>
+            <span
+              v-if="classBadge(conn, 'external') !== 'hidden'"
+              :class="$style[`cls_${classBadge(conn, 'external')}`]"
+              :title="
+                classBadge(conn, 'external') === 'active'
+                  ? i18n.ts._connectionsContent.externalActive
+                  : i18n.ts._connectionsContent.externalPending
+              "
+            >
+              <i class="ti ti-plug" />
+            </span>
+          </template>
+        </ChoiceCard>
+      </ChoiceCardGrid>
     </template>
   </div>
 </template>
@@ -167,64 +144,6 @@ function classBadge(
   margin: 8px 0 2px;
   font-size: 0.85em;
   color: var(--nd-fgMuted);
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-
-.card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 14px 8px;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-buttonBg);
-  color: var(--nd-fg);
-  font-size: 0.8em;
-  cursor: pointer;
-  text-align: center;
-
-  span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-  }
-}
-
-.addCard {
-  border: 1px dashed var(--nd-divider);
-  background: transparent;
-}
-
-.logo {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  border-radius: 4px;
-}
-
-.logoFallback {
-  font-size: 22px;
-  color: var(--nd-fgMuted);
-}
-
-.connBadge {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: flex;
-  align-items: center;
-  font-size: 12px;
-
-  i {
-    font-size: 12px;
-  }
 }
 
 .cls_active {

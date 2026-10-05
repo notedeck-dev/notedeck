@@ -11,6 +11,7 @@ pub(crate) use settings::SETTINGS_DIR;
 mod system_state;
 mod table;
 mod timeline;
+mod tray;
 mod utility;
 
 // Re-export all commands so lib.rs `commands::xxx` paths remain unchanged
@@ -26,6 +27,7 @@ pub use settings::*;
 pub use system_state::*;
 pub use table::*;
 pub use timeline::*;
+pub use tray::*;
 pub use utility::*;
 
 use notecli::db::Database;

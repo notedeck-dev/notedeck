@@ -28,7 +28,7 @@ _columns:
   clip: "クリップ"
   mentions: "メンション"
   specified: "ダイレクト"
-  chat: "チャット"
+  chat: "メッセージ"
   achievements: "実績"
   serverInfo: "サーバー情報"
   aboutMisskey: "Misskey について"
@@ -161,7 +161,7 @@ _commands:
   themeManagerGlobal: "テーマを管理 (全アカウント)"
   settingsEditor: "アピアランス"
   login: "アカウント追加"
-  chat: "チャット"
+  chat: "メッセージ"
   ai: "AI アシスタント"
   closeAllFloatingWindows: "フローティングウィンドウをすべて閉じる"
   popOutColumn: "カラムを別ウィンドウにポップアウト"
@@ -260,7 +260,6 @@ _common:
   reactions: "リアクション"
   reload: "リロード"
   relogin: "再ログイン"
-  remove: "解除"
   renote: "リノート"
   renotes: "リノート"
   reply: "返信"
@@ -285,6 +284,7 @@ _common:
   updateFailed: "更新に失敗しました"
   users: "ユーザー"
   unknownError: "不明なエラー"
+  remove: "解除"
 
 _appConfirm:
   trustedHeader: "NoteDeck の権限確認"
@@ -461,6 +461,7 @@ _mkReactionUsersPopup:
   muteEmoji: "この絵文字をミュート"
 
 _mkUserListItem:
+  following: "フォロー中"
   blocking: "ブロック中"
   muted: "ミュート中"
 
@@ -716,7 +717,8 @@ _tutorialContent:
   next: "次へ →"
 
 _aiConnectionSection:
-  title: "AI 接続"
+  title: "接続"
+  acpTitle: "ACP"
   notSelected: "未選択"
   keyHint: "API キーは Secret Vault (OS キーチェーン) に保管され、フロントエンドや AI には渡りません。接続の追加・編集は「接続」ウィンドウで行います。"
   noConnections: "AI プロバイダー接続がありません。「接続」ウィンドウのテンプレートから接続を追加してください。"
@@ -726,7 +728,6 @@ _aiConnectionSection:
   dailyTokenBudget: "1 日の token 予算"
   tokensPerDay: "tokens / 日"
   dailyTokenBudgetHint: "この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。"
-  harnessTitle: "手元の CLI で動かす"
   harnessHint: "ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。"
   harnessFound: "見つかりました"
   harnessNotFound: "見つかりません"
@@ -796,9 +797,10 @@ _aiHeartbeatSection:
   stepsOpenFailed: "巡回の手順を開けませんでした: {reason}"
 
 _aiPersonalitySection:
-  title: "AI の人格と記憶"
+  title: "ペルソナ"
+  memorySectionTitle: "メモリー"
   soul: "人格"
-  soulPlaceholder: "AI の核になる人格。キャラクターを切り替えても変わりません。"
+  soulHint: "人格の本文 (SOUL.md) はここでは編集しません。開発者モードの SOUL.md タブか外部エディターで編集します。AI は書き換えを提案し、承認を経て変えます。"
   character: "キャラクター"
   characterNone: "なし"
   characterHint: "新しいセッションから反映されます。過去のセッションは作成時のキャラクターのままです。"
@@ -922,6 +924,7 @@ _pipPage:
   playEdit: "Play 編集"
 
 _aiSettingsContent:
+  soulHint: "SOUL.md を Markdown のまま編集できます。見出し (# と ##) の構造を保つと人格のフォームに戻せます。"
   rawHint: "ai.json5 を直接編集できます。API キーはキーチェーン管理のため raw には現れません。"
 
 _appearanceEditorContent:
@@ -1077,9 +1080,9 @@ _permissionProfileEditor:
   highRisk: "高リスク操作"
 
 _petSection:
+  none: "なし"
   title: "ペット"
   openPage: "petdex.dev で見る"
-  remove: "ペットを外す"
   size: "ペットの大きさ"
   inputPlaceholder: "slug か petdex.dev のペット URL"
   replace: "替える"
@@ -1929,9 +1932,9 @@ _deckChartsColumn:
 _deckChatColumn:
   closeSearch: "検索を閉じる"
   searchMessages: "メッセージを検索"
-  searchChatsPlaceholder: "チャットを検索..."
+  searchChatsPlaceholder: "会話を検索..."
   noConversations: "会話はありません"
-  noMatchingChats: "一致するチャットがありません"
+  noMatchingChats: "一致する会話がありません"
   fileOnly: "(ファイル)"
   searchMessagesPlaceholder: "メッセージを検索..."
   noMatchingMessages: "一致するメッセージがありません"
@@ -2002,7 +2005,10 @@ _deckLookupColumn:
   adapterInitFailed: "アダプターの初期化に失敗しました"
   lookupFailed: "照会できませんでした"
   noLoggedInAccount: "ログイン済みアカウントがありません"
-  userLookupSingleAccountOnly: "ユーザー照会は単一アカウントモードで行ってください"
+  userNotFoundCount_plural:
+    other: "{count} アカウントでは見つかりませんでした"
+  userUnresolved: "{account}: 解決できませんでした (相手のサーバーに届かないか、連合していません)"
+  userFailed: "{account}: 照会に失敗しました"
 
 _deckMemoColumn:
   empty: "メモはありません"
@@ -2017,6 +2023,14 @@ _deckMentionsColumn:
   directEmpty: "ダイレクトメッセージはありません"
   toYou: "あなた宛て"
   mentionsEmpty: "メンションはありません"
+
+_tray:
+  show: "NoteDeck を表示"
+  offline: "オフラインモード"
+  realtime: "リアルタイムモード"
+  heartbeat: "HEARTBEAT を有効化"
+  resident: "アプリを終了しても AI を動かす"
+  quit: "終了"
 
 _deckNoteColumn:
   noNotesYet: "まだノートがありません"
@@ -2201,7 +2215,7 @@ _performanceData:
     noteStoreMax: "ノートストア上限"
     noteListMax: "DOM 表示上限/カラム"
     maxNotifications: "通知保持上限"
-    chatMessageStoreMax: "チャットメッセージストア上限"
+    chatMessageStoreMax: "メッセージストア上限"
     mfmCacheMax: "MFM キャッシュ"
     blurhashCacheMax: "blurhash キャッシュ"
     imageProxyCacheMax: "プロキシ URL キャッシュ"
@@ -2230,7 +2244,7 @@ _performanceData:
     cssShadowLevel: "シャドウ強度"
     streamPollingInterval: "ストリームポーリング間隔"
     notificationPollInterval: "通知ポーリング間隔"
-    chatPollInterval: "チャットポーリング間隔"
+    chatPollInterval: "メッセージポーリング間隔"
     maxLiveColumns: "同時 live カラム数"
     columnUnloadDelay: "カラムアンロード遅延"
     snapshotMaxNotes: "スナップショット保存数"
@@ -2253,7 +2267,7 @@ _performanceData:
     noteStoreMax: "グローバルノートストアの保持上限。長時間セッションのメモリ消費に影響"
     noteListMax: "カラムあたりのデータ配列上限。超過分はスクロール時に破棄"
     maxNotifications: "通知カラムに保持する通知の最大数"
-    chatMessageStoreMax: "グローバル chatMessageStore の保持上限。長時間チャットしている場合のメモリに影響 (#460)"
+    chatMessageStoreMax: "グローバル chatMessageStore の保持上限。長時間メッセージをやり取りしている場合のメモリに影響 (#460)"
     mfmCacheMax: "MFM パース結果の LRU キャッシュ上限"
     blurhashCacheMax: "画像ロード前のプレースホルダー (blurhash → data URL) の LRU キャッシュ上限"
     imageProxyCacheMax: "プロキシ URL 変換の LRU キャッシュ上限"
@@ -2282,7 +2296,7 @@ _performanceData:
     cssShadowLevel: "box-shadow の描画レベル。0=無効、1=軽量、2=フル (Misskey 準拠)"
     streamPollingInterval: "ポーリングモード時のタイムライン更新間隔。短いほどリアルタイムに近い"
     notificationPollInterval: "通知未読数の確認間隔。短いほどリアルタイム、長いほどバッテリー節約"
-    chatPollInterval: "チャット未読の確認間隔"
+    chatPollInterval: "メッセージ未読の確認間隔"
     maxLiveColumns: "ストリーミング接続を維持するカラムの上限。超過分は一時停止される"
     columnUnloadDelay: "画面外カラムをアンマウントするまでの待機時間。短いほどメモリ節約"
     snapshotMaxNotes: "カラムスナップショットに保存するノート数。多いほど復帰が完全"
@@ -2785,7 +2799,7 @@ _tutorialSteps:
   accountLoginTitle: "Misskey アカウントを追加"
   accountLoginDescription: "ログインウィンドウで Misskey サーバーのホスト名 (例: misskey.io) を入れて認証してください。ログインが完了すると自動で次へ進みます。"
   customizeDeckTitle: "デッキを自分のものにする"
-  customizeDeckDescription: "NoteDeck はカラムを並べて使います。最初から並んでいるのは、追加した全アカウントをまとめて表示するカラムです。カラムのヘッダーから並べ替え・削除ができ、カラム追加 (＋) から通知・検索・チャットなどを足せます。並びを 1 つ変えると自動で次へ進みます。"
+  customizeDeckDescription: "NoteDeck はカラムを並べて使います。最初から並んでいるのは、追加した全アカウントをまとめて表示するカラムです。カラムのヘッダーから並べ替え・削除ができ、カラム追加 (＋) から通知・検索・メッセージなどを足せます。並びを 1 つ変えると自動で次へ進みます。"
   openNotificationsTitle: "通知をサイドバーに開く"
   openNotificationsDescription: "ナビバーの通知ボタン (光っています) を押してみましょう。ナビバーのボタンは、カラムをサイドバーに開いたり閉じたりします。開くと自動で次へ進みます。"
   createProfileTitle: "プロファイルを作る"

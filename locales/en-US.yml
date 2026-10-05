@@ -21,7 +21,7 @@ _columns:
   clip: "Clip"
   mentions: "Mentions"
   specified: "Direct"
-  chat: "Chat"
+  chat: "Messages"
   achievements: "Achievements"
   serverInfo: "Server info"
   aboutMisskey: "About Misskey"
@@ -154,7 +154,7 @@ _commands:
   themeManagerGlobal: "Manage themes (all accounts)"
   settingsEditor: "Appearance"
   login: "Add account"
-  chat: "Chat"
+  chat: "Messages"
   ai: "AI assistant"
   closeAllFloatingWindows: "Close all floating windows"
   popOutColumn: "Pop out column to a new window"
@@ -680,6 +680,7 @@ _mkReactionUsersPopup:
   muteEmoji: "Mute this emoji"
 
 _mkUserListItem:
+  following: "Following"
   blocking: "Blocking"
   muted: "Muted"
 
@@ -939,7 +940,8 @@ _tutorialContent:
   next: "Next →"
 
 _aiConnectionSection:
-  title: "AI connection"
+  title: "Connection"
+  acpTitle: "ACP"
   notSelected: "Not selected"
   keyHint: "API keys are stored in the Secret Vault (OS keychain) and never passed to the frontend or the AI. Add and edit connections in the Connections window."
   noConnections: "No AI provider connections. Add one from a template in the Connections window."
@@ -949,7 +951,6 @@ _aiConnectionSection:
   dailyTokenBudget: "Daily token budget"
   tokensPerDay: "tokens / day"
   dailyTokenBudgetHint: "Cap for chat and HEARTBEAT combined on this connection. 0 = unlimited."
-  harnessTitle: "Run with a local CLI"
   harnessHint: "Use a logged-in CLI as the AI (no API key needed). Permission requests from the CLI appear as confirmations in the chat. HEARTBEAT does not run."
   harnessFound: "found"
   harnessNotFound: "not found"
@@ -1019,9 +1020,10 @@ _aiHeartbeatSection:
   stepsOpenFailed: "Could not open the steps: {reason}"
 
 _aiPersonalitySection:
-  title: "AI personality and memory"
+  title: "Persona"
+  memorySectionTitle: "Memory"
   soul: "Personality"
-  soulPlaceholder: "The core of the AI's personality. It stays the same when you switch characters."
+  soulHint: "The personality text (SOUL.md) is not edited here. Use the SOUL.md tab in developer mode or an external editor. The AI proposes edits and changes it after approval."
   character: "Character"
   characterNone: "None"
   characterHint: "Applies from the next session. Existing sessions keep the character they were created with."
@@ -1145,6 +1147,7 @@ _pipPage:
   playEdit: "Edit Play"
 
 _aiSettingsContent:
+  soulHint: "Edit SOUL.md as Markdown. Keep the heading structure (# and ##) so it can still be shown as the personality form."
   rawHint: "Edit ai.json5 directly. API keys are stored in the keychain and never appear in the raw file."
 
 _appearanceEditorContent:
@@ -1302,9 +1305,9 @@ _permissionProfileEditor:
   highRisk: "High-risk operation"
 
 _petSection:
+  none: "None"
   title: "Pet"
   openPage: "View on petdex.dev"
-  remove: "Remove pet"
   size: "Pet size"
   inputPlaceholder: "Slug or petdex.dev pet URL"
   replace: "Switch"
@@ -2178,9 +2181,9 @@ _deckChartsColumn:
 _deckChatColumn:
   closeSearch: "Close search"
   searchMessages: "Search messages"
-  searchChatsPlaceholder: "Search chats..."
+  searchChatsPlaceholder: "Search conversations..."
   noConversations: "No conversations"
-  noMatchingChats: "No matching chats"
+  noMatchingChats: "No matching conversations"
   fileOnly: "(File)"
   searchMessagesPlaceholder: "Search messages..."
   noMatchingMessages: "No matching messages"
@@ -2252,7 +2255,11 @@ _deckLookupColumn:
   adapterInitFailed: "Failed to initialize the adapter"
   lookupFailed: "Lookup failed"
   noLoggedInAccount: "No logged-in accounts"
-  userLookupSingleAccountOnly: "Look up users in single-account mode"
+  userNotFoundCount_plural:
+    one: "Not found on {count} account"
+    other: "Not found on {count} accounts"
+  userUnresolved: "{account}: could not resolve (the remote server is unreachable or not federated)"
+  userFailed: "{account}: lookup failed"
 
 _deckMemoColumn:
   empty: "No memos"
@@ -2267,6 +2274,14 @@ _deckMentionsColumn:
   directEmpty: "No direct messages"
   toYou: "Mentions"
   mentionsEmpty: "No mentions"
+
+_tray:
+  show: "Show NoteDeck"
+  offline: "Offline Mode"
+  realtime: "Realtime Mode"
+  heartbeat: "Enable HEARTBEAT"
+  resident: "Keep AI running after the app exits"
+  quit: "Quit"
 
 _deckNoteColumn:
   noNotesYet: "No notes yet"
@@ -2454,7 +2469,7 @@ _performanceData:
     noteStoreMax: "Note store limit"
     noteListMax: "DOM display limit / column"
     maxNotifications: "Notification retention limit"
-    chatMessageStoreMax: "Chat message store limit"
+    chatMessageStoreMax: "Message store limit"
     mfmCacheMax: "MFM cache"
     blurhashCacheMax: "blurhash cache"
     imageProxyCacheMax: "Proxy URL cache"
@@ -2483,7 +2498,7 @@ _performanceData:
     cssShadowLevel: "Shadow strength"
     streamPollingInterval: "Stream polling interval"
     notificationPollInterval: "Notification polling interval"
-    chatPollInterval: "Chat polling interval"
+    chatPollInterval: "Message polling interval"
     maxLiveColumns: "Simultaneous live columns"
     columnUnloadDelay: "Column unload delay"
     snapshotMaxNotes: "Snapshot size"
@@ -2506,7 +2521,7 @@ _performanceData:
     noteStoreMax: "Retention limit of the global note store. Affects memory usage in long sessions"
     noteListMax: "Data array limit per column. Items beyond it are discarded while scrolling"
     maxNotifications: "Maximum number of notifications kept in a notification column"
-    chatMessageStoreMax: "Retention limit of the global chatMessageStore. Affects memory when chatting for a long time (#460)"
+    chatMessageStoreMax: "Retention limit of the global chatMessageStore. Affects memory when messaging for a long time (#460)"
     mfmCacheMax: "LRU cache limit for parsed MFM results"
     blurhashCacheMax: "LRU cache limit for placeholders shown before images load (blurhash → data URL)"
     imageProxyCacheMax: "LRU cache limit for proxy URL conversion"
@@ -2535,7 +2550,7 @@ _performanceData:
     cssShadowLevel: "Rendering level of box-shadow. 0 = off, 1 = light, 2 = full (same as Misskey)"
     streamPollingInterval: "Timeline update interval in polling mode. Shorter is closer to real time"
     notificationPollInterval: "Interval for checking unread notifications. Shorter is closer to real time, longer saves battery"
-    chatPollInterval: "Interval for checking unread chats"
+    chatPollInterval: "Interval for checking unread messages"
     maxLiveColumns: "Maximum number of columns that keep a streaming connection. The rest are paused"
     columnUnloadDelay: "Wait time before off-screen columns are unmounted. Shorter saves memory"
     snapshotMaxNotes: "Number of notes saved in a column snapshot. More makes restoring more complete"
@@ -3045,7 +3060,7 @@ _tutorialSteps:
   accountLoginTitle: "Add a Misskey account"
   accountLoginDescription: "In the login window, enter the host name of your Misskey server (e.g. misskey.io) and authenticate. Once login completes, the tutorial moves on automatically."
   customizeDeckTitle: "Make the deck your own"
-  customizeDeckDescription: "NoteDeck is used by arranging columns. The column you start with shows all the accounts you have added together. You can reorder or remove columns from their headers, and add notifications, search, chat and more from Add column (+). Change the arrangement once and the tutorial moves on automatically."
+  customizeDeckDescription: "NoteDeck is used by arranging columns. The column you start with shows all the accounts you have added together. You can reorder or remove columns from their headers, and add notifications, search, messages and more from Add column (+). Change the arrangement once and the tutorial moves on automatically."
   openNotificationsTitle: "Open notifications in the sidebar"
   openNotificationsDescription: "Try pressing the notifications button on the navbar (it is glowing). Navbar buttons open and close columns in the sidebar. Open it and the tutorial moves on automatically."
   createProfileTitle: "Create a profile"

@@ -5,7 +5,6 @@ use std::sync::Arc;
 use tauri::Manager;
 #[cfg(not(mobile))]
 use tauri::{
-    menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Emitter,
 };
@@ -20,6 +19,8 @@ mod commands;
 mod error;
 #[cfg(desktop)]
 mod maid_launcher;
+#[cfg(desktop)]
+mod tray;
 /// Public so the `gen-openapi` binary and the OpenAPI snapshot test can call
 /// [`http_server::build_openapi`].
 /// notecore の HTTP サーバーの再公開。`build_openapi` はアプリのバージョンを埋めた形で
@@ -848,14 +849,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 })?;
         }
 
-        // System tray (desktop only)
+        // System tray (desktop only)。項目の文言とチェック状態はフロントが
+        // tray_sync で押し込む (#1174)
         #[cfg(not(mobile))]
         {
-            let show_i = MenuItem::with_id(app, "show", "Show NoteDeck", true, None::<&str>)?;
-            let offline_i = MenuItem::with_id(app, "offline", "Offline Mode", true, None::<&str>)?;
-            let realtime_i = MenuItem::with_id(app, "realtime", "Realtime Mode", true, None::<&str>)?;
-            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&show_i, &offline_i, &realtime_i, &quit_i])?;
+            let (menu, tray_menu) = tray::TrayMenu::build(app.handle())?;
+            app.manage(tray_menu);
 
             let icon = app
                 .default_window_icon()
@@ -866,23 +865,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 .icon(icon)
                 .tooltip("NoteDeck")
                 .menu(&menu)
-                .on_menu_event(|app, event| match event.id.as_ref() {
-                    "show" => {
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.set_focus();
-                        }
-                    }
-                    "offline" => {
-                        let _ = app.emit("nd:toggle-offline-mode", ());
-                    }
-                    "realtime" => {
-                        let _ = app.emit("nd:toggle-realtime-mode", ());
-                    }
-                    "quit" => {
-                        app.exit(0);
-                    }
-                    _ => {}
+                .on_menu_event(|app, event| {
+                    tray::TrayMenu::<tauri::Wry>::on_menu_event(app, event.id.as_ref())
                 })
                 .on_tray_icon_event(|tray, event| {
                     if let TrayIconEvent::Click {
@@ -1286,6 +1270,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::core_resident_status,
             commands::core_set_resident,
             commands::core_sync_accounts,
+            commands::tray_sync,
             // Healthcheck (#644) — notecli doctor + ランタイム状態の自己診断
             commands::run_healthcheck,
             commands::health_core,

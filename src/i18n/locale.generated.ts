@@ -36,7 +36,7 @@ export interface Locale {
     readonly "mentions": string
     /** ダイレクト */
     readonly "specified": string
-    /** チャット */
+    /** メッセージ */
     readonly "chat": string
     /** 実績 */
     readonly "achievements": string
@@ -294,7 +294,7 @@ export interface Locale {
     readonly "settingsEditor": string
     /** アカウント追加 */
     readonly "login": string
-    /** チャット */
+    /** メッセージ */
     readonly "chat": string
     /** AI アシスタント */
     readonly "ai": string
@@ -488,8 +488,6 @@ export interface Locale {
     readonly "reload": string
     /** 再ログイン */
     readonly "relogin": string
-    /** 解除 */
-    readonly "remove": string
     /** リノート */
     readonly "renote": string
     /** リノート */
@@ -538,6 +536,8 @@ export interface Locale {
     readonly "users": string
     /** 不明なエラー */
     readonly "unknownError": string
+    /** 解除 */
+    readonly "remove": string
   }
   readonly "_appConfirm": {
     /** NoteDeck の権限確認 */
@@ -824,6 +824,8 @@ export interface Locale {
     readonly "muteEmoji": string
   }
   readonly "_mkUserListItem": {
+    /** フォロー中 */
+    readonly "following": string
     /** ブロック中 */
     readonly "blocking": string
     /** ミュート中 */
@@ -1284,8 +1286,10 @@ export interface Locale {
     readonly "next": string
   }
   readonly "_aiConnectionSection": {
-    /** AI 接続 */
+    /** 接続 */
     readonly "title": string
+    /** ACP */
+    readonly "acpTitle": string
     /** 未選択 */
     readonly "notSelected": string
     /** API キーは Secret Vault (OS キーチェーン) に保管され、フロントエンドや AI には渡りません。接続の追加・編集は「接続」ウィンドウで行います。 */
@@ -1304,8 +1308,6 @@ export interface Locale {
     readonly "tokensPerDay": string
     /** この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。 */
     readonly "dailyTokenBudgetHint": string
-    /** 手元の CLI で動かす */
-    readonly "harnessTitle": string
     /** ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。 */
     readonly "harnessHint": string
     /** 見つかりました */
@@ -1436,12 +1438,14 @@ export interface Locale {
     readonly "stepsOpenFailed": ParameterizedString<'reason'>
   }
   readonly "_aiPersonalitySection": {
-    /** AI の人格と記憶 */
+    /** ペルソナ */
     readonly "title": string
+    /** メモリー */
+    readonly "memorySectionTitle": string
     /** 人格 */
     readonly "soul": string
-    /** AI の核になる人格。キャラクターを切り替えても変わりません。 */
-    readonly "soulPlaceholder": string
+    /** 人格の本文 (SOUL.md) はここでは編集しません。開発者モードの SOUL.md タブか外部エディターで編集します。AI は書き換えを提案し、承認を経て変えます。 */
+    readonly "soulHint": string
     /** キャラクター */
     readonly "character": string
     /** なし */
@@ -1664,6 +1668,8 @@ export interface Locale {
     readonly "playEdit": string
   }
   readonly "_aiSettingsContent": {
+    /** SOUL.md を Markdown のまま編集できます。見出し (# と ##) の構造を保つと人格のフォームに戻せます。 */
+    readonly "soulHint": string
     /** ai.json5 を直接編集できます。API キーはキーチェーン管理のため raw には現れません。 */
     readonly "rawHint": string
   }
@@ -1932,12 +1938,12 @@ export interface Locale {
     readonly "highRisk": string
   }
   readonly "_petSection": {
+    /** なし */
+    readonly "none": string
     /** ペット */
     readonly "title": string
     /** petdex.dev で見る */
     readonly "openPage": string
-    /** ペットを外す */
-    readonly "remove": string
     /** ペットの大きさ */
     readonly "size": string
     /** slug か petdex.dev のペット URL */
@@ -3482,11 +3488,11 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "closeSearch": string
     /** メッセージを検索 */
     readonly "searchMessages": string
-    /** チャットを検索... */
+    /** 会話を検索... */
     readonly "searchChatsPlaceholder": string
     /** 会話はありません */
     readonly "noConversations": string
-    /** 一致するチャットがありません */
+    /** 一致する会話がありません */
     readonly "noMatchingChats": string
     /** (ファイル) */
     readonly "fileOnly": string
@@ -3611,8 +3617,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "lookupFailed": string
     /** ログイン済みアカウントがありません */
     readonly "noLoggedInAccount": string
-    /** ユーザー照会は単一アカウントモードで行ってください */
-    readonly "userLookupSingleAccountOnly": string
+    /** {count} アカウントでは見つかりませんでした */
+    readonly "userNotFoundCount_plural": PluralString<'count'>
+    /** {account}: 解決できませんでした (相手のサーバーに届かないか、連合していません) */
+    readonly "userUnresolved": ParameterizedString<'account'>
+    /** {account}: 照会に失敗しました */
+    readonly "userFailed": ParameterizedString<'account'>
   }
   readonly "_deckMemoColumn": {
     /** メモはありません */
@@ -3637,6 +3647,20 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "toYou": string
     /** メンションはありません */
     readonly "mentionsEmpty": string
+  }
+  readonly "_tray": {
+    /** NoteDeck を表示 */
+    readonly "show": string
+    /** オフラインモード */
+    readonly "offline": string
+    /** リアルタイムモード */
+    readonly "realtime": string
+    /** HEARTBEAT を有効化 */
+    readonly "heartbeat": string
+    /** アプリを終了しても AI を動かす */
+    readonly "resident": string
+    /** 終了 */
+    readonly "quit": string
   }
   readonly "_deckNoteColumn": {
     /** まだノートがありません */
@@ -3960,7 +3984,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "noteListMax": string
       /** 通知保持上限 */
       readonly "maxNotifications": string
-      /** チャットメッセージストア上限 */
+      /** メッセージストア上限 */
       readonly "chatMessageStoreMax": string
       /** MFM キャッシュ */
       readonly "mfmCacheMax": string
@@ -4018,7 +4042,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "streamPollingInterval": string
       /** 通知ポーリング間隔 */
       readonly "notificationPollInterval": string
-      /** チャットポーリング間隔 */
+      /** メッセージポーリング間隔 */
       readonly "chatPollInterval": string
       /** 同時 live カラム数 */
       readonly "maxLiveColumns": string
@@ -4064,7 +4088,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "noteListMax": string
       /** 通知カラムに保持する通知の最大数 */
       readonly "maxNotifications": string
-      /** グローバル chatMessageStore の保持上限。長時間チャットしている場合のメモリに影響 (#460) */
+      /** グローバル chatMessageStore の保持上限。長時間メッセージをやり取りしている場合のメモリに影響 (#460) */
       readonly "chatMessageStoreMax": string
       /** MFM パース結果の LRU キャッシュ上限 */
       readonly "mfmCacheMax": string
@@ -4122,7 +4146,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "streamPollingInterval": string
       /** 通知未読数の確認間隔。短いほどリアルタイム、長いほどバッテリー節約 */
       readonly "notificationPollInterval": string
-      /** チャット未読の確認間隔 */
+      /** メッセージ未読の確認間隔 */
       readonly "chatPollInterval": string
       /** ストリーミング接続を維持するカラムの上限。超過分は一時停止される */
       readonly "maxLiveColumns": string
@@ -5022,7 +5046,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "accountLoginDescription": string
     /** デッキを自分のものにする */
     readonly "customizeDeckTitle": string
-    /** NoteDeck はカラムを並べて使います。最初から並んでいるのは、追加した全アカウントをまとめて表示するカラムです。カラムのヘッダーから並べ替え・削除ができ、カラム追加 (＋) から通知・検索・チャットなどを足せます。並びを 1 つ変えると自動で次へ進みます。 */
+    /** NoteDeck はカラムを並べて使います。最初から並んでいるのは、追加した全アカウントをまとめて表示するカラムです。カラムのヘッダーから並べ替え・削除ができ、カラム追加 (＋) から通知・検索・メッセージなどを足せます。並びを 1 つ変えると自動で次へ進みます。 */
     readonly "customizeDeckDescription": string
     /** 通知をサイドバーに開く */
     readonly "openNotificationsTitle": string
@@ -6505,9 +6529,9 @@ export const COLUMN_LABELS_BY_TYPE: Readonly<Record<string, readonly string[]>> 
     "[Đíŕéçť ĺó]"
   ],
   "chat": [
-    "チャット",
-    "Chat",
-    "[Çĥáť ĺ]"
+    "メッセージ",
+    "Messages",
+    "[Méššáğéš ĺóŕ]"
   ],
   "achievements": [
     "実績",

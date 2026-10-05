@@ -40,25 +40,3 @@ export function getNoteShareUrl(note: {
 }): string {
   return note.url ?? note.uri ?? `https://${note._serverHost}/notes/${note.id}`
 }
-
-export interface ParsedUserQuery {
-  username: string
-  host: string | null
-}
-
-/**
- * @user or @user@host 形式の文字列を解析する。
- * 照会カラムで使用。
- */
-export function parseUserQuery(input: string): ParsedUserQuery | null {
-  const raw = input.replace(/^@/, '')
-  const parts = raw.split('@')
-  if (
-    parts[0] &&
-    /^[a-zA-Z0-9_]+$/.test(parts[0]) &&
-    (input.startsWith('@') || (parts.length === 2 && parts[1]))
-  ) {
-    return { username: parts[0], host: parts[1] || null }
-  }
-  return null
-}

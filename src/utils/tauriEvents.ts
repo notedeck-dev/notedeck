@@ -26,6 +26,10 @@ export interface TauriEventPayloads {
   'nd:quick-note': undefined
   'nd:toggle-offline-mode': undefined
   'nd:toggle-realtime-mode': undefined
+  /** トレイから HEARTBEAT の有効 / 無効を切り替える (#1174) */
+  'nd:toggle-heartbeat': undefined
+  /** トレイから「アプリを終了しても AI を動かす」を切り替える (#1174) */
+  'nd:toggle-ai-resident': undefined
   'nd:deep-link': string
   'nd:ogp-hints': Record<string, OgpData>
   'nd:ai-chat-event': AiChatEventPayload

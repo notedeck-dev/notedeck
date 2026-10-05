@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import type { WorkspaceFile } from '@/bindings'
+import ChoiceCard from '@/components/common/ChoiceCard.vue'
+import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
 import { useAiConfig } from '@/composables/useAiConfig'
 import { useAiWorkspace } from '@/composables/useAiWorkspace'
 import { i18n } from '@/i18n'
@@ -34,44 +36,10 @@ function failed(e: unknown): void {
   )
 }
 
-// --- 人格 (SOUL): textarea。入力は debounce、blur で即保存 ---
-
-const SOUL_SAVE_DELAY_MS = 800
-const soulDraft = ref('')
-let soulDirty = false
-let soulTimer: ReturnType<typeof setTimeout> | null = null
-
-watch(
-  () => soul.value?.body,
-  (body) => {
-    if (!soulDirty) soulDraft.value = body ?? ''
-  },
-  { immediate: true },
-)
-
-function onSoulInput(): void {
-  soulDirty = true
-  if (soulTimer) clearTimeout(soulTimer)
-  soulTimer = setTimeout(() => void flushSoul(), SOUL_SAVE_DELAY_MS)
-}
-
-async function flushSoul(): Promise<void> {
-  if (soulTimer) {
-    clearTimeout(soulTimer)
-    soulTimer = null
-  }
-  if (!soulDirty) return
-  const body = soulDraft.value
-  try {
-    await workspace.write('soul', body)
-    // 保存中に打たれた分があれば dirty のまま次の保存に回す
-    if (soulDraft.value === body) soulDirty = false
-  } catch (e) {
-    failed(e)
-  }
-}
-
-onBeforeUnmount(() => void flushSoul())
+// --- 人格 (SOUL): ここでは編まない (#1186) ---
+// markdown を設定画面の textarea で直接触らせると見出しの構造を壊しやすいので、
+// 本文の編集は開発者モードの SOUL.md タブ (生ファイルのコード編集) か外部エディタ。
+// ここは状態 (いっぱい / 外で変更) の表示だけ
 
 // --- キャラクター (persona skill) ---
 
@@ -179,57 +147,38 @@ function isFull(f: WorkspaceFile | undefined): boolean {
     :title="i18n.ts._aiPersonalitySection.title"
     :badge="currentPersonaSkill ? currentPersonaSkill.name : i18n.ts._aiPersonalitySection.characterNone"
   >
-    <!-- 人格: SOUL の本文 + キャラクター 1 行 -->
+    <!-- 人格: SOUL の状態 + キャラクター -->
     <div :class="$style.card">
       <div :class="$style.cardHeader">
         <span :class="$style.cardTitle">{{ i18n.ts._aiPersonalitySection.soul }}</span>
       </div>
-      <textarea
-        v-model="soulDraft"
-        :class="$style.textarea"
-        rows="6"
-        spellcheck="false"
-        :placeholder="i18n.ts._aiPersonalitySection.soulPlaceholder"
-        :disabled="!soul"
-        @input="onSoulInput"
-        @blur="flushSoul"
-      />
+      <p :class="$style.hint">
+        <i class="ti ti-info-circle" />
+        {{ i18n.ts._aiPersonalitySection.soulHint }}
+      </p>
       <p v-if="isFull(soul)" :class="$style.note">{{ i18n.ts._aiPersonalitySection.full }}</p>
       <p v-if="soul?.externallyChanged" :class="$style.note">{{ i18n.ts._aiPersonalitySection.externallyChanged }}</p>
 
       <div :class="$style.characterRow">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiPersonalitySection.character }}</span>
-        <div :class="$style.grid">
-          <button
-            class="_button"
-            :class="[$style.characterCard, { [$style.characterCardActive]: !config.personaSkillId }]"
-            :aria-pressed="!config.personaSkillId"
+        <ChoiceCardGrid>
+          <ChoiceCard
+            icon="user-off"
+            :label="i18n.ts._aiPersonalitySection.characterNone"
+            :active="!config.personaSkillId"
             @click="config.personaSkillId = ''"
-          >
-            <i class="ti ti-user-off" :class="$style.logoFallback" />
-            <span>{{ i18n.ts._aiPersonalitySection.characterNone }}</span>
-          </button>
-          <button
+          />
+          <ChoiceCard
             v-for="s in personaCandidates"
             :key="s.id"
-            class="_button"
-            :class="[$style.characterCard, { [$style.characterCardActive]: config.personaSkillId === s.id }]"
-            :aria-pressed="config.personaSkillId === s.id"
+            :label="s.name"
+            :active="config.personaSkillId === s.id"
             :title="s.description || s.name"
+            :icon-mask-css="isProxiable(s.iconUrl) ? proxyCssUrl(s.iconUrl, 48) : null"
+            icon="user-circle"
             @click="config.personaSkillId = s.id"
-          >
-            <!-- SVG icon を accent 色で render (DeckAiColumn.personaIndicator と同じ
-                 mask + currentColor パターン) -->
-            <span
-              v-if="isProxiable(s.iconUrl)"
-              :class="$style.logo"
-              :style="{ '--icon-url': proxyCssUrl(s.iconUrl, 48) }"
-              aria-hidden="true"
-            />
-            <i v-else class="ti ti-user-circle" :class="$style.logoFallback" />
-            <span>{{ s.name }}</span>
-          </button>
-        </div>
+          />
+        </ChoiceCardGrid>
       </div>
       <p :class="$style.hint">
         <i class="ti ti-info-circle" />
@@ -237,6 +186,9 @@ function isFull(f: WorkspaceFile | undefined): boolean {
       </p>
     </div>
 
+  </AiSettingsSection>
+
+  <AiSettingsSection icon="ti-brain" :title="i18n.ts._aiPersonalitySection.memorySectionTitle">
     <!-- あなたについて覚えていること (USER) -->
     <div :class="$style.card">
       <div :class="$style.cardHeader">
@@ -363,25 +315,6 @@ function isFull(f: WorkspaceFile | undefined): boolean {
   opacity: 0.8;
 }
 
-.textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.85em;
-  line-height: 1.5;
-  resize: vertical;
-  font-family: inherit;
-  outline: none;
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
-}
-
 // --- キャラクター: 旧ペルソナのカードグリッドをコンパクトにした 1 行 ---
 
 .characterRow {
@@ -389,55 +322,6 @@ function isFull(f: WorkspaceFile | undefined): boolean {
   flex-direction: column;
   gap: 6px;
   padding-top: 4px;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-
-// `_button` と特異度が同点だと WebView2 で display: inline-block に負けるため (0,2,0) に上げる
-.characterCard.characterCard {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-buttonBg);
-  color: var(--nd-fg);
-  font-size: 0.8em;
-  cursor: pointer;
-  text-align: left;
-
-  span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-  }
-}
-
-.characterCardActive.characterCardActive {
-  background: color-mix(in srgb, var(--nd-accent) 12%, var(--nd-buttonBg));
-  box-shadow: inset 0 0 0 1px var(--nd-accent);
-}
-
-// SVG mask + currentColor でテーマアクセント色化 (DeckAiColumn.personaIndicator
-// と同じパターン)。ラスタ画像は表示できないが、persona icon は SVG 前提。
-.logo {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  background-color: currentColor;
-  color: var(--nd-accent);
-  -webkit-mask: var(--icon-url) center / contain no-repeat;
-  mask: var(--icon-url) center / contain no-repeat;
-}
-
-.logoFallback {
-  font-size: 16px;
-  color: var(--nd-fgMuted);
 }
 
 // --- 項目の行 ---

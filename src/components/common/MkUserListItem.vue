@@ -8,6 +8,8 @@ import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
 import { i18n } from '@/i18n'
+import { useServersStore } from '@/stores/servers'
+import { proxyThumbUrl } from '@/utils/mediaProxy'
 
 type UserForListItem = {
   id: string
@@ -22,6 +24,7 @@ type UserForListItem = {
 
 /** relation バッジ表示 (#752)。UserRelation のサブセット */
 type RelationForListItem = {
+  isFollowing?: boolean
   isFollowed?: boolean
   isBlocking?: boolean
   isMuted?: boolean
@@ -39,8 +42,15 @@ const props = withDefaults(
     descLines?: number
     clickToNavigate?: boolean
     hoverPopup?: boolean
-    /** ブロック中/ミュート中/フォローされています のバッジ表示 (#752) */
+    /** フォロー中/ブロック中/ミュート中/フォローされています のバッジ表示 (#752) */
     relation?: RelationForListItem | null
+    /**
+     * アバターの右上に出すサーバーアイコンの host (全アカウント面で「どのアカウント
+     * 経由の行か」を示す。右上のバッジはサーバーのアイコンだけに使う)
+     */
+    serverBadgeHost?: string | null
+    /** サーバーアイコンの tooltip (同じサーバーの複数アカウントを見分ける) */
+    serverBadgeTitle?: string
   }>(),
   {
     accountId: undefined,
@@ -51,6 +61,8 @@ const props = withDefaults(
     clickToNavigate: true,
     hoverPopup: true,
     relation: null,
+    serverBadgeHost: null,
+    serverBadgeTitle: undefined,
   },
 )
 
@@ -65,6 +77,21 @@ const popupPortalRef = useTemplateRef<HTMLElement>('popupPortalRef')
 usePortal(popupPortalRef)
 
 const popupEnabled = computed(() => props.hoverPopup && !!props.accountId)
+
+const serversStore = useServersStore()
+const badgeSize = computed(() =>
+  Math.max(10, Math.round(props.avatarSize * 0.4)),
+)
+/** サーバー登録済みならそのアイコン、無ければ favicon (AccountAvatar と同じ規則) */
+const serverBadgeUrl = computed(() => {
+  const host = props.serverBadgeHost
+  if (!host) return ''
+  const iconUrl = serversStore.servers.get(host)?.iconUrl
+  return proxyThumbUrl(
+    iconUrl || `https://${host}/favicon.ico`,
+    badgeSize.value * 2,
+  )
+})
 
 const descStyle = computed(() => ({
   '--mk-uli-desc-lines': String(props.descLines),
@@ -113,14 +140,24 @@ function closePopup() {
     @mouseenter="onMouseEnter"
     @mouseleave="onMouseLeave"
   >
-    <MkAvatar
-      :avatar-url="user.avatarUrl"
-      :decorations="user.avatarDecorations"
-      :size="avatarSize"
-      :is-cat="user.isCat"
-      :alt="user.username"
-      :class="$style.avatar"
-    />
+    <span :class="$style.avatarWrap">
+      <MkAvatar
+        :avatar-url="user.avatarUrl"
+        :decorations="user.avatarDecorations"
+        :size="avatarSize"
+        :is-cat="user.isCat"
+        :alt="user.username"
+        :class="$style.avatar"
+      />
+      <img
+        v-if="serverBadgeUrl"
+        :src="serverBadgeUrl"
+        :class="$style.serverBadge"
+        :title="serverBadgeTitle"
+        :style="{ width: `${badgeSize}px`, height: `${badgeSize}px` }"
+        @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'"
+      />
+    </span>
     <div :class="$style.body">
       <slot>
         <div :class="$style.nameRow">
@@ -135,6 +172,7 @@ function closePopup() {
             <template v-else>{{ user.username }}</template>
           </span>
           <slot name="badges" />
+          <span v-if="relation?.isFollowing" :class="$style.relationBadge">{{ i18n.ts._mkUserListItem.following }}</span>
           <span
             v-if="relation?.isBlocking"
             :class="[$style.relationBadge, $style.relationDanger]"
@@ -195,8 +233,26 @@ function closePopup() {
   }
 }
 
+.avatarWrap {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
 .avatar {
   flex-shrink: 0;
+}
+
+.serverBadge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  border-radius: 50%;
+  object-fit: contain;
+  background: var(--nd-panel);
+  box-shadow: 0 0 0 2px var(--nd-panel);
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .body {
