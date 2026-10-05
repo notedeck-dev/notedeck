@@ -38,6 +38,7 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { AppError } from '@/utils/errors'
+import { insertIntoSorted } from '@/utils/sortNotes'
 import { createWorkerClient } from '@/utils/workerClient'
 import type { DedupResponse } from '@/workers/dedupWorker'
 
@@ -553,6 +554,33 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     return dedupAsync(collectFulfilled(results))
   }
 
+  /**
+   * 最新ページと重ならないアカウントのキャッシュを落とす (#1184)。per-account の
+   * 起動時と同じ gap 判定 (#791) をアカウントごとに当てる: 重なりが無ければ
+   * 間に穴があり、残すと追加読み込みがキャッシュの最古から遡って穴が埋まらない
+   */
+  function dropGappedCache(
+    live: NormalizedNote[],
+    cached: NormalizedNote[],
+  ): NormalizedNote[] {
+    const liveByAccount = new Map<string, NormalizedNote[]>()
+    for (const n of live) {
+      const list = liveByAccount.get(n._accountId)
+      if (list) list.push(n)
+      else liveByAccount.set(n._accountId, [n])
+    }
+    const gapped = new Set<string>()
+    for (const [accountId, fetched] of liveByAccount) {
+      const shown = new Set<VariantKey>()
+      for (const n of cached) {
+        if (n._accountId === accountId) shown.add(variantKeyOf(n))
+      }
+      if (hasGap(fetched, shown, shown.size > 0)) gapped.add(accountId)
+    }
+    if (gapped.size === 0) return cached
+    return cached.filter((n) => !gapped.has(n._accountId))
+  }
+
   async function connectCrossAccount() {
     error.value = null
     isLoading.value = true
@@ -611,7 +639,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
             r.value.length > 0 &&
             progress.done < progress.total
           ) {
-            const painted = await admit(await dedupAsync([...live, ...cached]))
+            const painted = await admit(
+              await dedupAsync([...live, ...dropGappedCache(live, cached)]),
+            )
             if (gen === generation) setNotes(painted)
           }
         },
@@ -619,7 +649,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (gen !== generation) return
 
       // live を優先しつつキャッシュとマージ（dedup は先勝ち）
-      const merged = await admit(await dedupAsync([...live, ...cached]))
+      const merged = await admit(
+        await dedupAsync([...live, ...dropGappedCache(live, cached)]),
+      )
       if (gen !== generation) return
       setNotes(merged)
     } catch (e) {
@@ -672,8 +704,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           }
         },
         3,
-        // 返ったアカウントの分から順に足す (#1095)。下に足すだけなので
-        // 遅いサーバーの分が後から来ても画面は動かない
+        // 返ったアカウントの分から順に足す (#1095)。末尾に連結すると、投稿の
+        // 多いアカウントの遡り分が他アカウントのもっと古い行より下に付くので、
+        // per-account と同じく createdAt 順に差し込む (#1184)
         async (r, _acc, progress) => {
           if (gen !== generation) return
           crossProgress.value = progress
@@ -682,7 +715,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           const newOlder = await admit(await dedupAsync(r.value, existingKeys))
           if (gen !== generation || newOlder.length === 0) return
           // 下方向のページングなので古い側を残す
-          setNotes([...rawNotes.value, ...newOlder], 'newest')
+          setNotes(insertIntoSorted(rawNotes.value, newOlder), 'newest')
         },
       )
     } catch (e) {
