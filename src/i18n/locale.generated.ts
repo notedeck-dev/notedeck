@@ -488,8 +488,6 @@ export interface Locale {
     readonly "reload": string
     /** 再ログイン */
     readonly "relogin": string
-    /** 解除 */
-    readonly "remove": string
     /** リノート */
     readonly "renote": string
     /** リノート */
@@ -538,6 +536,8 @@ export interface Locale {
     readonly "users": string
     /** 不明なエラー */
     readonly "unknownError": string
+    /** 解除 */
+    readonly "remove": string
   }
   readonly "_appConfirm": {
     /** NoteDeck の権限確認 */
@@ -1286,8 +1286,10 @@ export interface Locale {
     readonly "next": string
   }
   readonly "_aiConnectionSection": {
-    /** AI 接続 */
+    /** 接続 */
     readonly "title": string
+    /** ACP */
+    readonly "acpTitle": string
     /** 未選択 */
     readonly "notSelected": string
     /** API キーは Secret Vault (OS キーチェーン) に保管され、フロントエンドや AI には渡りません。接続の追加・編集は「接続」ウィンドウで行います。 */
@@ -1306,8 +1308,6 @@ export interface Locale {
     readonly "tokensPerDay": string
     /** この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。 */
     readonly "dailyTokenBudgetHint": string
-    /** 手元の CLI で動かす */
-    readonly "harnessTitle": string
     /** ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。 */
     readonly "harnessHint": string
     /** 見つかりました */
@@ -1438,11 +1438,13 @@ export interface Locale {
     readonly "stepsOpenFailed": ParameterizedString<'reason'>
   }
   readonly "_aiPersonalitySection": {
-    /** AI の人格と記憶 */
+    /** ペルソナ */
     readonly "title": string
+    /** メモリー */
+    readonly "memorySectionTitle": string
     /** 人格 */
     readonly "soul": string
-    /** 人格の本文 (SOUL.md) はここでは編集しません。開発者モードの SOUL.md タブか外部エディタで編集します。AI は書き換えを提案し、承認を経て変えます。 */
+    /** 人格の本文 (SOUL.md) はここでは編集しません。開発者モードの SOUL.md タブか外部エディターで編集します。AI は書き換えを提案し、承認を経て変えます。 */
     readonly "soulHint": string
     /** キャラクター */
     readonly "character": string
@@ -1936,12 +1938,12 @@ export interface Locale {
     readonly "highRisk": string
   }
   readonly "_petSection": {
+    /** なし */
+    readonly "none": string
     /** ペット */
     readonly "title": string
     /** petdex.dev で見る */
     readonly "openPage": string
-    /** ペットを外す */
-    readonly "remove": string
     /** ペットの大きさ */
     readonly "size": string
     /** slug か petdex.dev のペット URL */

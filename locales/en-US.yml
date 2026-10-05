@@ -940,7 +940,8 @@ _tutorialContent:
   next: "Next →"
 
 _aiConnectionSection:
-  title: "AI connection"
+  title: "Connection"
+  acpTitle: "ACP"
   notSelected: "Not selected"
   keyHint: "API keys are stored in the Secret Vault (OS keychain) and never passed to the frontend or the AI. Add and edit connections in the Connections window."
   noConnections: "No AI provider connections. Add one from a template in the Connections window."
@@ -950,7 +951,6 @@ _aiConnectionSection:
   dailyTokenBudget: "Daily token budget"
   tokensPerDay: "tokens / day"
   dailyTokenBudgetHint: "Cap for chat and HEARTBEAT combined on this connection. 0 = unlimited."
-  harnessTitle: "Run with a local CLI"
   harnessHint: "Use a logged-in CLI as the AI (no API key needed). Permission requests from the CLI appear as confirmations in the chat. HEARTBEAT does not run."
   harnessFound: "found"
   harnessNotFound: "not found"
@@ -1020,7 +1020,8 @@ _aiHeartbeatSection:
   stepsOpenFailed: "Could not open the steps: {reason}"
 
 _aiPersonalitySection:
-  title: "AI personality and memory"
+  title: "Persona"
+  memorySectionTitle: "Memory"
   soul: "Personality"
   soulHint: "The personality text (SOUL.md) is not edited here. Use the SOUL.md tab in developer mode or an external editor. The AI proposes edits and changes it after approval."
   character: "Character"
@@ -1304,9 +1305,9 @@ _permissionProfileEditor:
   highRisk: "High-risk operation"
 
 _petSection:
+  none: "None"
   title: "Pet"
   openPage: "View on petdex.dev"
-  remove: "Remove pet"
   size: "Pet size"
   inputPlaceholder: "Slug or petdex.dev pet URL"
   replace: "Switch"

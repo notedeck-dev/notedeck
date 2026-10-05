@@ -5,7 +5,9 @@
  * slug か petdex.dev のペット URL を貼って使う。眺めて選びたいときは
  * petdex.dev を外部ブラウザで開く (#933 と同じ判断)。
  */
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import ChoiceCard from '@/components/common/ChoiceCard.vue'
+import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
 import { i18n } from '@/i18n'
 import {
   clampPetScale,
@@ -19,12 +21,18 @@ import { usePetStore } from '@/stores/pet'
 import { useSettingsStore } from '@/stores/settings'
 import { openSafeUrl } from '@/utils/url'
 
-const PREVIEW_W = 48
-const PREVIEW_H = 52
+const PREVIEW_W = 24
+const PREVIEW_H = 26
 
 const pet = usePetStore()
 const settings = useSettingsStore()
 const input = ref('')
+/** 「＋ 替える」を押したときだけ slug の入力欄を出す */
+const showInput = ref(false)
+const inputRef = ref<HTMLInputElement | null>(null)
+watch(showInput, (open) => {
+  if (open) void nextTick(() => inputRef.value?.focus())
+})
 
 // ── 大きさ ──
 const scale = computed(() => clampPetScale(settings.get('pet.scale')))
@@ -54,7 +62,10 @@ const previewStyle = computed(() => {
 
 async function apply() {
   if (!input.value.trim() || pet.loading) return
-  if (await pet.select(input.value)) input.value = ''
+  if (await pet.select(input.value)) {
+    input.value = ''
+    showInput.value = false
+  }
 }
 
 function browse() {
@@ -73,23 +84,33 @@ function openPage() {
       <span>{{ i18n.ts._petSection.title }}</span>
     </div>
 
-    <div v-if="pet.info" :class="$style.current">
-      <div :class="$style.preview" :style="previewStyle" />
-      <div :class="$style.currentText">
-        <span :class="$style.name">{{ pet.info.displayName }}</span>
-        <button type="button" :class="$style.link" @click="openPage">
-          {{ i18n.ts._petSection.openPage }}
-        </button>
-      </div>
-      <button
-        type="button"
-        :class="$style.removeBtn"
-        :title="i18n.ts._petSection.remove"
+    <!-- 候補カード: なし / 今のペット / ＋ 替える (接続やキャラクターと同じ形) -->
+    <ChoiceCardGrid>
+      <ChoiceCard
+        icon="paw-off"
+        :label="i18n.ts._petSection.none"
+        :active="!pet.info"
         @click="pet.clear()"
+      />
+      <ChoiceCard
+        v-if="pet.info"
+        :label="pet.info.displayName"
+        active
+        :title="i18n.ts._petSection.openPage"
+        @click="openPage"
       >
-        <i class="ti ti-x" />
-      </button>
-    </div>
+        <template #logo>
+          <div :class="$style.preview" :style="previewStyle" />
+        </template>
+      </ChoiceCard>
+      <ChoiceCard
+        dashed
+        icon="plus"
+        :label="pet.info ? i18n.ts._petSection.replace : i18n.ts._petSection.use"
+        :active="showInput"
+        @click="showInput = !showInput"
+      />
+    </ChoiceCardGrid>
 
     <div v-if="pet.info" :class="$style.sliderRow">
       <i class="ti ti-zoom-in" :class="$style.sliderIcon" />
@@ -108,8 +129,9 @@ function openPage() {
       <span :class="$style.sliderValue">{{ scalePercent }}%</span>
     </div>
 
-    <form :class="$style.row" @submit.prevent="apply">
+    <form v-if="showInput" :class="$style.row" @submit.prevent="apply">
       <input
+        ref="inputRef"
         v-model="input"
         :class="$style.input"
         type="text"
@@ -123,7 +145,7 @@ function openPage() {
         :disabled="pet.loading || !input.trim()"
       >
         <i v-if="pet.loading" class="ti ti-loader-2" :class="$style.spin" />
-        <span v-else>{{ pet.info ? i18n.ts._petSection.replace : i18n.ts._petSection.use }}</span>
+        <span v-else>{{ i18n.ts._petSection.use }}</span>
       </button>
     </form>
 
@@ -154,47 +176,9 @@ function openPage() {
   color: var(--nd-fg);
 }
 
-.current {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 4px;
-}
-
 .preview {
   flex: none;
   background-repeat: no-repeat;
-}
-
-.currentText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.name {
-  font-size: 0.85em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.removeBtn {
-  flex: none;
-  border: none;
-  background: none;
-  color: var(--nd-fgMuted);
-  cursor: pointer;
-  padding: 4px;
-  border-radius: var(--nd-radius-sm);
-  font-size: 1em;
-
-  &:hover {
-    background: var(--nd-accent-hover);
-    color: var(--nd-fg);
-  }
 }
 
 .row {
