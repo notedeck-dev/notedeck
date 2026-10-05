@@ -19,6 +19,7 @@ import { listenPipEvents } from '@/composables/usePipWindow'
 import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
 import { startSettingsFileSync } from '@/composables/useSettingsFileSync'
 import { useTheme } from '@/composables/useTheme'
+import { useTrayMenu } from '@/composables/useTrayMenu'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { i18n } from '@/i18n'
 import { useLogsStore } from '@/stores/logs'
@@ -120,6 +121,8 @@ if (!isPipWindow.value) {
 if (isTauri && !isPipWindow.value) {
   useOsWindowTitle()
   useOsUnreadBadge()
+  // トレイのメニュー (#1174) も OS 全体で 1 つ。useTrayMenu 内で main のみ有効化
+  useTrayMenu()
 }
 
 // OS の電源・回線・集中モード状態 (#931 / #935 / #928)。event は全ウィンドウに

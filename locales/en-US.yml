@@ -2268,6 +2268,14 @@ _deckMentionsColumn:
   toYou: "Mentions"
   mentionsEmpty: "No mentions"
 
+_tray:
+  show: "Show NoteDeck"
+  offline: "Offline Mode"
+  realtime: "Realtime Mode"
+  heartbeat: "Enable HEARTBEAT"
+  resident: "Keep AI running after the app exits"
+  quit: "Quit"
+
 _deckNoteColumn:
   noNotesYet: "No notes yet"
   offlineMode: "Offline mode"
