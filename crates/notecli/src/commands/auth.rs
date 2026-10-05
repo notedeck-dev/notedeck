@@ -52,10 +52,25 @@ pub fn run_accounts(db: &Database, fmt: OutputFormat) -> Result<(), NoteDeckErro
     Ok(())
 }
 
+/// `notecli login` に渡された文字列をホスト名に整える。アプリのログイン画面と同じく
+/// scheme とパスを落とし、NoteDeck 経路と同じく ASCII 小文字で保存する (accounts の
+/// (host, user_id) 一意制約とノートの取得元 host を揃える。notedeck#1058 / #1134)
+fn login_host(input: &str) -> String {
+    let h = input.trim();
+    let h = ["https://", "http://"]
+        .iter()
+        .find_map(|p| {
+            h.get(..p.len())
+                .filter(|head| head.eq_ignore_ascii_case(p))
+                .map(|_| &h[p.len()..])
+        })
+        .unwrap_or(h);
+    let h = h.split('/').next().unwrap_or(h);
+    crate::identity::normalize_host(h)
+}
+
 pub async fn run_login(db: &Database, host: &str, fmt: OutputFormat) -> Result<(), NoteDeckError> {
-    // NoteDeck 経路と同じく ASCII 小文字で保存する (accounts の (host, user_id) 一意制約と
-    // ノートの取得元 host を揃える。notedeck#1058)
-    let host = host.trim().to_ascii_lowercase();
+    let host = login_host(host);
     let host = host.as_str();
     let client = MisskeyClient::new()?;
 
@@ -193,4 +208,20 @@ pub fn run_logout(
     );
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn login_host_strips_scheme_and_path() {
+        assert_eq!(login_host("misskey.io"), "misskey.io");
+        assert_eq!(login_host("  Misskey.IO  "), "misskey.io");
+        assert_eq!(login_host("https://misskey.io/"), "misskey.io");
+        assert_eq!(login_host("HTTP://misskey.io"), "misskey.io");
+        assert_eq!(login_host("https://misskey.io/notes/abc"), "misskey.io");
+        assert_eq!(login_host("misskey.io/"), "misskey.io");
+        assert_eq!(login_host("127.0.0.1:3000"), "127.0.0.1:3000");
+    }
 }
