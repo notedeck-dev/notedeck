@@ -8,6 +8,7 @@
  */
 
 import type { DeckColumn } from '@/stores/deck'
+import { normalizeAcctHost } from './userRef'
 
 export type TextConditionType = 'contains_any' | 'contains_all' | 'excludes'
 
@@ -366,7 +367,7 @@ export function parseAuthor(
   const at = a.indexOf('@')
   if (at < 0) return { username: a, host: null }
   const username = a.slice(0, at)
-  const host = a.slice(at + 1).toLowerCase()
+  const host = normalizeAcctHost(a.slice(at + 1))
   if (!username) return null
   return { username, host: host || null }
 }

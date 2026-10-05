@@ -2002,7 +2002,12 @@ _deckLookupColumn:
   adapterInitFailed: "アダプターの初期化に失敗しました"
   lookupFailed: "照会できませんでした"
   noLoggedInAccount: "ログイン済みアカウントがありません"
-  userLookupSingleAccountOnly: "ユーザー照会は単一アカウントモードで行ってください"
+  userNotFoundCount_plural:
+    other: "{count} アカウントでは見つかりませんでした"
+  userUnresolved: "{account}: 解決できませんでした (相手のサーバーに届かないか、連合していません)"
+  userFailed: "{account}: 照会に失敗しました"
+  pickAccountForProfile: "どのアカウントでプロフィールを開きますか"
+  following: "フォロー中"
 
 _deckMemoColumn:
   empty: "メモはありません"

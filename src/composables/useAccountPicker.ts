@@ -19,6 +19,7 @@ import { computed, ref, watch } from 'vue'
 import { useCommandStore } from '@/commands/registry'
 import { i18n } from '@/i18n'
 import {
+  type Account,
   getAccountAvatarUrl,
   getAccountLabel,
   useAccountsStore,
@@ -46,23 +47,33 @@ export function useAccountPicker() {
    *
    * @param purpose 何のために選ぶのか (選択 UI に出す)
    */
-  async function pickAccount(purpose: string): Promise<string | null> {
-    const accounts = pickableAccounts.value
+  async function pickAccount(
+    purpose: string,
+    candidates?: readonly Account[],
+  ): Promise<string | null> {
+    const accounts = candidates ?? pickableAccounts.value
     const only = accounts[0]
     if (!only) return null
     if (accounts.length === 1) return only.id
 
-    if (isCompact.value) return pickViaSheet(purpose)
-    return pickViaPalette(purpose)
+    if (isCompact.value) return pickViaSheet(purpose, accounts)
+    return pickViaPalette(purpose, accounts)
   }
 
   /** シートを開いている間の目的文 (= 開いているかどうか) */
   const sheetPurpose = ref<string | null>(null)
   let sheetResolve: ((accountId: string | null) => void) | null = null
 
-  function pickViaSheet(purpose: string): Promise<string | null> {
+  /** シートに出す候補 (pickAccount に候補を渡したときだけ絞る) */
+  const sheetAccounts = ref<readonly Account[] | null>(null)
+
+  function pickViaSheet(
+    purpose: string,
+    accounts: readonly Account[],
+  ): Promise<string | null> {
     return new Promise((resolve) => {
       sheetResolve = resolve
+      sheetAccounts.value = accounts
       sheetPurpose.value = purpose
     })
   }
@@ -70,11 +81,15 @@ export function useAccountPicker() {
   /** シートの選択 / キャンセルを pickAccount 側へ返す */
   function resolveSheet(accountId: string | null) {
     sheetPurpose.value = null
+    sheetAccounts.value = null
     sheetResolve?.(accountId)
     sheetResolve = null
   }
 
-  function pickViaPalette(purpose: string): Promise<string | null> {
+  function pickViaPalette(
+    purpose: string,
+    accounts: readonly Account[],
+  ): Promise<string | null> {
     return new Promise<string | null>((resolve) => {
       let settled = false
       const finish = (id: string | null) => {
@@ -88,7 +103,7 @@ export function useAccountPicker() {
       commandStore.pushQuickPick({
         title: i18n.ts._useAccountPicker.title,
         placeholder: purpose,
-        items: pickableAccounts.value.map((a) => ({
+        items: accounts.map((a) => ({
           id: `pick-account-${a.id}`,
           label: getAccountLabel(a),
           icon: 'user',
@@ -115,6 +130,7 @@ export function useAccountPicker() {
     pickableAccounts,
     hasPickableAccount,
     sheetPurpose,
+    sheetAccounts,
     resolveSheet,
   }
 }

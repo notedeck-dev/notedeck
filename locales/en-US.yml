@@ -2252,7 +2252,13 @@ _deckLookupColumn:
   adapterInitFailed: "Failed to initialize the adapter"
   lookupFailed: "Lookup failed"
   noLoggedInAccount: "No logged-in accounts"
-  userLookupSingleAccountOnly: "Look up users in single-account mode"
+  userNotFoundCount_plural:
+    one: "Not found on {count} account"
+    other: "Not found on {count} accounts"
+  userUnresolved: "{account}: could not resolve (the remote server is unreachable or not federated)"
+  userFailed: "{account}: lookup failed"
+  pickAccountForProfile: "Which account should open the profile?"
+  following: "Following"
 
 _deckMemoColumn:
   empty: "No memos"
