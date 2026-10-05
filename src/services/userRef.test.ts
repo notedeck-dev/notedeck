@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  acctKeyOf,
   acctOf,
   hostParamFor,
   normalizeAcctHost,
@@ -54,16 +53,16 @@ describe('parseUserRef (#1185)', () => {
   })
 })
 
-describe('normalizeAcctHost / acctOf / acctKeyOf', () => {
-  it('束ねキーは username 小文字 + 正規化 host、表示用は素のまま', () => {
+describe('normalizeAcctHost / acctOf', () => {
+  it('比較用 host は IDNA ASCII + 小文字、表示用 acct は素のまま', () => {
     expect(normalizeAcctHost('Misskey.IO')).toBe('misskey.io')
     expect(normalizeAcctHost('日本語.example')).toBe('xn--wgv71a119e.example')
-    const user = { username: 'Alice', host: null }
-    expect(acctOf(user, 'misskey.io')).toBe('Alice@misskey.io')
-    expect(acctKeyOf(user, 'Misskey.IO')).toBe('alice@misskey.io')
-    expect(
-      acctKeyOf({ username: 'alice', host: 'xn--wgv71a119e.example' }, 'x'),
-    ).toBe(acctKeyOf({ username: 'ALICE', host: '日本語.example' }, 'y'))
+    expect(acctOf({ username: 'Alice', host: null }, 'misskey.io')).toBe(
+      'Alice@misskey.io',
+    )
+    expect(acctOf({ username: 'alice', host: 'b.example' }, 'misskey.io')).toBe(
+      'alice@b.example',
+    )
   })
 })
 

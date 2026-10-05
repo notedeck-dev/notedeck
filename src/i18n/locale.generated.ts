@@ -824,6 +824,8 @@ export interface Locale {
     readonly "muteEmoji": string
   }
   readonly "_mkUserListItem": {
+    /** フォロー中 */
+    readonly "following": string
     /** ブロック中 */
     readonly "blocking": string
     /** ミュート中 */
@@ -3617,10 +3619,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "userUnresolved": ParameterizedString<'account'>
     /** {account}: 照会に失敗しました */
     readonly "userFailed": ParameterizedString<'account'>
-    /** どのアカウントでプロフィールを開きますか */
-    readonly "pickAccountForProfile": string
-    /** フォロー中 */
-    readonly "following": string
   }
   readonly "_deckMemoColumn": {
     /** メモはありません */

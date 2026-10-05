@@ -461,6 +461,7 @@ _mkReactionUsersPopup:
   muteEmoji: "この絵文字をミュート"
 
 _mkUserListItem:
+  following: "フォロー中"
   blocking: "ブロック中"
   muted: "ミュート中"
 
@@ -2006,8 +2007,6 @@ _deckLookupColumn:
     other: "{count} アカウントでは見つかりませんでした"
   userUnresolved: "{account}: 解決できませんでした (相手のサーバーに届かないか、連合していません)"
   userFailed: "{account}: 照会に失敗しました"
-  pickAccountForProfile: "どのアカウントでプロフィールを開きますか"
-  following: "フォロー中"
 
 _deckMemoColumn:
   empty: "メモはありません"
