@@ -38,8 +38,6 @@ import {
 } from '@/services/noteKey'
 import {
   classifyUserLookupError,
-  groupUserHits,
-  type UserLookupGroup,
   type UserLookupHit,
   type UserLookupMiss,
 } from '@/services/userLookupResult'
@@ -54,7 +52,7 @@ import { isRenoteOnly } from '@/utils/noteViewModel'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
-import DeckLookupUserGroups from './DeckLookupUserGroups.vue'
+import DeckLookupUserRows from './DeckLookupUserRows.vue'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -99,8 +97,8 @@ const isProbing = ref(false)
 const probeProgress = ref(0)
 const lookupError = ref<string | null>(null)
 const mergedThread = ref<MergedThread | null>(null)
-/** 全アカウントのユーザー照会の結果 (#1185)。ノート照会と排他 */
-const userGroups = ref<UserLookupGroup[]>([])
+/** 全アカウントのユーザー照会の結果 (#1185、返った順)。ノート照会と排他 */
+const userHits = ref<UserLookupHit[]>([])
 const userMisses = ref<UserLookupMiss[]>([])
 /** 行のフォローボタンに渡す、アカウントごとの API (照会で adapter を得たものだけ) */
 const followApis = new Map<string, FollowApi>()
@@ -367,7 +365,7 @@ async function performLookupCrossAccount(q: string) {
   ancestors.value = []
   children.value = []
   mergedThread.value = null
-  userGroups.value = []
+  userHits.value = []
   userMisses.value = []
   isProbing.value = false
   probeProgress.value = 0
@@ -480,7 +478,7 @@ async function performLookupCrossAccount(q: string) {
 
 /**
  * ユーザーを全アカウントで照会する (#1185)。アカウントごとに users/show を投げ、
- * 返った順に acct で束ねて見せる。自サーバーの acct には host を渡さない
+ * 返った順に行を足す。自サーバーの acct には host を渡さない
  * (渡すと「見つからない」が「解決できない」に包まれる)
  */
 async function performUserLookupCrossAccount(
@@ -525,7 +523,7 @@ async function performUserLookupCrossAccount(
       } finally {
         completed++
         probeProgress.value = completed / accounts.length
-        userGroups.value = groupUserHits(hits)
+        userHits.value = [...hits]
         userMisses.value = [...misses]
         if (hits.length > 0 && lookupLoading.value) lookupLoading.value = false
       }
@@ -675,7 +673,7 @@ async function handlePosted(editedNoteId?: string) {
 
     <!-- ===== Cross-account mode ===== -->
     <template v-if="isCrossAccount">
-      <div v-if="lookupLoading && !mergedThread && userGroups.length === 0" :class="$style.columnLoading">
+      <div v-if="lookupLoading && !mergedThread && userHits.length === 0" :class="$style.columnLoading">
         <LoadingSpinner />
       </div>
 
@@ -689,11 +687,11 @@ async function handlePosted(editedNoteId?: string) {
         @cta="performLookup"
       />
 
-      <div v-else-if="userGroups.length > 0" ref="lookupResultRef" :class="$style.lookupResult">
+      <div v-else-if="userHits.length > 0" ref="lookupResultRef" :class="$style.lookupResult">
         <div v-if="isProbing" :class="$style.probeProgress">
           <div :class="$style.probeBar" :style="{ width: probeProgress * 100 + '%' }" />
         </div>
-        <DeckLookupUserGroups :groups="userGroups" :misses="userMisses" :follow-api-for="followApiFor" />
+        <DeckLookupUserRows :hits="userHits" :misses="userMisses" :follow-api-for="followApiFor" />
       </div>
 
       <ColumnEmptyState v-else-if="!mergedThread" :message="i18n.ts._deckLookupColumn.emptyThread" :image-url="serverInfoImageUrl" />

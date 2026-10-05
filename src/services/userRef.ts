@@ -64,14 +64,6 @@ export function acctOf(
   return `${user.username}@${user.host ?? accountHost}`
 }
 
-/** 束ねるキー。同じ人なら取得元アカウントが違っても一致する */
-export function acctKeyOf(
-  user: { username: string; host: string | null },
-  accountHost: string,
-): string {
-  return `${user.username.toLowerCase()}@${normalizeAcctHost(user.host ?? accountHost)}`
-}
-
 /**
  * `users/show` に渡す host。自サーバーの acct には null を渡す (host 文字列を
  * 渡すと、見つからないときの応答が「見つからない」でなく「解決できない」に包まれる)

@@ -680,6 +680,7 @@ _mkReactionUsersPopup:
   muteEmoji: "Mute this emoji"
 
 _mkUserListItem:
+  following: "Following"
   blocking: "Blocking"
   muted: "Muted"
 
@@ -2257,8 +2258,6 @@ _deckLookupColumn:
     other: "Not found on {count} accounts"
   userUnresolved: "{account}: could not resolve (the remote server is unreachable or not federated)"
   userFailed: "{account}: lookup failed"
-  pickAccountForProfile: "Which account should open the profile?"
-  following: "Following"
 
 _deckMemoColumn:
   empty: "No memos"
