@@ -2018,6 +2018,14 @@ _deckMentionsColumn:
   toYou: "あなた宛て"
   mentionsEmpty: "メンションはありません"
 
+_tray:
+  show: "NoteDeck を表示"
+  offline: "オフラインモード"
+  realtime: "リアルタイムモード"
+  heartbeat: "HEARTBEAT を有効化"
+  resident: "アプリを終了しても AI を動かす"
+  quit: "終了"
+
 _deckNoteColumn:
   noNotesYet: "まだノートがありません"
   offlineMode: "オフラインモード"

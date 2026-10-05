@@ -2543,6 +2543,19 @@ async coreSetResident(enabled: boolean) : Promise<Result<ClientLayerState, strin
 async coreSyncAccounts() : Promise<void> {
     await TAURI_INVOKE("core_sync_accounts");
 },
+/**
+ * トレイメニューの文言とチェック状態を反映する。トレイが無い環境では何もしない
+ *
+ * @see src-tauri/src/commands/tray.rs
+ */
+async traySync(state: TrayMenuState) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("tray_sync", { state }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /** @see src-tauri/src/commands/health.rs */
 async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
@@ -4098,6 +4111,14 @@ metered: boolean | null;
 doNotDisturb: boolean | null }
 export type TimelineFilter = { withRenotes: boolean | null; withReplies: boolean | null; withFiles: boolean | null; withBots: boolean | null; withSensitive: boolean | null }
 export type TimelineOptions = { limit?: number; sinceId: string | null; untilId: string | null; filters?: TimelineFilter | null; listId: string | null }
+/**
+ * フロントから届くメニューの表示状態
+ */
+export type TrayMenuState = { showLabel: string; offlineLabel: string; offline: boolean; realtimeLabel: string; realtime: boolean; heartbeatLabel: string; heartbeat: boolean; residentLabel: string; resident: boolean; 
+/**
+ * 常駐の切り替えが今できるか (HEARTBEAT 有効 + 別プロセスの notemaid + この OS で可能)
+ */
+residentEnabled: boolean; quitLabel: string }
 /**
  * 「確認なしで使う」のプラグイン個体単位の記憶。
  * 

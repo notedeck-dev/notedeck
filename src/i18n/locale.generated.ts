@@ -3638,6 +3638,20 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     /** メンションはありません */
     readonly "mentionsEmpty": string
   }
+  readonly "_tray": {
+    /** NoteDeck を表示 */
+    readonly "show": string
+    /** オフラインモード */
+    readonly "offline": string
+    /** リアルタイムモード */
+    readonly "realtime": string
+    /** HEARTBEAT を有効化 */
+    readonly "heartbeat": string
+    /** アプリを終了しても AI を動かす */
+    readonly "resident": string
+    /** 終了 */
+    readonly "quit": string
+  }
   readonly "_deckNoteColumn": {
     /** まだノートがありません */
     readonly "noNotesYet": string
