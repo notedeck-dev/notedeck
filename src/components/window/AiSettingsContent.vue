@@ -146,25 +146,38 @@ const rawSoul = ref('')
 const soulError = ref<string | null>(null)
 const soulSaved = ref(false)
 let soulSyncing = false
+/** 最後に読み込んだ (または保存した) 本文。これと違えば未保存の入力がある */
+let soulLoaded = ''
 
 watch(
   () => workspace.fileOf('soul')?.body,
   (body) => {
     if (soulSyncing) return
-    rawSoul.value = body ?? ''
+    const next = body ?? ''
+    // 未保存の入力があるときは外の変更で上書きしない (入力を残して知らせる)
+    if (rawSoul.value !== soulLoaded && next !== rawSoul.value) {
+      soulLoaded = next
+      soulError.value = i18n.ts._aiPersonalitySection.externallyChanged
+      return
+    }
+    soulLoaded = next
+    rawSoul.value = next
   },
   { immediate: true },
 )
 
 let soulSaveTimer: ReturnType<typeof setTimeout> | null = null
 watch(rawSoul, (v) => {
+  // 保存済みの本文に戻したときも、先に積んだ保存は取り消す
+  if (soulSaveTimer) clearTimeout(soulSaveTimer)
+  soulSaveTimer = null
   if (tab.value !== 'soul') return
   if (v === workspace.fileOf('soul')?.body) return
-  if (soulSaveTimer) clearTimeout(soulSaveTimer)
   soulSaveTimer = setTimeout(async () => {
     soulSyncing = true
     try {
       await workspace.write('soul', v)
+      soulLoaded = v
       soulError.value = null
       soulSaved.value = true
       setTimeout(() => {
