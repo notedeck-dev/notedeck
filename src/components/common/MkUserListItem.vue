@@ -49,6 +49,8 @@ const props = withDefaults(
      * 経由の行か」を示す。右上のバッジはサーバーのアイコンだけに使う)
      */
     serverBadgeHost?: string | null
+    /** サーバーアイコンの tooltip (同じサーバーの複数アカウントを見分ける) */
+    serverBadgeTitle?: string
   }>(),
   {
     accountId: undefined,
@@ -60,6 +62,7 @@ const props = withDefaults(
     hoverPopup: true,
     relation: null,
     serverBadgeHost: null,
+    serverBadgeTitle: undefined,
   },
 )
 
@@ -150,6 +153,7 @@ function closePopup() {
         v-if="serverBadgeUrl"
         :src="serverBadgeUrl"
         :class="$style.serverBadge"
+        :title="serverBadgeTitle"
         :style="{ width: `${badgeSize}px`, height: `${badgeSize}px` }"
         @error="($event.target as HTMLImageElement).src = '/server-icon-error.svg'"
       />

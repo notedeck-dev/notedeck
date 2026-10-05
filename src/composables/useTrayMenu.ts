@@ -61,16 +61,32 @@ export function useTrayMenu() {
     { immediate: true },
   )
 
+  /**
+   * OS はクリックした時点でチェックを反転させるので、状態を変えずに終わる経路
+   * (無視 / 失敗) では今の状態を押し戻す (computed が変わらず watch が走らないため)
+   */
+  function resync(): void {
+    commands.traySync(state.value).catch((e) => {
+      console.warn('[tray] sync failed:', e)
+    })
+  }
+
   void listenTauri('nd:toggle-heartbeat', () => {
     // ai.json5 を読み終える前に押されたら、既定値で上書きしないよう無視する
-    if (!initialized.value) return
+    if (!initialized.value) {
+      resync()
+      return
+    }
     config.value.heartbeat.enabled = !config.value.heartbeat.enabled
     // 設定画面が開いていないと deep watch の保存が無いので、ここで書く
     save()
   })
 
   void listenTauri('nd:toggle-ai-resident', async () => {
-    if (!state.value.residentEnabled) return
+    if (!state.value.residentEnabled) {
+      resync()
+      return
+    }
     try {
       await clientLayer.setResident(!(clientLayer.resident?.installed ?? false))
     } catch (e) {
@@ -81,6 +97,7 @@ export function useTrayMenu() {
         'error',
       )
       await clientLayer.refreshResident()
+      resync()
     }
   })
 }

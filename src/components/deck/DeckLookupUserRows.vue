@@ -71,6 +71,7 @@ const listedMisses = computed(() =>
       :account-id="hit.accountId"
       :server-host="hit.accountHost"
       :server-badge-host="hit.accountHost"
+      :server-badge-title="accountLabel(hit.accountId, hit.accountHost)"
       :relation="hit.relation"
     >
       <template #actions>

@@ -102,6 +102,8 @@ const userHits = ref<UserLookupHit[]>([])
 const userMisses = ref<UserLookupMiss[]>([])
 /** 行のフォローボタンに渡す、アカウントごとの API (照会で adapter を得たものだけ) */
 const followApis = new Map<string, FollowApi>()
+/** 全アカウント照会の世代。後から始めた照会の結果を古い照会が上書きしないように */
+let crossGeneration = 0
 /**
  * この照会で削除したノート (variant key)。ローカル保持 (result / ancestors /
  * children / mergedThread) から外すだけでは、遅れて返るアカウントの
@@ -358,6 +360,7 @@ async function loadThread(noteId: string) {
 }
 
 async function performLookupCrossAccount(q: string) {
+  crossGeneration++
   lookupLoading.value = true
   lookupError.value = null
   result.value = null
@@ -485,6 +488,7 @@ async function performUserLookupCrossAccount(
   userRef: UserRef,
   accounts: { id: string; host: string }[],
 ) {
+  const gen = crossGeneration
   const hits: UserLookupHit[] = []
   const misses: UserLookupMiss[] = []
   let completed = 0
@@ -522,18 +526,25 @@ async function performUserLookupCrossAccount(
         })
       } finally {
         completed++
-        probeProgress.value = completed / accounts.length
-        userHits.value = [...hits]
-        userMisses.value = [...misses]
-        if (hits.length > 0 && lookupLoading.value) lookupLoading.value = false
+        if (gen === crossGeneration) {
+          probeProgress.value = completed / accounts.length
+          userHits.value = [...hits]
+          userMisses.value = [...misses]
+          if (hits.length > 0 && lookupLoading.value) {
+            lookupLoading.value = false
+          }
+        }
       }
     },
     3,
   )
 
+  if (gen !== crossGeneration) return
   isProbing.value = false
   lookupLoading.value = false
-  if (hits.length === 0) {
+  // 理由が分かる失敗 (見つからない / 解決できない) は一覧で見せる。汎用の
+  // エラーは、理由を記録できない失敗しか無いときだけ
+  if (hits.length === 0 && misses.every((m) => m.kind === 'failed')) {
     lookupError.value = i18n.ts._deckLookupColumn.lookupFailed
   }
 }
@@ -687,7 +698,7 @@ async function handlePosted(editedNoteId?: string) {
         @cta="performLookup"
       />
 
-      <div v-else-if="userHits.length > 0" ref="lookupResultRef" :class="$style.lookupResult">
+      <div v-else-if="userHits.length > 0 || userMisses.length > 0" ref="lookupResultRef" :class="$style.lookupResult">
         <div v-if="isProbing" :class="$style.probeProgress">
           <div :class="$style.probeBar" :style="{ width: probeProgress * 100 + '%' }" />
         </div>
