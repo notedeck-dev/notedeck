@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import type { WorkspaceFile } from '@/bindings'
 import { useAiConfig } from '@/composables/useAiConfig'
 import { useAiWorkspace } from '@/composables/useAiWorkspace'
@@ -34,44 +34,10 @@ function failed(e: unknown): void {
   )
 }
 
-// --- 人格 (SOUL): textarea。入力は debounce、blur で即保存 ---
-
-const SOUL_SAVE_DELAY_MS = 800
-const soulDraft = ref('')
-let soulDirty = false
-let soulTimer: ReturnType<typeof setTimeout> | null = null
-
-watch(
-  () => soul.value?.body,
-  (body) => {
-    if (!soulDirty) soulDraft.value = body ?? ''
-  },
-  { immediate: true },
-)
-
-function onSoulInput(): void {
-  soulDirty = true
-  if (soulTimer) clearTimeout(soulTimer)
-  soulTimer = setTimeout(() => void flushSoul(), SOUL_SAVE_DELAY_MS)
-}
-
-async function flushSoul(): Promise<void> {
-  if (soulTimer) {
-    clearTimeout(soulTimer)
-    soulTimer = null
-  }
-  if (!soulDirty) return
-  const body = soulDraft.value
-  try {
-    await workspace.write('soul', body)
-    // 保存中に打たれた分があれば dirty のまま次の保存に回す
-    if (soulDraft.value === body) soulDirty = false
-  } catch (e) {
-    failed(e)
-  }
-}
-
-onBeforeUnmount(() => void flushSoul())
+// --- 人格 (SOUL): ここでは編まない (#1186) ---
+// markdown を設定画面の textarea で直接触らせると見出しの構造を壊しやすいので、
+// 本文の編集は開発者モードの SOUL.md タブ (生ファイルのコード編集) か外部エディタ。
+// ここは状態 (いっぱい / 外で変更) の表示だけ
 
 // --- キャラクター (persona skill) ---
 
@@ -184,16 +150,10 @@ function isFull(f: WorkspaceFile | undefined): boolean {
       <div :class="$style.cardHeader">
         <span :class="$style.cardTitle">{{ i18n.ts._aiPersonalitySection.soul }}</span>
       </div>
-      <textarea
-        v-model="soulDraft"
-        :class="$style.textarea"
-        rows="6"
-        spellcheck="false"
-        :placeholder="i18n.ts._aiPersonalitySection.soulPlaceholder"
-        :disabled="!soul"
-        @input="onSoulInput"
-        @blur="flushSoul"
-      />
+      <p :class="$style.hint">
+        <i class="ti ti-info-circle" />
+        {{ i18n.ts._aiPersonalitySection.soulHint }}
+      </p>
       <p v-if="isFull(soul)" :class="$style.note">{{ i18n.ts._aiPersonalitySection.full }}</p>
       <p v-if="soul?.externallyChanged" :class="$style.note">{{ i18n.ts._aiPersonalitySection.externallyChanged }}</p>
 
@@ -361,25 +321,6 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 .note {
   @include field-hint;
   opacity: 0.8;
-}
-
-.textarea {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.85em;
-  line-height: 1.5;
-  resize: vertical;
-  font-family: inherit;
-  outline: none;
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
 }
 
 // --- キャラクター: 旧ペルソナのカードグリッドをコンパクトにした 1 行 ---

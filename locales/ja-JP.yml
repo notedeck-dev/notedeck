@@ -799,7 +799,7 @@ _aiHeartbeatSection:
 _aiPersonalitySection:
   title: "AI の人格と記憶"
   soul: "人格"
-  soulPlaceholder: "AI の核になる人格。キャラクターを切り替えても変わりません。"
+  soulHint: "人格の本文 (SOUL.md) はここでは編集しません。開発者モードの SOUL.md タブか外部エディタで編集します。AI は書き換えを提案し、承認を経て変えます。"
   character: "キャラクター"
   characterNone: "なし"
   characterHint: "新しいセッションから反映されます。過去のセッションは作成時のキャラクターのままです。"
@@ -923,6 +923,7 @@ _pipPage:
   playEdit: "Play 編集"
 
 _aiSettingsContent:
+  soulHint: "SOUL.md を Markdown のまま編集できます。見出し (# と ##) の構造を保つと人格のフォームに戻せます。"
   rawHint: "ai.json5 を直接編集できます。API キーはキーチェーン管理のため raw には現れません。"
 
 _appearanceEditorContent:

@@ -1442,8 +1442,8 @@ export interface Locale {
     readonly "title": string
     /** 人格 */
     readonly "soul": string
-    /** AI の核になる人格。キャラクターを切り替えても変わりません。 */
-    readonly "soulPlaceholder": string
+    /** 人格の本文 (SOUL.md) はここでは編集しません。開発者モードの SOUL.md タブか外部エディタで編集します。AI は書き換えを提案し、承認を経て変えます。 */
+    readonly "soulHint": string
     /** キャラクター */
     readonly "character": string
     /** なし */
@@ -1666,6 +1666,8 @@ export interface Locale {
     readonly "playEdit": string
   }
   readonly "_aiSettingsContent": {
+    /** SOUL.md を Markdown のまま編集できます。見出し (# と ##) の構造を保つと人格のフォームに戻せます。 */
+    readonly "soulHint": string
     /** ai.json5 を直接編集できます。API キーはキーチェーン管理のため raw には現れません。 */
     readonly "rawHint": string
   }
