@@ -46,7 +46,8 @@ vi.mock('@/bindings', () => ({
         (_t, name: string) =>
         (...args: unknown[]) => {
           bindings.calls.push({ name, args })
-          const data = bindings.responses[name] ?? []
+          const r = bindings.responses[name]
+          const data = typeof r === 'function' ? r(...args) : (r ?? [])
           return Promise.resolve({ status: 'ok', data })
         },
     },
@@ -453,6 +454,52 @@ describe('useCrossAccountNotes: カラムクエリ (#783) が全アカウント�
     await api.loadMoreCrossAccount()
     await flush()
     expect(ids(api)).toEqual(['a05', 'a00'])
+  })
+})
+
+describe('useCrossAccountNotes: 列は経路を問わず createdAt 降順 (#1184)', () => {
+  it('追加読み込みの古いページを他アカウントの行と時系列で混ぜる', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      fetchFor: (id, o) => {
+        if (id === 'acc-a') {
+          return o?.untilId
+            ? [note('a35'), note('a33')]
+            : [note('a50'), note('a40')]
+        }
+        return o?.untilId ? [note('b05')] : [note('b30'), note('b10')]
+      },
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40', 'b30', 'b10'])
+    await api.loadMoreCrossAccount()
+    await flush()
+    // 投稿の多い acc-a の遡り分 (a35 / a33) は acc-b の b30 より新しいので上に入る
+    expect(ids(api)).toEqual(['a50', 'a40', 'a35', 'a33', 'b30', 'b10', 'b05'])
+  })
+
+  it('起動時、最新ページと重ならないアカウントのキャッシュは落とす (per-account と同じ gap 判定)', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    // acc-a は最新ページ (a50, a40) とキャッシュ (a20, a10) が重ならない = 間に穴
+    // acc-b は最新ページ (b30, b25) にキャッシュの b30 が含まれる = 続いている
+    bindings.responses.apiGetCachedTimeline = (accountId: string) =>
+      accountId === 'acc-a'
+        ? [stamp(note('a20'), 'acc-a'), stamp(note('a10'), 'acc-a')]
+        : [stamp(note('b30'), 'acc-b'), stamp(note('b08'), 'acc-b')]
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      fetchFor: (id) =>
+        id === 'acc-a'
+          ? [note('a50'), note('a40')]
+          : [note('b30'), note('b25')],
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40', 'b30', 'b25', 'b08'])
   })
 })
 
