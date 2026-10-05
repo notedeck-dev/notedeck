@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { WorkspaceFile } from '@/bindings'
+import ChoiceCard from '@/components/common/ChoiceCard.vue'
+import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
 import { useAiConfig } from '@/composables/useAiConfig'
 import { useAiWorkspace } from '@/composables/useAiWorkspace'
 import { i18n } from '@/i18n'
@@ -145,7 +147,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
     :title="i18n.ts._aiPersonalitySection.title"
     :badge="currentPersonaSkill ? currentPersonaSkill.name : i18n.ts._aiPersonalitySection.characterNone"
   >
-    <!-- 人格: SOUL の本文 + キャラクター 1 行 -->
+    <!-- 人格: SOUL の状態 + キャラクター -->
     <div :class="$style.card">
       <div :class="$style.cardHeader">
         <span :class="$style.cardTitle">{{ i18n.ts._aiPersonalitySection.soul }}</span>
@@ -159,37 +161,24 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 
       <div :class="$style.characterRow">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiPersonalitySection.character }}</span>
-        <div :class="$style.grid">
-          <button
-            class="_button"
-            :class="[$style.characterCard, { [$style.characterCardActive]: !config.personaSkillId }]"
-            :aria-pressed="!config.personaSkillId"
+        <ChoiceCardGrid>
+          <ChoiceCard
+            icon="user-off"
+            :label="i18n.ts._aiPersonalitySection.characterNone"
+            :active="!config.personaSkillId"
             @click="config.personaSkillId = ''"
-          >
-            <i class="ti ti-user-off" :class="$style.logoFallback" />
-            <span>{{ i18n.ts._aiPersonalitySection.characterNone }}</span>
-          </button>
-          <button
+          />
+          <ChoiceCard
             v-for="s in personaCandidates"
             :key="s.id"
-            class="_button"
-            :class="[$style.characterCard, { [$style.characterCardActive]: config.personaSkillId === s.id }]"
-            :aria-pressed="config.personaSkillId === s.id"
+            :label="s.name"
+            :active="config.personaSkillId === s.id"
             :title="s.description || s.name"
+            :icon-mask-css="isProxiable(s.iconUrl) ? proxyCssUrl(s.iconUrl, 48) : null"
+            icon="user-circle"
             @click="config.personaSkillId = s.id"
-          >
-            <!-- SVG icon を accent 色で render (DeckAiColumn.personaIndicator と同じ
-                 mask + currentColor パターン) -->
-            <span
-              v-if="isProxiable(s.iconUrl)"
-              :class="$style.logo"
-              :style="{ '--icon-url': proxyCssUrl(s.iconUrl, 48) }"
-              aria-hidden="true"
-            />
-            <i v-else class="ti ti-user-circle" :class="$style.logoFallback" />
-            <span>{{ s.name }}</span>
-          </button>
-        </div>
+          />
+        </ChoiceCardGrid>
       </div>
       <p :class="$style.hint">
         <i class="ti ti-info-circle" />
@@ -197,6 +186,9 @@ function isFull(f: WorkspaceFile | undefined): boolean {
       </p>
     </div>
 
+  </AiSettingsSection>
+
+  <AiSettingsSection icon="ti-brain" :title="i18n.ts._aiPersonalitySection.memorySectionTitle">
     <!-- あなたについて覚えていること (USER) -->
     <div :class="$style.card">
       <div :class="$style.cardHeader">
@@ -330,55 +322,6 @@ function isFull(f: WorkspaceFile | undefined): boolean {
   flex-direction: column;
   gap: 6px;
   padding-top: 4px;
-}
-
-.grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-}
-
-// `_button` と特異度が同点だと WebView2 で display: inline-block に負けるため (0,2,0) に上げる
-.characterCard.characterCard {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-buttonBg);
-  color: var(--nd-fg);
-  font-size: 0.8em;
-  cursor: pointer;
-  text-align: left;
-
-  span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 100%;
-  }
-}
-
-.characterCardActive.characterCardActive {
-  background: color-mix(in srgb, var(--nd-accent) 12%, var(--nd-buttonBg));
-  box-shadow: inset 0 0 0 1px var(--nd-accent);
-}
-
-// SVG mask + currentColor でテーマアクセント色化 (DeckAiColumn.personaIndicator
-// と同じパターン)。ラスタ画像は表示できないが、persona icon は SVG 前提。
-.logo {
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  background-color: currentColor;
-  color: var(--nd-accent);
-  -webkit-mask: var(--icon-url) center / contain no-repeat;
-  mask: var(--icon-url) center / contain no-repeat;
-}
-
-.logoFallback {
-  font-size: 16px;
-  color: var(--nd-fgMuted);
 }
 
 // --- 項目の行 ---

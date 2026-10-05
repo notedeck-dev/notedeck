@@ -260,7 +260,6 @@ _common:
   reactions: "リアクション"
   reload: "リロード"
   relogin: "再ログイン"
-  remove: "解除"
   renote: "リノート"
   renotes: "リノート"
   reply: "返信"
@@ -285,6 +284,7 @@ _common:
   updateFailed: "更新に失敗しました"
   users: "ユーザー"
   unknownError: "不明なエラー"
+  remove: "解除"
 
 _appConfirm:
   trustedHeader: "NoteDeck の権限確認"
@@ -717,7 +717,8 @@ _tutorialContent:
   next: "次へ →"
 
 _aiConnectionSection:
-  title: "AI 接続"
+  title: "接続"
+  acpTitle: "ACP"
   notSelected: "未選択"
   keyHint: "API キーは Secret Vault (OS キーチェーン) に保管され、フロントエンドや AI には渡りません。接続の追加・編集は「接続」ウィンドウで行います。"
   noConnections: "AI プロバイダー接続がありません。「接続」ウィンドウのテンプレートから接続を追加してください。"
@@ -727,7 +728,6 @@ _aiConnectionSection:
   dailyTokenBudget: "1 日の token 予算"
   tokensPerDay: "tokens / 日"
   dailyTokenBudgetHint: "この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。"
-  harnessTitle: "手元の CLI で動かす"
   harnessHint: "ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。"
   harnessFound: "見つかりました"
   harnessNotFound: "見つかりません"
@@ -797,9 +797,10 @@ _aiHeartbeatSection:
   stepsOpenFailed: "巡回の手順を開けませんでした: {reason}"
 
 _aiPersonalitySection:
-  title: "AI の人格と記憶"
+  title: "ペルソナ"
+  memorySectionTitle: "メモリー"
   soul: "人格"
-  soulHint: "人格の本文 (SOUL.md) はここでは編集しません。開発者モードの SOUL.md タブか外部エディタで編集します。AI は書き換えを提案し、承認を経て変えます。"
+  soulHint: "人格の本文 (SOUL.md) はここでは編集しません。開発者モードの SOUL.md タブか外部エディターで編集します。AI は書き換えを提案し、承認を経て変えます。"
   character: "キャラクター"
   characterNone: "なし"
   characterHint: "新しいセッションから反映されます。過去のセッションは作成時のキャラクターのままです。"
@@ -1079,9 +1080,9 @@ _permissionProfileEditor:
   highRisk: "高リスク操作"
 
 _petSection:
+  none: "なし"
   title: "ペット"
   openPage: "petdex.dev で見る"
-  remove: "ペットを外す"
   size: "ペットの大きさ"
   inputPlaceholder: "slug か petdex.dev のペット URL"
   replace: "替える"
