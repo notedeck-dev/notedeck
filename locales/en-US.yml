@@ -1022,7 +1022,7 @@ _aiHeartbeatSection:
 _aiPersonalitySection:
   title: "AI personality and memory"
   soul: "Personality"
-  soulPlaceholder: "The core of the AI's personality. It stays the same when you switch characters."
+  soulHint: "The personality text (SOUL.md) is not edited here. Use the SOUL.md tab in developer mode or an external editor. The AI proposes edits and changes it after approval."
   character: "Character"
   characterNone: "None"
   characterHint: "Applies from the next session. Existing sessions keep the character they were created with."
@@ -1146,6 +1146,7 @@ _pipPage:
   playEdit: "Edit Play"
 
 _aiSettingsContent:
+  soulHint: "Edit SOUL.md as Markdown. Keep the heading structure (# and ##) so it can still be shown as the personality form."
   rawHint: "Edit ai.json5 directly. API keys are stored in the keychain and never appear in the raw file."
 
 _appearanceEditorContent:
