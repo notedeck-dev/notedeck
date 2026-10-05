@@ -637,6 +637,8 @@ function primaryShortcut(cmd: Command): string | null {
   border-radius: var(--nd-radius-sm);
   background: rgba(255, 255, 255, 0.1);
   color: var(--nd-fg);
+  // コマンドパレットは IDE 面なので等幅フォント (#1085)。input / kbd / item は inherit で追随
+  font-family: var(--nd-font-mono);
 }
 
 .inputIcon {
@@ -685,6 +687,7 @@ function primaryShortcut(cmd: Command): string | null {
   border-top: none;
   border-radius: 0 0 6px 6px;
   box-shadow: 0 8px 36px rgba(0, 0, 0, 0.4);
+  font-family: var(--nd-font-mono);
 }
 
 /* ========================================
@@ -872,7 +875,6 @@ function primaryShortcut(cmd: Command): string | null {
 
 .cliHint {
   opacity: 0.5;
-  font-family: var(--nd-font-mono);
 }
 
 .cliAction strong {
