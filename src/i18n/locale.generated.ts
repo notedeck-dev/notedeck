@@ -3611,8 +3611,16 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "lookupFailed": string
     /** ログイン済みアカウントがありません */
     readonly "noLoggedInAccount": string
-    /** ユーザー照会は単一アカウントモードで行ってください */
-    readonly "userLookupSingleAccountOnly": string
+    /** {count} アカウントでは見つかりませんでした */
+    readonly "userNotFoundCount_plural": PluralString<'count'>
+    /** {account}: 解決できませんでした (相手のサーバーに届かないか、連合していません) */
+    readonly "userUnresolved": ParameterizedString<'account'>
+    /** {account}: 照会に失敗しました */
+    readonly "userFailed": ParameterizedString<'account'>
+    /** どのアカウントでプロフィールを開きますか */
+    readonly "pickAccountForProfile": string
+    /** フォロー中 */
+    readonly "following": string
   }
   readonly "_deckMemoColumn": {
     /** メモはありません */

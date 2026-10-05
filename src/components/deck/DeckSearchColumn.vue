@@ -46,6 +46,7 @@ import {
   serverHostOptions,
   unionHostOptions,
 } from '@/services/searchFilter'
+import { acctOf } from '@/services/userRef'
 import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -306,10 +307,6 @@ const authorResolvedLabel = computed(() => {
   // 全アカウント面は解決できた acct を並べる (見つからなかったサーバーは対象外の一覧に出る)
   return resolved.map((r) => r.acct || r.id).join(', ')
 })
-
-function acctOf(user: NormalizedUser, accountHost: string): string {
-  return `${user.username}@${user.host ?? accountHost}`
-}
 
 /** 単一アカウントはカラムの adapter、全アカウント面はアカウントごとの adapter */
 async function adapterFor(accountId: string) {

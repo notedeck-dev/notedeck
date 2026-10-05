@@ -36,16 +36,25 @@ import {
   type VariantKey,
   variantKeyOf,
 } from '@/services/noteKey'
+import {
+  classifyUserLookupError,
+  groupUserHits,
+  type UserLookupGroup,
+  type UserLookupHit,
+  type UserLookupMiss,
+} from '@/services/userLookupResult'
+import { hostParamFor, parseUserRef, type UserRef } from '@/services/userRef'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { mapWithConcurrency } from '@/utils/concurrency'
+import type { FollowApi } from '@/utils/followAction'
 import { isImeComposing } from '@/utils/ime'
-import { parseUserQuery } from '@/utils/noteUrl'
 import { isRenoteOnly } from '@/utils/noteViewModel'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
+import DeckLookupUserGroups from './DeckLookupUserGroups.vue'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -90,6 +99,11 @@ const isProbing = ref(false)
 const probeProgress = ref(0)
 const lookupError = ref<string | null>(null)
 const mergedThread = ref<MergedThread | null>(null)
+/** 全アカウントのユーザー照会の結果 (#1185)。ノート照会と排他 */
+const userGroups = ref<UserLookupGroup[]>([])
+const userMisses = ref<UserLookupMiss[]>([])
+/** 行のフォローボタンに渡す、アカウントごとの API (照会で adapter を得たものだけ) */
+const followApis = new Map<string, FollowApi>()
 /**
  * この照会で削除したノート (variant key)。ローカル保持 (result / ancestors /
  * children / mergedThread) から外すだけでは、遅れて返るアカウントの
@@ -243,11 +257,15 @@ async function performLookup() {
 
   try {
     // Check if input is @user or @user@host format
-    const userQuery = parseUserQuery(q)
+    const userQuery = parseUserRef(q)
     if (userQuery) {
-      const { username, host } = userQuery
+      const { username } = userQuery
       const user = unwrap(
-        await commands.apiLookupUser(accountId, username, host),
+        await commands.apiLookupUser(
+          accountId,
+          username,
+          hostParamFor(userQuery, acc.host),
+        ),
       )
       result.value = {
         type: 'User',
@@ -349,6 +367,8 @@ async function performLookupCrossAccount(q: string) {
   ancestors.value = []
   children.value = []
   mergedThread.value = null
+  userGroups.value = []
+  userMisses.value = []
   isProbing.value = false
   probeProgress.value = 0
 
@@ -359,10 +379,9 @@ async function performLookupCrossAccount(q: string) {
     return
   }
 
-  // ユーザー照会は cross-account 非対応（ノート専用）
-  if (parseUserQuery(q)) {
-    lookupError.value = i18n.ts._deckLookupColumn.userLookupSingleAccountOnly
-    lookupLoading.value = false
+  const userRef = parseUserRef(q)
+  if (userRef) {
+    await performUserLookupCrossAccount(userRef, accounts)
     return
   }
 
@@ -457,6 +476,72 @@ async function performLookupCrossAccount(q: string) {
   if (allFragments.length === 0) {
     lookupError.value = i18n.ts._deckLookupColumn.lookupFailed
   }
+}
+
+/**
+ * ユーザーを全アカウントで照会する (#1185)。アカウントごとに users/show を投げ、
+ * 返った順に acct で束ねて見せる。自サーバーの acct には host を渡さない
+ * (渡すと「見つからない」が「解決できない」に包まれる)
+ */
+async function performUserLookupCrossAccount(
+  userRef: UserRef,
+  accounts: { id: string; host: string }[],
+) {
+  const hits: UserLookupHit[] = []
+  const misses: UserLookupMiss[] = []
+  let completed = 0
+  isProbing.value = true
+
+  await mapWithConcurrency(
+    accounts,
+    async (acc) => {
+      try {
+        const adapter = await multiAdapters.getOrCreate(acc.id)
+        if (!adapter) {
+          misses.push({
+            accountId: acc.id,
+            accountHost: acc.host,
+            kind: 'failed',
+          })
+          return
+        }
+        followApis.set(acc.id, adapter.api)
+        const user = await adapter.api.lookupUser(
+          userRef.username,
+          hostParamFor(userRef, acc.host),
+        )
+        // 関係はバッジとフォローボタンの初期状態。取れなくてもカードは出す
+        const relation = await adapter.api
+          .getUserRelations([user.id])
+          .then(([rel]) => rel ?? null)
+          .catch(() => null)
+        hits.push({ accountId: acc.id, accountHost: acc.host, user, relation })
+      } catch (e) {
+        misses.push({
+          accountId: acc.id,
+          accountHost: acc.host,
+          kind: classifyUserLookupError(e),
+        })
+      } finally {
+        completed++
+        probeProgress.value = completed / accounts.length
+        userGroups.value = groupUserHits(hits)
+        userMisses.value = [...misses]
+        if (hits.length > 0 && lookupLoading.value) lookupLoading.value = false
+      }
+    },
+    3,
+  )
+
+  isProbing.value = false
+  lookupLoading.value = false
+  if (hits.length === 0) {
+    lookupError.value = i18n.ts._deckLookupColumn.lookupFailed
+  }
+}
+
+function followApiFor(accountId: string): FollowApi | null {
+  return followApis.get(accountId) ?? null
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -590,7 +675,7 @@ async function handlePosted(editedNoteId?: string) {
 
     <!-- ===== Cross-account mode ===== -->
     <template v-if="isCrossAccount">
-      <div v-if="lookupLoading && !mergedThread" :class="$style.columnLoading">
+      <div v-if="lookupLoading && !mergedThread && userGroups.length === 0" :class="$style.columnLoading">
         <LoadingSpinner />
       </div>
 
@@ -603,6 +688,13 @@ async function handlePosted(editedNoteId?: string) {
         cta-icon="ti-refresh"
         @cta="performLookup"
       />
+
+      <div v-else-if="userGroups.length > 0" ref="lookupResultRef" :class="$style.lookupResult">
+        <div v-if="isProbing" :class="$style.probeProgress">
+          <div :class="$style.probeBar" :style="{ width: probeProgress * 100 + '%' }" />
+        </div>
+        <DeckLookupUserGroups :groups="userGroups" :misses="userMisses" :follow-api-for="followApiFor" />
+      </div>
 
       <ColumnEmptyState v-else-if="!mergedThread" :message="i18n.ts._deckLookupColumn.emptyThread" :image-url="serverInfoImageUrl" />
 
