@@ -1521,7 +1521,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "指定 commandId の shortcut を上書きする。Shortcut は  { key: string, scope: \"global\"|\"body\", ctrl?: boolean, shift?: boolean, alt?: boolean }。 `key` は KeyboardEvent.key の値 (\"k\" / \"p\" / \"Escape\" / \"ArrowDown\" 等)。 scope: \"global\" は修飾キー付き常時有効、\"body\" はテキスト入力中は無効。",
+    description: "指定 commandId の shortcut を上書きする。Shortcut は  { key: string, scope: \"global\"|\"body\"|\"os-global\", ctrl?: boolean, shift?: boolean, alt?: boolean }。 `key` は KeyboardEvent.key の値 (\"k\" / \"p\" / \"Escape\" / \"ArrowDown\" 等)。 scope: \"global\" は修飾キー付き常時有効、\"body\" はテキスト入力中は無効、\"os-global\" は OS 全体で効くホットキー (デスクトップだけ。修飾キー必須)。",
     params: {"commandId":{"type":"string","description":"対象コマンドの id (keybinds.list で取得)"},"shortcuts":{"type":"array","description":"Shortcut[] (空配列を渡せば shortcut なしに上書き)"}},
     returns: {"type":"object","description":"{ commandId, count: 設定後の shortcut 数 }"},
   },

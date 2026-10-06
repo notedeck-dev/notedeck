@@ -23,7 +23,6 @@ export interface TauriEventPayloads {
   /** バックエンド初期化の致命エラー (DB open 失敗など)。payload はメッセージ */
   'nd:backend-fatal': string
   'nd:hwheel': number
-  'nd:quick-note': undefined
   'nd:toggle-offline-mode': undefined
   'nd:toggle-realtime-mode': undefined
   /** トレイから HEARTBEAT の有効 / 無効を切り替える (#1174) */

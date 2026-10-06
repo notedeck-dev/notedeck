@@ -191,6 +191,18 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     execute: handlers.toggleNav,
   })
 
+  commandStore.register({
+    id: 'quick-note',
+    get label() {
+      return i18n.ts._commands.quickNote
+    },
+    icon: 'bolt',
+    category: 'general',
+    shortcuts: keybindsStore.getShortcuts('quick-note'),
+    // パレットの `post ` 行で打ち込みから投稿まで (OS ホットキー Ctrl+Alt+N の既定先、#514)
+    execute: () => commandStore.openWithInput('post '),
+  })
+
   if (useUiStore().isDesktop) {
     commandStore.register({
       id: 'boss-key',
@@ -1103,6 +1115,7 @@ export function unregisterDefaultCommands() {
     'notifications',
     'compose',
     'boss-key',
+    'quick-note',
     'add-column',
     'toggle-sidebar',
     'account-menu',

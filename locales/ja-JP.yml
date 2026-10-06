@@ -121,6 +121,7 @@ _commands:
   moveColumnRight: "カラムを右に移動"
   toggleSidebar: "サイドバー切り替え"
   bossKey: "ウィンドウを隠す"
+  quickNote: "クイックノート"
   accountMenu: "アカウントメニュー"
   profileMenu: "プロファイル切り替え"
   settingsMenu: "設定メニュー"
@@ -1017,6 +1018,10 @@ _instanceProfileContent:
 _keybindsContent:
   recording: "入力待ち..."
   addShortcut: "ショートカットを追加"
+  osGlobal: "OS 全体"
+  osGlobalToggle: "OS 全体で効くホットキーにする (アプリが前に無くても反応)"
+  osGlobalNeedsModifier: "OS 全体のホットキーには Ctrl / Shift / Alt のいずれかが要ります"
+  osGlobalRegisterFailed: "OS 全体のホットキーを登録できませんでした (他のアプリや OS が使用中): {keys}"
   codeHint: "ユーザーカスタマイズの JSON (デフォルトからの差分のみ)"
   toggleDarkMode: "ダークモード切り替え"
   popOutColumn: "カラムを別ウィンドウ"
