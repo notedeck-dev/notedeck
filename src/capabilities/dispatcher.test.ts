@@ -2206,6 +2206,55 @@ describe('notecore 発の確認要求 (#1133 縦切り 2)', () => {
     if (!denied.ok) expect(denied.code).toBe('permission_denied')
   })
 
+  it('confirmOnly は権限と確認までを行い、実行しない (#1191)', async () => {
+    let confirmCalls = 0
+    let executed = 0
+    registerCapability(
+      makeCapability({
+        id: 'notes.create',
+        permissions: ['notes.write'],
+        requiresConfirmation: true,
+        execute: () => {
+          executed++
+          return 'ok'
+        },
+      }),
+    )
+    const accept = async () => {
+      confirmCalls++
+      return { accepted: true, remember: false }
+    }
+    const ok = await dispatchCapability(
+      'notes.create',
+      undefined,
+      ctxWithPreset('full'),
+      { confirmOnly: true, confirmFn: accept },
+    )
+    expect(ok).toEqual({ ok: true, result: null })
+    expect(confirmCalls).toBe(1)
+    expect(executed).toBe(0)
+    const cancelled = await dispatchCapability(
+      'notes.create',
+      undefined,
+      ctxWithPreset('full'),
+      {
+        confirmOnly: true,
+        confirmFn: async () => ({ accepted: false, remember: false }),
+      },
+    )
+    expect(cancelled.ok).toBe(false)
+    if (!cancelled.ok) expect(cancelled.code).toBe('user_cancelled')
+    const denied = await dispatchCapability(
+      'notes.create',
+      undefined,
+      ctxWithPreset('readonly'),
+      { confirmOnly: true, confirmFn: accept },
+    )
+    expect(denied.ok).toBe(false)
+    if (!denied.ok) expect(denied.code).toBe('permission_denied')
+    expect(executed).toBe(0)
+  })
+
   it('rememberConfirmation は capability 固有の remember があればそれへ、無ければ confirmSkips へ', async () => {
     const custom = vi.fn()
     registerCapability(

@@ -24,7 +24,8 @@ pub const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05
 pub const SERVER_NAME: &str = "notedeck";
 
 /// capability の実行 (橋の往復) の上限。HTTP の `/api/capabilities/{id}/execute` と同じ
-const EXECUTE_TIMEOUT: Duration = Duration::from_secs(120);
+/// (確認ダイアログで人の承認を待ちうる)
+const EXECUTE_TIMEOUT: Duration = crate::http_server::CAPABILITY_EXECUTE_TIMEOUT;
 
 /// JSON-RPC のエラーコード
 const PARSE_ERROR: i64 = -32700;

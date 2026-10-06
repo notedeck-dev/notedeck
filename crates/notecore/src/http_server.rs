@@ -697,9 +697,11 @@ async fn get_permissions_resolved(State(state): State<DeckState>) -> Result<Json
 // カラム追加/削除・コマンド実行の旧ルートは #711 で削除した。外部からの操作は
 // すべて POST /api/capabilities/{id}/execute (= 権限判定を通る dispatcher) を使う。
 
-/// Capability 実行はユーザー確認ダイアログ待ちを挟みうるので、
-/// query_bridge 既定の 5 秒ではなく長めのタイムアウトを使う。
-const CAPABILITY_EXECUTE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
+/// Capability 実行はユーザー確認ダイアログで人の承認を待ちうるので、query_bridge 既定の
+/// 5 秒ではなく人のペースの上限を使う (`/mcp` の tools/call と、手元の CLI に渡す MCP tool の
+/// タイムアウトも同じ値)。短いと、こちらが諦めた後に承認されて「失敗と返ったのに後から
+/// 反映される」になる (#1188)
+pub const CAPABILITY_EXECUTE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30 * 60);
 
 #[utoipa::path(get, path = "/api/capabilities", tag = "capabilities",
     security(("bearer_auth" = [])),

@@ -18,6 +18,7 @@ import {
   reloadPermissionsConfig,
   resolveForProfiled,
 } from '@/permissions/store'
+import { consumePreapproval, grantPreapproval } from '@/services/acpPreapproval'
 import { listBoundedCacheStats } from '@/services/boundedCache'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
@@ -169,12 +170,48 @@ const handlers: Record<string, QueryHandler> = {
         error: `not a token principal: ${String(kind)}`,
       }
     }
+    const capabilityId = params.capabilityId as string
+    const capParams = (params.params ?? undefined) as
+      | Record<string, unknown>
+      | undefined
+    // 手元の CLI は tool を呼ぶ前の許可要求 (acp/confirm) で確認を済ませている
+    // ことがある (#1191)。一致する記録を 1 回だけ消費して確認を飛ばす。
+    // 記録が無ければ従来どおり実行時に確認する
+    const preConfirmed =
+      kind === 'ai.chat' && consumePreapproval(capabilityId, capParams)
     return await dispatchCapability(
-      params.capabilityId as string,
+      capabilityId,
       // body 省略時に Rust 側から null が来る → capability には undefined で渡す
-      (params.params ?? undefined) as Record<string, unknown> | undefined,
+      capParams,
       { principal: { kind } },
+      preConfirmed ? { preConfirmed: true } : undefined,
     )
+  },
+
+  // --- 手元の CLI (ACP、#1104) の許可要求の段階での確認 (#1191) ---
+  // CLI が NoteDeck の tool を呼ぶ前に送ってくる許可要求に対して、権限の判定と
+  // 確認ダイアログをここで済ませる (人のペースで待てる段階)。承認なら記録し、
+  // 直後の同じ tool 呼び出し (capabilities/execute) が確認なしで通る。
+  'acp/confirm': async (params) => {
+    if (params.principal !== 'ai.chat') {
+      return {
+        ok: false,
+        code: 'permission_denied',
+        error: `not a harness principal: ${String(params.principal)}`,
+      }
+    }
+    const capabilityId = params.capabilityId as string
+    const capParams = (params.params ?? undefined) as
+      | Record<string, unknown>
+      | undefined
+    const result = await dispatchCapability(
+      capabilityId,
+      capParams,
+      { principal: { kind: 'ai.chat' } },
+      { confirmOnly: true },
+    )
+    if (result.ok) grantPreapproval(capabilityId, capParams)
+    return result
   },
 
   // --- notecore のターン実行器からの実行要求 (#1133) ---
