@@ -200,6 +200,8 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | announcements | `announcements.list` | サーバーアナウンス一覧 | `account.read` | — |
 | antenna | `antenna.list` | 自分のアンテナ一覧 | `account.read` | — |
 | antenna | `antenna.notes` | アンテナの note | `notes.read` | — |
+| app | `app.hide` | ウィンドウを隠す | — | — |
+| app | `app.show` | ウィンドウを前に出す | — | — |
 | backup | `backup.create` | バックアップを作成 | `backup.create` | あり |
 | channel | `channel.list` | 自分のフォロー中チャネル | `account.read` | — |
 | channel | `channel.notes` | チャネルの note | `notes.read` | — |

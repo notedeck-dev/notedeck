@@ -5,6 +5,7 @@ import { AI_SESSIONS_BUILTIN_CAPABILITIES } from './aiSessions'
 import { AISCRIPT_BUILTIN_CAPABILITIES } from './aiscript'
 import { ANNOUNCEMENTS_BUILTIN_CAPABILITIES } from './announcements'
 import { ANTENNA_BUILTIN_CAPABILITIES } from './antenna'
+import { APP_BUILTIN_CAPABILITIES } from './app'
 import { BACKUP_BUILTIN_CAPABILITIES } from './backup'
 import { CHANNEL_BUILTIN_CAPABILITIES } from './channel'
 import { CHAT_BUILTIN_CAPABILITIES } from './chat'
@@ -60,6 +61,7 @@ import { WINDOWS_BUILTIN_CAPABILITIES } from './windows'
  */
 export const ALL_BUILTIN_CAPABILITIES: readonly Command[] = [
   ...TIME_BUILTIN_CAPABILITIES,
+  ...APP_BUILTIN_CAPABILITIES,
   ...ACCOUNT_BUILTIN_CAPABILITIES,
   ...ANNOUNCEMENTS_BUILTIN_CAPABILITIES,
   ...ANTENNA_BUILTIN_CAPABILITIES,

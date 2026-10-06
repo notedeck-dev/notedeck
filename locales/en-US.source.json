@@ -376,6 +376,8 @@
   "_capabilities.announcements.list": "3eaf3ae0a240",
   "_capabilities.antenna.list": "703dc3eb582e",
   "_capabilities.antenna.notes": "88ce5150fee9",
+  "_capabilities.app.hide": "c3ba0c608d03",
+  "_capabilities.app.show": "d1831d418e88",
   "_capabilities.backup.create": "82b8aef89532",
   "_capabilities.channel.list": "b69237a36e98",
   "_capabilities.channel.notes": "719dc6861d7e",

@@ -3984,6 +3984,30 @@
         description: 'ISO 8601 形式の現在時刻 (例: 2026-05-01T12:34:56.789Z)',
       },
     },
+    'app.hide': {
+      label: 'ウィンドウを隠す',
+      category: 'general',
+      icon: 'ti-eye-off',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: 'NoteDeck のメインウィンドウを隠す (Boss Key と同じ)。デスクトップ専用で、モバイルでは失敗する。 ランチャ (Raycast 等) の boss コマンドや、プラグインの自動化から使う。 表示に戻すには app.show を呼ぶか、トレイ / OS ホットキーから開く。',
+      returns: {
+        type: 'void',
+      },
+    },
+    'app.show': {
+      label: 'ウィンドウを前に出す',
+      category: 'general',
+      icon: 'ti-eye',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: 'NoteDeck のメインウィンドウを表示してフォーカスする。隠した (app.hide / Boss Key) 後の復帰や、ランチャから「NoteDeck を前に出す」に使う。デスクトップ専用。',
+      returns: {
+        type: 'void',
+      },
+    },
     'ui.notify': {
       label: 'デスクトップ通知',
       category: 'general',
