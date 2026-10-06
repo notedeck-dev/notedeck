@@ -187,6 +187,9 @@ _capabilities:
   antenna:
     list: "List my antennas"
     notes: "Antenna notes"
+  app:
+    hide: "Hide window"
+    show: "Show window"
   backup:
     create: "Create backup"
   channel:

@@ -6394,6 +6394,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       /** 現在時刻を取得 */
       readonly "now": string
     }
+    readonly "app": {
+      /** ウィンドウを隠す */
+      readonly "hide": string
+      /** ウィンドウを前に出す */
+      readonly "show": string
+    }
     readonly "ui": {
       /** デスクトップ通知 */
       readonly "notify": string

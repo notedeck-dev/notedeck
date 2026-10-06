@@ -619,6 +619,10 @@
     "time": {
       "now": "Get current time"
     },
+    "app": {
+      "hide": "Hide window",
+      "show": "Show window"
+    },
     "ui": {
       "notify": "Desktop notification"
     },

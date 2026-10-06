@@ -22,6 +22,8 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'announcements.list',
         'antenna.list',
         'antenna.notes',
+        'app.hide',
+        'app.show',
         'channel.list',
         'channel.notes',
         'chat.react',
@@ -225,6 +227,9 @@ const NOT_EXPOSED_TO_AI = ['ai.chat']
  * (例: cssEditor を開くのは自由だが CSS 書込には styles.write が要る)。
  */
 const WITHOUT_PERMISSIONS = [
+  // OS ウィンドウの表示 / 非表示 (UI 状態、#511)
+  'app.hide',
+  'app.show',
   // HEARTBEAT の応答契約 (報告を返すだけ。HEARTBEAT の実行中以外は記録しない)
   'heartbeat.report',
   'aiscript.validate',

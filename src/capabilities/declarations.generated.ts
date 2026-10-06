@@ -55,6 +55,8 @@ export type CapabilityId =
   | "announcements.list"
   | "antenna.list"
   | "antenna.notes"
+  | "app.hide"
+  | "app.show"
   | "backup.create"
   | "channel.list"
   | "channel.notes"
@@ -224,6 +226,8 @@ export const CAPABILITY_IDS: readonly CapabilityId[] = [
   "announcements.list",
   "antenna.list",
   "antenna.notes",
+  "app.hide",
+  "app.show",
   "backup.create",
   "channel.list",
   "channel.notes",
@@ -666,6 +670,50 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     description: "指定アンテナにマッチした note を返す。antennaId は antenna.list で取得。 projection された note (id / userId / username / text / createdAt) を最大 limit 件返す。",
     params: {"antennaId":{"type":"string","description":"対象 antennaId"},"limit":{"type":"number","description":"取得件数 (default 20)","optional":true},"untilId":{"type":"string","description":"untilId (古い方向のページング)","optional":true},"accountId":{"type":"string","description":"どのアカウントで実行するか。未指定なら呼び出し文脈のアカウント (per-account の AI カラムならそのアカウント)。全アカウントのカラムや HEARTBEAT には文脈アカウントが無いので、`account.list` か `<currentColumn>.accountId` から選んで必ず渡す。","optional":true}},
     returns: {"type":"array","description":"projected note の配列"},
+  },
+  "app.hide": {
+    id: "app.hide",
+    label: "ウィンドウを隠す",
+    category: "general",
+    icon: "ti-eye-off",
+    permissions: [],
+    aiTool: true,
+    confirm: false,
+    actsAsAccount: false,
+    cheap: true,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "device",
+    description: "NoteDeck のメインウィンドウを隠す (Boss Key と同じ)。デスクトップ専用で、モバイルでは失敗する。 ランチャ (Raycast 等) の boss コマンドや、プラグインの自動化から使う。 表示に戻すには app.show を呼ぶか、トレイ / OS ホットキーから開く。",
+    params: {},
+    returns: {"type":"void"},
+  },
+  "app.show": {
+    id: "app.show",
+    label: "ウィンドウを前に出す",
+    category: "general",
+    icon: "ti-eye",
+    permissions: [],
+    aiTool: true,
+    confirm: false,
+    actsAsAccount: false,
+    cheap: true,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "device",
+    description: "NoteDeck のメインウィンドウを表示してフォーカスする。隠した (app.hide / Boss Key) 後の復帰や、ランチャから「NoteDeck を前に出す」に使う。デスクトップ専用。",
+    params: {},
+    returns: {"type":"void"},
   },
   "backup.create": {
     id: "backup.create",
