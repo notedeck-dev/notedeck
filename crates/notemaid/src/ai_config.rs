@@ -65,8 +65,9 @@ pub struct AiConfigLite {
     pub harnesses: Vec<crate::acp::harness::CustomHarness>,
     /// 「あなたのことを覚える」(USER.md の注入と書込、#1162)。既定 true
     pub user_memory: bool,
-    /// 手元の CLI (ACP、#1104) にも USER.md を渡す。既定 false (CLI ベンダーへ送られ、
-    /// CLI 自身の記憶に写り得るため opt-in)
+    /// 手元の CLI (ACP、#1104) にも USER.md を渡す。既定 true (CLI は利用者が AI として
+    /// 選んだ本人なので API 接続と同じ扱い。CLI の提供元へ送られ CLI 自身の記憶に写り得る
+    /// ことは AI 設定「メモリー」のトグルの注記で示し、切れるようにする)
     pub harness_user_memory: bool,
 }
 
@@ -127,7 +128,7 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
         harness_user_memory: doc
             .get("harnessUserMemory")
             .and_then(Value::as_bool)
-            .unwrap_or(false),
+            .unwrap_or(true),
         harnesses: doc
             .get("harnesses")
             .and_then(Value::as_array)
@@ -297,6 +298,9 @@ mod tests {
     fn defaults_and_clamps_match_use_ai_config() {
         let c = from_document(&json!({}));
         assert_eq!(c.persona_skill_id, "");
+        // 記憶は既定で覚え、手元の CLI にも既定で渡す (切るのは AI 設定「メモリー」)
+        assert!(c.user_memory && c.harness_user_memory);
+        assert!(!from_document(&json!({ "harnessUserMemory": false })).harness_user_memory);
         assert!(c.data_sources.current_account && c.data_sources.current_column);
         assert!(!c.data_sources.visible_notes);
         let c2 = from_document(

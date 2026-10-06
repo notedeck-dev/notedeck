@@ -369,7 +369,7 @@ export function defaultConfig(): AiConfig {
     },
     generation: normalizeGenerationConfig(defaultFileConfig.generation),
     userMemory: defaultFileConfig.userMemory !== false,
-    harnessUserMemory: defaultFileConfig.harnessUserMemory === true,
+    harnessUserMemory: defaultFileConfig.harnessUserMemory !== false,
   }
 }
 

@@ -49,8 +49,9 @@
   userMemory: true,
 
   // 手元の CLI (Claude Agent / Codex など) にも、あなたについての記憶を渡す。
-  // CLI の提供元へ送られ、CLI 自身の記憶に写ることがあるので既定は渡さない。
-  harnessUserMemory: false,
+  // CLI は AI として選んだ本人なので API 接続と同じく既定で渡す。CLI の提供元へ
+  // 送られ、CLI 自身の記憶に写ることがあるので、AI 設定「メモリー」で切れる。
+  harnessUserMemory: true,
 
   heartbeat: {
     enabled: false,

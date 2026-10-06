@@ -284,7 +284,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 - `ProvenanceCorpus` には workspace 部分 (SOUL / USER / MEMORY / AGENTS) と store 由来の skill を**入れない** (trusted にも user にも)。そこにしか無い宛先は untrusted に倒れる (tainted な turn で承認された記憶の宛先が、次の turn で trusted になり無人の宛先検査を素通りする経路を塞ぐ)
 - HEARTBEAT: system は SOUL → キャラクター → USER → MEMORY → AGENTS → 固定 INSTRUCTION、**HEARTBEAT.md の本文は user 側の heartbeat メッセージ**に付ける (OpenClaw が scratch を user message に置くのと同じ)。device_context は無し。橋 `heartbeat/context` は廃止 (時刻は notemaid、口座は SyncedAccounts)。固定 INSTRUCTION は OpenClaw の既定に合わせる (「HEARTBEAT.md があればそれに従う / 過去のチャットから古い仕事を推測・反復しない / 何も無ければ `heartbeat.report` を呼ばない / 通知本文に USER の内容を書かない」)。**HEARTBEAT.md が無い、または heartbeat mode の skill 本文がすべて実質空なら tick を skip** (実質空 = OpenClaw の `empty-heartbeat-file` の定義: 空行 / コメント / 見出し / fence / 空のチェックリスト + frontmatter)。OpenClaw は scratch が無くても走ってモデルに任せるが、NoteDeck は無人の予算のため skip する (逸脱)。有効なのに空のときは HEARTBEAT セクションと heartbeat session に「巡回の手順が空です」を出し、予算で見送った tick は「巡回を見送りました (予算)」を 1 行
 - 入口は `start_turn_with_sink` 一本。タイトル生成と `aiChatSend` には入れない
-- どの種類のセッションに入れるか: chat / command / task / heartbeat すべてに全部。external / MCP principal には一切出さない。手元の CLI への USER.md は既定 off (opt-in)。OpenClaw は cron / subagent / group に USER / MEMORY を出さないが、NoteDeck の全セッションは同じ本人の私的なものなので入れる (逸脱)
+- どの種類のセッションに入れるか: chat / command / task / heartbeat すべてに全部。external / MCP principal には一切出さない。手元の CLI への USER.md は既定 on (CLI は利用者が AI として選んだ本人なので API 接続と同じ。AI 設定「メモリー」の「手元の CLI にも渡す」で切れる。2026-10-06 に「ACP」セクションの opt-in から移した)。OpenClaw は cron / subagent / group に USER / MEMORY を出さないが、NoteDeck の全セッションは同じ本人の私的なものなので入れる (逸脱)
 - `dataSources.memos` (更新の新しい順に上位 N 件 + リンク展開) は**廃止**。常駐するのは MEMORY.md だけで、生のメモは `memos.search` / `memos.list` で必要なときに読む (上流と同じ)。`excludeTags` は `memos.search` / `list` の既定に付け替える
 - 上限の単位は文字数 (bytes は CJK が 1/3 になる)。人が書く SOUL / AGENTS は注入コピーを切り詰めて marker (OpenClaw)、tool が書く USER / MEMORY は書込エラーで AI に整理させる (Hermes)。外部エディタで超過させた分は切り詰めず「超過したので注入しない」を AI に伝える
 
@@ -320,7 +320,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 
 ### UI
 
-- 一般側の面は 2 セクション 3 枚: セクション「ペルソナ」に **「人格」** (SOUL の状態とヒントだけ。本文の編集は開発者モードの AI 設定「SOUL.md」タブ = Markdown のコード編集か外部エディター。設定画面の textarea で markdown を直接触らせると見出しの構造を壊すので置かない、[#1186](https://github.com/notedeck-dev/notedeck/issues/1186)) + キャラクターのカード (persona ピッカー) / セクション「メモリー」に **「あなたについて覚えていること」** (本文、行の inline 編集と削除、トグル「あなたのことを覚える」、「すべて忘れる」) と **「覚え書き」** (本文、行の inline 編集と削除)。AI 設定の「接続」と「ACP」(手元の CLI) も別セクション。候補から選ぶカード (接続 / AI プロバイダ / ACP / キャラクター / ペット) は共通の `ChoiceCard` + `ChoiceCardGrid`
+- 一般側の面は 2 セクション 3 枚: セクション「ペルソナ」に **「人格」** (SOUL の状態とヒントだけ。本文の編集は開発者モードの AI 設定「SOUL.md」タブ = Markdown のコード編集か外部エディター。設定画面の textarea で markdown を直接触らせると見出しの構造を壊すので置かない、[#1186](https://github.com/notedeck-dev/notedeck/issues/1186)) + キャラクターのカード (persona ピッカー) / セクション「メモリー」に **「あなたについて覚えていること」** (本文、行の inline 編集と削除、トグル「あなたのことを覚える」と「手元の CLI にも渡す」、「すべて忘れる」) と **「覚え書き」** (本文、行の inline 編集と削除)。AI 設定の「接続」と「ACP」(手元の CLI) も別セクション。候補から選ぶカード (接続 / AI プロバイダ / ACP / キャラクター / ペット) は共通の `ChoiceCard` + `ChoiceCardGrid`
 - **USER OFF の意味** = 注入停止 + `memory.update` の `target: user` を本体が拒否 (tool 一覧からは外さず、エラーで知らせる) + 定数 1 行「利用者に関する記憶は OFF」を system に + MEMORY の書込規則に「本人に関する事実は書かない」。削除はしない (「すべて忘れる」が別)。OFF 中もバックアップには入る旨を説明文に
 - ファイル名は UI に出さない (「設定フォルダを開く」で見える。OpenClaw は Settings → Files で編集、Hermes はパスを直接教える。これは製品判断)。使用率バーは出さず、上限に近いときだけ 1 行。書込の tool カードは人間語の差分 1 行、「覚えました」トーストは作らない
 - 予約 skill は `reserved` フラグで削除 / HEARTBEAT 化を非表示、mode と名前を固定、錠アイコン。名前は「ルール」(AGENTS) と「巡回」(HEARTBEAT)。HEARTBEAT セクションの「巡回の手順を編集」は HEARTBEAT 有効時だけ
