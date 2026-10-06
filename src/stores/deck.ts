@@ -211,6 +211,11 @@ export interface DeckColumn {
    * カラム削除しても残る（別カラムから開ける）。
    */
   aiCurrentSessionId?: string | null
+  /**
+   * AI カラムの入力欄に初期値として入れる文 (deep link `notedeck://ai?prompt=`、#512)。
+   * カラムが取り込んだら消す。送信はしない
+   */
+  aiInitialInput?: string
 }
 
 let columnCounter = 0

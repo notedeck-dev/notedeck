@@ -4,9 +4,11 @@ import { storeToRefs } from 'pinia'
 import {
   computed,
   defineAsyncComponent,
+  nextTick,
   onMounted,
   ref,
   useTemplateRef,
+  watch,
 } from 'vue'
 import { useCommandStore } from '@/commands/registry'
 import AppConfirm from '@/components/common/AppConfirm.vue'
@@ -31,7 +33,11 @@ import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useToast } from '@/stores/toast'
-import { useIsCompactLayout, useUiStore } from '@/stores/ui'
+import {
+  type ComposeRequest,
+  useIsCompactLayout,
+  useUiStore,
+} from '@/stores/ui'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckBottomBar from './DeckBottomBar.vue'
 import DeckColumnsArea from './DeckColumnsArea.vue'
@@ -69,6 +75,8 @@ const showSettingsMenu = ref(false)
 const { mobileDrawerOpen } = storeToRefs(uiStore)
 const pendingFilePaths = ref<string[]>([])
 const pendingComposeAccountId = ref<string | null>(null)
+/** deep link `notedeck://compose` のプリセット (#512)。フォームを開くだけで送信はしない */
+const pendingComposePreset = ref<ComposeRequest | null>(null)
 const addMenuPortalRef = useTemplateRef<HTMLElement>('addMenuPortalRef')
 const composePortalRef = useTemplateRef<HTMLElement>('composePortalRef')
 usePortal(addMenuPortalRef)
@@ -125,7 +133,26 @@ function closeCompose() {
   showCompose.value = false
   pendingFilePaths.value = []
   pendingComposeAccountId.value = null
+  pendingComposePreset.value = null
 }
+
+// deep link からの投稿フォーム要求。初期値は MkPostForm の mount 時にしか
+// 入らないので、開いている最中なら一度閉じて開き直す
+watch(
+  () => uiStore.composeRequest,
+  async (request) => {
+    if (!request) return
+    uiStore.composeRequest = null
+    if (showCompose.value) {
+      closeCompose()
+      await nextTick()
+    }
+    pendingComposePreset.value = request
+    openCompose()
+    // ログイン誘導などで開けなかったら、次に手で開くときへ持ち越さない
+    if (!showCompose.value) pendingComposePreset.value = null
+  },
+)
 
 function toggleAddMenu() {
   if (!isCompact.value) {
@@ -344,6 +371,9 @@ function acceptCrossWindowDrop() {
         :class="[composeT.entering.value && $style.modalEnter, composeT.leaving.value && $style.modalLeave]"
         :account-id="composeAccountId"
         :initial-file-paths="pendingFilePaths"
+        :initial-text="pendingComposePreset?.text"
+        :initial-cw="pendingComposePreset?.cw"
+        :initial-visibility="pendingComposePreset?.visibility"
         @close="closeCompose"
         @posted="closeCompose"
       />

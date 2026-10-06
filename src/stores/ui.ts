@@ -1,6 +1,7 @@
 import { type Platform, platform } from '@tauri-apps/plugin-os'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, onScopeDispose, ref } from 'vue'
+import type { NoteVisibility } from '@/adapters/types'
 import { isTauri } from '@/utils/settingsFs'
 
 export function detectPlatformFromUserAgent(
@@ -37,6 +38,14 @@ const MOBILE_BREAKPOINT = 420 // 420px 以下をモバイルとみなす（タ�
  * 窓の大きさが違うと見比べられない)。幅は MOBILE_BREAKPOINT ちょうど。
  */
 export const MOBILE_WINDOW_SIZE = { width: MOBILE_BREAKPOINT, height: 780 }
+
+export interface ComposeRequest {
+  text?: string
+  cw?: string
+  visibility?: NoteVisibility
+  /** 同じ内容の要求が続いても watch が発火するよう付ける */
+  ts?: number
+}
 
 export const useUiStore = defineStore('ui', () => {
   const sidebarOpen = ref(true)
@@ -107,6 +116,15 @@ export const useUiStore = defineStore('ui', () => {
     driveFilesChanged.value = { accountId, ts: Date.now() }
   }
 
+  /**
+   * 投稿フォームを開く要求 (deep link の `notedeck://compose`、#512)。
+   * DeckLayout が購読して開いたら null に戻す。フォームを開くだけで送信はしない
+   */
+  const composeRequest = ref<ComposeRequest | null>(null)
+  function requestCompose(request: ComposeRequest) {
+    composeRequest.value = { ...request, ts: Date.now() }
+  }
+
   return {
     isTauri,
     isDesktop,
@@ -123,6 +141,8 @@ export const useUiStore = defineStore('ui', () => {
     deckMounted,
     driveFilesChanged,
     emitDriveFilesChanged,
+    composeRequest,
+    requestCompose,
   }
 })
 

@@ -405,6 +405,17 @@ watch(currentSessionId, () => {
   scrollToBottom()
 })
 
+// deep link `notedeck://ai?prompt=` の初期値 (#512)。入力欄に入れるだけで送信はしない
+watch(
+  () => props.column.aiInitialInput,
+  (seed) => {
+    if (!seed) return
+    input.value = seed
+    deckStore.updateColumn(props.column.id, { aiInitialInput: undefined })
+  },
+  { immediate: true },
+)
+
 const canRetry = computed(
   () =>
     turn.retryContext.value !== null &&
