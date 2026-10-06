@@ -12,7 +12,7 @@
 use clap::{Parser, Subcommand};
 #[cfg(target_os = "linux")]
 use notemaid::daemon::secrets;
-use notemaid::daemon::{run, service, status, RunArgs, SocketArgs};
+use notemaid::daemon::{mcp_stdio, run, service, status, RunArgs, SocketArgs};
 
 #[derive(Parser, Debug)]
 #[command(name = "notemaid", version, about = "NoteDeck resident core daemon")]
@@ -27,6 +27,8 @@ enum Command {
     Run(RunArgs),
     /// 動いている notemaid の状態を socket 越しに表示する
     Status(SocketArgs),
+    /// stdio の MCP サーバー: Claude Desktop などが子プロセスとして起動し、動いている NoteDeck の /mcp に転送する (#513)
+    Mcp(mcp_stdio::McpArgs),
     /// ログイン時に起動するユーザー権限のタスク (systemd user unit / LaunchAgent / Run キー) を用意 / 有効化 / 停止する
     #[command(subcommand)]
     Service(service::ServiceCommand),
@@ -54,6 +56,7 @@ fn main() {
     let code = match cli.command.unwrap_or(Command::Run(RunArgs::default())) {
         Command::Run(args) => run::run(args),
         Command::Status(args) => status::status(args),
+        Command::Mcp(args) => mcp_stdio::run(args),
         Command::Service(cmd) => service::run(cmd),
         #[cfg(target_os = "linux")]
         Command::Secrets(cmd) => secrets::run(cmd),

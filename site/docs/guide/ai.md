@@ -67,3 +67,13 @@ AI ができることは権限設定で制御します。既定は控えめで�
 ::: warning 走らせっぱなしのコストに注意
 HEARTBEAT は定期的に API を呼びます。間隔と権限を決めてから有効にしてください。
 :::
+
+## 外部の AI エージェントから使う（MCP）
+
+向きを逆にして、Claude Code や Claude Desktop のような外部の AI エージェントに NoteDeck を道具として使わせることもできます。NoteDeck は MCP（Model Context Protocol）サーバーを内蔵していて、ノートの検索や投稿など、AI チャットと同じ capability を tool として渡します。
+
+1. 設定 → 権限 → 「永続 API トークン」でトークンを発行します。発行直後の画面に、Claude Code 用の登録コマンドと、Claude Desktop 用の設定 JSON が出るのでコピーします
+2. 外部から使える範囲は、同じ画面の「外部アプリ」の権限で決めます。既定は読み取りだけで、投稿などの書き込みは個別に許可します
+3. 書き込みは必ず NoteDeck の画面で確認してから実行されます。外部の AI が勝手に投稿することはありません
+
+Claude Code のように HTTP で繋ぐアプリは `http://127.0.0.1:19820/mcp` に直接繋ぎます。Claude Desktop や Cline のように stdio で起動するアプリには、同梱の `notemaid` を `notemaid mcp` として渡すと、起動中の NoteDeck に転送します。どちらも NoteDeck が起動している間だけ使えます。

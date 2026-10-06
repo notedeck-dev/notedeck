@@ -18,6 +18,7 @@ pub mod exit;
 pub mod heartbeat_timer;
 pub mod lock;
 pub mod logging;
+pub mod mcp_stdio;
 pub mod rpc_server;
 pub mod run;
 // secret のファイル backend は notecli の file store が Linux 専用なので Linux だけ

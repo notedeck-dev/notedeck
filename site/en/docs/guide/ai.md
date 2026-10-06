@@ -1,5 +1,5 @@
 ---
-sourceHash: 356f1b030130
+sourceHash: a5f9c7383329
 ---
 
 # Using AI
@@ -71,3 +71,13 @@ Because it runs unattended, its permissions are separate from chat and stricter 
 ::: warning Watch the cost of leaving it running
 HEARTBEAT calls the API periodically. Decide on the interval and permissions before turning it on.
 :::
+
+## Using NoteDeck from an external AI agent (MCP)
+
+It also works the other way round: external AI agents such as Claude Code or Claude Desktop can use NoteDeck as a tool. NoteDeck has a built-in MCP (Model Context Protocol) server that exposes the same capabilities the AI chat uses, such as searching and posting notes.
+
+1. Issue a token under Settings → Permissions → "Persistent API tokens". Right after issuing, the screen shows a registration command for Claude Code and a config JSON for Claude Desktop; copy the one you need
+2. What external apps may do is governed by the "External apps" permissions on the same screen. The default is read-only; writes such as posting are allowed individually
+3. Writes are always confirmed in the NoteDeck window before they run. An external AI never posts on its own
+
+Apps that connect over HTTP, like Claude Code, talk to `http://127.0.0.1:19820/mcp` directly. Apps that launch servers over stdio, like Claude Desktop or Cline, are given the bundled `notemaid` as `notemaid mcp`, which forwards to the running NoteDeck. Both only work while NoteDeck is running.
