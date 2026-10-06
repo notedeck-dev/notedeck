@@ -61,6 +61,19 @@ impl AcpAgent {
         let mut cmd = Command::new(&harness.command);
         cmd.args(&harness.args)
             .current_dir(cwd)
+            // NoteDeck の capability は確認ダイアログで人の承認を待つことがあり、CLI 側の
+            // MCP tool 呼び出しの既定のタイムアウトでは先に切られる (切られても NoteDeck 側は
+            // 承認後に実行するので「失敗と返ったのに後から反映される」になる、#1188)。
+            // Claude Code はこの環境変数を見る。利用者が自分で設定していれば尊重する
+            .env(
+                "MCP_TOOL_TIMEOUT",
+                std::env::var_os("MCP_TOOL_TIMEOUT").unwrap_or_else(|| {
+                    notecore::http_server::CAPABILITY_EXECUTE_TIMEOUT
+                        .as_millis()
+                        .to_string()
+                        .into()
+                }),
+            )
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
