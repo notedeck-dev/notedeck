@@ -214,6 +214,8 @@ export interface Locale {
     readonly "toggleSidebar": string
     /** ウィンドウを隠す */
     readonly "bossKey": string
+    /** クイックノート */
+    readonly "quickNote": string
     /** アカウントメニュー */
     readonly "accountMenu": string
     /** プロファイル切り替え */
@@ -1832,6 +1834,14 @@ export interface Locale {
     readonly "recording": string
     /** ショートカットを追加 */
     readonly "addShortcut": string
+    /** OS 全体 */
+    readonly "osGlobal": string
+    /** OS 全体で効くホットキーにする (アプリが前に無くても反応) */
+    readonly "osGlobalToggle": string
+    /** OS 全体のホットキーには Ctrl / Shift / Alt のいずれかが要ります */
+    readonly "osGlobalNeedsModifier": string
+    /** OS 全体のホットキーを登録できませんでした (他のアプリや OS が使用中): {keys} */
+    readonly "osGlobalRegisterFailed": ParameterizedString<'keys'>
     /** ユーザーカスタマイズの JSON (デフォルトからの差分のみ) */
     readonly "codeHint": string
     /** ダークモード切り替え */
@@ -2606,6 +2616,8 @@ export interface Locale {
     readonly "createdTokenNotice": ParameterizedString<'name'>
     /** MCP: Claude Code などの AI エージェントからこのトークンで NoteDeck の capability を tool として呼べます (権限は上の「外部アプリ」に従います)。Claude Code なら次のコマンドで登録できます。 */
     readonly "mcpHint": string
+    /** Claude Desktop や Cline のように stdio で MCP サーバーを起動するアプリには、次の JSON を設定ファイル (Claude Desktop なら claude_desktop_config.json) に貼ります。同梱の notemaid が子プロセスになり、起動中の NoteDeck に転送します。 */
+    readonly "mcpStdioHint": string
     /** permissions.json5 を直接編集できます。principal (ai.chat / ai.heartbeat / plugin / external) ごとの preset と custom マップを持ちます。 */
     readonly "codeHint": string
     /** AI への指示チャネルは第三者には開放できません */
@@ -6383,6 +6395,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "time": {
       /** 現在時刻を取得 */
       readonly "now": string
+    }
+    readonly "app": {
+      /** ウィンドウを隠す */
+      readonly "hide": string
+      /** ウィンドウを前に出す */
+      readonly "show": string
     }
     readonly "ui": {
       /** デスクトップ通知 */

@@ -114,6 +114,7 @@ _commands:
   moveColumnRight: "Move column right"
   toggleSidebar: "Toggle sidebar"
   bossKey: "Hide window"
+  quickNote: "Quick note"
   accountMenu: "Account menu"
   profileMenu: "Switch profile"
   settingsMenu: "Settings menu"
@@ -186,6 +187,9 @@ _capabilities:
   antenna:
     list: "List my antennas"
     notes: "Antenna notes"
+  app:
+    hide: "Hide window"
+    show: "Show window"
   backup:
     create: "Create backup"
   channel:
@@ -1241,6 +1245,10 @@ _instanceProfileContent:
 _keybindsContent:
   recording: "Press keys..."
   addShortcut: "Add shortcut"
+  osGlobal: "System-wide"
+  osGlobalToggle: "Make this a system-wide hotkey (works even when the app is not in front)"
+  osGlobalNeedsModifier: "A system-wide hotkey needs Ctrl, Shift or Alt"
+  osGlobalRegisterFailed: "Could not register system-wide hotkeys (taken by another app or the OS): {keys}"
   codeHint: "Your customizations as JSON (differences from the defaults only)"
   toggleDarkMode: "Toggle dark mode"
   popOutColumn: "Pop out column to a window"
@@ -1678,6 +1686,7 @@ _permissionsContent:
   issueToken: "Issue"
   createdTokenNotice: "Token for “{name}” — it can’t be shown again once you close this"
   mcpHint: "MCP: AI agents such as Claude Code can call NoteDeck capabilities as tools with this token (governed by the “External apps” permissions above). For Claude Code, register it with this command."
+  mcpStdioHint: "For apps that launch MCP servers over stdio, such as Claude Desktop or Cline, paste this JSON into their config file (claude_desktop_config.json for Claude Desktop). The bundled notemaid runs as a child process and forwards to the running NoteDeck."
   codeHint: "Edit permissions.json5 directly. Each principal (ai.chat / ai.heartbeat / plugin / external) has a preset and a custom map."
   instructionRuleReason: "Instruction channels to the AI can't be opened to third parties"
   tasksRuleReason: "Only you and the AI can run tasks"

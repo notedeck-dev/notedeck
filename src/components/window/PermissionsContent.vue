@@ -34,6 +34,7 @@ import {
 } from '@/permissions/store'
 import { isExposed } from '@/settings/exposure'
 import { usePluginsStore } from '@/stores/plugins'
+import { useUiStore } from '@/stores/ui'
 import { useWidgetsStore } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -289,11 +290,53 @@ function copyMcpCommand(): void {
   }, 1500)
 }
 
+// stdio の MCP (#513): Claude Desktop など stdio が標準のクライアントは、同梱の
+// notemaid を `notemaid mcp` で子プロセスにする。設定ファイルに貼る JSON を
+// 同梱バイナリの実パスで組む (デスクトップだけ。パスが取れなければ出さない)
+const sidecarPath = ref<string | null>(null)
+async function loadSidecarPath(): Promise<void> {
+  if (!useUiStore().isDesktop) return
+  try {
+    const status = await commands.coreResidentStatus()
+    sidecarPath.value = status.sidecar ?? null
+  } catch {
+    sidecarPath.value = null
+  }
+}
+const mcpStdioConfig = computed(() => {
+  if (!createdToken.value || !sidecarPath.value) return ''
+  return JSON.stringify(
+    {
+      mcpServers: {
+        notedeck: {
+          command: sidecarPath.value,
+          args: ['mcp'],
+          env: { NOTEDECK_API_TOKEN: createdToken.value.token },
+        },
+      },
+    },
+    null,
+    2,
+  )
+})
+const mcpStdioCopied = ref(false)
+function copyMcpStdioConfig(): void {
+  if (!mcpStdioConfig.value) return
+  navigator.clipboard.writeText(mcpStdioConfig.value)
+  mcpStdioCopied.value = true
+  setTimeout(() => {
+    mcpStdioCopied.value = false
+  }, 1500)
+}
+
 function formatTokenDate(t: ApiTokenMeta): string {
   return new Date(t.createdAtMs).toLocaleDateString(i18n.lang)
 }
 
-onMounted(refreshApiTokens)
+onMounted(() => {
+  refreshApiTokens()
+  loadSidecarPath()
+})
 
 const ROWS: readonly {
   id: ProfiledPrincipalId
@@ -583,6 +626,17 @@ function handleReset() {
                 {{ mcpCopied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
               </button>
             </div>
+            <!-- stdio の MCP (#513): Claude Desktop 等の設定ファイルに貼る JSON -->
+            <template v-if="mcpStdioConfig">
+              <div :class="$style.hint">{{ i18n.ts._permissionsContent.mcpStdioHint }}</div>
+              <div :class="$style.tokenValueRow">
+                <pre :class="[$style.tokenValue, $style.tokenConfig]">{{ mcpStdioConfig }}</pre>
+                <button class="_button" :class="$style.tokenCreateButton" @click="copyMcpStdioConfig">
+                  <i class="ti ti-copy" />
+                  {{ mcpStdioCopied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
+                </button>
+              </div>
+            </template>
           </div>
           <div v-if="tokenError" :class="$style.errorMessage">
             <i class="ti ti-alert-triangle" />
@@ -904,6 +958,13 @@ function handleReset() {
   font-size: 0.75em;
   overflow-x: auto;
   white-space: nowrap;
+}
+
+/* 複数行の設定 JSON (stdio の MCP)。改行を保ち、横は流す */
+.tokenConfig {
+  margin: 0;
+  white-space: pre;
+  font-family: var(--nd-font-mono, monospace);
 }
 
 .errorMessage {

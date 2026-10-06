@@ -6,7 +6,6 @@ import {
   registerDefaultCommands,
   unregisterDefaultCommands,
 } from '@/commands/definitions'
-import { useCommandStore } from '@/commands/registry'
 import { startTaskCommandSync } from '@/commands/taskCommands'
 import { useAppBackground } from '@/composables/useAppBackground'
 import { useDeckResume } from '@/composables/useDeckResume'
@@ -16,6 +15,7 @@ import {
 } from '@/composables/useDeckWindow'
 import { handleDeepLink } from '@/composables/useDeepLink'
 import { initOgpListener } from '@/composables/useOgpPreview'
+import { useOsGlobalShortcuts } from '@/composables/useOsGlobalShortcuts'
 import { destroyApiBridge, initApiBridge } from '@/core/apiBridge'
 import { reattachQueryDeltaListener } from '@/core/queryDeltaBus'
 import { useAccountsStore } from '@/stores/accounts'
@@ -49,8 +49,9 @@ export function useDeckInit(options: {
 }) {
   const deckStore = useDeckStore()
   const pluginsStore = usePluginsStore()
-  const commandStore = useCommandStore()
   const uiStore = useUiStore()
+  // OS グローバルホットキー (#514)。コマンド登録の後に init する
+  const osGlobalShortcuts = useOsGlobalShortcuts()
 
   // 復帰検知 (visibilitychange / OS スリープ / Android ネイティブ) は
   // useDeckResume に一元化。ここは検知後の下流処理だけを持つ
@@ -59,7 +60,6 @@ export function useDeckInit(options: {
   useAppBackground()
 
   let handleResizeRef: (() => void) | null = null
-  let unlistenQuickNote: (() => void) | null = null
   let unlistenDeepLink: (() => void) | null = null
   let unlistenWindowEvents: (() => void) | null = null
   let unlistenNotificationClick: (() => void) | null = null
@@ -130,6 +130,7 @@ export function useDeckInit(options: {
 
     // Defer non-critical initialization to after first paint
     requestAnimationFrame(() => {
+      osGlobalShortcuts.init()
       initApiBridge()
       initDesktopNotifications()
       initOgpListener()
@@ -210,11 +211,6 @@ export function useDeckInit(options: {
     // Quick Note: global hotkey (Ctrl+Alt+N)
     if (uiStore.isDesktop) {
       import('@/utils/tauriEvents').then(({ listenTauri }) => {
-        listenTauri('nd:quick-note', () => {
-          commandStore.openWithInput('post ')
-        }).then((fn) => {
-          unlistenQuickNote = fn
-        })
         listenTauri('nd:toggle-offline-mode', () => {
           useOfflineModeStore().toggle()
         })
@@ -249,7 +245,6 @@ export function useDeckInit(options: {
     if (handleResizeRef) window.removeEventListener('resize', handleResizeRef)
     document.removeEventListener('visibilitychange', onVisibilityChange)
     window.removeEventListener('pagehide', onPageHide)
-    unlistenQuickNote?.()
     unlistenDeepLink?.()
     updateCheckHandle?.cancel()
     unlistenWindowEvents?.()

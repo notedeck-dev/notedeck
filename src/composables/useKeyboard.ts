@@ -1,8 +1,12 @@
 import { onUnmounted } from 'vue'
 import { type Shortcut, useCommandStore } from '@/commands/registry'
+import { useUiStore } from '@/stores/ui'
 
 export function useKeyboard() {
   const commandStore = useCommandStore()
+  // os-global はデスクトップの Tauri では OS 側の登録 (useOsGlobalShortcuts) が
+  // 受けるので、ここで二重に実行しない。それ以外の環境ではアプリ内の global として扱う
+  const osGlobalHandledByOs = useUiStore().isDesktop
 
   function handleKeyDown(e: KeyboardEvent) {
     // パレット開放中はパレット側で処理
@@ -16,6 +20,7 @@ export function useKeyboard() {
 
     for (const cmd of commandStore.getEnabled()) {
       for (const shortcut of cmd.shortcuts) {
+        if (shortcut.scope === 'os-global' && osGlobalHandledByOs) continue
         if (matchesShortcut(e, shortcut, isInput)) {
           e.preventDefault()
           e.stopPropagation()

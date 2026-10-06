@@ -13,6 +13,8 @@ import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { useKeybindsStore } from '@/stores/keybinds'
+import { useToast } from '@/stores/toast'
+import { useUiStore } from '@/stores/ui'
 import { STORAGE_KEYS, setStorageJson } from '@/utils/storage'
 
 const jsonLang = json()
@@ -85,6 +87,7 @@ const COMMAND_LABELS: Record<string, () => string> = {
   'add-column': () => i18n.ts._commands.addColumn,
   'toggle-sidebar': () => i18n.ts._commands.toggleSidebar,
   'boss-key': () => i18n.ts._commands.bossKey,
+  'quick-note': () => i18n.ts._commands.quickNote,
   'account-menu': () => i18n.ts._commands.accountMenu,
   'toggle-dark-mode': () => i18n.ts._keybindsContent.toggleDarkMode,
   'note-next': () => i18n.ts._commands.noteNext,
@@ -139,6 +142,7 @@ const COMMAND_CATEGORIES: Record<string, string> = {
   'add-column': 'column',
   'toggle-sidebar': 'navigation',
   'boss-key': 'general',
+  'quick-note': 'general',
   'account-menu': 'account',
   'toggle-dark-mode': 'general',
   'note-next': 'note',
@@ -271,7 +275,14 @@ function onKeyDown(e: KeyboardEvent, commandId: string, index: number) {
   if (['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) return
 
   const hasModifier = e.ctrlKey || e.metaKey || e.shiftKey || e.altKey
-  const scope: Shortcut['scope'] = hasModifier ? 'global' : 'body'
+  // 置き換え前が OS 全体なら、修飾キーがある限りそのまま OS 全体に残す
+  const previous = keybindsStore.getShortcuts(commandId)[index]
+  const scope: Shortcut['scope'] =
+    hasModifier && previous?.scope === 'os-global'
+      ? 'os-global'
+      : hasModifier
+        ? 'global'
+        : 'body'
 
   const newShortcut: Shortcut = {
     key: e.key,
@@ -289,6 +300,26 @@ function onKeyDown(e: KeyboardEvent, commandId: string, index: number) {
   }
   keybindsStore.setShortcuts(commandId, shortcuts)
   recordingCommandId.value = null
+}
+
+// OS 全体のホットキー (#514) はデスクトップの Tauri だけ。修飾キー無しは
+// どのアプリでも単キーを奪うので断る
+const canUseOsGlobal = useUiStore().isDesktop
+
+function toggleOsGlobal(commandId: string, index: number) {
+  const shortcuts = [...keybindsStore.getShortcuts(commandId)]
+  const current = shortcuts[index]
+  if (!current) return
+  if (current.scope === 'os-global') {
+    shortcuts[index] = { ...current, scope: 'global' }
+  } else {
+    if (!current.ctrl && !current.shift && !current.alt) {
+      useToast().show(i18n.ts._keybindsContent.osGlobalNeedsModifier, 'error')
+      return
+    }
+    shortcuts[index] = { ...current, scope: 'os-global' }
+  }
+  keybindsStore.setShortcuts(commandId, shortcuts)
 }
 
 function removeShortcut(commandId: string, index: number) {
@@ -454,6 +485,16 @@ function handleReset() {
                   </template>
                   <template v-else>
                     {{ formatShortcut(shortcut) }}
+                    <span v-if="shortcut.scope === 'os-global'" :class="$style.osGlobalTag">{{ i18n.ts._keybindsContent.osGlobal }}</span>
+                    <button
+                      v-if="canUseOsGlobal"
+                      class="_button"
+                      :class="[$style.osGlobalToggle, { [$style.osGlobalOn]: shortcut.scope === 'os-global' }]"
+                      :title="i18n.ts._keybindsContent.osGlobalToggle"
+                      @click.stop="toggleOsGlobal(cmdId, idx)"
+                    >
+                      <i class="ti ti-world" />
+                    </button>
                     <button class="_button" :class="$style.removeShortcut" @click.stop="removeShortcut(cmdId, idx)">
                       <i class="ti ti-x" />
                     </button>
@@ -688,7 +729,8 @@ function handleReset() {
     animation: pulse 1s infinite;
   }
 
-  &:hover .removeShortcut {
+  &:hover .removeShortcut,
+  &:hover .osGlobalToggle {
     opacity: 0.6;
   }
 }
@@ -706,6 +748,32 @@ function handleReset() {
   font-style: italic;
   font-family: inherit;
   font-size: 1em;
+  color: var(--nd-accent);
+}
+
+.osGlobalTag {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--nd-accent);
+  color: var(--nd-fgOnAccent, #fff);
+  font-size: 0.85em;
+}
+
+.osGlobalToggle {
+  display: flex;
+  align-items: center;
+  font-size: 0.9em;
+  opacity: 0;
+  color: var(--nd-fg);
+  transition: opacity var(--nd-duration-base), color var(--nd-duration-base);
+
+  &:hover {
+    color: var(--nd-accent);
+  }
+}
+
+.osGlobalOn {
+  opacity: 1;
   color: var(--nd-accent);
 }
 

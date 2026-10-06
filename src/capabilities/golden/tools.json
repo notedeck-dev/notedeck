@@ -234,6 +234,22 @@
       }
     },
     {
+      "name": "app_hide",
+      "description": "NoteDeck のメインウィンドウを隠す (Boss Key と同じ)。デスクトップ専用で、モバイルでは失敗する。 ランチャ (Raycast 等) の boss コマンドや、プラグインの自動化から使う。 表示に戻すには app.show を呼ぶか、トレイ / OS ホットキーから開く。",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
+      "name": "app_show",
+      "description": "NoteDeck のメインウィンドウを表示してフォーカスする。隠した (app.hide / Boss Key) 後の復帰や、ランチャから「NoteDeck を前に出す」に使う。デスクトップ専用。",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
       "name": "backup_create",
       "description": "ローカル DB と設定のスナップショットを Downloads/notedeck/backup/ に 作成する。認証情報は含まれない。デッキ構成やプラグイン登録は対象外。 DB と設定はそれぞれ独立して選べる (既定は両方)。 世代は新しい順に keep 件だけ残る。",
       "input_schema": {
@@ -1139,7 +1155,7 @@
     },
     {
       "name": "keybinds_set",
-      "description": "指定 commandId の shortcut を上書きする。Shortcut は  { key: string, scope: \"global\"|\"body\", ctrl?: boolean, shift?: boolean, alt?: boolean }。 `key` は KeyboardEvent.key の値 (\"k\" / \"p\" / \"Escape\" / \"ArrowDown\" 等)。 scope: \"global\" は修飾キー付き常時有効、\"body\" はテキスト入力中は無効。",
+      "description": "指定 commandId の shortcut を上書きする。Shortcut は  { key: string, scope: \"global\"|\"body\"|\"os-global\", ctrl?: boolean, shift?: boolean, alt?: boolean }。 `key` は KeyboardEvent.key の値 (\"k\" / \"p\" / \"Escape\" / \"ArrowDown\" 等)。 scope: \"global\" は修飾キー付き常時有効、\"body\" はテキスト入力中は無効、\"os-global\" は OS 全体で効くホットキー (デスクトップだけ。修飾キー必須)。",
       "input_schema": {
         "type": "object",
         "properties": {
