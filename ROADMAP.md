@@ -748,10 +748,11 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   API キー不要 (CLI の契約で動く)。NoteDeck の capability は MCP で CLI に渡し、CLI の許可要求は
   確認ダイアログに出る。HEARTBEAT はこの経路では回さない (2026-09-30)。Gemini CLI は
   規約上使えないので選べない形で残す。CLI のセッション読み込みは未
-- [ ] **OS グローバルホットキー（任意 capability bind）** (#514) — 現状 Quick Note / Boss Key の
-  2 つだけハードコードされているグローバルホットキーを、任意の capability に bind 可能に拡張。
-  `settings.json` の `globalShortcuts` セクションで管理。Stream Deck / Raycast 未導入のユーザー
-  でも外部ホットキー連携を享受可能
+- [x] **OS グローバルホットキー（任意コマンド bind）** (#514) — キーバインドの scope に
+  `os-global` を足し、コマンドパレットにあるどのコマンドにも OS 全体で効くホットキーを割り当てられる
+  (`keybindings.json5` に統合。`settings.json` の独立セクションは不採用)。以前ハードコードだった
+  Quick Note (Ctrl+Alt+N) / Boss Key (Ctrl+Shift+B) も既定のキーバインドになり、設定で変えられる。
+  デスクトップだけ、修飾キー必須。登録できなかったキー (OS や他アプリが使用中) は通知する
 - [ ] **汎用 Secret Vault** (#564) — AiScript / AI / プラグインから任意の外部サービストークンを
   OS キーチェーン経由で利用可能に。Misskey トークン / AI API キーで運用している credential proxy
   実行モデル (Rust 側で注入、JS / AI には raw secret を渡さない) を任意の外部 API へ拡張。

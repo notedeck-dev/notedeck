@@ -214,6 +214,8 @@ export interface Locale {
     readonly "toggleSidebar": string
     /** ウィンドウを隠す */
     readonly "bossKey": string
+    /** クイックノート */
+    readonly "quickNote": string
     /** アカウントメニュー */
     readonly "accountMenu": string
     /** プロファイル切り替え */
@@ -1832,6 +1834,14 @@ export interface Locale {
     readonly "recording": string
     /** ショートカットを追加 */
     readonly "addShortcut": string
+    /** OS 全体 */
+    readonly "osGlobal": string
+    /** OS 全体で効くホットキーにする (アプリが前に無くても反応) */
+    readonly "osGlobalToggle": string
+    /** OS 全体のホットキーには Ctrl / Shift / Alt のいずれかが要ります */
+    readonly "osGlobalNeedsModifier": string
+    /** OS 全体のホットキーを登録できませんでした (他のアプリや OS が使用中): {keys} */
+    readonly "osGlobalRegisterFailed": ParameterizedString<'keys'>
     /** ユーザーカスタマイズの JSON (デフォルトからの差分のみ) */
     readonly "codeHint": string
     /** ダークモード切り替え */

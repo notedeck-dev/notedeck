@@ -114,6 +114,7 @@ _commands:
   moveColumnRight: "Move column right"
   toggleSidebar: "Toggle sidebar"
   bossKey: "Hide window"
+  quickNote: "Quick note"
   accountMenu: "Account menu"
   profileMenu: "Switch profile"
   settingsMenu: "Settings menu"
@@ -1241,6 +1242,10 @@ _instanceProfileContent:
 _keybindsContent:
   recording: "Press keys..."
   addShortcut: "Add shortcut"
+  osGlobal: "System-wide"
+  osGlobalToggle: "Make this a system-wide hotkey (works even when the app is not in front)"
+  osGlobalNeedsModifier: "A system-wide hotkey needs Ctrl, Shift or Alt"
+  osGlobalRegisterFailed: "Could not register system-wide hotkeys (taken by another app or the OS): {keys}"
   codeHint: "Your customizations as JSON (differences from the defaults only)"
   toggleDarkMode: "Toggle dark mode"
   popOutColumn: "Pop out column to a window"

@@ -22,8 +22,9 @@ export interface Shortcut {
   /**
    * 'global' - 修飾キー付き、常に有効 (Ctrl+K 等)
    * 'body' - テキスト入力中は無効 (単キー: p, n 等)
+   * 'os-global' - OS 全体 (アプリが前に無くても効く。デスクトップの Tauri だけ、#514)
    */
-  scope: 'global' | 'body'
+  scope: 'global' | 'body' | 'os-global'
 }
 
 /**
