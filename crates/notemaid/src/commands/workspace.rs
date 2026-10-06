@@ -40,11 +40,7 @@ fn snapshot(app_dir: &std::path::Path, kind: Kind) -> Result<WorkspaceFile> {
 }
 
 fn notify(core: &Core, kind: Kind, op: SettingsChangeOp) {
-    core.notify_settings_change(SettingsChange {
-        subdir: Some(workspace::DIR.to_string()),
-        name: kind.file_name().to_string(),
-        op,
-    });
+    workspace::notify_changed(core, kind, op);
 }
 
 /// 4 ファイルの写し。無いものは seed してから返す (UI が開いた時点で揃う)
@@ -84,8 +80,8 @@ pub async fn maid_workspace_write(core: &Core, kind: Kind, body: String) -> Resu
     workspace::write(app_dir, kind, &text)?;
     workspace::record_hash(app_dir, kind, &text);
     let cfg = ai_config::load(core)?;
-    if workspace::bootstrap_done(app_dir, cfg.user_memory) {
-        workspace::remove_bootstrap(app_dir);
+    if workspace::bootstrap_done(app_dir, cfg.user_memory) && workspace::remove_bootstrap(app_dir) {
+        notify(core, Kind::Bootstrap, SettingsChangeOp::Delete);
     }
     notify(core, kind, SettingsChangeOp::Write);
     snapshot(app_dir, kind)
@@ -97,8 +93,9 @@ pub async fn maid_user_memory_set(core: &Core, enabled: bool) -> Result<()> {
     ai_config::set_user_memory(core, enabled)?;
     if !enabled {
         let app_dir = core.app_dir()?;
-        workspace::remove_bootstrap(app_dir);
-        notify(core, Kind::Bootstrap, SettingsChangeOp::Delete);
+        if workspace::remove_bootstrap(app_dir) {
+            notify(core, Kind::Bootstrap, SettingsChangeOp::Delete);
+        }
     }
     Ok(())
 }

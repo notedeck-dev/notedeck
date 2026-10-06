@@ -1,6 +1,6 @@
 //! AI 自身の記憶と人格の更新 (`memory.update` / `soul.propose`、#1162)。
 //! 本体は `crate::workspace`。ここは引数の解釈、USER OFF の拒否、無人の拒否、
-//! 書込後の後始末 (hash の記録 / BOOTSTRAP の削除) と確認内容の組み立て。
+//! 書込後の後始末 (hash の記録 / 変更通知 / BOOTSTRAP の削除) と確認内容の組み立て。
 
 use serde_json::{json, Value};
 
@@ -12,6 +12,7 @@ use notecli::error::NoteDeckError;
 use notecore::context::Core;
 use notecore::error::Result;
 use notecore::i18n::text;
+use notecore::settings_events::SettingsChangeOp;
 
 fn s<'a>(p: &'a Value, k: &str) -> Option<&'a str> {
     p.get(k).and_then(Value::as_str)
@@ -56,12 +57,16 @@ fn deny_unattended(ctx: &ExecContext, id: &str) -> Result<()> {
     Ok(())
 }
 
-/// 書いたあとの後始末: 内容 hash を記録し、BOOTSTRAP の役目が済んでいれば消す
-fn after_write(app_dir: &std::path::Path, kind: Kind, body: &str, user_memory: bool) {
+/// 書いたあとの後始末: 内容 hash を記録し、デバイスへ変更を知らせ (AI 設定「メモリー」の
+/// 写しが読み直す)、BOOTSTRAP の役目が済んでいれば消す
+fn after_write(core: &Core, kind: Kind, body: &str, user_memory: bool) -> Result<()> {
+    let app_dir = core.app_dir()?;
     workspace::record_hash(app_dir, kind, body);
-    if workspace::bootstrap_done(app_dir, user_memory) {
-        workspace::remove_bootstrap(app_dir);
+    workspace::notify_changed(core, kind, SettingsChangeOp::Write);
+    if workspace::bootstrap_done(app_dir, user_memory) && workspace::remove_bootstrap(app_dir) {
+        workspace::notify_changed(core, Kind::Bootstrap, SettingsChangeOp::Delete);
     }
+    Ok(())
 }
 
 /// `memory.update`: 1 項目の add / replace / remove。上限超過などは Err ではなく
@@ -89,7 +94,7 @@ pub fn update(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
         Ok(updated) => {
             if updated.changed {
                 workspace::write(app_dir, t.kind, &updated.body)?;
-                after_write(app_dir, t.kind, &updated.body, cfg.user_memory);
+                after_write(core, t.kind, &updated.body, cfg.user_memory)?;
             }
             Ok(json!({
                 "success": true,
@@ -138,7 +143,7 @@ pub fn propose_soul(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> 
     let cfg = ai_config::load(core)?;
     let text = format!("{body}\n");
     workspace::write(app_dir, Kind::Soul, &text)?;
-    after_write(app_dir, Kind::Soul, &text, cfg.user_memory);
+    after_write(core, Kind::Soul, &text, cfg.user_memory)?;
     Ok(json!({ "success": true, "usage": usage_json(u) }))
 }
 
@@ -259,6 +264,58 @@ mod tests {
         .unwrap();
         assert_eq!(v["success"], false);
         assert!(v["error"].as_str().unwrap().contains("no entry"));
+    }
+
+    /// 届いた変更通知を溜める sink (デバイス側の写しの読み直しの代わり)
+    struct ChangeLog(std::sync::Mutex<Vec<notecore::settings_events::SettingsChange>>);
+    impl notecore::settings_events::SettingsSink for ChangeLog {
+        fn settings_changed(&self, change: notecore::settings_events::SettingsChange) {
+            self.0.lock().unwrap().push(change);
+        }
+    }
+
+    /// AI 自身の書込も UI 経由と同じ変更通知を出す (無いと AI 設定「メモリー」の表示が
+    /// アプリ再起動まで古いままだった)
+    #[test]
+    fn ai_writes_notify_the_device_like_ui_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = core_in(dir.path());
+        let log = std::sync::Arc::new(ChangeLog(Default::default()));
+        core.set_settings_sink(log.clone());
+        update(
+            &core,
+            &json!({"action": "add", "target": "memory", "content": "likes tea"}),
+            &ctx("ai.chat"),
+        )
+        .unwrap();
+        propose_soul(&core, &json!({"body": "# SOUL\nkind"}), &ctx("ai.chat")).unwrap();
+        let got: Vec<(String, String, bool)> = log
+            .0
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|c| {
+                (
+                    c.subdir.clone().unwrap_or_default(),
+                    c.name.clone(),
+                    matches!(c.op, SettingsChangeOp::Write),
+                )
+            })
+            .collect();
+        let dir_name = workspace::DIR.to_string();
+        assert!(
+            got.contains(&(dir_name.clone(), "MEMORY.md".into(), true)),
+            "{got:?}"
+        );
+        assert!(
+            got.contains(&(dir_name.clone(), "SOUL.md".into(), true)),
+            "{got:?}"
+        );
+        // SOUL がテンプレから変わったので BOOTSTRAP の削除も知らせる
+        assert!(
+            got.contains(&(dir_name, "BOOTSTRAP.md".into(), false)),
+            "{got:?}"
+        );
     }
 
     #[test]

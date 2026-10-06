@@ -32,8 +32,10 @@ pub struct Registry {
     agents: Mutex<HashMap<String, Arc<AcpAgent>>>,
     /// (harness id, NoteDeck session id) → ACP session id
     sessions: Mutex<HashMap<(String, String), String>>,
-    /// harness id → NoteDeck の MCP サーバーに渡した永続トークン (id)。終了時に失効させる
-    tokens: Mutex<HashMap<String, String>>,
+    /// harness id → NoteDeck の MCP サーバーに渡した永続トークン (id, 本体)。harness ごとに
+    /// 1 つだけ発行して以後のセッションでは使い回し、終了時に id で失効させる (セッションごとに
+    /// 発行すると失効漏れのトークンが残る)
+    tokens: Mutex<HashMap<String, (String, String)>>,
 }
 
 impl Registry {
@@ -70,7 +72,7 @@ impl Registry {
             .clear();
         self.tokens
             .lock()
-            .map(|mut t| t.drain().map(|(_, v)| v).collect())
+            .map(|mut t| t.drain().map(|(_, (id, _))| id).collect())
             .unwrap_or_default()
     }
 }
@@ -116,6 +118,29 @@ impl AcpProvider {
     /// 終了時に失効させる
     async fn mcp_server(&self) -> Option<Value> {
         let url = self.mcp_url.clone()?;
+        let token = match self.token_for_harness().await {
+            Some(t) => t,
+            None => return None,
+        };
+        Some(json!({
+            "type": "http",
+            "name": "notedeck",
+            "url": url,
+            "headers": [{ "name": "Authorization", "value": format!("Bearer {token}") }],
+        }))
+    }
+
+    /// この harness の MCP 用トークン本体。発行済みなら使い回し、無ければ発行して覚える
+    async fn token_for_harness(&self) -> Option<String> {
+        if let Some((_, token)) = self
+            .registry
+            .tokens
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&self.harness.id)
+        {
+            return Some(token.clone());
+        }
         let issued = self
             .bridge
             .issue_harness_token(format!("AI harness: {}", self.harness.name))
@@ -128,19 +153,13 @@ impl AcpProvider {
             }
         };
         let token = issued.get("token").and_then(Value::as_str)?.to_string();
-        if let Some(id) = issued.get("id").and_then(Value::as_str) {
-            self.registry
-                .tokens
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .insert(self.harness.id.clone(), id.to_string());
-        }
-        Some(json!({
-            "type": "http",
-            "name": "notedeck",
-            "url": url,
-            "headers": [{ "name": "Authorization", "value": format!("Bearer {token}") }],
-        }))
+        let id = issued.get("id").and_then(Value::as_str)?.to_string();
+        self.registry
+            .tokens
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(self.harness.id.clone(), (id, token.clone()));
+        Some(token)
     }
 
     async fn session_for(
