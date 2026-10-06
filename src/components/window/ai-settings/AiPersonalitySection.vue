@@ -199,6 +199,13 @@ function isFull(f: WorkspaceFile | undefined): boolean {
         :on="config.userMemory"
         @toggle="toggleUserMemory"
       />
+      <!-- 手元の CLI (ACP) にも渡すか (既定は渡す、#1162)。記憶そのものが OFF なら意味が無いので無効 -->
+      <AiSwitchRow
+        :label="i18n.ts._aiPersonalitySection.harnessUserMemory"
+        :on="config.userMemory && config.harnessUserMemory"
+        :disabled="!config.userMemory"
+        @toggle="config.harnessUserMemory = !config.harnessUserMemory"
+      />
       <ul v-if="user && user.entries.length > 0" :class="[$style.entries, { [$style.entriesDimmed]: !config.userMemory }]">
         <li v-for="entry in user.entries" :key="entry" :class="$style.entry">
           <input

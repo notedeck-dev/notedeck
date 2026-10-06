@@ -196,15 +196,6 @@ function openConnectionsWindow(): void {
       <i class="ti ti-info-circle" />
       <span>{{ i18n.ts._aiConnectionSection.harnessRelayNote }}</span>
     </div>
-    <!-- あなたについての記憶を CLI にも渡すか (既定は渡さない、#1162) -->
-    <template v-if="currentHarness">
-      <AiSwitchRow
-        :label="i18n.ts._aiConnectionSection.harnessUserMemory"
-        :on="config.harnessUserMemory"
-        @toggle="config.harnessUserMemory = !config.harnessUserMemory"
-      />
-      <p :class="$style.fieldHint">{{ i18n.ts._aiConnectionSection.harnessUserMemoryHint }}</p>
-    </template>
   </AiSettingsSection>
 
   <AiSettingsSection v-if="currentConnection" icon="ti-cube" :title="i18n.ts._aiConnectionSection.model">
