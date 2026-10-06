@@ -2,9 +2,12 @@
 //! ツールのループは CLI の中で回る (NoteDeck の capability は MCP サーバー越し) ので、
 //! こちらは本文の断片を流し、ツールの動きを通常経路と同じ tool_use / tool_result に写し
 //! (`ai_turn::external`)、CLI 自身のツールの許可要求を確認ダイアログに写すだけ。
-//! NoteDeck の capability への許可要求は通す: 認可と確認は実行時に NoteDeck 自身
-//! (ai.chat principal の権限 + dispatcher の確認ダイアログ) が行うので、ここで聞くと
-//! 同じ操作を 2 度聞くことになる。CLI は利用者が選んだ AI 本人なので、MCP 用トークンは
+//! NoteDeck の capability への許可要求は、その段階で NoteDeck 自身に確認させる (#1191):
+//! 橋 `acp/confirm` でデバイスの dispatcher が権限の判定と確認ダイアログを済ませ、承認を
+//! 記録する。直後の同じ tool 呼び出し (MCP) はその記録で確認なしに通るので 2 度聞かない。
+//! 人の承認を MCP tool のタイムアウトの内側で待たないための形 (以前は実行時に確認していて、
+//! CLI には timed out と返るのに承認後に反映されていた)。デバイスに届かなければ通し、
+//! 実行時の確認に任せる。CLI は利用者が選んだ AI 本人なので、MCP 用トークンは
 //! harness 種別 = ai.chat で解決する (#1188: external だと記憶 / skill の書込が恒久 deny)。
 
 use std::collections::HashMap;
@@ -128,6 +131,37 @@ impl AcpProvider {
             "url": url,
             "headers": [{ "name": "Authorization", "value": format!("Bearer {token}") }],
         }))
+    }
+
+    /// NoteDeck の capability への許可要求を、デバイスの dispatcher に確認してもらう
+    /// (`acp/confirm`: 権限の判定 + 確認ダイアログ、人のペースで待つ)。承認なら true。
+    /// デバイスに届かない (切断中 / 古いアプリ) ときは通し、実行時の確認に任せる
+    async fn confirm_with_notedeck(&self, capability_id: &str, input: Value) -> bool {
+        let reply = self
+            .bridge
+            .query(
+                "acp/confirm",
+                json!({
+                    "capabilityId": capability_id,
+                    "params": input,
+                    "principal": "ai.chat",
+                }),
+                notecore::http_server::CAPABILITY_EXECUTE_TIMEOUT,
+            )
+            .await;
+        match reply {
+            Ok(v) => match v.get("ok").and_then(Value::as_bool) {
+                Some(ok) => ok,
+                None => {
+                    tracing::warn!(harness = %self.harness.id, capability = capability_id, "acp/confirm answered without ok; deferring to the execute-time confirmation");
+                    true
+                }
+            },
+            Err(e) => {
+                tracing::warn!(harness = %self.harness.id, capability = capability_id, "acp/confirm unavailable ({e}); deferring to the execute-time confirmation");
+                true
+            }
+        }
     }
 
     /// この harness の MCP 用トークン本体。発行済みなら使い回し、無ければ発行して覚える
@@ -646,11 +680,11 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
                                         },
                                     ));
                                     false
-                                } else if passes_to_notedeck(&params) {
-                                    // NoteDeck の capability: 認可と確認は実行時に NoteDeck 自身が
-                                    // 行う (ai.chat principal の権限 + dispatcher の確認ダイアログ)。
-                                    // ここで聞くと同じ操作を 2 度聞くことになる
-                                    true
+                                } else if let Some((capability_id, input)) = notedeck_capability_request(&params) {
+                                    // NoteDeck の capability: 権限の判定と確認ダイアログをこの段階で
+                                    // NoteDeck 自身に済ませてもらう (#1191)。承認は記録され、直後の
+                                    // 同じ tool 呼び出しは確認なしで通る
+                                    self.confirm_with_notedeck(&capability_id, input).await
                                 } else {
                                     ask_permission(&self.harness.name, &req.stream_id, sink, &params).await
                                 };
@@ -673,16 +707,15 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
     }
 }
 
-/// 許可要求を聞かずに通してよいか: NoteDeck の MCP tool への要求で、ファイルやコマンドに
-/// 触る兆候が無いもの。tool 名は CLI の申告で出自の証明にならないので、名前だけでは
-/// 通さない (ファイル編集などを NoteDeck の tool 名で申告されても確認を出す)。MCP tool の
-/// 呼び出しは ACP では `kind: other` (または省略) で、`locations` を持たない
-pub fn passes_to_notedeck(params: &Value) -> bool {
+/// 許可要求が NoteDeck の MCP tool へのものなら (capability id, 引数)。ファイルやコマンドに
+/// 触る兆候があるものは除く: tool 名は CLI の申告で出自の証明にならないので、名前だけでは
+/// NoteDeck の tool と見なさない (ファイル編集などを NoteDeck の tool 名で申告されても
+/// CLI の tool として確認を出す)。MCP tool の呼び出しは ACP では `kind: other` (または省略)
+/// で、`locations` を持たない。引数は `rawInput` (無ければ空)
+pub fn notedeck_capability_request(params: &Value) -> Option<(String, Value)> {
     let tool = params.get("toolCall").cloned().unwrap_or(Value::Null);
     let title = tool.get("title").and_then(Value::as_str).unwrap_or("");
-    if notedeck_tool_name(title).is_none() {
-        return false;
-    }
+    let name = notedeck_tool_name(title)?;
     let kind_ok = matches!(
         tool.get("kind").and_then(Value::as_str),
         None | Some("other")
@@ -691,7 +724,14 @@ pub fn passes_to_notedeck(params: &Value) -> bool {
         .get("locations")
         .and_then(Value::as_array)
         .is_none_or(|l| l.is_empty());
-    kind_ok && no_locations
+    if !(kind_ok && no_locations) {
+        return None;
+    }
+    let input = match tool.get("rawInput") {
+        Some(v @ Value::Object(_)) => v.clone(),
+        _ => json!({}),
+    };
+    Some((notecore::capabilities::id_from_tool_name(&name), input))
 }
 
 /// 許可要求が人格 / 記憶のファイル (`notemaid/` の中、`workspace/` 以外) に触るか。
@@ -921,12 +961,28 @@ mod tests {
     }
 
     #[test]
-    fn only_plain_notedeck_mcp_calls_pass_without_asking() {
-        let ask = |tool: Value| passes_to_notedeck(&json!({ "toolCall": tool }));
+    fn only_plain_notedeck_mcp_calls_are_confirmed_by_notedeck() {
+        let ask = |tool: Value| notedeck_capability_request(&json!({ "toolCall": tool })).is_some();
+        // capability id と引数が取り出せる (直後の MCP 呼び出しと同じ鍵になる)
+        let (id, input) = notedeck_capability_request(&json!({ "toolCall": {
+            "title": "mcp__notedeck__memory_update", "kind": "other",
+            "rawInput": { "action": "add", "target": "user", "content": "x" }
+        } }))
+        .unwrap();
+        assert_eq!(id, "memory.update");
+        assert_eq!(input["target"], "user");
         assert!(ask(
             json!({ "title": "mcp__notedeck__notes_search", "kind": "other", "rawInput": { "query": "a" } })
         ));
         assert!(ask(json!({ "title": "mcp__notedeck__account_list" })));
+        assert_eq!(
+            notedeck_capability_request(
+                &json!({ "toolCall": { "title": "mcp__notedeck__account_list" } })
+            )
+            .unwrap()
+            .1,
+            json!({})
+        );
         // NoteDeck の名前を名乗っても、ファイル / コマンドの兆候があれば聞く
         assert!(!ask(
             json!({ "title": "mcp__notedeck__notes_search", "kind": "edit" })
