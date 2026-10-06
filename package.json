@@ -23,7 +23,7 @@
     "gen:golden-perf": "UPDATE_GOLDEN_PERF=1 vitest run src/stores/performanceGolden.test.ts",
     "typecheck": "vue-tsc -b --noEmit",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "cargo build -p notemaid && tauri dev",
     "tauri:build": "tauri build",
     "build:sidecar": "bash scripts/build-sidecar.sh",
     "tauri:android": "pnpm android:dev",
