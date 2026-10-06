@@ -138,7 +138,11 @@ const handlers: Record<string, QueryHandler> = {
   },
 
   // --- 外部アプリ向け capability 面 (#709) ---
-  // 権限は external principal のプロファイルで gate される (dispatcher が照合)。
+  // 権限は呼び手の principal のプロファイルで gate される (dispatcher が照合)。
+  // principal は Rust 側が永続トークンの種別から決めて渡す: 権限ウィンドウで
+  // 発行した外部アプリ用は external、NoteDeck が AI として起動した手元の CLI
+  // (ACP、#1104) 用は ai.chat (#1188 — AI 本人を第三者扱いすると記憶 / skill の
+  // 書込が恒久 deny で袋小路になる)。
   // カラム追加/削除・コマンド実行の旧 store 直叩きハンドラは #711 で削除済み —
   // 外部からの操作はすべて capabilities/execute (= dispatcher) に一本化する。
 
@@ -157,11 +161,19 @@ const handlers: Record<string, QueryHandler> = {
     })),
 
   'capabilities/execute': async (params) => {
+    const kind = params.principal ?? 'external'
+    if (kind !== 'external' && kind !== 'ai.chat') {
+      return {
+        ok: false,
+        code: 'permission_denied',
+        error: `not a token principal: ${String(kind)}`,
+      }
+    }
     return await dispatchCapability(
       params.capabilityId as string,
       // body 省略時に Rust 側から null が来る → capability には undefined で渡す
       (params.params ?? undefined) as Record<string, unknown> | undefined,
-      { principal: { kind: 'external' } },
+      { principal: { kind } },
     )
   },
 

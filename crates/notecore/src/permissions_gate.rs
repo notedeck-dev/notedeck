@@ -1,12 +1,15 @@
-//! HTTP API (port 19820) の external principal gate (#712 §5.3 / #711 / #1099)。
+//! HTTP API (port 19820) の永続トークン gate (#712 §5.3 / #711 / #1099)。
 //!
-//! 永続トークン由来のリクエストを external プロファイル (permissions.json5 の
-//! `external`) に従属させる。従来は永続トークンが起動毎の ephemeral 全権
+//! 永続トークン由来のリクエストをそのトークンの principal のプロファイル
+//! (permissions.json5) に従属させる。権限ウィンドウで発行した外部アプリ用は
+//! `external`、NoteDeck が AI として起動した手元の CLI (#1104) に渡した harness
+//! 用は `ai.chat` (#1188: AI 本人を第三者扱いすると記憶 / skill の書込が恒久
+//! deny で袋小路になる)。従来は永続トークンが起動毎の ephemeral 全権
 //! トークンへ詰め替えられて notecli の生 Misskey ルート (投稿 / 削除 /
 //! リアクション等) にそのまま流れており、「外部アプリ = readonly」が生ルートに
 //! 対して嘘だった。
 //!
-//! - **gate の適用対象は永続トークン由来のみ** (`ExternalTokenMarker` 付き)。
+//! - **gate の適用対象は永続トークン由来のみ** (`PersistentTokenMarker` 付き)。
 //!   ephemeral トークン直用 (notecli CLI 等のローカルプロセス) は token file を
 //!   読める = 本人と同格の local trust として免除 (挙動変更ゼロ)。
 //! - **GET / 非 GET とも deny-by-default + per-route の明示対応表**。対応表に
@@ -36,8 +39,11 @@ use crate::permissions_profile::{self, Granted, PrincipalId};
 /// 永続トークンで認証されたリクエストに付く marker (request extension)。
 /// プロセス外から付与できないため「inbound ヘッダーの strip 忘れ」という
 /// 脆弱性クラス自体が存在しない (#712 §7.2 と同じ理由で extension 方式)。
+/// `principal` はそのトークンの種別から決まる (`ApiTokenKind::principal`)。
 #[derive(Clone, Copy, Debug)]
-pub struct ExternalTokenMarker;
+pub struct PersistentTokenMarker {
+    pub principal: PrincipalId,
+}
 
 const PERMISSIONS_FILE_NAME: &str = "permissions.json5";
 
@@ -93,10 +99,6 @@ pub async fn profile_for(id: PrincipalId) -> (&'static str, Granted) {
         ),
         Err(_) => ("readonly", permissions_profile::resolve_fallback(id)),
     }
-}
-
-async fn external_granted() -> Granted {
-    granted_for(PrincipalId::External).await
 }
 
 /// 「次から確認しない」(#714) の記憶を permissions.json5 の `confirmSkips`
@@ -229,16 +231,17 @@ fn explicit_route_rule(method: &Method, path: &str) -> Option<RouteRule> {
     None
 }
 
-fn forbidden(required: &[&str]) -> Response {
+fn forbidden(principal: PrincipalId, required: &[&str]) -> Response {
+    let principal = principal.as_str();
     (
         StatusCode::FORBIDDEN,
         Json(json!({
             "ok": false,
             "code": "permission_denied",
-            "principal": "external",
+            "principal": principal,
             "required": required,
             "error": format!(
-                "denied for external principal: required [{}] (allow it in the external app permissions of permissions.json5)",
+                "denied for {principal} principal: required [{}] (allow it in the {principal} permissions of permissions.json5)",
                 required.join(", ")
             ),
         })),
@@ -246,16 +249,16 @@ fn forbidden(required: &[&str]) -> Response {
         .into_response()
 }
 
-/// external gate middleware。`ExternalTokenMarker` が付いたリクエスト
-/// (= 永続トークン由来) のみ enforce する。
-pub async fn external_gate_middleware(req: Request, next: Next) -> Response {
-    if req.extensions().get::<ExternalTokenMarker>().is_none() {
+/// 永続トークン gate middleware。`PersistentTokenMarker` が付いたリクエスト
+/// (= 永続トークン由来) のみ、そのトークンの principal で enforce する。
+pub async fn persistent_token_gate_middleware(req: Request, next: Next) -> Response {
+    let Some(marker) = req.extensions().get::<PersistentTokenMarker>().copied() else {
         return next.run(req).await;
-    }
+    };
     match route_rule(req.method(), req.uri().path()) {
         RouteRule::Exempt => next.run(req).await,
         RouteRule::Keys(keys) => {
-            let granted = external_granted().await;
+            let granted = granted_for(marker.principal).await;
             let denied: Vec<&str> = keys
                 .iter()
                 .filter(|k| !granted.contains(*k))
@@ -264,17 +267,17 @@ pub async fn external_gate_middleware(req: Request, next: Next) -> Response {
             if denied.is_empty() {
                 next.run(req).await
             } else {
-                forbidden(&denied)
+                forbidden(marker.principal, &denied)
             }
         }
-        RouteRule::Deny => forbidden(&[]),
+        RouteRule::Deny => forbidden(marker.principal, &[]),
     }
 }
 
 /// health ハンドラ用: 永続トークン由来のリクエストで streams 詳細
 /// (接続先 host 等のローカルデータ) を返してよいか。
-pub async fn external_may_read_deck() -> bool {
-    external_granted().await.contains("deck.read")
+pub async fn may_read_deck(principal: PrincipalId) -> bool {
+    granted_for(principal).await.contains("deck.read")
 }
 
 #[cfg(test)]

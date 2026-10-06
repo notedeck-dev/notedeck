@@ -5,10 +5,10 @@
 //!   session id もサーバー発のストリームも使わない (GET は 405)
 //! - tool の一覧は宣言表 (`capabilities`) の `ai_tool` な capability で、AI プロバイダーに
 //!   渡す tool と同じ名前 / schema。実行は既存の `capabilities/execute` (橋 → デバイスの
-//!   dispatcher) で、認可と汚染は external principal の枠 (#712) がそのまま効く
-//! - 認証は HTTP API と同じ Bearer。永続トークンで繋ぐと external principal になる
-//!
-//! この形なら ACP (#1104) で手元の CLI を抱えるときも、CLI にこの URL とトークンを渡すだけでよい。
+//!   dispatcher) で、認可と汚染は呼び手の principal の枠 (#712) がそのまま効く
+//! - 認証は HTTP API と同じ Bearer。principal は永続トークンの種別が決める: 権限ウィンドウで
+//!   発行した外部アプリ用は external、NoteDeck が AI として起動した手元の CLI (ACP、#1104) に
+//!   渡した harness 用は ai.chat (#1188。AI 本人なので第三者向けの恒久 deny を受けない)
 
 use std::time::Duration;
 
@@ -16,6 +16,7 @@ use serde_json::{json, Map, Value};
 
 use crate::capabilities::{self, CapabilityDecl};
 use crate::frontend_bridge::FrontendBridge;
+use crate::permissions_profile::PrincipalId;
 
 /// 対応する MCP の版 (新しい順)。クライアントが挙げた版が含まれればそれを、無ければ先頭を返す
 pub const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -72,9 +73,11 @@ fn tool_result(text: String, is_error: bool) -> Value {
     Value::Object(m)
 }
 
-/// JSON-RPC のメッセージを 1 つ処理する。通知 (id なし) は None (応答を返さない)
+/// JSON-RPC のメッセージを 1 つ処理する。通知 (id なし) は None (応答を返さない)。
+/// `principal` は tools/call を dispatcher に渡すときの呼び手 (トークンの種別から決まる)
 pub async fn handle(
     bridge: &dyn FrontendBridge,
+    principal: PrincipalId,
     message: Value,
     app_version: &str,
 ) -> Option<Value> {
@@ -107,7 +110,7 @@ pub async fn handle(
                     "protocolVersion": negotiate_version(requested),
                     "capabilities": { "tools": { "listChanged": false } },
                     "serverInfo": { "name": SERVER_NAME, "version": app_version },
-                    "instructions": "NoteDeck (a Misskey deck client) exposes its capabilities as tools. Reads return Misskey data; writes may ask the person for confirmation in the app and can be denied by the app's permissions for external apps.",
+                    "instructions": "NoteDeck (a Misskey deck client) exposes its capabilities as tools. Reads return Misskey data; writes may ask the person for confirmation in the app and can be denied by the app's permissions.",
                 }),
             )
         }
@@ -129,7 +132,7 @@ pub async fn handle(
                 ));
             }
             let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-            rpc_result(id, call(bridge, &capability_id, arguments).await)
+            rpc_result(id, call(bridge, principal, &capability_id, arguments).await)
         }
         other => rpc_error(id, METHOD_NOT_FOUND, format!("unknown method: {other}")),
     })
@@ -137,11 +140,20 @@ pub async fn handle(
 
 /// capability を実行して tool の結果に写す。dispatcher の `DispatchResult`
 /// (`{ok, result}` / `{ok, code, error}`) を読む (HTTP の execute と同じ)
-async fn call(bridge: &dyn FrontendBridge, capability_id: &str, arguments: Value) -> Value {
+async fn call(
+    bridge: &dyn FrontendBridge,
+    principal: PrincipalId,
+    capability_id: &str,
+    arguments: Value,
+) -> Value {
     let data = match bridge
         .query(
             "capabilities/execute",
-            json!({ "capabilityId": capability_id, "params": arguments }),
+            json!({
+                "capabilityId": capability_id,
+                "params": arguments,
+                "principal": principal.as_str(),
+            }),
             EXECUTE_TIMEOUT,
         )
         .await
@@ -177,6 +189,7 @@ async fn call(bridge: &dyn FrontendBridge, capability_id: &str, arguments: Value
 /// HTTP の本文 (単体か配列) を処理し、応答の本文を返す。応答が無ければ None (202)
 pub async fn handle_body(
     bridge: &dyn FrontendBridge,
+    principal: PrincipalId,
     body: Value,
     app_version: &str,
 ) -> Result<Option<Value>, Value> {
@@ -187,13 +200,13 @@ pub async fn handle_body(
             }
             let mut out = Vec::new();
             for item in items {
-                if let Some(r) = handle(bridge, item, app_version).await {
+                if let Some(r) = handle(bridge, principal, item, app_version).await {
                     out.push(r);
                 }
             }
             Ok((!out.is_empty()).then_some(Value::Array(out)))
         }
-        Value::Object(_) => Ok(handle(bridge, body, app_version).await),
+        Value::Object(_) => Ok(handle(bridge, principal, body, app_version).await),
         _ => Err(rpc_error(
             Value::Null,
             PARSE_ERROR,
@@ -228,10 +241,10 @@ mod tests {
         ) -> BridgeFuture<'_> {
             Box::pin(async { Ok(json!([])) })
         }
-        fn issue_external_token(&self, _n: String) -> BridgeFuture<'_> {
+        fn issue_harness_token(&self, _n: String) -> BridgeFuture<'_> {
             Box::pin(async { Err("no".into()) })
         }
-        fn revoke_external_token(&self, _i: String) -> BridgeFuture<'_> {
+        fn revoke_harness_token(&self, _i: String) -> BridgeFuture<'_> {
             Box::pin(async { Ok(Value::Null) })
         }
     }
@@ -250,6 +263,7 @@ mod tests {
         let b = fake(Ok(Value::Null));
         let r = handle(
             &b,
+            PrincipalId::External,
             req(1, "initialize", json!({ "protocolVersion": "2025-03-26" })),
             "1.2.3",
         )
@@ -259,6 +273,7 @@ mod tests {
         assert_eq!(r["result"]["serverInfo"]["version"], "1.2.3");
         let r = handle(
             &b,
+            PrincipalId::External,
             req(2, "initialize", json!({ "protocolVersion": "1999-01-01" })),
             "1",
         )
@@ -273,25 +288,38 @@ mod tests {
         let b = fake(Ok(Value::Null));
         assert!(handle(
             &b,
+            PrincipalId::External,
             json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
             "1"
         )
         .await
         .is_none());
-        let r = handle(&b, req(3, "resources/list", json!({})), "1")
+        let r = handle(
+            &b,
+            PrincipalId::External,
+            req(3, "resources/list", json!({})),
+            "1",
+        )
+        .await
+        .unwrap();
+        assert_eq!(r["error"]["code"], METHOD_NOT_FOUND);
+        let r = handle(&b, PrincipalId::External, req(4, "ping", json!({})), "1")
             .await
             .unwrap();
-        assert_eq!(r["error"]["code"], METHOD_NOT_FOUND);
-        let r = handle(&b, req(4, "ping", json!({})), "1").await.unwrap();
         assert_eq!(r["result"], json!({}));
     }
 
     #[tokio::test]
     async fn tools_list_is_the_ai_tool_set_with_the_same_names_and_schemas() {
         let b = fake(Ok(Value::Null));
-        let r = handle(&b, req(5, "tools/list", json!({})), "1")
-            .await
-            .unwrap();
+        let r = handle(
+            &b,
+            PrincipalId::External,
+            req(5, "tools/list", json!({})),
+            "1",
+        )
+        .await
+        .unwrap();
         let tools = r["result"]["tools"].as_array().unwrap();
         assert_eq!(tools.len(), tool_decls().count());
         let timeline = tools
@@ -317,6 +345,7 @@ mod tests {
         let ok = fake(Ok(json!({ "ok": true, "result": { "notes": [1, 2] } })));
         let r = handle(
             &ok,
+            PrincipalId::External,
             req(
                 6,
                 "tools/call",
@@ -335,6 +364,7 @@ mod tests {
             let calls = ok.calls.lock().unwrap();
             assert_eq!(calls[0]["capabilityId"], "notes.timeline");
             assert_eq!(calls[0]["params"]["type"], "home");
+            assert_eq!(calls[0]["principal"], "external");
         }
 
         let denied = fake(Ok(
@@ -342,6 +372,7 @@ mod tests {
         ));
         let r = handle(
             &denied,
+            PrincipalId::External,
             req(
                 7,
                 "tools/call",
@@ -360,6 +391,7 @@ mod tests {
         let gone = fake(Err("no device is connected".into()));
         let r = handle(
             &gone,
+            PrincipalId::External,
             req(8, "tools/call", json!({ "name": "time_now" })),
             "1",
         )
@@ -370,6 +402,7 @@ mod tests {
         // 宣言に無い名前と、AI に見せない capability は dispatcher に届かない
         let r = handle(
             &ok,
+            PrincipalId::External,
             req(9, "tools/call", json!({ "name": "no_such_tool" })),
             "1",
         )
@@ -379,11 +412,35 @@ mod tests {
         assert_eq!(ok.calls.lock().unwrap().len(), 1);
     }
 
+    /// 手元の CLI (ACP、#1104) のトークンで繋いだ呼び出しは AI 本人 (ai.chat) として
+    /// dispatcher に届く (#1188: external だと記憶 / skill の書込が恒久 deny で袋小路)
+    #[tokio::test]
+    async fn harness_calls_reach_the_dispatcher_as_the_ai() {
+        let ok = fake(Ok(json!({ "ok": true, "result": null })));
+        let r = handle(
+            &ok,
+            PrincipalId::AiChat,
+            req(
+                10,
+                "tools/call",
+                json!({ "name": "memory_update", "arguments": { "action": "add", "target": "memory", "content": "x" } }),
+            ),
+            "1",
+        )
+        .await
+        .unwrap();
+        assert_eq!(r["result"]["isError"], Value::Null);
+        let calls = ok.calls.lock().unwrap();
+        assert_eq!(calls[0]["capabilityId"], "memory.update");
+        assert_eq!(calls[0]["principal"], "ai.chat");
+    }
+
     #[tokio::test]
     async fn batches_collect_responses_and_drop_notifications() {
         let b = fake(Ok(Value::Null));
         let out = handle_body(
             &b,
+            PrincipalId::External,
             json!([
                 { "jsonrpc": "2.0", "method": "notifications/initialized" },
                 req(1, "ping", json!({}))
@@ -396,12 +453,15 @@ mod tests {
         assert_eq!(out.as_array().unwrap().len(), 1);
         assert!(handle_body(
             &b,
+            PrincipalId::External,
             json!([{ "jsonrpc": "2.0", "method": "notifications/x" }]),
             "1"
         )
         .await
         .unwrap()
         .is_none());
-        assert!(handle_body(&b, json!("nope"), "1").await.is_err());
+        assert!(handle_body(&b, PrincipalId::External, json!("nope"), "1")
+            .await
+            .is_err());
     }
 }

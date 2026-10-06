@@ -1688,7 +1688,7 @@ _permissionsContent:
   heartbeatHint: "Operations allowed for the AI daemon that runs unattended on a schedule (independent of chat)"
   pluginHint: "Operations allowed for AiScript plugins / widgets / Play"
   external: "External apps"
-  externalHint: "Operations allowed for external apps via the HTTP API (persistent tokens)"
+  externalHint: "Operations allowed for external apps via the HTTP API (persistent tokens). A local CLI chosen under ACP in the AI settings is not an external app: it runs with the “AI chat” permissions"
   scratchpadHint: "Operations allowed for code you write and run in the scratchpad column (read-only by default)"
 
 _skills:

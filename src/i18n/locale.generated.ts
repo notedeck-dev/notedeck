@@ -2626,7 +2626,7 @@ export interface Locale {
     readonly "pluginHint": string
     /** 外部アプリ */
     readonly "external": string
-    /** HTTP API (永続トークン) 経由の外部アプリに許可する操作 */
+    /** HTTP API (永続トークン) 経由の外部アプリに許可する操作。AI 設定の ACP で選んだ手元の CLI は外部アプリではなく「AI チャット」の権限で動きます */
     readonly "externalHint": string
     /** スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (デフォルトは読み取りのみ) */
     readonly "scratchpadHint": string

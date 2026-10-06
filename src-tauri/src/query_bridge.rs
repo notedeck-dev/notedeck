@@ -63,13 +63,16 @@ pub async fn answer_archive_search(
 
 /// 手元の CLI (#1104) に渡す外部アプリ用の永続トークンを発行する。権限ウィンドウで
 /// 発行するものと同じ store なので、external principal の権限がそのまま効く
-pub fn issue_external_token(app: &AppHandle, name: &str) -> Result<Value, String> {
+/// 手元の CLI (#1104) に渡す MCP 用トークン。種別 harness = ai.chat principal で解決 (#1188)
+pub fn issue_harness_token(app: &AppHandle, name: &str) -> Result<Value, String> {
     let store = app.state::<Arc<notecore::api_tokens::ApiTokenStore>>();
-    let (meta, token) = store.create(name).map_err(|e| e.to_string())?;
+    let (meta, token) = store
+        .create(name, notecore::api_tokens::ApiTokenKind::Harness)
+        .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "id": meta.id, "token": token }))
 }
 
-pub fn revoke_external_token(app: &AppHandle, id: &str) -> Result<Value, String> {
+pub fn revoke_harness_token(app: &AppHandle, id: &str) -> Result<Value, String> {
     let store = app.state::<Arc<notecore::api_tokens::ApiTokenStore>>();
     store.revoke(id).map_err(|e| e.to_string())?;
     Ok(Value::Null)
@@ -95,12 +98,12 @@ impl FrontendBridge for TauriBridge {
         Box::pin(answer_archive_search(&self.0, req))
     }
 
-    fn issue_external_token(&self, name: String) -> BridgeFuture<'_> {
-        Box::pin(async move { issue_external_token(&self.0, &name) })
+    fn issue_harness_token(&self, name: String) -> BridgeFuture<'_> {
+        Box::pin(async move { issue_harness_token(&self.0, &name) })
     }
 
-    fn revoke_external_token(&self, id: String) -> BridgeFuture<'_> {
-        Box::pin(async move { revoke_external_token(&self.0, &id) })
+    fn revoke_harness_token(&self, id: String) -> BridgeFuture<'_> {
+        Box::pin(async move { revoke_harness_token(&self.0, &id) })
     }
 
     fn health_report(&self) -> BridgeFuture<'_> {

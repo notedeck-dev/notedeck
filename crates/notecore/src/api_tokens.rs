@@ -4,6 +4,10 @@
 //! HTTP API (port 19820) を使うための名前付きトークン。起動毎に再生成される
 //! ephemeral トークン (`api-token` ファイル) と併存する。
 //!
+//! トークンには種別 ([`ApiTokenKind`]) があり、HTTP 側はそれで権限の principal を
+//! 決める: 権限ウィンドウで発行した外部アプリ用は `external`、NoteDeck 自身が AI
+//! として起動した手元の CLI (#1104) に渡す harness 用は `ai.chat` (#1188)。
+//!
 //! セキュリティ設計: トークン本体はどこにも保存しない。`api-tokens.json` に
 //! は SHA-256 ハッシュとメタデータのみを置き、raw トークンは発行時に一度だけ
 //! 返す (GitHub PAT と同じモデル)。OS キーチェーンを使わないのは、Linux
@@ -20,6 +24,29 @@ const TOKENS_FILE: &str = "api-tokens.json";
 /// raw トークンの接頭辞。ログ等で見かけたとき種別を識別できるようにする。
 const TOKEN_PREFIX: &str = "ndp_";
 
+/// トークンの種別 = 提示されたとき誰として扱うか。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ApiTokenKind {
+    /// 権限ウィンドウで発行した外部アプリ用。external principal (第三者) で解決する
+    #[default]
+    External,
+    /// NoteDeck が AI として起動した手元の CLI (ACP、#1104) に MCP サーバーを渡すための
+    /// もの。CLI は利用者が選んだ AI 本人なので ai.chat principal で解決する (#1188)。
+    /// 第三者向けの恒久 deny (記憶 / skill / persona の書込など) を受けない
+    Harness,
+}
+
+impl ApiTokenKind {
+    /// 権限解決に使う principal
+    pub fn principal(self) -> crate::permissions_profile::PrincipalId {
+        match self {
+            Self::External => crate::permissions_profile::PrincipalId::External,
+            Self::Harness => crate::permissions_profile::PrincipalId::AiChat,
+        }
+    }
+}
+
 /// 保存されるエントリ (ハッシュ込み)。ファイル内部表現。
 #[derive(Clone, Serialize, Deserialize)]
 struct ApiTokenEntry {
@@ -28,6 +55,9 @@ struct ApiTokenEntry {
     /// SHA-256(raw token) の hex
     token_hash: String,
     created_at_ms: i64,
+    /// 種別。無い (種別導入前に発行された) エントリは external
+    #[serde(default)]
+    kind: ApiTokenKind,
 }
 
 /// フロントに見せるメタデータ (ハッシュは含めない)。
@@ -77,7 +107,11 @@ impl ApiTokenStore {
 
     /// 新規トークンを発行し、(メタデータ, raw トークン) を返す。
     /// raw はこの戻り値でしか得られない。
-    pub fn create(&self, name: &str) -> std::io::Result<(ApiTokenMeta, String)> {
+    pub fn create(
+        &self,
+        name: &str,
+        kind: ApiTokenKind,
+    ) -> std::io::Result<(ApiTokenMeta, String)> {
         let raw: String = rand::random::<[u8; 32]>()
             .iter()
             .map(|b| format!("{b:02x}"))
@@ -88,6 +122,7 @@ impl ApiTokenStore {
             name: name.trim().to_string(),
             token_hash: hash_hex(&raw),
             created_at_ms: now_ms(),
+            kind,
         };
         let meta = ApiTokenMeta {
             id: entry.id.clone(),
@@ -112,17 +147,18 @@ impl ApiTokenStore {
         Ok(removed)
     }
 
-    /// 提示されたトークンが有効か。ハッシュ化してから定数時間比較する。
-    pub fn verify(&self, presented: &str) -> bool {
+    /// 提示されたトークンが有効ならその種別。ハッシュ化してから定数時間比較する。
+    pub fn verify(&self, presented: &str) -> Option<ApiTokenKind> {
         if !presented.starts_with(TOKEN_PREFIX) {
-            return false;
+            return None;
         }
         let presented_hash = hash_hex(presented);
         self.entries
             .lock()
             .unwrap()
             .iter()
-            .any(|e| bool::from(presented_hash.as_bytes().ct_eq(e.token_hash.as_bytes())))
+            .find(|e| bool::from(presented_hash.as_bytes().ct_eq(e.token_hash.as_bytes())))
+            .map(|e| e.kind)
     }
 
     fn save(&self, entries: &[ApiTokenEntry]) -> std::io::Result<()> {
@@ -158,22 +194,60 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = ApiTokenStore::load(dir.path());
 
-        let (meta, raw) = store.create("Raycast").unwrap();
+        let (meta, raw) = store.create("Raycast", ApiTokenKind::External).unwrap();
         assert!(raw.starts_with(TOKEN_PREFIX));
-        assert!(store.verify(&raw));
-        assert!(!store.verify("ndp_wrong"));
-        assert!(!store.verify("totally-different"));
+        assert_eq!(store.verify(&raw), Some(ApiTokenKind::External));
+        assert_eq!(store.verify("ndp_wrong"), None);
+        assert_eq!(store.verify("totally-different"), None);
 
         // 再ロードしても有効 (ファイル永続)
         let reloaded = ApiTokenStore::load(dir.path());
-        assert!(reloaded.verify(&raw));
+        assert_eq!(reloaded.verify(&raw), Some(ApiTokenKind::External));
         assert_eq!(reloaded.list().len(), 1);
         assert_eq!(reloaded.list()[0].name, "Raycast");
 
         // 失効後は無効
         assert!(store.revoke(&meta.id).unwrap());
-        assert!(!store.verify(&raw));
+        assert_eq!(store.verify(&raw), None);
         assert!(!store.revoke(&meta.id).unwrap());
+    }
+
+    /// 手元の CLI (#1104) 用のトークンは種別ごと保存され、AI 本人 (ai.chat) として
+    /// 解決される (#1188: external 扱いだと記憶 / skill の書込が恒久 deny で袋小路)
+    #[test]
+    fn harness_tokens_keep_their_kind_and_resolve_as_the_ai() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = ApiTokenStore::load(dir.path());
+        let (_, raw) = store
+            .create("AI harness: Claude Agent", ApiTokenKind::Harness)
+            .unwrap();
+        assert_eq!(store.verify(&raw), Some(ApiTokenKind::Harness));
+        let reloaded = ApiTokenStore::load(dir.path());
+        assert_eq!(reloaded.verify(&raw), Some(ApiTokenKind::Harness));
+        assert_eq!(
+            ApiTokenKind::Harness.principal(),
+            crate::permissions_profile::PrincipalId::AiChat
+        );
+        assert_eq!(
+            ApiTokenKind::External.principal(),
+            crate::permissions_profile::PrincipalId::External
+        );
+    }
+
+    /// 種別導入前の api-tokens.json (kind 無し) は external として読む
+    #[test]
+    fn entries_without_kind_are_external() {
+        let dir = tempfile::tempdir().unwrap();
+        let raw = format!("{TOKEN_PREFIX}legacy");
+        let legacy = serde_json::json!([{
+            "id": "old",
+            "name": "Raycast",
+            "token_hash": hash_hex(&raw),
+            "created_at_ms": 1,
+        }]);
+        std::fs::write(dir.path().join(TOKENS_FILE), legacy.to_string()).unwrap();
+        let store = ApiTokenStore::load(dir.path());
+        assert_eq!(store.verify(&raw), Some(ApiTokenKind::External));
     }
 
     #[test]
