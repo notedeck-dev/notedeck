@@ -7,7 +7,6 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::Manager;
 #[cfg(not(mobile))]
 use tauri_plugin_autostart::MacosLauncher;
-#[cfg(not(mobile))]
 mod app_dir;
 mod client_layer;
 mod commands;
