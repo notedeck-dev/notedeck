@@ -1449,6 +1449,7 @@ _permissionsContent:
   issueToken: "発行"
   createdTokenNotice: "「{name}」のトークン — この表示を閉じると再表示できません"
   mcpHint: "MCP: Claude Code などの AI エージェントからこのトークンで NoteDeck の capability を tool として呼べます (権限は上の「外部アプリ」に従います)。Claude Code なら次のコマンドで登録できます。"
+  mcpStdioHint: "Claude Desktop や Cline のように stdio で MCP サーバーを起動するアプリには、次の JSON を設定ファイル (Claude Desktop なら claude_desktop_config.json) に貼ります。同梱の notemaid が子プロセスになり、起動中の NoteDeck に転送します。"
   codeHint: "permissions.json5 を直接編集できます。principal (ai.chat / ai.heartbeat / plugin / external) ごとの preset と custom マップを持ちます。"
   instructionRuleReason: "AI への指示チャネルは第三者には開放できません"
   tasksRuleReason: "タスクは本人と AI のみが実行できます"

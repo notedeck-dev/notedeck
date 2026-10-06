@@ -2616,6 +2616,8 @@ export interface Locale {
     readonly "createdTokenNotice": ParameterizedString<'name'>
     /** MCP: Claude Code などの AI エージェントからこのトークンで NoteDeck の capability を tool として呼べます (権限は上の「外部アプリ」に従います)。Claude Code なら次のコマンドで登録できます。 */
     readonly "mcpHint": string
+    /** Claude Desktop や Cline のように stdio で MCP サーバーを起動するアプリには、次の JSON を設定ファイル (Claude Desktop なら claude_desktop_config.json) に貼ります。同梱の notemaid が子プロセスになり、起動中の NoteDeck に転送します。 */
+    readonly "mcpStdioHint": string
     /** permissions.json5 を直接編集できます。principal (ai.chat / ai.heartbeat / plugin / external) ごとの preset と custom マップを持ちます。 */
     readonly "codeHint": string
     /** AI への指示チャネルは第三者には開放できません */
