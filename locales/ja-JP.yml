@@ -1454,7 +1454,7 @@ _permissionsContent:
   heartbeatHint: "無人で定期実行される AI daemon に許可する操作 (チャットとは独立)"
   pluginHint: "AiScript プラグイン / ウィジェット / Play に許可する操作"
   external: "外部アプリ"
-  externalHint: "HTTP API (永続トークン) 経由の外部アプリに許可する操作"
+  externalHint: "HTTP API (永続トークン) 経由の外部アプリに許可する操作。AI 設定の ACP で選んだ手元の CLI は外部アプリではなく「AI チャット」の権限で動きます"
   scratchpadHint: "スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (デフォルトは読み取りのみ)"
 
 _skills:

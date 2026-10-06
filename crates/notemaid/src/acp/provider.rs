@@ -3,8 +3,9 @@
 //! こちらは本文の断片を流し、ツールの動きを通常経路と同じ tool_use / tool_result に写し
 //! (`ai_turn::external`)、CLI 自身のツールの許可要求を確認ダイアログに写すだけ。
 //! NoteDeck の capability への許可要求は通す: 認可と確認は実行時に NoteDeck 自身
-//! (external principal の権限 + dispatcher の確認ダイアログ) が行うので、ここで聞くと
-//! 同じ操作を 2 度聞くことになる。
+//! (ai.chat principal の権限 + dispatcher の確認ダイアログ) が行うので、ここで聞くと
+//! 同じ操作を 2 度聞くことになる。CLI は利用者が選んだ AI 本人なので、MCP 用トークンは
+//! harness 種別 = ai.chat で解決する (#1188: external だと記憶 / skill の書込が恒久 deny)。
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -111,12 +112,13 @@ impl AcpProvider {
     }
 
     /// NoteDeck の MCP サーバーの設定 (`session/new` の mcpServers の 1 件)。
-    /// トークンは harness ごとに 1 つ発行して覚え、終了時に失効させる
+    /// トークン (harness 種別 = ai.chat principal) は harness ごとに 1 つ発行して覚え、
+    /// 終了時に失効させる
     async fn mcp_server(&self) -> Option<Value> {
         let url = self.mcp_url.clone()?;
         let issued = self
             .bridge
-            .issue_external_token(format!("AI harness: {}", self.harness.name))
+            .issue_harness_token(format!("AI harness: {}", self.harness.name))
             .await;
         let issued = match issued {
             Ok(v) => v,
@@ -627,7 +629,7 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
                                     false
                                 } else if passes_to_notedeck(&params) {
                                     // NoteDeck の capability: 認可と確認は実行時に NoteDeck 自身が
-                                    // 行う (external principal の権限 + dispatcher の確認ダイアログ)。
+                                    // 行う (ai.chat principal の権限 + dispatcher の確認ダイアログ)。
                                     // ここで聞くと同じ操作を 2 度聞くことになる
                                     true
                                 } else {

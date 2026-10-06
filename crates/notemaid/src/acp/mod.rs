@@ -23,12 +23,12 @@ pub fn registry() -> Arc<Registry> {
     R.get_or_init(|| Arc::new(Registry::default())).clone()
 }
 
-/// 全エージェントを止め、MCP 用に発行した永続トークンを橋で失効させる (終了時)
+/// 全エージェントを止め、MCP 用に発行した harness トークンを橋で失効させる (終了時)
 pub async fn shutdown_all(bridge: Option<Arc<dyn notecore::frontend_bridge::FrontendBridge>>) {
     let tokens = registry().shutdown_all();
     if let Some(bridge) = bridge {
         for id in tokens {
-            if let Err(e) = bridge.revoke_external_token(id.clone()).await {
+            if let Err(e) = bridge.revoke_harness_token(id.clone()).await {
                 tracing::warn!(token = %id, "cannot revoke the MCP token: {e}");
             }
         }
