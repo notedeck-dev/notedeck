@@ -2385,10 +2385,10 @@ mod tests {
         ) -> BridgeFuture<'_> {
             Box::pin(async { Ok(Value::Array(Vec::new())) })
         }
-        fn issue_external_token(&self, _n: String) -> BridgeFuture<'_> {
+        fn issue_harness_token(&self, _n: String) -> BridgeFuture<'_> {
             Box::pin(async { Err("no".into()) })
         }
-        fn revoke_external_token(&self, _i: String) -> BridgeFuture<'_> {
+        fn revoke_harness_token(&self, _i: String) -> BridgeFuture<'_> {
             Box::pin(async { Ok(Value::Null) })
         }
     }

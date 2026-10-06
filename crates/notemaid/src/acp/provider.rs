@@ -3,8 +3,9 @@
 //! こちらは本文の断片を流し、ツールの動きを通常経路と同じ tool_use / tool_result に写し
 //! (`ai_turn::external`)、CLI 自身のツールの許可要求を確認ダイアログに写すだけ。
 //! NoteDeck の capability への許可要求は通す: 認可と確認は実行時に NoteDeck 自身
-//! (external principal の権限 + dispatcher の確認ダイアログ) が行うので、ここで聞くと
-//! 同じ操作を 2 度聞くことになる。
+//! (ai.chat principal の権限 + dispatcher の確認ダイアログ) が行うので、ここで聞くと
+//! 同じ操作を 2 度聞くことになる。CLI は利用者が選んだ AI 本人なので、MCP 用トークンは
+//! harness 種別 = ai.chat で解決する (#1188: external だと記憶 / skill の書込が恒久 deny)。
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -31,8 +32,10 @@ pub struct Registry {
     agents: Mutex<HashMap<String, Arc<AcpAgent>>>,
     /// (harness id, NoteDeck session id) → ACP session id
     sessions: Mutex<HashMap<(String, String), String>>,
-    /// harness id → NoteDeck の MCP サーバーに渡した永続トークン (id)。終了時に失効させる
-    tokens: Mutex<HashMap<String, String>>,
+    /// harness id → NoteDeck の MCP サーバーに渡した永続トークン (id, 本体)。harness ごとに
+    /// 1 つだけ発行して以後のセッションでは使い回し、終了時に id で失効させる (セッションごとに
+    /// 発行すると失効漏れのトークンが残る)
+    tokens: Mutex<HashMap<String, (String, String)>>,
 }
 
 impl Registry {
@@ -69,7 +72,7 @@ impl Registry {
             .clear();
         self.tokens
             .lock()
-            .map(|mut t| t.drain().map(|(_, v)| v).collect())
+            .map(|mut t| t.drain().map(|(_, (id, _))| id).collect())
             .unwrap_or_default()
     }
 }
@@ -111,12 +114,36 @@ impl AcpProvider {
     }
 
     /// NoteDeck の MCP サーバーの設定 (`session/new` の mcpServers の 1 件)。
-    /// トークンは harness ごとに 1 つ発行して覚え、終了時に失効させる
+    /// トークン (harness 種別 = ai.chat principal) は harness ごとに 1 つ発行して覚え、
+    /// 終了時に失効させる
     async fn mcp_server(&self) -> Option<Value> {
         let url = self.mcp_url.clone()?;
+        let token = match self.token_for_harness().await {
+            Some(t) => t,
+            None => return None,
+        };
+        Some(json!({
+            "type": "http",
+            "name": "notedeck",
+            "url": url,
+            "headers": [{ "name": "Authorization", "value": format!("Bearer {token}") }],
+        }))
+    }
+
+    /// この harness の MCP 用トークン本体。発行済みなら使い回し、無ければ発行して覚える
+    async fn token_for_harness(&self) -> Option<String> {
+        if let Some((_, token)) = self
+            .registry
+            .tokens
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .get(&self.harness.id)
+        {
+            return Some(token.clone());
+        }
         let issued = self
             .bridge
-            .issue_external_token(format!("AI harness: {}", self.harness.name))
+            .issue_harness_token(format!("AI harness: {}", self.harness.name))
             .await;
         let issued = match issued {
             Ok(v) => v,
@@ -126,19 +153,13 @@ impl AcpProvider {
             }
         };
         let token = issued.get("token").and_then(Value::as_str)?.to_string();
-        if let Some(id) = issued.get("id").and_then(Value::as_str) {
-            self.registry
-                .tokens
-                .lock()
-                .unwrap_or_else(|e| e.into_inner())
-                .insert(self.harness.id.clone(), id.to_string());
-        }
-        Some(json!({
-            "type": "http",
-            "name": "notedeck",
-            "url": url,
-            "headers": [{ "name": "Authorization", "value": format!("Bearer {token}") }],
-        }))
+        let id = issued.get("id").and_then(Value::as_str)?.to_string();
+        self.registry
+            .tokens
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .insert(self.harness.id.clone(), (id, token.clone()));
+        Some(token)
     }
 
     async fn session_for(
@@ -627,7 +648,7 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
                                     false
                                 } else if passes_to_notedeck(&params) {
                                     // NoteDeck の capability: 認可と確認は実行時に NoteDeck 自身が
-                                    // 行う (external principal の権限 + dispatcher の確認ダイアログ)。
+                                    // 行う (ai.chat principal の権限 + dispatcher の確認ダイアログ)。
                                     // ここで聞くと同じ操作を 2 度聞くことになる
                                     true
                                 } else {

@@ -148,19 +148,19 @@ impl FrontendBridge for SessionBridge {
         Box::pin(async { Ok(Value::Null) })
     }
 
-    fn issue_external_token(&self, name: String) -> BridgeFuture<'_> {
+    fn issue_harness_token(&self, name: String) -> BridgeFuture<'_> {
         Box::pin(async move {
             self.0
                 .query(
                     notecore::frontend_bridge::TOKEN_ISSUE_QUERY,
-                    json!({ "name": name }),
+                    json!({ "name": name, "kind": "harness" }),
                     Duration::from_secs(10),
                 )
                 .await
         })
     }
 
-    fn revoke_external_token(&self, id: String) -> BridgeFuture<'_> {
+    fn revoke_harness_token(&self, id: String) -> BridgeFuture<'_> {
         Box::pin(async move {
             self.0
                 .query(

@@ -6,7 +6,7 @@ use notecli::error::NoteDeckError;
 use tauri::State;
 
 use super::Result;
-use notecore::api_tokens::{ApiTokenMeta, ApiTokenStore};
+use notecore::api_tokens::{ApiTokenKind, ApiTokenMeta, ApiTokenStore};
 
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -38,8 +38,10 @@ pub fn create_api_token(
             serde_json::json!({}),
         ));
     }
+    // 権限ウィンドウで発行するのは外部アプリ用 (external principal)。手元の CLI 用の
+    // harness 種別は notemaid が橋 (`api-token/issue`) で発行する
     let (meta, token) = store
-        .create(&name)
+        .create(&name, ApiTokenKind::External)
         .map_err(|e| NoteDeckError::InvalidInput(format!("failed to save token: {e}")))?;
     Ok(CreatedApiToken { meta, token })
 }

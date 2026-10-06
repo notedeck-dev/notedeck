@@ -168,7 +168,7 @@ fn boots_answers_over_the_socket_and_stops_on_sigterm() {
     assert_eq!(r.error.as_ref().unwrap().code, "UNAUTHORIZED");
     // 公開 API 面の永続トークン (external principal) は RPC 面では通らない (仕様 §4.3 の golden)
     let (_, external_token) = notecore::api_tokens::ApiTokenStore::load(&data_dir)
-        .create("golden")
+        .create("golden", notecore::api_tokens::ApiTokenKind::External)
         .unwrap();
     let r = outcome(s.request("ai_sessions_load_all", json!({}), Some(&external_token)));
     assert!(!r.ok);

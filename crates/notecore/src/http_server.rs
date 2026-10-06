@@ -263,16 +263,19 @@ async fn persistent_token_middleware(
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "));
     if let Some(token) = presented {
-        if state.store.verify(token) {
+        if let Some(kind) = state.store.verify(token) {
             let bridged = format!("Bearer {}", state.api_token);
             if let Ok(value) = axum::http::HeaderValue::from_str(&bridged) {
                 req.headers_mut().insert(AUTHORIZATION, value);
             }
-            // 永続トークン由来の目印 (#712 §5.3)。external gate はこの
-            // extension が付いたリクエストのみ enforce する — ephemeral 直用
-            // (notecli CLI 等) は local trust として免除
+            // 永続トークン由来の目印 (#712 §5.3)。gate はこの extension が付いた
+            // リクエストのみ、トークンの種別が決める principal (外部アプリ用は
+            // external、手元の CLI 用は ai.chat、#1188) で enforce する —
+            // ephemeral 直用 (notecli CLI 等) は local trust として免除
             req.extensions_mut()
-                .insert(crate::permissions_gate::ExternalTokenMarker);
+                .insert(crate::permissions_gate::PersistentTokenMarker {
+                    principal: kind.principal(),
+                });
         }
     }
     next.run(req).await
@@ -384,11 +387,11 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
     let app = Router::new()
         .merge(api_router)
         .merge(mcp_routes)
-        // external principal gate (#712 §5.3): 永続トークン由来のリクエストを
+        // 永続トークン gate (#712 §5.3): 永続トークン由来のリクエストを
         // per-route 対応表で enforce する。persistent_token_middleware (外側)
         // が付けた marker を見るため、その内側に置く
         .layer(middleware::from_fn(
-            crate::permissions_gate::external_gate_middleware,
+            crate::permissions_gate::persistent_token_gate_middleware,
         ))
         .layer(middleware::from_fn_with_state(
             rate_limiter.clone(),
@@ -732,6 +735,7 @@ async fn list_capabilities(State(state): State<DeckState>) -> Result<Json<Value>
 async fn execute_capability(
     State(state): State<DeckState>,
     Path(capability_id): Path<String>,
+    token: Option<axum::Extension<crate::permissions_gate::PersistentTokenMarker>>,
     body: Option<Json<Value>>,
 ) -> (StatusCode, Json<Value>) {
     let params = body.map(|Json(v)| v).unwrap_or(Value::Null);
@@ -739,7 +743,11 @@ async fn execute_capability(
         .bridge
         .query(
             "capabilities/execute",
-            json!({ "capabilityId": capability_id, "params": params }),
+            json!({
+                "capabilityId": capability_id,
+                "params": params,
+                "principal": token_principal(token.as_deref()).as_str(),
+            }),
             CAPABILITY_EXECUTE_TIMEOUT,
         )
         .await
@@ -783,6 +791,16 @@ async fn execute_capability(
     }
 }
 
+/// 永続トークン由来ならそのトークンの principal、ephemeral 直用 (local trust) は
+/// 従来どおり external として dispatcher に渡す
+fn token_principal(
+    token: Option<&crate::permissions_gate::PersistentTokenMarker>,
+) -> crate::permissions_profile::PrincipalId {
+    token.map_or(crate::permissions_profile::PrincipalId::External, |m| {
+        m.principal
+    })
+}
+
 // --- MCP (#555): 外部の AI エージェントが capability を tool として呼ぶ面 ---
 
 #[derive(Clone)]
@@ -803,6 +821,7 @@ async fn mcp_auth_middleware(
 async fn mcp_post(
     State(state): State<McpState>,
     headers: axum::http::HeaderMap,
+    token: Option<axum::Extension<crate::permissions_gate::PersistentTokenMarker>>,
     body: axum::body::Bytes,
 ) -> Response {
     let requested = headers
@@ -820,7 +839,14 @@ async fn mcp_post(
         }
     };
     let app_version = env!("CARGO_PKG_VERSION");
-    match crate::mcp::handle_body(state.deck.bridge.as_ref(), parsed, app_version).await {
+    match crate::mcp::handle_body(
+        state.deck.bridge.as_ref(),
+        token_principal(token.as_deref()),
+        parsed,
+        app_version,
+    )
+    .await
+    {
         Ok(Some(reply)) => mcp_json(StatusCode::OK, version, reply),
         Ok(None) => (StatusCode::ACCEPTED, [("mcp-protocol-version", version)]).into_response(),
         Err(err) => mcp_json(StatusCode::BAD_REQUEST, version, err),
@@ -857,7 +883,7 @@ async fn mcp_delete() -> StatusCode {
 )]
 async fn get_health(
     State(state): State<DeckState>,
-    external: Option<axum::Extension<crate::permissions_gate::ExternalTokenMarker>>,
+    token: Option<axum::Extension<crate::permissions_gate::PersistentTokenMarker>>,
 ) -> Result<Json<Value>, ApiError> {
     let mut body = state.bridge.health_report().await.map_err(|e| ApiError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -867,11 +893,13 @@ async fn get_health(
 
     // frontend 死活プローブ: WebView (query bridge) が応答するか + ストリーム状態。
     // Rust 側レポートは frontend が死んでいても返せる — それ自体が診断情報。
-    // 永続トークン由来 (external principal) で deck.read が無い場合、streams
+    // 永続トークン由来でそのトークンの principal に deck.read が無い場合、streams
     // 詳細 (接続先 host 等のローカルデータ) は応答から間引く (#712 §5.3)。
     // self-diagnosis の summary 部 (backendReady / frontendReady 等) は返す
-    let may_read_streams =
-        external.is_none() || crate::permissions_gate::external_may_read_deck().await;
+    let may_read_streams = match token.as_deref() {
+        None => true,
+        Some(m) => crate::permissions_gate::may_read_deck(m.principal).await,
+    };
 
     if let Value::Object(map) = &mut body {
         match frontend_bridge::query(state.bridge.as_ref(), "health/streams", json!({})).await {

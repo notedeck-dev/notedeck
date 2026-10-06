@@ -18,7 +18,8 @@ use serde_json::Value;
 
 /// `archive_search` の wire 上の問い合わせ名 (notemaid → 端末)
 pub const ARCHIVE_SEARCH_QUERY: &str = "archive/search";
-/// 外部アプリ用の永続トークンの発行 / 失効 (手元の CLI に MCP サーバーを渡すため、#1104)
+/// 手元の CLI (#1104) に MCP サーバーを渡すための永続トークンの発行 / 失効。種別は
+/// harness (ai.chat principal で解決、#1188) で、端末の Rust が `api_tokens` に書く
 pub const TOKEN_ISSUE_QUERY: &str = "api-token/issue";
 pub const TOKEN_REVOKE_QUERY: &str = "api-token/revoke";
 
@@ -59,11 +60,12 @@ pub trait FrontendBridge: Send + Sync + 'static {
     /// 手元の索引を検索する (`Vec<NormalizedNote>` の JSON)。索引は端末にしか無い
     fn archive_search(&self, req: ArchiveSearchRequest) -> BridgeFuture<'_>;
 
-    /// 外部アプリ用の永続トークンを発行する (`{ id, token }`)。手元の CLI (#1104) に
-    /// NoteDeck の MCP サーバーを渡すためで、external principal の権限がそのまま効く
-    fn issue_external_token(&self, name: String) -> BridgeFuture<'_>;
+    /// 手元の CLI (#1104) に NoteDeck の MCP サーバーを渡すための永続トークンを発行する
+    /// (`{ id, token }`)。種別は harness で、HTTP 側は ai.chat principal (AI 本人) の権限で
+    /// 解決する (#1188: external 扱いだと記憶 / skill の書込が恒久 deny で袋小路)
+    fn issue_harness_token(&self, name: String) -> BridgeFuture<'_>;
     /// 発行したトークンを失効させる (CLI を終えたとき)
-    fn revoke_external_token(&self, id: String) -> BridgeFuture<'_>;
+    fn revoke_harness_token(&self, id: String) -> BridgeFuture<'_>;
 }
 
 /// 既定 (5 秒) のタイムアウトで問い合わせる。
@@ -98,11 +100,11 @@ impl FrontendBridge for NoDeviceBridge {
         Box::pin(async { Err("no device is connected (the archive lives on the device)".into()) })
     }
 
-    fn issue_external_token(&self, _name: String) -> BridgeFuture<'_> {
+    fn issue_harness_token(&self, _name: String) -> BridgeFuture<'_> {
         Box::pin(async { Err("no device is connected (tokens are issued on the device)".into()) })
     }
 
-    fn revoke_external_token(&self, _id: String) -> BridgeFuture<'_> {
+    fn revoke_harness_token(&self, _id: String) -> BridgeFuture<'_> {
         Box::pin(async { Err("no device is connected (tokens are revoked on the device)".into()) })
     }
 }

@@ -954,8 +954,6 @@ _aiConnectionSection:
   harnessHint: "Use a logged-in CLI as the AI (no API key needed). Permission requests from the CLI appear as confirmations in the chat. HEARTBEAT does not run."
   harnessFound: "found"
   harnessNotFound: "not found"
-  harnessUserMemory: "Also share what it remembers about you"
-  harnessUserMemoryHint: "When on, \"What it remembers about you\" is sent to the CLI's provider and may end up in the CLI's own memory."
   harnessBlocked: "unavailable"
   harnessBlockedHint: "Google's terms prohibit other apps from using Gemini CLI's login."
   harnessRelayNote: "To use Claude, pick Claude Agent instead of routing through this CLI."
@@ -1031,7 +1029,8 @@ _aiPersonalitySection:
   userTitle: "What it remembers about you"
   userToggle: "Remember things about me"
   userOffNote: "Memory about you is off. Nothing new is recorded. Until you choose \"Forget everything\", this content is still included in backups."
-  sentNote: "This content is sent to the AI provider in use. When a local CLI is selected, it is passed to that CLI as well."
+  harnessUserMemory: "Also pass it to the local CLI"
+  sentNote: "This content is sent to the AI provider in use. When passed to a local CLI (ACP), it is sent to the CLI's provider and may end up in the CLI's own memory."
   memoryTitle: "Notes to self"
   empty: "Nothing remembered yet."
   forgetAll: "Forget everything"
@@ -1688,7 +1687,7 @@ _permissionsContent:
   heartbeatHint: "Operations allowed for the AI daemon that runs unattended on a schedule (independent of chat)"
   pluginHint: "Operations allowed for AiScript plugins / widgets / Play"
   external: "External apps"
-  externalHint: "Operations allowed for external apps via the HTTP API (persistent tokens)"
+  externalHint: "Operations allowed for external apps via the HTTP API (persistent tokens). A local CLI chosen under ACP in the AI settings is not an external app: it runs with the “AI chat” permissions"
   scratchpadHint: "Operations allowed for code you write and run in the scratchpad column (read-only by default)"
 
 _skills:

@@ -1314,10 +1314,6 @@ export interface Locale {
     readonly "harnessFound": string
     /** 見つかりません */
     readonly "harnessNotFound": string
-    /** あなたについての記憶も渡す */
-    readonly "harnessUserMemory": string
-    /** オンにすると「あなたについて覚えていること」が CLI の提供元に送られ、CLI 自身の記憶に残ることがあります。 */
-    readonly "harnessUserMemoryHint": string
     /** 利用不可 */
     readonly "harnessBlocked": string
     /** Google の規約で、Gemini CLI のログインを他のアプリから使うことは禁止されています。 */
@@ -1460,7 +1456,9 @@ export interface Locale {
     readonly "userToggle": string
     /** あなたについての記憶は OFF です。新しいことは記録されません。「すべて忘れる」までは、この内容はバックアップに含まれたままです。 */
     readonly "userOffNote": string
-    /** この内容は使用中の AI プロバイダーに送られます。手元の CLI を選んでいるときは、その CLI にも渡ります。 */
+    /** 手元の CLI にも渡す */
+    readonly "harnessUserMemory": string
+    /** この内容は使用中の AI プロバイダーに送られます。手元の CLI (ACP) に渡すと、CLI の提供元に送られて CLI 自身の記憶に残ることがあります。 */
     readonly "sentNote": string
     /** 覚え書き */
     readonly "memoryTitle": string
@@ -2626,7 +2624,7 @@ export interface Locale {
     readonly "pluginHint": string
     /** 外部アプリ */
     readonly "external": string
-    /** HTTP API (永続トークン) 経由の外部アプリに許可する操作 */
+    /** HTTP API (永続トークン) 経由の外部アプリに許可する操作。AI 設定の ACP で選んだ手元の CLI は外部アプリではなく「AI チャット」の権限で動きます */
     readonly "externalHint": string
     /** スクラッチパッドカラムで自分が書いて実行するコードに許可する操作 (デフォルトは読み取りのみ) */
     readonly "scratchpadHint": string

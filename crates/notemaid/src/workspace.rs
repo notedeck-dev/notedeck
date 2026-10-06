@@ -224,13 +224,34 @@ pub fn bootstrap_done(app_dir: &Path, user_enabled: bool) -> bool {
     })
 }
 
-pub fn remove_bootstrap(app_dir: &Path) {
+/// BOOTSTRAP.md を消す。消したら true (呼び手が変更通知を出す)
+pub fn remove_bootstrap(app_dir: &Path) -> bool {
     let p = path(app_dir, Kind::Bootstrap);
-    if p.exists() {
-        if let Err(e) = fs::remove_file(&p) {
+    if !p.exists() {
+        return false;
+    }
+    match fs::remove_file(&p) {
+        Ok(()) => true,
+        Err(e) => {
             tracing::warn!("cannot remove BOOTSTRAP.md: {e}");
+            false
         }
     }
+}
+
+/// ファイルを書いた / 消したことをデバイスへ知らせる (`nd:settings-file-changed`)。
+/// UI 経由の書込も AI 自身の書込 (`memory.update` / `soul.propose`) も同じ口を通す。
+/// 以前は AI の書込が通知を出さず、AI 設定「メモリー」の写しがアプリ再起動まで古いままだった
+pub fn notify_changed(
+    core: &notecore::context::Core,
+    kind: Kind,
+    op: notecore::settings_events::SettingsChangeOp,
+) {
+    core.notify_settings_change(notecore::settings_events::SettingsChange {
+        subdir: Some(DIR.to_string()),
+        name: kind.file_name().to_string(),
+        op,
+    });
 }
 
 /// notemaid が最後に書いた内容の hash の記録 (`notemaid/turns/workspace-hashes.json`)。
