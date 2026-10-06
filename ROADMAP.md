@@ -725,9 +725,12 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   **アプリを開く前にローカル蓄積へ到達する導線** (旧 #925) をここに統合済み。ランチャから引ける対象は
   自分の投稿・クリップ・お気に入り・メモに限る。OS 検索インデックスへの登録を採用しない理由は
   L3「検索」に記録
-- [ ] **`notedeck://` カスタム URI スキーム OS 登録** (#512) — ROADMAP「部分採用で完成していない機能」を
-  正式実装。`tauri-plugin-deep-link` で macOS / Windows / Linux に登録し、外部アプリ・ブラウザ
-  ブックマークレット・OS Shortcuts から `notedeck://compose` / `notedeck://search` などを起動可能に
+- [x] **`notedeck://` カスタム URI スキーム OS 登録** (#512) — `tauri-plugin-deep-link` で
+  macOS / Windows / Linux に登録済み。外部アプリ・ブラウザブックマークレット・OS Shortcuts から
+  `notedeck://compose` (投稿フォームをプリセットで開く。送信はしない) / `notedeck://ai?prompt=` /
+  `notedeck://memo/new?text=` / `notedeck://profile/<name>` / `notedeck://column/<id>` と、
+  アカウント付きの `notedeck://<host>/...` (タイムライン / 通知 / 検索 / ノート / ユーザー等) を起動できる。
+  受け口の一覧は `useDeepLink` の先頭コメントが正本
 - [x] **MCP サーバー公開** (#513 / #555) — 内蔵 HTTP サーバーの `POST /mcp` (Streamable HTTP) で、
   Claude Code / Codex / Cursor 等の MCP クライアントから NoteDeck の capability を tool として呼べる。
   tool の集合と schema は AI プロバイダーに渡すものと同じ、実行は既存の dispatcher (external principal の
@@ -985,10 +988,6 @@ notecli に DB テスト 18件、notedeck に 239件のユニットテストを�
 **未カバー**: `normalize()` モデル変換、HTTP API 統合テスト、`StreamingManager` 接続管理
 
 ### 部分採用で完成していない機能
-
-#### カスタム URI スキーム（`notedeck://`）
-
-`deck.ts` で URI を生成しタイトルバーに表示するのみ。OS レベルのディープリンク登録はなし。非公式クライアントとして Misskey URL を横取りするのは不自然なため、外部ツール連携用途に限定して検討。
 
 #### Android バックグラウンド通知 [重要度: 中]
 

@@ -1,9 +1,24 @@
+import type { NoteVisibility } from '@/adapters/types'
+import {
+  ensureMemosLoaded,
+  generateMemoKey,
+  saveMemo,
+} from '@/composables/useMemos'
 import { useAccountsStore } from '@/stores/accounts'
 import type { ColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useMisStoreStore } from '@/stores/misstore'
+import { useUiStore } from '@/stores/ui'
 import type { WindowType } from '@/stores/windows'
 import { useWindowsStore } from '@/stores/windows'
+
+const NOTE_VISIBILITIES: ReadonlyArray<NoteVisibility> = [
+  'public',
+  'home',
+  'followers',
+  'specified',
+]
 
 /**
  * Parse and handle a notedeck:// deep-link URL.
@@ -11,6 +26,11 @@ import { useWindowsStore } from '@/stores/windows'
  * Supported schemes:
  *   notedeck://install-plugin?id=<storeId>
  *   notedeck://install-theme?id=<storeId>
+ *   notedeck://compose?text=<text>&cw=<cw>&visibility=<visibility>
+ *   notedeck://ai?prompt=<text>
+ *   notedeck://memo/new?text=<text>
+ *   notedeck://profile/<name or id>
+ *   notedeck://column/<columnId>
  *   notedeck://<host>/timeline/<tl>
  *   notedeck://<host>/notifications
  *   notedeck://<host>/search?q=<query>
@@ -66,6 +86,31 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
     if (themeId) {
       await handleInstallTheme(themeId)
     }
+    return
+  }
+
+  // アプリ全体向けルート (#512)。投稿系 (compose / ai) はフォームを開く
+  // だけで送信は確定しない — 踏ませた URL から無確認で投稿させないため
+  if (host === 'compose') {
+    handleCompose(url.searchParams)
+    return
+  }
+  if (host === 'ai') {
+    handleAiPrompt(url.searchParams.get('prompt'))
+    return
+  }
+  if (host === 'memo') {
+    if (pathSegments[0] === 'new') {
+      await handleMemoNew(url.searchParams.get('text'))
+    }
+    return
+  }
+  if (host === 'profile') {
+    if (pathSegments[0]) handleSwitchProfile(decodePathSegment(pathSegments[0]))
+    return
+  }
+  if (host === 'column') {
+    if (pathSegments[0]) handleFocusColumn(decodePathSegment(pathSegments[0]))
     return
   }
 
@@ -193,6 +238,78 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
     default:
       console.warn('[deep-link] unknown action:', action)
   }
+}
+
+function decodePathSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
+function handleCompose(params: URLSearchParams) {
+  const text = params.get('text')
+  const cw = params.get('cw')
+  const visibility = params.get('visibility')
+  const request: { text?: string; cw?: string; visibility?: NoteVisibility } =
+    {}
+  if (text) request.text = text
+  if (cw) request.cw = cw
+  if (visibility && (NOTE_VISIBILITIES as string[]).includes(visibility)) {
+    request.visibility = visibility as NoteVisibility
+  }
+  useUiStore().requestCompose(request)
+}
+
+function handleAiPrompt(prompt: string | null) {
+  const deckStore = useDeckStore()
+  const existing = deckStore.columns.find((c) => c.type === 'ai')
+  if (existing) {
+    if (prompt) deckStore.updateColumn(existing.id, { aiInitialInput: prompt })
+    deckStore.setActiveColumn(existing.id)
+    return
+  }
+  handleAddColumn('ai', null, prompt ? { aiInitialInput: prompt } : undefined)
+}
+
+async function handleMemoNew(text: string | null) {
+  if (!text) return
+  await ensureMemosLoaded()
+  saveMemo(generateMemoKey(), {
+    text,
+    cw: '',
+    showCw: false,
+    visibility: 'public',
+    localOnly: false,
+    fileIds: [],
+    pollChoices: ['', ''],
+    pollMultiple: false,
+    showPoll: false,
+    scheduledAt: null,
+    tags: [],
+  })
+}
+
+function handleSwitchProfile(nameOrId: string) {
+  const profiles = useDeckProfileStore().getProfiles()
+  const profile =
+    profiles.find((p) => p.name === nameOrId) ??
+    profiles.find((p) => p.id === nameOrId)
+  if (!profile) {
+    console.warn('[deep-link] profile not found:', nameOrId)
+    return
+  }
+  useDeckStore().applyProfile(profile.id)
+}
+
+function handleFocusColumn(columnId: string) {
+  const deckStore = useDeckStore()
+  if (!deckStore.getColumn(columnId)) {
+    console.warn('[deep-link] column not found:', columnId)
+    return
+  }
+  deckStore.setActiveColumn(columnId)
 }
 
 function handleAddColumn(
