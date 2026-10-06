@@ -89,6 +89,12 @@ export interface DispatchOptions {
   forceConfirm?: boolean
   /** 確認ダイアログの本文の先頭に添える一文 (生成元 / 汚染の明示) */
   confirmNote?: string
+  /**
+   * 権限の判定と確認までを行い、実行はしない (#1191)。手元の CLI (ACP) の許可要求の
+   * 段階で NoteDeck の確認を出すために使う。承認なら `{ ok: true, result: null }`、
+   * 拒否 / 権限なし / preflight 失敗は通常の実行と同じエラー
+   */
+  confirmOnly?: boolean
 }
 
 /** notecore の確認要求に同梱する内容 (`ai/confirm-preview` の応答) */
@@ -291,6 +297,9 @@ export async function dispatchCapability(
         addConfirmSkip(skipScope, cap.id)
       }
     }
+  }
+  if (options?.confirmOnly) {
+    return { ok: true, result: null }
   }
   // ペット (#1080): 読み取り系は review、それ以外は running
   const endExecute = isAiPrincipal(ctx.principal)
