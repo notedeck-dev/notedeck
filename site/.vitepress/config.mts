@@ -39,6 +39,7 @@ const JA_SIDEBAR: DefaultTheme.Sidebar = {
         { text: 'ストアで拡張する', link: '/docs/guide/store' },
         { text: 'AI と使う', link: '/docs/guide/ai' },
         { text: '環境を育てる', link: '/docs/guide/grow' },
+        { text: 'リンクで開く', link: '/docs/guide/links' },
       ],
     },
     {
@@ -104,6 +105,7 @@ const EN_SIDEBAR: DefaultTheme.Sidebar = {
         { text: 'Extending from the store', link: '/en/docs/guide/store' },
         { text: 'Using AI', link: '/en/docs/guide/ai' },
         { text: 'Growing your environment', link: '/en/docs/guide/grow' },
+        { text: 'Opening from links', link: '/en/docs/guide/links' },
       ],
     },
     {
