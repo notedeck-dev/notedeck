@@ -529,7 +529,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   max-width: 100%;
   overflow: hidden;
 
-  // 面はハイライトの有無とテーマに関係なく揃える (トークン色がダーク固定)
+  // 面はハイライトの有無に関係なく揃える (明暗は data-nd-code-scheme の変数側 #1053)
   :deep(pre) {
     font-family: var(--nd-font-mono);
     font-size: 0.85em;

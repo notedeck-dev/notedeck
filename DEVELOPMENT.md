@@ -551,7 +551,7 @@ sequenceDiagram
     V->>V: ApiBridge / Notifications / OGP / CLI commands
 
     Note over V: requestIdleCallback (defer)
-    V->>V: KaTeX CSS / Shiki CSS
+    V->>V: KaTeX CSS
 ```
 
 #### Two-stage AppState
@@ -1004,8 +1004,15 @@ const { activate, deactivate } = useMenuKeyboard({
 **コード面の明暗 (#1053):**
 - エディタ / 差分表示 / コードブロックはトークン色と面がセットなので、**アプリのテーマにそのまま追従**する (アプリが OS 追従ならコード面も OS に追従)。設定項目は持たない
 - 実効値は root の `data-nd-code-scheme` に出し、CSS 変数 (`--nd-code*`) がそれを見る。CodeMirror のテーマも Shiki のトークン色も同じ実効値から決まる (`useCodeScheme`)
-- Shiki はテーマごとに色クラスが変わるので、明暗のパレット CSS を両方読み込み、切替時は再描画する
 - 明暗を別扱いしたい場合はカスタム CSS で変数を上書きする
+
+**コードの色付けは 2 系統、色の決め方は 1 系統 (#1050):**
+- 編集側 (CodeMirror) は `--nd-codeKeyword` 等、読み取り側 (Shiki — MFM コードブロック / 確認ダイアログ / AI チャット / 診断ログ) は役割ごとの `--nd-code-token-<役割>` を指す。読み取り側の役割一覧は `src/utils/highlightTheme.ts` (`ND_CODE_TOKEN_ROLES`) が正本で、スコープの割り当ては VS Code Dark+ を写し、役割は「Dark+ と Light+ で同じ色の組になるスコープ群」で切ってある
+- 変数の定義は `src/styles/global.css` の 1 箇所 (dark は `:root`、light は `:root[data-nd-code-scheme='light']`)。`tests/lint/codeTokenVariables.test.ts` が「全役割が定義されている / 他の場所で定義していない」を検査する
+- Shiki のテーマは 1 つ (`nd-code`) で色の代わりに `var(--nd-code-token-*)` を返し、出力の span は inline style でそれを乗せる。明暗の切替は CSS 側だけで完結し、再トークナイズも別 CSS の読み込みもしない。トークンの色をカスタム CSS で変えるには変数を上書きする (色ごとのクラスを探す必要はない)
+- エディタと同じ役割 (keyword / string / number / comment / variable / function / type) は既定でエディタ側の変数を指すので、`--nd-codeKeyword` を上書きすれば編集画面と読み取り表示の両方に効く
+- **編集側の基盤への一本化 (B 案) は不採用**。理由は issue #1050: 本家追従の原則 (MFM のコードブロックは本家と同じ Shiki) と、既製の文法資産による言語カバレッジを捨てる代償に見合う実害が無い。再検討するなら「依存とバンドルを減らす」目的で独立に評価する
+- **AiScript の文法定義は 2 本のまま、語彙だけ 1 本** — キーワード / リテラル / 注入定数 / 組込の名前空間とメンバーは `src/aiscript/grammarTokens.ts` が正本。CodeMirror の文法と補完は直接 import、tmLanguage (`src/assets/aiscript.tmLanguage.json`) は `pnpm gen:aiscript-grammar` で生成し、`tests/lint/aiscriptGrammar.test.ts` が一致を検査する。文法の骨格 (文字列・コメント・関数呼び出しの begin/end) は形式が違うので生成せず、スクリプトに静的に持つ
 
 **適用前 diff (#981):**
 - 自己拡張系の write 確認 (`ConfirmOptions.diff`) は編集後の断片ではなく、編集前と適用後の**全文**を並べて見せる。部分編集 (追記・セクション置換・props patch) も適用後全文を確認時点で計算する (`src/services/selfEditApply.ts`)

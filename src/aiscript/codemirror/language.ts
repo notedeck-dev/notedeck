@@ -1,48 +1,25 @@
 import { StreamLanguage, type StreamParser } from '@codemirror/language'
+import {
+  AISCRIPT_KEYWORDS,
+  AISCRIPT_LITERALS,
+  AISCRIPT_NAMESPACES,
+  AISCRIPT_STORAGE_KEYWORDS,
+} from '@/aiscript/grammarTokens'
 
 interface AiScriptState {
   inBlockComment: boolean
   inTemplate: boolean
 }
 
-const keywords = new Set([
-  'let',
-  'var',
-  'if',
-  'elif',
-  'else',
-  'for',
-  'each',
-  'loop',
-  'while',
-  'do',
-  'match',
-  'case',
-  'default',
-  'break',
-  'continue',
-  'return',
-  'eval',
-  'exists',
+// 語彙は grammarTokens が正本 (tmLanguage 側も同じ一覧から生成される #1050)
+const keywords = new Set<string>([
+  ...AISCRIPT_KEYWORDS,
+  ...AISCRIPT_STORAGE_KEYWORDS,
 ])
 
-const atoms = new Set(['null', 'true', 'false'])
+const atoms = new Set<string>(AISCRIPT_LITERALS)
 
-const namespaces = new Set([
-  'Mk',
-  'Ui',
-  'Core',
-  'Math',
-  'Str',
-  'Date',
-  'Json',
-  'Obj',
-  'Arr',
-  'Async',
-  'Uri',
-  'Util',
-  'Error',
-])
+const namespaces = new Set(AISCRIPT_NAMESPACES)
 
 const aiscriptParser: StreamParser<AiScriptState> = {
   startState(): AiScriptState {

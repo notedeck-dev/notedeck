@@ -40,8 +40,13 @@ describe('highlightCode (after highlighter init)', () => {
     )
 
     const html = highlightCode('const a = 1', 'typescript')
-    expect(html).toContain('<pre class="shiki')
-    expect(html).toContain('const')
+    expect(html).toContain('<pre class="shiki"><code>')
+    // トークン色は CSS 変数の inline style (#1050)。色ごとのクラスは出さない。
+    // 行頭トークンだけを見る (Shiki の行単位の時間上限で残りが畳まれても通る)
+    expect(html).toMatch(
+      /<span style="color:var\(--nd-code-token-keyword\)">const/,
+    )
+    expect(html).not.toMatch(/class="shiki-/)
 
     // エイリアス解決 (ts → typescript ではなく tsx → typescript を確認)
     const aliased = highlightCode('const a = 1', 'tsx')
