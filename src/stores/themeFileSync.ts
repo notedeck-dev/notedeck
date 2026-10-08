@@ -27,7 +27,12 @@ import { notifyWarningToast } from '@/utils/toastNotify'
 
 type ParsedTheme = Record<string, unknown>
 
-/** テーマ 1 件のファイル projection。runtime-only の fileBase は含めない。 */
+/**
+ * テーマ 1 件のファイル projection。runtime-only の fileBase は含めない。
+ * 形は notecore の `themes.rs` `serialize_theme_file` と、codec
+ * (`services/distributableCodecs/themeCodec.ts`) の出力と一致する
+ * (storeParity.test / golden が固定)
+ */
 function serializeTheme(theme: MisskeyTheme): string {
   const out: Record<string, unknown> = {
     id: theme.id,
@@ -39,6 +44,52 @@ function serializeTheme(theme: MisskeyTheme): string {
   if (theme.$notedeck) out.$notedeck = theme.$notedeck
   return JSON5.stringify(out, null, 2)
 }
+
+/** `$notedeck` に createdAt / updatedAt が揃っているか (#1202 段階 0 の揃え) */
+function hasTimestamps(nd: unknown): boolean {
+  if (!nd || typeof nd !== 'object') return false
+  const m = nd as Record<string, unknown>
+  return typeof m.createdAt === 'number' && typeof m.updatedAt === 'number'
+}
+
+/**
+ * パース済みファイル + 確定 ID → テーマ。NoteDeck 独自メタ ($notedeck.storeId /
+ * installedFor 等) を保持しないと再起動時にストア紐付き / per-account 紐付きが
+ * 消える。`$notedeck` は規定順 (ストア 3 点 → installedFor → 時刻) に並べ直し、
+ * createdAt / updatedAt が無い旧ファイルは今を入れる (メインウィンドウが
+ * 書き戻す。#1202 段階 0)。変更通知の写し更新 (theme store) も同じ関数を使う
+ */
+export function themeFromFile(
+  p: ParsedTheme,
+  id: string,
+  filename: string,
+  now: number = Date.now(),
+): MisskeyTheme {
+  const nd =
+    p.$notedeck && typeof p.$notedeck === 'object'
+      ? (p.$notedeck as NotedeckThemeMeta)
+      : {}
+  return {
+    id,
+    name: typeof p.name === 'string' && p.name ? p.name : filename,
+    base: p.base === 'light' ? 'light' : 'dark',
+    props: p.props as Record<string, string>,
+    $notedeck: {
+      ...(nd.storeId ? { storeId: nd.storeId } : {}),
+      ...(nd.storeSha512 ? { storeSha512: nd.storeSha512 } : {}),
+      ...(nd.storeVersion ? { storeVersion: nd.storeVersion } : {}),
+      ...(nd.installedFor?.length ? { installedFor: nd.installedFor } : {}),
+      createdAt: typeof nd.createdAt === 'number' ? nd.createdAt : now,
+      updatedAt: typeof nd.updatedAt === 'number' ? nd.updatedAt : now,
+    },
+  }
+}
+
+/**
+ * 内部関数の test 用 export (codec との一致検査)。プロダクトコードから直接
+ * 呼ばないこと
+ */
+export const _internal = { serializeTheme }
 
 export const themeFiles = createSingleFileCollection<MisskeyTheme, ParsedTheme>(
   {
@@ -59,20 +110,9 @@ export const themeFiles = createSingleFileCollection<MisskeyTheme, ParsedTheme>(
     rawIdOf: (p) => p.id,
     effectiveIdOf: (filename) => `custom-${filename}`,
     injectId: (raw, id) => injectJson5Id(raw, 'id', id),
-    fromFile: (p, id, filename) => {
-      const theme: MisskeyTheme = {
-        id,
-        name: typeof p.name === 'string' && p.name ? p.name : filename,
-        base: p.base === 'light' ? 'light' : 'dark',
-        props: p.props as Record<string, string>,
-      }
-      // NoteDeck 独自メタ ($notedeck.storeId / installedFor 等) を保持
-      // しないと再起動時にストア紐付き / per-account 紐付きが消える
-      if (p.$notedeck && typeof p.$notedeck === 'object') {
-        theme.$notedeck = { ...(p.$notedeck as NotedeckThemeMeta) }
-      }
-      return theme
-    },
+    fromFile: (p, id, filename) => themeFromFile(p, id, filename),
+    // #1202 段階 0: $notedeck の createdAt / updatedAt が無い旧ファイルは書き戻して揃える
+    isOutdated: (p) => !hasTimestamps(p.$notedeck),
     displayNameOf: (p) => (typeof p.name === 'string' ? p.name : ''),
     idOf: (t) => t.id,
     nameOf: (t) => t.name,
@@ -84,6 +124,8 @@ export interface FileStorageData {
   themes: MisskeyTheme[]
   /** ディレクトリに存在した .ndtheme.json5 の数 (パース失敗分を含む) */
   entryFileCount: number
+  /** on-disk の形が古く、書き戻して揃えるテーマ (`themes` の部分集合、#1202) */
+  outdated: MisskeyTheme[]
   customCss: string | null
   /** True when localStorage has custom CSS but no file exists */
   needsMigrateCss: boolean
@@ -91,11 +133,12 @@ export interface FileStorageData {
 
 /** Load installed themes and custom CSS from the file system. */
 export async function loadFromFiles(): Promise<FileStorageData> {
-  const { items, entryFileCount } = await themeFiles.loadAll()
+  const { items, entryFileCount, outdated } = await themeFiles.loadAll()
   const customCss = await settingsFs.readCustomCss()
   return {
     themes: items,
     entryFileCount,
+    outdated,
     customCss: customCss || null,
     needsMigrateCss: !customCss,
   }

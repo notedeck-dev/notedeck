@@ -35,6 +35,8 @@ const KEY_ORDER: &[&str] = &[
     "storeSha512",
     "storeVersion",
     "iconUrl",
+    "createdAt",
+    "updatedAt",
 ];
 
 /// `fromFile` の既定値つきの読み出し。
@@ -104,7 +106,13 @@ impl PluginView for Item {
 }
 
 /// `toFileMeta`: 規定のキー順に並べ、空の任意項目は出さない。未知のキーは末尾に残す。
+/// createdAt / updatedAt が無い旧個体は今で埋める (#1202 段階 0 の揃え)。
 pub fn normalize_meta(item: &Item) -> J5 {
+    normalize_meta_at(item, crate::clock::now_ms() as f64)
+}
+
+/// `normalize_meta` の時刻を外から渡す形 (golden テスト用)。
+pub fn normalize_meta_at(item: &Item, now: f64) -> J5 {
     let J5::Obj(pairs) = &item.meta else {
         return J5::Obj(vec![]);
     };
@@ -150,6 +158,14 @@ pub fn normalize_meta(item: &Item) -> J5 {
             out.push((key.into(), J5::Str(v.into())));
         }
     }
+    out.push((
+        "createdAt".into(),
+        J5::Num(item.num("createdAt").unwrap_or(now)),
+    ));
+    out.push((
+        "updatedAt".into(),
+        J5::Num(item.num("updatedAt").unwrap_or(now)),
+    ));
     for (k, v) in pairs {
         if !KEY_ORDER.contains(&k.as_str()) {
             out.push((k.clone(), v.clone()));
@@ -172,7 +188,10 @@ pub fn find_by_store_id(core: &Core, store_id: &str) -> Result<Option<Item>> {
         .find(|p| p.store_id() == Some(store_id)))
 }
 
-fn write(core: &Core, item: &Item) -> Result<()> {
+/// 変更の書込。updatedAt を今にする (widgets と同じ)。
+fn write(core: &Core, item: &mut Item) -> Result<()> {
+    item.meta
+        .set("updatedAt", J5::Num(crate::clock::now_ms() as f64));
     super::write_item(
         core,
         &KIND,
@@ -342,6 +361,9 @@ pub fn install_new(
     if let Some(u) = icon_url.filter(|u| !u.is_empty()) {
         pairs.push(("iconUrl".into(), J5::Str(u.into())));
     }
+    let t = crate::clock::now_ms() as f64;
+    pairs.push(("createdAt".into(), J5::Num(t)));
+    pairs.push(("updatedAt".into(), J5::Num(t)));
     let mut item = Item {
         id: install_id,
         meta: J5::Obj(pairs),
@@ -350,7 +372,7 @@ pub fn install_new(
         read_only: false,
     };
     item.file_base = super::allocate_base(&dir, &KIND, &meta.name, Some(entry_id), &all);
-    write(core, &item)?;
+    write(core, &mut item)?;
     Ok(item)
 }
 
@@ -376,10 +398,13 @@ mod tests {
         assert_eq!(p.config_data(), json!({ "greet": "hi" }));
         set_active(&core, &mut p, true).unwrap();
         let raw = std::fs::read_to_string(base.join("plugins/p.meta.json5")).unwrap();
-        assert_eq!(
-            raw,
-            "{\n  installId: 'p',\n  name: 'P',\n  version: '1',\n  config: {\n    greet: {\n      type: 'string',\n      label: 'G',\n      default: 'hi',\n    },\n  },\n  configData: {\n    greet: 'hi',\n  },\n  active: true,\n  global: true,\n  extra: 1,\n}"
-        );
+        // 時刻の無い旧個体は書くときに createdAt / updatedAt を埋める (#1202 段階 0)。
+        // 未知のキーはその後ろに残る
+        assert!(raw.starts_with(
+            "{\n  installId: 'p',\n  name: 'P',\n  version: '1',\n  config: {\n    greet: {\n      type: 'string',\n      label: 'G',\n      default: 'hi',\n    },\n  },\n  configData: {\n    greet: 'hi',\n  },\n  active: true,\n  global: true,\n  createdAt: "
+        ));
+        assert!(raw.ends_with(",\n  extra: 1,\n}"));
+        assert!(raw.contains("\n  updatedAt: "));
         // 名前が無ければメタファイル名、version は 0.0.0
         put(&base, "q.meta.json5", "{ installId: 'q' }");
         put(&base, "q.is", "");
@@ -484,6 +509,8 @@ mod tests {
         assert_eq!(item.config_data(), json!({ "msg": "hi" }));
         let raw = std::fs::read_to_string(base.join("plugins/hello-2.meta.json5")).unwrap();
         assert!(raw.starts_with("{\n  installId: 'hello-2',\n  name: 'Hello',\n  version: '1.0.0',\n  author: 'alice',\n  config: {"));
-        assert!(raw.ends_with("storeId: 'hello',\n  storeSha512: 'hash',\n  storeVersion: '1.0.0',\n  iconUrl: 'https://i',\n}"));
+        assert!(raw.contains("storeId: 'hello',\n  storeSha512: 'hash',\n  storeVersion: '1.0.0',\n  iconUrl: 'https://i',\n  createdAt: "));
+        assert!(raw.ends_with(",\n}"));
+        assert!(item.num("createdAt").is_some() && item.num("updatedAt").is_some());
     }
 }

@@ -734,3 +734,31 @@ describe('sweepHistory', () => {
     expect(fs.files.has('alpha.history.json5')).toBe(true)
   })
 })
+
+describe('isOutdated (on-disk の揃え, #1202)', () => {
+  it('古い形の個体だけ outdated に入り、readOnly は入らない', async () => {
+    const fs = makeFakeFs({
+      'old.meta.json5': '{ installId: "old", name: "Old" }',
+      'old.is': '1',
+      'new.meta.json5': '{ installId: "new", name: "New", active: true }',
+      'new.is': '2',
+      'orphan.meta.json5': '{ installId: "orphan", name: "O" }',
+    })
+    const col = makeCollection(fs, {
+      isOutdated: (meta) => typeof meta.active !== 'boolean',
+    })
+    const { items, outdated } = await col.loadAll()
+    expect(items.map((i) => i.installId)).toEqual(['new', 'old', 'orphan'])
+    expect(outdated.map((i) => i.installId)).toEqual(['old'])
+    expect(outdated[0]).toBe(items[1])
+  })
+
+  it('hook が無ければ空', async () => {
+    const fs = makeFakeFs({
+      'a.meta.json5': '{ installId: "a", name: "A" }',
+      'a.is': '',
+    })
+    const { outdated } = await makeCollection(fs).loadAll()
+    expect(outdated).toEqual([])
+  })
+})

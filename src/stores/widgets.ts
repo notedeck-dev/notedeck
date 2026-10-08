@@ -82,7 +82,17 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
   srcOf: (w) => w.src,
   // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
   preferredBase: (w) => w.storeId,
-  toFileMeta: (w) => ({
+  toFileMeta: (w) => widgetToFileMeta(w),
+  fromFile: (meta, src, metaFile) => widgetFromFile(meta, src, metaFile),
+})
+
+/**
+ * item → meta ファイルの projection。キー順と省略規則は notecore の
+ * `sidecar/widgets.rs` `normalize_meta` と、codec (`services/distributableCodecs/
+ * widgetCodec.ts`) の出力と一致する (storeParity.test / golden が固定)
+ */
+function widgetToFileMeta(w: WidgetMeta): WidgetFileMeta {
+  return {
     installId: w.installId,
     name: w.name,
     autoRun: w.autoRun,
@@ -93,8 +103,15 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     ...(w.accountKey ? { accountKey: w.accountKey } : {}),
     createdAt: w.createdAt,
     updatedAt: w.updatedAt,
-  }),
-  fromFile: (meta, src, metaFile) => ({
+  }
+}
+
+function widgetFromFile(
+  meta: WidgetFileMeta,
+  src: string,
+  metaFile: string,
+): WidgetMeta {
+  return {
     installId: meta.installId || metaFile,
     name: meta.name || metaFile,
     src,
@@ -107,8 +124,17 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     legacyAccountId: meta.accountKey ? undefined : meta.accountId,
     createdAt: meta.createdAt ?? Date.now(),
     updatedAt: meta.updatedAt ?? Date.now(),
-  }),
-})
+  }
+}
+
+/**
+ * 内部関数の test 用 export (codec との一致検査)。プロダクトコードから直接
+ * 呼ばないこと
+ */
+export const _internal = {
+  toFileMeta: widgetToFileMeta,
+  fromFile: widgetFromFile,
+}
 
 // ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
 // localStorage には書かない (#1042。ウィンドウ間の追随は変更通知で行う)

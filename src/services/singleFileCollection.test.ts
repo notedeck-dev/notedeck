@@ -760,3 +760,21 @@ describe('スキル相当構成 (.md + frontmatter)', () => {
     expect(fs.files.has('gone.history.json5')).toBe(false)
   })
 })
+
+describe('isOutdated (on-disk の揃え, #1202)', () => {
+  it('古い形の個体だけ outdated に入る', async () => {
+    const fs = makeFakeFs({
+      'old.ndtheme.json5': '{ id: "old", name: "Old", props: {} }',
+      'new.ndtheme.json5':
+        '{ id: "new", name: "New", props: {}, $notedeck: { createdAt: 1 } }',
+    })
+    const col = makeCollection(fs, {
+      isOutdated: (p) => !p.$notedeck,
+    })
+    const { items, outdated } = await col.loadAll()
+    expect(items.map((i) => i.id)).toEqual(['new', 'old'])
+    expect(outdated.map((i) => i.id)).toEqual(['old'])
+    expect(outdated[0]).toBe(items[1])
+    expect((await makeCollection(fs).loadAll()).outdated).toEqual([])
+  })
+})

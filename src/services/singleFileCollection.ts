@@ -59,6 +59,12 @@ export interface SingleFileCollectionConfig<T extends SingleItemFile, P> {
   injectId(raw: string, id: string): string
   /** パース結果 + 確定 ID → アイテム。fileBase はサービスが付与する */
   fromFile(parsed: P, id: string, filename: string): T
+  /**
+   * 読んだファイルが今の on-disk 形より古いか (#1202 段階 0 の揃え: テーマの
+   * `$notedeck.createdAt` / `updatedAt` の欠損)。true の個体は `loadAll` の
+   * `outdated` に入り、store (メインウィンドウだけ) が書き戻して揃える
+   */
+  isOutdated?(parsed: P): boolean
   /** copy-adopt で slug の元にする表示名 (欠損なら '' → kindFallback に落ちる) */
   displayNameOf(parsed: P): string
   idOf(item: T): string
@@ -92,6 +98,8 @@ export interface LoadAllResult<T> {
    * (= localStorage → ファイルの片方向移行が必要) を呼び出し側が区別するため。
    */
   entryFileCount: number
+  /** on-disk の形が古く、書き戻して揃える個体 (`isOutdated`)。`items` の部分集合 */
+  outdated: T[]
 }
 
 const encoder = new TextEncoder()
@@ -170,6 +178,7 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
     )
 
     const items: T[] = []
+    const outdated: T[] = []
     const seenIds = new Set<string>()
     const duplicates: DuplicateIdEntry[] = []
     for (const filename of mainFiles) {
@@ -202,13 +211,14 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
         const item = cfg.fromFile(parsed, id, filename)
         item.fileBase = base
         items.push(item)
+        if (cfg.isOutdated?.(parsed)) outdated.push(item)
       } catch (e) {
         console.warn(`[${cfg.logTag}] failed to parse ${filename}:`, e)
       }
     }
     const notice = formatDuplicateIdNotice(duplicates)
     if (notice) cfg.notify?.(notice)
-    return { items, entryFileCount: mainFiles.length }
+    return { items, entryFileCount: mainFiles.length, outdated }
   }
 
   /**

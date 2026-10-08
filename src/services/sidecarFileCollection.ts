@@ -65,6 +65,13 @@ export interface SidecarCollectionConfig<T extends SidecarItemFile, M> {
   /** パース済み meta + src → item。呼び出し側の try/catch はサービスが持つ */
   fromFile(meta: M, src: string, metaFile: string): T
   /**
+   * 読んだメタが今の on-disk 形より古いか (#1202 段階 0 の揃え: createdAt /
+   * updatedAt の欠損、クエリの `disabled` → `active`)。true の個体は
+   * `loadAll` の `outdated` に入り、store (メインウィンドウだけ) が書き戻して
+   * 揃える。ソースを欠く readOnly 個体は書けないので入れない
+   */
+  isOutdated?(meta: M): boolean
+  /**
    * 新規割当時に優先するファイル基底名 (ストアインストールの storeId 等)。
    * 規約不適合なら無視して表示名 slug に落ち、占有時は連番 suffix で回避する。
    */
@@ -104,6 +111,11 @@ export interface LoadAllResult<T> {
    * (= localStorage → ファイルの片方向移行が必要) を呼び出し側が区別するため。
    */
   entryFileCount: number
+  /**
+   * on-disk の形が古く、書き戻して揃える個体 (`isOutdated`)。`items` の部分
+   * 集合で、readOnly は含まない
+   */
+  outdated: T[]
 }
 
 const encoder = new TextEncoder()
@@ -178,6 +190,7 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     const metaFiles = allFiles.filter((f) => f.endsWith(META_SUFFIX))
 
     const items: T[] = []
+    const outdated: T[] = []
     const seenIds = new Set<string>()
     const duplicates: DuplicateIdEntry[] = []
     for (const metaFile of metaFiles) {
@@ -216,13 +229,16 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
         item.fileBase = base
         if (readOnly) item.readOnly = true
         items.push(item)
+        if (!readOnly && cfg.isOutdated?.(parsed as unknown as M)) {
+          outdated.push(item)
+        }
       } catch (e) {
         console.warn(`[${cfg.logTag}] failed to parse ${metaFile}:`, e)
       }
     }
     const notice = formatDuplicateIdNotice(duplicates)
     if (notice) cfg.notify?.(notice)
-    return { items, entryFileCount: metaFiles.length }
+    return { items, entryFileCount: metaFiles.length, outdated }
   }
 
   /**

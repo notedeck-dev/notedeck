@@ -57,8 +57,9 @@ export interface NamedQueryMeta extends SidecarItemFile {
   /**
    * 本体の無効化 (#1043)。プラグインの有効/無効と同じ位置のキルスイッチで、
    * 無効なクエリは参照している全カラムで評価上「無いもの」(fail-open) になる。
-   * 無効のときだけ印を書く省略書式 (値が無い = 有効)。既存ファイルはすべて
-   * 値を持たないので移行不要で、判定は `isQueryActive` の 1 箇所に集約する。
+   * メモリ上は無効のときだけ印を持つ (値が無い = 有効) が、ファイルには
+   * `active: boolean` を常に書く (#1202 段階 0 で他の配布物と揃えた。旧形式の
+   * `disabled` も読める)。判定は `isQueryActive` の 1 箇所に集約する。
    * カラム側の適用 (noteQueryRefs) やスコープ参加には触れない
    */
   disabled?: boolean
@@ -134,9 +135,70 @@ interface QueryFileMeta {
   global?: boolean
   installedFor?: string[]
   scoped?: boolean
+  /** 本体の有効 (常に書く。#1202 段階 0) */
+  active: boolean
+  /** @deprecated 旧形式 (反転の印、true のときだけ)。読むだけで、書かない */
   disabled?: boolean
   createdAt: number
   updatedAt: number
+}
+
+/**
+ * item → meta ファイルの projection。キー順と省略規則は notecore の
+ * `sidecar/queries.rs` `normalize_meta` と、codec (`services/distributableCodecs/
+ * queryCodec.ts`) の出力と一致する (storeParity.test / golden が固定)
+ */
+function queryToFileMeta(q: NamedQueryMeta): QueryFileMeta {
+  return {
+    id: q.id,
+    name: q.name,
+    ...(q.description ? { description: q.description } : {}),
+    ...(q.storeId ? { storeId: q.storeId } : {}),
+    ...(q.storeSha512 ? { storeSha512: q.storeSha512 } : {}),
+    ...(q.storeVersion ? { storeVersion: q.storeVersion } : {}),
+    ...(q.iconUrl ? { iconUrl: q.iconUrl } : {}),
+    ...(q.global ? { global: true } : {}),
+    ...(q.installedFor?.length ? { installedFor: q.installedFor } : {}),
+    ...(q.scoped ? { scoped: true } : {}),
+    active: isQueryActive(q),
+    createdAt: q.createdAt,
+    updatedAt: q.updatedAt,
+  }
+}
+
+/** ファイルの `active` (無ければ旧 `disabled`) → メモリ上の印 */
+function queryFromFile(
+  meta: QueryFileMeta,
+  src: string,
+  metaFile: string,
+): NamedQueryMeta {
+  const active =
+    typeof meta.active === 'boolean' ? meta.active : meta.disabled !== true
+  return {
+    id: meta.id || metaFile,
+    name: meta.name || metaFile,
+    description: meta.description,
+    src,
+    storeId: meta.storeId,
+    storeSha512: meta.storeSha512,
+    storeVersion: meta.storeVersion,
+    iconUrl: meta.iconUrl,
+    global: meta.global,
+    installedFor: meta.installedFor,
+    scoped: meta.scoped,
+    ...(active ? {} : { disabled: true }),
+    createdAt: meta.createdAt ?? Date.now(),
+    updatedAt: meta.updatedAt ?? Date.now(),
+  }
+}
+
+/**
+ * 内部関数の test 用 export (codec との一致検査)。プロダクトコードから直接
+ * 呼ばないこと
+ */
+export const _internal = {
+  toFileMeta: queryToFileMeta,
+  fromFile: queryFromFile,
 }
 
 const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
@@ -155,37 +217,10 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
   srcOf: (q) => q.src,
   // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
   preferredBase: (q) => q.storeId,
-  toFileMeta: (q) => ({
-    id: q.id,
-    name: q.name,
-    ...(q.description ? { description: q.description } : {}),
-    ...(q.storeId ? { storeId: q.storeId } : {}),
-    ...(q.storeSha512 ? { storeSha512: q.storeSha512 } : {}),
-    ...(q.storeVersion ? { storeVersion: q.storeVersion } : {}),
-    ...(q.iconUrl ? { iconUrl: q.iconUrl } : {}),
-    ...(q.global ? { global: true } : {}),
-    ...(q.installedFor?.length ? { installedFor: q.installedFor } : {}),
-    ...(q.scoped ? { scoped: true } : {}),
-    ...(q.disabled ? { disabled: true } : {}),
-    createdAt: q.createdAt,
-    updatedAt: q.updatedAt,
-  }),
-  fromFile: (meta, src, metaFile) => ({
-    id: meta.id || metaFile,
-    name: meta.name || metaFile,
-    description: meta.description,
-    src,
-    storeId: meta.storeId,
-    storeSha512: meta.storeSha512,
-    storeVersion: meta.storeVersion,
-    iconUrl: meta.iconUrl,
-    global: meta.global,
-    installedFor: meta.installedFor,
-    scoped: meta.scoped,
-    ...(meta.disabled ? { disabled: true } : {}),
-    createdAt: meta.createdAt ?? Date.now(),
-    updatedAt: meta.updatedAt ?? Date.now(),
-  }),
+  toFileMeta: queryToFileMeta,
+  fromFile: queryFromFile,
+  // #1202 段階 0: 旧形式 (`disabled` の省略書式) は `active` を常に書く形へ書き戻す
+  isOutdated: (meta) => typeof meta.active !== 'boolean',
 })
 
 export function generateQueryId(): string {
@@ -219,7 +254,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
 
   async function initFileStorage() {
     try {
-      const { items } = await queryFiles.loadAll()
+      const { items, outdated } = await queryFiles.loadAll()
 
       // 初期化中にメモリ追加されたクエリは残す (各自の persist が ready 後に
       // ファイル化する)
@@ -235,6 +270,18 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       if (settingsFs.isMainDeckWindow()) {
         // 規約外名の copy-adopt 正規化
         await queryFiles.migrateItems(queries.value)
+        // on-disk の揃え (#1202 段階 0): 旧形式 (`disabled` の省略書式) を
+        // `active` を常に書く形で書き戻す。一度きり (次回は outdated に入らない)
+        for (const q of outdated) {
+          await queryFiles
+            .persistItem(q, queries.value)
+            .catch((e) =>
+              console.warn(
+                '[columnQueries] failed to align on-disk format:',
+                e,
+              ),
+            )
+        }
         // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
         await queryFiles
           .sweepHistory()
