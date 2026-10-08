@@ -12,8 +12,8 @@ Compared with the Misskey web UI you open in a browser, it differs in these ways
 - **Notes that scrolled by stay with you** — notes you have seen are stored in a local database and can be found later with full-text search
 - **It uses your OS** — global hotkeys, native notifications, the system tray, and popping content out into separate windows
 
-::: info The app is in Japanese for now
-The app's interface is currently available in Japanese only ([#135](https://github.com/notedeck-dev/notedeck/issues/135) tracks translating it). These docs give the Japanese label next to each button or menu name so you can find it on screen.
+::: info Language of the app
+The app's interface is available in Japanese and English. It follows your OS language by default, and you can change it under Appearance → Language. These docs also give the Japanese label next to each button or menu name, for when you use the app in Japanese.
 :::
 
 ## Three basic concepts
