@@ -12,8 +12,16 @@
  *
  * 直交設計のため、Account 型は god-type 化しない (= kind discriminator を
  * 既存 Account に追加しない)。Identity は別レイヤーとして並走する。
+ *
+ * ID の表記規則 (`skill:` プレフィックス) は services/identityId。ここは
+ * store を引いて Identity に解決する側。
  */
 
+import {
+  extractSkillIdFromIdentity,
+  isPersonaIdentityId,
+  personaIdentityId,
+} from '@/services/identityId'
 import {
   type Account,
   guestDisplayName,
@@ -39,29 +47,6 @@ export interface Identity {
   displayName: string
   avatarUrl?: string
   bio?: string
-}
-
-const PERSONA_PREFIX = 'skill:'
-
-/**
- * Identity ID を生成する小さなヘルパ。
- * - `personaIdentityId('aizu-9k2x')` → `'skill:aizu-9k2x'`
- * - `accountIdentityId('acc-1234')` → `'acc-1234'` (= そのまま)
- */
-export function personaIdentityId(skillId: string): string {
-  return `${PERSONA_PREFIX}${skillId}`
-}
-
-export function isPersonaIdentityId(id: string): boolean {
-  return id.startsWith(PERSONA_PREFIX)
-}
-
-/**
- * Identity ID から元の skill id を取り出す。persona でないなら null。
- */
-export function extractSkillIdFromIdentity(id: string): string | null {
-  if (!isPersonaIdentityId(id)) return null
-  return id.slice(PERSONA_PREFIX.length) || null
 }
 
 function fromAccount(account: Account): Identity {

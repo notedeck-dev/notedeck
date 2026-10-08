@@ -32,6 +32,7 @@ import {
 import { i18n } from '@/i18n'
 import { mapWithConcurrency } from '@/services/concurrency'
 import { resolveNoteUriFor } from '@/services/entityResolution'
+import type { FollowApi } from '@/services/followTransition'
 import {
   nestedVariantKey,
   type VariantKey,
@@ -46,7 +47,6 @@ import { hostParamFor, parseUserRef, type UserRef } from '@/services/userRef'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useSuspensionsStore } from '@/stores/suspensions'
-import type { FollowApi } from '@/utils/followAction'
 import { isImeComposing } from '@/utils/ime'
 import { isRenoteOnly } from '@/utils/noteViewModel'
 import { commands, unwrap } from '@/utils/tauriInvoke'

@@ -3,9 +3,9 @@ import { computed } from 'vue'
 import MkFollowButton from '@/components/common/MkFollowButton.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import { i18n } from '@/i18n'
+import type { FollowApi, FollowState } from '@/services/followTransition'
 import type { UserLookupHit, UserLookupMiss } from '@/services/userLookupResult'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
-import type { FollowApi, FollowState } from '@/utils/followAction'
 
 /**
  * 全アカウントのユーザー照会の結果 (#1185): 解決できたアカウントごとに 1 行。

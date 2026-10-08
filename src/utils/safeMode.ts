@@ -4,7 +4,8 @@
  * 判定の正本は localStorage の 1 キーだけ。CLI 引数 (`--safe-mode`) と URL クエリ
  * (`?safemode=true`) は「そのキーを立てる起動経路」に徹する。こうすると解除は常に
  * 「キーを消してリロード」の 1 手で済み、起動経路ごとの解除手順を持たなくてよい。
- * (本家 Misskey 2026.6.0 の isSafeMode と同じ構造)
+ * (本家 Misskey 2026.6.0 の isSafeMode と同じ構造)。判定規則の純関数は
+ * services/safeModeSources。
  *
  * 無効化するもの:
  *   - AiScript プラグイン / ウィジェット (起動時に自動実行される第三者コード)
@@ -25,21 +26,6 @@ declare global {
   interface Window {
     __ND_SAFE_MODE_ARG__?: boolean
   }
-}
-
-export interface SafeModeSources {
-  /** CLI 引数由来 (Tauri) */
-  argFlag: boolean
-  /** `location.search` 相当 (ブラウザ / dev サーバー用) */
-  search: string
-  /** localStorage の保存値 */
-  stored: string | null
-}
-
-export function resolveSafeMode(sources: SafeModeSources): boolean {
-  if (sources.stored === 'true') return true
-  if (sources.argFlag) return true
-  return new URLSearchParams(sources.search).get('safemode') === 'true'
 }
 
 /** 現在のセーフモード状態。boot script が確定させた localStorage を読むだけ。 */

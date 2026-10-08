@@ -28,6 +28,7 @@ import { nativeField } from '@/i18n/native'
 import { describeToolUse } from '@/services/aiToolSummary'
 import { turnIdOf } from '@/services/aiTurnIds'
 import { createRenderCache } from '@/services/renderCache'
+import { isTimestampTitle } from '@/services/sessionTitle'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -40,11 +41,7 @@ import { usePrompt } from '@/stores/prompt'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
-import {
-  generateSessionTitle,
-  isTimestampTitle,
-  timestampTitle,
-} from '@/utils/aiSessionTitle'
+import { generateSessionTitle, timestampTitle } from '@/utils/aiSessionTitle'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { resolveIdentity } from '@/utils/identity'
 import { isImeComposing } from '@/utils/ime'
