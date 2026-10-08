@@ -121,8 +121,7 @@
   --nd-codeEditorActiveLineBg: rgba(255, 255, 255, 0.04);
   --nd-codeEditorMatchBg: rgba(255, 255, 255, 0.1);
   --nd-codeEditorMatchBorder: rgba(255, 255, 255, 0.3);
-  /* シンタックストークン (CodeMirror 側)。Shiki 側は色ごとのクラスを
-     assets/shiki-*.css が持つので、こちらはエディタ用 */
+  /* シンタックストークン (CodeMirror 側) */
   --nd-codeKeyword: #569cd6;
   --nd-codeString: #ce9178;
   --nd-codeNumber: #b5cea8;
@@ -131,6 +130,36 @@
   --nd-codeFunction: #dcdcaa;
   --nd-codeType: #4ec9b0;
   --nd-codeLink: #4fc1ff;
+  /* シンタックストークン (Shiki 側 = MFM コードブロック / 確認ダイアログ /
+     AI チャット / 診断ログ #1050)。役割は src/utils/highlightTheme.ts が正本で、
+     定義はここ 1 箇所 (light は下の data-nd-code-scheme ブロック)。エディタと
+     同じ役割は同じ変数を指すので、--nd-codeKeyword 等を上書きすれば両方に効く */
+  --nd-code-token-keyword: var(--nd-codeKeyword);
+  --nd-code-token-control: #c586c0;
+  --nd-code-token-string: var(--nd-codeString);
+  --nd-code-token-markup-string: var(--nd-codeString);
+  --nd-code-token-number: var(--nd-codeNumber);
+  --nd-code-token-comment: var(--nd-codeComment);
+  --nd-code-token-variable: var(--nd-codeVariable);
+  --nd-code-token-attribute: var(--nd-codeVariable);
+  --nd-code-token-key: var(--nd-codeVariable);
+  --nd-code-token-property-value: var(--nd-codeString);
+  --nd-code-token-function: var(--nd-codeFunction);
+  --nd-code-token-type: var(--nd-codeType);
+  --nd-code-token-constant: #4fc1ff;
+  --nd-code-token-tag: var(--nd-codeKeyword);
+  --nd-code-token-selector: #d7ba7d;
+  --nd-code-token-tag-punctuation: #808080;
+  --nd-code-token-regexp: #d16969;
+  --nd-code-token-regexp-punctuation: var(--nd-codeString);
+  --nd-code-token-escape: #d7ba7d;
+  --nd-code-token-invalid: #f44747;
+  --nd-code-token-label: #c8c8c8;
+  --nd-code-token-markup-bold: var(--nd-codeKeyword);
+  --nd-code-token-markup-changed: var(--nd-codeKeyword);
+  --nd-code-token-markup-raw: var(--nd-codeString);
+  --nd-code-token-markup-quote: var(--nd-codeComment);
+  --nd-code-token-markup-list: #6796e6;
   /* Diff 表示 (CodeDiffView #981/#1040) の挿入/削除色。エディタ面と同じく
      テーマ非依存の値 */
   --nd-diffInsertBg: rgba(87, 171, 90, 0.16);
@@ -906,8 +935,9 @@ dialog._nativeDialog[open] {
 /* ---- コード面の明暗 (#1053) ---- */
 
 /* 既定 (data-nd-code-scheme 未設定 / dark) は上の :root 定義をそのまま使う。
-   light は VS Code Light+ 準拠の値へ差し替える。Shiki 側のトークン色は
-   assets/shiki-light-plus.css が別に持つ */
+   light は VS Code Light+ 準拠の値へ差し替える。Shiki 側 (--nd-code-token-*) も
+   同じブロックで切り替える。エディタの変数を指している役割は自動で追従する
+   ので、ここに書くのは Light+ で色の組が変わる役割だけ */
 :root[data-nd-code-scheme='light'] {
   --nd-codeEditorBg: #ffffff;
   --nd-codeEditorFg: #000000;
@@ -930,13 +960,31 @@ dialog._nativeDialog[open] {
   --nd-codeFunction: #795e26;
   --nd-codeType: #267f99;
   --nd-codeLink: #0070c1;
+  --nd-code-token-control: #af00db;
+  --nd-code-token-markup-string: #0000ff;
+  --nd-code-token-attribute: #e50000;
+  --nd-code-token-key: #0451a5;
+  --nd-code-token-property-value: #0451a5;
+  --nd-code-token-constant: #0070c1;
+  --nd-code-token-tag: #800000;
+  --nd-code-token-selector: #800000;
+  --nd-code-token-tag-punctuation: #800000;
+  --nd-code-token-regexp: #811f3f;
+  --nd-code-token-regexp-punctuation: #d16969;
+  --nd-code-token-escape: #ee0000;
+  --nd-code-token-invalid: #cd3131;
+  --nd-code-token-label: #000000;
+  --nd-code-token-markup-bold: #000080;
+  --nd-code-token-markup-changed: #0451a5;
+  --nd-code-token-markup-raw: #800000;
+  --nd-code-token-markup-quote: #0451a5;
+  --nd-code-token-markup-list: #0451a5;
 }
 
 /* ---- 読み取り専用のコードブロック面 ---- */
 
-/* Shiki のトークン色は VS Code Dark+ 準拠でダーク固定なので、面もテーマに
-   関係なくダークに揃える。shiki-dark-plus.css は色を直書きするため、要素を
-   足した特異度でこちらを勝たせ、面の色をトークン 1 箇所に集約する (#981) */
+/* Shiki の出力 (pre.shiki) の面。トークン色は inline style の変数で乗り、
+   既定色のトークンは素のまま出るので、面の背景と前景はここ 1 箇所 (#981) */
 pre.shiki {
   background-color: var(--nd-codeEditorBg);
   color: var(--nd-codeEditorFg);
