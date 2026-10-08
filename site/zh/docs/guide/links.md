@@ -1,5 +1,5 @@
 ---
-sourceHash: 875f862cac13
+sourceHash: 2d7e9ad8f988
 ---
 
 # 通过链接打开（notedeck://）
@@ -13,7 +13,7 @@ sourceHash: 875f862cac13
 `notedeck://` 是任何人都能构造的 URL，也可以嵌入网页里诱导你点击。因此，链接不会触发发帖或向 AI 发送内容。
 
 - 发帖窗口和 AI 列只会在填好正文的状态下打开，发送需要你自己点
-- 从商店安装时，只会安装 MisStore 上架的内容
+- 从商店安装时，会在确认对话框中显示名称和作者（插件还会显示所请求的功能），只有你同意后才会安装。能安装的只有 MisStore 上架的内容
 - 指向找不到的配置文件、列或商店内容的链接，什么也不会做
 
 ## 应用全局操作
@@ -27,8 +27,8 @@ sourceHash: 875f862cac13
 | `notedeck://memo/new?text=<正文>` | 创建一条带正文的备忘 |
 | `notedeck://profile/<名称>` | 切换 Deck 的[配置文件](/zh/docs/deck/profiles)。名称不匹配时会作为 id 查找 |
 | `notedeck://column/<id>` | 激活该列 |
-| `notedeck://install-plugin?id=<id>` | 安装 [MisStore](/zh/docs/guide/store) 上的插件 |
-| `notedeck://install-theme?id=<id>` | 安装 MisStore 上的主题 |
+| `notedeck://install-plugin?id=<id>` | 确认后安装 [MisStore](/zh/docs/guide/store) 上的插件 |
+| `notedeck://install-theme?id=<id>` | 确认后安装 MisStore 上的主题 |
 
 列的 id 写在设置文件夹 `profiles/` 中的配置文件文件里。
 

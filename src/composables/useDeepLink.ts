@@ -4,7 +4,9 @@ import {
   generateMemoKey,
   saveMemo,
 } from '@/composables/useMemos'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
+import { useConfirm } from '@/stores/confirm'
 import type { ColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
@@ -344,6 +346,29 @@ async function handleInstallPlugin(pluginId: string): Promise<void> {
     console.info('[deep-link] plugin already installed:', pluginId)
     return
   }
+  // リンクは Web ページに埋め込んで踏ませられるので、何を入れるかを見せて
+  // 承認を得てから入れる (#1204)。プラグインは AiScript を実行するため
+  const lines = [
+    i18n.tsx._deepLinkInstall.message({
+      name: entry.name,
+      version: entry.version,
+      author: entry.author,
+    }),
+  ]
+  if (entry.capabilities?.length) {
+    lines.push(
+      i18n.tsx._deepLinkInstall.capabilities({
+        list: entry.capabilities.join(', '),
+      }),
+    )
+  }
+  const ok = await useConfirm().confirm({
+    title: i18n.ts._deepLinkInstall.pluginTitle,
+    message: lines.join('\n'),
+    okLabel: i18n.ts._common.install,
+    type: 'warning',
+  })
+  if (!ok) return
   // deep link はカラム文脈を持たないため全体スコープでインストールする
   await misStore.installPlugin(entry, { kind: 'global' })
 }
@@ -360,5 +385,15 @@ async function handleInstallTheme(themeId: string): Promise<void> {
     console.info('[deep-link] theme already installed:', themeId)
     return
   }
+  const ok = await useConfirm().confirm({
+    title: i18n.ts._deepLinkInstall.themeTitle,
+    message: i18n.tsx._deepLinkInstall.message({
+      name: entry.name,
+      version: entry.version,
+      author: entry.author,
+    }),
+    okLabel: i18n.ts._common.install,
+  })
+  if (!ok) return
   await misStore.installTheme(entry)
 }

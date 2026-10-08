@@ -4498,6 +4498,16 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     /** ログイン済みアカウントが必要です */
     readonly "loginRequired": string
   }
+  readonly "_deepLinkInstall": {
+    /** プラグインをインストールしますか？ */
+    readonly "pluginTitle": string
+    /** テーマをインストールしますか？ */
+    readonly "themeTitle": string
+    /** リンクから MisStore の「{name}」(v{version}、作者 {author}) のインストールが要求されました。 */
+    readonly "message": ParameterizedString<'author' | 'name' | 'version'>
+    /** 要求する機能: {list} */
+    readonly "capabilities": ParameterizedString<'list'>
+  }
   readonly "_columnEmptyState": {
     /** サーバーに接続できません。ネットワークを確認してください。 */
     readonly "networkError": string

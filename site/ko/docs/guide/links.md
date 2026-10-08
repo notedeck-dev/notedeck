@@ -1,5 +1,5 @@
 ---
-sourceHash: 875f862cac13
+sourceHash: 2d7e9ad8f988
 ---
 
 # 링크로 열기 (notedeck://)
@@ -13,7 +13,7 @@ sourceHash: 875f862cac13
 `notedeck://`는 누구나 만들 수 있는 URL이며, 웹 페이지에 넣어 두고 클릭하게 만들 수도 있습니다. 그래서 링크로 게시하거나 AI에 전송하는 일은 일어나지 않습니다.
 
 - 글 입력란과 AI 칼럼은 본문을 넣은 상태로 열기만 하며, 전송은 직접 누릅니다
-- 스토어에서의 설치는 MisStore에 게재된 것만 설치됩니다
+- 스토어에서의 설치는 이름과 작성자(플러그인이면 요구하는 기능도)를 확인 대화상자로 보여 주고, 승인했을 때만 설치됩니다. 설치할 수 있는 것은 MisStore에 게재된 것뿐입니다
 - 찾을 수 없는 프로파일, 칼럼, 스토어 아이템을 가리키는 링크는 아무것도 하지 않습니다
 
 ## 앱 전체에 대한 조작
@@ -27,8 +27,8 @@ sourceHash: 875f862cac13
 | `notedeck://memo/new?text=<본문>` | 본문이 담긴 메모를 하나 만듭니다 |
 | `notedeck://profile/<이름>` | 덱의 [프로파일](/ko/docs/deck/profiles)을 전환합니다. 이름이 일치하지 않으면 id로 찾습니다 |
 | `notedeck://column/<id>` | 그 칼럼을 활성화합니다 |
-| `notedeck://install-plugin?id=<id>` | [MisStore](/ko/docs/guide/store)의 플러그인을 설치합니다 |
-| `notedeck://install-theme?id=<id>` | MisStore의 테마를 설치합니다 |
+| `notedeck://install-plugin?id=<id>` | [MisStore](/ko/docs/guide/store)의 플러그인을 확인 후 설치합니다 |
+| `notedeck://install-theme?id=<id>` | MisStore의 테마를 확인 후 설치합니다 |
 
 칼럼의 id는 설정 폴더의 `profiles/`에 있는 프로파일 파일에 적혀 있습니다.
 
