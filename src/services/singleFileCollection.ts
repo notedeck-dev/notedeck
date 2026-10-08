@@ -16,11 +16,11 @@ import {
  *
  * - ファイル basename は ASCII slug (slugify の不動点)。参照はファイル内 ID
  * - ID → 実ファイル名の対応表が唯一の正。実体は各アイテムの runtime-only
- *   フィールド `fileBase` (ファイルへは書かない。localStorage ミラーには同乗)
+ *   フィールド `fileBase` (ファイルへは書かない)
  * - ID 凍結は常設規則: ID 欠損のファイルを読んだら種別の実効値を書き戻す
  * - 履歴サイドカー (`<fileBase>.history.json5`) の basename は主ファイルと同一
  *
- * 状態は持たない。reactive state・localStorage・seed の方針は store 側が持ち、
+ * 状態は持たない。reactive state・seed の方針は store 側が持ち、
  * ファイル I/O の手続きだけをここへ委譲する。
  * (同一ウィンドウ内の書込交錯を防ぐ直列化キューのみ内部に持つ)
  */
@@ -209,6 +209,33 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
     const notice = formatDuplicateIdNotice(duplicates)
     if (notice) cfg.notify?.(notice)
     return { items, entryFileCount: mainFiles.length }
+  }
+
+  /**
+   * 1 個体だけ読む (別の書き手 (notecore / 他ウィンドウ) の変更通知の写し更新用,
+   * #1042)。ID 凍結の書き戻しはしない (起動時の loadAll が担う)。規定拡張子以外・
+   * 履歴ファイル・読めない / 採用しない内容は undefined
+   */
+  async function loadOneImpl(filename: string): Promise<T | undefined> {
+    if (!filename.endsWith(cfg.ext) || filename.endsWith(HISTORY_SUFFIX)) {
+      return undefined
+    }
+    const base = filename.slice(0, -cfg.ext.length)
+    let parsed: P
+    try {
+      parsed = cfg.parse(await cfg.read(filename))
+    } catch (e) {
+      console.warn(`[${cfg.logTag}] failed to parse ${filename}:`, e)
+      return undefined
+    }
+    if (cfg.accepts && !cfg.accepts(parsed)) return undefined
+    const rawId = cfg.rawIdOf(parsed)
+    const id = isValidId(rawId)
+      ? (rawId as string)
+      : cfg.effectiveIdOf(filename, base)
+    const item = cfg.fromFile(parsed, id, filename)
+    item.fileBase = base
+    return item
   }
 
   async function persistItemImpl(
@@ -456,6 +483,7 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
 
   return {
     loadAll: () => enqueue(loadAllImpl),
+    loadOne: (filename: string) => enqueue(() => loadOneImpl(filename)),
     persistItem: (item: T, allItems: readonly T[]) =>
       enqueue(() => persistItemImpl(item, allItems)),
     deleteItemFiles: (item: T) => enqueue(() => deleteItemFilesImpl(item)),

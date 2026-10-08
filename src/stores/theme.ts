@@ -132,24 +132,22 @@ export const useThemeStore = defineStore('theme', () => {
     resolveReady = resolve
   })
 
-  /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
-  function adoptMirrorFileBase(theme: MisskeyTheme) {
-    const mirrored = getStorageJson<MisskeyTheme[]>(
-      STORAGE_KEYS.themeInstalledThemes,
-      [],
-    ).find((t) => t.id === theme.id)
-    if (mirrored?.fileBase) theme.fileBase = mirrored.fileBase
+  /**
+   * ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
+   * localStorage には書かない (#1042。ウィンドウ間の追随は変更通知で行う)
+   */
+  function saveInstalledThemes(): void {
+    if (settingsFs.isTauri) return
+    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
   }
 
-  /** テーマ 1 件をファイルへ反映する (ready 待ち + fileBase 割当のミラー反映)。 */
+  /** テーマ 1 件をファイルへ反映する (ready 待ち)。 */
   function persistThemeFile(theme: MisskeyTheme) {
     if (!settingsFs.isTauri) return
     void ready
-      .then(async () => {
-        adoptMirrorFileBase(theme)
-        await themeFileSync.themeFiles.persistItem(theme, installedThemes.value)
-        setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
-      })
+      .then(() =>
+        themeFileSync.themeFiles.persistItem(theme, installedThemes.value),
+      )
       .catch((e) => console.warn('[theme] failed to persist theme:', e))
   }
 
@@ -167,11 +165,14 @@ export const useThemeStore = defineStore('theme', () => {
       applyTheme(storedCompiled)
     }
 
-    // Restore installed themes (still localStorage-based, not in settingsStore)
-    installedThemes.value = getStorageJson<MisskeyTheme[]>(
-      STORAGE_KEYS.themeInstalledThemes,
-      [],
-    )
+    // ブラウザ dev モードだけ localStorage から復元する。Tauri はファイルから
+    // 読む (initFileStorage) までテーマ一覧を持たない (#1042)
+    if (!settingsFs.isTauri) {
+      installedThemes.value = getStorageJson<MisskeyTheme[]>(
+        STORAGE_KEYS.themeInstalledThemes,
+        [],
+      )
+    }
 
     // Restore custom CSS
     const storedCss = getStorageString(STORAGE_KEYS.themeCustomCss)
@@ -233,27 +234,31 @@ export const useThemeStore = defineStore('theme', () => {
 
   let themeAppliedOnce = false
 
+  /** 今の明暗で選ばれているテーマ id (セーフモード (#794) では常に null)。 */
+  function selectedThemeId(dark: boolean): string | null {
+    if (readSafeMode()) return null
+    return dark ? selectedDarkThemeId.value : selectedLightThemeId.value
+  }
+
   function applyCurrentTheme(): void {
+    const selectedId = selectedThemeId(wantsDark())
+    if (
+      selectedId &&
+      settingsFs.isTauri &&
+      !initialized.value &&
+      !installedThemes.value.some((t) => t.id === selectedId)
+    ) {
+      // ファイル読込前は一覧が空。index.html が当てたコンパイル済みキャッシュを
+      // 組込テーマで潰さず、initFileStorage の後の applyCurrentTheme に任せる
+      // (#1042)。初回適用もそちらなので themeAppliedOnce はまだ立てない
+      return
+    }
     const apply = () => {
       const dark = wantsDark()
-      // セーフモード (#794) — ユーザーテーマは一切当てず組込テーマに固定する
-      const selectedId = readSafeMode()
-        ? null
-        : dark
-          ? selectedDarkThemeId.value
-          : selectedLightThemeId.value
-      let custom = selectedId
+      const selectedId = selectedThemeId(dark)
+      const custom = selectedId
         ? installedThemes.value.find((t) => t.id === selectedId)
         : null
-      if (selectedId && !custom) {
-        // 他ウィンドウでインストールされた直後は in-memory リストに無いことが
-        // あるので localStorage から再読込して探し直す
-        installedThemes.value = getStorageJson<MisskeyTheme[]>(
-          STORAGE_KEYS.themeInstalledThemes,
-          [],
-        )
-        custom = installedThemes.value.find((t) => t.id === selectedId)
-      }
       if (custom) {
         applySource({
           kind: dark ? 'custom-dark' : 'custom-light',
@@ -364,8 +369,7 @@ export const useThemeStore = defineStore('theme', () => {
       } else {
         installedThemes.value = [...installedThemes.value, theme]
       }
-      // Sync: localStorage cache
-      setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+      saveInstalledThemes()
       // Async: write only the changed theme to file (ready 待ち)
       persistThemeFile(theme)
       return true
@@ -382,9 +386,6 @@ export const useThemeStore = defineStore('theme', () => {
   function removeTheme(id: string): (() => void) | undefined {
     const idx = installedThemes.value.findIndex((t) => t.id === id)
     const removed = installedThemes.value[idx]
-    // ミラー上書き前に対応表を読み直す (別ウィンドウのリネーム後の削除が
-    // stale なファイル名で空振りしないように)
-    if (removed && settingsFs.isTauri) adoptMirrorFileBase(removed)
     installedThemes.value = installedThemes.value.filter((t) => t.id !== id)
     // Clear selection if removed (computed setter → settingsStore)
     const wasDark = selectedDarkThemeId.value === id
@@ -395,8 +396,7 @@ export const useThemeStore = defineStore('theme', () => {
     if (wasLight) {
       selectedLightThemeId.value = null
     }
-    // Sync: update localStorage cache only (no need to rewrite remaining theme files)
-    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    saveInstalledThemes()
     applyCurrentTheme()
     // Async: delete the removed theme file (+ 履歴サイドカー、ready 待ち)
     if (settingsFs.isTauri && removed) {
@@ -415,7 +415,7 @@ export const useThemeStore = defineStore('theme', () => {
       ]
       if (wasDark) selectedDarkThemeId.value = id
       if (wasLight) selectedLightThemeId.value = id
-      setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+      saveInstalledThemes()
       applyCurrentTheme()
       persistThemeFile(removed)
     }
@@ -453,7 +453,7 @@ export const useThemeStore = defineStore('theme', () => {
     installedThemes.value = installedThemes.value.map((t) =>
       t.id === themeId ? updated : t,
     )
-    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    saveInstalledThemes()
     persistThemeFile(updated)
     return undefined
   }
@@ -476,7 +476,7 @@ export const useThemeStore = defineStore('theme', () => {
     installedThemes.value = installedThemes.value.map((t) =>
       t.id === themeId ? updated : t,
     )
-    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    saveInstalledThemes()
     persistThemeFile(updated)
   }
 
@@ -485,7 +485,7 @@ export const useThemeStore = defineStore('theme', () => {
     if (!theme) return
 
     theme.name = newName
-    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    saveInstalledThemes()
 
     if (!settingsFs.isTauri) return
     // ファイルは rename コマンドで追随させる (ID 不変・主ファイル + 履歴。
@@ -493,13 +493,11 @@ export const useThemeStore = defineStore('theme', () => {
     // rename の完了を待ってから保存する
     void ready
       .then(async () => {
-        adoptMirrorFileBase(theme)
         await themeFileSync.themeFiles.renameItemFiles(
           theme,
           installedThemes.value,
         )
         await themeFileSync.themeFiles.persistItem(theme, installedThemes.value)
-        setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
       })
       .catch((e) => console.warn('[theme] failed to rename theme file:', e))
   }
@@ -535,7 +533,7 @@ export const useThemeStore = defineStore('theme', () => {
     installedThemes.value = installedThemes.value.map((t) =>
       t.id === themeId ? updated : t,
     )
-    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    saveInstalledThemes()
     persistThemeFile(updated)
     return true
   }
@@ -604,7 +602,7 @@ export const useThemeStore = defineStore('theme', () => {
     })
     if (!changed) return
     installedThemes.value = next
-    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    saveInstalledThemes()
   }
 
   /** accounts のロード完了を待って migrateScopes を 1 回だけ実行する。 */
@@ -698,8 +696,8 @@ export const useThemeStore = defineStore('theme', () => {
 
   const cssManager = new CustomCssManager()
 
-  // notecore がテーマファイル / custom.css を書いた (AI の theme.* / styles.* は
-  // notecore の本体が書く, #1133) → そのファイルだけ写しを揃え、画面に反映する。
+  // 別の書き手 (notecore の theme.* / styles.*、他のウィンドウ, #1133 / #1042) が
+  // テーマファイル / custom.css を書いた → そのファイルだけ写しを揃え、画面に反映する。
   // 履歴ファイルは写しを持たないので無視する
   registerSettingsFileHandler('themes', async (change) => {
     if (!change.name.endsWith(settingsFs.THEME_EXT)) return
@@ -716,7 +714,7 @@ export const useThemeStore = defineStore('theme', () => {
       if (selectedLightThemeId.value === removed.id) {
         selectedLightThemeId.value = null
       }
-      setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+      saveInstalledThemes()
       applyCurrentTheme()
       return
     }
@@ -754,7 +752,7 @@ export const useThemeStore = defineStore('theme', () => {
       idx >= 0
         ? installedThemes.value.map((t, i) => (i === idx ? theme : t))
         : [...installedThemes.value, theme]
-    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+    saveInstalledThemes()
     if (
       selectedDarkThemeId.value === theme.id ||
       selectedLightThemeId.value === theme.id
@@ -887,15 +885,13 @@ export const useThemeStore = defineStore('theme', () => {
   async function initFileStorage(): Promise<void> {
     const data = await themeFileSync.loadFromFiles()
 
-    // 初期化 (この async 関数が走る間) にメモリ追加されたテーマと、
-    // ミラーにだけ在るテーマ (過去の書込が黙って失敗した個体) の集合。
+    // 初期化 (この async 関数が走る間) にメモリ追加されたテーマは残す
+    // (各自の persistThemeFile が ready 後にファイル化する)
     const fileIds = new Set(data.themes.map((t) => t.id))
     const memoryOnly = installedThemes.value.filter((t) => !fileIds.has(t.id))
 
     if (data.themes.length > 0) {
       installedThemes.value = [...data.themes, ...memoryOnly]
-      setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
-      applyCurrentTheme()
     }
 
     if (data.customCss) {
@@ -905,23 +901,15 @@ export const useThemeStore = defineStore('theme', () => {
     }
 
     initialized.value = true
+    // ファイルが揃ったので選択中のテーマを当てる (読込前は組込で潰さず待っていた)
+    applyCurrentTheme()
     scheduleScopeMigration()
 
     // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
     if (settingsFs.isMainDeckWindow()) {
-      // (a) 規約外名の copy-adopt 正規化
+      // 規約外名の copy-adopt 正規化
       await themeFileSync.themeFiles.migrateItems(installedThemes.value)
-      // (b) ミラー在・ファイル不在 → 新 slug 名で再作成
-      //     (localStorage → ファイルの旧片方向移行もこの経路に統合)
-      for (const t of memoryOnly) {
-        t.fileBase = undefined // ミラー由来の旧 fileBase は無効 (ファイル不在)
-        await themeFileSync.themeFiles
-          .persistItem(t, installedThemes.value)
-          .catch((e) =>
-            console.warn('[theme] failed to persist mirror-only theme:', e),
-          )
-      }
-      // (c) themes/ に置かれた素の .json5 (コミュニティテーマ) を一回きり
+      // themes/ に置かれた素の .json5 (コミュニティテーマ) を一回きり
       //     コピーして採用 (#1041)。採用記録があるので冪等
       const adopted = await themeFileSync
         .adoptDropIns(installedThemes.value)
@@ -947,8 +935,6 @@ export const useThemeStore = defineStore('theme', () => {
         .sweepHistory()
         .catch((e) => console.warn('[theme] history sweep failed:', e))
     }
-    // fileBase 割当をミラーへ反映
-    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
 
     // Migrate custom CSS to file if not yet written
     if (data.needsMigrateCss && customCss.value) {

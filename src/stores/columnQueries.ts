@@ -155,10 +155,6 @@ const queryFiles = createSidecarCollection<NamedQueryMeta, QueryFileMeta>({
   srcOf: (q) => q.src,
   // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
   preferredBase: (q) => q.storeId,
-  mirrorSrcById: (id) =>
-    getStorageJson<NamedQueryMeta[]>(STORAGE_KEYS.columnQueries, []).find(
-      (q) => q.id === id,
-    )?.src,
   toFileMeta: (q) => ({
     id: q.id,
     name: q.name,
@@ -209,14 +205,14 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
   function ensureLoaded() {
     if (loaded) return
     loaded = true
-    queries.value = getStorageJson<NamedQueryMeta[]>(
-      STORAGE_KEYS.columnQueries,
-      [],
-    )
-    migrateScopes(queries.value)
     if (settingsFs.isTauri) {
       void initFileStorage().finally(() => resolveReady?.())
     } else {
+      queries.value = getStorageJson<NamedQueryMeta[]>(
+        STORAGE_KEYS.columnQueries,
+        [],
+      )
+      migrateScopes(queries.value)
       resolveReady?.()
     }
   }
@@ -225,34 +221,20 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     try {
       const { items } = await queryFiles.loadAll()
 
-      // 初期化中にメモリ追加されたクエリと、ミラーにだけ在るクエリ
-      // (過去の書込が黙って失敗した個体) の集合。
+      // 初期化中にメモリ追加されたクエリは残す (各自の persist が ready 後に
+      // ファイル化する)
       const fileIds = new Set(items.map((q) => q.id))
       const memoryOnly = queries.value.filter((q) => !fileIds.has(q.id))
 
       if (items.length > 0) {
-        // ファイルが正なので localStorage ミラーを上書き (メモリ分はマージ)
         queries.value = [...items, ...memoryOnly]
         migrateScopes(queries.value)
       }
 
       // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
       if (settingsFs.isMainDeckWindow()) {
-        // (a) 規約外名の copy-adopt 正規化
+        // 規約外名の copy-adopt 正規化
         await queryFiles.migrateItems(queries.value)
-        // (b) ミラー在・ファイル不在 → 新 slug 名で再作成 (空ソースは書かない)
-        for (const q of memoryOnly) {
-          if (q.readOnly || !q.src) continue
-          q.fileBase = undefined // ミラー由来の旧 fileBase は無効 (ファイル不在)
-          await queryFiles
-            .persistItem(q, queries.value)
-            .catch((e) =>
-              console.warn(
-                '[columnQueries] failed to persist memory-only query:',
-                e,
-              ),
-            )
-        }
         // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
         await queryFiles
           .sweepHistory()
@@ -260,14 +242,17 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
             console.warn('[columnQueries] history sweep failed:', e),
           )
       }
-
-      persistMirror()
     } catch (e) {
       console.warn('[columnQueries] file storage init failed', e)
     }
   }
 
+  /**
+   * ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
+   * localStorage には書かない (#1042。ウィンドウ間の追随は変更通知で行う)
+   */
   function persistMirror() {
+    if (settingsFs.isTauri) return
     setStorageJson(STORAGE_KEYS.columnQueries, queries.value)
   }
 
@@ -290,7 +275,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
 
   /**
    * 読取専用 (ソース欠損) の個体は変更を拒否する (#1111)。保存できず端末
-   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける
+   * ローカルにだけ載って次回起動で巻き戻るため、写しに書く前に抜ける
    */
   function rejectIfReadOnly(query: NamedQueryMeta | undefined): boolean {
     if (!query?.readOnly) return false
@@ -378,15 +363,6 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     }
   }
 
-  /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
-  function adoptMirrorFileBase(query: NamedQueryMeta) {
-    const mirrored = getStorageJson<NamedQueryMeta[]>(
-      STORAGE_KEYS.columnQueries,
-      [],
-    ).find((q) => q.id === query.id)
-    if (mirrored?.fileBase) query.fileBase = mirrored.fileBase
-  }
-
   async function persist(query: NamedQueryMeta) {
     persistMirror()
     if (settingsFs.isTauri) {
@@ -396,10 +372,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
         // 占有判定の「操作対象自身は占有とみなさない」参照一致が崩れない
         // よう live 要素 (proxy) を渡す
         const live = queries.value.find((q) => q.id === query.id) ?? query
-        adoptMirrorFileBase(live)
         await queryFiles.persistItem(live, queries.value)
-        // fileBase 割当をミラーへ反映
-        persistMirror()
       } catch (e) {
         console.warn('[columnQueries] persist failed', e)
       }
@@ -449,7 +422,7 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
   /**
    * 本体の有効/無効を切り替える (#1043)。カラムの適用には触れない。
    * ソース欠損の読取専用個体は拒否する (false を返す) — 保存できず端末
-   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける。
+   * ローカルにだけ載って次回起動で巻き戻るため、写しに書く前に抜ける。
    * ファイルの破損はここで止める話ではなく、可視化と復旧導線は #1111
    */
   async function setDisabled(id: string, disabled: boolean): Promise<boolean> {
@@ -520,7 +493,6 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     if (settingsFs.isTauri && updates.name && updates.name !== prev.name) {
       await ready
       try {
-        adoptMirrorFileBase(next)
         await queryFiles.renameItemFiles(next, queries.value)
       } catch (e) {
         console.warn('[columnQueries] rename failed', e)
@@ -591,9 +563,6 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     const idx = queries.value.findIndex((q) => q.id === id)
     const target = queries.value[idx]
     if (!target) return undefined
-    // ミラー上書き前に対応表を読み直す (別ウィンドウのリネーム後の削除が
-    // stale なファイル名で空振りしないように)
-    if (settingsFs.isTauri) adoptMirrorFileBase(target)
     queries.value = queries.value.filter((q) => q.id !== id)
     persistMirror()
     if (settingsFs.isTauri) {
@@ -628,8 +597,8 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     return counts
   })
 
-  // notecore がクエリのファイルを書いた (queries.revert は notecore の本体が書く,
-  // #1133) → その個体だけ写しを揃え、ソースが変わっていれば暴走サスペンドを解除する
+  // 別の書き手 (notecore の queries.revert / 他のウィンドウ, #1133 / #1042) がクエリの
+  // ファイルを書いた → その個体だけ写しを揃え、ソースが変わっていれば暴走サスペンドを解除する
   registerSettingsFileHandler('queries', async (change) => {
     if (!change.name.endsWith(META_SUFFIX)) return
     ensureLoaded()
@@ -639,7 +608,6 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
       const removed = queries.value.find((q) => q.fileBase === fileBase)
       if (!removed) return
       queries.value = queries.value.filter((q) => q !== removed)
-      persistMirror()
       return
     }
     let item: NamedQueryMeta | undefined
@@ -657,7 +625,6 @@ export const useColumnQueriesStore = defineStore('columnQueries', () => {
     queries.value = prev
       ? queries.value.map((q) => (q === prev ? next : q))
       : [...queries.value, next]
-    persistMirror()
     if (prev && prev.src !== next.src) releaseSharedSuspension(next.id)
   })
 

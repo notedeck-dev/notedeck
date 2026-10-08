@@ -608,7 +608,7 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 2. 各ウィンドウは `windowLayout`（computed）で自分に属するカラムだけをフィルタして表示する
 3. ウィンドウの作成・破棄はプロファイルのデータに影響しない
 
-**同期方式:** 永続化の正本はプロファイルフォルダ配下のファイル（#913。ID とファイル名の対応表つき）。localStorage は全 webview 共有の**ミラー**で、起動時の即時復元と他ウィンドウへの伝播に使い、Tauri イベント（`deck:profile-updated` / `deck:profiles-changed`）で変更を通知する。ミラーへ書く直前に対応表を読み直して合流させ、別ウィンドウのリネーム結果を潰さない。Rust 側に正本を移す案は不採用（[PR #172](https://github.com/notedeck-dev/notedeck/pull/172) で議論）。
+**同期方式:** 永続化の正本はプロファイルフォルダ配下のファイル（#913。ID とファイル名の対応表つき）で、Tauri 実行時はこれが唯一の置き場。起動時は Vue の初回描画前にファイルを読み終える（`main.ts` が `preloadFiles` を待つ）。他ウィンドウへの伝播は、ファイルを書いたウィンドウが `nd:settings-file-written` を流し、受け手が notecore 発の `nd:settings-file-changed` と同じ配線表（`services/settingsFileSync`）で該当の 1 件だけ読み直す。テーマ / ウィジェット / プラグイン / クエリも同じ経路。localStorage は Tauri 外（ブラウザ dev モード）だけの永続化で、Tauri では書かない（#1042 — かつての「ファイルが正、localStorage はミラー」の二重永続は、ミラーだけに残った個体の救済とミラー経由の対応表合流を含めて廃止した）。Rust 側に正本を移す案は不採用（[PR #172](https://github.com/notedeck-dev/notedeck/pull/172) で議論）。
 
 ### Window / Column Model（[#194](https://github.com/notedeck-dev/notedeck/issues/194)）
 

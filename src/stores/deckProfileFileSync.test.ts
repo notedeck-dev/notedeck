@@ -6,6 +6,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /** インメモリ疑似 FS (profiles/ ディレクトリ相当)。 */
 const files = new Map<string, string>()
 
+/** 別ウィンドウの書込通知 (useSettingsFileSync が配線表へ配った後の形)。 */
+async function notifyOtherWindow(name: string, op: 'write' | 'delete') {
+  await dispatchSettingsChange({ subdir: 'profiles', name, op })
+}
+
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
   isMainDeckWindow: () => true,
@@ -30,9 +35,10 @@ vi.mock('@/utils/settingsFs', () => ({
   },
 }))
 
+import { dispatchSettingsChange } from '@/services/settingsFileSync'
 import type { DeckColumn } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
-import { STORAGE_KEYS, setStorageJson, setStorageString } from '@/utils/storage'
+import { STORAGE_KEYS, setStorageString } from '@/utils/storage'
 
 const EXT = '.ndprofile.json5'
 
@@ -44,6 +50,8 @@ const homeColumn = (id: string) =>
 
 async function initStore() {
   const store = useDeckProfileStore()
+  // main.ts と同じ順: 描画前にファイルを読み、デッキ初期化で既定を補う
+  await store.preloadFiles()
   store.ensureDefaults([], [])
   await vi.waitFor(() => {
     expect(store.initialized).toBe(true)
@@ -111,15 +119,6 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
         createdAt: 1,
       }),
     )
-    setStorageJson(STORAGE_KEYS.deckProfiles, [
-      {
-        id: legacyId,
-        name: 'プロファイル 1',
-        columns: [col],
-        layout: [['col-1']],
-        createdAt: 1,
-      },
-    ])
     setStorageString(STORAGE_KEYS.deckActiveProfile, legacyId)
 
     const store = await initStore()
@@ -143,9 +142,6 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
         createdAt: 1,
       }),
     )
-    setStorageJson(STORAGE_KEYS.deckProfiles, [
-      { id: 'work', name: 'Work', columns: [], layout: [], createdAt: 1 },
-    ])
     setStorageString(STORAGE_KEYS.deckActiveProfile, 'work')
     const store = await initStore()
     store.initWindowProfile('work')
@@ -188,45 +184,7 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     }
   })
 
-  it('移行 (b): ミラーに在りファイル不在のプロファイルを slug 名で再作成する', async () => {
-    setStorageJson(STORAGE_KEYS.deckProfiles, [
-      { id: 'lost-id', name: 'Lost', columns: [], layout: [], createdAt: 5 },
-    ])
-    setStorageString(STORAGE_KEYS.deckActiveProfile, 'lost-id')
-    const store = await initStore()
-    await vi.waitFor(() => {
-      expect(files.has(`lost${EXT}`)).toBe(true)
-    })
-    expect(files.get(`lost${EXT}`)).toContain("id: 'lost-id'")
-    expect(store.activeProfileId).toBe('lost-id')
-  })
-
-  it('memOnly マージは「ID 一致 or 名前+作成日時一致」で複製を落とす', async () => {
-    files.set(
-      `main${EXT}`,
-      profileFile({ name: 'メイン', columns: [], layout: [], createdAt: 42 }),
-    )
-    // ダウングレード往復でファイル内 id が剥がれ、ミラーだけ旧 ID を持つ状況
-    setStorageJson(STORAGE_KEYS.deckProfiles, [
-      {
-        id: 'stale-mirror-id',
-        name: 'メイン',
-        columns: [],
-        layout: [],
-        createdAt: 42,
-      },
-    ])
-    const store = await initStore()
-    const withName = store.getProfiles().filter((p) => p.name === 'メイン')
-    expect(withName).toHaveLength(1)
-    expect(withName[0]?.id).toBe(`main${EXT}`)
-    // ミラー複製が移行 (b) でファイル再作成されない
-    expect(files.size).toBe(1)
-    // マージで落ちた ID を指していたアクティブ参照は修復される
-    expect(store.activeProfileId).toBe(`main${EXT}`)
-  })
-
-  it('ミラーが空でファイルがあれば、初回起動用の仮プロファイルは書き出さない (#1011)', async () => {
+  it('ファイルがあれば初回起動用の仮プロファイルを作らない (#1011)', async () => {
     files.set(
       `main${EXT}`,
       profileFile({
@@ -237,8 +195,6 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
         createdAt: 42,
       }),
     )
-    // ミラー空 → ensureDefaults が仮プロファイルを作るが、ファイル読込で
-    // 初回起動ではないと分かった時点で捨てる (既定デッキ入りの複製を作らない)
     const store = await initStore()
     expect(store.getProfiles().map((p) => p.id)).toEqual(['main'])
     expect(files.size).toBe(1)
@@ -287,7 +243,7 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     expect(files.get(`main${EXT}`)).not.toContain('fileBase')
   })
 
-  it('保存の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)', async () => {
+  it('別ウィンドウのリネーム通知で対応表を揃え、保存が新しいファイル名へ届く', async () => {
     files.set(
       `main${EXT}`,
       profileFile({
@@ -300,20 +256,13 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     )
     const store = await initStore()
     store.initWindowProfile('m')
-    // 別ウィンドウのリネームをシミュレート (ファイルとミラーだけが動き、
-    // このウィンドウのメモリは古いまま)
+    // 別ウィンドウのリネームをシミュレート: ファイルが動き、通知が
+    // 「新名の write → 旧名の delete」の順で届く
     files.set(`renamed${EXT}`, files.get(`main${EXT}`) as string)
     files.delete(`main${EXT}`)
-    setStorageJson(STORAGE_KEYS.deckProfiles, [
-      {
-        id: 'm',
-        name: 'メイン',
-        columns: [],
-        layout: [],
-        createdAt: 1,
-        fileBase: 'renamed',
-      },
-    ])
+    await notifyOtherWindow(`renamed${EXT}`, 'write')
+    await notifyOtherWindow(`main${EXT}`, 'delete')
+    expect(store.getProfiles().map((p) => p.fileBase)).toEqual(['renamed'])
 
     store.setColumns([homeColumn('c-new')])
     store.flushPersist()
@@ -323,7 +272,7 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     expect(files.has(`main${EXT}`)).toBe(false)
   })
 
-  it('削除の直前にミラーの対応表を読み直す (stale 名の空振りで復活させない)', async () => {
+  it('別ウィンドウのリネーム通知の後の削除は新しいファイル名を消す', async () => {
     files.set(
       `main${EXT}`,
       profileFile({
@@ -335,67 +284,81 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
       }),
     )
     const store = await initStore()
-    // 別ウィンドウのリネームをシミュレート
     files.set(`renamed${EXT}`, files.get(`main${EXT}`) as string)
     files.delete(`main${EXT}`)
-    setStorageJson(STORAGE_KEYS.deckProfiles, [
-      {
-        id: 'm',
-        name: 'メイン',
-        columns: [],
-        layout: [],
-        createdAt: 1,
-        fileBase: 'renamed',
-      },
-    ])
+    await notifyOtherWindow(`renamed${EXT}`, 'write')
+    await notifyOtherWindow(`main${EXT}`, 'delete')
 
     store.deleteProfile('m')
     await vi.waitFor(() => {
       expect(files.has(`renamed${EXT}`)).toBe(false)
     })
   })
-})
 
-describe('useDeckProfileStore — ミラーの重複 ID', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    localStorage.clear()
-    files.clear()
-    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-  })
-
-  it('ミラーに同じ ID が 2 件あっても先勝ちで 1 件にする (保存のたびにファイルが増えない)', async () => {
+  it('別ウィンドウの書込通知で写しを揃える (内容の差し替え・追加・削除)', async () => {
     files.set(
-      `1${EXT}`,
+      `main${EXT}`,
       profileFile({
-        id: '1',
-        name: 'プロファイル 1',
+        id: 'm',
+        name: 'メイン',
         columns: [],
         layout: [],
         createdAt: 1,
       }),
     )
-    setStorageJson(STORAGE_KEYS.deckProfiles, [
-      {
-        id: '1',
-        name: 'プロファイル 1',
-        columns: [],
-        layout: [],
+    const store = await initStore()
+    store.initWindowProfile('m')
+
+    // 差し替え: 別ウィンドウがカラムを足した
+    files.set(
+      `main${EXT}`,
+      profileFile({
+        id: 'm',
+        name: 'メイン',
+        columns: [homeColumn('c-other')],
+        layout: [['c-other']],
         createdAt: 1,
-        fileBase: '1',
-      },
-      {
-        id: '1',
-        name: 'プロファイル 1',
+      }),
+    )
+    await notifyOtherWindow(`main${EXT}`, 'write')
+    expect(store.columns.map((c) => c.id)).toEqual(['c-other'])
+
+    // 追加: 別ウィンドウが新しいプロファイルを作った
+    files.set(
+      `work${EXT}`,
+      profileFile({
+        id: 'w',
+        name: 'Work',
         columns: [],
         layout: [],
         createdAt: 2,
-      },
-    ])
-    setStorageString(STORAGE_KEYS.deckActiveProfile, '1')
+      }),
+    )
+    await notifyOtherWindow(`work${EXT}`, 'write')
+    expect(store.getProfiles().map((p) => p.id)).toEqual(['m', 'w'])
+
+    // 削除: 表示中のプロファイルが消えたらアクティブへ退避する
+    setStorageString(STORAGE_KEYS.deckActiveProfile, 'w')
+    files.delete(`main${EXT}`)
+    await notifyOtherWindow(`main${EXT}`, 'delete')
+    expect(store.getProfiles().map((p) => p.id)).toEqual(['w'])
+    expect(store.windowProfileId).toBe('w')
+    expect(store.currentProfileName).toBe('Work')
+  })
+
+  it('履歴ファイルの通知は無視する', async () => {
+    files.set(
+      `main${EXT}`,
+      profileFile({
+        id: 'm',
+        name: 'メイン',
+        columns: [],
+        layout: [],
+        createdAt: 1,
+      }),
+    )
     const store = await initStore()
-    expect(store.getProfiles().filter((p) => p.id === '1')).toHaveLength(1)
-    // 複製がファイルに書き出されない
-    expect(files.size).toBe(1)
+    await notifyOtherWindow('main.history.json5', 'write')
+    expect(store.getProfiles().map((p) => p.id)).toEqual(['m'])
   })
 })
