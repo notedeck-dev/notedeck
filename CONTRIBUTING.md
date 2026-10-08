@@ -49,6 +49,8 @@ API クライアントの実体は `crates/notecli` (同じリポジトリの wo
 4. `pnpm lint` と `pnpm test` を通す（`src-tauri/` や `crates/` の Rust を触ったら `pnpm fmt` と `pnpm lint:rust` も）
 5. Pull Request を作成
 
+どこに何があるかは [CODEMAP.md](CODEMAP.md) (カラム種別・ウィンドウ種別・ストア・service・設定ファイルの一覧) から辿れます。正本のファイルから生成しているので、構造を変えたら `pnpm gen:codemap` で作り直してください (`pnpm lint:docs` が検出します)。純ロジックの挙動は、`src/services/` の隣にあるテストがそのまま仕様書です。
+
 環境がうまく動かないときは `pnpm doctor` を実行してください。
 ツールチェーン・システム依存の欠落を検査し、対処コマンドを提示します。
 エディタの補完・デバッグ構成は [DEVELOPMENT.md — エディタ / 言語サーバー](DEVELOPMENT.md#エディタ--言語サーバー) を参照してください。
