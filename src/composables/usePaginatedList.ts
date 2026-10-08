@@ -1,16 +1,19 @@
 import { type Ref, shallowRef } from 'vue'
 import { AppError } from '@/utils/errors'
 
-export interface UsePaginatedListOptions<T> {
-  /** untilId なし = 初回ページ、あり = それより古いページを返す */
-  fetch: (untilId?: string) => Promise<T[]>
+export interface UsePaginatedListOptions<T, C = string> {
+  /** cursor なし = 初回ページ、あり = その続きのページを返す */
+  fetch: (cursor?: C) => Promise<T[]>
   /**
    * 1 ページの期待件数。これ未満しか返らなければ hasMore=false で打ち切る。
    * 省略時は「空が返るまで続ける」(取得結果をフィルタする API 向け)。
    */
   pageSize?: number
-  /** loadMore のカーソル取得。default: `item.id` */
-  getId?: (item: T) => string
+  /**
+   * loadMore のカーソル。default: 末尾 item の `id` (untilId 式)。
+   * offset 式の API は `(items) => items.length` を渡す
+   */
+  cursor?: (items: T[]) => C | undefined
   /** 初回ロード後の hasMore 判定を上書きする (例: ページング非対応 API) */
   initialHasMore?: (fetched: T[]) => boolean
   /** items がこの件数に達したら loadMore を打ち切る */
@@ -28,20 +31,24 @@ export interface PaginatedList<T> {
   load: () => Promise<void>
   /** 末尾の item をカーソルに次ページを追記 */
   loadMore: () => Promise<void>
+  /** 表示中の items を保ったまま先頭ページを取り直す (カラムの引いて更新用) */
+  reload: () => Promise<void>
   /** 状態を初期化して load し直せるようにする */
   reset: () => void
 }
 
 /**
- * untilId カーソル式ページングの共通実装。
+ * カーソル式ページングの共通実装 (既定は untilId、offset 式は cursor で差し替え)。
  * UserProfileContent のタブや Deck*Column に重複していた
  * 「isLoading/hasMore ガード → at(-1) → fetch → 追記」パターンを吸収する。
  */
-export function usePaginatedList<T>(
-  options: UsePaginatedListOptions<T>,
+export function usePaginatedList<T, C = string>(
+  options: UsePaginatedListOptions<T, C>,
 ): PaginatedList<T> {
   const { fetch, pageSize, initialHasMore, maxItems, onError } = options
-  const getId = options.getId ?? ((item: T) => (item as { id: string }).id)
+  const cursor =
+    options.cursor ??
+    ((items: T[]) => (items.at(-1) as { id: C } | undefined)?.id)
 
   const items = shallowRef<T[]>([])
   const isLoading = shallowRef(false)
@@ -74,11 +81,10 @@ export function usePaginatedList<T>(
   async function loadMore(): Promise<void> {
     if (isLoading.value || !hasMore.value) return
     if (maxItems != null && items.value.length >= maxItems) return
-    const last = items.value.at(-1)
-    if (!last) return
+    if (items.value.length === 0) return
     isLoading.value = true
     try {
-      const older = await fetch(getId(last))
+      const older = await fetch(cursor(items.value))
       if (!defaultHasMore(older)) hasMore.value = false
       if (older.length > 0) {
         items.value = [...items.value, ...older]
@@ -91,6 +97,11 @@ export function usePaginatedList<T>(
     }
   }
 
+  function reload(): Promise<void> {
+    loaded = false
+    return load()
+  }
+
   function reset(): void {
     items.value = []
     isLoading.value = false
@@ -99,5 +110,5 @@ export function usePaginatedList<T>(
     loaded = false
   }
 
-  return { items, isLoading, error, hasMore, load, loadMore, reset }
+  return { items, isLoading, error, hasMore, load, loadMore, reload, reset }
 }

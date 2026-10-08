@@ -135,6 +135,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     serverInfoImageUrl,
     serverNotFoundImageUrl,
     serverErrorImageUrl,
+    isLoggedOut,
     isLoading,
     error,
     initAdapter,
@@ -280,9 +281,6 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   /** True when API is unreachable and displaying cached notes */
   const isOffline = ref(false)
-
-  /** True when the account exists but has no auth token */
-  const isLoggedOut = computed(() => account.value?.hasToken === false)
 
   /**
    * Read marker: viewMarkerId points to the note that was topmost at the
