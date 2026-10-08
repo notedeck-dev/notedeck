@@ -467,6 +467,14 @@ src-tauri/src/              # Rust backend (Tauri 固有部分 = 手元側)
 └── main.rs                 # Entry point
 ```
 
+**層の依存方向** (#1098、`tests/lint/layerImports.test.ts` が検査する):
+
+```
+components → composables → stores → services → adapters → bindings
+```
+
+services は store / composables / components / Vue / Pinia を runtime import しない (純ロジック)。stores は composables を、adapters は stores を import しない。components は IPC (`tauriInvoke` / `bindings`) と adapter の factory を直接叩かず composable を通す。既存の違反は lint の凍結一覧に理由つきで載っていて、直したら消す。`import type` は依存に数えない。
+
 Misskey API クライアント・DB・モデル・ストリーミングコアは `notecli` クレートにある。一方 `src-tauri/` は Tauri 固有の配線だけではなく、Tauri に依存しないドメインも抱えている (OGP 抽出とサイト別プラグイン / Secret Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / HTTP API サーバー / カラムクエリの QIR 評価器)。行数では notecli より大きい。
 
 置き場の規則 (#782):
@@ -1167,7 +1175,7 @@ NoteDeck はトークンを持たないユーザーでも公開タイムライ�
 |---------|------|
 | `src/stores/accounts.ts` | `GUEST_USER_ID`, `isGuestAccount()` |
 | `src/composables/useAccountMode.ts` | `isGuest`, `canInteract` computed |
-| `src/utils/loginPrompt.ts` | `showLoginPrompt()` — ログイン促進トースト |
+| `src/composables/useLoginPrompt.ts` | `showLoginPrompt()` — ログイン促進トースト |
 
 ゲスト / ログアウト時の操作ボタン（リアクション・リプライ・リノート）は disabled になり、クリックすると `showLoginPrompt()` でログイン促進トーストを表示します。
 
