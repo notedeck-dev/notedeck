@@ -1450,6 +1450,16 @@ export interface Locale {
     readonly "characterNone": string
     /** 新しいセッションから反映されます。過去のセッションは作成時のキャラクターのままです。 */
     readonly "characterHint": string
+    /** ルール */
+    readonly "rules": string
+    /** ルールを編集 */
+    readonly "rulesEdit": string
+    /** AI にいつも守ってほしい指示 (話し方や避けてほしいことなど) を書きます。記憶の扱いなど NoteDeck が必ず守らせる規約は別に入っているので、ここに書く必要はありません。 */
+    readonly "rulesHint": string
+    /** まだ何も書かれていません。 */
+    readonly "rulesEmpty": string
+    /** ルールを開けませんでした: {reason} */
+    readonly "rulesOpenFailed": ParameterizedString<'reason'>
     /** 候補がありません。スキルの編集で「キャラクター候補にする」を ON にしたスキルがここに出ます。 */
     readonly "noCharacters": string
     /** あなたについて覚えていること */
@@ -3288,8 +3298,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "newSkillName": string
     /** 指示文をここに記述します。 */
     readonly "newSkillBody": string
-    /** 予約スキル: 名前とモードは固定で、削除できません */
-    readonly "reservedHint": string
   }
   readonly "_deckTaskRunnerColumn": {
     /** 履歴をクリア */

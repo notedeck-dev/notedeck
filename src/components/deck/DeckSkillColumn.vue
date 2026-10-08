@@ -51,11 +51,17 @@ const viewTabs: ViewTab[] = ['installed', 'store']
 const viewTab = ref<ViewTab>('installed')
 const columnContentRef = ref<HTMLElement | null>(null)
 
+// 予約スキル (AGENTS / HEARTBEAT、#1162) は配布物ではなく AI の土台なので、このカラム
+// には出さない。編集の入口は AI 設定 (ペルソナの「ルール」/ HEARTBEAT の「巡回の手順」)
+const librarySkills = computed(() =>
+  skillsStore.skills.filter((s) => !s.reserved),
+)
+
 const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
     label: i18n.tsx._common.installedTab({
-      count: skillsStore.skills.length,
+      count: librarySkills.value.length,
     }),
   },
   { value: 'store', label: i18n.ts._common.store },
@@ -73,7 +79,7 @@ const searchQuery = ref('')
 
 const visibleSkills = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
-  const list = [...skillsStore.skills].sort((a, b) => {
+  const list = [...librarySkills.value].sort((a, b) => {
     if (a.mode !== b.mode) {
       // always → heartbeat → trigger → manual の順で並べる
       const order: Record<string, number> = {
@@ -124,23 +130,16 @@ const installedSections = computed<SkillSection[]>(() => {
   return sections.filter((s) => s.items.length > 0)
 })
 
-// 予約 skill (AGENTS / HEARTBEAT、#1162) は有効/無効を持たない (巡回は mode だけ
-// を見る)。黙らせるには本文を空にする
 function isToggleable(skill: SkillMeta): boolean {
-  return !skill.reserved && skill.mode !== 'always'
+  return skill.mode !== 'always'
 }
 
 function isActive(skill: SkillMeta): boolean {
-  return (
-    skillsStore.isActive(skill.id) ||
-    skill.mode === 'always' ||
-    skill.reserved === true
-  )
+  return skillsStore.isActive(skill.id) || skill.mode === 'always'
 }
 
 function toggleTitle(skill: SkillMeta): string {
   if (skill.mode === 'always') return i18n.ts._deckSkillColumn.alwaysActive
-  if (skill.reserved) return i18n.ts._deckSkillColumn.reservedHint
   return isActive(skill)
     ? i18n.ts._deckSkillColumn.deactivate
     : i18n.ts._deckSkillColumn.activate
@@ -341,12 +340,6 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     @click.stop="openInEditor(skill)"
                   >{{ skillDisplayName(skill) }}</button>
                   <span v-else :class="[$style.name, $style.cardStatic]">{{ skillDisplayName(skill) }}</span>
-                  <i
-                    v-if="skill.reserved"
-                    class="ti ti-lock"
-                    :class="$style.lockIcon"
-                    :title="i18n.ts._deckSkillColumn.reservedHint"
-                  />
                   <span :class="$style.modeBadge" :data-mode="skill.mode">
                     <i v-if="skill.mode === 'heartbeat'" class="ti ti-activity-heartbeat" />
                     {{ modeLabel[skill.mode] }}
@@ -363,7 +356,6 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                   <span :class="$style.spacer" />
                   <div :class="$style.actions">
                     <button
-                      v-if="!skill.reserved"
                       class="_button"
                       :class="[$style.iconBtn, skill.mode === 'heartbeat' && $style.heartbeatActive]"
                       :title="skill.mode === 'heartbeat' ? i18n.ts._deckSkillColumn.removeFromHeartbeat : i18n.ts._deckSkillColumn.addToHeartbeat"
@@ -372,7 +364,6 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                       <i class="ti ti-activity-heartbeat" />
                     </button>
                     <button
-                      v-if="!skill.reserved"
                       class="_button"
                       :class="[$style.iconBtn, $style.iconBtnDanger]"
                       :title="i18n.ts._deckSkillColumn.deleteFromLibrary"
@@ -696,12 +687,6 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 }
 
 // 予約 skill の錠 (#1162): 名前とモードが固定で消せない印
-.lockIcon {
-  flex-shrink: 0;
-  font-size: 11px;
-  color: var(--nd-fg);
-  opacity: 0.55;
-}
 
 .modeBadge {
   display: inline-flex;

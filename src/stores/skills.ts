@@ -704,6 +704,20 @@ export const useSkillsStore = defineStore('skills', () => {
     return meta.id
   }
 
+  /**
+   * 「ルールを編集」(AI 設定のペルソナ) の入口。AGENTS.md は最初の AI ターンで
+   * notemaid が置くが、それより前に開いても編集できるように無ければ置く (冪等)。
+   * 戻り値は skill id
+   */
+  async function seedAgents(): Promise<string> {
+    ensureLoaded()
+    const meta = unwrap(await commands.maidAgentsSeed())
+    if (meta.fileBase) {
+      await reloadFile(`${meta.fileBase}${settingsFs.SKILL_EXT}`)
+    }
+    return meta.id
+  }
+
   // --- trigger mode ---
 
   /**
@@ -749,6 +763,7 @@ export const useSkillsStore = defineStore('skills', () => {
     heartbeatSkills,
     setHeartbeat,
     seedHeartbeatSteps,
+    seedAgents,
     triggerMatchingSkillIds,
   }
 })

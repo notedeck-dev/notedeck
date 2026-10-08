@@ -7,9 +7,11 @@ import { useAiConfig } from '@/composables/useAiConfig'
 import { useAiWorkspace } from '@/composables/useAiWorkspace'
 import { i18n } from '@/i18n'
 import type { EditableWorkspaceKind } from '@/services/aiWorkspaceEdit'
+import { isHeartbeatStepsEmpty } from '@/services/heartbeatSteps'
 import { useConfirm } from '@/stores/confirm'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
+import { useWindowsStore } from '@/stores/windows'
 import { extractErrorMessage } from '@/utils/errors'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import AiSettingsSection from './AiSettingsSection.vue'
@@ -54,6 +56,39 @@ const currentPersonaSkill = computed(() => {
   const s = skillsStore.get(id)
   return s?.isPersona ? s : null
 })
+
+// --- ルール (予約 skill AGENTS.md、#1162) ---
+// AI への常設の指示 (話し方や避けてほしいこと)。配布物ではないのでスキルカラムには
+// 出さず、ここを編集の入口にする。本文は skill エディタで書く。記憶の扱いなど
+// NoteDeck が必ず守らせる規約は notemaid が固定の文で別に入れる
+
+const windowsStore = useWindowsStore()
+const agentsSkill = computed(() =>
+  skillsStore.skills.find((s) => s.reserved && s.fileBase === 'AGENTS'),
+)
+/** 案内のコメントだけ (実質空) のあいだは notemaid が何も渡さない (HEARTBEAT.md と同じ判定) */
+const rulesEmpty = computed(
+  () => !agentsSkill.value || isHeartbeatStepsEmpty(agentsSkill.value.body),
+)
+const rulesOpening = ref(false)
+
+async function editRules(): Promise<void> {
+  if (rulesOpening.value) return
+  rulesOpening.value = true
+  try {
+    const skillId = await skillsStore.seedAgents()
+    windowsStore.open('skill-edit', { skillId })
+  } catch (e) {
+    useToast().show(
+      i18n.tsx._aiPersonalitySection.rulesOpenFailed({
+        reason: extractErrorMessage(e),
+      }),
+      'error',
+    )
+  } finally {
+    rulesOpening.value = false
+  }
+}
 
 // --- 項目の行 (USER / MEMORY): クリックで inline 編集、Enter / blur で保存 ---
 
@@ -184,6 +219,27 @@ function isFull(f: WorkspaceFile | undefined): boolean {
         <i class="ti ti-info-circle" />
         {{ personaCandidates.length === 0 ? i18n.ts._aiPersonalitySection.noCharacters : i18n.ts._aiPersonalitySection.characterHint }}
       </p>
+    </div>
+
+    <!-- ルール (AGENTS.md): AI への常設の指示。本文は skill エディタで書く -->
+    <div :class="$style.card" data-testid="ai-rules">
+      <div :class="$style.cardHeader">
+        <span :class="$style.cardTitle">{{ i18n.ts._aiPersonalitySection.rules }}</span>
+        <button
+          class="_button"
+          :class="$style.rulesButton"
+          :disabled="rulesOpening"
+          @click="editRules"
+        >
+          <i class="ti ti-edit" />
+          {{ i18n.ts._aiPersonalitySection.rulesEdit }}
+        </button>
+      </div>
+      <p :class="$style.hint">
+        <i class="ti ti-info-circle" />
+        {{ i18n.ts._aiPersonalitySection.rulesHint }}
+      </p>
+      <p v-if="rulesEmpty" :class="$style.empty">{{ i18n.ts._aiPersonalitySection.rulesEmpty }}</p>
     </div>
 
   </AiSettingsSection>
@@ -411,6 +467,30 @@ function isFull(f: WorkspaceFile | undefined): boolean {
   display: flex;
   justify-content: flex-end;
   padding-top: 2px;
+}
+
+// 「ルールを編集」: 見出しの右に置く控えめなボタン (忘れるボタンと同じ質感)
+.rulesButton.rulesButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 4px 8px;
+  border-radius: var(--nd-radius-sm);
+  font-size: 0.75em;
+  color: var(--nd-fg);
+  opacity: 0.7;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    opacity: 1;
+    background: var(--nd-buttonHoverBg);
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
 }
 
 .forgetButton.forgetButton {

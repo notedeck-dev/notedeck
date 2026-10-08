@@ -377,6 +377,34 @@ pub fn seed_reserved(
     Ok(true)
 }
 
+/// 予約 skill の本文が古いテンプレのまま (利用者が手を付けていない) なら、今のテンプレに
+/// 置き換える。frontmatter はそのまま (updatedAt だけ進める)。戻り値は置き換えたか
+pub fn replace_untouched_reserved(
+    base_dir: &Path,
+    which: crate::workspace::Reserved,
+    legacy_bodies: &[&str],
+    lang: &str,
+    now: u64,
+) -> Result<bool> {
+    let name = which.file_name().to_string();
+    let path = store::resolve_file(base_dir, SUBDIR, &name)?;
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return Ok(false);
+    };
+    let (mut fm, body) = parse_skill_file(&raw);
+    if !legacy_bodies.iter().any(|l| l.trim() == body.trim()) {
+        return Ok(false);
+    }
+    for (k, v) in fm.iter_mut() {
+        if k == "updatedAt" {
+            *v = FmValue::Num(now as f64);
+        }
+    }
+    let next = crate::workspace::reserved_template(which, lang);
+    store::write_file(base_dir, SUBDIR, &name, &serialize_skill_file(&fm, next))?;
+    Ok(true)
+}
+
 fn push_str(fm: &mut Frontmatter, k: &str, v: &Option<String>) {
     if let Some(v) = v.as_ref().filter(|v| !v.is_empty()) {
         fm.push((k.into(), FmValue::Str(v.clone())));
@@ -897,7 +925,8 @@ mod tests {
         let agents = get(&core, "AGENTS").unwrap().unwrap();
         assert!(agents.reserved);
         assert_eq!(agents.mode, "always");
-        assert!(agents.body.contains("## Tools"));
+        // 初期テンプレは案内のコメントだけ (規約は compose の固定文に移した)
+        assert!(crate::workspace::is_effectively_empty(&agents.body));
         // 本文は変えられる、名前 / mode / persona 化 / toggle / 削除は拒否
         let patched = update(
             &core,
