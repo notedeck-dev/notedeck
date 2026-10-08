@@ -1,4 +1,5 @@
 import type { NoteVisibility } from '@/adapters/types'
+import { checkKnownCapabilities } from '@/components/deck/widgets/capabilities'
 import {
   ensureMemosLoaded,
   generateMemoKey,
@@ -344,6 +345,18 @@ async function handleInstallPlugin(pluginId: string): Promise<void> {
   }
   if (misStore.isInstalled(entry)) {
     console.info('[deep-link] plugin already installed:', pluginId)
+    return
+  }
+  // ストアのカラムと同じ判定 (#1205)。未対応の機能を要求するものは入れても
+  // 実行時に失敗するだけなので、入れずに理由を伝える
+  const compat = checkKnownCapabilities(entry.capabilities ?? [])
+  if (!compat.ok) {
+    await useConfirm().confirm({
+      title: i18n.ts._deepLinkInstall.incompatibleTitle,
+      message: compat.reason ?? '',
+      type: 'error',
+      hideCancel: true,
+    })
     return
   }
   // リンクは Web ページに埋め込んで踏ませられるので、何を入れるかを見せて
