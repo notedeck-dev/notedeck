@@ -53,6 +53,14 @@ export interface PluginMeta extends SidecarItemFile {
   storeVersion?: string
   /** 個別アイコン URL (MisStore registry の iconUrl 互換) */
   iconUrl?: string
+  /**
+   * 作成 / 最終更新時刻 (ms)。#1202 段階 0 でファイルに足した (widget / query /
+   * skill と同じ)。ファイルから読んだ個体は必ず持ち (無ければ読込時に今を入れて
+   * メインウィンドウが書き戻す)、メモリで作った個体は `addPlugin` が埋める。
+   * 段階 1 (envelope) で必須になる
+   */
+  createdAt?: number
+  updatedAt?: number
 }
 
 /** インストール/追加先スコープ (#771)。カラムの文脈から決まる。 */
@@ -88,6 +96,72 @@ interface PluginFileMeta {
   storeSha512?: string
   storeVersion?: string
   iconUrl?: string
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * item → meta ファイルの projection。キー順と省略規則は notecore の
+ * `sidecar/plugins.rs` `normalize_meta` と、codec (`services/distributableCodecs/
+ * pluginCodec.ts`) の出力と一致する (storeParity.test / golden が固定)
+ */
+function pluginToFileMeta(p: PluginMeta): PluginFileMeta {
+  return {
+    installId: p.installId,
+    name: p.name,
+    version: p.version,
+    ...(p.author ? { author: p.author } : {}),
+    ...(p.description ? { description: p.description } : {}),
+    ...(p.permissions?.length ? { permissions: p.permissions } : {}),
+    ...(p.config ? { config: p.config } : {}),
+    configData: p.configData,
+    active: p.active,
+    ...(p.global ? { global: true } : {}),
+    ...(p.installedFor?.length ? { installedFor: p.installedFor } : {}),
+    ...(p.storeId ? { storeId: p.storeId } : {}),
+    ...(p.storeSha512 ? { storeSha512: p.storeSha512 } : {}),
+    ...(p.storeVersion ? { storeVersion: p.storeVersion } : {}),
+    ...(p.iconUrl ? { iconUrl: p.iconUrl } : {}),
+    // addPlugin が埋めるので通常は到達しない (保険)
+    createdAt: p.createdAt ?? Date.now(),
+    updatedAt: p.updatedAt ?? Date.now(),
+  }
+}
+
+function pluginFromFile(
+  meta: PluginFileMeta,
+  src: string,
+  metaFile: string,
+): PluginMeta {
+  return {
+    installId: meta.installId || metaFile,
+    name: meta.name || metaFile,
+    version: meta.version || '0.0.0',
+    author: meta.author,
+    description: meta.description,
+    permissions: meta.permissions,
+    config: meta.config,
+    configData: meta.configData || {},
+    src,
+    active: meta.active ?? false,
+    global: meta.global,
+    installedFor: meta.installedFor,
+    storeId: meta.storeId,
+    storeSha512: meta.storeSha512,
+    storeVersion: meta.storeVersion,
+    iconUrl: meta.iconUrl,
+    createdAt: meta.createdAt ?? Date.now(),
+    updatedAt: meta.updatedAt ?? Date.now(),
+  }
+}
+
+/**
+ * 内部関数の test 用 export (codec との一致検査)。プロダクトコードから直接
+ * 呼ばないこと
+ */
+export const _internal = {
+  toFileMeta: pluginToFileMeta,
+  fromFile: pluginFromFile,
 }
 
 /** .is + .meta.json5 ペアのファイル永続化 (#782 Phase 2、widgets と共通) */
@@ -108,41 +182,11 @@ const pluginFiles = createSidecarCollection<PluginMeta, PluginFileMeta>({
   srcOf: (p) => p.src,
   // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
   preferredBase: (p) => p.storeId,
-  toFileMeta: (p) => ({
-    installId: p.installId,
-    name: p.name,
-    version: p.version,
-    ...(p.author ? { author: p.author } : {}),
-    ...(p.description ? { description: p.description } : {}),
-    ...(p.permissions?.length ? { permissions: p.permissions } : {}),
-    ...(p.config ? { config: p.config } : {}),
-    configData: p.configData,
-    active: p.active,
-    ...(p.global ? { global: true } : {}),
-    ...(p.installedFor?.length ? { installedFor: p.installedFor } : {}),
-    ...(p.storeId ? { storeId: p.storeId } : {}),
-    ...(p.storeSha512 ? { storeSha512: p.storeSha512 } : {}),
-    ...(p.storeVersion ? { storeVersion: p.storeVersion } : {}),
-    ...(p.iconUrl ? { iconUrl: p.iconUrl } : {}),
-  }),
-  fromFile: (meta, src, metaFile) => ({
-    installId: meta.installId || metaFile,
-    name: meta.name || metaFile,
-    version: meta.version || '0.0.0',
-    author: meta.author,
-    description: meta.description,
-    permissions: meta.permissions,
-    config: meta.config,
-    configData: meta.configData || {},
-    src,
-    active: meta.active ?? false,
-    global: meta.global,
-    installedFor: meta.installedFor,
-    storeId: meta.storeId,
-    storeSha512: meta.storeSha512,
-    storeVersion: meta.storeVersion,
-    iconUrl: meta.iconUrl,
-  }),
+  toFileMeta: pluginToFileMeta,
+  fromFile: pluginFromFile,
+  // #1202 段階 0: createdAt / updatedAt の無い旧ファイルは書き戻して揃える
+  isOutdated: (meta) =>
+    typeof meta.createdAt !== 'number' || typeof meta.updatedAt !== 'number',
 })
 
 // ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
@@ -220,7 +264,7 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   /** Load plugins from files. Files are source of truth. */
   async function initFileStorage(): Promise<void> {
-    const { items: filePlugins } = await pluginFiles.loadAll()
+    const { items: filePlugins, outdated } = await pluginFiles.loadAll()
 
     // 初期化中にメモリ追加された plugin は残す (各自の persist が ready 後に
     // ファイル化する)
@@ -235,6 +279,15 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (settingsFs.isMainDeckWindow()) {
       // 規約外名の copy-adopt 正規化
       await pluginFiles.migrateItems(plugins.value)
+      // on-disk の揃え (#1202 段階 0): createdAt / updatedAt の無い旧ファイルを
+      // 読込時に埋めた値で書き戻す。一度きり (次回は outdated に入らない)
+      for (const p of outdated) {
+        await pluginFiles
+          .persistItem(p, plugins.value)
+          .catch((e) =>
+            console.warn('[plugins] failed to align on-disk format:', e),
+          )
+      }
       // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
       await pluginFiles
         .sweepHistory()
@@ -273,6 +326,9 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   function addPlugin(plugin: PluginMeta) {
     ensureLoaded()
+    const now = Date.now()
+    plugin.createdAt ??= now
+    plugin.updatedAt ??= now
     plugins.value.push(plugin)
     persist(plugin)
   }
@@ -342,6 +398,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (rejectIfReadOnly(plugin)) return false
     if (plugin.global) return true
     plugin.global = true
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -354,6 +411,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (rejectIfReadOnly(plugin)) return false
     if (!plugin.global) return true
     plugin.global = undefined
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -367,6 +425,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     const existing = plugin.installedFor ?? []
     if (existing.includes(scopeKey)) return true
     plugin.installedFor = [...existing, scopeKey]
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -380,6 +439,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (!plugin.installedFor) return true
     const remaining = plugin.installedFor.filter((k) => k !== scopeKey)
     plugin.installedFor = remaining.length > 0 ? remaining : undefined
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -491,6 +551,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (!plugin) return false
     if (rejectIfReadOnly(plugin)) return false
     plugin.active = active
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -505,6 +566,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (!plugin) return false
     if (rejectIfReadOnly(plugin)) return false
     plugin.configData = data
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -538,6 +600,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       ).catch((e) => console.warn('[plugins] history push failed:', e))
     }
     plugin.src = src
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -590,6 +653,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       }
     }
     plugin.readOnly = undefined
+    plugin.updatedAt = Date.now()
     persist(plugin)
   }
 
@@ -618,6 +682,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (rejectIfReadOnly(plugin)) return false
 
     plugin.name = newName
+    plugin.updatedAt = Date.now()
     savePluginsToStorage(plugins.value)
     if (!settingsFs.isTauri) return true
     // ファイルは rename で追随させる (ID 不変・旧削除 + 新書込の並行発火禁止)。

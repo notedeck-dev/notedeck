@@ -346,6 +346,16 @@ export const useThemeStore = defineStore('theme', () => {
           installedFor: Array.from(new Set([...existing, ...forAccountKeys])),
         }
       }
+      // createdAt は既存 (同 ID の更新) を引き継ぎ、updatedAt は今 (#1202 段階 0)
+      const now = Date.now()
+      theme.$notedeck = {
+        ...(theme.$notedeck ?? {}),
+        createdAt:
+          existingTheme?.$notedeck?.createdAt ??
+          theme.$notedeck?.createdAt ??
+          now,
+        updatedAt: now,
+      }
 
       if (existingTheme) {
         // 上書きケース: 既存テーマの編集前 snapshot を history に push。
@@ -485,6 +495,7 @@ export const useThemeStore = defineStore('theme', () => {
     if (!theme) return
 
     theme.name = newName
+    theme.$notedeck = { ...(theme.$notedeck ?? {}), updatedAt: Date.now() }
     saveInstalledThemes()
 
     if (!settingsFs.isTauri) return
@@ -736,14 +747,12 @@ export const useThemeStore = defineStore('theme', () => {
     const p = parsed as Record<string, unknown>
     if (!p.props || typeof p.props !== 'object') return
     const theme: MisskeyTheme = {
-      id: typeof p.id === 'string' && p.id ? p.id : `custom-${change.name}`,
-      name: typeof p.name === 'string' && p.name ? p.name : change.name,
-      base: p.base === 'light' ? 'light' : 'dark',
-      props: p.props as Record<string, string>,
+      ...themeFileSync.themeFromFile(
+        p,
+        typeof p.id === 'string' && p.id ? p.id : `custom-${change.name}`,
+        change.name,
+      ),
       fileBase,
-    }
-    if (p.$notedeck && typeof p.$notedeck === 'object') {
-      theme.$notedeck = { ...(p.$notedeck as Record<string, unknown>) }
     }
     const idx = installedThemes.value.findIndex(
       (t) => t.id === theme.id || t.fileBase === fileBase,
@@ -909,6 +918,15 @@ export const useThemeStore = defineStore('theme', () => {
     if (settingsFs.isMainDeckWindow()) {
       // 規約外名の copy-adopt 正規化
       await themeFileSync.themeFiles.migrateItems(installedThemes.value)
+      // on-disk の揃え (#1202 段階 0): $notedeck に createdAt / updatedAt の無い
+      // 旧ファイルを読込時に埋めた値で書き戻す。一度きり
+      for (const t of data.outdated) {
+        await themeFileSync.themeFiles
+          .persistItem(t, installedThemes.value)
+          .catch((e) =>
+            console.warn('[theme] failed to align on-disk format:', e),
+          )
+      }
       // themes/ に置かれた素の .json5 (コミュニティテーマ) を一回きり
       //     コピーして採用 (#1041)。採用記録があるので冪等
       const adopted = await themeFileSync
