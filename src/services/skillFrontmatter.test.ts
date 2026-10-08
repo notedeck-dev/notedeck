@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseSkillFile, serializeSkillFile } from '@/utils/skillFrontmatter'
+import { parseSkillFile, serializeSkillFile } from '@/services/skillFrontmatter'
 
 describe('parseSkillFile', () => {
   it('extracts flat string/number/boolean/array fields from frontmatter', () => {

@@ -1,6 +1,6 @@
 import type { NormalizedNote, NoteVisibility } from '@/adapters/types'
+import { extractUrlFromMfm } from '@/services/extractUrlFromMfm'
 import { noteModeBadgeIcon } from '@/utils/customTimelines'
-import { extractUrlFromMfm } from '@/utils/extractUrlFromMfm'
 import { parseMfm } from '@/utils/mfm'
 
 /**

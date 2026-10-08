@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mapWithConcurrency } from '@/utils/concurrency'
+import { mapWithConcurrency } from '@/services/concurrency'
 
 const defer = <T>() => {
   let resolve!: (v: T) => void

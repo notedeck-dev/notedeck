@@ -7,9 +7,9 @@ import type {
 import type { AiChatEventPayload } from '@/composables/useAiChat'
 import type { AiTurnEventPayload } from '@/composables/useAiTurn'
 import type { QueryRequest } from '@/core/apiBridge'
+import type { OgpData } from '@/services/ogp'
 import type { Account } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
-import type { OgpData } from '@/utils/ogp'
 
 /**
  * Tauri イベント名 → payload 型のレジストリ。

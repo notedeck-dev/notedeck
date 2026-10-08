@@ -38,6 +38,8 @@ import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { i18n } from '@/i18n'
 import { variantKey, variantKeyOf } from '@/services/noteKey'
+import { insertIntoSorted } from '@/services/sortNotes'
+import { matchesFilter } from '@/services/timelineFilter'
 import { hasGap as hasTimelineGap } from '@/services/timelineGap'
 import { isGuestAccount } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -49,9 +51,7 @@ import { useUiStore } from '@/stores/ui'
 import { dedup } from '@/utils/dedup'
 import { AppError } from '@/utils/errors'
 import { logWarn } from '@/utils/logger'
-import { insertIntoSorted } from '@/utils/sortNotes'
 import { logStartupSummary, markStartup } from '@/utils/startupTrace'
-import { matchesFilter } from '@/utils/timelineFilter'
 
 /** QIR キャッシュ検索が 1 度に返すノート数 (#783 Phase 3) */
 const CACHE_SEARCH_LIMIT = 40

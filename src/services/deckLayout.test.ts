@@ -3,7 +3,7 @@ import {
   insertColumnAt,
   isInsertNoop,
   toGlobalInsertIndex,
-} from '@/utils/deckLayout'
+} from '@/services/deckLayout'
 
 describe('isInsertNoop', () => {
   it('単独カラムを自分の位置へ挿入すると no-op', () => {

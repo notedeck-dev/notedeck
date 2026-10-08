@@ -11,6 +11,7 @@ import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { i18n } from '@/i18n'
 import type { NoteGroup } from '@/services/noteGroup'
+import { getNoteShareUrl } from '@/services/noteUrl'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
@@ -25,7 +26,6 @@ import { useWindowsStore } from '@/stores/windows'
 import { clipCacheKey } from '@/utils/columnCacheKey'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
-import { getNoteShareUrl } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isWindowExposed } from '@/windows/exposure'
 import AccountPickerSheet from './AccountPickerSheet.vue'

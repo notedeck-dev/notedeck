@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { char2twemojiUrl, splitTextWithEmoji } from '@/utils/twemoji'
+import { char2twemojiUrl, splitTextWithEmoji } from '@/services/twemoji'
 
 // 同梱 Twemoji (@discordapp/twemoji) のパス。CDN 個別取得はピッカー初回表示で
 // 数千リクエストをメディアプロキシに浴びせる要因だった (#855)。ここで固定する

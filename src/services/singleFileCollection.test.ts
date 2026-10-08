@@ -7,7 +7,7 @@ import {
   type SingleFileCollectionConfig,
   type SingleItemFile,
 } from '@/services/singleFileCollection'
-import { parseSkillFile } from '@/utils/skillFrontmatter'
+import { parseSkillFile } from '@/services/skillFrontmatter'
 
 /** テーマ相当 (単一 JSON5 ファイル) のアイテム。 */
 interface Item extends SingleItemFile {

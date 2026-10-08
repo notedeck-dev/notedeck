@@ -20,10 +20,10 @@ import {
   useSpotlightStore,
 } from '@/composables/useSpotlight'
 import { i18n } from '@/i18n'
+import { fuzzyMatch } from '@/services/fuzzyMatch'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
-import { fuzzyMatch } from '@/utils/fuzzyMatch'
 import { isImeComposing } from '@/utils/ime'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { shortcutLabel } from '@/utils/shortcutLabel'

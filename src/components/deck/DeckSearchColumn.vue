@@ -28,6 +28,7 @@ import {
   useSearchScopeMeta,
 } from '@/composables/useSearchScopeMeta'
 import { i18n } from '@/i18n'
+import { mapWithConcurrency, type SettleProgress } from '@/services/concurrency'
 import type { NoteGroup } from '@/services/noteGroup'
 import { variantKeyOf } from '@/services/noteKey'
 import {
@@ -47,7 +48,6 @@ import {
   unionHostOptions,
 } from '@/services/searchFilter'
 import { acctOf } from '@/services/userRef'
-import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
@@ -58,12 +58,12 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNoteFocus } from '@/composables/useNoteFocus'
 import { useNoteList } from '@/composables/useNoteList'
+import { matchesFilter } from '@/services/timelineFilter'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
-import { matchesFilter } from '@/utils/timelineFilter'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import DeckColumn from './DeckColumn.vue'

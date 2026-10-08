@@ -39,10 +39,6 @@ import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { i18n } from '@/i18n'
-import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
-import { useChatMessageStore } from '@/stores/chatMessageStore'
-import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
-import { useServersStore } from '@/stores/servers'
 import {
   buildCrossAccountHistoryEntries,
   buildPerAccountHistoryEntries,
@@ -51,7 +47,11 @@ import {
   type CrossAccountChatHistoryEntry as HistoryEntry,
   matchesChatSearch,
   type PerAccountChatHistoryEntry as PerAccountHistoryEntry,
-} from '@/utils/chatHistoryEntries'
+} from '@/services/chatHistoryEntries'
+import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
+import { useChatMessageStore } from '@/stores/chatMessageStore'
+import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
+import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
 import { proxyThumbUrl } from '@/utils/mediaProxy'

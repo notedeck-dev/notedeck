@@ -82,7 +82,7 @@ describe('i18n-lint の数え方', () => {
       false,
     )
     expect(isTarget('crates/notecore/tests/a.rs')).toBe(false)
-    expect(isTarget('src/utils/nyaize.ts')).toBe(false)
+    expect(isTarget('src/services/nyaize.ts')).toBe(false)
     expect(isTarget('scripts/a.ts')).toBe(false)
   })
 })

@@ -11,9 +11,9 @@ import {
 } from 'vue'
 import { useNoteAccountId } from '@/composables/useNoteContext'
 import { useOgpPreview } from '@/composables/useOgpPreview'
+import { parseNoteUrl } from '@/services/noteUrl'
 import { usePerformanceStore } from '@/stores/performance'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
-import { parseNoteUrl } from '@/utils/noteUrl'
 import { isSafeUrl, openSafeUrl } from '@/utils/url'
 
 const perfStore = usePerformanceStore()

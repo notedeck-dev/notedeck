@@ -4,7 +4,7 @@ import {
   insertIntoSorted,
   mergeSortedNotes,
   sortByCreatedAtDesc,
-} from '@/utils/sortNotes'
+} from '@/services/sortNotes'
 
 function makeNote(id: string, createdAt: string): NormalizedNote {
   return {
@@ -28,7 +28,7 @@ function makeNote(id: string, createdAt: string): NormalizedNote {
     repliesCount: 0,
     _accountId: 'a1',
     _serverHost: 'example.com',
-  }
+  } as unknown as NormalizedNote
 }
 
 const t = (n: number) => `2025-01-01T00:00:${String(n).padStart(2, '0')}.000Z`

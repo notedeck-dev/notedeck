@@ -5,14 +5,14 @@ import { i18n } from '@/i18n'
 import { injectFrontmatterId } from '@/services/idFreeze'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { createSingleFileCollection } from '@/services/singleFileCollection'
-import { planStoreMovedMigration } from '@/services/storeMovedSkills'
-import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
-import * as settingsFs from '@/utils/settingsFs'
 import {
   type ParsedSkillFile,
   parseSkillFile,
   serializeSkillFile,
-} from '@/utils/skillFrontmatter'
+} from '@/services/skillFrontmatter'
+import { planStoreMovedMigration } from '@/services/storeMovedSkills'
+import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
+import * as settingsFs from '@/utils/settingsFs'
 import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { notifyWarningToast } from '@/utils/toastNotify'

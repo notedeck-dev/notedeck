@@ -13,10 +13,10 @@ import {
 } from '@/aiscript/plugin-api'
 import PopupMenu from '@/components/common/PopupMenu.vue'
 import { i18n } from '@/i18n'
+import { generateUserEmbedCode } from '@/services/embedCode'
 import { useDeckStore } from '@/stores/deck'
 import { useMutesStore } from '@/stores/mutes'
 import { useToast } from '@/stores/toast'
-import { generateUserEmbedCode } from '@/utils/embedCode'
 import { AppError } from '@/utils/errors'
 
 const props = defineProps<{

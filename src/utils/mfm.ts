@@ -2,12 +2,13 @@
  * MFM cache layer — wraps the pure parser (mfmParser.ts) with an LRU cache.
  * Re-exports parser types and functions for convenience.
  */
-import { usePerformanceStore } from '@/stores/performance'
-import type { MfmToken, ParseOptions } from './mfmParser'
-import { parseTokens } from './mfmParser'
 
-export type { MfmToken, ParseOptions } from './mfmParser'
-export { parseTokens } from './mfmParser'
+import type { MfmToken, ParseOptions } from '@/services/mfmParser'
+import { parseTokens } from '@/services/mfmParser'
+import { usePerformanceStore } from '@/stores/performance'
+
+export type { MfmToken, ParseOptions } from '@/services/mfmParser'
+export { parseTokens } from '@/services/mfmParser'
 
 // 標準 MFM と markdown 拡張は別 cache (token 構造が異なるため key を分ける)
 const parseCache = new Map<string, MfmToken[]>()

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { i18n } from '@/i18n'
-import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import {
   ACHIEVEMENT_TYPES,
   type Achievement,
   type AchievementBadge,
-} from '@/utils/achievements'
+} from '@/services/achievements'
+import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 
 /**
  * 種別・バッジ・ラベルは差し替えられる。既定は Misskey サーバーの実績だが、

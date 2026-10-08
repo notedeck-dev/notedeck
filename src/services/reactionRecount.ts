@@ -1,4 +1,4 @@
-import { normalizeEmojiMuteKey } from '@/utils/emojiMute'
+import { normalizeEmojiMuteKey } from '@/services/emojiMute'
 
 /**
  * ミュート・凍結ユーザーのリアクション抹消 (#575) の数え直し。

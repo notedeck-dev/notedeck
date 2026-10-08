@@ -8,9 +8,9 @@
 
 import type { NormalizedNote } from '@/adapters/types'
 import { evictByLiveness } from '@/services/mapEviction'
+import { parseNoteUrl } from '@/services/noteUrl'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { AppError } from '@/utils/errors'
-import { parseNoteUrl } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export type ResolveNoteError = {

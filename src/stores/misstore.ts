@@ -7,6 +7,7 @@ import {
 } from '@/aiscript/plugin-api'
 import { i18n } from '@/i18n'
 import { casefold, resolveAvailable } from '@/services/settingsSlug'
+import { type Frontmatter, parseSkillFile } from '@/services/skillFrontmatter'
 import {
   findWidgetInstance,
   listWidgetInstances,
@@ -22,7 +23,6 @@ import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 import { useThemeStore } from '@/stores/theme'
 import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
 import type { MisskeyTheme } from '@/theme/types'
-import { type Frontmatter, parseSkillFile } from '@/utils/skillFrontmatter'
 
 const STORE_BASE_URL = 'https://store.notedeck.io'
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes

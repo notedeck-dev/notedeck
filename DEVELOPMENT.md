@@ -404,10 +404,11 @@ src/                        # Vue 3 frontend
 │   └── streamHealth.ts     # 生のストリーム接続状態台帳 (#698)
 ├── data/                   # Static data & constants
 ├── router/                 # Vue Router definitions
-├── stores/                 # Pinia stores (accounts, deck, servers, emojis, theme, etc.)
+├── services/               # 純ロジック (正規化 / マイグレーション / マージ規則 / codec / 述語)。store・Vue・Tauri に依存せず、テストは隣に置く (#782 / #1098 §5)
+├── stores/                 # Pinia stores (accounts, deck, servers, emojis, theme, etc.) — 購読 + キャッシュ + UI 状態
 ├── styles/                 # Global CSS (CSS variables)
 ├── theme/                  # Misskey-compatible theme compiler & applier
-├── utils/                  # Shared utilities
+├── utils/                  # Tauri / DOM / localStorage の薄いラッパーと UI 向けヘルパー (i18n を引くもの)。純ロジックは services へ
 └── views/                  # Page components (NoteDetail, UserProfile)
 
 crates/notecore/src/        # notecore (Tauri 非依存のデータ領域、#1106)。AI を知らない
@@ -1351,7 +1352,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 | `src/composables/useAiConversation.ts` | 指定 sessionId のメッセージ配列に対する reactive な参照を返す薄いラッパー。本文の永続化と debounce は `useAiSessionsStore` 側で集中管理 |
 | `src/stores/aiSessions.ts` | AI セッション (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`) のデバイス側の写し。書き手は notecore (`crates/notemaid/src/ai_sessions.rs`、#1133) で、ストアは「作成 / メッセージ追加 / メッセージ削除 / 改名 / trigger skill の累積 / 削除」の構造化された操作を送って写しを揃える (楽観的更新)。進行中のターンの表示は `setLocalMessages` (notecore には書かない)。汎用の設定ファイル操作は `sessions` を受け付けない |
 | `crates/notemaid/src/ai_turn/compose.rs` | system prompt の組み立て (#1162)。SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → AGENTS → 他の `mode: 'always'` / active な `mode: 'manual'` / セッションに累積した trigger skill → デバイス文脈。デバイスは `device_context` (`<notedeck-context>`) と trigger skill の id だけを送り、trigger マッチは `triggerMatchingSkillIds(text)` (`src/stores/skills.ts`) が user 入力を部分一致検索して算出 |
-| `src/utils/aiSessionId.ts` | Zettelkasten ID (`YYYYMMDDhhmmss`) 生成。同一秒衝突は `a`, `b`, `c`, ... サフィックスで回避 |
+| `src/services/aiSessionId.ts` | Zettelkasten ID (`YYYYMMDDhhmmss`) 生成。同一秒衝突は `a`, `b`, `c`, ... サフィックスで回避 |
 | `src/utils/aiSessionTitle.ts` | `timestampTitle(now)` 初期プレースホルダー / `generateSessionTitle()` 決定論的フォールバック |
 
 #### セッション管理 UI (DeckAiColumn)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeEmojiMuteKey } from '@/utils/emojiMute'
+import { normalizeEmojiMuteKey } from '@/services/emojiMute'
 
 describe('normalizeEmojiMuteKey (#612)', () => {
   it('keeps Unicode emoji as-is', () => {
