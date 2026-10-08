@@ -2,9 +2,11 @@ import { useData } from 'vitepress'
 import { computed } from 'vue'
 import en from './en'
 import ja, { type Messages } from './ja'
+import ko from './ko'
+import zh from './zh'
 
 // キーは config.mts の locales と同じ。root (= ja) 以外は URL の接頭辞にもなる
-const MESSAGES: Record<string, Messages> = { root: ja, en }
+const MESSAGES: Record<string, Messages> = { root: ja, en, zh, ko }
 
 /**
  * theme の文言と、今の言語でのサイト内パス。vue-i18n は入れない (#1145)。
