@@ -1205,6 +1205,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::maid_workspace_write,
             commands::maid_user_memory_set,
             commands::maid_heartbeat_steps_seed,
+            commands::maid_agents_seed,
             commands::maid_turn_system,
             commands::capability_execute,
             commands::capability_preview,

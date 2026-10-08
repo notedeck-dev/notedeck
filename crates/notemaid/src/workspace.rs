@@ -1060,10 +1060,13 @@ mod tests {
             Reserved::Heartbeat,
             "en"
         )));
-        assert!(!is_effectively_empty(reserved_template(
-            Reserved::Agents,
-            "ja"
-        )));
+        // AGENTS.md の初期テンプレも案内だけ (規約は compose の固定文)
+        for lang in ["ja", "en"] {
+            assert!(is_effectively_empty(reserved_template(
+                Reserved::Agents,
+                lang
+            )));
+        }
         assert!(is_effectively_empty(
             "---\nid: heartbeat\nmode: heartbeat\n---\n# HEARTBEAT.md\n\n<!-- todo -->\n- [ ]\n```\n```\n"
         ));

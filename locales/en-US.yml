@@ -1022,6 +1022,11 @@ _aiHeartbeatSection:
   stepsOpenFailed: "Could not open the steps: {reason}"
 
 _aiPersonalitySection:
+  rules: "Rules"
+  rulesEdit: "Edit rules"
+  rulesHint: "Standing instructions the AI should always follow (how to speak, what to avoid, and so on). Rules NoteDeck always enforces, such as how memory is handled, are added separately, so you don't need to write them here."
+  rulesEmpty: "Nothing written yet."
+  rulesOpenFailed: "Couldn't open the rules: {reason}"
   title: "Persona"
   memorySectionTitle: "Memory"
   soul: "Personality"
@@ -2059,7 +2064,6 @@ _deckSkillColumn:
   modeTrigger: "Auto"
   newSkillName: "New skill"
   newSkillBody: "Write the instructions here."
-  reservedHint: "Reserved skill: its name and mode are fixed and it cannot be deleted"
 
 _deckTaskRunnerColumn:
   clearHistory: "Clear history"

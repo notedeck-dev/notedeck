@@ -22,6 +22,7 @@ macro_rules! with_maid_command_table {
         data maid_workspace_write(kind: $crate::workspace::Kind, body: String) -> $crate::commands::workspace::WorkspaceFile = $crate::commands::workspace::maid_workspace_write;
         data maid_user_memory_set(enabled: bool) -> () = $crate::commands::workspace::maid_user_memory_set;
         data maid_heartbeat_steps_seed() -> $crate::skills::SkillMeta = $crate::commands::workspace::maid_heartbeat_steps_seed;
+        data maid_agents_seed() -> $crate::skills::SkillMeta = $crate::commands::workspace::maid_agents_seed;
         data maid_turn_system(turn_id: String) -> Option<serde_json::Value> = $crate::commands::workspace::maid_turn_system;
         data capability_execute(id: String, params: serde_json::Value, principal: String, account_id: Option<String>, tainted: bool, plugin_id: Option<String>) -> $crate::exec::ExecOutcome = $crate::commands::ai_chat::capability_execute;
         data capability_preview(id: String, params: serde_json::Value, principal: String, account_id: Option<String>, tainted: bool, plugin_id: Option<String>) -> Option<serde_json::Value> = $crate::commands::ai_chat::capability_preview;

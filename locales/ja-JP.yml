@@ -803,6 +803,11 @@ _aiPersonalitySection:
   character: "キャラクター"
   characterNone: "なし"
   characterHint: "新しいセッションから反映されます。過去のセッションは作成時のキャラクターのままです。"
+  rules: "ルール"
+  rulesEdit: "ルールを編集"
+  rulesHint: "AI にいつも守ってほしい指示 (話し方や避けてほしいことなど) を書きます。記憶の扱いなど NoteDeck が必ず守らせる規約は別に入っているので、ここに書く必要はありません。"
+  rulesEmpty: "まだ何も書かれていません。"
+  rulesOpenFailed: "ルールを開けませんでした: {reason}"
   noCharacters: "候補がありません。スキルの編集で「キャラクター候補にする」を ON にしたスキルがここに出ます。"
   userTitle: "あなたについて覚えていること"
   userToggle: "あなたのことを覚える"
@@ -1809,7 +1814,6 @@ _deckSkillColumn:
   modeTrigger: "自動"
   newSkillName: "新規スキル"
   newSkillBody: "指示文をここに記述します。"
-  reservedHint: "予約スキル: 名前とモードは固定で、削除できません"
 
 _deckTaskRunnerColumn:
   clearHistory: "履歴をクリア"

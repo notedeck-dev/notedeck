@@ -266,20 +266,20 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
     turns/                  # ← ai-turns/ (checkpoint, taint.json, budget.json, heartbeat.json)
     workspace/              # ← ai-workspace/ (手元の CLI の cwd)
   skills/
-    AGENTS.md               # 予約 skill: id / ファイル名 / mode: always 固定、削除・改名・toggle 拒否。notemaid が seed
+    AGENTS.md               # 予約 skill: id / ファイル名 / mode: always 固定、削除・改名・toggle 拒否。notemaid が案内のコメントだけのテンプレで seed
     HEARTBEAT.md            # 予約 skill: mode: heartbeat 固定。既定では置かず「巡回の手順を編集」で初めて seed
 ```
 
 - ディレクトリ名は種類名の複数形 (`memos` / `skills`) ではなく所有者名 `notemaid` (「1 つの名前 = ディレクトリ = パッケージ = バイナリ」)。`<config dir>/notemaid/` (secret の鍵) とは別物
 - HEARTBEAT.md / AGENTS.md は `skills/` の**予約 skill**。既存の capability / 認可 (`skills.write`) / 汚染ラベル / バックアップ / skill UI がそのまま効き、ローダーが 2 系統にならない。予約の強制は notemaid の `skills.rs` と、notecore の汎用設定ファイル書込 (該当名の rename / delete 拒否。notecore はファイル名の定数を知るだけ) の 2 か所
-- OpenClaw の TOOLS.md は AGENTS.md の `## Tools` 節。IDENTITY.md は SOUL / キャラクター (persona) に内包 (Hermes と同じ)。日次ログは作らない (メモ + セッション)
+- OpenClaw の TOOLS.md は AGENTS.md に書けばよい (専用の節は置かない)。IDENTITY.md は SOUL / キャラクター (persona) に内包 (Hermes と同じ)。日次ログは作らない (メモ + セッション)
 - **手元の CLI の cwd を人格ファイルと同じ場所にしない (不採用)**: cwd を `notemaid/` にすると Codex / Claude Code が AGENTS.md を自動で読む利点があるが、CLI は自前のファイル操作を持つので認可と汚染規則を通さず書き換えられる。`notemaid/` に AGENTS.md を置かないので祖先探索でも拾わない。CLI の fs 書込要求が `notemaid/` 配下 (`workspace/` 以外) なら ACP の permission 中継で人に聞かず自動拒否し、notemaid は自分の書込ごとに人格・記憶ファイルの hash を記録して turn 開始時に不一致なら「外部で変更されました」を 1 行出す
 
 ### 注入の契約
 
 - **組み立ての所有者は notemaid 一本。** デバイスが送るのは `device_context` (`<notedeck-context>`) と、その turn で新しく発火した trigger skill の id だけ。persona (session ファイルの `personaSkillId`、HEARTBEAT は ai.json5) / active な manual skill / 累積の trigger は notemaid が読み、`<persona>` ブロックも notemaid が書く
 - notemaid が組んだ system は `TurnState` に保持し、ラウンドの再送 / `ProvenanceCorpus` / 予算見積り / checkpoint はそこを読む。**スナップショットの単位は turn run** (turn 開始時に読み、tool 反復 / 継続 / 再開では同じ文字列)。OpenClaw の「毎 run 再構築」と同じで、Hermes の「プロセス寿命の凍結」はセッションが無期限に再開される NoteDeck には持ち込まない。例外は手元の CLI (ACP セッション作成時に畳んだものが続く)
-- 順番: SOUL → キャラクター (persona) → USER → MEMORY → AGENTS → 他の always / trigger skill → device_context。Hermes 寄り (SOUL が先頭。OpenClaw は AGENTS が先頭)
+- 順番: SOUL → キャラクター (persona) → USER → MEMORY → NoteDeck の運用規約 (固定の文) → AGENTS → 他の always / trigger skill → device_context。Hermes 寄り (SOUL が先頭。OpenClaw は AGENTS が先頭)
 - 使用率ヘッダは Hermes と同じく凍結ブロックの中に入れる (内容から決まるので prefix cache は壊れない)
 - `ProvenanceCorpus` には workspace 部分 (SOUL / USER / MEMORY / AGENTS) と store 由来の skill を**入れない** (trusted にも user にも)。そこにしか無い宛先は untrusted に倒れる (tainted な turn で承認された記憶の宛先が、次の turn で trusted になり無人の宛先検査を素通りする経路を塞ぐ)
 - HEARTBEAT: system は SOUL → キャラクター → USER → MEMORY → AGENTS → 固定 INSTRUCTION、**HEARTBEAT.md の本文は user 側の heartbeat メッセージ**に付ける (OpenClaw が scratch を user message に置くのと同じ)。device_context は無し。橋 `heartbeat/context` は廃止 (時刻は notemaid、口座は SyncedAccounts)。固定 INSTRUCTION は OpenClaw の既定に合わせる (「HEARTBEAT.md があればそれに従う / 過去のチャットから古い仕事を推測・反復しない / 何も無ければ `heartbeat.report` を呼ばない / 通知本文に USER の内容を書かない」)。**HEARTBEAT.md が無い、または heartbeat mode の skill 本文がすべて実質空なら tick を skip** (実質空 = OpenClaw の `empty-heartbeat-file` の定義: 空行 / コメント / 見出し / fence / 空のチェックリスト + frontmatter)。OpenClaw は scratch が無くても走ってモデルに任せるが、NoteDeck は無人の予算のため skip する (逸脱)。有効なのに空のときは HEARTBEAT セクションと heartbeat session に「巡回の手順が空です」を出し、予算で見送った tick は「巡回を見送りました (予算)」を 1 行
@@ -298,7 +298,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 
 - 戻り値は Hermes と同形 `{ success, error, current_entries, usage }` (turn 内は prompt が凍っていて自分の書込が見えないため)。同一 turn の書込回数上限は置かない (Hermes は同 turn 内で整理して再試行する前提)
 - SOUL / USER / MEMORY の読取 capability は作らない (prompt に入っている)。書込前の検査は不可視 Unicode と上限がエラー、Hermes 流の injection / exfil パターンは**確認強制** (拒否ではない。誤検知が害にならない形)
-- 「記憶の整理は過去セッション (untrusted) を読まずメモから。詳しくは `memos.search`」は AGENTS.md の既定に書く
+- 「記憶の整理は過去セッション (untrusted) を読まずメモから。詳しくは `memos.search`」「覚えるのは事実と指示だけ」「通知の本文に相手について覚えていることを書かない」は **notemaid の固定の文** (`compose.rs` の `OPERATING_RULES`) として毎 turn 入れる。当初は AGENTS.md の初期テンプレに書いていたが、利用者が消すと効かなくなる安全側の規約を編集できるファイルに置くのは筋が悪いので移した (2026-10-09)。AGENTS.md は利用者の常設の指示 (話し方や避けてほしいこと) だけを書く場所で、案内のコメントだけの初期状態 (実質空) のあいだは何も渡さない。旧テンプレのまま手付かずのファイルは、組み立てのときに新テンプレへ置き換える
 
 ### 汚染 (#1103) との整合
 
@@ -323,7 +323,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 - 一般側の面は 2 セクション 3 枚: セクション「ペルソナ」に **「人格」** (SOUL の状態とヒントだけ。本文の編集は開発者モードの AI 設定「SOUL.md」タブ = Markdown のコード編集か外部エディター。設定画面の textarea で markdown を直接触らせると見出しの構造を壊すので置かない、[#1186](https://github.com/notedeck-dev/notedeck/issues/1186)) + キャラクターのカード (persona ピッカー) / セクション「メモリー」に **「あなたについて覚えていること」** (本文、行の inline 編集と削除、トグル「あなたのことを覚える」と「手元の CLI にも渡す」、「すべて忘れる」) と **「覚え書き」** (本文、行の inline 編集と削除)。AI 設定の「接続」と「ACP」(手元の CLI) も別セクション。候補から選ぶカード (接続 / AI プロバイダ / ACP / キャラクター / ペット) は共通の `ChoiceCard` + `ChoiceCardGrid`
 - **USER OFF の意味** = 注入停止 + `memory.update` の `target: user` を本体が拒否 (tool 一覧からは外さず、エラーで知らせる) + 定数 1 行「利用者に関する記憶は OFF」を system に + MEMORY の書込規則に「本人に関する事実は書かない」。削除はしない (「すべて忘れる」が別)。OFF 中もバックアップには入る旨を説明文に
 - ファイル名は UI に出さない (「設定フォルダを開く」で見える。OpenClaw は Settings → Files で編集、Hermes はパスを直接教える。これは製品判断)。使用率バーは出さず、上限に近いときだけ 1 行。書込の tool カードは人間語の差分 1 行、「覚えました」トーストは作らない
-- 予約 skill は `reserved` フラグで削除 / HEARTBEAT 化を非表示、mode と名前を固定、錠アイコン。名前は「ルール」(AGENTS) と「巡回」(HEARTBEAT)。HEARTBEAT セクションの「巡回の手順を編集」は HEARTBEAT 有効時だけ
+- 予約 skill は配布物ではなく AI の土台なので**スキルカラムには出さない** (2026-10-09。サイドロードに並んで利用者が入れたスキルのように見えていた)。編集の入口は AI 設定: ペルソナの「ルール」(AGENTS.md、`maid_agents_seed` で無ければ置いてから skill エディタで開く) と HEARTBEAT セクションの「巡回の手順を編集」(HEARTBEAT 有効時だけ)。mode と名前は固定のまま
 - 「送った system prompt」は開発者モードのウィンドウ (Raw JSON インスペクタと同族)。入口はメッセージ / tool カードのメニュー。メモリ保持のみで永続化しない (sessions/ に写すとバックアップにも複製される)
 
 ### 移行・バックアップ・RPC
@@ -1464,7 +1464,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 | `src/composables/useAiChat.ts` | `sendMessage(opts)` で 1 往復の chat 呼び出し (tool なし)。`currentText` ref が delta で更新される。`cancel()` で進行中 stream を中断 (Rust 側 `ai_chat_cancel` 経由) |
 | `src/composables/useAiConversation.ts` | 指定 sessionId のメッセージ配列に対する reactive な参照を返す薄いラッパー。本文の永続化と debounce は `useAiSessionsStore` 側で集中管理 |
 | `src/stores/aiSessions.ts` | AI セッション (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`) のデバイス側の写し。書き手は notemaid (`crates/notemaid/src/ai_sessions.rs`、#1133) で、ストアは「作成 / メッセージ追加 / メッセージ削除 / 改名 / trigger skill の累積 / 削除」の構造化された操作を送って写しを揃える (楽観的更新)。進行中のターンの表示は `setLocalMessages` (notemaid には書かない)。汎用の設定ファイル操作は `sessions` を受け付けない |
-| `crates/notemaid/src/ai_turn/compose.rs` | system prompt の組み立て (#1162)。SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → AGENTS → 他の `mode: 'always'` / active な `mode: 'manual'` / セッションに累積した trigger skill → デバイス文脈。デバイスは `device_context` (`<notedeck-context>`) と trigger skill の id だけを送り、trigger マッチは `triggerMatchingSkillIds(text)` (`src/stores/skills.ts`) が user 入力を部分一致検索して算出 |
+| `crates/notemaid/src/ai_turn/compose.rs` | system prompt の組み立て (#1162)。SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → NoteDeck の運用規約 (固定の文) → AGENTS → 他の `mode: 'always'` / active な `mode: 'manual'` / セッションに累積した trigger skill → デバイス文脈。デバイスは `device_context` (`<notedeck-context>`) と trigger skill の id だけを送り、trigger マッチは `triggerMatchingSkillIds(text)` (`src/stores/skills.ts`) が user 入力を部分一致検索して算出 |
 | `src/services/aiSessionId.ts` | Zettelkasten ID (`YYYYMMDDhhmmss`) 生成。同一秒衝突は `a`, `b`, `c`, ... サフィックスで回避 |
 | `src/services/sessionTitle.ts` | `timestampTitle(now, suffix)` 初期プレースホルダー / `generateSessionTitle()` 決定論的フォールバック。i18n の既定接尾辞を足す包みが `src/utils/aiSessionTitle.ts` |
 
