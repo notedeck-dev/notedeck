@@ -21,6 +21,7 @@
     "gen:golden-permissions": "UPDATE_GOLDEN_PERMISSIONS=1 vitest run src/permissions/goldenVectors.test.ts",
     "gen:golden-tools": "UPDATE_GOLDEN_TOOLS=1 vitest run src/capabilities/goldenTools.test.ts",
     "gen:golden-perf": "UPDATE_GOLDEN_PERF=1 vitest run src/stores/performanceGolden.test.ts",
+    "gen:golden-distributables": "UPDATE_GOLDEN_DISTRIBUTABLES=1 vitest run src/services/distributableCodecs/goldenVectors.test.ts",
     "typecheck": "vue-tsc -b --noEmit",
     "tauri": "tauri",
     "tauri:dev": "cargo build -p notemaid && tauri dev",
