@@ -53,6 +53,13 @@ const {
           author: 'alice',
           capabilities: ['misskey-api'],
         },
+        {
+          id: 'p2',
+          name: 'Future',
+          version: '9.0.0',
+          author: 'carol',
+          capabilities: ['teleport'],
+        },
       ],
       themes: [{ id: 't1', name: 'Dusk', version: '2.0.0', author: 'bob' }],
       fetchPlugins: vi.fn(async () => undefined),
@@ -227,6 +234,19 @@ describe('notedeck://install-plugin', () => {
   it('承認しなければ入れない', async () => {
     confirm.mockResolvedValueOnce(false)
     await handleDeepLink('notedeck://install-plugin?id=p1')
+    expect(misStore.installPlugin).not.toHaveBeenCalled()
+  })
+
+  // ストアのカラムと同じ判定 (#1205)。未対応の機能を要求するものは入れずに理由を伝える
+  it('未対応の機能を要求するプラグインは入れず、未対応の機能名を伝える', async () => {
+    await handleDeepLink('notedeck://install-plugin?id=p2')
+    expect(confirm).toHaveBeenCalledTimes(1)
+    const opts = confirm.mock.calls[0]?.[0] as {
+      message: string
+      hideCancel?: boolean
+    }
+    expect(opts.message).toContain('teleport')
+    expect(opts.hideCancel).toBe(true)
     expect(misStore.installPlugin).not.toHaveBeenCalled()
   })
 

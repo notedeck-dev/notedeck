@@ -4507,6 +4507,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "message": ParameterizedString<'author' | 'name' | 'version'>
     /** 要求する機能: {list} */
     readonly "capabilities": ParameterizedString<'list'>
+    /** このプラグインはインストールできません */
+    readonly "incompatibleTitle": string
   }
   readonly "_columnEmptyState": {
     /** サーバーに接続できません。ネットワークを確認してください。 */

@@ -2742,6 +2742,7 @@ _deepLinkInstall:
   themeTitle: "Install this theme?"
   message: "A link asked to install \"{name}\" (v{version}, by {author}) from MisStore."
   capabilities: "Requested features: {list}"
+  incompatibleTitle: "This plugin cannot be installed"
 
 _columnEmptyState:
   networkError: "Can't connect to the server. Check your network connection."
