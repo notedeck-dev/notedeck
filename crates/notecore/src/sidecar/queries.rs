@@ -28,10 +28,13 @@ const KEY_ORDER: &[&str] = &[
     "global",
     "installedFor",
     "scoped",
-    "disabled",
+    "active",
     "createdAt",
     "updatedAt",
 ];
+
+/// 旧形式の印 (反転、true のときだけ)。読むだけで、書き戻さない (#1202 段階 0)。
+const LEGACY_DISABLED: &str = "disabled";
 
 pub trait QueryView {
     fn name(&self) -> String;
@@ -62,8 +65,25 @@ fn now() -> f64 {
     crate::clock::now_ms() as f64
 }
 
-/// `toFileMeta`: 規定のキー順。真偽の印 (global / scoped / disabled) は true のときだけ。
+/// 本体の有効。`active` があればそれ、無ければ旧 `disabled` の反転 (#1202 段階 0)。
+pub fn is_active(item: &Item) -> bool {
+    item.bool("active").unwrap_or_else(|| {
+        !item
+            .meta
+            .get(LEGACY_DISABLED)
+            .map(J5::is_truthy)
+            .unwrap_or(false)
+    })
+}
+
+/// `toFileMeta`: 規定のキー順。真偽の印 (global / scoped) は true のときだけ、
+/// `active` は常に書く (旧 `disabled` は読むだけ)。時刻が無ければ今で埋める。
 pub fn normalize_meta(item: &Item) -> J5 {
+    normalize_meta_at(item, now())
+}
+
+/// `normalize_meta` の時刻を外から渡す形 (golden テスト用)。
+pub fn normalize_meta_at(item: &Item, now: f64) -> J5 {
     let J5::Obj(pairs) = &item.meta else {
         return J5::Obj(vec![]);
     };
@@ -92,21 +112,20 @@ pub fn normalize_meta(item: &Item) -> J5 {
     {
         out.push(("installedFor".into(), p.clone()));
     }
-    for key in ["scoped", "disabled"] {
-        if item.meta.get(key).map(J5::is_truthy).unwrap_or(false) {
-            out.push((key.into(), J5::Bool(true)));
-        }
+    if item.meta.get("scoped").map(J5::is_truthy).unwrap_or(false) {
+        out.push(("scoped".into(), J5::Bool(true)));
     }
+    out.push(("active".into(), J5::Bool(is_active(item))));
     out.push((
         "createdAt".into(),
-        J5::Num(item.num("createdAt").unwrap_or_else(now)),
+        J5::Num(item.num("createdAt").unwrap_or(now)),
     ));
     out.push((
         "updatedAt".into(),
-        J5::Num(item.num("updatedAt").unwrap_or_else(now)),
+        J5::Num(item.num("updatedAt").unwrap_or(now)),
     ));
     for (k, v) in pairs {
-        if !KEY_ORDER.contains(&k.as_str()) {
+        if !KEY_ORDER.contains(&k.as_str()) && k != LEGACY_DISABLED {
             out.push((k.clone(), v.clone()));
         }
     }
@@ -172,7 +191,22 @@ mod tests {
             json!({ "src": "old", "name": "a", "description": "d" })
         );
         let raw = std::fs::read_to_string(base.join("queries/a.meta.json5")).unwrap();
-        assert!(raw.starts_with("{\n  id: 'a',\n  name: 'a',\n  description: 'd',\n  global: true,\n  scoped: true,\n  createdAt: 1,\n  updatedAt: "));
+        // 旧 `disabled: false` は `active: true` として常に書く (#1202 段階 0)
+        assert!(raw.starts_with("{\n  id: 'a',\n  name: 'a',\n  description: 'd',\n  global: true,\n  scoped: true,\n  active: true,\n  createdAt: 1,\n  updatedAt: "));
         assert!(!raw.contains("disabled"));
+        // 旧 `disabled: true` は `active: false`
+        std::fs::write(
+            base.join("queries/b.meta.json5"),
+            "{ id: 'b', name: 'b', disabled: true, createdAt: 1, updatedAt: 1 }",
+        )
+        .unwrap();
+        std::fs::write(base.join("queries/b.is"), "").unwrap();
+        let b = get(&core, "b").unwrap().unwrap();
+        assert!(!is_active(&b));
+        let out = crate::json5_out::stringify(&normalize_meta_at(&b, 0.0));
+        assert_eq!(
+            out,
+            "{\n  id: 'b',\n  name: 'b',\n  active: false,\n  createdAt: 1,\n  updatedAt: 1,\n}"
+        );
     }
 }

@@ -8,6 +8,8 @@
 //! - ソースが無い個体は readOnly (空ソースを書き戻してコードを失わない)
 //! - 書込順は src → meta、削除順は meta → src → history
 
+#[cfg(test)]
+mod golden;
 pub mod plugin_meta;
 pub mod plugins;
 pub mod queries;
