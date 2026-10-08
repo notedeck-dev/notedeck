@@ -20,6 +20,7 @@ import {
 } from '@/columns/registry'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AccountPickerRow from '@/components/common/AccountPickerRow.vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useNativeDialog } from '@/composables/useNativeDialog'
@@ -41,6 +42,7 @@ import { useToast } from '@/stores/toast'
 import { useIsCompactLayout } from '@/stores/ui'
 import { logWarn } from '@/utils/logger'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
+import { motionDuration } from '@/utils/motion'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
@@ -82,8 +84,39 @@ function toggleCategory(key: string, event: MouseEvent) {
   }
   expandedCategories[key] = open
   if (!open || !isSheet.value) return
-  const el = event.currentTarget as HTMLElement | null
-  nextTick(() => el?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  // 見出しは sticky で、貼り付いている間は位置が実際の場所を表さないので節で測る
+  const section = (event.currentTarget as HTMLElement | null)?.parentElement
+  nextTick(() => {
+    if (section) followSectionToTop(section)
+  })
+}
+
+let followFrame = 0
+
+/**
+ * 節をシート上端まで運ぶ。上のカテゴリは退場のフェード (CollapseBox) が
+ * 終わってから消えて節の位置が変わるため、smooth スクロールで一度に狙うと
+ * 消える前の位置を目指してずれる。毎フレーム節の現在位置を測り直し、
+ * そこへ向けて進める
+ */
+function followSectionToTop(section: HTMLElement) {
+  const scroller = popupRef.value
+  if (!scroller) return
+  cancelAnimationFrame(followFrame)
+  const duration = motionDuration('--nd-duration-slow', 280)
+  const from = scroller.scrollTop
+  const start = performance.now()
+  const step = (now: number) => {
+    const target =
+      scroller.scrollTop +
+      section.getBoundingClientRect().top -
+      scroller.getBoundingClientRect().top
+    const t = duration > 0 ? Math.min(1, (now - start) / duration) : 1
+    scroller.scrollTop = from + (target - from) * (1 - (1 - t) ** 3)
+    // 上のカテゴリが消えるのは退場のフェードの後なので、少し長めに追う
+    if (now - start < duration + 100) followFrame = requestAnimationFrame(step)
+  }
+  followFrame = requestAnimationFrame(step)
 }
 
 // spotlight (チュートリアル) が特定のカラム種別を指しているときは、その種別を
@@ -327,6 +360,7 @@ function addSelectableColumn(item: SelectableItem) {
 }
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
+const popupRef = ref<HTMLElement | null>(null)
 const showDialog = ref(true)
 
 // コンパクト表示では他のメニュー同様ボトムシートで出す (#1018)。PiP は
@@ -351,7 +385,7 @@ function close() {
     ref="dialogRef"
     :class="[mode === 'pip' ? $style.addInline : [$style.addOverlay, '_nativeDialog', isSheet && $style.mobileBackdrop]]"
   >
-    <div :class="[mode === 'pip' ? $style.addPopupInline : $style.addPopup, isSheet && [$style.addSheet, $style.sheetContentEnter]]">
+    <div ref="popupRef" :class="[mode === 'pip' ? $style.addPopupInline : $style.addPopup, isSheet && [$style.addSheet, $style.sheetContentEnter]]">
       <div v-if="!(mode === 'pip' && !addColumnType && !selectConfig)" :class="[$style.addPopupHeader, mode === 'pip' && $style.addPopupHeaderPip]">
         <button v-if="addColumnType && !selectConfig" class="_button" :class="$style.addBackBtn" @click="addColumnType = null">
           <i class="ti ti-chevron-left" />
@@ -371,12 +405,12 @@ function close() {
           :key="g.group"
           :class="$style.addCategorySection"
         >
-          <button class="_button" :class="$style.addCategoryLabel" @click="toggleCategory(g.group, $event)">
+          <button class="_button" :class="$style.addCategoryLabel" :aria-expanded="!!expandedCategories[g.group]" @click="toggleCategory(g.group, $event)">
             <i class="ti" :class="`ti-${g.icon}`" />
             {{ g.label }}
-            <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedCategories[g.group] }]" />
+            <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedCategories[g.group] }]" />
           </button>
-          <template v-if="expandedCategories[g.group]">
+          <CollapseBox :open="!!expandedCategories[g.group]">
             <button
               v-for="t in g.types"
               :key="t"
@@ -387,7 +421,7 @@ function close() {
               <i class="ti" :class="`ti-${COLUMN_ICONS[t]}`" />
               <span>{{ COLUMN_LABELS[t] }}</span>
             </button>
-          </template>
+          </CollapseBox>
         </div>
       </template>
 
@@ -704,12 +738,6 @@ function close() {
 .chevron {
   margin-left: auto;
   font-size: 0.9em;
-  transition: transform var(--nd-duration-base);
-  transform: rotate(-90deg);
-}
-
-.chevronOpen {
-  transform: rotate(0deg);
 }
 
 .selectSearchBar {

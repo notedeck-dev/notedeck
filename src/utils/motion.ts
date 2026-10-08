@@ -47,3 +47,39 @@ export function motionEasing(token: string, fallback = 'ease-out'): string {
     .trim()
   return v || fallback
 }
+
+/**
+ * 要素 (と子孫) で走っている有限のアニメーションが終わるまで待つ。退場アニメの
+ * 後で DOM を外す / hidePopover / close するときに使う。固定ミリ秒のタイマー
+ * だと CSS 側の時間とずれて、途中で切れたり透明なまま残ってクリックを
+ * 吸ったりする。無限のアニメ (スピナー等) は待たず、timeoutMs で打ち切る
+ */
+export async function waitForAnimations(
+  el: Element,
+  timeoutMs = 1000,
+): Promise<void> {
+  if (prefersReducedMotion() || typeof el.getAnimations !== 'function') return
+  const running = el.getAnimations({ subtree: true }).filter((a) => {
+    const timing = a.effect?.getComputedTiming()
+    return timing != null && timing.iterations !== Number.POSITIVE_INFINITY
+  })
+  if (running.length === 0) return
+  await Promise.race([
+    Promise.allSettled(running.map((a) => a.finished)),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ])
+}
+
+/**
+ * スクロール領域を先頭へ戻す。遠いところから smooth で戻ると時間がかかり、
+ * 仮想スクローラでは途中の再測定で着地がずれてカクつく。1 画面分の手前まで
+ * 瞬時に寄せてから、残りだけ滑らかに戻す
+ */
+export function scrollToTopSmart(el: HTMLElement | null | undefined): void {
+  if (!el) return
+  const behavior = smoothScrollBehavior()
+  if (behavior === 'smooth' && el.scrollTop > el.clientHeight * 1.5) {
+    el.scrollTop = el.clientHeight
+  }
+  el.scrollTo({ top: 0, behavior })
+}

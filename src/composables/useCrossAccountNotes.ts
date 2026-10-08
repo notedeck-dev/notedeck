@@ -39,6 +39,7 @@ import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
+import { scrollToTopSmart } from '@/utils/motion'
 import { createWorkerClient } from '@/utils/workerClient'
 import type { DedupResponse } from '@/workers/dedupWorker'
 
@@ -371,12 +372,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     streamingBatch?.flushToTop()
     nextTick(() => {
       if (noteScrollerRef.value) {
-        noteScrollerRef.value.scrollToIndex(0, {
-          align: 'start',
-          behavior: 'smooth',
-        })
+        noteScrollerRef.value.scrollToTop()
       } else {
-        scroller.value?.scrollTo({ top: 0, behavior: 'smooth' })
+        scrollToTopSmart(scroller.value)
       }
     })
   }

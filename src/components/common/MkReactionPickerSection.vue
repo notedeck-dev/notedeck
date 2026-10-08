@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -19,14 +20,16 @@ function toggle() {
 
 <template>
   <div :class="$style.pickerSection">
-    <button :class="$style.sectionHeader" @click="toggle">
-      <span :class="$style.sectionArrow">{{ isOpen ? '▼' : '▶' }}</span>
+    <button :class="$style.sectionHeader" :aria-expanded="isOpen" @click="toggle">
+      <i class="ti ti-chevron-down nd-chevron" :class="[$style.sectionArrow, { 'nd-chevron-closed': !isOpen }]" />
       <span :class="$style.sectionLabel">{{ label }}</span>
       <span v-if="count != null" :class="$style.sectionCount">({{ count }})</span>
     </button>
-    <div v-if="isOpen" :class="$style.sectionContent">
-      <slot />
-    </div>
+    <CollapseBox :open="isOpen">
+      <div :class="$style.sectionContent">
+        <slot />
+      </div>
+    </CollapseBox>
   </div>
 </template>
 

@@ -4,6 +4,7 @@ import { type Diagnostic, linter } from '@codemirror/lint'
 import { computed, reactive, ref, watch } from 'vue'
 import type { Shortcut } from '@/commands/registry'
 import { useCommandStore } from '@/commands/registry'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
@@ -458,12 +459,12 @@ function handleReset() {
     <!-- Visual tab -->
     <div v-show="tab === 'visual'" :class="$style.visualPanel">
       <div v-for="group in groupedCommands" :key="group.category" :class="$style.section">
-        <button class="_button" :class="$style.categoryHeader" @click="toggleSection(group.category)">
+        <button class="_button" :class="$style.categoryHeader" :aria-expanded="!!expandedSections[group.category]" @click="toggleSection(group.category)">
           <i :class="'ti ' + group.icon" />
           {{ group.label }}
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections[group.category] }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections[group.category] }]" />
         </button>
-        <template v-if="expandedSections[group.category]">
+        <CollapseBox :open="!!expandedSections[group.category]">
           <div
             v-for="cmdId in group.commands"
             :key="cmdId"
@@ -524,7 +525,7 @@ function handleReset() {
               <i class="ti ti-restore" />
             </button>
           </div>
-        </template>
+        </CollapseBox>
       </div>
     </div>
 
@@ -652,12 +653,6 @@ function handleReset() {
 .chevron {
   margin-left: auto;
   font-size: 0.9em;
-  transition: transform var(--nd-duration-base);
-  transform: rotate(-90deg);
-}
-
-.chevronOpen {
-  transform: rotate(0deg);
 }
 
 .keybindRow {

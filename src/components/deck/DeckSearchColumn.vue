@@ -64,6 +64,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
+import { scrollToTopSmart } from '@/utils/motion'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -141,6 +142,7 @@ const rows = computed<SearchRow[]>(() =>
 
 const noteScrollerRef = ref<{
   getElement: () => HTMLElement | null
+  scrollToTop: () => void
   scrollToIndex: (
     index: number,
     opts?: { align?: string; behavior?: string },
@@ -913,12 +915,9 @@ async function handlePosted(editedNoteId?: string) {
 function scrollToTop() {
   nextTick(() => {
     if (noteScrollerRef.value) {
-      noteScrollerRef.value.scrollToIndex(0, {
-        align: 'start',
-        behavior: 'smooth',
-      })
-    } else if (scroller.value) {
-      scroller.value.scrollTo({ top: 0, behavior: 'smooth' })
+      noteScrollerRef.value.scrollToTop()
+    } else {
+      scrollToTopSmart(scroller.value)
     }
   })
 }
@@ -1063,9 +1062,10 @@ onUnmounted(() => {
         :class="$style.searchScroller"
         @scroll="handleScroll"
       >
-        <template #default="{ item, index }">
+        <template #default="{ item, index, nearViewport }">
           <div>
             <MkNote
+              :near-viewport="nearViewport"
               :note="item.primary"
               :group="item.group"
               :focused="variantKeyOf(item.primary) === focusedNoteId"

@@ -51,6 +51,7 @@ import { useUiStore } from '@/stores/ui'
 import { dedup } from '@/utils/dedup'
 import { AppError } from '@/utils/errors'
 import { logWarn } from '@/utils/logger'
+import { scrollToTopSmart } from '@/utils/motion'
 import { logStartupSummary, markStartup } from '@/utils/startupTrace'
 
 /** QIR キャッシュ検索が 1 度に返すノート数 (#783 Phase 3) */
@@ -899,12 +900,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     streamingBatch?.flushToTop()
     nextTick(() => {
       if (noteScrollerRef.value) {
-        noteScrollerRef.value.scrollToIndex(0, {
-          align: 'start',
-          behavior: 'smooth',
-        })
-      } else if (scroller.value) {
-        scroller.value.scrollTo({ top: 0, behavior: 'smooth' })
+        noteScrollerRef.value.scrollToTop()
+      } else {
+        scrollToTopSmart(scroller.value)
       }
     })
   }

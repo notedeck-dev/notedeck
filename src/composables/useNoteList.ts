@@ -37,6 +37,19 @@ export interface UseNoteListOptions {
   bundle?: boolean
 }
 
+/**
+ * 中身 (要素の参照と並び) が前回と同じなら前回の配列を返す。noteStore は
+ * どこか 1 件の更新でも全カラムに通知するので、新しい配列をそのまま返すと
+ * 関係ないカラムまで仮想スクローラの組み直しと全行の再描画が走る
+ */
+function keepIfSame<T>(prev: T[] | undefined, next: T[]): T[] {
+  if (!prev || prev.length !== next.length) return next
+  for (let i = 0; i < next.length; i++) {
+    if (prev[i] !== next[i]) return next
+  }
+  return prev
+}
+
 export function useNoteList(options: UseNoteListOptions) {
   const noteStore = useNoteStore()
   const accountsStore = useAccountsStore()
@@ -93,8 +106,8 @@ export function useNoteList(options: UseNoteListOptions) {
    * する。filtered な `notes` を基底にすると、隠れているノートが書き戻しの
    * たびに列から落ちて焼き込まれ、ミュート解除で復活しなくなる。
    */
-  const rawNotes = computed({
-    get: () => noteStore.resolve(orderedKeys.value),
+  const rawNotes = computed<NormalizedNote[]>({
+    get: (prev) => keepIfSame(prev, noteStore.resolve(orderedKeys.value)),
     set: (newNotes: NormalizedNote[]) => {
       // 束ねる面は同 identity を隣接させてから group 数で切り詰める (§4)
       const trimmed = bundle
@@ -142,14 +155,17 @@ export function useNoteList(options: UseNoteListOptions) {
    * 評価する (ユーザー意思は variant の OR / サーバー判断は origin のみ)。
    * 束ねない面では空配列。
    */
-  const groups = computed<NoteGroup[]>(() =>
-    groupContext ? groupContext.groupsOf(rawNotes.value) : [],
+  const groups = computed<NoteGroup[]>((prev) =>
+    keepIfSame(prev, groupContext ? groupContext.groupsOf(rawNotes.value) : []),
   )
 
-  const notes = computed(() =>
-    bundle
-      ? groups.value.map((g) => g.primary)
-      : visibility.filterVisible(rawNotes.value, options.visibility),
+  const notes = computed((prev?: NormalizedNote[]) =>
+    keepIfSame(
+      prev,
+      bundle
+        ? groups.value.map((g) => g.primary)
+        : visibility.filterVisible(rawNotes.value, options.visibility),
+    ),
   )
 
   function setOnNotesChanged(fn: (notes: NormalizedNote[]) => void) {

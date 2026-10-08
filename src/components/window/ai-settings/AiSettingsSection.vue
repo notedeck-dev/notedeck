@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 
 withDefaults(
   defineProps<{
@@ -25,6 +26,7 @@ const expanded = ref(false)
     <button
       class="_button"
       :class="$style.sectionLabel"
+      :aria-expanded="expanded"
       @click="expanded = !expanded"
     >
       <i :class="'ti ' + icon" />
@@ -36,11 +38,13 @@ const expanded = ref(false)
         />
         {{ badge }}
       </span>
-      <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expanded }]" />
+      <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expanded }]" />
     </button>
-    <template v-if="expanded">
-      <slot />
-    </template>
+    <CollapseBox :open="expanded">
+      <div :class="$style.body">
+        <slot />
+      </div>
+    </CollapseBox>
   </div>
 </template>
 
@@ -48,7 +52,6 @@ const expanded = ref(false)
 .section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 12px 10px;
   border-bottom: 1px solid var(--nd-divider);
 }
@@ -72,12 +75,13 @@ const expanded = ref(false)
 .chevron {
   margin-left: auto;
   font-size: 0.9em;
-  transition: transform var(--nd-duration-base);
-  transform: rotate(-90deg);
 }
 
-.chevronOpen {
-  transform: rotate(0deg);
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
 }
 
 .statusBadge {

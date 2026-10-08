@@ -13,6 +13,7 @@ import { isInsertNoop } from '@/services/deckLayout'
 import { useDeckStore } from '@/stores/deck'
 import { useIsCompactLayout } from '@/stores/ui'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
+import { captureFlip, type FlipSnapshot, playFlip } from '@/utils/flip'
 import { COLUMN_SELECTOR } from '@/utils/themeVars'
 import DeckStackCell from './DeckStackCell.vue'
 
@@ -52,6 +53,53 @@ const { resizingColId, startColumnResize, WIDE_COLUMN_TYPES } = useColumnResize(
 )
 
 const columnsRef = ref<HTMLElement | null>(null)
+
+// カラムの追加・削除・並べ替え・縦分割で、残ったカラムを新しい位置へ滑らせる
+// (経路はメニュー / ドラッグ / capability / undo と多いので、並びの変化を
+// 見て一か所で受ける)。横の移動は section ごと、縦の移動は同じ section に
+// 残ったセルだけを補間する (section は paint containment で、外へ出たセルは
+// 切り取られる)
+const layoutKey = computed(() =>
+  deckStore.windowLayout.map((g) => g.join(',')).join('|'),
+)
+function flipTargets() {
+  const root = columnsRef.value
+  return {
+    sections: root?.querySelectorAll<HTMLElement>('[data-flip-key]') ?? [],
+    cells: root?.querySelectorAll<HTMLElement>('.stack-cell') ?? [],
+  }
+}
+const sectionKey = (el: HTMLElement) => el.dataset.flipKey
+const cellKey = (el: HTMLElement) => {
+  const section = el.closest<HTMLElement>('[data-flip-key]')?.dataset.flipKey
+  return section && el.dataset.columnId
+    ? `${section}/${el.dataset.columnId}`
+    : undefined
+}
+let flipSnapshot: { sections: FlipSnapshot; cells: FlipSnapshot } | null = null
+watch(
+  layoutKey,
+  () => {
+    const { sections, cells } = flipTargets()
+    flipSnapshot = {
+      sections: captureFlip(sections, sectionKey, columnsRef.value),
+      cells: captureFlip(cells, cellKey, columnsRef.value),
+    }
+  },
+  { flush: 'pre' },
+)
+watch(
+  layoutKey,
+  () => {
+    const snap = flipSnapshot
+    flipSnapshot = null
+    if (!snap) return
+    const { sections, cells } = flipTargets()
+    playFlip(snap.sections, sections, sectionKey, columnsRef.value)
+    playFlip(snap.cells, cells, cellKey, columnsRef.value, 'y')
+  },
+  { flush: 'post' },
+)
 // Column mount / visibility / live-budget registry (per-cell registration
 // happens inside DeckStackCell — provider is set up here)
 const mountRegistry = provideColumnMountRegistry(columnsRef)
@@ -207,6 +255,7 @@ defineExpose({
 <template>
   <div
     ref="columnsRef"
+    data-deck-columns
     :class="[$style.columns, { [$style.swipeMode]: isCompact }]"
     @scroll.passive="columnScroll.onScroll"
   >
@@ -222,6 +271,7 @@ defineExpose({
       :key="group[0]"
     >
       <section
+        :data-flip-key="group[0]"
         :class="[$style.columnSection, sectionClass(group)]"
         :style="{ flexBasis: sectionWidth(group), '--col-idx': groupIndex }"
       >

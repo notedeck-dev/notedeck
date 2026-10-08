@@ -2,6 +2,7 @@ import { type Ref, ref, watch } from 'vue'
 
 export interface NoteScrollerExpose {
   getElement: () => HTMLElement | null
+  scrollToTop: () => void
   scrollToIndex: (
     index: number,
     opts?: { align?: string; behavior?: string },

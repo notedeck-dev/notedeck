@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { json } from '@codemirror/lang-json'
 import { computed, ref, watch } from 'vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
@@ -324,65 +325,68 @@ function handleReset() {
       <div
         v-for="[catKey, fields] in categories"
         :key="catKey"
-        :class="$style.section"
+        :class="[$style.section, $style.collapsible]"
       >
         <button
           class="_button"
           :class="$style.sectionLabel"
+          :aria-expanded="expandedSections.includes(catKey)"
           @click="toggleSection(catKey)"
         >
           <i :class="'ti ' + CATEGORY_LABELS[catKey]?.icon" />
           {{ CATEGORY_LABELS[catKey]?.label }}
           <i
-            class="ti ti-chevron-down"
-            :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.includes(catKey) }]"
+            class="ti ti-chevron-down nd-chevron"
+            :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.includes(catKey) }]"
           />
         </button>
-        <template v-if="expandedSections.includes(catKey)">
-          <div v-for="field in fields" :key="field.key" :class="$style.field">
-            <div :class="$style.fieldHeader">
-              <span :class="$style.fieldLabel">{{ field.meta.label }}</span>
-              <div :class="$style.fieldValue">
+        <CollapseBox :open="expandedSections.includes(catKey)">
+          <div :class="$style.sectionBody">
+              <div v-for="field in fields" :key="field.key" :class="$style.field">
+                <div :class="$style.fieldHeader">
+                  <span :class="$style.fieldLabel">{{ field.meta.label }}</span>
+                  <div :class="$style.fieldValue">
+                    <input
+                      type="number"
+                      :class="$style.numberInput"
+                      :value="perfStore.get(field.key)"
+                      :min="field.meta.min"
+                      :max="field.meta.max"
+                      :step="field.meta.step"
+                      @change="handleNumberInput(field.key, $event)"
+                    />
+                    <span :class="$style.fieldUnit">{{ field.meta.unit }}</span>
+                    <button
+                      v-if="perfStore.isCustomized(field.key)"
+                      class="_button"
+                      :class="$style.resetBtn"
+                      :title="i18n.tsx._performanceEditorContent.defaultValue({ value: perfStore.getDefault(field.key) })"
+                      @click="perfStore.resetKey(field.key)"
+                    >
+                      <i class="ti ti-restore" />
+                    </button>
+                  </div>
+                </div>
                 <input
-                  type="number"
-                  :class="$style.numberInput"
+                  type="range"
+                  :class="$style.slider"
                   :value="perfStore.get(field.key)"
                   :min="field.meta.min"
                   :max="field.meta.max"
                   :step="field.meta.step"
-                  @change="handleNumberInput(field.key, $event)"
+                  :style="{
+                    '--fill': sliderFill(
+                      perfStore.get(field.key),
+                      field.meta.min,
+                      field.meta.max,
+                    ),
+                  }"
+                  @input="handleSlider(field.key, $event)"
                 />
-                <span :class="$style.fieldUnit">{{ field.meta.unit }}</span>
-                <button
-                  v-if="perfStore.isCustomized(field.key)"
-                  class="_button"
-                  :class="$style.resetBtn"
-                  :title="i18n.tsx._performanceEditorContent.defaultValue({ value: perfStore.getDefault(field.key) })"
-                  @click="perfStore.resetKey(field.key)"
-                >
-                  <i class="ti ti-restore" />
-                </button>
+                <div :class="$style.fieldDesc">{{ field.meta.description }}</div>
               </div>
-            </div>
-            <input
-              type="range"
-              :class="$style.slider"
-              :value="perfStore.get(field.key)"
-              :min="field.meta.min"
-              :max="field.meta.max"
-              :step="field.meta.step"
-              :style="{
-                '--fill': sliderFill(
-                  perfStore.get(field.key),
-                  field.meta.min,
-                  field.meta.max,
-                ),
-              }"
-              @input="handleSlider(field.key, $event)"
-            />
-            <div :class="$style.fieldDesc">{{ field.meta.description }}</div>
           </div>
-        </template>
+        </CollapseBox>
       </div>
     </div>
 
@@ -470,6 +474,19 @@ function handleReset() {
   border-bottom: 1px solid var(--nd-divider);
 }
 
+// 開閉する節は見出しと中身の間隔を中身側 (sectionBody) に持たせる。
+// 閉じた CollapseBox にも gap が付いて余白が残るため
+.collapsible {
+  gap: 0;
+}
+
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
+}
+
 .sectionLabel {
   display: flex;
   align-items: center;
@@ -489,12 +506,6 @@ function handleReset() {
 .chevron {
   margin-left: auto;
   font-size: 0.9em;
-  transition: transform var(--nd-duration-base);
-  transform: rotate(-90deg);
-}
-
-.chevronOpen {
-  transform: rotate(0deg);
 }
 
 .sliderRow {

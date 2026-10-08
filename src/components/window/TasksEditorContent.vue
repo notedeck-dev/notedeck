@@ -11,6 +11,7 @@ import {
   ref,
   watch,
 } from 'vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
@@ -462,7 +463,7 @@ function handleReset() {
               @pointerdown="startDrag(i, $event)"
               @click.stop
             />
-            <i class="ti ti-chevron-right" :class="$style.chevron" />
+            <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expanded[t.id] }]" />
             <div :class="$style.taskHeaderBody">
               <span :class="$style.taskLabel">
                 <i v-if="t.pinned" class="ti ti-pin-filled" :class="$style.pinIcon" title="Pinned" />
@@ -489,246 +490,248 @@ function handleReset() {
             </div>
           </div>
 
-          <div v-if="expanded[t.id]" :class="$style.taskBody">
-            <label :class="$style.field">
-              <span :class="$style.fieldLabel">ID</span>
-              <input
-                v-model="t.id"
-                type="text"
-                :class="$style.input"
-                pattern="[\w-]+"
-                placeholder="my-task"
-              />
-            </label>
-            <label :class="$style.field">
-              <span :class="$style.fieldLabel">{{ i18n.ts._tasksEditorContent.label }}</span>
-              <input
-                v-model="t.label"
-                type="text"
-                :class="$style.input"
-                :placeholder="i18n.ts._tasksEditorContent.labelPlaceholder"
-              />
-            </label>
-            <label :class="$style.field">
-              <span :class="$style.fieldLabel">{{ i18n.ts._tasksEditorContent.description }}</span>
-              <input
-                :value="t.description ?? ''"
-                type="text"
-                :class="$style.input"
-                :placeholder="i18n.ts._tasksEditorContent.descriptionPlaceholder"
-                @input="(e) => {
-                  const v = (e.target as HTMLInputElement).value
-                  if (v) t.description = v
-                  else delete t.description
-                }"
-              />
-            </label>
-            <label :class="$style.field">
-              <span :class="$style.fieldLabel">detail</span>
-              <input
-                :value="t.detail ?? ''"
-                type="text"
-                :class="$style.input"
-                :placeholder="i18n.ts._tasksEditorContent.detailPlaceholder"
-                @input="(e) => setOptionalString(t, 'detail', (e.target as HTMLInputElement).value)"
-              />
-            </label>
-
-            <div :class="$style.row">
-              <label :class="[$style.field, $style.grow]">
-                <span :class="$style.fieldLabel">group</span>
+          <CollapseBox :open="!!expanded[t.id]">
+            <div :class="$style.taskBody">
+              <label :class="$style.field">
+                <span :class="$style.fieldLabel">ID</span>
                 <input
-                  :value="t.group ?? ''"
+                  v-model="t.id"
                   type="text"
                   :class="$style.input"
-                  list="nd-task-groups"
-                  :placeholder="i18n.ts._tasksEditorContent.groupPlaceholder"
-                  @input="(e) => setOptionalString(t, 'group', (e.target as HTMLInputElement).value)"
-                />
-              </label>
-              <label :class="[$style.field, $style.grow]">
-                <span :class="$style.fieldLabel">icon</span>
-                <input
-                  :value="t.icon ?? ''"
-                  type="text"
-                  :class="[$style.input, $style.mono]"
-                  placeholder="player-play"
-                  pattern="[a-z0-9][a-z0-9-]*"
-                  @input="(e) => setOptionalString(t, 'icon', (e.target as HTMLInputElement).value)"
-                />
-              </label>
-            </div>
-
-            <div :class="$style.row">
-              <label :class="$style.checkboxRow">
-                <input
-                  type="checkbox"
-                  :checked="t.pinned === true"
-                  @change="(e) => setFlag(t, 'pinned', (e.target as HTMLInputElement).checked)"
-                />
-                <i class="ti ti-pin-filled" :class="$style.inlineIcon" />
-                Pinned
-              </label>
-              <label :class="$style.checkboxRow">
-                <input
-                  type="checkbox"
-                  :checked="t.isDefault === true"
-                  @change="(e) => setIsDefault(t, (e.target as HTMLInputElement).checked)"
-                />
-                <i class="ti ti-player-play-filled" :class="$style.inlineIcon" />
-                {{ i18n.ts._tasksEditorContent.defaultTaskOnlyOne }}
-              </label>
-            </div>
-
-            <fieldset :class="$style.fieldset">
-              <legend :class="$style.legend">{{ i18n.ts._common.account }}</legend>
-              <label :class="$style.radioRow">
-                <input
-                  type="radio"
-                  :checked="accountIdMode(t) === 'active'"
-                  @change="setAccountIdMode(t, 'active')"
-                />
-                {{ i18n.ts._tasksEditorContent.accountActive }}
-              </label>
-              <label :class="$style.radioRow">
-                <input
-                  type="radio"
-                  :checked="accountIdMode(t) === 'first'"
-                  @change="setAccountIdMode(t, 'first')"
-                />
-                {{ i18n.ts._tasksEditorContent.accountFirst }}
-              </label>
-              <label :class="$style.radioRow">
-                <input
-                  type="radio"
-                  :checked="accountIdMode(t) === 'specific'"
-                  @change="setAccountIdMode(t, 'specific')"
-                />
-                {{ i18n.ts._tasksEditorContent.accountSpecific }}
-                <input
-                  v-if="accountIdMode(t) === 'specific'"
-                  v-model="t.accountId as string"
-                  type="text"
-                  :class="[$style.input, $style.inlineInput]"
-                  placeholder="accountId"
-                />
-              </label>
-            </fieldset>
-
-            <fieldset :class="$style.fieldset">
-              <legend :class="$style.legend">{{ i18n.ts._tasksEditorContent.action }}</legend>
-              <label :class="$style.field">
-                <span :class="$style.fieldLabel">method</span>
-                <input
-                  v-model="t.action.method"
-                  type="text"
-                  :class="[$style.input, $style.mono]"
-                  placeholder="notes/create"
+                  pattern="[\w-]+"
+                  placeholder="my-task"
                 />
               </label>
               <label :class="$style.field">
-                <span :class="$style.fieldLabel">params (JSON5)</span>
-                <textarea
-                  :value="paramsToText(t)"
-                  :class="[$style.input, $style.textarea, $style.mono, { [$style.hasError]: paramsErrorOf(paramsToText(t)) }]"
-                  rows="4"
-                  placeholder="{ visibility: 'home' }"
-                  @input="(e) => setParamsFromText(t, (e.target as HTMLTextAreaElement).value)"
-                />
-              </label>
-            </fieldset>
-
-            <fieldset :class="$style.fieldset">
-              <legend :class="$style.legend">{{ i18n.ts._tasksEditorContent.presentation }}</legend>
-              <label :class="$style.checkboxRow">
+                <span :class="$style.fieldLabel">{{ i18n.ts._tasksEditorContent.label }}</span>
                 <input
-                  type="checkbox"
-                  :checked="t.presentation?.revealOnRun !== false"
-                  @change="(e) => setPresentation(t, 'revealOnRun', (e.target as HTMLInputElement).checked ? null : false)"
-                />
-                {{ i18n.ts._tasksEditorContent.revealOnRun }}
-              </label>
-              <label :class="$style.checkboxRow">
-                <input
-                  type="checkbox"
-                  :checked="t.presentation?.clearHistoryOnRun === true"
-                  @change="(e) => setPresentation(t, 'clearHistoryOnRun', (e.target as HTMLInputElement).checked ? true : null)"
-                />
-                {{ i18n.ts._tasksEditorContent.clearHistoryOnRun }}
-              </label>
-            </fieldset>
-
-            <fieldset :class="$style.fieldset">
-              <legend :class="$style.legend">
-                {{ i18n.ts._tasksEditorContent.inputFields }}
-                <button
-                  class="_button"
-                  :class="$style.smallBtn"
-                  @click="addInput(t)"
-                >
-                  <i class="ti ti-plus" /> {{ i18n.ts._common.add }}
-                </button>
-              </legend>
-              <div
-                v-for="(input, ii) in t.inputs ?? []"
-                :key="ii"
-                :class="$style.inputItem"
-              >
-                <div :class="$style.inputItemRow">
-                  <select
-                    :value="input.type"
-                    :class="$style.input"
-                    @change="(e) => changeInputType(t, ii, (e.target as HTMLSelectElement).value as 'text' | 'pick')"
-                  >
-                    <option value="text">text</option>
-                    <option value="pick">pick</option>
-                  </select>
-                  <input
-                    v-model="input.id"
-                    type="text"
-                    :class="$style.input"
-                    placeholder="id"
-                  />
-                  <button
-                    class="_button"
-                    :class="[$style.iconBtn, $style.dangerBtn]"
-                    :title="i18n.ts._common.delete"
-                    @click="removeInput(t, ii)"
-                  >
-                    <i class="ti ti-x" />
-                  </button>
-                </div>
-                <input
-                  v-model="input.prompt"
+                  v-model="t.label"
                   type="text"
                   :class="$style.input"
-                  :placeholder="i18n.ts._tasksEditorContent.prompt"
+                  :placeholder="i18n.ts._tasksEditorContent.labelPlaceholder"
                 />
-                <textarea
-                  v-if="input.type === 'pick'"
-                  :value="pickOptionsToText(input)"
-                  :class="[$style.input, $style.textarea]"
-                  rows="3"
-                  :placeholder="i18n.ts._tasksEditorContent.pickOptionsPlaceholder"
-                  @input="(e) => setPickOptions(input, (e.target as HTMLTextAreaElement).value)"
-                />
+              </label>
+              <label :class="$style.field">
+                <span :class="$style.fieldLabel">{{ i18n.ts._tasksEditorContent.description }}</span>
                 <input
-                  :value="input.default ?? ''"
+                  :value="t.description ?? ''"
                   type="text"
                   :class="$style.input"
-                  :placeholder="i18n.ts._tasksEditorContent.defaultPlaceholder"
+                  :placeholder="i18n.ts._tasksEditorContent.descriptionPlaceholder"
                   @input="(e) => {
                     const v = (e.target as HTMLInputElement).value
-                    if (v) input.default = v
-                    else delete input.default
+                    if (v) t.description = v
+                    else delete t.description
                   }"
                 />
+              </label>
+              <label :class="$style.field">
+                <span :class="$style.fieldLabel">detail</span>
+                <input
+                  :value="t.detail ?? ''"
+                  type="text"
+                  :class="$style.input"
+                  :placeholder="i18n.ts._tasksEditorContent.detailPlaceholder"
+                  @input="(e) => setOptionalString(t, 'detail', (e.target as HTMLInputElement).value)"
+                />
+              </label>
+
+              <div :class="$style.row">
+                <label :class="[$style.field, $style.grow]">
+                  <span :class="$style.fieldLabel">group</span>
+                  <input
+                    :value="t.group ?? ''"
+                    type="text"
+                    :class="$style.input"
+                    list="nd-task-groups"
+                    :placeholder="i18n.ts._tasksEditorContent.groupPlaceholder"
+                    @input="(e) => setOptionalString(t, 'group', (e.target as HTMLInputElement).value)"
+                  />
+                </label>
+                <label :class="[$style.field, $style.grow]">
+                  <span :class="$style.fieldLabel">icon</span>
+                  <input
+                    :value="t.icon ?? ''"
+                    type="text"
+                    :class="[$style.input, $style.mono]"
+                    placeholder="player-play"
+                    pattern="[a-z0-9][a-z0-9-]*"
+                    @input="(e) => setOptionalString(t, 'icon', (e.target as HTMLInputElement).value)"
+                  />
+                </label>
               </div>
-              <div v-if="!t.inputs?.length" :class="$style.inputsEmpty">
-                {{ i18n.ts._tasksEditorContent.noInputs }}
+
+              <div :class="$style.row">
+                <label :class="$style.checkboxRow">
+                  <input
+                    type="checkbox"
+                    :checked="t.pinned === true"
+                    @change="(e) => setFlag(t, 'pinned', (e.target as HTMLInputElement).checked)"
+                  />
+                  <i class="ti ti-pin-filled" :class="$style.inlineIcon" />
+                  Pinned
+                </label>
+                <label :class="$style.checkboxRow">
+                  <input
+                    type="checkbox"
+                    :checked="t.isDefault === true"
+                    @change="(e) => setIsDefault(t, (e.target as HTMLInputElement).checked)"
+                  />
+                  <i class="ti ti-player-play-filled" :class="$style.inlineIcon" />
+                  {{ i18n.ts._tasksEditorContent.defaultTaskOnlyOne }}
+                </label>
               </div>
-            </fieldset>
-          </div>
+
+              <fieldset :class="$style.fieldset">
+                <legend :class="$style.legend">{{ i18n.ts._common.account }}</legend>
+                <label :class="$style.radioRow">
+                  <input
+                    type="radio"
+                    :checked="accountIdMode(t) === 'active'"
+                    @change="setAccountIdMode(t, 'active')"
+                  />
+                  {{ i18n.ts._tasksEditorContent.accountActive }}
+                </label>
+                <label :class="$style.radioRow">
+                  <input
+                    type="radio"
+                    :checked="accountIdMode(t) === 'first'"
+                    @change="setAccountIdMode(t, 'first')"
+                  />
+                  {{ i18n.ts._tasksEditorContent.accountFirst }}
+                </label>
+                <label :class="$style.radioRow">
+                  <input
+                    type="radio"
+                    :checked="accountIdMode(t) === 'specific'"
+                    @change="setAccountIdMode(t, 'specific')"
+                  />
+                  {{ i18n.ts._tasksEditorContent.accountSpecific }}
+                  <input
+                    v-if="accountIdMode(t) === 'specific'"
+                    v-model="t.accountId as string"
+                    type="text"
+                    :class="[$style.input, $style.inlineInput]"
+                    placeholder="accountId"
+                  />
+                </label>
+              </fieldset>
+
+              <fieldset :class="$style.fieldset">
+                <legend :class="$style.legend">{{ i18n.ts._tasksEditorContent.action }}</legend>
+                <label :class="$style.field">
+                  <span :class="$style.fieldLabel">method</span>
+                  <input
+                    v-model="t.action.method"
+                    type="text"
+                    :class="[$style.input, $style.mono]"
+                    placeholder="notes/create"
+                  />
+                </label>
+                <label :class="$style.field">
+                  <span :class="$style.fieldLabel">params (JSON5)</span>
+                  <textarea
+                    :value="paramsToText(t)"
+                    :class="[$style.input, $style.textarea, $style.mono, { [$style.hasError]: paramsErrorOf(paramsToText(t)) }]"
+                    rows="4"
+                    placeholder="{ visibility: 'home' }"
+                    @input="(e) => setParamsFromText(t, (e.target as HTMLTextAreaElement).value)"
+                  />
+                </label>
+              </fieldset>
+
+              <fieldset :class="$style.fieldset">
+                <legend :class="$style.legend">{{ i18n.ts._tasksEditorContent.presentation }}</legend>
+                <label :class="$style.checkboxRow">
+                  <input
+                    type="checkbox"
+                    :checked="t.presentation?.revealOnRun !== false"
+                    @change="(e) => setPresentation(t, 'revealOnRun', (e.target as HTMLInputElement).checked ? null : false)"
+                  />
+                  {{ i18n.ts._tasksEditorContent.revealOnRun }}
+                </label>
+                <label :class="$style.checkboxRow">
+                  <input
+                    type="checkbox"
+                    :checked="t.presentation?.clearHistoryOnRun === true"
+                    @change="(e) => setPresentation(t, 'clearHistoryOnRun', (e.target as HTMLInputElement).checked ? true : null)"
+                  />
+                  {{ i18n.ts._tasksEditorContent.clearHistoryOnRun }}
+                </label>
+              </fieldset>
+
+              <fieldset :class="$style.fieldset">
+                <legend :class="$style.legend">
+                  {{ i18n.ts._tasksEditorContent.inputFields }}
+                  <button
+                    class="_button"
+                    :class="$style.smallBtn"
+                    @click="addInput(t)"
+                  >
+                    <i class="ti ti-plus" /> {{ i18n.ts._common.add }}
+                  </button>
+                </legend>
+                <div
+                  v-for="(input, ii) in t.inputs ?? []"
+                  :key="ii"
+                  :class="$style.inputItem"
+                >
+                  <div :class="$style.inputItemRow">
+                    <select
+                      :value="input.type"
+                      :class="$style.input"
+                      @change="(e) => changeInputType(t, ii, (e.target as HTMLSelectElement).value as 'text' | 'pick')"
+                    >
+                      <option value="text">text</option>
+                      <option value="pick">pick</option>
+                    </select>
+                    <input
+                      v-model="input.id"
+                      type="text"
+                      :class="$style.input"
+                      placeholder="id"
+                    />
+                    <button
+                      class="_button"
+                      :class="[$style.iconBtn, $style.dangerBtn]"
+                      :title="i18n.ts._common.delete"
+                      @click="removeInput(t, ii)"
+                    >
+                      <i class="ti ti-x" />
+                    </button>
+                  </div>
+                  <input
+                    v-model="input.prompt"
+                    type="text"
+                    :class="$style.input"
+                    :placeholder="i18n.ts._tasksEditorContent.prompt"
+                  />
+                  <textarea
+                    v-if="input.type === 'pick'"
+                    :value="pickOptionsToText(input)"
+                    :class="[$style.input, $style.textarea]"
+                    rows="3"
+                    :placeholder="i18n.ts._tasksEditorContent.pickOptionsPlaceholder"
+                    @input="(e) => setPickOptions(input, (e.target as HTMLTextAreaElement).value)"
+                  />
+                  <input
+                    :value="input.default ?? ''"
+                    type="text"
+                    :class="$style.input"
+                    :placeholder="i18n.ts._tasksEditorContent.defaultPlaceholder"
+                    @input="(e) => {
+                      const v = (e.target as HTMLInputElement).value
+                      if (v) input.default = v
+                      else delete input.default
+                    }"
+                  />
+                </div>
+                <div v-if="!t.inputs?.length" :class="$style.inputsEmpty">
+                  {{ i18n.ts._tasksEditorContent.noInputs }}
+                </div>
+              </fieldset>
+            </div>
+          </CollapseBox>
         </div>
 
         <div v-if="visualTasks.length === 0" :class="$style.emptyState">
@@ -896,11 +899,6 @@ function handleReset() {
 .chevron {
   flex-shrink: 0;
   opacity: 0.5;
-  transition: transform var(--nd-duration-base);
-
-  .expanded & {
-    transform: rotate(90deg);
-  }
 }
 
 .taskHeaderBody {

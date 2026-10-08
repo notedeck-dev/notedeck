@@ -15,6 +15,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAd from '@/components/common/MkAd.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
+import NewNotesBanner from '@/components/deck/NewNotesBanner.vue'
 import { useAds } from '@/composables/useAds'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
@@ -721,14 +722,7 @@ onMounted(async () => {
       />
 
       <template v-else>
-        <button
-          v-if="pendingCount > 0"
-          :class="$style.newNotesBanner"
-          class="_button"
-          @click="scrollToTop()"
-        >
-          <i class="ti ti-arrow-up" />{{ i18n.ts._common.newNotes }}
-        </button>
+        <NewNotesBanner :show="pendingCount > 0" @click="scrollToTop()" />
 
         <NoteScroller
           ref="noteScrollerRef"
@@ -738,9 +732,10 @@ onMounted(async () => {
           @scroll="handleScroll"
           @near-end="loadMoreCrossAccount"
         >
-          <template #default="{ item }">
+          <template #default="{ item, nearViewport }">
             <div>
               <MkNote
+                :near-viewport="nearViewport"
                 :note="item.primary"
                 :group="item"
                 @react="handlers.reaction"

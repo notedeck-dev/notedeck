@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, useTemplateRef } from 'vue'
-import { useSmoothHeight } from '@/composables/useSmoothHeight'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useSpotlightStore, windowTargetId } from '@/composables/useSpotlight'
 import { provideWindowEditAction } from '@/composables/useWindowEditAction'
 import { provideWindowExternalFile } from '@/composables/useWindowExternalFile'
@@ -119,19 +118,6 @@ const winHeight = computed(() => {
 const isUserSized = computed(
   () => isResizing.value || props.window.height !== undefined,
 )
-
-// 内容に追従している間は、読み込みで中身が増える (スピナー → 本文) たびの
-// 伸び縮みを補間する。高さを外から決めている状態 (リサイズ済み / 最大化 /
-// 最小化 / モバイルの全面表示) では触らない
-const windowRef = useTemplateRef<HTMLElement>('windowRef')
-useSmoothHeight(windowRef, {
-  enabled: () =>
-    !isUserSized.value &&
-    !isMaximized.value &&
-    !isMinimized.value &&
-    !isCompact.value &&
-    !props.closing,
-})
 const winX = computed(() => {
   if (isDragging.value) return dragX.value
   if (isResizing.value) return resizeX.value
@@ -310,7 +296,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    ref="windowRef"
     :class="[$style.deckWindow, { [$style.dragging]: isDragging, [$style.resizing]: isResizing, [$style.userSized]: isUserSized, [$style.minimized]: isMinimized, [$style.maximized]: isMaximized, [$style.mobile]: isCompact, [$style.spotlighted]: isSpotlighted, [$style.closing]: closing }]"
     :style="windowStyle"
     @mousedown="onWindowMouseDown"
