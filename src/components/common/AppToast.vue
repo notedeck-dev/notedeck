@@ -59,6 +59,7 @@ const ICONS: Record<ToastItem['type'], string> = {
     <div
       v-for="toast in rendered"
       :key="toast.id"
+      class="_popup"
       :class="[
         $style.card,
         enteringIds.has(toast.id) && $style.cardEnter,
@@ -118,11 +119,7 @@ const ICONS: Record<ToastItem['type'], string> = {
 
 .card {
   width: 100%;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-md);
-  background: var(--nd-popup);
   color: var(--nd-fg);
-  box-shadow: var(--nd-shadow-l);
   pointer-events: auto;
   overflow: hidden;
 }

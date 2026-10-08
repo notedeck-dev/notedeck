@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// アプリの通知の受信トレイを開くベル (ボトムバー用)。未読があればバッジで
+// アプリの通知の受信トレイを開くボタン (ボトムバー用)。未読があればバッジで
 // 数を出す。スマホサイズのドロワーでは DeckNavbar が同じ操作の項目を持つ
 import { i18n } from '@/i18n'
 import { useToast } from '@/stores/toast'
@@ -17,7 +17,7 @@ const { unreadCount, inboxOpen, setInboxOpen } = useToast()
     @click="setInboxOpen(!inboxOpen)"
   >
     <span :class="$style.iconWrap">
-      <i :class="unreadCount > 0 ? 'ti ti-bell-ringing' : 'ti ti-bell'" />
+      <i class="ti ti-inbox" />
       <span
         v-if="unreadCount > 0"
         :key="unreadCount"

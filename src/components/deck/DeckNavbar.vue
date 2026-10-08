@@ -514,7 +514,7 @@ defineExpose({
               </button>
               <DeckSettingsMenu :show="props.showSettingsMenu" @close="emit('update:showSettingsMenu', false)" />
             </div>
-            <!-- アプリの通知 (受信トレイ)。デスクトップはボトムバーのベル -->
+            <!-- アプリの通知 (受信トレイ)。デスクトップはボトムバーの受信トレイボタン -->
             <button
               class="_button"
               :class="$style.item"
@@ -524,7 +524,7 @@ defineExpose({
               @click="closeDrawerAndDo(() => toastCenter.setInboxOpen(true))"
             >
               <div :class="$style.iconWrap">
-                <i :class="toastCenter.unreadCount.value > 0 ? 'ti ti-bell-ringing' : 'ti ti-bell'" />
+                <i class="ti ti-inbox" />
                 <span v-if="toastCenter.unreadCount.value > 0" :key="toastCenter.unreadCount.value" :class="$style.badge">{{ toastCenter.unreadCount.value > 99 ? '99+' : toastCenter.unreadCount.value }}</span>
               </div>
               <span :class="$style.label">{{ i18n.ts._notificationCenter.title }}</span>
