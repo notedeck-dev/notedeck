@@ -20,6 +20,7 @@ import {
 } from '@/composables/useAiSystemContext'
 import { useAiTurn } from '@/composables/useAiTurn'
 import { useBootstrapPending } from '@/composables/useAiWorkspace'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
@@ -68,6 +69,8 @@ skillsStore.ensureLoaded()
 const sessionsStore = useAiSessionsStore()
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
+// カラムのアカウント解決は共通基盤 (テーマ変数は AI カラムでは使っていない)
+const { account } = useColumnSetup(() => props.column)
 const vault = useVault()
 const harnesses = useAiHarnesses()
 
@@ -561,9 +564,7 @@ async function sendMessage(
         }))
 
       const contextBlock = buildAiContextBlock(aiConfig.value, {
-        currentAccount: props.column.accountId
-          ? (accountsStore.accountMap.get(props.column.accountId) ?? null)
-          : null,
+        currentAccount: account.value ?? null,
         currentColumn: focusedColumn ?? props.column,
         visibleNotes: visibleItems,
         recentConversation: projectRecentConversation(history),

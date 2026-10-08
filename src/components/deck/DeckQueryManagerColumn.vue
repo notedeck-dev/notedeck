@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
@@ -53,7 +53,7 @@ const accountsStore = useAccountsStore()
 const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
 const { confirm } = useConfirm()
-const { columnThemeVars } = useColumnTheme(() => props.column)
+const { columnThemeVars } = useColumnSetup(() => props.column)
 
 queriesStore.ensureLoaded()
 

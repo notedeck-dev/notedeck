@@ -3,6 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, defineComponent, reactive, ref } from 'vue'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import {
   type Account,
   accountScopeKey,
@@ -88,6 +89,10 @@ vi.mock('@/components/deck/widgets/WidgetAiScript.vue', () => ({
     `,
   }),
 }))
+vi.mock('@/composables/useColumnSetup', async (orig) => {
+  const actual = await orig<typeof import('@/composables/useColumnSetup')>()
+  return { useColumnSetup: vi.fn(actual.useColumnSetup) }
+})
 
 const fetchMock = vi.fn()
 
@@ -827,5 +832,22 @@ describe('DeckWidgetColumn', () => {
       expect(widgets.sidebarWidgetIds).toEqual(['w-a', 'w-b'])
       expect(placedNames(wrapper)).toEqual(['A', 'B'])
     })
+  })
+})
+
+describe('DeckWidgetColumn — 共通基盤 (#1098 §4)', () => {
+  it('useColumnSetup をこのカラムで setup する', async () => {
+    vi.mocked(useColumnSetup).mockClear()
+    const wrapper = await mountColumn({
+      id: 'col-base',
+      type: 'widget',
+      name: null,
+      width: 300,
+      accountId: null,
+    } as DeckColumn)
+    expect(vi.mocked(useColumnSetup).mock.calls.at(-1)?.[0]()).toMatchObject({
+      type: 'widget',
+    })
+    wrapper.unmount()
   })
 })

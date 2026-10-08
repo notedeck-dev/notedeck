@@ -54,6 +54,15 @@ const RULES: Record<string, Rule> = {
           '凍結 (#1098): accounts store を直接引く。アカウント一覧は引数で受けるべき',
       },
     },
+  'deck のカラムは共通基盤 (useColumnSetup) を通り、その内部 (useColumnTheme / useServerImages) を直接 import しない (#1098 §4)':
+    {
+      from: 'src/components/deck',
+      forbid: ['@/composables/useColumnTheme', '@/composables/useServerImages'],
+      allowed: {
+        'src/components/deck/DeckColumn.vue':
+          'カラムの枠そのもの。requireAccount の「見つかりません」画像を引く',
+      },
+    },
   'stores は components を import しない': {
     from: 'src/stores',
     forbid: ['@/components/'],
@@ -125,13 +134,11 @@ const RULES: Record<string, Rule> = {
         'src/components/deck/DeckApiConsoleColumn.vue',
         'src/components/deck/DeckApiDocsColumn.vue',
         'src/components/deck/DeckChannelColumn.vue',
-        'src/components/deck/DeckChartsColumn.vue',
         'src/components/deck/DeckChatColumn.vue',
         'src/components/deck/DeckClientSearchColumn.vue',
         'src/components/deck/DeckDriveColumn.vue',
         'src/components/deck/DeckEmojiColumn.vue',
         'src/components/deck/DeckExploreColumn.vue',
-        'src/components/deck/DeckFederationColumn.vue',
         'src/components/deck/DeckFollowRequestsColumn.vue',
         'src/components/deck/DeckGalleryColumn.vue',
         'src/components/deck/DeckLayout.vue',

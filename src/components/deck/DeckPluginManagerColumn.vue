@@ -3,8 +3,7 @@ import { computed, ref } from 'vue'
 import { abortPlugin, launchPlugin } from '@/aiscript/plugin-api'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
-import { useColumnTheme } from '@/composables/useColumnTheme'
-import { useServerImages } from '@/composables/useServerImages'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { getPluginDenial } from '@/permissions/pluginDenials'
@@ -55,10 +54,9 @@ const pluginsStore = usePluginsStore()
 const windowsStore = useWindowsStore()
 const misStore = useMisStoreStore()
 const accountsStore = useAccountsStore()
-const { serverIconUrl, serverInfoImageUrl } = useServerImages(
+const { columnThemeVars, serverInfoImageUrl } = useColumnSetup(
   () => props.column,
 )
-const { columnThemeVars } = useColumnTheme(() => props.column)
 
 pluginsStore.ensureLoaded()
 // Store メタデータをインストール済みカードの表示にも使うため事前取得（TTL キャッシュあり）

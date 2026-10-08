@@ -1,17 +1,15 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, ref } from 'vue'
 import type { Page } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
-import { useServerImages } from '@/composables/useServerImages'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
-import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
@@ -22,9 +20,18 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverIconUrl, serverInfoImageUrl, serverErrorImageUrl } =
-  useServerImages(() => props.column)
+const {
+  account,
+  columnThemeVars,
+  serverInfoImageUrl,
+  serverErrorImageUrl,
+  isLoading,
+  error,
+  withLoading,
+  scroller,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 const windowsStore = useWindowsStore()
 
 type Tab = 'featured' | 'my' | 'likes'
@@ -53,15 +60,12 @@ const activeTab = ref<Tab>('featured')
 const listContentRef = ref<HTMLElement | null>(null)
 
 const listItems = ref<Page[]>([])
-const listLoading = ref(false)
-const listError = ref<AppError | null>(null)
 
 async function fetchList(tab?: Tab) {
-  if (!props.column.accountId) return
+  const accountId = props.column.accountId
+  if (!accountId) return
   const t = tab ?? activeTab.value
   activeTab.value = t
-  listLoading.value = true
-  listError.value = null
   listItems.value = []
 
   const endpointMap: Record<Tab, string> = {
@@ -70,16 +74,15 @@ async function fetchList(tab?: Tab) {
     likes: 'i/page-likes',
   }
 
-  try {
+  await withLoading(async (stillCurrent) => {
     // i/page-likes wrapper は Rust 側で剥がして Page[] に統一済み。
-    listItems.value = unwrap(
-      await commands.apiGetPages(props.column.accountId, endpointMap[t], 30),
+    const items = unwrap(
+      await commands.apiGetPages(accountId, endpointMap[t], 30),
     )
-  } catch (e) {
-    listError.value = AppError.from(e)
-  } finally {
-    listLoading.value = false
-  }
+    // タブ切替中に返った旧タブの結果は捨てる
+    if (!stillCurrent()) return
+    listItems.value = items
+  })
 }
 
 function openPage(pageId: string) {
@@ -103,13 +106,6 @@ useTabSlide(pageTabIndex, listContentRef)
 function switchTab(tab: string) {
   fetchList(tab as Tab)
 }
-
-const pageListRef = useTemplateRef<HTMLElement>('pageListRef')
-useColumnPullScroller(pageListRef)
-
-function scrollToTop() {
-  pageListRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
 </script>
 
 <template>
@@ -129,11 +125,11 @@ function scrollToTop() {
         @update:model-value="switchTab"
       />
 
-      <div ref="pageListRef" :class="$style.pageList">
-        <div v-if="listLoading" :class="$style.columnLoading"><LoadingSpinner /></div>
+      <div ref="scroller" :class="$style.pageList">
+        <div v-if="isLoading" :class="$style.columnLoading"><LoadingSpinner /></div>
         <ColumnEmptyState
-          v-else-if="listError"
-          :error="listError"
+          v-else-if="error"
+          :error="error"
           :account-id="column.accountId"
           is-error
           :image-url="serverErrorImageUrl"

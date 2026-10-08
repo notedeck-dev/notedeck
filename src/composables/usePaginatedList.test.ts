@@ -160,7 +160,7 @@ describe('usePaginatedList', () => {
       expect(list.hasMore.value).toBe(true)
     })
 
-    it('getId でカーソル取得をカスタムできる', async () => {
+    it('cursor でカーソル取得をカスタムできる', async () => {
       interface Custom {
         key: string
       }
@@ -170,13 +170,32 @@ describe('usePaginatedList', () => {
         .mockResolvedValueOnce([])
       const list = usePaginatedList<Custom>({
         fetch,
-        getId: (item) => item.key,
+        cursor: (items) => items.at(-1)?.key,
       })
 
       await list.load()
       await list.loadMore()
 
       expect(fetch).toHaveBeenLastCalledWith('b')
+    })
+
+    it('offset 式: cursor に items.length を返せば次ページの offset になる', async () => {
+      const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(makeItems(30))
+        .mockResolvedValueOnce(makeItems(30, 30))
+      const list = usePaginatedList<Item, number>({
+        fetch,
+        pageSize: 30,
+        cursor: (items) => items.length,
+      })
+
+      await list.load()
+      expect(fetch).toHaveBeenLastCalledWith(undefined)
+      await list.loadMore()
+
+      expect(fetch).toHaveBeenLastCalledWith(30)
+      expect(list.items.value).toHaveLength(60)
     })
   })
 
@@ -252,6 +271,41 @@ describe('usePaginatedList', () => {
 
       await list.load()
       expect(list.items.value.map((i) => i.id)).toContain('id-100')
+    })
+  })
+
+  describe('reload', () => {
+    it('表示中の items を保ったまま先頭ページを取り直し、成功したら差し替える', async () => {
+      const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(makeItems(10))
+        .mockResolvedValueOnce(makeItems(10, 100))
+      const list = usePaginatedList<Item>({ fetch, pageSize: 10 })
+      await list.load()
+
+      const reloading = list.reload()
+      // 取り直し中も旧 items は残る (カラムの引いて更新で画面を空にしない)
+      expect(list.isLoading.value).toBe(true)
+      expect(list.items.value).toHaveLength(10)
+      await reloading
+
+      expect(fetch).toHaveBeenLastCalledWith(undefined)
+      expect(list.items.value[0]?.id).toBe('id-100')
+      expect(list.hasMore.value).toBe(true)
+    })
+
+    it('失敗したら items は変えず error だけ立つ', async () => {
+      const fetch = vi
+        .fn()
+        .mockResolvedValueOnce(makeItems(3))
+        .mockRejectedValueOnce(new Error('boom'))
+      const list = usePaginatedList<Item>({ fetch, pageSize: 10 })
+      await list.load()
+
+      await list.reload()
+
+      expect(list.items.value).toHaveLength(3)
+      expect(list.error.value).toContain('boom')
     })
   })
 })

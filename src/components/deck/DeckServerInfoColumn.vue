@@ -6,14 +6,10 @@ import EditorTabs from '@/components/common/EditorTabs.vue'
 import I18n from '@/components/common/I18n.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
-import { useServerImages } from '@/composables/useServerImages'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
-import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { useServersStore } from '@/stores/servers'
-import { AppError } from '@/utils/errors'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
@@ -50,24 +46,21 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const accountsStore = useAccountsStore()
-const serversStore = useServersStore()
+const {
+  account,
+  columnThemeVars,
+  serverIconUrl,
+  serverInfoImageUrl,
+  serverErrorImageUrl,
+  error,
+  withLoading,
+  scroller,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 
-const account = computed(() =>
-  accountsStore.accounts.find((a) => a.id === props.column.accountId),
-)
-
-const { columnThemeVars } = useColumnTheme(() => props.column)
-const { serverInfoImageUrl, serverNotFoundImageUrl, serverErrorImageUrl } =
-  useServerImages(() => props.column)
-
-const serverIconUrl = ref<string | undefined>()
-const isLoading = ref(false)
-const error = ref<AppError | null>(null)
 const meta = ref<ServerMeta | null>(null)
 const stats = ref<ServerStats | null>(null)
-const scrollContainer = ref<HTMLElement | null>(null)
-useColumnPullScroller(scrollContainer)
 const rulesOpen = ref(false)
 
 type ServerTab = 'info' | 'meta' | 'stats'
@@ -98,10 +91,6 @@ const statsJson = computed(() =>
 const currentRawJson = computed(() =>
   tab.value === 'meta' ? metaJson.value : statsJson.value,
 )
-
-function scrollToTop() {
-  scrollContainer.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
 
 function formatNumber(n: number | undefined): string {
   if (n == null) return '-'
@@ -145,26 +134,14 @@ const sanitizedDescription = computed(() => {
 async function fetchServerInfo() {
   const acc = account.value
   if (!acc) return
-
-  isLoading.value = true
-  error.value = null
-
-  try {
-    const info = await serversStore.getServerInfo(acc.host)
-    serverIconUrl.value = info.iconUrl
-
+  await withLoading(async () => {
     const [metaResult, statsResult] = await Promise.all([
       commands.apiGetMetaDetail(acc.id),
       commands.apiGetServerStats(acc.id),
     ])
-
     meta.value = unwrap(metaResult) as unknown as ServerMeta
     stats.value = unwrap(statsResult) as unknown as ServerStats
-  } catch (e) {
-    error.value = AppError.from(e)
-  } finally {
-    isLoading.value = false
-  }
+  })
 }
 
 onMounted(() => {
@@ -207,7 +184,7 @@ onMounted(() => {
         @update:model-value="(v) => (tab = v as ServerTab)"
       />
 
-      <div v-if="tab === 'info'" ref="scrollContainer" :class="$style.serverInfoBody">
+      <div v-if="tab === 'info'" ref="scroller" :class="$style.serverInfoBody">
       <!-- Banner (Misskey style: bg image + icon overlay + gradient name) -->
       <div
         :class="$style.banner"

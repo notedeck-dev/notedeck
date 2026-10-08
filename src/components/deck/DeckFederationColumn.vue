@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { useVirtualizer } from '@tanstack/vue-virtual'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import type {
   FederationInstance,
   FederationInstanceSort,
@@ -9,11 +8,10 @@ import type {
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
-import { useServerImages } from '@/composables/useServerImages'
+import { useColumnSetup } from '@/composables/useColumnSetup'
+import { usePaginatedList } from '@/composables/usePaginatedList'
 import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { useServersStore } from '@/stores/servers'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { formatTime } from '@/utils/formatTime'
@@ -23,17 +21,18 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverInfoImageUrl, serverErrorImageUrl } = useServerImages(
-  () => props.column,
-)
-const serversStore = useServersStore()
+const {
+  account,
+  columnThemeVars,
+  serverInfoImageUrl,
+  serverErrorImageUrl,
+  error,
+  initAdapter,
+  scroller,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 const windowsStore = useWindowsStore()
-const serverIconUrl = computed(() => {
-  const host = account.value?.host
-  if (!host) return undefined
-  return serversStore.getServer(host)?.iconUrl ?? undefined
-})
 
 // `-latestRequestSentAt` は Misskey 2023.11+ で追加されたソートキー。
 // 古いサーバー/フォークで INVALID_PARAM になるため、最終通信系は
@@ -71,13 +70,43 @@ const ROW_HEIGHT = 88
 
 const sort = ref<SortKey>('-pubSub')
 const hostQuery = ref('')
-const instances = ref<FederationInstance[]>([])
-const isLoading = ref(false)
-const isLoadingMore = ref(false)
-const hasMore = ref(true)
-const error = ref<AppError | null>(null)
-const scrollContainer = ref<HTMLElement | null>(null)
-useColumnPullScroller(scrollContainer)
+
+// offset 式のページング。エラーは ColumnEmptyState の案内に AppError が要るので
+// 基盤の error に写す。取り直し (reset) で items が空になるので、初回の
+// スピナーと末尾のスピナーは items の有無で分ける
+const {
+  items: instances,
+  isLoading: isFetching,
+  hasMore,
+  load,
+  loadMore,
+  reset,
+} = usePaginatedList<FederationInstance, number>({
+  fetch: async (offset) => {
+    const acc = account.value
+    if (!acc) throw new AppError('UNKNOWN', i18n.ts._common.accountNotFound)
+    const adapter = await initAdapter({ hasToken: acc.hasToken })
+    if (!adapter) return []
+    return adapter.api.getFederationInstances({
+      limit: PAGE_SIZE,
+      offset: offset ?? 0,
+      sort: sort.value as FederationInstanceSort,
+      host: hostQuery.value.trim() || null,
+      federating: true,
+    })
+  },
+  pageSize: PAGE_SIZE,
+  cursor: (items) => items.length,
+  onError: (e) => {
+    error.value = AppError.from(e)
+  },
+})
+const isLoading = computed(
+  () => isFetching.value && instances.value.length === 0,
+)
+const isLoadingMore = computed(
+  () => isFetching.value && instances.value.length > 0,
+)
 
 const rows = computed<FederationInstance[][]>(() => {
   const items = instances.value
@@ -91,7 +120,7 @@ const rows = computed<FederationInstance[][]>(() => {
 const virtualizer = useVirtualizer(
   computed(() => ({
     count: rows.value.length,
-    getScrollElement: () => scrollContainer.value,
+    getScrollElement: () => scroller.value,
     estimateSize: () => ROW_HEIGHT,
     overscan: 4,
   })),
@@ -133,57 +162,21 @@ function softwareLabel(inst: FederationInstance): string {
     : inst.softwareName
 }
 
-async function fetchInstances(reset: boolean): Promise<void> {
-  const acc = account.value
-  if (!acc) {
-    error.value = new AppError('UNKNOWN', i18n.ts._common.accountNotFound)
-    return
-  }
-
-  if (reset) {
-    isLoading.value = true
-    instances.value = []
-    hasMore.value = true
-    failedIcons.clear()
-  } else {
-    if (!hasMore.value || isLoadingMore.value) return
-    isLoadingMore.value = true
-  }
+function fetchInstances(fromStart: boolean): Promise<void> {
   error.value = null
-
-  try {
-    const { adapter } = await initAdapterFor(acc.host, acc.id, {
-      hasToken: acc.hasToken,
-    })
-    const offset = reset ? 0 : instances.value.length
-    const page = await adapter.api.getFederationInstances({
-      limit: PAGE_SIZE,
-      offset,
-      sort: sort.value as FederationInstanceSort,
-      host: hostQuery.value.trim() || null,
-      federating: true,
-    })
-    if (page.length < PAGE_SIZE) hasMore.value = false
-    instances.value = reset ? page : [...instances.value, ...page]
-  } catch (e) {
-    error.value = AppError.from(e)
-    if (reset) instances.value = []
-    hasMore.value = false
-  } finally {
-    isLoading.value = false
-    isLoadingMore.value = false
+  if (fromStart) {
+    reset()
+    failedIcons.clear()
+    return load()
   }
+  return loadMore()
 }
 
 function onScroll() {
-  const el = scrollContainer.value
-  if (!el || !hasMore.value || isLoadingMore.value || isLoading.value) return
+  const el = scroller.value
+  if (!el || !hasMore.value || isFetching.value) return
   const remaining = el.scrollHeight - el.scrollTop - el.clientHeight
   if (remaining < 400) fetchInstances(false)
-}
-
-function scrollToTop() {
-  scrollContainer.value?.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 onMounted(() => {
@@ -272,7 +265,7 @@ function onInstanceClick(inst: FederationInstance) {
 
       <div
         v-else
-        ref="scrollContainer"
+        ref="scroller"
         :class="$style.scroller"
         @scroll.passive="onScroll"
       >

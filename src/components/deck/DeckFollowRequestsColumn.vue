@@ -5,9 +5,8 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useNavigation } from '@/composables/useNavigation'
-import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
@@ -40,21 +39,25 @@ const accountsStore = useAccountsStore()
 const { navigateToUser: navToUser } = useNavigation()
 const serversStore = useServersStore()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverInfoImageUrl, serverNotFoundImageUrl, serverErrorImageUrl } =
-  useServerImages(() => props.column)
-const isLoggedOut = computed(() => account.value?.hasToken === false)
+const {
+  account,
+  columnThemeVars,
+  serverInfoImageUrl,
+  serverErrorImageUrl,
+  isLoggedOut,
+  isLoading,
+  error,
+  withLoading,
+  scroller,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 const toast = useToast()
 
-const serverIconUrl = ref<string | undefined>()
-const isLoading = ref(false)
-const error = ref<AppError | null>(null)
 const requests = ref<FollowRequest[]>([])
 const actionStates = ref<Record<string, 'accepted' | 'rejected' | 'canceled'>>(
   {},
 )
-const scrollContainer = ref<HTMLElement | null>(null)
-useColumnPullScroller(scrollContainer)
 /** スワイプ対象は空表示でも常に存在する body 側 (scroller は条件付き描画) */
 const bodyRef = ref<HTMLElement | null>(null)
 
@@ -91,10 +94,6 @@ const emptyMessage = computed(() =>
     : i18n.ts._deckFollowRequestsColumn.noRequests,
 )
 
-function scrollToTop() {
-  scrollContainer.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
 function fetchForAccount(accountId: string, tab: TabValue) {
   return tab === 'sent'
     ? commands.apiGetSentFollowRequests(accountId, 30)
@@ -109,39 +108,24 @@ async function fetchRequests() {
   }
 }
 
-async function fetchRequestsPerAccount() {
+// タブ切替で新しい fetch が走ったら、旧タブの結果は捨てる (withLoading の stillCurrent)
+function fetchRequestsPerAccount() {
   const acc = account.value
   if (!acc) return
-
   const tab = activeTab.value
-  isLoading.value = true
-  error.value = null
-
-  try {
-    const info = await serversStore.getServerInfo(acc.host)
-    serverIconUrl.value = info.iconUrl
-
+  return withLoading(async (stillCurrent) => {
     const reqs = unwrap(
       await fetchForAccount(acc.id, tab),
     ) as unknown as FollowRequest[]
-    if (activeTab.value !== tab) return
+    if (!stillCurrent()) return
     requests.value = reqs
-  } catch (e) {
-    if (activeTab.value !== tab) return
-    error.value = AppError.from(e)
-  } finally {
-    // タブ切替で新しい fetch が走っている場合はそちらの isLoading を保つ
-    if (activeTab.value === tab) isLoading.value = false
-  }
+  })
 }
 
-async function fetchRequestsCrossAccount() {
+function fetchRequestsCrossAccount() {
   const tab = activeTab.value
-  isLoading.value = true
-  error.value = null
   const accounts = accountsStore.accounts.filter((a) => a.hasToken)
-
-  try {
+  return withLoading(async (stillCurrent) => {
     const results = await Promise.allSettled(
       accounts.map(async (acc) => {
         const reqs = unwrap(
@@ -150,7 +134,7 @@ async function fetchRequestsCrossAccount() {
         return reqs.map((r) => ({ ...r, _accountId: acc.id }))
       }),
     )
-    if (activeTab.value !== tab) return
+    if (!stillCurrent()) return
 
     const allRequests: FollowRequest[] = []
     for (const r of results) {
@@ -158,14 +142,8 @@ async function fetchRequestsCrossAccount() {
         allRequests.push(...r.value)
       }
     }
-
     requests.value = allRequests
-  } catch (e) {
-    if (activeTab.value !== tab) return
-    error.value = AppError.from(e)
-  } finally {
-    if (activeTab.value === tab) isLoading.value = false
-  }
+  })
 }
 
 async function handleAction(
@@ -295,7 +273,7 @@ onMounted(() => {
         :image-url="serverInfoImageUrl"
       />
 
-      <div v-else ref="scrollContainer" :class="$style.frScroller">
+      <div v-else ref="scroller" :class="$style.frScroller">
         <div
           v-for="req in requests"
           :key="req.id"

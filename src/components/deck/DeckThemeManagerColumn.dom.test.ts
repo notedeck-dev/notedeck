@@ -3,6 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { type StoreThemeEntry, useMisStoreStore } from '@/stores/misstore'
@@ -36,6 +37,10 @@ const toastShow =
 vi.mock('@/stores/toast', () => ({
   useToast: () => ({ show: toastShow }),
 }))
+vi.mock('@/composables/useColumnSetup', async (orig) => {
+  const actual = await orig<typeof import('@/composables/useColumnSetup')>()
+  return { useColumnSetup: vi.fn(actual.useColumnSetup) }
+})
 
 // --- fixtures ---
 
@@ -589,5 +594,16 @@ describe('DeckThemeManagerColumn', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('セーフモードで起動中')
+  })
+})
+
+describe('DeckThemeManagerColumn — 共通基盤 (#1098 §4)', () => {
+  it('useColumnSetup をこのカラムで setup する', async () => {
+    vi.mocked(useColumnSetup).mockClear()
+    const wrapper = await mountColumn(null)
+    expect(vi.mocked(useColumnSetup).mock.calls.at(-1)?.[0]()).toMatchObject({
+      type: 'themeManager',
+    })
+    wrapper.unmount()
   })
 })
