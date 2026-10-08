@@ -16,9 +16,15 @@ vi.mock('@/bindings', async () =>
 // canvas の無い happy-dom で chart.js を動かさない。描画は対象外
 vi.mock('chart.js', () => ({
   Chart: class {
-    destroy() {}
-    resize() {}
-    update() {}
+    destroy() {
+      // canvas が無いので何もしない
+    }
+    resize() {
+      // 同上
+    }
+    update() {
+      // 同上
+    }
   },
 }))
 vi.mock('@/utils/initChart', () => ({ applyAlpha: (c: string) => c }))
