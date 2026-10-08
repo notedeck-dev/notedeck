@@ -10,13 +10,10 @@ import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { i18n } from '@/i18n'
+import { columnCacheKey, FAVORITES_CACHE_KEY } from '@/services/columnCacheKey'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
-import {
-  accountsCacheKeyDeps,
-  columnCacheKey,
-  FAVORITES_CACHE_KEY,
-} from '@/utils/columnCacheKey'
+import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'

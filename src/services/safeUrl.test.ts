@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isMemoUrl, isSafeUrl } from './url'
+import { isMemoUrl, isSafeUrl } from './safeUrl'
 
 describe('isSafeUrl', () => {
   it('accepts http and https', () => {

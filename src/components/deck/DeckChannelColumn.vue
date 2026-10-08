@@ -7,9 +7,10 @@ import {
 import type { NormalizedNote } from '@/adapters/types'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
+import { columnCacheKey } from '@/services/columnCacheKey'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
+import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 

@@ -1,8 +1,8 @@
 import type { NoteVisibility } from '@/adapters/types'
 import { i18n } from '@/i18n'
+import { FAVORITES_CACHE_KEY } from '@/services/columnCacheKey'
 import type { useAccountsStore } from '@/stores/accounts'
 import type { useDeckStore } from '@/stores/deck'
-import { FAVORITES_CACHE_KEY } from '@/utils/columnCacheKey'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export interface CliHandlerDeps {

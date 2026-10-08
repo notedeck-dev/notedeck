@@ -143,7 +143,7 @@ flowchart LR
 
 ### URL 検証 (フロントエンド)
 
-- **ファイル**: `src/utils/url.ts`
+- **ファイル**: `src/services/safeUrl.ts` (判定) / `src/utils/url.ts` (opener への委譲)
 - `isSafeUrl()`: `http://` / `https://` のみ許可
 - `safeCssUrl()`: CSS `url()` 内のプロトコル検証 + 文字エスケープ
 

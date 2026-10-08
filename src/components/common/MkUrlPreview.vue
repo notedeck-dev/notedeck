@@ -12,9 +12,10 @@ import {
 import { useNoteAccountId } from '@/composables/useNoteContext'
 import { useOgpPreview } from '@/composables/useOgpPreview'
 import { parseNoteUrl } from '@/services/noteUrl'
+import { isSafeUrl } from '@/services/safeUrl'
 import { usePerformanceStore } from '@/stores/performance'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
-import { isSafeUrl, openSafeUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 
 const perfStore = usePerformanceStore()
 

@@ -38,6 +38,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useVisibleReactionCounts } from '@/composables/useVisibleReactionCounts'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { variantKey } from '@/services/noteKey'
+import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { useSuspensionsStore } from '@/stores/suspensions'
@@ -45,7 +46,6 @@ import { useIsCompactLayout } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { toggleReaction } from '@/utils/toggleReaction'
-import { webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string

@@ -2,8 +2,9 @@
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
+import { columnCacheKey } from '@/services/columnCacheKey'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
+import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{

@@ -9,26 +9,13 @@
  *
  * guest 判定 (hasToken 無しアカウント) は accountsStore.accountMap に依存して
  * おり column 単独では導出できないため、呼び出し側が `isGuestAccount` を注入
- * する。
+ * する (既定の deps は utils/columnCacheKeyDeps)。
  */
-import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 
 export interface ColumnCacheKeyDeps {
   /** accountId が guest (hasToken 無し) なら true */
   isGuestAccount: (accountId: string) => boolean
-}
-
-/**
- * accountsStore ベースの既定 deps。pinia が有効な文脈 (setup / ハンドラ) で
- * 呼ぶこと。テストでは deps を直接組んで純粋関数として検証する。
- */
-export function accountsCacheKeyDeps(): ColumnCacheKeyDeps {
-  const accountsStore = useAccountsStore()
-  return {
-    isGuestAccount: (accountId) =>
-      accountsStore.accountMap.get(accountId)?.hasToken === false,
-  }
 }
 
 /** favorites カラム・invalidateColumnByKey の共有 canonical キー */

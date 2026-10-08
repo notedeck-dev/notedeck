@@ -3,8 +3,9 @@ import { computed, ref } from 'vue'
 import type { GalleryPost } from '@/bindings'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { i18n } from '@/i18n'
+import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
-import { openSafeUrl, webUiUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 import PopupMenu from './PopupMenu.vue'
 
 // ギャラリー投稿のコンテキストメニュー (#793)。DriveItemMenu と同型の

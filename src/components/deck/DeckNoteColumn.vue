@@ -27,6 +27,7 @@ import {
 } from '@/composables/useNoteColumn'
 import { usePortal } from '@/composables/usePortal'
 import { formatHealthDuration, getStreamHealth } from '@/core/streamHealth'
+import { webUiUrl as buildWebUiUrl } from '@/services/safeUrl'
 import {
   accountScopeKey,
   isGuestAccount,
@@ -42,7 +43,6 @@ import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useToast } from '@/stores/toast'
-import { webUiUrl as buildWebUiUrl } from '@/utils/url'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import ColumnPullFrame from './ColumnPullFrame.vue'
 import ColumnQueryBadge from './ColumnQueryBadge.vue'
