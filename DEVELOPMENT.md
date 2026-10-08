@@ -1003,6 +1003,7 @@ const { activate, deactivate } = useMenuKeyboard({
 - 承認後は再計算せず、確認に使った全文をそのまま書き込む。確認と書込の間に元ファイルが変わっていたら書かずに中止する (`src/capabilities/stagedEdit.ts` — 「見せたものと書くものの一致」が承認 UI の意味そのもの)
 
 **AiScript からの拡張:**
+- AiScript の実行環境 (Mk:* / Nd:* / Ui:* + interpreter) は `src/aiscript/sandbox.ts` の `createAiScriptSandbox` 1 本で組む (#1099)。プラグイン / ウィジェット / Play / Page / スクラッチパッドはすべてここを通り、principal は必須引数で 1 回だけ渡す — Mk:api の endpoint gate、Nd:call / Nd:http の dispatcher 判定、登録 ID の名前空間、呼び出し元の AND 判定に使う `callers` が同じ値を見る。実行面を足すときも `createAiScriptEnv` / `createNoteDeckEnv` を直接組まない
 - `Nd:register_command(id, label, fn, options)` の `options` に `signature` / `permissions` / `aiTool` / `requiresConfirmation` を渡すと **capability registry にもミラー登録**され、即 5 経路に公開される
 - `Nd:capabilities()` で registry にある capability の宣言情報を列挙 (プラグインの自己発見)
 - `Nd:on(name, handler)` で `column:added` / `column:removed` / `streaming:status` / `note:new` / `notification:new` を購読。`note:new` / `notification:new` は queryDelta を `core/queryRegistry`（queryId → flavor/accountId）で振り分けて fan-out する

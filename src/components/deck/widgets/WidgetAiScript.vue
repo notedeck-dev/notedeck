@@ -9,30 +9,16 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
-import { createAiScriptEnv } from '@/aiscript/api'
-import {
-  createAiScriptInterpreter,
-  createInterpreterOptions,
-} from '@/aiscript/common'
-import {
-  cleanupNoteDeckEnv,
-  createNoteDeckEnv,
-  type NoteDeckEnvContext,
-} from '@/aiscript/notedeck-api'
+import { type AiScriptSandbox, createAiScriptSandbox } from '@/aiscript/sandbox'
 import { sanitizeCode } from '@/aiscript/sanitize'
-import { createAiScriptUiLib, type UiComponent } from '@/aiscript/ui'
-import type { JsonValue } from '@/bindings'
-import { useCommandStore } from '@/commands/registry'
+import type { UiComponent } from '@/aiscript/ui'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import { usePortal } from '@/composables/usePortal'
 import { i18n } from '@/i18n'
-import type { Principal } from '@/permissions/principal'
-import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useToast } from '@/stores/toast'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { readSafeMode } from '@/utils/safeMode'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -70,7 +56,6 @@ const displayName = computed(() => {
   if (!name || /^Widget [0-9a-z]{4,}$/i.test(name)) return 'AiScript'
   return name
 })
-const commandStore = useCommandStore()
 const accountsStore = useAccountsStore()
 const serverUrl = computed(() => {
   if (!props.accountId) return ''
@@ -94,7 +79,7 @@ const running = ref(false)
 const interpreter = ref<Interpreter | null>(null)
 const { show: showToast } = useToast()
 const dialogRef = ref<InstanceType<typeof AiScriptDialog> | null>(null)
-let currentNdCtx: Parameters<typeof cleanupNoteDeckEnv>[0] | null = null
+let currentSandbox: AiScriptSandbox | null = null
 
 const postFormPortalRef = useTemplateRef<HTMLElement>('postFormPortalRef')
 usePortal(postFormPortalRef)
@@ -125,14 +110,9 @@ function openEditor() {
 // 走っているインタプリタ (＝Async:interval などのタイマー) を止め、
 // Nd:* で登録したコマンド/購読も解放する。再実行前とアンマウント時に呼ぶ。
 function stop() {
-  if (interpreter.value) {
-    interpreter.value.abort()
-    interpreter.value = null
-  }
-  if (currentNdCtx) {
-    cleanupNoteDeckEnv(currentNdCtx)
-    currentNdCtx = null
-  }
+  interpreter.value = null
+  currentSandbox?.dispose()
+  currentSandbox = null
 }
 
 onBeforeUnmount(() => {
@@ -163,15 +143,6 @@ async function run() {
   uiComponents.value = []
   output.value = []
 
-  const accId = props.accountId
-  const apiOption = accId
-    ? async (endpoint: string, params: Record<string, unknown>) => {
-        return unwrap(
-          await commands.apiRequest(accId, endpoint, params as JsonValue),
-        )
-      }
-    : undefined
-
   const runLog = useAiScriptLogsStore().beginRun(
     'widget',
     props.widget.installId,
@@ -189,26 +160,19 @@ async function run() {
     return
   }
 
-  // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
-  // Nd:* が同じ配列を見る
-  const callers: Principal[] = []
-  const env = createAiScriptEnv(
-    {
-      getCallers: () => callers,
-      principal: {
-        kind: 'plugin',
-        pluginId: `widget:${props.widget.installId}`,
-        name: props.widget.name,
-      } as const,
-      api: apiOption,
-      storagePrefix: `app-${props.widget.installId}`,
-      onDialog: (title, text, type) =>
-        dialogRef.value?.showDialog(title, text, type) ?? Promise.resolve(),
-      onConfirm: (title, text) =>
-        dialogRef.value?.showConfirm(title, text) ?? Promise.resolve(false),
-      onToast: (text, type) => showToast(text, type),
+  // 再実行時は前のインタプリタ (残った Async:interval 等) を確実に止める。
+  stop()
+  const sandbox = createAiScriptSandbox({
+    // ウィジェットも MisStore 由来の第三者コードになり得るため plugin と同格
+    principal: {
+      kind: 'plugin',
+      pluginId: `widget:${props.widget.installId}`,
+      name: props.widget.name,
     },
-    {
+    storeId: props.widget.storeId,
+    accountId: props.accountId,
+    storagePrefix: `app-${props.widget.installId}`,
+    globals: {
       THIS_ID: props.widget.installId,
       THIS_URL: '',
       USER_ID:
@@ -219,57 +183,33 @@ async function run() {
       LOCALE: i18n.lang,
       SERVER_URL: serverUrl.value,
     },
-  )
-
-  const ui = createAiScriptUiLib({
-    onRender: (components) => {
-      uiComponents.value = components
+    onDialog: (title, text, type) =>
+      dialogRef.value?.showDialog(title, text, type) ?? Promise.resolve(),
+    onConfirm: (title, text) =>
+      dialogRef.value?.showConfirm(title, text) ?? Promise.resolve(false),
+    onToast: (text, type) => showToast(text, type),
+    ui: {
+      onRender: (components) => {
+        uiComponents.value = components
+      },
+    },
+    io: {
+      onOutput: (text) => {
+        output.value.push({ text, isError: false })
+        runLog.print(text)
+      },
+      onError: (err) => {
+        error.value = err.message
+        output.value.push({ text: err.message, isError: true })
+        runLog.error(err.message)
+      },
     },
   })
-
-  const ioOpts = createInterpreterOptions({
-    onOutput: (text) => {
-      output.value.push({ text, isError: false })
-      runLog.print(text)
-    },
-    onError: (err) => {
-      error.value = err.message
-      output.value.push({ text: err.message, isError: true })
-      runLog.error(err.message)
-    },
-  })
-
-  // 再実行時は前のインタプリタ (残った Async:interval 等) を確実に止める。
-  stop()
-  const ndCtx: NoteDeckEnvContext = {
-    commandStore,
-    // ウィジェットも MisStore 由来の第三者コードになり得るため plugin と同格
-    principal: {
-      kind: 'plugin',
-      pluginId: `widget:${props.widget.installId}`,
-      name: props.widget.name,
-    },
-    provider: providerFromPrincipal(
-      { kind: 'plugin', pluginId: `widget:${props.widget.installId}` },
-      props.widget.storeId,
-    ),
-    disposers: [],
-    callers,
-    getAccountId: () => props.accountId,
-  }
-  const ndEnv = createNoteDeckEnv(ndCtx)
-  currentNdCtx = ndCtx
-
-  const interp = createAiScriptInterpreter(
-    { ...env, ...ndEnv, ...ui },
-    ioOpts,
-    false,
-  )
-  ndCtx.interpreter = interp
-  interpreter.value = interp
+  currentSandbox = sandbox
+  interpreter.value = sandbox.interpreter
 
   try {
-    await interp.exec(ast)
+    await sandbox.exec(ast)
     runLog.system('run completed')
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
