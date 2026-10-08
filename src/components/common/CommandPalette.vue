@@ -620,6 +620,7 @@ function primaryShortcut(cmd: Command): string | null {
   inset: 0;
   z-index: calc(var(--nd-z-palette) - 1);
   background: rgba(0, 0, 0, 0.08);
+  animation: nd-fade-in var(--nd-duration-base) var(--nd-ease-decel);
 }
 
 /* ========================================
@@ -688,6 +689,12 @@ function primaryShortcut(cmd: Command): string | null {
   border-radius: 0 0 6px 6px;
   box-shadow: 0 8px 36px rgba(0, 0, 0, 0.4);
   font-family: var(--nd-font-mono);
+  // 閉じるのは VS Code と同じく即時。開くときだけ入力欄から垂れ下がるように出す
+  animation: paletteIn var(--nd-duration-base) var(--nd-ease-decel);
+}
+
+@keyframes paletteIn {
+  from { opacity: 0; translate: 0 -4px; }
 }
 
 /* ========================================

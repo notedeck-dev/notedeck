@@ -107,6 +107,9 @@ export const useUiStore = defineStore('ui', () => {
   /** Set to true when DeckLayout DOM is mounted (used to dismiss splash). */
   const deckMounted = ref(false)
 
+  /** 最初のカラムのノートが描画された (スプラッシュを畳む合図) */
+  const firstContentPainted = ref(false)
+
   /** Incremented when drive files change. Carries accountId. */
   const driveFilesChanged = ref<{ accountId: string; ts: number }>({
     accountId: '',
@@ -139,6 +142,7 @@ export const useUiStore = defineStore('ui', () => {
     emitDeckResume,
     isBackground,
     deckMounted,
+    firstContentPainted,
     driveFilesChanged,
     emitDriveFilesChanged,
     composeRequest,

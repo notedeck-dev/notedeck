@@ -24,6 +24,7 @@ import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
+import { scrollToTopSmart } from '@/utils/motion'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
 
@@ -507,7 +508,7 @@ export function useColumnSetup(
 
   /** ヘッダークリックで先頭へ (NoteScroller を持つ面は useNoteColumn 側の実装を使う) */
   function scrollToTop() {
-    scroller.value?.scrollTo({ top: 0, behavior: 'smooth' })
+    scrollToTopSmart(scroller.value)
   }
 
   return {

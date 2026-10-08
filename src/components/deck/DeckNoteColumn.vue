@@ -19,6 +19,7 @@ const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
 )
 
+import NewNotesBanner from '@/components/deck/NewNotesBanner.vue'
 import { prefetchNoteImages } from '@/composables/useImagePrefetch'
 import { prefetchNoteMfm } from '@/composables/useMfmPrefetch'
 import {
@@ -292,14 +293,7 @@ defineExpose({
       />
 
       <template v-if="!(isLoading && notes.length === 0) && notes.length > 0">
-        <button
-          v-if="pendingCount > 0"
-          :class="$style.newNotesBanner"
-          class="_button"
-          @click="scrollToTop()"
-        >
-          <i class="ti ti-arrow-up" />{{ i18n.ts._common.newNotes }}
-        </button>
+        <NewNotesBanner :show="pendingCount > 0" @click="scrollToTop()" />
 
         <NoteScroller
           ref="noteScrollerRef"
@@ -308,7 +302,7 @@ defineExpose({
           :animating-ids="animatingIds"
           :leaving-ids="removingKeys"
           :prefetch="(notes) => { prefetchNoteImages(notes); prefetchNoteMfm(notes) }"
-          :class="$style.tlScroller"
+          :class="[$style.tlScroller, 'nd-fade-appear']"
           @scroll="handleScroll"
           @near-end="loadMore"
         >

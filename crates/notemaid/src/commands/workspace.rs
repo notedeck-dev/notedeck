@@ -100,28 +100,38 @@ pub async fn maid_user_memory_set(core: &Core, enabled: bool) -> Result<()> {
     Ok(())
 }
 
-/// 「巡回の手順を編集」で初めて HEARTBEAT.md を置く。戻り値は skill の写し
-pub async fn maid_heartbeat_steps_seed(core: &Core) -> Result<crate::skills::SkillMeta> {
+/// 予約 skill を無ければ置いて (冪等)、その写しを返す。AI 設定の編集の入口から呼ぶ
+async fn seed_reserved_skill(
+    core: &Core,
+    which: workspace::Reserved,
+) -> Result<crate::skills::SkillMeta> {
     let app_dir = core.app_dir()?;
     let settings_dir = notecore::commands::settings::settings_base_dir(core)?;
     crate::skills::seed_reserved(
         &settings_dir,
-        workspace::Reserved::Heartbeat,
+        which,
         &workspace::language(app_dir),
         crate::skills::now_ms(),
     )?;
     core.notify_settings_change(SettingsChange {
         subdir: Some(crate::skills::SUBDIR.to_string()),
-        name: workspace::Reserved::Heartbeat.file_name().to_string(),
+        name: which.file_name().to_string(),
         op: SettingsChangeOp::Write,
     });
-    crate::skills::get(
-        core,
-        workspace::Reserved::Heartbeat
-            .file_name()
-            .trim_end_matches(".md"),
-    )?
-    .ok_or_else(|| NoteDeckError::InvalidInput("HEARTBEAT.md was not created".into()))
+    crate::skills::get(core, which.file_name().trim_end_matches(".md"))?.ok_or_else(|| {
+        NoteDeckError::InvalidInput(format!("{} was not created", which.file_name()))
+    })
+}
+
+/// 「巡回の手順を編集」で初めて HEARTBEAT.md を置く。戻り値は skill の写し
+pub async fn maid_heartbeat_steps_seed(core: &Core) -> Result<crate::skills::SkillMeta> {
+    seed_reserved_skill(core, workspace::Reserved::Heartbeat).await
+}
+
+/// 「いつも守ること」の編集の入口。AGENTS.md は最初の AI ターンで置かれるが、それより
+/// 前に AI 設定から開いても編集できるように、無ければここで置く。戻り値は skill の写し
+pub async fn maid_agents_seed(core: &Core) -> Result<crate::skills::SkillMeta> {
+    seed_reserved_skill(core, workspace::Reserved::Agents).await
 }
 
 /// 送った system prompt (開発者モードの「この応答に送った指示」)。メモリ保持のみ

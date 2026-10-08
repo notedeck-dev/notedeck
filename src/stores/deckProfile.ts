@@ -95,17 +95,37 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     )
   })
 
+  // columns / layout はその場で書き換えられる (push / splice)。同じ配列参照を
+  // 返すと Vue の computed は「変化なし」として下流 (columnMap / windowLayout) を
+  // 再計算しないので、版ごとに浅いコピーを返す (v1.81.0 の退行)
+
   /** Columns of the current profile (reactive, read-only from outside). */
   const columns = computed<DeckColumn[]>(() => {
     void profileVersion.value
-    return currentProfile.value?.columns ?? []
+    return [...(currentProfile.value?.columns ?? [])]
   })
 
   /** Layout of the current profile (reactive, read-only from outside). */
   const layout = computed<string[][]>(() => {
     void profileVersion.value
-    return currentProfile.value?.layout ?? []
+    return [...(currentProfile.value?.layout ?? [])]
   })
+
+  /**
+   * プロファイルを新しいオブジェクトに作り直して読み手へ知らせる。カラムの設定は
+   * その場で書き換える (updateColumn の Object.assign 等) ので、オブジェクトが
+   * 同じままだと props で受けたカラムが再描画されない。#1042 以前は自分が流した
+   * 同期イベントで localStorage から読み直しており、それが同じ効果を持っていた
+   */
+  function refreshProfiles() {
+    // JSON の往復 (以前の localStorage 経由と同じ)。reactive な値が混ざっていても
+    // 通る (structuredClone は Proxy で落ちる)
+    profilesData.value = JSON.parse(
+      JSON.stringify(profilesData.value),
+    ) as DeckProfile[]
+    profileVersion.value++
+    refreshProfileName()
+  }
 
   // --- Profile mutation ---
 
@@ -198,6 +218,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   function persistNow() {
     try {
+      refreshProfiles()
       saveProfilesMirror()
       const profile = currentProfile.value
       // Async: write changed profile to file (他ウィンドウへの通知は書込側が流す)

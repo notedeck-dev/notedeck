@@ -5,6 +5,7 @@ import JSON5 from 'json5'
 import { computed, onMounted, ref, watch } from 'vue'
 import type { ApiTokenMeta } from '@/bindings'
 import { getCapability } from '@/capabilities/registry'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import PermissionProfileEditor from '@/components/window/PermissionProfileEditor.vue'
@@ -509,141 +510,143 @@ function handleReset() {
       @click="scheduleSave"
     >
       <div v-for="row in visibleRows" :key="row.id" :class="$style.principalRow">
-      <button class="_button" :class="$style.rowHeader" @click="toggleRow(row.id)">
+      <button class="_button" :class="$style.rowHeader" :aria-expanded="expanded === row.id" @click="toggleRow(row.id)">
         <i :class="'ti ' + row.icon" />
         <span :class="$style.rowLabel">{{ row.label }}</span>
         <span :class="$style.chip">{{ chipFor(row.id) }}</span>
         <i
-          class="ti ti-chevron-down"
-          :class="[$style.chevron, { [$style.chevronOpen]: expanded === row.id }]"
+          class="ti ti-chevron-down nd-chevron"
+          :class="[$style.chevron, { 'nd-chevron-closed': expanded !== row.id }]"
         />
       </button>
-      <div v-if="expanded === row.id" :class="$style.rowBody">
-        <p :class="$style.hint">{{ row.hint }}</p>
+      <CollapseBox :open="expanded === row.id">
+        <div :class="$style.rowBody">
+          <p :class="$style.hint">{{ row.hint }}</p>
 
-        <div
-          v-if="(row.id === 'ai.chat' && aiVaultChip) || (row.id === 'plugin' && pluginVaultChip) || (row.id === 'external' && externalVaultChip)"
-          :class="$style.stateChip"
-        >
-          <i class="ti ti-info-circle" />
-          <span>{{ i18n.ts._permissionsContent.noExposedConnections }}</span>
-          <button class="_button" :class="$style.chipAction" @click="openConnections">
-            {{ i18n.ts._permissionsContent.openConnections }}
-          </button>
-        </div>
-
-        <PermissionProfileEditor
-          :principal-id="row.id"
-          :disabled-keys="disabledFor(row.id)"
-        />
-
-        <!-- 「今後確認しない」で記憶した操作の一覧・取り消し (#714) -->
-        <div
-          v-if="confirmSkipEntriesFor(row.id).length > 0"
-          :class="$style.tokenSection"
-        >
-          <div :class="$style.tokenSectionLabel">{{ i18n.ts._permissionsContent.confirmSkipTitle }}</div>
-          <div :class="$style.hint">
-            {{ i18n.ts._permissionsContent.confirmSkipHint }}
-          </div>
-          <div :class="$style.tokenList">
-            <div
-              v-for="entry in confirmSkipEntriesFor(row.id)"
-              :key="entry.scope + '/' + entry.capabilityId"
-              :class="$style.tokenRow"
-            >
-              <i class="ti ti-shield-check" :class="$style.tokenIcon" />
-              <span :class="$style.tokenName">{{ entry.label }}</span>
-              <span v-if="entry.owner" :class="$style.skipOwner">{{ entry.owner }}</span>
-              <button
-                class="_button"
-                :class="$style.tokenRevoke"
-                :title="i18n.ts._permissionsContent.revoke"
-                @click="removeConfirmSkip(entry.scope, entry.capabilityId)"
-              >
-                <i class="ti ti-x" />
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- 外部アプリ行: 永続 API トークン管理を併設 (#712 §8.1) -->
-        <div v-if="row.id === 'external'" :class="$style.tokenSection">
-          <div :class="$style.tokenSectionLabel">{{ i18n.ts._permissionsContent.apiTokens }}</div>
-          <div :class="$style.hint">
-            {{ i18n.ts._permissionsContent.apiTokensHint }}
-          </div>
-          <div v-if="apiTokens.length > 0" :class="$style.tokenList">
-            <div v-for="t in apiTokens" :key="t.id" :class="$style.tokenRow">
-              <i class="ti ti-key" :class="$style.tokenIcon" />
-              <span :class="$style.tokenName">{{ t.name }}</span>
-              <span :class="$style.tokenDate">{{ formatTokenDate(t) }}</span>
-              <button
-                class="_button"
-                :class="$style.tokenRevoke"
-                :title="i18n.ts._permissionsContent.revokeToken"
-                @click="revokeToken(t.id)"
-              >
-                <i class="ti ti-trash" />
-              </button>
-            </div>
-          </div>
-          <div :class="$style.tokenCreateRow">
-            <input
-              v-model="newTokenName"
-              :class="$style.input"
-              type="text"
-              :placeholder="i18n.ts._permissionsContent.tokenNamePlaceholder"
-              @keydown.enter="createToken"
-            />
-            <button
-              class="_button"
-              :class="$style.tokenCreateButton"
-              :disabled="!newTokenName.trim()"
-              @click="createToken"
-            >
-              {{ i18n.ts._permissionsContent.issueToken }}
+          <div
+            v-if="(row.id === 'ai.chat' && aiVaultChip) || (row.id === 'plugin' && pluginVaultChip) || (row.id === 'external' && externalVaultChip)"
+            :class="$style.stateChip"
+          >
+            <i class="ti ti-info-circle" />
+            <span>{{ i18n.ts._permissionsContent.noExposedConnections }}</span>
+            <button class="_button" :class="$style.chipAction" @click="openConnections">
+              {{ i18n.ts._permissionsContent.openConnections }}
             </button>
           </div>
-          <div v-if="createdToken" :class="$style.tokenCreated">
+
+          <PermissionProfileEditor
+            :principal-id="row.id"
+            :disabled-keys="disabledFor(row.id)"
+          />
+
+          <!-- 「今後確認しない」で記憶した操作の一覧・取り消し (#714) -->
+          <div
+            v-if="confirmSkipEntriesFor(row.id).length > 0"
+            :class="$style.tokenSection"
+          >
+            <div :class="$style.tokenSectionLabel">{{ i18n.ts._permissionsContent.confirmSkipTitle }}</div>
             <div :class="$style.hint">
-              <i class="ti ti-alert-triangle" />
-              {{ i18n.tsx._permissionsContent.createdTokenNotice({ name: createdToken.name }) }}
+              {{ i18n.ts._permissionsContent.confirmSkipHint }}
             </div>
-            <div :class="$style.tokenValueRow">
-              <code :class="$style.tokenValue">{{ createdToken.token }}</code>
-              <button class="_button" :class="$style.tokenCreateButton" @click="copyCreatedToken">
-                <i class="ti ti-copy" />
-                {{ copied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
-              </button>
-            </div>
-            <!-- MCP (#555): このトークンで Claude Code 等から NoteDeck の capability を tool として呼べる -->
-            <div :class="$style.hint">{{ i18n.ts._permissionsContent.mcpHint }}</div>
-            <div :class="$style.tokenValueRow">
-              <code :class="$style.tokenValue">{{ mcpCommand }}</code>
-              <button class="_button" :class="$style.tokenCreateButton" @click="copyMcpCommand">
-                <i class="ti ti-copy" />
-                {{ mcpCopied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
-              </button>
-            </div>
-            <!-- stdio の MCP (#513): Claude Desktop 等の設定ファイルに貼る JSON -->
-            <template v-if="mcpStdioConfig">
-              <div :class="$style.hint">{{ i18n.ts._permissionsContent.mcpStdioHint }}</div>
-              <div :class="$style.tokenValueRow">
-                <pre :class="[$style.tokenValue, $style.tokenConfig]">{{ mcpStdioConfig }}</pre>
-                <button class="_button" :class="$style.tokenCreateButton" @click="copyMcpStdioConfig">
-                  <i class="ti ti-copy" />
-                  {{ mcpStdioCopied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
+            <div :class="$style.tokenList">
+              <div
+                v-for="entry in confirmSkipEntriesFor(row.id)"
+                :key="entry.scope + '/' + entry.capabilityId"
+                :class="$style.tokenRow"
+              >
+                <i class="ti ti-shield-check" :class="$style.tokenIcon" />
+                <span :class="$style.tokenName">{{ entry.label }}</span>
+                <span v-if="entry.owner" :class="$style.skipOwner">{{ entry.owner }}</span>
+                <button
+                  class="_button"
+                  :class="$style.tokenRevoke"
+                  :title="i18n.ts._permissionsContent.revoke"
+                  @click="removeConfirmSkip(entry.scope, entry.capabilityId)"
+                >
+                  <i class="ti ti-x" />
                 </button>
               </div>
-            </template>
+            </div>
           </div>
-          <div v-if="tokenError" :class="$style.errorMessage">
-            <i class="ti ti-alert-triangle" />
-            {{ tokenError }}
+
+          <!-- 外部アプリ行: 永続 API トークン管理を併設 (#712 §8.1) -->
+          <div v-if="row.id === 'external'" :class="$style.tokenSection">
+            <div :class="$style.tokenSectionLabel">{{ i18n.ts._permissionsContent.apiTokens }}</div>
+            <div :class="$style.hint">
+              {{ i18n.ts._permissionsContent.apiTokensHint }}
+            </div>
+            <div v-if="apiTokens.length > 0" :class="$style.tokenList">
+              <div v-for="t in apiTokens" :key="t.id" :class="$style.tokenRow">
+                <i class="ti ti-key" :class="$style.tokenIcon" />
+                <span :class="$style.tokenName">{{ t.name }}</span>
+                <span :class="$style.tokenDate">{{ formatTokenDate(t) }}</span>
+                <button
+                  class="_button"
+                  :class="$style.tokenRevoke"
+                  :title="i18n.ts._permissionsContent.revokeToken"
+                  @click="revokeToken(t.id)"
+                >
+                  <i class="ti ti-trash" />
+                </button>
+              </div>
+            </div>
+            <div :class="$style.tokenCreateRow">
+              <input
+                v-model="newTokenName"
+                :class="$style.input"
+                type="text"
+                :placeholder="i18n.ts._permissionsContent.tokenNamePlaceholder"
+                @keydown.enter="createToken"
+              />
+              <button
+                class="_button"
+                :class="$style.tokenCreateButton"
+                :disabled="!newTokenName.trim()"
+                @click="createToken"
+              >
+                {{ i18n.ts._permissionsContent.issueToken }}
+              </button>
+            </div>
+            <div v-if="createdToken" :class="$style.tokenCreated">
+              <div :class="$style.hint">
+                <i class="ti ti-alert-triangle" />
+                {{ i18n.tsx._permissionsContent.createdTokenNotice({ name: createdToken.name }) }}
+              </div>
+              <div :class="$style.tokenValueRow">
+                <code :class="$style.tokenValue">{{ createdToken.token }}</code>
+                <button class="_button" :class="$style.tokenCreateButton" @click="copyCreatedToken">
+                  <i class="ti ti-copy" />
+                  {{ copied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
+                </button>
+              </div>
+              <!-- MCP (#555): このトークンで Claude Code 等から NoteDeck の capability を tool として呼べる -->
+              <div :class="$style.hint">{{ i18n.ts._permissionsContent.mcpHint }}</div>
+              <div :class="$style.tokenValueRow">
+                <code :class="$style.tokenValue">{{ mcpCommand }}</code>
+                <button class="_button" :class="$style.tokenCreateButton" @click="copyMcpCommand">
+                  <i class="ti ti-copy" />
+                  {{ mcpCopied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
+                </button>
+              </div>
+              <!-- stdio の MCP (#513): Claude Desktop 等の設定ファイルに貼る JSON -->
+              <template v-if="mcpStdioConfig">
+                <div :class="$style.hint">{{ i18n.ts._permissionsContent.mcpStdioHint }}</div>
+                <div :class="$style.tokenValueRow">
+                  <pre :class="[$style.tokenValue, $style.tokenConfig]">{{ mcpStdioConfig }}</pre>
+                  <button class="_button" :class="$style.tokenCreateButton" @click="copyMcpStdioConfig">
+                    <i class="ti ti-copy" />
+                    {{ mcpStdioCopied ? i18n.ts._common.copiedToClipboard : i18n.ts._common.copy }}
+                  </button>
+                </div>
+              </template>
+            </div>
+            <div v-if="tokenError" :class="$style.errorMessage">
+              <i class="ti ti-alert-triangle" />
+              {{ tokenError }}
+            </div>
           </div>
         </div>
-      </div>
+      </CollapseBox>
       </div>
     </div>
 
@@ -805,11 +808,6 @@ function handleReset() {
 .chevron {
   margin-left: auto;
   opacity: 0.4;
-  transition: transform var(--nd-duration-base);
-}
-
-.chevronOpen {
-  transform: rotate(180deg);
 }
 
 .rowBody {

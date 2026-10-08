@@ -98,8 +98,8 @@ const account = computed(() =>
 const isOwnProfile = computed(() => account.value?.userId === props.userId)
 const user = ref<NormalizedUserDetail | null>(null)
 
-// Top-level editor-style tabs (overview / notes / files grid / reactions /
-// achievements / raw JSON). `reactions` is only surfaced when the user has
+// Top-level editor-style tabs (overview / notes / files grid / ... /
+// achievements / reactions / raw JSON). `reactions` is only surfaced when the user has
 // opted-in via Misskey's publicReactions privacy setting (own profile always
 // exposes it regardless).
 type TopTab =
@@ -142,13 +142,6 @@ const topTabDefs = computed<TopTabDef[]>(() => {
       label: i18n.ts._userProfileContent.tabActivity,
     },
   ]
-  if (publicReactions.value || isOwnProfile.value) {
-    defs.push({
-      value: 'reactions',
-      icon: 'mood-smile',
-      label: i18n.ts._common.reactions,
-    })
-  }
   defs.push({
     value: 'pages',
     icon: 'note',
@@ -179,6 +172,15 @@ const topTabDefs = computed<TopTabDef[]>(() => {
     icon: 'medal',
     label: i18n.ts._userProfileContent.tabAchievements,
   })
+  // 公開設定 (publicReactions) は 2 回目の users/show で分かるので後から
+  // 現れる。途中に差し込むと後ろのタブがずれるので、後ろ寄せにしておく
+  if (publicReactions.value || isOwnProfile.value) {
+    defs.push({
+      value: 'reactions',
+      icon: 'mood-smile',
+      label: i18n.ts._common.reactions,
+    })
+  }
   // Raw JSON はプロトコルが見える面 (#1034)
   if (isExposed('developer')) {
     defs.push({ value: 'raw', icon: 'code', label: 'Raw' })

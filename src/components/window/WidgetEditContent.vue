@@ -13,6 +13,7 @@ import { type AiScriptSandbox, createAiScriptSandbox } from '@/aiscript/sandbox'
 import { sanitizeCode } from '@/aiscript/sanitize'
 import type { UiComponent } from '@/aiscript/ui'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
 import AiScriptUiRenderer, {
@@ -172,6 +173,7 @@ const tabDefs = computed(() => [
 const interpreter = ref<Interpreter | null>(null)
 const uiComponents = ref<UiComponent[]>([])
 const output = ref<{ text: string; isError: boolean }[]>([])
+const outputOpen = ref(false)
 const error = ref<string | null>(null)
 const running = ref(false)
 const dialogRef = ref<InstanceType<typeof AiScriptDialog> | null>(null)
@@ -396,16 +398,26 @@ function toggleAutoRun() {
           <i class="ti ti-player-play" :class="$style.visualEmptyIcon" />
           <span>{{ i18n.ts._widgetEditContent.runHint }}</span>
         </div>
-        <details v-if="output.length" :class="$style.outputPanel">
-          <summary>{{ i18n.tsx._widgetEditContent.output({ n: output.length }) }}</summary>
-          <div
-            v-for="(line, i) in output"
-            :key="i"
-            :class="[$style.outputLine, { [$style.outputError]: line.isError }]"
+        <div v-if="output.length" :class="$style.outputPanel">
+          <button
+            class="_button"
+            :class="$style.outputSummary"
+            :aria-expanded="outputOpen"
+            @click="outputOpen = !outputOpen"
           >
-            {{ line.text }}
-          </div>
-        </details>
+            <i class="ti ti-chevron-down nd-chevron" :class="{ 'nd-chevron-closed': !outputOpen }" />
+            {{ i18n.tsx._widgetEditContent.output({ n: output.length }) }}
+          </button>
+          <CollapseBox :open="outputOpen">
+            <div
+              v-for="(line, i) in output"
+              :key="i"
+              :class="[$style.outputLine, { [$style.outputError]: line.isError }]"
+            >
+              {{ line.text }}
+            </div>
+          </CollapseBox>
+        </div>
       </template>
     </div>
 
@@ -655,11 +667,15 @@ function toggleAutoRun() {
   border-radius: 4px;
   background: var(--nd-bg);
   font-size: 11px;
+}
 
-  summary {
-    cursor: pointer;
-    opacity: 0.7;
-  }
+.outputSummary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  cursor: pointer;
+  opacity: 0.7;
 }
 
 .outputLine {

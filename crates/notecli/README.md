@@ -56,10 +56,10 @@ notecli post --help       # サブコマンドの詳細
 
 ## HTTP API
 
-notecli 単体では HTTP の面を出しません (以前の `daemon` サブコマンドは NoteDeck の常駐コア
-notecored に置き換わりました)。同じ REST + SSE の面は NoteDeck 本体の起動中と、
-`notecored run --api` で使えます。ルート定義はこのクレートのライブラリ側
-(`http_server::build_core_routes`) にあり、それらが取り込んでいます。
+notecli 単体では HTTP の面を出しません (以前の `daemon` サブコマンドは撤去しました。
+後継の常駐コア notecored も NoteDeck の #1106 で削除済みです)。同じ REST + SSE の面は
+NoteDeck 本体の起動中に使えます。ルート定義はこのクレートのライブラリ側
+(`http_server::build_core_routes`) にあり、NoteDeck の HTTP サーバーが取り込んでいます。
 
 ## ライブラリとして使う
 

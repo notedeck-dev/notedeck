@@ -2349,6 +2349,15 @@ async maidHeartbeatStepsSeed() : Promise<Result<SkillMeta, { code: string; messa
 }
 },
 /** @see crates/notemaid/src/commands/workspace.rs */
+async maidAgentsSeed() : Promise<Result<SkillMeta, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("maid_agents_seed") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notemaid/src/commands/workspace.rs */
 async maidTurnSystem(turnId: string) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("maid_turn_system", { turnId }) };

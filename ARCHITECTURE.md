@@ -76,7 +76,7 @@ graph TB
         end
 
         subgraph Backend["Rust Backend"]
-            IPC["Tauri IPC Layer<br/>(212 commands)"]
+            IPC["Tauri IPC Layer"]
             Notecli["notecli Library<br/>(Misskey API)"]
             SQLite["SQLite (WAL+FTS5)<br/>refinery マイグレーション"]
             Axum["Axum HTTP Server<br/>(localhost:19820)"]
@@ -97,7 +97,7 @@ graph TB
         TauriCore <--> Backend
     end
 
-    Plugins["Plugins: notification, global-shortcut,<br/>autostart, updater, opener, os, process"]
+    Plugins["Plugins: notification, global-shortcut, deep-link,<br/>autostart, updater, opener, os, process, ...<br/>(正本は src-tauri/Cargo.toml)"]
     App --- Plugins
 ```
 
@@ -138,7 +138,7 @@ sequenceDiagram
 
 ### 目指す構成: notecore と notemaid（[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)）
 
-上の全体像のうち Tauri 非依存のドメインは **notecore** クレートに切り出し済み。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) は **notemaid** (lib + bin の 1 クレート) に置く (2026-09-29 に切り出し済み)。notemaid は常に別プロセスで、アプリが sidecar として子プロセス起動する (既定、設定ゼロ) / ログイン時のユーザータスクで常駐 (任意) / 自分のサーバー (リモート) の 3 通りを同じプロトコルで受ける。iOS だけ in-process の transport。常駐 (自分のサーバーで動かす) の対象は notemaid だけで、データ面は常に手元で動く。「notecore 全体を notecored として自分のサーバーで常駐させる」旧計画は #1106 で中止した (理由は同 issue の 2026-09-29 コメント)。
+上の全体像のうち Tauri 非依存のドメインは **notecore** クレートに切り出し済み。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) は **notemaid** (lib + bin の 1 クレート) に置く (2026-09-29 に切り出し済み)。notemaid は常に別プロセスで、アプリが sidecar として子プロセス起動する (既定、設定ゼロ) / ログイン時のユーザータスクで常駐 (任意) の 2 通りを同じプロトコルで受ける。iOS / Android と sidecar が無い開発時だけ in-process の transport。常駐の対象は notemaid だけで、データ面は常に手元で動く。別の端末や自分のサーバーで動く notemaid に繋ぐ構成 (リモート) は採用しない (2026-09-29、理由は ROADMAP と #1106)。「notecore 全体を notecored として自分のサーバーで常駐させる」旧計画は #1106 で中止した (理由は同 issue の 2026-09-29 コメント)。
 
 ```
 フロントエンド (Vue)                WebView は常に手元の Rust とだけ話す
@@ -150,11 +150,11 @@ sequenceDiagram
 └──────────────────────────────┘                  │  notecli                                     │
                                                   └──────────────────────────────────────────────┘
 誰が notemaid を起動するか: アプリが sidecar を子プロセスで (既定、設定ゼロ) / ログイン時のユーザータスク (任意、常駐)。別の端末やサーバーで動く notemaid に繋ぐ構成は採用しない (理由は ROADMAP)
-iOS だけは別プロセスを持てないので in-process の transport (コマンド面は同じ)
+iOS / Android と sidecar が無い開発時は in-process の transport (コマンド面は同じ)
 ```
 
 - クレートの依存は一方向: notecli ← notecore ← notemaid ← アプリ。notemaid が notecore から借りるのは共有基盤 (Vault / 認可 / 設定 store / アカウント情報) だけで、データ面 (notes DB / ストリーミング / クエリランタイム) には依存しない。notecore は Tauri も AI も知らない。プロセスとしては並列で、両方を含むのはアプリの配布物。4 つは同じリポジトリの workspace クレート
-- 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通って常に in-process の notecore へ、AI 系コマンドは notemaid の表を通って常に socket / named pipe で notemaid のプロセスへ (iOS は in-process transport)。フロントは違いを知らず、接続 / 互換の状態面だけを知る
+- 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通って常に in-process の notecore へ、AI 系コマンドは notemaid の表を通って常に socket / named pipe で notemaid のプロセスへ (iOS / Android と sidecar が無い開発時は in-process transport。`src-tauri/src/client_layer.rs`)。フロントは違いを知らず、接続 / 互換の状態面だけを知る
 - データ面の notecore はデバイスに 1 つ (アプリの中) だけで、notemaid は notes DB を開かない。Misskey は notecli で直接叩き、アプリが生きていれば socket でアプリ側の notecore にキャッシュを聞く。同一端末では設定ディレクトリを共有し、書くのは自分の持ち物 (セッション / メモ / skill / AI 設定) だけ。トークンは OS キーチェーンを読み、アカウント一覧は接続時にアプリから受け取る。メイドの持ち物 (セッション / メモ / skill / AI 設定) は同じ設定ディレクトリのファイルで、端末はそれを編集する
 - 認証、イベント面、状態の所在は #1106 の仕様コメントが正本 (2026-09-29 のコメントで AI 面に縮めた後の読み方が優先)
 
@@ -194,9 +194,9 @@ iOS だけは別プロセスを持てないので in-process の transport (コ�
 
 #### A-3. HTTP API（notecli ルーター共有）
 
-**場所**: `http_server.rs`（notedeck）+ `http_server.rs`（notecli）
+**場所**: `http_server.rs`（notecore）+ `http_server.rs`（notecli）
 
-notecli の `build_core_routes()` でコア API 16ルートを共有し、notedeck 固有ルート（deck, commands, image proxy, OpenAPI docs）を `.merge()` で追加。SSE イベントストリーム、Scalar UI ドキュメント付き。
+notecli の `build_core_routes()` でコア API のルートを共有し、notedeck 固有ルート（deck, commands, image proxy, OpenAPI docs）を `.merge()` で追加。SSE イベントストリーム、Scalar UI ドキュメント付き。
 
 ---
 
@@ -214,7 +214,7 @@ WebSocket 受信 → 1箇所で4つの出力先に同時配信:
 
 #### A-4b. Subscription suspend / resume
 
-**場所**: `notecli::streaming` + `commands::stream_suspend_subscription` / `stream_resume_subscription`
+**場所**: `notecli::streaming`（`StreamingManager::suspend_subscription` / `resume_subscription`）+ `query_set_runtime_state`（Tauri コマンドとしての `stream_suspend_subscription` / `stream_resume_subscription` は JS から呼ばれなくなったため撤去済み）
 
 WebSocket 接続は維持したまま、subscription 単位で channel から **WS unsubscribe** する。`info.active = false` にして受信ループから除外し、`WsCommand::Unsubscribe` を WS に送出。Misskey 側もそのチャンネルへの送出を停止するため、suspend 中の noteUpdated は再送されない（resume 時に過去分は届かない）。WS 自体の再接続時は active な subscription と subNote が replay され、subNote はセッション内 dedup で二重送信（Misskey 側 subNote は refcount 式で冪等でない）を防ぐ。
 
@@ -262,12 +262,12 @@ reaction / poll vote / delete は **2 経路冗長化** で取り逃しを最小
 ```mermaid
 graph LR
     Browser["ブラウザ (ETag)"] --> Axum["/proxy/image"]
-    Axum --> Mem["メモリ LRU (32MB)"]
-    Axum --> Disk["ディスクキャッシュ<br/>(7日 TTL, 20MB max)"]
+    Axum --> Mem["メモリ LRU"]
+    Axum --> Disk["ディスクキャッシュ<br/>(TTL + 容量上限)"]
     Axum --> Upstream["アップストリーム<br/>(ストリーミング配信)"]
 ```
 
-CSP で外部画像を直接ロードせず、Rust 側のプロキシを経由。ETag/304 対応、インフライト重複排除、同時フェッチ30件制限。
+CSP で外部画像を直接ロードせず、Rust 側のプロキシを経由。ETag/304 対応、インフライト重複排除、同時フェッチ数の制限。容量・TTL・同時フェッチ数の既定値は `crates/notecore/src/perf_config.rs` が正本。
 
 ---
 
@@ -282,7 +282,9 @@ URL ごとに専用パーサーが起動し、汎用 OG タグ解析より高精
 
 #### A-7. グローバルショートカット + ボスキー + システムトレイ
 
-**場所**: `lib.rs`（デスクトップ専用 `#[cfg(not(mobile))]`）
+**場所**: `lib.rs` + `tray.rs`（デスクトップ専用 `#[cfg(not(mobile))]`）+ `useOsGlobalShortcuts.ts`（keybinds の `os-global` スコープを `tauri-plugin-global-shortcut` に登録。Rust 側は plugin を立てるだけ）
+
+既定のキーは `src/defaults/keybindings.json5` が正本:
 
 - `Ctrl+Shift+B`: ボスキー（瞬時にウィンドウ非表示）
 - `Ctrl+Alt+N`: クイックノート（ウィンドウ表示 + 投稿フォーム起動）
@@ -345,7 +347,7 @@ graph LR
 | `deckWallpaper` | デッキ壁紙設定 |
 | `performance` | パフォーマンス設定 |
 | `themeFileSync` | テーマファイル同期 |
-| `toast` | トースト通知 |
+| `toast` | アプリの通知。警告・エラー・アクション付きは右下の通知カード + 受信トレイ (ボトムバーのベル)、軽い成功・情報はボトムバーのステータス表示 (表示場所の無い画面ではカード) |
 | `offlineMode` | オフラインモード状態管理 |
 | `realtimeMode` | リアルタイムモード状態管理 |
 
@@ -366,7 +368,7 @@ Misskey 本家および Misskey を名乗り続けるフォークに共通イン
 |------|-----|------|
 | `noteListMax` | 200（デフォルト） | データ配列の上限（`performanceStore` で設定可能、50〜1000） |
 | `overscan` | 8 | viewport 外に余分に描画する件数 |
-| `estimateSize` | 動的 | 実測値の移動平均（20件ごとに更新） |
+| `estimateSize` | 動的 | 実測値の指数移動平均（ResizeObserver のループを避けるため次フレームで反映） |
 
 - `NoteScroller.vue` が `useVirtualizer` で仮想化。実 DOM は 30-50 件程度に抑制
 - `measureElement` + ResizeObserver で可変高さ（テキストのみ 80px〜画像付き 400px+）を自動追跡
@@ -376,7 +378,7 @@ Misskey 本家および Misskey を名乗り続けるフォークに共通イン
 - 現行は `orderedIds` を column ごとに持ち、描画時に `notes.resolve(ids)` で `NormalizedNote[]` を再構築する
 - `notes` store は `triggerRef(noteMap)` ベースのため、局所更新でも列単位の再評価が起きやすい
 - Misskey らしいリッチ表示を維持したまま持続的なヌルヌルさを上げるには、**Timeline Store (`ids[]`) と Entity Store (`noteId -> ref`) の分離**が次の有力候補
-- 高流量対策として、Rust 側で stream event を batch / materialize し、フロントは snapshot / delta を受ける構成（A-11 Query Runtime）の **インフラは導入済み**。WebView カラム側を queryId 購読に置き換えるのは段階移行中
+- 高流量対策として、Rust 側で stream event を batch / materialize し、フロントは snapshot / delta を受ける構成（A-11 Query Runtime）は導入済みで、カラムの購読はすべて queryId 購読に置き換え済み
 - `near-end` イベントで末尾到達を検知し loadMore を発火
 - `scrollToIndex` expose でキーボードナビゲーション（j/k）に対応
 
@@ -391,11 +393,11 @@ Misskey 本家および Misskey を名乗り続けるフォークに共通イン
 
 ---
 
-#### A-11. Rust Query Runtime + Read Model（インフラ整備済み・段階移行中）
+#### A-11. Rust Query Runtime + Read Model
 
-**場所**: `src-tauri/src/query_runtime.rs` + `src/adapters/misskey/query.ts`（`createQuerySubscription`）
+**場所**: `crates/notecore/src/query_runtime.rs` + `src/adapters/misskey/query.ts`（`createQuerySubscription`）
 
-JS カラムが直接 `MisskeyStream` を握る "column-centric" モデルから、Rust 側で query 単位に subscription を集約・materialize し、WebView は snapshot / delta を購読するだけの "Rust Query Runtime" モデルへ段階移行する。
+JS カラムが直接 `MisskeyStream` を握る "column-centric" モデルから、Rust 側で query 単位に subscription を集約・materialize し、WebView は snapshot / delta を購読するだけの "Rust Query Runtime" モデルへ段階的に移行した（旧 `MisskeyStream.subscribe*` と subscription pool は撤去済み）。
 
 **QueryKey:**
 
@@ -403,11 +405,7 @@ JS カラムが直接 `MisskeyStream` を握る "column-centric" モデルから
 
 | kind | パラメータ |
 |------|-----------|
-| `timeline` | accountId / timelineType (home/local/global/hybrid/list) / listId? |
-| `antenna` | accountId / antennaId |
-| `channel` | accountId / channelId |
-| `role` | accountId / roleId |
-| `mentions` | accountId（main 経由） |
+| `timeline` | accountId / key（notecli の `TimelineKey` の canonical 文字列。home 等の TL 種別 / `user-list:{id}` / `antenna:{id}` / `channel:{id}` / `role:{id}` / `mentions`（main 経由）を 1 つに畳む） |
 | `notifications` | accountId（main 経由） |
 | `chatUser` | accountId / otherId |
 | `chatRoom` | accountId / roomId |
@@ -417,7 +415,7 @@ canonical key（serde JSON）で同一 query を dedup し、`subscriber_count` 
 **コマンド:**
 
 - `query_subscribe_{timeline,antenna,channel,role,mentions,notifications,chat_user,chat_room}` — `connect → open → attach_stream_subscription` を 1 IPC で行い `QuerySnapshot` を返す。ただし mentions / notifications は main 共有のため `attach_shared_stream_subscription`（snapshot にだけ subscription id を載せ、配送マップには登録しない）を使う
-- `query_open(key)` — stream は張らず query レコードだけ作る（read-only 用途）
+- ~~`query_open(key)`~~ — 削除済み。key 文字列が無検証で entry 化され `TimelineKey` の構築規約の裏口になる上、フロントからの呼び出しも無かった。復活させる場合は `TimelineKey::parse` による検証を必須とする
 - `query_set_runtime_state(queryId, state)` — `live | warm | suspended`。live ↔ suspended 遷移時は対応する subscription も resume / suspend
 - `query_close(queryId)` — refcount-- し 0 になったら stream も unsubscribe
 - `query_get_snapshot(queryId)` — メタデータ
@@ -441,20 +439,20 @@ note 本体は保持せず、id 列だけを順序付きで持つ。理由:
 2. **dedupe 専用**: insert/delete 時の同一 id 検出を `id_set` で O(1) に。
 3. **Suspended で全クリア**: `set_runtime_state(Suspended)` 遷移時に `recent_ids` / `id_set` / `pending` を破棄。`apply()` も Suspended 中は gate される。Live 復帰時は JS 側 noteStore + 各カラムの orderedIds で表示維持、新規 delta のみ流入する。
 
-**delta は note 本体を含む**: pending.inserts / QueryDelta.inserts は依然として `Vec<Value>` で note 本体を JS に流す（16ms debounce window でしか保持されない短期バッファ）。JS 側はこれを noteStore に put する。
+**delta は note 本体を含む**: pending.inserts / QueryDelta.inserts は `Vec<QueryItem>`（Note / Notification / ChatMessage の型付き enum）で本体を JS に流す（16ms debounce window でしか保持されない短期バッファ）。JS 側はこれを noteStore に put する。
 
-`StreamChange::from_event` が以下の stream-* を `Insert(item)` / `Delete(id)` に正規化し `apply()` で entry に反映:
+`StreamChange::from_event` が以下の stream-* を `Insert(item)` / `Delete(id)` / `Update(update)` に正規化し `apply()` で entry に反映:
 
 - `stream-note` → `payload.note`
 - `stream-chat-message` → `payload.message`
-- `stream-note-updated` (updateType = `deleted`) → `payload.noteId` を削除
+- `stream-note-updated` (updateType = `deleted`) → `payload.noteId` を削除。それ以外の updateType（reaction / poll vote 等）は `updates` に積む（Read Model の id 列は書き換えない）
 - `stream-chat-message-deleted` → `payload.messageId` を削除
 
 **main 由来イベントは subscription_id で引かない** (#984): `stream-notification` / `stream-mention` は `ingest_stream_event` の冒頭で **(account_id, 種別) → QueryKey** に解決する（`NoteCaptureUpdated` と同じ「アカウント単位イベント」の型）。main はアカウント単位 1 本の共有購読で、mentions / notifications の複数 query がぶら下がるため、`query_ids_by_subscription` の 1:1 マップでは配れない。この経路は attach 不要 — query が開いてさえいれば届く。
 
 **Delta emit:**
 
-`QueryDelta { queryId, revision, inserts, deletes }` を `tauri-specta` の typed event（`#[derive(Event)]`）として emit。bindings.ts に `events.queryDelta` として export される。`mount_events()` を `setup` 内で呼んで registry を登録している。
+`QueryDelta { queryId, revision, inserts, deletes, updates }` を `tauri-specta` の typed event（`#[derive(Event)]`）として emit。bindings.ts に `events.queryDelta` として export される。`mount_events()` を `setup` 内で呼んで registry を登録している。
 
 **WebView 側（`createQuerySubscription` — `src/adapters/misskey/query.ts`）:**
 
@@ -469,7 +467,7 @@ note 本体は保持せず、id 列だけを順序付きで持つ。理由:
 
 | 項目 | 状態 |
 |------|------|
-| stream subscription suspend/resume | **稼働中**（`commands::stream_*_subscription`） |
+| stream subscription suspend/resume | **稼働中**（`StreamingManager::suspend_subscription` / `resume_subscription` を `query_set_runtime_state` から Rust 内で直接呼ぶ。Tauri コマンド `stream_*_subscription` は撤去済み） |
 | live/warm/suspended 駆動 | **稼働中**（`createQuerySubscription.setRuntimeState` → `query_set_runtime_state`。warm → suspend escalation は Rust 側 `WARM_GRACE`=8s） |
 | QueryRuntime レジストリ + QueryKey/State | **稼働中** |
 | Read Model materialize（note/mention/notification/chat） | **稼働中** |
@@ -477,9 +475,9 @@ note 本体は保持せず、id 列だけを順序付きで持つ。理由:
 | createQuerySubscription（`adapters/misskey/query.ts`） | **稼働中** |
 | Mentions / Chat (user/room) カラムの queryId 化 | **完了** |
 | Timeline-family（timeline / list / antenna / channel / role）の queryId 化 | **完了** |
-| 残課題: 旧 `MisskeyStream.subscribe*` を呼んでいるフォールバック経路の縮小 | accountId 不在 / cross-account / guest 用に温存 |
+| 旧 `MisskeyStream.subscribe*` / subscription pool / Tauri コマンド `stream_subscribe_*` | **撤去済み**（`MisskeyStream` に残るのは接続管理・Note Capture・接続状態と raw イベントの購読だけ） |
 
-これで主要なノート列カラム購読は Rust QueryRuntime 経由に切り替え済み。`createQuerySubscription` が `delta.inserts / deletes / updates` を `enqueue / onNoteUpdated` にブリッジするため、`useNoteColumn` 側の API は変更なしで段階移行できた。後述の Session Layer S-3 を参照。
+これでカラム購読はすべて Rust QueryRuntime 経由に切り替え済み。`createQuerySubscription` が `delta.inserts / deletes / updates` を `enqueue / onNoteUpdated` にブリッジするため、`useNoteColumn` 側の API は変更なしで段階移行できた。後述の Session Layer S-3 を参照。
 
 ---
 
@@ -492,10 +490,9 @@ notecli は notedeck のコア基盤となる Rust クレートであり、**ス
 | モード | エントリポイント | FrontendEmitter | HTTP サーバー |
 |--------|------------------|-----------------|---------------|
 | **CLI** | `main.rs` (clap) | `NoopEmitter` | なし |
-| **デーモン** | `main.rs --daemon` | `EventBusEmitter` | Axum (16ルート) |
-| **notedeck 組込** | `lib.rs` (ライブラリ) | `TauriEmitter` (notedeck側) | 拡張版 Axum (notecli の `build_core_routes()` + notedeck 固有ルート) |
+| **notedeck 組込** | `lib.rs` (ライブラリ) | `TauriEmitter` (notedeck側) | 拡張版 Axum (notecli の `build_core_routes()` + notecore の固有ルート) |
 
-同じビジネスロジック（API呼び出し、DB操作、ストリーミング）が CLI・デーモン・GUI のすべてで共有される。
+同じビジネスロジック（API呼び出し、DB操作、ストリーミング）が CLI と GUI で共有される。単体の HTTP デーモン（`notecli daemon`）は利用者がおらず同じ面を NoteDeck 本体が出すため #1106 で撤去した（ルート定義 `build_core_routes()` はライブラリに残す）。
 
 ---
 
@@ -503,8 +500,9 @@ notecli は notedeck のコア基盤となる Rust クレートであり、**ス
 
 ストリーミング（WebSocket）からのイベント配信を実行環境ごとに分離する Strategy パターン:
 - **CLI**: `NoopEmitter`（何もしない）
-- **デーモン**: `EventBusEmitter`（broadcast channel → SSE）
 - **Tauri GUI**: `TauriEmitter`（Tauri Event System → Vue）
+
+SSE 向けの配信は emitter とは別に、`StreamingManager` が `EventBus` へ直接流す。`EventBusEmitter` は単体デーモンの撤去後は使われていない。
 
 ---
 
@@ -523,7 +521,7 @@ Misskey API レスポンスはフォークによってフィールドが異な�
 
 #### B-4. SQLite + FTS5 + refinery マイグレーション
 
-**DB マイグレーション**: refinery による番号付き SQL マイグレーション (`migrations/V1__*.sql`)。`refinery_schema_history` テーブルでバージョンを自動追跡。今後のスキーマ変更は SQL ファイル追加のみで対応可能。
+**DB マイグレーション**: refinery による番号付き SQL マイグレーション (`crates/notecli/migrations/V*__*.sql`)。`refinery_schema_history` テーブルでバージョンを自動追跡。今後のスキーマ変更は SQL ファイル追加のみで対応可能。
 
 **FTS5 トライグラム検索**:
 ```sql
@@ -537,11 +535,12 @@ CJK（日本語・中国語・韓国語）の部分文字列検索に対応。CW
 
 #### B-5. プラットフォーム・キーチェーン抽象化
 
-条件付きコンパイルで各 OS ネイティブのキーチェーンに対応:
-- Android → `AndroidNativeCredentialStore`
-- macOS/iOS → `IosKeychain::Authenticated`
-- Windows → `WindowsNativeCredentialStore`
-- Linux → `LinuxKeyutilsPersistentStore`
+条件付きコンパイルで各 OS ネイティブのキーチェーンに対応（`crates/notecli/src/keychain.rs`、`keyring-core` の store を切り替える）:
+- Android → `android-native-keyring-store`
+- macOS → `apple-native-keyring-store`（keychain）
+- iOS → `apple-native-keyring-store`（protected）
+- Windows → `windows-native-keyring-store`
+- Linux → secret-service（`zbus-secret-service-keyring-store`、書いて読めるときだけ）→ 暗号化ファイル（`file_keyring.rs`）→ `linux-keyutils-keyring-store`（再起動で消える）の順に劣化
 
 クレデンシャル解決: キーチェーン → DB フォールバック → 遅延移行（既存ユーザーの自動移行）。
 
@@ -605,8 +604,8 @@ Vue 3.6 で導入予定の Vapor モード（仮想DOMレス）への移行準�
 
 **解消済みの column-centric な課題**:
 
-- **adapter インスタンスの重複**: `initAdapterFor()` が accountId 単位で `MisskeyApi` / `MisskeyStream` を singleton 化する
-- **JS 側の event listener 重複**: 同一 accountId の `MisskeyStream` は 1 インスタンスになり、subscription pool で fan-out される
+- **adapter インスタンスの重複**: `initAdapterFor()` が accountId 単位で API adapter（`createMisskeyApi`）/ `MisskeyStream` を singleton 化する
+- **JS 側の event listener 重複**: 同一 accountId の `MisskeyStream` は 1 インスタンスになり、カラム購読の delta は `core/queryDeltaBus` の単一リスナーから fan-out される
 - **同時 live 数の制御**: `maxLiveColumns` budget により active 近傍だけが live になる
 - **shell / snapshot 表示**: 未マウントカラムは shell、snapshot があれば preview を表示する
 
@@ -719,7 +718,7 @@ graph TB
 
 **制約**:
 
-- 同一 `accountId` で `MisskeyApi` / `MisskeyStream` は原則 1 インスタンス
+- 同一 `accountId` で API adapter / `MisskeyStream` は原則 1 インスタンス
 - column が unmount しても adapter cache は即破棄しない
 - adapter の寿命は column より長く、account 切替・ログアウト時にのみ破棄する
 
@@ -727,7 +726,7 @@ graph TB
 
 **単位**: `QueryKey`
 
-`QueryKey` は「同じ stream を共有できる query」を表す正規化キー（[A-11](#a-11-rust-query-runtime--read-modelインフラ整備済み段階移行中) 参照）。
+`QueryKey` は「同じ stream を共有できる query」を表す正規化キー（[A-11](#a-11-rust-query-runtime--read-model) 参照）。
 
 **現状の実装**:
 
@@ -735,13 +734,13 @@ graph TB
 - **JS 側**: `createQuerySubscription`（`adapters/misskey/query.ts`）が `open → delta 購読 → close` のライフサイクルを担う（delta は `core/queryDeltaBus` の単一リスナーに多重化）
 - **Suspend/Resume**: `query_set_runtime_state(queryId, live|warm|suspended)` で Rust 側 stream subscription も連動して suspend/resume される（WebSocket は維持）
 
-**カラム移行は段階的**: 現行カラムは依然として `MisskeyStream` の subscription pool を経由している。Query Runtime のインフラは整っており、`useNoteColumn` 系を順次 queryId 購読に置き換えていく。
+**カラム移行は完了**: カラム購読はすべて queryId 購読に置き換え済みで、`MisskeyStream` の subscription pool は撤去した（A-11 の現状表を参照）。
 
 **責務**:
 
 - Rust / Tauri 側の subscription を `QueryKey` 単位で 1 本だけ持つ
 - 複数 column observer に配信する
-- observer 数が 0 になったとき即 unsubscribe（refcount-- が 0 で `query_close` → `stream_unsubscribe`）。ただし main（mentions / notifications の購読元）は共有チャンネルのため unsubscribe は no-op で、アカウントの `disconnect` まで生きる (#984)
+- observer 数が 0 になったとき即 unsubscribe（refcount-- が 0 で `query_close` → `StreamingManager::unsubscribe`）。ただし main（mentions / notifications の購読元）は共有チャンネルのため unsubscribe は no-op で、アカウントの `disconnect` まで生きる (#984)
 - 再表示時に `sinceId` 差分 fetch + 既存 query の resume を行う
 
 ### ViewModel Layer
@@ -891,10 +890,10 @@ Rust 側は session 指向 + query 指向の両方の設計になっている。
 **実装済み**:
 
 - `stream_connect(accountId)` は idempotent（account 単位で 1 WebSocket）
-- `load_cached_timeline` は viewport 表示用の軽量レスポンスを返せる
+- `api_get_cached_timeline` は viewport 表示用の軽量レスポンスを返せる
 - `fetch timeline diff` は `sinceId` / `untilId` を cheap に扱える
-- `stream_suspend_subscription` / `stream_resume_subscription` で WebSocket 維持のまま購読単位で送出を停止可能
-- `QueryRuntime`（[A-11](#a-11-rust-query-runtime--read-modelインフラ整備済み段階移行中)）が QueryKey 単位で subscription を集約し、Read Model を materialize し、`QueryDelta` を typed event で配信する
+- `query_set_runtime_state` 経由の `StreamingManager::suspend_subscription` / `resume_subscription` で WebSocket 維持のまま購読単位で送出を停止可能
+- `QueryRuntime`（[A-11](#a-11-rust-query-runtime--read-model)）が QueryKey 単位で subscription を集約し、Read Model を materialize し、`QueryDelta` を typed event で配信する
 
 ### UI 表示仕様
 
@@ -913,7 +912,7 @@ Rust 側は session 指向 + query 指向の両方の設計になっている。
 `src/adapters/factory.ts` に accountId 単位の adapter cache を導入済み。
 
 - `initAdapterFor()` で既存 adapter があればそれを返す（in-flight dedup 付き）
-- MisskeyApi / MisskeyStream インスタンス数が account 数に制限された
+- API adapter / MisskeyStream インスタンス数が account 数に制限された
 - adapter の寿命は column unmount で終わらない（`destroyAdapter()` で明示破棄）
 - `useColumnSetup.disconnect()` は `stream.cleanup()` を呼ばず、subscription dispose + handler off のみ
 - `useMultiAccountAdapters` はグローバル cache に委譲して簡素化済み
@@ -923,7 +922,7 @@ Rust 側は session 指向 + query 指向の両方の設計になっている。
 
 `useColumnMount` に `maxLiveColumns` budget を導入済み。
 
-- `maxLiveColumns`（Desktop: 3、Mobile: 1、Low quality: 2）
+- `maxLiveColumns`（既定値は `src/defaults/performance.json5`、プリセットは `src/stores/performanceData.ts` の `SLIDER_LOW` / `SLIDER_HIGH`）
 - 予算超過時に active から遠い mounted column を `suspended` に落とす
 - shell 段階での snapshot preview 表示（`DeckStackCell.vue`）
 
@@ -951,7 +950,7 @@ Phase 1-4 の主計画に加えて、**さらに構造変更で大きく効く�
 
 adapter singleton 化（Phase 1）により、MisskeyStream は accountId 単位で 1 インスタンスになった。`listen('stream-event')` の登録も adapter 単位で 1 つに集約されている。
 
-column は `createSubscription()` で subscription を登録し、handler maps（`noteHandlers`, `notifHandlers` 等）は subscriptionId をキーとして分離管理される。column unmount 時は `subscription.dispose()` で自分の handler のみ解除し、他 column に影響しない。
+column は `createQuerySubscription()`（`adapters/misskey/query.ts`）で query を購読し、delta は `core/queryDeltaBus` が queryId ごとに配る（旧 `createSubscription()` と handler maps は撤去済み）。column unmount 時は `dispose()` で自分の購読のみ解除し、他 column に影響しない。
 
 **残る改善余地**:
 
@@ -1033,7 +1032,7 @@ column は `createSubscription()` で subscription を登録し、handler maps�
 
 ## Rust Query Runtime + Read Model
 
-カラムが直接 stream を持つ "column-centric" モデルから、Rust 側で query 単位に subscription を集約・materialize する "Rust Query Runtime" モデルへの段階移行。
+カラムが直接 stream を持つ "column-centric" モデルから、Rust 側で query 単位に subscription を集約・materialize する "Rust Query Runtime" モデルへの段階移行（移行完了。旧経路は撤去済み）。
 
 ### 全体像
 
@@ -1041,7 +1040,6 @@ column は `createSubscription()` で subscription を登録し、handler maps�
 graph LR
     subgraph WebView["WebView"]
         UQ["createQuerySubscription"]
-        UN["useNoteColumn (legacy)"]
     end
     subgraph Rust["Rust"]
         QR["QueryRuntime<br/>QueryKey -> QueryEntry"]
@@ -1050,18 +1048,16 @@ graph LR
     end
     UQ -- query_subscribe_*<br/>query_get_read_model_snapshot --> QR
     UQ <-.events.queryDelta.- QR
-    UN -- stream_*_subscription --> SM
     QR -- subscribe / suspend / resume --> SM
     SM <--> WS
     SM -- stream-* events --> QR
-    SM -- stream-event --> UN
 ```
 
 ### 移行ステップと現状
 
 | Phase | 内容 | 状態 | 主なコミット |
 |-------|------|------|-------------|
-| 1 | `stream_suspend_subscription` / `stream_resume_subscription` コマンド | **稼働中** | `907f606f` |
+| 1 | `stream_suspend_subscription` / `stream_resume_subscription` コマンド | **撤去済み**（JS から呼ばれなくなり、suspend/resume は `query_set_runtime_state` から Rust 内で直接呼ぶ） | `907f606f` → `4926fb3e` |
 | 2 | JS 側 ManagedSubscription（warm timer 付き live/warm/suspended） | **稼働中** | `a7560f14` |
 | 3 | `QueryRuntime` レジストリ（QueryKey / QueryRuntimeState / refcount） | **稼働中** | `83700021` |
 | 4a | timeline 系の Read Model materialize（items を Vec<Value> に保持） | **稼働中** | `1e3a6cee` / `b1d38960` |
@@ -1076,9 +1072,9 @@ graph LR
 
 ### 詳細
 
-- Rust 側: [A-11. Rust Query Runtime + Read Model](#a-11-rust-query-runtime--read-modelインフラ整備済み段階移行中)
+- Rust 側: [A-11. Rust Query Runtime + Read Model](#a-11-rust-query-runtime--read-model)
 - Session 層: [S-3. SharedSubscription / Query Runtime（インフラ実装済み）](#s-3-sharedsubscription--query-runtimeインフラ実装済み)
-- 既存 column-centric 経路の Suspend/Resume: [A-4b](#a-4b-subscription-suspend--resume)
+- subscription 単位の Suspend/Resume: [A-4b](#a-4b-subscription-suspend--resume)
 
 ---
 
@@ -1108,7 +1104,7 @@ graph TB
 - カラムは `orderedIds`（ID 配列）のみを保持し、`noteStore.resolve(ids)` で実体を取得
 - ノート更新は `noteStore.put()` で in-place 反映 → 全カラムに自動伝播
 - ノート削除は `noteStore.remove()` → `onDelete` リスナーで全カラムの `orderedIds` をクリーンアップ
-- `noteStoreMax` 超過時に FIFO eviction（`get()` 時に insertion order を更新し LRU 風に動作）
+- `noteStoreMax` 超過時は、どのカラムからも参照されていないノートを古い順に削除し、それでも超えるなら LRU 風フォールバック（`get()` 時に insertion order を更新）で削除
 
 ### Layer 1: SQLite Cache
 
@@ -1178,7 +1174,7 @@ Rust 側（notecli）で管理する永続キャッシュ。フロントエン�
 
 > **Status**: Phase A + B-1 + B-2 + B-3 + B-4 + B-5 + B-6 実装済 (#460)。Phase 全完了。
 
-Misskey チャット (`/chat/messages/*`) の履歴は現状 `DeckChatColumn.vue` の `shallowRef` のみで保持されており、コンポーネント unmount や再起動で消失する。notes が `notes_cache` で堅牢にキャッシュされているのと非対称になっており、IDE という建付けと整合しない。
+Misskey チャット (`/chat/messages/*`) の履歴は以前 `DeckChatColumn.vue` の `shallowRef` のみで保持されており、コンポーネント unmount や再起動で消失していた。notes が `notes_cache` で堅牢にキャッシュされているのと非対称で、IDE という建付けと整合しなかったため、以下の設計で解消した。
 
 設計の出発点として、先行チャットアプリ (Signal / Telegram TDLib / LINE / Element [matrix-rust-sdk] / WhatsApp / iMessage) のローカル DB 設計を調査した。**全アプリで共通する 4 つのパターン**:
 
@@ -1267,7 +1263,7 @@ graph TB
 責務:
 
 - **SQLite `chat_messages_cache`** (Layer 1, 永続) — REST/WS で受信した全メッセージを upsert。eviction を担う
-- **`chatMessageStore`** (Layer 0, frontend 正規化ストア) — 唯一の実体。Pinia store として `noteStore` ([src/stores/notes.ts](src/stores/notes.ts)) のシグネチャを流用。`put()` / `update(id, msg)` / `applyUpdate(event)` で in-place 更新 → UI 自動伝播。LRU 風 eviction (`chatMessageStoreMax` default 10000)
+- **`chatMessageStore`** (Layer 0, frontend 正規化ストア) — 唯一の実体。Pinia store として `noteStore` ([src/stores/notes.ts](src/stores/notes.ts)) のシグネチャを流用。`put()` / `update(id, msg)` / `applyUpdate(event)` で in-place 更新 → UI 自動伝播。LRU 風 eviction (`chatMessageStoreMax`、既定値は `src/defaults/performance.json5`)
 - **SnapshotStore** (Layer 2, ID-only) — タブ切替・カラム再マウント時の即時復元用。`noteStore` と同じ TTL eviction 機構 ([src/composables/useSnapshotStore.ts](src/composables/useSnapshotStore.ts)) を共有 (cacheKey で namespace 分離)
 - **DeckChatColumn.vue** (UI) — `threads: Ref<thread_id[]>` と `messages: Ref<message_id[]>` のみ保持。実体は `chatMessageStore.resolve()` で取得
 
@@ -1393,14 +1389,14 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 | PiP ウィンドウ | A-2b 常前面フローティングカラム |
 | 外部API公開 | A-3 HTTP API（notecli ルーター共有） |
 | リアルタイム通信 | A-4 マルチ配信ブリッジ / A-4b suspend/resume / A-4c reaction freshness |
-| Query 集約 | A-11 Rust Query Runtime + Read Model（インフラ実装済み・カラム移行は段階的） |
+| Query 集約 | A-11 Rust Query Runtime + Read Model（カラム移行まで完了） |
 | キャッシュ | A-5 3層画像 / A-6 OGP / A-8 オフラインファースト |
-| チャットキャッシュ | A-12 `chat_messages_cache`（Phase A + B-1〜B-6 実装済み [#460](https://github.com/notedeck-dev/notedeck/issues/460)） |
+| チャットキャッシュ | [チャットキャッシュ・アーキテクチャ](#チャットキャッシュアーキテクチャ) `chat_messages_cache`（Phase A + B-1〜B-6 実装済み [#460](https://github.com/notedeck-dev/notedeck/issues/460)） |
 | DOM管理 | A-10 上限付き積み上げ（デフォルト200件/カラム、設定で可変） |
 | レンダリングパフォーマンス | [DEVELOPMENT.md](DEVELOPMENT.md#レンダリングパフォーマンス) に詳細 |
 | OS統合 | A-7 トレイ/ショートカット |
 | DB管理 | B-4 refinery マイグレーション |
-| テスト | notecli 18件 + notedeck 239件 |
+| テスト | Rust (`cargo test`、notecli / notecore / notemaid / アプリ) + vitest (`pnpm test`) |
 | パフォーマンス改善 | [PERFORMANCE.md](PERFORMANCE.md) に詳細ロードマップ |
 
 ---
@@ -1429,17 +1425,17 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 `src-tauri/src/lib.rs` の `invoke_handler`（`specta_builder.invoke_handler()` 経由）に全コマンドが登録されており、フロント側からは **specta 生成の `commands.<name>()`** 経由で広範に呼ばれている（登録の正本は `lib.rs`、型の正本は生成物の `src/bindings.ts`）。
 
-- `src/adapters/misskey/api.ts` が呼び出しの集中点 (78 回 = 全体の 24%)
+- `src/adapters/misskey/api/`（#707 でドメイン別モジュールに分割）が呼び出しの集中点
 - コマンドの追加・変更時は Rust 側で `#[specta::specta]` を付けるだけでフロント側 `src/bindings.ts` が自動再生成される (`pnpm tauri:dev` 起動時)
 - 型付き契約により契約の変更耐性が大幅に改善 (PR #388 develop マージ済み、段階0 + 段階A 完了)
 
-**残課題**: 旧 `invoke()` 直接呼び出しは 1 箇所のみ残存。今後の検討は「domain service 層を挟むか、commands を直接呼んで十分か」の判断になる。
+**残課題**: 旧 `invoke()` 直接呼び出しは残っていない。今後の検討は「domain service 層を挟むか、commands を直接呼んで十分か」の判断になる。
 
 ### 課題 3: Adapter Layer の抽象軸のずれ
 
 `src/adapters/types.ts` の `ServerSoftware` は owner/repo 形式のフォーク単位に再定義済み（対応フォークの正本は `registry.ts` の `FORKS` テーブル）。`registry.ts` の `resolveSoftware()` で nodeinfo から検出し、未知のフォークは `'misskey-dev/misskey'` にフォールバックする。
 
-**現状の評価**: フォーク単位の分類は既に実装されている。残る課題は各フォーク adapter が capability フラグ（`hasAntenna`, `hasClip` 等）で機能差分を宣言する仕組みの拡充。
+**現状の評価**: フォーク単位の分類は既に実装されている。残る課題は各フォーク adapter が capability フラグ（`ServerFeatures` の `antennas` / `channels` 等。`src/core/server.ts` の `detectFeatures()` が設定）で機能差分を宣言する仕組みの拡充。
 
 **改善方針**: adapter パターン自体は残す。各 adapter が capability フラグで機能差分を宣言する形に拡充し、registry/factory の仕組みをフォーク間の切り替えに活かす。
 
@@ -1453,7 +1449,7 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 ### 課題 5: プラグイン境界
 
-`aiscript/plugin-api.ts` の `launchPlugin` でプラグインが `deckStore` / `commandStore` への直接参照を取得し、`notedeck-api.ts` の `Nd:addColumn` / `Nd:removeColumn` / `Nd:register_command` で store に直接作用する。
+`aiscript/plugin-api.ts` の `launchPlugin` でプラグインが `commandStore` への直接参照を取得し、`notedeck-api.ts` の `Nd:register_command` で store に直接作用する。カラム操作（旧 `Nd:addColumn` / `Nd:removeColumn`）は廃止し、capability registry 経由の `Nd:call('column.add', ...)` 等で行う。
 
 **現状の評価**: 拡張性は高いが、第三者プラグインを増やす場合、store への直接アクセスは保守負債になる。
 

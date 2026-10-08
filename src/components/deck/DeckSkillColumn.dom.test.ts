@@ -245,7 +245,7 @@ describe('DeckSkillColumn — 一覧の検索と分類', () => {
 })
 
 describe('DeckSkillColumn — 予約スキル (AGENTS / HEARTBEAT)', () => {
-  it('予約スキルには削除ボタンも HEARTBEAT ボタンも出ず、錠アイコンと固定の有効ボタンになる', async () => {
+  it('予約スキルは配布物ではないのでスキルカラムに出さず、件数にも数えない (入口は AI 設定)', async () => {
     const store = useSkillsStore()
     store.add(
       makeSkill({
@@ -269,26 +269,12 @@ describe('DeckSkillColumn — 予約スキル (AGENTS / HEARTBEAT)', () => {
     const wrapper = mountColumn()
     await nextTick()
 
-    // 予約スキルは役割の語で見せる
-    for (const name of ['ルール', '巡回']) {
-      const card = cardOf(wrapper, name)
-      expect(
-        buttonByTitle(card, 'ライブラリから削除 (本文も消えます)'),
-      ).toBeUndefined()
-      expect(buttonByTitle(card, 'HEARTBEAT で定期実行する')).toBeUndefined()
-      expect(buttonByTitle(card, 'HEARTBEAT 対象から外す')).toBeUndefined()
-      expect(card.querySelector('.ti-lock')).not.toBeNull()
-      const toggle = buttonsOf(card).find(
-        (b) => b.textContent?.trim() === '無効にする',
-      )
-      expect(toggle?.disabled).toBe(true)
-    }
-
-    const plain = cardOf(wrapper, 'Plain')
-    expect(
-      buttonByTitle(plain, 'ライブラリから削除 (本文も消えます)'),
-    ).toBeDefined()
-    expect(plain.querySelector('.ti-lock')).toBeNull()
+    expect(wrapper.text()).not.toContain('ルール')
+    expect(wrapper.text()).not.toContain('巡回')
+    expect(wrapper.text()).toContain('Plain')
+    const sections = wrapper.findAllComponents({ name: 'ColumnSection' })
+    expect(sections.map((s) => s.props('count'))).toEqual([1])
+    expect(wrapper.text()).toContain('インストール済み 1')
   })
 })
 

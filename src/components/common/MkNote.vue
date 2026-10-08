@@ -65,6 +65,7 @@ import {
   resolveEffectiveNoteBase,
 } from '@/utils/noteViewModel'
 import { spawnReactionEffect } from '@/utils/reactionEffect'
+import { renderedReactionNotes } from '@/utils/renderedMemo'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { extractColumnThemeVars } from '@/utils/themeVars'
 import { toggleReaction } from '@/utils/toggleReaction'
@@ -177,8 +178,29 @@ const { longPressed, handlers: lpHandlers } = useLongPress((e) => {
   if (reaction) reactionModalRef.value?.open(reaction)
 })
 const reactionsAreaRef = ref<HTMLElement | null>(null)
-const reactionsVisible = ref(false)
+// リアクション行は画面の近くに来るまで描かない (perf)。判定は仮想スクローラの
+// nearViewport (可視範囲 + 前後のバッファ) を正とする。IntersectionObserver の
+// rootMargin は root を省くとカラムのスクロール領域で切り取られて効かず、
+// 実際に見えてから描画されて押し下げが見えていた。一度描いたノートは覚えて
+// おき、仮想スクロールで作り直しても最初から描く (予約 → 実寸の伸びを防ぐ)
+const reactionsVisible = ref(
+  props.nearViewport === true || renderedReactionNotes.has(props.note.id),
+)
+watch(
+  () => props.nearViewport,
+  (near) => {
+    if (near) reactionsVisible.value = true
+  },
+)
+watch(
+  reactionsVisible,
+  (visible) => {
+    if (visible) renderedReactionNotes.add(props.note.id)
+  },
+  { immediate: true },
+)
 
+// nearViewport を渡さない面 (ウィンドウ内の一覧など) 向けの予備
 const { stop: stopReactionsObserver } = useIntersectionObserver(
   reactionsAreaRef,
   ([entry]) => {
@@ -187,7 +209,6 @@ const { stop: stopReactionsObserver } = useIntersectionObserver(
       stopReactionsObserver()
     }
   },
-  // 画面に入る十分手前で描画を確定させ、遅延出現による押し下げを見せない
   { rootMargin: '600px' },
 )
 

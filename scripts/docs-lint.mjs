@@ -14,6 +14,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import GithubSlugger from 'github-slugger'
+import { CODEMAP_PATH, renderCodemap } from './gen-codemap.mjs'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -177,6 +178,16 @@ const TRANSLATIONS = [
     dir: join(SITE, '.vitepress/theme/i18n/en.ts'),
     source: join(SITE, '.vitepress/theme/i18n/ja.ts'),
   },
+  { dir: join(SITE, 'zh'), source: SITE },
+  {
+    dir: join(SITE, '.vitepress/theme/i18n/zh.ts'),
+    source: join(SITE, '.vitepress/theme/i18n/ja.ts'),
+  },
+  { dir: join(SITE, 'ko'), source: SITE },
+  {
+    dir: join(SITE, '.vitepress/theme/i18n/ko.ts'),
+    source: join(SITE, '.vitepress/theme/i18n/ja.ts'),
+  },
 ]
 const SOURCE_HASH = /sourceHash:\s*(\S+)/
 
@@ -215,6 +226,14 @@ for (const { dir, source } of TRANSLATIONS) {
     staleCount++
   }
 }
+// ===== コードマップの鮮度 (#895) =====
+// CODEMAP.md は正本からの生成物。構造を変えて作り直し忘れると、一覧が実装とずれる
+const codemapStale =
+  !existsSync(CODEMAP_PATH) || readFileSync(CODEMAP_PATH, 'utf8') !== renderCodemap()
+if (codemapStale) {
+  console.error(`\n${relative(ROOT, CODEMAP_PATH)} が正本とずれている。pnpm gen:codemap で作り直す (#895)`)
+}
+
 if (failed > 0) {
   console.error(`\n${failed} 件。数値と行番号は正本のファイルを指す形に書き換えてください (#883 / #895)。`)
   console.error('どうしても必要なら直前の行に <!-- docs-lint-disable-next-line 理由 --> を置きます。')
@@ -222,6 +241,6 @@ if (failed > 0) {
 if (staleCount > 0) {
   console.error(`\n訳の置き去り ${staleCount} 件 (#1145)。git diff で原文の差分を見て訳に反映する。`)
 }
-if (failed > 0 || staleCount > 0) process.exit(1)
+if (failed > 0 || staleCount > 0 || codemapStale) process.exit(1)
 
 console.log(`docs-lint: ${files.length} ファイル、問題なし`)

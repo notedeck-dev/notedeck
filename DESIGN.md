@@ -203,7 +203,9 @@ appDataDir/
     ├── tasks.json5         # タスク定義
     ├── permissions.json5   # principal 別の認可（#712）
     ├── custom.css          # カスタム CSS
-    ├── connections.json    # Secret Vault の接続メタデータ（Rust が source of truth）
+    ├── tutorial.json5      # チュートリアルの達成記録と独自実績（#1029）
+    ├── client.json5        # この端末の構成（notemaid の起動方法、#1106。バックアップ対象外）
+    ├── connections.json    # Secret Vault の接続メタデータ（Rust が source of truth。バックアップ対象外）
     ├── profiles/           # *.ndprofile.json5
     ├── theme-dropins.json5 # themes/ の素の .json5 を取り込んだ記録（元ファイル名 → 採用 ID）
     ├── themes/             # *.ndtheme.json5（素の *.json5 は起動時に一回きりコピーして採用）
@@ -213,10 +215,11 @@ appDataDir/
     ├── snippets/           # *.json5
     ├── memos/              # *.md
     ├── queries/            # カラムクエリ
-    └── sessions/           # AI セッション
+    ├── sessions/           # AI セッション
+    └── notemaid/           # AI の人格と記憶（SOUL.md / USER.md / MEMORY.md / BOOTSTRAP.md、#1162）
 ```
 
-いずれもテキストエディタで直接編集でき、アプリ内の対応する編集ウィンドウからも編集できる。許可されるサブディレクトリ名とルートファイル名は `src-tauri/src/settings_store.rs` の allowlist が正本で、この一覧がそのまま設定バックアップの対象になる。
+いずれもテキストエディタで直接編集でき、アプリ内の対応する編集ウィンドウからも編集できる。許可されるサブディレクトリ名とルートファイル名は `crates/notecore/src/settings_store.rs` の allowlist が正本で、設定バックアップの対象もここで決まる (`ROOT_FILES` は `backup: true` のものだけ)。例外が 2 つある。`connections.json` は Vault の持ち物で allowlist に載らない。`notemaid/` は汎用の読み書きが allowlist だけで通り上限・承認・汚染の規則を素通りするので allowlist に足さず、バックアップは SOUL / USER / MEMORY を名指しで含める (詳細は DEVELOPMENT.md の「AI の人格と記憶」)。
 
 **appDataDir の場所:**
 
@@ -365,7 +368,7 @@ NoteDeck のデータは大きく2種類に分かれる:
 - DB インポート: SQLite マジックバイト（`SQLite format 3\0`）を検証。WAL/SHM ファイルも自動クリーンアップ
 - 設定インポート: `..` や絶対パスを含むエントリを拒否。許可されたディレクトリ/ファイル名のみ展開
 
-バックアップ対象は `settings_store.rs` の `ALLOWED_SUBDIRS` / `ALLOWED_ROOT_FILES` と同一。設定ファイルを追加するときは、この allowlist に載せないとバックアップから漏れる。
+バックアップ対象は `settings_store.rs` の `ALLOWED_SUBDIRS` / `ROOT_FILES` (`backup: true` のもの) に、名指しで含める `notemaid/` の SOUL / USER / MEMORY を足したもの。設定ファイルを追加するときは、この allowlist に載せないとバックアップから漏れる。
 
 ### 手動バックアップ
 
@@ -378,7 +381,7 @@ NoteDeck のデータは大きく2種類に分かれる:
 
 ```bash
 # 例: profiles/ を Dropbox に同期
-ln -s ~/Dropbox/notedeck/profiles ~/.local/share/com.notedeck.desktop/profiles
+ln -s ~/Dropbox/notedeck/profiles ~/.local/share/com.notedeck.desktop/notedeck/profiles
 ```
 
 この方式の利点:
@@ -392,10 +395,10 @@ ln -s ~/Dropbox/notedeck/profiles ~/.local/share/com.notedeck.desktop/profiles
 設定の保存先が変わったときは、旧レイアウトを起動時に自動で引き継ぐ。
 
 - **localStorage → ファイル**: 起動時にファイルが 0 件かつ localStorage にデータがあれば、テキストファイルとして書き出す。以降はファイルが source of truth (localStorage はキャッシュとして残す)
-- **ファイル配置・拡張子の変更**: `run_fs()` (`src-tauri/src/migrations.rs`) が DB を開く前に実行する。設定ファイルの `notedeck/` サブディレクトリへの移動、`.json` → `.json5` へのリネーム等
+- **ファイル配置・拡張子の変更**: `run_fs()` (`crates/notecore/src/migrations.rs`) が DB を開く前に実行する。設定ファイルの `notedeck/` サブディレクトリへの移動、`.json` → `.json5` へのリネーム等
 - **DB トークン → OS キーチェーン**: `run_db()` が DB 初期化後に実行する
 
-各マイグレーションは前提条件を自分で確認する冪等な関数として書き、`run_all()` の末尾に追加する。再実行しても壊れないことが要件。
+各マイグレーションは前提条件を自分で確認する冪等な関数として書き、`run_fs()` / `run_db()` の末尾に追加する。再実行しても壊れないことが要件。
 
 ## ブラウザ・エディタパターンの導入方針
 
@@ -414,7 +417,7 @@ NoteDeck は Tauri（WebView）ベースのデスクトップアプリであり�
 | キーボードショートカット | カスタマイズ可能なキーバインド | ✅ 実装済み |
 | Spaces (Arc) | プロファイル切替 | ✅ 実装済み（メニュー経由） |
 | コマンドパレット (VS Code) | コマンドパレット | ✅ 実装済み |
-| Explorer (VS Code) | Workspace Explorer カラム | ✅ 実装済み |
+| Explorer (VS Code) | Workspace Explorer カラム | 採用しない (廃止) — 既存の設定 UI と導線が重複し、固有の価値がリネームだけだった。設定ファイルの直接編集は「ファイル → 設定フォルダを開く」で外部エディタに委ねる |
 | Output パネル (VS Code) | Stream Inspector カラム | ✅ 実装済み |
 | JSON Inspector (DevTools) | Raw JSON インスペクタウィンドウ | ✅ 実装済み |
 | Settings Editor (VS Code) | settings.json5 Raw JSON エディタ | ✅ 実装済み |

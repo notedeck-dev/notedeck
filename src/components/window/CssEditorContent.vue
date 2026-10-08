@@ -2,6 +2,7 @@
 import { css } from '@codemirror/lang-css'
 import { type Diagnostic, linter } from '@codemirror/lint'
 import { computed, reactive, ref, watch } from 'vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
@@ -328,167 +329,181 @@ const { isSyncing } = useExternalEditSync<string>({
     <div v-show="tab === 'presets'" :class="$style.presetsPanel">
       <!-- Font -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('font')">
+        <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.font" @click="toggleSection('font')">
           <i class="ti ti-typography" />
           {{ i18n.ts._cssEditorContent.font }}
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.font }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.font }]" />
         </button>
-        <template v-if="expandedSections.font">
-          <CssPresetDropdown
-            v-model="presets.customFont"
-            :options="FONT_OPTIONS"
-            font-preview
-          />
-          <div v-if="presets.customFont" :class="$style.preview" :style="{ fontFamily: `'${presets.customFont}', sans-serif` }">
-            {{ i18n.ts._cssEditorContent.fontPreview }}
+        <CollapseBox :open="!!expandedSections.font">
+          <div :class="$style.sectionBody">
+            <CssPresetDropdown
+              v-model="presets.customFont"
+              :options="FONT_OPTIONS"
+              font-preview
+            />
+            <div v-if="presets.customFont" :class="$style.preview" :style="{ fontFamily: `'${presets.customFont}', sans-serif` }">
+              {{ i18n.ts._cssEditorContent.fontPreview }}
+            </div>
           </div>
-        </template>
+        </CollapseBox>
       </div>
 
       <!-- Mono font (#901) -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('monoFont')">
+        <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.monoFont" @click="toggleSection('monoFont')">
           <i class="ti ti-code" />
           {{ i18n.ts._cssEditorContent.monoFont }}
           <span :class="$style.sectionValue">{{ selectedMonoFontLabel }}</span>
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.monoFont }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.monoFont }]" />
         </button>
-        <template v-if="expandedSections.monoFont">
-          <CssPresetDropdown
-            v-model="presets.monoFont"
-            :options="MONO_FONT_OPTIONS"
-            font-preview
-            font-fallback="monospace"
-          />
-          <div v-if="presets.monoFont" :class="$style.preview" :style="{ fontFamily: `'${presets.monoFont}', monospace` }">
-            {{ i18n.ts._cssEditorContent.monoFontPreview }}
+        <CollapseBox :open="!!expandedSections.monoFont">
+          <div :class="$style.sectionBody">
+            <CssPresetDropdown
+              v-model="presets.monoFont"
+              :options="MONO_FONT_OPTIONS"
+              font-preview
+              font-fallback="monospace"
+            />
+            <div v-if="presets.monoFont" :class="$style.preview" :style="{ fontFamily: `'${presets.monoFont}', monospace` }">
+              {{ i18n.ts._cssEditorContent.monoFontPreview }}
+            </div>
+            <div :class="$style.hideCountNote">
+              {{ i18n.ts._cssEditorContent.monoFontNote }}
+            </div>
           </div>
-          <div :class="$style.hideCountNote">
-            {{ i18n.ts._cssEditorContent.monoFontNote }}
-          </div>
-        </template>
+        </CollapseBox>
       </div>
 
       <!-- Font Size -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('fontSize')">
+        <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.fontSize" @click="toggleSection('fontSize')">
           <i class="ti ti-text-resize" />
           {{ i18n.ts._cssEditorContent.fontSize }}
           <span :class="$style.sectionValue">{{ fontSizeLabel }}</span>
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.fontSize }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.fontSize }]" />
         </button>
-        <template v-if="expandedSections.fontSize">
-          <div :class="$style.sliderRow">
-            <span :class="$style.sliderLabel">{{ i18n.ts._cssEditorContent.small }}</span>
-            <input
-              v-model.number="presets.fontSize"
-              type="range"
-              :min="FONT_SIZE_MIN"
-              :max="FONT_SIZE_MAX"
-              step="1"
-              :class="$style.slider"
-              :style="{ '--fill': sliderFill(presets.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX) }"
-            />
-            <span :class="$style.sliderLabel">{{ i18n.ts._cssEditorContent.large }}</span>
+        <CollapseBox :open="!!expandedSections.fontSize">
+          <div :class="$style.sectionBody">
+            <div :class="$style.sliderRow">
+              <span :class="$style.sliderLabel">{{ i18n.ts._cssEditorContent.small }}</span>
+              <input
+                v-model.number="presets.fontSize"
+                type="range"
+                :min="FONT_SIZE_MIN"
+                :max="FONT_SIZE_MAX"
+                step="1"
+                :class="$style.slider"
+                :style="{ '--fill': sliderFill(presets.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX) }"
+              />
+              <span :class="$style.sliderLabel">{{ i18n.ts._cssEditorContent.large }}</span>
+            </div>
+            <button
+              v-if="presets.fontSize !== 0"
+              class="_button"
+              :class="$style.resetBtn"
+              @click="presets.fontSize = 0"
+            >
+              {{ i18n.ts._cssEditorContent.reset }}
+            </button>
           </div>
-          <button
-            v-if="presets.fontSize !== 0"
-            class="_button"
-            :class="$style.resetBtn"
-            @click="presets.fontSize = 0"
-          >
-            {{ i18n.ts._cssEditorContent.reset }}
-          </button>
-        </template>
+        </CollapseBox>
       </div>
 
       <!-- Visibility background -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('visibilityBg')">
+        <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.visibilityBg" @click="toggleSection('visibilityBg')">
           <i class="ti ti-eye" />
           {{ i18n.ts._cssEditorContent.visibilityBg }}
           <span :class="$style.sectionValue">{{ selectedVisibilityBgLabel }}</span>
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.visibilityBg }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.visibilityBg }]" />
         </button>
-        <template v-if="expandedSections.visibilityBg">
-          <CssPresetDropdown
-            v-model="presets.visibilityBg"
-            :options="VISIBILITY_BG_OPTIONS"
-          />
-          <div v-if="presets.visibilityBg === 'tint'" :class="$style.visibilityBgPreview">
-            <div
-              v-for="({ label, color }, visibility) in VISIBILITY_BG_COLORS"
-              :key="visibility"
-              :class="$style.visibilityBgRow"
-              :style="{ backgroundColor: color }"
-            >
-              {{ label }}
+        <CollapseBox :open="!!expandedSections.visibilityBg">
+          <div :class="$style.sectionBody">
+            <CssPresetDropdown
+              v-model="presets.visibilityBg"
+              :options="VISIBILITY_BG_OPTIONS"
+            />
+            <div v-if="presets.visibilityBg === 'tint'" :class="$style.visibilityBgPreview">
+              <div
+                v-for="({ label, color }, visibility) in VISIBILITY_BG_COLORS"
+                :key="visibility"
+                :class="$style.visibilityBgRow"
+                :style="{ backgroundColor: color }"
+              >
+                {{ label }}
+              </div>
             </div>
           </div>
-        </template>
+        </CollapseBox>
       </div>
 
       <!-- Hide note counts (#594) -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('noteCounts')">
+        <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.noteCounts" @click="toggleSection('noteCounts')">
           <i class="ti ti-mood-smile" />
           {{ i18n.ts._cssEditorContent.hideNoteCounts }}
           <span :class="$style.sectionValue">{{ hideCountLabel(presets.hideNoteCounts) }}</span>
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.noteCounts }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.noteCounts }]" />
         </button>
-        <template v-if="expandedSections.noteCounts">
-          <CssPresetDropdown
-            v-model="presets.hideNoteCounts"
-            :options="HIDE_COUNT_OPTIONS"
-          />
-          <div :class="$style.hideCountNote">
-            {{ i18n.ts._cssEditorContent.hideNoteCountsNote }}
+        <CollapseBox :open="!!expandedSections.noteCounts">
+          <div :class="$style.sectionBody">
+            <CssPresetDropdown
+              v-model="presets.hideNoteCounts"
+              :options="HIDE_COUNT_OPTIONS"
+            />
+            <div :class="$style.hideCountNote">
+              {{ i18n.ts._cssEditorContent.hideNoteCountsNote }}
+            </div>
           </div>
-        </template>
+        </CollapseBox>
       </div>
 
       <!-- Hide user stats (#593) -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('userStats')">
+        <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.userStats" @click="toggleSection('userStats')">
           <i class="ti ti-chart-bar" />
           {{ i18n.ts._cssEditorContent.hideUserStats }}
           <span :class="$style.sectionValue">{{ hideCountLabel(presets.hideUserStats) }}</span>
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.userStats }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.userStats }]" />
         </button>
-        <template v-if="expandedSections.userStats">
-          <CssPresetDropdown
-            v-model="presets.hideUserStats"
-            :options="HIDE_COUNT_OPTIONS"
-          />
-          <div :class="$style.hideCountNote">
-            {{ i18n.ts._cssEditorContent.hideUserStatsNote }}
+        <CollapseBox :open="!!expandedSections.userStats">
+          <div :class="$style.sectionBody">
+            <CssPresetDropdown
+              v-model="presets.hideUserStats"
+              :options="HIDE_COUNT_OPTIONS"
+            />
+            <div :class="$style.hideCountNote">
+              {{ i18n.ts._cssEditorContent.hideUserStatsNote }}
+            </div>
           </div>
-        </template>
+        </CollapseBox>
       </div>
 
       <!-- Freeform CSS -->
       <div :class="$style.section">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('css')">
+        <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.css" @click="toggleSection('css')">
           <i class="ti ti-pencil" />
           {{ i18n.ts._cssEditorContent.freeformCss }}
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.css }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.css }]" />
         </button>
-        <template v-if="expandedSections.css">
-          <CodeEditor
-            v-model="userFreeformCss"
-            :language="cssLang"
-            :linter="cssLinter"
-            :class="[$style.editorWrap, { [$style.hasError]: cssError }]"
-            max-height="300px"
-          />
-          <div v-if="cssError" :class="$style.errorMessage">
-            <i class="ti ti-alert-triangle" />
-            {{ cssError }}
+        <CollapseBox :open="!!expandedSections.css">
+          <div :class="$style.sectionBody">
+            <CodeEditor
+              v-model="userFreeformCss"
+              :language="cssLang"
+              :linter="cssLinter"
+              :class="[$style.editorWrap, { [$style.hasError]: cssError }]"
+              max-height="300px"
+            />
+            <div v-if="cssError" :class="$style.errorMessage">
+              <i class="ti ti-alert-triangle" />
+              {{ cssError }}
+            </div>
+            <div v-if="cssError" :class="$style.errorHint">
+              {{ i18n.ts._cssEditorContent.cssErrorHint }}
+            </div>
           </div>
-          <div v-if="cssError" :class="$style.errorHint">
-            {{ i18n.ts._cssEditorContent.cssErrorHint }}
-          </div>
-        </template>
+        </CollapseBox>
       </div>
     </div>
 
@@ -592,7 +607,6 @@ const { isSyncing } = useExternalEditSync<string>({
 .section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 12px 10px;
   border-bottom: 1px solid var(--nd-divider);
 }
@@ -616,12 +630,13 @@ const { isSyncing } = useExternalEditSync<string>({
 .chevron {
   margin-left: auto;
   font-size: 0.9em;
-  transition: transform var(--nd-duration-base);
-  transform: rotate(-90deg);
 }
 
-.chevronOpen {
-  transform: rotate(0deg);
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
 }
 
 .sectionValue {

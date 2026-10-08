@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, toRef, useCssModule, useTemplateRef } from 'vue'
+import { computed, provide, toRef, useCssModule, useTemplateRef } from 'vue'
 import ColumnErrorBoundary from '@/components/deck/ColumnErrorBoundary.vue'
+import ColumnShell, {
+  COLUMN_SHELL_PREVIEW,
+} from '@/components/deck/ColumnShell.vue'
 import ColumnTombstone from '@/components/deck/ColumnTombstone.vue'
 import { COLUMN_COMPONENTS } from '@/components/deck/columnComponents'
 import { useColumnMount } from '@/composables/useColumnMount'
@@ -23,6 +26,9 @@ const emit = defineEmits<{
 }>()
 
 const $style = useCssModule()
+// カラムのチャンク読み込み中に出す ColumnShell (defineAsyncComponent の
+// loadingComponent) は props を受け取れないので inject で渡す
+provide(COLUMN_SHELL_PREVIEW, toRef(props, 'shellPreview'))
 const cellRef = useTemplateRef<HTMLElement>('cellRef')
 
 // Stream Inspector が存在する間は画面外カラムも mount 維持し、購読を生かして
@@ -68,24 +74,7 @@ const isUnknownType = computed(
       :col-id="colId"
       :type="column.type"
     />
-    <div v-else :class="$style.columnShell" aria-hidden="true">
-      <div :class="$style.columnShellHeader" />
-      <div :class="$style.columnShellBody">
-        <template v-if="shellPreview.length > 0">
-          <div
-            v-for="(line, i) in shellPreview"
-            :key="i"
-            :class="$style.columnShellPreview"
-          >{{ line || '\u00A0' }}</div>
-        </template>
-        <template v-else>
-          <div :class="$style.columnShellLine" />
-          <div :class="[$style.columnShellLine, $style.columnShellLineWide]" />
-          <div :class="$style.columnShellCard" />
-          <div :class="$style.columnShellCard" />
-        </template>
-      </div>
-    </div>
+    <ColumnShell v-else />
   </div>
 </template>
 
@@ -134,81 +123,4 @@ const isUnknownType = computed(
   opacity: 0.4;
 }
 
-.columnShell {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  border-radius: 10px;
-  overflow: hidden;
-  background: color-mix(in srgb, var(--nd-panel) 92%, transparent);
-  border: 1px solid color-mix(in srgb, var(--nd-divider, currentColor) 30%, transparent);
-}
-
-.columnShellHeader {
-  height: 38px;
-  flex-shrink: 0;
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--nd-panelHeaderBg, var(--nd-panel)) 85%, transparent),
-      color-mix(in srgb, var(--nd-panelHeaderBg, var(--nd-panel)) 60%, transparent),
-      color-mix(in srgb, var(--nd-panelHeaderBg, var(--nd-panel)) 85%, transparent)
-    );
-  background-size: 200% 100%;
-  animation: nd-shell-shimmer 1.6s linear infinite;
-}
-
-.columnShellBody {
-  flex: 1;
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.columnShellLine,
-.columnShellCard {
-  background:
-    linear-gradient(
-      90deg,
-      color-mix(in srgb, var(--nd-panel) 75%, transparent),
-      color-mix(in srgb, var(--nd-panel) 55%, transparent),
-      color-mix(in srgb, var(--nd-panel) 75%, transparent)
-    );
-  background-size: 200% 100%;
-  animation: nd-shell-shimmer 1.6s linear infinite;
-}
-
-.columnShellLine {
-  height: 10px;
-  border-radius: var(--nd-radius-full);
-  width: 58%;
-}
-
-.columnShellLineWide {
-  width: 82%;
-}
-
-.columnShellCard {
-  height: 96px;
-  border-radius: 12px;
-}
-
-@keyframes nd-shell-shimmer {
-  from { background-position: 200% 0; }
-  to { background-position: -200% 0; }
-}
-
-.columnShellPreview {
-  padding: 8px 10px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--nd-fg);
-  opacity: 0.5;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  border-bottom: 1px solid color-mix(in srgb, var(--nd-divider, currentColor) 15%, transparent);
-}
 </style>

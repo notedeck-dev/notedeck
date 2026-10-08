@@ -5,6 +5,7 @@
 // コンパイルエラーになる。
 
 import { type Component, defineAsyncComponent } from 'vue'
+import WindowLoading from '@/components/window/WindowLoading.vue'
 import type { WindowType } from '@/stores/windows'
 
 type Loader = () => Promise<{ default: Component }>
@@ -64,6 +65,10 @@ const WINDOW_LOADERS: Record<WindowType, Loader> = {
 export const WINDOW_COMPONENTS: Record<string, Component> = Object.fromEntries(
   Object.entries(WINDOW_LOADERS).map(([type, load]) => [
     type,
-    defineAsyncComponent(load),
+    defineAsyncComponent({
+      loader: load,
+      loadingComponent: WindowLoading,
+      delay: 0,
+    }),
   ]),
 )

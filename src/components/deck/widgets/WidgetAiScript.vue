@@ -14,6 +14,7 @@ import { sanitizeCode } from '@/aiscript/sanitize'
 import type { UiComponent } from '@/aiscript/ui'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import { usePortal } from '@/composables/usePortal'
 import { i18n } from '@/i18n'
 import { useToast } from '@/stores/toast'
@@ -74,6 +75,7 @@ const ownAccount = computed(() => {
 const code = computed(() => props.widget.src ?? '')
 const uiComponents = ref<UiComponent[]>([])
 const output = ref<{ text: string; isError: boolean }[]>([])
+const outputOpen = ref(false)
 const error = ref<string | null>(null)
 const running = ref(false)
 const interpreter = ref<Interpreter | null>(null)
@@ -295,16 +297,26 @@ onMounted(() => {
         @post="handlePost"
       />
 
-      <details v-if="output.length" :class="$style.outputPanel">
-        <summary>{{ i18n.tsx._widgetAiScript.outputCount({ n: output.length }) }}</summary>
-        <div
-          v-for="(line, i) in output"
-          :key="i"
-          :class="[$style.outputLine, { [$style.error]: line.isError }]"
+      <div v-if="output.length" :class="$style.outputPanel">
+        <button
+          class="_button"
+          :class="$style.outputSummary"
+          :aria-expanded="outputOpen"
+          @click="outputOpen = !outputOpen"
         >
-          {{ line.text }}
-        </div>
-      </details>
+          <i class="ti ti-chevron-down nd-chevron" :class="{ 'nd-chevron-closed': !outputOpen }" />
+          {{ i18n.tsx._widgetAiScript.outputCount({ n: output.length }) }}
+        </button>
+        <CollapseBox :open="outputOpen">
+          <div
+            v-for="(line, i) in output"
+            :key="i"
+            :class="[$style.outputLine, { [$style.error]: line.isError }]"
+          >
+            {{ line.text }}
+          </div>
+        </CollapseBox>
+      </div>
     </div>
   </div>
 
@@ -470,13 +482,17 @@ onMounted(() => {
   line-height: 1.6;
   max-height: 200px;
   overflow-y: auto;
+}
 
-  summary {
-    cursor: pointer;
-    opacity: 0.6;
-    font-size: 0.9em;
-    user-select: none;
-  }
+.outputSummary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  cursor: pointer;
+  opacity: 0.6;
+  font-size: 0.9em;
+  user-select: none;
 }
 
 .outputLine {

@@ -30,6 +30,7 @@ import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
+import { scrollToTopSmart } from '@/utils/motion'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
@@ -432,12 +433,9 @@ function onKeydown(e: KeyboardEvent) {
 
 function scrollToTop() {
   if (noteScrollerRef.value) {
-    noteScrollerRef.value.scrollToIndex(0, {
-      align: 'start',
-      behavior: 'smooth',
-    })
+    noteScrollerRef.value.scrollToTop()
   } else {
-    scroller.value?.scrollTo({ top: 0, behavior: 'smooth' })
+    scrollToTopSmart(scroller.value)
   }
 }
 
@@ -570,13 +568,14 @@ onMounted(async () => {
         v-else
         ref="noteScrollerRef"
         :items="groups"
-        :class="$style.tlScroller"
+        :class="[$style.tlScroller, 'nd-fade-appear']"
         @scroll="onScrollReport"
         @near-end="loadMore"
       >
-        <template #default="{ item }">
+        <template #default="{ item, nearViewport }">
           <div>
             <MkNote
+              :near-viewport="nearViewport"
               :note="item.primary"
               :group="item"
               @react="handlers.reaction"

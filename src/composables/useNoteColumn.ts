@@ -51,6 +51,7 @@ import { useUiStore } from '@/stores/ui'
 import { dedup } from '@/utils/dedup'
 import { AppError } from '@/utils/errors'
 import { logWarn } from '@/utils/logger'
+import { scrollToTopSmart } from '@/utils/motion'
 import { logStartupSummary, markStartup } from '@/utils/startupTrace'
 
 /** QIR キャッシュ検索が 1 度に返すノート数 (#783 Phase 3) */
@@ -105,6 +106,11 @@ export interface NoteColumnConfig {
    */
   connectReady?: Ref<boolean>
   /**
+   * `connectReady` を待ったまま接続しないと決まったとき true にする
+   * (到達可能な TL が無い等)。初回の読み込み中表示を畳むのに使う
+   */
+  connectBlocked?: Ref<boolean>
+  /**
    * 表示述語の面別 opt-out（#606）。既定（未指定）は全適用。
    * お気に入り・自分のクリップは `ignoreSuspension`、プロフィールは
    * `ignoreSubject`（面別マトリクスは DEVELOPMENT.md 参照）。
@@ -120,6 +126,7 @@ export interface NoteColumnConfig {
 function markFirstNotesPainted(): void {
   void nextTick(() => {
     requestAnimationFrame(() => {
+      useUiStore().firstContentPainted = true
       if (markStartup('first-notes')) logStartupSummary()
     })
   })
@@ -559,6 +566,15 @@ export function useNoteColumn(config: NoteColumnConfig) {
     error.value = AppError.from(e)
   }
 
+  // アカウント一覧の読み込みより先にマウントすると「キャッシュのみ・オフライン」
+  // で止まる。アカウントが解決したら接続し直す
+  watch(
+    () => account.value != null,
+    (has, had) => {
+      if (has && !had && isOffline.value) void connect(true)
+    },
+  )
+
   // Handle token state transitions (logout / re-login)
   watch(
     () => account.value?.hasToken,
@@ -578,6 +594,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     markStartup('column-connect')
 
     if (config.validate && !config.validate()) {
+      isLoading.value = false
       return
     }
 
@@ -892,12 +909,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     streamingBatch?.flushToTop()
     nextTick(() => {
       if (noteScrollerRef.value) {
-        noteScrollerRef.value.scrollToIndex(0, {
-          align: 'start',
-          behavior: 'smooth',
-        })
-      } else if (scroller.value) {
-        scroller.value.scrollTo({ top: 0, behavior: 'smooth' })
+        noteScrollerRef.value.scrollToTop()
+      } else {
+        scrollToTopSmart(scroller.value)
       }
     })
   }
@@ -1089,16 +1103,20 @@ export function useNoteColumn(config: NoteColumnConfig) {
       // Stream-preserving path: reuse adapter/WebSocket, swap subscription only
       streamingBatch.setPaused(true)
       resubscribe(adapter)
-      setNotes([])
       resetFetchCursor()
       error.value = null
       isLoading.value = true
       try {
-        // Load cache if requested
+        // キャッシュを使うときは読み終えてから新しいタブの内容に一度で差し替える。
+        // 先に空にすると「全消去 → スピナー → キャッシュ」の段階が見える
         if (useCache && config.cache) {
           const filtered = await loadFilteredCache('reconnect-cache')
           if (!stillCurrent()) return
-          if (filtered.length > 0) setNotes(filtered)
+          setNotes(filtered)
+          await nextTick()
+          noteScrollerRef.value?.getElement?.()?.scrollTo({ top: 0 })
+        } else {
+          setNotes([])
         }
         // Fetch latest from API
         const fetched = await fetchAndDedup(adapter)
@@ -1210,8 +1228,30 @@ export function useNoteColumn(config: NoteColumnConfig) {
     )
   }
 
+  /** 接続を待つ間に DB キャッシュだけ先に出す (接続後の connect が上書き・合流する) */
+  async function preloadCache() {
+    if (!config.cache) return
+    const stillCurrent = tabGuard()
+    const cached = await loadFilteredCache('preload-cache')
+    if (!stillCurrent() || notes.value.length > 0 || cached.length === 0) return
+    setNotes(cached)
+    markFirstNotesPainted()
+  }
+
   onMounted(() => {
+    // 初回の取得が終わるまでは「読み込み中」として扱う。ここで立てないと、
+    // DB キャッシュの IPC 往復 (TL はポリシー検出も) の間に空状態が一瞬出て
+    // からノートに差し替わる
+    if (notes.value.length === 0) isLoading.value = true
+    if (config.connectBlocked) {
+      watch(config.connectBlocked, (blocked) => {
+        if (blocked) isLoading.value = false
+      })
+    }
     if (config.connectReady && !config.connectReady.value) {
+      // 接続 (API / ストリーム) はポリシー検出を待つが、手元の DB キャッシュは
+      // 待たずに出す。待つとサーバー往復の間ずっと空のままになる
+      void preloadCache()
       // Delay connect until the parent signals readiness (e.g. policy detection)
       const stop = watch(config.connectReady, (ready) => {
         if (ready) {

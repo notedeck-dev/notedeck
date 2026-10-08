@@ -15,6 +15,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAd from '@/components/common/MkAd.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
+import NewNotesBanner from '@/components/deck/NewNotesBanner.vue'
 import { useAds } from '@/composables/useAds'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
@@ -99,11 +100,13 @@ function buildTimelineOptions() {
 
 // --- Connect readiness: wait for policy detection before connecting ---
 const connectReady = ref(false)
+const connectBlocked = ref(false)
 
 // --- NoteColumnConfig ---
 
 const noteColumnConfig: NoteColumnConfig = {
   connectReady,
+  connectBlocked,
   getColumn: () => props.column,
   fetch: async (adapter, opts) => {
     try {
@@ -391,7 +394,10 @@ const tlModes = ref<Record<string, boolean>>({})
 const policyLoaded = ref(false)
 
 const allTlTypes = computed(() => {
-  if (!connectReady.value) return [] // Policy detection not yet complete
+  // ポリシー検出中は今のタブだけ仮に出す (空のタブ行から一気に並ぶのを避ける)
+  if (!connectReady.value) {
+    return TL_TYPES.filter((t) => t.value === tlType.value)
+  }
   if (!policyLoaded.value) return TL_TYPES.map((t) => t) // No account — show all
   const allowed = availableStandardTl.value
   if (allowed.length === 0) {
@@ -626,6 +632,7 @@ onMounted(async () => {
       if (availableStandardTl.value.length === 0) {
         // Nothing reachable for this account (e.g. guest on a closed server).
         // Leave connectReady=false so useNoteColumn doesn't fire a doomed fetch.
+        connectBlocked.value = true
         return
       }
       if (!availableStandardTl.value.includes(tlType.value)) {
@@ -718,26 +725,20 @@ onMounted(async () => {
       />
 
       <template v-else>
-        <button
-          v-if="pendingCount > 0"
-          :class="$style.newNotesBanner"
-          class="_button"
-          @click="scrollToTop()"
-        >
-          <i class="ti ti-arrow-up" />{{ i18n.ts._common.newNotes }}
-        </button>
+        <NewNotesBanner :show="pendingCount > 0" @click="scrollToTop()" />
 
         <NoteScroller
           ref="noteScrollerRef"
           :items="groups"
           :animating-ids="animatingRowKeys"
-          :class="$style.tlScroller"
+          :class="[$style.tlScroller, 'nd-fade-appear']"
           @scroll="handleScroll"
           @near-end="loadMoreCrossAccount"
         >
-          <template #default="{ item }">
+          <template #default="{ item, nearViewport }">
             <div>
               <MkNote
+                :near-viewport="nearViewport"
                 :note="item.primary"
                 :group="item"
                 @react="handlers.reaction"

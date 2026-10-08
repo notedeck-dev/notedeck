@@ -2,6 +2,7 @@
 import { json } from '@codemirror/lang-json'
 import JSON5 from 'json5'
 import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import type { ReorderableItem } from '@/components/common/ReorderableList.vue'
@@ -389,103 +390,108 @@ async function importFromClipboard() {
 
       <!-- Profile name -->
       <div :class="$style.nameSection">
-        <button class="_button" :class="$style.nameLabel" @click="toggleSection('name')">
+        <button class="_button" :class="$style.nameLabel" :aria-expanded="!!expandedSections.name" @click="toggleSection('name')">
           <i class="ti ti-tag" />
           {{ i18n.ts._profileEditorContent.profileName }}
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.name }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.name }]" />
         </button>
-        <input
-          v-if="expandedSections.name"
-          :value="editingName"
-          :class="$style.nameInput"
-          type="text"
-          :placeholder="i18n.ts._profileEditorContent.profileName"
-          spellcheck="false"
-          @change="onProfileNameChange"
-        />
+        <CollapseBox :open="!!expandedSections.name">
+          <div :class="$style.sectionBody">
+            <input
+              :value="editingName"
+              :class="$style.nameInput"
+              type="text"
+              :placeholder="i18n.ts._profileEditorContent.profileName"
+              spellcheck="false"
+              @change="onProfileNameChange"
+            />
+          </div>
+        </CollapseBox>
       </div>
 
       <!-- Column preview -->
       <div :class="$style.columnSection">
-        <button class="_button" :class="$style.sectionLabel" @click="toggleSection('columns')">
+        <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.columns" @click="toggleSection('columns')">
           <i class="ti ti-columns" />
           {{ i18n.ts._profileEditorContent.columns }}
           <span :class="$style.sectionBadge">{{ editingLayout.length }}</span>
-          <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.columns }]" />
+          <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.columns }]" />
         </button>
 
-        <template v-if="expandedSections.columns">
-        <!-- Mobile: row-based list with drag & drop -->
-        <ReorderableList
-          v-if="isCompact"
-          :items="reorderableGroups"
-          data-attr="group-idx"
-          :empty-text="i18n.ts._profileEditorContent.noColumns"
-          @reorder="onGroupReorder"
-          @remove="removeGroup"
-        />
+        <CollapseBox :open="!!expandedSections.columns">
+          <div :class="$style.sectionBody">
+            <!-- Mobile: row-based list with drag & drop -->
+            <ReorderableList
+              v-if="isCompact"
+              :items="reorderableGroups"
+              data-attr="group-idx"
+              :empty-text="i18n.ts._profileEditorContent.noColumns"
+              @reorder="onGroupReorder"
+              @remove="removeGroup"
+            />
 
-        <!-- Desktop: icon grid with drag & drop -->
-        <div v-else :class="$style.columnPreview">
-          <div
-            v-for="(group, groupIdx) in editingLayout"
-            :key="`${groupIdx}:${group.join(',')}`"
-            :data-group-idx="groupIdx"
-            :class="[
-              $style.columnTab,
-              { [$style.dragging]: dragFromIndex === groupIdx },
-              { [$style.dragOver]: dragOverIndex === groupIdx },
-            ]"
-            :title="groupLabel(group)"
-            @pointerdown="startDrag(groupIdx, $event)"
-          >
-            <div :class="$style.iconWrap">
-              <i v-if="groupPrimaryColumn(group)" :class="'ti ti-' + columnIcon(groupPrimaryColumn(group)!)" />
-              <span v-if="group.length > 1" :class="$style.stackBadge">{{ group.length }}</span>
-              <ColumnBadges :account-id="groupPrimaryColumn(group)?.accountId" :size="14" />
+            <!-- Desktop: icon grid with drag & drop -->
+            <div v-else :class="$style.columnPreview">
+              <div
+                v-for="(group, groupIdx) in editingLayout"
+                :key="`${groupIdx}:${group.join(',')}`"
+                :data-group-idx="groupIdx"
+                :class="[
+                  $style.columnTab,
+                  { [$style.dragging]: dragFromIndex === groupIdx },
+                  { [$style.dragOver]: dragOverIndex === groupIdx },
+                ]"
+                :title="groupLabel(group)"
+                @pointerdown="startDrag(groupIdx, $event)"
+              >
+                <div :class="$style.iconWrap">
+                  <i v-if="groupPrimaryColumn(group)" :class="'ti ti-' + columnIcon(groupPrimaryColumn(group)!)" />
+                  <span v-if="group.length > 1" :class="$style.stackBadge">{{ group.length }}</span>
+                  <ColumnBadges :account-id="groupPrimaryColumn(group)?.accountId" :size="14" />
+                </div>
+                <button
+                  class="_button"
+                  :class="$style.removeBtn"
+                  @click.stop="removeGroup(groupIdx)"
+                >
+                  <i class="ti ti-x" />
+                </button>
+              </div>
+
+              <div v-if="editingLayout.length === 0" :class="$style.emptyMessage">
+                {{ i18n.ts._profileEditorContent.noColumns }}
+              </div>
+
+              <!-- Add column button -->
+              <div
+                v-if="!isOtherProfile"
+                :class="[$style.columnTab, $style.addColumnTab]"
+                :title="i18n.ts._commands.addColumn"
+                @click="showAddColumn = !showAddColumn"
+              >
+                <i class="ti ti-plus" />
+              </div>
             </div>
-            <button
-              class="_button"
-              :class="$style.removeBtn"
-              @click.stop="removeGroup(groupIdx)"
+
+            <!-- Add column button (mobile) -->
+            <div
+              v-if="isCompact && !isOtherProfile"
+              :class="[$style.columnTab, $style.addColumnTab]"
+              :title="i18n.ts._commands.addColumn"
+              @click="showAddColumn = !showAddColumn"
             >
-              <i class="ti ti-x" />
-            </button>
+              <i class="ti ti-plus" />
+            </div>
+
+            <!-- Inline AddColumnDialog -->
+            <AddColumnDialog
+              v-if="showAddColumn && !isOtherProfile"
+              mode="pip"
+              @column-selected="onColumnSelected"
+              @close="showAddColumn = false"
+            />
           </div>
-
-          <div v-if="editingLayout.length === 0" :class="$style.emptyMessage">
-            {{ i18n.ts._profileEditorContent.noColumns }}
-          </div>
-
-          <!-- Add column button -->
-          <div
-            v-if="!isOtherProfile"
-            :class="[$style.columnTab, $style.addColumnTab]"
-            :title="i18n.ts._commands.addColumn"
-            @click="showAddColumn = !showAddColumn"
-          >
-            <i class="ti ti-plus" />
-          </div>
-        </div>
-
-        <!-- Add column button (mobile) -->
-        <div
-          v-if="isCompact && !isOtherProfile"
-          :class="[$style.columnTab, $style.addColumnTab]"
-          :title="i18n.ts._commands.addColumn"
-          @click="showAddColumn = !showAddColumn"
-        >
-          <i class="ti ti-plus" />
-        </div>
-
-        <!-- Inline AddColumnDialog -->
-        <AddColumnDialog
-          v-if="showAddColumn && !isOtherProfile"
-          mode="pip"
-          @column-selected="onColumnSelected"
-          @close="showAddColumn = false"
-        />
-        </template>
+        </CollapseBox>
       </div>
     </div>
 
@@ -569,7 +575,6 @@ async function importFromClipboard() {
 .nameSection {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 12px 10px;
   border-bottom: 1px solid var(--nd-divider);
 }
@@ -611,7 +616,6 @@ async function importFromClipboard() {
 .columnSection {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 12px 10px;
 }
 
@@ -634,12 +638,13 @@ async function importFromClipboard() {
 .chevron {
   margin-left: auto;
   font-size: 0.9em;
-  transition: transform var(--nd-duration-base);
-  transform: rotate(-90deg);
 }
 
-.chevronOpen {
-  transform: rotate(0deg);
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
 }
 
 .sectionBadge {

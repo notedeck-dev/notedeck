@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import MkEmoji from '@/components/common/MkEmoji.vue'
 import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
@@ -19,6 +20,8 @@ const { mutedEmojis, getMutedEmojiUrl, toggleEmojiMuteWithConfirm } =
 const emojisStore = useEmojisStore()
 const accountsStore = useAccountsStore()
 const settingsStore = useSettingsStore()
+
+const mutedEmojisOpen = ref(false)
 
 const hideMutedUserReactions = computed(
   () => settingsStore.get('mute.hideMutedUserReactions') === true,
@@ -61,44 +64,53 @@ function resolveCustomUrl(key: string): string | null {
       @toggle="toggleHideMutedUserReactions"
     />
 
-    <details :class="$style.mutedEmojis">
-      <summary :class="$style.mutedEmojisLabel">
-        <i class="ti ti-chevron-right" :class="$style.chevron" />
+    <div :class="$style.mutedEmojis">
+      <button
+        class="_button"
+        :class="$style.mutedEmojisLabel"
+        :aria-expanded="mutedEmojisOpen"
+        @click="mutedEmojisOpen = !mutedEmojisOpen"
+      >
+        <i class="ti ti-chevron-down nd-chevron" :class="{ 'nd-chevron-closed': !mutedEmojisOpen }" />
         {{ i18n.ts._emojiMuteSection.mutedEmojis }}
         <span :class="$style.countBadge">{{ mutedEmojis.length }}</span>
-      </summary>
-      <p v-if="mutedEmojis.length === 0" :class="$style.empty">
-        {{ i18n.ts._emojiMuteSection.empty }}
-      </p>
-      <div v-else :class="$style.list">
-        <button
-          v-for="key in mutedEmojis"
-          :key="key"
-          class="_button"
-          :class="$style.item"
-          :title="i18n.tsx._emojiMuteSection.clickToUnmute({ emoji: key })"
-          @click="toggleEmojiMuteWithConfirm(key)"
-        >
-          <img
-            v-if="isCustomKey(key) && resolveCustomUrl(key)"
-            :src="proxyUrl(resolveCustomUrl(key)!)"
-            :alt="key"
-            :class="$style.itemEmoji"
-            decoding="async"
-            loading="lazy"
-          />
-          <img
-            v-else-if="isCustomKey(key)"
-            src="/emoji-unknown.svg"
-            :alt="key"
-            :class="$style.itemEmoji"
-          />
-          <MkEmoji v-else :emoji="key" ignore-muted :class="$style.itemEmoji" />
-          <span :class="$style.itemKey">{{ key }}</span>
-          <i class="ti ti-x" :class="$style.itemRemove" />
-        </button>
-      </div>
-    </details>
+      </button>
+      <CollapseBox :open="mutedEmojisOpen">
+        <div :class="$style.mutedEmojisBody">
+          <p v-if="mutedEmojis.length === 0" :class="$style.empty">
+            {{ i18n.ts._emojiMuteSection.empty }}
+          </p>
+          <div v-else :class="$style.list">
+            <button
+              v-for="key in mutedEmojis"
+              :key="key"
+              class="_button"
+              :class="$style.item"
+              :title="i18n.tsx._emojiMuteSection.clickToUnmute({ emoji: key })"
+              @click="toggleEmojiMuteWithConfirm(key)"
+            >
+              <img
+                v-if="isCustomKey(key) && resolveCustomUrl(key)"
+                :src="proxyUrl(resolveCustomUrl(key)!)"
+                :alt="key"
+                :class="$style.itemEmoji"
+                decoding="async"
+                loading="lazy"
+              />
+              <img
+                v-else-if="isCustomKey(key)"
+                src="/emoji-unknown.svg"
+                :alt="key"
+                :class="$style.itemEmoji"
+              />
+              <MkEmoji v-else :emoji="key" ignore-muted :class="$style.itemEmoji" />
+              <span :class="$style.itemKey">{{ key }}</span>
+              <i class="ti ti-x" :class="$style.itemRemove" />
+            </button>
+          </div>
+        </div>
+      </CollapseBox>
+    </div>
   </div>
 </template>
 
@@ -112,11 +124,10 @@ function resolveCustomUrl(key: string): string | null {
 .mutedEmojis {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+}
 
-  &[open] .chevron {
-    transform: rotate(90deg);
-  }
+.mutedEmojisBody {
+  padding-top: 4px;
 }
 
 .mutedEmojisLabel {
@@ -129,15 +140,6 @@ function resolveCustomUrl(key: string): string | null {
   padding: 4px 2px 0;
   cursor: pointer;
   user-select: none;
-  list-style: none;
-
-  &::-webkit-details-marker {
-    display: none;
-  }
-}
-
-.chevron {
-  transition: transform var(--nd-duration-base);
 }
 
 .countBadge {

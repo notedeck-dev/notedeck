@@ -508,6 +508,12 @@ _noteReactionPickerPopup:
 _noteReactionUsersModal:
   noReactions: "リアクションなし"
 
+_notificationCenter:
+  title: "アプリの通知"
+  clearAll: "すべてクリア"
+  empty: "新しい通知はありません"
+  unread: "未読 {count} 件"
+
 _noteVariantsPopup:
   ariaLabel: "このノートが見えているアカウント"
   title: "見えているアカウント"
@@ -803,6 +809,11 @@ _aiPersonalitySection:
   character: "キャラクター"
   characterNone: "なし"
   characterHint: "新しいセッションから反映されます。過去のセッションは作成時のキャラクターのままです。"
+  rules: "ルール"
+  rulesEdit: "ルールを編集"
+  rulesHint: "AI にいつも守ってほしい指示 (話し方や避けてほしいことなど) を書きます。記憶の扱いなど NoteDeck が必ず守らせる規約は別に入っているので、ここに書く必要はありません。"
+  rulesEmpty: "まだ何も書かれていません。"
+  rulesOpenFailed: "ルールを開けませんでした: {reason}"
   noCharacters: "候補がありません。スキルの編集で「キャラクター候補にする」を ON にしたスキルがここに出ます。"
   userTitle: "あなたについて覚えていること"
   userToggle: "あなたのことを覚える"
@@ -1809,7 +1820,6 @@ _deckSkillColumn:
   modeTrigger: "自動"
   newSkillName: "新規スキル"
   newSkillBody: "指示文をここに記述します。"
-  reservedHint: "予約スキル: 名前とモードは固定で、削除できません"
 
 _deckTaskRunnerColumn:
   clearHistory: "履歴をクリア"
@@ -2478,6 +2488,14 @@ _widgetCapabilities:
   accountRequired: "アカウントが必要です (カラムにアカウントを設定してください)"
   needsLogin: "要ログイン"
   loginRequired: "ログイン済みアカウントが必要です"
+
+# notedeck:// リンクからのインストール確認 (#1204)
+_deepLinkInstall:
+  pluginTitle: "プラグインをインストールしますか？"
+  themeTitle: "テーマをインストールしますか？"
+  message: "リンクから MisStore の「{name}」(v{version}、作者 {author}) のインストールが要求されました。"
+  capabilities: "要求する機能: {list}"
+  incompatibleTitle: "このプラグインはインストールできません"
 
 _columnEmptyState:
   networkError: "サーバーに接続できません。ネットワークを確認してください。"

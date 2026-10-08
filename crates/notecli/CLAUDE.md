@@ -15,7 +15,7 @@ cargo test -p notecli      # テスト
 
 ## アーキテクチャ原則
 
-- **コアはライブラリ**: api, models, db, streaming, event_bus がコアロジック。CLI がフロントエンドで、HTTP のルート定義は NoteDeck / notecored の公開 API 面が取り込む (単体の daemon は廃止)
+- **コアはライブラリ**: api, models, db, streaming, event_bus がコアロジック。CLI がフロントエンドで、HTTP のルート定義は NoteDeck の公開 API 面が取り込む (単体の daemon は廃止)
 - **ステートレス API クライアント**: `MisskeyClient` は副作用を持たない純粋な HTTP ラッパー
 - **イベント駆動**: streaming → EventBus → 複数の消費者（SSE, Tauri IPC 等）
 - 詳細は ARCHITECTURE.md を参照

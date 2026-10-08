@@ -126,13 +126,14 @@ watch(
         v-else
         ref="noteScrollerRef"
         :items="groups"
-        :class="$style.tlScroller"
+        :class="[$style.tlScroller, 'nd-fade-appear']"
         @scroll="handleScroll"
         @near-end="loadMoreCrossAccount"
       >
-        <template #default="{ item }">
+        <template #default="{ item, nearViewport }">
           <div>
             <MkNote
+              :near-viewport="nearViewport"
               :note="item.primary"
               :group="item"
               @react="handlers.reaction"

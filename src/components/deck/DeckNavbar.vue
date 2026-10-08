@@ -28,6 +28,7 @@ import { isNavDivider, type NavItem, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useStreamingStore } from '@/stores/streaming'
+import { useToast } from '@/stores/toast'
 import { useIsCompactLayout } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import {
@@ -166,6 +167,8 @@ function getNavBadge(item: NavItem): number {
   if (isNavDivider(item)) return 0
   return getBadge(item.type)
 }
+
+const toastCenter = useToast()
 
 function closeDrawerAndDo(fn: () => void) {
   emit('update:mobileDrawerOpen', false)
@@ -511,6 +514,21 @@ defineExpose({
               </button>
               <DeckSettingsMenu :show="props.showSettingsMenu" @close="emit('update:showSettingsMenu', false)" />
             </div>
+            <!-- アプリの通知 (受信トレイ)。デスクトップはボトムバーの受信トレイボタン -->
+            <button
+              class="_button"
+              :class="$style.item"
+              data-notification-bell
+              :title="i18n.ts._notificationCenter.title"
+              :aria-expanded="toastCenter.inboxOpen.value"
+              @click="closeDrawerAndDo(() => toastCenter.setInboxOpen(true))"
+            >
+              <div :class="$style.iconWrap">
+                <i class="ti ti-inbox" />
+                <span v-if="toastCenter.unreadCount.value > 0" :key="toastCenter.unreadCount.value" :class="$style.badge">{{ toastCenter.unreadCount.value > 99 ? '99+' : toastCenter.unreadCount.value }}</span>
+              </div>
+              <span :class="$style.label">{{ i18n.ts._notificationCenter.title }}</span>
+            </button>
           </div>
           <div v-if="isCompact" :class="$style.divider" />
 

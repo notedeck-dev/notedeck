@@ -78,6 +78,7 @@ import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { AppError } from '@/utils/errors'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
+import { scrollToTopSmart } from '@/utils/motion'
 import {
   CROSS_ACCOUNT_NOTIFICATION_KEY,
   loadNotificationCache,
@@ -559,6 +560,7 @@ const filteredNotifications = computed(() => {
 
 const noteScrollerRef = ref<{
   getElement: () => HTMLElement | null
+  scrollToTop: () => void
   scrollToIndex: (
     index: number,
     opts?: {
@@ -581,12 +583,9 @@ let rafId: number | null = null
 
 function scrollToTop() {
   if (noteScrollerRef.value) {
-    noteScrollerRef.value.scrollToIndex(0, {
-      align: 'start',
-      behavior: 'smooth',
-    })
-  } else if (scroller.value) {
-    scroller.value.scrollTo({ top: 0, behavior: 'smooth' })
+    noteScrollerRef.value.scrollToTop()
+  } else {
+    scrollToTopSmart(scroller.value)
   }
 }
 
@@ -1342,10 +1341,10 @@ onUnmounted(() => {
         ref="noteScrollerRef"
         :items="filteredNotifications"
         :estimated-height="80"
-        :class="$style.notifScroller"
+        :class="[$style.notifScroller, 'nd-fade-appear']"
         @scroll="handleScroll"
       >
-        <template #default="{ item: notif, index }">
+        <template #default="{ item: notif, index, nearViewport }">
           <div>
             <ReadMarkerDivider
               v-if="viewMarkerId && hasUnreadAboveMarker && notificationKey(notif) === viewMarkerId"
@@ -1414,6 +1413,7 @@ onUnmounted(() => {
 
                   <div v-if="notif.note" :class="$style.notifNoteWrap">
                     <MkNote
+                      :near-viewport="nearViewport"
                       :note="notif.note"
                       embedded
                       @react="handlers.reaction"
@@ -1542,6 +1542,7 @@ onUnmounted(() => {
                   <!-- Attached note (for reaction, reply, renote, quote, mention) -->
                   <div v-if="notif.note" :class="$style.notifNoteWrap">
                     <MkNote
+                      :near-viewport="nearViewport"
                       :note="notif.note"
                       embedded
                       @react="handlers.reaction"

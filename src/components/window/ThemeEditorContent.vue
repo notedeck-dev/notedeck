@@ -11,6 +11,7 @@ import {
   useCssModule,
   watch,
 } from 'vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import ThemePreview from '@/components/ThemePreview.vue'
@@ -720,80 +721,86 @@ onUnmounted(() => {
       <div v-show="tab === 'visual'" :class="$style.visualPanel">
         <!-- Theme info -->
         <div :class="$style.section">
-          <button class="_button" :class="$style.sectionLabel" @click="toggleSection('info')">
+          <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.info" @click="toggleSection('info')">
             <i class="ti ti-tag" />
             {{ i18n.ts._themeEditorContent.themeInfo }}
-            <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.info }]" />
+            <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.info }]" />
           </button>
-          <template v-if="expandedSections.info">
-            <input
-              v-model="themeName"
-              :class="$style.nameInput"
-              type="text"
-              :placeholder="i18n.ts._themeEditorContent.themeName"
-              spellcheck="false"
-            />
-            <div :class="$style.baseToggle">
-              <button
-                class="_button"
-                :class="[$style.baseBtn, { [$style.active]: baseMode === 'dark' }]"
-                @click="baseMode = 'dark'"
-              >
-                <i class="ti ti-moon" />
-                Dark
-              </button>
-              <button
-                class="_button"
-                :class="[$style.baseBtn, { [$style.active]: baseMode === 'light' }]"
-                @click="baseMode = 'light'"
-              >
-                <i class="ti ti-sun" />
-                Light
-              </button>
+          <CollapseBox :open="!!expandedSections.info">
+            <div :class="$style.sectionBody">
+              <input
+                v-model="themeName"
+                :class="$style.nameInput"
+                type="text"
+                :placeholder="i18n.ts._themeEditorContent.themeName"
+                spellcheck="false"
+              />
+              <div :class="$style.baseToggle">
+                <button
+                  class="_button"
+                  :class="[$style.baseBtn, { [$style.active]: baseMode === 'dark' }]"
+                  @click="baseMode = 'dark'"
+                >
+                  <i class="ti ti-moon" />
+                  Dark
+                </button>
+                <button
+                  class="_button"
+                  :class="[$style.baseBtn, { [$style.active]: baseMode === 'light' }]"
+                  @click="baseMode = 'light'"
+                >
+                  <i class="ti ti-sun" />
+                  Light
+                </button>
+              </div>
             </div>
-          </template>
+          </CollapseBox>
         </div>
 
         <!-- Load from existing -->
         <div v-if="themeStore.installedThemes.length" :class="$style.section">
-          <button class="_button" :class="$style.sectionLabel" @click="toggleSection('existing')">
+          <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.existing" @click="toggleSection('existing')">
             <i class="ti ti-folder-open" />
             {{ i18n.ts._themeEditorContent.existingThemes }}
-            <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.existing }]" />
+            <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.existing }]" />
           </button>
-          <div v-if="expandedSections.existing" :class="$style.dropdown">
-            <button
-              class="_button"
-              :class="$style.dropdownTrigger"
-              @click="showLoadDropdown = !showLoadDropdown"
-            >
-              <span>{{ i18n.ts._themeEditorContent.selectTheme }}</span>
-              <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
-            </button>
-            <div v-if="showLoadDropdown" :class="$style.dropdownPanel">
-              <div
-                v-for="t in themeStore.installedThemes"
-                :key="t.id"
-                :class="$style.dropdownItem"
-                @click="selectInstalledTheme(t)"
-              >
-                <div
-                  :class="$style.themeSwatch"
-                  :style="{ background: themeAccentColor(t) }"
-                />
-                <span :class="$style.dropdownItemLabel">{{ t.name }}</span>
-                <span :class="$style.dropdownItemBadge">{{ t.base }}</span>
+          <CollapseBox :open="!!expandedSections.existing">
+            <div :class="$style.sectionBody">
+              <div :class="$style.dropdown">
                 <button
                   class="_button"
-                  :class="$style.dropdownItemDelete"
-                  :title="i18n.ts._common.delete"
-                  @click="deleteInstalledTheme(t, $event)"
+                  :class="$style.dropdownTrigger"
+                  @click="showLoadDropdown = !showLoadDropdown"
                 >
-                  <i class="ti ti-trash" />
+                  <span>{{ i18n.ts._themeEditorContent.selectTheme }}</span>
+                  <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
                 </button>
+                <div v-if="showLoadDropdown" :class="$style.dropdownPanel">
+                  <div
+                    v-for="t in themeStore.installedThemes"
+                    :key="t.id"
+                    :class="$style.dropdownItem"
+                    @click="selectInstalledTheme(t)"
+                  >
+                    <div
+                      :class="$style.themeSwatch"
+                      :style="{ background: themeAccentColor(t) }"
+                    />
+                    <span :class="$style.dropdownItemLabel">{{ t.name }}</span>
+                    <span :class="$style.dropdownItemBadge">{{ t.base }}</span>
+                    <button
+                      class="_button"
+                      :class="$style.dropdownItemDelete"
+                      :title="i18n.ts._common.delete"
+                      @click="deleteInstalledTheme(t, $event)"
+                    >
+                      <i class="ti ti-trash" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </CollapseBox>
         </div>
 
         <!-- Primary Colors -->
@@ -801,6 +808,7 @@ onUnmounted(() => {
           <button
             class="_button"
             :class="$style.sectionLabel"
+            :aria-expanded="!!expandedSections.primary"
             @click="toggleSection('primary')"
           >
             <i class="ti ti-palette" />
@@ -808,57 +816,61 @@ onUnmounted(() => {
             <span v-if="primaryOverrideCount > 0" :class="$style.sectionValue">
               {{ primaryOverrideCount }}/{{ PRIMARY_PROPS.length }}
             </span>
-            <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.primary }]" />
+            <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.primary }]" />
           </button>
-          <div v-if="expandedSections.primary" :class="$style.propList">
-            <div
-              v-for="prop in PRIMARY_PROPS"
-              :key="prop.key"
-              :class="[$style.propRow, { [$style.overridden]: isOverridden(prop.key) }]"
-            >
-              <div :class="$style.propInfo">
-                <div :class="$style.colorPickerWrap">
-                  <input
-                    type="color"
-                    :class="$style.colorPicker"
-                    :value="resolvedHex(prop.key)"
-                    @input="(e) => updateColor(prop.key, (e.target as HTMLInputElement).value)"
-                  />
-                  <div
-                    :class="[$style.colorSwatch, { [$style.checkerboard]: hasAlpha(prop.key) }]"
-                    :style="{ backgroundColor: resolvedColors[prop.key] ?? 'transparent' }"
-                  />
-                </div>
-                <div :class="$style.propLabel">
-                  <span :class="$style.propLabelText">{{ prop.label }}</span>
-                  <span :class="$style.propKey">{{ prop.key }}</span>
-                </div>
-                <button
-                  v-if="isOverridden(prop.key)"
-                  class="_button"
-                  :class="$style.resetBtn"
-                  :title="i18n.ts._common.resetToDefault"
-                  @click="resetProp(prop.key)"
+          <CollapseBox :open="!!expandedSections.primary">
+            <div :class="$style.sectionBody">
+              <div :class="$style.propList">
+                <div
+                  v-for="prop in PRIMARY_PROPS"
+                  :key="prop.key"
+                  :class="[$style.propRow, { [$style.overridden]: isOverridden(prop.key) }]"
                 >
-                  <i class="ti ti-x" />
-                </button>
-              </div>
-              <div :class="$style.propControls">
-                <input
-                  :class="[$style.propValueInput, { [$style.expression]: isExpression(displayValue(prop.key)) }]"
-                  type="text"
-                  :value="displayValue(prop.key)"
-                  :placeholder="baseTheme.props[prop.key] ?? ''"
-                  spellcheck="false"
-                  @change="(e) => updateColor(prop.key, (e.target as HTMLInputElement).value)"
-                  @keydown.enter="(e) => updateColor(prop.key, (e.target as HTMLInputElement).value)"
-                />
-                <span v-if="isExpression(displayValue(prop.key))" :class="$style.resolvedHex">
-                  {{ resolvedDisplay(prop.key) }}
-                </span>
+                  <div :class="$style.propInfo">
+                    <div :class="$style.colorPickerWrap">
+                      <input
+                        type="color"
+                        :class="$style.colorPicker"
+                        :value="resolvedHex(prop.key)"
+                        @input="(e) => updateColor(prop.key, (e.target as HTMLInputElement).value)"
+                      />
+                      <div
+                        :class="[$style.colorSwatch, { [$style.checkerboard]: hasAlpha(prop.key) }]"
+                        :style="{ backgroundColor: resolvedColors[prop.key] ?? 'transparent' }"
+                      />
+                    </div>
+                    <div :class="$style.propLabel">
+                      <span :class="$style.propLabelText">{{ prop.label }}</span>
+                      <span :class="$style.propKey">{{ prop.key }}</span>
+                    </div>
+                    <button
+                      v-if="isOverridden(prop.key)"
+                      class="_button"
+                      :class="$style.resetBtn"
+                      :title="i18n.ts._common.resetToDefault"
+                      @click="resetProp(prop.key)"
+                    >
+                      <i class="ti ti-x" />
+                    </button>
+                  </div>
+                  <div :class="$style.propControls">
+                    <input
+                      :class="[$style.propValueInput, { [$style.expression]: isExpression(displayValue(prop.key)) }]"
+                      type="text"
+                      :value="displayValue(prop.key)"
+                      :placeholder="baseTheme.props[prop.key] ?? ''"
+                      spellcheck="false"
+                      @change="(e) => updateColor(prop.key, (e.target as HTMLInputElement).value)"
+                      @keydown.enter="(e) => updateColor(prop.key, (e.target as HTMLInputElement).value)"
+                    />
+                    <span v-if="isExpression(displayValue(prop.key))" :class="$style.resolvedHex">
+                      {{ resolvedDisplay(prop.key) }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </CollapseBox>
         </div>
 
         <!-- Secondary overrides -->
@@ -866,59 +878,64 @@ onUnmounted(() => {
           <button
             class="_button"
             :class="$style.sectionLabel"
+            :aria-expanded="!!expandedSections.secondary"
             @click="toggleSection('secondary')"
           >
             <i class="ti ti-adjustments" />
             {{ i18n.ts._themeEditorContent.extraProperties }}
             <span :class="$style.sectionValue">{{ secondaryOverrides.length }}</span>
-            <i class="ti ti-chevron-down" :class="[$style.chevron, { [$style.chevronOpen]: expandedSections.secondary }]" />
+            <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.secondary }]" />
           </button>
-          <div v-if="expandedSections.secondary" :class="$style.propList">
-            <div
-              v-for="key in secondaryOverrides"
-              :key="key"
-              :class="[$style.propRow, $style.overridden]"
-            >
-              <div :class="$style.propInfo">
-                <div :class="$style.colorPickerWrap">
-                  <input
-                    type="color"
-                    :class="$style.colorPicker"
-                    :value="resolvedHex(key)"
-                    @input="(e) => updateColor(key, (e.target as HTMLInputElement).value)"
-                  />
-                  <div
-                    :class="[$style.colorSwatch, { [$style.checkerboard]: hasAlpha(key) }]"
-                    :style="{ backgroundColor: resolvedColors[key] ?? 'transparent' }"
-                  />
-                </div>
-                <div :class="$style.propLabel">
-                  <span :class="$style.propKey">{{ key }}</span>
-                </div>
-                <button
-                  class="_button"
-                  :class="$style.resetBtn"
-                  :title="i18n.ts._common.delete"
-                  @click="resetProp(key)"
+          <CollapseBox :open="!!expandedSections.secondary">
+            <div :class="$style.sectionBody">
+              <div :class="$style.propList">
+                <div
+                  v-for="key in secondaryOverrides"
+                  :key="key"
+                  :class="[$style.propRow, $style.overridden]"
                 >
-                  <i class="ti ti-x" />
-                </button>
-              </div>
-              <div :class="$style.propControls">
-                <input
-                  :class="[$style.propValueInput, { [$style.expression]: isExpression(displayValue(key)) }]"
-                  type="text"
-                  :value="displayValue(key)"
-                  spellcheck="false"
-                  @change="(e) => updateColor(key, (e.target as HTMLInputElement).value)"
-                  @keydown.enter="(e) => updateColor(key, (e.target as HTMLInputElement).value)"
-                />
-                <span v-if="isExpression(displayValue(key))" :class="$style.resolvedHex">
-                  {{ resolvedDisplay(key) }}
-                </span>
+                  <div :class="$style.propInfo">
+                    <div :class="$style.colorPickerWrap">
+                      <input
+                        type="color"
+                        :class="$style.colorPicker"
+                        :value="resolvedHex(key)"
+                        @input="(e) => updateColor(key, (e.target as HTMLInputElement).value)"
+                      />
+                      <div
+                        :class="[$style.colorSwatch, { [$style.checkerboard]: hasAlpha(key) }]"
+                        :style="{ backgroundColor: resolvedColors[key] ?? 'transparent' }"
+                      />
+                    </div>
+                    <div :class="$style.propLabel">
+                      <span :class="$style.propKey">{{ key }}</span>
+                    </div>
+                    <button
+                      class="_button"
+                      :class="$style.resetBtn"
+                      :title="i18n.ts._common.delete"
+                      @click="resetProp(key)"
+                    >
+                      <i class="ti ti-x" />
+                    </button>
+                  </div>
+                  <div :class="$style.propControls">
+                    <input
+                      :class="[$style.propValueInput, { [$style.expression]: isExpression(displayValue(key)) }]"
+                      type="text"
+                      :value="displayValue(key)"
+                      spellcheck="false"
+                      @change="(e) => updateColor(key, (e.target as HTMLInputElement).value)"
+                      @keydown.enter="(e) => updateColor(key, (e.target as HTMLInputElement).value)"
+                    />
+                    <span v-if="isExpression(displayValue(key))" :class="$style.resolvedHex">
+                      {{ resolvedDisplay(key) }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </CollapseBox>
         </div>
 
         <!-- Add more props -->
@@ -1047,7 +1064,6 @@ onUnmounted(() => {
 .section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 12px 10px;
   border-bottom: 1px solid var(--nd-divider);
 }
@@ -1070,12 +1086,13 @@ onUnmounted(() => {
 .chevron {
   margin-left: auto;
   font-size: 0.9em;
-  transition: transform var(--nd-duration-base);
-  transform: rotate(-90deg);
 }
 
-.chevronOpen {
-  transform: rotate(0deg);
+.sectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 8px;
 }
 
 .sectionValue {

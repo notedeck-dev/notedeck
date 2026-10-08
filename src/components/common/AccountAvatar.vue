@@ -111,6 +111,8 @@ const badgeRing = computed(() => (props.size >= 24 ? 2 : 1.5))
 .avatar {
   border-radius: 50%;
   object-fit: cover;
+  /* 画像が届くまでの下地 (何も無い所に突然現れない) */
+  background: var(--nd-buttonBg);
 }
 
 .serverBadge {

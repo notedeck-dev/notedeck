@@ -11,7 +11,8 @@ pre-commit:
 
     - name: docs-lint
       # site/ の訳 (#1145) は theme の辞書 (.ts) も原文ハッシュで照合する
-      glob: "{*.md,site/.vitepress/theme/i18n/*.ts}"
+      # CODEMAP.md の正本 (#895) を触ったときも鮮度を検査する
+      glob: "{*.md,site/.vitepress/theme/i18n/*.ts,scripts/gen-codemap.mjs,**/Cargo.toml,src/components/deck/columnComponents.ts,src/windows/registry.ts,src/stores/*.ts,src/services/**/*.ts,crates/notecore/src/settings_store.rs}"
       run: node scripts/docs-lint.mjs
 
     - name: rustfmt

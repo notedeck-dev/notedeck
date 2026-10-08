@@ -1,6 +1,6 @@
 //! system prompt の組み立て (#1162)。所有者は notemaid 一本。
 //!
-//! 順番は SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → AGENTS →
+//! 順番は SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → NoteDeck の運用規約 → AGENTS →
 //! 他の always / active / trigger skill → デバイス文脈 (`<notedeck-context>`)。
 //! Hermes 寄り (SOUL が先頭。OpenClaw は AGENTS が先頭)。turn 開始時に 1 回だけ組み、
 //! その turn の中 (tool 反復 / 継続 / 再開) は同じ文字列を使う。
@@ -13,6 +13,19 @@ use crate::workspace::{self, Kind};
 
 /// 予約 skill AGENTS.md のファイル名 (拡張子なし)。`skills/AGENTS.md`
 pub const AGENTS_FILE_BASE: &str = "AGENTS";
+
+/// NoteDeck が必ず守らせる運用規約。記憶と汚染まわりの安全側の規則なので、利用者が
+/// 消せる AGENTS.md ではなく固定の文として毎 turn 入れる (AGENTS.md の初期テンプレに
+/// あったものを移した)。定数なので prefix cache を壊さない
+pub const OPERATING_RULES: &str = "## NoteDeck operating rules
+- Consolidate memory from memos, not from past conversations (which include other people's content). Look up details with memo search.
+- Remember facts and directives only. Do not record judgements or agreement.
+- Never put what you remember about the person into a notification body.";
+
+/// 以前の AGENTS.md の初期テンプレ (上の規約を中に持っていた)。利用者が手を付けて
+/// いなければ新しいテンプレに置き換える
+pub const LEGACY_AGENTS_TEMPLATE_JA: &str = include_str!("../../templates/legacy/AGENTS.ja.md");
+pub const LEGACY_AGENTS_TEMPLATE_EN: &str = include_str!("../../templates/legacy/AGENTS.en.md");
 
 /// 「あなたのことを覚える」が OFF のとき USER.md の代わりに入れる定数 1 行
 /// (定数なので prefix cache を壊さない)
@@ -75,6 +88,15 @@ pub fn compose(input: Input<'_>) -> Composed {
     ) {
         tracing::warn!("cannot seed AGENTS.md: {e}");
     }
+    if let Err(e) = skills::replace_untouched_reserved(
+        &settings_dir,
+        workspace::Reserved::Agents,
+        &[LEGACY_AGENTS_TEMPLATE_JA, LEGACY_AGENTS_TEMPLATE_EN],
+        input.lang,
+        skills::now_ms(),
+    ) {
+        tracing::warn!("cannot migrate AGENTS.md: {e}");
+    }
     let mut parts: Vec<String> = Vec::new();
 
     let push_ws = |kind: Kind, parts: &mut Vec<String>, out: &mut Composed| {
@@ -115,6 +137,9 @@ pub fn compose(input: Input<'_>) -> Composed {
     push_ws(Kind::Bootstrap, &mut parts, &mut out);
     push_ws(Kind::Memory, &mut parts, &mut out);
 
+    // NoteDeck の運用規約は AGENTS.md の前に固定で入れる
+    parts.push(OPERATING_RULES.to_string());
+
     // skill: 予約の AGENTS を先頭に、あとは作成順 (load_all が保証)
     let selected: Vec<&SkillMeta> = all
         .iter()
@@ -131,6 +156,11 @@ pub fn compose(input: Input<'_>) -> Composed {
     for s in agents.into_iter().chain(rest) {
         let body = s.body.trim();
         if body.is_empty() {
+            continue;
+        }
+        // AGENTS.md は案内のコメントだけの初期状態では渡さない (HEARTBEAT.md と同じ判定)
+        if s.file_base.as_deref() == Some(AGENTS_FILE_BASE) && workspace::is_effectively_empty(body)
+        {
             continue;
         }
         note_skill(s, &mut out);
@@ -288,6 +318,58 @@ mod tests {
             .trusted_skill_bodies
             .contains(&"Speak softly.".to_string()));
         assert!(!c.trusted_skill_bodies.iter().any(|b| b.contains("SOUL")));
+    }
+
+    #[test]
+    fn operating_rules_are_fixed_and_come_before_the_agents_file() {
+        let t = tempfile::tempdir().unwrap();
+        put_skill(
+            t.path(),
+            "AGENTS",
+            "id: AGENTS\nname: AGENTS\nmode: always\ncreatedAt: 5",
+            "Use no emoji.",
+        );
+        let s = compose_in(t.path(), None, &[], None, true).system.unwrap();
+        // 記憶と汚染まわりの規約は編集できるファイルではなく固定の文 (#1162 の見直し)
+        assert!(pos(&s, OPERATING_RULES) < pos(&s, "Use no emoji."));
+    }
+
+    #[test]
+    fn an_effectively_empty_agents_file_is_not_injected_but_the_rules_are() {
+        let t = tempfile::tempdir().unwrap();
+        // 初回は新テンプレ (コメントの案内だけ) が置かれる
+        let s = compose_in(t.path(), None, &[], None, true).system.unwrap();
+        assert!(s.contains(OPERATING_RULES));
+        assert!(!s.contains("# AGENTS.md"));
+        let seeded = std::fs::read_to_string(t.path().join("notedeck/skills/AGENTS.md")).unwrap();
+        assert!(seeded.contains("<!--"));
+    }
+
+    #[test]
+    fn an_untouched_legacy_agents_template_is_replaced_and_an_edited_one_is_kept() {
+        for (body, migrated) in [
+            (LEGACY_AGENTS_TEMPLATE_EN, true),
+            (LEGACY_AGENTS_TEMPLATE_JA, true),
+            ("# AGENTS.md\n\n- Use no emoji.\n", false),
+        ] {
+            let t = tempfile::tempdir().unwrap();
+            put_skill(
+                t.path(),
+                "AGENTS",
+                "id: AGENTS\nname: AGENTS\nmode: always\ncreatedAt: 5",
+                body.trim_end(),
+            );
+            let s = compose_in(t.path(), None, &[], None, true).system.unwrap();
+            let file = std::fs::read_to_string(t.path().join("notedeck/skills/AGENTS.md")).unwrap();
+            if migrated {
+                assert!(!file.contains("## Tools"), "legacy template kept:\n{file}");
+                assert!(!s.contains("## Tools"));
+            } else {
+                assert!(file.contains("Use no emoji."));
+                assert!(s.contains("Use no emoji."));
+            }
+            assert!(s.contains(OPERATING_RULES));
+        }
     }
 
     #[test]

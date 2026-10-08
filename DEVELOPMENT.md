@@ -78,8 +78,8 @@ pnpm doctor
 
 VS Code 向けの表示層は `.vscode/` に同梱（推奨拡張・ワークスペース設定・デバッグ構成）:
 
-- リポジトリ直下に Cargo マニフェストが無いため、`rust-analyzer.linkedProjects` で
-  `src-tauri/Cargo.toml` を明示している。他エディタでも同等の設定が必要
+- `rust-analyzer.linkedProjects` で `src-tauri/Cargo.toml` を明示している（リポジトリ直下の
+  `Cargo.toml` は workspace なので、他エディタは設定なしでも全クレートを読める）
 - デバッグ構成「Tauri desktop (debug)」で Rust 側にブレークポイントを張れる
   （CodeLLDB 使用。vite dev server は preLaunchTask で自動起動）
 - WSL2 では `nix develop` したシェルから VS Code を起動すること（EGL 対策の環境変数を継承するため）
@@ -266,26 +266,26 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
     turns/                  # ← ai-turns/ (checkpoint, taint.json, budget.json, heartbeat.json)
     workspace/              # ← ai-workspace/ (手元の CLI の cwd)
   skills/
-    AGENTS.md               # 予約 skill: id / ファイル名 / mode: always 固定、削除・改名・toggle 拒否。notemaid が seed
+    AGENTS.md               # 予約 skill: id / ファイル名 / mode: always 固定、削除・改名・toggle 拒否。notemaid が案内のコメントだけのテンプレで seed
     HEARTBEAT.md            # 予約 skill: mode: heartbeat 固定。既定では置かず「巡回の手順を編集」で初めて seed
 ```
 
 - ディレクトリ名は種類名の複数形 (`memos` / `skills`) ではなく所有者名 `notemaid` (「1 つの名前 = ディレクトリ = パッケージ = バイナリ」)。`<config dir>/notemaid/` (secret の鍵) とは別物
 - HEARTBEAT.md / AGENTS.md は `skills/` の**予約 skill**。既存の capability / 認可 (`skills.write`) / 汚染ラベル / バックアップ / skill UI がそのまま効き、ローダーが 2 系統にならない。予約の強制は notemaid の `skills.rs` と、notecore の汎用設定ファイル書込 (該当名の rename / delete 拒否。notecore はファイル名の定数を知るだけ) の 2 か所
-- OpenClaw の TOOLS.md は AGENTS.md の `## Tools` 節。IDENTITY.md は SOUL / キャラクター (persona) に内包 (Hermes と同じ)。日次ログは作らない (メモ + セッション)
+- OpenClaw の TOOLS.md は AGENTS.md に書けばよい (専用の節は置かない)。IDENTITY.md は SOUL / キャラクター (persona) に内包 (Hermes と同じ)。日次ログは作らない (メモ + セッション)
 - **手元の CLI の cwd を人格ファイルと同じ場所にしない (不採用)**: cwd を `notemaid/` にすると Codex / Claude Code が AGENTS.md を自動で読む利点があるが、CLI は自前のファイル操作を持つので認可と汚染規則を通さず書き換えられる。`notemaid/` に AGENTS.md を置かないので祖先探索でも拾わない。CLI の fs 書込要求が `notemaid/` 配下 (`workspace/` 以外) なら ACP の permission 中継で人に聞かず自動拒否し、notemaid は自分の書込ごとに人格・記憶ファイルの hash を記録して turn 開始時に不一致なら「外部で変更されました」を 1 行出す
 
 ### 注入の契約
 
 - **組み立ての所有者は notemaid 一本。** デバイスが送るのは `device_context` (`<notedeck-context>`) と、その turn で新しく発火した trigger skill の id だけ。persona (session ファイルの `personaSkillId`、HEARTBEAT は ai.json5) / active な manual skill / 累積の trigger は notemaid が読み、`<persona>` ブロックも notemaid が書く
 - notemaid が組んだ system は `TurnState` に保持し、ラウンドの再送 / `ProvenanceCorpus` / 予算見積り / checkpoint はそこを読む。**スナップショットの単位は turn run** (turn 開始時に読み、tool 反復 / 継続 / 再開では同じ文字列)。OpenClaw の「毎 run 再構築」と同じで、Hermes の「プロセス寿命の凍結」はセッションが無期限に再開される NoteDeck には持ち込まない。例外は手元の CLI (ACP セッション作成時に畳んだものが続く)
-- 順番: SOUL → キャラクター (persona) → USER → MEMORY → AGENTS → 他の always / trigger skill → device_context。Hermes 寄り (SOUL が先頭。OpenClaw は AGENTS が先頭)
+- 順番: SOUL → キャラクター (persona) → USER → MEMORY → NoteDeck の運用規約 (固定の文) → AGENTS → 他の always / trigger skill → device_context。Hermes 寄り (SOUL が先頭。OpenClaw は AGENTS が先頭)
 - 使用率ヘッダは Hermes と同じく凍結ブロックの中に入れる (内容から決まるので prefix cache は壊れない)
 - `ProvenanceCorpus` には workspace 部分 (SOUL / USER / MEMORY / AGENTS) と store 由来の skill を**入れない** (trusted にも user にも)。そこにしか無い宛先は untrusted に倒れる (tainted な turn で承認された記憶の宛先が、次の turn で trusted になり無人の宛先検査を素通りする経路を塞ぐ)
 - HEARTBEAT: system は SOUL → キャラクター → USER → MEMORY → AGENTS → 固定 INSTRUCTION、**HEARTBEAT.md の本文は user 側の heartbeat メッセージ**に付ける (OpenClaw が scratch を user message に置くのと同じ)。device_context は無し。橋 `heartbeat/context` は廃止 (時刻は notemaid、口座は SyncedAccounts)。固定 INSTRUCTION は OpenClaw の既定に合わせる (「HEARTBEAT.md があればそれに従う / 過去のチャットから古い仕事を推測・反復しない / 何も無ければ `heartbeat.report` を呼ばない / 通知本文に USER の内容を書かない」)。**HEARTBEAT.md が無い、または heartbeat mode の skill 本文がすべて実質空なら tick を skip** (実質空 = OpenClaw の `empty-heartbeat-file` の定義: 空行 / コメント / 見出し / fence / 空のチェックリスト + frontmatter)。OpenClaw は scratch が無くても走ってモデルに任せるが、NoteDeck は無人の予算のため skip する (逸脱)。有効なのに空のときは HEARTBEAT セクションと heartbeat session に「巡回の手順が空です」を出し、予算で見送った tick は「巡回を見送りました (予算)」を 1 行
 - 入口は `start_turn_with_sink` 一本。タイトル生成と `aiChatSend` には入れない
 - どの種類のセッションに入れるか: chat / command / task / heartbeat すべてに全部。external / MCP principal には一切出さない。手元の CLI への USER.md は既定 on (CLI は利用者が AI として選んだ本人なので API 接続と同じ。AI 設定「メモリー」の「手元の CLI にも渡す」で切れる。2026-10-06 に「ACP」セクションの opt-in から移した)。OpenClaw は cron / subagent / group に USER / MEMORY を出さないが、NoteDeck の全セッションは同じ本人の私的なものなので入れる (逸脱)
-- `dataSources.memos` (更新の新しい順に上位 N 件 + リンク展開) は**廃止**。常駐するのは MEMORY.md だけで、生のメモは `memos.search` / `memos.list` で必要なときに読む (上流と同じ)。`excludeTags` は `memos.search` / `list` の既定に付け替える
+- `dataSources.memos` (更新の新しい順に上位 N 件 + リンク展開) は**廃止**。常駐するのは MEMORY.md だけで、生のメモは `memos.search` / `memos.list` で必要なときに読む (上流と同じ)。`excludeTags` は注入専用の設定だったので capability 側へは移さず、注入と一緒に削除した (`memos.search` / `memos.list` に相当する絞り込みは無い)
 - 上限の単位は文字数 (bytes は CJK が 1/3 になる)。人が書く SOUL / AGENTS は注入コピーを切り詰めて marker (OpenClaw)、tool が書く USER / MEMORY は書込エラーで AI に整理させる (Hermes)。外部エディタで超過させた分は切り詰めず「超過したので注入しない」を AI に伝える
 
 ### AI 自身の編集 (capability と認可)
@@ -298,7 +298,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 
 - 戻り値は Hermes と同形 `{ success, error, current_entries, usage }` (turn 内は prompt が凍っていて自分の書込が見えないため)。同一 turn の書込回数上限は置かない (Hermes は同 turn 内で整理して再試行する前提)
 - SOUL / USER / MEMORY の読取 capability は作らない (prompt に入っている)。書込前の検査は不可視 Unicode と上限がエラー、Hermes 流の injection / exfil パターンは**確認強制** (拒否ではない。誤検知が害にならない形)
-- 「記憶の整理は過去セッション (untrusted) を読まずメモから。詳しくは `memos.search`」は AGENTS.md の既定に書く
+- 「記憶の整理は過去セッション (untrusted) を読まずメモから。詳しくは `memos.search`」「覚えるのは事実と指示だけ」「通知の本文に相手について覚えていることを書かない」は **notemaid の固定の文** (`compose.rs` の `OPERATING_RULES`) として毎 turn 入れる。当初は AGENTS.md の初期テンプレに書いていたが、利用者が消すと効かなくなる安全側の規約を編集できるファイルに置くのは筋が悪いので移した (2026-10-09)。AGENTS.md は利用者の常設の指示 (話し方や避けてほしいこと) だけを書く場所で、案内のコメントだけの初期状態 (実質空) のあいだは何も渡さない。旧テンプレのまま手付かずのファイルは、組み立てのときに新テンプレへ置き換える
 
 ### 汚染 (#1103) との整合
 
@@ -323,14 +323,14 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 - 一般側の面は 2 セクション 3 枚: セクション「ペルソナ」に **「人格」** (SOUL の状態とヒントだけ。本文の編集は開発者モードの AI 設定「SOUL.md」タブ = Markdown のコード編集か外部エディター。設定画面の textarea で markdown を直接触らせると見出しの構造を壊すので置かない、[#1186](https://github.com/notedeck-dev/notedeck/issues/1186)) + キャラクターのカード (persona ピッカー) / セクション「メモリー」に **「あなたについて覚えていること」** (本文、行の inline 編集と削除、トグル「あなたのことを覚える」と「手元の CLI にも渡す」、「すべて忘れる」) と **「覚え書き」** (本文、行の inline 編集と削除)。AI 設定の「接続」と「ACP」(手元の CLI) も別セクション。候補から選ぶカード (接続 / AI プロバイダ / ACP / キャラクター / ペット) は共通の `ChoiceCard` + `ChoiceCardGrid`
 - **USER OFF の意味** = 注入停止 + `memory.update` の `target: user` を本体が拒否 (tool 一覧からは外さず、エラーで知らせる) + 定数 1 行「利用者に関する記憶は OFF」を system に + MEMORY の書込規則に「本人に関する事実は書かない」。削除はしない (「すべて忘れる」が別)。OFF 中もバックアップには入る旨を説明文に
 - ファイル名は UI に出さない (「設定フォルダを開く」で見える。OpenClaw は Settings → Files で編集、Hermes はパスを直接教える。これは製品判断)。使用率バーは出さず、上限に近いときだけ 1 行。書込の tool カードは人間語の差分 1 行、「覚えました」トーストは作らない
-- 予約 skill は `reserved` フラグで削除 / HEARTBEAT 化を非表示、mode と名前を固定、錠アイコン。名前は「ルール」(AGENTS) と「巡回」(HEARTBEAT)。HEARTBEAT セクションの「巡回の手順を編集」は HEARTBEAT 有効時だけ
+- 予約 skill は配布物ではなく AI の土台なので**スキルカラムには出さない** (2026-10-09。サイドロードに並んで利用者が入れたスキルのように見えていた)。編集の入口は AI 設定: ペルソナの「ルール」(AGENTS.md、`maid_agents_seed` で無ければ置いてから skill エディタで開く) と HEARTBEAT セクションの「巡回の手順を編集」(HEARTBEAT 有効時だけ)。mode と名前は固定のまま
 - 「送った system prompt」は開発者モードのウィンドウ (Raw JSON インスペクタと同族)。入口はメッセージ / tool カードのメニュー。メモリ保持のみで永続化しない (sessions/ に写すとバックアップにも複製される)
 
 ### 移行・バックアップ・RPC
 
 - `ai-turns/` → `notemaid/turns/`、`ai-workspace/` → `notemaid/workspace/` の rename は `notemaid::migrations::run_fs` (notemaid クレート)。daemon は lock 取得後、アプリは in-process のときだけ呼ぶ。sidecar / 常駐時は transport の `Hello` に `fs_layout` を足し、不一致なら `restart_resident()` で古い daemon を先に止める。失敗しても起動は止めず、新パスに無ければ旧パスを読む
 - バックアップ: `ALLOWED_SUBDIRS` に `notemaid` を**足さない** (汎用 list / read / write / delete / rename が allowlist だけで通り、上限・承認・汚染規則を素通りする)。`export_bundle` に SOUL / USER / MEMORY を明示列挙。import は専用分岐で名指しの 3 ファイルだけを置き、見えない文字を含むものは外す (上限超過は読む側の「注入しない」で受ける)。アプリの import は人格 / 記憶が入っていれば置き換える前に一覧つきで 1 回聞き、断られたらその分だけ外して残りを入れる。notemaid は毎 turn ファイルを読むので reload 通知は要らない
-- UI 編集の RPC (`data` 級、notemaid 経由): `maid_workspace_read(kind)` / `maid_workspace_write(kind, body)` / `maid_user_memory_toggle`。変更通知は `SettingsChange { subdir: "notemaid" }` を relay し、`settingsFileSync` に `notemaid` 用ハンドラを 1 つ足す
+- UI 編集の RPC (`data` 級、notemaid 経由): `maid_workspace_list()` / `maid_workspace_write(kind, body)` / `maid_user_memory_set(enabled)`。変更通知は `SettingsChange { subdir: "notemaid" }` を relay し、`settingsFileSync` に `notemaid` 用ハンドラを 1 つ足す
 
 ### 製品判断として確定したもの (2026-09-30)
 
@@ -338,14 +338,14 @@ persona は残し「人格」1 枚の中のキャラクター行にする / USER
 
 ## Architecture
 
-NoteDeck は 1 つのリポジトリ (Cargo workspace) で、`crates/notecli` (Misskey クライアント + CLI) と `src-tauri` (アプリの Rust) を持ちます (notecli は 2026-09-23 に別リポジトリから取り込んだ、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。
+NoteDeck は 1 つのリポジトリ (Cargo workspace) で、`crates/notecli` (Misskey クライアント + CLI)、`crates/notecore` / `crates/notemaid` (下記「目指す構成」) と `src-tauri` (アプリの Rust) を持ちます (notecli は 2026-09-23 に別リポジトリから取り込んだ、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。
 
 ### notecli (`crates/notecli`)
 
-Tauri に依存しない Misskey ヘッドレスクライアント。Rust ライブラリ兼 CLI デーモン。
+Tauri に依存しない Misskey ヘッドレスクライアント。Rust ライブラリ兼 CLI。
 
 - Misskey HTTP API クライアント、WebSocket ストリーミング、SQLite DB、REST API サーバー
-- 単体で `localhost:19820` の HTTP API デーモンとして動作（GUI 不要）
+- 単体の daemon モード（`localhost:19820` の HTTP API）は撤去した（#1106）。HTTP API サーバーはアプリが notecore の `http_server.rs` で立てる
 - アプリの Rust (`src-tauri`) がパス依存で利用する。CLI バイナリはリリースの成果物として同じタグから出す
 
 ### notedeck (このリポジトリ)
@@ -355,7 +355,7 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 
 ### 目指す構成: notecore と notemaid ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106))
 
-`src-tauri/` には Tauri に依存しないドメイン (Vault / クエリランタイム / 画像キャッシュ / 設定ファイル store / 認可解決) が同居していた。これを **notecore** (notedeck リポジトリ内の同名クレート、2026-09-23 に切り出し済み) に集める。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) は **notemaid** (lib + bin の 1 クレート、notecli と同形) に置く (2026-09-29 に切り出し済み)。**notemaid は常に別プロセス**で、アプリは AI 系コマンドを socket (Windows は named pipe) で送る。違うのは誰が起動するかだけ: アプリが同梱の sidecar を子プロセスとして起動し終了時に落とす (既定、全デスクトップと Android、設定ゼロ) / ログイン時のユーザー権限タスクとして常駐 (任意のトグル 1 つ。systemd user unit / LaunchAgent / Run キー ONLOGON、Hermes / OpenClaw と同じレシピで管理者権限も Service も不要) / 自分のサーバー (リモート)。in-process は iOS 専用の transport (別プロセスを持てないため。コマンド面は同じ)。常駐 (自分のサーバーで動かす) の対象は notemaid だけで、データ面は常に手元で動く。
+`src-tauri/` には Tauri に依存しないドメイン (Vault / クエリランタイム / 画像キャッシュ / 設定ファイル store / 認可解決) が同居していた。これを **notecore** (notedeck リポジトリ内の同名クレート、2026-09-23 に切り出し済み) に集める。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) は **notemaid** (lib + bin の 1 クレート、notecli と同形) に置く (2026-09-29 に切り出し済み)。**notemaid は常に別プロセス**で、アプリは AI 系コマンドを socket (Windows は named pipe) で送る。違うのは誰が起動するかだけ: アプリが同梱の sidecar を子プロセスとして起動し終了時に落とす (既定、デスクトップ、設定ゼロ) / ログイン時のユーザー権限タスクとして常駐 (任意のトグル 1 つ。systemd user unit / LaunchAgent / Run キー ONLOGON、Hermes / OpenClaw と同じレシピで管理者権限も Service も不要)。別の端末やサーバーで動く notemaid に繋ぐ構成 (リモート) は採用しない (2026-09-29、理由は ROADMAP)。in-process は iOS / Android と sidecar の無い開発時の transport (コマンド面は同じ)。常駐の対象は notemaid だけで、データ面は常に手元で動く。
 
 2026-09-29 までは「notecore 全体を notecored として自分のサーバーで常駐させる」構成 (データ面の常駐) を目指し、同一ホスト版まで出荷したが、#1106 で中止した (不採用の理由: 購読がセッション所有なのでアプリを閉じている間の蓄積が無く、中継の直列化の税だけが残った / SNS クライアントに daemon 形態の前例が無く、常駐状態はサーバー側が持っている / データ面を含めても AI 面だけでも、届く層は自前サーバー派だけで維持税だけが違う)。旧 `crates/notecored` は notemaid の bin (`daemon` feature、`src/main.rs` + `src/daemon/`) に統合して削除した。
 
@@ -369,13 +369,13 @@ notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
 └──────────────────────────────┘                  │  notecli                                     │
                                                   └──────────────────────────────────────────────┘
 誰が notemaid を起動するか: アプリが sidecar を子プロセスで (既定、設定ゼロ) / ログイン時のユーザータスク (任意、常駐)。別の端末やサーバーで動く notemaid に繋ぐ構成 (リモート) は採用しない (2026-09-29、理由は ROADMAP)
-iOS だけは別プロセスを持てないので in-process の transport (コマンド面は同じ)
+iOS / Android は in-process の transport (コマンド面は同じ)
 ```
 
 - **切る基準**: 「その処理はデバイスが 1 台も繋がっていない状態で意味を持つか」。持つなら notecore、持たないなら手元 (ウィンドウ / トレイ / OS 通知 / クリップボード / dialog / OS キーチェーン)。AI が所有するものは notemaid
 - **notecore と notemaid の関係は、クレートでは「上に載る」、プロセスでは「並列」**。クレートの依存は notecli ← notecore ← notemaid ← アプリの一方向で、notemaid が notecore から借りるのは共有基盤 (Vault / principal の認可 / 設定ディレクトリと設定ファイルの store / アカウント情報 / i18n) だけ。データ面 (notes DB / ストリーミング / クエリランタイム) には依存しない。依存先が共有基盤に限ると確かめられたら、それを notecore の下層に割ってデータ面と AI 面を並列にしてもよい。notecore は AI を知らない。capability の**宣言表** (語彙) は認可と HTTP API 面も参照するので notecore、**実行**は notemaid。**データ面の notecore はデバイスに 1 つ (アプリの中) だけで、notemaid は notes DB を開かない** (2 プロセスで同じ DB を触ると、常駐タスクの notemaid がアプリ更新後に古い版のまま新しいスキーマを開く事故と排他ロックが戻ってくる)。Misskey は notecli で直接叩き、アプリが生きていれば socket でアプリ側の notecore にキャッシュを聞く。HEARTBEAT の cheap check も API で足りる。同一端末では設定ディレクトリを共有し、書くのは自分の持ち物 (セッション / メモ / skill / AI 設定) だけ。トークンは同じユーザーセッションの OS キーチェーンを読み、アカウント一覧は接続時にアプリから受け取る (secret の file backend は、キーチェーンの無い環境で `notemaid run --secrets file` を手で使うときだけ)。メイドの持ち物 (セッション / メモ / skill / AI 設定) は同じ設定ディレクトリのファイルで、端末はそれを編集する
 - **クライアント層**は手元の Rust の中の切替点 1 箇所。データ系コマンドはコマンド表 (型付き関数 + JSON アダプタを 1 つの宣言から生成) を通り、常に in-process の埋め込み notecore を呼ぶ。AI 系コマンドは notemaid 側の表を通り、`client.json5` の `backend` が `auto` (既定) なら `maid_launcher` が起動時にまず既定の場所 (`notemaid::transport::default_endpoint`) を叩き、居れば繋ぎ (常駐)、居なければ同梱の sidecar を親 pid 入りの場所で子プロセスとして起動して繋ぐ。sidecar が無い (`NOTEDECK_NOTEMAID` で差し替え可) / iOS / Android は in-process。**開発時もアプリの実行ファイルの隣 (`target/debug/notemaid`) があれば sidecar として使う**ので、`pnpm tauri:dev` は起動前に `cargo build -p notemaid` で作り直す (`tauri dev` は notemaid を作らず、古いバイナリが黙って使われていた。旧版の挙動が戻ったように見えたらまずこれを疑う)。起動中に notemaid を変えたら作り直してアプリを再起動する。`embedded` は常に in-process、`resident` は常駐にだけ繋ぐ。子は `--exit-on-stdin-close` で親の stdin の EOF を待ち (全 OS)、Linux は PDEATHSIG も掛ける。子も常駐も OS キーチェーン (`--secrets keychain`)、サーバー (headless) だけ暗号化ファイル。AI 設定のHEARTBEAT の「アプリを終了しても続ける」(`AiHeartbeatResidentRow`) の常駐トグルは `maid_launcher::set_resident` で、子プロセスを止めてログイン時タスク (`notemaid service install/enable`: systemd user unit / LaunchAgent / Run キー) を登録し、中継の繋ぎ先を再起動なしに付け替える (`RelayClient::switch_to`)。デッキ描画は notemaid の起動を待たず、AI 系の要求だけが接続を上限つきで待つ。版は sidecar なら常に同じ、常駐は指紋照合でずれを検知する。表に載っていないデータ系コマンドはどの構成でも存在しない
-- **AI エージェントループは Rust で notemaid に置く** (`crates/notemaid`、2026-09-29 に切り出し済み) ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行。チャット 1 ターンの状態機械 (ターン実行器)、確認要求、セッションの書込 (単一の書き手) と汚染の記録は移設済み。純データ系の capability (ノート / ユーザー / 通知 / アンテナ / チャンネル / ロール / リスト / クリップ / ドライブ / お気に入り / チャット / registry / アナウンス / Pages / Play / ギャラリー / 連合 / 外部 HTTP / MisStore の読取と書込、AI セッションの読取、principal の権限解決、skill / メモ / テーマ / カスタム CSS / プラグイン / ウィジェット / クエリの読み書き (AiScript の構文検証が要る作成・更新はデバイス)、キーバインド / ナビバー / パフォーマンス設定の読み書き (ナビバーの全置換はカラム種別の実行時レジストリで検証するのでデバイス)、persona の切替と AI の自己参照 (`meta.*`)。正本は宣言表の `exec` 属性) は `exec: core` で notecore が直接実行し、確認内容の組み立て (プレビュー) も notecore 側 (`capabilities/exec/preview.rs`)。デバイスの状態に触るもの (UI / ミュート / Vault / 下書き / 設定系) はデバイスへの実行要求 (詳細は [AI Chat Streaming](#ai-chat-streaming))。設定系の `exec: core` 化 (#1098 の services が前提) / HEARTBEAT の無人契約は後続
+- **AI エージェントループは Rust で notemaid に置く** (`crates/notemaid`、2026-09-29 に切り出し済み) ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行。チャット 1 ターンの状態機械 (ターン実行器)、確認要求、セッションの書込 (単一の書き手) と汚染の記録は移設済み。純データ系の capability (ノート / ユーザー / 通知 / アンテナ / チャンネル / ロール / リスト / クリップ / ドライブ / お気に入り / チャット / registry / アナウンス / Pages / Play / ギャラリー / 連合 / 外部 HTTP / MisStore の読取と書込、AI セッションの読取、principal の権限解決、skill / メモ / テーマ / カスタム CSS / プラグイン / ウィジェット / クエリの読み書き (AiScript の構文検証が要る作成・更新はデバイス)、キーバインド / ナビバー / パフォーマンス設定の読み書き (ナビバーの全置換はカラム種別の実行時レジストリで検証するのでデバイス)、persona の切替と AI の自己参照 (`meta.*`)。正本は宣言表の `exec` 属性) は `exec: core` で notemaid が直接実行し、確認内容の組み立て (プレビュー) も Rust 側 (`crates/notemaid/src/exec/preview.rs`)。デバイスの状態に触るもの (UI / ミュート / Vault / 下書き / 設定系) はデバイスへの実行要求 (詳細は [AI Chat Streaming](#ai-chat-streaming))。設定系の `exec: core` 化 (#1098 の services が前提) / HEARTBEAT の無人契約は後続
 - notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notemaid / アプリの 4 つ。`notecli` の CLI と `notemaid` の daemon はクレートからバイナリとして出し、notemaid の daemon 専用依存は `daemon` feature の裏に置いてアプリには乗せない)
 - 段階と受け入れ条件、認証・イベント面・状態の所在の仕様は #1106 の仕様コメントが正本 (2026-09-29 のコメントで AI 面に縮めた後の読み方が優先)。子プロセスが既定で、常駐は同じ端末のログイン時タスク。リモートは採用しない
 
@@ -384,7 +384,7 @@ iOS だけは別プロセスを持てないので in-process の transport (コ�
 - notecore 側のモジュールは `crates/notecore` に置く (2026-09-23 にクレート化済み)。notecore は `tauri` を参照せず、Cargo.toml に tauri 系を足さない (`tests/lint/rustCoreBoundary.test.ts`)。手元側 (WebView / managed state / OS 統合) が要る処理は trait (`FrontendBridge` / `AiChatSink`) で受け取り、Tauri 側 (`src-tauri/`) が実装を渡す。app dir のような値は `&Path` で受ける
 - **データ系コマンドは notecore のコマンド表に載せる** (`crates/notecore/src/commands/table.rs`、#1106 §4.1。2026-09-23 に既存のデータ系は全件移行済み。跨り (mixed) も「データ側は notecore の関数 (`export_service` / `backup_service` / `commands::admin` 等)、手元側は dialog や保存先の解決だけの薄い包み」に分けたので、`src-tauri/src/commands/` に `#[tauri::command]` で残るのは local と authz だけ)。本体は `&Core` と引数を取る関数として `crates/notecore/src/commands/<module>.rs` に書き、表に 1 行足す。表から Tauri ラッパー (`src-tauri/src/commands/table.rs`)、JSON アダプタ (`dispatch`)、フィクスチャが生成され、属性検査 (許可ウィンドウ) は型付き経路でも JSON 経路でも本体の前に通る。全コマンドを JSON 経路で往復させるテストが notecore にあり、引数の型は `Default` を要求する。手元側 (OS 統合) と認可境界のコマンドは従来どおり `#[tauri::command]` で書く
 - **行数の多い DB の読み書き (取り込み / キャッシュ検索 / 一括削除) は `Core::blocking` を通す** (notecli の Database は同期の rusqlite なので、async の本体から直接呼ぶと tokio の worker を塞ぐ)。1 行のキー引きや統計は直接呼んでよい。プール化や async API を notecli 側に持たせる判断 (#1098) はこの境界の裏で差し替える
-- 表に載らない `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。リモート構成では橋がネイティブ確認してから通す) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
+- 表に載らない `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
 
 ```
 src/                        # Vue 3 frontend
@@ -455,7 +455,7 @@ src-tauri/src/              # Rust backend (Tauri 固有部分 = 手元側)
 ├── commands/               # Tauri IPC command handlers: データ系は表から生成、残りは手元側 (local / authz / mixed)
 │   ├── mod.rs              # 再公開と Tauri 側の sink (OGP ヒント等)
 │   ├── table.rs            # notecore のコマンド表から Tauri ラッパーを生成 (#1106)。データ系コマンドはすべてここ経由
-│   ├── admin.rs / auth.rs / api_tokens.rs / vault.rs  # 認可境界 (資格情報 / トークン / secret / 信頼設定)
+│   ├── api_tokens.rs       # 認可境界 (公開 API トークン)。資格情報 / secret / 信頼設定の本体は notecore の commands/ (admin.rs / auth.rs / vault.rs) で、表の authz 行
 │   ├── settings.rs / backup.rs / export.rs / utility.rs  # dialog / OS 統合 / 端末のファイル (local / mixed)
 │   ├── heartbeat.rs / health.rs / system_state.rs  # 手元のランタイム (HEARTBEAT scheduler / 診断 / OS 状態)
 │   ├── query.rs            # クエリランタイムの delta flusher と Tauri イベント
@@ -475,7 +475,7 @@ components → composables → stores → services → adapters → bindings
 
 services は store / composables / components / Vue / Pinia を runtime import しない (純ロジック)。stores は composables を、adapters は stores を import しない。components は IPC (`tauriInvoke` / `bindings`) と adapter の factory を直接叩かず composable を通す。既存の違反は lint の凍結一覧に理由つきで載っていて、直したら消す。`import type` は依存に数えない。
 
-Misskey API クライアント・DB・モデル・ストリーミングコアは `notecli` クレートにある。一方 `src-tauri/` は Tauri 固有の配線だけではなく、Tauri に依存しないドメインも抱えている (OGP 抽出とサイト別プラグイン / Secret Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / HTTP API サーバー / カラムクエリの QIR 評価器)。行数では notecli より大きい。
+Misskey API クライアント・DB・モデル・ストリーミングコアは `notecli` クレートにある。`src-tauri/` が抱えていた Tauri に依存しないドメイン (OGP 抽出とサイト別プラグイン / Secret Vault / クエリランタイム / 画像キャッシュ / HTTP API サーバー / カラムクエリの QIR 評価器) は notecore に、AI SSE クライアントは notemaid に移した (上のツリー)。
 
 置き場の規則 (#782):
 
@@ -483,7 +483,7 @@ Misskey API クライアント・DB・モデル・ストリーミングコアは
 - トップレベルの `*_service.rs` / `*_store.rs` / サブモジュールは、引数を取って単体テストできるサービス。`AppHandle` や `State` を直接受けない
 - Misskey の API / DB / ストリーミングに関わる共通処理は notecli に足す (フォークやスタンドアロン CLI からも使えるように)
 
-この規則は一部のモジュールにしか適用されておらず (column_query / export / http は commands/ にドメインを持つ)、ドメインをクレートに切り出すかも含めて #1098 で扱う。終了時のタスク所有は `shutdown.rs` に一元化されている。
+この規則は一部のモジュールにしか適用されておらず (notecore の column_query / http は commands/ にドメインを持つ)、ドメインをクレートに切り出すかも含めて #1098 で扱う。終了時のタスク所有は `shutdown.rs` に一元化されている。
 
 ### Boot Sequence
 
@@ -556,7 +556,7 @@ sequenceDiagram
 
 #### Two-stage AppState
 
-バックエンドの初期化を 2 段階に分けて、DB が準備できた時点で一部のコマンドを先行アンロックする仕組み（`src-tauri/src/commands/mod.rs`）。
+バックエンドの初期化を 2 段階に分けて、DB が準備できた時点で一部のコマンドを先行アンロックする仕組み（`crates/notecore/src/context.rs` の `Core`。旧 AppState）。
 
 ```mermaid
 stateDiagram-v2
@@ -588,7 +588,7 @@ stateDiagram-v2
 
 | テクニック | 実装箇所 | 効果 |
 |-----------|---------|------|
-| Two-stage AppState | `commands/mod.rs` | DB 準備次第でアカウント読み込み開始 |
+| Two-stage AppState | notecore `context.rs` | DB 準備次第でアカウント読み込み開始 |
 | 早期アカウントイベント | `lib.rs` → `nd:accounts-early` | IPC 往復を待たずにフロントへ通知 |
 | 事前登録 listener | `stores/accounts.ts:initEarlyAccountListener` | `main.ts` 最上部で `listen()` を同期登録し、Rust 側 emit を取りこぼさない（Pinia 初期化前でも module-scope バッファに保存） |
 | 未ロード時の空状態ガード | `DeckColumn.vue` `requireAccount` prop | カラム本体スロットを `accountsStore.isLoaded` まで抑制し「アカウントが見つかりません」の一瞬のチラつきを防止 |
@@ -626,9 +626,9 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 | 分類 | UI | 用途 | 永続性 |
 |------|-----|------|--------|
 | **ストリーム** | カラム | 継続的なデータフィード（TL、通知、検索、チャット等） | プロファイルに永続化 |
-| **IDE ツール** | カラム | 開発・デバッグ支援（Stream Inspector、Workspace Explorer 等）、ローカル PKM（メモ — `settings/memos/*.md` を Obsidian vault としても開ける。サーバーへ送らずローカルで完結し、同じくアカウントなしの AI カラムから参照されるため **アカウントに紐づかない**（#1018）。他のテキストと同じ編集履歴を持つ） | プロファイルに永続化 |
+| **IDE ツール** | カラム | 開発・デバッグ支援（Stream Inspector 等）、ローカル PKM（メモ — `notedeck/memos/*.md` を Obsidian vault としても開ける。サーバーへ送らずローカルで完結し、同じくアカウントなしの AI カラムから参照されるため **アカウントに紐づかない**（#1018）。他のテキストと同じ編集履歴を持つ） | プロファイルに永続化 |
 | **詳細** | ウィンドウ | 特定アイテムの一時的な表示（ノート詳細、プロフィール、フォローリスト） | セッション限り |
-| **インスペクタ** | ウィンドウ | Raw JSON 表示・デバッグ（ノート/通知インスペクタ、settings.json エディタ） | セッション限り |
+| **インスペクタ** | ウィンドウ | Raw JSON 表示・デバッグ（ノート/通知インスペクタ、settings.json5 エディタ） | セッション限り |
 | **ツール** | ウィンドウ | アプリ設定・管理（ログイン、エディタ群、プラグイン、about） | セッション限り |
 
 **ウィンドウのジオメトリ永続化（[#874](https://github.com/notedeck-dev/notedeck/issues/874)）:**
@@ -658,7 +658,7 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 
 判定は `src/columns/accountScope.ts` の `getAccountScope()` 一本。「全アカウント」で開けない理由（サーバーごとに ID を選ぶ面 / サーバー単位の面 / 未対応）も同じファイルの `crossAccountUnavailableReason()` で導き、カラム追加ダイアログは行を消す代わりに無効の行と理由を出す（[#1017](https://github.com/notedeck-dev/notedeck/issues/1017)）。カラムを受け取る側が「束ねるべき」か「関係ない」かを各自で判定すると、対応種別が増えるたびに虫食いが再発するため、この 1 箇所を経由する。対応種別の正本は `src/columns/registry.ts` の `crossAccount` 宣言。
 
-全アカウントのカラムはヘッダーに `AvatarStack` が出る（アカウントなしは何も出ない）。そこからアカウント必須の操作を始めるときは `useAccountPicker` でどのアカウントで実行するかを選ばせる。「アクティブアカウント」という概念は持たない（[#941](https://github.com/notedeck-dev/notedeck/issues/941)）: 実態は登録順の先頭でユーザーが選んだものではなかったので、UI・capability・スラッシュコマンドのどこでも暗黙にフォールバックしない。capability は「明示の `accountId` → 呼び出し文脈のアカウント（per-account の AI カラム、ノートメニューから起動したプラグイン）」の順で解決し、どちらも無ければ `accountId` を必須にする。文脈が無いときの UI の初期値（投稿フォームの宛先、メモの絵文字辞書）だけ `accountsStore.fallbackAccount`（トークンを持つ先頭）を使い、これを「現在のアカウント」として見せない。
+全アカウントのカラムはヘッダーにアカウントの顔を並べず `ti-user` アイコンを 1 つ出す（アカウントなしは何も出ない）。そこからアカウント必須の操作を始めるときは `useAccountPicker` でどのアカウントで実行するかを選ばせる。「アクティブアカウント」という概念は持たない（[#941](https://github.com/notedeck-dev/notedeck/issues/941)）: 実態は登録順の先頭でユーザーが選んだものではなかったので、UI・capability・スラッシュコマンドのどこでも暗黙にフォールバックしない。capability は「明示の `accountId` → 呼び出し文脈のアカウント（per-account の AI カラム、ノートメニューから起動したプラグイン）」の順で解決し、どちらも無ければ `accountId` を必須にする。文脈が無いときの UI の初期値（投稿フォームの宛先、メモの絵文字辞書）だけ `accountsStore.fallbackAccount`（トークンを持つ先頭）を使い、これを「現在のアカウント」として見せない。
 
 **同一ノートの束ね（[#1058](https://github.com/notedeck-dev/notedeck/issues/1058)）:**
 
@@ -692,7 +692,7 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 | コンポーネント | 用途 | 使用箇所 |
 |-------------|------|---------|
 | `ColumnBadges` | サーバー/アカウントバッジ表示 | DeckNavbar, DeckBottomBar, DeckMobileNav |
-| `AvatarStack` | cross-account 時のアカウントアバター重ね表示 | AddColumnDialog, カラムヘッダー |
+| `AccountAvatar` | アカウントのアバター + 右上のサーバーバッジ | DeckColumn（カラムヘッダー）, AddColumnDialog, CommandPalette 等 |
 | `EditorTabs` | ビジュアル/コード 2タブ切替（コードタブはデフォルト値との差分のみ表示） | 全エディタ系ウィンドウ共通 |
 | `RawJsonView` | Raw JSON 表示（機密マスキング・コピー対応） | NoteInspectorContent, NotificationInspectorContent, UserProfileContent |
 
@@ -701,13 +701,13 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 | composable | 用途 | 使用箇所 |
 |-----------|------|---------|
 | `usePointerReorder` | Pointer イベントによるドラッグ&ドロップ並び替え（軸指定対応） | NavEditorContent, ProfileEditorContent |
-| `useCrossAccountNotes` | 複数アカウントからのノート並列取得・統合・重複排除 | DeckMentionsColumn, DeckSpecifiedColumn, DeckFavoritesColumn |
+| `useCrossAccountNotes` | 複数アカウントからのノート並列取得・統合・重複排除 | DeckMentionsColumn, DeckTimelineColumn, DeckFavoritesColumn |
 | `useVerticalResize` | 上下分割ペインのドラッグリサイズ（高さ制限付き） | DeckStreamInspectorColumn, DeckAiScriptColumn |
 | `useSensitiveMask` | 機密フィールドのマスキング表示・トグル reveal | NoteInspectorContent, NotificationInspectorContent, UserProfileContent |
 
 **アイコン・ラベルの一元定義:**
 
-`useColumnTabs.ts` の `COLUMN_ICONS` / `COLUMN_LABELS` がカラムタイプのアイコンとラベルの SSoT。ナビバー、ボトムバー、エディタすべてがこれを参照する。
+`src/columns/registry.ts` の `COLUMN_ICONS` / `COLUMN_LABELS` がカラムタイプのアイコンとラベルの SSoT。ナビバー、ボトムバー、エディタすべてがこれを参照する。
 
 ### 開発者モードと露出タグ（[#1034](https://github.com/notedeck-dev/notedeck/issues/1034)）
 
@@ -802,7 +802,7 @@ probe の供給は**挿入 1 点フック**にまとめてある（`useNoteList`
 Krile 型「カラムごとのクエリフィルタ」。ユーザーは AiScript 1.2.1 の式（v1 サブセット）でカラムの視界を定義し、コンパイラが **QIR**（型付きクエリ IR、Rust が source of truth で specta 経由 bindings.ts に載る）へ落として全取り込み経路（キャッシュ復元 / REST / ページング / streaming / refresh）で同期評価する。表示制御 3 層モデル（#831）の層 2。
 
 - **意味論の正本は AiScript 1.2.1**（不変条件 (a)）。全評価器（JS QIR eval / Rust QIR eval / 降格 Interpreter）は共有 golden vector（`src/services/columnQuery/golden/vectors.json`）で一致を CI 検証する
-- 実装: `src/services/columnQuery/`（compiler / evaluator / referenceEvaluator / composeQir / degradedBatch / degradedRunner）。QIR 型・Rust 評価器・FTS プリフィルタ抽出は `src-tauri/src/commands/column_query.rs`
+- 実装: `src/services/columnQuery/`（compiler / evaluator / referenceEvaluator / composeQir / degradedBatch / degradedRunner）。QIR 型・Rust 評価器・FTS プリフィルタ抽出は `crates/notecore/src/commands/column_query.rs`
 - **実行形態は 2 つ**: コンパイル成功 = ⚡（QIR 同期評価 + インデックスを使ったキャッシュ検索）、サブセット外 = 🐢（専用 Web Worker で逐次適用）。🐢 でもできないのは高速検索だけで、表示の意味論は同じ。Worker バッチにはタイムアウトを張り、超えたら `terminate()` → 評価開始マーカーで犯人フィルタを特定してそれだけサスペンドする（AiScript の同期評価は abort できず step 予算もメモリを縛れないため、これが唯一の確実な停止手段）。サスペンド中を含むバッチは fail-closed。解除はユーザーの明示操作（「再開」）か、そのクエリのソース編集（コードが変わったので 1 回だけ再試行する。#783 追補 D / #1112）。有効・無効の切替やスコープ・適用の変更では解除しない（同じコードを黙って走らせ直さない）。サスペンドはウィンドウ内の共有状態で再起動で消える
 - **ローカルキャッシュ検索**: ⚡ のカラムはページングでキャッシュを遡れる（`searchCachedNotesByQuery` → `qir_search_cache`）。FTS5 trigram で粗く絞ってから Rust QIR eval で最終判定する（プリフィルタは偽陰性を出さない = 不変条件 (b)）。母集合はカラムの所属バケット。notecli の実体/所属分離（notecli#30）が前提で、それ以前は所属が後勝ち上書きのため種別で絞ると取りこぼし、全体走査に倒していた
 - **UX**: 定義・サイドロード・MisStore 導入はクエリ管理カラム（`queryManager`、ツール系）に一元化。適用はタイムラインカラムのフィルタメニューの「クエリ」トグル（`DeckColumn.noteQueryRefs` に id 参照、複数参照は And 合成）。カラムヘッダのバッジが実行形態（⚡ / 🐢 / ⚠）と per-note エラー件数を示す
@@ -967,7 +967,7 @@ const { activate, deactivate } = useMenuKeyboard({
 
 **設定の動的反映 (再起動不要):**
 - AI tool 呼び出し前に `reloadAiConfig()` (AI 固有設定) と `reloadPermissionsConfig()` (permissions.json5) で再読込する
-- 外部エディタで `settings.json` / `permissions.json5` を編集しても、次回 dispatch 時に最新値で照合される
+- 外部エディタで `ai.json5` / `permissions.json5` を編集しても、次回 dispatch 時に最新値で照合される
 - 設定 UI からの変更も同じ singleton に流れるため即時反映
 
 **自己改変系 capability の安全弁:**
@@ -981,7 +981,71 @@ const { activate, deactivate } = useMenuKeyboard({
 
 `Capability` は `Command` を拡張した構造 (`signature` / `permissions` / `requiresConfirmation` / `aiTool`) で、**コマンドパレット / HTTP API / CLI / AiScript (`Nd:call`) / AI tool calling** の 5 経路が同じ registry を共有する。
 
-**builtin capability の宣言 (id / 権限 / 確認の要否 / cheap / 実行属性 / AI ツールスキーマ) の正本は `crates/notecore/capabilities.json5`** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。`pnpm gen:capabilities` が `src/capabilities/declarations.generated.ts` (TS の宣言表と `CapabilityId` 型) と [SKILLS.md §4.0](SKILLS.md#40-capability-一覧) の表を生成し、最新かどうかは `tests/lint/capabilityDeclarations.test.ts` が検査する (openapi.json / bindings.ts と同じ運用)。実装は `src/capabilities/builtins/<subject>.ts` に `implement('<id>', { execute, requiresConfirmation?, preflight? })` で書く (振る舞いだけ。宣言に無い id はコンパイルで落ち、宣言と実装の不一致は lint で落ちる)。**`exec: 'core'` の capability は本体を notecore (`crates/notemaid/src/exec/`) に 1 実装だけ置き**、デバイス側は `implementCore('<id>')` で登録だけする (本人操作は `capability_execute` の RPC で notecore の本体を叩き、AI のターンはターン実行器が直接呼ぶ)。確認が要る core capability の表示内容は notecore の `capability_preview` が組む (`exec/preview.rs`。固有の文面が無いものはラベル + 引数 JSON の汎用形)。**notecore が設定フォルダのファイルを書くときは `settings_events` の書込ヘルパを通す**: 書けたら `nd:settings-file-changed` (subdir / name / op) をデバイスに流し、デバイスの store は `registerSettingsFileHandler` で自分の面 (subdir か root) の変更だけ受けて写しを読み直す (`useSettingsFileSync`、購読は App.vue でウィンドウごとに始める)。デバイス発の汎用ファイルコマンドは通知しない (自分の写しは自分で更新している)。AI セッションだけは例外で、ターン中の表示用 placeholder を上書きしないよう、イベントの `message_id` とターン終了時の `reload` で揃える (変更通知には乗せない)。 **メモも同じ形** (`crates/notemaid/src/memos.rs`): frontmatter は js-yaml の dump が出す YAML を `yaml_lite.rs` で読み書きし (数値 / 真偽 / 日時に見える文字列は二重引用符)、id はローカル時刻の Zettelkasten 形式 (占有されていれば 1 秒ずつ先へ)。本文の末尾 LF は「無ければ足す」規則で往復が安定する (以前は再保存のたびに増えていた。デバイス側も同時に直した)。AI の `memos.*` は notecore が書いて通知し、デバイスの写し (`useMemos`) はそのファイルだけ読み直して AiScript 向けの `memo:*` を出す。**テーマとカスタム CSS も同じ形** (`crates/notecore/src/themes.rs`): テーマの JSON5 は `json5_out.rs` (`JSON5.stringify` と同じ整形、キー順は `indexmap` で保持、id 凍結の注入も) で書き、ファイル名は表示名の slug。custom.css はルートファイルで、履歴もルートの `custom.css.history.json5` (`edit_history` のルート版)。`theme.apply` (画面への適用と OS の明暗の判定) はデバイスに残る。デバイスの theme store は `themes/` と root の `custom.css` の変更を受けて写しと画面を揃える。 **プラグイン / ウィジェット / カラムクエリも同じ形** (`crates/notecore/src/sidecar/`): src (`.is`) と meta (`.meta.json5`) の 2 ファイルで 1 個体、書込は src → meta、削除は meta → src → 履歴の順、meta のキー順は種別ごとの規定順 (未知のキーは末尾に残す)、ID 欠損はメタファイルの完全名を凍結、ソースの無い個体は読取専用で変更を拒否する。プラグインのヘッダ (`/// @ <ver>` + `### {}`) の解析と MisStore からのインストール (sha512 検証、既存個体は本文の diff と「新しい権限」を 1 枚目の確認に畳む) も notecore。`plugins.create` / `plugins.update` / `widgets.create` / `widgets.update` は AiScript の構文検証 (preflight) が JS の Parser にしか無いのでデバイスに残る。AiScript の実行はデバイスで、各 store が `plugins/` `widgets/` `queries/` の変更通知を受けて写しを揃え、前後を比べて起動 / 停止 (プラグインの有効化・ソース変更・削除)、表示中の再実行 (ウィジェットのソース変更)、暴走サスペンドの解除 (クエリのソース変更) を行う。 **キーバインド / ナビバー / パフォーマンス設定も同じ形** (`crates/notecore/src/{keybinds,navbar,performance_settings}.rs`): ルートの `keybinds.json5` / `navbar.json5` / `performance.json5` を notecore が書き、既定値は `src/defaults/` の同じファイルを `include_str!` で共有する。パフォーマンス設定の各 key の範囲 / 刻み / 分類 / スライダー両端は TS の表が正本で、`pnpm gen:golden-perf` が採取する golden (`src/capabilities/golden/performance.json`) を Rust が読む (tools.json と同じ方式)。`performance.list` の表示名・説明・単位は辞書の `_performanceData` 節 (Rust の辞書にも埋め込む) から英語の正本文で返す。デバイスの keybinds / deck / performance store はルートの変更通知を受けて写しを読み直し、パフォーマンス設定は CSS 変数と Rust 側 (`perf_config`) へ反映する。persona の切替 (`ai.setPersona`) は notecore が `ai.json5` を書き、`useAiConfig` が変更通知で読み直す。 **デバイスなしの受け入れ検査** (`crates/notecore/tests/headless_loop.rs`): notecore の公開 API だけ (ターン実行器 + `LocalCoreExecutor` + `NoDeviceBridge` + ファイルのセッション / 汚染 / チェックポイント、provider は台本) で、core の読取がひと通り走る / 確認つきの書込は確認内容を notecore が組んで遠隔の答えで再開し notecore が書いて変更通知を出す / 無人は確認の要る書込を意図として残す / デバイス依存の capability は `device_unavailable` で AI に返りターンは止まらない、の 4 点を検査する。これが notecored (#1106 段階 3a) の前提。**段階 3a の下ごしらえ**: アプリデータディレクトリの解決は notecore (`app_dir.rs`、bundle identifier の定数と `NOTEDECK_APP_DIR` の上書き) に 1 つ置き、アプリの Tauri 経路と identifier が一致することをテストで保証する (notecored も同じ関数で同じ場所を開く)。ルート直下の設定ファイルの allowlist は属性表 (`settings_store.rs` の `ROOT_FILES`: 手元側 / notecore 側の `side`、バックアップに含めるかの `backup`) になった。この端末の構成 (`client.json5`、`backend: embedded | pending-resident | resident`、codec は `client_config.rs` と `services/clientConfig.ts`) は手元側でバックアップに含めない。配布と常駐化の設計 (unit / socket / secret / 切替導線) の正本は #1106 のコメント「notecored の配布と常駐化」。 **(歴史) 以下は旧 notecored の記述。** 2026-09-29 に汎用中継 / コアの切替と再起動 / 移行パッケージ / 購読のセッション所有と中継 / 「コア」ウィンドウの切替導線 / データ面 (ストリーミング / クエリランタイム / OGP / 画像キャッシュ / 公開 API 面) を削除し、残る部品 (RPC 面 / transport / service 管理 / secrets の file backend / HEARTBEAT timer / sink) は notemaid の bin (`crates/notemaid/src/daemon/`) に統合した。今の notemaid は AI 系 (notemaid の表) だけを RPC で受け、HEARTBEAT timer を持つ。SQLite は開かず、口座の所在は notecore の `AccountStore` trait (アプリは notecli.db が実装、notemaid は `SyncedAccounts` = 接続したアプリが `notemaid.accounts` で写した一覧をメモリと小さなファイルに持ち、口座が変わると `core_sync_accounts` で写し直す)。資格情報の解決 (`credentials.rs`) と口座一覧 (`account_service::list_public_from`) はこの trait だけを見るので、`Core` は DB なし (`initialize_client` + `set_account_store`) でも AI のターンを回せる。**DB なしの Core で待ち続けない規則**: `Core::ready()` は廃止し `authed*()` / `client()` を使う。取得系が索引 (notes キャッシュ) へ書くのは `Core::with_archive` (索引があるときだけ回し、無ければ素通し) と `try_db()` で、`blocking` は DB の無いプロセスでは即 Err。手元の索引を読む `notes.searchArchive` は `FrontendBridge::archive_search` (型付き。wire は `archive/search`) で端末に聞き、アプリの Rust (`query_bridge::answer_archive_search`) が自分の Core で答える (WebView は通らない)。server_info の検出結果は DB があれば DB、無ければメモリ (`ServerInfoService::new_in_memory`)。この規則は `context.rs` の `client_only_core_never_waits_for_a_database` と notemaid の `search_archive_asks_the_device_through_the_bridge` が押さえる。トークンは OS キーチェーンから同じ id で読み、キーチェーンが無い環境 (WSL2 など) ではアプリの DB と同じくトークン列が経路になる (写しに含める。保護水準はアプリの DB と同じ)。子プロセスが繋がる前に死んだ / 答えないときは in-process に退避する。起動役は上の「目指す構成」のとおり (子プロセスが既定、常駐は AI 設定のトグル = `notemaid service`)。以下の段落のうち削除済みの機能の記述は歴史として読む。 **notecored (`crates/notecored`)**: `run` が notecore を headless に組み立てる (アプリの起動手順と同じ順で、デバイス依存の物だけが無い)。RPC 面は Unix socket (`$XDG_RUNTIME_DIR/notecored/notecored.sock`、0700 / 0600) 上の改行区切り JSON で、wire 形式は notecore の `rpc.rs` (`hello` で起動毎の秘密・版・マニフェストの指紋、`request` / `batch` はコマンド表の JSON アダプタ、`event` は Tauri と同じイベント名で押し出す)。接続は同じ uid だけ受ける。データディレクトリは `notecore.lock` (flock) で 1 プロセスに限り、再起動しても直らない状態は専用の終了コード (ロック衝突 / DB がバイナリより新しい / runtime dir 不在 / secret の鍵) で抜ける (`exit.rs`)。secret はファイル backend 固定 (`<data-dir>/notecored/secrets.enc`、鍵は設定ディレクトリの `notecored/secret.key` か `--secret-key-file`)。HEARTBEAT の timer は ai.json5 から組み、変更通知で組み直す。公開 API 面は `--api` を付けたときだけ。受け入れは `tests/smoke.rs` (実バイナリを起動して socket 越しに叩き、SIGTERM で止め、二重起動の終了コードを見る)。 **アプリ側のクライアント層 (`src-tauri/src/client_layer.rs`)**: 切替点はコマンド表の Tauri ラッパー (`commands/table.rs`) の 1 箇所で、`client.json5` の `backend` が `resident` なら引数を wire の形 (camelCase) にして notecored に中継し、そうでなければ埋め込みの notecore を呼ぶ。中継先が出すイベントは同じ名前で WebView に流し、状態 (接続 / 版 / 指紋の一致) は `nd:client-layer-state` と `client_layer_state` コマンドで出す。常駐構成の起動は DB もストリームも開かず、メディアプロキシとデッキ系ルートの HTTP サーバーだけ手元で動かし、アカウント一覧は notecored から取って `nd:accounts-early` に流す。認可境界の操作 (認証の保存 / アカウントの削除・ログアウト / Vault の secret と信頼の書込 / ルート設定ファイルの書込) も本体は notecore にあり、コマンド表では種別 `authz` の行として同じ経路で中継する (同一ホストは同じ uid なので data と同じ扱い。外向き (3b) では手元の Rust の本人確認と署名を要する)。lint は表の行の種別を名前で固定する (`tests/lint/rustCommandKinds.test.ts` の `TABLE_AUTHZ`)。healthcheck は doctor とキャッシュ統計を notecore の `health_core` から取り (常駐構成では中継)、ログ場所や直近の panic は手元で足す。HEARTBEAT の手動実行は notecore の `run_once` を呼ぶ表の行で、timer は notecored が持つので `heartbeat_configure` は何もしない。常駐構成で断るものは、切替導線そのもの (`core_switch_*`) だけになった。 状態面 (`core_status`) は unit の状態 (active / inactive / not_installed / unavailable = systemd の user セッション無し)、`XDG_RUNTIME_DIR` の有無、常駐中は notecored 自身の `notecored.status` (稼働時間 / 接続端末 / HEARTBEAT) も返し、「コア」ウィンドウはそれらから案内文を組んで、systemd や runtime dir が無ければ切り替えを無効にする。利用者向けの説明は notedeck.io/docs の「常駐コア (notecored)」ページ (日英)。 **購読はセッションの持ち物**: notecored はカラムクエリの購読と単ノートの捕捉を繋いできたセッションごとに帳簿に付け、切断時に閉じる (別の端末や再接続後の自分が引き継ぐ形はとらない)。イベントには接続ごとの連番が付く。中継クライアントは自分が通した購読を覚えておき、繋ぎ直したら全量を冪等に出し直す。新しい id は WebView が持つ id との対応表で付け替え (応答を読んだその場で結び、直後に届く delta を取りこぼさない。行きの `queryId` 引数も戻りの `query-delta` も書き換える)、終わったら `nd:client-layer-resumed` を出して `useDeckResume` が復帰の catch-up を走らせる。切断中の差分は再送しない (変更ログと差分取得は 3b)。連番の欠落は数えるだけ (`eventGaps`)。 **生イベントの内側化**: ストリームの生封筒 (`stream-envelope`、全イベントの tagged union) は Stream Inspector が観測を開いている間 (`stream_observe_start` 〜 `stream_observe_stop`、notecored ではセッションの持ち物、中継は再接続で開き直す) だけ流し、未読カウンタは Rust が生イベントから切り出す専用イベント `stream-unread` (口座 / 種別 / 増分か全既読か) を受ける。判断は notecore の `stream_fanout.rs` に 1 つで、アプリの emitter と notecored の emitter の両方が通る。 **接続モードの格上げ**: `settings.json5` の `modes.realtime` は notecored が自分で適用する (`stream_mode.rs`。起動時は polling のときだけ送り、realtime は接続の既定なので端末の購読で張られる。変更時は両方送る)。変更を知るために `settings.json5` の書込コマンドも変更通知を出す (デバイス側は自分の写しを自分で更新しているので受け手は無い)。アプリの切替は従来どおり全アカウントへモードを送るので常駐構成では二重に届くが、`set_mode` は冪等。polling の間隔は `performance.json5` の上書きを読む。 **条件付き書込 (仕様 §4.5)**: notecore 側のファイルは AI (notecore) とデバイスの両方が書くので、丸ごと書き戻す書き手は「読んだときの版」を添える。版は内容のダイジェスト (`settings_store::content_version`、無いファイルは空文字の版、プロセスをまたいでも同じ値) で、`write_settings_file` / `write_root_settings_file` / `write_notedeck_json` は `expected` が今の版と違えば `CONFLICT` で拒み、書けたら新しい版を返す。版つきの読取は `read_root_settings_file_versioned` / `read_notedeck_json_versioned`。ルート直下の書込コマンドはコマンド表に載せた (以前は Tauri 側の手書きで、常駐構成では手元のファイルを書いてしまっていた)。デバイス側で版を通すのはルートの notecore 側ファイルを丸ごと書き戻す store (settings.json5 = 変えたキーだけ最新に載せ直して再試行 / ai.json5 / permissions.json5 / tasks.json5 = 最新に揃える / theme-dropins.json5 = 記録を諦めて次回) で、`isConflictError` で見分ける。サブディレクトリの個体ファイルは store が変更通知で写しを揃えているので、版はまだ添えていない (仕組みは同じコマンドにある)。公開 API 面の永続トークン (external principal) を RPC 面の秘密として出しても通らないことは notecored の smoke テストが golden として押さえる。 **配布 (Nix を先出し)**: flake の `packages.notecored` / `packages.notecli` (`nix profile add 'github:notedeck-dev/notedeck#notecored'`。`install` は古い別名。zsh は `#` をグロブに取るのでクォートする)。profile の symlink (`~/.nix-profile/bin/notecored`) は更新後も同じパスで新しい世代を指すので、`service install --exec-path` にはそれを渡し、unit には実パス (`/nix/store/...`、GC で消えうる) を書かない (literal が store 直下なら拒否)。notecored のクレート版はアプリと同じにする (`bump-version.sh` が揃える。指紋が一致しないと繋げないので版も揃えておく)。**配布の形 (2026-09-28)**: Linux の build job がアプリと同じ target で notecored をビルドし、`notecored service render` で ExecStart を `/usr/bin/notecored` に埋めた unit を書き出す。tarball (notedeck / notecored / unit) と deb (`tauri.conf.json` の `bundle.linux.deb.files`。手元で deb を作るときも先に notecored をビルドする) に同梱し、Linux の成果物には build provenance の attestation を付ける。AUR は split package (`packaging/aur/PKGBUILD`、pkgbase `misskey-notedeck-bin` → アプリ / `notecored-bin` / `notecli-bin`、同じタグの Release から同版) で、`sha256sums` は publish 後の SHA256SUMS.txt と実ファイルから実値を書く (`scripts/pkgbuild-checksums.py`)。standalone のバイナリ (`notecored-<version>-<os>-<arch>`、`notecli-...`) は publish の後の job が足す (SHA256SUMS には載らない)。Nix は flake の `homeManagerModules.notecored` (`services.notecored.enable`) が user unit の正本で、`service install` は他所で管理された unit があれば書かずにそのまま使う。macOS / Windows の常駐化は 3b 以降。 **切替導線 (順序 7、`src-tauri/src/core_switch.rs`)**: 設定の「コア」ウィンドウ (`CoreContent.vue`、接続の隣) とナビバーの表示 (常駐中か切替が完了していないときだけ出る)。常駐へ: notecored を探す (`/usr/bin` → PATH) → `service install` (unit を用意するだけ) → 移行パッケージを `$XDG_RUNTIME_DIR/notecored/` に書き出す → `client.json5` を `pending-resident` に → 再起動を促す。次の起動 (`resolve_pending`): 動いていれば止める → パッケージがあれば `notecored migrate import` (停止中限定、ロックを取る) → `service enable` → `resident`。パッケージが無く notecored の secret も空なら常駐は始めず今回は埋め込みで開き、理由を状態面 (`core_status` / `ClientLayerState.switchError`) に出す。戻す: `service stop` → `migrate export` → アプリが自分の backend に取り込む → 差分ゼロのときだけ `secrets purge` → `service uninstall` → `embedded`。**移行パッケージ** (`crates/notecore/src/migration.rs`) は一回限りの鍵で暗号化した notecli の file store と名前の索引 (アカウント ID / Vault の接続 ID と slot / 旧 AI キー) で、取り込みは成功・失敗どちらでも消す。OS キーチェーンからファイル backend への直接コピーは作らない。アプリは systemd を直接呼ばず、lifecycle は全部 `notecored service ...` 経由。確認は WebView の確認ダイアログ (同一ホスト・同一 uid なのでネイティブ dialog は 3b の外向きまで持ち越し)。 **橋の向き (notecored → 端末)**: notecore の橋の問い合わせ (確認内容の組み立て / 実行要求 / HEARTBEAT の文脈) は、notecored では接続中のセッション (最後に繋いだ端末) に `query` frame で投げ、端末は WebView 往復の後に `query_response` で答える。端末が居なければ橋は Err で、ターン実行器は core の capability の確認内容を自分で組み、端末依存の capability を device_unavailable で返す。`notecored.probe-device` の要求でこの経路を診断できる。 **常駐化のサブコマンド**: `notecored service install` は systemd の user unit を用意するだけ (enable も start もしない。secret の import 前に起動させないため)、`service enable` が enable + start、`uninstall` は disable → 自分が書いた unit の削除 → daemon-reload → reset-failed。unit の正本は notecored クレートの `deploy/notecored.service` (生成マーカー入り、ExecStart と再起動しない終了コードを埋める) で、パッケージは `/usr/lib/systemd/user/` にコピーする。マーカーの無い既存 unit は上書きしない。systemd が無い環境と Nix store のパスは拒否する。`secrets keygen` は system unit の credential 用、`secrets purge` は notecored の secret (本体と鍵) だけを消す。確認内容はデバイスが答えられないとき (`ai/confirm-preview` の失敗) に限り、core の capability なら `CoreExecutor::preview` (notecore 自身) で組む。デバイスが居るときは従来どおりデバイスの dispatcher が帰属 / 理由の行を足す。**skill は最初の消費者**: 本体 (`crates/notemaid/src/skills.rs`、frontmatter の codec / slug とファイル名 / ID 凍結 / 編集履歴 `edit_history.rs` / 自己編集の適用) は notecore にあり、AI の `skills.*` は notecore が書いてから通知し、デバイスの skills store はそのファイルだけ読み直す。UI からの編集はデバイスの store が同じファイルを書く (notecore は状態を持たず毎回ファイルを読むので、ファイルだけが正)。自己編集の diff 確認 (#981) は notecore の preview が適用後全文を組んで `staged` に置き、execute はそれを消費する (確認後に対象が変わっていれば中止、保持は確認要求の TTL と同じ)。AI のターン経路は dispatcher を通らないので、dispatcher の実行後 hook (AI Spotlight) は core capability の AI 実行では光らない (プラグイン / 本人操作の経路では従来どおり)。core の宣言 ⇔ 委譲の対応と、core と宣言した id に本体があることは lint (TS / Rust) で落ちる。実行時に決まる enum (カラム種別など) は `enumOf` で getter を差す。説明文の共通句は宣言ファイルの `placeholders` に置き `${name}` で参照する。**権限キーの語彙も同じファイルの `permissions` 節が正本**で、preset (readonly / safe) と floor / deny の集合をキーごとの属性で宣言し、同じ生成器が `src/permissions/keys.generated.ts` と `crates/notecore/src/permissions_keys.generated.rs` を出す (TS と Rust で語彙がずれない。`schema.ts` / `permissions_profile.rs` は生成物を読んで解決規則だけを持つ)。同じ生成器が **Rust の宣言表** `crates/notecore/src/capabilities/generated.rs` (型と tool schema の組み立ては同 `mod.rs`) も出し、AI に渡す tool schema が TS (`toolSchema.ts`) と Rust で一致することは `src/capabilities/golden/tools.json` (期待値の正本は JS 側、`pnpm gen:golden-tools`) で検査する。
+#### 宣言の正本と生成物
+
+**builtin capability の宣言 (id / 権限 / 確認の要否 / cheap / 実行属性 / AI ツールスキーマ) の正本は `crates/notecore/capabilities.json5`** ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。`pnpm gen:capabilities` が `src/capabilities/declarations.generated.ts` (TS の宣言表と `CapabilityId` 型) と [SKILLS.md §4.0](SKILLS.md#40-capability-一覧) の表を生成し、最新かどうかは `tests/lint/capabilityDeclarations.test.ts` が検査する (openapi.json / bindings.ts と同じ運用)。実装は `src/capabilities/builtins/<subject>.ts` に `implement('<id>', { execute, requiresConfirmation?, preflight? })` で書く (振る舞いだけ。宣言に無い id はコンパイルで落ち、宣言と実装の不一致は lint で落ちる)。実行時に決まる enum (カラム種別など) は `enumOf` で getter を差す。説明文の共通句は宣言ファイルの `placeholders` に置き `${name}` で参照する。
+
+**権限キーの語彙も同じファイルの `permissions` 節が正本**で、preset (readonly / safe) と floor / deny の集合をキーごとの属性で宣言し、同じ生成器が `src/permissions/keys.generated.ts` と `crates/notecore/src/permissions_keys.generated.rs` を出す (TS と Rust で語彙がずれない。`schema.ts` / `permissions_profile.rs` は生成物を読んで解決規則だけを持つ)。
+
+同じ生成器が **Rust の宣言表** `crates/notecore/src/capabilities/generated.rs` (型と tool schema の組み立ては同 `mod.rs`) も出し、AI に渡す tool schema が TS (`toolSchema.ts`) と Rust で一致することは `src/capabilities/golden/tools.json` (期待値の正本は JS 側、`pnpm gen:golden-tools`) で検査する。
+
+#### `exec: 'core'` の本体 (notemaid)
+
+**`exec: 'core'` の capability は本体を notemaid (`crates/notemaid/src/exec/`) に 1 実装だけ置き**、デバイス側は `implementCore('<id>')` で登録だけする (本人操作は `capability_execute` の RPC で notemaid の本体を叩き、AI のターンはターン実行器が直接呼ぶ)。core の宣言 ⇔ 委譲の対応と、core と宣言した id に本体があることは lint (TS / Rust) で落ちる。
+
+確認が要る core capability の表示内容は notemaid の `capability_preview` が組む (`exec/preview.rs`。固有の文面が無いものはラベル + 引数 JSON の汎用形)。AI のターンでは、デバイスが居るときは従来どおりデバイスの dispatcher が確認内容に帰属 / 理由の行を足す。デバイスが答えられないとき (`ai/confirm-preview` の失敗) に限り、core の capability なら `CoreExecutor::preview` (notemaid 自身) で組む。
+
+AI のターン経路は dispatcher を通らないので、dispatcher の実行後 hook (AI Spotlight) は core capability の AI 実行では光らない (プラグイン / 本人操作の経路では従来どおり)。
+
+#### 設定フォルダへの書込と変更通知
+
+**core の capability が設定フォルダのファイルを書くときは notecore の `settings_events` の書込ヘルパを通す**: 書けたら `nd:settings-file-changed` (subdir / name / op) をデバイスに流し、デバイスの store は `registerSettingsFileHandler` で自分の面 (subdir か root) の変更だけ受けて写しを読み直す (`useSettingsFileSync`、購読は App.vue でウィンドウごとに始める)。デバイス発の汎用ファイルコマンドは通知しない (自分の写しは自分で更新している)。AI セッションだけは例外で、ターン中の表示用 placeholder を上書きしないよう、イベントの `message_id` とターン終了時の `reload` で揃える (変更通知には乗せない)。
+
+**skill** (この形の最初の消費者): 本体 (`crates/notemaid/src/skills.rs`、frontmatter の codec / slug とファイル名 / ID 凍結 / 編集履歴 (notecore の `edit_history.rs`) / 自己編集の適用) は notemaid にあり、AI の `skills.*` は notemaid が書いてから通知し、デバイスの skills store はそのファイルだけ読み直す。UI からの編集はデバイスの store が同じファイルを書く (notemaid は状態を持たず毎回ファイルを読むので、ファイルだけが正)。自己編集の diff 確認 (#981) は notemaid の preview が適用後全文を組んで `staged` (`exec/staged.rs`) に置き、execute はそれを消費する (確認後に対象が変わっていれば中止、保持は確認要求の TTL と同じ)。
+
+**メモも同じ形** (`crates/notemaid/src/memos.rs`): frontmatter は js-yaml の dump が出す YAML を notecore の `yaml_lite.rs` で読み書きし (数値 / 真偽 / 日時に見える文字列は二重引用符)、id はローカル時刻の Zettelkasten 形式 (占有されていれば 1 秒ずつ先へ)。本文の末尾 LF は「無ければ足す」規則で往復が安定する (以前は再保存のたびに増えていた。デバイス側も同時に直した)。AI の `memos.*` は notemaid が書いて通知し、デバイスの写し (`useMemos`) はそのファイルだけ読み直して AiScript 向けの `memo:*` を出す。
+
+**テーマとカスタム CSS も同じ形** (`crates/notecore/src/themes.rs`): テーマの JSON5 は `json5_out.rs` (`JSON5.stringify` と同じ整形、キー順は `indexmap` で保持、id 凍結の注入も) で書き、ファイル名は表示名の slug。custom.css はルートファイルで、履歴もルートの `custom.css.history.json5` (`edit_history` のルート版)。`theme.apply` (画面への適用と OS の明暗の判定) はデバイスに残る。デバイスの theme store は `themes/` と root の `custom.css` の変更を受けて写しと画面を揃える。
+
+**プラグイン / ウィジェット / カラムクエリも同じ形** (`crates/notecore/src/sidecar/`): src (`.is`) と meta (`.meta.json5`) の 2 ファイルで 1 個体、書込は src → meta、削除は meta → src → 履歴の順、meta のキー順は種別ごとの規定順 (未知のキーは末尾に残す)、ID 欠損はメタファイルの完全名を凍結、ソースの無い個体は読取専用で変更を拒否する。プラグインのヘッダ (`/// @ <ver>` + `### {}`) の解析も notecore (`sidecar/plugin_meta.rs`) で、MisStore からのインストール (sha512 検証、既存個体は本文の diff と「新しい権限」を 1 枚目の確認に畳む) は notemaid (`exec/`)。`plugins.create` / `plugins.update` / `widgets.create` / `widgets.update` は AiScript の構文検証 (preflight) が JS の Parser にしか無いのでデバイスに残る。AiScript の実行はデバイスで、各 store が `plugins/` `widgets/` `queries/` の変更通知を受けて写しを揃え、前後を比べて起動 / 停止 (プラグインの有効化・ソース変更・削除)、表示中の再実行 (ウィジェットのソース変更)、暴走サスペンドの解除 (クエリのソース変更) を行う。
+
+**キーバインド / ナビバー / パフォーマンス設定も同じ形** (`crates/notecore/src/{keybinds,navbar,performance_settings}.rs`): ルートの `keybinds.json5` / `navbar.json5` / `performance.json5` を notecore が書き、既定値は `src/defaults/` の同じファイルを `include_str!` で共有する。パフォーマンス設定の各 key の範囲 / 刻み / 分類 / スライダー両端は TS の表が正本で、`pnpm gen:golden-perf` が採取する golden (`src/capabilities/golden/performance.json`) を Rust が読む (tools.json と同じ方式)。`performance.list` の表示名・説明・単位は辞書の `_performanceData` 節 (Rust の辞書にも埋め込む) から英語の正本文で返す。デバイスの keybinds / deck / performance store はルートの変更通知を受けて写しを読み直し、パフォーマンス設定は CSS 変数と Rust 側 (`perf_config`) へ反映する。
+
+persona の切替 (`ai.setPersona`) は notemaid が `ai.json5` を書き、`useAiConfig` が変更通知で読み直す。
+
+#### 条件付き書込 (仕様 §4.5)
+
+notecore 側のファイルは AI (notemaid) とデバイスの両方が書くので、丸ごと書き戻す書き手は「読んだときの版」を添える。版は内容のダイジェスト (`settings_store::content_version`、無いファイルは空文字の版、プロセスをまたいでも同じ値) で、`write_settings_file` / `write_root_settings_file` / `write_notedeck_json` は `expected` が今の版と違えば `CONFLICT` で拒み、書けたら新しい版を返す。版つきの読取は `read_root_settings_file_versioned` / `read_notedeck_json_versioned`。ルート直下の書込コマンドはコマンド表に載せた (以前は Tauri 側の手書きで、常駐構成では手元のファイルを書いてしまっていた)。
+
+デバイス側で版を通すのはルートの notecore 側ファイルを丸ごと書き戻す store (settings.json5 = 変えたキーだけ最新に載せ直して再試行 / ai.json5 / permissions.json5 / tasks.json5 = 最新に揃える / theme-dropins.json5 = 記録を諦めて次回) で、`isConflictError` で見分ける。サブディレクトリの個体ファイルは store が変更通知で写しを揃えているので、版はまだ添えていない (仕組みは同じコマンドにある)。
+
+#### 設定ファイルの置き場と帰属
+
+アプリデータディレクトリの解決は notecore (`app_dir.rs`、bundle identifier の定数と `NOTEDECK_APP_DIR` の上書き) に 1 つ置き、アプリの Tauri 経路と identifier が一致することをテストで保証する (notemaid も同じ関数で同じ場所を開く)。ルート直下の設定ファイルの allowlist は属性表 (`settings_store.rs` の `ROOT_FILES`: 手元側 / notecore 側の `side`、バックアップに含めるかの `backup`) になっている。この端末の構成 (`client.json5`、`backend: auto | embedded | resident`、codec は `client_config.rs` と `services/clientConfig.ts`) は手元側でバックアップに含めない。
+
+#### デバイスなしで AI のターンを回す (notemaid のプロセス)
+
+**デバイスなしの受け入れ検査** (`crates/notemaid/tests/headless_loop.rs`): notemaid と notecore の公開 API だけ (ターン実行器 + `LocalCoreExecutor` + `NoDeviceBridge` + ファイルのセッション / 汚染 / チェックポイント、provider は台本) で、core の読取がひと通り走る / 確認つきの書込は確認内容を notemaid が組んで遠隔の答えで再開し notemaid が書いて変更通知を出す / 無人は確認の要る書込を意図として残す / デバイス依存の capability は `device_unavailable` で AI に返りターンは止まらない、の 4 点を検査する。
+
+別プロセスの notemaid (`crates/notemaid/src/daemon/`) は AI 系 (notemaid の表) だけを RPC で受け、HEARTBEAT timer を持つ。起動役は上の「目指す構成」のとおり (子プロセスが既定、常駐は AI 設定のトグル = `notemaid service`)。SQLite は開かず、口座の所在は notecore の `AccountStore` trait (アプリは notecli.db が実装、notemaid は `SyncedAccounts` = 接続したアプリが `notemaid.accounts` で写した一覧をメモリと小さなファイルに持ち、口座が変わると `core_sync_accounts` で写し直す)。資格情報の解決 (`credentials.rs`) と口座一覧 (`account_service::list_public_from`) はこの trait だけを見るので、`Core` は DB なし (`initialize_client` + `set_account_store`) でも AI のターンを回せる。トークンは OS キーチェーンから同じ id で読み、キーチェーンが無い環境 (WSL2 など) ではアプリの DB と同じくトークン列が経路になる (写しに含める。保護水準はアプリの DB と同じ)。子プロセスが繋がる前に死んだ / 答えないときは in-process に退避する。
+
+**DB なしの Core で待ち続けない規則**: `Core::ready()` は廃止し `authed*()` / `client()` を使う。取得系が索引 (notes キャッシュ) へ書くのは `Core::with_archive` (索引があるときだけ回し、無ければ素通し) と `try_db()` で、`blocking` は DB の無いプロセスでは即 Err。手元の索引を読む `notes.searchArchive` は `FrontendBridge::archive_search` (型付き。wire は `archive/search`) で端末に聞き、アプリの Rust (`query_bridge::answer_archive_search`) が自分の Core で答える (WebView は通らない)。server_info の検出結果は DB があれば DB、無ければメモリ (`ServerInfoService::new_in_memory`)。この規則は `context.rs` の `client_only_core_never_waits_for_a_database` と notemaid の `search_archive_asks_the_device_through_the_bridge` が押さえる。
+
+#### アプリと notemaid の間 (クライアント層と橋)
+
+**アプリ側のクライアント層 (`src-tauri/src/client_layer.rs`)**: 切替点はコマンド表の Tauri ラッパー (`commands/table.rs`) の notemaid 側 (AI 系) の行だけで、別プロセスの notemaid に繋いでいれば引数を wire の形 (camelCase) にして中継し、そうでなければ in-process の notemaid を呼ぶ。データ系コマンドは常に埋め込みの notecore を呼ぶ。中継先が出すイベントは同じ名前で WebView に流し、状態 (接続 / 版 / 指紋の一致) は `nd:client-layer-state` と `client_layer_state` コマンドで出す。
+
+**橋の向き (notemaid → 端末)**: notemaid の橋の問い合わせ (確認内容の組み立て `ai/confirm-preview` / 実行要求 `ai/execute-capability`) は、別プロセスの notemaid では接続中のセッション (最後に繋いだ端末) に `query` frame で投げ、端末は WebView 往復の後に `query_response` で答える。端末が居なければ橋は Err で、ターン実行器は core の capability の確認内容を自分で組み、端末依存の capability を device_unavailable で返す。`notemaid.probe-device` の要求でこの経路を診断できる。HEARTBEAT の文脈を聞く橋 (`heartbeat/context`) は #1162 で廃止した (system は notemaid が組む)。
+
+認可境界の操作 (認証の保存 / アカウントの削除・ログアウト / Vault の secret と信頼の書込 / ルート設定ファイルの書込) も本体は notecore にあり、コマンド表では種別 `authz` の行になる。lint は表の行の種別を名前で固定する (`tests/lint/rustCommandKinds.test.ts` の `TABLE_AUTHZ`)。公開 API 面の永続トークン (external principal) を RPC 面の秘密として出しても通らないことは notemaid の smoke テスト (`crates/notemaid/tests/smoke.rs`) が golden として押さえる。
+
+healthcheck は doctor とキャッシュ統計を notecore の `health_core` から取り、ログ場所や直近の panic は手元で足す。HEARTBEAT の手動実行は notemaid の `run_once` を呼ぶ表の行で、別プロセスの notemaid に繋いでいるときは timer も notemaid が持つ (ai.json5 から組み、変更通知で組み直す) ので `heartbeat_configure` は何もしない。
+
+#### ストリームの生イベントと未読
+
+**生イベントの内側化**: ストリームの生封筒 (`stream-envelope`、全イベントの tagged union) は Stream Inspector が観測を開いている間 (`stream_observe_start` 〜 `stream_observe_stop`) だけ流し、未読カウンタは Rust が生イベントから切り出す専用イベント `stream-unread` (口座 / 種別 / 増分か全既読か) を受ける。判断は notecore の `stream_fanout.rs` に 1 つで、アプリの emitter が通る。
+
+#### デバイス側の規約 (実装方針 / 確認 / 編集履歴 / AiScript)
 
 **API capability の実装方針**: 原則 `ApiAdapter` (`src/adapters/types.ts`) 経由で実装する (フォーク対応の抽象化を維持するため)。Tauri commands 直呼びは `registry.*` / `chat.*` のように Misskey 専用機能で他フォーク対応想定が無い場合のみ許容。詳細は [SKILLS.md §4.0.2](SKILLS.md#402-adapter-経由--tauri-直呼び-の使い分け) 参照。
 
@@ -1034,6 +1098,30 @@ const { activate, deactivate } = useMenuKeyboard({
 - `Nd:capabilities()` で registry にある capability の宣言情報を列挙 (プラグインの自己発見)
 - `Nd:on(name, handler)` で `column:added` / `column:removed` / `streaming:status` / `note:new` / `notification:new` を購読。`note:new` / `notification:new` は queryDelta を `core/queryRegistry`（queryId → flavor/accountId）で振り分けて fan-out する
 
+#### 経緯: notecored (データ面の常駐、2026-09-29 に中止)
+
+この小見出しの下は旧 notecored (`crates/notecored`、#1106 段階 3a) の記述で、歴史として読む (中止の理由は上の「目指す構成」)。2026-09-29 に汎用中継 / コアの切替と再起動 / 移行パッケージ / 購読のセッション所有と中継 / 「コア」ウィンドウの切替導線 / データ面 (ストリーミング / クエリランタイム / OGP / 画像キャッシュ / 公開 API 面) を削除し、残る部品 (RPC 面 / transport / service 管理 / secrets の file backend / HEARTBEAT timer / sink) は notemaid の bin (`crates/notemaid/src/daemon/`) に統合した。今の形は上の各小見出しのとおり。
+
+デバイスなしの受け入れ検査 (上の「デバイスなしで AI のターンを回す」) は notecored の前提として作った。同じ段階の下ごしらえとして、アプリデータディレクトリの解決を notecore の `app_dir.rs` に 1 つ置き (notecored も同じ関数で同じ場所を開いた)、ルート直下の設定ファイルの allowlist を属性表にし、この端末の構成 (`client.json5`) を設けた。配布と常駐化の設計 (unit / socket / secret / 切替導線) の正本は #1106 のコメント「notecored の配布と常駐化」。
+
+**notecored (`crates/notecored`)**: `run` が notecore を headless に組み立てる (アプリの起動手順と同じ順で、デバイス依存の物だけが無い)。RPC 面は Unix socket (`$XDG_RUNTIME_DIR/notecored/notecored.sock`、0700 / 0600) 上の改行区切り JSON で、wire 形式は notecore の `rpc.rs` (`hello` で起動毎の秘密・版・マニフェストの指紋、`request` / `batch` はコマンド表の JSON アダプタ、`event` は Tauri と同じイベント名で押し出す)。接続は同じ uid だけ受ける。データディレクトリは `notecore.lock` (flock) で 1 プロセスに限り、再起動しても直らない状態は専用の終了コード (ロック衝突 / DB がバイナリより新しい / runtime dir 不在 / secret の鍵) で抜ける (`exit.rs`)。secret はファイル backend 固定 (`<data-dir>/notecored/secrets.enc`、鍵は設定ディレクトリの `notecored/secret.key` か `--secret-key-file`)。HEARTBEAT の timer は ai.json5 から組み、変更通知で組み直す。公開 API 面は `--api` を付けたときだけ。受け入れは `tests/smoke.rs` (実バイナリを起動して socket 越しに叩き、SIGTERM で止め、二重起動の終了コードを見る)。
+
+**当時のクライアント層**: 切替点は今と同じコマンド表の Tauri ラッパー (`commands/table.rs`) の 1 箇所だったが、`client.json5` の `backend` が `resident` なら AI 系に限らず引数を wire の形 (camelCase) にして notecored に中継し、そうでなければ埋め込みの notecore を呼んだ。常駐構成の起動は DB もストリームも開かず、メディアプロキシとデッキ系ルートの HTTP サーバーだけ手元で動かし、アカウント一覧は notecored から取って `nd:accounts-early` に流した。認可境界の操作 (種別 `authz` の行) も同じ経路で中継した (同一ホストは同じ uid なので data と同じ扱い。外向き (3b) では手元の Rust の本人確認と署名を要する)。healthcheck の `health_core` も常駐構成では中継し、HEARTBEAT の timer は notecored が持ったので `heartbeat_configure` は何もしなかった。常駐構成で断るものは、切替導線そのもの (`core_switch_*`) だけになっていた。
+
+**状態面 (`core_status`)**: unit の状態 (active / inactive / not_installed / unavailable = systemd の user セッション無し)、`XDG_RUNTIME_DIR` の有無、常駐中は notecored 自身の `notecored.status` (稼働時間 / 接続端末 / HEARTBEAT) も返し、「コア」ウィンドウはそれらから案内文を組んで、systemd や runtime dir が無ければ切り替えを無効にした。利用者向けの説明は notedeck.io/docs の「常駐コア (notecored)」ページ (日英) にあった。
+
+**購読はセッションの持ち物**: notecored はカラムクエリの購読と単ノートの捕捉を繋いできたセッションごとに帳簿に付け、切断時に閉じる (別の端末や再接続後の自分が引き継ぐ形はとらない)。イベントには接続ごとの連番が付く。中継クライアントは自分が通した購読を覚えておき、繋ぎ直したら全量を冪等に出し直す。新しい id は WebView が持つ id との対応表で付け替え (応答を読んだその場で結び、直後に届く delta を取りこぼさない。行きの `queryId` 引数も戻りの `query-delta` も書き換える)、終わったら `nd:client-layer-resumed` を出して `useDeckResume` が復帰の catch-up を走らせる。切断中の差分は再送しない (変更ログと差分取得は 3b)。連番の欠落は数えるだけ (`eventGaps`)。生イベントの観測 (`stream_observe_start` 〜 `stream_observe_stop`) も notecored ではセッションの持ち物で、中継は再接続で開き直した。`stream_fanout.rs` の判断はアプリの emitter と notecored の emitter の両方が通った。
+
+**接続モードの格上げ**: `settings.json5` の `modes.realtime` は notecored が自分で適用する (`stream_mode.rs`。起動時は polling のときだけ送り、realtime は接続の既定なので端末の購読で張られる。変更時は両方送る)。変更を知るために `settings.json5` の書込コマンドも変更通知を出す (デバイス側は自分の写しを自分で更新しているので受け手は無い)。アプリの切替は従来どおり全アカウントへモードを送るので常駐構成では二重に届くが、`set_mode` は冪等。polling の間隔は `performance.json5` の上書きを読む。
+
+**配布 (Nix を先出し)**: flake の `packages.notecored` / `packages.notecli` (`nix profile add 'github:notedeck-dev/notedeck#notecored'`。`install` は古い別名。zsh は `#` をグロブに取るのでクォートする)。profile の symlink (`~/.nix-profile/bin/notecored`) は更新後も同じパスで新しい世代を指すので、`service install --exec-path` にはそれを渡し、unit には実パス (`/nix/store/...`、GC で消えうる) を書かない (literal が store 直下なら拒否)。notecored のクレート版はアプリと同じにする (`bump-version.sh` が揃える。指紋が一致しないと繋げないので版も揃えておく)。**配布の形 (2026-09-28)**: Linux の build job がアプリと同じ target で notecored をビルドし、`notecored service render` で ExecStart を `/usr/bin/notecored` に埋めた unit を書き出す。tarball (notedeck / notecored / unit) と deb (`tauri.conf.json` の `bundle.linux.deb.files`。手元で deb を作るときも先に notecored をビルドする) に同梱し、Linux の成果物には build provenance の attestation を付ける。AUR は split package (`packaging/aur/PKGBUILD`、pkgbase `misskey-notedeck-bin` → アプリ / `notecored-bin` / `notecli-bin`、同じタグの Release から同版) で、`sha256sums` は publish 後の SHA256SUMS.txt と実ファイルから実値を書く (`scripts/pkgbuild-checksums.py`)。standalone のバイナリ (`notecored-<version>-<os>-<arch>`、`notecli-...`) は publish の後の job が足す (SHA256SUMS には載らない)。Nix は flake の `homeManagerModules.notecored` (`services.notecored.enable`) が user unit の正本で、`service install` は他所で管理された unit があれば書かずにそのまま使う。macOS / Windows の常駐化は 3b 以降。
+
+**切替導線 (順序 7、`src-tauri/src/core_switch.rs`)**: 設定の「コア」ウィンドウ (`CoreContent.vue`、接続の隣) とナビバーの表示 (常駐中か切替が完了していないときだけ出る)。常駐へ: notecored を探す (`/usr/bin` → PATH) → `service install` (unit を用意するだけ) → 移行パッケージを `$XDG_RUNTIME_DIR/notecored/` に書き出す → `client.json5` を `pending-resident` に → 再起動を促す。次の起動 (`resolve_pending`): 動いていれば止める → パッケージがあれば `notecored migrate import` (停止中限定、ロックを取る) → `service enable` → `resident`。パッケージが無く notecored の secret も空なら常駐は始めず今回は埋め込みで開き、理由を状態面 (`core_status` / `ClientLayerState.switchError`) に出す。戻す: `service stop` → `migrate export` → アプリが自分の backend に取り込む → 差分ゼロのときだけ `secrets purge` → `service uninstall` → `embedded`。**移行パッケージ** (`crates/notecore/src/migration.rs`) は一回限りの鍵で暗号化した notecli の file store と名前の索引 (アカウント ID / Vault の接続 ID と slot / 旧 AI キー) で、取り込みは成功・失敗どちらでも消す。OS キーチェーンからファイル backend への直接コピーは作らない。アプリは systemd を直接呼ばず、lifecycle は全部 `notecored service ...` 経由。確認は WebView の確認ダイアログ (同一ホスト・同一 uid なのでネイティブ dialog は 3b の外向きまで持ち越し)。
+
+**橋の向き (notecored → 端末)**: 橋の問い合わせ (当時は確認内容の組み立て / 実行要求 / HEARTBEAT の文脈) を接続中のセッション (最後に繋いだ端末) に `query` frame で投げ、端末が WebView 往復の後に `query_response` で答える経路は notecored で作り (診断は `notecored.probe-device`)、今は notemaid が引き継いでいる (上の「アプリと notemaid の間」)。
+
+**常駐化のサブコマンド**: `notecored service install` は systemd の user unit を用意するだけ (enable も start もしない。secret の import 前に起動させないため)、`service enable` が enable + start、`uninstall` は disable → 自分が書いた unit の削除 → daemon-reload → reset-failed。unit の正本は notecored クレートの `deploy/notecored.service` (生成マーカー入り、ExecStart と再起動しない終了コードを埋める) で、パッケージは `/usr/lib/systemd/user/` にコピーする。マーカーの無い既存 unit は上書きしない。systemd が無い環境と Nix store のパスは拒否する。`secrets keygen` は system unit の credential 用、`secrets purge` は notecored の secret (本体と鍵) だけを消す。今の `notemaid service` (unit の正本は `crates/notemaid/deploy/notemaid.service`) はこの形を引き継いでいる。
+
 ### Theme 管理
 
 **ファイル:**
@@ -1061,7 +1149,7 @@ NoteDeck のパフォーマンス関連パラメータはすべてユーザー�
 **操作モデル:** 両端「省メモリ ↔ 高性能」の **スライダー** で線形補間する。固定プリセット名 (preset 列挙) は持たない。中央値が `src/defaults/performance.json5` と同値。
 
 **永続化:**
-- 設定は `performance.json5` に独立ファイルとして保存する（`usePerformanceStore` が single source of truth）。`settings.json` のスカラーハブとは分けている（構造を持つ定義は専用ファイル、の規則）
+- 設定は `performance.json5` に独立ファイルとして保存する（`usePerformanceStore` が single source of truth）。`settings.json5` のスカラーハブとは分けている（構造を持つ定義は専用ファイル、の規則）
 - デフォルト値と同じキーはオーバーライドに含めない（差分のみ保存）
 - バックエンド（Rust）側のパラメータは `invoke('update_performance_config')` で即時同期
 
@@ -1138,7 +1226,7 @@ Vite 8 (Rolldown + OXC ベース) を使用。`vite.config.ts` で以下のカ�
 - 重量級の依存ツリー（tauri, axum, reqwest, image, specta, utoipa 等）にデバッグ情報が付き、上記の形態数と掛け算になる
 - `debug/incremental` はビルドのたびにセッションが積まれ、cargo が消さない
 
-2 つ目が支配的で、`src-tauri/Cargo.toml` の `[profile.dev]` でデバッグ情報を削っている（自分のコードは `line-tables-only`、依存クレートと build script / proc-macro は `false`）。デバッグ情報を full にしたフルビルドと比べると 5 倍以上の差が出る。依存クレート内部をデバッガでステップ実行したいときだけ一時的に外すこと。自分のコードのブレークポイントとバックトレースはこの設定のままで効く。
+2 つ目が支配的で、workspace root の `Cargo.toml` の `[profile.dev]` でデバッグ情報を削っている（自分のコードは `line-tables-only`、依存クレートと build script / proc-macro は `false`）。デバッグ情報を full にしたフルビルドと比べると 5 倍以上の差が出る。依存クレート内部をデバッガでステップ実行したいときだけ一時的に外すこと。自分のコードのブレークポイントとバックトレースはこの設定のままで効く。
 
 1 つ目は `staticlib`（iOS 専用）を外して 2 形態に減らしてある。iOS プロジェクト（`src-tauri/gen/apple`）を生成するときに戻す。
 
@@ -1154,7 +1242,7 @@ pnpm clean               # dist と target を全消し（フルビルドにな�
 `target` 以外にも、開発を続けると単調増加する置き場がある。容量が逼迫したらこの順で確認する:
 
 ```bash
-du -sh /nix/store ~/.rustup ~/.cargo src-tauri/target node_modules
+du -sh /nix/store ~/.rustup ~/.cargo target node_modules
 ```
 
 - **`/nix/store`** — flake の入力が更新されるたび旧世代が残る。`nix-collect-garbage -d` で、どの GC root からも参照されていない分が消える。**direnv 利用時は `.direnv/flake-profile-*` が旧 devShell を GC root として掴んだままなので、flake.nix を変えたら先に `direnv reload` すること**（これを忘れると GC しても何も減らない）。Android SDK/NDK は既定シェルから外してあるので、`nix develop .#android` に入らない限り GC 後に戻ってこない
@@ -1176,7 +1264,7 @@ NoteDeck はトークンを持たないユーザーでも公開タイムライ�
 | **カラム・設定** | 一時的 | 保持される |
 | **UI** | 操作ボタンをグレーアウト | 赤い「ログアウト中」バナー + 再ログイン促進 |
 
-#### Rust バックエンド（`src-tauri/src/commands/`）
+#### Rust バックエンド（`crates/notecore/src/`）
 
 - **`get_credentials_or_anon()`** — トークンがあればそのまま、なければ `(host, "")` を返す。notecli が空トークンを検知して公開 API を呼び出す
 - **`create_guest_account()`** — `userId = "__guest__"`, `token = ""` のアカウントを DB に作成
@@ -1213,13 +1301,13 @@ AI プロバイダー (Anthropic / OpenAI / OpenAI 互換) の API キーは **S
 | endpoint / protocol / 認証方式 | `connections.json` の `Connection` (Rust が source of truth) |
 | 使用する接続 + モデル名 | `ai.json5` の `activeConnectionId` + `models: { [connectionId]: model }` |
 
-AI プロバイダーとして使える接続は `Connection.protocol` (`anthropic` / `openai-compat`) が `Some(_)` のもの。AI 設定のピッカーはこの接続のみを表示し、`ai_chat.rs` の SSE パース分岐にもこの `protocol` を使います。
+AI プロバイダーとして使える接続は `Connection.protocol` (`anthropic` / `openai-compat`) が `Some(_)` のもの。AI 設定のピッカーはこの接続のみを表示し、`crates/notemaid/src/ai_chat_service.rs` の SSE パース分岐にもこの `protocol` を使います。
 
 #### 旧 `ai.<provider>` キーチェーンからの移行
 
 初回起動時、`ai.json5` に旧 provider 系フィールド (`provider` / `anthropic` / `openai` / `custom`) が残っていれば一度だけ自動移行します (`useAiConfig.ts` の `migrateProvidersToVault`)。
 
-1. `ai_migrate_provider_to_vault(provider, name, baseUrl, protocol)` (`src-tauri/src/commands/vault.rs`) が旧 `ai.<provider>` キーチェーンエントリーを読み、Vault 接続 (`origin = External`, `externalSource = "ai-provider"`) を作成して secret を移し替え、旧エントリーを削除する。キーチェーンに該当エントリーが無ければ `None` を返す。
+1. `ai_migrate_provider_to_vault(provider, name, baseUrl, protocol)` (`crates/notecore/src/commands/vault.rs`) が旧 `ai.<provider>` キーチェーンエントリーを読み、Vault 接続 (`origin = External`, `externalSource = "ai-provider"`) を作成して secret を移し替え、旧エントリーを削除する。キーチェーンに該当エントリーが無ければ `None` を返す。
 2. フロント側が返ってきた接続 id を `models` / `activeConnectionId` に記録し、provider 系フィールドを含まない形で `ai.json5` を書き戻す → 次回以降は移行をスキップ。
 
 #### フロントエンド
@@ -1233,7 +1321,7 @@ AI プロバイダーとして使える接続は `Connection.protocol` (`anthrop
 
 #### 新しい AI プロバイダーを追加するとき
 
-ユーザーは「接続」ウィンドウから手動で任意の OpenAI 互換 / Anthropic 互換エンドポイントを登録できます。内蔵テンプレを増やす場合は `src/data/connectionTemplates.ts` の `BUILTIN_TEMPLATES` に `protocol` 付きでエントリーを追加するだけ。新しい SSE プロトコルを足す場合のみ `ConnectionProtocol` enum (`src-tauri/src/vault/model.rs`) と `ai_chat.rs` の dispatch に分岐を追加します。
+ユーザーは「接続」ウィンドウから手動で任意の OpenAI 互換 / Anthropic 互換エンドポイントを登録できます。内蔵テンプレを増やす場合は `src/data/connectionTemplates.ts` の `BUILTIN_TEMPLATES` に `protocol` 付きでエントリーを追加するだけ。新しい SSE プロトコルを足す場合のみ `ConnectionProtocol` enum (`crates/notecore/src/vault/model.rs`) と `crates/notemaid/src/ai_chat_service.rs` の dispatch に分岐を追加します。
 
 ### Secret Vault ([#564](https://github.com/notedeck-dev/notedeck/issues/564))
 
@@ -1248,7 +1336,7 @@ AiScript / AI / プラグインが**任意の外部サービス** (GitHub / Line
 
 `Connection` フィールド: `id` (ULID) / `name` / `baseUrl` (scheme+host+path のみ、query/userinfo/fragment 拒否) / `kind` ('outbound') / `authType` / `allowedHosts` / `accountScope` / `origin` / `templateId` / `exposedTo` (開示先 principal クラス #712) / `trustedFor` / `slots` / `notes` 等。`authType` は判別共用体: `{ kind: 'bearer' }` / `{ kind: 'header', name }` / `{ kind: 'query', param }` / `{ kind: 'basic', username }`。
 
-#### Rust モジュール (`src-tauri/src/vault/`)
+#### Rust モジュール (`crates/notecore/src/vault/`)
 
 | ファイル | 役割 |
 |---------|------|
@@ -1257,18 +1345,17 @@ AiScript / AI / プラグインが**任意の外部サービス** (GitHub / Line
 | `keychain_backend.rs` | `notecli::keychain` を使う `KeychainBackend` |
 | `connections_store.rs` | `connections.json` の atomic read/write |
 | `auth_inject.rs` | bearer/header/query/basic の注入、呼び出し側の危険ヘッダー除去 |
-| `ssrf.rs` | DNS pinning resolver + redirect 各 hop の host 再検証 |
 | `redaction.rs` | レスポンスからの secret redaction + 機密ヘッダー drop |
-| `fetch.rs` | `vault_fetch` の本体 |
+| `fetch.rs` | `vault_fetch` の本体。DNS pinning と redirect 各 hop の host 再検証は notecore 直下の `ssrf.rs` (共用) を使う |
 | `error.rs` | `VaultError` (specta::Type で型生成) |
 
-#### Tauri コマンド (`src-tauri/src/commands/vault.rs`)
+#### Tauri コマンド (`crates/notecore/src/commands/vault.rs`)
 
-12 コマンド: `vault_list_connections` / `vault_get_connection` / `vault_upsert_connection` / `vault_upsert_connection_with_secret` / `vault_set_secret` / `vault_get_secret_status` / `vault_delete_secret` / `vault_delete_connection` / `vault_set_exposed` / `vault_set_trusted` / `vault_fetch` / `vault_test_connection` / `ai_migrate_provider_to_vault`。全コマンド入口で `assert_main_window` (main ウィンドウ限定) + `validate_slot` + `validate_conn_id`。secret は `secrecy::SecretString` で扱い、最小長 16 文字を強制。
+コマンド: `vault_list_connections` / `vault_get_connection` / `vault_upsert_connection` / `vault_upsert_connection_with_secret` / `vault_set_secret` / `vault_get_secret_status` / `vault_delete_secret` / `vault_delete_connection` / `vault_set_exposed` / `vault_set_trusted` / `vault_set_trusted_plugin` / `vault_fetch` / `vault_test_connection` / `ai_migrate_provider_to_vault`。コマンド表の `(window = main)` 属性で main ウィンドウ限定にし、本体で `validate_slot` + `validate_connection_id`。secret は `secrecy::SecretString` で扱い、最小長 16 文字を強制。
 
 #### `vault.fetch` のセキュリティ
 
-- **SSRF**: HTTP/1.1 only、`path` は baseUrl 相対のみ (絶対 URL / protocol-relative 拒否)、redirect 各 hop で URL/IP/allowedHosts 再検証、DNS resolver は fetch スコープで共有 (rebinding 防御)、IP deny rules (private/loopback/link-local/multicast、`commands::http` から再利用)、`no_proxy()`
+- **SSRF**: HTTP/1.1 only、`path` は baseUrl 相対のみ (絶対 URL / protocol-relative 拒否)、redirect 各 hop で URL/IP/allowedHosts 再検証、DNS resolver は fetch スコープで共有 (rebinding 防御)、IP deny rules (private/loopback/link-local/multicast、`ssrf.rs` を共用)、`no_proxy()`
 - **redaction**: 注入した secret を literal memmem で `<vault-redacted-<nonce>>` に置換 (per-fetch nonce で confuse 攻撃を防ぐ)、`Set-Cookie` / `Authorization` 等の機密ヘッダー drop、レスポンス body は 500 KiB でストリーミング打ち切り
 - **型安全**: secret は `secrecy::SecretString` で扱い、`Connection` (メタデータのみ、secret なし) と分離
 
@@ -1292,7 +1379,7 @@ file lock / rate limit / `vault.manage` 権限 / error 3 値正規化 / latency 
 
 ### AI Chat Streaming
 
-チャットの 1 ターン (ユーザー入力 → 応答、途中の tool 呼び出しを含む) は **notecore のターン実行器** (`crates/notemaid/src/ai_turn.rs`) が回す ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133) 縦切り 1)。`DeckAiColumn` は `ai_turn_run` で開始し、`nd:ai-turn-event` をセッション store に投影するだけ。1 ラウンド (1 リクエスト分の SSE) の送受信は `ai_chat_service.rs` で、`ai_chat_send` (1 往復、tool なし) もこれを使う。
+チャットの 1 ターン (ユーザー入力 → 応答、途中の tool 呼び出しを含む) は **notemaid のターン実行器** (`crates/notemaid/src/ai_turn/`) が回す ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133) 縦切り 1)。`DeckAiColumn` は `ai_turn_run` で開始し、`nd:ai-turn-event` をセッション store に投影するだけ。1 ラウンド (1 リクエスト分の SSE) の送受信は `ai_chat_service.rs` で、`ai_chat_send` (1 往復、tool なし) もこれを使う。
 
 #### 対応プロトコル (OpenAI 互換 / Anthropic Messages 互換)
 
@@ -1310,14 +1397,15 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 ```
 ┌─ Vue (DeckAiColumn / useAiTurn) ─────────────────────────────┐
 │ user + placeholder を session に積む                          │
-│ system prompt を組む (skill + デバイス文脈のスナップショット) │
+│ デバイス文脈 (device_context) と発火した trigger skill を集める │
 │ listen('nd:ai-turn-event') → commands.aiTurnRun(req)          │
-│   req: principal / 履歴 / system / 生成パラメータ /           │
+│   req: principal / 履歴 / device_context / 生成パラメータ /   │
 │        device_tools (plugin 由来) / tool_param_enums (実行時 enum) │
 └──────────┬────────────────────────────────────────────────────┘
            │ invoke
            ▼
-┌─ Rust (notecore ai_turn::run_turn) ──────────────────────────┐
+┌─ Rust (notemaid ai_turn::start_turn → drive) ────────────────┐
+│ system = SOUL / USER / MEMORY / skill から組む (compose.rs)   │
 │ granted = permissions.json5 の principal を解決               │
 │ tools = 宣言表 (capabilities/generated.rs) ∩ granted + device_tools │
 │ loop {                                                        │
@@ -1331,7 +1419,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 │     ("ai/confirm-preview") → 1 枚の confirm_request を emit    │
 │     → turn をチェックポイントに書いて解放 (ここで戻る)        │
 │   for tool_use in 全件 {                                      │
-│     exec: core なら notecore の本体 (capabilities/exec) を直接 │
+│     exec: core なら notemaid の本体 (exec/) を直接             │
 │     それ以外は bridge.query("ai/execute-capability", confirmed) │
 │     tool_use / tool_result を emit、履歴に足す                 │
 │   }                                                           │
@@ -1344,7 +1432,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 ┌─ Vue ────────────────────────────────────────────────────────┐
 │ apiBridge 'ai/confirm-preview': capability の実装が組む       │
 │   確認内容 (diff / 引数 / 帰属 / 理由) を返す。実行はしない   │
-│   (exec: core の本文は capability_preview で notecore が組む) │
+│   (exec: core の本文は capability_preview で notemaid が組む) │
 │ useAiTurn → aiConfirmRequests: confirm_request を 1 枚の       │
 │   ダイアログで出し、表示を伝え (aiConfirmShown)、決定を返す   │
 │   (aiConfirmRespond)。「次から確認しない」は権限ファイルへ    │
@@ -1354,14 +1442,14 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 ```
 
 - **1 ラウンドの複数 tool_use は全部順に実行する** (以前の JS ループは先頭以外を捨てていたので provider 側で並列を禁止していた。今は禁止しない)
-- **認可は notecore で決める**: tool 一覧の絞り込みと呼び出しごとの権限検査は Rust。デバイス側の dispatcher は同じ判定を写しとして二重に通す (golden で一致を検査)
-- **確認要求は notecore 発** (`ai_turn/confirm.rs`): 要否 (宣言の `confirm` / クロスアカウント / `confirmSkips` の記憶) は Rust が決め、表示内容は capability の実装がデバイスで組む。1 ラウンドの複数の呼び出しは 1 枚の要求に束ね、決定は全項目に効く。要求を出したループは turn を**チェックポイント** (`<app dir>/notedeck/ai-turns/`、notecore 専有で生ファイル書込の対象外) に書いて解放し、応答で読み戻して再開する。表示してからの TTL と生成してからの絶対 TTL のどちらかを超えると拒否して理由を記録し、応答は compare-and-set で最初の 1 つだけが効く (遅れた応答は明示エラー)。起動時に停止中のまま残った turn は「再起動」の理由で閉じる。無人 HEARTBEAT は確認が要る呼び出しを聞かずに拒否する
-- **セッションは notecore が単一の書き手** (`ai_sessions.rs`): ターン実行器がユーザー入力 / tool_use / tool_result / 最終応答 / 失敗の partial をその場で書く。メッセージ id は turn id から決定的に振り (ユーザー入力は `<turn>-u`)、イベントの `message_id` でデバイスが写しを揃える。デバイスの表示用 placeholder はローカルだけで、ターンの終わりに読み直す。HEARTBEAT の使い捨て履歴は `session_id` 無しで書かない
+- **認可は notemaid で決める**: tool 一覧の絞り込みと呼び出しごとの権限検査は Rust。デバイス側の dispatcher は同じ判定を写しとして二重に通す (golden で一致を検査)
+- **確認要求は notemaid 発** (`ai_turn/confirm.rs`): 要否 (宣言の `confirm` / クロスアカウント / `confirmSkips` の記憶) は Rust が決め、表示内容は capability の実装がデバイスで組む。1 ラウンドの複数の呼び出しは 1 枚の要求に束ね、決定は全項目に効く。要求を出したループは turn を**チェックポイント** (`<app dir>/notedeck/notemaid/turns/`、notemaid 専有で生ファイル書込の対象外) に書いて解放し、応答で読み戻して再開する。表示してからの TTL と生成してからの絶対 TTL のどちらかを超えると拒否して理由を記録し、応答は compare-and-set で最初の 1 つだけが効く (遅れた応答は明示エラー)。起動時に停止中のまま残った turn は「再起動」の理由で閉じる。無人 HEARTBEAT は確認が要る呼び出しを聞かずに拒否する
+- **セッションは notemaid が単一の書き手** (`ai_sessions.rs`): ターン実行器がユーザー入力 / tool_use / tool_result / 最終応答 / 失敗の partial をその場で書く。メッセージ id は turn id から決定的に振り (ユーザー入力は `<turn>-u`)、イベントの `message_id` でデバイスが写しを揃える。デバイスの表示用 placeholder はローカルだけで、ターンの終わりに読み直す。HEARTBEAT の使い捨て履歴は `session_id` 無しで書かない
 - **汚染 (taint)** (`ai_turn/taint.rs`、#1103 Phase 1): 宣言 `untrusted: true` の capability (他人の投稿 / プロフィール / 通知 / fetch 結果を返す読取) の結果を読んだセッションと、デバイスが「文脈に他人の内容 (可視ノート) を入れた」と申告したターンのセッションは以後 tainted (`<app dir>/notedeck/notemaid/turns/taint.json`、生ファイル書込の対象外)。tainted なセッションの書き込みは「次から確認しない」を無視して必ず確認する。**宛先の出所**: 宣言 `destinations` の引数 (返信先 / 対象ユーザー / URL など) の値がどこに出てきたかを 3 値で判定する (ユーザー入力 / 信頼済みの結果 / untrusted な本文の中だけ。どこにも無い値も 3 番目に倒す)。3 番目なら確認に「宛先は AI が読んだ他人の内容に由来します」と一文添え (旗は足さない)、記憶の対象外にし、無人実行は聞かずに拒否して理由を記録する。**メモ / skill のラベル**: tainted なセッションからの書込 (実行要求の `tainted`) で作った / 更新したメモと skill には `tainted: true` の frontmatter が付き (一度付いたら外れない)、それを返す読取 capability は `ctx.markTainted()` で申告して読んだセッションを tainted にし、system prompt に注入するときはデバイスが文脈の申告 (`contextUntrusted`) に含める。[#1162](https://github.com/notedeck-dev/notedeck/issues/1162) で turn 内の汚染 2 ビットと「人が承認した人格 / 記憶ファイルへの書込にはラベルを付けない」例外を足す (設計確定、実装中。詳細は「AI の人格と記憶」)
-- **中断** (`ai_turn_cancel`): Rust の task を止め、確認待ちなら要求を cancelled で閉じて (デバイス側はダイアログを畳む)、デバイスが待っている実行要求の確認 (保険の経路) も `AbortSignal` で閉じる。途中までの応答は notecore がセッションに書いて返し、デバイスは写しに載せる
+- **中断** (`ai_turn_cancel`): Rust の task を止め、確認待ちなら要求を cancelled で閉じて (デバイス側はダイアログを畳む)、デバイスが待っている実行要求の確認 (保険の経路) も `AbortSignal` で閉じる。途中までの応答は notemaid がセッションに書いて返し、デバイスは写しに載せる
 - **失敗の段階**: `before_tool` (tool 未実行) なら user + placeholder を外して再送、`after_tool` (実行済み) なら placeholder だけ外して継続モード (`continuation: true`、system 末尾に切断通知)。実行済み write capability を二重実行する経路は構造的に無い (#737)
-- **デバイス文脈はスナップショット**: メモ / 可視ノート / vault の開示状態はターン開始時に 1 回だけ組む (以前はラウンドごと)
-- **WebView なしのハーネス**: provider (`ProviderRound`) とデバイス (`FrontendBridge`) と権限 (`GrantedSource`) は trait で受けるので、`ai_turn.rs` のテストは偽 provider + 偽デバイスで複数ラウンドのターンを走らせる
+- **デバイス文脈はスナップショット**: 可視ノート / vault の開示状態はターン開始時に 1 回だけ組む (以前はラウンドごと)
+- **WebView なしのハーネス**: provider (`ProviderRound`) とデバイス (`FrontendBridge`) と権限 (`GrantedSource`) は trait で受けるので、`ai_turn/` のテストは偽 provider + 偽デバイスで複数ラウンドのターンを走らせる
 
 `turn_id` で複数列の並行ターンを区別する。1 往復だけの用途 (`ai.chat` capability、HEARTBEAT 報告先のタイトル) は `ai_chat_send` + `nd:ai-chat-event` (`stream_id`) のまま。
 
@@ -1370,13 +1458,13 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 | ファイル | 役割 |
 |---------|------|
 | `src/composables/useAiTurn.ts` | ターンの投影: `run(req)` で `ai_turn_run` を開始し、`nd:ai-turn-event` を session の placeholder / tool_use / tool_result に投影する。`cancel()` / `retryContext` / `prepareRetry()`。チャットと HEARTBEAT が共用 |
-| `src/composables/aiConfirmRequests.ts` | notecore の確認要求の表示と応答。複数項目を 1 枚に束ね、表示を伝え、「次から確認しない」を権限ファイルへ減算してから応答する |
+| `src/composables/aiConfirmRequests.ts` | notemaid の確認要求の表示と応答。複数項目を 1 枚に束ね、表示を伝え、「次から確認しない」を権限ファイルへ減算してから応答する |
 | `src/composables/aiTurnExecutions.ts` | ターン単位の実行要求の台帳。中断時に実行要求側の確認 (保険) を `AbortSignal` で閉じる |
 | `src/capabilities/deviceTools.ts` | 宣言表に無い AI tool (plugin 由来) と実行時 enum をターン要求に同梱する |
 | `src/composables/useAiChat.ts` | `sendMessage(opts)` で 1 往復の chat 呼び出し (tool なし)。`currentText` ref が delta で更新される。`cancel()` で進行中 stream を中断 (Rust 側 `ai_chat_cancel` 経由) |
 | `src/composables/useAiConversation.ts` | 指定 sessionId のメッセージ配列に対する reactive な参照を返す薄いラッパー。本文の永続化と debounce は `useAiSessionsStore` 側で集中管理 |
-| `src/stores/aiSessions.ts` | AI セッション (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`) のデバイス側の写し。書き手は notecore (`crates/notemaid/src/ai_sessions.rs`、#1133) で、ストアは「作成 / メッセージ追加 / メッセージ削除 / 改名 / trigger skill の累積 / 削除」の構造化された操作を送って写しを揃える (楽観的更新)。進行中のターンの表示は `setLocalMessages` (notecore には書かない)。汎用の設定ファイル操作は `sessions` を受け付けない |
-| `crates/notemaid/src/ai_turn/compose.rs` | system prompt の組み立て (#1162)。SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → AGENTS → 他の `mode: 'always'` / active な `mode: 'manual'` / セッションに累積した trigger skill → デバイス文脈。デバイスは `device_context` (`<notedeck-context>`) と trigger skill の id だけを送り、trigger マッチは `triggerMatchingSkillIds(text)` (`src/stores/skills.ts`) が user 入力を部分一致検索して算出 |
+| `src/stores/aiSessions.ts` | AI セッション (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`) のデバイス側の写し。書き手は notemaid (`crates/notemaid/src/ai_sessions.rs`、#1133) で、ストアは「作成 / メッセージ追加 / メッセージ削除 / 改名 / trigger skill の累積 / 削除」の構造化された操作を送って写しを揃える (楽観的更新)。進行中のターンの表示は `setLocalMessages` (notemaid には書かない)。汎用の設定ファイル操作は `sessions` を受け付けない |
+| `crates/notemaid/src/ai_turn/compose.rs` | system prompt の組み立て (#1162)。SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → NoteDeck の運用規約 (固定の文) → AGENTS → 他の `mode: 'always'` / active な `mode: 'manual'` / セッションに累積した trigger skill → デバイス文脈。デバイスは `device_context` (`<notedeck-context>`) と trigger skill の id だけを送り、trigger マッチは `triggerMatchingSkillIds(text)` (`src/stores/skills.ts`) が user 入力を部分一致検索して算出 |
 | `src/services/aiSessionId.ts` | Zettelkasten ID (`YYYYMMDDhhmmss`) 生成。同一秒衝突は `a`, `b`, `c`, ... サフィックスで回避 |
 | `src/services/sessionTitle.ts` | `timestampTitle(now, suffix)` 初期プレースホルダー / `generateSessionTitle()` 決定論的フォールバック。i18n の既定接尾辞を足す包みが `src/utils/aiSessionTitle.ts` |
 
@@ -1403,7 +1491,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 
 ### HEARTBEAT Daemon ([#411](https://github.com/notedeck-dev/notedeck/issues/411))
 
-OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に倣った **アプリ起動中ずっと走る global daemon**。本体は notemaid (`crates/notemaid/src/heartbeat.rs`) にあり、WebView が無くても走る ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133) 縦切り 5)。tick の周期だけ手元側の timer (Tauri は `src-tauri/src/commands/heartbeat.rs`、常駐バイナリは自前) が持ち、tick ごとに notecore の `run_once` を呼ぶ。**刻み方は両方とも `notemaid::heartbeat_schedule`**: 期限は実時計で見る (前回の巡回 + 間隔、寝ていた時間も数える)。OS のスリープ / ハイバネート中はプロセスごと止まり単調時計は進まないので、実時計と単調時計の進み方の差で復帰を検知し、期限を過ぎていれば少し待って (ネットワークの復帰待ち) 1 回だけ巡回する。溜まった回数はまとめて走らせない。復帰後の巡回は source が `resumed` で、前回からの経過を user メッセージに添え (寝ている間のまとめを書けるように)、その失敗は連続失敗 (自動停止) に数えない。スリープ中に起こして巡回させることはしない。ターン (ラウンドの反復と tool の実行) は notecore のターン実行器 ([AI Chat Streaming](#ai-chat-streaming)) を `ai.heartbeat` principal で使う。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
+OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://docs.openclaw.ai/gateway/heartbeat)) に倣った **アプリ起動中ずっと走る global daemon**。本体は notemaid (`crates/notemaid/src/heartbeat.rs`) にあり、WebView が無くても走る ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133) 縦切り 5)。tick の周期だけ手元側の timer (Tauri は `src-tauri/src/commands/heartbeat.rs`、常駐バイナリは自前) が持ち、tick ごとに notemaid の `heartbeat::run_once` を呼ぶ。**刻み方は両方とも `notemaid::heartbeat_schedule`**: 期限は実時計で見る (前回の巡回 + 間隔、寝ていた時間も数える)。OS のスリープ / ハイバネート中はプロセスごと止まり単調時計は進まないので、実時計と単調時計の進み方の差で復帰を検知し、期限を過ぎていれば少し待って (ネットワークの復帰待ち) 1 回だけ巡回する。溜まった回数はまとめて走らせない。復帰後の巡回は source が `resumed` で、前回からの経過を user メッセージに添え (寝ている間のまとめを書けるように)、その失敗は連続失敗 (自動停止) に数えない。スリープ中に起こして巡回させることはしない。ターン (ラウンドの反復と tool の実行) は notemaid のターン実行器 ([AI Chat Streaming](#ai-chat-streaming)) を `ai.heartbeat` principal で使う。AI カラムの有無 / 開いているカラム数に依存しない (= per-column scope ではない)。
 
 #### アーキテクチャ
 
@@ -1411,7 +1499,7 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 ┌─ 手元側 ──────────────────────────────────────────────┐
 │  [Tauri] HeartbeatScheduler (Option<ScheduledTask>)    │
 │    heartbeat_configure / unconfigure / trigger_now     │
-│    tick → notecore::heartbeat::run_once(&core, source) │
+│    tick → notemaid::heartbeat::run_once(&core, source) │
 │  [JS] useHeartbeatDaemon (App.vue で 1 mount)          │
 │    設定 (enabled / interval) → timer                    │
 │    'nd:ai-heartbeat-event' → セッション写しの読み直し / │
@@ -1426,7 +1514,7 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 │    → 応答契約 → 報告先 session に書く → HeartbeatSink   │
 │  状態: notemaid/turns/heartbeat.json (日次 / cheap check /│
 │    連続失敗)。連続失敗と日次上限の自動停止は ai.json5 の │
-│    heartbeat.enabled を notecore が書き換える            │
+│    heartbeat.enabled を notemaid が書き換える            │
 └────────────────────────────────────────────────────────┘
 ```
 
@@ -1436,13 +1524,13 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 |---------|------|
 | `crates/notemaid/src/heartbeat.rs` | daemon 本体。skill 選択 / cheap check / 日次上限 / system prompt / ターン / 応答契約 / 報告先の解決と書込 / タイトル生成 / 失敗の数え方と自動停止 / 観測用の状態 |
 | `crates/notemaid/src/ai_config.rs` | ai.json5 の読取断面 (HEARTBEAT / 接続 / 生成の値、正規化はデバイスの `useAiConfig` と同じ規則) と `heartbeat.enabled` の書換 |
-| `src-tauri/src/commands/heartbeat.rs` | timer (global single scheduler)。tick で notecore を呼ぶ。`HeartbeatSink` の Tauri 実装は `commands/mod.rs` |
-| `src/composables/useHeartbeatDaemon.ts` | 設定を timer に伝え、notecore の出来事をデバイスに反映する |
-| `src/composables/useAiConfig.ts` | `HeartbeatConfig` の正本 (デバイス側)。notecore が ai.json5 を書いたら変更通知で読み直す |
+| `src-tauri/src/commands/heartbeat.rs` | timer (global single scheduler)。tick で notemaid を呼ぶ。`HeartbeatSink` は notemaid の `sinks.rs` が Core の EventSink に写す |
+| `src/composables/useHeartbeatDaemon.ts` | 設定を timer に伝え、notemaid の出来事をデバイスに反映する |
+| `src/composables/useAiConfig.ts` | `HeartbeatConfig` の正本 (デバイス側)。notemaid が ai.json5 を書いたら変更通知で読み直す |
 
 #### Skill 駆動
 
-NoteDeck の巡回の手順は `mode: heartbeat` の skill (予約 skill `HEARTBEAT.md` を含む、#1162)。MisStore 配布の skill は frontmatter で `mode: heartbeat` を宣言しておけば install 直後に daemon が拾う。tick ごとに全 heartbeat skill body を結合し、OpenClaw の scratch と同じく **user 側のメッセージ**に付けて 1 回の AI inference に投げる (system は notemaid が組む人格と記憶の上に固定 INSTRUCTION)。本文が全部「実質空」(空行 / コメント / 見出し / fence / 空のチェックリストだけ) なら tick を skip する。skill の `cheapCheckCapabilities` は notecore 単独で実行できる cheap な capability だけ。notecore 経由の登録 (AI の作成 / 更新、MisStore からのインストール) では他を含む skill を拒み、外部エディタで直接書かれたものは実行時に無視する (warn)。
+NoteDeck の巡回の手順は `mode: heartbeat` の skill (予約 skill `HEARTBEAT.md` を含む、#1162)。MisStore 配布の skill は frontmatter で `mode: heartbeat` を宣言しておけば install 直後に daemon が拾う。tick ごとに全 heartbeat skill body を結合し、OpenClaw の scratch と同じく **user 側のメッセージ**に付けて 1 回の AI inference に投げる (system は notemaid が組む人格と記憶の上に固定 INSTRUCTION)。本文が全部「実質空」(空行 / コメント / 見出し / fence / 空のチェックリストだけ) なら tick を skip する。skill の `cheapCheckCapabilities` は notemaid 単独で実行できる cheap な capability だけ。notemaid 経由の登録 (AI の作成 / 更新、MisStore からのインストール) では他を含む skill を拒み、外部エディタで直接書かれたものは実行時に無視する (warn)。
 
 #### 応答契約 (`heartbeat.report` tool と legacy の `HEARTBEAT_OK`)
 
@@ -1470,15 +1558,15 @@ AI は報告すべきことがあるときだけ `heartbeat.report` tool を呼�
 
 `permissions.json5` の `ai.heartbeat` principal で chat (`ai.chat`) とは独立管理 (#712)。default `'readonly'` preset で write 系 / external network 全部 deny。旧 `ai.json5` の `heartbeat.permissions` からは初回起動時に「chat との AND (交差)」で一度きり移行される — 旧実装は絞り込み = heartbeat / 実行時 enforce = chat の実装ずれがあり、実効権限は交差だったため (素朴な複製は権限拡大になる)。
 
-AI に渡す tool 一覧の絞り込みと呼び出しごとの認可は notecore のターン実行器が `ai.heartbeat` の granted で行う (#1133)。デバイス側の dispatcher も同じ `resolveFor({ kind: 'ai.heartbeat' })` で判定するので、露出と実行の判定が一致する。確認が要る capability は dispatcher が拒否する (無人時に承認を待たない)。
+AI に渡す tool 一覧の絞り込みと呼び出しごとの認可は notemaid のターン実行器が `ai.heartbeat` の granted で行う (#1133)。デバイス側の dispatcher も同じ `resolveFor({ kind: 'ai.heartbeat' })` で判定するので、露出と実行の判定が一致する。確認が要る capability は dispatcher が拒否する (無人時に承認を待たない)。
 
 #### Silent Fail Prevention
 
 provider error / network error / 429 等で daemon が無言で動かなくなる問題を防ぐ:
 
-- `runOnce()` 内の AI inference を try-catch で保護
-- 失敗時: `⚠ HEARTBEAT 失敗 (source=...): <msg>` を heartbeat session に append (target='none' は除く)
-- 連続 `MAX_CONSECUTIVE_FAILURES=3` 回失敗で daemon `enabled = false` 自動切替 + `useToast().show('HEARTBEAT を停止しました...', 'warning')`
+- `run_once` (`crates/notemaid/src/heartbeat.rs`) が AI inference の失敗を受け止める
+- 失敗時: 失敗の内容を heartbeat session に append (target='none' は除く)
+- 連続 `MAX_CONSECUTIVE_FAILURES` 回失敗で notemaid が ai.json5 の `heartbeat.enabled = false` を書き、デバイスに toast で知らせる
 - 1 回成功で counter リセット
 
 #### Session Drawer 表示 (DeckAiColumn)
@@ -1650,7 +1738,7 @@ API の実体は notecli 側にあるため、**エンドポイントの差し�
 
 - `ColumnBadges.vue` — カラムボタン用のサーバー/アカウントバッジ（CSS変数でオーバーライド可）
 - `MkAvatar.vue` — オンラインインディケーター（BL）
-- `AvatarStack.vue` — 複数アバターの重ね合わせ
+- `AccountAvatar.vue` — アカウントのアバター + サーバーバッジ（TR）
 
 ## License
 

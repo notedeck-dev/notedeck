@@ -5,7 +5,7 @@
 **notecli = Misskey クライアントライブラリ + CLI ツール（単一クレート）**
 
 - `lib.rs` でライブラリとして公開、`main.rs` で CLI バイナリを提供する単一クレート構成
-- コアロジック（api, models, db, streaming）がライブラリの本体。CLI と、HTTP のルート定義を取り込む NoteDeck / notecored がその消費者
+- コアロジック（api, models, db, streaming）がライブラリの本体。CLI と、HTTP のルート定義を取り込む NoteDeck がその消費者
 - NoteDeck が最大の消費者であり、Rust crate 依存としてコアモジュールを直接利用している
 - CLI は独立したフロントエンドとして、ライブラリと同じクレート内に同居する
 

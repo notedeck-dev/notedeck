@@ -7,6 +7,7 @@ import type {
   TrustedPlugin,
   VaultTestResult,
 } from '@/bindings'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES } from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
@@ -36,6 +37,7 @@ const queryParam = ref('')
 const basicUsername = ref('')
 const allowedHostsText = ref('')
 const notes = ref('')
+const advancedOpen = ref(false)
 const { file: permissionsFile } = usePermissionsConfig()
 
 // 二段 gate の状態依存 chip (#712 §6.3): vault.use が実効 OFF のクラスに
@@ -434,110 +436,120 @@ const testResultText = computed(() => {
     <div :class="$style.divider" />
 
     <!-- 詳細 -->
-    <details :class="$style.details">
-      <summary :class="$style.summary">{{ i18n.ts._connectionEditContent.advanced }}</summary>
-      <div :class="$style.section">
-        <label :class="$style.field">
-          <span :class="$style.label">{{ i18n.ts._connectionEditContent.allowedHosts }}</span>
-          <input
-            v-model="allowedHostsText"
-            type="text"
-            :class="$style.input"
-            :placeholder="i18n.ts._connectionEditContent.allowedHostsPlaceholder"
-          />
-        </label>
-        <label :class="$style.field">
-          <span :class="$style.label">{{ i18n.ts._connectionEditContent.notes }}</span>
-          <textarea
-            v-model="notes"
-            :class="$style.textarea"
-            rows="2"
-            :placeholder="i18n.ts._connectionEditContent.notesPlaceholder"
-          />
-        </label>
-        <label :class="$style.toggleRow">
-          <input v-model="exposedAi" type="checkbox" />
-          <span>
-            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.exposeAi }}</span>
-            <span :class="$style.toggleHint">
-              {{ i18n.ts._connectionEditContent.exposeAiHint }}
+    <div :class="$style.details">
+      <button
+        class="_button"
+        :class="$style.summary"
+        :aria-expanded="advancedOpen"
+        @click="advancedOpen = !advancedOpen"
+      >
+        <i class="ti ti-chevron-down nd-chevron" :class="{ 'nd-chevron-closed': !advancedOpen }" />
+        {{ i18n.ts._connectionEditContent.advanced }}
+      </button>
+      <CollapseBox :open="advancedOpen" keep-alive>
+        <div :class="$style.section">
+          <label :class="$style.field">
+            <span :class="$style.label">{{ i18n.ts._connectionEditContent.allowedHosts }}</span>
+            <input
+              v-model="allowedHostsText"
+              type="text"
+              :class="$style.input"
+              :placeholder="i18n.ts._connectionEditContent.allowedHostsPlaceholder"
+            />
+          </label>
+          <label :class="$style.field">
+            <span :class="$style.label">{{ i18n.ts._connectionEditContent.notes }}</span>
+            <textarea
+              v-model="notes"
+              :class="$style.textarea"
+              rows="2"
+              :placeholder="i18n.ts._connectionEditContent.notesPlaceholder"
+            />
+          </label>
+          <label :class="$style.toggleRow">
+            <input v-model="exposedAi" type="checkbox" />
+            <span>
+              <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.exposeAi }}</span>
+              <span :class="$style.toggleHint">
+                {{ i18n.ts._connectionEditContent.exposeAiHint }}
+              </span>
             </span>
-          </span>
-        </label>
-        <div v-if="exposedAi && !aiVaultUseEnabled" :class="$style.gateChip">
-          <i class="ti ti-info-circle" />
-          {{ i18n.ts._connectionEditContent.aiVaultUseDisabled }}
-        </div>
-        <label :class="[$style.toggleRow, $style.toggleSub, !exposedAi && $style.toggleDisabled]">
-          <input v-model="trustedAi" type="checkbox" :disabled="!exposedAi" />
-          <span>
-            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.trustAi }}</span>
-            <span :class="$style.toggleHint">
-              {{ i18n.ts._connectionEditContent.trustAiHint }}
-            </span>
-          </span>
-        </label>
-        <label :class="$style.toggleRow">
-          <input v-model="exposedPlugin" type="checkbox" />
-          <span>
-            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.exposePlugin }}</span>
-            <span :class="$style.toggleHint">
-              {{ i18n.ts._connectionEditContent.exposePluginHint }}
-            </span>
-          </span>
-        </label>
-        <div v-if="exposedPlugin && !pluginVaultUseEnabled" :class="$style.gateChip">
-          <i class="ti ti-info-circle" />
-          {{ i18n.ts._connectionEditContent.pluginVaultUseDisabled }}
-        </div>
-        <div
-          v-if="exposedPlugin && trustedPlugins.length > 0"
-          :class="$style.trustedPluginList"
-        >
-          <span :class="$style.toggleHint">
-            {{ i18n.ts._connectionEditContent.trustedPlugins }}
-          </span>
-          <div
-            v-for="tp in trustedPlugins"
-            :key="tp.id"
-            :class="$style.trustedPluginRow"
-          >
-            <i class="ti ti-puzzle" />
-            <span :class="$style.trustedPluginName">{{ tp.name || tp.id }}</span>
-            <button
-              class="_button"
-              :class="$style.revokeBtn"
-              :title="i18n.ts._connectionEditContent.revokeTrust"
-              @click="revokeTrustedPlugin(tp.id)"
-            >
-              <i class="ti ti-x" />
-            </button>
+          </label>
+          <div v-if="exposedAi && !aiVaultUseEnabled" :class="$style.gateChip">
+            <i class="ti ti-info-circle" />
+            {{ i18n.ts._connectionEditContent.aiVaultUseDisabled }}
           </div>
-        </div>
-        <label :class="$style.toggleRow">
-          <input v-model="exposedExternal" type="checkbox" />
-          <span>
-            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.exposeExternal }}</span>
-            <span :class="$style.toggleHint">
-              {{ i18n.ts._connectionEditContent.exposeExternalHint }}
+          <label :class="[$style.toggleRow, $style.toggleSub, !exposedAi && $style.toggleDisabled]">
+            <input v-model="trustedAi" type="checkbox" :disabled="!exposedAi" />
+            <span>
+              <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.trustAi }}</span>
+              <span :class="$style.toggleHint">
+                {{ i18n.ts._connectionEditContent.trustAiHint }}
+              </span>
             </span>
-          </span>
-        </label>
-        <div v-if="exposedExternal && !externalVaultUseEnabled" :class="$style.gateChip">
-          <i class="ti ti-info-circle" />
-          {{ i18n.ts._connectionEditContent.externalVaultUseDisabled }}
-        </div>
-        <label :class="[$style.toggleRow, $style.toggleSub, !exposedExternal && $style.toggleDisabled]">
-          <input v-model="trustedExternal" type="checkbox" :disabled="!exposedExternal" />
-          <span>
-            <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.trustExternal }}</span>
-            <span :class="$style.toggleHint">
-              {{ i18n.ts._connectionEditContent.trustExternalHint }}
+          </label>
+          <label :class="$style.toggleRow">
+            <input v-model="exposedPlugin" type="checkbox" />
+            <span>
+              <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.exposePlugin }}</span>
+              <span :class="$style.toggleHint">
+                {{ i18n.ts._connectionEditContent.exposePluginHint }}
+              </span>
             </span>
-          </span>
-        </label>
-      </div>
-    </details>
+          </label>
+          <div v-if="exposedPlugin && !pluginVaultUseEnabled" :class="$style.gateChip">
+            <i class="ti ti-info-circle" />
+            {{ i18n.ts._connectionEditContent.pluginVaultUseDisabled }}
+          </div>
+          <div
+            v-if="exposedPlugin && trustedPlugins.length > 0"
+            :class="$style.trustedPluginList"
+          >
+            <span :class="$style.toggleHint">
+              {{ i18n.ts._connectionEditContent.trustedPlugins }}
+            </span>
+            <div
+              v-for="tp in trustedPlugins"
+              :key="tp.id"
+              :class="$style.trustedPluginRow"
+            >
+              <i class="ti ti-puzzle" />
+              <span :class="$style.trustedPluginName">{{ tp.name || tp.id }}</span>
+              <button
+                class="_button"
+                :class="$style.revokeBtn"
+                :title="i18n.ts._connectionEditContent.revokeTrust"
+                @click="revokeTrustedPlugin(tp.id)"
+              >
+                <i class="ti ti-x" />
+              </button>
+            </div>
+          </div>
+          <label :class="$style.toggleRow">
+            <input v-model="exposedExternal" type="checkbox" />
+            <span>
+              <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.exposeExternal }}</span>
+              <span :class="$style.toggleHint">
+                {{ i18n.ts._connectionEditContent.exposeExternalHint }}
+              </span>
+            </span>
+          </label>
+          <div v-if="exposedExternal && !externalVaultUseEnabled" :class="$style.gateChip">
+            <i class="ti ti-info-circle" />
+            {{ i18n.ts._connectionEditContent.externalVaultUseDisabled }}
+          </div>
+          <label :class="[$style.toggleRow, $style.toggleSub, !exposedExternal && $style.toggleDisabled]">
+            <input v-model="trustedExternal" type="checkbox" :disabled="!exposedExternal" />
+            <span>
+              <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.trustExternal }}</span>
+              <span :class="$style.toggleHint">
+                {{ i18n.ts._connectionEditContent.trustExternalHint }}
+              </span>
+            </span>
+          </label>
+        </div>
+      </CollapseBox>
+    </div>
 
     <div :class="$style.divider" />
 
@@ -708,6 +720,10 @@ const testResultText = computed(() => {
 }
 
 .summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
   font-size: 0.85em;
   color: var(--nd-fgMuted);
   cursor: pointer;

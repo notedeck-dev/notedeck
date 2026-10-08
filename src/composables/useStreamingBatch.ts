@@ -64,14 +64,21 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     for (const id of batchIds) _pendingClearIds.add(id)
 
     if (_clearTimer) clearTimeout(_clearTimer)
-    _clearTimer = setTimeout(() => {
-      _clearTimer = null
-      if (!_pendingClearIds || _pendingClearIds.size === 0) return
-      const after = new Set(animatingIds.value)
-      for (const id of _pendingClearIds) after.delete(id)
-      _pendingClearIds = null
-      animatingIds.value = after
-    }, perfStore.get('noteAnimationDuration'))
+    // CSS のスライドも同じ設定値で走る (NoteScroller の --nd-note-enter)。
+    // タイマーはアニメの開始 (描画) より先に動き出すので、少し余らせて
+    // 最後のフレームを切らない
+    const duration = perfStore.get('noteAnimationDuration')
+    _clearTimer = setTimeout(
+      () => {
+        _clearTimer = null
+        if (!_pendingClearIds || _pendingClearIds.size === 0) return
+        const after = new Set(animatingIds.value)
+        for (const id of _pendingClearIds) after.delete(id)
+        _pendingClearIds = null
+        animatingIds.value = after
+      },
+      duration > 0 ? duration + 50 : 0,
+    )
     _animTimers.add(_clearTimer)
   }
 

@@ -730,6 +730,12 @@ _noteReactionPickerPopup:
 _noteReactionUsersModal:
   noReactions: "No reactions"
 
+_notificationCenter:
+  title: "App notifications"
+  clearAll: "Clear all"
+  empty: "No new notifications"
+  unread: "{count} unread"
+
 _noteVariantsPopup:
   ariaLabel: "Accounts that can see this note"
   title: "Visible to"
@@ -1022,6 +1028,11 @@ _aiHeartbeatSection:
   stepsOpenFailed: "Could not open the steps: {reason}"
 
 _aiPersonalitySection:
+  rules: "Rules"
+  rulesEdit: "Edit rules"
+  rulesHint: "Standing instructions the AI should always follow (how to speak, what to avoid, and so on). Rules NoteDeck always enforces, such as how memory is handled, are added separately, so you don't need to write them here."
+  rulesEmpty: "Nothing written yet."
+  rulesOpenFailed: "Couldn't open the rules: {reason}"
   title: "Persona"
   memorySectionTitle: "Memory"
   soul: "Personality"
@@ -2059,7 +2070,6 @@ _deckSkillColumn:
   modeTrigger: "Auto"
   newSkillName: "New skill"
   newSkillBody: "Write the instructions here."
-  reservedHint: "Reserved skill: its name and mode are fixed and it cannot be deleted"
 
 _deckTaskRunnerColumn:
   clearHistory: "Clear history"
@@ -2735,6 +2745,14 @@ _widgetCapabilities:
   accountRequired: "An account is required (set an account on the column)"
   needsLogin: "Login required"
   loginRequired: "A logged-in account is required"
+
+# notedeck:// リンクからのインストール確認 (#1204)
+_deepLinkInstall:
+  pluginTitle: "Install this plugin?"
+  themeTitle: "Install this theme?"
+  message: "A link asked to install \"{name}\" (v{version}, by {author}) from MisStore."
+  capabilities: "Requested features: {list}"
+  incompatibleTitle: "This plugin cannot be installed"
 
 _columnEmptyState:
   networkError: "Can't connect to the server. Check your network connection."

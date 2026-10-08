@@ -2,6 +2,7 @@
 import {
   computed,
   defineAsyncComponent,
+  nextTick,
   onMounted,
   ref,
   useTemplateRef,
@@ -64,6 +65,26 @@ const { isEmojiMuted } = useEmojiMute()
 const note = ref<NormalizedNote | null>(null)
 const ancestors = ref<NormalizedNote[]>([])
 const children = ref<NormalizedNote[]>([])
+/** 祖先・返信の取得中 (返信タブに「返信はありません」を先に出さない) */
+const isLoadingThread = ref(true)
+const detailScrollRef = useTemplateRef<HTMLElement>('detailScrollRef')
+const focalRef = useTemplateRef<HTMLElement>('focalRef')
+
+/**
+ * 祖先ノートを上に差し込んでも、見ている注目ノートの位置を動かさない
+ * (差し込んだ高さの分だけ scrollTop を足す。祖先は上へスクロールして読む)
+ */
+async function setAncestorsKeepingFocal(list: NormalizedNote[]) {
+  const scroller = detailScrollRef.value
+  const focal = focalRef.value
+  const before = scroller && focal ? focal.offsetTop - scroller.scrollTop : null
+  ancestors.value = list
+  if (before == null) return
+  await nextTick()
+  const s = detailScrollRef.value
+  const f = focalRef.value
+  if (s && f) s.scrollTop = f.offsetTop - before
+}
 const renotes = ref<NormalizedNote[]>([])
 const reactionUsers = ref<NoteReaction[]>([])
 // 本家準拠: リアクション種別チップで絞り込んでユーザー一覧を表示する
@@ -186,8 +207,8 @@ onMounted(async () => {
         .getNoteChildren(props.noteId)
         .catch(() => [] as NormalizedNote[]),
     ])
-    ancestors.value = conv.reverse()
     children.value = replies
+    await setAncestorsKeepingFocal(conv.reverse())
   } catch (e) {
     // API failed: keep cached note if displayed, otherwise show error
     if (!note.value) {
@@ -195,6 +216,7 @@ onMounted(async () => {
     }
   } finally {
     isLoading.value = false
+    isLoadingThread.value = false
   }
 })
 
@@ -485,7 +507,7 @@ async function handlePosted(editedNoteId?: string) {
       <p>{{ error.message }}</p>
     </div>
 
-    <div v-else-if="note" :class="$style.noteDetail">
+    <div v-else-if="note" ref="detailScrollRef" :class="$style.noteDetail">
       <div v-if="visibleAncestors.length > 0" :class="$style.ancestors">
         <MkNote
           v-for="ancestor in visibleAncestors"
@@ -502,7 +524,7 @@ async function handlePosted(editedNoteId?: string) {
         />
       </div>
 
-      <div :class="$style.focalNote">
+      <div ref="focalRef" :class="$style.focalNote">
         <MkNote
           :note="note"
           detailed
@@ -539,7 +561,10 @@ async function handlePosted(editedNoteId?: string) {
           :account-id="accountId"
           :handlers="treeHandlers"
         />
-        <div v-if="children.length === 0" :class="$style.stateMessage">
+        <div v-if="children.length === 0 && isLoadingThread" :class="$style.stateMessage">
+          <LoadingSpinner :size="20" />
+        </div>
+        <div v-else-if="children.length === 0" :class="$style.stateMessage">
           {{ i18n.ts._noteDetailContent.noReplies }}
         </div>
       </div>

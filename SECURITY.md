@@ -65,7 +65,7 @@ graph TB
 
 1. **Tauri のプロセス分離**: WebView (フロントエンド) と Rust コアは別プロセス。IPC ブリッジ経由でのみ通信し、フロントエンドから直接ネットワークやファイルシステムにアクセスできない
 2. **Rust による境界防御**: ネットワーク通信・トークン管理・ホスト検証はすべて Rust 側で実行。メモリ安全性が保証された言語で機密処理を行う
-3. **メディア取得の単一経路**: 画像・効果音は WebView・外部ツールとも loopback に bind した内蔵 HTTP サーバー (bind 先とポートの正本は `src-tauri/src/http_server.rs`) の画像プロキシ経由。認証はルート単位で、画像プロキシは起動毎のプロキシ専用トークン (#1099)・外部 principal 向け API は Bearer Token 保護。すべて同じ Rust 側キャッシュ層に入り、HTTPS 強制・ホスト検証・サーキットブレーカーを迂回できない
+3. **メディア取得の単一経路**: 画像・効果音は WebView・外部ツールとも loopback に bind した内蔵 HTTP サーバー (bind 先とポートの正本は `crates/notecore/src/http_server.rs`) の画像プロキシ経由。認証はルート単位で、画像プロキシは起動毎のプロキシ専用トークン (#1099)・外部 principal 向け API は Bearer Token 保護。すべて同じ Rust 側キャッシュ層に入り、HTTPS 強制・ホスト検証・サーキットブレーカーを迂回できない
 
 ---
 
@@ -132,7 +132,7 @@ flowchart LR
 
 ### ホスト検証 (Rust バックエンド)
 
-- **ファイル**: `src-tauri/src/commands/mod.rs` — `validate_host()`
+- **ファイル**: `crates/notecore/src/commands/mod.rs` — `validate_host()`
 - ブロック対象:
   - ループバック: `localhost`, `127.*`, `::1`, `[::1]`
   - プライベート IP: `10.*`, `192.168.*`, `172.16.0.0/12`
@@ -149,7 +149,7 @@ flowchart LR
 
 ### `http.fetch` Capability (AiScript / AI / コマンドパレットから利用)
 
-- **実装**: `src/capabilities/builtins/http.ts` + Rust 側 `http_fetch_command`
+- **実装**: `src/capabilities/builtins/http.ts` + Rust 側 `http_fetch` (`crates/notecore/src/commands/http.rs`)
 - **deny ルール** (上記 SSRF ホスト検証に加えて):
   - NoteDeck 自身: `localhost:19820` を明示 deny
   - ドメインサフィックス: `.local` / `.internal` / `.localhost` を deny
@@ -225,7 +225,7 @@ flowchart TB
 
 | 層 | 実装 | ファイル |
 |----|------|----------|
-| 永続化 | OS キーチェーン (primary) | `src-tauri/src/commands/mod.rs` — `get_credentials()` |
+| 永続化 | OS キーチェーン (primary) | `crates/notecore/src/credentials.rs` — `get_credentials()` |
 | フォールバック | DB 保存 → キーチェーンへ自動移行 | 同上 |
 | メモリ | TTL 60秒キャッシュ + `Zeroize` trait | 同上 |
 | 破棄 | `Drop` 実装でメモリを即時ゼロ化 | 同上 |
@@ -250,7 +250,7 @@ AI チャットは `connection_id` から endpoint / キー / protocol を Rust 
 
 ### MiAuth スコープ
 
-- Misskey 認証時の必須スコープには **read/write 系の chat / mutes / blocks** が含まれる (`src-tauri/src/commands/auth.rs`)
+- Misskey 認証時の必須スコープには **read/write 系の chat / mutes / blocks** が含まれる (`crates/notecore/src/auth_service.rs`)
 - スコープ追加・削除はサーバ側の `i` トークン無効化と等価な扱いになるため、変更時はリリースノートに明記する
 
 ### 認証セッション管理
@@ -261,7 +261,7 @@ AI チャットは `connection_id` から endpoint / キー / protocol を Rust 
 
 ### 内部 API 認証
 
-- **ファイル**: `src-tauri/src/http_server.rs`
+- **ファイル**: `crates/notecore/src/http_server.rs`
 - localhost (`127.0.0.1:19820`) のみバインド
 - Bearer Token で全エンドポイントを保護（定数時間比較: `subtle` クレート）
 - API トークンは CSPRNG で 256-bit 生成（`rand` クレート）
@@ -329,11 +329,12 @@ flowchart TB
 
 ### メディアプロキシ (画像・効果音)
 
-WebView 内・外部ツールとも HTTP API `/proxy/image` の一経路 (`src-tauri/src/media_proxy.rs` が共通ロジック)。すべて `image_cache.rs` を通るため、以下の制御を迂回できない。WebView から loopback へ繋ぐための OS 側の許可は、Android が networkSecurityConfig、macOS/iOS が ATS の例外 (`src-tauri/Info.plist`)。**cleartext を loopback だけに絞るのは release ビルドのみ**で、debug ビルドは dev サーバー (LAN 上の http) に繋ぐため全面的に許可する — 許可範囲の正本は `src-tauri/android/` の各 networkSecurityConfig。
+WebView 内・外部ツールとも HTTP API `/proxy/image` の一経路 (`crates/notecore/src/media_proxy.rs` が共通ロジック)。すべて `image_cache.rs` を通るため、以下の制御を迂回できない。WebView から loopback へ繋ぐための OS 側の許可は、Android が networkSecurityConfig、macOS/iOS が ATS の例外 (`src-tauri/Info.plist`)。**cleartext を loopback だけに絞るのは release ビルドのみ**で、debug ビルドは dev サーバー (LAN 上の http) に繋ぐため全面的に許可する — 許可範囲の正本は `src-tauri/android/` の各 networkSecurityConfig。
 
 | 制御 | 内容 | ファイル |
 |------|-----|----------|
 | プロトコル | HTTPS のみ | `crates/notecore/src/image_cache.rs` |
+| 名前解決後の SSRF 検証 | 名前解決の全 IP を接続前に検証し、redirect の各 hop も同じ resolver を通る (#857) | `crates/notecore/src/ssrf.rs` |
 | ファイルサイズ上限 | あり | `crates/notecore/src/perf_config.rs` |
 | 同時取得数 | semaphore で制限 | 同上 |
 | タイムアウト | あり | `crates/notecore/src/image_cache.rs` |
@@ -499,7 +500,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 
 - 各プロファイルは preset (`readonly` / `safe` / `full` / `custom`) + 個別 toggle。権限キーの語彙は `crates/notecore/capabilities.json5` の `permissions` 節が正本で、TS (`src/permissions/keys.generated.ts`) と Rust (`crates/notecore/src/permissions_keys.generated.rs`) はそこから生成する (`pnpm gen:capabilities`、#1133)
 - capability の `permissions: PermissionKey[]` と principal のプロファイルを **AND 照合**で評価。不一致なら `permission_denied` を tool_result に返す (AI には実行されない)
-- **恒久 deny floor**: 第三者 principal (plugin / external) には保存値に関わらず OFF に clamp されるキーがある。skill / persona の書込は AI の system prompt への注入経路 (confused deputy) 、`tasks.run` は per-key gate の迂回路、`backup.create` はローカルキャッシュ全量の書き出しになるため、`full` preset を選んでも通らない
+- **恒久 deny floor**: 第三者 principal (plugin / external) には保存値に関わらず OFF に clamp されるキーがある。skill / persona / 記憶 (`ai.memory.write`) の書込は AI の system prompt への注入経路 (confused deputy) 、`tasks.run` は per-key gate の迂回路、`backup.create` はローカルキャッシュ全量の書き出しになるため、`full` preset を選んでも通らない
 - **external の read 下限**: HTTP API トークンの発行自体を Misskey コンテンツ read への同意とみなし、その範囲は常時 ON に clamp。逆に PKM メモ・下書き・AI 会話履歴などローカル私的データの read は external のデフォルトから外してある
 - 権限キー追加時は `backfillValue()` で principal ごとの既定値を宣言する。欠損キーは拒否扱い
 - 設定変更は dispatch 直前に再読込されるため、外部エディタや設定 UI からの変更が **再起動なしで即反映**される
@@ -513,7 +514,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 
 skill / widget / plugin / theme の write 系 capability は、かつて `aiTool: false` で AI の tool schema から除外していたが、このガードは AI へのプラグイン生成開放 ([#107](https://github.com/notedeck-dev/notedeck/issues/107) / [#108](https://github.com/notedeck-dev/notedeck/issues/108)) に伴い廃止された。現在の安全弁は 3 層:
 
-1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `theme.write` が許可されたときだけ通る。plugin / external principal に対しては `skills.write` / `ai.persona.write` が恒久 deny
+1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `theme.write` が許可されたときだけ通る。plugin / external principal に対しては `skills.write` / `ai.persona.write` / `ai.memory.write` が恒久 deny
 2. **確認ダイアログ**: `requiresConfirmation` で dispatch 直前にユーザー承認
 3. **capability 個別ガード**: `skills.create` の frontmatter 遮断 + id 内部生成、`aiscript.validate` の preflight 等
 
@@ -539,7 +540,7 @@ skill / widget / plugin / theme の write 系 capability は、かつて `aiTool
 - `requiresConfirmation: true` の capability は dispatch 直前に確認ダイアログを表示
 - 引数 JSON は **code block + Shiki シンタックスハイライト**で見やすく表示 (`9e2a942e`)
 - 「実行」「キャンセル」の二択。キャンセル時は AI に `cancelled` を tool_result として返す
-- 連続 tool 呼び出し上限は **5 回** (`MAX_TOOL_ROUNDS=5`)
+- 連続 tool 呼び出しには上限がある (AI 設定の `generation.maxToolRounds`。既定値は `crates/notemaid/src/ai_turn/mod.rs` の `DEFAULT_MAX_TOOL_ROUNDS`)
 
 ### HEARTBEAT Daemon セキュリティ
 
@@ -565,6 +566,5 @@ skill / widget / plugin / theme の write 系 capability は、かつて `aiTool
 |------|------|
 | 同一 OS ユーザーの他プロセス | OS キーチェーンは別ユーザー・リモートからの窃取を防ぐが、同一ユーザー権限のプロセス (同一アカウント上のマルウェア等) からの読み取りは OS の責務。高い脅威環境ではフルディスク暗号化・信頼できるソフトウェアのみの実行を併用する |
 | CSP `unsafe-eval` | AiScript エンジンが必要とするため除去不可 |
-| SSRF DNS TOCTOU (メディアプロキシ) | Secret Vault の `vault.fetch` は DNS pinning + hop ごとの再検証を行うが、メディアプロキシは解決前のホスト名でしか検証していない。DNS 解決結果まで防御を広げる方針は [#857](https://github.com/notedeck-dev/notedeck/issues/857) で立てている。VPN / 社内 Misskey ユーザーを巻き込まない形にする必要があるため、単純な private IP 拒否は採らない |
 | Tor (.onion) 非対応 | HTTPS 強制の緩和はセキュリティ劣化を招き、SOCKS5 対応も VPN には不要。`.onion` Misskey インスタンスの需要もないため対応しない |
 | HEARTBEAT 暴走時の rate limit | Cheap Check First + 連続失敗 disable で防御。capability 単位の rate limit は設けていない |
