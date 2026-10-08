@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useCommandStore } from '@/commands/registry'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
+import NotificationBell from '@/components/common/notifications/NotificationBell.vue'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { useColumnTabs } from '@/composables/useColumnTabs'
 import { columnTargetId, useSpotlightStore } from '@/composables/useSpotlight'
+import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { type ToastItem, useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 
 const props = defineProps<{
@@ -43,6 +46,23 @@ const profileIndicatorLabel = computed(() => {
 function onProfileClick() {
   commandStore.openWithInput('~')
 }
+
+// ステータス表示の場所として登録する (登録中は軽い通知がカードにならない)
+const toastCenter = useToast()
+let unregisterStatusHost: (() => void) | null = null
+onMounted(() => {
+  unregisterStatusHost = toastCenter.registerStatusHost()
+})
+onBeforeUnmount(() => unregisterStatusHost?.())
+// 退場のフェード中も直前の文言を出し続ける
+const shownStatus = ref<ToastItem | null>(null)
+watch(toastCenter.status, (item) => {
+  if (item) shownStatus.value = item
+})
+const statusT = useVaporTransition(
+  computed(() => toastCenter.status.value != null),
+  { enterDuration: 200, leaveDuration: 200 },
+)
 
 function onSettingsClick() {
   commandStore.openWithInput('*')
@@ -122,6 +142,15 @@ const {
     </div>
 
     <div :class="$style.right">
+      <!-- 軽い成功・情報 (コピーしました等) はカードを出さずここで短く知らせる -->
+      <span
+        v-if="statusT.visible.value && shownStatus"
+        :class="[$style.status, statusT.leaving.value && $style.statusLeave]"
+        role="status"
+      >
+        <i :class="shownStatus.type === 'success' ? 'ti ti-check' : 'ti ti-info-circle'" />
+        <span :class="$style.statusText">{{ shownStatus.text }}</span>
+      </span>
       <button
         class="_button"
         :class="[$style.actionBtn, $style.settingsBtn]"
@@ -130,6 +159,7 @@ const {
       >
         <i class="ti ti-settings" />
       </button>
+      <NotificationBell />
     </div>
   </div>
 </template>
@@ -283,6 +313,37 @@ const {
 
 .settingsBtn {
   position: relative;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 320px;
+  padding: 0 10px;
+  font-size: 0.8em;
+  color: var(--nd-fg);
+  opacity: 0.75;
+  animation: statusIn var(--nd-duration-slow) var(--nd-ease-decel) both;
+}
+
+/* 退場: useVaporTransition の leaveDuration (200ms) 以内 */
+.statusLeave {
+  animation: statusOut var(--nd-duration-base) var(--nd-ease-decel) both;
+}
+
+.statusText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes statusIn {
+  from { opacity: 0; translate: 0 4px; }
+}
+
+@keyframes statusOut {
+  to { opacity: 0; }
 }
 
 .updateDot { @include update-dot(6px, 6px); }
