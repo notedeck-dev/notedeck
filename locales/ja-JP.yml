@@ -2479,6 +2479,13 @@ _widgetCapabilities:
   needsLogin: "要ログイン"
   loginRequired: "ログイン済みアカウントが必要です"
 
+# notedeck:// リンクからのインストール確認 (#1204)
+_deepLinkInstall:
+  pluginTitle: "プラグインをインストールしますか？"
+  themeTitle: "テーマをインストールしますか？"
+  message: "リンクから MisStore の「{name}」(v{version}、作者 {author}) のインストールが要求されました。"
+  capabilities: "要求する機能: {list}"
+
 _columnEmptyState:
   networkError: "サーバーに接続できません。ネットワークを確認してください。"
   loadFailed: "読み込みに失敗しました ({code})"

@@ -1,5 +1,5 @@
 ---
-sourceHash: 875f862cac13
+sourceHash: 2d7e9ad8f988
 ---
 
 # Opening from links (notedeck://)
@@ -13,7 +13,7 @@ Use it for launcher shortcuts, bookmarks for the columns you open every morning,
 Anyone can make a `notedeck://` URL, and a web page can embed one for you to click. So a link never posts a note or sends anything to the AI.
 
 - The post form and the AI column open with the text filled in; you press send yourself
-- Installing from the store only installs items listed on MisStore
+- Installing from the store shows the name and author (and, for a plugin, the features it requests) in a confirmation dialog, and installs only if you approve. Only items listed on MisStore can be installed
 - A link that points to a profile, column or store item that cannot be found does nothing
 
 ## App-wide actions
@@ -27,8 +27,8 @@ These actions do not pick an account. URL-encode the values (a space is `%20`, a
 | `notedeck://memo/new?text=<text>` | Creates one memo with the text |
 | `notedeck://profile/<name>` | Switches the deck [profile](/en/docs/deck/profiles). If no name matches, looks it up as an id |
 | `notedeck://column/<id>` | Makes that column active |
-| `notedeck://install-plugin?id=<id>` | Installs a plugin from [MisStore](/en/docs/guide/store) |
-| `notedeck://install-theme?id=<id>` | Installs a theme from MisStore |
+| `notedeck://install-plugin?id=<id>` | Installs a plugin from [MisStore](/en/docs/guide/store) after you confirm |
+| `notedeck://install-theme?id=<id>` | Installs a theme from MisStore after you confirm |
 
 A column's id is written in the profile file under `profiles/` in the settings folder.
 

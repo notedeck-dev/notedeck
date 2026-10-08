@@ -13,6 +13,8 @@ const {
   profiles,
   saveMemo,
   ensureMemosLoaded,
+  confirm,
+  misStore,
 } = vi.hoisted(() => {
   type Col = {
     id: string
@@ -41,6 +43,25 @@ const {
     ],
     saveMemo: vi.fn(),
     ensureMemosLoaded: vi.fn(async () => undefined),
+    confirm: vi.fn(async (_opts: { title: string; message: string }) => true),
+    misStore: {
+      plugins: [
+        {
+          id: 'p1',
+          name: 'Translator',
+          version: '1.0.0',
+          author: 'alice',
+          capabilities: ['misskey-api'],
+        },
+      ],
+      themes: [{ id: 't1', name: 'Dusk', version: '2.0.0', author: 'bob' }],
+      fetchPlugins: vi.fn(async () => undefined),
+      fetchThemes: vi.fn(async () => undefined),
+      isInstalled: vi.fn(() => false),
+      isThemeInstalled: vi.fn(() => false),
+      installPlugin: vi.fn(async () => undefined),
+      installTheme: vi.fn(async () => undefined),
+    },
   }
 })
 
@@ -67,7 +88,8 @@ vi.mock('@/stores/deckProfile', () => ({
   useDeckProfileStore: () => ({ getProfiles: () => profiles }),
 }))
 
-vi.mock('@/stores/misstore', () => ({ useMisStoreStore: () => ({}) }))
+vi.mock('@/stores/misstore', () => ({ useMisStoreStore: () => misStore }))
+vi.mock('@/stores/confirm', () => ({ useConfirm: () => ({ confirm }) }))
 vi.mock('@/stores/windows', () => ({
   useWindowsStore: () => ({ open: vi.fn() }),
 }))
@@ -185,5 +207,49 @@ describe('notedeck://column', () => {
   it('存在しないカラムでは何もしない', async () => {
     await handleDeepLink('notedeck://column/missing')
     expect(setActiveColumn).not.toHaveBeenCalled()
+  })
+})
+
+// リンクは Web ページに埋め込んで踏ませられるので、インストールは確認を経る (#1204)
+describe('notedeck://install-plugin', () => {
+  it('名前・作者・要求する機能を見せて確認し、承認されたら全体スコープで入れる', async () => {
+    await handleDeepLink('notedeck://install-plugin?id=p1')
+    expect(confirm).toHaveBeenCalledTimes(1)
+    const opts = confirm.mock.calls[0]?.[0]
+    expect(opts?.message).toContain('Translator')
+    expect(opts?.message).toContain('alice')
+    expect(opts?.message).toContain('misskey-api')
+    expect(misStore.installPlugin).toHaveBeenCalledWith(misStore.plugins[0], {
+      kind: 'global',
+    })
+  })
+
+  it('承認しなければ入れない', async () => {
+    confirm.mockResolvedValueOnce(false)
+    await handleDeepLink('notedeck://install-plugin?id=p1')
+    expect(misStore.installPlugin).not.toHaveBeenCalled()
+  })
+
+  it('入っているものは確認も出さない', async () => {
+    misStore.isInstalled.mockReturnValueOnce(true)
+    await handleDeepLink('notedeck://install-plugin?id=p1')
+    expect(confirm).not.toHaveBeenCalled()
+    expect(misStore.installPlugin).not.toHaveBeenCalled()
+  })
+})
+
+describe('notedeck://install-theme', () => {
+  it('名前と作者を見せて確認し、承認されたら入れる', async () => {
+    await handleDeepLink('notedeck://install-theme?id=t1')
+    const opts = confirm.mock.calls[0]?.[0]
+    expect(opts?.message).toContain('Dusk')
+    expect(opts?.message).toContain('bob')
+    expect(misStore.installTheme).toHaveBeenCalledWith(misStore.themes[0])
+  })
+
+  it('承認しなければ入れない', async () => {
+    confirm.mockResolvedValueOnce(false)
+    await handleDeepLink('notedeck://install-theme?id=t1')
+    expect(misStore.installTheme).not.toHaveBeenCalled()
   })
 })

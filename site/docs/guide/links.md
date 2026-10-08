@@ -9,7 +9,7 @@
 `notedeck://` は誰でも作れる URL で、Web ページに埋め込んで踏ませることもできます。そのため、リンクから投稿や AI への送信は起きません。
 
 - 投稿フォームと AI カラムは、本文を入れた状態で開くだけで、送信は自分で押します
-- ストアからのインストールは、MisStore に掲載されているものだけが入ります
+- ストアからのインストールは、名前と作者 (プラグインなら要求する機能も) を確認ダイアログで見せ、承認したときだけ入ります。入れられるのは MisStore に掲載されているものだけです
 - 見つからないプロファイル・カラム・ストアのアイテムを指したリンクは何もしません
 
 ## アプリ全体の操作
@@ -23,8 +23,8 @@
 | `notedeck://memo/new?text=<本文>` | 本文つきのメモを 1 件作る |
 | `notedeck://profile/<名前>` | デッキの[プロファイル](/docs/deck/profiles)を切り替える。名前が一致しなければ id として探す |
 | `notedeck://column/<id>` | そのカラムをアクティブにする |
-| `notedeck://install-plugin?id=<id>` | [MisStore](/docs/guide/store) のプラグインを入れる |
-| `notedeck://install-theme?id=<id>` | MisStore のテーマを入れる |
+| `notedeck://install-plugin?id=<id>` | [MisStore](/docs/guide/store) のプラグインを確認のうえ入れる |
+| `notedeck://install-theme?id=<id>` | MisStore のテーマを確認のうえ入れる |
 
 カラムの id は設定フォルダの `profiles/` にあるプロファイルのファイルに書かれています。
 

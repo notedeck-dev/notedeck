@@ -2736,6 +2736,13 @@ _widgetCapabilities:
   needsLogin: "Login required"
   loginRequired: "A logged-in account is required"
 
+# notedeck:// リンクからのインストール確認 (#1204)
+_deepLinkInstall:
+  pluginTitle: "Install this plugin?"
+  themeTitle: "Install this theme?"
+  message: "A link asked to install \"{name}\" (v{version}, by {author}) from MisStore."
+  capabilities: "Requested features: {list}"
+
 _columnEmptyState:
   networkError: "Can't connect to the server. Check your network connection."
   loadFailed: "Failed to load ({code})"
