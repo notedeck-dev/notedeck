@@ -203,7 +203,9 @@ appDataDir/
     ├── tasks.json5         # タスク定義
     ├── permissions.json5   # principal 別の認可（#712）
     ├── custom.css          # カスタム CSS
-    ├── connections.json    # Secret Vault の接続メタデータ（Rust が source of truth）
+    ├── tutorial.json5      # チュートリアルの達成記録と独自実績（#1029）
+    ├── client.json5        # この端末の構成（notemaid の起動方法、#1106。バックアップ対象外）
+    ├── connections.json    # Secret Vault の接続メタデータ（Rust が source of truth。バックアップ対象外）
     ├── profiles/           # *.ndprofile.json5
     ├── theme-dropins.json5 # themes/ の素の .json5 を取り込んだ記録（元ファイル名 → 採用 ID）
     ├── themes/             # *.ndtheme.json5（素の *.json5 は起動時に一回きりコピーして採用）
@@ -213,10 +215,11 @@ appDataDir/
     ├── snippets/           # *.json5
     ├── memos/              # *.md
     ├── queries/            # カラムクエリ
-    └── sessions/           # AI セッション
+    ├── sessions/           # AI セッション
+    └── notemaid/           # AI の人格と記憶（SOUL.md / USER.md / MEMORY.md / BOOTSTRAP.md、#1162）
 ```
 
-いずれもテキストエディタで直接編集でき、アプリ内の対応する編集ウィンドウからも編集できる。許可されるサブディレクトリ名とルートファイル名は `crates/notecore/src/settings_store.rs` の allowlist が正本で、この一覧がそのまま設定バックアップの対象になる。
+いずれもテキストエディタで直接編集でき、アプリ内の対応する編集ウィンドウからも編集できる。許可されるサブディレクトリ名とルートファイル名は `crates/notecore/src/settings_store.rs` の allowlist が正本で、設定バックアップの対象もここで決まる (`ROOT_FILES` は `backup: true` のものだけ)。例外が 2 つある。`connections.json` は Vault の持ち物で allowlist に載らない。`notemaid/` は汎用の読み書きが allowlist だけで通り上限・承認・汚染の規則を素通りするので allowlist に足さず、バックアップは SOUL / USER / MEMORY を名指しで含める (詳細は DEVELOPMENT.md の「AI の人格と記憶」)。
 
 **appDataDir の場所:**
 
@@ -365,7 +368,7 @@ NoteDeck のデータは大きく2種類に分かれる:
 - DB インポート: SQLite マジックバイト（`SQLite format 3\0`）を検証。WAL/SHM ファイルも自動クリーンアップ
 - 設定インポート: `..` や絶対パスを含むエントリを拒否。許可されたディレクトリ/ファイル名のみ展開
 
-バックアップ対象は `settings_store.rs` の `ALLOWED_SUBDIRS` / `ROOT_FILES` (`backup: true` のもの) と同一。設定ファイルを追加するときは、この allowlist に載せないとバックアップから漏れる。
+バックアップ対象は `settings_store.rs` の `ALLOWED_SUBDIRS` / `ROOT_FILES` (`backup: true` のもの) に、名指しで含める `notemaid/` の SOUL / USER / MEMORY を足したもの。設定ファイルを追加するときは、この allowlist に載せないとバックアップから漏れる。
 
 ### 手動バックアップ
 

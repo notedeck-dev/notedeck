@@ -2,7 +2,7 @@
 name = "notecore"
 version = "0.1.0"
 edition = "2021"
-description = "NoteDeck domain core — Tauri-independent, shared by the app and notecored"
+description = "NoteDeck domain core — Tauri-independent, shared by the app and notemaid"
 repository = "https://github.com/notedeck-dev/notedeck"
 license = "AGPL-3.0-only"
 publish = false

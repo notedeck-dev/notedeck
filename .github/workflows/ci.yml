@@ -53,6 +53,14 @@ jobs:
               - 'site/**/*.md'
               - 'site/.vitepress/theme/i18n/**'
               - 'scripts/docs-lint.mjs'
+              # CODEMAP.md の正本 (#895)。構造が変わったら作り直しを求める
+              - 'scripts/gen-codemap.mjs'
+              - '**/Cargo.toml'
+              - 'src/components/deck/columnComponents.ts'
+              - 'src/windows/registry.ts'
+              - 'src/stores/**'
+              - 'src/services/**'
+              - 'crates/notecore/src/settings_store.rs'
               - '.github/workflows/ci.yml'
 
   # ドキュメントが実装とずれて腐るのを止める (#895)

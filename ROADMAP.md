@@ -981,6 +981,17 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 - plugin sandbox（第三者プラグイン不在の段階では YAGNI）
 - domain service 層の新設（adapter 層が既にその役割）
 
+### 巨大ファイルの分割 [重要度: 高]
+
+読みにくさを文書で補わず、分割で解く ([#895](https://github.com/notedeck-dev/notedeck/issues/895))。数千行のコンポーネントや、多くの責務を抱えて大量のプロパティを返す composable は、どれだけ良い文書を書いても読めない。リファクタの課題であると同時に、開発者体験の課題として最優先級に置く。
+
+- 対象は「大きい順」に機械的に拾う。行数の一覧は書かず、その都度数える
+  ```bash
+  git ls-files 'src/*.vue' 'src/*.ts' | grep -v -e '\.test\.' -e 'generated' -e 'bindings.ts' | xargs wc -l | sort -n | tail -20
+  ```
+- 切り出し先は既存の規則に従う: 純ロジックは `src/services/` に出して直接テストする (#782)、横断する UI 状態は共通コンポーネントに、カラム固有の設定は composable に
+- 分割した結果の置き場は [CODEMAP.md](CODEMAP.md) に生成で反映される
+
 ### テスト未カバー領域
 
 notecli に DB テスト、notedeck にユニットテストを追加済み。
