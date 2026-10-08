@@ -162,6 +162,11 @@ export const useNoteStore = defineStore('notes', () => {
 
   /** Resolve an ordered list of keys into NormalizedNote[], with latest renote from store.
    *  Pure function — does not mutate the Map (renote syncing is handled eagerly in put()). */
+  // resolve が組み立てた「親 + 最新の renote」を親オブジェクトごとに覚える。
+  // 毎回 spread すると、renote 先が一度でも更新された行は以後どのノートの更新
+  // でも新しい参照になり、表示列の参照比較 (useNoteList) が効かず行ごと再描画される
+  const composedRenotes = new WeakMap<NormalizedNote, NormalizedNote>()
+
   function resolve(keys: readonly VariantKey[]): NormalizedNote[] {
     const map = noteMap.value
     const result: NormalizedNote[] = []
@@ -173,7 +178,12 @@ export const useNoteStore = defineStore('notes', () => {
       if (note.renoteId) {
         const renote = map.get(nestedVariantKey(note, note.renoteId))
         if (renote && renote !== note.renote) {
-          result.push({ ...note, renote })
+          let composed = composedRenotes.get(note)
+          if (composed?.renote !== renote) {
+            composed = { ...note, renote }
+            composedRenotes.set(note, composed)
+          }
+          result.push(composed)
           continue
         }
       }

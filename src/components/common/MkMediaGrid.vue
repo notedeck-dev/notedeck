@@ -6,6 +6,7 @@ import { isSafeUrl } from '@/services/safeUrl'
 import { useSystemStateStore } from '@/stores/systemState'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
 import { proxyUrl } from '@/utils/mediaProxy'
+import { loadedMediaUrls } from '@/utils/renderedMemo'
 import { openSafeUrl } from '@/utils/url'
 import MkMediaLightbox from './MkMediaLightbox.vue'
 
@@ -82,19 +83,36 @@ const previewableCount = computed(() => {
 const singleMediaStyle = computed(() => {
   if (previewableFiles.value.length !== 1) return undefined
   const f = previewableFiles.value[0]
-  if (!f?.width || !f?.height) return undefined
+  // 寸法が無いものは 16:9 で仮に予約する (64px から実寸へ伸びるのを防ぐ)
+  if (!f?.width || !f?.height) return { aspectRatio: '16 / 9' }
   return { aspectRatio: `${f.width} / ${f.height}` }
 })
 
+// 読み込み済みはモジュール単位でも覚える。仮想スクロールで行が作り直される
+// たびに透明からフェードし直すと、戻ってきた画像が毎回ちらつく
+function imageSrc(file: NormalizedDriveFile): string | undefined {
+  return proxiedImageSrc(file.thumbnailUrl) || proxiedImageSrc(file.url)
+}
+
+function isLoaded(file: NormalizedDriveFile): boolean {
+  if (loadedIds.value.has(file.id)) return true
+  const src = isImage(file) ? imageSrc(file) : undefined
+  return !!src && loadedMediaUrls.has(src)
+}
+
+// 読み込み後も blurhash は外さず、実画像のフェードが終わってから消す
+// (先に外すと、実画像が透明な間に背景色が見えてちらつく)
 function blurhashPlaceholder(file: NormalizedDriveFile): string | null {
-  if (!file.blurhash || loadedIds.value.has(file.id)) return null
+  if (!file.blurhash) return null
   return blurhashToDataUrl(file.blurhash)
 }
 
-function onImageLoaded(fileId: string) {
+function onImageLoaded(file: NormalizedDriveFile) {
   const next = new Set(loadedIds.value)
-  next.add(fileId)
+  next.add(file.id)
   loadedIds.value = next
+  const src = isImage(file) ? imageSrc(file) : undefined
+  if (src) loadedMediaUrls.add(src)
 }
 
 function onImageError(fileId: string) {
@@ -164,25 +182,25 @@ function closeLightbox() {
     <div
       v-for="file in previewableFiles"
       :key="file.id"
-      :class="[$style.mediaCell, { [$style.isSensitive]: file.isSensitive && !revealedIds.has(file.id), [$style.isLoaded]: loadedIds.has(file.id) || erroredIds.has(file.id) }]"
+      :class="[$style.mediaCell, { [$style.isSensitive]: file.isSensitive && !revealedIds.has(file.id), [$style.isLoaded]: isLoaded(file) || erroredIds.has(file.id) }]"
       @click="openLightbox(file, $event)"
     >
       <img
         v-if="blurhashPlaceholder(file)"
         :src="blurhashPlaceholder(file)!"
-        :class="$style.blurhashPlaceholder"
+        :class="[$style.blurhashPlaceholder, { [$style.isLoaded]: isLoaded(file) }]"
         alt=""
         aria-hidden="true"
       />
       <template v-if="isImage(file)">
         <img
           v-if="!erroredIds.has(file.id) && !isDeferred(file)"
-          :src="proxiedImageSrc(file.thumbnailUrl) || proxiedImageSrc(file.url)"
+          :src="imageSrc(file)"
           :alt="file.name"
-          :class="[$style.mediaImage, { [$style.isLoaded]: loadedIds.has(file.id) }]"
+          :class="[$style.mediaImage, { [$style.isLoaded]: isLoaded(file) }]"
           :loading="props.eager ? 'eager' : 'lazy'"
           decoding="async"
-          @load="onImageLoaded(file.id)"
+          @load="onImageLoaded(file)"
           @error="onImageError(file.id)"
         />
         <div v-else-if="!isDeferred(file)" :class="$style.mediaPlaceholder">
@@ -197,7 +215,7 @@ function closeLightbox() {
           preload="metadata"
           controls
           @click.stop
-          @loadeddata="onImageLoaded(file.id)"
+          @loadeddata="onImageLoaded(file)"
           @error="onImageError(file.id)"
         />
         <div v-else-if="!isDeferred(file)" :class="$style.mediaPlaceholder">
@@ -422,6 +440,12 @@ function closeLightbox() {
   height: 100%;
   object-fit: cover;
   z-index: 0;
+
+  /* 実画像のフェードイン (--nd-duration-slower) が終わってから消える */
+  &.isLoaded {
+    opacity: 0;
+    transition: opacity var(--nd-duration-base) linear var(--nd-duration-slower);
+  }
 }
 
 .mediaImage {
@@ -429,7 +453,6 @@ function closeLightbox() {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  content-visibility: auto;
   opacity: 0;
   transform: scale(0.98);
   transition: opacity var(--nd-duration-slower) var(--nd-ease-spring),

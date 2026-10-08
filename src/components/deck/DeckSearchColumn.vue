@@ -1063,9 +1063,10 @@ onUnmounted(() => {
         :class="$style.searchScroller"
         @scroll="handleScroll"
       >
-        <template #default="{ item, index }">
+        <template #default="{ item, index, nearViewport }">
           <div>
             <MkNote
+              :near-viewport="nearViewport"
               :note="item.primary"
               :group="item.group"
               :focused="variantKeyOf(item.primary) === focusedNoteId"

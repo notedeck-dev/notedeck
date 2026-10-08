@@ -31,10 +31,29 @@ export function useNoteGroupContext(opts?: VisibilityOpts) {
     isUserHidden: (note) => visibility.isUserHidden(note, opts),
   }))
 
+  // 前回の group を行キーごとに覚え、variants が同じ参照の並びなら同じ
+  // オブジェクトを返す。毎回作り直すと、どのノートの更新でも全行の `group`
+  // prop が変わり、表示中の MkNote がすべて再描画される
+  let prevByRowKey = new Map<string, NoteGroup>()
+
+  function reuse(group: NoteGroup): NoteGroup {
+    const prev = prevByRowKey.get(group.rowKey)
+    if (
+      prev &&
+      prev.variants.length === group.variants.length &&
+      prev.variants.every((v, i) => v === group.variants[i])
+    ) {
+      return prev
+    }
+    return group
+  }
+
   /** 未フィルタの variant 列を畳み、可視な group だけを返す */
   function groupsOf(notes: readonly NormalizedNote[]): NoteGroup[] {
     const ctx = context.value
-    return buildNoteGroups(notes, ctx).filter((g) => !isGroupHidden(g, ctx))
+    const groups = buildNoteGroups(notes, ctx).map(reuse)
+    prevByRowKey = new Map(groups.map((g) => [g.rowKey, g]))
+    return groups.filter((g) => !isGroupHidden(g, ctx))
   }
 
   return { context, groupsOf }

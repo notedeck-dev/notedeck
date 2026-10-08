@@ -738,9 +738,10 @@ onMounted(async () => {
           @scroll="handleScroll"
           @near-end="loadMoreCrossAccount"
         >
-          <template #default="{ item }">
+          <template #default="{ item, nearViewport }">
             <div>
               <MkNote
+                :near-viewport="nearViewport"
                 :note="item.primary"
                 :group="item"
                 @react="handlers.reaction"

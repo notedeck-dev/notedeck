@@ -1345,7 +1345,7 @@ onUnmounted(() => {
         :class="[$style.notifScroller, 'nd-fade-appear']"
         @scroll="handleScroll"
       >
-        <template #default="{ item: notif, index }">
+        <template #default="{ item: notif, index, nearViewport }">
           <div>
             <ReadMarkerDivider
               v-if="viewMarkerId && hasUnreadAboveMarker && notificationKey(notif) === viewMarkerId"
@@ -1414,6 +1414,7 @@ onUnmounted(() => {
 
                   <div v-if="notif.note" :class="$style.notifNoteWrap">
                     <MkNote
+                      :near-viewport="nearViewport"
                       :note="notif.note"
                       embedded
                       @react="handlers.reaction"
@@ -1542,6 +1543,7 @@ onUnmounted(() => {
                   <!-- Attached note (for reaction, reply, renote, quote, mention) -->
                   <div v-if="notif.note" :class="$style.notifNoteWrap">
                     <MkNote
+                      :near-viewport="nearViewport"
                       :note="notif.note"
                       embedded
                       @react="handlers.reaction"

@@ -574,9 +574,10 @@ onMounted(async () => {
         @scroll="onScrollReport"
         @near-end="loadMore"
       >
-        <template #default="{ item }">
+        <template #default="{ item, nearViewport }">
           <div>
             <MkNote
+              :near-viewport="nearViewport"
               :note="item.primary"
               :group="item"
               @react="handlers.reaction"

@@ -355,12 +355,13 @@ usePortal(postPortalRef)
           />
           <template v-else>
             <NoteScroller ref="noteScrollerRef" :items="notes" :focused-id="focusedNoteId" :class="[$style.tlScroller, 'nd-fade-appear']" @scroll="handleScroll" @near-end="loadMore">
-              <template #default="{ item, index }">
+              <template #default="{ item, index, nearViewport }">
                 <div>
                   <ReadMarkerDivider
                     v-if="viewMarkerId && index > 0 && item.id === viewMarkerId"
                   />
                   <MkNote
+                    :near-viewport="nearViewport"
                     :note="item"
                     :focused="variantKeyOf(item) === focusedNoteId"
                     @react="handlers.reaction"

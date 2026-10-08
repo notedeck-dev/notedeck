@@ -53,13 +53,13 @@ const emit = defineEmits<{
 
 const scrollContainer = ref<HTMLElement | null>(null)
 
-// 削除アニメ中とその直後だけ行の translate をトランジションさせ、
-// 後続行が FLIP 風にスライドアップして詰まるように見せる。
+// 削除・新着アニメ中とその直後だけ行の translate をトランジションさせ、
+// 後続行が FLIP 風にスライドして詰まる / 押し下がるように見せる。
 // 常時 transition を付けるとスクロール中の再測定でジッターするため限定する
 const shifting = ref(false)
 let shiftTimer: ReturnType<typeof setTimeout> | null = null
 watch(
-  () => props.leavingIds.size,
+  () => props.leavingIds.size + props.animatingIds.size,
   (size) => {
     if (size > 0) {
       if (shiftTimer) clearTimeout(shiftTimer)
@@ -99,6 +99,74 @@ const virtualizerOptions = computed(() => ({
 }))
 
 const virtualizer = useVirtualizer(virtualizerOptions)
+
+// 行の高さが変わったときにスクロール位置を補正するか。既定は「行の上端が
+// スクロール位置より上なら補正、ただし上スクロール中の再測定は補正しない」で、
+// 画面上端にかかった行で CW / もっと見る / 投票を押すと押した場所が上へ逃げ、
+// 上スクロール中に画面より上の行が伸びると見ている内容が下へ跳ねる。
+// - 完全に画面より上の行: 方向に関係なく補正する (見ている内容を動かさない)
+// - 上端にかかっている行: 初回測定 (推定値 → 実測) だけ補正する。再測定は
+//   見えている部分 (押した場所やリアクション行) が伸びた結果であることが多く、
+//   補正すると見ている内容のほうが動く
+watch(
+  virtualizer,
+  (v) => {
+    v.shouldAdjustScrollPositionOnItemSizeChange = (item, _delta, instance) => {
+      const offset = instance.scrollOffset ?? 0
+      if (item.start >= offset) return false
+      if (item.end <= offset) return true
+      return !instance.itemSizeCache.has(item.key)
+    }
+  },
+  { immediate: true },
+)
+
+// 画面より上の行が消えた / 差し込まれたとき (他人の削除・ミュート切替・
+// Renote の道連れ・スクロール中のマージ)、仮想スクローラは位置を保持しない
+// (anchorTo: 'start')。描画前に先頭可視行を覚え、描画後にその行が同じ位置に
+// 来るよう scrollTop を合わせる
+let pendingAnchor: { id: string; offset: number } | null = null
+watch(
+  () => props.items,
+  () => {
+    pendingAnchor = getScrollAnchor()
+  },
+  { flush: 'pre' },
+)
+watch(
+  () => props.items,
+  () => {
+    const anchor = pendingAnchor
+    pendingAnchor = null
+    const el = scrollContainer.value
+    if (!anchor || !el) return
+    const index = props.items.findIndex((it) => rowKey(it) === anchor.id)
+    if (index < 0) return
+    // getVirtualItems が測定のメモを更新する (描画で呼ばれているが念のため)
+    virtualizer.value.getVirtualItems()
+    const start = virtualizer.value.measurementsCache[index]?.start
+    if (start == null) return
+    const target = start + anchor.offset
+    if (Math.abs(el.scrollTop - target) > 1) el.scrollTop = target
+  },
+  { flush: 'post' },
+)
+
+/** スクロール位置復元用アンカー: 先頭可視アイテムの id + その上端からのオフセット。
+ *  ピクセル scrollTop は仮想スクローラの再測定でズレるため、id 基準で保存する */
+function getScrollAnchor(): { id: string; offset: number } | null {
+  const el = scrollContainer.value
+  if (!el || el.scrollTop <= 0) return null
+  const scrollTop = el.scrollTop
+  for (const item of virtualizer.value.getVirtualItems()) {
+    if (item.end > scrollTop) {
+      const target = props.items[item.index]
+      if (!target) return null
+      return { id: rowKey(target), offset: scrollTop - item.start }
+    }
+  }
+  return null
+}
 
 const virtualItems = computed(() => virtualizer.value.getVirtualItems())
 const totalSize = computed(() => virtualizer.value.getTotalSize())
@@ -216,21 +284,7 @@ defineExpose({
       behavior: opts?.behavior ?? 'smooth',
     })
   },
-  /** スクロール位置復元用アンカー: 先頭可視アイテムの id + その上端からのオフセット。
-   *  ピクセル scrollTop は仮想スクローラの再測定でズレるため、id 基準で保存する */
-  getScrollAnchor: (): { id: string; offset: number } | null => {
-    const el = scrollContainer.value
-    if (!el || el.scrollTop <= 0) return null
-    const scrollTop = el.scrollTop
-    for (const item of virtualizer.value.getVirtualItems()) {
-      if (item.end > scrollTop) {
-        const target = props.items[item.index]
-        if (!target) return null
-        return { id: rowKey(target), offset: scrollTop - item.start }
-      }
-    }
-    return null
-  },
+  getScrollAnchor,
   /** アンカー id へ復元する。id が見つからなければ false (呼び出し側で scrollTop にフォールバック) */
   restoreScrollAnchor: (id: string, offset: number): boolean => {
     const index = props.items.findIndex((it) => rowKey(it) === id)
@@ -260,6 +314,7 @@ defineSlots<{
   <div
     ref="scrollContainer"
     :class="$style.noteScroller"
+    :style="{ '--nd-note-enter': `${perfStore.get('noteAnimationDuration')}ms` }"
     @scroll.passive="onScroll"
   >
     <slot name="prepend" />
@@ -287,6 +342,9 @@ defineSlots<{
 <style lang="scss" module>
 .noteScroller {
   overflow-y: auto;
+  /* 位置の保持は仮想スクローラ側 (上の watch) で行う。Chromium の
+     scroll anchoring と二重に補正しないよう切る */
+  overflow-anchor: none;
   height: 100%;
   overscroll-behavior: contain;
   position: relative;
@@ -347,9 +405,11 @@ defineSlots<{
    Positioning uses the `translate` property (set via inline style),
    so `transform` is free for animation without conflict. */
 .enterAnimation {
+  /* スライドの時間はパフォーマンス設定 (noteAnimationDuration)。クラスを外す
+     タイマー (useStreamingBatch) と同じ値なので途中で切れない */
   animation:
-    noteSlideIn var(--nd-duration-tl-enter) var(--nd-ease-slide),
-    nd-note-highlight 0.6s 0.25s var(--nd-ease-decel) both;
+    noteSlideIn var(--nd-note-enter, var(--nd-duration-tl-enter)) var(--nd-ease-slide),
+    nd-note-highlight var(--nd-note-enter, var(--nd-duration-tl-enter)) var(--nd-ease-decel) both;
   will-change: transform, opacity;
   isolation: isolate;
 }
