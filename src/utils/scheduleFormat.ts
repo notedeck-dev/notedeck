@@ -1,10 +1,10 @@
 /**
- * 予約投稿の日時表示ユーティリティ。
+ * 予約投稿の日時表示ユーティリティ (i18n)。判定と input 値の整形は
+ * services/scheduleTime。
  */
 
 import { i18n } from '@/i18n'
 
-const z2 = (n: number) => String(n).padStart(2, '0')
 const startOfDay = (ms: number) => new Date(ms).setHours(0, 0, 0, 0)
 
 /** "今日 14:30" / "明日 09:00" / "12/5(金) 14:30" / "2027/2/3(水) 10:00" */
@@ -61,9 +61,6 @@ export function formatScheduleRelative(iso: string, now = Date.now()): string {
   return formatScheduleAbsolute(iso, now)
 }
 
-export const isPastSchedule = (iso: string, now = Date.now()) =>
-  new Date(iso).getTime() < now
-
 /** 日時ピッカーのプリセット。`at(now)` で実時刻を算出する。 */
 export const SCHEDULE_PRESETS: readonly {
   label: string
@@ -105,15 +102,3 @@ export const SCHEDULE_PRESETS: readonly {
     at: (n) => new Date(n.getTime() + 7 * 24 * 60 * 60_000),
   },
 ] as const
-
-/** input[type=date] 用 "YYYY-MM-DD"（ローカル時刻） */
-export const toLocalDateInput = (d: Date) =>
-  `${d.getFullYear()}-${z2(d.getMonth() + 1)}-${z2(d.getDate())}`
-
-/** input[type=time] 用 "HH:MM"（ローカル時刻） */
-export const toLocalTimeInput = (d: Date) =>
-  `${z2(d.getHours())}:${z2(d.getMinutes())}`
-
-/** datetime-local input 用の "YYYY-MM-DDTHH:MM"（ローカル時刻） */
-export const toLocalDatetimeInput = (d: Date) =>
-  `${toLocalDateInput(d)}T${toLocalTimeInput(d)}`

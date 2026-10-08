@@ -5,6 +5,7 @@ import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { isEntityType, useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteAction } from '@/composables/useNoteFocus'
 import { i18n } from '@/i18n'
+import { modeIcon } from '@/services/timelinePolicy'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
@@ -19,7 +20,6 @@ import { useWindowsStore } from '@/stores/windows'
 import {
   clearAvailableTlCache,
   detectAvailableTimelines,
-  modeIcon,
   modeLabel,
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'

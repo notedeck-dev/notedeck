@@ -1,6 +1,6 @@
 import { computed, type Ref, ref, watch } from 'vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
-import { toLocalDateInput, toLocalTimeInput } from '@/utils/scheduleFormat'
+import { toLocalDateInput, toLocalTimeInput } from '@/services/scheduleTime'
 
 /**
  * 予約投稿ダイアログの state と操作を集約する composable。

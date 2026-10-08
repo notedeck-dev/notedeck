@@ -13,11 +13,11 @@ import MkUserListItem from '@/components/common/MkUserListItem.vue'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
+import type { FollowApi, FollowState } from '@/services/followTransition'
 import { webUiUrl } from '@/services/safeUrl'
 import { isGuestAccount, useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
-import type { FollowApi, FollowState } from '@/utils/followAction'
 
 const props = defineProps<{
   accountId: string

@@ -28,12 +28,13 @@ import {
   saveMemo,
 } from '@/composables/useMemos'
 import { i18n } from '@/i18n'
+import { modeIcon } from '@/services/timelinePolicy'
 import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
-import { detectAvailableTimelines, modeIcon } from '@/utils/customTimelines'
+import { detectAvailableTimelines } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 

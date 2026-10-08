@@ -5,11 +5,11 @@ import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkFollowButton from '@/components/common/MkFollowButton.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { i18n } from '@/i18n'
+import type { FollowState } from '@/services/followTransition'
 import { safeCssUrl } from '@/services/safeUrl'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
-import type { FollowState } from '@/utils/followAction'
 import {
   displayUrl,
   formatBirthday,

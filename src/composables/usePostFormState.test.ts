@@ -67,7 +67,6 @@ vi.mock('@/composables/useMemos', () => ({
   deleteMemo: (...a: unknown[]) => deleteMemoMock(...a),
 }))
 vi.mock('@/utils/customTimelines', () => ({
-  modeIcon: () => 'moon',
   detectAvailableTimelines: (...a: unknown[]) =>
     detectAvailableTimelinesMock(...a),
 }))
