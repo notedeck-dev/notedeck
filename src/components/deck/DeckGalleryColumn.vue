@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { ref } from 'vue'
 import type { GalleryPost, NormalizedDriveFile } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import GalleryItemMenu from '@/components/common/GalleryItemMenu.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { safeUrl } from '@/composables/useDriveFolder'
-import { useServerImages } from '@/composables/useServerImages'
+import { usePaginatedList } from '@/composables/usePaginatedList'
 import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
@@ -21,46 +21,47 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverIconUrl, serverInfoImageUrl, serverErrorImageUrl } =
-  useServerImages(() => props.column)
-const isLoggedOut = computed(() => account.value?.hasToken === false)
+const {
+  account,
+  columnThemeVars,
+  serverInfoImageUrl,
+  serverErrorImageUrl,
+  isLoggedOut,
+  error,
+  scroller,
+  onScroll,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 const windowsStore = useWindowsStore()
 
-const posts = ref<GalleryPost[]>([])
-const loading = ref(false)
-const error = ref<AppError | null>(null)
-const hasMore = ref(true)
+const PAGE_SIZE = 20
+
+// エラーは ColumnEmptyState の案内 (未ログイン等の出し分け) に AppError が要るので
+// 基盤の error に写す
+const {
+  items: posts,
+  isLoading,
+  loadMore,
+  reload,
+} = usePaginatedList<GalleryPost>({
+  fetch: async (untilId) => {
+    const accountId = props.column.accountId
+    if (!accountId) return []
+    return unwrap(
+      await commands.apiGetGalleryPosts(accountId, PAGE_SIZE, untilId ?? null),
+    )
+  },
+  pageSize: PAGE_SIZE,
+  onError: (e) => {
+    error.value = AppError.from(e)
+  },
+})
 
 async function fetchGallery(older = false) {
   if (!props.column.accountId) return
-  if (older && !hasMore.value) return
-  loading.value = true
   error.value = null
-
-  try {
-    const untilId =
-      older && posts.value.length > 0
-        ? posts.value[posts.value.length - 1]?.id
-        : undefined
-    const result = unwrap(
-      await commands.apiGetGalleryPosts(
-        props.column.accountId,
-        20,
-        untilId ?? null,
-      ),
-    )
-    if (older) {
-      posts.value.push(...result)
-    } else {
-      posts.value = result
-    }
-    hasMore.value = result.length >= 20
-  } catch (e) {
-    error.value = AppError.from(e)
-  } finally {
-    loading.value = false
-  }
+  await (older ? loadMore() : reload())
 }
 
 function openDetail(post: GalleryPost) {
@@ -91,29 +92,6 @@ function onPostContextMenu(post: GalleryPost, e: MouseEvent) {
   onPostMenu(post, e)
 }
 
-let lastScrollCheck = 0
-
-function onScroll(e: Event) {
-  const now = Date.now()
-  if (now - lastScrollCheck < 200) return
-  lastScrollCheck = now
-  const el = e.target as HTMLElement
-  if (
-    el.scrollHeight - el.scrollTop - el.clientHeight < 200 &&
-    !loading.value &&
-    hasMore.value
-  ) {
-    fetchGallery(true)
-  }
-}
-
-const galleryGridScrollRef = useTemplateRef<HTMLElement>('galleryGridScrollRef')
-useColumnPullScroller(galleryGridScrollRef)
-
-function scrollToTop() {
-  galleryGridScrollRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
 fetchGallery()
 </script>
 
@@ -126,8 +104,8 @@ fetchGallery()
     <template #header-meta>
     </template>
 
-    <div ref="galleryGridScrollRef" :class="$style.galleryGridScroll" @scroll.passive="onScroll">
-      <div v-if="loading && posts.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
+    <div ref="scroller" :class="$style.galleryGridScroll" @scroll.passive="onScroll(() => fetchGallery(true))">
+      <div v-if="isLoading && posts.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
       <ColumnEmptyState
         v-else-if="error && !isLoggedOut"
         :error="error"
@@ -196,7 +174,7 @@ fetchGallery()
           </button>
           </div>
         </div>
-        <div v-if="loading" :class="$style.columnLoading"><LoadingSpinner /></div>
+        <div v-if="isLoading" :class="$style.columnLoading"><LoadingSpinner /></div>
       </template>
     </div>
 

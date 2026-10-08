@@ -130,7 +130,6 @@ const RULES: Record<string, Rule> = {
         'src/components/deck/DeckDriveColumn.vue',
         'src/components/deck/DeckEmojiColumn.vue',
         'src/components/deck/DeckExploreColumn.vue',
-        'src/components/deck/DeckFederationColumn.vue',
         'src/components/deck/DeckFollowRequestsColumn.vue',
         'src/components/deck/DeckGalleryColumn.vue',
         'src/components/deck/DeckLayout.vue',
