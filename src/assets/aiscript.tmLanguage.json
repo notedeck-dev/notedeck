@@ -25,6 +25,9 @@
 					"include": "#comments"
 				},
 				{
+					"include": "#builtins"
+				},
+				{
 					"include": "#functions"
 				},
 				{
@@ -57,7 +60,7 @@
 			"patterns": [
 				{
 					"name": "storage.type.aiscript",
-					"match": "(@|true|false|null|exists)|(^#{3}(?= +\\{))|((var|let)(?= +))"
+					"match": "(@|false|null|true)|(^#{3}(?= +\\{))|((exists|let|var)(?= +))"
 				}
 			]
 		},
@@ -65,7 +68,7 @@
 			"patterns": [
 				{
 					"name": "keyword.control.aiscript",
-					"match": "(return|<:|break|if|elif|else|for|each|eval|loop|while|do|match)(?=[\\s(])"
+					"match": "(continue|default|return|break|match|while|case|each|elif|else|eval|loop|for|do|if|<:)(?=[\\s(])"
 				}
 			]
 		},
@@ -92,6 +95,186 @@
 						},
 						"2": {
 							"name": "entity.name.class.aiscript"
+						}
+					}
+				}
+			]
+		},
+		"builtins": {
+			"patterns": [
+				{
+					"match": "\\b(Mk):(confirm|dialog|nyaize|remove|toast|load|save|api|url)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Ui):(C:postFormButton|C:numberInput|C:container|C:textInput|C:postForm|C:textarea|C:buttons|C:button|C:folder|C:select|C:spacer|C:switch|C:text|render|C:mfm|root|get)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Core):(to_str|abort|range|sleep|type|v)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Math):(gen_rng|fround|acosh|asinh|atan2|atanh|clz32|expm1|floor|hypot|log10|log1p|round|trunc|acos|asin|atan|cbrt|ceil|cosh|imul|log2|sign|sinh|sqrt|tanh|abs|cos|exp|log|max|min|pow|sin|tan)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Math):(Infinity|SQRT1_2|LOG10E|LOG2E|SQRT2|LN10|LN2|PI|E)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "variable.other.constant.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Str):(to_unicode_codepoint_arr|to_utf8_byte_arr|from_codepoint|to_unicode_arr|charcode_at|to_byte_arr|to_char_arr|pad_start|index_of|pad_end|replace|to_arr|to_num|lower|slice|split|upper|incl|pick|trim|len|gt|lf|lt)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Date):(millisecond|to_iso_str|minute|second|month|parse|hour|year|day|now)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Json):(stringify|parsable|parse)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Obj):(merge|copy|keys|vals|get|has|kvs|set)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Arr):(flat_map|index_of|reverse|unshift|concat|create|filter|insert|reduce|remove|repeat|splice|unique|every|shift|slice|copy|fill|find|flat|incl|join|push|some|sort|len|map|pop)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Async):(interval|timeout)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Uri):(decode_component|encode_component|decode_full|encode_full)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Util):(uuid)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Error):(create)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Nd):(register_command|capabilities|version|call|http|on)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
+						}
+					}
+				},
+				{
+					"match": "\\b(Plugin):(register_note_post_interruptor|register_note_view_interruptor|register_page_view_interruptor|register_post_form_action|register_note_action|register_user_action|open_url|config)\\b",
+					"captures": {
+						"1": {
+							"name": "support.class.aiscript"
+						},
+						"2": {
+							"name": "support.function.aiscript"
 						}
 					}
 				}
@@ -253,7 +436,7 @@
 			"patterns": [
 				{
 					"name": "variable.other.constant.aiscript",
-					"match": "USER_ID|USER_NAME|CUSTOM_EMOJIS|LOCALE|SERVER_URL|THIS_ID|THIS_URL"
+					"match": "CUSTOM_EMOJIS|SERVER_URL|USER_NAME|THIS_URL|THIS_ID|USER_ID|LOCALE"
 				},
 				{
 					"name": "meta.classconstant.aiscript",

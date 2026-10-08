@@ -2,7 +2,8 @@
 //
 // エディタの補完リストは手書きで、監査時点では本家の Mk: / Ui: 等はあるのに
 // NoteDeck 独自の Nd: と Plugin: 名前空間が丸ごと無かった。関数を足す側と
-// 補完を足す側が別ファイルなので、忘れても何も起きない。
+// 補完を足す側が別ファイルなので、忘れても何も起きない。一覧の正本は
+// grammarTokens (#1050 で補完・CodeMirror・tmLanguage の共有語彙になった)。
 //
 // 検査対象は src/aiscript 配下で `consts['Nd:xxx']` / `consts['Plugin:xxx']`
 // として登録される関数。Plugin:register:xxx は Plugin:register_xxx の別名
@@ -11,7 +12,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { AISCRIPT_BUILTIN_COMPLETIONS } from '@/aiscript/codemirror/completions'
+import { AISCRIPT_BUILTINS } from '@/aiscript/grammarTokens'
 
 const ROOT = resolve(import.meta.dirname, '../..')
 const AISCRIPT_DIR = join(ROOT, 'src/aiscript')
@@ -33,7 +34,7 @@ function registeredNativeFunctions(): Set<string> {
 describe('AiScript 補完リスト', () => {
   it('Nd: / Plugin: の登録関数は全て補完に載っている', () => {
     const listed = new Set<string>()
-    for (const [ns, members] of Object.entries(AISCRIPT_BUILTIN_COMPLETIONS)) {
+    for (const [ns, members] of Object.entries(AISCRIPT_BUILTINS)) {
       for (const m of members) listed.add(`${ns}:${m}`)
     }
     const missing = [...registeredNativeFunctions()]
