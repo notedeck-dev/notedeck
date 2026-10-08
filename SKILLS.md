@@ -65,7 +65,7 @@ cheapCheckCapabilities: [logs.recent]
 ---
 ```
 
-- 宣言した capability を tick ごとに実行し、**結果 hash が前回 tick と同じ間は AI 呼び出し自体をスキップ**する (`useHeartbeatDaemon.ts`)
+- 宣言した capability を tick ごとに実行し、**結果 hash が前回 tick と同じ間は AI 呼び出し自体をスキップ**する (`crates/notemaid/src/heartbeat.rs`)
 - **未宣言の heartbeat skill は毎 tick AI が呼ばれる** = 観測対象に変化がなくても課金が走る
 - tick ごとに必ず結果が変わる capability (`time.now` 等) を入れると hash が常に変わりスキップが効かない。「何が変わったら起きるべきか」から逆算して選ぶ
 - 機構全体は AI 設定の `heartbeat.cheapCheck.enabled` で on/off、`maxSkipHours` でスキップ上限を制御
@@ -105,7 +105,7 @@ system prompt 末尾に注入される `<notedeck-context>` ブロックの構�
 </notedeck-context>
 ```
 
-各ブロックの中身は **AI 設定 (`settings.json` の `ai.dataSources`) でユーザーが許可したものだけ** 含まれます (persona は dataSources で on/off せず、session が persona skill を持つときのみ注入)。
+各ブロックの中身は **AI 設定 (`ai.json5` の `dataSources`) でユーザーが許可したものだけ** 含まれます (persona は dataSources で on/off せず、session が persona skill を持つときのみ注入)。
 
 ### 3.1 `<currentAccount>` (`dataSources.currentAccount`)
 
@@ -374,7 +374,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 
 ### 4.0.2 adapter 経由 / Tauri 直呼び の使い分け
 
-capability は原則 **`ApiAdapter` 経由** (`src/adapters/types.ts` + `src/adapters/misskey/api.ts`) で API を叩く (= フォーク対応の道を残す)。Tauri commands を直接呼ぶのは下記の例外のみ:
+capability は原則 **`ApiAdapter` 経由** (`src/adapters/types.ts` + `src/adapters/misskey/api/`) で API を叩く (= フォーク対応の道を残す)。Tauri commands を直接呼ぶのは下記の例外のみ:
 
 - `registry.*` — Misskey 専用の KV ストア API、フォーク差異想定外
 - `notes.searchArchive` — ローカル DB (SQLite) の読取で Misskey API ではない
@@ -393,7 +393,7 @@ capability は原則 **`ApiAdapter` 経由** (`src/adapters/types.ts` + `src/ada
 1. AI が `tool_use` (Anthropic) / `tool_calls` (OpenAI) を返す
 2. NoteDeck は `dispatchCapability(name, params)` で実行 (permissions 照合 + execute)
 3. 結果を **`tool_result` メッセージとして history に追加** + 続きの応答を AI から取得
-4. **連続 tool 呼び出しの上限は 5 回** (`MAX_TOOL_ROUNDS=5`)、超えるとユーザー応答に警告メッセージ + 強制終了
+4. **連続 tool 呼び出しには上限がある** (AI 設定の `generation.maxToolRounds`、既定値は `crates/notemaid/src/ai_turn/mod.rs` の `DEFAULT_MAX_TOOL_ROUNDS`)。超えるとユーザー応答に警告メッセージ + 強制終了
 
 ### 4.3 dispatchCapability の戻り値
 
@@ -418,16 +418,17 @@ AI には `tool_result` の `content` として文字列化された結果が返
 
 | preset | readonly | safe | full | custom |
 |---|---|---|---|---|
-| 読み取り系 (`notes.read` / `account.read` / `drive.read` / `memos.read` / `clips.read` / `drafts.read` / `skills.read` / `widgets.read` / `plugins.read` / `ai.sessions.read` / `logs.read` / `deck.read`) | ✓ | ✓ | ✓ | 個別 |
+| 読み取り系 (`notes.read` / `account.read` / `drive.read` / `memos.read` / `clips.read` / `drafts.read` / `skills.read` / `widgets.read` / `plugins.read` / `ai.sessions.read` / `logs.read` / `deck.read` / `queries.read`) | ✓ | ✓ | ✓ | 個別 |
+| ローカル索引の読取 (`notes.readArchive`) | | | ✓ | 個別 |
 | 軽い書き込み (`notes.react` / `clips.write` / `drafts.write` / `clipboard` / `notifications` / `tasks.run` / `ai.invoke` / `deck.write`) | | ✓ | ✓ | 個別 |
-| 自己編集系 (`memos.write` / `skills.write` / `widgets.write` / `plugins.write`) | | ✓ | ✓ | 個別 |
+| 自己編集系 (`memos.write` / `skills.write` / `widgets.write` / `plugins.write` / `queries.write` / `ai.memory.write`) | | ✓ | ✓ | 個別 |
 | UI 設定 write (`theme.write` / `styles.write` / `navbar.write` / `keybinds.write` / `performance.write`) | | | ✓ | 個別 |
 | 高リスク write (`notes.write` / `account.write` / `account.actAs` / `drive.write` / `network.external` / `vault.use` / `ai.persona.write` / `files.export` / `backup.create`) | | | ✓ | 個別 |
 
 - キーの一覧は `crates/notecore/capabilities.json5` の `permissions` 節が正本 (TS / Rust の `PERMISSION_KEYS` はそこから生成、`pnpm gen:capabilities`)
 - capability の `permissions: PermissionKey[]` 宣言と principal の解決値 (`resolveFor(principal)`) を **AND 照合** で評価。不許可なら `permission_denied`
 - principal 別デフォルト: `ai.chat` = safe / `ai.heartbeat` = readonly (無人実行は安全側) / `plugin` = safe + `network.external` / `external` = readonly からローカル私的データ read (`memos.read` / `drafts.read` / `skills.read` 等) を落とした縮小 custom
-- resolve 時の恒久 clamp (保存値より優先): `skills.write` / `ai.persona.write` / `tasks.run` / `backup.create` は plugin / external に恒久 deny (full preset でも拒否)。plugin の `vault.use` は clamp しない (既定 OFF で、接続ごとの `exposedTo` 開示が要る二段 gate #759)。external は Misskey コンテンツ read 4 キー (`notes.read` / `account.read` / `drive.read` / `clips.read`) が常時 ON (トークン発行 = read への同意)
+- resolve 時の恒久 clamp (保存値より優先): `skills.write` / `ai.persona.write` / `ai.memory.write` / `tasks.run` / `backup.create` は plugin / external に恒久 deny (full preset でも拒否)。plugin の `vault.use` は clamp しない (既定 OFF で、接続ごとの `exposedTo` 開示が要る二段 gate #759)。external は Misskey コンテンツ read 4 キー (`notes.read` / `account.read` / `drive.read` / `clips.read`) が常時 ON (トークン発行 = read への同意)
 - `custom` プリセットでは個別に on/off
 - 自己編集系は `safe` 以上で許可。write 系 capability は全て dispatch 直前の確認ダイアログで enforce される (§5.2)
 
@@ -439,7 +440,7 @@ AI には `tool_result` の `content` として文字列化された結果が返
 
 skill / widget / plugin / theme の **書き込み系 capability** (`skills.create|append|replaceSection` / `widgets.create|update|delete` / `plugins.create|update|delete|setActive` / `theme.create|update|revert` 等) は `aiTool: true` で tool calling に露出する (plugin 導入時の `aiTool: false` ガードは #107 で AI 開放に伴い廃止)。現在の安全弁は 3 層:
 
-1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `theme.write` は preset (`safe` / `full`) か custom で許可されたときだけ通る。#712 以降は principal 別に解決され、`skills.write` / `ai.persona.write` (AI 指示チャネル) は plugin / external principal に対し保存値に関わらず恒久 deny (confused deputy 防止)
+1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `theme.write` は preset (`safe` / `full`) か custom で許可されたときだけ通る。#712 以降は principal 別に解決され、`skills.write` / `ai.persona.write` / `ai.memory.write` (AI 指示チャネル) は plugin / external principal に対し保存値に関わらず恒久 deny (confused deputy 防止)
 2. **確認ダイアログ**: `requiresConfirmation` で dispatch 直前にユーザー承認 (#714 の「今後確認しない」で capability 単位のスキップ可)
 3. **capability 個別ガード**: `skills.create` の frontmatter 遮断 + id 内部生成、`aiscript.validate` preflight 等
 
@@ -572,7 +573,7 @@ LLM は曖昧な指示で長文を返しがちなので、形式制約が効き�
 |---|---|---|
 | `<visibleNotes>` 上限 | 10 件 | `MAX_VISIBLE_NOTES` |
 | `<recentConversation>` 上限 | 20 ターン | `MAX_RECENT_TURNS` |
-| tool 呼び出しループ上限 | 5 回 | `MAX_TOOL_ROUNDS` |
+| tool 呼び出しループ上限 | AI 設定の `generation.maxToolRounds` | 既定値は `DEFAULT_MAX_TOOL_ROUNDS` |
 | context block 全 OFF | 出力されない | `<notedeck-context>` タグごと省略 |
 | 高リスク capability の enforcement | 確認ダイアログで enforce | code block + Shiki ハイライト表示 |
 | 自己改変系 capability (skill/widget/plugin/theme write) | permission + 確認ダイアログで enforce | 詳細は §5.2 (旧 `aiTool:false` ガードは #107 で廃止) |

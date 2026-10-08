@@ -45,8 +45,9 @@ API クライアントの実体は `crates/notecli` (同じリポジトリの wo
 
 1. リポジトリをフォーク
 2. ブランチを作成（`git checkout -b feat/your-feature`）
-3. `pnpm lint` と `pnpm test` を通す（`src-tauri/` を触ったら `pnpm fmt` と `pnpm lint:rust` も）
-4. Pull Request を作成
+3. 開発環境に入る（Nix flake で管理しているので `nix develop`、direnv なら `cd` するだけ。Nix を使わない手順は [DEVELOPMENT.md — Prerequisites](DEVELOPMENT.md#prerequisites)）
+4. `pnpm lint` と `pnpm test` を通す（`src-tauri/` や `crates/` の Rust を触ったら `pnpm fmt` と `pnpm lint:rust` も）
+5. Pull Request を作成
 
 環境がうまく動かないときは `pnpm doctor` を実行してください。
 ツールチェーン・システム依存の欠落を検査し、対処コマンドを提示します。

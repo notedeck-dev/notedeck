@@ -125,7 +125,7 @@ Layer 4: 拡張 ─────────────────────�
 - [x] Misskeyについてカラム（Misskey ソフトウェアの紹介・クレジットを /about-misskey 準拠で表示。meta API からバージョン取得、プロジェクトメンバー・スポンサー・I❤Misskey 投稿ボタン。改変版フォーク検出対応）
 - [x] カスタム絵文字カラム（サーバーのカスタム絵文字一覧。カテゴリ別グルーピング・検索フィルタ・クリックでショートコードコピー。既存の絵文字キャッシュを流用）
 - [x] 広告カラム（サーバー広告の一覧表示。全広告種別を表示、ミュート対応。既存の useAds.ts + meta API の ads フィールドを流用）
-- [x] Workspace Explorer カラム（VSCode Explorer 相当。settings.json ノード、コンテキストメニュー、Rename 対応）
+- ~~Workspace Explorer カラム~~（VSCode Explorer 相当）— 廃止 (2026-04)。設定メニュー・コマンドパレット・タイトルバーメニューと導線が重なり、固有の価値がリネームだけだったため。設定ファイルの直接編集は「ファイル → 設定フォルダを開く」で外部エディタに委ねる
 - [x] Stream Inspector カラム（WebSocket ストリーミングイベントのリアルタイム監視。アカウントアバター/サーバーバッジ表示、detail ペインのドラッグリサイズ、イベント重複排除）
 - [x] 連合カラム（federation/instances の一覧表示。ソフトウェア・ユーザー数・最終通信日時等。ソート・フィルタ付き。サーバー詳細ウィンドウ + Well-known リンク対応）
 - [x] チャートカラム（charts/* API によるサーバー統計グラフ。ユーザー活動・ノート数・連合等。chart.js + matrix/gradient/zoom）
@@ -182,7 +182,7 @@ notecli は NoteDeck の Rust バックエンドから Tauri 非依存のコー�
 
 ### notecore / notemaid（目指す構成、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106)）
 
-Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) を notemaid (lib + bin の 1 クレート) に置く。notemaid は常に別プロセスで、既定はアプリが sidecar として子プロセス起動 (設定ゼロ)、任意でログイン時のユーザータスクとして常駐、自分のサーバーに置くのも同じプロトコル。iOS だけ in-process の transport。データ面は常に手元。リポジトリは notedeck 1 つで、notecli / notecore / notemaid / アプリの 4 クレート。
+Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) を notemaid (lib + bin の 1 クレート) に置く。notemaid は常に別プロセスで、既定はアプリが sidecar として子プロセス起動 (設定ゼロ)、任意でログイン時のユーザータスクとして常駐。別の端末やサーバーの notemaid に繋ぐ構成は採用しない (理由は下記)。iOS / Android と sidecar の無い開発時は in-process の transport。データ面は常に手元。リポジトリは notedeck 1 つで、notecli / notecore / notemaid / アプリの 4 クレート。
 
 - [x] **notecli の取り込み** — notecli を notedeck の workspace に履歴ごと取り込み、git 依存をパス依存に替えた。CLI バイナリはリリースの成果物として残す
 - [x] **境界と検査** — `crates/notecore/src/` (Tauri 非依存) と全コマンドの種別マーカー `// nd-command:` を lint で固定した
@@ -207,9 +207,9 @@ Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI �
   サーバーが消滅しても自分の投稿・お気に入りは残る。
   GUI 設定（デッキレイアウト・テーマ・キーバインド等）もJSONバンドルで一括バックアップ可能。
   設定メニュー →「DBバックアップ」「設定バックアップ」でファイル保存ダイアログ経由のエクスポート。
-  `profiles/` / `themes/` / `plugins/` / `snippets/` / `memos/` 配下のファイルは全て対象。
-  localStorage-only scalar 設定は `settings.json` に統合済み。`ai.json` / `keybinds.json5` / `performance.json` も dual-write で `settings.json` に統合済み
-  ([DESIGN.md](DESIGN.md) の「settings.json」節参照)
+  対象のディレクトリとルートのファイルは `crates/notecore/src/settings_store.rs` の allowlist が正本。
+  スカラー設定は `settings.json5` に集約し、構造を持つ定義は `ai.json5` / `keybinds.json5` / `performance.json5` 等の専用ファイルに置く
+  ([DESIGN.md](DESIGN.md) の「settings.json5」節参照)
 - [x] **完全オフライン動作** — キャッシュ済みノートの閲覧・検索はネットワーク不要。
   飛行機の中でも過去の TL を読み返せる。
   アプリレベルのオフラインモード（ナビバー / コマンドパレット / システムトレイから切替）で
@@ -229,8 +229,8 @@ Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI �
 
 ### デッキ UI
 
-- [x] **カラム管理** — 追加・削除・並べ替え（ドラッグ＆ドロップ）、レイアウト localStorage 永続化
-- [x] **カラムリサイズ** — ドラッグで 280px〜600px に自由変更、幅を localStorage に永続化
+- [x] **カラム管理** — 追加・削除・並べ替え（ドラッグ＆ドロップ）、レイアウトはプロファイル (`profiles/`) に永続化
+- [x] **カラムリサイズ** — ドラッグで 280px〜600px に自由変更、幅はプロファイルに永続化
 - [x] **カラムスタック（上下分割）** — カラムをグループ化して上下分割表示。ドラッグ＆ドロップで
   スタック内の並べ替え・スタック間のカラム移動・空きエリアへのドロップで独立カラム化が可能
 - [x] **ナビバー構造** — 折りたたみ/展開、ドラッグリサイズ、細くするとアイコンのみ表示に自動切り替え。
@@ -239,7 +239,7 @@ Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI �
 - [x] **フローティングウィンドウ** — ノート詳細・ユーザープロフィール・ログインをウィンドウで表示。
   ドラッグ移動、最小化/最大化、Z-index 自動管理、同一対象の重複排除、サーバーテーマ反映
 - [x] **インスペクタウィンドウ** — ノート/通知/ユーザーの Raw JSON 表示（`RawJsonView` 共通コンポーネント、`useSensitiveMask` で機密マスキング）。
-  settings.json の Raw JSON エディタウィンドウも同系統
+  settings.json5 の Raw JSON エディタウィンドウも同系統
 - [x] **カスタムタイトルバー** — 最小化/最大化/閉じる、サイドバー切替、モバイルサイズ切替、PiP トグル
 - [x] **カラムフィルター** — Renote 除外・リプライ除外・ファイル付きのみ・Bot 除外（timelineFilter）
 - [x] **カラムサウンド** — カラム単位のミュート/アンミュート、通知サウンド再生
@@ -249,7 +249,7 @@ Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI �
 ### 投稿・リアクション
 
 - [x] **投稿** — テキスト・CW・公開範囲・ファイル添付・ドライブファイル添付・投票・編集・ローカルオンリー・Ctrl+Enter 送信
-- [x] **下書き管理** — localStorage、最大10件、アカウント別、保存・復元・削除UI
+- [x] **下書き管理** — Misskey の `notes/drafts/*` (2025.6+) にアカウントごとにサーバー保存、保存・復元・削除UI
 - [x] **リアクション / リプライ / リノート / 引用**
 - [x] **リアクション楽観的更新** — UI 即時反映＋失敗時ロールバック
 - [x] **フォロー / アンフォロー**
@@ -521,9 +521,9 @@ Misskey 本家 Web UI と食い違うポイント。アプリ独自のデッキ 
 - [x] **横断検索** — 複数サーバー × 全カラムのノートを統合検索。
   全アカウントのローカルキャッシュ＋サーバー検索を並列実行し、結果をマージ表示。
   サーバー A のリスト + サーバー B のアンテナ + サーバー C の HTL をまたいだ検索は NoteDeck だけの体験
-- [x] **正規表現検索** — 検索カラム・横断検索で正規表現パターンによる検索が可能。
-  `.*` トグルで正規表現モードに切替、ローカル/サーバー検索結果をクライアント側で正規表現ポストフィルタ。
-  構造化フィルタビルダー（いずれかを含む/すべてを含む/除外する）で直感的に条件構築
+- [x] **本文の条件ビルダー** — 検索カラムのフィルターメニューで本文の条件（いずれかを含む/すべてを含む/除外する）を構築。
+  正規表現モードは採用しない (#1180 で廃止): 構造の条件で任意 / 全部 / 除外を賄え、正規表現が足すのはパターン照合だけで、
+  暴走対策の Worker まで抱える価値が無い
 - [x] **クロスサーバー検索** — 複数サーバーの API 検索結果を統合表示。
   ローカル検索 + API 検索のハイブリッド（横断検索ウィンドウで実装済み）
 - [x] **TL 履歴タイムマシン** — 日付指定で過去の TL を再現。
@@ -590,7 +590,7 @@ NoteDeck は Misskey クライアントであり、PKM ツールではない。
 
 - [x] **JSON エクスポート** — `export_settings_json` / `import_settings_json` で
   GUI 設定の一括バックアップ・復元を実装済み。DB バックアップと合わせて全データ対応
-- [x] **メモカラム (ローカル Markdown vault)** — メモは `settings/memos/{YYYYMMDDHHmmss}.md`
+- [x] **メモカラム (ローカル Markdown vault)** — メモは `notedeck/memos/{YYYYMMDDHHmmss}.md`
   に Zettelkasten 形式 + YAML frontmatter で保存。そのディレクトリを Obsidian / Logseq
   の vault として直接開ける。NoteDeck 側にはメモカラム + エディタウィンドウ (ビジュアル / コード
   タブ) を提供し、外部エディタで開くボタンで同じファイルを Obsidian などに引き渡せる
@@ -620,7 +620,7 @@ NoteDeck は Misskey クライアントであり、PKM ツールではない。
 
 **発展的な可能性: HTTP API をフロントエンドから叩く**
 
-NoteDeck 本体 (と notecored の `--api`) が localhost:19820 で操作を API 公開しているため、
+NoteDeck 本体が localhost:19820 で操作を API 公開しているため、
 Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理論上はブラウザから NoteDeck の機能にアクセスできる。
 「ブラウザ版 NoteDeck」をそのまま作る価値はないが、この構造は以下のような拡張に活かせる可能性がある:
 
@@ -703,9 +703,9 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
 ### notecli CLI（外部インターフェース）
 
 - [x] **CLI モード** — notecli 単体での CLI 実行（投稿・検索・TL 取得等）。
-  clap ベースのサブコマンド: `accounts`, `post`, `tl`, `search`, `notifications`, `note`, `delete`。
+  clap ベースのサブコマンド: `accounts`, `post`, `timeline`, `search`, `notifications`, `note`, `delete` 等。
   `--json` フラグで AI エージェント向けマシンリーダブル出力
-- [x] **デーモンモード** — バックグラウンドでストリーミング接続を維持し、HTTP API + SSE で配信 (単体の daemon は notecored に置き換えて廃止。ルート定義は残る)。
+- [x] **デーモンモード** — バックグラウンドでストリーミング接続を維持し、HTTP API + SSE で配信 (単体の daemon は notecored に置き換えて廃止し、notecored も #1106 で削除。ルート定義は残る)。
   `EventBusEmitter` により WebSocket → EventBus → SSE のパイプラインが完結
 
 ### 未完了: 外部ツール統合 — v1.0.0 以降
@@ -718,13 +718,14 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
 最小限で、各連携は独立リポジトリ / サブコマンドとして配布する。
 
 - [ ] **Stream Deck プラグイン** (#510) — Elgato Stream Deck から物理ボタンで投稿・リアクション・
-  カラム切替・プロファイル切替・Boss Key などを実行。ボタン LCD に未読数・接続状態を SSE で反映
+  カラム切替・プロファイル切替・Boss Key などを実行。ボタン LCD に未読数・接続状態を SSE で反映。
+  初版は別リポジトリ notedeck-streamdeck にある (実機確認と Marketplace 申請は未)
 - [ ] **ランチャ拡張** (#511) — ランチャから検索・投稿・コマンドパレット呼び出し。
   capability registry を起動時取得して動的にコマンド一覧を生成（プラグイン登録 capability も自動公開）。
   Raycast (macOS) を先行実装し、Alfred / Ulauncher / Flow Launcher へ同じ API の上に順次追加する。
   **アプリを開く前にローカル蓄積へ到達する導線** (旧 #925) をここに統合済み。ランチャから引ける対象は
   自分の投稿・クリップ・お気に入り・メモに限る。OS 検索インデックスへの登録を採用しない理由は
-  L3「検索」に記録
+  L3「検索」に記録。Raycast 版の初版は別リポジトリ notedeck-raycast にある (実機確認と Store 申請は未)
 - [x] **`notedeck://` カスタム URI スキーム OS 登録** (#512) — `tauri-plugin-deep-link` で
   macOS / Windows / Linux に登録済み。外部アプリ・ブラウザブックマークレット・OS Shortcuts から
   `notedeck://compose` (投稿フォームをプリセットで開く。送信はしない) / `notedeck://ai?prompt=` /
@@ -750,14 +751,14 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   規約上使えないので選べない形で残す。CLI のセッション読み込みは未
 - [x] **OS グローバルホットキー（任意コマンド bind）** (#514) — キーバインドの scope に
   `os-global` を足し、コマンドパレットにあるどのコマンドにも OS 全体で効くホットキーを割り当てられる
-  (`keybindings.json5` に統合。`settings.json` の独立セクションは不採用)。以前ハードコードだった
+  (`keybinds.json5` に統合。`settings.json` の独立セクションは不採用)。以前ハードコードだった
   Quick Note (Ctrl+Alt+N) / Boss Key (Ctrl+Shift+B) も既定のキーバインドになり、設定で変えられる。
   デスクトップだけ、修飾キー必須。登録できなかったキー (OS や他アプリが使用中) は通知する
-- [ ] **汎用 Secret Vault** (#564) — AiScript / AI / プラグインから任意の外部サービストークンを
+- [x] **汎用 Secret Vault** (#564) — AiScript / AI / プラグインから任意の外部サービストークンを
   OS キーチェーン経由で利用可能に。Misskey トークン / AI API キーで運用している credential proxy
   実行モデル (Rust 側で注入、JS / AI には raw secret を渡さない) を任意の外部 API へ拡張。
   **仕様は 5 round の adversarial review で確定済み (v5.1)**。Phase 1 のスコープ:
-  - **接続モデル**: `connections.json5` (metadata、atomic write + file lock) + OS キーチェーン
+  - **接続モデル**: `connections.json` (metadata、atomic write + file lock) + OS キーチェーン
     (`vault/v1/<conn_id>/<slot>`)。authType は Bearer / Header / Query / Basic の判別共用体、
     slot 引数で OAuth (v2) への拡張余地を確保
   - **`vault.fetch` capability**: Rust 側で secret 注入。HTTP/1.1 only + redirect 各 hop で
@@ -782,9 +783,10 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
 
 NoteDeck に AI を統合する。ただし AI を「持つ」のではなく「受け入れる」プラットフォームとして。
 
-**なぜ新プロトコル（MCP 等）を追加しないか:**
+**なぜ新プロトコル（MCP 等）を最初から追加しなかったか:**
 notecli CLI + notedeck HTTP API で AI が必要とする操作は全てカバー済み。
-MCP は需要が出た時点で CLI / API の薄いラッパーとして追加すれば十分。
+MCP は需要が出た時点で CLI / API の薄いラッパーとして追加すれば十分、という判断。
+需要が見えたので内蔵 HTTP サーバーの `POST /mcp` として追加した (L4「外部ツール統合」の MCP サーバー公開)。
 
 **Step 1: 要約・チャット**
 - [x] **AI チャットカラム** (#103) — カラム追加ダイアログから追加可能、他カラムと同じくリサイズ・削除可能。
@@ -794,14 +796,14 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
   カラムから独立、master-detail UI で一覧/切替/CRUD)、
   Markdown レンダリング (自前実装 + DOMPurify)、コードブロック個別コピー、
   ChatGPT/Claude 風 suggested prompts chip (空状態)、ユーザーメッセージ copy button、
-  スキルストア (`composedSystemPrompt()`) による system prompt 統合。
+  skill による system prompt 統合 (組み立ては notemaid、#1162)。
   `AiSessionKind = 'chat' | 'command' | 'task' | 'heartbeat'` で kind 別ドロワー表示。
   API キーは Secret Vault ([#564](https://github.com/notedeck-dev/notedeck/issues/564)) の
   接続として OS キーチェーンに格納 (フロント・AI はキー本体に触れない)
 
 **Step 2: AI 設定 — permissions / dataSources** (#408)
 - [x] **AI 権限・データソース設定** — Claude Code の `settings.json` 相当。
-  `settings.json` の `ai.permissions` / `ai.dataSources` に Read-only / Safe /
+  権限は `permissions.json5` の principal 別プロファイル (#712)、データソースは `ai.json5` の `dataSources` に Read-only / Safe /
   Full / Custom プリセットを追加し、Custom 選択時のみ機能別 toggle が展開。
   Misskey トークン等の credentials は denylist で system prompt から確実に除去。
   dispatch 直前に `reloadAiConfig()` で **permission 変更は再起動なしに即反映**
@@ -839,17 +841,16 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
   AI agent が定期的に自律起動し、ユーザー定義のチェックリストを確認 → 重要な発見があれば
   会話としてカラム表示・デスクトップ通知 (#114)、何もなければ `HEARTBEAT_OK` で静かに終了。
   「リアクティブな AI チャット」から「常駐型アシスタント」へ
-  (`useHeartbeatDaemon` + `src-tauri/commands/heartbeat.rs` + `nd:ai-heartbeat-tick`)
+  (本体は notemaid の `heartbeat.rs`、手元側は `useHeartbeatDaemon` + `src-tauri/src/commands/heartbeat.rs` + `nd:ai-heartbeat-event`)
 - [x] **Cheap Check First** — AI を呼ぶ前にローカルで低コスト判定 (未読数・新着件数等)。
   閾値以下なら即 `HEARTBEAT_OK` で終了 (=トークン消費爆発の防止)
   (commit `ee7e5c66` "HEARTBEAT Cheap Check First + daily 安全装置")
 - [x] **HEARTBEAT 専用 deny リスト** — 通常時は許可している `notes.write` 等を
   HEARTBEAT 中だけ deny にできる。AI が定期実行で暴走してスパム投稿するリスクを封じる
-  (`ai.json5` の `heartbeat.permissions` + `resolvePermissions`)
-- [x] **プリセット中心 UI + skills/ raw 編集の二段** — 「未読メンション要約」
-  「重要投稿ピックアップ」「日次サマリ」等のプリセットで設定し、
-  上級者は `skills/heartbeat.md` で自由編集
-  (skill-edit window + `SkillEditContent` + frontmatter `mode: heartbeat`)
+  (`permissions.json5` の `ai.heartbeat` principal、#712。chat とは独立に管理)
+- [x] **skill 単位の巡回対象** — 固定プリセットではなく、frontmatter `mode: heartbeat` の skill を巡回対象にし、
+  スキルカラムから個別に切り替える (OpenClaw の HEARTBEAT.md 流。巡回の手順は予約 skill `skills/HEARTBEAT.md`、#1162)。
+  編集は skill-edit window (`SkillEditContent`)
 
 **Step 4.5: AI Persona & Persistent Memory** (#491 / #494)
 - [x] **AI Persona** — `skill.isPersona` フラグ + `Identity` 構造 + `<persona>` block
@@ -933,12 +934,10 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 - [ ] **ホットリロード** — AiScript エディタカラムで編集 → 即座にプラグインに反映。
   保存するたびにアプリ再起動不要
 
-### 未完了: 多言語対応（i18n）— v1.0.0 以降
+### 多言語対応（i18n）
 
-> UI の安定化を優先し、i18n は v1.0.0 以降に着手する。
-> 翻訳キーの挿入は UI が固まってから一括で行う方が効率的。
-
-- [ ] **多言語対応** — UI テキストの i18n 化。vue-i18n 等の導入、翻訳キーの抽出・管理
+- [x] **多言語対応** (#135) — UI 文言は `locales/ja-JP.yml` を正本に自前の `i18n.ts` / `i18n.tsx` で引く (vue-i18n は使わない)。
+  直書きは `pnpm lint:i18n` が検査する。詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の「UI 文言と多言語化」
 
 ---
 
@@ -954,8 +953,8 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 | ~~**プラグイン基盤**~~ | ~~Nd:* API 再設計 (capability registry 統合)~~ | ~~L4~~ | ✅ 実装済み (Nd:call / Nd:capabilities / Nd:on / Nd:http) |
 | ~~**v1.0.0 機能条件**~~ | ~~L0〜L2 残タスク + L3 検索安定化~~ | ~~L0-L3~~ | ✅ 達成済み (ハッシュタグトレンド = AiScript ウィジェット / クロスサーバースレッドウィーバー = #323 / 添付一括 DL・言語タグは不要化) |
 | **v1.0.0** | デスクトップ版 (macOS / Linux / Windows) の残バグ修正 + リリース CI 安定化 | — | Android 版は **オプション β** として v1.0.0 のリリース条件外 |
-| **v1.0.0 以降** | PKM 連携 / AI 統合の残 (per-account scope / 細粒度 allow-deny / 自然言語検索 / 自然言語→AiScript / Ollama) / プラグイン開発支援 / i18n / サーバー移転支援 / Android 通知・UX 改善 / 添付一括 DL (#92) | L3-L4 | 基盤安定後に着手 |
-| **v1.0.0 以降** | OS 統合 (通知アクション #924 / 共有シート #926 / 集中モード #928 / ドラッグアウト #929 / トレイ操作 #930 / 電源適応 #931 / 従量制回線 #935 / 送信前トランスコード #927) | L2 | ブラウザから到達できない領域。既存のトレイ・OS 通知・投稿の各基盤の上に載る |
+| **v1.0.0 以降** | PKM 連携 / AI 統合の残 (per-account scope / 細粒度 allow-deny / 自然言語検索 / Ollama) / プラグイン開発支援 / サーバー移転支援 / Android 通知・UX 改善。自然言語→AiScript #107 / i18n #135 / 添付一括 DL #92 は実装済み | L3-L4 | 基盤安定後に着手 |
+| **v1.0.0 以降** | OS 統合 (通知アクション #924 / 共有シート #926 / ドラッグアウト #929 / トレイ操作 #930 / 送信前トランスコード #927。集中モード #928 / 電源適応 #931 / 従量制回線 #935 / バックグラウンド #986 は実装済み) | L2 | ブラウザから到達できない領域。既存のトレイ・OS 通知・投稿の各基盤の上に載る |
 | **v1.0.0 以降** | 蓄積データの活用 (セマンティック検索 #932 / ランチャからの検索は #511 に統合) | L3-L4 | 永久キャッシュの使い道が検索しかない状態への回答 (#923) |
 
 ---
@@ -984,7 +983,7 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 
 ### テスト未カバー領域
 
-notecli に DB テスト 18件、notedeck に 239件のユニットテストを追加済み。
+notecli に DB テスト、notedeck にユニットテストを追加済み。
 
 **未カバー**: `normalize()` モデル変換、HTTP API 統合テスト、`StreamingManager` 接続管理
 
@@ -1010,4 +1009,3 @@ Web Worker で LSP 搭載のコードエディタ、プラグイン実行エン�
 | Digital Wellbeing | Misskey 依存を防ぐ使用時間の可視化・利用制限・休憩リマインダー。ソーシャルアナリティクスの延長として、自分のセッション時間・投稿頻度・リアクション頻度を本人向けに可視化し、閾値超過で「そろそろインターネットやめろ」通知。L1 蓄積データ（自分の投稿・リアクションのタイムスタンプ）と Boss Key / オフラインモード基盤を再利用可能（#359） |
 | ffmpeg 連携 | 動画トランスコード。サーバーのサイズ制限に合わせて圧縮 |
 | アプリロック（モバイル限定） | Android / iOS の指紋認証・PIN 連携。デスクトップは OS ロック画面で代替可能なため対象外 |
-| 多言語対応（i18n） | 海外ユーザー需要が明確になってから |

@@ -107,18 +107,6 @@ onUnmounted(() => clearTimeout(resetTimer))
             {{ copied === 'yay -S misskey-notedeck-bin' ? t.download.copied : t.download.clickToCopy }}
           </span>
         </button>
-        <button
-          type="button"
-          class="install-cmd"
-          :class="{ copied: copied === 'nix run github:notedeck-dev/notedeck' }"
-          @click="copy('nix run github:notedeck-dev/notedeck')"
-        >
-          <div class="label">Nix</div>
-          <code><span class="sh-prompt">$</span> <span class="sh-cmd">nix</span> <span class="sh-sub">run</span> <span class="sh-arg">github:notedeck-dev/notedeck</span></code>
-          <span class="copy-hint">
-            {{ copied === 'nix run github:notedeck-dev/notedeck' ? t.download.copied : t.download.clickToCopy }}
-          </span>
-        </button>
       </div>
 
       <!-- 配布の壁（署名 / ストア）と、協力のお願い -->

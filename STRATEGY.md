@@ -58,7 +58,7 @@ Misskey コンテンツの描画と OS 統合の両方をカバーする統合�
 | アンテナ | ✅ | ✅ | ✅ |
 | リスト管理 | ✅ | ✅ | ✅ |
 | Misskey Play (AiScript) | ✅ 本家 AiScript 内蔵 | ✅ aiscript-rs 内蔵 | ✅（本家） |
-| AiScript プラグイン | ✅ 予定 | ❌ | ✅（本家） |
+| AiScript プラグイン | ✅ | ❌ | ✅（本家） |
 | **デスクトップネイティブ機能** | | | |
 | デッキ UI（マルチカラム） | ✅ | ❌ | ✅（デッキモード） |
 | ローカル DB + FTS5 全文検索 | ✅ | ❌ | ❌ |
@@ -114,7 +114,7 @@ NoteDeck はゲストモード（`userId: __guest__`）をサポートし、**�
 
 ### リッチコンテンツ表示
 
-- **OGP 専用パーサー 16 種**: YouTube / Spotify / ニコニコ動画 / Pixiv / Amazon / Bluesky / TikTok / DLsite 等、URL を貼るだけでリッチプレビュー展開
+- **OGP 専用パーサー** (`crates/notecore/src/ogp/plugins/`): YouTube / Spotify / ニコニコ動画 / Pixiv / Amazon / Bluesky / TikTok / DLsite 等、URL を貼るだけでリッチプレビュー展開
 - **MFM 全構文対応**: Misskey Flavored Markdown の関数記法・引用・中央揃え等すべてをレンダリング
 - **KaTeX 数式レンダリング**: インライン・ブロック数式に対応（Web UI 本家では削除済み、Aria も未対応）
 - **Shiki コードハイライト**: コードブロックの構文ハイライト
@@ -218,14 +218,14 @@ NoteDeck の AI 統合は「AI とチャットする SNS クライアント」�
 
 ### Permission 設計 — Claude Code 流の preset
 
-- `readonly` (default) / `safe` / `full` / `custom` の 4 段階プリセット
+- `readonly` / `safe` / `full` / `custom` の 4 段階プリセット (既定は principal ごと。AI チャットは `safe`、HEARTBEAT は `readonly`)
 - AI に渡すデータソース (`<currentAccount>` / `<currentColumn>` / `<visibleNotes>` / `<recentConversation>` / `<persona>`) を個別 on/off
 - 書き込み系は確認ダイアログで dispatch 直前に enforce
 - skill / widget / plugin / theme の自己改変系は、権限・確認ダイアログ・capability 個別ガードの 3 層で守る (詳細は [SECURITY.md](SECURITY.md) §10)
 
 ### 自律エージェント: HEARTBEAT Daemon
 
-`OpenClaw` の発想に倣った HEARTBEAT を実装。**アプリ起動中ずっと走る global daemon** が定期的に AI を起こし、ユーザー定義のチェックリストを実行する。重要な発見があれば報告のツール呼び出しで通知し、なければ静かに終了する ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。ループは Rust に移した (#1133)。notemaid ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106)) を自分のサーバーで常駐させれば端末の電源と無関係に走る (常駐するのは AI 面だけで、データ面は手元のまま)。無人時は承認を待たず、書き込み意図は下書きと受信箱カードにする。
+`OpenClaw` の発想に倣った HEARTBEAT を実装。**アプリ起動中ずっと走る global daemon** が定期的に AI を起こし、ユーザー定義のチェックリストを実行する。重要な発見があれば報告のツール呼び出しで通知し、なければ静かに終了する ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。ループは Rust に移した (#1133)。notemaid ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106)) を OS のログイン時タスクとして常駐させればアプリを閉じても走る (常駐するのは AI 面だけで、データ面は手元のまま。自分のサーバーで動かす構成は採用しない — 理由は #1106 と ROADMAP)。無人時は承認を待たず、書き込み意図は下書きと受信箱カードにする。
 
 - **Cheap Check First**: ローカルで低コスト判定 (未読数等) を行い閾値以下なら AI を呼ばない → トークン消費爆発の防止
 - **専用 deny リスト**: 通常許可している `notes.write` 等を HEARTBEAT 中だけ deny にできる (暴走スパム防止)
@@ -300,4 +300,4 @@ NoteDeck はオープンソース（AGPL-3.0）を維持しつつ、持続可能
 
 - [x] **設定メニューに支援リンク** — 設定メニューのバージョン情報の上に「開発を支援する」リンク。
   GitHub Sponsors ページへの導線
-- [x] **バージョン情報画面** — 開発者名・ライセンス・バージョン番号・支援リンクをまとめた専用画面（AboutDialog.vue）
+- [x] **バージョン情報画面** — 開発者名・ライセンス・バージョン番号・支援リンクをまとめた専用画面（`AboutContent.vue`）
