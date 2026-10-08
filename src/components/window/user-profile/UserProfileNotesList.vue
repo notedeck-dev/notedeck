@@ -110,10 +110,20 @@ async function fetchNotes(untilId?: string): Promise<NormalizedNote[]> {
   return a.api.getUserNotes(props.userId, { limit: 20, untilId })
 }
 
+const sectionRef = ref<HTMLElement | null>(null)
+/** 内タブ切替の読み込み中だけ直前の高さを保つ (一覧が空になってウィンドウが縮まない) */
+const keepHeight = ref<string | null>(null)
+
 /** 内タブ切替時のリロード (reset + load) */
 async function loadTabNotes() {
+  const h = sectionRef.value?.offsetHeight
+  if (h) keepHeight.value = `${h}px`
   resetNotes()
-  await loadNotes()
+  try {
+    await loadNotes()
+  } finally {
+    keepHeight.value = null
+  }
 }
 
 watch(activeTab, () => {
@@ -166,7 +176,11 @@ defineExpose({ loadMore, removeNote, replaceNote, patchNote })
 </script>
 
 <template>
-  <div :class="$style.notesSection">
+  <div
+    ref="sectionRef"
+    :class="$style.notesSection"
+    :style="keepHeight ? { minHeight: keepHeight } : undefined"
+  >
     <div :class="$style.notesTabs">
       <button
         v-for="tab in PROFILE_TABS"

@@ -9,8 +9,6 @@ import { usePerformanceStore } from '@/stores/performance'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const perfStore = usePerformanceStore()
-const embedCache = new Map<string, NormalizedNote | null>()
-const pendingEmbeds = new Map<string, Promise<NormalizedNote | null>>()
 
 const props = defineProps<{
   url: string
@@ -18,9 +16,18 @@ const props = defineProps<{
 
 const accountId = useNoteAccountId()
 
-const note = ref<NormalizedNote | null>(null)
-const loading = ref(false)
-const failed = ref(false)
+// 取得済みならここで同期的に描く (作り直すたびに空 → スケルトン → 本文と
+// 伸びない)。未取得で取得できる見込みがあるものは、最初からスケルトンで
+// 高さを予約しておく
+const parsedUrl = parseNoteUrl(props.url)
+const initialKey = accountId ? `${accountId}:${props.url}` : null
+const initialCached =
+  initialKey && embedCache.has(initialKey)
+    ? embedCache.get(initialKey)
+    : undefined
+const note = ref<NormalizedNote | null>(initialCached ?? null)
+const failed = ref(initialCached === null || !parsedUrl || !accountId)
+const loading = ref(initialCached === undefined && !failed.value)
 const el = ref<HTMLElement | null>(null)
 let observer: IntersectionObserver | null = null
 
@@ -93,7 +100,7 @@ async function fetchNote() {
 }
 
 onMounted(() => {
-  if (!el.value) return
+  if (!el.value || !loading.value) return
   observer = new IntersectionObserver(
     ([entry]) => {
       if (entry?.isIntersecting) {
@@ -118,7 +125,7 @@ onUnmounted(() => {
       <div :class="$style.skeletonLine" style="width: 40%" />
       <div :class="$style.skeletonLine" style="width: 70%" />
     </div>
-    <div v-else-if="note" :class="[$style.noteEmbedContent, 'nd-content-appear']">
+    <div v-else-if="note" :class="[$style.noteEmbedContent, initialCached === undefined && 'nd-content-appear']">
       <MkNote :note="note" embedded />
     </div>
     <!-- failed: render nothing, let parent fall back to OGP -->
@@ -126,7 +133,13 @@ onUnmounted(() => {
 </template>
 
 <script lang="ts">
+import type { NormalizedNote as EmbedNote } from '@/adapters/types'
 import MkNote from './MkNote.vue'
+
+// 全インスタンスで共有する (<script setup> の中に置くとインスタンスごとに
+// 作り直され、キャッシュとして働かない)
+const embedCache = new Map<string, EmbedNote | null>()
+const pendingEmbeds = new Map<string, Promise<EmbedNote | null>>()
 </script>
 
 <style lang="scss" module>
