@@ -1,14 +1,14 @@
 import { i18n } from '@/i18n'
+import {
+  antennaCacheKey,
+  clipCacheKey,
+  userListCacheKey,
+} from '@/services/columnCacheKey'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { usePrompt } from '@/stores/prompt'
 import { useToast } from '@/stores/toast'
-import {
-  antennaCacheKey,
-  clipCacheKey,
-  userListCacheKey,
-} from '@/utils/columnCacheKey'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 

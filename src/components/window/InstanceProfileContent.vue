@@ -11,12 +11,12 @@ import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
+import { safeCssUrl, webUiUrl } from '@/services/safeUrl'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { AppError } from '@/utils/errors'
 import { formatCount, formatDate } from '@/utils/format'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { safeCssUrl, webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string

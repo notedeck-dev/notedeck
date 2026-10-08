@@ -6,10 +6,10 @@ import MkMfm from '@/components/common/MkMfm.vue'
 import { safeUrl } from '@/composables/useDriveFolder'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
+import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { webUiUrl } from '@/utils/url'
 
 interface GalleryFile {
   id: string

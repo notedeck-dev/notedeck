@@ -65,6 +65,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
+import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { useServersStore } from '@/stores/servers'
@@ -73,7 +74,7 @@ import { formatDate } from '@/utils/format'
 import { proxyEmojiUrl, proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { toggleReaction } from '@/utils/toggleReaction'
-import { openSafeUrl, webUiUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string

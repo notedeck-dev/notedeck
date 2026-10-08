@@ -5,11 +5,12 @@ import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
 import { i18n } from '@/i18n'
 import { nyaizeTokens } from '@/services/nyaize'
+import { isMemoUrl, isSafeUrl } from '@/services/safeUrl'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { type MfmToken, parseMfm } from '@/utils/mfm'
-import { isMemoUrl, isSafeUrl, openSafeUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 import MkEmoji from './MkEmoji.vue'
 
 const props = defineProps<{

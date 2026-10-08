@@ -5,6 +5,7 @@ import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkFollowButton from '@/components/common/MkFollowButton.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { i18n } from '@/i18n'
+import { safeCssUrl } from '@/services/safeUrl'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
@@ -16,7 +17,7 @@ import {
   formatDate,
 } from '@/utils/format'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
-import { openSafeUrl, safeCssUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 
 // プロフィール overview の hero 面 (#707): バナー / アバター / フォロー操作 /
 // メモ (#458) / ロール / フィールド / 統計。メモ保存とフォローは adapter を

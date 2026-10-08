@@ -18,12 +18,12 @@ import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
+import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { webUiUrl } from '@/utils/url'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),

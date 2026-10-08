@@ -52,18 +52,25 @@ pub async fn registry_entry(core: &Core, key: &str, id: &str) -> Result<Option<V
     .map(|v| v.cloned())
 }
 
+/// 小文字 hex の sha512。
+pub fn sha512_hex(text: &str) -> String {
+    format!("{:x}", Sha512::digest(text.as_bytes()))
+}
+
 /// 配布ソースを取得して sha512 を照合する。戻り値は (本文, 検証済み hash)。
+/// hash は改行を LF に揃えて取るが、本文は取得したままを返す
+/// (LF に揃えて保存するかは種別 (skill) が決める)。
 pub async fn fetch_verified_source(core: &Core, entry: &Value) -> Result<(String, String)> {
     let url = s(entry, "sourceUrl");
     let expected = casefold(s(entry, "sha512"));
-    for _ in 0..2 {
+    for attempt in 0..2 {
         let text = fetch_text(core, url).await?;
-        let hash = format!(
-            "{:x}",
-            Sha512::digest(text.replace("\r\n", "\n").as_bytes())
-        );
+        let hash = sha512_hex(&text.replace("\r\n", "\n"));
         if hash == expected {
             return Ok((text, hash));
+        }
+        if attempt == 0 {
+            tracing::warn!(url, "MisStore source hash mismatch, retrying once");
         }
     }
     Err(invalid(
@@ -121,6 +128,12 @@ mod approved_hash_tests {
     use super::*;
     use crate::exec::ExecContext;
     use serde_json::json;
+
+    #[test]
+    fn sha512_is_lowercase_hex() {
+        assert_eq!(sha512_hex("").len(), 128);
+        assert_eq!(sha512_hex("a")[..8].to_string(), "1f40fc92");
+    }
 
     #[test]
     fn install_aborts_when_the_distribution_changed_after_confirmation() {

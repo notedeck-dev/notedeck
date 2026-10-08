@@ -15,8 +15,9 @@ import { usePinchZoom } from '@/composables/usePinchZoom'
 import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { i18n } from '@/i18n'
+import { isSafeUrl } from '@/services/safeUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { isSafeUrl, openSafeUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 import PopupMenu from './PopupMenu.vue'
 
 // MkMediaGrid から抽出した共通ライトボックス (#792 §2.6)。
