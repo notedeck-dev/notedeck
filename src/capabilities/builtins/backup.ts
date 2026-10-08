@@ -1,6 +1,6 @@
 import type { Command } from '@/commands/registry'
 import { i18n } from '@/i18n'
-import { formatLocalTimestamp } from '@/utils/aiSessionId'
+import { formatLocalTimestamp } from '@/services/aiSessionId'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { implement } from '../declare'
 

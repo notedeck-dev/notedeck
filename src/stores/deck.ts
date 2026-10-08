@@ -6,6 +6,8 @@ import { buildColumnDefaults, DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import defaultDeckJson5 from '@/defaults/deck.json5?raw'
 import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
+import { buildColumnUri } from '@/services/columnUri'
+import * as deckLayout from '@/services/deckLayout'
 import {
   buildDefaultDeck,
   type DefaultDeckColumn,
@@ -18,9 +20,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useDeckWallpaperStore } from '@/stores/deckWallpaper'
 import { useWidgetsStore } from '@/stores/widgets'
-import { buildColumnUri } from '@/utils/columnUri'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
-import * as deckLayout from '@/utils/deckLayout'
 import { hapticMedium } from '@/utils/haptics'
 import { isTauri, readNavbar, writeNavbar } from '@/utils/settingsFs'
 import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'

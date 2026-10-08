@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { NormalizedNote } from '@/adapters/types'
-import { matchesFilter } from '@/utils/timelineFilter'
+import { matchesFilter } from '@/services/timelineFilter'
 
 function makeNote(overrides: Partial<NormalizedNote> = {}): NormalizedNote {
   return {
@@ -26,7 +26,7 @@ function makeNote(overrides: Partial<NormalizedNote> = {}): NormalizedNote {
     _accountId: 'a1',
     _serverHost: 'example.com',
     ...overrides,
-  }
+  } as NormalizedNote
 }
 
 describe('matchesFilter', () => {

@@ -1,6 +1,6 @@
 import JSON5 from 'json5'
 import { describe, expect, it } from 'vitest'
-import { parseSkillFile } from '@/utils/skillFrontmatter'
+import { parseSkillFile } from '@/services/skillFrontmatter'
 import { injectFrontmatterId, injectJson5Id } from './idFreeze'
 
 describe('injectJson5Id', () => {

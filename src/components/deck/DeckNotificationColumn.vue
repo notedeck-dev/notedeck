@@ -50,6 +50,7 @@ import { useTutorialStore } from '@/composables/useTutorial'
 import { getStreamHealth } from '@/core/streamHealth'
 import { i18n } from '@/i18n'
 import { createBoundedCache } from '@/services/boundedCache'
+import { mapWithConcurrency, type SettleProgress } from '@/services/concurrency'
 import { parseVariantKey, variantKey } from '@/services/noteKey'
 import { mergeNotifications as mergeNotificationLists } from '@/services/notificationMerge'
 import {
@@ -61,6 +62,7 @@ import {
   isTutorialNotificationId,
   mergeTutorialNotifications,
 } from '@/services/tutorialNotifications'
+import { char2twemojiUrl } from '@/services/twemoji'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
@@ -73,7 +75,6 @@ import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
-import { mapWithConcurrency, type SettleProgress } from '@/utils/concurrency'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { AppError } from '@/utils/errors'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
@@ -83,7 +84,6 @@ import {
   saveNotificationCache,
 } from '@/utils/notificationCache'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { char2twemojiUrl } from '@/utils/twemoji'
 import { isWindowExposed } from '@/windows/exposure'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'

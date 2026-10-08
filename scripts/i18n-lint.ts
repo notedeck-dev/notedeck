@@ -35,7 +35,7 @@ const IGNORE = /i18n-ignore:\s*(\S+)/
 
 /** ファイル単位の免除: パス (ROOT 相対) → 理由 */
 const EXEMPT_FILES: Record<string, string> = {
-  'src/utils/nyaize.ts': 'mfm-spec: 本家の にゃ化 の変換表',
+  'src/services/nyaize.ts': 'mfm-spec: 本家の にゃ化 の変換表',
   'src/utils/selfXssWarning.ts':
     'data: 辞書のロード前に出る警告で、dist 予算の検査も文言を見ている',
   'crates/notecli/src/cli.rs': 'notecli の CLI は端末の利用者向けで、#135 の範囲外',

@@ -1,6 +1,6 @@
 import { ref } from 'vue'
+import type { OgpData } from '@/services/ogp'
 import { usePerformanceStore } from '@/stores/performance'
-import type { OgpData } from '@/utils/ogp'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 

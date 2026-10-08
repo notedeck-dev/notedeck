@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { i18n } from '@/i18n'
-import { char2twemojiUrl } from '@/utils/twemoji'
+import { char2twemojiUrl } from '@/services/twemoji'
 
 const props = defineProps<{ emoji: string; ignoreMuted?: boolean }>()
 const { isEmojiMuted } = useEmojiMute()

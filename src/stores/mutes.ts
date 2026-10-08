@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { shallowRef, triggerRef } from 'vue'
 import type { MutedWord } from '@/bindings'
-import { matchMutedWords } from '@/utils/wordMuteMatch'
+import { matchMutedWords } from '@/services/wordMuteMatch'
 
 /**
  * per-account の Set<string> reactive 状態。

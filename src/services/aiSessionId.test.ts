@@ -4,7 +4,7 @@ import {
   generateSessionId,
   resolveCollisionSuffix,
   timestampToSessionIdBase,
-} from '@/utils/aiSessionId'
+} from '@/services/aiSessionId'
 
 describe('formatLocalTimestamp', () => {
   it('returns 14-digit YYYYMMDDhhmmss in local timezone', () => {

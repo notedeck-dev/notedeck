@@ -14,6 +14,7 @@ import type {
   ServerAdapter,
   TimelineFilter,
 } from '@/adapters/types'
+import { matchesFilter } from '@/services/timelineFilter'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import {
   type NamedQueryMeta,
@@ -21,7 +22,6 @@ import {
 } from '@/stores/columnQueries'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
-import { matchesFilter } from '@/utils/timelineFilter'
 import type { FramePriority } from './useFrameScheduler'
 import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
 

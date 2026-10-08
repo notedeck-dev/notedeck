@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAchievementsGrid from '@/components/common/MkAchievementsGrid.vue'
 import { i18n } from '@/i18n'
-import type { Achievement } from '@/utils/achievements'
+import type { Achievement } from '@/services/achievements'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 

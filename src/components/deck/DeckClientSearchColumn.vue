@@ -25,12 +25,12 @@ import {
   type SearchTrigger,
   shouldStartSearch,
 } from '@/services/searchRun'
+import { matchesFilter } from '@/services/timelineFilter'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { matchesFilter } from '@/utils/timelineFilter'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import ColumnQueryBadge from './ColumnQueryBadge.vue'

@@ -29,7 +29,7 @@ import {
   messageToWire,
   sessionFromWire,
 } from '@/services/aiSessionCodec'
-import { generateSessionId } from '@/utils/aiSessionId'
+import { generateSessionId } from '@/services/aiSessionId'
 import { isTauri } from '@/utils/settingsFs'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 

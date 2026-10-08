@@ -3,8 +3,8 @@ import type {
   NormalizedPoll,
   NoteVisibility,
 } from '@/adapters/types'
+import { localNoteIdentity } from '@/services/noteUrl'
 import { type Account, getAccountAvatarUrl } from '@/stores/accounts'
-import { localNoteIdentity } from '@/utils/noteUrl'
 
 export interface PreviewPollInput {
   choices: string[]

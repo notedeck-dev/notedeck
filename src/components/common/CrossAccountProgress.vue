@@ -6,7 +6,7 @@
  * onSettled) が持つ。
  */
 import { i18n } from '@/i18n'
-import type { SettleProgress } from '@/utils/concurrency'
+import type { SettleProgress } from '@/services/concurrency'
 import LoadingSpinner from './LoadingSpinner.vue'
 
 defineProps<{

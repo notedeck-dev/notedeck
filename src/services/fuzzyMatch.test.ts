@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fuzzyMatch } from '@/utils/fuzzyMatch'
+import { fuzzyMatch } from '@/services/fuzzyMatch'
 
 describe('fuzzyMatch', () => {
   it('matches when query chars appear in order (subsequence)', () => {

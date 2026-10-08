@@ -13,6 +13,7 @@ import { initAdapterFor } from '@/adapters/factory'
 import type { NormalizedNote, NoteUpdateEvent } from '@/adapters/types'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { variantKey } from '@/services/noteKey'
+import { matchesFilter } from '@/services/timelineFilter'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import {
   type NamedQueryMeta,
@@ -21,7 +22,6 @@ import {
 import type { DeckColumn } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
 import { useToast } from '@/stores/toast'
-import { matchesFilter } from '@/utils/timelineFilter'
 import { useCrossAccountNotes } from './useCrossAccountNotes'
 
 /**

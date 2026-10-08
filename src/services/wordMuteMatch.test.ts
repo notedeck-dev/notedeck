@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchMutedWords } from '@/utils/wordMuteMatch'
+import { matchMutedWords } from '@/services/wordMuteMatch'
 
 describe('matchMutedWords', () => {
   it('matches a single keyword group', () => {

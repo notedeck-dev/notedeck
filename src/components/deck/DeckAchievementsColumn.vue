@@ -9,6 +9,7 @@ import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useServerImages } from '@/composables/useServerImages'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { i18n } from '@/i18n'
+import { ACHIEVEMENT_TOTAL, type Achievement } from '@/services/achievements'
 import {
   TUTORIAL_ACHIEVEMENT_BADGES,
   TUTORIAL_ACHIEVEMENT_LABELS,
@@ -18,7 +19,6 @@ import {
 import { isExposed } from '@/settings/exposure'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { ACHIEVEMENT_TOTAL, type Achievement } from '@/utils/achievements'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
