@@ -61,6 +61,11 @@ impl Theme {
     pub fn store_id(&self) -> Option<&str> {
         self.notedeck.as_ref()?.get("storeId")?.as_str()
     }
+
+    /// `$notedeck.createdAt` (ms)。旧ファイルには無い
+    pub fn created_at(&self) -> Option<u64> {
+        self.notedeck.as_ref()?.get("createdAt")?.as_u64()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -150,17 +155,51 @@ fn theme_to_j5(t: &Theme, include_notedeck: bool) -> J5 {
     ];
     if include_notedeck {
         if let Some(m) = &t.notedeck {
-            pairs.push((
-                "$notedeck".to_string(),
-                J5::Obj(
-                    m.iter()
-                        .map(|(k, v)| (k.clone(), J5::from_value(v)))
-                        .collect(),
-                ),
-            ));
+            pairs.push(("$notedeck".to_string(), notedeck_to_j5(m)));
         }
     }
     J5::Obj(pairs)
+}
+
+/// `$notedeck` の規定順 (デバイスの codec と同じ): ストア 3 点 → installedFor
+/// (空は書かない) → createdAt / updatedAt → 未知のキー (#1202 段階 0)。
+const NOTEDECK_KEY_ORDER: &[&str] = &[
+    "storeId",
+    "storeSha512",
+    "storeVersion",
+    "installedFor",
+    "createdAt",
+    "updatedAt",
+];
+
+fn notedeck_to_j5(m: &IndexMap<String, Value>) -> J5 {
+    let mut out: Vec<(String, J5)> = Vec::new();
+    for key in NOTEDECK_KEY_ORDER {
+        let Some(v) = m.get(*key) else {
+            continue;
+        };
+        if *key == "installedFor" && v.as_array().is_some_and(Vec::is_empty) {
+            continue;
+        }
+        out.push((key.to_string(), J5::from_value(v)));
+    }
+    for (k, v) in m {
+        if !NOTEDECK_KEY_ORDER.contains(&k.as_str()) {
+            out.push((k.clone(), J5::from_value(v)));
+        }
+    }
+    J5::Obj(out)
+}
+
+/// createdAt を (既存の個体 `created` → 自分の値 → 今 の順で) 埋め、updatedAt を
+/// 今にする。書込経路 (`install_theme`) で呼ぶ。読込では埋めない (codec は純関数のまま)
+pub fn touch_timestamps(t: &mut Theme, created: Option<u64>, now: u64) {
+    let m = t.notedeck.get_or_insert_with(IndexMap::new);
+    let created_at = created
+        .or_else(|| m.get("createdAt").and_then(Value::as_u64))
+        .unwrap_or(now);
+    m.insert("createdAt".into(), json!(created_at));
+    m.insert("updatedAt".into(), json!(now));
 }
 
 /// ファイル用 (`themeFileSync.serializeTheme`): JSON5、末尾改行なし。
@@ -394,6 +433,12 @@ pub fn install_theme(
             .get_or_insert_with(IndexMap::new)
             .insert("installedFor".into(), json!(keys));
     }
+    // createdAt は既存 (同じ id の更新) を引き継ぎ、updatedAt は今 (#1202 段階 0)
+    touch_timestamps(
+        &mut theme,
+        existing.as_ref().and_then(Theme::created_at),
+        crate::clock::now_ms(),
+    );
     if let Some(ex) = &existing {
         if let Some(base) = ex.file_base.as_deref() {
             edit_history::push_snapshot(

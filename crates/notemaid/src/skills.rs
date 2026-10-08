@@ -749,8 +749,9 @@ pub fn update(
     if let Some(v) = patch.icon_url {
         item.icon_url = v;
     }
-    if let Some(v) = patch.tainted {
-        item.tainted = v.then_some(true);
+    // 付いたら外れない (#1103)。false の指定は無視する
+    if patch.tainted == Some(true) {
+        item.tainted = Some(true);
     }
     if let Some(v) = patch.cheap_check_capabilities {
         validate_cheap_checks(&v)?;
@@ -1045,6 +1046,58 @@ mod tests {
             .any(|(k, v)| k == "tainted" && *v == FmValue::Bool(true)));
     }
 
+    /// デバイスの codec (`src/services/distributableCodecs/skillCodec.ts`) と同じ
+    /// ファイルを書く (#1202 段階 0 の golden。期待値の正本は TS 側)
+    #[test]
+    fn codec_matches_device_golden() {
+        #[derive(serde::Deserialize)]
+        struct Vector {
+            name: String,
+            filename: String,
+            now: u64,
+            text: String,
+            expected: String,
+        }
+        #[derive(serde::Deserialize)]
+        struct Vectors {
+            skill: Vec<Vector>,
+        }
+        let vectors: Vectors = serde_json::from_str(include_str!(
+            "../../../src/services/distributableCodecs/golden/vectors.json"
+        ))
+        .unwrap();
+        assert!(!vectors.skill.is_empty());
+        // `load_all` と同じ規則: id 欠損は basename、予約 skill は mode 固定 / persona 不可
+        let round_trip = |text: &str, filename: &str, now: u64| {
+            let base = filename.trim_end_matches(EXT);
+            let (fm, body) = parse_skill_file(text);
+            let mut meta = meta_from_frontmatter(&fm, &body, base, now);
+            if !is_valid_id(fm_get(&fm, "id")) {
+                meta.id = base.to_string();
+            }
+            if let Some(which) = reserved_kind(base) {
+                meta.reserved = true;
+                meta.mode = reserved_mode(which).to_string();
+                meta.is_persona = false;
+            }
+            serialize_skill(&meta)
+        };
+        for v in &vectors.skill {
+            assert_eq!(
+                round_trip(&v.text, &v.filename, v.now),
+                v.expected,
+                "skill: {}",
+                v.name
+            );
+            assert_eq!(
+                round_trip(&v.expected, &v.filename, 0),
+                v.expected,
+                "skill (再読込): {}",
+                v.name
+            );
+        }
+    }
+
     #[test]
     fn inject_id_matches_ts() {
         let out = inject_frontmatter_id("---\nname: 天気\nmode: manual\n---\n\n# body\n", "tenki");
@@ -1113,6 +1166,59 @@ mod tests {
         assert_eq!(
             store::read_file(&base, SUBDIR, "My Skill.md").unwrap(),
             frozen
+        );
+    }
+
+    #[test]
+    fn tainted_is_never_cleared_by_update() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = core_in(dir.path());
+        create(
+            &core,
+            SkillMeta {
+                id: "t1".into(),
+                name: "Tainted".into(),
+                version: DEFAULT_VERSION.into(),
+                mode: "manual".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let patch = |tainted: Option<bool>| SkillPatch {
+            tainted,
+            ..Default::default()
+        };
+        // 付く
+        assert_eq!(
+            update(&core, "t1", patch(Some(true)), None)
+                .unwrap()
+                .tainted,
+            Some(true)
+        );
+        // false を指定しても外れない (#1103 — 一度付いたら外れない)
+        assert_eq!(
+            update(&core, "t1", patch(Some(false)), None)
+                .unwrap()
+                .tainted,
+            Some(true)
+        );
+        // 付いていない個体に false を指定しても付かない
+        create(
+            &core,
+            SkillMeta {
+                id: "t2".into(),
+                name: "Clean".into(),
+                version: DEFAULT_VERSION.into(),
+                mode: "manual".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            update(&core, "t2", patch(Some(false)), None)
+                .unwrap()
+                .tainted,
+            None
         );
     }
 

@@ -14,8 +14,8 @@ import {
   type TutorialCategory,
   type TutorialCategoryId,
 } from '@/data/tutorialSteps'
+import type { Achievement, AchievementBadge } from '@/services/achievements'
 import type { TutorialProgress } from '@/services/tutorialProgress'
-import type { Achievement, AchievementBadge } from '@/utils/achievements'
 
 /** 通知・実績欄で NoteDeck 実績を識別する接頭辞 */
 const PREFIX = 'notedeck:'

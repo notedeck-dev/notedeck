@@ -24,26 +24,29 @@ import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
+import { columnCacheKey } from '@/services/columnCacheKey'
 import type { VariantKey } from '@/services/noteKey'
+import { matchesFilter } from '@/services/timelineFilter'
+import {
+  commonFilterKeys,
+  findModeKeyForTimeline,
+  getRelatedTimelineTypes,
+} from '@/services/timelinePolicy'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
-import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
+import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
 import type { CustomTimelineInfo } from '@/utils/customTimelines'
 import {
   clearAvailableTlCache,
   clearRuntimeDenied,
-  commonFilterKeys,
   detectAvailableTimelines,
   detectCustomTimelines,
   detectFilterKeys,
-  findModeKeyForTimeline,
-  getRelatedTimelineTypes,
   markTimelineDenied,
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { matchesFilter } from '@/utils/timelineFilter'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import ColumnPullFrame from './ColumnPullFrame.vue'

@@ -7,13 +7,14 @@ import App from './App.vue'
 import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
 import { router, setupFirstRunTutorial } from './router'
+import { resolveEvictionConfig } from './services/cacheEvictionConfig'
 import { initEarlyAccountListener, useAccountsStore } from './stores/accounts'
+import { useDeckProfileStore } from './stores/deckProfile'
 import { useKeybindsStore } from './stores/keybinds'
 import { usePerformanceStore } from './stores/performance'
 import { useServersStore } from './stores/servers'
 import { useSettingsStore } from './stores/settings'
 import { useThemeStore } from './stores/theme'
-import { resolveEvictionConfig } from './utils/cacheEviction'
 import { setMediaProxyToken } from './utils/mediaProxy'
 import { printSelfXssWarning } from './utils/selfXssWarning'
 import { isTauri } from './utils/settingsFs'
@@ -76,7 +77,8 @@ if (isTauri) {
   }
 }
 
-// Defer non-critical CSS to idle time — KaTeX and Shiki are not needed at startup.
+// Defer non-critical CSS to idle time — KaTeX is not needed at startup
+// (Shiki のトークン色は global.css の変数で、別 CSS を持たない #1050)。
 // WebView2 など requestIdleCallback 未実装環境ではフォールバック 50ms
 // （2000ms は初回描画に数式/コード表示が間に合わず空白が見えてしまう）
 const _idle =
@@ -84,8 +86,6 @@ const _idle =
   ((cb: IdleRequestCallback) => setTimeout(cb, 50))
 _idle(() => {
   import('katex/dist/katex.min.css')
-  import('./assets/shiki-dark-plus.css')
-  import('./assets/shiki-light-plus.css')
 })
 
 const app = createApp(App)
@@ -131,6 +131,9 @@ if (isTauri) {
     // 表示言語の辞書 (#135)。以降の初期化が出す toast も辞書を引くので先に揃える
     localeReady,
     usePerformanceStore().init(),
+    // デッキプロファイル (#1042)。ファイルが唯一の正で、localStorage からの即時復元は
+    // 無いので、初回描画が既定デッキで一瞬出ないよう描画前に読み終える
+    useDeckProfileStore().preloadFiles(),
     commands
       .getMediaProxyToken()
       .then((token) => setMediaProxyToken(token))

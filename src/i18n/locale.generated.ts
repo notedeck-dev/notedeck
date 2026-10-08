@@ -3486,8 +3486,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "day": string
     /** 内訳 */
     readonly "breakdown": string
-    /** サーバー統計を取得できません */
-    readonly "fetchFailed": string
     /** このサーバーのチャートはログインユーザー限定です */
     readonly "loginRequired": string
     /** このサーバーはチャート API を無効にしています */

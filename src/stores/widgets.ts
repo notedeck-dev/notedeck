@@ -82,9 +82,17 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
   srcOf: (w) => w.src,
   // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
   preferredBase: (w) => w.storeId,
-  mirrorSrcById: (id) =>
-    loadWidgetsFromStorage().find((w) => w.installId === id)?.src,
-  toFileMeta: (w) => ({
+  toFileMeta: (w) => widgetToFileMeta(w),
+  fromFile: (meta, src, metaFile) => widgetFromFile(meta, src, metaFile),
+})
+
+/**
+ * item → meta ファイルの projection。キー順と省略規則は notecore の
+ * `sidecar/widgets.rs` `normalize_meta` と、codec (`services/distributableCodecs/
+ * widgetCodec.ts`) の出力と一致する (storeParity.test / golden が固定)
+ */
+function widgetToFileMeta(w: WidgetMeta): WidgetFileMeta {
+  return {
     installId: w.installId,
     name: w.name,
     autoRun: w.autoRun,
@@ -95,8 +103,15 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     ...(w.accountKey ? { accountKey: w.accountKey } : {}),
     createdAt: w.createdAt,
     updatedAt: w.updatedAt,
-  }),
-  fromFile: (meta, src, metaFile) => ({
+  }
+}
+
+function widgetFromFile(
+  meta: WidgetFileMeta,
+  src: string,
+  metaFile: string,
+): WidgetMeta {
+  return {
     installId: meta.installId || metaFile,
     name: meta.name || metaFile,
     src,
@@ -109,13 +124,24 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
     legacyAccountId: meta.accountKey ? undefined : meta.accountId,
     createdAt: meta.createdAt ?? Date.now(),
     updatedAt: meta.updatedAt ?? Date.now(),
-  }),
-})
+  }
+}
+
+/**
+ * 内部関数の test 用 export (codec との一致検査)。プロダクトコードから直接
+ * 呼ばないこと
+ */
+export const _internal = {
+  toFileMeta: widgetToFileMeta,
+  fromFile: widgetFromFile,
+}
+
+// ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
+// localStorage には書かない (#1042。ウィンドウ間の追随は変更通知で行う)
 
 function loadWidgetsFromStorage(): WidgetMeta[] {
-  // 旧ミラーは実行アカウントを内部 UUID の accountId で直接持つ (#1061)。
-  // ファイル経由 (fromFile) と同じ形に正規化しないと、ミラーだけに在る個体
-  // (ブラウザ実行・ファイル欠損からの復旧) が移行対象から漏れる
+  // 旧データは実行アカウントを内部 UUID の accountId で直接持つ (#1061)。
+  // ファイル経由 (fromFile) と同じ形に正規化しないと移行対象から漏れる
   return getStorageJson<WidgetMeta[]>(STORAGE_KEYS.widgets, []).map((w) => {
     const legacy = (w as WidgetMeta & { accountId?: string }).accountId
     if (!legacy) return w
@@ -127,6 +153,7 @@ function loadWidgetsFromStorage(): WidgetMeta[] {
 }
 
 function saveWidgetsToStorage(widgets: WidgetMeta[]) {
+  if (settingsFs.isTauri) return
   setStorageJson(STORAGE_KEYS.widgets, widgets)
 }
 
@@ -162,7 +189,6 @@ export const useWidgetsStore = defineStore('widgets', () => {
   function ensureLoaded() {
     if (loaded) return
     loaded = true
-    widgets.value = loadWidgetsFromStorage()
     sidebarWidgetIds.value = loadSidebarOrderFromStorage()
 
     if (settingsFs.isTauri) {
@@ -170,6 +196,7 @@ export const useWidgetsStore = defineStore('widgets', () => {
         .catch((e) => console.warn('[widgets] file storage init failed:', e))
         .finally(() => resolveReady?.())
     } else {
+      widgets.value = loadWidgetsFromStorage()
       initialized.value = true
       resolveReady?.()
       scheduleScopeMigration()
@@ -186,17 +213,11 @@ export const useWidgetsStore = defineStore('widgets', () => {
     }
   }
 
-  /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
-  function adoptMirrorFileBase(widget: WidgetMeta) {
-    const mirrored = loadWidgetsFromStorage().find(
-      (w) => w.installId === widget.installId,
-    )
-    if (mirrored?.fileBase) widget.fileBase = mirrored.fileBase
-  }
-
   function persist(widget?: WidgetMeta) {
-    saveWidgetsToStorage(widgets.value)
-    if (!settingsFs.isTauri) return
+    if (!settingsFs.isTauri) {
+      saveWidgetsToStorage(widgets.value)
+      return
+    }
     void ready
       .then(async () => {
         if (widget) {
@@ -206,13 +227,10 @@ export const useWidgetsStore = defineStore('widgets', () => {
           const live =
             widgets.value.find((w) => w.installId === widget.installId) ??
             widget
-          adoptMirrorFileBase(live)
           await widgetFiles.persistItem(live, widgets.value)
         } else {
           await widgetFiles.persistAll(widgets.value, widgets.value)
         }
-        // fileBase 割当をミラーへ反映
-        saveWidgetsToStorage(widgets.value)
       })
       .catch((e) => console.warn('[widgets] failed to persist to files:', e))
   }
@@ -221,8 +239,8 @@ export const useWidgetsStore = defineStore('widgets', () => {
   async function initFileStorage(): Promise<void> {
     const { items: fileWidgets } = await widgetFiles.loadAll()
 
-    // 初期化 (この async 関数が走る間) にメモリ追加された widget と、
-    // ミラーにだけ在る widget (過去の書込が黙って失敗した個体) の集合。
+    // 初期化 (この async 関数が走る間) にメモリ追加された widget は残す
+    // (各自の persist が ready 後にファイル化する)
     const fileIds = new Set(fileWidgets.map((w) => w.installId))
     const memoryOnly = widgets.value.filter((w) => !fileIds.has(w.installId))
 
@@ -234,26 +252,14 @@ export const useWidgetsStore = defineStore('widgets', () => {
 
     // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
     if (settingsFs.isMainDeckWindow()) {
-      // (a) 規約外名の copy-adopt 正規化
+      // 規約外名の copy-adopt 正規化
       await widgetFiles.migrateItems(widgets.value)
-      // (b) ミラー在・ファイル不在 → 新 slug 名で再作成
-      //     (空ソースは書かない — 読取専用ガードを消さないため)
-      for (const w of memoryOnly) {
-        if (w.readOnly || !w.src) continue
-        w.fileBase = undefined // ミラー由来の旧 fileBase は無効 (ファイル不在)
-        await widgetFiles
-          .persistItem(w, widgets.value)
-          .catch((e) =>
-            console.warn('[widgets] failed to persist memory-only widgets:', e),
-          )
-      }
       // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
       await widgetFiles
         .sweepHistory()
         .catch((e) => console.warn('[widgets] history sweep failed:', e))
     }
 
-    saveWidgetsToStorage(widgets.value)
     initialized.value = true
     pruneSidebarOrder()
     // 実行アカウントの安定キー化 (#1061)。files が source of truth に
@@ -272,9 +278,6 @@ export const useWidgetsStore = defineStore('widgets', () => {
     ensureLoaded()
     const idx = widgets.value.findIndex((w) => w.installId === installId)
     const removed = widgets.value[idx]
-    // ミラー上書き前に対応表を読み直す (別ウィンドウのリネーム後の削除が
-    // stale なファイル名で空振りしないように)
-    if (removed && settingsFs.isTauri) adoptMirrorFileBase(removed)
     // AiScript の Mk:save 領域を一掃 (storagePrefix='app-${installId}')。
     // undo で戻せるよう消す前にスナップショットを取る
     const storagePrefix = STORAGE_KEYS.aiscriptStorage(`app-${installId}`)
@@ -322,7 +325,6 @@ export const useWidgetsStore = defineStore('widgets', () => {
       if (settingsFs.isTauri) {
         void ready
           .then(() => widgetFiles.persistItem(removed, widgets.value))
-          .then(() => saveWidgetsToStorage(widgets.value))
           .catch((e) =>
             console.warn('[widgets] failed to restore widget files:', e),
           )
@@ -396,7 +398,7 @@ export const useWidgetsStore = defineStore('widgets', () => {
 
   /**
    * 読取専用 (ソース欠損) の個体は変更を拒否する (#1111)。保存できず端末
-   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける
+   * ローカルにだけ載って次回起動で巻き戻るため、写しに書く前に抜ける
    */
   function rejectIfReadOnly(widget: WidgetMeta | undefined): boolean {
     if (!widget?.readOnly) return false
@@ -605,10 +607,8 @@ export const useWidgetsStore = defineStore('widgets', () => {
     // rename の完了を待ってから保存する
     void ready
       .then(async () => {
-        adoptMirrorFileBase(widget)
         await widgetFiles.renameItemFiles(widget, widgets.value)
         await widgetFiles.persistItem(widget, widgets.value)
-        saveWidgetsToStorage(widgets.value)
       })
       .catch((e) => console.warn('[widgets] failed to rename widget files:', e))
     return true
@@ -619,8 +619,8 @@ export const useWidgetsStore = defineStore('widgets', () => {
     return widgets.value.find((w) => w.installId === installId)
   }
 
-  // notecore がウィジェットのファイルを書いた (AI の widgets.* は notecore の本体が
-  // 書く, #1133) → その個体だけ写しを揃え、ソースが変わっていれば表示中の
+  // 別の書き手 (notecore の widgets.* / 他のウィンドウ, #1133 / #1042) がウィジェットの
+  // ファイルを書いた → その個体だけ写しを揃え、ソースが変わっていれば表示中の
   // インスタンスに再実行を要求する。削除は Mk:save 領域とサイドバーの並びも掃除
   registerSettingsFileHandler('widgets', async (change) => {
     if (!change.name.endsWith(META_SUFFIX)) return
@@ -634,7 +634,6 @@ export const useWidgetsStore = defineStore('widgets', () => {
         STORAGE_KEYS.aiscriptStorage(`app-${removed.installId}`),
       )
       widgets.value = widgets.value.filter((w) => w !== removed)
-      saveWidgetsToStorage(widgets.value)
       if (sidebarWidgetIds.value.includes(removed.installId)) {
         sidebarWidgetIds.value = sidebarWidgetIds.value.filter(
           (id) => id !== removed.installId,
@@ -658,7 +657,6 @@ export const useWidgetsStore = defineStore('widgets', () => {
     widgets.value = prev
       ? widgets.value.map((w) => (w === prev ? next : w))
       : [...widgets.value, next]
-    saveWidgetsToStorage(widgets.value)
     if (prev && prev.src !== next.src) requestRerun(next.installId)
   })
 

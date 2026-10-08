@@ -2182,7 +2182,6 @@ _deckChartsColumn:
   hour: "Hour"
   day: "Day"
   breakdown: "Breakdown"
-  fetchFailed: "Could not fetch server statistics"
   loginRequired: "Charts on this server are only available to logged-in users"
   chartsDisabled: "This server has disabled the charts API"
 

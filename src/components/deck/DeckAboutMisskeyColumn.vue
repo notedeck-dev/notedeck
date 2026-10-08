@@ -14,12 +14,9 @@ const MkPostForm = defineAsyncComponent(
 )
 
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { usePortal } from '@/composables/usePortal'
-import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { useServersStore } from '@/stores/servers'
-import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
 import DeckColumn from './DeckColumn.vue'
@@ -35,21 +32,11 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const accountsStore = useAccountsStore()
-const serversStore = useServersStore()
+const { account, columnThemeVars, error, withLoading, scroller, scrollToTop } =
+  useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 
-const account = computed(() =>
-  accountsStore.accounts.find((a) => a.id === props.column.accountId),
-)
-
-const { columnThemeVars } = useColumnTheme(() => props.column)
-
-const serverIconUrl = ref<string | undefined>()
-const isLoading = ref(false)
-const error = ref<AppError | null>(null)
 const meta = ref<ServerMeta | null>(null)
-const scrollContainer = ref<HTMLElement | null>(null)
-useColumnPullScroller(scrollContainer)
 const postPortalRef = useTemplateRef<HTMLElement>('postPortalRef')
 usePortal(postPortalRef)
 
@@ -59,10 +46,6 @@ const isModifiedVersion = computed(() => {
   if (!meta.value?.repositoryUrl) return false
   return meta.value.repositoryUrl !== 'https://github.com/misskey-dev/misskey'
 })
-
-function scrollToTop() {
-  scrollContainer.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
 
 function iLoveMisskey() {
   if (!account.value?.hasToken) return
@@ -148,22 +131,11 @@ function openLink(url: string) {
 async function fetchMeta() {
   const acc = account.value
   if (!acc) return
-
-  isLoading.value = true
-  error.value = null
-
-  try {
-    const info = await serversStore.getServerInfo(acc.host)
-    serverIconUrl.value = info.iconUrl
-
+  await withLoading(async () => {
     meta.value = unwrap(
       await commands.apiGetMetaDetail(acc.id),
     ) as unknown as ServerMeta
-  } catch (e) {
-    error.value = AppError.from(e)
-  } finally {
-    isLoading.value = false
-  }
+  })
 }
 
 onMounted(() => {
@@ -192,7 +164,7 @@ onMounted(() => {
       {{ error.message }}
     </div>
 
-    <div v-else-if="meta" ref="scrollContainer" :class="$style.aboutBody">
+    <div v-else-if="meta" ref="scroller" :class="$style.aboutBody">
       <!-- Hero -->
       <div :class="$style.aboutHero">
         <img

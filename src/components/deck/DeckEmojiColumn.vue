@@ -4,19 +4,15 @@ import type { ServerEmoji } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import PopupMenu from '@/components/common/PopupMenu.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import {
   type GridGroup,
   useGridVirtualizer,
 } from '@/composables/useGridVirtualizer'
-import { useServerImages } from '@/composables/useServerImages'
 import { i18n } from '@/i18n'
-import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useEmojisStore } from '@/stores/emojis'
-import { useServersStore } from '@/stores/servers'
-import { AppError } from '@/utils/errors'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
@@ -25,23 +21,20 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const accountsStore = useAccountsStore()
-const serversStore = useServersStore()
 const emojisStore = useEmojisStore()
 
-const account = computed(() =>
-  accountsStore.accounts.find((a) => a.id === props.column.accountId),
-)
-
-const { columnThemeVars } = useColumnTheme(() => props.column)
-const { serverInfoImageUrl, serverNotFoundImageUrl, serverErrorImageUrl } =
-  useServerImages(() => props.column)
-
-const serverIconUrl = ref<string | undefined>()
-const isLoading = ref(false)
-const error = ref<AppError | null>(null)
-const scrollContainer = ref<HTMLElement | null>(null)
-useColumnPullScroller(scrollContainer)
+const {
+  account,
+  columnThemeVars,
+  serverInfoImageUrl,
+  serverErrorImageUrl,
+  isLoading,
+  error,
+  withLoading,
+  scroller,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 const searchQuery = ref('')
 const selectedCategory = ref<string | null>(null)
 const copiedName = ref<string | null>(null)
@@ -125,15 +118,11 @@ const emojiGroups = computed<GridGroup<ServerEmoji>[]>(() => {
 
 const { rows, virtualItems, totalSize } = useGridVirtualizer({
   groups: emojiGroups,
-  scrollElement: scrollContainer,
+  scrollElement: scroller,
   itemWidth: 48,
   headerHeight: 34,
   rowHeight: 48,
 })
-
-function scrollToTop() {
-  scrollContainer.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
 
 // 絵文字ミュート (#612): 右クリックメニューでトグル
 const { isEmojiMuted, toggleEmojiMuteWithConfirm } = useEmojiMute()
@@ -164,23 +153,12 @@ function copyEmojiCode(emoji: ServerEmoji) {
 async function loadEmojis() {
   const acc = account.value
   if (!acc) return
-
-  isLoading.value = true
-  error.value = null
-
-  try {
-    const info = await serversStore.getServerInfo(acc.host)
-    serverIconUrl.value = info.iconUrl
-
+  await withLoading(async () => {
     if (!emojisStore.has(acc.host)) {
       const emojis = unwrap(await commands.apiGetServerEmojis(acc.id, false))
       emojisStore.set(acc.host, emojis)
     }
-  } catch (e) {
-    error.value = AppError.from(e)
-  } finally {
-    isLoading.value = false
-  }
+  })
 }
 
 // Reset category filter when search changes
@@ -268,7 +246,7 @@ function getRowItems(index: number): ServerEmoji[] {
       <ColumnEmptyState v-if="filteredEmojis.length === 0 && !isLoading" :message="i18n.ts._deckEmojiColumn.noEmoji" :image-url="serverInfoImageUrl" />
 
       <!-- Virtualized emoji grid -->
-      <div v-else ref="scrollContainer" :class="$style.emojiScroller">
+      <div v-else ref="scroller" :class="$style.emojiScroller">
         <div :style="{ height: `${totalSize}px`, position: 'relative' }">
           <div
             v-for="vItem in virtualItems"

@@ -2,10 +2,11 @@
 import { computed, ref, shallowRef } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
 import { i18n } from '@/i18n'
+import { isSafeUrl } from '@/services/safeUrl'
 import { useSystemStateStore } from '@/stores/systemState'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
 import { proxyUrl } from '@/utils/mediaProxy'
-import { isSafeUrl, openSafeUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 import MkMediaLightbox from './MkMediaLightbox.vue'
 
 function safeMediaSrc(url: string | null | undefined): string | undefined {

@@ -7,7 +7,7 @@ import {
   type SingleFileCollectionConfig,
   type SingleItemFile,
 } from '@/services/singleFileCollection'
-import { parseSkillFile } from '@/utils/skillFrontmatter'
+import { parseSkillFile } from '@/services/skillFrontmatter'
 
 /** テーマ相当 (単一 JSON5 ファイル) のアイテム。 */
 interface Item extends SingleItemFile {
@@ -249,6 +249,45 @@ describe('loadAll', () => {
     const { items, entryFileCount } = await col.loadAll()
     expect(items).toEqual([])
     expect(entryFileCount).toBe(0)
+  })
+})
+
+describe('loadOne (別の書き手の変更通知の写し更新用)', () => {
+  it('1 ファイルだけ読んで fileBase 付きで返す (他のファイルは読まない)', async () => {
+    const fs = makeFakeFs({
+      [`a${EXT}`]: file('i-a', 'a'),
+      [`b${EXT}`]: file('i-b', 'b'),
+    })
+    const reads: string[] = []
+    const col = makeCollection(fs, {
+      read: async (f) => {
+        reads.push(f)
+        return fs.read(f)
+      },
+    })
+    const got = await col.loadOne(`b${EXT}`)
+    expect(got).toMatchObject({ id: 'i-b', name: 'b', fileBase: 'b' })
+    expect(reads).toEqual([`b${EXT}`])
+  })
+
+  it('ID 欠損は実効値で補うが、書き戻しはしない (起動時の loadAll が担う)', async () => {
+    const fs = makeFakeFs({ [`a${EXT}`]: file(null, 'a') })
+    const col = makeCollection(fs)
+    const got = await col.loadOne(`a${EXT}`)
+    expect(got?.id).toBe(`custom-a${EXT}`)
+    expect(fs.files.get(`a${EXT}`)).toBe(file(null, 'a'))
+  })
+
+  it('規定拡張子以外・履歴ファイル・読めないファイル・不採用の内容は undefined', async () => {
+    const fs = makeFakeFs({
+      [`bad${EXT}`]: '{ id: "x", name: "no props" }',
+      [`h.history.json5`]: '{}',
+    })
+    const col = makeCollection(fs)
+    expect(await col.loadOne('other.txt')).toBeUndefined()
+    expect(await col.loadOne('h.history.json5')).toBeUndefined()
+    expect(await col.loadOne(`missing${EXT}`)).toBeUndefined()
+    expect(await col.loadOne(`bad${EXT}`)).toBeUndefined()
   })
 })
 
@@ -719,5 +758,23 @@ describe('スキル相当構成 (.md + frontmatter)', () => {
     await col.sweepHistory()
     expect(fs.files.has('keep.history.json5')).toBe(true)
     expect(fs.files.has('gone.history.json5')).toBe(false)
+  })
+})
+
+describe('isOutdated (on-disk の揃え, #1202)', () => {
+  it('古い形の個体だけ outdated に入る', async () => {
+    const fs = makeFakeFs({
+      'old.ndtheme.json5': '{ id: "old", name: "Old", props: {} }',
+      'new.ndtheme.json5':
+        '{ id: "new", name: "New", props: {}, $notedeck: { createdAt: 1 } }',
+    })
+    const col = makeCollection(fs, {
+      isOutdated: (p) => !p.$notedeck,
+    })
+    const { items, outdated } = await col.loadAll()
+    expect(items.map((i) => i.id)).toEqual(['new', 'old'])
+    expect(outdated.map((i) => i.id)).toEqual(['old'])
+    expect(outdated[0]).toBe(items[1])
+    expect((await makeCollection(fs).loadAll()).outdated).toEqual([])
   })
 })

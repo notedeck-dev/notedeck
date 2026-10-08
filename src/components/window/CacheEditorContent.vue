@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { i18n } from '@/i18n'
+import {
+  type EvictionPreset,
+  resolveEvictionConfig,
+} from '@/services/cacheEvictionConfig'
 import { useConfirm } from '@/stores/confirm'
 import { usePerformanceStore } from '@/stores/performance'
 import { useSettingsStore } from '@/stores/settings'
-import {
-  type EvictionPreset,
-  PRESET_OPTIONS,
-  resolveEvictionConfig,
-} from '@/utils/cacheEviction'
+import { PRESET_OPTIONS } from '@/utils/cacheEviction'
 import { formatBytes } from '@/utils/format'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 

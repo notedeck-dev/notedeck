@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { i18n } from '@/i18n'
+import type { FollowApi, FollowState } from '@/services/followTransition'
 import { useConfirm } from '@/stores/confirm'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
-import {
-  executeFollowAction,
-  type FollowApi,
-  type FollowState,
-} from '@/utils/followAction'
+import { executeFollowAction } from '@/utils/followAction'
 
 /**
  * 正準フォローボタン (#752)。hover での解除表示・解除/取消の確認ダイアログ・

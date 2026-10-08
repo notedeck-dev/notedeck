@@ -17,16 +17,16 @@ import {
 } from '@/composables/useDrafts'
 import { usePortal } from '@/composables/usePortal'
 import { i18n } from '@/i18n'
+import { localNoteIdentity } from '@/services/noteUrl'
+import { isPastSchedule } from '@/services/scheduleTime'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useServersStore } from '@/stores/servers'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
-import { localNoteIdentity } from '@/utils/noteUrl'
 import {
   formatScheduleAbsolute,
   formatScheduleRelative,
-  isPastSchedule,
 } from '@/utils/scheduleFormat'
 
 const props = defineProps<{

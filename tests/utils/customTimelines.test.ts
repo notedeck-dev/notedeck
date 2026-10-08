@@ -4,11 +4,8 @@ import {
   clearRuntimeDenied,
   detectCustomTimelines,
   detectFilterKeys,
-  findModeKeyForTimeline,
-  getRelatedTimelineTypes,
   getRuntimeDenied,
   markTimelineDenied,
-  modeIcon,
   modeLabel,
 } from '@/utils/customTimelines'
 import { commands } from '@/utils/tauriInvoke'
@@ -36,27 +33,13 @@ vi.stubGlobal('localStorage', {
   removeItem: (key: string) => storageMap.delete(key),
 })
 
+// policy / モード / フィルターの純規則は src/services/timelinePolicy.test.ts。
+// ここは検出 (Tauri + localStorage キャッシュ) と i18n ラベルだけ
 const mockedCommands = vi.mocked(commands)
 
 beforeEach(() => {
   storageMap.clear()
   vi.clearAllMocks()
-})
-
-describe('getRelatedTimelineTypes', () => {
-  it('expands local/social to the shared ltlAvailable group', () => {
-    expect(getRelatedTimelineTypes('local')).toEqual(['local', 'social'])
-    expect(getRelatedTimelineTypes('social')).toEqual(['local', 'social'])
-  })
-
-  it('returns global alone (gtlAvailable group)', () => {
-    expect(getRelatedTimelineTypes('global')).toEqual(['global'])
-  })
-
-  it('returns unknown types as a singleton', () => {
-    expect(getRelatedTimelineTypes('bubble')).toEqual(['bubble'])
-    expect(getRelatedTimelineTypes('home')).toEqual(['home'])
-  })
 })
 
 describe('modeLabel', () => {
@@ -68,43 +51,6 @@ describe('modeLabel', () => {
   it('returns non-matching keys unchanged', () => {
     expect(modeLabel('ltlAvailable')).toBe('ltlAvailable')
     expect(modeLabel('')).toBe('')
-  })
-})
-
-describe('modeIcon', () => {
-  it('uses moon icons for yami mode', () => {
-    expect(modeIcon('isInYamiMode', true)).toBe('moon')
-    expect(modeIcon('isInYamiMode', false)).toBe('moon-off')
-  })
-
-  it('falls back to toggle icons for unknown modes', () => {
-    expect(modeIcon('isInFooMode', true)).toBe('toggle-right')
-    expect(modeIcon('isInFooMode', false)).toBe('toggle-left')
-  })
-})
-
-describe('findModeKeyForTimeline', () => {
-  it('matches a timeline type that starts with the mode name', () => {
-    expect(findModeKeyForTimeline('yami', { isInYamiMode: true })).toBe(
-      'isInYamiMode',
-    )
-    // 'hanami' starts with 'hana' → isInHanaMode
-    expect(findModeKeyForTimeline('hanami', { isInHanaMode: false })).toBe(
-      'isInHanaMode',
-    )
-  })
-
-  it('returns undefined when nothing matches', () => {
-    expect(findModeKeyForTimeline('bubble', { isInYamiMode: true })).toBe(
-      undefined,
-    )
-    expect(findModeKeyForTimeline('yami', {})).toBe(undefined)
-  })
-
-  it('ignores keys that are not isIn*Mode shaped', () => {
-    expect(findModeKeyForTimeline('yami', { yamiEnabled: true })).toBe(
-      undefined,
-    )
   })
 })
 

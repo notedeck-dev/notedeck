@@ -386,6 +386,10 @@ impl RpcServer {
         }
         let incoming: Incoming = serde_json::from_value(params)
             .map_err(|e| notecli::error::NoteDeckError::InvalidInput(e.to_string()))?;
+        // 一覧から消えた口座も捨てる (TTL まで古いトークンを返さない)
+        for id in self.accounts.ids() {
+            notecore::credentials::invalidate_credentials(&id);
+        }
         for a in &incoming.accounts {
             notecore::credentials::invalidate_credentials(&a.id);
         }

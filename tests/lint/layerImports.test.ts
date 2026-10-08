@@ -1,6 +1,6 @@
 // 「層の依存方向」を機械検査に落とす (#1098)。
 //
-// CLAUDE.md / DEVELOPMENT.md が定める向きは
+// DEVELOPMENT.md「層の依存方向」が定める向きは
 //   components → composables → stores → services → adapters → bindings
 // で、services は「純ロジックを store に書かず直接ユニットテストする」層 (#782)、
 // adapters はフォーク差異を吸収する層。ところがこの向きは文書にしか無く、
@@ -52,6 +52,15 @@ const RULES: Record<string, Rule> = {
       allowed: {
         'src/services/entityResolution.ts':
           '凍結 (#1098): accounts store を直接引く。アカウント一覧は引数で受けるべき',
+      },
+    },
+  'deck のカラムは共通基盤 (useColumnSetup) を通り、その内部 (useColumnTheme / useServerImages) を直接 import しない (#1098 §4)':
+    {
+      from: 'src/components/deck',
+      forbid: ['@/composables/useColumnTheme', '@/composables/useServerImages'],
+      allowed: {
+        'src/components/deck/DeckColumn.vue':
+          'カラムの枠そのもの。requireAccount の「見つかりません」画像を引く',
       },
     },
   'stores は components を import しない': {
@@ -120,19 +129,16 @@ const RULES: Record<string, Rule> = {
         'src/components/deck/AddColumnDialog.vue',
         'src/components/deck/DeckAboutMisskeyColumn.vue',
         'src/components/deck/DeckAchievementsColumn.vue',
-        'src/components/deck/DeckAiScriptColumn.vue',
         'src/components/deck/DeckAnnouncementsColumn.vue',
         'src/components/deck/DeckAntennaColumn.vue',
         'src/components/deck/DeckApiConsoleColumn.vue',
         'src/components/deck/DeckApiDocsColumn.vue',
         'src/components/deck/DeckChannelColumn.vue',
-        'src/components/deck/DeckChartsColumn.vue',
         'src/components/deck/DeckChatColumn.vue',
         'src/components/deck/DeckClientSearchColumn.vue',
         'src/components/deck/DeckDriveColumn.vue',
         'src/components/deck/DeckEmojiColumn.vue',
         'src/components/deck/DeckExploreColumn.vue',
-        'src/components/deck/DeckFederationColumn.vue',
         'src/components/deck/DeckFollowRequestsColumn.vue',
         'src/components/deck/DeckGalleryColumn.vue',
         'src/components/deck/DeckLayout.vue',
@@ -147,7 +153,6 @@ const RULES: Record<string, Rule> = {
         'src/components/deck/DeckSearchColumn.vue',
         'src/components/deck/DeckServerInfoColumn.vue',
         'src/components/deck/DeckTimelineColumn.vue',
-        'src/components/deck/widgets/WidgetAiScript.vue',
         'src/components/window/AboutContent.vue',
         'src/components/window/BackupContent.vue',
         'src/components/window/CacheEditorContent.vue',
@@ -171,7 +176,6 @@ const RULES: Record<string, Rule> = {
         'src/components/window/UserActivityNotesChart.vue',
         'src/components/window/UserActivityPvChart.vue',
         'src/components/window/UserProfileContent.vue',
-        'src/components/window/WidgetEditContent.vue',
         'src/components/window/user-profile/UserProfileAchievementsPane.vue',
         'src/components/window/user-profile/UserProfileClipsPane.vue',
         'src/components/window/user-profile/UserProfileGalleryPane.vue',

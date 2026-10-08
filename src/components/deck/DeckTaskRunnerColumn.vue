@@ -6,9 +6,8 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import type { ChatMessage } from '@/composables/useAiChat'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
-import { useServerImages } from '@/composables/useServerImages'
 import { useVault } from '@/composables/useVault'
 import { useVerticalResize } from '@/composables/useVerticalResize'
 import { i18n } from '@/i18n'
@@ -30,8 +29,9 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { columnThemeVars } = useColumnTheme(() => props.column)
-const { serverInfoImageUrl } = useServerImages(() => props.column)
+const { columnThemeVars, serverInfoImageUrl } = useColumnSetup(
+  () => props.column,
+)
 const tasksStore = useTasksStore()
 const runnerStore = useTaskRunnerStore()
 const windowsStore = useWindowsStore()

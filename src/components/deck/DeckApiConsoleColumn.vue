@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, ref } from 'vue'
 import type { JsonValue } from '@/bindings'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { AppError, authErrorMessage } from '@/utils/errors'
@@ -12,62 +12,60 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const isLoggedOut = computed(() => account.value?.hasToken === false)
+const {
+  columnThemeVars,
+  isLoggedOut,
+  isLoading,
+  error,
+  withLoading,
+  scroller,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
 
 const endpoint = ref('')
 const params = ref('{}')
 const response = ref<string | null>(null)
-const error = ref<string | null>(null)
-const loading = ref(false)
+const errorText = computed(() => {
+  const err = error.value
+  if (!err) return null
+  return err.isAuth ? authErrorMessage() : err.message
+})
 
 const runBtnTitle = computed(() => {
-  if (loading.value) return i18n.ts._deckApiConsoleColumn.sending
+  if (isLoading.value) return i18n.ts._deckApiConsoleColumn.sending
   if (!endpoint.value.trim()) return i18n.ts._deckApiConsoleColumn.enterEndpoint
   if (!props.column.accountId)
     return i18n.ts._deckApiConsoleColumn.selectAccount
   return i18n.ts._deckApiConsoleColumn.sendWithShortcut
 })
 
-async function execute() {
-  if (!endpoint.value.trim() || !props.column.accountId) return
-  loading.value = true
-  error.value = null
-  response.value = null
-
-  let parsedParams: Record<string, unknown> = {}
+function parseParams(): Record<string, JsonValue> {
+  const trimmed = params.value.trim()
+  if (!trimmed || trimmed === '{}') return {}
   try {
-    const trimmed = params.value.trim()
-    if (trimmed && trimmed !== '{}') {
-      parsedParams = JSON.parse(trimmed)
-    }
+    return JSON.parse(trimmed)
   } catch {
-    error.value = i18n.ts._deckApiConsoleColumn.invalidParamsJson
-    loading.value = false
-    return
-  }
-
-  try {
-    const result = unwrap(
-      await commands.apiRequest(
-        props.column.accountId,
-        endpoint.value.trim(),
-        parsedParams as Record<string, JsonValue>,
-      ),
+    throw new AppError(
+      'UNKNOWN',
+      i18n.ts._deckApiConsoleColumn.invalidParamsJson,
     )
-    response.value = JSON.stringify(result, null, 2)
-  } catch (e) {
-    const appErr = AppError.from(e)
-    error.value = appErr.isAuth ? authErrorMessage() : appErr.message
-  } finally {
-    loading.value = false
   }
 }
 
-const apiConsoleRef = useTemplateRef<HTMLElement>('apiConsoleRef')
-
-function scrollToTop() {
-  apiConsoleRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
+function execute() {
+  const accountId = props.column.accountId
+  if (!endpoint.value.trim() || !accountId) return
+  response.value = null
+  return withLoading(async () => {
+    const result = unwrap(
+      await commands.apiRequest(
+        accountId,
+        endpoint.value.trim(),
+        parseParams(),
+      ),
+    )
+    response.value = JSON.stringify(result, null, 2)
+  })
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -92,8 +90,8 @@ function onKeydown(e: KeyboardEvent) {
     <template #header-meta>
       <button
         class="_button"
-        :class="[$style.headerRunBtn, { [$style.loading]: loading }]"
-        :disabled="loading || !endpoint.trim() || !column.accountId"
+        :class="[$style.headerRunBtn, { [$style.loading]: isLoading }]"
+        :disabled="isLoading || !endpoint.trim() || !column.accountId"
         :title="runBtnTitle"
         @click.stop="execute"
       >
@@ -101,7 +99,7 @@ function onKeydown(e: KeyboardEvent) {
       </button>
     </template>
 
-    <div ref="apiConsoleRef" :class="$style.apiConsole" @keydown="onKeydown">
+    <div ref="scroller" :class="$style.apiConsole" @keydown="onKeydown">
       <div :class="$style.inputSection">
         <div :class="$style.endpointRow">
           <span :class="$style.methodBadge">POST</span>
@@ -131,7 +129,7 @@ function onKeydown(e: KeyboardEvent) {
           {{ i18n.ts._deckApiConsoleColumn.noAccount }}
         </div>
         <div v-else-if="isLoggedOut" :class="$style.responseError"><i class="ti ti-logout" />{{ i18n.ts._deckApiConsoleColumn.loggedOut }}</div>
-        <div v-else-if="error" :class="$style.responseError">{{ error }}</div>
+        <div v-else-if="errorText" :class="$style.responseError">{{ errorText }}</div>
         <div v-else-if="response !== null" :class="$style.responseBody">
           <pre>{{ response }}</pre>
         </div>

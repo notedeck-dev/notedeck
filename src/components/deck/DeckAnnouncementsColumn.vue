@@ -1,15 +1,12 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
-import { useServerImages } from '@/composables/useServerImages'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { useServersStore } from '@/stores/servers'
-import { AppError } from '@/utils/errors'
 import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
@@ -33,19 +30,21 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverInfoImageUrl, serverNotFoundImageUrl, serverErrorImageUrl } =
-  useServerImages(() => props.column)
-const serversStore = useServersStore()
+const {
+  account,
+  columnThemeVars,
+  serverInfoImageUrl,
+  serverErrorImageUrl,
+  isLoggedOut,
+  isLoading,
+  error,
+  withLoading,
+  scroller,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 
-const isLoggedOut = computed(() => account.value?.hasToken === false)
-
-const serverIconUrl = ref<string | undefined>()
-const isLoading = ref(false)
-const error = ref<AppError | null>(null)
 const announcements = ref<Announcement[]>([])
-const scrollContainer = ref<HTMLElement | null>(null)
-useColumnPullScroller(scrollContainer)
 
 const ICON_MAP: Record<string, string> = {
   info: 'info-circle',
@@ -61,29 +60,14 @@ const ICON_COLOR_MAP: Record<string, string> = {
   success: 'var(--nd-renote, #36d298)',
 }
 
-function scrollToTop() {
-  scrollContainer.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
 async function fetchAnnouncements() {
   const acc = account.value
   if (!acc) return
-
-  isLoading.value = true
-  error.value = null
-
-  try {
-    const info = await serversStore.getServerInfo(acc.host)
-    serverIconUrl.value = info.iconUrl
-
+  await withLoading(async () => {
     announcements.value = unwrap(
       await commands.apiGetAnnouncements(acc.id, 20, true),
     ) as unknown as Announcement[]
-  } catch (e) {
-    error.value = AppError.from(e)
-  } finally {
-    isLoading.value = false
-  }
+  })
 }
 
 async function markAsRead(announcement: Announcement) {
@@ -102,10 +86,6 @@ async function markAsRead(announcement: Announcement) {
 
 onMounted(() => {
   fetchAnnouncements()
-})
-
-onUnmounted(() => {
-  // cleanup if needed
 })
 </script>
 
@@ -144,7 +124,7 @@ onUnmounted(() => {
         :image-url="serverInfoImageUrl"
       />
 
-      <div v-else ref="scrollContainer" :class="$style.announcementsScroller">
+      <div v-else ref="scroller" :class="$style.announcementsScroller">
         <div
           v-for="item in announcements"
           :key="item.id"

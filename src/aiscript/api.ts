@@ -2,8 +2,8 @@ import { utils, values } from '@syuilo/aiscript'
 import type { Value } from '@syuilo/aiscript/interpreter/value.js'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import type { Principal } from '@/permissions/principal'
+import { nyaize } from '@/services/nyaize'
 import { useConfirm } from '@/stores/confirm'
-import { nyaize } from '@/utils/nyaize'
 import {
   getStorageString,
   removeStorage,

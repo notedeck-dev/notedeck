@@ -35,7 +35,6 @@ vi.mock('@/stores/windows', () => ({ useWindowsStore: vi.fn() }))
 vi.mock('@/utils/customTimelines', () => ({
   clearAvailableTlCache: vi.fn(),
   detectAvailableTimelines: vi.fn(),
-  modeIcon: vi.fn(() => 'moon'),
   modeLabel: vi.fn(() => 'モード'),
 }))
 vi.mock('@/utils/mediaProxy', () => ({ proxyThumbUrl: (u: unknown) => u }))

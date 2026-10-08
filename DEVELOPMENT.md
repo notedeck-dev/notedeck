@@ -404,10 +404,11 @@ src/                        # Vue 3 frontend
 │   └── streamHealth.ts     # 生のストリーム接続状態台帳 (#698)
 ├── data/                   # Static data & constants
 ├── router/                 # Vue Router definitions
-├── stores/                 # Pinia stores (accounts, deck, servers, emojis, theme, etc.)
+├── services/               # 純ロジック (正規化 / マイグレーション / マージ規則 / codec / 述語)。store・Vue・Tauri に依存せず、テストは隣に置く (#782 / #1098 §5)
+├── stores/                 # Pinia stores (accounts, deck, servers, emojis, theme, etc.) — 購読 + キャッシュ + UI 状態
 ├── styles/                 # Global CSS (CSS variables)
 ├── theme/                  # Misskey-compatible theme compiler & applier
-├── utils/                  # Shared utilities
+├── utils/                  # Tauri / DOM / localStorage の薄いラッパーと UI 向けヘルパー (i18n を引くもの)。純ロジックは services へ
 └── views/                  # Page components (NoteDetail, UserProfile)
 
 crates/notecore/src/        # notecore (Tauri 非依存のデータ領域、#1106)。AI を知らない
@@ -465,6 +466,14 @@ src-tauri/src/              # Rust backend (Tauri 固有部分 = 手元側)
 ├── query_bridge.rs         # FrontendBridge の Tauri 実装 (Tauri イベントで Pinia store に問い合わせる)
 └── main.rs                 # Entry point
 ```
+
+**層の依存方向** (#1098、`tests/lint/layerImports.test.ts` が検査する):
+
+```
+components → composables → stores → services → adapters → bindings
+```
+
+services は store / composables / components / Vue / Pinia を runtime import しない (純ロジック)。stores は composables を、adapters は stores を import しない。components は IPC (`tauriInvoke` / `bindings`) と adapter の factory を直接叩かず composable を通す。既存の違反は lint の凍結一覧に理由つきで載っていて、直したら消す。`import type` は依存に数えない。
 
 Misskey API クライアント・DB・モデル・ストリーミングコアは `notecli` クレートにある。一方 `src-tauri/` は Tauri 固有の配線だけではなく、Tauri に依存しないドメインも抱えている (OGP 抽出とサイト別プラグイン / Secret Vault / クエリランタイム / 画像キャッシュ / AI SSE クライアント / HTTP API サーバー / カラムクエリの QIR 評価器)。行数では notecli より大きい。
 
@@ -542,7 +551,7 @@ sequenceDiagram
     V->>V: ApiBridge / Notifications / OGP / CLI commands
 
     Note over V: requestIdleCallback (defer)
-    V->>V: KaTeX CSS / Shiki CSS
+    V->>V: KaTeX CSS
 ```
 
 #### Two-stage AppState
@@ -608,7 +617,7 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 2. 各ウィンドウは `windowLayout`（computed）で自分に属するカラムだけをフィルタして表示する
 3. ウィンドウの作成・破棄はプロファイルのデータに影響しない
 
-**同期方式:** 永続化の正本はプロファイルフォルダ配下のファイル（#913。ID とファイル名の対応表つき）。localStorage は全 webview 共有の**ミラー**で、起動時の即時復元と他ウィンドウへの伝播に使い、Tauri イベント（`deck:profile-updated` / `deck:profiles-changed`）で変更を通知する。ミラーへ書く直前に対応表を読み直して合流させ、別ウィンドウのリネーム結果を潰さない。Rust 側に正本を移す案は不採用（[PR #172](https://github.com/notedeck-dev/notedeck/pull/172) で議論）。
+**同期方式:** 永続化の正本はプロファイルフォルダ配下のファイル（#913。ID とファイル名の対応表つき）で、Tauri 実行時はこれが唯一の置き場。起動時は Vue の初回描画前にファイルを読み終える（`main.ts` が `preloadFiles` を待つ）。他ウィンドウへの伝播は、ファイルを書いたウィンドウが `nd:settings-file-written` を流し、受け手が notecore 発の `nd:settings-file-changed` と同じ配線表（`services/settingsFileSync`）で該当の 1 件だけ読み直す。テーマ / ウィジェット / プラグイン / クエリも同じ経路。localStorage は Tauri 外（ブラウザ dev モード）だけの永続化で、Tauri では書かない（#1042 — かつての「ファイルが正、localStorage はミラー」の二重永続は、ミラーだけに残った個体の救済とミラー経由の対応表合流を含めて廃止した）。Rust 側に正本を移す案は不採用（[PR #172](https://github.com/notedeck-dev/notedeck/pull/172) で議論）。
 
 ### Window / Column Model（[#194](https://github.com/notedeck-dev/notedeck/issues/194)）
 
@@ -799,11 +808,21 @@ Krile 型「カラムごとのクエリフィルタ」。ユーザーは AiScrip
 - **UX**: 定義・サイドロード・MisStore 導入はクエリ管理カラム（`queryManager`、ツール系）に一元化。適用はタイムラインカラムのフィルタメニューの「クエリ」トグル（`DeckColumn.noteQueryRefs` に id 参照、複数参照は And 合成）。カラムヘッダのバッジが実行形態（⚡ / 🐢 / ⚠）と per-note エラー件数を示す
 - **編集履歴**: 他の配布物と同じ編集前スナップショットのリング（#1117）。保存とストア更新で積み、エディタの「履歴」から差分表示と復元（`queries.revert` capability、権限は `queries.read` / `queries.write`）
 - **用語**: 「有効 / 無効」はアイテム（クエリ本体）の状態、「適用」はカラムへの紐付け。両方を「有効」と呼ぶと「無効なアイテムが適用中」という状態を説明できない
-- **本体の有効 / 無効（#1043）**: プラグインと同じ位置のキルスイッチ。無効なクエリは参照している全カラムで評価上「無いもの」（fail-open。コンパイルしない・Worker に渡さない・キャッシュ検索の述語にも入れない）で、カラムの適用やスコープ参加には触れない。参照消失の fail-closed とは区別する（消失は意図しない欠落、無効化は意図的な停止。解釈不能なクエリも無効化すれば復帰する）。メタファイルには無効のときだけ印を書く省略書式で、判定は `isQueryActive` の 1 箇所。ストア更新では維持、削除の undo は削除時の状態を復元。ソース欠損の読取専用個体は切り替えを拒否する（保存できず巻き戻るため。可視化と復旧は #1111）。表示: 適用がすべて無効なカラムはセーフモードと同じ「効いていない」バッジ（状態 `disabled`。優先順位は なし → セーフモード → 停止 → 解釈不能 → 🐢 → ⚡）、一部無効なら tooltip に無効名。フィルタメニューは未適用の無効なクエリを候補に出さず（使えない選択肢で場所と認知負荷を食わない）、適用済みの無効なクエリだけ「無効」チップ + 管理カラムへの導線付きで残す（外す導線と、効いていない理由を追えるように）。ライブラリピッカーの有効 / 無効ボタンは適用中（または無効中）の本体にだけ出す — スコープ未参加でも適用済みなら評価され続けるため止める場所が要るが、未適用の本体はプラグインのライブラリと同じく「追加」だけ。有効 / 無効の切替は逐次適用のサスペンドを解除しない（解除は明示の「再開」かソース編集だけ）
+- **本体の有効 / 無効（#1043）**: プラグインと同じ位置のキルスイッチ。無効なクエリは参照している全カラムで評価上「無いもの」（fail-open。コンパイルしない・Worker に渡さない・キャッシュ検索の述語にも入れない）で、カラムの適用やスコープ参加には触れない。参照消失の fail-closed とは区別する（消失は意図しない欠落、無効化は意図的な停止。解釈不能なクエリも無効化すれば復帰する）。メタファイルには `active` を常に書き (#1202 段階 0 で他の配布物と揃えた。旧形式の `disabled` は読めて、起動時に書き戻す)、判定は `isQueryActive` の 1 箇所。ストア更新では維持、削除の undo は削除時の状態を復元。ソース欠損の読取専用個体は切り替えを拒否する（保存できず巻き戻るため。可視化と復旧は #1111）。表示: 適用がすべて無効なカラムはセーフモードと同じ「効いていない」バッジ（状態 `disabled`。優先順位は なし → セーフモード → 停止 → 解釈不能 → 🐢 → ⚡）、一部無効なら tooltip に無効名。フィルタメニューは未適用の無効なクエリを候補に出さず（使えない選択肢で場所と認知負荷を食わない）、適用済みの無効なクエリだけ「無効」チップ + 管理カラムへの導線付きで残す（外す導線と、効いていない理由を追えるように）。ライブラリピッカーの有効 / 無効ボタンは適用中（または無効中）の本体にだけ出す — スコープ未参加でも適用済みなら評価され続けるため止める場所が要るが、未適用の本体はプラグインのライブラリと同じく「追加」だけ。有効 / 無効の切替は逐次適用のサスペンドを解除しない（解除は明示の「再開」かソース編集だけ）
 - 名前付きクエリはウィジェットと同じ sidecar 形式（`queries/<name>.is` + `.meta.json5`、`useColumnQueriesStore`）。参照消失・コンパイル不能は **fail-closed**（構成は捨てず、カラムを保留 + 診断表示）
 - **スコープはプラグインと同型**（#1018）。クエリ管理カラムは全アカウント／per-account の両方で開け、開いた文脈がそのカラムの管理スコープになる。クエリ自体は純粋（アカウント状態を参照しない）だが、どのアカウントのカラムで選べるかを持たせてアカウントごとに使い分けられる。`global` / `installedFor`（`accountScopeKey`）のどちらも持たないものはライブラリのみで、ピッカーから各スコープへ追加する。適用側（フィルタメニューのクエリトグル）もスコープで絞るが、既に適用済みの参照は外れていても出す — 黙って消えると効いている理由が追えないため。アカウントに紐づかない面（全アカウント TL / クライアント検索）は全体スコープと、ログイン中のどれかのアカウントのスコープに入っているクエリを出す（`isQueryOfferedForAny`。全体スコープだけだとアカウントのカラムで作ったクエリが 1 つも出ずトグルの節ごと消える、2026-10-04）
 - **セーフモード（#794 W1）中は停止する** — 起動時に自動実行されるユーザーコードなのでプラグインと同じ扱い。`useNoteColumn` の最上流 1 点でゲートし、コンパイル・Worker 起動・キャッシュ検索のすべてに入らない。停止中はフィルタなし表示（**fail-open**）で、理由はクエリ管理カラムに出す。仕様当初の fail-closed 案からの変更（#966）。クエリを設定しているカラムでは、停止中もヘッダのクエリバッジを彩度を落として出し続ける — バッジごと消えると「もともとクエリを設定していないカラム」と区別がつかず、隠していたものが予告なく表示に戻ったことに気づけないため（#971）
 - MisStore 配布は**導入まで実装済み**（配布はソースのみ・ローカルで必ず再コンパイル = 不変条件 (e)、自動適用なし）。更新導線とソース差分の明示承認は Phase 3.5 の未実装分
+
+### 配布物のファイル形式と codec（[#1202](https://github.com/notedeck-dev/notedeck/issues/1202)）
+
+plugin / widget / query / skill / theme の 5 種は on-disk の形が違う（sidecar の `.is` + `.meta.json5` / skill の frontmatter つき `.md` / theme の `.ndtheme.json5`）。その差は **`src/services/distributableCodecs/<kind>Codec.ts` の codec が吸収し、メモリ上は `src/services/distributable.ts` の envelope（`DistributableMeta`: id / name / description / iconUrl / createdAt / updatedAt / store 3 点 / scope / content / extra）** に揃える（段階 0。store の置き換えは段階 1）。
+
+- **codec は固定 projection**: `toFile(fromFile(x))` が store の書くファイルとバイト一致する。TS が正本で、Rust（notecore の `sidecar/{plugins,widgets,queries}.rs` の `normalize_meta` と `themes.rs`、notemaid の `skills.rs`）は同じ golden `src/services/distributableCodecs/golden/vectors.json` を読んで一致を検査する（期待値は `pnpm gen:golden-distributables` で採り直す。tools.json と同じ運用）。store の serialize と codec の一致は `storeParity.test.ts`
+- **段階 0 で揃えた on-disk**: plugin と theme に createdAt / updatedAt を足した（theme は Misskey 互換の上位を保つため `$notedeck` の下）。query の `disabled`（反転・true のときだけ）は `active: boolean`（常に書く）になった。widget と skill は変えていない（widget の `accountKey` → 紐付け配列は段階 1 の widget の回）
+- **移行は読込時の書き戻し**: 旧形式のファイルは両方の書き手が読め（コレクションの `isOutdated` → `loadAll().outdated`）、TS はメインウィンドウが起動時に一度だけ書き戻す。Rust は書くときに埋める（`normalize_meta` / `install_theme`）
+- **「有効」は kind が宣言で opt-in する**（`codec.enabled`）: plugin / query は `active`、skill は `active` + mode=always の実効値。widget（autoRun は有効フラグではない）と theme（選択は settings 側）は持たない
+- **スコープは「共有 / なし」の 2 戦略**（決定 (b)）: plugin / query は global + installedFor、theme は installedFor だけ、skill は無し。widget は段階 0 では on-disk の `accountKey` を codec が過渡的に `shared` へ写す（書くときは `extra.accountKey`）
 
 ### Vue Vapor モード（[#52](https://github.com/notedeck-dev/notedeck/issues/52)）— 移行準備完了
 
@@ -995,14 +1014,22 @@ const { activate, deactivate } = useMenuKeyboard({
 **コード面の明暗 (#1053):**
 - エディタ / 差分表示 / コードブロックはトークン色と面がセットなので、**アプリのテーマにそのまま追従**する (アプリが OS 追従ならコード面も OS に追従)。設定項目は持たない
 - 実効値は root の `data-nd-code-scheme` に出し、CSS 変数 (`--nd-code*`) がそれを見る。CodeMirror のテーマも Shiki のトークン色も同じ実効値から決まる (`useCodeScheme`)
-- Shiki はテーマごとに色クラスが変わるので、明暗のパレット CSS を両方読み込み、切替時は再描画する
 - 明暗を別扱いしたい場合はカスタム CSS で変数を上書きする
+
+**コードの色付けは 2 系統、色の決め方は 1 系統 (#1050):**
+- 編集側 (CodeMirror) は `--nd-codeKeyword` 等、読み取り側 (Shiki — MFM コードブロック / 確認ダイアログ / AI チャット / 診断ログ) は役割ごとの `--nd-code-token-<役割>` を指す。読み取り側の役割一覧は `src/utils/highlightTheme.ts` (`ND_CODE_TOKEN_ROLES`) が正本で、スコープの割り当ては VS Code Dark+ を写し、役割は「Dark+ と Light+ で同じ色の組になるスコープ群」で切ってある
+- 変数の定義は `src/styles/global.css` の 1 箇所 (dark は `:root`、light は `:root[data-nd-code-scheme='light']`)。`tests/lint/codeTokenVariables.test.ts` が「全役割が定義されている / 他の場所で定義していない」を検査する
+- Shiki のテーマは 1 つ (`nd-code`) で色の代わりに `var(--nd-code-token-*)` を返し、出力の span は inline style でそれを乗せる。明暗の切替は CSS 側だけで完結し、再トークナイズも別 CSS の読み込みもしない。トークンの色をカスタム CSS で変えるには変数を上書きする (色ごとのクラスを探す必要はない)
+- エディタと同じ役割 (keyword / string / number / comment / variable / function / type) は既定でエディタ側の変数を指すので、`--nd-codeKeyword` を上書きすれば編集画面と読み取り表示の両方に効く
+- **編集側の基盤への一本化 (B 案) は不採用**。理由は issue #1050: 本家追従の原則 (MFM のコードブロックは本家と同じ Shiki) と、既製の文法資産による言語カバレッジを捨てる代償に見合う実害が無い。再検討するなら「依存とバンドルを減らす」目的で独立に評価する
+- **AiScript の文法定義は 2 本のまま、語彙だけ 1 本** — キーワード / リテラル / 注入定数 / 組込の名前空間とメンバーは `src/aiscript/grammarTokens.ts` が正本。CodeMirror の文法と補完は直接 import、tmLanguage (`src/assets/aiscript.tmLanguage.json`) は `pnpm gen:aiscript-grammar` で生成し、`tests/lint/aiscriptGrammar.test.ts` が一致を検査する。文法の骨格 (文字列・コメント・関数呼び出しの begin/end) は形式が違うので生成せず、スクリプトに静的に持つ
 
 **適用前 diff (#981):**
 - 自己拡張系の write 確認 (`ConfirmOptions.diff`) は編集後の断片ではなく、編集前と適用後の**全文**を並べて見せる。部分編集 (追記・セクション置換・props patch) も適用後全文を確認時点で計算する (`src/services/selfEditApply.ts`)
 - 承認後は再計算せず、確認に使った全文をそのまま書き込む。確認と書込の間に元ファイルが変わっていたら書かずに中止する (`src/capabilities/stagedEdit.ts` — 「見せたものと書くものの一致」が承認 UI の意味そのもの)
 
 **AiScript からの拡張:**
+- AiScript の実行環境 (Mk:* / Nd:* / Ui:* + interpreter) は `src/aiscript/sandbox.ts` の `createAiScriptSandbox` 1 本で組む (#1099)。プラグイン / ウィジェット / Play / Page / スクラッチパッドはすべてここを通り、principal は必須引数で 1 回だけ渡す — Mk:api の endpoint gate、Nd:call / Nd:http の dispatcher 判定、登録 ID の名前空間、呼び出し元の AND 判定に使う `callers` が同じ値を見る。実行面を足すときも `createAiScriptEnv` / `createNoteDeckEnv` を直接組まない
 - `Nd:register_command(id, label, fn, options)` の `options` に `signature` / `permissions` / `aiTool` / `requiresConfirmation` を渡すと **capability registry にもミラー登録**され、即 5 経路に公開される
 - `Nd:capabilities()` で registry にある capability の宣言情報を列挙 (プラグインの自己発見)
 - `Nd:on(name, handler)` で `column:added` / `column:removed` / `streaming:status` / `note:new` / `notification:new` を購読。`note:new` / `notification:new` は queryDelta を `core/queryRegistry`（queryId → flavor/accountId）で振り分けて fan-out する
@@ -1165,7 +1192,7 @@ NoteDeck はトークンを持たないユーザーでも公開タイムライ�
 |---------|------|
 | `src/stores/accounts.ts` | `GUEST_USER_ID`, `isGuestAccount()` |
 | `src/composables/useAccountMode.ts` | `isGuest`, `canInteract` computed |
-| `src/utils/loginPrompt.ts` | `showLoginPrompt()` — ログイン促進トースト |
+| `src/composables/useLoginPrompt.ts` | `showLoginPrompt()` — ログイン促進トースト |
 
 ゲスト / ログアウト時の操作ボタン（リアクション・リプライ・リノート）は disabled になり、クリックすると `showLoginPrompt()` でログイン促進トーストを表示します。
 
@@ -1350,8 +1377,8 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 | `src/composables/useAiConversation.ts` | 指定 sessionId のメッセージ配列に対する reactive な参照を返す薄いラッパー。本文の永続化と debounce は `useAiSessionsStore` 側で集中管理 |
 | `src/stores/aiSessions.ts` | AI セッション (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`) のデバイス側の写し。書き手は notecore (`crates/notemaid/src/ai_sessions.rs`、#1133) で、ストアは「作成 / メッセージ追加 / メッセージ削除 / 改名 / trigger skill の累積 / 削除」の構造化された操作を送って写しを揃える (楽観的更新)。進行中のターンの表示は `setLocalMessages` (notecore には書かない)。汎用の設定ファイル操作は `sessions` を受け付けない |
 | `crates/notemaid/src/ai_turn/compose.rs` | system prompt の組み立て (#1162)。SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → AGENTS → 他の `mode: 'always'` / active な `mode: 'manual'` / セッションに累積した trigger skill → デバイス文脈。デバイスは `device_context` (`<notedeck-context>`) と trigger skill の id だけを送り、trigger マッチは `triggerMatchingSkillIds(text)` (`src/stores/skills.ts`) が user 入力を部分一致検索して算出 |
-| `src/utils/aiSessionId.ts` | Zettelkasten ID (`YYYYMMDDhhmmss`) 生成。同一秒衝突は `a`, `b`, `c`, ... サフィックスで回避 |
-| `src/utils/aiSessionTitle.ts` | `timestampTitle(now)` 初期プレースホルダー / `generateSessionTitle()` 決定論的フォールバック |
+| `src/services/aiSessionId.ts` | Zettelkasten ID (`YYYYMMDDhhmmss`) 生成。同一秒衝突は `a`, `b`, `c`, ... サフィックスで回避 |
+| `src/services/sessionTitle.ts` | `timestampTitle(now, suffix)` 初期プレースホルダー / `generateSessionTitle()` 決定論的フォールバック。i18n の既定接尾辞を足す包みが `src/utils/aiSessionTitle.ts` |
 
 #### セッション管理 UI (DeckAiColumn)
 

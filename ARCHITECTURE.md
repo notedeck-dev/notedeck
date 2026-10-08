@@ -1445,7 +1445,7 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 ### 課題 4: Store がアプリケーションサービス層を兼務
 
-`stores/deckProfile.ts`（`mutateProfile` → `flushPersist`）は、1 つの関数フロー内で reactive state 変更 → localStorage 同期 → ファイル永続化 → クロスウィンドウ同期イベント発行を実行している。
+`stores/deckProfile.ts`（`mutateProfile` → `flushPersist`）は、1 つの関数フロー内で reactive state 変更 → ファイル永続化（他ウィンドウへの通知は書込側 `utils/settingsFs` が流す）を実行している。
 
 `composables/useNoteColumn.ts` は fetch / cache / streaming / offline fallback / sound / navigation を 1 composable に統合し、返り値のプロパティも肥大している（現状は戻り値の型定義を参照）。
 

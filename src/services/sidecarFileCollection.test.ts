@@ -236,20 +236,7 @@ describe('loadAll', () => {
   })
 
   describe('メタあり・ソースなし', () => {
-    it('ミラーに同 ID の本文があればソースを再作成して通常読込する', async () => {
-      const fs = makeFakeFs({
-        'orphan.meta.json5': '{ installId: "o1", name: "orphan" }',
-      })
-      const col = makeCollection(fs, {
-        mirrorSrcById: (id) => (id === 'o1' ? 'mirror-body' : undefined),
-      })
-      const { items } = await col.loadAll()
-      expect(items[0]?.src).toBe('mirror-body')
-      expect(items[0]?.readOnly).toBeUndefined()
-      expect(fs.files.get('orphan.is')).toBe('mirror-body')
-    })
-
-    it('ミラー本文が無ければ readOnly フラグ付きで返す', async () => {
+    it('readOnly フラグ付きで返し、空ソースは書かない', async () => {
       const fs = makeFakeFs({
         'orphan.meta.json5': '{ installId: "o1", name: "orphan" }',
       })
@@ -258,19 +245,8 @@ describe('loadAll', () => {
       expect(items).toHaveLength(1)
       expect(items[0]?.readOnly).toBe(true)
       expect(items[0]?.src).toBe('')
-      // 空ソースは書かない
       expect(fs.files.has('orphan.is')).toBe(false)
       expect(warn).toHaveBeenCalled()
-    })
-
-    it('ミラー本文が空文字列なら再作成せず readOnly にする', async () => {
-      const fs = makeFakeFs({
-        'orphan.meta.json5': '{ installId: "o1", name: "orphan" }',
-      })
-      const col = makeCollection(fs, { mirrorSrcById: () => '' })
-      const { items } = await col.loadAll()
-      expect(items[0]?.readOnly).toBe(true)
-      expect(fs.files.has('orphan.is')).toBe(false)
     })
   })
 
@@ -756,5 +732,33 @@ describe('sweepHistory', () => {
     const col = makeCollection(fs)
     await col.sweepHistory()
     expect(fs.files.has('alpha.history.json5')).toBe(true)
+  })
+})
+
+describe('isOutdated (on-disk の揃え, #1202)', () => {
+  it('古い形の個体だけ outdated に入り、readOnly は入らない', async () => {
+    const fs = makeFakeFs({
+      'old.meta.json5': '{ installId: "old", name: "Old" }',
+      'old.is': '1',
+      'new.meta.json5': '{ installId: "new", name: "New", active: true }',
+      'new.is': '2',
+      'orphan.meta.json5': '{ installId: "orphan", name: "O" }',
+    })
+    const col = makeCollection(fs, {
+      isOutdated: (meta) => typeof meta.active !== 'boolean',
+    })
+    const { items, outdated } = await col.loadAll()
+    expect(items.map((i) => i.installId)).toEqual(['new', 'old', 'orphan'])
+    expect(outdated.map((i) => i.installId)).toEqual(['old'])
+    expect(outdated[0]).toBe(items[1])
+  })
+
+  it('hook が無ければ空', async () => {
+    const fs = makeFakeFs({
+      'a.meta.json5': '{ installId: "a", name: "A" }',
+      'a.is': '',
+    })
+    const { outdated } = await makeCollection(fs).loadAll()
+    expect(outdated).toEqual([])
   })
 })

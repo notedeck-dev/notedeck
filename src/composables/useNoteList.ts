@@ -10,11 +10,11 @@ import {
   truncateByGroups,
 } from '@/services/noteGroup'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
+import { insertIntoSorted } from '@/services/sortNotes'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 import { useSuspensionsStore } from '@/stores/suspensions'
-import { insertIntoSorted } from '@/utils/sortNotes'
 import { commands } from '@/utils/tauriInvoke'
 import { useNoteGroupContext } from './useNoteGroups'
 import { useNoteVisibility, type VisibilityOpts } from './useNoteVisibility'

@@ -1,8 +1,8 @@
 import type { NormalizedNote } from '@/adapters/types'
+import { isSafeUrl } from '@/services/safeUrl'
 import { usePerformanceStore } from '@/stores/performance'
 import { useSystemStateStore } from '@/stores/systemState'
 import { proxyUrl } from '@/utils/mediaProxy'
-import { isSafeUrl } from '@/utils/url'
 
 /**
  * Prefetch image URLs from notes that are about to enter the viewport.

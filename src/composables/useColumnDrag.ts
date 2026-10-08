@@ -1,6 +1,6 @@
 import { nextTick, ref } from 'vue'
+import { isInsertNoop, toGlobalInsertIndex } from '@/services/deckLayout'
 import type { useDeckStore } from '@/stores/deck'
-import { isInsertNoop, toGlobalInsertIndex } from '@/utils/deckLayout'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
 import { emitTauri } from '@/utils/tauriEvents'
 

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
-import { useColumnTheme } from '@/composables/useColumnTheme'
-import { useServerImages } from '@/composables/useServerImages'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import {
@@ -38,8 +37,7 @@ const themeStore = useThemeStore()
 const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
 const accountsStore = useAccountsStore()
-const { serverIconUrl } = useServerImages(() => props.column)
-const { columnThemeVars } = useColumnTheme(() => props.column)
+const { columnThemeVars } = useColumnSetup(() => props.column)
 
 misStore.fetchThemes()
 

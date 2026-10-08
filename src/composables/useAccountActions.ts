@@ -1,5 +1,6 @@
 import { useVault } from '@/composables/useVault'
 import { i18n } from '@/i18n'
+import { webUiUrl } from '@/services/safeUrl'
 import {
   type Account,
   accountScopeKey,
@@ -16,7 +17,7 @@ import { useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { purgeNotificationCacheForAccount } from '@/utils/notificationCache'
-import { openSafeUrl, webUiUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 
 export function useAccountActions() {
   const accountsStore = useAccountsStore()

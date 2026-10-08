@@ -4,12 +4,13 @@ import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { useNavigation } from '@/composables/useNavigation'
 import { i18n } from '@/i18n'
+import { nyaizeTokens } from '@/services/nyaize'
+import { isMemoUrl, isSafeUrl } from '@/services/safeUrl'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { type MfmToken, parseMfm } from '@/utils/mfm'
-import { nyaizeTokens } from '@/utils/nyaize'
-import { isMemoUrl, isSafeUrl, openSafeUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 import MkEmoji from './MkEmoji.vue'
 
 const props = defineProps<{
@@ -528,7 +529,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   max-width: 100%;
   overflow: hidden;
 
-  // 面はハイライトの有無とテーマに関係なく揃える (トークン色がダーク固定)
+  // 面はハイライトの有無に関係なく揃える (明暗は data-nd-code-scheme の変数側 #1053)
   :deep(pre) {
     font-family: var(--nd-font-mono);
     font-size: 0.85em;

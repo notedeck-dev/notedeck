@@ -1,8 +1,8 @@
 import { computed } from 'vue'
 import { i18n } from '@/i18n'
+import { normalizeEmojiMuteKey } from '@/services/emojiMute'
 import { useConfirm } from '@/stores/confirm'
 import { useSettingsStore } from '@/stores/settings'
-import { normalizeEmojiMuteKey } from '@/utils/emojiMute'
 
 /**
  * 絵文字ミュート (#612)。settings.json の `mute.emojis` が単一 source of truth。

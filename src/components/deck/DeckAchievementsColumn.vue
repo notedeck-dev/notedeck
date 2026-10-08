@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef } from 'vue'
+import { computed, ref } from 'vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAchievementsGrid from '@/components/common/MkAchievementsGrid.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
-import { useServerImages } from '@/composables/useServerImages'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { i18n } from '@/i18n'
+import { ACHIEVEMENT_TOTAL, type Achievement } from '@/services/achievements'
 import {
   TUTORIAL_ACHIEVEMENT_BADGES,
   TUTORIAL_ACHIEVEMENT_LABELS,
@@ -18,8 +18,6 @@ import {
 import { isExposed } from '@/settings/exposure'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { ACHIEVEMENT_TOTAL, type Achievement } from '@/utils/achievements'
-import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
@@ -30,14 +28,21 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverInfoImageUrl, serverNotFoundImageUrl, serverErrorImageUrl } =
-  useServerImages(() => props.column)
-const isLoggedOut = computed(() => account.value?.hasToken === false)
+const {
+  account,
+  columnThemeVars,
+  serverInfoImageUrl,
+  serverErrorImageUrl,
+  isLoggedOut,
+  isLoading,
+  error,
+  withLoading,
+  scroller,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 
 const achievements = ref<Achievement[]>([])
-const loading = ref(false)
-const error = ref<AppError | null>(null)
 
 /**
  * サーバー実績 (Misskey) と NoteDeck 独自実績 (#1029) の切替。
@@ -94,35 +99,18 @@ async function refresh() {
 }
 
 async function fetchAchievements() {
-  if (!props.column.accountId) return
+  const accountId = props.column.accountId
   const acc = account.value
-  if (!acc) return
-  loading.value = true
-  error.value = null
-
-  try {
-    const result = unwrap(
-      await commands.apiGetUserAchievements(props.column.accountId, acc.userId),
+  if (!accountId || !acc) return
+  await withLoading(async () => {
+    achievements.value = unwrap(
+      await commands.apiGetUserAchievements(accountId, acc.userId),
     ) as unknown as Achievement[]
-    achievements.value = result
-  } catch (e) {
-    error.value = AppError.from(e)
-  } finally {
-    loading.value = false
-  }
+  })
 }
 
 fetchAchievements()
 void tutorial.loadProgress()
-
-const achievementsScrollRef = useTemplateRef<HTMLElement>(
-  'achievementsScrollRef',
-)
-useColumnPullScroller(achievementsScrollRef)
-
-function scrollToTop() {
-  achievementsScrollRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
 </script>
 
 <template>
@@ -139,13 +127,13 @@ function scrollToTop() {
       <ColumnTabs
         :tabs="SOURCE_TABS"
         :model-value="source"
-        :swipe-target="achievementsScrollRef"
+        :swipe-target="scroller"
         compact
         @update:model-value="source = $event as 'server' | 'notedeck'"
       />
     </template>
 
-    <div ref="achievementsScrollRef" :class="$style.achievementsScroll">
+    <div ref="scroller" :class="$style.achievementsScroll">
       <MkAchievementsGrid
         v-if="isOwn"
         :achievements="ownAchievements"
@@ -156,7 +144,7 @@ function scrollToTop() {
         :pending-hint="i18n.ts._deckAchievementsColumn.pendingHint"
         @unlock="setDeveloperMode(true)"
       />
-      <div v-else-if="loading && achievements.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
+      <div v-else-if="isLoading && achievements.length === 0 && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
       <ColumnEmptyState
         v-else-if="error && !isLoggedOut"
         :error="error"
@@ -167,7 +155,7 @@ function scrollToTop() {
         cta-icon="ti-refresh"
         @cta="fetchAchievements"
       />
-      <ColumnEmptyState v-else-if="achievements.length === 0 && !loading" :message="i18n.ts._deckAchievementsColumn.empty" :image-url="serverInfoImageUrl" />
+      <ColumnEmptyState v-else-if="achievements.length === 0 && !isLoading" :message="i18n.ts._deckAchievementsColumn.empty" :image-url="serverInfoImageUrl" />
       <MkAchievementsGrid v-else :achievements="achievements" />
     </div>
   </DeckColumn>

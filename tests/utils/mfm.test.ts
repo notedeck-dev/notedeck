@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { type MfmToken, parseTokens as parseMfm } from '@/utils/mfmParser'
+import { type MfmToken, parseTokens as parseMfm } from '@/services/mfmParser'
 
 describe('parseMfm', () => {
   it('returns empty array for empty string', () => {

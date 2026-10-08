@@ -29,11 +29,11 @@ NoteDeck に入っている最適化と、検討したうえで採用しない�
 | Query Subscription state machine | `Live` ↔ `Warm` ↔ `Suspended` を Rust `QueryRuntime` が自動遷移。ColumnMountRegistry の visibility に連動 | `src/composables/useColumnMount.ts`, `src-tauri/src/query_runtime.rs` |
 | queryDelta の debounce | stream batch を Rust 側で時間窓にまとめて 1 回だけ emit | `src-tauri/src/query_runtime.rs` |
 | フォント最適化 | Tabler Icons の動的サブセット (woff2) | Vite plugin |
-| 楽観的リアクション | 即座に UI 更新 + API 失敗時ロールバック | `src/utils/toggleReaction.ts` |
+| 楽観的リアクション | 即座に UI 更新 + API 失敗時ロールバック | `src/services/reactionToggle.ts` (連打抑止は `src/utils/toggleReaction.ts`) |
 | リジューム並行化 | `onResume()` でキャッシュと API を `Promise.all()` | `src/composables/useNoteColumn.ts` |
 | 初回 connect 並行化 | キャッシュ即表示 + API はバックグラウンド fetch | 同上 |
 | MFM Worker プリフェッチ | Web Worker でバッチパース → メインスレッドのキャッシュへ注入 | `src/composables/useMfmPrefetch.ts` |
-| ノート重複排除 | `mergeSortedNotes` の ID dedup | `src/utils/sortNotes.ts` |
+| ノート重複排除 | `mergeSortedNotes` の ID dedup | `src/services/sortNotes.ts` |
 | Emoji grid 仮想化 | 行ベースの仮想スクロール | `src/composables/useGridVirtualizer.ts` |
 | キャッシュ eviction 制御 | preset (省メモリ / バランス / 高パフォーマンス) + 個別調整 | `src/components/window/CacheEditorContent.vue` |
 | Chat メッセージキャッシュ | ローカル DB cache + ログアウト後閲覧 + 起動時 hydrate + thread prefetch | `src/components/deck/DeckChatColumn.vue` + Rust `chat_messages_cache` |

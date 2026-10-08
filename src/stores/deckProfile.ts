@@ -6,8 +6,8 @@ import {
   createProfileFiles,
   drainProfileLoadByproducts,
 } from '@/services/deckProfileFiles'
-import { selectMemoryOnlyProfiles } from '@/services/deckProfileMerge'
 import { migrateSearchColumns } from '@/services/searchFilter'
+import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import {
   casefold,
   resolveAvailable,
@@ -24,7 +24,6 @@ import {
   setStorageJson,
   setStorageString,
 } from '@/utils/storage'
-import { emitTauri, listenTauri } from '@/utils/tauriEvents'
 import { notifyWarningToast } from '@/utils/toastNotify'
 
 const profileFiles = createProfileFiles(notifyWarningToast)
@@ -63,12 +62,6 @@ function pushExtractedWidgets(extracted: WidgetMeta[], sidebarSeed: string[]) {
 
 export const useDeckProfileStore = defineStore('deckProfile', () => {
   const activeProfileId = ref<string | null>(null)
-  /**
-   * ミラーが空だったので初回起動とみなして作った仮プロファイルの id。
-   * ファイル読込で既存プロファイルが見つかれば初回起動ではなかったので捨てる
-   * (既定デッキ (#1011) 入りの複製をファイルに書き出さない)
-   */
-  let firstRunPlaceholderId: string | null = null
   /** Per-window profile ID (set via ?profile= query). Isolates this window from deck:sync. */
   const windowProfileId = ref<string | null>(null)
   /** Bumped on every persist to make profile-derived computeds reactive */
@@ -157,36 +150,23 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   // --- Persistence (debounced) ---
 
   /**
-   * 保存・削除の直前にミラーの対応表 (fileBase) を読み直す (#913)。
-   * 自分のミラー書込が別ウィンドウのリネーム結果を潰す前に、必ず先に
-   * 取り込む (stale なファイル名での書込・削除の空振り防止)。
+   * ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
+   * localStorage には書かない (#1042。ウィンドウ間の追随は変更通知で行う)
    */
-  function adoptMirrorFileBases(profiles: readonly DeckProfile[]) {
-    const mirror = getStorageJson<DeckProfile[]>(STORAGE_KEYS.deckProfiles, [])
-    const byId = new Map(mirror.map((p) => [p.id, p.fileBase]))
-    for (const p of profiles) {
-      const fileBase = byId.get(p.id)
-      if (fileBase) p.fileBase = fileBase
-    }
-  }
-
-  /** ミラーへ書く直前に対応表を読み直して合流させてから書く。 */
-  function writeProfilesMirror() {
-    if (settingsFs.isTauri) adoptMirrorFileBases(profilesData.value)
+  function saveProfilesMirror() {
+    if (settingsFs.isTauri) return
     setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
   }
 
-  /** プロファイル 1 件をファイルへ反映する (ready 待ち + 対応表のミラー反映)。 */
+  /** プロファイル 1 件をファイルへ反映する (ready 待ち)。 */
   function persistProfileToFile(profileId: string) {
     if (!settingsFs.isTauri) return
     void ready
       .then(async () => {
-        // 直近の状態を参照する (初期化中のマージでオブジェクトが入れ替わる)
+        // 直近の状態を参照する (別ウィンドウの変更通知でオブジェクトが入れ替わる)
         const live = profilesData.value.find((p) => p.id === profileId)
         if (!live) return // 既に削除された
-        adoptMirrorFileBases([live])
         await profileFiles.persistItem(live, profilesData.value)
-        setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
         profileVersion.value++
       })
       .catch((e) => console.warn('[deckProfile] failed to persist profile:', e))
@@ -200,7 +180,6 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
         for (const p of profilesData.value) {
           await profileFiles.persistItem(p, profilesData.value)
         }
-        setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
         profileVersion.value++
       })
       .catch((e) =>
@@ -219,19 +198,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   function persistNow() {
     try {
-      // Sync: localStorage + bump version
-      writeProfilesMirror()
+      saveProfilesMirror()
       const profile = currentProfile.value
-      // Async: write changed profile to file
+      // Async: write changed profile to file (他ウィンドウへの通知は書込側が流す)
       if (profile) persistProfileToFile(profile.id)
-      // Notify other windows
-      if (windowProfileId.value) {
-        emitTauri('deck:profile-updated', {
-          profileId: windowProfileId.value,
-        }).catch(() => {
-          // Not running in Tauri (browser dev mode)
-        })
-      }
     } catch (e) {
       console.warn('[deckProfile] failed to persist:', e)
     }
@@ -239,40 +209,41 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   // --- Cross-window sync ---
 
-  function reloadFromStorage() {
-    profilesData.value = getStorageJson<DeckProfile[]>(
-      STORAGE_KEYS.deckProfiles,
-      [],
-    )
+  // 別の書き手 (他のウィンドウ / notecore の復元, #1042) がプロファイルのファイルを
+  // 書いた → その 1 件だけ写しを揃える。rename は「新名の write → 旧名の delete」で
+  // 届くので、write で個体を新名へ移した後の delete は何にも当たらない。
+  // 履歴ファイルは写しを持たないので無視する
+  registerSettingsFileHandler('profiles', async (change) => {
+    if (!change.name.endsWith(settingsFs.PROFILE_EXT)) return
+    await ready
+    const fileBase = change.name.slice(0, -settingsFs.PROFILE_EXT.length)
+    if (change.op === 'delete') {
+      const removed = profilesData.value.find((p) => p.fileBase === fileBase)
+      if (!removed) return
+      profilesData.value = profilesData.value.filter((p) => p !== removed)
+    } else {
+      const next = await profileFiles.loadOne(change.name)
+      // widget 抽出などの副産物は書いた側が処理済み。ここでは捨てる
+      drainProfileLoadByproducts()
+      if (!next) return
+      const prev = profilesData.value.find(
+        (p) => p.id === next.id || p.fileBase === fileBase,
+      )
+      profilesData.value = prev
+        ? profilesData.value.map((p) => (p === prev ? next : p))
+        : [...profilesData.value, next]
+    }
     profileVersion.value++
+    // アクティブは localStorage 経由で全ウィンドウ共有なので読み直す
+    loadActiveProfileId()
+    if (
+      windowProfileId.value &&
+      !profilesData.value.some((p) => p.id === windowProfileId.value)
+    ) {
+      windowProfileId.value = activeProfileId.value
+    }
     refreshProfileName()
-  }
-
-  const unlistenFns: (() => void)[] = []
-
-  async function startSync() {
-    stopSync()
-
-    // Profile content changed (columns/layout)
-    unlistenFns.push(
-      await listenTauri('deck:profile-updated', (payload) => {
-        if (payload.profileId !== windowProfileId.value) return
-        reloadFromStorage()
-      }),
-    )
-
-    // Profile list changed (add/delete/rename)
-    unlistenFns.push(
-      await listenTauri('deck:profiles-changed', () => {
-        reloadFromStorage()
-      }),
-    )
-  }
-
-  function stopSync() {
-    for (const fn of unlistenFns) fn()
-    unlistenFns.length = 0
-  }
+  })
 
   // --- Internal helpers ---
 
@@ -281,11 +252,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     currentProfileName.value = currentProfile.value?.name ?? null
   }
 
+  /** ブラウザ dev モード (Tauri 外) の読込。Tauri ではファイルから読む (preloadFiles)。 */
   function loadProfilesFromStorage(): DeckProfile[] {
     const raw = getStorageJson<DeckProfile[]>(STORAGE_KEYS.deckProfiles, [])
-    // ミラーに同じ ID が並んでいたら先勝ちで 1 件にする (ファイル読込と同じ規則)。
-    // 同じ ID のプロファイルがメモリに 2 つあると、保存のたびに別名ファイルが
-    // 増える (どちらを書くかが id 検索で揺れ、fileBase が噛み合わない)
+    // 同じ ID が並んでいたら先勝ちで 1 件にする (ファイル読込と同じ規則)
     const seen = new Set<string>()
     return raw
       .filter((p) => {
@@ -308,16 +278,12 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       })
   }
 
-  /** Persist profiles: write profilesData to localStorage + files + notify other windows. */
+  /** Persist profiles: write profilesData to files (他ウィンドウへの通知は書込側が流す)。 */
   function saveProfiles(profiles: DeckProfile[]) {
     profilesData.value = profiles
-    writeProfilesMirror()
+    saveProfilesMirror()
     profileVersion.value++
     persistAllProfilesToFiles()
-    // Notify all windows that the profile list changed
-    emitTauri('deck:profiles-changed').catch(() => {
-      // Not running in Tauri (browser dev mode)
-    })
   }
 
   function saveActiveProfileId(id: string | null) {
@@ -361,7 +327,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     if (!profile) return
     profile.columns = deepClone(cols)
     profile.layout = deepClone(lay)
-    writeProfilesMirror()
+    saveProfilesMirror()
     profileVersion.value++
     persistProfileToFile(profileId)
   }
@@ -373,8 +339,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     const newProfile = profiles.find((p) => p.id === newProfileId)
     if (!newProfile) return null
 
-    // Single localStorage write
-    writeProfilesMirror()
+    saveProfilesMirror()
     profileVersion.value++
 
     const oldProfileId = windowProfileId.value
@@ -452,12 +417,9 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   function deleteProfile(profileId: string): (() => void) | undefined {
     const removedIndex = profilesData.value.findIndex((p) => p.id === profileId)
     const removed = profilesData.value[removedIndex]
-    // 削除対象の対応表 (fileBase) は、ミラーを絞り込みで上書きする前に読み直す
-    // (別ウィンドウのリネーム後の削除が stale 名で空振りしないように #913)
-    if (removed && settingsFs.isTauri) adoptMirrorFileBases([removed])
     const profiles = profilesData.value.filter((p) => p.id !== profileId)
     profilesData.value = profiles
-    writeProfilesMirror()
+    saveProfilesMirror()
     profileVersion.value++
 
     if (activeProfileId.value === profileId) {
@@ -475,7 +437,6 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       if (profilesData.value.some((p) => p.id === profileId)) return
       const restored = [...profilesData.value]
       restored.splice(Math.min(removedIndex, restored.length), 0, removed)
-      // saveProfiles が localStorage + ファイル書き戻し + 他ウィンドウ通知まで行う
       saveProfiles(restored)
     }
   }
@@ -490,12 +451,9 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     if (!profile) return
 
     profile.name = newName
-    writeProfilesMirror()
+    saveProfilesMirror()
     profileVersion.value++
     refreshProfileName()
-    emitTauri('deck:profiles-changed').catch(() => {
-      // Not running in Tauri (browser dev mode)
-    })
 
     if (!settingsFs.isTauri) return
     // rename の完了を待ってから保存する (並行発火の順序バグ根絶 #913)
@@ -503,10 +461,8 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       .then(async () => {
         const live = profilesData.value.find((p) => p.id === profileId)
         if (!live) return // 既に削除された
-        adoptMirrorFileBases([live])
         await profileFiles.renameItemFiles(live, profilesData.value)
         await profileFiles.persistItem(live, profilesData.value)
-        setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
         profileVersion.value++
       })
       .catch((e) => console.warn('[deckProfile] failed to rename file:', e))
@@ -560,13 +516,36 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   // --- File-based initialization ---
 
+  /**
+   * ファイルからプロファイルを読む (Tauri のみ)。Vue の初回描画前に main.ts が待つ
+   * ので、デッキは最初からファイルの内容で描かれる (#1042 — localStorage の
+   * ミラーで即時復元していたのをやめた)。移行や書き戻しは ensureDefaults 後の
+   * initFileStorage が行う
+   */
+  async function preloadFiles(): Promise<void> {
+    if (!settingsFs.isTauri) return
+    try {
+      const { items } = await profileFiles.loadAll()
+      const byproducts = drainProfileLoadByproducts()
+      pendingConsoleMigrationCount += byproducts.droppedConsoleCount
+      if (byproducts.migratedSearchColumns > 0) {
+        pendingSearchMigrationDirty = true
+      }
+      pushExtractedWidgets(byproducts.extractedWidgets, byproducts.sidebarSeed)
+      profilesData.value = items
+    } catch (e) {
+      console.warn('[deckProfile] failed to load profile files:', e)
+    }
+  }
+
   /** Ensure profiles exist on first load. Discards legacy format profiles. */
   function ensureDefaults(
     fallbackColumns: DeckColumn[],
     fallbackLayout: string[][],
   ) {
-    // Load from localStorage into reactive state
-    profilesData.value = loadProfilesFromStorage()
+    // Tauri はファイルから読み終えている (preloadFiles)。ブラウザ dev モードは
+    // localStorage から
+    if (!settingsFs.isTauri) profilesData.value = loadProfilesFromStorage()
     const profiles = profilesData.value
 
     // Fix blank names
@@ -591,7 +570,6 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       profiles.push(profile)
       saveProfiles(profiles)
       saveActiveProfileId(profile.id)
-      firstRunPlaceholderId = profile.id
     } else {
       loadActiveProfileId()
       const first = profiles[0]
@@ -615,53 +593,14 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   }
 
   async function initFileStorage(): Promise<void> {
-    const { items: fileProfiles } = await profileFiles.loadAll()
-    const byproducts = drainProfileLoadByproducts()
-    pendingConsoleMigrationCount += byproducts.droppedConsoleCount
-    if (byproducts.migratedSearchColumns > 0) pendingSearchMigrationDirty = true
-    pushExtractedWidgets(byproducts.extractedWidgets, byproducts.sidebarSeed)
-
-    // Merge: file profiles are authoritative, but keep in-memory-only
-    // profiles that were created before file I/O completed.
-    const memOnly = selectMemoryOnlyProfiles(
-      profilesData.value,
-      fileProfiles,
-      firstRunPlaceholderId,
-    )
-    if (fileProfiles.length > 0) {
-      profilesData.value = [...fileProfiles, ...memOnly]
-      profileVersion.value++
-      refreshProfileName()
-    }
-
     // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
     if (settingsFs.isMainDeckWindow()) {
-      // (a) 規約外名の copy-adopt 正規化。凍結済み ID (= 旧完全ファイル名) は
-      //     不変なので、activeProfileId / `?profile=` はファイル名が変わっても
-      //     無追随で整合する
+      // 規約外名の copy-adopt 正規化。凍結済み ID (= 旧完全ファイル名) は
+      // 不変なので、activeProfileId / `?profile=` はファイル名が変わっても
+      // 無追随で整合する
       await profileFiles.migrateItems(profilesData.value)
-      // (b) ミラーに在りファイル不在 → 新 slug 名で再作成
-      //     (localStorage → ファイルの旧片方向移行もこの経路に統合)
-      for (const p of memOnly) {
-        p.fileBase = undefined // ミラー由来の旧 fileBase は無効 (ファイル不在)
-        await profileFiles
-          .persistItem(p, profilesData.value)
-          .catch((e) =>
-            console.warn(
-              '[deckProfile] failed to persist mirror-only profile:',
-              e,
-            ),
-          )
-      }
-      // マージでミラー複製が落ちた場合のアクティブ参照の修復
-      if (
-        activeProfileId.value &&
-        !profilesData.value.some((p) => p.id === activeProfileId.value)
-      ) {
-        saveActiveProfileId(profilesData.value[0]?.id ?? null)
-      }
     }
-    // このウィンドウの表示対象がマージで消えた場合はアクティブへ退避する
+    // このウィンドウの表示対象 (`?profile=`) が無ければアクティブへ退避する
     if (
       windowProfileId.value &&
       !profilesData.value.some((p) => p.id === windowProfileId.value)
@@ -669,8 +608,6 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       windowProfileId.value = activeProfileId.value
       refreshProfileName()
     }
-    // fileBase 割当 (対応表) をミラーへ同乗させる
-    setStorageJson(STORAGE_KEYS.deckProfiles, profilesData.value)
 
     initialized.value = true
     flushConsoleMigrationNotice()
@@ -723,10 +660,9 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     setLayout,
     setColumnsAndLayout,
     // Persistence
+    preloadFiles,
     flushPersist,
     schedulePersist,
-    startSync,
-    stopSync,
     // Profile CRUD
     syncColumnsToProfile,
     saveAsProfile,

@@ -15,6 +15,7 @@ use notecli::error::NoteDeckError;
 use notecli::keychain;
 use notecli::models::{Account, AccountPublic};
 
+use crate::credentials::invalidate_credentials;
 use crate::error::Result;
 
 /// MiAuth で要求するデフォルト権限一式。
@@ -117,6 +118,10 @@ pub async fn complete_and_save(
     {
         let _ = db.clear_token(&saved.id);
     }
+    // 同じ host + user の再ログインは id を維持する (upsert) ので、資格情報の
+    // キャッシュに古いトークンが残る。新しいトークンを置いた後に無効化する
+    // (先に無効化すると、置くまでの間に古い値を読み直して載せ直されうる)
+    invalidate_credentials(&saved.id);
     token.zeroize();
 
     Ok(AccountPublic::new(&saved, true))

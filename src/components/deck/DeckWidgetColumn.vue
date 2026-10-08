@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, useTemplateRef } from 'vue'
+import { computed, defineAsyncComponent, ref } from 'vue'
 import { isAllAccounts } from '@/columns/accountScope'
 import AccountPickerSheet from '@/components/common/AccountPickerSheet.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import { useAccountPicker } from '@/composables/useAccountPicker'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { usePointerReorder } from '@/composables/usePointerReorder'
-import { useServerImages } from '@/composables/useServerImages'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import {
@@ -61,10 +60,8 @@ const windowsStore = useWindowsStore()
 const accountsStore = useAccountsStore()
 widgetsStore.ensureLoaded()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverIconUrl, serverInfoImageUrl } = useServerImages(
-  () => props.column,
-)
+const { columnThemeVars, serverInfoImageUrl, scroller, scrollToTop } =
+  useColumnSetup(() => props.column)
 
 /**
  * sidebar widget カラム (ナビバートグルで開閉) は sidebarWidgetIds[] を参照し、
@@ -85,12 +82,6 @@ const widgets = computed(() => {
 const showEmptyState = computed(
   () => widgets.value.length === 0 && props.column.accountId !== null,
 )
-
-const widgetBodyRef = useTemplateRef<HTMLElement>('widgetBodyRef')
-
-function scrollToTop() {
-  widgetBodyRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
 
 /** 配置から外す (可逆)。本体はライブラリに残るので確認は挟まず undo を出す。 */
 function handleRemove(installId: string) {
@@ -432,7 +423,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 
       <!-- ===== Placed tab ===== -->
       <template v-if="viewTab === 'installed'">
-        <div ref="widgetBodyRef" :class="$style.widgetColumnBody">
+        <div ref="scroller" :class="$style.widgetColumnBody">
           <ColumnEmptyState
             v-if="showEmptyState"
             :message="i18n.ts._deckWidgetColumn.empty"

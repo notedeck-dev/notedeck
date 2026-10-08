@@ -1,0 +1,134 @@
+{
+  "plugin": [
+    {
+      "name": "config と configData を持つ全体スコープのプラグイン (Rust の projection_defaults と同じ入力)",
+      "filename": "p.meta.json5",
+      "now": 1700000000000,
+      "meta": "{ installId: 'p', configData: { greet: 'hi' }, config: { greet: { type: 'string', label: 'G', default: 'hi' } }, name: 'P', version: '1', global: true, permissions: [], active: true, createdAt: 1700000000000, updatedAt: 1700000000001 }",
+      "src": "/// @ 0.19.0\n<: 1",
+      "expected": "{\n  installId: 'p',\n  name: 'P',\n  version: '1',\n  config: {\n    greet: {\n      type: 'string',\n      label: 'G',\n      default: 'hi',\n    },\n  },\n  configData: {\n    greet: 'hi',\n  },\n  active: true,\n  global: true,\n  createdAt: 1700000000000,\n  updatedAt: 1700000000001,\n}"
+    },
+    {
+      "name": "ID と時刻の無い最小のメタ (名前はメタファイル名、版は 0.0.0、時刻は今)",
+      "filename": "q.meta.json5",
+      "now": 1700000000005,
+      "meta": "{ installId: 'q' }",
+      "src": "",
+      "expected": "{\n  installId: 'q',\n  name: 'q.meta.json5',\n  version: '0.0.0',\n  configData: {},\n  active: false,\n  createdAt: 1700000000005,\n  updatedAt: 1700000000005,\n}"
+    },
+    {
+      "name": "ストア由来 (install_new の形) + アカウント別スコープ + 権限 + 説明",
+      "filename": "hello-2.meta.json5",
+      "now": 0,
+      "meta": "{ installId: 'hello-2', name: 'Hello', version: '1.0.0', author: 'alice', description: 'd', permissions: ['read:account'], config: { msg: { type: 'string', default: 'hi' } }, configData: { msg: 'hi' }, active: true, global: true, installedFor: ['h:u'], storeId: 'hello', storeSha512: 'hash', storeVersion: '1.0.0', iconUrl: 'https://i', createdAt: 1700000000000, updatedAt: 1700000000000 }",
+      "src": "src",
+      "expected": "{\n  installId: 'hello-2',\n  name: 'Hello',\n  version: '1.0.0',\n  author: 'alice',\n  description: 'd',\n  permissions: [\n    'read:account',\n  ],\n  config: {\n    msg: {\n      type: 'string',\n      default: 'hi',\n    },\n  },\n  configData: {\n    msg: 'hi',\n  },\n  active: true,\n  global: true,\n  installedFor: [\n    'h:u',\n  ],\n  storeId: 'hello',\n  storeSha512: 'hash',\n  storeVersion: '1.0.0',\n  iconUrl: 'https://i',\n  createdAt: 1700000000000,\n  updatedAt: 1700000000000,\n}"
+    }
+  ],
+  "widget": [
+    {
+      "name": "accountKey があれば旧 accountId は書かない (Rust の sorts_by_created_at と同じ入力)",
+      "filename": "a.meta.json5",
+      "now": 0,
+      "meta": "{ installId: 'a', name: 'A', autoRun: true, createdAt: 20, updatedAt: 20, accountId: 'uuid', accountKey: 'h:u' }",
+      "src": "",
+      "expected": "{\n  installId: 'a',\n  name: 'A',\n  autoRun: true,\n  accountKey: 'h:u',\n  createdAt: 20,\n  updatedAt: 20,\n}"
+    },
+    {
+      "name": "ストア由来のウィジェット",
+      "filename": "clock.meta.json5",
+      "now": 0,
+      "meta": "{ installId: 'clock', name: 'Clock', autoRun: false, storeId: 'clock', storeSha512: 'hash', storeVersion: '1.0', iconUrl: 'https://i', createdAt: 1, updatedAt: 2 }",
+      "src": "src",
+      "expected": "{\n  installId: 'clock',\n  name: 'Clock',\n  autoRun: false,\n  storeId: 'clock',\n  storeSha512: 'hash',\n  storeVersion: '1.0',\n  iconUrl: 'https://i',\n  createdAt: 1,\n  updatedAt: 2,\n}"
+    },
+    {
+      "name": "名前と時刻の無い最小のメタ",
+      "filename": "w.meta.json5",
+      "now": 7,
+      "meta": "{ installId: 'w' }",
+      "src": "",
+      "expected": "{\n  installId: 'w',\n  name: 'w.meta.json5',\n  autoRun: false,\n  createdAt: 7,\n  updatedAt: 7,\n}"
+    }
+  ],
+  "query": [
+    {
+      "name": "旧 disabled: false は active: true として書く (Rust の update_src_keeps_flags と同じ入力)",
+      "filename": "a.meta.json5",
+      "now": 0,
+      "meta": "{ id: 'a', name: 'a', description: 'd', scoped: true, global: true, disabled: false, createdAt: 1, updatedAt: 1 }",
+      "src": "old",
+      "expected": "{\n  id: 'a',\n  name: 'a',\n  description: 'd',\n  global: true,\n  scoped: true,\n  active: true,\n  createdAt: 1,\n  updatedAt: 1,\n}"
+    },
+    {
+      "name": "旧 disabled: true は active: false として書く (アカウント別スコープ)",
+      "filename": "b.meta.json5",
+      "now": 0,
+      "meta": "{ id: 'b', name: 'B', installedFor: ['h:u'], disabled: true, createdAt: 1, updatedAt: 2 }",
+      "src": "",
+      "expected": "{\n  id: 'b',\n  name: 'B',\n  installedFor: [\n    'h:u',\n  ],\n  active: false,\n  createdAt: 1,\n  updatedAt: 2,\n}"
+    },
+    {
+      "name": "新形式 (active) とストア由来 3 点",
+      "filename": "c.meta.json5",
+      "now": 0,
+      "meta": "{ id: 'c', name: 'C', storeId: 's', storeSha512: 'x', storeVersion: '2', iconUrl: 'https://i', active: true, createdAt: 3, updatedAt: 4 }",
+      "src": "",
+      "expected": "{\n  id: 'c',\n  name: 'C',\n  storeId: 's',\n  storeSha512: 'x',\n  storeVersion: '2',\n  iconUrl: 'https://i',\n  active: true,\n  createdAt: 3,\n  updatedAt: 4,\n}"
+    },
+    {
+      "name": "印も時刻も無いメタ (有効、時刻は今)",
+      "filename": "d.meta.json5",
+      "now": 9,
+      "meta": "{ id: 'd', name: 'D' }",
+      "src": "",
+      "expected": "{\n  id: 'd',\n  name: 'D',\n  active: true,\n  createdAt: 9,\n  updatedAt: 9,\n}"
+    }
+  ],
+  "skill": [
+    {
+      "name": "書いたものを読んでも変わらない (Rust の serialize_round_trips と同じ)",
+      "filename": "aizu.md",
+      "now": 0,
+      "text": "---\nid: aizu\nname: 三須木藍\nversion: 0.1.0\nmode: always\ncreatedAt: 1\nupdatedAt: 2\ntriggers: [a, b]\nbuiltIn: true\n---\n\n本文です。\n2 行目。",
+      "expected": "---\nid: aizu\nname: 三須木藍\nversion: 0.1.0\nmode: always\ncreatedAt: 1\nupdatedAt: 2\ntriggers: [a, b]\nbuiltIn: true\n---\n\n本文です。\n2 行目。"
+    },
+    {
+      "name": "順不同・不正な mode・false の印・引用の要る値 (ID と時刻は fallback)",
+      "filename": "fallback.md",
+      "now": 7,
+      "text": "---\nname: x\nmode: weird\nactive: false\ntainted: true\nstoreId: s\nstoreSha512: h\nstoreVersion: '1'\ndescription: 'has: colon'\ncheapCheckCapabilities: [a.b]\nisPersona: true\n---\nb",
+      "expected": "---\nid: fallback\nname: x\nversion: 0.1.0\nmode: manual\ncreatedAt: 7\nupdatedAt: 7\ndescription: 'has: colon'\nstoreId: s\nstoreSha512: h\nstoreVersion: '1'\ncheapCheckCapabilities: [a.b]\nisPersona: true\ntainted: true\n---\n\nb"
+    },
+    {
+      "name": "予約 skill (HEARTBEAT.md) は mode が固定で persona にならない",
+      "filename": "HEARTBEAT.md",
+      "now": 0,
+      "text": "---\nname: 巡回\nmode: manual\nisPersona: true\nactive: true\ncreatedAt: 1\nupdatedAt: 1\n---\n\n# 手順\n",
+      "expected": "---\nid: HEARTBEAT\nname: 巡回\nversion: 0.1.0\nmode: heartbeat\ncreatedAt: 1\nupdatedAt: 1\nactive: true\n---\n\n# 手順\n"
+    }
+  ],
+  "theme": [
+    {
+      "name": "ストア由来 + 紐付け (Rust の codec_matches_device_rules と同じ入力に時刻を足した)",
+      "filename": "x.ndtheme.json5",
+      "now": 0,
+      "text": "{ id: 'x', name: 'N', base: 'light', props: { b: '#000', a: '#fff' }, $notedeck: { storeId: 's', installedFor: ['h:u'], createdAt: 1, updatedAt: 2 } }",
+      "expected": "{\n  id: 'x',\n  name: 'N',\n  base: 'light',\n  props: {\n    b: '#000',\n    a: '#fff',\n  },\n  $notedeck: {\n    storeId: 's',\n    installedFor: [\n      'h:u',\n    ],\n    createdAt: 1,\n    updatedAt: 2,\n  },\n}"
+    },
+    {
+      "name": "id / base / $notedeck の無い旧ファイル (id は custom-<ファイル名>、時刻は今)",
+      "filename": "My Theme.ndtheme.json5",
+      "now": 5,
+      "text": "{\n  name: 'My Theme',\n  props: { bg: '#000' },\n}",
+      "expected": "{\n  id: 'custom-My Theme.ndtheme.json5',\n  name: 'My Theme',\n  base: 'dark',\n  props: {\n    bg: '#000',\n  },\n  $notedeck: {\n    createdAt: 5,\n    updatedAt: 5,\n  },\n}"
+    },
+    {
+      "name": "$notedeck の順不同は規定順に揃う (時刻 → 末尾、3 点 → 先頭)",
+      "filename": "y.ndtheme.json5",
+      "now": 0,
+      "text": "{ id: 'y', name: 'Y', props: { c: 'red' }, $notedeck: { updatedAt: 9, createdAt: 8, storeVersion: '2', storeSha512: 'h', storeId: 's' } }",
+      "expected": "{\n  id: 'y',\n  name: 'Y',\n  base: 'dark',\n  props: {\n    c: 'red',\n  },\n  $notedeck: {\n    storeId: 's',\n    storeSha512: 'h',\n    storeVersion: '2',\n    createdAt: 8,\n    updatedAt: 9,\n  },\n}"
+    }
+  ]
+}

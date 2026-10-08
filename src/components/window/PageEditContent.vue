@@ -8,11 +8,11 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
+import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { webUiUrl } from '@/utils/url'
 
 const props = defineProps<{
   accountId: string

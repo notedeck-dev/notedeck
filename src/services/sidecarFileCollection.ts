@@ -20,11 +20,11 @@ import {
  * #913 の不変条件:
  * - ファイル basename は ASCII slug (slugify の不動点)。参照はファイル内 ID
  * - ID → 実ファイル名の対応表が唯一の正。実体は各アイテムの runtime-only
- *   フィールド `fileBase` (ファイルへは書かない。localStorage ミラーには同乗)
+ *   フィールド `fileBase` (ファイルへは書かない)
  * - ID 凍結は常設規則: ID 欠損のメタを読んだらメタファイル完全名を書き戻す
  * - 履歴サイドカー (`<fileBase>.history.json5`) の basename は主ファイルと同一
  *
- * 状態は持たない。reactive state・localStorage・マージ/seed の方針は
+ * 状態は持たない。reactive state・マージ / seed の方針は
  * 引き続き store 側が持ち、ファイル I/O の手続きだけをここへ委譲する。
  * (同一ウィンドウ内の書込交錯を防ぐ直列化キューのみ内部に持つ)
  */
@@ -38,7 +38,7 @@ export interface SidecarItemFile {
    */
   fileBase?: string
   /**
-   * ソース欠損 (localStorage ミラーにも本文なし) の読取専用アイテム。
+   * ソース欠損 (メタあり・`.is` なし) の読取専用アイテム。
    * persist は抑止される (空ソースの書き戻しでコードを恒久喪失させない)。
    */
   readOnly?: boolean
@@ -65,10 +65,12 @@ export interface SidecarCollectionConfig<T extends SidecarItemFile, M> {
   /** パース済み meta + src → item。呼び出し側の try/catch はサービスが持つ */
   fromFile(meta: M, src: string, metaFile: string): T
   /**
-   * localStorage ミラーから同 ID の本文を引く。
-   * 「メタあり・ソースなし」のソース再作成 (読込規則) に使う。
+   * 読んだメタが今の on-disk 形より古いか (#1202 段階 0 の揃え: createdAt /
+   * updatedAt の欠損、クエリの `disabled` → `active`)。true の個体は
+   * `loadAll` の `outdated` に入り、store (メインウィンドウだけ) が書き戻して
+   * 揃える。ソースを欠く readOnly 個体は書けないので入れない
    */
-  mirrorSrcById?(id: string): string | undefined
+  isOutdated?(meta: M): boolean
   /**
    * 新規割当時に優先するファイル基底名 (ストアインストールの storeId 等)。
    * 規約不適合なら無視して表示名 slug に落ち、占有時は連番 suffix で回避する。
@@ -109,6 +111,11 @@ export interface LoadAllResult<T> {
    * (= localStorage → ファイルの片方向移行が必要) を呼び出し側が区別するため。
    */
   entryFileCount: number
+  /**
+   * on-disk の形が古く、書き戻して揃える個体 (`isOutdated`)。`items` の部分
+   * 集合で、readOnly は含まない
+   */
+  outdated: T[]
 }
 
 const encoder = new TextEncoder()
@@ -183,6 +190,7 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     const metaFiles = allFiles.filter((f) => f.endsWith(META_SUFFIX))
 
     const items: T[] = []
+    const outdated: T[] = []
     const seenIds = new Set<string>()
     const duplicates: DuplicateIdEntry[] = []
     for (const metaFile of metaFiles) {
@@ -212,39 +220,30 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
         if (fileSet.has(srcFile)) {
           src = await cfg.read(srcFile)
         } else {
-          const mirror = cfg.mirrorSrcById?.(id)
-          if (typeof mirror === 'string' && mirror.length > 0) {
-            // ミラー本文からソースを再作成して通常読込 (移行 (b) と同じ向き)
-            await cfg.write(srcFile, mirror)
-            src = mirror
-            console.warn(
-              `[${cfg.logTag}] ${srcFile} was missing — recreated from mirror`,
-            )
-          } else {
-            // 空ソースは書かない。読取専用で可視化する
-            readOnly = true
-            console.warn(
-              `[${cfg.logTag}] ${srcFile} is missing and no mirror body — read-only`,
-            )
-          }
+          // 空ソースは書かない。読取専用で可視化する
+          readOnly = true
+          console.warn(`[${cfg.logTag}] ${srcFile} is missing — read-only`)
         }
 
         const item = cfg.fromFile(parsed as unknown as M, src, metaFile)
         item.fileBase = base
         if (readOnly) item.readOnly = true
         items.push(item)
+        if (!readOnly && cfg.isOutdated?.(parsed as unknown as M)) {
+          outdated.push(item)
+        }
       } catch (e) {
         console.warn(`[${cfg.logTag}] failed to parse ${metaFile}:`, e)
       }
     }
     const notice = formatDuplicateIdNotice(duplicates)
     if (notice) cfg.notify?.(notice)
-    return { items, entryFileCount: metaFiles.length }
+    return { items, entryFileCount: metaFiles.length, outdated }
   }
 
   /**
-   * 1 個体だけ読む (notecore が書いた変更通知の写し更新用, #1133)。ID 凍結・
-   * ミラー復旧はしない (起動時の loadAll が担う)。メタが読めなければ undefined。
+   * 1 個体だけ読む (別の書き手 (notecore / 他ウィンドウ) の変更通知の写し更新用,
+   * #1133)。ID 凍結はしない (起動時の loadAll が担う)。メタが読めなければ undefined。
    */
   async function loadOneImpl(metaFile: string): Promise<T | undefined> {
     if (!metaFile.endsWith(META_SUFFIX)) return undefined

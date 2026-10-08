@@ -4,10 +4,12 @@ import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
+import { webUiUrl } from '@/services/safeUrl'
+import { modeIcon } from '@/services/timelinePolicy'
 import { type Account, isGuestAccount } from '@/stores/accounts'
-import { modeIcon, modeLabel } from '@/utils/customTimelines'
+import { modeLabel } from '@/utils/customTimelines'
 import { hapticSelection } from '@/utils/haptics'
-import { openSafeUrl, webUiUrl } from '@/utils/url'
+import { openSafeUrl } from '@/utils/url'
 
 const props = defineProps<{
   show: boolean

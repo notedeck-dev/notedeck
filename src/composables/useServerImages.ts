@@ -14,7 +14,7 @@ function hostFromPortableAccount(portable: string | undefined): string | null {
 
 /**
  * カラムのアカウントに紐づくサーバーのカスタム画像 URL を返す。
- * useColumnSetup を使わないカラム（useColumnTheme のみ）でも利用可能。
+ * カラムは useColumnSetup 経由で受け取る (直接使うのは枠の DeckColumn だけ、#1098 §4)。
  *
  * アカウントが見つからない（削除済み等）場合でも、カラムが保持する portable
  * account ID (`user@host`) から host を復元して server info を引く。

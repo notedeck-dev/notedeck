@@ -74,6 +74,11 @@ fn now() -> u64 {
 
 /// `toFileMeta`: 規定のキー順。旧 `accountId` は accountKey があれば書き戻さない。
 pub fn normalize_meta(item: &Item) -> J5 {
+    normalize_meta_at(item, now() as f64)
+}
+
+/// `normalize_meta` の時刻 (createdAt / updatedAt の埋め草) を外から渡す形 (golden テスト用)。
+pub fn normalize_meta_at(item: &Item, now: f64) -> J5 {
     let J5::Obj(pairs) = &item.meta else {
         return J5::Obj(vec![]);
     };
@@ -93,8 +98,14 @@ pub fn normalize_meta(item: &Item) -> J5 {
             out.push((key.into(), J5::Str(v.into())));
         }
     }
-    out.push(("createdAt".into(), J5::Num(item.created_at())));
-    out.push(("updatedAt".into(), J5::Num(item.updated_at())));
+    out.push((
+        "createdAt".into(),
+        J5::Num(item.num("createdAt").unwrap_or(now)),
+    ));
+    out.push((
+        "updatedAt".into(),
+        J5::Num(item.num("updatedAt").unwrap_or(now)),
+    ));
     for (k, v) in pairs {
         if KEY_ORDER.contains(&k.as_str()) {
             continue;

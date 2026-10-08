@@ -1,5 +1,6 @@
 import type { HighlighterCore, LanguageRegistration, ThemedToken } from 'shiki'
 import { shallowRef } from 'vue'
+import { ND_CODE_THEME_NAME, ndCodeTheme } from './highlightTheme'
 
 export const highlighterLoaded = shallowRef(false)
 
@@ -8,22 +9,12 @@ export const highlighterLoaded = shallowRef(false)
  * 言語が入ったとき**も進む。`highlighterLoaded` (boolean) だけを再描画キーに
  * 使うと、遅延言語 (python / diff 等) は「ロードが終わっても誰も再描画しない」
  * ためハイライトされないままになる。描画側はこれをキーに含めること。
+ *
+ * コード面の明暗 (#1053) はここでは扱わない。トークン色は CSS 変数
+ * (`--nd-code-token-*`、highlightTheme) 経由なので、切替は CSS 側だけで済み
+ * 再描画しない (#1050)。
  */
 export const highlightRevision = shallowRef(0)
-
-/**
- * コード面の明暗 (#1053)。トークン色は面の明暗とセットでないと読めないので、
- * 面を切り替えたらハイライトのテーマも切り替えて再描画する。
- * 実効値の決定 (設定 + アプリのテーマ) は useCodeScheme が持つ。
- */
-export type CodeScheme = 'dark' | 'light'
-let codeScheme: CodeScheme = 'dark'
-
-export function setCodeScheme(scheme: CodeScheme): void {
-  if (codeScheme === scheme) return
-  codeScheme = scheme
-  highlightRevision.value++
-}
 
 let highlighter: HighlighterCore | null = null
 let initPromise: Promise<void> | null = null
@@ -70,21 +61,19 @@ function escapeHtml(text: string): string {
   return text.replace(/[&<>]/g, (c) => htmlEscapeMap[c] ?? c)
 }
 
-function colorToClass(color: string): string {
-  return `shiki-${color.replace('#', '').toLowerCase()}`
+function tokensToHtml(tokens: ThemedToken[][], fg: string | undefined): string {
+  return `<pre class="shiki"><code>${tokensToInnerHtml(tokens, fg)}</code></pre>`
 }
 
-function tokensToHtml(tokens: ThemedToken[][], fg?: string): string {
-  const fgClass = fg ? ` ${colorToClass(fg)}` : ''
-  return (
-    `<pre class="shiki${fgClass}"><code>` +
-    tokensToInnerHtml(tokens) +
-    '</code></pre>'
-  )
-}
-
-/** トークン列を span 列だけの HTML にする (pre / code は呼び出し側の持ち物)。 */
-function tokensToInnerHtml(tokens: ThemedToken[][]): string {
+/**
+ * トークン列を span 列だけの HTML にする (pre / code は呼び出し側の持ち物)。
+ * 色はテーマが `var(--nd-code-token-*)` を返すので、そのまま inline style に
+ * 乗せる。既定の前景色と同じトークンは pre 側の色 (`pre.shiki`) に任せて素で出す
+ */
+function tokensToInnerHtml(
+  tokens: ThemedToken[][],
+  fg: string | undefined,
+): string {
   let html = ''
   for (let i = 0; i < tokens.length; i++) {
     if (i > 0) html += '\n'
@@ -92,19 +81,19 @@ function tokensToInnerHtml(tokens: ThemedToken[][]): string {
     if (!line) continue
     for (const token of line) {
       const content = escapeHtml(token.content)
-      const classes: string[] = []
+      const styles: string[] = []
 
-      if (token.color) {
-        classes.push(colorToClass(token.color))
+      if (token.color && token.color !== fg) {
+        styles.push(`color:${token.color}`)
       }
       if (token.fontStyle) {
-        if (token.fontStyle & 1) classes.push('shiki-italic')
-        if (token.fontStyle & 2) classes.push('shiki-bold')
-        if (token.fontStyle & 4) classes.push('shiki-underline')
+        if (token.fontStyle & 1) styles.push('font-style:italic')
+        if (token.fontStyle & 2) styles.push('font-weight:bold')
+        if (token.fontStyle & 4) styles.push('text-decoration:underline')
       }
 
-      if (classes.length > 0) {
-        html += `<span class="${classes.join(' ')}">${content}</span>`
+      if (styles.length > 0) {
+        html += `<span style="${styles.join(';')}">${content}</span>`
       } else {
         html += content
       }
@@ -117,36 +106,28 @@ function initHighlighter(): Promise<void> {
   if (initPromise) return initPromise
 
   initPromise = (async () => {
-    const [
-      shikiCore,
-      shikiEngine,
-      darkTheme,
-      lightTheme,
-      aiscriptGrammar,
-      ...langModules
-    ] = await Promise.all([
-      import('shiki/core'),
-      import('shiki/engine/javascript'),
-      import('shiki/dist/themes/dark-plus.mjs'),
-      import('shiki/dist/themes/light-plus.mjs'),
-      import('@/assets/aiscript.tmLanguage.json'),
-      // Core languages — most common in Misskey posts
-      import('shiki/dist/langs/bash.mjs'),
-      import('shiki/dist/langs/css.mjs'),
-      import('shiki/dist/langs/html.mjs'),
-      import('shiki/dist/langs/javascript.mjs'),
-      import('shiki/dist/langs/json.mjs'),
-      import('shiki/dist/langs/markdown.mjs'),
-      import('shiki/dist/langs/rust.mjs'),
-      import('shiki/dist/langs/sql.mjs'),
-      import('shiki/dist/langs/typescript.mjs'),
-      import('shiki/dist/langs/yaml.mjs'),
-      // healthcheck の診断ログ表示用 (#644)
-      import('shiki/dist/langs/log.mjs'),
-    ])
+    const [shikiCore, shikiEngine, aiscriptGrammar, ...langModules] =
+      await Promise.all([
+        import('shiki/core'),
+        import('shiki/engine/javascript'),
+        import('@/assets/aiscript.tmLanguage.json'),
+        // Core languages — most common in Misskey posts
+        import('shiki/dist/langs/bash.mjs'),
+        import('shiki/dist/langs/css.mjs'),
+        import('shiki/dist/langs/html.mjs'),
+        import('shiki/dist/langs/javascript.mjs'),
+        import('shiki/dist/langs/json.mjs'),
+        import('shiki/dist/langs/markdown.mjs'),
+        import('shiki/dist/langs/rust.mjs'),
+        import('shiki/dist/langs/sql.mjs'),
+        import('shiki/dist/langs/typescript.mjs'),
+        import('shiki/dist/langs/yaml.mjs'),
+        // healthcheck の診断ログ表示用 (#644)
+        import('shiki/dist/langs/log.mjs'),
+      ])
 
     highlighter = shikiCore.createHighlighterCoreSync({
-      themes: [darkTheme.default, lightTheme.default],
+      themes: [ndCodeTheme],
       langs: [
         ...langModules.map((m) => m.default),
         aiscriptGrammar.default as unknown as LanguageRegistration,
@@ -197,10 +178,6 @@ function resolveReadyLang(lang: string | null): string | null {
   return resolved
 }
 
-function shikiThemeName(): string {
-  return codeScheme === 'light' ? 'light-plus' : 'dark-plus'
-}
-
 export function highlightCode(code: string, lang: string | null): string {
   const resolved = resolveReadyLang(lang)
   if (!resolved || !highlighter || !purify) {
@@ -208,11 +185,11 @@ export function highlightCode(code: string, lang: string | null): string {
   }
   const { tokens, fg } = highlighter.codeToTokens(code, {
     lang: resolved,
-    theme: shikiThemeName(),
+    theme: ND_CODE_THEME_NAME,
   })
   return purify.sanitize(tokensToHtml(tokens, fg), {
     ALLOWED_TAGS: ['pre', 'code', 'span'],
-    ALLOWED_ATTR: ['class'],
+    ALLOWED_ATTR: ['class', 'style'],
   })
 }
 
@@ -224,18 +201,15 @@ export function highlightCode(code: string, lang: string | null): string {
 export function highlightCodeTokens(
   code: string,
   lang: string | null,
-): { html: string; fgClass: string } | null {
+): string | null {
   const resolved = resolveReadyLang(lang)
   if (!resolved || !highlighter || !purify) return null
   const { tokens, fg } = highlighter.codeToTokens(code, {
     lang: resolved,
-    theme: shikiThemeName(),
+    theme: ND_CODE_THEME_NAME,
   })
-  return {
-    html: purify.sanitize(tokensToInnerHtml(tokens), {
-      ALLOWED_TAGS: ['span'],
-      ALLOWED_ATTR: ['class'],
-    }),
-    fgClass: fg ? colorToClass(fg) : '',
-  }
+  return purify.sanitize(tokensToInnerHtml(tokens, fg), {
+    ALLOWED_TAGS: ['span'],
+    ALLOWED_ATTR: ['style'],
+  })
 }

@@ -17,10 +17,12 @@ const MkPostForm = defineAsyncComponent(
 
 import type { UserRelation } from '@/adapters/types'
 import { useNoteColumn } from '@/composables/useNoteColumn'
+import { usePaginatedList } from '@/composables/usePaginatedList'
 import { usePortal } from '@/composables/usePortal'
 import { useTabSlide } from '@/composables/useTabSlide'
+import { columnCacheKey } from '@/services/columnCacheKey'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { accountsCacheKeyDeps, columnCacheKey } from '@/utils/columnCacheKey'
+import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import type { ColumnTabDef } from './ColumnTabs.vue'
@@ -62,9 +64,7 @@ const columnContentRef = ref<HTMLElement | null>(null)
 const {
   account,
   columnThemeVars,
-  serverIconUrl,
   serverInfoImageUrl,
-  serverNotFoundImageUrl,
   serverErrorImageUrl,
   isLoading,
   viewMarkerId,
@@ -121,10 +121,10 @@ interface UserSummary {
   emojis?: Record<string, string>
 }
 
-const users = ref<UserSummary[]>([])
-const usersLoading = ref(false)
+// ユーザー / ロール / ロール別ユーザーは 1 ページだけの一覧。usePaginatedList の
+// 「初回 load は一度だけ、失敗したら次回また取る」をタブの遅延取得に使う。
+// エラーは ColumnEmptyState の案内に AppError が要るので別に持つ
 const usersError = ref<AppError | null>(null)
-const usersFetched = ref(false)
 
 /** relation バッジ (#752)。ユーザータブとロール別ユーザーで共用 */
 const userRelations = ref<Map<string, UserRelation>>(new Map())
@@ -146,14 +146,18 @@ async function fetchUserRelations(batch: { id: string }[]) {
   }
 }
 
-async function fetchUsers() {
-  if (!props.column.accountId) return
-  usersLoading.value = true
-  usersError.value = null
-  try {
-    users.value = unwrap(
+const {
+  items: users,
+  isLoading: usersLoading,
+  load: fetchUsers,
+  reload: reloadUsers,
+} = usePaginatedList<UserSummary>({
+  fetch: async () => {
+    const accountId = props.column.accountId
+    if (!accountId) return []
+    const fetched = unwrap(
       await commands.apiSearchUsers(
-        props.column.accountId,
+        accountId,
         null,
         'combined',
         '+follower',
@@ -162,14 +166,14 @@ async function fetchUsers() {
         null,
       ),
     ) as unknown as UserSummary[]
-    usersFetched.value = true
-    fetchUserRelations(users.value)
-  } catch (e) {
+    fetchUserRelations(fetched)
+    return fetched
+  },
+  initialHasMore: () => false,
+  onError: (e) => {
     usersError.value = AppError.from(e)
-  } finally {
-    usersLoading.value = false
-  }
-}
+  },
+})
 
 // --- Roles tab ---
 interface RoleSummary {
@@ -183,66 +187,82 @@ interface RoleSummary {
   displayOrder: number
 }
 
-const roles = ref<RoleSummary[]>([])
-const rolesLoading = ref(false)
 const rolesError = ref<AppError | null>(null)
-const rolesFetched = ref(false)
-
-// Role users
-const roleUsers = ref<UserSummary[]>([])
-const roleUsersLoading = ref(false)
-const roleUsersError = ref<AppError | null>(null)
-const selectedRole = ref<RoleSummary | null>(null)
-
-async function fetchRoles() {
-  if (!props.column.accountId) return
-  rolesLoading.value = true
-  rolesError.value = null
-  try {
+const {
+  items: roles,
+  isLoading: rolesLoading,
+  load: fetchRoles,
+  reload: reloadRoles,
+} = usePaginatedList<RoleSummary>({
+  fetch: async () => {
+    const accountId = props.column.accountId
+    if (!accountId) return []
     const allRoles = unwrap(
-      await commands.apiGetRoles(props.column.accountId),
+      await commands.apiGetRoles(accountId),
     ) as unknown as RoleSummary[]
-    roles.value = allRoles
+    return allRoles
       .filter((r) => r.target === 'manual')
       .sort((a, b) => b.displayOrder - a.displayOrder)
-    rolesFetched.value = true
-  } catch (e) {
+  },
+  initialHasMore: () => false,
+  onError: (e) => {
     rolesError.value = AppError.from(e)
-  } finally {
-    rolesLoading.value = false
-  }
-}
+  },
+})
 
-async function openRole(role: RoleSummary) {
+// Role users
+const roleUsersError = ref<AppError | null>(null)
+const selectedRole = ref<RoleSummary | null>(null)
+const {
+  items: roleUsers,
+  isLoading: roleUsersLoading,
+  load: loadRoleUsers,
+  reset: resetRoleUsers,
+} = usePaginatedList<UserSummary>({
+  fetch: async () => {
+    const accountId = props.column.accountId
+    const role = selectedRole.value
+    if (!accountId || !role) return []
+    const result = unwrap(
+      await commands.apiGetRoleUsers(accountId, role.id, 30, null),
+    ) as unknown as { id: string; user: UserSummary }[]
+    const fetched = result.map((entry) => entry.user)
+    fetchUserRelations(fetched)
+    return fetched
+  },
+  initialHasMore: () => false,
+  onError: (e) => {
+    roleUsersError.value = AppError.from(e)
+  },
+})
+
+function openRole(role: RoleSummary) {
   if (!props.column.accountId) return
   selectedRole.value = role
-  roleUsersLoading.value = true
   roleUsersError.value = null
-  roleUsers.value = []
-  try {
-    const result = unwrap(
-      await commands.apiGetRoleUsers(props.column.accountId, role.id, 30, null),
-    ) as unknown as { id: string; user: UserSummary }[]
-    roleUsers.value = result.map((entry) => entry.user)
-    fetchUserRelations(roleUsers.value)
-  } catch (e) {
-    roleUsersError.value = AppError.from(e)
-  } finally {
-    roleUsersLoading.value = false
-  }
+  resetRoleUsers()
+  return loadRoleUsers()
 }
 
 function closeRole() {
   selectedRole.value = null
-  roleUsers.value = []
+  resetRoleUsers()
 }
 
 // --- Tab switching ---
 function switchTab(tab: string) {
   const t = tab as Tab
   activeTab.value = t
-  if (t === 'users' && !usersFetched.value) fetchUsers()
-  if (t === 'roles' && !rolesFetched.value) fetchRoles()
+  if (!props.column.accountId) return
+  // load は初回だけ取りに行く (取得済みなら no-op、失敗後は取り直す)
+  if (t === 'users') {
+    usersError.value = null
+    fetchUsers()
+  }
+  if (t === 'roles') {
+    rolesError.value = null
+    fetchRoles()
+  }
 }
 
 // Tab slide animation
@@ -252,23 +272,18 @@ const exploreTabIndex = computed(() =>
 useTabSlide(exploreTabIndex, columnContentRef)
 
 function refresh() {
+  if (!props.column.accountId) return
   if (activeTab.value === 'notes') {
     refreshNotes()
   } else if (activeTab.value === 'users') {
-    usersFetched.value = false
-    fetchUsers()
+    usersError.value = null
+    reloadUsers()
   } else {
-    rolesFetched.value = false
     selectedRole.value = null
-    fetchRoles()
+    rolesError.value = null
+    reloadRoles()
   }
 }
-
-const currentLoading = computed(() => {
-  if (activeTab.value === 'notes') return isLoading.value
-  if (activeTab.value === 'users') return usersLoading.value
-  return rolesLoading.value
-})
 
 const postPortalRef = useTemplateRef<HTMLElement>('postPortalRef')
 usePortal(postPortalRef)

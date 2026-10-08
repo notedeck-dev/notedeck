@@ -20,6 +20,7 @@ import {
 } from '@/composables/useAiSystemContext'
 import { useAiTurn } from '@/composables/useAiTurn'
 import { useBootstrapPending } from '@/composables/useAiWorkspace'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { describeAuthType, useVault } from '@/composables/useVault'
@@ -27,6 +28,8 @@ import { i18n } from '@/i18n'
 import { nativeField } from '@/i18n/native'
 import { describeToolUse } from '@/services/aiToolSummary'
 import { turnIdOf } from '@/services/aiTurnIds'
+import { createRenderCache } from '@/services/renderCache'
+import { isTimestampTitle } from '@/services/sessionTitle'
 import { useAccountsStore } from '@/stores/accounts'
 import { type AiSessionMeta, useAiSessionsStore } from '@/stores/aiSessions'
 import { useConfirm } from '@/stores/confirm'
@@ -39,16 +42,11 @@ import { usePrompt } from '@/stores/prompt'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
-import {
-  generateSessionTitle,
-  isTimestampTitle,
-  timestampTitle,
-} from '@/utils/aiSessionTitle'
+import { generateSessionTitle, timestampTitle } from '@/utils/aiSessionTitle'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { resolveIdentity } from '@/utils/identity'
 import { isImeComposing } from '@/utils/ime'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
-import { createRenderCache } from '@/utils/renderCache'
 import { renderSimpleMarkdown } from '@/utils/simpleMarkdown'
 import { isWindowExposed } from '@/windows/exposure'
 import DeckColumnComponent from './DeckColumn.vue'
@@ -71,6 +69,8 @@ skillsStore.ensureLoaded()
 const sessionsStore = useAiSessionsStore()
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
+// カラムのアカウント解決は共通基盤 (テーマ変数は AI カラムでは使っていない)
+const { account } = useColumnSetup(() => props.column)
 const vault = useVault()
 const harnesses = useAiHarnesses()
 
@@ -564,9 +564,7 @@ async function sendMessage(
         }))
 
       const contextBlock = buildAiContextBlock(aiConfig.value, {
-        currentAccount: props.column.accountId
-          ? (accountsStore.accountMap.get(props.column.accountId) ?? null)
-          : null,
+        currentAccount: account.value ?? null,
         currentColumn: focusedColumn ?? props.column,
         visibleNotes: visibleItems,
         recentConversation: projectRecentConversation(history),

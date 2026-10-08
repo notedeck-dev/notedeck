@@ -2,8 +2,8 @@ import { computed, onScopeDispose, ref, shallowRef } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import { useFrameScheduler } from '@/composables/useFrameScheduler'
 import { type VariantKey, variantKeyOf } from '@/services/noteKey'
+import { insertIntoSorted } from '@/services/sortNotes'
 import { usePerformanceStore } from '@/stores/performance'
-import { insertIntoSorted } from '@/utils/sortNotes'
 
 export interface UseStreamingBatchOptions {
   notes: { value: NormalizedNote[] }

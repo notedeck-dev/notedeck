@@ -1,4 +1,4 @@
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type {
   ChannelSubscription,
@@ -12,7 +12,9 @@ import { useNoteSound } from '@/composables/useNoteSound'
 import { useScrollDirection } from '@/composables/useScrollDirection'
 import { useServerImages } from '@/composables/useServerImages'
 import { i18n } from '@/i18n'
+import { FAVORITES_CACHE_KEY } from '@/services/columnCacheKey'
 import { variantKeyOf } from '@/services/noteKey'
+import { toggleFavorite } from '@/services/toggleFavorite'
 import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
@@ -21,9 +23,7 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
-import { FAVORITES_CACHE_KEY } from '@/utils/columnCacheKey'
 import { AppError } from '@/utils/errors'
-import { toggleFavorite } from '@/utils/toggleFavorite'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { votePoll } from '@/utils/votePoll'
 
@@ -56,12 +56,42 @@ export function useColumnSetup(
 
   const { account, columnThemeVars } = useColumnTheme(getColumn)
 
-  const serverIconUrl = ref<string | undefined>()
-  const { serverInfoImageUrl, serverNotFoundImageUrl, serverErrorImageUrl } =
-    useServerImages(getColumn)
+  const {
+    serverIconUrl,
+    serverInfoImageUrl,
+    serverNotFoundImageUrl,
+    serverErrorImageUrl,
+  } = useServerImages(getColumn)
+
+  /** アカウントはあるがトークンが無い (ログアウト中)。ゲスト / アカウント無しは false */
+  const isLoggedOut = computed(() => account.value?.hasToken === false)
 
   const isLoading = ref(false)
   const error = ref<AppError | null>(null)
+  let loadSeq = 0
+
+  /**
+   * 読み込み中 / エラーの定型を 1 本にする (#1098 §4)。task の失敗は AppError に
+   * 包んで error に置き、toast は出さない (表示はカラムの ColumnEmptyState)。
+   * 後から始めた読み込みが勝つ: 古い方の完了は isLoading / error を触らない。
+   * task は `stillCurrent()` で自分が最新かを確かめてから結果を書く
+   * (タブ切替中に返った旧タブの結果を捨てる用途)
+   */
+  async function withLoading(
+    task: (stillCurrent: () => boolean) => Promise<void>,
+  ): Promise<void> {
+    const seq = ++loadSeq
+    const stillCurrent = () => seq === loadSeq
+    isLoading.value = true
+    error.value = null
+    try {
+      await task(stillCurrent)
+    } catch (e) {
+      if (stillCurrent()) error.value = AppError.from(e)
+    } finally {
+      if (stillCurrent()) isLoading.value = false
+    }
+  }
 
   let adapter: ServerAdapter | null = null
   let subscription: ChannelSubscription | null = null
@@ -80,7 +110,6 @@ export function useColumnSetup(
     const result = await initAdapterFor(acc.host, acc.id, {
       hasToken: opts?.hasToken ?? acc.hasToken,
     })
-    serverIconUrl.value = result.serverInfo.iconUrl
     adapter = result.adapter
     return adapter
   }
@@ -476,6 +505,11 @@ export function useColumnSetup(
     if (el) reportScroll(el.scrollTop)
   }
 
+  /** ヘッダークリックで先頭へ (NoteScroller を持つ面は useNoteColumn 側の実装を使う) */
+  function scrollToTop() {
+    scroller.value?.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   return {
     // State
     account,
@@ -484,8 +518,10 @@ export function useColumnSetup(
     serverInfoImageUrl,
     serverNotFoundImageUrl,
     serverErrorImageUrl,
+    isLoggedOut,
     isLoading,
     error,
+    withLoading,
     // Adapter lifecycle
     initAdapter,
     getAdapter,
@@ -524,5 +560,6 @@ export function useColumnSetup(
     scroller,
     onScroll,
     onScrollReport,
+    scrollToTop,
   }
 }

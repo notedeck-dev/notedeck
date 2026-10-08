@@ -3,9 +3,9 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { createMisskeyApi } from '@/adapters/misskey/api'
 import type { NormalizedNote } from '@/adapters/types'
 import { useNoteAccountId } from '@/composables/useNoteContext'
+import { parseNoteUrl } from '@/services/noteUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { usePerformanceStore } from '@/stores/performance'
-import { parseNoteUrl } from '@/utils/noteUrl'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const perfStore = usePerformanceStore()

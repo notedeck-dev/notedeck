@@ -2,12 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderSimpleMarkdown } from './simpleMarkdown'
 
 const highlightCodeTokens = vi.hoisted(() =>
-  vi.fn<
-    (
-      code: string,
-      lang: string | null,
-    ) => { html: string; fgClass: string } | null
-  >(),
+  vi.fn<(code: string, lang: string | null) => string | null>(),
 )
 
 vi.mock('./highlight', () => ({ highlightCodeTokens }))
@@ -24,17 +19,15 @@ describe('renderSimpleMarkdown — コードブロック', () => {
     expect(html).not.toContain('class="shiki')
   })
 
-  it('ハイライトできたらトークンの span を残す', () => {
-    highlightCodeTokens.mockReturnValue({
-      html: '<span class="shiki-569cd6">let</span> x',
-      fgClass: 'shiki-d4d4d4',
-    })
+  it('ハイライトできたらトークンの span (CSS 変数の inline style) を残す', () => {
+    highlightCodeTokens.mockReturnValue(
+      '<span style="color:var(--nd-code-token-keyword)">let</span> x',
+    )
     const html = renderSimpleMarkdown('```aiscript\nlet x\n```')
-    // span は sanitize の allowlist を通る
-    expect(html).toContain('<span class="shiki-569cd6">let</span>')
-    // 前景色クラスは code 側に乗る (pre 側の shiki クラスは happy-dom 上の
-    // DOMPurify が pre ごと落とすため、ここでは検証しない — 実ブラウザでは残る)
-    expect(html).toContain('class="shiki-d4d4d4"')
+    // span と style は sanitize の allowlist を通る (#1050)
+    expect(html).toContain(
+      '<span style="color:var(--nd-code-token-keyword)">let</span>',
+    )
   })
 
   it('diff は Shiki に渡さず行単位で塗る (増減が読み取れる色にする)', () => {

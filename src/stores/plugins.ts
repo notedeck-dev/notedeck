@@ -53,6 +53,14 @@ export interface PluginMeta extends SidecarItemFile {
   storeVersion?: string
   /** 個別アイコン URL (MisStore registry の iconUrl 互換) */
   iconUrl?: string
+  /**
+   * 作成 / 最終更新時刻 (ms)。#1202 段階 0 でファイルに足した (widget / query /
+   * skill と同じ)。ファイルから読んだ個体は必ず持ち (無ければ読込時に今を入れて
+   * メインウィンドウが書き戻す)、メモリで作った個体は `addPlugin` が埋める。
+   * 段階 1 (envelope) で必須になる
+   */
+  createdAt?: number
+  updatedAt?: number
 }
 
 /** インストール/追加先スコープ (#771)。カラムの文脈から決まる。 */
@@ -88,6 +96,72 @@ interface PluginFileMeta {
   storeSha512?: string
   storeVersion?: string
   iconUrl?: string
+  createdAt: number
+  updatedAt: number
+}
+
+/**
+ * item → meta ファイルの projection。キー順と省略規則は notecore の
+ * `sidecar/plugins.rs` `normalize_meta` と、codec (`services/distributableCodecs/
+ * pluginCodec.ts`) の出力と一致する (storeParity.test / golden が固定)
+ */
+function pluginToFileMeta(p: PluginMeta): PluginFileMeta {
+  return {
+    installId: p.installId,
+    name: p.name,
+    version: p.version,
+    ...(p.author ? { author: p.author } : {}),
+    ...(p.description ? { description: p.description } : {}),
+    ...(p.permissions?.length ? { permissions: p.permissions } : {}),
+    ...(p.config ? { config: p.config } : {}),
+    configData: p.configData,
+    active: p.active,
+    ...(p.global ? { global: true } : {}),
+    ...(p.installedFor?.length ? { installedFor: p.installedFor } : {}),
+    ...(p.storeId ? { storeId: p.storeId } : {}),
+    ...(p.storeSha512 ? { storeSha512: p.storeSha512 } : {}),
+    ...(p.storeVersion ? { storeVersion: p.storeVersion } : {}),
+    ...(p.iconUrl ? { iconUrl: p.iconUrl } : {}),
+    // addPlugin が埋めるので通常は到達しない (保険)
+    createdAt: p.createdAt ?? Date.now(),
+    updatedAt: p.updatedAt ?? Date.now(),
+  }
+}
+
+function pluginFromFile(
+  meta: PluginFileMeta,
+  src: string,
+  metaFile: string,
+): PluginMeta {
+  return {
+    installId: meta.installId || metaFile,
+    name: meta.name || metaFile,
+    version: meta.version || '0.0.0',
+    author: meta.author,
+    description: meta.description,
+    permissions: meta.permissions,
+    config: meta.config,
+    configData: meta.configData || {},
+    src,
+    active: meta.active ?? false,
+    global: meta.global,
+    installedFor: meta.installedFor,
+    storeId: meta.storeId,
+    storeSha512: meta.storeSha512,
+    storeVersion: meta.storeVersion,
+    iconUrl: meta.iconUrl,
+    createdAt: meta.createdAt ?? Date.now(),
+    updatedAt: meta.updatedAt ?? Date.now(),
+  }
+}
+
+/**
+ * 内部関数の test 用 export (codec との一致検査)。プロダクトコードから直接
+ * 呼ばないこと
+ */
+export const _internal = {
+  toFileMeta: pluginToFileMeta,
+  fromFile: pluginFromFile,
 }
 
 /** .is + .meta.json5 ペアのファイル永続化 (#782 Phase 2、widgets と共通) */
@@ -108,50 +182,22 @@ const pluginFiles = createSidecarCollection<PluginMeta, PluginFileMeta>({
   srcOf: (p) => p.src,
   // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
   preferredBase: (p) => p.storeId,
-  mirrorSrcById: (id) =>
-    loadPluginsFromStorage().find((p) => p.installId === id)?.src,
-  toFileMeta: (p) => ({
-    installId: p.installId,
-    name: p.name,
-    version: p.version,
-    ...(p.author ? { author: p.author } : {}),
-    ...(p.description ? { description: p.description } : {}),
-    ...(p.permissions?.length ? { permissions: p.permissions } : {}),
-    ...(p.config ? { config: p.config } : {}),
-    configData: p.configData,
-    active: p.active,
-    ...(p.global ? { global: true } : {}),
-    ...(p.installedFor?.length ? { installedFor: p.installedFor } : {}),
-    ...(p.storeId ? { storeId: p.storeId } : {}),
-    ...(p.storeSha512 ? { storeSha512: p.storeSha512 } : {}),
-    ...(p.storeVersion ? { storeVersion: p.storeVersion } : {}),
-    ...(p.iconUrl ? { iconUrl: p.iconUrl } : {}),
-  }),
-  fromFile: (meta, src, metaFile) => ({
-    installId: meta.installId || metaFile,
-    name: meta.name || metaFile,
-    version: meta.version || '0.0.0',
-    author: meta.author,
-    description: meta.description,
-    permissions: meta.permissions,
-    config: meta.config,
-    configData: meta.configData || {},
-    src,
-    active: meta.active ?? false,
-    global: meta.global,
-    installedFor: meta.installedFor,
-    storeId: meta.storeId,
-    storeSha512: meta.storeSha512,
-    storeVersion: meta.storeVersion,
-    iconUrl: meta.iconUrl,
-  }),
+  toFileMeta: pluginToFileMeta,
+  fromFile: pluginFromFile,
+  // #1202 段階 0: createdAt / updatedAt の無い旧ファイルは書き戻して揃える
+  isOutdated: (meta) =>
+    typeof meta.createdAt !== 'number' || typeof meta.updatedAt !== 'number',
 })
+
+// ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
+// localStorage には書かない (#1042。ウィンドウ間の追随は変更通知で行う)
 
 function loadPluginsFromStorage(): PluginMeta[] {
   return getStorageJson<PluginMeta[]>(STORAGE_KEYS.plugins, [])
 }
 
 function savePluginsToStorage(plugins: PluginMeta[]) {
+  if (settingsFs.isTauri) return
   setStorageJson(STORAGE_KEYS.plugins, plugins)
 }
 
@@ -169,7 +215,6 @@ export const usePluginsStore = defineStore('plugins', () => {
   function ensureLoaded() {
     if (loaded) return
     loaded = true
-    plugins.value = loadPluginsFromStorage()
 
     // Kick off file-based init (Tauri only)
     if (settingsFs.isTauri) {
@@ -177,6 +222,7 @@ export const usePluginsStore = defineStore('plugins', () => {
         .catch((e) => console.warn('[plugins] file storage init failed:', e))
         .finally(() => resolveReady?.())
     } else {
+      plugins.value = loadPluginsFromStorage()
       initialized.value = true
       resolveReady?.()
       scheduleScopeMigration()
@@ -188,17 +234,17 @@ export const usePluginsStore = defineStore('plugins', () => {
     return plugins.value.filter((p) => p.active)
   })
 
-  /** 保存・削除の直前にミラーの対応表を読み直す (別ウィンドウのリネーム追随)。 */
-  function adoptMirrorFileBase(plugin: PluginMeta) {
-    const mirrored = loadPluginsFromStorage().find(
-      (p) => p.installId === plugin.installId,
-    )
-    if (mirrored?.fileBase) plugin.fileBase = mirrored.fileBase
+  /** 初回読込 (ファイル) の完了を待つ。起動時に全プラグインを起動する側が使う */
+  function whenReady(): Promise<void> {
+    ensureLoaded()
+    return ready
   }
 
   function persist(plugin?: PluginMeta) {
-    savePluginsToStorage(plugins.value)
-    if (!settingsFs.isTauri) return
+    if (!settingsFs.isTauri) {
+      savePluginsToStorage(plugins.value)
+      return
+    }
     void ready
       .then(async () => {
         if (plugin) {
@@ -208,23 +254,20 @@ export const usePluginsStore = defineStore('plugins', () => {
           const live =
             plugins.value.find((p) => p.installId === plugin.installId) ??
             plugin
-          adoptMirrorFileBase(live)
           await pluginFiles.persistItem(live, plugins.value)
         } else {
           await pluginFiles.persistAll(plugins.value, plugins.value)
         }
-        // fileBase 割当をミラーへ反映
-        savePluginsToStorage(plugins.value)
       })
       .catch((e) => console.warn('[plugins] failed to persist to files:', e))
   }
 
   /** Load plugins from files. Files are source of truth. */
   async function initFileStorage(): Promise<void> {
-    const { items: filePlugins } = await pluginFiles.loadAll()
+    const { items: filePlugins, outdated } = await pluginFiles.loadAll()
 
-    // 初期化中にメモリ追加された plugin と、ミラーにだけ在る plugin
-    // (過去の書込が黙って失敗した個体) の集合。
+    // 初期化中にメモリ追加された plugin は残す (各自の persist が ready 後に
+    // ファイル化する)
     const fileIds = new Set(filePlugins.map((p) => p.installId))
     const memoryOnly = plugins.value.filter((p) => !fileIds.has(p.installId))
 
@@ -234,16 +277,15 @@ export const usePluginsStore = defineStore('plugins', () => {
 
     // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
     if (settingsFs.isMainDeckWindow()) {
-      // (a) 規約外名の copy-adopt 正規化
+      // 規約外名の copy-adopt 正規化
       await pluginFiles.migrateItems(plugins.value)
-      // (b) ミラー在・ファイル不在 → 新 slug 名で再作成 (空ソースは書かない)
-      for (const p of memoryOnly) {
-        if (p.readOnly || !p.src) continue
-        p.fileBase = undefined // ミラー由来の旧 fileBase は無効 (ファイル不在)
+      // on-disk の揃え (#1202 段階 0): createdAt / updatedAt の無い旧ファイルを
+      // 読込時に埋めた値で書き戻す。一度きり (次回は outdated に入らない)
+      for (const p of outdated) {
         await pluginFiles
           .persistItem(p, plugins.value)
           .catch((e) =>
-            console.warn('[plugins] failed to persist memory-only plugins:', e),
+            console.warn('[plugins] failed to align on-disk format:', e),
           )
       }
       // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
@@ -252,7 +294,6 @@ export const usePluginsStore = defineStore('plugins', () => {
         .catch((e) => console.warn('[plugins] history sweep failed:', e))
     }
 
-    savePluginsToStorage(plugins.value)
     initialized.value = true
 
     // 同梱をやめて MisStore 配布に移したプラグインの移行 (#746)
@@ -285,6 +326,9 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   function addPlugin(plugin: PluginMeta) {
     ensureLoaded()
+    const now = Date.now()
+    plugin.createdAt ??= now
+    plugin.updatedAt ??= now
     plugins.value.push(plugin)
     persist(plugin)
   }
@@ -298,16 +342,12 @@ export const usePluginsStore = defineStore('plugins', () => {
     ensureLoaded()
     const idx = plugins.value.findIndex((p) => p.installId === installId)
     const removed = plugins.value[idx]
-    // ミラー上書き前に対応表を読み直す (別ウィンドウのリネーム後の削除が
-    // stale なファイル名で空振りしないように)
-    if (removed && settingsFs.isTauri) adoptMirrorFileBase(removed)
     // Clean up plugin localStorage entries
     // undo で戻せるよう消す前にスナップショットを取る (widgets と同型)
     const storagePrefix = STORAGE_KEYS.aiscriptPlugin(installId)
     const savedStorage = getStorageByPrefix(storagePrefix)
     removeStorageByPrefix(storagePrefix)
     plugins.value = plugins.value.filter((p) => p.installId !== installId)
-    // Sync: localStorage only (file deletion handles the rest)
     savePluginsToStorage(plugins.value)
     // Delete files
     if (settingsFs.isTauri && removed) {
@@ -333,7 +373,6 @@ export const usePluginsStore = defineStore('plugins', () => {
       if (settingsFs.isTauri) {
         void ready
           .then(() => pluginFiles.persistItem(removed, plugins.value))
-          .then(() => savePluginsToStorage(plugins.value))
           .catch((e) =>
             console.warn('[plugins] failed to restore plugin files:', e),
           )
@@ -343,7 +382,7 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   /**
    * 読取専用 (ソース欠損) の個体は変更を拒否する (#1111)。保存できず端末
-   * ローカルにだけ載って次回起動で巻き戻るため、ミラーに書く前に抜ける
+   * ローカルにだけ載って次回起動で巻き戻るため、写しに書く前に抜ける
    */
   function rejectIfReadOnly(plugin: PluginMeta | undefined): boolean {
     if (!plugin?.readOnly) return false
@@ -359,6 +398,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (rejectIfReadOnly(plugin)) return false
     if (plugin.global) return true
     plugin.global = true
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -371,6 +411,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (rejectIfReadOnly(plugin)) return false
     if (!plugin.global) return true
     plugin.global = undefined
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -384,6 +425,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     const existing = plugin.installedFor ?? []
     if (existing.includes(scopeKey)) return true
     plugin.installedFor = [...existing, scopeKey]
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -397,6 +439,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (!plugin.installedFor) return true
     const remaining = plugin.installedFor.filter((k) => k !== scopeKey)
     plugin.installedFor = remaining.length > 0 ? remaining : undefined
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -508,6 +551,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (!plugin) return false
     if (rejectIfReadOnly(plugin)) return false
     plugin.active = active
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -522,6 +566,7 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (!plugin) return false
     if (rejectIfReadOnly(plugin)) return false
     plugin.configData = data
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -555,6 +600,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       ).catch((e) => console.warn('[plugins] history push failed:', e))
     }
     plugin.src = src
+    plugin.updatedAt = Date.now()
     persist(plugin)
     return true
   }
@@ -607,6 +653,7 @@ export const usePluginsStore = defineStore('plugins', () => {
       }
     }
     plugin.readOnly = undefined
+    plugin.updatedAt = Date.now()
     persist(plugin)
   }
 
@@ -635,16 +682,15 @@ export const usePluginsStore = defineStore('plugins', () => {
     if (rejectIfReadOnly(plugin)) return false
 
     plugin.name = newName
+    plugin.updatedAt = Date.now()
     savePluginsToStorage(plugins.value)
     if (!settingsFs.isTauri) return true
     // ファイルは rename で追随させる (ID 不変・旧削除 + 新書込の並行発火禁止)。
     // rename の完了を待ってから保存する
     void ready
       .then(async () => {
-        adoptMirrorFileBase(plugin)
         await pluginFiles.renameItemFiles(plugin, plugins.value)
         await pluginFiles.persistItem(plugin, plugins.value)
-        savePluginsToStorage(plugins.value)
       })
       .catch((e) => console.warn('[plugins] failed to rename plugin files:', e))
     return true
@@ -660,8 +706,8 @@ export const usePluginsStore = defineStore('plugins', () => {
     return plugins.value.some((p) => p.name === name)
   }
 
-  // notecore がプラグインのファイルを書いた (AI の plugins.* は notecore の本体が
-  // 書く, #1133) → その個体だけ写しを揃え、有効 / ソース変更なら起動し直し、
+  // 別の書き手 (notecore の plugins.* / 他のウィンドウ, #1133 / #1042) がプラグインの
+  // ファイルを書いた → その個体だけ写しを揃え、有効 / ソース変更なら起動し直し、
   // 無効化 / 削除なら止める (UI のトグル・削除と同じ後処理)。src だけの通知は
   // meta の通知が続くので見ない。plugin-api は本 store を import するので遅延参照
   registerSettingsFileHandler('plugins', async (change) => {
@@ -676,7 +722,6 @@ export const usePluginsStore = defineStore('plugins', () => {
       abortPlugin(removed.installId)
       removeStorageByPrefix(STORAGE_KEYS.aiscriptPlugin(removed.installId))
       plugins.value = plugins.value.filter((p) => p !== removed)
-      savePluginsToStorage(plugins.value)
       return
     }
     let item: PluginMeta | undefined
@@ -694,7 +739,6 @@ export const usePluginsStore = defineStore('plugins', () => {
     plugins.value = prev
       ? plugins.value.map((p) => (p === prev ? next : p))
       : [...plugins.value, next]
-    savePluginsToStorage(plugins.value)
     // 起動し直す条件: 有効化 / ソース / 設定値 / 権限 (ストア更新で変わる) の変化
     const changed =
       !prev?.active ||
@@ -711,6 +755,7 @@ export const usePluginsStore = defineStore('plugins', () => {
 
   return {
     plugins,
+    whenReady,
     activePlugins,
     ensureLoaded,
     addPlugin,

@@ -1,8 +1,8 @@
 import { computed, ref, shallowRef } from 'vue'
 import type { DriveFolder, NormalizedDriveFile } from '@/adapters/types'
+import { isSafeUrl } from '@/services/safeUrl'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
-import { isSafeUrl } from '@/utils/url'
 
 export interface UseDriveFolderOptions {
   accountId: () => string | undefined

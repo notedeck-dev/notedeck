@@ -2,9 +2,9 @@
 import { ApiReference } from '@scalar/api-reference'
 import { i18n } from '@/i18n'
 import '@scalar/api-reference/style.css'
-import { computed, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -14,26 +14,18 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { columnThemeVars } = useColumnTheme(() => props.column)
+const { columnThemeVars, error, withLoading, scroller, scrollToTop } =
+  useColumnSetup(() => props.column)
 const themeStore = useThemeStore()
 
 const spec = ref<string | null>(null)
-const error = ref<string | null>(null)
 
-onMounted(async () => {
-  try {
+onMounted(() =>
+  withLoading(async () => {
     const data = unwrap(await commands.getOpenapiSpec())
     spec.value = JSON.stringify(data)
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
-  }
-})
-
-const docsContainerRef = useTemplateRef<HTMLElement>('docsContainerRef')
-
-function scrollToTop() {
-  docsContainerRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
+  }),
+)
 
 const isDark = computed(() => !themeStore.currentSource?.kind.includes('light'))
 
@@ -56,8 +48,8 @@ const config = computed(() => ({
       <i class="ti ti-book tl-header-icon" />
     </template>
 
-    <div ref="docsContainerRef" :class="$style.docsContainer">
-      <div v-if="error" :class="$style.docsError">{{ error }}</div>
+    <div ref="scroller" :class="$style.docsContainer">
+      <div v-if="error" :class="$style.docsError">{{ error.message }}</div>
       <div v-else-if="!spec" :class="$style.docsLoading"><LoadingSpinner /></div>
       <ApiReference v-else :key="isDark ? 'dark' : 'light'" :configuration="config" />
     </div>

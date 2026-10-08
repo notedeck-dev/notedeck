@@ -3,11 +3,11 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import type { NormalizedNote } from '@/adapters/types'
 import { i18n } from '@/i18n'
 import { type VariantKey, variantKeyOf } from '@/services/noteKey'
+import { getNoteShareUrl } from '@/services/noteUrl'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { usePinnedReactionsStore } from '@/stores/pinnedReactions'
 import { useToast } from '@/stores/toast'
-import { getNoteShareUrl } from '@/utils/noteUrl'
 
 export type NoteAction =
   | 'next'

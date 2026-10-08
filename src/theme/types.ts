@@ -18,6 +18,13 @@ export interface NotedeckThemeMeta {
    * 旧 UUID の値は起動時に安定キーへ移行する。
    */
   installedFor?: string[]
+  /**
+   * 作成 / 最終更新時刻 (ms)。#1202 段階 0 で他の配布物と揃えてここに足した
+   * (上位は Misskey 互換のまま)。ファイルから読んだテーマは必ず持ち (無ければ
+   * 読込時に今を入れてメインウィンドウが書き戻す)、`installTheme` が埋める
+   */
+  createdAt?: number
+  updatedAt?: number
 }
 
 export interface MisskeyTheme {

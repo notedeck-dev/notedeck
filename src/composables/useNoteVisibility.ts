@@ -70,11 +70,15 @@ export function useNoteVisibility() {
     if (noteStore.isDeleted(variantKeyOf(note))) return true
     // 元ノートが削除された純 Renote は見せない (#1123)。本家 2025.10 以降は
     // Renote を cascade 削除しないので、列から外しても再取得で戻ってくる —
-    // 述語で隠す。引用 (本文・添付等が残る) は隠さない
+    // 述語で隠す。引用 (本文・添付等が残る) は隠さない。
+    // tombstone はセッション揮発なので、再起動後は「renoteId があるのに renote
+    // 本体が無い」形で判定する。キャッシュはサーバー応答の renote をそのまま
+    // 埋め込むので、本体が欠けるのはサーバーが返さなかった (元が消えた) ときだけ
     if (
       note.renoteId &&
       isRenoteOnly(note) &&
-      noteStore.isDeleted(nestedVariantKey(note, note.renoteId))
+      (!note.renote ||
+        noteStore.isDeleted(nestedVariantKey(note, note.renoteId)))
     )
       return true
     const subject = !opts?.ignoreSubject
