@@ -11,6 +11,12 @@ import { useIsCompactLayout } from '@/stores/ui'
 import NotificationInboxList from './NotificationInboxList.vue'
 
 const { inboxOpen, setInboxOpen } = useToast()
+
+// 位置は inline で持つ。global.css の popover リセット
+// (`[popover]:popover-open { top/right/bottom/left: auto }`) の詳細度が
+// クラス 1 つより高く、class で書くと左上に出てしまう。
+// デスクトップはボトムバー (42px) の上、右端に揃える
+const PANEL_POSITION = { right: '12px', bottom: '54px' }
 const isCompact = useIsCompactLayout()
 
 function close() {
@@ -78,7 +84,9 @@ useNativeDialog(
       v-else
       ref="panelRef"
       popover="manual"
+      class="_popup"
       :class="[$style.panel, entering && $style.panelEnter, leaving && $style.panelLeave]"
+      :style="PANEL_POSITION"
       @keydown.esc="close"
     >
       <NotificationInboxList @close="close" />
@@ -91,18 +99,11 @@ useNativeDialog(
 
 .panel {
   position: fixed;
-  inset: auto 12px 54px auto;
-  margin: 0;
   width: min(420px, calc(100vw - 24px));
   max-height: min(480px, calc(100vh - 120px));
   display: flex;
   flex-direction: column;
-  padding: 0;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-md);
-  background: var(--nd-popup);
   color: var(--nd-fg);
-  box-shadow: var(--nd-shadow-l);
   overflow: hidden;
 }
 
