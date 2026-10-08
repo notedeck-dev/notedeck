@@ -1,12 +1,16 @@
 /**
- * notecore が設定ファイルを書いたときの写しの読み直し (#1133 縦切り 4 第 3 弾)
- * の配線表。購読 (Tauri イベント) は `composables/useSettingsFileSync` が行い、
- * ここは「scope (subdir か root) → handler」の登録と配送だけ (純ロジック、
- * store から import できる)。
+ * 別の書き手が設定ファイルを書いたときの写しの読み直しの配線表 (#1133 縦切り 4
+ * 第 3 弾)。書き手は notecore (AI / 復元) と他のウィンドウ (#1042) の 2 つで、
+ * 購読 (Tauri イベント) は `composables/useSettingsFileSync` が行い、ここは
+ * 「scope (subdir か root) → handler」の登録と配送だけ (純ロジック、store から
+ * import できる)。
  *
  * - store は `registerSettingsFileHandler(scope, handler)` で登録する。scope は
  *   subdir 名 (`'sessions'` / `'skills'` …) か、root ファイルなら `'root'`
- * - デバイス発の書込 (store 自身の永続化) は通知されない
+ * - 自分のウィンドウの書込 (store 自身の永続化) は届かない。自分の写しは
+ *   自分で更新している
+ * - 他のウィンドウの書込は subdir 配下のファイルだけ届く。root 直下
+ *   (settings.json5 等) は `nd:settings-changed` など各自の経路を持つ
  */
 
 import type { SettingsChange } from '@/bindings'

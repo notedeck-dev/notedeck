@@ -1,4 +1,5 @@
-import type { VersionedText } from '@/bindings'
+import type { SettingsChange, VersionedText } from '@/bindings'
+import { emitTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export const isTauri =
@@ -31,6 +32,26 @@ export function sanitizeFilename(name: string): string {
 
 // --- Generic settings file operations ---
 
+/** このウィンドウの印。自分の書込通知を自分で受け取らないために payload に載せる */
+export const SETTINGS_FS_SOURCE_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+/**
+ * デバイス発の設定ファイル書込を他ウィンドウへ知らせる (#1042)。notecore 発の
+ * 書込は Rust が `nd:settings-file-changed` を全ウィンドウへ流すが、デバイス発
+ * (store 自身の永続化) は Rust が通知しない (自分の写しは自分で更新している)。
+ * 代わりに書いたウィンドウが JS → JS で流し、受け手 (`useSettingsFileSync`) は
+ * 自分の sourceId を捨てて残りを notecore 発と同じ配線表に配る。これが
+ * ウィンドウ間同期の唯一の経路で、localStorage のミラーはもう使わない
+ */
+function announce(subdir: string, name: string, op: SettingsChange['op']) {
+  emitTauri('nd:settings-file-written', {
+    sourceId: SETTINGS_FS_SOURCE_ID,
+    change: { subdir, name, op },
+  }).catch(() => {
+    // 通知の失敗で書込自体を失敗にはしない
+  })
+}
+
 export async function listSettingsFiles(subdir: string): Promise<string[]> {
   if (!isTauri) return []
   return unwrap(await commands.listSettingsFiles(subdir))
@@ -51,6 +72,7 @@ export async function writeSettingsFile(
 ): Promise<void> {
   if (!isTauri) return
   unwrap(await commands.writeSettingsFile(subdir, name, content, null))
+  announce(subdir, name, 'write')
 }
 
 /**
@@ -65,9 +87,11 @@ export async function writeSettingsFileIf(
   expected: string | null,
 ): Promise<string> {
   if (!isTauri) return ''
-  return unwrap(
+  const version = unwrap(
     await commands.writeSettingsFile(subdir, name, content, expected),
   )
+  announce(subdir, name, 'write')
+  return version
 }
 
 export async function deleteSettingsFile(
@@ -76,6 +100,7 @@ export async function deleteSettingsFile(
 ): Promise<void> {
   if (!isTauri) return
   unwrap(await commands.deleteSettingsFile(subdir, name))
+  announce(subdir, name, 'delete')
 }
 
 export async function renameSettingsFile(
@@ -85,6 +110,10 @@ export async function renameSettingsFile(
 ): Promise<void> {
   if (!isTauri) return
   unwrap(await commands.renameSettingsFile(subdir, oldName, newName))
+  // 新名の write → 旧名の delete の順。受け手は対応表 (fileBase) で個体を
+  // 引くので、先に新名へ移してから旧名を消せば同じ個体を消してしまわない
+  announce(subdir, newName, 'write')
+  announce(subdir, oldName, 'delete')
 }
 
 export async function getSettingsDir(): Promise<string> {

@@ -236,20 +236,7 @@ describe('loadAll', () => {
   })
 
   describe('メタあり・ソースなし', () => {
-    it('ミラーに同 ID の本文があればソースを再作成して通常読込する', async () => {
-      const fs = makeFakeFs({
-        'orphan.meta.json5': '{ installId: "o1", name: "orphan" }',
-      })
-      const col = makeCollection(fs, {
-        mirrorSrcById: (id) => (id === 'o1' ? 'mirror-body' : undefined),
-      })
-      const { items } = await col.loadAll()
-      expect(items[0]?.src).toBe('mirror-body')
-      expect(items[0]?.readOnly).toBeUndefined()
-      expect(fs.files.get('orphan.is')).toBe('mirror-body')
-    })
-
-    it('ミラー本文が無ければ readOnly フラグ付きで返す', async () => {
+    it('readOnly フラグ付きで返し、空ソースは書かない', async () => {
       const fs = makeFakeFs({
         'orphan.meta.json5': '{ installId: "o1", name: "orphan" }',
       })
@@ -258,19 +245,8 @@ describe('loadAll', () => {
       expect(items).toHaveLength(1)
       expect(items[0]?.readOnly).toBe(true)
       expect(items[0]?.src).toBe('')
-      // 空ソースは書かない
       expect(fs.files.has('orphan.is')).toBe(false)
       expect(warn).toHaveBeenCalled()
-    })
-
-    it('ミラー本文が空文字列なら再作成せず readOnly にする', async () => {
-      const fs = makeFakeFs({
-        'orphan.meta.json5': '{ installId: "o1", name: "orphan" }',
-      })
-      const col = makeCollection(fs, { mirrorSrcById: () => '' })
-      const { items } = await col.loadAll()
-      expect(items[0]?.readOnly).toBe(true)
-      expect(fs.files.has('orphan.is')).toBe(false)
     })
   })
 

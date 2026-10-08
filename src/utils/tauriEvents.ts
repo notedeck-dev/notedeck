@@ -46,10 +46,13 @@ export interface TauriEventPayloads {
   'deck:window-closed': { windowId: string }
   'deck:drag-start': { columnId: string; sourceWindowId: string }
   'deck:drag-end': { columnId: string; sourceWindowId: string }
-  'deck:profile-updated': { profileId: string }
-  'deck:profiles-changed': undefined
   /** settings.json5 が永続化された (テーマ等をウィンドウ間で同期する) */
   'nd:settings-changed': { sourceId: string }
+  /**
+   * デバイス発の設定ファイル書込 (#1042)。書いたウィンドウが流し、他のウィンドウは
+   * notecore 発の `nd:settings-file-changed` と同じ配線表で該当の写しを読み直す
+   */
+  'nd:settings-file-written': { sourceId: string; change: SettingsChange }
   /** 表示言語が変わった。送り元以外のウィンドウも辞書を差し替える (#135) */
   'nd:locale-changed': { sourceId: string; preference: string }
   'pip:return-to-deck': Omit<DeckColumn, 'id'>

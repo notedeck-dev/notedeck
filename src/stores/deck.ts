@@ -871,16 +871,6 @@ export const useDeckStore = defineStore('deck', () => {
     save()
   }
 
-  // --- Sync (delegates to profileStore) ---
-
-  function startSync() {
-    return profileStore.startSync()
-  }
-
-  function stopSync() {
-    profileStore.stopSync()
-  }
-
   return {
     columns,
     layout,
@@ -959,7 +949,5 @@ export const useDeckStore = defineStore('deck', () => {
     refreshActiveColumn,
     columnInvalidation,
     invalidateColumnByKey,
-    startSync,
-    stopSync,
   }
 })

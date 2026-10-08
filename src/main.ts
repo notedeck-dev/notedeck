@@ -8,6 +8,7 @@ import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
 import { router, setupFirstRunTutorial } from './router'
 import { initEarlyAccountListener, useAccountsStore } from './stores/accounts'
+import { useDeckProfileStore } from './stores/deckProfile'
 import { useKeybindsStore } from './stores/keybinds'
 import { usePerformanceStore } from './stores/performance'
 import { useServersStore } from './stores/servers'
@@ -131,6 +132,9 @@ if (isTauri) {
     // 表示言語の辞書 (#135)。以降の初期化が出す toast も辞書を引くので先に揃える
     localeReady,
     usePerformanceStore().init(),
+    // デッキプロファイル (#1042)。ファイルが唯一の正で、localStorage からの即時復元は
+    // 無いので、初回描画が既定デッキで一瞬出ないよう描画前に読み終える
+    useDeckProfileStore().preloadFiles(),
     commands
       .getMediaProxyToken()
       .then((token) => setMediaProxyToken(token))

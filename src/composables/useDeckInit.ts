@@ -96,9 +96,6 @@ export function useDeckInit(options: {
     document.addEventListener('visibilitychange', onVisibilityChange)
     window.addEventListener('pagehide', onPageHide)
 
-    // Critical: start streaming immediately
-    deckStore.startSync()
-
     // 永続化されたリアルタイムモードをバックエンドへ適用する (#1004)。
     // UI 表示は settings から復元されるが、バックエンドは適用を受けるまで
     // 常に realtime で動く。アカウント一覧が要るのでロード完了後に呼ぶ
@@ -192,8 +189,11 @@ export function useDeckInit(options: {
       window.requestIdleCallback ??
       ((cb: IdleRequestCallback) => setTimeout(cb, 50))
     idle(() => {
-      import('@/aiscript/plugin-api').then(({ launchAllPlugins }) => {
-        pluginsStore.ensureLoaded()
+      // 一覧はファイルから読む (#1042) ので、読み終わるのを待ってから起動する
+      Promise.all([
+        import('@/aiscript/plugin-api'),
+        pluginsStore.whenReady(),
+      ]).then(([{ launchAllPlugins }]) => {
         launchAllPlugins(pluginsStore.plugins)
       })
     })
@@ -239,7 +239,6 @@ export function useDeckInit(options: {
     import('@/aiscript/plugin-api').then(({ abortAllPlugins }) => {
       abortAllPlugins()
     })
-    deckStore.stopSync()
     destroyApiBridge()
     unregisterDefaultCommands()
     if (handleResizeRef) window.removeEventListener('resize', handleResizeRef)
