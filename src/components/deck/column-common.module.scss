@@ -109,34 +109,6 @@
   opacity: 1;
 }
 
-/* New notes banner */
-.newNotesBanner {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  translate: -50% 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: var(--nd-radius-full);
-  font-size: 0.85em;
-  font-weight: bold;
-  color: var(--nd-fgOnAccent);
-  background: color-mix(in srgb, var(--nd-accent) 88%, transparent);
-  cursor: pointer;
-  transition: opacity var(--nd-duration-base);
-  animation: slide-down var(--nd-duration-slow) var(--nd-ease-spring);
-
-  @media (hover: hover) {
-    &:hover {
-      opacity: 0.85;
-    }
-  }
-}
-
 @keyframes slide-down {
   from { translate: -50% -100%; opacity: 0; }
   to { translate: -50% 0; opacity: 1; }

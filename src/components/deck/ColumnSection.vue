@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 
 defineProps<{
   label: string
@@ -20,15 +21,15 @@ const collapsed = ref(false)
       @click="collapsed = !collapsed"
     >
       <i
-        class="ti"
-        :class="[collapsed ? 'ti-chevron-right' : 'ti-chevron-down', $style.chevron]"
+        class="ti ti-chevron-down nd-chevron"
+        :class="[{ 'nd-chevron-closed': collapsed }, $style.chevron]"
       />
       <span>{{ label }}</span>
       <span :class="$style.count">{{ count }}</span>
     </button>
-    <div v-show="!collapsed">
+    <CollapseBox :open="!collapsed" keep-alive>
       <slot />
-    </div>
+    </CollapseBox>
   </section>
 </template>
 
@@ -51,7 +52,7 @@ const collapsed = ref(false)
   opacity: 0.55;
   letter-spacing: 0.04em;
   cursor: pointer;
-  transition: opacity 0.1s;
+  transition: opacity var(--nd-duration-fast);
 
   &:hover {
     opacity: 0.9;

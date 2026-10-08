@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import type { Interpreter } from '@syuilo/aiscript'
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
-import { type CSSProperties, computed } from 'vue'
+import { type CSSProperties, computed, reactive } from 'vue'
 import type { UiComponent } from '@/aiscript/ui'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 
 export interface PostFormRequest {
@@ -21,6 +22,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   post: [form: PostFormRequest]
 }>()
+
+const openFolders = reactive<Record<string, boolean>>({})
 
 const serverHost = computed(() => {
   if (!props.serverUrl) return ''
@@ -175,16 +178,26 @@ function handlePostFormButton(comp: UiComponent) {
       </div>
 
       <!-- folder -->
-      <details v-else-if="comp.type === 'folder'" :class="$style.aisFolder">
-        <summary>{{ comp.props.title ?? 'Folder' }}</summary>
-        <AiScriptUiRenderer
-          v-if="comp.children?.length"
-          :components="comp.children"
-          :interpreter="interpreter"
-          :server-url="serverUrl"
-          @post="(form: PostFormRequest) => emit('post', form)"
-        />
-      </details>
+      <div v-else-if="comp.type === 'folder'" :class="$style.aisFolder">
+        <button
+          class="_button"
+          :class="$style.aisFolderSummary"
+          :aria-expanded="!!openFolders[comp.id]"
+          @click="openFolders[comp.id] = !openFolders[comp.id]"
+        >
+          <i class="ti ti-chevron-down nd-chevron" :class="{ 'nd-chevron-closed': !openFolders[comp.id] }" />
+          {{ comp.props.title ?? 'Folder' }}
+        </button>
+        <CollapseBox :open="!!openFolders[comp.id]" keep-alive>
+          <AiScriptUiRenderer
+            v-if="comp.children?.length"
+            :components="comp.children"
+            :interpreter="interpreter"
+            :server-url="serverUrl"
+            @post="(form: PostFormRequest) => emit('post', form)"
+          />
+        </CollapseBox>
+      </div>
 
       <!-- buttons (horizontal button group) -->
       <div v-else-if="comp.type === 'buttons'" :class="$style.aisButtons">
@@ -345,7 +358,11 @@ function handlePostFormButton(comp: UiComponent) {
   border-radius: var(--nd-radius-md);
   overflow: hidden;
 
-  summary {
+  .aisFolderSummary {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
     cursor: pointer;
     padding: 6px 10px;
     font-size: 0.85em;

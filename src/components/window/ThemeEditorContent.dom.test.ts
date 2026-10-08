@@ -26,6 +26,8 @@ async function mountEditor(theme: MisskeyTheme) {
   const wrapper = mount(ThemeEditorContent, {
     props: { initialThemeId: theme.id },
     shallow: true,
+    // 名前入力欄は開閉する節の中にあるので、開閉の部品だけは本物を描く
+    global: { stubs: { CollapseBox: false } },
   })
   mounted.push(wrapper)
   await nextTick()

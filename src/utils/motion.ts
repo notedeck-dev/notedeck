@@ -69,3 +69,17 @@ export async function waitForAnimations(
     new Promise((resolve) => setTimeout(resolve, timeoutMs)),
   ])
 }
+
+/**
+ * スクロール領域を先頭へ戻す。遠いところから smooth で戻ると時間がかかり、
+ * 仮想スクローラでは途中の再測定で着地がずれてカクつく。1 画面分の手前まで
+ * 瞬時に寄せてから、残りだけ滑らかに戻す
+ */
+export function scrollToTopSmart(el: HTMLElement | null | undefined): void {
+  if (!el) return
+  const behavior = smoothScrollBehavior()
+  if (behavior === 'smooth' && el.scrollTop > el.clientHeight * 1.5) {
+    el.scrollTop = el.clientHeight
+  }
+  el.scrollTo({ top: 0, behavior })
+}

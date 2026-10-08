@@ -78,6 +78,7 @@ import { ACHIEVEMENT_LABELS } from '@/utils/achievementLabels'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
 import { AppError } from '@/utils/errors'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
+import { scrollToTopSmart } from '@/utils/motion'
 import {
   CROSS_ACCOUNT_NOTIFICATION_KEY,
   loadNotificationCache,
@@ -559,6 +560,7 @@ const filteredNotifications = computed(() => {
 
 const noteScrollerRef = ref<{
   getElement: () => HTMLElement | null
+  scrollToTop: () => void
   scrollToIndex: (
     index: number,
     opts?: {
@@ -581,12 +583,9 @@ let rafId: number | null = null
 
 function scrollToTop() {
   if (noteScrollerRef.value) {
-    noteScrollerRef.value.scrollToIndex(0, {
-      align: 'start',
-      behavior: 'smooth',
-    })
-  } else if (scroller.value) {
-    scroller.value.scrollTo({ top: 0, behavior: 'smooth' })
+    noteScrollerRef.value.scrollToTop()
+  } else {
+    scrollToTopSmart(scroller.value)
   }
 }
 

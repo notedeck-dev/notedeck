@@ -4,6 +4,7 @@ import type { CapabilityId } from '@/capabilities/declarations.generated'
 import { CAPABILITY_DECLARATIONS } from '@/capabilities/declarations.generated'
 import { dispatchCapability } from '@/capabilities/dispatcher'
 import AppTime from '@/components/common/AppTime.vue'
+import CollapseBox from '@/components/common/CollapseBox.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import type { AiIntent, ChatMessage } from '@/composables/useAiChat'
 import {
@@ -47,6 +48,7 @@ import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { resolveIdentity } from '@/utils/identity'
 import { isImeComposing } from '@/utils/ime'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
+import { smoothScrollBehavior } from '@/utils/motion'
 import { renderSimpleMarkdown } from '@/utils/simpleMarkdown'
 import { isWindowExposed } from '@/windows/exposure'
 import DeckColumnComponent from './DeckColumn.vue'
@@ -106,7 +108,7 @@ const turn = useAiTurn({
   sessions: sessionsStore,
   // 生成ストリーミング中、ユーザーが上へスクロールして読んでいる間は追従しない
   onUpdate: () => {
-    if (isNearBottom()) scrollToBottom()
+    if (isNearBottom()) followBottom()
   },
 })
 const isGenerating = turn.isRunning
@@ -388,9 +390,21 @@ watch(
 
 // --- スクロール ---
 
-function scrollToBottom() {
+function scrollToBottom(behavior: ScrollBehavior = smoothScrollBehavior()) {
   nextTick(() => {
-    messagesEndRef.value?.scrollIntoView({ behavior: 'smooth' })
+    messagesEndRef.value?.scrollIntoView({ behavior })
+  })
+}
+
+// 生成ストリーミング中の追従。トークンごとに smooth スクロールを掛け直すと
+// 毎回途中から再開してガタつくので、フレームにまとめて末尾へ瞬時に張り付ける
+let followFrame = 0
+function followBottom() {
+  if (followFrame) return
+  followFrame = requestAnimationFrame(() => {
+    followFrame = 0
+    const el = aiMessagesRef.value
+    if (el) el.scrollTop = el.scrollHeight
   })
 }
 
@@ -401,8 +415,10 @@ function isNearBottom(): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight < 160
 }
 
+// セッションを切り替えたら最初から末尾を見せる (smooth だと履歴の先頭から
+// 末尾まで流れ落ちるのが見える)
 watch(currentSessionId, () => {
-  scrollToBottom()
+  scrollToBottom('instant')
 })
 
 // deep link `notedeck://ai?prompt=` の初期値 (#512)。入力欄に入れるだけで送信はしない
@@ -940,7 +956,8 @@ function onKeydown(e: KeyboardEvent) {
     </template>
 
     <!-- View: sessions list (master) -->
-    <div v-if="viewMode === 'sessions'" :class="$style.sessionsBody">
+    <!-- 一覧 ⇄ チャットの切替は差し替わった側をフェードで出す -->
+    <div v-if="viewMode === 'sessions'" :class="[$style.sessionsBody, 'nd-fade-appear']">
       <!-- 初回の挨拶 (#1162): BOOTSTRAP.md がある間だけ。AI は呼ばないローカル文 -->
       <ColumnEmptyState
         v-if="totalSessions === 0 && showBootstrapGreeting"
@@ -1046,7 +1063,7 @@ function onKeydown(e: KeyboardEvent) {
     </div>
 
     <!-- View: chat (detail) -->
-    <div v-else :class="$style.aiColumnBody">
+    <div v-else :class="[$style.aiColumnBody, 'nd-fade-appear']">
       <ColumnEmptyState
         v-if="messages.length === 0 && providerStatus !== 'connected'"
         :message="i18n.ts._deckAiColumn.apiKeyRequired"
@@ -1075,20 +1092,21 @@ function onKeydown(e: KeyboardEvent) {
               <!-- 記憶 / 人格の更新は引数 JSON の代わりに人間語の差分 1 行 (#1162) -->
               <span v-if="describeToolUse(msg.toolUseName, msg.toolUseInput)" :class="$style.toolEventSummary">{{ describeToolUse(msg.toolUseName, msg.toolUseInput) }}</span>
               <i
-                class="ti"
+                class="ti ti-chevron-down nd-chevron"
                 :class="[
                   $style.toolEventChevron,
-                  expandedToolDetails[msg.id] ? 'ti-chevron-up' : 'ti-chevron-down',
+                  expandedToolDetails[msg.id] && $style.toolEventChevronOpen,
                 ]"
               />
             </button>
             <div v-if="msg.content" :class="$style.toolEventCommentary">{{ msg.content }}</div>
-            <div
-              v-if="expandedToolDetails[msg.id]"
-              :key="`tool-input-${msg.id}-${highlightRevision}`"
-              :class="$style.toolEventBody"
-              v-html="renderToolJson(`ti:${msg.id}`, formatToolInput(msg.toolUseInput))"
-            />
+            <CollapseBox :open="!!expandedToolDetails[msg.id]">
+              <div
+                :key="`tool-input-${msg.id}-${highlightRevision}`"
+                :class="$style.toolEventBody"
+                v-html="renderToolJson(`ti:${msg.id}`, formatToolInput(msg.toolUseInput))"
+              />
+            </CollapseBox>
           </div>
 
           <!-- ツール実行結果 (user + tool_result) -->
@@ -1106,14 +1124,14 @@ function onKeydown(e: KeyboardEvent) {
               <span :class="$style.toolEventLabel">{{ i18n.ts._deckAiColumn.toolResult }}</span>
               <span v-if="!expandedToolDetails[msg.id]" :class="$style.toolEventPreview">{{ truncateToolPreview(msg.content) }}</span>
               <i
-                class="ti"
+                class="ti ti-chevron-down nd-chevron"
                 :class="[
                   $style.toolEventChevron,
-                  expandedToolDetails[msg.id] ? 'ti-chevron-up' : 'ti-chevron-down',
+                  expandedToolDetails[msg.id] && $style.toolEventChevronOpen,
                 ]"
               />
             </button>
-            <template v-if="expandedToolDetails[msg.id]">
+            <CollapseBox :open="!!expandedToolDetails[msg.id]">
               <div
                 v-if="looksLikeJson(msg.content)"
                 :key="`tool-result-${msg.id}-${highlightRevision}`"
@@ -1121,7 +1139,7 @@ function onKeydown(e: KeyboardEvent) {
                 v-html="renderToolJson(`tr:${msg.id}`, msg.content)"
               />
               <pre v-else :class="$style.toolEventBody">{{ msg.content }}</pre>
-            </template>
+            </CollapseBox>
           </div>
 
           <!-- 受信箱カード: 無人実行 (HEARTBEAT) の書込意図 (#1133) -->
@@ -1783,6 +1801,10 @@ function onKeydown(e: KeyboardEvent) {
   opacity: 0.6;
   font-family: var(--nd-font-mono);
   font-size: 0.92em;
+}
+
+.toolEventChevronOpen {
+  rotate: 180deg;
 }
 
 .toolEventChevron {

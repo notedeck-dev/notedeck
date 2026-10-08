@@ -849,6 +849,17 @@ dialog._nativeDialog[open] {
   animation: nd-content-in var(--nd-duration-slow) var(--nd-ease-decel) both;
 }
 
+/* 開閉のシェブロン。アイコンは ti-chevron-down 1 つにして、閉じている間は
+   右向きに回す (アイコンの差し替えだと向きが瞬間で変わる) */
+.nd-chevron {
+  display: inline-block;
+  transition: rotate var(--nd-duration-base) var(--nd-ease-decel);
+}
+
+.nd-chevron.nd-chevron-closed {
+  rotate: -90deg;
+}
+
 /* 読み込み中 → 中身の差し替えを柔らかくする (拡大縮小なしのフェードだけ)。
    スクロール領域やリスト全体のように大きな面に使う */
 @keyframes nd-fade-in {

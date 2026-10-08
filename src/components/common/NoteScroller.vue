@@ -3,6 +3,7 @@ import { useVirtualizer } from '@tanstack/vue-virtual'
 import { computed, ref, watch } from 'vue'
 import { variantKey } from '@/services/noteKey'
 import { usePerformanceStore } from '@/stores/performance'
+import { scrollToTopSmart } from '@/utils/motion'
 
 const perfStore = usePerformanceStore()
 
@@ -272,6 +273,7 @@ function onScroll(e: Event) {
 
 defineExpose({
   getElement: () => scrollContainer.value,
+  scrollToTop: () => scrollToTopSmart(scrollContainer.value),
   scrollToIndex: (
     index: number,
     opts?: {

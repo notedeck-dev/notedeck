@@ -10,6 +10,7 @@ import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
+import NewNotesBanner from '@/components/deck/NewNotesBanner.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
@@ -178,14 +179,7 @@ const {
       />
 
       <template v-else>
-        <button
-          v-if="pendingCount > 0"
-          :class="$style.newNotesBanner"
-          class="_button"
-          @click="scrollToTop()"
-        >
-          <i class="ti ti-arrow-up" />{{ i18n.ts._common.newNotes }}
-        </button>
+        <NewNotesBanner :show="pendingCount > 0" @click="scrollToTop()" />
 
         <NoteScroller
           ref="noteScrollerRef"

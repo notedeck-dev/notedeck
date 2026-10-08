@@ -1,5 +1,6 @@
-import { computed, onScopeDispose, ref } from 'vue'
+import { computed, nextTick, onScopeDispose, ref } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
+import { motionDuration, motionEasing } from '@/utils/motion'
 
 // 幅は本家 Misskey のデッキ UI に合わせる (#1045)。
 // MIN_WIDTH = navbar の --nav-icon-only-width / DEFAULT_WIDTH = --nav-width。
@@ -51,9 +52,23 @@ export function useNavbarResize() {
     settingsStore.set('deck.navWidth', preferredWidth.value)
   }
 
+  // 幅は瞬時に変え (幅のアニメはレイアウトを毎フレーム動かすので規約で禁止)、
+  // 押し出されるカラム領域を元の位置から translate で滑らせる (FLIP)
   function toggleNav() {
+    const area = document.querySelector<HTMLElement>('[data-deck-columns]')
+    const before = area?.getBoundingClientRect().left
     setNavWidth(navCollapsed.value ? DEFAULT_WIDTH : MIN_WIDTH)
     persistNavWidth()
+    if (!area || before == null) return
+    void nextTick(() => {
+      const dx = before - area.getBoundingClientRect().left
+      const duration = motionDuration('--nd-duration-slow', 280)
+      if (Math.abs(dx) < 1 || duration <= 0) return
+      area.animate([{ translate: `${dx}px 0` }, { translate: '0 0' }], {
+        duration,
+        easing: motionEasing('--nd-ease-decel'),
+      })
+    })
   }
 
   /** ウィンドウリサイズ時。ユーザーが選んだ幅は書き換えない */
