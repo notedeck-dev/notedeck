@@ -125,7 +125,6 @@ const RULES: Record<string, Rule> = {
         'src/components/deck/DeckApiConsoleColumn.vue',
         'src/components/deck/DeckApiDocsColumn.vue',
         'src/components/deck/DeckChannelColumn.vue',
-        'src/components/deck/DeckChartsColumn.vue',
         'src/components/deck/DeckChatColumn.vue',
         'src/components/deck/DeckClientSearchColumn.vue',
         'src/components/deck/DeckDriveColumn.vue',

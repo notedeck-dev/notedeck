@@ -13,7 +13,6 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import type {
   ActiveUsersChart,
   ApRequestChart,
@@ -25,13 +24,10 @@ import type {
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
-import { useColumnTheme } from '@/composables/useColumnTheme'
-import { useServerImages } from '@/composables/useServerImages'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
-import { useServersStore } from '@/stores/servers'
-import { AppError } from '@/utils/errors'
 import { formatBytes, formatCount } from '@/utils/format'
 import { applyAlpha } from '@/utils/initChart'
 // side-effect: Chart.register
@@ -44,14 +40,15 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverErrorImageUrl } = useServerImages(() => props.column)
-const serversStore = useServersStore()
-const serverIconUrl = computed(() => {
-  const host = account.value?.host
-  if (!host) return undefined
-  return serversStore.getServer(host)?.iconUrl ?? undefined
-})
+const {
+  account,
+  columnThemeVars,
+  serverErrorImageUrl,
+  isLoading,
+  error,
+  withLoading,
+  initAdapter,
+} = useColumnSetup(() => props.column)
 
 type Tab =
   | 'charts'
@@ -62,7 +59,6 @@ type Tab =
   | 'users'
   | 'drive'
 type Span = 'day' | 'hour'
-type ViewState = 'loading' | 'ok' | 'error'
 type UsersView = 'inc-dec' | 'total'
 type NotesView = 'inc-dec' | 'breakdown' | 'total'
 type DriveView = 'files' | 'size'
@@ -84,8 +80,18 @@ const TAB_DEFS = computed<ColumnTabDef[]>(() => [
 
 const activeTab = ref<Tab>('charts')
 const span = ref<Span>('hour')
-const state = ref<ViewState>('loading')
-const errorMessage = ref<string | null>(null)
+/** 表示する失敗理由。null なら描画できる状態 (読み込み中は isLoading 側) */
+const errorMessage = computed<string | null>(() => {
+  if (!account.value) return i18n.ts._common.accountNotFound
+  const err = error.value
+  if (!err) return null
+  // ゲスト / 未ログインで charts/* が制限されているサーバーは AUTH 系の
+  // エラーを返すことがある。ログインを促すメッセージに切り替える。
+  return err.isAuth
+    ? i18n.ts._deckChartsColumn.loginRequired
+    : i18n.ts._deckChartsColumn.chartsDisabled
+})
+const isReady = computed(() => !isLoading.value && errorMessage.value == null)
 
 const usersView = ref<UsersView>('inc-dec')
 const notesView = ref<NotesView>('inc-dec')
@@ -525,19 +531,13 @@ function renderAll(): void {
 
 async function fetchAll(): Promise<void> {
   const acc = account.value
-  if (!acc) {
-    state.value = 'error'
-    errorMessage.value = i18n.ts._common.accountNotFound
-    return
-  }
+  if (!acc) return
 
-  state.value = 'loading'
   destroyAllCharts()
 
-  try {
-    const { adapter } = await initAdapterFor(acc.host, acc.id, {
-      hasToken: acc.hasToken,
-    })
+  await withLoading(async () => {
+    const adapter = await initAdapter({ hasToken: acc.hasToken })
+    if (!adapter) return
     // narrow column で bar が潰れないよう、span ごとに読める密度に絞る。
     // hour: 48 点 (2 日分) / day: 90 点 (3 か月分)。
     const limit = span.value === 'hour' ? 48 : 90
@@ -555,18 +555,9 @@ async function fetchAll(): Promise<void> {
     notesRaw.value = nts
     usersRaw.value = usr
     driveRaw.value = drv
-  } catch (e) {
-    const err = AppError.from(e)
-    // ゲスト / 未ログインで charts/* が制限されているサーバーは AUTH 系の
-    // エラーを返すことがある。ログインを促すメッセージに切り替える。
-    errorMessage.value = err.isAuth
-      ? i18n.ts._deckChartsColumn.loginRequired
-      : i18n.ts._deckChartsColumn.chartsDisabled
-    state.value = 'error'
-    return
-  }
+  })
+  if (!isReady.value) return
 
-  state.value = 'ok'
   await nextTick()
   renderAll()
   // 初期 mount が useColumnMount の shell 状態から復帰した直後だと canvas が
@@ -643,27 +634,27 @@ watch(
 // なる。chart.js はこの遷移を検知しないため、タブが 'charts' に戻ってきた
 // タイミングで強制再描画する。
 watch(activeTab, (v) => {
-  if (v !== 'charts' || state.value !== 'ok') return
+  if (v !== 'charts' || !isReady.value) return
   nextTick(() => requestAnimationFrame(redrawAllCharts))
 })
 
 // サブ切替 → 該当セクションだけ再描画 (fetch なし)
 watch(usersView, (v) => {
-  if (state.value !== 'ok') return
+  if (!isReady.value) return
   nextTick(() => {
     destroyChart('users')
     mountChart('users', usersCanvasRef.value, buildUsers(v))
   })
 })
 watch(notesView, (v) => {
-  if (state.value !== 'ok') return
+  if (!isReady.value) return
   nextTick(() => {
     destroyChart('notes')
     mountChart('notes', notesCanvasRef.value, buildNotes(v))
   })
 })
 watch(driveView, (v) => {
-  if (state.value !== 'ok') return
+  if (!isReady.value) return
   nextTick(() => {
     destroyChart('drive')
     mountChart('drive', driveCanvasRef.value, buildDrive(v))
@@ -715,12 +706,12 @@ watch(driveView, (v) => {
       </div>
 
       <div :class="$style.content">
-        <div v-if="state === 'loading'" :class="$style.overlay">
+        <div v-if="isLoading" :class="$style.overlay">
           <LoadingSpinner />
         </div>
         <ColumnEmptyState
-          v-else-if="state === 'error'"
-          :message="errorMessage ?? i18n.ts._deckChartsColumn.fetchFailed"
+          v-else-if="errorMessage"
+          :message="errorMessage"
           :image-url="serverErrorImageUrl"
           is-error
           :cta-label="i18n.ts._common.retry"

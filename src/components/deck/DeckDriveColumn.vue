@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
-import { computed, ref, useTemplateRef, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { normalizeDriveFile } from '@/adapters/misskey/api/drive'
 import type { DriveFolder, NormalizedDriveFile } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
@@ -10,11 +10,10 @@ import MkDriveFolderSelectDialog from '@/components/common/MkDriveFolderSelectDi
 import MkFileGrid from '@/components/common/MkFileGrid.vue'
 import MkFolderGrid from '@/components/common/MkFolderGrid.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useDriveActions } from '@/composables/useDriveActions'
 import { useDriveFolder } from '@/composables/useDriveFolder'
 import { useFileExport } from '@/composables/useFileExport'
-import { useServerImages } from '@/composables/useServerImages'
 import { i18n } from '@/i18n'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -31,10 +30,16 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverInfoImageUrl, serverNotFoundImageUrl, serverErrorImageUrl } =
-  useServerImages(() => props.column)
-const isLoggedOut = computed(() => account.value?.hasToken === false)
+// 読み込み / エラーはフォルダ状態と一緒に useDriveFolder が持つ
+const {
+  account,
+  columnThemeVars,
+  serverErrorImageUrl,
+  isLoggedOut,
+  scroller,
+  scrollToTop,
+} = useColumnSetup(() => props.column)
+useColumnPullScroller(scroller)
 
 const {
   currentFolderId,
@@ -105,13 +110,6 @@ watch(
 
 const { confirm } = useConfirm()
 const windowsStore = useWindowsStore()
-
-const driveGridScrollRef = useTemplateRef<HTMLElement>('driveGridScrollRef')
-useColumnPullScroller(driveGridScrollRef)
-
-function scrollToTop() {
-  driveGridScrollRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
 
 const canGoUp = computed(() => folderStack.value.length > 0)
 
@@ -437,7 +435,7 @@ fetchDrive()
       </template>
     </div>
 
-    <div ref="driveGridScrollRef" :class="$style.driveGridScroll">
+    <div ref="scroller" :class="$style.driveGridScroll">
       <div v-if="loading && !isLoggedOut" :class="$style.columnLoading"><LoadingSpinner /></div>
       <ColumnEmptyState
         v-else-if="error && !isLoggedOut"

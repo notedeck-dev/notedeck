@@ -1930,7 +1930,6 @@ _deckChartsColumn:
   hour: "時"
   day: "日"
   breakdown: "内訳"
-  fetchFailed: "サーバー統計を取得できません"
   loginRequired: "このサーバーのチャートはログインユーザー限定です"
   chartsDisabled: "このサーバーはチャート API を無効にしています"
 
