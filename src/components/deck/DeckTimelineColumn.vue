@@ -394,7 +394,10 @@ const tlModes = ref<Record<string, boolean>>({})
 const policyLoaded = ref(false)
 
 const allTlTypes = computed(() => {
-  if (!connectReady.value) return [] // Policy detection not yet complete
+  // ポリシー検出中は今のタブだけ仮に出す (空のタブ行から一気に並ぶのを避ける)
+  if (!connectReady.value) {
+    return TL_TYPES.filter((t) => t.value === tlType.value)
+  }
   if (!policyLoaded.value) return TL_TYPES.map((t) => t) // No account — show all
   const allowed = availableStandardTl.value
   if (allowed.length === 0) {

@@ -290,6 +290,11 @@ function openAsPip() {
         :class="['ti ti-user', $style.headerAllAccounts]"
         :title="i18n.ts._common.allAccounts"
       />
+      <!-- アカウント一覧の読み込み前は顔の場所だけ取っておく (後から出てタイトルが右へずれない) -->
+      <span
+        v-else-if="columnConfig?.accountId && !accountsStore.isLoaded && !isPipMode"
+        :class="$style.headerAvatarPlaceholder"
+      />
       <slot name="header-icon" />
       <span :class="$style.headerTitle" :data-tauri-drag-region="isPipMode ? '' : undefined">{{ title }}</span>
 
@@ -471,6 +476,14 @@ function openAsPip() {
 }
 
 /* 全アカウントのカラム (#1018)。per-account のアバターと同じ場所・同じ寸法 */
+.headerAvatarPlaceholder {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--nd-buttonBg);
+}
+
 .headerAllAccounts {
   flex-shrink: 0;
   width: 20px;

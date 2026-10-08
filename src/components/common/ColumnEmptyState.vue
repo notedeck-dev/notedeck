@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { showReloginPrompt } from '@/composables/useLoginPrompt'
 import { i18n } from '@/i18n'
 import { type AppError, authErrorMessage } from '@/utils/errors'
@@ -83,6 +83,11 @@ const resolvedImageUrl = computed(() =>
   ),
 )
 
+const imageLoaded = ref(false)
+watch(resolvedImageUrl, () => {
+  imageLoaded.value = false
+})
+
 const resolvedFallbackType = computed<'info' | 'question' | 'error'>(() => {
   if (props.fallbackKind === 'notFound') return 'question'
   if (props.fallbackKind) return props.fallbackKind
@@ -116,10 +121,11 @@ watch(
     <img
       v-if="resolvedImageUrl"
       :src="resolvedImageUrl"
-      :class="$style.image"
+      :class="[$style.image, imageLoaded && $style.imageLoaded]"
       alt=""
       loading="lazy"
       draggable="false"
+      @load="imageLoaded = true"
     />
     <SystemIcon
       v-else
@@ -163,15 +169,20 @@ watch(
   }
 }
 
+/* 枠の寸法を先に決めておき、画像の読み込み完了で下のメッセージが押し下げられない
+   ようにする。小さい画像は拡大しない (scale-down) */
 .image {
-  width: auto;
-  height: auto;
-  max-width: min(200px, 60%);
-  max-height: 160px;
-  object-fit: contain;
-  opacity: 0.8;
+  width: min(200px, 60%);
+  height: 160px;
+  object-fit: scale-down;
+  opacity: 0;
+  transition: opacity var(--nd-duration-slow) var(--nd-ease-decel);
   user-select: none;
   pointer-events: none;
+}
+
+.imageLoaded {
+  opacity: 0.8;
 }
 
 .fallbackIcon {

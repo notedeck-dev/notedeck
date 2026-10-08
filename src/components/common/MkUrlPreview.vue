@@ -40,6 +40,8 @@ const shouldPreview = computed(() => {
 })
 
 const { data, loading, fetch, fetchUrl } = useOgpPreview(props.url, accountId)
+// 最初からキャッシュで描けた場合は出現アニメを付けない (再表示のたびに動かない)
+const loadedFromCache = !loading.value
 const el = ref<HTMLElement | null>(null)
 const imageError = ref(false)
 const sensitiveRevealed = ref(false)
@@ -87,7 +89,7 @@ const playerStyle = computed(() => {
 })
 
 onMounted(() => {
-  if (!shouldPreview.value || !el.value) return
+  if (!shouldPreview.value || !el.value || !loading.value) return
   observer = new IntersectionObserver(
     ([entry]) => {
       if (entry?.isIntersecting) {
@@ -123,7 +125,8 @@ function hostname(url: string): string {
 
 <template>
   <MkNoteEmbed v-if="isNoteUrl" :url="url" />
-  <div v-else-if="shouldPreview" ref="el" :class="[$style.urlPreview, !loading && 'nd-content-appear']" @click="handleClick">
+  <!-- 取得できなかった (タイトルが無い) ときは枠ごと出さない (空の枠線だけ残さない) -->
+  <div v-else-if="shouldPreview && (loading || data?.title)" ref="el" :class="[$style.urlPreview, !loading && !loadedFromCache && 'nd-content-appear']" @click="handleClick">
     <!-- 実カード (サムネイル 100px + body のタイトル/説明/ホスト行) と同じ
          構造・寸法にして、差し替え時の高さジャンプを防ぐ -->
     <div v-if="loading" :class="$style.urlPreviewSkeleton">

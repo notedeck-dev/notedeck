@@ -53,8 +53,12 @@ export async function initOgpListener(): Promise<void> {
 }
 
 export function useOgpPreview(initialUrl: string, accountId?: string) {
-  const data = ref<OgpData | null>(null)
-  const loading = ref(true)
+  // キャッシュ済みなら最初から中身を持つ。仮想スクロールで作り直すたびに
+  // スケルトンを経由すると、寸法の違うカード (ギャラリー / プレイヤー付き) で
+  // 高さが変わる
+  const initial = getOgpCache(initialUrl)
+  const data = ref<OgpData | null>(initial ?? null)
+  const loading = ref(initial === undefined)
   let currentUrl = initialUrl
 
   async function fetchUrl(targetUrl: string) {
