@@ -41,6 +41,16 @@ impl SyncedAccounts {
         Ok(n)
     }
 
+    /// 今の写しにある口座 id。
+    pub fn ids(&self) -> Vec<String> {
+        self.rows
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .iter()
+            .map(|a| a.id.clone())
+            .collect()
+    }
+
     pub fn len(&self) -> usize {
         self.rows.read().map(|r| r.len()).unwrap_or(0)
     }

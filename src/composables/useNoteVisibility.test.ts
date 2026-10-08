@@ -79,6 +79,29 @@ describe('useNoteVisibility: 元ノートが削除された Renote 行', () => {
     expect(useNoteVisibility().isHidden(renote)).toBe(false)
   })
 
+  it('renote 本体が無い純 Renote (元ノートがサーバーで消えた形) は tombstone が無くても隠す', () => {
+    // 再起動後は tombstone が消えるが、本家 2025.10 以降は renote: null の
+    // Renote 行を返し続ける。キャッシュから戻った行もこの形になる
+    const renote = note('rn-orig', {
+      text: null,
+      renoteId: 'orig',
+      renote: undefined,
+    })
+    expect(useNoteVisibility().isHidden(renote)).toBe(true)
+  })
+
+  it('renote 本体が無くても本文や添付が残る引用は隠さない', () => {
+    const quote = note('q', { renoteId: 'orig', renote: undefined })
+    expect(useNoteVisibility().isHidden(quote)).toBe(false)
+    const withFile = note('q2', {
+      text: null,
+      files: [{ id: 'f1' }] as never,
+      renoteId: 'orig',
+      renote: undefined,
+    })
+    expect(useNoteVisibility().isHidden(withFile)).toBe(false)
+  })
+
   it('tombstone なしの除去 (verify miss) では隠さない', () => {
     const original = note('orig')
     const renote = pureRenoteOf(original)

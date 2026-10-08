@@ -1,6 +1,6 @@
 // 「層の依存方向」を機械検査に落とす (#1098)。
 //
-// CLAUDE.md / DEVELOPMENT.md が定める向きは
+// DEVELOPMENT.md「層の依存方向」が定める向きは
 //   components → composables → stores → services → adapters → bindings
 // で、services は「純ロジックを store に書かず直接ユニットテストする」層 (#782)、
 // adapters はフォーク差異を吸収する層。ところがこの向きは文書にしか無く、
