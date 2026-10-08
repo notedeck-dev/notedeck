@@ -47,3 +47,25 @@ export function motionEasing(token: string, fallback = 'ease-out'): string {
     .trim()
   return v || fallback
 }
+
+/**
+ * 要素 (と子孫) で走っている有限のアニメーションが終わるまで待つ。退場アニメの
+ * 後で DOM を外す / hidePopover / close するときに使う。固定ミリ秒のタイマー
+ * だと CSS 側の時間とずれて、途中で切れたり透明なまま残ってクリックを
+ * 吸ったりする。無限のアニメ (スピナー等) は待たず、timeoutMs で打ち切る
+ */
+export async function waitForAnimations(
+  el: Element,
+  timeoutMs = 1000,
+): Promise<void> {
+  if (prefersReducedMotion() || typeof el.getAnimations !== 'function') return
+  const running = el.getAnimations({ subtree: true }).filter((a) => {
+    const timing = a.effect?.getComputedTiming()
+    return timing != null && timing.iterations !== Number.POSITIVE_INFINITY
+  })
+  if (running.length === 0) return
+  await Promise.race([
+    Promise.allSettled(running.map((a) => a.finished)),
+    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
+  ])
+}

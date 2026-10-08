@@ -1,4 +1,10 @@
 import { computed, onScopeDispose, type Ref, ref, shallowRef, watch } from 'vue'
+import { prefersReducedMotion } from '@/utils/motion'
+
+/** reduced-motion では leave の遅延を取らない (CSS 側のアニメも止まっている) */
+function leaveDelay(ms: number): number {
+  return prefersReducedMotion() ? 0 : ms
+}
 
 // ---------------------------------------------------------------------------
 // useVaporTransition — single element show/hide with leave animation
@@ -47,7 +53,7 @@ export function useVaporTransition(
         visible.value = false
         leaving.value = false
         timer = null
-      }, leaveDuration)
+      }, leaveDelay(leaveDuration))
     }
   })
 
@@ -92,7 +98,7 @@ export function useVaporTransitionSwitch<T>(
       displayed.value = val
       leaving.value = false
       timer = null
-    }, leaveDuration)
+    }, leaveDelay(leaveDuration))
   })
 
   onScopeDispose(() => {
@@ -128,19 +134,26 @@ export function useVaporTransitionGroup<T extends HasId>(
 ) {
   const { enterDuration = 200, leaveDuration = 200 } = options
   const enteringIds = shallowRef<ReadonlySet<string | number>>(new Set())
-  const leavingMap = shallowRef<ReadonlyMap<string | number, T>>(new Map())
+  // 退場中の要素と、消える直前の並び位置 (その位置に残したままフェードする)
+  const leavingMap = shallowRef<
+    ReadonlyMap<string | number, { item: T; index: number }>
+  >(new Map())
   const _timers = new Set<ReturnType<typeof setTimeout>>()
 
-  let prevItems = new Map<string | number, T>(
-    source.value.map((i) => [i.id, i]),
+  let prevItems = new Map<string | number, { item: T; index: number }>(
+    source.value.map((item, index) => [item.id, { item, index }]),
   )
 
+  // 退場中の要素は元の位置に差し込む。末尾に足すと、中ほどの要素を消した
+  // ときにいったん列の最後へ飛んでからフェードする
   const rendered = computed(() => {
     const result = [...source.value]
-    for (const [, item] of leavingMap.value) {
-      if (!source.value.some((i) => i.id === item.id)) {
-        result.push(item)
-      }
+    const currentIds = new Set(result.map((i) => i.id))
+    const leaving = [...leavingMap.value.values()]
+      .filter(({ item }) => !currentIds.has(item.id))
+      .sort((a, b) => a.index - b.index)
+    for (const { item, index } of leaving) {
+      result.splice(Math.min(index, result.length), 0, item)
     }
     return result
   })
@@ -168,13 +181,14 @@ export function useVaporTransitionGroup<T extends HasId>(
     }
 
     // Detect removed items — keep them in rendered for leave animation
-    const removed = new Map<string | number, T>()
-    for (const [id, item] of prevItems) {
-      if (!newIds.has(id)) removed.set(id, item)
+    const removed = new Map<string | number, { item: T; index: number }>()
+    for (const [id, entry] of prevItems) {
+      if (!newIds.has(id)) removed.set(id, entry)
     }
-    if (removed.size > 0) {
+    const delay = leaveDelay(leaveDuration)
+    if (removed.size > 0 && delay > 0) {
       const next = new Map(leavingMap.value)
-      for (const [id, item] of removed) next.set(id, item)
+      for (const [id, entry] of removed) next.set(id, entry)
       leavingMap.value = next
       const ids = [...removed.keys()]
       const timer = setTimeout(() => {
@@ -182,11 +196,13 @@ export function useVaporTransitionGroup<T extends HasId>(
         const after = new Map(leavingMap.value)
         for (const id of ids) after.delete(id)
         leavingMap.value = after
-      }, leaveDuration)
+      }, delay)
       _timers.add(timer)
     }
 
-    prevItems = new Map(newItems.map((i) => [i.id, i]))
+    prevItems = new Map(
+      newItems.map((item, index) => [item.id, { item, index }]),
+    )
   })
 
   onScopeDispose(() => {

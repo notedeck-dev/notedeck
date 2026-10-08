@@ -8,7 +8,8 @@ import { useToast } from '@/stores/toast'
 const { toasts, runAction, dismiss } = useToast()
 const { rendered, enteringIds, leavingIds } = useVaporTransitionGroup(toasts, {
   enterDuration: 250,
-  leaveDuration: 120,
+  // CSS の toast-leave (--nd-duration-base) と揃える。短いと途中で消える
+  leaveDuration: 150,
 })
 
 const toastPortalRef = useTemplateRef<HTMLElement>('toastPortalRef')

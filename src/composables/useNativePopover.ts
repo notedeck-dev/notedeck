@@ -1,9 +1,13 @@
 import { nextTick, onScopeDispose, type Ref, watch } from 'vue'
+import { waitForAnimations } from '@/utils/motion'
 
 interface NativePopoverOptions {
   /** Called when the popover is dismissed (light dismiss, outside click, or explicit close) */
   onClose?: () => void
-  /** Leave animation duration in ms — hidePopover() is delayed until animation completes */
+  /**
+   * 退場アニメの上限 (ms)。hidePopover() は実際の CSS アニメの終了を待つ。
+   * アニメが見つからない / 終わらないときの打ち切りに使う
+   */
   leaveDuration?: number
   /**
    * Enable manual outside-click dismiss for popover="manual".
@@ -33,7 +37,8 @@ export function useNativePopover(
   options: NativePopoverOptions = {},
 ) {
   const { leaveDuration = 200 } = options
-  let hideTimer: ReturnType<typeof setTimeout> | null = null
+  // 閉じ始めるたびに進める。待っている間に再び開いたら古い待ちを捨てる
+  let hideSeq = 0
   let pendingAddTimer: ReturnType<typeof setTimeout> | null = null
 
   // Light dismiss: "auto" popover fires toggle event when dismissed
@@ -72,10 +77,7 @@ export function useNativePopover(
   }
 
   watch(show, (val) => {
-    if (hideTimer != null) {
-      clearTimeout(hideTimer)
-      hideTimer = null
-    }
+    const seq = ++hideSeq
 
     const el = popoverRef.value
     if (!el) return
@@ -89,14 +91,17 @@ export function useNativePopover(
       if (options.dismissOnOutsideClick) addOutsideClickListener()
     } else {
       if (options.dismissOnOutsideClick) removeOutsideClickListener()
-      hideTimer = setTimeout(() => {
-        hideTimer = null
-        try {
-          el.hidePopover()
-        } catch {
-          // Already hidden or not connected
-        }
-      }, leaveDuration)
+      // 退場のクラスは次の描画で付くので、それを待ってからアニメを拾う
+      void nextTick()
+        .then(() => waitForAnimations(el, leaveDuration + 300))
+        .then(() => {
+          if (seq !== hideSeq) return
+          try {
+            el.hidePopover()
+          } catch {
+            // Already hidden or not connected
+          }
+        })
     }
   })
 
@@ -119,7 +124,7 @@ export function useNativePopover(
   })
 
   onScopeDispose(() => {
-    if (hideTimer != null) clearTimeout(hideTimer)
+    hideSeq++
     removeOutsideClickListener()
     popoverRef.value?.removeEventListener('toggle', onToggle)
     try {

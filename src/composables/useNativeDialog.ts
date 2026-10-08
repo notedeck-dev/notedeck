@@ -1,11 +1,15 @@
 import { nextTick, onScopeDispose, type Ref, watch } from 'vue'
+import { waitForAnimations } from '@/utils/motion'
 
 interface NativeDialogOptions {
   /** Called when user presses Escape (cancel event) */
   onCancel?: () => void
   /** CSS selector for initial focus target inside dialog */
   initialFocus?: string
-  /** Leave animation duration in ms — dialog.close() is delayed until animation completes */
+  /**
+   * 退場アニメの上限 (ms)。close() は実際の CSS アニメの終了を待つ。
+   * アニメが見つからない / 終わらないときの打ち切りに使う
+   */
   leaveDuration?: number
 }
 
@@ -24,7 +28,8 @@ export function useNativeDialog(
   options: NativeDialogOptions = {},
 ) {
   const { leaveDuration = 200 } = options
-  let closeTimer: ReturnType<typeof setTimeout> | null = null
+  // 閉じ始めるたびに進める。待っている間に再び開いたら古い待ちを捨てる
+  let closeSeq = 0
 
   function onCancel(e: Event) {
     e.preventDefault()
@@ -39,10 +44,7 @@ export function useNativeDialog(
   }
 
   watch(show, (val) => {
-    if (closeTimer != null) {
-      clearTimeout(closeTimer)
-      closeTimer = null
-    }
+    const seq = ++closeSeq
 
     const el = dialogRef.value
     if (!el) return
@@ -61,11 +63,12 @@ export function useNativeDialog(
         }
       })
     } else {
-      // Delay close() to allow leave animation
-      closeTimer = setTimeout(() => {
-        closeTimer = null
-        if (el.open) el.close()
-      }, leaveDuration)
+      // 退場のクラスは次の描画で付くので、それを待ってからアニメの終了を待つ
+      void nextTick()
+        .then(() => waitForAnimations(el, leaveDuration + 300))
+        .then(() => {
+          if (seq === closeSeq && el.open) el.close()
+        })
     }
   })
 
@@ -89,7 +92,7 @@ export function useNativeDialog(
   })
 
   onScopeDispose(() => {
-    if (closeTimer != null) clearTimeout(closeTimer)
+    closeSeq++
     dialogRef.value?.removeEventListener('cancel', onCancel)
     dialogRef.value?.removeEventListener('click', onClick)
     if (dialogRef.value?.open) dialogRef.value.close()
