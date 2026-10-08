@@ -4,18 +4,16 @@
 use serde_json::{json, Value};
 use sha2::{Digest, Sha512};
 
+use super::misstore;
 use super::preview::confirm;
 use super::{staged, ExecContext};
 use crate::skills::{self, SkillMeta, SkillPatch, DEFAULT_VERSION};
 use notecli::error::NoteDeckError;
-use notecore::commands::http::{self, HttpFetchRequest};
 use notecore::context::Core;
 use notecore::edit_history::Attribution;
 use notecore::error::Result;
 use notecore::i18n::{localize_fields, text};
 use notecore::settings_slug::{casefold, resolve_available};
-
-const REGISTRY_URL: &str = "https://store.notedeck.io/registry/skills.json";
 
 fn s<'a>(p: &'a Value, k: &str) -> &'a str {
     p.get(k).and_then(Value::as_str).unwrap_or("")
@@ -309,59 +307,15 @@ pub fn uninstall(core: &Core, p: &Value) -> Result<Value> {
 
 // --- MisStore ---
 
-async fn fetch_text(core: &Core, url: &str) -> Result<String> {
-    let res = http::http_fetch(
-        core,
-        HttpFetchRequest {
-            url: url.to_string(),
-            method: Some("GET".into()),
-            headers: None,
-            body: None,
-            timeout_ms: Some(15_000),
-        },
-    )
-    .await?;
-    if !(200..300).contains(&res.status) {
-        return Err(NoteDeckError::InvalidInput(format!("HTTP {}", res.status)));
-    }
-    Ok(res.body)
-}
-
 async fn registry_entry(core: &Core, id: &str) -> Result<Option<Value>> {
-    let text = fetch_text(core, REGISTRY_URL).await?;
-    let doc: Value = serde_json::from_str(&text)
-        .map_err(|e| NoteDeckError::InvalidInput(format!("MisStore registry parse failed: {e}")))?;
-    Ok(doc
-        .get("skills")
-        .and_then(Value::as_array)
-        .and_then(|a| {
-            a.iter()
-                .find(|e| e.get("id").and_then(Value::as_str) == Some(id))
-        })
-        .cloned())
+    misstore::registry_entry(core, "skills", id).await
 }
 
-fn sha512_hex(text: &str) -> String {
-    format!("{:x}", Sha512::digest(text.as_bytes()))
-}
-
-/// ソースを取り、CRLF を LF に揃えて sha512 を検証する (1 回だけやり直す)。
+/// 配布ソースを検証して取る。skill の本文は改行を LF に揃えて保存する
+/// (hash は共通関数が LF で取る。他の種別は取得したままを保存する)。
 async fn fetch_verified_source(core: &Core, entry: &Value) -> Result<(String, String)> {
-    let url = s(entry, "sourceUrl");
-    let expected = casefold(s(entry, "sha512"));
-    for attempt in 0..2 {
-        let text = fetch_text(core, url).await?.replace("\r\n", "\n");
-        let hash = sha512_hex(&text);
-        if hash == expected {
-            return Ok((text, hash));
-        }
-        if attempt == 0 {
-            tracing::warn!(url, "MisStore source hash mismatch, retrying once");
-        }
-    }
-    Err(NoteDeckError::InvalidInput(
-        "hash mismatch: the source may have been tampered with".into(),
-    ))
+    let (text, hash) = misstore::fetch_verified_source(core, entry).await?;
+    Ok((text.replace("\r\n", "\n"), hash))
 }
 
 fn fm_str_or(fm: &skills::Frontmatter, key: &str, fallback: Option<&str>) -> Option<String> {
@@ -784,11 +738,5 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("is not installed"));
-    }
-
-    #[test]
-    fn sha512_is_lowercase_hex() {
-        assert_eq!(sha512_hex("").len(), 128);
-        assert_eq!(sha512_hex("a")[..8].to_string(), "1f40fc92");
     }
 }

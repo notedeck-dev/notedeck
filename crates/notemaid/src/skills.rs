@@ -749,8 +749,9 @@ pub fn update(
     if let Some(v) = patch.icon_url {
         item.icon_url = v;
     }
-    if let Some(v) = patch.tainted {
-        item.tainted = v.then_some(true);
+    // 付いたら外れない (#1103)。false の指定は無視する
+    if patch.tainted == Some(true) {
+        item.tainted = Some(true);
     }
     if let Some(v) = patch.cheap_check_capabilities {
         validate_cheap_checks(&v)?;
@@ -1113,6 +1114,59 @@ mod tests {
         assert_eq!(
             store::read_file(&base, SUBDIR, "My Skill.md").unwrap(),
             frozen
+        );
+    }
+
+    #[test]
+    fn tainted_is_never_cleared_by_update() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = core_in(dir.path());
+        create(
+            &core,
+            SkillMeta {
+                id: "t1".into(),
+                name: "Tainted".into(),
+                version: DEFAULT_VERSION.into(),
+                mode: "manual".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        let patch = |tainted: Option<bool>| SkillPatch {
+            tainted,
+            ..Default::default()
+        };
+        // 付く
+        assert_eq!(
+            update(&core, "t1", patch(Some(true)), None)
+                .unwrap()
+                .tainted,
+            Some(true)
+        );
+        // false を指定しても外れない (#1103 — 一度付いたら外れない)
+        assert_eq!(
+            update(&core, "t1", patch(Some(false)), None)
+                .unwrap()
+                .tainted,
+            Some(true)
+        );
+        // 付いていない個体に false を指定しても付かない
+        create(
+            &core,
+            SkillMeta {
+                id: "t2".into(),
+                name: "Clean".into(),
+                version: DEFAULT_VERSION.into(),
+                mode: "manual".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            update(&core, "t2", patch(Some(false)), None)
+                .unwrap()
+                .tainted,
+            None
         );
     }
 
