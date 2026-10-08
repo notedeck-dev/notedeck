@@ -13,13 +13,11 @@ import type { StreamConnectionState } from '@/adapters/types'
 import { COLUMN_ICONS, COLUMN_LABELS } from '@/columns/registry'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
-import { useColumnTheme } from '@/composables/useColumnTheme'
-import { useServerImages } from '@/composables/useServerImages'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useVerticalResize } from '@/composables/useVerticalResize'
 import { i18n } from '@/i18n'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
-import { useServersStore } from '@/stores/servers'
 import {
   ALL_KINDS,
   KIND_LABELS,
@@ -37,9 +35,12 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
-const { serverInfoImageUrl } = useServerImages(() => props.column)
-const serversStore = useServersStore()
+const {
+  account,
+  columnThemeVars,
+  serverInfoImageUrl,
+  serverIconUrl: serverIcon,
+} = useColumnSetup(() => props.column)
 const deckStore = useDeckStore()
 const inspectorStore = useStreamInspectorStore()
 const accountsStore = useAccountsStore()
@@ -49,10 +50,8 @@ const isScopedToAccount = computed(() => props.column.accountId != null)
 const serverIconUrl = computed(() => {
   const acc = account.value
   if (!acc) return undefined
-  return proxyThumbUrl(
-    serversStore.getServer(acc.host)?.iconUrl ??
-      `https://${acc.host}/favicon.ico`,
-    28,
+  return (
+    serverIcon.value ?? proxyThumbUrl(`https://${acc.host}/favicon.ico`, 28)
   )
 })
 

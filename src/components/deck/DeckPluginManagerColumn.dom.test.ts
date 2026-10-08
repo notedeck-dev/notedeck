@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { abortPlugin, launchPlugin } from '@/aiscript/plugin-api'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -34,6 +35,10 @@ vi.mock('@/settings/exposure', () => ({
 vi.mock('@/stores/confirm', () => {
   const confirm = vi.fn(async () => true)
   return { useConfirm: () => ({ confirm }) }
+})
+vi.mock('@/composables/useColumnSetup', async (orig) => {
+  const actual = await orig<typeof import('@/composables/useColumnSetup')>()
+  return { useColumnSetup: vi.fn(actual.useColumnSetup) }
 })
 
 const yami = {
@@ -771,5 +776,16 @@ describe('DeckPluginManagerColumn — ストアタブ', () => {
     await switchToStore(wrapper)
     expect(wrapper.text()).toContain('ストアに接続できません')
     expect(buttonByText(wrapper, '再試行').exists()).toBe(true)
+  })
+})
+
+describe('DeckPluginManagerColumn — 共通基盤 (#1098 §4)', () => {
+  it('useColumnSetup をこのカラムで setup する', async () => {
+    vi.mocked(useColumnSetup).mockClear()
+    const wrapper = await mountColumn()
+    expect(vi.mocked(useColumnSetup).mock.calls.at(-1)?.[0]()).toMatchObject({
+      type: 'pluginManager',
+    })
+    wrapper.unmount()
   })
 })

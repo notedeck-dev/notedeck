@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
@@ -42,7 +42,7 @@ const windowsStore = useWindowsStore()
  * ウィジェット・クエリと同じ規則)。
  */
 const canEdit = computed(() => isWindowExposed('skill-edit'))
-const { columnThemeVars } = useColumnTheme(() => props.column)
+const { columnThemeVars } = useColumnSetup(() => props.column)
 
 skillsStore.ensureLoaded()
 

@@ -41,7 +41,12 @@ const readSafeModeMock = vi.fn<() => boolean>(() => false)
 vi.mock('@/utils/safeMode', () => ({
   readSafeMode: () => readSafeModeMock(),
 }))
+vi.mock('@/composables/useColumnSetup', async (orig) => {
+  const actual = await orig<typeof import('@/composables/useColumnSetup')>()
+  return { useColumnSetup: vi.fn(actual.useColumnSetup) }
+})
 
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   type NamedQueryMeta,
@@ -732,5 +737,16 @@ describe('DeckQueryManagerColumn', () => {
     const wrapper = open(makeColumn(null))
     await flushPromises()
     expect(wrapper.text()).not.toContain('セーフモードで起動中')
+  })
+})
+
+describe('DeckQueryManagerColumn — 共通基盤 (#1098 §4)', () => {
+  it('useColumnSetup をこのカラムで setup する', async () => {
+    vi.mocked(useColumnSetup).mockClear()
+    const wrapper = await mountColumn(makeColumn(null))
+    expect(vi.mocked(useColumnSetup).mock.calls.at(-1)?.[0]()).toMatchObject({
+      type: 'queryManager',
+    })
+    wrapper.unmount()
   })
 })

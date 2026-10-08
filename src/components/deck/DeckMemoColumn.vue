@@ -3,7 +3,7 @@ import { computed, defineAsyncComponent, nextTick, ref, watch } from 'vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import MemoCard from '@/components/common/MemoCard.vue'
 import PopupMenu from '@/components/common/PopupMenu.vue'
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import {
   deleteMemo,
   ensureMemosLoaded,
@@ -32,7 +32,7 @@ const accountsStore = useAccountsStore()
 const windowsStore = useWindowsStore()
 const { confirm } = useConfirm()
 const toast = useToast()
-const { columnThemeVars } = useColumnTheme(() => props.column)
+const { columnThemeVars } = useColumnSetup(() => props.column)
 
 /**
  * メモはアカウントに紐づかない (#1018)。サーバーへ送らずローカルで完結し、

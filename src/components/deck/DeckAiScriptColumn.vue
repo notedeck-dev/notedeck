@@ -26,7 +26,7 @@ const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
 )
 
-import { useColumnTheme } from '@/composables/useColumnTheme'
+import { useColumnSetup } from '@/composables/useColumnSetup'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import DeckColumn from './DeckColumn.vue'
@@ -40,7 +40,9 @@ const props = defineProps<{
 
 const deckStore = useDeckStore()
 
-const { account, columnThemeVars } = useColumnTheme(() => props.column)
+const { account, columnThemeVars, scroller, scrollToTop } = useColumnSetup(
+  () => props.column,
+)
 
 const serverUrl = computed(() =>
   account.value ? `https://${account.value.host}` : '',
@@ -145,18 +147,13 @@ function closePostForm() {
   postFormData.value = {}
 }
 
-function scrollToTop() {
-  bodyRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
-}
-
 // Split ratio (editor height fraction)
-const bodyRef = ref<HTMLElement>()
 const {
   value: editorRatio,
   start: startResize,
   stop: stopResize,
 } = useVerticalResize({
-  containerRef: bodyRef,
+  containerRef: scroller,
   mode: 'ratio',
   initial: 0.6,
   min: 0.15,
@@ -284,7 +281,7 @@ onUnmounted(() => {
     </template>
 
     <AiScriptDialog ref="dialogRef" />
-    <div ref="bodyRef" :class="$style.aisColBody" @keydown="onKeydown">
+    <div ref="scroller" :class="$style.aisColBody" @keydown="onKeydown">
       <div
         :class="$style.editorPanel"
         :style="{ flex: `${editorRatio} 0 0` }"
