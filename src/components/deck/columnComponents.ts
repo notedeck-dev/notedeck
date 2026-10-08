@@ -10,9 +10,23 @@
 // コンパイルエラーになる。
 
 import { type Component, defineAsyncComponent, shallowReactive } from 'vue'
+import ColumnShell from '@/components/deck/ColumnShell.vue'
 import type { BuiltinColumnType } from '@/stores/deck'
 
 type Loader = () => Promise<{ default: Component }>
+
+/**
+ * チャンクが届くまでカラムの枠 (ColumnShell) を出す。loadingComponent が
+ * 無いとセルが透明な空白になり、枠ごと急に現れる。delay 0 は、未マウント時の
+ * 枠からそのまま切れ目なく引き継ぐため
+ */
+function asyncColumn(load: Loader): Component {
+  return defineAsyncComponent({
+    loader: load,
+    loadingComponent: ColumnShell,
+    delay: 0,
+  })
+}
 
 const BUILTIN_COLUMN_LOADERS: Record<BuiltinColumnType, Loader> = {
   timeline: () => import('@/components/deck/DeckTimelineColumn.vue'),
@@ -65,7 +79,7 @@ export const COLUMN_COMPONENTS = shallowReactive<Record<string, Component>>(
   Object.fromEntries(
     Object.entries(BUILTIN_COLUMN_LOADERS).map(([type, load]) => [
       type,
-      defineAsyncComponent(load),
+      asyncColumn(load),
     ]),
   ),
 )
@@ -78,7 +92,7 @@ export function registerColumnComponent(type: string, load: Loader): void {
   if (type in BUILTIN_COLUMN_LOADERS) {
     throw new Error(`column type "${type}" is reserved by NoteDeck`)
   }
-  COLUMN_COMPONENTS[type] = defineAsyncComponent(load)
+  COLUMN_COMPONENTS[type] = asyncColumn(load)
 }
 
 export function unregisterColumnComponent(type: string): void {

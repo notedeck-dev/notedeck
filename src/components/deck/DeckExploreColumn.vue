@@ -354,7 +354,7 @@ usePortal(postPortalRef)
             :image-url="serverInfoImageUrl"
           />
           <template v-else>
-            <NoteScroller ref="noteScrollerRef" :items="notes" :focused-id="focusedNoteId" :class="$style.tlScroller" @scroll="handleScroll" @near-end="loadMore">
+            <NoteScroller ref="noteScrollerRef" :items="notes" :focused-id="focusedNoteId" :class="[$style.tlScroller, 'nd-fade-appear']" @scroll="handleScroll" @near-end="loadMore">
               <template #default="{ item, index }">
                 <div>
                   <ReadMarkerDivider

@@ -105,6 +105,11 @@ export interface NoteColumnConfig {
    */
   connectReady?: Ref<boolean>
   /**
+   * `connectReady` を待ったまま接続しないと決まったとき true にする
+   * (到達可能な TL が無い等)。初回の読み込み中表示を畳むのに使う
+   */
+  connectBlocked?: Ref<boolean>
+  /**
    * 表示述語の面別 opt-out（#606）。既定（未指定）は全適用。
    * お気に入り・自分のクリップは `ignoreSuspension`、プロフィールは
    * `ignoreSubject`（面別マトリクスは DEVELOPMENT.md 参照）。
@@ -120,6 +125,7 @@ export interface NoteColumnConfig {
 function markFirstNotesPainted(): void {
   void nextTick(() => {
     requestAnimationFrame(() => {
+      useUiStore().firstContentPainted = true
       if (markStartup('first-notes')) logStartupSummary()
     })
   })
@@ -578,6 +584,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     markStartup('column-connect')
 
     if (config.validate && !config.validate()) {
+      isLoading.value = false
       return
     }
 
@@ -1211,6 +1218,15 @@ export function useNoteColumn(config: NoteColumnConfig) {
   }
 
   onMounted(() => {
+    // 初回の取得が終わるまでは「読み込み中」として扱う。ここで立てないと、
+    // DB キャッシュの IPC 往復 (TL はポリシー検出も) の間に空状態が一瞬出て
+    // からノートに差し替わる
+    if (notes.value.length === 0) isLoading.value = true
+    if (config.connectBlocked) {
+      watch(config.connectBlocked, (blocked) => {
+        if (blocked) isLoading.value = false
+      })
+    }
     if (config.connectReady && !config.connectReady.value) {
       // Delay connect until the parent signals readiness (e.g. policy detection)
       const stop = watch(config.connectReady, (ready) => {

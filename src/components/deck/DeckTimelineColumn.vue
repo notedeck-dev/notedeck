@@ -99,11 +99,13 @@ function buildTimelineOptions() {
 
 // --- Connect readiness: wait for policy detection before connecting ---
 const connectReady = ref(false)
+const connectBlocked = ref(false)
 
 // --- NoteColumnConfig ---
 
 const noteColumnConfig: NoteColumnConfig = {
   connectReady,
+  connectBlocked,
   getColumn: () => props.column,
   fetch: async (adapter, opts) => {
     try {
@@ -626,6 +628,7 @@ onMounted(async () => {
       if (availableStandardTl.value.length === 0) {
         // Nothing reachable for this account (e.g. guest on a closed server).
         // Leave connectReady=false so useNoteColumn doesn't fire a doomed fetch.
+        connectBlocked.value = true
         return
       }
       if (!availableStandardTl.value.includes(tlType.value)) {
@@ -731,7 +734,7 @@ onMounted(async () => {
           ref="noteScrollerRef"
           :items="groups"
           :animating-ids="animatingRowKeys"
-          :class="$style.tlScroller"
+          :class="[$style.tlScroller, 'nd-fade-appear']"
           @scroll="handleScroll"
           @near-end="loadMoreCrossAccount"
         >

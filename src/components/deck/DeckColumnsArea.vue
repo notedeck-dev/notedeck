@@ -215,9 +215,11 @@ defineExpose({
       :class="$style.dropPlaceholder"
       :style="{ flexBasis: `${dropInsertWidth}px` }"
     />
+    <!-- key は先頭カラムで固定する。結合した id を key にすると縦分割・解除の
+         たびに section ごと作り直され、残る側のカラムまで再マウントされる -->
     <template
       v-for="(group, groupIndex) in deckStore.windowLayout"
-      :key="group.join('-')"
+      :key="group[0]"
     >
       <section
         :class="[$style.columnSection, sectionClass(group)]"
@@ -299,9 +301,12 @@ defineExpose({
   flex-direction: column;
   contain: layout style paint;
   /* Staggered entrance: each column fades in with a slight upward slide.
-     --col-idx is set inline; forwards → 完了後にコンポジタレイヤーを解放 */
-  animation: nd-col-enter var(--nd-duration-slower) var(--nd-ease-spring) forwards;
-  animation-delay: calc(var(--col-idx, 0) * 40ms + 50ms);
+     backwards: 遅延中も from (透明) を当てる。forwards だと遅延中は素のまま
+     見えていて、開始と同時に消えてからフェードし直す。完了後は fill が外れて
+     コンポジタレイヤーも解放される。遅延は 6 本目で頭打ちにして、後ろの
+     カラムや後から足したカラムを待たせない */
+  animation: nd-col-enter var(--nd-duration-slower) var(--nd-ease-spring) backwards;
+  animation-delay: calc(min(var(--col-idx, 0), 6) * 40ms + 50ms);
 }
 @keyframes nd-col-enter {
   from { opacity: 0; transform: translateY(6px); }

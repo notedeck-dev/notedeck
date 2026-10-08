@@ -23,6 +23,15 @@ const style = computed(() => ({
   border: 3px solid color-mix(in srgb, var(--nd-accent) 25%, transparent);
   border-top-color: var(--nd-accent);
   border-radius: 50%;
-  animation: nd-spin 0.8s linear infinite;
+  // 短い読み込み (キャッシュの IPC 往復等) ではスピナーを見せない。
+  // 一瞬だけ点滅するスピナーは「段階の継ぎ目」として目に付く
+  animation:
+    nd-spin 0.8s linear infinite,
+    spinnerAppear var(--nd-duration-base) var(--nd-ease-decel) 0.2s both;
+}
+
+@keyframes spinnerAppear {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 </style>

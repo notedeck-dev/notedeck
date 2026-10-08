@@ -308,7 +308,7 @@ defineExpose({
           :animating-ids="animatingIds"
           :leaving-ids="removingKeys"
           :prefetch="(notes) => { prefetchNoteImages(notes); prefetchNoteMfm(notes) }"
-          :class="$style.tlScroller"
+          :class="[$style.tlScroller, 'nd-fade-appear']"
           @scroll="handleScroll"
           @near-end="loadMore"
         >

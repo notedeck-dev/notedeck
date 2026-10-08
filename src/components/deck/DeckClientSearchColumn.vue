@@ -570,7 +570,7 @@ onMounted(async () => {
         v-else
         ref="noteScrollerRef"
         :items="groups"
-        :class="$style.tlScroller"
+        :class="[$style.tlScroller, 'nd-fade-appear']"
         @scroll="onScrollReport"
         @near-end="loadMore"
       >

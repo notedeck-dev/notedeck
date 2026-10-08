@@ -1342,7 +1342,7 @@ onUnmounted(() => {
         ref="noteScrollerRef"
         :items="filteredNotifications"
         :estimated-height="80"
-        :class="$style.notifScroller"
+        :class="[$style.notifScroller, 'nd-fade-appear']"
         @scroll="handleScroll"
       >
         <template #default="{ item: notif, index }">

@@ -191,7 +191,7 @@ const {
           ref="noteScrollerRef"
           :items="groups"
           :animating-ids="animatingRowKeys"
-          :class="$style.tlScroller"
+          :class="[$style.tlScroller, 'nd-fade-appear']"
           @scroll="handleScroll"
           @near-end="loadMoreCrossAccount"
         >

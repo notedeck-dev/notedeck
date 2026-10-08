@@ -166,30 +166,35 @@ onMounted(async () => {
     markStartup('window-shown')
   }
 
-  // Dismiss splash when deck is mounted.
-  // 200ms は deckMounted が立たない異常系向けのフォールバック（通常は watch が先行）。
-  // 注意: `immediate: true` の watch でここを書くと、登録時点で deckMounted が
-  // true の場合にコールバックが `const stopWatch` の代入前に同期実行され、
-  // stopWatch() が TDZ で throw する (チャンク分割修正で prod のデッキマウントが
-  // onMounted より速くなり顕在化した)。既マウントは分岐で処理する。
+  // スプラッシュは最初のカラムのノートが描けてから畳む。デッキのマウント
+  // 時点で畳むと、カラムの枠 → 空 → ノートと段階的に埋まる様子がそのまま
+  // 見える。キャッシュが無い / ノート系カラムが無い構成でも待たせすぎない
+  // よう、デッキのマウントから 600ms で打ち切る。1000ms はデッキ自体が
+  // マウントされない異常系向けのフォールバック。
+  // 注意: `immediate: true` の watch で書くと、登録時点で条件を満たす場合に
+  // コールバックが `stopWatch` の代入前に同期実行され TDZ で throw する。
   // deck-mounted の計測はここではなく発生源 (useDeckInit) で打つ
   if (document.getElementById('nd-splash')) {
-    const splashTimeout = setTimeout(dismissSplash, 200)
-    if (uiStore.deckMounted) {
-      clearTimeout(splashTimeout)
+    let contentCap: ReturnType<typeof setTimeout> | null = null
+    let stopWatch: (() => void) | null = null
+    const fallback = setTimeout(finishSplash, 1000)
+    function finishSplash() {
+      stopWatch?.()
+      clearTimeout(fallback)
+      if (contentCap) clearTimeout(contentCap)
       dismissSplash()
-    } else {
-      const stopWatch = watch(
-        () => uiStore.deckMounted,
-        (mounted) => {
-          if (mounted) {
-            stopWatch()
-            clearTimeout(splashTimeout)
-            dismissSplash()
-          }
-        },
-      )
     }
+    function checkSplash() {
+      if (uiStore.firstContentPainted) finishSplash()
+      else if (uiStore.deckMounted && !contentCap) {
+        contentCap = setTimeout(finishSplash, 600)
+      }
+    }
+    stopWatch = watch(
+      () => [uiStore.deckMounted, uiStore.firstContentPainted],
+      checkSplash,
+    )
+    checkSplash()
   }
 
   // Defer theme account fetching (network I/O) to after first paint
