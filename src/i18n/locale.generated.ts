@@ -909,6 +909,16 @@ export interface Locale {
     /** リアクションなし */
     readonly "noReactions": string
   }
+  readonly "_notificationCenter": {
+    /** アプリの通知 */
+    readonly "title": string
+    /** すべてクリア */
+    readonly "clearAll": string
+    /** 新しい通知はありません */
+    readonly "empty": string
+    /** 未読 {count} 件 */
+    readonly "unread": ParameterizedString<'count'>
+  }
   readonly "_noteVariantsPopup": {
     /** このノートが見えているアカウント */
     readonly "ariaLabel": string

@@ -16,6 +16,7 @@ import AppPrompt from '@/components/common/AppPrompt.vue'
 import AppToast from '@/components/common/AppToast.vue'
 import AppTooltip from '@/components/common/AppTooltip.vue'
 import MkRippleEffect from '@/components/common/MkRippleEffect.vue'
+import NotificationCenter from '@/components/common/notifications/NotificationCenter.vue'
 import { useBackButton } from '@/composables/useBackButton'
 import { useDeckInit } from '@/composables/useDeckInit'
 import { requestMoveColumn } from '@/composables/useDeckWindow'
@@ -391,6 +392,7 @@ function acceptCrossWindowDrop() {
     </div>
 
     <AppToast />
+    <NotificationCenter />
     <AppConfirm />
     <AppPrompt />
     <AppTooltip />

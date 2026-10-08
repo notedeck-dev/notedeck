@@ -66,7 +66,6 @@ const ALLOWED: Record<string, string> = {
   'src/utils/desktopNotification.ts:pendingContexts':
     'lifecycle: 通知のクリック/クローズで削除',
   'src/utils/startupTrace.ts:marks': 'lifecycle: 起動時の計測点のみ',
-  'src/stores/toast.ts:timers': 'lifecycle: 発火・破棄で削除',
   'src/composables/useMemos.ts:writeTimers': 'lifecycle: 書き込み完了で削除',
   'src/composables/usePipWindow.ts:pipWindows':
     'lifecycle: ウィンドウを閉じると削除',

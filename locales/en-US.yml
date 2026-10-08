@@ -730,6 +730,12 @@ _noteReactionPickerPopup:
 _noteReactionUsersModal:
   noReactions: "No reactions"
 
+_notificationCenter:
+  title: "App notifications"
+  clearAll: "Clear all"
+  empty: "No new notifications"
+  unread: "{count} unread"
+
 _noteVariantsPopup:
   ariaLabel: "Accounts that can see this note"
   title: "Visible to"

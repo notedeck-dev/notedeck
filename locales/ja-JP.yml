@@ -508,6 +508,12 @@ _noteReactionPickerPopup:
 _noteReactionUsersModal:
   noReactions: "リアクションなし"
 
+_notificationCenter:
+  title: "アプリの通知"
+  clearAll: "すべてクリア"
+  empty: "新しい通知はありません"
+  unread: "未読 {count} 件"
+
 _noteVariantsPopup:
   ariaLabel: "このノートが見えているアカウント"
   title: "見えているアカウント"
