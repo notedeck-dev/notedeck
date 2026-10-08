@@ -136,6 +136,136 @@ const EN_SIDEBAR: DefaultTheme.Sidebar = {
   ],
 }
 
+const ZH_SIDEBAR: DefaultTheme.Sidebar = {
+  '/zh/docs/': [
+    {
+      text: '入门',
+      collapsed: false,
+      items: [
+        { text: 'NoteDeck 是什么', link: '/zh/docs/' },
+        { text: '安装', link: '/zh/docs/install' },
+        { text: 'AI 的独立进程 (notemaid)', link: '/zh/docs/notemaid' },
+        { text: '首次设置', link: '/zh/docs/first-run' },
+        { text: '不登录试用', link: '/zh/docs/guest' },
+      ],
+    },
+    {
+      text: '搭建 Deck',
+      collapsed: false,
+      items: [
+        { text: '列与窗口', link: '/zh/docs/deck/columns' },
+        { text: '配置文件', link: '/zh/docs/deck/profiles' },
+        { text: '导航栏', link: '/zh/docs/deck/navbar' },
+      ],
+    },
+    {
+      text: '用得更顺手',
+      collapsed: false,
+      items: [
+        { text: '键盘操作', link: '/zh/docs/guide/keyboard' },
+        { text: '查找帖子', link: '/zh/docs/guide/search' },
+        { text: '更改外观', link: '/zh/docs/guide/appearance' },
+        { text: '用商店扩展', link: '/zh/docs/guide/store' },
+        { text: '与 AI 一起使用', link: '/zh/docs/guide/ai' },
+        { text: '培养你的环境', link: '/zh/docs/guide/grow' },
+        { text: '通过链接打开', link: '/zh/docs/guide/links' },
+      ],
+    },
+    {
+      text: '制作扩展',
+      collapsed: false,
+      items: [
+        { text: '扩展概览', link: '/zh/docs/dev/' },
+        { text: '插件', link: '/zh/docs/dev/plugin' },
+        { text: '小工具', link: '/zh/docs/dev/widget' },
+        { text: '主题', link: '/zh/docs/dev/theme' },
+        { text: '列查询', link: '/zh/docs/dev/query' },
+        { text: '技能', link: '/zh/docs/dev/skill' },
+      ],
+    },
+    {
+      text: '设置与数据',
+      collapsed: false,
+      items: [
+        { text: '设置文件', link: '/zh/docs/config/files' },
+        { text: '备份', link: '/zh/docs/config/backup' },
+      ],
+    },
+    {
+      text: '遇到问题时',
+      collapsed: false,
+      items: [
+        { text: '故障排除', link: '/zh/docs/troubleshooting' },
+      ],
+    },
+  ],
+}
+
+const KO_SIDEBAR: DefaultTheme.Sidebar = {
+  '/ko/docs/': [
+    {
+      text: '시작하기',
+      collapsed: false,
+      items: [
+        { text: 'NoteDeck이란', link: '/ko/docs/' },
+        { text: '설치', link: '/ko/docs/install' },
+        { text: 'AI 별도 프로세스 (notemaid)', link: '/ko/docs/notemaid' },
+        { text: '처음 설정하기', link: '/ko/docs/first-run' },
+        { text: '로그인 없이 써 보기', link: '/ko/docs/guest' },
+      ],
+    },
+    {
+      text: '덱 구성하기',
+      collapsed: false,
+      items: [
+        { text: '칼럼과 창', link: '/ko/docs/deck/columns' },
+        { text: '프로파일', link: '/ko/docs/deck/profiles' },
+        { text: '내비게이션 바', link: '/ko/docs/deck/navbar' },
+      ],
+    },
+    {
+      text: '제대로 활용하기',
+      collapsed: false,
+      items: [
+        { text: '키보드 조작', link: '/ko/docs/guide/keyboard' },
+        { text: '노트 찾기', link: '/ko/docs/guide/search' },
+        { text: '외관 바꾸기', link: '/ko/docs/guide/appearance' },
+        { text: '스토어로 확장하기', link: '/ko/docs/guide/store' },
+        { text: 'AI와 함께 쓰기', link: '/ko/docs/guide/ai' },
+        { text: '환경 키우기', link: '/ko/docs/guide/grow' },
+        { text: '링크로 열기', link: '/ko/docs/guide/links' },
+      ],
+    },
+    {
+      text: '확장 만들기',
+      collapsed: false,
+      items: [
+        { text: '확장 개요', link: '/ko/docs/dev/' },
+        { text: '플러그인', link: '/ko/docs/dev/plugin' },
+        { text: '위젯', link: '/ko/docs/dev/widget' },
+        { text: '테마', link: '/ko/docs/dev/theme' },
+        { text: '칼럼 쿼리', link: '/ko/docs/dev/query' },
+        { text: '스킬', link: '/ko/docs/dev/skill' },
+      ],
+    },
+    {
+      text: '설정과 데이터',
+      collapsed: false,
+      items: [
+        { text: '설정 파일', link: '/ko/docs/config/files' },
+        { text: '백업', link: '/ko/docs/config/backup' },
+      ],
+    },
+    {
+      text: '문제 해결',
+      collapsed: false,
+      items: [
+        { text: '문제 해결', link: '/ko/docs/troubleshooting' },
+      ],
+    },
+  ],
+}
+
 export default defineConfig({
   title: 'NoteDeck',
   titleTemplate: ':title | NoteDeck',
@@ -232,6 +362,72 @@ export default defineConfig({
         },
       },
     },
+    zh: {
+      label: '简体中文',
+      lang: 'zh-Hans',
+      description:
+        'Misskey Pro — 面向 Misskey 重度用户的 Misskey 集成 Deck 环境 (IDE)。',
+      head: [
+        [
+          'meta',
+          {
+            property: 'og:image:alt',
+            content: 'NoteDeck — 面向 Misskey 重度用户的非官方客户端。',
+          },
+        ],
+      ],
+      themeConfig: {
+        sidebar: ZH_SIDEBAR,
+        editLink: {
+          pattern: `${REPO}/edit/main/site/:path`,
+          text: '编辑此页',
+        },
+        docFooter: { prev: '上一页', next: '下一页' },
+        outline: { level: [2, 3], label: '本页内容' },
+        lastUpdated: {
+          text: '最后更新',
+          formatOptions: { dateStyle: 'medium' },
+        },
+        darkModeSwitchLabel: '颜色模式',
+        lightModeSwitchTitle: '切换到浅色模式',
+        darkModeSwitchTitle: '切换到深色模式',
+        sidebarMenuLabel: '菜单',
+        returnToTopLabel: '回到顶部',
+      },
+    },
+    ko: {
+      label: '한국어',
+      lang: 'ko',
+      description:
+        'Misskey Pro — Misskey 헤비 유저를 위한 Misskey 통합 덱 환경 (IDE).',
+      head: [
+        [
+          'meta',
+          {
+            property: 'og:image:alt',
+            content: 'NoteDeck — Misskey 헤비 유저를 위한 비공식 클라이언트.',
+          },
+        ],
+      ],
+      themeConfig: {
+        sidebar: KO_SIDEBAR,
+        editLink: {
+          pattern: `${REPO}/edit/main/site/:path`,
+          text: '이 페이지 편집',
+        },
+        docFooter: { prev: '이전', next: '다음' },
+        outline: { level: [2, 3], label: '이 페이지의 내용' },
+        lastUpdated: {
+          text: '마지막 업데이트',
+          formatOptions: { dateStyle: 'medium' },
+        },
+        darkModeSwitchLabel: '색상 모드',
+        lightModeSwitchTitle: '라이트 모드로 전환',
+        darkModeSwitchTitle: '다크 모드로 전환',
+        sidebarMenuLabel: '메뉴',
+        returnToTopLabel: '맨 위로',
+      },
+    },
   },
 
   themeConfig: {
@@ -262,6 +458,46 @@ export default defineConfig({
               },
             },
           },
+          zh: {
+            translations: {
+              button: { buttonText: '搜索', buttonAriaLabel: '搜索' },
+              modal: {
+                displayDetails: '显示详细信息',
+                resetButtonTitle: '清除搜索',
+                backButtonTitle: '返回',
+                noResultsText: '未找到结果',
+                footer: {
+                  selectText: '选择',
+                  selectKeyAriaLabel: 'Enter',
+                  navigateText: '切换',
+                  navigateUpKeyAriaLabel: '向上箭头',
+                  navigateDownKeyAriaLabel: '向下箭头',
+                  closeText: '关闭',
+                  closeKeyAriaLabel: 'Escape',
+                },
+              },
+            },
+          },
+          ko: {
+            translations: {
+              button: { buttonText: '검색', buttonAriaLabel: '검색' },
+              modal: {
+                displayDetails: '자세히 보기',
+                resetButtonTitle: '검색 초기화',
+                backButtonTitle: '뒤로',
+                noResultsText: '결과를 찾을 수 없습니다',
+                footer: {
+                  selectText: '선택',
+                  selectKeyAriaLabel: 'Enter',
+                  navigateText: '이동',
+                  navigateUpKeyAriaLabel: '위쪽 화살표',
+                  navigateDownKeyAriaLabel: '아래쪽 화살표',
+                  closeText: '닫기',
+                  closeKeyAriaLabel: 'Escape',
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -270,6 +506,22 @@ export default defineConfig({
   },
 
   markdown: {
+    // 既定の slugify は NFKD で分解したまま id にするので、濁点のある和文や
+    // ハングルの見出しでは id が本文のリンク (NFC) と一致せず飛ばない (#1145)。
+    // 既定と同じ規則で作り、最後に NFC に戻す
+    anchor: {
+      slugify: (str) =>
+        str
+          .normalize('NFKD')
+          .replace(/[\u0300-\u036F]/g, '')
+          .replace(/[\u0000-\u001f]/g, '')
+          .replace(/[\s~`!@#$%^&*()\-_+=[\]{}|\\;:"'“”‘’<>,.?/]+/g, '-')
+          .replace(/-{2,}/g, '-')
+          .replace(/^-+|-+$/g, '')
+          .replace(/^(\d)/, '_$1')
+          .toLowerCase()
+          .normalize('NFC'),
+    },
     // AiScript (.is) を shiki は知らない。JS として色付けする
     languageAlias: { is: 'js' },
     container: {

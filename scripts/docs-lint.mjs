@@ -177,6 +177,16 @@ const TRANSLATIONS = [
     dir: join(SITE, '.vitepress/theme/i18n/en.ts'),
     source: join(SITE, '.vitepress/theme/i18n/ja.ts'),
   },
+  { dir: join(SITE, 'zh'), source: SITE },
+  {
+    dir: join(SITE, '.vitepress/theme/i18n/zh.ts'),
+    source: join(SITE, '.vitepress/theme/i18n/ja.ts'),
+  },
+  { dir: join(SITE, 'ko'), source: SITE },
+  {
+    dir: join(SITE, '.vitepress/theme/i18n/ko.ts'),
+    source: join(SITE, '.vitepress/theme/i18n/ja.ts'),
+  },
 ]
 const SOURCE_HASH = /sourceHash:\s*(\S+)/
 
