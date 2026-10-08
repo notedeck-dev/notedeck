@@ -78,7 +78,7 @@ fn check(kind: &Kind, list: &[SidecarVector], normalize: fn(&Item, f64) -> J5) {
             expected: v.expected.clone(),
         };
         let out2 = json5_out::stringify(&normalize(&item_of(kind, &again), 0.0));
-        assert_eq!(out2, v.expected, "{} (再読込): {}", kind.subdir, v.name);
+        assert_eq!(out2, v.expected, "{} (reload): {}", kind.subdir, v.name);
     }
 }
 
@@ -126,7 +126,7 @@ fn theme_codec_matches_device_golden() {
         assert_eq!(
             theme_round_trip(&t.expected, &t.filename, 0),
             t.expected,
-            "theme (再読込): {}",
+            "theme (reload): {}",
             t.name
         );
     }
