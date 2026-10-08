@@ -495,7 +495,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 
 ### Permission モデル (#712)
 
-権限は **principal ごとに独立したプロファイル**として `<configDir>/notedeck/permissions.json5` に保存される。principal は `ai.chat` / `ai.heartbeat` / `plugin` / `external` / `scratchpad` (スクラッチパッドカラムで本人が書くコード、既定 readonly、#1099)。全許可を持つのは本人の UI 操作 (`user`) だけで、カラムやウィンドウの種類で `user` は配らない。ファイルは capability 層から書き換えられない場所に隔離されている (settingsFs の固定名ラッパー経由でのみ到達)。
+権限は **principal ごとに独立したプロファイル**として `<configDir>/notedeck/permissions.json5` に保存される。principal は `ai.chat` / `ai.heartbeat` / `plugin` / `external` / `scratchpad` (スクラッチパッドカラムで本人が書くコード、既定 readonly、#1099)。全許可を持つのは本人の UI 操作 (`user`) だけで、カラムやウィンドウの種類で `user` は配らない。AiScript の実行環境は `createAiScriptSandbox` (`src/aiscript/sandbox.ts`) 1 本で組み、principal を省略できない (#1099 段階 C)。ファイルは capability 層から書き換えられない場所に隔離されている (settingsFs の固定名ラッパー経由でのみ到達)。
 
 - 各プロファイルは preset (`readonly` / `safe` / `full` / `custom`) + 個別 toggle。権限キーの語彙は `crates/notecore/capabilities.json5` の `permissions` 節が正本で、TS (`src/permissions/keys.generated.ts`) と Rust (`crates/notecore/src/permissions_keys.generated.rs`) はそこから生成する (`pnpm gen:capabilities`、#1133)
 - capability の `permissions: PermissionKey[]` と principal のプロファイルを **AND 照合**で評価。不一致なら `permission_denied` を tool_result に返す (AI には実行されない)

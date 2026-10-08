@@ -9,20 +9,9 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
-import { createAiScriptEnv } from '@/aiscript/api'
-import {
-  createAiScriptInterpreter,
-  createInterpreterOptions,
-} from '@/aiscript/common'
-import {
-  cleanupNoteDeckEnv,
-  createNoteDeckEnv,
-  type NoteDeckEnvContext,
-} from '@/aiscript/notedeck-api'
+import { type AiScriptSandbox, createAiScriptSandbox } from '@/aiscript/sandbox'
 import { sanitizeCode } from '@/aiscript/sanitize'
-import { createAiScriptUiLib, type UiComponent } from '@/aiscript/ui'
-import type { JsonValue } from '@/bindings'
-import { useCommandStore } from '@/commands/registry'
+import type { UiComponent } from '@/aiscript/ui'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
@@ -43,8 +32,6 @@ import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { i18n } from '@/i18n'
-import type { Principal } from '@/permissions/principal'
-import { providerFromPrincipal } from '@/plugins/registrationId'
 import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
@@ -52,7 +39,6 @@ import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
 import { useWidgetsStore } from '@/stores/widgets'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -70,7 +56,6 @@ defineEmits<{
 const widgetsStore = useWidgetsStore()
 widgetsStore.ensureLoaded()
 const accountsStore = useAccountsStore()
-const commandStore = useCommandStore()
 const { show: showToast } = useToast()
 
 const widget = computed(() => widgetsStore.getWidget(props.widgetId))
@@ -190,7 +175,7 @@ const output = ref<{ text: string; isError: boolean }[]>([])
 const error = ref<string | null>(null)
 const running = ref(false)
 const dialogRef = ref<InstanceType<typeof AiScriptDialog> | null>(null)
-let currentNdCtx: Parameters<typeof cleanupNoteDeckEnv>[0] | null = null
+let currentSandbox: AiScriptSandbox | null = null
 
 const postFormPortalRef = useTemplateRef<HTMLElement>('postFormPortalRef')
 usePortal(postFormPortalRef)
@@ -217,12 +202,6 @@ async function run() {
   output.value = []
   tab.value = 'visual'
 
-  const accId = activeAccountId.value
-  const apiOption = accId
-    ? async (endpoint: string, params: Record<string, unknown>) =>
-        unwrap(await commands.apiRequest(accId, endpoint, params as JsonValue))
-    : undefined
-
   const runLog = useAiScriptLogsStore().beginRun(
     'widget',
     props.widgetId,
@@ -240,26 +219,18 @@ async function run() {
     return
   }
 
-  // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
-  // Nd:* が同じ配列を見る
-  const callers: Principal[] = []
-  const env = createAiScriptEnv(
-    {
-      getCallers: () => callers,
-      principal: {
-        kind: 'plugin',
-        pluginId: `widget:${props.widgetId}`,
-        name: widget.value.name,
-      } as const,
-      api: apiOption,
-      storagePrefix: `app-${widget.value.installId}`,
-      onDialog: (title, text, type) =>
-        dialogRef.value?.showDialog(title, text, type) ?? Promise.resolve(),
-      onConfirm: (title, text) =>
-        dialogRef.value?.showConfirm(title, text) ?? Promise.resolve(false),
-      onToast: (text, type) => showToast(text, type),
+  currentSandbox?.dispose()
+  const sandbox = createAiScriptSandbox({
+    // 編集プレビューも実行するコードは同一なので widget と同じ principal
+    principal: {
+      kind: 'plugin',
+      pluginId: `widget:${props.widgetId}`,
+      name: widget.value.name,
     },
-    {
+    storeId: widget.value.storeId,
+    accountId: activeAccountId.value,
+    storagePrefix: `app-${widget.value.installId}`,
+    globals: {
       THIS_ID: widget.value.installId,
       THIS_URL: '',
       USER_ID:
@@ -270,56 +241,33 @@ async function run() {
       LOCALE: i18n.lang,
       SERVER_URL: serverUrl.value,
     },
-  )
-
-  const ui = createAiScriptUiLib({
-    onRender: (components) => {
-      uiComponents.value = components
+    onDialog: (title, text, type) =>
+      dialogRef.value?.showDialog(title, text, type) ?? Promise.resolve(),
+    onConfirm: (title, text) =>
+      dialogRef.value?.showConfirm(title, text) ?? Promise.resolve(false),
+    onToast: (text, type) => showToast(text, type),
+    ui: {
+      onRender: (components) => {
+        uiComponents.value = components
+      },
+    },
+    io: {
+      onOutput: (text) => {
+        output.value.push({ text, isError: false })
+        runLog.print(text)
+      },
+      onError: (err) => {
+        error.value = err.message
+        output.value.push({ text: err.message, isError: true })
+        runLog.error(err.message)
+      },
     },
   })
-
-  const ioOpts = createInterpreterOptions({
-    onOutput: (text) => {
-      output.value.push({ text, isError: false })
-      runLog.print(text)
-    },
-    onError: (err) => {
-      error.value = err.message
-      output.value.push({ text: err.message, isError: true })
-      runLog.error(err.message)
-    },
-  })
-
-  if (currentNdCtx) cleanupNoteDeckEnv(currentNdCtx)
-  const ndCtx: NoteDeckEnvContext = {
-    commandStore,
-    // 編集プレビューも実行するコードは同一なので widget と同じ principal
-    principal: {
-      kind: 'plugin',
-      pluginId: `widget:${props.widgetId}`,
-      name: widget.value.name,
-    },
-    provider: providerFromPrincipal(
-      { kind: 'plugin', pluginId: `widget:${props.widgetId}` },
-      widget.value.storeId,
-    ),
-    disposers: [],
-    callers,
-    getAccountId: () => activeAccountId.value,
-  }
-  const ndEnv = createNoteDeckEnv(ndCtx)
-  currentNdCtx = ndCtx
-
-  const interp = createAiScriptInterpreter(
-    { ...env, ...ndEnv, ...ui },
-    ioOpts,
-    false,
-  )
-  ndCtx.interpreter = interp
-  interpreter.value = interp
+  currentSandbox = sandbox
+  interpreter.value = sandbox.interpreter
 
   try {
-    await interp.exec(ast)
+    await sandbox.exec(ast)
     runLog.system('run completed')
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -330,7 +278,7 @@ async function run() {
 }
 
 onBeforeUnmount(() => {
-  if (currentNdCtx) cleanupNoteDeckEnv(currentNdCtx)
+  currentSandbox?.dispose()
 })
 
 onMounted(() => {

@@ -10,31 +10,17 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
-import { createAiScriptEnv } from '@/aiscript/api'
-import {
-  createAiScriptInterpreter,
-  createInterpreterOptions,
-} from '@/aiscript/common'
-import {
-  cleanupNoteDeckEnv,
-  createNoteDeckEnv,
-  type NoteDeckEnvContext,
-} from '@/aiscript/notedeck-api'
+import { type AiScriptSandbox, createAiScriptSandbox } from '@/aiscript/sandbox'
 import { sanitizeCode } from '@/aiscript/sanitize'
-import { createAiScriptUiLib, type UiComponent } from '@/aiscript/ui'
-import type { JsonValue } from '@/bindings'
-import { useCommandStore } from '@/commands/registry'
+import type { UiComponent } from '@/aiscript/ui'
 import AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { useVerticalResize } from '@/composables/useVerticalResize'
 import { i18n } from '@/i18n'
-import type { Principal } from '@/permissions/principal'
-import { providerFromPrincipal } from '@/plugins/registrationId'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -53,7 +39,6 @@ const props = defineProps<{
 }>()
 
 const deckStore = useDeckStore()
-const commandStore = useCommandStore()
 
 const { account, columnThemeVars } = useColumnTheme(() => props.column)
 
@@ -141,7 +126,7 @@ function stringifyUiProps(props: Record<string, unknown>): string {
 }
 const { show: showToast } = useToast()
 const dialogRef = ref<InstanceType<typeof AiScriptDialog> | null>(null)
-let currentNdCtx: Parameters<typeof cleanupNoteDeckEnv>[0] | null = null
+let currentSandbox: AiScriptSandbox | null = null
 
 const postPortalRef = useTemplateRef<HTMLElement>('postPortalRef')
 usePortal(postPortalRef)
@@ -194,15 +179,6 @@ async function run() {
   output.value = []
   uiComponents.value = []
 
-  const accId = props.column.accountId
-  const apiOption = accId
-    ? async (endpoint: string, params: Record<string, unknown>) => {
-        return unwrap(
-          await commands.apiRequest(accId, endpoint, params as JsonValue),
-        )
-      }
-    : undefined
-
   const runLog = useAiScriptLogsStore().beginRun(
     'playground',
     props.column.id,
@@ -220,24 +196,17 @@ async function run() {
     return
   }
 
-  // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
-  // Nd:* が同じ配列を見る
-  const callers: Principal[] = []
-  const env = createAiScriptEnv(
-    {
-      getCallers: () => callers,
-      // スクラッチパッド専用 principal (#1099): 本人のコードでも全許可
-      // (user) は配らず、権限ウィンドウの scratchpad 行で解決する
-      principal: { kind: 'scratchpad' } as const,
-      api: apiOption,
-      storagePrefix: `col-aiscript-${props.column.id}`,
-      onDialog: (title, text, type) =>
-        dialogRef.value?.showDialog(title, text, type) ?? Promise.resolve(),
-      onConfirm: (title, text) =>
-        dialogRef.value?.showConfirm(title, text) ?? Promise.resolve(false),
-      onToast: (text, type) => showToast(text, type),
-    },
-    {
+  // 前回の実行の登録 (コマンド / 購読) を解放してから組み直す
+  currentSandbox?.dispose()
+  const sandbox = createAiScriptSandbox({
+    // スクラッチパッド専用 principal (#1099): 本人のコードでも全許可 (user) は
+    // 配らず、権限ウィンドウの scratchpad 行で解決する (既定 readonly)。
+    // 登録の名前空間は固定の local:user — カラムを跨いで同じ名前を登録すると
+    // 衝突する (先勝ち) が、本人のコード同士なので黙って上書きするより気付ける方がよい
+    principal: { kind: 'scratchpad' },
+    accountId: props.column.accountId ?? null,
+    storagePrefix: `col-aiscript-${props.column.id}`,
+    globals: {
       THIS_ID: props.column.id,
       THIS_URL: '',
       USER_ID: account.value?.userId ?? '',
@@ -246,55 +215,32 @@ async function run() {
       LOCALE: i18n.lang,
       SERVER_URL: serverUrl.value,
     },
-  )
-
-  const ndCtx: NoteDeckEnvContext = {
-    commandStore,
-    // 「ターミナルにシェルスクリプトを貼るのと同じ local trust」で user を
-    // 配っていたが、露出 (developer) は認可境界ではないので、コード実行面には
-    // 種類に関わらずプロファイルを持たせる (#1099)。既定 readonly
-    principal: { kind: 'scratchpad' },
-    // スクラッチパッドは本人のコードなので固定の local:user 名前空間。
-    // カラムを跨いで同じ名前を登録すると衝突する (先勝ち) が、本人の
-    // コード同士なので黙って上書きするより気付ける方がよい
-    provider: providerFromPrincipal({ kind: 'scratchpad' }),
-    disposers: [],
-    callers,
-    getAccountId: () => props.column.accountId ?? null,
-  }
-  const ndEnv = createNoteDeckEnv(ndCtx)
-
-  const ui = createAiScriptUiLib({
-    onRender: (components) => {
-      uiComponents.value = components
+    onDialog: (title, text, type) =>
+      dialogRef.value?.showDialog(title, text, type) ?? Promise.resolve(),
+    onConfirm: (title, text) =>
+      dialogRef.value?.showConfirm(title, text) ?? Promise.resolve(false),
+    onToast: (text, type) => showToast(text, type),
+    ui: {
+      onRender: (components) => {
+        uiComponents.value = components
+      },
+    },
+    io: {
+      onOutput: (text) => {
+        output.value.push({ text, isError: false })
+        runLog.print(text)
+      },
+      onError: (err) => {
+        error.value = err.message
+        runLog.error(err.message)
+      },
     },
   })
-
-  const ioOpts = createInterpreterOptions({
-    onOutput: (text) => {
-      output.value.push({ text, isError: false })
-      runLog.print(text)
-    },
-    onError: (err) => {
-      error.value = err.message
-      runLog.error(err.message)
-    },
-  })
-
-  // Cleanup previous run's commands
-  if (currentNdCtx) cleanupNoteDeckEnv(currentNdCtx)
-  currentNdCtx = ndCtx
-
-  const interp = createAiScriptInterpreter(
-    { ...env, ...ndEnv, ...ui },
-    ioOpts,
-    false,
-  )
-  ndCtx.interpreter = interp
-  interpreter.value = interp
+  currentSandbox = sandbox
+  interpreter.value = sandbox.interpreter
 
   try {
-    await interp.exec(ast)
+    await sandbox.exec(ast)
     runLog.system('run completed')
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -315,7 +261,7 @@ function onKeydown(e: KeyboardEvent) {
 onUnmounted(() => {
   if (saveTimer) clearTimeout(saveTimer)
   stopResize()
-  if (currentNdCtx) cleanupNoteDeckEnv(currentNdCtx)
+  currentSandbox?.dispose()
 })
 </script>
 

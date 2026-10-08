@@ -6,11 +6,7 @@ import {
   values,
 } from '@syuilo/aiscript'
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
-import type { JsonValue } from '@/bindings'
 import { i18n } from '@/i18n'
-import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
-import type { Principal } from '@/permissions/principal'
-import { pluginProviderKey } from '@/plugins/registrationId'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   type AiScriptRunLogger,
@@ -24,19 +20,9 @@ import {
 } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { readSafeMode } from '@/utils/safeMode'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
-import { createAiScriptEnv } from './api'
-import {
-  createAiScriptInterpreter,
-  createInterpreterOptions,
-  execAiScript,
-} from './common'
-import {
-  cleanupNoteDeckEnv,
-  createNoteDeckEnv,
-  type NoteDeckEnvContext,
-} from './notedeck-api'
+import { cleanupNoteDeckEnv, type NoteDeckEnvContext } from './notedeck-api'
+import { createAiScriptSandbox } from './sandbox'
 import { sanitizeCode } from './sanitize'
 
 // ---------------------------------------------------------------------------
@@ -235,8 +221,6 @@ function removePluginHandlers(installId: string) {
 function createPluginSpecificEnv(
   plugin: PluginMeta,
   ctx: PluginRunContext,
-  /** 登録 capability を実行中の呼び出し元 (#1099)。Mk:api は AND で判定する */
-  callers: readonly Principal[],
 ): Record<string, Value> {
   const id = plugin.installId
   const consts: Record<string, Value> = {}
@@ -410,31 +394,6 @@ function createPluginSpecificEnv(
   }
   consts['Plugin:config'] = values.OBJ(configMap)
 
-  // --- Mk:api with dynamic account context ---
-  consts['Mk:api'] = values.FN_NATIVE(async ([endpointVal, paramsVal]) => {
-    const accountId = ctx.accountId
-    if (!accountId) {
-      throw new Error('Mk:api: no account context available')
-    }
-    const endpoint = endpointVal?.type === 'str' ? endpointVal.value : ''
-    // プラグインの生 Misskey API は endpoint 対応表 gate に従属 (#712 / #711)。
-    // 実行中の呼び出し元があれば「呼び出し元 ∩ plugin」(#1099)
-    await assertMisskeyApiAllowed(
-      { kind: 'plugin', pluginId: plugin.installId, name: plugin.name },
-      endpoint,
-      // 判定は呼び出し時点の連鎖で行う (await の間に積み下ろしされても変えない)
-      { onBehalfOf: [...callers] },
-    )
-    const params =
-      paramsVal?.type === 'obj'
-        ? (utils.valToJs(paramsVal) as Record<string, unknown>)
-        : {}
-    const result = unwrap(
-      await commands.apiRequest(accountId, endpoint, params as JsonValue),
-    )
-    return utils.jsToVal(result)
-  })
-
   return consts
 }
 
@@ -533,65 +492,6 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
   const ctx: PluginRunContext = { accountId: null, lastError: null }
   pluginAccountContext.set(plugin.installId, ctx)
 
-  // Build environment: base Mk:* (overridden by plugin-specific Mk:api) + Plugin:* + Nd:*
-  // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
-  // Nd:* が同じ配列を見る
-  const callers: Principal[] = []
-  const baseEnv = createAiScriptEnv(
-    {
-      getCallers: () => callers,
-      principal: {
-        kind: 'plugin',
-        pluginId: plugin.installId,
-        name: plugin.name,
-      },
-      storagePrefix: `plugin:${plugin.installId}`,
-      // onToast 未指定だと Mk:toast が無言の no-op になり、プラグインからの
-      // 成否フィードバックが一切ユーザーに届かない (widget / Play は配線済み)
-      onToast: (text, type) => useToast().show(text, type),
-    },
-    { LOCALE: i18n.lang },
-  )
-  const pluginEnv = createPluginSpecificEnv(plugin, ctx, callers)
-
-  // Nd:* APIs (lazy import to avoid circular deps)
-  const { useCommandStore } = await import('@/commands/registry')
-  const ndCtx: NoteDeckEnvContext = {
-    commandStore: useCommandStore(),
-    // MisStore 等から入れる第三者コード — plugin principal で enforce (#712)
-    principal: {
-      kind: 'plugin',
-      pluginId: plugin.installId,
-      name: plugin.name,
-    },
-    provider: pluginProviderKey(plugin),
-    disposers: [],
-    callers,
-    // Nd:call が Mk:api と同じアカウント文脈 (withPluginAccountContext) を
-    // 参照する (#821)
-    getAccountId: () => ctx.accountId,
-  }
-  const ndEnv = createNoteDeckEnv(ndCtx)
-  pluginNdContexts.set(plugin.installId, ndCtx)
-
-  // Plugin-specific Mk:api overrides the base one
-  const env = { ...baseEnv, ...pluginEnv, ...ndEnv }
-
-  const ioOpts = {
-    ...createInterpreterOptions({
-      onOutput: (text) => runLog.print(text),
-      onError: (err) => {
-        runLog.error(err.message)
-        ctx.lastError = err.message
-      },
-    }),
-    // プラグインは長寿命の interpreter 1 つに handler を登録する構造。共通値の
-    // abortOnError: true だと handler が 1 回エラーを出しただけで interpreter が
-    // 止まり、設定を直して再クリックしても以後ずっと無言になる。本家 Misskey
-    // 同様、エラーは err callback に流すだけで interpreter は止めない
-    abortOnError: false,
-  }
-
   const code = sanitizeCode(plugin.src)
 
   // 本家 Misskey 同様、プラグインはバージョンヘッダー必須 (>= 0.12) で
@@ -618,15 +518,44 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
     return
   }
 
-  const interpreter = createAiScriptInterpreter(env, ioOpts, false)
-  ndCtx.interpreter = interpreter
+  const sandbox = createAiScriptSandbox({
+    // MisStore 等から入れる第三者コード — plugin principal で enforce (#712)
+    principal: {
+      kind: 'plugin',
+      pluginId: plugin.installId,
+      name: plugin.name,
+    },
+    storeId: plugin.storeId,
+    // Mk:api と Nd:call は同じアカウント文脈 (withPluginAccountContext) を
+    // 呼び出しのたびに参照する (#821)。handler の外では fail-closed
+    accountId: () => ctx.accountId,
+    storagePrefix: `plugin:${plugin.installId}`,
+    globals: { LOCALE: i18n.lang },
+    // onToast 未指定だと Mk:toast が無言の no-op になり、プラグインからの
+    // 成否フィードバックが一切ユーザーに届かない (widget / Play は配線済み)
+    onToast: (text, type) => useToast().show(text, type),
+    extraEnv: () => createPluginSpecificEnv(plugin, ctx),
+    io: {
+      onOutput: (text) => runLog.print(text),
+      onError: (err) => {
+        runLog.error(err.message)
+        ctx.lastError = err.message
+      },
+    },
+    // プラグインは長寿命の interpreter 1 つに handler を登録する構造。共通値の
+    // abortOnError: true だと handler が 1 回エラーを出しただけで interpreter が
+    // 止まり、設定を直して再クリックしても以後ずっと無言になる。本家 Misskey
+    // 同様、エラーは err callback に流すだけで interpreter は止めない
+    abortOnError: false,
+  })
+  pluginNdContexts.set(plugin.installId, sandbox.ndCtx)
   try {
-    await execAiScript(interpreter, ast, false)
+    await sandbox.exec(ast)
     runLog.system('run completed')
   } catch (e) {
     runLog.system(`run aborted: ${e instanceof Error ? e.message : String(e)}`)
   }
-  pluginContexts.set(plugin.installId, interpreter)
+  pluginContexts.set(plugin.installId, sandbox.interpreter)
 }
 
 export function abortPlugin(installId: string): void {

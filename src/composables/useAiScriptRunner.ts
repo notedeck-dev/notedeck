@@ -1,31 +1,18 @@
 import type { Ast, Interpreter } from '@syuilo/aiscript'
 import { onScopeDispose, ref } from 'vue'
-import { type AiScriptGlobalConstants, createAiScriptEnv } from '@/aiscript/api'
-import {
-  createAiScriptInterpreter,
-  createInterpreterOptions,
-  execAiScript,
-  parseAiScript,
-} from '@/aiscript/common'
-import {
-  cleanupNoteDeckEnv,
-  createNoteDeckEnv,
-  type NoteDeckEnvContext,
-} from '@/aiscript/notedeck-api'
+import type { AiScriptGlobalConstants } from '@/aiscript/api'
+import { parseAiScript } from '@/aiscript/common'
+import { type AiScriptSandbox, createAiScriptSandbox } from '@/aiscript/sandbox'
 import { sanitizeCode } from '@/aiscript/sanitize'
-import { createAiScriptUiLib, type UiComponent } from '@/aiscript/ui'
-import type { JsonValue } from '@/bindings'
-import { useCommandStore } from '@/commands/registry'
+import type { UiComponent } from '@/aiscript/ui'
 import type AiScriptDialog from '@/components/common/AiScriptDialog.vue'
 import type { Principal } from '@/permissions/principal'
-import { providerFromPrincipal } from '@/plugins/registrationId'
 import {
   logSourceOfPrincipal,
   useAiScriptLogsStore,
 } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export interface AiScriptRunOptions {
   /**
@@ -44,10 +31,10 @@ export interface AiScriptRunOptions {
 }
 
 /**
- * AiScript 実行のセットアップ (parse → env → ui → interpreter → exec) と
- * Nd:* / Mk:* / Ui:* の context 管理を一括で担当する composable。
+ * AiScript 実行のセットアップ (parse → sandbox → exec) と実行状態の reactive な
+ * 写しを担当する composable。環境の組み立ては `createAiScriptSandbox` 1 本。
  *
- * Play / Page 詳細ウィンドウや将来の AiScript 実行箇所から共通利用する。
+ * Play / Page 詳細ウィンドウから共通利用する。
  */
 export function useAiScriptRunner() {
   const interpreter = ref<Interpreter | null>(null)
@@ -56,9 +43,8 @@ export function useAiScriptRunner() {
   const runError = ref<string | null>(null)
   const running = ref(false)
 
-  const commandStore = useCommandStore()
   const { show: showToast } = useToast()
-  let currentNdCtx: NoteDeckEnvContext | null = null
+  let currentSandbox: AiScriptSandbox | null = null
 
   function reset() {
     runError.value = null
@@ -97,77 +83,38 @@ export function useAiScriptRunner() {
       return
     }
 
-    const apiOption = async (
-      endpoint: string,
-      params: Record<string, unknown>,
-    ) => {
-      return unwrap(
-        await commands.apiRequest(
-          options.accountId,
-          endpoint,
-          params as JsonValue,
-        ),
-      )
-    }
-
-    // この env の登録 capability を実行中の呼び出し元 (#1099) — Mk:api と
-    // Nd:* が同じ配列を見る
-    const callers: Principal[] = []
-    const env = createAiScriptEnv(
-      {
-        getCallers: () => callers,
-        principal: options.principal,
-        api: apiOption,
-        storagePrefix: options.storagePrefix,
-        onDialog: (title, text, type) =>
-          options.dialog?.()?.showDialog(title, text, type) ??
-          Promise.resolve(),
-        onConfirm: (title, text) =>
-          options.dialog?.()?.showConfirm(title, text) ??
-          Promise.resolve(false),
-        onToast: (text, type) => showToast(text, type),
-      },
-      options.globals,
-    )
-
-    const ui = createAiScriptUiLib({
-      onRender: (components) => {
-        uiComponents.value = components
-      },
-    })
-
-    const ioOpts = createInterpreterOptions({
-      onOutput: (text) => {
-        consoleOutput.value.push({ text, isError: false })
-        runLog.print(text)
-      },
-      onError: (err) => {
-        runError.value = err.message
-        runLog.error(err.message)
-      },
-    })
-
-    if (currentNdCtx) cleanupNoteDeckEnv(currentNdCtx)
-    const ndCtx: NoteDeckEnvContext = {
-      commandStore,
+    currentSandbox?.dispose()
+    const sandbox = createAiScriptSandbox({
       principal: options.principal,
-      provider: providerFromPrincipal(options.principal),
-      disposers: [],
-      callers,
-      getAccountId: () => options.accountId,
-    }
-    const ndEnv = createNoteDeckEnv(ndCtx)
-    currentNdCtx = ndCtx
-
-    const interp = createAiScriptInterpreter(
-      { ...env, ...ndEnv, ...ui },
-      ioOpts,
+      accountId: options.accountId,
+      storagePrefix: options.storagePrefix,
+      globals: options.globals,
+      onDialog: (title, text, type) =>
+        options.dialog?.()?.showDialog(title, text, type) ?? Promise.resolve(),
+      onConfirm: (title, text) =>
+        options.dialog?.()?.showConfirm(title, text) ?? Promise.resolve(false),
+      onToast: (text, type) => showToast(text, type),
+      ui: {
+        onRender: (components) => {
+          uiComponents.value = components
+        },
+      },
+      io: {
+        onOutput: (text) => {
+          consoleOutput.value.push({ text, isError: false })
+          runLog.print(text)
+        },
+        onError: (err) => {
+          runError.value = err.message
+          runLog.error(err.message)
+        },
+      },
       legacy,
-    )
-    ndCtx.interpreter = interp
-    interpreter.value = interp
+    })
+    currentSandbox = sandbox
+    interpreter.value = sandbox.interpreter
     try {
-      await execAiScript(interp, ast, legacy)
+      await sandbox.exec(ast)
       runLog.system('run completed')
     } catch (e) {
       runError.value = AppError.from(e).message
@@ -185,10 +132,8 @@ export function useAiScriptRunner() {
 
   function cleanup() {
     abort()
-    if (currentNdCtx) {
-      cleanupNoteDeckEnv(currentNdCtx)
-      currentNdCtx = null
-    }
+    currentSandbox?.dispose()
+    currentSandbox = null
   }
 
   onScopeDispose(() => {
