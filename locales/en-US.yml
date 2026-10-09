@@ -2209,6 +2209,7 @@ _deckChatColumn:
 _deckColumnsArea:
   noColumns: "No columns"
   startWithDefault: "Start with the default layout"
+  resizeHandle: "Drag to resize / Double-click to reset to the default width"
 
 _deckEmojiColumn:
   searchPlaceholder: "Search emoji..."

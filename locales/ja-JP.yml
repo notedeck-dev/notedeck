@@ -1957,6 +1957,7 @@ _deckChatColumn:
 _deckColumnsArea:
   noColumns: "カラムがありません"
   startWithDefault: "デフォルトの構成で始める"
+  resizeHandle: "ドラッグで幅を変更 / ダブルクリックでデフォルトの幅に戻す"
 
 _deckEmojiColumn:
   searchPlaceholder: "絵文字を検索..."

@@ -3534,6 +3534,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "noColumns": string
     /** デフォルトの構成で始める */
     readonly "startWithDefault": string
+    /** ドラッグで幅を変更 / ダブルクリックでデフォルトの幅に戻す */
+    readonly "resizeHandle": string
   }
   readonly "_deckEmojiColumn": {
     /** 絵文字を検索... */

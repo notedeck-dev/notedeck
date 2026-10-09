@@ -47,10 +47,12 @@ const isCompact = useIsCompactLayout()
 const columnMap = computed(() => deckStore.columnMap)
 
 // Column resize
-const { resizingColId, startColumnResize, WIDE_COLUMN_TYPES } = useColumnResize(
-  columnMap,
-  deckStore,
-)
+const {
+  resizingColId,
+  startColumnResize,
+  resetColumnWidth,
+  WIDE_COLUMN_TYPES,
+} = useColumnResize(columnMap, deckStore)
 
 const columnsRef = ref<HTMLElement | null>(null)
 
@@ -292,7 +294,9 @@ defineExpose({
       <div
         v-if="!isCompact"
         :class="[$style.colResizeHandle, { [$style.active]: resizingColId === group[0] }]"
+        :title="i18n.ts._deckColumnsArea.resizeHandle"
         @pointerdown="startColumnResize(group[0]!, $event)"
+        @dblclick="resetColumnWidth(group[0]!)"
       />
       <div
         v-if="dropInsertIndex === groupIndex + 1"
@@ -373,10 +377,19 @@ defineExpose({
 }
 
 .colResizeHandle {
+  position: relative;
   flex: 0 0 4px;
   cursor: col-resize;
   background: transparent;
   transition: background var(--nd-duration-base);
+
+  /* 見た目の 4px は保ったまま、両隣の gap まで掴めるようにする。gap の外へは
+     広げない (左隣のカラムの右端には縦スクロールバーがある) */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 calc(-1 * var(--nd-columnGap));
+  }
 
   &:hover,
   &.active {
