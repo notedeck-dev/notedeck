@@ -657,6 +657,7 @@ async function addToAntenna(antenna: Antenna) {
       <button
         class="_popupItem _popupItemDanger"
         :disabled="!reportComment.trim()"
+        :title="reportComment.trim() ? undefined : i18n.ts._common.inputRequiredHint"
         @click="handleReportUser"
       >
         <i class="ti ti-alert-triangle" />

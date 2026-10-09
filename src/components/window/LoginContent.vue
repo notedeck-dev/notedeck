@@ -2,6 +2,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { MisskeyAuth } from '@/adapters/misskey/auth'
 import type { AuthSession } from '@/adapters/types'
+import FormInput from '@/components/common/form/FormInput.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useServerPreview } from '@/composables/useServerPreview'
 import { useVaporTransitionSwitch } from '@/composables/useVaporTransition'
@@ -45,6 +46,12 @@ const stepSwitch = useVaporTransitionSwitch(step, { leaveDuration: 0 })
 // 未対応のフォークでもサーバーのファビコンは表示する (#853)
 const logoSrc = computed(() => serverInfo.value?.iconUrl ?? 'default')
 const logoSwitch = useVaporTransitionSwitch(logoSrc, { leaveDuration: 200 })
+
+// 見つからないサーバーは入力欄の誤りとして欄の下に出す (未対応のフォークは
+// ログインはできるので、ロゴの下の注意書きのまま)
+const hostError = computed(() =>
+  serverStatus.value === 'error' ? previewError.value : '',
+)
 
 const subtitleSwitch = useVaporTransitionSwitch(serverStatus, {
   leaveDuration: 200,
@@ -164,12 +171,6 @@ onMounted(() => {
           {{ previewError }}
         </p>
         <p
-          v-else-if="subtitleSwitch.displayed.value === 'error'"
-          :class="[$style.subtitle, $style.subtitleError, subtitleSwitch.leaving.value ? $style.logoLeave : $style.logoEnter]"
-        >
-          {{ previewError }}
-        </p>
-        <p
           v-else
           :class="[$style.subtitle, subtitleSwitch.leaving.value ? $style.logoLeave : $style.logoEnter]"
         >{{ i18n.ts._loginContent.connectToServer }}</p>
@@ -177,13 +178,14 @@ onMounted(() => {
 
       <div :class="$style.formArea">
         <label :class="$style.inputLabel" for="host">{{ i18n.ts._loginContent.serverAddress }}</label>
-        <input
+        <FormInput
           id="host"
           v-model="host"
-          type="text"
-          :class="$style.mkInput"
+          large
+          :class="$style.hostInput"
           placeholder="misskey.io"
           autocomplete="off"
+          :error="hostError"
           @keyup.enter="startLogin"
         />
       </div>
@@ -312,11 +314,6 @@ onMounted(() => {
   opacity: 1;
 }
 
-.subtitleError {
-  color: var(--nd-love);
-  opacity: 1;
-}
-
 .formArea {
   margin-bottom: 24px;
 }
@@ -329,32 +326,8 @@ onMounted(() => {
   color: var(--nd-fg);
 }
 
-.mkInput {
-  display: block;
-  width: 100%;
-  height: 42px;
-  padding: 0 14px;
-  font-size: 1em;
-  font-family: inherit;
-  color: var(--nd-fg);
+.hostInput input {
   background: transparent;
-  border: solid 1px var(--nd-inputBorder, var(--nd-divider));
-  border-radius: var(--nd-radius-md);
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:hover {
-    border-color: var(--nd-inputBorderHover);
-  }
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
-
-  &::placeholder {
-    color: var(--nd-fg);
-    opacity: 0.35;
-  }
 }
 
 .actions {
@@ -477,9 +450,8 @@ onMounted(() => {
     padding: 24px 16px;
   }
 
-  .mkInput {
+  .hostInput input {
     height: 44px;
-    font-size: 1em;
   }
 
   .btnLogin {

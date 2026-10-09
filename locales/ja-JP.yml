@@ -293,6 +293,7 @@ _common:
   users: "ユーザー"
   unknownError: "不明なエラー"
   remove: "解除"
+  inputRequiredHint: "入力すると押せます"
 
 _appConfirm:
   trustedHeader: "NoteDeck の権限確認"

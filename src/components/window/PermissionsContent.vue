@@ -602,6 +602,7 @@ function handleReset() {
                 class="_button"
                 :class="$style.tokenCreateButton"
                 :disabled="!newTokenName.trim()"
+                :title="newTokenName.trim() ? undefined : i18n.ts._common.inputRequiredHint"
                 @click="createToken"
               >
                 {{ i18n.ts._permissionsContent.issueToken }}

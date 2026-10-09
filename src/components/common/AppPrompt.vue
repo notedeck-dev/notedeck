@@ -74,6 +74,7 @@ function submit() {
             class="_button"
             :class="$style.btnOk"
             :disabled="!options.allowEmpty && !inputValue.trim()"
+            :title="!options.allowEmpty && !inputValue.trim() ? i18n.ts._common.inputRequiredHint : undefined"
           >
             {{ options.okLabel || 'OK' }}
           </button>

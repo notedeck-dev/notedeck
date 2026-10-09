@@ -13,6 +13,7 @@ import {
 } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormInput from '@/components/common/form/FormInput.vue'
 import FormSelect from '@/components/common/form/FormSelect.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
@@ -234,6 +235,22 @@ function setParamsFromText(t: TaskDefinition, text: string) {
   } catch {
     /* ignore parse error during edit */
   }
+}
+
+// 打ちかけの params。正しい JSON5 になるまで params は変わらないので、
+// 保存値から描き直すと打った文字が消え、誤りも表示できない。
+// 外 (コードタブ等) で params が変わったら下書きは捨てる
+const paramsDraft = reactive<Record<string, { base: string; text: string }>>({})
+
+function paramsText(t: TaskDefinition): string {
+  const d = paramsDraft[t.id]
+  const base = paramsToText(t)
+  return d && d.base === base ? d.text : base
+}
+
+function onParamsInput(t: TaskDefinition, text: string) {
+  setParamsFromText(t, text)
+  paramsDraft[t.id] = { base: paramsToText(t), text }
 }
 
 function paramsErrorOf(text: string): string | null {
@@ -631,12 +648,14 @@ function handleReset() {
                 </label>
                 <label :class="$style.field">
                   <span :class="$style.fieldLabel">params (JSON5)</span>
-                  <textarea
-                    :value="paramsToText(t)"
-                    :class="[$style.input, $style.textarea, $style.mono, { [$style.hasError]: paramsErrorOf(paramsToText(t)) }]"
+                  <FormInput
+                    multiline
+                    :model-value="paramsText(t)"
+                    :class="$style.paramsInput"
                     rows="4"
                     placeholder="{ visibility: 'home' }"
-                    @input="(e) => setParamsFromText(t, (e.target as HTMLTextAreaElement).value)"
+                    :error="paramsErrorOf(paramsText(t)) ?? ''"
+                    @update:model-value="(v) => onParamsInput(t, v)"
                   />
                 </label>
               </fieldset>
@@ -1025,9 +1044,12 @@ function handleReset() {
   width: 100%;
   padding: 6px 8px;
 
-  &.hasError {
-    border-color: var(--nd-love);
-  }
+}
+
+.paramsInput textarea {
+  min-height: 60px;
+  padding: 6px 8px;
+  font-family: var(--nd-font-mono);
 }
 
 .inlineInput {

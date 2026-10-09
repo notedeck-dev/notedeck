@@ -554,6 +554,8 @@ export interface Locale {
     readonly "unknownError": string
     /** 解除 */
     readonly "remove": string
+    /** 入力すると押せます */
+    readonly "inputRequiredHint": string
   }
   readonly "_appConfirm": {
     /** NoteDeck の権限確認 */

@@ -452,7 +452,13 @@ function close() {
               <button type="button" class="_button" :class="$style.createCancelBtn" @click="showCreateForm = false; createName = ''">
                 {{ i18n.ts._common.cancel }}
               </button>
-              <button type="submit" class="_button" :class="$style.createSubmitBtn" :disabled="!createName.trim() || createLoading">
+              <button
+                type="submit"
+                class="_button"
+                :class="$style.createSubmitBtn"
+                :disabled="!createName.trim() || createLoading"
+                :title="createName.trim() ? undefined : i18n.ts._common.inputRequiredHint"
+              >
                 <i v-if="createLoading" class="ti ti-loader-2 nd-spin" />
                 <template v-else>{{ i18n.ts._addColumnDialog.create }}</template>
               </button>

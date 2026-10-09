@@ -508,6 +508,7 @@ _common:
   updateFailed: "Update failed"
   users: "Users"
   unknownError: "Unknown error"
+  inputRequiredHint: "Type something to continue"
 
 _appConfirm:
   trustedHeader: "NoteDeck permission check"
