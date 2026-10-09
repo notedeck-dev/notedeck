@@ -178,6 +178,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/localeSetting.ts`](src/services/localeSetting.ts) | [`src/services/localeSetting.test.ts`](src/services/localeSetting.test.ts) |
 | [`src/services/mapEviction.ts`](src/services/mapEviction.ts) | [`src/services/mapEviction.test.ts`](src/services/mapEviction.test.ts) |
 | [`src/services/mfmParser.ts`](src/services/mfmParser.ts) | — |
+| [`src/services/nativeContextMenu.ts`](src/services/nativeContextMenu.ts) | [`src/services/nativeContextMenu.dom.test.ts`](src/services/nativeContextMenu.dom.test.ts) |
 | [`src/services/noteFrame.ts`](src/services/noteFrame.ts) | [`src/services/noteFrame.test.ts`](src/services/noteFrame.test.ts) |
 | [`src/services/noteGroup.ts`](src/services/noteGroup.ts) | [`src/services/noteGroup.test.ts`](src/services/noteGroup.test.ts) |
 | [`src/services/noteKey.ts`](src/services/noteKey.ts) | [`src/services/noteKey.test.ts`](src/services/noteKey.test.ts) |
@@ -224,6 +225,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/tutorialNotifications.ts`](src/services/tutorialNotifications.ts) | [`src/services/tutorialNotifications.test.ts`](src/services/tutorialNotifications.test.ts) |
 | [`src/services/tutorialProgress.ts`](src/services/tutorialProgress.ts) | [`src/services/tutorialProgress.test.ts`](src/services/tutorialProgress.test.ts) |
 | [`src/services/twemoji.ts`](src/services/twemoji.ts) | [`src/services/twemoji.test.ts`](src/services/twemoji.test.ts) |
+| [`src/services/uiZoom.ts`](src/services/uiZoom.ts) | [`src/services/uiZoom.test.ts`](src/services/uiZoom.test.ts) |
 | [`src/services/userLookupResult.ts`](src/services/userLookupResult.ts) | [`src/services/userLookupResult.test.ts`](src/services/userLookupResult.test.ts) |
 | [`src/services/userRef.ts`](src/services/userRef.ts) | [`src/services/userRef.test.ts`](src/services/userRef.test.ts) |
 | [`src/services/widgetInstances.ts`](src/services/widgetInstances.ts) | [`src/services/widgetInstances.test.ts`](src/services/widgetInstances.test.ts) |
