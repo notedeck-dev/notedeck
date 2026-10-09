@@ -25,7 +25,7 @@ const windowsStore = useWindowsStore()
 
 const { visible: menuVisible, leaving: menuLeaving } = useVaporTransition(
   toRef(props, 'show'),
-  { enterDuration: 180, leaveDuration: 180 },
+  { enterDuration: 180, leaveDuration: 200 },
 )
 
 const profiles = computed(() => profileStore.getProfiles())
@@ -36,7 +36,7 @@ useNativeDialog(
   computed(() => menuVisible.value),
   {
     onCancel: () => emit('close'),
-    leaveDuration: 180,
+    leaveDuration: 200,
   },
 )
 

@@ -1891,7 +1891,7 @@ onUnmounted(() => {
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--nd-divider) transparent;
-  animation: viewIn 150ms ease-out;
+  animation: viewIn var(--nd-duration-base) var(--nd-ease-pop);
 }
 
 /* ビュー切替の合図 (機能的アニメ: 「切り替わった」を伝える) */

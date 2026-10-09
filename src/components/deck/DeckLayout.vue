@@ -581,7 +581,7 @@ function acceptCrossWindowDrop() {
 @keyframes fadeIn { from { opacity: 0; } }
 @keyframes fadeOut { to { opacity: 0; } }
 
-.modalEnter { animation: modalIn 0.2s var(--nd-ease-spring); }
+.modalEnter { animation: modalIn var(--nd-duration-medium) var(--nd-ease-spring); }
 .modalLeave { animation: modalOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes modalIn { from { opacity: 0; } }
 @keyframes modalOut { to { opacity: 0; } }

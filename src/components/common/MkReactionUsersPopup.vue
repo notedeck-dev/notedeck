@@ -255,7 +255,7 @@ onUnmounted(() => {
   max-width: 340px;
   padding: 8px 0 8px 12px;
   pointer-events: auto;
-  animation: reactionPopupIn 0.2s var(--nd-ease-spring);
+  animation: reactionPopupIn var(--nd-duration-medium) var(--nd-ease-spring);
   /* _popup の contain: paint は要素境界外の paint と pointer hit を切るため、
      アクションボタンのツールチップが popup 内で途切れ、下の ::before ブリッジも
      効かなくなる。DeckWindow と同じく layout のみに留める (#914) */

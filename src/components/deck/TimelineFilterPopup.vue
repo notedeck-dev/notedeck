@@ -207,8 +207,8 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   opacity: 0.75;
 }
 
-.filterPopupEnter { animation: filterPopupIn 0.18s var(--nd-ease-pop); }
-.filterPopupLeave { animation: filterPopupOut 0.15s var(--nd-ease-pop) forwards; }
+.filterPopupEnter { animation: filterPopupIn var(--nd-duration-medium) var(--nd-ease-pop); }
+.filterPopupLeave { animation: filterPopupOut var(--nd-duration-base) var(--nd-ease-pop) forwards; }
 @keyframes filterPopupIn { from { opacity: 0; transform: scale(0.95) translateY(-4px); } }
 @keyframes filterPopupOut { to { opacity: 0; transform: scale(0.95) translateY(-4px); } }
 </style>

@@ -490,7 +490,7 @@ onBeforeUnmount(() => {
   // 外側に出したリサイズハンドルが効かなくなるので layout のみに留める。
   overflow: visible;
   contain: layout;
-  animation: windowIn 0.2s var(--nd-ease-spring);
+  animation: windowIn var(--nd-duration-medium) var(--nd-ease-spring);
 }
 
 @keyframes windowIn {
@@ -499,7 +499,7 @@ onBeforeUnmount(() => {
 
 /* 閉じアニメ: windowIn の逆方向。DeckWindowLayer の leave 遅延中に付与される */
 .closing {
-  animation: windowOut 0.2s var(--nd-ease-decel) both;
+  animation: windowOut var(--nd-duration-medium) var(--nd-ease-decel) both;
   pointer-events: none;
 }
 

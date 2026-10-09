@@ -502,10 +502,10 @@ async function openInBrowser() {
 }
 
 :global(.nd-lb-slide-left) {
-  animation: nd-lb-slide-left-kf 0.2s var(--nd-ease-spring) both;
+  animation: nd-lb-slide-left-kf var(--nd-duration-medium) var(--nd-ease-spring) both;
 }
 
 :global(.nd-lb-slide-right) {
-  animation: nd-lb-slide-right-kf 0.2s var(--nd-ease-spring) both;
+  animation: nd-lb-slide-right-kf var(--nd-duration-medium) var(--nd-ease-spring) both;
 }
 </style>

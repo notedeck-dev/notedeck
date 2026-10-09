@@ -233,7 +233,7 @@ dialog.overlay::backdrop {
 }
 
 /* Desktop popup content — scale + fade (no anchor) */
-.popupContentEnter { animation: launchPadIn 0.2s var(--nd-ease-spring); }
+.popupContentEnter { animation: launchPadIn var(--nd-duration-medium) var(--nd-ease-spring); }
 .popupContentLeave { animation: launchPadOut var(--nd-duration-fast) var(--nd-ease-decel) forwards; }
 @keyframes launchPadIn { from { opacity: 0; transform: scale(0.9); } }
 @keyframes launchPadOut { to { opacity: 0; transform: scale(0.95); } }
@@ -244,7 +244,7 @@ dialog.overlay::backdrop {
   transform-origin: left center;
 }
 
-.anchoredEnter { animation: anchoredIn 0.2s var(--nd-ease-spring); }
+.anchoredEnter { animation: anchoredIn var(--nd-duration-medium) var(--nd-ease-spring); }
 .anchoredLeave { animation: anchoredOut var(--nd-duration-fast) var(--nd-ease-decel) forwards; }
 @keyframes anchoredIn {
   from { opacity: 0; transform: translateY(-50%) scale(0.85); }
@@ -261,8 +261,8 @@ dialog.overlay::backdrop {
 @keyframes sheetBdOut { to { opacity: 0; } }
 
 /* Mobile sheet content — slide up from bottom */
-.sheetContentEnter { animation: sheetIn 0.25s var(--nd-ease-spring); }
-.sheetContentLeave { animation: sheetOut 0.2s var(--nd-ease-decel) forwards; }
+.sheetContentEnter { animation: sheetIn var(--nd-duration-slow) var(--nd-ease-spring); }
+.sheetContentLeave { animation: sheetOut var(--nd-duration-medium) var(--nd-ease-decel) forwards; }
 @keyframes sheetIn { from { transform: translateY(100%); } }
 @keyframes sheetOut { to { transform: translateY(100%); } }
 </style>

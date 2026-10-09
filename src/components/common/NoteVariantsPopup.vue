@@ -126,8 +126,8 @@ defineExpose({ open, close })
   transform-origin: top left;
 }
 
-.enter { animation: variantsIn 0.16s var(--nd-ease-spring); }
-.leave { animation: variantsOut 0.12s var(--nd-ease-decel) forwards; }
+.enter { animation: variantsIn var(--nd-duration-base) var(--nd-ease-spring); }
+.leave { animation: variantsOut var(--nd-duration-fast) var(--nd-ease-decel) forwards; }
 @keyframes variantsIn { from { opacity: 0; transform: scale(0.95); } }
 @keyframes variantsOut { to { opacity: 0; transform: scale(0.97); } }
 

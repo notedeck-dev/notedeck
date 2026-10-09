@@ -563,7 +563,7 @@ function close() {
   @media (prefers-reduced-motion: no-preference) {
     // シート表示は下からのスライド (sheetContentEnter) に任せる
     > .addPopup:not(.addSheet) {
-      animation: addPopupIn 0.2s var(--nd-ease-spring);
+      animation: addPopupIn var(--nd-duration-medium) var(--nd-ease-spring);
     }
   }
 }
