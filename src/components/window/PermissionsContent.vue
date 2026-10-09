@@ -708,6 +708,7 @@ function handleReset() {
 
 <style module lang="scss">
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .wrap {
   display: flex;
@@ -913,12 +914,8 @@ function handleReset() {
 }
 
 .input {
+  @include input-base;
   flex: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
   font-size: var(--nd-font-sm);
 }
 

@@ -564,6 +564,7 @@ async function importPlugin() {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .pluginsContent {
   display: flex;
@@ -775,21 +776,7 @@ async function importPlugin() {
 }
 
 .configInput {
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-inputBg, var(--nd-bg));
-  color: var(--nd-fg);
-  font-size: var(--nd-font-md);
-
-  &::placeholder {
-    opacity: 0.35;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--nd-accent);
-  }
+  @include input-base;
 }
 
 .resetAllBtn {

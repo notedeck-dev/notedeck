@@ -813,6 +813,7 @@ function handleReset() {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .editor {
   display: flex;
@@ -1020,19 +1021,9 @@ function handleReset() {
 }
 
 .input {
+  @include input-base;
   width: 100%;
   padding: 6px 8px;
-  font-size: var(--nd-font-md);
-  background: var(--nd-bg);
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-fg);
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
 
   &.hasError {
     border-color: var(--nd-love);
@@ -1048,7 +1039,6 @@ function handleReset() {
 .textarea {
   resize: vertical;
   min-height: 60px;
-  font-family: inherit;
 }
 
 .mono {

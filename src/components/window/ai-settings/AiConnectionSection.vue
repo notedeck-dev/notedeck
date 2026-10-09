@@ -228,6 +228,7 @@ function openConnectionsWindow(): void {
 <style lang="scss" module>
 @use '@/styles/settingsFields' as *;
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .keyHint {
   @include key-hint;
@@ -279,25 +280,9 @@ function openConnectionsWindow(): void {
 .fieldHint { @include field-hint; }
 
 .input {
+  @include input-base;
   width: 100%;
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
   font-size: var(--nd-font-sm);
-  font-family: inherit;
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
-
-  &::placeholder {
-    color: var(--nd-fg);
-    opacity: 0.35;
-  }
 }
 
 // 「接続」ウィンドウ (ConnectionsContent) のカードグリッドと同じ見た目に揃える

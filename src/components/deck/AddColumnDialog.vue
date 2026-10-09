@@ -547,6 +547,7 @@ function close() {
 <style lang="scss" module>
 @use '@/styles/navMenu';
 @use '@/styles/spotlight' as *;
+@use '@/styles/inputs' as *;
 
 .addOverlay {
   &::backdrop {
@@ -796,18 +797,10 @@ function close() {
 }
 
 .createInput {
+  @include input-base;
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
   font-size: var(--nd-font-body);
-  outline: none;
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
 }
 
 .createActions {

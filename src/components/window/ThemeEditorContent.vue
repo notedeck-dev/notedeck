@@ -1012,6 +1012,7 @@ onUnmounted(() => {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .editor {
   display: flex;
@@ -1102,19 +1103,8 @@ onUnmounted(() => {
 }
 
 .nameInput {
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: var(--nd-font-md);
+  @include input-base;
   font-weight: var(--nd-weight-bold);
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
 }
 
 .baseToggle {
@@ -1383,21 +1373,12 @@ onUnmounted(() => {
 }
 
 .propValueInput {
+  @include input-base;
   flex: 1;
   min-width: 0;
   padding: 4px 6px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
   font-family: var(--nd-font-mono);
   font-size: var(--nd-font-xs);
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
 
   &.expression {
     color: var(--nd-accent);

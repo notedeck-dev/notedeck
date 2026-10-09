@@ -36,12 +36,6 @@
   }
 }
 
-@mixin textarea {
-  @include input-base;
-  resize: vertical;
-  line-height: 1.5;
-}
-
 // 欄の直下に出すエラー文 (aria-describedby で欄と結ぶ)
 @mixin input-error {
   display: flex;

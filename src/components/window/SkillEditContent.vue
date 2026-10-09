@@ -342,6 +342,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 </template>
 
 <style module lang="scss">
+@use '@/styles/inputs' as *;
 .content {
   flex: 1;
   display: flex;
@@ -459,19 +460,11 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 }
 
 .input {
+  @include input-base;
   width: 100%;
   height: 28px;
   padding: 0 8px;
-  background: var(--nd-inputBg, var(--nd-bg));
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-xs);
-  color: var(--nd-fg);
   font-size: 12px;
-
-  &:focus {
-    outline: none;
-    border-color: var(--nd-accent);
-  }
 }
 
 .textarea {

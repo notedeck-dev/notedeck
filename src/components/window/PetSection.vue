@@ -155,6 +155,7 @@ function openPage() {
 </template>
 
 <style module lang="scss">
+@use '@/styles/inputs' as *;
 .root {
   display: flex;
   flex-direction: column;
@@ -200,15 +201,10 @@ function openPage() {
 }
 
 .input {
+  @include input-base;
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font: inherit;
-  font-size: var(--nd-font-md);
 }
 
 .applyBtn {
