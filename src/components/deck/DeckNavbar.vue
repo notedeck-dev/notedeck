@@ -773,6 +773,8 @@ defineExpose({
   :global(.ti) {
     font-size: 20px;
     opacity: 0.7;
+    // 子要素の hover も nd-interactive (_buttons.scss) と同じ時間で遷移させる
+    transition: opacity var(--nd-duration-base);
   }
 
   &:hover :global(.ti) {
@@ -927,7 +929,7 @@ defineExpose({
   color: var(--nd-fg);
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--nd-duration-fast);
+  transition: background var(--nd-duration-base);
 
   &:hover {
     background: var(--nd-buttonHoverBg);
@@ -1087,6 +1089,7 @@ defineExpose({
 
   :global(.ti) {
     opacity: 0.7;
+    transition: opacity var(--nd-duration-base);
   }
 
   &:hover :global(.ti) {

@@ -190,7 +190,8 @@ function openEditor(id: string) {
     position: absolute;
     inset: 2px 8px;
     border-radius: var(--nd-radius-sm);
-    transition: background var(--nd-duration-fast);
+    // 擬似要素は nd-interactive が届かないので、同じ時間を直接書く
+    transition: background var(--nd-duration-base);
   }
 
   &:hover::before {
@@ -222,7 +223,7 @@ function openEditor(id: string) {
   opacity: 0.4;
   padding: 8px;
   position: relative;
-  transition: opacity var(--nd-duration-fast);
+  @include nd-interactive;
 
   &:hover {
     opacity: 1;
