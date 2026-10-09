@@ -36,6 +36,7 @@ function retry() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .boundary {
   flex: 1;
   min-height: 0;
@@ -62,6 +63,7 @@ function retry() {
 }
 
 .retryBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 6px;

@@ -1289,6 +1289,7 @@ function onKeydown(e: KeyboardEvent) {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .headerAction {
   display: flex;
   align-items: center;
@@ -1997,6 +1998,7 @@ function onKeydown(e: KeyboardEvent) {
 
   // _button 併用のため特異度 (0,2,0) に上げる (WebView2 の flex 崩れ対策)
   .retryBtn {
+    @include nd-interactive;
     display: inline-flex;
     align-items: center;
     gap: 6px;

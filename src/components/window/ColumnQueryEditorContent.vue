@@ -295,6 +295,7 @@ async function save(): Promise<void> {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use '@/styles/inputs' as *;
 .root {
   display: flex;
@@ -416,6 +417,7 @@ async function save(): Promise<void> {
 }
 
 .fixButton {
+  @include nd-interactive;
   padding: 2px 8px;
   border-radius: var(--nd-radius-full);
   font-size: var(--nd-font-body);

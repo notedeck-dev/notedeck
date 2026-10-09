@@ -262,6 +262,7 @@ async function onDelete() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .filePreviewArea {
   display: flex;
   flex-wrap: wrap;
@@ -345,6 +346,7 @@ async function onDelete() {
 }
 
 .errorBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   justify-content: center;

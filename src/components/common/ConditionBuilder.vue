@@ -133,6 +133,7 @@ function removeRow(index: number) {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .builder {
   display: flex;
   flex: 1;
@@ -156,6 +157,7 @@ function removeRow(index: number) {
 }
 
 .type {
+  @include nd-interactive;
   flex-shrink: 0;
   padding: 4px 8px;
   border-radius: var(--nd-radius-sm);
@@ -185,6 +187,7 @@ function removeRow(index: number) {
 }
 
 .remove {
+  @include nd-interactive;
   flex-shrink: 0;
   width: 24px;
   height: 24px;
@@ -198,6 +201,7 @@ function removeRow(index: number) {
 }
 
 .addBtn {
+  @include nd-interactive;
   align-self: flex-start;
   display: flex;
   align-items: center;

@@ -551,6 +551,7 @@ function close() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use '@/styles/navMenu';
 @use '@/styles/spotlight' as *;
 @use '@/styles/inputs' as *;
@@ -817,6 +818,7 @@ function close() {
 }
 
 .createCancelBtn {
+  @include nd-interactive;
   padding: 4px 12px;
   border-radius: var(--nd-radius-sm);
   font-size: var(--nd-font-md);
@@ -829,6 +831,7 @@ function close() {
 }
 
 .createSubmitBtn {
+  @include nd-interactive;
   padding: 4px 12px;
   border-radius: var(--nd-radius-sm);
   font-size: var(--nd-font-md);

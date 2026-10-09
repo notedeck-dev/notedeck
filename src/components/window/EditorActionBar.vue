@@ -113,6 +113,7 @@ const emit = defineEmits<(e: 'action', key: string) => void>()
 }
 
 .btn {
+  @include nd-interactive;
   @include btn-base;
 
   &:disabled {

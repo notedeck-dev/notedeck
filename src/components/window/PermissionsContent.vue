@@ -780,6 +780,7 @@ function handleReset() {
 }
 
 .rowHeader {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -903,6 +904,7 @@ function handleReset() {
 }
 
 .tokenRevoke {
+  @include nd-interactive;
   color: var(--nd-love);
   padding: 2px 4px;
 
@@ -921,6 +923,7 @@ function handleReset() {
 }
 
 .tokenCreateButton {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;

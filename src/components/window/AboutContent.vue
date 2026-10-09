@@ -1090,6 +1090,7 @@ function reportBug() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 // ウィンドウ chrome (DeckWindow) の windowBody は overflow: hidden で、
 // スクロールは content 側の責務 (NavEditorContent 等と同じ)。
 // maxHeight を超えたときに見切れず縦スクロールできるようにする
@@ -1144,6 +1145,7 @@ function reportBug() {
 
 // タイトル自体が公式サイトへの導線 (ロゴは鼓動イースターエッグに割り当て済み)
 .aboutTitle {
+  @include nd-interactive;
   margin-top: 0.75em;
   color: var(--nd-fg);
 
@@ -1154,6 +1156,7 @@ function reportBug() {
 }
 
 .aboutVersion {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -1320,6 +1323,7 @@ function reportBug() {
 
 // 情報コピー (対象 = このセクションの infoRows)。diagRefresh と同型のアイコンボタン
 .infoCopy {
+  @include nd-interactive;
   position: absolute;
   right: 12px;
   top: 50%;
@@ -1432,6 +1436,7 @@ function reportBug() {
 }
 
 .diagRefresh {
+  @include nd-interactive;
   position: absolute;
   right: 0;
   background: transparent;

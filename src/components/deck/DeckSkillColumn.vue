@@ -535,6 +535,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 @use './column-common.module.scss';
 
 .headerIcon {
@@ -879,6 +880,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 }
 
 .secondaryBtn {
+  @include nd-interactive;
   background: transparent;
   border: 1px solid var(--nd-divider);
   color: var(--nd-fg);
@@ -943,6 +945,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 }
 
 .emptyLink {
+  @include nd-interactive;
   color: var(--nd-accent);
   font-size: 12px;
   margin-top: 4px;
@@ -968,6 +971,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 }
 
 .storeErrorClose {
+  @include nd-interactive;
   margin-left: auto;
   display: flex;
   align-items: center;

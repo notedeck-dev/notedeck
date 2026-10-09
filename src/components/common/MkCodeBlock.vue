@@ -43,6 +43,7 @@ const { copied, copyToClipboard } = useClipboardFeedback()
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 .root {
   position: relative;
   margin: 8px 0;
@@ -96,6 +97,7 @@ const { copied, copyToClipboard } = useClipboardFeedback()
 }
 
 .action {
+  @include nd-interactive;
   display: grid;
   place-items: center;
   width: 26px;

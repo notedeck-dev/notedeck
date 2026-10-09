@@ -330,6 +330,7 @@ function closeMenu() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use './column-common.module.scss';
 
 .embeddedForm {
@@ -353,6 +354,7 @@ function closeMenu() {
 }
 
 .item {
+  @include nd-interactive;
   position: relative;
   border-bottom: 1px solid var(--nd-divider);
 

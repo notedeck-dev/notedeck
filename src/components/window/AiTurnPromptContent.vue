@@ -66,6 +66,7 @@ onMounted(async () => {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 .wrapper {
   display: flex;
   flex-direction: column;
@@ -94,6 +95,7 @@ onMounted(async () => {
 }
 
 .btn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 4px;

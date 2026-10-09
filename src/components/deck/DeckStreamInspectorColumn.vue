@@ -427,6 +427,7 @@ function onDetailWheel(e: WheelEvent) {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 @use './column-common.module.scss';
 
 .headerIcon {
@@ -527,6 +528,7 @@ function onDetailWheel(e: WheelEvent) {
 
 // 無効化(OFF=除外)したカラム。ボトムバーの非アクティブタブと同じく dim。
 .markOff {
+  @include nd-interactive;
   opacity: 0.3;
 
   &:hover {

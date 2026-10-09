@@ -935,6 +935,7 @@ watch(driveView, (v) => {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 .body {
   display: flex;
   flex-direction: column;
@@ -1023,6 +1024,7 @@ watch(driveView, (v) => {
 }
 
 .pill {
+  @include nd-interactive;
   font-size: 11px;
   padding: 4px 10px;
   border-radius: var(--nd-radius-full);

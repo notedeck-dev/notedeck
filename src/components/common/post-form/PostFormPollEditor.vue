@@ -187,6 +187,7 @@ watch(
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .pollEditor {
   padding: 8px 24px;
   display: flex;
@@ -218,6 +219,7 @@ watch(
 }
 
 .pollChoiceRemove {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -243,6 +245,7 @@ watch(
 }
 
 .pollAddBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 4px;

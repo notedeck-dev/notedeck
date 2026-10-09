@@ -328,6 +328,7 @@ function clearAll() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 /* ノートカラムのフィルターメニューと同じポップアップの中に並ぶ行 (#1180)。
    見出し・幅・余白はポップアップ側 (TimelineFilterPopup) が持つ */
 .panel {
@@ -409,6 +410,7 @@ function clearAll() {
 
 .removeBtn,
 .clearBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 4px;

@@ -475,6 +475,7 @@ onMounted(async () => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .pipRoot {
   display: flex;
   flex-direction: column;
@@ -507,6 +508,7 @@ onMounted(async () => {
 }
 
 .pipDragBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   justify-content: center;

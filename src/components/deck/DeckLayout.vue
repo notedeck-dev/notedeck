@@ -430,6 +430,7 @@ function acceptCrossWindowDrop() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .root {
   display: flex;
   flex: 1;
@@ -546,6 +547,7 @@ function acceptCrossWindowDrop() {
 }
 
 .crossWindowDropOverlay {
+  @include nd-interactive;
   position: fixed;
   inset: 0;
   z-index: calc(var(--nd-z-popup) - 2);

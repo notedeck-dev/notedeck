@@ -155,6 +155,7 @@ function openPage() {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 @use '@/styles/inputs' as *;
 .root {
   display: flex;
@@ -244,6 +245,7 @@ function openPage() {
 }
 
 .link {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;

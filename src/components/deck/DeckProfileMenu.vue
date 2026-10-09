@@ -149,6 +149,7 @@ function openEditor(id: string) {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use '@/styles/navMenu';
 
 .profileMenu {
@@ -249,6 +250,7 @@ function openEditor(id: string) {
 }
 
 .newItem {
+  @include nd-interactive;
   opacity: 0.7;
   min-height: 44px;
   gap: 12px;

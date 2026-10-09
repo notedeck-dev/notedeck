@@ -448,6 +448,7 @@ async function importList() {
 }
 
 .addBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 6px;

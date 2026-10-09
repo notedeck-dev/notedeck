@@ -579,6 +579,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 @use './column-common.module.scss';
 
 .headerIcon {
@@ -765,6 +766,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 }
 
 .storeErrorClose {
+  @include nd-interactive;
   margin-left: auto;
   display: flex;
   align-items: center;

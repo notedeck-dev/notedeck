@@ -29,6 +29,7 @@ const emit = defineEmits<{
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .picker {
   display: flex;
   flex-direction: column;
@@ -60,6 +61,7 @@ const emit = defineEmits<{
 }
 
 .closeBtn {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   justify-content: center;

@@ -262,7 +262,9 @@ function hostname(url: string): string {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .urlPreview {
+  @include nd-interactive;
   display: flex;
   font-size: 14px;
   box-shadow: 0 0 0 1px var(--nd-divider);

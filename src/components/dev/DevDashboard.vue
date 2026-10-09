@@ -1647,6 +1647,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .control {
   position: relative;
   height: 100%;
@@ -2163,6 +2164,7 @@ onUnmounted(() => {
 }
 
 .summary {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -2276,6 +2278,7 @@ onUnmounted(() => {
 }
 
 .sseRowHead {
+  @include nd-interactive;
   display: flex;
   align-items: baseline;
   gap: 10px;
@@ -2417,6 +2420,7 @@ onUnmounted(() => {
 }
 
 .typeChip {
+  @include nd-interactive;
   padding: 2px 8px;
   border: none;
   border-radius: var(--nd-radius-full);
@@ -2441,6 +2445,7 @@ onUnmounted(() => {
 }
 
 .capHistoryRow {
+  @include nd-interactive;
   display: flex;
   align-items: baseline;
   gap: 10px;

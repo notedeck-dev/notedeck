@@ -523,6 +523,7 @@ async function onDeleteAll() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .draftsPicker {
   display: flex;
   flex-direction: column;
@@ -573,6 +574,7 @@ async function onDeleteAll() {
 }
 
 .item {
+  @include nd-interactive;
   position: relative;
   border-bottom: 1px solid var(--nd-divider);
 

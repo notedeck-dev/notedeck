@@ -480,6 +480,7 @@ function formatDate(ts: number): string {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .achievementsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -488,6 +489,7 @@ function formatDate(ts: number): string {
 }
 
 .achievementCard {
+  @include nd-interactive;
   display: flex;
   flex-direction: column;
   align-items: center;
