@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { i18n } from '@/i18n'
 import { char2twemojiUrl } from '@/services/twemoji'
+import { failedTwemojiUrls } from '@/utils/renderedMemo'
 
 const props = defineProps<{ emoji: string; ignoreMuted?: boolean }>()
 const { isEmojiMuted } = useEmojiMute()
@@ -16,13 +17,24 @@ const isUnresolvedCustom = computed(() => props.emoji.startsWith(':'))
 const url = computed(() =>
   isUnresolvedCustom.value ? undefined : char2twemojiUrl(props.emoji),
 )
-const failed = ref(false)
+// 失敗した URL はアプリ全体で覚え、作り直した行で同じ 404 を繰り返さない (#1219)
+const failedUrl = ref<string | null>(null)
+const failed = computed(
+  () =>
+    url.value !== undefined &&
+    (failedUrl.value === url.value || failedTwemojiUrls.has(url.value)),
+)
+function onError() {
+  if (url.value === undefined) return
+  failedTwemojiUrls.add(url.value)
+  failedUrl.value = url.value
+}
 </script>
 
 <template>
   <span v-if="isMuted" class="twemoji _emojiMuted" :class="$style.twemoji" role="img" :aria-label="emoji" :title="i18n.tsx._common.mutedEmoji({ emoji })" />
   <img v-else-if="isUnresolvedCustom" class="twemoji" :class="$style.twemoji" src="/emoji-unknown.svg" :alt="emoji" :title="emoji" width="20" height="20" decoding="async" loading="lazy" />
-  <img v-else-if="!failed" class="twemoji" :class="$style.twemoji" :src="url" :alt="emoji" width="20" height="20" decoding="async" loading="lazy" @error="failed = true" />
+  <img v-else-if="!failed" class="twemoji" :class="$style.twemoji" :src="url" :alt="emoji" width="20" height="20" decoding="async" loading="lazy" @error="onError" />
   <span v-else :class="$style.nativeEmoji">{{ emoji }}</span>
 </template>
 

@@ -1,4 +1,7 @@
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { emojilist } from '@/data/emojilist'
 import { char2twemojiUrl, splitTextWithEmoji } from '@/services/twemoji'
 
 // 同梱 Twemoji (@discordapp/twemoji) のパス。CDN 個別取得はピッカー初回表示で
@@ -36,6 +39,27 @@ describe('char2twemojiUrl', () => {
     expect(char2twemojiUrl('👨‍👩‍👧')).toBe(
       `${BASE}/1f468-200d-1f469-200d-1f467.svg`,
     )
+  })
+
+  // 同梱 Twemoji は 👁️‍🗨️ だけ ZWJ 連結なのに FE0F を落とした名前で持つ (#1219)
+  it('👁️‍🗨️ は同梱の名前 (FE0F 無し) に合わせる', () => {
+    expect(char2twemojiUrl('👁️‍🗨️')).toBe(`${BASE}/1f441-200d-1f5e8.svg`)
+  })
+
+  it('ピッカーの絵文字はすべて同梱の Twemoji に画像がある (#1219)', () => {
+    const svgDir = resolve(
+      import.meta.dirname,
+      '../../node_modules/@discordapp/twemoji/dist/svg',
+    )
+    const missing = emojilist
+      .map(({ char }) => char)
+      .filter(
+        (char) =>
+          !existsSync(
+            resolve(svgDir, char2twemojiUrl(char).replace(`${BASE}/`, '')),
+          ),
+      )
+    expect(missing).toEqual([])
   })
 
   it('handles keycap emoji', () => {

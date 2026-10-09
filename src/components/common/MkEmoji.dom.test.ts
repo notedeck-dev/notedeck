@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { type App, createApp } from 'vue'
+import { type App, createApp, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import MkEmoji from './MkEmoji.vue'
 
@@ -69,5 +69,23 @@ describe('MkEmoji', () => {
     mountEmoji('❤', true)
     const img = container?.querySelector('img')
     expect(img?.getAttribute('src')).toContain('2764.svg')
+  })
+
+  // 同梱 Twemoji より新しい絵文字は 404 になる。行が作り直されるたびに
+  // 取り直さないよう、一度失敗した画像は最初から文字で出す (#1219)
+  it('一度読み込みに失敗した絵文字は、次に描くとき画像を取りに行かない', async () => {
+    mountEmoji('\u{1FAEA}')
+    const img = container?.querySelector('img')
+    expect(img?.getAttribute('src')).toContain('1faea.svg')
+    img?.dispatchEvent(new Event('error'))
+    await nextTick()
+    expect(container?.querySelector('img')).toBeNull()
+    expect(container?.textContent).toBe('\u{1FAEA}')
+
+    app?.unmount()
+    container?.remove()
+    mountEmoji('\u{1FAEA}')
+    expect(container?.querySelector('img')).toBeNull()
+    expect(container?.textContent).toBe('\u{1FAEA}')
   })
 })
