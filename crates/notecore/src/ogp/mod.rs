@@ -238,29 +238,27 @@ impl OgpCache {
             return Ok(data);
         }
 
-        // Inflight dedup。先頭の取得が結果を送らずに終わっていたら (取得の
-        // future が取り消された等)、その登録は外して自分で取りに行く。外さないと
-        // 以降の同じ URL の要求が来ない結果を待って失敗し続ける (画像キャッシュと同じ)
-        let tx = loop {
-            let mut inflight = self.inflight.lock().await;
-            if let Some(rx) = inflight.get(url) {
-                if rx.has_changed().is_err() && rx.borrow().is_none() {
-                    inflight.remove(url);
-                } else {
-                    let mut rx = rx.clone();
-                    drop(inflight);
-                    while rx.changed().await.is_ok() {
-                        if let Some(result) = rx.borrow().as_ref() {
-                            return result.clone();
-                        }
+        // Inflight dedup。送り手が結果を送らずに消えた登録 (取得の future が
+        // 取り消された残骸) は外して、この要求が取りに行く。残すと以降の同じ
+        // URL の要求が全部即座に失敗し続ける
+        let mut inflight = self.inflight.lock().await;
+        if let Some(rx) = inflight.get(url) {
+            if rx.has_changed().is_err() && rx.borrow().is_none() {
+                inflight.remove(url);
+            } else {
+                let mut rx = rx.clone();
+                drop(inflight);
+                while rx.changed().await.is_ok() {
+                    if let Some(result) = rx.borrow().as_ref() {
+                        return result.clone();
                     }
-                    continue;
                 }
+                return Err("Inflight request dropped".to_string());
             }
-            let (tx, rx) = watch::channel(None);
-            inflight.insert(url.to_string(), rx);
-            break tx;
-        };
+        }
+        let (tx, rx) = watch::channel(None);
+        inflight.insert(url.to_string(), rx);
+        drop(inflight);
 
         let result = fetch_fn(self).await.map(|mut data| {
             Self::sanitize_player(&mut data);
