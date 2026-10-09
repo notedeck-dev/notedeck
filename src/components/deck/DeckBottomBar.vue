@@ -151,6 +151,7 @@ const {
       <button
         v-for="win in windowsStore.minimizedWindows"
         :key="win.id"
+        :data-minimized-window="win.id"
         class="_button"
         :class="$style.minimizedChip"
         :title="i18n.tsx._deckBottomBar.restoreWindow({ title: windowTitle(win) })"

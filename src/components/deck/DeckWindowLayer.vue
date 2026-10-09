@@ -9,13 +9,11 @@ import DeckWindow from './DeckWindow.vue'
 const windowsStore = useWindowsStore()
 const themeStore = useThemeStore()
 
-// 閉じアニメ (windowOut) の間 DOM を残す。reduced-motion では即時除去
-const reduceMotion = window.matchMedia(
-  '(prefers-reduced-motion: reduce)',
-).matches
+// 閉じアニメ (windowOut、--nd-duration-medium) の間 DOM を残す。
+// reduced-motion では useVaporTransitionGroup が待たずに外す
 const { rendered: renderedWindows, leavingIds } = useVaporTransitionGroup(
   computed(() => windowsStore.windows),
-  { enterDuration: 200, leaveDuration: reduceMotion ? 0 : 200 },
+  { enterDuration: 200, leaveDuration: 200 },
 )
 
 function getThemeVars(accountId: unknown): Record<string, string> | undefined {

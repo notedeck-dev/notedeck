@@ -796,11 +796,11 @@ dialog._nativeDialog[open] {
 }
 
 .nd-tab-slide-left {
-  animation: nd-tab-slide-left-kf 0.2s var(--nd-ease-spring) both;
+  animation: nd-tab-slide-left-kf var(--nd-duration-medium) var(--nd-ease-spring) both;
 }
 
 .nd-tab-slide-right {
-  animation: nd-tab-slide-right-kf 0.2s var(--nd-ease-spring) both;
+  animation: nd-tab-slide-right-kf var(--nd-duration-medium) var(--nd-ease-spring) both;
 }
 
 /* ---- Swipe follow (useSwipeTab touch tracking) ---- */

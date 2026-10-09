@@ -231,6 +231,7 @@ const updateTitle = computed(() => {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 .card {
   position: relative;
   display: flex;
@@ -333,6 +334,7 @@ const updateTitle = computed(() => {
 
 // 権限拒否バッジ (#712): 朱色系で「権限で止まっている」ことを受動表示
 .deniedBadge {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   padding: 0 4px;

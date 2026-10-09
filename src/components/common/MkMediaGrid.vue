@@ -330,6 +330,7 @@ function closeLightbox() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 /* Banner: Audio & Other files (like Misskey's MkMediaBanner) */
 .mediaBanner {
   margin-top: 8px;
@@ -377,6 +378,7 @@ function closeLightbox() {
 }
 
 .bannerDownload {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;

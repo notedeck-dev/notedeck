@@ -1,6 +1,23 @@
 // Shared button mixins for dialogs and editor windows.
 // Usage: @use '@/styles/buttons' as *;
 
+// hover を持つ部品の手触りを揃える。背景・色・不透明度は
+// --nd-duration-base で遷移し、._button の押下の縮み (transform) も残す。
+// フォーカスリングは遷移させない (global.css の ._button と同じ理由で、
+// 移った瞬間に見えている必要がある)
+@mixin nd-interactive {
+  transition:
+    background var(--nd-duration-base),
+    color var(--nd-duration-base),
+    opacity var(--nd-duration-base),
+    transform var(--nd-duration-fast) var(--nd-ease-spring);
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: 1px;
+  }
+}
+
 @mixin btn-base {
   display: flex;
   align-items: center;

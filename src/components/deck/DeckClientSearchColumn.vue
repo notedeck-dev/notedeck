@@ -625,6 +625,7 @@ onMounted(async () => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use './column-common.module.scss';
 
 .searchBar {
@@ -699,6 +700,7 @@ onMounted(async () => {
 }
 
 .readMoreBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 4px;

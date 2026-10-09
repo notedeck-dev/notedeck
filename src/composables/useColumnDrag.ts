@@ -2,6 +2,7 @@ import { type Ref, ref } from 'vue'
 import { isInsertNoop, toGlobalInsertIndex } from '@/services/deckLayout'
 import type { useDeckStore } from '@/stores/deck'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
+import { prefersReducedMotion } from '@/utils/motion'
 import { emitTauri } from '@/utils/tauriEvents'
 
 type DeckStore = ReturnType<typeof useDeckStore>
@@ -156,9 +157,7 @@ export function useColumnDrag(
     if (header) {
       ghost = header.cloneNode(true) as HTMLElement
       ghostHalfWidth = header.clientWidth / 2
-      const prefersReduced = window.matchMedia(
-        '(prefers-reduced-motion: reduce)',
-      ).matches
+      const prefersReduced = prefersReducedMotion()
       if (prefersReduced) {
         Object.assign(ghost.style, {
           position: 'fixed',
@@ -170,7 +169,7 @@ export function useColumnDrag(
           width: `${header.clientWidth}px`,
           transform: 'scale(0.95)',
           boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-          borderRadius: '8px',
+          borderRadius: 'var(--nd-radius-md)',
           overflow: 'hidden',
         })
       } else {
@@ -181,13 +180,14 @@ export function useColumnDrag(
           zIndex: '10000',
           pointerEvents: 'none',
           width: `${header.clientWidth}px`,
-          borderRadius: '8px',
+          borderRadius: 'var(--nd-radius-md)',
           overflow: 'hidden',
           opacity: '0',
           transform: 'scale(0.9) rotate(-1deg)',
           boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
+          // 持ち上げは少しだけ行き過ぎて戻す (掴んだ手応え)
           transition:
-            'opacity 0.2s ease-out, transform 0.3s cubic-bezier(0.34, 1.1, 0.64, 1)',
+            'opacity var(--nd-duration-medium) var(--nd-ease-decel), transform var(--nd-duration-slow) var(--nd-ease-overshoot)',
         })
       }
       document.body.appendChild(ghost)

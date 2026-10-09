@@ -312,6 +312,7 @@ usePortal(lightboxPortalRef)
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .chatMsg {
   display: flex;
   align-items: flex-start;
@@ -504,6 +505,7 @@ usePortal(lightboxPortalRef)
 }
 
 .lightboxClose {
+  @include nd-interactive;
   position: absolute;
   top: 16px;
   right: 16px;

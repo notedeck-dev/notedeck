@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import I18n from '@/components/common/I18n.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -81,6 +82,11 @@ const TAB_DEFS = computed<{ value: ServerTab; icon: string; label: string }[]>(
   ],
 )
 const tab = ref<ServerTab>('info')
+const tabContentRef = useTemplateRef<HTMLElement>('tabContent')
+useTabSlide(
+  computed(() => TAB_DEFS.value.findIndex((t) => t.value === tab.value)),
+  tabContentRef,
+)
 
 const metaJson = computed(() =>
   meta.value ? JSON.stringify(meta.value, null, 2) : '',
@@ -184,6 +190,7 @@ onMounted(() => {
         @update:model-value="(v) => (tab = v as ServerTab)"
       />
 
+      <div ref="tabContent" :class="$style.tabContent">
       <div v-if="tab === 'info'" ref="scroller" :class="$style.serverInfoBody">
       <!-- Banner (Misskey style: bg image + icon overlay + gradient name) -->
       <div
@@ -389,6 +396,7 @@ onMounted(() => {
           </template>
         </template>
       </RawJsonView>
+      </div>
     </div>
 
     <ColumnEmptyState v-else :message="i18n.ts._deckServerInfoColumn.fetchFailed" :image-url="serverInfoImageUrl" />
@@ -399,6 +407,13 @@ onMounted(() => {
 @use "./column-common.module.scss";
 
 .tabWrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.tabContent {
   display: flex;
   flex-direction: column;
   flex: 1;

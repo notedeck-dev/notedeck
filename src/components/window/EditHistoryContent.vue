@@ -180,6 +180,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 .content {
   flex: 1;
   display: flex;
@@ -241,6 +242,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 }
 
 .entry {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;

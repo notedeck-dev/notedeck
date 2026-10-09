@@ -347,6 +347,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use '@/styles/settingsFields' as *;
 
 .card {
@@ -403,6 +404,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 }
 
 .entry {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -471,6 +473,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 
 // 「ルールを編集」: 見出しの右に置く控えめなボタン (忘れるボタンと同じ質感)
 .rulesButton.rulesButton {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -494,6 +497,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 }
 
 .forgetButton.forgetButton {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;

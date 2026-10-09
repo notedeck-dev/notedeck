@@ -115,6 +115,7 @@ function resolveCustomUrl(key: string): string | null {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .root {
   display: flex;
   flex-direction: column;
@@ -161,6 +162,7 @@ function resolveCustomUrl(key: string): string | null {
 }
 
 .item {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;

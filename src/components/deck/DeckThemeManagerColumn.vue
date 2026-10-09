@@ -667,6 +667,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 @use './column-common.module.scss';
 
 .headerBtn {
@@ -764,6 +765,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 }
 
 .storeErrorClose {
+  @include nd-interactive;
   margin-left: auto;
   display: flex;
   align-items: center;
@@ -786,6 +788,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 }
 
 .addBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   justify-content: center;

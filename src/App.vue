@@ -260,6 +260,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .root {
   display: flex;
   flex-direction: column;
@@ -296,6 +297,7 @@ onUnmounted(() => {
 }
 
 .safeModeExit {
+  @include nd-interactive;
   flex: none;
   padding: 2px 10px;
   border: 1px solid rgb(255 255 255 / 0.5);

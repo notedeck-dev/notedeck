@@ -905,6 +905,7 @@ function handleReset() {
 }
 
 .taskHeader {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1090,6 +1091,7 @@ function handleReset() {
 }
 
 .smallBtn {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 2px;

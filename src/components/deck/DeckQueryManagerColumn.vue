@@ -542,11 +542,13 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .addArea {
   padding: 8px 10px;
 }
 
 .addBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   justify-content: center;

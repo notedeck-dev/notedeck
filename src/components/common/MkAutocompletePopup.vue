@@ -112,7 +112,7 @@ function candidateKey(candidate: AutocompleteCandidate): string {
   overflow-y: auto;
   padding: 4px;
   contain: paint;
-  animation: acPopupIn 0.1s ease-out;
+  animation: acPopupIn var(--nd-duration-fast) var(--nd-ease-pop);
 
   // caret 追従時 (#753): left/top は inline style、幅は固定
   &.floating {

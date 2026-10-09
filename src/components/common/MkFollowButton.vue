@@ -126,7 +126,9 @@ async function onClick() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .followBtn {
+  @include nd-interactive;
   border-radius: var(--nd-radius-full);
   font-weight: var(--nd-weight-bold);
   color: #fff;

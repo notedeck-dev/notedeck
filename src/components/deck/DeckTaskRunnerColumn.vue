@@ -505,6 +505,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use './column-common.module.scss';
 
 .headerIcon {
@@ -641,6 +642,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 }
 
 .searchClear {
+  @include nd-interactive;
   opacity: 0.5;
   &:hover { opacity: 1; }
 }

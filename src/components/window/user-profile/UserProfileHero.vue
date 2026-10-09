@@ -313,6 +313,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .bannerArea {
   position: relative;
   --bannerHeight: 250px;
@@ -535,6 +536,7 @@ onMounted(() => {
 }
 
 .role {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -579,6 +581,7 @@ onMounted(() => {
 }
 
 .statLink {
+  @include nd-interactive;
   cursor: pointer;
   border-radius: var(--nd-radius-sm);
   padding: 4px;

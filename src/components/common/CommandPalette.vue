@@ -610,6 +610,7 @@ function primaryShortcut(cmd: Command): string | null {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 @use '@/styles/spotlight' as *;
 
 /* ========================================
@@ -736,6 +737,7 @@ function primaryShortcut(cmd: Command): string | null {
 }
 
 .item {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -822,6 +824,7 @@ function primaryShortcut(cmd: Command): string | null {
 }
 
 .backBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   justify-content: center;

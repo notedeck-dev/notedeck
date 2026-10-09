@@ -557,6 +557,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .wrapper {
   display: flex;
   flex-direction: column;
@@ -723,6 +724,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 }
 
 .storeErrorClose {
+  @include nd-interactive;
   margin-left: auto;
   display: flex;
   align-items: center;

@@ -16,6 +16,7 @@ import {
   type StoredDraft,
 } from '@/composables/useDrafts'
 import { usePortal } from '@/composables/usePortal'
+import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { localNoteIdentity } from '@/services/noteUrl'
 import { isPastSchedule } from '@/services/scheduleTime'
@@ -227,6 +228,11 @@ const tabs = computed<ColumnTabDef[]>(() => {
   }
   return out
 })
+
+useTabSlide(
+  computed(() => tabs.value.findIndex((t) => t.value === activeTab.value)),
+  bodyRef,
+)
 
 // 予約タブを見ている間だけ "あと30分" 等の相対時刻をリアクティブ更新する。
 // onCleanup が前回タイマーを必ず止めるので、アンマウント時も漏れない。
@@ -517,6 +523,7 @@ async function onDeleteAll() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .draftsPicker {
   display: flex;
   flex-direction: column;
@@ -567,6 +574,7 @@ async function onDeleteAll() {
 }
 
 .item {
+  @include nd-interactive;
   position: relative;
   border-bottom: 1px solid var(--nd-divider);
 

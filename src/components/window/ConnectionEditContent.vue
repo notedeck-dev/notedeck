@@ -773,6 +773,7 @@ const testResultText = computed(() => {
 }
 
 .revokeBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   padding: 2px 4px;

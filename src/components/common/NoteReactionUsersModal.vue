@@ -329,7 +329,7 @@ defineExpose({ open })
 @keyframes modalBdIn { from { opacity: 0; } }
 @keyframes modalBdOut { to { opacity: 0; } }
 
-.popupContentEnter { animation: modalIn 0.2s var(--nd-ease-spring); }
+.popupContentEnter { animation: modalIn var(--nd-duration-medium) var(--nd-ease-spring); }
 .popupContentLeave { animation: modalOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes modalIn { from { opacity: 0; transform: scale(0.88) translateY(6px); } }
 @keyframes modalOut { to { opacity: 0; transform: scale(0.93); } }
@@ -340,8 +340,8 @@ defineExpose({ open })
 @keyframes sheetBdIn { from { opacity: 0; } }
 @keyframes sheetBdOut { to { opacity: 0; } }
 
-.sheetContentEnter { animation: sheetIn 0.25s var(--nd-ease-spring); }
-.sheetContentLeave { animation: sheetOut 0.2s var(--nd-ease-decel) forwards; }
+.sheetContentEnter { animation: sheetIn var(--nd-duration-slow) var(--nd-ease-spring); }
+.sheetContentLeave { animation: sheetOut var(--nd-duration-medium) var(--nd-ease-decel) forwards; }
 @keyframes sheetIn { from { transform: translateY(100%); } }
 @keyframes sheetOut { to { transform: translateY(100%); } }
 </style>

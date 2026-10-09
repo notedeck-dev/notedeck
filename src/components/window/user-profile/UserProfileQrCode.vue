@@ -119,6 +119,7 @@ defineExpose({ open })
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .qrOverlay {
   position: fixed;
   inset: 0;
@@ -138,6 +139,7 @@ defineExpose({ open })
 }
 
 .qrCloseBtn {
+  @include nd-interactive;
   position: absolute;
   top: -40px;
   right: -40px;

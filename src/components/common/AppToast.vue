@@ -8,6 +8,7 @@ import { useVaporTransitionGroup } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { type ToastItem, useToast } from '@/stores/toast'
 import { useIsCompactLayout } from '@/stores/ui'
+import { captureFlip, type FlipSnapshot, playFlip } from '@/utils/flip'
 
 const { toasts, runAction, dismiss, pause, resume } = useToast()
 const isCompact = useIsCompactLayout()
@@ -41,6 +42,32 @@ watch(
   },
 )
 
+// 退場したカードが外れた / 新しいカードが積まれたとき、残りのカードを
+// 新しい位置へ滑らせる (瞬間移動させない)。縦に積むだけなので y だけ補間
+const cardKey = (el: HTMLElement) => el.dataset.toastId
+function cardElements() {
+  return (
+    toastPortalRef.value?.querySelectorAll<HTMLElement>('[data-toast-id]') ?? []
+  )
+}
+let flipSnapshot: FlipSnapshot | null = null
+watch(
+  () => rendered.value.map((t) => t.id).join(','),
+  () => {
+    flipSnapshot = captureFlip(cardElements(), cardKey)
+  },
+  { flush: 'pre' },
+)
+watch(
+  () => rendered.value.map((t) => t.id).join(','),
+  () => {
+    const snap = flipSnapshot
+    flipSnapshot = null
+    if (snap) playFlip(snap, cardElements(), cardKey, null, 'y')
+  },
+  { flush: 'post' },
+)
+
 const ICONS: Record<ToastItem['type'], string> = {
   success: 'ti ti-circle-check',
   info: 'ti ti-info-circle',
@@ -59,6 +86,7 @@ const ICONS: Record<ToastItem['type'], string> = {
     <div
       v-for="toast in rendered"
       :key="toast.id"
+      :data-toast-id="toast.id"
       class="_popup"
       :class="[
         $style.card,

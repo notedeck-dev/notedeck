@@ -25,6 +25,7 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -112,6 +113,11 @@ const usersCanvasRef = useTemplateRef<HTMLCanvasElement>('usersRef')
 const driveCanvasRef = useTemplateRef<HTMLCanvasElement>('driveRef')
 // 常に DOM 上に存在する ref。override / IntersectionObserver の起点として使う。
 const bodyRef = useTemplateRef<HTMLElement>('bodyRef')
+const contentRef = useTemplateRef<HTMLElement>('contentRef')
+useTabSlide(
+  computed(() => TAB_DEFS.value.findIndex((t) => t.value === activeTab.value)),
+  contentRef,
+)
 
 // biome-ignore lint/suspicious/noExplicitAny: chart.js の ChartType union 保持のため
 const chartInstances = new Map<string, Chart<any>>()
@@ -705,7 +711,7 @@ watch(driveView, (v) => {
         </div>
       </div>
 
-      <div :class="$style.content">
+      <div ref="contentRef" :class="$style.content">
         <div v-if="isLoading" :class="$style.overlay">
           <LoadingSpinner />
         </div>
@@ -929,6 +935,7 @@ watch(driveView, (v) => {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 .body {
   display: flex;
   flex-direction: column;
@@ -1017,6 +1024,7 @@ watch(driveView, (v) => {
 }
 
 .pill {
+  @include nd-interactive;
   font-size: 11px;
   padding: 4px 10px;
   border-radius: var(--nd-radius-full);

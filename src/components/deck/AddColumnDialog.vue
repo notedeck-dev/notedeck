@@ -551,6 +551,7 @@ function close() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use '@/styles/navMenu';
 @use '@/styles/spotlight' as *;
 @use '@/styles/inputs' as *;
@@ -563,7 +564,7 @@ function close() {
   @media (prefers-reduced-motion: no-preference) {
     // シート表示は下からのスライド (sheetContentEnter) に任せる
     > .addPopup:not(.addSheet) {
-      animation: addPopupIn 0.2s var(--nd-ease-spring);
+      animation: addPopupIn var(--nd-duration-medium) var(--nd-ease-spring);
     }
   }
 }
@@ -817,6 +818,7 @@ function close() {
 }
 
 .createCancelBtn {
+  @include nd-interactive;
   padding: 4px 12px;
   border-radius: var(--nd-radius-sm);
   font-size: var(--nd-font-md);
@@ -829,6 +831,7 @@ function close() {
 }
 
 .createSubmitBtn {
+  @include nd-interactive;
   padding: 4px 12px;
   border-radius: var(--nd-radius-sm);
   font-size: var(--nd-font-md);

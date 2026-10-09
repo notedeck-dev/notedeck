@@ -411,6 +411,7 @@ function openAsPip() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .deckColumn {
   width: 100%;
   flex: 1;
@@ -492,6 +493,7 @@ function openAsPip() {
 }
 
 .grabber {
+  @include nd-interactive;
   flex-shrink: 0;
   opacity: 0.5;
   cursor: grab;
@@ -514,6 +516,7 @@ function openAsPip() {
    CSS chunk load order — ._button's inline-block + line-height: inherit
    (38px from .columnHeader) pushes the ti-dots glyph below center. */
 .columnHeader .headerBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -637,7 +640,7 @@ function openAsPip() {
 }
 
 .menuEnter {
-  animation: colMenuIn 0.18s var(--nd-ease-spring);
+  animation: colMenuIn var(--nd-duration-medium) var(--nd-ease-spring);
 }
 .menuLeave {
   animation: colMenuOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
