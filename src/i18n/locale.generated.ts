@@ -316,6 +316,8 @@ export interface Locale {
     readonly "closeAllWindows": string
     /** PiP ウィンドウを開く */
     readonly "pipWindow": string
+    /** アプリの通知を開く */
+    readonly "notificationCenter": string
     /** 開発者ツール */
     readonly "devtools": string
     /** プロファイルエディター */
@@ -996,6 +998,18 @@ export interface Locale {
     readonly "empty": string
     /** 未読 {count} 件 */
     readonly "unread": ParameterizedString<'count'>
+    /** ×{count} */
+    readonly "count": ParameterizedString<'count'>
+    /** {count} 回起きました */
+    readonly "countTitle": ParameterizedString<'count'>
+    /** 新着 */
+    readonly "fresh": string
+    /** 全文を表示 */
+    readonly "expand": string
+    /** 折りたたむ */
+    readonly "collapse": string
+    /** この通知を消す */
+    readonly "remove": string
   }
   readonly "_noteVariantsPopup": {
     /** このノートが見えているアカウント */

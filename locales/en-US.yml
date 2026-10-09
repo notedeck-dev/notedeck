@@ -165,6 +165,7 @@ _commands:
   newWindow: "Open new window"
   closeAllWindows: "Close all sub-windows"
   pipWindow: "Open PiP window"
+  notificationCenter: "Open app notifications"
   devtools: "Developer tools"
   profileEditor: "Profile editor"
   switchProfile: "Switch to {name}"
@@ -775,6 +776,12 @@ _notificationCenter:
   clearAll: "Clear all"
   empty: "No new notifications"
   unread: "{count} unread"
+  count: "×{count}"
+  countTitle: "Happened {count} times"
+  fresh: "New"
+  expand: "Show full text"
+  collapse: "Collapse"
+  remove: "Remove this notification"
 
 _noteVariantsPopup:
   ariaLabel: "Accounts that can see this note"
