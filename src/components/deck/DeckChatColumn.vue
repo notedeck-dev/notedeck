@@ -40,6 +40,7 @@ import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
+import { chatDateSeparators } from '@/services/chatDateSeparators'
 import {
   buildCrossAccountHistoryEntries,
   buildPerAccountHistoryEntries,
@@ -273,6 +274,11 @@ const filteredMessages = computed(() => {
   if (!q.trim()) return visible
   return visible.filter((m) => chatMessageMatchesSearch(q, m))
 })
+
+// 日付が変わる所に区切りを出す (#1207)。表示している並びで判定する
+const dateSeparators = computed(() =>
+  chatDateSeparators(filteredMessages.value),
+)
 
 const hasNoConvSearchHits = computed(
   () =>
@@ -551,6 +557,19 @@ const filteredPerAccountEntries = computed<PerAccountHistoryEntry[]>(() =>
   ),
 )
 
+// 開いた会話の未読の点は、履歴を取り直すまで手元で消しておく
+// (会話を開くと本家側で既読になるが、履歴の entry は取り直さないと変わらない)
+const openedMessageIds = ref(new Set<string>())
+
+/** 本家 MkChatHistories と同じく、相手からの未読の最新メッセージに点を出す (#1207) */
+function isUnread(message: ChatMessage, myId: string | undefined): boolean {
+  return (
+    message.isRead === false &&
+    message.fromUserId !== myId &&
+    !openedMessageIds.value.has(message.id)
+  )
+}
+
 const hasNoSearchHits = computed(() => {
   if (!searchQuery.value.trim()) return false
   return isCrossAccount.value
@@ -567,6 +586,11 @@ async function openConversation(
   showConvSearch.value = false
   convSearchQuery.value = ''
 
+  if ('message' in entry) {
+    openedMessageIds.value = new Set(openedMessageIds.value).add(
+      entry.message.id,
+    )
+  }
   conversationTitle.value = entry.name
   conversationOtherAvatarUrl.value = entry.avatarUrl ?? null
   isLoading.value = true
@@ -1090,12 +1114,18 @@ onBeforeUnmount(() => {
           :class="$style.historyItem"
           @click="openConversation(entry)"
         >
+          <span
+            v-if="isUnread(entry.message, getUserIdForAccount(entry.accountId))"
+            :class="$style.historyUnreadDot"
+            :title="i18n.ts._deckChatColumn.unread"
+            :aria-label="i18n.ts._deckChatColumn.unread"
+          />
           <div :class="$style.historyAvatarWrap">
             <MkAvatar
               v-if="entry.avatarUrl"
               :avatar-url="entry.avatarUrl"
               :decorations="entry.avatarDecorations ?? []"
-              :size="36"
+              :size="50"
             />
             <div v-else :class="$style.historyAvatarPlaceholder">
               <i :class="entry.isRoom ? 'ti ti-users' : 'ti ti-user'" />
@@ -1148,11 +1178,17 @@ onBeforeUnmount(() => {
           :class="$style.historyItem"
           @click="openConversation(entry)"
         >
+          <span
+            v-if="isUnread(entry.message, myUserId)"
+            :class="$style.historyUnreadDot"
+            :title="i18n.ts._deckChatColumn.unread"
+            :aria-label="i18n.ts._deckChatColumn.unread"
+          />
           <MkAvatar
             v-if="entry.avatarUrl"
             :avatar-url="entry.avatarUrl"
             :decorations="entry.avatarDecorations ?? []"
-            :size="36"
+            :size="50"
           />
           <div v-else :class="$style.historyAvatarPlaceholder">
             <i :class="entry.isRoom ? 'ti ti-users' : 'ti ti-user'" />
@@ -1199,7 +1235,7 @@ onBeforeUnmount(() => {
         v-else
         ref="chatScroller"
         :items="filteredMessages"
-        :estimated-height="80"
+        :estimated-height="96"
         :class="$style.messagesContainer"
         @scroll="handleScroll"
       >
@@ -1208,6 +1244,11 @@ onBeforeUnmount(() => {
         </template>
         <template #default="{ item: msg }">
           <div :class="$style.chatMsgGap">
+            <div v-if="dateSeparators.get(msg.id)" :class="$style.dateDivider">
+              <span><i class="ti ti-chevron-up" /> {{ dateSeparators.get(msg.id)!.prevText }}</span>
+              <span :class="$style.dateDividerBar" />
+              <span>{{ dateSeparators.get(msg.id)!.nextText }} <i class="ti ti-chevron-down" /></span>
+            </div>
             <MkChatMessage
               :message="msg"
               :my-user-id="myUserId"
@@ -1215,6 +1256,7 @@ onBeforeUnmount(() => {
               :server-host="activeServerHost ?? undefined"
               :my-avatar-url="currentRoomId ? undefined : myAvatarUrl ?? undefined"
               :other-avatar-url="currentRoomId ? undefined : conversationOtherAvatarUrl ?? undefined"
+              :show-sender-name="!!currentRoomId"
               @react="handleReact"
               @unreact="handleUnreact"
               @delete="handleDelete"
@@ -1391,6 +1433,7 @@ onBeforeUnmount(() => {
 }
 
 .historyList {
+  --chat-history-avatar: 50px;
   flex: 1;
   overflow-y: auto;
   scrollbar-color: var(--nd-scrollbarHandle) transparent;
@@ -1398,11 +1441,12 @@ onBeforeUnmount(() => {
 }
 
 .historyItem {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 12px 16px;
   border: none;
   background: none;
   color: var(--nd-fg);
@@ -1410,7 +1454,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   contain: layout style paint;
   content-visibility: auto;
-  contain-intrinsic-size: auto 65px;
+  contain-intrinsic-size: auto 75px;
   border-bottom: 1px solid var(--nd-divider);
 
   &:hover {
@@ -1419,6 +1463,8 @@ onBeforeUnmount(() => {
 
   :global(.mk-avatar) {
     flex-shrink: 0;
+    width: var(--chat-history-avatar);
+    height: var(--chat-history-avatar);
   }
 
   :global(.mk-avatar:hover) {
@@ -1429,13 +1475,14 @@ onBeforeUnmount(() => {
 .historyAvatarWrap {
   position: relative;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: var(--chat-history-avatar);
+  height: var(--chat-history-avatar);
 }
 
 .historyAvatarPlaceholder {
-  width: 36px;
-  height: 36px;
+  flex-shrink: 0;
+  width: var(--chat-history-avatar);
+  height: var(--chat-history-avatar);
   border-radius: 50%;
   background: var(--nd-buttonBg);
   display: flex;
@@ -1464,7 +1511,7 @@ onBeforeUnmount(() => {
 }
 
 .historyName {
-  font-size: var(--nd-font-body);
+  font-size: 1em;
   font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1472,8 +1519,8 @@ onBeforeUnmount(() => {
 }
 
 .historyPreview {
-  font-size: var(--nd-font-sm);
-  opacity: 0.5;
+  font-size: 1em;
+  opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1493,6 +1540,32 @@ onBeforeUnmount(() => {
   opacity: 0.5;
 }
 
+.historyUnreadDot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nd-accent);
+}
+
+// 本家 MkChatHistories と同じく、カラム幅で 2 段にする (#1207)
+@container (max-width: 450px) {
+  .historyList {
+    --chat-history-avatar: 40px;
+  }
+
+  .historyItem {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .historyPreview {
+    font-size: var(--nd-font-body);
+  }
+}
+
 .messagesContainer {
   flex: 1;
   overflow-x: clip;
@@ -1501,7 +1574,39 @@ onBeforeUnmount(() => {
 }
 
 .chatMsgGap {
-  padding-bottom: 2px;
+  // メッセージ間は本家と同じく広い段 16px / 狭い段 12px (#1207)
+  padding: 8px 0;
+}
+
+// 本家 room.vue の dateDivider と同じ中央のピル
+.dateDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  width: fit-content;
+  margin: 0 auto 16px;
+  padding: 4px 12px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-full);
+  font-size: var(--nd-font-md);
+  opacity: 0.75;
+}
+
+.dateDividerBar {
+  width: 1px;
+  height: 1em;
+  background: var(--nd-divider);
+}
+
+@container (max-width: 450px) {
+  .chatMsgGap {
+    padding: 6px 0;
+  }
+
+  .dateDivider {
+    margin-bottom: 12px;
+  }
 }
 
 .chatError {
@@ -1572,8 +1677,8 @@ onBeforeUnmount(() => {
 }
 
 .chatActionBtn {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: none;
   color: var(--nd-fg);
@@ -1604,11 +1709,13 @@ onBeforeUnmount(() => {
   background: var(--nd-panelHighlight);
   color: var(--nd-fg);
   border-radius: var(--nd-radius-lg);
-  padding: 8px 12px;
-  font-size: var(--nd-font-body);
+  // 本文と同じ 14px で打てるようにし、1 行でも押しやすい高さを取る (#1207)
+  padding: 10px 12px;
+  font-size: 1em;
   font-family: inherit;
   line-height: 1.4;
-  max-height: 120px;
+  min-height: 40px;
+  max-height: 160px;
   outline: none;
   field-sizing: content;
 
@@ -1618,8 +1725,8 @@ onBeforeUnmount(() => {
 }
 
 .chatSend {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
   background: var(--nd-accent);
@@ -1629,7 +1736,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 1em;
+  font-size: var(--nd-font-lg);
 
   &:disabled {
     opacity: 0.3;

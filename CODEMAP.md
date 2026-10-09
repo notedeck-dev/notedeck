@@ -134,6 +134,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/boundedCache.ts`](src/services/boundedCache.ts) | [`src/services/boundedCache.test.ts`](src/services/boundedCache.test.ts) |
 | [`src/services/cacheEvictionConfig.ts`](src/services/cacheEvictionConfig.ts) | — |
 | [`src/services/captureBudget.ts`](src/services/captureBudget.ts) | [`src/services/captureBudget.test.ts`](src/services/captureBudget.test.ts) |
+| [`src/services/chatDateSeparators.ts`](src/services/chatDateSeparators.ts) | [`src/services/chatDateSeparators.test.ts`](src/services/chatDateSeparators.test.ts) |
 | [`src/services/chatHistoryEntries.ts`](src/services/chatHistoryEntries.ts) | [`src/services/chatHistoryEntries.test.ts`](src/services/chatHistoryEntries.test.ts) |
 | [`src/services/clientConfig.ts`](src/services/clientConfig.ts) | [`src/services/clientConfig.test.ts`](src/services/clientConfig.test.ts) |
 | [`src/services/columnCacheKey.ts`](src/services/columnCacheKey.ts) | [`src/services/columnCacheKey.test.ts`](src/services/columnCacheKey.test.ts) |
