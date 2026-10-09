@@ -3182,8 +3182,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_deckNotificationColumn": {
     /** 通知はありません */
     readonly "empty": string
-    /** 他 {count} 人 */
-    readonly "othersCount_plural": PluralString<'count'>
     /** 承認済み */
     readonly "accepted": string
     /** 拒否済み */
@@ -3220,22 +3218,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "filterAchievementEarned": string
     /** トークン */
     readonly "filterCreateToken": string
-    /** がリアクション */
-    readonly "labelReaction": string
-    /** からのリプライ */
-    readonly "labelReply": string
-    /** がリノートしました */
-    readonly "labelRenote": string
-    /** による引用 */
-    readonly "labelQuote": string
-    /** からのメンション */
-    readonly "labelMention": string
-    /** にフォローされました */
-    readonly "labelFollow": string
-    /** がフォローリクエストを承認 */
-    readonly "labelFollowRequestAccepted": string
-    /** からフォローリクエスト */
-    readonly "labelReceiveFollowRequest": string
     /** アンケートの結果が出ました */
     readonly "labelPollEnded": string
     /** 実績を獲得 */
@@ -3250,6 +3232,38 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "labelCreateToken": string
     /** テスト通知 */
     readonly "labelTest": string
+    /** 新しいノート: {user} */
+    readonly "labelNewNote": ParameterizedString<'user'>
+    /** 予約投稿が投稿されました */
+    readonly "labelScheduledNotePosted": string
+    /** 予約投稿に失敗しました */
+    readonly "labelScheduledNotePostFailed": string
+    /** エクスポートが完了しました */
+    readonly "labelExportCompleted": string
+    /** ルームに招待されました */
+    readonly "labelChatRoomInvitationReceived": string
+    /** {count} 人がリアクションしました */
+    readonly "reactedBy_plural": PluralString<'count'>
+    /** {count} 人がいいねしました */
+    readonly "likedBy_plural": PluralString<'count'>
+    /** {count} 人がリノートしました */
+    readonly "renotedBy_plural": PluralString<'count'>
+    /** +{count} */
+    readonly "moreUsers_plural": PluralString<'count'>
+    /** フォローされました */
+    readonly "bodyFollow": string
+    /** フォローリクエストが承認されました */
+    readonly "bodyFollowRequestAccepted": string
+    /** フォローリクエストが届きました */
+    readonly "bodyReceiveFollowRequest": string
+  }
+  readonly "_noteSummary": {
+    /** 非公開のノート */
+    readonly "hidden": string
+    /** {count} 個のファイル */
+    readonly "files_plural": PluralString<'count'>
+    /** アンケート */
+    readonly "poll": string
   }
   readonly "_deckPluginManagerColumn": {
     /** 新規プラグインを作成 */

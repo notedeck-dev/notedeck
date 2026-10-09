@@ -182,6 +182,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/noteFrame.ts`](src/services/noteFrame.ts) | [`src/services/noteFrame.test.ts`](src/services/noteFrame.test.ts) |
 | [`src/services/noteGroup.ts`](src/services/noteGroup.ts) | [`src/services/noteGroup.test.ts`](src/services/noteGroup.test.ts) |
 | [`src/services/noteKey.ts`](src/services/noteKey.ts) | [`src/services/noteKey.test.ts`](src/services/noteKey.test.ts) |
+| [`src/services/noteSummary.ts`](src/services/noteSummary.ts) | [`src/services/noteSummary.test.ts`](src/services/noteSummary.test.ts) |
 | [`src/services/noteUrl.ts`](src/services/noteUrl.ts) | [`src/services/noteUrl.test.ts`](src/services/noteUrl.test.ts) |
 | [`src/services/notificationMerge.ts`](src/services/notificationMerge.ts) | [`src/services/notificationMerge.test.ts`](src/services/notificationMerge.test.ts) |
 | [`src/services/notificationNoteSync.ts`](src/services/notificationNoteSync.ts) | [`src/services/notificationNoteSync.test.ts`](src/services/notificationNoteSync.test.ts) |

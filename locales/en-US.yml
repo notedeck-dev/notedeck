@@ -1998,9 +1998,6 @@ _deckNavbar:
 
 _deckNotificationColumn:
   empty: "No notifications"
-  othersCount_plural:
-    one: "and {count} other"
-    other: "and {count} others"
   accepted: "Accepted"
   rejected: "Rejected"
   accept: "Accept"
@@ -2019,14 +2016,6 @@ _deckNotificationColumn:
   filterPollEnded: "Polls"
   filterAchievementEarned: "Achievements"
   filterCreateToken: "Tokens"
-  labelReaction: "reacted"
-  labelReply: "replied"
-  labelRenote: "renoted"
-  labelQuote: "quoted"
-  labelMention: "mentioned you"
-  labelFollow: "followed you"
-  labelFollowRequestAccepted: "accepted your follow request"
-  labelReceiveFollowRequest: "requested to follow you"
   labelPollEnded: "Poll results are in"
   labelAchievementEarned: "Achievement earned"
   labelRoleAssigned: "Role assigned"
@@ -2034,6 +2023,32 @@ _deckNotificationColumn:
   labelLogin: "New login"
   labelCreateToken: "Access token created"
   labelTest: "Test notification"
+  labelNewNote: "New note: {user}"
+  labelScheduledNotePosted: "Scheduled note posted"
+  labelScheduledNotePostFailed: "Scheduled note failed to post"
+  labelExportCompleted: "Export completed"
+  labelChatRoomInvitationReceived: "Invited to a room"
+  reactedBy_plural:
+    one: "{count} user reacted"
+    other: "{count} users reacted"
+  likedBy_plural:
+    one: "{count} user liked"
+    other: "{count} users liked"
+  renotedBy_plural:
+    one: "{count} user renoted"
+    other: "{count} users renoted"
+  moreUsers_plural:
+    other: "+{count}"
+  bodyFollow: "Followed you"
+  bodyFollowRequestAccepted: "Your follow request was accepted"
+  bodyReceiveFollowRequest: "Requested to follow you"
+
+_noteSummary:
+  hidden: "Private note"
+  files_plural:
+    one: "{count} file"
+    other: "{count} files"
+  poll: "Poll"
 
 _deckPluginManagerColumn:
   create: "Create new plugin"
