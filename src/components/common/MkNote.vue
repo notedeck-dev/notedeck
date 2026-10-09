@@ -132,6 +132,20 @@ const allEmojis = computed(() => ({
   ...effectiveNote.value.emojis,
   ...effectiveNote.value.user.emojis,
 }))
+// テンプレートで spread すると描画のたびに別オブジェクトになり、MkMfm が
+// 毎回再描画される。computed なら元のノートが変わったときだけ作り直す
+const renoterNameEmojis = computed(() => ({
+  ...props.note.emojis,
+  ...props.note.user.emojis,
+}))
+const replyNameEmojis = computed(() => ({
+  ...effectiveNote.value.reply?.emojis,
+  ...effectiveNote.value.reply?.user.emojis,
+}))
+const replyTextEmojis = computed(() => ({
+  ...effectiveNote.value.reply?.emojis,
+  ...effectiveNote.value.reply?.reactionEmojis,
+}))
 
 // cat ユーザーの本文にゃ化 (#763)。interruptor 適用後の isCat で判定するので、
 // プラグインが isCat を折れば原文表示に戻せる (デにゃいざー)。表示専用で、
@@ -967,7 +981,7 @@ function handlePickerReaction(reaction: string) {
         <MkMfm
           v-if="note.user.name"
           :text="note.user.name"
-          :emojis="{ ...note.emojis, ...note.user.emojis }"
+          :emojis="renoterNameEmojis"
           :server-host="note._serverHost"
           plain
         />
@@ -998,7 +1012,7 @@ function handlePickerReaction(reaction: string) {
         <MkMfm
           v-if="effectiveNote.reply!.user.name"
           :text="effectiveNote.reply!.user.name"
-          :emojis="{ ...effectiveNote.reply!.emojis, ...effectiveNote.reply!.user.emojis }"
+          :emojis="replyNameEmojis"
           :server-host="effectiveNote._serverHost"
           plain
         />
@@ -1007,7 +1021,7 @@ function handlePickerReaction(reaction: string) {
       <span :class="$style.replyToText">
         <MkMfm
           :text="effectiveNote.reply!.cw ?? effectiveNote.reply!.text?.slice(0, 100) ?? ''"
-          :emojis="{ ...effectiveNote.reply!.emojis, ...effectiveNote.reply!.reactionEmojis }"
+          :emojis="replyTextEmojis"
           :server-host="effectiveNote._serverHost"
         />
       </span>

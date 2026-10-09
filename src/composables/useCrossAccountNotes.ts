@@ -360,7 +360,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
    */
   const animatingRowKeys = computed<ReadonlySet<string>>(() => {
     const ids = streamingBatch?.animatingIds.value
-    if (!ids || ids.size === 0) return new Set()
+    // 空のたびに new Set を返すと computed が毎回「変わった」扱いになり、
+    // 受け取る NoteScroller の全行が再描画される
+    if (!ids || ids.size === 0) return NO_ROW_KEYS
     const out = new Set<string>()
     for (const g of groups.value) {
       if (g.variants.some((v) => ids.has(variantKeyOf(v)))) out.add(g.rowKey)
@@ -785,4 +787,5 @@ const NO_QUERY_STATE = computed(() => ({
   disabled: [] as string[],
 }))
 const ZERO = ref(0)
+const NO_ROW_KEYS: ReadonlySet<string> = new Set()
 const NO_KEYS = computed<readonly string[]>(() => [])
