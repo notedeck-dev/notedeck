@@ -179,6 +179,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/imageMemory.ts`](src/services/imageMemory.ts) | [`src/services/imageMemory.test.ts`](src/services/imageMemory.test.ts) |
 | [`src/services/localeSetting.ts`](src/services/localeSetting.ts) | [`src/services/localeSetting.test.ts`](src/services/localeSetting.test.ts) |
 | [`src/services/mapEviction.ts`](src/services/mapEviction.ts) | [`src/services/mapEviction.test.ts`](src/services/mapEviction.test.ts) |
+| [`src/services/mediaTime.ts`](src/services/mediaTime.ts) | [`src/services/mediaTime.test.ts`](src/services/mediaTime.test.ts) |
 | [`src/services/mfmParser.ts`](src/services/mfmParser.ts) | — |
 | [`src/services/nativeContextMenu.ts`](src/services/nativeContextMenu.ts) | [`src/services/nativeContextMenu.dom.test.ts`](src/services/nativeContextMenu.dom.test.ts) |
 | [`src/services/noteFrame.ts`](src/services/noteFrame.ts) | [`src/services/noteFrame.test.ts`](src/services/noteFrame.test.ts) |

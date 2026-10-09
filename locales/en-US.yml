@@ -623,6 +623,20 @@ _mkMediaLightbox:
   shareImage: "Share image"
   openInBrowser: "Open in browser"
 
+_mkMediaPlayer:
+  play: "Play"
+  pause: "Pause"
+  mute: "Mute"
+  unmute: "Unmute"
+  volume: "Volume"
+  seek: "Seek"
+  settings: "Playback settings"
+  loop: "Loop"
+  playbackRate: "Playback speed"
+  pip: "Picture-in-picture"
+  fullscreen: "Full screen"
+  exitFullscreen: "Exit full screen"
+
 _mkNote:
   translating: "Translating..."
   translatedFrom: "Translated from {lang}"

@@ -405,6 +405,20 @@ _mkMediaLightbox:
   shareImage: "画像を共有"
   openInBrowser: "ブラウザーで開く"
 
+_mkMediaPlayer:
+  play: "再生"
+  pause: "一時停止"
+  mute: "ミュート"
+  unmute: "ミュート解除"
+  volume: "音量"
+  seek: "再生位置"
+  settings: "再生の設定"
+  loop: "ループ再生"
+  playbackRate: "再生速度"
+  pip: "ピクチャーインピクチャー"
+  fullscreen: "全画面"
+  exitFullscreen: "全画面を終了"
+
 _mkNote:
   translating: "翻訳中..."
   translatedFrom: "{lang} から翻訳"
