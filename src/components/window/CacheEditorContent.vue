@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import FormNumber from '@/components/common/form/FormNumber.vue'
 import { i18n } from '@/i18n'
 import {
   type EvictionPreset,
@@ -263,27 +264,22 @@ onMounted(refreshStats)
       <div :class="$style.fieldRow">
         <label :class="$style.field">
           <span :class="$style.fieldLabel">{{ i18n.ts._cacheEditorContent.maxSize }}</span>
-          <input
-            v-model.number="imageCacheMaxMB"
-            type="number"
-            min="64"
-            max="4096"
-            step="64"
-            :class="$style.numberInput"
+          <FormNumber
+            v-model="imageCacheMaxMB"
+            :min="64"
+            :max="4096"
+            :step="64"
+            unit="MB"
           />
-          <span :class="$style.fieldUnit">MB</span>
         </label>
         <label :class="$style.field">
           <span :class="$style.fieldLabel">{{ i18n.ts._cacheEditorContent.retention }}</span>
-          <input
-            v-model.number="imageCacheTTLDays"
-            type="number"
-            min="1"
-            max="30"
-            step="1"
-            :class="$style.numberInput"
+          <FormNumber
+            v-model="imageCacheTTLDays"
+            :min="1"
+            :max="30"
+            :unit="i18n.ts._cacheEditorContent.days"
           />
-          <span :class="$style.fieldUnit">{{ i18n.ts._cacheEditorContent.days }}</span>
         </label>
       </div>
       <div :class="$style.btnRow">
@@ -525,21 +521,6 @@ onMounted(refreshStats)
 }
 
 .fieldLabel {
-  font-size: 13px;
-  color: var(--fgTransparentWeak, #888);
-}
-
-.numberInput {
-  width: 80px;
-  padding: 4px 8px;
-  border: 1px solid var(--divider, #ddd);
-  border-radius: var(--nd-radius-sm);
-  background: var(--panel, #fff);
-  color: var(--fg, #000);
-  font-size: 13px;
-}
-
-.fieldUnit {
   font-size: 13px;
   color: var(--fgTransparentWeak, #888);
 }

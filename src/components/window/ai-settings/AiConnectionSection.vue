@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import type { HarnessInfo } from '@/bindings'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
+import FormNumber from '@/components/common/form/FormNumber.vue'
 import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
 import {
@@ -210,14 +211,13 @@ function openConnectionsWindow(): void {
       <div :class="$style.fieldHeader">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiConnectionSection.dailyTokenBudget }}</span>
         <div :class="$style.fieldValue">
-          <input
-            v-model.number="activeBudget"
-            type="number"
-            min="0"
-            step="1000"
-            :class="$style.numberInput"
+          <FormNumber
+            v-model="activeBudget"
+            :min="0"
+            :step="1000"
+            :empty-value="0"
+            :unit="i18n.ts._aiConnectionSection.tokensPerDay"
           />
-          <span :class="$style.fieldUnit">{{ i18n.ts._aiConnectionSection.tokensPerDay }}</span>
         </div>
       </div>
       <p :class="$style.fieldHint">{{ i18n.ts._aiConnectionSection.dailyTokenBudgetHint }}</p>
@@ -277,8 +277,6 @@ function openConnectionsWindow(): void {
 .fieldLabel { @include field-label; }
 .fieldValue { @include field-value; }
 .fieldHint { @include field-hint; }
-.numberInput { @include number-input; }
-.fieldUnit { @include field-unit; }
 
 .input {
   width: 100%;

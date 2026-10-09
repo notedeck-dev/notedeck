@@ -8,6 +8,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
+import FormRange from '@/components/common/form/FormRange.vue'
 import { i18n } from '@/i18n'
 import {
   clampPetScale,
@@ -37,14 +38,9 @@ watch(showInput, (open) => {
 // ── 大きさ ──
 const scale = computed(() => clampPetScale(settings.get('pet.scale')))
 const scalePercent = computed(() => Math.round(scale.value * 100))
-const scaleFill = computed(
-  () =>
-    `${((scale.value - PET_SCALE_MIN) / (PET_SCALE_MAX - PET_SCALE_MIN)) * 100}%`,
-)
 
-function onScaleInput(e: Event) {
-  const v = Number((e.target as HTMLInputElement).value) / 100
-  settings.set('pet.scale', clampPetScale(v))
+function onScaleInput(percent: number) {
+  settings.set('pet.scale', clampPetScale(percent / 100))
 }
 
 const previewStyle = computed(() => {
@@ -114,17 +110,14 @@ function openPage() {
 
     <div v-if="pet.info" :class="$style.sliderRow">
       <i class="ti ti-zoom-in" :class="$style.sliderIcon" />
-      <input
-        type="range"
-        :class="$style.slider"
-        :value="scalePercent"
+      <FormRange
+        :model-value="scalePercent"
         :min="PET_SCALE_MIN * 100"
         :max="PET_SCALE_MAX * 100"
-        step="5"
+        :step="5"
         :title="i18n.ts._petSection.size"
         :aria-label="i18n.ts._petSection.size"
-        :style="{ '--fill': scaleFill }"
-        @input="onScaleInput"
+        @update:model-value="onScaleInput"
       />
       <span :class="$style.sliderValue">{{ scalePercent }}%</span>
     </div>
@@ -204,39 +197,6 @@ function openPage() {
   min-width: 3.5em;
   text-align: right;
   font-variant-numeric: tabular-nums;
-}
-
-.slider {
-  flex: 1;
-  height: 4px;
-  appearance: none;
-  /* thumb より左を塗りつぶす (--fill は script 側で算出) */
-  background: linear-gradient(
-    to right,
-    var(--nd-accent) var(--fill, 0%),
-    var(--nd-divider) var(--fill, 0%)
-  );
-  border-radius: var(--nd-radius-xs);
-  outline: none;
-  cursor: pointer;
-
-  &::-webkit-slider-thumb {
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-  }
-
-  &::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border: none;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-  }
 }
 
 .input {

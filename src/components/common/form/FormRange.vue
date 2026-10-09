@@ -97,7 +97,7 @@ function onInput(e: Event) {
   direction: rtl;
   flex: none;
   width: 4px;
-  height: var(--fader-height, 132px);
+  height: 132px;
   background: linear-gradient(
     to top,
     var(--nd-accent) var(--fill, 0%),

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import FormNumber from '@/components/common/form/FormNumber.vue'
 import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import {
   HEARTBEAT_DAILY_MAX_AI_RUNS_MAX,
@@ -113,14 +114,12 @@ function openPermissionsWindow(): void {
       <div :class="$style.fieldHeader">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.tickInterval }}</span>
         <div :class="$style.fieldValue">
-          <input
-            v-model.number="config.heartbeat.intervalMinutes"
-            type="number"
+          <FormNumber
+            v-model="config.heartbeat.intervalMinutes"
             :min="HEARTBEAT_INTERVAL_MIN_MINUTES"
             :max="HEARTBEAT_INTERVAL_MAX_MINUTES"
-            :class="$style.numberInput"
+            :unit="i18n.ts._aiHeartbeatSection.minutes"
           />
-          <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.minutes }}</span>
         </div>
       </div>
     </div>
@@ -153,14 +152,12 @@ function openPermissionsWindow(): void {
         <div :class="$style.fieldHeader">
           <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.maxSkipHours }}</span>
           <div :class="$style.fieldValue">
-            <input
-              v-model.number="config.heartbeat.cheapCheck.maxSkipHours"
-              type="number"
+            <FormNumber
+              v-model="config.heartbeat.cheapCheck.maxSkipHours"
               :min="HEARTBEAT_MAX_SKIP_HOURS_MIN"
               :max="HEARTBEAT_MAX_SKIP_HOURS_MAX"
-              :class="$style.numberInput"
+              :unit="i18n.ts._aiHeartbeatSection.hours"
             />
-            <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.hours }}</span>
           </div>
         </div>
       </div>
@@ -172,14 +169,12 @@ function openPermissionsWindow(): void {
         <div :class="$style.fieldHeader">
           <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.dailyMaxAiRuns }}</span>
           <div :class="$style.fieldValue">
-            <input
-              v-model.number="config.heartbeat.dailyMaxAiRuns"
-              type="number"
+            <FormNumber
+              v-model="config.heartbeat.dailyMaxAiRuns"
               :min="HEARTBEAT_DAILY_MAX_AI_RUNS_MIN"
               :max="HEARTBEAT_DAILY_MAX_AI_RUNS_MAX"
-              :class="$style.numberInput"
+              :unit="i18n.ts._aiHeartbeatSection.runsPerDay"
             />
-            <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.runsPerDay }}</span>
           </div>
         </div>
       </div>
@@ -238,6 +233,4 @@ function openPermissionsWindow(): void {
 .fieldHeader { @include field-header; }
 .fieldLabel { @include field-label; }
 .fieldValue { @include field-value; }
-.numberInput { @include number-input; }
-.fieldUnit { @include field-unit; }
 </style>
