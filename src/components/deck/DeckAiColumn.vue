@@ -1022,7 +1022,7 @@ function onKeydown(e: KeyboardEvent) {
                   :title="i18n.ts._common.rename"
                   @click="onRenameSession($event, session.id)"
                 >
-                  <i class="ti ti-pencil" />
+                  <i class="ti ti-edit" />
                 </button>
                 <button
                   class="_button"

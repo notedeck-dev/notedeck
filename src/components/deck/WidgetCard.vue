@@ -203,7 +203,7 @@ function handlePrimaryClick() {
               :title="i18n.ts._widgetCard.editWidget"
               @click.stop="emit('edit')"
             >
-              <i class="ti ti-pencil" />
+              <i class="ti ti-edit" />
             </button>
             <button
               class="_button"

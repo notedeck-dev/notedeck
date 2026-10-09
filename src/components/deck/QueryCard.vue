@@ -287,7 +287,7 @@ function handlePrimaryClick() {
               :class="$style.primaryBtn"
               @click.stop="emit('edit')"
             >
-              <i class="ti ti-pencil" />
+              <i class="ti ti-edit" />
               {{ i18n.ts._common.edit }}
             </button>
           </template>

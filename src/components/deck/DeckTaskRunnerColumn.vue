@@ -308,7 +308,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
         :title="i18n.ts._deckTaskRunnerColumn.editTasksFile"
         @click.stop="openEditor()"
       >
-        <i class="ti ti-pencil" />
+        <i class="ti ti-edit" />
       </button>
     </template>
 
@@ -357,7 +357,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
           :message="i18n.ts._deckTaskRunnerColumn.empty"
           :image-url="serverInfoImageUrl"
           :cta-label="i18n.ts._deckTaskRunnerColumn.editTasksFile"
-          cta-icon="ti-pencil"
+          cta-icon="ti-edit"
           @cta="openEditor()"
         />
         <ColumnEmptyState

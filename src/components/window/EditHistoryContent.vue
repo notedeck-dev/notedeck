@@ -171,7 +171,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
           :disabled="reverting"
           @click="revert(selected)"
         >
-          <i class="ti ti-arrow-back-up" />
+          <i class="ti ti-restore" />
           <span>{{ i18n.tsx._editHistoryContent.restore({ n: selected }) }}</span>
         </button>
       </div>

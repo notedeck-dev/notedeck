@@ -337,7 +337,7 @@ onBeforeUnmount(() => {
         <i class="ti ti-minus" />
       </button>
       <button class="_button" :class="$style.windowBtn" :title="i18n.ts._deckWindow.maximize" @click="windowsStore.toggleMaximize(window.id)">
-        <i :class="isMaximized ? 'ti ti-picture-in-picture' : 'ti ti-square'" />
+        <i :class="isMaximized ? 'ti ti-squares' : 'ti ti-square'" />
       </button>
       <button class="_button" :class="[$style.windowBtn, $style.windowClose]" :title="i18n.ts._common.close" @click="emit('close')">
         <i class="ti ti-x" />

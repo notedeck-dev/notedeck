@@ -354,7 +354,7 @@ function toggleAutoRun() {
         <div v-else :class="$style.nameRow">
           <span :class="$style.headerName">{{ widget.name }}</span>
           <button class="_button" :class="$style.renameBtn" :title="i18n.ts._common.rename" @click="startRename">
-            <i class="ti ti-pencil" />
+            <i class="ti ti-edit" />
           </button>
         </div>
         <div :class="$style.headerSub">

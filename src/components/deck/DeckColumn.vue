@@ -368,7 +368,7 @@ function openAsPip() {
           <span>{{ pipAlwaysOnTop ? i18n.ts._deckColumn.unpinOnTop : i18n.ts._deckColumn.pinOnTop }}</span>
         </button>
         <button class="_popupItem" @click="returnToDeck">
-          <i class="ti ti-arrow-back-up" />
+          <i class="ti ti-arrow-back" />
           <span>{{ i18n.ts._deckColumn.returnToDeck }}</span>
         </button>
         <div :class="$style.columnMenuDivider" />
@@ -396,7 +396,7 @@ function openAsPip() {
           <span>{{ i18n.ts._deckColumn.openAsPip }}</span>
         </button>
         <button v-if="canRecall" class="_popupItem" @click="recallToMain">
-          <i class="ti ti-arrow-back-up" />
+          <i class="ti ti-arrow-back" />
           <span>{{ i18n.ts._deckColumn.recallToMain }}</span>
         </button>
         <slot name="menu-items" :close-menu="closeMenu" />

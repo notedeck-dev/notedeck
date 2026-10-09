@@ -388,10 +388,10 @@ function close() {
     <div ref="popupRef" :class="[mode === 'pip' ? $style.addPopupInline : $style.addPopup, isSheet && [$style.addSheet, $style.sheetContentEnter]]">
       <div v-if="!(mode === 'pip' && !addColumnType && !selectConfig)" :class="[$style.addPopupHeader, mode === 'pip' && $style.addPopupHeaderPip]">
         <button v-if="addColumnType && !selectConfig" class="_button" :class="$style.addBackBtn" @click="addColumnType = null">
-          <i class="ti ti-chevron-left" />
+          <i class="ti ti-arrow-left" />
         </button>
         <button v-else-if="selectConfig" class="_button" :class="$style.addBackBtn" @click="selectConfig = null; selectItems = []; selectAccountId = null; searchQuery = ''">
-          <i class="ti ti-chevron-left" />
+          <i class="ti ti-arrow-left" />
         </button>
         <span :class="$style.addPopupTitle">
           {{ selectConfig ? i18n.tsx._addColumnDialog.selectItem({ label: selectConfig.label }) : addColumnType ? i18n.ts._addColumnDialog.selectAccount : i18n.ts._commands.addColumn }}

@@ -334,7 +334,7 @@ async function importList() {
         :class="[$style.actionBtn, $style.danger, { [$style.confirming]: confirmingReset }]"
         @click="handleReset"
       >
-        <i class="ti ti-trash" />
+        <i class="ti ti-restore" />
         {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._common.resetToDefault }}
       </button>
     </div>
