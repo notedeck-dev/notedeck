@@ -2912,6 +2912,8 @@ help */
     readonly "saveFailed": ParameterizedString<'error'>
     /** オブジェクト ({}) が必要です */
     readonly "objectRequired": string
+    /** この ID は他のタスクでも使われています。重複している間は保存されません */
+    readonly "duplicateId": string
     /** リセットに失敗しました: {error} */
     readonly "resetFailed": ParameterizedString<'error'>
     /** 新しいタスク */

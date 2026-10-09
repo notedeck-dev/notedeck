@@ -190,7 +190,9 @@ watch(
 )
 
 async function persist() {
-  if (codeError.value) return
+  // ID の重複はコードの検証 (parseTasks) でも弾くが、そちらは別の debounce で
+  // 走るので、見えている重複はここでも直接見る
+  if (codeError.value || duplicateIds.value.size > 0) return
   saving.value = true
   try {
     if (isTauri) await writeTasks(code.value)
@@ -206,6 +208,17 @@ async function persist() {
 }
 
 const taskCount = computed(() => visualTasks.value.length)
+
+// 2 つ以上のタスクが使っている ID。該当する欄の直下にエラーを出す
+const duplicateIds = computed(() => {
+  const seen = new Set<string>()
+  const dup = new Set<string>()
+  for (const t of visualTasks.value) {
+    if (seen.has(t.id)) dup.add(t.id)
+    seen.add(t.id)
+  }
+  return dup
+})
 
 // ── Visual edit helpers ──
 function uniqueId(base: string): string {
@@ -413,10 +426,14 @@ const groupSuggestions = computed<string[]>(() => {
 })
 
 // ── Code tab actions ──
+// 誤りがあってもボタンは押せるままにし、押されたら誤りの文 (エディタの直下) を
+// 出したままエディタへフォーカスを戻す (DEVELOPMENT.md のフォームの方針)
 function applyFromCode() {
   if (syncVisualFromCode()) {
     tab.value = 'visual'
+    return
   }
+  contentRef.value?.querySelector<HTMLElement>('.cm-content')?.focus()
 }
 
 // ── Footer actions ──
@@ -556,12 +573,12 @@ function handleReset() {
             <div :class="$style.taskBody">
               <label :class="$style.field">
                 <span :class="$style.fieldLabel">ID</span>
-                <input
+                <FormInput
                   v-model="t.id"
-                  type="text"
-                  :class="$style.input"
+                  :class="$style.idInput"
                   pattern="[\w-]+"
                   placeholder="my-task"
+                  :error="duplicateIds.has(t.id) ? i18n.ts._tasksEditorContent.duplicateId : ''"
                 />
               </label>
               <label :class="$style.field">
@@ -834,7 +851,6 @@ function handleReset() {
       <button
         class="_button"
         :class="$style.codeApplyBtn"
-        :disabled="!!codeError"
         @click="applyFromCode"
       >
         <i class="ti ti-refresh" />
@@ -1100,6 +1116,10 @@ function handleReset() {
   width: 100%;
   padding: 6px 8px;
 
+}
+
+.idInput input {
+  padding: 6px 8px;
 }
 
 .paramsInput textarea {
