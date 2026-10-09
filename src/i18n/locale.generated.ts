@@ -3256,6 +3256,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "bodyFollowRequestAccepted": string
     /** フォローリクエストが届きました */
     readonly "bodyReceiveFollowRequest": string
+    /** {newer} と {older} の境目 */
+    readonly "dateSeparator": ParameterizedString<'newer' | 'older'>
   }
   readonly "_noteSummary": {
     /** 非公開のノート */

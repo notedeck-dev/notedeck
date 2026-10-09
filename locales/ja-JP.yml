@@ -1792,6 +1792,7 @@ _deckNotificationColumn:
   bodyFollow: "フォローされました"
   bodyFollowRequestAccepted: "フォローリクエストが承認されました"
   bodyReceiveFollowRequest: "フォローリクエストが届きました"
+  dateSeparator: "{newer} と {older} の境目"
 
 _noteSummary:
   hidden: "非公開のノート"

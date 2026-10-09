@@ -50,6 +50,7 @@ import { getStreamHealth } from '@/core/streamHealth'
 import { i18n } from '@/i18n'
 import { createBoundedCache } from '@/services/boundedCache'
 import { mapWithConcurrency, type SettleProgress } from '@/services/concurrency'
+import { dateSeparator } from '@/services/dateSeparator'
 import { parseVariantKey, variantKey } from '@/services/noteKey'
 import { getNoteSummary } from '@/services/noteSummary'
 import { mergeNotifications as mergeNotificationLists } from '@/services/notificationMerge'
@@ -534,6 +535,14 @@ const filteredNotifications = computed(() => {
     return base
   }
   return mergeTutorialNotifications(base, tutorial.progress)
+})
+
+/** 各行の上に出す日付の区切り。前の行 (新しい側) と日付が違うときだけ */
+const dateSeparators = computed(() => {
+  const list = filteredNotifications.value
+  return list.map((n, i) =>
+    i > 0 ? dateSeparator(list[i - 1]?.createdAt, n.createdAt) : null,
+  )
 })
 
 const noteScrollerRef = ref<{
@@ -1413,6 +1422,17 @@ onUnmounted(() => {
       >
         <template #default="{ item: notif, index, nearViewport }">
           <div>
+            <!-- 日付の区切り (本家 MkStreamingNotificationsTimeline と同じ: 上が新しい日、下が古い日) -->
+            <div
+              v-if="dateSeparators[index]"
+              :class="$style.dateSeparator"
+              role="separator"
+              :aria-label="i18n.tsx._deckNotificationColumn.dateSeparator({ newer: dateSeparators[index]!.newerText, older: dateSeparators[index]!.olderText })"
+            >
+              <span><i class="ti ti-chevron-up" /> {{ dateSeparators[index]!.newerText }}</span>
+              <span :class="$style.dateSeparatorBar" />
+              <span>{{ dateSeparators[index]!.olderText }} <i class="ti ti-chevron-down" /></span>
+            </div>
             <ReadMarkerDivider
               v-if="viewMarkerId && hasUnreadAboveMarker && notificationKey(notif) === viewMarkerId"
             />
@@ -1900,6 +1920,23 @@ onUnmounted(() => {
 .notifGroupedMore {
   font-size: var(--nd-font-md);
   opacity: 0.6;
+}
+
+/* 日付の区切り (本家 MkStreamingNotificationsTimeline と同じ形) */
+.dateSeparator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1em;
+  padding: 8px;
+  font-size: var(--nd-font-md);
+  border-bottom: 0.5px solid var(--nd-divider);
+}
+
+.dateSeparatorBar {
+  width: 1px;
+  height: 1em;
+  background: var(--nd-divider);
 }
 
 .notifUserName {

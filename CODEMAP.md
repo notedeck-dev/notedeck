@@ -148,6 +148,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/columnUri.ts`](src/services/columnUri.ts) | — |
 | [`src/services/concurrency.ts`](src/services/concurrency.ts) | [`src/services/concurrency.test.ts`](src/services/concurrency.test.ts) |
 | [`src/services/cssPresets.ts`](src/services/cssPresets.ts) | [`src/services/cssPresets.test.ts`](src/services/cssPresets.test.ts) |
+| [`src/services/dateSeparator.ts`](src/services/dateSeparator.ts) | [`src/services/dateSeparator.test.ts`](src/services/dateSeparator.test.ts) |
 | [`src/services/deckLayout.ts`](src/services/deckLayout.ts) | [`src/services/deckLayout.test.ts`](src/services/deckLayout.test.ts) |
 | [`src/services/deckProfileCodec.ts`](src/services/deckProfileCodec.ts) | [`src/services/deckProfileCodec.test.ts`](src/services/deckProfileCodec.test.ts) |
 | [`src/services/deckProfileFiles.ts`](src/services/deckProfileFiles.ts) | — |

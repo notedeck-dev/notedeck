@@ -2042,6 +2042,7 @@ _deckNotificationColumn:
   bodyFollow: "Followed you"
   bodyFollowRequestAccepted: "Your follow request was accepted"
   bodyReceiveFollowRequest: "Requested to follow you"
+  dateSeparator: "Between {newer} and {older}"
 
 _noteSummary:
   hidden: "Private note"
