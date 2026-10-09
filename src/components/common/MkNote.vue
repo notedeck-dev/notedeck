@@ -82,6 +82,10 @@ import MkEmoji from './MkEmoji.vue'
 import MkMediaGrid from './MkMediaGrid.vue'
 import MkMfm from './MkMfm.vue'
 import MkPoll from './MkPoll.vue'
+// URL プレビューは静的に読む。非同期にすると、セッションで最初にプレビューを
+// 出すノートでチャンク待ちの間は何も出ず、届いてからスケルトン → カードと
+// 2 段で伸びる。MkNote のチャンクに比べて十分小さいので、待ちを無くすほうを取る
+import MkUrlPreview from './MkUrlPreview.vue'
 import NoteMoreMenu from './NoteMoreMenu.vue'
 import NoteReactionPickerPopup from './NoteReactionPickerPopup.vue'
 import NoteReactionUsersPopup from './NoteReactionUsersPopup.vue'
@@ -89,7 +93,6 @@ import NoteVariantsPopup from './NoteVariantsPopup.vue'
 import RenoteMoreMenu from './RenoteMoreMenu.vue'
 
 const MkUserPopup = defineAsyncComponent(() => import('./MkUserPopup.vue'))
-const MkUrlPreview = defineAsyncComponent(() => import('./MkUrlPreview.vue'))
 const MkPostForm = defineAsyncComponent(() => import('./MkPostForm.vue'))
 const NoteReactionUsersModal = defineAsyncComponent(
   () => import('./NoteReactionUsersModal.vue'),
@@ -131,6 +134,20 @@ const effectiveNote = computed(() =>
 const allEmojis = computed(() => ({
   ...effectiveNote.value.emojis,
   ...effectiveNote.value.user.emojis,
+}))
+// テンプレートで spread すると描画のたびに別オブジェクトになり、MkMfm が
+// 毎回再描画される。computed なら元のノートが変わったときだけ作り直す
+const renoterNameEmojis = computed(() => ({
+  ...props.note.emojis,
+  ...props.note.user.emojis,
+}))
+const replyNameEmojis = computed(() => ({
+  ...effectiveNote.value.reply?.emojis,
+  ...effectiveNote.value.reply?.user.emojis,
+}))
+const replyTextEmojis = computed(() => ({
+  ...effectiveNote.value.reply?.emojis,
+  ...effectiveNote.value.reply?.reactionEmojis,
 }))
 
 // cat ユーザーの本文にゃ化 (#763)。interruptor 適用後の isCat で判定するので、
@@ -931,6 +948,7 @@ function handlePickerReaction(reaction: string) {
         [$style.focused]: focused,
         [$style.hasChannel]: showChannelInfo,
         [$style.spotlighted]: isSpotlighted,
+        [$style.offscreen]: nearViewport === false,
       },
     ]"
     :style="channelInfo && showChannelInfo ? { '--nd-channel-color': channelInfo.color } : undefined"
@@ -967,7 +985,7 @@ function handlePickerReaction(reaction: string) {
         <MkMfm
           v-if="note.user.name"
           :text="note.user.name"
-          :emojis="{ ...note.emojis, ...note.user.emojis }"
+          :emojis="renoterNameEmojis"
           :server-host="note._serverHost"
           plain
         />
@@ -998,7 +1016,7 @@ function handlePickerReaction(reaction: string) {
         <MkMfm
           v-if="effectiveNote.reply!.user.name"
           :text="effectiveNote.reply!.user.name"
-          :emojis="{ ...effectiveNote.reply!.emojis, ...effectiveNote.reply!.user.emojis }"
+          :emojis="replyNameEmojis"
           :server-host="effectiveNote._serverHost"
           plain
         />
@@ -1007,7 +1025,7 @@ function handlePickerReaction(reaction: string) {
       <span :class="$style.replyToText">
         <MkMfm
           :text="effectiveNote.reply!.cw ?? effectiveNote.reply!.text?.slice(0, 100) ?? ''"
-          :emojis="{ ...effectiveNote.reply!.emojis, ...effectiveNote.reply!.reactionEmojis }"
+          :emojis="replyTextEmojis"
           :server-host="effectiveNote._serverHost"
         />
       </span>
@@ -2016,8 +2034,12 @@ function handlePickerReaction(reaction: string) {
     object-fit: contain;
   }
 
+  /* 1 → 2 のように桁数が同じでも比例幅の数字だとボタン幅が変わり、行末の
+     ボタンが折り返して行ごと伸びることがある。等幅の数字にして揺れを桁上がり
+     だけに抑える (min-width で桁を先取りすると 1 桁の大多数で余白が空く) */
   .count {
     font-size: var(--nd-font-2xs);
+    font-variant-numeric: tabular-nums;
     line-height: 42px;
     margin: 0 0 0 4px;
   }
@@ -2131,6 +2153,7 @@ function handlePickerReaction(reaction: string) {
 
 .buttonCount {
   font-size: var(--nd-font-md);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Renote popup menu */
@@ -2195,6 +2218,13 @@ function handlePickerReaction(reaction: string) {
 /* Divider between notes */
 .noteRoot + .noteRoot {
   border-top: 0.5px solid var(--nd-divider);
+}
+
+/* 仮想スクローラの overscan に居る (見えていない) 行は MFM の無限アニメを
+   止める。MkMfm へ prop で渡すと本文ごと再描画されるので、継承する CSS 変数で
+   伝える。nearViewport を渡さない面 (undefined) は動かしたまま */
+.offscreen {
+  --nd-mfm-play-state: paused;
 }
 
 /* AI Spotlight: note 本体を glow で囲む (内容を阻害しないよう枠 only)。

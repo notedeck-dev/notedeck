@@ -6,7 +6,7 @@ import {
   ref,
   useTemplateRef,
 } from 'vue'
-import type { TimelineFilter } from '@/adapters/types'
+import type { NormalizedNote, TimelineFilter } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
@@ -179,6 +179,13 @@ const effectiveEmptyMessage = computed(() => {
   return props.emptyMessage ?? i18n.ts._deckNoteColumn.noNotesYet
 })
 
+// テンプレートに直書きすると描画のたびに別の関数になり、NoteScroller の
+// prop が変わったとみなされて再描画される
+function prefetchNotes(items: NormalizedNote[]) {
+  prefetchNoteImages(items)
+  prefetchNoteMfm(items)
+}
+
 defineExpose({
   account,
   scroller,
@@ -301,7 +308,7 @@ defineExpose({
           :focused-id="focusedNoteId"
           :animating-ids="animatingIds"
           :leaving-ids="removingKeys"
-          :prefetch="(notes) => { prefetchNoteImages(notes); prefetchNoteMfm(notes) }"
+          :prefetch="prefetchNotes"
           :class="[$style.tlScroller, 'nd-fade-appear']"
           @scroll="handleScroll"
           @near-end="loadMore"
