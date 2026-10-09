@@ -711,7 +711,7 @@ async function handlePosted(editedNoteId?: string) {
 .ancestors {
   opacity: 0.85;
 
-  :deep(.note-root + .note-root) {
+  :global(.note-root + .note-root) {
     border-top: none;
   }
 }

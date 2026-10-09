@@ -583,7 +583,7 @@ onMounted(() => {
   color: var(--nd-fg);
   word-break: break-word;
 
-  :deep(a) {
+  :global(a) {
     color: var(--nd-accent);
     text-decoration: none;
 
@@ -592,30 +592,30 @@ onMounted(() => {
     }
   }
 
-  :deep(img) {
+  :global(img) {
     max-width: 100%;
     border-radius: var(--nd-radius-md);
   }
 
-  :deep(h1),
-  :deep(h2),
-  :deep(h3) {
+  :global(h1),
+  :global(h2),
+  :global(h3) {
     color: var(--nd-fgHighlighted);
     margin: 0.8em 0 0.4em;
     font-size: var(--nd-font-lg);
   }
 
-  :deep(p) {
+  :global(p) {
     margin: 0.5em 0;
   }
 
-  :deep(ul),
-  :deep(ol) {
+  :global(ul),
+  :global(ol) {
     padding-left: 1.5em;
     margin: 0.5em 0;
   }
 
-  :deep(blockquote) {
+  :global(blockquote) {
     border-left: 3px solid var(--nd-accent);
     padding-left: 12px;
     margin: 0.5em 0;

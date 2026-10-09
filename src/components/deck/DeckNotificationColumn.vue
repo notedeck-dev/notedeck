@@ -1416,6 +1416,7 @@ onUnmounted(() => {
                       :near-viewport="nearViewport"
                       :note="notif.note"
                       embedded
+                      compact
                       @react="handlers.reaction"
                       @reply="handlers.reply"
                       @renote="handlers.renote"
@@ -1545,6 +1546,7 @@ onUnmounted(() => {
                       :near-viewport="nearViewport"
                       :note="notif.note"
                       embedded
+                      compact
                       @react="handlers.reaction"
                       @reply="handlers.reply"
                       @renote="handlers.renote"
@@ -1835,7 +1837,7 @@ onUnmounted(() => {
   vertical-align: middle;
   object-fit: contain;
 
-  :deep(.twemoji) {
+  :global(.twemoji) {
     height: 1.8em;
   }
 }
@@ -1866,18 +1868,6 @@ onUnmounted(() => {
 /* Attached note in notification — compact style */
 .notifNoteWrap {
   margin-top: 4px;
-
-  :deep(.note-root) {
-    font-size: var(--nd-font-body);
-  }
-
-  :deep(.article) {
-    padding: 8px 12px 12px;
-  }
-
-  :deep(.avatar) {
-    display: none;
-  }
 }
 
 .followRequestActions {

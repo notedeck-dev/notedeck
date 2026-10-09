@@ -104,6 +104,12 @@ const props = defineProps<{
   focused?: boolean
   pinnedNoteIds?: string[]
   embedded?: boolean
+  /**
+   * 詰めた表示 (通知カラムに添える引用など): アバターを出さず、余白と文字を
+   * 小さくする。外から :deep で子のクラスを狙っても CSS Modules では当たらない
+   * ので、表示の切り替えは prop で受ける
+   */
+  compact?: boolean
   /** Hint from virtual scroller: this note is near the viewport, use eager image loading */
   nearViewport?: boolean
   /** チャンネルカラム内など、チャンネル情報を重複表示したくない時に true */
@@ -945,6 +951,7 @@ function handlePickerReaction(reaction: string) {
       $style.noteRoot,
       {
         [$style.detailed]: detailed,
+        [$style.compact]: compact,
         [$style.focused]: focused,
         [$style.hasChannel]: showChannelInfo,
         [$style.spotlighted]: isSpotlighted,
@@ -1629,7 +1636,7 @@ function handlePickerReaction(reaction: string) {
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  :deep(.custom-emoji) {
+  :global(.custom-emoji) {
     height: 1em;
     width: auto;
   }
@@ -1681,7 +1688,7 @@ function handlePickerReaction(reaction: string) {
     text-decoration: underline;
   }
 
-  :deep(.custom-emoji) {
+  :global(.custom-emoji) {
     height: 1.2em;
     width: auto;
   }
@@ -1721,6 +1728,18 @@ function handlePickerReaction(reaction: string) {
   padding: 28px 32px;
 }
 
+.compact {
+  font-size: var(--nd-font-body);
+
+  .article {
+    padding: 8px 12px 12px;
+  }
+
+  .avatar {
+    display: none;
+  }
+}
+
 .avatar {
   margin: 0 14px 0 0;
   cursor: pointer;
@@ -1753,11 +1772,11 @@ function handlePickerReaction(reaction: string) {
   overflow: hidden;
   color: var(--nd-fgHighlighted);
 
-  :deep(.mfm) {
+  :global(.mfm) {
     white-space: nowrap;
   }
 
-  :deep(.custom-emoji) {
+  :global(.custom-emoji) {
     height: 1.2em;
     width: auto;
   }
@@ -2074,7 +2093,7 @@ function handlePickerReaction(reaction: string) {
   white-space: nowrap;
 }
 
-.reactionEmoji :deep(.twemoji) {
+.reactionEmoji :global(.twemoji) {
   height: 1.25em;
 }
 

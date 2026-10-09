@@ -1417,11 +1417,11 @@ onBeforeUnmount(() => {
     background: var(--nd-panelHighlight);
   }
 
-  :deep(.mk-avatar) {
+  :global(.mk-avatar) {
     flex-shrink: 0;
   }
 
-  :deep(.mk-avatar:hover) {
+  :global(.mk-avatar:hover) {
     transform: none;
   }
 }
