@@ -733,6 +733,32 @@ export interface Locale {
     /** ブラウザーで開く */
     readonly "openInBrowser": string
   }
+  readonly "_mkMediaPlayer": {
+    /** 再生 */
+    readonly "play": string
+    /** 一時停止 */
+    readonly "pause": string
+    /** ミュート */
+    readonly "mute": string
+    /** ミュート解除 */
+    readonly "unmute": string
+    /** 音量 */
+    readonly "volume": string
+    /** 再生位置 */
+    readonly "seek": string
+    /** 再生の設定 */
+    readonly "settings": string
+    /** ループ再生 */
+    readonly "loop": string
+    /** 再生速度 */
+    readonly "playbackRate": string
+    /** ピクチャーインピクチャー */
+    readonly "pip": string
+    /** 全画面 */
+    readonly "fullscreen": string
+    /** 全画面を終了 */
+    readonly "exitFullscreen": string
+  }
   readonly "_mkNote": {
     /** 翻訳中... */
     readonly "translating": string
