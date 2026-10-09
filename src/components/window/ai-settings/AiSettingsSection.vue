@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     icon: string
     title: string
@@ -10,19 +10,34 @@ withDefaults(
     badge?: string
     badgeIcon?: string
     badgeOk?: boolean
+    /** 値が変わるたびに開いて見える位置に出す (外から開かせる合図, #1165) */
+    reveal?: number
   }>(),
   {
     badge: undefined,
     badgeIcon: 'ti-info-circle',
     badgeOk: false,
+    reveal: undefined,
   },
 )
 
 const expanded = ref(false)
+const root = useTemplateRef<HTMLElement>('root')
+
+watch(
+  () => props.reveal,
+  async (v) => {
+    if (v == null) return
+    expanded.value = true
+    await nextTick()
+    root.value?.scrollIntoView({ block: 'start' })
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
-  <div :class="$style.section">
+  <div ref="root" :class="$style.section">
     <button
       class="_button"
       :class="$style.sectionLabel"

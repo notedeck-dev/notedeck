@@ -1063,7 +1063,7 @@ _aiHeartbeatSection:
   tickInterval: "Tick interval"
   minutes: "min"
   desktopNotification: "Desktop notifications"
-  desktopNotificationDescription: "Shows important findings (anything other than HEARTBEAT_OK) as OS notifications. Suppressed while the app has focus"
+  desktopNotificationDescription: "While the app is open, also shows reports the AI wants you to see as OS notifications (not while the app has focus). Reports reach app notifications regardless of this setting"
   cheapCheck: "Quick check first"
   cheapCheckDescription: "If nothing changed, treat it as HEARTBEAT_OK without starting the AI (the skill must declare cheapCheckCapabilities)"
   maxSkipHours: "Max consecutive skip time"
@@ -1075,7 +1075,7 @@ _aiHeartbeatSection:
   permissions: "Permissions during HEARTBEAT"
   changeInPermissions: "Change in permission settings"
   keepRunning: "Keep running after the app exits"
-  keepRunningDescription: "Runs the AI as a login task of your OS, so the rounds continue after you quit the app. Reports arrive the next time you open the app. No restart needed."
+  keepRunningDescription: "Runs the AI as a login task of your OS so the rounds don't stop when you quit the app. Reports that arrive while it's closed show up in app notifications the next time you open the app. No restart needed."
   keepRunningSwitching: "Switching..."
   keepRunningUnavailable: "Cannot run as a login task here: {reason}"
   runtimeEmbedded: "The AI is running inside the app"
@@ -2946,6 +2946,19 @@ _useLoginPrompt:
   reloginToContinue: "Log in again to continue"
   sessionExpired: "Your login has expired"
   sessionExpiredUseMenu: "Your login has expired. Log in again from the account menu."
+
+_useHeartbeatDaemon:
+  pending_plural:
+    one: "{count} action is waiting for your confirmation"
+    other: "{count} actions are waiting for your confirmation"
+  awayReports_plural:
+    one: "{count} report while the app was closed"
+    other: "{count} reports while the app was closed"
+  awayReportsAndPending: "Reports while the app was closed: {count} · Actions waiting for confirmation: {pending}"
+  awayPending_plural:
+    one: "{count} action started waiting for your confirmation while the app was closed"
+    other: "{count} actions started waiting for your confirmation while the app was closed"
+  sessionMissing: "The session for this report has been deleted"
 
 _useMfmInsert:
   flipHorizontal: "Flip (horizontal)"

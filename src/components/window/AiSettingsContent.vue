@@ -50,6 +50,9 @@ const json5Linter = linter(
 
 const props = defineProps<{
   initialTab?: string
+  /** 開いて見せる節 (アプリの通知から, #1165)。同じ節を開き直すときは `revealAt` を変える */
+  section?: 'heartbeat'
+  revealAt?: number
 }>()
 
 // AI そのものは一般側の面だが、ai.json5 / SOUL.md を直接編集するタブは他の設定窓の
@@ -256,7 +259,9 @@ function handleReset() {
       <AiConnectionSection />
       <AiPersonalitySection />
       <AiDataSourcesSection />
-      <AiHeartbeatSection />
+      <AiHeartbeatSection
+        :reveal="section === 'heartbeat' ? revealAt : undefined"
+      />
       <AiGenerationSection />
     </div>
 

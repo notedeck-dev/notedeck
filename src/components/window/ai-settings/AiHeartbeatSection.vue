@@ -20,6 +20,11 @@ import { useWindowsStore } from '@/stores/windows'
 import AiHeartbeatResidentRow from './AiHeartbeatResidentRow.vue'
 import AiSettingsSection from './AiSettingsSection.vue'
 
+defineProps<{
+  /** 値が変わるたびにこの節を開く (アプリの通知から, #1165) */
+  reveal?: number
+}>()
+
 const { config } = useAiConfig()
 const windowsStore = useWindowsStore()
 const skillsStore = useSkillsStore()
@@ -72,6 +77,7 @@ function openPermissionsWindow(): void {
   <AiSettingsSection
     icon="ti-activity-heartbeat"
     title="HEARTBEAT"
+    :reveal="reveal"
     :badge="config.heartbeat.enabled ? i18n.tsx._aiHeartbeatSection.enabledWithInterval({ minutes: config.heartbeat.intervalMinutes }) : i18n.ts._common.disabled"
   >
     <!-- Basic: 有効化 (TL フィルターと同じトグル) + interval + notice -->
