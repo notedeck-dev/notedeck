@@ -387,7 +387,14 @@ function toggleLongText() {
 
 // ワードミュート soft（#610）: mutedWords にマッチしたら本文を折りたたみ、展開可能にする
 const visibility = useNoteVisibility()
-const wordMuteRevealed = ref(false)
+// 「表示する」で開いたものは CW と同じく作り直しでも保つ
+const wordMuteRevealed = ref(
+  expandedNoteContent.has(`muted:${effectiveNote.value.id}`),
+)
+function revealWordMuted() {
+  wordMuteRevealed.value = true
+  expandedNoteContent.set(`muted:${effectiveNote.value.id}`, true)
+}
 const softMuteCollapsed = computed(
   () =>
     visibility.isSoftWordMuted(effectiveNote.value) && !wordMuteRevealed.value,
@@ -1099,7 +1106,7 @@ function handlePickerReaction(reaction: string) {
         <!-- Word mute (soft, #610) -->
         <div v-if="softMuteCollapsed" :class="$style.cw">
           <p :class="$style.cwText">{{ i18n.tsx._mkNote.saidSomething({ name: effectiveNote.user.name || effectiveNote.user.username }) }}</p>
-          <button :class="$style.cwToggle" class="_button" @click.stop="wordMuteRevealed = true">
+          <button :class="$style.cwToggle" class="_button" @click.stop="revealWordMuted()">
             {{ i18n.ts._mkNote.showMore }}
           </button>
         </div>
