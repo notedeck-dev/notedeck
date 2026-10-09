@@ -3556,7 +3556,19 @@ body?: string | null;
 /**
  * App notification icon URL (for app type; notifications/create の icon)
  */
-icon?: string | null }
+icon?: string | null; 
+/**
+ * Exported entity (for exportCompleted type; antenna / note / following 等)
+ */
+exportedEntity?: string | null; 
+/**
+ * Drive file id of the export result (for exportCompleted type)
+ */
+fileId?: string | null; 
+/**
+ * Chat room invitation (for chatRoomInvitationReceived type)
+ */
+invitation?: NotificationChatRoomInvitation | null }
 export type NormalizedPoll = { choices: NormalizedPollChoice[]; multiple?: boolean; expiresAt: string | null }
 export type NormalizedPollChoice = { text: string; votes?: number; isVoted?: boolean }
 export type NormalizedUser = { id: string; username: string; host: string | null; name: string | null; avatarUrl: string | null; isBot?: boolean; isCat?: boolean; avatarDecorations?: AvatarDecoration[]; emojis?: Partial<{ [key in string]: string }>; instance?: UserInstance | null }
@@ -3651,6 +3663,10 @@ heartbeat: JsonValue;
  * notemaid のログの置き場 (データディレクトリの logs/)
  */
 logDir: string | null }
+/**
+ * 通知に載るルームへの招待。招待した人は通知の `user` で届くので持たない
+ */
+export type NotificationChatRoomInvitation = { id: string; room: ChatRoom }
 /**
  * OS 通知クリック時にフロントへ渡す遷移コンテキスト。
  * noteId があればノート詳細、なければ userId でユーザー詳細を開く。
