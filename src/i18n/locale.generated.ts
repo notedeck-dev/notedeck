@@ -684,6 +684,10 @@ export interface Locale {
     readonly "menuFor": ParameterizedString<'name'>
   }
   readonly "_mkMediaGrid": {
+    /** アニメーションを再生 */
+    readonly "playAnimation": string
+    /** アニメーションを止める */
+    readonly "pauseAnimation": string
     /** 動画をタップで読み込み */
     readonly "tapToLoadVideo": string
     /** 画像をタップで読み込み */

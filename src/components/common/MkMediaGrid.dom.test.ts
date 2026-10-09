@@ -22,12 +22,18 @@ vi.mock('./MkMediaLightbox.vue', () => ({
 }))
 
 // 従量制回線の遅延読み込み (#935) は store 経由。pinia を立てずに直接差し込む
-const systemState = vi.hoisted(() => ({ deferMedia: false }))
+const systemState = vi.hoisted(() => ({
+  deferMedia: false,
+  staticEmoji: false,
+}))
 vi.mock('@/stores/systemState', () => ({
   useSystemStateStore: () => ({
     adaptation: {
       get deferMedia() {
         return systemState.deferMedia
+      },
+      get staticEmoji() {
+        return systemState.staticEmoji
       },
     },
   }),
@@ -74,6 +80,7 @@ afterEach(() => {
   app = null
   container = null
   systemState.deferMedia = false
+  systemState.staticEmoji = false
 })
 
 describe('従量制回線ではタップするまで読まない (#935)', () => {
@@ -130,5 +137,48 @@ describe('MkMediaGrid ライトボックス抽出後の回帰 (#792)', () => {
     container?.remove()
     mountGrid([makeImage('reopened', true)])
     expect(container?.querySelector('._sensitiveOverlay')).toBeNull()
+  })
+})
+
+describe('アニメーション画像の再生制御 (#704)', () => {
+  function makeGif(id: string): NormalizedDriveFile {
+    return {
+      ...makeImage(id),
+      name: `${id}.gif`,
+      type: 'image/gif',
+      url: `https://example.test/${id}.gif`,
+    }
+  }
+  function gifImg(): HTMLImageElement | null | undefined {
+    return container?.querySelector('img[alt$=".gif"]')
+  }
+  function toggle(): HTMLButtonElement | null | undefined {
+    return container?.querySelector('button[aria-pressed]')
+  }
+
+  it('既定では再生し、ボタンで 1 フレーム目に止め、もう一度で再開する', async () => {
+    mountGrid([makeGif('anim')])
+    expect(gifImg()?.getAttribute('src')).not.toContain('static=1')
+    toggle()?.click()
+    await vi.waitFor(() =>
+      expect(gifImg()?.getAttribute('src')).toContain('static=1'),
+    )
+    expect(lightboxProps).toHaveLength(0)
+    toggle()?.click()
+    await vi.waitFor(() =>
+      expect(gifImg()?.getAttribute('src')).not.toContain('static=1'),
+    )
+  })
+
+  it('省電力中は止めた状態で出す', () => {
+    systemState.staticEmoji = true
+    mountGrid([makeGif('saving')])
+    expect(gifImg()?.getAttribute('src')).toContain('static=1')
+    expect(toggle()?.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('静止画にはボタンを出さない', () => {
+    mountGrid([makeImage('still')])
+    expect(toggle()).toBeNull()
   })
 })

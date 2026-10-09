@@ -90,6 +90,17 @@ export function proxyUrl(url: string | null | undefined): string | undefined {
 }
 
 /**
+ * アニメーション (GIF / APNG) を 1 フレーム目で止めた URL (#704)。
+ * 本家の「アニメーション画像を再生しない」は media-proxy の `static=1` を使う。
+ * 同じ指示を手元のプロキシに出す。https 以外はプロキシに載らないので素通し
+ */
+export function proxyStaticUrl(
+  url: string | null | undefined,
+): string | undefined {
+  return buildProxyUrl(url, 'static=1')
+}
+
+/**
  * 表示サイズが元画像よりずっと小さい面 (アバター・アイコン) 用のリサイズ付き URL。
  *
  * `format` は付けない。リサイズが必要な画像はプロキシ側が WebP で返すし、

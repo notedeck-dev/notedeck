@@ -1699,6 +1699,8 @@
   "_mkFollowButton.pending": "8d3bea36082d",
   "_mkFollowButton.unfollow": "f58d718e2364",
   "_mkFollowButton.unfollowOk": "9b72eca01490",
+  "_mkMediaGrid.pauseAnimation": "4308700118ed",
+  "_mkMediaGrid.playAnimation": "ab10ed5c15eb",
   "_mkMediaGrid.tapToLoadImage": "f78a1dd8c096",
   "_mkMediaGrid.tapToLoadVideo": "1bb2771ec499",
   "_mkMediaLightbox.copyImage": "ec952d190357",

@@ -596,6 +596,8 @@ _mkFolderGrid:
   menuFor: "Menu for “{name}”"
 
 _mkMediaGrid:
+  playAnimation: "Play animation"
+  pauseAnimation: "Pause animation"
   tapToLoadVideo: "Tap to load video"
   tapToLoadImage: "Tap to load image"
 

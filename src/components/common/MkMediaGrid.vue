@@ -5,7 +5,8 @@ import { i18n } from '@/i18n'
 import { isSafeUrl } from '@/services/safeUrl'
 import { useSystemStateStore } from '@/stores/systemState'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { proxyStaticUrl, proxyUrl } from '@/utils/mediaProxy'
+import { prefersReducedMotion } from '@/utils/motion'
 import { loadedMediaUrls, revealedMediaFiles } from '@/utils/renderedMemo'
 import { openSafeUrl } from '@/utils/url'
 import MkMediaLightbox from './MkMediaLightbox.vue'
@@ -68,6 +69,23 @@ function isAnimatedImage(file: NormalizedDriveFile): boolean {
   return file.type === 'image/gif' || file.type === 'image/apng'
 }
 
+// アニメーション画像の再生 / 停止 (#704)。既定は再生で、動きを減らす設定や
+// 省電力中は止めて出す (絵文字アニメと同じ判断)。利用者が切り替えたものだけ覚える
+const animationOverrides = shallowRef(new Map<string, boolean>())
+
+function isAnimationPlaying(file: NormalizedDriveFile): boolean {
+  return (
+    animationOverrides.value.get(file.id) ??
+    !(systemStateStore.adaptation.staticEmoji || prefersReducedMotion())
+  )
+}
+
+function toggleAnimation(file: NormalizedDriveFile) {
+  const next = new Map(animationOverrides.value)
+  next.set(file.id, !isAnimationPlaying(file))
+  animationOverrides.value = next
+}
+
 function isPreviewable(file: NormalizedDriveFile): boolean {
   return isImage(file) || isVideo(file)
 }
@@ -96,6 +114,10 @@ const singleMediaStyle = computed(() => {
 // 読み込み済みはモジュール単位でも覚える。仮想スクロールで行が作り直される
 // たびに透明からフェードし直すと、戻ってきた画像が毎回ちらつく
 function imageSrc(file: NormalizedDriveFile): string | undefined {
+  if (isAnimatedImage(file) && !isAnimationPlaying(file)) {
+    const src = safeMediaSrc(file.thumbnailUrl) || safeMediaSrc(file.url)
+    return proxyStaticUrl(src) ?? src
+  }
   return proxiedImageSrc(file.thumbnailUrl) || proxiedImageSrc(file.url)
 }
 
@@ -266,6 +288,20 @@ function closeLightbox() {
           </svg>
         </span>
       </div>
+
+      <!-- アニメーション画像の再生 / 停止 (#704) -->
+      <button
+        v-if="isAnimatedImage(file) && !isDeferred(file) && (!file.isSensitive || revealedIds.has(file.id))"
+        type="button"
+        class="_button"
+        :class="$style.animationToggle"
+        :aria-pressed="isAnimationPlaying(file)"
+        :title="isAnimationPlaying(file) ? i18n.ts._mkMediaGrid.pauseAnimation : i18n.ts._mkMediaGrid.playAnimation"
+        :aria-label="isAnimationPlaying(file) ? i18n.ts._mkMediaGrid.pauseAnimation : i18n.ts._mkMediaGrid.playAnimation"
+        @click.stop="toggleAnimation(file)"
+      >
+        <i :class="isAnimationPlaying(file) ? 'ti ti-player-pause' : 'ti ti-player-play'" />
+      </button>
 
       <!-- Revealed: show hide button -->
       <button
@@ -546,6 +582,26 @@ function closeLightbox() {
   background: var(--nd-modalBg);
   color: #fff;
   cursor: pointer;
+  z-index: 2;
+  transition: background var(--nd-duration-base);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.7);
+  }
+}
+
+.animationToggle {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--nd-radius-full);
+  background: var(--nd-modalBg);
+  color: #fff;
+  font-size: var(--nd-font-md);
   z-index: 2;
   transition: background var(--nd-duration-base);
 

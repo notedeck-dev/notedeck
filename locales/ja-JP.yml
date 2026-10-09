@@ -378,6 +378,8 @@ _mkFolderGrid:
   menuFor: "「{name}」のメニュー"
 
 _mkMediaGrid:
+  playAnimation: "アニメーションを再生"
+  pauseAnimation: "アニメーションを止める"
   tapToLoadVideo: "動画をタップで読み込み"
   tapToLoadImage: "画像をタップで読み込み"
 
