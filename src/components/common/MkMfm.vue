@@ -7,10 +7,10 @@ import { i18n } from '@/i18n'
 import { nyaizeTokens } from '@/services/nyaize'
 import { isMemoUrl, isSafeUrl } from '@/services/safeUrl'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
-import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { type MfmToken, parseMfm } from '@/utils/mfm'
 import { openSafeUrl } from '@/utils/url'
+import MkCodeBlock from './MkCodeBlock.vue'
 import MkEmoji from './MkEmoji.vue'
 
 const props = defineProps<{
@@ -441,7 +441,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
     --><!-- Bold --><b v-else-if="token.type === 'bold'"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></b><!--
     --><!-- Italic --><i v-else-if="token.type === 'italic'"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></i><!--
     --><!-- Strike --><s v-else-if="token.type === 'strike'"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></s><!--
-    --><!-- Code Block --><div v-else-if="token.type === 'codeBlock'" :key="`cb-${i}-${highlightRevision}`" :class="$style.mfmCodeBlock" v-html="highlightCode(token.value, token.lang)"></div><!--
+    --><!-- Code Block --><MkCodeBlock v-else-if="token.type === 'codeBlock'" :code="token.value" :lang="token.lang" /><!--
     --><!-- Inline Code --><code v-else-if="token.type === 'inlineCode'" :class="$style.mfmCode">{{ token.value }}</code><!--
     --><!-- Custom Emoji (muted #612) --><span v-else-if="token.type === 'customEmoji' && isEmojiMuted(token.shortcode)" class="custom-emoji _emojiMuted" :class="plain ? $style.customEmojiPlain : $style.customEmoji" role="img" :aria-label="`:${token.shortcode}:`" :title="i18n.tsx._common.mutedEmoji({ emoji: `:${token.shortcode}:` })"></span><!--
     --><!-- Custom Emoji (resolved) --><img v-else-if="token.type === 'customEmoji' && emojiUrls[token.shortcode]" :src="proxyEmojiUrl(emojiUrls[token.shortcode]!)" :alt="`:${token.shortcode}:`" class="custom-emoji" :class="plain ? $style.customEmojiPlain : $style.customEmoji" decoding="async" loading="lazy" @error="onCustomEmojiImgError" /><!--
@@ -522,30 +522,6 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   border-radius: var(--nd-radius-xs);
   background: var(--nd-inlineCodeBg, rgba(0, 0, 0, 0.15));
   color: var(--nd-inlineCodeFg, var(--nd-fg));
-}
-
-.mfmCodeBlock {
-  margin: 8px 0;
-  max-width: 100%;
-  overflow: hidden;
-
-  // 面はハイライトの有無に関係なく揃える (明暗は data-nd-code-scheme の変数側 #1053)
-  :deep(pre) {
-    font-family: var(--nd-font-mono);
-    font-size: var(--nd-font-md);
-    padding: 12px 16px;
-    background: var(--nd-codeEditorBg);
-    color: var(--nd-codeEditorFg);
-    border-radius: var(--nd-radius-md);
-    overflow-x: auto;
-    white-space: pre;
-    word-break: normal;
-    margin: 0;
-  }
-
-  :deep(pre code) {
-    font-family: inherit;
-  }
 }
 
 .customEmoji {

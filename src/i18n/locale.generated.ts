@@ -1118,6 +1118,8 @@ export interface Locale {
     readonly "expiry7d": string
   }
   readonly "_mkMfm": {
+    /** 行を折り返す */
+    readonly "wrapLines": string
     /** 検索 */
     readonly "search": string
   }

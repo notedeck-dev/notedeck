@@ -847,6 +847,7 @@ _postFormPollEditor:
   expiry7d: "7 days"
 
 _mkMfm:
+  wrapLines: "Wrap lines"
   search: "Search"
 
 _app:

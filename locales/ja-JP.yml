@@ -625,6 +625,7 @@ _postFormPollEditor:
   expiry7d: "7 日"
 
 _mkMfm:
+  wrapLines: "行を折り返す"
   search: "検索"
 
 _app:
