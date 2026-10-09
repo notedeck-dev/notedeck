@@ -903,7 +903,15 @@ defineExpose({
 }
 
 .iconWrap { @include nav-icon-wrap; }
-.badge { @include nav-badge; }
+.badge {
+  @include nav-badge;
+  // ナビバーには積み重ね数のバッジ (左上) が無く、右上はサーバーの
+  // バッジが使うので、件数は目に入りやすい左上に出す
+  bottom: auto;
+  right: auto;
+  top: -6px;
+  left: -8px;
+}
 
 .label {
   overflow: hidden;
