@@ -17,13 +17,13 @@ const emit = defineEmits<{
 
 const { visible, entering, leaving } = useVaporTransition(
   toRef(props, 'show'),
-  { enterDuration: 200, leaveDuration: 200 },
+  { enterDuration: 200, leaveDuration: 150 },
 )
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
 useNativeDialog(dialogRef, visible, {
   onCancel: () => emit('cancel'),
-  leaveDuration: 200,
+  leaveDuration: 150,
 })
 </script>
 

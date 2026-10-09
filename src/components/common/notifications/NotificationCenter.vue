@@ -26,7 +26,11 @@ function close() {
 
 const { visible, entering, leaving } = useVaporTransition(inboxOpen, {
   enterDuration: 200,
-  leaveDuration: 200,
+  // 退場はシート (navMenu.scss、--nd-duration-medium) とポップアップ
+  // (--nd-duration-base) で長さが違う
+  get leaveDuration() {
+    return isCompact.value ? 200 : 150
+  },
 })
 
 // --- デスクトップ: パネル (popover で top layer に出す) ---
@@ -111,7 +115,7 @@ useNativeDialog(
   animation: panelIn var(--nd-duration-slow) var(--nd-ease-decel) both;
 }
 
-/* 退場の時間は useVaporTransition の leaveDuration (200ms) 以内 */
+/* 退場の時間は useVaporTransition の leaveDuration (150ms) と同じ */
 .panelLeave {
   animation: panelOut var(--nd-duration-base) var(--nd-ease-decel) both;
 }

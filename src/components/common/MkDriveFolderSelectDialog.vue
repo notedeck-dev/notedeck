@@ -24,7 +24,8 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
-const LEAVE_DURATION = 200
+// popup.scss の .leave / .contentLeave (--nd-duration-base) と揃える
+const LEAVE_DURATION = 150
 
 const themeStore = useThemeStore()
 const themeVars = computed(() =>

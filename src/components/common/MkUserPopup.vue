@@ -15,6 +15,10 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useHoverPopupLeaving } from '@/composables/useHoverPopup'
 import { i18n } from '@/i18n'
 import type { FollowState } from '@/services/followTransition'
+import {
+  fetchUserDetail,
+  getCachedUserDetail,
+} from '@/services/userDetailCache'
 import { useAccountsStore } from '@/stores/accounts'
 import { useIsCompactLayout } from '@/stores/ui'
 import { formatCount } from '@/utils/format'
@@ -22,14 +26,6 @@ import { proxyUrl } from '@/utils/mediaProxy'
 import MkAvatar from './MkAvatar.vue'
 import MkFollowButton from './MkFollowButton.vue'
 import MkMfm from './MkMfm.vue'
-
-const USER_DETAIL_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-const USER_DETAIL_CACHE_MAX = 32
-const userDetailCache = new Map<
-  string,
-  { data: NormalizedUserDetail; at: number }
->()
-const pendingUserDetails = new Map<string, Promise<NormalizedUserDetail>>()
 
 const props = defineProps<{
   userId: string
@@ -77,7 +73,6 @@ function onFollowUpdate(next: FollowState) {
 }
 
 onMounted(async () => {
-  const cacheKey = `${props.accountId}:${props.userId}`
   try {
     const acc = accountsStore.accounts.find((a) => a.id === props.accountId)
     if (acc) {
@@ -88,31 +83,20 @@ onMounted(async () => {
       adapterRef.value = adapter
     }
 
-    const cached = userDetailCache.get(cacheKey)
-    if (cached && Date.now() - cached.at < USER_DETAIL_CACHE_TTL) {
-      user.value = cached.data
+    // キャッシュはプロフィールのウィンドウと共有 (services/userDetailCache)
+    const cached = getCachedUserDetail(props.accountId, props.userId)
+    if (cached) {
+      user.value = cached
       isLoading.value = false
       return
     }
 
-    let promise = pendingUserDetails.get(cacheKey)
-    if (!promise) {
-      const adapter = adapterRef.value
-      if (!adapter) return
-      promise = adapter.api.getUserDetail(props.userId)
-      pendingUserDetails.set(cacheKey, promise)
-    }
-
-    const result = await promise
-    if (userDetailCache.size >= USER_DETAIL_CACHE_MAX) {
-      const oldest = userDetailCache.keys().next().value
-      if (oldest !== undefined) userDetailCache.delete(oldest)
-    }
-    userDetailCache.set(cacheKey, { data: result, at: Date.now() })
-    pendingUserDetails.delete(cacheKey)
-    user.value = result
+    const adapter = adapterRef.value
+    if (!adapter) return
+    user.value = await fetchUserDetail(props.accountId, props.userId, () =>
+      adapter.api.getUserDetail(props.userId),
+    )
   } catch {
-    pendingUserDetails.delete(cacheKey)
     // Silently fail — popup is non-critical
   } finally {
     isLoading.value = false

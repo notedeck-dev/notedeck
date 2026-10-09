@@ -40,9 +40,10 @@ const iconType = computed<Exclude<ConfirmIcon, 'none'> | null>(() => {
   }
 })
 
+// 退場は popup.scss の .leave / .contentLeave (--nd-duration-base = 150ms)
 const { visible, entering, leaving } = useVaporTransition(show, {
   enterDuration: 200,
-  leaveDuration: 200,
+  leaveDuration: 150,
 })
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
@@ -76,7 +77,7 @@ useNativeDialog(dialogRef, visible, {
       : '._button:last-child'
   },
   onCancel: cancel,
-  leaveDuration: 200,
+  leaveDuration: 150,
 })
 </script>
 

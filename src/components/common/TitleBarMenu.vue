@@ -16,7 +16,7 @@ const {
   visible: menuVisible,
   entering: menuEntering,
   leaving: menuLeaving,
-} = useVaporTransition(menuOpen, { enterDuration: 200, leaveDuration: 200 })
+} = useVaporTransition(menuOpen, { enterDuration: 200, leaveDuration: 150 })
 
 const menuPortalRef = ref<HTMLElement | null>(null)
 usePortal(menuPortalRef)

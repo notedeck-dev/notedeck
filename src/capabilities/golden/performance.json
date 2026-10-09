@@ -237,7 +237,7 @@
       "category": "realtime",
       "unit": "件",
       "unitKey": "items",
-      "low": 15,
+      "low": 10,
       "high": 40
     },
     "prefetchBehind": {
@@ -247,7 +247,7 @@
       "category": "realtime",
       "unit": "件",
       "unitKey": "items",
-      "low": 5,
+      "low": 0,
       "high": 15
     },
     "prefetchTrackedMax": {
