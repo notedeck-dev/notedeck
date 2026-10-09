@@ -5,7 +5,10 @@ import {
   buildPerAccountHistoryEntries,
   buildPerAccountPrefetchTargets,
   chatMessageMatchesSearch,
+  isChatHistoryUnread,
   matchesChatSearch,
+  withLatestChatMessage,
+  withLatestCrossAccountMessage,
 } from './chatHistoryEntries'
 
 // ---- fixtures ----
@@ -226,5 +229,104 @@ describe('chatMessageMatchesSearch', () => {
     expect(chatMessageMatchesSearch('ALICE', msg)).toBe(true)
     expect(chatMessageMatchesSearch('report.pdf', msg)).toBe(true)
     expect(chatMessageMatchesSearch('absent', msg)).toBe(false)
+  })
+})
+
+describe('isChatHistoryUnread (#1207 / #1216)', () => {
+  const none = new Set<string>()
+
+  it('相手からの未読メッセージに点を出す', () => {
+    const msg = dm({ fromUserId: OTHER, toUserId: ME, isRead: false })
+    expect(
+      isChatHistoryUnread(msg, ME, { loggedOut: false, openedIds: none }),
+    ).toBe(true)
+  })
+
+  it('自分のメッセージ・既読・開いた会話には出さない', () => {
+    const mine = dm({ fromUserId: ME, toUserId: OTHER, isRead: false })
+    const read = dm({ fromUserId: OTHER, toUserId: ME, isRead: true })
+    const opened = dm({ fromUserId: OTHER, toUserId: ME, isRead: false })
+    const opts = { loggedOut: false, openedIds: new Set([opened.id]) }
+    expect(isChatHistoryUnread(mine, ME, opts)).toBe(false)
+    expect(isChatHistoryUnread(read, ME, opts)).toBe(false)
+    expect(isChatHistoryUnread(opened, ME, opts)).toBe(false)
+  })
+
+  // ログアウト中の履歴は手元のキャッシュで、既読状態は保存した時点のまま
+  // 更新されない。読み終えた会話に点が残るので、分からないときは出さない
+  it('ログアウト中は点を出さない', () => {
+    const msg = dm({ fromUserId: OTHER, toUserId: ME, isRead: false })
+    expect(
+      isChatHistoryUnread(msg, ME, { loggedOut: true, openedIds: none }),
+    ).toBe(false)
+  })
+})
+
+describe('withLatestChatMessage (#1216)', () => {
+  it('会話の最新メッセージを足して新しい順に並べ直し、その会話のプレビューを差し替える', () => {
+    const a = dm({
+      fromUserId: OTHER,
+      toUserId: ME,
+      createdAt: '2026-07-03T00:00:00.000Z',
+      text: 'a',
+    })
+    const b = dm({
+      fromUserId: 'other-2',
+      toUserId: ME,
+      createdAt: '2026-07-02T00:00:00.000Z',
+      text: 'b',
+    })
+    const latest = dm({
+      fromUserId: ME,
+      toUserId: 'other-2',
+      createdAt: '2026-07-04T00:00:00.000Z',
+      text: 'b2',
+    })
+    const merged = withLatestChatMessage([a, b], latest)
+    expect(merged.map((m) => m.id)).toEqual([latest.id, a.id, b.id])
+    const entries = buildPerAccountHistoryEntries(merged, ME)
+    expect(entries.map((e) => e.message.text)).toEqual(['b2', 'a'])
+  })
+
+  it('同じメッセージは重ねない', () => {
+    const a = dm({ fromUserId: OTHER, toUserId: ME, text: 'a' })
+    expect(withLatestChatMessage([a], { ...a, text: 'edited' })).toEqual([
+      { ...a, text: 'edited' },
+    ])
+  })
+})
+
+describe('withLatestCrossAccountMessage (#1216)', () => {
+  it('全アカウントの履歴でも会話の最新メッセージで並びとプレビューを直す', () => {
+    const getUserId = () => ME
+    const a = dm({
+      fromUserId: OTHER,
+      toUserId: ME,
+      createdAt: '2026-07-03T00:00:00.000Z',
+      text: 'a',
+    })
+    const b = dm({
+      fromUserId: 'other-2',
+      toUserId: ME,
+      createdAt: '2026-07-02T00:00:00.000Z',
+      text: 'b',
+    })
+    const entries = buildCrossAccountHistoryEntries(
+      [a, b].map((msg) => ({ msg, accountId: 'acc-b', host: 'b.example' })),
+      getUserId,
+    )
+    const latest = dm({
+      fromUserId: 'other-2',
+      toUserId: ME,
+      createdAt: '2026-07-05T00:00:00.000Z',
+      text: 'b2',
+    })
+    const next = withLatestCrossAccountMessage(
+      entries,
+      { msg: latest, accountId: 'acc-b', host: 'b.example' },
+      getUserId,
+    )
+    expect(next.map((e) => e.message.text)).toEqual(['b2', 'a'])
+    expect(next[0]?.serverHost).toBe('b.example')
   })
 })

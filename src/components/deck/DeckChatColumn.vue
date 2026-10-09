@@ -47,8 +47,11 @@ import {
   buildPerAccountPrefetchTargets,
   chatMessageMatchesSearch,
   type CrossAccountChatHistoryEntry as HistoryEntry,
+  isChatHistoryUnread,
   matchesChatSearch,
   type PerAccountChatHistoryEntry as PerAccountHistoryEntry,
+  withLatestChatMessage,
+  withLatestCrossAccountMessage,
 } from '@/services/chatHistoryEntries'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useChatMessageStore } from '@/stores/chatMessageStore'
@@ -561,13 +564,17 @@ const filteredPerAccountEntries = computed<PerAccountHistoryEntry[]>(() =>
 // (会話を開くと本家側で既読になるが、履歴の entry は取り直さないと変わらない)
 const openedMessageIds = ref(new Set<string>())
 
-/** 本家 MkChatHistories と同じく、相手からの未読の最新メッセージに点を出す (#1207) */
-function isUnread(message: ChatMessage, myId: string | undefined): boolean {
-  return (
-    message.isRead === false &&
-    message.fromUserId !== myId &&
-    !openedMessageIds.value.has(message.id)
-  )
+/** 履歴の未読の点 (#1207)。判定は isChatHistoryUnread */
+function isUnread(
+  message: ChatMessage,
+  accountId: string | null,
+  myId: string | undefined,
+): boolean {
+  const acc = accountsStore.accounts.find((a) => a.id === accountId)
+  return isChatHistoryUnread(message, myId, {
+    loggedOut: !acc?.hasToken,
+    openedIds: openedMessageIds.value,
+  })
 }
 
 const hasNoSearchHits = computed(() => {
@@ -667,6 +674,7 @@ function onNewMessage(msg: ChatMessage) {
 }
 
 function goBack() {
+  reflectLatestIntoHistory()
   thread.close()
   viewMode.value = 'history'
   conversationAccountId.value = null
@@ -675,6 +683,32 @@ function goBack() {
   searchQuery.value = ''
   showConvSearch.value = false
   convSearchQuery.value = ''
+}
+
+/**
+ * 会話で見た最新メッセージ (受信・送信) を履歴の並びとプレビューに反映する
+ * (#1216)。履歴は購読していないので、取り直すまで古いままになっていた。
+ * 見た会話なので未読の点も出さない
+ */
+function reflectLatestIntoHistory() {
+  const latest = messages.value.at(-1)
+  if (!latest) return
+  openedMessageIds.value = new Set(openedMessageIds.value).add(latest.id)
+  if (isCrossAccount.value) {
+    const accountId = conversationAccountId.value
+    const host =
+      conversationServerHost.value ??
+      accountsStore.accounts.find((a) => a.id === accountId)?.host
+    if (!accountId || !host) return
+    chatMessageStore.put([latest])
+    historyEntries.value = withLatestCrossAccountMessage(
+      historyEntries.value,
+      { msg: latest, accountId, host },
+      getUserIdForAccount,
+    )
+  } else {
+    setChatHistory(withLatestChatMessage(chatHistory.value, latest))
+  }
 }
 
 const canSend = computed(() => {
@@ -897,10 +931,13 @@ function isNearBottom(): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight < 120
 }
 
+// 位置は NoteScroller に渡している filteredMessages の添字で指す。ミュートした
+// 相手の発言を含む messages の添字で指すと、隠した件数だけずれる (#1216)
 function scrollToBottom() {
   requestAnimationFrame(() => {
-    if (messages.value.length === 0) return
-    chatScroller.value?.scrollToIndex(messages.value.length - 1, {
+    const count = filteredMessages.value.length
+    if (count === 0) return
+    chatScroller.value?.scrollToIndex(count - 1, {
       align: 'end',
       behavior: 'instant',
     })
@@ -917,12 +954,14 @@ async function loadOlder() {
 
   isLoading.value = true
   try {
-    const prevFirstId = messageIds.value[0]
+    const prevFirstId = filteredMessages.value[0]?.id
     const added = await thread.loadOlder(accId, { loggedOut: isLoggedOut })
     // Restore scroll position to the previously first message after prepend
     if (added && prevFirstId) {
       await nextTick()
-      const newIndex = messageIds.value.indexOf(prevFirstId)
+      const newIndex = filteredMessages.value.findIndex(
+        (m) => m.id === prevFirstId,
+      )
       if (newIndex >= 0) {
         chatScroller.value?.scrollToIndex(newIndex, {
           align: 'start',
@@ -1115,7 +1154,7 @@ onBeforeUnmount(() => {
           @click="openConversation(entry)"
         >
           <span
-            v-if="isUnread(entry.message, getUserIdForAccount(entry.accountId))"
+            v-if="isUnread(entry.message, entry.accountId, getUserIdForAccount(entry.accountId))"
             :class="$style.historyUnreadDot"
             :title="i18n.ts._deckChatColumn.unread"
             :aria-label="i18n.ts._deckChatColumn.unread"
@@ -1179,7 +1218,7 @@ onBeforeUnmount(() => {
           @click="openConversation(entry)"
         >
           <span
-            v-if="isUnread(entry.message, myUserId)"
+            v-if="isUnread(entry.message, column.accountId, myUserId)"
             :class="$style.historyUnreadDot"
             :title="i18n.ts._deckChatColumn.unread"
             :aria-label="i18n.ts._deckChatColumn.unread"

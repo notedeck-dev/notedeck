@@ -41,3 +41,9 @@ export const expandedNoteContent = createRenderedMemo(2000)
 
 /** 利用者が開いた NSFW (と従量制回線で保留した) 添付の file id (MkMediaGrid) */
 export const revealedMediaFiles = createRenderedMemo(2000)
+
+/**
+ * 読み込みに失敗した同梱 Twemoji の URL (MkEmoji)。同梱版より新しい絵文字は
+ * 404 になるので、行が作り直されても取り直さず最初から文字で出す (#1219)
+ */
+export const failedTwemojiUrls = createRenderedMemo(500)
