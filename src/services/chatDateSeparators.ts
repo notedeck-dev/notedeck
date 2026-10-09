@@ -7,6 +7,8 @@
  * メッセージの並びのまま保つため。
  */
 
+import { dateSeparator } from '@/services/dateSeparator'
+
 export interface ChatDateSeparator {
   /** 区切りより上 (古い側) の日付 */
   prevText: string
@@ -14,30 +16,17 @@ export interface ChatDateSeparator {
   nextText: string
 }
 
-function dateText(d: Date): string {
-  return `${d.getMonth() + 1}/${d.getDate()}`
-}
-
-function sameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  )
-}
-
 /** 古い順に並んだメッセージから、直前と日付が変わったメッセージ id → 区切り */
 export function chatDateSeparators(
   messages: readonly { id: string; createdAt: string }[],
 ): Map<string, ChatDateSeparator> {
   const out = new Map<string, ChatDateSeparator>()
-  let prev: Date | null = null
+  let prev: string | null = null
   for (const m of messages) {
-    const d = new Date(m.createdAt)
-    if (prev && !sameDay(prev, d)) {
-      out.set(m.id, { prevText: dateText(prev), nextText: dateText(d) })
-    }
-    prev = d
+    // 日付の判定と書式 (表示言語の月日) は通知カラムと共通 (dateSeparator)
+    const sep = dateSeparator(m.createdAt, prev)
+    if (sep) out.set(m.id, { prevText: sep.olderText, nextText: sep.newerText })
+    prev = m.createdAt
   }
   return out
 }
