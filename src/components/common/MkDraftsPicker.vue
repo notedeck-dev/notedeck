@@ -526,7 +526,7 @@ async function onDeleteAll() {
   background: var(--nd-panelBg, var(--nd-popup));
   border-radius: var(--nd-radius);
   overflow: hidden;
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
 }
 
 .trailingBtns {

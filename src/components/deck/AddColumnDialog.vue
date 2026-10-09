@@ -564,7 +564,7 @@ function close() {
 .addPopup {
   background: var(--nd-navBg);
   border-radius: var(--nd-radius-sheet);
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
   width: calc(100% - 32px);
   max-width: 480px;
   max-height: 90vh;
@@ -577,7 +577,7 @@ function close() {
   max-width: none;
   max-height: 80vh;
   border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-sheet);
   padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   overscroll-behavior: contain;
 }

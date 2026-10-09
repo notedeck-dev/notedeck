@@ -190,7 +190,7 @@ dialog.overlay::backdrop {
     width: 100%;
     max-height: 75vh;
     border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--nd-shadow-sheet);
     padding-bottom: max(20px, var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
   }
 }

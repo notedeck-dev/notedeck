@@ -373,7 +373,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background: var(--nd-panel);
   border-radius: var(--nd-radius);
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
   // overflow: visible にして 8 方向ハンドルが外側にはみ出せるようにする。
   // 角丸は .windowHeader / .windowBody 側で個別に持たせて見た目を維持。
   // contain: paint を付けると要素境界外の paint と pointer hit が切られて

@@ -1190,7 +1190,7 @@ onUnmounted(() => {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-panel);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--nd-shadow-m);
 }
 
 .dropdownSearch {

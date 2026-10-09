@@ -1233,7 +1233,7 @@ function onPaste(e: ClipboardEvent) {
 .postForm {
   background: var(--nd-popup);
   border-radius: var(--nd-radius-sheet);
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
   width: 100%;
   max-width: 520px;
   margin: 16px;
@@ -2094,7 +2094,7 @@ function onPaste(e: ClipboardEvent) {
   background: var(--nd-panelBg, var(--nd-popup));
   border-radius: var(--nd-radius);
   overflow: hidden;
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
 }
 
 .emojiPickerHeader {
@@ -2160,7 +2160,7 @@ function onPaste(e: ClipboardEvent) {
     border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
     margin: 0;
     z-index: 100;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--nd-shadow-sheet);
     padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   }
 }

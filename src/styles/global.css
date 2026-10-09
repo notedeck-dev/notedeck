@@ -178,6 +178,8 @@
   --nd-shadow-l:
     0 4px 8px var(--nd-shadow-contact),
     0 12px 28px color-mix(in srgb, var(--nd-shadow-ambient) 120%, transparent);
+  /* 画面下から出るボトムシートの上向きの影 */
+  --nd-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.3);
   /* 等幅フォント (#872) — コード/JSON/エディタ系はすべてこの 1 変数を参照する。
      カスタム CSS の「等幅フォント」プリセットが :root ごと上書きする */
   --nd-font-mono: 'Fira Code', 'Cascadia Code', Consolas, ui-monospace,

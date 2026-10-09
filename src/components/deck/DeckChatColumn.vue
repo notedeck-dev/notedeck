@@ -1627,7 +1627,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: var(--nd-popup);
   border-radius: var(--nd-radius) var(--nd-radius) 0 0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-sheet);
   z-index: var(--nd-z-menu);
 }
 
@@ -1638,7 +1638,7 @@ onBeforeUnmount(() => {
   right: 0;
   background: var(--nd-popup);
   border-radius: var(--nd-radius) var(--nd-radius) 0 0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-sheet);
   z-index: var(--nd-z-menu);
 }
 

@@ -278,7 +278,7 @@ async function onDelete() {
   cursor: pointer;
 
   &:focus-visible {
-    outline: 2px solid var(--nd-focus);
+    outline: 2px solid var(--nd-focusRing);
     outline-offset: 2px;
   }
 

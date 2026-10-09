@@ -817,7 +817,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 
   &:focus-visible {
     opacity: 1;
-    outline: 2px solid var(--nd-accent);
+    outline: 2px solid var(--nd-focusRing);
     outline-offset: -2px;
   }
 

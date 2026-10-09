@@ -192,7 +192,7 @@ defineExpose({ open })
   flex-direction: column;
   background: color-mix(in srgb, var(--nd-popup, var(--nd-panel)) 96%, transparent);
   border-radius: var(--nd-radius);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-m);
   overflow: hidden;
   contain: paint;
 
@@ -200,7 +200,7 @@ defineExpose({ open })
     width: 100%;
     max-height: 70vh;
     border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--nd-shadow-sheet);
     padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   }
 }

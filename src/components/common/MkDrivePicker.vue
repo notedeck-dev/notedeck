@@ -177,7 +177,7 @@ fetchDrive()
   flex-direction: column;
   background: var(--nd-panelBg, var(--nd-popup));
   border-radius: var(--nd-radius);
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
   overflow: hidden;
 }
 
