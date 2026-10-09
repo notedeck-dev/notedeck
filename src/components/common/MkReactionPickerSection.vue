@@ -1,17 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 
-const props = withDefaults(
-  defineProps<{
-    label: string
-    count?: number
-    initialOpen?: boolean
-  }>(),
-  { initialOpen: true },
-)
+defineProps<{
+  label: string
+  count?: number
+}>()
 
-const isOpen = ref(props.initialOpen)
+// 親が v-model:open を渡さなければ開いた状態で始まる手元の状態になる。
+// カテゴリジャンプで親から開くため、閉じて始めるセクションは親が持つ (#1193)
+const isOpen = defineModel<boolean>('open', { default: true })
 
 function toggle() {
   isOpen.value = !isOpen.value

@@ -82,6 +82,14 @@ export interface NotedeckSettings {
    */
   'mute.hideMutedUserReactions'?: boolean
 
+  // --- Emoji picker (#1193) ---
+  /**
+   * 絵文字ピッカーで選んだスキントーン (1〜5 = Fitzpatrick 修飾子 U+1F3FB〜)。
+   * null / 未設定は修飾しない。ミュートと同じくアカウントに紐づかない。
+   * 範囲外の手編集は読み込み時に null として扱う (`services/emojiSkinTone.ts`)
+   */
+  'emoji.skinTone'?: 1 | 2 | 3 | 4 | 5 | null
+
   // --- Post form ---
   'postForm.preview'?: boolean
   'postForm.autoSaveDraft'?: boolean
