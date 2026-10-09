@@ -692,6 +692,10 @@ export interface Locale {
     readonly "menuFor": ParameterizedString<'name'>
   }
   readonly "_mkMediaGrid": {
+    /** アニメーションを再生 */
+    readonly "playAnimation": string
+    /** アニメーションを止める */
+    readonly "pauseAnimation": string
     /** 動画をタップで読み込み */
     readonly "tapToLoadVideo": string
     /** 画像をタップで読み込み */
@@ -710,6 +714,12 @@ export interface Locale {
     readonly "openInBrowser": string
   }
   readonly "_mkNote": {
+    /** 翻訳中... */
+    readonly "translating": string
+    /** {lang} から翻訳 */
+    readonly "translatedFrom": ParameterizedString<'lang'>
+    /** 翻訳できませんでした */
+    readonly "translateFailed": string
     /** ピン留めされたノート */
     readonly "pinned": string
     /** がリノート */
@@ -852,6 +862,8 @@ export interface Locale {
     readonly "remoteUser": string
   }
   readonly "_noteMoreMenu": {
+    /** 翻訳 */
+    readonly "translate": string
     /** このノートを削除しますか？ */
     readonly "confirmDelete": string
     /** このノートを削除して再編集しますか？ */
@@ -1126,6 +1138,8 @@ export interface Locale {
     readonly "expiry7d": string
   }
   readonly "_mkMfm": {
+    /** 行を折り返す */
+    readonly "wrapLines": string
     /** 検索 */
     readonly "search": string
   }

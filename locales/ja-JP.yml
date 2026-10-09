@@ -382,6 +382,8 @@ _mkFolderGrid:
   menuFor: "「{name}」のメニュー"
 
 _mkMediaGrid:
+  playAnimation: "アニメーションを再生"
+  pauseAnimation: "アニメーションを止める"
   tapToLoadVideo: "動画をタップで読み込み"
   tapToLoadImage: "画像をタップで読み込み"
 
@@ -393,6 +395,9 @@ _mkMediaLightbox:
   openInBrowser: "ブラウザーで開く"
 
 _mkNote:
+  translating: "翻訳中..."
+  translatedFrom: "{lang} から翻訳"
+  translateFailed: "翻訳できませんでした"
   pinned: "ピン留めされたノート"
   renotedSuffix: "がリノート"
   modeTitle: "{mode}モード"
@@ -477,6 +482,7 @@ _mkUserPopup:
   remoteUser: "リモートユーザー"
 
 _noteMoreMenu:
+  translate: "翻訳"
   confirmDelete: "このノートを削除しますか？"
   confirmDeleteAndEdit: "このノートを削除して再編集しますか？"
   deleteAndEdit: "削除して編集"
@@ -629,6 +635,7 @@ _postFormPollEditor:
   expiry7d: "7 日"
 
 _mkMfm:
+  wrapLines: "行を折り返す"
   search: "検索"
 
 _app:

@@ -8,6 +8,10 @@ import type {
 } from '@/adapters/types'
 import { applyNoteViewInterruptors } from '@/aiscript/plugin-api'
 import AppTime from '@/components/common/AppTime.vue'
+import {
+  type NoteTranslation,
+  translateNote,
+} from '@/composables/noteTranslation'
 import { useAccountMode } from '@/composables/useAccountMode'
 import {
   type QuoteAsTarget,
@@ -65,7 +69,10 @@ import {
   resolveEffectiveNoteBase,
 } from '@/utils/noteViewModel'
 import { spawnReactionEffect } from '@/utils/reactionEffect'
-import { renderedReactionNotes } from '@/utils/renderedMemo'
+import {
+  expandedNoteContent,
+  renderedReactionNotes,
+} from '@/utils/renderedMemo'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { extractColumnThemeVars } from '@/utils/themeVars'
 import { toggleReaction } from '@/utils/toggleReaction'
@@ -335,8 +342,48 @@ async function handleUnrenote() {
     isRenoted.value = true
   }
 }
-const cwExpanded = ref(false)
-const longTextExpanded = ref(false)
+// 開閉は仮想スクロールで行が作り直されても保つ (#704)。開く演出は
+// この場で開いたときだけ (戻ってきた行で再生しない)
+const cwExpanded = ref(expandedNoteContent.has(`cw:${effectiveNote.value.id}`))
+const cwJustRevealed = ref(false)
+const longTextExpanded = ref(
+  expandedNoteContent.has(`long:${effectiveNote.value.id}`),
+)
+
+function toggleCw() {
+  cwExpanded.value = !cwExpanded.value
+  cwJustRevealed.value = cwExpanded.value
+  expandedNoteContent.set(`cw:${effectiveNote.value.id}`, cwExpanded.value)
+}
+
+// 翻訳 (#704)。本家と同じくサーバーの notes/translate に頼み、本文の下に出す
+const translation = ref<NoteTranslation | null>(null)
+const translating = ref(false)
+
+async function handleTranslate() {
+  if (translation.value || translating.value) return
+  translating.value = true
+  try {
+    translation.value = await translateNote(
+      props.note._accountId,
+      effectiveNote.value.id,
+      i18n.lang,
+    )
+  } catch (e) {
+    console.warn('[note:translate]', e)
+    useToast().show(i18n.ts._mkNote.translateFailed, 'error')
+  } finally {
+    translating.value = false
+  }
+}
+
+function toggleLongText() {
+  longTextExpanded.value = !longTextExpanded.value
+  expandedNoteContent.set(
+    `long:${effectiveNote.value.id}`,
+    longTextExpanded.value,
+  )
+}
 
 // ワードミュート soft（#610）: mutedWords にマッチしたら本文を折りたたみ、展開可能にする
 const visibility = useNoteVisibility()
@@ -392,8 +439,17 @@ const activeModeFlags = computed(() =>
   deriveActiveModeFlags(effectiveNote.value.modeFlags),
 )
 
-function navigateToDetail() {
+function navigateToDetail(e: MouseEvent) {
   if (props.disableArticleClick) return
+  // 本文をドラッグ選択して離したときの click で遷移するとコピーできない
+  const sel = window.getSelection()
+  if (
+    sel &&
+    !sel.isCollapsed &&
+    (e.currentTarget as Node).contains(sel.anchorNode)
+  ) {
+    return
+  }
   if (!props.detailed) {
     navToNote(props.note._accountId, props.note.id)
   }
@@ -1069,14 +1125,14 @@ function handlePickerReaction(reaction: string) {
               @mention-leave="onMentionLeave"
             />
           </p>
-          <button :class="$style.cwToggle" class="_button" @click.stop="cwExpanded = !cwExpanded">
+          <button :class="$style.cwToggle" class="_button" @click.stop="toggleCw">
             {{ cwExpanded ? i18n.ts._common.hide : i18n.ts._mkNote.showMore }}
             <span v-if="!cwExpanded && effectiveNote.text" :class="$style.cwChars">{{ i18n.tsx._mkNote.chars_plural({ count: effectiveNote.text.length }) }}</span>
           </button>
         </div>
 
         <!-- Body -->
-        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="[$style.body, effectiveNote.cw !== null && cwExpanded && $style.bodyReveal]">
+        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="[$style.body, effectiveNote.cw !== null && cwJustRevealed && $style.bodyReveal]">
           <div v-if="effectiveNote.text && !effectiveNote.contentHidden" :class="[$style.textContainer, { [$style.collapsed]: isLongText && !longTextExpanded }]">
             <p :class="$style.text">
               <MkMfm
@@ -1094,10 +1150,30 @@ function handlePickerReaction(reaction: string) {
             </p>
             <div v-if="isLongText && !longTextExpanded" :class="$style.longTextFade" />
           </div>
-          <button v-if="isLongText" :class="$style.cwToggle" class="_button" @click.stop="longTextExpanded = !longTextExpanded">
+          <button v-if="isLongText" :class="$style.cwToggle" class="_button" @click.stop="toggleLongText">
             {{ longTextExpanded ? i18n.ts._common.hide : i18n.ts._mkNote.showMore }}
             <span v-if="!longTextExpanded && effectiveNote.text" :class="$style.cwChars">{{ i18n.tsx._mkNote.chars_plural({ count: effectiveNote.text.length }) }}</span>
           </button>
+
+          <div v-if="translating || translation" :class="$style.translation">
+            <span v-if="translating" :class="$style.translationLabel">{{ i18n.ts._mkNote.translating }}</span>
+            <template v-else-if="translation">
+              <span :class="$style.translationLabel">{{ i18n.tsx._mkNote.translatedFrom({ lang: translation.sourceLang }) }}</span>
+              <p :class="$style.text">
+                <MkMfm
+                  :text="translation.text"
+                  :emojis="effectiveNote.emojis"
+                  :reaction-emojis="effectiveNote.reactionEmojis"
+                  :server-host="effectiveNote._serverHost"
+                  :my-username="myAccount?.username"
+                  :my-host="myAccount?.host"
+                  @mention-click="handleMentionClick"
+                  @mention-hover="onMentionHover"
+                  @mention-leave="onMentionLeave"
+                />
+              </p>
+            </template>
+          </div>
 
           <MkMediaGrid
             v-if="effectiveNote.files.length > 0 && !effectiveNote.contentHidden"
@@ -1320,6 +1396,7 @@ function handlePickerReaction(reaction: string) {
     @unreact-as="handleUnreactAs"
     @renote-as="handleRenoteAs"
     @quote-as="openCrossAccountQuote"
+    @translate="handleTranslate"
   />
 
   <RenoteMoreMenu
@@ -1776,6 +1853,20 @@ function handlePickerReaction(reaction: string) {
 }
 
 /* CW 開封時のみ付与。閉じる方向は隠す操作なので即時のまま */
+.translation {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border: solid 1px var(--nd-divider);
+  border-radius: var(--nd-radius-md);
+}
+
+.translationLabel {
+  display: block;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
+  opacity: 0.7;
+}
+
 .bodyReveal {
   animation: cw-reveal var(--nd-duration-slow) var(--nd-ease-decel) both;
 }

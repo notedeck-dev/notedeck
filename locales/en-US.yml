@@ -600,6 +600,8 @@ _mkFolderGrid:
   menuFor: "Menu for “{name}”"
 
 _mkMediaGrid:
+  playAnimation: "Play animation"
+  pauseAnimation: "Pause animation"
   tapToLoadVideo: "Tap to load video"
   tapToLoadImage: "Tap to load image"
 
@@ -611,6 +613,9 @@ _mkMediaLightbox:
   openInBrowser: "Open in browser"
 
 _mkNote:
+  translating: "Translating..."
+  translatedFrom: "Translated from {lang}"
+  translateFailed: "Couldn't translate"
   pinned: "Pinned note"
   renotedSuffix: "renoted"
   modeTitle: "{mode} mode"
@@ -699,6 +704,7 @@ _mkUserPopup:
   remoteUser: "Remote user"
 
 _noteMoreMenu:
+  translate: "Translate"
   confirmDelete: "Delete this note?"
   confirmDeleteAndEdit: "Delete this note and edit it again?"
   deleteAndEdit: "Delete and edit"
@@ -851,6 +857,7 @@ _postFormPollEditor:
   expiry7d: "7 days"
 
 _mkMfm:
+  wrapLines: "Wrap lines"
   search: "Search"
 
 _app:
