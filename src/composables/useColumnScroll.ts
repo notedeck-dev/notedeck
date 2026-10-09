@@ -1,4 +1,5 @@
 import { type Ref, ref } from 'vue'
+import { smoothScrollBehavior } from '@/utils/motion'
 
 type ScrollOwner = 'user' | 'program'
 
@@ -12,7 +13,7 @@ interface UseColumnScrollOptions {
 interface UseColumnScrollReturn {
   /** Passive scroll event handler — attach to the container's @scroll */
   onScroll: () => void
-  /** Scroll the container to bring a column into view (smooth on desktop, instant on mobile) */
+  /** Scroll the container to bring a column into view (smooth unless reduced-motion) */
   scrollToColumnId: (columnId: string) => void
   /** Dispatch a custom event to scroll to the top of a column */
   scrollColumnToTop: (index: number) => void
@@ -115,12 +116,24 @@ export function useColumnScroll(
       const layout = windowLayout.value
       const index = layout.findIndex((group) => group.includes(columnId))
       if (index < 0) return
+      const left = index * el.clientWidth
+      if (Math.abs(el.scrollLeft - left) < 1) return
+      // 指でスワイプ中に中点を越えて切り替わった分は scroll-snap が寄せる。
+      // ここで追いかけてスクロールすると指の動きと取り合う
+      if (
+        scrollOwner.value === 'user' &&
+        Math.round(el.scrollLeft / el.clientWidth) === index
+      ) {
+        return
+      }
+      // ナビのタップで隣のカラムへ滑らせる (reduced-motion では瞬時)。
+      // 動いている間に途中のカラムを「アクティブ」と拾わないよう、
+      // 着くまでスクロールの所有権を握る
+      const behavior = smoothScrollBehavior()
       const id = claimProgramScroll()
-      el.scrollTo({
-        left: index * el.clientWidth,
-        behavior: 'instant',
-      })
-      releaseProgramScroll(id)
+      el.scrollTo({ left, behavior })
+      if (behavior === 'smooth') releaseOnScrollEnd(el, id)
+      else releaseProgramScroll(id)
       return
     }
 
@@ -141,15 +154,20 @@ export function useColumnScroll(
     }
 
     const id = claimProgramScroll()
+    const behavior = smoothScrollBehavior()
     target.scrollIntoView({
-      behavior: 'smooth',
+      behavior,
       block: 'nearest',
       inline: 'nearest',
     })
+    if (behavior === 'smooth') releaseOnScrollEnd(el, id)
+    else releaseProgramScroll(id)
+  }
 
-    // Release ownership when scroll animation completes.
-    // Safety timeout: if scrollend never fires (e.g. element wasn't scrollable),
-    // release after 1s to avoid permanently blocking user scroll detection.
+  // Release ownership when scroll animation completes.
+  // Safety timeout: if scrollend never fires (e.g. element wasn't scrollable),
+  // release after 1s to avoid permanently blocking user scroll detection.
+  function releaseOnScrollEnd(el: HTMLElement, id: number) {
     let released = false
     const safetyTimer = setTimeout(() => {
       if (!released) {
