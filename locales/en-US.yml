@@ -120,6 +120,9 @@ _commands:
   settingsMenu: "Settings menu"
   tutorial: "Tutorial"
   toggleDarkMode: "Toggle dark / light mode"
+  zoomIn: "Zoom in"
+  zoomOut: "Zoom out"
+  zoomReset: "Reset zoom"
   toggleOfflineMode: "Toggle offline mode"
   toggleRealtimeMode: "Toggle realtime mode"
   clearAllCache: "Clear all caches"
@@ -818,6 +821,7 @@ _titleBarMenu:
   view: "View"
   zoomIn: "Zoom in"
   zoomOut: "Zoom out"
+  zoomReset: "Actual size"
 
 _postFormFilePreviews:
   discard: "Discard"

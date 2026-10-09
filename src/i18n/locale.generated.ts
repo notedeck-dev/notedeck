@@ -226,6 +226,12 @@ export interface Locale {
     readonly "tutorial": string
     /** ダーク/ライトモード切り替え */
     readonly "toggleDarkMode": string
+    /** 表示を拡大 */
+    readonly "zoomIn": string
+    /** 表示を縮小 */
+    readonly "zoomOut": string
+    /** 表示の拡大率をリセット */
+    readonly "zoomReset": string
     /** オフラインモード切り替え */
     readonly "toggleOfflineMode": string
     /** リアルタイムモード切り替え */
@@ -1066,6 +1072,8 @@ export interface Locale {
     readonly "zoomIn": string
     /** 縮小 */
     readonly "zoomOut": string
+    /** 等倍に戻す */
+    readonly "zoomReset": string
   }
   readonly "_postFormFilePreviews": {
     /** 破棄 */

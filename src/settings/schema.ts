@@ -30,6 +30,14 @@ export interface NotedeckSettings {
    */
   'deck.navWidth'?: number
 
+  // --- UI zoom (#704) ---
+  /**
+   * webview の拡大率 (1 = 等倍)。Ctrl+± / メニューで変えた値を保存し、
+   * 全ウィンドウに当てる。許容範囲は `services/uiZoom.ts` が正本で、
+   * 範囲外の手編集は読み込み時に丸める
+   */
+  'ui.zoom'?: number
+
   // --- Pet (#1080) ---
   /**
    * デッキに置く petdex 形式のペットの slug。null / 未設定で無し (既定)。

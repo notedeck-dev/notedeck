@@ -127,6 +127,9 @@ _commands:
   settingsMenu: "設定メニュー"
   tutorial: "チュートリアル"
   toggleDarkMode: "ダーク/ライトモード切り替え"
+  zoomIn: "表示を拡大"
+  zoomOut: "表示を縮小"
+  zoomReset: "表示の拡大率をリセット"
   toggleOfflineMode: "オフラインモード切り替え"
   toggleRealtimeMode: "リアルタイムモード切り替え"
   clearAllCache: "全キャッシュ削除"
@@ -596,6 +599,7 @@ _titleBarMenu:
   view: "表示"
   zoomIn: "拡大"
   zoomOut: "縮小"
+  zoomReset: "等倍に戻す"
 
 _postFormFilePreviews:
   discard: "破棄"
