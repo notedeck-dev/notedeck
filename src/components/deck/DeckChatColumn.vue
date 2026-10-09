@@ -1070,7 +1070,8 @@ onBeforeUnmount(() => {
     />
 
     <!-- History View: Cross-account -->
-    <div v-if="isCrossAccount && viewMode === 'history'" :class="$style.chatBody">
+    <!-- 履歴 ⇄ 会話の切替は差し替わった側をフェードで出す (AI カラムと同じ) -->
+    <div v-if="isCrossAccount && viewMode === 'history'" :class="[$style.chatBody, 'nd-fade-appear']">
       <ColumnEmptyState
         v-if="historyEntries.length === 0 && !isLoading"
         :message="i18n.ts._deckChatColumn.noConversations"
@@ -1128,7 +1129,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- History View: Per-account -->
-    <div v-else-if="!isCrossAccount && viewMode === 'history'" :class="$style.chatBody">
+    <div v-else-if="!isCrossAccount && viewMode === 'history'" :class="[$style.chatBody, 'nd-fade-appear']">
       <ColumnEmptyState
         v-if="chatHistory.length === 0 && !isLoading"
         :message="i18n.ts._deckChatColumn.noConversations"
@@ -1174,7 +1175,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Conversation View -->
-    <div v-else-if="viewMode === 'conversation'" :class="[$style.chatBody, $style.conversation]" @click="closeReactionPicker">
+    <div v-else-if="viewMode === 'conversation'" :class="[$style.chatBody, $style.conversation, 'nd-fade-appear']" @click="closeReactionPicker">
       <!-- メッセージ検索バー (#483 v2: showConvSearch toggle) -->
       <div v-if="showConvSearch" :class="$style.searchBar">
         <i :class="$style.searchIcon" class="ti ti-search" />
