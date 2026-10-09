@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { type Ref, ref } from 'vue'
 import { isInsertNoop, toGlobalInsertIndex } from '@/services/deckLayout'
 import type { useDeckStore } from '@/stores/deck'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
@@ -7,6 +7,34 @@ import { emitTauri } from '@/utils/tauriEvents'
 type DeckStore = ReturnType<typeof useDeckStore>
 
 const DRAG_THRESHOLD = 5
+/** タッチは長押しで掴む (触れただけ・横スワイプでは掴まない) */
+const TOUCH_LONG_PRESS_MS = 400
+const TOUCH_SLOP = 10
+
+/** ドラッグ中に端へ寄せたとき自動スクロールする帯の幅と最高速 (px/frame) */
+const EDGE_ZONE = 64
+const EDGE_MAX_SPEED = 24
+/** コンパクト (1 画面 1 カラム) では端に留まるたびに 1 カラムずつめくる */
+const COMPACT_EDGE_ZONE = 40
+const COMPACT_PAGE_INTERVAL_MS = 600
+
+/**
+ * ドラッグ中のポインタ x から、カラム領域 [left, right] を 1 フレームに
+ * 何 px 横スクロールさせるか。端の帯に深く入るほど速く、領域の外では最高速
+ */
+export function edgeScrollDelta(
+  x: number,
+  left: number,
+  right: number,
+  zone = EDGE_ZONE,
+  maxSpeed = EDGE_MAX_SPEED,
+): number {
+  const speed = (depth: number) =>
+    Math.ceil(maxSpeed * Math.min(1, depth / zone))
+  if (x < left + zone) return -speed(left + zone - x)
+  if (x > right - zone) return speed(x - (right - zone))
+  return 0
+}
 
 type DropTarget =
   | { columnId: string; position: 'swap' | 'above' | 'below' }
@@ -21,12 +49,20 @@ export interface ColumnDragSelectors {
 export function useColumnDrag(
   deckStore: DeckStore,
   selectors: ColumnDragSelectors,
+  isCompact: Ref<boolean>,
 ) {
   const dragColumnId = ref<string | null>(null)
   const dropTarget = ref<DropTarget | null>(null)
 
   let ghost: HTMLElement | null = null
   let ghostHalfWidth = 0
+
+  // 端の自動スクロール (#704)。ポインタが止まっていても回し続けるので、
+  // 最後の位置を覚えて rAF で回す
+  let lastX = 0
+  let lastY = 0
+  let edgeRaf = 0
+  let compactZoneSince = 0
 
   // Pre-computed lookup: columnId → group index in layout (built once per drag)
   let groupIndexMap: Map<string, number> | null = null
@@ -50,6 +86,10 @@ export function useColumnDrag(
     if (target.closest('button')) return
 
     e.preventDefault()
+    if (e.pointerType === 'touch') {
+      startTouchDrag(columnId, e)
+      return
+    }
 
     const sx = e.clientX
     const sy = e.clientY
@@ -70,6 +110,36 @@ export function useColumnDrag(
 
     document.addEventListener('pointermove', onMove)
     document.addEventListener('pointerup', onCancel)
+  }
+
+  /** 長押しで掴む。待つ間に指が動いたり離れたりしたら何もしない */
+  function startTouchDrag(columnId: string, e: PointerEvent) {
+    const sx = e.clientX
+    const sy = e.clientY
+    let last = e
+
+    const timer = setTimeout(() => {
+      cleanup()
+      beginDrag(columnId, last)
+    }, TOUCH_LONG_PRESS_MS)
+
+    function onMove(ev: PointerEvent) {
+      last = ev
+      const dx = ev.clientX - sx
+      const dy = ev.clientY - sy
+      if (dx * dx + dy * dy > TOUCH_SLOP * TOUCH_SLOP) cleanup()
+    }
+
+    function cleanup() {
+      clearTimeout(timer)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', cleanup)
+      document.removeEventListener('pointercancel', cleanup)
+    }
+
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', cleanup)
+    document.addEventListener('pointercancel', cleanup)
   }
 
   function beginDrag(columnId: string, e: PointerEvent) {
@@ -134,8 +204,12 @@ export function useColumnDrag(
     moveGhost(e.clientX, e.clientY)
     document.body.classList.add('nd-dragging')
 
+    lastX = e.clientX
+    lastY = e.clientY
     document.addEventListener('pointermove', onDragMove)
     document.addEventListener('pointerup', onDragEnd)
+    // タッチはスクロール等に奪われると pointerup が来ない
+    document.addEventListener('pointercancel', onPointerLeave)
     document.documentElement.addEventListener('pointerleave', onPointerLeave)
 
     // Notify other windows about drag start
@@ -147,12 +221,70 @@ export function useColumnDrag(
     ghost.style.translate = `${x - ghostHalfWidth}px ${y - 10}px`
   }
 
+  function columnsContainer(): HTMLElement | null {
+    return document.querySelector<HTMLElement>(`.${selectors.columns}`)
+  }
+
+  /** 端に寄せている間だけ回る。帯から出たら止まる */
+  function tickEdgeScroll(now: number) {
+    edgeRaf = 0
+    const container = columnsContainer()
+    if (!container || !dragColumnId.value) return
+    const rect = container.getBoundingClientRect()
+    if (lastY < rect.top || lastY > rect.bottom) {
+      compactZoneSince = 0
+      return
+    }
+
+    if (isCompact.value) {
+      const dir = edgeScrollDelta(
+        lastX,
+        rect.left,
+        rect.right,
+        COMPACT_EDGE_ZONE,
+        1,
+      )
+      if (dir === 0) {
+        compactZoneSince = 0
+        return
+      }
+      if (compactZoneSince === 0) compactZoneSince = now
+      else if (now - compactZoneSince >= COMPACT_PAGE_INTERVAL_MS) {
+        compactZoneSince = now
+        container.scrollBy({
+          left: Math.sign(dir) * container.clientWidth,
+          behavior: 'instant',
+        })
+        updateDropTarget(lastX, lastY)
+      }
+    } else {
+      const delta = edgeScrollDelta(lastX, rect.left, rect.right)
+      if (delta === 0) return
+      const before = container.scrollLeft
+      container.scrollLeft += delta
+      // 端まで行き着いたら止める
+      if (container.scrollLeft === before) return
+      updateDropTarget(lastX, lastY)
+    }
+    edgeRaf = requestAnimationFrame(tickEdgeScroll)
+  }
+
+  function ensureEdgeScroll() {
+    if (!edgeRaf) edgeRaf = requestAnimationFrame(tickEdgeScroll)
+  }
+
   function onDragMove(e: PointerEvent) {
     moveGhost(e.clientX, e.clientY)
+    lastX = e.clientX
+    lastY = e.clientY
+    updateDropTarget(e.clientX, e.clientY)
+    ensureEdgeScroll()
+  }
 
+  function updateDropTarget(x: number, y: number) {
     // Hide ghost for hit detection
     if (ghost) ghost.style.display = 'none'
-    const el = document.elementFromPoint(e.clientX, e.clientY)
+    const el = document.elementFromPoint(x, y)
     if (ghost) ghost.style.display = ''
 
     if (!el) {
@@ -180,7 +312,7 @@ export function useColumnDrag(
         dropTarget.value = { columnId: targetId, position: 'swap' }
       } else {
         const rect = cell.getBoundingClientRect()
-        const relY = (e.clientY - rect.top) / rect.height
+        const relY = (y - rect.top) / rect.height
 
         let position: 'swap' | 'above' | 'below'
         if (relY < 0.25) {
@@ -247,7 +379,7 @@ export function useColumnDrag(
       let insertIndex = sections.length
       for (let i = 0; i < sections.length; i++) {
         const sRect = sections[i]?.getBoundingClientRect()
-        if (sRect && e.clientX < sRect.left + sRect.width / 2) {
+        if (sRect && x < sRect.left + sRect.width / 2) {
           insertIndex = i
           break
         }
@@ -265,7 +397,11 @@ export function useColumnDrag(
   function cleanupDrag() {
     document.removeEventListener('pointermove', onDragMove)
     document.removeEventListener('pointerup', onDragEnd)
+    document.removeEventListener('pointercancel', onPointerLeave)
     document.documentElement.removeEventListener('pointerleave', onPointerLeave)
+    if (edgeRaf) cancelAnimationFrame(edgeRaf)
+    edgeRaf = 0
+    compactZoneSince = 0
 
     dragColumnId.value = null
     dropTarget.value = null

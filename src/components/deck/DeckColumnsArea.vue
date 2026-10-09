@@ -37,12 +37,16 @@ const deckStore = useDeckStore()
 const emit = defineEmits<{ 'add-column': [] }>()
 
 // Column drag & drop (CSS Module class names are passed as selectors)
-const columnDrag = useColumnDrag(deckStore, {
-  columns: $style.columns,
-  columnSection: $style.columnSection,
-  colResizeHandle: $style.colResizeHandle,
-})
 const isCompact = useIsCompactLayout()
+const columnDrag = useColumnDrag(
+  deckStore,
+  {
+    columns: $style.columns,
+    columnSection: $style.columnSection,
+    colResizeHandle: $style.colResizeHandle,
+  },
+  isCompact,
+)
 
 const columnMap = computed(() => deckStore.columnMap)
 

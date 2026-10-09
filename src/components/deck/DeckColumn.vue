@@ -23,7 +23,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useToast } from '@/stores/toast'
-import { useIsCompactLayout, useUiStore } from '@/stores/ui'
+import { useUiStore } from '@/stores/ui'
 import { openSafeUrl } from '@/utils/url'
 
 const props = defineProps<{
@@ -66,8 +66,7 @@ const { confirm } = useConfirm()
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
 const offlineModeStore = useOfflineModeStore()
-const { isDesktop, isMobilePlatform } = useUiStore()
-const isCompact = useIsCompactLayout()
+const { isDesktop } = useUiStore()
 
 const columnConfig = computed(() => deckStore.getColumn(props.columnId))
 const columnAccount = computed(() => {
@@ -314,8 +313,8 @@ function openAsPip() {
         <i :class="isMuted ? 'ti ti-volume-off' : 'ti ti-volume'" />
       </button>
 
-      <!-- Grabber (Misskey 6-dot pattern, hidden in PiP, mobile, and compact layout) -->
-      <i v-if="!isPipMode && !isMobilePlatform && !isCompact" :class="$style.grabber" class="column-grabber ti ti-grip-vertical" />
+      <!-- Grabber (Misskey 6-dot pattern, hidden in PiP)。タッチは長押しで掴む (#704) -->
+      <i v-if="!isPipMode" :class="$style.grabber" class="column-grabber ti ti-grip-vertical" @contextmenu.prevent />
 
       <!-- Menu button (shared between PiP and Deck) -->
       <button ref="menuBtnEl" :class="$style.headerBtn" class="_button" :title="i18n.ts._common.menu" @pointerdown.stop @click.stop="toggleMenu">
@@ -497,6 +496,10 @@ function openAsPip() {
   opacity: 0.5;
   cursor: grab;
   padding: 4px;
+  /* 長押しで掴む間にカラムの横スワイプ・テキスト選択・長押しメニューに奪われない */
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 
   &:hover {
     opacity: 0.6;
