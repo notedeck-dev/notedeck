@@ -832,7 +832,7 @@ function handleReset() {
 
 .visualHint {
   padding: 10px 12px 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.55;
 }
 
@@ -913,20 +913,20 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-weight: 600;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .pinIcon {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-accent);
 }
 
 .defaultIcon {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-mfmSuccess, #4a8);
 }
 
@@ -934,7 +934,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 }
 
@@ -1008,7 +1008,7 @@ function handleReset() {
 }
 
 .fieldLabel {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.6;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1017,7 +1017,7 @@ function handleReset() {
 .input {
   width: 100%;
   padding: 5px 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   background: var(--nd-bg);
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
@@ -1065,8 +1065,8 @@ function handleReset() {
   align-items: center;
   gap: 8px;
   padding: 0 4px;
-  font-size: 0.7em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.65;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1077,7 +1077,7 @@ function handleReset() {
   align-items: center;
   gap: 2px;
   padding: 1px 6px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.7;
@@ -1092,7 +1092,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 }
 
@@ -1100,7 +1100,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 }
 
@@ -1116,7 +1116,7 @@ function handleReset() {
 }
 
 .inlineIcon {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0.7;
 }
 
@@ -1142,7 +1142,7 @@ function handleReset() {
 }
 
 .inputsEmpty {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
   text-align: center;
   padding: 6px;
@@ -1151,7 +1151,7 @@ function handleReset() {
 .emptyState {
   padding: 18px;
   text-align: center;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.55;
 }
 
@@ -1164,7 +1164,7 @@ function handleReset() {
   margin-top: 4px;
   border: 1px dashed var(--nd-divider);
   border-radius: var(--nd-radius-sm);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.7;
   transition:
@@ -1193,7 +1193,7 @@ function handleReset() {
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   line-height: 1.55;
   opacity: 0.5;
 
@@ -1202,7 +1202,7 @@ function handleReset() {
     background: var(--nd-buttonBg);
     padding: 1px 4px;
     margin: 0 2px;
-    border-radius: 3px;
+    border-radius: var(--nd-radius-xs);
     white-space: nowrap;
   }
 }
@@ -1222,7 +1222,7 @@ function handleReset() {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, var(--nd-bg));
   color: var(--nd-love);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   word-break: break-all;
 }
 
@@ -1230,7 +1230,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

@@ -180,7 +180,7 @@ dialog.overlay::backdrop {
   max-height: calc(100vh - 32px);
   padding: 8px;
   color: var(--nd-fg);
-  border-radius: 16px;
+  border-radius: var(--nd-radius-sheet);
   overflow: auto;
   overscroll-behavior: contain;
   box-sizing: border-box;
@@ -189,7 +189,7 @@ dialog.overlay::backdrop {
   .mobileBackdrop & {
     width: 100%;
     max-height: 75vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
     padding-bottom: max(20px, var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
   }
@@ -208,7 +208,7 @@ dialog.overlay::backdrop {
   justify-content: center;
   aspect-ratio: 1;
   padding: 4px;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   transition: background var(--nd-duration-fast), color var(--nd-duration-fast);
 

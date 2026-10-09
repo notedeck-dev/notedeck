@@ -46,8 +46,8 @@ const collapsed = ref(false)
   gap: 4px;
   width: 100%;
   padding: 8px 12px 4px;
-  font-size: 0.75em;
-  font-weight: 600;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.55;
   letter-spacing: 0.04em;
@@ -60,11 +60,11 @@ const collapsed = ref(false)
 }
 
 .chevron {
-  font-size: 1.1em;
+  font-size: var(--nd-font-lg);
 }
 
 .count {
-  font-weight: 400;
+  font-weight: var(--nd-weight-regular);
   opacity: 0.7;
 }
 </style>

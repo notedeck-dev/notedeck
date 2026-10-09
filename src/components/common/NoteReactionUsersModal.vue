@@ -191,7 +191,7 @@ defineExpose({ open })
   display: flex;
   flex-direction: column;
   background: color-mix(in srgb, var(--nd-popup, var(--nd-panel)) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   overflow: hidden;
   contain: paint;
@@ -199,7 +199,7 @@ defineExpose({ open })
   .mobile & {
     width: 100%;
     max-height: 70vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
     padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   }
@@ -231,7 +231,7 @@ defineExpose({ open })
   font: inherit;
   cursor: pointer;
   flex-shrink: 0;
-  border-radius: 8px 8px 0 0;
+  border-radius: var(--nd-radius-md) var(--nd-radius-md) 0 0;
   transition: background var(--nd-duration-base);
 
   &:hover {
@@ -250,7 +250,7 @@ defineExpose({ open })
 }
 
 .tabCount {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -263,7 +263,7 @@ defineExpose({ open })
 .loading {
   padding: 16px;
   text-align: center;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.5;
 }
@@ -305,8 +305,8 @@ defineExpose({ open })
 }
 
 .userName {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -315,7 +315,7 @@ defineExpose({ open })
 }
 
 .userHandle {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   display: block;
   overflow: hidden;

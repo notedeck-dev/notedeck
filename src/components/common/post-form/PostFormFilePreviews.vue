@@ -328,7 +328,7 @@ async function onDelete() {
   height: 64px;
   border-radius: var(--nd-radius-md);
   background: var(--nd-buttonBg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 

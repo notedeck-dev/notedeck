@@ -235,7 +235,7 @@ onMounted(load)
   border-radius: var(--nd-radius-sm);
   background: var(--nd-love-subtle);
   color: var(--nd-love);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   white-space: pre-wrap;
 }
 
@@ -261,9 +261,9 @@ onMounted(load)
 }
 
 .label {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 }
 
 .input,
@@ -273,7 +273,7 @@ onMounted(load)
   border: 1px solid var(--nd-divider);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   font-family: inherit;
 }
 
@@ -290,7 +290,7 @@ onMounted(load)
   border: 1px solid var(--nd-divider);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   line-height: 1.6;
   font-family: inherit;
   resize: none;
@@ -312,8 +312,8 @@ onMounted(load)
   border-radius: var(--nd-radius-md);
   background: var(--nd-accent);
   color: #fff;
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   transition: opacity var(--nd-duration-base);
 
   &:disabled {

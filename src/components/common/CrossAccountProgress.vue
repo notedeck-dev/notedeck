@@ -34,7 +34,7 @@ defineProps<{
 }
 
 .text {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fgTransparent);
   font-variant-numeric: tabular-nums;
 }

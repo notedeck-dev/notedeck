@@ -176,7 +176,7 @@ defineExpose({ open })
   align-items: center;
   gap: 6px;
   padding: 8px 12px 0;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.85;
 }
 
@@ -186,7 +186,7 @@ defineExpose({ open })
   // トリガーの直下に出て水平方向はトリガーを跨ぐので center top 相当になる
   transform-origin: center top;
   background: color-mix(in srgb, var(--nd-popup, var(--nd-panel)) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   overflow: hidden;
   contain: layout paint;
@@ -194,7 +194,7 @@ defineExpose({ open })
   .mobileBackdrop & {
     position: static;
     width: 100%;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
     box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
     padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   }

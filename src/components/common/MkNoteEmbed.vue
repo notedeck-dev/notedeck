@@ -164,7 +164,7 @@ const pendingEmbeds = new Map<string, Promise<EmbedNote | null>>()
 
 .skeletonLine {
   height: 10px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: linear-gradient(
     90deg,
     var(--nd-buttonBg) 25%,

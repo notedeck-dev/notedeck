@@ -165,7 +165,7 @@ onUnmounted(() => {
   color: var(--nd-fg);
   box-shadow: 0 2px 8px var(--nd-shadow);
   border: 1px solid var(--nd-divider);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   line-height: 1.4;
   white-space: pre-line;
   overflow-wrap: break-word;

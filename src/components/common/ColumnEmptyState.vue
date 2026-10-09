@@ -196,7 +196,7 @@ watch(
 .message {
   color: var(--nd-fg);
   opacity: 0.5;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: center;
   line-height: 1.5;
   padding: 0 1rem;
@@ -215,8 +215,8 @@ watch(
   gap: 6px;
   padding: 8px 16px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgOnAccent);
   background: color-mix(in srgb, var(--nd-accent) 80%, transparent);
   transition: opacity var(--nd-duration-base);

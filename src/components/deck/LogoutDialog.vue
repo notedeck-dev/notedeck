@@ -80,14 +80,14 @@ useNativeDialog(dialogRef, visible, {
 }
 
 .icon {
-  font-size: 1.2em;
+  font-size: var(--nd-font-xl);
   color: var(--nd-fg);
   opacity: 0.7;
 }
 
 .title {
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
 }
 
@@ -99,7 +99,7 @@ useNativeDialog(dialogRef, visible, {
 .message {
   margin: 0;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
   opacity: 0.8;
 }
@@ -107,7 +107,7 @@ useNativeDialog(dialogRef, visible, {
 .hint {
   margin: 4px 0 0;
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
 }
 

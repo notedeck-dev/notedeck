@@ -81,8 +81,8 @@ function onClose() {
 }
 
 .detailTitle {
-  font-size: 0.9em;
-  font-weight: bold;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   margin: 0;
   color: var(--nd-fgHighlighted);
 }

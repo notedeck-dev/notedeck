@@ -237,8 +237,8 @@ watch(
 }
 
 .tabLabel {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   white-space: nowrap;
 }
 

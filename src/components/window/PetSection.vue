@@ -172,7 +172,7 @@ function openPage() {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
 }
 
@@ -195,11 +195,11 @@ function openPage() {
 
 .sliderIcon {
   color: var(--nd-fgMuted);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .sliderValue {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
   min-width: 3.5em;
   text-align: right;
@@ -216,7 +216,7 @@ function openPage() {
     var(--nd-accent) var(--fill, 0%),
     var(--nd-divider) var(--fill, 0%)
   );
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   outline: none;
   cursor: pointer;
 
@@ -248,7 +248,7 @@ function openPage() {
   background: var(--nd-bg);
   color: var(--nd-fg);
   font: inherit;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .applyBtn {
@@ -259,7 +259,7 @@ function openPage() {
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent, #fff);
   font: inherit;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 
   &:disabled {
@@ -283,7 +283,7 @@ function openPage() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-love);
 }
 
@@ -296,7 +296,7 @@ function openPage() {
   background: none;
   padding: 0;
   font: inherit;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
   cursor: pointer;
 

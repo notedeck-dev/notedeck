@@ -598,7 +598,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
   color: var(--nd-fg);
   opacity: 0.6;
   transition:
-    background 0.1s,
+    background var(--nd-duration-fast),
     opacity 0.1s;
 
   &:hover {
@@ -621,7 +621,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
   height: 26px;
   padding: 0 6px;
   border: 1px solid var(--nd-divider);
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-inputBg, var(--nd-bg));
   color: var(--nd-fg);
   font-size: 12px;
@@ -650,12 +650,12 @@ async function deleteFromLibrary(plugin: PluginMeta) {
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   color: var(--nd-fg);
   opacity: 0.45;
   font-size: 13px;
   transition:
-    opacity 0.1s,
+    opacity var(--nd-duration-fast),
     background 0.1s;
 
   &:hover {
@@ -705,7 +705,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
   background: none;
   color: var(--nd-fg);
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
   transition: opacity var(--nd-duration-base), border-color var(--nd-duration-base);
 
@@ -757,7 +757,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
   gap: 6px;
   padding: 8px 12px;
   margin: 6px 10px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   color: var(--nd-love);
   font-size: 12px;
@@ -771,7 +771,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   opacity: 0.6;
   font-size: 12px;
 
@@ -805,7 +805,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
   font-size: 12px;
   margin-top: 4px;
   opacity: 0.8;
-  transition: opacity 0.1s;
+  transition: opacity var(--nd-duration-fast);
 
   &:hover {
     opacity: 1;

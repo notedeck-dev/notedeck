@@ -491,8 +491,8 @@ onBeforeUnmount(() => {
 
 .windowTitle {
   flex: 1;
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;

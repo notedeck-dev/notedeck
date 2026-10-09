@@ -50,7 +50,7 @@ defineProps<{
   padding: 4px 12px;
   min-height: 44px;
   width: 100%;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   white-space: nowrap;
   text-align: left;
@@ -88,14 +88,14 @@ defineProps<{
 .hint {
   display: block;
   margin-top: 2px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
   white-space: normal;
 }
 
 .chevron {
   margin-left: auto;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.4;
   flex-shrink: 0;
 }

@@ -853,7 +853,7 @@ async function handlePosted(editedNoteId?: string) {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 6px 10px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   outline: none;
 
@@ -884,11 +884,11 @@ async function handlePosted(editedNoteId?: string) {
 .probeBar {
   height: 100%;
   background: var(--nd-accent);
-  transition: width 0.3s var(--nd-ease-decel);
+  transition: width var(--nd-duration-slow) var(--nd-ease-decel);
 }
 
 .headerCrossIcon {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0.7;
 }
 

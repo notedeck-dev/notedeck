@@ -351,7 +351,7 @@ function clearAll() {
 
 .label {
   flex: 0 0 3.5em;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .input {
@@ -361,7 +361,7 @@ function clearAll() {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 4px 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   color-scheme: dark;
   outline: none;
@@ -372,14 +372,14 @@ function clearAll() {
 }
 
 .dateSeparator {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.4;
 }
 
 .hint {
   flex-basis: 100%;
   padding-left: calc(3.5em + 8px);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 }
 
@@ -389,7 +389,7 @@ function clearAll() {
 }
 
 .stale {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -408,7 +408,7 @@ function clearAll() {
   gap: 4px;
   padding: 2px 8px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
 
   &:hover {

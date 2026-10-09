@@ -48,8 +48,8 @@ function toggle() {
   border-radius: var(--nd-radius-sm);
   background: none;
   color: var(--nd-fg);
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   cursor: pointer;
   opacity: 0.7;
   transition: opacity var(--nd-duration-base);
@@ -64,7 +64,7 @@ function toggle() {
 }
 
 .sectionArrow {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   width: 12px;
   flex-shrink: 0;
 }
@@ -75,7 +75,7 @@ function toggle() {
 
 .sectionCount {
   opacity: 0.5;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
 }
 
 .sectionContent {

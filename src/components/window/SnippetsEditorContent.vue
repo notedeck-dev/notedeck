@@ -301,7 +301,7 @@ function handleReset() {
   gap: 6px;
   padding: 6px 8px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-align: left;
   transition: background var(--nd-duration-fast);
@@ -351,7 +351,7 @@ function handleReset() {
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.4;
 }
 
@@ -370,7 +370,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
   min-height: 20px;
 }

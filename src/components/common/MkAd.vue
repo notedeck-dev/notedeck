@@ -77,7 +77,7 @@ function reduceFrequency() {
   object-fit: contain;
   max-width: 100%;
   margin: auto;
-  border-radius: 5px;
+  border-radius: var(--nd-radius-xs);
   transition: filter var(--nd-duration-base);
 }
 
@@ -111,11 +111,11 @@ function reduceFrequency() {
   gap: 4px;
   background: var(--nd-panel, var(--nd-bg));
   border: solid 1px var(--nd-divider);
-  border-radius: 5px;
+  border-radius: var(--nd-radius-xs);
 }
 
 .adMenuSource {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.7;
 }
@@ -128,8 +128,8 @@ function reduceFrequency() {
   border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: #fff;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
 
@@ -143,7 +143,7 @@ function reduceFrequency() {
   border: none;
   background: none;
   color: var(--nd-accent);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 
   &:hover {

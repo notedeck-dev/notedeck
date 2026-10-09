@@ -575,7 +575,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   height: 26px;
   padding: 0 6px;
   border: 1px solid var(--nd-divider);
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-inputBg, var(--nd-bg));
   color: var(--nd-fg);
   font-size: 12px;
@@ -671,7 +671,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   text-align: left;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -682,7 +682,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   &:focus-visible {
     outline: 2px solid var(--nd-focusRing);
     outline-offset: 2px;
-    border-radius: 3px;
+    border-radius: var(--nd-radius-xs);
   }
 }
 
@@ -697,7 +697,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   padding: 0 5px;
   line-height: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-fg) 12%, transparent);
   color: var(--nd-fg);
   text-transform: uppercase;
@@ -726,10 +726,10 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   flex-shrink: 0;
   padding: 0 5px;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   line-height: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-fg) 15%, transparent);
   color: var(--nd-fg);
   text-transform: uppercase;
@@ -788,7 +788,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 .category {
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
   color: var(--nd-fg);
   opacity: 0.6;
@@ -826,7 +826,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   width: 22px;
   height: 22px;
   flex-shrink: 0;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   color: var(--nd-fg);
   font-size: 13px;
   opacity: 0.7;
@@ -862,7 +862,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   padding: 2px 10px;
   height: 22px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
@@ -900,7 +900,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   display: flex;
   align-items: center;
   font-size: 10px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   border: 1px solid var(--nd-divider);
   color: var(--nd-fg);
   opacity: 0.6;
@@ -912,7 +912,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   flex-shrink: 0;
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
   line-height: 1.3;
@@ -959,7 +959,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   gap: 6px;
   padding: 8px 12px;
   margin: 6px 10px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   color: var(--nd-love);
   font-size: 12px;
@@ -973,7 +973,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   opacity: 0.6;
   font-size: 12px;
 

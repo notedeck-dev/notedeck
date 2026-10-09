@@ -146,7 +146,7 @@ function removeRow(index: number) {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-warn) 12%, transparent);
   color: var(--nd-warn);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
 }
 
 .row {
@@ -160,7 +160,7 @@ function removeRow(index: number) {
   padding: 3px 8px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   white-space: nowrap;
 
   &:hover {
@@ -176,7 +176,7 @@ function removeRow(index: number) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   outline: none;
 
   &:focus {
@@ -204,7 +204,7 @@ function removeRow(index: number) {
   gap: 4px;
   padding: 2px 6px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 
   &:hover {

@@ -367,9 +367,9 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 }
 
 .headerBadge {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   padding: 0 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   line-height: 1.6;
   flex-shrink: 0;
@@ -424,7 +424,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
   font-size: 11px;
   color: var(--nd-accent, #f06292);
   background: color-mix(in srgb, var(--nd-accent, #f06292) 8%, transparent);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   line-height: 1.4;
 
   i {
@@ -459,7 +459,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
   padding: 0 8px;
   background: var(--nd-inputBg, var(--nd-bg));
   border: 1px solid var(--nd-divider);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   color: var(--nd-fg);
   font-size: 12px;
 
@@ -488,7 +488,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
   color: var(--nd-fg);
   opacity: 0.65;
   background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   line-height: 1.4;
 }
 

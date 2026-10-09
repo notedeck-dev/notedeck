@@ -78,7 +78,7 @@ const config = computed(() => ({
 .docsError {
   padding: 16px;
   color: var(--nd-love);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .docsLoading {

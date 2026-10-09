@@ -142,7 +142,7 @@ function classBadge(
 
 .sectionTitle {
   margin: 8px 0 2px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fgMuted);
 }
 

@@ -312,7 +312,7 @@ function handleClick() {
   z-index: 1;
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 85%, var(--nd-bg));
   color: var(--nd-fgOnAccent);
   line-height: 1.3;
@@ -338,7 +338,7 @@ function handleClick() {
 .name {
   padding: 4px 6px;
   text-align: center;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   white-space: nowrap;
   overflow: hidden;

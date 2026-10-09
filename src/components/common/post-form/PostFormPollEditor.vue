@@ -202,7 +202,7 @@ watch(
 .pollChoiceInput {
   flex: 1;
   padding: 6px 10px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   font-family: inherit;
   color: var(--nd-fg);
   background: var(--nd-buttonBg);
@@ -246,7 +246,7 @@ watch(
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-accent);
   border-radius: var(--nd-radius-sm);
 
@@ -259,7 +259,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
@@ -269,7 +269,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.7;
 }
@@ -287,6 +287,6 @@ watch(
 }
 
 .pollExpiryDatetime {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
 }
 </style>

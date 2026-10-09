@@ -154,7 +154,7 @@ function openEditor(id: string) {
 .profileMenu {
   width: 100%;
   margin: 0;
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
   background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
   padding: 4px 0 calc(4px + var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
@@ -178,7 +178,7 @@ function openEditor(id: string) {
   padding: 8px 12px;
   min-height: 44px;
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 20px;
   color: var(--nd-fg);
   position: relative;
@@ -199,7 +199,7 @@ function openEditor(id: string) {
 
 .active {
   color: var(--nd-accent);
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 
   &::before {
     background: var(--nd-accent-subtle);
@@ -242,7 +242,7 @@ function openEditor(id: string) {
 
 .empty {
   padding: 16px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.4;
   text-align: center;

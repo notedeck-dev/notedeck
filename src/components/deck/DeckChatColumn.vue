@@ -1349,7 +1349,7 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 6px 10px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   outline: none;
 
@@ -1437,15 +1437,15 @@ onBeforeUnmount(() => {
 }
 
 .historyName {
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .historyPreview {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1462,7 +1462,7 @@ onBeforeUnmount(() => {
 }
 
 .historyTime {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
 }
 
@@ -1479,7 +1479,7 @@ onBeforeUnmount(() => {
 
 .chatError {
   padding: 4px 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-love);
 }
 
@@ -1510,7 +1510,7 @@ onBeforeUnmount(() => {
 }
 
 .chatAttachmentName {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1525,7 +1525,7 @@ onBeforeUnmount(() => {
   opacity: 0.5;
   cursor: pointer;
   padding: 4px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 
   &:hover {
     opacity: 1;
@@ -1556,7 +1556,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 1.1em;
+  font-size: var(--nd-font-lg);
 
   &:hover {
     opacity: 0.8;
@@ -1576,9 +1576,9 @@ onBeforeUnmount(() => {
   border: none;
   background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
   color: var(--nd-fg);
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   padding: 8px 12px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   font-family: inherit;
   line-height: 1.4;
   max-height: 120px;
@@ -1626,7 +1626,7 @@ onBeforeUnmount(() => {
   max-height: 320px;
   overflow: hidden;
   background: var(--nd-popup);
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--nd-radius) var(--nd-radius) 0 0;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
   z-index: var(--nd-z-menu);
 }
@@ -1637,7 +1637,7 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   background: var(--nd-popup);
-  border-radius: 12px 12px 0 0;
+  border-radius: var(--nd-radius) var(--nd-radius) 0 0;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
   z-index: var(--nd-z-menu);
 }

@@ -176,7 +176,7 @@ fetchDrive()
   display: flex;
   flex-direction: column;
   background: var(--nd-panelBg, var(--nd-popup));
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: 0 8px 32px var(--nd-shadow);
   overflow: hidden;
 }
@@ -195,8 +195,8 @@ fetchDrive()
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -238,7 +238,7 @@ fetchDrive()
 .dpEmpty {
   padding: 32px 16px;
   text-align: center;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
 }
 
@@ -249,7 +249,7 @@ fetchDrive()
 
 .dpUploadError {
   padding: 8px 12px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-love);
 }
 
@@ -261,8 +261,8 @@ fetchDrive()
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent, #fff);
-  font-size: 0.8em;
-  font-weight: 600;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   transition: opacity var(--nd-duration-base);
 
   &:hover {
@@ -278,9 +278,9 @@ fetchDrive()
 .dpConfirmCount {
   min-width: 18px;
   padding: 0 6px;
-  border-radius: 9px;
+  border-radius: var(--nd-radius-md);
   background: rgba(255, 255, 255, 0.25);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 16px;
   text-align: center;
 }

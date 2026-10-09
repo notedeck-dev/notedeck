@@ -1637,7 +1637,7 @@ onUnmounted(() => {
 
 .notifItem {
   border-bottom: 1px solid var(--nd-divider);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 // 余白・文字サイズはカラム幅に追随させる (本家 MkNotification と同じ段階)
@@ -1652,7 +1652,7 @@ onUnmounted(() => {
 }
 
 @container (max-width: 500px) {
-  .notifItem { font-size: 0.85em; }
+  .notifItem { font-size: var(--nd-font-md); }
   .notifLayout { padding: 12px; }
 }
 
@@ -1685,7 +1685,7 @@ onUnmounted(() => {
 
 /* アプリのロゴは円形トリミングだと欠けるので角丸 + contain で収める */
 .notifAppIcon {
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   object-fit: contain;
 }
 
@@ -1780,8 +1780,8 @@ onUnmounted(() => {
 }
 
 .notifUserName {
-  font-weight: bold;
-  font-size: 0.85em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-md);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1789,12 +1789,12 @@ onUnmounted(() => {
 }
 
 .notifLabel {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
 }
 
 .notifAchievement {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.7;
   margin-top: 2px;
@@ -1802,7 +1802,7 @@ onUnmounted(() => {
 
 .notifAppBody {
   margin-top: 2px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -1821,8 +1821,8 @@ onUnmounted(() => {
 }
 
 .notifRoleName {
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
 }
 
 .notifReaction {
@@ -1842,14 +1842,14 @@ onUnmounted(() => {
 
 .notifTime {
   flex-shrink: 0;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
   margin-left: auto;
 }
 
 .notifMessage {
   margin-top: 4px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
   line-height: 1.5;
 }
@@ -1868,7 +1868,7 @@ onUnmounted(() => {
   margin-top: 4px;
 
   :deep(.note-root) {
-    font-size: 0.9em;
+    font-size: var(--nd-font-body);
   }
 
   :deep(.article) {
@@ -1895,8 +1895,8 @@ onUnmounted(() => {
   gap: 4px;
   min-width: 100px;
   padding: 7px 14px;
-  font-weight: bold;
-  font-size: 0.85em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-md);
   border: none;
   border-radius: var(--nd-radius-full);
   cursor: pointer;
@@ -1922,7 +1922,7 @@ onUnmounted(() => {
 }
 
 .followRequestDone {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.6;
   font-style: italic;
 }

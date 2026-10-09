@@ -294,20 +294,20 @@ onMounted(() => {
   width: 80px;
   height: 80px;
   margin: 0 auto;
-  border-radius: 16px;
+  border-radius: var(--nd-radius-sheet);
   object-fit: contain;
 }
 
 .aboutTitle {
   margin-top: 12px;
-  font-size: 1.2em;
-  font-weight: bold;
+  font-size: var(--nd-font-xl);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .aboutVersion {
   margin-top: 2px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
 }
 
@@ -315,7 +315,7 @@ onMounted(() => {
 .aboutDesc {
   text-align: center;
   padding: 0 16px 16px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.6;
   color: var(--nd-fg);
 }
@@ -343,8 +343,8 @@ onMounted(() => {
   border-radius: var(--nd-radius-full);
   background: linear-gradient(90deg, var(--nd-buttonGradateA), var(--nd-buttonGradateB));
   color: var(--nd-fgOnAccent);
-  font-weight: bold;
-  font-size: 0.95em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   transition: opacity var(--nd-duration-base);
 
   &:hover {
@@ -354,7 +354,7 @@ onMounted(() => {
 
 .loveHeart {
   display: inline-block;
-  font-size: 1.1em;
+  font-size: var(--nd-font-lg);
   transform-origin: center;
   animation: heartbeat 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
@@ -373,10 +373,10 @@ onMounted(() => {
 }
 
 .aboutSectionLabel {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   padding: 1.5em 16px 0;
   margin-bottom: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 /* Links */
@@ -392,7 +392,7 @@ onMounted(() => {
   margin-bottom: 6px;
   background: var(--nd-buttonBg);
   border-radius: var(--nd-radius-sm);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   transition: background var(--nd-duration-base);
 
@@ -422,7 +422,7 @@ onMounted(() => {
   padding: 12px;
   border-radius: var(--nd-radius-md);
   background: var(--nd-infoWarnBg, var(--nd-accentedBg));
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-infoWarnFg, #ffbd3e);
   line-height: 1.5;
 
@@ -463,7 +463,7 @@ onMounted(() => {
 }
 
 .memberName {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   overflow: hidden;
   text-overflow: ellipsis;

@@ -518,8 +518,8 @@ async function importNav() {
   align-items: center;
   gap: 6px;
   padding: 10px 12px 6px;
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.5;
   text-transform: uppercase;
@@ -528,7 +528,7 @@ async function importNav() {
 
 .mobileSectionBadge {
   margin-left: auto;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
   opacity: 0.8;
 }
 
@@ -537,7 +537,7 @@ async function importNav() {
   text-align: center;
   color: var(--nd-fg);
   opacity: 0.4;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
 }
 
 // ── Right: AddColumnDialog ──
@@ -562,7 +562,7 @@ async function importNav() {
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
 }
 
@@ -579,7 +579,7 @@ async function importNav() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-love, #ec4137);
 }
 
@@ -587,7 +587,7 @@ async function importNav() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

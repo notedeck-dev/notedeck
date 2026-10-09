@@ -188,10 +188,28 @@
     'Hiragino Sans', 'Hiragino Maru Gothic Pro', 'BIZ UDGothic',
     Roboto, HelveticaNeue, Arial, sans-serif;
   /* Non-theme layout constants */
-  --nd-radius: 12px;
+  /* Radius: xs 小物 (チップ・kbd) / sm ボタン・入力 / md カード・メニュー /
+     lg カラムの面 / (無印) ウィンドウ・ポップアップ / sheet ボトムシート上端 */
+  --nd-radius-xs: 4px;
   --nd-radius-sm: 6px;
   --nd-radius-md: 8px;
+  --nd-radius-lg: 10px;
+  --nd-radius: 12px;
+  --nd-radius-sheet: 16px;
   --nd-radius-full: 999px;
+  /* Typography (#704 B): 周囲の文字に対する相対値 (em)。本文は html の 14px。
+     直書きの em はこの段に寄せる。px は固定寸法の部品 (アイコン・IDE 面) 用 */
+  --nd-font-2xs: 0.7em;
+  --nd-font-xs: 0.75em;
+  --nd-font-sm: 0.8em;
+  --nd-font-md: 0.85em;
+  --nd-font-body: 0.9em;
+  --nd-font-lg: 1.1em;
+  --nd-font-xl: 1.2em;
+  --nd-font-2xl: 1.5em;
+  --nd-weight-regular: 400;
+  --nd-weight-medium: 500;
+  --nd-weight-bold: 700;
   --nd-margin: 10px;
   --nd-nav-resize-handle: 6px;
   --nd-columnGap: 6px;
@@ -202,6 +220,7 @@
      Apple pattern: enter slightly longer than leave for natural weight */
   --nd-duration-fast: 0.1s;
   --nd-duration-base: 0.15s;
+  --nd-duration-medium: 0.2s;
   --nd-duration-slow: 0.28s;
   --nd-duration-slower: 0.38s;
   --nd-duration-tl-enter: 0.5s; /* Timeline note insertion — Misskey uses 0.7s */
@@ -421,7 +440,7 @@ summary,
   background: none;
   cursor: pointer;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: left;
   transition: background var(--nd-duration-base), transform var(--nd-duration-fast) var(--nd-ease-spring);
 }
@@ -512,8 +531,8 @@ summary,
 }
 
 ._popupHeaderTitle {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -521,7 +540,7 @@ summary,
 }
 
 ._popupHeaderSub {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -530,8 +549,8 @@ summary,
 
 ._popupConfirmText {
   padding: 7px 22px;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
 }
 
@@ -543,10 +562,10 @@ summary,
   width: 100%;
   padding: 8px;
   border: 1px solid var(--nd-divider);
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   resize: vertical;
 }
 
@@ -594,7 +613,7 @@ dialog._nativeDialog[open] {
   width: 300px;
   max-width: 90vw;
   background: var(--nd-panel, var(--nd-bg));
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-l);
   overflow: hidden;
 }
@@ -654,11 +673,11 @@ dialog._nativeDialog[open] {
   padding: 7px 14px;
   margin: 0;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--nd-radius-xs);
   cursor: pointer;
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   font-size: 95%;
   font-family: inherit;
   line-height: inherit;
@@ -721,8 +740,8 @@ dialog._nativeDialog[open] {
   gap: 6px;
   background: var(--nd-modalBg);
   color: #fff;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   cursor: pointer;
   z-index: 2;
 }
@@ -814,7 +833,7 @@ dialog._nativeDialog[open] {
 }
 
 .nd-tab-snap-back > * {
-  transition: translate 0.25s var(--nd-ease-spring);
+  transition: translate var(--nd-duration-slow) var(--nd-ease-spring);
 }
 
 

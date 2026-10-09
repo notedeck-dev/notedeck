@@ -353,7 +353,7 @@ function hostname(url: string): string {
 
 .urlSensitive {
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
 }
 
 .playIndicator {
@@ -390,7 +390,7 @@ function hostname(url: string): string {
 
 .urlPreviewTitle {
   font-size: 1em;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -398,7 +398,7 @@ function hostname(url: string): string {
 }
 
 .urlPreviewDescription {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.7;
   margin-top: 4px;
@@ -409,7 +409,7 @@ function hostname(url: string): string {
 }
 
 .urlPreviewHost {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.5;
   margin-top: 8px;
@@ -445,7 +445,7 @@ function hostname(url: string): string {
 
 .skeletonLine {
   height: 14px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: linear-gradient(
     90deg,
     var(--nd-buttonBg) 25%,

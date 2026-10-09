@@ -528,7 +528,7 @@ usePortal(postPortalRef)
 
 .exploreUserDesc {
   margin-top: 4px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -538,7 +538,7 @@ usePortal(postPortalRef)
 
 .exploreUserMeta {
   margin-top: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
   display: flex;
   align-items: center;
@@ -577,14 +577,14 @@ usePortal(postPortalRef)
 }
 
 .exploreRoleName {
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .exploreRoleDesc {
   margin-top: 2px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -594,7 +594,7 @@ usePortal(postPortalRef)
 
 .exploreRoleMeta {
   margin-top: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
   display: flex;
   align-items: center;
@@ -606,8 +606,8 @@ usePortal(postPortalRef)
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  font-size: 0.85em;
-  font-weight: 600;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   border-bottom: 1px solid var(--nd-divider);
   flex-shrink: 0;
@@ -615,7 +615,7 @@ usePortal(postPortalRef)
   img {
     width: 20px;
     height: 20px;
-    border-radius: 4px;
+    border-radius: var(--nd-radius-xs);
   }
 }
 </style>

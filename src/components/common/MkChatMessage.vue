@@ -355,7 +355,7 @@ usePortal(lightboxPortalRef)
   padding: 8px 12px;
   border-radius: 14px;
   background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   line-height: 1.5;
   word-break: break-word;
 }
@@ -389,7 +389,7 @@ usePortal(lightboxPortalRef)
 }
 
 .chatTime {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
 }
 
@@ -405,7 +405,7 @@ usePortal(lightboxPortalRef)
   color: var(--nd-fg);
   opacity: 0.5;
   cursor: pointer;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
 
   &:hover {
@@ -427,11 +427,11 @@ usePortal(lightboxPortalRef)
   align-items: center;
   gap: 3px;
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   border: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.1));
   background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   cursor: pointer;
   line-height: 1.4;
 
@@ -482,11 +482,11 @@ usePortal(lightboxPortalRef)
 }
 
 .reactionEmojiText {
-  font-size: 1.1em;
+  font-size: var(--nd-font-lg);
 }
 
 .reactionCount {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
 }
 

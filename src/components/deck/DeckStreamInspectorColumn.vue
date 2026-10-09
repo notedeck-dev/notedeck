@@ -520,7 +520,7 @@ function onDetailWheel(e: WheelEvent) {
     translate: -50% 0;
     width: 16px;
     height: 2.5px;
-    border-radius: 3px 3px 0 0;
+    border-radius: var(--nd-radius-xs) var(--nd-radius-xs) 0 0;
     background: var(--nd-accent);
   }
 }
@@ -576,8 +576,8 @@ function onDetailWheel(e: WheelEvent) {
 
 .pill {
   padding: 2px 8px;
-  font-size: 0.7em;
-  border-radius: 10px;
+  font-size: var(--nd-font-2xs);
+  border-radius: var(--nd-radius-lg);
   border: 1px solid var(--nd-divider);
   color: var(--nd-fg);
   opacity: 0.5;
@@ -606,7 +606,7 @@ function onDetailWheel(e: WheelEvent) {
   display: flex;
   gap: 8px;
   padding: 3px 8px;
-  font-size: 0.72em;
+  font-size: var(--nd-font-2xs);
   font-family: var(--nd-font-mono);
   cursor: pointer;
   border-bottom: 1px solid transparent;
@@ -650,7 +650,7 @@ function onDetailWheel(e: WheelEvent) {
 }
 
 .badgeArrow {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.4;
   margin: 0 1px;
 }
@@ -685,12 +685,12 @@ function onDetailWheel(e: WheelEvent) {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   border-bottom: 1px solid var(--nd-divider);
 }
 
 .detailTitle {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-accent);
 }
 

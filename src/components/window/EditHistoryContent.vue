@@ -206,7 +206,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 
 .title {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -268,7 +268,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 .entryTag {
   flex-shrink: 0;
   padding: 0 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   font-size: 10px;
   opacity: 0.8;
@@ -360,7 +360,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
   font-size: 11px;
   color: var(--nd-error, #f66);
   background: color-mix(in srgb, var(--nd-error, #f66) 10%, transparent);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
 }
 
 .footer {
@@ -377,7 +377,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
   gap: 4px;
   padding: 5px 10px;
   border: 1px solid var(--nd-divider);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   background: transparent;
   color: var(--nd-fg);
   font-size: 12px;

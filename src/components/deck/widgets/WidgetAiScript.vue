@@ -345,7 +345,7 @@ onMounted(() => {
   gap: 4px;
   padding: 6px 10px;
   border-bottom: 1px solid var(--nd-divider);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   background: var(--nd-panelHeaderBg);
   color: var(--nd-panelHeaderFg);
 }
@@ -356,7 +356,7 @@ onMounted(() => {
   gap: 6px;
   margin-right: auto;
   min-width: 0;
-  font-weight: 500;
+  font-weight: var(--nd-weight-medium);
   opacity: 0.8;
 }
 
@@ -436,7 +436,7 @@ onMounted(() => {
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.6;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -466,7 +466,7 @@ onMounted(() => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-love-subtle);
   color: var(--nd-love);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   white-space: pre-wrap;
 }
 
@@ -478,7 +478,7 @@ onMounted(() => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   font-family: var(--nd-font-mono);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   line-height: 1.6;
   max-height: 200px;
   overflow-y: auto;
@@ -491,7 +491,7 @@ onMounted(() => {
   width: 100%;
   cursor: pointer;
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   user-select: none;
 }
 

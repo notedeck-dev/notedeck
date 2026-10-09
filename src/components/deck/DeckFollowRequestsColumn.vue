@@ -374,8 +374,8 @@ onMounted(() => {
 }
 
 .frDisplayName {
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -383,7 +383,7 @@ onMounted(() => {
 }
 
 .frAcct {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -429,8 +429,8 @@ onMounted(() => {
   gap: 4px;
   min-width: 100px;
   padding: 7px 14px;
-  font-weight: bold;
-  font-size: 0.85em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-md);
   border: none;
   border-radius: var(--nd-radius-full);
   cursor: pointer;
@@ -468,7 +468,7 @@ onMounted(() => {
 }
 
 .frDone {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.6;
   font-style: italic;
 }

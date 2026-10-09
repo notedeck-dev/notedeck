@@ -184,7 +184,7 @@ function toggle(key: PermissionKey) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   text-align: left;
   transition: border-color var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -194,7 +194,7 @@ function toggle(key: PermissionKey) {
 .dropdownChevron {
   margin-left: auto;
   opacity: 0.4;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .dropdownPanel {
@@ -218,7 +218,7 @@ function toggle(key: PermissionKey) {
   gap: 8px;
   width: 100%;
   padding: 7px 10px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-align: left;
   cursor: pointer;
@@ -231,7 +231,7 @@ function toggle(key: PermissionKey) {
 
 .checkIcon {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .category {
@@ -240,8 +240,8 @@ function toggle(key: PermissionKey) {
 
 .categoryLabel {
   margin: 0 0 4px 2px;
-  font-size: 0.7em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   letter-spacing: 0.04em;
   color: var(--nd-fg);
   opacity: 0.55;
@@ -262,7 +262,7 @@ function toggle(key: PermissionKey) {
   gap: 8px;
   padding: 8px 4px 8px 8px;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--nd-duration-fast);
 
   &:not(.switchRowDisabled):hover {
     background: var(--nd-buttonHoverBg);
@@ -305,6 +305,6 @@ function toggle(key: PermissionKey) {
   flex-shrink: 0;
   color: var(--nd-love);
   opacity: 0.85;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 </style>

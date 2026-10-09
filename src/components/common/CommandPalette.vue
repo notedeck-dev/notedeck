@@ -668,7 +668,7 @@ function primaryShortcut(cmd: Command): string | null {
 .inputKbd {
   font-size: 10px;
   padding: 0 4px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   background: rgba(255, 255, 255, 0.08);
   opacity: 0.4;
   font-family: inherit;
@@ -686,7 +686,7 @@ function primaryShortcut(cmd: Command): string | null {
   background: var(--nd-popup, #252526);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-top: none;
-  border-radius: 0 0 6px 6px;
+  border-radius: 0 0 var(--nd-radius-sm) var(--nd-radius-sm);
   box-shadow: 0 8px 36px rgba(0, 0, 0, 0.4);
   font-family: var(--nd-font-mono);
   // 閉じるのは VS Code と同じく即時。開くときだけ入力欄から垂れ下がるように出す
@@ -717,7 +717,7 @@ function primaryShortcut(cmd: Command): string | null {
 
   &::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.12);
-    border-radius: 3px;
+    border-radius: var(--nd-radius-xs);
   }
 }
 
@@ -730,7 +730,7 @@ function primaryShortcut(cmd: Command): string | null {
 .category {
   padding: 6px 12px 2px;
   font-size: 11px;
-  font-weight: 400;
+  font-weight: var(--nd-weight-regular);
   color: var(--nd-fg);
   opacity: 0.5;
 }
@@ -790,7 +790,7 @@ function primaryShortcut(cmd: Command): string | null {
 .itemKbd {
   font-size: 11px;
   padding: 1px 5px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   background: rgba(255, 255, 255, 0.06);
   border: 0.5px solid rgba(255, 255, 255, 0.1);
   border-bottom-width: 1px;
@@ -842,7 +842,7 @@ function primaryShortcut(cmd: Command): string | null {
 
 .quickPickTitle {
   font-size: 12px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.6;
 }

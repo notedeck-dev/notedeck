@@ -482,7 +482,7 @@ onMounted(async () => {
   background: var(--nd-panel);
   color: var(--nd-fg);
   overflow: hidden;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
 }
 
 .pipDragBar {
@@ -496,14 +496,14 @@ onMounted(async () => {
   color: var(--nd-panelHeaderFg);
   user-select: none;
   flex-shrink: 0;
-  border-radius: 10px 10px 0 0;
+  border-radius: var(--nd-radius-lg) var(--nd-radius-lg) 0 0;
   box-shadow: 0 0.5px 0 0 var(--nd-hairline);
 }
 
 .pipDragTitle {
   flex: 1;
-  font-size: 0.9em;
-  font-weight: bold;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
 }
 
 .pipDragBtn {

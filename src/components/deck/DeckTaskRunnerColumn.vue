@@ -576,8 +576,8 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 }
 
 .defaultBarKicker {
-  font-size: 0.65em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   opacity: 0.7;
@@ -585,8 +585,8 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 }
 
 .defaultBarLabel {
-  font-size: 0.85em;
-  font-weight: 600;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -594,10 +594,10 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 
 .defaultBarShortcut {
   flex-shrink: 0;
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   font-family: var(--nd-font-mono);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-bg);
   border: 1px solid var(--nd-divider);
   color: var(--nd-fg);
@@ -636,7 +636,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   border: none;
   outline: none;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .searchClear {
@@ -659,8 +659,8 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   align-items: center;
   gap: 8px;
   padding: 10px 14px 6px;
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -675,13 +675,13 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 }
 
 .sectionLeadIcon {
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   color: var(--nd-accent);
   opacity: 0.9;
 }
 
 .countSub {
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
   opacity: 0.7;
   margin-left: 4px;
 }
@@ -691,8 +691,8 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  font-size: 0.75em;
-  font-weight: normal;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-regular);
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 18%, transparent);
   color: var(--nd-accent);
@@ -704,7 +704,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   color: var(--nd-love, #c66);
   text-transform: none;
   letter-spacing: 0;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
   opacity: 1;
 }
 
@@ -712,7 +712,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   padding: 10px 14px 14px;
   color: var(--nd-fg);
   opacity: 0.55;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   text-align: center;
 }
 
@@ -741,7 +741,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   text-align: left;
   color: var(--nd-fgHighlighted);
   transition: background var(--nd-duration-base);
@@ -771,7 +771,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 }
 
 .runLabel {
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -779,7 +779,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 
 .runDesc {
   opacity: 0.55;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -791,7 +791,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   align-items: center;
   gap: 2px;
   padding: 1px 6px;
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
@@ -833,7 +833,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   align-items: center;
   gap: 3px;
   padding: 1px 6px;
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   border-radius: var(--nd-radius-full);
   font-variant-numeric: tabular-nums;
   background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
@@ -863,7 +863,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   gap: 10px;
   width: 100%;
   padding: 8px 14px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: left;
   color: var(--nd-fg);
   transition: background var(--nd-duration-base);
@@ -896,26 +896,26 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.55;
   font-variant-numeric: tabular-nums;
 }
 
 .method {
   font-family: var(--nd-font-mono);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
 }
 
 .runItemTime {
   flex-shrink: 0;
   opacity: 0.55;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
 }
 
 .statusTag {
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 
   &.statusRunning { background: color-mix(in srgb, var(--nd-accent) 18%, transparent); color: var(--nd-accent); }
   &.statusOk { background: color-mix(in srgb, var(--nd-mfmSuccess, #4a8) 18%, transparent); color: var(--nd-mfmSuccess, #4a8); }

@@ -205,7 +205,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 6px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   font-size: 14px;
   color: var(--nd-fg);
   margin-bottom: 8px;

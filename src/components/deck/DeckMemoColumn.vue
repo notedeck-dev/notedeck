@@ -385,7 +385,7 @@ function closeMenu() {
   align-items: center;
   gap: 6px 10px;
   padding: 8px 14px 0;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.8;
 }
 

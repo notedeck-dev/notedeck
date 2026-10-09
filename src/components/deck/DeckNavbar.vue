@@ -758,7 +758,7 @@ defineExpose({
 .instanceIcon {
   width: 38px;
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -823,7 +823,7 @@ defineExpose({
   line-height: 2.85rem;
   border-radius: var(--nd-radius-full);
   color: var(--nd-navFg, var(--nd-fg));
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   white-space: nowrap;
   text-decoration: none;
   transition: background var(--nd-duration-base), color var(--nd-duration-base), transform var(--nd-duration-fast) var(--nd-ease-spring);
@@ -923,7 +923,7 @@ defineExpose({
   padding: 4px 12px;
   min-height: 44px;
   width: 100%;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   white-space: nowrap;
   cursor: pointer;
@@ -999,8 +999,8 @@ defineExpose({
   border-radius: var(--nd-radius-full);
   background: linear-gradient(90deg, var(--nd-buttonGradateA, var(--nd-accent)), var(--nd-buttonGradateB, var(--nd-accentDarken)));
   color: var(--nd-fgOnAccent, #fff);
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   white-space: nowrap;
   transition: transform var(--nd-duration-fast) var(--nd-ease-spring);
 
@@ -1016,7 +1016,7 @@ defineExpose({
   :global(.ti) {
     flex-shrink: 0;
     width: 32px;
-    font-size: 1.5em;
+    font-size: var(--nd-font-2xl);
     text-align: center;
   }
 }
@@ -1160,7 +1160,7 @@ defineExpose({
 
   .instanceIcon {
     width: 30px;
-    border-radius: 8px;
+    border-radius: var(--nd-radius-md);
   }
 
   // 本家は `padding: 16px 0` の全幅項目に正方形の pill を敷く。
@@ -1213,7 +1213,7 @@ defineExpose({
   padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   padding-left: env(safe-area-inset-left, 0px);
   translate: -100% 0;
-  transition: translate 0.15s var(--nd-ease-decel);
+  transition: translate var(--nd-duration-base) var(--nd-ease-decel);
   box-shadow: none;
   background: var(--nd-navBg);
   backdrop-filter: none;

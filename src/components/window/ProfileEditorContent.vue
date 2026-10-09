@@ -584,8 +584,8 @@ async function importFromClipboard() {
   align-items: center;
   gap: 6px;
   width: 100%;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
@@ -601,8 +601,8 @@ async function importFromClipboard() {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   outline: none;
   transition: border-color var(--nd-duration-base);
 
@@ -624,8 +624,8 @@ async function importFromClipboard() {
   align-items: center;
   gap: 6px;
   width: 100%;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
@@ -637,7 +637,7 @@ async function importFromClipboard() {
 
 .chevron {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .sectionBody {
@@ -648,8 +648,8 @@ async function importFromClipboard() {
 }
 
 .sectionBadge {
-  font-weight: normal;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-regular);
+  font-size: var(--nd-font-body);
   opacity: 0.8;
   min-width: 18px;
   text-align: center;

@@ -138,7 +138,7 @@ const hasUpperSection = computed(
   margin: 0;
   padding: 8px 0 calc(8px + var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
   min-width: 0;
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
   background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
   max-height: 80vh;
@@ -159,7 +159,7 @@ const hasUpperSection = computed(
   min-height: 44px;
   cursor: pointer;
   transition: background var(--nd-duration-fast);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   width: 100%;
   text-align: left;
@@ -187,7 +187,7 @@ const hasUpperSection = computed(
 
 .navAccountMenuError {
   padding: 6px 14px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-love);
   word-break: break-word;
 }

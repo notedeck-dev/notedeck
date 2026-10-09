@@ -158,7 +158,7 @@ defineExpose({ open })
 .qrCanvas {
   position: relative;
   width: min(230px, 80vw);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   overflow: clip;
   aspect-ratio: 1;
 }
@@ -187,15 +187,15 @@ defineExpose({ open })
 }
 
 .qrName {
-  font-weight: bold;
-  font-size: 1.1em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-lg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .qrAcct {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;

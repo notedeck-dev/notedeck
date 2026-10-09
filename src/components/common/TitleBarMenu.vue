@@ -282,7 +282,7 @@ $menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
 
 .chevron {
   margin-left: auto;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.4;
 }
 
@@ -299,7 +299,7 @@ $menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
 
 .kbd {
   margin-left: auto;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.4;
   font-family: inherit;
 }

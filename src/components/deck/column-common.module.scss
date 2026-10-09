@@ -101,7 +101,7 @@
   padding: 2rem 1rem;
   color: var(--nd-fg);
   opacity: 0.5;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .columnError {
@@ -136,7 +136,7 @@
 
   > :global(.ti) {
     margin: 6px 0;
-    transition: transform 0.25s;
+    transition: transform var(--nd-duration-slow);
   }
 
   > :global(.refresh) {
@@ -167,8 +167,8 @@
   gap: 6px;
   padding: 6px 14px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   white-space: nowrap;
   color: var(--nd-fgOnAccent);
   animation: slide-down var(--nd-duration-slow) var(--nd-ease-spring);

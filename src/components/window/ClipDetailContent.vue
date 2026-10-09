@@ -289,18 +289,18 @@ onMounted(async () => {
 }
 
 .privateIcon {
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   opacity: 0.7;
 }
 
 .title {
-  font-size: 1.2em;
-  font-weight: bold;
+  font-size: var(--nd-font-xl);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .description {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0.8;
   white-space: pre-wrap;
   line-height: 1.5;
@@ -310,7 +310,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -322,7 +322,7 @@ onMounted(async () => {
   border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   transition: background var(--nd-duration-base);
 
   &:hover:not(:disabled) {

@@ -342,7 +342,7 @@ const statusClass = computed(() => {
   background: none;
   cursor: pointer;
   font: inherit;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   border-radius: var(--nd-radius-sm);
   transition: background var(--nd-duration-fast);
@@ -376,11 +376,11 @@ const statusClass = computed(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
 
   i {
-    font-size: 1.1em;
+    font-size: var(--nd-font-lg);
   }
 }
 
@@ -396,7 +396,7 @@ const statusClass = computed(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
   min-height: 20px;
 }
@@ -426,6 +426,6 @@ const statusClass = computed(() => {
   border: 1px solid var(--nd-divider);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 </style>

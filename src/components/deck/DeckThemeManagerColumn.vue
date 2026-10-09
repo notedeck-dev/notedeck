@@ -679,7 +679,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
   color: var(--nd-fg);
   opacity: 0.6;
   transition:
-    background 0.1s,
+    background var(--nd-duration-fast),
     opacity 0.1s;
 
   &:hover {
@@ -701,7 +701,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
   height: 26px;
   padding: 0 6px;
   border: 1px solid var(--nd-divider);
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-inputBg, var(--nd-bg));
   color: var(--nd-fg);
   font-size: 12px;
@@ -756,7 +756,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
   gap: 6px;
   padding: 8px 12px;
   margin: 6px 10px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   color: var(--nd-love);
   font-size: 12px;
@@ -770,7 +770,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   opacity: 0.6;
   font-size: 12px;
 
@@ -792,7 +792,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
   gap: 6px;
   width: 100%;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   border: 1px dashed var(--nd-divider);
   background: transparent;
   color: var(--nd-fg);
@@ -820,7 +820,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 .pickerEmpty {
   padding: 12px;
   text-align: center;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.6;
 }
 
@@ -847,7 +847,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
   font-size: 12px;
   margin-top: 4px;
   opacity: 0.8;
-  transition: opacity 0.1s;
+  transition: opacity var(--nd-duration-fast);
 
   &:hover {
     opacity: 1;

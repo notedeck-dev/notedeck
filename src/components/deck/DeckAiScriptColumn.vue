@@ -403,7 +403,7 @@ onUnmounted(() => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transition: background var(--nd-duration-base), opacity var(--nd-duration-base);
 
   &:hover:not(:disabled) {
@@ -458,7 +458,7 @@ onUnmounted(() => {
 .resizeGrip {
   width: 32px;
   height: 3px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-divider);
   transition: background var(--nd-duration-base);
 }
@@ -482,8 +482,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   padding: 6px 12px;
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.5;
   border-bottom: 2px solid transparent;
@@ -514,7 +514,7 @@ onUnmounted(() => {
   border-radius: var(--nd-radius-md);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1;
 }
 
@@ -551,7 +551,7 @@ onUnmounted(() => {
   gap: 6px;
   width: 100%;
   padding: 6px 10px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   text-align: left;
   transition: background var(--nd-duration-base);
 
@@ -563,17 +563,17 @@ onUnmounted(() => {
 .inspectorTypeBadge {
   display: inline-block;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
 }
 
 .inspectorId {
   opacity: 0.5;
   font-family: var(--nd-font-mono);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .inspectorProps {
@@ -585,7 +585,7 @@ onUnmounted(() => {
     border-radius: var(--nd-radius-sm);
     background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
     font-family: var(--nd-font-mono);
-    font-size: 0.75em;
+    font-size: var(--nd-font-xs);
     line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-all;
@@ -598,7 +598,7 @@ onUnmounted(() => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-love-subtle);
   color: var(--nd-love);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   white-space: pre-wrap;
 }
 
@@ -610,7 +610,7 @@ onUnmounted(() => {
 
 .outputLine {
   font-family: var(--nd-font-mono);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
@@ -630,6 +630,6 @@ onUnmounted(() => {
   justify-content: center;
   flex: 1;
   opacity: 0.3;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 </style>

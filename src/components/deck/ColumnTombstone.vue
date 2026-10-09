@@ -50,7 +50,7 @@ function remove() {
   gap: 8px;
   padding: 24px 16px;
   text-align: center;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   background: color-mix(in srgb, var(--nd-panel) 92%, transparent);
   border: 1px dashed color-mix(in srgb, var(--nd-divider, currentColor) 45%, transparent);
 }
@@ -62,7 +62,7 @@ function remove() {
 
 .title {
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 }
 
 .body {

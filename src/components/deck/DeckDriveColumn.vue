@@ -562,11 +562,11 @@ fetchDrive()
 }
 
 .driveBreadcrumbItem {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   white-space: nowrap;
   padding: 2px 4px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   transition: background var(--nd-duration-base);
 
   &:hover {
@@ -614,7 +614,7 @@ fetchDrive()
 }
 
 .driveActionCount {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
   white-space: nowrap;
   padding: 0 4px;
@@ -652,7 +652,7 @@ fetchDrive()
 }
 
 .driveActionError {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-love);
   flex: 1;
   min-width: 0;

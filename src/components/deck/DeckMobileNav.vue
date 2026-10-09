@@ -177,7 +177,7 @@ const {
     translate: -50% 0;
     width: 24px;
     height: 3px;
-    border-radius: 3px 3px 0 0;
+    border-radius: var(--nd-radius-xs) var(--nd-radius-xs) 0 0;
     background: var(--nd-accent);
   }
 }

@@ -616,8 +616,8 @@ const { isSyncing } = useExternalEditSync<string>({
   align-items: center;
   gap: 6px;
   width: 100%;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
@@ -629,7 +629,7 @@ const { isSyncing } = useExternalEditSync<string>({
 
 .chevron {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .sectionBody {
@@ -641,8 +641,8 @@ const { isSyncing } = useExternalEditSync<string>({
 
 .sectionValue {
   margin-left: auto;
-  font-weight: normal;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-regular);
+  font-size: var(--nd-font-body);
   opacity: 0.8;
 }
 
@@ -659,7 +659,7 @@ const { isSyncing } = useExternalEditSync<string>({
   padding: 8px 10px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   white-space: nowrap;
   overflow-x: auto;
 }
@@ -669,7 +669,7 @@ const { isSyncing } = useExternalEditSync<string>({
   flex-direction: column;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   overflow: hidden;
 }
 
@@ -678,12 +678,12 @@ const { isSyncing } = useExternalEditSync<string>({
 }
 
 .hideCountNote {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 }
 
 .sliderRow { display: flex; align-items: center; gap: 8px; }
-.sliderLabel { font-size: 0.7em; opacity: 0.5; flex-shrink: 0; }
+.sliderLabel { font-size: var(--nd-font-2xs); opacity: 0.5; flex-shrink: 0; }
 
 .slider {
   flex: 1;
@@ -695,7 +695,7 @@ const { isSyncing } = useExternalEditSync<string>({
     var(--nd-accent) var(--fill, 0%),
     var(--nd-divider) var(--fill, 0%)
   );
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   outline: none;
   cursor: pointer;
 
@@ -724,7 +724,7 @@ const { isSyncing } = useExternalEditSync<string>({
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.6;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -746,11 +746,11 @@ const { isSyncing } = useExternalEditSync<string>({
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, var(--nd-bg));
   color: var(--nd-love);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   word-break: break-all;
 }
 
-.errorHint { font-size: 0.7em; opacity: 0.5; }
+.errorHint { font-size: var(--nd-font-2xs); opacity: 0.5; }
 
 .codePanel {
   display: flex;
@@ -762,7 +762,7 @@ const { isSyncing } = useExternalEditSync<string>({
   overflow-y: auto;
 }
 
-.codeHint { font-size: 0.75em; opacity: 0.4; }
+.codeHint { font-size: var(--nd-font-xs); opacity: 0.4; }
 
 .codeEditorWrap {
   &.hasError {
@@ -775,7 +775,7 @@ const { isSyncing } = useExternalEditSync<string>({
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

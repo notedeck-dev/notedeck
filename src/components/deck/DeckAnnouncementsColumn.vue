@@ -190,8 +190,8 @@ onMounted(() => {
 .announcementTitle {
   flex: 1;
   min-width: 0;
-  font-weight: bold;
-  font-size: 0.95em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -200,7 +200,7 @@ onMounted(() => {
 
 .announcementTime {
   flex-shrink: 0;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
 }
 
@@ -214,7 +214,7 @@ onMounted(() => {
 }
 
 .announcementText {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.6;
   color: var(--nd-fg);
   word-break: break-word;
@@ -229,8 +229,8 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
   padding: 6px 14px;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: #fff;

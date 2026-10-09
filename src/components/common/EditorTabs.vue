@@ -87,8 +87,8 @@ function onWheel(e: WheelEvent) {
   align-items: center;
   gap: 4px;
   padding: 6px 12px;
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.5;
   border-bottom: 2px solid transparent;

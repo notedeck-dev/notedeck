@@ -153,7 +153,7 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transition: background var(--nd-duration-base), opacity var(--nd-duration-base);
 
   &:hover:not(:disabled) {
@@ -197,11 +197,11 @@ function onKeydown(e: KeyboardEvent) {
   display: inline-flex;
   align-items: center;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  font-size: 0.7em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   letter-spacing: 0.05em;
   flex-shrink: 0;
 }
@@ -214,7 +214,7 @@ function onKeydown(e: KeyboardEvent) {
   background: var(--nd-bg);
   color: var(--nd-fg);
   font-family: var(--nd-font-mono);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   outline: none;
   transition: border-color var(--nd-duration-base);
 
@@ -230,8 +230,8 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .paramsLabel {
-  font-size: 0.7em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.5;
 }
 
@@ -242,7 +242,7 @@ function onKeydown(e: KeyboardEvent) {
   background: var(--nd-bg);
   color: var(--nd-fg);
   font-family: var(--nd-font-mono);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   line-height: 1.5;
   resize: vertical;
   outline: none;
@@ -265,14 +265,14 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-love-subtle);
   color: var(--nd-love);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   white-space: pre-wrap;
 }
 
 .responseBody pre {
   margin: 0;
   font-family: var(--nd-font-mono);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-all;
@@ -284,6 +284,6 @@ function onKeydown(e: KeyboardEvent) {
   justify-content: center;
   height: 100%;
   opacity: 0.3;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 </style>

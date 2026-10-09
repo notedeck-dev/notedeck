@@ -37,8 +37,8 @@ const { visible, leaving } = useVaporTransition(toRef(props, 'show'), {
   gap: 6px;
   padding: 6px 12px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgOnAccent);
   background: color-mix(in srgb, var(--nd-accent) 88%, transparent);
   cursor: pointer;

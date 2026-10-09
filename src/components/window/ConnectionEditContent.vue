@@ -629,8 +629,8 @@ const testResultText = computed(() => {
 }
 
 .sectionTitle {
-  font-weight: bold;
-  font-size: 0.95em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
 }
 
@@ -641,7 +641,7 @@ const testResultText = computed(() => {
 }
 
 .label {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fgMuted);
 }
 
@@ -651,7 +651,7 @@ const testResultText = computed(() => {
   border: 1px solid var(--nd-divider);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .subInput {
@@ -661,7 +661,7 @@ const testResultText = computed(() => {
   border: 1px solid var(--nd-divider);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
 }
 
 .textarea {
@@ -670,7 +670,7 @@ const testResultText = computed(() => {
   border: 1px solid var(--nd-divider);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   resize: vertical;
   font-family: inherit;
 }
@@ -685,7 +685,7 @@ const testResultText = computed(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.83em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   cursor: pointer;
 }
@@ -694,7 +694,7 @@ const testResultText = computed(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
 }
 
@@ -706,12 +706,12 @@ const testResultText = computed(() => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   cursor: pointer;
 }
 
 .helpLink {
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-link);
 }
 
@@ -724,7 +724,7 @@ const testResultText = computed(() => {
   align-items: center;
   gap: 4px;
   width: 100%;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fgMuted);
   cursor: pointer;
   padding: 4px 0;
@@ -756,7 +756,7 @@ const testResultText = computed(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.83em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
 
   i {
@@ -795,7 +795,7 @@ const testResultText = computed(() => {
   align-items: center;
   gap: 6px;
   margin: 2px 0 6px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.65;
 
@@ -806,13 +806,13 @@ const testResultText = computed(() => {
 
 .toggleLabel {
   display: block;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
 }
 
 .toggleHint {
   display: block;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
 }
 
@@ -829,7 +829,7 @@ const testResultText = computed(() => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 }
 
@@ -843,7 +843,7 @@ const testResultText = computed(() => {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 12%, transparent);
   color: var(--nd-love);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 }
 
@@ -855,7 +855,7 @@ const testResultText = computed(() => {
 
 .testResult {
   margin: 12px 0 0;
-  font-size: 0.82em;
+  font-size: var(--nd-font-sm);
 }
 
 .testOk {
@@ -869,7 +869,7 @@ const testResultText = computed(() => {
 .error {
   margin: 12px 0 0;
   padding: 8px 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-love);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   border-radius: var(--nd-radius-sm);

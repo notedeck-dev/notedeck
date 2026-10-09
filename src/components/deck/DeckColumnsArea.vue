@@ -392,7 +392,7 @@ defineExpose({
 .dropPlaceholder {
   flex-shrink: 0;
   border: 2px dashed var(--nd-accent);
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   background: var(--nd-accent-subtle);
   box-shadow: 0 0 12px color-mix(in srgb, var(--nd-accent) 30%, transparent);
 }

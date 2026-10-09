@@ -321,7 +321,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
   cursor: pointer;
   font-family: inherit;
   font-size: 12px;
-  transition: background 0.15s;
+  transition: background var(--nd-duration-base);
 
   &:hover {
     background: rgba(255, 255, 255, 0.08);
@@ -350,7 +350,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
 .titlebarSearchKbd {
   font-size: 10px;
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   background: rgba(255, 255, 255, 0.08);
   opacity: 0.4;
   font-family: inherit;

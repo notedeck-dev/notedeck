@@ -360,7 +360,7 @@ onMounted(loadPage)
   border-radius: var(--nd-radius-sm);
   background: var(--nd-love-subtle);
   color: var(--nd-love);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   white-space: pre-wrap;
 }
 
@@ -372,13 +372,13 @@ onMounted(loadPage)
 }
 
 .title {
-  font-size: 1.2em;
-  font-weight: bold;
+  font-size: var(--nd-font-xl);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .summary {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0.7;
   white-space: pre-wrap;
   line-height: 1.5;
@@ -399,8 +399,8 @@ onMounted(loadPage)
 
 .heading {
   margin: 8px 0 0;
-  font-size: 1.05em;
-  font-weight: 700;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
@@ -417,7 +417,7 @@ onMounted(loadPage)
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   font-family: var(--nd-font-mono);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   line-height: 1.6;
 }
 
@@ -447,7 +447,7 @@ onMounted(loadPage)
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
 }
 
@@ -458,7 +458,7 @@ onMounted(loadPage)
 }
 
 .dates {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
   display: flex;
   flex-direction: column;
@@ -479,7 +479,7 @@ onMounted(loadPage)
   border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   transition: background var(--nd-duration-base);
 
   &:hover {

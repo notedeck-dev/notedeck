@@ -201,7 +201,7 @@ watch(tab, (t) => {
   align-items: center;
   gap: 12px;
   padding: 6px 12px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   border-bottom: 1px solid var(--nd-divider);
   min-width: 0;
 }

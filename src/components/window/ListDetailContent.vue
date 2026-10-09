@@ -251,13 +251,13 @@ onMounted(loadList)
 }
 
 .privateIcon {
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   opacity: 0.7;
 }
 
 .title {
-  font-size: 1.2em;
-  font-weight: bold;
+  font-size: var(--nd-font-xl);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
@@ -265,7 +265,7 @@ onMounted(loadList)
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -277,7 +277,7 @@ onMounted(loadList)
   border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   transition: background var(--nd-duration-base);
 
   &:hover:not(:disabled) {

@@ -312,7 +312,7 @@ function getRowItems(index: number): ServerEmoji[] {
 @use './column-common.module.scss';
 
 .headerCount {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
   flex-shrink: 0;
 }
@@ -340,7 +340,7 @@ function getRowItems(index: number): ServerEmoji[] {
   border: none;
   background: none;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   outline: none;
 
   &::placeholder {
@@ -351,7 +351,7 @@ function getRowItems(index: number): ServerEmoji[] {
 
 .emojiSearchCount {
   flex-shrink: 0;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
 }
 
@@ -372,8 +372,8 @@ function getRowItems(index: number): ServerEmoji[] {
   flex-shrink: 0;
   padding: 4px 10px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   transition: background var(--nd-duration-base), color var(--nd-duration-base);
@@ -402,8 +402,8 @@ function getRowItems(index: number): ServerEmoji[] {
 
 .emojiGroupLabel {
   padding: 10px 12px 4px;
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.6;
 }
@@ -457,11 +457,11 @@ function getRowItems(index: number): ServerEmoji[] {
   left: 50%;
   transform: translateX(-50%);
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-accent);
   color: #fff;
-  font-size: 0.6em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   white-space: nowrap;
   pointer-events: none;
 }

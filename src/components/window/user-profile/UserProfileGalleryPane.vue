@@ -176,7 +176,7 @@ function openUserGallery(post: GalleryPost) {
   align-items: center;
   gap: 2px;
   padding: 2px 6px;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   background: var(--nd-overlayDark);
   color: #fff;
   font-size: 11px;
@@ -191,8 +191,8 @@ function openUserGallery(post: GalleryPost) {
 }
 
 .gridTitle {
-  font-size: 0.75em;
-  font-weight: 600;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -205,7 +205,7 @@ function openUserGallery(post: GalleryPost) {
   display: flex;
   align-items: center;
   gap: 2px;
-  font-size: 0.65em;
+  font-size: var(--nd-font-2xs);
   color: var(--nd-love);
   flex-shrink: 0;
 }
@@ -217,6 +217,6 @@ function openUserGallery(post: GalleryPost) {
   padding: 2rem;
   color: var(--nd-fg);
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 </style>

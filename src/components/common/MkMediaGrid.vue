@@ -307,7 +307,7 @@ function closeLightbox() {
 }
 
 .audioName {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -321,7 +321,7 @@ function closeLightbox() {
   padding: 10px 12px;
   background: #111;
   color: #fff;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   cursor: pointer;
 
   span {
@@ -337,7 +337,7 @@ function closeLightbox() {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-decoration: none;
   border: none;
@@ -412,7 +412,7 @@ function closeLightbox() {
 .mediaCell {
   position: relative;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   cursor: pointer;
   background: var(--nd-bg, rgba(0, 0, 0, 0.05));
   contain: layout;
@@ -508,17 +508,17 @@ function closeLightbox() {
 
 .indicator {
   background-color: black;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-accent, #86b300);
   display: inline-block;
-  font-weight: bold;
-  font-size: 0.8em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-sm);
   padding: 2px 5px;
 }
 
 .indicatorWarn {
   background-color: black;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-warn, #c44);
   display: inline-flex;
   align-items: center;
@@ -559,7 +559,7 @@ function closeLightbox() {
   }
 
   .mediaCell {
-    border-radius: 6px;
+    border-radius: var(--nd-radius-sm);
   }
 }
 </style>

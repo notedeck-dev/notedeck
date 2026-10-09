@@ -995,7 +995,7 @@ watch(driveView, (v) => {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   font-size: 13px;
   color: var(--nd-fg);
   opacity: 0.9;
@@ -1024,7 +1024,7 @@ watch(driveView, (v) => {
   color: var(--nd-fg);
   opacity: 0.55;
   min-width: 32px;
-  font-weight: 500;
+  font-weight: var(--nd-weight-medium);
 
   &:hover {
     opacity: 0.85;
@@ -1060,7 +1060,7 @@ watch(driveView, (v) => {
   gap: 12px;
   padding: 12px 14px;
   background: var(--nd-panel);
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
 }
 
 .statIcon {
@@ -1078,7 +1078,7 @@ watch(driveView, (v) => {
 
 .statValue {
   font-size: 20px;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   display: flex;
   align-items: baseline;
@@ -1089,10 +1089,10 @@ watch(driveView, (v) => {
 
 .statDiff {
   font-size: 11px;
-  font-weight: 500;
+  font-weight: var(--nd-weight-medium);
   opacity: 0.6;
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: rgba(128, 128, 128, 0.12);
 }
 
