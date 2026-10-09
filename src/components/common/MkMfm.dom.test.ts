@@ -56,3 +56,31 @@ describe('MkMfm math', () => {
     )
   })
 })
+
+describe('MkMfm 値域の clamp (#704)', () => {
+  function transformOf(text: string): string | undefined {
+    mountMfm(text)
+    return (container?.querySelector('span[style*="transform"]') as HTMLElement)
+      ?.style.transform
+  }
+
+  it('$[scale] は本家と同じく 5 倍で頭打ちにする', () => {
+    expect(transformOf('$[scale.x=100,y=3 a]')).toBe('scale(5,3)')
+  })
+
+  it('$[scale] の負の値も絶対値 5 で止める', () => {
+    expect(transformOf('$[scale.x=-100 a]')).toBe('scale(-5,1)')
+  })
+
+  it('$[position] は ±10em に収める', () => {
+    expect(transformOf('$[position.x=1000,y=-1000 a]')).toBe(
+      'translate(10em,-10em)',
+    )
+  })
+
+  it('値域内の値はそのまま', () => {
+    expect(transformOf('$[position.x=1.5,y=-2 a]')).toBe(
+      'translate(1.5em,-2em)',
+    )
+  })
+})

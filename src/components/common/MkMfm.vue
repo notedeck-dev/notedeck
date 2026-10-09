@@ -192,6 +192,22 @@ function renderKatex(formula: string, displayMode: boolean): string {
 const hexColorRe = /^[0-9a-fA-F]{3,8}$/
 const cssTimeRe = /^\d+(\.\d+)?(s|ms)$/
 const cssNumRe = /^-?\d+(\.\d+)?$/
+
+// 値域の上限 (#704)。scale は本家と同じ 5 倍 (本家は上側だけだが負でも同じだけ
+// 広がるので絶対値で止める)。position は本家に上限が無く、ノートの
+// overflow: clip に任せている。MkMfm はノート以外 (プロフィール / チャット等) でも
+// 使うので、こちらで ±10em に収める
+const MFM_SCALE_LIMIT = 5
+const MFM_POSITION_LIMIT_EM = 10
+
+function clampedNumArg(
+  value: string | true | undefined,
+  fallback: number,
+  limit: number,
+): number {
+  if (typeof value !== 'string' || !cssNumRe.test(value)) return fallback
+  return Math.min(Math.max(Number(value), -limit), limit)
+}
 const borderStyles = new Set([
   'solid',
   'dashed',
@@ -299,19 +315,15 @@ function fnStyle(
       break
     }
     case 'scale': {
-      const sx =
-        typeof args.x === 'string' && cssNumRe.test(args.x) ? args.x : '1'
-      const sy =
-        typeof args.y === 'string' && cssNumRe.test(args.y) ? args.y : '1'
+      const sx = clampedNumArg(args.x, 1, MFM_SCALE_LIMIT)
+      const sy = clampedNumArg(args.y, 1, MFM_SCALE_LIMIT)
       s.transform = `scale(${sx},${sy})`
       s.display = 'inline-block'
       break
     }
     case 'position': {
-      const px =
-        typeof args.x === 'string' && cssNumRe.test(args.x) ? args.x : '0'
-      const py =
-        typeof args.y === 'string' && cssNumRe.test(args.y) ? args.y : '0'
+      const px = clampedNumArg(args.x, 0, MFM_POSITION_LIMIT_EM)
+      const py = clampedNumArg(args.y, 0, MFM_POSITION_LIMIT_EM)
       s.transform = `translate(${px}em,${py}em)`
       s.display = 'inline-block'
       break
