@@ -126,14 +126,12 @@ export function useColumnScroll(
       ) {
         return
       }
-      // ナビのタップで隣のカラムへ滑らせる (reduced-motion では瞬時)。
-      // 動いている間に途中のカラムを「アクティブ」と拾わないよう、
-      // 着くまでスクロールの所有権を握る
-      const behavior = smoothScrollBehavior()
+      // ナビのタップでのカラム移動は瞬時に切り替える。本家 Misskey の
+      // スマホ表示はボタンからの画面切替にスクロールのアニメーションを
+      // 持たないので合わせる (smooth にすると移動がもたついて見えた)
       const id = claimProgramScroll()
-      el.scrollTo({ left, behavior })
-      if (behavior === 'smooth') releaseOnScrollEnd(el, id)
-      else releaseProgramScroll(id)
+      el.scrollTo({ left, behavior: 'instant' })
+      releaseProgramScroll(id)
       return
     }
 
