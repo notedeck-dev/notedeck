@@ -382,6 +382,29 @@ function getTimelineEndpoint(type: TimelineType): string {
  * Detect which filter params a timeline endpoint actually supports
  * by probing the /api/endpoint schema.
  */
+/** 端末に残す件数 (サーバー × TL 種別)。古いものから捨てる */
+const PERSISTED_FILTER_KEYS_MAX = 200
+
+function persistedFilterKeys(): Record<string, (keyof TimelineFilter)[]> {
+  return getStorageJson<Record<string, (keyof TimelineFilter)[]>>(
+    STORAGE_KEYS.timelineFilterKeys,
+    {},
+  )
+}
+
+/**
+ * 前回の検出結果を同期で返す (無ければ空)。カラムはこれで最初から
+ * フィルタボタンを出し、detectFilterKeys の結果で差し替える。起動のたびに
+ * サーバー往復の後でボタンが現れてタブ行が縮むのを避ける
+ */
+export function getCachedFilterKeys(
+  host: string,
+  timelineType: TimelineType,
+): (keyof TimelineFilter)[] {
+  const cacheKey = `${host}:${getTimelineEndpoint(timelineType)}`
+  return filterKeyCache.get(cacheKey) ?? persistedFilterKeys()[cacheKey] ?? []
+}
+
 export async function detectFilterKeys(
   host: string,
   timelineType: TimelineType,
@@ -397,6 +420,18 @@ export async function detectFilterKeys(
       FILTER_PARAM_ALIASES[k].some((alias) => params.includes(alias)),
     )
     filterKeyCache.set(cacheKey, keys)
+    try {
+      const persisted = persistedFilterKeys()
+      delete persisted[cacheKey]
+      persisted[cacheKey] = keys
+      const entries = Object.entries(persisted)
+      setStorageJson(
+        STORAGE_KEYS.timelineFilterKeys,
+        Object.fromEntries(entries.slice(-PERSISTED_FILTER_KEYS_MAX)),
+      )
+    } catch {
+      // 保存できなくても表示は続ける (次の起動で往復を待つだけ)
+    }
     return keys
   } catch (e) {
     console.warn('[filterDetection] failed to detect filters:', e)

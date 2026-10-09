@@ -8,6 +8,7 @@ import {
   watch,
 } from 'vue'
 import { useRoute } from 'vue-router'
+import TitleBarShell from '@/components/common/TitleBarShell.vue'
 import { useCodeScheme } from '@/composables/useCodeScheme'
 import { useHeartbeatDaemon } from '@/composables/useHeartbeatDaemon'
 import { useKeyboard } from '@/composables/useKeyboard'
@@ -43,7 +44,11 @@ const DevWelcome = isTauri
   : defineAsyncComponent(() => import('@/components/DevWelcome.vue'))
 
 const TitleBar = isTauri
-  ? defineAsyncComponent(() => import('@/components/common/TitleBar.vue'))
+  ? defineAsyncComponent({
+      loader: () => import('@/components/common/TitleBar.vue'),
+      loadingComponent: TitleBarShell,
+      delay: 0,
+    })
   : null
 
 const DeckWindowLayer = defineAsyncComponent(
