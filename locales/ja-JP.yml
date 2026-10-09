@@ -1996,6 +1996,7 @@ _deckChatColumn:
   searchMessagesPlaceholder: "メッセージを検索..."
   noMatchingMessages: "一致するメッセージがありません"
   messagePlaceholder: "メッセージ..."
+  unread: "未読"
 
 _deckColumnsArea:
   noColumns: "カラムがありません"

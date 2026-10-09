@@ -3612,6 +3612,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "noMatchingMessages": string
     /** メッセージ... */
     readonly "messagePlaceholder": string
+    /** 未読 */
+    readonly "unread": string
   }
   readonly "_deckColumnsArea": {
     /** カラムがありません */

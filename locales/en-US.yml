@@ -2248,6 +2248,7 @@ _deckChatColumn:
   searchMessagesPlaceholder: "Search messages..."
   noMatchingMessages: "No matching messages"
   messagePlaceholder: "Message..."
+  unread: "Unread"
 
 _deckColumnsArea:
   noColumns: "No columns"

@@ -557,6 +557,19 @@ const filteredPerAccountEntries = computed<PerAccountHistoryEntry[]>(() =>
   ),
 )
 
+// 開いた会話の未読の点は、履歴を取り直すまで手元で消しておく
+// (会話を開くと本家側で既読になるが、履歴の entry は取り直さないと変わらない)
+const openedMessageIds = ref(new Set<string>())
+
+/** 本家 MkChatHistories と同じく、相手からの未読の最新メッセージに点を出す (#1207) */
+function isUnread(message: ChatMessage, myId: string | undefined): boolean {
+  return (
+    message.isRead === false &&
+    message.fromUserId !== myId &&
+    !openedMessageIds.value.has(message.id)
+  )
+}
+
 const hasNoSearchHits = computed(() => {
   if (!searchQuery.value.trim()) return false
   return isCrossAccount.value
@@ -573,6 +586,11 @@ async function openConversation(
   showConvSearch.value = false
   convSearchQuery.value = ''
 
+  if ('message' in entry) {
+    openedMessageIds.value = new Set(openedMessageIds.value).add(
+      entry.message.id,
+    )
+  }
   conversationTitle.value = entry.name
   conversationOtherAvatarUrl.value = entry.avatarUrl ?? null
   isLoading.value = true
@@ -1096,12 +1114,18 @@ onBeforeUnmount(() => {
           :class="$style.historyItem"
           @click="openConversation(entry)"
         >
+          <span
+            v-if="isUnread(entry.message, getUserIdForAccount(entry.accountId))"
+            :class="$style.historyUnreadDot"
+            :title="i18n.ts._deckChatColumn.unread"
+            :aria-label="i18n.ts._deckChatColumn.unread"
+          />
           <div :class="$style.historyAvatarWrap">
             <MkAvatar
               v-if="entry.avatarUrl"
               :avatar-url="entry.avatarUrl"
               :decorations="entry.avatarDecorations ?? []"
-              :size="36"
+              :size="50"
             />
             <div v-else :class="$style.historyAvatarPlaceholder">
               <i :class="entry.isRoom ? 'ti ti-users' : 'ti ti-user'" />
@@ -1154,11 +1178,17 @@ onBeforeUnmount(() => {
           :class="$style.historyItem"
           @click="openConversation(entry)"
         >
+          <span
+            v-if="isUnread(entry.message, myUserId)"
+            :class="$style.historyUnreadDot"
+            :title="i18n.ts._deckChatColumn.unread"
+            :aria-label="i18n.ts._deckChatColumn.unread"
+          />
           <MkAvatar
             v-if="entry.avatarUrl"
             :avatar-url="entry.avatarUrl"
             :decorations="entry.avatarDecorations ?? []"
-            :size="36"
+            :size="50"
           />
           <div v-else :class="$style.historyAvatarPlaceholder">
             <i :class="entry.isRoom ? 'ti ti-users' : 'ti ti-user'" />
@@ -1403,6 +1433,7 @@ onBeforeUnmount(() => {
 }
 
 .historyList {
+  --chat-history-avatar: 50px;
   flex: 1;
   overflow-y: auto;
   scrollbar-color: var(--nd-scrollbarHandle) transparent;
@@ -1410,11 +1441,12 @@ onBeforeUnmount(() => {
 }
 
 .historyItem {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 12px 16px;
   border: none;
   background: none;
   color: var(--nd-fg);
@@ -1422,7 +1454,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   contain: layout style paint;
   content-visibility: auto;
-  contain-intrinsic-size: auto 65px;
+  contain-intrinsic-size: auto 75px;
   border-bottom: 1px solid var(--nd-divider);
 
   &:hover {
@@ -1431,6 +1463,8 @@ onBeforeUnmount(() => {
 
   :global(.mk-avatar) {
     flex-shrink: 0;
+    width: var(--chat-history-avatar);
+    height: var(--chat-history-avatar);
   }
 
   :global(.mk-avatar:hover) {
@@ -1441,13 +1475,14 @@ onBeforeUnmount(() => {
 .historyAvatarWrap {
   position: relative;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: var(--chat-history-avatar);
+  height: var(--chat-history-avatar);
 }
 
 .historyAvatarPlaceholder {
-  width: 36px;
-  height: 36px;
+  flex-shrink: 0;
+  width: var(--chat-history-avatar);
+  height: var(--chat-history-avatar);
   border-radius: 50%;
   background: var(--nd-buttonBg);
   display: flex;
@@ -1476,7 +1511,7 @@ onBeforeUnmount(() => {
 }
 
 .historyName {
-  font-size: var(--nd-font-body);
+  font-size: 1em;
   font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1484,8 +1519,8 @@ onBeforeUnmount(() => {
 }
 
 .historyPreview {
-  font-size: var(--nd-font-sm);
-  opacity: 0.5;
+  font-size: 1em;
+  opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1503,6 +1538,32 @@ onBeforeUnmount(() => {
 .historyTime {
   font-size: var(--nd-font-xs);
   opacity: 0.5;
+}
+
+.historyUnreadDot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nd-accent);
+}
+
+// 本家 MkChatHistories と同じく、カラム幅で 2 段にする (#1207)
+@container (max-width: 450px) {
+  .historyList {
+    --chat-history-avatar: 40px;
+  }
+
+  .historyItem {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .historyPreview {
+    font-size: var(--nd-font-body);
+  }
 }
 
 .messagesContainer {
