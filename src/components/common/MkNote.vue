@@ -945,6 +945,7 @@ function handlePickerReaction(reaction: string) {
         [$style.focused]: focused,
         [$style.hasChannel]: showChannelInfo,
         [$style.spotlighted]: isSpotlighted,
+        [$style.offscreen]: nearViewport === false,
       },
     ]"
     :style="channelInfo && showChannelInfo ? { '--nd-channel-color': channelInfo.color } : undefined"
@@ -2209,6 +2210,13 @@ function handlePickerReaction(reaction: string) {
 /* Divider between notes */
 .noteRoot + .noteRoot {
   border-top: 0.5px solid var(--nd-divider);
+}
+
+/* 仮想スクローラの overscan に居る (見えていない) 行は MFM の無限アニメを
+   止める。MkMfm へ prop で渡すと本文ごと再描画されるので、継承する CSS 変数で
+   伝える。nearViewport を渡さない面 (undefined) は動かしたまま */
+.offscreen {
+  --nd-mfm-play-state: paused;
 }
 
 /* AI Spotlight: note 本体を glow で囲む (内容を阻害しないよう枠 only)。

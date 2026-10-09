@@ -781,17 +781,15 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 }
 .mfmTwitch { display: inline-block; animation: mfm-twitch 0.5s ease infinite; }
 
-/* Rainbow */
+/* Rainbow — 本家と同じく filter: hue-rotate で回す。color のアニメは毎フレーム
+   テキストの再ペイントになるが、filter は合成で済む。hue-rotate は無彩色を
+   動かさないので、起点の色を赤に固定してから回す (中の絵文字も色が回るのは本家と同じ)。
+   純色の赤から回すと緑〜青緑が暗く沈むので、少し明るい赤 + saturate で持ち上げる */
 @keyframes mfm-rainbow {
-  0% { color: #ff0000; }
-  16.6% { color: #ff8000; }
-  33.3% { color: #ffff00; }
-  50% { color: #00ff00; }
-  66.6% { color: #0000ff; }
-  83.3% { color: #ff00ff; }
-  100% { color: #ff0000; }
+  from { filter: hue-rotate(0deg) saturate(150%); }
+  to { filter: hue-rotate(360deg) saturate(150%); }
 }
-.mfmRainbow { animation: mfm-rainbow 1s linear infinite; }
+.mfmRainbow { color: #ff4d4d; animation: mfm-rainbow 1s linear infinite; }
 
 /* Sparkle */
 @keyframes mfm-sparkle {
@@ -799,4 +797,14 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   50% { opacity: 0.5; }
 }
 .mfmSparkle { animation: mfm-sparkle 1.5s ease-in-out infinite; }
+
+/* 画面外の行では止める。親 (MkNote の .offscreen) が継承する CSS 変数で指示する。
+   animation の shorthand は play-state を running に戻すので、各定義の後に置く */
+.mfmSpin, .mfmSpinLeft, .mfmSpinAlternate,
+.mfmSpinX, .mfmSpinXLeft, .mfmSpinXAlternate,
+.mfmSpinY, .mfmSpinYLeft, .mfmSpinYAlternate,
+.mfmShake, .mfmBounce, .mfmJelly, .mfmTada, .mfmJump, .mfmTwitch,
+.mfmRainbow, .mfmSparkle {
+  animation-play-state: var(--nd-mfm-play-state, running);
+}
 </style>
