@@ -387,7 +387,14 @@ function toggleLongText() {
 
 // ワードミュート soft（#610）: mutedWords にマッチしたら本文を折りたたみ、展開可能にする
 const visibility = useNoteVisibility()
-const wordMuteRevealed = ref(false)
+// 「表示する」で開いたものは CW と同じく作り直しでも保つ
+const wordMuteRevealed = ref(
+  expandedNoteContent.has(`muted:${effectiveNote.value.id}`),
+)
+function revealWordMuted() {
+  wordMuteRevealed.value = true
+  expandedNoteContent.set(`muted:${effectiveNote.value.id}`, true)
+}
 const softMuteCollapsed = computed(
   () =>
     visibility.isSoftWordMuted(effectiveNote.value) && !wordMuteRevealed.value,
@@ -439,17 +446,20 @@ const activeModeFlags = computed(() =>
   deriveActiveModeFlags(effectiveNote.value.modeFlags),
 )
 
+/** クリックした要素の中に選択範囲があるか (ドラッグ選択して離したときの click) */
+function hasSelectionIn(e: MouseEvent): boolean {
+  const sel = window.getSelection()
+  return (
+    !!sel &&
+    !sel.isCollapsed &&
+    (e.currentTarget as Node).contains(sel.anchorNode)
+  )
+}
+
 function navigateToDetail(e: MouseEvent) {
   if (props.disableArticleClick) return
   // 本文をドラッグ選択して離したときの click で遷移するとコピーできない
-  const sel = window.getSelection()
-  if (
-    sel &&
-    !sel.isCollapsed &&
-    (e.currentTarget as Node).contains(sel.anchorNode)
-  ) {
-    return
-  }
+  if (hasSelectionIn(e)) return
   if (!props.detailed) {
     navToNote(props.note._accountId, props.note.id)
   }
@@ -974,7 +984,7 @@ function handlePickerReaction(reaction: string) {
     <div
       v-if="effectiveNote.reply && !embedded"
       :class="$style.replyTo"
-      @click.stop="navToNote(note._accountId, effectiveNote.reply!.id)"
+      @click.stop="!hasSelectionIn($event) && navToNote(note._accountId, effectiveNote.reply!.id)"
     >
       <img
         v-if="effectiveNote.reply!.user.avatarUrl"
@@ -1099,7 +1109,7 @@ function handlePickerReaction(reaction: string) {
         <!-- Word mute (soft, #610) -->
         <div v-if="softMuteCollapsed" :class="$style.cw">
           <p :class="$style.cwText">{{ i18n.tsx._mkNote.saidSomething({ name: effectiveNote.user.name || effectiveNote.user.username }) }}</p>
-          <button :class="$style.cwToggle" class="_button" @click.stop="wordMuteRevealed = true">
+          <button :class="$style.cwToggle" class="_button" @click.stop="revealWordMuted()">
             {{ i18n.ts._mkNote.showMore }}
           </button>
         </div>
