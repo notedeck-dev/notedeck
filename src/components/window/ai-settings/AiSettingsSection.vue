@@ -61,8 +61,8 @@ const expanded = ref(false)
   align-items: center;
   gap: 6px;
   width: 100%;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
@@ -74,7 +74,7 @@ const expanded = ref(false)
 
 .chevron {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .body {
@@ -92,8 +92,8 @@ const expanded = ref(false)
   padding: 2px 6px;
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
-  font-size: 0.85em;
-  font-weight: normal;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-regular);
   opacity: 0.9;
 }
 

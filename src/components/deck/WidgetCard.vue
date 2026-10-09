@@ -203,7 +203,7 @@ function handlePrimaryClick() {
               :title="i18n.ts._widgetCard.editWidget"
               @click.stop="emit('edit')"
             >
-              <i class="ti ti-pencil" />
+              <i class="ti ti-edit" />
             </button>
             <button
               class="_button"
@@ -293,7 +293,7 @@ function handlePrimaryClick() {
   text-align: left;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -304,7 +304,7 @@ function handlePrimaryClick() {
   &:focus-visible {
     outline: 2px solid var(--nd-focusRing);
     outline-offset: 2px;
-    border-radius: 3px;
+    border-radius: var(--nd-radius-xs);
   }
 }
 
@@ -353,7 +353,7 @@ function handlePrimaryClick() {
 .originBadge {
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
   flex-shrink: 0;
@@ -369,7 +369,7 @@ function handlePrimaryClick() {
 .accountBadge {
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
   color: var(--nd-fg);
   opacity: 0.7;
@@ -382,12 +382,12 @@ function handlePrimaryClick() {
 
 .incompatBadge {
   flex-shrink: 0;
-  padding: 0 5px;
+  padding: 0 6px;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   line-height: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-love) 15%, transparent);
   color: var(--nd-love);
   letter-spacing: 0.02em;
@@ -398,7 +398,7 @@ function handlePrimaryClick() {
   flex-shrink: 0;
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
   line-height: 1.3;
@@ -434,7 +434,7 @@ function handlePrimaryClick() {
   width: 22px;
   height: 22px;
   flex-shrink: 0;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   color: var(--nd-fg);
   font-size: 13px;
   opacity: 0.7;
@@ -464,7 +464,7 @@ function handlePrimaryClick() {
   padding: 2px 10px;
   height: 22px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
@@ -488,7 +488,7 @@ function handlePrimaryClick() {
   display: flex;
   align-items: center;
   font-size: 10px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   border: 1px solid var(--nd-divider);
   color: var(--nd-fg);
   opacity: 0.5;

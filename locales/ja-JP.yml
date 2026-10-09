@@ -127,6 +127,9 @@ _commands:
   settingsMenu: "設定メニュー"
   tutorial: "チュートリアル"
   toggleDarkMode: "ダーク/ライトモード切り替え"
+  zoomIn: "表示を拡大"
+  zoomOut: "表示を縮小"
+  zoomReset: "表示の拡大率をリセット"
   toggleOfflineMode: "オフラインモード切り替え"
   toggleRealtimeMode: "リアルタイムモード切り替え"
   clearAllCache: "全キャッシュ削除"
@@ -169,12 +172,17 @@ _commands:
   newWindow: "新しいウィンドウを開く"
   closeAllWindows: "すべてのサブウィンドウを閉じる"
   pipWindow: "PiP ウィンドウを開く"
+  notificationCenter: "アプリの通知を開く"
   devtools: "開発者ツール"
   profileEditor: "プロファイルエディター"
   switchProfile: "{name} に切り替え"
 
 # 複数の画面で同じ意味で使う語 (#135)。画面ごとの語はその画面の節に置く
 _common:
+  skipToMain: "メインの内容へ移動"
+  more: "その他"
+  previous: "前へ"
+  next: "次へ"
   retry: "再試行"
   cancel: "キャンセル"
   delete: "削除"
@@ -286,6 +294,7 @@ _common:
   users: "ユーザー"
   unknownError: "不明なエラー"
   remove: "解除"
+  inputRequiredHint: "入力すると押せます"
 
 _appConfirm:
   trustedHeader: "NoteDeck の権限確認"
@@ -307,6 +316,12 @@ _driveItemMenu:
   open: "開く"
   rename: "リネーム"
   move: "移動"
+
+_formNumber:
+  notNumber: "数値を入力してください"
+  outOfRange: "{min} から {max} までの値を入力してください"
+  tooSmall: "{min} 以上の値を入力してください"
+  tooLarge: "{max} 以下の値を入力してください"
 
 _galleryItemMenu:
   open: "開く"
@@ -378,6 +393,8 @@ _mkFolderGrid:
   menuFor: "「{name}」のメニュー"
 
 _mkMediaGrid:
+  playAnimation: "アニメーションを再生"
+  pauseAnimation: "アニメーションを止める"
   tapToLoadVideo: "動画をタップで読み込み"
   tapToLoadImage: "画像をタップで読み込み"
 
@@ -389,6 +406,9 @@ _mkMediaLightbox:
   openInBrowser: "ブラウザーで開く"
 
 _mkNote:
+  translating: "翻訳中..."
+  translatedFrom: "{lang} から翻訳"
+  translateFailed: "翻訳できませんでした"
   pinned: "ピン留めされたノート"
   renotedSuffix: "がリノート"
   modeTitle: "{mode}モード"
@@ -457,6 +477,26 @@ _mkReactionPicker:
   notFound: "絵文字が見つかりません"
   recent: "最近使った絵文字"
   uncategorized: "その他"
+  categories: "カテゴリ"
+  custom: "カスタム絵文字"
+  skinTone: "肌の色"
+  _skinTones:
+    none: "指定しない"
+    light: "明るい肌色"
+    mediumLight: "やや明るい肌色"
+    medium: "中間の肌色"
+    mediumDark: "やや濃い肌色"
+    dark: "濃い肌色"
+  _categories:
+    face: "顔"
+    people: "人と体"
+    animals_and_nature: "動物と自然"
+    food_and_drink: "食べ物と飲み物"
+    activity: "アクティビティ"
+    travel_and_places: "旅行と場所"
+    objects: "もの"
+    symbols: "記号"
+    flags: "旗"
 
 _mkReactionUsersPopup:
   muteEmoji: "この絵文字をミュート"
@@ -473,6 +513,7 @@ _mkUserPopup:
   remoteUser: "リモートユーザー"
 
 _noteMoreMenu:
+  translate: "翻訳"
   confirmDelete: "このノートを削除しますか？"
   confirmDeleteAndEdit: "このノートを削除して再編集しますか？"
   deleteAndEdit: "削除して編集"
@@ -513,6 +554,12 @@ _notificationCenter:
   clearAll: "すべてクリア"
   empty: "新しい通知はありません"
   unread: "未読 {count} 件"
+  count: "×{count}"
+  countTitle: "{count} 回起きました"
+  fresh: "新着"
+  expand: "全文を表示"
+  collapse: "折りたたむ"
+  remove: "この通知を消す"
 
 _noteVariantsPopup:
   ariaLabel: "このノートが見えているアカウント"
@@ -596,6 +643,7 @@ _titleBarMenu:
   view: "表示"
   zoomIn: "拡大"
   zoomOut: "縮小"
+  zoomReset: "等倍に戻す"
 
 _postFormFilePreviews:
   discard: "破棄"
@@ -625,6 +673,7 @@ _postFormPollEditor:
   expiry7d: "7 日"
 
 _mkMfm:
+  wrapLines: "行を折り返す"
   search: "検索"
 
 _app:
@@ -1709,8 +1758,6 @@ _deckNavbar:
 
 _deckNotificationColumn:
   empty: "通知はありません"
-  othersCount_plural:
-    other: "他 {count} 人"
   accepted: "承認済み"
   rejected: "拒否済み"
   accept: "承認"
@@ -1729,14 +1776,6 @@ _deckNotificationColumn:
   filterPollEnded: "アンケート"
   filterAchievementEarned: "実績"
   filterCreateToken: "トークン"
-  labelReaction: "がリアクション"
-  labelReply: "からのリプライ"
-  labelRenote: "がリノートしました"
-  labelQuote: "による引用"
-  labelMention: "からのメンション"
-  labelFollow: "にフォローされました"
-  labelFollowRequestAccepted: "がフォローリクエストを承認"
-  labelReceiveFollowRequest: "からフォローリクエスト"
   labelPollEnded: "アンケートの結果が出ました"
   labelAchievementEarned: "実績を獲得"
   labelRoleAssigned: "ロールが付与されました"
@@ -1744,6 +1783,29 @@ _deckNotificationColumn:
   labelLogin: "ログインがありました"
   labelCreateToken: "アクセストークンが作成されました"
   labelTest: "テスト通知"
+  labelNewNote: "新しいノート: {user}"
+  labelScheduledNotePosted: "予約投稿が投稿されました"
+  labelScheduledNotePostFailed: "予約投稿に失敗しました"
+  labelExportCompleted: "エクスポートが完了しました"
+  labelChatRoomInvitationReceived: "ルームに招待されました"
+  reactedBy_plural:
+    other: "{count} 人がリアクションしました"
+  likedBy_plural:
+    other: "{count} 人がいいねしました"
+  renotedBy_plural:
+    other: "{count} 人がリノートしました"
+  moreUsers_plural:
+    other: "+{count}"
+  bodyFollow: "フォローされました"
+  bodyFollowRequestAccepted: "フォローリクエストが承認されました"
+  bodyReceiveFollowRequest: "フォローリクエストが届きました"
+  dateSeparator: "{newer} と {older} の境目"
+
+_noteSummary:
+  hidden: "非公開のノート"
+  files_plural:
+    other: "{count} 個のファイル"
+  poll: "アンケート"
 
 _deckPluginManagerColumn:
   create: "新規プラグインを作成"
@@ -1935,6 +1997,7 @@ _deckApiConsoleColumn:
 
 _deckBottomBar:
   deckSettings: "デッキ設定"
+  restoreWindow: "{title} を元に戻す"
 
 _deckChartsColumn:
   hour: "時"
@@ -1953,10 +2016,12 @@ _deckChatColumn:
   searchMessagesPlaceholder: "メッセージを検索..."
   noMatchingMessages: "一致するメッセージがありません"
   messagePlaceholder: "メッセージ..."
+  unread: "未読"
 
 _deckColumnsArea:
   noColumns: "カラムがありません"
   startWithDefault: "デフォルトの構成で始める"
+  resizeHandle: "ドラッグで幅を変更 / ダブルクリックでデフォルトの幅に戻す"
 
 _deckEmojiColumn:
   searchPlaceholder: "絵文字を検索..."

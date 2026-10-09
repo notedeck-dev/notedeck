@@ -98,17 +98,17 @@ const lang = jsonLang()
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.7;
   min-width: 0;
 
-  :deep(code) {
+  :global(code) {
     font-family: var(--nd-font-mono);
     background: rgba(127, 127, 127, 0.15);
-    padding: 1px 5px;
-    border-radius: 3px;
-    font-size: 0.9em;
+    padding: 1px 6px;
+    border-radius: var(--nd-radius-xs);
+    font-size: var(--nd-font-body);
   }
 }
 
@@ -123,7 +123,7 @@ const lang = jsonLang()
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.7;
@@ -165,7 +165,7 @@ const lang = jsonLang()
   padding: 32px;
   color: var(--nd-fg);
   opacity: 0.5;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .error {

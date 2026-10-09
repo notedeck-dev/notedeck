@@ -901,6 +901,8 @@ import { i18n } from '@/i18n'
 - `vite.config.ts` で `localsConvention: 'camelCaseOnly'` を設定済み（`kebab-case` → `camelCase` 自動変換）
 - グローバルな CSS 変数は `src/styles/global.css` で定義
 - モバイル/デスクトップの切り替えは CSS の `display` ではなく `v-if` で制御
+- 入力欄・スイッチ・セレクト・スライダー・数値 + 単位は `src/components/common/form/` の部品 (`FormInput` / `FormSwitch` / `FormSwitchRow` / `FormSelect` / `FormRange` / `FormNumber`) を使う。部品にしない欄も枠・フォーカス・placeholder・disabled は `src/styles/_inputs.scss` の `input-base` に寄せ、画面ごとに書き直さない ([#704](https://github.com/notedeck-dev/notedeck/issues/704))
+- 入力の誤りは欄の直下にエラー文で出し、`aria-invalid` と `aria-describedby` で欄と結ぶ (`FormInput` / `FormNumber` の `error`)。送信ボタンは誤りがあっても disabled にせず、押されたら誤りの欄を出して最初の欄にフォーカスする。disabled にするのは送信中と「まだ何も入力していない」ときだけで、後者は `title` で理由を見せる
 
 ### キーボード操作（アクセシビリティ）
 
@@ -1167,6 +1169,7 @@ SNS クライアントに必要な3つのパフォーマンス基盤を実装済
 - **CSS Containment**: スクロール内アイテムに `contain: layout style paint` + `content-visibility: auto`（24+ コンポーネントで適用済み）
 - **ペイント誘発プロパティ**: `box-shadow`/`border-radius`/`clip-path`/`backdrop-filter` のアニメーション禁止（静的使用は可。同じく `cssTransitions.test.ts` が検査）
 - **CSS Custom Properties 優先**: JS から直接 `style.top` 等を操作せず `setProperty('--nd-offset', ...)` 経由
+- **デザイントークン (#704)**: 文字サイズ (em) ・太さ・角丸は `src/styles/global.css` の `--nd-font-*` / `--nd-weight-*` / `--nd-radius-*` を使い、直書きしない。余白は偶数 px。px / rem の文字サイズは固定寸法の部品 (アイコン・IDE 面) 用。`tests/lint/designTokens.test.ts` が検査する (残存分は同テストの ALLOWED に理由つきで凍結)
 
 #### Frame Scheduler — DOM read/write バッチング
 
@@ -1701,6 +1704,23 @@ API の実体は notecli 側にあるため、**エンドポイントの差し�
 **PR を出す前に:**
 - `pnpm lint && pnpm typecheck && pnpm test` を通す
 - フォークのどの機能が動的検出では動かず、なぜ静的な capability 宣言が必要かを PR 本文に記載する
+
+### アイコン語彙
+
+同じ意味には同じ Tabler アイコンを使い、1 つのアイコンに 2 つの意味を持たせない ([#704](https://github.com/notedeck-dev/notedeck/issues/704) H)。下の表にある意味の操作を足すときは表のアイコンを使い、新しい意味を足すときは表に行を足す。カラム種別のアイコンは `src/columns/registry.ts` の `COLUMN_ICONS`、capability のアイコンは `crates/notecore/capabilities.json5` が正本で、この表の対象外。
+
+| 意味 | アイコン | 備考 |
+|------|----------|------|
+| 投稿する / ノート | `ti-pencil` | 本家と同じ。投稿ボタン・投稿フォームを開く操作・ノート数 |
+| 編集する / 名前を変更 | `ti-edit` | エディタを開く・設定の編集・リネーム。`ti-pencil` は投稿専用 |
+| 返信 | `ti-arrow-back-up` | 本家と同じ。「戻す」系に流用しない |
+| 戻る (画面・階層を 1 つ戻る) | `ti-arrow-left` | ダイアログ内の階層も含む。進むは `ti-arrow-right` |
+| 前の項目 / 次の項目 (画像送り等) | `ti-chevron-left` / `ti-chevron-right` | 「戻る」ではなく同じ階層の送り |
+| デッキに戻す (ポップアウト・PiP から) | `ti-arrow-back` | 返信と見分けるため `ti-arrow-back-up` を使わない |
+| 再読み込み / 再試行 / 更新 | `ti-refresh` | `ti-reload` は使わない |
+| 既定に戻す / 以前の版を復元 | `ti-restore` | 設定のリセット。削除ではないので `ti-trash` にしない |
+| PiP (小窓) で開く | `ti-picture-in-picture` | PiP 専用。ウィンドウの「元のサイズに戻す」には使わない |
+| 最大化 / 元のサイズに戻す | `ti-square` / `ti-squares` | OS のウィンドウ操作と同じ形 |
 
 ### Icon Overlay System
 

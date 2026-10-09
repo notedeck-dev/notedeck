@@ -23,7 +23,7 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useToast } from '@/stores/toast'
-import { useIsCompactLayout, useUiStore } from '@/stores/ui'
+import { useUiStore } from '@/stores/ui'
 import { openSafeUrl } from '@/utils/url'
 
 const props = defineProps<{
@@ -66,8 +66,7 @@ const { confirm } = useConfirm()
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
 const offlineModeStore = useOfflineModeStore()
-const { isDesktop, isMobilePlatform } = useUiStore()
-const isCompact = useIsCompactLayout()
+const { isDesktop } = useUiStore()
 
 const columnConfig = computed(() => deckStore.getColumn(props.columnId))
 const columnAccount = computed(() => {
@@ -108,7 +107,8 @@ const hasWallpaper = computed(() => deckStore.wallpaper != null)
 const showMenu = ref(false)
 const { visible: menuVisible, leaving: menuLeaving } = useVaporTransition(
   showMenu,
-  { enterDuration: 180, leaveDuration: 180 },
+  // 退場アニメ (.menuLeave = --nd-duration-base) と同じ時間
+  { enterDuration: 200, leaveDuration: 150 },
 )
 const menuBtnEl = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)
@@ -116,7 +116,7 @@ const menuPos = ref<{ top: string; right: string }>({ top: '0', right: '0' })
 
 useNativePopover(menuEl, menuVisible, {
   onClose: () => closeMenu(),
-  leaveDuration: 180,
+  leaveDuration: 150,
   dismissOnOutsideClick: true,
 })
 
@@ -314,8 +314,8 @@ function openAsPip() {
         <i :class="isMuted ? 'ti ti-volume-off' : 'ti ti-volume'" />
       </button>
 
-      <!-- Grabber (Misskey 6-dot pattern, hidden in PiP, mobile, and compact layout) -->
-      <i v-if="!isPipMode && !isMobilePlatform && !isCompact" :class="$style.grabber" class="column-grabber ti ti-grip-vertical" />
+      <!-- Grabber (Misskey 6-dot pattern, hidden in PiP)。タッチは長押しで掴む (#704) -->
+      <i v-if="!isPipMode" :class="$style.grabber" class="column-grabber ti ti-grip-vertical" @contextmenu.prevent />
 
       <!-- Menu button (shared between PiP and Deck) -->
       <button ref="menuBtnEl" :class="$style.headerBtn" class="_button" :title="i18n.ts._common.menu" @pointerdown.stop @click.stop="toggleMenu">
@@ -368,11 +368,11 @@ function openAsPip() {
           <span>{{ pipAlwaysOnTop ? i18n.ts._deckColumn.unpinOnTop : i18n.ts._deckColumn.pinOnTop }}</span>
         </button>
         <button class="_popupItem" @click="returnToDeck">
-          <i class="ti ti-arrow-back-up" />
+          <i class="ti ti-arrow-back" />
           <span>{{ i18n.ts._deckColumn.returnToDeck }}</span>
         </button>
-        <div :class="$style.columnMenuDivider" />
-        <button :class="$style.columnMenuDanger" class="_popupItem" @click="close">
+        <div class="_popupDivider" />
+        <button class="_popupItem _popupItemDanger" @click="close">
           <i class="ti ti-x" />
           <span>{{ i18n.ts._common.close }}</span>
         </button>
@@ -396,12 +396,12 @@ function openAsPip() {
           <span>{{ i18n.ts._deckColumn.openAsPip }}</span>
         </button>
         <button v-if="canRecall" class="_popupItem" @click="recallToMain">
-          <i class="ti ti-arrow-back-up" />
+          <i class="ti ti-arrow-back" />
           <span>{{ i18n.ts._deckColumn.recallToMain }}</span>
         </button>
         <slot name="menu-items" :close-menu="closeMenu" />
-        <div :class="$style.columnMenuDivider" />
-        <button :class="$style.columnMenuDanger" class="_popupItem" @click="close">
+        <div class="_popupDivider" />
+        <button class="_popupItem _popupItemDanger" @click="close">
           <i class="ti ti-trash" />
           <span>{{ i18n.ts._commands.closeColumn }}</span>
         </button>
@@ -420,7 +420,7 @@ function openAsPip() {
   flex-direction: column;
   background: var(--nd-panel);
   color: var(--nd-fg);
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   overflow: clip;
   contain: layout paint style;
   container-type: inline-size;
@@ -439,8 +439,8 @@ function openAsPip() {
   backdrop-filter: var(--nd-vibrancy);
   -webkit-backdrop-filter: var(--nd-vibrancy);
   color: var(--nd-panelHeaderFg);
-  font-size: 0.9em;
-  font-weight: bold;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   flex-shrink: 0;
   cursor: default;
   user-select: none;
@@ -472,7 +472,7 @@ function openAsPip() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 /* 全アカウントのカラム (#1018)。per-account のアバターと同じ場所・同じ寸法 */
@@ -497,6 +497,10 @@ function openAsPip() {
   opacity: 0.5;
   cursor: grab;
   padding: 4px;
+  /* 長押しで掴む間にカラムの横スワイプ・テキスト選択・長押しメニューに奪われない */
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 
   &:hover {
     opacity: 0.6;
@@ -540,22 +544,8 @@ function openAsPip() {
   max-width: 260px;
   cursor: default;
   line-height: 1.35;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
   font-size: 1rem;
-
-  .columnMenuDanger {
-    color: var(--nd-love, #ff6b6b);
-
-    i {
-      opacity: 1;
-    }
-  }
-
-  .columnMenuDivider {
-    border: 0;
-    border-top: 0.5px solid var(--nd-divider);
-    margin: 4px 0;
-  }
 }
 
 .columnSubHeader {
@@ -586,8 +576,8 @@ function openAsPip() {
   gap: 6px;
   padding: 6px 14px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   white-space: nowrap;
   color: var(--nd-fgOnAccent);
   pointer-events: none;
@@ -620,14 +610,14 @@ function openAsPip() {
   position: absolute;
   bottom: 0;
   width: 100%;
-  margin: 5px 0;
+  margin: 6px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
 
   > :global(.ti) {
     margin: 6px 0;
-    transition: transform 0.25s;
+    transition: transform var(--nd-duration-slow);
   }
 
   > :global(.refresh) {
@@ -636,7 +626,7 @@ function openAsPip() {
 }
 
 .pullText {
-  margin: 5px 0;
+  margin: 6px 0;
   font-size: 90%;
   color: var(--nd-fg);
   opacity: 0.7;
@@ -648,7 +638,7 @@ function openAsPip() {
 }
 
 .menuEnter {
-  animation: colMenuIn 0.18s var(--nd-ease-spring);
+  animation: colMenuIn var(--nd-duration-medium) var(--nd-ease-menu);
 }
 .menuLeave {
   animation: colMenuOut var(--nd-duration-base) var(--nd-ease-decel) forwards;

@@ -1,6 +1,23 @@
 // Shared button mixins for dialogs and editor windows.
 // Usage: @use '@/styles/buttons' as *;
 
+// hover を持つ部品の手触りを揃える。背景・色・不透明度は
+// --nd-duration-base で遷移し、._button の押下の縮み (transform) も残す。
+// フォーカスリングは遷移させない (global.css の ._button と同じ理由で、
+// 移った瞬間に見えている必要がある)
+@mixin nd-interactive {
+  transition:
+    background var(--nd-duration-base),
+    color var(--nd-duration-base),
+    opacity var(--nd-duration-base),
+    transform var(--nd-duration-fast) var(--nd-ease-spring);
+
+  &:focus-visible {
+    outline: 2px solid var(--nd-focusRing);
+    outline-offset: 1px;
+  }
+}
+
 @mixin btn-base {
   display: flex;
   align-items: center;
@@ -8,8 +25,8 @@
   gap: 4px;
   padding: 8px 12px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   transition: background var(--nd-duration-base), color var(--nd-duration-base),
     transform var(--nd-duration-fast);
 
@@ -104,10 +121,10 @@
   height: 16px;
   padding: 0 4px;
   border-radius: var(--nd-radius-full);
-  background: var(--nd-indicator, #e53935);
+  background: var(--nd-indicator);
   color: #fff;
   font-size: 10px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   line-height: 16px;
   text-align: center;
   pointer-events: none;
@@ -123,12 +140,12 @@
   left: -6px;
   min-width: 14px;
   height: 14px;
-  padding: 0 3px;
-  border-radius: 7px;
+  padding: 0 4px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: var(--nd-bg);
   font-size: 9px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   line-height: 14px;
   text-align: center;
   pointer-events: none;

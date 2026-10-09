@@ -32,13 +32,14 @@ const rootRef = ref<HTMLElement | null>(null)
 const triggerRef = ref<HTMLElement | null>(null)
 
 const { visible, leaving } = useVaporTransition(show, {
-  enterDuration: 160,
-  leaveDuration: 120,
+  enterDuration: 200,
+  // 退場アニメ (.leave = --nd-duration-base) と同じ時間
+  leaveDuration: 150,
 })
 
 useNativePopover(rootRef, visible, {
   onClose: () => close(),
-  leaveDuration: 120,
+  leaveDuration: 150,
   dismissOnOutsideClick: true,
   ignoreOutsideClickFor: triggerRef,
 })
@@ -122,18 +123,18 @@ defineExpose({ open, close })
   min-width: 240px;
   max-width: 360px;
   padding: 8px 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transform-origin: top left;
 }
 
-.enter { animation: variantsIn 0.16s var(--nd-ease-spring); }
-.leave { animation: variantsOut 0.12s var(--nd-ease-decel) forwards; }
+.enter { animation: variantsIn var(--nd-duration-medium) var(--nd-ease-menu); }
+.leave { animation: variantsOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes variantsIn { from { opacity: 0; transform: scale(0.95); } }
 @keyframes variantsOut { to { opacity: 0; transform: scale(0.97); } }
 
 .title {
   padding: 2px 12px 6px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -152,7 +153,7 @@ defineExpose({ open, close })
 }
 
 .label {
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -175,9 +176,9 @@ defineExpose({ open, close })
 }
 
 .mark {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   border: 1px solid var(--nd-divider);
   opacity: 0.85;
 }

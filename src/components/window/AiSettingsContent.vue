@@ -375,7 +375,7 @@ function handleReset() {
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.4;
 }
 
@@ -396,7 +396,7 @@ function handleReset() {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, var(--nd-bg));
   color: var(--nd-love);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   word-break: break-all;
 }
 
@@ -404,7 +404,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

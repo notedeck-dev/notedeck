@@ -134,6 +134,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/boundedCache.ts`](src/services/boundedCache.ts) | [`src/services/boundedCache.test.ts`](src/services/boundedCache.test.ts) |
 | [`src/services/cacheEvictionConfig.ts`](src/services/cacheEvictionConfig.ts) | — |
 | [`src/services/captureBudget.ts`](src/services/captureBudget.ts) | [`src/services/captureBudget.test.ts`](src/services/captureBudget.test.ts) |
+| [`src/services/chatDateSeparators.ts`](src/services/chatDateSeparators.ts) | [`src/services/chatDateSeparators.test.ts`](src/services/chatDateSeparators.test.ts) |
 | [`src/services/chatHistoryEntries.ts`](src/services/chatHistoryEntries.ts) | [`src/services/chatHistoryEntries.test.ts`](src/services/chatHistoryEntries.test.ts) |
 | [`src/services/clientConfig.ts`](src/services/clientConfig.ts) | [`src/services/clientConfig.test.ts`](src/services/clientConfig.test.ts) |
 | [`src/services/columnCacheKey.ts`](src/services/columnCacheKey.ts) | [`src/services/columnCacheKey.test.ts`](src/services/columnCacheKey.test.ts) |
@@ -148,6 +149,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/columnUri.ts`](src/services/columnUri.ts) | — |
 | [`src/services/concurrency.ts`](src/services/concurrency.ts) | [`src/services/concurrency.test.ts`](src/services/concurrency.test.ts) |
 | [`src/services/cssPresets.ts`](src/services/cssPresets.ts) | [`src/services/cssPresets.test.ts`](src/services/cssPresets.test.ts) |
+| [`src/services/dateSeparator.ts`](src/services/dateSeparator.ts) | [`src/services/dateSeparator.test.ts`](src/services/dateSeparator.test.ts) |
 | [`src/services/deckLayout.ts`](src/services/deckLayout.ts) | [`src/services/deckLayout.test.ts`](src/services/deckLayout.test.ts) |
 | [`src/services/deckProfileCodec.ts`](src/services/deckProfileCodec.ts) | [`src/services/deckProfileCodec.test.ts`](src/services/deckProfileCodec.test.ts) |
 | [`src/services/deckProfileFiles.ts`](src/services/deckProfileFiles.ts) | — |
@@ -164,6 +166,8 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/editHistory.ts`](src/services/editHistory.ts) | [`src/services/editHistory.test.ts`](src/services/editHistory.test.ts) |
 | [`src/services/embedCode.ts`](src/services/embedCode.ts) | — |
 | [`src/services/emojiMute.ts`](src/services/emojiMute.ts) | [`src/services/emojiMute.test.ts`](src/services/emojiMute.test.ts) |
+| [`src/services/emojiSearch.ts`](src/services/emojiSearch.ts) | [`src/services/emojiSearch.test.ts`](src/services/emojiSearch.test.ts) |
+| [`src/services/emojiSkinTone.ts`](src/services/emojiSkinTone.ts) | [`src/services/emojiSkinTone.test.ts`](src/services/emojiSkinTone.test.ts) |
 | [`src/services/emojiWarm.ts`](src/services/emojiWarm.ts) | [`src/services/emojiWarm.dom.test.ts`](src/services/emojiWarm.dom.test.ts) |
 | [`src/services/entityResolution.ts`](src/services/entityResolution.ts) | [`src/services/entityResolution.test.ts`](src/services/entityResolution.test.ts) |
 | [`src/services/extractUrlFromMfm.ts`](src/services/extractUrlFromMfm.ts) | [`src/services/extractUrlFromMfm.test.ts`](src/services/extractUrlFromMfm.test.ts) |
@@ -176,9 +180,11 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/localeSetting.ts`](src/services/localeSetting.ts) | [`src/services/localeSetting.test.ts`](src/services/localeSetting.test.ts) |
 | [`src/services/mapEviction.ts`](src/services/mapEviction.ts) | [`src/services/mapEviction.test.ts`](src/services/mapEviction.test.ts) |
 | [`src/services/mfmParser.ts`](src/services/mfmParser.ts) | — |
+| [`src/services/nativeContextMenu.ts`](src/services/nativeContextMenu.ts) | [`src/services/nativeContextMenu.dom.test.ts`](src/services/nativeContextMenu.dom.test.ts) |
 | [`src/services/noteFrame.ts`](src/services/noteFrame.ts) | [`src/services/noteFrame.test.ts`](src/services/noteFrame.test.ts) |
 | [`src/services/noteGroup.ts`](src/services/noteGroup.ts) | [`src/services/noteGroup.test.ts`](src/services/noteGroup.test.ts) |
 | [`src/services/noteKey.ts`](src/services/noteKey.ts) | [`src/services/noteKey.test.ts`](src/services/noteKey.test.ts) |
+| [`src/services/noteSummary.ts`](src/services/noteSummary.ts) | [`src/services/noteSummary.test.ts`](src/services/noteSummary.test.ts) |
 | [`src/services/noteUrl.ts`](src/services/noteUrl.ts) | [`src/services/noteUrl.test.ts`](src/services/noteUrl.test.ts) |
 | [`src/services/notificationMerge.ts`](src/services/notificationMerge.ts) | [`src/services/notificationMerge.test.ts`](src/services/notificationMerge.test.ts) |
 | [`src/services/notificationNoteSync.ts`](src/services/notificationNoteSync.ts) | [`src/services/notificationNoteSync.test.ts`](src/services/notificationNoteSync.test.ts) |
@@ -222,6 +228,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/tutorialNotifications.ts`](src/services/tutorialNotifications.ts) | [`src/services/tutorialNotifications.test.ts`](src/services/tutorialNotifications.test.ts) |
 | [`src/services/tutorialProgress.ts`](src/services/tutorialProgress.ts) | [`src/services/tutorialProgress.test.ts`](src/services/tutorialProgress.test.ts) |
 | [`src/services/twemoji.ts`](src/services/twemoji.ts) | [`src/services/twemoji.test.ts`](src/services/twemoji.test.ts) |
+| [`src/services/uiZoom.ts`](src/services/uiZoom.ts) | [`src/services/uiZoom.test.ts`](src/services/uiZoom.test.ts) |
 | [`src/services/userLookupResult.ts`](src/services/userLookupResult.ts) | [`src/services/userLookupResult.test.ts`](src/services/userLookupResult.test.ts) |
 | [`src/services/userRef.ts`](src/services/userRef.ts) | [`src/services/userRef.test.ts`](src/services/userRef.test.ts) |
 | [`src/services/widgetInstances.ts`](src/services/widgetInstances.ts) | [`src/services/widgetInstances.test.ts`](src/services/widgetInstances.test.ts) |

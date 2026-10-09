@@ -121,9 +121,9 @@ useBackButton(
   width: 100%;
   margin: 0;
   padding: 8px 0 calc(8px + var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
   background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-sheet);
   max-height: 80vh;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -139,14 +139,14 @@ useBackButton(
 }
 
 .title {
-  font-size: 0.9em;
-  font-weight: bold;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
 }
 
 .description {
   margin-top: 2px;
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.7;
   white-space: pre-wrap;

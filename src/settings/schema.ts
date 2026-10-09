@@ -30,6 +30,14 @@ export interface NotedeckSettings {
    */
   'deck.navWidth'?: number
 
+  // --- UI zoom (#704) ---
+  /**
+   * webview の拡大率 (1 = 等倍)。Ctrl+± / メニューで変えた値を保存し、
+   * 全ウィンドウに当てる。許容範囲は `services/uiZoom.ts` が正本で、
+   * 範囲外の手編集は読み込み時に丸める
+   */
+  'ui.zoom'?: number
+
   // --- Pet (#1080) ---
   /**
    * デッキに置く petdex 形式のペットの slug。null / 未設定で無し (既定)。
@@ -81,6 +89,14 @@ export interface NotedeckSettings {
    * 多いノートは取得コストの都合で対象外 (サーバー集計のまま)。
    */
   'mute.hideMutedUserReactions'?: boolean
+
+  // --- Emoji picker (#1193) ---
+  /**
+   * 絵文字ピッカーで選んだスキントーン (1〜5 = Fitzpatrick 修飾子 U+1F3FB〜)。
+   * null / 未設定は修飾しない。ミュートと同じくアカウントに紐づかない。
+   * 範囲外の手編集は読み込み時に null として扱う (`services/emojiSkinTone.ts`)
+   */
+  'emoji.skinTone'?: 1 | 2 | 3 | 4 | 5 | null
 
   // --- Post form ---
   'postForm.preview'?: boolean

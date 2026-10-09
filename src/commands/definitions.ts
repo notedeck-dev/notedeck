@@ -4,6 +4,7 @@ import { useAccountPicker } from '@/composables/useAccountPicker'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { isEntityType, useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteAction } from '@/composables/useNoteFocus'
+import { useUiZoom } from '@/composables/useUiZoom'
 import { i18n } from '@/i18n'
 import { modeIcon } from '@/services/timelinePolicy'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
@@ -126,6 +127,17 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     category: 'navigation',
     shortcuts: keybindsStore.getShortcuts('notifications'),
     execute: handlers.openNotifications,
+  })
+
+  commandStore.register({
+    id: 'notification-center',
+    get label() {
+      return i18n.ts._commands.notificationCenter
+    },
+    icon: 'inbox',
+    category: 'navigation',
+    shortcuts: keybindsStore.getShortcuts('notification-center'),
+    execute: () => useToast().setInboxOpen(true),
   })
 
   commandStore.register({
@@ -414,6 +426,40 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     category: 'general',
     shortcuts: keybindsStore.getShortcuts('toggle-dark-mode'),
     execute: () => useThemeStore().toggleTheme(),
+  })
+
+  const uiZoom = useUiZoom()
+  commandStore.register({
+    id: 'zoom-in',
+    get label() {
+      return i18n.ts._commands.zoomIn
+    },
+    icon: 'zoom-in',
+    category: 'general',
+    shortcuts: keybindsStore.getShortcuts('zoom-in'),
+    execute: uiZoom.zoomIn,
+  })
+
+  commandStore.register({
+    id: 'zoom-out',
+    get label() {
+      return i18n.ts._commands.zoomOut
+    },
+    icon: 'zoom-out',
+    category: 'general',
+    shortcuts: keybindsStore.getShortcuts('zoom-out'),
+    execute: uiZoom.zoomOut,
+  })
+
+  commandStore.register({
+    id: 'zoom-reset',
+    get label() {
+      return i18n.ts._commands.zoomReset
+    },
+    icon: 'zoom-reset',
+    category: 'general',
+    shortcuts: keybindsStore.getShortcuts('zoom-reset'),
+    execute: uiZoom.reset,
   })
 
   commandStore.register({
@@ -1113,6 +1159,7 @@ export function unregisterDefaultCommands() {
     'search',
     'client-search',
     'notifications',
+    'notification-center',
     'compose',
     'boss-key',
     'quick-note',
@@ -1123,6 +1170,9 @@ export function unregisterDefaultCommands() {
     'settings-menu',
     'tutorial',
     'toggle-dark-mode',
+    'zoom-in',
+    'zoom-out',
+    'zoom-reset',
     'toggle-offline-mode',
     'toggle-realtime-mode',
     'profile-new',

@@ -3,8 +3,10 @@ import { defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
 import type { NoteReaction } from '@/adapters/types'
 import { useEmojiMute } from '@/composables/useEmojiMute'
+import { useHoverPopupLeaving } from '@/composables/useHoverPopup'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useNavigation } from '@/composables/useNavigation'
+import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { normalizeEmojiMuteKey } from '@/services/emojiMute'
 import { useAccountsStore } from '@/stores/accounts'
@@ -37,6 +39,7 @@ const emit = defineEmits<{
 const { navigateToUser } = useNavigation()
 const { isEmojiMuted, toggleEmojiMuteWithConfirm } = useEmojiMute()
 const accountsStore = useAccountsStore()
+const isLeaving = useHoverPopupLeaving()
 
 // プレビュー内の軽量アクション (#612)。hover popup と右クリックメニューが
 // 重なるため、メニューは廃止してここに統合した
@@ -67,6 +70,8 @@ const userPopupUserId = ref('')
 const userPopupPos = ref({ x: 0, y: 0 })
 const userPopupTheme = ref<Record<string, string>>({})
 let hoverTimer: ReturnType<typeof setTimeout> | null = null
+// 退場は _popup.scss の hoverLeave (--nd-duration-base) と同じ時間
+const userPopupTr = useVaporTransition(showUserPopup, { leaveDuration: 150 })
 
 async function fetchReactions() {
   isLoading.value = true
@@ -137,7 +142,7 @@ function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
 }
 const userPopupPopoverRef = ref<HTMLElement | null>(null)
-useNativePopover(userPopupPopoverRef, showUserPopup, {
+useNativePopover(userPopupPopoverRef, userPopupTr.visible, {
   leaveDuration: 0,
 })
 
@@ -150,7 +155,7 @@ onUnmounted(() => {
 
 <template>
   <div
-    :class="$style.root"
+    :class="[$style.root, isLeaving ? $style.hoverLeave : $style.hoverEnter]"
     class="_popup reaction-users-popup"
     :style="{ left: `${x}px`, top: `${y}px` }"
     @mouseleave="handleMouseLeave"
@@ -234,19 +239,22 @@ onUnmounted(() => {
     </template>
   </div>
 
-  <div v-if="showUserPopup" ref="userPopupPopoverRef" popover="manual" :style="userPopupTheme">
+  <div v-if="userPopupTr.visible.value" ref="userPopupPopoverRef" popover="manual" :style="userPopupTheme">
     <MkUserPopup
       :key="userPopupUserId"
       :user-id="userPopupUserId"
       :account-id="accountId"
       :x="userPopupPos.x"
       :y="userPopupPos.y"
+      :leaving="userPopupTr.leaving.value"
       @close="closeUserPopup"
     />
   </div>
 </template>
 
 <style lang="scss" module>
+@use '@/styles/popup';
+
 .root {
   position: fixed;
   z-index: calc(var(--nd-z-popup) + 1);
@@ -255,7 +263,6 @@ onUnmounted(() => {
   max-width: 340px;
   padding: 8px 0 8px 12px;
   pointer-events: auto;
-  animation: reactionPopupIn 0.2s var(--nd-ease-spring);
   /* _popup の contain: paint は要素境界外の paint と pointer hit を切るため、
      アクションボタンのツールチップが popup 内で途切れ、下の ::before ブリッジも
      効かなくなる。DeckWindow と同じく layout のみに留める (#914) */
@@ -291,9 +298,9 @@ onUnmounted(() => {
 
 .actionBtn {
   position: relative;
-  padding: 3px 6px;
-  border-radius: 6px;
-  font-size: 0.9em;
+  padding: 4px 6px;
+  border-radius: var(--nd-radius-sm);
+  font-size: var(--nd-font-body);
   opacity: 0.55;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -311,8 +318,8 @@ onUnmounted(() => {
     z-index: 1;
     bottom: calc(100% + 6px);
     left: 0;
-    padding: 3px 8px;
-    border-radius: 6px;
+    padding: 4px 8px;
+    border-radius: var(--nd-radius-sm);
     background: var(--nd-bg);
     box-shadow: var(--nd-shadow-m);
     color: var(--nd-fg);
@@ -373,8 +380,8 @@ onUnmounted(() => {
 }
 
 .userName {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -383,7 +390,7 @@ onUnmounted(() => {
 }
 
 .userHandle {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   display: block;
   overflow: hidden;
@@ -396,8 +403,8 @@ onUnmounted(() => {
   border: none;
   background: none;
   color: var(--nd-accent);
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   cursor: pointer;
   text-align: left;
   flex-shrink: 0;
@@ -408,8 +415,5 @@ onUnmounted(() => {
   }
 }
 
-@keyframes reactionPopupIn {
-  from { opacity: 0; transform: scale(0.88) translateY(6px); }
-}
 
 </style>

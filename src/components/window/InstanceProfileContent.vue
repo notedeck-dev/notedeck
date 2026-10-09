@@ -467,7 +467,7 @@ const statusBadges = computed(() => {
 
 .stateError {
   color: var(--nd-love);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .tabContent {
@@ -525,8 +525,8 @@ const statusBadges = computed(() => {
 
 .bannerName {
   line-height: 32px;
-  font-weight: bold;
-  font-size: 1.5em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-2xl);
   filter: drop-shadow(0 0 4px #000);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -544,16 +544,16 @@ const statusBadges = computed(() => {
 }
 
 .bannerUsername {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   font-family: var(--nd-font-mono);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
 }
 
 .bannerBadge {
   display: inline-block;
   padding: 1px 8px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   background: rgba(255, 255, 255, 0.22);
   text-transform: lowercase;
 }
@@ -584,17 +584,17 @@ const statusBadges = computed(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .role {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   border: solid 1px var(--nd-divider);
   border-radius: var(--nd-radius-full);
-  font-weight: 500;
+  font-weight: var(--nd-weight-medium);
 }
 
 .roleError {
@@ -603,14 +603,14 @@ const statusBadges = computed(() => {
 }
 
 .roleWarn {
-  border-color: var(--nd-warn, #e8a530);
-  color: var(--nd-warn, #e8a530);
+  border-color: var(--nd-warn);
+  color: var(--nd-warn);
 }
 
 .description {
   padding: 24px 24px 0 132px;
   margin: 0;
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
@@ -641,7 +641,7 @@ const statusBadges = computed(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 10px 16px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.85;
 }
 
@@ -673,7 +673,7 @@ const statusBadges = computed(() => {
   > b {
     display: block;
     line-height: 16px;
-    font-size: 1.1em;
+    font-size: var(--nd-font-lg);
     color: var(--nd-fgHighlighted);
   }
 
@@ -693,8 +693,8 @@ const statusBadges = computed(() => {
   align-items: center;
   gap: 6px;
   padding: 6px 0 12px;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.7;
 
@@ -715,7 +715,7 @@ const statusBadges = computed(() => {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   background: var(--nd-panel);
   border-radius: var(--nd-radius-sm);
@@ -729,7 +729,7 @@ const statusBadges = computed(() => {
 
   i {
     opacity: 0.6;
-    font-size: 0.9em;
+    font-size: var(--nd-font-body);
   }
 }
 

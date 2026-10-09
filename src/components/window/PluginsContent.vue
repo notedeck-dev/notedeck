@@ -6,6 +6,7 @@ import {
   parsePluginMeta,
 } from '@/aiscript/plugin-api'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormSwitch from '@/components/common/form/FormSwitch.vue'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
 import type { EditorAction } from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
@@ -431,7 +432,7 @@ async function importPlugin() {
         <div v-else :class="$style.nameRow">
           <span :class="$style.headerName">{{ plugin.name }}</span>
           <button class="_button" :class="$style.renameBtn" :title="i18n.ts._common.rename" @click="startRename">
-            <i class="ti ti-pencil" />
+            <i class="ti ti-edit" />
           </button>
         </div>
         <div :class="$style.headerSub">
@@ -468,20 +469,16 @@ async function importPlugin() {
               :title="i18n.ts._common.resetToDefault"
               @click="resetConfig(key as string)"
             >
-              <i class="ti ti-rotate" />
+              <i class="ti ti-restore" />
             </button>
           </div>
           <p v-if="def.description" :class="$style.configDesc">{{ def.description }}</p>
           <template v-if="def.type === 'boolean'">
-            <button
-              class="nd-toggle-switch"
-              :class="{ on: !!plugin.configData[key] }"
-              role="switch"
-              :aria-checked="!!plugin.configData[key]"
-              @click="updateConfig(key as string, !plugin.configData[key])"
-            >
-              <span class="nd-toggle-switch-knob" />
-            </button>
+            <FormSwitch
+              :model-value="!!plugin.configData[key]"
+              :label="def.label"
+              @update:model-value="(v) => updateConfig(key as string, v)"
+            />
           </template>
           <template v-else-if="def.type === 'string'">
             <input
@@ -509,7 +506,7 @@ async function importPlugin() {
         :class="[$style.resetAllBtn, { [$style.confirming]: confirmingResetConfig }]"
         @click="handleResetAllConfig"
       >
-        <i class="ti ti-rotate" />
+        <i class="ti ti-restore" />
         {{ confirmingResetConfig ? i18n.ts._common.confirmReset : i18n.ts._common.resetAllToDefault }}
       </button>
     </div>
@@ -567,6 +564,7 @@ async function importPlugin() {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .pluginsContent {
   display: flex;
@@ -592,7 +590,7 @@ async function importPlugin() {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
   color: var(--nd-accent);
   font-size: 24px;
@@ -621,8 +619,8 @@ async function importPlugin() {
 }
 
 .headerName {
-  font-size: 1.05em;
-  font-weight: 700;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -638,7 +636,7 @@ async function importPlugin() {
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transition:
     opacity var(--nd-duration-fast),
     background var(--nd-duration-fast);
@@ -666,8 +664,8 @@ async function importPlugin() {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-inputBg, var(--nd-bg));
   color: var(--nd-fgHighlighted);
-  font-size: 1.05em;
-  font-weight: 700;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
 
   &:focus {
     outline: none;
@@ -675,7 +673,7 @@ async function importPlugin() {
 }
 
 .headerSub {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.6;
   display: flex;
@@ -684,11 +682,11 @@ async function importPlugin() {
 }
 
 .statusBadge {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   padding: 0 6px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--nd-success, #4caf50) 15%, transparent);
-  color: var(--nd-success, #4caf50);
+  border-radius: var(--nd-radius-md);
+  background: color-mix(in srgb, var(--nd-success) 15%, transparent);
+  color: var(--nd-success);
   line-height: 1.6;
 }
 
@@ -699,7 +697,7 @@ async function importPlugin() {
 }
 
 .headerDesc {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.45;
   margin-top: 2px;
@@ -744,8 +742,8 @@ async function importPlugin() {
 }
 
 .configLabel {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
@@ -758,7 +756,7 @@ async function importPlugin() {
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.4;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   transition:
     opacity var(--nd-duration-fast),
     background var(--nd-duration-fast);
@@ -771,28 +769,14 @@ async function importPlugin() {
 }
 
 .configDesc {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.6;
   margin: 0;
 }
 
 .configInput {
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-inputBg, var(--nd-bg));
-  color: var(--nd-fg);
-  font-size: 0.85em;
-
-  &::placeholder {
-    opacity: 0.35;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--nd-accent);
-  }
+  @include input-base;
 }
 
 .resetAllBtn {
@@ -800,7 +784,7 @@ async function importPlugin() {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.5;
   border-radius: var(--nd-radius-sm);
@@ -836,7 +820,7 @@ async function importPlugin() {
 }
 
 .codeHint {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.4;
   margin: 0;
@@ -850,7 +834,7 @@ async function importPlugin() {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   color: var(--nd-love);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 // --- Logs tab ---
@@ -863,9 +847,9 @@ async function importPlugin() {
 }
 
 .logsList {
-  background: var(--nd-codeEditorBg, #1e1e1e);
+  background: var(--nd-codeEditorBg);
   font-family: var(--nd-font-mono);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   min-height: 100%;
 }
 
@@ -892,7 +876,7 @@ async function importPlugin() {
   padding: 32px;
   color: var(--nd-fg);
   opacity: 0.4;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 /* Empty placeholder class for dynamic binding */

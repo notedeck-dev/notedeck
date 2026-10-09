@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref } from 'vue'
+import {
+  computed,
+  onBeforeUnmount,
+  ref,
+  useCssModule,
+  useTemplateRef,
+  watch,
+} from 'vue'
 import { useSpotlightStore, windowTargetId } from '@/composables/useSpotlight'
 import { provideWindowEditAction } from '@/composables/useWindowEditAction'
 import { provideWindowExternalFile } from '@/composables/useWindowExternalFile'
@@ -11,9 +18,14 @@ import {
   useWindowsStore,
   WINDOW_MIN_SIZE,
 } from '@/stores/windows'
+import { motionDuration, motionEasing } from '@/utils/motion'
 import { isTauri, openSettingsFileInEditor } from '@/utils/settingsFs'
 import { openSafeUrl } from '@/utils/url'
-import { WINDOW_ICONS, WINDOW_LABELS, WINDOW_SIZES } from '@/windows/registry'
+import {
+  WINDOW_ICONS,
+  WINDOW_SIZES,
+  windowTitle as windowTitleOf,
+} from '@/windows/registry'
 
 const props = defineProps<{
   window: DeckWindow
@@ -69,18 +81,115 @@ function runEditAction() {
   }
 }
 
-const windowTitle = computed(() => {
-  const base = WINDOW_LABELS[props.window.type] ?? ''
-  if (props.window.type === 'follow-list' && props.window.props.username) {
-    return i18n.tsx._deckWindow.followListTitle({
-      username: String(props.window.props.username),
-    })
-  }
-  return base
-})
+const windowTitle = computed(() => windowTitleOf(props.window))
 
 const isMinimized = computed(() => props.window.minimized)
 const isMaximized = computed(() => props.window.maximized)
+
+// --- 最大化 / 最小化 / 元に戻すの補間 ---
+// 位置と大きさは切り替わった後で、変化前の矩形から FLIP (transform の
+// translate + scale) で寄せる。中身が歪むので時間は短く。最小化はヘッダー
+// だけ残して本文が消えるので、本文の矩形をかたどった影をボトムバーの
+// チップへ縮ませる (チップが無ければその場で上へたたむ)
+const $style = useCssModule()
+const rootRef = useTemplateRef<HTMLElement>('rootRef')
+const bodyRef = useTemplateRef<HTMLElement>('bodyRef')
+let shapeBefore: { win: DOMRect; body: DOMRect | null } | null = null
+
+watch(
+  [isMaximized, isMinimized],
+  () => {
+    const el = rootRef.value
+    shapeBefore = el
+      ? {
+          win: el.getBoundingClientRect(),
+          body: bodyRef.value?.getBoundingClientRect() ?? null,
+        }
+      : null
+  },
+  { flush: 'pre' },
+)
+watch(
+  [isMaximized, isMinimized],
+  ([max, min], [prevMax, prevMin]) => {
+    const before = shapeBefore
+    shapeBefore = null
+    const el = rootRef.value
+    if (!before || !el || typeof el.animate !== 'function') return
+    if (min && !prevMin) animateMinimize(el, before.body)
+    else if (!min && prevMin) animateRestore()
+    else if (max !== prevMax) animateReshape(el, before.win)
+  },
+  { flush: 'post' },
+)
+
+function animateReshape(el: HTMLElement, first: DOMRect) {
+  const duration = motionDuration('--nd-duration-medium', 200)
+  const last = el.getBoundingClientRect()
+  if (duration <= 0 || last.width < 1 || last.height < 1) return
+  const dx = first.left - last.left
+  const dy = first.top - last.top
+  const sx = first.width / last.width
+  const sy = first.height / last.height
+  el.animate(
+    [
+      {
+        transformOrigin: '0 0',
+        transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`,
+      },
+      { transformOrigin: '0 0', transform: 'none' },
+    ],
+    { duration, easing: motionEasing('--nd-ease-decel') },
+  )
+}
+
+function animateMinimize(el: HTMLElement, body: DOMRect | null) {
+  const duration = motionDuration('--nd-duration-slow', 280)
+  if (duration <= 0 || !body || body.width < 1 || body.height < 1) return
+  const ghost = document.createElement('div')
+  ghost.className = $style.minimizeGhost ?? ''
+  const cs = getComputedStyle(el)
+  Object.assign(ghost.style, {
+    left: `${body.left}px`,
+    top: `${body.top}px`,
+    width: `${body.width}px`,
+    height: `${body.height}px`,
+    background: cs.backgroundColor,
+    zIndex: cs.zIndex,
+  })
+  document.body.appendChild(ghost)
+  const chip = document.querySelector<HTMLElement>(
+    `[data-minimized-window="${CSS.escape(props.window.id)}"]`,
+  )
+  const target = chip?.getBoundingClientRect()
+  const end =
+    target && target.width > 0
+      ? `translate(${target.left - body.left}px, ${target.top - body.top}px) scale(${target.width / body.width}, ${target.height / body.height})`
+      : 'scale(1, 0)'
+  const anim = ghost.animate(
+    [
+      { transform: 'none', opacity: 1 },
+      { transform: end, opacity: 0 },
+    ],
+    { duration, easing: motionEasing('--nd-ease-decel'), fill: 'forwards' },
+  )
+  const remove = () => ghost.remove()
+  anim.addEventListener('finish', remove)
+  anim.addEventListener('cancel', remove)
+}
+
+function animateRestore() {
+  const body = bodyRef.value
+  const duration = motionDuration('--nd-duration-medium', 200)
+  if (!body || duration <= 0) return
+  body.animate(
+    [
+      { opacity: 0, transform: 'translateY(-6px)' },
+      { opacity: 1, transform: 'none' },
+    ],
+    { duration, easing: motionEasing('--nd-ease-decel') },
+  )
+}
 
 // --- Drag (move) ---
 const isDragging = ref(false)
@@ -296,6 +405,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
+    ref="rootRef"
     :class="[$style.deckWindow, { [$style.dragging]: isDragging, [$style.resizing]: isResizing, [$style.userSized]: isUserSized, [$style.minimized]: isMinimized, [$style.maximized]: isMaximized, [$style.mobile]: isCompact, [$style.spotlighted]: isSpotlighted, [$style.closing]: closing }]"
     :style="windowStyle"
     @mousedown="onWindowMouseDown"
@@ -337,13 +447,13 @@ onBeforeUnmount(() => {
         <i class="ti ti-minus" />
       </button>
       <button class="_button" :class="$style.windowBtn" :title="i18n.ts._deckWindow.maximize" @click="windowsStore.toggleMaximize(window.id)">
-        <i :class="isMaximized ? 'ti ti-picture-in-picture' : 'ti ti-square'" />
+        <i :class="isMaximized ? 'ti ti-squares' : 'ti ti-square'" />
       </button>
       <button class="_button" :class="[$style.windowBtn, $style.windowClose]" :title="i18n.ts._common.close" @click="emit('close')">
         <i class="ti ti-x" />
       </button>
     </div>
-    <div :class="$style.windowBody">
+    <div ref="bodyRef" :class="$style.windowBody">
       <slot />
     </div>
     <template v-if="!isMaximized && !isMinimized && !isCompact">
@@ -373,14 +483,14 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background: var(--nd-panel);
   border-radius: var(--nd-radius);
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
   // overflow: visible にして 8 方向ハンドルが外側にはみ出せるようにする。
   // 角丸は .windowHeader / .windowBody 側で個別に持たせて見た目を維持。
   // contain: paint を付けると要素境界外の paint と pointer hit が切られて
   // 外側に出したリサイズハンドルが効かなくなるので layout のみに留める。
   overflow: visible;
   contain: layout;
-  animation: windowIn 0.2s var(--nd-ease-spring);
+  animation: windowIn var(--nd-duration-medium) var(--nd-ease-spring);
 }
 
 @keyframes windowIn {
@@ -389,12 +499,21 @@ onBeforeUnmount(() => {
 
 /* 閉じアニメ: windowIn の逆方向。DeckWindowLayer の leave 遅延中に付与される */
 .closing {
-  animation: windowOut 0.2s var(--nd-ease-decel) both;
+  animation: windowOut var(--nd-duration-medium) var(--nd-ease-decel) both;
   pointer-events: none;
 }
 
 @keyframes windowOut {
   to { opacity: 0; transform: scale(0.92) translateY(4px); }
+}
+
+// 最小化で消える本文の影 (animateMinimize が body 直下に置いて縮ませる)
+.minimizeGhost {
+  position: fixed;
+  transform-origin: 0 0;
+  border-radius: var(--nd-radius);
+  box-shadow: var(--nd-shadow-l);
+  pointer-events: none;
 }
 
 .dragging {
@@ -432,7 +551,7 @@ onBeforeUnmount(() => {
 }
 
 .maximized {
-  top: var(--nd-app-inset-top, 0px);
+  top: var(--nd-app-inset-top);
   left: 0;
   right: 0;
   bottom: 0;
@@ -491,8 +610,8 @@ onBeforeUnmount(() => {
 
 .windowTitle {
   flex: 1;
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -565,7 +684,7 @@ onBeforeUnmount(() => {
 
 .mobile {
   left: 0 !important;
-  top: var(--nd-app-inset-top, 0px) !important;
+  top: var(--nd-app-inset-top) !important;
   right: 0 !important;
   // ボトムバー (mobile nav) の上端で止め、覆い隠さない。height: auto + top/bottom
   // で高さが決まるので、ウィンドウが画面下まで伸びすぎる問題も同時に解消する。

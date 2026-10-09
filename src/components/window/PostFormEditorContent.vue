@@ -252,7 +252,7 @@ async function importList() {
           @pointerdown="startDrag(i, $event)"
         >
           <i :class="['ti', `ti-${POST_FORM_BUTTON_META[id].icon}`]" />
-          <button class="_button" :class="$style.removeBtn" @click.stop="removeItem(i)">
+          <button :aria-label="i18n.ts._common.delete" class="_button" :class="$style.removeBtn" @click.stop="removeItem(i)">
             <i class="ti ti-x" />
           </button>
         </div>
@@ -334,7 +334,7 @@ async function importList() {
         :class="[$style.actionBtn, $style.danger, { [$style.confirming]: confirmingReset }]"
         @click="handleReset"
       >
-        <i class="ti ti-trash" />
+        <i class="ti ti-restore" />
         {{ confirmingReset ? i18n.ts._common.confirmReset : i18n.ts._common.resetToDefault }}
       </button>
     </div>
@@ -365,8 +365,8 @@ async function importList() {
   align-items: center;
   gap: 6px;
   padding: 10px 12px 6px;
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.5;
   text-transform: uppercase;
@@ -375,7 +375,7 @@ async function importList() {
 
 .sectionBadge {
   margin-left: auto;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
   opacity: 0.8;
 }
 
@@ -436,7 +436,7 @@ async function importList() {
   }
 
   &:hover {
-    color: var(--nd-love, #ec4137);
+    color: var(--nd-love);
   }
 }
 
@@ -448,13 +448,14 @@ async function importList() {
 }
 
 .addBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
   background: var(--nd-panel);
   border-radius: var(--nd-radius-sm);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
 
   &:hover {
@@ -467,7 +468,7 @@ async function importList() {
   text-align: center;
   color: var(--nd-fg);
   opacity: 0.4;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
 }
 
 .codePanel {
@@ -481,7 +482,7 @@ async function importList() {
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
 }
 
@@ -490,7 +491,7 @@ async function importList() {
   border-radius: var(--nd-radius-sm);
 
   &.hasError {
-    border-color: var(--nd-love, #ec4137);
+    border-color: var(--nd-love);
   }
 }
 
@@ -498,15 +499,15 @@ async function importList() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
-  color: var(--nd-love, #ec4137);
+  font-size: var(--nd-font-xs);
+  color: var(--nd-love);
 }
 
 .codeSuccess {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

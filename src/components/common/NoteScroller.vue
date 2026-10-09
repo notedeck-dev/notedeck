@@ -1,5 +1,8 @@
 <script setup lang="ts" generic="T extends { id?: string; _accountId?: string; rowKey?: string }">
-import { useVirtualizer } from '@tanstack/vue-virtual'
+import {
+  measureElement as defaultMeasureElement,
+  useVirtualizer,
+} from '@tanstack/vue-virtual'
 import { computed, ref, watch } from 'vue'
 import { variantKey } from '@/services/noteKey'
 import { usePerformanceStore } from '@/stores/performance'
@@ -77,6 +80,7 @@ watch(
 
 // Dynamic estimateSize — exponential moving average (EMA) of measured item heights.
 // Converges fast during bootstrap (first 10), then tracks recent height trends.
+// 標本は ResizeObserver の通知 (borderBoxSize、強制レイアウト無し) から取る。
 // Update is deferred to next frame to break ResizeObserver feedback loops:
 //   measureElement → dynamicEstimate change → estimateSize change → layout → ResizeObserver re-fire
 const EMA_ALPHA = 0.3
@@ -92,6 +96,15 @@ const virtualizerOptions = computed(() => ({
   count: props.items.length,
   getScrollElement: () => scrollContainer.value,
   estimateSize: () => dynamicEstimate.value,
+  measureElement: (
+    el: Element,
+    entry: ResizeObserverEntry | undefined,
+    instance: Parameters<typeof defaultMeasureElement>[2],
+  ) => {
+    const size = defaultMeasureElement(el, entry, instance)
+    if (entry) recordMeasuredHeight(size)
+    return size
+  },
   overscan: perfStore.get('overscan'),
   getItemKey: (index: number) => {
     const item = props.items[index]
@@ -229,10 +242,25 @@ watch(
   { immediate: true },
 )
 
+// Vue は関数 ref を行の patch のたびに同期で呼ぶ。そのたびに測ると、表示中 +
+// overscan の全行で translate を書いた直後に高さを読む強制レイアウトが続く。
+// 要素が新しく来たときだけ仮想スクローラに登録し (初回の実測もここ)、以降の
+// 高さの変化は仮想スクローラが張る ResizeObserver に任せる。行要素は行キーで
+// 固定なので、同じ要素が別の行に使い回されることはない。
+// smooth スクロール中は目標から遠い行の測定を仮想スクローラが見送る
+// (shouldMeasureDuringScroll) ので、スクロール中に実測が入らなかった行は
+// 従来どおり patch のたびに試す。止まっているときは同期で測るので登録してよい
+// (推定値と同じ高さだとキャッシュに入らないため has だけでは判定できない)
+const registeredRows = new WeakSet<HTMLElement>()
 function measureElement(el: unknown) {
-  if (!(el instanceof HTMLElement)) return
-  virtualizer.value.measureElement(el)
-  const h = el.offsetHeight
+  if (!(el instanceof HTMLElement) || registeredRows.has(el)) return
+  const v = virtualizer.value
+  v.measureElement(el)
+  const key = v.options.getItemKey(v.indexFromElement(el))
+  if (!v.isScrolling || v.itemSizeCache.has(key)) registeredRows.add(el)
+}
+
+function recordMeasuredHeight(h: number) {
   if (h <= 0) return
 
   _measuredCount++
@@ -399,7 +427,7 @@ defineSlots<{
 
 /* 削除直後だけ行位置の変化を滑らかにする (FLIP 風スライドアップ) */
 .shifting {
-  transition: translate 0.2s var(--nd-ease-decel);
+  transition: translate var(--nd-duration-medium) var(--nd-ease-decel);
 }
 
 /* Misskey-style slide-in animation for streaming notes.

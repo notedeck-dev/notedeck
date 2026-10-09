@@ -313,6 +313,7 @@ onMounted(() => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .bannerArea {
   position: relative;
   --bannerHeight: 250px;
@@ -346,8 +347,8 @@ onMounted(() => {
   left: 12px;
   padding: 4px 12px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   color: #fff;
   background: rgba(0, 0, 0, 0.55);
 }
@@ -364,7 +365,7 @@ onMounted(() => {
 
 .bannerName {
   line-height: 32px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   font-size: 1.8em;
   filter: drop-shadow(0 0 4px #000);
   overflow: hidden;
@@ -379,7 +380,7 @@ onMounted(() => {
 }
 
 .bannerUsername {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   margin-right: 16px;
 }
 
@@ -388,7 +389,7 @@ onMounted(() => {
   margin-right: 8px;
   padding: 1px 8px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   background: rgba(255, 255, 255, 0.2);
 }
 
@@ -445,7 +446,7 @@ onMounted(() => {
   box-sizing: border-box;
   min-height: calc(var(--fukidashi-radius) * 2);
   padding-top: calc(var(--fukidashi-radius) * 0.13);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.55;
 }
 
@@ -481,14 +482,14 @@ onMounted(() => {
 
 .fukidashiHeader {
   margin-bottom: 2px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
 }
 
 .description {
   padding: 24px 24px 0 154px;
   margin: 0;
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
@@ -503,8 +504,8 @@ onMounted(() => {
 }
 
 .memoHeading {
-  font-size: 0.78em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.55;
   margin-bottom: 2px;
 }
@@ -520,7 +521,7 @@ onMounted(() => {
   overflow: hidden;
   min-height: 0;
   line-height: 1.5;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   font-family: inherit;
   color: var(--nd-fg);
   background: transparent;
@@ -531,14 +532,15 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .role {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border: solid 1px var(--nd-divider);
   border-radius: var(--nd-radius-full);
   cursor: pointer;
@@ -568,7 +570,7 @@ onMounted(() => {
   > b {
     display: block;
     line-height: 16px;
-    font-size: 1.1em;
+    font-size: var(--nd-font-lg);
     color: var(--nd-fgHighlighted);
   }
 
@@ -579,17 +581,18 @@ onMounted(() => {
 }
 
 .statLink {
+  @include nd-interactive;
   cursor: pointer;
   border-radius: var(--nd-radius-sm);
   padding: 4px;
 
   &:hover {
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.03));
+    background: var(--nd-panelHighlight);
   }
 }
 
 .badge {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   padding: 2px 8px;
   border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
@@ -617,15 +620,15 @@ onMounted(() => {
 
 .profileFieldName {
   flex: 0 0 120px;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   word-break: break-word;
 }
 
 .profileFieldValue {
   flex: 1;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   word-break: break-word;
   min-width: 0;
 }
@@ -641,7 +644,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
 
   i {
@@ -685,13 +688,13 @@ onMounted(() => {
   }
 
   .mobileName {
-    font-weight: bold;
+    font-weight: var(--nd-weight-bold);
     font-size: 1.3em;
     color: var(--nd-fgHighlighted);
   }
 
   .mobileUsername {
-    font-size: 0.85em;
+    font-size: var(--nd-font-md);
     opacity: 0.6;
     margin-top: 2px;
   }

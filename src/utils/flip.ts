@@ -29,7 +29,8 @@ export function captureFlip(
 
 /**
  * 記録した位置から今の位置へ補間する。新しく現れた要素は対象外。
- * axis で片方向だけに絞れる (親ごと動く分は親で補間し、子は親の中の移動だけ)
+ * axis で片方向だけに絞れる (親ごと動く分は親で補間し、子は親の中の移動だけ)。
+ * durationToken は追従の速さが要る場面 (ドラッグ中など) で短くするため
  */
 export function playFlip(
   snapshot: FlipSnapshot,
@@ -37,8 +38,9 @@ export function playFlip(
   keyOf: (el: HTMLElement) => string | undefined,
   container?: HTMLElement | null,
   axis: 'x' | 'y' | 'both' = 'both',
+  durationToken = '--nd-duration-slow',
 ): void {
-  const duration = motionDuration('--nd-duration-slow', 280)
+  const duration = motionDuration(durationToken, 280)
   if (duration <= 0 || snapshot.size === 0) return
   const easing = motionEasing('--nd-ease-decel')
   const sx = container?.scrollLeft ?? 0

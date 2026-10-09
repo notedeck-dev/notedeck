@@ -480,6 +480,7 @@ function formatDate(ts: number): string {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .achievementsGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
@@ -488,6 +489,7 @@ function formatDate(ts: number): string {
 }
 
 .achievementCard {
+  @include nd-interactive;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -536,7 +538,7 @@ function formatDate(ts: number): string {
   position: relative;
   width: 52px;
   height: 52px;
-  padding: 5px;
+  padding: 6px;
   border-radius: 50%;
   box-sizing: border-box;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.27));
@@ -586,7 +588,7 @@ function formatDate(ts: number): string {
 
 .lockedEmoji {
   font-size: 16px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   color: rgba(255, 255, 255, 0.5);
   filter: none;
 }
@@ -598,8 +600,8 @@ function formatDate(ts: number): string {
 }
 
 .achievementName {
-  font-size: 0.7em;
-  font-weight: 600;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -607,7 +609,7 @@ function formatDate(ts: number): string {
 }
 
 .achievementDate {
-  font-size: 0.6em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
   margin-top: 2px;
 }

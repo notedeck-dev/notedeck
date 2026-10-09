@@ -38,7 +38,9 @@ import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
+import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
+import { chatDateSeparators } from '@/services/chatDateSeparators'
 import {
   buildCrossAccountHistoryEntries,
   buildPerAccountHistoryEntries,
@@ -209,6 +211,14 @@ const messageText = ref('')
 const isSending = ref(false)
 const showEmojiPicker = ref(false)
 const showDrivePicker = ref(false)
+// ピッカーの退場は _popup.scss の panelLeave (--nd-duration-base) と同じ時間
+const PICKER_LEAVE_MS = 150
+const emojiPickerT = useVaporTransition(showEmojiPicker, {
+  leaveDuration: PICKER_LEAVE_MS,
+})
+const drivePickerT = useVaporTransition(showDrivePicker, {
+  leaveDuration: PICKER_LEAVE_MS,
+})
 const attachedFile = ref<NormalizedDriveFile | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
@@ -264,6 +274,11 @@ const filteredMessages = computed(() => {
   if (!q.trim()) return visible
   return visible.filter((m) => chatMessageMatchesSearch(q, m))
 })
+
+// 日付が変わる所に区切りを出す (#1207)。表示している並びで判定する
+const dateSeparators = computed(() =>
+  chatDateSeparators(filteredMessages.value),
+)
 
 const hasNoConvSearchHits = computed(
   () =>
@@ -542,6 +557,19 @@ const filteredPerAccountEntries = computed<PerAccountHistoryEntry[]>(() =>
   ),
 )
 
+// 開いた会話の未読の点は、履歴を取り直すまで手元で消しておく
+// (会話を開くと本家側で既読になるが、履歴の entry は取り直さないと変わらない)
+const openedMessageIds = ref(new Set<string>())
+
+/** 本家 MkChatHistories と同じく、相手からの未読の最新メッセージに点を出す (#1207) */
+function isUnread(message: ChatMessage, myId: string | undefined): boolean {
+  return (
+    message.isRead === false &&
+    message.fromUserId !== myId &&
+    !openedMessageIds.value.has(message.id)
+  )
+}
+
 const hasNoSearchHits = computed(() => {
   if (!searchQuery.value.trim()) return false
   return isCrossAccount.value
@@ -558,6 +586,11 @@ async function openConversation(
   showConvSearch.value = false
   convSearchQuery.value = ''
 
+  if ('message' in entry) {
+    openedMessageIds.value = new Set(openedMessageIds.value).add(
+      entry.message.id,
+    )
+  }
   conversationTitle.value = entry.name
   conversationOtherAvatarUrl.value = entry.avatarUrl ?? null
   isLoading.value = true
@@ -734,6 +767,9 @@ function removeAttachment() {
 // --- Reactions ---
 const reactionTargetId = ref<string | null>(null)
 const showReactionPicker = ref(false)
+const reactionPickerT = useVaporTransition(showReactionPicker, {
+  leaveDuration: PICKER_LEAVE_MS,
+})
 
 async function handleReact(messageId: string, reaction: string) {
   const accId = activeAccountId.value
@@ -1058,7 +1094,8 @@ onBeforeUnmount(() => {
     />
 
     <!-- History View: Cross-account -->
-    <div v-if="isCrossAccount && viewMode === 'history'" :class="$style.chatBody">
+    <!-- 履歴 ⇄ 会話の切替は差し替わった側をフェードで出す (AI カラムと同じ) -->
+    <div v-if="isCrossAccount && viewMode === 'history'" :class="[$style.chatBody, 'nd-fade-appear']">
       <ColumnEmptyState
         v-if="historyEntries.length === 0 && !isLoading"
         :message="i18n.ts._deckChatColumn.noConversations"
@@ -1077,12 +1114,18 @@ onBeforeUnmount(() => {
           :class="$style.historyItem"
           @click="openConversation(entry)"
         >
+          <span
+            v-if="isUnread(entry.message, getUserIdForAccount(entry.accountId))"
+            :class="$style.historyUnreadDot"
+            :title="i18n.ts._deckChatColumn.unread"
+            :aria-label="i18n.ts._deckChatColumn.unread"
+          />
           <div :class="$style.historyAvatarWrap">
             <MkAvatar
               v-if="entry.avatarUrl"
               :avatar-url="entry.avatarUrl"
               :decorations="entry.avatarDecorations ?? []"
-              :size="36"
+              :size="50"
             />
             <div v-else :class="$style.historyAvatarPlaceholder">
               <i :class="entry.isRoom ? 'ti ti-users' : 'ti ti-user'" />
@@ -1116,7 +1159,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- History View: Per-account -->
-    <div v-else-if="!isCrossAccount && viewMode === 'history'" :class="$style.chatBody">
+    <div v-else-if="!isCrossAccount && viewMode === 'history'" :class="[$style.chatBody, 'nd-fade-appear']">
       <ColumnEmptyState
         v-if="chatHistory.length === 0 && !isLoading"
         :message="i18n.ts._deckChatColumn.noConversations"
@@ -1135,11 +1178,17 @@ onBeforeUnmount(() => {
           :class="$style.historyItem"
           @click="openConversation(entry)"
         >
+          <span
+            v-if="isUnread(entry.message, myUserId)"
+            :class="$style.historyUnreadDot"
+            :title="i18n.ts._deckChatColumn.unread"
+            :aria-label="i18n.ts._deckChatColumn.unread"
+          />
           <MkAvatar
             v-if="entry.avatarUrl"
             :avatar-url="entry.avatarUrl"
             :decorations="entry.avatarDecorations ?? []"
-            :size="36"
+            :size="50"
           />
           <div v-else :class="$style.historyAvatarPlaceholder">
             <i :class="entry.isRoom ? 'ti ti-users' : 'ti ti-user'" />
@@ -1162,7 +1211,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Conversation View -->
-    <div v-else-if="viewMode === 'conversation'" :class="[$style.chatBody, $style.conversation]" @click="closeReactionPicker">
+    <div v-else-if="viewMode === 'conversation'" :class="[$style.chatBody, $style.conversation, 'nd-fade-appear']" @click="closeReactionPicker">
       <!-- メッセージ検索バー (#483 v2: showConvSearch toggle) -->
       <div v-if="showConvSearch" :class="$style.searchBar">
         <i :class="$style.searchIcon" class="ti ti-search" />
@@ -1186,7 +1235,7 @@ onBeforeUnmount(() => {
         v-else
         ref="chatScroller"
         :items="filteredMessages"
-        :estimated-height="80"
+        :estimated-height="96"
         :class="$style.messagesContainer"
         @scroll="handleScroll"
       >
@@ -1195,6 +1244,11 @@ onBeforeUnmount(() => {
         </template>
         <template #default="{ item: msg }">
           <div :class="$style.chatMsgGap">
+            <div v-if="dateSeparators.get(msg.id)" :class="$style.dateDivider">
+              <span><i class="ti ti-chevron-up" /> {{ dateSeparators.get(msg.id)!.prevText }}</span>
+              <span :class="$style.dateDividerBar" />
+              <span>{{ dateSeparators.get(msg.id)!.nextText }} <i class="ti ti-chevron-down" /></span>
+            </div>
             <MkChatMessage
               :message="msg"
               :my-user-id="myUserId"
@@ -1202,6 +1256,7 @@ onBeforeUnmount(() => {
               :server-host="activeServerHost ?? undefined"
               :my-avatar-url="currentRoomId ? undefined : myAvatarUrl ?? undefined"
               :other-avatar-url="currentRoomId ? undefined : conversationOtherAvatarUrl ?? undefined"
+              :show-sender-name="!!currentRoomId"
               @react="handleReact"
               @unreact="handleUnreact"
               @delete="handleDelete"
@@ -1213,7 +1268,11 @@ onBeforeUnmount(() => {
       <div v-if="error" :class="$style.chatError">{{ error.message }}</div>
 
       <!-- Reaction picker popup -->
-      <div v-if="showReactionPicker && activeAccountId && activeServerHost" :class="$style.chatReactionPicker" @click.stop>
+      <div
+        v-if="reactionPickerT.visible.value && activeAccountId && activeServerHost"
+        :class="[$style.chatReactionPicker, reactionPickerT.leaving.value ? $style.panelLeave : $style.panelEnter]"
+        @click.stop
+      >
         <MkReactionPicker
           :server-host="activeServerHost"
           :account-id="activeAccountId"
@@ -1231,7 +1290,7 @@ onBeforeUnmount(() => {
             :class="$style.chatAttachmentThumb"
           />
           <span v-else :class="$style.chatAttachmentName">{{ attachedFile.name }}</span>
-          <button :class="$style.chatAttachmentRemove" @click="removeAttachment">
+          <button :aria-label="i18n.ts._common.delete" :class="$style.chatAttachmentRemove" @click="removeAttachment">
             <i class="ti ti-x" />
           </button>
         </div>
@@ -1257,6 +1316,7 @@ onBeforeUnmount(() => {
             @keydown="handleKeydown"
           />
           <button
+            :aria-label="i18n.ts._common.send"
             :class="$style.chatSend"
             :disabled="!canSend"
             @click="sendMessage"
@@ -1265,7 +1325,11 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <!-- Emoji picker popup -->
-        <div v-if="showEmojiPicker && activeAccountId && activeServerHost" :class="$style.chatEmojiPopup" @click.stop>
+        <div
+          v-if="emojiPickerT.visible.value && activeAccountId && activeServerHost"
+          :class="[$style.chatEmojiPopup, emojiPickerT.leaving.value ? $style.panelLeave : $style.panelEnter]"
+          @click.stop
+        >
           <MkReactionPicker
             :server-host="activeServerHost"
             :account-id="activeAccountId"
@@ -1274,7 +1338,11 @@ onBeforeUnmount(() => {
           />
         </div>
         <!-- Drive picker (below input row) -->
-        <div v-if="showDrivePicker && activeAccountId" :class="$style.chatDrivePopup" @click.stop>
+        <div
+          v-if="drivePickerT.visible.value && activeAccountId"
+          :class="[$style.chatDrivePopup, drivePickerT.leaving.value ? $style.panelLeave : $style.panelEnter]"
+          @click.stop
+        >
           <MkDrivePicker
             :account-id="activeAccountId"
             @pick="onDrivePicked"
@@ -1288,6 +1356,7 @@ onBeforeUnmount(() => {
 
 <style lang="scss" module>
 @use './column-common.module.scss';
+@use '@/styles/popup';
 
 .clickable {
   cursor: pointer;
@@ -1328,7 +1397,7 @@ onBeforeUnmount(() => {
 
   &:hover {
     opacity: 1;
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+    background: var(--nd-panelHighlight);
   }
 
   &.active {
@@ -1349,7 +1418,7 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 6px 10px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   outline: none;
 
@@ -1364,6 +1433,7 @@ onBeforeUnmount(() => {
 }
 
 .historyList {
+  --chat-history-avatar: 50px;
   flex: 1;
   overflow-y: auto;
   scrollbar-color: var(--nd-scrollbarHandle) transparent;
@@ -1371,11 +1441,12 @@ onBeforeUnmount(() => {
 }
 
 .historyItem {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 12px 16px;
   border: none;
   background: none;
   color: var(--nd-fg);
@@ -1383,18 +1454,20 @@ onBeforeUnmount(() => {
   cursor: pointer;
   contain: layout style paint;
   content-visibility: auto;
-  contain-intrinsic-size: auto 65px;
-  border-bottom: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  contain-intrinsic-size: auto 75px;
+  border-bottom: 1px solid var(--nd-divider);
 
   &:hover {
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.03));
+    background: var(--nd-panelHighlight);
   }
 
-  :deep(.mk-avatar) {
+  :global(.mk-avatar) {
     flex-shrink: 0;
+    width: var(--chat-history-avatar);
+    height: var(--chat-history-avatar);
   }
 
-  :deep(.mk-avatar:hover) {
+  :global(.mk-avatar:hover) {
     transform: none;
   }
 }
@@ -1402,15 +1475,16 @@ onBeforeUnmount(() => {
 .historyAvatarWrap {
   position: relative;
   flex-shrink: 0;
-  width: 36px;
-  height: 36px;
+  width: var(--chat-history-avatar);
+  height: var(--chat-history-avatar);
 }
 
 .historyAvatarPlaceholder {
-  width: 36px;
-  height: 36px;
+  flex-shrink: 0;
+  width: var(--chat-history-avatar);
+  height: var(--chat-history-avatar);
   border-radius: 50%;
-  background: var(--nd-buttonBg, rgba(255, 255, 255, 0.1));
+  background: var(--nd-buttonBg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1437,16 +1511,16 @@ onBeforeUnmount(() => {
 }
 
 .historyName {
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: 1em;
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .historyPreview {
-  font-size: 0.8em;
-  opacity: 0.5;
+  font-size: 1em;
+  opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1462,8 +1536,34 @@ onBeforeUnmount(() => {
 }
 
 .historyTime {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
+}
+
+.historyUnreadDot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nd-accent);
+}
+
+// 本家 MkChatHistories と同じく、カラム幅で 2 段にする (#1207)
+@container (max-width: 450px) {
+  .historyList {
+    --chat-history-avatar: 40px;
+  }
+
+  .historyItem {
+    gap: 10px;
+    padding: 10px 12px;
+  }
+
+  .historyPreview {
+    font-size: var(--nd-font-body);
+  }
 }
 
 .messagesContainer {
@@ -1474,12 +1574,44 @@ onBeforeUnmount(() => {
 }
 
 .chatMsgGap {
-  padding-bottom: 2px;
+  // メッセージ間は本家と同じく広い段 16px / 狭い段 12px (#1207)
+  padding: 8px 0;
+}
+
+// 本家 room.vue の dateDivider と同じ中央のピル
+.dateDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  width: fit-content;
+  margin: 0 auto 16px;
+  padding: 4px 12px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-full);
+  font-size: var(--nd-font-md);
+  opacity: 0.75;
+}
+
+.dateDividerBar {
+  width: 1px;
+  height: 1em;
+  background: var(--nd-divider);
+}
+
+@container (max-width: 450px) {
+  .chatMsgGap {
+    padding: 6px 0;
+  }
+
+  .dateDivider {
+    margin-bottom: 12px;
+  }
 }
 
 .chatError {
   padding: 4px 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-love);
 }
 
@@ -1487,7 +1619,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   padding: 6px 8px 8px;
-  border-top: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-top: 1px solid var(--nd-divider);
   background: var(--nd-panel);
   position: relative;
 }
@@ -1498,7 +1630,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 4px 8px;
   margin-bottom: 4px;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   border-radius: var(--nd-radius-md);
 }
 
@@ -1510,7 +1642,7 @@ onBeforeUnmount(() => {
 }
 
 .chatAttachmentName {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1525,7 +1657,7 @@ onBeforeUnmount(() => {
   opacity: 0.5;
   cursor: pointer;
   padding: 4px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 
   &:hover {
     opacity: 1;
@@ -1545,8 +1677,8 @@ onBeforeUnmount(() => {
 }
 
 .chatActionBtn {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: none;
   color: var(--nd-fg);
@@ -1556,17 +1688,17 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 1.1em;
+  font-size: var(--nd-font-lg);
 
   &:hover {
     opacity: 0.8;
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+    background: var(--nd-panelHighlight);
   }
 
   &.active {
     opacity: 1;
     color: var(--nd-accent);
-    background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+    background: var(--nd-accentedBg);
   }
 }
 
@@ -1574,14 +1706,16 @@ onBeforeUnmount(() => {
   flex: 1;
   resize: none;
   border: none;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 0.9em;
+  border-radius: var(--nd-radius-lg);
+  // 本文と同じ 14px で打てるようにし、1 行でも押しやすい高さを取る (#1207)
+  padding: 10px 12px;
+  font-size: 1em;
   font-family: inherit;
   line-height: 1.4;
-  max-height: 120px;
+  min-height: 40px;
+  max-height: 160px;
   outline: none;
   field-sizing: content;
 
@@ -1591,18 +1725,18 @@ onBeforeUnmount(() => {
 }
 
 .chatSend {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 1em;
+  font-size: var(--nd-font-lg);
 
   &:disabled {
     opacity: 0.3;
@@ -1626,8 +1760,8 @@ onBeforeUnmount(() => {
   max-height: 320px;
   overflow: hidden;
   background: var(--nd-popup);
-  border-radius: 12px 12px 0 0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  border-radius: var(--nd-radius) var(--nd-radius) 0 0;
+  box-shadow: var(--nd-shadow-sheet);
   z-index: var(--nd-z-menu);
 }
 
@@ -1637,8 +1771,8 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   background: var(--nd-popup);
-  border-radius: 12px 12px 0 0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  border-radius: var(--nd-radius) var(--nd-radius) 0 0;
+  box-shadow: var(--nd-shadow-sheet);
   z-index: var(--nd-z-menu);
 }
 
@@ -1648,7 +1782,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   max-height: 280px;
   overflow: hidden;
-  border-top: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-top: 1px solid var(--nd-divider);
   background: var(--nd-panel);
 }
 

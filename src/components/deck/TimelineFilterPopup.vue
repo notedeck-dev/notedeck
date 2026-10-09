@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef, useSlots } from 'vue'
 import type { TimelineFilter } from '@/adapters/types'
+import FormSwitch from '@/components/common/form/FormSwitch.vue'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
@@ -27,8 +28,9 @@ const slots = useSlots()
 const hasExtra = computed(() => Boolean(slots.extra))
 
 const { visible, leaving } = useVaporTransition(toRef(props, 'show'), {
-  enterDuration: 180,
-  leaveDuration: 200,
+  enterDuration: 200,
+  // 退場アニメ (filterPopupLeave = --nd-duration-base) と同じ時間
+  leaveDuration: 150,
 })
 
 const emit = defineEmits<{
@@ -47,7 +49,7 @@ const popoverRef = ref<HTMLElement | null>(null)
 
 useNativePopover(popoverRef, visible, {
   onClose: () => emit('close'),
-  leaveDuration: 200,
+  leaveDuration: 150,
 })
 
 const FILTER_LABELS: Record<keyof TimelineFilter, string> = {
@@ -98,14 +100,11 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
       @click="emit('toggle', key)"
     >
       <span :class="$style.filterLabel">{{ FILTER_LABELS[key] }}</span>
-      <button
-        class="nd-toggle-switch"
-        :class="{ on: key === 'withFiles' ? isFilterActive(key) : !isFilterActive(key) }"
-        :aria-checked="key === 'withFiles' ? isFilterActive(key) : !isFilterActive(key)"
-        role="switch"
-      >
-        <span class="nd-toggle-switch-knob" />
-      </button>
+      <FormSwitch
+        :model-value="key === 'withFiles' ? isFilterActive(key) : !isFilterActive(key)"
+        :label="FILTER_LABELS[key]"
+        @update:model-value="emit('toggle', key)"
+      />
     </div>
 
     <!-- 名前付きクエリのカスタムフィルタトグル (#783、AND 合成)。フィルターの次 -->
@@ -128,14 +127,11 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
           :title="i18n.ts._timelineFilterPopup.disabledQueryHint"
           @click.stop="emit('openManager')"
         >{{ i18n.ts._common.disabled }}</button>
-        <button
-          class="nd-toggle-switch"
-          :class="{ on: isQueryApplied(q.id) }"
-          :aria-checked="isQueryApplied(q.id)"
-          role="switch"
-        >
-          <span class="nd-toggle-switch-knob" />
-        </button>
+        <FormSwitch
+          :model-value="isQueryApplied(q.id)"
+          :label="q.name"
+          @update:model-value="emit('toggleQuery', q.id)"
+        />
       </div>
     </template>
   </div>
@@ -146,8 +142,8 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   position: fixed;
   width: 220px;
   padding: 8px 0;
-  color: var(--nd-fg, #fff);
-  font-size: 0.9em;
+  color: var(--nd-fg);
+  font-size: var(--nd-font-body);
   /* 行が多い (検索の行 + クエリの一覧) と画面の下にはみ出して届かないので、
      ボタンの下から画面の端までに収めて中をスクロールさせる (#1178) */
   overflow-y: auto;
@@ -161,8 +157,8 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
 
 .filterPopupHeader {
   padding: 8px 14px 4px;
-  font-size: 0.75em;
-  font-weight: 700;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   opacity: 0.5;
@@ -177,12 +173,12 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.05));
+    background: var(--nd-buttonHoverBg);
   }
 }
 
 .filterLabel {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 /* 名前は省略記号で切り詰め、無効チップは常に見せる (幅が狭い、#1043) */
@@ -201,19 +197,19 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
 .disabledChip {
   flex-shrink: 0;
   margin: 0 8px;
-  padding: 0 5px;
+  padding: 0 6px;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   line-height: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-fg) 15%, transparent);
   color: var(--nd-fg);
   opacity: 0.75;
 }
 
-.filterPopupEnter { animation: filterPopupIn 0.18s var(--nd-ease-pop); }
-.filterPopupLeave { animation: filterPopupOut 0.15s var(--nd-ease-pop) forwards; }
+.filterPopupEnter { animation: filterPopupIn var(--nd-duration-medium) var(--nd-ease-menu); }
+.filterPopupLeave { animation: filterPopupOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes filterPopupIn { from { opacity: 0; transform: scale(0.95) translateY(-4px); } }
 @keyframes filterPopupOut { to { opacity: 0; transform: scale(0.95) translateY(-4px); } }
 </style>

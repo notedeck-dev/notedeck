@@ -238,22 +238,29 @@ impl OgpCache {
             return Ok(data);
         }
 
-        // Inflight dedup
-        let mut inflight = self.inflight.lock().await;
-        if let Some(rx) = inflight.get(url) {
-            let mut rx = rx.clone();
-            drop(inflight);
-            while rx.changed().await.is_ok() {
-                if let Some(result) = rx.borrow().as_ref() {
-                    return result.clone();
+        // Inflight dedup。先頭の取得が結果を送らずに終わっていたら (取得の
+        // future が取り消された等)、その登録は外して自分で取りに行く。外さないと
+        // 以降の同じ URL の要求が来ない結果を待って失敗し続ける (画像キャッシュと同じ)
+        let tx = loop {
+            let mut inflight = self.inflight.lock().await;
+            if let Some(rx) = inflight.get(url) {
+                if rx.has_changed().is_err() && rx.borrow().is_none() {
+                    inflight.remove(url);
+                } else {
+                    let mut rx = rx.clone();
+                    drop(inflight);
+                    while rx.changed().await.is_ok() {
+                        if let Some(result) = rx.borrow().as_ref() {
+                            return result.clone();
+                        }
+                    }
+                    continue;
                 }
             }
-            return Err("Inflight request dropped".to_string());
-        }
-
-        let (tx, rx) = watch::channel(None);
-        inflight.insert(url.to_string(), rx);
-        drop(inflight);
+            let (tx, rx) = watch::channel(None);
+            inflight.insert(url.to_string(), rx);
+            break tx;
+        };
 
         let result = fetch_fn(self).await.map(|mut data| {
             Self::sanitize_player(&mut data);
@@ -668,6 +675,28 @@ mod tests {
         };
         OgpCache::sanitize_player(&mut data);
         assert!(data.player.is_some());
+    }
+
+    /// 先頭の取得が結果を送らずに消えた登録が残っていても、次の要求は
+    /// 失敗せず自分で取りに行く (以前は再起動までその URL が失敗し続けた)
+    #[tokio::test]
+    async fn stale_inflight_entry_does_not_block_next_fetch() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(notecli::db::Database::open(&dir.path().join("test.db")).unwrap());
+        let cache = OgpCache::new(db);
+        let url = "https://example.com/page";
+        {
+            let (tx, rx) = watch::channel(None);
+            cache.inflight.lock().await.insert(url.to_string(), rx);
+            drop(tx);
+        }
+        let result = cache
+            .cached_or_fetch(url, |_| {
+                Box::pin(async { Ok(SummaryData::from_row(&sample_row())) })
+            })
+            .await;
+        assert!(result.is_ok(), "{result:?}");
+        assert!(!cache.inflight.lock().await.contains_key(url));
     }
 }
 

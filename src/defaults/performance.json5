@@ -24,8 +24,11 @@
   "imageCacheTTLDays": 7,
   "imageCacheMaxMB": 512,
   "imageCacheMaxFileMB": 20,
-  "prefetchAhead": 30,
-  "prefetchBehind": 10,
+  // 画面外の画像先読み (#704 O-3)。DOM 化済みの nearViewportBuffer の外側を
+  // 何ノート分読むか。原寸を 30 ノート先まで読んで帯域を埋めていたのを、
+  // 縮小 URL に切り替えたうえで数画面分 (下 20 / 上 5) に絞った
+  "prefetchAhead": 20,
+  "prefetchBehind": 5,
   "prefetchTrackedMax": 300,
   "lazyLoadMargin": 200,
   "ogpGalleryMax": 4,

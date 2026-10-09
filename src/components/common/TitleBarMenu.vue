@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { onMounted, ref } from 'vue'
+import { useCommandStore } from '@/commands/registry'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { getLogDir, getSettingsDir } from '@/utils/settingsFs'
+import { shortcutLabel } from '@/utils/shortcutLabel'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const menuOpen = ref(false)
@@ -139,12 +140,15 @@ async function openDownloadDir() {
 }
 
 // ── Actions ──
-const zoomLevel = ref(1)
-
-async function setZoom(delta: number) {
-  zoomLevel.value =
-    Math.round(Math.max(0.5, Math.min(2, zoomLevel.value + delta)) * 100) / 100
-  await getCurrentWebview().setZoom(zoomLevel.value)
+// ズームはコマンド経由 (キーバインドと同じ経路で settings.json5 に残る, #704)。
+// 表示するショートカットもユーザーの割り当てから引く
+const commandStore = useCommandStore()
+function runZoom(id: 'zoom-in' | 'zoom-out' | 'zoom-reset') {
+  commandStore.execute(id)
+}
+function zoomShortcut(id: string): string {
+  const s = commandStore.commands.get(id)?.shortcuts[0]
+  return s ? shortcutLabel(s) : ''
 }
 
 function reloadApp() {
@@ -209,15 +213,20 @@ defineExpose({ toggleMenu })
           <i class="ti ti-chevron-right" :class="$style.chevron" />
         </button>
         <div v-if="activeCategory === 'view'" :class="$style.sub">
-          <button class="_popupItem" @click="setZoom(0.1)">
+          <button class="_popupItem" @click="runZoom('zoom-in')">
             <i class="ti ti-zoom-in" />
             <span>{{ i18n.ts._titleBarMenu.zoomIn }}</span>
-            <kbd :class="$style.kbd">Ctrl++</kbd>
+            <kbd :class="$style.kbd">{{ zoomShortcut('zoom-in') }}</kbd>
           </button>
-          <button class="_popupItem" @click="setZoom(-0.1)">
+          <button class="_popupItem" @click="runZoom('zoom-out')">
             <i class="ti ti-zoom-out" />
             <span>{{ i18n.ts._titleBarMenu.zoomOut }}</span>
-            <kbd :class="$style.kbd">Ctrl+-</kbd>
+            <kbd :class="$style.kbd">{{ zoomShortcut('zoom-out') }}</kbd>
+          </button>
+          <button class="_popupItem" @click="runZoom('zoom-reset')">
+            <i class="ti ti-zoom-reset" />
+            <span>{{ i18n.ts._titleBarMenu.zoomReset }}</span>
+            <kbd :class="$style.kbd">{{ zoomShortcut('zoom-reset') }}</kbd>
           </button>
           <div class="_popupDivider" />
           <button class="_popupItem" @click="reloadApp">
@@ -232,7 +241,7 @@ defineExpose({ toggleMenu })
 </template>
 
 <style lang="scss" module>
-$menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+$menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
 
 .backdrop {
   position: fixed;
@@ -246,7 +255,7 @@ $menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
 }
 
 .leave {
-  animation: fadeOut var(--nd-duration-base) ease-out forwards;
+  animation: fadeOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
 }
 
 @keyframes fadeIn {
@@ -282,7 +291,7 @@ $menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
 
 .chevron {
   margin-left: auto;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.4;
 }
 
@@ -299,7 +308,7 @@ $menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
 
 .kbd {
   margin-left: auto;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.4;
   font-family: inherit;
 }

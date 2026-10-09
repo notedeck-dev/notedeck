@@ -1016,7 +1016,7 @@ async function handlePosted(editedNoteId?: string) {
 }
 
 .remoteCaution {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   padding: 16px;
   background: var(--nd-infoWarnBg);
   color: var(--nd-infoWarnFg);
@@ -1042,8 +1042,8 @@ async function handlePosted(editedNoteId?: string) {
   align-items: center;
   gap: 6px;
   padding: 10px 24px;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.7;
 
@@ -1059,7 +1059,7 @@ async function handlePosted(editedNoteId?: string) {
   padding: 2rem;
   color: var(--nd-fg);
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .stateError {
@@ -1124,7 +1124,7 @@ async function handlePosted(editedNoteId?: string) {
     object-fit: contain;
   }
 
-  :deep(.twemoji) {
+  :global(.twemoji) {
     width: 24px;
     height: 24px;
   }
@@ -1132,7 +1132,7 @@ async function handlePosted(editedNoteId?: string) {
 
 .reactionItemTime {
   margin-left: auto;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.6;
 }

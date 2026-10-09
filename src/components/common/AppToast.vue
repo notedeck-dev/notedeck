@@ -2,14 +2,15 @@
 // 通知カード (VS Code の Notifications のトースト)。右下に積み、受信トレイ
 // (NotificationCenter) と同じ内容を一時的に見せる。軽い成功・情報は
 // ステータス表示の場所があればそちらに出るので、ここには来ない (stores/toast)
-import { useTemplateRef, watch } from 'vue'
+import { nextTick, ref, useTemplateRef, watch } from 'vue'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransitionGroup } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { type ToastItem, useToast } from '@/stores/toast'
 import { useIsCompactLayout } from '@/stores/ui'
+import { captureFlip, type FlipSnapshot, playFlip } from '@/utils/flip'
 
-const { toasts, runAction, dismiss, pause, resume } = useToast()
+const { toasts, runAction, open, dismiss, pause, resume } = useToast()
 const isCompact = useIsCompactLayout()
 const { rendered, enteringIds, leavingIds } = useVaporTransitionGroup(toasts, {
   enterDuration: 280,
@@ -41,6 +42,69 @@ watch(
   },
 )
 
+// 退場したカードが外れた / 新しいカードが積まれたとき、残りのカードを
+// 新しい位置へ滑らせる (瞬間移動させない)。縦に積むだけなので y だけ補間
+const cardKey = (el: HTMLElement) => el.dataset.toastId
+function cardElements() {
+  return (
+    toastPortalRef.value?.querySelectorAll<HTMLElement>('[data-toast-id]') ?? []
+  )
+}
+let flipSnapshot: FlipSnapshot | null = null
+watch(
+  () => rendered.value.map((t) => t.id).join(','),
+  () => {
+    flipSnapshot = captureFlip(cardElements(), cardKey)
+  },
+  { flush: 'pre' },
+)
+watch(
+  () => rendered.value.map((t) => t.id).join(','),
+  () => {
+    const snap = flipSnapshot
+    flipSnapshot = null
+    if (snap) playFlip(snap, cardElements(), cardKey, null, 'y')
+  },
+  { flush: 'post' },
+)
+
+// 読み上げ。エラーは割り込み (assertive)、それ以外は手が空いたとき (polite)。
+// カードそのものを live region にすると種類で分けられないので、文言だけを
+// 隠しの 2 つの領域に流す。同じ通知の繰り返しも回数が増えたら読み直す
+const politeText = ref('')
+const alertText = ref('')
+const announced = new Map<number, number>()
+watch(
+  toasts,
+  (list) => {
+    const live = new Set<number>()
+    let latest: ToastItem | null = null
+    for (const t of list) {
+      live.add(t.id)
+      if (announced.get(t.id) !== t.count) latest = t
+      announced.set(t.id, t.count)
+    }
+    for (const id of announced.keys()) if (!live.has(id)) announced.delete(id)
+    if (!latest) return
+    const target = latest.type === 'error' ? alertText : politeText
+    const text = latest.source
+      ? `${latest.source}: ${latest.text}`
+      : latest.text
+    // 同じ文言でも読み直させるため一度空にする
+    target.value = ''
+    void nextTick(() => {
+      target.value = text
+    })
+  },
+  { flush: 'post' },
+)
+
+function onCardClick(toast: ToastItem) {
+  if (!toast.onClick) return
+  if (window.getSelection()?.toString()) return
+  open(toast.id)
+}
+
 const ICONS: Record<ToastItem['type'], string> = {
   success: 'ti ti-circle-check',
   info: 'ti ti-info-circle',
@@ -53,12 +117,13 @@ const ICONS: Record<ToastItem['type'], string> = {
   <div
     ref="toastPortalRef"
     :class="[$style.container, isCompact && $style.compact]"
-    role="status"
-    aria-live="polite"
   >
+    <div :class="$style.srOnly" role="status" aria-live="polite" aria-atomic="true">{{ politeText }}</div>
+    <div :class="$style.srOnly" role="alert" aria-live="assertive" aria-atomic="true">{{ alertText }}</div>
     <div
       v-for="toast in rendered"
       :key="toast.id"
+      :data-toast-id="toast.id"
       class="_popup"
       :class="[
         $style.card,
@@ -68,14 +133,25 @@ const ICONS: Record<ToastItem['type'], string> = {
       @mouseenter="pause(toast.id)"
       @mouseleave="resume(toast.id)"
     >
-      <div :class="$style.body">
+      <div
+        :class="[$style.body, toast.onClick && $style.clickable]"
+        @click="onCardClick(toast)"
+      >
         <i :class="[ICONS[toast.type], $style.icon, $style[toast.type]]" />
-        <span :class="$style.text">{{ toast.text }}</span>
+        <span :class="$style.text">
+          <span v-if="toast.source" :class="$style.source">{{ toast.source }}</span>
+          {{ toast.text }}
+        </span>
+        <span
+          v-if="toast.count > 1"
+          :class="$style.count"
+          :title="i18n.tsx._notificationCenter.countTitle({ count: toast.count })"
+        >{{ i18n.tsx._notificationCenter.count({ count: toast.count }) }}</span>
         <button
           class="_button"
           :class="$style.close"
           :title="i18n.ts._common.close"
-          @click="dismiss(toast.id)"
+          @click.stop="dismiss(toast.id)"
         >
           <i class="ti ti-x" />
         </button>
@@ -142,10 +218,44 @@ const ICONS: Record<ToastItem['type'], string> = {
 .warning { color: var(--nd-warn); }
 .error { color: var(--nd-error); }
 
+.clickable {
+  cursor: pointer;
+}
+
+.source {
+  display: block;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
+  opacity: 0.7;
+}
+
+.count {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: var(--nd-radius-full);
+  background: var(--nd-buttonBg);
+  font-size: var(--nd-font-xs);
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 .text {
   flex: 1;
   min-width: 0;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.45;
   overflow-wrap: anywhere;
   user-select: text;
@@ -178,7 +288,7 @@ const ICONS: Record<ToastItem['type'], string> = {
 
 .actionBtn {
   @include btn-primary;
-  padding: 5px 12px;
+  padding: 6px 12px;
 }
 
 .cardEnter {

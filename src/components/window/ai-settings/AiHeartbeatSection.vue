@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import FormNumber from '@/components/common/form/FormNumber.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import {
   HEARTBEAT_DAILY_MAX_AI_RUNS_MAX,
   HEARTBEAT_DAILY_MAX_AI_RUNS_MIN,
@@ -17,7 +19,6 @@ import { useSkillsStore } from '@/stores/skills'
 import { useWindowsStore } from '@/stores/windows'
 import AiHeartbeatResidentRow from './AiHeartbeatResidentRow.vue'
 import AiSettingsSection from './AiSettingsSection.vue'
-import AiSwitchRow from './AiSwitchRow.vue'
 
 const { config } = useAiConfig()
 const windowsStore = useWindowsStore()
@@ -74,7 +75,7 @@ function openPermissionsWindow(): void {
     :badge="config.heartbeat.enabled ? i18n.tsx._aiHeartbeatSection.enabledWithInterval({ minutes: config.heartbeat.intervalMinutes }) : i18n.ts._common.disabled"
   >
     <!-- Basic: 有効化 (TL フィルターと同じトグル) + interval + notice -->
-    <AiSwitchRow
+    <FormSwitchRow
       icon="ti-activity-heartbeat"
       :label="i18n.ts._aiHeartbeatSection.enable"
       :on="config.heartbeat.enabled"
@@ -113,21 +114,19 @@ function openPermissionsWindow(): void {
       <div :class="$style.fieldHeader">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.tickInterval }}</span>
         <div :class="$style.fieldValue">
-          <input
-            v-model.number="config.heartbeat.intervalMinutes"
-            type="number"
+          <FormNumber
+            v-model="config.heartbeat.intervalMinutes"
             :min="HEARTBEAT_INTERVAL_MIN_MINUTES"
             :max="HEARTBEAT_INTERVAL_MAX_MINUTES"
-            :class="$style.numberInput"
+            :unit="i18n.ts._aiHeartbeatSection.minutes"
           />
-          <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.minutes }}</span>
         </div>
       </div>
     </div>
 
     <!-- デスクトップ通知 (#411 0.19.0): 重要発見を即気付ける。
          アプリにフォーカスがあるときは自動抑制。 -->
-    <AiSwitchRow
+    <FormSwitchRow
       v-if="config.heartbeat.enabled"
       icon="ti-bell"
       :label="i18n.ts._aiHeartbeatSection.desktopNotification"
@@ -141,7 +140,7 @@ function openPermissionsWindow(): void {
          を呼び、前回値と一致すれば AI 起動を skip する。
          opt-out 可能 (= 常に AI を叩きたい場合は OFF にする)。 -->
     <template v-if="config.heartbeat.enabled">
-      <AiSwitchRow
+      <FormSwitchRow
         icon="ti-bolt"
         :label="i18n.ts._aiHeartbeatSection.cheapCheck"
         :sub-label="i18n.ts._aiHeartbeatSection.cheapCheckDescription"
@@ -153,14 +152,12 @@ function openPermissionsWindow(): void {
         <div :class="$style.fieldHeader">
           <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.maxSkipHours }}</span>
           <div :class="$style.fieldValue">
-            <input
-              v-model.number="config.heartbeat.cheapCheck.maxSkipHours"
-              type="number"
+            <FormNumber
+              v-model="config.heartbeat.cheapCheck.maxSkipHours"
               :min="HEARTBEAT_MAX_SKIP_HOURS_MIN"
               :max="HEARTBEAT_MAX_SKIP_HOURS_MAX"
-              :class="$style.numberInput"
+              :unit="i18n.ts._aiHeartbeatSection.hours"
             />
-            <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.hours }}</span>
           </div>
         </div>
       </div>
@@ -172,19 +169,17 @@ function openPermissionsWindow(): void {
         <div :class="$style.fieldHeader">
           <span :class="$style.fieldLabel">{{ i18n.ts._aiHeartbeatSection.dailyMaxAiRuns }}</span>
           <div :class="$style.fieldValue">
-            <input
-              v-model.number="config.heartbeat.dailyMaxAiRuns"
-              type="number"
+            <FormNumber
+              v-model="config.heartbeat.dailyMaxAiRuns"
               :min="HEARTBEAT_DAILY_MAX_AI_RUNS_MIN"
               :max="HEARTBEAT_DAILY_MAX_AI_RUNS_MAX"
-              :class="$style.numberInput"
+              :unit="i18n.ts._aiHeartbeatSection.runsPerDay"
             />
-            <span :class="$style.fieldUnit">{{ i18n.ts._aiHeartbeatSection.runsPerDay }}</span>
           </div>
         </div>
       </div>
 
-      <AiSwitchRow
+      <FormSwitchRow
         icon="ti-hand-stop"
         :label="i18n.ts._aiHeartbeatSection.disableOnDailyLimit"
         :sub-label="i18n.ts._aiHeartbeatSection.disableOnDailyLimitDescription"
@@ -238,6 +233,4 @@ function openPermissionsWindow(): void {
 .fieldHeader { @include field-header; }
 .fieldLabel { @include field-label; }
 .fieldValue { @include field-value; }
-.numberInput { @include number-input; }
-.fieldUnit { @include field-unit; }
 </style>

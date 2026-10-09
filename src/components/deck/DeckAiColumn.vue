@@ -998,6 +998,7 @@ function onKeydown(e: KeyboardEvent) {
             tabindex="0"
             @click="openSession(session.id)"
             @keydown.enter="openSession(session.id)"
+            @keydown.space.self.prevent="openSession(session.id)"
           >
             <div :class="$style.rowAvatar">
               <i
@@ -1022,7 +1023,7 @@ function onKeydown(e: KeyboardEvent) {
                   :title="i18n.ts._common.rename"
                   @click="onRenameSession($event, session.id)"
                 >
-                  <i class="ti ti-pencil" />
+                  <i class="ti ti-edit" />
                 </button>
                 <button
                   class="_button"
@@ -1052,6 +1053,7 @@ function onKeydown(e: KeyboardEvent) {
             @keydown="onKeydown"
           />
           <button
+            :aria-label="i18n.ts._common.send"
             :class="$style.chatSend"
             :disabled="!canSubmit"
             @click="sendMessage"
@@ -1287,6 +1289,7 @@ function onKeydown(e: KeyboardEvent) {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .headerAction {
   display: flex;
   align-items: center;
@@ -1296,7 +1299,7 @@ function onKeydown(e: KeyboardEvent) {
   margin-right: 4px;
   border-radius: var(--nd-radius-sm);
   opacity: 0.45;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   flex-shrink: 0;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -1359,7 +1362,7 @@ function onKeydown(e: KeyboardEvent) {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 6px 10px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   outline: none;
 
@@ -1395,8 +1398,8 @@ function onKeydown(e: KeyboardEvent) {
 
 .groupLabel {
   padding: 6px 12px 4px;
-  font-size: 0.7em;
-  font-weight: 700;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.5;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1413,11 +1416,11 @@ function onKeydown(e: KeyboardEvent) {
   text-align: left;
   cursor: pointer;
   transition: background var(--nd-duration-base);
-  border-bottom: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-bottom: 1px solid var(--nd-divider);
 
   &:hover,
   &:focus-visible {
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.03));
+    background: var(--nd-panelHighlight);
 
     .rowActions {
       opacity: 1;
@@ -1443,19 +1446,19 @@ function onKeydown(e: KeyboardEvent) {
   height: 36px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--nd-buttonBg, rgba(255, 255, 255, 0.1));
+  background: var(--nd-buttonBg);
   color: var(--nd-fg);
   opacity: 0.6;
-  font-size: 1.1em;
+  font-size: var(--nd-font-lg);
 }
 
 // kind=heartbeat は accent カラーで強調 (avatar 背景 + アイコン + 左 border)
 .rowHeartbeat {
-  border-left: 2px solid var(--nd-accent, #f06292);
+  border-left: 2px solid var(--nd-accent);
 
   .rowAvatar {
-    background: color-mix(in srgb, var(--nd-accent, #f06292) 20%, transparent);
-    color: var(--nd-accent, #f06292);
+    background: color-mix(in srgb, var(--nd-accent) 20%, transparent);
+    color: var(--nd-accent);
     opacity: 1;
   }
 }
@@ -1468,8 +1471,8 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .rowTitle {
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   line-height: 1.3;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1477,7 +1480,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .rowPreview {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
   margin-top: 2px;
   overflow: hidden;
@@ -1494,7 +1497,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .rowTime {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
 }
 
@@ -1505,7 +1508,7 @@ function onKeydown(e: KeyboardEvent) {
   gap: 2px;
   flex-shrink: 0;
   opacity: 0;
-  transition: opacity 0.15s;
+  transition: opacity var(--nd-duration-base);
 
   // タッチ環境では常時表示（hover が無いため）
   @media (hover: none) {
@@ -1520,11 +1523,11 @@ function onKeydown(e: KeyboardEvent) {
   width: 24px;
   height: 24px;
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   color: var(--nd-fg);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   opacity: 0.7;
-  transition: background 0.1s, opacity 0.1s, color 0.1s;
+  transition: background var(--nd-duration-fast), opacity var(--nd-duration-fast), color var(--nd-duration-fast);
 
   &:hover {
     opacity: 1;
@@ -1571,7 +1574,7 @@ function onKeydown(e: KeyboardEvent) {
     }
 
     .chatBubble {
-      background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+      background: var(--nd-accentedBg);
       border-bottom-right-radius: 4px;
     }
   }
@@ -1598,10 +1601,10 @@ function onKeydown(e: KeyboardEvent) {
       width: 100%;
       max-width: 100%;
       padding: 8px 12px 10px;
-      border-radius: var(--nd-radius-sm, 4px);
-      background: color-mix(in srgb, var(--nd-accent, #f06292) 5%, transparent);
-      border: 1px solid color-mix(in srgb, var(--nd-accent, #f06292) 20%, transparent);
-      border-left: 3px solid var(--nd-accent, #f06292);
+      border-radius: var(--nd-radius-sm);
+      background: color-mix(in srgb, var(--nd-accent) 5%, transparent);
+      border: 1px solid color-mix(in srgb, var(--nd-accent) 20%, transparent);
+      border-left: 3px solid var(--nd-accent);
       opacity: 1;
     }
 
@@ -1616,13 +1619,13 @@ function onKeydown(e: KeyboardEvent) {
 .heartbeatLabel {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   padding: 0 2px 4px;
-  font-size: 0.72em;
-  font-weight: 600;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--nd-accent, #f06292);
+  color: var(--nd-accent);
 
   i {
     font-size: 1em;
@@ -1644,8 +1647,8 @@ function onKeydown(e: KeyboardEvent) {
 .chatBubble {
   padding: 8px 12px;
   border-radius: 14px;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
-  font-size: 0.95em;
+  background: var(--nd-panelHighlight);
+  font-size: var(--nd-font-body);
   line-height: 1.5;
   word-break: break-word;
   min-width: 0;
@@ -1664,7 +1667,7 @@ function onKeydown(e: KeyboardEvent) {
   height: 22px;
   border-radius: var(--nd-radius-sm);
   opacity: 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transition: opacity var(--nd-duration-base);
 
   &:hover {
@@ -1685,16 +1688,16 @@ function onKeydown(e: KeyboardEvent) {
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .intentTitle {
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 }
 
 .intentStatus {
   margin-left: auto;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.75;
 }
 
@@ -1704,7 +1707,7 @@ function onKeydown(e: KeyboardEvent) {
 
 .intentNotes {
   padding: 0 8px 6px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.85;
 }
 
@@ -1721,8 +1724,8 @@ function onKeydown(e: KeyboardEvent) {
 .intentRun,
 .intentDismiss {
   padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.85em;
+  border-radius: var(--nd-radius-sm);
+  font-size: var(--nd-font-md);
 }
 
 .intentRun {
@@ -1743,7 +1746,7 @@ function onKeydown(e: KeyboardEvent) {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-fg) 4%, transparent);
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   opacity: 0.8;
   transition: opacity var(--nd-duration-base);
 
@@ -1770,13 +1773,13 @@ function onKeydown(e: KeyboardEvent) {
 .toolEventLabel {
   flex-shrink: 0;
   opacity: 0.7;
-  font-weight: 500;
+  font-weight: var(--nd-weight-medium);
 }
 
 .toolEventName {
   flex-shrink: 0;
   font-family: var(--nd-font-mono);
-  font-size: 0.92em;
+  font-size: var(--nd-font-body);
   padding: 1px 6px;
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
@@ -1788,7 +1791,7 @@ function onKeydown(e: KeyboardEvent) {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fgMuted);
 }
 
@@ -1800,7 +1803,7 @@ function onKeydown(e: KeyboardEvent) {
   text-overflow: ellipsis;
   opacity: 0.6;
   font-family: var(--nd-font-mono);
-  font-size: 0.92em;
+  font-size: var(--nd-font-body);
 }
 
 .toolEventChevronOpen {
@@ -1811,7 +1814,7 @@ function onKeydown(e: KeyboardEvent) {
   flex-shrink: 0;
   margin-left: auto;
   opacity: 0.5;
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
 }
 
 .toolEventCommentary {
@@ -1828,7 +1831,7 @@ function onKeydown(e: KeyboardEvent) {
   background: var(--nd-codeEditorBg);
   color: var(--nd-codeEditorFg);
   font-family: var(--nd-font-mono);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-all;
@@ -1870,7 +1873,7 @@ function onKeydown(e: KeyboardEvent) {
     color: var(--nd-codeEditorFg);
     border-radius: var(--nd-radius-sm);
     overflow-x: auto;
-    font-size: 0.85em;
+    font-size: var(--nd-font-md);
   }
   // ブロック内の code は面を持たない (インライン code の装飾を打ち消す)
   :global(pre code) {
@@ -1925,8 +1928,8 @@ function onKeydown(e: KeyboardEvent) {
     font-family: var(--nd-font-mono);
     background: var(--nd-base);
     padding: 1px 4px;
-    border-radius: 3px;
-    font-size: 0.85em;
+    border-radius: var(--nd-radius-xs);
+    font-size: var(--nd-font-md);
   }
   :global(pre code) {
     background: transparent;
@@ -1941,7 +1944,7 @@ function onKeydown(e: KeyboardEvent) {
     margin: 0.15em 0;
   }
   :global(strong) {
-    font-weight: 700;
+    font-weight: var(--nd-weight-bold);
   }
   :global(em) {
     font-style: italic;
@@ -1995,18 +1998,19 @@ function onKeydown(e: KeyboardEvent) {
 
   // _button 併用のため特異度 (0,2,0) に上げる (WebView2 の flex 崩れ対策)
   .retryBtn {
+    @include nd-interactive;
     display: inline-flex;
     align-items: center;
     gap: 6px;
     padding: 6px 14px;
     border-radius: var(--nd-radius-full);
-    font-size: 0.85em;
+    font-size: var(--nd-font-md);
     color: var(--nd-fg);
     background: var(--nd-panel);
-    border: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--nd-divider);
 
     &:hover {
-      background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.06));
+      background: var(--nd-panelHighlight);
     }
   }
 }
@@ -2015,7 +2019,7 @@ function onKeydown(e: KeyboardEvent) {
   display: flex;
   flex-direction: column;
   padding: 6px 8px 8px;
-  border-top: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-top: 1px solid var(--nd-divider);
   background: var(--nd-panel);
   position: relative;
   flex-shrink: 0;
@@ -2031,11 +2035,11 @@ function onKeydown(e: KeyboardEvent) {
   flex: 1;
   resize: none;
   border: none;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   padding: 8px 12px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   font-family: inherit;
   line-height: 1.4;
   max-height: 120px;
@@ -2058,7 +2062,7 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: 50%;
   border: none;
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   cursor: pointer;
   display: flex;
   align-items: center;

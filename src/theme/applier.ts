@@ -1,4 +1,5 @@
 import { commands } from '@/bindings'
+import { isLightColor } from './colorUtils'
 import type { CompiledProps } from './types'
 
 const UNSAFE_CSS_RE = /[;{}]|url\s*\(/i
@@ -39,23 +40,4 @@ export function applyTheme(compiled: CompiledProps): void {
       // Non-Tauri environment
     }
   }
-}
-
-function isLightColor(color: string): boolean {
-  // Simple luminance check via hex
-  const hex = color.replace('#', '')
-  if (hex.length !== 6 && hex.length !== 3) return false
-  const r =
-    hex.length === 3
-      ? parseInt(hex.charAt(0) + hex.charAt(0), 16)
-      : parseInt(hex.slice(0, 2), 16)
-  const g =
-    hex.length === 3
-      ? parseInt(hex.charAt(1) + hex.charAt(1), 16)
-      : parseInt(hex.slice(2, 4), 16)
-  const b =
-    hex.length === 3
-      ? parseInt(hex.charAt(2) + hex.charAt(2), 16)
-      : parseInt(hex.slice(4, 6), 16)
-  return (r * 299 + g * 587 + b * 114) / 1000 > 128
 }

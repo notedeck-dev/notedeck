@@ -55,7 +55,7 @@ function onClick(i: number, isVoted: boolean) {
       :disabled="!canVote(choice.isVoted)"
       @click.stop="onClick(i, choice.isVoted)"
     >
-      <div :class="$style.pollBar" :style="{ width: percentage(choice.votes) + '%' }" />
+      <div :class="$style.pollBar" :style="{ '--nd-poll-ratio': percentage(choice.votes) / 100 }" />
       <div :class="$style.pollContent">
         <span :class="$style.pollText">
           <svg v-if="choice.isVoted" viewBox="0 0 24 24" width="12" height="12" style="margin-right: 4px; vertical-align: -1px;">
@@ -86,7 +86,7 @@ function onClick(i: number, isVoted: boolean) {
 
 .pollChoice {
   position: relative;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   overflow: clip;
   background: var(--nd-accentedBg);
   min-height: 35px;
@@ -113,29 +113,35 @@ function onClick(i: number, isVoted: boolean) {
   position: absolute;
   top: 0;
   left: 0;
+  width: 100%;
   height: 100%;
   background: var(--nd-accent);
   background: linear-gradient(90deg, var(--nd-buttonGradateA), var(--nd-buttonGradateB));
-  transition: width 1s ease;
+  /* 伸び縮みは width ではなく scaleX (レイアウトを起こさず合成で済む)。
+     グラデーションも一緒に縮むので見た目は width のときと同じ */
+  transform: scaleX(var(--nd-poll-ratio, 0));
+  transform-origin: left;
+  transition: transform 1s ease;
 }
 
 .pollContent {
   position: relative;
   z-index: 1;
   display: inline-block;
-  padding: 3px 5px;
+  padding: 4px 6px;
   background: var(--nd-panel);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   margin: 4px;
 }
 
 .pollText {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .pollPct {
-  font-size: 0.8em;
-  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   flex-shrink: 0;
   margin-left: 8px;
@@ -146,7 +152,8 @@ function onClick(i: number, isVoted: boolean) {
   align-items: center;
   gap: 8px;
   padding: 2px 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
+  font-variant-numeric: tabular-nums;
   opacity: 0.6;
 }
 
@@ -154,7 +161,7 @@ function onClick(i: number, isVoted: boolean) {
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 .pollExpiry {

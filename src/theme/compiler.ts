@@ -59,9 +59,10 @@ export function compileMisskeyTheme(
       return expr // unknown function, return as-is
     }
 
-    // Constant reference: $name (unused in current Misskey but spec'd)
+    // 定数参照: $name。本家と同じく `$` で始まる prop を値として引く
+    // (以前は黙って空文字になり、参照した色がすべて消えていた)
     if (expr.startsWith('$')) {
-      return ''
+      return resolve(expr, new Set(visited))
     }
 
     // Literal color value
@@ -73,6 +74,10 @@ export function compileMisskeyTheme(
     if (compiled[key] === undefined) {
       resolve(key, new Set())
     }
+  }
+  // $ 定数は参照のためだけの値で、CSS 変数としては出さない (本家と同じ)
+  for (const key of Object.keys(compiled)) {
+    if (key.startsWith('$')) delete compiled[key]
   }
 
   // NoteDeck 独自の派生変数: テーマが明示しない限り accent から算出する

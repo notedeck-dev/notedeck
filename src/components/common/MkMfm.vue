@@ -7,10 +7,10 @@ import { i18n } from '@/i18n'
 import { nyaizeTokens } from '@/services/nyaize'
 import { isMemoUrl, isSafeUrl } from '@/services/safeUrl'
 import { onCustomEmojiImgError } from '@/utils/emojiImgError'
-import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { type MfmToken, parseMfm } from '@/utils/mfm'
 import { openSafeUrl } from '@/utils/url'
+import MkCodeBlock from './MkCodeBlock.vue'
 import MkEmoji from './MkEmoji.vue'
 
 const props = defineProps<{
@@ -192,6 +192,22 @@ function renderKatex(formula: string, displayMode: boolean): string {
 const hexColorRe = /^[0-9a-fA-F]{3,8}$/
 const cssTimeRe = /^\d+(\.\d+)?(s|ms)$/
 const cssNumRe = /^-?\d+(\.\d+)?$/
+
+// 値域の上限 (#704)。scale は本家と同じ 5 倍 (本家は上側だけだが負でも同じだけ
+// 広がるので絶対値で止める)。position は本家に上限が無く、ノートの
+// overflow: clip に任せている。MkMfm はノート以外 (プロフィール / チャット等) でも
+// 使うので、こちらで ±10em に収める
+const MFM_SCALE_LIMIT = 5
+const MFM_POSITION_LIMIT_EM = 10
+
+function clampedNumArg(
+  value: string | true | undefined,
+  fallback: number,
+  limit: number,
+): number {
+  if (typeof value !== 'string' || !cssNumRe.test(value)) return fallback
+  return Math.min(Math.max(Number(value), -limit), limit)
+}
 const borderStyles = new Set([
   'solid',
   'dashed',
@@ -299,19 +315,15 @@ function fnStyle(
       break
     }
     case 'scale': {
-      const sx =
-        typeof args.x === 'string' && cssNumRe.test(args.x) ? args.x : '1'
-      const sy =
-        typeof args.y === 'string' && cssNumRe.test(args.y) ? args.y : '1'
+      const sx = clampedNumArg(args.x, 1, MFM_SCALE_LIMIT)
+      const sy = clampedNumArg(args.y, 1, MFM_SCALE_LIMIT)
       s.transform = `scale(${sx},${sy})`
       s.display = 'inline-block'
       break
     }
     case 'position': {
-      const px =
-        typeof args.x === 'string' && cssNumRe.test(args.x) ? args.x : '0'
-      const py =
-        typeof args.y === 'string' && cssNumRe.test(args.y) ? args.y : '0'
+      const px = clampedNumArg(args.x, 0, MFM_POSITION_LIMIT_EM)
+      const py = clampedNumArg(args.y, 0, MFM_POSITION_LIMIT_EM)
       s.transform = `translate(${px}em,${py}em)`
       s.display = 'inline-block'
       break
@@ -435,13 +447,13 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 <template>
   <span class="mfm" :class="$style.mfm"><template v-for="(token, i) in resolvedTokens" :key="i"><!--
     --><!-- URL --><a v-if="token.type === 'url'" :href="isSafeUrl(token.value) ? token.value : '#'" :class="$style.mfmUrl" target="_blank" rel="noopener noreferrer" @click.stop="handleLinkClick($event, token.value)">{{ token.value }}</a><!--
-    --><!-- Link --><a v-else-if="token.type === 'link'" :href="isSafeUrl(token.url) ? token.url : '#'" :class="$style.mfmUrl" target="_blank" rel="noopener noreferrer" @click.stop="handleLinkClick($event, token.url)"><MkMfm :tokens="token.label" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></a><!--
+    --><!-- Link --><a v-else-if="token.type === 'link'" :href="isSafeUrl(token.url) ? token.url : '#'" :title="token.url" :class="$style.mfmUrl" target="_blank" rel="noopener noreferrer" @click.stop="handleLinkClick($event, token.url)"><MkMfm :tokens="token.label" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></a><!--
     --><!-- Mention --><span v-else-if="token.type === 'mention'" :class="isMentionMe(token.username, token.host) ? $style.mfmMentionMe : $style.mfmMention" @click.stop="emit('mentionClick', token.username, token.host)" @mouseenter="emit('mentionHover', $event, token.username, token.host)" @mouseleave="emit('mentionLeave')">{{ token.acct }}</span><!--
     --><!-- Hashtag --><span v-else-if="token.type === 'hashtag'" :class="$style.mfmHashtag" @click.stop="navigateToHashtag(token.value)">#{{ token.value }}</span><!--
     --><!-- Bold --><b v-else-if="token.type === 'bold'"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></b><!--
     --><!-- Italic --><i v-else-if="token.type === 'italic'"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></i><!--
     --><!-- Strike --><s v-else-if="token.type === 'strike'"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" /></s><!--
-    --><!-- Code Block --><div v-else-if="token.type === 'codeBlock'" :key="`cb-${i}-${highlightRevision}`" :class="$style.mfmCodeBlock" v-html="highlightCode(token.value, token.lang)"></div><!--
+    --><!-- Code Block --><MkCodeBlock v-else-if="token.type === 'codeBlock'" :code="token.value" :lang="token.lang" /><!--
     --><!-- Inline Code --><code v-else-if="token.type === 'inlineCode'" :class="$style.mfmCode">{{ token.value }}</code><!--
     --><!-- Custom Emoji (muted #612) --><span v-else-if="token.type === 'customEmoji' && isEmojiMuted(token.shortcode)" class="custom-emoji _emojiMuted" :class="plain ? $style.customEmojiPlain : $style.customEmoji" role="img" :aria-label="`:${token.shortcode}:`" :title="i18n.tsx._common.mutedEmoji({ emoji: `:${token.shortcode}:` })"></span><!--
     --><!-- Custom Emoji (resolved) --><img v-else-if="token.type === 'customEmoji' && emojiUrls[token.shortcode]" :src="proxyEmojiUrl(emojiUrls[token.shortcode]!)" :alt="`:${token.shortcode}:`" class="custom-emoji" :class="plain ? $style.customEmojiPlain : $style.customEmoji" decoding="async" loading="lazy" @error="onCustomEmojiImgError" /><!--
@@ -499,7 +511,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 .mfmMentionMe {
   color: var(--nd-mentionMe);
   cursor: pointer;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 
   &:hover {
     text-decoration: underline;
@@ -517,35 +529,11 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 
 .mfmCode {
   font-family: var(--nd-font-mono);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-inlineCodeBg, rgba(0, 0, 0, 0.15));
   color: var(--nd-inlineCodeFg, var(--nd-fg));
-}
-
-.mfmCodeBlock {
-  margin: 8px 0;
-  max-width: 100%;
-  overflow: hidden;
-
-  // 面はハイライトの有無に関係なく揃える (明暗は data-nd-code-scheme の変数側 #1053)
-  :deep(pre) {
-    font-family: var(--nd-font-mono);
-    font-size: 0.85em;
-    padding: 12px 16px;
-    background: var(--nd-codeEditorBg);
-    color: var(--nd-codeEditorFg);
-    border-radius: var(--nd-radius-md);
-    overflow-x: auto;
-    white-space: pre;
-    word-break: normal;
-    margin: 0;
-  }
-
-  :deep(pre code) {
-    font-family: inherit;
-  }
 }
 
 .customEmoji {
@@ -576,7 +564,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 
 /* Small */
 .mfmSmall {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -591,7 +579,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   display: block;
   margin: 8px 0;
   padding: 4px 0 4px 16px;
-  border-left: 3px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
+  border-left: 3px solid var(--nd-divider);
   color: var(--nd-fg-muted, var(--nd-fg));
   opacity: 0.85;
 }
@@ -600,16 +588,16 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 .mfmHeading {
   display: block;
   margin: 0.6em 0 0.3em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   line-height: 1.25;
   color: var(--nd-fgHighlighted, var(--nd-fg));
 }
 .mfmHeading1 { font-size: 1.6em; }
-.mfmHeading2 { font-size: 1.4em; }
-.mfmHeading3 { font-size: 1.2em; }
-.mfmHeading4 { font-size: 1.05em; }
-.mfmHeading5 { font-size: 0.95em; opacity: 0.9; }
-.mfmHeading6 { font-size: 0.85em; opacity: 0.8; }
+.mfmHeading2 { font-size: var(--nd-font-2xl); }
+.mfmHeading3 { font-size: var(--nd-font-xl); }
+.mfmHeading4 { font-size: var(--nd-font-lg); }
+.mfmHeading5 { font-size: var(--nd-font-body); opacity: 0.9; }
+.mfmHeading6 { font-size: var(--nd-font-md); opacity: 0.8; }
 
 /* Markdown 拡張: list */
 .mfmList {
@@ -628,21 +616,21 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 .mfmSearchInput {
   flex: 1;
   padding: 6px 10px;
-  border: 1px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
-  border-radius: var(--nd-radius-sm, 4px);
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-bg-secondary, rgba(0, 0, 0, 0.05));
   color: var(--nd-fg);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .mfmSearchButton {
   padding: 6px 16px;
   border: none;
-  border-radius: var(--nd-radius-sm, 4px);
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
   color: #fff;
   cursor: pointer;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   white-space: nowrap;
 
   &:hover {
@@ -662,9 +650,9 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   padding: 0 1em;
   margin: 0.5em 0;
   overflow: auto;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
 
-  :deep(.katex-display) {
+  :global(.katex-display) {
     margin: auto;
     width: fit-content;
     overflow: clip;
@@ -793,17 +781,15 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 }
 .mfmTwitch { display: inline-block; animation: mfm-twitch 0.5s ease infinite; }
 
-/* Rainbow */
+/* Rainbow — 本家と同じく filter: hue-rotate で回す。color のアニメは毎フレーム
+   テキストの再ペイントになるが、filter は合成で済む。hue-rotate は無彩色を
+   動かさないので、起点の色を赤に固定してから回す (中の絵文字も色が回るのは本家と同じ)。
+   純色の赤から回すと緑〜青緑が暗く沈むので、少し明るい赤 + saturate で持ち上げる */
 @keyframes mfm-rainbow {
-  0% { color: #ff0000; }
-  16.6% { color: #ff8000; }
-  33.3% { color: #ffff00; }
-  50% { color: #00ff00; }
-  66.6% { color: #0000ff; }
-  83.3% { color: #ff00ff; }
-  100% { color: #ff0000; }
+  from { filter: hue-rotate(0deg) saturate(150%); }
+  to { filter: hue-rotate(360deg) saturate(150%); }
 }
-.mfmRainbow { animation: mfm-rainbow 1s linear infinite; }
+.mfmRainbow { color: #ff4d4d; animation: mfm-rainbow 1s linear infinite; }
 
 /* Sparkle */
 @keyframes mfm-sparkle {
@@ -811,4 +797,14 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   50% { opacity: 0.5; }
 }
 .mfmSparkle { animation: mfm-sparkle 1.5s ease-in-out infinite; }
+
+/* 画面外の行では止める。親 (MkNote の .offscreen) が継承する CSS 変数で指示する。
+   animation の shorthand は play-state を running に戻すので、各定義の後に置く */
+.mfmSpin, .mfmSpinLeft, .mfmSpinAlternate,
+.mfmSpinX, .mfmSpinXLeft, .mfmSpinXAlternate,
+.mfmSpinY, .mfmSpinYLeft, .mfmSpinYAlternate,
+.mfmShake, .mfmBounce, .mfmJelly, .mfmTada, .mfmJump, .mfmTwitch,
+.mfmRainbow, .mfmSparkle {
+  animation-play-state: var(--nd-mfm-play-state, running);
+}
 </style>

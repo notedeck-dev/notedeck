@@ -37,20 +37,26 @@ const deckStore = useDeckStore()
 const emit = defineEmits<{ 'add-column': [] }>()
 
 // Column drag & drop (CSS Module class names are passed as selectors)
-const columnDrag = useColumnDrag(deckStore, {
-  columns: $style.columns,
-  columnSection: $style.columnSection,
-  colResizeHandle: $style.colResizeHandle,
-})
 const isCompact = useIsCompactLayout()
+const columnDrag = useColumnDrag(
+  deckStore,
+  {
+    columns: $style.columns,
+    columnSection: $style.columnSection,
+    colResizeHandle: $style.colResizeHandle,
+  },
+  isCompact,
+)
 
 const columnMap = computed(() => deckStore.columnMap)
 
 // Column resize
-const { resizingColId, startColumnResize, WIDE_COLUMN_TYPES } = useColumnResize(
-  columnMap,
-  deckStore,
-)
+const {
+  resizingColId,
+  startColumnResize,
+  resetColumnWidth,
+  WIDE_COLUMN_TYPES,
+} = useColumnResize(columnMap, deckStore)
 
 const columnsRef = ref<HTMLElement | null>(null)
 
@@ -217,6 +223,38 @@ const dropInsertWidth = computed(() => {
   return columnMap.value.get(dragId)?.width ?? 400
 })
 
+// ドラッグ中にプレースホルダーが出入りしたとき、後ろのカラムが瞬間移動
+// しないよう section を横に FLIP する。ドロップ (並びの変化) は上の
+// layoutKey の FLIP が受け持つので、ここはドラッグ中だけ。追従が遅れると
+// ポインタの下の当たり判定とずれるので短めの時間で寄せる
+let placeholderSnapshot: FlipSnapshot | null = null
+watch(
+  dropInsertIndex,
+  () => {
+    placeholderSnapshot = columnDrag.dragColumnId.value
+      ? captureFlip(flipTargets().sections, sectionKey, columnsRef.value)
+      : null
+  },
+  { flush: 'pre' },
+)
+watch(
+  dropInsertIndex,
+  () => {
+    const snap = placeholderSnapshot
+    placeholderSnapshot = null
+    if (!snap || !columnDrag.dragColumnId.value) return
+    playFlip(
+      snap,
+      flipTargets().sections,
+      sectionKey,
+      columnsRef.value,
+      'x',
+      '--nd-duration-base',
+    )
+  },
+  { flush: 'post' },
+)
+
 // Template helpers
 function sectionClass(group: string[]) {
   const first = group[0]
@@ -292,7 +330,9 @@ defineExpose({
       <div
         v-if="!isCompact"
         :class="[$style.colResizeHandle, { [$style.active]: resizingColId === group[0] }]"
+        :title="i18n.ts._deckColumnsArea.resizeHandle"
         @pointerdown="startColumnResize(group[0]!, $event)"
+        @dblclick="resetColumnWidth(group[0]!)"
       />
       <div
         v-if="dropInsertIndex === groupIndex + 1"
@@ -369,14 +409,23 @@ defineExpose({
 .stacked {
   display: flex;
   flex-direction: column;
-  gap: var(--nd-columnGap, 6px);
+  gap: var(--nd-columnGap);
 }
 
 .colResizeHandle {
+  position: relative;
   flex: 0 0 4px;
   cursor: col-resize;
   background: transparent;
   transition: background var(--nd-duration-base);
+
+  /* 見た目の 4px は保ったまま、両隣の gap まで掴めるようにする。gap の外へは
+     広げない (左隣のカラムの右端には縦スクロールバーがある) */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 calc(-1 * var(--nd-columnGap));
+  }
 
   &:hover,
   &.active {
@@ -391,10 +440,15 @@ defineExpose({
 
 .dropPlaceholder {
   flex-shrink: 0;
+  animation: dropPlaceholderIn var(--nd-duration-base) var(--nd-ease-decel);
   border: 2px dashed var(--nd-accent);
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   background: var(--nd-accent-subtle);
   box-shadow: 0 0 12px color-mix(in srgb, var(--nd-accent) 30%, transparent);
+}
+
+@keyframes dropPlaceholderIn {
+  from { opacity: 0; scale: 0.96; }
 }
 
 /* Mobile platform: full-width swipe columns */

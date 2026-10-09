@@ -2,9 +2,10 @@
 import { json } from '@codemirror/lang-json'
 import { computed, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import DayNightToggle from '@/components/deck/DayNightToggle.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
-import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import EmojiMuteSection from '@/components/window/EmojiMuteSection.vue'
 import PetSection from '@/components/window/PetSection.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -205,16 +206,15 @@ const statusClass = computed(() => {
         <label :class="$style.languageRow">
           <i class="ti ti-language" />
           <span :class="$style.languageLabel">{{ i18n.ts._settings.language }}</span>
-          <select
-            :value="localePreference"
-            :class="$style.languageSelect"
+          <FormSelect
+            :model-value="localePreference"
             @change="setLocalePreference(($event.target as HTMLSelectElement).value as LocalePreference)"
           >
             <option value="auto">{{ i18n.ts._settings.languageAuto }}</option>
             <option v-for="lang in localeChoices" :key="lang.code" :value="lang.code">
               {{ lang.published ? lang.name : i18n.tsx._settings.languageUnpublished({ name: lang.name }) }}
             </option>
-          </select>
+          </FormSelect>
         </label>
       </div>
 
@@ -250,7 +250,7 @@ const statusClass = computed(() => {
 
       <!-- Note view -->
       <div :class="$style.section">
-        <AiSwitchRow
+        <FormSwitchRow
           :label="i18n.ts._appearanceEditorContent.nyaize"
           :sub-label="i18n.ts._appearanceEditorContent.nyaizeDescription"
           icon="ti-cat"
@@ -342,7 +342,7 @@ const statusClass = computed(() => {
   background: none;
   cursor: pointer;
   font: inherit;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   border-radius: var(--nd-radius-sm);
   transition: background var(--nd-duration-fast);
@@ -376,11 +376,11 @@ const statusClass = computed(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
 
   i {
-    font-size: 1.1em;
+    font-size: var(--nd-font-lg);
   }
 }
 
@@ -396,7 +396,7 @@ const statusClass = computed(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
   min-height: 20px;
 }
@@ -420,12 +420,4 @@ const statusClass = computed(() => {
   flex: 1;
 }
 
-.languageSelect {
-  padding: 6px 8px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.85em;
-}
 </style>

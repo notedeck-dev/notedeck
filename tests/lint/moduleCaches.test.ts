@@ -96,9 +96,11 @@ const ALLOWED: Record<string, string> = {
   'src/capabilities/registry.ts:capabilities': 'keyed: 登録済み capability',
   'src/commands/taskCommands.ts:registeredIds': 'keyed: 登録済みタスク',
   'src/core/queryRegistry.ts:entriesByQueryId': 'keyed: 登録済みクエリ',
+  'src/data/unicodeEmojiIndexes.ts:cache': 'keyed: 表示言語',
   'src/composables/useAds.ts:adsCache': 'keyed: アカウント',
   'src/composables/useLoginPrompt.ts:reloginPromptShownAt': 'keyed: アカウント',
   'src/composables/useSearchScopeMeta.ts:cache': 'keyed: アカウント',
+  'src/composables/noteTranslation.ts:availability': 'keyed: アカウント',
   'src/composables/useUnreadCounter.ts:sharedStates': 'keyed: カラム',
   'src/composables/useNoteSound.ts:failedHosts': 'keyed: ホスト',
   'src/utils/customTimelines.ts:customTlMemCache': 'keyed: アカウント',
@@ -108,6 +110,8 @@ const ALLOWED: Record<string, string> = {
   'src/aiscript/codemirror/completions.ts:nsMemberCompletions':
     'keyed: AiScript の名前空間',
   'src/services/entityResolution.ts:NO_LIVE_KEYS': 'keyed: 常に空の番人',
+  'src/composables/useCrossAccountNotes.ts:NO_ROW_KEYS':
+    'keyed: 常に空の番人 (#704 空のたびに new Set しない)',
 }
 
 function collect(dir: string): string[] {

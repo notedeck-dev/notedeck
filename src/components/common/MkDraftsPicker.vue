@@ -16,6 +16,7 @@ import {
   type StoredDraft,
 } from '@/composables/useDrafts'
 import { usePortal } from '@/composables/usePortal'
+import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { localNoteIdentity } from '@/services/noteUrl'
 import { isPastSchedule } from '@/services/scheduleTime'
@@ -227,6 +228,11 @@ const tabs = computed<ColumnTabDef[]>(() => {
   }
   return out
 })
+
+useTabSlide(
+  computed(() => tabs.value.findIndex((t) => t.value === activeTab.value)),
+  bodyRef,
+)
 
 // 予約タブを見ている間だけ "あと30分" 等の相対時刻をリアクティブ更新する。
 // onCleanup が前回タイマーを必ず止めるので、アンマウント時も漏れない。
@@ -451,6 +457,7 @@ async function onDeleteAll() {
             :title="i18n.ts._mkDraftsPicker.restoreThis"
             @click.capture.prevent.stop="onPick(entry)"
             @keydown.enter="onPick(entry)"
+            @keydown.space.self.prevent="onPick(entry)"
           >
             <MkNote :note="entry.note" embedded />
             <span
@@ -516,6 +523,7 @@ async function onDeleteAll() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .draftsPicker {
   display: flex;
   flex-direction: column;
@@ -524,9 +532,9 @@ async function onDeleteAll() {
   max-height: min(75vh, 640px);
   margin: 0 16px 16px;
   background: var(--nd-panelBg, var(--nd-popup));
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   overflow: hidden;
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
 }
 
 .trailingBtns {
@@ -550,7 +558,7 @@ async function onDeleteAll() {
 
   &:hover {
     opacity: 1;
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -566,6 +574,7 @@ async function onDeleteAll() {
 }
 
 .item {
+  @include nd-interactive;
   position: relative;
   border-bottom: 1px solid var(--nd-divider);
 
@@ -574,7 +583,7 @@ async function onDeleteAll() {
   }
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.015), rgba(255, 255, 255, 0.015));
+    background: color-mix(in srgb, var(--nd-fg) 1.5%, transparent);
   }
 }
 
@@ -584,7 +593,7 @@ async function onDeleteAll() {
   align-items: center;
   gap: 6px 10px;
   padding: 8px 14px 0;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.8;
 }
 
@@ -592,7 +601,7 @@ async function onDeleteAll() {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 }
 
 .metaRef {
@@ -603,10 +612,10 @@ async function onDeleteAll() {
 .metaChannel {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
-  background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.06));
+  background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
 }
 
 .itemNoteBtn {
@@ -625,23 +634,23 @@ async function onDeleteAll() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   font-variant-numeric: tabular-nums;
   pointer-events: none;
   backdrop-filter: blur(8px);
 }
 
 .scheduledBadgeRel {
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
 }
 
 .scheduledBadgeAbs {
   opacity: 0.7;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 
   &::before {
     content: '·';
@@ -675,7 +684,7 @@ async function onDeleteAll() {
   position: fixed;
   min-width: 220px;
   padding: 6px;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   background: var(--nd-popup);
   box-shadow: var(--nd-shadow-m);
   display: flex;
@@ -689,13 +698,13 @@ async function onDeleteAll() {
   gap: 8px;
   width: 100%;
   padding: 8px 12px;
-  font-size: 0.88em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   border-radius: var(--nd-radius-sm);
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.06));
+    background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
   }
 }
 

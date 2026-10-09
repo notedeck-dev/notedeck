@@ -226,6 +226,12 @@ export interface Locale {
     readonly "tutorial": string
     /** ダーク/ライトモード切り替え */
     readonly "toggleDarkMode": string
+    /** 表示を拡大 */
+    readonly "zoomIn": string
+    /** 表示を縮小 */
+    readonly "zoomOut": string
+    /** 表示の拡大率をリセット */
+    readonly "zoomReset": string
     /** オフラインモード切り替え */
     readonly "toggleOfflineMode": string
     /** リアルタイムモード切り替え */
@@ -310,6 +316,8 @@ export interface Locale {
     readonly "closeAllWindows": string
     /** PiP ウィンドウを開く */
     readonly "pipWindow": string
+    /** アプリの通知を開く */
+    readonly "notificationCenter": string
     /** 開発者ツール */
     readonly "devtools": string
     /** プロファイルエディター */
@@ -318,6 +326,14 @@ export interface Locale {
     readonly "switchProfile": ParameterizedString<'name'>
   }
   readonly "_common": {
+    /** メインの内容へ移動 */
+    readonly "skipToMain": string
+    /** その他 */
+    readonly "more": string
+    /** 前へ */
+    readonly "previous": string
+    /** 次へ */
+    readonly "next": string
     /** 再試行 */
     readonly "retry": string
     /** キャンセル */
@@ -540,6 +556,8 @@ export interface Locale {
     readonly "unknownError": string
     /** 解除 */
     readonly "remove": string
+    /** 入力すると押せます */
+    readonly "inputRequiredHint": string
   }
   readonly "_appConfirm": {
     /** NoteDeck の権限確認 */
@@ -574,6 +592,16 @@ export interface Locale {
     readonly "rename": string
     /** 移動 */
     readonly "move": string
+  }
+  readonly "_formNumber": {
+    /** 数値を入力してください */
+    readonly "notNumber": string
+    /** {min} から {max} までの値を入力してください */
+    readonly "outOfRange": ParameterizedString<'max' | 'min'>
+    /** {min} 以上の値を入力してください */
+    readonly "tooSmall": ParameterizedString<'min'>
+    /** {max} 以下の値を入力してください */
+    readonly "tooLarge": ParameterizedString<'max'>
   }
   readonly "_galleryItemMenu": {
     /** 開く */
@@ -684,6 +712,10 @@ export interface Locale {
     readonly "menuFor": ParameterizedString<'name'>
   }
   readonly "_mkMediaGrid": {
+    /** アニメーションを再生 */
+    readonly "playAnimation": string
+    /** アニメーションを止める */
+    readonly "pauseAnimation": string
     /** 動画をタップで読み込み */
     readonly "tapToLoadVideo": string
     /** 画像をタップで読み込み */
@@ -702,6 +734,12 @@ export interface Locale {
     readonly "openInBrowser": string
   }
   readonly "_mkNote": {
+    /** 翻訳中... */
+    readonly "translating": string
+    /** {lang} から翻訳 */
+    readonly "translatedFrom": ParameterizedString<'lang'>
+    /** 翻訳できませんでした */
+    readonly "translateFailed": string
     /** ピン留めされたノート */
     readonly "pinned": string
     /** がリノート */
@@ -820,6 +858,46 @@ export interface Locale {
     readonly "recent": string
     /** その他 */
     readonly "uncategorized": string
+    /** カテゴリ */
+    readonly "categories": string
+    /** カスタム絵文字 */
+    readonly "custom": string
+    /** 肌の色 */
+    readonly "skinTone": string
+    readonly "_skinTones": {
+      /** 指定しない */
+      readonly "none": string
+      /** 明るい肌色 */
+      readonly "light": string
+      /** やや明るい肌色 */
+      readonly "mediumLight": string
+      /** 中間の肌色 */
+      readonly "medium": string
+      /** やや濃い肌色 */
+      readonly "mediumDark": string
+      /** 濃い肌色 */
+      readonly "dark": string
+    }
+    readonly "_categories": {
+      /** 顔 */
+      readonly "face": string
+      /** 人と体 */
+      readonly "people": string
+      /** 動物と自然 */
+      readonly "animals_and_nature": string
+      /** 食べ物と飲み物 */
+      readonly "food_and_drink": string
+      /** アクティビティ */
+      readonly "activity": string
+      /** 旅行と場所 */
+      readonly "travel_and_places": string
+      /** もの */
+      readonly "objects": string
+      /** 記号 */
+      readonly "symbols": string
+      /** 旗 */
+      readonly "flags": string
+    }
   }
   readonly "_mkReactionUsersPopup": {
     /** この絵文字をミュート */
@@ -844,6 +922,8 @@ export interface Locale {
     readonly "remoteUser": string
   }
   readonly "_noteMoreMenu": {
+    /** 翻訳 */
+    readonly "translate": string
     /** このノートを削除しますか？ */
     readonly "confirmDelete": string
     /** このノートを削除して再編集しますか？ */
@@ -918,6 +998,18 @@ export interface Locale {
     readonly "empty": string
     /** 未読 {count} 件 */
     readonly "unread": ParameterizedString<'count'>
+    /** ×{count} */
+    readonly "count": ParameterizedString<'count'>
+    /** {count} 回起きました */
+    readonly "countTitle": ParameterizedString<'count'>
+    /** 新着 */
+    readonly "fresh": string
+    /** 全文を表示 */
+    readonly "expand": string
+    /** 折りたたむ */
+    readonly "collapse": string
+    /** この通知を消す */
+    readonly "remove": string
   }
   readonly "_noteVariantsPopup": {
     /** このノートが見えているアカウント */
@@ -1066,6 +1158,8 @@ export interface Locale {
     readonly "zoomIn": string
     /** 縮小 */
     readonly "zoomOut": string
+    /** 等倍に戻す */
+    readonly "zoomReset": string
   }
   readonly "_postFormFilePreviews": {
     /** 破棄 */
@@ -1118,6 +1212,8 @@ export interface Locale {
     readonly "expiry7d": string
   }
   readonly "_mkMfm": {
+    /** 行を折り返す */
+    readonly "wrapLines": string
     /** 検索 */
     readonly "search": string
   }
@@ -3100,8 +3196,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_deckNotificationColumn": {
     /** 通知はありません */
     readonly "empty": string
-    /** 他 {count} 人 */
-    readonly "othersCount_plural": PluralString<'count'>
     /** 承認済み */
     readonly "accepted": string
     /** 拒否済み */
@@ -3138,22 +3232,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "filterAchievementEarned": string
     /** トークン */
     readonly "filterCreateToken": string
-    /** がリアクション */
-    readonly "labelReaction": string
-    /** からのリプライ */
-    readonly "labelReply": string
-    /** がリノートしました */
-    readonly "labelRenote": string
-    /** による引用 */
-    readonly "labelQuote": string
-    /** からのメンション */
-    readonly "labelMention": string
-    /** にフォローされました */
-    readonly "labelFollow": string
-    /** がフォローリクエストを承認 */
-    readonly "labelFollowRequestAccepted": string
-    /** からフォローリクエスト */
-    readonly "labelReceiveFollowRequest": string
     /** アンケートの結果が出ました */
     readonly "labelPollEnded": string
     /** 実績を獲得 */
@@ -3168,6 +3246,40 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "labelCreateToken": string
     /** テスト通知 */
     readonly "labelTest": string
+    /** 新しいノート: {user} */
+    readonly "labelNewNote": ParameterizedString<'user'>
+    /** 予約投稿が投稿されました */
+    readonly "labelScheduledNotePosted": string
+    /** 予約投稿に失敗しました */
+    readonly "labelScheduledNotePostFailed": string
+    /** エクスポートが完了しました */
+    readonly "labelExportCompleted": string
+    /** ルームに招待されました */
+    readonly "labelChatRoomInvitationReceived": string
+    /** {count} 人がリアクションしました */
+    readonly "reactedBy_plural": PluralString<'count'>
+    /** {count} 人がいいねしました */
+    readonly "likedBy_plural": PluralString<'count'>
+    /** {count} 人がリノートしました */
+    readonly "renotedBy_plural": PluralString<'count'>
+    /** +{count} */
+    readonly "moreUsers_plural": PluralString<'count'>
+    /** フォローされました */
+    readonly "bodyFollow": string
+    /** フォローリクエストが承認されました */
+    readonly "bodyFollowRequestAccepted": string
+    /** フォローリクエストが届きました */
+    readonly "bodyReceiveFollowRequest": string
+    /** {newer} と {older} の境目 */
+    readonly "dateSeparator": ParameterizedString<'newer' | 'older'>
+  }
+  readonly "_noteSummary": {
+    /** 非公開のノート */
+    readonly "hidden": string
+    /** {count} 個のファイル */
+    readonly "files_plural": PluralString<'count'>
+    /** アンケート */
+    readonly "poll": string
   }
   readonly "_deckPluginManagerColumn": {
     /** 新規プラグインを作成 */
@@ -3496,6 +3608,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_deckBottomBar": {
     /** デッキ設定 */
     readonly "deckSettings": string
+    /** {title} を元に戻す */
+    readonly "restoreWindow": ParameterizedString<'title'>
   }
   readonly "_deckChartsColumn": {
     /** 時 */
@@ -3528,12 +3642,16 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "noMatchingMessages": string
     /** メッセージ... */
     readonly "messagePlaceholder": string
+    /** 未読 */
+    readonly "unread": string
   }
   readonly "_deckColumnsArea": {
     /** カラムがありません */
     readonly "noColumns": string
     /** デフォルトの構成で始める */
     readonly "startWithDefault": string
+    /** ドラッグで幅を変更 / ダブルクリックでデフォルトの幅に戻す */
+    readonly "resizeHandle": string
   }
   readonly "_deckEmojiColumn": {
     /** 絵文字を検索... */

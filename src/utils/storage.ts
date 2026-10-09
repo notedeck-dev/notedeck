@@ -104,6 +104,9 @@ export const STORAGE_KEYS = {
   mutedAds: 'nd-muted-ads',
   offlineMode: 'nd-offline-mode',
   realtimeMode: 'nd-realtime-mode',
+  // TL エンドポイントが受けるフィルタ (#704)。`${host}:${endpoint}` → キー列。
+  // 起動直後からフィルタボタンを出すための前回の検出結果
+  timelineFilterKeys: 'nd-timeline-filter-keys',
 
   // AI settings
   aiSettings: 'nd-ai-settings',

@@ -602,6 +602,7 @@ function handleReset() {
                 class="_button"
                 :class="$style.tokenCreateButton"
                 :disabled="!newTokenName.trim()"
+                :title="newTokenName.trim() ? undefined : i18n.ts._common.inputRequiredHint"
                 @click="createToken"
               >
                 {{ i18n.ts._permissionsContent.issueToken }}
@@ -708,6 +709,7 @@ function handleReset() {
 
 <style module lang="scss">
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .wrap {
   display: flex;
@@ -742,7 +744,7 @@ function handleReset() {
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.6;
   line-height: 1.4;
@@ -764,7 +766,7 @@ function handleReset() {
   align-items: center;
   gap: 6px;
   color: var(--nd-success, var(--nd-link));
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
 }
 
 .principalRow {
@@ -778,13 +780,14 @@ function handleReset() {
 }
 
 .rowHeader {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
   padding: 10px 12px;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: left;
 
   &:hover { background: var(--nd-buttonHoverBg); }
@@ -793,7 +796,7 @@ function handleReset() {
 }
 
 .rowLabel {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 .chip {
@@ -801,7 +804,7 @@ function handleReset() {
   border-radius: var(--nd-radius-full);
   background: var(--nd-accentedBg);
   color: var(--nd-accent);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   white-space: nowrap;
 }
 
@@ -820,7 +823,7 @@ function handleReset() {
   align-items: center;
   gap: 6px;
   margin: 6px 0 8px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.65;
   line-height: 1.4;
@@ -831,7 +834,7 @@ function handleReset() {
   align-items: center;
   gap: 4px;
   margin-bottom: 8px;
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.8;
 }
@@ -849,8 +852,8 @@ function handleReset() {
 }
 
 .tokenSectionLabel {
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   margin-bottom: 4px;
 }
@@ -869,7 +872,7 @@ function handleReset() {
   padding: 6px 8px;
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
 }
 
 .tokenIcon {
@@ -887,13 +890,13 @@ function handleReset() {
 .tokenDate {
   color: var(--nd-fg);
   opacity: 0.5;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .skipOwner {
   color: var(--nd-fg);
   opacity: 0.5;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -901,6 +904,7 @@ function handleReset() {
 }
 
 .tokenRevoke {
+  @include nd-interactive;
   color: var(--nd-love);
   padding: 2px 4px;
 
@@ -913,16 +917,13 @@ function handleReset() {
 }
 
 .input {
+  @include input-base;
   flex: 1;
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
 }
 
 .tokenCreateButton {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -930,7 +931,7 @@ function handleReset() {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
 
   &:hover:not(:disabled) { background: var(--nd-buttonHoverBg); }
   &:disabled { opacity: 0.5; }
@@ -953,7 +954,7 @@ function handleReset() {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   overflow-x: auto;
   white-space: nowrap;
 }
@@ -971,7 +972,7 @@ function handleReset() {
   gap: 6px;
   margin-top: 6px;
   color: var(--nd-love);
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
 }
 
 // --- Actions (footer) ---

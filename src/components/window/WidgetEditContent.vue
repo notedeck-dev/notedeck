@@ -354,7 +354,7 @@ function toggleAutoRun() {
         <div v-else :class="$style.nameRow">
           <span :class="$style.headerName">{{ widget.name }}</span>
           <button class="_button" :class="$style.renameBtn" :title="i18n.ts._common.rename" @click="startRename">
-            <i class="ti ti-pencil" />
+            <i class="ti ti-edit" />
           </button>
         </div>
         <div :class="$style.headerSub">
@@ -485,7 +485,7 @@ function toggleAutoRun() {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
   color: var(--nd-accent);
   font-size: 24px;
@@ -514,8 +514,8 @@ function toggleAutoRun() {
 }
 
 .headerName {
-  font-size: 1.05em;
-  font-weight: 700;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -531,7 +531,7 @@ function toggleAutoRun() {
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transition:
     opacity var(--nd-duration-fast),
     background var(--nd-duration-fast);
@@ -559,8 +559,8 @@ function toggleAutoRun() {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-inputBg, var(--nd-bg));
   color: var(--nd-fgHighlighted);
-  font-size: 1.05em;
-  font-weight: 700;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
 
   &:focus {
     outline: none;
@@ -568,7 +568,7 @@ function toggleAutoRun() {
 }
 
 .headerSub {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.6;
   display: flex;
@@ -577,9 +577,9 @@ function toggleAutoRun() {
 }
 
 .statusBadge {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   padding: 0 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
   line-height: 1.6;
@@ -597,13 +597,13 @@ function toggleAutoRun() {
   gap: 4px;
   padding: 0 8px;
   height: 18px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   border: 1px solid var(--nd-divider);
   background: transparent;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
-  transition: opacity 0.1s, background 0.1s;
+  transition: opacity var(--nd-duration-fast), background var(--nd-duration-fast);
 
   &:hover {
     opacity: 1;
@@ -635,7 +635,7 @@ function toggleAutoRun() {
 .appError {
   margin: 8px 12px;
   padding: 8px 10px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   color: var(--nd-love);
   font-size: 12px;
@@ -664,7 +664,7 @@ function toggleAutoRun() {
   margin: 8px 12px;
   padding: 6px 8px;
   border: 1px solid var(--nd-divider);
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-bg);
   font-size: 11px;
 }

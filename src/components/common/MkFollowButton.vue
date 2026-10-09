@@ -126,9 +126,11 @@ async function onClick() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .followBtn {
-  border-radius: 32px;
-  font-weight: bold;
+  @include nd-interactive;
+  border-radius: var(--nd-radius-full);
+  font-weight: var(--nd-weight-bold);
   color: #fff;
   background: var(--nd-accent);
   white-space: nowrap;
@@ -163,7 +165,7 @@ async function onClick() {
 }
 
 .sm {
-  padding: 5px 12px;
-  font-size: 0.75em;
+  padding: 6px 12px;
+  font-size: var(--nd-font-xs);
 }
 </style>

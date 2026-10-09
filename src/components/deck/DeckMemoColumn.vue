@@ -300,6 +300,7 @@ function closeMenu() {
           :title="i18n.ts._deckMemoColumn.openInEditor"
           @click.stop="onOpenEditor(entry)"
           @keydown.enter="onOpenEditor(entry)"
+          @keydown.space.self.prevent="onOpenEditor(entry)"
         >
           <MemoCard :memo="entry.memo" />
         </div>
@@ -329,6 +330,7 @@ function closeMenu() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use './column-common.module.scss';
 
 .embeddedForm {
@@ -352,6 +354,7 @@ function closeMenu() {
 }
 
 .item {
+  @include nd-interactive;
   position: relative;
   border-bottom: 1px solid var(--nd-divider);
 
@@ -360,7 +363,7 @@ function closeMenu() {
   }
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.015), rgba(255, 255, 255, 0.015));
+    background: color-mix(in srgb, var(--nd-fg) 1.5%, transparent);
   }
 }
 
@@ -385,7 +388,7 @@ function closeMenu() {
   align-items: center;
   gap: 6px 10px;
   padding: 8px 14px 0;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.8;
 }
 
@@ -403,16 +406,16 @@ function closeMenu() {
 .metaChannel {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
-  background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.06));
+  background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
 }
 
 .metaScheduled {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);

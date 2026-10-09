@@ -8,6 +8,7 @@ import {
   watch,
 } from 'vue'
 import { useRoute } from 'vue-router'
+import TitleBarShell from '@/components/common/TitleBarShell.vue'
 import { useCodeScheme } from '@/composables/useCodeScheme'
 import { useHeartbeatDaemon } from '@/composables/useHeartbeatDaemon'
 import { useKeyboard } from '@/composables/useKeyboard'
@@ -20,6 +21,7 @@ import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
 import { startSettingsFileSync } from '@/composables/useSettingsFileSync'
 import { useTheme } from '@/composables/useTheme'
 import { useTrayMenu } from '@/composables/useTrayMenu'
+import { applyUiZoom } from '@/composables/useUiZoom'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { i18n } from '@/i18n'
 import { useLogsStore } from '@/stores/logs'
@@ -42,7 +44,11 @@ const DevWelcome = isTauri
   : defineAsyncComponent(() => import('@/components/DevWelcome.vue'))
 
 const TitleBar = isTauri
-  ? defineAsyncComponent(() => import('@/components/common/TitleBar.vue'))
+  ? defineAsyncComponent({
+      loader: () => import('@/components/common/TitleBar.vue'),
+      loadingComponent: TitleBarShell,
+      delay: 0,
+    })
   : null
 
 const DeckWindowLayer = defineAsyncComponent(
@@ -103,6 +109,9 @@ if (isTauri) {
 // コード面の明暗 (#1053) — 設定 + アプリのテーマから実効値を決めて root に
 // 出す。PiP ウィンドウも自分の document を持つので両方で mount する。
 useCodeScheme()
+
+// UI ズーム (#704)。settings.json5 の値を各ウィンドウの webview に当てる
+applyUiZoom()
 
 // notecore が書いた設定ファイルの写しを読み直す購読 (#1133)。全ウィンドウで
 // 1 回ずつ (各ウィンドウの store が自分の面だけ追従する)
@@ -251,6 +260,7 @@ onUnmounted(() => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .root {
   display: flex;
   flex-direction: column;
@@ -287,6 +297,7 @@ onUnmounted(() => {
 }
 
 .safeModeExit {
+  @include nd-interactive;
   flex: none;
   padding: 2px 10px;
   border: 1px solid rgb(255 255 255 / 0.5);

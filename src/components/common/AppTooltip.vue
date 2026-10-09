@@ -4,32 +4,69 @@
 // 初回ホバー時に title を data-nd-tip へ退避して OS 標準ツールチップを抑止する
 // (Vue の :title バインドは値が変わった再レンダで復活するが、次のホバーで再退避される)。
 import { onMounted, onUnmounted, ref } from 'vue'
+import { prefersReducedMotion } from '@/utils/motion'
 
 const visible = ref(false)
 const text = ref('')
 const x = ref(0)
 const y = ref(0)
 const below = ref(false)
+const leaving = ref(false)
 
 // タッチ環境はホバーが無いので何もしない (native title も出ないため現状維持)
 const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches
 const SHOW_DELAY = 350
+/** 退場アニメ (tooltip-out = --nd-duration-fast) と同じ時間 */
+const LEAVE_DURATION = 100
 
 let showTimer: ReturnType<typeof setTimeout> | null = null
 let currentEl: HTMLElement | null = null
+let leaveTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearLeave() {
+  if (leaveTimer) {
+    clearTimeout(leaveTimer)
+    leaveTimer = null
+  }
+  leaving.value = false
+}
+
+/** 表示を確定する (退場中なら打ち切って差し替える) */
+function reveal(el: HTMLElement, tip: string) {
+  clearLeave()
+  positionFor(el)
+  text.value = tip
+  visible.value = true
+}
 
 function findTipEl(target: EventTarget | null): HTMLElement | null {
   if (!(target instanceof Element)) return null
   return target.closest<HTMLElement>('[title], [data-nd-tip]')
 }
 
-function hide() {
+/**
+ * ポインタが離れたときはフェードで消す。クリック / スクロール / キー操作
+ * (状態や位置が変わる) では animate: false で即座に消す
+ */
+function hide(animate = true) {
   if (showTimer) {
     clearTimeout(showTimer)
     showTimer = null
   }
-  visible.value = false
   currentEl = null
+  if (!visible.value) return
+  if (animate && !prefersReducedMotion()) {
+    if (leaving.value) return
+    leaving.value = true
+    leaveTimer = setTimeout(() => {
+      leaveTimer = null
+      visible.value = false
+      leaving.value = false
+    }, LEAVE_DURATION)
+  } else {
+    clearLeave()
+    visible.value = false
+  }
 }
 
 function positionFor(el: HTMLElement) {
@@ -44,12 +81,23 @@ function positionFor(el: HTMLElement) {
   }
 }
 
-/** native tooltip 抑止: title → data-nd-tip 退避。退避後の本文を返す */
+/**
+ * native tooltip 抑止: title → data-nd-tip 退避。退避後の本文を返す。
+ * アイコンだけのボタンでは title がアクセシブルな名前の唯一の出どころなので、
+ * 文字を持たない要素には aria-label として残す (退避で名無しにしない)
+ */
 function stashTip(el: HTMLElement): string | undefined {
   const title = el.getAttribute('title')
   if (title !== null) {
     el.setAttribute('data-nd-tip', title)
     el.removeAttribute('title')
+    if (
+      !el.hasAttribute('aria-label') &&
+      !el.hasAttribute('aria-labelledby') &&
+      !el.textContent?.trim()
+    ) {
+      el.setAttribute('aria-label', title)
+    }
   }
   return el.getAttribute('data-nd-tip')?.trim() || undefined
 }
@@ -68,9 +116,7 @@ function onMouseOver(e: MouseEvent) {
   }
   showTimer = setTimeout(() => {
     if (!currentEl?.isConnected) return
-    positionFor(currentEl)
-    text.value = tip
-    visible.value = true
+    reveal(currentEl, tip)
   }, SHOW_DELAY)
 }
 
@@ -101,9 +147,7 @@ function onFocusIn(e: FocusEvent) {
   const tip = stashTip(el)
   if (!tip) return
   currentEl = el
-  positionFor(el)
-  text.value = tip
-  visible.value = true
+  reveal(el, tip)
 }
 
 function onFocusOut() {
@@ -112,7 +156,7 @@ function onFocusOut() {
 
 // クリック (状態が変わる) / スクロール / キー操作では即座に消す
 function onDocEvent() {
-  if (visible.value || showTimer) hide()
+  if (visible.value || showTimer) hide(false)
 }
 
 onMounted(() => {
@@ -131,6 +175,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (leaveTimer) clearTimeout(leaveTimer)
   document.removeEventListener('focusin', onFocusIn)
   document.removeEventListener('focusout', onFocusOut)
   if (IS_TOUCH) return
@@ -145,7 +190,7 @@ onUnmounted(() => {
 <template>
   <div
     v-if="visible"
-    :class="[$style.tooltip, below && $style.below]"
+    :class="[$style.tooltip, below && $style.below, leaving && $style.leave]"
     :style="{ left: `${x}px`, top: `${y}px` }"
     role="tooltip"
   >
@@ -165,7 +210,7 @@ onUnmounted(() => {
   color: var(--nd-fg);
   box-shadow: 0 2px 8px var(--nd-shadow);
   border: 1px solid var(--nd-divider);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   line-height: 1.4;
   white-space: pre-line;
   overflow-wrap: break-word;
@@ -177,8 +222,19 @@ onUnmounted(() => {
   translate: -50% 0;
 }
 
+/* 次の tooltip が退場中に出るときは reveal() で打ち切るので、短くてよい */
+.leave {
+  animation: tooltip-out var(--nd-duration-fast) var(--nd-ease-decel) forwards;
+}
+
 @keyframes tooltip-in {
   from {
+    opacity: 0;
+  }
+}
+
+@keyframes tooltip-out {
+  to {
     opacity: 0;
   }
 }

@@ -45,20 +45,78 @@ export function parseColor(value: string): RGBA | null {
     return null
   }
 
-  // rgb(...) or rgba(...)
-  const m = value.match(
-    /^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/,
-  )
-  if (m) {
-    return [
-      Number(m[1]),
-      Number(m[2]),
-      Number(m[3]),
-      m[4] !== undefined ? Number(m[4]) : 1,
-    ]
+  // 関数表記: rgb / rgba / hsl / hsla / oklch。カンマ区切りと空白 + `/` 区切りの
+  // 両方を受ける。解釈できないと派生関数 (:darken 等) が素通りになり、明暗判定も
+  // 外れる (テーマ作者が hsl や oklch で書いたとき)
+  const fn = value.match(/^(rgba?|hsla?|oklch)\(\s*([^)]*)\)$/i)
+  if (fn) {
+    const name = fn[1]?.toLowerCase() ?? ''
+    const parts = (fn[2] ?? '').split(/\s*[,/]\s*|\s+/).filter(Boolean)
+    if (parts.length < 3 || parts.length > 4) return null
+    const [p1, p2, p3, p4] = parts as [string, string, string, string?]
+    const a = p4 === undefined ? 1 : parseNumberOrPercent(p4, 1)
+    if (a === null) return null
+    if (name.startsWith('rgb')) {
+      const c = [p1, p2, p3].map((v) => parseNumberOrPercent(v, 255))
+      if (c.some((v) => v === null)) return null
+      return [c[0] as number, c[1] as number, c[2] as number, a]
+    }
+    if (name.startsWith('hsl')) {
+      const h = Number.parseFloat(p1)
+      const sat = Number.parseFloat(p2)
+      const l = Number.parseFloat(p3)
+      if ([h, sat, l].some(Number.isNaN)) return null
+      const [r, g, b] = hslToRgb(h, sat, l)
+      return [r, g, b, a]
+    }
+    const l = parseNumberOrPercent(p1, 1)
+    const c = parseNumberOrPercent(p2, 0.4)
+    const h = Number.parseFloat(p3)
+    if (l === null || c === null || Number.isNaN(h)) return null
+    const [r, g, b] = oklchToRgb(l, c, h)
+    return [r, g, b, a]
   }
 
   return null
+}
+
+/** `40%` は scale に対する割合、数値はそのまま */
+function parseNumberOrPercent(v: string, scale: number): number | null {
+  const n = Number.parseFloat(v)
+  if (Number.isNaN(n)) return null
+  return v.trim().endsWith('%') ? (n / 100) * scale : n
+}
+
+/** OKLCH → sRGB (0-255、範囲外は切り詰める) */
+function oklchToRgb(
+  l: number,
+  c: number,
+  h: number,
+): [r: number, g: number, b: number] {
+  const rad = (h * Math.PI) / 180
+  const A = c * Math.cos(rad)
+  const B = c * Math.sin(rad)
+  const l_ = (l + 0.3963377774 * A + 0.2158037573 * B) ** 3
+  const m_ = (l - 0.1055613458 * A - 0.0638541728 * B) ** 3
+  const s_ = (l - 0.0894841775 * A - 1.291485548 * B) ** 3
+  const lin = [
+    4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+    -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+    -0.0041960863 * l_ - 0.7034186147 * m_ + 1.707614701 * s_,
+  ]
+  const toSrgb = (x: number) => {
+    const v = x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055
+    return Math.max(0, Math.min(1, v)) * 255
+  }
+  return [toSrgb(lin[0] ?? 0), toSrgb(lin[1] ?? 0), toSrgb(lin[2] ?? 0)]
+}
+
+/** 知覚的な明るさで明るい色か (背景がライトかの判定)。解釈できなければ false */
+export function isLightColor(value: string): boolean {
+  const rgba = parseColor(value)
+  if (!rgba) return false
+  const [r, g, b] = rgba
+  return (r * 299 + g * 587 + b * 114) / 1000 > 128
 }
 
 export function toRgba(rgba: RGBA): string {

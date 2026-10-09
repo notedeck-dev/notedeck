@@ -295,7 +295,7 @@ onMounted(loadFlash)
         <div v-if="!running" :class="$style.startedActions">
           <div :class="$style.actionsRow">
             <button class="_button" :class="$style.actionBtn" :title="i18n.ts._common.reload" @click="reload">
-              <i class="ti ti-reload" />
+              <i class="ti ti-refresh" />
             </button>
           </div>
           <div v-if="flash" :class="$style.actionsRow">
@@ -355,7 +355,7 @@ onMounted(loadFlash)
   border-radius: var(--nd-radius-sm);
   background: var(--nd-love-subtle);
   color: var(--nd-love);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   white-space: pre-wrap;
 }
 
@@ -366,19 +366,19 @@ onMounted(loadFlash)
   gap: 12px;
   padding: 28px 20px;
   margin: 12px;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   background: var(--nd-panel);
 }
 
 .readyTitle {
-  font-size: 1.2em;
-  font-weight: bold;
+  font-size: var(--nd-font-xl);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   text-align: center;
 }
 
 .readySummary {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   text-align: center;
   opacity: 0.8;
   white-space: pre-wrap;
@@ -395,7 +395,7 @@ onMounted(loadFlash)
   background: linear-gradient(90deg, var(--nd-accent), color-mix(in srgb, var(--nd-accent), #fff 20%));
   color: #fff;
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   transition: opacity var(--nd-duration-base);
 
   &:hover {
@@ -404,7 +404,7 @@ onMounted(loadFlash)
 }
 
 .readyInfo {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.6;
 }
 
@@ -424,7 +424,7 @@ onMounted(loadFlash)
   border-radius: var(--nd-radius-sm);
   background: var(--nd-panel);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   align-self: center;
   width: min(360px, 90%);
   transition: background var(--nd-duration-base);
@@ -462,7 +462,7 @@ onMounted(loadFlash)
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
 }
 
@@ -473,7 +473,7 @@ onMounted(loadFlash)
 }
 
 .dates {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
   display: flex;
   flex-direction: column;
@@ -490,7 +490,7 @@ onMounted(loadFlash)
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   font-family: var(--nd-font-mono);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   line-height: 1.6;
 }
 
@@ -539,7 +539,7 @@ onMounted(loadFlash)
   border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   transition: background var(--nd-duration-base);
 
   &:hover {

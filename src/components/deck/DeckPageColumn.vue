@@ -193,13 +193,13 @@ function switchTab(tab: string) {
 }
 
 .pageCardTitle {
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .pageCardSummary {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -211,7 +211,7 @@ function switchTab(tab: string) {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 }
 

@@ -1012,6 +1012,7 @@ onUnmounted(() => {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .editor {
   display: flex;
@@ -1029,9 +1030,9 @@ onUnmounted(() => {
 }
 
 .headerBadge {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   padding: 0 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   line-height: 1.6;
   flex-shrink: 0;
@@ -1072,8 +1073,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
@@ -1085,7 +1086,7 @@ onUnmounted(() => {
 
 .chevron {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .sectionBody {
@@ -1096,25 +1097,14 @@ onUnmounted(() => {
 }
 
 .sectionValue {
-  font-weight: normal;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-regular);
+  font-size: var(--nd-font-body);
   opacity: 0.8;
 }
 
 .nameInput {
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.85em;
-  font-weight: bold;
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
+  @include input-base;
+  font-weight: var(--nd-weight-bold);
 }
 
 .baseToggle {
@@ -1129,8 +1119,8 @@ onUnmounted(() => {
   flex: 1;
   padding: 6px 10px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.5;
   background: var(--nd-buttonBg);
@@ -1163,7 +1153,7 @@ onUnmounted(() => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   text-align: left;
   transition: border-color var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -1175,7 +1165,7 @@ onUnmounted(() => {
 .dropdownChevron {
   margin-left: auto;
   opacity: 0.4;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .dropdownPanel {
@@ -1190,7 +1180,7 @@ onUnmounted(() => {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-panel);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--nd-shadow-m);
 }
 
 .dropdownSearch {
@@ -1207,7 +1197,7 @@ onUnmounted(() => {
 
 .searchIcon {
   opacity: 0.4;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   flex-shrink: 0;
 }
 
@@ -1216,7 +1206,7 @@ onUnmounted(() => {
   border: none;
   background: transparent;
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   outline: none;
 
   &::placeholder {
@@ -1230,8 +1220,8 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
-  font-size: 0.8em;
+  padding: 8px 10px;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-align: left;
   cursor: pointer;
@@ -1255,7 +1245,7 @@ onUnmounted(() => {
 }
 
 .dropdownItemBadge {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
   flex-shrink: 0;
 }
@@ -1280,7 +1270,7 @@ onUnmounted(() => {
 
 .dropdownEmpty {
   padding: 12px 10px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.4;
   text-align: center;
 }
@@ -1288,7 +1278,7 @@ onUnmounted(() => {
 .themeSwatch {
   width: 16px;
   height: 16px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   border: 1px solid var(--nd-divider);
   flex-shrink: 0;
 }
@@ -1331,13 +1321,13 @@ onUnmounted(() => {
 }
 
 .propLabelText {
-  font-size: 0.8em;
-  font-weight: 500;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-medium);
 }
 
 .propKey {
   font-family: var(--nd-font-mono);
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.4;
 }
 
@@ -1383,21 +1373,12 @@ onUnmounted(() => {
 }
 
 .propValueInput {
+  @include input-base;
   flex: 1;
   min-width: 0;
-  padding: 3px 6px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
+  padding: 4px 6px;
   font-family: var(--nd-font-mono);
-  font-size: 0.75em;
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
+  font-size: var(--nd-font-xs);
 
   &.expression {
     color: var(--nd-accent);
@@ -1406,7 +1387,7 @@ onUnmounted(() => {
 
 .resolvedHex {
   font-family: var(--nd-font-mono);
-  font-size: 0.65em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.4;
   flex-shrink: 0;
   white-space: nowrap;
@@ -1452,7 +1433,7 @@ onUnmounted(() => {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, var(--nd-bg));
   color: var(--nd-love);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   word-break: break-all;
 }
 

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import MkEmoji from '@/components/common/MkEmoji.vue'
-import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
@@ -56,7 +56,7 @@ function resolveCustomUrl(key: string): string | null {
 
 <template>
   <div :class="$style.root">
-    <AiSwitchRow
+    <FormSwitchRow
       :label="i18n.ts._emojiMuteSection.hideMutedUserReactions"
       :sub-label="i18n.ts._emojiMuteSection.hideMutedUserReactionsDescription"
       icon="ti-eye-off"
@@ -115,6 +115,7 @@ function resolveCustomUrl(key: string): string | null {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .root {
   display: flex;
   flex-direction: column;
@@ -134,8 +135,8 @@ function resolveCustomUrl(key: string): string | null {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   padding: 4px 2px 0;
   cursor: pointer;
@@ -143,14 +144,14 @@ function resolveCustomUrl(key: string): string | null {
 }
 
 .countBadge {
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
   opacity: 0.7;
 }
 
 .empty {
   margin: 0;
   padding: 2px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
 }
 
@@ -161,11 +162,12 @@ function resolveCustomUrl(key: string): string | null {
 }
 
 .item {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   text-align: left;
 
   &:hover {
@@ -183,7 +185,7 @@ function resolveCustomUrl(key: string): string | null {
 .itemKey {
   flex: 1;
   min-width: 0;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

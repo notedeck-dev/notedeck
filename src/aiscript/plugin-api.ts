@@ -244,7 +244,7 @@ function createPluginSpecificEnv(
       // AiScript のエラー文は 2 行目以降にスタックが付く。toast は要点だけ
       // 見せ、全文は runLog で追う
       const [firstLine] = message.split('\n', 1)
-      useToast().show(`${plugin.name}: ${firstLine}`, 'error')
+      useToast().show(firstLine ?? message, 'error', { source: plugin.name })
     }
   }
 

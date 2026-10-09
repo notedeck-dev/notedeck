@@ -94,7 +94,7 @@ const { navigateToNote } = useNavigation()
   align-items: center;
   gap: 6px;
   padding: 10px 16px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-accent);
   opacity: 0.8;
   transition: opacity var(--nd-duration-base);

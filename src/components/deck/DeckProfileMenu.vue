@@ -25,7 +25,7 @@ const windowsStore = useWindowsStore()
 
 const { visible: menuVisible, leaving: menuLeaving } = useVaporTransition(
   toRef(props, 'show'),
-  { enterDuration: 180, leaveDuration: 180 },
+  { enterDuration: 180, leaveDuration: 200 },
 )
 
 const profiles = computed(() => profileStore.getProfiles())
@@ -36,7 +36,7 @@ useNativeDialog(
   computed(() => menuVisible.value),
   {
     onCancel: () => emit('close'),
-    leaveDuration: 180,
+    leaveDuration: 200,
   },
 )
 
@@ -121,7 +121,7 @@ function openEditor(id: string) {
             :title="i18n.ts._deckProfileMenu.openInEditor"
             @click.stop="openEditor(p.id)"
           >
-            <i class="ti ti-pencil" />
+            <i class="ti ti-edit" />
           </button>
           <button
             class="_button"
@@ -149,14 +149,15 @@ function openEditor(id: string) {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use '@/styles/navMenu';
 
 .profileMenu {
   width: 100%;
   margin: 0;
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
   background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-sheet);
   padding: 4px 0 calc(4px + var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
   // プロファイル切替は IDE 面なので等幅フォント (#1085)
   font-family: var(--nd-font-mono);
@@ -178,7 +179,7 @@ function openEditor(id: string) {
   padding: 8px 12px;
   min-height: 44px;
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 20px;
   color: var(--nd-fg);
   position: relative;
@@ -199,7 +200,7 @@ function openEditor(id: string) {
 
 .active {
   color: var(--nd-accent);
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 
   &::before {
     background: var(--nd-accent-subtle);
@@ -230,7 +231,7 @@ function openEditor(id: string) {
 
 .deleteAction {
   &:hover {
-    color: var(--nd-love, #ff6b6b);
+    color: var(--nd-love);
   }
 }
 
@@ -242,13 +243,14 @@ function openEditor(id: string) {
 
 .empty {
   padding: 16px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.4;
   text-align: center;
 }
 
 .newItem {
+  @include nd-interactive;
   opacity: 0.7;
   min-height: 44px;
   gap: 12px;

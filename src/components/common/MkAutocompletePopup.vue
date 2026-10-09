@@ -15,6 +15,8 @@ const props = defineProps<{
   isSearching: boolean
   /** caret 追従位置 (親要素座標系 px)。null なら従来のテキストエリア直下 */
   position?: { left: number; top: number } | null
+  /** 退場中 (閉じた後のフェード) */
+  leaving?: boolean
 }>()
 
 // キーボード選択が可視域外に出たら追従スクロール (#753)
@@ -48,7 +50,11 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 
 <template>
   <div
-    :class="[$style.autocompletePopup, { [$style.floating]: !!position }]"
+    :class="[
+      $style.autocompletePopup,
+      leaving ? $style.hoverLeave : $style.hoverEnter,
+      { [$style.floating]: !!position },
+    ]"
     :style="position ? { left: `${position.left}px`, top: `${position.top}px` } : undefined"
     class="_popup"
     @click.stop
@@ -101,6 +107,8 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/popup';
+
 .autocompletePopup {
   position: absolute;
   top: 100%;
@@ -112,7 +120,6 @@ function candidateKey(candidate: AutocompleteCandidate): string {
   overflow-y: auto;
   padding: 4px;
   contain: paint;
-  animation: acPopupIn 0.1s ease-out;
 
   // caret 追従時 (#753): left/top は inline style、幅は固定
   &.floating {
@@ -123,10 +130,6 @@ function candidateKey(candidate: AutocompleteCandidate): string {
   }
 }
 
-@keyframes acPopupIn {
-  from { opacity: 0; }
-}
-
 .autocompleteItem {
   display: flex;
   align-items: center;
@@ -134,12 +137,12 @@ function candidateKey(candidate: AutocompleteCandidate): string {
   width: 100%;
   padding: 6px 8px;
   border-radius: var(--nd-radius-md);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: left;
 
   &:hover,
   &.selected {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.1));
+    background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   }
 }
 
@@ -166,14 +169,14 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 }
 
 .acUserName {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .acUserAcct {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -204,7 +207,7 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 .autocompleteStatus {
   padding: 12px;
   text-align: center;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
 }
 </style>

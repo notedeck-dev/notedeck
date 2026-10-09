@@ -4,8 +4,11 @@ import {
   defineAsyncComponent,
   nextTick,
   onMounted,
+  type Ref,
   ref,
+  shallowRef,
   watch,
+  watchEffect,
 } from 'vue'
 import type { NormalizedDriveFile, NormalizedNote } from '@/adapters/types'
 import {
@@ -13,7 +16,12 @@ import {
   type PluginHandler,
   withPluginAccountContext,
 } from '@/aiscript/plugin-api'
-import { useAutocomplete } from '@/composables/useAutocomplete'
+import FormSwitch from '@/components/common/form/FormSwitch.vue'
+import {
+  type AutocompleteCandidate,
+  type TriggerType,
+  useAutocomplete,
+} from '@/composables/useAutocomplete'
 import type { StoredDraft } from '@/composables/useDrafts'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import type { StoredMemo } from '@/composables/useMemos'
@@ -21,6 +29,10 @@ import { useMfmInsert } from '@/composables/useMfmInsert'
 import { usePopupControl } from '@/composables/usePopupControl'
 import { usePostFormState } from '@/composables/usePostFormState'
 import { useScheduleDialog } from '@/composables/useScheduleDialog'
+import {
+  useVaporTransition,
+  useVaporTransitionSwitch,
+} from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import {
   getAccountAvatarUrl,
@@ -373,6 +385,36 @@ function toggleMfmMenu() {
   popups.closeOthers(showMfmMenu)
 }
 
+// --- 開閉のアニメ ---
+// 退場の時間は _popup.scss の menuLeave / panelLeave / hoverLeave
+// (--nd-duration-base) と同じ
+const POPUP_LEAVE_MS = 150
+const menuT = (show: Ref<boolean>) =>
+  useVaporTransition(show, { leaveDuration: POPUP_LEAVE_MS })
+const accountMenuT = menuT(
+  computed(() => showAccountMenu.value && accounts.value.length > 1),
+)
+const visibilityMenuT = menuT(showVisibilityMenu)
+const moreMenuT = menuT(showMoreMenu)
+const mfmMenuT = menuT(showMfmMenu)
+const pluginActionsMenuT = menuT(showPluginActionsMenu)
+
+// フォームの下に開くピッカーは文書の流れの中にあるので、2 つ並べて
+// 入れ替えると高さが段差で変わる。1 枠として、閉じてから次を出す
+const belowPanel = computed<'drafts' | 'drive' | 'buttons' | 'emoji' | null>(
+  () => {
+    if (showDraftsPicker.value) return 'drafts'
+    if (showDrivePicker.value) return 'drive'
+    if (showPostFormButtonsPicker.value) return 'buttons'
+    if (showEmojiPopup.value && account.value) return 'emoji'
+    return null
+  },
+)
+const belowPanelT = useVaporTransitionSwitch(belowPanel, {
+  leaveDuration: POPUP_LEAVE_MS,
+  immediateFromEmpty: true,
+})
+
 /** アカウントアバターに重ねるサーバー favicon URL を解決する。 */
 function resolveAccountServerIcon(host: string): string {
   return (
@@ -397,6 +439,30 @@ const {
   confirmSelection: acConfirmSelection,
   dismiss: acDismiss,
 } = useAutocomplete(text, textareaRef, activeAccountId, serverHost)
+
+// 補完候補は閉じた瞬間に候補が空になるので、退場の間は直前の中身を出す
+const acOpen = computed(
+  () => !!autocompleteState.value && acCandidates.value.length > 0,
+)
+const acT = useVaporTransition(acOpen, { leaveDuration: POPUP_LEAVE_MS })
+const acShown = shallowRef<{
+  type: TriggerType
+  candidates: AutocompleteCandidate[]
+  selectedIndex: number
+  isSearching: boolean
+  position: { left: number; top: number } | null
+} | null>(null)
+watchEffect(() => {
+  const st = autocompleteState.value
+  if (!acOpen.value || !st) return
+  acShown.value = {
+    type: st.type,
+    candidates: acCandidates.value,
+    selectedIndex: st.selectedIndex,
+    isSearching: acSearching.value,
+    position: acPopupPosition.value,
+  }
+})
 
 // --- File attach (drive picker) ---
 function toggleDrivePicker() {
@@ -565,7 +631,7 @@ function onPaste(e: ClipboardEvent) {
                 />
               </span>
             </button>
-            <div v-if="showAccountMenu && accounts.length > 1" :class="$style.accountMenu">
+            <div v-if="accountMenuT.visible.value" :class="[$style.accountMenu, accountMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]">
               <button
                 v-for="acc in accounts"
                 :key="acc.id"
@@ -630,7 +696,7 @@ function onPaste(e: ClipboardEvent) {
               </svg>
               <span :class="$style.headerBtnText">{{ currentVisibility.label }}</span>
             </button>
-            <div v-if="showVisibilityMenu" :class="$style.visibilityMenu">
+            <div v-if="visibilityMenuT.visible.value" :class="[$style.visibilityMenu, visibilityMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]">
               <button
                 v-for="opt in visibilityOptions"
                 :key="opt.value"
@@ -675,43 +741,43 @@ function onPaste(e: ClipboardEvent) {
             >
               <i class="ti ti-dots" />
             </button>
-            <div v-if="showMoreMenu" :class="$style.moreMenu" @click.stop>
+            <div v-if="moreMenuT.visible.value" :class="[$style.moreMenu, moreMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]" @click.stop>
               <!-- Preview toggle (memo はノートではないので出さない #1018) -->
               <div
                 v-if="!memoMode"
                 :class="$style.moreMenuItem"
                 role="switch"
+                tabindex="0"
                 :aria-checked="showPreview"
                 @click="showPreview = !showPreview"
+                @keydown.enter.prevent="showPreview = !showPreview"
+                @keydown.space.prevent="showPreview = !showPreview"
               >
                 <i class="ti ti-eye" />
                 {{ i18n.ts._mkPostForm.preview }}
-                <span
-                  class="nd-toggle-switch"
-                  :class="{ on: showPreview }"
-                  :style="{ marginLeft: 'auto' }"
-                  aria-hidden="true"
-                >
-                  <span class="nd-toggle-switch-knob" />
-                </span>
+                <FormSwitch
+                  :model-value="showPreview"
+                  :class="$style.moreMenuSwitch"
+                  decorative
+                />
               </div>
               <!-- Auto-save toggle (memoMode: memos, else: drafts) -->
               <div
                 :class="$style.moreMenuItem"
                 role="switch"
+                tabindex="0"
                 :aria-checked="autoSaveEnabled"
                 @click="autoSaveEnabled = !autoSaveEnabled"
+                @keydown.enter.prevent="autoSaveEnabled = !autoSaveEnabled"
+                @keydown.space.prevent="autoSaveEnabled = !autoSaveEnabled"
               >
                 <i class="ti ti-device-floppy" />
                 {{ autoSaveLabel }}
-                <span
-                  class="nd-toggle-switch"
-                  :class="{ on: autoSaveEnabled }"
-                  :style="{ marginLeft: 'auto' }"
-                  aria-hidden="true"
-                >
-                  <span class="nd-toggle-switch-knob" />
-                </span>
+                <FormSwitch
+                  :model-value="autoSaveEnabled"
+                  :class="$style.moreMenuSwitch"
+                  decorative
+                />
               </div>
               <!-- Remember visibility toggle。inline (メモ) は公開範囲
                    ピッカー自体を出さないので、記憶する対象が無い (#1018) -->
@@ -719,19 +785,19 @@ function onPaste(e: ClipboardEvent) {
                 v-if="!inline"
                 :class="$style.moreMenuItem"
                 role="switch"
+                tabindex="0"
                 :aria-checked="rememberVisibilityEnabled"
                 @click="rememberVisibilityEnabled = !rememberVisibilityEnabled"
+                @keydown.enter.prevent="rememberVisibilityEnabled = !rememberVisibilityEnabled"
+                @keydown.space.prevent="rememberVisibilityEnabled = !rememberVisibilityEnabled"
               >
                 <i class="ti ti-bookmark" />
                 {{ i18n.ts._mkPostForm.rememberVisibility }}
-                <span
-                  class="nd-toggle-switch"
-                  :class="{ on: rememberVisibilityEnabled }"
-                  :style="{ marginLeft: 'auto' }"
-                  aria-hidden="true"
-                >
-                  <span class="nd-toggle-switch-knob" />
-                </span>
+                <FormSwitch
+                  :model-value="rememberVisibilityEnabled"
+                  :class="$style.moreMenuSwitch"
+                  decorative
+                />
               </div>
               <!-- Schedule (only if server supports it). ボタンでダイアログを開く。
                    Misskey 本家と同様 native datetime-local をダイアログ内に表示 -->
@@ -876,12 +942,13 @@ function onPaste(e: ClipboardEvent) {
           @click.stop
         />
         <MkAutocompletePopup
-          v-if="autocompleteState && acCandidates.length > 0"
-          :type="autocompleteState.type"
-          :candidates="acCandidates"
-          :selected-index="autocompleteState.selectedIndex"
-          :is-searching="acSearching"
-          :position="acPopupPosition"
+          v-if="acT.visible.value && acShown"
+          :type="acShown.type"
+          :candidates="acShown.candidates"
+          :selected-index="acShown.selectedIndex"
+          :is-searching="acShown.isSearching"
+          :position="acShown.position"
+          :leaving="acT.leaving.value"
           @select="acConfirmSelection"
         />
         <!-- 残り文字数はサーバーの上限 (maxNoteTextLength) 由来。メモは
@@ -1033,7 +1100,7 @@ function onPaste(e: ClipboardEvent) {
               <button class="_button" :class="$style.footerBtn" title="MFM" @click.stop="toggleMfmMenu">
                 <i class="ti ti-palette" />
               </button>
-              <div v-if="showMfmMenu" :class="[$style.footerPopup, $style.mfmMenu]" @click.stop>
+              <div v-if="mfmMenuT.visible.value" :class="[$style.footerPopup, $style.mfmMenu, mfmMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]" @click.stop>
                 <button
                   v-for="fn in mfmFunctions"
                   :key="fn.label"
@@ -1074,7 +1141,7 @@ function onPaste(e: ClipboardEvent) {
             <button class="_button" :class="$style.footerBtn" :title="i18n.ts._mkPostForm.plugins" @click.stop="togglePluginActionsMenu">
               <i class="ti ti-plug" />
             </button>
-            <div v-if="showPluginActionsMenu" :class="[$style.footerPopup, $style.mfmMenu]" @click.stop>
+            <div v-if="pluginActionsMenuT.visible.value" :class="[$style.footerPopup, $style.mfmMenu, pluginActionsMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]" @click.stop>
               <button
                 v-for="action in postFormActions"
                 :key="action.pluginInstallId + action.title"
@@ -1104,7 +1171,8 @@ function onPaste(e: ClipboardEvent) {
 
     <!-- Drafts picker (below post form, mock server-side drafts API) -->
     <MkDraftsPicker
-      v-if="showDraftsPicker"
+      v-if="belowPanelT.displayed.value === 'drafts'"
+      :class="belowPanelT.leaving.value ? $style.panelLeave : $style.panelEnter"
       :account-id="activeAccountId!"
       :supports-scheduled-notes="supportsScheduledNotes"
       @pick="onDraftPicked"
@@ -1113,7 +1181,8 @@ function onPaste(e: ClipboardEvent) {
 
     <!-- Drive picker (below post form) -->
     <MkDrivePicker
-      v-if="showDrivePicker"
+      v-else-if="belowPanelT.displayed.value === 'drive'"
+      :class="belowPanelT.leaving.value ? $style.panelLeave : $style.panelEnter"
       :account-id="activeAccountId!"
       @pick="onDriveFilesPicked"
       @close="showDrivePicker = false"
@@ -1121,13 +1190,19 @@ function onPaste(e: ClipboardEvent) {
 
     <!-- Post form buttons picker (below post form) -->
     <MkPostFormButtonsPicker
-      v-if="showPostFormButtonsPicker"
+      v-else-if="belowPanelT.displayed.value === 'buttons'"
+      :class="belowPanelT.leaving.value ? $style.panelLeave : $style.panelEnter"
       :style="formThemeVars"
       @close="showPostFormButtonsPicker = false"
     />
 
     <!-- Emoji picker (below post form) -->
-    <div v-if="showEmojiPopup && account" :class="$style.emojiPickerPanel" :style="formThemeVars" @click.stop>
+    <div
+      v-else-if="belowPanelT.displayed.value === 'emoji' && account"
+      :class="[$style.emojiPickerPanel, belowPanelT.leaving.value ? $style.panelLeave : $style.panelEnter]"
+      :style="formThemeVars"
+      @click.stop
+    >
       <div :class="$style.emojiPickerHeader">
         <span :class="$style.emojiPickerTitle">
           <i class="ti ti-mood-happy" />
@@ -1210,6 +1285,7 @@ function onPaste(e: ClipboardEvent) {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/popup';
 
 .postOverlay {
   position: fixed;
@@ -1221,7 +1297,7 @@ function onPaste(e: ClipboardEvent) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: calc(var(--nd-app-inset-top, 0px) + 12px);
+  padding-top: calc(var(--nd-app-inset-top) + 12px);
   background: var(--nd-modalBg);
   overflow-y: auto;
 }
@@ -1232,8 +1308,8 @@ function onPaste(e: ClipboardEvent) {
 
 .postForm {
   background: var(--nd-popup);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  border-radius: var(--nd-radius-sheet);
+  box-shadow: var(--nd-shadow-l);
   width: 100%;
   max-width: 520px;
   margin: 16px;
@@ -1258,11 +1334,11 @@ function onPaste(e: ClipboardEvent) {
 
     .headerRight {
       min-height: 36px;
-      font-size: 0.85em;
+      font-size: var(--nd-font-md);
     }
 
     .headerBtn {
-      padding: 5px;
+      padding: 6px;
     }
 
     .headerBtnText {
@@ -1272,7 +1348,7 @@ function onPaste(e: ClipboardEvent) {
     .textArea {
       min-height: 42px;
       padding: 0 12px;
-      font-size: 0.95em;
+      font-size: var(--nd-font-body);
       field-sizing: content;
 
       &::placeholder {
@@ -1282,7 +1358,7 @@ function onPaste(e: ClipboardEvent) {
 
     .cwInput {
       padding: 6px 12px;
-      font-size: 0.95em;
+      font-size: var(--nd-font-body);
 
       &::placeholder {
         font-size: 1em;
@@ -1291,7 +1367,7 @@ function onPaste(e: ClipboardEvent) {
 
     .footer {
       padding: 0 4px 4px;
-      font-size: 0.9em;
+      font-size: var(--nd-font-body);
     }
 
     .footerLeft {
@@ -1308,7 +1384,7 @@ function onPaste(e: ClipboardEvent) {
       margin: 6px 6px 6px 4px;
       padding: 0 10px;
       line-height: 30px;
-      font-size: 0.85em;
+      font-size: var(--nd-font-md);
       min-width: 70px;
     }
 
@@ -1327,12 +1403,12 @@ function onPaste(e: ClipboardEvent) {
 
     .replyPreview {
       padding: 8px 12px;
-      font-size: 0.85em;
+      font-size: var(--nd-font-md);
     }
 
     .postError {
       padding: 4px 12px;
-      font-size: 0.8em;
+      font-size: var(--nd-font-sm);
     }
   }
 }
@@ -1358,7 +1434,7 @@ function onPaste(e: ClipboardEvent) {
 .headerRight {
   display: flex;
   min-height: 48px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   flex-wrap: nowrap;
   align-items: center;
   margin-left: auto;
@@ -1382,7 +1458,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -1407,7 +1483,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -1446,7 +1522,7 @@ function onPaste(e: ClipboardEvent) {
   padding: 4px;
   margin-top: 4px;
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-m);
 }
 
@@ -1461,7 +1537,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1509,15 +1585,15 @@ function onPaste(e: ClipboardEvent) {
 }
 
 .accountOptionName {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .accountOptionHost {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1533,7 +1609,7 @@ function onPaste(e: ClipboardEvent) {
   margin: 12px 12px 12px 6px;
   padding: 0 12px;
   line-height: 34px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   font-family: inherit;
   border: none;
   border-radius: var(--nd-radius-sm);
@@ -1580,7 +1656,7 @@ function onPaste(e: ClipboardEvent) {
   padding: 4px;
   margin-top: 4px;
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-m);
 }
 
@@ -1590,18 +1666,18 @@ function onPaste(e: ClipboardEvent) {
   gap: 8px;
   width: 100%;
   padding: 8px 12px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
     color: var(--nd-accent);
-    font-weight: bold;
+    font-weight: var(--nd-weight-bold);
   }
 
   &:disabled {
@@ -1631,8 +1707,13 @@ function onPaste(e: ClipboardEvent) {
   padding: 4px;
   margin-top: 4px;
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-m);
+}
+
+// スイッチは行の右端に寄せる (操作と読み上げは行の role="switch" が持つ)
+.moreMenuSwitch {
+  margin-left: auto;
 }
 
 .moreMenuItem {
@@ -1641,7 +1722,7 @@ function onPaste(e: ClipboardEvent) {
   gap: 8px;
   width: 100%;
   padding: 8px 12px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   cursor: pointer;
@@ -1649,7 +1730,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1665,7 +1746,7 @@ function onPaste(e: ClipboardEvent) {
 
 .moreMenuScheduleBadge {
   margin-left: auto;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.7;
 }
 
@@ -1677,7 +1758,7 @@ function onPaste(e: ClipboardEvent) {
 
 .scheduleTitle {
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
 }
 
@@ -1698,7 +1779,7 @@ function onPaste(e: ClipboardEvent) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   font-family: inherit;
   outline: none;
   box-sizing: border-box;
@@ -1734,7 +1815,7 @@ function onPaste(e: ClipboardEvent) {
 .replyPreview {
   display: flex;
   padding: 12px 20px 16px;
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   gap: 10px;
 }
 
@@ -1762,13 +1843,13 @@ function onPaste(e: ClipboardEvent) {
 }
 
 .replyUser {
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fgHighlighted);
 }
 
 .replyHandle {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
   margin-left: 4px;
 }
@@ -1788,7 +1869,7 @@ function onPaste(e: ClipboardEvent) {
   align-items: center;
   gap: 6px;
   padding: 8px 24px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-accent);
 }
 
@@ -1861,14 +1942,14 @@ function onPaste(e: ClipboardEvent) {
   text-align: center;
   color: var(--nd-fg);
   opacity: 0.35;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 /* ── Error ── */
 .postError {
   padding: 8px 24px;
   color: var(--nd-error);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 /* ── Text count (overlaid on textarea) ── */
@@ -1877,7 +1958,7 @@ function onPaste(e: ClipboardEvent) {
   top: 0;
   right: 2px;
   padding: 4px 6px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   opacity: 0.4;
   border-radius: var(--nd-radius-sm);
@@ -1885,7 +1966,7 @@ function onPaste(e: ClipboardEvent) {
   text-align: center;
 
   &.near {
-    color: var(--nd-warn, #ecb637);
+    color: var(--nd-warn);
     opacity: 1;
   }
 
@@ -1931,7 +2012,7 @@ function onPaste(e: ClipboardEvent) {
   justify-content: center;
   padding: 0;
   margin: 0;
-  font-size: 1.15em;
+  font-size: var(--nd-font-lg);
   width: 100%;
   height: 100%;
   border-radius: var(--nd-radius-sm);
@@ -1939,7 +2020,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base), color var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1952,11 +2033,12 @@ function onPaste(e: ClipboardEvent) {
   position: absolute;
   top: 100%;
   left: 50%;
-  transform: translateX(-50%);
+  /* 開閉アニメの transform と打ち消し合わないよう translate で中央に寄せる */
+  translate: -50% 0;
   z-index: 20;
   margin-top: 8px;
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-m);
 }
 
@@ -1975,14 +2057,14 @@ function onPaste(e: ClipboardEvent) {
   display: block;
   width: 100%;
   padding: 6px 10px;
-  font-size: 0.82em;
+  font-size: var(--nd-font-sm);
   text-align: left;
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -1995,17 +2077,17 @@ function onPaste(e: ClipboardEvent) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 6px 3px 10px;
+  padding: 4px 6px 4px 10px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
-  font-size: 0.82em;
+  font-size: var(--nd-font-sm);
   font-variant-numeric: tabular-nums;
   backdrop-filter: blur(8px);
 }
 
 .scheduleIndicatorRel {
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
 }
 
 .scheduleIndicatorAbs {
@@ -2025,14 +2107,14 @@ function onPaste(e: ClipboardEvent) {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.5;
   margin-left: 2px;
 
   &:hover {
     opacity: 1;
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -2071,7 +2153,7 @@ function onPaste(e: ClipboardEvent) {
 
 @container (max-width: 350px) {
   .footer {
-    font-size: 0.9em;
+    font-size: var(--nd-font-body);
   }
 
   .footerLeft {
@@ -2092,9 +2174,9 @@ function onPaste(e: ClipboardEvent) {
   max-height: min(60vh, 520px);
   margin: 0 16px 16px;
   background: var(--nd-panelBg, var(--nd-popup));
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   overflow: hidden;
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
 }
 
 .emojiPickerHeader {
@@ -2109,8 +2191,8 @@ function onPaste(e: ClipboardEvent) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   flex: 1;
 }
 
@@ -2157,10 +2239,10 @@ function onPaste(e: ClipboardEvent) {
     width: 100%;
     max-width: 100%;
     max-height: 50vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
     margin: 0;
     z-index: 100;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--nd-shadow-sheet);
     padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   }
 }

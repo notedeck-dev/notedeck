@@ -5,6 +5,18 @@
   src: url("@tabler/icons-webfont/dist/fonts/tabler-icons.woff2") format("woff2");
 }
 
+/* フォント読み込み前 (swap の代替フォント表示中) はアイコンの私用領域の文字が
+   代替フォントの幅で並び、読み込まれた瞬間に周りの文字がずれる。tabler の
+   全グリフは送り幅 1em (units-per-em 1000 / horiz-adv-x 1000) なので、1em の
+   箱を先に取っておけば読み込み後の見た目は変わらない。
+   :where で詳細度 0 にする。App.vue 配下のコンポーネント CSS はこのファイル
+   より前に並ぶので、同じ詳細度だと各所の display / width 指定を上書きしてしまう */
+:where(.ti) {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+}
+
 :root {
   /* Fallback: Mi Dark Theme (overridden by JS theme engine) */
   --nd-accent: #86b300;
@@ -178,6 +190,8 @@
   --nd-shadow-l:
     0 4px 8px var(--nd-shadow-contact),
     0 12px 28px color-mix(in srgb, var(--nd-shadow-ambient) 120%, transparent);
+  /* 画面下から出るボトムシートの上向きの影 */
+  --nd-shadow-sheet: 0 -4px 24px rgba(0, 0, 0, 0.3);
   /* 等幅フォント (#872) — コード/JSON/エディタ系はすべてこの 1 変数を参照する。
      カスタム CSS の「等幅フォント」プリセットが :root ごと上書きする */
   --nd-font-mono: 'Fira Code', 'Cascadia Code', Consolas, ui-monospace,
@@ -188,10 +202,28 @@
     'Hiragino Sans', 'Hiragino Maru Gothic Pro', 'BIZ UDGothic',
     Roboto, HelveticaNeue, Arial, sans-serif;
   /* Non-theme layout constants */
-  --nd-radius: 12px;
+  /* Radius: xs 小物 (チップ・kbd) / sm ボタン・入力 / md カード・メニュー /
+     lg カラムの面 / (無印) ウィンドウ・ポップアップ / sheet ボトムシート上端 */
+  --nd-radius-xs: 4px;
   --nd-radius-sm: 6px;
   --nd-radius-md: 8px;
+  --nd-radius-lg: 10px;
+  --nd-radius: 12px;
+  --nd-radius-sheet: 16px;
   --nd-radius-full: 999px;
+  /* Typography (#704 B): 周囲の文字に対する相対値 (em)。本文は html の 14px。
+     直書きの em はこの段に寄せる。px は固定寸法の部品 (アイコン・IDE 面) 用 */
+  --nd-font-2xs: 0.7em;
+  --nd-font-xs: 0.75em;
+  --nd-font-sm: 0.8em;
+  --nd-font-md: 0.85em;
+  --nd-font-body: 0.9em;
+  --nd-font-lg: 1.1em;
+  --nd-font-xl: 1.2em;
+  --nd-font-2xl: 1.5em;
+  --nd-weight-regular: 400;
+  --nd-weight-medium: 500;
+  --nd-weight-bold: 700;
   --nd-margin: 10px;
   --nd-nav-resize-handle: 6px;
   --nd-columnGap: 6px;
@@ -202,6 +234,7 @@
      Apple pattern: enter slightly longer than leave for natural weight */
   --nd-duration-fast: 0.1s;
   --nd-duration-base: 0.15s;
+  --nd-duration-medium: 0.2s;
   --nd-duration-slow: 0.28s;
   --nd-duration-slower: 0.38s;
   --nd-duration-tl-enter: 0.5s; /* Timeline note insertion — Misskey uses 0.7s */
@@ -415,13 +448,13 @@ summary,
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 22px;
+  padding: 8px 22px;
   border: none;
   border-radius: 0;
   background: none;
   cursor: pointer;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: left;
   transition: background var(--nd-duration-base), transform var(--nd-duration-fast) var(--nd-ease-spring);
 }
@@ -512,8 +545,8 @@ summary,
 }
 
 ._popupHeaderTitle {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -521,7 +554,7 @@ summary,
 }
 
 ._popupHeaderSub {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -529,9 +562,9 @@ summary,
 }
 
 ._popupConfirmText {
-  padding: 7px 22px;
-  font-size: 0.85em;
-  font-weight: bold;
+  padding: 8px 22px;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
 }
 
@@ -543,10 +576,10 @@ summary,
   width: 100%;
   padding: 8px;
   border: 1px solid var(--nd-divider);
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   resize: vertical;
 }
 
@@ -594,7 +627,7 @@ dialog._nativeDialog[open] {
   width: 300px;
   max-width: 90vw;
   background: var(--nd-panel, var(--nd-bg));
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-l);
   overflow: hidden;
 }
@@ -651,14 +684,14 @@ dialog._nativeDialog[open] {
 ._buttonPrimary {
   appearance: none;
   display: inline-block;
-  padding: 7px 14px;
+  padding: 8px 14px;
   margin: 0;
   border: none;
-  border-radius: 5px;
+  border-radius: var(--nd-radius-xs);
   cursor: pointer;
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   font-size: 95%;
   font-family: inherit;
   line-height: inherit;
@@ -668,12 +701,12 @@ dialog._nativeDialog[open] {
 
 @media (hover: hover) {
   ._buttonPrimary:hover:not(:disabled) {
-    background: hsl(from var(--nd-accent) h s calc(l + 5));
+    background: color-mix(in srgb, var(--nd-accent) 88%, white);
   }
 }
 
 ._buttonPrimary:active:not(:disabled) {
-  background: hsl(from var(--nd-accent) h s calc(l - 5));
+  background: var(--nd-accentDarken);
   transform: scale(var(--nd-active-scale));
 }
 
@@ -721,8 +754,8 @@ dialog._nativeDialog[open] {
   gap: 6px;
   background: var(--nd-modalBg);
   color: #fff;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   cursor: pointer;
   z-index: 2;
 }
@@ -747,43 +780,6 @@ dialog._nativeDialog[open] {
   background: var(--nd-scrollbarHandleHover);
 }
 
-/* ---- Toggle switch (shared) ---- */
-
-.nd-toggle-switch {
-  position: relative;
-  width: 40px;
-  height: 22px;
-  border-radius: 11px;
-  background: var(--nd-buttonBg, rgba(255, 255, 255, 0.1));
-  border: none;
-  cursor: pointer;
-  transition: background var(--nd-duration-base);
-  padding: 0;
-  flex-shrink: 0;
-}
-
-.nd-toggle-switch.on {
-  background: var(--nd-accent, #86b300);
-}
-
-.nd-toggle-switch-knob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #fff;
-  transition: translate var(--nd-duration-base) var(--nd-ease-spring);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-
-.nd-toggle-switch.on .nd-toggle-switch-knob {
-  translate: 18px 0;
-}
-
-
 /* ---- Tab slide animation (useTabSlide) ---- */
 
 /*
@@ -800,11 +796,11 @@ dialog._nativeDialog[open] {
 }
 
 .nd-tab-slide-left {
-  animation: nd-tab-slide-left-kf 0.2s var(--nd-ease-spring) both;
+  animation: nd-tab-slide-left-kf var(--nd-duration-medium) var(--nd-ease-spring) both;
 }
 
 .nd-tab-slide-right {
-  animation: nd-tab-slide-right-kf 0.2s var(--nd-ease-spring) both;
+  animation: nd-tab-slide-right-kf var(--nd-duration-medium) var(--nd-ease-spring) both;
 }
 
 /* ---- Swipe follow (useSwipeTab touch tracking) ---- */
@@ -814,7 +810,7 @@ dialog._nativeDialog[open] {
 }
 
 .nd-tab-snap-back > * {
-  transition: translate 0.25s var(--nd-ease-spring);
+  transition: translate var(--nd-duration-slow) var(--nd-ease-spring);
 }
 
 
@@ -868,6 +864,23 @@ dialog._nativeDialog[open] {
 
 .nd-fade-appear {
   animation: nd-fade-in var(--nd-duration-slow) var(--nd-ease-decel) both;
+}
+
+/* メニュー内のサブビュー (削除の確認 / 通報フォーム等) の切替。
+   useVaporTransitionSwitch の leaving と組み、退場は JS の leaveDuration
+   (100ms) と同じ --nd-duration-fast。大きさは補間せず、中身が消えている間に
+   切り替わるようにする */
+@keyframes nd-fade-out {
+  to { opacity: 0; }
+}
+
+.nd-view-enter {
+  animation: nd-fade-in var(--nd-duration-base) var(--nd-ease-decel) both;
+}
+
+.nd-view-leave {
+  animation: nd-fade-out var(--nd-duration-fast) var(--nd-ease-decel) forwards;
+  pointer-events: none;
 }
 
 /* ---- Misskey global animations ---- */

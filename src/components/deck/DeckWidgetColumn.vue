@@ -497,7 +497,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
         <div v-if="installError" :class="$style.storeError">
           <i class="ti ti-alert-circle" />
           {{ installError }}
-          <button class="_button" :class="$style.storeErrorClose" @click="installError = null">
+          <button :aria-label="i18n.ts._common.close" class="_button" :class="$style.storeErrorClose" @click="installError = null">
             <i class="ti ti-x" />
           </button>
         </div>
@@ -557,6 +557,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .wrapper {
   display: flex;
   flex-direction: column;
@@ -574,7 +575,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   color: var(--nd-fg);
   opacity: 0.6;
   transition:
-    background 0.1s,
+    background var(--nd-duration-fast),
     opacity 0.1s;
 
   &:hover {
@@ -597,12 +598,12 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 .widgetItem {
   flex-shrink: 0;
   border: 1px solid var(--nd-divider);
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   background: var(--nd-panel);
   overflow: hidden;
   contain: layout style paint;
   content-visibility: auto;
-  transition: transform 0.12s, opacity 0.12s;
+  transition: transform var(--nd-duration-base), opacity var(--nd-duration-base);
 }
 
 .widgetItemDragging {
@@ -624,13 +625,13 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 16px;
+  padding: 8px 16px;
   border: 1px dashed var(--nd-divider);
   border-radius: var(--nd-radius-md);
   background: none;
   color: var(--nd-fg);
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
   transition: opacity var(--nd-duration-base), border-color var(--nd-duration-base);
 
@@ -681,7 +682,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   height: 26px;
   padding: 0 6px;
   border: 1px solid var(--nd-divider);
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-inputBg, var(--nd-bg));
   color: var(--nd-fg);
   font-size: 12px;
@@ -715,7 +716,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   gap: 6px;
   padding: 8px 12px;
   margin: 6px 10px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   color: var(--nd-love);
   font-size: 12px;
@@ -723,13 +724,14 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 }
 
 .storeErrorClose {
+  @include nd-interactive;
   margin-left: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 18px;
   height: 18px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   opacity: 0.6;
   font-size: 12px;
 
@@ -762,7 +764,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   font-size: 12px;
   margin-top: 4px;
   opacity: 0.8;
-  transition: opacity 0.1s;
+  transition: opacity var(--nd-duration-fast);
 
   &:hover {
     opacity: 1;

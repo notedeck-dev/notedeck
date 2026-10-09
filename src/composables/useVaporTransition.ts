@@ -70,6 +70,11 @@ export function useVaporTransition(
 
 interface VaporTransitionSwitchOptions {
   leaveDuration?: number
+  /**
+   * 何も出していない (null / undefined) ところから出すときは退場を待たない。
+   * 「どのピッカーを開いているか」のように、閉じた状態を null で表す切替用
+   */
+  immediateFromEmpty?: boolean
 }
 
 /**
@@ -83,7 +88,7 @@ export function useVaporTransitionSwitch<T>(
   source: Ref<T>,
   options: VaporTransitionSwitchOptions = {},
 ) {
-  const { leaveDuration = 300 } = options
+  const { leaveDuration = 300, immediateFromEmpty = false } = options
   const displayed = ref(source.value) as Ref<T>
   const leaving = ref(false)
   let timer: ReturnType<typeof setTimeout> | null = null
@@ -92,6 +97,11 @@ export function useVaporTransitionSwitch<T>(
     if (timer != null) {
       clearTimeout(timer)
       timer = null
+    }
+    if (immediateFromEmpty && displayed.value == null) {
+      displayed.value = val
+      leaving.value = false
+      return
     }
     leaving.value = true
     timer = setTimeout(() => {

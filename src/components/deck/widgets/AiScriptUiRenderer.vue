@@ -4,6 +4,7 @@ import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import { type CSSProperties, computed, reactive } from 'vue'
 import type { UiComponent } from '@/aiscript/ui'
 import CollapseBox from '@/components/common/CollapseBox.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 
 export interface PostFormRequest {
@@ -24,6 +25,24 @@ const emit = defineEmits<{
 }>()
 
 const openFolders = reactive<Record<string, boolean>>({})
+
+// select は選んだ値を手元に持つ (default を据え置いたまま描き直すと選択が戻るため)。
+// スクリプトが default を変えたらそちらに従う (本家の Ui:C:select と同じ)
+const picked = reactive<Record<string, { from: string; value: string }>>({})
+
+function selectValue(comp: UiComponent): string {
+  const from = (comp.props.default as string) ?? ''
+  const p = picked[comp.id]
+  return p && p.from === from ? p.value : from
+}
+
+function onSelect(comp: UiComponent, value: string) {
+  picked[comp.id] = { from: (comp.props.default as string) ?? '', value }
+  callHandler(comp.props.onChange, props.interpreter, {
+    type: 'str',
+    value,
+  } as Value)
+}
 
 const serverHost = computed(() => {
   if (!props.serverUrl) return ''
@@ -136,16 +155,11 @@ function handlePostFormButton(comp: UiComponent) {
       </label>
 
       <!-- select -->
-      <select
+      <FormSelect
         v-else-if="comp.type === 'select'"
-        :class="$style.aisSelect"
-        :value="(comp.props.default as string) ?? ''"
-        @change="
-          (e) => {
-            const val = (e.target as HTMLSelectElement).value
-            callHandler(comp.props.onChange, interpreter, { type: 'str', value: val } as Value)
-          }
-        "
+        filled
+        :model-value="selectValue(comp)"
+        @update:model-value="(val: string) => onSelect(comp, val)"
       >
         <option
           v-for="item in (comp.props.items as { text: string; value: string }[]) ?? []"
@@ -154,7 +168,7 @@ function handlePostFormButton(comp: UiComponent) {
         >
           {{ item.text }}
         </option>
-      </select>
+      </FormSelect>
 
       <!-- container -->
       <div
@@ -269,25 +283,25 @@ function handlePostFormButton(comp: UiComponent) {
 .aisText {
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
 }
 
 .aisMfm {
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
 }
 
 .aisButton {
-  padding: 7px 14px;
+  padding: 8px 14px;
   border: none;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transition: background var(--nd-duration-fast);
 
   &:hover:not(:disabled) {
@@ -308,19 +322,6 @@ function handlePostFormButton(comp: UiComponent) {
 
 .aisTextInput,
 .aisNumberInput,
-.aisSelect {
-  padding: 6px 10px;
-  border: none;
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-buttonBg);
-  color: var(--nd-fg);
-  font-size: 0.85em;
-  outline: none;
-
-  &:focus {
-    box-shadow: 0 0 0 2px var(--nd-accent);
-  }
-}
 
 .aisTextarea {
   padding: 6px 10px;
@@ -328,7 +329,7 @@ function handlePostFormButton(comp: UiComponent) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   font-family: inherit;
   outline: none;
   resize: vertical;
@@ -343,7 +344,7 @@ function handlePostFormButton(comp: UiComponent) {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 }
 
@@ -365,8 +366,8 @@ function handlePostFormButton(comp: UiComponent) {
     width: 100%;
     cursor: pointer;
     padding: 6px 10px;
-    font-size: 0.85em;
-    font-weight: 500;
+    font-size: var(--nd-font-md);
+    font-weight: var(--nd-weight-medium);
     background: var(--nd-panelHighlight);
     transition: background var(--nd-duration-base);
 
@@ -375,7 +376,7 @@ function handlePostFormButton(comp: UiComponent) {
     }
   }
 
-  > :deep(.aisUiRenderer) {
+  > .aisUiRenderer {
     padding: 8px 10px;
   }
 }

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import I18n from '@/components/common/I18n.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -81,6 +82,11 @@ const TAB_DEFS = computed<{ value: ServerTab; icon: string; label: string }[]>(
   ],
 )
 const tab = ref<ServerTab>('info')
+const tabContentRef = useTemplateRef<HTMLElement>('tabContent')
+useTabSlide(
+  computed(() => TAB_DEFS.value.findIndex((t) => t.value === tab.value)),
+  tabContentRef,
+)
 
 const metaJson = computed(() =>
   meta.value ? JSON.stringify(meta.value, null, 2) : '',
@@ -184,6 +190,7 @@ onMounted(() => {
         @update:model-value="(v) => (tab = v as ServerTab)"
       />
 
+      <div ref="tabContent" :class="$style.tabContent">
       <div v-if="tab === 'info'" ref="scroller" :class="$style.serverInfoBody">
       <!-- Banner (Misskey style: bg image + icon overlay + gradient name) -->
       <div
@@ -389,6 +396,7 @@ onMounted(() => {
           </template>
         </template>
       </RawJsonView>
+      </div>
     </div>
 
     <ColumnEmptyState v-else :message="i18n.ts._deckServerInfoColumn.fetchFailed" :image-url="serverInfoImageUrl" />
@@ -405,6 +413,13 @@ onMounted(() => {
   min-height: 0;
 }
 
+.tabContent {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .serverInfoBody {
   composes: columnScroller from './column-common.module.scss';
 }
@@ -412,7 +427,7 @@ onMounted(() => {
 /* ---- Banner (Misskey style) ---- */
 .banner {
   text-align: center;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   overflow: clip;
   background-color: var(--nd-panelBg, var(--nd-bg));
   background-size: cover;
@@ -437,7 +452,7 @@ onMounted(() => {
   color: #fff;
   text-shadow: 0 0 8px #000;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-  font-size: 1.05em;
+  font-size: var(--nd-font-lg);
 }
 
 /* ---- Form sections (Misskey FormSection style) ---- */
@@ -450,10 +465,10 @@ onMounted(() => {
 }
 
 .formSectionLabel {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   padding: 1.5em 16px 0;
   margin-bottom: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .sectionContent {
@@ -471,7 +486,7 @@ onMounted(() => {
 }
 
 .formKvKey {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.75;
   padding-bottom: 0.25em;
 }
@@ -536,7 +551,7 @@ onMounted(() => {
   margin: 0 16px 8px;
   background: var(--nd-buttonBg);
   border-radius: var(--nd-radius-sm);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   text-decoration: none;
   transition: background var(--nd-duration-base);
@@ -563,12 +578,12 @@ onMounted(() => {
 
 /* ---- Description ---- */
 .description {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.7;
   color: var(--nd-fg);
   word-break: break-word;
 
-  :deep(a) {
+  :global(a) {
     color: var(--nd-accent);
     text-decoration: none;
 
@@ -577,30 +592,30 @@ onMounted(() => {
     }
   }
 
-  :deep(img) {
+  :global(img) {
     max-width: 100%;
     border-radius: var(--nd-radius-md);
   }
 
-  :deep(h1),
-  :deep(h2),
-  :deep(h3) {
+  :global(h1),
+  :global(h2),
+  :global(h3) {
     color: var(--nd-fgHighlighted);
     margin: 0.8em 0 0.4em;
-    font-size: 1.1em;
+    font-size: var(--nd-font-lg);
   }
 
-  :deep(p) {
+  :global(p) {
     margin: 0.5em 0;
   }
 
-  :deep(ul),
-  :deep(ol) {
+  :global(ul),
+  :global(ol) {
     padding-left: 1.5em;
     margin: 0.5em 0;
   }
 
-  :deep(blockquote) {
+  :global(blockquote) {
     border-left: 3px solid var(--nd-accent);
     padding-left: 12px;
     margin: 0.5em 0;
@@ -661,12 +676,12 @@ onMounted(() => {
   background: var(--nd-accentedBg);
   color: var(--nd-accent);
   font-size: 13px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 .ruleText {
   padding-top: 6px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.5;
   color: var(--nd-fg);
 }

@@ -1,17 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 
-const props = withDefaults(
-  defineProps<{
-    label: string
-    count?: number
-    initialOpen?: boolean
-  }>(),
-  { initialOpen: true },
-)
+defineProps<{
+  label: string
+  count?: number
+}>()
 
-const isOpen = ref(props.initialOpen)
+// 親が v-model:open を渡さなければ開いた状態で始まる手元の状態になる。
+// カテゴリジャンプで親から開くため、閉じて始めるセクションは親が持つ (#1193)
+const isOpen = defineModel<boolean>('open', { default: true })
 
 function toggle() {
   isOpen.value = !isOpen.value
@@ -48,8 +45,8 @@ function toggle() {
   border-radius: var(--nd-radius-sm);
   background: none;
   color: var(--nd-fg);
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   cursor: pointer;
   opacity: 0.7;
   transition: opacity var(--nd-duration-base);
@@ -64,7 +61,7 @@ function toggle() {
 }
 
 .sectionArrow {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   width: 12px;
   flex-shrink: 0;
 }
@@ -75,7 +72,7 @@ function toggle() {
 
 .sectionCount {
   opacity: 0.5;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
 }
 
 .sectionContent {

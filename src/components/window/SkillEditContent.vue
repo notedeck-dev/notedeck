@@ -2,6 +2,7 @@
 import { markdown } from '@codemirror/lang-markdown'
 import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import type {
   EditorAction,
   EditorActionStatus,
@@ -265,12 +266,12 @@ const barStatus = computed<EditorActionStatus | null>(() => {
           </div>
           <div :class="[$style.row, $style.flex1]">
             <label :class="$style.label">{{ i18n.ts._skillEditContent.mode }}</label>
-            <select v-model="mode" :class="$style.input" :disabled="reserved">
+            <FormSelect v-model="mode" :class="$style.select" :disabled="reserved">
               <option value="always">{{ i18n.ts._skillEditContent.modeAlways }}</option>
               <option value="manual">{{ i18n.ts._skillEditContent.modeManual }}</option>
               <option value="trigger">{{ i18n.ts._skillEditContent.modeTrigger }}</option>
               <option value="heartbeat">{{ i18n.ts._skillEditContent.modeHeartbeat }}</option>
-            </select>
+            </FormSelect>
           </div>
         </div>
         <div v-if="mode === 'heartbeat'" :class="$style.modeHint">
@@ -341,6 +342,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 </template>
 
 <style module lang="scss">
+@use '@/styles/inputs' as *;
 .content {
   flex: 1;
   display: flex;
@@ -367,9 +369,9 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 }
 
 .headerBadge {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   padding: 0 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   line-height: 1.6;
   flex-shrink: 0;
@@ -388,7 +390,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 .row {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 
@@ -422,9 +424,9 @@ const barStatus = computed<EditorActionStatus | null>(() => {
   gap: 6px;
   padding: 6px 8px;
   font-size: 11px;
-  color: var(--nd-accent, #f06292);
-  background: color-mix(in srgb, var(--nd-accent, #f06292) 8%, transparent);
-  border-radius: 3px;
+  color: var(--nd-accent);
+  background: color-mix(in srgb, var(--nd-accent) 8%, transparent);
+  border-radius: var(--nd-radius-xs);
   line-height: 1.4;
 
   i {
@@ -453,20 +455,16 @@ const barStatus = computed<EditorActionStatus | null>(() => {
   }
 }
 
+.select {
+  width: 100%;
+}
+
 .input {
+  @include input-base;
   width: 100%;
   height: 28px;
   padding: 0 8px;
-  background: var(--nd-inputBg, var(--nd-bg));
-  border: 1px solid var(--nd-divider);
-  border-radius: 3px;
-  color: var(--nd-fg);
   font-size: 12px;
-
-  &:focus {
-    outline: none;
-    border-color: var(--nd-accent);
-  }
 }
 
 .textarea {
@@ -488,7 +486,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
   color: var(--nd-fg);
   opacity: 0.65;
   background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   line-height: 1.4;
 }
 

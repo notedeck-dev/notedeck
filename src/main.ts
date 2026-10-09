@@ -8,7 +8,9 @@ import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
 import { router, setupFirstRunTutorial } from './router'
 import { resolveEvictionConfig } from './services/cacheEvictionConfig'
+import { allowsNativeContextMenu } from './services/nativeContextMenu'
 import { initEarlyAccountListener, useAccountsStore } from './stores/accounts'
+import { useDeckStore } from './stores/deck'
 import { useDeckProfileStore } from './stores/deckProfile'
 import { useKeybindsStore } from './stores/keybinds'
 import { usePerformanceStore } from './stores/performance'
@@ -118,6 +120,25 @@ window.addEventListener('unhandledrejection', (e) => {
     e.preventDefault()
 })
 
+// 余白の右クリックで WebView 標準メニュー (「再読み込み」等) を出さない (#704)。
+// 独自メニューを出す面は先に preventDefault 済みなので bubble の最後で見る。
+// ブラウザ (Dev Dashboard 等) では開発の邪魔になるので Tauri だけ
+if (isTauri) {
+  document.addEventListener('contextmenu', (e) => {
+    if (e.defaultPrevented) return
+    const sel = window.getSelection()
+    const hasSelection =
+      !!sel &&
+      !sel.isCollapsed &&
+      e.target instanceof Node &&
+      sel.containsNode(e.target, true)
+    const developerMode = useSettingsStore().get('ui.developerMode') === true
+    if (!allowsNativeContextMenu(e.target, { hasSelection, developerMode })) {
+      e.preventDefault()
+    }
+  })
+}
+
 if (isTauri) {
   // settings.json (single source of truth for scalar preferences) と
   // performance.json5 (CSS render-cost knobs: blur/shadow/animation) を
@@ -132,8 +153,13 @@ if (isTauri) {
     localeReady,
     usePerformanceStore().init(),
     // デッキプロファイル (#1042)。ファイルが唯一の正で、localStorage からの即時復元は
-    // 無いので、初回描画が既定デッキで一瞬出ないよう描画前に読み終える
-    useDeckProfileStore().preloadFiles(),
+    // 無いので、初回描画が既定デッキで一瞬出ないよう描画前に読み終える。
+    // 辞書を待ってから読む: ID が重複したファイルの通知文を辞書から作るので、
+    // 辞書より先に読むと例外になり、プロファイルの読み込みごと失敗していた
+    localeReady.then(() => useDeckProfileStore().preloadFiles()),
+    // ナビバーの構成 (navbar.json5) も描画前に読む。デッキのマウント後に読むと
+    // 既定の並びで描いてからカスタムの並びに差し替わり、項目が動いて見える
+    useDeckStore().initNavbar(),
     commands
       .getMediaProxyToken()
       .then((token) => setMediaProxyToken(token))

@@ -44,6 +44,7 @@ import {
   detectAvailableTimelines,
   detectCustomTimelines,
   detectFilterKeys,
+  getCachedFilterKeys,
   markTimelineDenied,
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
@@ -433,7 +434,13 @@ function getTlIcon(type: string): string {
 // --- Filter keys (組込トグルの出し分け) ---
 // メニュー UI 本体は DeckNoteColumn に共通実装 (#841)。TL 種別ごとの
 // 利用可能キーだけをここで検出して渡す
-const availableFilterKeys = ref<(keyof TimelineFilter)[]>([])
+// 前回の検出結果で最初から出し、検出が終わったら差し替える
+const initialHost = props.column.accountId
+  ? accountsStore.accountMap.get(props.column.accountId)?.host
+  : undefined
+const availableFilterKeys = ref<(keyof TimelineFilter)[]>(
+  initialHost ? getCachedFilterKeys(initialHost, tlType.value) : [],
+)
 
 async function refreshFilterKeys() {
   const host = account.value?.host

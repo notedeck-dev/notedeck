@@ -232,3 +232,18 @@ describe('compileMisskeyTheme', () => {
     expect(compiled.divider).toBe('rgba(255, 255, 255, 0.1)')
   })
 })
+
+describe('$ 定数 (#704 P)', () => {
+  it('$ で始まる prop を定数として参照でき、CSS 変数には出さない', () => {
+    const theme: MisskeyTheme = {
+      id: 't',
+      name: 't',
+      props: { $main: '#336699', accent: '$main', link: ':lighten<10<$main' },
+    }
+    const compiled = compileMisskeyTheme(theme, EMPTY_BASE)
+    expect(compiled.accent).toBe('#336699')
+    expect(compiled.link).not.toBe('')
+    expect(compiled.link).not.toBe('#336699')
+    expect('$main' in compiled).toBe(false)
+  })
+})

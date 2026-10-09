@@ -4,6 +4,7 @@ import { type Diagnostic, linter } from '@codemirror/lint'
 import { computed, reactive, ref, watch } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormRange from '@/components/common/form/FormRange.vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import CssPresetDropdown from '@/components/window/CssPresetDropdown.vue'
@@ -89,11 +90,6 @@ const expandedSections = reactive<Record<string, boolean>>({})
 
 function toggleSection(key: string) {
   expandedSections[key] = !expandedSections[key]
-}
-
-// スライダーの塗りつぶし率 (OS のボリュームバー式に左側をアクセント色で塗る)
-function sliderFill(value: number, min: number, max: number): string {
-  return `${((value - min) / (max - min)) * 100}%`
 }
 
 const fontSizeLabel = computed(() => {
@@ -386,14 +382,11 @@ const { isSyncing } = useExternalEditSync<string>({
           <div :class="$style.sectionBody">
             <div :class="$style.sliderRow">
               <span :class="$style.sliderLabel">{{ i18n.ts._cssEditorContent.small }}</span>
-              <input
-                v-model.number="presets.fontSize"
-                type="range"
+              <FormRange
+                v-model="presets.fontSize"
                 :min="FONT_SIZE_MIN"
                 :max="FONT_SIZE_MAX"
-                step="1"
-                :class="$style.slider"
-                :style="{ '--fill': sliderFill(presets.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX) }"
+                :aria-label="i18n.ts._cssEditorContent.fontSize"
               />
               <span :class="$style.sliderLabel">{{ i18n.ts._cssEditorContent.large }}</span>
             </div>
@@ -482,7 +475,7 @@ const { isSyncing } = useExternalEditSync<string>({
       <!-- Freeform CSS -->
       <div :class="$style.section">
         <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.css" @click="toggleSection('css')">
-          <i class="ti ti-pencil" />
+          <i class="ti ti-edit" />
           {{ i18n.ts._cssEditorContent.freeformCss }}
           <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.css }]" />
         </button>
@@ -616,8 +609,8 @@ const { isSyncing } = useExternalEditSync<string>({
   align-items: center;
   gap: 6px;
   width: 100%;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
@@ -629,7 +622,7 @@ const { isSyncing } = useExternalEditSync<string>({
 
 .chevron {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .sectionBody {
@@ -641,8 +634,8 @@ const { isSyncing } = useExternalEditSync<string>({
 
 .sectionValue {
   margin-left: auto;
-  font-weight: normal;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-regular);
+  font-size: var(--nd-font-body);
   opacity: 0.8;
 }
 
@@ -659,7 +652,7 @@ const { isSyncing } = useExternalEditSync<string>({
   padding: 8px 10px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   white-space: nowrap;
   overflow-x: auto;
 }
@@ -669,7 +662,7 @@ const { isSyncing } = useExternalEditSync<string>({
   flex-direction: column;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   overflow: hidden;
 }
 
@@ -678,45 +671,12 @@ const { isSyncing } = useExternalEditSync<string>({
 }
 
 .hideCountNote {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 }
 
 .sliderRow { display: flex; align-items: center; gap: 8px; }
-.sliderLabel { font-size: 0.7em; opacity: 0.5; flex-shrink: 0; }
-
-.slider {
-  flex: 1;
-  height: 4px;
-  appearance: none;
-  /* thumb より左を塗りつぶす (--fill は template 側で算出) */
-  background: linear-gradient(
-    to right,
-    var(--nd-accent) var(--fill, 0%),
-    var(--nd-divider) var(--fill, 0%)
-  );
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-
-  &::-webkit-slider-thumb {
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-  }
-
-  &::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border: none;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-  }
-}
+.sliderLabel { font-size: var(--nd-font-2xs); opacity: 0.5; flex-shrink: 0; }
 
 .resetBtn {
   align-self: flex-end;
@@ -724,7 +684,7 @@ const { isSyncing } = useExternalEditSync<string>({
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.6;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -746,11 +706,11 @@ const { isSyncing } = useExternalEditSync<string>({
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, var(--nd-bg));
   color: var(--nd-love);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   word-break: break-all;
 }
 
-.errorHint { font-size: 0.7em; opacity: 0.5; }
+.errorHint { font-size: var(--nd-font-2xs); opacity: 0.5; }
 
 .codePanel {
   display: flex;
@@ -762,7 +722,7 @@ const { isSyncing } = useExternalEditSync<string>({
   overflow-y: auto;
 }
 
-.codeHint { font-size: 0.75em; opacity: 0.4; }
+.codeHint { font-size: var(--nd-font-xs); opacity: 0.4; }
 
 .codeEditorWrap {
   &.hasError {
@@ -775,7 +735,7 @@ const { isSyncing } = useExternalEditSync<string>({
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

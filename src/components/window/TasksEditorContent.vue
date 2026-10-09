@@ -13,6 +13,8 @@ import {
 } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormInput from '@/components/common/form/FormInput.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -233,6 +235,22 @@ function setParamsFromText(t: TaskDefinition, text: string) {
   } catch {
     /* ignore parse error during edit */
   }
+}
+
+// 打ちかけの params。正しい JSON5 になるまで params は変わらないので、
+// 保存値から描き直すと打った文字が消え、誤りも表示できない。
+// 外 (コードタブ等) で params が変わったら下書きは捨てる
+const paramsDraft = reactive<Record<string, { base: string; text: string }>>({})
+
+function paramsText(t: TaskDefinition): string {
+  const d = paramsDraft[t.id]
+  const base = paramsToText(t)
+  return d && d.base === base ? d.text : base
+}
+
+function onParamsInput(t: TaskDefinition, text: string) {
+  setParamsFromText(t, text)
+  paramsDraft[t.id] = { base: paramsToText(t), text }
 }
 
 function paramsErrorOf(text: string): string | null {
@@ -630,12 +648,14 @@ function handleReset() {
                 </label>
                 <label :class="$style.field">
                   <span :class="$style.fieldLabel">params (JSON5)</span>
-                  <textarea
-                    :value="paramsToText(t)"
-                    :class="[$style.input, $style.textarea, $style.mono, { [$style.hasError]: paramsErrorOf(paramsToText(t)) }]"
+                  <FormInput
+                    multiline
+                    :model-value="paramsText(t)"
+                    :class="$style.paramsInput"
                     rows="4"
                     placeholder="{ visibility: 'home' }"
-                    @input="(e) => setParamsFromText(t, (e.target as HTMLTextAreaElement).value)"
+                    :error="paramsErrorOf(paramsText(t)) ?? ''"
+                    @update:model-value="(v) => onParamsInput(t, v)"
                   />
                 </label>
               </fieldset>
@@ -677,14 +697,14 @@ function handleReset() {
                   :class="$style.inputItem"
                 >
                   <div :class="$style.inputItemRow">
-                    <select
-                      :value="input.type"
-                      :class="$style.input"
-                      @change="(e) => changeInputType(t, ii, (e.target as HTMLSelectElement).value as 'text' | 'pick')"
+                    <FormSelect
+                      :model-value="input.type"
+                      :class="$style.select"
+                      @update:model-value="(v) => changeInputType(t, ii, v)"
                     >
                       <option value="text">text</option>
                       <option value="pick">pick</option>
-                    </select>
+                    </FormSelect>
                     <input
                       v-model="input.id"
                       type="text"
@@ -812,6 +832,7 @@ function handleReset() {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .editor {
   display: flex;
@@ -832,7 +853,7 @@ function handleReset() {
 
 .visualHint {
   padding: 10px 12px 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.55;
 }
 
@@ -884,6 +905,7 @@ function handleReset() {
 }
 
 .taskHeader {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -912,21 +934,21 @@ function handleReset() {
 .taskLabel {
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-weight: 600;
-  font-size: 0.9em;
+  gap: 6px;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .pinIcon {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-accent);
 }
 
 .defaultIcon {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-mfmSuccess, #4a8);
 }
 
@@ -934,7 +956,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 }
 
@@ -990,7 +1012,7 @@ function handleReset() {
 }
 
 .dangerBtn:hover:not(:disabled) {
-  color: var(--nd-love, #ec4137);
+  color: var(--nd-love);
 }
 
 .taskBody {
@@ -1004,34 +1026,31 @@ function handleReset() {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .fieldLabel {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.6;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
-.input {
+.select {
   width: 100%;
-  padding: 5px 8px;
-  font-size: 0.85em;
-  background: var(--nd-bg);
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-fg);
-  outline: none;
-  transition: border-color var(--nd-duration-base);
+}
 
-  &:focus {
-    border-color: var(--nd-accent);
-  }
+.input {
+  @include input-base;
+  width: 100%;
+  padding: 6px 8px;
 
-  &.hasError {
-    border-color: var(--nd-love, #ec4137);
-  }
+}
+
+.paramsInput textarea {
+  min-height: 60px;
+  padding: 6px 8px;
+  font-family: var(--nd-font-mono);
 }
 
 .inlineInput {
@@ -1043,7 +1062,6 @@ function handleReset() {
 .textarea {
   resize: vertical;
   min-height: 60px;
-  font-family: inherit;
 }
 
 .mono {
@@ -1065,19 +1083,20 @@ function handleReset() {
   align-items: center;
   gap: 8px;
   padding: 0 4px;
-  font-size: 0.7em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.65;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
 
 .smallBtn {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 2px;
   padding: 1px 6px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.7;
@@ -1092,7 +1111,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 }
 
@@ -1100,7 +1119,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 }
 
@@ -1116,7 +1135,7 @@ function handleReset() {
 }
 
 .inlineIcon {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0.7;
 }
 
@@ -1142,7 +1161,7 @@ function handleReset() {
 }
 
 .inputsEmpty {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
   text-align: center;
   padding: 6px;
@@ -1151,7 +1170,7 @@ function handleReset() {
 .emptyState {
   padding: 18px;
   text-align: center;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.55;
 }
 
@@ -1164,7 +1183,7 @@ function handleReset() {
   margin-top: 4px;
   border: 1px dashed var(--nd-divider);
   border-radius: var(--nd-radius-sm);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.7;
   transition:
@@ -1193,7 +1212,7 @@ function handleReset() {
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   line-height: 1.55;
   opacity: 0.5;
 
@@ -1202,7 +1221,7 @@ function handleReset() {
     background: var(--nd-buttonBg);
     padding: 1px 4px;
     margin: 0 2px;
-    border-radius: 3px;
+    border-radius: var(--nd-radius-xs);
     white-space: nowrap;
   }
 }
@@ -1222,7 +1241,7 @@ function handleReset() {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, var(--nd-bg));
   color: var(--nd-love);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   word-break: break-all;
 }
 
@@ -1230,7 +1249,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

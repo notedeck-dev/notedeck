@@ -171,7 +171,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
           :disabled="reverting"
           @click="revert(selected)"
         >
-          <i class="ti ti-arrow-back-up" />
+          <i class="ti ti-restore" />
           <span>{{ i18n.tsx._editHistoryContent.restore({ n: selected }) }}</span>
         </button>
       </div>
@@ -180,6 +180,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 .content {
   flex: 1;
   display: flex;
@@ -206,7 +207,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 
 .title {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -241,11 +242,12 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 }
 
 .entry {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 5px 14px;
+  padding: 6px 14px;
   border: none;
   border-left: 2px solid transparent;
   background: transparent;
@@ -268,7 +270,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 .entryTag {
   flex-shrink: 0;
   padding: 0 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   font-size: 10px;
   opacity: 0.8;
@@ -358,9 +360,9 @@ function isSelfEdit(entry: HistoryEntry): boolean {
   margin: 0 10px;
   padding: 6px 8px;
   font-size: 11px;
-  color: var(--nd-error, #f66);
-  background: color-mix(in srgb, var(--nd-error, #f66) 10%, transparent);
-  border-radius: 3px;
+  color: var(--nd-error);
+  background: color-mix(in srgb, var(--nd-error) 10%, transparent);
+  border-radius: var(--nd-radius-xs);
 }
 
 .footer {
@@ -375,9 +377,9 @@ function isSelfEdit(entry: HistoryEntry): boolean {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 10px;
+  padding: 6px 10px;
   border: 1px solid var(--nd-divider);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   background: transparent;
   color: var(--nd-fg);
   font-size: 12px;

@@ -158,12 +158,12 @@ onUnmounted(() => {
     box-shadow: 0 0 0 2px var(--nd-accent);
   }
 
-  :deep(.cm-editor) {
+  :global(.cm-editor) {
     height: 100%;
     min-height: 80px;
   }
 
-  :deep(.cm-scroller) {
+  :global(.cm-scroller) {
     font-family: var(--nd-font-mono);
     overflow: auto;
   }
@@ -171,7 +171,7 @@ onUnmounted(() => {
   &.autoHeight {
     overflow: visible;
 
-    :deep(.cm-editor) {
+    :global(.cm-editor) {
       height: auto;
     }
   }

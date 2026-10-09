@@ -42,7 +42,7 @@ const preview = inject(COLUMN_SHELL_PREVIEW, ref<string[]>([]))
   height: 100%;
   display: flex;
   flex-direction: column;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   overflow: hidden;
   background: color-mix(in srgb, var(--nd-panel) 92%, transparent);
   border: 1px solid color-mix(in srgb, var(--nd-divider, currentColor) 30%, transparent);
@@ -95,7 +95,7 @@ const preview = inject(COLUMN_SHELL_PREVIEW, ref<string[]>([]))
 
 .card {
   height: 96px;
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
 }
 
 @keyframes nd-shell-shimmer {

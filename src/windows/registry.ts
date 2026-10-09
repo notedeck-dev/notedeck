@@ -330,7 +330,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     get label() {
       return i18n.ts._windows.pageEdit
     },
-    icon: 'ti ti-pencil',
+    icon: 'ti ti-edit',
     width: 500,
     maxHeight: 720,
   },
@@ -338,7 +338,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     get label() {
       return i18n.ts._windows.playEdit
     },
-    icon: 'ti ti-pencil',
+    icon: 'ti ti-edit',
     width: 500,
     maxHeight: 720,
   },
@@ -448,6 +448,16 @@ export const WINDOW_SIZES: Record<
   WindowType,
   { width: number; maxHeight: number; anchor?: 'top-right' }
 >
+
+/** ウィンドウの見出し (ヘッダーとボトムバーの最小化一覧で共通) */
+export function windowTitle(win: DeckWindow): string {
+  if (win.type === 'follow-list' && win.props.username) {
+    return i18n.tsx._deckWindow.followListTitle({
+      username: String(win.props.username),
+    })
+  }
+  return WINDOW_LABELS[win.type] ?? ''
+}
 
 /**
  * notedeck:// URI を組む。URI 未対応の種別・ホスト不明・必要な props 欠落は null。

@@ -113,6 +113,7 @@ const emit = defineEmits<(e: 'action', key: string) => void>()
 }
 
 .btn {
+  @include nd-interactive;
   @include btn-base;
 
   &:disabled {
@@ -158,7 +159,7 @@ const emit = defineEmits<(e: 'action', key: string) => void>()
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.6;
   min-width: 0;

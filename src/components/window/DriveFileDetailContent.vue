@@ -312,8 +312,8 @@ fetchFile()
 .title {
   flex: 1;
   min-width: 0;
-  font-size: 1.05em;
-  font-weight: bold;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   word-break: break-all;
 }
@@ -340,7 +340,7 @@ fetchFile()
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -411,7 +411,7 @@ fetchFile()
 }
 
 .comment {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.8;
   white-space: pre-wrap;
   line-height: 1.5;
@@ -429,8 +429,8 @@ fetchFile()
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8em;
-  font-weight: 600;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
@@ -442,24 +442,24 @@ fetchFile()
   border-radius: var(--nd-radius-md);
   background: var(--nd-love-hover);
   color: var(--nd-love);
-  font-size: 0.8em;
-  font-weight: 600;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
 }
 
 .exifEmpty {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
 }
 
 .exifError {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-love);
 }
 
 .exifTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
 
   td {
     padding: 4px 8px;
@@ -470,7 +470,7 @@ fetchFile()
 
 .exifTag {
   white-space: nowrap;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 

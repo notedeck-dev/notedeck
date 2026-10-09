@@ -220,16 +220,16 @@ function onMemoLinkClick(memoId: string) {
   display: flex;
   /* 本文が主役なので、ノート詳細ほどの余白は取らない */
   padding: 16px 18px;
-  font-size: 1.02em;
+  font-size: 1em;
   contain: content;
   container-type: inline-size;
 }
 
 @container (max-width: 580px) {
-  .card { font-size: 0.95em; padding: 14px 15px; }
+  .card { font-size: var(--nd-font-body); padding: 14px 16px; }
 }
 @container (max-width: 500px) {
-  .card { font-size: 0.9em; padding: 12px 13px; }
+  .card { font-size: var(--nd-font-body); padding: 12px 12px; }
 }
 
 .avatar {
@@ -293,17 +293,17 @@ function onMemoLinkClick(memoId: string) {
 .name {
   flex-shrink: 1;
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   margin: 0 0.5em 0 0;
   text-overflow: ellipsis;
   overflow: hidden;
   color: var(--nd-fgHighlighted);
 
-  :deep(.mfm) {
+  :global(.mfm) {
     white-space: nowrap;
   }
 
-  :deep(.custom-emoji) {
+  :global(.custom-emoji) {
     height: 1.2em;
     width: auto;
   }
@@ -323,7 +323,7 @@ function onMemoLinkClick(memoId: string) {
   gap: 4px;
   flex-shrink: 0;
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .time {
@@ -336,7 +336,7 @@ function onMemoLinkClick(memoId: string) {
 }
 
 .cwText {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   margin: 0;
 }
 
@@ -354,8 +354,8 @@ function onMemoLinkClick(memoId: string) {
   border-radius: var(--nd-radius-full);
   background: var(--nd-accentedBg);
   color: var(--nd-accent);
-  font-size: 0.8em;
-  font-weight: normal;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-regular);
   cursor: pointer;
   transition: background var(--nd-duration-base);
 
@@ -366,7 +366,7 @@ function onMemoLinkClick(memoId: string) {
 
 .toggleChars {
   opacity: 0.7;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
 }
 
 .body {
@@ -374,9 +374,9 @@ function onMemoLinkClick(memoId: string) {
   line-height: 1.65;
 
   /* markdown の見出し・リスト・コードが地の文と溶けないよう間を作る */
-  :deep(h1),
-  :deep(h2),
-  :deep(h3) {
+  :global(h1),
+  :global(h2),
+  :global(h3) {
     margin: 0.9em 0 0.4em;
     line-height: 1.35;
 
@@ -385,18 +385,18 @@ function onMemoLinkClick(memoId: string) {
     }
   }
 
-  :deep(ul),
-  :deep(ol) {
+  :global(ul),
+  :global(ol) {
     margin: 0.4em 0;
     padding-left: 1.4em;
   }
 
-  :deep(li) {
+  :global(li) {
     margin: 0.15em 0;
   }
 
-  :deep(pre),
-  :deep(blockquote) {
+  :global(pre),
+  :global(blockquote) {
     margin: 0.6em 0;
   }
 }

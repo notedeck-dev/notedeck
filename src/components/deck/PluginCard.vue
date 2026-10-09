@@ -231,6 +231,7 @@ const updateTitle = computed(() => {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
 .card {
   position: relative;
   display: flex;
@@ -301,7 +302,7 @@ const updateTitle = computed(() => {
   text-align: left;
   cursor: pointer;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -312,18 +313,18 @@ const updateTitle = computed(() => {
   &:focus-visible {
     outline: 2px solid var(--nd-focusRing);
     outline-offset: 2px;
-    border-radius: 3px;
+    border-radius: var(--nd-radius-xs);
   }
 }
 
 .disabledBadge {
   flex-shrink: 0;
-  padding: 0 5px;
+  padding: 0 6px;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   line-height: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-fg) 15%, transparent);
   color: var(--nd-fg);
   text-transform: uppercase;
@@ -333,11 +334,12 @@ const updateTitle = computed(() => {
 
 // 権限拒否バッジ (#712): 朱色系で「権限で止まっている」ことを受動表示
 .deniedBadge {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   padding: 0 4px;
   color: #e0475b;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   cursor: pointer;
 
   &:hover {
@@ -390,7 +392,7 @@ const updateTitle = computed(() => {
 .category {
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
   color: var(--nd-fg);
   opacity: 0.6;
@@ -400,12 +402,12 @@ const updateTitle = computed(() => {
 
 .incompatBadge {
   flex-shrink: 0;
-  padding: 0 5px;
+  padding: 0 6px;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   line-height: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-love) 15%, transparent);
   color: var(--nd-love);
   letter-spacing: 0.02em;
@@ -416,7 +418,7 @@ const updateTitle = computed(() => {
   flex-shrink: 0;
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
   line-height: 1.3;
@@ -453,7 +455,7 @@ const updateTitle = computed(() => {
   width: 22px;
   height: 22px;
   flex-shrink: 0;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   color: var(--nd-fg);
   font-size: 13px;
   opacity: 0.7;
@@ -484,7 +486,7 @@ const updateTitle = computed(() => {
   padding: 2px 10px;
   height: 22px;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
@@ -519,7 +521,7 @@ const updateTitle = computed(() => {
   display: flex;
   align-items: center;
   font-size: 10px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   border: 1px solid var(--nd-divider);
   color: var(--nd-fg);
   opacity: 0.5;

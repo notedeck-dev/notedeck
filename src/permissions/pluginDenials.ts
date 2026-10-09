@@ -66,6 +66,15 @@ export function notifyPluginDenialInteraction(
   useToast().show(
     i18n.tsx._pluginDenials.denied({ name, permissions: labels }),
     'error',
+    {
+      // 文言にプラグイン名が入っているので source は付けない。
+      // 押したら権限の設定を開く。stores/windows は重いので押したときに読む
+      onClick: () => {
+        void import('@/stores/windows').then((m) =>
+          m.useWindowsStore().open('permissions'),
+        )
+      },
+    },
   )
 }
 

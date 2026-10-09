@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import { i18n } from '@/i18n'
 
 /**
@@ -161,9 +162,9 @@ watch(
       </label>
       <label :class="$style.pollExpiryLabel">
         {{ i18n.ts._postFormPollEditor.expiry }}
-        <select
+        <FormSelect
           v-model="expiryMode"
-          :class="$style.pollExpirySelect"
+          filled
           @change="onExpiryModeChange"
         >
           <option value="">{{ i18n.ts._postFormPollEditor.noExpiry }}</option>
@@ -171,7 +172,7 @@ watch(
             {{ p.label }}
           </option>
           <option value="at">{{ i18n.ts._postFormPollEditor.specifyDate }}</option>
-        </select>
+        </FormSelect>
       </label>
       <input
         v-if="expiryMode === 'at'"
@@ -186,6 +187,7 @@ watch(
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .pollEditor {
   padding: 8px 24px;
   display: flex;
@@ -202,7 +204,7 @@ watch(
 .pollChoiceInput {
   flex: 1;
   padding: 6px 10px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   font-family: inherit;
   color: var(--nd-fg);
   background: var(--nd-buttonBg);
@@ -217,6 +219,7 @@ watch(
 }
 
 .pollChoiceRemove {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -229,7 +232,7 @@ watch(
 
   &:hover {
     opacity: 1;
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -242,16 +245,17 @@ watch(
 }
 
 .pollAddBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-accent);
   border-radius: var(--nd-radius-sm);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -259,7 +263,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
@@ -269,12 +273,11 @@ watch(
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.7;
 }
 
-.pollExpirySelect,
 .pollExpiryDatetime {
   padding: 4px 6px;
   font-size: inherit;
@@ -287,6 +290,6 @@ watch(
 }
 
 .pollExpiryDatetime {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
 }
 </style>

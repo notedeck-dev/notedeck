@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { WorkspaceFile } from '@/bindings'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import { useAiConfig } from '@/composables/useAiConfig'
 import { useAiWorkspace } from '@/composables/useAiWorkspace'
 import { i18n } from '@/i18n'
@@ -15,7 +16,6 @@ import { useWindowsStore } from '@/stores/windows'
 import { extractErrorMessage } from '@/utils/errors'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import AiSettingsSection from './AiSettingsSection.vue'
-import AiSwitchRow from './AiSwitchRow.vue'
 
 // 人格と記憶 (#1162): ファイルは SOUL / USER / MEMORY の 3 つだが、面は
 // 「人格」(SOUL + キャラクター) / 「あなたについて」(USER) / 「覚え書き」(MEMORY)。
@@ -250,13 +250,13 @@ function isFull(f: WorkspaceFile | undefined): boolean {
       <div :class="$style.cardHeader">
         <span :class="$style.cardTitle">{{ i18n.ts._aiPersonalitySection.userTitle }}</span>
       </div>
-      <AiSwitchRow
+      <FormSwitchRow
         :label="i18n.ts._aiPersonalitySection.userToggle"
         :on="config.userMemory"
         @toggle="toggleUserMemory"
       />
       <!-- 手元の CLI (ACP) にも渡すか (既定は渡す、#1162)。記憶そのものが OFF なら意味が無いので無効 -->
-      <AiSwitchRow
+      <FormSwitchRow
         :label="i18n.ts._aiPersonalitySection.harnessUserMemory"
         :on="config.userMemory && config.harnessUserMemory"
         :disabled="!config.userMemory"
@@ -347,6 +347,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use '@/styles/settingsFields' as *;
 
 .card {
@@ -362,7 +363,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 
 .cardTitle {
   @include field-label;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 .fieldLabel { @include field-label; }
@@ -403,6 +404,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 }
 
 .entry {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -422,7 +424,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
   flex: 1;
   min-width: 0;
   padding: 4px 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.4;
   text-align: left;
   color: var(--nd-fg);
@@ -434,12 +436,12 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 .entryInput {
   flex: 1;
   min-width: 0;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border: 1px solid var(--nd-accent);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   font-family: inherit;
   outline: none;
 }
@@ -447,14 +449,14 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 .entryDelete.entryDelete {
   flex-shrink: 0;
   padding: 4px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
 
   &:hover {
-    color: var(--nd-error, #ec4137);
+    color: var(--nd-error);
   }
 }
 
@@ -471,13 +473,14 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 
 // 「ルールを編集」: 見出しの右に置く控えめなボタン (忘れるボタンと同じ質感)
 .rulesButton.rulesButton {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   margin-left: auto;
   padding: 4px 8px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
@@ -494,19 +497,20 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 }
 
 .forgetButton.forgetButton {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
 
   &:hover:not(:disabled) {
     opacity: 1;
-    color: var(--nd-error, #ec4137);
+    color: var(--nd-error);
   }
 
   &:disabled {

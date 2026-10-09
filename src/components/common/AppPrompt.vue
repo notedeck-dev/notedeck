@@ -74,6 +74,7 @@ function submit() {
             class="_button"
             :class="$style.btnOk"
             :disabled="!options.allowEmpty && !inputValue.trim()"
+            :title="!options.allowEmpty && !inputValue.trim() ? i18n.ts._common.inputRequiredHint : undefined"
           >
             {{ options.okLabel || 'OK' }}
           </button>
@@ -85,6 +86,7 @@ function submit() {
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
 @use '@/styles/popup';
+@use '@/styles/inputs' as *;
 
 .header {
   padding: 16px 20px 4px;
@@ -93,7 +95,7 @@ function submit() {
 
 .title {
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
 }
 
@@ -104,29 +106,20 @@ function submit() {
 .message {
   margin: 0 0 8px;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
   opacity: 0.8;
   text-align: center;
 }
 
 .input {
+  @include input-base;
   width: 100%;
   padding: 8px 12px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.95em;
-  outline: none;
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
+  font-size: var(--nd-font-body);
 }
 
 .textarea {
-  font-family: inherit;
   resize: vertical;
   min-height: 5em;
 }

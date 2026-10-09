@@ -16,6 +16,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { i18n } from '@/i18n'
 import { isSafeUrl } from '@/services/safeUrl'
+import { useSystemStateStore } from '@/stores/systemState'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import PopupMenu from './PopupMenu.vue'
@@ -53,6 +54,29 @@ function isVideo(f: NormalizedDriveFile): boolean {
 function close() {
   emit('close')
 }
+
+// 前後 1 枚を先読みする (#704 O-3)。表示は原寸なので、スワイプした瞬間に
+// 取得が始まって空白が見えていた。省電力・従量制回線では TL の先読みと
+// 同じく止める。集合はこのライトボックスの files 分しか増えない
+const systemStateStore = useSystemStateStore()
+const preloadedUrls = new Set<string>()
+watch(
+  index,
+  (i) => {
+    // 表示中の画像は <img> 自身が読むので、戻ったときに先読みし直さない
+    const current = safeMediaSrc(props.files[i]?.url)
+    if (current) preloadedUrls.add(current)
+    if (systemStateStore.adaptation.suppressPrefetch) return
+    for (const f of [props.files[i - 1], props.files[i + 1]]) {
+      if (!f || !isImage(f)) continue
+      const url = safeMediaSrc(f.url)
+      if (!url || preloadedUrls.has(url)) continue
+      preloadedUrls.add(url)
+      new Image().src = url
+    }
+  },
+  { immediate: true },
+)
 
 // Lightbox slide-in animation direction tracking
 const slideClass = ref<string | null>(null)
@@ -249,7 +273,7 @@ async function openInBrowser() {
 
 <template>
   <div v-if="file" ref="portalRef" :class="$style.lightboxOverlay" @click="close">
-      <button :class="$style.lightboxClose" @click="close">
+      <button :aria-label="i18n.ts._common.close" :class="$style.lightboxClose" @click="close">
         <svg viewBox="0 0 24 24" width="24" height="24">
           <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
         </svg>
@@ -392,7 +416,7 @@ async function openInBrowser() {
   max-width: 90vw;
   max-height: 90vh;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   /* Allow native long-press context menu on mobile WebView */
   -webkit-touch-callout: default;
   -webkit-user-select: auto;
@@ -403,7 +427,7 @@ async function openInBrowser() {
 .lightboxVideo {
   max-width: 90vw;
   max-height: 90vh;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
 }
 
 .lightboxNav {
@@ -463,7 +487,7 @@ async function openInBrowser() {
 }
 
 :global(.nd-lb-snap-back) {
-  transition: translate 0.25s var(--nd-ease-spring);
+  transition: translate var(--nd-duration-slow) var(--nd-ease-spring);
   translate: var(--nd-lb-swipe, 0) 0;
 }
 
@@ -478,10 +502,10 @@ async function openInBrowser() {
 }
 
 :global(.nd-lb-slide-left) {
-  animation: nd-lb-slide-left-kf 0.2s var(--nd-ease-spring) both;
+  animation: nd-lb-slide-left-kf var(--nd-duration-medium) var(--nd-ease-spring) both;
 }
 
 :global(.nd-lb-slide-right) {
-  animation: nd-lb-slide-right-kf 0.2s var(--nd-ease-spring) both;
+  animation: nd-lb-slide-right-kf var(--nd-duration-medium) var(--nd-ease-spring) both;
 }
 </style>

@@ -8,6 +8,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
+import FormRange from '@/components/common/form/FormRange.vue'
 import { i18n } from '@/i18n'
 import {
   clampPetScale,
@@ -37,14 +38,9 @@ watch(showInput, (open) => {
 // ── 大きさ ──
 const scale = computed(() => clampPetScale(settings.get('pet.scale')))
 const scalePercent = computed(() => Math.round(scale.value * 100))
-const scaleFill = computed(
-  () =>
-    `${((scale.value - PET_SCALE_MIN) / (PET_SCALE_MAX - PET_SCALE_MIN)) * 100}%`,
-)
 
-function onScaleInput(e: Event) {
-  const v = Number((e.target as HTMLInputElement).value) / 100
-  settings.set('pet.scale', clampPetScale(v))
+function onScaleInput(percent: number) {
+  settings.set('pet.scale', clampPetScale(percent / 100))
 }
 
 const previewStyle = computed(() => {
@@ -114,17 +110,14 @@ function openPage() {
 
     <div v-if="pet.info" :class="$style.sliderRow">
       <i class="ti ti-zoom-in" :class="$style.sliderIcon" />
-      <input
-        type="range"
-        :class="$style.slider"
-        :value="scalePercent"
+      <FormRange
+        :model-value="scalePercent"
         :min="PET_SCALE_MIN * 100"
         :max="PET_SCALE_MAX * 100"
-        step="5"
+        :step="5"
         :title="i18n.ts._petSection.size"
         :aria-label="i18n.ts._petSection.size"
-        :style="{ '--fill': scaleFill }"
-        @input="onScaleInput"
+        @update:model-value="onScaleInput"
       />
       <span :class="$style.sliderValue">{{ scalePercent }}%</span>
     </div>
@@ -162,6 +155,8 @@ function openPage() {
 </template>
 
 <style module lang="scss">
+@use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 .root {
   display: flex;
   flex-direction: column;
@@ -172,7 +167,7 @@ function openPage() {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
 }
 
@@ -195,60 +190,22 @@ function openPage() {
 
 .sliderIcon {
   color: var(--nd-fgMuted);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .sliderValue {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
   min-width: 3.5em;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-.slider {
-  flex: 1;
-  height: 4px;
-  appearance: none;
-  /* thumb より左を塗りつぶす (--fill は script 側で算出) */
-  background: linear-gradient(
-    to right,
-    var(--nd-accent) var(--fill, 0%),
-    var(--nd-divider) var(--fill, 0%)
-  );
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-
-  &::-webkit-slider-thumb {
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-  }
-
-  &::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border: none;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-  }
-}
-
 .input {
+  @include input-base;
   flex: 1;
   min-width: 0;
   padding: 6px 8px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font: inherit;
-  font-size: 0.85em;
 }
 
 .applyBtn {
@@ -257,9 +214,9 @@ function openPage() {
   border: none;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   font: inherit;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 
   &:disabled {
@@ -283,11 +240,12 @@ function openPage() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-love);
 }
 
 .link {
+  @include nd-interactive;
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -296,7 +254,7 @@ function openPage() {
   background: none;
   padding: 0;
   font: inherit;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
   cursor: pointer;
 

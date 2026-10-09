@@ -23,7 +23,7 @@ const sections = computed(() =>
 
 const { visible: menuVisible, leaving: menuLeaving } = useVaporTransition(
   toRef(props, 'show'),
-  { enterDuration: 180, leaveDuration: 180 },
+  { enterDuration: 180, leaveDuration: 200 },
 )
 const dialogRef = ref<HTMLDialogElement | null>(null)
 
@@ -32,7 +32,7 @@ useNativeDialog(
   computed(() => menuVisible.value),
   {
     onCancel: () => emit('close'),
-    leaveDuration: 180,
+    leaveDuration: 200,
   },
 )
 
@@ -82,9 +82,9 @@ function openSection(section: SettingsSection) {
 .settingsMenu {
   width: 100%;
   margin: 0;
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
   background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-sheet);
   max-height: 80vh;
   display: flex;
   flex-direction: column;
@@ -119,8 +119,8 @@ function openSection(section: SettingsSection) {
   width: 100%;
   padding: 8px 12px;
   min-height: 44px;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.7;
   border: none;
@@ -136,7 +136,7 @@ function openSection(section: SettingsSection) {
 
 .chevronNav {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0.5;
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import FormSwitch from '@/components/common/form/FormSwitch.vue'
 import { useClickOutside } from '@/composables/useClickOutside'
 import { i18n } from '@/i18n'
 import {
@@ -152,15 +153,12 @@ function toggle(key: PermissionKey) {
             :class="$style.warningIcon"
             :title="i18n.ts._permissionProfileEditor.highRisk"
           />
-          <button
-            class="nd-toggle-switch"
-            :class="{ on: resolved[key] }"
-            :aria-checked="resolved[key]"
+          <FormSwitch
+            :model-value="resolved[key]"
+            :label="PERMISSION_LABELS[key].label"
             :disabled="isRowDisabled(key)"
-            role="switch"
-          >
-            <span class="nd-toggle-switch-knob" />
-          </button>
+            @update:model-value="toggle(key)"
+          />
         </div>
       </div>
     </div>
@@ -184,7 +182,7 @@ function toggle(key: PermissionKey) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   text-align: left;
   transition: border-color var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -194,7 +192,7 @@ function toggle(key: PermissionKey) {
 .dropdownChevron {
   margin-left: auto;
   opacity: 0.4;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .dropdownPanel {
@@ -209,7 +207,7 @@ function toggle(key: PermissionKey) {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-panel);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--nd-shadow-m);
 }
 
 .dropdownItem {
@@ -217,8 +215,8 @@ function toggle(key: PermissionKey) {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
-  font-size: 0.8em;
+  padding: 8px 10px;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-align: left;
   cursor: pointer;
@@ -231,7 +229,7 @@ function toggle(key: PermissionKey) {
 
 .checkIcon {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .category {
@@ -240,8 +238,8 @@ function toggle(key: PermissionKey) {
 
 .categoryLabel {
   margin: 0 0 4px 2px;
-  font-size: 0.7em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   letter-spacing: 0.04em;
   color: var(--nd-fg);
   opacity: 0.55;
@@ -262,7 +260,7 @@ function toggle(key: PermissionKey) {
   gap: 8px;
   padding: 8px 4px 8px 8px;
   cursor: pointer;
-  transition: background 0.1s;
+  transition: background var(--nd-duration-fast);
 
   &:not(.switchRowDisabled):hover {
     background: var(--nd-buttonHoverBg);
@@ -305,6 +303,6 @@ function toggle(key: PermissionKey) {
   flex-shrink: 0;
   color: var(--nd-love);
   opacity: 0.85;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 </style>

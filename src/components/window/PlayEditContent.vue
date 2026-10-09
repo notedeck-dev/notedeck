@@ -183,6 +183,7 @@ onMounted(load)
 </template>
 
 <style lang="scss" module>
+@use '@/styles/inputs' as *;
 .root {
   display: flex;
   flex-direction: column;
@@ -203,7 +204,7 @@ onMounted(load)
   border-radius: var(--nd-radius-sm);
   background: var(--nd-love-subtle);
   color: var(--nd-love);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   white-space: pre-wrap;
 }
 
@@ -229,20 +230,16 @@ onMounted(load)
 }
 
 .label {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 }
 
 .input,
 .textarea {
+  @include input-base;
   padding: 8px 10px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.9em;
-  font-family: inherit;
+  font-size: var(--nd-font-body);
 }
 
 .textarea {
@@ -266,8 +263,8 @@ onMounted(load)
   border-radius: var(--nd-radius-md);
   background: var(--nd-accent);
   color: #fff;
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   transition: opacity var(--nd-duration-base);
 
   &:disabled {

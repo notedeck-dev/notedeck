@@ -6,9 +6,11 @@ import {
   withPluginAccountContext,
 } from '@/aiscript/plugin-api'
 import { useCommandStore } from '@/commands/registry'
+import { loadTranslatorAvailable } from '@/composables/noteTranslation'
 import { useAccountMode } from '@/composables/useAccountMode'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { useVaporTransitionSwitch } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { clipCacheKey } from '@/services/columnCacheKey'
 import type { NoteGroup } from '@/services/noteGroup'
@@ -51,6 +53,7 @@ const emit = defineEmits<{
   unreactAs: [accountId: string]
   renoteAs: [accountId: string]
   quoteAs: [accountId: string]
+  translate: [note: NormalizedNote]
 }>()
 
 const toast = useToast()
@@ -81,6 +84,9 @@ const currentView = computed<MenuView>(() => {
   if (showReportForm.value) return 'reportForm'
   return 'main'
 })
+// サブビューの切替は中身を一度消してから出す (大きさは補間しない)。
+// 退場は global.css の .nd-view-leave (--nd-duration-fast) と同じ時間
+const view = useVaporTransitionSwitch(currentView, { leaveDuration: 100 })
 
 watch(
   () => props.isFavorited,
@@ -102,8 +108,17 @@ const noteActions = computed(() =>
 
 const noteWebUrl = computed(() => getNoteShareUrl(props.note))
 
+// 翻訳はサーバーが提供していてロールで使えるときだけ出す (本家と同じ条件)。
+// 問い合わせはアカウントごとに一度で、初めて開いたときに始める
+const translatorAvailable = ref(false)
+
 function open(e: MouseEvent) {
   popupMenuRef.value?.open(e)
+  if (!isGuest.value && props.note.text) {
+    void loadTranslatorAvailable(props.note._accountId).then((v) => {
+      translatorAvailable.value = v
+    })
+  }
 }
 
 function close() {
@@ -418,9 +433,10 @@ defineExpose({ open })
 </script>
 
 <template>
-  <PopupMenu ref="popupMenuRef" @close="resetSubViews">
+  <PopupMenu ref="popupMenuRef" @closed="resetSubViews">
+    <div :key="view.displayed.value" :class="view.leaving.value ? 'nd-view-leave' : 'nd-view-enter'">
     <!-- Delete confirm -->
-    <template v-if="currentView === 'deleteConfirm'">
+    <template v-if="view.displayed.value === 'deleteConfirm'">
       <div class="_popupConfirmText">{{ i18n.ts._noteMoreMenu.confirmDelete }}</div>
       <button class="_popupItem _popupItemDanger" @click="emit('delete', note); close()">
         <i class="ti ti-trash" />
@@ -433,7 +449,7 @@ defineExpose({ open })
     </template>
 
     <!-- Delete and edit confirm -->
-    <template v-else-if="currentView === 'deleteAndEditConfirm'">
+    <template v-else-if="view.displayed.value === 'deleteAndEditConfirm'">
       <div class="_popupConfirmText">{{ i18n.ts._noteMoreMenu.confirmDeleteAndEdit }}</div>
       <button class="_popupItem _popupItemDanger" @click="emit('deleteAndEdit', note); close()">
         <i class="ti ti-trash" />
@@ -448,7 +464,7 @@ defineExpose({ open })
 
 
     <!-- Report form -->
-    <template v-else-if="currentView === 'reportForm'">
+    <template v-else-if="view.displayed.value === 'reportForm'">
       <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: note.user.username }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
@@ -498,6 +514,10 @@ defineExpose({ open })
       <button v-if="note.text" class="_popupItem" @click="copyAndClose(note.text!)">
         <i class="ti ti-copy" />
         {{ i18n.ts._noteMoreMenu.copyContent }}
+      </button>
+      <button v-if="translatorAvailable && note.text" class="_popupItem" @click="emit('translate', note); close()">
+        <i class="ti ti-language-hiragana" />
+        {{ i18n.ts._noteMoreMenu.translate }}
       </button>
       <button class="_popupItem" @click="copyAndClose(noteWebUrl)">
         <i class="ti ti-link" />
@@ -553,6 +573,7 @@ defineExpose({ open })
         </button>
       </template>
     </template>
+    </div>
   </PopupMenu>
 
   <!-- 別のアカウントで… (compact のみ): アカウント選択 → 操作選択の 2 段 -->

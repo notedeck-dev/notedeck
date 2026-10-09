@@ -105,7 +105,7 @@ const listedMisses = computed(() =>
 <style lang="scss" module>
 .misses {
   padding: 6px 12px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 }
 </style>

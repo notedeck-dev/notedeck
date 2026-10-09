@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useClickOutside } from '@/composables/useClickOutside'
+import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 
 /**
@@ -27,6 +28,8 @@ const props = withDefaults(
 const model = defineModel<string>({ required: true })
 
 const show = ref(false)
+// 退場は _popup.scss の menuLeave (--nd-duration-base) と同じ時間
+const panelT = useVaporTransition(show, { leaveDuration: 150 })
 const rootRef = ref<HTMLElement | null>(null)
 
 const selectedLabel = computed(
@@ -58,7 +61,10 @@ useClickOutside(rootRef, () => {
       </span>
       <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
     </button>
-    <div v-if="show" :class="$style.dropdownPanel">
+    <div
+      v-if="panelT.visible.value"
+      :class="[$style.dropdownPanel, panelT.leaving.value ? $style.menuLeave : $style.menuEnter]"
+    >
       <button
         v-for="opt in options"
         :key="opt.value"
@@ -76,6 +82,8 @@ useClickOutside(rootRef, () => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/popup';
+
 .dropdown {
   position: relative;
   width: 100%;
@@ -91,7 +99,7 @@ useClickOutside(rootRef, () => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   text-align: left;
   transition: border-color var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -101,7 +109,7 @@ useClickOutside(rootRef, () => {
 .dropdownChevron {
   margin-left: auto;
   opacity: 0.4;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .dropdownPanel {
@@ -116,7 +124,7 @@ useClickOutside(rootRef, () => {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-panel);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--nd-shadow-m);
 }
 
 .dropdownItem {
@@ -124,8 +132,8 @@ useClickOutside(rootRef, () => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
-  font-size: 0.8em;
+  padding: 8px 10px;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-align: left;
   cursor: pointer;

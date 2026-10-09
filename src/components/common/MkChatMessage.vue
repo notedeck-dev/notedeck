@@ -22,6 +22,8 @@ const props = defineProps<{
   serverHost?: string
   myAvatarUrl?: string
   otherAvatarUrl?: string
+  /** ルームでは送り主が複数いるので、相手側の吹き出しの上に名前を出す */
+  showSenderName?: boolean
 }>()
 
 if (props.accountId) provideNoteAccountId(props.accountId)
@@ -57,6 +59,13 @@ const displayUser = computed(() => {
     avatarDecorations: u.avatarDecorations ?? [],
     isCat: u.isCat,
   }
+})
+
+const senderName = computed(() => {
+  if (!props.showSenderName || isMine.value) return null
+  const u = props.message.fromUser
+  if (!u) return null
+  return { text: u.name || u.username, hasName: !!u.name, emojis: u.emojis }
 })
 
 const timeStr = computed(() => {
@@ -201,11 +210,21 @@ usePortal(lightboxPortalRef)
       :class="$style.chatAvatar"
       :avatar-url="displayUser.avatarUrl"
       :decorations="displayUser.avatarDecorations"
-      :size="42"
+      :size="50"
       :is-cat="displayUser.isCat"
       @click="onAvatarClick"
     />
     <div :class="$style.chatBubbleWrapper">
+      <div v-if="senderName" :class="$style.chatSender">
+        <MkMfm
+          v-if="senderName.hasName"
+          :text="senderName.text"
+          :emojis="senderName.emojis"
+          :server-host="serverHost"
+          plain
+        />
+        <template v-else>{{ senderName.text }}</template>
+      </div>
       <div
         :class="$style.chatBubble"
         @contextmenu.prevent.stop="moreMenuRef?.open($event)"
@@ -255,7 +274,7 @@ usePortal(lightboxPortalRef)
               :style="{ marginLeft: i > 0 ? '-6px' : '0' }"
             >
               <img
-                :src="proxyThumbUrl(url, 18)"
+                :src="proxyThumbUrl(url, 24)"
                 :class="$style.reactionAvatar"
                 decoding="async"
                 loading="lazy"
@@ -298,7 +317,7 @@ usePortal(lightboxPortalRef)
   </div>
 
   <div v-if="lightboxUrl" ref="lightboxPortalRef" :class="$style.lightboxOverlay" @click="closeLightbox">
-    <button :class="$style.lightboxClose" @click="closeLightbox">
+    <button :aria-label="i18n.ts._common.close" :class="$style.lightboxClose" @click="closeLightbox">
       <svg viewBox="0 0 24 24" width="24" height="24">
         <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
       </svg>
@@ -312,17 +331,22 @@ usePortal(lightboxPortalRef)
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
+// 寸法は本家 (pages/chat/XMessage.vue) に揃える。カラムが 450px 以下なら
+// 小さい段 (本文 0.9em・アバター 42px・自分のアバターは隠す)、それより広ければ
+// 本文 14px 相当・アバター 50px の大きい段 (#1207)。DeckColumn が
+// container-type: inline-size を持つので、カラムの幅で切り替わる
 .chatMsg {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  padding: 4px 12px;
+  padding: 0 12px;
 
   &.mine {
     flex-direction: row-reverse;
 
     .chatBubble {
-      background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+      background: var(--nd-accentedBg);
       border-bottom-right-radius: 4px;
     }
 
@@ -338,24 +362,36 @@ usePortal(lightboxPortalRef)
   }
 }
 
-.chatAvatar {
-  width: 42px;
-  height: 42px;
+// MkAvatar 側の幅指定 (--avatar-size) より強くするため 2 クラスで当てる
+.chatMsg .chatAvatar {
+  width: 50px;
+  height: 50px;
   flex-shrink: 0;
-  margin-top: 4px;
   cursor: pointer;
 }
 
 .chatBubbleWrapper {
-  max-width: 75%;
+  // 最大幅は決め打ちの割合ではなく、反対側に少し余白を残すだけにする。
+  // 狭いカラムで自分のアバターを隠した分も吹き出しに回る
+  min-width: 0;
+  max-width: calc(100% - 32px);
   position: relative;
 }
 
+.chatSender {
+  margin: 0 4px 2px;
+  font-size: var(--nd-font-sm);
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chatBubble {
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: 14px;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
-  font-size: 0.95em;
+  background: var(--nd-panelHighlight);
+  font-size: 1em;
   line-height: 1.5;
   word-break: break-word;
 }
@@ -379,8 +415,8 @@ usePortal(lightboxPortalRef)
 .chatMeta {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-top: 2px;
+  gap: 6px;
+  margin-top: 4px;
   padding: 0 2px;
 }
 
@@ -389,28 +425,28 @@ usePortal(lightboxPortalRef)
 }
 
 .chatTime {
-  font-size: 0.7em;
-  opacity: 0.5;
+  font-size: var(--nd-font-xs);
+  opacity: 0.6;
 }
 
 .chatMoreBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: 22px;
+  height: 22px;
   border: none;
   border-radius: 50%;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.08));
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
   opacity: 0.5;
   cursor: pointer;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
 
   &:hover {
     opacity: 1;
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.15));
+    background: var(--nd-buttonHoverBg);
   }
 }
 
@@ -418,25 +454,25 @@ usePortal(lightboxPortalRef)
 .chatReactions {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 6px;
 }
 
 .chatReactionPill {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  border-radius: 10px;
-  border: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.1));
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: var(--nd-radius-full);
+  border: 1px solid var(--nd-divider);
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
   line-height: 1.4;
 
   &:not(:disabled):hover {
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.1));
+    background: var(--nd-buttonHoverBg);
   }
 
   /* 自分のメッセージのリアクションは付け外しできないので押せる見た目にしない */
@@ -446,7 +482,7 @@ usePortal(lightboxPortalRef)
 
   &.reacted {
     border-color: var(--nd-accent);
-    background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+    background: var(--nd-accentedBg);
   }
 }
 
@@ -458,13 +494,13 @@ usePortal(lightboxPortalRef)
 
 .reactionAvatarWrap {
   display: inline-block;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
   border-radius: 50%;
   background: var(--nd-buttonBg);
   overflow: hidden;
-  border: 1.5px solid var(--nd-panel, #1a1a1a);
+  border: 1.5px solid var(--nd-panel);
 }
 
 .reactionAvatar {
@@ -475,19 +511,46 @@ usePortal(lightboxPortalRef)
 }
 
 .reactionEmojiImg {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   object-fit: contain;
   flex-shrink: 0;
 }
 
 .reactionEmojiText {
-  font-size: 1.1em;
+  font-size: 20px;
+  line-height: 1;
 }
 
 .reactionCount {
-  font-size: 0.85em;
+  font-size: 1em;
   opacity: 0.7;
+}
+
+@container (max-width: 450px) {
+  .chatMsg.mine .chatAvatar {
+    display: none;
+  }
+
+  .chatMsg .chatAvatar {
+    width: 42px;
+    height: 42px;
+  }
+
+  .chatBubble {
+    padding: 8px 12px;
+    font-size: var(--nd-font-body);
+  }
+
+  .reactionAvatarWrap {
+    width: 20px;
+    height: 20px;
+  }
+
+  .reactionEmojiImg {
+    width: 22px;
+    height: 22px;
+  }
 }
 
 /* Add reaction button */
@@ -504,6 +567,7 @@ usePortal(lightboxPortalRef)
 }
 
 .lightboxClose {
+  @include nd-interactive;
   position: absolute;
   top: 16px;
   right: 16px;

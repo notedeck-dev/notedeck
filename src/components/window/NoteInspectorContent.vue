@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import type { JsonValue } from '@/bindings'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import I18n from '@/components/common/I18n.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -165,11 +166,11 @@ watch(tab, (t) => {
     <div v-if="variantList" :class="$style.variantBar">
       <label :class="$style.variantLabel">
         {{ i18n.ts._noteInspectorContent.view }}
-        <select v-model="activeVariant" :class="$style.variantSelect">
+        <FormSelect v-model="activeVariant">
           <option v-for="(v, i) in variantList" :key="`${v.accountId}:${v.noteId}`" :value="i">
             {{ v.serverHost }} / {{ v.noteId }}
           </option>
-        </select>
+        </FormSelect>
       </label>
       <code v-if="identity" :class="$style.identity" :title="identity">{{ identity }}</code>
     </div>
@@ -201,7 +202,7 @@ watch(tab, (t) => {
   align-items: center;
   gap: 12px;
   padding: 6px 12px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   border-bottom: 1px solid var(--nd-divider);
   min-width: 0;
 }
@@ -213,9 +214,6 @@ watch(tab, (t) => {
   flex-shrink: 0;
 }
 
-.variantSelect {
-  font: inherit;
-}
 
 .identity {
   opacity: 0.7;

@@ -251,8 +251,8 @@ function resolvePendingFor(userId: string) {
 .tab {
   flex: 1;
   padding: 10px;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.6;
   border-bottom: 2px solid transparent;
@@ -279,9 +279,9 @@ function resolvePendingFor(userId: string) {
 
 .cardBadge {
   flex-shrink: 0;
-  font-size: 0.65em;
+  font-size: var(--nd-font-2xs);
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   opacity: 0.7;
@@ -290,7 +290,7 @@ function resolvePendingFor(userId: string) {
 .stateMsg {
   padding: 24px 16px;
   text-align: center;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
   color: var(--nd-fg);
 }

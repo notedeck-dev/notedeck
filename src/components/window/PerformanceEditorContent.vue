@@ -3,8 +3,10 @@ import { json } from '@codemirror/lang-json'
 import { computed, ref, watch } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormNumber from '@/components/common/form/FormNumber.vue'
+import FormRange from '@/components/common/form/FormRange.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
-import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -83,19 +85,6 @@ function toggleSection(catKey: string) {
   }
 }
 
-function handleSlider(key: PerformanceKey, event: Event) {
-  const target = event.target as HTMLInputElement
-  perfStore.set(key, Number(target.value))
-}
-
-function handleNumberInput(key: PerformanceKey, event: Event) {
-  const target = event.target as HTMLInputElement
-  const val = Number(target.value)
-  if (!Number.isNaN(val)) {
-    perfStore.set(key, val)
-  }
-}
-
 // --- Mixer (master + category faders) ---
 
 // フェーダー位置は UI 側で保持する。config から毎回逆算すると、step 丸めで
@@ -145,8 +134,7 @@ const channels = computed(() =>
 )
 
 /** マスターは VCA 式: 各チャンネルの相対差を保ったまま全体を上下させる。 */
-function handleMasterFader(event: Event) {
-  const next = Number((event.target as HTMLInputElement).value)
+function handleMasterFader(next: number) {
   const delta = (next - masterValue.value) / 100
   masterValue.value = next
   for (const cat of FADER_CATEGORIES) {
@@ -156,16 +144,11 @@ function handleMasterFader(event: Event) {
   }
 }
 
-function handleCategoryFader(cat: string, event: Event) {
-  const t = Number((event.target as HTMLInputElement).value) / 100
+function handleCategoryFader(cat: string, value: number) {
+  const t = value / 100
   positions.value[cat] = t
   perfStore.applyCategorySlider(cat, t)
   masterValue.value = Math.round(average(Object.values(positions.value)) * 100)
-}
-
-// フェーダーの塗りつぶし率 (つまみより下をアクセント色で塗る)
-function sliderFill(value: number, min: number, max: number): string {
-  return `${((value - min) / (max - min)) * 100}%`
 }
 
 // --- Code tab ---
@@ -265,7 +248,7 @@ function handleReset() {
     <!-- Visual Tab -->
     <div v-show="tab === 'visual'" :class="$style.panel">
       <div :class="$style.section">
-        <AiSwitchRow
+        <FormSwitchRow
           :label="i18n.ts._performanceEditorContent.autoAdapt"
           :sub-label="i18n.ts._performanceEditorContent.autoAdaptDescription"
           icon="ti-battery-eco"
@@ -278,16 +261,11 @@ function handleReset() {
       <div :class="$style.section">
         <div :class="$style.sliderRow">
           <span :class="$style.sliderEndLabel">{{ i18n.ts._performanceEditorContent.lowMemory }}</span>
-          <input
-            type="range"
-            :class="$style.masterSlider"
-            :value="masterValue"
-            min="0"
-            max="100"
-            step="1"
+          <FormRange
+            :model-value="masterValue"
             :title="i18n.ts._performanceEditorContent.masterTitle"
-            :style="{ '--fill': sliderFill(masterValue, 0, 100) }"
-            @input="handleMasterFader"
+            :aria-label="i18n.ts._performanceEditorContent.masterTitle"
+            @update:model-value="handleMasterFader"
           />
           <span :class="$style.sliderEndLabel">{{ i18n.ts._performanceEditorContent.highPerformance }}</span>
         </div>
@@ -304,16 +282,12 @@ function handleReset() {
             <span :class="$style.channelValue">
               {{ Math.round(ch.t * 100) }}<span v-if="!ch.exact" :class="$style.customDot">*</span>
             </span>
-            <input
-              type="range"
-              :class="$style.fader"
-              :value="Math.round(ch.t * 100)"
-              min="0"
-              max="100"
-              step="1"
+            <FormRange
+              vertical
+              :model-value="Math.round(ch.t * 100)"
               :title="ch.meta.label"
-              :style="{ '--fill': sliderFill(ch.t * 100, 0, 100) }"
-              @input="handleCategoryFader(ch.cat, $event)"
+              :aria-label="ch.meta.label"
+              @update:model-value="(v) => handleCategoryFader(ch.cat, v)"
             />
             <i :class="['ti', ch.meta.icon, $style.channelIcon]" />
             <span :class="$style.channelLabel">{{ ch.meta.short }}</span>
@@ -346,16 +320,15 @@ function handleReset() {
                 <div :class="$style.fieldHeader">
                   <span :class="$style.fieldLabel">{{ field.meta.label }}</span>
                   <div :class="$style.fieldValue">
-                    <input
-                      type="number"
-                      :class="$style.numberInput"
-                      :value="perfStore.get(field.key)"
+                    <FormNumber
+                      :model-value="perfStore.get(field.key)"
                       :min="field.meta.min"
                       :max="field.meta.max"
                       :step="field.meta.step"
-                      @change="handleNumberInput(field.key, $event)"
+                      :unit="field.meta.unit"
+                      :label="field.meta.label"
+                      @update:model-value="(v) => perfStore.set(field.key, v)"
                     />
-                    <span :class="$style.fieldUnit">{{ field.meta.unit }}</span>
                     <button
                       v-if="perfStore.isCustomized(field.key)"
                       class="_button"
@@ -367,21 +340,14 @@ function handleReset() {
                     </button>
                   </div>
                 </div>
-                <input
-                  type="range"
+                <FormRange
                   :class="$style.slider"
-                  :value="perfStore.get(field.key)"
+                  :model-value="perfStore.get(field.key)"
                   :min="field.meta.min"
                   :max="field.meta.max"
                   :step="field.meta.step"
-                  :style="{
-                    '--fill': sliderFill(
-                      perfStore.get(field.key),
-                      field.meta.min,
-                      field.meta.max,
-                    ),
-                  }"
-                  @input="handleSlider(field.key, $event)"
+                  :aria-label="field.meta.label"
+                  @update:model-value="(v) => perfStore.set(field.key, v)"
                 />
                 <div :class="$style.fieldDesc">{{ field.meta.description }}</div>
               </div>
@@ -492,8 +458,8 @@ function handleReset() {
   align-items: center;
   gap: 6px;
   width: 100%;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
@@ -505,7 +471,7 @@ function handleReset() {
 
 .chevron {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .sliderRow {
@@ -515,53 +481,13 @@ function handleReset() {
 }
 
 .sliderEndLabel {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
   white-space: nowrap;
   flex-shrink: 0;
 }
 
-.masterSlider {
-  flex: 1;
-  height: 4px;
-  appearance: none;
-  /* thumb より左を塗りつぶす (--fill は template 側で算出) */
-  background: linear-gradient(
-    to right,
-    var(--nd-accent) var(--fill, 0%),
-    var(--nd-divider) var(--fill, 0%)
-  );
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-
-  &::-webkit-slider-thumb {
-    appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-    transition: transform 0.1s;
-
-    &:hover {
-      transform: scale(1.2);
-    }
-  }
-
-  &::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border: none;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-  }
-}
-
 // --- Mixer (DAW 風の縦フェーダー) ---
-
-$fader-height: 132px;
 
 .mixer {
   flex-direction: row;
@@ -575,7 +501,7 @@ $fader-height: 132px;
   justify-content: space-between;
   // 上の値表示・下のアイコンとラベルのぶんだけ詰めてフェーダーの両端に合わせる
   padding: 18px 0 32px;
-  font-size: 0.65em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
   white-space: nowrap;
 }
@@ -598,7 +524,7 @@ $fader-height: 132px;
 }
 
 .channelValue {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }
@@ -609,57 +535,14 @@ $fader-height: 132px;
 }
 
 .channelIcon {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
 }
 
 .channelLabel {
-  font-size: 0.65em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.6;
   white-space: nowrap;
-}
-
-// 縦向き range。writing-mode が現行仕様で、古い WebKit 用に
-// slider-vertical も残す (効かない環境では横向きにフォールバックする)
-.fader {
-  appearance: none;
-  -webkit-appearance: slider-vertical;
-  writing-mode: vertical-lr;
-  direction: rtl;
-  width: 4px;
-  height: $fader-height;
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-  /* thumb より下を塗りつぶす (--fill は template 側で算出) */
-  background: linear-gradient(
-    to top,
-    var(--nd-accent) var(--fill, 0%),
-    var(--nd-divider) var(--fill, 0%)
-  );
-
-  &::-webkit-slider-thumb {
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--nd-fg);
-    cursor: pointer;
-    transition: transform 0.1s;
-
-    &:hover {
-      transform: scale(1.15);
-    }
-  }
-
-  &::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border: none;
-    border-radius: 50%;
-    background: var(--nd-fg);
-    cursor: pointer;
-  }
 }
 
 // --- Fields ---
@@ -678,45 +561,14 @@ $fader-height: 132px;
 }
 
 .fieldLabel {
-  font-size: 0.78em;
-  font-weight: 500;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-medium);
 }
 
 .fieldValue {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.numberInput {
-  width: 64px;
-  padding: 2px 4px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: 0.75em;
-  text-align: right;
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
-
-  // Hide spinner arrows
-  &::-webkit-inner-spin-button,
-  &::-webkit-outer-spin-button {
-    -webkit-appearance: none;
-    margin: 0;
-  }
-  -moz-appearance: textfield;
-}
-
-.fieldUnit {
-  font-size: 0.7em;
-  opacity: 0.5;
-  min-width: 24px;
 }
 
 .resetBtn {
@@ -726,7 +578,7 @@ $fader-height: 132px;
   width: 20px;
   height: 20px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.4;
   transition: opacity var(--nd-duration-base), color var(--nd-duration-base);
 
@@ -737,45 +589,12 @@ $fader-height: 132px;
 }
 
 .slider {
+  flex: none;
   width: 100%;
-  height: 4px;
-  appearance: none;
-  /* thumb より左を塗りつぶす (--fill は template 側で算出) */
-  background: linear-gradient(
-    to right,
-    var(--nd-accent) var(--fill, 0%),
-    var(--nd-divider) var(--fill, 0%)
-  );
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-
-  &::-webkit-slider-thumb {
-    appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-    transition: transform 0.1s;
-
-    &:hover {
-      transform: scale(1.2);
-    }
-  }
-
-  &::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border: none;
-    border-radius: 50%;
-    background: var(--nd-accent);
-    cursor: pointer;
-  }
 }
 
 .fieldDesc {
-  font-size: 0.68em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.4;
   line-height: 1.3;
 }
@@ -791,7 +610,7 @@ $fader-height: 132px;
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.4;
 }
 
@@ -806,7 +625,7 @@ $fader-height: 132px;
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, var(--nd-bg));
   color: var(--nd-love);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   word-break: break-all;
 }
 
@@ -814,7 +633,7 @@ $fader-height: 132px;
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

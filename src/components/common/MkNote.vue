@@ -8,6 +8,10 @@ import type {
 } from '@/adapters/types'
 import { applyNoteViewInterruptors } from '@/aiscript/plugin-api'
 import AppTime from '@/components/common/AppTime.vue'
+import {
+  type NoteTranslation,
+  translateNote,
+} from '@/composables/noteTranslation'
 import { useAccountMode } from '@/composables/useAccountMode'
 import {
   type QuoteAsTarget,
@@ -65,7 +69,10 @@ import {
   resolveEffectiveNoteBase,
 } from '@/utils/noteViewModel'
 import { spawnReactionEffect } from '@/utils/reactionEffect'
-import { renderedReactionNotes } from '@/utils/renderedMemo'
+import {
+  expandedNoteContent,
+  renderedReactionNotes,
+} from '@/utils/renderedMemo'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { extractColumnThemeVars } from '@/utils/themeVars'
 import { toggleReaction } from '@/utils/toggleReaction'
@@ -75,6 +82,10 @@ import MkEmoji from './MkEmoji.vue'
 import MkMediaGrid from './MkMediaGrid.vue'
 import MkMfm from './MkMfm.vue'
 import MkPoll from './MkPoll.vue'
+// URL プレビューは静的に読む。非同期にすると、セッションで最初にプレビューを
+// 出すノートでチャンク待ちの間は何も出ず、届いてからスケルトン → カードと
+// 2 段で伸びる。MkNote のチャンクに比べて十分小さいので、待ちを無くすほうを取る
+import MkUrlPreview from './MkUrlPreview.vue'
 import NoteMoreMenu from './NoteMoreMenu.vue'
 import NoteReactionPickerPopup from './NoteReactionPickerPopup.vue'
 import NoteReactionUsersPopup from './NoteReactionUsersPopup.vue'
@@ -82,7 +93,6 @@ import NoteVariantsPopup from './NoteVariantsPopup.vue'
 import RenoteMoreMenu from './RenoteMoreMenu.vue'
 
 const MkUserPopup = defineAsyncComponent(() => import('./MkUserPopup.vue'))
-const MkUrlPreview = defineAsyncComponent(() => import('./MkUrlPreview.vue'))
 const MkPostForm = defineAsyncComponent(() => import('./MkPostForm.vue'))
 const NoteReactionUsersModal = defineAsyncComponent(
   () => import('./NoteReactionUsersModal.vue'),
@@ -94,6 +104,12 @@ const props = defineProps<{
   focused?: boolean
   pinnedNoteIds?: string[]
   embedded?: boolean
+  /**
+   * 詰めた表示 (通知カラムに添える引用など): アバターを出さず、余白と文字を
+   * 小さくする。外から :deep で子のクラスを狙っても CSS Modules では当たらない
+   * ので、表示の切り替えは prop で受ける
+   */
+  compact?: boolean
   /** Hint from virtual scroller: this note is near the viewport, use eager image loading */
   nearViewport?: boolean
   /** チャンネルカラム内など、チャンネル情報を重複表示したくない時に true */
@@ -124,6 +140,20 @@ const effectiveNote = computed(() =>
 const allEmojis = computed(() => ({
   ...effectiveNote.value.emojis,
   ...effectiveNote.value.user.emojis,
+}))
+// テンプレートで spread すると描画のたびに別オブジェクトになり、MkMfm が
+// 毎回再描画される。computed なら元のノートが変わったときだけ作り直す
+const renoterNameEmojis = computed(() => ({
+  ...props.note.emojis,
+  ...props.note.user.emojis,
+}))
+const replyNameEmojis = computed(() => ({
+  ...effectiveNote.value.reply?.emojis,
+  ...effectiveNote.value.reply?.user.emojis,
+}))
+const replyTextEmojis = computed(() => ({
+  ...effectiveNote.value.reply?.emojis,
+  ...effectiveNote.value.reply?.reactionEmojis,
 }))
 
 // cat ユーザーの本文にゃ化 (#763)。interruptor 適用後の isCat で判定するので、
@@ -335,12 +365,59 @@ async function handleUnrenote() {
     isRenoted.value = true
   }
 }
-const cwExpanded = ref(false)
-const longTextExpanded = ref(false)
+// 開閉は仮想スクロールで行が作り直されても保つ (#704)。開く演出は
+// この場で開いたときだけ (戻ってきた行で再生しない)
+const cwExpanded = ref(expandedNoteContent.has(`cw:${effectiveNote.value.id}`))
+const cwJustRevealed = ref(false)
+const longTextExpanded = ref(
+  expandedNoteContent.has(`long:${effectiveNote.value.id}`),
+)
+
+function toggleCw() {
+  cwExpanded.value = !cwExpanded.value
+  cwJustRevealed.value = cwExpanded.value
+  expandedNoteContent.set(`cw:${effectiveNote.value.id}`, cwExpanded.value)
+}
+
+// 翻訳 (#704)。本家と同じくサーバーの notes/translate に頼み、本文の下に出す
+const translation = ref<NoteTranslation | null>(null)
+const translating = ref(false)
+
+async function handleTranslate() {
+  if (translation.value || translating.value) return
+  translating.value = true
+  try {
+    translation.value = await translateNote(
+      props.note._accountId,
+      effectiveNote.value.id,
+      i18n.lang,
+    )
+  } catch (e) {
+    console.warn('[note:translate]', e)
+    useToast().show(i18n.ts._mkNote.translateFailed, 'error')
+  } finally {
+    translating.value = false
+  }
+}
+
+function toggleLongText() {
+  longTextExpanded.value = !longTextExpanded.value
+  expandedNoteContent.set(
+    `long:${effectiveNote.value.id}`,
+    longTextExpanded.value,
+  )
+}
 
 // ワードミュート soft（#610）: mutedWords にマッチしたら本文を折りたたみ、展開可能にする
 const visibility = useNoteVisibility()
-const wordMuteRevealed = ref(false)
+// 「表示する」で開いたものは CW と同じく作り直しでも保つ
+const wordMuteRevealed = ref(
+  expandedNoteContent.has(`muted:${effectiveNote.value.id}`),
+)
+function revealWordMuted() {
+  wordMuteRevealed.value = true
+  expandedNoteContent.set(`muted:${effectiveNote.value.id}`, true)
+}
 const softMuteCollapsed = computed(
   () =>
     visibility.isSoftWordMuted(effectiveNote.value) && !wordMuteRevealed.value,
@@ -392,8 +469,20 @@ const activeModeFlags = computed(() =>
   deriveActiveModeFlags(effectiveNote.value.modeFlags),
 )
 
-function navigateToDetail() {
+/** クリックした要素の中に選択範囲があるか (ドラッグ選択して離したときの click) */
+function hasSelectionIn(e: MouseEvent): boolean {
+  const sel = window.getSelection()
+  return (
+    !!sel &&
+    !sel.isCollapsed &&
+    (e.currentTarget as Node).contains(sel.anchorNode)
+  )
+}
+
+function navigateToDetail(e: MouseEvent) {
   if (props.disableArticleClick) return
+  // 本文をドラッグ選択して離したときの click で遷移するとコピーできない
+  if (hasSelectionIn(e)) return
   if (!props.detailed) {
     navToNote(props.note._accountId, props.note.id)
   }
@@ -862,9 +951,11 @@ function handlePickerReaction(reaction: string) {
       $style.noteRoot,
       {
         [$style.detailed]: detailed,
+        [$style.compact]: compact,
         [$style.focused]: focused,
         [$style.hasChannel]: showChannelInfo,
         [$style.spotlighted]: isSpotlighted,
+        [$style.offscreen]: nearViewport === false,
       },
     ]"
     :style="channelInfo && showChannelInfo ? { '--nd-channel-color': channelInfo.color } : undefined"
@@ -901,14 +992,14 @@ function handlePickerReaction(reaction: string) {
         <MkMfm
           v-if="note.user.name"
           :text="note.user.name"
-          :emojis="{ ...note.emojis, ...note.user.emojis }"
+          :emojis="renoterNameEmojis"
           :server-host="note._serverHost"
           plain
         />
         <template v-else>{{ note.user.username }}</template>
       </span>
       <span :class="$style.renoteLabel">{{ i18n.ts._mkNote.renotedSuffix }}</span>
-      <button :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
+      <button :aria-label="i18n.ts._common.more" :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
         <i class="ti ti-dots" />
       </button>
       <AppTime :class="$style.renoteTime" :at="note.createdAt" />
@@ -918,7 +1009,7 @@ function handlePickerReaction(reaction: string) {
     <div
       v-if="effectiveNote.reply && !embedded"
       :class="$style.replyTo"
-      @click.stop="navToNote(note._accountId, effectiveNote.reply!.id)"
+      @click.stop="!hasSelectionIn($event) && navToNote(note._accountId, effectiveNote.reply!.id)"
     >
       <img
         v-if="effectiveNote.reply!.user.avatarUrl"
@@ -932,7 +1023,7 @@ function handlePickerReaction(reaction: string) {
         <MkMfm
           v-if="effectiveNote.reply!.user.name"
           :text="effectiveNote.reply!.user.name"
-          :emojis="{ ...effectiveNote.reply!.emojis, ...effectiveNote.reply!.user.emojis }"
+          :emojis="replyNameEmojis"
           :server-host="effectiveNote._serverHost"
           plain
         />
@@ -941,7 +1032,7 @@ function handlePickerReaction(reaction: string) {
       <span :class="$style.replyToText">
         <MkMfm
           :text="effectiveNote.reply!.cw ?? effectiveNote.reply!.text?.slice(0, 100) ?? ''"
-          :emojis="{ ...effectiveNote.reply!.emojis, ...effectiveNote.reply!.reactionEmojis }"
+          :emojis="replyTextEmojis"
           :server-host="effectiveNote._serverHost"
         />
       </span>
@@ -1043,7 +1134,7 @@ function handlePickerReaction(reaction: string) {
         <!-- Word mute (soft, #610) -->
         <div v-if="softMuteCollapsed" :class="$style.cw">
           <p :class="$style.cwText">{{ i18n.tsx._mkNote.saidSomething({ name: effectiveNote.user.name || effectiveNote.user.username }) }}</p>
-          <button :class="$style.cwToggle" class="_button" @click.stop="wordMuteRevealed = true">
+          <button :class="$style.cwToggle" class="_button" @click.stop="revealWordMuted()">
             {{ i18n.ts._mkNote.showMore }}
           </button>
         </div>
@@ -1069,14 +1160,14 @@ function handlePickerReaction(reaction: string) {
               @mention-leave="onMentionLeave"
             />
           </p>
-          <button :class="$style.cwToggle" class="_button" @click.stop="cwExpanded = !cwExpanded">
+          <button :class="$style.cwToggle" class="_button" @click.stop="toggleCw">
             {{ cwExpanded ? i18n.ts._common.hide : i18n.ts._mkNote.showMore }}
             <span v-if="!cwExpanded && effectiveNote.text" :class="$style.cwChars">{{ i18n.tsx._mkNote.chars_plural({ count: effectiveNote.text.length }) }}</span>
           </button>
         </div>
 
         <!-- Body -->
-        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="[$style.body, effectiveNote.cw !== null && cwExpanded && $style.bodyReveal]">
+        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="[$style.body, effectiveNote.cw !== null && cwJustRevealed && $style.bodyReveal]">
           <div v-if="effectiveNote.text && !effectiveNote.contentHidden" :class="[$style.textContainer, { [$style.collapsed]: isLongText && !longTextExpanded }]">
             <p :class="$style.text">
               <MkMfm
@@ -1094,10 +1185,30 @@ function handlePickerReaction(reaction: string) {
             </p>
             <div v-if="isLongText && !longTextExpanded" :class="$style.longTextFade" />
           </div>
-          <button v-if="isLongText" :class="$style.cwToggle" class="_button" @click.stop="longTextExpanded = !longTextExpanded">
+          <button v-if="isLongText" :class="$style.cwToggle" class="_button" @click.stop="toggleLongText">
             {{ longTextExpanded ? i18n.ts._common.hide : i18n.ts._mkNote.showMore }}
             <span v-if="!longTextExpanded && effectiveNote.text" :class="$style.cwChars">{{ i18n.tsx._mkNote.chars_plural({ count: effectiveNote.text.length }) }}</span>
           </button>
+
+          <div v-if="translating || translation" :class="$style.translation">
+            <span v-if="translating" :class="$style.translationLabel">{{ i18n.ts._mkNote.translating }}</span>
+            <template v-else-if="translation">
+              <span :class="$style.translationLabel">{{ i18n.tsx._mkNote.translatedFrom({ lang: translation.sourceLang }) }}</span>
+              <p :class="$style.text">
+                <MkMfm
+                  :text="translation.text"
+                  :emojis="effectiveNote.emojis"
+                  :reaction-emojis="effectiveNote.reactionEmojis"
+                  :server-host="effectiveNote._serverHost"
+                  :my-username="myAccount?.username"
+                  :my-host="myAccount?.host"
+                  @mention-click="handleMentionClick"
+                  @mention-hover="onMentionHover"
+                  @mention-leave="onMentionLeave"
+                />
+              </p>
+            </template>
+          </div>
 
           <MkMediaGrid
             v-if="effectiveNote.files.length > 0 && !effectiveNote.contentHidden"
@@ -1202,7 +1313,7 @@ function handlePickerReaction(reaction: string) {
               {{ effectiveNote.renoteCount }}
             </span>
           </button>
-          <button v-else :class="[$style.footerButton, $style.renoteButton, $style.footerDisabled]" disabled>
+          <button :aria-label="i18n.ts._common.renote" v-else :class="[$style.footerButton, $style.renoteButton, $style.footerDisabled]" disabled>
             <i class="ti ti-ban" />
           </button>
           <button
@@ -1214,6 +1325,7 @@ function handlePickerReaction(reaction: string) {
             <i :class="effectiveNote.myReaction != null ? 'ti ti-minus' : 'ti ti-plus'" />
           </button>
           <button
+            :aria-label="i18n.ts._common.more"
             :class="[$style.footerButton, $style.moreButton]"
             @click.stop="moreMenuRef?.open($event)"
           >
@@ -1319,6 +1431,7 @@ function handlePickerReaction(reaction: string) {
     @unreact-as="handleUnreactAs"
     @renote-as="handleRenoteAs"
     @quote-as="openCrossAccountQuote"
+    @translate="handleTranslate"
   />
 
   <RenoteMoreMenu
@@ -1359,13 +1472,13 @@ function handlePickerReaction(reaction: string) {
   align-items: center;
   gap: 2px;
   margin-left: 6px;
-  padding: 0 5px;
+  padding: 0 6px;
   height: 18px;
   border: 1px solid var(--nd-divider);
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: transparent;
   color: inherit;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   line-height: 1;
   cursor: pointer;
   opacity: 0.8;
@@ -1383,7 +1496,7 @@ function handlePickerReaction(reaction: string) {
   gap: 6px;
   padding: 8px 0;
   opacity: 0.7;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 /* 主ビュー以外のアカウントだけが押している反応: 塗りなし + 破線 (色差だけでない形差) */
@@ -1399,7 +1512,7 @@ function handlePickerReaction(reaction: string) {
 
 .noteRoot {
   position: relative;
-  font-size: 1.05em;
+  font-size: var(--nd-font-lg);
   contain: content;
   container-type: inline-size;
 
@@ -1447,7 +1560,7 @@ function handlePickerReaction(reaction: string) {
   color: var(--nd-fg);
   opacity: 0.75;
   font: inherit;
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   line-height: 1.4;
   cursor: pointer;
   transition:
@@ -1462,7 +1575,7 @@ function handlePickerReaction(reaction: string) {
 
 .channelBadgeIcon {
   flex-shrink: 0;
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
 }
 
 .channelBadgeName {
@@ -1477,7 +1590,7 @@ function handlePickerReaction(reaction: string) {
   padding: 12px 32px 0 32px;
   align-items: center;
   gap: 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-accent);
 }
 
@@ -1488,7 +1601,7 @@ function handlePickerReaction(reaction: string) {
 
 .pinnedLabel {
   opacity: 0.8;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 /* Reply-to preview */
@@ -1516,14 +1629,14 @@ function handlePickerReaction(reaction: string) {
 
 .replyToName {
   flex-shrink: 0;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 
-  :deep(.custom-emoji) {
+  :global(.custom-emoji) {
     height: 1em;
     width: auto;
   }
@@ -1531,7 +1644,7 @@ function handlePickerReaction(reaction: string) {
 
 .replyToText {
   flex: 1;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1552,7 +1665,7 @@ function handlePickerReaction(reaction: string) {
   line-height: 28px;
   align-items: center;
   gap: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-renote);
 }
 
@@ -1568,14 +1681,14 @@ function handlePickerReaction(reaction: string) {
 }
 
 .renoteUser {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   cursor: pointer;
 
   &:hover {
     text-decoration: underline;
   }
 
-  :deep(.custom-emoji) {
+  :global(.custom-emoji) {
     height: 1.2em;
     width: auto;
   }
@@ -1597,7 +1710,7 @@ function handlePickerReaction(reaction: string) {
   margin-left: auto;
   background: none;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   color: inherit;
   opacity: 0.6;
   cursor: pointer;
@@ -1613,6 +1726,18 @@ function handlePickerReaction(reaction: string) {
 .article {
   display: flex;
   padding: 28px 32px;
+}
+
+.compact {
+  font-size: var(--nd-font-body);
+
+  .article {
+    padding: 8px 12px 12px;
+  }
+
+  .avatar {
+    display: none;
+  }
 }
 
 .avatar {
@@ -1641,17 +1766,17 @@ function handlePickerReaction(reaction: string) {
 .name {
   flex-shrink: 1;
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   margin: 0 0.5em 0 0;
   text-overflow: ellipsis;
   overflow: hidden;
   color: var(--nd-fgHighlighted);
 
-  :deep(.mfm) {
+  :global(.mfm) {
     white-space: nowrap;
   }
 
-  :deep(.custom-emoji) {
+  :global(.custom-emoji) {
     height: 1.2em;
     width: auto;
   }
@@ -1672,7 +1797,7 @@ function handlePickerReaction(reaction: string) {
   padding: 1px 6px;
   font-size: 80%;
   border: solid 0.5px var(--nd-divider);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
 }
 
 /* Server badge (instance ticker) */
@@ -1682,15 +1807,15 @@ function handlePickerReaction(reaction: string) {
   gap: 4px;
   margin-bottom: 2px;
   padding: 1px 8px;
-  border-radius: 3px;
-  font-size: 0.75em;
+  border-radius: var(--nd-radius-xs);
+  font-size: var(--nd-font-xs);
   line-height: 1.4;
   overflow: hidden;
 }
 
 .instanceIcon {
   flex-shrink: 0;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   object-fit: contain;
   user-select: none;
   -webkit-user-select: none;
@@ -1698,7 +1823,7 @@ function handlePickerReaction(reaction: string) {
 
 .instanceName {
   color: #fff;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
@@ -1714,12 +1839,12 @@ function handlePickerReaction(reaction: string) {
   gap: 4px;
   flex-shrink: 0;
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .edited {
   opacity: 0.5;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .time {
@@ -1737,7 +1862,7 @@ function handlePickerReaction(reaction: string) {
 }
 
 .cwText {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   margin: 0;
 }
 
@@ -1754,8 +1879,8 @@ function handlePickerReaction(reaction: string) {
   border-radius: var(--nd-radius-full);
   background: var(--nd-accentedBg);
   color: var(--nd-accent);
-  font-size: 0.8em;
-  font-weight: normal;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-regular);
   cursor: pointer;
   transition: background var(--nd-duration-base);
 
@@ -1766,7 +1891,7 @@ function handlePickerReaction(reaction: string) {
 
 .cwChars {
   opacity: 0.7;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
 }
 
 /* Body */
@@ -1775,6 +1900,20 @@ function handlePickerReaction(reaction: string) {
 }
 
 /* CW 開封時のみ付与。閉じる方向は隠す操作なので即時のまま */
+.translation {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border: solid 1px var(--nd-divider);
+  border-radius: var(--nd-radius-md);
+}
+
+.translationLabel {
+  display: block;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
+  opacity: 0.7;
+}
+
 .bodyReveal {
   animation: cw-reveal var(--nd-duration-slow) var(--nd-ease-decel) both;
 }
@@ -1832,7 +1971,7 @@ function handlePickerReaction(reaction: string) {
   display: block;
   padding: 4px 8px;
   color: var(--fg-light);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   cursor: pointer;
 
   &:hover {
@@ -1859,7 +1998,7 @@ function handlePickerReaction(reaction: string) {
   display: inline-flex;
   height: 42px;
   padding: 0 6px;
-  font-size: 1.5em;
+  font-size: var(--nd-font-2xl);
   border-radius: var(--nd-radius-sm);
   align-items: center;
   justify-content: center;
@@ -1914,8 +2053,12 @@ function handlePickerReaction(reaction: string) {
     object-fit: contain;
   }
 
+  /* 1 → 2 のように桁数が同じでも比例幅の数字だとボタン幅が変わり、行末の
+     ボタンが折り返して行ごと伸びることがある。等幅の数字にして揺れを桁上がり
+     だけに抑える (min-width で桁を先取りすると 1 桁の大多数で余白が空く) */
   .count {
-    font-size: 0.7em;
+    font-size: var(--nd-font-2xs);
+    font-variant-numeric: tabular-nums;
     line-height: 42px;
     margin: 0 0 0 4px;
   }
@@ -1943,19 +2086,19 @@ function handlePickerReaction(reaction: string) {
 }
 
 .reactionEmojiFallback {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 5em;
   white-space: nowrap;
 }
 
-.reactionEmoji :deep(.twemoji) {
+.reactionEmoji :global(.twemoji) {
   height: 1.25em;
 }
 
 .count {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   line-height: 42px;
   margin: 0 0 0 4px;
 }
@@ -1992,7 +2135,7 @@ function handlePickerReaction(reaction: string) {
 
   &:hover {
     color: var(--nd-fgHighlighted);
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -2028,7 +2171,8 @@ function handlePickerReaction(reaction: string) {
 }
 
 .buttonCount {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Renote popup menu */
@@ -2052,13 +2196,13 @@ function handlePickerReaction(reaction: string) {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 22px;
+  padding: 8px 22px;
   border: none;
   border-radius: 0;
   background: none;
   cursor: pointer;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: left;
   transition: background var(--nd-duration-base);
 
@@ -2095,6 +2239,13 @@ function handlePickerReaction(reaction: string) {
   border-top: 0.5px solid var(--nd-divider);
 }
 
+/* 仮想スクローラの overscan に居る (見えていない) 行は MFM の無限アニメを
+   止める。MkMfm へ prop で渡すと本文ごと再描画されるので、継承する CSS 変数で
+   伝える。nearViewport を渡さない面 (undefined) は動かしたまま */
+.offscreen {
+  --nd-mfm-play-state: paused;
+}
+
 /* AI Spotlight: note 本体を glow で囲む (内容を阻害しないよう枠 only)。
    視覚仕様は @/styles/_spotlight.scss に集約。 */
 .spotlighted {
@@ -2106,7 +2257,7 @@ function handlePickerReaction(reaction: string) {
    縮めるが、デッキの狭いカラムでは顔が小さくなって見分けにくくなるので
    58px 固定のままにする */
 @container (max-width: 580px) {
-  .noteRoot { font-size: 0.95em; }
+  .noteRoot { font-size: var(--nd-font-body); }
   .article { padding: 24px 26px; }
   .renoteInfo { padding: 12px 26px 6px 26px; }
   .pinnedInfo { padding: 10px 26px 0 26px; }
@@ -2114,7 +2265,7 @@ function handlePickerReaction(reaction: string) {
 }
 
 @container (max-width: 500px) {
-  .noteRoot { font-size: 0.9em; }
+  .noteRoot { font-size: var(--nd-font-body); }
   .article { padding: 20px 22px; }
   .renoteInfo { padding: 8px 22px 4px 22px; }
   .pinnedInfo { padding: 8px 22px 0 22px; }
@@ -2145,8 +2296,8 @@ function handlePickerReaction(reaction: string) {
 
 @container (max-width: 300px) {
   .footerButton { margin-right: 8px; }
-  .reaction { height: 32px; font-size: 1em; border-radius: 4px; }
-  .reaction .count { font-size: 0.9em; line-height: 32px; }
+  .reaction { height: 32px; font-size: 1em; border-radius: var(--nd-radius-xs); }
+  .reaction .count { font-size: var(--nd-font-body); line-height: 32px; }
   .reactionsAreaPending { min-height: 38px; }
 }
 

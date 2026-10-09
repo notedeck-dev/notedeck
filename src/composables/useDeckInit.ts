@@ -109,8 +109,6 @@ export function useDeckInit(options: {
         console.warn('[realtime-mode] failed to apply persisted mode:', e)
       })
 
-    // Load navbar from file (async, non-blocking)
-    deckStore.initNavbar()
     void usePostFormStore().init()
 
     // Register commands synchronously (needed for keyboard shortcuts)

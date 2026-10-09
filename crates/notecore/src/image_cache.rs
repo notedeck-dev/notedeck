@@ -202,6 +202,36 @@ struct MemCacheState {
     total_size: usize,
 }
 
+/// 「取得中」の登録の後始末。取得の future が途中で取り消される (要求した
+/// `<img>` が消えた等) と、登録が残ったままになり、以降の同じ URL の要求が
+/// 来ない結果を待ち続けて失敗する。取り消されたら自分の登録だけを外す
+/// (同じ URL を後から取り直した別の登録は消さない)
+struct InflightGuard {
+    inflight: Arc<Mutex<InflightMap>>,
+    hash: String,
+    rx: Option<watch::Receiver<Option<Result<CacheEntry, String>>>>,
+}
+
+impl InflightGuard {
+    fn disarm(&mut self) {
+        self.rx = None;
+    }
+}
+
+impl Drop for InflightGuard {
+    fn drop(&mut self) {
+        let Some(rx) = self.rx.take() else { return };
+        let inflight = self.inflight.clone();
+        let hash = std::mem::take(&mut self.hash);
+        tokio::spawn(async move {
+            let mut map = inflight.lock().await;
+            if map.get(&hash).is_some_and(|cur| cur.same_channel(&rx)) {
+                map.remove(&hash);
+            }
+        });
+    }
+}
+
 pub struct ImageCache {
     cache_dir: PathBuf,
     inflight: Arc<Mutex<InflightMap>>,
@@ -493,23 +523,40 @@ impl ImageCache {
             }
         }
 
-        // Inflight dedup: wait for existing fetch, then return from cache
-        let mut inflight = self.inflight.lock().await;
-        if let Some(rx) = inflight.get(&hash) {
-            let mut rx = rx.clone();
-            drop(inflight);
-            while rx.changed().await.is_ok() {
-                if let Some(result) = rx.borrow().as_ref() {
-                    return result.clone().map(StreamingFetchResult::Cached);
+        // Inflight dedup: wait for existing fetch, then return from cache.
+        // 先頭の取得が結果を送らずに終わっていたら (要求が取り消された等)、
+        // 待っていた側は失敗せず自分で取りに行く。登録は下の guard が片付けるが、
+        // 片付く前に覗いた場合に備えて、送り手の消えた登録はここで外す
+        let (tx, mut inflight_guard) = loop {
+            let mut inflight = self.inflight.lock().await;
+            if let Some(rx) = inflight.get(&hash) {
+                if rx.has_changed().is_err() && rx.borrow().is_none() {
+                    inflight.remove(&hash);
+                } else {
+                    let mut rx = rx.clone();
+                    drop(inflight);
+                    while rx.changed().await.is_ok() {
+                        if let Some(result) = rx.borrow().as_ref() {
+                            return result.clone().map(StreamingFetchResult::Cached);
+                        }
+                    }
+                    continue;
                 }
             }
-            return Err("Inflight request dropped".to_string());
-        }
 
-        // Register inflight
-        let (tx, rx) = watch::channel(None);
-        inflight.insert(hash.clone(), rx);
-        drop(inflight);
+            // Register inflight
+            let (tx, rx) = watch::channel(None);
+            inflight.insert(hash.clone(), rx.clone());
+            drop(inflight);
+            break (
+                tx,
+                InflightGuard {
+                    inflight: self.inflight.clone(),
+                    hash: hash.clone(),
+                    rx: Some(rx),
+                },
+            );
+        };
 
         // Start HTTP request (headers only, don't consume body yet)
         // Some hosts (e.g. i.pximg.net) require a valid Referer header.
@@ -606,6 +653,8 @@ impl ImageCache {
         let host_circuits = self.host_circuits.clone();
         let perf = self.perf.clone();
 
+        // ここから先の登録の片付けは下の task (と record_negative_and_notify) が持つ
+        inflight_guard.disarm();
         tokio::spawn(async move {
             let _permit = _permit; // move permit into task to hold it
             let mut all_bytes = Vec::new();
@@ -1395,5 +1444,63 @@ mod tests {
             Err(msg) => assert!(msg.contains("HTTPS")),
             Ok(_) => panic!("Expected error for HTTP URL"),
         }
+    }
+
+    /// 取得の途中 (上流の 429 で待っている間など) で要求が取り消されても、
+    /// 「取得中」の登録を残さない。残ると以降の同じ URL の要求がすべて
+    /// 来ない結果を待って即座に失敗し、再起動までその画像が出なくなる
+    /// (実機ログ 2026-10-09: サーバーアイコンが 1 秒おきに失敗し続けた)
+    #[tokio::test]
+    async fn cancelled_leader_does_not_leave_inflight_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = Arc::new(ImageCache::new(dir.path()));
+        let url = "https://example.com/icon.png";
+        // 上流に出る前の throttle 待ちで止めておく (ネットワークに出ない)
+        cache
+            .throttle_host("example.com", Duration::from_secs(60))
+            .await;
+
+        let c = cache.clone();
+        let task = tokio::spawn(async move { c.fetch_streaming(url).await });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(
+            cache.inflight.lock().await.contains_key(&hex_hash(url)),
+            "取得中として登録されている"
+        );
+
+        task.abort();
+        let _ = task.await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(
+            !cache.inflight.lock().await.contains_key(&hex_hash(url)),
+            "取り消された取得の登録は片付く"
+        );
+    }
+
+    /// 先頭の取得が結果を送らずに終わっていたら、待っていた側は失敗せず
+    /// 自分で取りに行く
+    #[tokio::test]
+    async fn waiter_takes_over_when_leader_vanished() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = Arc::new(ImageCache::new(dir.path()));
+        let url = "https://example.com/emoji.png";
+        cache
+            .throttle_host("example.com", Duration::from_secs(60))
+            .await;
+        // 結果を送らずに消えた先頭の取得 (送り手を落とした登録)
+        {
+            let (tx, rx) = watch::channel(None);
+            cache.inflight.lock().await.insert(hex_hash(url), rx);
+            drop(tx);
+        }
+
+        let c = cache.clone();
+        let task = tokio::spawn(async move { c.fetch_streaming(url).await });
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        assert!(
+            !task.is_finished(),
+            "即座に Inflight request dropped で失敗せず、自分の取得 (throttle 待ち) に入る"
+        );
+        task.abort();
     }
 }

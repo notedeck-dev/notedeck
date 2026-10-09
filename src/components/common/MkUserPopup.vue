@@ -12,6 +12,7 @@ import { initAdapterFor } from '@/adapters/factory'
 import type { NormalizedUserDetail, ServerAdapter } from '@/adapters/types'
 import I18n from '@/components/common/I18n.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { useHoverPopupLeaving } from '@/composables/useHoverPopup'
 import { i18n } from '@/i18n'
 import type { FollowState } from '@/services/followTransition'
 import { useAccountsStore } from '@/stores/accounts'
@@ -36,6 +37,8 @@ const props = defineProps<{
   x: number
   y: number
   themeVars?: Record<string, string>
+  /** 退場中 (呼び出し元が自前で開閉するとき)。useHoverPopup 経由なら不要 */
+  leaving?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -44,6 +47,8 @@ const emit = defineEmits<{
 
 const accountsStore = useAccountsStore()
 const isCompact = useIsCompactLayout()
+const hoverLeaving = useHoverPopupLeaving()
+const isLeaving = computed(() => props.leaving || hoverLeaving.value)
 
 const account = computed(() =>
   accountsStore.accounts.find((a) => a.id === props.accountId),
@@ -152,7 +157,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 <template>
   <div
     ref="rootRef"
-    :class="[$style.userPopup, { [$style.mobile]: isCompact }]"
+    :class="[
+      $style.userPopup,
+      isLeaving ? $style.hoverLeave : $style.hoverEnter,
+      { [$style.mobile]: isCompact },
+    ]"
     class="_popup user-hover-popup"
     :style="{ ...themeVars, left: `${clamped?.x ?? x}px`, top: `${clamped?.y ?? y}px` }"
     @mouseleave="handleMouseLeave"
@@ -225,6 +234,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 </template>
 
 <style lang="scss" module>
+@use '@/styles/popup';
+
 .userPopup {
   position: fixed;
   z-index: calc(var(--nd-z-popup) + 1);
@@ -232,11 +243,6 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   overflow: hidden;
   pointer-events: auto;
   contain: paint;
-  animation: userPopupIn 0.15s var(--nd-ease-spring);
-}
-
-@keyframes userPopupIn {
-  from { opacity: 0; transform: scale(0.97) translateY(4px); }
 }
 
 /* バナー右上に重ねる (プロフィールヒーローと同じ配置感) */
@@ -250,7 +256,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .popupLoading {
   padding: 24px;
   text-align: center;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.5;
 }
@@ -283,7 +289,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 
 .popupName {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   font-size: 1em;
   color: var(--nd-fgHighlighted);
   overflow: hidden;
@@ -292,13 +298,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 
 .popupUsername {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
 }
 
 .popupDesc {
   margin: 8px 0 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -310,7 +316,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   display: flex;
   gap: 12px;
   margin-top: 10px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 
   b {
@@ -323,8 +329,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   margin-top: 8px;
   padding: 2px 10px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.7em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   background: var(--nd-accentedBg);
   color: var(--nd-accent);
 }
@@ -334,7 +340,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-infoFg);
   background: var(--nd-infoBg);
   opacity: 0.8;

@@ -1136,7 +1136,7 @@ onUnmounted(() => {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 6px 10px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   outline: none;
 
@@ -1169,9 +1169,9 @@ onUnmounted(() => {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   opacity: 0.35;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base), color var(--nd-duration-base);
 
   &:hover {
@@ -1190,13 +1190,13 @@ onUnmounted(() => {
 
 .inlineError {
   padding: 4px 12px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-love);
 }
 
 .inlineNote {
   padding: 4px 12px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 }
 
@@ -1215,7 +1215,7 @@ onUnmounted(() => {
 .searchPreviewHint {
   text-align: center;
   padding: 0.75rem 1rem;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.4;
   border-top: 1px solid var(--nd-divider);
 }

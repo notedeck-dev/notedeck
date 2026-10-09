@@ -40,6 +40,7 @@ function remove() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .tombstone {
   width: 100%;
   height: 100%;
@@ -50,7 +51,7 @@ function remove() {
   gap: 8px;
   padding: 24px 16px;
   text-align: center;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   background: color-mix(in srgb, var(--nd-panel) 92%, transparent);
   border: 1px dashed color-mix(in srgb, var(--nd-divider, currentColor) 45%, transparent);
 }
@@ -62,7 +63,7 @@ function remove() {
 
 .title {
   font-size: 0.9rem;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 }
 
 .body {
@@ -73,6 +74,7 @@ function remove() {
 }
 
 .remove {
+  @include nd-interactive;
   margin-top: 8px;
   padding: 4px 14px;
   border: 1px solid color-mix(in srgb, var(--nd-divider, currentColor) 45%, transparent);

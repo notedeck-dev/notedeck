@@ -207,6 +207,7 @@ function onKeydown(e: KeyboardEvent) {
           <template v-if="detailPost.files.length > 1">
             <button
               v-if="detailImageIndex > 0"
+              :aria-label="i18n.ts._common.previous"
               class="_button"
               :class="[$style.navBtn, $style.navPrev]"
               @click="prevImage"
@@ -215,6 +216,7 @@ function onKeydown(e: KeyboardEvent) {
             </button>
             <button
               v-if="detailImageIndex < detailPost.files.length - 1"
+              :aria-label="i18n.ts._common.next"
               class="_button"
               :class="[$style.navBtn, $style.navNext]"
               @click="nextImage"
@@ -404,12 +406,12 @@ function onKeydown(e: KeyboardEvent) {
 
 .title {
   font-size: 1em;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .desc {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   line-height: 1.6;
   white-space: pre-wrap;
@@ -438,8 +440,8 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .userName {
-  font-size: 0.85em;
-  font-weight: 600;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -447,7 +449,7 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 .date {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
   flex-shrink: 0;
 }
@@ -465,8 +467,8 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: var(--nd-radius-md);
   background: var(--nd-love-subtle);
   color: var(--nd-fg);
-  font-size: 0.85em;
-  font-weight: 600;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   transition: background var(--nd-duration-base), color var(--nd-duration-base);
 
   &:hover {

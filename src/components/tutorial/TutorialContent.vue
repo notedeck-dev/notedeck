@@ -174,7 +174,7 @@ function openDocs(path: string): void {
   padding: 16px 18px 12px;
   gap: 16px;
   color: var(--nd-fg);
-  font-size: 0.92em;
+  font-size: var(--nd-font-body);
 }
 
 /* Progress dots bar — Misskey本家 MkTutorial / VSCode walkthrough 風 */
@@ -189,13 +189,13 @@ function openDocs(path: string): void {
 .dot {
   width: 14px;
   height: 14px;
-  padding: 3px;
+  padding: 4px;
   border-radius: 50%;
   cursor: pointer;
   background: transparent;
   // 内側の丸: ::after で描画。クリック領域 (14px) を確保しつつ、見た目は小さく。
   position: relative;
-  transition: transform 0.15s var(--nd-ease-decel);
+  transition: transform var(--nd-duration-base) var(--nd-ease-decel);
 
   &::after {
     content: '';
@@ -204,7 +204,7 @@ function openDocs(path: string): void {
     border-radius: 50%;
     background: var(--nd-fg);
     opacity: 0.18;
-    transition: opacity 0.2s var(--nd-ease-decel), background 0.2s var(--nd-ease-decel);
+    transition: opacity var(--nd-duration-medium) var(--nd-ease-decel), background var(--nd-duration-medium) var(--nd-ease-decel);
   }
 
   &:hover {
@@ -230,9 +230,9 @@ function openDocs(path: string): void {
 
 .replayLabel {
   margin-left: auto;
-  padding: 1px 7px;
-  border-radius: 999px;
-  font-size: 0.72em;
+  padding: 1px 8px;
+  border-radius: var(--nd-radius-full);
+  font-size: var(--nd-font-2xs);
   background: var(--nd-buttonBg);
   opacity: 0.7;
 }
@@ -243,7 +243,7 @@ function openDocs(path: string): void {
 
 .progressLabel {
   margin-left: auto;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.55;
   letter-spacing: 0.04em;
 }
@@ -257,8 +257,8 @@ function openDocs(path: string): void {
 }
 
 .title {
-  font-weight: 600;
-  font-size: 1.1em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-lg);
   color: var(--nd-fgHighlighted);
 }
 
@@ -272,15 +272,15 @@ function openDocs(path: string): void {
 .docsLink {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   align-self: flex-start;
   padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 0.88em;
+  border-radius: var(--nd-radius-sm);
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
-  transition: opacity 0.15s var(--nd-ease-decel), background 0.15s var(--nd-ease-decel);
+  transition: opacity var(--nd-duration-base) var(--nd-ease-decel), background var(--nd-duration-base) var(--nd-ease-decel);
 
   &:hover {
     opacity: 1;
@@ -302,20 +302,20 @@ function openDocs(path: string): void {
 .doneMark {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   margin-right: auto;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-accent);
 }
 
 .linkBtn {
   padding: 6px 12px;
-  font-size: 0.9em;
-  border-radius: 6px;
+  font-size: var(--nd-font-body);
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
-  transition: opacity 0.15s var(--nd-ease-decel), background 0.15s var(--nd-ease-decel);
+  transition: opacity var(--nd-duration-base) var(--nd-ease-decel), background var(--nd-duration-base) var(--nd-ease-decel);
 
   &:hover {
     opacity: 1;
@@ -325,13 +325,13 @@ function openDocs(path: string): void {
 
 .primaryBtn {
   padding: 6px 16px;
-  font-size: 0.9em;
-  font-weight: 600;
-  border-radius: 6px;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   cursor: pointer;
-  transition: filter 0.15s var(--nd-ease-decel);
+  transition: filter var(--nd-duration-base) var(--nd-ease-decel);
 
   &:hover {
     filter: brightness(1.08);

@@ -5,8 +5,10 @@ import { i18n } from '@/i18n'
 import { isSafeUrl } from '@/services/safeUrl'
 import { useSystemStateStore } from '@/stores/systemState'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
-import { proxyUrl } from '@/utils/mediaProxy'
-import { loadedMediaUrls } from '@/utils/renderedMemo'
+import { mediaGridImage } from '@/utils/mediaGridImage'
+import { proxyStaticUrl } from '@/utils/mediaProxy'
+import { prefersReducedMotion } from '@/utils/motion'
+import { loadedMediaUrls, revealedMediaFiles } from '@/utils/renderedMemo'
 import { openSafeUrl } from '@/utils/url'
 import MkMediaLightbox from './MkMediaLightbox.vue'
 
@@ -15,24 +17,18 @@ function safeMediaSrc(url: string | null | undefined): string | undefined {
   return isSafeUrl(url) ? url : undefined
 }
 
-/**
- * 画像はローカルプロキシ経由にしてディスクキャッシュに載せる (#815)。
- * 動画は 20MB のプロキシ上限に掛かるため生 URL のまま。
- * 変換は掛けない — prefetch (useImagePrefetch) と URL を一致させる必要がある
- */
-function proxiedImageSrc(url: string | null | undefined): string | undefined {
-  const safe = safeMediaSrc(url)
-  if (!safe) return undefined
-  return proxyUrl(safe) ?? safe
-}
-
 const props = defineProps<{
   files: NormalizedDriveFile[]
   /** When true, load images eagerly (item is near viewport in virtual scroller) */
   eager?: boolean
 }>()
 
-const revealedIds = shallowRef(new Set<string>())
+// 開いた NSFW は仮想スクロールで行が作り直されても開いたまま (#704)
+const revealedIds = shallowRef(
+  new Set(
+    props.files.filter((f) => revealedMediaFiles.has(f.id)).map((f) => f.id),
+  ),
+)
 const loadedIds = shallowRef(new Set<string>())
 const erroredIds = shallowRef(new Set<string>())
 const lightboxIndex = ref<number | null>(null)
@@ -63,6 +59,23 @@ function isAnimatedImage(file: NormalizedDriveFile): boolean {
   return file.type === 'image/gif' || file.type === 'image/apng'
 }
 
+// アニメーション画像の再生 / 停止 (#704)。既定は再生で、動きを減らす設定や
+// 省電力中は止めて出す (絵文字アニメと同じ判断)。利用者が切り替えたものだけ覚える
+const animationOverrides = shallowRef(new Map<string, boolean>())
+
+function isAnimationPlaying(file: NormalizedDriveFile): boolean {
+  return (
+    animationOverrides.value.get(file.id) ??
+    !(systemStateStore.adaptation.staticEmoji || prefersReducedMotion())
+  )
+}
+
+function toggleAnimation(file: NormalizedDriveFile) {
+  const next = new Map(animationOverrides.value)
+  next.set(file.id, !isAnimationPlaying(file))
+  animationOverrides.value = next
+}
+
 function isPreviewable(file: NormalizedDriveFile): boolean {
   return isImage(file) || isVideo(file)
 }
@@ -90,8 +103,18 @@ const singleMediaStyle = computed(() => {
 
 // 読み込み済みはモジュール単位でも覚える。仮想スクロールで行が作り直される
 // たびに透明からフェードし直すと、戻ってきた画像が毎回ちらつく
+// 画像はプロキシで表示幅に縮小して取得する (#815 / #704 O-2)。
+// 動画は 20MB のプロキシ上限に掛かるため生 URL のまま
+function gridImage(file: NormalizedDriveFile) {
+  return mediaGridImage(file, previewableFiles.value.length)
+}
+
 function imageSrc(file: NormalizedDriveFile): string | undefined {
-  return proxiedImageSrc(file.thumbnailUrl) || proxiedImageSrc(file.url)
+  if (isAnimatedImage(file) && !isAnimationPlaying(file)) {
+    const src = safeMediaSrc(file.thumbnailUrl) || safeMediaSrc(file.url)
+    return proxyStaticUrl(src) ?? src
+  }
+  return gridImage(file)?.src
 }
 
 function isLoaded(file: NormalizedDriveFile): boolean {
@@ -129,6 +152,7 @@ function toggleSensitive(file: NormalizedDriveFile, e: Event) {
   } else {
     next.add(file.id)
   }
+  revealedMediaFiles.set(file.id, next.has(file.id))
   revealedIds.value = next
 }
 
@@ -183,7 +207,11 @@ function closeLightbox() {
       v-for="file in previewableFiles"
       :key="file.id"
       :class="[$style.mediaCell, { [$style.isSensitive]: file.isSensitive && !revealedIds.has(file.id), [$style.isLoaded]: isLoaded(file) || erroredIds.has(file.id) }]"
+      role="button"
+      tabindex="0"
       @click="openLightbox(file, $event)"
+      @keydown.enter.self.prevent="openLightbox(file, $event)"
+      @keydown.space.self.prevent="openLightbox(file, $event)"
     >
       <img
         v-if="blurhashPlaceholder(file)"
@@ -196,7 +224,8 @@ function closeLightbox() {
         <img
           v-if="!erroredIds.has(file.id) && !isDeferred(file)"
           :src="imageSrc(file)"
-          :alt="file.name"
+          :srcset="isAnimatedImage(file) && !isAnimationPlaying(file) ? undefined : gridImage(file)?.srcset"
+          :alt="file.comment || file.name"
           :class="[$style.mediaImage, { [$style.isLoaded]: isLoaded(file) }]"
           :loading="props.eager ? 'eager' : 'lazy'"
           decoding="async"
@@ -261,9 +290,24 @@ function closeLightbox() {
         </span>
       </div>
 
+      <!-- アニメーション画像の再生 / 停止 (#704) -->
+      <button
+        v-if="isAnimatedImage(file) && !isDeferred(file) && (!file.isSensitive || revealedIds.has(file.id))"
+        type="button"
+        class="_button"
+        :class="$style.animationToggle"
+        :aria-pressed="isAnimationPlaying(file)"
+        :title="isAnimationPlaying(file) ? i18n.ts._mkMediaGrid.pauseAnimation : i18n.ts._mkMediaGrid.playAnimation"
+        :aria-label="isAnimationPlaying(file) ? i18n.ts._mkMediaGrid.pauseAnimation : i18n.ts._mkMediaGrid.playAnimation"
+        @click.stop="toggleAnimation(file)"
+      >
+        <i :class="isAnimationPlaying(file) ? 'ti ti-player-pause' : 'ti ti-player-play'" />
+      </button>
+
       <!-- Revealed: show hide button -->
       <button
         v-if="file.isSensitive && revealedIds.has(file.id)"
+        :aria-label="i18n.ts._common.hide"
         :class="$style.sensitiveHideBtn"
         @click.stop="toggleSensitive(file, $event)"
       >
@@ -286,6 +330,7 @@ function closeLightbox() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 /* Banner: Audio & Other files (like Misskey's MkMediaBanner) */
 .mediaBanner {
   margin-top: 8px;
@@ -307,7 +352,7 @@ function closeLightbox() {
 }
 
 .audioName {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -321,7 +366,7 @@ function closeLightbox() {
   padding: 10px 12px;
   background: #111;
   color: #fff;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   cursor: pointer;
 
   span {
@@ -333,11 +378,12 @@ function closeLightbox() {
 }
 
 .bannerDownload {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-decoration: none;
   border: none;
@@ -412,9 +458,9 @@ function closeLightbox() {
 .mediaCell {
   position: relative;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   cursor: pointer;
-  background: var(--nd-bg, rgba(0, 0, 0, 0.05));
+  background: var(--nd-bg);
   contain: layout;
 
   &::before {
@@ -508,22 +554,22 @@ function closeLightbox() {
 
 .indicator {
   background-color: black;
-  border-radius: 6px;
-  color: var(--nd-accent, #86b300);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-accent);
   display: inline-block;
-  font-weight: bold;
-  font-size: 0.8em;
-  padding: 2px 5px;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-sm);
+  padding: 2px 6px;
 }
 
 .indicatorWarn {
   background-color: black;
-  border-radius: 6px;
-  color: var(--nd-warn, #c44);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-warn);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 5px;
+  padding: 2px 6px;
 }
 
 .sensitiveHideBtn {
@@ -548,6 +594,26 @@ function closeLightbox() {
   }
 }
 
+.animationToggle {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--nd-radius-full);
+  background: var(--nd-modalBg);
+  color: #fff;
+  font-size: var(--nd-font-md);
+  z-index: 2;
+  transition: background var(--nd-duration-base);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.7);
+  }
+}
+
 @keyframes shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
@@ -559,7 +625,7 @@ function closeLightbox() {
   }
 
   .mediaCell {
-    border-radius: 6px;
+    border-radius: var(--nd-radius-sm);
   }
 }
 </style>

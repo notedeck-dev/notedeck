@@ -36,6 +36,7 @@ function retry() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 .boundary {
   flex: 1;
   min-height: 0;
@@ -45,7 +46,7 @@ function retry() {
   justify-content: center;
   gap: 10px;
   padding: 24px 16px;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   background: var(--nd-panel);
   color: var(--nd-fg);
 }
@@ -56,20 +57,21 @@ function retry() {
 }
 
 .title {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.8;
   text-align: center;
 }
 
 .retryBtn {
+  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.85em;
-  font-weight: bold;
-  color: var(--nd-fgOnAccent, #fff);
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
+  color: var(--nd-fgOnAccent);
   background: var(--nd-accent);
 
   &:hover {
