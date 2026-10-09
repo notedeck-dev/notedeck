@@ -55,7 +55,7 @@ function onClick(i: number, isVoted: boolean) {
       :disabled="!canVote(choice.isVoted)"
       @click.stop="onClick(i, choice.isVoted)"
     >
-      <div :class="$style.pollBar" :style="{ width: percentage(choice.votes) + '%' }" />
+      <div :class="$style.pollBar" :style="{ '--nd-poll-ratio': percentage(choice.votes) / 100 }" />
       <div :class="$style.pollContent">
         <span :class="$style.pollText">
           <svg v-if="choice.isVoted" viewBox="0 0 24 24" width="12" height="12" style="margin-right: 4px; vertical-align: -1px;">
@@ -113,10 +113,15 @@ function onClick(i: number, isVoted: boolean) {
   position: absolute;
   top: 0;
   left: 0;
+  width: 100%;
   height: 100%;
   background: var(--nd-accent);
   background: linear-gradient(90deg, var(--nd-buttonGradateA), var(--nd-buttonGradateB));
-  transition: width 1s ease;
+  /* 伸び縮みは width ではなく scaleX (レイアウトを起こさず合成で済む)。
+     グラデーションも一緒に縮むので見た目は width のときと同じ */
+  transform: scaleX(var(--nd-poll-ratio, 0));
+  transform-origin: left;
+  transition: transform 1s ease;
 }
 
 .pollContent {
@@ -134,6 +139,7 @@ function onClick(i: number, isVoted: boolean) {
 }
 
 .pollPct {
+  font-variant-numeric: tabular-nums;
   font-size: var(--nd-font-sm);
   font-weight: var(--nd-weight-bold);
   opacity: 0.7;
@@ -147,6 +153,7 @@ function onClick(i: number, isVoted: boolean) {
   gap: 8px;
   padding: 2px 4px;
   font-size: var(--nd-font-xs);
+  font-variant-numeric: tabular-nums;
   opacity: 0.6;
 }
 

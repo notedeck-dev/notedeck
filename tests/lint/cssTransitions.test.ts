@@ -49,8 +49,6 @@ const PAINT = ['box-shadow', 'border-radius', 'clip-path', 'backdrop-filter']
 const FROZEN =
   '凍結 (#1098): 監査時点の残存。transform / opacity に置き換えて消す'
 const ALLOWED: Record<string, string> = {
-  'src/components/common/MkPoll.vue: width':
-    '凍結 (#1098): DEVELOPMENT.md は scaleX 化済みと書いているが width の transition が残っている',
   'src/components/deck/DayNightToggle.vue: height': FROZEN,
   'src/components/deck/DayNightToggle.vue: width': FROZEN,
   'src/components/deck/DeckLookupColumn.vue: width': FROZEN,
