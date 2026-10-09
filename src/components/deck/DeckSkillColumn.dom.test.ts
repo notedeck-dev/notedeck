@@ -488,7 +488,7 @@ describe('DeckSkillColumn — ストアタブ', () => {
     await flushPromises()
 
     const aizu = cardOf(wrapper, 'Aizu')
-    expect(aizu.querySelector('.ti-circle-check-filled')).not.toBeNull()
+    expect(aizu.querySelector('.ti-circle-check')).not.toBeNull()
     const installedBtn = buttonsOf(aizu).find(
       (b) => b.textContent?.trim() === 'インストール済み',
     )
@@ -498,7 +498,7 @@ describe('DeckSkillColumn — ストアタブ', () => {
     ).toBeUndefined()
 
     const fresh = cardOf(wrapper, 'Fresh')
-    expect(fresh.querySelector('.ti-circle-check-filled')).toBeNull()
+    expect(fresh.querySelector('.ti-circle-check')).toBeNull()
     const installBtn = buttonsOf(fresh).find(
       (b) => b.textContent?.trim() === 'インストール',
     )

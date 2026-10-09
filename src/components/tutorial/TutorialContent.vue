@@ -143,7 +143,7 @@ function openDocs(path: string): void {
       </template>
       <template v-else>
         <span v-if="tutorial.stepCompleted" :class="$style.doneMark">
-          <i class="ti ti-circle-check-filled" />
+          <i class="ti ti-circle-check" />
           {{ i18n.ts._tutorialContent.achieved }}
         </span>
         <button

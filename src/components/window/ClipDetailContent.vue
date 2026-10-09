@@ -223,7 +223,7 @@ onMounted(async () => {
             :disabled="togglingFavorite"
             @click="toggleFavorite"
           >
-            <i :class="clip.isFavorited ? 'ti ti-star-filled' : 'ti ti-star'" />
+            <i class="ti ti-star" />
             {{ clip.favoritedCount }}
           </button>
           <span v-else :class="$style.favCount">
