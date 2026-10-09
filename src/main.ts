@@ -153,8 +153,10 @@ if (isTauri) {
     localeReady,
     usePerformanceStore().init(),
     // デッキプロファイル (#1042)。ファイルが唯一の正で、localStorage からの即時復元は
-    // 無いので、初回描画が既定デッキで一瞬出ないよう描画前に読み終える
-    useDeckProfileStore().preloadFiles(),
+    // 無いので、初回描画が既定デッキで一瞬出ないよう描画前に読み終える。
+    // 辞書を待ってから読む: ID が重複したファイルの通知文を辞書から作るので、
+    // 辞書より先に読むと例外になり、プロファイルの読み込みごと失敗していた
+    localeReady.then(() => useDeckProfileStore().preloadFiles()),
     // ナビバーの構成 (navbar.json5) も描画前に読む。デッキのマウント後に読むと
     // 既定の並びで描いてからカスタムの並びに差し替わり、項目が動いて見える
     useDeckStore().initNavbar(),
