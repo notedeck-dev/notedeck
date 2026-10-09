@@ -2411,6 +2411,20 @@
           "createdAt": {
             "type": "string"
           },
+          "exportedEntity": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Exported entity (for exportCompleted type; antenna / note / following 等)"
+          },
+          "fileId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Drive file id of the export result (for exportCompleted type)"
+          },
           "header": {
             "type": [
               "string",
@@ -2427,6 +2441,17 @@
           },
           "id": {
             "type": "string"
+          },
+          "invitation": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/NotificationChatRoomInvitation",
+                "description": "Chat room invitation (for chatRoomInvitationReceived type)"
+              }
+            ]
           },
           "message": {
             "type": [
@@ -2935,6 +2960,22 @@
           }
         ],
         "description": "Typed body of a Misskey `noteUpdated` streaming event.\nAdjacent tagging (`updateType` + `body`) preserves the historical wire shape\n`{ updateType: \"reacted\", body: { ... } }` so the JSON consumers read is\nunchanged while the contract becomes typed end-to-end."
+      },
+      "NotificationChatRoomInvitation": {
+        "type": "object",
+        "description": "通知に載るルームへの招待。招待した人は通知の `user` で届くので持たない",
+        "required": [
+          "id",
+          "room"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "room": {
+            "$ref": "#/components/schemas/ChatRoom"
+          }
+        }
       },
       "ReactionBody": {
         "type": "object",

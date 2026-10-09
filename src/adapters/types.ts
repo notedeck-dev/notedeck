@@ -428,6 +428,12 @@ export interface NormalizedNotification {
   body?: string | null
   /** App notification icon URL (for app type) */
   icon?: string | null
+  /** Exported entity (for exportCompleted type) */
+  exportedEntity?: string | null
+  /** Drive file id of the export result (for exportCompleted type) */
+  fileId?: string | null
+  /** Chat room invitation (for chatRoomInvitationReceived type) */
+  invitation?: { id: string; room: ChatRoom } | null
 }
 
 export interface CreateNoteParams {

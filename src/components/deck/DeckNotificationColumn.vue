@@ -869,6 +869,58 @@ function appHeader(notif: NormalizedNotification): string | null {
   return notif.type === 'app' ? (notif.header ?? null) : null
 }
 
+/** エクスポートの対象の名前。対応表は本家 MkNotification の exportEntityName と揃える */
+const EXPORTED_ENTITY_NAMES: Record<string, string> = {
+  get antenna() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.antenna
+  },
+  get blocking() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.blocking
+  },
+  get clip() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.clip
+  },
+  get customEmoji() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.customEmoji
+  },
+  get favorite() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.favorite
+  },
+  get following() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.following
+  },
+  get muting() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.muting
+  },
+  get note() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.note
+  },
+  get userList() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.userList
+  },
+}
+
+/**
+ * エクスポート完了の見出しに何をエクスポートしたかを入れる (本家と同じ、#1217)。
+ * 知らない種類は汎用の「エクスポートが完了しました」に任せる
+ */
+function exportLabel(notif: NormalizedNotification): string | null {
+  if (notif.type !== 'exportCompleted' || !notif.exportedEntity) return null
+  const x = EXPORTED_ENTITY_NAMES[notif.exportedEntity]
+  return x
+    ? i18n.tsx._deckNotificationColumn.labelExportOfXCompleted({ x })
+    : null
+}
+
+/** エクスポートで出来上がったファイルをドライブのファイル詳細で開く (#1217) */
+function openExportedFile(notif: NormalizedNotification) {
+  if (!notif.fileId) return
+  useWindowsStore().open('drive-file-detail', {
+    accountId: notif._accountId,
+    fileId: notif.fileId,
+  })
+}
+
 function cacheAccountKey() {
   return props.column.accountId ?? CROSS_ACCOUNT_NOTIFICATION_KEY
 }
@@ -1496,6 +1548,7 @@ onUnmounted(() => {
                         </template>
                       </I18n>
                       <template v-else-if="appHeader(notif)">{{ appHeader(notif) }}</template>
+                      <template v-else-if="exportLabel(notif)">{{ exportLabel(notif) }}</template>
                       <template v-else-if="hasTypeLabel(notif.type) || !notif.user">{{ notificationLabel(notif.type) }}</template>
                       <span v-else :class="$style.notifUserName">
                         <MkMfm v-if="notif.user.name" :text="notif.user.name" :emojis="notif.user.emojis" :server-host="notif._serverHost" plain />
@@ -1547,6 +1600,21 @@ onUnmounted(() => {
                     <img v-if="notif.role.iconUrl" :src="notif.role.iconUrl" :alt="notif.role.name" :class="$style.notifRoleIcon" loading="lazy" />
                     <span :class="$style.notifRoleName" :style="notif.role.color ? { color: notif.role.color } : undefined">{{ notif.role.name }}</span>
                   </div>
+
+                  <!-- 招待されたルームの名前 -->
+                  <div v-if="notif.type === 'chatRoomInvitationReceived' && notif.invitation?.room.name" :class="$style.notifDetail">
+                    {{ notif.invitation.room.name }}
+                  </div>
+
+                  <!-- エクスポートで出来上がったファイルへの導線 -->
+                  <button
+                    v-if="notif.type === 'exportCompleted' && notif.fileId"
+                    type="button"
+                    :class="$style.notifSummary"
+                    @click.stop="openExportedFile(notif)"
+                  >
+                    <span :class="$style.notifSummaryText">{{ i18n.ts._deckNotificationColumn.showFile }}</span>
+                  </button>
 
                   <!-- Follow request actions -->
                   <div
@@ -1952,6 +2020,13 @@ onUnmounted(() => {
   color: var(--nd-fg);
   opacity: 0.7;
   margin-top: 2px;
+}
+
+.notifDetail {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notifAppBody {

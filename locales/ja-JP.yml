@@ -1802,6 +1802,18 @@ _deckNotificationColumn:
   labelScheduledNotePostFailed: "予約投稿に失敗しました"
   labelExportCompleted: "エクスポートが完了しました"
   labelChatRoomInvitationReceived: "ルームに招待されました"
+  labelExportOfXCompleted: "{x}のエクスポートが完了しました"
+  exportedEntity:
+    antenna: "アンテナ"
+    blocking: "ブロックしたユーザー"
+    clip: "クリップ"
+    customEmoji: "カスタム絵文字"
+    favorite: "お気に入り"
+    following: "フォロー"
+    muting: "ミュートしたユーザー"
+    note: "ノート"
+    userList: "リスト"
+  showFile: "ファイルを表示"
   reactedBy_plural:
     other: "{count} 人がリアクションしました"
   likedBy_plural:

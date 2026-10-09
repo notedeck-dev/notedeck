@@ -434,6 +434,24 @@ pub struct NormalizedNotification {
     /// App notification icon URL (for app type; notifications/create の icon)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// Exported entity (for exportCompleted type; antenna / note / following 等)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub exported_entity: Option<String>,
+    /// Drive file id of the export result (for exportCompleted type)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_id: Option<String>,
+    /// Chat room invitation (for chatRoomInvitationReceived type)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invitation: Option<NotificationChatRoomInvitation>,
+}
+
+/// 通知に載るルームへの招待。招待した人は通知の `user` で届くので持たない
+#[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationChatRoomInvitation {
+    pub id: String,
+    pub room: ChatRoom,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -1574,6 +1592,11 @@ pub struct RawNotification {
     pub header: Option<String>,
     pub body: Option<String>,
     pub icon: Option<String>,
+    /// Exported entity / result file id (for exportCompleted type)
+    pub exported_entity: Option<String>,
+    pub file_id: Option<String>,
+    /// Chat room invitation (for chatRoomInvitationReceived type)
+    pub invitation: Option<NotificationChatRoomInvitation>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -2007,6 +2030,9 @@ impl RawNotification {
             header: self.header,
             body: self.body,
             icon: self.icon,
+            exported_entity: self.exported_entity,
+            file_id: self.file_id,
+            invitation: self.invitation,
         }
     }
 }
@@ -2729,6 +2755,76 @@ mod tests {
         assert!(notif.header.is_none());
         assert_eq!(notif.body.as_deref(), Some("本文のみ"));
         assert!(notif.icon.is_none());
+    }
+
+    // エクスポート完了は何をエクスポートしたかと出来上がったファイルの id を持つ (#1217)
+    #[test]
+    fn raw_notification_normalize_export_completed() {
+        let j = json!({
+            "id": "notif5",
+            "createdAt": "2025-01-01T00:00:00.000Z",
+            "type": "exportCompleted",
+            "exportedEntity": "antenna",
+            "fileId": "file1"
+        });
+        let raw: RawNotification = serde_json::from_value(j).unwrap();
+        let notif = raw.normalize("acc1", "misskey.io");
+        assert_eq!(notif.exported_entity.as_deref(), Some("antenna"));
+        assert_eq!(notif.file_id.as_deref(), Some("file1"));
+        let out = serde_json::to_value(&notif).unwrap();
+        assert_eq!(out["exportedEntity"], "antenna");
+        assert_eq!(out["fileId"], "file1");
+    }
+
+    // ルームへの招待はルームの名前を持つ (#1217)。招待した人は user で届く
+    #[test]
+    fn raw_notification_normalize_chat_room_invitation() {
+        let j = json!({
+            "id": "notif6",
+            "createdAt": "2025-01-01T00:00:00.000Z",
+            "type": "chatRoomInvitationReceived",
+            "user": raw_user_json(),
+            "userId": "u1",
+            "invitation": {
+                "id": "inv1",
+                "createdAt": "2025-01-01T00:00:00.000Z",
+                "userId": "u1",
+                "user": raw_user_json(),
+                "roomId": "room1",
+                "room": {
+                    "id": "room1",
+                    "createdAt": "2025-01-01T00:00:00.000Z",
+                    "ownerId": "u1",
+                    "owner": raw_user_json(),
+                    "name": "雑談部屋",
+                    "description": "",
+                    "isMuted": false
+                }
+            }
+        });
+        let raw: RawNotification = serde_json::from_value(j).unwrap();
+        let notif = raw.normalize("acc1", "misskey.io");
+        let invitation = notif.invitation.as_ref().expect("invitation");
+        assert_eq!(invitation.id, "inv1");
+        assert_eq!(invitation.room.id, "room1");
+        assert_eq!(invitation.room.name.as_deref(), Some("雑談部屋"));
+        let out = serde_json::to_value(&notif).unwrap();
+        assert_eq!(out["invitation"]["room"]["name"], "雑談部屋");
+    }
+
+    // 他の種類では新しい項目を出さない (既存の JSON の形を変えない)
+    #[test]
+    fn raw_notification_normalize_omits_detail_fields_for_other_types() {
+        let j = json!({
+            "id": "notif7",
+            "createdAt": "2025-01-01T00:00:00.000Z",
+            "type": "login"
+        });
+        let raw: RawNotification = serde_json::from_value(j).unwrap();
+        let out = serde_json::to_value(raw.normalize("acc1", "misskey.io")).unwrap();
+        assert!(out.get("exportedEntity").is_none());
+        assert!(out.get("fileId").is_none());
+        assert!(out.get("invitation").is_none());
     }
 
     #[test]

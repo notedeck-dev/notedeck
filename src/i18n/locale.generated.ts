@@ -3282,6 +3282,30 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "labelExportCompleted": string
     /** ルームに招待されました */
     readonly "labelChatRoomInvitationReceived": string
+    /** {x}のエクスポートが完了しました */
+    readonly "labelExportOfXCompleted": ParameterizedString<'x'>
+    readonly "exportedEntity": {
+      /** アンテナ */
+      readonly "antenna": string
+      /** ブロックしたユーザー */
+      readonly "blocking": string
+      /** クリップ */
+      readonly "clip": string
+      /** カスタム絵文字 */
+      readonly "customEmoji": string
+      /** お気に入り */
+      readonly "favorite": string
+      /** フォロー */
+      readonly "following": string
+      /** ミュートしたユーザー */
+      readonly "muting": string
+      /** ノート */
+      readonly "note": string
+      /** リスト */
+      readonly "userList": string
+    }
+    /** ファイルを表示 */
+    readonly "showFile": string
     /** {count} 人がリアクションしました */
     readonly "reactedBy_plural": PluralString<'count'>
     /** {count} 人がいいねしました */

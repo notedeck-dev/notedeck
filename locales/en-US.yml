@@ -2049,6 +2049,18 @@ _deckNotificationColumn:
   labelScheduledNotePostFailed: "Scheduled note failed to post"
   labelExportCompleted: "Export completed"
   labelChatRoomInvitationReceived: "Invited to a room"
+  labelExportOfXCompleted: "Export of {x} completed"
+  exportedEntity:
+    antenna: "Antennas"
+    blocking: "Blocked users"
+    clip: "Clips"
+    customEmoji: "Custom emojis"
+    favorite: "Favorites"
+    following: "Following"
+    muting: "Muted users"
+    note: "Notes"
+    userList: "Lists"
+  showFile: "Show file"
   reactedBy_plural:
     one: "{count} user reacted"
     other: "{count} users reacted"
