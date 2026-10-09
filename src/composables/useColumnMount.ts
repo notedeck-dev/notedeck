@@ -213,7 +213,14 @@ export function useColumnMount(
       if (!entry) return
       registry.setIntersecting(colId, entry.isIntersecting)
     },
-    { root: rootRef ?? undefined, threshold: 0, rootMargin: '0px 10%' },
+    {
+      root: rootRef ?? undefined,
+      threshold: 0,
+      // コンパクト表示は 1 画面 1 カラムなので、10% だと隣のカラムはスワイプで
+      // 画面に入るまでマウントされず、毎回「枠 → 本体」の作り直しが見える。
+      // 左右 1 画面ぶん先に用意する (ストリーミングの予算は live で別に絞る)
+      rootMargin: opts.isCompact.value ? '0px 100%' : '0px 10%',
+    },
   )
 
   // Android 背景化中は `document.hidden` ガードで交差イベントを捨てるため、

@@ -10,6 +10,7 @@ import { router, setupFirstRunTutorial } from './router'
 import { resolveEvictionConfig } from './services/cacheEvictionConfig'
 import { allowsNativeContextMenu } from './services/nativeContextMenu'
 import { initEarlyAccountListener, useAccountsStore } from './stores/accounts'
+import { useDeckStore } from './stores/deck'
 import { useDeckProfileStore } from './stores/deckProfile'
 import { useKeybindsStore } from './stores/keybinds'
 import { usePerformanceStore } from './stores/performance'
@@ -154,6 +155,9 @@ if (isTauri) {
     // デッキプロファイル (#1042)。ファイルが唯一の正で、localStorage からの即時復元は
     // 無いので、初回描画が既定デッキで一瞬出ないよう描画前に読み終える
     useDeckProfileStore().preloadFiles(),
+    // ナビバーの構成 (navbar.json5) も描画前に読む。デッキのマウント後に読むと
+    // 既定の並びで描いてからカスタムの並びに差し替わり、項目が動いて見える
+    useDeckStore().initNavbar(),
     commands
       .getMediaProxyToken()
       .then((token) => setMediaProxyToken(token))

@@ -4,6 +4,7 @@ import {
   clearRuntimeDenied,
   detectCustomTimelines,
   detectFilterKeys,
+  getCachedFilterKeys,
   getRuntimeDenied,
   markTimelineDenied,
   modeLabel,
@@ -185,5 +186,20 @@ describe('detectFilterKeys', () => {
     })
     expect(await detectFilterKeys('host-h.example', 'global')).toEqual([])
     warn.mockRestore()
+  })
+})
+
+describe('getCachedFilterKeys (前回の検出結果で最初から描く)', () => {
+  it('検出した結果を覚えていて、次の起動でも同期で返す', async () => {
+    mockedCommands.apiGetEndpointParams.mockResolvedValue({
+      status: 'ok',
+      data: ['withFiles', 'withRenotes'],
+    })
+    expect(getCachedFilterKeys('host-swr.example', 'home')).toEqual([])
+    await detectFilterKeys('host-swr.example', 'home')
+    expect(getCachedFilterKeys('host-swr.example', 'home')).toEqual([
+      'withRenotes',
+      'withFiles',
+    ])
   })
 })
