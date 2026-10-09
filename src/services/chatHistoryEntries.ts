@@ -212,3 +212,57 @@ export function chatMessageMatchesSearch(
   if (m.file?.name.toLowerCase().includes(q)) return true
   return false
 }
+
+/**
+ * 履歴の未読の点 (#1207)。本家 MkChatHistories と同じく、相手からの未読の
+ * 最新メッセージに出す。開いた会話 (`openedIds`) は履歴を取り直すまで消しておく。
+ * ログアウト中の履歴は手元のキャッシュで、既読状態は保存した時点のまま
+ * 更新されないため、読み終えた会話にも点が残る。分からないときは出さない (#1216)
+ */
+export function isChatHistoryUnread(
+  message: ChatMessage,
+  myUserId: string | undefined,
+  opts: { loggedOut: boolean; openedIds: ReadonlySet<string> },
+): boolean {
+  return (
+    !opts.loggedOut &&
+    message.isRead === false &&
+    message.fromUserId !== myUserId &&
+    !opts.openedIds.has(message.id)
+  )
+}
+
+/**
+ * 会話から履歴に戻るとき、会話で見た最新メッセージを履歴へ反映する (#1216)。
+ * 履歴は購読していないので、会話中の新着や送信は取り直すまで並びにも
+ * プレビューにも出ない。新しい順に並べ直し、同じ id は差し替える
+ */
+export function withLatestChatMessage(
+  history: ChatMessage[],
+  latest: ChatMessage,
+): ChatMessage[] {
+  return [latest, ...history.filter((m) => m.id !== latest.id)].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )
+}
+
+/** {@link withLatestChatMessage} の全アカウント版。entry を組み直す */
+export function withLatestCrossAccountMessage(
+  entries: CrossAccountChatHistoryEntry[],
+  latest: { msg: ChatMessage; accountId: string; host: string },
+  getUserId: (accountId: string) => string | undefined,
+): CrossAccountChatHistoryEntry[] {
+  return buildCrossAccountHistoryEntries(
+    [
+      latest,
+      ...entries
+        .filter((e) => e.message.id !== latest.msg.id)
+        .map((e) => ({
+          msg: e.message,
+          accountId: e.accountId,
+          host: e.serverHost,
+        })),
+    ],
+    getUserId,
+  )
+}
