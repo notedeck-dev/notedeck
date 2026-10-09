@@ -267,7 +267,7 @@ onMounted(async () => {
           :title="alwaysOnTop ? i18n.ts._pipPage.unpin : i18n.ts._pipPage.pin"
           @click="toggleAlwaysOnTop"
         >
-          <i :class="alwaysOnTop ? 'ti ti-pin-filled' : 'ti ti-pin'" />
+          <i :class="alwaysOnTop ? 'ti ti-pinned' : 'ti ti-pin'" />
         </button>
         <button :class="$style.pipDragBtn" :title="i18n.ts._common.close" @click="closeWindow">
           <i class="ti ti-x" />
@@ -440,7 +440,7 @@ onMounted(async () => {
           :title="alwaysOnTop ? i18n.ts._pipPage.unpin : i18n.ts._pipPage.pin"
           @click="toggleAlwaysOnTop"
         >
-          <i :class="alwaysOnTop ? 'ti ti-pin-filled' : 'ti ti-pin'" />
+          <i :class="alwaysOnTop ? 'ti ti-pinned' : 'ti ti-pin'" />
         </button>
         <button :class="$style.pipDragBtn" :title="i18n.ts._common.close" @click="closeWindow">
           <i class="ti ti-x" />

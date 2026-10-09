@@ -164,7 +164,7 @@ function openDocs(path: string): void {
           <li v-for="item in group.items" :key="item.id" :class="$style.item">
             <i
               :class="[
-                item.done ? 'ti ti-circle-check-filled' : 'ti ti-circle',
+                item.done ? 'ti ti-circle-check' : 'ti ti-circle',
                 $style.check,
                 { [$style.checkDone]: item.done },
               ]"

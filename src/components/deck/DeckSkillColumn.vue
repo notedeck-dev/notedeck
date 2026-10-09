@@ -464,7 +464,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                 >{{ i18n.ts._common.updateAvailable }}</span>
                 <i
                   v-else-if="misStore.isSkillInstalled(entry)"
-                  class="ti ti-circle-check-filled"
+                  class="ti ti-circle-check"
                   :class="$style.installedMark"
                   :title="i18n.ts._deckSkillColumn.installedMark"
                 />

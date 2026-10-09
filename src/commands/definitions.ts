@@ -862,7 +862,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
     get label() {
       return i18n.ts._commands.tasksRunDefault
     },
-    icon: 'player-play-filled',
+    icon: 'player-play',
     category: 'general',
     exposure: 'developer',
     shortcuts: keybindsStore.getShortcuts('tasks.run-default'),

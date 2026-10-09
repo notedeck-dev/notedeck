@@ -375,7 +375,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
               <span :class="$style.sectionTitle">
                 <i
                   v-if="section.pinned"
-                  class="ti ti-pin-filled"
+                  class="ti ti-pin"
                   :class="$style.sectionLeadIcon"
                 />
                 {{ section.title }}

@@ -484,8 +484,8 @@ function handleReset() {
             <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expanded[t.id] }]" />
             <div :class="$style.taskHeaderBody">
               <span :class="$style.taskLabel">
-                <i v-if="t.pinned" class="ti ti-pin-filled" :class="$style.pinIcon" title="Pinned" />
-                <i v-if="t.isDefault" class="ti ti-player-play-filled" :class="$style.defaultIcon" :title="i18n.ts._tasksEditorContent.defaultTask" />
+                <i v-if="t.pinned" class="ti ti-pin" :class="$style.pinIcon" title="Pinned" />
+                <i v-if="t.isDefault" class="ti ti-player-play" :class="$style.defaultIcon" :title="i18n.ts._tasksEditorContent.defaultTask" />
                 {{ t.label || i18n.ts._tasksEditorContent.untitled }}
               </span>
               <span :class="$style.taskMeta">
@@ -586,7 +586,7 @@ function handleReset() {
                     :checked="t.pinned === true"
                     @change="(e) => setFlag(t, 'pinned', (e.target as HTMLInputElement).checked)"
                   />
-                  <i class="ti ti-pin-filled" :class="$style.inlineIcon" />
+                  <i class="ti ti-pin" :class="$style.inlineIcon" />
                   Pinned
                 </label>
                 <label :class="$style.checkboxRow">
@@ -595,7 +595,7 @@ function handleReset() {
                     :checked="t.isDefault === true"
                     @change="(e) => setIsDefault(t, (e.target as HTMLInputElement).checked)"
                   />
-                  <i class="ti ti-player-play-filled" :class="$style.inlineIcon" />
+                  <i class="ti ti-player-play" :class="$style.inlineIcon" />
                   {{ i18n.ts._tasksEditorContent.defaultTaskOnlyOne }}
                 </label>
               </div>
