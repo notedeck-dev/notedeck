@@ -6,7 +6,7 @@ import { isSafeUrl } from '@/services/safeUrl'
 import { useSystemStateStore } from '@/stores/systemState'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
 import { proxyUrl } from '@/utils/mediaProxy'
-import { loadedMediaUrls } from '@/utils/renderedMemo'
+import { loadedMediaUrls, revealedMediaFiles } from '@/utils/renderedMemo'
 import { openSafeUrl } from '@/utils/url'
 import MkMediaLightbox from './MkMediaLightbox.vue'
 
@@ -32,7 +32,12 @@ const props = defineProps<{
   eager?: boolean
 }>()
 
-const revealedIds = shallowRef(new Set<string>())
+// 開いた NSFW は仮想スクロールで行が作り直されても開いたまま (#704)
+const revealedIds = shallowRef(
+  new Set(
+    props.files.filter((f) => revealedMediaFiles.has(f.id)).map((f) => f.id),
+  ),
+)
 const loadedIds = shallowRef(new Set<string>())
 const erroredIds = shallowRef(new Set<string>())
 const lightboxIndex = ref<number | null>(null)
@@ -129,6 +134,7 @@ function toggleSensitive(file: NormalizedDriveFile, e: Event) {
   } else {
     next.add(file.id)
   }
+  revealedMediaFiles.set(file.id, next.has(file.id))
   revealedIds.value = next
 }
 

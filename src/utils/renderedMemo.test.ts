@@ -28,4 +28,12 @@ describe('createRenderedMemo', () => {
     expect(memo.has('a')).toBe(true)
     expect(memo.has('b')).toBe(false)
   })
+
+  it('set は真なら覚え、偽なら忘れる', () => {
+    const memo = createRenderedMemo(10)
+    memo.set('a', true)
+    expect(memo.has('a')).toBe(true)
+    memo.set('a', false)
+    expect(memo.has('a')).toBe(false)
+  })
 })

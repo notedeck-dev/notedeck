@@ -65,7 +65,10 @@ import {
   resolveEffectiveNoteBase,
 } from '@/utils/noteViewModel'
 import { spawnReactionEffect } from '@/utils/reactionEffect'
-import { renderedReactionNotes } from '@/utils/renderedMemo'
+import {
+  expandedNoteContent,
+  renderedReactionNotes,
+} from '@/utils/renderedMemo'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { extractColumnThemeVars } from '@/utils/themeVars'
 import { toggleReaction } from '@/utils/toggleReaction'
@@ -335,8 +338,27 @@ async function handleUnrenote() {
     isRenoted.value = true
   }
 }
-const cwExpanded = ref(false)
-const longTextExpanded = ref(false)
+// 開閉は仮想スクロールで行が作り直されても保つ (#704)。開く演出は
+// この場で開いたときだけ (戻ってきた行で再生しない)
+const cwExpanded = ref(expandedNoteContent.has(`cw:${effectiveNote.value.id}`))
+const cwJustRevealed = ref(false)
+const longTextExpanded = ref(
+  expandedNoteContent.has(`long:${effectiveNote.value.id}`),
+)
+
+function toggleCw() {
+  cwExpanded.value = !cwExpanded.value
+  cwJustRevealed.value = cwExpanded.value
+  expandedNoteContent.set(`cw:${effectiveNote.value.id}`, cwExpanded.value)
+}
+
+function toggleLongText() {
+  longTextExpanded.value = !longTextExpanded.value
+  expandedNoteContent.set(
+    `long:${effectiveNote.value.id}`,
+    longTextExpanded.value,
+  )
+}
 
 // ワードミュート soft（#610）: mutedWords にマッチしたら本文を折りたたみ、展開可能にする
 const visibility = useNoteVisibility()
@@ -1078,14 +1100,14 @@ function handlePickerReaction(reaction: string) {
               @mention-leave="onMentionLeave"
             />
           </p>
-          <button :class="$style.cwToggle" class="_button" @click.stop="cwExpanded = !cwExpanded">
+          <button :class="$style.cwToggle" class="_button" @click.stop="toggleCw">
             {{ cwExpanded ? i18n.ts._common.hide : i18n.ts._mkNote.showMore }}
             <span v-if="!cwExpanded && effectiveNote.text" :class="$style.cwChars">{{ i18n.tsx._mkNote.chars_plural({ count: effectiveNote.text.length }) }}</span>
           </button>
         </div>
 
         <!-- Body -->
-        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="[$style.body, effectiveNote.cw !== null && cwExpanded && $style.bodyReveal]">
+        <div v-show="(effectiveNote.cw === null || cwExpanded) && !softMuteCollapsed" :class="[$style.body, effectiveNote.cw !== null && cwJustRevealed && $style.bodyReveal]">
           <div v-if="effectiveNote.text && !effectiveNote.contentHidden" :class="[$style.textContainer, { [$style.collapsed]: isLongText && !longTextExpanded }]">
             <p :class="$style.text">
               <MkMfm
@@ -1103,7 +1125,7 @@ function handlePickerReaction(reaction: string) {
             </p>
             <div v-if="isLongText && !longTextExpanded" :class="$style.longTextFade" />
           </div>
-          <button v-if="isLongText" :class="$style.cwToggle" class="_button" @click.stop="longTextExpanded = !longTextExpanded">
+          <button v-if="isLongText" :class="$style.cwToggle" class="_button" @click.stop="toggleLongText">
             {{ longTextExpanded ? i18n.ts._common.hide : i18n.ts._mkNote.showMore }}
             <span v-if="!longTextExpanded && effectiveNote.text" :class="$style.cwChars">{{ i18n.tsx._mkNote.chars_plural({ count: effectiveNote.text.length }) }}</span>
           </button>

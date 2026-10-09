@@ -79,15 +79,16 @@ afterEach(() => {
 describe('従量制回線ではタップするまで読まない (#935)', () => {
   it('img を出さずタップ読み込みの口を出し、タップで読み込む', async () => {
     systemState.deferMedia = true
-    mountGrid([makeImage('a')])
-    expect(container?.querySelector('img[src*="a.png"]')).toBeNull()
+    // 開いた添付はモジュール単位で覚えるので、他のテストと id を分ける
+    mountGrid([makeImage('tapped')])
+    expect(container?.querySelector('img[src*="tapped.png"]')).toBeNull()
     const overlay = container?.querySelector(
       '._sensitiveOverlay',
     ) as HTMLElement | null
     expect(overlay?.textContent).toContain('タップで読み込み')
     overlay?.click()
     await vi.waitFor(() =>
-      expect(container?.querySelector('img[src*="a.png"]')).not.toBeNull(),
+      expect(container?.querySelector('img[src*="tapped.png"]')).not.toBeNull(),
     )
     // 読み込んだ後は通常どおりライトボックスが開く
     cells()[0]?.click()
@@ -118,5 +119,16 @@ describe('MkMediaGrid ライトボックス抽出後の回帰 (#792)', () => {
     await new Promise((r) => setTimeout(r, 0))
     expect(lightboxProps).toHaveLength(0)
     expect(container?.querySelector('.lightbox-stub')).toBeNull()
+  })
+  it('開いた sensitive は作り直しても開いたまま (#704)', async () => {
+    mountGrid([makeImage('reopened', true)])
+    ;(container?.querySelector('._sensitiveOverlay') as HTMLElement).click()
+    await vi.waitFor(() =>
+      expect(container?.querySelector('._sensitiveOverlay')).toBeNull(),
+    )
+    app?.unmount()
+    container?.remove()
+    mountGrid([makeImage('reopened', true)])
+    expect(container?.querySelector('._sensitiveOverlay')).toBeNull()
   })
 })

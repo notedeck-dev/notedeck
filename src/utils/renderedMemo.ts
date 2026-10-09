@@ -8,15 +8,21 @@
  */
 export function createRenderedMemo(max: number) {
   const keys = new Set<string>()
+  function add(key: string) {
+    keys.delete(key)
+    keys.add(key)
+    if (keys.size > max) {
+      const oldest = keys.values().next().value
+      if (oldest !== undefined) keys.delete(oldest)
+    }
+  }
   return {
     has: (key: string) => keys.has(key),
-    add(key: string) {
-      keys.delete(key)
-      keys.add(key)
-      if (keys.size > max) {
-        const oldest = keys.values().next().value
-        if (oldest !== undefined) keys.delete(oldest)
-      }
+    add,
+    /** 開閉のように戻せる状態用。偽なら忘れる */
+    set(key: string, value: boolean) {
+      if (value) add(key)
+      else keys.delete(key)
     },
   }
 }
@@ -26,3 +32,12 @@ export const renderedReactionNotes = createRenderedMemo(2000)
 
 /** 読み込みが済んだメディアの URL (MkMediaGrid のフェードイン) */
 export const loadedMediaUrls = createRenderedMemo(2000)
+
+/**
+ * 利用者が開いた CW / 長文のノート id (MkNote)。キーは `cw:` / `long:` 接頭辞付き。
+ * 行が作り直されても開いたままにする
+ */
+export const expandedNoteContent = createRenderedMemo(2000)
+
+/** 利用者が開いた NSFW (と従量制回線で保留した) 添付の file id (MkMediaGrid) */
+export const revealedMediaFiles = createRenderedMemo(2000)
