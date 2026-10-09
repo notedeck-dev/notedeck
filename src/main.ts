@@ -8,6 +8,7 @@ import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
 import { router, setupFirstRunTutorial } from './router'
 import { resolveEvictionConfig } from './services/cacheEvictionConfig'
+import { allowsNativeContextMenu } from './services/nativeContextMenu'
 import { initEarlyAccountListener, useAccountsStore } from './stores/accounts'
 import { useDeckProfileStore } from './stores/deckProfile'
 import { useKeybindsStore } from './stores/keybinds'
@@ -117,6 +118,25 @@ window.addEventListener('unhandledrejection', (e) => {
   )
     e.preventDefault()
 })
+
+// 余白の右クリックで WebView 標準メニュー (「再読み込み」等) を出さない (#704)。
+// 独自メニューを出す面は先に preventDefault 済みなので bubble の最後で見る。
+// ブラウザ (Dev Dashboard 等) では開発の邪魔になるので Tauri だけ
+if (isTauri) {
+  document.addEventListener('contextmenu', (e) => {
+    if (e.defaultPrevented) return
+    const sel = window.getSelection()
+    const hasSelection =
+      !!sel &&
+      !sel.isCollapsed &&
+      e.target instanceof Node &&
+      sel.containsNode(e.target, true)
+    const developerMode = useSettingsStore().get('ui.developerMode') === true
+    if (!allowsNativeContextMenu(e.target, { hasSelection, developerMode })) {
+      e.preventDefault()
+    }
+  })
+}
 
 if (isTauri) {
   // settings.json (single source of truth for scalar preferences) と
