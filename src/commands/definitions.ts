@@ -130,6 +130,17 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
   })
 
   commandStore.register({
+    id: 'notification-center',
+    get label() {
+      return i18n.ts._commands.notificationCenter
+    },
+    icon: 'inbox',
+    category: 'navigation',
+    shortcuts: keybindsStore.getShortcuts('notification-center'),
+    execute: () => useToast().setInboxOpen(true),
+  })
+
+  commandStore.register({
     id: 'compose',
     get label() {
       return i18n.ts._commands.compose
@@ -1148,6 +1159,7 @@ export function unregisterDefaultCommands() {
     'search',
     'client-search',
     'notifications',
+    'notification-center',
     'compose',
     'boss-key',
     'quick-note',
