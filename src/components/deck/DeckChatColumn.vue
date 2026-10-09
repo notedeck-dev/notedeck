@@ -40,6 +40,7 @@ import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
+import { chatDateSeparators } from '@/services/chatDateSeparators'
 import {
   buildCrossAccountHistoryEntries,
   buildPerAccountHistoryEntries,
@@ -273,6 +274,11 @@ const filteredMessages = computed(() => {
   if (!q.trim()) return visible
   return visible.filter((m) => chatMessageMatchesSearch(q, m))
 })
+
+// 日付が変わる所に区切りを出す (#1207)。表示している並びで判定する
+const dateSeparators = computed(() =>
+  chatDateSeparators(filteredMessages.value),
+)
 
 const hasNoConvSearchHits = computed(
   () =>
@@ -1208,6 +1214,11 @@ onBeforeUnmount(() => {
         </template>
         <template #default="{ item: msg }">
           <div :class="$style.chatMsgGap">
+            <div v-if="dateSeparators.get(msg.id)" :class="$style.dateDivider">
+              <span><i class="ti ti-chevron-up" /> {{ dateSeparators.get(msg.id)!.prevText }}</span>
+              <span :class="$style.dateDividerBar" />
+              <span>{{ dateSeparators.get(msg.id)!.nextText }} <i class="ti ti-chevron-down" /></span>
+            </div>
             <MkChatMessage
               :message="msg"
               :my-user-id="myUserId"
@@ -1506,9 +1517,34 @@ onBeforeUnmount(() => {
   padding: 8px 0;
 }
 
+// 本家 room.vue の dateDivider と同じ中央のピル
+.dateDivider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+  width: fit-content;
+  margin: 0 auto 16px;
+  padding: 4px 12px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-full);
+  font-size: var(--nd-font-md);
+  opacity: 0.75;
+}
+
+.dateDividerBar {
+  width: 1px;
+  height: 1em;
+  background: var(--nd-divider);
+}
+
 @container (max-width: 450px) {
   .chatMsgGap {
     padding: 6px 0;
+  }
+
+  .dateDivider {
+    margin-bottom: 12px;
   }
 }
 
