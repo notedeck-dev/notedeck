@@ -82,6 +82,10 @@ import MkEmoji from './MkEmoji.vue'
 import MkMediaGrid from './MkMediaGrid.vue'
 import MkMfm from './MkMfm.vue'
 import MkPoll from './MkPoll.vue'
+// URL プレビューは静的に読む。非同期にすると、セッションで最初にプレビューを
+// 出すノートでチャンク待ちの間は何も出ず、届いてからスケルトン → カードと
+// 2 段で伸びる。MkNote のチャンクに比べて十分小さいので、待ちを無くすほうを取る
+import MkUrlPreview from './MkUrlPreview.vue'
 import NoteMoreMenu from './NoteMoreMenu.vue'
 import NoteReactionPickerPopup from './NoteReactionPickerPopup.vue'
 import NoteReactionUsersPopup from './NoteReactionUsersPopup.vue'
@@ -89,7 +93,6 @@ import NoteVariantsPopup from './NoteVariantsPopup.vue'
 import RenoteMoreMenu from './RenoteMoreMenu.vue'
 
 const MkUserPopup = defineAsyncComponent(() => import('./MkUserPopup.vue'))
-const MkUrlPreview = defineAsyncComponent(() => import('./MkUrlPreview.vue'))
 const MkPostForm = defineAsyncComponent(() => import('./MkPostForm.vue'))
 const NoteReactionUsersModal = defineAsyncComponent(
   () => import('./NoteReactionUsersModal.vue'),
