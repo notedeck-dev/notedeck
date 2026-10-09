@@ -5,6 +5,7 @@ import { useAccountMode } from '@/composables/useAccountMode'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
+import { useVaporTransitionSwitch } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { getNoteShareUrl } from '@/services/noteUrl'
 import { useAccountsStore } from '@/stores/accounts'
@@ -39,6 +40,9 @@ const currentView = computed<MenuView>(() => {
   if (showReportForm.value) return 'reportForm'
   return 'main'
 })
+// サブビューの切替は中身を一度消してから出す (大きさは補間しない)。
+// 退場は global.css の .nd-view-leave (--nd-duration-fast) と同じ時間
+const view = useVaporTransitionSwitch(currentView, { leaveDuration: 100 })
 
 const isMyRenote = computed(() => {
   const account = accountsStore.accountMap.get(props.note._accountId)
@@ -120,9 +124,10 @@ defineExpose({ open })
 </script>
 
 <template>
-  <PopupMenu ref="popupMenuRef" @close="resetSubViews">
+  <PopupMenu ref="popupMenuRef" @closed="resetSubViews">
+    <div :key="view.displayed.value" :class="view.leaving.value ? 'nd-view-leave' : 'nd-view-enter'">
     <!-- Delete confirm -->
-    <template v-if="currentView === 'deleteConfirm'">
+    <template v-if="view.displayed.value === 'deleteConfirm'">
       <div class="_popupConfirmText">{{ i18n.ts._renoteMoreMenu.confirmDelete }}</div>
       <button class="_popupItem _popupItemDanger" @click="deleteRenote">
         <i class="ti ti-trash" />
@@ -135,7 +140,7 @@ defineExpose({ open })
     </template>
 
     <!-- Report form -->
-    <template v-else-if="currentView === 'reportForm'">
+    <template v-else-if="view.displayed.value === 'reportForm'">
       <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: note.user.username }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
@@ -179,5 +184,6 @@ defineExpose({ open })
         {{ i18n.ts._renoteMoreMenu.reportRenote }}
       </button>
     </template>
+    </div>
   </PopupMenu>
 </template>

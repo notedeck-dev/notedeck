@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import type { ChatMessage } from '@/adapters/types'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { useVaporTransitionSwitch } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
@@ -25,6 +26,15 @@ const popupMenuRef = ref<InstanceType<typeof PopupMenu>>()
 const showDeleteConfirm = ref(false)
 const showReportForm = ref(false)
 const reportComment = ref('')
+
+const currentView = computed<'main' | 'deleteConfirm' | 'reportForm'>(() => {
+  if (showDeleteConfirm.value) return 'deleteConfirm'
+  if (showReportForm.value) return 'reportForm'
+  return 'main'
+})
+// サブビューの切替は中身を一度消してから出す (大きさは補間しない)。
+// 退場は global.css の .nd-view-leave (--nd-duration-fast) と同じ時間
+const view = useVaporTransitionSwitch(currentView, { leaveDuration: 100 })
 
 function open(e: MouseEvent) {
   popupMenuRef.value?.open(e)
@@ -87,9 +97,10 @@ defineExpose({ open })
 </script>
 
 <template>
-  <PopupMenu ref="popupMenuRef" @close="resetSubViews">
+  <PopupMenu ref="popupMenuRef" @closed="resetSubViews">
+    <div :key="view.displayed.value" :class="view.leaving.value ? 'nd-view-leave' : 'nd-view-enter'">
     <!-- Delete confirm -->
-    <template v-if="showDeleteConfirm">
+    <template v-if="view.displayed.value === 'deleteConfirm'">
       <div class="_popupConfirmText">{{ i18n.ts._mkChatMessageMoreMenu.confirmDelete }}</div>
       <button class="_popupItem _popupItemDanger" @click="confirmDelete">
         <i class="ti ti-trash" />
@@ -102,7 +113,7 @@ defineExpose({ open })
     </template>
 
     <!-- Report form -->
-    <template v-else-if="showReportForm">
+    <template v-else-if="view.displayed.value === 'reportForm'">
       <div class="_popupConfirmText">{{ i18n.tsx._common.reportUser({ username: message.fromUser?.username ?? '' }) }}</div>
       <div class="_popupReportInputWrap">
         <textarea
@@ -153,5 +164,6 @@ defineExpose({ open })
         </button>
       </template>
     </template>
+    </div>
   </PopupMenu>
 </template>
