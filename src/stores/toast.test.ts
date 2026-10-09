@@ -258,6 +258,19 @@ describe('送り元とクリックで移る先', () => {
     expect(c.inboxOpen.value).toBe(false)
     expect(c.toasts.value).toHaveLength(0)
   })
+
+  it('移る先のある情報は軽いものとして扱わず、カードと受信トレイに出す', () => {
+    const c = createToastCenter()
+    c.registerStatusHost()
+    c.show('新しい報告があります', 'info', {
+      source: 'HEARTBEAT',
+      onClick: vi.fn(),
+    })
+    expect(c.status.value).toBeNull()
+    expect(c.toasts.value.map((t) => t.text)).toEqual(['新しい報告があります'])
+    expect(c.inbox.value.map((t) => t.text)).toEqual(['新しい報告があります'])
+    expect(c.unreadCount.value).toBe(1)
+  })
 })
 
 describe('受信トレイを開いている間', () => {
