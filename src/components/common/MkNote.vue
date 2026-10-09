@@ -2034,8 +2034,12 @@ function handlePickerReaction(reaction: string) {
     object-fit: contain;
   }
 
+  /* 1 → 2 のように桁数が同じでも比例幅の数字だとボタン幅が変わり、行末の
+     ボタンが折り返して行ごと伸びることがある。等幅の数字にして揺れを桁上がり
+     だけに抑える (min-width で桁を先取りすると 1 桁の大多数で余白が空く) */
   .count {
     font-size: var(--nd-font-2xs);
+    font-variant-numeric: tabular-nums;
     line-height: 42px;
     margin: 0 0 0 4px;
   }
@@ -2149,6 +2153,7 @@ function handlePickerReaction(reaction: string) {
 
 .buttonCount {
   font-size: var(--nd-font-md);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Renote popup menu */
