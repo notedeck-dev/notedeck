@@ -1209,7 +1209,7 @@ function reportBug() {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: hsl(from var(--nd-accent) h s calc(l + 5));
+    background: color-mix(in srgb, var(--nd-accent) 88%, white);
   }
 }
 
@@ -1373,7 +1373,7 @@ function reportBug() {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: hsl(from var(--nd-accent) h s calc(l + 5));
+    background: color-mix(in srgb, var(--nd-accent) 88%, white);
   }
 }
 

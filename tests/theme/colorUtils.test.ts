@@ -3,6 +3,7 @@ import {
   alpha,
   darken,
   hue,
+  isLightColor,
   lighten,
   normalizeColor,
   parseColor,
@@ -128,5 +129,38 @@ describe('saturate', () => {
     // Gray has 0 saturation, saturating should keep it gray (can't saturate gray)
     const result = parseColor(saturate('#808080', 10))
     expect(result).not.toBeNull()
+  })
+})
+
+describe('parseColor の色表記 (#704 P)', () => {
+  it('hsl() / hsla() を解釈する', () => {
+    expect(parseColor('hsl(0, 100%, 50%)')).toEqual([255, 0, 0, 1])
+    expect(parseColor('hsla(120, 100%, 50%, 0.5)')).toEqual([0, 255, 0, 0.5])
+  })
+
+  it('空白区切りの rgb() と / 区切りの不透明度を解釈する', () => {
+    expect(parseColor('rgb(10 20 30)')).toEqual([10, 20, 30, 1])
+    expect(parseColor('rgb(10 20 30 / 0.4)')).toEqual([10, 20, 30, 0.4])
+    expect(parseColor('rgb(10 20 30 / 40%)')).toEqual([10, 20, 30, 0.4])
+  })
+
+  it('oklch() を sRGB に直す', () => {
+    const white = parseColor('oklch(1 0 0)')
+    expect(white?.map((v) => Math.round(v))).toEqual([255, 255, 255, 1])
+    const red = parseColor('oklch(62.8% 0.2577 29.23)')
+    expect(red?.slice(0, 3).map((v) => Math.round(v))).toEqual([255, 0, 0])
+  })
+
+  it('解釈できた色には派生関数が効く', () => {
+    expect(darken('hsl(0, 100%, 50%)', 10)).toBe(toRgba([204, 0, 0, 1]))
+  })
+})
+
+describe('isLightColor', () => {
+  it('hex 以外の表記でも明暗を判定する', () => {
+    expect(isLightColor('#fff')).toBe(true)
+    expect(isLightColor('rgb(250, 250, 250)')).toBe(true)
+    expect(isLightColor('hsl(0, 0%, 10%)')).toBe(false)
+    expect(isLightColor('oklch(0.95 0 0)')).toBe(true)
   })
 })

@@ -689,12 +689,12 @@ dialog._nativeDialog[open] {
 
 @media (hover: hover) {
   ._buttonPrimary:hover:not(:disabled) {
-    background: hsl(from var(--nd-accent) h s calc(l + 5));
+    background: color-mix(in srgb, var(--nd-accent) 88%, white);
   }
 }
 
 ._buttonPrimary:active:not(:disabled) {
-  background: hsl(from var(--nd-accent) h s calc(l - 5));
+  background: var(--nd-accentDarken);
   transform: scale(var(--nd-active-scale));
 }
 
