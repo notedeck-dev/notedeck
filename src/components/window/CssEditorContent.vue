@@ -482,7 +482,7 @@ const { isSyncing } = useExternalEditSync<string>({
       <!-- Freeform CSS -->
       <div :class="$style.section">
         <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.css" @click="toggleSection('css')">
-          <i class="ti ti-pencil" />
+          <i class="ti ti-edit" />
           {{ i18n.ts._cssEditorContent.freeformCss }}
           <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expandedSections.css }]" />
         </button>

@@ -1,8 +1,7 @@
 import type { NormalizedNote } from '@/adapters/types'
-import { isSafeUrl } from '@/services/safeUrl'
 import { usePerformanceStore } from '@/stores/performance'
 import { useSystemStateStore } from '@/stores/systemState'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { mediaGridImage, previewableMediaCount } from '@/utils/mediaGridImage'
 
 /**
  * Prefetch image URLs from notes that are about to enter the viewport.
@@ -24,7 +23,11 @@ const MAX_CONCURRENT_PREFETCH = 4
 const MAX_QUEUE = 100
 
 let activePrefetches = 0
-const prefetchQueue: string[] = []
+interface PrefetchItem {
+  src: string
+  srcset?: string
+}
+const prefetchQueue: PrefetchItem[] = []
 
 /** バッテリー駆動・省電力・従量制回線では先読み自体を止める (#931 / #935) */
 function isPrefetchSuppressed(): boolean {
@@ -38,7 +41,7 @@ function isPrefetchSuppressed(): boolean {
 
 /** 抑制に入ったら未開始分を捨てる。取得していない URL は「先読み済み」からも外す (#893 と同じ理由) */
 function dropQueuedPrefetches() {
-  for (const url of prefetchQueue) prefetchedUrls.delete(url)
+  for (const item of prefetchQueue) prefetchedUrls.delete(item.src)
   prefetchQueue.length = 0
 }
 
@@ -51,8 +54,8 @@ function pumpPrefetchQueue() {
     activePrefetches < MAX_CONCURRENT_PREFETCH &&
     prefetchQueue.length > 0
   ) {
-    const url = prefetchQueue.shift()
-    if (url === undefined) break
+    const item = prefetchQueue.shift()
+    if (item === undefined) break
     activePrefetches++
     const img = new Image()
     const done = () => {
@@ -61,18 +64,21 @@ function pumpPrefetchQueue() {
     }
     img.onload = done
     img.onerror = done
-    img.src = url
+    // srcset を src より先に入れる。実描画の <img> と同じ候補 (DPR で 1x/2x)
+    // をブラウザに選ばせ、同じ URL をキャッシュに載せるため
+    if (item.srcset) img.srcset = item.srcset
+    img.src = item.src
   }
 }
 
-function enqueuePrefetch(url: string) {
+function enqueuePrefetch(item: PrefetchItem) {
   if (prefetchQueue.length >= MAX_QUEUE) {
     const dropped = prefetchQueue.shift()
     // 捨てた分は一度も取得していないので「先読み済み」からも外す (#893)。
     // 残したままだと、スクロールで戻ったときに永久にスキップされる
-    if (dropped !== undefined) prefetchedUrls.delete(dropped)
+    if (dropped !== undefined) prefetchedUrls.delete(dropped.src)
   }
-  prefetchQueue.push(url)
+  prefetchQueue.push(item)
   pumpPrefetchQueue()
 }
 
@@ -110,19 +116,18 @@ export function prefetchNoteImages(notes: NormalizedNote[]): void {
   if (isPrefetchSuppressed()) return
   for (const note of notes) {
     const effective = resolveEffectiveNote(note)
+    const count = previewableMediaCount(effective.files)
     for (const file of effective.files) {
       if (!file.type.startsWith('image/')) continue
       if (file.isSensitive) continue
       // 実描画 (MkMediaGrid) と URL を一致させる。食い違うと WebView
-      // キャッシュが再利用されず二重取得になる (#814)。添付画像は
-      // プロキシ経由に統一済み (#815) なので prefetch も同じ変換を通す
-      const rawUrl = file.thumbnailUrl || file.url
-      if (!rawUrl || !isSafeUrl(rawUrl)) continue
-      const url = proxyUrl(rawUrl) ?? rawUrl
-      if (prefetchedUrls.has(url)) continue
+      // キャッシュが再利用されず二重取得になる (#814)。グリッドは表示幅に
+      // 縮小した URL を使う (#704 O-3) ので、先読みも原寸ではなくそれを読む
+      const item = mediaGridImage(file, count)
+      if (!item || prefetchedUrls.has(item.src)) continue
       evictOldest()
-      prefetchedUrls.add(url)
-      enqueuePrefetch(url)
+      prefetchedUrls.add(item.src)
+      enqueuePrefetch(item)
     }
   }
 }

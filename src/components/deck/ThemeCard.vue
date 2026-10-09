@@ -121,7 +121,7 @@ function handleClick() {
           :title="i18n.ts._common.edit"
           @click.stop="emit('edit')"
         >
-          <i class="ti ti-pencil" />
+          <i class="ti ti-edit" />
         </button>
         <button
           v-if="removable"

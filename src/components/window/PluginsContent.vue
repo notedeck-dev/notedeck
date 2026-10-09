@@ -431,7 +431,7 @@ async function importPlugin() {
         <div v-else :class="$style.nameRow">
           <span :class="$style.headerName">{{ plugin.name }}</span>
           <button class="_button" :class="$style.renameBtn" :title="i18n.ts._common.rename" @click="startRename">
-            <i class="ti ti-pencil" />
+            <i class="ti ti-edit" />
           </button>
         </div>
         <div :class="$style.headerSub">
@@ -468,7 +468,7 @@ async function importPlugin() {
               :title="i18n.ts._common.resetToDefault"
               @click="resetConfig(key as string)"
             >
-              <i class="ti ti-rotate" />
+              <i class="ti ti-restore" />
             </button>
           </div>
           <p v-if="def.description" :class="$style.configDesc">{{ def.description }}</p>
@@ -509,7 +509,7 @@ async function importPlugin() {
         :class="[$style.resetAllBtn, { [$style.confirming]: confirmingResetConfig }]"
         @click="handleResetAllConfig"
       >
-        <i class="ti ti-rotate" />
+        <i class="ti ti-restore" />
         {{ confirmingResetConfig ? i18n.ts._common.confirmReset : i18n.ts._common.resetAllToDefault }}
       </button>
     </div>

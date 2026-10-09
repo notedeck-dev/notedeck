@@ -222,7 +222,7 @@ async function onDelete() {
 
     <PopupMenu ref="popupMenuRef">
       <button class="_popupItem" @click="onRename">
-        <i class="ti ti-pencil" />
+        <i class="ti ti-edit" />
         {{ i18n.ts._postFormFilePreviews.renameFile }}
       </button>
       <button class="_popupItem" @click="onToggleSensitive">

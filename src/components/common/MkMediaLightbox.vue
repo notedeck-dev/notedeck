@@ -16,6 +16,7 @@ import { usePortal } from '@/composables/usePortal'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { i18n } from '@/i18n'
 import { isSafeUrl } from '@/services/safeUrl'
+import { useSystemStateStore } from '@/stores/systemState'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import PopupMenu from './PopupMenu.vue'
@@ -53,6 +54,29 @@ function isVideo(f: NormalizedDriveFile): boolean {
 function close() {
   emit('close')
 }
+
+// 前後 1 枚を先読みする (#704 O-3)。表示は原寸なので、スワイプした瞬間に
+// 取得が始まって空白が見えていた。省電力・従量制回線では TL の先読みと
+// 同じく止める。集合はこのライトボックスの files 分しか増えない
+const systemStateStore = useSystemStateStore()
+const preloadedUrls = new Set<string>()
+watch(
+  index,
+  (i) => {
+    // 表示中の画像は <img> 自身が読むので、戻ったときに先読みし直さない
+    const current = safeMediaSrc(props.files[i]?.url)
+    if (current) preloadedUrls.add(current)
+    if (systemStateStore.adaptation.suppressPrefetch) return
+    for (const f of [props.files[i - 1], props.files[i + 1]]) {
+      if (!f || !isImage(f)) continue
+      const url = safeMediaSrc(f.url)
+      if (!url || preloadedUrls.has(url)) continue
+      preloadedUrls.add(url)
+      new Image().src = url
+    }
+  },
+  { immediate: true },
+)
 
 // Lightbox slide-in animation direction tracking
 const slideClass = ref<string | null>(null)

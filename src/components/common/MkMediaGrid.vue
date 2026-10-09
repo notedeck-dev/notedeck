@@ -5,7 +5,7 @@ import { i18n } from '@/i18n'
 import { isSafeUrl } from '@/services/safeUrl'
 import { useSystemStateStore } from '@/stores/systemState'
 import { blurhashToDataUrl } from '@/utils/blurhashDataUrl'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { mediaGridImage } from '@/utils/mediaGridImage'
 import { loadedMediaUrls } from '@/utils/renderedMemo'
 import { openSafeUrl } from '@/utils/url'
 import MkMediaLightbox from './MkMediaLightbox.vue'
@@ -13,17 +13,6 @@ import MkMediaLightbox from './MkMediaLightbox.vue'
 function safeMediaSrc(url: string | null | undefined): string | undefined {
   if (!url) return undefined
   return isSafeUrl(url) ? url : undefined
-}
-
-/**
- * 画像はローカルプロキシ経由にしてディスクキャッシュに載せる (#815)。
- * 動画は 20MB のプロキシ上限に掛かるため生 URL のまま。
- * 変換は掛けない — prefetch (useImagePrefetch) と URL を一致させる必要がある
- */
-function proxiedImageSrc(url: string | null | undefined): string | undefined {
-  const safe = safeMediaSrc(url)
-  if (!safe) return undefined
-  return proxyUrl(safe) ?? safe
 }
 
 const props = defineProps<{
@@ -90,8 +79,14 @@ const singleMediaStyle = computed(() => {
 
 // 読み込み済みはモジュール単位でも覚える。仮想スクロールで行が作り直される
 // たびに透明からフェードし直すと、戻ってきた画像が毎回ちらつく
+// 画像はプロキシで表示幅に縮小して取得する (#815 / #704 O-2)。
+// 動画は 20MB のプロキシ上限に掛かるため生 URL のまま
+function gridImage(file: NormalizedDriveFile) {
+  return mediaGridImage(file, previewableFiles.value.length)
+}
+
 function imageSrc(file: NormalizedDriveFile): string | undefined {
-  return proxiedImageSrc(file.thumbnailUrl) || proxiedImageSrc(file.url)
+  return gridImage(file)?.src
 }
 
 function isLoaded(file: NormalizedDriveFile): boolean {
@@ -200,6 +195,7 @@ function closeLightbox() {
         <img
           v-if="!erroredIds.has(file.id) && !isDeferred(file)"
           :src="imageSrc(file)"
+          :srcset="gridImage(file)?.srcset"
           :alt="file.comment || file.name"
           :class="[$style.mediaImage, { [$style.isLoaded]: isLoaded(file) }]"
           :loading="props.eager ? 'eager' : 'lazy'"

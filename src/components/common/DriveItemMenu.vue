@@ -76,7 +76,7 @@ defineExpose({ open, close })
       {{ i18n.ts._driveItemMenu.open }}
     </button>
     <button class="_popupItem" @click="onRename">
-      <i class="ti ti-pencil" />
+      <i class="ti ti-edit" />
       {{ i18n.ts._driveItemMenu.rename }}
     </button>
     <button v-if="kind === 'file'" class="_popupItem" @click="onMove">

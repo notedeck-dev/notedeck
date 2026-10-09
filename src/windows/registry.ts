@@ -330,7 +330,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     get label() {
       return i18n.ts._windows.pageEdit
     },
-    icon: 'ti ti-pencil',
+    icon: 'ti ti-edit',
     width: 500,
     maxHeight: 720,
   },
@@ -338,7 +338,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     get label() {
       return i18n.ts._windows.playEdit
     },
-    icon: 'ti ti-pencil',
+    icon: 'ti ti-edit',
     width: 500,
     maxHeight: 720,
   },

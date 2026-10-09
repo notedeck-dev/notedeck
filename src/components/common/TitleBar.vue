@@ -170,7 +170,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
           :title="i18n.ts._common.reload"
           @click="deckStore.refreshActiveColumn()"
         >
-          <i class="ti ti-reload" />
+          <i class="ti ti-refresh" />
         </button>
       </div>
       <!-- Open: command palette input replaces the search bar -->

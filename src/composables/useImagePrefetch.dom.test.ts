@@ -24,6 +24,7 @@ class FakeImage {
   onload: (() => void) | null = null
   onerror: (() => void) | null = null
   private _src = ''
+  srcset = ''
   constructor() {
     FakeImage.instances.push(this)
   }
@@ -97,6 +98,19 @@ describe('prefetchNoteImages の同時実行絞り', () => {
 
     FakeImage.instances[1]?.onerror?.()
     expect(FakeImage.instances.length).toBe(6)
+  })
+
+  it('実描画 (MkMediaGrid) と同じ縮小 URL と srcset で先読みする (#704 O-3)', async () => {
+    const { prefetchNoteImages } = await loadModule()
+    const { mediaGridImage } = await import('@/utils/mediaGridImage')
+    const n = note('a', 2)
+    prefetchNoteImages([n])
+    const first = n.files[0]
+    if (!first) throw new Error('no file')
+    const expected = mediaGridImage(first, 2)
+    expect(FakeImage.instances[0]?.src).toBe(expected?.src)
+    expect(FakeImage.instances[0]?.srcset).toBe(expected?.srcset)
+    expect(FakeImage.instances[0]?.src).toContain('&w=')
   })
 
   it('同じ URL は一度しかプリフェッチしない', async () => {

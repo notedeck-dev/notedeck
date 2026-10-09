@@ -295,7 +295,7 @@ onMounted(loadFlash)
         <div v-if="!running" :class="$style.startedActions">
           <div :class="$style.actionsRow">
             <button class="_button" :class="$style.actionBtn" :title="i18n.ts._common.reload" @click="reload">
-              <i class="ti ti-reload" />
+              <i class="ti ti-refresh" />
             </button>
           </div>
           <div v-if="flash" :class="$style.actionsRow">

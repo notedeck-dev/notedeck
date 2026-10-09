@@ -121,7 +121,7 @@ function openEditor(id: string) {
             :title="i18n.ts._deckProfileMenu.openInEditor"
             @click.stop="openEditor(p.id)"
           >
-            <i class="ti ti-pencil" />
+            <i class="ti ti-edit" />
           </button>
           <button
             class="_button"

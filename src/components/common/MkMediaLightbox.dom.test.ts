@@ -20,6 +20,10 @@ vi.mock('@/composables/useBackButton', () => ({
 vi.mock('@/composables/useLongPress', () => ({
   useLongPress: () => ({ handlers: {} }),
 }))
+const systemState = vi.hoisted(() => ({ suppressPrefetch: false }))
+vi.mock('@/stores/systemState', () => ({
+  useSystemStateStore: () => ({ adaptation: systemState }),
+}))
 vi.mock('./PopupMenu.vue', () => ({
   default: defineComponent({
     setup(_, { slots, expose }) {
@@ -156,5 +160,59 @@ describe('MkMediaLightbox (#792)', () => {
     expect(labels).toContain('画像をダウンロード')
     expect(labels).toContain('画像のリンクをコピー')
     expect(labels).toContain('ブラウザーで開く')
+  })
+
+  describe('隣接画像の先読み (#704 O-3)', () => {
+    let preloaded: string[] = []
+    class FakeImage {
+      set src(v: string) {
+        preloaded.push(v)
+      }
+    }
+    beforeEach(() => {
+      preloaded = []
+      systemState.suppressPrefetch = false
+      vi.stubGlobal('Image', FakeImage)
+    })
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('前後 1 枚を原寸 URL で先読みする', async () => {
+      mountLightbox(
+        [makeImage('a'), makeImage('b'), makeImage('c'), makeImage('d')],
+        1,
+      )
+      expect(preloaded.sort()).toEqual([
+        'https://example.test/a.png',
+        'https://example.test/c.png',
+      ])
+      navButtons()[1]?.click()
+      await vi.waitFor(() => expect(currentImage()?.src).toContain('c.png'))
+      // 移動先の隣 (d) が増える。表示済みの b と先読み済みの c は読み直さない
+      expect(preloaded).toContain('https://example.test/d.png')
+      expect(preloaded).toHaveLength(3)
+    })
+
+    it('動画は先読みしない', () => {
+      mountLightbox(
+        [
+          {
+            ...makeImage('v'),
+            type: 'video/mp4',
+            url: 'https://example.test/v.mp4',
+          },
+          makeImage('b'),
+        ],
+        1,
+      )
+      expect(preloaded).toEqual([])
+    })
+
+    it('省電力・従量制回線 (suppressPrefetch) では先読みしない', () => {
+      systemState.suppressPrefetch = true
+      mountLightbox([makeImage('a'), makeImage('b')], 0)
+      expect(preloaded).toEqual([])
+    })
   })
 })

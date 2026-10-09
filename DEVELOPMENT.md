@@ -1703,6 +1703,23 @@ API の実体は notecli 側にあるため、**エンドポイントの差し�
 - `pnpm lint && pnpm typecheck && pnpm test` を通す
 - フォークのどの機能が動的検出では動かず、なぜ静的な capability 宣言が必要かを PR 本文に記載する
 
+### アイコン語彙
+
+同じ意味には同じ Tabler アイコンを使い、1 つのアイコンに 2 つの意味を持たせない ([#704](https://github.com/notedeck-dev/notedeck/issues/704) H)。下の表にある意味の操作を足すときは表のアイコンを使い、新しい意味を足すときは表に行を足す。カラム種別のアイコンは `src/columns/registry.ts` の `COLUMN_ICONS`、capability のアイコンは `crates/notecore/capabilities.json5` が正本で、この表の対象外。
+
+| 意味 | アイコン | 備考 |
+|------|----------|------|
+| 投稿する / ノート | `ti-pencil` | 本家と同じ。投稿ボタン・投稿フォームを開く操作・ノート数 |
+| 編集する / 名前を変更 | `ti-edit` | エディタを開く・設定の編集・リネーム。`ti-pencil` は投稿専用 |
+| 返信 | `ti-arrow-back-up` | 本家と同じ。「戻す」系に流用しない |
+| 戻る (画面・階層を 1 つ戻る) | `ti-arrow-left` | ダイアログ内の階層も含む。進むは `ti-arrow-right` |
+| 前の項目 / 次の項目 (画像送り等) | `ti-chevron-left` / `ti-chevron-right` | 「戻る」ではなく同じ階層の送り |
+| デッキに戻す (ポップアウト・PiP から) | `ti-arrow-back` | 返信と見分けるため `ti-arrow-back-up` を使わない |
+| 再読み込み / 再試行 / 更新 | `ti-refresh` | `ti-reload` は使わない |
+| 既定に戻す / 以前の版を復元 | `ti-restore` | 設定のリセット。削除ではないので `ti-trash` にしない |
+| PiP (小窓) で開く | `ti-picture-in-picture` | PiP 専用。ウィンドウの「元のサイズに戻す」には使わない |
+| 最大化 / 元のサイズに戻す | `ti-square` / `ti-squares` | OS のウィンドウ操作と同じ形 |
+
 ### Icon Overlay System
 
 アイコンに重ねるバッジ・インディケーターは **4象限ルール** に従います。

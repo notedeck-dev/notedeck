@@ -368,11 +368,11 @@ function openAsPip() {
           <span>{{ pipAlwaysOnTop ? i18n.ts._deckColumn.unpinOnTop : i18n.ts._deckColumn.pinOnTop }}</span>
         </button>
         <button class="_popupItem" @click="returnToDeck">
-          <i class="ti ti-arrow-back-up" />
+          <i class="ti ti-arrow-back" />
           <span>{{ i18n.ts._deckColumn.returnToDeck }}</span>
         </button>
-        <div :class="$style.columnMenuDivider" />
-        <button :class="$style.columnMenuDanger" class="_popupItem" @click="close">
+        <div class="_popupDivider" />
+        <button class="_popupItem _popupItemDanger" @click="close">
           <i class="ti ti-x" />
           <span>{{ i18n.ts._common.close }}</span>
         </button>
@@ -396,12 +396,12 @@ function openAsPip() {
           <span>{{ i18n.ts._deckColumn.openAsPip }}</span>
         </button>
         <button v-if="canRecall" class="_popupItem" @click="recallToMain">
-          <i class="ti ti-arrow-back-up" />
+          <i class="ti ti-arrow-back" />
           <span>{{ i18n.ts._deckColumn.recallToMain }}</span>
         </button>
         <slot name="menu-items" :close-menu="closeMenu" />
-        <div :class="$style.columnMenuDivider" />
-        <button :class="$style.columnMenuDanger" class="_popupItem" @click="close">
+        <div class="_popupDivider" />
+        <button class="_popupItem _popupItemDanger" @click="close">
           <i class="ti ti-trash" />
           <span>{{ i18n.ts._commands.closeColumn }}</span>
         </button>
@@ -542,20 +542,6 @@ function openAsPip() {
   line-height: 1.35;
   font-weight: var(--nd-weight-regular);
   font-size: 1rem;
-
-  .columnMenuDanger {
-    color: var(--nd-love);
-
-    i {
-      opacity: 1;
-    }
-  }
-
-  .columnMenuDivider {
-    border: 0;
-    border-top: 0.5px solid var(--nd-divider);
-    margin: 4px 0;
-  }
 }
 
 .columnSubHeader {
