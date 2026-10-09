@@ -3,8 +3,8 @@ import { json } from '@codemirror/lang-json'
 import { computed, ref, watch } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
-import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -265,7 +265,7 @@ function handleReset() {
     <!-- Visual Tab -->
     <div v-show="tab === 'visual'" :class="$style.panel">
       <div :class="$style.section">
-        <AiSwitchRow
+        <FormSwitchRow
           :label="i18n.ts._performanceEditorContent.autoAdapt"
           :sub-label="i18n.ts._performanceEditorContent.autoAdaptDescription"
           icon="ti-battery-eco"

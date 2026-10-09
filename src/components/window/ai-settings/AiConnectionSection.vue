@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import type { HarnessInfo } from '@/bindings'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
 import {
   harnessConnectionId,
@@ -13,7 +14,6 @@ import { BUILTIN_TEMPLATES, faviconUrl } from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import AiSettingsSection from './AiSettingsSection.vue'
-import AiSwitchRow from './AiSwitchRow.vue'
 
 const { config } = useAiConfig()
 const vault = useVault()

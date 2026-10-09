@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import {
   HEARTBEAT_DAILY_MAX_AI_RUNS_MAX,
   HEARTBEAT_DAILY_MAX_AI_RUNS_MIN,
@@ -17,7 +18,6 @@ import { useSkillsStore } from '@/stores/skills'
 import { useWindowsStore } from '@/stores/windows'
 import AiHeartbeatResidentRow from './AiHeartbeatResidentRow.vue'
 import AiSettingsSection from './AiSettingsSection.vue'
-import AiSwitchRow from './AiSwitchRow.vue'
 
 const { config } = useAiConfig()
 const windowsStore = useWindowsStore()
@@ -74,7 +74,7 @@ function openPermissionsWindow(): void {
     :badge="config.heartbeat.enabled ? i18n.tsx._aiHeartbeatSection.enabledWithInterval({ minutes: config.heartbeat.intervalMinutes }) : i18n.ts._common.disabled"
   >
     <!-- Basic: 有効化 (TL フィルターと同じトグル) + interval + notice -->
-    <AiSwitchRow
+    <FormSwitchRow
       icon="ti-activity-heartbeat"
       :label="i18n.ts._aiHeartbeatSection.enable"
       :on="config.heartbeat.enabled"
@@ -127,7 +127,7 @@ function openPermissionsWindow(): void {
 
     <!-- デスクトップ通知 (#411 0.19.0): 重要発見を即気付ける。
          アプリにフォーカスがあるときは自動抑制。 -->
-    <AiSwitchRow
+    <FormSwitchRow
       v-if="config.heartbeat.enabled"
       icon="ti-bell"
       :label="i18n.ts._aiHeartbeatSection.desktopNotification"
@@ -141,7 +141,7 @@ function openPermissionsWindow(): void {
          を呼び、前回値と一致すれば AI 起動を skip する。
          opt-out 可能 (= 常に AI を叩きたい場合は OFF にする)。 -->
     <template v-if="config.heartbeat.enabled">
-      <AiSwitchRow
+      <FormSwitchRow
         icon="ti-bolt"
         :label="i18n.ts._aiHeartbeatSection.cheapCheck"
         :sub-label="i18n.ts._aiHeartbeatSection.cheapCheckDescription"
@@ -184,7 +184,7 @@ function openPermissionsWindow(): void {
         </div>
       </div>
 
-      <AiSwitchRow
+      <FormSwitchRow
         icon="ti-hand-stop"
         :label="i18n.ts._aiHeartbeatSection.disableOnDailyLimit"
         :sub-label="i18n.ts._aiHeartbeatSection.disableOnDailyLimitDescription"

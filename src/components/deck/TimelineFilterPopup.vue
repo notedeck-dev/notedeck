@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, toRef, useSlots } from 'vue'
 import type { TimelineFilter } from '@/adapters/types'
+import FormSwitch from '@/components/common/form/FormSwitch.vue'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
@@ -98,14 +99,11 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
       @click="emit('toggle', key)"
     >
       <span :class="$style.filterLabel">{{ FILTER_LABELS[key] }}</span>
-      <button
-        class="nd-toggle-switch"
-        :class="{ on: key === 'withFiles' ? isFilterActive(key) : !isFilterActive(key) }"
-        :aria-checked="key === 'withFiles' ? isFilterActive(key) : !isFilterActive(key)"
-        role="switch"
-      >
-        <span class="nd-toggle-switch-knob" />
-      </button>
+      <FormSwitch
+        :model-value="key === 'withFiles' ? isFilterActive(key) : !isFilterActive(key)"
+        :label="FILTER_LABELS[key]"
+        @update:model-value="emit('toggle', key)"
+      />
     </div>
 
     <!-- 名前付きクエリのカスタムフィルタトグル (#783、AND 合成)。フィルターの次 -->
@@ -128,14 +126,11 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
           :title="i18n.ts._timelineFilterPopup.disabledQueryHint"
           @click.stop="emit('openManager')"
         >{{ i18n.ts._common.disabled }}</button>
-        <button
-          class="nd-toggle-switch"
-          :class="{ on: isQueryApplied(q.id) }"
-          :aria-checked="isQueryApplied(q.id)"
-          role="switch"
-        >
-          <span class="nd-toggle-switch-knob" />
-        </button>
+        <FormSwitch
+          :model-value="isQueryApplied(q.id)"
+          :label="q.name"
+          @update:model-value="emit('toggleQuery', q.id)"
+        />
       </div>
     </template>
   </div>

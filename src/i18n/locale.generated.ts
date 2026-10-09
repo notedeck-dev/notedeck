@@ -589,6 +589,16 @@ export interface Locale {
     /** 移動 */
     readonly "move": string
   }
+  readonly "_formNumber": {
+    /** 数値を入力してください */
+    readonly "notNumber": string
+    /** {min} から {max} までの値を入力してください */
+    readonly "outOfRange": ParameterizedString<'max' | 'min'>
+    /** {min} 以上の値を入力してください */
+    readonly "tooSmall": ParameterizedString<'min'>
+    /** {max} 以下の値を入力してください */
+    readonly "tooLarge": ParameterizedString<'max'>
+  }
   readonly "_galleryItemMenu": {
     /** 開く */
     readonly "open": string

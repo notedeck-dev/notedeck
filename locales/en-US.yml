@@ -530,6 +530,12 @@ _driveItemMenu:
   rename: "Rename"
   move: "Move"
 
+_formNumber:
+  notNumber: "Enter a number"
+  outOfRange: "Enter a value from {min} to {max}"
+  tooSmall: "Enter a value of {min} or more"
+  tooLarge: "Enter a value of {max} or less"
+
 _galleryItemMenu:
   open: "Open"
   copyLink: "Copy link"

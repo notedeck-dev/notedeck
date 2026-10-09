@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import MkEmoji from '@/components/common/MkEmoji.vue'
-import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
@@ -56,7 +56,7 @@ function resolveCustomUrl(key: string): string | null {
 
 <template>
   <div :class="$style.root">
-    <AiSwitchRow
+    <FormSwitchRow
       :label="i18n.ts._emojiMuteSection.hideMutedUserReactions"
       :sub-label="i18n.ts._emojiMuteSection.hideMutedUserReactionsDescription"
       icon="ti-eye-off"

@@ -1,0 +1,54 @@
+// 入力欄 (text / number / select / textarea) の共通の見た目 (#704 B / N)。
+// Usage: @use '@/styles/inputs' as *;
+//
+// 枠・角丸・背景・フォーカス・placeholder・disabled・誤り (aria-invalid) を
+// ここに集め、各画面は寸法 (幅 / padding / 文字サイズ) だけを足す。
+// エラー文と aria の配線まで要る欄は FormInput / FormNumber
+// (src/components/common/form/) を使う。
+
+@mixin input-base {
+  padding: 6px 10px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-bg);
+  color: var(--nd-fg);
+  font-family: inherit;
+  font-size: var(--nd-font-md);
+  outline: none;
+  transition: border-color var(--nd-duration-base);
+
+  &::placeholder {
+    color: var(--nd-fg);
+    opacity: 0.35;
+  }
+
+  &:focus {
+    border-color: var(--nd-accent);
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--nd-error);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+@mixin textarea {
+  @include input-base;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+// 欄の直下に出すエラー文 (aria-describedby で欄と結ぶ)
+@mixin input-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin: 0;
+  font-size: var(--nd-font-xs);
+  line-height: 1.4;
+  color: var(--nd-error);
+}

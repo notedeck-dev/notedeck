@@ -315,6 +315,12 @@ _driveItemMenu:
   rename: "リネーム"
   move: "移動"
 
+_formNumber:
+  notNumber: "数値を入力してください"
+  outOfRange: "{min} から {max} までの値を入力してください"
+  tooSmall: "{min} 以上の値を入力してください"
+  tooLarge: "{max} 以下の値を入力してください"
+
 _galleryItemMenu:
   open: "開く"
   copyLink: "リンクをコピー"

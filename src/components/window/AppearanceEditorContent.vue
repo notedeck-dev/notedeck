@@ -2,9 +2,9 @@
 import { json } from '@codemirror/lang-json'
 import { computed, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import DayNightToggle from '@/components/deck/DayNightToggle.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
-import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
 import EmojiMuteSection from '@/components/window/EmojiMuteSection.vue'
 import PetSection from '@/components/window/PetSection.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -250,7 +250,7 @@ const statusClass = computed(() => {
 
       <!-- Note view -->
       <div :class="$style.section">
-        <AiSwitchRow
+        <FormSwitchRow
           :label="i18n.ts._appearanceEditorContent.nyaize"
           :sub-label="i18n.ts._appearanceEditorContent.nyaizeDescription"
           icon="ti-cat"
