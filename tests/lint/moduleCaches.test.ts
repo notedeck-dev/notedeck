@@ -96,6 +96,7 @@ const ALLOWED: Record<string, string> = {
   'src/capabilities/registry.ts:capabilities': 'keyed: 登録済み capability',
   'src/commands/taskCommands.ts:registeredIds': 'keyed: 登録済みタスク',
   'src/core/queryRegistry.ts:entriesByQueryId': 'keyed: 登録済みクエリ',
+  'src/data/unicodeEmojiIndexes.ts:cache': 'keyed: 表示言語',
   'src/composables/useAds.ts:adsCache': 'keyed: アカウント',
   'src/composables/useLoginPrompt.ts:reloginPromptShownAt': 'keyed: アカウント',
   'src/composables/useSearchScopeMeta.ts:cache': 'keyed: アカウント',
