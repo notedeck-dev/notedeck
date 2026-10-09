@@ -866,6 +866,23 @@ dialog._nativeDialog[open] {
   animation: nd-fade-in var(--nd-duration-slow) var(--nd-ease-decel) both;
 }
 
+/* メニュー内のサブビュー (削除の確認 / 通報フォーム等) の切替。
+   useVaporTransitionSwitch の leaving と組み、退場は JS の leaveDuration
+   (100ms) と同じ --nd-duration-fast。大きさは補間せず、中身が消えている間に
+   切り替わるようにする */
+@keyframes nd-fade-out {
+  to { opacity: 0; }
+}
+
+.nd-view-enter {
+  animation: nd-fade-in var(--nd-duration-base) var(--nd-ease-decel) both;
+}
+
+.nd-view-leave {
+  animation: nd-fade-out var(--nd-duration-fast) var(--nd-ease-decel) forwards;
+  pointer-events: none;
+}
+
 /* ---- Misskey global animations ---- */
 
 /* Bounce: Misskey global-bounce values + Apple settle */

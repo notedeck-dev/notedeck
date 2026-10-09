@@ -124,7 +124,7 @@ function close() {
     :class="[
       $style.overlay,
       isCompact && $style.mobileBackdrop,
-      leaving ? $style.sheetLeave : $style.sheetEnter,
+      leaving ? $style.sheetBackdropLeave : $style.sheetBackdropEnter,
     ]"
   >
     <div
@@ -152,6 +152,8 @@ function close() {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/navMenu';
+
 .overlay {
   background: transparent;
   border: none;
@@ -168,11 +170,6 @@ function close() {
 
 dialog.overlay::backdrop {
   background: rgba(0, 0, 0, 0.08);
-}
-
-:global(dialog._nativeDialog[open]).mobileBackdrop {
-  align-items: flex-end;
-  justify-content: stretch;
 }
 
 .popup {
@@ -233,8 +230,8 @@ dialog.overlay::backdrop {
 }
 
 /* Desktop popup content — scale + fade (no anchor) */
-.popupContentEnter { animation: launchPadIn var(--nd-duration-medium) var(--nd-ease-spring); }
-.popupContentLeave { animation: launchPadOut var(--nd-duration-fast) var(--nd-ease-decel) forwards; }
+.popupContentEnter { animation: launchPadIn var(--nd-duration-medium) var(--nd-ease-menu); }
+.popupContentLeave { animation: launchPadOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes launchPadIn { from { opacity: 0; transform: scale(0.9); } }
 @keyframes launchPadOut { to { opacity: 0; transform: scale(0.95); } }
 
@@ -244,8 +241,8 @@ dialog.overlay::backdrop {
   transform-origin: left center;
 }
 
-.anchoredEnter { animation: anchoredIn var(--nd-duration-medium) var(--nd-ease-spring); }
-.anchoredLeave { animation: anchoredOut var(--nd-duration-fast) var(--nd-ease-decel) forwards; }
+.anchoredEnter { animation: anchoredIn var(--nd-duration-medium) var(--nd-ease-menu); }
+.anchoredLeave { animation: anchoredOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes anchoredIn {
   from { opacity: 0; transform: translateY(-50%) scale(0.85); }
   to { opacity: 1; transform: translateY(-50%) scale(1); }
@@ -254,15 +251,5 @@ dialog.overlay::backdrop {
   to { opacity: 0; transform: translateY(-50%) scale(0.92); }
 }
 
-/* Mobile sheet backdrop fade */
-.sheetEnter { animation: sheetBdIn var(--nd-duration-base) var(--nd-ease-decel); }
-.sheetLeave { animation: sheetBdOut var(--nd-duration-base) ease-out forwards; }
-@keyframes sheetBdIn { from { opacity: 0; } }
-@keyframes sheetBdOut { to { opacity: 0; } }
-
-/* Mobile sheet content — slide up from bottom */
-.sheetContentEnter { animation: sheetIn var(--nd-duration-slow) var(--nd-ease-spring); }
-.sheetContentLeave { animation: sheetOut var(--nd-duration-medium) var(--nd-ease-decel) forwards; }
-@keyframes sheetIn { from { transform: translateY(100%); } }
-@keyframes sheetOut { to { transform: translateY(100%); } }
+/* モバイルのシートは navMenu.scss の sheetBackdrop* / sheetContent* */
 </style>

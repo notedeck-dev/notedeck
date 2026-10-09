@@ -430,7 +430,6 @@ function acceptCrossWindowDrop() {
 </template>
 
 <style lang="scss" module>
-@use '@/styles/buttons' as *;
 .root {
   display: flex;
   flex: 1;
@@ -547,7 +546,6 @@ function acceptCrossWindowDrop() {
 }
 
 .crossWindowDropOverlay {
-  @include nd-interactive;
   position: fixed;
   inset: 0;
   z-index: calc(var(--nd-z-popup) - 2);
@@ -579,11 +577,11 @@ function acceptCrossWindowDrop() {
 }
 
 .fadeEnter { animation: fadeIn var(--nd-duration-base) var(--nd-ease-decel); }
-.fadeLeave { animation: fadeOut var(--nd-duration-base) ease-out forwards; }
+.fadeLeave { animation: fadeOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes fadeIn { from { opacity: 0; } }
 @keyframes fadeOut { to { opacity: 0; } }
 
-.modalEnter { animation: modalIn var(--nd-duration-medium) var(--nd-ease-spring); }
+.modalEnter { animation: modalIn var(--nd-duration-medium) var(--nd-ease-menu); }
 .modalLeave { animation: modalOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes modalIn { from { opacity: 0; } }
 @keyframes modalOut { to { opacity: 0; } }

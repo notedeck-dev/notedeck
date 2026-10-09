@@ -21,6 +21,8 @@ const emit = defineEmits<{
 const popup = useHoverPopup({
   hideDelay: 300,
   hideGuardSelector: '.reaction-users-popup',
+  // MkReactionUsersPopup の退場アニメ (_popup.scss の hoverLeave) と同じ時間
+  leaveDuration: 150,
 })
 
 const reaction = ref('')

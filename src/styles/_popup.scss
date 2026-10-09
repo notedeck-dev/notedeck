@@ -1,12 +1,19 @@
 // Shared popup/dialog vapor-transition classes.
 // Usage: @use '@/styles/popup';
+//
+// 登場と退場は役割ごとに揃える (#704)。登場の曲線はどれも --nd-ease-menu、
+// 退場は --nd-ease-decel。時間は次のとおりで、JS 側の leaveDuration は退場の
+// 時間に合わせる (シートは _navMenu.scss)。
+//   ダイアログ / メニュー / ピッカー: 登場 --nd-duration-medium / 退場 --nd-duration-base
+//   ホバーのプレビュー:               登場 --nd-duration-base   / 退場 --nd-duration-base
+//   シート (_navMenu.scss):           登場 --nd-duration-slow   / 退場 --nd-duration-medium
 
 .enter {
   animation: backdropIn var(--nd-duration-base) var(--nd-ease-decel);
 }
 
 .leave {
-  animation: backdropOut var(--nd-duration-base) ease-out forwards;
+  animation: backdropOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
 }
 
 @keyframes backdropIn {
@@ -18,7 +25,7 @@
 }
 
 .contentEnter {
-  animation: popupIn var(--nd-duration-medium) var(--nd-ease-spring);
+  animation: popupIn var(--nd-duration-medium) var(--nd-ease-menu);
 }
 
 .contentLeave {
@@ -31,4 +38,72 @@
 
 @keyframes popupOut {
   to { opacity: 0; transform: scale(0.92) translateY(4px); }
+}
+
+// ホバーで出るプレビュー (ユーザー / リアクションしたユーザー / 補完候補)。
+// 退場の時間は JS 側の leaveDuration (USER_POPUP_HOVER 等の 150ms) と同じ
+// --nd-duration-base。退場中はクリックを吸わない
+.hoverEnter {
+  animation: hoverIn var(--nd-duration-base) var(--nd-ease-menu);
+}
+
+.hoverLeave {
+  animation: hoverOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
+
+  // 使う側の root が pointer-events: auto を持つので、後に書かれても勝つよう重ねる
+  &#{&} {
+    pointer-events: none;
+  }
+}
+
+@keyframes hoverIn {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+}
+
+@keyframes hoverOut {
+  to { opacity: 0; transform: scale(0.97) translateY(4px); }
+}
+
+// 入力欄やフォームに付いて開くピッカー (絵文字 / ドライブ / 下書き 等)。
+// 退場の時間は JS 側の leaveDuration (150ms) と同じ --nd-duration-base
+.panelEnter {
+  animation: panelIn var(--nd-duration-medium) var(--nd-ease-menu);
+}
+
+.panelLeave {
+  animation: panelOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
+
+  &#{&} {
+    pointer-events: none;
+  }
+}
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes panelOut {
+  to { opacity: 0; transform: translateY(8px); }
+}
+
+// トリガーに付いて開くメニュー / ドロップダウン。
+// 退場の時間は JS 側の leaveDuration (150ms) と同じ --nd-duration-base
+.menuEnter {
+  animation: menuIn var(--nd-duration-medium) var(--nd-ease-menu);
+}
+
+.menuLeave {
+  animation: menuOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
+
+  &#{&} {
+    pointer-events: none;
+  }
+}
+
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+@keyframes menuOut {
+  to { opacity: 0; transform: translateY(-4px); }
 }

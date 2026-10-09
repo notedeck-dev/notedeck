@@ -1,30 +1,6 @@
-// Shared nav-menu popup transition classes.
+// Shared bottom-sheet transition classes (モバイルのメニュー / ピッカー)。
 // Usage: @use '@/styles/navMenu';
-
-.menuEnter {
-  animation: menuIn var(--nd-duration-medium) var(--nd-ease-menu);
-}
-
-.menuLeave {
-  animation: menuOut var(--nd-duration-medium) var(--nd-ease-menu) forwards;
-}
-
-@keyframes menuIn {
-  from { opacity: 0; transform: translateY(4px); }
-}
-
-@keyframes menuOut {
-  to { opacity: 0; transform: translateY(4px); }
-}
-
-@media (max-width: 500px) {
-  @keyframes menuIn {
-    from { opacity: 0; transform: translateY(8px); }
-  }
-  @keyframes menuOut {
-    to { opacity: 0; transform: translateY(8px); }
-  }
-}
+// トリガーに付いて開くメニューは _popup.scss の menuEnter / menuLeave。
 
 // Mobile bottom-sheet — used together with a `<dialog class="_nativeDialog">`
 // host. The `mobileBackdrop` class anchors the sheet to the viewport bottom;
@@ -35,16 +11,17 @@
 }
 
 .sheetBackdropEnter {
-  animation: sheetBdIn var(--nd-duration-base) var(--nd-ease-decel, ease);
+  animation: sheetBdIn var(--nd-duration-base) var(--nd-ease-decel);
 }
 .sheetBackdropLeave {
-  animation: sheetBdOut var(--nd-duration-base) ease-out forwards;
+  animation: sheetBdOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
 }
 @keyframes sheetBdIn { from { opacity: 0; } }
 @keyframes sheetBdOut { to { opacity: 0; } }
 
+// 退場は JS 側の leaveDuration (200ms) と同じ --nd-duration-medium
 .sheetContentEnter {
-  animation: sheetIn var(--nd-duration-slow) var(--nd-ease-spring);
+  animation: sheetIn var(--nd-duration-slow) var(--nd-ease-menu);
 }
 .sheetContentLeave {
   animation: sheetOut var(--nd-duration-medium) var(--nd-ease-decel) forwards;

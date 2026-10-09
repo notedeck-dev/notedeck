@@ -11,6 +11,8 @@ import { COLUMN_SELECTOR, extractThemeVars } from '@/utils/themeVars'
 
 const emit = defineEmits<{
   close: []
+  /** 退場アニメが終わって中身が外れた後。サブビューの巻き戻しはここで行う */
+  closed: []
 }>()
 
 const isCompact = useIsCompactLayout()
@@ -39,7 +41,10 @@ const { activate: activateKeyboard, deactivate: deactivateKeyboard } =
 
 watch(visible, (v) => {
   if (v) nextTick(activateKeyboard)
-  else deactivateKeyboard()
+  else {
+    deactivateKeyboard()
+    emit('closed')
+  }
 })
 
 useNativePopover(
@@ -75,6 +80,8 @@ function open(e: MouseEvent) {
     close()
     return
   }
+  // 閉じかけ (退場アニメ中) に開き直したときは、閉じ切ったものとして扱う
+  if (visible.value) emit('closed')
   const column = (el ?? (e.target as HTMLElement))?.closest(
     COLUMN_SELECTOR,
   ) as HTMLElement | null
