@@ -512,7 +512,7 @@ onMounted(refreshStats)
 
 .fieldLabel {
   font-size: 13px;
-  color: var(--fgTransparentWeak, #888);
+  color: color-mix(in srgb, var(--nd-fg) 55%, transparent);
 }
 
 .divider {

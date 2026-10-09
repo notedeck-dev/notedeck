@@ -370,7 +370,6 @@ function clearAll() {
   padding: 4px 6px;
   font-size: var(--nd-font-md);
   color: var(--nd-fg);
-  color-scheme: dark;
   outline: none;
 
   &:focus {

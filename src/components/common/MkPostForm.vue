@@ -682,8 +682,11 @@ function onPaste(e: ClipboardEvent) {
                 v-if="!memoMode"
                 :class="$style.moreMenuItem"
                 role="switch"
+                tabindex="0"
                 :aria-checked="showPreview"
                 @click="showPreview = !showPreview"
+                @keydown.enter.prevent="showPreview = !showPreview"
+                @keydown.space.prevent="showPreview = !showPreview"
               >
                 <i class="ti ti-eye" />
                 {{ i18n.ts._mkPostForm.preview }}
@@ -697,8 +700,11 @@ function onPaste(e: ClipboardEvent) {
               <div
                 :class="$style.moreMenuItem"
                 role="switch"
+                tabindex="0"
                 :aria-checked="autoSaveEnabled"
                 @click="autoSaveEnabled = !autoSaveEnabled"
+                @keydown.enter.prevent="autoSaveEnabled = !autoSaveEnabled"
+                @keydown.space.prevent="autoSaveEnabled = !autoSaveEnabled"
               >
                 <i class="ti ti-device-floppy" />
                 {{ autoSaveLabel }}
@@ -714,8 +720,11 @@ function onPaste(e: ClipboardEvent) {
                 v-if="!inline"
                 :class="$style.moreMenuItem"
                 role="switch"
+                tabindex="0"
                 :aria-checked="rememberVisibilityEnabled"
                 @click="rememberVisibilityEnabled = !rememberVisibilityEnabled"
+                @keydown.enter.prevent="rememberVisibilityEnabled = !rememberVisibilityEnabled"
+                @keydown.space.prevent="rememberVisibilityEnabled = !rememberVisibilityEnabled"
               >
                 <i class="ti ti-bookmark" />
                 {{ i18n.ts._mkPostForm.rememberVisibility }}
