@@ -1,7 +1,8 @@
 <script setup lang="ts">
 // アプリの通知の受信トレイ (VS Code の通知センター)。ベル (NotificationBell)
 // で開く。デスクトップはボトムバーの上に出るパネル、スマホサイズは
-// ボトムシート。開閉状態は stores/toast の inboxOpen が持つ
+// ボトムシート。開閉状態は stores/toast の inboxOpen が持つ。
+// フォーカスの出入りと Esc は中身 (NotificationInboxList) が受け持つ
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNativePopover } from '@/composables/useNativePopover'
@@ -87,7 +88,6 @@ useNativeDialog(
       class="_popup"
       :class="[$style.panel, entering && $style.panelEnter, leaving && $style.panelLeave]"
       :style="PANEL_POSITION"
-      @keydown.esc="close"
     >
       <NotificationInboxList @close="close" />
     </div>

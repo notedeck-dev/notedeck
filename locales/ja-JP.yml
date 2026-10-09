@@ -172,6 +172,7 @@ _commands:
   newWindow: "新しいウィンドウを開く"
   closeAllWindows: "すべてのサブウィンドウを閉じる"
   pipWindow: "PiP ウィンドウを開く"
+  notificationCenter: "アプリの通知を開く"
   devtools: "開発者ツール"
   profileEditor: "プロファイルエディター"
   switchProfile: "{name} に切り替え"
@@ -553,6 +554,12 @@ _notificationCenter:
   clearAll: "すべてクリア"
   empty: "新しい通知はありません"
   unread: "未読 {count} 件"
+  count: "×{count}"
+  countTitle: "{count} 回起きました"
+  fresh: "新着"
+  expand: "全文を表示"
+  collapse: "折りたたむ"
+  remove: "この通知を消す"
 
 _noteVariantsPopup:
   ariaLabel: "このノートが見えているアカウント"

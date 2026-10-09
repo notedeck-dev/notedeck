@@ -101,6 +101,7 @@ export function useHeartbeatDaemon() {
           toast.show(
             localizeNative(ev).text ?? '',
             ev.level === 'warning' ? 'warning' : 'info',
+            { source: 'HEARTBEAT' },
           )
           return
         default:

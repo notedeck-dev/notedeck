@@ -163,15 +163,19 @@ const {
     </div>
 
     <div :class="$style.right">
-      <!-- 軽い成功・情報 (コピーしました等) はカードを出さずここで短く知らせる -->
-      <span
+      <!-- 軽い成功・情報 (コピーしました等) はカードを出さずここで短く知らせる。
+           押すと受信トレイを開く (VS Code のステータスバーの通知と同じ) -->
+      <button
         v-if="statusT.visible.value && shownStatus"
+        class="_button"
+        data-notification-bell
         :class="[$style.status, statusT.leaving.value && $style.statusLeave]"
-        role="status"
+        :title="i18n.ts._notificationCenter.title"
+        @click="toastCenter.setInboxOpen(true)"
       >
         <i :class="shownStatus.type === 'success' ? 'ti ti-check' : 'ti ti-info-circle'" />
-        <span :class="$style.statusText">{{ shownStatus.text }}</span>
-      </span>
+        <span :class="$style.statusText" role="status">{{ shownStatus.text }}</span>
+      </button>
       <button
         class="_button"
         :class="[$style.actionBtn, $style.settingsBtn]"
@@ -390,9 +394,16 @@ const {
   max-width: 320px;
   padding: 0 10px;
   font-size: var(--nd-font-sm);
+  height: 100%;
   color: var(--nd-fg);
   opacity: 0.75;
+  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
   animation: statusIn var(--nd-duration-slow) var(--nd-ease-decel) both;
+}
+
+.status:hover {
+  opacity: 1;
+  background: var(--nd-buttonHoverBg);
 }
 
 /* 退場: useVaporTransition の leaveDuration (200ms) 以内 */

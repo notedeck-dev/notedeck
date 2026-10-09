@@ -666,7 +666,7 @@ describe('UI 起点の実行エラー表示 (#1072 / #1074)', () => {
     const { toasts } = useToast()
     expect(toasts.value).toHaveLength(1)
     expect(toasts.value[0]?.type).toBe('error')
-    expect(toasts.value[0]?.text).toContain(plugin.name)
+    expect(toasts.value[0]?.source).toBe(plugin.name)
     expect(toasts.value[0]?.text).toContain('unknown_capability')
     // runLog への記録は従来どおり残す (詳細はそちらで追う)
     const entries = useAiScriptLogsStore().entriesFor(

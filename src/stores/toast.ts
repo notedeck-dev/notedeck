@@ -19,8 +19,24 @@ export interface ToastItem {
   text: string
   type: 'success' | 'info' | 'warning' | 'error'
   action?: ToastAction
-  /** 発生時刻 (ms) */
+  /** 最後に起きた時刻 (ms) */
   time: number
+  /** 同じ通知が起きた回数 (まとめて 1 件で持つ) */
+  count: number
+  /** 受信トレイで未読か */
+  unread: boolean
+  /** 送り元 (プラグイン名など)。見出しの補足に出す */
+  source?: string
+  /** 通知を押したときに移る先 */
+  onClick?: () => void
+}
+
+export interface ToastOptions {
+  action?: ToastAction
+  /** 操作 (元に戻す等) を押せる期限 (ms)。過ぎたら受信トレイからボタンを外す */
+  actionTimeout?: number
+  source?: string
+  onClick?: () => void
 }
 
 const CARD_DURATION: Record<ToastItem['type'], number> = {
@@ -32,28 +48,45 @@ const CARD_DURATION: Record<ToastItem['type'], number> = {
 
 /** undo 等のアクション付きは押す猶予を長めに取る */
 const ACTION_DURATION = 8000
+/** 受信トレイで操作を押せる既定の期限。何時間も後の「元に戻す」は意図と食い違う */
+const ACTION_TTL = 5 * 60_000
 /** ステータス表示の時間 */
 const STATUS_DURATION = 4000
 /** ホバーを離れてからカードを消すまで */
 const RESUME_DURATION = 2000
 /** 受信トレイに残す件数 (古いものから捨てる) */
 const INBOX_MAX = 50
+/** カードの同時表示数 (VS Code と同じ)。あふれた分は受信トレイだけに残る */
+const CARD_MAX = 3
 
 function isLight(type: ToastItem['type'], action?: ToastAction): boolean {
   return (type === 'success' || type === 'info') && !action
+}
+
+/** まとめてよい同じ通知か。アクション付きはそれぞれ別の操作なのでまとめない */
+function sameNotice(
+  t: ToastItem,
+  text: string,
+  type: ToastItem['type'],
+  source: string | undefined,
+): boolean {
+  return t.text === text && t.type === type && t.source === source && !t.action
 }
 
 /** 状態一式を作る (テストは個別に作り、アプリは下の単一インスタンスを使う) */
 export function createToastCenter() {
   const toasts = ref<ToastItem[]>([])
   const inbox = ref<ToastItem[]>([])
-  const unreadCount = ref(0)
   const status = ref<ToastItem | null>(null)
   const statusHosts = ref(0)
   /** 受信トレイ (通知センター) を開いているか。開いている間はカードを出さない */
   const inboxOpen = ref(false)
+  /** 今回開いた受信トレイで新着として見せる id (開いた時点の未読 + 開いている間に来たもの) */
+  const freshIds = ref<ReadonlySet<number>>(new Set())
   let nextId = 0
   const timers = new Map<number, ReturnType<typeof setTimeout>>()
+  const paused = new Set<number>()
+  const actionTimers = new Map<number, ReturnType<typeof setTimeout>>()
   let statusTimer: ReturnType<typeof setTimeout> | null = null
 
   /** ステータス表示を持つ部品 (ボトムバー) がマウント中に登録する */
@@ -80,16 +113,70 @@ export function createToastCenter() {
     return item.action ? ACTION_DURATION : CARD_DURATION[item.type]
   }
 
+  function showCard(item: ToastItem) {
+    const i = toasts.value.findIndex((t) => t.id === item.id)
+    if (i >= 0) {
+      const next = [...toasts.value]
+      next[i] = item
+      toasts.value = next
+      if (!paused.has(item.id)) schedule(item.id, cardDuration(item))
+      return
+    }
+    toasts.value = [...toasts.value, item]
+    schedule(item.id, cardDuration(item))
+    // あふれたら古いものから畳む。読んでいる (ホバー中の) カードは残す
+    while (toasts.value.length > CARD_MAX) {
+      const victim =
+        toasts.value.find((t) => !paused.has(t.id)) ?? toasts.value[0]
+      if (!victim) break
+      dismiss(victim.id)
+    }
+  }
+
+  function expireAction(id: number) {
+    actionTimers.delete(id)
+    const strip = (t: ToastItem) =>
+      t.id === id ? { ...t, action: undefined } : t
+    inbox.value = inbox.value.map(strip)
+    toasts.value = toasts.value.map(strip)
+  }
+
+  function forgetAction(id: number) {
+    const timer = actionTimers.get(id)
+    if (timer) clearTimeout(timer)
+    actionTimers.delete(id)
+  }
+
+  function setInbox(next: ToastItem[]) {
+    const kept = next.slice(0, INBOX_MAX)
+    for (const t of next.slice(INBOX_MAX)) forgetAction(t.id)
+    inbox.value = kept
+  }
+
+  function addFresh(id: number) {
+    freshIds.value = new Set([...freshIds.value, id])
+  }
+
   function show(
     text: string,
     type: ToastItem['type'] = 'info',
-    options?: { action?: ToastAction },
+    options?: ToastOptions,
   ) {
     const action = options?.action
+    const source = options?.source
     const light = isLight(type, action)
+    const now = Date.now()
 
     if (light && statusHosts.value > 0) {
-      status.value = { id: nextId++, text, type, time: Date.now() }
+      status.value = {
+        id: nextId++,
+        text,
+        type,
+        time: now,
+        count: 1,
+        unread: false,
+        source,
+      }
       if (statusTimer) clearTimeout(statusTimer)
       statusTimer = setTimeout(() => {
         status.value = null
@@ -98,39 +185,73 @@ export function createToastCenter() {
       return
     }
 
-    // 同一内容が表示中なら積み直さず表示時間だけ延長する (連続発火の多重表示防止)
-    if (!action) {
-      const dup = toasts.value.find(
-        (t) => t.text === text && t.type === type && !t.action,
-      )
+    // 軽いもの (ステータス表示の場所が無い画面) は受信トレイに残さず、カードだけ
+    if (light) {
+      const dup = toasts.value.find((t) => sameNotice(t, text, type, source))
       if (dup) {
-        schedule(dup.id, cardDuration(dup))
+        showCard({ ...dup, count: dup.count + 1, time: now })
         return
       }
-    }
-
-    const item: ToastItem = {
-      id: nextId++,
-      text,
-      type,
-      action,
-      time: Date.now(),
-    }
-
-    // 受信トレイを開いている間は、同じものが一覧に並ぶのでカードは出さない。
-    // 目の前で増えるので未読にも数えない
-    if (inboxOpen.value) {
-      if (!light) inbox.value = [item, ...inbox.value].slice(0, INBOX_MAX)
+      showCard({
+        id: nextId++,
+        text,
+        type,
+        time: now,
+        count: 1,
+        unread: false,
+        source,
+        onClick: options?.onClick,
+      })
       return
     }
 
-    toasts.value = [...toasts.value, item]
-    schedule(item.id, cardDuration(item))
-
-    if (!light) {
-      inbox.value = [item, ...inbox.value].slice(0, INBOX_MAX)
-      unreadCount.value++
+    // 同じ通知は受信トレイで 1 件にまとめ、先頭に移して回数を数える
+    // (カードが消えた後でも行を増やさない)
+    const existing = action
+      ? undefined
+      : inbox.value.find((t) => sameNotice(t, text, type, source))
+    let item: ToastItem
+    if (existing) {
+      item = {
+        ...existing,
+        count: existing.count + 1,
+        time: now,
+        unread: !inboxOpen.value,
+        onClick: options?.onClick ?? existing.onClick,
+      }
+      setInbox([item, ...inbox.value.filter((t) => t.id !== existing.id)])
+    } else {
+      item = {
+        id: nextId++,
+        text,
+        type,
+        action,
+        time: now,
+        count: 1,
+        // 開いている間は目の前で増えるので未読にしない (新着としては見せる)
+        unread: !inboxOpen.value,
+        source,
+        onClick: options?.onClick,
+      }
+      if (action) {
+        const id = item.id
+        actionTimers.set(
+          id,
+          setTimeout(
+            () => expireAction(id),
+            options?.actionTimeout ?? ACTION_TTL,
+          ),
+        )
+      }
+      setInbox([item, ...inbox.value])
     }
+
+    // 受信トレイを開いている間は、同じものが一覧に並ぶのでカードは出さない
+    if (inboxOpen.value) {
+      addFresh(item.id)
+      return
+    }
+    showCard(item)
   }
 
   /** カードを閉じる (受信トレイには残る) */
@@ -138,6 +259,7 @@ export function createToastCenter() {
     const timer = timers.get(id)
     if (timer) clearTimeout(timer)
     timers.delete(id)
+    paused.delete(id)
     toasts.value = toasts.value.filter((t) => t.id !== id)
   }
 
@@ -146,49 +268,78 @@ export function createToastCenter() {
     const timer = timers.get(id)
     if (timer) clearTimeout(timer)
     timers.delete(id)
+    paused.add(id)
   }
 
   function resume(id: number) {
+    paused.delete(id)
     if (!toasts.value.some((t) => t.id === id)) return
     schedule(id, RESUME_DURATION)
   }
 
   function runAction(item: ToastItem) {
-    item.action?.onClick()
+    // 期限切れの後に古い参照から押されても走らせない
+    const current =
+      inbox.value.find((t) => t.id === item.id) ??
+      toasts.value.find((t) => t.id === item.id) ??
+      item
+    current.action?.onClick()
     dismiss(item.id)
+    forgetAction(item.id)
     // 実行済みのアクションは受信トレイから押せないようにする (二重の undo 防止)
     inbox.value = inbox.value.map((t) =>
       t.id === item.id ? { ...t, action: undefined } : t,
     )
   }
 
+  /** 通知を押したとき: 移る先があれば移り、カードと受信トレイを閉じる */
+  function open(id: number) {
+    const item =
+      inbox.value.find((t) => t.id === id) ??
+      toasts.value.find((t) => t.id === id)
+    if (!item?.onClick) return
+    item.onClick()
+    dismiss(id)
+    if (inboxOpen.value) setInboxOpen(false)
+  }
+
   function removeFromInbox(id: number) {
+    forgetAction(id)
     inbox.value = inbox.value.filter((t) => t.id !== id)
   }
 
   function clearInbox() {
+    for (const t of inbox.value) forgetAction(t.id)
     inbox.value = []
-    unreadCount.value = 0
     for (const t of toasts.value) dismiss(t.id)
   }
 
   function markInboxRead() {
-    unreadCount.value = 0
+    if (!inbox.value.some((t) => t.unread)) return
+    inbox.value = inbox.value.map((t) =>
+      t.unread ? { ...t, unread: false } : t,
+    )
   }
 
   function setInboxOpen(open: boolean) {
     inboxOpen.value = open
     if (open) {
+      freshIds.value = new Set(
+        inbox.value.filter((t) => t.unread).map((t) => t.id),
+      )
       markInboxRead()
       // 開いた受信トレイに同じものが並ぶので、出ているカードは畳む
       for (const t of toasts.value) dismiss(t.id)
+    } else {
+      freshIds.value = new Set()
     }
   }
 
   return {
     toasts,
     inbox,
-    unreadCount: computed(() => unreadCount.value),
+    unreadCount: computed(() => inbox.value.filter((t) => t.unread).length),
+    freshIds: computed(() => freshIds.value),
     status,
     inboxOpen: computed(() => inboxOpen.value),
     setInboxOpen,
@@ -199,6 +350,7 @@ export function createToastCenter() {
     pause,
     resume,
     runAction,
+    open,
     removeFromInbox,
     clearInbox,
     markInboxRead,
