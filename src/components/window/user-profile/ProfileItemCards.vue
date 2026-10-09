@@ -68,13 +68,13 @@ const emit = defineEmits<{ select: [id: string] }>()
 }
 
 .cardTitle {
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .cardSummary {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -89,6 +89,6 @@ const emit = defineEmits<{ select: [id: string] }>()
   padding: 2rem;
   color: var(--nd-fg);
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 </style>

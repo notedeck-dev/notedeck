@@ -44,12 +44,23 @@ function positionFor(el: HTMLElement) {
   }
 }
 
-/** native tooltip 抑止: title → data-nd-tip 退避。退避後の本文を返す */
+/**
+ * native tooltip 抑止: title → data-nd-tip 退避。退避後の本文を返す。
+ * アイコンだけのボタンでは title がアクセシブルな名前の唯一の出どころなので、
+ * 文字を持たない要素には aria-label として残す (退避で名無しにしない)
+ */
 function stashTip(el: HTMLElement): string | undefined {
   const title = el.getAttribute('title')
   if (title !== null) {
     el.setAttribute('data-nd-tip', title)
     el.removeAttribute('title')
+    if (
+      !el.hasAttribute('aria-label') &&
+      !el.hasAttribute('aria-labelledby') &&
+      !el.textContent?.trim()
+    ) {
+      el.setAttribute('aria-label', title)
+    }
   }
   return el.getAttribute('data-nd-tip')?.trim() || undefined
 }
@@ -165,7 +176,7 @@ onUnmounted(() => {
   color: var(--nd-fg);
   box-shadow: 0 2px 8px var(--nd-shadow);
   border: 1px solid var(--nd-divider);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   line-height: 1.4;
   white-space: pre-line;
   overflow-wrap: break-word;

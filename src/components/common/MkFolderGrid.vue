@@ -86,7 +86,7 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
   justify-content: center;
   width: 100%;
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   transition: opacity var(--nd-duration-base);
 
   &:hover {
@@ -109,7 +109,7 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
   top: 48%;
   transform: translateY(-50%);
   text-align: center;
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   color: var(--nd-fg);
   overflow: hidden;
   text-overflow: ellipsis;

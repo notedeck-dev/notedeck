@@ -420,7 +420,7 @@ function openAsPip() {
   flex-direction: column;
   background: var(--nd-panel);
   color: var(--nd-fg);
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   overflow: clip;
   contain: layout paint style;
   container-type: inline-size;
@@ -439,8 +439,8 @@ function openAsPip() {
   backdrop-filter: var(--nd-vibrancy);
   -webkit-backdrop-filter: var(--nd-vibrancy);
   color: var(--nd-panelHeaderFg);
-  font-size: 0.9em;
-  font-weight: bold;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   flex-shrink: 0;
   cursor: default;
   user-select: none;
@@ -472,7 +472,7 @@ function openAsPip() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 /* 全アカウントのカラム (#1018)。per-account のアバターと同じ場所・同じ寸法 */
@@ -540,11 +540,11 @@ function openAsPip() {
   max-width: 260px;
   cursor: default;
   line-height: 1.35;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
   font-size: 1rem;
 
   .columnMenuDanger {
-    color: var(--nd-love, #ff6b6b);
+    color: var(--nd-love);
 
     i {
       opacity: 1;
@@ -586,8 +586,8 @@ function openAsPip() {
   gap: 6px;
   padding: 6px 14px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   white-space: nowrap;
   color: var(--nd-fgOnAccent);
   pointer-events: none;
@@ -620,14 +620,14 @@ function openAsPip() {
   position: absolute;
   bottom: 0;
   width: 100%;
-  margin: 5px 0;
+  margin: 6px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
 
   > :global(.ti) {
     margin: 6px 0;
-    transition: transform 0.25s;
+    transition: transform var(--nd-duration-slow);
   }
 
   > :global(.refresh) {
@@ -636,7 +636,7 @@ function openAsPip() {
 }
 
 .pullText {
-  margin: 5px 0;
+  margin: 6px 0;
   font-size: 90%;
   color: var(--nd-fg);
   opacity: 0.7;

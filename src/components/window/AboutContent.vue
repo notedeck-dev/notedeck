@@ -1114,14 +1114,14 @@ function reportBug() {
 
 .logoBtn {
   display: block;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
 }
 
 .aboutLogo {
   display: block;
   width: 48px;
   height: 48px;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
 }
 
 .beating {
@@ -1157,7 +1157,7 @@ function reportBug() {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.5;
 
@@ -1172,7 +1172,7 @@ function reportBug() {
 }
 
 .versionIcon {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 // 更新セクション: formLink と同じ「1 行」の型に揃え、hero には出さない
@@ -1180,7 +1180,7 @@ function reportBug() {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .updateIcon {
@@ -1194,7 +1194,7 @@ function reportBug() {
 }
 
 .updatePercent {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
   font-variant-numeric: tabular-nums;
 }
@@ -1204,12 +1204,12 @@ function reportBug() {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  font-weight: bold;
-  font-size: 0.85em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-md);
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: hsl(from var(--nd-accent) h s calc(l + 5));
+    background: color-mix(in srgb, var(--nd-accent) 88%, white);
   }
 }
 
@@ -1244,7 +1244,7 @@ function reportBug() {
 
 .updateError {
   margin-top: 6px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-error, var(--nd-love));
 }
 
@@ -1263,9 +1263,9 @@ function reportBug() {
 }
 
 .formSectionLabel {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   padding: 1em 16px 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 // セクション本文の共通余白。行 (formLink) はこの中に置く
@@ -1281,7 +1281,7 @@ function reportBug() {
   padding: 10px 14px;
   background: var(--nd-buttonBg);
   border-radius: var(--nd-radius-sm);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   text-align: left;
   transition: background var(--nd-duration-base);
@@ -1302,7 +1302,7 @@ function reportBug() {
   opacity: 0.7;
   white-space: nowrap;
   flex-shrink: 0;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 // 開発者行のアバター (formLink 行の高さに合わせた小サイズ)
@@ -1363,17 +1363,17 @@ function reportBug() {
 .pillBtn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
+  gap: 6px;
+  padding: 8px 14px;
   border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-  font-weight: bold;
-  font-size: 0.85em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-md);
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: hsl(from var(--nd-accent) h s calc(l + 5));
+    background: color-mix(in srgb, var(--nd-accent) 88%, white);
   }
 }
 
@@ -1382,7 +1382,7 @@ function reportBug() {
   flex-direction: column;
   gap: 4px;
   padding: 0 16px 12px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   font-family: var(--nd-font-mono);
 }
 
@@ -1407,7 +1407,7 @@ function reportBug() {
   flex-direction: column;
   gap: 4px;
   padding: 8px 16px 14px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .diagHead {
@@ -1428,7 +1428,7 @@ function reportBug() {
 
 .diagSummary {
   color: var(--nd-fg);
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 }
 
 .diagRefresh {
@@ -1447,7 +1447,7 @@ function reportBug() {
 
 .diagError {
   color: var(--nd-error);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 // 実測値から設定操作への橋渡し文。数値行 (mono) と区別して通常フォントのまま
@@ -1456,7 +1456,7 @@ function reportBug() {
   gap: 6px;
   align-items: baseline;
   margin-bottom: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
   opacity: 0.85;
 }
@@ -1470,16 +1470,16 @@ function reportBug() {
   transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   pointer-events: none;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.75;
 }
 
 // 起動合計 (プロセス起動 → デッキ表示)。これが「起動は一瞬」の実測値
 .startupTotal {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-accent);
   opacity: 1;
   font-family: var(--nd-font-mono);
@@ -1493,7 +1493,7 @@ function reportBug() {
   display: flex;
   flex-direction: column;
   margin: 8px 16px 14px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   border: 1px solid var(--nd-panelBorder);
   border-radius: var(--nd-radius-sm);
   overflow: hidden;
@@ -1503,7 +1503,7 @@ function reportBug() {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: 5px 10px;
+  padding: 6px 10px;
   font-family: var(--nd-font-mono);
 
   & + & {
@@ -1516,7 +1516,7 @@ function reportBug() {
 }
 
 .startupHeader {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   opacity: 0.5;
   background: var(--nd-panelHighlight);
@@ -1539,7 +1539,7 @@ function reportBug() {
   flex: 1;
   min-width: 40px;
   height: 5px;
-  border-radius: 2.5px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-divider);
   opacity: 0.9;
 }
@@ -1548,7 +1548,7 @@ function reportBug() {
   position: absolute;
   top: 0;
   bottom: 0;
-  border-radius: 2.5px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-accent);
 }
 
@@ -1572,27 +1572,27 @@ function reportBug() {
 .startupEmphasis {
   .startupLabel {
     opacity: 1;
-    font-weight: 600;
+    font-weight: var(--nd-weight-bold);
   }
 
   .startupAt {
     color: var(--nd-accent);
-    font-weight: 600;
+    font-weight: var(--nd-weight-bold);
   }
 }
 
 // 注記は本文フォントのまま (mono は行側にだけ効かせている)
 .startupNote {
-  padding: 5px 10px 6px;
+  padding: 6px 10px 6px;
   border-top: solid 0.5px var(--nd-divider);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   opacity: 0.5;
 }
 
 .logBlock {
   text-align: left;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   line-height: 1.5;
   border-radius: var(--nd-radius-sm);
   border: 1px solid var(--nd-panelBorder);

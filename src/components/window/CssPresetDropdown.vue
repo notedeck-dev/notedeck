@@ -91,7 +91,7 @@ useClickOutside(rootRef, () => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   text-align: left;
   transition: border-color var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -101,7 +101,7 @@ useClickOutside(rootRef, () => {
 .dropdownChevron {
   margin-left: auto;
   opacity: 0.4;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .dropdownPanel {
@@ -116,7 +116,7 @@ useClickOutside(rootRef, () => {
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-panel);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--nd-shadow-m);
 }
 
 .dropdownItem {
@@ -124,8 +124,8 @@ useClickOutside(rootRef, () => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
-  font-size: 0.8em;
+  padding: 8px 10px;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-align: left;
   cursor: pointer;

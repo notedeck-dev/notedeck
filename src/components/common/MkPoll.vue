@@ -86,7 +86,7 @@ function onClick(i: number, isVoted: boolean) {
 
 .pollChoice {
   position: relative;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   overflow: clip;
   background: var(--nd-accentedBg);
   min-height: 35px;
@@ -123,19 +123,19 @@ function onClick(i: number, isVoted: boolean) {
   position: relative;
   z-index: 1;
   display: inline-block;
-  padding: 3px 5px;
+  padding: 4px 6px;
   background: var(--nd-panel);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   margin: 4px;
 }
 
 .pollText {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .pollPct {
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   flex-shrink: 0;
   margin-left: 8px;
@@ -146,7 +146,7 @@ function onClick(i: number, isVoted: boolean) {
   align-items: center;
   gap: 8px;
   padding: 2px 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
 }
 
@@ -154,7 +154,7 @@ function onClick(i: number, isVoted: boolean) {
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 .pollExpiry {

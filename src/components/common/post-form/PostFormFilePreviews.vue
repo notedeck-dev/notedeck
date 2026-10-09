@@ -171,6 +171,7 @@ async function onDelete() {
       @pointerdown="startDrag(i, $event)"
       @click="onTileClick(file, $event)"
       @keydown.enter.prevent="onTileKeydown(file, $event)"
+      @keydown.space.self.prevent="onTileKeydown(file, $event)"
     >
       <img
         v-if="file.thumbnailUrl || file.type.startsWith('image/')"
@@ -278,7 +279,7 @@ async function onDelete() {
   cursor: pointer;
 
   &:focus-visible {
-    outline: 2px solid var(--nd-focus);
+    outline: 2px solid var(--nd-focusRing);
     outline-offset: 2px;
   }
 
@@ -328,7 +329,7 @@ async function onDelete() {
   height: 64px;
   border-radius: var(--nd-radius-md);
   background: var(--nd-buttonBg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -353,7 +354,7 @@ async function onDelete() {
   color: inherit;
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 </style>

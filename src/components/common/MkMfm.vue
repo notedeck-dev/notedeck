@@ -499,7 +499,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 .mfmMentionMe {
   color: var(--nd-mentionMe);
   cursor: pointer;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 
   &:hover {
     text-decoration: underline;
@@ -517,9 +517,9 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 
 .mfmCode {
   font-family: var(--nd-font-mono);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   padding: 2px 6px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-inlineCodeBg, rgba(0, 0, 0, 0.15));
   color: var(--nd-inlineCodeFg, var(--nd-fg));
 }
@@ -532,7 +532,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   // 面はハイライトの有無に関係なく揃える (明暗は data-nd-code-scheme の変数側 #1053)
   :deep(pre) {
     font-family: var(--nd-font-mono);
-    font-size: 0.85em;
+    font-size: var(--nd-font-md);
     padding: 12px 16px;
     background: var(--nd-codeEditorBg);
     color: var(--nd-codeEditorFg);
@@ -576,7 +576,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 
 /* Small */
 .mfmSmall {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -591,7 +591,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   display: block;
   margin: 8px 0;
   padding: 4px 0 4px 16px;
-  border-left: 3px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
+  border-left: 3px solid var(--nd-divider);
   color: var(--nd-fg-muted, var(--nd-fg));
   opacity: 0.85;
 }
@@ -600,16 +600,16 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 .mfmHeading {
   display: block;
   margin: 0.6em 0 0.3em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   line-height: 1.25;
   color: var(--nd-fgHighlighted, var(--nd-fg));
 }
 .mfmHeading1 { font-size: 1.6em; }
-.mfmHeading2 { font-size: 1.4em; }
-.mfmHeading3 { font-size: 1.2em; }
-.mfmHeading4 { font-size: 1.05em; }
-.mfmHeading5 { font-size: 0.95em; opacity: 0.9; }
-.mfmHeading6 { font-size: 0.85em; opacity: 0.8; }
+.mfmHeading2 { font-size: var(--nd-font-2xl); }
+.mfmHeading3 { font-size: var(--nd-font-xl); }
+.mfmHeading4 { font-size: var(--nd-font-lg); }
+.mfmHeading5 { font-size: var(--nd-font-body); opacity: 0.9; }
+.mfmHeading6 { font-size: var(--nd-font-md); opacity: 0.8; }
 
 /* Markdown 拡張: list */
 .mfmList {
@@ -628,21 +628,21 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 .mfmSearchInput {
   flex: 1;
   padding: 6px 10px;
-  border: 1px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
-  border-radius: var(--nd-radius-sm, 4px);
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-bg-secondary, rgba(0, 0, 0, 0.05));
   color: var(--nd-fg);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .mfmSearchButton {
   padding: 6px 16px;
   border: none;
-  border-radius: var(--nd-radius-sm, 4px);
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
   color: #fff;
   cursor: pointer;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   white-space: nowrap;
 
   &:hover {
@@ -662,7 +662,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   padding: 0 1em;
   margin: 0.5em 0;
   overflow: auto;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
 
   :deep(.katex-display) {
     margin: auto;

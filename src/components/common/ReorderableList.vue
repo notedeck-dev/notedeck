@@ -49,7 +49,7 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
         <img v-if="item.avatarUrl" :src="proxyThumbUrl(item.avatarUrl, 56)" :class="$style.badgeImg" />
         <img v-if="item.serverIconUrl" :src="item.serverIconUrl" :class="$style.badgeImg" />
       </span>
-      <button class="_button" :class="$style.removeBtn" @click="emit('remove', i)">
+      <button :aria-label="i18n.ts._common.delete" class="_button" :class="$style.removeBtn" @click="emit('remove', i)">
         <i class="ti ti-x" />
       </button>
     </div>
@@ -115,7 +115,7 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
 .label {
   flex: 1;
   min-width: 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -126,11 +126,11 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
   min-width: 18px;
   height: 18px;
   padding: 0 4px;
-  border-radius: 9px;
+  border-radius: var(--nd-radius-md);
   background: var(--nd-accent);
   color: var(--nd-bg);
   font-size: 10px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   line-height: 18px;
   text-align: center;
   flex-shrink: 0;
@@ -165,8 +165,8 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
 
   &:hover {
     opacity: 1;
-    color: var(--nd-love, #ec4137);
-    background: color-mix(in srgb, var(--nd-love, #ec4137) 10%, transparent);
+    color: var(--nd-love);
+    background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   }
 }
 
@@ -175,6 +175,6 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
   text-align: center;
   color: var(--nd-fg);
   opacity: 0.4;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
 }
 </style>

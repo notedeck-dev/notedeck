@@ -496,7 +496,7 @@ function handleReset() {
                     >
                       <i class="ti ti-world" />
                     </button>
-                    <button class="_button" :class="$style.removeShortcut" @click.stop="removeShortcut(cmdId, idx)">
+                    <button :aria-label="i18n.ts._common.delete" class="_button" :class="$style.removeShortcut" @click.stop="removeShortcut(cmdId, idx)">
                       <i class="ti ti-x" />
                     </button>
                   </template>
@@ -638,8 +638,8 @@ function handleReset() {
   gap: 6px;
   width: 100%;
   padding: 10px 10px;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
@@ -652,7 +652,7 @@ function handleReset() {
 
 .chevron {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .keybindRow {
@@ -678,7 +678,7 @@ function handleReset() {
 
 .keybindLabel {
   flex: 1;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   min-width: 0;
   overflow: hidden;
@@ -698,10 +698,10 @@ function handleReset() {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background: var(--nd-buttonBg, rgba(0, 0, 0, 0.1));
+  background: var(--nd-buttonBg);
   border: 1px solid var(--nd-divider);
-  border-radius: 4px;
-  font-size: 0.75em;
+  border-radius: var(--nd-radius-xs);
+  font-size: var(--nd-font-xs);
   font-family: var(--nd-font-mono);
   color: var(--nd-fg);
   cursor: pointer;
@@ -748,16 +748,16 @@ function handleReset() {
 
 .osGlobalTag {
   padding: 0 4px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
-  font-size: 0.85em;
+  color: var(--nd-fgOnAccent);
+  font-size: var(--nd-font-md);
 }
 
 .osGlobalToggle {
   display: flex;
   align-items: center;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0;
   color: var(--nd-fg);
   transition: opacity var(--nd-duration-base), color var(--nd-duration-base);
@@ -775,14 +775,14 @@ function handleReset() {
 .removeShortcut {
   display: flex;
   align-items: center;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0;
   color: var(--nd-fg);
   transition: opacity var(--nd-duration-base), color var(--nd-duration-base);
 
   &:hover {
     opacity: 1 !important;
-    color: var(--nd-love, #ec4137);
+    color: var(--nd-love);
   }
 }
 
@@ -792,8 +792,8 @@ function handleReset() {
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
-  font-size: 0.8em;
+  border-radius: var(--nd-radius-xs);
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.4;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
@@ -810,8 +810,8 @@ function handleReset() {
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 4px;
-  font-size: 0.85em;
+  border-radius: var(--nd-radius-xs);
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.4;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
@@ -836,7 +836,7 @@ function handleReset() {
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.4;
 }
 
@@ -855,7 +855,7 @@ function handleReset() {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, var(--nd-bg));
   color: var(--nd-love);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   word-break: break-all;
 }
 
@@ -863,7 +863,7 @@ function handleReset() {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

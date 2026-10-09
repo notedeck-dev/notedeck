@@ -165,7 +165,7 @@ void tutorial.loadProgress()
 @use './column-common.module.scss';
 
 .headerCount {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   margin-right: 4px;
 }

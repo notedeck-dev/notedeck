@@ -244,7 +244,7 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
   display: flex;
   align-items: center;
   height: 32px;
-  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
   user-select: none;
   flex-shrink: 0;
 }
@@ -316,15 +316,15 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
   padding: 0 8px;
   border: 1px solid transparent;
   border-radius: var(--nd-radius-sm);
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   color: var(--nd-fg);
   cursor: pointer;
   font-family: inherit;
   font-size: 12px;
-  transition: background 0.15s;
+  transition: background var(--nd-duration-base);
 
   &:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
   }
 }
 
@@ -350,8 +350,8 @@ const menuRef = ref<InstanceType<typeof TitleBarMenu> | null>(null)
 .titlebarSearchKbd {
   font-size: 10px;
   padding: 1px 4px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.08);
+  border-radius: var(--nd-radius-xs);
+  background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
   opacity: 0.4;
   font-family: inherit;
   border: none;

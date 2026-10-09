@@ -183,7 +183,11 @@ function closeLightbox() {
       v-for="file in previewableFiles"
       :key="file.id"
       :class="[$style.mediaCell, { [$style.isSensitive]: file.isSensitive && !revealedIds.has(file.id), [$style.isLoaded]: isLoaded(file) || erroredIds.has(file.id) }]"
+      role="button"
+      tabindex="0"
       @click="openLightbox(file, $event)"
+      @keydown.enter.self.prevent="openLightbox(file, $event)"
+      @keydown.space.self.prevent="openLightbox(file, $event)"
     >
       <img
         v-if="blurhashPlaceholder(file)"
@@ -196,7 +200,7 @@ function closeLightbox() {
         <img
           v-if="!erroredIds.has(file.id) && !isDeferred(file)"
           :src="imageSrc(file)"
-          :alt="file.name"
+          :alt="file.comment || file.name"
           :class="[$style.mediaImage, { [$style.isLoaded]: isLoaded(file) }]"
           :loading="props.eager ? 'eager' : 'lazy'"
           decoding="async"
@@ -264,6 +268,7 @@ function closeLightbox() {
       <!-- Revealed: show hide button -->
       <button
         v-if="file.isSensitive && revealedIds.has(file.id)"
+        :aria-label="i18n.ts._common.hide"
         :class="$style.sensitiveHideBtn"
         @click.stop="toggleSensitive(file, $event)"
       >
@@ -307,7 +312,7 @@ function closeLightbox() {
 }
 
 .audioName {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -321,7 +326,7 @@ function closeLightbox() {
   padding: 10px 12px;
   background: #111;
   color: #fff;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   cursor: pointer;
 
   span {
@@ -337,7 +342,7 @@ function closeLightbox() {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-decoration: none;
   border: none;
@@ -412,9 +417,9 @@ function closeLightbox() {
 .mediaCell {
   position: relative;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   cursor: pointer;
-  background: var(--nd-bg, rgba(0, 0, 0, 0.05));
+  background: var(--nd-bg);
   contain: layout;
 
   &::before {
@@ -508,22 +513,22 @@ function closeLightbox() {
 
 .indicator {
   background-color: black;
-  border-radius: 6px;
-  color: var(--nd-accent, #86b300);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-accent);
   display: inline-block;
-  font-weight: bold;
-  font-size: 0.8em;
-  padding: 2px 5px;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-sm);
+  padding: 2px 6px;
 }
 
 .indicatorWarn {
   background-color: black;
-  border-radius: 6px;
-  color: var(--nd-warn, #c44);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-warn);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 5px;
+  padding: 2px 6px;
 }
 
 .sensitiveHideBtn {
@@ -559,7 +564,7 @@ function closeLightbox() {
   }
 
   .mediaCell {
-    border-radius: 6px;
+    border-radius: var(--nd-radius-sm);
   }
 }
 </style>

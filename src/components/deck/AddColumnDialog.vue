@@ -387,10 +387,10 @@ function close() {
   >
     <div ref="popupRef" :class="[mode === 'pip' ? $style.addPopupInline : $style.addPopup, isSheet && [$style.addSheet, $style.sheetContentEnter]]">
       <div v-if="!(mode === 'pip' && !addColumnType && !selectConfig)" :class="[$style.addPopupHeader, mode === 'pip' && $style.addPopupHeaderPip]">
-        <button v-if="addColumnType && !selectConfig" class="_button" :class="$style.addBackBtn" @click="addColumnType = null">
+        <button v-if="addColumnType && !selectConfig" :aria-label="i18n.ts._common.back" class="_button" :class="$style.addBackBtn" @click="addColumnType = null">
           <i class="ti ti-chevron-left" />
         </button>
-        <button v-else-if="selectConfig" class="_button" :class="$style.addBackBtn" @click="selectConfig = null; selectItems = []; selectAccountId = null; searchQuery = ''">
+        <button v-else-if="selectConfig" :aria-label="i18n.ts._common.back" class="_button" :class="$style.addBackBtn" @click="selectConfig = null; selectItems = []; selectAccountId = null; searchQuery = ''">
           <i class="ti ti-chevron-left" />
         </button>
         <span :class="$style.addPopupTitle">
@@ -563,8 +563,8 @@ function close() {
 
 .addPopup {
   background: var(--nd-navBg);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  border-radius: var(--nd-radius-sheet);
+  box-shadow: var(--nd-shadow-l);
   width: calc(100% - 32px);
   max-width: 480px;
   max-height: 90vh;
@@ -576,8 +576,8 @@ function close() {
   width: 100%;
   max-width: none;
   max-height: 80vh;
-  border-radius: 16px 16px 0 0;
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
+  box-shadow: var(--nd-shadow-sheet);
   padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   overscroll-behavior: contain;
 }
@@ -602,13 +602,13 @@ function close() {
   gap: 8px;
   padding: 20px 24px 16px;
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   border-bottom: 1px solid var(--nd-divider);
 }
 
 .addPopupHeaderPip {
   padding: 12px 16px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .addPopupTitle {
@@ -623,7 +623,7 @@ function close() {
   text-align: center;
   color: var(--nd-fg);
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 
   a {
     color: var(--nd-accent);
@@ -675,8 +675,8 @@ function close() {
   width: 100%;
   padding: 0 24px;
   line-height: 2.85rem;
-  font-size: 0.95em;
-  font-weight: bold;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   transition: background var(--nd-duration-base);
 
@@ -719,8 +719,8 @@ function close() {
   width: 100%;
   padding: 10px 24px;
   background: var(--nd-popup);
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
@@ -737,7 +737,7 @@ function close() {
 
 .chevron {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .selectSearchBar {
@@ -760,7 +760,7 @@ function close() {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 8px 12px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   outline: none;
 
@@ -802,7 +802,7 @@ function close() {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   outline: none;
 
   &:focus {
@@ -820,7 +820,7 @@ function close() {
 .createCancelBtn {
   padding: 4px 12px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.7;
 
@@ -832,7 +832,7 @@ function close() {
 .createSubmitBtn {
   padding: 4px 12px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
 

@@ -175,7 +175,7 @@ const {
   margin-left: calc(-1 * var(--nd-nav-resize-handle));
   padding-left: var(--nd-nav-resize-handle);
   // 本家のボトムバーもナビバーも境界線を持たない。面は背景色だけで分ける (#1045)
-  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
 }
 
 .left {
@@ -198,7 +198,7 @@ const {
   height: 100%;
   padding: 0 12px;
   color: var(--nd-accent);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   white-space: nowrap;
   opacity: 0.7;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base),
@@ -275,7 +275,7 @@ const {
     translate: -50% 0;
     width: 20px;
     height: 3px;
-    border-radius: 3px 3px 0 0;
+    border-radius: var(--nd-radius-xs) var(--nd-radius-xs) 0 0;
     background: var(--nd-accent);
   }
 }
@@ -321,7 +321,7 @@ const {
   gap: 6px;
   max-width: 320px;
   padding: 0 10px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.75;
   animation: statusIn var(--nd-duration-slow) var(--nd-ease-decel) both;

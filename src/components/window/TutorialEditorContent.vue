@@ -250,7 +250,7 @@ function openDocs(path: string): void {
   gap: 12px;
   padding: 14px 16px 12px;
   color: var(--nd-fg);
-  font-size: 0.92em;
+  font-size: var(--nd-font-body);
 }
 
 
@@ -272,7 +272,7 @@ function openDocs(path: string): void {
 .lead {
   margin: 0;
   line-height: 1.6;
-  font-size: 0.88em;
+  font-size: var(--nd-font-md);
   opacity: 0.75;
 }
 
@@ -281,14 +281,14 @@ function openDocs(path: string): void {
   align-items: center;
   align-self: flex-start;
   gap: 6px;
-  padding: 5px 10px;
-  border-radius: 6px;
-  font-size: 0.85em;
+  padding: 6px 10px;
+  border-radius: var(--nd-radius-sm);
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.75;
   cursor: pointer;
   transition:
-    opacity 0.15s var(--nd-ease-decel),
+    opacity var(--nd-duration-base) var(--nd-ease-decel),
     background 0.15s var(--nd-ease-decel);
 
   &:hover {
@@ -313,8 +313,8 @@ function openDocs(path: string): void {
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--nd-divider);
-  border-radius: 10px;
-  transition: border-color 0.2s var(--nd-ease-decel);
+  border-radius: var(--nd-radius-lg);
+  transition: border-color var(--nd-duration-medium) var(--nd-ease-decel);
 }
 
 /* 次に手をつける 1 つだけを指し示す */
@@ -335,8 +335,8 @@ function openDocs(path: string): void {
   text-align: left;
   color: inherit;
   cursor: pointer;
-  border-radius: 6px;
-  transition: opacity 0.15s var(--nd-ease-decel);
+  border-radius: var(--nd-radius-sm);
+  transition: opacity var(--nd-duration-base) var(--nd-ease-decel);
 
   &:hover {
     opacity: 0.85;
@@ -345,9 +345,9 @@ function openDocs(path: string): void {
 
 .chevron {
   flex: none;
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   opacity: 0.45;
-  transition: transform 0.2s var(--nd-ease-decel);
+  transition: transform var(--nd-duration-medium) var(--nd-ease-decel);
 }
 
 .chevronOpen {
@@ -364,8 +364,8 @@ function openDocs(path: string): void {
   margin-top: 1px;
   border-radius: 50%;
   background: var(--nd-buttonBg);
-  font-size: 0.8em;
-  font-weight: 600;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.75;
 }
 
@@ -384,19 +384,19 @@ function openDocs(path: string): void {
 }
 
 .groupTitle {
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .groupDesc {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.4;
   opacity: 0.65;
 }
 
 .groupCount {
   flex: none;
-  font-size: 0.82em;
+  font-size: var(--nd-font-sm);
   opacity: 0.55;
   letter-spacing: 0.03em;
 }
@@ -413,12 +413,12 @@ function openDocs(path: string): void {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 0;
+  padding: 4px 0;
 }
 
 .check {
   flex: none;
-  font-size: 1.05em;
+  font-size: var(--nd-font-lg);
   opacity: 0.3;
 }
 
@@ -430,7 +430,7 @@ function openDocs(path: string): void {
 .itemTitle {
   flex: 1;
   min-width: 0;
-  font-size: 0.92em;
+  font-size: var(--nd-font-body);
 }
 
 .itemDone {
@@ -439,13 +439,13 @@ function openDocs(path: string): void {
 
 .iconBtn {
   flex: none;
-  padding: 3px 6px;
-  border-radius: 5px;
+  padding: 4px 6px;
+  border-radius: var(--nd-radius-xs);
   color: var(--nd-fg);
   opacity: 0.45;
   cursor: pointer;
   transition:
-    opacity 0.15s var(--nd-ease-decel),
+    opacity var(--nd-duration-base) var(--nd-ease-decel),
     background 0.15s var(--nd-ease-decel);
 
   &:hover {
@@ -466,14 +466,14 @@ function openDocs(path: string): void {
 
 .linkBtn {
   margin-left: auto;
-  padding: 5px 12px;
-  font-size: 0.85em;
-  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: var(--nd-font-md);
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
   transition:
-    opacity 0.15s var(--nd-ease-decel),
+    opacity var(--nd-duration-base) var(--nd-ease-decel),
     background 0.15s var(--nd-ease-decel);
 
   &:hover {
@@ -483,14 +483,14 @@ function openDocs(path: string): void {
 }
 
 .runBtn {
-  padding: 5px 14px;
-  font-size: 0.85em;
-  font-weight: 600;
-  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   cursor: pointer;
-  transition: filter 0.15s var(--nd-ease-decel);
+  transition: filter var(--nd-duration-base) var(--nd-ease-decel);
 
   &:hover {
     filter: brightness(1.08);
@@ -505,14 +505,14 @@ function openDocs(path: string): void {
 }
 
 .resetBtn {
-  padding: 5px 12px;
-  font-size: 0.82em;
-  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: var(--nd-font-sm);
+  border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.55;
   cursor: pointer;
   transition:
-    opacity 0.15s var(--nd-ease-decel),
+    opacity var(--nd-duration-base) var(--nd-ease-decel),
     background 0.15s var(--nd-ease-decel),
     color 0.15s var(--nd-ease-decel);
 

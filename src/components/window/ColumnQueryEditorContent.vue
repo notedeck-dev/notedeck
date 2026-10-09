@@ -313,9 +313,9 @@ async function save(): Promise<void> {
 }
 
 .headerBadge {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   padding: 0 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   line-height: 1.6;
   flex-shrink: 0;
@@ -324,43 +324,43 @@ async function save(): Promise<void> {
 .nameInput,
 .descInput {
   width: 100%;
-  padding: 7px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
+  padding: 8px 10px;
+  border-radius: var(--nd-radius-md);
+  border: 1px solid var(--nd-divider);
   background: var(--nd-panel);
   color: inherit;
   font: inherit;
 }
 
 .nameInput {
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 }
 
 .descInput {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .hint {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   line-height: 1.5;
 
   code {
     background: var(--nd-bg-secondary, rgba(128, 128, 128, 0.15));
-    border-radius: 4px;
+    border-radius: var(--nd-radius-xs);
     padding: 1px 4px;
   }
 }
 
 .status {
-  font-size: 0.82em;
+  font-size: var(--nd-font-sm);
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
 .statusFast {
-  color: var(--nd-accent, #86b300);
+  color: var(--nd-accent);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -384,14 +384,14 @@ async function save(): Promise<void> {
   padding: 0;
   list-style: none;
   opacity: 0.75;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .diagnostics {
   margin: 0;
   padding: 0;
   list-style: none;
-  color: var(--nd-love, #ff6b6b);
+  color: var(--nd-love);
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -420,7 +420,7 @@ async function save(): Promise<void> {
 .fixButton {
   padding: 2px 8px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-warn);
   background: color-mix(in srgb, var(--nd-warn) 14%, transparent);
 

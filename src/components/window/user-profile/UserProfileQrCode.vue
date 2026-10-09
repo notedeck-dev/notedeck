@@ -2,6 +2,7 @@
 import { nextTick, ref } from 'vue'
 import type { NormalizedUserDetail } from '@/adapters/types'
 import MkMfm from '@/components/common/MkMfm.vue'
+import { i18n } from '@/i18n'
 import { useServersStore } from '@/stores/servers'
 import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -98,7 +99,7 @@ defineExpose({ open })
 <template>
   <div v-if="showQrCode" :class="$style.qrOverlay" @click="showQrCode = false">
     <div :class="$style.qrModal" @click.stop>
-      <button class="_button" :class="$style.qrCloseBtn" @click="showQrCode = false">
+      <button :aria-label="i18n.ts._common.close" class="_button" :class="$style.qrCloseBtn" @click="showQrCode = false">
         <i class="ti ti-x" />
       </button>
       <div ref="qrCodeContainerEl" :class="$style.qrCanvas" />
@@ -158,7 +159,7 @@ defineExpose({ open })
 .qrCanvas {
   position: relative;
   width: min(230px, 80vw);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   overflow: clip;
   aspect-ratio: 1;
 }
@@ -187,15 +188,15 @@ defineExpose({ open })
 }
 
 .qrName {
-  font-weight: bold;
-  font-size: 1.1em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-lg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .qrAcct {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;

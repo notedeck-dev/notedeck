@@ -318,6 +318,14 @@ export interface Locale {
     readonly "switchProfile": ParameterizedString<'name'>
   }
   readonly "_common": {
+    /** メインの内容へ移動 */
+    readonly "skipToMain": string
+    /** その他 */
+    readonly "more": string
+    /** 前へ */
+    readonly "previous": string
+    /** 次へ */
+    readonly "next": string
     /** 再試行 */
     readonly "retry": string
     /** キャンセル */

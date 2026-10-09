@@ -260,11 +260,11 @@ function openConnectionsWindow(): void {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   color: var(--nd-fgMuted);
 
   i {
-    font-size: 1.2em;
+    font-size: var(--nd-font-xl);
   }
 }
 
@@ -287,7 +287,7 @@ function openConnectionsWindow(): void {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   font-family: inherit;
   outline: none;
   transition: border-color var(--nd-duration-base);
@@ -308,7 +308,7 @@ function openConnectionsWindow(): void {
   align-items: flex-start;
   gap: 6px;
   padding: 10px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.6;
   line-height: 1.5;

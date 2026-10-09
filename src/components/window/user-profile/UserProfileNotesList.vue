@@ -241,8 +241,8 @@ defineExpose({ loadMore, removeNote, replaceNote, patchNote })
   justify-content: center;
   gap: 6px;
   padding: 14px 8px;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.6;
   border-bottom: 2px solid transparent;
@@ -270,7 +270,7 @@ defineExpose({ loadMore, removeNote, replaceNote, patchNote })
   padding: 2rem;
   color: var(--nd-fg);
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 // 親 (UserProfileContent) の .profileContainer が container-type: inline-size を

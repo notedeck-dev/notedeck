@@ -412,7 +412,7 @@ onMounted(() => {
 /* ---- Banner (Misskey style) ---- */
 .banner {
   text-align: center;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   overflow: clip;
   background-color: var(--nd-panelBg, var(--nd-bg));
   background-size: cover;
@@ -437,7 +437,7 @@ onMounted(() => {
   color: #fff;
   text-shadow: 0 0 8px #000;
   background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-  font-size: 1.05em;
+  font-size: var(--nd-font-lg);
 }
 
 /* ---- Form sections (Misskey FormSection style) ---- */
@@ -450,10 +450,10 @@ onMounted(() => {
 }
 
 .formSectionLabel {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   padding: 1.5em 16px 0;
   margin-bottom: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .sectionContent {
@@ -471,7 +471,7 @@ onMounted(() => {
 }
 
 .formKvKey {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.75;
   padding-bottom: 0.25em;
 }
@@ -536,7 +536,7 @@ onMounted(() => {
   margin: 0 16px 8px;
   background: var(--nd-buttonBg);
   border-radius: var(--nd-radius-sm);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   text-decoration: none;
   transition: background var(--nd-duration-base);
@@ -563,7 +563,7 @@ onMounted(() => {
 
 /* ---- Description ---- */
 .description {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.7;
   color: var(--nd-fg);
   word-break: break-word;
@@ -587,7 +587,7 @@ onMounted(() => {
   :deep(h3) {
     color: var(--nd-fgHighlighted);
     margin: 0.8em 0 0.4em;
-    font-size: 1.1em;
+    font-size: var(--nd-font-lg);
   }
 
   :deep(p) {
@@ -661,12 +661,12 @@ onMounted(() => {
   background: var(--nd-accentedBg);
   color: var(--nd-accent);
   font-size: 13px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 .ruleText {
   padding-top: 6px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.5;
   color: var(--nd-fg);
 }

@@ -1721,15 +1721,15 @@ onUnmounted(() => {
 .brandLogo {
   width: 30px;
   height: 30px;
-  border-radius: 8px;
-  transition: filter 250ms ease-out;
+  border-radius: var(--nd-radius-md);
+  transition: filter var(--nd-duration-slow) ease-out;
 }
 
 .brandName {
   flex: 1;
   min-width: 0;
   font-size: 0.92rem;
-  font-weight: 800;
+  font-weight: var(--nd-weight-bold);
   letter-spacing: -0.01em;
   color: var(--nd-fgHighlighted);
 }
@@ -1742,12 +1742,12 @@ onUnmounted(() => {
   width: 26px;
   height: 26px;
   border: none;
-  border-radius: var(--nd-radius-sm, 6px);
+  border-radius: var(--nd-radius-sm);
   background: none;
   color: var(--nd-fg);
   opacity: 0.6;
   cursor: pointer;
-  transition: background 150ms ease-out;
+  transition: background var(--nd-duration-base) ease-out;
 
   &:hover {
     background: var(--nd-buttonBg);
@@ -1784,7 +1784,7 @@ onUnmounted(() => {
 .navGroupLabel {
   padding: 0 10px 4px;
   font-size: 0.65rem;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.45;
@@ -1803,12 +1803,12 @@ onUnmounted(() => {
   border-radius: var(--nd-radius-full);
   background: none;
   color: var(--nd-fg);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   white-space: nowrap;
   text-align: left;
   text-decoration: none;
   cursor: pointer;
-  transition: background 150ms ease-out, color 150ms ease-out;
+  transition: background var(--nd-duration-base) ease-out, color var(--nd-duration-base) ease-out;
 
   i {
     flex-shrink: 0;
@@ -1855,14 +1855,14 @@ onUnmounted(() => {
 
 .footName {
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .footMeta {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-family: var(--nd-font-mono);
   font-size: 0.65rem;
   opacity: 0.6;
@@ -1923,9 +1923,9 @@ onUnmounted(() => {
 .viewTitle {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   font-size: 1.05rem;
-  font-weight: 800;
+  font-weight: var(--nd-weight-bold);
   letter-spacing: -0.01em;
   color: var(--nd-fgHighlighted);
 
@@ -1959,7 +1959,7 @@ onUnmounted(() => {
   background:
     linear-gradient(var(--nd-panelHighlight), transparent 42px),
     var(--nd-panel);
-  transition: border-color 150ms ease-out;
+  transition: border-color var(--nd-duration-base) ease-out;
 
   &:hover {
     border-color: color-mix(in srgb, var(--nd-accent) 20%, var(--nd-divider));
@@ -1976,7 +1976,7 @@ onUnmounted(() => {
 
 .cardTitle {
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   opacity: 0.55;
@@ -2009,11 +2009,11 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   padding: 4px 14px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-warn);
   color: #1a1a1a;
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
@@ -2037,13 +2037,13 @@ onUnmounted(() => {
 .statValue {
   font-family: var(--nd-font-mono);
   font-size: 1.15rem;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   font-variant-numeric: tabular-nums;
   color: var(--nd-fgHighlighted);
 
   small {
     font-size: 0.72rem;
-    font-weight: 400;
+    font-weight: var(--nd-weight-regular);
     opacity: 0.6;
     margin-left: 1px;
   }
@@ -2065,7 +2065,7 @@ onUnmounted(() => {
   background: var(--nd-fg);
   opacity: 0.3;
   flex: none;
-  transition: background 150ms ease-out;
+  transition: background var(--nd-duration-base) ease-out;
 }
 
 .ledOpen {
@@ -2089,7 +2089,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 10px;
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
@@ -2111,7 +2111,7 @@ onUnmounted(() => {
   width: 3px;
   border-radius: 1px;
   background: var(--nd-accent);
-  transition: height 250ms ease-out;
+  transition: height var(--nd-duration-slow) ease-out;
 }
 
 .tableWrap {
@@ -2137,14 +2137,14 @@ onUnmounted(() => {
     z-index: 1;
     background: var(--nd-panel);
     font-size: 0.72rem;
-    font-weight: 700;
+    font-weight: var(--nd-weight-bold);
     letter-spacing: 0.04em;
     text-transform: uppercase;
     opacity: 0.55;
   }
 
   tbody tr {
-    transition: background 150ms ease-out;
+    transition: background var(--nd-duration-base) ease-out;
 
     &:last-child td {
       border-bottom: none;
@@ -2180,22 +2180,22 @@ onUnmounted(() => {
 
 .sseBadge {
   font-size: 0.7rem;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
   opacity: 0.8;
 }
 
 .sseOpen {
-  background: var(--nd-success, #6c6);
+  background: var(--nd-success);
   color: #fff;
   opacity: 1;
 }
 
 .sseCount {
   font-size: 0.75rem;
-  font-weight: 400;
+  font-weight: var(--nd-weight-regular);
   opacity: 0.5;
   font-variant-numeric: tabular-nums;
 }
@@ -2216,7 +2216,7 @@ onUnmounted(() => {
   color: var(--nd-fg);
   font-family: var(--nd-font-mono);
   font-size: 0.8rem;
-  transition: border-color 150ms ease-out;
+  transition: border-color var(--nd-duration-base) ease-out;
 
   &:focus-visible {
     outline: none;
@@ -2233,7 +2233,7 @@ onUnmounted(() => {
   font-size: 0.8rem;
   cursor: pointer;
   transition:
-    background 150ms ease-out,
+    background var(--nd-duration-base) ease-out,
     border-color 150ms ease-out;
 
   &:hover {
@@ -2271,7 +2271,7 @@ onUnmounted(() => {
 
 .sseRow {
   border-bottom: 1px solid var(--nd-divider);
-  transition: background 250ms ease-out;
+  transition: background var(--nd-duration-slow) ease-out;
 }
 
 .sseRowHead {
@@ -2301,7 +2301,7 @@ onUnmounted(() => {
 .sseType {
   font-family: var(--nd-font-mono);
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-accent);
   flex: none;
 }
@@ -2347,7 +2347,7 @@ onUnmounted(() => {
 
 .permChip {
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
   font-family: var(--nd-font-mono);
   font-size: 0.7rem;
@@ -2355,8 +2355,8 @@ onUnmounted(() => {
 
 .confirmChip {
   padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--nd-warn, #c90);
+  border-radius: var(--nd-radius-full);
+  background: var(--nd-warn);
   color: #fff;
   font-size: 0.7rem;
 }
@@ -2376,7 +2376,7 @@ onUnmounted(() => {
   white-space: pre-wrap;
   word-break: break-all;
   border-bottom: 1px solid var(--nd-divider);
-  transition: background 250ms ease-out;
+  transition: background var(--nd-duration-slow) ease-out;
 }
 
 .logError {
@@ -2388,7 +2388,7 @@ onUnmounted(() => {
 }
 
 .permOk {
-  color: var(--nd-success, #6c6);
+  color: var(--nd-success);
 }
 
 .permNo {
@@ -2423,7 +2423,7 @@ onUnmounted(() => {
 .typeChip {
   padding: 2px 8px;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
   color: var(--nd-accent);
   font-family: var(--nd-font-mono);
@@ -2507,9 +2507,9 @@ onUnmounted(() => {
   min-width: 40px;
   text-align: center;
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   font-size: 0.65rem;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 }
 
 .sourceRust {
@@ -2545,13 +2545,13 @@ onUnmounted(() => {
   display: block;
   height: 6px;
   min-width: 2px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   background: linear-gradient(
     90deg,
     color-mix(in srgb, var(--nd-accent) 55%, transparent),
     var(--nd-accent)
   );
-  transition: width 250ms ease-out;
+  transition: width var(--nd-duration-slow) ease-out;
 }
 
 .barHot {

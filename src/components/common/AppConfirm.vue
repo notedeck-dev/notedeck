@@ -227,14 +227,14 @@ useNativeDialog(dialogRef, visible, {
   margin-bottom: 10px;
   padding: 2px 10px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.72em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-accent);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--nd-accent) 35%, transparent);
 
   i {
-    font-size: 1.15em;
+    font-size: var(--nd-font-lg);
     line-height: 1;
   }
 }
@@ -252,15 +252,15 @@ useNativeDialog(dialogRef, visible, {
 
 .title {
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
 }
 
 // 帰属表示 (#712): 誰の操作要求かをタイトルより先に示す
 .attribution {
   margin-bottom: 8px;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-accent);
 }
 
@@ -277,7 +277,7 @@ useNativeDialog(dialogRef, visible, {
 .message {
   margin: 0;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
   opacity: 0.8;
   white-space: pre-wrap;
@@ -291,10 +291,10 @@ useNativeDialog(dialogRef, visible, {
   gap: 6px;
   margin-top: 8px;
   padding: 8px 10px;
-  border-radius: var(--nd-radius-sm, 6px);
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
   text-align: left;
   white-space: pre-wrap;
@@ -318,7 +318,7 @@ useNativeDialog(dialogRef, visible, {
   text-align: left;
   background: color-mix(in srgb, var(--nd-fg) 4%, transparent);
   border: 1px solid color-mix(in srgb, var(--nd-divider) 60%, transparent);
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
 }
 
 .installIcon {
@@ -348,7 +348,7 @@ useNativeDialog(dialogRef, visible, {
 
 .installName {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -388,7 +388,7 @@ useNativeDialog(dialogRef, visible, {
 .installPermChip {
   font-size: 10px;
   padding: 1px 6px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 14%, transparent);
   color: var(--nd-fg);
   line-height: 1.4;
@@ -400,7 +400,7 @@ useNativeDialog(dialogRef, visible, {
 .diffBlock {
   margin-top: 8px;
   text-align: left;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 
   > [data-nd-code-diff] {
     max-height: 40vh;
@@ -412,9 +412,9 @@ useNativeDialog(dialogRef, visible, {
 .codeBlock {
   margin-top: 8px;
   text-align: left;
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   line-height: 1.5;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   overflow: hidden;
 
   // 面はハイライトの有無とテーマに関係なく揃える (トークン色がダーク固定)
@@ -442,7 +442,7 @@ useNativeDialog(dialogRef, visible, {
   justify-content: center;
   gap: 8px;
   padding: 0 20px 4px;
-  font-size: 0.82em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.85;
   cursor: pointer;
@@ -474,7 +474,7 @@ useNativeDialog(dialogRef, visible, {
   gap: 10px;
   width: 100%;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   text-align: left;
   color: var(--nd-fg);
 
@@ -497,7 +497,7 @@ useNativeDialog(dialogRef, visible, {
 }
 
 .optionDesc {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;

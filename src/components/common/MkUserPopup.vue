@@ -250,7 +250,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .popupLoading {
   padding: 24px;
   text-align: center;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.5;
 }
@@ -283,7 +283,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 
 .popupName {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   font-size: 1em;
   color: var(--nd-fgHighlighted);
   overflow: hidden;
@@ -292,13 +292,13 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 }
 
 .popupUsername {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
 }
 
 .popupDesc {
   margin: 8px 0 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 3;
@@ -310,7 +310,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   display: flex;
   gap: 12px;
   margin-top: 10px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 
   b {
@@ -323,8 +323,8 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   margin-top: 8px;
   padding: 2px 10px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.7em;
-  font-weight: bold;
+  font-size: var(--nd-font-2xs);
+  font-weight: var(--nd-weight-bold);
   background: var(--nd-accentedBg);
   color: var(--nd-accent);
 }
@@ -334,7 +334,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-infoFg);
   background: var(--nd-infoBg);
   opacity: 0.8;

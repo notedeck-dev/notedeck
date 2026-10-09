@@ -85,7 +85,7 @@ onUnmounted(() => {
 
 .title {
   font-size: 2.5rem;
-  font-weight: 800;
+  font-weight: var(--nd-weight-bold);
   letter-spacing: -0.02em;
   color: var(--nd-fgHighlighted);
 }
@@ -121,7 +121,7 @@ onUnmounted(() => {
   code {
     font-family: var(--nd-font-mono);
     font-size: 0.9rem;
-    font-weight: 600;
+    font-weight: var(--nd-weight-bold);
     color: var(--nd-accent);
   }
 }

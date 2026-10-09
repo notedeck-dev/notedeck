@@ -291,9 +291,9 @@ onUnmounted(() => {
 
 .actionBtn {
   position: relative;
-  padding: 3px 6px;
-  border-radius: 6px;
-  font-size: 0.9em;
+  padding: 4px 6px;
+  border-radius: var(--nd-radius-sm);
+  font-size: var(--nd-font-body);
   opacity: 0.55;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
 
@@ -311,8 +311,8 @@ onUnmounted(() => {
     z-index: 1;
     bottom: calc(100% + 6px);
     left: 0;
-    padding: 3px 8px;
-    border-radius: 6px;
+    padding: 4px 8px;
+    border-radius: var(--nd-radius-sm);
     background: var(--nd-bg);
     box-shadow: var(--nd-shadow-m);
     color: var(--nd-fg);
@@ -373,8 +373,8 @@ onUnmounted(() => {
 }
 
 .userName {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -383,7 +383,7 @@ onUnmounted(() => {
 }
 
 .userHandle {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   display: block;
   overflow: hidden;
@@ -396,8 +396,8 @@ onUnmounted(() => {
   border: none;
   background: none;
   color: var(--nd-accent);
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   cursor: pointer;
   text-align: left;
   flex-shrink: 0;

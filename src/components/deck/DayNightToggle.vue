@@ -82,7 +82,7 @@ function onSyncChange(e: Event) {
   text-align: left;
   background-color: #83d8ff;
   border-radius: 84px;
-  transition: background-color 200ms cubic-bezier(0.445, 0.05, 0.55, 0.95);
+  transition: background-color var(--nd-duration-medium) cubic-bezier(0.445, 0.05, 0.55, 0.95);
 
   &.checked {
     background-color: #749dd6;
@@ -96,7 +96,7 @@ function onSyncChange(e: Event) {
   position: absolute;
   top: 15px;
   transition: color var(--nd-duration-slow) var(--nd-ease-decel);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   user-select: none;
   white-space: nowrap;
 }
@@ -143,7 +143,7 @@ function onSyncChange(e: Event) {
   position: absolute;
   background-color: #e8cda5;
   opacity: 0;
-  transition: opacity 200ms ease-in-out;
+  transition: opacity var(--nd-duration-medium) ease-in-out;
   border-radius: 100%;
 
   .checked & {
@@ -160,7 +160,7 @@ function onSyncChange(e: Event) {
   width: 30px;
   height: 3px;
   background-color: #fff;
-  transition: width 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95), height 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95);
+  transition: width var(--nd-duration-slow) cubic-bezier(0.445, 0.05, 0.55, 0.95), height var(--nd-duration-slow) cubic-bezier(0.445, 0.05, 0.55, 0.95), transform var(--nd-duration-slow) cubic-bezier(0.445, 0.05, 0.55, 0.95);
   border-radius: 50%;
 }
 
@@ -181,25 +181,25 @@ function onSyncChange(e: Event) {
 
 .star4, .star5, .star6 {
   opacity: 0;
-  transition: opacity 300ms 0ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms 0ms cubic-bezier(0.445, 0.05, 0.55, 0.95);
+  transition: opacity var(--nd-duration-slow) 0ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform var(--nd-duration-slow) 0ms cubic-bezier(0.445, 0.05, 0.55, 0.95);
 }
 
 .star4 {
   top: 16px; left: 11px; z-index: 0; width: 2px; height: 2px;
   transform: translate3d(3px, 0, 0);
-  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: opacity 300ms 200ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms 200ms cubic-bezier(0.445, 0.05, 0.55, 0.95); }
+  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: opacity var(--nd-duration-slow) var(--nd-duration-medium) cubic-bezier(0.445, 0.05, 0.55, 0.95), transform var(--nd-duration-slow) var(--nd-duration-medium) cubic-bezier(0.445, 0.05, 0.55, 0.95); }
 }
 
 .star5 {
   top: 32px; left: 17px; z-index: 0; width: 3px; height: 3px;
   transform: translate3d(3px, 0, 0);
-  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: opacity 300ms 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms 300ms cubic-bezier(0.445, 0.05, 0.55, 0.95); }
+  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: opacity var(--nd-duration-slow) var(--nd-duration-slow) cubic-bezier(0.445, 0.05, 0.55, 0.95), transform var(--nd-duration-slow) var(--nd-duration-slow) cubic-bezier(0.445, 0.05, 0.55, 0.95); }
 }
 
 .star6 {
   top: 36px; left: 28px; z-index: 0; width: 2px; height: 2px;
   transform: translate3d(3px, 0, 0);
-  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: opacity 300ms 400ms cubic-bezier(0.445, 0.05, 0.55, 0.95), transform 300ms 400ms cubic-bezier(0.445, 0.05, 0.55, 0.95); }
+  .checked & { opacity: 1; transform: translate3d(0, 0, 0); transition: opacity var(--nd-duration-slow) var(--nd-duration-slower) cubic-bezier(0.445, 0.05, 0.55, 0.95), transform var(--nd-duration-slow) var(--nd-duration-slower) cubic-bezier(0.445, 0.05, 0.55, 0.95); }
 }
 
 .active { /* modifier */ }
@@ -214,7 +214,7 @@ function onSyncChange(e: Event) {
   align-items: center;
   gap: 10px;
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
 }
 
@@ -234,8 +234,8 @@ function onSyncChange(e: Event) {
   display: block;
   width: 40px;
   height: 22px;
-  background: var(--nd-buttonBg, rgba(0, 0, 0, 0.15));
-  border-radius: 11px;
+  background: var(--nd-buttonBg);
+  border-radius: var(--nd-radius-full);
   position: relative;
   transition: background var(--nd-duration-slow);
 

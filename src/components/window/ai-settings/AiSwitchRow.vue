@@ -48,8 +48,8 @@ function onRowClick() {
   gap: 8px;
   padding: 8px 4px;
   cursor: pointer;
-  border-radius: 6px;
-  transition: background 0.1s;
+  border-radius: var(--nd-radius-sm);
+  transition: background var(--nd-duration-fast);
 
   &:not(.switchRowDisabled):hover {
     background: var(--nd-buttonHoverBg);

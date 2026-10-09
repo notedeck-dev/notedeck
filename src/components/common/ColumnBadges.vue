@@ -109,7 +109,7 @@ const usernameInitial = computed(
 
 .badgeInitial {
   font-size: 7px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   line-height: 1;
   color: var(--nd-fg);
   opacity: 0.7;

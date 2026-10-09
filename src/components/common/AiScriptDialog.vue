@@ -99,7 +99,7 @@ useNativeDialog(dialogRef, visible, {
   min-width: 320px;
   max-width: 480px;
   padding: 32px;
-  border-radius: 16px;
+  border-radius: var(--nd-radius-sheet);
   background: var(--nd-panel);
   color: var(--nd-fg);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
@@ -118,13 +118,13 @@ useNativeDialog(dialogRef, visible, {
 }
 
 .aisDialogTitle {
-  font-size: 1.1em;
-  font-weight: bold;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
   margin-bottom: 8px;
 }
 
 .aisDialogText {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.5;
   opacity: 0.85;
   white-space: pre-wrap;
@@ -141,7 +141,7 @@ useNativeDialog(dialogRef, visible, {
   padding: 6px 16px;
   border: none;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
 

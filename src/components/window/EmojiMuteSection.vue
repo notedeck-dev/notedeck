@@ -134,8 +134,8 @@ function resolveCustomUrl(key: string): string | null {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   padding: 4px 2px 0;
   cursor: pointer;
@@ -143,14 +143,14 @@ function resolveCustomUrl(key: string): string | null {
 }
 
 .countBadge {
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
   opacity: 0.7;
 }
 
 .empty {
   margin: 0;
   padding: 2px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
 }
 
@@ -165,7 +165,7 @@ function resolveCustomUrl(key: string): string | null {
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   text-align: left;
 
   &:hover {
@@ -183,7 +183,7 @@ function resolveCustomUrl(key: string): string | null {
 .itemKey {
   flex: 1;
   min-width: 0;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

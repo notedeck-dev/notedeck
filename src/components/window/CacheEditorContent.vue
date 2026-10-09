@@ -419,13 +419,13 @@ onMounted(refreshStats)
 }
 
 .sectionTitle {
-  font-weight: bold;
-  font-size: 0.95em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
 }
 
 .hint {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fgMuted);
   line-height: 1.5;
   margin: 0;
@@ -447,13 +447,13 @@ onMounted(refreshStats)
 }
 
 .statLabel {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fgMuted);
 }
 
 .statValue {
-  font-size: 1.2em;
-  font-weight: bold;
+  font-size: var(--nd-font-xl);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   font-variant-numeric: tabular-nums;
 }
@@ -468,7 +468,7 @@ onMounted(refreshStats)
   padding: 8px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   cursor: pointer;
 }
@@ -476,7 +476,7 @@ onMounted(refreshStats)
 .presetActive {
   background: var(--nd-accent, var(--nd-link));
   color: var(--nd-onAccent, white);
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 .customGrid {
@@ -490,7 +490,7 @@ onMounted(refreshStats)
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fgMuted);
 }
 
@@ -500,7 +500,7 @@ onMounted(refreshStats)
   border: 1px solid var(--nd-divider);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .btnRow {
@@ -533,7 +533,7 @@ onMounted(refreshStats)
   width: 80px;
   padding: 4px 8px;
   border: 1px solid var(--divider, #ddd);
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   background: var(--panel, #fff);
   color: var(--fg, #000);
   font-size: 13px;
@@ -553,7 +553,7 @@ onMounted(refreshStats)
 .error {
   margin-top: 12px;
   padding: 8px 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-love);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   border-radius: var(--nd-radius-sm);

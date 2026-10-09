@@ -134,12 +134,12 @@ function candidateKey(candidate: AutocompleteCandidate): string {
   width: 100%;
   padding: 6px 8px;
   border-radius: var(--nd-radius-md);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: left;
 
   &:hover,
   &.selected {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.1));
+    background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   }
 }
 
@@ -166,14 +166,14 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 }
 
 .acUserName {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .acUserAcct {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -204,7 +204,7 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 .autocompleteStatus {
   padding: 12px;
   text-align: center;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
 }
 </style>

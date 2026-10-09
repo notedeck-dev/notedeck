@@ -79,7 +79,7 @@ onUnmounted(() => {
   right: 8px;
   z-index: var(--nd-z-dev);
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   background: rgba(0, 0, 0, 0.8);
   color: #0f0;
   font-family: var(--nd-font-mono);

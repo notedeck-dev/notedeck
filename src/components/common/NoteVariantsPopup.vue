@@ -122,7 +122,7 @@ defineExpose({ open, close })
   min-width: 240px;
   max-width: 360px;
   padding: 8px 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transform-origin: top left;
 }
 
@@ -133,7 +133,7 @@ defineExpose({ open, close })
 
 .title {
   padding: 2px 12px 6px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -152,7 +152,7 @@ defineExpose({ open, close })
 }
 
 .label {
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -175,9 +175,9 @@ defineExpose({ open, close })
 }
 
 .mark {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   padding: 0 6px;
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   border: 1px solid var(--nd-divider);
   opacity: 0.85;
 }

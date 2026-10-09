@@ -715,7 +715,7 @@ defineExpose({
 .navbar {
   flex: 0 0 auto;
   display: flex;
-  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
   position: relative;
   z-index: 1;
   container-type: inline-size;
@@ -758,7 +758,7 @@ defineExpose({
 .instanceIcon {
   width: 38px;
   aspect-ratio: 1;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -798,7 +798,7 @@ defineExpose({
 .section {
   display: flex;
   flex-direction: column;
-  padding: 0 17px;
+  padding: 0 16px;
 }
 
 // 本家 navbar の .bottom は padding-top: 20px
@@ -819,11 +819,11 @@ defineExpose({
   align-items: center;
   gap: 8px;
   // 17px (section) + 13px = 本家のアイコン左端 30px
-  padding: 0 13px;
+  padding: 0 12px;
   line-height: 2.85rem;
   border-radius: var(--nd-radius-full);
   color: var(--nd-navFg, var(--nd-fg));
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   white-space: nowrap;
   text-decoration: none;
   transition: background var(--nd-duration-base), color var(--nd-duration-base), transform var(--nd-duration-fast) var(--nd-ease-spring);
@@ -863,7 +863,7 @@ defineExpose({
 }
 
 .onlineActive {
-  color: var(--nd-accent, #86b300);
+  color: var(--nd-accent);
 
   :global(.ti) {
     opacity: 1;
@@ -871,7 +871,7 @@ defineExpose({
 }
 
 .offlineActive {
-  color: var(--nd-error, #ec4137);
+  color: var(--nd-error);
 
   :global(.ti) {
     opacity: 1;
@@ -879,7 +879,7 @@ defineExpose({
 }
 
 .realtimeActive {
-  color: var(--nd-warn, #ecb637);
+  color: var(--nd-warn);
 
   :global(.ti) {
     opacity: 1;
@@ -887,7 +887,7 @@ defineExpose({
 }
 
 .pollingActive {
-  color: var(--nd-modePolling, #9c27b0);
+  color: var(--nd-modePolling);
 
   :global(.ti) {
     opacity: 1;
@@ -923,7 +923,7 @@ defineExpose({
   padding: 4px 12px;
   min-height: 44px;
   width: 100%;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   white-space: nowrap;
   cursor: pointer;
@@ -995,12 +995,12 @@ defineExpose({
   gap: 8px;
   width: 100%;
   height: 40px;
-  padding: 0 13px;
+  padding: 0 12px;
   border-radius: var(--nd-radius-full);
   background: linear-gradient(90deg, var(--nd-buttonGradateA, var(--nd-accent)), var(--nd-buttonGradateB, var(--nd-accentDarken)));
-  color: var(--nd-fgOnAccent, #fff);
-  font-weight: bold;
-  font-size: 0.9em;
+  color: var(--nd-fgOnAccent);
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   white-space: nowrap;
   transition: transform var(--nd-duration-fast) var(--nd-ease-spring);
 
@@ -1016,7 +1016,7 @@ defineExpose({
   :global(.ti) {
     flex-shrink: 0;
     width: 32px;
-    font-size: 1.5em;
+    font-size: var(--nd-font-2xl);
     text-align: center;
   }
 }
@@ -1067,7 +1067,7 @@ defineExpose({
   width: var(--sub-button-width);
   height: calc(var(--sub-button-width) * 4);
   pointer-events: none;
-  color: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+  color: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
 }
 
 .subButtonClickable {
@@ -1105,7 +1105,7 @@ defineExpose({
   margin-top: -32px;
   margin-bottom: -32px;
   pointer-events: none;
-  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
 }
 
 .subButtonGapFillDivider {
@@ -1160,7 +1160,7 @@ defineExpose({
 
   .instanceIcon {
     width: 30px;
-    border-radius: 8px;
+    border-radius: var(--nd-radius-md);
   }
 
   // 本家は `padding: 16px 0` の全幅項目に正方形の pill を敷く。
@@ -1213,7 +1213,7 @@ defineExpose({
   padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   padding-left: env(safe-area-inset-left, 0px);
   translate: -100% 0;
-  transition: translate 0.15s var(--nd-ease-decel);
+  transition: translate var(--nd-duration-base) var(--nd-ease-decel);
   box-shadow: none;
   background: var(--nd-navBg);
   backdrop-filter: none;

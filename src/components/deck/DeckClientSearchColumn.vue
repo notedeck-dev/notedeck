@@ -648,7 +648,7 @@ onMounted(async () => {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 6px 10px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   outline: none;
 
@@ -668,9 +668,9 @@ onMounted(async () => {
   justify-content: center;
   width: 28px;
   height: 28px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   opacity: 0.35;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   flex-shrink: 0;
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base), color var(--nd-duration-base);
 
@@ -691,7 +691,7 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
 }
 
 .footerText {

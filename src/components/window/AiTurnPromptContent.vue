@@ -87,7 +87,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.7;
   min-width: 0;
@@ -98,7 +98,7 @@ onMounted(async () => {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.7;
@@ -125,7 +125,7 @@ onMounted(async () => {
 .prompt {
   margin: 0;
   font-family: var(--nd-font-mono);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -139,7 +139,7 @@ onMounted(async () => {
   padding: 32px;
   color: var(--nd-fg);
   opacity: 0.5;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: center;
 }
 

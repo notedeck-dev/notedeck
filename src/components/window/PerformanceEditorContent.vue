@@ -492,8 +492,8 @@ function handleReset() {
   align-items: center;
   gap: 6px;
   width: 100%;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   opacity: 0.7;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
@@ -505,7 +505,7 @@ function handleReset() {
 
 .chevron {
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .sliderRow {
@@ -515,7 +515,7 @@ function handleReset() {
 }
 
 .sliderEndLabel {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
   white-space: nowrap;
   flex-shrink: 0;
@@ -531,7 +531,7 @@ function handleReset() {
     var(--nd-accent) var(--fill, 0%),
     var(--nd-divider) var(--fill, 0%)
   );
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   outline: none;
   cursor: pointer;
 
@@ -542,7 +542,7 @@ function handleReset() {
     border-radius: 50%;
     background: var(--nd-accent);
     cursor: pointer;
-    transition: transform 0.1s;
+    transition: transform var(--nd-duration-fast);
 
     &:hover {
       transform: scale(1.2);
@@ -575,7 +575,7 @@ $fader-height: 132px;
   justify-content: space-between;
   // 上の値表示・下のアイコンとラベルのぶんだけ詰めてフェーダーの両端に合わせる
   padding: 18px 0 32px;
-  font-size: 0.65em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
   white-space: nowrap;
 }
@@ -598,7 +598,7 @@ $fader-height: 132px;
 }
 
 .channelValue {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   font-variant-numeric: tabular-nums;
   opacity: 0.7;
 }
@@ -609,12 +609,12 @@ $fader-height: 132px;
 }
 
 .channelIcon {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
 }
 
 .channelLabel {
-  font-size: 0.65em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.6;
   white-space: nowrap;
 }
@@ -628,7 +628,7 @@ $fader-height: 132px;
   direction: rtl;
   width: 4px;
   height: $fader-height;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   outline: none;
   cursor: pointer;
   /* thumb より下を塗りつぶす (--fill は template 側で算出) */
@@ -645,7 +645,7 @@ $fader-height: 132px;
     border-radius: 50%;
     background: var(--nd-fg);
     cursor: pointer;
-    transition: transform 0.1s;
+    transition: transform var(--nd-duration-fast);
 
     &:hover {
       transform: scale(1.15);
@@ -678,8 +678,8 @@ $fader-height: 132px;
 }
 
 .fieldLabel {
-  font-size: 0.78em;
-  font-weight: 500;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-medium);
 }
 
 .fieldValue {
@@ -695,7 +695,7 @@ $fader-height: 132px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   text-align: right;
   outline: none;
   transition: border-color var(--nd-duration-base);
@@ -714,7 +714,7 @@ $fader-height: 132px;
 }
 
 .fieldUnit {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
   min-width: 24px;
 }
@@ -726,7 +726,7 @@ $fader-height: 132px;
   width: 20px;
   height: 20px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.4;
   transition: opacity var(--nd-duration-base), color var(--nd-duration-base);
 
@@ -746,7 +746,7 @@ $fader-height: 132px;
     var(--nd-accent) var(--fill, 0%),
     var(--nd-divider) var(--fill, 0%)
   );
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   outline: none;
   cursor: pointer;
 
@@ -757,7 +757,7 @@ $fader-height: 132px;
     border-radius: 50%;
     background: var(--nd-accent);
     cursor: pointer;
-    transition: transform 0.1s;
+    transition: transform var(--nd-duration-fast);
 
     &:hover {
       transform: scale(1.2);
@@ -775,7 +775,7 @@ $fader-height: 132px;
 }
 
 .fieldDesc {
-  font-size: 0.68em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.4;
   line-height: 1.3;
 }
@@ -791,7 +791,7 @@ $fader-height: 132px;
 }
 
 .codeHint {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.4;
 }
 
@@ -806,7 +806,7 @@ $fader-height: 132px;
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, var(--nd-bg));
   color: var(--nd-love);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   word-break: break-all;
 }
 
@@ -814,7 +814,7 @@ $fader-height: 132px;
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-accent);
   opacity: 0.7;
 }

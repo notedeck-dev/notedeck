@@ -206,8 +206,8 @@ function openQueryManager(): void {
     height: 28px;
     padding: 0;
     border-bottom: none;
-    border-radius: 4px;
-    font-size: 0.9em;
+    border-radius: var(--nd-radius-xs);
+    font-size: var(--nd-font-body);
   }
 }
 </style>

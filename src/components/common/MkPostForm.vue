@@ -1221,7 +1221,7 @@ function onPaste(e: ClipboardEvent) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: calc(var(--nd-app-inset-top, 0px) + 12px);
+  padding-top: calc(var(--nd-app-inset-top) + 12px);
   background: var(--nd-modalBg);
   overflow-y: auto;
 }
@@ -1232,8 +1232,8 @@ function onPaste(e: ClipboardEvent) {
 
 .postForm {
   background: var(--nd-popup);
-  border-radius: 16px;
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  border-radius: var(--nd-radius-sheet);
+  box-shadow: var(--nd-shadow-l);
   width: 100%;
   max-width: 520px;
   margin: 16px;
@@ -1258,11 +1258,11 @@ function onPaste(e: ClipboardEvent) {
 
     .headerRight {
       min-height: 36px;
-      font-size: 0.85em;
+      font-size: var(--nd-font-md);
     }
 
     .headerBtn {
-      padding: 5px;
+      padding: 6px;
     }
 
     .headerBtnText {
@@ -1272,7 +1272,7 @@ function onPaste(e: ClipboardEvent) {
     .textArea {
       min-height: 42px;
       padding: 0 12px;
-      font-size: 0.95em;
+      font-size: var(--nd-font-body);
       field-sizing: content;
 
       &::placeholder {
@@ -1282,7 +1282,7 @@ function onPaste(e: ClipboardEvent) {
 
     .cwInput {
       padding: 6px 12px;
-      font-size: 0.95em;
+      font-size: var(--nd-font-body);
 
       &::placeholder {
         font-size: 1em;
@@ -1291,7 +1291,7 @@ function onPaste(e: ClipboardEvent) {
 
     .footer {
       padding: 0 4px 4px;
-      font-size: 0.9em;
+      font-size: var(--nd-font-body);
     }
 
     .footerLeft {
@@ -1308,7 +1308,7 @@ function onPaste(e: ClipboardEvent) {
       margin: 6px 6px 6px 4px;
       padding: 0 10px;
       line-height: 30px;
-      font-size: 0.85em;
+      font-size: var(--nd-font-md);
       min-width: 70px;
     }
 
@@ -1327,12 +1327,12 @@ function onPaste(e: ClipboardEvent) {
 
     .replyPreview {
       padding: 8px 12px;
-      font-size: 0.85em;
+      font-size: var(--nd-font-md);
     }
 
     .postError {
       padding: 4px 12px;
-      font-size: 0.8em;
+      font-size: var(--nd-font-sm);
     }
   }
 }
@@ -1358,7 +1358,7 @@ function onPaste(e: ClipboardEvent) {
 .headerRight {
   display: flex;
   min-height: 48px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   flex-wrap: nowrap;
   align-items: center;
   margin-left: auto;
@@ -1382,7 +1382,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -1407,7 +1407,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -1446,7 +1446,7 @@ function onPaste(e: ClipboardEvent) {
   padding: 4px;
   margin-top: 4px;
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-m);
 }
 
@@ -1461,7 +1461,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1509,15 +1509,15 @@ function onPaste(e: ClipboardEvent) {
 }
 
 .accountOptionName {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .accountOptionHost {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.6;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1533,7 +1533,7 @@ function onPaste(e: ClipboardEvent) {
   margin: 12px 12px 12px 6px;
   padding: 0 12px;
   line-height: 34px;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   font-family: inherit;
   border: none;
   border-radius: var(--nd-radius-sm);
@@ -1580,7 +1580,7 @@ function onPaste(e: ClipboardEvent) {
   padding: 4px;
   margin-top: 4px;
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-m);
 }
 
@@ -1590,18 +1590,18 @@ function onPaste(e: ClipboardEvent) {
   gap: 8px;
   width: 100%;
   padding: 8px 12px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
     color: var(--nd-accent);
-    font-weight: bold;
+    font-weight: var(--nd-weight-bold);
   }
 
   &:disabled {
@@ -1631,7 +1631,7 @@ function onPaste(e: ClipboardEvent) {
   padding: 4px;
   margin-top: 4px;
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-m);
 }
 
@@ -1641,7 +1641,7 @@ function onPaste(e: ClipboardEvent) {
   gap: 8px;
   width: 100%;
   padding: 8px 12px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   cursor: pointer;
@@ -1649,7 +1649,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1665,7 +1665,7 @@ function onPaste(e: ClipboardEvent) {
 
 .moreMenuScheduleBadge {
   margin-left: auto;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.7;
 }
 
@@ -1677,7 +1677,7 @@ function onPaste(e: ClipboardEvent) {
 
 .scheduleTitle {
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
 }
 
@@ -1698,7 +1698,7 @@ function onPaste(e: ClipboardEvent) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   font-family: inherit;
   outline: none;
   box-sizing: border-box;
@@ -1734,7 +1734,7 @@ function onPaste(e: ClipboardEvent) {
 .replyPreview {
   display: flex;
   padding: 12px 20px 16px;
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   gap: 10px;
 }
 
@@ -1762,13 +1762,13 @@ function onPaste(e: ClipboardEvent) {
 }
 
 .replyUser {
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fgHighlighted);
 }
 
 .replyHandle {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
   margin-left: 4px;
 }
@@ -1788,7 +1788,7 @@ function onPaste(e: ClipboardEvent) {
   align-items: center;
   gap: 6px;
   padding: 8px 24px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-accent);
 }
 
@@ -1861,14 +1861,14 @@ function onPaste(e: ClipboardEvent) {
   text-align: center;
   color: var(--nd-fg);
   opacity: 0.35;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 /* ── Error ── */
 .postError {
   padding: 8px 24px;
   color: var(--nd-error);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 /* ── Text count (overlaid on textarea) ── */
@@ -1877,7 +1877,7 @@ function onPaste(e: ClipboardEvent) {
   top: 0;
   right: 2px;
   padding: 4px 6px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
   opacity: 0.4;
   border-radius: var(--nd-radius-sm);
@@ -1885,7 +1885,7 @@ function onPaste(e: ClipboardEvent) {
   text-align: center;
 
   &.near {
-    color: var(--nd-warn, #ecb637);
+    color: var(--nd-warn);
     opacity: 1;
   }
 
@@ -1931,7 +1931,7 @@ function onPaste(e: ClipboardEvent) {
   justify-content: center;
   padding: 0;
   margin: 0;
-  font-size: 1.15em;
+  font-size: var(--nd-font-lg);
   width: 100%;
   height: 100%;
   border-radius: var(--nd-radius-sm);
@@ -1939,7 +1939,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base), color var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1956,7 +1956,7 @@ function onPaste(e: ClipboardEvent) {
   z-index: 20;
   margin-top: 8px;
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-m);
 }
 
@@ -1975,14 +1975,14 @@ function onPaste(e: ClipboardEvent) {
   display: block;
   width: 100%;
   padding: 6px 10px;
-  font-size: 0.82em;
+  font-size: var(--nd-font-sm);
   text-align: left;
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -1995,17 +1995,17 @@ function onPaste(e: ClipboardEvent) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 6px 3px 10px;
+  padding: 4px 6px 4px 10px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);
-  font-size: 0.82em;
+  font-size: var(--nd-font-sm);
   font-variant-numeric: tabular-nums;
   backdrop-filter: blur(8px);
 }
 
 .scheduleIndicatorRel {
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
 }
 
 .scheduleIndicatorAbs {
@@ -2025,14 +2025,14 @@ function onPaste(e: ClipboardEvent) {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.5;
   margin-left: 2px;
 
   &:hover {
     opacity: 1;
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -2071,7 +2071,7 @@ function onPaste(e: ClipboardEvent) {
 
 @container (max-width: 350px) {
   .footer {
-    font-size: 0.9em;
+    font-size: var(--nd-font-body);
   }
 
   .footerLeft {
@@ -2092,9 +2092,9 @@ function onPaste(e: ClipboardEvent) {
   max-height: min(60vh, 520px);
   margin: 0 16px 16px;
   background: var(--nd-panelBg, var(--nd-popup));
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   overflow: hidden;
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
 }
 
 .emojiPickerHeader {
@@ -2109,8 +2109,8 @@ function onPaste(e: ClipboardEvent) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   flex: 1;
 }
 
@@ -2157,10 +2157,10 @@ function onPaste(e: ClipboardEvent) {
     width: 100%;
     max-width: 100%;
     max-height: 50vh;
-    border-radius: 16px 16px 0 0;
+    border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
     margin: 0;
     z-index: 100;
-    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+    box-shadow: var(--nd-shadow-sheet);
     padding-bottom: var(--nd-safe-area-bottom, env(safe-area-inset-bottom));
   }
 }

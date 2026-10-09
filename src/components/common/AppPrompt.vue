@@ -93,7 +93,7 @@ function submit() {
 
 .title {
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
 }
 
@@ -104,7 +104,7 @@ function submit() {
 .message {
   margin: 0 0 8px;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
   opacity: 0.8;
   text-align: center;
@@ -117,7 +117,7 @@ function submit() {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
   outline: none;
 
   &:focus {

@@ -414,7 +414,7 @@ onMounted(() => {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-panel);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   outline: none;
   box-sizing: border-box;
 
@@ -483,7 +483,7 @@ onMounted(() => {
   text-align: center;
   color: var(--nd-fg);
   opacity: 0.4;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .mobile {

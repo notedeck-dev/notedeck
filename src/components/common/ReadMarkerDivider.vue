@@ -27,7 +27,7 @@ const label = computed(
   padding: 12px 16px;
   color: var(--nd-fg);
   opacity: 0.55;
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   user-select: none;
   pointer-events: none;
 }

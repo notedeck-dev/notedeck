@@ -127,9 +127,9 @@ useNativeDialog(
 .sheet {
   width: 100%;
   margin: 0;
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
   background: color-mix(in srgb, var(--nd-navBg) 96%, transparent);
-  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--nd-shadow-sheet);
   max-height: 80vh;
   display: flex;
   flex-direction: column;

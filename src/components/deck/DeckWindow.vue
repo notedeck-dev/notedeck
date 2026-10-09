@@ -373,7 +373,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background: var(--nd-panel);
   border-radius: var(--nd-radius);
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
   // overflow: visible にして 8 方向ハンドルが外側にはみ出せるようにする。
   // 角丸は .windowHeader / .windowBody 側で個別に持たせて見た目を維持。
   // contain: paint を付けると要素境界外の paint と pointer hit が切られて
@@ -432,7 +432,7 @@ onBeforeUnmount(() => {
 }
 
 .maximized {
-  top: var(--nd-app-inset-top, 0px);
+  top: var(--nd-app-inset-top);
   left: 0;
   right: 0;
   bottom: 0;
@@ -491,8 +491,8 @@ onBeforeUnmount(() => {
 
 .windowTitle {
   flex: 1;
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -565,7 +565,7 @@ onBeforeUnmount(() => {
 
 .mobile {
   left: 0 !important;
-  top: var(--nd-app-inset-top, 0px) !important;
+  top: var(--nd-app-inset-top) !important;
   right: 0 !important;
   // ボトムバー (mobile nav) の上端で止め、覆い隠さない。height: auto + top/bottom
   // で高さが決まるので、ウィンドウが画面下まで伸びすぎる問題も同時に解消する。

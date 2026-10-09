@@ -275,7 +275,7 @@ async function onDelete() {
   gap: 2px;
   padding: 10px 16px;
   border-bottom: 1px solid var(--nd-divider);
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   background: var(--nd-panelBg, var(--nd-bg));
 }
 
@@ -337,7 +337,7 @@ async function onDelete() {
   justify-content: center;
   gap: 8px;
   opacity: 0.7;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   padding: 24px;
   text-align: center;
 }

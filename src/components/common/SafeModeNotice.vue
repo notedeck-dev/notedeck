@@ -31,7 +31,7 @@ const isSafeMode = readSafeMode()
   gap: 8px;
   margin: 8px;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   font-size: 0.8rem;
   line-height: 1.5;
   background: color-mix(in srgb, var(--nd-warn) 15%, transparent);

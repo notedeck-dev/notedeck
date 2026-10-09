@@ -908,7 +908,7 @@ function handlePickerReaction(reaction: string) {
         <template v-else>{{ note.user.username }}</template>
       </span>
       <span :class="$style.renoteLabel">{{ i18n.ts._mkNote.renotedSuffix }}</span>
-      <button :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
+      <button :aria-label="i18n.ts._common.more" :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
         <i class="ti ti-dots" />
       </button>
       <AppTime :class="$style.renoteTime" :at="note.createdAt" />
@@ -1202,7 +1202,7 @@ function handlePickerReaction(reaction: string) {
               {{ effectiveNote.renoteCount }}
             </span>
           </button>
-          <button v-else :class="[$style.footerButton, $style.renoteButton, $style.footerDisabled]" disabled>
+          <button :aria-label="i18n.ts._common.renote" v-else :class="[$style.footerButton, $style.renoteButton, $style.footerDisabled]" disabled>
             <i class="ti ti-ban" />
           </button>
           <button
@@ -1214,6 +1214,7 @@ function handlePickerReaction(reaction: string) {
             <i :class="effectiveNote.myReaction != null ? 'ti ti-minus' : 'ti ti-plus'" />
           </button>
           <button
+            :aria-label="i18n.ts._common.more"
             :class="[$style.footerButton, $style.moreButton]"
             @click.stop="moreMenuRef?.open($event)"
           >
@@ -1359,13 +1360,13 @@ function handlePickerReaction(reaction: string) {
   align-items: center;
   gap: 2px;
   margin-left: 6px;
-  padding: 0 5px;
+  padding: 0 6px;
   height: 18px;
   border: 1px solid var(--nd-divider);
-  border-radius: 999px;
+  border-radius: var(--nd-radius-full);
   background: transparent;
   color: inherit;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   line-height: 1;
   cursor: pointer;
   opacity: 0.8;
@@ -1383,7 +1384,7 @@ function handlePickerReaction(reaction: string) {
   gap: 6px;
   padding: 8px 0;
   opacity: 0.7;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 /* 主ビュー以外のアカウントだけが押している反応: 塗りなし + 破線 (色差だけでない形差) */
@@ -1399,7 +1400,7 @@ function handlePickerReaction(reaction: string) {
 
 .noteRoot {
   position: relative;
-  font-size: 1.05em;
+  font-size: var(--nd-font-lg);
   contain: content;
   container-type: inline-size;
 
@@ -1447,7 +1448,7 @@ function handlePickerReaction(reaction: string) {
   color: var(--nd-fg);
   opacity: 0.75;
   font: inherit;
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   line-height: 1.4;
   cursor: pointer;
   transition:
@@ -1462,7 +1463,7 @@ function handlePickerReaction(reaction: string) {
 
 .channelBadgeIcon {
   flex-shrink: 0;
-  font-size: 0.95em;
+  font-size: var(--nd-font-body);
 }
 
 .channelBadgeName {
@@ -1477,7 +1478,7 @@ function handlePickerReaction(reaction: string) {
   padding: 12px 32px 0 32px;
   align-items: center;
   gap: 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-accent);
 }
 
@@ -1488,7 +1489,7 @@ function handlePickerReaction(reaction: string) {
 
 .pinnedLabel {
   opacity: 0.8;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 /* Reply-to preview */
@@ -1516,8 +1517,8 @@ function handlePickerReaction(reaction: string) {
 
 .replyToName {
   flex-shrink: 0;
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1531,7 +1532,7 @@ function handlePickerReaction(reaction: string) {
 
 .replyToText {
   flex: 1;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1552,7 +1553,7 @@ function handlePickerReaction(reaction: string) {
   line-height: 28px;
   align-items: center;
   gap: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-renote);
 }
 
@@ -1568,7 +1569,7 @@ function handlePickerReaction(reaction: string) {
 }
 
 .renoteUser {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   cursor: pointer;
 
   &:hover {
@@ -1597,7 +1598,7 @@ function handlePickerReaction(reaction: string) {
   margin-left: auto;
   background: none;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   color: inherit;
   opacity: 0.6;
   cursor: pointer;
@@ -1641,7 +1642,7 @@ function handlePickerReaction(reaction: string) {
 .name {
   flex-shrink: 1;
   font-size: 1em;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   margin: 0 0.5em 0 0;
   text-overflow: ellipsis;
   overflow: hidden;
@@ -1672,7 +1673,7 @@ function handlePickerReaction(reaction: string) {
   padding: 1px 6px;
   font-size: 80%;
   border: solid 0.5px var(--nd-divider);
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
 }
 
 /* Server badge (instance ticker) */
@@ -1682,15 +1683,15 @@ function handlePickerReaction(reaction: string) {
   gap: 4px;
   margin-bottom: 2px;
   padding: 1px 8px;
-  border-radius: 3px;
-  font-size: 0.75em;
+  border-radius: var(--nd-radius-xs);
+  font-size: var(--nd-font-xs);
   line-height: 1.4;
   overflow: hidden;
 }
 
 .instanceIcon {
   flex-shrink: 0;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   object-fit: contain;
   user-select: none;
   -webkit-user-select: none;
@@ -1698,7 +1699,7 @@ function handlePickerReaction(reaction: string) {
 
 .instanceName {
   color: #fff;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
@@ -1714,12 +1715,12 @@ function handlePickerReaction(reaction: string) {
   gap: 4px;
   flex-shrink: 0;
   margin-left: auto;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .edited {
   opacity: 0.5;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 .time {
@@ -1737,7 +1738,7 @@ function handlePickerReaction(reaction: string) {
 }
 
 .cwText {
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
   margin: 0;
 }
 
@@ -1754,8 +1755,8 @@ function handlePickerReaction(reaction: string) {
   border-radius: var(--nd-radius-full);
   background: var(--nd-accentedBg);
   color: var(--nd-accent);
-  font-size: 0.8em;
-  font-weight: normal;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-regular);
   cursor: pointer;
   transition: background var(--nd-duration-base);
 
@@ -1766,7 +1767,7 @@ function handlePickerReaction(reaction: string) {
 
 .cwChars {
   opacity: 0.7;
-  font-weight: normal;
+  font-weight: var(--nd-weight-regular);
 }
 
 /* Body */
@@ -1832,7 +1833,7 @@ function handlePickerReaction(reaction: string) {
   display: block;
   padding: 4px 8px;
   color: var(--fg-light);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   cursor: pointer;
 
   &:hover {
@@ -1859,7 +1860,7 @@ function handlePickerReaction(reaction: string) {
   display: inline-flex;
   height: 42px;
   padding: 0 6px;
-  font-size: 1.5em;
+  font-size: var(--nd-font-2xl);
   border-radius: var(--nd-radius-sm);
   align-items: center;
   justify-content: center;
@@ -1915,7 +1916,7 @@ function handlePickerReaction(reaction: string) {
   }
 
   .count {
-    font-size: 0.7em;
+    font-size: var(--nd-font-2xs);
     line-height: 42px;
     margin: 0 0 0 4px;
   }
@@ -1943,7 +1944,7 @@ function handlePickerReaction(reaction: string) {
 }
 
 .reactionEmojiFallback {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 5em;
@@ -1955,7 +1956,7 @@ function handlePickerReaction(reaction: string) {
 }
 
 .count {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   line-height: 42px;
   margin: 0 0 0 4px;
 }
@@ -1992,7 +1993,7 @@ function handlePickerReaction(reaction: string) {
 
   &:hover {
     color: var(--nd-fgHighlighted);
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -2028,7 +2029,7 @@ function handlePickerReaction(reaction: string) {
 }
 
 .buttonCount {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 /* Renote popup menu */
@@ -2052,13 +2053,13 @@ function handlePickerReaction(reaction: string) {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 22px;
+  padding: 8px 22px;
   border: none;
   border-radius: 0;
   background: none;
   cursor: pointer;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: left;
   transition: background var(--nd-duration-base);
 
@@ -2106,7 +2107,7 @@ function handlePickerReaction(reaction: string) {
    縮めるが、デッキの狭いカラムでは顔が小さくなって見分けにくくなるので
    58px 固定のままにする */
 @container (max-width: 580px) {
-  .noteRoot { font-size: 0.95em; }
+  .noteRoot { font-size: var(--nd-font-body); }
   .article { padding: 24px 26px; }
   .renoteInfo { padding: 12px 26px 6px 26px; }
   .pinnedInfo { padding: 10px 26px 0 26px; }
@@ -2114,7 +2115,7 @@ function handlePickerReaction(reaction: string) {
 }
 
 @container (max-width: 500px) {
-  .noteRoot { font-size: 0.9em; }
+  .noteRoot { font-size: var(--nd-font-body); }
   .article { padding: 20px 22px; }
   .renoteInfo { padding: 8px 22px 4px 22px; }
   .pinnedInfo { padding: 8px 22px 0 22px; }
@@ -2145,8 +2146,8 @@ function handlePickerReaction(reaction: string) {
 
 @container (max-width: 300px) {
   .footerButton { margin-right: 8px; }
-  .reaction { height: 32px; font-size: 1em; border-radius: 4px; }
-  .reaction .count { font-size: 0.9em; line-height: 32px; }
+  .reaction { height: 32px; font-size: 1em; border-radius: var(--nd-radius-xs); }
+  .reaction .count { font-size: var(--nd-font-body); line-height: 32px; }
   .reactionsAreaPending { min-height: 38px; }
 }
 

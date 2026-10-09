@@ -93,7 +93,7 @@ const isUnknownType = computed(
     right: 0;
     pointer-events: none;
     z-index: 10;
-    border-radius: 10px;
+    border-radius: var(--nd-radius-lg);
   }
 
   &[data-drop-zone="swap"]::after {
@@ -107,7 +107,7 @@ const isUnknownType = computed(
     height: 50%;
     background: var(--nd-accent-hover);
     border-bottom: 3px solid var(--nd-accent);
-    border-radius: 10px 10px 0 0;
+    border-radius: var(--nd-radius-lg) var(--nd-radius-lg) 0 0;
   }
 
   &[data-drop-zone="below"]::after {
@@ -115,7 +115,7 @@ const isUnknownType = computed(
     height: 50%;
     background: var(--nd-accent-hover);
     border-top: 3px solid var(--nd-accent);
-    border-radius: 0 0 10px 10px;
+    border-radius: 0 0 var(--nd-radius-lg) var(--nd-radius-lg);
   }
 }
 

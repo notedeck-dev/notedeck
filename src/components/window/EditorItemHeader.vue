@@ -97,8 +97,8 @@ defineProps<{
 }
 
 .name {
-  font-size: 1.05em;
-  font-weight: 700;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -106,7 +106,7 @@ defineProps<{
 }
 
 .sub {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.6;
   display: flex;
@@ -116,7 +116,7 @@ defineProps<{
 }
 
 .desc {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.75;
   overflow: hidden;

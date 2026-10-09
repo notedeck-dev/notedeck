@@ -480,6 +480,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
           <i class="ti ti-alert-circle" />
           {{ installError }}
           <button
+            :aria-label="i18n.ts._common.close"
             class="_button"
             :class="$style.storeErrorClose"
             @click="installError = null"
@@ -552,7 +553,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
   gap: 6px;
   width: 100%;
   padding: 8px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   border: 1px dashed var(--nd-divider);
   background: transparent;
   color: var(--nd-fg);
@@ -580,7 +581,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 .pickerEmpty {
   padding: 12px;
   text-align: center;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.6;
 }
 
@@ -590,7 +591,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 
 .headerBtn {
   padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
 }
 
 .wrapper {
@@ -619,12 +620,12 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   color: var(--nd-fg);
   opacity: 0.45;
   font-size: 13px;
   transition:
-    opacity 0.1s,
+    opacity var(--nd-duration-fast),
     background 0.1s;
 
   &:hover {
@@ -641,12 +642,12 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 .searchInput {
   width: 100%;
   padding: 6px 10px;
-  border-radius: 8px;
-  border: 1px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
+  border-radius: var(--nd-radius-md);
+  border: 1px solid var(--nd-divider);
   background: var(--nd-panel);
   color: inherit;
   font: inherit;
-  font-size: 0.88em;
+  font-size: var(--nd-font-md);
 }
 
 .list {
@@ -673,7 +674,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 }
 
 .emptyHint {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.8;
   line-height: 1.6;
 }
@@ -681,9 +682,9 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 .emptyLink {
   margin-top: 4px;
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
 }
 
 .storeError {
@@ -692,10 +693,10 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
   gap: 6px;
   margin: 8px 10px 0;
   padding: 8px 10px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-error) 15%, transparent);
   color: var(--nd-error);
-  font-size: 0.82em;
+  font-size: var(--nd-font-sm);
 }
 
 .storeErrorClose {

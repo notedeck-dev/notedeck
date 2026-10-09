@@ -83,7 +83,7 @@ const emit = defineEmits<{
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   cursor: pointer;
   text-align: center;
 
@@ -131,7 +131,7 @@ const emit = defineEmits<{
   width: 22px;
   height: 22px;
   object-fit: contain;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
 }
 
 // SVG mask + currentColor でテーマアクセント色化 (DeckAiColumn.personaIndicator と同じ)

@@ -20,7 +20,7 @@
 }
 
 @mixin field-label {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 @mixin field-value {
@@ -31,13 +31,13 @@
 
 @mixin field-hint {
   margin: 0;
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
   line-height: 1.5;
 }
 
 @mixin field-unit {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.55;
   min-width: 18px;
 }
@@ -49,7 +49,7 @@
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   text-align: right;
   outline: none;
   transition: border-color var(--nd-duration-base);
@@ -72,7 +72,7 @@
   align-items: flex-start;
   gap: 4px;
   margin: 0;
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
   line-height: 1.5;
 
@@ -86,5 +86,5 @@
 @mixin key-warn {
   @include key-hint;
   opacity: 1;
-  color: var(--nd-error, #ec4137);
+  color: var(--nd-error);
 }

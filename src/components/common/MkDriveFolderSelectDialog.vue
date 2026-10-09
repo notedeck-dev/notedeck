@@ -183,8 +183,8 @@ fetchDrive()
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -204,7 +204,7 @@ fetchDrive()
 .empty {
   padding: 32px 16px;
   text-align: center;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
 }
 

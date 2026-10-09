@@ -180,7 +180,7 @@ defineExpose({ open, close, activateKeyboard })
   max-height: 70dvh;
   overflow-y: auto;
   overscroll-behavior: contain;
-  border-radius: 16px 16px 0 0;
+  border-radius: var(--nd-radius-sheet) var(--nd-radius-sheet) 0 0;
   padding: 8px 0 calc(8px + var(--nd-safe-area-bottom, env(safe-area-inset-bottom)));
 }
 

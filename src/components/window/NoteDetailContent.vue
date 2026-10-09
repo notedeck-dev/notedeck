@@ -738,8 +738,8 @@ async function handlePosted(editedNoteId?: string) {
   justify-content: center;
   gap: 6px;
   padding: 14px 8px;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   opacity: 0.6;
   border-bottom: 2px solid transparent;
@@ -780,7 +780,7 @@ async function handlePosted(editedNoteId?: string) {
   padding: 16px;
   text-align: left;
   background: var(--nd-panel);
-  border-radius: 8px;
+  border-radius: var(--nd-radius-md);
   transition: background var(--nd-duration-base);
 
   &:hover {
@@ -791,7 +791,7 @@ async function handlePosted(editedNoteId?: string) {
 .userCardBody {
   flex: 1;
   min-width: 0;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .userCardName {
@@ -803,7 +803,7 @@ async function handlePosted(editedNoteId?: string) {
 
 .userCardAcct {
   display: block;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -823,7 +823,7 @@ async function handlePosted(editedNoteId?: string) {
   gap: 4px;
   padding: 4px 6px;
   border: solid 1px var(--nd-divider);
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
 
   &.reactionChipActive {
     border-color: var(--nd-accent);
@@ -837,7 +837,7 @@ async function handlePosted(editedNoteId?: string) {
 }
 
 .reactionChipCount {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
 }
 
@@ -848,7 +848,7 @@ async function handlePosted(editedNoteId?: string) {
   padding: 2rem;
   color: var(--nd-fg);
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .stateError {

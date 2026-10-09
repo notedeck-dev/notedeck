@@ -177,18 +177,18 @@ const importDb = () =>
 }
 
 .sectionTitle {
-  font-weight: bold;
-  font-size: 0.95em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   color: var(--nd-fg);
 }
 
 .sectionDesc {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fgMuted);
 }
 
 .hint {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fgMuted);
   line-height: 1.5;
   margin: 0;
@@ -212,7 +212,7 @@ const importDb = () =>
 .error {
   margin-top: 12px;
   padding: 8px 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-love);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   border-radius: var(--nd-radius-sm);

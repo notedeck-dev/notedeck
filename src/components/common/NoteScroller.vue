@@ -399,7 +399,7 @@ defineSlots<{
 
 /* 削除直後だけ行位置の変化を滑らかにする (FLIP 風スライドアップ) */
 .shifting {
-  transition: translate 0.2s var(--nd-ease-decel);
+  transition: translate var(--nd-duration-medium) var(--nd-ease-decel);
 }
 
 /* Misskey-style slide-in animation for streaming notes.

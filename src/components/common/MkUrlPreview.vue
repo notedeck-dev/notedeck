@@ -107,7 +107,7 @@ onUnmounted(() => {
   observer?.disconnect()
 })
 
-function handleClick(e: MouseEvent) {
+function handleClick(e: Event) {
   e.preventDefault()
   e.stopPropagation()
   const targetUrl = data.value?.url || props.url
@@ -126,7 +126,7 @@ function hostname(url: string): string {
 <template>
   <MkNoteEmbed v-if="isNoteUrl" :url="url" />
   <!-- 取得できなかった (タイトルが無い) ときは枠ごと出さない (空の枠線だけ残さない) -->
-  <div v-else-if="shouldPreview && (loading || data?.title)" ref="el" :class="[$style.urlPreview, !loading && !loadedFromCache && 'nd-content-appear']" @click="handleClick">
+  <div v-else-if="shouldPreview && (loading || data?.title)" ref="el" role="link" tabindex="0" :class="[$style.urlPreview, !loading && !loadedFromCache && 'nd-content-appear']" @click="handleClick" @keydown.enter.self="handleClick">
     <!-- 実カード (サムネイル 100px + body のタイトル/説明/ホスト行) と同じ
          構造・寸法にして、差し替え時の高さジャンプを防ぐ -->
     <div v-if="loading" :class="$style.urlPreviewSkeleton">
@@ -353,7 +353,7 @@ function hostname(url: string): string {
 
 .urlSensitive {
   gap: 4px;
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
 }
 
 .playIndicator {
@@ -390,7 +390,7 @@ function hostname(url: string): string {
 
 .urlPreviewTitle {
   font-size: 1em;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -398,7 +398,7 @@ function hostname(url: string): string {
 }
 
 .urlPreviewDescription {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.7;
   margin-top: 4px;
@@ -409,7 +409,7 @@ function hostname(url: string): string {
 }
 
 .urlPreviewHost {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.5;
   margin-top: 8px;
@@ -445,7 +445,7 @@ function hostname(url: string): string {
 
 .skeletonLine {
   height: 14px;
-  border-radius: 4px;
+  border-radius: var(--nd-radius-xs);
   background: linear-gradient(
     90deg,
     var(--nd-buttonBg) 25%,

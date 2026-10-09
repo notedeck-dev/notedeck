@@ -269,25 +269,25 @@ function handlePostFormButton(comp: UiComponent) {
 .aisText {
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
 }
 
 .aisMfm {
   white-space: pre-wrap;
   word-break: break-word;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.5;
 }
 
 .aisButton {
-  padding: 7px 14px;
+  padding: 8px 14px;
   border: none;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   cursor: pointer;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transition: background var(--nd-duration-fast);
 
   &:hover:not(:disabled) {
@@ -314,7 +314,7 @@ function handlePostFormButton(comp: UiComponent) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   outline: none;
 
   &:focus {
@@ -328,7 +328,7 @@ function handlePostFormButton(comp: UiComponent) {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   font-family: inherit;
   outline: none;
   resize: vertical;
@@ -343,7 +343,7 @@ function handlePostFormButton(comp: UiComponent) {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   cursor: pointer;
 }
 
@@ -365,8 +365,8 @@ function handlePostFormButton(comp: UiComponent) {
     width: 100%;
     cursor: pointer;
     padding: 6px 10px;
-    font-size: 0.85em;
-    font-weight: 500;
+    font-size: var(--nd-font-md);
+    font-weight: var(--nd-weight-medium);
     background: var(--nd-panelHighlight);
     transition: background var(--nd-duration-base);
 

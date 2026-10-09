@@ -293,11 +293,11 @@ onMounted(() => {
 .appLogo {
   width: 48px;
   height: 48px;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
 }
 
 .subtitle {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.7;
 }
@@ -308,7 +308,7 @@ onMounted(() => {
 }
 
 .subtitleWarn {
-  color: var(--nd-warn, #f0a020);
+  color: var(--nd-warn);
   opacity: 1;
 }
 
@@ -323,8 +323,8 @@ onMounted(() => {
 
 .inputLabel {
   display: block;
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   padding: 0 0 8px 2px;
   color: var(--nd-fg);
 }
@@ -375,8 +375,8 @@ onMounted(() => {
   border-radius: var(--nd-radius-full);
   background: linear-gradient(90deg, var(--nd-buttonGradateA), var(--nd-buttonGradateB));
   color: var(--nd-fgOnAccent);
-  font-size: 0.95em;
-  font-weight: bold;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   font-family: inherit;
   cursor: pointer;
   transition: transform var(--nd-duration-base), opacity var(--nd-duration-base);
@@ -407,8 +407,8 @@ onMounted(() => {
   border-radius: var(--nd-radius-full);
   background: transparent;
   color: var(--nd-accent);
-  font-size: 0.95em;
-  font-weight: bold;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   font-family: inherit;
   cursor: pointer;
   transition: transform var(--nd-duration-base), background var(--nd-duration-base), opacity var(--nd-duration-base);
@@ -429,7 +429,7 @@ onMounted(() => {
 }
 
 .btnCancel {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0.6;
   transition: opacity var(--nd-duration-base);
@@ -445,7 +445,7 @@ onMounted(() => {
   text-align: center;
 
   p {
-    font-size: 0.9em;
+    font-size: var(--nd-font-body);
     line-height: 1.6;
     color: var(--nd-fg);
     margin: 0;
@@ -461,14 +461,14 @@ onMounted(() => {
   border-radius: 50%;
   background: var(--nd-love-hover);
   color: var(--nd-love);
-  font-size: 1.4em;
+  font-size: var(--nd-font-2xl);
 }
 
 .errorText {
   margin: 0 0 24px;
   text-align: center;
   color: var(--nd-love);
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.5;
 }
 

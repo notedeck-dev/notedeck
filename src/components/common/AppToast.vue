@@ -145,7 +145,7 @@ const ICONS: Record<ToastItem['type'], string> = {
 .text {
   flex: 1;
   min-width: 0;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.45;
   overflow-wrap: anywhere;
   user-select: text;
@@ -178,7 +178,7 @@ const ICONS: Record<ToastItem['type'], string> = {
 
 .actionBtn {
   @include btn-primary;
-  padding: 5px 12px;
+  padding: 6px 12px;
 }
 
 .cardEnter {

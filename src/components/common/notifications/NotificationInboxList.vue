@@ -86,8 +86,8 @@ const ICONS: Record<ToastItem['type'], string> = {
 
 .title {
   flex: 1;
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   letter-spacing: 0.04em;
   opacity: 0.7;
 }
@@ -123,7 +123,7 @@ const ICONS: Record<ToastItem['type'], string> = {
 .empty {
   padding: 28px 16px;
   text-align: center;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.5;
 }
 
@@ -168,7 +168,7 @@ const ICONS: Record<ToastItem['type'], string> = {
 }
 
 .text {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   line-height: 1.45;
   overflow-wrap: anywhere;
   user-select: text;
@@ -181,14 +181,14 @@ const ICONS: Record<ToastItem['type'], string> = {
 }
 
 .time {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
   font-variant-numeric: tabular-nums;
 }
 
 .actionBtn {
-  font-size: 0.8em;
-  font-weight: bold;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-accent);
 
   &:hover {

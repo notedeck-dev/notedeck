@@ -37,9 +37,9 @@ const emit = defineEmits<{
   max-height: min(75vh, 640px);
   margin: 0 16px 16px;
   background: var(--nd-panelBg, var(--nd-popup));
-  border-radius: 12px;
+  border-radius: var(--nd-radius);
   overflow: hidden;
-  box-shadow: 0 8px 32px var(--nd-shadow);
+  box-shadow: var(--nd-shadow-l);
 }
 
 .header {
@@ -54,8 +54,8 @@ const emit = defineEmits<{
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-weight: bold;
-  font-size: 0.9em;
+  font-weight: var(--nd-weight-bold);
+  font-size: var(--nd-font-body);
   flex: 1;
 }
 

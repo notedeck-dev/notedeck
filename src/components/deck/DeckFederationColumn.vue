@@ -338,7 +338,7 @@ function onInstanceClick(inst: FederationInstance) {
 @use './column-common.module.scss';
 
 .headerCount {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
   flex-shrink: 0;
 }
@@ -366,7 +366,7 @@ function onInstanceClick(inst: FederationInstance) {
   border: none;
   background: none;
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   outline: none;
 
   &::placeholder {
@@ -392,8 +392,8 @@ function onInstanceClick(inst: FederationInstance) {
   flex-shrink: 0;
   padding: 4px 10px;
   border-radius: var(--nd-radius-full);
-  font-size: 0.75em;
-  font-weight: bold;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   transition:
@@ -407,7 +407,7 @@ function onInstanceClick(inst: FederationInstance) {
 
 .sortPillActive {
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
 }
 
 .scroller {
@@ -474,7 +474,7 @@ function onInstanceClick(inst: FederationInstance) {
   width: 48px;
   height: 48px;
   object-fit: contain;
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   // 背景は透過。アイコン自体の alpha をそのまま活かす。
   background: transparent;
 }
@@ -495,16 +495,16 @@ function onInstanceClick(inst: FederationInstance) {
 }
 
 .badgeWarn {
-  background: var(--nd-warn, #e8a530);
+  background: var(--nd-warn);
 }
 
 .badgeError {
-  background: var(--nd-love, #ff4400);
+  background: var(--nd-love);
 }
 
 .host {
   width: 100%;
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   color: var(--nd-fg);
   text-align: center;
   line-height: 1.2;

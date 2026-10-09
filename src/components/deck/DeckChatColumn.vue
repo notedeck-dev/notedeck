@@ -1231,7 +1231,7 @@ onBeforeUnmount(() => {
             :class="$style.chatAttachmentThumb"
           />
           <span v-else :class="$style.chatAttachmentName">{{ attachedFile.name }}</span>
-          <button :class="$style.chatAttachmentRemove" @click="removeAttachment">
+          <button :aria-label="i18n.ts._common.delete" :class="$style.chatAttachmentRemove" @click="removeAttachment">
             <i class="ti ti-x" />
           </button>
         </div>
@@ -1257,6 +1257,7 @@ onBeforeUnmount(() => {
             @keydown="handleKeydown"
           />
           <button
+            :aria-label="i18n.ts._common.send"
             :class="$style.chatSend"
             :disabled="!canSend"
             @click="sendMessage"
@@ -1328,7 +1329,7 @@ onBeforeUnmount(() => {
 
   &:hover {
     opacity: 1;
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+    background: var(--nd-panelHighlight);
   }
 
   &.active {
@@ -1349,7 +1350,7 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: var(--nd-radius-sm);
   padding: 6px 10px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   outline: none;
 
@@ -1384,10 +1385,10 @@ onBeforeUnmount(() => {
   contain: layout style paint;
   content-visibility: auto;
   contain-intrinsic-size: auto 65px;
-  border-bottom: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-bottom: 1px solid var(--nd-divider);
 
   &:hover {
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.03));
+    background: var(--nd-panelHighlight);
   }
 
   :deep(.mk-avatar) {
@@ -1410,7 +1411,7 @@ onBeforeUnmount(() => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--nd-buttonBg, rgba(255, 255, 255, 0.1));
+  background: var(--nd-buttonBg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1437,15 +1438,15 @@ onBeforeUnmount(() => {
 }
 
 .historyName {
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .historyPreview {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.5;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1462,7 +1463,7 @@ onBeforeUnmount(() => {
 }
 
 .historyTime {
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   opacity: 0.5;
 }
 
@@ -1479,7 +1480,7 @@ onBeforeUnmount(() => {
 
 .chatError {
   padding: 4px 12px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-love);
 }
 
@@ -1487,7 +1488,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   padding: 6px 8px 8px;
-  border-top: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-top: 1px solid var(--nd-divider);
   background: var(--nd-panel);
   position: relative;
 }
@@ -1498,7 +1499,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 4px 8px;
   margin-bottom: 4px;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   border-radius: var(--nd-radius-md);
 }
 
@@ -1510,7 +1511,7 @@ onBeforeUnmount(() => {
 }
 
 .chatAttachmentName {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1525,7 +1526,7 @@ onBeforeUnmount(() => {
   opacity: 0.5;
   cursor: pointer;
   padding: 4px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 
   &:hover {
     opacity: 1;
@@ -1556,17 +1557,17 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  font-size: 1.1em;
+  font-size: var(--nd-font-lg);
 
   &:hover {
     opacity: 0.8;
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+    background: var(--nd-panelHighlight);
   }
 
   &.active {
     opacity: 1;
     color: var(--nd-accent);
-    background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+    background: var(--nd-accentedBg);
   }
 }
 
@@ -1574,11 +1575,11 @@ onBeforeUnmount(() => {
   flex: 1;
   resize: none;
   border: none;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
-  border-radius: 10px;
+  border-radius: var(--nd-radius-lg);
   padding: 8px 12px;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
   font-family: inherit;
   line-height: 1.4;
   max-height: 120px;
@@ -1596,7 +1597,7 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   border: none;
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1626,8 +1627,8 @@ onBeforeUnmount(() => {
   max-height: 320px;
   overflow: hidden;
   background: var(--nd-popup);
-  border-radius: 12px 12px 0 0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  border-radius: var(--nd-radius) var(--nd-radius) 0 0;
+  box-shadow: var(--nd-shadow-sheet);
   z-index: var(--nd-z-menu);
 }
 
@@ -1637,8 +1638,8 @@ onBeforeUnmount(() => {
   left: 0;
   right: 0;
   background: var(--nd-popup);
-  border-radius: 12px 12px 0 0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.3);
+  border-radius: var(--nd-radius) var(--nd-radius) 0 0;
+  box-shadow: var(--nd-shadow-sheet);
   z-index: var(--nd-z-menu);
 }
 
@@ -1648,7 +1649,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   max-height: 280px;
   overflow: hidden;
-  border-top: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-top: 1px solid var(--nd-divider);
   background: var(--nd-panel);
 }
 

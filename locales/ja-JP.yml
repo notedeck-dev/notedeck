@@ -175,6 +175,10 @@ _commands:
 
 # 複数の画面で同じ意味で使う語 (#135)。画面ごとの語はその画面の節に置く
 _common:
+  skipToMain: "メインの内容へ移動"
+  more: "その他"
+  previous: "前へ"
+  next: "次へ"
   retry: "再試行"
   cancel: "キャンセル"
   delete: "削除"

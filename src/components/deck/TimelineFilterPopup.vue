@@ -146,8 +146,8 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   position: fixed;
   width: 220px;
   padding: 8px 0;
-  color: var(--nd-fg, #fff);
-  font-size: 0.9em;
+  color: var(--nd-fg);
+  font-size: var(--nd-font-body);
   /* 行が多い (検索の行 + クエリの一覧) と画面の下にはみ出して届かないので、
      ボタンの下から画面の端までに収めて中をスクロールさせる (#1178) */
   overflow-y: auto;
@@ -161,8 +161,8 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
 
 .filterPopupHeader {
   padding: 8px 14px 4px;
-  font-size: 0.75em;
-  font-weight: 700;
+  font-size: var(--nd-font-xs);
+  font-weight: var(--nd-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   opacity: 0.5;
@@ -177,12 +177,12 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.05));
+    background: var(--nd-buttonHoverBg);
   }
 }
 
 .filterLabel {
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 /* 名前は省略記号で切り詰め、無効チップは常に見せる (幅が狭い、#1043) */
@@ -201,12 +201,12 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
 .disabledChip {
   flex-shrink: 0;
   margin: 0 8px;
-  padding: 0 5px;
+  padding: 0 6px;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: var(--nd-weight-bold);
   line-height: 14px;
   height: 14px;
-  border-radius: 2px;
+  border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-fg) 15%, transparent);
   color: var(--nd-fg);
   opacity: 0.75;

@@ -362,7 +362,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 
 .cardTitle {
   @include field-label;
-  font-weight: bold;
+  font-weight: var(--nd-weight-bold);
 }
 
 .fieldLabel { @include field-label; }
@@ -422,7 +422,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
   flex: 1;
   min-width: 0;
   padding: 4px 6px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   line-height: 1.4;
   text-align: left;
   color: var(--nd-fg);
@@ -434,12 +434,12 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 .entryInput {
   flex: 1;
   min-width: 0;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border: 1px solid var(--nd-accent);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   font-family: inherit;
   outline: none;
 }
@@ -447,14 +447,14 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 .entryDelete.entryDelete {
   flex-shrink: 0;
   padding: 4px;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   color: var(--nd-fg);
   opacity: 0;
   cursor: pointer;
   transition: opacity var(--nd-duration-base);
 
   &:hover {
-    color: var(--nd-error, #ec4137);
+    color: var(--nd-error);
   }
 }
 
@@ -477,7 +477,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
   margin-left: auto;
   padding: 4px 8px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
@@ -499,14 +499,14 @@ function isFull(f: WorkspaceFile | undefined): boolean {
   gap: 4px;
   padding: 4px 8px;
   border-radius: var(--nd-radius-sm);
-  font-size: 0.75em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.7;
   cursor: pointer;
 
   &:hover:not(:disabled) {
     opacity: 1;
-    color: var(--nd-error, #ec4137);
+    color: var(--nd-error);
   }
 
   &:disabled {

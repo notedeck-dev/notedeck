@@ -71,7 +71,7 @@ watch(
   padding: 2rem;
   color: var(--nd-fg);
   opacity: 0.6;
-  font-size: 0.9em;
+  font-size: var(--nd-font-body);
 }
 
 .stateError {

@@ -270,19 +270,19 @@ function closePopup() {
 }
 
 .name {
-  font-size: 0.9em;
-  font-weight: 600;
+  font-size: var(--nd-font-body);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
 .acct {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.6;
 }
 
 .desc {
   margin-top: 4px;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   opacity: 0.7;
   display: -webkit-box;
   -webkit-line-clamp: var(--mk-uli-desc-lines, 2);
@@ -296,9 +296,9 @@ function closePopup() {
 
 .relationBadge {
   display: inline-block;
-  font-size: 0.65em;
+  font-size: var(--nd-font-2xs);
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: var(--nd-radius-xs);
   background: var(--nd-buttonBg);
   color: var(--nd-fg);
   opacity: 0.7;

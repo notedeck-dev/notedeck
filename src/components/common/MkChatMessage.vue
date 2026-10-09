@@ -298,7 +298,7 @@ usePortal(lightboxPortalRef)
   </div>
 
   <div v-if="lightboxUrl" ref="lightboxPortalRef" :class="$style.lightboxOverlay" @click="closeLightbox">
-    <button :class="$style.lightboxClose" @click="closeLightbox">
+    <button :aria-label="i18n.ts._common.close" :class="$style.lightboxClose" @click="closeLightbox">
       <svg viewBox="0 0 24 24" width="24" height="24">
         <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
       </svg>
@@ -322,7 +322,7 @@ usePortal(lightboxPortalRef)
     flex-direction: row-reverse;
 
     .chatBubble {
-      background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+      background: var(--nd-accentedBg);
       border-bottom-right-radius: 4px;
     }
 
@@ -354,8 +354,8 @@ usePortal(lightboxPortalRef)
 .chatBubble {
   padding: 8px 12px;
   border-radius: 14px;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
-  font-size: 0.95em;
+  background: var(--nd-panelHighlight);
+  font-size: var(--nd-font-body);
   line-height: 1.5;
   word-break: break-word;
 }
@@ -389,7 +389,7 @@ usePortal(lightboxPortalRef)
 }
 
 .chatTime {
-  font-size: 0.7em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.5;
 }
 
@@ -401,16 +401,16 @@ usePortal(lightboxPortalRef)
   height: 20px;
   border: none;
   border-radius: 50%;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.08));
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
   opacity: 0.5;
   cursor: pointer;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
 
   &:hover {
     opacity: 1;
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.15));
+    background: var(--nd-buttonHoverBg);
   }
 }
 
@@ -425,18 +425,18 @@ usePortal(lightboxPortalRef)
 .chatReactionPill {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 2px 6px;
-  border-radius: 10px;
-  border: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.1));
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  border-radius: var(--nd-radius-lg);
+  border: 1px solid var(--nd-divider);
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   cursor: pointer;
   line-height: 1.4;
 
   &:not(:disabled):hover {
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.1));
+    background: var(--nd-buttonHoverBg);
   }
 
   /* 自分のメッセージのリアクションは付け外しできないので押せる見た目にしない */
@@ -446,7 +446,7 @@ usePortal(lightboxPortalRef)
 
   &.reacted {
     border-color: var(--nd-accent);
-    background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+    background: var(--nd-accentedBg);
   }
 }
 
@@ -464,7 +464,7 @@ usePortal(lightboxPortalRef)
   border-radius: 50%;
   background: var(--nd-buttonBg);
   overflow: hidden;
-  border: 1.5px solid var(--nd-panel, #1a1a1a);
+  border: 1.5px solid var(--nd-panel);
 }
 
 .reactionAvatar {
@@ -482,11 +482,11 @@ usePortal(lightboxPortalRef)
 }
 
 .reactionEmojiText {
-  font-size: 1.1em;
+  font-size: var(--nd-font-lg);
 }
 
 .reactionCount {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   opacity: 0.7;
 }
 

@@ -592,7 +592,7 @@ async function importPlugin() {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-  border-radius: 6px;
+  border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
   color: var(--nd-accent);
   font-size: 24px;
@@ -621,8 +621,8 @@ async function importPlugin() {
 }
 
 .headerName {
-  font-size: 1.05em;
-  font-weight: 700;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -638,7 +638,7 @@ async function importPlugin() {
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   transition:
     opacity var(--nd-duration-fast),
     background var(--nd-duration-fast);
@@ -666,8 +666,8 @@ async function importPlugin() {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-inputBg, var(--nd-bg));
   color: var(--nd-fgHighlighted);
-  font-size: 1.05em;
-  font-weight: 700;
+  font-size: var(--nd-font-lg);
+  font-weight: var(--nd-weight-bold);
 
   &:focus {
     outline: none;
@@ -675,7 +675,7 @@ async function importPlugin() {
 }
 
 .headerSub {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.6;
   display: flex;
@@ -684,11 +684,11 @@ async function importPlugin() {
 }
 
 .statusBadge {
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
   padding: 0 6px;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--nd-success, #4caf50) 15%, transparent);
-  color: var(--nd-success, #4caf50);
+  border-radius: var(--nd-radius-md);
+  background: color-mix(in srgb, var(--nd-success) 15%, transparent);
+  color: var(--nd-success);
   line-height: 1.6;
 }
 
@@ -699,7 +699,7 @@ async function importPlugin() {
 }
 
 .headerDesc {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.45;
   margin-top: 2px;
@@ -744,8 +744,8 @@ async function importPlugin() {
 }
 
 .configLabel {
-  font-size: 0.85em;
-  font-weight: bold;
+  font-size: var(--nd-font-md);
+  font-weight: var(--nd-weight-bold);
   color: var(--nd-fgHighlighted);
 }
 
@@ -758,7 +758,7 @@ async function importPlugin() {
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
   opacity: 0.4;
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   transition:
     opacity var(--nd-duration-fast),
     background var(--nd-duration-fast);
@@ -771,7 +771,7 @@ async function importPlugin() {
 }
 
 .configDesc {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.6;
   margin: 0;
@@ -783,7 +783,7 @@ async function importPlugin() {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-inputBg, var(--nd-bg));
   color: var(--nd-fg);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 
   &::placeholder {
     opacity: 0.35;
@@ -800,7 +800,7 @@ async function importPlugin() {
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  font-size: 0.78em;
+  font-size: var(--nd-font-xs);
   color: var(--nd-fg);
   opacity: 0.5;
   border-radius: var(--nd-radius-sm);
@@ -836,7 +836,7 @@ async function importPlugin() {
 }
 
 .codeHint {
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   opacity: 0.4;
   margin: 0;
@@ -850,7 +850,7 @@ async function importPlugin() {
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   color: var(--nd-love);
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 // --- Logs tab ---
@@ -863,9 +863,9 @@ async function importPlugin() {
 }
 
 .logsList {
-  background: var(--nd-codeEditorBg, #1e1e1e);
+  background: var(--nd-codeEditorBg);
   font-family: var(--nd-font-mono);
-  font-size: 0.8em;
+  font-size: var(--nd-font-sm);
   min-height: 100%;
 }
 
@@ -892,7 +892,7 @@ async function importPlugin() {
   padding: 32px;
   color: var(--nd-fg);
   opacity: 0.4;
-  font-size: 0.85em;
+  font-size: var(--nd-font-md);
 }
 
 /* Empty placeholder class for dynamic binding */

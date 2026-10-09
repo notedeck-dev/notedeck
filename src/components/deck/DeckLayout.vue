@@ -297,6 +297,10 @@ function acceptCrossWindowDrop() {
 
 <template>
   <div :class="[$style.root, { [$style.mobile]: isCompact }]">
+    <!-- キーボード利用者がナビバーを飛ばしてカラムへ移るためのスキップリンク。
+         フォーカスが載ったときだけ見える -->
+    <a href="#nd-main" :class="$style.skipLink">{{ i18n.ts._common.skipToMain }}</a>
+
     <!-- Spotlight 用 SR-only aria-live 領域 (AI 操作のテキスト読み上げ) -->
     <div :class="$style.srOnly" aria-live="polite" aria-atomic="true">
       {{ spotlightStore.lastAnnouncement }}
@@ -314,8 +318,10 @@ function acceptCrossWindowDrop() {
       @update:show-settings-menu="showSettingsMenu = $event"
     />
 
-    <!-- Main content area -->
-    <div
+    <!-- Main content area (main ランドマーク。先頭のスキップリンクの飛び先) -->
+    <main
+      id="nd-main"
+      tabindex="-1"
       :class="[$style.mainArea, { [$style.withWallpaper]: deckStore.wallpaper != null }]"
       :style="wallpaperStyle"
     >
@@ -328,7 +334,7 @@ function acceptCrossWindowDrop() {
         :active-column-index="activeColumnIndex"
         @scroll-to-column="scrollToColumn"
       />
-    </div>
+    </main>
 
     <!-- Mobile FAB -->
     <button
@@ -453,6 +459,23 @@ function acceptCrossWindowDrop() {
   background: var(--nd-navBg);
 }
 
+.skipLink {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: var(--nd-z-toast);
+  padding: 8px 12px;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-accent);
+  color: var(--nd-fgOnAccent);
+  font-weight: var(--nd-weight-bold);
+  translate: 0 -200%;
+
+  &:focus-visible {
+    translate: none;
+  }
+}
+
 .mainArea {
   flex: 1;
   display: flex;
@@ -460,6 +483,11 @@ function acceptCrossWindowDrop() {
   min-width: 0;
   min-height: 0;
   background: var(--nd-deckBg);
+
+  /* スキップリンクの飛び先としてフォーカスを受けるだけで、操作対象ではない */
+  &:focus {
+    outline: none;
+  }
 }
 
 .withWallpaper {
@@ -484,7 +512,7 @@ function acceptCrossWindowDrop() {
     var(--nd-buttonGradateA, var(--nd-accent)),
     var(--nd-buttonGradateB, var(--nd-accentDarken))
   );
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   font-size: 20px;
   box-shadow: var(--nd-shadow-m);
 
@@ -521,15 +549,15 @@ function acceptCrossWindowDrop() {
   position: fixed;
   inset: 0;
   z-index: calc(var(--nd-z-popup) - 2);
-  background: color-mix(in srgb, var(--nd-accent, #86b300) 20%, rgba(0, 0, 0, 0.5));
+  background: color-mix(in srgb, var(--nd-accent) 20%, rgba(0, 0, 0, 0.5));
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border: 3px dashed var(--nd-accent, #86b300);
+  border: 3px dashed var(--nd-accent);
 
   &:hover {
-    background: color-mix(in srgb, var(--nd-accent, #86b300) 30%, rgba(0, 0, 0, 0.5));
+    background: color-mix(in srgb, var(--nd-accent) 30%, rgba(0, 0, 0, 0.5));
   }
 }
 
@@ -540,7 +568,7 @@ function acceptCrossWindowDrop() {
   gap: 12px;
   color: #fff;
   font-size: 18px;
-  font-weight: 600;
+  font-weight: var(--nd-weight-bold);
 
   .ti {
     font-size: 48px;
