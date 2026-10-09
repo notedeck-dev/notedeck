@@ -998,6 +998,7 @@ function onKeydown(e: KeyboardEvent) {
             tabindex="0"
             @click="openSession(session.id)"
             @keydown.enter="openSession(session.id)"
+            @keydown.space.self.prevent="openSession(session.id)"
           >
             <div :class="$style.rowAvatar">
               <i
@@ -1052,6 +1053,7 @@ function onKeydown(e: KeyboardEvent) {
             @keydown="onKeydown"
           />
           <button
+            :aria-label="i18n.ts._common.send"
             :class="$style.chatSend"
             :disabled="!canSubmit"
             @click="sendMessage"

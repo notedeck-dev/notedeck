@@ -496,7 +496,7 @@ function handleReset() {
                     >
                       <i class="ti ti-world" />
                     </button>
-                    <button class="_button" :class="$style.removeShortcut" @click.stop="removeShortcut(cmdId, idx)">
+                    <button :aria-label="i18n.ts._common.delete" class="_button" :class="$style.removeShortcut" @click.stop="removeShortcut(cmdId, idx)">
                       <i class="ti ti-x" />
                     </button>
                   </template>

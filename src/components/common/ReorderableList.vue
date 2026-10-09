@@ -49,7 +49,7 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
         <img v-if="item.avatarUrl" :src="proxyThumbUrl(item.avatarUrl, 56)" :class="$style.badgeImg" />
         <img v-if="item.serverIconUrl" :src="item.serverIconUrl" :class="$style.badgeImg" />
       </span>
-      <button class="_button" :class="$style.removeBtn" @click="emit('remove', i)">
+      <button :aria-label="i18n.ts._common.delete" class="_button" :class="$style.removeBtn" @click="emit('remove', i)">
         <i class="ti ti-x" />
       </button>
     </div>

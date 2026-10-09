@@ -279,7 +279,7 @@ onMounted(() => {
           :key="req.id"
           :class="$style.frItem"
         >
-          <div :class="$style.frUser" role="button" tabindex="0" @click="getRequestAccountId(req) && navToUser(getRequestAccountId(req)!, requestUser(req).id)" @keydown.enter="getRequestAccountId(req) && navToUser(getRequestAccountId(req)!, requestUser(req).id)">
+          <div :class="$style.frUser" role="button" tabindex="0" @click="getRequestAccountId(req) && navToUser(getRequestAccountId(req)!, requestUser(req).id)" @keydown.enter="getRequestAccountId(req) && navToUser(getRequestAccountId(req)!, requestUser(req).id)" @keydown.space.self.prevent="getRequestAccountId(req) && navToUser(getRequestAccountId(req)!, requestUser(req).id)">
             <div :class="$style.frAvatarWrap">
               <MkAvatar
                 :avatar-url="requestUser(req).avatarUrl"

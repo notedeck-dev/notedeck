@@ -249,7 +249,7 @@ async function openInBrowser() {
 
 <template>
   <div v-if="file" ref="portalRef" :class="$style.lightboxOverlay" @click="close">
-      <button :class="$style.lightboxClose" @click="close">
+      <button :aria-label="i18n.ts._common.close" :class="$style.lightboxClose" @click="close">
         <svg viewBox="0 0 24 24" width="24" height="24">
           <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
         </svg>

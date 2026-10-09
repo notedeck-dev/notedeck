@@ -497,7 +497,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
         <div v-if="installError" :class="$style.storeError">
           <i class="ti ti-alert-circle" />
           {{ installError }}
-          <button class="_button" :class="$style.storeErrorClose" @click="installError = null">
+          <button :aria-label="i18n.ts._common.close" class="_button" :class="$style.storeErrorClose" @click="installError = null">
             <i class="ti ti-x" />
           </button>
         </div>

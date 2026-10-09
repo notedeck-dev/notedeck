@@ -451,6 +451,7 @@ async function onDeleteAll() {
             :title="i18n.ts._mkDraftsPicker.restoreThis"
             @click.capture.prevent.stop="onPick(entry)"
             @keydown.enter="onPick(entry)"
+            @keydown.space.self.prevent="onPick(entry)"
           >
             <MkNote :note="entry.note" embedded />
             <span

@@ -390,6 +390,10 @@ _capabilities:
     open: "Open window"
 
 _common:
+  skipToMain: "Skip to main content"
+  more: "More"
+  previous: "Previous"
+  next: "Next"
   retry: "Retry"
   cancel: "Cancel"
   delete: "Delete"

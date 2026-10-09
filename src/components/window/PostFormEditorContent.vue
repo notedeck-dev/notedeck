@@ -252,7 +252,7 @@ async function importList() {
           @pointerdown="startDrag(i, $event)"
         >
           <i :class="['ti', `ti-${POST_FORM_BUTTON_META[id].icon}`]" />
-          <button class="_button" :class="$style.removeBtn" @click.stop="removeItem(i)">
+          <button :aria-label="i18n.ts._common.delete" class="_button" :class="$style.removeBtn" @click.stop="removeItem(i)">
             <i class="ti ti-x" />
           </button>
         </div>

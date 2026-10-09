@@ -342,6 +342,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
           />
           <button
             v-if="query"
+            :aria-label="i18n.ts._common.clear"
             class="_button"
             :class="$style.searchClear"
             @click="query = ''"

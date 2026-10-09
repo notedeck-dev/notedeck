@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { useTemplateRef } from 'vue'
+import { nextTick, useTemplateRef } from 'vue'
 import { useSwipeTab } from '@/composables/useSwipeTab'
+import { nextTabValue } from '@/utils/tablistKeys'
 
 export interface EditorTabDef {
   value: string
@@ -18,6 +19,21 @@ const emit = defineEmits<{
 }>()
 
 const tabsEl = useTemplateRef<HTMLDivElement>('tabsEl')
+
+// 左右キー / Home / End でタブを移り、選んだタブへフォーカスを移す (tablist)
+function onTabKeydown(e: KeyboardEvent) {
+  const value = nextTabValue(
+    props.tabs.map((t) => t.value),
+    props.modelValue,
+    e.key,
+  )
+  if (value == null) return
+  e.preventDefault()
+  emit('update:modelValue', value)
+  void nextTick(() => {
+    tabsEl.value?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus()
+  })
+}
 
 function next(): boolean {
   const idx = props.tabs.findIndex((t) => t.value === props.modelValue)
@@ -52,10 +68,19 @@ function onWheel(e: WheelEvent) {
 </script>
 
 <template>
-  <div ref="tabsEl" :class="$style.tabs" @wheel.prevent="onWheel">
+  <div
+    ref="tabsEl"
+    role="tablist"
+    :class="$style.tabs"
+    @wheel.prevent="onWheel"
+    @keydown="onTabKeydown"
+  >
     <button
       v-for="t in tabs"
       :key="t.value"
+      role="tab"
+      :aria-selected="modelValue === t.value"
+      :tabindex="modelValue === t.value ? 0 : -1"
       class="_button"
       :class="[$style.tab, { [$style.active]: modelValue === t.value }]"
       :title="t.label"

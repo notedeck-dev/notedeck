@@ -420,7 +420,7 @@ fetchDrive()
     <!-- Grid view -->
     <!-- Breadcrumb -->
     <div v-if="folderStack.length > 0" :class="$style.driveBreadcrumb">
-      <button class="_button" :class="$style.driveBreadcrumbItem" @click="goRoot">
+      <button :aria-label="i18n.ts._deckDriveColumn.root" class="_button" :class="$style.driveBreadcrumbItem" @click="goRoot">
         <i class="ti ti-cloud" />
       </button>
       <template v-for="(folder, i) in folderStack" :key="folder.id">

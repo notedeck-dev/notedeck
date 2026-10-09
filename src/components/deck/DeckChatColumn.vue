@@ -1231,7 +1231,7 @@ onBeforeUnmount(() => {
             :class="$style.chatAttachmentThumb"
           />
           <span v-else :class="$style.chatAttachmentName">{{ attachedFile.name }}</span>
-          <button :class="$style.chatAttachmentRemove" @click="removeAttachment">
+          <button :aria-label="i18n.ts._common.delete" :class="$style.chatAttachmentRemove" @click="removeAttachment">
             <i class="ti ti-x" />
           </button>
         </div>
@@ -1257,6 +1257,7 @@ onBeforeUnmount(() => {
             @keydown="handleKeydown"
           />
           <button
+            :aria-label="i18n.ts._common.send"
             :class="$style.chatSend"
             :disabled="!canSend"
             @click="sendMessage"

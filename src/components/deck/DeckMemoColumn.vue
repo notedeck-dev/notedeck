@@ -300,6 +300,7 @@ function closeMenu() {
           :title="i18n.ts._deckMemoColumn.openInEditor"
           @click.stop="onOpenEditor(entry)"
           @keydown.enter="onOpenEditor(entry)"
+          @keydown.space.self.prevent="onOpenEditor(entry)"
         >
           <MemoCard :memo="entry.memo" />
         </div>

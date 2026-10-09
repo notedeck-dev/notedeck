@@ -183,7 +183,11 @@ function closeLightbox() {
       v-for="file in previewableFiles"
       :key="file.id"
       :class="[$style.mediaCell, { [$style.isSensitive]: file.isSensitive && !revealedIds.has(file.id), [$style.isLoaded]: isLoaded(file) || erroredIds.has(file.id) }]"
+      role="button"
+      tabindex="0"
       @click="openLightbox(file, $event)"
+      @keydown.enter.self.prevent="openLightbox(file, $event)"
+      @keydown.space.self.prevent="openLightbox(file, $event)"
     >
       <img
         v-if="blurhashPlaceholder(file)"
@@ -196,7 +200,7 @@ function closeLightbox() {
         <img
           v-if="!erroredIds.has(file.id) && !isDeferred(file)"
           :src="imageSrc(file)"
-          :alt="file.name"
+          :alt="file.comment || file.name"
           :class="[$style.mediaImage, { [$style.isLoaded]: isLoaded(file) }]"
           :loading="props.eager ? 'eager' : 'lazy'"
           decoding="async"
@@ -264,6 +268,7 @@ function closeLightbox() {
       <!-- Revealed: show hide button -->
       <button
         v-if="file.isSensitive && revealedIds.has(file.id)"
+        :aria-label="i18n.ts._common.hide"
         :class="$style.sensitiveHideBtn"
         @click.stop="toggleSensitive(file, $event)"
       >

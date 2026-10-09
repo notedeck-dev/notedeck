@@ -2,6 +2,7 @@
 import { nextTick, ref, useCssModule, watch } from 'vue'
 import { useSwipeTab } from '@/composables/useSwipeTab'
 import { useTabIndicator } from '@/composables/useTabIndicator'
+import { nextTabValue } from '@/utils/tablistKeys'
 
 export interface ColumnTabDef {
   value: string
@@ -51,6 +52,21 @@ const { indicatorStyle } = useTabIndicator(
   `.column-tab.${$style.active}`,
   () => props.modelValue,
 )
+
+// 左右キー / Home / End でタブを移り、選んだタブへフォーカスを移す (tablist)
+function onTabKeydown(e: KeyboardEvent) {
+  const value = nextTabValue(
+    props.tabs.map((t) => t.value),
+    props.modelValue,
+    e.key,
+  )
+  if (value == null) return
+  e.preventDefault()
+  switchTab(value)
+  void nextTick(() => {
+    tabsRef.value?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus()
+  })
+}
 
 function switchTab(value: string) {
   if (value === props.modelValue) return
@@ -105,11 +121,16 @@ watch(
 <template>
   <div
     ref="tabsRef"
+    role="tablist"
     :class="[$style.tabs, scrollable && $style.scrollable]"
+    @keydown="onTabKeydown"
   >
     <button
       v-for="t in tabs"
       :key="t.value"
+      role="tab"
+      :aria-selected="modelValue === t.value"
+      :tabindex="modelValue === t.value ? 0 : -1"
       class="_button column-tab"
       :class="[
         $style.tab,

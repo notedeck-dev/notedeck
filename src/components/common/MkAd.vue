@@ -34,7 +34,7 @@ function reduceFrequency() {
     <div :class="$style.adWrapper">
       <a :class="$style.adLink" @click.prevent="onClick">
         <img :src="ad.imageUrl" :class="$style.adImage" loading="lazy" />
-        <button v-if="showMuteButton" :class="$style.adInfoBtn" @click.prevent.stop="showMenu = !showMenu">
+        <button v-if="showMuteButton" :aria-label="i18n.ts._common.menu" :class="$style.adInfoBtn" @click.prevent.stop="showMenu = !showMenu">
           <i class="ti ti-info-circle" :class="$style.adInfoIcon" />
         </button>
       </a>

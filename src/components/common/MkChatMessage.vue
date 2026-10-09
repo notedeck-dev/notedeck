@@ -298,7 +298,7 @@ usePortal(lightboxPortalRef)
   </div>
 
   <div v-if="lightboxUrl" ref="lightboxPortalRef" :class="$style.lightboxOverlay" @click="closeLightbox">
-    <button :class="$style.lightboxClose" @click="closeLightbox">
+    <button :aria-label="i18n.ts._common.close" :class="$style.lightboxClose" @click="closeLightbox">
       <svg viewBox="0 0 24 24" width="24" height="24">
         <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
       </svg>

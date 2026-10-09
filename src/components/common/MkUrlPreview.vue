@@ -107,7 +107,7 @@ onUnmounted(() => {
   observer?.disconnect()
 })
 
-function handleClick(e: MouseEvent) {
+function handleClick(e: Event) {
   e.preventDefault()
   e.stopPropagation()
   const targetUrl = data.value?.url || props.url
@@ -126,7 +126,7 @@ function hostname(url: string): string {
 <template>
   <MkNoteEmbed v-if="isNoteUrl" :url="url" />
   <!-- 取得できなかった (タイトルが無い) ときは枠ごと出さない (空の枠線だけ残さない) -->
-  <div v-else-if="shouldPreview && (loading || data?.title)" ref="el" :class="[$style.urlPreview, !loading && !loadedFromCache && 'nd-content-appear']" @click="handleClick">
+  <div v-else-if="shouldPreview && (loading || data?.title)" ref="el" role="link" tabindex="0" :class="[$style.urlPreview, !loading && !loadedFromCache && 'nd-content-appear']" @click="handleClick" @keydown.enter.self="handleClick">
     <!-- 実カード (サムネイル 100px + body のタイトル/説明/ホスト行) と同じ
          構造・寸法にして、差し替え時の高さジャンプを防ぐ -->
     <div v-if="loading" :class="$style.urlPreviewSkeleton">

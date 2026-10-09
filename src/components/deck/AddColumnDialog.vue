@@ -387,10 +387,10 @@ function close() {
   >
     <div ref="popupRef" :class="[mode === 'pip' ? $style.addPopupInline : $style.addPopup, isSheet && [$style.addSheet, $style.sheetContentEnter]]">
       <div v-if="!(mode === 'pip' && !addColumnType && !selectConfig)" :class="[$style.addPopupHeader, mode === 'pip' && $style.addPopupHeaderPip]">
-        <button v-if="addColumnType && !selectConfig" class="_button" :class="$style.addBackBtn" @click="addColumnType = null">
+        <button v-if="addColumnType && !selectConfig" :aria-label="i18n.ts._common.back" class="_button" :class="$style.addBackBtn" @click="addColumnType = null">
           <i class="ti ti-chevron-left" />
         </button>
-        <button v-else-if="selectConfig" class="_button" :class="$style.addBackBtn" @click="selectConfig = null; selectItems = []; selectAccountId = null; searchQuery = ''">
+        <button v-else-if="selectConfig" :aria-label="i18n.ts._common.back" class="_button" :class="$style.addBackBtn" @click="selectConfig = null; selectItems = []; selectAccountId = null; searchQuery = ''">
           <i class="ti ti-chevron-left" />
         </button>
         <span :class="$style.addPopupTitle">

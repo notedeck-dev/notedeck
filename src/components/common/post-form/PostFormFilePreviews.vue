@@ -171,6 +171,7 @@ async function onDelete() {
       @pointerdown="startDrag(i, $event)"
       @click="onTileClick(file, $event)"
       @keydown.enter.prevent="onTileKeydown(file, $event)"
+      @keydown.space.self.prevent="onTileKeydown(file, $event)"
     >
       <img
         v-if="file.thumbnailUrl || file.type.startsWith('image/')"

@@ -413,6 +413,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
           <i class="ti ti-alert-circle" />
           {{ installError }}
           <button
+            :aria-label="i18n.ts._common.close"
             class="_button"
             :class="$style.storeErrorClose"
             @click="installError = null"

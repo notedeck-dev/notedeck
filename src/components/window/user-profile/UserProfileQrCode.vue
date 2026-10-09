@@ -2,6 +2,7 @@
 import { nextTick, ref } from 'vue'
 import type { NormalizedUserDetail } from '@/adapters/types'
 import MkMfm from '@/components/common/MkMfm.vue'
+import { i18n } from '@/i18n'
 import { useServersStore } from '@/stores/servers'
 import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -98,7 +99,7 @@ defineExpose({ open })
 <template>
   <div v-if="showQrCode" :class="$style.qrOverlay" @click="showQrCode = false">
     <div :class="$style.qrModal" @click.stop>
-      <button class="_button" :class="$style.qrCloseBtn" @click="showQrCode = false">
+      <button :aria-label="i18n.ts._common.close" class="_button" :class="$style.qrCloseBtn" @click="showQrCode = false">
         <i class="ti ti-x" />
       </button>
       <div ref="qrCodeContainerEl" :class="$style.qrCanvas" />

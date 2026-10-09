@@ -450,6 +450,7 @@ async function importFromClipboard() {
                   <ColumnBadges :account-id="groupPrimaryColumn(group)?.accountId" :size="14" />
                 </div>
                 <button
+                  :aria-label="i18n.ts._common.delete"
                   class="_button"
                   :class="$style.removeBtn"
                   @click.stop="removeGroup(groupIdx)"

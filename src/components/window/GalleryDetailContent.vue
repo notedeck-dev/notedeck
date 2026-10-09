@@ -207,6 +207,7 @@ function onKeydown(e: KeyboardEvent) {
           <template v-if="detailPost.files.length > 1">
             <button
               v-if="detailImageIndex > 0"
+              :aria-label="i18n.ts._common.previous"
               class="_button"
               :class="[$style.navBtn, $style.navPrev]"
               @click="prevImage"
@@ -215,6 +216,7 @@ function onKeydown(e: KeyboardEvent) {
             </button>
             <button
               v-if="detailImageIndex < detailPost.files.length - 1"
+              :aria-label="i18n.ts._common.next"
               class="_button"
               :class="[$style.navBtn, $style.navNext]"
               @click="nextImage"

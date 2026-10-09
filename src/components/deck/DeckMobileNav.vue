@@ -60,6 +60,7 @@ const {
 <template>
   <nav ref="rootEl" :class="$style.root">
     <button
+      :aria-label="i18n.ts._common.menu"
       class="_button"
       :class="$style.menuBtn"
       @click="emit('toggle-drawer')"

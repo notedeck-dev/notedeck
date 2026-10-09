@@ -308,7 +308,7 @@ async function importNav() {
                 <i :class="['ti', getItemIcon(item)]" />
                 <ColumnBadges :account-id="item.accountId" :size="14" />
               </div>
-              <button class="_button" :class="$style.tabRemoveBtn" @click.stop="removeItem(i)">
+              <button :aria-label="i18n.ts._common.delete" class="_button" :class="$style.tabRemoveBtn" @click.stop="removeItem(i)">
                 <i class="ti ti-x" />
               </button>
             </div>

@@ -908,7 +908,7 @@ function handlePickerReaction(reaction: string) {
         <template v-else>{{ note.user.username }}</template>
       </span>
       <span :class="$style.renoteLabel">{{ i18n.ts._mkNote.renotedSuffix }}</span>
-      <button :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
+      <button :aria-label="i18n.ts._common.more" :class="$style.renoteMoreButton" @click.stop="renoteMoreMenuRef?.open($event)">
         <i class="ti ti-dots" />
       </button>
       <AppTime :class="$style.renoteTime" :at="note.createdAt" />
@@ -1202,7 +1202,7 @@ function handlePickerReaction(reaction: string) {
               {{ effectiveNote.renoteCount }}
             </span>
           </button>
-          <button v-else :class="[$style.footerButton, $style.renoteButton, $style.footerDisabled]" disabled>
+          <button :aria-label="i18n.ts._common.renote" v-else :class="[$style.footerButton, $style.renoteButton, $style.footerDisabled]" disabled>
             <i class="ti ti-ban" />
           </button>
           <button
@@ -1214,6 +1214,7 @@ function handlePickerReaction(reaction: string) {
             <i :class="effectiveNote.myReaction != null ? 'ti ti-minus' : 'ti ti-plus'" />
           </button>
           <button
+            :aria-label="i18n.ts._common.more"
             :class="[$style.footerButton, $style.moreButton]"
             @click.stop="moreMenuRef?.open($event)"
           >
