@@ -35,6 +35,10 @@ vi.mock('./PopupMenu.vue', () => ({
 
 import MkMediaLightbox from './MkMediaLightbox.vue'
 
+function proxied(url: string): string {
+  return `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(url)}`
+}
+
 function makeImage(id: string): NormalizedDriveFile {
   return {
     id,
@@ -162,6 +166,39 @@ describe('MkMediaLightbox (#792)', () => {
     expect(labels).toContain('ブラウザーで開く')
   })
 
+  describe('画像プロキシ経由の表示 (#1214)', () => {
+    it('拡大表示の画像は原寸のプロキシ URL で読む', () => {
+      mountLightbox([makeImage('a')])
+      expect(currentImage()?.getAttribute('src')).toBe(
+        proxied('https://example.test/a.png'),
+      )
+    })
+
+    it('プロキシで読めなかったら元の URL に倒す', async () => {
+      mountLightbox([makeImage('a')])
+      currentImage()?.dispatchEvent(new Event('error'))
+      await vi.waitFor(() =>
+        expect(currentImage()?.getAttribute('src')).toBe(
+          'https://example.test/a.png',
+        ),
+      )
+    })
+
+    it('動画は標準の controls ではなく独自のプレイヤーで出す', () => {
+      mountLightbox([
+        {
+          ...makeImage('v'),
+          type: 'video/mp4',
+          url: 'https://example.test/v.mp4',
+        },
+      ])
+      const video = container?.querySelector('video')
+      expect(video?.getAttribute('src')).toBe('https://example.test/v.mp4')
+      expect(video?.hasAttribute('controls')).toBe(false)
+      expect(video?.autoplay).toBe(true)
+    })
+  })
+
   describe('隣接画像の先読み (#704 O-3)', () => {
     let preloaded: string[] = []
     class FakeImage {
@@ -178,19 +215,19 @@ describe('MkMediaLightbox (#792)', () => {
       vi.unstubAllGlobals()
     })
 
-    it('前後 1 枚を原寸 URL で先読みする', async () => {
+    it('前後 1 枚を原寸のプロキシ URL で先読みする', async () => {
       mountLightbox(
         [makeImage('a'), makeImage('b'), makeImage('c'), makeImage('d')],
         1,
       )
       expect(preloaded.sort()).toEqual([
-        'https://example.test/a.png',
-        'https://example.test/c.png',
+        proxied('https://example.test/a.png'),
+        proxied('https://example.test/c.png'),
       ])
       navButtons()[1]?.click()
       await vi.waitFor(() => expect(currentImage()?.src).toContain('c.png'))
       // 移動先の隣 (d) が増える。表示済みの b と先読み済みの c は読み直さない
-      expect(preloaded).toContain('https://example.test/d.png')
+      expect(preloaded).toContain(proxied('https://example.test/d.png'))
       expect(preloaded).toHaveLength(3)
     })
 
