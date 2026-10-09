@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, useTemplateRef } from 'vue'
 import { useSwipeTab } from '@/composables/useSwipeTab'
+import { useTabIndicator } from '@/composables/useTabIndicator'
 import { nextTabValue } from '@/utils/tablistKeys'
 
 export interface EditorTabDef {
@@ -19,6 +20,13 @@ const emit = defineEmits<{
 }>()
 
 const tabsEl = useTemplateRef<HTMLDivElement>('tabsEl')
+
+// 下線は選んだタブへ滑らせる (ColumnTabs と同じ)
+const { indicatorStyle } = useTabIndicator(
+  tabsEl,
+  '[aria-selected="true"]',
+  () => props.modelValue,
+)
 
 // 左右キー / Home / End でタブを移り、選んだタブへフォーカスを移す (tablist)
 function onTabKeydown(e: KeyboardEvent) {
@@ -90,12 +98,14 @@ function onWheel(e: WheelEvent) {
       <i :class="'ti ti-' + t.icon" />
       <span :class="$style.label">{{ t.label }}</span>
     </button>
+    <div :class="$style.indicator" :style="indicatorStyle" />
   </div>
 </template>
 
 <style lang="scss" module>
 .tabs {
   display: flex;
+  position: relative;
   gap: 0;
   border-bottom: 1px solid var(--nd-divider);
   flex-shrink: 0;
@@ -118,7 +128,7 @@ function onWheel(e: WheelEvent) {
   opacity: 0.5;
   border-bottom: 2px solid transparent;
   flex-shrink: 0;
-  transition: opacity var(--nd-duration-base), border-color var(--nd-duration-base);
+  transition: opacity var(--nd-duration-base), color var(--nd-duration-base);
 
   &:hover {
     opacity: 0.8;
@@ -126,13 +136,27 @@ function onWheel(e: WheelEvent) {
 
   &.active {
     opacity: 1;
-    border-bottom-color: var(--nd-accent);
     color: var(--nd-accent);
 
     .label {
       display: inline;
     }
   }
+}
+
+.indicator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 1px;
+  height: 2px;
+  background: var(--nd-accent);
+  transform-origin: 0 0;
+  transition:
+    translate var(--nd-duration-slower) var(--nd-ease-pop),
+    scale var(--nd-duration-slower) var(--nd-ease-pop),
+    opacity var(--nd-duration-slower) var(--nd-ease-pop);
+  pointer-events: none;
 }
 
 .label {

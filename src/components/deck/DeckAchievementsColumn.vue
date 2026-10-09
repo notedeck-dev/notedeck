@@ -6,6 +6,7 @@ import MkAchievementsGrid from '@/components/common/MkAchievementsGrid.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
+import { useTabSlide } from '@/composables/useTabSlide'
 import { useTutorialStore } from '@/composables/useTutorial'
 import { i18n } from '@/i18n'
 import { ACHIEVEMENT_TOTAL, type Achievement } from '@/services/achievements'
@@ -63,6 +64,11 @@ const source = ref<'server' | 'notedeck'>(
   account.value?.hasToken === false || !props.column.accountId
     ? 'notedeck'
     : 'server',
+)
+
+useTabSlide(
+  computed(() => SOURCE_TABS.findIndex((t) => t.value === source.value)),
+  scroller,
 )
 
 const tutorial = useTutorialStore()
