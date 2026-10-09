@@ -14,7 +14,12 @@ function stubPointerEnv(coarse: boolean, maxTouchPoints: number) {
   })
   window.matchMedia = ((query: string) =>
     ({
-      matches: query.includes('coarse') ? coarse : !coarse,
+      // reduced-motion 等のポインタ以外の問い合わせは一致させない
+      matches: query.includes('coarse')
+        ? coarse
+        : query.includes('pointer')
+          ? !coarse
+          : false,
       media: query,
       onchange: null,
       addEventListener: vi.fn(),
@@ -26,14 +31,14 @@ function stubPointerEnv(coarse: boolean, maxTouchPoints: number) {
 }
 
 // グローバルシングルトンを持つので、テストごとにモジュールを読み直す
-async function mountHoverPopup(): Promise<Popup> {
+async function mountHoverPopup(leaveDuration = 0): Promise<Popup> {
   vi.resetModules()
   const { useHoverPopup } = await import('./useHoverPopup')
   let popup!: Popup
   app = createApp(
     defineComponent({
       setup() {
-        popup = useHoverPopup({ showDelay: 0 })
+        popup = useHoverPopup({ showDelay: 0, leaveDuration })
         return () => h('div')
       },
     }),
@@ -73,5 +78,28 @@ describe('useHoverPopup', () => {
     popup.show({ x: 10, y: 20 })
     await tick()
     expect(popup.isVisible.value).toBe(false)
+  })
+
+  it('leaveDuration の間は退場中として描画を残し、元の位置に留める', async () => {
+    stubPointerEnv(false, 0)
+    const popup = await mountHoverPopup(30)
+    popup.show({ x: 10, y: 20 })
+    await tick()
+    popup.hide()
+    expect(popup.isVisible.value).toBe(true)
+    expect(popup.position.value).toEqual({ x: 10, y: 20 })
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(popup.isVisible.value).toBe(false)
+  })
+
+  it('退場中に同じ所へ戻ると、そのまま表示に戻る', async () => {
+    stubPointerEnv(false, 0)
+    const popup = await mountHoverPopup(30)
+    popup.show({ x: 10, y: 20 })
+    await tick()
+    popup.hide()
+    popup.show({ x: 10, y: 20 })
+    await new Promise((resolve) => setTimeout(resolve, 40))
+    expect(popup.isVisible.value).toBe(true)
   })
 })

@@ -32,3 +32,71 @@
 @keyframes popupOut {
   to { opacity: 0; transform: scale(0.92) translateY(4px); }
 }
+
+// ホバーで出るプレビュー (ユーザー / リアクションしたユーザー / 補完候補)。
+// 退場の時間は JS 側の leaveDuration (USER_POPUP_HOVER 等の 150ms) と同じ
+// --nd-duration-base。退場中はクリックを吸わない
+.hoverEnter {
+  animation: hoverIn var(--nd-duration-base) var(--nd-ease-decel);
+}
+
+.hoverLeave {
+  animation: hoverOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
+
+  // 使う側の root が pointer-events: auto を持つので、後に書かれても勝つよう重ねる
+  &#{&} {
+    pointer-events: none;
+  }
+}
+
+@keyframes hoverIn {
+  from { opacity: 0; transform: scale(0.97) translateY(4px); }
+}
+
+@keyframes hoverOut {
+  to { opacity: 0; transform: scale(0.97) translateY(4px); }
+}
+
+// 入力欄やフォームに付いて開くピッカー (絵文字 / ドライブ / 下書き 等)。
+// 退場の時間は JS 側の leaveDuration (150ms) と同じ --nd-duration-base
+.panelEnter {
+  animation: panelIn var(--nd-duration-medium) var(--nd-ease-menu);
+}
+
+.panelLeave {
+  animation: panelOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
+
+  &#{&} {
+    pointer-events: none;
+  }
+}
+
+@keyframes panelIn {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes panelOut {
+  to { opacity: 0; transform: translateY(8px); }
+}
+
+// トリガーに付いて開くメニュー / ドロップダウン。
+// 退場の時間は JS 側の leaveDuration (150ms) と同じ --nd-duration-base
+.menuEnter {
+  animation: menuIn var(--nd-duration-medium) var(--nd-ease-menu);
+}
+
+.menuLeave {
+  animation: menuOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
+
+  &#{&} {
+    pointer-events: none;
+  }
+}
+
+@keyframes menuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+@keyframes menuOut {
+  to { opacity: 0; transform: translateY(-4px); }
+}

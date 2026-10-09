@@ -1,30 +1,6 @@
-// Shared nav-menu popup transition classes.
+// Shared bottom-sheet transition classes (モバイルのメニュー / ピッカー)。
 // Usage: @use '@/styles/navMenu';
-
-.menuEnter {
-  animation: menuIn 0.18s var(--nd-ease-menu);
-}
-
-.menuLeave {
-  animation: menuOut 0.18s var(--nd-ease-menu) forwards;
-}
-
-@keyframes menuIn {
-  from { opacity: 0; transform: translateY(4px); }
-}
-
-@keyframes menuOut {
-  to { opacity: 0; transform: translateY(4px); }
-}
-
-@media (max-width: 500px) {
-  @keyframes menuIn {
-    from { opacity: 0; transform: translateY(8px); }
-  }
-  @keyframes menuOut {
-    to { opacity: 0; transform: translateY(8px); }
-  }
-}
+// トリガーに付いて開くメニューは _popup.scss の menuEnter / menuLeave。
 
 // Mobile bottom-sheet — used together with a `<dialog class="_nativeDialog">`
 // host. The `mobileBackdrop` class anchors the sheet to the viewport bottom;
