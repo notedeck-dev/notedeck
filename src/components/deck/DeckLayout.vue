@@ -484,7 +484,7 @@ function acceptCrossWindowDrop() {
     var(--nd-buttonGradateA, var(--nd-accent)),
     var(--nd-buttonGradateB, var(--nd-accentDarken))
   );
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   font-size: 20px;
   box-shadow: var(--nd-shadow-m);
 
@@ -521,15 +521,15 @@ function acceptCrossWindowDrop() {
   position: fixed;
   inset: 0;
   z-index: calc(var(--nd-z-popup) - 2);
-  background: color-mix(in srgb, var(--nd-accent, #86b300) 20%, rgba(0, 0, 0, 0.5));
+  background: color-mix(in srgb, var(--nd-accent) 20%, rgba(0, 0, 0, 0.5));
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  border: 3px dashed var(--nd-accent, #86b300);
+  border: 3px dashed var(--nd-accent);
 
   &:hover {
-    background: color-mix(in srgb, var(--nd-accent, #86b300) 30%, rgba(0, 0, 0, 0.5));
+    background: color-mix(in srgb, var(--nd-accent) 30%, rgba(0, 0, 0, 0.5));
   }
 }
 

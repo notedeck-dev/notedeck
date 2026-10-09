@@ -603,8 +603,8 @@ const statusBadges = computed(() => {
 }
 
 .roleWarn {
-  border-color: var(--nd-warn, #e8a530);
-  color: var(--nd-warn, #e8a530);
+  border-color: var(--nd-warn);
+  color: var(--nd-warn);
 }
 
 .description {

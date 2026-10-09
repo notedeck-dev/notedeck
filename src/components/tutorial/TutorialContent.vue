@@ -329,7 +329,7 @@ function openDocs(path: string): void {
   font-weight: var(--nd-weight-bold);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   cursor: pointer;
   transition: filter var(--nd-duration-base) var(--nd-ease-decel);
 

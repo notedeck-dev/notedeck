@@ -308,7 +308,7 @@ onMounted(() => {
 }
 
 .subtitleWarn {
-  color: var(--nd-warn, #f0a020);
+  color: var(--nd-warn);
   opacity: 1;
 }
 

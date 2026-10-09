@@ -584,7 +584,7 @@ onMounted(() => {
   padding: 4px;
 
   &:hover {
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.03));
+    background: var(--nd-panelHighlight);
   }
 }
 

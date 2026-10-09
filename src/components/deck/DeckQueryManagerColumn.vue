@@ -642,7 +642,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
   width: 100%;
   padding: 6px 10px;
   border-radius: var(--nd-radius-md);
-  border: 1px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
+  border: 1px solid var(--nd-divider);
   background: var(--nd-panel);
   color: inherit;
   font: inherit;
@@ -683,7 +683,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
   padding: 6px 14px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
 }
 
 .storeError {

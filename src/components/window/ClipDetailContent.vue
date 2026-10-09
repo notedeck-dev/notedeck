@@ -336,7 +336,7 @@ onMounted(async () => {
 }
 
 .favActive {
-  color: var(--nd-warn, #f0a020);
+  color: var(--nd-warn);
 }
 
 .favCount {

@@ -716,8 +716,8 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
   // HEARTBEAT mode は accent (heartbeat pink) で強調
   &[data-mode='heartbeat'] {
-    background: color-mix(in srgb, var(--nd-accent, #f06292) 22%, transparent);
-    color: var(--nd-accent, #f06292);
+    background: color-mix(in srgb, var(--nd-accent) 22%, transparent);
+    color: var(--nd-accent);
     opacity: 1;
   }
 }
@@ -849,9 +849,9 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 // HEARTBEAT 対象として toggle ON のとき、iconBtn を accent カラーで強調。
 // 非ホバー時も常時表示する (= hover で消える .actions の opacity を打ち消し)
 .heartbeatActive {
-  color: var(--nd-accent, #f06292);
+  color: var(--nd-accent);
   opacity: 1 !important;
-  background: color-mix(in srgb, var(--nd-accent, #f06292) 12%, transparent);
+  background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
 }
 
 .primaryBtn {

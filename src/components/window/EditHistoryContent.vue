@@ -358,8 +358,8 @@ function isSelfEdit(entry: HistoryEntry): boolean {
   margin: 0 10px;
   padding: 6px 8px;
   font-size: 11px;
-  color: var(--nd-error, #f66);
-  background: color-mix(in srgb, var(--nd-error, #f66) 10%, transparent);
+  color: var(--nd-error);
+  background: color-mix(in srgb, var(--nd-error) 10%, transparent);
   border-radius: var(--nd-radius-xs);
 }
 

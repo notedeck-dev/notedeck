@@ -422,8 +422,8 @@ const barStatus = computed<EditorActionStatus | null>(() => {
   gap: 6px;
   padding: 6px 8px;
   font-size: 11px;
-  color: var(--nd-accent, #f06292);
-  background: color-mix(in srgb, var(--nd-accent, #f06292) 8%, transparent);
+  color: var(--nd-accent);
+  background: color-mix(in srgb, var(--nd-accent) 8%, transparent);
   border-radius: var(--nd-radius-xs);
   line-height: 1.4;
 

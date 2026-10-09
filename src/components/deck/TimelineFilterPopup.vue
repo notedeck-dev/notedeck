@@ -146,7 +146,7 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   position: fixed;
   width: 220px;
   padding: 8px 0;
-  color: var(--nd-fg, #fff);
+  color: var(--nd-fg);
   font-size: var(--nd-font-body);
   /* 行が多い (検索の行 + クエリの一覧) と画面の下にはみ出して届かないので、
      ボタンの下から画面の端までに収めて中をスクロールさせる (#1178) */
@@ -177,7 +177,7 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.05));
+    background: var(--nd-buttonHoverBg);
   }
 }
 

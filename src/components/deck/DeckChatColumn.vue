@@ -1328,7 +1328,7 @@ onBeforeUnmount(() => {
 
   &:hover {
     opacity: 1;
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+    background: var(--nd-panelHighlight);
   }
 
   &.active {
@@ -1384,10 +1384,10 @@ onBeforeUnmount(() => {
   contain: layout style paint;
   content-visibility: auto;
   contain-intrinsic-size: auto 65px;
-  border-bottom: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-bottom: 1px solid var(--nd-divider);
 
   &:hover {
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.03));
+    background: var(--nd-panelHighlight);
   }
 
   :deep(.mk-avatar) {
@@ -1410,7 +1410,7 @@ onBeforeUnmount(() => {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: var(--nd-buttonBg, rgba(255, 255, 255, 0.1));
+  background: var(--nd-buttonBg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1487,7 +1487,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   padding: 6px 8px 8px;
-  border-top: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-top: 1px solid var(--nd-divider);
   background: var(--nd-panel);
   position: relative;
 }
@@ -1498,7 +1498,7 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 4px 8px;
   margin-bottom: 4px;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   border-radius: var(--nd-radius-md);
 }
 
@@ -1560,13 +1560,13 @@ onBeforeUnmount(() => {
 
   &:hover {
     opacity: 0.8;
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+    background: var(--nd-panelHighlight);
   }
 
   &.active {
     opacity: 1;
     color: var(--nd-accent);
-    background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+    background: var(--nd-accentedBg);
   }
 }
 
@@ -1574,7 +1574,7 @@ onBeforeUnmount(() => {
   flex: 1;
   resize: none;
   border: none;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
   border-radius: var(--nd-radius-lg);
   padding: 8px 12px;
@@ -1596,7 +1596,7 @@ onBeforeUnmount(() => {
   border-radius: 50%;
   border: none;
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -1648,7 +1648,7 @@ onBeforeUnmount(() => {
   flex-direction: column;
   max-height: 280px;
   overflow: hidden;
-  border-top: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-top: 1px solid var(--nd-divider);
   background: var(--nd-panel);
 }
 

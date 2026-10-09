@@ -715,7 +715,7 @@ defineExpose({
 .navbar {
   flex: 0 0 auto;
   display: flex;
-  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
   position: relative;
   z-index: 1;
   container-type: inline-size;
@@ -863,7 +863,7 @@ defineExpose({
 }
 
 .onlineActive {
-  color: var(--nd-accent, #86b300);
+  color: var(--nd-accent);
 
   :global(.ti) {
     opacity: 1;
@@ -871,7 +871,7 @@ defineExpose({
 }
 
 .offlineActive {
-  color: var(--nd-error, #ec4137);
+  color: var(--nd-error);
 
   :global(.ti) {
     opacity: 1;
@@ -879,7 +879,7 @@ defineExpose({
 }
 
 .realtimeActive {
-  color: var(--nd-warn, #ecb637);
+  color: var(--nd-warn);
 
   :global(.ti) {
     opacity: 1;
@@ -887,7 +887,7 @@ defineExpose({
 }
 
 .pollingActive {
-  color: var(--nd-modePolling, #9c27b0);
+  color: var(--nd-modePolling);
 
   :global(.ti) {
     opacity: 1;
@@ -998,7 +998,7 @@ defineExpose({
   padding: 0 13px;
   border-radius: var(--nd-radius-full);
   background: linear-gradient(90deg, var(--nd-buttonGradateA, var(--nd-accent)), var(--nd-buttonGradateB, var(--nd-accentDarken)));
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   font-weight: var(--nd-weight-bold);
   font-size: var(--nd-font-body);
   white-space: nowrap;
@@ -1067,7 +1067,7 @@ defineExpose({
   width: var(--sub-button-width);
   height: calc(var(--sub-button-width) * 4);
   pointer-events: none;
-  color: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+  color: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
 }
 
 .subButtonClickable {
@@ -1105,7 +1105,7 @@ defineExpose({
   margin-top: -32px;
   margin-bottom: -32px;
   pointer-events: none;
-  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+  background: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
 }
 
 .subButtonGapFillDivider {

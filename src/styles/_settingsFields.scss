@@ -86,5 +86,5 @@
 @mixin key-warn {
   @include key-hint;
   opacity: 1;
-  color: var(--nd-error, #ec4137);
+  color: var(--nd-error);
 }

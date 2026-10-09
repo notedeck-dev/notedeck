@@ -698,7 +698,7 @@ function handleReset() {
   align-items: center;
   gap: 4px;
   padding: 2px 8px;
-  background: var(--nd-buttonBg, rgba(0, 0, 0, 0.1));
+  background: var(--nd-buttonBg);
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-xs);
   font-size: var(--nd-font-xs);
@@ -750,7 +750,7 @@ function handleReset() {
   padding: 0 4px;
   border-radius: var(--nd-radius-xs);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   font-size: var(--nd-font-md);
 }
 
@@ -782,7 +782,7 @@ function handleReset() {
 
   &:hover {
     opacity: 1 !important;
-    color: var(--nd-love, #ec4137);
+    color: var(--nd-love);
   }
 }
 

@@ -432,7 +432,7 @@ onBeforeUnmount(() => {
 }
 
 .maximized {
-  top: var(--nd-app-inset-top, 0px);
+  top: var(--nd-app-inset-top);
   left: 0;
   right: 0;
   bottom: 0;
@@ -565,7 +565,7 @@ onBeforeUnmount(() => {
 
 .mobile {
   left: 0 !important;
-  top: var(--nd-app-inset-top, 0px) !important;
+  top: var(--nd-app-inset-top) !important;
   right: 0 !important;
   // ボトムバー (mobile nav) の上端で止め、覆い隠さない。height: auto + top/bottom
   // で高さが決まるので、ウィンドウが画面下まで伸びすぎる問題も同時に解消する。

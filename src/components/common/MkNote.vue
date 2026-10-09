@@ -1992,7 +1992,7 @@ function handlePickerReaction(reaction: string) {
 
   &:hover {
     color: var(--nd-fgHighlighted);
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 

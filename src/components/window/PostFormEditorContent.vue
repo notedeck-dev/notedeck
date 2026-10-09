@@ -436,7 +436,7 @@ async function importList() {
   }
 
   &:hover {
-    color: var(--nd-love, #ec4137);
+    color: var(--nd-love);
   }
 }
 
@@ -490,7 +490,7 @@ async function importList() {
   border-radius: var(--nd-radius-sm);
 
   &.hasError {
-    border-color: var(--nd-love, #ec4137);
+    border-color: var(--nd-love);
   }
 }
 
@@ -499,7 +499,7 @@ async function importList() {
   align-items: center;
   gap: 4px;
   font-size: var(--nd-font-xs);
-  color: var(--nd-love, #ec4137);
+  color: var(--nd-love);
 }
 
 .codeSuccess {

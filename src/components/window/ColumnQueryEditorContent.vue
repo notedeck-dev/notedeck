@@ -326,7 +326,7 @@ async function save(): Promise<void> {
   width: 100%;
   padding: 7px 10px;
   border-radius: var(--nd-radius-md);
-  border: 1px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
+  border: 1px solid var(--nd-divider);
   background: var(--nd-panel);
   color: inherit;
   font: inherit;
@@ -360,7 +360,7 @@ async function save(): Promise<void> {
 }
 
 .statusFast {
-  color: var(--nd-accent, #86b300);
+  color: var(--nd-accent);
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -391,7 +391,7 @@ async function save(): Promise<void> {
   margin: 0;
   padding: 0;
   list-style: none;
-  color: var(--nd-love, #ff6b6b);
+  color: var(--nd-love);
   display: flex;
   flex-direction: column;
   gap: 2px;

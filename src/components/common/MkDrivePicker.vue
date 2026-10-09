@@ -260,7 +260,7 @@ fetchDrive()
   padding: 4px 12px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   font-size: var(--nd-font-sm);
   font-weight: var(--nd-weight-bold);
   transition: opacity var(--nd-duration-base);

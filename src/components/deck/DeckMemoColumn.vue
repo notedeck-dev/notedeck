@@ -360,7 +360,7 @@ function closeMenu() {
   }
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.015), rgba(255, 255, 255, 0.015));
+    background: color-mix(in srgb, var(--nd-fg) 1.5%, transparent);
   }
 }
 
@@ -406,7 +406,7 @@ function closeMenu() {
   gap: 3px;
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
-  background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.06));
+  background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
 }
 
 .metaScheduled {

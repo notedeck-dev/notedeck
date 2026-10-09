@@ -322,7 +322,7 @@ usePortal(lightboxPortalRef)
     flex-direction: row-reverse;
 
     .chatBubble {
-      background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+      background: var(--nd-accentedBg);
       border-bottom-right-radius: 4px;
     }
 
@@ -354,7 +354,7 @@ usePortal(lightboxPortalRef)
 .chatBubble {
   padding: 8px 12px;
   border-radius: 14px;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   font-size: var(--nd-font-body);
   line-height: 1.5;
   word-break: break-word;
@@ -401,7 +401,7 @@ usePortal(lightboxPortalRef)
   height: 20px;
   border: none;
   border-radius: 50%;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.08));
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
   opacity: 0.5;
   cursor: pointer;
@@ -410,7 +410,7 @@ usePortal(lightboxPortalRef)
 
   &:hover {
     opacity: 1;
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.15));
+    background: var(--nd-buttonHoverBg);
   }
 }
 
@@ -428,15 +428,15 @@ usePortal(lightboxPortalRef)
   gap: 3px;
   padding: 2px 6px;
   border-radius: var(--nd-radius-lg);
-  border: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.1));
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--nd-divider);
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
   font-size: var(--nd-font-sm);
   cursor: pointer;
   line-height: 1.4;
 
   &:not(:disabled):hover {
-    background: var(--nd-buttonHoverBg, rgba(255, 255, 255, 0.1));
+    background: var(--nd-buttonHoverBg);
   }
 
   /* 自分のメッセージのリアクションは付け外しできないので押せる見た目にしない */
@@ -446,7 +446,7 @@ usePortal(lightboxPortalRef)
 
   &.reacted {
     border-color: var(--nd-accent);
-    background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+    background: var(--nd-accentedBg);
   }
 }
 
@@ -464,7 +464,7 @@ usePortal(lightboxPortalRef)
   border-radius: 50%;
   background: var(--nd-buttonBg);
   overflow: hidden;
-  border: 1.5px solid var(--nd-panel, #1a1a1a);
+  border: 1.5px solid var(--nd-panel);
 }
 
 .reactionAvatar {

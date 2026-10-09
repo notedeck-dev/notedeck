@@ -990,7 +990,7 @@ function handleReset() {
 }
 
 .dangerBtn:hover:not(:disabled) {
-  color: var(--nd-love, #ec4137);
+  color: var(--nd-love);
 }
 
 .taskBody {
@@ -1030,7 +1030,7 @@ function handleReset() {
   }
 
   &.hasError {
-    border-color: var(--nd-love, #ec4137);
+    border-color: var(--nd-love);
   }
 }
 

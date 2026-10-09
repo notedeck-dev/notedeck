@@ -407,7 +407,7 @@ function onInstanceClick(inst: FederationInstance) {
 
 .sortPillActive {
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
 }
 
 .scroller {
@@ -495,11 +495,11 @@ function onInstanceClick(inst: FederationInstance) {
 }
 
 .badgeWarn {
-  background: var(--nd-warn, #e8a530);
+  background: var(--nd-warn);
 }
 
 .badgeError {
-  background: var(--nd-love, #ff4400);
+  background: var(--nd-love);
 }
 
 .host {

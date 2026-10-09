@@ -454,7 +454,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
   transition: opacity var(--nd-duration-base);
 
   &:hover {
-    color: var(--nd-error, #ec4137);
+    color: var(--nd-error);
   }
 }
 
@@ -506,7 +506,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 
   &:hover:not(:disabled) {
     opacity: 1;
-    color: var(--nd-error, #ec4137);
+    color: var(--nd-error);
   }
 
   &:disabled {

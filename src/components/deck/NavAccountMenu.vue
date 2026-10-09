@@ -170,7 +170,7 @@ const hasUpperSection = computed(
 }
 
 .modeActive {
-  color: var(--nd-accent, #86b300);
+  color: var(--nd-accent);
 }
 
 .navAccountMenuLabel {
@@ -193,7 +193,7 @@ const hasUpperSection = computed(
 }
 
 .navAccountLogout {
-  color: var(--nd-love, #ff6b6b);
+  color: var(--nd-love);
   gap: 8px;
 
   .ti {

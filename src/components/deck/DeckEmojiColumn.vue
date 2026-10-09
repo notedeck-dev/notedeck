@@ -384,7 +384,7 @@ function getRowItems(index: number): ServerEmoji[] {
 
   &.active {
     background: var(--nd-accent);
-    color: var(--nd-fgOnAccent, #fff);
+    color: var(--nd-fgOnAccent);
   }
 }
 

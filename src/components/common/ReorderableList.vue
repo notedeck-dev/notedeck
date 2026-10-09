@@ -165,8 +165,8 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
 
   &:hover {
     opacity: 1;
-    color: var(--nd-love, #ec4137);
-    background: color-mix(in srgb, var(--nd-love, #ec4137) 10%, transparent);
+    color: var(--nd-love);
+    background: color-mix(in srgb, var(--nd-love) 10%, transparent);
   }
 }
 

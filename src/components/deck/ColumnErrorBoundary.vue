@@ -69,7 +69,7 @@ function retry() {
   border-radius: var(--nd-radius-full);
   font-size: var(--nd-font-md);
   font-weight: var(--nd-weight-bold);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   background: var(--nd-accent);
 
   &:hover {

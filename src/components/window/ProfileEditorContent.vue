@@ -734,7 +734,7 @@ async function importFromClipboard() {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: var(--nd-error, #ec4137);
+  background: var(--nd-error);
   color: #fff;
   font-size: 9px;
   display: flex;

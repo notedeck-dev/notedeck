@@ -423,13 +423,13 @@ onMounted(() => {
   border-radius: var(--nd-radius-md);
   background: var(--nd-infoWarnBg, var(--nd-accentedBg));
   font-size: var(--nd-font-md);
-  color: var(--nd-infoWarnFg, #ffbd3e);
+  color: var(--nd-infoWarnFg);
   line-height: 1.5;
 
   > .ti {
     flex-shrink: 0;
     margin-top: 2px;
-    color: var(--nd-warn, #e8a530);
+    color: var(--nd-warn);
   }
 }
 

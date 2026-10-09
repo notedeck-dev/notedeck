@@ -1413,11 +1413,11 @@ function onKeydown(e: KeyboardEvent) {
   text-align: left;
   cursor: pointer;
   transition: background var(--nd-duration-base);
-  border-bottom: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-bottom: 1px solid var(--nd-divider);
 
   &:hover,
   &:focus-visible {
-    background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.03));
+    background: var(--nd-panelHighlight);
 
     .rowActions {
       opacity: 1;
@@ -1443,7 +1443,7 @@ function onKeydown(e: KeyboardEvent) {
   height: 36px;
   flex-shrink: 0;
   border-radius: 50%;
-  background: var(--nd-buttonBg, rgba(255, 255, 255, 0.1));
+  background: var(--nd-buttonBg);
   color: var(--nd-fg);
   opacity: 0.6;
   font-size: var(--nd-font-lg);
@@ -1451,11 +1451,11 @@ function onKeydown(e: KeyboardEvent) {
 
 // kind=heartbeat は accent カラーで強調 (avatar 背景 + アイコン + 左 border)
 .rowHeartbeat {
-  border-left: 2px solid var(--nd-accent, #f06292);
+  border-left: 2px solid var(--nd-accent);
 
   .rowAvatar {
-    background: color-mix(in srgb, var(--nd-accent, #f06292) 20%, transparent);
-    color: var(--nd-accent, #f06292);
+    background: color-mix(in srgb, var(--nd-accent) 20%, transparent);
+    color: var(--nd-accent);
     opacity: 1;
   }
 }
@@ -1571,7 +1571,7 @@ function onKeydown(e: KeyboardEvent) {
     }
 
     .chatBubble {
-      background: var(--nd-accentedBg, rgba(134, 179, 0, 0.15));
+      background: var(--nd-accentedBg);
       border-bottom-right-radius: 4px;
     }
   }
@@ -1599,9 +1599,9 @@ function onKeydown(e: KeyboardEvent) {
       max-width: 100%;
       padding: 8px 12px 10px;
       border-radius: var(--nd-radius-sm);
-      background: color-mix(in srgb, var(--nd-accent, #f06292) 5%, transparent);
-      border: 1px solid color-mix(in srgb, var(--nd-accent, #f06292) 20%, transparent);
-      border-left: 3px solid var(--nd-accent, #f06292);
+      background: color-mix(in srgb, var(--nd-accent) 5%, transparent);
+      border: 1px solid color-mix(in srgb, var(--nd-accent) 20%, transparent);
+      border-left: 3px solid var(--nd-accent);
       opacity: 1;
     }
 
@@ -1622,7 +1622,7 @@ function onKeydown(e: KeyboardEvent) {
   font-weight: var(--nd-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--nd-accent, #f06292);
+  color: var(--nd-accent);
 
   i {
     font-size: 1em;
@@ -1644,7 +1644,7 @@ function onKeydown(e: KeyboardEvent) {
 .chatBubble {
   padding: 8px 12px;
   border-radius: 14px;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   font-size: var(--nd-font-body);
   line-height: 1.5;
   word-break: break-word;
@@ -2003,10 +2003,10 @@ function onKeydown(e: KeyboardEvent) {
     font-size: var(--nd-font-md);
     color: var(--nd-fg);
     background: var(--nd-panel);
-    border: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--nd-divider);
 
     &:hover {
-      background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.06));
+      background: var(--nd-panelHighlight);
     }
   }
 }
@@ -2015,7 +2015,7 @@ function onKeydown(e: KeyboardEvent) {
   display: flex;
   flex-direction: column;
   padding: 6px 8px 8px;
-  border-top: 1px solid var(--nd-divider, rgba(255, 255, 255, 0.05));
+  border-top: 1px solid var(--nd-divider);
   background: var(--nd-panel);
   position: relative;
   flex-shrink: 0;
@@ -2031,7 +2031,7 @@ function onKeydown(e: KeyboardEvent) {
   flex: 1;
   resize: none;
   border: none;
-  background: var(--nd-panelHighlight, rgba(255, 255, 255, 0.05));
+  background: var(--nd-panelHighlight);
   color: var(--nd-fg);
   border-radius: var(--nd-radius-lg);
   padding: 8px 12px;
@@ -2058,7 +2058,7 @@ function onKeydown(e: KeyboardEvent) {
   border-radius: 50%;
   border: none;
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   cursor: pointer;
   display: flex;
   align-items: center;

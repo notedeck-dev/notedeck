@@ -687,8 +687,8 @@ async function importPlugin() {
   font-size: var(--nd-font-md);
   padding: 0 6px;
   border-radius: var(--nd-radius-md);
-  background: color-mix(in srgb, var(--nd-success, #4caf50) 15%, transparent);
-  color: var(--nd-success, #4caf50);
+  background: color-mix(in srgb, var(--nd-success) 15%, transparent);
+  color: var(--nd-success);
   line-height: 1.6;
 }
 
@@ -863,7 +863,7 @@ async function importPlugin() {
 }
 
 .logsList {
-  background: var(--nd-codeEditorBg, #1e1e1e);
+  background: var(--nd-codeEditorBg);
   font-family: var(--nd-font-mono);
   font-size: var(--nd-font-sm);
   min-height: 100%;

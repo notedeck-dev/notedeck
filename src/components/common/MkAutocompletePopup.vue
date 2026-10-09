@@ -139,7 +139,7 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 
   &:hover,
   &.selected {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.1));
+    background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   }
 }
 

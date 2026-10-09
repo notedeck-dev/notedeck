@@ -1221,7 +1221,7 @@ function onPaste(e: ClipboardEvent) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: calc(var(--nd-app-inset-top, 0px) + 12px);
+  padding-top: calc(var(--nd-app-inset-top) + 12px);
   background: var(--nd-modalBg);
   overflow-y: auto;
 }
@@ -1382,7 +1382,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -1407,7 +1407,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -1461,7 +1461,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1596,7 +1596,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1649,7 +1649,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1885,7 +1885,7 @@ function onPaste(e: ClipboardEvent) {
   text-align: center;
 
   &.near {
-    color: var(--nd-warn, #ecb637);
+    color: var(--nd-warn);
     opacity: 1;
   }
 
@@ -1939,7 +1939,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base), color var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 
   &.active {
@@ -1982,7 +1982,7 @@ function onPaste(e: ClipboardEvent) {
   transition: background var(--nd-duration-base);
 
   &:hover {
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 
@@ -2032,7 +2032,7 @@ function onPaste(e: ClipboardEvent) {
 
   &:hover {
     opacity: 1;
-    background: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.05));
+    background: color-mix(in srgb, var(--nd-fg) 5%, transparent);
   }
 }
 

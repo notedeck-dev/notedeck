@@ -544,7 +544,7 @@ function openAsPip() {
   font-size: 1rem;
 
   .columnMenuDanger {
-    color: var(--nd-love, #ff6b6b);
+    color: var(--nd-love);
 
     i {
       opacity: 1;

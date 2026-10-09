@@ -35,10 +35,10 @@
 }
 
 .sheetBackdropEnter {
-  animation: sheetBdIn var(--nd-duration-base, 0.18s) var(--nd-ease-decel, ease);
+  animation: sheetBdIn var(--nd-duration-base) var(--nd-ease-decel, ease);
 }
 .sheetBackdropLeave {
-  animation: sheetBdOut var(--nd-duration-base, 0.18s) ease-out forwards;
+  animation: sheetBdOut var(--nd-duration-base) ease-out forwards;
 }
 @keyframes sheetBdIn { from { opacity: 0; } }
 @keyframes sheetBdOut { to { opacity: 0; } }

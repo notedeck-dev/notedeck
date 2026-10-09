@@ -369,7 +369,7 @@ defineExpose({
 .stacked {
   display: flex;
   flex-direction: column;
-  gap: var(--nd-columnGap, 6px);
+  gap: var(--nd-columnGap);
 }
 
 .colResizeHandle {

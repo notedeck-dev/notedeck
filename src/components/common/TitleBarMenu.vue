@@ -232,7 +232,7 @@ defineExpose({ toggleMenu })
 </template>
 
 <style lang="scss" module>
-$menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg, #1a1a1a));
+$menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
 
 .backdrop {
   position: fixed;

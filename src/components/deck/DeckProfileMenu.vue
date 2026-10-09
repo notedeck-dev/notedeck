@@ -230,7 +230,7 @@ function openEditor(id: string) {
 
 .deleteAction {
   &:hover {
-    color: var(--nd-love, #ff6b6b);
+    color: var(--nd-love);
   }
 }
 

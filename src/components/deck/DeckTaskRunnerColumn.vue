@@ -701,7 +701,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 }
 
 .errorBadge {
-  color: var(--nd-love, #c66);
+  color: var(--nd-love);
   text-transform: none;
   letter-spacing: 0;
   font-weight: var(--nd-weight-regular);
@@ -846,8 +846,8 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
     opacity: 1;
   }
   &.statusError {
-    background: color-mix(in srgb, var(--nd-love, #c66) 14%, transparent);
-    color: var(--nd-love, #c66);
+    background: color-mix(in srgb, var(--nd-love) 14%, transparent);
+    color: var(--nd-love);
     opacity: 1;
   }
   &.statusRunning {
@@ -876,7 +876,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 .runItemIcon { flex-shrink: 0; }
 .statusRunning .runItemIcon { color: var(--nd-accent); }
 .statusOk .runItemIcon { color: var(--nd-mfmSuccess, #4a8); }
-.statusError .runItemIcon { color: var(--nd-love, #c66); }
+.statusError .runItemIcon { color: var(--nd-love); }
 
 .runItemBody {
   flex: 1;
@@ -919,7 +919,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 
   &.statusRunning { background: color-mix(in srgb, var(--nd-accent) 18%, transparent); color: var(--nd-accent); }
   &.statusOk { background: color-mix(in srgb, var(--nd-mfmSuccess, #4a8) 18%, transparent); color: var(--nd-mfmSuccess, #4a8); }
-  &.statusError { background: color-mix(in srgb, var(--nd-love, #c66) 18%, transparent); color: var(--nd-love, #c66); }
+  &.statusError { background: color-mix(in srgb, var(--nd-love) 18%, transparent); color: var(--nd-love); }
 }
 
 .selected { /* modifier */ }

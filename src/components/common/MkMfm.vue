@@ -591,7 +591,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   display: block;
   margin: 8px 0;
   padding: 4px 0 4px 16px;
-  border-left: 3px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
+  border-left: 3px solid var(--nd-divider);
   color: var(--nd-fg-muted, var(--nd-fg));
   opacity: 0.85;
 }
@@ -628,7 +628,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
 .mfmSearchInput {
   flex: 1;
   padding: 6px 10px;
-  border: 1px solid var(--nd-divider, rgba(128, 128, 128, 0.3));
+  border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg-secondary, rgba(0, 0, 0, 0.05));
   color: var(--nd-fg);

@@ -414,7 +414,7 @@ function closeLightbox() {
   overflow: hidden;
   border-radius: var(--nd-radius-md);
   cursor: pointer;
-  background: var(--nd-bg, rgba(0, 0, 0, 0.05));
+  background: var(--nd-bg);
   contain: layout;
 
   &::before {
@@ -509,7 +509,7 @@ function closeLightbox() {
 .indicator {
   background-color: black;
   border-radius: var(--nd-radius-sm);
-  color: var(--nd-accent, #86b300);
+  color: var(--nd-accent);
   display: inline-block;
   font-weight: var(--nd-weight-bold);
   font-size: var(--nd-font-sm);
@@ -519,7 +519,7 @@ function closeLightbox() {
 .indicatorWarn {
   background-color: black;
   border-radius: var(--nd-radius-sm);
-  color: var(--nd-warn, #c44);
+  color: var(--nd-warn);
   display: inline-flex;
   align-items: center;
   justify-content: center;

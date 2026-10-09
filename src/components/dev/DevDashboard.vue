@@ -2188,7 +2188,7 @@ onUnmounted(() => {
 }
 
 .sseOpen {
-  background: var(--nd-success, #6c6);
+  background: var(--nd-success);
   color: #fff;
   opacity: 1;
 }
@@ -2356,7 +2356,7 @@ onUnmounted(() => {
 .confirmChip {
   padding: 2px 8px;
   border-radius: var(--nd-radius-full);
-  background: var(--nd-warn, #c90);
+  background: var(--nd-warn);
   color: #fff;
   font-size: 0.7rem;
 }
@@ -2388,7 +2388,7 @@ onUnmounted(() => {
 }
 
 .permOk {
-  color: var(--nd-success, #6c6);
+  color: var(--nd-success);
 }
 
 .permNo {

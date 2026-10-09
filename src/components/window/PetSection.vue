@@ -257,7 +257,7 @@ function openPage() {
   border: none;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
-  color: var(--nd-fgOnAccent, #fff);
+  color: var(--nd-fgOnAccent);
   font: inherit;
   font-size: var(--nd-font-md);
   cursor: pointer;

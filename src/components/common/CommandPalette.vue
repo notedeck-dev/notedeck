@@ -634,9 +634,9 @@ function primaryShortcut(cmd: Command): string | null {
   width: 100%;
   height: 22px;
   padding: 0 8px;
-  border: 1px solid var(--nd-accent, #86b300);
+  border: 1px solid var(--nd-accent);
   border-radius: var(--nd-radius-sm);
-  background: rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--nd-fg) 10%, transparent);
   color: var(--nd-fg);
   // コマンドパレットは IDE 面なので等幅フォント (#1085)。input / kbd / item は inherit で追随
   font-family: var(--nd-font-mono);
@@ -669,7 +669,7 @@ function primaryShortcut(cmd: Command): string | null {
   font-size: 10px;
   padding: 0 4px;
   border-radius: var(--nd-radius-xs);
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
   opacity: 0.4;
   font-family: inherit;
   border: none;
@@ -683,8 +683,8 @@ function primaryShortcut(cmd: Command): string | null {
 .dropdown {
   position: fixed;
   z-index: var(--nd-z-palette);
-  background: var(--nd-popup, #252526);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--nd-popup);
+  border: 1px solid color-mix(in srgb, var(--nd-fg) 6%, transparent);
   border-top: none;
   border-radius: 0 0 var(--nd-radius-sm) var(--nd-radius-sm);
   box-shadow: 0 8px 36px rgba(0, 0, 0, 0.4);
@@ -705,7 +705,7 @@ function primaryShortcut(cmd: Command): string | null {
   overflow-y: auto;
   padding: 4px 0;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  scrollbar-color: color-mix(in srgb, var(--nd-fg) 15%, transparent) transparent;
 
   &::-webkit-scrollbar {
     width: 6px;
@@ -716,7 +716,7 @@ function primaryShortcut(cmd: Command): string | null {
   }
 
   &::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: color-mix(in srgb, var(--nd-fg) 12%, transparent);
     border-radius: var(--nd-radius-xs);
   }
 }
@@ -724,7 +724,7 @@ function primaryShortcut(cmd: Command): string | null {
 .separator {
   height: 1px;
   margin: 2px 0;
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
 }
 
 .category {
@@ -753,12 +753,12 @@ function primaryShortcut(cmd: Command): string | null {
 
   &.selected {
     background: color-mix(in srgb, var(--nd-accent) 18%, transparent);
-    border-left-color: var(--nd-accent, #86b300);
-    color: var(--nd-fgHighlighted, #fff);
+    border-left-color: var(--nd-accent);
+    color: var(--nd-fgHighlighted);
   }
 
   &:hover:not(.selected) {
-    background: rgba(255, 255, 255, 0.04);
+    background: color-mix(in srgb, var(--nd-fg) 4%, transparent);
   }
 
   // AI / チュートリアルが指し示した項目を一時的に光らせる。視覚仕様は
@@ -791,8 +791,8 @@ function primaryShortcut(cmd: Command): string | null {
   font-size: 11px;
   padding: 1px 5px;
   border-radius: var(--nd-radius-xs);
-  background: rgba(255, 255, 255, 0.06);
-  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
+  border: 0.5px solid color-mix(in srgb, var(--nd-fg) 10%, transparent);
   border-bottom-width: 1px;
   opacity: 0.6;
   font-family: inherit;
