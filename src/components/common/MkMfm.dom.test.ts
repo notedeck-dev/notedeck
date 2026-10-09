@@ -84,3 +84,12 @@ describe('MkMfm 値域の clamp (#704)', () => {
     )
   })
 })
+
+describe('MkMfm リンク (#704)', () => {
+  it('表示テキスト付きリンクは実 URL を title に出す (本家 MkLink と同じ)', () => {
+    mountMfm('[https://safe.example](https://evil.example/x)')
+    expect(container?.querySelector('a')?.getAttribute('title')).toBe(
+      'https://evil.example/x',
+    )
+  })
+})
