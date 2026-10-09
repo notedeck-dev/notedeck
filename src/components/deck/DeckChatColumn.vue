@@ -1199,7 +1199,7 @@ onBeforeUnmount(() => {
         v-else
         ref="chatScroller"
         :items="filteredMessages"
-        :estimated-height="80"
+        :estimated-height="96"
         :class="$style.messagesContainer"
         @scroll="handleScroll"
       >
@@ -1215,6 +1215,7 @@ onBeforeUnmount(() => {
               :server-host="activeServerHost ?? undefined"
               :my-avatar-url="currentRoomId ? undefined : myAvatarUrl ?? undefined"
               :other-avatar-url="currentRoomId ? undefined : conversationOtherAvatarUrl ?? undefined"
+              :show-sender-name="!!currentRoomId"
               @react="handleReact"
               @unreact="handleUnreact"
               @delete="handleDelete"
@@ -1501,7 +1502,14 @@ onBeforeUnmount(() => {
 }
 
 .chatMsgGap {
-  padding-bottom: 2px;
+  // メッセージ間は本家と同じく広い段 16px / 狭い段 12px (#1207)
+  padding: 8px 0;
+}
+
+@container (max-width: 450px) {
+  .chatMsgGap {
+    padding: 6px 0;
+  }
 }
 
 .chatError {
