@@ -122,8 +122,16 @@ onMounted(() => {
     document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null
-  // popover / dialog が開き終わってから移す (開く前はフォーカスできない)
-  requestAnimationFrame(() => focusItem(0))
+  // popover / dialog が開き終わってから移す (開く前はフォーカスできず、
+  // 本文の高さも測れない)
+  requestAnimationFrame(() => {
+    for (const el of rootRef.value?.querySelectorAll<HTMLElement>(
+      '[data-inbox-text]',
+    ) ?? []) {
+      measure(Number(el.dataset.inboxText), el)
+    }
+    focusItem(0)
+  })
 })
 onBeforeUnmount(() => {
   const active = document.activeElement
@@ -185,6 +193,7 @@ onBeforeUnmount(() => {
         >
           <span
             :ref="(el) => measure(item.id, el)"
+            :data-inbox-text="item.id"
             :class="[$style.text, !expanded.has(item.id) && $style.clamped]"
           ><span v-if="freshIds.has(item.id)" :class="$style.srOnly">{{ i18n.ts._notificationCenter.fresh }}: </span>{{ item.text }}</span>
           <div :class="$style.meta">
