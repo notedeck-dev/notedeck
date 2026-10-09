@@ -1,5 +1,9 @@
 import { type Ref, ref } from 'vue'
-import { smoothScrollBehavior } from '@/utils/motion'
+import {
+  animateScrollLeft,
+  motionDuration,
+  smoothScrollBehavior,
+} from '@/utils/motion'
 
 type ScrollOwner = 'user' | 'program'
 
@@ -127,13 +131,15 @@ export function useColumnScroll(
         return
       }
       // ナビのタップで隣のカラムへ滑らせる (reduced-motion では瞬時)。
-      // 動いている間に途中のカラムを「アクティブ」と拾わないよう、
-      // 着くまでスクロールの所有権を握る
-      const behavior = smoothScrollBehavior()
+      // ブラウザの smooth スクロールは遅く速さも指定できないので、短い時間で
+      // 自前に補間する。動いている間に途中のカラムを「アクティブ」と拾わない
+      // よう、着くまでスクロールの所有権を握る
       const id = claimProgramScroll()
-      el.scrollTo({ left, behavior })
-      if (behavior === 'smooth') releaseOnScrollEnd(el, id)
-      else releaseProgramScroll(id)
+      void animateScrollLeft(
+        el,
+        left,
+        motionDuration('--nd-duration-medium', 200),
+      ).then(() => releaseProgramScroll(id))
       return
     }
 
