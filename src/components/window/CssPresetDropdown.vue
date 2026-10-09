@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useClickOutside } from '@/composables/useClickOutside'
+import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 
 /**
@@ -27,6 +28,8 @@ const props = withDefaults(
 const model = defineModel<string>({ required: true })
 
 const show = ref(false)
+// 退場は _popup.scss の menuLeave (--nd-duration-base) と同じ時間
+const panelT = useVaporTransition(show, { leaveDuration: 150 })
 const rootRef = ref<HTMLElement | null>(null)
 
 const selectedLabel = computed(
@@ -58,7 +61,10 @@ useClickOutside(rootRef, () => {
       </span>
       <i class="ti ti-chevron-down" :class="$style.dropdownChevron" />
     </button>
-    <div v-if="show" :class="$style.dropdownPanel">
+    <div
+      v-if="panelT.visible.value"
+      :class="[$style.dropdownPanel, panelT.leaving.value ? $style.menuLeave : $style.menuEnter]"
+    >
       <button
         v-for="opt in options"
         :key="opt.value"
@@ -76,6 +82,8 @@ useClickOutside(rootRef, () => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/popup';
+
 .dropdown {
   position: relative;
   width: 100%;

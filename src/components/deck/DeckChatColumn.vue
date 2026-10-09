@@ -38,6 +38,7 @@ import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
+import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import {
   buildCrossAccountHistoryEntries,
@@ -209,6 +210,14 @@ const messageText = ref('')
 const isSending = ref(false)
 const showEmojiPicker = ref(false)
 const showDrivePicker = ref(false)
+// ピッカーの退場は _popup.scss の panelLeave (--nd-duration-base) と同じ時間
+const PICKER_LEAVE_MS = 150
+const emojiPickerT = useVaporTransition(showEmojiPicker, {
+  leaveDuration: PICKER_LEAVE_MS,
+})
+const drivePickerT = useVaporTransition(showDrivePicker, {
+  leaveDuration: PICKER_LEAVE_MS,
+})
 const attachedFile = ref<NormalizedDriveFile | null>(null)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 
@@ -734,6 +743,9 @@ function removeAttachment() {
 // --- Reactions ---
 const reactionTargetId = ref<string | null>(null)
 const showReactionPicker = ref(false)
+const reactionPickerT = useVaporTransition(showReactionPicker, {
+  leaveDuration: PICKER_LEAVE_MS,
+})
 
 async function handleReact(messageId: string, reaction: string) {
   const accId = activeAccountId.value
@@ -1213,7 +1225,11 @@ onBeforeUnmount(() => {
       <div v-if="error" :class="$style.chatError">{{ error.message }}</div>
 
       <!-- Reaction picker popup -->
-      <div v-if="showReactionPicker && activeAccountId && activeServerHost" :class="$style.chatReactionPicker" @click.stop>
+      <div
+        v-if="reactionPickerT.visible.value && activeAccountId && activeServerHost"
+        :class="[$style.chatReactionPicker, reactionPickerT.leaving.value ? $style.panelLeave : $style.panelEnter]"
+        @click.stop
+      >
         <MkReactionPicker
           :server-host="activeServerHost"
           :account-id="activeAccountId"
@@ -1266,7 +1282,11 @@ onBeforeUnmount(() => {
           </button>
         </div>
         <!-- Emoji picker popup -->
-        <div v-if="showEmojiPicker && activeAccountId && activeServerHost" :class="$style.chatEmojiPopup" @click.stop>
+        <div
+          v-if="emojiPickerT.visible.value && activeAccountId && activeServerHost"
+          :class="[$style.chatEmojiPopup, emojiPickerT.leaving.value ? $style.panelLeave : $style.panelEnter]"
+          @click.stop
+        >
           <MkReactionPicker
             :server-host="activeServerHost"
             :account-id="activeAccountId"
@@ -1275,7 +1295,11 @@ onBeforeUnmount(() => {
           />
         </div>
         <!-- Drive picker (below input row) -->
-        <div v-if="showDrivePicker && activeAccountId" :class="$style.chatDrivePopup" @click.stop>
+        <div
+          v-if="drivePickerT.visible.value && activeAccountId"
+          :class="[$style.chatDrivePopup, drivePickerT.leaving.value ? $style.panelLeave : $style.panelEnter]"
+          @click.stop
+        >
           <MkDrivePicker
             :account-id="activeAccountId"
             @pick="onDrivePicked"
@@ -1289,6 +1313,7 @@ onBeforeUnmount(() => {
 
 <style lang="scss" module>
 @use './column-common.module.scss';
+@use '@/styles/popup';
 
 .clickable {
   cursor: pointer;

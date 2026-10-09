@@ -4,8 +4,11 @@ import {
   defineAsyncComponent,
   nextTick,
   onMounted,
+  type Ref,
   ref,
+  shallowRef,
   watch,
+  watchEffect,
 } from 'vue'
 import type { NormalizedDriveFile, NormalizedNote } from '@/adapters/types'
 import {
@@ -14,7 +17,11 @@ import {
   withPluginAccountContext,
 } from '@/aiscript/plugin-api'
 import FormSwitch from '@/components/common/form/FormSwitch.vue'
-import { useAutocomplete } from '@/composables/useAutocomplete'
+import {
+  type AutocompleteCandidate,
+  type TriggerType,
+  useAutocomplete,
+} from '@/composables/useAutocomplete'
 import type { StoredDraft } from '@/composables/useDrafts'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import type { StoredMemo } from '@/composables/useMemos'
@@ -22,6 +29,10 @@ import { useMfmInsert } from '@/composables/useMfmInsert'
 import { usePopupControl } from '@/composables/usePopupControl'
 import { usePostFormState } from '@/composables/usePostFormState'
 import { useScheduleDialog } from '@/composables/useScheduleDialog'
+import {
+  useVaporTransition,
+  useVaporTransitionSwitch,
+} from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import {
   getAccountAvatarUrl,
@@ -374,6 +385,36 @@ function toggleMfmMenu() {
   popups.closeOthers(showMfmMenu)
 }
 
+// --- 開閉のアニメ ---
+// 退場の時間は _popup.scss の menuLeave / panelLeave / hoverLeave
+// (--nd-duration-base) と同じ
+const POPUP_LEAVE_MS = 150
+const menuT = (show: Ref<boolean>) =>
+  useVaporTransition(show, { leaveDuration: POPUP_LEAVE_MS })
+const accountMenuT = menuT(
+  computed(() => showAccountMenu.value && accounts.value.length > 1),
+)
+const visibilityMenuT = menuT(showVisibilityMenu)
+const moreMenuT = menuT(showMoreMenu)
+const mfmMenuT = menuT(showMfmMenu)
+const pluginActionsMenuT = menuT(showPluginActionsMenu)
+
+// フォームの下に開くピッカーは文書の流れの中にあるので、2 つ並べて
+// 入れ替えると高さが段差で変わる。1 枠として、閉じてから次を出す
+const belowPanel = computed<'drafts' | 'drive' | 'buttons' | 'emoji' | null>(
+  () => {
+    if (showDraftsPicker.value) return 'drafts'
+    if (showDrivePicker.value) return 'drive'
+    if (showPostFormButtonsPicker.value) return 'buttons'
+    if (showEmojiPopup.value && account.value) return 'emoji'
+    return null
+  },
+)
+const belowPanelT = useVaporTransitionSwitch(belowPanel, {
+  leaveDuration: POPUP_LEAVE_MS,
+  immediateFromEmpty: true,
+})
+
 /** アカウントアバターに重ねるサーバー favicon URL を解決する。 */
 function resolveAccountServerIcon(host: string): string {
   return (
@@ -398,6 +439,30 @@ const {
   confirmSelection: acConfirmSelection,
   dismiss: acDismiss,
 } = useAutocomplete(text, textareaRef, activeAccountId, serverHost)
+
+// 補完候補は閉じた瞬間に候補が空になるので、退場の間は直前の中身を出す
+const acOpen = computed(
+  () => !!autocompleteState.value && acCandidates.value.length > 0,
+)
+const acT = useVaporTransition(acOpen, { leaveDuration: POPUP_LEAVE_MS })
+const acShown = shallowRef<{
+  type: TriggerType
+  candidates: AutocompleteCandidate[]
+  selectedIndex: number
+  isSearching: boolean
+  position: { left: number; top: number } | null
+} | null>(null)
+watchEffect(() => {
+  const st = autocompleteState.value
+  if (!acOpen.value || !st) return
+  acShown.value = {
+    type: st.type,
+    candidates: acCandidates.value,
+    selectedIndex: st.selectedIndex,
+    isSearching: acSearching.value,
+    position: acPopupPosition.value,
+  }
+})
 
 // --- File attach (drive picker) ---
 function toggleDrivePicker() {
@@ -566,7 +631,7 @@ function onPaste(e: ClipboardEvent) {
                 />
               </span>
             </button>
-            <div v-if="showAccountMenu && accounts.length > 1" :class="$style.accountMenu">
+            <div v-if="accountMenuT.visible.value" :class="[$style.accountMenu, accountMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]">
               <button
                 v-for="acc in accounts"
                 :key="acc.id"
@@ -631,7 +696,7 @@ function onPaste(e: ClipboardEvent) {
               </svg>
               <span :class="$style.headerBtnText">{{ currentVisibility.label }}</span>
             </button>
-            <div v-if="showVisibilityMenu" :class="$style.visibilityMenu">
+            <div v-if="visibilityMenuT.visible.value" :class="[$style.visibilityMenu, visibilityMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]">
               <button
                 v-for="opt in visibilityOptions"
                 :key="opt.value"
@@ -676,7 +741,7 @@ function onPaste(e: ClipboardEvent) {
             >
               <i class="ti ti-dots" />
             </button>
-            <div v-if="showMoreMenu" :class="$style.moreMenu" @click.stop>
+            <div v-if="moreMenuT.visible.value" :class="[$style.moreMenu, moreMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]" @click.stop>
               <!-- Preview toggle (memo はノートではないので出さない #1018) -->
               <div
                 v-if="!memoMode"
@@ -877,12 +942,13 @@ function onPaste(e: ClipboardEvent) {
           @click.stop
         />
         <MkAutocompletePopup
-          v-if="autocompleteState && acCandidates.length > 0"
-          :type="autocompleteState.type"
-          :candidates="acCandidates"
-          :selected-index="autocompleteState.selectedIndex"
-          :is-searching="acSearching"
-          :position="acPopupPosition"
+          v-if="acT.visible.value && acShown"
+          :type="acShown.type"
+          :candidates="acShown.candidates"
+          :selected-index="acShown.selectedIndex"
+          :is-searching="acShown.isSearching"
+          :position="acShown.position"
+          :leaving="acT.leaving.value"
           @select="acConfirmSelection"
         />
         <!-- 残り文字数はサーバーの上限 (maxNoteTextLength) 由来。メモは
@@ -1034,7 +1100,7 @@ function onPaste(e: ClipboardEvent) {
               <button class="_button" :class="$style.footerBtn" title="MFM" @click.stop="toggleMfmMenu">
                 <i class="ti ti-palette" />
               </button>
-              <div v-if="showMfmMenu" :class="[$style.footerPopup, $style.mfmMenu]" @click.stop>
+              <div v-if="mfmMenuT.visible.value" :class="[$style.footerPopup, $style.mfmMenu, mfmMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]" @click.stop>
                 <button
                   v-for="fn in mfmFunctions"
                   :key="fn.label"
@@ -1075,7 +1141,7 @@ function onPaste(e: ClipboardEvent) {
             <button class="_button" :class="$style.footerBtn" :title="i18n.ts._mkPostForm.plugins" @click.stop="togglePluginActionsMenu">
               <i class="ti ti-plug" />
             </button>
-            <div v-if="showPluginActionsMenu" :class="[$style.footerPopup, $style.mfmMenu]" @click.stop>
+            <div v-if="pluginActionsMenuT.visible.value" :class="[$style.footerPopup, $style.mfmMenu, pluginActionsMenuT.leaving.value ? $style.menuLeave : $style.menuEnter]" @click.stop>
               <button
                 v-for="action in postFormActions"
                 :key="action.pluginInstallId + action.title"
@@ -1105,7 +1171,8 @@ function onPaste(e: ClipboardEvent) {
 
     <!-- Drafts picker (below post form, mock server-side drafts API) -->
     <MkDraftsPicker
-      v-if="showDraftsPicker"
+      v-if="belowPanelT.displayed.value === 'drafts'"
+      :class="belowPanelT.leaving.value ? $style.panelLeave : $style.panelEnter"
       :account-id="activeAccountId!"
       :supports-scheduled-notes="supportsScheduledNotes"
       @pick="onDraftPicked"
@@ -1114,7 +1181,8 @@ function onPaste(e: ClipboardEvent) {
 
     <!-- Drive picker (below post form) -->
     <MkDrivePicker
-      v-if="showDrivePicker"
+      v-else-if="belowPanelT.displayed.value === 'drive'"
+      :class="belowPanelT.leaving.value ? $style.panelLeave : $style.panelEnter"
       :account-id="activeAccountId!"
       @pick="onDriveFilesPicked"
       @close="showDrivePicker = false"
@@ -1122,13 +1190,19 @@ function onPaste(e: ClipboardEvent) {
 
     <!-- Post form buttons picker (below post form) -->
     <MkPostFormButtonsPicker
-      v-if="showPostFormButtonsPicker"
+      v-else-if="belowPanelT.displayed.value === 'buttons'"
+      :class="belowPanelT.leaving.value ? $style.panelLeave : $style.panelEnter"
       :style="formThemeVars"
       @close="showPostFormButtonsPicker = false"
     />
 
     <!-- Emoji picker (below post form) -->
-    <div v-if="showEmojiPopup && account" :class="$style.emojiPickerPanel" :style="formThemeVars" @click.stop>
+    <div
+      v-else-if="belowPanelT.displayed.value === 'emoji' && account"
+      :class="[$style.emojiPickerPanel, belowPanelT.leaving.value ? $style.panelLeave : $style.panelEnter]"
+      :style="formThemeVars"
+      @click.stop
+    >
       <div :class="$style.emojiPickerHeader">
         <span :class="$style.emojiPickerTitle">
           <i class="ti ti-mood-happy" />
@@ -1211,6 +1285,7 @@ function onPaste(e: ClipboardEvent) {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/popup';
 
 .postOverlay {
   position: fixed;
@@ -1958,7 +2033,8 @@ function onPaste(e: ClipboardEvent) {
   position: absolute;
   top: 100%;
   left: 50%;
-  transform: translateX(-50%);
+  /* 開閉アニメの transform と打ち消し合わないよう translate で中央に寄せる */
+  translate: -50% 0;
   z-index: 20;
   margin-top: 8px;
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);

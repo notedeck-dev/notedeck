@@ -15,6 +15,8 @@ const props = defineProps<{
   isSearching: boolean
   /** caret 追従位置 (親要素座標系 px)。null なら従来のテキストエリア直下 */
   position?: { left: number; top: number } | null
+  /** 退場中 (閉じた後のフェード) */
+  leaving?: boolean
 }>()
 
 // キーボード選択が可視域外に出たら追従スクロール (#753)
@@ -48,7 +50,11 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 
 <template>
   <div
-    :class="[$style.autocompletePopup, { [$style.floating]: !!position }]"
+    :class="[
+      $style.autocompletePopup,
+      leaving ? $style.hoverLeave : $style.hoverEnter,
+      { [$style.floating]: !!position },
+    ]"
     :style="position ? { left: `${position.left}px`, top: `${position.top}px` } : undefined"
     class="_popup"
     @click.stop
@@ -101,6 +107,8 @@ function candidateKey(candidate: AutocompleteCandidate): string {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/popup';
+
 .autocompletePopup {
   position: absolute;
   top: 100%;
@@ -112,7 +120,6 @@ function candidateKey(candidate: AutocompleteCandidate): string {
   overflow-y: auto;
   padding: 4px;
   contain: paint;
-  animation: acPopupIn 0.1s ease-out;
 
   // caret 追従時 (#753): left/top は inline style、幅は固定
   &.floating {
@@ -121,10 +128,6 @@ function candidateKey(candidate: AutocompleteCandidate): string {
     max-width: 100%;
     margin-top: 0;
   }
-}
-
-@keyframes acPopupIn {
-  from { opacity: 0; }
 }
 
 .autocompleteItem {
