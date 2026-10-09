@@ -117,7 +117,7 @@ defineExpose({ open })
     :class="[
       $style.backdrop,
       isCompact && $style.mobile,
-      leaving ? (isCompact ? $style.sheetLeave : $style.popupLeave) : (isCompact ? $style.sheetEnter : $style.popupEnter),
+      leaving ? (isCompact ? $style.sheetBackdropLeave : $style.popupLeave) : (isCompact ? $style.sheetBackdropEnter : $style.popupEnter),
     ]"
   >
       <div
@@ -178,6 +178,8 @@ defineExpose({ open })
 </template>
 
 <style lang="scss" module>
+@use '@/styles/navMenu';
+
 // `dialog._nativeDialog[open]` (global.css) が align-items: center を指定しており
 // クラスだけでは特異度で負けるため、ホストごと指定してシートを下端に寄せる
 :global(dialog._nativeDialog[open]).backdrop.mobile {
@@ -325,23 +327,14 @@ defineExpose({ open })
 
 /* Desktop popup */
 .popupEnter { animation: modalBdIn var(--nd-duration-base) var(--nd-ease-decel); }
-.popupLeave { animation: modalBdOut var(--nd-duration-base) ease-out forwards; }
+.popupLeave { animation: modalBdOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes modalBdIn { from { opacity: 0; } }
 @keyframes modalBdOut { to { opacity: 0; } }
 
-.popupContentEnter { animation: modalIn 0.2s var(--nd-ease-spring); }
+.popupContentEnter { animation: modalIn var(--nd-duration-medium) var(--nd-ease-menu); }
 .popupContentLeave { animation: modalOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes modalIn { from { opacity: 0; transform: scale(0.88) translateY(6px); } }
 @keyframes modalOut { to { opacity: 0; transform: scale(0.93); } }
 
-/* Mobile sheet — iOS-style spring slide */
-.sheetEnter { animation: sheetBdIn var(--nd-duration-slow) var(--nd-ease-decel); }
-.sheetLeave { animation: sheetBdOut var(--nd-duration-base) ease-out forwards; }
-@keyframes sheetBdIn { from { opacity: 0; } }
-@keyframes sheetBdOut { to { opacity: 0; } }
-
-.sheetContentEnter { animation: sheetIn 0.25s var(--nd-ease-spring); }
-.sheetContentLeave { animation: sheetOut 0.2s var(--nd-ease-decel) forwards; }
-@keyframes sheetIn { from { transform: translateY(100%); } }
-@keyframes sheetOut { to { transform: translateY(100%); } }
+/* モバイルのシートは navMenu.scss の sheetBackdrop* / sheetContent* */
 </style>

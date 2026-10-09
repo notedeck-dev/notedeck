@@ -28,8 +28,9 @@ const slots = useSlots()
 const hasExtra = computed(() => Boolean(slots.extra))
 
 const { visible, leaving } = useVaporTransition(toRef(props, 'show'), {
-  enterDuration: 180,
-  leaveDuration: 200,
+  enterDuration: 200,
+  // 退場アニメ (filterPopupLeave = --nd-duration-base) と同じ時間
+  leaveDuration: 150,
 })
 
 const emit = defineEmits<{
@@ -48,7 +49,7 @@ const popoverRef = ref<HTMLElement | null>(null)
 
 useNativePopover(popoverRef, visible, {
   onClose: () => emit('close'),
-  leaveDuration: 200,
+  leaveDuration: 150,
 })
 
 const FILTER_LABELS: Record<keyof TimelineFilter, string> = {
@@ -207,8 +208,8 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
   opacity: 0.75;
 }
 
-.filterPopupEnter { animation: filterPopupIn 0.18s var(--nd-ease-pop); }
-.filterPopupLeave { animation: filterPopupOut 0.15s var(--nd-ease-pop) forwards; }
+.filterPopupEnter { animation: filterPopupIn var(--nd-duration-medium) var(--nd-ease-menu); }
+.filterPopupLeave { animation: filterPopupOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes filterPopupIn { from { opacity: 0; transform: scale(0.95) translateY(-4px); } }
 @keyframes filterPopupOut { to { opacity: 0; transform: scale(0.95) translateY(-4px); } }
 </style>

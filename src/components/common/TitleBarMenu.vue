@@ -255,7 +255,7 @@ $menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
 }
 
 .leave {
-  animation: fadeOut var(--nd-duration-base) ease-out forwards;
+  animation: fadeOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
 }
 
 @keyframes fadeIn {

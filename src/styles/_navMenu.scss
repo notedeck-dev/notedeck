@@ -11,19 +11,20 @@
 }
 
 .sheetBackdropEnter {
-  animation: sheetBdIn var(--nd-duration-base) var(--nd-ease-decel, ease);
+  animation: sheetBdIn var(--nd-duration-base) var(--nd-ease-decel);
 }
 .sheetBackdropLeave {
-  animation: sheetBdOut var(--nd-duration-base) ease-out forwards;
+  animation: sheetBdOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
 }
 @keyframes sheetBdIn { from { opacity: 0; } }
 @keyframes sheetBdOut { to { opacity: 0; } }
 
+// 退場は JS 側の leaveDuration (200ms) と同じ --nd-duration-medium
 .sheetContentEnter {
-  animation: sheetIn 0.25s var(--nd-ease-spring, cubic-bezier(0.34, 1.56, 0.64, 1));
+  animation: sheetIn var(--nd-duration-slow) var(--nd-ease-menu);
 }
 .sheetContentLeave {
-  animation: sheetOut 0.2s var(--nd-ease-decel, ease) forwards;
+  animation: sheetOut var(--nd-duration-medium) var(--nd-ease-decel) forwards;
 }
 @keyframes sheetIn { from { transform: translateY(100%); } }
 @keyframes sheetOut { to { transform: translateY(100%); } }

@@ -32,13 +32,14 @@ const rootRef = ref<HTMLElement | null>(null)
 const triggerRef = ref<HTMLElement | null>(null)
 
 const { visible, leaving } = useVaporTransition(show, {
-  enterDuration: 160,
-  leaveDuration: 120,
+  enterDuration: 200,
+  // 退場アニメ (.leave = --nd-duration-base) と同じ時間
+  leaveDuration: 150,
 })
 
 useNativePopover(rootRef, visible, {
   onClose: () => close(),
-  leaveDuration: 120,
+  leaveDuration: 150,
   dismissOnOutsideClick: true,
   ignoreOutsideClickFor: triggerRef,
 })
@@ -126,8 +127,8 @@ defineExpose({ open, close })
   transform-origin: top left;
 }
 
-.enter { animation: variantsIn 0.16s var(--nd-ease-spring); }
-.leave { animation: variantsOut 0.12s var(--nd-ease-decel) forwards; }
+.enter { animation: variantsIn var(--nd-duration-medium) var(--nd-ease-menu); }
+.leave { animation: variantsOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes variantsIn { from { opacity: 0; transform: scale(0.95); } }
 @keyframes variantsOut { to { opacity: 0; transform: scale(0.97); } }
 

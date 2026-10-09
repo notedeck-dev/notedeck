@@ -1,12 +1,19 @@
 // Shared popup/dialog vapor-transition classes.
 // Usage: @use '@/styles/popup';
+//
+// 登場と退場は役割ごとに揃える (#704)。登場の曲線はどれも --nd-ease-menu、
+// 退場は --nd-ease-decel。時間は次のとおりで、JS 側の leaveDuration は退場の
+// 時間に合わせる (シートは _navMenu.scss)。
+//   ダイアログ / メニュー / ピッカー: 登場 --nd-duration-medium / 退場 --nd-duration-base
+//   ホバーのプレビュー:               登場 --nd-duration-base   / 退場 --nd-duration-base
+//   シート (_navMenu.scss):           登場 --nd-duration-slow   / 退場 --nd-duration-medium
 
 .enter {
   animation: backdropIn var(--nd-duration-base) var(--nd-ease-decel);
 }
 
 .leave {
-  animation: backdropOut var(--nd-duration-base) ease-out forwards;
+  animation: backdropOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
 }
 
 @keyframes backdropIn {
@@ -18,7 +25,7 @@
 }
 
 .contentEnter {
-  animation: popupIn 0.2s var(--nd-ease-spring);
+  animation: popupIn var(--nd-duration-medium) var(--nd-ease-menu);
 }
 
 .contentLeave {
@@ -37,7 +44,7 @@
 // 退場の時間は JS 側の leaveDuration (USER_POPUP_HOVER 等の 150ms) と同じ
 // --nd-duration-base。退場中はクリックを吸わない
 .hoverEnter {
-  animation: hoverIn var(--nd-duration-base) var(--nd-ease-decel);
+  animation: hoverIn var(--nd-duration-base) var(--nd-ease-menu);
 }
 
 .hoverLeave {

@@ -107,7 +107,8 @@ const hasWallpaper = computed(() => deckStore.wallpaper != null)
 const showMenu = ref(false)
 const { visible: menuVisible, leaving: menuLeaving } = useVaporTransition(
   showMenu,
-  { enterDuration: 180, leaveDuration: 180 },
+  // 退場アニメ (.menuLeave = --nd-duration-base) と同じ時間
+  { enterDuration: 200, leaveDuration: 150 },
 )
 const menuBtnEl = ref<HTMLElement | null>(null)
 const menuEl = ref<HTMLElement | null>(null)
@@ -115,7 +116,7 @@ const menuPos = ref<{ top: string; right: string }>({ top: '0', right: '0' })
 
 useNativePopover(menuEl, menuVisible, {
   onClose: () => closeMenu(),
-  leaveDuration: 180,
+  leaveDuration: 150,
   dismissOnOutsideClick: true,
 })
 
@@ -637,7 +638,7 @@ function openAsPip() {
 }
 
 .menuEnter {
-  animation: colMenuIn 0.18s var(--nd-ease-spring);
+  animation: colMenuIn var(--nd-duration-medium) var(--nd-ease-menu);
 }
 .menuLeave {
   animation: colMenuOut var(--nd-duration-base) var(--nd-ease-decel) forwards;
