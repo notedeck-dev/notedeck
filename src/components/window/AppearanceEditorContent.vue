@@ -2,6 +2,7 @@
 import { json } from '@codemirror/lang-json'
 import { computed, ref, watch } from 'vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import DayNightToggle from '@/components/deck/DayNightToggle.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
@@ -205,16 +206,15 @@ const statusClass = computed(() => {
         <label :class="$style.languageRow">
           <i class="ti ti-language" />
           <span :class="$style.languageLabel">{{ i18n.ts._settings.language }}</span>
-          <select
-            :value="localePreference"
-            :class="$style.languageSelect"
+          <FormSelect
+            :model-value="localePreference"
             @change="setLocalePreference(($event.target as HTMLSelectElement).value as LocalePreference)"
           >
             <option value="auto">{{ i18n.ts._settings.languageAuto }}</option>
             <option v-for="lang in localeChoices" :key="lang.code" :value="lang.code">
               {{ lang.published ? lang.name : i18n.tsx._settings.languageUnpublished({ name: lang.name }) }}
             </option>
-          </select>
+          </FormSelect>
         </label>
       </div>
 
@@ -420,12 +420,4 @@ const statusClass = computed(() => {
   flex: 1;
 }
 
-.languageSelect {
-  padding: 6px 8px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: var(--nd-font-md);
-}
 </style>

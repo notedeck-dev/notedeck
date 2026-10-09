@@ -7,8 +7,10 @@
  * 行の意味は面で違う (範囲 = 索引のサーバー / アカウント か 返すノートのホスト、
  * 投稿者 = 表記 か 解決済み ID)。ここは入力と表示だけで、評価は面が担う。
  */
+
 import { computed, ref, watch } from 'vue'
 import ConditionBuilder from '@/components/common/ConditionBuilder.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import { i18n } from '@/i18n'
 import {
   clearPanelRows,
@@ -221,7 +223,7 @@ function clearAll() {
   <div :class="$style.panel">
     <label v-if="rows.includes('scope')" :class="$style.row">
       <span :class="$style.label">{{ i18n.ts._searchFilterPanel.scope }}</span>
-      <select :class="$style.input" :value="scopeValue" @change="onScopeChange">
+      <FormSelect filled :class="$style.select" :model-value="scopeValue" @change="onScopeChange">
         <option value="">{{ i18n.ts._searchFilterPanel.allAccounts }}</option>
         <option v-for="host in scopeOptions?.servers ?? []" :key="`s:${host}`" :value="`server:${host}`">
           {{ i18n.tsx._searchFilterPanel.serverOption({ host }) }}
@@ -229,16 +231,16 @@ function clearAll() {
         <option v-for="acc in scopeOptions?.accounts ?? []" :key="`a:${acc.id}`" :value="`account:${acc.id}`">
           {{ acc.label }}
         </option>
-      </select>
+      </FormSelect>
     </label>
 
     <div v-if="rows.includes('host')" :class="$style.row">
       <span :class="$style.label">{{ i18n.ts._searchFilterPanel.scope }}</span>
-      <select :class="$style.input" :value="hostKindDraft" @change="onHostKindChange">
+      <FormSelect filled :class="$style.select" :model-value="hostKindDraft" @change="onHostKindChange">
         <option v-if="hostOptions?.includes('all')" value="all">{{ crossAccount ? i18n.ts._searchFilterPanel.hostAllAcross : i18n.ts._searchFilterPanel.hostAll }}</option>
         <option v-if="hostOptions?.includes('local')" value="local">{{ crossAccount ? i18n.ts._searchFilterPanel.hostLocalAcross : i18n.ts._searchFilterPanel.hostLocal }}</option>
         <option v-if="hostOptions?.includes('host')" value="host">{{ i18n.ts._searchFilterPanel.hostSpecify }}</option>
-      </select>
+      </FormSelect>
       <input
         v-if="hostKindDraft === 'host'"
         v-model="hostDraft"
@@ -290,11 +292,11 @@ function clearAll() {
 
     <label v-if="rows.includes('attachments')" :class="$style.row">
       <span :class="$style.label">{{ i18n.ts._searchFilterPanel.attachments }}</span>
-      <select :class="$style.input" :value="hasFilesValue" @change="onHasFilesChange">
+      <FormSelect filled :class="$style.select" :model-value="hasFilesValue" @change="onHasFilesChange">
         <option value="">{{ i18n.ts._searchFilterPanel.attachmentsAny }}</option>
         <option value="true">{{ i18n.ts._searchFilterPanel.attachmentsYes }}</option>
         <option value="false">{{ i18n.ts._searchFilterPanel.attachmentsNo }}</option>
-      </select>
+      </FormSelect>
     </label>
 
     <div v-if="rows.includes('conditions')" :class="[$style.row, $style.rowTop]">
@@ -352,6 +354,11 @@ function clearAll() {
 .label {
   flex: 0 0 3.5em;
   font-size: var(--nd-font-body);
+}
+
+.select {
+  flex: 1;
+  min-width: 0;
 }
 
 .input {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import FormNumber from '@/components/common/form/FormNumber.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import { i18n } from '@/i18n'
 import {
   type EvictionPreset,
@@ -323,9 +324,8 @@ onMounted(refreshStats)
       <div v-if="preset === 'custom'" :class="$style.customGrid">
         <label :class="$style.customLabel">
           <span>{{ i18n.ts._cacheEditorContent.perAccountLimit }}</span>
-          <select
-            :value="String(customLimit)"
-            :class="$style.select"
+          <FormSelect
+            :model-value="String(customLimit)"
             @change="setCustomLimit(
               ($event.target as HTMLSelectElement).value === 'null'
                 ? null
@@ -335,13 +335,12 @@ onMounted(refreshStats)
             <option v-for="opt in PER_ACCOUNT_OPTIONS" :key="String(opt.value)" :value="String(opt.value)">
               {{ opt.label }}
             </option>
-          </select>
+          </FormSelect>
         </label>
         <label :class="$style.customLabel">
           <span>TTL</span>
-          <select
-            :value="String(customTtl)"
-            :class="$style.select"
+          <FormSelect
+            :model-value="String(customTtl)"
             @change="setCustomTtl(
               ($event.target as HTMLSelectElement).value === 'null'
                 ? null
@@ -351,7 +350,7 @@ onMounted(refreshStats)
             <option v-for="opt in TTL_OPTIONS" :key="String(opt.value)" :value="String(opt.value)">
               {{ opt.label }}
             </option>
-          </select>
+          </FormSelect>
         </label>
       </div>
     </div>
@@ -488,15 +487,6 @@ onMounted(refreshStats)
   gap: 4px;
   font-size: var(--nd-font-sm);
   color: var(--nd-fgMuted);
-}
-
-.select {
-  padding: 6px 8px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: var(--nd-font-md);
 }
 
 .btnRow {

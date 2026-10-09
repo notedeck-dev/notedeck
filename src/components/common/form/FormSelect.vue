@@ -13,6 +13,8 @@ const model = defineModel<T>({ required: true })
 defineProps<{
   /** 読み上げ用の名前 (見えるラベルが label 要素で結ばれていない画面向け) */
   label?: string
+  /** 枠なしの塗り。検索の絞り込みや投票のように、隣の欄も塗りで描く詰まった面に置くとき */
+  filled?: boolean
 }>()
 
 const attrs = useAttrs()
@@ -27,7 +29,7 @@ function selectAttrs() {
     <select
       v-bind="selectAttrs()"
       v-model="model"
-      :class="$style.select"
+      :class="[$style.select, filled && $style.filled]"
       :aria-label="label"
     >
       <slot />
@@ -58,6 +60,17 @@ function selectAttrs() {
   optgroup {
     background: var(--nd-panel);
     color: var(--nd-fg);
+  }
+}
+
+.filled {
+  padding: 4px 24px 4px 6px;
+  border-color: transparent;
+  background: var(--nd-buttonBg);
+
+  &:focus {
+    border-color: transparent;
+    box-shadow: 0 0 0 2px var(--nd-accent);
   }
 }
 

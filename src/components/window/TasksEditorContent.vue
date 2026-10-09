@@ -13,6 +13,7 @@ import {
 } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -677,14 +678,14 @@ function handleReset() {
                   :class="$style.inputItem"
                 >
                   <div :class="$style.inputItemRow">
-                    <select
-                      :value="input.type"
-                      :class="$style.input"
-                      @change="(e) => changeInputType(t, ii, (e.target as HTMLSelectElement).value as 'text' | 'pick')"
+                    <FormSelect
+                      :model-value="input.type"
+                      :class="$style.select"
+                      @update:model-value="(v) => changeInputType(t, ii, v)"
                     >
                       <option value="text">text</option>
                       <option value="pick">pick</option>
-                    </select>
+                    </FormSelect>
                     <input
                       v-model="input.id"
                       type="text"
@@ -1012,6 +1013,10 @@ function handleReset() {
   opacity: 0.6;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.select {
+  width: 100%;
 }
 
 .input {
