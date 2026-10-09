@@ -1935,6 +1935,7 @@ _deckApiConsoleColumn:
 
 _deckBottomBar:
   deckSettings: "デッキ設定"
+  restoreWindow: "{title} を元に戻す"
 
 _deckChartsColumn:
   hour: "時"

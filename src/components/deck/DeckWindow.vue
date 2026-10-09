@@ -13,7 +13,11 @@ import {
 } from '@/stores/windows'
 import { isTauri, openSettingsFileInEditor } from '@/utils/settingsFs'
 import { openSafeUrl } from '@/utils/url'
-import { WINDOW_ICONS, WINDOW_LABELS, WINDOW_SIZES } from '@/windows/registry'
+import {
+  WINDOW_ICONS,
+  WINDOW_SIZES,
+  windowTitle as windowTitleOf,
+} from '@/windows/registry'
 
 const props = defineProps<{
   window: DeckWindow
@@ -69,15 +73,7 @@ function runEditAction() {
   }
 }
 
-const windowTitle = computed(() => {
-  const base = WINDOW_LABELS[props.window.type] ?? ''
-  if (props.window.type === 'follow-list' && props.window.props.username) {
-    return i18n.tsx._deckWindow.followListTitle({
-      username: String(props.window.props.username),
-    })
-  }
-  return base
-})
+const windowTitle = computed(() => windowTitleOf(props.window))
 
 const isMinimized = computed(() => props.window.minimized)
 const isMaximized = computed(() => props.window.maximized)

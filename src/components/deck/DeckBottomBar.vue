@@ -12,6 +12,8 @@ import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { type ToastItem, useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
+import { useWindowsStore } from '@/stores/windows'
+import { WINDOW_ICONS, windowTitle } from '@/windows/registry'
 
 const props = defineProps<{
   columns: DeckColumn[]
@@ -63,6 +65,10 @@ const statusT = useVaporTransition(
   computed(() => toastCenter.status.value != null),
   { enterDuration: 200, leaveDuration: 200 },
 )
+
+// 最小化したウィンドウ (#704)。最小化はその場でヘッダーだけ残すので、
+// 他のウィンドウの背後に回ると戻す手段が無くなる。ここに並べて戻せるようにする
+const windowsStore = useWindowsStore()
 
 function onSettingsClick() {
   commandStore.openWithInput('*')
@@ -138,6 +144,20 @@ const {
         @click="onAddColumnClick()"
       >
         <i class="ti ti-plus" />
+      </button>
+    </div>
+
+    <div v-if="windowsStore.minimizedWindows.length > 0" :class="$style.minimized">
+      <button
+        v-for="win in windowsStore.minimizedWindows"
+        :key="win.id"
+        class="_button"
+        :class="$style.minimizedChip"
+        :title="i18n.tsx._deckBottomBar.restoreWindow({ title: windowTitle(win) })"
+        @click="windowsStore.restore(win.id)"
+      >
+        <i :class="WINDOW_ICONS[win.type]" />
+        <span :class="$style.minimizedTitle">{{ windowTitle(win) }}</span>
       </button>
     </div>
 
@@ -292,6 +312,53 @@ const {
   &.tabActive::after {
     display: none;
   }
+}
+
+.minimized {
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 40%;
+  padding: 0 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.minimizedChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  max-width: 160px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--nd-radius-sm);
+  background: var(--nd-buttonBg);
+  color: var(--nd-fg);
+  font-size: var(--nd-font-sm);
+  opacity: 0.75;
+  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
+
+  &:hover {
+    opacity: 1;
+    background: var(--nd-buttonHoverBg);
+  }
+
+  :global(.ti) {
+    flex-shrink: 0;
+  }
+}
+
+.minimizedTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .actionBtn {

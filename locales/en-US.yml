@@ -2187,6 +2187,7 @@ _deckApiConsoleColumn:
 
 _deckBottomBar:
   deckSettings: "Deck settings"
+  restoreWindow: "Restore {title}"
 
 _deckChartsColumn:
   hour: "Hour"

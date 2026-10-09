@@ -3496,6 +3496,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_deckBottomBar": {
     /** デッキ設定 */
     readonly "deckSettings": string
+    /** {title} を元に戻す */
+    readonly "restoreWindow": ParameterizedString<'title'>
   }
   readonly "_deckChartsColumn": {
     /** 時 */
