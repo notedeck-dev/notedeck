@@ -120,6 +120,9 @@ _commands:
   settingsMenu: "Settings menu"
   tutorial: "Tutorial"
   toggleDarkMode: "Toggle dark / light mode"
+  zoomIn: "Zoom in"
+  zoomOut: "Zoom out"
+  zoomReset: "Reset zoom"
   toggleOfflineMode: "Toggle offline mode"
   toggleRealtimeMode: "Toggle realtime mode"
   clearAllCache: "Clear all caches"
@@ -848,6 +851,7 @@ _titleBarMenu:
   view: "View"
   zoomIn: "Zoom in"
   zoomOut: "Zoom out"
+  zoomReset: "Actual size"
 
 _postFormFilePreviews:
   discard: "Discard"
@@ -2218,6 +2222,7 @@ _deckApiConsoleColumn:
 
 _deckBottomBar:
   deckSettings: "Deck settings"
+  restoreWindow: "Restore {title}"
 
 _deckChartsColumn:
   hour: "Hour"
@@ -2240,6 +2245,7 @@ _deckChatColumn:
 _deckColumnsArea:
   noColumns: "No columns"
   startWithDefault: "Start with the default layout"
+  resizeHandle: "Drag to resize / Double-click to reset to the default width"
 
 _deckEmojiColumn:
   searchPlaceholder: "Search emoji..."

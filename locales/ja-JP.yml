@@ -127,6 +127,9 @@ _commands:
   settingsMenu: "設定メニュー"
   tutorial: "チュートリアル"
   toggleDarkMode: "ダーク/ライトモード切り替え"
+  zoomIn: "表示を拡大"
+  zoomOut: "表示を縮小"
+  zoomReset: "表示の拡大率をリセット"
   toggleOfflineMode: "オフラインモード切り替え"
   toggleRealtimeMode: "リアルタイムモード切り替え"
   clearAllCache: "全キャッシュ削除"
@@ -626,6 +629,7 @@ _titleBarMenu:
   view: "表示"
   zoomIn: "拡大"
   zoomOut: "縮小"
+  zoomReset: "等倍に戻す"
 
 _postFormFilePreviews:
   discard: "破棄"
@@ -1966,6 +1970,7 @@ _deckApiConsoleColumn:
 
 _deckBottomBar:
   deckSettings: "デッキ設定"
+  restoreWindow: "{title} を元に戻す"
 
 _deckChartsColumn:
   hour: "時"
@@ -1988,6 +1993,7 @@ _deckChatColumn:
 _deckColumnsArea:
   noColumns: "カラムがありません"
   startWithDefault: "デフォルトの構成で始める"
+  resizeHandle: "ドラッグで幅を変更 / ダブルクリックでデフォルトの幅に戻す"
 
 _deckEmojiColumn:
   searchPlaceholder: "絵文字を検索..."

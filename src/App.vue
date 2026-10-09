@@ -20,6 +20,7 @@ import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
 import { startSettingsFileSync } from '@/composables/useSettingsFileSync'
 import { useTheme } from '@/composables/useTheme'
 import { useTrayMenu } from '@/composables/useTrayMenu'
+import { applyUiZoom } from '@/composables/useUiZoom'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { i18n } from '@/i18n'
 import { useLogsStore } from '@/stores/logs'
@@ -103,6 +104,9 @@ if (isTauri) {
 // コード面の明暗 (#1053) — 設定 + アプリのテーマから実効値を決めて root に
 // 出す。PiP ウィンドウも自分の document を持つので両方で mount する。
 useCodeScheme()
+
+// UI ズーム (#704)。settings.json5 の値を各ウィンドウの webview に当てる
+applyUiZoom()
 
 // notecore が書いた設定ファイルの写しを読み直す購読 (#1133)。全ウィンドウで
 // 1 回ずつ (各ウィンドウの store が自分の面だけ追従する)

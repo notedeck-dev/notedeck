@@ -73,6 +73,24 @@
     commandId: "toggle-dark-mode",
     shortcuts: [{ key: "d", scope: "body" }],
   },
+  {
+    // Ctrl++ は US / JIS とも Shift 付きで "+" が届く。Ctrl+= (US の Shift
+    // 無し) とテンキーの + も拡大として受ける (ブラウザと同じ)
+    commandId: "zoom-in",
+    shortcuts: [
+      { key: "+", ctrl: true, shift: true, scope: "global" },
+      { key: "+", ctrl: true, scope: "global" },
+      { key: "=", ctrl: true, scope: "global" },
+    ],
+  },
+  {
+    commandId: "zoom-out",
+    shortcuts: [{ key: "-", ctrl: true, scope: "global" }],
+  },
+  {
+    commandId: "zoom-reset",
+    shortcuts: [{ key: "0", ctrl: true, scope: "global" }],
+  },
 
   {
     commandId: "close-column",

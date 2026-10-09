@@ -72,6 +72,11 @@ export const useWindowsStore = defineStore('windows', () => {
   let topZIndex = 1500
   const overlayCleanups = new Map<string, () => void>()
 
+  /** 最小化中のウィンドウ (開いた順)。背後に隠れても復元できるよう一覧に出す */
+  const minimizedWindows = computed(() =>
+    windows.value.filter((w) => w.minimized),
+  )
+
   /** The frontmost (highest zIndex) window, or null when none are open. */
   const topWindow = computed<DeckWindow | null>(() => {
     if (windows.value.length === 0) return null
@@ -238,6 +243,14 @@ export const useWindowsStore = defineStore('windows', () => {
     if (!win.minimized) win.maximized = false
   }
 
+  /** 最小化を解いて最前面に出す (ボトムバーの最小化ウィンドウ一覧から) */
+  function restore(id: string) {
+    const win = windows.value.find((w) => w.id === id)
+    if (!win) return
+    win.minimized = false
+    bringToFront(id)
+  }
+
   function toggleMaximize(id: string) {
     const win = windows.value.find((w) => w.id === id)
     if (!win) return
@@ -254,12 +267,14 @@ export const useWindowsStore = defineStore('windows', () => {
   return {
     windows,
     topWindow,
+    minimizedWindows,
     open,
     close,
     bringToFront,
     updatePosition,
     updateSize,
     toggleMinimize,
+    restore,
     toggleMaximize,
     closeAll,
   }

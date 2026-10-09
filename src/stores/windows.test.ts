@@ -31,3 +31,26 @@ describe('windows store: drive-file-detail の dedup (#792)', () => {
     expect(store.windows).toHaveLength(3)
   })
 })
+
+describe('windows store: 最小化ウィンドウの復元 (#704)', () => {
+  it('minimizedWindows は最小化中のものだけを開いた順に並べる', () => {
+    const store = useWindowsStore()
+    const a = store.open('drive-file-detail', { accountId: 'acc', fileId: 'a' })
+    const b = store.open('drive-file-detail', { accountId: 'acc', fileId: 'b' })
+    store.open('drive-file-detail', { accountId: 'acc', fileId: 'c' })
+    store.toggleMinimize(b)
+    store.toggleMinimize(a)
+    expect(store.minimizedWindows.map((w) => w.id)).toEqual([a, b])
+  })
+
+  it('restore は最小化を解いて最前面に出す', () => {
+    const store = useWindowsStore()
+    const a = store.open('drive-file-detail', { accountId: 'acc', fileId: 'a' })
+    store.open('drive-file-detail', { accountId: 'acc', fileId: 'b' })
+    store.toggleMinimize(a)
+    store.restore(a)
+    const win = store.windows.find((w) => w.id === a)
+    expect(win?.minimized).toBe(false)
+    expect(store.topWindow?.id).toBe(a)
+  })
+})

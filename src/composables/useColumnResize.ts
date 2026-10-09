@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import { onScopeDispose, ref } from 'vue'
-import { WIDE_COLUMN_TYPES } from '@/columns/registry'
+import { buildColumnDefaults, WIDE_COLUMN_TYPES } from '@/columns/registry'
 import type { DeckColumn, useDeckStore } from '@/stores/deck'
 
 const COL_MIN_WIDTH = 280
@@ -53,6 +53,15 @@ export function useColumnResize(
     document.addEventListener('pointercancel', stopColumnResize)
   }
 
+  /** ダブルクリックで種別の既定幅に戻す (リサイズハンドルの慣習) */
+  function resetColumnWidth(colId: string) {
+    const col = columnMap.value.get(colId)
+    if (!col) return
+    deckStore.updateColumn(colId, {
+      width: buildColumnDefaults(col.type, col.accountId).width,
+    })
+  }
+
   onScopeDispose(() => {
     if (resizingColId.value) stopColumnResize()
   })
@@ -60,6 +69,7 @@ export function useColumnResize(
   return {
     resizingColId,
     startColumnResize,
+    resetColumnWidth,
     WIDE_COLUMN_TYPES,
   }
 }
