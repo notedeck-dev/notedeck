@@ -148,6 +148,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/columnUri.ts`](src/services/columnUri.ts) | — |
 | [`src/services/concurrency.ts`](src/services/concurrency.ts) | [`src/services/concurrency.test.ts`](src/services/concurrency.test.ts) |
 | [`src/services/cssPresets.ts`](src/services/cssPresets.ts) | [`src/services/cssPresets.test.ts`](src/services/cssPresets.test.ts) |
+| [`src/services/dateSeparator.ts`](src/services/dateSeparator.ts) | [`src/services/dateSeparator.test.ts`](src/services/dateSeparator.test.ts) |
 | [`src/services/deckLayout.ts`](src/services/deckLayout.ts) | [`src/services/deckLayout.test.ts`](src/services/deckLayout.test.ts) |
 | [`src/services/deckProfileCodec.ts`](src/services/deckProfileCodec.ts) | [`src/services/deckProfileCodec.test.ts`](src/services/deckProfileCodec.test.ts) |
 | [`src/services/deckProfileFiles.ts`](src/services/deckProfileFiles.ts) | — |
@@ -182,6 +183,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/noteFrame.ts`](src/services/noteFrame.ts) | [`src/services/noteFrame.test.ts`](src/services/noteFrame.test.ts) |
 | [`src/services/noteGroup.ts`](src/services/noteGroup.ts) | [`src/services/noteGroup.test.ts`](src/services/noteGroup.test.ts) |
 | [`src/services/noteKey.ts`](src/services/noteKey.ts) | [`src/services/noteKey.test.ts`](src/services/noteKey.test.ts) |
+| [`src/services/noteSummary.ts`](src/services/noteSummary.ts) | [`src/services/noteSummary.test.ts`](src/services/noteSummary.test.ts) |
 | [`src/services/noteUrl.ts`](src/services/noteUrl.ts) | [`src/services/noteUrl.test.ts`](src/services/noteUrl.test.ts) |
 | [`src/services/notificationMerge.ts`](src/services/notificationMerge.ts) | [`src/services/notificationMerge.test.ts`](src/services/notificationMerge.test.ts) |
 | [`src/services/notificationNoteSync.ts`](src/services/notificationNoteSync.ts) | [`src/services/notificationNoteSync.test.ts`](src/services/notificationNoteSync.test.ts) |

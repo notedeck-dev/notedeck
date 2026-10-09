@@ -1751,8 +1751,6 @@ _deckNavbar:
 
 _deckNotificationColumn:
   empty: "通知はありません"
-  othersCount_plural:
-    other: "他 {count} 人"
   accepted: "承認済み"
   rejected: "拒否済み"
   accept: "承認"
@@ -1771,14 +1769,6 @@ _deckNotificationColumn:
   filterPollEnded: "アンケート"
   filterAchievementEarned: "実績"
   filterCreateToken: "トークン"
-  labelReaction: "がリアクション"
-  labelReply: "からのリプライ"
-  labelRenote: "がリノートしました"
-  labelQuote: "による引用"
-  labelMention: "からのメンション"
-  labelFollow: "にフォローされました"
-  labelFollowRequestAccepted: "がフォローリクエストを承認"
-  labelReceiveFollowRequest: "からフォローリクエスト"
   labelPollEnded: "アンケートの結果が出ました"
   labelAchievementEarned: "実績を獲得"
   labelRoleAssigned: "ロールが付与されました"
@@ -1786,6 +1776,29 @@ _deckNotificationColumn:
   labelLogin: "ログインがありました"
   labelCreateToken: "アクセストークンが作成されました"
   labelTest: "テスト通知"
+  labelNewNote: "新しいノート: {user}"
+  labelScheduledNotePosted: "予約投稿が投稿されました"
+  labelScheduledNotePostFailed: "予約投稿に失敗しました"
+  labelExportCompleted: "エクスポートが完了しました"
+  labelChatRoomInvitationReceived: "ルームに招待されました"
+  reactedBy_plural:
+    other: "{count} 人がリアクションしました"
+  likedBy_plural:
+    other: "{count} 人がいいねしました"
+  renotedBy_plural:
+    other: "{count} 人がリノートしました"
+  moreUsers_plural:
+    other: "+{count}"
+  bodyFollow: "フォローされました"
+  bodyFollowRequestAccepted: "フォローリクエストが承認されました"
+  bodyReceiveFollowRequest: "フォローリクエストが届きました"
+  dateSeparator: "{newer} と {older} の境目"
+
+_noteSummary:
+  hidden: "非公開のノート"
+  files_plural:
+    other: "{count} 個のファイル"
+  poll: "アンケート"
 
 _deckPluginManagerColumn:
   create: "新規プラグインを作成"

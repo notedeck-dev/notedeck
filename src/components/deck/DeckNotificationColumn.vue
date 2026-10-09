@@ -27,7 +27,6 @@ import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import I18n from '@/components/common/I18n.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
-import MkEmoji from '@/components/common/MkEmoji.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
@@ -51,7 +50,9 @@ import { getStreamHealth } from '@/core/streamHealth'
 import { i18n } from '@/i18n'
 import { createBoundedCache } from '@/services/boundedCache'
 import { mapWithConcurrency, type SettleProgress } from '@/services/concurrency'
+import { dateSeparator } from '@/services/dateSeparator'
 import { parseVariantKey, variantKey } from '@/services/noteKey'
+import { getNoteSummary } from '@/services/noteSummary'
 import { mergeNotifications as mergeNotificationLists } from '@/services/notificationMerge'
 import {
   dropDeletedNote,
@@ -218,34 +219,12 @@ function notifMenuOpenNotifInspector() {
   closeNotifMenu()
 }
 
-function onNotifAvatarClick(notif: NormalizedNotification, e: MouseEvent) {
-  e.stopPropagation()
-  // biome-ignore lint/style/noNonNullAssertion: user exists for interactive notifications
-  navToUser(notif._accountId, notif.user!.id)
-}
-
-function onGroupedAvatarClick(
-  accountId: string,
-  userId: string,
-  e: MouseEvent,
-) {
+function onAvatarClick(accountId: string, userId: string, e: MouseEvent) {
   e.stopPropagation()
   navToUser(accountId, userId)
 }
 
-function onNotifAvatarMouseEnter(notif: NormalizedNotification, e: MouseEvent) {
-  // biome-ignore lint/style/noNonNullAssertion: user exists for interactive notifications
-  hoveredUserId.value = notif.user!.id
-  hoveredAccountId.value = notif._accountId
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  userPopup.show({ x: rect.right + 8, y: rect.top })
-}
-
-function onGroupedAvatarMouseEnter(
-  accountId: string,
-  userId: string,
-  e: MouseEvent,
-) {
+function onAvatarMouseEnter(accountId: string, userId: string, e: MouseEvent) {
   hoveredUserId.value = userId
   hoveredAccountId.value = accountId
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -558,6 +537,14 @@ const filteredNotifications = computed(() => {
   return mergeTutorialNotifications(base, tutorial.progress)
 })
 
+/** 各行の上に出す日付の区切り。前の行 (新しい側) と日付が違うときだけ */
+const dateSeparators = computed(() => {
+  const list = filteredNotifications.value
+  return list.map((n, i) =>
+    i > 0 ? dateSeparator(list[i - 1]?.createdAt, n.createdAt) : null,
+  )
+})
+
 const noteScrollerRef = ref<{
   getElement: () => HTMLElement | null
   scrollToTop: () => void
@@ -647,6 +634,8 @@ function getCachedTwemojiUrl(reaction: string): string | null {
 // 落とし、バックオフ再試行を申告する (#844)
 const onReactionImgError = onCustomEmojiImgError
 
+// 種類の対応表は本家 MkNotification と揃える (#1210)。新しい投稿 (note) は
+// 本家と同じくバッジを出さない
 const NOTIFICATION_ICONS: Record<string, string> = {
   reaction: 'mood-plus',
   reply: 'arrow-back-up',
@@ -657,49 +646,42 @@ const NOTIFICATION_ICONS: Record<string, string> = {
   followRequestAccepted: 'check',
   receiveFollowRequest: 'clock',
   pollEnded: 'chart-arrows',
+  scheduledNotePosted: 'send',
+  scheduledNotePostFailed: 'alert-triangle',
   achievementEarned: 'medal',
+  exportCompleted: 'archive',
   roleAssigned: 'badges',
+  chatRoomInvitationReceived: 'messages',
   app: 'apps',
   login: 'login-2',
   createToken: 'key',
 }
 
+/**
+ * 見出しに種類の文言を出す種類。ユーザー起点の通知 (リアクション・フォロー等)
+ * はここに無く、見出しは名前だけにして種類はバッジで伝える (本家と同じ)
+ */
 const NOTIFICATION_LABELS: Record<string, string> = {
-  get reaction() {
-    return i18n.ts._deckNotificationColumn.labelReaction
-  },
-  get reply() {
-    return i18n.ts._deckNotificationColumn.labelReply
-  },
-  get renote() {
-    return i18n.ts._deckNotificationColumn.labelRenote
-  },
-  get quote() {
-    return i18n.ts._deckNotificationColumn.labelQuote
-  },
-  get mention() {
-    return i18n.ts._deckNotificationColumn.labelMention
-  },
-  get follow() {
-    return i18n.ts._deckNotificationColumn.labelFollow
-  },
-  get followRequestAccepted() {
-    return i18n.ts._deckNotificationColumn.labelFollowRequestAccepted
-  },
-  get receiveFollowRequest() {
-    return i18n.ts._deckNotificationColumn.labelReceiveFollowRequest
-  },
   get pollEnded() {
     return i18n.ts._deckNotificationColumn.labelPollEnded
+  },
+  get scheduledNotePosted() {
+    return i18n.ts._deckNotificationColumn.labelScheduledNotePosted
+  },
+  get scheduledNotePostFailed() {
+    return i18n.ts._deckNotificationColumn.labelScheduledNotePostFailed
   },
   get achievementEarned() {
     return i18n.ts._deckNotificationColumn.labelAchievementEarned
   },
+  get exportCompleted() {
+    return i18n.ts._deckNotificationColumn.labelExportCompleted
+  },
   get roleAssigned() {
     return i18n.ts._deckNotificationColumn.labelRoleAssigned
   },
-  get app() {
-    return i18n.ts._deckNotificationColumn.labelApp
+  get chatRoomInvitationReceived() {
+    return i18n.ts._deckNotificationColumn.labelChatRoomInvitationReceived
   },
   get login() {
     return i18n.ts._deckNotificationColumn.labelLogin
@@ -733,6 +715,25 @@ function baseType(type: string): string {
   return type.replace(':grouped', '')
 }
 
+function isGrouped(notif: NormalizedNotification): boolean {
+  return notif.type === 'reaction:grouped' || notif.type === 'renote:grouped'
+}
+
+/** いいねだけを受け付けるノートへのリアクションは、ハートで見せる (本家と同じ) */
+function isLikeOnly(notif: NormalizedNotification): boolean {
+  return notif.note?.reactionAcceptance === 'likeOnly'
+}
+
+function groupIcon(notif: NormalizedNotification): string {
+  if (notif.type === 'renote:grouped') return 'repeat'
+  return isLikeOnly(notif) ? 'heart' : 'plus'
+}
+
+function groupIconColor(notif: NormalizedNotification): string {
+  if (notif.type === 'renote:grouped') return 'var(--nd-eventRenote)'
+  return isLikeOnly(notif) ? 'var(--nd-love)' : 'var(--nd-eventReaction)'
+}
+
 function groupedUsers(notif: NormalizedNotification): NormalizedUser[] {
   let users: NormalizedUser[]
   if (notif.type === 'reaction:grouped' && notif.reactions) {
@@ -750,10 +751,27 @@ function groupedUsers(notif: NormalizedNotification): NormalizedUser[] {
   })
 }
 
+/** まとめ通知の見出し。人数は同じ人の複数リアクションを 1 人と数える */
+function groupedTitle(notif: NormalizedNotification): string {
+  const count = groupedUsers(notif).length
+  if (notif.type === 'renote:grouped') {
+    return i18n.tsx._deckNotificationColumn.renotedBy_plural({ count })
+  }
+  return isLikeOnly(notif)
+    ? i18n.tsx._deckNotificationColumn.likedBy_plural({ count })
+    : i18n.tsx._deckNotificationColumn.reactedBy_plural({ count })
+}
+
 interface AvatarEntry {
   user: NormalizedUser
   reaction?: string
 }
+
+/**
+ * まとめ通知に並べるアバターの上限。本家は全員並べるが、数百人のまとめが
+ * 来るとアバターの数だけ要素が増えるので、超えた分は「+N」にする
+ */
+const GROUPED_AVATAR_LIMIT = 30
 
 function groupedAvatarEntries(notif: NormalizedNotification): AvatarEntry[] {
   if (notif.type === 'reaction:grouped' && notif.reactions) {
@@ -770,11 +788,17 @@ function groupedAvatarEntries(notif: NormalizedNotification): AvatarEntry[] {
   return groupedUsers(notif).map((u) => ({ user: u }))
 }
 
-function uniqueReactions(reactions: { reaction: string }[]): string[] {
-  return [...new Set(reactions.map((r) => r.reaction))]
+/** 先頭のアバターに出すユーザー。新しい投稿と投票終了は投稿者 (本家と同じ) */
+function headUser(notif: NormalizedNotification): NormalizedUser | undefined {
+  if (notif.user) return notif.user
+  if (notif.type === 'note' || notif.type === 'pollEnded') {
+    return notif.note?.user
+  }
+  return undefined
 }
 
-function notificationIcon(type: string): string {
+function notificationIcon(type: string): string | null {
+  if (type === 'note') return null
   return NOTIFICATION_ICONS[baseType(type)] || 'bell'
 }
 
@@ -782,8 +806,60 @@ function notificationColor(type: string): string {
   return NOTIFICATION_COLORS[baseType(type)] || 'var(--nd-eventOther)'
 }
 
+function hasTypeLabel(type: string): boolean {
+  return baseType(type) in NOTIFICATION_LABELS
+}
+
+/** 知らない種類でも種類名をそのまま出さず「通知」にする */
 function notificationLabel(type: string): string {
-  return NOTIFICATION_LABELS[baseType(type)] || type
+  return (
+    NOTIFICATION_LABELS[baseType(type)] ??
+    i18n.ts._deckNotificationColumn.labelApp
+  )
+}
+
+/** 引用符付きの要約にする種類 (本家と同じ)。新しい投稿は引用符なし */
+const QUOTED_SUMMARY_TYPES = new Set([
+  'reaction',
+  'renote',
+  'pollEnded',
+  'scheduledNotePosted',
+])
+
+interface NoteSummaryView {
+  note: NormalizedNote
+  /** title に出す全文 */
+  text: string
+  /** 1 行に詰めた表示用 */
+  line: string
+  quoted: boolean
+}
+
+/**
+ * リアクション・リノート・投票終了などは対象ノートを埋め込まず、要約 1 行で
+ * 見せる (#1210)。リノートは自分のノート (リノートされた側) を要約する。
+ * 返信・メンション・引用は null (ノートをそのまま出す)
+ */
+// 1 件の描画で何度も引くので通知オブジェクトごとに覚える (ノートが更新されると
+// 通知オブジェクトごと差し替わるので古い要約は残らない)
+const summaryCache = new WeakMap<
+  NormalizedNotification,
+  NoteSummaryView | null
+>()
+function summaryOf(notif: NormalizedNotification): NoteSummaryView | null {
+  if (summaryCache.has(notif)) return summaryCache.get(notif) ?? null
+  const view = buildSummary(notif)
+  summaryCache.set(notif, view)
+  return view
+}
+function buildSummary(notif: NormalizedNotification): NoteSummaryView | null {
+  const type = baseType(notif.type)
+  const quoted = QUOTED_SUMMARY_TYPES.has(type)
+  if (!quoted && type !== 'note') return null
+  const note = type === 'renote' ? notif.note?.renote : notif.note
+  if (!note) return null
+  const text = getNoteSummary(note)
+  return { note, text, line: text.replace(/\s*\n\s*/g, ' '), quoted }
 }
 
 // 外部アプリが notifications/create で飛ばす app 通知は user を持たず、
@@ -1346,111 +1422,44 @@ onUnmounted(() => {
       >
         <template #default="{ item: notif, index, nearViewport }">
           <div>
+            <!-- 日付の区切り (本家 MkStreamingNotificationsTimeline と同じ: 上が新しい日、下が古い日) -->
+            <div
+              v-if="dateSeparators[index]"
+              :class="$style.dateSeparator"
+              role="separator"
+              :aria-label="i18n.tsx._deckNotificationColumn.dateSeparator({ newer: dateSeparators[index]!.newerText, older: dateSeparators[index]!.olderText })"
+            >
+              <span><i class="ti ti-chevron-up" /> {{ dateSeparators[index]!.newerText }}</span>
+              <span :class="$style.dateSeparatorBar" />
+              <span>{{ dateSeparators[index]!.olderText }} <i class="ti ti-chevron-down" /></span>
+            </div>
             <ReadMarkerDivider
               v-if="viewMarkerId && hasUnreadAboveMarker && notificationKey(notif) === viewMarkerId"
             />
-            <!-- Grouped notification: reaction:grouped / renote:grouped -->
             <div
-              v-if="notif.type === 'reaction:grouped' || notif.type === 'renote:grouped'"
               :class="$style.notifItem"
               @contextmenu.prevent="openNotifMenu(notif, $event)"
             >
               <div :class="$style.notifLayout">
-                <div :class="$style.notifGroupedHead">
-                  <div
-                    v-for="(entry, entryIndex) in groupedAvatarEntries(notif).slice(0, 3)"
-                    :key="`${entry.user.id}-${entry.reaction ?? ''}`"
-                    :class="$style.notifHead"
-                  >
-                    <MkAvatar
-                      :avatar-url="entry.user.avatarUrl"
-                      :decorations="entry.user.avatarDecorations"
-                      :size="42"
-                      :alt="entry.user.username ?? undefined"
-                      :is-cat="entry.user.isCat"
-                      :class="$style.notifUserAvatar"
-                      @click="onGroupedAvatarClick(notif._accountId, entry.user.id, $event)"
-                      @mouseenter="onGroupedAvatarMouseEnter(notif._accountId, entry.user.id, $event)"
-                      @mouseleave="onNotifAvatarMouseLeave"
-                    />
-                    <template v-if="entry.reaction">
-                      <span v-if="isEmojiMuted(entry.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="entry.reaction" :title="i18n.tsx._common.mutedReaction({ reaction: entry.reaction })" />
-                      <img v-else-if="getCachedReactionUrl(entry.reaction, notif)" :src="getCachedReactionUrl(entry.reaction, notif)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
-                      <img v-else-if="getCachedTwemojiUrl(entry.reaction)" :src="getCachedTwemojiUrl(entry.reaction)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
-                      <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
-                    </template>
-                    <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
-                    <img
-                      v-if="entryIndex === 0 && shouldShowServerBadge(notif) && resolveNotifServerIcon(notif)"
-                      :src="resolveNotifServerIcon(notif)!"
-                      :class="$style.notifServerBadge"
-                      :title="resolveNotifBadgeTitle(notif)"
-                    />
-                  </div>
-                </div>
-                <div :class="$style.notifTail">
-                  <div :class="$style.notifHeader">
-                    <div :class="$style.notifMeta">
-                      <span :class="$style.notifUserName">
-                        <template v-for="(u, i) in groupedUsers(notif).slice(0, 2)" :key="u.id">
-                          <template v-if="i > 0">, </template>
-                          <MkMfm v-if="u.name" :text="u.name" :emojis="u.emojis" :server-host="notif._serverHost" plain />
-                          <template v-else>{{ u.username }}</template>
-                        </template>
-                        <template v-if="groupedUsers(notif).length > 2"> {{ i18n.tsx._deckNotificationColumn.othersCount_plural({ count: groupedUsers(notif).length - 2 }) }}</template>
-                      </span>
-                      <span :class="$style.notifLabel">{{ notificationLabel(notif.type) }}</span>
-                      <template v-if="notif.type === 'reaction:grouped' && notif.reactions?.length">
-                        <span v-for="reaction in uniqueReactions(notif.reactions)" :key="reaction" :class="$style.notifReaction">
-                          <span v-if="isEmojiMuted(reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="reaction" :title="i18n.tsx._common.mutedReaction({ reaction: reaction })" />
-                          <img v-else-if="getCachedReactionUrl(reaction, notif)" :src="getCachedReactionUrl(reaction, notif)!" :alt="reaction" :title="reaction" :class="$style.notifReactionEmoji" decoding="async" loading="lazy" @error="onReactionImgError" />
-                          <MkEmoji v-else :emoji="reaction" :class="$style.notifReactionEmoji" />
-                        </span>
-                      </template>
-                    </div>
-                    <AppTime :class="$style.notifTime" :at="notif.createdAt" />
-                  </div>
-
-                  <div v-if="notif.note" :class="$style.notifNoteWrap">
-                    <MkNote
-                      :near-viewport="nearViewport"
-                      :note="notif.note"
-                      embedded
-                      compact
-                      @react="handlers.reaction"
-                      @reply="handlers.reply"
-                      @renote="handlers.renote"
-                      @quote="handlers.quote"
-                      @delete="removeNote"
-                      @edit="handlers.edit"
-                      @bookmark="handlers.bookmark"
-                      @delete-and-edit="handlers.deleteAndEdit"
-                      @vote="handlers.vote"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Normal notification -->
-            <div
-              v-else
-              :class="$style.notifItem"
-              @contextmenu.prevent="openNotifMenu(notif, $event)"
-            >
-              <div :class="$style.notifLayout">
-                <!-- Head: Avatar with sub-icon overlay -->
+                <!-- Head: アバター + 右下に種類のバッジ。まとめ通知は種類の色の円 -->
                 <div :class="$style.notifHead">
+                  <div
+                    v-if="isGrouped(notif)"
+                    :class="$style.notifGroupIcon"
+                    :style="{ background: groupIconColor(notif) }"
+                  >
+                    <i :class="`ti ti-${groupIcon(notif)}`" />
+                  </div>
                   <MkAvatar
-                    v-if="notif.user"
-                    :avatar-url="notif.user.avatarUrl"
-                    :decorations="notif.user.avatarDecorations"
+                    v-else-if="headUser(notif)"
+                    :avatar-url="headUser(notif)!.avatarUrl"
+                    :decorations="headUser(notif)!.avatarDecorations"
                     :size="42"
-                    :alt="notif.user.username ?? undefined"
-                    :is-cat="notif.user.isCat"
+                    :alt="headUser(notif)!.username ?? undefined"
+                    :is-cat="headUser(notif)!.isCat"
                     :class="$style.notifUserAvatar"
-                    @click="onNotifAvatarClick(notif, $event)"
-                    @mouseenter="onNotifAvatarMouseEnter(notif, $event)"
+                    @click="onAvatarClick(notif._accountId, headUser(notif)!.id, $event)"
+                    @mouseenter="onAvatarMouseEnter(notif._accountId, headUser(notif)!.id, $event)"
                     @mouseleave="onNotifAvatarMouseLeave"
                   />
                   <template v-else>
@@ -1470,27 +1479,58 @@ onUnmounted(() => {
                     <img v-else-if="getCachedTwemojiUrl(notif.reaction)" :src="getCachedTwemojiUrl(notif.reaction)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
                     <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
                   </template>
-                  <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
+                  <i v-else-if="!isGrouped(notif) && notificationIcon(notif.type)" :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
                 </div>
 
-                <!-- Tail: Header + body -->
+                <!-- Tail: 見出し (名前 / まとめの文 / 種類) + 本文 -->
                 <div :class="$style.notifTail">
                   <div :class="$style.notifHeader">
-                    <div :class="$style.notifMeta">
-                      <span v-if="notif.user" :class="$style.notifUserName">
+                    <span :class="$style.notifTitle">
+                      <template v-if="isGrouped(notif)">{{ groupedTitle(notif) }}</template>
+                      <I18n v-else-if="notif.type === 'note' && notif.note" :src="i18n.ts._deckNotificationColumn.labelNewNote">
+                        <template #user>
+                          <span :class="$style.notifUserName">
+                            <MkMfm v-if="notif.note.user.name" :text="notif.note.user.name" :emojis="notif.note.user.emojis" :server-host="notif._serverHost" plain />
+                            <template v-else>{{ notif.note.user.username }}</template>
+                          </span>
+                        </template>
+                      </I18n>
+                      <template v-else-if="appHeader(notif)">{{ appHeader(notif) }}</template>
+                      <template v-else-if="hasTypeLabel(notif.type) || !notif.user">{{ notificationLabel(notif.type) }}</template>
+                      <span v-else :class="$style.notifUserName">
                         <MkMfm v-if="notif.user.name" :text="notif.user.name" :emojis="notif.user.emojis" :server-host="notif._serverHost" plain />
                         <template v-else>{{ notif.user.username }}</template>
                       </span>
-                      <span v-if="appHeader(notif)" :class="$style.notifUserName">{{ appHeader(notif) }}</span>
-                      <span v-else :class="$style.notifLabel">{{ notificationLabel(notif.type) }}</span>
-                      <span v-if="notif.type === 'reaction' && notif.reaction" :class="$style.notifReaction">
-                        <span v-if="isEmojiMuted(notif.reaction)" class="_emojiMuted" :class="$style.notifReactionEmoji" role="img" :aria-label="notif.reaction" :title="i18n.tsx._common.mutedReaction({ reaction: notif.reaction })" />
-                        <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifReactionEmoji" decoding="async" loading="lazy" @error="onReactionImgError" />
-                        <MkEmoji v-else :emoji="notif.reaction" :class="$style.notifReactionEmoji" />
-                      </span>
-                    </div>
+                    </span>
                     <AppTime :class="$style.notifTime" :at="notif.createdAt" />
                   </div>
+
+                  <!-- 対象ノートの要約 1 行 (リアクション / リノート / 投票終了 / 予約投稿 / 新しいノート)。全体がノートへのリンク -->
+                  <button
+                    v-if="summaryOf(notif)"
+                    type="button"
+                    :class="$style.notifSummary"
+                    :title="summaryOf(notif)!.text"
+                    @click.stop="navToNote(notif._accountId, summaryOf(notif)!.note.id)"
+                  >
+                    <i v-if="summaryOf(notif)!.quoted" class="ti ti-quote" :class="[$style.quote, $style.quoteOpen]" />
+                    <span :class="$style.notifSummaryText">
+                      <MkMfm :text="summaryOf(notif)!.line" :emojis="summaryOf(notif)!.note.emojis" :server-host="notif._serverHost" plain />
+                    </span>
+                    <i v-if="summaryOf(notif)!.quoted" class="ti ti-quote" :class="$style.quote" />
+                  </button>
+
+                  <!-- フォロー系の本文 -->
+                  <div v-if="notif.type === 'follow'" :class="$style.notifFaint">{{ i18n.ts._deckNotificationColumn.bodyFollow }}</div>
+                  <template v-if="notif.type === 'followRequestAccepted'">
+                    <div :class="$style.notifFaint">{{ i18n.ts._deckNotificationColumn.bodyFollowRequestAccepted }}</div>
+                    <div v-if="notif.message" :class="[$style.notifFaint, $style.notifFollowMessage]">
+                      <i class="ti ti-quote" :class="[$style.quote, $style.quoteOpen]" />
+                      <span>{{ notif.message }}</span>
+                      <i class="ti ti-quote" :class="$style.quote" />
+                    </div>
+                  </template>
+                  <div v-if="notif.type === 'receiveFollowRequest'" :class="$style.notifFaint">{{ i18n.ts._deckNotificationColumn.bodyReceiveFollowRequest }}</div>
 
                   <!-- Achievement name -->
                   <div v-if="notif.type === 'achievementEarned' && notif.achievement" :class="$style.notifAchievement">
@@ -1528,11 +1568,6 @@ onUnmounted(() => {
                     </template>
                   </div>
 
-                  <!-- followRequestAccepted message -->
-                  <div v-if="notif.type === 'followRequestAccepted' && notif.message" :class="$style.notifMessage">
-                    {{ notif.message }}
-                  </div>
-
                   <!-- createToken warning -->
                   <div v-if="notif.type === 'createToken'" :class="$style.notifMessage">
                     <I18n :src="i18n.ts._deckNotificationColumn.createTokenWarning">
@@ -1540,8 +1575,38 @@ onUnmounted(() => {
                     </I18n>
                   </div>
 
-                  <!-- Attached note (for reaction, reply, renote, quote, mention) -->
-                  <div v-if="notif.note" :class="$style.notifNoteWrap">
+                  <!-- まとめ通知: 全員のアバターを横並び (リアクションは各自のバッジ付き) -->
+                  <div v-if="isGrouped(notif)" :class="$style.notifGroupedUsers">
+                    <div
+                      v-for="entry in groupedAvatarEntries(notif).slice(0, GROUPED_AVATAR_LIMIT)"
+                      :key="`${entry.user.id}-${entry.reaction ?? ''}`"
+                      :class="$style.notifGroupedUser"
+                    >
+                      <MkAvatar
+                        :avatar-url="entry.user.avatarUrl"
+                        :decorations="entry.user.avatarDecorations"
+                        :size="38"
+                        :alt="entry.user.username ?? undefined"
+                        :is-cat="entry.user.isCat"
+                        :class="$style.notifUserAvatar"
+                        @click="onAvatarClick(notif._accountId, entry.user.id, $event)"
+                        @mouseenter="onAvatarMouseEnter(notif._accountId, entry.user.id, $event)"
+                        @mouseleave="onNotifAvatarMouseLeave"
+                      />
+                      <template v-if="entry.reaction">
+                        <span v-if="isEmojiMuted(entry.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="entry.reaction" :title="i18n.tsx._common.mutedReaction({ reaction: entry.reaction })" />
+                        <img v-else-if="getCachedReactionUrl(entry.reaction, notif)" :src="getCachedReactionUrl(entry.reaction, notif)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
+                        <img v-else-if="getCachedTwemojiUrl(entry.reaction)" :src="getCachedTwemojiUrl(entry.reaction)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
+                      </template>
+                    </div>
+                    <span
+                      v-if="groupedAvatarEntries(notif).length > GROUPED_AVATAR_LIMIT"
+                      :class="$style.notifGroupedMore"
+                    >{{ i18n.tsx._deckNotificationColumn.moreUsers_plural({ count: groupedAvatarEntries(notif).length - GROUPED_AVATAR_LIMIT }) }}</span>
+                  </div>
+
+                  <!-- 返信・メンション・引用 (と要約を持たない種類) はノートをそのまま -->
+                  <div v-if="notif.note && !summaryOf(notif)" :class="$style.notifNoteWrap">
                     <MkNote
                       :near-viewport="nearViewport"
                       :note="notif.note"
@@ -1638,7 +1703,7 @@ onUnmounted(() => {
 }
 
 .notifItem {
-  border-bottom: 1px solid var(--nd-divider);
+  border-bottom: 0.5px solid var(--nd-divider);
   font-size: var(--nd-font-body);
 }
 
@@ -1663,13 +1728,6 @@ onUnmounted(() => {
   flex-shrink: 0;
   width: 42px;
   height: 42px;
-}
-
-.notifGroupedHead {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  gap: 6px;
 }
 
 .notifUserAvatar {
@@ -1768,31 +1826,125 @@ onUnmounted(() => {
 
 .notifHeader {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
 }
 
-.notifMeta {
+/* 見出し 1 行: 名前 / まとめの文 / 種類の文言。あふれたら省略する */
+.notifTitle {
   flex: 1;
   min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.notifUserName {
-  font-weight: var(--nd-weight-bold);
-  font-size: var(--nd-font-md);
-  color: var(--nd-fgHighlighted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.notifLabel {
+/* まとめ通知の左の円 (本家と同じくアバター枠の 8 割) */
+.notifGroupIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  margin: 4px;
+  border-radius: 50%;
+  font-size: 15px;
+  color: #fff;
+}
+
+/* 対象ノートの要約 1 行。全体がノートへのリンク */
+.notifSummary {
+  appearance: none;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: var(--nd-fg);
+  text-align: start;
+  cursor: pointer;
+
+  &:hover .notifSummaryText {
+    text-decoration: underline;
+  }
+}
+
+.notifSummaryText {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 小さく薄い引用符で挟む (本家と同じ)。開き側は上下を返す */
+.quote {
+  flex-shrink: 0;
+  align-self: flex-start;
+  font-size: 50%;
+  opacity: 0.5;
+  margin-left: 4px;
+}
+
+.quoteOpen {
+  margin-left: 0;
+  margin-right: 4px;
+  transform: rotate(180deg);
+}
+
+.notifFaint {
+  opacity: 0.6;
+}
+
+.notifFollowMessage {
+  display: flex;
+  font-style: oblique;
+}
+
+/* まとめ通知の全員のアバター。各アバターの右下にリアクションのバッジ */
+.notifGroupedUsers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.notifGroupedUser {
+  position: relative;
+  width: 38px;
+  height: 38px;
+}
+
+.notifGroupedMore {
   font-size: var(--nd-font-md);
-  opacity: 0.7;
+  opacity: 0.6;
+}
+
+/* 日付の区切り (本家 MkStreamingNotificationsTimeline と同じ形) */
+.dateSeparator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1em;
+  padding: 8px;
+  font-size: var(--nd-font-md);
+  border-bottom: 0.5px solid var(--nd-divider);
+}
+
+.dateSeparatorBar {
+  width: 1px;
+  height: 1em;
+  background: var(--nd-divider);
+}
+
+.notifUserName {
+  font-weight: var(--nd-weight-bold);
+  color: var(--nd-fgHighlighted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notifAchievement {
@@ -1827,24 +1979,9 @@ onUnmounted(() => {
   font-weight: var(--nd-weight-bold);
 }
 
-.notifReaction {
-  display: inline-flex;
-  align-items: center;
-}
-
-.notifReactionEmoji {
-  height: 1.8em;
-  vertical-align: middle;
-  object-fit: contain;
-
-  :global(.twemoji) {
-    height: 1.8em;
-  }
-}
-
 .notifTime {
   flex-shrink: 0;
-  font-size: var(--nd-font-sm);
+  font-size: var(--nd-font-body);
   opacity: 0.5;
   margin-left: auto;
 }
