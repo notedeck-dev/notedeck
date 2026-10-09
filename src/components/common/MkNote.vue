@@ -8,6 +8,10 @@ import type {
 } from '@/adapters/types'
 import { applyNoteViewInterruptors } from '@/aiscript/plugin-api'
 import AppTime from '@/components/common/AppTime.vue'
+import {
+  type NoteTranslation,
+  translateNote,
+} from '@/composables/noteTranslation'
 import { useAccountMode } from '@/composables/useAccountMode'
 import {
   type QuoteAsTarget,
@@ -350,6 +354,27 @@ function toggleCw() {
   cwExpanded.value = !cwExpanded.value
   cwJustRevealed.value = cwExpanded.value
   expandedNoteContent.set(`cw:${effectiveNote.value.id}`, cwExpanded.value)
+}
+
+// 翻訳 (#704)。本家と同じくサーバーの notes/translate に頼み、本文の下に出す
+const translation = ref<NoteTranslation | null>(null)
+const translating = ref(false)
+
+async function handleTranslate() {
+  if (translation.value || translating.value) return
+  translating.value = true
+  try {
+    translation.value = await translateNote(
+      props.note._accountId,
+      effectiveNote.value.id,
+      i18n.lang,
+    )
+  } catch (e) {
+    console.warn('[note:translate]', e)
+    useToast().show(i18n.ts._mkNote.translateFailed, 'error')
+  } finally {
+    translating.value = false
+  }
 }
 
 function toggleLongText() {
@@ -1130,6 +1155,26 @@ function handlePickerReaction(reaction: string) {
             <span v-if="!longTextExpanded && effectiveNote.text" :class="$style.cwChars">{{ i18n.tsx._mkNote.chars_plural({ count: effectiveNote.text.length }) }}</span>
           </button>
 
+          <div v-if="translating || translation" :class="$style.translation">
+            <span v-if="translating" :class="$style.translationLabel">{{ i18n.ts._mkNote.translating }}</span>
+            <template v-else-if="translation">
+              <span :class="$style.translationLabel">{{ i18n.tsx._mkNote.translatedFrom({ lang: translation.sourceLang }) }}</span>
+              <p :class="$style.text">
+                <MkMfm
+                  :text="translation.text"
+                  :emojis="effectiveNote.emojis"
+                  :reaction-emojis="effectiveNote.reactionEmojis"
+                  :server-host="effectiveNote._serverHost"
+                  :my-username="myAccount?.username"
+                  :my-host="myAccount?.host"
+                  @mention-click="handleMentionClick"
+                  @mention-hover="onMentionHover"
+                  @mention-leave="onMentionLeave"
+                />
+              </p>
+            </template>
+          </div>
+
           <MkMediaGrid
             v-if="effectiveNote.files.length > 0 && !effectiveNote.contentHidden"
             :files="effectiveNote.files"
@@ -1350,6 +1395,7 @@ function handlePickerReaction(reaction: string) {
     @unreact-as="handleUnreactAs"
     @renote-as="handleRenoteAs"
     @quote-as="openCrossAccountQuote"
+    @translate="handleTranslate"
   />
 
   <RenoteMoreMenu
@@ -1806,6 +1852,20 @@ function handlePickerReaction(reaction: string) {
 }
 
 /* CW 開封時のみ付与。閉じる方向は隠す操作なので即時のまま */
+.translation {
+  margin-top: 6px;
+  padding: 8px 12px;
+  border: solid 1px var(--nd-divider);
+  border-radius: var(--nd-radius-md);
+}
+
+.translationLabel {
+  display: block;
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
+  opacity: 0.7;
+}
+
 .bodyReveal {
   animation: cw-reveal var(--nd-duration-slow) var(--nd-ease-decel) both;
 }

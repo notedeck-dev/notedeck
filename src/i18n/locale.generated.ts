@@ -706,6 +706,12 @@ export interface Locale {
     readonly "openInBrowser": string
   }
   readonly "_mkNote": {
+    /** 翻訳中... */
+    readonly "translating": string
+    /** {lang} から翻訳 */
+    readonly "translatedFrom": ParameterizedString<'lang'>
+    /** 翻訳できませんでした */
+    readonly "translateFailed": string
     /** ピン留めされたノート */
     readonly "pinned": string
     /** がリノート */
@@ -848,6 +854,8 @@ export interface Locale {
     readonly "remoteUser": string
   }
   readonly "_noteMoreMenu": {
+    /** 翻訳 */
+    readonly "translate": string
     /** このノートを削除しますか？ */
     readonly "confirmDelete": string
     /** このノートを削除して再編集しますか？ */

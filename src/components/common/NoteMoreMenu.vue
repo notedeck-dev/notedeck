@@ -6,6 +6,7 @@ import {
   withPluginAccountContext,
 } from '@/aiscript/plugin-api'
 import { useCommandStore } from '@/commands/registry'
+import { loadTranslatorAvailable } from '@/composables/noteTranslation'
 import { useAccountMode } from '@/composables/useAccountMode'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
@@ -51,6 +52,7 @@ const emit = defineEmits<{
   unreactAs: [accountId: string]
   renoteAs: [accountId: string]
   quoteAs: [accountId: string]
+  translate: [note: NormalizedNote]
 }>()
 
 const toast = useToast()
@@ -102,8 +104,17 @@ const noteActions = computed(() =>
 
 const noteWebUrl = computed(() => getNoteShareUrl(props.note))
 
+// 翻訳はサーバーが提供していてロールで使えるときだけ出す (本家と同じ条件)。
+// 問い合わせはアカウントごとに一度で、初めて開いたときに始める
+const translatorAvailable = ref(false)
+
 function open(e: MouseEvent) {
   popupMenuRef.value?.open(e)
+  if (!isGuest.value && props.note.text) {
+    void loadTranslatorAvailable(props.note._accountId).then((v) => {
+      translatorAvailable.value = v
+    })
+  }
 }
 
 function close() {
@@ -498,6 +509,10 @@ defineExpose({ open })
       <button v-if="note.text" class="_popupItem" @click="copyAndClose(note.text!)">
         <i class="ti ti-copy" />
         {{ i18n.ts._noteMoreMenu.copyContent }}
+      </button>
+      <button v-if="translatorAvailable && note.text" class="_popupItem" @click="emit('translate', note); close()">
+        <i class="ti ti-language-hiragana" />
+        {{ i18n.ts._noteMoreMenu.translate }}
       </button>
       <button class="_popupItem" @click="copyAndClose(noteWebUrl)">
         <i class="ti ti-link" />

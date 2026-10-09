@@ -609,6 +609,9 @@ _mkMediaLightbox:
   openInBrowser: "Open in browser"
 
 _mkNote:
+  translating: "Translating..."
+  translatedFrom: "Translated from {lang}"
+  translateFailed: "Couldn't translate"
   pinned: "Pinned note"
   renotedSuffix: "renoted"
   modeTitle: "{mode} mode"
@@ -697,6 +700,7 @@ _mkUserPopup:
   remoteUser: "Remote user"
 
 _noteMoreMenu:
+  translate: "Translate"
   confirmDelete: "Delete this note?"
   confirmDeleteAndEdit: "Delete this note and edit it again?"
   deleteAndEdit: "Delete and edit"
