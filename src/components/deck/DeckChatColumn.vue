@@ -1580,8 +1580,8 @@ onBeforeUnmount(() => {
 }
 
 .chatActionBtn {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: none;
   background: none;
   color: var(--nd-fg);
@@ -1612,11 +1612,13 @@ onBeforeUnmount(() => {
   background: var(--nd-panelHighlight);
   color: var(--nd-fg);
   border-radius: var(--nd-radius-lg);
-  padding: 8px 12px;
-  font-size: var(--nd-font-body);
+  // 本文と同じ 14px で打てるようにし、1 行でも押しやすい高さを取る (#1207)
+  padding: 10px 12px;
+  font-size: 1em;
   font-family: inherit;
   line-height: 1.4;
-  max-height: 120px;
+  min-height: 40px;
+  max-height: 160px;
   outline: none;
   field-sizing: content;
 
@@ -1626,8 +1628,8 @@ onBeforeUnmount(() => {
 }
 
 .chatSend {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
   background: var(--nd-accent);
@@ -1637,7 +1639,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 1em;
+  font-size: var(--nd-font-lg);
 
   &:disabled {
     opacity: 0.3;
