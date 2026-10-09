@@ -33,7 +33,11 @@ const show = ref(true)
 
 const { visible, leaving } = useVaporTransition(show, {
   enterDuration: 200,
-  leaveDuration: 200,
+  // 退場はシート (navMenu.scss、--nd-duration-medium) とポップアップ
+  // (--nd-duration-base) で長さが違う
+  get leaveDuration() {
+    return isCompact.value ? 200 : 150
+  },
 })
 
 useNativeDialog(dialogRef, visible, {

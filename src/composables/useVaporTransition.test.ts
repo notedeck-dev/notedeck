@@ -1,9 +1,42 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { effectScope, nextTick, ref } from 'vue'
 import {
+  useVaporTransition,
   useVaporTransitionGroup,
   useVaporTransitionSwitch,
 } from './useVaporTransition'
+
+describe('useVaporTransition', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('leaveDuration は閉じ始めるときに読む (getter で画面幅ごとに変えられる)', async () => {
+    const scope = effectScope()
+    const show = ref(true)
+    const compact = ref(true)
+    const t = scope.run(() =>
+      useVaporTransition(show, {
+        get leaveDuration() {
+          return compact.value ? 200 : 150
+        },
+      }),
+    )
+    if (!t) throw new Error('scope did not run')
+
+    compact.value = false
+    show.value = false
+    await nextTick()
+    expect(t.leaving.value).toBe(true)
+    vi.advanceTimersByTime(150)
+    expect(t.visible.value).toBe(false)
+    expect(t.leaving.value).toBe(false)
+    scope.stop()
+  })
+})
 
 describe('useVaporTransitionGroup', () => {
   beforeEach(() => {

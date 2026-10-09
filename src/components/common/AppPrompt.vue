@@ -7,9 +7,10 @@ import { usePrompt } from '@/stores/prompt'
 
 const { visible: show, options, resolve } = usePrompt()
 
+// 退場は popup.scss の .leave / .contentLeave (--nd-duration-base = 150ms)
 const { visible, entering, leaving } = useVaporTransition(show, {
   enterDuration: 200,
-  leaveDuration: 200,
+  leaveDuration: 150,
 })
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
@@ -18,7 +19,7 @@ const inputValue = ref('')
 useNativeDialog(dialogRef, visible, {
   initialFocus: 'input, textarea',
   onCancel: () => resolve(null),
-  leaveDuration: 200,
+  leaveDuration: 150,
 })
 
 watch(show, (v) => {

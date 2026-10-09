@@ -307,7 +307,8 @@ const instanceTickerStyle = computed(() => {
 const renoteMenuPos = ref<{ x: number; y: number } | null>(null)
 const renoteMenuShow = computed(() => renoteMenuPos.value !== null)
 const { visible: renoteMenuVisible, leaving: renoteMenuLeaving } =
-  useVaporTransition(renoteMenuShow, { enterDuration: 200, leaveDuration: 200 })
+  // 退場は .renotePopupLeave / .renotePopupContentLeave (--nd-duration-fast)
+  useVaporTransition(renoteMenuShow, { enterDuration: 200, leaveDuration: 100 })
 const renoteMenuTheme = ref<Record<string, string>>({})
 const myRenoteId = ref<string | null>(null)
 const isRenoted = ref(false)

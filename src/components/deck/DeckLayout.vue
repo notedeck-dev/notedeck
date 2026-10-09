@@ -207,8 +207,9 @@ const fileDrop = useFileDrop((paths, position) => {
 })
 
 // Vapor-compatible transitions
-const drawerT = useVaporTransition(mobileDrawerOpen, { leaveDuration: 200 })
-const addMenuT = useVaporTransition(showAddMenu, { leaveDuration: 200 })
+// 退場は .fadeLeave / .modalLeave (--nd-duration-base = 150ms) と揃える
+const drawerT = useVaporTransition(mobileDrawerOpen, { leaveDuration: 150 })
+const addMenuT = useVaporTransition(showAddMenu, { leaveDuration: 150 })
 const composeShow = computed(
   () => showCompose.value && accountsStore.accounts.length > 0,
 )
@@ -220,11 +221,11 @@ const composeAccountId = computed(() => {
     accountsStore.accounts.find((a) => a.hasToken) ?? accountsStore.accounts[0]
   return pendingComposeAccountId.value ?? fallback?.id ?? ''
 })
-const composeT = useVaporTransition(composeShow, { leaveDuration: 200 })
+const composeT = useVaporTransition(composeShow, { leaveDuration: 150 })
 const fileDropShow = computed(() => fileDrop.isDragging.value)
-const fileDropT = useVaporTransition(fileDropShow, { leaveDuration: 200 })
+const fileDropT = useVaporTransition(fileDropShow, { leaveDuration: 150 })
 const crossDropShow = computed(() => !!deckStore.crossWindowDragColumnId)
-const crossDropT = useVaporTransition(crossDropShow, { leaveDuration: 200 })
+const crossDropT = useVaporTransition(crossDropShow, { leaveDuration: 150 })
 
 // チャット/AIチャット系カラムでは入力欄の送信ボタンと FAB が重なるため隠す。
 // デスクトップ→モバイルサイズ切替直後など activeColumnId が未確定な瞬間は
@@ -236,7 +237,7 @@ const fabShow = computed(() => {
   const col = deckStore.columnMap.get(id)
   return col?.type !== 'chat' && col?.type !== 'ai'
 })
-const fabT = useVaporTransition(fabShow, { leaveDuration: 200 })
+const fabT = useVaporTransition(fabShow, { leaveDuration: 150 })
 
 provideScrollDirection()
 

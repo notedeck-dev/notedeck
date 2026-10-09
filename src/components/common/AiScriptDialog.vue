@@ -10,9 +10,10 @@ const text = ref('')
 const dialogType = ref<'info' | 'success' | 'warning' | 'error'>('info')
 const mode = ref<'dialog' | 'confirm'>('dialog')
 
+// 退場は popup.scss の .leave / .contentLeave (--nd-duration-base = 150ms)
 const { visible, entering, leaving } = useVaporTransition(show, {
   enterDuration: 200,
-  leaveDuration: 200,
+  leaveDuration: 150,
 })
 
 let resolvePromise: ((value: boolean) => void) | null = null
@@ -54,7 +55,7 @@ defineExpose({ showDialog, showConfirm })
 const dialogRef = ref<HTMLDialogElement | null>(null)
 useNativeDialog(dialogRef, visible, {
   onCancel: () => close(false),
-  leaveDuration: 200,
+  leaveDuration: 150,
 })
 </script>
 
