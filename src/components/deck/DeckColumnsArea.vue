@@ -223,6 +223,38 @@ const dropInsertWidth = computed(() => {
   return columnMap.value.get(dragId)?.width ?? 400
 })
 
+// ドラッグ中にプレースホルダーが出入りしたとき、後ろのカラムが瞬間移動
+// しないよう section を横に FLIP する。ドロップ (並びの変化) は上の
+// layoutKey の FLIP が受け持つので、ここはドラッグ中だけ。追従が遅れると
+// ポインタの下の当たり判定とずれるので短めの時間で寄せる
+let placeholderSnapshot: FlipSnapshot | null = null
+watch(
+  dropInsertIndex,
+  () => {
+    placeholderSnapshot = columnDrag.dragColumnId.value
+      ? captureFlip(flipTargets().sections, sectionKey, columnsRef.value)
+      : null
+  },
+  { flush: 'pre' },
+)
+watch(
+  dropInsertIndex,
+  () => {
+    const snap = placeholderSnapshot
+    placeholderSnapshot = null
+    if (!snap || !columnDrag.dragColumnId.value) return
+    playFlip(
+      snap,
+      flipTargets().sections,
+      sectionKey,
+      columnsRef.value,
+      'x',
+      '--nd-duration-base',
+    )
+  },
+  { flush: 'post' },
+)
+
 // Template helpers
 function sectionClass(group: string[]) {
   const first = group[0]
@@ -408,10 +440,15 @@ defineExpose({
 
 .dropPlaceholder {
   flex-shrink: 0;
+  animation: dropPlaceholderIn var(--nd-duration-base) var(--nd-ease-decel);
   border: 2px dashed var(--nd-accent);
   border-radius: var(--nd-radius-lg);
   background: var(--nd-accent-subtle);
   box-shadow: 0 0 12px color-mix(in srgb, var(--nd-accent) 30%, transparent);
+}
+
+@keyframes dropPlaceholderIn {
+  from { opacity: 0; scale: 0.96; }
 }
 
 /* Mobile platform: full-width swipe columns */
