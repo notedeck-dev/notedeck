@@ -868,8 +868,10 @@ export const SLIDER_LOW: PerformanceConfig = {
   imageCacheTTLDays: 3,
   imageCacheMaxMB: 128,
   imageCacheMaxFileMB: 8,
-  prefetchAhead: 15,
-  prefetchBehind: 5,
+  // 既定値 (下 20 / 上 5、#704 で縮小) と離して、省メモリ側の端として意味を持たせる。
+  // 上方向は表示済みの画像が多いので 0 (先読みしない) まで下げる (#1212)
+  prefetchAhead: 10,
+  prefetchBehind: 0,
   prefetchTrackedMax: 150,
   lazyLoadMargin: 100,
   nearViewportBuffer: 2,
