@@ -7,14 +7,18 @@
  * 表示ではこのシートに寄せる。
  *
  * 2 段選択 (アカウント → 操作) は `stage` で切り替える。段が変わってもシートは
- * 開いたままなので、開き直しのアニメーションが挟まらない。
+ * 開いたままなので、開き直しのアニメーションが挟まらない。段の中身は
+ * フェードで入れ替える (#1212)。
  */
-import { computed, ref, toRef } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AccountPickerRow from '@/components/common/AccountPickerRow.vue'
 import { useBackButton } from '@/composables/useBackButton'
 import { useNativeDialog } from '@/composables/useNativeDialog'
-import { useVaporTransition } from '@/composables/useVaporTransition'
+import {
+  useVaporTransition,
+  useVaporTransitionSwitch,
+} from '@/composables/useVaporTransition'
 import {
   type Account,
   getAccountAvatarUrl,
@@ -46,6 +50,28 @@ const emit = defineEmits<{
 const { visible, leaving } = useVaporTransition(toRef(props, 'show'), {
   enterDuration: 200,
   leaveDuration: 200,
+})
+
+// 見出しは段と一緒に変わるので、退場中は前の段の見出しのまま残す。
+// 退場は global.css の .nd-view-leave (--nd-duration-fast) と同じ時間
+const stageView = useVaporTransitionSwitch(
+  computed(() => ({
+    stage: props.stage ?? 'accounts',
+    title: props.title,
+    description: props.description,
+  })),
+  { leaveDuration: 100 },
+)
+// 開いた直後はシートのスライドだけにし、段を切り替えたときだけフェードを入れる
+const stageSwitched = ref(false)
+watch(
+  () => props.stage,
+  () => {
+    stageSwitched.value = true
+  },
+)
+watch(visible, (v) => {
+  if (!v) stageSwitched.value = false
 })
 
 const dialogRef = ref<HTMLDialogElement | null>(null)
@@ -80,12 +106,16 @@ useBackButton(
       :class="[$style.sheet, leaving ? $style.sheetContentLeave : $style.sheetContentEnter]"
       @click.stop
     >
-      <div v-if="title || description" :class="$style.header">
-        <div v-if="title" :class="$style.title">{{ title }}</div>
-        <div v-if="description" :class="$style.description">{{ description }}</div>
+      <div
+        :key="stageView.displayed.value.stage"
+        :class="stageView.leaving.value ? 'nd-view-leave' : stageSwitched && 'nd-view-enter'"
+      >
+      <div v-if="stageView.displayed.value.title || stageView.displayed.value.description" :class="$style.header">
+        <div v-if="stageView.displayed.value.title" :class="$style.title">{{ stageView.displayed.value.title }}</div>
+        <div v-if="stageView.displayed.value.description" :class="$style.description">{{ stageView.displayed.value.description }}</div>
       </div>
 
-      <slot v-if="stage === 'detail'" name="detail" />
+      <slot v-if="stageView.displayed.value.stage === 'detail'" name="detail" />
       <template v-else>
         <AccountPickerRow
           v-for="account in accounts"
@@ -110,6 +140,7 @@ useBackButton(
         </AccountPickerRow>
         <slot name="footer" />
       </template>
+      </div>
     </div>
   </dialog>
 </template>
