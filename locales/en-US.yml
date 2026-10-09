@@ -688,6 +688,26 @@ _mkReactionPicker:
   notFound: "No emoji found"
   recent: "Recently used emoji"
   uncategorized: "Other"
+  categories: "Categories"
+  custom: "Custom emoji"
+  skinTone: "Skin tone"
+  _skinTones:
+    none: "Default"
+    light: "Light skin tone"
+    mediumLight: "Medium-light skin tone"
+    medium: "Medium skin tone"
+    mediumDark: "Medium-dark skin tone"
+    dark: "Dark skin tone"
+  _categories:
+    face: "Smileys"
+    people: "People & body"
+    animals_and_nature: "Animals & nature"
+    food_and_drink: "Food & drink"
+    activity: "Activities"
+    travel_and_places: "Travel & places"
+    objects: "Objects"
+    symbols: "Symbols"
+    flags: "Flags"
 
 _mkReactionUsersPopup:
   muteEmoji: "Mute this emoji"

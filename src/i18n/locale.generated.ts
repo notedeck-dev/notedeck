@@ -838,6 +838,46 @@ export interface Locale {
     readonly "recent": string
     /** その他 */
     readonly "uncategorized": string
+    /** カテゴリ */
+    readonly "categories": string
+    /** カスタム絵文字 */
+    readonly "custom": string
+    /** 肌の色 */
+    readonly "skinTone": string
+    readonly "_skinTones": {
+      /** 指定しない */
+      readonly "none": string
+      /** 明るい肌色 */
+      readonly "light": string
+      /** やや明るい肌色 */
+      readonly "mediumLight": string
+      /** 中間の肌色 */
+      readonly "medium": string
+      /** やや濃い肌色 */
+      readonly "mediumDark": string
+      /** 濃い肌色 */
+      readonly "dark": string
+    }
+    readonly "_categories": {
+      /** 顔 */
+      readonly "face": string
+      /** 人と体 */
+      readonly "people": string
+      /** 動物と自然 */
+      readonly "animals_and_nature": string
+      /** 食べ物と飲み物 */
+      readonly "food_and_drink": string
+      /** アクティビティ */
+      readonly "activity": string
+      /** 旅行と場所 */
+      readonly "travel_and_places": string
+      /** もの */
+      readonly "objects": string
+      /** 記号 */
+      readonly "symbols": string
+      /** 旗 */
+      readonly "flags": string
+    }
   }
   readonly "_mkReactionUsersPopup": {
     /** この絵文字をミュート */

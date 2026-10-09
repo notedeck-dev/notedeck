@@ -164,6 +164,8 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/editHistory.ts`](src/services/editHistory.ts) | [`src/services/editHistory.test.ts`](src/services/editHistory.test.ts) |
 | [`src/services/embedCode.ts`](src/services/embedCode.ts) | — |
 | [`src/services/emojiMute.ts`](src/services/emojiMute.ts) | [`src/services/emojiMute.test.ts`](src/services/emojiMute.test.ts) |
+| [`src/services/emojiSearch.ts`](src/services/emojiSearch.ts) | [`src/services/emojiSearch.test.ts`](src/services/emojiSearch.test.ts) |
+| [`src/services/emojiSkinTone.ts`](src/services/emojiSkinTone.ts) | [`src/services/emojiSkinTone.test.ts`](src/services/emojiSkinTone.test.ts) |
 | [`src/services/emojiWarm.ts`](src/services/emojiWarm.ts) | [`src/services/emojiWarm.dom.test.ts`](src/services/emojiWarm.dom.test.ts) |
 | [`src/services/entityResolution.ts`](src/services/entityResolution.ts) | [`src/services/entityResolution.test.ts`](src/services/entityResolution.test.ts) |
 | [`src/services/extractUrlFromMfm.ts`](src/services/extractUrlFromMfm.ts) | [`src/services/extractUrlFromMfm.test.ts`](src/services/extractUrlFromMfm.test.ts) |
