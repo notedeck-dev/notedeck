@@ -48,7 +48,7 @@ const src = computed(() =>
           :aria-label="playing ? i18n.ts._mkMediaPlayer.pause : i18n.ts._mkMediaPlayer.play"
           @click="player.togglePlay()"
         >
-          <i :class="playing ? 'ti ti-player-pause-filled' : 'ti ti-player-play-filled'" />
+          <i :class="playing ? 'ti ti-player-pause' : 'ti ti-player-play'" />
         </button>
       </div>
       <div :class="$style.time">
