@@ -5,6 +5,18 @@
   src: url("@tabler/icons-webfont/dist/fonts/tabler-icons.woff2") format("woff2");
 }
 
+/* フォント読み込み前 (swap の代替フォント表示中) はアイコンの私用領域の文字が
+   代替フォントの幅で並び、読み込まれた瞬間に周りの文字がずれる。tabler の
+   全グリフは送り幅 1em (units-per-em 1000 / horiz-adv-x 1000) なので、1em の
+   箱を先に取っておけば読み込み後の見た目は変わらない。
+   :where で詳細度 0 にする。App.vue 配下のコンポーネント CSS はこのファイル
+   より前に並ぶので、同じ詳細度だと各所の display / width 指定を上書きしてしまう */
+:where(.ti) {
+  display: inline-block;
+  width: 1em;
+  text-align: center;
+}
+
 :root {
   /* Fallback: Mi Dark Theme (overridden by JS theme engine) */
   --nd-accent: #86b300;
