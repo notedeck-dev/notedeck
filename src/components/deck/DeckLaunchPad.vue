@@ -31,14 +31,19 @@ const dialogRef = ref<HTMLDialogElement | null>(null)
 const popupRef = ref<HTMLElement | null>(null)
 const show = ref(true)
 
+// 退場の時間は CSS と揃える: デスクトップのポップアップは --nd-duration-base
+// (popupContentLeave / anchoredLeave)、モバイルのシートは --nd-duration-medium
+// (_navMenu.scss の sheetContentLeave)。開くたびに作り直すので開いた時点の判定でよい
+const leaveDuration = isCompact.value ? 200 : 150
+
 const { visible, leaving } = useVaporTransition(show, {
   enterDuration: 200,
-  leaveDuration: 200,
+  leaveDuration,
 })
 
 useNativeDialog(dialogRef, visible, {
   onCancel: () => close(),
-  leaveDuration: 200,
+  leaveDuration,
 })
 
 const navTypes = computed<Set<string>>(() => {
@@ -112,7 +117,7 @@ function selectItem(type: ColumnType) {
 
 function close() {
   show.value = false
-  setTimeout(() => emit('close'), 220)
+  setTimeout(() => emit('close'), leaveDuration)
 }
 </script>
 
