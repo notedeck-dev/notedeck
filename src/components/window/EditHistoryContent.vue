@@ -245,7 +245,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 5px 14px;
+  padding: 6px 14px;
   border: none;
   border-left: 2px solid transparent;
   background: transparent;
@@ -375,7 +375,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 5px 10px;
+  padding: 6px 10px;
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-xs);
   background: transparent;

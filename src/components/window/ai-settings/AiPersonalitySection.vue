@@ -434,7 +434,7 @@ function isFull(f: WorkspaceFile | undefined): boolean {
 .entryInput {
   flex: 1;
   min-width: 0;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border: 1px solid var(--nd-accent);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);

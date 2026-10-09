@@ -324,7 +324,7 @@ async function save(): Promise<void> {
 .nameInput,
 .descInput {
   width: 100%;
-  padding: 7px 10px;
+  padding: 8px 10px;
   border-radius: var(--nd-radius-md);
   border: 1px solid var(--nd-divider);
   background: var(--nd-panel);

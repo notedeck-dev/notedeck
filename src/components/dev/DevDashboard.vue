@@ -1862,7 +1862,7 @@ onUnmounted(() => {
 .footMeta {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-family: var(--nd-font-mono);
   font-size: 0.65rem;
   opacity: 0.6;
@@ -1923,7 +1923,7 @@ onUnmounted(() => {
 .viewTitle {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   font-size: 1.05rem;
   font-weight: var(--nd-weight-bold);
   letter-spacing: -0.01em;

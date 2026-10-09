@@ -542,7 +542,7 @@ usePortal(postPortalRef)
   opacity: 0.5;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 /* --- Role card --- */
@@ -598,7 +598,7 @@ usePortal(postPortalRef)
   opacity: 0.5;
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
 }
 
 .exploreRoleHeader {

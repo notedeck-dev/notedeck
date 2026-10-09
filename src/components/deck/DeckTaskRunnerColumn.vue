@@ -689,7 +689,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 .runningPill {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 1px 6px;
   font-size: var(--nd-font-xs);
   font-weight: var(--nd-weight-regular);
@@ -831,7 +831,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 1px 6px;
   font-size: var(--nd-font-2xs);
   border-radius: var(--nd-radius-full);

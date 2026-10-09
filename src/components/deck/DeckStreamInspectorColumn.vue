@@ -605,7 +605,7 @@ function onDetailWheel(e: WheelEvent) {
 .row {
   display: flex;
   gap: 8px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   font-size: var(--nd-font-2xs);
   font-family: var(--nd-font-mono);
   cursor: pointer;

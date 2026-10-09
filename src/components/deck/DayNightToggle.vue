@@ -235,7 +235,7 @@ function onSyncChange(e: Event) {
   width: 40px;
   height: 22px;
   background: var(--nd-buttonBg);
-  border-radius: 11px;
+  border-radius: var(--nd-radius-full);
   position: relative;
   transition: background var(--nd-duration-slow);
 

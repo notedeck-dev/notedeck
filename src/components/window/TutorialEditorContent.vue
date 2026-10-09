@@ -281,7 +281,7 @@ function openDocs(path: string): void {
   align-items: center;
   align-self: flex-start;
   gap: 6px;
-  padding: 5px 10px;
+  padding: 6px 10px;
   border-radius: var(--nd-radius-sm);
   font-size: var(--nd-font-md);
   color: var(--nd-fg);
@@ -413,7 +413,7 @@ function openDocs(path: string): void {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 3px 0;
+  padding: 4px 0;
 }
 
 .check {
@@ -439,7 +439,7 @@ function openDocs(path: string): void {
 
 .iconBtn {
   flex: none;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border-radius: var(--nd-radius-xs);
   color: var(--nd-fg);
   opacity: 0.45;
@@ -466,7 +466,7 @@ function openDocs(path: string): void {
 
 .linkBtn {
   margin-left: auto;
-  padding: 5px 12px;
+  padding: 6px 12px;
   font-size: var(--nd-font-md);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);
@@ -483,7 +483,7 @@ function openDocs(path: string): void {
 }
 
 .runBtn {
-  padding: 5px 14px;
+  padding: 6px 14px;
   font-size: var(--nd-font-md);
   font-weight: var(--nd-weight-bold);
   border-radius: var(--nd-radius-sm);
@@ -505,7 +505,7 @@ function openDocs(path: string): void {
 }
 
 .resetBtn {
-  padding: 5px 12px;
+  padding: 6px 12px;
   font-size: var(--nd-font-sm);
   border-radius: var(--nd-radius-sm);
   color: var(--nd-fg);

@@ -345,7 +345,7 @@ function clearAll() {
   align-items: flex-start;
 
   > .label {
-    padding-top: 5px;
+    padding-top: 6px;
   }
 }
 

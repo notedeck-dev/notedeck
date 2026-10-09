@@ -694,7 +694,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   gap: 2px;
   flex-shrink: 0;
   font-size: 9px;
-  padding: 0 5px;
+  padding: 0 6px;
   line-height: 14px;
   height: 14px;
   border-radius: var(--nd-radius-xs);
@@ -724,7 +724,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
 .disabledBadge {
   flex-shrink: 0;
-  padding: 0 5px;
+  padding: 0 6px;
   font-size: 9px;
   font-weight: var(--nd-weight-bold);
   line-height: 14px;

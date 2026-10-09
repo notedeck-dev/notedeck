@@ -620,7 +620,7 @@ function openAsPip() {
   position: absolute;
   bottom: 0;
   width: 100%;
-  margin: 5px 0;
+  margin: 6px 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -636,7 +636,7 @@ function openAsPip() {
 }
 
 .pullText {
-  margin: 5px 0;
+  margin: 6px 0;
   font-size: 90%;
   color: var(--nd-fg);
   opacity: 0.7;

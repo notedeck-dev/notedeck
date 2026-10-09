@@ -603,7 +603,7 @@ async function onDeleteAll() {
 .metaChannel {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
@@ -625,7 +625,7 @@ async function onDeleteAll() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);

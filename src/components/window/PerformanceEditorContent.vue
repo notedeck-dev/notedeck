@@ -775,7 +775,7 @@ $fader-height: 132px;
 }
 
 .fieldDesc {
-  font-size: 0.68em;
+  font-size: var(--nd-font-2xs);
   opacity: 0.4;
   line-height: 1.3;
 }

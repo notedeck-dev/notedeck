@@ -388,7 +388,7 @@ const barStatus = computed<EditorActionStatus | null>(() => {
 .row {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   min-width: 0;
 }
 

@@ -189,7 +189,7 @@ useClickOutside(presetRef, () => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 8px 10px;
   font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-align: left;

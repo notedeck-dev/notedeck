@@ -157,7 +157,7 @@ function removeRow(index: number) {
 
 .type {
   flex-shrink: 0;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);
   font-size: var(--nd-font-xs);

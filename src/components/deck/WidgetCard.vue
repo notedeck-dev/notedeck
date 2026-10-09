@@ -382,7 +382,7 @@ function handlePrimaryClick() {
 
 .incompatBadge {
   flex-shrink: 0;
-  padding: 0 5px;
+  padding: 0 6px;
   font-size: 9px;
   font-weight: var(--nd-weight-bold);
   line-height: 14px;

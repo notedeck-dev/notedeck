@@ -1167,6 +1167,7 @@ SNS クライアントに必要な3つのパフォーマンス基盤を実装済
 - **CSS Containment**: スクロール内アイテムに `contain: layout style paint` + `content-visibility: auto`（24+ コンポーネントで適用済み）
 - **ペイント誘発プロパティ**: `box-shadow`/`border-radius`/`clip-path`/`backdrop-filter` のアニメーション禁止（静的使用は可。同じく `cssTransitions.test.ts` が検査）
 - **CSS Custom Properties 優先**: JS から直接 `style.top` 等を操作せず `setProperty('--nd-offset', ...)` 経由
+- **デザイントークン (#704)**: 文字サイズ (em) ・太さ・角丸は `src/styles/global.css` の `--nd-font-*` / `--nd-weight-*` / `--nd-radius-*` を使い、直書きしない。余白は偶数 px。px / rem の文字サイズは固定寸法の部品 (アイコン・IDE 面) 用。`tests/lint/designTokens.test.ts` が検査する (残存分は同テストの ALLOWED に理由つきで凍結)
 
 #### Frame Scheduler — DOM read/write バッチング
 

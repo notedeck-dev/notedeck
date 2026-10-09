@@ -1230,7 +1230,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 8px 10px;
   font-size: var(--nd-font-sm);
   color: var(--nd-fg);
   text-align: left;
@@ -1385,7 +1385,7 @@ onUnmounted(() => {
 .propValueInput {
   flex: 1;
   min-width: 0;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-sm);
   background: var(--nd-bg);

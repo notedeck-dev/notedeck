@@ -226,7 +226,7 @@ dialog.overlay::backdrop {
 
 .label {
   margin-top: 6px;
-  font-size: 0.76em;
+  font-size: var(--nd-font-xs);
   line-height: 1.3em;
   text-align: center;
   word-break: break-word;

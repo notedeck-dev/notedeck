@@ -291,7 +291,7 @@ onUnmounted(() => {
 
 .actionBtn {
   position: relative;
-  padding: 3px 6px;
+  padding: 4px 6px;
   border-radius: var(--nd-radius-sm);
   font-size: var(--nd-font-body);
   opacity: 0.55;
@@ -311,7 +311,7 @@ onUnmounted(() => {
     z-index: 1;
     bottom: calc(100% + 6px);
     left: 0;
-    padding: 3px 8px;
+    padding: 4px 8px;
     border-radius: var(--nd-radius-sm);
     background: var(--nd-bg);
     box-shadow: var(--nd-shadow-m);

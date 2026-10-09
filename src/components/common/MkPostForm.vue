@@ -1262,7 +1262,7 @@ function onPaste(e: ClipboardEvent) {
     }
 
     .headerBtn {
-      padding: 5px;
+      padding: 6px;
     }
 
     .headerBtnText {
@@ -1995,7 +1995,7 @@ function onPaste(e: ClipboardEvent) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 6px 3px 10px;
+  padding: 4px 6px 4px 10px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
   color: var(--nd-accent);

@@ -425,7 +425,7 @@ usePortal(lightboxPortalRef)
 .chatReactionPill {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 2px 6px;
   border-radius: var(--nd-radius-lg);
   border: 1px solid var(--nd-divider);

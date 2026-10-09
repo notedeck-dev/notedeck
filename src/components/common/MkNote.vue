@@ -1359,7 +1359,7 @@ function handlePickerReaction(reaction: string) {
   align-items: center;
   gap: 2px;
   margin-left: 6px;
-  padding: 0 5px;
+  padding: 0 6px;
   height: 18px;
   border: 1px solid var(--nd-divider);
   border-radius: var(--nd-radius-full);
@@ -2052,7 +2052,7 @@ function handlePickerReaction(reaction: string) {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 22px;
+  padding: 8px 22px;
   border: none;
   border-radius: 0;
   background: none;

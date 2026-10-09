@@ -789,7 +789,7 @@ function primaryShortcut(cmd: Command): string | null {
 
 .itemKbd {
   font-size: 11px;
-  padding: 1px 5px;
+  padding: 1px 6px;
   border-radius: var(--nd-radius-xs);
   background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
   border: 0.5px solid color-mix(in srgb, var(--nd-fg) 10%, transparent);

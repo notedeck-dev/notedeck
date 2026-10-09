@@ -428,7 +428,7 @@ onMounted(() => {
   justify-content: center;
   gap: 4px;
   min-width: 100px;
-  padding: 7px 14px;
+  padding: 8px 14px;
   font-weight: var(--nd-weight-bold);
   font-size: var(--nd-font-md);
   border: none;

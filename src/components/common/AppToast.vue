@@ -178,7 +178,7 @@ const ICONS: Record<ToastItem['type'], string> = {
 
 .actionBtn {
   @include btn-primary;
-  padding: 5px 12px;
+  padding: 6px 12px;
 }
 
 .cardEnter {

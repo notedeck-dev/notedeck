@@ -798,7 +798,7 @@ defineExpose({
 .section {
   display: flex;
   flex-direction: column;
-  padding: 0 17px;
+  padding: 0 16px;
 }
 
 // 本家 navbar の .bottom は padding-top: 20px
@@ -819,7 +819,7 @@ defineExpose({
   align-items: center;
   gap: 8px;
   // 17px (section) + 13px = 本家のアイコン左端 30px
-  padding: 0 13px;
+  padding: 0 12px;
   line-height: 2.85rem;
   border-radius: var(--nd-radius-full);
   color: var(--nd-navFg, var(--nd-fg));
@@ -995,7 +995,7 @@ defineExpose({
   gap: 8px;
   width: 100%;
   height: 40px;
-  padding: 0 13px;
+  padding: 0 12px;
   border-radius: var(--nd-radius-full);
   background: linear-gradient(90deg, var(--nd-buttonGradateA, var(--nd-accent)), var(--nd-buttonGradateB, var(--nd-accentDarken)));
   color: var(--nd-fgOnAccent);

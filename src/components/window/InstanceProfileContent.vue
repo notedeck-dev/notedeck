@@ -591,7 +591,7 @@ const statusBadges = computed(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   border: solid 1px var(--nd-divider);
   border-radius: var(--nd-radius-full);
   font-weight: var(--nd-weight-medium);

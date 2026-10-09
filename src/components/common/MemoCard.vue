@@ -220,16 +220,16 @@ function onMemoLinkClick(memoId: string) {
   display: flex;
   /* 本文が主役なので、ノート詳細ほどの余白は取らない */
   padding: 16px 18px;
-  font-size: 1.02em;
+  font-size: 1em;
   contain: content;
   container-type: inline-size;
 }
 
 @container (max-width: 580px) {
-  .card { font-size: var(--nd-font-body); padding: 14px 15px; }
+  .card { font-size: var(--nd-font-body); padding: 14px 16px; }
 }
 @container (max-width: 500px) {
-  .card { font-size: var(--nd-font-body); padding: 12px 13px; }
+  .card { font-size: var(--nd-font-body); padding: 12px 12px; }
 }
 
 .avatar {

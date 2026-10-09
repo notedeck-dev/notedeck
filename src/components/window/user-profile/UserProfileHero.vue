@@ -538,7 +538,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border: solid 1px var(--nd-divider);
   border-radius: var(--nd-radius-full);
   cursor: pointer;

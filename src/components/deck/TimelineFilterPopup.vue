@@ -201,7 +201,7 @@ function isFilterActive(key: keyof TimelineFilter): boolean {
 .disabledChip {
   flex-shrink: 0;
   margin: 0 8px;
-  padding: 0 5px;
+  padding: 0 6px;
   font-size: 9px;
   font-weight: var(--nd-weight-bold);
   line-height: 14px;

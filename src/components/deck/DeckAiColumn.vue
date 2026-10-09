@@ -1616,7 +1616,7 @@ function onKeydown(e: KeyboardEvent) {
 .heartbeatLabel {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   padding: 0 2px 4px;
   font-size: var(--nd-font-2xs);
   font-weight: var(--nd-weight-bold);

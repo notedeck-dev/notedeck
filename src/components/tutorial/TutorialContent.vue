@@ -189,7 +189,7 @@ function openDocs(path: string): void {
 .dot {
   width: 14px;
   height: 14px;
-  padding: 3px;
+  padding: 4px;
   border-radius: 50%;
   cursor: pointer;
   background: transparent;
@@ -230,7 +230,7 @@ function openDocs(path: string): void {
 
 .replayLabel {
   margin-left: auto;
-  padding: 1px 7px;
+  padding: 1px 8px;
   border-radius: var(--nd-radius-full);
   font-size: var(--nd-font-2xs);
   background: var(--nd-buttonBg);
@@ -272,7 +272,7 @@ function openDocs(path: string): void {
 .docsLink {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   align-self: flex-start;
   padding: 4px 10px;
   border-radius: var(--nd-radius-sm);
@@ -302,7 +302,7 @@ function openDocs(path: string): void {
 .doneMark {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   margin-right: auto;
   font-size: var(--nd-font-md);
   color: var(--nd-accent);

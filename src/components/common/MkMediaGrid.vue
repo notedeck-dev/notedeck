@@ -513,7 +513,7 @@ function closeLightbox() {
   display: inline-block;
   font-weight: var(--nd-weight-bold);
   font-size: var(--nd-font-sm);
-  padding: 2px 5px;
+  padding: 2px 6px;
 }
 
 .indicatorWarn {
@@ -523,7 +523,7 @@ function closeLightbox() {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 2px 5px;
+  padding: 2px 6px;
 }
 
 .sensitiveHideBtn {

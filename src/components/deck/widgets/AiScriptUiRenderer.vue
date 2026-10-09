@@ -281,7 +281,7 @@ function handlePostFormButton(comp: UiComponent) {
 }
 
 .aisButton {
-  padding: 7px 14px;
+  padding: 8px 14px;
   border: none;
   border-radius: var(--nd-radius-sm);
   background: var(--nd-buttonBg);

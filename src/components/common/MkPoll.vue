@@ -123,7 +123,7 @@ function onClick(i: number, isVoted: boolean) {
   position: relative;
   z-index: 1;
   display: inline-block;
-  padding: 3px 5px;
+  padding: 4px 6px;
   background: var(--nd-panel);
   border-radius: var(--nd-radius-xs);
   margin: 4px;

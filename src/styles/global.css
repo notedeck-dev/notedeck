@@ -434,7 +434,7 @@ summary,
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 22px;
+  padding: 8px 22px;
   border: none;
   border-radius: 0;
   background: none;
@@ -548,7 +548,7 @@ summary,
 }
 
 ._popupConfirmText {
-  padding: 7px 22px;
+  padding: 8px 22px;
   font-size: var(--nd-font-md);
   font-weight: var(--nd-weight-bold);
   color: var(--nd-fg);
@@ -670,7 +670,7 @@ dialog._nativeDialog[open] {
 ._buttonPrimary {
   appearance: none;
   display: inline-block;
-  padding: 7px 14px;
+  padding: 8px 14px;
   margin: 0;
   border: none;
   border-radius: var(--nd-radius-xs);
@@ -772,7 +772,7 @@ dialog._nativeDialog[open] {
   position: relative;
   width: 40px;
   height: 22px;
-  border-radius: 11px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg, rgba(255, 255, 255, 0.1));
   border: none;
   cursor: pointer;

@@ -123,8 +123,8 @@
   left: -6px;
   min-width: 14px;
   height: 14px;
-  padding: 0 3px;
-  border-radius: 7px;
+  padding: 0 4px;
+  border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: var(--nd-bg);
   font-size: 9px;

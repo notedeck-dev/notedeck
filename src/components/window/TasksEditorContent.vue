@@ -912,7 +912,7 @@ function handleReset() {
 .taskLabel {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   font-weight: var(--nd-weight-bold);
   font-size: var(--nd-font-body);
   overflow: hidden;
@@ -1004,7 +1004,7 @@ function handleReset() {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .fieldLabel {
@@ -1016,7 +1016,7 @@ function handleReset() {
 
 .input {
   width: 100%;
-  padding: 5px 8px;
+  padding: 6px 8px;
   font-size: var(--nd-font-md);
   background: var(--nd-bg);
   border: 1px solid var(--nd-divider);

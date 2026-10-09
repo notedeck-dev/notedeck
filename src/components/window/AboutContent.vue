@@ -1363,8 +1363,8 @@ function reportBug() {
 .pillBtn {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
+  gap: 6px;
+  padding: 8px 14px;
   border-radius: var(--nd-radius-full);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
@@ -1470,7 +1470,7 @@ function reportBug() {
   transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   pointer-events: none;
   font-size: var(--nd-font-sm);
   color: var(--nd-fg);
@@ -1503,7 +1503,7 @@ function reportBug() {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: 5px 10px;
+  padding: 6px 10px;
   font-family: var(--nd-font-mono);
 
   & + & {
@@ -1583,7 +1583,7 @@ function reportBug() {
 
 // 注記は本文フォントのまま (mono は行側にだけ効かせている)
 .startupNote {
-  padding: 5px 10px 6px;
+  padding: 6px 10px 6px;
   border-top: solid 0.5px var(--nd-divider);
   font-size: var(--nd-font-body);
   color: var(--nd-fg);

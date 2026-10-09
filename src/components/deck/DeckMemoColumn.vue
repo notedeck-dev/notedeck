@@ -403,7 +403,7 @@ function closeMenu() {
 .metaChannel {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-fg) 6%, transparent);
@@ -412,7 +412,7 @@ function closeMenu() {
 .metaScheduled {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);

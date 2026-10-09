@@ -536,7 +536,7 @@ function formatDate(ts: number): string {
   position: relative;
   width: 52px;
   height: 52px;
-  padding: 5px;
+  padding: 6px;
   border-radius: 50%;
   box-sizing: border-box;
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.27));

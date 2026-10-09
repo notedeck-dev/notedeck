@@ -106,7 +106,7 @@ const lang = jsonLang()
   :deep(code) {
     font-family: var(--nd-font-mono);
     background: rgba(127, 127, 127, 0.15);
-    padding: 1px 5px;
+    padding: 1px 6px;
     border-radius: var(--nd-radius-xs);
     font-size: var(--nd-font-body);
   }
