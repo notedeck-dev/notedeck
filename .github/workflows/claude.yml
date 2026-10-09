@@ -23,7 +23,7 @@ jobs:
       pull-requests: read
       issues: read
       actions: read # Required for Claude to read CI results on PRs
-      id-token: write # Required for Workload Identity Federation
+      id-token: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -34,11 +34,7 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
-          # Workload Identity Federation (静的 API キー不使用)
-          anthropic_federation_rule_id: "fdrl_01XmTCNgSr5YdBhPwL22znA2"
-          anthropic_organization_id: "8efe77da-6956-4af6-968f-24a2e7e4e120"
-          anthropic_service_account_id: "svac_014W2EA4SWK66ARcbouqCHom"
-          anthropic_workspace_id: "wrkspc_018YcfbNWfTrzJv65boCYKiG"
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           claude_args: "--model claude-opus-4-8"
           additional_permissions: |
             actions: read
