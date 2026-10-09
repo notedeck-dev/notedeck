@@ -21,6 +21,7 @@ import { i18n } from '@/i18n'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { formatBytes } from '@/utils/format'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
@@ -88,6 +89,21 @@ function toggleReveal() {
 
 const blurred = computed(() => !!file.value?.isSensitive && !revealed.value)
 
+// プレビューも画像プロキシを通す (ライトボックスと同じ形)。プロキシで
+// 読めなかったもの (1 ファイルの上限超え等) だけ元の URL に倒す
+const proxyFailedUrl = ref<string | null>(null)
+
+const previewSrc = computed(() => {
+  const url = safeUrl(file.value?.url)
+  if (!url || proxyFailedUrl.value === url) return url
+  return proxyUrl(url)
+})
+
+function onPreviewError() {
+  const url = safeUrl(file.value?.url)
+  if (url) proxyFailedUrl.value = url
+}
+
 // --- Lightbox (画像のみ。動画は inline controls のまま — §8-33) ---
 const lightboxOpen = ref(false)
 
@@ -149,10 +165,11 @@ fetchFile()
       <div :class="$style.preview">
           <template v-if="isImage(file)">
             <img
-              :src="safeUrl(file.url)"
+              :src="previewSrc"
               :alt="file.name"
               :class="[$style.previewImage, { [$style.blurred]: blurred, [$style.zoomable]: !blurred }]"
               @click="onImageClick"
+              @error="onPreviewError"
             />
             <div v-if="blurred" class="_sensitiveOverlay" @click.stop="toggleReveal">
               <i class="ti ti-eye-off" />
