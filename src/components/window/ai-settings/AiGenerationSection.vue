@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import FormNumber from '@/components/common/form/FormNumber.vue'
 import {
   AI_MAX_TOKENS_MAX,
   AI_MAX_TOKENS_MIN,
@@ -58,15 +59,13 @@ const changed = computed(() =>
       <div :class="$style.fieldHeader">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiGenerationSection.maxTokens }}</span>
         <div :class="$style.fieldValue">
-          <input
-            v-model.number="config.generation.maxTokens"
-            type="number"
+          <FormNumber
+            v-model="config.generation.maxTokens"
             :min="AI_MAX_TOKENS_MIN"
             :max="AI_MAX_TOKENS_MAX"
-            :class="$style.numberInput"
+            unit="token"
             @change="commit"
           />
-          <span :class="$style.fieldUnit">token</span>
         </div>
       </div>
       <p :class="$style.fieldHint">
@@ -78,15 +77,13 @@ const changed = computed(() =>
       <div :class="$style.fieldHeader">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiGenerationSection.maxToolRounds }}</span>
         <div :class="$style.fieldValue">
-          <input
-            v-model.number="config.generation.maxToolRounds"
-            type="number"
+          <FormNumber
+            v-model="config.generation.maxToolRounds"
             :min="AI_MAX_TOOL_ROUNDS_MIN"
             :max="AI_MAX_TOOL_ROUNDS_MAX"
-            :class="$style.numberInput"
+            :unit="i18n.ts._aiGenerationSection.rounds"
             @change="commit"
           />
-          <span :class="$style.fieldUnit">{{ i18n.ts._aiGenerationSection.rounds }}</span>
         </div>
       </div>
       <p :class="$style.fieldHint">
@@ -98,15 +95,13 @@ const changed = computed(() =>
       <div :class="$style.fieldHeader">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiGenerationSection.titleMaxTokens }}</span>
         <div :class="$style.fieldValue">
-          <input
-            v-model.number="config.generation.titleMaxTokens"
-            type="number"
+          <FormNumber
+            v-model="config.generation.titleMaxTokens"
             :min="AI_TITLE_MAX_TOKENS_MIN"
             :max="AI_TITLE_MAX_TOKENS_MAX"
-            :class="$style.numberInput"
+            unit="token"
             @change="commit"
           />
-          <span :class="$style.fieldUnit">token</span>
         </div>
       </div>
       <p :class="$style.fieldHint">
@@ -118,15 +113,13 @@ const changed = computed(() =>
       <div :class="$style.fieldHeader">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiGenerationSection.readTimeout }}</span>
         <div :class="$style.fieldValue">
-          <input
-            v-model.number="config.generation.readTimeoutSeconds"
-            type="number"
+          <FormNumber
+            v-model="config.generation.readTimeoutSeconds"
             :min="AI_READ_TIMEOUT_MIN_SECONDS"
             :max="AI_READ_TIMEOUT_MAX_SECONDS"
-            :class="$style.numberInput"
+            :unit="i18n.ts._aiGenerationSection.seconds"
             @change="commit"
           />
-          <span :class="$style.fieldUnit">{{ i18n.ts._aiGenerationSection.seconds }}</span>
         </div>
       </div>
       <p :class="$style.fieldHint">
@@ -145,6 +138,4 @@ const changed = computed(() =>
 .fieldLabel { @include field-label; }
 .fieldValue { @include field-value; }
 .fieldHint { @include field-hint; }
-.numberInput { @include number-input; }
-.fieldUnit { @include field-unit; }
 </style>

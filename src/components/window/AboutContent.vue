@@ -4,7 +4,7 @@ import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import type { Check, HealthReport, Status } from '@/bindings'
 import type { MetricsSnapshot } from '@/capabilities/builtins/metrics'
 import { dispatchCapability } from '@/capabilities/dispatcher'
-import AiSwitchRow from '@/components/window/ai-settings/AiSwitchRow.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useUpdater } from '@/composables/useUpdater'
 import {
@@ -885,7 +885,7 @@ function reportBug() {
          off の状態からも見つかる場所に置く。行の型は他の設定と同じスイッチ -->
     <div :class="$style.formSection">
       <div :class="$style.sectionBody">
-        <AiSwitchRow
+        <FormSwitchRow
           :label="i18n.ts._aboutContent.developerMode"
           icon="ti-code"
           :on="developerMode"

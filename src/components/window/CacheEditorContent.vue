@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import FormNumber from '@/components/common/form/FormNumber.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import { i18n } from '@/i18n'
 import {
   type EvictionPreset,
@@ -263,27 +265,22 @@ onMounted(refreshStats)
       <div :class="$style.fieldRow">
         <label :class="$style.field">
           <span :class="$style.fieldLabel">{{ i18n.ts._cacheEditorContent.maxSize }}</span>
-          <input
-            v-model.number="imageCacheMaxMB"
-            type="number"
-            min="64"
-            max="4096"
-            step="64"
-            :class="$style.numberInput"
+          <FormNumber
+            v-model="imageCacheMaxMB"
+            :min="64"
+            :max="4096"
+            :step="64"
+            unit="MB"
           />
-          <span :class="$style.fieldUnit">MB</span>
         </label>
         <label :class="$style.field">
           <span :class="$style.fieldLabel">{{ i18n.ts._cacheEditorContent.retention }}</span>
-          <input
-            v-model.number="imageCacheTTLDays"
-            type="number"
-            min="1"
-            max="30"
-            step="1"
-            :class="$style.numberInput"
+          <FormNumber
+            v-model="imageCacheTTLDays"
+            :min="1"
+            :max="30"
+            :unit="i18n.ts._cacheEditorContent.days"
           />
-          <span :class="$style.fieldUnit">{{ i18n.ts._cacheEditorContent.days }}</span>
         </label>
       </div>
       <div :class="$style.btnRow">
@@ -327,9 +324,8 @@ onMounted(refreshStats)
       <div v-if="preset === 'custom'" :class="$style.customGrid">
         <label :class="$style.customLabel">
           <span>{{ i18n.ts._cacheEditorContent.perAccountLimit }}</span>
-          <select
-            :value="String(customLimit)"
-            :class="$style.select"
+          <FormSelect
+            :model-value="String(customLimit)"
             @change="setCustomLimit(
               ($event.target as HTMLSelectElement).value === 'null'
                 ? null
@@ -339,13 +335,12 @@ onMounted(refreshStats)
             <option v-for="opt in PER_ACCOUNT_OPTIONS" :key="String(opt.value)" :value="String(opt.value)">
               {{ opt.label }}
             </option>
-          </select>
+          </FormSelect>
         </label>
         <label :class="$style.customLabel">
           <span>TTL</span>
-          <select
-            :value="String(customTtl)"
-            :class="$style.select"
+          <FormSelect
+            :model-value="String(customTtl)"
             @change="setCustomTtl(
               ($event.target as HTMLSelectElement).value === 'null'
                 ? null
@@ -355,7 +350,7 @@ onMounted(refreshStats)
             <option v-for="opt in TTL_OPTIONS" :key="String(opt.value)" :value="String(opt.value)">
               {{ opt.label }}
             </option>
-          </select>
+          </FormSelect>
         </label>
       </div>
     </div>
@@ -494,15 +489,6 @@ onMounted(refreshStats)
   color: var(--nd-fgMuted);
 }
 
-.select {
-  padding: 6px 8px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: var(--nd-font-md);
-}
-
 .btnRow {
   display: flex;
   gap: 8px;
@@ -526,22 +512,7 @@ onMounted(refreshStats)
 
 .fieldLabel {
   font-size: 13px;
-  color: var(--fgTransparentWeak, #888);
-}
-
-.numberInput {
-  width: 80px;
-  padding: 4px 8px;
-  border: 1px solid var(--divider, #ddd);
-  border-radius: var(--nd-radius-sm);
-  background: var(--panel, #fff);
-  color: var(--fg, #000);
-  font-size: 13px;
-}
-
-.fieldUnit {
-  font-size: 13px;
-  color: var(--fgTransparentWeak, #888);
+  color: color-mix(in srgb, var(--nd-fg) 55%, transparent);
 }
 
 .divider {

@@ -13,6 +13,8 @@ import {
 } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormInput from '@/components/common/form/FormInput.vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -233,6 +235,22 @@ function setParamsFromText(t: TaskDefinition, text: string) {
   } catch {
     /* ignore parse error during edit */
   }
+}
+
+// 打ちかけの params。正しい JSON5 になるまで params は変わらないので、
+// 保存値から描き直すと打った文字が消え、誤りも表示できない。
+// 外 (コードタブ等) で params が変わったら下書きは捨てる
+const paramsDraft = reactive<Record<string, { base: string; text: string }>>({})
+
+function paramsText(t: TaskDefinition): string {
+  const d = paramsDraft[t.id]
+  const base = paramsToText(t)
+  return d && d.base === base ? d.text : base
+}
+
+function onParamsInput(t: TaskDefinition, text: string) {
+  setParamsFromText(t, text)
+  paramsDraft[t.id] = { base: paramsToText(t), text }
 }
 
 function paramsErrorOf(text: string): string | null {
@@ -630,12 +648,14 @@ function handleReset() {
                 </label>
                 <label :class="$style.field">
                   <span :class="$style.fieldLabel">params (JSON5)</span>
-                  <textarea
-                    :value="paramsToText(t)"
-                    :class="[$style.input, $style.textarea, $style.mono, { [$style.hasError]: paramsErrorOf(paramsToText(t)) }]"
+                  <FormInput
+                    multiline
+                    :model-value="paramsText(t)"
+                    :class="$style.paramsInput"
                     rows="4"
                     placeholder="{ visibility: 'home' }"
-                    @input="(e) => setParamsFromText(t, (e.target as HTMLTextAreaElement).value)"
+                    :error="paramsErrorOf(paramsText(t)) ?? ''"
+                    @update:model-value="(v) => onParamsInput(t, v)"
                   />
                 </label>
               </fieldset>
@@ -677,14 +697,14 @@ function handleReset() {
                   :class="$style.inputItem"
                 >
                   <div :class="$style.inputItemRow">
-                    <select
-                      :value="input.type"
-                      :class="$style.input"
-                      @change="(e) => changeInputType(t, ii, (e.target as HTMLSelectElement).value as 'text' | 'pick')"
+                    <FormSelect
+                      :model-value="input.type"
+                      :class="$style.select"
+                      @update:model-value="(v) => changeInputType(t, ii, v)"
                     >
                       <option value="text">text</option>
                       <option value="pick">pick</option>
-                    </select>
+                    </FormSelect>
                     <input
                       v-model="input.id"
                       type="text"
@@ -812,6 +832,7 @@ function handleReset() {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .editor {
   display: flex;
@@ -1014,24 +1035,21 @@ function handleReset() {
   letter-spacing: 0.04em;
 }
 
+.select {
+  width: 100%;
+}
+
 .input {
+  @include input-base;
   width: 100%;
   padding: 6px 8px;
-  font-size: var(--nd-font-md);
-  background: var(--nd-bg);
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-fg);
-  outline: none;
-  transition: border-color var(--nd-duration-base);
 
-  &:focus {
-    border-color: var(--nd-accent);
-  }
+}
 
-  &.hasError {
-    border-color: var(--nd-love);
-  }
+.paramsInput textarea {
+  min-height: 60px;
+  padding: 6px 8px;
+  font-family: var(--nd-font-mono);
 }
 
 .inlineInput {
@@ -1043,7 +1061,6 @@ function handleReset() {
 .textarea {
   resize: vertical;
   min-height: 60px;
-  font-family: inherit;
 }
 
 .mono {

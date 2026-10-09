@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { WorkspaceFile } from '@/bindings'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import { useAiConfig } from '@/composables/useAiConfig'
 import { useAiWorkspace } from '@/composables/useAiWorkspace'
 import { i18n } from '@/i18n'
@@ -15,7 +16,6 @@ import { useWindowsStore } from '@/stores/windows'
 import { extractErrorMessage } from '@/utils/errors'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import AiSettingsSection from './AiSettingsSection.vue'
-import AiSwitchRow from './AiSwitchRow.vue'
 
 // 人格と記憶 (#1162): ファイルは SOUL / USER / MEMORY の 3 つだが、面は
 // 「人格」(SOUL + キャラクター) / 「あなたについて」(USER) / 「覚え書き」(MEMORY)。
@@ -250,13 +250,13 @@ function isFull(f: WorkspaceFile | undefined): boolean {
       <div :class="$style.cardHeader">
         <span :class="$style.cardTitle">{{ i18n.ts._aiPersonalitySection.userTitle }}</span>
       </div>
-      <AiSwitchRow
+      <FormSwitchRow
         :label="i18n.ts._aiPersonalitySection.userToggle"
         :on="config.userMemory"
         @toggle="toggleUserMemory"
       />
       <!-- 手元の CLI (ACP) にも渡すか (既定は渡す、#1162)。記憶そのものが OFF なら意味が無いので無効 -->
-      <AiSwitchRow
+      <FormSwitchRow
         :label="i18n.ts._aiPersonalitySection.harnessUserMemory"
         :on="config.userMemory && config.harnessUserMemory"
         :disabled="!config.userMemory"

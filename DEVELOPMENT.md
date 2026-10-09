@@ -901,6 +901,8 @@ import { i18n } from '@/i18n'
 - `vite.config.ts` で `localsConvention: 'camelCaseOnly'` を設定済み（`kebab-case` → `camelCase` 自動変換）
 - グローバルな CSS 変数は `src/styles/global.css` で定義
 - モバイル/デスクトップの切り替えは CSS の `display` ではなく `v-if` で制御
+- 入力欄・スイッチ・セレクト・スライダー・数値 + 単位は `src/components/common/form/` の部品 (`FormInput` / `FormSwitch` / `FormSwitchRow` / `FormSelect` / `FormRange` / `FormNumber`) を使う。部品にしない欄も枠・フォーカス・placeholder・disabled は `src/styles/_inputs.scss` の `input-base` に寄せ、画面ごとに書き直さない ([#704](https://github.com/notedeck-dev/notedeck/issues/704))
+- 入力の誤りは欄の直下にエラー文で出し、`aria-invalid` と `aria-describedby` で欄と結ぶ (`FormInput` / `FormNumber` の `error`)。送信ボタンは誤りがあっても disabled にせず、押されたら誤りの欄を出して最初の欄にフォーカスする。disabled にするのは送信中と「まだ何も入力していない」ときだけで、後者は `title` で理由を見せる
 
 ### キーボード操作（アクセシビリティ）
 

@@ -508,6 +508,7 @@ _common:
   updateFailed: "Update failed"
   users: "Users"
   unknownError: "Unknown error"
+  inputRequiredHint: "Type something to continue"
 
 _appConfirm:
   trustedHeader: "NoteDeck permission check"
@@ -529,6 +530,12 @@ _driveItemMenu:
   open: "Open"
   rename: "Rename"
   move: "Move"
+
+_formNumber:
+  notNumber: "Enter a number"
+  outOfRange: "Enter a value from {min} to {max}"
+  tooSmall: "Enter a value of {min} or more"
+  tooLarge: "Enter a value of {max} or less"
 
 _galleryItemMenu:
   open: "Open"

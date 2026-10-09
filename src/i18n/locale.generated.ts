@@ -554,6 +554,8 @@ export interface Locale {
     readonly "unknownError": string
     /** 解除 */
     readonly "remove": string
+    /** 入力すると押せます */
+    readonly "inputRequiredHint": string
   }
   readonly "_appConfirm": {
     /** NoteDeck の権限確認 */
@@ -588,6 +590,16 @@ export interface Locale {
     readonly "rename": string
     /** 移動 */
     readonly "move": string
+  }
+  readonly "_formNumber": {
+    /** 数値を入力してください */
+    readonly "notNumber": string
+    /** {min} から {max} までの値を入力してください */
+    readonly "outOfRange": ParameterizedString<'max' | 'min'>
+    /** {min} 以上の値を入力してください */
+    readonly "tooSmall": ParameterizedString<'min'>
+    /** {max} 以下の値を入力してください */
+    readonly "tooLarge": ParameterizedString<'max'>
   }
   readonly "_galleryItemMenu": {
     /** 開く */

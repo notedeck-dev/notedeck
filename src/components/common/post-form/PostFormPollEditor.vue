@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import { i18n } from '@/i18n'
 
 /**
@@ -161,9 +162,9 @@ watch(
       </label>
       <label :class="$style.pollExpiryLabel">
         {{ i18n.ts._postFormPollEditor.expiry }}
-        <select
+        <FormSelect
           v-model="expiryMode"
-          :class="$style.pollExpirySelect"
+          filled
           @change="onExpiryModeChange"
         >
           <option value="">{{ i18n.ts._postFormPollEditor.noExpiry }}</option>
@@ -171,7 +172,7 @@ watch(
             {{ p.label }}
           </option>
           <option value="at">{{ i18n.ts._postFormPollEditor.specifyDate }}</option>
-        </select>
+        </FormSelect>
       </label>
       <input
         v-if="expiryMode === 'at'"
@@ -274,7 +275,6 @@ watch(
   opacity: 0.7;
 }
 
-.pollExpirySelect,
 .pollExpiryDatetime {
   padding: 4px 6px;
   font-size: inherit;

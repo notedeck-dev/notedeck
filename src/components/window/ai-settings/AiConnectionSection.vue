@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import type { HarnessInfo } from '@/bindings'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
+import FormNumber from '@/components/common/form/FormNumber.vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import { resolveAiConnection, useAiConfig } from '@/composables/useAiConfig'
 import {
   harnessConnectionId,
@@ -13,7 +15,6 @@ import { BUILTIN_TEMPLATES, faviconUrl } from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import AiSettingsSection from './AiSettingsSection.vue'
-import AiSwitchRow from './AiSwitchRow.vue'
 
 const { config } = useAiConfig()
 const vault = useVault()
@@ -210,14 +211,13 @@ function openConnectionsWindow(): void {
       <div :class="$style.fieldHeader">
         <span :class="$style.fieldLabel">{{ i18n.ts._aiConnectionSection.dailyTokenBudget }}</span>
         <div :class="$style.fieldValue">
-          <input
-            v-model.number="activeBudget"
-            type="number"
-            min="0"
-            step="1000"
-            :class="$style.numberInput"
+          <FormNumber
+            v-model="activeBudget"
+            :min="0"
+            :step="1000"
+            :empty-value="0"
+            :unit="i18n.ts._aiConnectionSection.tokensPerDay"
           />
-          <span :class="$style.fieldUnit">{{ i18n.ts._aiConnectionSection.tokensPerDay }}</span>
         </div>
       </div>
       <p :class="$style.fieldHint">{{ i18n.ts._aiConnectionSection.dailyTokenBudgetHint }}</p>
@@ -228,6 +228,7 @@ function openConnectionsWindow(): void {
 <style lang="scss" module>
 @use '@/styles/settingsFields' as *;
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .keyHint {
   @include key-hint;
@@ -277,29 +278,11 @@ function openConnectionsWindow(): void {
 .fieldLabel { @include field-label; }
 .fieldValue { @include field-value; }
 .fieldHint { @include field-hint; }
-.numberInput { @include number-input; }
-.fieldUnit { @include field-unit; }
 
 .input {
+  @include input-base;
   width: 100%;
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
   font-size: var(--nd-font-sm);
-  font-family: inherit;
-  outline: none;
-  transition: border-color var(--nd-duration-base);
-
-  &:focus {
-    border-color: var(--nd-accent);
-  }
-
-  &::placeholder {
-    color: var(--nd-fg);
-    opacity: 0.35;
-  }
 }
 
 // 「接続」ウィンドウ (ConnectionsContent) のカードグリッドと同じ見た目に揃える

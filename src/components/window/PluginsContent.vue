@@ -6,6 +6,7 @@ import {
   parsePluginMeta,
 } from '@/aiscript/plugin-api'
 import EditorTabs from '@/components/common/EditorTabs.vue'
+import FormSwitch from '@/components/common/form/FormSwitch.vue'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
 import type { EditorAction } from '@/components/window/EditorActionBar.vue'
 import EditorActionBar from '@/components/window/EditorActionBar.vue'
@@ -473,15 +474,11 @@ async function importPlugin() {
           </div>
           <p v-if="def.description" :class="$style.configDesc">{{ def.description }}</p>
           <template v-if="def.type === 'boolean'">
-            <button
-              class="nd-toggle-switch"
-              :class="{ on: !!plugin.configData[key] }"
-              role="switch"
-              :aria-checked="!!plugin.configData[key]"
-              @click="updateConfig(key as string, !plugin.configData[key])"
-            >
-              <span class="nd-toggle-switch-knob" />
-            </button>
+            <FormSwitch
+              :model-value="!!plugin.configData[key]"
+              :label="def.label"
+              @update:model-value="(v) => updateConfig(key as string, v)"
+            />
           </template>
           <template v-else-if="def.type === 'string'">
             <input
@@ -567,6 +564,7 @@ async function importPlugin() {
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
+@use '@/styles/inputs' as *;
 
 .pluginsContent {
   display: flex;
@@ -778,21 +776,7 @@ async function importPlugin() {
 }
 
 .configInput {
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-sm);
-  background: var(--nd-inputBg, var(--nd-bg));
-  color: var(--nd-fg);
-  font-size: var(--nd-font-md);
-
-  &::placeholder {
-    opacity: 0.35;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--nd-accent);
-  }
+  @include input-base;
 }
 
 .resetAllBtn {

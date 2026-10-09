@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import FormSwitch from '@/components/common/form/FormSwitch.vue'
 import { useClickOutside } from '@/composables/useClickOutside'
 import { i18n } from '@/i18n'
 import {
@@ -152,15 +153,12 @@ function toggle(key: PermissionKey) {
             :class="$style.warningIcon"
             :title="i18n.ts._permissionProfileEditor.highRisk"
           />
-          <button
-            class="nd-toggle-switch"
-            :class="{ on: resolved[key] }"
-            :aria-checked="resolved[key]"
+          <FormSwitch
+            :model-value="resolved[key]"
+            :label="PERMISSION_LABELS[key].label"
             :disabled="isRowDisabled(key)"
-            role="switch"
-          >
-            <span class="nd-toggle-switch-knob" />
-          </button>
+            @update:model-value="toggle(key)"
+          />
         </div>
       </div>
     </div>

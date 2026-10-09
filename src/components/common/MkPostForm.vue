@@ -13,6 +13,7 @@ import {
   type PluginHandler,
   withPluginAccountContext,
 } from '@/aiscript/plugin-api'
+import FormSwitch from '@/components/common/form/FormSwitch.vue'
 import { useAutocomplete } from '@/composables/useAutocomplete'
 import type { StoredDraft } from '@/composables/useDrafts'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
@@ -681,37 +682,37 @@ function onPaste(e: ClipboardEvent) {
                 v-if="!memoMode"
                 :class="$style.moreMenuItem"
                 role="switch"
+                tabindex="0"
                 :aria-checked="showPreview"
                 @click="showPreview = !showPreview"
+                @keydown.enter.prevent="showPreview = !showPreview"
+                @keydown.space.prevent="showPreview = !showPreview"
               >
                 <i class="ti ti-eye" />
                 {{ i18n.ts._mkPostForm.preview }}
-                <span
-                  class="nd-toggle-switch"
-                  :class="{ on: showPreview }"
-                  :style="{ marginLeft: 'auto' }"
-                  aria-hidden="true"
-                >
-                  <span class="nd-toggle-switch-knob" />
-                </span>
+                <FormSwitch
+                  :model-value="showPreview"
+                  :class="$style.moreMenuSwitch"
+                  decorative
+                />
               </div>
               <!-- Auto-save toggle (memoMode: memos, else: drafts) -->
               <div
                 :class="$style.moreMenuItem"
                 role="switch"
+                tabindex="0"
                 :aria-checked="autoSaveEnabled"
                 @click="autoSaveEnabled = !autoSaveEnabled"
+                @keydown.enter.prevent="autoSaveEnabled = !autoSaveEnabled"
+                @keydown.space.prevent="autoSaveEnabled = !autoSaveEnabled"
               >
                 <i class="ti ti-device-floppy" />
                 {{ autoSaveLabel }}
-                <span
-                  class="nd-toggle-switch"
-                  :class="{ on: autoSaveEnabled }"
-                  :style="{ marginLeft: 'auto' }"
-                  aria-hidden="true"
-                >
-                  <span class="nd-toggle-switch-knob" />
-                </span>
+                <FormSwitch
+                  :model-value="autoSaveEnabled"
+                  :class="$style.moreMenuSwitch"
+                  decorative
+                />
               </div>
               <!-- Remember visibility toggle。inline (メモ) は公開範囲
                    ピッカー自体を出さないので、記憶する対象が無い (#1018) -->
@@ -719,19 +720,19 @@ function onPaste(e: ClipboardEvent) {
                 v-if="!inline"
                 :class="$style.moreMenuItem"
                 role="switch"
+                tabindex="0"
                 :aria-checked="rememberVisibilityEnabled"
                 @click="rememberVisibilityEnabled = !rememberVisibilityEnabled"
+                @keydown.enter.prevent="rememberVisibilityEnabled = !rememberVisibilityEnabled"
+                @keydown.space.prevent="rememberVisibilityEnabled = !rememberVisibilityEnabled"
               >
                 <i class="ti ti-bookmark" />
                 {{ i18n.ts._mkPostForm.rememberVisibility }}
-                <span
-                  class="nd-toggle-switch"
-                  :class="{ on: rememberVisibilityEnabled }"
-                  :style="{ marginLeft: 'auto' }"
-                  aria-hidden="true"
-                >
-                  <span class="nd-toggle-switch-knob" />
-                </span>
+                <FormSwitch
+                  :model-value="rememberVisibilityEnabled"
+                  :class="$style.moreMenuSwitch"
+                  decorative
+                />
               </div>
               <!-- Schedule (only if server supports it). ボタンでダイアログを開く。
                    Misskey 本家と同様 native datetime-local をダイアログ内に表示 -->
@@ -1633,6 +1634,11 @@ function onPaste(e: ClipboardEvent) {
   background: color-mix(in srgb, var(--nd-popup) 96%, transparent);
   border-radius: var(--nd-radius);
   box-shadow: var(--nd-shadow-m);
+}
+
+// スイッチは行の右端に寄せる (操作と読み上げは行の role="switch" が持つ)
+.moreMenuSwitch {
+  margin-left: auto;
 }
 
 .moreMenuItem {

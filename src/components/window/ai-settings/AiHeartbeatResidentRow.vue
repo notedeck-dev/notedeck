@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import { i18n } from '@/i18n'
 import { useClientLayerStore } from '@/stores/clientLayer'
-import AiSwitchRow from './AiSwitchRow.vue'
 
 /**
  * 「アプリを終了しても続ける」(#1106 案 B): AI (notemaid) を OS のログイン時タスクとして
@@ -71,7 +71,7 @@ async function toggleResident(): Promise<void> {
 </script>
 
 <template>
-  <AiSwitchRow
+  <FormSwitchRow
     icon="ti-moon-stars"
     :label="busy ? i18n.ts._aiHeartbeatSection.keepRunningSwitching : i18n.ts._aiHeartbeatSection.keepRunning"
     :sub-label="i18n.ts._aiHeartbeatSection.keepRunningDescription"

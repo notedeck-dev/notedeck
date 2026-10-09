@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import {
   DATA_SOURCE_KEYS,
   type DataSourceKey,
@@ -12,7 +13,6 @@ import { i18n } from '@/i18n'
 import { FALLBACK_PRESET_OPTION, PRESET_OPTIONS } from '@/permissions/labels'
 import type { PresetKey } from '@/permissions/schema'
 import AiSettingsSection from './AiSettingsSection.vue'
-import AiSwitchRow from './AiSwitchRow.vue'
 
 const { config } = useAiConfig()
 
@@ -123,7 +123,7 @@ useClickOutside(presetRef, () => {
     </div>
 
     <div :class="$style.toggleList">
-      <AiSwitchRow
+      <FormSwitchRow
         v-for="key in DATA_SOURCE_KEYS"
         :key="key"
         :icon="DATA_SOURCE_LABELS[key].icon"

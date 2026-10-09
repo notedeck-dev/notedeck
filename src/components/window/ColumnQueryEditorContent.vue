@@ -295,6 +295,7 @@ async function save(): Promise<void> {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/inputs' as *;
 .root {
   display: flex;
   flex-direction: column;
@@ -323,13 +324,10 @@ async function save(): Promise<void> {
 
 .nameInput,
 .descInput {
+  @include input-base;
   width: 100%;
   padding: 8px 10px;
-  border-radius: var(--nd-radius-md);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-panel);
-  color: inherit;
-  font: inherit;
+  font-size: 1em;
 }
 
 .nameInput {

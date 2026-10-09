@@ -293,6 +293,7 @@ _common:
   users: "ユーザー"
   unknownError: "不明なエラー"
   remove: "解除"
+  inputRequiredHint: "入力すると押せます"
 
 _appConfirm:
   trustedHeader: "NoteDeck の権限確認"
@@ -314,6 +315,12 @@ _driveItemMenu:
   open: "開く"
   rename: "リネーム"
   move: "移動"
+
+_formNumber:
+  notNumber: "数値を入力してください"
+  outOfRange: "{min} から {max} までの値を入力してください"
+  tooSmall: "{min} 以上の値を入力してください"
+  tooLarge: "{max} 以下の値を入力してください"
 
 _galleryItemMenu:
   open: "開く"

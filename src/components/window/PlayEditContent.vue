@@ -183,6 +183,7 @@ onMounted(load)
 </template>
 
 <style lang="scss" module>
+@use '@/styles/inputs' as *;
 .root {
   display: flex;
   flex-direction: column;
@@ -236,13 +237,9 @@ onMounted(load)
 
 .input,
 .textarea {
+  @include input-base;
   padding: 8px 10px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
   font-size: var(--nd-font-body);
-  font-family: inherit;
 }
 
 .textarea {

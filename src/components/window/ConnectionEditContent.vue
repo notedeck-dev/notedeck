@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import type {
   AuthType,
   ConnectionProtocol,
@@ -8,6 +8,7 @@ import type {
   VaultTestResult,
 } from '@/bindings'
 import CollapseBox from '@/components/common/CollapseBox.vue'
+import FormInput from '@/components/common/form/FormInput.vue'
 import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES } from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
@@ -186,29 +187,50 @@ function buildUpsert(): ConnectionUpsert {
   }
 }
 
-function validateForm(): string | null {
-  if (!name.value.trim()) return i18n.ts._connectionEditContent.nameRequired
-  if (!baseUrl.value.trim()) return i18n.ts._connectionEditContent.urlRequired
-  if (authKind.value === 'header' && !headerName.value.trim())
-    return i18n.ts._connectionEditContent.headerNameRequired
-  if (authKind.value === 'query' && !queryParam.value.trim())
-    return i18n.ts._connectionEditContent.queryParamRequired
+// 欄ごとの誤り。保存を一度押すまでは出さず (打ち始めから赤くしない)、
+// 押した後は入力に合わせてその場で消える
+const fieldErrors = computed(() => {
+  let secret = ''
   if (
     showSecretInput.value &&
     secretInput.value &&
     secretInput.value.length < 16
   )
-    return i18n.ts._connectionEditContent.secretTooShort
-  if (isNew.value && !secretInput.value)
-    return i18n.ts._connectionEditContent.secretRequired
-  return null
-}
+    secret = i18n.ts._connectionEditContent.secretTooShort
+  else if (isNew.value && !secretInput.value)
+    secret = i18n.ts._connectionEditContent.secretRequired
+  return {
+    name: name.value.trim() ? '' : i18n.ts._connectionEditContent.nameRequired,
+    baseUrl: baseUrl.value.trim()
+      ? ''
+      : i18n.ts._connectionEditContent.urlRequired,
+    headerName:
+      authKind.value === 'header' && !headerName.value.trim()
+        ? i18n.ts._connectionEditContent.headerNameRequired
+        : '',
+    queryParam:
+      authKind.value === 'query' && !queryParam.value.trim()
+        ? i18n.ts._connectionEditContent.queryParamRequired
+        : '',
+    secret,
+  }
+})
+const submitted = ref(false)
+const shownErrors = computed(() =>
+  submitted.value
+    ? fieldErrors.value
+    : { name: '', baseUrl: '', headerName: '', queryParam: '', secret: '' },
+)
+const contentRef = ref<HTMLElement | null>(null)
 
 async function save() {
   errorMessage.value = ''
-  const validationError = validateForm()
-  if (validationError) {
-    errorMessage.value = validationError
+  submitted.value = true
+  if (Object.values(fieldErrors.value).some(Boolean)) {
+    await nextTick()
+    contentRef.value
+      ?.querySelector<HTMLElement>('[aria-invalid="true"]')
+      ?.focus()
     return
   }
   saving.value = true
@@ -329,21 +351,21 @@ const testResultText = computed(() => {
 </script>
 
 <template>
-  <div :class="$style.content">
+  <div ref="contentRef" :class="$style.content">
     <!-- 基本 -->
     <div :class="$style.section">
       <label :class="$style.field">
         <span :class="$style.label">{{ i18n.ts._connectionEditContent.name }}</span>
-        <input v-model="name" type="text" :class="$style.input" placeholder="GitHub PAT" />
+        <FormInput v-model="name" placeholder="GitHub PAT" :error="shownErrors.name" />
       </label>
 
       <label :class="$style.field">
         <span :class="$style.label">URL</span>
-        <input
+        <FormInput
           v-model="baseUrl"
           type="url"
-          :class="$style.input"
           placeholder="https://api.github.com"
+          :error="shownErrors.baseUrl"
         />
       </label>
 
@@ -358,34 +380,36 @@ const testResultText = computed(() => {
             <input v-model="authKind" type="radio" value="header" />
             <span>{{ i18n.ts._connectionEditContent.customHeader }}</span>
           </label>
-          <input
+          <FormInput
             v-if="authKind === 'header'"
             v-model="headerName"
-            type="text"
             :class="$style.subInput"
             :placeholder="i18n.ts._connectionEditContent.headerNamePlaceholder"
+            :aria-label="i18n.ts._connectionEditContent.customHeader"
+            :error="shownErrors.headerName"
           />
           <label :class="$style.radio">
             <input v-model="authKind" type="radio" value="query" />
             <span>{{ i18n.ts._connectionEditContent.queryParam }}</span>
           </label>
-          <input
+          <FormInput
             v-if="authKind === 'query'"
             v-model="queryParam"
-            type="text"
             :class="$style.subInput"
             :placeholder="i18n.ts._connectionEditContent.paramNamePlaceholder"
+            :aria-label="i18n.ts._connectionEditContent.queryParam"
+            :error="shownErrors.queryParam"
           />
           <label :class="$style.radio">
             <input v-model="authKind" type="radio" value="basic" />
             <span>{{ i18n.ts._connectionEditContent.basicAuth }}</span>
           </label>
-          <input
+          <FormInput
             v-if="authKind === 'basic'"
             v-model="basicUsername"
-            type="text"
             :class="$style.subInput"
             :placeholder="i18n.ts._connectionEditContent.username"
+            :aria-label="i18n.ts._connectionEditContent.username"
           />
         </div>
       </div>
@@ -412,14 +436,14 @@ const testResultText = computed(() => {
         </button>
       </div>
 
-      <div v-if="showSecretInput" :class="$style.field">
+      <label v-if="showSecretInput" :class="$style.field">
         <span :class="$style.label">{{ secretLabel }}</span>
-        <input
+        <FormInput
           v-model="secretInput"
           type="password"
-          :class="$style.input"
           :placeholder="i18n.ts._connectionEditContent.secretPlaceholder"
           autocomplete="off"
+          :error="shownErrors.secret"
         />
         <a
           v-if="secretHelpUrl"
@@ -430,7 +454,7 @@ const testResultText = computed(() => {
         >
           {{ i18n.ts._connectionEditContent.openIssueGuide }}
         </a>
-      </div>
+      </label>
     </div>
 
     <div :class="$style.divider" />
@@ -450,18 +474,16 @@ const testResultText = computed(() => {
         <div :class="$style.section">
           <label :class="$style.field">
             <span :class="$style.label">{{ i18n.ts._connectionEditContent.allowedHosts }}</span>
-            <input
+            <FormInput
               v-model="allowedHostsText"
-              type="text"
-              :class="$style.input"
               :placeholder="i18n.ts._connectionEditContent.allowedHostsPlaceholder"
             />
           </label>
           <label :class="$style.field">
             <span :class="$style.label">{{ i18n.ts._connectionEditContent.notes }}</span>
-            <textarea
+            <FormInput
               v-model="notes"
-              :class="$style.textarea"
+              multiline
               rows="2"
               :placeholder="i18n.ts._connectionEditContent.notesPlaceholder"
             />
@@ -645,34 +667,13 @@ const testResultText = computed(() => {
   color: var(--nd-fgMuted);
 }
 
-.input {
-  padding: 8px 10px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: var(--nd-font-md);
-}
-
 .subInput {
   margin-left: 22px;
-  padding: 6px 8px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: var(--nd-font-sm);
-}
 
-.textarea {
-  padding: 8px 10px;
-  border-radius: var(--nd-radius-sm);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
-  font-size: var(--nd-font-md);
-  resize: vertical;
-  font-family: inherit;
+  input {
+    padding: 6px 8px;
+    font-size: var(--nd-font-sm);
+  }
 }
 
 .radioGroup {

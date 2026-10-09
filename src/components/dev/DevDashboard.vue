@@ -7,6 +7,7 @@ import {
   onUnmounted,
   ref,
 } from 'vue'
+import FormSelect from '@/components/common/form/FormSelect.vue'
 import { i18n } from '@/i18n'
 import { formatTime } from '@/utils/formatTime'
 
@@ -1402,7 +1403,7 @@ onUnmounted(() => {
           </header>
           <div :class="$style.card">
             <p :class="$style.cardTitle">Capability</p>
-            <select
+            <FormSelect
               v-model="selectedCapId"
               :class="$style.capSelect"
               @change="onSelectCap"
@@ -1417,7 +1418,7 @@ onUnmounted(() => {
                   {{ c.id }} — {{ c.label }}
                 </option>
               </optgroup>
-            </select>
+            </FormSelect>
             <template v-if="selectedCap">
               <p :class="$style.capDesc">
                 {{ selectedCap.description || selectedCap.label }}
@@ -2324,12 +2325,7 @@ onUnmounted(() => {
   opacity: 0.5;
 }
 
-.capSelect {
-  padding: 6px 10px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-md);
-  background: var(--nd-bg);
-  color: var(--nd-fg);
+.capSelect select {
   font-family: var(--nd-font-mono);
   font-size: 0.8rem;
 }

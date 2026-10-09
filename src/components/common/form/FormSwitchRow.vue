@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import FormSwitch from '@/components/common/form/FormSwitch.vue'
+
 const props = withDefaults(
   defineProps<{
     label: string
@@ -28,20 +30,17 @@ function onRowClick() {
       <span :class="$style.switchRowSubLabel">{{ subLabel }}</span>
     </div>
     <span v-else :class="$style.switchRowLabel">{{ label }}</span>
-    <button
-      class="nd-toggle-switch"
-      :class="{ on }"
-      :aria-checked="on"
+    <FormSwitch
+      :model-value="on"
+      :label="label"
       :disabled="disabled"
-      role="switch"
-    >
-      <span class="nd-toggle-switch-knob" />
-    </button>
+      @update:model-value="onRowClick"
+    />
   </div>
 </template>
 
 <style lang="scss" module>
-// nd-toggle-switch を右端に置く共通行レイアウト (左 icon / 中 label stack / 右 toggle)
+// スイッチを右端に置く設定の行 (左 icon / 中 label stack / 右 switch)。行のどこを押しても切り替わる
 .switchRow {
   display: flex;
   align-items: center;
