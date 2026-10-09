@@ -392,8 +392,17 @@ const activeModeFlags = computed(() =>
   deriveActiveModeFlags(effectiveNote.value.modeFlags),
 )
 
-function navigateToDetail() {
+function navigateToDetail(e: MouseEvent) {
   if (props.disableArticleClick) return
+  // 本文をドラッグ選択して離したときの click で遷移するとコピーできない
+  const sel = window.getSelection()
+  if (
+    sel &&
+    !sel.isCollapsed &&
+    (e.currentTarget as Node).contains(sel.anchorNode)
+  ) {
+    return
+  }
   if (!props.detailed) {
     navToNote(props.note._accountId, props.note.id)
   }
