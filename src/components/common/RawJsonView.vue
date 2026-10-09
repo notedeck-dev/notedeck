@@ -103,7 +103,7 @@ const lang = jsonLang()
   opacity: 0.7;
   min-width: 0;
 
-  :deep(code) {
+  :global(code) {
     font-family: var(--nd-font-mono);
     background: rgba(127, 127, 127, 0.15);
     padding: 1px 6px;

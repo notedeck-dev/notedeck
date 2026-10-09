@@ -299,11 +299,11 @@ function onMemoLinkClick(memoId: string) {
   overflow: hidden;
   color: var(--nd-fgHighlighted);
 
-  :deep(.mfm) {
+  :global(.mfm) {
     white-space: nowrap;
   }
 
-  :deep(.custom-emoji) {
+  :global(.custom-emoji) {
     height: 1.2em;
     width: auto;
   }
@@ -374,9 +374,9 @@ function onMemoLinkClick(memoId: string) {
   line-height: 1.65;
 
   /* markdown の見出し・リスト・コードが地の文と溶けないよう間を作る */
-  :deep(h1),
-  :deep(h2),
-  :deep(h3) {
+  :global(h1),
+  :global(h2),
+  :global(h3) {
     margin: 0.9em 0 0.4em;
     line-height: 1.35;
 
@@ -385,18 +385,18 @@ function onMemoLinkClick(memoId: string) {
     }
   }
 
-  :deep(ul),
-  :deep(ol) {
+  :global(ul),
+  :global(ol) {
     margin: 0.4em 0;
     padding-left: 1.4em;
   }
 
-  :deep(li) {
+  :global(li) {
     margin: 0.15em 0;
   }
 
-  :deep(pre),
-  :deep(blockquote) {
+  :global(pre),
+  :global(blockquote) {
     margin: 0.6em 0;
   }
 }

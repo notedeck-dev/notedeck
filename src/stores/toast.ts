@@ -116,6 +116,14 @@ export function createToastCenter() {
       action,
       time: Date.now(),
     }
+
+    // 受信トレイを開いている間は、同じものが一覧に並ぶのでカードは出さない。
+    // 目の前で増えるので未読にも数えない
+    if (inboxOpen.value) {
+      if (!light) inbox.value = [item, ...inbox.value].slice(0, INBOX_MAX)
+      return
+    }
+
     toasts.value = [...toasts.value, item]
     schedule(item.id, cardDuration(item))
 

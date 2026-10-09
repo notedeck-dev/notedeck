@@ -1124,7 +1124,7 @@ async function handlePosted(editedNoteId?: string) {
     object-fit: contain;
   }
 
-  :deep(.twemoji) {
+  :global(.twemoji) {
     width: 24px;
     height: 24px;
   }

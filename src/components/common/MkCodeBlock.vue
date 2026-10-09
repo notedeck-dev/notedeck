@@ -58,7 +58,7 @@ const { copied, copyToClipboard } = useClipboardFeedback()
 
 .body {
   // 面はハイライトの有無に関係なく揃える (明暗は data-nd-code-scheme の変数側 #1053)
-  :deep(pre) {
+  :global(pre) {
     font-family: var(--nd-font-mono);
     font-size: var(--nd-font-md);
     padding: 12px 16px;
@@ -71,12 +71,12 @@ const { copied, copyToClipboard } = useClipboardFeedback()
     margin: 0;
   }
 
-  :deep(pre code) {
+  :global(pre code) {
     font-family: inherit;
   }
 }
 
-.wrap .body :deep(pre) {
+.wrap .body :global(pre) {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

@@ -652,7 +652,7 @@ function unixtimeValue(token: MfmToken & { type: 'fn' }): number | null {
   overflow: auto;
   border-radius: var(--nd-radius-md);
 
-  :deep(.katex-display) {
+  :global(.katex-display) {
     margin: auto;
     width: fit-content;
     overflow: clip;

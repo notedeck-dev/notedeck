@@ -376,7 +376,7 @@ function handlePostFormButton(comp: UiComponent) {
     }
   }
 
-  > :deep(.aisUiRenderer) {
+  > .aisUiRenderer {
     padding: 8px 10px;
   }
 }

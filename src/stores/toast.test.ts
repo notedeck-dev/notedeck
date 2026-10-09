@@ -100,3 +100,21 @@ describe('toast center', () => {
     expect(c.inbox.value).toHaveLength(1)
   })
 })
+
+describe('受信トレイを開いている間', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('カードは出さず受信トレイにだけ足し、未読も増やさない', () => {
+    const c = createToastCenter()
+    c.setInboxOpen(true)
+    c.show('失敗しました', 'error')
+    expect(c.toasts.value).toHaveLength(0)
+    expect(c.inbox.value.map((t) => t.text)).toEqual(['失敗しました'])
+    expect(c.unreadCount.value).toBe(0)
+  })
+})
