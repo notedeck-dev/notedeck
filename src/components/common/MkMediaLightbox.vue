@@ -254,16 +254,44 @@ function onContextMenu(e: MouseEvent) {
   menuRef.value?.open(e)
 }
 
+// 画像プロキシから取り、クリップボードが受け付ける PNG にする。元の URL を
+// WebView から直接 fetch すると相手サーバーの CORS で落ちることが多いので、
+// プロキシで取れなかったときだけ元の URL を試す
+async function fetchImageAsPng(url: string): Promise<Blob> {
+  let res = await fetch(proxyUrl(url) ?? url).catch(() => null)
+  if (!res?.ok) res = await fetch(url)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob()
+  if (blob.type === 'image/png') return blob
+  // クリップボードの画像は PNG しか書けない (JPEG / WebP は write が拒む)
+  const bitmap = await createImageBitmap(blob)
+  const canvas = document.createElement('canvas')
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+  canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
+  bitmap.close()
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (png) => (png ? resolve(png) : reject(new Error('toBlob failed'))),
+      'image/png',
+    ),
+  )
+}
+
 async function copyImage() {
   const f = file.value
   if (!f?.url || !isSafeUrl(f.url)) return
+  const url = f.url
+  // 取得は Promise のまま渡す。WebKit は await を挟むとユーザー操作の
+  // 扱いが切れて write を拒む。write が中身を読まずに失敗したときに
+  // 未処理の reject を残さないよう、ここでも受けておく
+  const png = fetchImageAsPng(url)
+  png.catch(() => undefined)
   try {
-    const res = await fetch(f.url)
-    const blob = await res.blob()
-    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
   } catch {
     // Fallback: copy URL as text
-    await copyToClipboard(f.url)
+    await copyToClipboard(url)
   }
   menuRef.value?.close()
 }

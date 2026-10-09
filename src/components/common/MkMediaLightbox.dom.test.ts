@@ -199,6 +199,98 @@ describe('MkMediaLightbox (#792)', () => {
     })
   })
 
+  describe('画像をコピー', () => {
+    let written: Array<Record<string, Blob>> = []
+    let writtenText: string[] = []
+    let fetchMock: ReturnType<typeof vi.fn>
+    class FakeClipboardItem {
+      items: Record<string, Blob | Promise<Blob>>
+      constructor(items: Record<string, Blob | Promise<Blob>>) {
+        this.items = items
+      }
+    }
+    beforeEach(() => {
+      written = []
+      writtenText = []
+      fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      vi.stubGlobal('ClipboardItem', FakeClipboardItem)
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          // 本物と同じく、Promise で渡された中身を解決してから書く
+          write: async (items: FakeClipboardItem[]) => {
+            for (const item of items) {
+              const resolved: Record<string, Blob> = {}
+              for (const [type, v] of Object.entries(item.items)) {
+                resolved[type] = await v
+              }
+              written.push(resolved)
+            }
+          },
+          writeText: async (t: string) => {
+            writtenText.push(t)
+          },
+        },
+      })
+    })
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    function clickCopy() {
+      const btn = Array.from(
+        container?.querySelectorAll('button._popupItem') ?? [],
+      ).find((b) => b.textContent?.trim() === '画像をコピー') as
+        | HTMLButtonElement
+        | undefined
+      btn?.click()
+    }
+
+    it('画像プロキシから取得して PNG としてコピーする (元の URL を直接 fetch しない)', async () => {
+      fetchMock.mockResolvedValue(
+        new Response(new Blob(['png'], { type: 'image/png' }), {
+          status: 200,
+        }),
+      )
+      mountLightbox([makeImage('a')])
+      clickCopy()
+      await vi.waitFor(() => expect(written).toHaveLength(1))
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        proxied('https://example.test/a.png'),
+      )
+      expect(written[0]?.['image/png']?.type).toBe('image/png')
+      expect(writtenText).toEqual([])
+    })
+
+    it('プロキシで取れなかったら元の URL から取る', async () => {
+      fetchMock
+        .mockResolvedValueOnce(new Response('', { status: 502 }))
+        .mockResolvedValueOnce(
+          new Response(new Blob(['png'], { type: 'image/png' }), {
+            status: 200,
+          }),
+        )
+      mountLightbox([makeImage('a')])
+      clickCopy()
+      await vi.waitFor(() => expect(written).toHaveLength(1))
+      expect(fetchMock.mock.calls[1]?.[0]).toBe('https://example.test/a.png')
+    })
+
+    it('どちらでも取れなければ URL をコピーする', async () => {
+      fetchMock
+        .mockResolvedValueOnce(new Response('', { status: 502 }))
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      mountLightbox([makeImage('a')])
+      clickCopy()
+      await vi.waitFor(() =>
+        expect(writtenText).toEqual(['https://example.test/a.png']),
+      )
+      expect(written).toEqual([])
+    })
+  })
+
   describe('隣接画像の先読み (#704 O-3)', () => {
     let preloaded: string[] = []
     class FakeImage {
