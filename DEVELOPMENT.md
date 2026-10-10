@@ -191,31 +191,67 @@ attach モードはデバイス側アプリを終了させず、デッキ操作�
 出て、起動を検知すると自動で切り替わる）。デッキとは独立した画面なので、
 アプリの UI 状態を汚さずに観測できる。
 
-できること:
+左のナビでビューを切り替える (観測 / 実行 / 診断 / リソース の 4 グループ)。
 
-- **デッキ状態** — カラム一覧と、折りたたみで `/api/health` raw・
-  `/api/openapi.json`・起動計測（起動マーク + WebView 固定費、[#985](https://github.com/notedeck-dev/notedeck/issues/985)）・
-  HEARTBEAT 状態（最終 tick / 結末 / 連続失敗、[#411](https://github.com/notedeck-dev/notedeck/issues/411)）・キャッシュ観測
-  （上限つきキャッシュの size / limit 実測、[#987](https://github.com/notedeck-dev/notedeck/issues/987)）・Query Bridge トレース
-  （query 往復の所要時間）。JSON はシンタックスハイライト付き
-- **SSE ライブビューア** — `/api/events` を購読して Rust 側イベントバスの
-  流れをリアルタイム表示。type prefix フィルタ・種別チップ（クリックで
-  絞り込み）・流量表示・JSON Lines エクスポート・切断時自動再接続。
-  折りたたみで Inspector 突き合わせ（アダプタ層 vs SSE の種別別カウント）
-- **Capabilities 実行盤** — 登録済み capability の一覧からパラメータを
-  JSON で組んで実行。external principal として dispatcher を通るので、
-  権限ゲート（[#712](https://github.com/notedeck-dev/notedeck/issues/712)）の deny・確認ダイアログ・DispatchResult → HTTP status の
-  写像をそのまま目視テストできる。principal 別実効権限マトリクスと
-  実行履歴つき
-- **統合タイムライン** — Rust の tracing ログ（Vite dev server の
-  `/dev/logs` が SSE 配信、所在は `/api` インデックスの `logDir` から解決）
-  + SSE イベント + フロント in-app ログを単一時系列にマージ。
-  「どの層でイベントが消えたか」をソース切替しながら 1 画面で追える
-- **Scalar API ドキュメント** — `/api/docs` へのリンク
+観測:
 
-仕組み: Vite の dev proxy（`vite.config.ts`）が `/api` と `/proxy` を
-内蔵 HTTP サーバー（127.0.0.1:19820、[#940](https://github.com/notedeck-dev/notedeck/issues/940)）へ転送し、無認証の `/api`
-インデックスが開示する tokenPath から Bearer トークンを読んで注入する。
+- **概要** — カラム一覧、アカウントごとのストリーム接続 (状態と遷移時刻)、
+  `/api/health` と `/api/openapi.json` の raw。`/api/health` は notecli doctor
+  (アカウントごとに Misskey へ疎通と token の確認を投げる) を含むので周期では取らず、
+  概要を開いたときと「更新」でだけ取る
+- **SSE イベント** — `/api/events` を購読して Rust 側イベントバスの流れを
+  リアルタイム表示。type prefix フィルタ・種別チップ (クリックで絞り込み)・
+  流量・JSON Lines エクスポート・切断時の自動再接続
+- **統合タイムライン** — Rust の tracing ログ (Vite dev server の `/dev/logs` が
+  SSE 配信、所在は `/api` インデックスの `logDir` から解決) + SSE イベント +
+  フロント in-app ログを単一時系列にマージ。「どの層でイベントが消えたか」を
+  ソース切替しながら 1 画面で追える。notemaid が別プロセス (sidecar / 常駐) の
+  ときはそのログは含まれない (置き場は notemaid ビューの `logDir`)
+- **Inspector 照合** — アダプタ層 (Misskey WS raw) と SSE の種別別カウントの突き合わせ
+
+実行:
+
+- **Capabilities** — 登録済み capability の一覧からパラメータを JSON で組んで実行。
+  external principal として dispatcher を通るので、権限ゲート
+  ([#712](https://github.com/notedeck-dev/notedeck/issues/712)) の deny・確認ダイアログ・
+  DispatchResult → HTTP status の写像をそのまま目視テストできる。実行履歴つき
+- **MCP** — `POST /mcp` の `tools/list` (下の「MCP サーバー」節)。外部の AI
+  エージェントや手元の CLI に見えている tool 名と input schema を確かめる。
+  一覧だけで、実行は Capabilities から (同じ dispatcher に届く)
+- **実効権限** — principal 別 (ai.chat / ai.heartbeat / plugin / external /
+  scratchpad) の granted マトリクス。Capabilities で選んだ capability の要求キー行を
+  ハイライトし、403 の理由をその場で照合する
+
+診断:
+
+- **起動計測** — 起動マークのウォーターフォールと WebView 固定費
+  ([#985](https://github.com/notedeck-dev/notedeck/issues/985))
+- **HEARTBEAT** — 最終 tick / 直近の結末 / 連続失敗 / 本日の AI 起動 / 設定の断面 /
+  失敗の記録 ([#411](https://github.com/notedeck-dev/notedeck/issues/411))。値は HEARTBEAT を回している
+  プロセスのもの (notemaid が別プロセスならその申告を中継越しに読む)
+- **notemaid** — AI の別プロセスの所在 (in-process / 子プロセス / 常駐)、中継の
+  接続と版の指紋、子プロセスの生死、常駐の登録、notemaid 自身の申告
+  ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。About の自己診断の notemaid 部分と同じ値
+- **キャッシュ** — 上限つきキャッシュの size / limit 実測
+  ([#987](https://github.com/notedeck-dev/notedeck/issues/987))
+- **画像プロキシ** — `/proxy/image` のメモリ / ディスクキャッシュ、失敗を覚えている
+  URL、取得中と取得枠、host ごとの連続失敗・breaker・429 の待ち。画像が出ないときに
+  どこで止まっているかを切り分ける (動画・音声の中継 `/proxy/media` は
+  キャッシュを持たないので対象外)
+- **Query Bridge** — HTTP → WebView の query 往復の種別と所要時間
+
+リソース: Scalar の API ドキュメント (`/api/docs`) へのリンク。
+
+読み取り用の面 (`/api/startup/trace` `/api/heartbeat/status` `/api/notemaid/status`
+`/api/perf/caches` `/api/perf/media` `/api/logs/recent` `/api/querybridge/trace`
+`/api/inspector/recent` `/api/permissions/resolved`) は OpenAPI の `dev` タグで、
+永続トークン (外部アプリ / 手元の CLI) には permissions gate が Deny を返す。
+起動ごとの ephemeral トークン (= このダッシュボード) だけが読める。ダッシュボード
+から書き込み系の操作を増やすときは Capabilities (dispatcher) を通す。
+
+仕組み: Vite の dev proxy (`vite.config.ts`) が `/api` `/mcp` `/proxy` を
+内蔵 HTTP サーバー (127.0.0.1:19820、[#940](https://github.com/notedeck-dev/notedeck/issues/940)) へ転送し、`/api` と `/mcp` には
+無認証の `/api` インデックスが開示する tokenPath から Bearer トークンを読んで注入する。
 ブラウザ側は相対パスの fetch だけで認証込みの external API を叩ける。
 dev マシン上でしか成立しない橋渡しなので、本番の攻撃面は増えない。
 
