@@ -335,6 +335,7 @@ WebView 内・外部ツールとも HTTP API `/proxy/image` の一経路 (`crate
 |------|-----|----------|
 | プロトコル | HTTPS のみ | `crates/notecore/src/image_cache.rs` |
 | 名前解決後の SSRF 検証 | 名前解決の全 IP を接続前に検証し、redirect の各 hop も同じ resolver を通る (#857)。resolver は名前解決を通らない IP literal の飛び先を見ないので、redirect の各 hop の host も一次検査と同じ規則で拒む (OGP と共通の client) | `crates/notecore/src/ssrf.rs` |
+| 接続先のポート | ブラウザが繋がないポート (Fetch 標準の bad port: SMTP / SSH / IRC 等) には、最初の URL でも redirect の各 hop でも繋がない (`/proxy/media` も同じ)。行き先の URL は他人のノートから来るため、WebView が直接読むのと同じ範囲に揃える。**443 番だけに絞る案は採用しない** — 標準以外のポート (8443 等) で画像を配るサーバーの画像が出なくなる一方、絞って新たに塞げるのは公開ホストのそれ以外のポートへの接続だけで、これは WebView が画像を直接読む場合と変わらない (#1228) | `crates/notecore/src/ssrf.rs` |
 | 応答の型 | 中継の応答は上流の中身なので、この origin で文書として開かれても script を動かせないようにする: 画像・動画・音声以外の型 (HTML / XML 等) は `application/octet-stream` に替え、CSP の `sandbox` を付ける (`/proxy/media` も同じ)。`nosniff` は付けない — Chromium の ORB が型を誤って付けた上流の画像を通さなくなる | `crates/notecore/src/http_server.rs` |
 | ファイルサイズ上限 | あり | `crates/notecore/src/perf_config.rs` |
 | 同時取得数 | semaphore で制限 | 同上 |

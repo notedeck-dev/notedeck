@@ -67,6 +67,26 @@ pub fn validate_external_host(host: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// ブラウザが繋がないポート (Fetch 標準の "bad port")。SMTP / SSH / IRC 等の
+/// 別プロトコルのサービスに当たるので、中継もここへは繋がない (#1228)。
+/// 443 だけに絞ると標準以外のポートで配るサーバーの画像が出なくなるため、
+/// WebView が直接読むのと同じ範囲に揃える
+const BAD_PORTS: &[u16] = &[
+    1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102,
+    103, 104, 109, 110, 111, 113, 115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465,
+    512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554, 556, 563, 587, 601, 636, 989, 990, 993,
+    995, 1719, 1720, 1723, 2049, 3659, 4045, 4190, 5060, 5061, 6000, 6566, 6665, 6666, 6667, 6668,
+    6669, 6679, 6697, 10080,
+];
+
+/// URL の明示ポート (`Url::port()`、既定ポートなら `None`) を検査する
+pub fn check_port_safe(port: Option<u16>) -> Result<(), String> {
+    match port {
+        Some(p) if BAD_PORTS.contains(&p) => Err(format!("port {p} not allowed")),
+        _ => Ok(()),
+    }
+}
+
 /// 外部へ取りに行く client のリダイレクト方針。各 hop の host も
 /// [`validate_external_host`] で検査する。[`ValidatingResolver`] は名前解決の
 /// 結果しか見ないので、IP literal の飛び先 (`https://127.0.0.1/` 等) はここで拒む
@@ -76,7 +96,7 @@ pub fn external_redirect_policy(max: usize) -> reqwest::redirect::Policy {
             return attempt.error("too many redirects");
         }
         let host = attempt.url().host_str().unwrap_or("").to_string();
-        match validate_external_host(&host) {
+        match validate_external_host(&host).and_then(|()| check_port_safe(attempt.url().port())) {
             Ok(()) => attempt.follow(),
             Err(e) => attempt.error(e),
         }
@@ -252,6 +272,18 @@ pub fn host_in_allowed(host: &str, allowed_hosts: &[String]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ブラウザが繋がないポート (SMTP / SSH 等) は拒み、標準以外でも
+    /// それ以外のポート (8443 等) と既定のポートは通す (#1228)
+    #[test]
+    fn check_port_safe_refuses_fetch_bad_ports() {
+        for port in [22, 25, 110, 143, 465, 587, 6667, 10080] {
+            assert!(check_port_safe(Some(port)).is_err(), "{port} は拒む");
+        }
+        for port in [None, Some(443), Some(80), Some(8443), Some(3000)] {
+            assert!(check_port_safe(port).is_ok(), "{port:?} は通す");
+        }
+    }
 
     /// 名前解決を通らない IP literal の飛び先 (http://127.0.0.1/ 等) は
     /// ValidatingResolver では止まらないので、リダイレクトの方針で拒む
