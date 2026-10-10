@@ -1860,6 +1860,8 @@ _tasksEditorContent:
   saveFailed: "Couldn’t save: {error}"
   objectRequired: "An object ({}) is required"
   duplicateId: "Another task already uses this ID. Changes are not saved while IDs are duplicated."
+  emptyId: "Enter an ID. Changes are not saved while it is empty."
+  invalidId: "IDs may contain only letters, digits, _ and -. Changes are not saved until this is fixed."
   resetFailed: "Couldn’t reset: {error}"
   newTaskLabel: "New task"
   newInputPrompt: "Enter a value"

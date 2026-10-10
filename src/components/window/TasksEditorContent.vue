@@ -220,6 +220,14 @@ const duplicateIds = computed(() => {
   return dup
 })
 
+// 保存を止める ID の誤りを、欄の直下に出す文言にする (規則は parseTasks と同じ)
+function idError(id: string): string {
+  if (!id) return i18n.ts._tasksEditorContent.emptyId
+  if (!/^[\w-]+$/.test(id)) return i18n.ts._tasksEditorContent.invalidId
+  if (duplicateIds.value.has(id)) return i18n.ts._tasksEditorContent.duplicateId
+  return ''
+}
+
 // ── Visual edit helpers ──
 function uniqueId(base: string): string {
   const ids = new Set(visualTasks.value.map((t) => t.id))
@@ -578,7 +586,7 @@ function handleReset() {
                   :class="$style.idInput"
                   pattern="[\w-]+"
                   placeholder="my-task"
-                  :error="duplicateIds.has(t.id) ? i18n.ts._tasksEditorContent.duplicateId : ''"
+                  :error="idError(t.id)"
                 />
               </label>
               <label :class="$style.field">

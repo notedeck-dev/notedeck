@@ -93,3 +93,32 @@ describe('TasksEditorContent — ID の重複', () => {
     wrapper.unmount()
   })
 })
+
+describe('TasksEditorContent — ID の形式', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it.each([
+    ['空', ''],
+    ['使えない文字', 'my task!'],
+  ])('ID を%sにすると欄の直下にエラーを出し、直すと消える', async (_, bad) => {
+    const wrapper = await mountEditor()
+    await wrapper.find('button[aria-expanded]').trigger('click')
+    await flushPromises()
+
+    const input = wrapper.find('input[placeholder="my-task"]')
+    const original = (input.element as HTMLInputElement).value
+    await input.setValue(bad)
+    await flushPromises()
+
+    expect(input.attributes('aria-invalid')).toBe('true')
+    const describedBy = input.attributes('aria-describedby')
+    expect(document.getElementById(describedBy ?? '')?.textContent).toBeTruthy()
+
+    await input.setValue(original)
+    await flushPromises()
+    expect(input.attributes('aria-invalid')).toBeUndefined()
+    wrapper.unmount()
+  })
+})

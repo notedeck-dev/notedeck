@@ -1621,6 +1621,8 @@ _tasksEditorContent:
   saveFailed: "保存に失敗しました: {error}"
   objectRequired: "オブジェクト ({}) が必要です"
   duplicateId: "この ID は他のタスクでも使われています。重複している間は保存されません"
+  emptyId: "ID を入力してください。空の間は保存されません"
+  invalidId: "ID に使えるのは英数字・_・- だけです。直すまで保存されません"
   resetFailed: "リセットに失敗しました: {error}"
   newTaskLabel: "新しいタスク"
   newInputPrompt: "入力してください"

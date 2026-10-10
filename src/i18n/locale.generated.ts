@@ -2946,6 +2946,10 @@ help */
     readonly "objectRequired": string
     /** この ID は他のタスクでも使われています。重複している間は保存されません */
     readonly "duplicateId": string
+    /** ID を入力してください。空の間は保存されません */
+    readonly "emptyId": string
+    /** ID に使えるのは英数字・_・- だけです。直すまで保存されません */
+    readonly "invalidId": string
     /** リセットに失敗しました: {error} */
     readonly "resetFailed": ParameterizedString<'error'>
     /** 新しいタスク */
