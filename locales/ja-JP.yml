@@ -574,6 +574,7 @@ _notificationCenter:
   expand: "全文を表示"
   collapse: "折りたたむ"
   remove: "この通知を消す"
+  recentStatus: "ステータス表示 (一覧には残りません)"
 
 _noteVariantsPopup:
   ariaLabel: "このノートが見えているアカウント"

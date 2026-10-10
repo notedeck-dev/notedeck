@@ -171,7 +171,7 @@ const {
         data-notification-bell
         :class="[$style.status, statusT.leaving.value && $style.statusLeave]"
         :title="i18n.ts._notificationCenter.title"
-        @click="toastCenter.setInboxOpen(true)"
+        @click="toastCenter.openFromStatus()"
       >
         <i :class="shownStatus.type === 'success' ? 'ti ti-check' : 'ti ti-info-circle'" />
         <span :class="$style.statusText" role="status">{{ shownStatus.text }}</span>
