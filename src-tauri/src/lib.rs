@@ -1245,6 +1245,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::heartbeat_configure,
             commands::heartbeat_unconfigure,
             commands::heartbeat_trigger_now,
+            commands::heartbeat_notices_since,
             commands::heartbeat_status,
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,

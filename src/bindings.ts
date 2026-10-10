@@ -2522,6 +2522,15 @@ async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: stri
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notemaid/src/commands/heartbeat.rs */
+async heartbeatNoticesSince(since: number) : Promise<Result<HeartbeatNotice[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("heartbeat_notices_since", { since }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * 現在 scheduler に登録されているかどうかを返す (デバッグ / UI ヘルパ)。
  *
@@ -3452,6 +3461,7 @@ notemaid: NotemaidDiagnostics }
  * `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text)
  * 
  * `notify` は AI が「通知して」とした報告ごとに流す (アプリの通知の受信トレイに残す, #1165)。
+ * 報告先が「なし」なら session_id は無く、`report` も流さない (#1227)。
  * AI 設定の「デスクトップ通知」は `desktop` に載せ、OS 通知を出すかだけをデバイスが決める
  */
 export type HeartbeatEvent = { kind: string; source?: string | null; outcome?: string | null; sessionId?: string | null; created?: boolean | null; title?: string | null; body?: string | null; 
@@ -3472,6 +3482,14 @@ i18n?: JsonValue | null }
  * 実際の emit は `TauriAiEvents` (notemaid の sink 1 つ) が同じ名前で行う (#1133 縦切り 5)。
  */
 export type HeartbeatEventWire = HeartbeatEvent
+/**
+ * 知らせた報告の記録。本文は報告先のセッションが正本なので持たない
+ */
+export type HeartbeatNotice = { at: number; 
+/**
+ * 報告先のセッション。報告先が「なし」なら None
+ */
+sessionId: string | null }
 /**
  * Serialize / Default はコマンド表のフィクスチャ用。
  */

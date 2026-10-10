@@ -63,6 +63,7 @@ If there is nothing to report, do not call any tool and return only the single l
 /// `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text)
 ///
 /// `notify` は AI が「通知して」とした報告ごとに流す (アプリの通知の受信トレイに残す, #1165)。
+/// 報告先が「なし」なら session_id は無く、`report` も流さない (#1227)。
 /// AI 設定の「デスクトップ通知」は `desktop` に載せ、OS 通知を出すかだけをデバイスが決める
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -145,6 +146,19 @@ pub struct PersistedState {
     /// 通知済みの失敗 signature → 最後に見た時刻 (同じ signature は初回だけ toast)
     #[serde(default)]
     pub notified_signatures: HashMap<String, u64>,
+    /// AI が「通知して」とした報告の記録 (古い順、上限あり)。閉じている間の件数を
+    /// 開いている間と同じ基準で数えるため。報告先が「なし」の報告も残す (#1227)
+    #[serde(default)]
+    pub notices: Vec<HeartbeatNotice>,
+}
+
+/// 知らせた報告の記録。本文は報告先のセッションが正本なので持たない
+#[derive(Clone, Debug, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatNotice {
+    pub at: u64,
+    /// 報告先のセッション。報告先が「なし」なら None
+    pub session_id: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -159,6 +173,25 @@ pub struct FailureRecord {
 const FAILURES_LIMIT: usize = 20;
 /// 通知済み signature の保持上限。溢れたら古いものから忘れる (再発すれば再通知)
 const NOTIFIED_LIMIT: usize = 100;
+/// 知らせた報告の記録の保持上限。溢れたら古いものから捨てる
+const NOTICES_LIMIT: usize = 100;
+
+/// 「通知して」の報告を記録する
+pub fn record_notice(state: &mut PersistedState, at: u64, session_id: Option<String>) {
+    state.notices.push(HeartbeatNotice { at, session_id });
+    let overflow = state.notices.len().saturating_sub(NOTICES_LIMIT);
+    state.notices.drain(..overflow);
+}
+
+/// `since` (ms) より後に知らせた報告
+pub fn notices_since(state: &PersistedState, since: u64) -> Vec<HeartbeatNotice> {
+    state
+        .notices
+        .iter()
+        .filter(|n| n.at > since)
+        .cloned()
+        .collect()
+}
 
 /// 失敗の signature: 可変値と空白の揺れを潰した先頭 (同じ原因を同じ鍵に)。
 /// 3 桁以下の数字 (HTTP ステータス等) は原因を表すので残し、4 桁以上の連続
@@ -859,32 +892,38 @@ async fn run_inference(
     // 端末で動くので OS のタイムゾーンでよい)
     let local_stamp = Some(local_stamp(now));
     let local_title_time = Some(local_title_time(now));
-    if let Some(input) = tool_report {
+    let final_text = events
+        .iter()
+        .find(|e| e.kind == "done")
+        .and_then(|e| e.text.clone());
+    let (body, notify) = report_contract(tool_report.as_ref(), final_text.as_deref());
+    Ok(Some(Report {
+        body,
+        notify,
+        intents,
+        local_stamp,
+        local_title_time,
+    }))
+}
+
+/// 応答契約: (報告の本文, 知らせるか)。`heartbeat.report` tool の入力があればそれに従う。
+/// tool を呼ばない応答は legacy の ack として抑制し、残った本文は報告として残すが
+/// 知らせない (#1227): 知らせるかは AI が tool で明示したときだけ決まる。INSTRUCTION は
+/// 報告を tool に限っているので、tool を呼ばない本文は契約の外 (「通知に記憶を
+/// 載せない」の指示も tool の notify にしか掛かっていない)
+fn report_contract(tool_input: Option<&Value>, final_text: Option<&str>) -> (Option<String>, bool) {
+    if let Some(input) = tool_input {
         let body = input
             .get("body")
             .and_then(Value::as_str)
             .map(str::trim)
             .unwrap_or("");
-        return Ok(Some(Report {
-            body: (!body.is_empty()).then(|| body.to_string()),
-            notify: input.get("notify").and_then(Value::as_bool) == Some(true),
-            intents,
-            local_stamp,
-            local_title_time,
-        }));
+        return (
+            (!body.is_empty()).then(|| body.to_string()),
+            input.get("notify").and_then(Value::as_bool) == Some(true),
+        );
     }
-    // legacy: tool を呼ばない応答は ack として抑制する
-    let final_text = events
-        .iter()
-        .find(|e| e.kind == "done")
-        .and_then(|e| e.text.clone());
-    Ok(Some(Report {
-        body: apply_suppression(final_text.as_deref(), ACK_MAX_CHARS),
-        notify: true,
-        intents,
-        local_stamp,
-        local_title_time,
-    }))
+    (apply_suppression(final_text, ACK_MAX_CHARS), false)
 }
 
 /// 報告先セッション。`auto` は kind=heartbeat の専用セッション (無ければ作る)。
@@ -1040,32 +1079,40 @@ async fn intent_message(core: &Core, intent: &Intent, now: u64, index: usize) ->
 }
 
 async fn deliver(core: &Core, cfg: &AiConfigLite, report: Report, now: u64) -> Result<()> {
-    let Some((session_id, created)) =
-        resolve_target(core, cfg, report.local_stamp, report.local_title_time, now).await?
-    else {
-        tracing::debug!(
+    let target =
+        resolve_target(core, cfg, report.local_stamp, report.local_title_time, now).await?;
+    let base = settings_base_dir(core)?;
+    match &target {
+        Some((session_id, _)) => {
+            let mut messages = Vec::new();
+            for (i, intent) in report.intents.iter().enumerate() {
+                messages.push(intent_message(core, intent, now, i).await);
+            }
+            if let Some(visible) = report.body.as_deref() {
+                messages.push(hb_message(
+                    format!("msg-{now}-hb"),
+                    visible.to_string(),
+                    now,
+                ));
+            }
+            ai_sessions::append(&base, session_id, messages)?;
+        }
+        None => tracing::debug!(
             target = %cfg.heartbeat.target,
             "heartbeat target resolved to null, log only: {}",
             report.body.as_deref().unwrap_or("").chars().take(80).collect::<String>()
-        );
-        return Ok(());
-    };
-    let base = settings_base_dir(core)?;
-    let mut messages = Vec::new();
-    for (i, intent) in report.intents.iter().enumerate() {
-        messages.push(intent_message(core, intent, now, i).await);
+        ),
     }
-    if let Some(visible) = report.body.as_deref() {
-        messages.push(hb_message(
-            format!("msg-{now}-hb"),
-            visible.to_string(),
-            now,
-        ));
+    // 「通知して」の報告は報告先の有無に関わらず記録し (閉じている間の件数)、知らせる
+    if report.notify && report.body.is_some() {
+        let app_dir = core.app_dir()?;
+        let mut state = load_state(app_dir);
+        record_notice(&mut state, now, target.as_ref().map(|(id, _)| id.clone()));
+        save_state(app_dir, &state);
     }
-    ai_sessions::append(&base, &session_id, messages)?;
     for ev in delivered_events(
-        &session_id,
-        created,
+        target.as_ref().map(|(id, _)| id.as_str()),
+        target.as_ref().is_some_and(|(_, created)| *created),
         report.body.as_deref(),
         report.notify,
         report.intents.len(),
@@ -1073,7 +1120,7 @@ async fn deliver(core: &Core, cfg: &AiConfigLite, report: Report, now: u64) -> R
     ) {
         emit(core, ev);
     }
-    let Some(visible) = report.body.as_deref() else {
+    let (Some(visible), Some((session_id, created))) = (report.body.as_deref(), target) else {
         return Ok(());
     };
     if created {
@@ -1089,10 +1136,11 @@ async fn deliver(core: &Core, cfg: &AiConfigLite, report: Report, now: u64) -> R
     Ok(())
 }
 
-/// 報告先に書いた後にデバイスへ流す出来事。`report` は常に、`notify` は AI が「通知して」
-/// とした報告のときだけ (デスクトップ通知の設定に関わらず。設定は `desktop` に載せる)
+/// 報告先に書いた後にデバイスへ流す出来事。`report` は報告先に書いたときだけ、`notify` は
+/// AI が「通知して」とした報告のときだけ (報告先が「なし」でも、デスクトップ通知の設定に
+/// 関わらず。設定は `desktop` に載せる)
 fn delivered_events(
-    session_id: &str,
+    session_id: Option<&str>,
     created: bool,
     body: Option<&str>,
     notify: bool,
@@ -1100,20 +1148,22 @@ fn delivered_events(
     desktop: bool,
 ) -> Vec<HeartbeatEvent> {
     let mut out = Vec::new();
-    let mut ev = HeartbeatEvent::new("report");
-    ev.session_id = Some(session_id.to_string());
-    ev.created = Some(created);
-    if intents > 0 {
-        ev.pending = Some(u32::try_from(intents).unwrap_or(u32::MAX));
+    if let Some(session_id) = session_id {
+        let mut ev = HeartbeatEvent::new("report");
+        ev.session_id = Some(session_id.to_string());
+        ev.created = Some(created);
+        if intents > 0 {
+            ev.pending = Some(u32::try_from(intents).unwrap_or(u32::MAX));
+        }
+        out.push(ev);
     }
-    out.push(ev);
     if let (Some(visible), true) = (body, notify) {
         let mut text: String = visible.chars().take(200).collect();
         if visible.chars().count() > 200 {
             text.push('…');
         }
         let mut ev = HeartbeatEvent::new("notify");
-        ev.session_id = Some(session_id.to_string());
+        ev.session_id = session_id.map(str::to_string);
         ev.title = Some("HEARTBEAT".into());
         ev.body = Some(text);
         ev.desktop = Some(desktop);
@@ -1275,7 +1325,7 @@ mod tests {
     #[test]
     fn delivered_events_reach_the_inbox_regardless_of_desktop_setting() {
         // 報告 + 「通知して」 + 確認待ち 2 件、デスクトップ通知は off
-        let evs = delivered_events("s1", false, Some("見てほしい"), true, 2, false);
+        let evs = delivered_events(Some("s1"), false, Some("見てほしい"), true, 2, false);
         assert_eq!(evs.len(), 2);
         assert_eq!(evs[0].kind, "report");
         assert_eq!(evs[0].session_id.as_deref(), Some("s1"));
@@ -1286,25 +1336,74 @@ mod tests {
         assert_eq!(evs[1].desktop, Some(false));
 
         // デスクトップ通知 on なら OS 通知の印が付く
-        let evs = delivered_events("s1", true, Some("x"), true, 0, true);
+        let evs = delivered_events(Some("s1"), true, Some("x"), true, 0, true);
         assert_eq!(evs[0].pending, None);
         assert_eq!(evs[0].created, Some(true));
         assert_eq!(evs[1].desktop, Some(true));
 
         // 「通知して」でない報告 / 確認待ちだけ: notify は出さない
         assert_eq!(
-            delivered_events("s1", false, Some("x"), false, 0, true).len(),
+            delivered_events(Some("s1"), false, Some("x"), false, 0, true).len(),
             1
         );
-        let evs = delivered_events("s1", false, None, false, 1, true);
+        let evs = delivered_events(Some("s1"), false, None, false, 1, true);
         assert_eq!(evs.len(), 1);
         assert_eq!(evs[0].pending, Some(1));
     }
 
     #[test]
+    fn delivered_events_notify_even_without_a_target_session() {
+        // 報告先が「なし」でも「通知して」の報告は知らせる (#1227)。開く先は無い
+        let evs = delivered_events(None, false, Some("見てほしい"), true, 0, true);
+        assert_eq!(evs.len(), 1);
+        assert_eq!(evs[0].kind, "notify");
+        assert_eq!(evs[0].session_id, None);
+        assert_eq!(evs[0].body.as_deref(), Some("見てほしい"));
+        assert_eq!(evs[0].desktop, Some(true));
+        // 「通知して」でなければ何も流さない (報告先が無いので写しの読み直しも無い)
+        assert!(delivered_events(None, false, Some("x"), false, 0, true).is_empty());
+    }
+
+    #[test]
+    fn report_contract_notifies_only_when_the_tool_says_so() {
+        // tool 経由: notify の真偽に従う
+        let r = report_contract(Some(&json!({"body": " 新着 ", "notify": true})), None);
+        assert_eq!(r, (Some("新着".to_string()), true));
+        let r = report_contract(Some(&json!({"body": "新着"})), None);
+        assert_eq!(r, (Some("新着".to_string()), false));
+        // legacy (tool を呼ばない応答): ack は捨て、残った本文は報告にするが知らせない (#1227)
+        assert_eq!(report_contract(None, Some("HEARTBEAT_OK")), (None, false));
+        assert_eq!(
+            report_contract(None, Some("途中に HEARTBEAT_OK がある短文")),
+            (Some("途中に HEARTBEAT_OK がある短文".to_string()), false)
+        );
+    }
+
+    #[test]
+    fn notices_are_recorded_with_a_cap_and_read_since() {
+        let mut st = PersistedState::default();
+        record_notice(&mut st, 10, Some("s1".into()));
+        record_notice(&mut st, 20, None);
+        assert_eq!(
+            notices_since(&st, 10),
+            vec![HeartbeatNotice {
+                at: 20,
+                session_id: None
+            }]
+        );
+        assert_eq!(notices_since(&st, 0).len(), 2);
+        for i in 0..(NOTICES_LIMIT as u64 + 10) {
+            record_notice(&mut st, 100 + i, None);
+        }
+        assert_eq!(st.notices.len(), NOTICES_LIMIT);
+        // 溢れたら古いものから捨てる
+        assert!(st.notices.iter().all(|n| n.at >= 100));
+    }
+
+    #[test]
     fn notify_body_is_truncated() {
         let long = "あ".repeat(250);
-        let evs = delivered_events("s1", false, Some(&long), true, 0, true);
+        let evs = delivered_events(Some("s1"), false, Some(&long), true, 0, true);
         let body = evs[1].body.as_deref().unwrap();
         assert_eq!(body.chars().count(), 201);
         assert!(body.ends_with('…'));
