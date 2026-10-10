@@ -254,6 +254,11 @@ const filteredHistoryEntries = computed<HistoryEntry[]>(() =>
 const showConvSearch = ref(false)
 const convSearchQuery = ref('')
 const convSearchInputRef = ref<HTMLInputElement | null>(null)
+// ヘッダーのボタンから下りてくるので、メニューと同じ登場 / 退場にする
+// (退場は _popup.scss の menuLeave = --nd-duration-base)
+const convSearchT = useVaporTransition(showConvSearch, {
+  leaveDuration: PICKER_LEAVE_MS,
+})
 
 function toggleConvSearch() {
   showConvSearch.value = !showConvSearch.value
@@ -1252,7 +1257,10 @@ onBeforeUnmount(() => {
     <!-- Conversation View -->
     <div v-else-if="viewMode === 'conversation'" :class="[$style.chatBody, $style.conversation, 'nd-fade-appear']" @click="closeReactionPicker">
       <!-- メッセージ検索バー (#483 v2: showConvSearch toggle) -->
-      <div v-if="showConvSearch" :class="$style.searchBar">
+      <div
+        v-if="convSearchT.visible.value"
+        :class="[$style.searchBar, convSearchT.leaving.value ? $style.menuLeave : $style.menuEnter]"
+      >
         <i :class="$style.searchIcon" class="ti ti-search" />
         <input
           ref="convSearchInputRef"
