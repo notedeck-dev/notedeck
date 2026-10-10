@@ -200,7 +200,7 @@ function openEditor(id: string) {
 }
 
 .active {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-weight: var(--nd-weight-bold);
 
   &::before {

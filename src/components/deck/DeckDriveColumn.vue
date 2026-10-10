@@ -563,7 +563,7 @@ fetchDrive()
 
 .driveBreadcrumbItem {
   font-size: var(--nd-font-xs);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   white-space: nowrap;
   padding: 2px 4px;
   border-radius: var(--nd-radius-xs);
@@ -599,7 +599,7 @@ fetchDrive()
 
 /* --- Selection mode --- */
 .headerBtnActive {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 1;
 }
 
@@ -628,7 +628,7 @@ fetchDrive()
   height: 32px;
   flex-shrink: 0;
   border-radius: var(--nd-radius-sm);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 16px;
   transition: background var(--nd-duration-base);
 

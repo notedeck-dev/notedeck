@@ -601,7 +601,7 @@ onMounted(() => {
 
 .badgeCat {
   background: var(--nd-accentedBg);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .profileFields {

@@ -142,7 +142,7 @@ const lang = jsonLang()
   }
 
   &.active {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     opacity: 1;
   }
 }

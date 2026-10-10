@@ -256,7 +256,7 @@ function handlePrimaryClick() {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 32px;
 }
 
@@ -355,7 +355,7 @@ function handlePrimaryClick() {
   padding: 1px 6px;
   border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   flex-shrink: 0;
   line-height: 1.3;
 }
@@ -400,7 +400,7 @@ function handlePrimaryClick() {
   padding: 1px 6px;
   border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   line-height: 1.3;
 }
 

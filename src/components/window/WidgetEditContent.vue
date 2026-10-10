@@ -487,7 +487,7 @@ function toggleAutoRun() {
   flex-shrink: 0;
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 24px;
 }
 
@@ -581,7 +581,7 @@ function toggleAutoRun() {
   padding: 0 6px;
   border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   line-height: 1.6;
 }
 
@@ -614,7 +614,7 @@ function toggleAutoRun() {
 .autoRunBtnActive {
   opacity: 1;
   border-color: var(--nd-accent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   background: color-mix(in srgb, var(--nd-accent) 10%, transparent);
 }
 

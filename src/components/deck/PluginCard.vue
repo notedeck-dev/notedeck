@@ -263,7 +263,7 @@ const updateTitle = computed(() => {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 32px;
 }
 
@@ -420,7 +420,7 @@ const updateTitle = computed(() => {
   padding: 1px 6px;
   border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   line-height: 1.3;
 }
 

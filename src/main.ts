@@ -17,7 +17,7 @@ import { usePerformanceStore } from './stores/performance'
 import { useServersStore } from './stores/servers'
 import { useSettingsStore } from './stores/settings'
 import { useThemeStore } from './stores/theme'
-import { setMediaProxyToken } from './utils/mediaProxy'
+import { disableMediaProxy, setMediaProxyToken } from './utils/mediaProxy'
 import { printSelfXssWarning } from './utils/selfXssWarning'
 import { isTauri } from './utils/settingsFs'
 import { logStartupSummary, markStartup } from './utils/startupTrace'
@@ -55,6 +55,16 @@ if (isTauri) {
       i18n.tsx._main.backendInitFailed({ error: message }),
       'error',
     )
+  })
+
+  // 内蔵 HTTP サーバーが中継のポートを取れなかった (#1231)。中継の URL は
+  // ポートを使っている別のアプリ (同じ PC の WSL2 の開発版など) に届いて読めない
+  // ので元の URL に倒し、対処 (そのアプリを止めて再起動) を知らせる
+  void listenTauri('nd:http-relay-unavailable', async (port) => {
+    disableMediaProxy()
+    const { useToast } = await import('./stores/toast')
+    await localeReady
+    useToast().show(i18n.tsx._main.httpRelayUnavailable({ port }), 'warning')
   })
 
   // Pre-warm Tauri API module (critical path in App.vue onMounted)
@@ -162,7 +172,10 @@ if (isTauri) {
     useDeckStore().initNavbar(),
     commands
       .getMediaProxyToken()
-      .then((token) => setMediaProxyToken(token))
+      // null = 中継のポートを取れなかった (後から開いたウィンドウ、#1231)
+      .then((token) =>
+        token === null ? disableMediaProxy() : setMediaProxyToken(token),
+      )
       .catch((e) => console.warn('[media-proxy] token unavailable:', e)),
   ])
   markStartup('settings-loaded')

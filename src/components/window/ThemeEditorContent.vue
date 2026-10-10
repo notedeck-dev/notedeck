@@ -1134,7 +1134,7 @@ onUnmounted(() => {
   &.active {
     opacity: 1;
     background: var(--nd-accentedBg);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -1381,7 +1381,7 @@ onUnmounted(() => {
   font-size: var(--nd-font-xs);
 
   &.expression {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 

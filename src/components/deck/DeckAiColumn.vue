@@ -1321,7 +1321,7 @@ function onKeydown(e: KeyboardEvent) {
   padding: 0;
   opacity: 1;
   cursor: default;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   background: transparent;
   transition: background var(--nd-duration-base), color var(--nd-duration-base);
 
@@ -1458,7 +1458,7 @@ function onKeydown(e: KeyboardEvent) {
 
   .rowAvatar {
     background: color-mix(in srgb, var(--nd-accent) 20%, transparent);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     opacity: 1;
   }
 }
@@ -1625,7 +1625,7 @@ function onKeydown(e: KeyboardEvent) {
   font-weight: var(--nd-weight-bold);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   i {
     font-size: 1em;
@@ -1766,7 +1766,7 @@ function onKeydown(e: KeyboardEvent) {
 
 .toolIcon {
   flex-shrink: 0;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.9;
 }
 
@@ -1783,7 +1783,7 @@ function onKeydown(e: KeyboardEvent) {
   padding: 1px 6px;
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .toolEventSummary {
@@ -1950,7 +1950,7 @@ function onKeydown(e: KeyboardEvent) {
     font-style: italic;
   }
   :global(a) {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     text-decoration: underline;
   }
 }

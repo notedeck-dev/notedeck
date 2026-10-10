@@ -188,6 +188,6 @@ defineExpose({ open, close })
 }
 
 .reacted {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 </style>

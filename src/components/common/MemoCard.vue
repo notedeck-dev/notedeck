@@ -257,7 +257,7 @@ function onMemoLinkClick(memoId: string) {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   cursor: pointer;
   transition:
     background var(--nd-duration-base),
@@ -353,7 +353,7 @@ function onMemoLinkClick(memoId: string) {
   border: none;
   border-radius: var(--nd-radius-full);
   background: var(--nd-accentedBg);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: var(--nd-font-sm);
   font-weight: var(--nd-weight-regular);
   cursor: pointer;

@@ -616,7 +616,7 @@ const statusBadges = computed(() => {
   word-break: break-word;
 
   a {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
 
     &:hover {
       text-decoration: underline;

@@ -253,7 +253,7 @@ defineExpose({ loadMore, removeNote, replaceNote, patchNote })
   }
 
   &.active {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     opacity: 1;
     border-bottom-color: var(--nd-accent);
   }

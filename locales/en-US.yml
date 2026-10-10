@@ -796,6 +796,7 @@ _notificationCenter:
   expand: "Show full text"
   collapse: "Collapse"
   remove: "Remove this notification"
+  recentStatus: "Status bar (not kept in this list)"
 
 _noteVariantsPopup:
   ariaLabel: "Accounts that can see this note"
@@ -927,7 +928,7 @@ _devDashboard:
   collapseNav: "Collapse navigation"
   resources: "Resources"
   apiDocs: "API docs"
-  overviewDesc: "Health check of the running app — 127.0.0.1:19820"
+  overviewDesc: "Health check of the running app (development build) — 127.0.0.1:19821"
   refresh: "Refresh"
   deckColumns_plural:
     one: "Deck — {count} column"
@@ -3239,6 +3240,7 @@ _tutorialSteps:
 
 _main:
   backendInitFailed: "Failed to initialize the backend: {error}"
+  httpRelayUnavailable: "Another app is using port {port}, so the image relay and external integrations (HTTP API) are unavailable. Images are loaded directly from their servers. Quit that app and restart NoteDeck"
 
 _badge:
   safeMode: "Queries are paused in safe mode — showing everything unfiltered. Click to open the query management column"

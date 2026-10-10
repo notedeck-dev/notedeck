@@ -667,7 +667,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 
 .filterBtnActive {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 // --- Wrapper ---
@@ -713,14 +713,14 @@ async function deleteFromLibrary(plugin: PluginMeta) {
   &:hover {
     opacity: 1;
     border-color: var(--nd-accent);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
 .addPluginBtnActive {
   opacity: 1;
   border-color: var(--nd-accent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .pickerWrap {
@@ -803,7 +803,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
 }
 
 .emptyLink {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 12px;
   margin-top: 4px;
   opacity: 0.8;

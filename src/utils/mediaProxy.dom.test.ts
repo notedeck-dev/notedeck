@@ -1,16 +1,18 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { computed } from 'vue'
+import { APP_HTTP_PORT, RELEASE_HTTP_PORT } from '@/utils/appHttpPort'
 
 /**
  * 画像・効果音プロキシの URL 組み立て (#921 Phase 3)。
  *
- * 全プラットフォームでループバック HTTP (127.0.0.1:19820) に一本化した。
+ * 全プラットフォームでループバック HTTP (内蔵 HTTP サーバー) に一本化した。
  * custom protocol (ndmedia) 時代のプラットフォーム分岐・二段階配信・
  * 自己修復機構は存在しないこと自体が仕様。ここでは「どの UA でも同じ
  * プロキシ URL になり、元 URL 直読みに戻らない」ことを守る。
  */
 
-const BASE = 'http://127.0.0.1:19820/proxy/image'
+const BASE = `http://127.0.0.1:${APP_HTTP_PORT}/proxy/image`
 const REMOTE = 'https://example.com/emoji/petthex.png'
 
 const ANDROID_UA =
@@ -59,6 +61,44 @@ describe('proxyUrl', () => {
       'data:image/svg+xml,<svg/>',
     )
     expect(proxyUrl(null)).toBeUndefined()
+  })
+})
+
+describe('開発版のポート (#1231)', () => {
+  it('開発版は配布版と別のポートを使う (同じ PC で取り合わない)', () => {
+    // vitest は開発版の扱い (import.meta.env.DEV)
+    expect(APP_HTTP_PORT).not.toBe(RELEASE_HTTP_PORT)
+  })
+})
+
+describe('中継のポートを取れなかったとき (#1231)', () => {
+  it('どの口も中継の URL を組まず元の URL を返す', async () => {
+    const m = await loadModule()
+    m.setMediaProxyToken('abc123')
+    // 先に組み立てて URL のキャッシュに載せておく
+    expect(m.proxyUrl(REMOTE)).toContain('/proxy/image')
+    m.disableMediaProxy()
+    expect(m.proxyUrl(REMOTE)).toBe(REMOTE)
+    expect(m.proxyThumbUrl(REMOTE, 56)).toBe(REMOTE)
+    expect(m.proxyStaticUrl(REMOTE)).toBe(REMOTE)
+    expect(m.proxyEmojiUrl(REMOTE)).toBe(REMOTE)
+    expect(m.proxyMediaUrl('https://example.com/v.mp4')).toBe(
+      'https://example.com/v.mp4',
+    )
+  })
+
+  it('CSS の url() には元の URL を入れない (配布元へ直接取りに行かない)', async () => {
+    const m = await loadModule()
+    m.disableMediaProxy()
+    expect(m.proxyCssUrl(REMOTE, 32)).toBe('none')
+  })
+
+  it('表示中の画像も元の URL に切り替わる (リアクティブ)', async () => {
+    const m = await loadModule()
+    const src = computed(() => m.proxyEmojiUrl(REMOTE))
+    expect(src.value).toContain('/proxy/image')
+    m.disableMediaProxy()
+    expect(src.value).toBe(REMOTE)
   })
 })
 
@@ -199,7 +239,7 @@ describe('proxyCssUrl', () => {
  * 切ると、プロキシに載らない URL のときに四角が出てしまう。
  */
 describe('proxyMediaUrl (動画本体の中継)', () => {
-  const MEDIA_BASE = 'http://localhost:19820/proxy/media'
+  const MEDIA_BASE = `http://localhost:${APP_HTTP_PORT}/proxy/media`
   const VIDEO = 'https://example.com/files/v.mp4'
 
   it('画像とは別の経路・別の宛先名 (localhost) に載せる', async () => {

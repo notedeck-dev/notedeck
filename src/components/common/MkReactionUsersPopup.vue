@@ -402,7 +402,7 @@ onUnmounted(() => {
   padding: 4px 12px;
   border: none;
   background: none;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: var(--nd-font-md);
   font-weight: var(--nd-weight-bold);
   cursor: pointer;

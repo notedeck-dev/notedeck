@@ -168,7 +168,7 @@ const {
 
 .active {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   &::after {
     content: "";

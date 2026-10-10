@@ -259,13 +259,15 @@ function twemojiAssets(): Plugin {
   }
 }
 
-// --- 内蔵 HTTP サーバー (127.0.0.1:19820, #940) への dev 橋渡し (#977) ---
+// --- 内蔵 HTTP サーバー (#940) への dev 橋渡し (#977) ---
 // ブラウザ (5173) のダッシュボード面から external API を叩けるよう、無認証の
 // /api インデックスが開示する tokenPath を Node 側で読み、Bearer を注入する。
 // トークンはアプリ起動ごとに再生成される ephemeral なので毎リクエスト読む
 // (Vite 常駐中のアプリ再起動に追従するため)。
 
-const ND_APP_ORIGIN = 'http://127.0.0.1:19820'
+// dev サーバーの相手は開発版 (debug ビルド) のアプリなので、その待ち受けポート
+// (配布版とは別、#1231。正本は crates/notecore/src/http_server.rs の PORT)
+const ND_APP_ORIGIN = 'http://127.0.0.1:19821'
 let ndTokenPath: string | null = null
 let ndLogDir: string | null = null
 let ndTokenPathResolving: Promise<void> | null = null
@@ -403,7 +405,7 @@ function ndApiBridge(): Plugin {
   }
 }
 
-/** /api と /mcp 共通: tokenPath から Bearer を注入して 19820 へ転送する */
+/** /api と /mcp 共通: tokenPath から Bearer を注入してアプリへ転送する */
 function ndAuthedProxy(): ProxyOptions {
   return {
     target: ND_APP_ORIGIN,

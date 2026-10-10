@@ -371,7 +371,7 @@ function openDocs(path: string): void {
 
 .groupDone .stepNo {
   background: var(--nd-accentedBg);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 1;
 }
 
@@ -423,7 +423,7 @@ function openDocs(path: string): void {
 }
 
 .checkDone {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 1;
 }
 

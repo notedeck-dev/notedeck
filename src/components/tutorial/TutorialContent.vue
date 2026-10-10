@@ -305,7 +305,7 @@ function openDocs(path: string): void {
   gap: 6px;
   margin-right: auto;
   font-size: var(--nd-font-md);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .linkBtn {

@@ -304,7 +304,7 @@ function isSelfEdit(entry: HistoryEntry): boolean {
 }
 
 .entryActorOther {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 1;
 }
 

@@ -740,7 +740,7 @@ onMounted(() => {
 
   &.active {
     opacity: 1;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     border-bottom-color: var(--nd-accent);
   }
 }

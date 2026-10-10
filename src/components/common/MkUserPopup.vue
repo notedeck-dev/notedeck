@@ -316,7 +316,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
   font-size: var(--nd-font-2xs);
   font-weight: var(--nd-weight-bold);
   background: var(--nd-accentedBg);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .remoteBadge {

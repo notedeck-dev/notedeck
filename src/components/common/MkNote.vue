@@ -1592,7 +1592,7 @@ function handlePickerReaction(reaction: string) {
   align-items: center;
   gap: 6px;
   font-size: var(--nd-font-md);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .pinnedIcon {
@@ -1654,7 +1654,7 @@ function handlePickerReaction(reaction: string) {
 
 /* Reply icon in header */
 .replyIcon {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   margin-right: 0.5em;
   flex-shrink: 0;
 }
@@ -1879,7 +1879,7 @@ function handlePickerReaction(reaction: string) {
   border: none;
   border-radius: var(--nd-radius-full);
   background: var(--nd-accentedBg);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: var(--nd-font-sm);
   font-weight: var(--nd-weight-regular);
   cursor: pointer;
@@ -2020,7 +2020,7 @@ function handlePickerReaction(reaction: string) {
   &.reacted,
   &.reacted:hover {
     background: var(--nd-accentedBg);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     box-shadow: 0 0 0 1px var(--nd-accent) inset;
   }
 
@@ -2065,7 +2065,7 @@ function handlePickerReaction(reaction: string) {
   }
 
   &.reacted .count {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     animation: nd-count-bump 0.3s var(--nd-ease-spring-bouncy);
   }
 }
@@ -2156,7 +2156,7 @@ function handlePickerReaction(reaction: string) {
 
 /* リアクション済み (#1076): hover 側が後勝ちになるよう先に置く */
 .reactionButton.reacted {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .reactionButton:hover {

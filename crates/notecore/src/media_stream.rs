@@ -44,14 +44,15 @@ const RELAY_RESPONSE_HEADERS: &[HeaderName] = &[
 const MAX_REDIRECTS: usize = 5;
 
 /// 上流の URL を検査する (接続前の一次防御)。https 以外と、loopback /
-/// private / 予約 TLD の host は拒む
+/// private / 予約 TLD の host と、ブラウザが繋がないポートは拒む
 pub fn validate_url(url: &str) -> Result<(), String> {
     let parsed = url::Url::parse(url).map_err(|e| format!("invalid url: {e}"))?;
     if parsed.scheme() != "https" {
         return Err("Only HTTPS URLs are allowed".to_string());
     }
     let host = parsed.host_str().ok_or("url has no host")?;
-    crate::ssrf::validate_external_host(host)
+    crate::ssrf::validate_external_host(host)?;
+    crate::ssrf::check_port_safe(parsed.port())
 }
 
 /// リダイレクトの各 hop も https + host 検査を通ったものだけ追う。
@@ -301,6 +302,12 @@ mod tests {
         )
         .await;
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+    }
+
+    #[test]
+    fn validate_url_refuses_bad_ports() {
+        assert!(validate_url("https://example.com:25/a.mp4").is_err());
+        assert!(validate_url("https://example.com:8443/a.mp4").is_ok());
     }
 
     #[test]

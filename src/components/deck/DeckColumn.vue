@@ -534,7 +534,7 @@ function openAsPip() {
 /* Muted state must stay readable at a glance (same specificity as .headerBtn) */
 .columnHeader .headerBtnActive {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 /* Column action menu — nested for specificity 0,2,0 to beat

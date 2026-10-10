@@ -1541,7 +1541,7 @@ function onPaste(e: ClipboardEvent) {
   }
 
   &.active {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -1676,7 +1676,7 @@ function onPaste(e: ClipboardEvent) {
   }
 
   &.active {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     font-weight: var(--nd-weight-bold);
   }
 
@@ -1734,7 +1734,7 @@ function onPaste(e: ClipboardEvent) {
   }
 
   &.active {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -1807,7 +1807,7 @@ function onPaste(e: ClipboardEvent) {
 /* ── Note mode button ── */
 .noteModeBtn {
   &.active {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -1870,7 +1870,7 @@ function onPaste(e: ClipboardEvent) {
   gap: 6px;
   padding: 8px 24px;
   font-size: var(--nd-font-md);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 /* ── CW input ── */
@@ -2024,7 +2024,7 @@ function onPaste(e: ClipboardEvent) {
   }
 
   &.active {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -2080,7 +2080,7 @@ function onPaste(e: ClipboardEvent) {
   padding: 4px 6px 4px 10px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: var(--nd-font-sm);
   font-variant-numeric: tabular-nums;
   backdrop-filter: blur(8px);

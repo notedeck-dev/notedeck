@@ -103,7 +103,7 @@ function onSyncChange(e: Event) {
 
 .labelBefore {
   left: -58px;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   .checked & {
     color: var(--nd-fg);
@@ -115,7 +115,7 @@ function onSyncChange(e: Event) {
   color: var(--nd-fg);
 
   .checked & {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 

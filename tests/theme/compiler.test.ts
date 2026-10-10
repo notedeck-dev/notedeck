@@ -222,6 +222,26 @@ describe('compileMisskeyTheme', () => {
     expect(compiled.accentDarken).toBe('#123456')
   })
 
+  it('uses accent as accentText when the theme does not define it (#1213)', () => {
+    const theme: MisskeyTheme = {
+      id: 't',
+      name: 't',
+      props: { accent: '#ff6600' },
+    }
+    const compiled = compileMisskeyTheme(theme, EMPTY_BASE)
+    expect(compiled.accentText).toBe(compiled.accent)
+  })
+
+  it('keeps an explicit accentText prop untouched (#1213)', () => {
+    const theme: MisskeyTheme = {
+      id: 't',
+      name: 't',
+      props: { accent: '#86b300', accentText: '#123456' },
+    }
+    const compiled = compileMisskeyTheme(theme, EMPTY_BASE)
+    expect(compiled.accentText).toBe('#123456')
+  })
+
   it('passes through rgba values in props', () => {
     const theme: MisskeyTheme = {
       id: 't',

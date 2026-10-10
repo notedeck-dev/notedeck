@@ -2,15 +2,25 @@ use notecli::error::NoteDeckError;
 
 use super::Result;
 
+/// 内蔵 HTTP サーバーが中継のポートを取れなかった (#1231)。bind の結果が出るまでは false
+#[derive(Default)]
+pub struct HttpRelayUnavailable(pub std::sync::atomic::AtomicBool);
+
 /// 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
-/// 1 回受け取り、プロキシ URL の query `t` に載せる。
+/// 1 回受け取り、プロキシ URL の query `t` に載せる。中継のポートを取れなかったと
+/// 分かっているときは None を返し、フロントは中継を使わず元の URL で読む (#1231。
+/// 後から開いたウィンドウ向け。起動中のウィンドウには `nd:http-relay-unavailable` で知らせる)
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn get_media_proxy_token(
     token: tauri::State<'_, notecore::http_server::MediaProxyToken>,
-) -> String {
-    token.0.clone()
+    unavailable: tauri::State<'_, HttpRelayUnavailable>,
+) -> Option<String> {
+    if unavailable.0.load(std::sync::atomic::Ordering::Relaxed) {
+        return None;
+    }
+    Some(token.0.clone())
 }
 
 // nd-command: local

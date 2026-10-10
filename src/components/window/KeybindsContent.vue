@@ -749,7 +749,7 @@ function handleReset() {
   font-style: italic;
   font-family: inherit;
   font-size: 1em;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .osGlobalTag {
@@ -769,13 +769,13 @@ function handleReset() {
   transition: opacity var(--nd-duration-base), color var(--nd-duration-base);
 
   &:hover {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
 .osGlobalOn {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .removeShortcut {
@@ -870,7 +870,7 @@ function handleReset() {
   align-items: center;
   gap: 4px;
   font-size: var(--nd-font-xs);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.7;
 }
 

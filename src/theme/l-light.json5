@@ -14,6 +14,13 @@
     header: ':alpha<0.7<@panel',
     navBg: '#fff',
     panel: '#fff',
-    mentionMe: 'rgb(0, 179, 70)',
+    // ここから NoteDeck 独自 (#1213): 文字として読む色だけを、本家の色を
+    // 色相そのままに暗くして bg / panel に対し 4.5:1 以上にする。
+    // 塗りに使う accent は本家の色のまま
+    link: ':darken<14<#44a4c1',
+    hashtag: ':darken<28<#ff9156',
+    accentText: ':darken<11<@accent',
+    mention: '@accentText',
+    mentionMe: ':darken<10<rgb(0, 179, 70)',
   },
 }

@@ -9,8 +9,15 @@ import { type ToastItem, useToast } from '@/stores/toast'
 
 const emit = defineEmits<{ close: [] }>()
 
-const { inbox, freshIds, runAction, open, removeFromInbox, clearInbox } =
-  useToast()
+const {
+  inbox,
+  freshIds,
+  recentStatus,
+  runAction,
+  open,
+  removeFromInbox,
+  clearInbox,
+} = useToast()
 
 const ICONS: Record<ToastItem['type'], string> = {
   success: 'ti ti-circle-check',
@@ -152,7 +159,7 @@ onBeforeUnmount(() => {
       <button
         class="_button"
         :class="$style.headerBtn"
-        :disabled="inbox.length === 0"
+        :disabled="inbox.length === 0 && !recentStatus"
         :title="i18n.ts._notificationCenter.clearAll"
         @click="clearInbox()"
       >
@@ -174,7 +181,20 @@ onBeforeUnmount(() => {
       :aria-label="i18n.ts._notificationCenter.title"
       tabindex="-1"
     >
-      <div v-if="inbox.length === 0" :class="$style.empty">
+      <!-- ステータス表示から開いたときだけ添える直前の軽い通知 (#1218)。
+           受信トレイには残らないので、矢印キーの移動や消すボタンの対象にしない -->
+      <div v-if="recentStatus" :class="[$style.item, $style.recent]">
+        <i :class="[ICONS[recentStatus.type], $style.icon, $style[recentStatus.type]]" />
+        <div :class="$style.main">
+          <span :class="[$style.text, $style.clamped]">{{ recentStatus.text }}</span>
+          <div :class="$style.meta">
+            <span v-if="recentStatus.source" :class="$style.source">{{ recentStatus.source }}</span>
+            <span :class="$style.time"><AppTime :at="recentStatus.time" /></span>
+            <span :class="$style.time">{{ i18n.ts._notificationCenter.recentStatus }}</span>
+          </div>
+        </div>
+      </div>
+      <div v-if="inbox.length === 0 && !recentStatus" :class="$style.empty">
         {{ i18n.ts._notificationCenter.empty }}
       </div>
       <div
@@ -332,6 +352,11 @@ onBeforeUnmount(() => {
   }
 }
 
+/* ステータス表示から添えた直前の軽い通知。一覧の行より控えめに見せる */
+.recent {
+  opacity: 0.6;
+}
+
 /* 今回開いた時点で未読だったもの。左端の帯と薄い下地で見分ける */
 .fresh {
   background: color-mix(in srgb, var(--nd-accent) 6%, transparent);
@@ -417,7 +442,7 @@ onBeforeUnmount(() => {
 .actionBtn {
   font-size: var(--nd-font-sm);
   font-weight: var(--nd-weight-bold);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   &:hover {
     text-decoration: underline;

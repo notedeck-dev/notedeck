@@ -290,3 +290,53 @@ describe('受信トレイを開いている間', () => {
     expect(c.unreadCount.value).toBe(0)
   })
 })
+
+describe('ステータス表示から開いたとき (#1218)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('直前の軽い通知を一時的に添え、受信トレイの一覧と未読には入れない', () => {
+    const c = createToastCenter()
+    c.registerStatusHost()
+    c.show('コピーしました', 'success')
+    c.openFromStatus()
+    expect(c.inboxOpen.value).toBe(true)
+    expect(c.recentStatus.value?.text).toBe('コピーしました')
+    expect(c.inbox.value).toHaveLength(0)
+    expect(c.unreadCount.value).toBe(0)
+  })
+
+  it('閉じたら消え、他の入口から開いたときは出さない', () => {
+    const c = createToastCenter()
+    c.registerStatusHost()
+    c.show('コピーしました', 'success')
+    c.openFromStatus()
+    c.setInboxOpen(false)
+    expect(c.recentStatus.value).toBeNull()
+    c.setInboxOpen(true)
+    expect(c.recentStatus.value).toBeNull()
+  })
+
+  it('ステータス表示が消えかけ (退場のフェード中) でも押した文言を出す', () => {
+    const c = createToastCenter()
+    c.registerStatusHost()
+    c.show('保存しました', 'info')
+    vi.advanceTimersByTime(5000)
+    expect(c.status.value).toBeNull()
+    c.openFromStatus()
+    expect(c.recentStatus.value?.text).toBe('保存しました')
+  })
+
+  it('すべてクリアで一緒に消える', () => {
+    const c = createToastCenter()
+    c.registerStatusHost()
+    c.show('コピーしました', 'success')
+    c.openFromStatus()
+    c.clearInbox()
+    expect(c.recentStatus.value).toBeNull()
+  })
+})

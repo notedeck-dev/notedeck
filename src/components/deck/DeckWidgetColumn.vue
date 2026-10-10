@@ -638,14 +638,14 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
   &:hover {
     opacity: 1;
     border-color: var(--nd-accent);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
 .addWidgetBtnActive {
   opacity: 1;
   border-color: var(--nd-accent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 // --- Library picker ---
@@ -760,7 +760,7 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 }
 
 .emptyLink {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 12px;
   margin-top: 4px;
   opacity: 0.8;

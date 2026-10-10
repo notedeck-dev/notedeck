@@ -270,7 +270,7 @@ function openConnectionsWindow(): void {
 }
 
 .cellStateOk {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .field { @include field; }

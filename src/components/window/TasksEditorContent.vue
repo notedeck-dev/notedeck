@@ -1023,7 +1023,7 @@ function handleReset() {
 
 .pinIcon {
   font-size: var(--nd-font-md);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .defaultIcon {
@@ -1043,7 +1043,7 @@ function handleReset() {
   padding: 0 6px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.9;
 }
 
@@ -1275,7 +1275,7 @@ function handleReset() {
 
   &:hover {
     border-color: var(--nd-accent);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     opacity: 1;
   }
 }
@@ -1333,7 +1333,7 @@ function handleReset() {
   align-items: center;
   gap: 4px;
   font-size: var(--nd-font-xs);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.7;
 }
 

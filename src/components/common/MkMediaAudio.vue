@@ -193,7 +193,7 @@ function onAudioError() {
   transition: background var(--nd-duration-base), color var(--nd-duration-base);
 
   &:hover {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     background: var(--nd-accentedBg);
   }
 }

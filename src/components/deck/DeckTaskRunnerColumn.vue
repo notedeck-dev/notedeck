@@ -583,7 +583,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   letter-spacing: 0.06em;
   text-transform: uppercase;
   opacity: 0.7;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .defaultBarLabel {
@@ -679,7 +679,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 
 .sectionLeadIcon {
   font-size: var(--nd-font-body);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.9;
 }
 
@@ -698,7 +698,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   font-weight: var(--nd-weight-regular);
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 18%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   text-transform: none;
   letter-spacing: 0;
 }
@@ -761,7 +761,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   justify-content: center;
   border-radius: 50%;
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 14px;
 }
 
@@ -811,7 +811,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   justify-content: center;
   width: 36px;
   border-left: 1px solid color-mix(in srgb, var(--nd-divider) 40%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 14px;
   opacity: 0;
   transition:
@@ -855,7 +855,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   }
   &.statusRunning {
     background: color-mix(in srgb, var(--nd-accent) 14%, transparent);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     opacity: 1;
   }
 }
@@ -877,7 +877,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
 }
 
 .runItemIcon { flex-shrink: 0; }
-.statusRunning .runItemIcon { color: var(--nd-accent); }
+.statusRunning .runItemIcon { color: var(--nd-accentText); }
 .statusOk .runItemIcon { color: var(--nd-mfmSuccess, #4a8); }
 .statusError .runItemIcon { color: var(--nd-love); }
 
@@ -920,7 +920,7 @@ const { value: detailHeight, start: onDividerPointerDown } = useVerticalResize({
   border-radius: var(--nd-radius-full);
   font-size: var(--nd-font-md);
 
-  &.statusRunning { background: color-mix(in srgb, var(--nd-accent) 18%, transparent); color: var(--nd-accent); }
+  &.statusRunning { background: color-mix(in srgb, var(--nd-accent) 18%, transparent); color: var(--nd-accentText); }
   &.statusOk { background: color-mix(in srgb, var(--nd-mfmSuccess, #4a8) 18%, transparent); color: var(--nd-mfmSuccess, #4a8); }
   &.statusError { background: color-mix(in srgb, var(--nd-love) 18%, transparent); color: var(--nd-love); }
 }

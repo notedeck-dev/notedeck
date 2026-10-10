@@ -888,7 +888,7 @@ function primaryShortcut(cmd: Command): string | null {
 }
 
 .cliAction strong {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .cliDesc {

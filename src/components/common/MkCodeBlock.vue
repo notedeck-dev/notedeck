@@ -113,7 +113,7 @@ const { copied, copyToClipboard } = useClipboardFeedback()
   }
 
   &.active {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 </style>

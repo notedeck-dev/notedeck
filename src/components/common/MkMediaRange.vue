@@ -80,7 +80,7 @@ function onInput(e: Event) {
   background: transparent;
   border: 0;
   cursor: pointer;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   &::-webkit-slider-runnable-track {
     height: 4px;

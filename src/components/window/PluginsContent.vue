@@ -592,7 +592,7 @@ async function importPlugin() {
   flex-shrink: 0;
   border-radius: var(--nd-radius-sm);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 24px;
 }
 
@@ -764,7 +764,7 @@ async function importPlugin() {
   &:hover {
     opacity: 1;
     background: var(--nd-buttonHoverBg);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 

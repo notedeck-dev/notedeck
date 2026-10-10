@@ -139,7 +139,7 @@ pnpm clean        # Remove build artifacts
 ### E2E テスト（[#702](https://github.com/notedeck-dev/notedeck/issues/702)）
 
 実アプリ（デバッグビルド）を隔離プロファイルで起動し、外部アプリと同じ
-HTTP API 面（[#709](https://github.com/notedeck-dev/notedeck/issues/709)、port 19820）で駆動する。設定は `vitest.e2e.config.ts`
+HTTP API 面（[#709](https://github.com/notedeck-dev/notedeck/issues/709)、開発版のポート）で駆動する。設定は `vitest.e2e.config.ts`
 （`pnpm test` とは独立、`tests/e2e/` 配下）。
 
 ```bash
@@ -150,7 +150,7 @@ nix develop -c pnpm test:e2e           # WSL2 では nix develop 必須 (EGL 対
 - ハーネス（`tests/e2e/harness.ts`）は一時ディレクトリを `NOTEDECK_APP_DIR`
   に指定してバイナリを spawn し、実データに触れない。バイナリの場所は
   `NOTEDECK_E2E_BINARY` で上書き可能
-- port 19820 が使用中（= 実アプリ起動中）の場合は誤操作防止のため即失敗する
+- 開発版のポートが使用中（= `pnpm tauri:dev` の起動中）の場合は誤操作防止のため即失敗する。配布版は別のポートなので起動したままでよい
 - デバッグビルドは devUrl（vite 5173）から frontend を読むため、vite が
   いなければハーネスが自前で起動・終了する
 - アサーションは HTTP の state 読み取り（`/api/health` / `/api/deck/columns`
@@ -172,7 +172,7 @@ nix develop -c pnpm test:e2e           # WSL2 では nix develop 必須 (EGL 対
 attach モードで同じテストを流す（モック接続系テストは自動スキップ）:
 
 ```bash
-adb forward tcp:19820 tcp:19820
+adb forward tcp:19821 tcp:19821   # 開発版のポート
 # デバイスの api-token を取得 (デバッグビルドは run-as が使える。
 # app_data_dir 配下の api-token — パスは要確認)
 TOKEN=$(adb shell run-as com.notedeck.desktop cat files/api-token)
@@ -250,7 +250,7 @@ attach モードはデバイス側アプリを終了させず、デッキ操作�
 から書き込み系の操作を増やすときは Capabilities (dispatcher) を通す。
 
 仕組み: Vite の dev proxy (`vite.config.ts`) が `/api` `/mcp` `/proxy` を
-内蔵 HTTP サーバー (127.0.0.1:19820、[#940](https://github.com/notedeck-dev/notedeck/issues/940)) へ転送し、`/api` と `/mcp` には
+内蔵 HTTP サーバー (開発版のポート、[#940](https://github.com/notedeck-dev/notedeck/issues/940)) へ転送し、`/api` と `/mcp` には
 無認証の `/api` インデックスが開示する tokenPath から Bearer トークンを読んで注入する。
 ブラウザ側は相対パスの fetch だけで認証込みの external API を叩ける。
 dev マシン上でしか成立しない橋渡しなので、本番の攻撃面は増えない。
@@ -261,8 +261,16 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 ビューアは **Rust 側イベントバス → `/api/events`** を見る。別系統なので、
 両方を並べると「どの層までイベントが届いているか」の切り分けに使える。
 
+内蔵 HTTP サーバーのポートは配布版と開発版 (debug ビルド) で分けている
+([#1231](https://github.com/notedeck-dev/notedeck/issues/1231))。同じ PC で両方を動かすと (WSL2 の開発版は
+localhost 転送で Windows 側の同じポートも取る) 後から起動した側が中継を持てず、画像が出なくなるため。
+外部ツール (Stream Deck / Raycast 拡張など) は配布版のポートを前提にしているので、配布版の値は変えない。
+値の正本は `crates/notecore/src/http_server.rs` の `PORT` / `RELEASE_PORT` で、フロントの写しは
+`src/utils/appHttpPort.ts`、CSP (`tauri.conf.json`) は両方を許可している。
+ポートを取れなかったときは「アプリの通知」で知らせ、画像は中継を通さず元の URL で読む。
+
 位置づけ（#940 との関係）: このダッシュボードは external API の最初の
-本格クライアント（dogfooding）を兼ねる。19820 に新しい面を足すときの
+本格クライアント（dogfooding）を兼ねる。内蔵 HTTP サーバーに新しい面を足すときの
 テストベンチとして育てる。
 
 ## MCP サーバー ([#555](https://github.com/notedeck-dev/notedeck/issues/555) / [#513](https://github.com/notedeck-dev/notedeck/issues/513))
@@ -1574,16 +1582,16 @@ NoteDeck の巡回の手順は `mode: heartbeat` の skill (予約 skill `HEARTB
 
 #### 応答契約 (`heartbeat.report` tool と legacy の `HEARTBEAT_OK`)
 
-AI は報告すべきことがあるときだけ `heartbeat.report` tool を呼び、本文と通知の有無を返す (発想元の OpenClaw と同じ形)。tool を呼ばない応答は legacy の ack として受理する: 先頭 / 末尾の `HEARTBEAT_OK` を剥がし、残りが短ければ (上限は `heartbeat.rs` の定数) 全体を捨てる。tool 経由の報告は `notify` が真のときだけ知らせる (legacy は常に知らせる)。報告は target session に `heartbeat: true` のメッセージとして書き、デバイスは変更を受けてそのセッションの写しを読み直す。
+AI は報告すべきことがあるときだけ `heartbeat.report` tool を呼び、本文と通知の有無を返す (発想元の OpenClaw と同じ形)。tool を呼ばない応答は legacy の ack として受理する: 先頭 / 末尾の `HEARTBEAT_OK` を剥がし、残りが短ければ (上限は `heartbeat.rs` の定数) 全体を捨てる。知らせるのは tool の `notify` が真のときだけ。legacy で残った本文は報告として書くが知らせない (#1227): 知らせるかは AI が明示したときだけ決まり、INSTRUCTION は報告を tool に限っているので tool を呼ばない本文は契約の外 (「通知に記憶を載せない」の指示も tool の `notify` にしか掛かっていない)。報告は target session に `heartbeat: true` のメッセージとして書き、デバイスは変更を受けてそのセッションの写しを読み直す。
 
 #### 知らせ (アプリの通知、#1165)
 
 HEARTBEAT の知らせはアプリの通知 (通知カード + 受信トレイ) で回収し、送り元は HEARTBEAT にする。押して移る先がある知らせは情報でも受信トレイに残る (`stores/toast.ts`)。
 
-- **報告** (`notify`、AI が「通知して」とした報告): 必ず受信トレイに残し、押せば報告先の AI セッションを AI カラムで開く (無ければサイドバーに 1 本開く、消えていればそう知らせる)。AI 設定の「デスクトップ通知」は notemaid が `desktop` に載せ、アプリを開いている間の OS 通知を出すかだけを決める (フォーカス中は出さない)
+- **報告** (`notify`、AI が「通知して」とした報告): 必ず受信トレイに残し、押せば報告先の AI セッションを AI カラムで開く (無ければサイドバーに 1 本開く、消えていればそう知らせる)。報告先が「なし」(`'none'`) でも知らせ、押せば報告先を選べる AI 設定の HEARTBEAT を開く (#1227)。AI 設定の「デスクトップ通知」は notemaid が `desktop` に載せ、アプリを開いている間の OS 通知を出すかだけを決める (フォーカス中は出さない)
 - **確認待ちの操作**: `report` に新しく積んだ数 (`pending`) を載せ、1 以上なら受信トレイに出す。押せばそのセッションを開く
 - **自動停止 / 失敗 / 日次上限** (`toast`): 押せば AI 設定の HEARTBEAT を開く
-- **閉じている間の報告**: 端末に「最後に見た時刻」(localStorage、HEARTBEAT が有効な間だけ持つ。開いている間は報告を受けるたびに進める) を持ち、次に開いたときにそれより後の HEARTBEAT メッセージを全セッションから数えて「閉じている間の報告 N 件」(確認待ちがあれば一緒に) として 1 件にまとめて出す。数える規則は `src/services/heartbeatAway.ts`。正本はセッションなので受信トレイ自体は保存しない
+- **閉じている間の報告**: 端末に「最後に見た時刻」(localStorage、HEARTBEAT が有効な間だけ持つ。開いている間は報告を受けるたびに進める) を持ち、次に開いたときにそれより後の知らせを数えて「閉じている間の報告 N 件」(確認待ちがあれば一緒に) として 1 件にまとめて出す。報告は開いている間と同じ基準 (「通知して」のものだけ) で数えるため、notemaid が知らせた報告を状態ファイルに記録し (時刻と報告先。報告先が「なし」でも残す、上限つき)、端末は `heartbeat_notices_since` で読む。確認待ちは全セッションの受信箱カードから数える。数える規則は `src/services/heartbeatAway.ts`。受信トレイ自体は保存しない
 - notemaid 自身は OS 通知を出さない (採用しない理由は ROADMAP の「採用しない」)
 
 #### 停止条件と失敗 (token 予算 / 失敗の永続化)
@@ -1599,7 +1607,7 @@ HEARTBEAT の知らせはアプリの通知 (通知カード + 受信トレイ) 
 
 `config.heartbeat.target` で 3 mode:
 - `'auto'` (default): kind='heartbeat' な session を find or auto-create + 永続使用 (1 個だけを使い回す)
-- `'none'`: session に append しない (silent log only)
+- `'none'`: session に append しない (silent log only)。ただし「通知して」の報告は知らせる (#1227)
 - `<session id>`: 既存 session に明示 pin
 
 新規 session 作成時は `timestampTitle(now, 'のHEARTBEAT')` でプレースホルダー → 初回 tick の応答内容を AI で要約してタイトル上書き (失敗時は timestamp が残る)。

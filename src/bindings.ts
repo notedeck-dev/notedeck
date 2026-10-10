@@ -1800,6 +1800,15 @@ async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, 
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
+async streamChatRead(accountId: string, subscriptionId: string, messageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_chat_read", { accountId, subscriptionId, messageId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamObserveStart() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_observe_start") };
@@ -2141,11 +2150,13 @@ async getSettingsDir() : Promise<Result<string, { code: string; message: string;
 },
 /**
  * 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
- * 1 回受け取り、プロキシ URL の query `t` に載せる。
+ * 1 回受け取り、プロキシ URL の query `t` に載せる。中継のポートを取れなかったと
+ * 分かっているときは None を返し、フロントは中継を使わず元の URL で読む (#1231。
+ * 後から開いたウィンドウ向け。起動中のウィンドウには `nd:http-relay-unavailable` で知らせる)
  *
  * @see src-tauri/src/commands/utility.rs
  */
-async getMediaProxyToken() : Promise<string> {
+async getMediaProxyToken() : Promise<string | null> {
     return await TAURI_INVOKE("get_media_proxy_token");
 },
 /**
@@ -2506,6 +2517,15 @@ async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: str
 async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_trigger_now") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notemaid/src/commands/heartbeat.rs */
+async heartbeatNoticesSince(since: number) : Promise<Result<HeartbeatNotice[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("heartbeat_notices_since", { since }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -3441,6 +3461,7 @@ notemaid: NotemaidDiagnostics }
  * `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text)
  * 
  * `notify` は AI が「通知して」とした報告ごとに流す (アプリの通知の受信トレイに残す, #1165)。
+ * 報告先が「なし」なら session_id は無く、`report` も流さない (#1227)。
  * AI 設定の「デスクトップ通知」は `desktop` に載せ、OS 通知を出すかだけをデバイスが決める
  */
 export type HeartbeatEvent = { kind: string; source?: string | null; outcome?: string | null; sessionId?: string | null; created?: boolean | null; title?: string | null; body?: string | null; 
@@ -3461,6 +3482,14 @@ i18n?: JsonValue | null }
  * 実際の emit は `TauriAiEvents` (notemaid の sink 1 つ) が同じ名前で行う (#1133 縦切り 5)。
  */
 export type HeartbeatEventWire = HeartbeatEvent
+/**
+ * 知らせた報告の記録。本文は報告先のセッションが正本なので持たない
+ */
+export type HeartbeatNotice = { at: number; 
+/**
+ * 報告先のセッション。報告先が「なし」なら None
+ */
+sessionId: string | null }
 /**
  * Serialize / Default はコマンド表のフィクスチャ用。
  */

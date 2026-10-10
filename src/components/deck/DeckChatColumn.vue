@@ -185,7 +185,7 @@ const thread = useChatThread({
       const adapter = await multiAdapters.getOrCreate(accountId)
       adapter?.stream.connect()
     }
-    return createQuerySubscription({
+    const sub = createQuerySubscription({
       open: async () =>
         unwrap(
           target.kind === 'room'
@@ -198,8 +198,20 @@ const thread = useChatThread({
       },
       onDelete: (id) => handlers.onDelete(id),
     })
+    return {
+      dispose: () => sub.dispose(),
+      markRead: (messageId) => {
+        const subscriptionId = sub.subscriptionId
+        if (!subscriptionId) return
+        commands
+          .streamChatRead(accountId, subscriptionId, messageId)
+          .catch((e) => console.warn('[chat] read failed:', e))
+      },
+    }
   },
   onIncoming: (msg) => onNewMessage(msg),
+  getMyUserId: (accountId) => getUserIdForAccount(accountId),
+  isViewing: () => document.visibilityState === 'visible',
 })
 
 const { messages, messageIds } = thread
@@ -472,8 +484,6 @@ async function connectCrossAccount() {
     isLoading.value = false
   }
 
-  newChatMessages.watch(accounts.filter((a) => a.hasToken).map((a) => a.id))
-
   // 2. 並行で API fetch して reconcile。ログイン中アカウントは fresh、
   //    ログアウト中は引き続き cache (上の hydrate と同じ結果)、API エラー時は cache fallback。
   const results = await Promise.allSettled(
@@ -733,7 +743,7 @@ const newChatMessages = useNewChatMessages((accountId, received) => {
   }
   const msg = newChatMessageForHistory(received)
   const myId = getUserIdForAccount(accountId)
-  // 開いている会話の分も来る (会話のチャンネルで既読を送っていないため)。
+  // 開いている会話の分も来ることがある (ウィンドウが裏で既読を送らなかった分)。
   // 会話にはもう出ていて、履歴へは戻るときに reflectLatestIntoHistory が足す。
   // ここで store に入れると、届くまでの 3 秒に付いたリアクションを古い本文で潰す
   if (
@@ -756,6 +766,12 @@ const newChatMessages = useNewChatMessages((accountId, received) => {
     setChatHistory(withLatestChatMessage(chatHistory.value, msg))
   }
 })
+// 全アカウントのカラムは、開いた後に追加 / 再ログインしたアカウントの新着も受ける (#1223)
+if (isCrossAccount.value) {
+  newChatMessages.follow(() =>
+    accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id),
+  )
+}
 
 const canSend = computed(() => {
   if (isSending.value) return false
@@ -1490,7 +1506,7 @@ onBeforeUnmount(() => {
 
   &.active {
     opacity: 1;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -1785,7 +1801,7 @@ onBeforeUnmount(() => {
 
   &.active {
     opacity: 1;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     background: var(--nd-accentedBg);
   }
 }

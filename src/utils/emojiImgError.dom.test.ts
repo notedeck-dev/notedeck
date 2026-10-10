@@ -42,6 +42,17 @@ describe('onCustomEmojiImgError', () => {
     expect(img.src).toBe(`${PROXIED}&r=1`)
   })
 
+  it('中継を通さない元の URL (query 無し) でも壊れない世代付き URL で再要求する', () => {
+    const direct = 'https://example.com/emoji/a.png'
+    img.src = direct
+    fire(img)
+    vi.runAllTimers()
+    expect(img.src).toBe(`${direct}?r=1`)
+    fire(img)
+    vi.runAllTimers()
+    expect(img.src).toBe(`${direct}?r=2`)
+  })
+
   it('再試行を使い切ったら unknown アイコンに倒す', () => {
     fire(img)
     vi.runAllTimers()

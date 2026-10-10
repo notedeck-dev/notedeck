@@ -54,7 +54,7 @@ const stopped = computed(
   padding: 2px 6px;
   border-radius: var(--nd-radius-full);
   font-size: var(--nd-font-xs);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
 }
 

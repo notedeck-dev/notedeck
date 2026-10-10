@@ -124,7 +124,7 @@ const emit = defineEmits<{
 }
 
 .activeBadge {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .logo {
@@ -140,7 +140,7 @@ const emit = defineEmits<{
   height: 22px;
   flex-shrink: 0;
   background-color: currentColor;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   -webkit-mask: var(--icon-url) center / contain no-repeat;
   mask: var(--icon-url) center / contain no-repeat;
 }
