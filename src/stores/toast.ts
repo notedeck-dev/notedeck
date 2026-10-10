@@ -4,7 +4,8 @@ import { computed, ref } from 'vue'
 // - 警告・エラー・アクション付き (元に戻す等) は右下に通知カードを出し、
 //   受信トレイ (通知センター) にも残す。カードを見逃しても後から読める
 // - 「コピーしました」のような軽い成功・情報はカードを出さず、ボトムバーの
-//   ステータス表示で短く知らせる。受信トレイには残さない
+//   ステータス表示で短く知らせる。受信トレイには残さない。押して移る先が
+//   あるもの (HEARTBEAT の報告など) は後から開けるよう軽いものに含めない
 // - ステータス表示の場所が無い画面 (モバイル / PiP / ブラウザ) では、軽いものも
 //   カードで出す
 // 呼び出し側の API (`useToast().show`) は従来のトーストと同じ。
@@ -59,8 +60,12 @@ const INBOX_MAX = 50
 /** カードの同時表示数 (VS Code と同じ)。あふれた分は受信トレイだけに残る */
 const CARD_MAX = 3
 
-function isLight(type: ToastItem['type'], action?: ToastAction): boolean {
-  return (type === 'success' || type === 'info') && !action
+function isLight(
+  type: ToastItem['type'],
+  action?: ToastAction,
+  onClick?: () => void,
+): boolean {
+  return (type === 'success' || type === 'info') && !action && !onClick
 }
 
 /** まとめてよい同じ通知か。アクション付きはそれぞれ別の操作なのでまとめない */
@@ -164,7 +169,7 @@ export function createToastCenter() {
   ) {
     const action = options?.action
     const source = options?.source
-    const light = isLight(type, action)
+    const light = isLight(type, action, options?.onClick)
     const now = Date.now()
 
     if (light && statusHosts.value > 0) {
@@ -200,7 +205,6 @@ export function createToastCenter() {
         count: 1,
         unread: false,
         source,
-        onClick: options?.onClick,
       })
       return
     }

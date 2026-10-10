@@ -6,12 +6,19 @@
  */
 const TWEMOJI_BASE = '/twemoji'
 
+// ZWJ 連結は FE0F を残す規則だが、同梱 Twemoji は 👁️‍🗨️ だけ FE0F を落とした
+// 名前で持つ。ピッカーの全絵文字との照合は twemoji.test.ts (#1219)
+const FILE_NAME_EXCEPTIONS: Record<string, string> = {
+  '1f441-fe0f-200d-1f5e8-fe0f': '1f441-200d-1f5e8',
+}
+
 /** Convert a Unicode emoji character to a bundled Twemoji SVG URL */
 export function char2twemojiUrl(char: string): string {
   let codes = Array.from(char, (x) => x.codePointAt(0)?.toString(16))
   if (!codes.includes('200d')) codes = codes.filter((x) => x !== 'fe0f')
   codes = codes.filter((x) => x?.length)
-  return `${TWEMOJI_BASE}/${codes.join('-')}.svg`
+  const name = codes.join('-')
+  return `${TWEMOJI_BASE}/${FILE_NAME_EXCEPTIONS[name] ?? name}.svg`
 }
 
 /**

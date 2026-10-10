@@ -385,7 +385,7 @@
       untrusted: true,
       label: 'サーバーアナウンス一覧',
       category: 'account',
-      icon: 'ti-megaphone',
+      icon: 'ti-speakerphone',
       permissions: [
         'account.read',
       ],
@@ -4695,7 +4695,7 @@
     'windows.list': {
       label: '開いているウィンドウ一覧',
       category: 'window',
-      icon: 'ti-windows',
+      icon: 'ti-app-window',
       permissions: [],
       cheap: true,
       exec: 'device',

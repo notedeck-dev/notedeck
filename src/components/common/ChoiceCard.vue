@@ -48,7 +48,7 @@ const emit = defineEmits<{
   >
     <span :class="$style.badges">
       <slot name="badge">
-        <i v-if="active" class="ti ti-circle-check-filled" :class="$style.activeBadge" />
+        <i v-if="active" class="ti ti-circle-check" :class="$style.activeBadge" />
       </slot>
     </span>
     <slot name="logo">

@@ -1755,6 +1755,15 @@ async streamConnect(accountId: string) : Promise<Result<null, { code: string; me
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
+async streamSubscribeMain(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_subscribe_main", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamDisconnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_disconnect", { accountId }) };
@@ -2873,6 +2882,7 @@ streamChatMessageReacted: StreamChatMessageReacted,
 streamChatMessageUnreacted: StreamChatMessageUnreacted,
 streamEmojiChanged: StreamEmojiChanged,
 streamEnvelope: StreamEnvelope,
+streamNewChatMessage: StreamNewChatMessage,
 streamStatus: StreamStatus,
 streamUnread: StreamUnread,
 systemState: SystemState
@@ -2887,6 +2897,7 @@ streamChatMessageReacted: "stream-chat-message-reacted",
 streamChatMessageUnreacted: "stream-chat-message-unreacted",
 streamEmojiChanged: "stream-emoji-changed",
 streamEnvelope: "stream-envelope",
+streamNewChatMessage: "stream-new-chat-message",
 streamStatus: "stream-status",
 streamUnread: "stream-unread",
 systemState: "system-state"
@@ -3426,10 +3437,21 @@ lastPanic: PanicReport | null;
 notemaid: NotemaidDiagnostics }
 /**
  * デバイスへ流す出来事 (flat。Tauri は `nd:ai-heartbeat-event`)。
- * kind: `started` (source) / `finished` (outcome) / `report` (session_id, created) /
- * `titled` (session_id, title) / `notify` (title, body) / `toast` (level, text)
+ * kind: `started` (source) / `finished` (outcome) / `report` (session_id, created, pending) /
+ * `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text)
+ * 
+ * `notify` は AI が「通知して」とした報告ごとに流す (アプリの通知の受信トレイに残す, #1165)。
+ * AI 設定の「デスクトップ通知」は `desktop` に載せ、OS 通知を出すかだけをデバイスが決める
  */
-export type HeartbeatEvent = { kind: string; source?: string | null; outcome?: string | null; sessionId?: string | null; created?: boolean | null; title?: string | null; body?: string | null; level?: string | null; text?: string | null; 
+export type HeartbeatEvent = { kind: string; source?: string | null; outcome?: string | null; sessionId?: string | null; created?: boolean | null; title?: string | null; body?: string | null; 
+/**
+ * `report`: この報告で新しく積まれた確認待ちの操作の数 (0 なら無し)
+ */
+pending?: number | null; 
+/**
+ * `notify`: OS のデスクトップ通知も出すか (AI 設定の「デスクトップ通知」)
+ */
+desktop?: boolean | null; level?: string | null; text?: string | null; 
 /**
  * `text` を表示言語で描き直す手がかり (#135)
  */
@@ -3556,7 +3578,19 @@ body?: string | null;
 /**
  * App notification icon URL (for app type; notifications/create の icon)
  */
-icon?: string | null }
+icon?: string | null; 
+/**
+ * Exported entity (for exportCompleted type; antenna / note / following 等)
+ */
+exportedEntity?: string | null; 
+/**
+ * Drive file id of the export result (for exportCompleted type)
+ */
+fileId?: string | null; 
+/**
+ * Chat room invitation (for chatRoomInvitationReceived type)
+ */
+invitation?: NotificationChatRoomInvitation | null }
 export type NormalizedPoll = { choices: NormalizedPollChoice[]; multiple?: boolean; expiresAt: string | null }
 export type NormalizedPollChoice = { text: string; votes?: number; isVoted?: boolean }
 export type NormalizedUser = { id: string; username: string; host: string | null; name: string | null; avatarUrl: string | null; isBot?: boolean; isCat?: boolean; avatarDecorations?: AvatarDecoration[]; emojis?: Partial<{ [key in string]: string }>; instance?: UserInstance | null }
@@ -3651,6 +3685,10 @@ heartbeat: JsonValue;
  * notemaid のログの置き場 (データディレクトリの logs/)
  */
 logDir: string | null }
+/**
+ * 通知に載るルームへの招待。招待した人は通知の `user` で届くので持たない
+ */
+export type NotificationChatRoomInvitation = { id: string; room: ChatRoom }
 /**
  * OS 通知クリック時にフロントへ渡す遷移コンテキスト。
  * noteId があればノート詳細、なければ userId でユーザー詳細を開く。
@@ -4077,6 +4115,18 @@ export type StreamEnvelope = StreamEvent
 export type StreamEvent = { kind: "stream-note"; payload: StreamNoteEvent } | { kind: "stream-notification"; payload: StreamNotificationEvent } | { kind: "stream-mention"; payload: StreamMentionEvent } | { kind: "stream-main-event"; payload: StreamMainEvent } | { kind: "stream-note-updated"; payload: StreamNoteUpdatedEvent } | { kind: "stream-note-capture-updated"; payload: StreamNoteCaptureEvent } | { kind: "stream-chat-message"; payload: StreamChatMessageEvent } | { kind: "stream-chat-message-deleted"; payload: StreamChatMessageDeletedEvent } | { kind: "stream-chat-message-reacted"; payload: StreamChatMessageReactedEvent } | { kind: "stream-chat-message-unreacted"; payload: StreamChatMessageUnreactedEvent } | { kind: "stream-status"; payload: StreamStatusEvent } | { kind: "stream-emoji-changed"; payload: StreamEmojiChangedEvent }
 export type StreamMainEvent = { accountId: string; subscriptionId: string; eventType: string; body: JsonValue }
 export type StreamMentionEvent = { accountId: string; subscriptionId: string; note: NormalizedNote }
+/**
+ * 別の会話に来たチャットの新着 (main の `newChatMessage`)。チャットの履歴一覧が購読する
+ */
+export type StreamNewChatMessage = StreamNewChatMessageEvent
+/**
+ * 別の会話に来たチャットの新着 (main チャンネルの `newChatMessage`)。
+ * 
+ * 本家は受信から 3 秒たっても既読にならなかったメッセージだけをこの名前で流す
+ * (ChatService の createMessageToUser / createMessageToRoom)。会話のチャンネルを
+ * 開いていなくても届くので、チャットの履歴一覧の新着に使う
+ */
+export type StreamNewChatMessageEvent = { accountId: string; message: ChatMessage }
 export type StreamNoteCaptureEvent = ({ updateType: "reacted"; body: NoteReactedBody } | { updateType: "unreacted"; body: NoteUnreactedBody } | { updateType: "pollVoted"; body: NotePollVotedBody } | { updateType: "deleted"; body: NoteDeletedBody }) & { accountId: string; noteId: string }
 export type StreamNoteEvent = { accountId: string; subscriptionId: string; note: NormalizedNote }
 export type StreamNoteUpdatedEvent = 

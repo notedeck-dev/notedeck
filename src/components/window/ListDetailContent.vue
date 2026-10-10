@@ -181,7 +181,7 @@ onMounted(loadList)
             :disabled="togglingFavorite"
             @click="toggleFavorite"
           >
-            <i :class="list.isLiked ? 'ti ti-star-filled' : 'ti ti-star'" />
+            <i class="ti ti-star" />
             <span v-if="typeof list.likedCount === 'number'">{{ list.likedCount }}</span>
           </button>
           <span

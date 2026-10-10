@@ -773,6 +773,8 @@ defineExpose({
   :global(.ti) {
     font-size: 20px;
     opacity: 0.7;
+    // 子要素の hover も nd-interactive (_buttons.scss) と同じ時間で遷移させる
+    transition: opacity var(--nd-duration-base);
   }
 
   &:hover :global(.ti) {
@@ -901,7 +903,15 @@ defineExpose({
 }
 
 .iconWrap { @include nav-icon-wrap; }
-.badge { @include nav-badge; }
+.badge {
+  @include nav-badge;
+  // ナビバーには積み重ね数のバッジ (左上) が無く、右上はサーバーの
+  // バッジが使うので、件数は目に入りやすい左上に出す
+  bottom: auto;
+  right: auto;
+  top: -6px;
+  left: -8px;
+}
 
 .label {
   overflow: hidden;
@@ -927,7 +937,7 @@ defineExpose({
   color: var(--nd-fg);
   white-space: nowrap;
   cursor: pointer;
-  transition: background var(--nd-duration-fast);
+  transition: background var(--nd-duration-base);
 
   &:hover {
     background: var(--nd-buttonHoverBg);
@@ -1087,6 +1097,7 @@ defineExpose({
 
   :global(.ti) {
     opacity: 0.7;
+    transition: opacity var(--nd-duration-base);
   }
 
   &:hover :global(.ti) {

@@ -230,7 +230,7 @@ pub fn set_unread_badge(app: tauri::AppHandle, count: u32) {
         if let Some(window) = app.get_webview_window("main") {
             #[cfg(target_os = "windows")]
             {
-                let overlay = (count > 0).then(overlay_dot_icon);
+                let overlay = (count > 0).then(|| overlay_count_icon(count));
                 let _ = window.set_overlay_icon(overlay);
             }
             #[cfg(not(target_os = "windows"))]
@@ -284,22 +284,108 @@ fn icon_with_unread_dot(base: &tauri::image::Image<'_>) -> tauri::image::Image<'
     tauri::image::Image::new_owned(rgba, width as u32, height as u32)
 }
 
-/// Windows タスクバー用: 透明背景に赤円のみのオーバーレイアイコン。
+/// Windows タスクバー用: 赤円に未読件数 (10 以上は「9+」) を白で描いたオーバーレイアイコン。
+/// 置き場所 (アイコンのどの角か) は OS が決めるので、ここでは選べない。
 #[cfg(all(not(mobile), target_os = "windows"))]
-fn overlay_dot_icon() -> tauri::image::Image<'static> {
-    const SIZE: usize = 32;
+fn overlay_count_icon(count: u32) -> tauri::image::Image<'static> {
+    let rgba = overlay_count_rgba(count);
+    tauri::image::Image::new_owned(rgba, OVERLAY_SIZE as u32, OVERLAY_SIZE as u32)
+}
+
+#[cfg(any(test, all(not(mobile), target_os = "windows")))]
+const OVERLAY_SIZE: usize = 32;
+
+/// 3x5 のビットマップ数字。各行の下位 3 ビットが左から右の画素
+#[cfg(any(test, all(not(mobile), target_os = "windows")))]
+const GLYPHS: [[u8; 5]; 11] = [
+    [0b111, 0b101, 0b101, 0b101, 0b111], // 0
+    [0b010, 0b110, 0b010, 0b010, 0b111], // 1
+    [0b111, 0b001, 0b111, 0b100, 0b111], // 2
+    [0b111, 0b001, 0b111, 0b001, 0b111], // 3
+    [0b101, 0b101, 0b111, 0b001, 0b001], // 4
+    [0b111, 0b100, 0b111, 0b001, 0b111], // 5
+    [0b111, 0b100, 0b111, 0b101, 0b111], // 6
+    [0b111, 0b001, 0b010, 0b010, 0b010], // 7
+    [0b111, 0b101, 0b111, 0b101, 0b111], // 8
+    [0b111, 0b101, 0b111, 0b001, 0b111], // 9
+    [0b000, 0b010, 0b111, 0b010, 0b000], // +
+];
+
+#[cfg(any(test, all(not(mobile), target_os = "windows")))]
+fn overlay_count_rgba(count: u32) -> Vec<u8> {
+    const SIZE: usize = OVERLAY_SIZE;
+    const RED: [u8; 4] = [0xE8, 0x11, 0x23, 0xFF];
+    const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
     let mut rgba = vec![0u8; SIZE * SIZE * 4];
     let center = SIZE as f64 / 2.0 - 0.5;
-    let radius = SIZE as f64 * 0.42;
+    let radius = SIZE as f64 / 2.0;
     for y in 0..SIZE {
         for x in 0..SIZE {
             let dx = x as f64 - center;
             let dy = y as f64 - center;
             if dx * dx + dy * dy <= radius * radius {
                 let i = (y * SIZE + x) * 4;
-                rgba[i..i + 4].copy_from_slice(&[0xE8, 0x11, 0x23, 0xFF]);
+                rgba[i..i + 4].copy_from_slice(&RED);
             }
         }
     }
-    tauri::image::Image::new_owned(rgba, SIZE as u32, SIZE as u32)
+
+    // 1 桁は大きく、「9+」は 2 文字が円に収まる大きさで描く
+    let (glyphs, scale): (&[usize], usize) = match count {
+        0 => return rgba,
+        1..=9 => (&[count as usize][..], 4),
+        _ => (&[9, 10][..], 3),
+    };
+    let gap = scale;
+    let width = glyphs.len() * 3 * scale + (glyphs.len() - 1) * gap;
+    let height = 5 * scale;
+    let left = (SIZE - width) / 2;
+    let top = (SIZE - height) / 2;
+    for (n, &g) in glyphs.iter().enumerate() {
+        let gx = left + n * (3 * scale + gap);
+        for (row, bits) in GLYPHS[g].iter().enumerate() {
+            for col in 0..3 {
+                if bits & (0b100 >> col) == 0 {
+                    continue;
+                }
+                for py in 0..scale {
+                    for px in 0..scale {
+                        let x = gx + col * scale + px;
+                        let y = top + row * scale + py;
+                        let i = (y * SIZE + x) * 4;
+                        rgba[i..i + 4].copy_from_slice(&WHITE);
+                    }
+                }
+            }
+        }
+    }
+    rgba
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn white_pixels(rgba: &[u8]) -> usize {
+        rgba.chunks(4)
+            .filter(|p| *p == [0xFF, 0xFF, 0xFF, 0xFF])
+            .count()
+    }
+
+    #[test]
+    fn overlay_draws_count_in_white_on_red_circle() {
+        let one = overlay_count_rgba(1);
+        assert_eq!(one.len(), OVERLAY_SIZE * OVERLAY_SIZE * 4);
+        // 「1」は 8 画素ぶんのグリフを 4 倍で描く
+        assert_eq!(white_pixels(&one), 8 * 16);
+        // 中央の行の左端あたりは赤
+        let i = (OVERLAY_SIZE / 2 * OVERLAY_SIZE + 2) * 4;
+        assert_eq!(&one[i..i + 4], &[0xE8, 0x11, 0x23, 0xFF]);
+    }
+
+    #[test]
+    fn overlay_shows_9_plus_for_ten_or_more() {
+        assert_eq!(overlay_count_rgba(10), overlay_count_rgba(250));
+        assert_ne!(overlay_count_rgba(9), overlay_count_rgba(10));
+    }
 }

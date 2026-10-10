@@ -66,6 +66,10 @@ import { useSensitiveMask } from '@/composables/useSensitiveMask'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { webUiUrl } from '@/services/safeUrl'
+import {
+  fetchUserDetail,
+  getCachedUserDetail,
+} from '@/services/userDetailCache'
 import { useAccountsStore } from '@/stores/accounts'
 import { useNoteStore } from '@/stores/notes'
 import { useServersStore } from '@/stores/servers'
@@ -394,20 +398,25 @@ onMounted(async () => {
     })
     const a = result.adapter
     adapter.value = a
-    const userDetail = await a.api.getUserDetail(props.userId)
-    user.value = userDetail
-
-    // Prefetch banner image so it appears instantly when DOM renders.
-    // 実描画 (UserProfileHero) と同じプロキシ URL を温める (#814)
-    if (userDetail.bannerUrl) {
-      new Image().src = proxyUrl(userDetail.bannerUrl) ?? userDetail.bannerUrl
+    // ポップアップ等で取得済みなら先に描き、取り直したもので差し替える (#1212)。
+    // スピナー → プロフィール → ノート一覧の 2 段を、ヒーローとノート一覧の
+    // 読み込みが同時に始まる 1 段にする (ノート一覧は user があれば mount される)
+    const cached = getCachedUserDetail(props.accountId, props.userId)
+    if (cached) {
+      applyUserDetail(cached)
+      isLoading.value = false
     }
+    const userDetail = await fetchUserDetail(
+      props.accountId,
+      props.userId,
+      () => a.api.getUserDetail(props.userId),
+    ).catch((e: unknown) => {
+      // 手元の詳細を出せていれば、取り直しの失敗で画面ごとエラーにしない
+      if (cached) return cached
+      throw e
+    })
+    applyUserDetail(userDetail)
 
-    // ピン留めは users/show 応答に同梱されたものを notecli が normalize して
-    // 返す (#632)。従来の users/show 二度打ち + notes/show × 件数の追加往復は
-    // 不要になり、プロフィール全体が 1 リクエストで確定する。
-    pinnedNoteIds.value = userDetail.pinnedNoteIds ?? []
-    pinnedNotes.value = userDetail.pinnedNotes ?? []
     // 内タブのノート一覧は UserProfileNotesList が mount 時に自律ロードする
     // Kick off users/show in the background to discover the publicReactions
     // privacy flag (and prime the Raw tab cache). Skip for own profile since
@@ -422,6 +431,22 @@ onMounted(async () => {
     isLoading.value = false
   }
 })
+
+function applyUserDetail(userDetail: NormalizedUserDetail) {
+  user.value = userDetail
+
+  // Prefetch banner image so it appears instantly when DOM renders.
+  // 実描画 (UserProfileHero) と同じプロキシ URL を温める (#814)
+  if (userDetail.bannerUrl) {
+    new Image().src = proxyUrl(userDetail.bannerUrl) ?? userDetail.bannerUrl
+  }
+
+  // ピン留めは users/show 応答に同梱されたものを notecli が normalize して
+  // 返す (#632)。従来の users/show 二度打ち + notes/show × 件数の追加往復は
+  // 不要になり、プロフィール全体が 1 リクエストで確定する。
+  pinnedNoteIds.value = userDetail.pinnedNoteIds ?? []
+  pinnedNotes.value = userDetail.pinnedNotes ?? []
+}
 
 async function loadRawUserJson() {
   if (rawUserObj.value != null) return

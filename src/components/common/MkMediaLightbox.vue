@@ -17,8 +17,10 @@ import { useSwipeTab } from '@/composables/useSwipeTab'
 import { i18n } from '@/i18n'
 import { isSafeUrl } from '@/services/safeUrl'
 import { useSystemStateStore } from '@/stores/systemState'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
+import MkMediaVideo from './MkMediaVideo.vue'
 import PopupMenu from './PopupMenu.vue'
 
 // MkMediaGrid から抽出した共通ライトボックス (#792 §2.6)。
@@ -55,6 +57,33 @@ function close() {
   emit('close')
 }
 
+// 拡大表示の画像も画像プロキシを通す (#1214)。ディスクキャッシュに載り、
+// WebView から相手サーバーへ直接取りに行かない。無変換 (原寸) で取る。
+// プロキシで読めなかったもの (1 ファイルの上限超え等) だけ元の URL に倒す
+const proxyFailed = ref(new Set<string>())
+
+function imageSrc(f: NormalizedDriveFile): string | undefined {
+  const url = safeMediaSrc(f.url)
+  if (!url || proxyFailed.value.has(url)) return url
+  return proxyUrl(url)
+}
+
+function onImageError(f: NormalizedDriveFile) {
+  const url = safeMediaSrc(f.url)
+  if (!url || proxyFailed.value.has(url)) return
+  proxyFailed.value = new Set(proxyFailed.value).add(url)
+}
+
+// 寸法が分かる動画はその比で、分からなければ 16:9 で画面に収める。
+// プレイヤーは親の幅に合わせて広がるので、ここで外枠の大きさを決める
+function videoBoxStyle(f: NormalizedDriveFile) {
+  const ratio = f.width && f.height ? f.width / f.height : 16 / 9
+  return {
+    aspectRatio: String(ratio),
+    width: `min(90vw, calc(90vh * ${ratio}))`,
+  }
+}
+
 // 前後 1 枚を先読みする (#704 O-3)。表示は原寸なので、スワイプした瞬間に
 // 取得が始まって空白が見えていた。省電力・従量制回線では TL の先読みと
 // 同じく止める。集合はこのライトボックスの files 分しか増えない
@@ -64,12 +93,13 @@ watch(
   index,
   (i) => {
     // 表示中の画像は <img> 自身が読むので、戻ったときに先読みし直さない
-    const current = safeMediaSrc(props.files[i]?.url)
+    const cur = props.files[i]
+    const current = cur ? imageSrc(cur) : undefined
     if (current) preloadedUrls.add(current)
     if (systemStateStore.adaptation.suppressPrefetch) return
     for (const f of [props.files[i - 1], props.files[i + 1]]) {
       if (!f || !isImage(f)) continue
-      const url = safeMediaSrc(f.url)
+      const url = imageSrc(f)
       if (!url || preloadedUrls.has(url)) continue
       preloadedUrls.add(url)
       new Image().src = url
@@ -224,16 +254,44 @@ function onContextMenu(e: MouseEvent) {
   menuRef.value?.open(e)
 }
 
+// 画像プロキシから取り、クリップボードが受け付ける PNG にする。元の URL を
+// WebView から直接 fetch すると相手サーバーの CORS で落ちることが多いので、
+// プロキシで取れなかったときだけ元の URL を試す
+async function fetchImageAsPng(url: string): Promise<Blob> {
+  let res = await fetch(proxyUrl(url) ?? url).catch(() => null)
+  if (!res?.ok) res = await fetch(url)
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const blob = await res.blob()
+  if (blob.type === 'image/png') return blob
+  // クリップボードの画像は PNG しか書けない (JPEG / WebP は write が拒む)
+  const bitmap = await createImageBitmap(blob)
+  const canvas = document.createElement('canvas')
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+  canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
+  bitmap.close()
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (png) => (png ? resolve(png) : reject(new Error('toBlob failed'))),
+      'image/png',
+    ),
+  )
+}
+
 async function copyImage() {
   const f = file.value
   if (!f?.url || !isSafeUrl(f.url)) return
+  const url = f.url
+  // 取得は Promise のまま渡す。WebKit は await を挟むとユーザー操作の
+  // 扱いが切れて write を拒む。write が中身を読まずに失敗したときに
+  // 未処理の reject を残さないよう、ここでも受けておく
+  const png = fetchImageAsPng(url)
+  png.catch(() => undefined)
   try {
-    const res = await fetch(f.url)
-    const blob = await res.blob()
-    await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })])
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
   } catch {
     // Fallback: copy URL as text
-    await copyToClipboard(f.url)
+    await copyToClipboard(url)
   }
   menuRef.value?.close()
 }
@@ -316,21 +374,23 @@ async function openInBrowser() {
       >
         <img
           v-if="isImage(file)"
-          :src="safeMediaSrc(file.url)"
+          :src="imageSrc(file)"
           :alt="file.name"
           :class="$style.lightboxImage"
           :style="zoomStyle"
           draggable="false"
           v-bind="longPressHandlers"
           @contextmenu="onContextMenu"
+          @error="onImageError(file)"
         />
-        <video
+        <div
           v-else-if="isVideo(file)"
-          :src="safeMediaSrc(file.url)"
+          :key="file.id"
           :class="$style.lightboxVideo"
-          controls
-          autoplay
-        />
+          :style="videoBoxStyle(file)"
+        >
+          <MkMediaVideo :file="file" autoplay />
+        </div>
       </div>
 
       <!-- Dot indicators -->
@@ -425,8 +485,7 @@ async function openInBrowser() {
 }
 
 .lightboxVideo {
-  max-width: 90vw;
-  max-height: 90vh;
+  overflow: hidden;
   border-radius: var(--nd-radius-xs);
 }
 

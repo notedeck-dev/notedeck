@@ -7,7 +7,9 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import DriveItemMenu from '@/components/common/DriveItemMenu.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkDriveFolderSelectDialog from '@/components/common/MkDriveFolderSelectDialog.vue'
+import MkMediaAudio from '@/components/common/MkMediaAudio.vue'
 import MkMediaLightbox from '@/components/common/MkMediaLightbox.vue'
+import MkMediaVideo from '@/components/common/MkMediaVideo.vue'
 import { useDriveActions } from '@/composables/useDriveActions'
 import {
   isAudio,
@@ -19,6 +21,7 @@ import { i18n } from '@/i18n'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { formatBytes } from '@/utils/format'
+import { proxyUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
@@ -86,6 +89,21 @@ function toggleReveal() {
 
 const blurred = computed(() => !!file.value?.isSensitive && !revealed.value)
 
+// プレビューも画像プロキシを通す (ライトボックスと同じ形)。プロキシで
+// 読めなかったもの (1 ファイルの上限超え等) だけ元の URL に倒す
+const proxyFailedUrl = ref<string | null>(null)
+
+const previewSrc = computed(() => {
+  const url = safeUrl(file.value?.url)
+  if (!url || proxyFailedUrl.value === url) return url
+  return proxyUrl(url)
+})
+
+function onPreviewError() {
+  const url = safeUrl(file.value?.url)
+  if (url) proxyFailedUrl.value = url
+}
+
 // --- Lightbox (画像のみ。動画は inline controls のまま — §8-33) ---
 const lightboxOpen = ref(false)
 
@@ -147,10 +165,11 @@ fetchFile()
       <div :class="$style.preview">
           <template v-if="isImage(file)">
             <img
-              :src="safeUrl(file.url)"
+              :src="previewSrc"
               :alt="file.name"
               :class="[$style.previewImage, { [$style.blurred]: blurred, [$style.zoomable]: !blurred }]"
               @click="onImageClick"
+              @error="onPreviewError"
             />
             <div v-if="blurred" class="_sensitiveOverlay" @click.stop="toggleReveal">
               <i class="ti ti-eye-off" />
@@ -167,12 +186,13 @@ fetchFile()
             </button>
           </template>
           <template v-else-if="isVideo(file)">
-            <video
+            <div
               v-if="!blurred"
-              :src="safeUrl(file.url)"
               :class="$style.previewVideo"
-              controls
-            />
+              :style="{ aspectRatio: file.width && file.height ? `${file.width} / ${file.height}` : '16 / 9' }"
+            >
+              <MkMediaVideo :file="file" />
+            </div>
             <div v-else :class="$style.previewPlaceholder" />
             <div v-if="blurred" class="_sensitiveOverlay" @click.stop="toggleReveal">
               <i class="ti ti-eye-off" />
@@ -188,10 +208,9 @@ fetchFile()
               <i class="ti ti-eye" />
             </button>
           </template>
-          <audio
+          <MkMediaAudio
             v-else-if="isAudio(file)"
-            :src="safeUrl(file.url)"
-            controls
+            :file="file"
             :class="$style.previewAudio"
           />
           <div v-else :class="$style.previewPlaceholder">
@@ -375,15 +394,13 @@ fetchFile()
 }
 
 .previewVideo {
-  display: block;
   width: 100%;
   max-height: 420px;
 }
 
 .previewAudio {
-  display: block;
   width: 100%;
-  padding: 16px;
+  padding: 10px;
 }
 
 .previewPlaceholder {

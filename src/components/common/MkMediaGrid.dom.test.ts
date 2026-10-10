@@ -39,6 +39,16 @@ vi.mock('@/stores/systemState', () => ({
   }),
 }))
 
+// プレイヤーの設定メニュー (#1214) は pinia の store を読むので差し替える
+vi.mock('./PopupMenu.vue', () => ({
+  default: defineComponent({
+    setup(_, { slots, expose }) {
+      expose({ open: vi.fn(), close: vi.fn() })
+      return () => h('div', { class: 'popup-stub' }, slots.default?.())
+    },
+  }),
+}))
+
 import MkMediaGrid from './MkMediaGrid.vue'
 
 function makeImage(id: string, sensitive = false): NormalizedDriveFile {
@@ -180,5 +190,100 @@ describe('アニメーション画像の再生制御 (#704)', () => {
   it('静止画にはボタンを出さない', () => {
     mountGrid([makeImage('still')])
     expect(toggle()).toBeNull()
+  })
+})
+
+describe('動画・音声の独自プレイヤー (#1214)', () => {
+  function makeVideo(id: string, thumbnailUrl: string | null) {
+    return {
+      ...makeImage(id),
+      name: `${id}.mp4`,
+      type: 'video/mp4',
+      url: `https://example.test/${id}.mp4`,
+      thumbnailUrl,
+    }
+  }
+
+  it('動画は標準の controls を出さず、サムネイルをプロキシ経由のポスターにして本体は読まない', () => {
+    mountGrid([makeVideo('v', 'https://example.test/v.webp')])
+    const video = container?.querySelector('video')
+    expect(video?.getAttribute('src')).toBe(
+      `http://localhost:19820/proxy/media?url=${encodeURIComponent('https://example.test/v.mp4')}`,
+    )
+    expect(video?.hasAttribute('controls')).toBe(false)
+    expect(video?.getAttribute('preload')).toBe('none')
+    const poster = container?.querySelector(
+      'img[aria-hidden="true"]:not([class*="blurhash"])',
+    )
+    expect(poster?.getAttribute('src')).toContain(
+      `proxy/image?url=${encodeURIComponent('https://example.test/v.webp')}`,
+    )
+    expect(container?.querySelector('input[type="range"]')).not.toBeNull()
+  })
+
+  it('動画の中継で読めなければ元の URL に戻し、それでも駄目ならエラー表示にする', async () => {
+    mountGrid([makeVideo('v', null)])
+    container?.querySelector('video')?.dispatchEvent(new Event('error'))
+    await vi.waitFor(() =>
+      expect(container?.querySelector('video')?.getAttribute('src')).toBe(
+        'https://example.test/v.mp4',
+      ),
+    )
+    container?.querySelector('video')?.dispatchEvent(new Event('error'))
+    await vi.waitFor(() => expect(container?.querySelector('video')).toBeNull())
+  })
+
+  it('サムネイルの無い動画は最初のフレームのためにメタデータだけ読む', () => {
+    mountGrid([makeVideo('v', null)])
+    expect(container?.querySelector('video')?.getAttribute('preload')).toBe(
+      'metadata',
+    )
+  })
+
+  it('再生ボタンで play() を呼ぶ', async () => {
+    const play = vi
+      .spyOn(HTMLMediaElement.prototype, 'play')
+      .mockResolvedValue(undefined)
+    mountGrid([makeVideo('v', null)])
+    const btn = container?.querySelector<HTMLButtonElement>(
+      'button[aria-label="再生"]',
+    )
+    btn?.click()
+    expect(play).toHaveBeenCalled()
+    play.mockRestore()
+  })
+
+  it('音声も標準の controls を出さない', () => {
+    mountGrid([
+      {
+        ...makeImage('a'),
+        name: 'a.mp3',
+        type: 'audio/mpeg',
+        url: 'https://example.test/a.mp3',
+      },
+    ])
+    const audio = container?.querySelector('audio')
+    expect(audio?.getAttribute('src')).toBe(
+      `http://localhost:19820/proxy/media?url=${encodeURIComponent('https://example.test/a.mp3')}`,
+    )
+    expect(audio?.hasAttribute('controls')).toBe(false)
+    expect(container?.textContent).toContain('a.mp3')
+  })
+
+  it('音声も中継で読めなければ元の URL に戻す', async () => {
+    mountGrid([
+      {
+        ...makeImage('a'),
+        name: 'a.mp3',
+        type: 'audio/mpeg',
+        url: 'https://example.test/a.mp3',
+      },
+    ])
+    container?.querySelector('audio')?.dispatchEvent(new Event('error'))
+    await vi.waitFor(() =>
+      expect(container?.querySelector('audio')?.getAttribute('src')).toBe(
+        'https://example.test/a.mp3',
+      ),
+    )
   })
 })

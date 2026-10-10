@@ -117,6 +117,9 @@ export const STORAGE_KEYS = {
   // 1 日の AI 起動カウンター (再起動跨ぎでカウント維持):
   // { dateEpochDays, count }
   heartbeatDailyCounter: 'nd-heartbeat-daily-counter',
+  // アプリで HEARTBEAT の報告を最後に見た時刻 (ms)。閉じている間の報告を次に開いたときに
+  // まとめて知らせるのに使う (#1165)。HEARTBEAT が有効な間だけ持つ
+  heartbeatLastSeenAt: 'nd-heartbeat-last-seen-at',
 
   // サーバーで凍結/削除されたユーザー (#828)。account ごとの entry を 1 キーに集約
   suspensions: 'nd-suspensions',

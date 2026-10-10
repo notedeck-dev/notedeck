@@ -37,6 +37,10 @@ pub struct StreamChatMessageReacted(pub notecli::streaming::StreamChatMessageRea
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct StreamChatMessageUnreacted(pub notecli::streaming::StreamChatMessageUnreactedEvent);
 
+/// 別の会話に来たチャットの新着 (main の `newChatMessage`)。チャットの履歴一覧が購読する
+#[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
+pub struct StreamNewChatMessage(pub notecore::stream_fanout::StreamNewChatMessageEvent);
+
 /// broadcast の絵文字辞書変更 (#889)。絵文字ストアが購読して push 反映する。
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct StreamEmojiChanged(pub notecli::streaming::StreamEmojiChangedEvent);
@@ -646,6 +650,8 @@ impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
                 .emit(&self.app)
                 .err(),
             E::EmojiChanged(e) => StreamEmojiChanged((**e).clone()).emit(&self.app).err(),
+            E::MainEvent(_) => notecore::stream_fanout::new_chat_message(&event)
+                .and_then(|m| StreamNewChatMessage(m).emit(&self.app).err()),
             _ => None,
         };
         if let Some(e) = dedicated {
@@ -702,7 +708,8 @@ mod tests {
                 StreamUnread,
                 StreamStatus,
                 StreamChatMessageReacted,
-                StreamChatMessageUnreacted
+                StreamChatMessageUnreacted,
+                StreamNewChatMessage
             ])
             .mount_events(&app);
         app
@@ -744,6 +751,38 @@ mod tests {
             .recv_timeout(RECV_TIMEOUT)
             .expect("stream-envelope should arrive while observing");
         assert_eq!(envelope.0.kind(), "stream-status");
+    }
+
+    /// main の newChatMessage は観測が閉じていても専用チャネルに流れる
+    #[test]
+    fn new_chat_message_has_its_own_channel() {
+        let app = mock_app();
+        let (tx, rx) = mpsc::channel();
+        StreamNewChatMessage::listen(&app, move |ev| {
+            let _ = tx.send(ev.payload);
+        });
+        let observation = Arc::new(notecore::stream_fanout::StreamObservation::default());
+        let emitter = TauriEmitter::new(app.handle().clone(), observation);
+
+        emitter.emit(StreamEvent::MainEvent(Box::new(
+            notecli::streaming::StreamMainEvent {
+                account_id: "acct-1".into(),
+                subscription_id: "main".into(),
+                event_type: "newChatMessage".into(),
+                body: json!({
+                    "id": "m1",
+                    "createdAt": "2026-10-10T00:00:00.000Z",
+                    "fromUserId": "u2",
+                    "toUserId": "u1",
+                    "text": "hi",
+                }),
+            },
+        )));
+        let got = rx
+            .recv_timeout(RECV_TIMEOUT)
+            .expect("stream-new-chat-message should arrive");
+        assert_eq!(got.0.account_id, "acct-1");
+        assert_eq!(got.0.message.id, "m1");
     }
 
     /// 統合チャネル (StreamEnvelope) の受信を channel に集める。

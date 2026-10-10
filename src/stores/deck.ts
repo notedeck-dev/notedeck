@@ -509,6 +509,42 @@ export const useDeckStore = defineStore('deck', () => {
     }
   }
 
+  /**
+   * AI のセッションを AI カラムで開く (アプリの通知から, #1165)。既にある AI カラム
+   * (サイドバーを優先) で開き、無ければサイドバーに 1 本開く
+   */
+  function openAiSession(sessionId: string) {
+    const existing =
+      columns.value.find((c) => c.sidebar && c.type === 'ai') ??
+      columns.value.find((c) => c.type === 'ai')
+    const sidebar = columns.value.find((c) => c.sidebar)
+    if (existing) {
+      updateColumn(existing.id, { aiCurrentSessionId: sessionId })
+    } else if (sidebar) {
+      updateColumn(sidebar.id, {
+        type: 'ai',
+        accountId: null,
+        name: null,
+        aiCurrentSessionId: sessionId,
+      })
+    } else {
+      addColumnAt(0, {
+        type: 'ai',
+        name: null,
+        width: DEFAULT_COLUMN_WIDTH,
+        accountId: null,
+        sidebar: true,
+        aiCurrentSessionId: sessionId,
+      })
+      return
+    }
+    const id = existing?.id ?? sidebar?.id
+    activeColumnId.value = null
+    nextTick(() => {
+      activeColumnId.value = id ?? null
+    })
+  }
+
   /** sidebar チャットカラムが会話ターゲットを取り出して消費する。 */
   function consumePendingChatTarget(): ChatConversationTarget | null {
     const t = pendingChatTarget.value
@@ -896,6 +932,7 @@ export const useDeckStore = defineStore('deck', () => {
     pendingChatTarget,
     openChatWith,
     openSearchWith,
+    openAiSession,
     consumePendingChatTarget,
     updateColumn,
     swapColumns,

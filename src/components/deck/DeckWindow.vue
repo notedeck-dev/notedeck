@@ -470,6 +470,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style lang="scss" module>
+@use '@/styles/buttons' as *;
 @use '@/styles/spotlight' as *;
 
 .deckWindow {
@@ -628,9 +629,8 @@ onBeforeUnmount(() => {
   color: var(--nd-fg);
   opacity: 0.6;
   flex-shrink: 0;
-  transition:
-    background var(--nd-duration-fast),
-    opacity var(--nd-duration-fast);
+  // 閉じるボタンの赤 (color) も一緒に遷移させる
+  @include nd-interactive;
 
   &:hover:not(:disabled) {
     background: var(--nd-buttonHoverBg);

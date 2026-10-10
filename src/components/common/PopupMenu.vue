@@ -29,7 +29,11 @@ const triggerRef = ref<HTMLElement | null>(null)
 
 const { visible, entering, leaving } = useVaporTransition(showMenu, {
   enterDuration: 200,
-  leaveDuration: 200,
+  // 退場はシート (navMenu.scss、--nd-duration-medium) とポップアップ
+  // (--nd-duration-base) で長さが違う
+  get leaveDuration() {
+    return isCompact.value ? 200 : 150
+  },
 })
 
 const { activate: activateKeyboard, deactivate: deactivateKeyboard } =
@@ -52,7 +56,7 @@ useNativePopover(
   computed(() => visible.value && !isCompact.value),
   {
     onClose: () => close(),
-    leaveDuration: 200,
+    leaveDuration: 150,
     dismissOnOutsideClick: true,
     ignoreOutsideClickFor: triggerRef,
   },

@@ -52,6 +52,8 @@ const ALLOWED: Record<string, string> = {
   'src/services/boundedCache.ts:registry':
     'lifecycle: WeakRef 保持 — 参照切れは登録時と一覧読み取り時に掃除 (#977 観測レジストリ)',
   'src/utils/dedup.ts:inflight': 'lifecycle: finally で削除',
+  'src/services/userDetailCache.ts:pending':
+    'lifecycle: users/show の完了 (finally) で削除 (#1212)',
   'src/composables/aiTurnExecutions.ts:controllers':
     'lifecycle: 実行要求の完了 (finally) かターン中断で削除 (#1133)',
   'src/composables/aiConfirmRequests.ts:open':

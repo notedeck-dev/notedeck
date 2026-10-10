@@ -27,6 +27,7 @@ import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import I18n from '@/components/common/I18n.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAvatar from '@/components/common/MkAvatar.vue'
+import MkEmoji from '@/components/common/MkEmoji.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
@@ -63,7 +64,6 @@ import {
   isTutorialNotificationId,
   mergeTutorialNotifications,
 } from '@/services/tutorialNotifications'
-import { char2twemojiUrl } from '@/services/twemoji'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
@@ -596,8 +596,6 @@ const reactionUrlLookup = createBoundedCache<string, string | null>(
   () => perfStore.get('maxNotifications'),
   'notification:reaction-url',
 )
-// 絵文字そのものがキー (Unicode 絵文字の種類ぶん) なので通知数では増えない
-const twemojiUrlLookup = new Map<string, string | null>()
 
 function getCachedReactionUrl(
   reaction: string,
@@ -619,15 +617,10 @@ function getCachedReactionUrl(
   return url ? (proxyEmojiUrl(url) ?? url) : null
 }
 
-function getCachedTwemojiUrl(reaction: string): string | null {
-  if (twemojiUrlLookup.has(reaction))
-    return twemojiUrlLookup.get(reaction) ?? null
-  const url =
-    reaction.startsWith(':') && reaction.endsWith(':')
-      ? null
-      : char2twemojiUrl(reaction)
-  twemojiUrlLookup.set(reaction, url)
-  return url
+// Unicode 絵文字は MkEmoji に任せ、同梱 Twemoji に無い新しい絵文字の 404 を
+// アプリ全体の記憶 (failedTwemojiUrls) で一度きりにする (#1219)
+function isUnicodeReaction(reaction: string): boolean {
+  return !(reaction.startsWith(':') && reaction.endsWith(':'))
 }
 
 // 解決済み URL のロード失敗 (リモート鯖ダウン・プロキシ 502 等) は unknown 表示に
@@ -867,6 +860,58 @@ function buildSummary(notif: NormalizedNotification): NoteSummaryView | null {
 // ユーザー名の位置に出し、汎用ラベル「通知」は抑える。
 function appHeader(notif: NormalizedNotification): string | null {
   return notif.type === 'app' ? (notif.header ?? null) : null
+}
+
+/** エクスポートの対象の名前。対応表は本家 MkNotification の exportEntityName と揃える */
+const EXPORTED_ENTITY_NAMES: Record<string, string> = {
+  get antenna() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.antenna
+  },
+  get blocking() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.blocking
+  },
+  get clip() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.clip
+  },
+  get customEmoji() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.customEmoji
+  },
+  get favorite() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.favorite
+  },
+  get following() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.following
+  },
+  get muting() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.muting
+  },
+  get note() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.note
+  },
+  get userList() {
+    return i18n.ts._deckNotificationColumn.exportedEntity.userList
+  },
+}
+
+/**
+ * エクスポート完了の見出しに何をエクスポートしたかを入れる (本家と同じ、#1217)。
+ * 知らない種類は汎用の「エクスポートが完了しました」に任せる
+ */
+function exportLabel(notif: NormalizedNotification): string | null {
+  if (notif.type !== 'exportCompleted' || !notif.exportedEntity) return null
+  const x = EXPORTED_ENTITY_NAMES[notif.exportedEntity]
+  return x
+    ? i18n.tsx._deckNotificationColumn.labelExportOfXCompleted({ x })
+    : null
+}
+
+/** エクスポートで出来上がったファイルをドライブのファイル詳細で開く (#1217) */
+function openExportedFile(notif: NormalizedNotification) {
+  if (!notif.fileId) return
+  useWindowsStore().open('drive-file-detail', {
+    accountId: notif._accountId,
+    fileId: notif.fileId,
+  })
 }
 
 function cacheAccountKey() {
@@ -1353,7 +1398,6 @@ onUnmounted(() => {
     rafId = null
   }
   reactionUrlLookup.clear()
-  twemojiUrlLookup.clear()
 })
 </script>
 
@@ -1476,7 +1520,7 @@ onUnmounted(() => {
                   <template v-if="notif.type === 'reaction' && notif.reaction">
                     <span v-if="isEmojiMuted(notif.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="notif.reaction" :title="i18n.tsx._common.mutedReaction({ reaction: notif.reaction })" />
                     <img v-else-if="getCachedReactionUrl(notif.reaction, notif)" :src="getCachedReactionUrl(notif.reaction, notif)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
-                    <img v-else-if="getCachedTwemojiUrl(notif.reaction)" :src="getCachedTwemojiUrl(notif.reaction)!" :alt="notif.reaction" :title="notif.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
+                    <span v-else-if="isUnicodeReaction(notif.reaction)" :class="[$style.notifSubIconEmoji, $style.notifSubIconTwemoji]" :title="notif.reaction"><MkEmoji :emoji="notif.reaction" ignore-muted /></span>
                     <i v-else :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
                   </template>
                   <i v-else-if="!isGrouped(notif) && notificationIcon(notif.type)" :class="[`ti ti-${notificationIcon(notif.type)}`, $style.notifSubIcon]" :style="{ background: notificationColor(notif.type) }" />
@@ -1496,6 +1540,7 @@ onUnmounted(() => {
                         </template>
                       </I18n>
                       <template v-else-if="appHeader(notif)">{{ appHeader(notif) }}</template>
+                      <template v-else-if="exportLabel(notif)">{{ exportLabel(notif) }}</template>
                       <template v-else-if="hasTypeLabel(notif.type) || !notif.user">{{ notificationLabel(notif.type) }}</template>
                       <span v-else :class="$style.notifUserName">
                         <MkMfm v-if="notif.user.name" :text="notif.user.name" :emojis="notif.user.emojis" :server-host="notif._serverHost" plain />
@@ -1548,6 +1593,21 @@ onUnmounted(() => {
                     <span :class="$style.notifRoleName" :style="notif.role.color ? { color: notif.role.color } : undefined">{{ notif.role.name }}</span>
                   </div>
 
+                  <!-- 招待されたルームの名前 -->
+                  <div v-if="notif.type === 'chatRoomInvitationReceived' && notif.invitation?.room.name" :class="$style.notifDetail">
+                    {{ notif.invitation.room.name }}
+                  </div>
+
+                  <!-- エクスポートで出来上がったファイルへの導線 -->
+                  <button
+                    v-if="notif.type === 'exportCompleted' && notif.fileId"
+                    type="button"
+                    :class="$style.notifSummary"
+                    @click.stop="openExportedFile(notif)"
+                  >
+                    <span :class="$style.notifSummaryText">{{ i18n.ts._deckNotificationColumn.showFile }}</span>
+                  </button>
+
                   <!-- Follow request actions -->
                   <div
                     v-if="notif.type === 'receiveFollowRequest' && notif.user"
@@ -1596,7 +1656,7 @@ onUnmounted(() => {
                       <template v-if="entry.reaction">
                         <span v-if="isEmojiMuted(entry.reaction)" :class="$style.notifSubIconMuted" role="img" :aria-label="entry.reaction" :title="i18n.tsx._common.mutedReaction({ reaction: entry.reaction })" />
                         <img v-else-if="getCachedReactionUrl(entry.reaction, notif)" :src="getCachedReactionUrl(entry.reaction, notif)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
-                        <img v-else-if="getCachedTwemojiUrl(entry.reaction)" :src="getCachedTwemojiUrl(entry.reaction)!" :alt="entry.reaction" :title="entry.reaction" :class="$style.notifSubIconEmoji" loading="lazy" @error="onReactionImgError" />
+                        <span v-else-if="isUnicodeReaction(entry.reaction)" :class="[$style.notifSubIconEmoji, $style.notifSubIconTwemoji]" :title="entry.reaction"><MkEmoji :emoji="entry.reaction" ignore-muted /></span>
                       </template>
                     </div>
                     <span
@@ -1809,6 +1869,22 @@ onUnmounted(() => {
   composes: notifSubIconEmoji;
 }
 
+/* MkEmoji を台紙の中に収める。読めなかった新しい絵文字は文字で出る */
+.notifSubIconTwemoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* MkEmoji の文字は 1.25em なので台紙 (20px) に収まる大きさにする */
+  font-size: 11px;
+  line-height: 1;
+
+  > img {
+    width: 100%;
+    height: 100%;
+    vertical-align: top;
+  }
+}
+
 .notifSubIconMuted::before {
   content: '';
   position: absolute;
@@ -1952,6 +2028,13 @@ onUnmounted(() => {
   color: var(--nd-fg);
   opacity: 0.7;
   margin-top: 2px;
+}
+
+.notifDetail {
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .notifAppBody {

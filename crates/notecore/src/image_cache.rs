@@ -524,38 +524,37 @@ impl ImageCache {
         }
 
         // Inflight dedup: wait for existing fetch, then return from cache.
-        // 先頭の取得が結果を送らずに終わっていたら (要求が取り消された等)、
-        // 待っていた側は失敗せず自分で取りに行く。登録は下の guard が片付けるが、
-        // 片付く前に覗いた場合に備えて、送り手の消えた登録はここで外す
-        let (tx, mut inflight_guard) = loop {
-            let mut inflight = self.inflight.lock().await;
-            if let Some(rx) = inflight.get(&hash) {
-                if rx.has_changed().is_err() && rx.borrow().is_none() {
-                    inflight.remove(&hash);
-                } else {
-                    let mut rx = rx.clone();
-                    drop(inflight);
-                    while rx.changed().await.is_ok() {
-                        if let Some(result) = rx.borrow().as_ref() {
-                            return result.clone().map(StreamingFetchResult::Cached);
-                        }
+        let mut inflight = self.inflight.lock().await;
+        if let Some(rx) = inflight.get(&hash) {
+            if rx.has_changed().is_err() && rx.borrow().is_none() {
+                // 送り手が結果を送らずに消えた登録 (取り消された取得の残骸)。
+                // 残すと以降の同じ URL が全部即座に失敗し続けるので外し、
+                // この要求が先頭として取りに行く
+                inflight.remove(&hash);
+            } else {
+                let mut rx = rx.clone();
+                drop(inflight);
+                while rx.changed().await.is_ok() {
+                    if let Some(result) = rx.borrow().as_ref() {
+                        return result.clone().map(StreamingFetchResult::Cached);
                     }
-                    continue;
                 }
+                // 待っている間に先頭が取り消された。ここで取り直さずすぐ返す:
+                // 待つ側が取り直すと、上流の 429 待ちなどで WebView の同一宛先の
+                // 同時接続 (6 本) を長く塞ぎ、後ろの画像が全部順番待ちになる。
+                // 表示側は間を置いて取り直し、そのときは片付いた登録から取れる
+                return Err("Inflight request dropped".to_string());
             }
+        }
 
-            // Register inflight
-            let (tx, rx) = watch::channel(None);
-            inflight.insert(hash.clone(), rx.clone());
-            drop(inflight);
-            break (
-                tx,
-                InflightGuard {
-                    inflight: self.inflight.clone(),
-                    hash: hash.clone(),
-                    rx: Some(rx),
-                },
-            );
+        // Register inflight。取得が途中で取り消されたら guard が登録を片付ける
+        let (tx, rx) = watch::channel(None);
+        inflight.insert(hash.clone(), rx.clone());
+        drop(inflight);
+        let mut inflight_guard = InflightGuard {
+            inflight: self.inflight.clone(),
+            hash: hash.clone(),
+            rx: Some(rx),
         };
 
         // Start HTTP request (headers only, don't consume body yet)
@@ -1477,10 +1476,10 @@ mod tests {
         );
     }
 
-    /// 先頭の取得が結果を送らずに終わっていたら、待っていた側は失敗せず
-    /// 自分で取りに行く
+    /// 結果を送らずに消えた登録 (取り消された取得の残骸) が残っていても、
+    /// 次の要求は即座に失敗せず、登録を外して自分で取りに行く
     #[tokio::test]
-    async fn waiter_takes_over_when_leader_vanished() {
+    async fn stale_inflight_entry_is_replaced_by_next_request() {
         let dir = tempfile::tempdir().unwrap();
         let cache = Arc::new(ImageCache::new(dir.path()));
         let url = "https://example.com/emoji.png";
@@ -1502,5 +1501,32 @@ mod tests {
             "即座に Inflight request dropped で失敗せず、自分の取得 (throttle 待ち) に入る"
         );
         task.abort();
+    }
+
+    /// 待っている間に先頭が取り消されたら、待っていた側は取り直さずすぐ
+    /// 失敗を返す。取り直すと上流の 429 待ちなどで WebView の同一宛先の
+    /// 同時接続を長く塞ぎ、後ろの画像が全部止まる (v1.83.0 の Windows で発生)
+    #[tokio::test]
+    async fn waiter_fails_fast_when_leader_is_cancelled() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = Arc::new(ImageCache::new(dir.path()));
+        let url = "https://example.com/avatar.png";
+        cache
+            .throttle_host("example.com", Duration::from_secs(60))
+            .await;
+
+        let c = cache.clone();
+        let leader = tokio::spawn(async move { c.fetch_streaming(url).await });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        let c = cache.clone();
+        let waiter = tokio::spawn(async move { c.fetch_streaming(url).await });
+        tokio::time::sleep(Duration::from_millis(50)).await;
+
+        leader.abort();
+        let result = tokio::time::timeout(Duration::from_secs(1), waiter)
+            .await
+            .expect("待っていた側はすぐ返る")
+            .unwrap();
+        assert!(result.is_err());
     }
 }

@@ -733,6 +733,32 @@ export interface Locale {
     /** ブラウザーで開く */
     readonly "openInBrowser": string
   }
+  readonly "_mkMediaPlayer": {
+    /** 再生 */
+    readonly "play": string
+    /** 一時停止 */
+    readonly "pause": string
+    /** ミュート */
+    readonly "mute": string
+    /** ミュート解除 */
+    readonly "unmute": string
+    /** 音量 */
+    readonly "volume": string
+    /** 再生位置 */
+    readonly "seek": string
+    /** 再生の設定 */
+    readonly "settings": string
+    /** ループ再生 */
+    readonly "loop": string
+    /** 再生速度 */
+    readonly "playbackRate": string
+    /** ピクチャーインピクチャー */
+    readonly "pip": string
+    /** 全画面 */
+    readonly "fullscreen": string
+    /** 全画面を終了 */
+    readonly "exitFullscreen": string
+  }
   readonly "_mkNote": {
     /** 翻訳中... */
     readonly "translating": string
@@ -1488,7 +1514,7 @@ export interface Locale {
     readonly "minutes": string
     /** デスクトップ通知 */
     readonly "desktopNotification": string
-    /** 重要発見 (HEARTBEAT_OK 以外) を OS 通知で表示。アプリにフォーカスがあれば自動抑制 */
+    /** アプリを開いている間、AI が知らせたい報告を OS の通知でも表示します (アプリにフォーカスがあるときは出しません)。報告はこの設定に関わらずアプリの通知に届きます */
     readonly "desktopNotificationDescription": string
     /** まず軽く確認 */
     readonly "cheapCheck": string
@@ -1512,7 +1538,7 @@ export interface Locale {
     readonly "changeInPermissions": string
     /** アプリを終了しても続ける */
     readonly "keepRunning": string
-    /** OS のログイン時タスクとして AI を常駐させ、アプリを終了しても巡回が続きます。報告は次にアプリを開いたときに届きます。再起動は不要です。 */
+    /** OS のログイン時タスクとして AI を常駐させ、アプリを終了しても巡回が止まらないようにします。閉じている間の報告は、次にアプリを開いたときにアプリの通知に届きます。再起動は不要です。 */
     readonly "keepRunningDescription": string
     /** 切り替え中... */
     readonly "keepRunningSwitching": string
@@ -2886,6 +2912,8 @@ help */
     readonly "saveFailed": ParameterizedString<'error'>
     /** オブジェクト ({}) が必要です */
     readonly "objectRequired": string
+    /** この ID は他のタスクでも使われています。重複している間は保存されません */
+    readonly "duplicateId": string
     /** リセットに失敗しました: {error} */
     readonly "resetFailed": ParameterizedString<'error'>
     /** 新しいタスク */
@@ -3256,6 +3284,30 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "labelExportCompleted": string
     /** ルームに招待されました */
     readonly "labelChatRoomInvitationReceived": string
+    /** {x}のエクスポートが完了しました */
+    readonly "labelExportOfXCompleted": ParameterizedString<'x'>
+    readonly "exportedEntity": {
+      /** アンテナ */
+      readonly "antenna": string
+      /** ブロックしたユーザー */
+      readonly "blocking": string
+      /** クリップ */
+      readonly "clip": string
+      /** カスタム絵文字 */
+      readonly "customEmoji": string
+      /** お気に入り */
+      readonly "favorite": string
+      /** フォロー */
+      readonly "following": string
+      /** ミュートしたユーザー */
+      readonly "muting": string
+      /** ノート */
+      readonly "note": string
+      /** リスト */
+      readonly "userList": string
+    }
+    /** ファイルを表示 */
+    readonly "showFile": string
     /** {count} 人がリアクションしました */
     readonly "reactedBy_plural": PluralString<'count'>
     /** {count} 人がいいねしました */
@@ -4812,6 +4864,18 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "sessionExpired": string
     /** ログインの有効期限が切れました。アカウントメニューから再ログインしてください。 */
     readonly "sessionExpiredUseMenu": string
+  }
+  readonly "_useHeartbeatDaemon": {
+    /** 確認待ちの操作が {count} 件あります */
+    readonly "pending_plural": PluralString<'count'>
+    /** 閉じている間の報告 {count} 件 */
+    readonly "awayReports_plural": PluralString<'count'>
+    /** 閉じている間の報告 {count} 件・確認待ちの操作 {pending} 件 */
+    readonly "awayReportsAndPending": ParameterizedString<'count' | 'pending'>
+    /** 閉じている間に確認待ちの操作が {count} 件増えました */
+    readonly "awayPending_plural": PluralString<'count'>
+    /** この報告のセッションは削除されています */
+    readonly "sessionMissing": string
   }
   readonly "_useMfmInsert": {
     /** Flip (横) */

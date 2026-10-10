@@ -229,4 +229,17 @@ describe('DriveFileDetailContent の EXIF 表示 (#797)', () => {
     )
     expect(readImageExifMock).toHaveBeenCalledTimes(1)
   })
+  it('プレビュー画像は画像プロキシ経由で読み、失敗したときだけ元の URL に戻す', async () => {
+    await mountDetail()
+    const proxied = `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent('https://example.test/photo.png')}`
+    expect(img()?.getAttribute('src')).toBe(proxied)
+    img()?.dispatchEvent(new Event('error'))
+    await vi.waitFor(() =>
+      expect(img()?.getAttribute('src')).toBe('https://example.test/photo.png'),
+    )
+    // 元の URL でも失敗したら、それ以上は切り替えない
+    img()?.dispatchEvent(new Event('error'))
+    await new Promise((r) => setTimeout(r, 0))
+    expect(img()?.getAttribute('src')).toBe('https://example.test/photo.png')
+  })
 })

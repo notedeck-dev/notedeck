@@ -1506,7 +1506,8 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 │  [JS] useHeartbeatDaemon (App.vue で 1 mount)          │
 │    設定 (enabled / interval) → timer                    │
 │    'nd:ai-heartbeat-event' → セッション写しの読み直し / │
-│      OS 通知 / toast / ペットの活動表示                  │
+│      アプリの通知 / OS 通知 / ペットの活動表示           │
+│    起動時: 閉じている間の報告を 1 件にまとめて通知       │
 └────────────────────────────────────────────────────────┘
 ┌─ notemaid ─────────────────────────────────────────────┐
 │  run_once: 設定 (ai.json5) → skill (mode: heartbeat、   │
@@ -1537,7 +1538,17 @@ NoteDeck の巡回の手順は `mode: heartbeat` の skill (予約 skill `HEARTB
 
 #### 応答契約 (`heartbeat.report` tool と legacy の `HEARTBEAT_OK`)
 
-AI は報告すべきことがあるときだけ `heartbeat.report` tool を呼び、本文と通知の有無を返す (発想元の OpenClaw と同じ形)。tool を呼ばない応答は legacy の ack として受理する: 先頭 / 末尾の `HEARTBEAT_OK` を剥がし、残りが短ければ (上限は `heartbeat.rs` の定数) 全体を捨てる。tool 経由の報告は `notify` が真のときだけ OS 通知を出す (legacy は常に出す)。報告は target session に `heartbeat: true` のメッセージとして書き、デバイスは変更を受けてそのセッションの写しを読み直す。
+AI は報告すべきことがあるときだけ `heartbeat.report` tool を呼び、本文と通知の有無を返す (発想元の OpenClaw と同じ形)。tool を呼ばない応答は legacy の ack として受理する: 先頭 / 末尾の `HEARTBEAT_OK` を剥がし、残りが短ければ (上限は `heartbeat.rs` の定数) 全体を捨てる。tool 経由の報告は `notify` が真のときだけ知らせる (legacy は常に知らせる)。報告は target session に `heartbeat: true` のメッセージとして書き、デバイスは変更を受けてそのセッションの写しを読み直す。
+
+#### 知らせ (アプリの通知、#1165)
+
+HEARTBEAT の知らせはアプリの通知 (通知カード + 受信トレイ) で回収し、送り元は HEARTBEAT にする。押して移る先がある知らせは情報でも受信トレイに残る (`stores/toast.ts`)。
+
+- **報告** (`notify`、AI が「通知して」とした報告): 必ず受信トレイに残し、押せば報告先の AI セッションを AI カラムで開く (無ければサイドバーに 1 本開く、消えていればそう知らせる)。AI 設定の「デスクトップ通知」は notemaid が `desktop` に載せ、アプリを開いている間の OS 通知を出すかだけを決める (フォーカス中は出さない)
+- **確認待ちの操作**: `report` に新しく積んだ数 (`pending`) を載せ、1 以上なら受信トレイに出す。押せばそのセッションを開く
+- **自動停止 / 失敗 / 日次上限** (`toast`): 押せば AI 設定の HEARTBEAT を開く
+- **閉じている間の報告**: 端末に「最後に見た時刻」(localStorage、HEARTBEAT が有効な間だけ持つ。開いている間は報告を受けるたびに進める) を持ち、次に開いたときにそれより後の HEARTBEAT メッセージを全セッションから数えて「閉じている間の報告 N 件」(確認待ちがあれば一緒に) として 1 件にまとめて出す。数える規則は `src/services/heartbeatAway.ts`。正本はセッションなので受信トレイ自体は保存しない
+- notemaid 自身は OS 通知を出さない (採用しない理由は ROADMAP の「採用しない」)
 
 #### 停止条件と失敗 (token 予算 / 失敗の永続化)
 

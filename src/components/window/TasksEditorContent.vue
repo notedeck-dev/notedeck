@@ -9,6 +9,7 @@ import {
   onMounted,
   reactive,
   ref,
+  toRaw,
   watch,
 } from 'vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
@@ -81,7 +82,20 @@ useWindowExternalFile(() =>
 const code = ref('')
 const codeError = ref<string | null>(null)
 const visualTasks = ref<TaskDefinition[]>([])
-const expanded = reactive<Record<string, boolean>>({})
+// カードの鍵と開閉状態はタスクの ID ではなくオブジェクトに結び付ける。ID は入力欄で
+// 書き換わるので、ID を鍵にすると 1 文字ごとにカードが作り直されて閉じる (#1215)
+let nextCardKey = 0
+const cardKeys = new WeakMap<TaskDefinition, number>()
+function cardKey(t: TaskDefinition): number {
+  const raw = toRaw(t)
+  let k = cardKeys.get(raw)
+  if (k === undefined) {
+    k = nextCardKey++
+    cardKeys.set(raw, k)
+  }
+  return k
+}
+const expanded = reactive<Record<number, boolean>>({})
 const loaded = ref(false)
 const saving = ref(false)
 let suppressSync = false
@@ -93,6 +107,24 @@ function tasksToJson(tasks: TaskDefinition[]): string {
 function syncVisualFromCode(): boolean {
   try {
     const parsed = parseTasks(code.value)
+    // コードから読み直すとオブジェクトが入れ替わるので、開閉と打ちかけの params は
+    // 同じ ID のタスクへ引き継ぐ
+    const openIds = new Set<string>()
+    const drafts = new Map<string, { base: string; text: string }>()
+    for (const t of visualTasks.value) {
+      const k = cardKey(t)
+      if (expanded[k]) openIds.add(t.id)
+      const d = paramsDraft[k]
+      if (d) drafts.set(t.id, d)
+      delete expanded[k]
+      delete paramsDraft[k]
+    }
+    for (const t of parsed.tasks) {
+      const k = cardKey(t)
+      if (openIds.has(t.id)) expanded[k] = true
+      const d = drafts.get(t.id)
+      if (d) paramsDraft[k] = d
+    }
     suppressSync = true
     visualTasks.value = parsed.tasks
     nextTick(() => {
@@ -158,7 +190,9 @@ watch(
 )
 
 async function persist() {
-  if (codeError.value) return
+  // ID の重複はコードの検証 (parseTasks) でも弾くが、そちらは別の debounce で
+  // 走るので、見えている重複はここでも直接見る
+  if (codeError.value || duplicateIds.value.size > 0) return
   saving.value = true
   try {
     if (isTauri) await writeTasks(code.value)
@@ -175,6 +209,17 @@ async function persist() {
 
 const taskCount = computed(() => visualTasks.value.length)
 
+// 2 つ以上のタスクが使っている ID。該当する欄の直下にエラーを出す
+const duplicateIds = computed(() => {
+  const seen = new Set<string>()
+  const dup = new Set<string>()
+  for (const t of visualTasks.value) {
+    if (seen.has(t.id)) dup.add(t.id)
+    seen.add(t.id)
+  }
+  return dup
+})
+
 // ── Visual edit helpers ──
 function uniqueId(base: string): string {
   const ids = new Set(visualTasks.value.map((t) => t.id))
@@ -185,20 +230,21 @@ function uniqueId(base: string): string {
 }
 
 function addTask() {
-  const id = uniqueId('new-task')
-  visualTasks.value.push({
-    id,
+  const task: TaskDefinition = {
+    id: uniqueId('new-task'),
     label: i18n.ts._tasksEditorContent.newTaskLabel,
     action: { type: 'api', method: 'i' },
-  })
-  expanded[id] = true
+  }
+  visualTasks.value.push(task)
+  expanded[cardKey(task)] = true
 }
 
 function removeTask(index: number) {
   const t = visualTasks.value[index]
   if (!t) return
   visualTasks.value.splice(index, 1)
-  delete expanded[t.id]
+  delete expanded[cardKey(t)]
+  delete paramsDraft[cardKey(t)]
 }
 
 const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
@@ -213,8 +259,9 @@ const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
   },
 })
 
-function toggleExpanded(id: string) {
-  expanded[id] = !expanded[id]
+function toggleExpanded(t: TaskDefinition) {
+  const k = cardKey(t)
+  expanded[k] = !expanded[k]
 }
 
 function paramsToText(t: TaskDefinition): string {
@@ -240,17 +287,17 @@ function setParamsFromText(t: TaskDefinition, text: string) {
 // 打ちかけの params。正しい JSON5 になるまで params は変わらないので、
 // 保存値から描き直すと打った文字が消え、誤りも表示できない。
 // 外 (コードタブ等) で params が変わったら下書きは捨てる
-const paramsDraft = reactive<Record<string, { base: string; text: string }>>({})
+const paramsDraft = reactive<Record<number, { base: string; text: string }>>({})
 
 function paramsText(t: TaskDefinition): string {
-  const d = paramsDraft[t.id]
+  const d = paramsDraft[cardKey(t)]
   const base = paramsToText(t)
   return d && d.base === base ? d.text : base
 }
 
 function onParamsInput(t: TaskDefinition, text: string) {
   setParamsFromText(t, text)
-  paramsDraft[t.id] = { base: paramsToText(t), text }
+  paramsDraft[cardKey(t)] = { base: paramsToText(t), text }
 }
 
 function paramsErrorOf(text: string): string | null {
@@ -379,10 +426,14 @@ const groupSuggestions = computed<string[]>(() => {
 })
 
 // ── Code tab actions ──
+// 誤りがあってもボタンは押せるままにし、押されたら誤りの文 (エディタの直下) を
+// 出したままエディタへフォーカスを戻す (DEVELOPMENT.md のフォームの方針)
 function applyFromCode() {
   if (syncVisualFromCode()) {
     tab.value = 'visual'
+    return
   }
+  contentRef.value?.querySelector<HTMLElement>('.cm-content')?.focus()
 }
 
 // ── Footer actions ──
@@ -465,15 +516,18 @@ function handleReset() {
       <div :class="$style.taskList">
         <div
           v-for="(t, i) in visualTasks"
-          :key="t.id + i"
+          :key="cardKey(t)"
           :data-task-idx="i"
           :class="[$style.taskCard, {
-            [$style.expanded]: expanded[t.id],
+            [$style.expanded]: expanded[cardKey(t)],
             [$style.dragging]: dragFromIndex === i,
             [$style.dragOver]: dragOverIndex === i,
           }]"
         >
-          <div :class="$style.taskHeader" @click="toggleExpanded(t.id)">
+          <!-- 行全体をボタンにすると取っ手と削除ボタンが入れ子になるので、開閉のボタンは
+               見出しの中に分けて置く。行の余白のクリックでも開閉できるよう、クリックは行が受ける
+               (ボタンの Enter / Space もここへ泡立つ) -->
+          <div :class="$style.taskHeader" @click="toggleExpanded(t)">
             <i
               class="ti ti-grip-vertical"
               :class="$style.grip"
@@ -481,21 +535,28 @@ function handleReset() {
               @pointerdown="startDrag(i, $event)"
               @click.stop
             />
-            <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expanded[t.id] }]" />
-            <div :class="$style.taskHeaderBody">
-              <span :class="$style.taskLabel">
-                <i v-if="t.pinned" class="ti ti-pin-filled" :class="$style.pinIcon" title="Pinned" />
-                <i v-if="t.isDefault" class="ti ti-player-play-filled" :class="$style.defaultIcon" :title="i18n.ts._tasksEditorContent.defaultTask" />
-                {{ t.label || i18n.ts._tasksEditorContent.untitled }}
-              </span>
-              <span :class="$style.taskMeta">
-                <code :class="$style.method">{{ t.action.method }}</code>
-                <span v-if="t.group" :class="$style.groupBadge">{{ t.group }}</span>
-                <span v-if="t.inputs?.length" :class="$style.inputsBadge" :title="i18n.ts._tasksEditorContent.promptsForInput">
-                  <i class="ti ti-keyboard" />{{ t.inputs.length }}
+            <button
+              type="button"
+              class="_button"
+              :class="$style.taskToggle"
+              :aria-expanded="!!expanded[cardKey(t)]"
+            >
+              <i class="ti ti-chevron-down nd-chevron" :class="[$style.chevron, { 'nd-chevron-closed': !expanded[cardKey(t)] }]" />
+              <span :class="$style.taskHeaderBody">
+                <span :class="$style.taskLabel">
+                  <i v-if="t.pinned" class="ti ti-pin" :class="$style.pinIcon" title="Pinned" />
+                  <i v-if="t.isDefault" class="ti ti-player-play" :class="$style.defaultIcon" :title="i18n.ts._tasksEditorContent.defaultTask" />
+                  {{ t.label || i18n.ts._tasksEditorContent.untitled }}
+                </span>
+                <span :class="$style.taskMeta">
+                  <code :class="$style.method">{{ t.action.method }}</code>
+                  <span v-if="t.group" :class="$style.groupBadge">{{ t.group }}</span>
+                  <span v-if="t.inputs?.length" :class="$style.inputsBadge" :title="i18n.ts._tasksEditorContent.promptsForInput">
+                    <i class="ti ti-keyboard" />{{ t.inputs.length }}
+                  </span>
                 </span>
               </span>
-            </div>
+            </button>
             <div :class="$style.taskActions" @click.stop>
               <button
                 class="_button"
@@ -508,16 +569,16 @@ function handleReset() {
             </div>
           </div>
 
-          <CollapseBox :open="!!expanded[t.id]">
+          <CollapseBox :open="!!expanded[cardKey(t)]">
             <div :class="$style.taskBody">
               <label :class="$style.field">
                 <span :class="$style.fieldLabel">ID</span>
-                <input
+                <FormInput
                   v-model="t.id"
-                  type="text"
-                  :class="$style.input"
+                  :class="$style.idInput"
                   pattern="[\w-]+"
                   placeholder="my-task"
+                  :error="duplicateIds.has(t.id) ? i18n.ts._tasksEditorContent.duplicateId : ''"
                 />
               </label>
               <label :class="$style.field">
@@ -586,7 +647,7 @@ function handleReset() {
                     :checked="t.pinned === true"
                     @change="(e) => setFlag(t, 'pinned', (e.target as HTMLInputElement).checked)"
                   />
-                  <i class="ti ti-pin-filled" :class="$style.inlineIcon" />
+                  <i class="ti ti-pin" :class="$style.inlineIcon" />
                   Pinned
                 </label>
                 <label :class="$style.checkboxRow">
@@ -595,7 +656,7 @@ function handleReset() {
                     :checked="t.isDefault === true"
                     @change="(e) => setIsDefault(t, (e.target as HTMLInputElement).checked)"
                   />
-                  <i class="ti ti-player-play-filled" :class="$style.inlineIcon" />
+                  <i class="ti ti-player-play" :class="$style.inlineIcon" />
                   {{ i18n.ts._tasksEditorContent.defaultTaskOnlyOne }}
                 </label>
               </div>
@@ -790,7 +851,6 @@ function handleReset() {
       <button
         class="_button"
         :class="$style.codeApplyBtn"
-        :disabled="!!codeError"
         @click="applyFromCode"
       >
         <i class="ti ti-refresh" />
@@ -905,7 +965,6 @@ function handleReset() {
 }
 
 .taskHeader {
-  @include nd-interactive;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -916,6 +975,18 @@ function handleReset() {
   &:hover {
     background: var(--nd-buttonHoverBg);
   }
+}
+
+.taskToggle {
+  @include nd-interactive;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: var(--nd-radius-sm);
+  color: inherit;
+  text-align: start;
 }
 
 .chevron {
@@ -1045,6 +1116,10 @@ function handleReset() {
   width: 100%;
   padding: 6px 8px;
 
+}
+
+.idInput input {
+  padding: 6px 8px;
 }
 
 .paramsInput textarea {

@@ -10,7 +10,9 @@ import { proxyStaticUrl } from '@/utils/mediaProxy'
 import { prefersReducedMotion } from '@/utils/motion'
 import { loadedMediaUrls, revealedMediaFiles } from '@/utils/renderedMemo'
 import { openSafeUrl } from '@/utils/url'
+import MkMediaAudio from './MkMediaAudio.vue'
 import MkMediaLightbox from './MkMediaLightbox.vue'
+import MkMediaVideo from './MkMediaVideo.vue'
 
 function safeMediaSrc(url: string | null | undefined): string | undefined {
   if (!url) return undefined
@@ -104,7 +106,7 @@ const singleMediaStyle = computed(() => {
 // 読み込み済みはモジュール単位でも覚える。仮想スクロールで行が作り直される
 // たびに透明からフェードし直すと、戻ってきた画像が毎回ちらつく
 // 画像はプロキシで表示幅に縮小して取得する (#815 / #704 O-2)。
-// 動画は 20MB のプロキシ上限に掛かるため生 URL のまま
+// 動画の本体は画像とは別の中継 (/proxy/media) で読む (理由は mediaProxy.ts の冒頭、#1214)
 function gridImage(file: NormalizedDriveFile) {
   return mediaGridImage(file, previewableFiles.value.length)
 }
@@ -181,12 +183,7 @@ function closeLightbox() {
       <b>NSFW</b>
       <span>{{ file.name }}</span>
     </div>
-    <div v-else :class="$style.bannerAudio">
-      <audio controls preload="metadata" :class="$style.audioPlayer" @click.stop>
-        <source :src="safeMediaSrc(file.url)">
-      </audio>
-      <span :class="$style.audioName">{{ file.name }}</span>
-    </div>
+    <MkMediaAudio v-else :file="file" />
   </div>
 
   <!-- Banner: Other files (download link, like Misskey's MkMediaBanner) -->
@@ -237,14 +234,11 @@ function closeLightbox() {
         </div>
       </template>
       <template v-else-if="isVideo(file)">
-        <video
+        <MkMediaVideo
           v-if="!erroredIds.has(file.id) && !isDeferred(file)"
-          :src="safeMediaSrc(file.url)"
+          :file="file"
           :class="$style.mediaVideo"
-          preload="metadata"
-          controls
-          @click.stop
-          @loadeddata="onImageLoaded(file)"
+          @loaded="onImageLoaded(file)"
           @error="onImageError(file.id)"
         />
         <div v-else-if="!isDeferred(file)" :class="$style.mediaPlaceholder">
@@ -337,26 +331,6 @@ function closeLightbox() {
   border-radius: var(--nd-radius-md);
   overflow: hidden;
   border: 0.5px solid var(--nd-border, rgba(128, 128, 128, 0.2));
-}
-
-.bannerAudio {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px 12px;
-}
-
-.audioPlayer {
-  width: 100%;
-  height: 32px;
-}
-
-.audioName {
-  font-size: var(--nd-font-xs);
-  opacity: 0.6;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .bannerSensitive {

@@ -402,7 +402,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .pool_max_idle_per_host(8)
             .pool_idle_timeout(std::time::Duration::from_secs(60))
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-            .redirect(reqwest::redirect::Policy::limited(5))
+            .redirect(notecore::ssrf::external_redirect_policy(5))
             .dns_resolver(std::sync::Arc::new(notecore::ssrf::ValidatingResolver))
             .build()?;
         app.manage(shared_http.clone());
@@ -1143,6 +1143,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::auth_start,
             commands::auth_complete_and_save,
             commands::stream_connect,
+            commands::stream_subscribe_main,
             commands::stream_disconnect,
             commands::stream_set_mode,
             commands::stream_sub_note,
@@ -1277,6 +1278,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             streaming::StreamChatMessageReacted,
             streaming::StreamChatMessageUnreacted,
             streaming::StreamEmojiChanged,
+            streaming::StreamNewChatMessage,
             os_notify::NotificationClicked,
             commands::ExportProgressEvent,
             commands::SettingsFileChangedEvent,

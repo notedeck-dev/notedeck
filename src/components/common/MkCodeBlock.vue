@@ -88,7 +88,8 @@ const { copied, copyToClipboard } = useClipboardFeedback()
   display: flex;
   gap: 2px;
   opacity: 0;
-  transition: opacity var(--nd-duration-fast);
+  // 行の hover で出る子要素も nd-interactive と同じ時間で
+  transition: opacity var(--nd-duration-base);
 
   // ホバーの無い端末では常に出す
   @media (hover: none) {

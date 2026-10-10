@@ -36,6 +36,7 @@ import { useChatVisibility } from '@/composables/useChatVisibility'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { useNewChatMessages } from '@/composables/useNewChatMessages'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useVaporTransition } from '@/composables/useVaporTransition'
@@ -47,8 +48,13 @@ import {
   buildPerAccountPrefetchTargets,
   chatMessageMatchesSearch,
   type CrossAccountChatHistoryEntry as HistoryEntry,
+  isChatHistoryUnread,
+  isChatMessageInThread,
   matchesChatSearch,
+  newChatMessageForHistory,
   type PerAccountChatHistoryEntry as PerAccountHistoryEntry,
+  withLatestChatMessage,
+  withLatestCrossAccountMessage,
 } from '@/services/chatHistoryEntries'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useChatMessageStore } from '@/stores/chatMessageStore'
@@ -251,6 +257,11 @@ const filteredHistoryEntries = computed<HistoryEntry[]>(() =>
 const showConvSearch = ref(false)
 const convSearchQuery = ref('')
 const convSearchInputRef = ref<HTMLInputElement | null>(null)
+// ヘッダーのボタンから下りてくるので、メニューと同じ登場 / 退場にする
+// (退場は _popup.scss の menuLeave = --nd-duration-base)
+const convSearchT = useVaporTransition(showConvSearch, {
+  leaveDuration: PICKER_LEAVE_MS,
+})
 
 function toggleConvSearch() {
   showConvSearch.value = !showConvSearch.value
@@ -370,6 +381,8 @@ async function connectPerAccount() {
     return
   }
 
+  if (props.column.accountId) newChatMessages.watch([props.column.accountId])
+
   // 2. 並行で API fetch して reconcile (server is source of truth で完全置換)
   try {
     const adapter = await initAdapter()
@@ -458,6 +471,8 @@ async function connectCrossAccount() {
     )
     isLoading.value = false
   }
+
+  newChatMessages.watch(accounts.filter((a) => a.hasToken).map((a) => a.id))
 
   // 2. 並行で API fetch して reconcile。ログイン中アカウントは fresh、
   //    ログアウト中は引き続き cache (上の hydrate と同じ結果)、API エラー時は cache fallback。
@@ -561,13 +576,17 @@ const filteredPerAccountEntries = computed<PerAccountHistoryEntry[]>(() =>
 // (会話を開くと本家側で既読になるが、履歴の entry は取り直さないと変わらない)
 const openedMessageIds = ref(new Set<string>())
 
-/** 本家 MkChatHistories と同じく、相手からの未読の最新メッセージに点を出す (#1207) */
-function isUnread(message: ChatMessage, myId: string | undefined): boolean {
-  return (
-    message.isRead === false &&
-    message.fromUserId !== myId &&
-    !openedMessageIds.value.has(message.id)
-  )
+/** 履歴の未読の点 (#1207)。判定は isChatHistoryUnread */
+function isUnread(
+  message: ChatMessage,
+  accountId: string | null,
+  myId: string | undefined,
+): boolean {
+  const acc = accountsStore.accounts.find((a) => a.id === accountId)
+  return isChatHistoryUnread(message, myId, {
+    loggedOut: !acc?.hasToken,
+    openedIds: openedMessageIds.value,
+  })
 }
 
 const hasNoSearchHits = computed(() => {
@@ -667,6 +686,7 @@ function onNewMessage(msg: ChatMessage) {
 }
 
 function goBack() {
+  reflectLatestIntoHistory()
   thread.close()
   viewMode.value = 'history'
   conversationAccountId.value = null
@@ -676,6 +696,66 @@ function goBack() {
   showConvSearch.value = false
   convSearchQuery.value = ''
 }
+
+/**
+ * 会話で見た最新メッセージ (受信・送信) を履歴の並びとプレビューに反映する
+ * (#1216)。履歴は購読していないので、取り直すまで古いままになっていた。
+ * 見た会話なので未読の点も出さない
+ */
+function reflectLatestIntoHistory() {
+  const latest = messages.value.at(-1)
+  if (!latest) return
+  openedMessageIds.value = new Set(openedMessageIds.value).add(latest.id)
+  if (isCrossAccount.value) {
+    const accountId = conversationAccountId.value
+    const host =
+      conversationServerHost.value ??
+      accountsStore.accounts.find((a) => a.id === accountId)?.host
+    if (!accountId || !host) return
+    chatMessageStore.put([latest])
+    historyEntries.value = withLatestCrossAccountMessage(
+      historyEntries.value,
+      { msg: latest, accountId, host },
+      getUserIdForAccount,
+    )
+  } else {
+    setChatHistory(withLatestChatMessage(chatHistory.value, latest))
+  }
+}
+
+// 別の会話に来た新着を履歴の並び・プレビュー・未読の点に反映する。会話を
+// 開いている間も履歴は裏で直しておき、戻ったときに古い並びを見せない
+const newChatMessages = useNewChatMessages((accountId, received) => {
+  if (isCrossAccount.value) {
+    if (!accountsStore.accounts.some((a) => a.id === accountId)) return
+  } else if (accountId !== props.column.accountId) {
+    return
+  }
+  const msg = newChatMessageForHistory(received)
+  const myId = getUserIdForAccount(accountId)
+  // 開いている会話の分も来る (会話のチャンネルで既読を送っていないため)。
+  // 会話にはもう出ていて、履歴へは戻るときに reflectLatestIntoHistory が足す。
+  // ここで store に入れると、届くまでの 3 秒に付いたリアクションを古い本文で潰す
+  if (
+    viewMode.value === 'conversation' &&
+    activeAccountId.value === accountId &&
+    isChatMessageInThread(msg, thread.target.value, myId)
+  ) {
+    return
+  }
+  if (isCrossAccount.value) {
+    const host = accountsStore.accounts.find((a) => a.id === accountId)?.host
+    if (!host) return
+    chatMessageStore.put([msg])
+    historyEntries.value = withLatestCrossAccountMessage(
+      historyEntries.value,
+      { msg, accountId, host },
+      getUserIdForAccount,
+    )
+  } else {
+    setChatHistory(withLatestChatMessage(chatHistory.value, msg))
+  }
+})
 
 const canSend = computed(() => {
   if (isSending.value) return false
@@ -897,10 +977,13 @@ function isNearBottom(): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight < 120
 }
 
+// 位置は NoteScroller に渡している filteredMessages の添字で指す。ミュートした
+// 相手の発言を含む messages の添字で指すと、隠した件数だけずれる (#1216)
 function scrollToBottom() {
   requestAnimationFrame(() => {
-    if (messages.value.length === 0) return
-    chatScroller.value?.scrollToIndex(messages.value.length - 1, {
+    const count = filteredMessages.value.length
+    if (count === 0) return
+    chatScroller.value?.scrollToIndex(count - 1, {
       align: 'end',
       behavior: 'instant',
     })
@@ -917,12 +1000,14 @@ async function loadOlder() {
 
   isLoading.value = true
   try {
-    const prevFirstId = messageIds.value[0]
+    const prevFirstId = filteredMessages.value[0]?.id
     const added = await thread.loadOlder(accId, { loggedOut: isLoggedOut })
     // Restore scroll position to the previously first message after prepend
     if (added && prevFirstId) {
       await nextTick()
-      const newIndex = messageIds.value.indexOf(prevFirstId)
+      const newIndex = filteredMessages.value.findIndex(
+        (m) => m.id === prevFirstId,
+      )
       if (newIndex >= 0) {
         chatScroller.value?.scrollToIndex(newIndex, {
           align: 'start',
@@ -1115,7 +1200,7 @@ onBeforeUnmount(() => {
           @click="openConversation(entry)"
         >
           <span
-            v-if="isUnread(entry.message, getUserIdForAccount(entry.accountId))"
+            v-if="isUnread(entry.message, entry.accountId, getUserIdForAccount(entry.accountId))"
             :class="$style.historyUnreadDot"
             :title="i18n.ts._deckChatColumn.unread"
             :aria-label="i18n.ts._deckChatColumn.unread"
@@ -1179,7 +1264,7 @@ onBeforeUnmount(() => {
           @click="openConversation(entry)"
         >
           <span
-            v-if="isUnread(entry.message, myUserId)"
+            v-if="isUnread(entry.message, column.accountId, myUserId)"
             :class="$style.historyUnreadDot"
             :title="i18n.ts._deckChatColumn.unread"
             :aria-label="i18n.ts._deckChatColumn.unread"
@@ -1213,7 +1298,10 @@ onBeforeUnmount(() => {
     <!-- Conversation View -->
     <div v-else-if="viewMode === 'conversation'" :class="[$style.chatBody, $style.conversation, 'nd-fade-appear']" @click="closeReactionPicker">
       <!-- メッセージ検索バー (#483 v2: showConvSearch toggle) -->
-      <div v-if="showConvSearch" :class="$style.searchBar">
+      <div
+        v-if="convSearchT.visible.value"
+        :class="[$style.searchBar, convSearchT.leaving.value ? $style.menuLeave : $style.menuEnter]"
+      >
         <i :class="$style.searchIcon" class="ti ti-search" />
         <input
           ref="convSearchInputRef"

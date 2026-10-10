@@ -173,12 +173,14 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/extractUrlFromMfm.ts`](src/services/extractUrlFromMfm.ts) | [`src/services/extractUrlFromMfm.test.ts`](src/services/extractUrlFromMfm.test.ts) |
 | [`src/services/followTransition.ts`](src/services/followTransition.ts) | [`src/services/followTransition.test.ts`](src/services/followTransition.test.ts) |
 | [`src/services/fuzzyMatch.ts`](src/services/fuzzyMatch.ts) | [`src/services/fuzzyMatch.test.ts`](src/services/fuzzyMatch.test.ts) |
+| [`src/services/heartbeatAway.ts`](src/services/heartbeatAway.ts) | [`src/services/heartbeatAway.test.ts`](src/services/heartbeatAway.test.ts) |
 | [`src/services/heartbeatSteps.ts`](src/services/heartbeatSteps.ts) | [`src/services/heartbeatSteps.test.ts`](src/services/heartbeatSteps.test.ts) |
 | [`src/services/idFreeze.ts`](src/services/idFreeze.ts) | [`src/services/idFreeze.test.ts`](src/services/idFreeze.test.ts) |
 | [`src/services/identityId.ts`](src/services/identityId.ts) | [`src/services/identityId.test.ts`](src/services/identityId.test.ts) |
 | [`src/services/imageMemory.ts`](src/services/imageMemory.ts) | [`src/services/imageMemory.test.ts`](src/services/imageMemory.test.ts) |
 | [`src/services/localeSetting.ts`](src/services/localeSetting.ts) | [`src/services/localeSetting.test.ts`](src/services/localeSetting.test.ts) |
 | [`src/services/mapEviction.ts`](src/services/mapEviction.ts) | [`src/services/mapEviction.test.ts`](src/services/mapEviction.test.ts) |
+| [`src/services/mediaTime.ts`](src/services/mediaTime.ts) | [`src/services/mediaTime.test.ts`](src/services/mediaTime.test.ts) |
 | [`src/services/mfmParser.ts`](src/services/mfmParser.ts) | — |
 | [`src/services/nativeContextMenu.ts`](src/services/nativeContextMenu.ts) | [`src/services/nativeContextMenu.dom.test.ts`](src/services/nativeContextMenu.dom.test.ts) |
 | [`src/services/noteFrame.ts`](src/services/noteFrame.ts) | [`src/services/noteFrame.test.ts`](src/services/noteFrame.test.ts) |
@@ -229,6 +231,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/tutorialProgress.ts`](src/services/tutorialProgress.ts) | [`src/services/tutorialProgress.test.ts`](src/services/tutorialProgress.test.ts) |
 | [`src/services/twemoji.ts`](src/services/twemoji.ts) | [`src/services/twemoji.test.ts`](src/services/twemoji.test.ts) |
 | [`src/services/uiZoom.ts`](src/services/uiZoom.ts) | [`src/services/uiZoom.test.ts`](src/services/uiZoom.test.ts) |
+| [`src/services/userDetailCache.ts`](src/services/userDetailCache.ts) | [`src/services/userDetailCache.test.ts`](src/services/userDetailCache.test.ts) |
 | [`src/services/userLookupResult.ts`](src/services/userLookupResult.ts) | [`src/services/userLookupResult.test.ts`](src/services/userLookupResult.test.ts) |
 | [`src/services/userRef.ts`](src/services/userRef.ts) | [`src/services/userRef.test.ts`](src/services/userRef.test.ts) |
 | [`src/services/widgetInstances.ts`](src/services/widgetInstances.ts) | [`src/services/widgetInstances.test.ts`](src/services/widgetInstances.test.ts) |

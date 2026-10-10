@@ -13,6 +13,10 @@ function leaveDelay(ms: number): number {
 interface VaporTransitionOptions {
   /** Duration of the leave animation in ms (enter uses CSS @keyframes, auto-plays on mount) */
   enterDuration?: number
+  /**
+   * 閉じ始めるたびに読む。シート / ポップアップのように画面幅で退場アニメが
+   * 変わる部品は getter で渡す
+   */
   leaveDuration?: number
 }
 
@@ -27,7 +31,7 @@ export function useVaporTransition(
   show: Ref<boolean>,
   options: VaporTransitionOptions = {},
 ) {
-  const { enterDuration = 200, leaveDuration = 200 } = options
+  const { enterDuration = 200 } = options
   const visible = ref(show.value)
   const entering = ref(false)
   const leaving = ref(false)
@@ -49,11 +53,12 @@ export function useVaporTransition(
     } else {
       entering.value = false
       leaving.value = true
+      const delay = leaveDelay(options.leaveDuration ?? 200)
       timer = setTimeout(() => {
         visible.value = false
         leaving.value = false
         timer = null
-      }, leaveDelay(leaveDuration))
+      }, delay)
     }
   })
 
