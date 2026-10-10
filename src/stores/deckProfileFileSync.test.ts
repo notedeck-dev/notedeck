@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** インメモリ疑似 FS (profiles/ ディレクトリ相当)。 */
 const files = new Map<string, string>()
+/** true の間は一覧の取得が失敗する (読み込みごと失敗する状況の再現) */
+let listFails = false
 
 /** 別ウィンドウの書込通知 (useSettingsFileSync が配線表へ配った後の形)。 */
 async function notifyOtherWindow(name: string, op: 'write' | 'delete') {
@@ -15,7 +17,10 @@ vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
   isMainDeckWindow: () => true,
   PROFILE_EXT: '.ndprofile.json5',
-  listProfileDirFiles: async () => Array.from(files.keys()),
+  listProfileDirFiles: async () => {
+    if (listFails) throw new Error('list failed')
+    return Array.from(files.keys())
+  },
   readProfile: async (f: string) => {
     const c = files.get(f)
     if (c === undefined) throw new Error(`not found: ${f}`)
@@ -64,6 +69,7 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     files.clear()
+    listFails = false
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   })
 
@@ -360,5 +366,43 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     const store = await initStore()
     await notifyOtherWindow('main.history.json5', 'write')
     expect(store.getProfiles().map((p) => p.id)).toEqual(['m'])
+  })
+})
+
+describe('useDeckProfileStore — 読み込みに失敗したとき', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    files.clear()
+    listFails = false
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  })
+
+  it('既定のプロファイルで表示はするが、ファイルには書かない (起動のたびに増えない)', async () => {
+    const existing = profileFile({
+      id: 'main',
+      name: 'メイン',
+      columns: [],
+      layout: [],
+      createdAt: 1,
+    })
+    files.set(`main${EXT}`, existing)
+    setStorageString(STORAGE_KEYS.deckActiveProfile, 'main')
+    listFails = true
+
+    const store = await initStore()
+    expect(store.getProfiles()).toHaveLength(1)
+    // 次回の起動で元のアクティブに戻れるよう、保存済みのアクティブは残す
+    expect(localStorage.getItem(STORAGE_KEYS.deckActiveProfile)).toBe('main')
+
+    // 一覧が読めるようになっても、このセッション中の変更は書かない
+    listFails = false
+    const id = store.getProfiles()[0]?.id ?? ''
+    store.renameProfile(id, '別名')
+    store.flushPersist()
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect([...files.keys()]).toEqual([`main${EXT}`])
+    expect(files.get(`main${EXT}`)).toBe(existing)
   })
 })

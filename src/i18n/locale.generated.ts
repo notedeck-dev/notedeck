@@ -5530,6 +5530,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "consoleWidgetsRemoved_plural": PluralString<'count'>
     /** プロファイル {n} */
     readonly "defaultName": ParameterizedString<'n'>
+    /** デッキのプロファイルを読み込めませんでした。既定のデッキで表示しています。この起動中の変更は保存されません */
+    readonly "loadFailed": string
   }
   readonly "_misstore": {
     /** ハッシュが一致しません。ソースが改ざんされている可能性があります */
