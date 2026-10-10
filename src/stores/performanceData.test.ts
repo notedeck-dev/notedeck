@@ -1,5 +1,8 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
+  CSS_BASE_DURATIONS,
   categoryKeys,
   detectPosition,
   FADER_CATEGORIES,
@@ -84,5 +87,23 @@ describe('detectPosition', () => {
     expect(found.exact).toBe(false)
     expect(found.t).toBeGreaterThan(0)
     expect(found.t).toBeLessThanOrEqual(1)
+  })
+})
+
+describe('CSS_BASE_DURATIONS', () => {
+  // 倍率を掛ける元が global.css とずれると、倍率 1 以外で見た目の長さと
+  // 閉じきるまでの待ち時間が食い違う (#1224)
+  it('global.css の :root の --nd-duration-* と一致する', () => {
+    const css = readFileSync(
+      resolve(import.meta.dirname, '../styles/global.css'),
+      'utf8',
+    )
+    const fromCss: Record<string, number> = {}
+    for (const [, name, sec] of css.matchAll(
+      /(--nd-duration-[\w-]+):\s*([\d.]+)s;/g,
+    )) {
+      if (name && sec) fromCss[name] ??= Number(sec)
+    }
+    expect(CSS_BASE_DURATIONS).toEqual(fromCss)
   })
 })
