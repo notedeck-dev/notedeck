@@ -33,10 +33,11 @@ vi.mock('./PopupMenu.vue', () => ({
   }),
 }))
 
+import { APP_HTTP_PORT } from '@/utils/appHttpPort'
 import MkMediaLightbox from './MkMediaLightbox.vue'
 
 function proxied(url: string): string {
-  return `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent(url)}`
+  return `http://127.0.0.1:${APP_HTTP_PORT}/proxy/image?url=${encodeURIComponent(url)}`
 }
 
 function makeImage(id: string): NormalizedDriveFile {
@@ -194,7 +195,7 @@ describe('MkMediaLightbox (#792)', () => {
       ])
       const video = container?.querySelector('video')
       expect(video?.getAttribute('src')).toBe(
-        `http://localhost:19820/proxy/media?url=${encodeURIComponent('https://example.test/v.mp4')}`,
+        `http://localhost:${APP_HTTP_PORT}/proxy/media?url=${encodeURIComponent('https://example.test/v.mp4')}`,
       )
       expect(video?.hasAttribute('controls')).toBe(false)
       expect(video?.autoplay).toBe(true)

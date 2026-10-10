@@ -80,7 +80,19 @@ struct ApiErrorResponse {
     message: String,
 }
 
-pub const PORT: u16 = 19820;
+/// 配布版 (release ビルド) のポート。外部ツール (Stream Deck / Raycast 拡張など) が
+/// この値を前提にしているので変えない
+pub const RELEASE_PORT: u16 = 19820;
+
+/// このビルドが待ち受けるポート。開発版 (debug ビルド) は配布版と別のポートにして、
+/// 同じ PC で両方を動かしても取り合わないようにする (#1231。WSL2 の開発版は
+/// localhost 転送で Windows 側の同じポートも取るので、後から起動した配布版が
+/// 中継を持てなくなっていた)。フロントの写しは `src/utils/appHttpPort.ts`
+pub const PORT: u16 = if cfg!(debug_assertions) {
+    19821
+} else {
+    RELEASE_PORT
+};
 
 /// MCP サーバー (#555) の URL。手元の CLI (#1104) に渡す
 pub fn mcp_url() -> String {
@@ -1338,6 +1350,14 @@ mod tests {
     use super::*;
     use axum::routing::get;
     use tower::ServiceExt;
+
+    /// 開発版は配布版のポートを取らない (#1231)
+    #[cfg(debug_assertions)]
+    #[test]
+    fn debug_build_does_not_use_release_port() {
+        assert_ne!(PORT, RELEASE_PORT);
+        assert!(mcp_url().ends_with(&format!(":{PORT}/mcp")));
+    }
 
     /// DNS rebinding ガード (#877)。外部公開 API の入口で唯一 state を持たない
     /// middleware なので、ここだけは Router を組んで直接叩ける。

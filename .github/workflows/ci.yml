@@ -263,7 +263,7 @@ jobs:
           NOTEDECK_E2E_SCREENSHOT: ${{ github.event_name == 'push' && '1' || '' }}
           NOTEDECK_E2E_VERBOSE: '1'
           # GPU なしランナーでは WebKitGTK が DMABUF/EGL 初期化に失敗して
-          # WebView 生成前にクラッシュし、HTTP API (19820) が一度も開かない。
+          # WebView 生成前にクラッシュし、HTTP API が一度も開かない。
           # ソフトウェアレンダリングに落として回避する
           WEBKIT_DISABLE_DMABUF_RENDERER: '1'
           WEBKIT_DISABLE_COMPOSITING_MODE: '1'

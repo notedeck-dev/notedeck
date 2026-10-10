@@ -38,6 +38,7 @@ import { usePluginsStore } from '@/stores/plugins'
 import { useUiStore } from '@/stores/ui'
 import { useWidgetsStore } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
+import { APP_HTTP_PORT } from '@/utils/appHttpPort'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
@@ -275,7 +276,7 @@ function copyCreatedToken(): void {
 
 // MCP (#555): 発行したトークンで外部の AI エージェントを繋ぐコマンド。表示は
 // 発行直後だけ (トークン本体を含むため)。URL は内蔵 HTTP サーバーの /mcp
-const MCP_URL = 'http://127.0.0.1:19820/mcp'
+const MCP_URL = `http://127.0.0.1:${APP_HTTP_PORT}/mcp`
 const mcpCommand = computed(() =>
   createdToken.value
     ? `claude mcp add notedeck --transport http ${MCP_URL} --header "Authorization: Bearer ${createdToken.value.token}"`

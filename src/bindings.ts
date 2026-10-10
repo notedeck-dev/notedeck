@@ -2150,11 +2150,13 @@ async getSettingsDir() : Promise<Result<string, { code: string; message: string;
 },
 /**
  * 画像プロキシ (`/proxy/image`) の起動毎トークン (#1099)。フロントは起動時に
- * 1 回受け取り、プロキシ URL の query `t` に載せる。
+ * 1 回受け取り、プロキシ URL の query `t` に載せる。中継のポートを取れなかったと
+ * 分かっているときは None を返し、フロントは中継を使わず元の URL で読む (#1231。
+ * 後から開いたウィンドウ向け。起動中のウィンドウには `nd:http-relay-unavailable` で知らせる)
  *
  * @see src-tauri/src/commands/utility.rs
  */
-async getMediaProxyToken() : Promise<string> {
+async getMediaProxyToken() : Promise<string | null> {
     return await TAURI_INVOKE("get_media_proxy_token");
 },
 /**

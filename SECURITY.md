@@ -262,7 +262,7 @@ AI チャットは `connection_id` から endpoint / キー / protocol を Rust 
 ### 内部 API 認証
 
 - **ファイル**: `crates/notecore/src/http_server.rs`
-- localhost (`127.0.0.1:19820`) のみバインド
+- localhost (`127.0.0.1:19820`、開発版は別のポート — DEVELOPMENT.md の「Dev Dashboard」節) のみバインド
 - Bearer Token で全エンドポイントを保護（定数時間比較: `subtle` クレート）
 - API トークンは CSPRNG で 256-bit 生成（`rand` クレート）
 - 不正トークンには 401 Unauthorized を返却 + tracing でログ記録

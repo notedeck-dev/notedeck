@@ -706,7 +706,7 @@ _devDashboard:
   collapseNav: "ナビゲーションを畳む"
   resources: "リソース"
   apiDocs: "API ドキュメント"
-  overviewDesc: "実行中アプリのヘルスチェック — 127.0.0.1:19820"
+  overviewDesc: "実行中アプリ (開発版) のヘルスチェック — 127.0.0.1:19821"
   refresh: "更新"
   deckColumns_plural:
     other: "デッキ — カラム {count} 本"
@@ -2969,6 +2969,7 @@ _tutorialSteps:
 
 _main:
   backendInitFailed: "バックエンドの初期化に失敗しました: {error}"
+  httpRelayUnavailable: "ポート {port} を別のアプリが使っているため、画像の中継と外部連携 (HTTP API) を使えません。画像は元のサーバーから直接読みます。そのアプリを止めてから NoteDeck を再起動してください"
 
 _badge:
   safeMode: "セーフモード中はクエリを停止しています — 絞り込まずに全件表示中。押すとクエリ管理カラムを開きます"

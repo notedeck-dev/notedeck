@@ -1270,7 +1270,7 @@ export interface Locale {
     readonly "resources": string
     /** API ドキュメント */
     readonly "apiDocs": string
-    /** 実行中アプリのヘルスチェック — 127.0.0.1:19820 */
+    /** 実行中アプリ (開発版) のヘルスチェック — 127.0.0.1:19821 */
     readonly "overviewDesc": string
     /** 更新 */
     readonly "refresh": string
@@ -5354,6 +5354,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_main": {
     /** バックエンドの初期化に失敗しました: {error} */
     readonly "backendInitFailed": ParameterizedString<'error'>
+    /** ポート {port} を別のアプリが使っているため、画像の中継と外部連携 (HTTP API) を使えません。画像は元のサーバーから直接読みます。そのアプリを止めてから NoteDeck を再起動してください */
+    readonly "httpRelayUnavailable": ParameterizedString<'port'>
   }
   readonly "_badge": {
     /** セーフモード中はクエリを停止しています — 絞り込まずに全件表示中。押すとクエリ管理カラムを開きます */

@@ -139,7 +139,7 @@ pnpm clean        # Remove build artifacts
 ### E2E テスト（[#702](https://github.com/notedeck-dev/notedeck/issues/702)）
 
 実アプリ（デバッグビルド）を隔離プロファイルで起動し、外部アプリと同じ
-HTTP API 面（[#709](https://github.com/notedeck-dev/notedeck/issues/709)、port 19820）で駆動する。設定は `vitest.e2e.config.ts`
+HTTP API 面（[#709](https://github.com/notedeck-dev/notedeck/issues/709)、開発版のポート）で駆動する。設定は `vitest.e2e.config.ts`
 （`pnpm test` とは独立、`tests/e2e/` 配下）。
 
 ```bash
@@ -150,7 +150,7 @@ nix develop -c pnpm test:e2e           # WSL2 では nix develop 必須 (EGL 対
 - ハーネス（`tests/e2e/harness.ts`）は一時ディレクトリを `NOTEDECK_APP_DIR`
   に指定してバイナリを spawn し、実データに触れない。バイナリの場所は
   `NOTEDECK_E2E_BINARY` で上書き可能
-- port 19820 が使用中（= 実アプリ起動中）の場合は誤操作防止のため即失敗する
+- 開発版のポートが使用中（= `pnpm tauri:dev` の起動中）の場合は誤操作防止のため即失敗する。配布版は別のポートなので起動したままでよい
 - デバッグビルドは devUrl（vite 5173）から frontend を読むため、vite が
   いなければハーネスが自前で起動・終了する
 - アサーションは HTTP の state 読み取り（`/api/health` / `/api/deck/columns`
@@ -172,7 +172,7 @@ nix develop -c pnpm test:e2e           # WSL2 では nix develop 必須 (EGL 対
 attach モードで同じテストを流す（モック接続系テストは自動スキップ）:
 
 ```bash
-adb forward tcp:19820 tcp:19820
+adb forward tcp:19821 tcp:19821   # 開発版のポート
 # デバイスの api-token を取得 (デバッグビルドは run-as が使える。
 # app_data_dir 配下の api-token — パスは要確認)
 TOKEN=$(adb shell run-as com.notedeck.desktop cat files/api-token)
@@ -250,7 +250,7 @@ attach モードはデバイス側アプリを終了させず、デッキ操作�
 から書き込み系の操作を増やすときは Capabilities (dispatcher) を通す。
 
 仕組み: Vite の dev proxy (`vite.config.ts`) が `/api` `/mcp` `/proxy` を
-内蔵 HTTP サーバー (127.0.0.1:19820、[#940](https://github.com/notedeck-dev/notedeck/issues/940)) へ転送し、`/api` と `/mcp` には
+内蔵 HTTP サーバー (開発版のポート、[#940](https://github.com/notedeck-dev/notedeck/issues/940)) へ転送し、`/api` と `/mcp` には
 無認証の `/api` インデックスが開示する tokenPath から Bearer トークンを読んで注入する。
 ブラウザ側は相対パスの fetch だけで認証込みの external API を叩ける。
 dev マシン上でしか成立しない橋渡しなので、本番の攻撃面は増えない。
@@ -261,8 +261,16 @@ Stream Inspector カラムとの違い: Stream Inspector は**フロントのア
 ビューアは **Rust 側イベントバス → `/api/events`** を見る。別系統なので、
 両方を並べると「どの層までイベントが届いているか」の切り分けに使える。
 
+内蔵 HTTP サーバーのポートは配布版と開発版 (debug ビルド) で分けている
+([#1231](https://github.com/notedeck-dev/notedeck/issues/1231))。同じ PC で両方を動かすと (WSL2 の開発版は
+localhost 転送で Windows 側の同じポートも取る) 後から起動した側が中継を持てず、画像が出なくなるため。
+外部ツール (Stream Deck / Raycast 拡張など) は配布版のポートを前提にしているので、配布版の値は変えない。
+値の正本は `crates/notecore/src/http_server.rs` の `PORT` / `RELEASE_PORT` で、フロントの写しは
+`src/utils/appHttpPort.ts`、CSP (`tauri.conf.json`) は両方を許可している。
+ポートを取れなかったときは「アプリの通知」で知らせ、画像は中継を通さず元の URL で読む。
+
 位置づけ（#940 との関係）: このダッシュボードは external API の最初の
-本格クライアント（dogfooding）を兼ねる。19820 に新しい面を足すときの
+本格クライアント（dogfooding）を兼ねる。内蔵 HTTP サーバーに新しい面を足すときの
 テストベンチとして育てる。
 
 ## MCP サーバー ([#555](https://github.com/notedeck-dev/notedeck/issues/555) / [#513](https://github.com/notedeck-dev/notedeck/issues/513))

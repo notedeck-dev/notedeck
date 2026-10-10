@@ -7,7 +7,7 @@ import { i18n } from '@/i18n'
  * ブラウザ (`pnpm dev`) で開いたときのフォールバック画面 兼
  * 開発ダッシュボード (#977) の入口。
  *
- * Vite の dev proxy (vite.config.ts) が内蔵 HTTP サーバー (19820, #940) へ
+ * Vite の dev proxy (vite.config.ts) が内蔵 HTTP サーバー (#940) へ
  * Bearer 注入付きで橋渡しするので、ここからは相対パスの fetch で external API
  * を叩ける。実行中のアプリが見つかればダッシュボードに切り替える。
  *

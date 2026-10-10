@@ -49,6 +49,7 @@ vi.mock('./PopupMenu.vue', () => ({
   }),
 }))
 
+import { APP_HTTP_PORT } from '@/utils/appHttpPort'
 import MkMediaGrid from './MkMediaGrid.vue'
 
 function makeImage(id: string, sensitive = false): NormalizedDriveFile {
@@ -208,7 +209,7 @@ describe('動画・音声の独自プレイヤー (#1214)', () => {
     mountGrid([makeVideo('v', 'https://example.test/v.webp')])
     const video = container?.querySelector('video')
     expect(video?.getAttribute('src')).toBe(
-      `http://localhost:19820/proxy/media?url=${encodeURIComponent('https://example.test/v.mp4')}`,
+      `http://localhost:${APP_HTTP_PORT}/proxy/media?url=${encodeURIComponent('https://example.test/v.mp4')}`,
     )
     expect(video?.hasAttribute('controls')).toBe(false)
     expect(video?.getAttribute('preload')).toBe('none')
@@ -264,7 +265,7 @@ describe('動画・音声の独自プレイヤー (#1214)', () => {
     ])
     const audio = container?.querySelector('audio')
     expect(audio?.getAttribute('src')).toBe(
-      `http://localhost:19820/proxy/media?url=${encodeURIComponent('https://example.test/a.mp3')}`,
+      `http://localhost:${APP_HTTP_PORT}/proxy/media?url=${encodeURIComponent('https://example.test/a.mp3')}`,
     )
     expect(audio?.hasAttribute('controls')).toBe(false)
     expect(container?.textContent).toContain('a.mp3')
