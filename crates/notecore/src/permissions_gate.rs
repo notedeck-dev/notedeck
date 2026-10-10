@@ -201,7 +201,9 @@ fn explicit_route_rule(method: &Method, path: &str) -> Option<RouteRule> {
             "/api/heartbeat/status"
             | "/api/inspector/recent"
             | "/api/logs/recent"
+            | "/api/notemaid/status"
             | "/api/perf/caches"
+            | "/api/perf/media"
             | "/api/permissions/resolved"
             | "/api/querybridge/trace"
             | "/api/startup/trace" => return Some(Deny),

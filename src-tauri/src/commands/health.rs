@@ -70,29 +70,17 @@ async fn notemaid_diagnostics(app_state: &AppState) -> NotemaidDiagnostics {
                 .unwrap_or_default(),
         );
         let state = crate::client_layer::state();
-        if let Some(relay) = crate::client_layer::relay() {
+        if crate::client_layer::relay().is_some() {
             d.mode = if d.launcher.as_ref().and_then(|l| l.child_pid).is_some() {
                 "child".into()
             } else {
                 "resident".into()
             };
-            if state.connected {
-                // 短く待つ: 診断で固まらない
-                let outcome = tokio::time::timeout(
-                    std::time::Duration::from_secs(3),
-                    relay.request("notemaid.status", serde_json::json!({}), None),
-                )
-                .await;
-                if let Ok(outcome) = outcome {
-                    if outcome.ok {
-                        if let Some(v) = outcome.result {
-                            if let Some(hb) = v.get("heartbeat") {
-                                d.heartbeat = hb.clone();
-                            }
-                            d.daemon = Some(v);
-                        }
-                    }
+            if let Some(v) = relay_status().await {
+                if let Some(hb) = v.get("heartbeat") {
+                    d.heartbeat = hb.clone();
                 }
+                d.daemon = Some(v);
             }
         } else if state.backend == "embedded" && state.last_error.is_some() {
             // 中継を作ったが退避した (子が起動しなかった等)
@@ -101,6 +89,45 @@ async fn notemaid_diagnostics(app_state: &AppState) -> NotemaidDiagnostics {
         d.relay = crate::client_layer::relay().map(|_| state);
     }
     d
+}
+
+/// 別プロセスの notemaid に繋がっていれば、その自己申告 (`notemaid.status`)。短く待つ: 診断で固まらない
+async fn relay_status() -> Option<serde_json::Value> {
+    let relay = crate::client_layer::relay()?;
+    if !crate::client_layer::state().connected {
+        return None;
+    }
+    let outcome = tokio::time::timeout(
+        std::time::Duration::from_secs(3),
+        relay.request("notemaid.status", serde_json::json!({}), None),
+    )
+    .await
+    .ok()?;
+    if outcome.ok {
+        outcome.result
+    } else {
+        None
+    }
+}
+
+/// `/api/heartbeat/status` (Dev Dashboard #977)。HEARTBEAT を回しているプロセスの断面を返す:
+/// notemaid が別プロセスならその申告、in-process ならこのプロセスの写し。このプロセスの
+/// 写しは別プロセス構成では空のままなので、それを返すと「一度も回っていない」に見える
+pub async fn heartbeat_snapshot() -> serde_json::Value {
+    if let Some(hb) = relay_status()
+        .await
+        .and_then(|v| v.get("heartbeat").cloned())
+    {
+        return hb;
+    }
+    notemaid::heartbeat::status_json()
+}
+
+/// `/api/notemaid/status` (Dev Dashboard #977)。自己診断の notemaid 部分だけ (doctor の
+/// 疎通確認は Misskey に投げるので含めない)
+pub async fn notemaid_status(app: &tauri::AppHandle) -> serde_json::Value {
+    let app_state = app.state::<AppState>();
+    serde_json::to_value(notemaid_diagnostics(&app_state).await).unwrap_or_default()
 }
 
 // 手元のランタイム状態 (ログ場所 / HEARTBEAT scheduler) を含むので local。doctor 部分は

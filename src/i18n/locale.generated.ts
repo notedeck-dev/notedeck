@@ -1396,6 +1396,38 @@ export interface Locale {
     readonly "navDiagnose": string
     /** キャッシュ */
     readonly "navCaches": string
+    /** 画像プロキシ */
+    readonly "navMedia": string
+    /** ストリーム接続 */
+    readonly "streams": string
+    /** 接続の記録なし — アカウントのストリームが繋がると現れます */
+    readonly "noStreams": string
+    /** 失敗の記録 */
+    readonly "recentFailures": string
+    /** AI の別プロセス (notemaid) がどこで動いているか (in-process / 子プロセス / 常駐) と、中継の状態、notemaid 自身の申告 (#1106)。About の自己診断と同じ値 */
+    readonly "notemaidDesc": string
+    /** 状態未取得 — 「更新」で取得します */
+    readonly "noNotemaidState": string
+    /** 画像プロキシ */
+    readonly "media": string
+    /** /proxy/image のキャッシュと上流の健全性。画像が出ないときに、上流の失敗 / breaker / 429 の待ち / 取得枠の詰まりのどれかを切り分ける */
+    readonly "mediaDesc": string
+    /** 取得枠 (使用中) */
+    readonly "fetchSlots": string
+    /** 失敗を覚えている URL */
+    readonly "negativeCache": string
+    /** host ごとの失敗 — {threshold} 回連続で breaker が {seconds} 秒発火 */
+    readonly "breakerHosts": ParameterizedString<'seconds' | 'threshold'>
+    /** 失敗している host なし */
+    readonly "noBreakerHosts": string
+    /** 未取得 — 「更新」で取得します */
+    readonly "noMediaStats": string
+    /** POST /mcp の tools/list — 外部の AI エージェントや手元の CLI に見えている tool と schema (#555) · {count} 件。実行は Capabilities から */
+    readonly "mcpDesc_plural": PluralString<'count'>
+    /** tool を選択... */
+    readonly "selectTool": string
+    /** tool なし — アプリ接続後に「更新」で取得します */
+    readonly "noMcpTools": string
   }
   readonly "_tutorialContent": {
     /** カテゴリを選んで始められます。一覧から進めてください。 */

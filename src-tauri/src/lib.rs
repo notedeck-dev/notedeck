@@ -660,6 +660,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(server) = bound_server {
                 let (ready_tx, ready_rx) = tokio::sync::oneshot::channel::<()>();
                 let bridge = std::sync::Arc::new(query_bridge::TauriBridge(app_handle.clone()));
+                let status_app = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
                     http_server::serve(http_server::ServeConfig {
                         server,
@@ -676,7 +677,16 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                         media_proxy_token,
                         perf: shared_perf_bg,
                         shutdown: shutdown_token,
-                            ai_status: std::sync::Arc::new(notemaid::heartbeat::status_json),
+                        heartbeat_status: std::sync::Arc::new(|| {
+                            Box::pin(commands::heartbeat_snapshot())
+                        }),
+                        notemaid_status: {
+                            let app = status_app.clone();
+                            std::sync::Arc::new(move || {
+                                let app = app.clone();
+                                Box::pin(async move { commands::notemaid_status(&app).await })
+                            })
+                        },
                     }, ready_tx)
                     .await;
                 });
