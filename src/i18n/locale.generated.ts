@@ -1036,6 +1036,8 @@ export interface Locale {
     readonly "collapse": string
     /** この通知を消す */
     readonly "remove": string
+    /** ステータス表示 (一覧には残りません) */
+    readonly "recentStatus": string
   }
   readonly "_noteVariantsPopup": {
     /** このノートが見えているアカウント */

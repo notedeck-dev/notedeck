@@ -6,6 +6,8 @@ import { computed, ref } from 'vue'
 // - 「コピーしました」のような軽い成功・情報はカードを出さず、ボトムバーの
 //   ステータス表示で短く知らせる。受信トレイには残さない。押して移る先が
 //   あるもの (HEARTBEAT の報告など) は後から開けるよう軽いものに含めない
+//   ステータス表示を押して受信トレイを開いたときだけ、今出ていた文言を一覧の
+//   先頭に控えめに添える (#1218。閉じたら消え、未読にも数えない)
 // - ステータス表示の場所が無い画面 (モバイル / PiP / ブラウザ) では、軽いものも
 //   カードで出す
 // 呼び出し側の API (`useToast().show`) は従来のトーストと同じ。
@@ -88,6 +90,12 @@ export function createToastCenter() {
   const inboxOpen = ref(false)
   /** 今回開いた受信トレイで新着として見せる id (開いた時点の未読 + 開いている間に来たもの) */
   const freshIds = ref<ReadonlySet<number>>(new Set())
+  /** ステータス表示から開いたときだけ、一覧の先頭に添える直前の軽い通知 (#1218)。
+   *  受信トレイには入れず、未読にも数えず、閉じたら消す */
+  const recentStatus = ref<ToastItem | null>(null)
+  /** 最後にステータス表示へ出したもの。退場のフェード中に押されても文言が合うよう、
+   *  時間切れでは消さない */
+  let lastStatus: ToastItem | null = null
   let nextId = 0
   const timers = new Map<number, ReturnType<typeof setTimeout>>()
   const paused = new Set<number>()
@@ -182,6 +190,7 @@ export function createToastCenter() {
         unread: false,
         source,
       }
+      lastStatus = status.value
       if (statusTimer) clearTimeout(statusTimer)
       statusTimer = setTimeout(() => {
         status.value = null
@@ -315,6 +324,7 @@ export function createToastCenter() {
   function clearInbox() {
     for (const t of inbox.value) forgetAction(t.id)
     inbox.value = []
+    recentStatus.value = null
     for (const t of toasts.value) dismiss(t.id)
   }
 
@@ -327,6 +337,7 @@ export function createToastCenter() {
 
   function setInboxOpen(open: boolean) {
     inboxOpen.value = open
+    recentStatus.value = null
     if (open) {
       freshIds.value = new Set(
         inbox.value.filter((t) => t.unread).map((t) => t.id),
@@ -339,6 +350,12 @@ export function createToastCenter() {
     }
   }
 
+  /** ステータス表示を押したとき: 受信トレイを開き、今出ていた文言を先頭に添える */
+  function openFromStatus() {
+    setInboxOpen(true)
+    recentStatus.value = lastStatus
+  }
+
   return {
     toasts,
     inbox,
@@ -347,6 +364,8 @@ export function createToastCenter() {
     status,
     inboxOpen: computed(() => inboxOpen.value),
     setInboxOpen,
+    recentStatus: computed(() => recentStatus.value),
+    openFromStatus,
     hasStatusHost: computed(() => statusHosts.value > 0),
     registerStatusHost,
     show,

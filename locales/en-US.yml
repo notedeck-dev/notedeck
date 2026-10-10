@@ -796,6 +796,7 @@ _notificationCenter:
   expand: "Show full text"
   collapse: "Collapse"
   remove: "Remove this notification"
+  recentStatus: "Status bar (not kept in this list)"
 
 _noteVariantsPopup:
   ariaLabel: "Accounts that can see this note"
