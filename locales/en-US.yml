@@ -1841,6 +1841,7 @@ _tasksEditorContent:
   loadFailed: "Couldn’t load tasks.json5: {error}"
   saveFailed: "Couldn’t save: {error}"
   objectRequired: "An object ({}) is required"
+  duplicateId: "Another task already uses this ID. Changes are not saved while IDs are duplicated."
   resetFailed: "Couldn’t reset: {error}"
   newTaskLabel: "New task"
   newInputPrompt: "Enter a value"

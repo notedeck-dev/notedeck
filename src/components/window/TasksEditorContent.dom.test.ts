@@ -55,3 +55,41 @@ describe('TasksEditorContent — カードの開閉 (#1215)', () => {
     wrapper.unmount()
   })
 })
+
+describe('TasksEditorContent — ID の重複', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+
+  it('他のタスクと同じ ID にすると欄の直下にエラーを出し、直すと消える', async () => {
+    const wrapper = await mountEditor()
+    const toggles = wrapper.findAll('button[aria-expanded]')
+    expect(toggles.length).toBeGreaterThanOrEqual(2)
+    await toggles[0]?.trigger('click')
+    await toggles[1]?.trigger('click')
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input[placeholder="my-task"]')
+    const first = inputs[0]
+    const second = inputs[1]
+    if (!first || !second) throw new Error('ID 欄が 2 つ無い')
+    const original = (second.element as HTMLInputElement).value
+    await second.setValue((first.element as HTMLInputElement).value)
+    await flushPromises()
+
+    for (const input of [first, second]) {
+      expect(input.attributes('aria-invalid')).toBe('true')
+      const describedBy = input.attributes('aria-describedby')
+      expect(describedBy).toBeTruthy()
+      expect(
+        document.getElementById(describedBy ?? '')?.textContent,
+      ).toBeTruthy()
+    }
+
+    await second.setValue(original)
+    await flushPromises()
+    expect(first.attributes('aria-invalid')).toBeUndefined()
+    expect(second.attributes('aria-invalid')).toBeUndefined()
+    wrapper.unmount()
+  })
+})

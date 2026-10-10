@@ -307,8 +307,8 @@ const instanceTickerStyle = computed(() => {
 const renoteMenuPos = ref<{ x: number; y: number } | null>(null)
 const renoteMenuShow = computed(() => renoteMenuPos.value !== null)
 const { visible: renoteMenuVisible, leaving: renoteMenuLeaving } =
-  // 退場は .renotePopupLeave / .renotePopupContentLeave (--nd-duration-fast)
-  useVaporTransition(renoteMenuShow, { enterDuration: 200, leaveDuration: 100 })
+  // 退場は CSS の renotePopup*Leave (--nd-duration-base) と揃える
+  useVaporTransition(renoteMenuShow, { enterDuration: 200, leaveDuration: 150 })
 const renoteMenuTheme = ref<Record<string, string>>({})
 const myRenoteId = ref<string | null>(null)
 const isRenoted = ref(false)
@@ -2224,14 +2224,14 @@ function handlePickerReaction(reaction: string) {
   color: var(--nd-renote);
 }
 
-/* Renote popup animations */
+/* Renote popup animations — メニューの役割の時間と曲線 (styles/_popup.scss の先頭の表) */
 .renotePopupEnter { animation: renotePopupBdIn var(--nd-duration-base) var(--nd-ease-decel); }
-.renotePopupLeave { animation: renotePopupBdOut var(--nd-duration-fast) ease-in forwards; }
+.renotePopupLeave { animation: renotePopupBdOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes renotePopupBdIn { from { opacity: 0; } }
 @keyframes renotePopupBdOut { to { opacity: 0; } }
 
-.renotePopupContentEnter { animation: renotePopupIn 0.2s var(--nd-ease-spring); }
-.renotePopupContentLeave { animation: renotePopupOut var(--nd-duration-fast) var(--nd-ease-decel) forwards; }
+.renotePopupContentEnter { animation: renotePopupIn var(--nd-duration-medium) var(--nd-ease-menu); }
+.renotePopupContentLeave { animation: renotePopupOut var(--nd-duration-base) var(--nd-ease-decel) forwards; }
 @keyframes renotePopupIn { from { opacity: 0; transform: scale(0.85) translateY(4px); } }
 @keyframes renotePopupOut { to { opacity: 0; transform: scale(0.92); } }
 

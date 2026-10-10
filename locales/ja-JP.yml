@@ -1603,6 +1603,7 @@ _tasksEditorContent:
   loadFailed: "tasks.json5 の読み込みに失敗しました: {error}"
   saveFailed: "保存に失敗しました: {error}"
   objectRequired: "オブジェクト ({}) が必要です"
+  duplicateId: "この ID は他のタスクでも使われています。重複している間は保存されません"
   resetFailed: "リセットに失敗しました: {error}"
   newTaskLabel: "新しいタスク"
   newInputPrompt: "入力してください"
