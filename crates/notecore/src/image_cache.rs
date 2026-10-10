@@ -501,6 +501,7 @@ impl ImageCache {
             let parsed = url::Url::parse(url).map_err(|e| format!("invalid url: {e}"))?;
             let host = parsed.host_str().ok_or("url has no host")?;
             crate::ssrf::validate_external_host(host)?;
+            crate::ssrf::check_port_safe(parsed.port())?;
         }
 
         // Circuit breaker: reject early if host is known-down
@@ -1585,6 +1586,19 @@ mod tests {
             Err(msg) => assert!(msg.contains("HTTPS")),
             Ok(_) => panic!("Expected error for HTTP URL"),
         }
+    }
+
+    #[tokio::test]
+    async fn fetch_streaming_rejects_bad_ports() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        let result = cache
+            .fetch_streaming("https://example.com:25/img.png")
+            .await;
+        assert!(
+            result.is_err(),
+            "ブラウザが繋がないポートには繋がない (#1228)"
+        );
     }
 
     /// 取得の途中 (上流の 429 で待っている間など) で要求が取り消されても、
