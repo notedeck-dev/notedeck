@@ -1800,6 +1800,15 @@ async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, 
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
+async streamChatRead(accountId: string, subscriptionId: string, messageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_chat_read", { accountId, subscriptionId, messageId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamObserveStart() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_observe_start") };

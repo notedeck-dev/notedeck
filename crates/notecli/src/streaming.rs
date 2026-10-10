@@ -346,7 +346,18 @@ enum WsCommand {
     UnsubNote {
         id: String,
     },
+    /// 購読中のチャンネルへのメッセージ (`ch`)
+    ChannelMessage {
+        id: String,
+        kind: String,
+        body: Value,
+    },
     Shutdown,
+}
+
+/// チャンネルへのメッセージの WS フレーム (misskey-js の `Connection.send` と同じ形)
+fn channel_message_frame(id: &str, kind: &str, body: Value) -> Value {
+    json!({ "type": "ch", "body": { "id": id, "type": kind, "body": body } })
 }
 
 struct ConnectionHandle {
@@ -966,6 +977,48 @@ impl StreamingManager {
         Ok(())
     }
 
+    /// 会話のチャンネル (chatUser / chatRoom) で既読をサーバーに送る。本家 Web UI が
+    /// 会話を開いている間に届いた他人のメッセージごとに送る `read` と同じで、サーバーは
+    /// 相手 / ルーム単位で既読にする (ChatService.readUserChatMessage / readRoomChatMessage)。
+    /// ポーリングでは会話の取得 (user-timeline / room-timeline) がサーバー側で既読に
+    /// するので何も送らない
+    pub async fn read_chat(
+        &self,
+        account_id: &str,
+        subscription_id: &str,
+        message_id: &str,
+    ) -> Result<(), NoteDeckError> {
+        {
+            let subs = self.subscriptions.read().await;
+            let info = subs
+                .get(subscription_id)
+                .ok_or_else(|| NoteDeckError::InvalidInput("subscription not found".to_string()))?;
+            if info.account_id != account_id
+                || !matches!(
+                    info.target,
+                    SubscriptionTarget::ChatUser { .. } | SubscriptionTarget::ChatRoom { .. }
+                )
+            {
+                return Err(NoteDeckError::InvalidInput(
+                    "not a chat subscription of this account".to_string(),
+                ));
+            }
+        }
+
+        let conns = self.connections.lock().await;
+        if let Some(handle) = conns.get(account_id) {
+            return handle
+                .cmd_tx
+                .send(WsCommand::ChannelMessage {
+                    id: subscription_id.to_string(),
+                    kind: "read".to_string(),
+                    body: json!({ "id": message_id }),
+                })
+                .map_err(|_| NoteDeckError::ConnectionClosed);
+        }
+        Ok(())
+    }
+
     pub async fn unsub_note(&self, account_id: &str, note_id: &str) -> Result<(), NoteDeckError> {
         {
             let mut captured = self.captured_notes.write().await;
@@ -1375,6 +1428,13 @@ async fn ws_loop(
                         let mut w = write.lock().await;
                         if let Err(e) = w.send(Message::Text(msg.to_string().into())).await {
                             tracing::warn!(error = %e, "unsubNote send failed");
+                        }
+                    }
+                    Some(WsCommand::ChannelMessage { id, kind, body }) => {
+                        let msg = channel_message_frame(&id, &kind, body);
+                        let mut w = write.lock().await;
+                        if let Err(e) = w.send(Message::Text(msg.to_string().into())).await {
+                            tracing::warn!(error = %e, "channel message send failed");
                         }
                     }
                     Some(WsCommand::Shutdown) | None => {
@@ -2370,6 +2430,75 @@ mod tests {
         fn emit(&self, event: StreamEvent) {
             let _ = self.0.send(event);
         }
+    }
+
+    /// 実接続の代わりに cmd_tx だけを持つハンドルを差し、送られた WsCommand を受け取る
+    async fn manager_with_fake_ws() -> (
+        StreamingManager,
+        mpsc::UnboundedReceiver<WsCommand>,
+        tempfile::TempDir,
+    ) {
+        let dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let manager =
+            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
+        manager.connections.lock().await.insert(
+            "acc-1".to_string(),
+            ConnectionHandle {
+                cmd_tx,
+                task: tokio::spawn(async {}),
+                host: "example.com".to_string(),
+                connected: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+            },
+        );
+        (manager, cmd_rx, dir)
+    }
+
+    /// 本家 Web UI (pages/chat/room.vue) と同じく、会話チャンネルに `read` を送る (#1222)
+    #[tokio::test]
+    async fn read_chat_sends_read_on_conversation_channel() {
+        let (manager, mut cmd_rx, _dir) = manager_with_fake_ws().await;
+        let sub_id = manager
+            .subscribe_chat_user("acc-1", "u-other")
+            .await
+            .unwrap();
+        assert!(matches!(cmd_rx.try_recv(), Ok(WsCommand::Subscribe { .. })));
+
+        manager.read_chat("acc-1", &sub_id, "msg-1").await.unwrap();
+        match cmd_rx.try_recv() {
+            Ok(WsCommand::ChannelMessage { id, kind, body }) => {
+                assert_eq!(id, sub_id);
+                assert_eq!(kind, "read");
+                assert_eq!(body, json!({ "id": "msg-1" }));
+            }
+            _ => panic!("read should be sent on the channel"),
+        }
+    }
+
+    #[tokio::test]
+    async fn read_chat_rejects_non_chat_subscription() {
+        let (manager, mut cmd_rx, _dir) = manager_with_fake_ws().await;
+        let main_id = manager.subscribe_main("acc-1").await.unwrap();
+        let _ = cmd_rx.try_recv();
+        assert!(manager.read_chat("acc-1", &main_id, "msg-1").await.is_err());
+        assert!(manager
+            .read_chat("acc-1", "missing", "msg-1")
+            .await
+            .is_err());
+        assert!(cmd_rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn channel_message_frame_matches_misskey_ch_shape() {
+        assert_eq!(
+            channel_message_frame("sub-1", "read", json!({ "id": "m1" })),
+            json!({
+                "type": "ch",
+                "body": { "id": "sub-1", "type": "read", "body": { "id": "m1" } }
+            })
+        );
     }
 
     #[tokio::test]
