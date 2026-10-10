@@ -253,6 +253,18 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
     allItems: readonly T[],
   ): Promise<void> {
     if (item.fileBase === undefined) {
+      // 同じ ID の個体が対応表にあれば同じものの別の写し (読込が終わる前に作った
+      // 個体など)。そのファイルへ書く。新しい名前で書くと同じ ID のファイルが増え、
+      // 次の起動で片方が読み込まれなくなる
+      const sameId = allItems.find(
+        (it) =>
+          it !== item &&
+          it.fileBase !== undefined &&
+          cfg.idOf(it) === cfg.idOf(item),
+      )
+      if (sameId) item.fileBase = sameId.fileBase
+    }
+    if (item.fileBase === undefined) {
       // 新規割当 (ID を決める操作): ファイル名と ID 集合の両方に対して空きを探す
       const taken = await buildTaken(allItems, {
         excludeItem: item,

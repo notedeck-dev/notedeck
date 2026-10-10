@@ -1064,8 +1064,9 @@ export function detectSliderPosition(cfg: PerformanceConfig): number | null {
 
 /** Base durations (seconds) matching global.css :root values. */
 export const CSS_BASE_DURATIONS: Record<string, number> = {
-  '--nd-duration-fast': 0.15,
-  '--nd-duration-base': 0.2,
+  '--nd-duration-fast': 0.1,
+  '--nd-duration-base': 0.15,
+  '--nd-duration-medium': 0.2,
   '--nd-duration-slow': 0.28,
   '--nd-duration-slower': 0.38,
   '--nd-duration-tl-enter': 0.5,

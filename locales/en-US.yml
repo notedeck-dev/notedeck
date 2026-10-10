@@ -1860,6 +1860,8 @@ _tasksEditorContent:
   saveFailed: "Couldn’t save: {error}"
   objectRequired: "An object ({}) is required"
   duplicateId: "Another task already uses this ID. Changes are not saved while IDs are duplicated."
+  emptyId: "Enter an ID. Changes are not saved while it is empty."
+  invalidId: "IDs may contain only letters, digits, _ and -. Changes are not saved until this is fixed."
   resetFailed: "Couldn’t reset: {error}"
   newTaskLabel: "New task"
   newInputPrompt: "Enter a value"
@@ -3344,6 +3346,7 @@ _deckProfile:
     one: "Removed {count} legacy AiScript Console widget. Its code is lost (the scratchpad column offers the same functionality)."
     other: "Removed {count} legacy AiScript Console widgets. Their code is lost (the scratchpad column offers the same functionality)."
   defaultName: "Profile {n}"
+  loadFailed: "Could not load deck profiles. Showing the default deck. Changes made during this session will not be saved."
 
 _misstore:
   hashMismatch: "Hash mismatch. The source may have been tampered with"
@@ -3379,6 +3382,7 @@ _taskRunner:
 _theme:
   quotedName: "\"{name}\""
   adoptedDropIns: "Imported theme {names} from themes/"
+  loadFailed: "Could not load themes. Adding, changing, or removing themes during this session will not be saved."
 
 _cacheEviction:
   searchPriority: "Search first"

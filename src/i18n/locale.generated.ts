@@ -2946,6 +2946,10 @@ help */
     readonly "objectRequired": string
     /** この ID は他のタスクでも使われています。重複している間は保存されません */
     readonly "duplicateId": string
+    /** ID を入力してください。空の間は保存されません */
+    readonly "emptyId": string
+    /** ID に使えるのは英数字・_・- だけです。直すまで保存されません */
+    readonly "invalidId": string
     /** リセットに失敗しました: {error} */
     readonly "resetFailed": ParameterizedString<'error'>
     /** 新しいタスク */
@@ -5526,6 +5530,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "consoleWidgetsRemoved_plural": PluralString<'count'>
     /** プロファイル {n} */
     readonly "defaultName": ParameterizedString<'n'>
+    /** デッキのプロファイルを読み込めませんでした。デフォルトのデッキで表示しています。この起動中の変更は保存されません */
+    readonly "loadFailed": string
   }
   readonly "_misstore": {
     /** ハッシュが一致しません。ソースが改ざんされている可能性があります */
@@ -5587,6 +5593,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "quotedName": ParameterizedString<'name'>
     /** テーマ {names} を themes/ から取り込みました */
     readonly "adoptedDropIns": ParameterizedString<'names'>
+    /** テーマを読み込めませんでした。この起動中のテーマの追加・変更・削除は保存されません */
+    readonly "loadFailed": string
   }
   readonly "_cacheEviction": {
     /** 検索優先 */
