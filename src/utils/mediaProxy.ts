@@ -50,11 +50,16 @@ const proxyUrlCache = new Map<string, string>()
  * `get_media_proxy_token` で受け取って設定する。未設定 (ブラウザ dev 等) の
  * URL はサーバーが 403 を返す。
  */
-let mediaProxyToken: string | null = null
+// 開発中に HMR でこのモジュールだけ読み直されると、main.ts は走り直さない
+// のでトークンを失い、以降の画像がすべて 403 になる。HMR の受け渡し領域に
+// 置いて引き継ぐ (本番ビルドでは import.meta.hot は無い)
+let mediaProxyToken: string | null =
+  (import.meta.hot?.data?.mediaProxyToken as string | null | undefined) ?? null
 
 export function setMediaProxyToken(token: string | null): void {
   if (token === mediaProxyToken) return
   mediaProxyToken = token
+  if (import.meta.hot?.data) import.meta.hot.data.mediaProxyToken = token
   // 組み立て済み URL はトークン無しなので捨てる
   proxyUrlCache.clear()
 }

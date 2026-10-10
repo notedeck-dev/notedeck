@@ -444,6 +444,34 @@
         ]
       }
     },
+    "/api/notemaid/status": {
+      "get": {
+        "tags": [
+          "dev"
+        ],
+        "operationId": "get_notemaid_status",
+        "responses": {
+          "200": {
+            "description": "Where notemaid (the AI process) runs, the relay state, and its own status report (#1106)"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
     "/api/openapi.json": {
       "get": {
         "tags": [
@@ -466,6 +494,34 @@
         "responses": {
           "200": {
             "description": "Bounded cache registry stats (name / size / limit, #987)"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer_auth": []
+          }
+        ]
+      }
+    },
+    "/api/perf/media": {
+      "get": {
+        "tags": [
+          "dev"
+        ],
+        "operationId": "get_perf_media",
+        "responses": {
+          "200": {
+            "description": "Image proxy runtime snapshot: memory / disk cache, negative cache, in-flight fetches, fetch slots, per-host circuit breaker and 429 throttle"
           },
           "401": {
             "description": "Unauthorized",

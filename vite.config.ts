@@ -306,7 +306,11 @@ function ndApiBridge(): Plugin {
     name: 'nd-api-bridge',
     apply: 'serve',
     configureServer(server) {
-      server.middlewares.use('/api', async (_req, res, next) => {
+      const ensureApp = async (
+        _req: unknown,
+        res: import('node:http').ServerResponse,
+        next: () => void,
+      ) => {
         // 停止直後の再確認は 2 秒に 1 回まで — その間は proxy に渡さず 503
         if (
           ndAppDownSince &&
@@ -321,7 +325,10 @@ function ndApiBridge(): Plugin {
           return
         }
         next()
-      })
+      }
+      server.middlewares.use('/api', ensureApp)
+      // MCP (#555) の tools/list を Dev Dashboard から読む (#977)
+      server.middlewares.use('/mcp', ensureApp)
 
       // Rust ログ tail (#977)。アプリの tracing 日次ローテートログ
       // (notedeck.log.YYYY-MM-DD) を SSE で流す。ログの所在は /api インデックス
@@ -396,29 +403,35 @@ function ndApiBridge(): Plugin {
   }
 }
 
+/** /api と /mcp 共通: tokenPath から Bearer を注入して 19820 へ転送する */
+function ndAuthedProxy(): ProxyOptions {
+  return {
+    target: ND_APP_ORIGIN,
+    changeOrigin: true,
+    configure(proxy) {
+      // 稼働中に落ちた場合の検知 (Vite のエラーログはこの 1 回だけ出る —
+      // 以降はミドルウェアが 503 で止める)
+      proxy.on('error', () => {
+        ndAppDownSince = Date.now()
+      })
+      proxy.on('proxyReq', (proxyReq) => {
+        if (!ndTokenPath) return
+        if (proxyReq.getHeader('authorization')) return
+        try {
+          const token = readFileSync(ndTokenPath, 'utf-8').trim()
+          proxyReq.setHeader('Authorization', `Bearer ${token}`)
+        } catch {
+          // トークンファイル不在 (アプリ起動直後など) は無認証で通す
+        }
+      })
+    },
+  }
+}
+
 function ndApiProxy(): Record<string, ProxyOptions> {
   return {
-    '/api': {
-      target: ND_APP_ORIGIN,
-      changeOrigin: true,
-      configure(proxy) {
-        // 稼働中に落ちた場合の検知 (Vite のエラーログはこの 1 回だけ出る —
-        // 以降はミドルウェアが 503 で止める)
-        proxy.on('error', () => {
-          ndAppDownSince = Date.now()
-        })
-        proxy.on('proxyReq', (proxyReq) => {
-          if (!ndTokenPath) return
-          if (proxyReq.getHeader('authorization')) return
-          try {
-            const token = readFileSync(ndTokenPath, 'utf-8').trim()
-            proxyReq.setHeader('Authorization', `Bearer ${token}`)
-          } catch {
-            // トークンファイル不在 (アプリ起動直後など) は無認証で通す
-          }
-        })
-      },
-    },
+    '/api': ndAuthedProxy(),
+    '/mcp': ndAuthedProxy(),
     // 画像プロキシは起動毎トークン (query `t`, #1099) で守られる。ブラウザ
     // dev はトークンを受け取れないので画像は 403 になる (Dev Dashboard は
     // 画像を描かない)。Tauri dev の WebView は IPC で受け取るので影響なし
