@@ -1662,6 +1662,58 @@
           }
         }
       }
+    },
+    "/proxy/media": {
+      "get": {
+        "tags": [
+          "proxy"
+        ],
+        "summary": "動画本体の中継。Range をそのまま上流へ転送し、206 / Content-Range /\nAccept-Ranges を中継する。キャッシュしない (詳細は [`crate::media_stream`])",
+        "operationId": "proxy_media",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "description": "Upstream media URL (https only, public hosts only)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "t",
+            "in": "query",
+            "description": "起動毎のメディアプロキシトークン (#1099)。`/proxy/image` と同じ値",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Whole upstream body (no Range, or upstream ignored it)"
+          },
+          "206": {
+            "description": "Partial content relayed from upstream (Range passthrough)"
+          },
+          "400": {
+            "description": "URL is not https or points to a non-public host"
+          },
+          "403": {
+            "description": "Missing or invalid media proxy token"
+          },
+          "416": {
+            "description": "Range not satisfiable (relayed from upstream)"
+          },
+          "502": {
+            "description": "Upstream fetch failed"
+          }
+        }
+      }
     }
   },
   "components": {

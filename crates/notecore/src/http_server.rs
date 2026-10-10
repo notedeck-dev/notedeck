@@ -94,11 +94,14 @@ struct DeckState {
     bridge: Arc<dyn FrontendBridge>,
     api_token: String,
     image_cache: Arc<ImageCache>,
+    /// 動画本体の中継 (`/proxy/media`) 用の上流 client。全体の timeout を
+    /// 持たない専用のもの (画像側の共有 client とは分ける)
+    media_client: Option<reqwest::Client>,
     /// AI (HEARTBEAT) の状態。埋め込む側 (notemaid を持つアプリ) が渡す
     ai_status: Arc<dyn Fn() -> Value + Send + Sync>,
 }
 
-/// 画像プロキシ (`/proxy/image`) 用の起動毎トークン (#1099)。`<img src>` は
+/// 画像・動画プロキシ (`/proxy/image` / `/proxy/media`) 用の起動毎トークン (#1099)。`<img src>` は
 /// Authorization ヘッダーを付けられないので query `t` で運ぶ。WebView は
 /// `get_media_proxy_token` command で受け取る — 同一マシンの他ブラウザで
 /// 開いたページはこの値を知り得ないので、プロキシを踏み台にできない。
@@ -301,11 +304,23 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
         _ => None,
     };
 
+    // 動画の中継用 client。build 失敗時は既定の client に倒さない — 既定は
+    // resolver も redirect の検査も持たず、防御なしで動き続けることになる。
+    // 代わりに中継だけを止める (route は 502 を返し、WebView は元の URL に戻る)
+    let media_client = match crate::media_stream::build_client() {
+        Ok(c) => Some(c),
+        Err(e) => {
+            tracing::error!(%e, "media stream client build failed; /proxy/media disabled");
+            None
+        }
+    };
+
     // NoteDeck-specific state
     let deck_state = DeckState {
         bridge: config.bridge,
         api_token: config.api_token.clone(),
         image_cache: config.image_cache,
+        media_client,
         ai_status: config.ai_status.clone(),
     };
 
@@ -948,9 +963,11 @@ fn deck_openapi_router() -> OpenApiRouter<DeckState> {
         .routes(routes!(get_inspector_recent))
 }
 
-/// Public image-proxy route, as an [`OpenApiRouter`].
+/// Public image / media proxy routes, as an [`OpenApiRouter`].
 fn proxy_openapi_router() -> OpenApiRouter<DeckState> {
-    OpenApiRouter::new().routes(routes!(proxy_image))
+    OpenApiRouter::new()
+        .routes(routes!(proxy_image))
+        .routes(routes!(proxy_media))
 }
 
 /// Build the full merged OpenAPI spec without any runtime state.
@@ -1195,6 +1212,44 @@ async fn proxy_image(
     }
 }
 
+// --- Media (video) proxy ---
+
+#[derive(Debug, Deserialize, IntoParams)]
+struct ProxyMediaParams {
+    /// Upstream media URL (https only, public hosts only)
+    url: String,
+    /// 起動毎のメディアプロキシトークン (#1099)。`/proxy/image` と同じ値
+    #[allow(dead_code)]
+    t: Option<String>,
+}
+
+/// 動画本体の中継。Range をそのまま上流へ転送し、206 / Content-Range /
+/// Accept-Ranges を中継する。キャッシュしない (詳細は [`crate::media_stream`])
+#[utoipa::path(get, path = "/proxy/media", tag = "proxy",
+    params(ProxyMediaParams),
+    responses(
+        (status = 200, description = "Whole upstream body (no Range, or upstream ignored it)"),
+        (status = 206, description = "Partial content relayed from upstream (Range passthrough)"),
+        (status = 400, description = "URL is not https or points to a non-public host"),
+        (status = 403, description = "Missing or invalid media proxy token"),
+        (status = 416, description = "Range not satisfiable (relayed from upstream)"),
+        (status = 502, description = "Upstream fetch failed"),
+    )
+)]
+async fn proxy_media(
+    State(state): State<DeckState>,
+    headers: axum::http::HeaderMap,
+    Query(params): Query<ProxyMediaParams>,
+) -> Response {
+    if let Err(msg) = crate::media_stream::validate_url(&params.url) {
+        return (StatusCode::BAD_REQUEST, msg).into_response();
+    }
+    let Some(client) = state.media_client.as_ref() else {
+        return (StatusCode::BAD_GATEWAY, "media proxy unavailable").into_response();
+    };
+    crate::media_stream::forward(client, &params.url, &headers).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1255,6 +1310,16 @@ mod tests {
             proxy_status_for("?t=abc123&url=https://x/a.png").await,
             StatusCode::OK
         );
+    }
+
+    /// 動画の中継 (`/proxy/media`) は画像と同じ router に載せ、同じ
+    /// プロキシトークンの検査 (proxy_auth_middleware) を受ける
+    #[test]
+    fn media_route_is_behind_the_proxy_token() {
+        let (_, spec) = proxy_openapi_router().split_for_parts();
+        let paths: Vec<&String> = spec.paths.paths.keys().collect();
+        assert!(paths.iter().any(|p| *p == "/proxy/media"), "{paths:?}");
+        assert!(paths.iter().any(|p| *p == "/proxy/image"), "{paths:?}");
     }
 
     /// CORS は WebView / dev サーバーの origin だけに開く (#1099)。

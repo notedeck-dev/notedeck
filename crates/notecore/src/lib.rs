@@ -38,6 +38,7 @@ pub mod json5_out;
 pub mod keybinds;
 pub mod mcp;
 pub mod media_proxy;
+pub mod media_stream;
 pub mod media_warm;
 #[cfg(target_os = "linux")]
 pub mod migration;

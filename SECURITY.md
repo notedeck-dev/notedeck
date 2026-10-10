@@ -267,7 +267,7 @@ AI チャットは `connection_id` から endpoint / キー / protocol を Rust 
 - API トークンは CSPRNG で 256-bit 生成（`rand` クレート）
 - 不正トークンには 401 Unauthorized を返却 + tracing でログ記録
 - 永続トークン (外部アプリ向け) は external principal gate (`permissions_gate.rs`) を通る。必要権限は Rust が `permissions.json5` をリクエストごとに直接読んで解決し、WebView (JS) の状態には依存しない (#1099)
-- 画像プロキシ (`/proxy/image`) も無認証ではない (#1099)。`<img src>` は Authorization ヘッダーを付けられないため、起動毎に生成するプロキシ専用トークンを query `t` で要求する。WebView は `get_media_proxy_token` command で受け取り、同一マシンの他ブラウザで開いたページは値を知り得ない。ephemeral API トークン (全権) を画像 URL に置かないために分けている
+- 画像・動画プロキシ (`/proxy/image` / `/proxy/media`) も無認証ではない (#1099)。`<img src>` は Authorization ヘッダーを付けられないため、起動毎に生成するプロキシ専用トークンを query `t` で要求する。WebView は `get_media_proxy_token` command で受け取り、同一マシンの他ブラウザで開いたページは値を知り得ない。ephemeral API トークン (全権) を画像 URL に置かないために分けている
 - CORS は許可リスト (WebView の origin と `localhost:5173` の dev サーバー) のみ。以前の permissive は「認証は別途あるが無認証の面を作らない」原則に反していた (#1099)
 
 ---
@@ -342,6 +342,8 @@ WebView 内・外部ツールとも HTTP API `/proxy/image` の一経路 (`crate
 | ネガティブキャッシュ | 4xx / 5xx / ネットワークエラーで別 TTL | `crates/notecore/src/image_cache.rs` |
 | メモリキャッシュ | LRU (item / 総量とも上限あり) | 同上 |
 | ディスクキャッシュ | TTL + 総量上限で掃除 | 同上 |
+
+動画の本体だけは別の経路 `/proxy/media` (`crates/notecore/src/media_stream.rs`) を通る。WebView のシークに要る Range をそのまま上流へ転送し、キャッシュしないため、上の表のうちサイズ上限 / キャッシュ / サーキットブレーカー / 全体のタイムアウトは持たない (再生している間ずっと応答が続く)。持つのは同じプロキシトークン、HTTPS のみ、host の一次検査と名前解決後の SSRF 検証 (同じ resolver)、redirect の各 hop の HTTPS + host 検査、接続と読み取り間隔のタイムアウト。WebView からの宛先名は `localhost` にして画像 (`127.0.0.1`) と同時接続の枠を分けるため、ATS / networkSecurityConfig / CSP の例外にも `localhost` を足してある。
 
 閾値の既定値は `PerformanceConfig` (`crates/notecore/src/perf_config.rs`) が正本で、ユーザー設定から実行時に変更できる。
 
