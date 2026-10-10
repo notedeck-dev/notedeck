@@ -59,8 +59,11 @@ type ViewId =
   | 'perms'
   | 'startup'
   | 'heartbeat'
+  | 'notemaid'
   | 'caches'
+  | 'media'
   | 'qbtrace'
+  | 'mcp'
 
 const activeView = ref<ViewId>('overview')
 
@@ -109,6 +112,7 @@ const NAV_GROUPS: {
     },
     items: [
       { id: 'caps', icon: 'ti ti-bolt', label: 'Capabilities' },
+      { id: 'mcp', icon: 'ti ti-plug-connected', label: 'MCP' },
       {
         id: 'perms',
         icon: 'ti ti-shield-lock',
@@ -131,11 +135,19 @@ const NAV_GROUPS: {
         },
       },
       { id: 'heartbeat', icon: 'ti ti-heartbeat', label: 'HEARTBEAT' },
+      { id: 'notemaid', icon: 'ti ti-robot', label: 'notemaid' },
       {
         id: 'caches',
         icon: 'ti ti-database',
         get label() {
           return i18n.ts._devDashboard.navCaches
+        },
+      },
+      {
+        id: 'media',
+        icon: 'ti ti-photo',
+        get label() {
+          return i18n.ts._devDashboard.navMedia
         },
       },
       { id: 'qbtrace', icon: 'ti ti-arrows-left-right', label: 'Query Bridge' },
@@ -148,6 +160,9 @@ function selectView(id: ViewId) {
   // 開いたときに取得する遅延ロード系ビュー
   if (id === 'overview') fetchHealth()
   if (id === 'startup') fetchStartup()
+  if (id === 'notemaid') fetchNotemaid()
+  if (id === 'media') fetchMedia()
+  if (id === 'mcp') fetchMcpTools()
   if (id === 'perms') fetchPerms()
   if (id === 'caches') fetchCaches()
   if (id === 'qbtrace') fetchQbTrace()
@@ -177,6 +192,14 @@ const columns = ref<DeckColumn[]>([])
 const health = ref('')
 const showHealth = ref(false)
 
+interface StreamHealthRow {
+  accountId: string
+  state: string
+  since: number
+}
+
+const streams = ref<StreamHealthRow[]>([])
+
 /**
  * /api/health は notecli doctor (アカウントごとに Misskey へ meta と /i を投げる) を
  * 含むので、周期ポーリングには載せず、概要を開いたときと「更新」でだけ取る
@@ -184,7 +207,12 @@ const showHealth = ref(false)
 async function fetchHealth() {
   try {
     const res = await fetch('/api/health')
-    if (res.ok) health.value = JSON.stringify(await res.json(), null, 2)
+    if (!res.ok) return
+    const data = (await res.json()) as { streams?: unknown }
+    health.value = JSON.stringify(data, null, 2)
+    streams.value = Array.isArray(data.streams)
+      ? (data.streams as StreamHealthRow[])
+      : []
   } catch {
     // アプリ未起動 — 次の「更新」で再試行
   }
@@ -260,7 +288,14 @@ interface HeartbeatStatusView {
   lastOutcome: string | null
   consecutiveFailures: number
   dailyCount: number
-  /** 直近の実行で notecore が読んだ設定の断面 (未実行なら null) */
+  /** 失敗の記録 (古い順、notemaid が永続化している) */
+  recentFailures?: {
+    at: number
+    source: string
+    signature: string
+    message: string
+  }[]
+  /** 直近の実行で notemaid が読んだ設定の断面 (未実行なら null) */
   config: {
     enabled: boolean
     intervalMinutes: number
@@ -272,6 +307,197 @@ interface HeartbeatStatusView {
 // heartbeat の中身は refreshStatus の 5 秒ポーリングが埋める
 // (ステータスバーにも常時出すためビュー表示と独立に取得する)
 const heartbeat = ref<HeartbeatStatusView | null>(null)
+
+const heartbeatFailures = computed(() =>
+  [...(heartbeat.value?.recentFailures ?? [])].reverse(),
+)
+
+// --- notemaid (#1106) ---
+// AI の別プロセスがどこで動いているか (in-process / 子 / 常駐)、中継の状態、
+// notemaid 自身の申告。About の自己診断の notemaid 部分と同じ値
+
+interface NotemaidStatusView {
+  mode: string
+  fallbackReason: string | null
+  relay: {
+    backend: string
+    connected: boolean
+    socket: string | null
+    daemonVersion: string | null
+    fingerprintMatch: boolean | null
+    lastError: string | null
+    reconnects: number
+    eventGaps: number
+  } | null
+  launcher?: {
+    sidecar: string | null
+    childPid: number | null
+    childExited: boolean
+    childExitCode: number | null
+    resident: {
+      available: boolean
+      reason: string | null
+      installed: boolean
+      active: boolean
+      detail: string | null
+    }
+  } | null
+  daemon: Record<string, unknown> | null
+  logDir: string | null
+}
+
+const notemaid = ref<NotemaidStatusView | null>(null)
+const notemaidLoading = ref(false)
+
+async function fetchNotemaid() {
+  notemaidLoading.value = true
+  try {
+    const res = await fetch('/api/notemaid/status')
+    if (res.ok) notemaid.value = await res.json()
+  } catch {
+    // アプリ未起動
+  } finally {
+    notemaidLoading.value = false
+  }
+}
+
+/** 表の 1 行に出す値 (null は —、真偽は yes / no) */
+function cell(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v === 'boolean') return v ? 'yes' : 'no'
+  if (typeof v === 'object') return JSON.stringify(v)
+  return String(v)
+}
+
+const notemaidRows = computed<[string, unknown][]>(() => {
+  const n = notemaid.value
+  if (!n) return []
+  const rows: [string, unknown][] = [
+    ['mode', n.mode],
+    ['fallbackReason', n.fallbackReason],
+  ]
+  if (n.relay) {
+    rows.push(
+      ['relay.connected', n.relay.connected],
+      ['relay.socket', n.relay.socket],
+      ['relay.daemonVersion', n.relay.daemonVersion],
+      ['relay.fingerprintMatch', n.relay.fingerprintMatch],
+      ['relay.lastError', n.relay.lastError],
+      ['relay.reconnects', n.relay.reconnects],
+      ['relay.eventGaps', n.relay.eventGaps],
+    )
+  }
+  if (n.launcher) {
+    rows.push(
+      ['launcher.sidecar', n.launcher.sidecar],
+      ['launcher.childPid', n.launcher.childPid],
+      ['launcher.childExited', n.launcher.childExited],
+      ['launcher.childExitCode', n.launcher.childExitCode],
+      ['resident.available', n.launcher.resident.available],
+      ['resident.reason', n.launcher.resident.reason],
+      ['resident.installed', n.launcher.resident.installed],
+      ['resident.active', n.launcher.resident.active],
+    )
+  }
+  if (n.daemon) {
+    for (const key of [
+      'pid',
+      'version',
+      'uptimeSeconds',
+      'devices',
+      'ready',
+      'dataDir',
+    ])
+      rows.push([`daemon.${key}`, n.daemon[key]])
+  }
+  rows.push(['logDir', n.logDir])
+  return rows
+})
+
+// --- 画像プロキシ (#921 / #987) ---
+// 「画像が出ない」を上流の失敗 / breaker / 429 throttle / 並列度の詰まりに切り分ける
+
+interface MediaProxyStatsView {
+  memItems: number
+  memBytes: number
+  memMaxBytes: number
+  diskFiles: number
+  diskBytes: number
+  diskMaxBytes: number
+  negativeEntries: number
+  inflight: number
+  fetchLimit: number
+  fetchAvailable: number
+  breakerThreshold: number
+  breakerDurationMs: number
+  hosts: {
+    host: string
+    consecutiveFailures: number
+    trippedMsAgo: number | null
+    throttledMs: number | null
+  }[]
+}
+
+const media = ref<MediaProxyStatsView | null>(null)
+
+async function fetchMedia() {
+  try {
+    const res = await fetch('/api/perf/media')
+    if (res.ok) media.value = await res.json()
+  } catch {
+    // アプリ未起動
+  }
+}
+
+function formatBytes(n: number): string {
+  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`
+  if (n >= 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${n} B`
+}
+
+// --- MCP (#555) ---
+// 外部の AI エージェントに見えている tool の一覧 (tools/list)。実行は
+// Capabilities 実行盤と同じ dispatcher に届くので、ここでは一覧だけを読む
+
+interface McpTool {
+  name: string
+  description?: string
+  inputSchema?: unknown
+}
+
+const mcpTools = ref<McpTool[]>([])
+const mcpError = ref('')
+const mcpSelected = ref('')
+const mcpSelectedTool = computed(
+  () => mcpTools.value.find((t) => t.name === mcpSelected.value) ?? null,
+)
+
+async function fetchMcpTools() {
+  mcpError.value = ''
+  try {
+    const res = await fetch('/mcp', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/list',
+        params: {},
+      }),
+    })
+    const body = (await res.json()) as {
+      result?: { tools?: McpTool[] }
+      error?: { message?: string }
+    }
+    if (body.error) mcpError.value = body.error.message ?? `HTTP ${res.status}`
+    mcpTools.value = body.result?.tools ?? []
+  } catch (e) {
+    mcpError.value = String(e)
+  }
+}
 
 function relativeTime(epochMs: number | null): string {
   if (epochMs === null) return '—'
@@ -570,7 +796,13 @@ interface ResolvedPermissions {
   principals: Record<string, Record<string, boolean>>
 }
 
-const PERM_PRINCIPALS = ['ai.chat', 'ai.heartbeat', 'plugin', 'external']
+const PERM_PRINCIPALS = [
+  'ai.chat',
+  'ai.heartbeat',
+  'plugin',
+  'external',
+  'scratchpad',
+]
 
 const perms = ref<ResolvedPermissions | null>(null)
 
@@ -1025,6 +1257,32 @@ onUnmounted(() => {
             </div>
           </div>
           <div :class="$style.card">
+            <p :class="$style.cardTitle">{{ i18n.ts._devDashboard.streams }}</p>
+            <div v-if="streams.length" :class="$style.tableWrap">
+              <table :class="$style.table">
+                <thead>
+                  <tr><th>account</th><th>state</th><th>since</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="st in streams" :key="st.accountId">
+                    <td :class="$style.mono">{{ st.accountId }}</td>
+                    <td
+                      :class="[
+                        $style.mono,
+                        st.state === 'connected' ? $style.statusOk : $style.statusWarn,
+                      ]"
+                    >{{ st.state }}</td>
+                    <td :class="$style.mono">{{ relativeTime(st.since) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-else :class="$style.emptyBox">
+              <i class="ti ti-plug" />
+              {{ i18n.ts._devDashboard.noStreams }}
+            </div>
+          </div>
+          <div :class="$style.card">
             <p :class="$style.cardTitle">{{ i18n.ts._devDashboard.rawData }}</p>
             <button
               type="button"
@@ -1170,10 +1428,190 @@ onUnmounted(() => {
                 </table>
               </div>
             </div>
+            <div v-if="heartbeatFailures.length" :class="$style.card">
+              <p :class="$style.cardTitle">{{ i18n.ts._devDashboard.recentFailures }}</p>
+              <div :class="$style.tableWrap">
+                <table :class="$style.table">
+                  <thead>
+                    <tr><th>time</th><th>source</th><th>message</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="(f, i) in heartbeatFailures" :key="`${f.at}-${i}`" :title="f.signature">
+                      <td :class="$style.mono">{{ relativeTime(f.at) }}</td>
+                      <td :class="$style.mono">{{ f.source }}</td>
+                      <td :class="[$style.mono, $style.logError]">{{ f.message }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </template>
           <div v-else :class="$style.emptyBox">
             <i class="ti ti-heartbeat" />
             {{ i18n.ts._devDashboard.noHeartbeatState }}
+          </div>
+        </section>
+
+        <section v-if="activeView === 'notemaid'" :class="$style.view">
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-robot" /> notemaid
+              </h2>
+              <p :class="$style.viewDesc">
+                {{ i18n.ts._devDashboard.notemaidDesc }}
+              </p>
+            </div>
+            <div :class="$style.viewActions">
+              <button type="button" :class="$style.btn" :disabled="notemaidLoading" @click="fetchNotemaid">
+                <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
+              </button>
+            </div>
+          </header>
+          <template v-if="notemaid">
+            <div :class="$style.statCards">
+              <div :class="$style.statCard">
+                <span :class="$style.statValue">{{ notemaid.mode }}</span>
+                <span :class="$style.statLabel">mode</span>
+              </div>
+              <div v-if="notemaid.relay" :class="$style.statCard">
+                <span
+                  :class="[
+                    $style.statValue,
+                    notemaid.relay.connected ? $style.statusOk : $style.statusErr,
+                  ]"
+                >{{ notemaid.relay.connected ? 'connected' : 'down' }}</span>
+                <span :class="$style.statLabel">relay</span>
+              </div>
+              <div v-if="notemaid.relay?.fingerprintMatch === false" :class="$style.statCard">
+                <span :class="[$style.statValue, $style.statusWarn]">mismatch</span>
+                <span :class="$style.statLabel">fingerprint</span>
+              </div>
+            </div>
+            <div :class="$style.card">
+              <div :class="$style.tableWrap">
+                <table :class="$style.table">
+                  <tbody>
+                    <tr v-for="[k, v] in notemaidRows" :key="k">
+                      <td :class="$style.mono">{{ k }}</td>
+                      <td :class="$style.mono">{{ cell(v) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </template>
+          <div v-else :class="$style.emptyBox">
+            <i class="ti ti-robot" />
+            {{ i18n.ts._devDashboard.noNotemaidState }}
+          </div>
+        </section>
+
+        <section v-if="activeView === 'media'" :class="$style.view">
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-photo" /> {{ i18n.ts._devDashboard.media }}
+              </h2>
+              <p :class="$style.viewDesc">
+                {{ i18n.ts._devDashboard.mediaDesc }}
+              </p>
+            </div>
+            <div :class="$style.viewActions">
+              <button type="button" :class="$style.btn" @click="fetchMedia">
+                <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
+              </button>
+            </div>
+          </header>
+          <template v-if="media">
+            <div :class="$style.statCards">
+              <div :class="$style.statCard">
+                <span :class="$style.statValue">{{ formatBytes(media.memBytes) }}<small>/{{ formatBytes(media.memMaxBytes) }}</small></span>
+                <span :class="$style.statLabel">memory · {{ media.memItems }}</span>
+              </div>
+              <div :class="$style.statCard">
+                <span :class="$style.statValue">{{ formatBytes(media.diskBytes) }}<small>/{{ formatBytes(media.diskMaxBytes) }}</small></span>
+                <span :class="$style.statLabel">disk · {{ media.diskFiles }}</span>
+              </div>
+              <div :class="$style.statCard">
+                <span
+                  :class="[$style.statValue, media.fetchAvailable === 0 && $style.statusWarn]"
+                >{{ media.fetchLimit - media.fetchAvailable }}<small>/{{ media.fetchLimit }}</small></span>
+                <span :class="$style.statLabel">{{ i18n.ts._devDashboard.fetchSlots }}</span>
+              </div>
+              <div :class="$style.statCard">
+                <span :class="$style.statValue">{{ media.inflight }}</span>
+                <span :class="$style.statLabel">in-flight</span>
+              </div>
+              <div :class="$style.statCard">
+                <span :class="[$style.statValue, media.negativeEntries > 0 && $style.statusWarn]">{{ media.negativeEntries }}</span>
+                <span :class="$style.statLabel">{{ i18n.ts._devDashboard.negativeCache }}</span>
+              </div>
+            </div>
+            <div :class="$style.card">
+              <p :class="$style.cardTitle">{{ i18n.tsx._devDashboard.breakerHosts({ threshold: media.breakerThreshold, seconds: Math.round(media.breakerDurationMs / 1000) }) }}</p>
+              <div v-if="media.hosts.length" :class="$style.tableWrap">
+                <table :class="$style.table">
+                  <thead>
+                    <tr><th>host</th><th>failures</th><th>breaker</th><th>429 throttle</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="h in media.hosts" :key="h.host">
+                      <td :class="$style.mono">{{ h.host }}</td>
+                      <td :class="[$style.mono, h.consecutiveFailures > 0 && $style.logWarn]">{{ h.consecutiveFailures }}</td>
+                      <td :class="[$style.mono, h.trippedMsAgo !== null && $style.logError]">{{ h.trippedMsAgo !== null ? `tripped ${Math.round(h.trippedMsAgo / 1000)}s ago` : '—' }}</td>
+                      <td :class="[$style.mono, h.throttledMs !== null && $style.logWarn]">{{ h.throttledMs !== null ? `${Math.ceil(h.throttledMs / 1000)}s` : '—' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else :class="$style.emptyBox">
+                <i class="ti ti-circle-check" />
+                {{ i18n.ts._devDashboard.noBreakerHosts }}
+              </div>
+            </div>
+          </template>
+          <div v-else :class="$style.emptyBox">
+            <i class="ti ti-photo" />
+            {{ i18n.ts._devDashboard.noMediaStats }}
+          </div>
+        </section>
+
+        <section v-if="activeView === 'mcp'" :class="$style.view">
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-plug-connected" /> MCP
+              </h2>
+              <p :class="$style.viewDesc">
+                {{ i18n.tsx._devDashboard.mcpDesc_plural({ count: mcpTools.length }) }}
+              </p>
+            </div>
+            <div :class="$style.viewActions">
+              <button type="button" :class="$style.btn" @click="fetchMcpTools">
+                <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
+              </button>
+            </div>
+          </header>
+          <div v-if="mcpError" :class="[$style.card, $style.logError]">{{ mcpError }}</div>
+          <div v-if="mcpTools.length" :class="$style.card">
+            <FormSelect v-model="mcpSelected" :class="$style.capSelect">
+              <option value="" disabled>{{ i18n.ts._devDashboard.selectTool }}</option>
+              <option v-for="t in mcpTools" :key="t.name" :value="t.name">{{ t.name }}</option>
+            </FormSelect>
+            <template v-if="mcpSelectedTool">
+              <p :class="$style.capDesc">{{ mcpSelectedTool.description }}</p>
+              <CodeEditor
+                :model-value="JSON.stringify(mcpSelectedTool.inputSchema ?? {}, null, 2)"
+                :language="lang"
+                read-only
+                auto-height
+              />
+            </template>
+          </div>
+          <div v-else-if="!mcpError" :class="$style.emptyBox">
+            <i class="ti ti-plug-connected" />
+            {{ i18n.ts._devDashboard.noMcpTools }}
           </div>
         </section>
 
