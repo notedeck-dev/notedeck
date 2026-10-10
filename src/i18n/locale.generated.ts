@@ -1514,7 +1514,7 @@ export interface Locale {
     readonly "minutes": string
     /** デスクトップ通知 */
     readonly "desktopNotification": string
-    /** 重要発見 (HEARTBEAT_OK 以外) を OS 通知で表示。アプリにフォーカスがあれば自動抑制 */
+    /** アプリを開いている間、AI が知らせたい報告を OS の通知でも表示します (アプリにフォーカスがあるときは出しません)。報告はこの設定に関わらずアプリの通知に届きます */
     readonly "desktopNotificationDescription": string
     /** まず軽く確認 */
     readonly "cheapCheck": string
@@ -1538,7 +1538,7 @@ export interface Locale {
     readonly "changeInPermissions": string
     /** アプリを終了しても続ける */
     readonly "keepRunning": string
-    /** OS のログイン時タスクとして AI を常駐させ、アプリを終了しても巡回が続きます。報告は次にアプリを開いたときに届きます。再起動は不要です。 */
+    /** OS のログイン時タスクとして AI を常駐させ、アプリを終了しても巡回が止まらないようにします。閉じている間の報告は、次にアプリを開いたときにアプリの通知に届きます。再起動は不要です。 */
     readonly "keepRunningDescription": string
     /** 切り替え中... */
     readonly "keepRunningSwitching": string
@@ -4864,6 +4864,18 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "sessionExpired": string
     /** ログインの有効期限が切れました。アカウントメニューから再ログインしてください。 */
     readonly "sessionExpiredUseMenu": string
+  }
+  readonly "_useHeartbeatDaemon": {
+    /** 確認待ちの操作が {count} 件あります */
+    readonly "pending_plural": PluralString<'count'>
+    /** 閉じている間の報告 {count} 件 */
+    readonly "awayReports_plural": PluralString<'count'>
+    /** 閉じている間の報告 {count} 件・確認待ちの操作 {pending} 件 */
+    readonly "awayReportsAndPending": ParameterizedString<'count' | 'pending'>
+    /** 閉じている間に確認待ちの操作が {count} 件増えました */
+    readonly "awayPending_plural": PluralString<'count'>
+    /** この報告のセッションは削除されています */
+    readonly "sessionMissing": string
   }
   readonly "_useMfmInsert": {
     /** Flip (横) */

@@ -173,6 +173,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/extractUrlFromMfm.ts`](src/services/extractUrlFromMfm.ts) | [`src/services/extractUrlFromMfm.test.ts`](src/services/extractUrlFromMfm.test.ts) |
 | [`src/services/followTransition.ts`](src/services/followTransition.ts) | [`src/services/followTransition.test.ts`](src/services/followTransition.test.ts) |
 | [`src/services/fuzzyMatch.ts`](src/services/fuzzyMatch.ts) | [`src/services/fuzzyMatch.test.ts`](src/services/fuzzyMatch.test.ts) |
+| [`src/services/heartbeatAway.ts`](src/services/heartbeatAway.ts) | [`src/services/heartbeatAway.test.ts`](src/services/heartbeatAway.test.ts) |
 | [`src/services/heartbeatSteps.ts`](src/services/heartbeatSteps.ts) | [`src/services/heartbeatSteps.test.ts`](src/services/heartbeatSteps.test.ts) |
 | [`src/services/idFreeze.ts`](src/services/idFreeze.ts) | [`src/services/idFreeze.test.ts`](src/services/idFreeze.test.ts) |
 | [`src/services/identityId.ts`](src/services/identityId.ts) | [`src/services/identityId.test.ts`](src/services/identityId.test.ts) |

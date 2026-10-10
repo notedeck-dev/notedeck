@@ -837,7 +837,7 @@ _aiHeartbeatSection:
   tickInterval: "tick 間隔"
   minutes: "分"
   desktopNotification: "デスクトップ通知"
-  desktopNotificationDescription: "重要発見 (HEARTBEAT_OK 以外) を OS 通知で表示。アプリにフォーカスがあれば自動抑制"
+  desktopNotificationDescription: "アプリを開いている間、AI が知らせたい報告を OS の通知でも表示します (アプリにフォーカスがあるときは出しません)。報告はこの設定に関わらずアプリの通知に届きます"
   cheapCheck: "まず軽く確認"
   cheapCheckDescription: "変化なしなら AI を起動せず HEARTBEAT_OK 扱い (skill 側で cheapCheckCapabilities の宣言が必要)"
   maxSkipHours: "最大連続 skip 時間"
@@ -849,7 +849,7 @@ _aiHeartbeatSection:
   permissions: "HEARTBEAT 中の権限"
   changeInPermissions: "権限設定で変更"
   keepRunning: "アプリを終了しても続ける"
-  keepRunningDescription: "OS のログイン時タスクとして AI を常駐させ、アプリを終了しても巡回が続きます。報告は次にアプリを開いたときに届きます。再起動は不要です。"
+  keepRunningDescription: "OS のログイン時タスクとして AI を常駐させ、アプリを終了しても巡回が止まらないようにします。閉じている間の報告は、次にアプリを開いたときにアプリの通知に届きます。再起動は不要です。"
   keepRunningSwitching: "切り替え中..."
   keepRunningUnavailable: "この環境では常駐できません: {reason}"
   runtimeEmbedded: "AI はアプリの中で動いています"
@@ -2686,6 +2686,16 @@ _useLoginPrompt:
   reloginToContinue: "再ログインすると操作できます"
   sessionExpired: "ログインの有効期限が切れました"
   sessionExpiredUseMenu: "ログインの有効期限が切れました。アカウントメニューから再ログインしてください。"
+
+_useHeartbeatDaemon:
+  pending_plural:
+    other: "確認待ちの操作が {count} 件あります"
+  awayReports_plural:
+    other: "閉じている間の報告 {count} 件"
+  awayReportsAndPending: "閉じている間の報告 {count} 件・確認待ちの操作 {pending} 件"
+  awayPending_plural:
+    other: "閉じている間に確認待ちの操作が {count} 件増えました"
+  sessionMissing: "この報告のセッションは削除されています"
 
 _useMfmInsert:
   flipHorizontal: "Flip (横)"

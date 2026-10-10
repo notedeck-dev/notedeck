@@ -1,5 +1,5 @@
 ---
-sourceHash: 0af060a8bcf3
+sourceHash: 406ad98400e8
 ---
 
 # The AI process (notemaid)
@@ -11,7 +11,7 @@ NoteDeck's AI (the agent loop and HEARTBEAT) runs in a separate process, **notem
 | Form | Who starts it | What you get |
 |---|---|---|
 | Default (child process) | The app | No setup. Starts and stops with the app. If you close the window to the tray, the AI stays alive |
-| Resident | A login task of your OS (the toggle in AI settings) | HEARTBEAT keeps going after you quit the app. The next launch connects to it automatically |
+| Resident | A login task of your OS (the toggle in AI settings) | HEARTBEAT keeps going after you quit the app. The next launch connects to it automatically, and reports from while the app was closed arrive in app notifications as one summary |
 
 Both run on the same device. There is no way to connect to a notemaid on another device or your own server: it would give you only what the resident form already gives (the rounds keep going), at the cost of authentication and key handling.
 
@@ -20,6 +20,8 @@ At startup the app first checks whether a resident notemaid is there, connects i
 ## Making it resident
 
 Only needed if you want HEARTBEAT to keep running after you quit the app completely. Turn on "Keep running after the app exits" under **AI settings** → HEARTBEAT: it registers a login task with your OS (a systemd user unit on Linux, a LaunchAgent on macOS, the Run registry key on Windows) and switches over on the spot, no restart needed. Turning it off removes the task and goes back to the child process.
+
+What resident mode gives you is that the rounds never stop. Reports live in the HEARTBEAT session: those that arrive while the app is closed show up the next time you open the app, as a single "reports while the app was closed" entry in app notifications (together with any actions waiting for your confirmation). No OS notifications are shown while the app is closed.
 
 The AppImage mounts at a different path every launch, so the toggle is not available there. Put the standalone binary from Releases somewhere on your PATH and register it by hand.
 

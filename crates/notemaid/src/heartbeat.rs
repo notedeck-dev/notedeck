@@ -59,8 +59,11 @@ If there is nothing to report, do not call any tool and return only the single l
 // ---------------------------------------------------------------------------
 
 /// デバイスへ流す出来事 (flat。Tauri は `nd:ai-heartbeat-event`)。
-/// kind: `started` (source) / `finished` (outcome) / `report` (session_id, created) /
-/// `titled` (session_id, title) / `notify` (title, body) / `toast` (level, text)
+/// kind: `started` (source) / `finished` (outcome) / `report` (session_id, created, pending) /
+/// `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text)
+///
+/// `notify` は AI が「通知して」とした報告ごとに流す (アプリの通知の受信トレイに残す, #1165)。
+/// AI 設定の「デスクトップ通知」は `desktop` に載せ、OS 通知を出すかだけをデバイスが決める
 #[derive(Clone, Debug, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HeartbeatEvent {
@@ -77,6 +80,12 @@ pub struct HeartbeatEvent {
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<String>,
+    /// `report`: この報告で新しく積まれた確認待ちの操作の数 (0 なら無し)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pending: Option<u32>,
+    /// `notify`: OS のデスクトップ通知も出すか (AI 設定の「デスクトップ通知」)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub desktop: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub level: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -96,6 +105,8 @@ impl HeartbeatEvent {
             created: None,
             title: None,
             body: None,
+            pending: None,
+            desktop: None,
             level: None,
             text: None,
             i18n: None,
@@ -1052,23 +1063,19 @@ async fn deliver(core: &Core, cfg: &AiConfigLite, report: Report, now: u64) -> R
         ));
     }
     ai_sessions::append(&base, &session_id, messages)?;
-    let mut ev = HeartbeatEvent::new("report");
-    ev.session_id = Some(session_id.clone());
-    ev.created = Some(created);
-    emit(core, ev);
+    for ev in delivered_events(
+        &session_id,
+        created,
+        report.body.as_deref(),
+        report.notify,
+        report.intents.len(),
+        cfg.heartbeat.desktop_notification,
+    ) {
+        emit(core, ev);
+    }
     let Some(visible) = report.body.as_deref() else {
         return Ok(());
     };
-    if report.notify && cfg.heartbeat.desktop_notification {
-        let mut body: String = visible.chars().take(200).collect();
-        if visible.chars().count() > 200 {
-            body.push('…');
-        }
-        let mut ev = HeartbeatEvent::new("notify");
-        ev.title = Some("HEARTBEAT".into());
-        ev.body = Some(body);
-        emit(core, ev);
-    }
     if created {
         if let Some(title) = generate_title(core, cfg, visible).await {
             if ai_sessions::rename(&base, &session_id, &title).is_ok() {
@@ -1080,6 +1087,39 @@ async fn deliver(core: &Core, cfg: &AiConfigLite, report: Report, now: u64) -> R
         }
     }
     Ok(())
+}
+
+/// 報告先に書いた後にデバイスへ流す出来事。`report` は常に、`notify` は AI が「通知して」
+/// とした報告のときだけ (デスクトップ通知の設定に関わらず。設定は `desktop` に載せる)
+fn delivered_events(
+    session_id: &str,
+    created: bool,
+    body: Option<&str>,
+    notify: bool,
+    intents: usize,
+    desktop: bool,
+) -> Vec<HeartbeatEvent> {
+    let mut out = Vec::new();
+    let mut ev = HeartbeatEvent::new("report");
+    ev.session_id = Some(session_id.to_string());
+    ev.created = Some(created);
+    if intents > 0 {
+        ev.pending = Some(u32::try_from(intents).unwrap_or(u32::MAX));
+    }
+    out.push(ev);
+    if let (Some(visible), true) = (body, notify) {
+        let mut text: String = visible.chars().take(200).collect();
+        if visible.chars().count() > 200 {
+            text.push('…');
+        }
+        let mut ev = HeartbeatEvent::new("notify");
+        ev.session_id = Some(session_id.to_string());
+        ev.title = Some("HEARTBEAT".into());
+        ev.body = Some(text);
+        ev.desktop = Some(desktop);
+        out.push(ev);
+    }
+    out
 }
 
 async fn append_error(core: &Core, cfg: &AiConfigLite, source: &str, err: &str, now: u64) {
@@ -1231,6 +1271,44 @@ mod tick_message_tests {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn delivered_events_reach_the_inbox_regardless_of_desktop_setting() {
+        // 報告 + 「通知して」 + 確認待ち 2 件、デスクトップ通知は off
+        let evs = delivered_events("s1", false, Some("見てほしい"), true, 2, false);
+        assert_eq!(evs.len(), 2);
+        assert_eq!(evs[0].kind, "report");
+        assert_eq!(evs[0].session_id.as_deref(), Some("s1"));
+        assert_eq!(evs[0].pending, Some(2));
+        assert_eq!(evs[1].kind, "notify");
+        assert_eq!(evs[1].session_id.as_deref(), Some("s1"));
+        assert_eq!(evs[1].body.as_deref(), Some("見てほしい"));
+        assert_eq!(evs[1].desktop, Some(false));
+
+        // デスクトップ通知 on なら OS 通知の印が付く
+        let evs = delivered_events("s1", true, Some("x"), true, 0, true);
+        assert_eq!(evs[0].pending, None);
+        assert_eq!(evs[0].created, Some(true));
+        assert_eq!(evs[1].desktop, Some(true));
+
+        // 「通知して」でない報告 / 確認待ちだけ: notify は出さない
+        assert_eq!(
+            delivered_events("s1", false, Some("x"), false, 0, true).len(),
+            1
+        );
+        let evs = delivered_events("s1", false, None, false, 1, true);
+        assert_eq!(evs.len(), 1);
+        assert_eq!(evs[0].pending, Some(1));
+    }
+
+    #[test]
+    fn notify_body_is_truncated() {
+        let long = "あ".repeat(250);
+        let evs = delivered_events("s1", false, Some(&long), true, 0, true);
+        let body = evs[1].body.as_deref().unwrap();
+        assert_eq!(body.chars().count(), 201);
+        assert!(body.ends_with('…'));
+    }
 
     #[test]
     fn suppression_matches_ts_rules() {

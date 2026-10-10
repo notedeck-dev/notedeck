@@ -3426,10 +3426,21 @@ lastPanic: PanicReport | null;
 notemaid: NotemaidDiagnostics }
 /**
  * デバイスへ流す出来事 (flat。Tauri は `nd:ai-heartbeat-event`)。
- * kind: `started` (source) / `finished` (outcome) / `report` (session_id, created) /
- * `titled` (session_id, title) / `notify` (title, body) / `toast` (level, text)
+ * kind: `started` (source) / `finished` (outcome) / `report` (session_id, created, pending) /
+ * `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text)
+ * 
+ * `notify` は AI が「通知して」とした報告ごとに流す (アプリの通知の受信トレイに残す, #1165)。
+ * AI 設定の「デスクトップ通知」は `desktop` に載せ、OS 通知を出すかだけをデバイスが決める
  */
-export type HeartbeatEvent = { kind: string; source?: string | null; outcome?: string | null; sessionId?: string | null; created?: boolean | null; title?: string | null; body?: string | null; level?: string | null; text?: string | null; 
+export type HeartbeatEvent = { kind: string; source?: string | null; outcome?: string | null; sessionId?: string | null; created?: boolean | null; title?: string | null; body?: string | null; 
+/**
+ * `report`: この報告で新しく積まれた確認待ちの操作の数 (0 なら無し)
+ */
+pending?: number | null; 
+/**
+ * `notify`: OS のデスクトップ通知も出すか (AI 設定の「デスクトップ通知」)
+ */
+desktop?: boolean | null; level?: string | null; text?: string | null; 
 /**
  * `text` を表示言語で描き直す手がかり (#135)
  */
