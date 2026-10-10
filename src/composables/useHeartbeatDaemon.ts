@@ -18,7 +18,10 @@ import type { UnlistenFn } from '@tauri-apps/api/event'
 import { onScopeDispose, watch } from 'vue'
 import { i18n } from '@/i18n'
 import { localizeNative } from '@/i18n/native'
-import { summarizeHeartbeatAway } from '@/services/heartbeatAway'
+import {
+  type HeartbeatNoticeRecord,
+  summarizeHeartbeatAway,
+} from '@/services/heartbeatAway'
 import { useAiActivity } from '@/stores/aiActivity'
 import { useAiSessionsStore } from '@/stores/aiSessions'
 import { useDeckStore } from '@/stores/deck'
@@ -90,8 +93,15 @@ export function useHeartbeatDaemon() {
     const since = raw == null ? Number.NaN : Number(raw)
     if (Number.isFinite(since)) {
       await sessions.loadAllMeta()
+      let notices: HeartbeatNoticeRecord[] = []
+      try {
+        notices = unwrap(await commands.heartbeatNoticesSince(since))
+      } catch (e) {
+        console.warn('[heartbeat] notices read failed:', e)
+      }
       const away = summarizeHeartbeatAway(
         [...sessions.sessions.values()],
+        notices,
         since,
       )
       if (away) {
@@ -108,7 +118,10 @@ export function useHeartbeatDaemon() {
               : i18n.tsx._useHeartbeatDaemon.awayPending_plural({
                   count: away.pending,
                 })
-        notice(text, 'info', () => void openSession(away.sessionId))
+        const sessionId = away.sessionId
+        notice(text, 'info', () =>
+          sessionId ? void openSession(sessionId) : openHeartbeatSettings(),
+        )
       }
     }
     if (config.value.heartbeat.enabled) markSeen()
@@ -207,11 +220,13 @@ export function useHeartbeatDaemon() {
           return
         case 'notify': {
           // AI が「通知して」とした報告。受信トレイには必ず残し、OS 通知は
-          // 「デスクトップ通知」が on のときだけ (フォーカス中は送り先で抑制される)
+          // 「デスクトップ通知」が on のときだけ (フォーカス中は送り先で抑制される)。
+          // 報告先が「なし」なら開く先は報告先を選べる AI 設定の HEARTBEAT (#1227)
           const sessionId = ev.sessionId
-          notice(ev.body ?? '', 'info', () => {
-            if (sessionId) void openSession(sessionId)
-          })
+          if (config.value.heartbeat.enabled) markSeen()
+          notice(ev.body ?? '', 'info', () =>
+            sessionId ? void openSession(sessionId) : openHeartbeatSettings(),
+          )
           if (ev.desktop) {
             sendDesktopNotification(ev.title ?? 'HEARTBEAT', ev.body ?? '')
           }
