@@ -484,8 +484,6 @@ async function connectCrossAccount() {
     isLoading.value = false
   }
 
-  newChatMessages.watch(accounts.filter((a) => a.hasToken).map((a) => a.id))
-
   // 2. 並行で API fetch して reconcile。ログイン中アカウントは fresh、
   //    ログアウト中は引き続き cache (上の hydrate と同じ結果)、API エラー時は cache fallback。
   const results = await Promise.allSettled(
@@ -768,6 +766,12 @@ const newChatMessages = useNewChatMessages((accountId, received) => {
     setChatHistory(withLatestChatMessage(chatHistory.value, msg))
   }
 })
+// 全アカウントのカラムは、開いた後に追加 / 再ログインしたアカウントの新着も受ける (#1223)
+if (isCrossAccount.value) {
+  newChatMessages.follow(() =>
+    accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id),
+  )
+}
 
 const canSend = computed(() => {
   if (isSending.value) return false
