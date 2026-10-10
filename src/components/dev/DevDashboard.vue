@@ -146,6 +146,7 @@ const NAV_GROUPS: {
 function selectView(id: ViewId) {
   activeView.value = id
   // 開いたときに取得する遅延ロード系ビュー
+  if (id === 'overview') fetchHealth()
   if (id === 'startup') fetchStartup()
   if (id === 'perms') fetchPerms()
   if (id === 'caches') fetchCaches()
@@ -175,6 +176,24 @@ const app = ref<ApiIndex | null>(null)
 const columns = ref<DeckColumn[]>([])
 const health = ref('')
 const showHealth = ref(false)
+
+/**
+ * /api/health は notecli doctor (アカウントごとに Misskey へ meta と /i を投げる) を
+ * 含むので、周期ポーリングには載せず、概要を開いたときと「更新」でだけ取る
+ */
+async function fetchHealth() {
+  try {
+    const res = await fetch('/api/health')
+    if (res.ok) health.value = JSON.stringify(await res.json(), null, 2)
+  } catch {
+    // アプリ未起動 — 次の「更新」で再試行
+  }
+}
+
+function refreshOverview() {
+  refreshStatus()
+  fetchHealth()
+}
 const spec = ref('')
 const showSpec = ref(false)
 
@@ -289,10 +308,9 @@ function filterByType(type: string) {
 
 async function refreshStatus() {
   try {
-    const [indexRes, colsRes, healthRes, hbRes] = await Promise.all([
+    const [indexRes, colsRes, hbRes] = await Promise.all([
       fetch('/api'),
       fetch('/api/deck/columns'),
-      fetch('/api/health'),
       fetch('/api/heartbeat/status'),
     ])
     appReachable.value = indexRes.ok
@@ -301,8 +319,6 @@ async function refreshStatus() {
       const data: unknown = await colsRes.json()
       if (Array.isArray(data)) columns.value = data as DeckColumn[]
     }
-    if (healthRes.ok)
-      health.value = JSON.stringify(await healthRes.json(), null, 2)
     if (hbRes.ok) heartbeat.value = await hbRes.json()
   } catch {
     // アプリ再起動中など — 次の周期更新で回復する
@@ -847,6 +863,7 @@ async function fetchInspector() {
 onMounted(() => {
   document.title = 'NoteDeck Control'
   refreshStatus()
+  fetchHealth()
   statusTimer = setInterval(refreshStatus, 5000)
   connectSse()
   loadCapabilities()
@@ -959,7 +976,7 @@ onUnmounted(() => {
               </p>
             </div>
             <div :class="$style.viewActions">
-              <button type="button" :class="$style.btn" @click="refreshStatus">
+              <button type="button" :class="$style.btn" @click="refreshOverview">
                 <i class="ti ti-refresh" /> {{ i18n.ts._devDashboard.refresh }}
               </button>
             </div>
