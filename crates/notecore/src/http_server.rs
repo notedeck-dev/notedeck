@@ -343,6 +343,7 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
             config.media_proxy_token.clone(),
             proxy_auth_middleware,
         ))
+        .layer(middleware::from_fn(proxy_response_hardening))
         .layer(cors_layer())
         .with_state(deck_state);
 
@@ -503,6 +504,39 @@ async fn proxy_auth_middleware(
         )
             .into_response())
     }
+}
+
+/// 中継の応答は上流の中身をそのまま返すので、この origin で文書として
+/// 開かれても script を動かせないようにする。上流が HTML / XML などの文書の
+/// 型を付けていたら型を外し、CSP の sandbox を付ける。どちらも <img> /
+/// <video> / <audio> での表示には効かない。nosniff は付けない: Chromium
+/// (WebView2) の ORB は nosniff 付きの octet-stream を cross-origin の画像として
+/// 通さなくなり、型を誤って付ける上流の画像が壊れる
+async fn proxy_response_hardening(req: Request, next: Next) -> Response {
+    let mut resp = next.run(req).await;
+    let success = resp.status().is_success();
+    let headers = resp.headers_mut();
+    if success {
+        let is_media = headers
+            .get(CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .map(|ct| {
+                let ct = ct.trim().to_ascii_lowercase();
+                ct.starts_with("image/") || ct.starts_with("video/") || ct.starts_with("audio/")
+            })
+            .unwrap_or(true);
+        if !is_media {
+            headers.insert(
+                CONTENT_TYPE,
+                HeaderValue::from_static("application/octet-stream"),
+            );
+        }
+    }
+    headers.insert(
+        axum::http::header::CONTENT_SECURITY_POLICY,
+        HeaderValue::from_static("default-src 'none'; style-src 'unsafe-inline'; sandbox"),
+    );
+    resp
 }
 
 // --- Auth middleware for NoteDeck-specific routes ---
@@ -1271,6 +1305,50 @@ mod tests {
             .await
             .expect("router should respond")
             .status()
+    }
+
+    /// 中継の応答は、上流が文書の型 (HTML 等) を返しても文書として扱わせず、
+    /// 開かれても script を動かせないようにする
+    async fn hardened(content_type: &'static str, status: StatusCode) -> Response {
+        let app = Router::new()
+            .route(
+                "/proxy/image",
+                get(move || async move {
+                    Response::builder()
+                        .status(status)
+                        .header(CONTENT_TYPE, content_type)
+                        .body(Body::from("x"))
+                        .unwrap()
+                }),
+            )
+            .layer(middleware::from_fn(proxy_response_hardening));
+        let req = Request::builder()
+            .uri("/proxy/image")
+            .body(Body::empty())
+            .unwrap();
+        app.oneshot(req).await.expect("router should respond")
+    }
+
+    #[tokio::test]
+    async fn proxy_response_is_never_served_as_a_document() {
+        let resp = hardened("text/html; charset=utf-8", StatusCode::OK).await;
+        assert_eq!(resp.headers()[CONTENT_TYPE], "application/octet-stream");
+        let csp = resp.headers()["content-security-policy"].to_str().unwrap();
+        assert!(csp.contains("sandbox"), "{csp}");
+        assert!(csp.contains("default-src 'none'"), "{csp}");
+
+        // 画像・動画・音声の型はそのまま (SVG の絵文字も <img> で使う)
+        for ct in ["image/svg+xml", "image/png", "video/mp4", "audio/mpeg"] {
+            let resp = hardened(ct, StatusCode::OK).await;
+            assert_eq!(resp.headers()[CONTENT_TYPE], ct);
+            assert!(resp.headers().contains_key("content-security-policy"));
+        }
+        let resp = hardened("application/xml", StatusCode::PARTIAL_CONTENT).await;
+        assert_eq!(resp.headers()[CONTENT_TYPE], "application/octet-stream");
+
+        // エラーの本文 (JSON / 文字列) は自前で組んだものなので触らない
+        let resp = hardened("application/json", StatusCode::FORBIDDEN).await;
+        assert_eq!(resp.headers()[CONTENT_TYPE], "application/json");
     }
 
     /// 画像プロキシのトークン検査 (#1099)。
