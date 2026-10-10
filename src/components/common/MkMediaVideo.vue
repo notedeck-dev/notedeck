@@ -48,6 +48,7 @@ watch(
   () => props.file.url,
   () => {
     streamFailed.value = false
+    posterFailed.value = false
   },
 )
 
