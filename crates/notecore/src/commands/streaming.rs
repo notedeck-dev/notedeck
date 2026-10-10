@@ -30,12 +30,13 @@ pub async fn stream_connect(core: &Core, account_id: String) -> Result<()> {
 
 /// アカウントの main チャンネルを張る。main はアカウント単位の共有チャンネルで、
 /// 外す口は無い (解放は disconnect だけ、#984)。チャットの履歴一覧が別の会話の
-/// 新着 (`newChatMessage`) を受けるのに使う
+/// 新着 (`newChatMessage`) を受けるのに使う。チャット用なので新着だけを受け、
+/// 通知などは配らない (チャットを開いただけで OS 通知が出ないように、#1223)
 pub async fn stream_subscribe_main(core: &Core, account_id: String) -> Result<()> {
     let streaming = core.streaming()?;
     let db = core.db().await;
     ensure_stream_connected(&db, streaming, &account_id).await?;
-    streaming.subscribe_main(&account_id).await?;
+    streaming.subscribe_main_chat(&account_id).await?;
     Ok(())
 }
 
