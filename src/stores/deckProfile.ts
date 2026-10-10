@@ -76,6 +76,11 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     resolveReady = resolve
   })
 
+  // 起動時の読み込みに失敗したセッションは、プロファイルのファイルに一切書かない。
+  // 読めていない状態で既定のプロファイルを書くと、既存と同じ ID のファイルが
+  // 起動のたびに 1 つずつ増えていた (ID の重複で読み込みが落ちていた v1.83.0 前)
+  let fileLoadFailed = false
+
   /** Cached profile name, kept in sync imperatively to avoid localStorage dependency. */
   const currentProfileName = ref<string | null>(null)
 
@@ -180,7 +185,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   /** プロファイル 1 件をファイルへ反映する (ready 待ち)。 */
   function persistProfileToFile(profileId: string) {
-    if (!settingsFs.isTauri) return
+    if (!settingsFs.isTauri || fileLoadFailed) return
     void ready
       .then(async () => {
         // 直近の状態を参照する (別ウィンドウの変更通知でオブジェクトが入れ替わる)
@@ -194,7 +199,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   /** 全プロファイルをファイルへ反映する (ready 待ち)。 */
   function persistAllProfilesToFiles() {
-    if (!settingsFs.isTauri) return
+    if (!settingsFs.isTauri || fileLoadFailed) return
     void ready
       .then(async () => {
         for (const p of profilesData.value) {
@@ -447,7 +452,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       saveActiveProfileId(profiles[0]?.id ?? null)
     }
 
-    if (removed && settingsFs.isTauri) {
+    if (removed && settingsFs.isTauri && !fileLoadFailed) {
       void ready
         .then(() => profileFiles.deleteItemFiles(removed))
         .catch((e) => console.warn('[deckProfile] failed to delete file:', e))
@@ -476,7 +481,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     profileVersion.value++
     refreshProfileName()
 
-    if (!settingsFs.isTauri) return
+    if (!settingsFs.isTauri || fileLoadFailed) return
     // rename の完了を待ってから保存する (並行発火の順序バグ根絶 #913)
     void ready
       .then(async () => {
@@ -556,6 +561,8 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       profilesData.value = items
     } catch (e) {
       console.warn('[deckProfile] failed to load profile files:', e)
+      fileLoadFailed = true
+      notifyWarningToast(i18n.ts._deckProfile.loadFailed)
     }
   }
 
@@ -590,7 +597,9 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       }
       profiles.push(profile)
       saveProfiles(profiles)
-      saveActiveProfileId(profile.id)
+      // 読めなかったときは仮の表示なので、次回の起動のアクティブを上書きしない
+      if (fileLoadFailed) activeProfileId.value = profile.id
+      else saveActiveProfileId(profile.id)
     } else {
       loadActiveProfileId()
       const first = profiles[0]
@@ -615,7 +624,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
   async function initFileStorage(): Promise<void> {
     // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
-    if (settingsFs.isMainDeckWindow()) {
+    if (settingsFs.isMainDeckWindow() && !fileLoadFailed) {
       // 規約外名の copy-adopt 正規化。凍結済み ID (= 旧完全ファイル名) は
       // 不変なので、activeProfileId / `?profile=` はファイル名が変わっても
       // 無追随で整合する

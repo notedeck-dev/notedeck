@@ -3071,6 +3071,7 @@ _deckProfile:
   consoleWidgetsRemoved_plural:
     other: "旧 AiScript Console widget を {count} 件削除しました。コードは失われています (スクラッチパッドカラムで同等の機能が使えます)。"
   defaultName: "プロファイル {n}"
+  loadFailed: "デッキのプロファイルを読み込めませんでした。既定のデッキで表示しています。この起動中の変更は保存されません"
 
 _misstore:
   hashMismatch: "ハッシュが一致しません。ソースが改ざんされている可能性があります"

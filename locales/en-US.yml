@@ -3346,6 +3346,7 @@ _deckProfile:
     one: "Removed {count} legacy AiScript Console widget. Its code is lost (the scratchpad column offers the same functionality)."
     other: "Removed {count} legacy AiScript Console widgets. Their code is lost (the scratchpad column offers the same functionality)."
   defaultName: "Profile {n}"
+  loadFailed: "Could not load deck profiles. Showing the default deck. Changes made during this session will not be saved."
 
 _misstore:
   hashMismatch: "Hash mismatch. The source may have been tampered with"
