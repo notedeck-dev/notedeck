@@ -218,6 +218,7 @@ macro_rules! with_command_table {
         data stream_set_mode(account_id: String, mode: String, interval_ms: Option<u64>) -> () = $crate::commands::streaming::stream_set_mode;
         data stream_sub_note(account_id: String, note_id: String) -> () = $crate::commands::streaming::stream_sub_note;
         data stream_unsub_note(account_id: String, note_id: String) -> () = $crate::commands::streaming::stream_unsub_note;
+        data stream_chat_read(account_id: String, subscription_id: String, message_id: String) -> () = $crate::commands::streaming::stream_chat_read;
         data stream_observe_start() -> () = $crate::commands::streaming::stream_observe_start;
         data stream_observe_stop() -> () = $crate::commands::streaming::stream_observe_stop;
             // --- pet (crates/notecore/src/commands/pet.rs) ---

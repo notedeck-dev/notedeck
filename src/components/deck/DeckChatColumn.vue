@@ -185,7 +185,7 @@ const thread = useChatThread({
       const adapter = await multiAdapters.getOrCreate(accountId)
       adapter?.stream.connect()
     }
-    return createQuerySubscription({
+    const sub = createQuerySubscription({
       open: async () =>
         unwrap(
           target.kind === 'room'
@@ -198,8 +198,20 @@ const thread = useChatThread({
       },
       onDelete: (id) => handlers.onDelete(id),
     })
+    return {
+      dispose: () => sub.dispose(),
+      markRead: (messageId) => {
+        const subscriptionId = sub.subscriptionId
+        if (!subscriptionId) return
+        commands
+          .streamChatRead(accountId, subscriptionId, messageId)
+          .catch((e) => console.warn('[chat] read failed:', e))
+      },
+    }
   },
   onIncoming: (msg) => onNewMessage(msg),
+  getMyUserId: (accountId) => getUserIdForAccount(accountId),
+  isViewing: () => document.visibilityState === 'visible',
 })
 
 const { messages, messageIds } = thread
@@ -733,7 +745,7 @@ const newChatMessages = useNewChatMessages((accountId, received) => {
   }
   const msg = newChatMessageForHistory(received)
   const myId = getUserIdForAccount(accountId)
-  // 開いている会話の分も来る (会話のチャンネルで既読を送っていないため)。
+  // 開いている会話の分も来ることがある (ウィンドウが裏で既読を送らなかった分)。
   // 会話にはもう出ていて、履歴へは戻るときに reflectLatestIntoHistory が足す。
   // ここで store に入れると、届くまでの 3 秒に付いたリアクションを古い本文で潰す
   if (

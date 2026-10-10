@@ -36,6 +36,8 @@ export interface ChatThreadApiPort {
 
 export interface ChatThreadSubscription {
   dispose(): void
+  /** 会話のチャンネルでサーバーに既読を送る (本家の `read`) */
+  markRead(messageId: string): void
 }
 
 export interface ChatThreadDeps {
@@ -66,6 +68,10 @@ export interface ChatThreadDeps {
    * 判断は呼び出し側が行う (append する場合は `append()` を呼ぶ)。
    */
   onIncoming(msg: ChatMessage): void
+  /** アカウントの自分の userId (自分の送信には既読を送らない) */
+  getMyUserId(accountId: string): string | undefined
+  /** 会話を見ているか (ウィンドウが表に出ているか) */
+  isViewing(): boolean
 }
 
 /** キャッシュからの 1 ページ取得件数 (open hydrate / loadOlder 共通)。 */
@@ -171,11 +177,18 @@ export function useChatThread(deps: ChatThreadDeps) {
       if (!hydrated) setMessages([])
     }
 
-    // 4. ライブ購読
-    sub = await deps.subscribe(accountId, nextTarget, {
-      onInsert: (msg) => deps.onIncoming(msg),
+    // 4. ライブ購読。見ている間に届いた他人のメッセージは既読をサーバーに送る
+    // (#1222、本家 pages/chat/room.vue の onMessage と同じ)。送らないと未読の
+    // まま残り、3 秒後に main の newChatMessage とプッシュ通知が来る
+    const handle = await deps.subscribe(accountId, nextTarget, {
+      onInsert: (msg) => {
+        deps.onIncoming(msg)
+        if (msg.fromUserId !== deps.getMyUserId(accountId) && deps.isViewing())
+          handle.markRead(msg.id)
+      },
       onDelete: (id) => remove(id),
     })
+    sub = handle
     return 'opened'
   }
 

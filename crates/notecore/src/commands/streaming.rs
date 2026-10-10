@@ -66,6 +66,20 @@ pub async fn stream_sub_note(core: &Core, account_id: String, note_id: String) -
     streaming.sub_note(&account_id, &note_id).await
 }
 
+/// 開いている会話のチャンネルで既読をサーバーに送る (#1222)。本家 Web UI が会話を
+/// 開いている間に届いた他人のメッセージごとに送る `read` と同じ
+pub async fn stream_chat_read(
+    core: &Core,
+    account_id: String,
+    subscription_id: String,
+    message_id: String,
+) -> Result<()> {
+    let streaming = core.streaming()?;
+    streaming
+        .read_chat(&account_id, &subscription_id, &message_id)
+        .await
+}
+
 pub async fn stream_unsub_note(core: &Core, account_id: String, note_id: String) -> Result<()> {
     let streaming = core.streaming()?;
     streaming.unsub_note(&account_id, &note_id).await

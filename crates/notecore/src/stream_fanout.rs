@@ -67,7 +67,11 @@ pub struct StreamUnreadEvent {
     pub op: UnreadOp,
 }
 
-/// 生イベントから未読の合図を取り出す。通知の着信 / 全既読 / チャットの着信だけ
+/// 生イベントから未読の合図を取り出す。通知の着信 / 全既読 / チャットの着信だけ。
+///
+/// チャットの着信は main の `newChatMessage` で数える (本家 boot/main-boot.ts の
+/// 未読の印と同じ)。サーバーが流すのは 3 秒たっても既読にならなかった他人の
+/// メッセージだけなので、自分の送信や開いて読んでいる会話の分は数えない (#1222)
 pub fn unread_signal(event: &StreamEvent) -> Option<StreamUnreadEvent> {
     match event {
         StreamEvent::Notification(e) => Some(StreamUnreadEvent {
@@ -82,7 +86,7 @@ pub fn unread_signal(event: &StreamEvent) -> Option<StreamUnreadEvent> {
                 op: UnreadOp::Clear,
             })
         }
-        StreamEvent::ChatMessage(e) => Some(StreamUnreadEvent {
+        StreamEvent::MainEvent(e) if e.event_type == "newChatMessage" => Some(StreamUnreadEvent {
             account_id: e.account_id.clone(),
             kind: UnreadKind::Chat,
             op: UnreadOp::Increment,
@@ -201,5 +205,35 @@ mod tests {
         assert!(new_chat_message(&main_event("followed", body)).is_none());
         // 形の合わない本文は捨てる
         assert!(new_chat_message(&main_event("newChatMessage", json!({ "id": 1 }))).is_none());
+    }
+
+    /// チャットの未読は main の newChatMessage (3 秒たっても既読にならなかった他人の
+    /// メッセージ) で数える。会話チャンネルのメッセージは自分の送信も、開いて
+    /// 読んでいる会話の分も含むので数えない (#1222)
+    #[test]
+    fn chat_unread_counts_new_chat_message_not_conversation_channel() {
+        let body = json!({
+            "id": "m1",
+            "createdAt": "2026-10-10T00:00:00.000Z",
+            "fromUserId": "u1",
+            "toUserId": "u2",
+            "text": "hi",
+            "reactions": []
+        });
+        assert_eq!(
+            unread_signal(&main_event("newChatMessage", body.clone())),
+            Some(StreamUnreadEvent {
+                account_id: "a".into(),
+                kind: UnreadKind::Chat,
+                op: UnreadOp::Increment,
+            })
+        );
+        let channel_message =
+            StreamEvent::ChatMessage(Box::new(notecli::streaming::StreamChatMessageEvent {
+                account_id: "a".into(),
+                subscription_id: "s".into(),
+                message: serde_json::from_value(body).unwrap(),
+            }));
+        assert_eq!(unread_signal(&channel_message), None);
     }
 }

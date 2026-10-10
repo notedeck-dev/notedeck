@@ -39,12 +39,15 @@ interface DepsOverrides {
   fetched?: ChatMessage[] | (() => Promise<ChatMessage[]>)
   /** resolveApi が null を返す (= adapter 不在) */
   noApi?: boolean
+  /** 会話を見ているか (既定 true) */
+  viewing?: boolean
 }
 
 function makeDeps(overrides: DepsOverrides = {}) {
   const store = makeStore()
   const subs: Array<{ disposed: boolean }> = []
   const onIncoming = vi.fn()
+  const markRead = vi.fn()
   const fetch = vi.fn(
     async (_t: ChatThreadTarget, _opts?: { untilId?: string }) => {
       const f = overrides.fetched ?? []
@@ -77,6 +80,7 @@ function makeDeps(overrides: DepsOverrides = {}) {
         dispose: () => {
           sub.disposed = true
         },
+        markRead,
       }
     },
   )
@@ -86,8 +90,19 @@ function makeDeps(overrides: DepsOverrides = {}) {
     resolveApi: async () => (overrides.noApi ? null : { fetch }),
     subscribe,
     onIncoming,
+    getMyUserId: () => 'u-me',
+    isViewing: () => overrides.viewing ?? true,
   }
-  return { deps, store, fetch, getCached, subscribe, subs, onIncoming }
+  return {
+    deps,
+    store,
+    fetch,
+    getCached,
+    subscribe,
+    subs,
+    onIncoming,
+    markRead,
+  }
 }
 
 // cache/API は newest-first で返る (Misskey API と同じ向き)
@@ -211,6 +226,38 @@ describe('ライブ購読イベント', () => {
 
     handlers?.onDelete('a2')
     expect(thread.messages.value.map((m) => m.id)).toEqual(['a1'])
+  })
+})
+
+describe('既読 (#1222、本家 pages/chat/room.vue と同じ)', () => {
+  it('会話を見ている間に届いた他人のメッセージは既読を送る', async () => {
+    const { deps, subscribe, markRead } = makeDeps()
+    const thread = useChatThread(deps)
+    await thread.open('acc-1', USER_TARGET, { loggedOut: false })
+
+    subscribe.mock.calls[0]?.[2].onInsert(msg('live-1'))
+    expect(markRead).toHaveBeenCalledExactlyOnceWith('live-1')
+  })
+
+  it('自分が送ったメッセージには既読を送らない', async () => {
+    const { deps, subscribe, markRead } = makeDeps()
+    const thread = useChatThread(deps)
+    await thread.open('acc-1', USER_TARGET, { loggedOut: false })
+
+    subscribe.mock.calls[0]?.[2].onInsert({
+      ...msg('mine'),
+      fromUserId: 'u-me',
+    })
+    expect(markRead).not.toHaveBeenCalled()
+  })
+
+  it('見ていない (ウィンドウが裏) 間に届いた分は既読を送らない', async () => {
+    const { deps, subscribe, markRead } = makeDeps({ viewing: false })
+    const thread = useChatThread(deps)
+    await thread.open('acc-1', USER_TARGET, { loggedOut: false })
+
+    subscribe.mock.calls[0]?.[2].onInsert(msg('live-1'))
+    expect(markRead).not.toHaveBeenCalled()
   })
 })
 

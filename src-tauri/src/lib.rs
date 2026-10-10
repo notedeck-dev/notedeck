@@ -1158,6 +1158,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::stream_set_mode,
             commands::stream_sub_note,
             commands::stream_unsub_note,
+            commands::stream_chat_read,
             commands::stream_observe_start,
             commands::stream_observe_stop,
             commands::fetch_ogp,
