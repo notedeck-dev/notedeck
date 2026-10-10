@@ -67,6 +67,22 @@ pub fn validate_external_host(host: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// 外部へ取りに行く client のリダイレクト方針。各 hop の host も
+/// [`validate_external_host`] で検査する。[`ValidatingResolver`] は名前解決の
+/// 結果しか見ないので、IP literal の飛び先 (`https://127.0.0.1/` 等) はここで拒む
+pub fn external_redirect_policy(max: usize) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() >= max {
+            return attempt.error("too many redirects");
+        }
+        let host = attempt.url().host_str().unwrap_or("").to_string();
+        match validate_external_host(&host) {
+            Ok(()) => attempt.follow(),
+            Err(e) => attempt.error(e),
+        }
+    })
+}
+
 /// 解決済み IP アドレスが外部接続向けに安全か検証する (DNS pinning からも使う)。
 pub fn check_ip_safe(ip: IpAddr) -> Result<(), String> {
     if ip.is_loopback() {
@@ -236,6 +252,34 @@ pub fn host_in_allowed(host: &str, allowed_hosts: &[String]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 名前解決を通らない IP literal の飛び先 (http://127.0.0.1/ 等) は
+    /// ValidatingResolver では止まらないので、リダイレクトの方針で拒む
+    #[tokio::test]
+    async fn external_redirect_policy_refuses_ip_literal_hops() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = axum::Router::new()
+            .route(
+                "/r",
+                axum::routing::get(move || async move {
+                    axum::response::Redirect::temporary(&format!("http://{addr}/ok"))
+                }),
+            )
+            .route("/ok", axum::routing::get(|| async { "internal" }));
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let client = reqwest::Client::builder()
+            .redirect(external_redirect_policy(5))
+            .build()
+            .unwrap();
+        let err = client
+            .get(format!("http://{addr}/r"))
+            .send()
+            .await
+            .expect_err("redirect to a loopback literal must not be followed");
+        assert!(err.is_redirect(), "{err:#}");
+    }
 
     #[test]
     fn host_in_allowed_is_case_insensitive() {

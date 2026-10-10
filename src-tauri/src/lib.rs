@@ -402,7 +402,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             .pool_max_idle_per_host(8)
             .pool_idle_timeout(std::time::Duration::from_secs(60))
             .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
-            .redirect(reqwest::redirect::Policy::limited(5))
+            .redirect(notecore::ssrf::external_redirect_policy(5))
             .dns_resolver(std::sync::Arc::new(notecore::ssrf::ValidatingResolver))
             .build()?;
         app.manage(shared_http.clone());
