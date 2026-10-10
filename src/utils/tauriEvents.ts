@@ -22,6 +22,8 @@ export interface TauriEventPayloads {
   'nd:accounts-early': Account[]
   /** バックエンド初期化の致命エラー (DB open 失敗など)。payload はメッセージ */
   'nd:backend-fatal': string
+  /** 内蔵 HTTP サーバーが中継のポートを取れなかった (#1231)。payload はポート番号 */
+  'nd:http-relay-unavailable': number
   'nd:hwheel': number
   'nd:toggle-offline-mode': undefined
   'nd:toggle-realtime-mode': undefined

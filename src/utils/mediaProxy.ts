@@ -1,10 +1,12 @@
 import { ref } from 'vue'
 import { usePerformanceStore } from '@/stores/performance'
+import { APP_HTTP_PORT } from '@/utils/appHttpPort'
 
 /**
  * 画像・効果音プロキシの WebView 側の口 (#921 Phase 3)。
  *
- * 全プラットフォームで内蔵 HTTP サーバー (`127.0.0.1:19820/proxy/image`) に
+ * 全プラットフォームで内蔵 HTTP サーバー (`127.0.0.1:<port>/proxy/image`、ポートは
+ * appHttpPort.ts) に
  * 一本化している。以前は custom protocol `ndmedia:` を使っていたが、
  * wry Android は全 custom protocol リクエストが単一ロックで直列化されるため
  * 構造的に遅く、それを補う二段階配信 (プレースホルダ + 完了イベント +
@@ -32,14 +34,14 @@ import { usePerformanceStore } from '@/stores/performance'
  * 動画の口は宛先の名前を `localhost` にして画像 (`127.0.0.1`) と分ける。
  * WebView の同一宛先の同時接続は 6 本で、宛先は名前 (host:port) 単位に
  * 数えられる。再生中の動画は接続を長く握るので、同じ名前だと後ろの画像が
- * 全部順番待ちになる。サーバーは同じ (127.0.0.1:19820 で待ち受け、Host
+ * 全部順番待ちになる。サーバーは同じ (127.0.0.1 で待ち受け、Host
  * ガードは localhost を通す)。CSP / ATS / Android の cleartext 例外にも
  * localhost を足してある
  *
  * 音声の添付の本体も同じ口で読む。
  */
-const HTTP_MEDIA_BASE = 'http://127.0.0.1:19820/proxy/image'
-const HTTP_STREAM_BASE = 'http://localhost:19820/proxy/media'
+const HTTP_MEDIA_BASE = `http://127.0.0.1:${APP_HTTP_PORT}/proxy/image`
+const HTTP_STREAM_BASE = `http://localhost:${APP_HTTP_PORT}/proxy/media`
 
 const proxyUrlCache = new Map<string, string>()
 
@@ -61,6 +63,19 @@ export function setMediaProxyToken(token: string | null): void {
   mediaProxyToken = token
   if (import.meta.hot?.data) import.meta.hot.data.mediaProxyToken = token
   // 組み立て済み URL はトークン無しなので捨てる
+  proxyUrlCache.clear()
+}
+
+/**
+ * 中継が使えるか (#1231)。内蔵 HTTP サーバーがポートを取れなかったと
+ * Rust から知らされたら (main.ts) 落とす。中継の URL は別のアプリ (同じ PC の
+ * WSL2 の開発版など) に届いて読めないので、どの口も元の URL を返す。
+ * ref なので template / computed から呼ばれた URL は切り替え時に組み直される
+ */
+const proxyAvailable = ref(true)
+
+export function disableMediaProxy(): void {
+  proxyAvailable.value = false
   proxyUrlCache.clear()
 }
 
@@ -96,7 +111,7 @@ function buildProxyUrl(
   url: string | null | undefined,
   sizeQuery?: string,
 ): string | undefined {
-  if (!isProxiable(url)) return url ?? undefined
+  if (!proxyAvailable.value || !isProxiable(url)) return url ?? undefined
   const key = sizeQuery ? `${url}|${sizeQuery}` : url
   let cached = proxyUrlCache.get(key)
   if (!cached) {
@@ -115,7 +130,7 @@ function buildProxyUrl(
 export function proxyMediaUrl(
   url: string | null | undefined,
 ): string | undefined {
-  if (!isProxiable(url)) return url ?? undefined
+  if (!proxyAvailable.value || !isProxiable(url)) return url ?? undefined
   return `${HTTP_STREAM_BASE}?url=${encodeURIComponent(url)}${mediaProxyToken ? `&t=${mediaProxyToken}` : ''}`
 }
 

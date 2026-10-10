@@ -83,6 +83,7 @@ vi.mock('@/utils/tauriInvoke', async () => {
 })
 
 import { useUiStore } from '@/stores/ui'
+import { APP_HTTP_PORT } from '@/utils/appHttpPort'
 import DriveFileDetailContent from './DriveFileDetailContent.vue'
 
 let app: App | null = null
@@ -231,7 +232,7 @@ describe('DriveFileDetailContent の EXIF 表示 (#797)', () => {
   })
   it('プレビュー画像は画像プロキシ経由で読み、失敗したときだけ元の URL に戻す', async () => {
     await mountDetail()
-    const proxied = `http://127.0.0.1:19820/proxy/image?url=${encodeURIComponent('https://example.test/photo.png')}`
+    const proxied = `http://127.0.0.1:${APP_HTTP_PORT}/proxy/image?url=${encodeURIComponent('https://example.test/photo.png')}`
     expect(img()?.getAttribute('src')).toBe(proxied)
     img()?.dispatchEvent(new Event('error'))
     await vi.waitFor(() =>

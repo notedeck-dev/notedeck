@@ -13,11 +13,11 @@ import { formatTime } from '@/utils/formatTime'
 
 /**
  * Dev Dashboard (#977) — ブラウザ (5173) から実行中アプリの内蔵 HTTP サーバー
- * (19820, #940) を覗く開発者ダッシュボード。認証は Vite の dev proxy が
+ * (#940) を覗く開発者ダッシュボード。認証は Vite の dev proxy が
  * tokenPath から Bearer を注入する (vite.config.ts)。
  *
  * external API の dogfooding クライアントを兼ねる: ここで不足を踏んだら、
- * それが 19820 側の次の改善点になる。
+ * それが内蔵 HTTP サーバー側の次の改善点になる。
  */
 
 interface ApiIndex {
@@ -169,7 +169,7 @@ function selectView(id: ViewId) {
   if (id === 'inspector') fetchInspector()
 }
 
-/** アプリ (19820) への到達性。切断時は OpenClaw 流のアンバーピルを出す */
+/** アプリ (内蔵 HTTP サーバー) への到達性。切断時は OpenClaw 流のアンバーピルを出す */
 const appReachable = ref(true)
 
 // ナビの開閉 (Misskey ナビバー式)。folded は幅 56px のアイコン列になる

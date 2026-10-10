@@ -1,7 +1,7 @@
 /**
  * カスタム絵文字 `<img>` の onerror 共通ハンドラ (#844)。
  *
- * プロキシ (127.0.0.1:19820/proxy/image) は上流の一時失敗で 502 を返す
+ * プロキシ (内蔵 HTTP サーバーの /proxy/image) は上流の一時失敗で 502 を返す
  * ことがある — negative cache (network 5s) / circuit breaker の half-open
  * 待ち / 起動直後でネットワークが未接続、など。error を受けた瞬間に
  * unknown アイコンへ置き換えると、Vue の :src バインドは値が変わらない

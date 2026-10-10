@@ -521,6 +521,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 .collect(),
         );
         app.manage(media_proxy_token.clone());
+        app.manage(commands::HttpRelayUnavailable::default());
 
         // dev ダッシュボード (#977) のログ tail 用に /api インデックスで開示する
         let log_dir = app
@@ -589,6 +590,15 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
             let bound_server = http_handle.join().expect("http bind thread panicked");
+            if bound_server.is_none() {
+                // 中継のポートを別のアプリ (同じ PC の WSL2 で動く開発版など) が使っている (#1231)。
+                // 画面は中継を諦めて元の URL で読み、利用者には対処を知らせる
+                app_handle
+                    .state::<commands::HttpRelayUnavailable>()
+                    .0
+                    .store(true, std::sync::atomic::Ordering::Relaxed);
+                let _ = tauri::Emitter::emit(&app_handle, "nd:http-relay-unavailable", http_server::PORT);
+            }
             stage("db-open");
 
             // DB migrations + account export (must complete before commands can use credentials)

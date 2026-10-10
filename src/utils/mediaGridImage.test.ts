@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { NormalizedDriveFile } from '@/adapters/types'
+import { APP_HTTP_PORT } from '@/utils/appHttpPort'
 import { mediaGridImage, previewableMediaCount } from '@/utils/mediaGridImage'
 
-const BASE = 'http://127.0.0.1:19820/proxy/image'
+const BASE = `http://127.0.0.1:${APP_HTTP_PORT}/proxy/image`
 
 function file(over: Partial<NormalizedDriveFile> = {}): NormalizedDriveFile {
   return {

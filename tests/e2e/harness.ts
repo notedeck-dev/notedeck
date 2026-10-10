@@ -3,7 +3,7 @@
  * 同じ HTTP API 面 (#709) で駆動する。
  *
  * 起動フロー:
- *   1. port 19820 が空いていることを確認 (実アプリ起動中の誤操作防止)
+ *   1. 開発版のポートが空いていることを確認 (開発版の起動中の誤操作防止)
  *   2. 一時ディレクトリを NOTEDECK_APP_DIR に指定してデバッグバイナリを spawn
  *      (チュートリアル自動起動は settings.json5 の事前配置で抑止)
  *   3. デバッグビルドは devUrl (5173) から frontend を読むため、vite が
@@ -21,7 +21,10 @@ import path from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 
-const API_BASE = 'http://127.0.0.1:19820'
+// デバッグビルドは配布版と別のポートで待ち受ける (#1231。正本は
+// crates/notecore/src/http_server.rs の PORT)。配布版を起動したままでも E2E は走れる
+const API_PORT = 19821
+const API_BASE = `http://127.0.0.1:${API_PORT}`
 const VITE_BASE = 'http://localhost:5173'
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -29,7 +32,7 @@ const REPO_ROOT = path.resolve(
 )
 
 export interface E2eApp {
-  /** `http://127.0.0.1:19820` */
+  /** `http://127.0.0.1:<開発版のポート>` */
   base: string
   /** ephemeral Bearer トークン (tokenPath から取得済み) */
   token: string
@@ -129,7 +132,7 @@ function terminate(proc: ChildProcess, killAfterMs = 5000): Promise<void> {
 /**
  * attach モード (Android 実機/エミュレータ向け):
  * `NOTEDECK_E2E_ATTACH=1` のとき、アプリを spawn せず既に起動している
- * インスタンス (adb forward tcp:19820 tcp:19820 経由) に接続する。
+ * インスタンス (adb forward tcp:19821 tcp:19821 経由。開発版のポート) に接続する。
  * トークンはデバイス内ファイルを読めないため `NOTEDECK_E2E_TOKEN` で渡す。
  * stop() は何もしない (デバイス側アプリは殺さない)。
  */
@@ -142,7 +145,7 @@ async function attachApp(): Promise<E2eApp> {
   }
   await waitFor(
     () => reachable(`${API_BASE}/api`),
-    'attached HTTP API (19820)',
+    `attached HTTP API (${API_PORT})`,
     30_000,
   )
   const headers = { Authorization: `Bearer ${token}` }
@@ -176,11 +179,11 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
     return attachApp()
   }
 
-  // 安全ガード: 19820 が既に応答する = ユーザーの実アプリが起動中。
-  // そのまま進むとテストが実アプリを操作してしまうため即中断する。
+  // 安全ガード: 開発版のポートが既に応答する = 開発版 (pnpm tauri:dev) が起動中。
+  // そのまま進むとテストがそのアプリを操作してしまうため即中断する。
   if (await reachable(`${API_BASE}/api`)) {
     throw new Error(
-      'port 19820 is already in use — NoteDeck が起動中です。E2E は実アプリを閉じてから実行してください',
+      `port ${API_PORT} is already in use — 開発版の NoteDeck が起動中です。E2E はそれを閉じてから実行してください`,
     )
   }
 
@@ -241,7 +244,7 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
   }
 
   // NOTEDECK_E2E_VERBOSE=1 でアプリの stdout/stderr をテスト出力へ流す。
-  // 起動失敗 (WebKit の EGL/DMABUF クラッシュ等) は 19820 タイムアウトとして
+  // 起動失敗 (WebKit の EGL/DMABUF クラッシュ等) は HTTP API のタイムアウトとして
   // しか観測できず、死因がログに残らないため CI では常時有効にする
   const verbose = process.env.NOTEDECK_E2E_VERBOSE === '1'
   const appProc = spawn(binary, [], {
@@ -263,7 +266,7 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
   try {
     await waitFor(
       () => reachable(`${API_BASE}/api`),
-      'HTTP API (19820)',
+      `HTTP API (${API_PORT})`,
       120_000,
     )
 
