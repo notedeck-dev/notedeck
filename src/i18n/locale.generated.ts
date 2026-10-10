@@ -5593,6 +5593,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "quotedName": ParameterizedString<'name'>
     /** テーマ {names} を themes/ から取り込みました */
     readonly "adoptedDropIns": ParameterizedString<'names'>
+    /** テーマを読み込めませんでした。この起動中のテーマの追加・変更・削除は保存されません */
+    readonly "loadFailed": string
   }
   readonly "_cacheEviction": {
     /** 検索優先 */

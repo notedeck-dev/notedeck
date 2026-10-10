@@ -3107,6 +3107,7 @@ _taskRunner:
 _theme:
   quotedName: "「{name}」"
   adoptedDropIns: "テーマ {names} を themes/ から取り込みました"
+  loadFailed: "テーマを読み込めませんでした。この起動中のテーマの追加・変更・削除は保存されません"
 
 _cacheEviction:
   searchPriority: "検索優先"

@@ -374,6 +374,17 @@ describe('persistItem', () => {
     expect(t.fileBase).toBe('alpha')
   })
 
+  it('同じ ID の個体が対応表にあれば、そのファイルへ書く (読込前に作った写しで -2 を生まない)', async () => {
+    const fs = makeFakeFs({ [`alpha${EXT}`]: file('t1', 'alpha') })
+    const col = makeCollection(fs)
+    const loaded = item({ id: 't1', name: 'alpha', fileBase: 'alpha' })
+    const early = item({ id: 't1', name: 'alpha', props: { bg: '#fff' } })
+    await col.persistItem(early, [loaded])
+    expect(early.fileBase).toBe('alpha')
+    expect([...fs.files.keys()]).toEqual([`alpha${EXT}`])
+    expect(fs.files.get(`alpha${EXT}`)).toContain('#fff')
+  })
+
   it('fileBase 割当済みなら name が変わっても再計算しない', async () => {
     const fs = makeFakeFs()
     const col = makeCollection(fs)

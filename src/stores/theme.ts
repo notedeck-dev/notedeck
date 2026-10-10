@@ -27,6 +27,7 @@ import {
   setStorageString,
 } from '@/utils/storage'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { notifyWarningToast } from '@/utils/toastNotify'
 import { withViewTransition } from '@/utils/viewTransition'
 
 // Moved inside defineStore below to isolate per-window instance.
@@ -131,6 +132,10 @@ export const useThemeStore = defineStore('theme', () => {
   const ready = new Promise<void>((resolve) => {
     resolveReady = resolve
   })
+  // 起動時の読み込みに失敗したセッションは、テーマのファイルに一切書かない。
+  // 一覧が空のまま同じ ID のテーマを入れると既存のファイルの横に別名で書かれ、
+  // 次の起動で片方が読み込まれなくなる
+  let fileLoadFailed = false
 
   /**
    * ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
@@ -143,7 +148,7 @@ export const useThemeStore = defineStore('theme', () => {
 
   /** テーマ 1 件をファイルへ反映する (ready 待ち)。 */
   function persistThemeFile(theme: MisskeyTheme) {
-    if (!settingsFs.isTauri) return
+    if (!settingsFs.isTauri || fileLoadFailed) return
     void ready
       .then(() =>
         themeFileSync.themeFiles.persistItem(theme, installedThemes.value),
@@ -409,7 +414,7 @@ export const useThemeStore = defineStore('theme', () => {
     saveInstalledThemes()
     applyCurrentTheme()
     // Async: delete the removed theme file (+ 履歴サイドカー、ready 待ち)
-    if (settingsFs.isTauri && removed) {
+    if (settingsFs.isTauri && !fileLoadFailed && removed) {
       void ready
         .then(() => themeFileSync.themeFiles.deleteItemFiles(removed))
         .catch((e) => console.warn('[theme] failed to delete theme file:', e))
@@ -498,7 +503,7 @@ export const useThemeStore = defineStore('theme', () => {
     theme.$notedeck = { ...(theme.$notedeck ?? {}), updatedAt: Date.now() }
     saveInstalledThemes()
 
-    if (!settingsFs.isTauri) return
+    if (!settingsFs.isTauri || fileLoadFailed) return
     // ファイルは rename コマンドで追随させる (ID 不変・主ファイル + 履歴。
     // 旧削除 + 新書込の並行発火は旧ファイルを孤児化させるため禁止 #913)。
     // rename の完了を待ってから保存する
@@ -892,7 +897,14 @@ export const useThemeStore = defineStore('theme', () => {
 
   /** Load themes from files and custom CSS. Files are source of truth. */
   async function initFileStorage(): Promise<void> {
-    const data = await themeFileSync.loadFromFiles()
+    let data: themeFileSync.FileStorageData
+    try {
+      data = await themeFileSync.loadFromFiles()
+    } catch (e) {
+      fileLoadFailed = true
+      notifyWarningToast(i18n.ts._theme.loadFailed)
+      throw e
+    }
 
     // 初期化 (この async 関数が走る間) にメモリ追加されたテーマは残す
     // (各自の persistThemeFile が ready 後にファイル化する)

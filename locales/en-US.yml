@@ -3382,6 +3382,7 @@ _taskRunner:
 _theme:
   quotedName: "\"{name}\""
   adoptedDropIns: "Imported theme {names} from themes/"
+  loadFailed: "Could not load themes. Adding, changing, or removing themes during this session will not be saved."
 
 _cacheEviction:
   searchPriority: "Search first"
