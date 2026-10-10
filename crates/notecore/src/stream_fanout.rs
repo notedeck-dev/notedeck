@@ -7,6 +7,7 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use notecli::models::ChatMessage;
 use notecli::streaming::StreamEvent;
 use serde::{Deserialize, Serialize};
 use specta::Type;
@@ -90,6 +91,32 @@ pub fn unread_signal(event: &StreamEvent) -> Option<StreamUnreadEvent> {
     }
 }
 
+/// 別の会話に来たチャットの新着 (main チャンネルの `newChatMessage`)。
+///
+/// 本家は受信から 3 秒たっても既読にならなかったメッセージだけをこの名前で流す
+/// (ChatService の createMessageToUser / createMessageToRoom)。会話のチャンネルを
+/// 開いていなくても届くので、チャットの履歴一覧の新着に使う
+#[derive(Clone, Debug, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct StreamNewChatMessageEvent {
+    pub account_id: String,
+    pub message: ChatMessage,
+}
+
+/// 生イベントからチャットの新着を取り出す。読めない本文は捨てる
+pub fn new_chat_message(event: &StreamEvent) -> Option<StreamNewChatMessageEvent> {
+    match event {
+        StreamEvent::MainEvent(e) if e.event_type == "newChatMessage" => {
+            let message = serde_json::from_value::<ChatMessage>(e.body.clone()).ok()?;
+            Some(StreamNewChatMessageEvent {
+                account_id: e.account_id.clone(),
+                message,
+            })
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,5 +170,36 @@ mod tests {
             wire,
             json!({ "accountId": "a", "kind": "notification", "op": "clear" })
         );
+    }
+
+    fn main_event(event_type: &str, body: serde_json::Value) -> StreamEvent {
+        StreamEvent::MainEvent(Box::new(StreamMainEvent {
+            account_id: "a".into(),
+            subscription_id: "s".into(),
+            event_type: event_type.into(),
+            body,
+        }))
+    }
+
+    #[test]
+    fn new_chat_message_picks_main_new_chat_message_only() {
+        let body = json!({
+            "id": "m1",
+            "createdAt": "2026-10-10T00:00:00.000Z",
+            "fromUserId": "u2",
+            "fromUser": { "id": "u2", "username": "bob", "name": null, "host": null, "avatarUrl": null },
+            "toUserId": "u1",
+            "text": "hi",
+            "reactions": []
+        });
+        let got = new_chat_message(&main_event("newChatMessage", body.clone())).unwrap();
+        assert_eq!(got.account_id, "a");
+        assert_eq!(got.message.id, "m1");
+        assert_eq!(got.message.text.as_deref(), Some("hi"));
+        assert_eq!(got.message.from_user.unwrap().username, "bob");
+
+        assert!(new_chat_message(&main_event("followed", body)).is_none());
+        // 形の合わない本文は捨てる
+        assert!(new_chat_message(&main_event("newChatMessage", json!({ "id": 1 }))).is_none());
     }
 }

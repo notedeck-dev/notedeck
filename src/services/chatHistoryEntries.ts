@@ -1,4 +1,5 @@
 import type { AvatarDecoration, ChatMessage, ChatUser } from '@/adapters/types'
+import type { ChatThreadTarget } from '@/composables/useChatThread'
 import type { PrefetchTarget } from '@/composables/useChatThreadPrefetch'
 
 /**
@@ -265,4 +266,26 @@ export function withLatestCrossAccountMessage(
     ],
     getUserId,
   )
+}
+
+/**
+ * 別の会話に来た新着 (main ストリームの newChatMessage) を履歴に足す形にする。
+ * 本家は受信から 3 秒たっても既読にならなかったメッセージだけを流し
+ * (ChatService)、本文に isRead を載せない (載せるのは chat/history だけ) ので、
+ * 未読として足す
+ */
+export function newChatMessageForHistory(msg: ChatMessage): ChatMessage {
+  return { ...msg, isRead: false }
+}
+
+/** メッセージが開いている会話のものか。新着を履歴に足すとき、見ている会話は未読にしない */
+export function isChatMessageInThread(
+  msg: ChatMessage,
+  target: ChatThreadTarget | null,
+  myUserId: string | undefined,
+): boolean {
+  if (!target) return false
+  if (target.kind === 'room') return msg.toRoomId === target.roomId
+  if (msg.toRoomId) return false
+  return resolveOther(msg, myUserId).otherId === target.otherId
 }

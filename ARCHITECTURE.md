@@ -230,7 +230,7 @@ WebSocket 接続は維持したまま、subscription 単位で channel から **
 
 **重要**: 「可視・予算外」だけでは suspend しない。これをやると見えているのに reaction が永続的に取り逃される（Misskey は再送しない）。
 
-**main チャンネルは suspend / unsubscribe の対象外** (#984): Misskey の `main` は `shouldShare` チャンネルで **1 WS 接続に 1 本しか張れない**（2 本目の connect はサーバーが黙って無視する）。通知・メンション・OS 通知・未読バッジがすべてこの 1 本にぶら下がるため、main の寿命はカラム（query）ではなく**アカウントセッション**に属する。`StreamingManager` は main をアカウント単位で dedup し、main への `unsubscribe` / `suspend_subscription` を no-op にする。解放経路は `disconnect` のみ。
+**main チャンネルは suspend / unsubscribe の対象外** (#984): Misskey の `main` は `shouldShare` チャンネルで **1 WS 接続に 1 本しか張れない**（2 本目の connect はサーバーが黙って無視する）。通知・メンション・OS 通知・未読バッジ・チャットの履歴一覧の新着 (`newChatMessage`、`stream_subscribe_main` で張り専用イベント `stream-new-chat-message` で流す) がすべてこの 1 本にぶら下がるため、main の寿命はカラム（query）ではなく**アカウントセッション**に属する。`StreamingManager` は main をアカウント単位で dedup し、main への `unsubscribe` / `suspend_subscription` を no-op にする。解放経路は `disconnect` のみ。
 
 #### A-4c. Reaction freshness guarantees
 

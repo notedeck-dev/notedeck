@@ -36,6 +36,7 @@ import { useChatVisibility } from '@/composables/useChatVisibility'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
+import { useNewChatMessages } from '@/composables/useNewChatMessages'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useVaporTransition } from '@/composables/useVaporTransition'
@@ -48,7 +49,9 @@ import {
   chatMessageMatchesSearch,
   type CrossAccountChatHistoryEntry as HistoryEntry,
   isChatHistoryUnread,
+  isChatMessageInThread,
   matchesChatSearch,
+  newChatMessageForHistory,
   type PerAccountChatHistoryEntry as PerAccountHistoryEntry,
   withLatestChatMessage,
   withLatestCrossAccountMessage,
@@ -254,6 +257,11 @@ const filteredHistoryEntries = computed<HistoryEntry[]>(() =>
 const showConvSearch = ref(false)
 const convSearchQuery = ref('')
 const convSearchInputRef = ref<HTMLInputElement | null>(null)
+// ヘッダーのボタンから下りてくるので、メニューと同じ登場 / 退場にする
+// (退場は _popup.scss の menuLeave = --nd-duration-base)
+const convSearchT = useVaporTransition(showConvSearch, {
+  leaveDuration: PICKER_LEAVE_MS,
+})
 
 function toggleConvSearch() {
   showConvSearch.value = !showConvSearch.value
@@ -373,6 +381,8 @@ async function connectPerAccount() {
     return
   }
 
+  if (props.column.accountId) newChatMessages.watch([props.column.accountId])
+
   // 2. 並行で API fetch して reconcile (server is source of truth で完全置換)
   try {
     const adapter = await initAdapter()
@@ -461,6 +471,8 @@ async function connectCrossAccount() {
     )
     isLoading.value = false
   }
+
+  newChatMessages.watch(accounts.filter((a) => a.hasToken).map((a) => a.id))
 
   // 2. 並行で API fetch して reconcile。ログイン中アカウントは fresh、
   //    ログアウト中は引き続き cache (上の hydrate と同じ結果)、API エラー時は cache fallback。
@@ -710,6 +722,40 @@ function reflectLatestIntoHistory() {
     setChatHistory(withLatestChatMessage(chatHistory.value, latest))
   }
 }
+
+// 別の会話に来た新着を履歴の並び・プレビュー・未読の点に反映する。会話を
+// 開いている間も履歴は裏で直しておき、戻ったときに古い並びを見せない
+const newChatMessages = useNewChatMessages((accountId, received) => {
+  if (isCrossAccount.value) {
+    if (!accountsStore.accounts.some((a) => a.id === accountId)) return
+  } else if (accountId !== props.column.accountId) {
+    return
+  }
+  const msg = newChatMessageForHistory(received)
+  const myId = getUserIdForAccount(accountId)
+  // 開いている会話の分も来る (会話のチャンネルで既読を送っていないため)。
+  // 会話にはもう出ていて、履歴へは戻るときに reflectLatestIntoHistory が足す。
+  // ここで store に入れると、届くまでの 3 秒に付いたリアクションを古い本文で潰す
+  if (
+    viewMode.value === 'conversation' &&
+    activeAccountId.value === accountId &&
+    isChatMessageInThread(msg, thread.target.value, myId)
+  ) {
+    return
+  }
+  if (isCrossAccount.value) {
+    const host = accountsStore.accounts.find((a) => a.id === accountId)?.host
+    if (!host) return
+    chatMessageStore.put([msg])
+    historyEntries.value = withLatestCrossAccountMessage(
+      historyEntries.value,
+      { msg, accountId, host },
+      getUserIdForAccount,
+    )
+  } else {
+    setChatHistory(withLatestChatMessage(chatHistory.value, msg))
+  }
+})
 
 const canSend = computed(() => {
   if (isSending.value) return false
@@ -1252,7 +1298,10 @@ onBeforeUnmount(() => {
     <!-- Conversation View -->
     <div v-else-if="viewMode === 'conversation'" :class="[$style.chatBody, $style.conversation, 'nd-fade-appear']" @click="closeReactionPicker">
       <!-- メッセージ検索バー (#483 v2: showConvSearch toggle) -->
-      <div v-if="showConvSearch" :class="$style.searchBar">
+      <div
+        v-if="convSearchT.visible.value"
+        :class="[$style.searchBar, convSearchT.leaving.value ? $style.menuLeave : $style.menuEnter]"
+      >
         <i :class="$style.searchIcon" class="ti ti-search" />
         <input
           ref="convSearchInputRef"
