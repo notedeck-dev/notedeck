@@ -633,7 +633,7 @@ function close() {
   font-size: var(--nd-font-body);
 
   a {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -790,7 +790,7 @@ function close() {
 }
 
 .createBtn {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.85;
 
   &:hover {

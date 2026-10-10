@@ -321,7 +321,7 @@ onMounted(() => {
 }
 
 .aboutLearnMore {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: inherit;
 
   &:hover {

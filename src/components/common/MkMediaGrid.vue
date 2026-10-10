@@ -529,7 +529,7 @@ function closeLightbox() {
 .indicator {
   background-color: black;
   border-radius: var(--nd-radius-sm);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   display: inline-block;
   font-weight: var(--nd-weight-bold);
   font-size: var(--nd-font-sm);

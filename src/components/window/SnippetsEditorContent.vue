@@ -312,7 +312,7 @@ function handleReset() {
 
   &.active {
     background: var(--nd-accent-hover);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 
   i {
@@ -380,7 +380,7 @@ function handleReset() {
 }
 
 .statusSaved {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .actions {

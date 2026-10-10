@@ -142,7 +142,7 @@ function reduceFrequency() {
   padding: 4px 8px;
   border: none;
   background: none;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: var(--nd-font-md);
   cursor: pointer;
 

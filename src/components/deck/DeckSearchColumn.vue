@@ -1183,7 +1183,7 @@ onUnmounted(() => {
 .filterToggleActive,
 .sortToggleActive {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 // 外部からの検索語の差し替えで本文の条件が止まっている

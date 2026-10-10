@@ -122,7 +122,7 @@ onUnmounted(() => {
     font-family: var(--nd-font-mono);
     font-size: 0.9rem;
     font-weight: var(--nd-weight-bold);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 

@@ -683,7 +683,7 @@ onMounted(async () => {
 
 .iconBtnActive {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .footer {

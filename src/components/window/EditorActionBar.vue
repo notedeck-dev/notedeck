@@ -166,7 +166,7 @@ const emit = defineEmits<(e: 'action', key: string) => void>()
 }
 
 .statusOk {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 1;
 }
 </style>

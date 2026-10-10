@@ -97,7 +97,7 @@ function onContextMenu(folder: DriveFolder, e: MouseEvent) {
 .folderIcon {
   /* セル幅の 7 割を基準に、狭いセル（ピッカー等）でもはみ出さない */
   font-size: clamp(2.5rem, 70cqw, 6rem);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.5;
 }
 

@@ -140,7 +140,7 @@ defineProps<{
   stroke-linejoin: round;
 
   &.info {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 
   &.question {
@@ -160,7 +160,7 @@ defineProps<{
   }
 
   &.waiting {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 

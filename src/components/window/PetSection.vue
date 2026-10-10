@@ -259,7 +259,7 @@ function openPage() {
   cursor: pointer;
 
   &:hover {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 </style>

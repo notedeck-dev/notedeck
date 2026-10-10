@@ -419,7 +419,7 @@ function closeMenu() {
   padding: 1px 6px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 </style>

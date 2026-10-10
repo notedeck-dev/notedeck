@@ -230,7 +230,7 @@ useNativeDialog(dialogRef, visible, {
   border-radius: var(--nd-radius-full);
   font-size: var(--nd-font-2xs);
   font-weight: var(--nd-weight-bold);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--nd-accent) 35%, transparent);
 
@@ -262,7 +262,7 @@ useNativeDialog(dialogRef, visible, {
   margin-bottom: 8px;
   font-size: var(--nd-font-sm);
   font-weight: var(--nd-weight-bold);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .body {
@@ -329,7 +329,7 @@ useNativeDialog(dialogRef, visible, {
   width: 36px;
   height: 36px;
   flex-shrink: 0;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 24px;
 }
 

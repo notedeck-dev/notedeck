@@ -406,7 +406,7 @@ const statusClass = computed(() => {
 }
 
 .statusSaved {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .languageRow {

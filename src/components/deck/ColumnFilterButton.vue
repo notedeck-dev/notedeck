@@ -197,7 +197,7 @@ function openQueryManager(): void {
 
   &.filterBtnActive {
     opacity: 1;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 
   /* 検索バーのアイコンボタン列に合わせる (#1180) */

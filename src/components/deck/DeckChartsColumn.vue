@@ -1009,7 +1009,7 @@ watch(driveView, (v) => {
   letter-spacing: 0.01em;
 
   i {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     font-size: 15px;
   }
 }
@@ -1073,7 +1073,7 @@ watch(driveView, (v) => {
 
 .statIcon {
   font-size: 22px;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.85;
 }
 

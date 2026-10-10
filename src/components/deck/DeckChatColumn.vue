@@ -1490,7 +1490,7 @@ onBeforeUnmount(() => {
 
   &.active {
     opacity: 1;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -1785,7 +1785,7 @@ onBeforeUnmount(() => {
 
   &.active {
     opacity: 1;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     background: var(--nd-accentedBg);
   }
 }

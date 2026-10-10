@@ -153,7 +153,7 @@ onMounted(() => {
   position: fixed;
   z-index: calc(var(--nd-z-popup) + 10);
   pointer-events: none;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   transform: translate(-50%, -50%);
   overflow: visible;
 }

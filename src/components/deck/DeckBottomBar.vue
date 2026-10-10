@@ -222,7 +222,7 @@ const {
   gap: 6px;
   height: 100%;
   padding: 0 12px;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: var(--nd-font-body);
   white-space: nowrap;
   opacity: 0.7;
@@ -238,7 +238,7 @@ const {
   .ti {
     @include nav-icon;
     flex-shrink: 0;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -290,7 +290,7 @@ const {
 
 .tabActive {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   &::after {
     content: "";

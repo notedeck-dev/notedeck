@@ -531,7 +531,7 @@ function handleReset() {
 
 // 補間から外れた (個別に触った) チャンネルの目印
 .customDot {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .channelIcon {
@@ -584,7 +584,7 @@ function handleReset() {
 
   &:hover {
     opacity: 1;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 
@@ -634,7 +634,7 @@ function handleReset() {
   align-items: center;
   gap: 4px;
   font-size: var(--nd-font-xs);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.7;
 }
 

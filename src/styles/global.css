@@ -26,6 +26,8 @@
   /* Fallback: Mi Dark Theme (overridden by JS theme engine) */
   --nd-accent: #86b300;
   --nd-accentDarken: #6e9400;
+  /* 文字として使う accent (#1213)。塗りの accent と分ける */
+  --nd-accentText: #86b300;
   --nd-accentedBg: rgba(134, 179, 0, 0.15);
   --nd-love: #dd2e44;
   --nd-focus: rgba(134, 179, 0, 0.3);
