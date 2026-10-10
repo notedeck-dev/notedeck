@@ -505,7 +505,22 @@ async fn proxy_auth_middleware(
     if bool::from(presented.as_bytes().ct_eq(token.0.as_bytes())) {
         Ok(next.run(req).await)
     } else {
-        tracing::warn!(uri = %req.uri().path(), "media proxy request without a valid token");
+        // 出どころを突き止めるため、トークンが無いのか違うのか (古いトークン等) と、
+        // どの面が要求したかを残す (#1229)。トークン自体はログに出さない
+        let header = |name: &str| {
+            req.headers()
+                .get(name)
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("")
+        };
+        tracing::warn!(
+            uri = %req.uri().path(),
+            reason = if presented.is_empty() { "missing" } else { "mismatch" },
+            referer = header("referer"),
+            fetch_dest = header("sec-fetch-dest"),
+            user_agent = header("user-agent"),
+            "media proxy request without a valid token"
+        );
         Err((
             StatusCode::FORBIDDEN,
             Json(json!({ "error": "FORBIDDEN", "message": "Invalid media proxy token" })),
