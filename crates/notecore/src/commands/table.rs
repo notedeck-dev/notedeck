@@ -213,6 +213,7 @@ macro_rules! with_command_table {
         data fetch_image_bytes(url: String) -> Vec<u8> = $crate::commands::enrichment::fetch_image_bytes;
             // --- streaming (crates/notecore/src/commands/streaming.rs) ---
         data stream_connect(account_id: String) -> () = $crate::commands::streaming::stream_connect;
+        data stream_subscribe_main(account_id: String) -> () = $crate::commands::streaming::stream_subscribe_main;
         data stream_disconnect(account_id: String) -> () = $crate::commands::streaming::stream_disconnect;
         data stream_set_mode(account_id: String, mode: String, interval_ms: Option<u64>) -> () = $crate::commands::streaming::stream_set_mode;
         data stream_sub_note(account_id: String, note_id: String) -> () = $crate::commands::streaming::stream_sub_note;

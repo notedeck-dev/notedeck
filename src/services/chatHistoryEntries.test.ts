@@ -6,7 +6,9 @@ import {
   buildPerAccountPrefetchTargets,
   chatMessageMatchesSearch,
   isChatHistoryUnread,
+  isChatMessageInThread,
   matchesChatSearch,
+  newChatMessageForHistory,
   withLatestChatMessage,
   withLatestCrossAccountMessage,
 } from './chatHistoryEntries'
@@ -328,5 +330,44 @@ describe('withLatestCrossAccountMessage (#1216)', () => {
     )
     expect(next.map((e) => e.message.text)).toEqual(['b2', 'a'])
     expect(next[0]?.serverHost).toBe('b.example')
+  })
+})
+
+describe('newChatMessageForHistory', () => {
+  // 本家は 3 秒たっても既読にならなかった受信だけを newChatMessage で流し、
+  // 本文に isRead を載せない (載せるのは chat/history だけ)
+  it('未読として履歴に足す', () => {
+    const msg = dm({ fromUserId: OTHER, toUserId: ME })
+    const added = newChatMessageForHistory(msg)
+    expect(added.isRead).toBe(false)
+    expect(
+      isChatHistoryUnread(added, ME, {
+        loggedOut: false,
+        openedIds: new Set(),
+      }),
+    ).toBe(true)
+  })
+})
+
+describe('isChatMessageInThread', () => {
+  it('ルームはルーム id で、1 対 1 は相手で見分ける', () => {
+    const inRoom = dm({ fromUserId: OTHER, toRoomId: 'r1' })
+    const fromOther = dm({ fromUserId: OTHER, toUserId: ME })
+    const toOther = dm({ fromUserId: ME, toUserId: OTHER })
+    const room = { kind: 'room', roomId: 'r1' } as const
+    const user = { kind: 'user', otherId: OTHER } as const
+    expect(isChatMessageInThread(inRoom, room, ME)).toBe(true)
+    expect(isChatMessageInThread(inRoom, user, ME)).toBe(false)
+    expect(isChatMessageInThread(fromOther, user, ME)).toBe(true)
+    expect(isChatMessageInThread(toOther, user, ME)).toBe(true)
+    expect(isChatMessageInThread(fromOther, room, ME)).toBe(false)
+    expect(
+      isChatMessageInThread(
+        dm({ fromUserId: 'other-2', toUserId: ME }),
+        user,
+        ME,
+      ),
+    ).toBe(false)
+    expect(isChatMessageInThread(fromOther, null, ME)).toBe(false)
   })
 })
