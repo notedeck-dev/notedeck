@@ -21,19 +21,25 @@ import { usePerformanceStore } from '@/stores/performance'
  * - 失敗時の見た目のフォールバック (unknown アイコン等) は各コンポーネントの
  *   @error に残る。再試行はブラウザの通常のナビゲーション・再描画に任せる
  *
- * 動画・音声の添付の本体はここに載せない (#1214)。載せるのはサムネイル
- * (ポスター) だけで、本体は元の URL を直接読む:
- * - プロキシは Range 要求に答えない (常に全体を 200 で返す)。WebKit (macOS /
- *   iOS) の動画は Range に答えないサーバーを再生しないし、Chromium も未読の
- *   位置へシークできない
- * - 取得は本体をメモリに溜めてからディスクに書く設計で、1 ファイルの上限
- *   (perf_config.rs の image_cache_max_file_bytes) を超える
- *   ファイルは途中で打ち切る。動画は普通にこれを超える
- * - 再生中の動画は接続を長く握る。全メディアがこの 1 つの宛先
- *   (127.0.0.1:19820) に集まっているので、WebView の同一宛先の同時接続
- *   (6 本) を動画が占めると、後ろの画像が全部順番待ちになる
+ * 動画の本体は画像の口に載せない (#1214)。画像の口は Range 要求に答えず
+ * (常に全体を 200)、取得をメモリに溜めてディスクに書き、1 ファイルの上限
+ * (perf_config.rs の image_cache_max_file_bytes) で打ち切る。WebKit (macOS /
+ * iOS / WebKitGTK) は Range に答えないサーバーの動画を再生せず、Chromium も
+ * 未読の位置へシークできない。動画は別の口 `/proxy/media` (`proxyMediaUrl`)
+ * で読む: Range をそのまま上流へ転送し、キャッシュしない
+ * (crates/notecore/src/media_stream.rs)。
+ *
+ * 動画の口は宛先の名前を `localhost` にして画像 (`127.0.0.1`) と分ける。
+ * WebView の同一宛先の同時接続は 6 本で、宛先は名前 (host:port) 単位に
+ * 数えられる。再生中の動画は接続を長く握るので、同じ名前だと後ろの画像が
+ * 全部順番待ちになる。サーバーは同じ (127.0.0.1:19820 で待ち受け、Host
+ * ガードは localhost を通す)。CSP / ATS / Android の cleartext 例外にも
+ * localhost を足してある
+ *
+ * 音声の添付の本体も同じ口で読む。
  */
 const HTTP_MEDIA_BASE = 'http://127.0.0.1:19820/proxy/image'
+const HTTP_STREAM_BASE = 'http://localhost:19820/proxy/media'
 
 const proxyUrlCache = new Map<string, string>()
 
@@ -94,6 +100,18 @@ function buildProxyUrl(
     proxyUrlCache.set(key, cached)
   }
   return cached
+}
+
+/**
+ * 動画本体の中継 URL。画像とは別の宛先名 (`localhost`) にする理由は冒頭の
+ * 注記。読めなかったときに元の URL へ戻すのは呼び出し側 (MkMediaVideo)。
+ * 一度しか組み立てないのでキャッシュしない。https 以外は素通し
+ */
+export function proxyMediaUrl(
+  url: string | null | undefined,
+): string | undefined {
+  if (!isProxiable(url)) return url ?? undefined
+  return `${HTTP_STREAM_BASE}?url=${encodeURIComponent(url)}${mediaProxyToken ? `&t=${mediaProxyToken}` : ''}`
 }
 
 /** 変換なしのプロキシ URL (効果音・原寸画像)。https 以外は素通し */

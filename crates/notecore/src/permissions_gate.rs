@@ -147,7 +147,9 @@ fn explicit_route_rule(method: &Method, path: &str) -> Option<RouteRule> {
         }
         _ => {}
     }
-    if method == Method::GET && path.starts_with("/proxy/image") {
+    if method == Method::GET
+        && (path.starts_with("/proxy/image") || path.starts_with("/proxy/media"))
+    {
         return Some(Exempt);
     }
 
