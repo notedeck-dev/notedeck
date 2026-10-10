@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
 import { useMediaPlayer } from '@/composables/useMediaPlayer'
 import { i18n } from '@/i18n'
 import { formatMediaTime } from '@/services/mediaTime'
 import { isSafeUrl } from '@/services/safeUrl'
-import { proxyUrl } from '@/utils/mediaProxy'
+import { proxyMediaUrl, proxyUrl } from '@/utils/mediaProxy'
 import LoadingSpinner from './LoadingSpinner.vue'
 import MkMediaPlayerMenu from './MkMediaPlayerMenu.vue'
 import MkMediaRange from './MkMediaRange.vue'
@@ -13,10 +13,11 @@ import MkMediaRange from './MkMediaRange.vue'
 // 添付動画の独自プレイヤー (#1214)。本家 MkMediaVideo に合わせ、WebView 標準の
 // controls を出さずにテーマに沿ったコントロールを重ねる。
 //
-// 動画本体は元の URL を直接読む (画像プロキシに載せない理由は mediaProxy.ts の
-// 冒頭の注記)。サムネイルがあるときはそれをプロキシ経由の
-// ポスターにして本体は読まない (preload="none")。タイムラインに動画が並んでも、
-// 再生するまで相手サーバーへ接続しない
+// 動画本体は動画用の中継 (`/proxy/media`、Range をそのまま転送してキャッシュ
+// しない) から読む。画像プロキシに載せない理由は mediaProxy.ts の冒頭の注記。
+// 中継で読めなかったときだけ元の URL に戻す。サムネイルがあるときはそれを
+// プロキシ経由のポスターにして本体は読まない (preload="none")。タイムラインに
+// 動画が並んでも、再生するまで接続しない
 const props = defineProps<{
   file: NormalizedDriveFile
   /** ライトボックス: 開いたらすぐ再生する */
@@ -36,9 +37,29 @@ const menuRef = ref<InstanceType<typeof MkMediaPlayerMenu>>()
 const player = useMediaPlayer(videoRef)
 const { playing, started, waiting, loop, rate } = player
 
-const src = computed(() =>
-  isSafeUrl(props.file.url) ? props.file.url : undefined,
+const streamFailed = ref(false)
+const src = computed(() => {
+  if (!isSafeUrl(props.file.url)) return undefined
+  return streamFailed.value ? props.file.url : proxyMediaUrl(props.file.url)
+})
+
+// ライトボックスでは同じインスタンスのまま別の動画に切り替わる
+watch(
+  () => props.file.url,
+  () => {
+    streamFailed.value = false
+  },
 )
+
+function onVideoError() {
+  // 中継で読めなかったものは元の URL で 1 度だけ読み直す。中継を通って
+  // いない (https でない) ときは戻す先が無いのでそのままエラーにする
+  if (!streamFailed.value && src.value !== props.file.url) {
+    streamFailed.value = true
+    return
+  }
+  emit('error')
+}
 const posterFailed = ref(false)
 const posterSrc = computed(() => {
   const thumb = props.file.thumbnailUrl
@@ -181,7 +202,7 @@ onUnmounted(() => {
       playsinline
       v-on="player.events"
       @loadeddata="emit('loaded')"
-      @error="emit('error')"
+      @error="onVideoError"
       @click="onSurfaceClick"
     />
     <img

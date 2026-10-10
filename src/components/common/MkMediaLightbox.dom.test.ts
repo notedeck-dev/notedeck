@@ -193,7 +193,9 @@ describe('MkMediaLightbox (#792)', () => {
         },
       ])
       const video = container?.querySelector('video')
-      expect(video?.getAttribute('src')).toBe('https://example.test/v.mp4')
+      expect(video?.getAttribute('src')).toBe(
+        `http://localhost:19820/proxy/media?url=${encodeURIComponent('https://example.test/v.mp4')}`,
+      )
       expect(video?.hasAttribute('controls')).toBe(false)
       expect(video?.autoplay).toBe(true)
     })

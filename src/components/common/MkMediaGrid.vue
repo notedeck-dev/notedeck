@@ -106,7 +106,7 @@ const singleMediaStyle = computed(() => {
 // 読み込み済みはモジュール単位でも覚える。仮想スクロールで行が作り直される
 // たびに透明からフェードし直すと、戻ってきた画像が毎回ちらつく
 // 画像はプロキシで表示幅に縮小して取得する (#815 / #704 O-2)。
-// 動画の本体は生 URL のまま (理由は mediaProxy.ts の冒頭、#1214)
+// 動画の本体は画像とは別の中継 (/proxy/media) で読む (理由は mediaProxy.ts の冒頭、#1214)
 function gridImage(file: NormalizedDriveFile) {
   return mediaGridImage(file, previewableFiles.value.length)
 }

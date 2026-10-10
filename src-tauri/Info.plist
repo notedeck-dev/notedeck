@@ -9,7 +9,11 @@
        - macOS 14 / iOS 17 より前: NSAllowsLocalNetworking が IP 宛を許可する
        - macOS 14 / iOS 17 以降: IP 宛は既定で不許可になり、
          NSExceptionDomains に明示した宛先だけが通る。ドメイン名の例外は
-         IP 宛の接続には効かない (逆も同じ) ため、IP を直接書く -->
+         IP 宛の接続には効かない (逆も同じ) ため、IP を直接書く。
+     localhost は動画の中継 (/proxy/media) の宛先。画像と接続の枠を分ける
+     ため名前を変えている (src/utils/mediaProxy.ts の冒頭の注記)。
+     NSAllowsLocalNetworking が名前の localhost を覆うかは OS 世代で
+     記述が揺れるので、こちらも明示する -->
 <plist version="1.0">
 <dict>
     <key>NSAppTransportSecurity</key>
@@ -19,6 +23,11 @@
         <key>NSExceptionDomains</key>
         <dict>
             <key>127.0.0.1</key>
+            <dict>
+                <key>NSExceptionAllowsInsecureHTTPLoads</key>
+                <true/>
+            </dict>
+            <key>localhost</key>
             <dict>
                 <key>NSExceptionAllowsInsecureHTTPLoads</key>
                 <true/>

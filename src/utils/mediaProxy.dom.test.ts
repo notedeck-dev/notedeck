@@ -198,6 +198,37 @@ describe('proxyCssUrl', () => {
  * 「マスクなし = 要素全体がベタ塗り」になる。URL があるかどうかで v-if を
  * 切ると、プロキシに載らない URL のときに四角が出てしまう。
  */
+describe('proxyMediaUrl (動画本体の中継)', () => {
+  const MEDIA_BASE = 'http://localhost:19820/proxy/media'
+  const VIDEO = 'https://example.com/files/v.mp4'
+
+  it('画像とは別の経路・別の宛先名 (localhost) に載せる', async () => {
+    const { proxyMediaUrl } = await loadModule()
+    // 宛先名を分けるのは、再生中の動画が接続を握り続けても画像の枠
+    // (127.0.0.1 宛ての同時接続) を塞がないため
+    expect(proxyMediaUrl(VIDEO)).toBe(
+      `${MEDIA_BASE}?url=${encodeURIComponent(VIDEO)}`,
+    )
+  })
+
+  it('起動毎のトークンを付ける', async () => {
+    const { proxyMediaUrl, setMediaProxyToken } = await loadModule()
+    setMediaProxyToken('abc123')
+    expect(proxyMediaUrl(VIDEO)).toBe(
+      `${MEDIA_BASE}?url=${encodeURIComponent(VIDEO)}&t=abc123`,
+    )
+    setMediaProxyToken(null)
+  })
+
+  it('https 以外はそのまま返す', async () => {
+    const { proxyMediaUrl } = await loadModule()
+    expect(proxyMediaUrl('http://example.com/v.mp4')).toBe(
+      'http://example.com/v.mp4',
+    )
+    expect(proxyMediaUrl(null)).toBeUndefined()
+  })
+})
+
 describe('isProxiable', () => {
   it('https だけがプロキシに載る', async () => {
     const { isProxiable } = await loadModule()

@@ -207,7 +207,9 @@ describe('動画・音声の独自プレイヤー (#1214)', () => {
   it('動画は標準の controls を出さず、サムネイルをプロキシ経由のポスターにして本体は読まない', () => {
     mountGrid([makeVideo('v', 'https://example.test/v.webp')])
     const video = container?.querySelector('video')
-    expect(video?.getAttribute('src')).toBe('https://example.test/v.mp4')
+    expect(video?.getAttribute('src')).toBe(
+      `http://localhost:19820/proxy/media?url=${encodeURIComponent('https://example.test/v.mp4')}`,
+    )
     expect(video?.hasAttribute('controls')).toBe(false)
     expect(video?.getAttribute('preload')).toBe('none')
     const poster = container?.querySelector(
@@ -217,6 +219,18 @@ describe('動画・音声の独自プレイヤー (#1214)', () => {
       `proxy/image?url=${encodeURIComponent('https://example.test/v.webp')}`,
     )
     expect(container?.querySelector('input[type="range"]')).not.toBeNull()
+  })
+
+  it('動画の中継で読めなければ元の URL に戻し、それでも駄目ならエラー表示にする', async () => {
+    mountGrid([makeVideo('v', null)])
+    container?.querySelector('video')?.dispatchEvent(new Event('error'))
+    await vi.waitFor(() =>
+      expect(container?.querySelector('video')?.getAttribute('src')).toBe(
+        'https://example.test/v.mp4',
+      ),
+    )
+    container?.querySelector('video')?.dispatchEvent(new Event('error'))
+    await vi.waitFor(() => expect(container?.querySelector('video')).toBeNull())
   })
 
   it('サムネイルの無い動画は最初のフレームのためにメタデータだけ読む', () => {
