@@ -454,7 +454,7 @@ function onDetailWheel(e: WheelEvent) {
 }
 
 .headerBtnActive {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 1;
 }
 
@@ -510,7 +510,7 @@ function onDetailWheel(e: WheelEvent) {
 
 .markActive {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   // ボトムバーの .tabActive と同じ表現: 全面塗りではなく下線バー + accent 文字色
   &::after {
@@ -595,7 +595,7 @@ function onDetailWheel(e: WheelEvent) {
 .pillActive {
   opacity: 1;
   border-color: var(--nd-accent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .list {
@@ -633,7 +633,7 @@ function onDetailWheel(e: WheelEvent) {
 }
 
 .rowKind {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   flex-shrink: 0;
 }
 
@@ -693,7 +693,7 @@ function onDetailWheel(e: WheelEvent) {
 
 .detailTitle {
   font-weight: var(--nd-weight-bold);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .detailTime {

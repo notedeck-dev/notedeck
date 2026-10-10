@@ -846,7 +846,7 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
 }
 
 .emptyLink {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 12px;
   margin-top: 4px;
   opacity: 0.8;

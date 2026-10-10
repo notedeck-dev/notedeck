@@ -567,7 +567,7 @@ async function importFromClipboard() {
   gap: 6px;
   padding: 8px 12px;
   font-size: 12px;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   background: color-mix(in srgb, var(--nd-accent) 8%, transparent);
   border-bottom: 1px solid var(--nd-divider);
 }
@@ -697,7 +697,7 @@ async function importFromClipboard() {
     &:hover {
       opacity: 0.8;
       border-color: var(--nd-accent);
-      color: var(--nd-accent);
+      color: var(--nd-accentText);
     }
   }
 }

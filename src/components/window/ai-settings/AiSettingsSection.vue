@@ -112,6 +112,6 @@ watch(
   opacity: 0.9;
 }
 
-.badgeOk { color: var(--nd-accent); }
+.badgeOk { color: var(--nd-accentText); }
 .badgeNone { color: var(--nd-fg); opacity: 0.5; }
 </style>

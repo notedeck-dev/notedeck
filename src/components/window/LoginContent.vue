@@ -305,7 +305,7 @@ onMounted(() => {
 }
 
 .subtitleOk {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 1;
 }
 
@@ -379,7 +379,7 @@ onMounted(() => {
   border: 1px solid var(--nd-accent);
   border-radius: var(--nd-radius-full);
   background: transparent;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: var(--nd-font-body);
   font-weight: var(--nd-weight-bold);
   font-family: inherit;

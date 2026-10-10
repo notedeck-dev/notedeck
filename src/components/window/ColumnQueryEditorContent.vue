@@ -359,7 +359,7 @@ async function save(): Promise<void> {
 }
 
 .statusFast {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   display: inline-flex;
   align-items: center;
   gap: 4px;

@@ -833,7 +833,7 @@ defineExpose({
   // hover / 選択中はアクセント色 + accentedBg の pill (本家 navbar と同じ)
   &:hover {
     background: var(--nd-accentedBg);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
 
     :global(.ti) {
       opacity: 1;
@@ -851,7 +851,7 @@ defineExpose({
 
 .sidebarActive {
   background: var(--nd-accentedBg);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   :global(.ti) {
     opacity: 1;
@@ -865,7 +865,7 @@ defineExpose({
 }
 
 .onlineActive {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   :global(.ti) {
     opacity: 1;

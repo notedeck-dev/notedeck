@@ -213,7 +213,7 @@ watch(
   margin-bottom: 8px;
 
   i {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 }
 

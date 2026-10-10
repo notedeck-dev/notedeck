@@ -265,7 +265,7 @@ function resolvePendingFor(userId: string) {
 
 .tabActive {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   border-bottom-color: var(--nd-accent);
 }
 

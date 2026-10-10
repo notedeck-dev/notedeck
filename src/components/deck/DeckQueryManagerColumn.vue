@@ -638,7 +638,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
 
 .filterBtnActive {
   opacity: 1;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .searchInput {

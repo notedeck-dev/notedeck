@@ -86,6 +86,11 @@ export function compileMisskeyTheme(
   if (compiled.accentDarken === undefined && compiled.accent) {
     compiled.accentDarken = color.darken(compiled.accent, 6)
   }
+  // 文字として使う accent (#1213)。塗りの accent と分け、テーマが明示しない
+  // 限り accent そのもの (入れたテーマの色は変えない)
+  if (compiled.accentText === undefined && compiled.accent) {
+    compiled.accentText = compiled.accent
+  }
 
   return compiled
 }

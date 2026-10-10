@@ -223,7 +223,7 @@ function toggle(key: PermissionKey) {
   transition: background var(--nd-duration-base);
 
   &:hover { background: var(--nd-buttonHoverBg); }
-  &.selected { color: var(--nd-accent); }
+  &.selected { color: var(--nd-accentText); }
   & + & { border-top: 1px solid color-mix(in srgb, var(--nd-divider) 50%, transparent); }
 }
 

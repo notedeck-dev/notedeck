@@ -251,7 +251,7 @@ watch(
   gap: 4px;
   padding: 4px 8px;
   font-size: var(--nd-font-sm);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   border-radius: var(--nd-radius-sm);
 
   &:hover {

@@ -2387,7 +2387,7 @@ onUnmounted(() => {
   color: var(--nd-fgHighlighted);
 
   i {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     font-size: 1.15rem;
   }
 }
@@ -2551,7 +2551,7 @@ onUnmounted(() => {
 }
 
 .panelIcon {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 1rem;
 }
 
@@ -2761,7 +2761,7 @@ onUnmounted(() => {
   font-family: var(--nd-font-mono);
   font-size: 0.75rem;
   font-weight: var(--nd-weight-bold);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   flex: none;
 }
 
@@ -2880,7 +2880,7 @@ onUnmounted(() => {
   border: none;
   border-radius: var(--nd-radius-full);
   background: var(--nd-buttonBg);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-family: var(--nd-font-mono);
   font-size: 0.7rem;
   cursor: pointer;
@@ -2975,7 +2975,7 @@ onUnmounted(() => {
 
 .sourceSse {
   background: color-mix(in srgb, var(--nd-accent) 25%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .sourceFront {
@@ -3033,7 +3033,7 @@ onUnmounted(() => {
 /* HEARTBEAT 有効時の鼓動 (スプラッシュの nd-heartbeat と同じリズム) */
 .beat {
   display: inline-block;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   animation: beat 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   transform-origin: center;
 }

@@ -1150,7 +1150,7 @@ function reportBug() {
   color: var(--nd-fg);
 
   &:hover {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     text-decoration: underline;
   }
 }
@@ -1169,7 +1169,7 @@ function reportBug() {
   }
 
   &.versionOk {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     opacity: 0.9;
   }
 }
@@ -1187,7 +1187,7 @@ function reportBug() {
 }
 
 .updateIcon {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .updateText {
@@ -1337,7 +1337,7 @@ function reportBug() {
   }
 
   &.infoCopied {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     opacity: 1;
   }
 }
@@ -1485,7 +1485,7 @@ function reportBug() {
 // 起動合計 (プロセス起動 → デッキ表示)。これが「起動は一瞬」の実測値
 .startupTotal {
   font-weight: var(--nd-weight-bold);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 1;
   font-family: var(--nd-font-mono);
   font-variant-numeric: tabular-nums;
@@ -1581,7 +1581,7 @@ function reportBug() {
   }
 
   .startupAt {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     font-weight: var(--nd-weight-bold);
   }
 }

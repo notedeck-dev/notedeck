@@ -442,7 +442,7 @@ onBeforeUnmount(() => {
 .actionBtn {
   font-size: var(--nd-font-sm);
   font-weight: var(--nd-weight-bold);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   &:hover {
     text-decoration: underline;

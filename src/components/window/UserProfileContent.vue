@@ -1051,7 +1051,7 @@ async function handlePosted(editedNoteId?: string) {
 
 .remoteCautionLink {
   margin-left: 4px;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 
   &:hover {
     text-decoration: underline;

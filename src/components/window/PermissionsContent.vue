@@ -803,7 +803,7 @@ function handleReset() {
   padding: 1px 8px;
   border-radius: var(--nd-radius-full);
   background: var(--nd-accentedBg);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: var(--nd-font-sm);
   white-space: nowrap;
 }

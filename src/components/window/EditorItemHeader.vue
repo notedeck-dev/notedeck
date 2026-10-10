@@ -69,7 +69,7 @@ defineProps<{
   border-radius: var(--nd-radius-sm);
   overflow: clip;
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 24px;
 }
 

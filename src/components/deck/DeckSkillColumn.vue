@@ -631,7 +631,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   width: 48px;
   height: 48px;
   flex-shrink: 0;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 32px;
 }
 
@@ -712,14 +712,14 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
   &[data-mode='always'] {
     background: color-mix(in srgb, var(--nd-accent) 22%, transparent);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     opacity: 1;
   }
 
   // HEARTBEAT mode は accent (heartbeat pink) で強調
   &[data-mode='heartbeat'] {
     background: color-mix(in srgb, var(--nd-accent) 22%, transparent);
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     opacity: 1;
   }
 }
@@ -741,7 +741,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
 .installedMark {
   flex-shrink: 0;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 14px;
 }
 
@@ -851,7 +851,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 // HEARTBEAT 対象として toggle ON のとき、iconBtn を accent カラーで強調。
 // 非ホバー時も常時表示する (= hover で消える .actions の opacity を打ち消し)
 .heartbeatActive {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 1 !important;
   background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
 }
@@ -917,7 +917,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
   padding: 1px 6px;
   border-radius: var(--nd-radius-md);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   line-height: 1.3;
 }
 
@@ -946,7 +946,7 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
 
 .emptyLink {
   @include nd-interactive;
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 12px;
   margin-top: 4px;
   opacity: 0.8;

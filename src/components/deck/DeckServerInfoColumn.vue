@@ -501,7 +501,7 @@ onMounted(() => {
 }
 
 .kvLink {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   text-decoration: none;
   word-break: break-all;
 
@@ -584,7 +584,7 @@ onMounted(() => {
   word-break: break-word;
 
   :global(a) {
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
     text-decoration: none;
 
     &:hover {
@@ -674,7 +674,7 @@ onMounted(() => {
   height: 32px;
   border-radius: var(--nd-radius-full);
   background: var(--nd-accentedBg);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: 13px;
   font-weight: var(--nd-weight-bold);
 }

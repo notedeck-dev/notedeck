@@ -637,7 +637,7 @@ async function onDeleteAll() {
   padding: 4px 10px;
   border-radius: var(--nd-radius-full);
   background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   font-size: var(--nd-font-md);
   font-variant-numeric: tabular-nums;
   pointer-events: none;

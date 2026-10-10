@@ -136,7 +136,7 @@ function onWheel(e: WheelEvent) {
 
   &.active {
     opacity: 1;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
 
     .label {
       display: inline;

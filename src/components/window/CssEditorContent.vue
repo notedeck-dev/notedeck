@@ -736,7 +736,7 @@ const { isSyncing } = useExternalEditSync<string>({
   align-items: center;
   gap: 4px;
   font-size: var(--nd-font-xs);
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
   opacity: 0.7;
 }
 
