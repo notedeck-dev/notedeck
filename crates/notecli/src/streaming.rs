@@ -430,6 +430,10 @@ struct SubscriptionInfo {
     /// Suspended subscriptions keep their metadata for viewport-based resume and
     /// reconnect replay, but stop receiving work from the upstream server.
     active: bool,
+    /// main をチャットの新着 (`newChatMessage`) のためだけに張っている。通知など
+    /// ほかの種別は配らず、ポーリングでも取らない (#1223)。通知などのために
+    /// `subscribe_main` されたら外れる
+    chat_only: bool,
 }
 
 impl SubscriptionInfo {
@@ -791,7 +795,15 @@ impl StreamingManager {
     }
 
     pub async fn subscribe_main(&self, account_id: &str) -> Result<String, NoteDeckError> {
-        self.subscribe_target(account_id, SubscriptionTarget::Main, None)
+        self.subscribe_target_inner(account_id, SubscriptionTarget::Main, None, false)
+            .await
+    }
+
+    /// チャットの新着 (`newChatMessage`) のためだけに main を張る (#1223)。通知などは
+    /// 配らないので、チャットを開いただけで OS 通知が出ることはない。すでに
+    /// `subscribe_main` で張られていればそのまま使う
+    pub async fn subscribe_main_chat(&self, account_id: &str) -> Result<String, NoteDeckError> {
+        self.subscribe_target_inner(account_id, SubscriptionTarget::Main, None, true)
             .await
     }
 
@@ -801,6 +813,17 @@ impl StreamingManager {
         target: SubscriptionTarget,
         extra_params: Option<Value>,
     ) -> Result<String, NoteDeckError> {
+        self.subscribe_target_inner(account_id, target, extra_params, false)
+            .await
+    }
+
+    async fn subscribe_target_inner(
+        &self,
+        account_id: &str,
+        target: SubscriptionTarget,
+        extra_params: Option<Value>,
+        chat_only: bool,
+    ) -> Result<String, NoteDeckError> {
         let sub_id = uuid::Uuid::new_v4().to_string();
         let host = self.get_host(account_id).await?;
         let info = SubscriptionInfo {
@@ -809,6 +832,7 @@ impl StreamingManager {
             target,
             extra_params,
             active: true,
+            chat_only,
         };
         let (channel, params) = info.channel_and_params().ok_or_else(|| {
             NoteDeckError::InvalidInput("subscription target has no streaming channel".to_string())
@@ -820,12 +844,13 @@ impl StreamingManager {
             // connect はサーバーが黙って無視する (ack も来ない) ため、張れるのは
             // 実質 1 本だけ。既存の購読 ID を返してアカウントごとに 1 本に保つ。
             if matches!(info.target, SubscriptionTarget::Main) {
-                let existing = subs.iter().find_map(|(id, i)| {
-                    (i.account_id == account_id && matches!(i.target, SubscriptionTarget::Main))
-                        .then(|| id.clone())
+                let existing = subs.iter_mut().find(|(_, i)| {
+                    i.account_id == account_id && matches!(i.target, SubscriptionTarget::Main)
                 });
-                if let Some(existing) = existing {
-                    return Ok(existing);
+                if let Some((existing, i)) = existing {
+                    // 全部を受けたい側が来たら広げる。狭めはしない
+                    i.chat_only &= chat_only;
+                    return Ok(existing.clone());
                 }
             }
             // send より先に登録して check-and-insert を原子的にする
@@ -1584,13 +1609,16 @@ async fn handle_ws_message(
         _ => return,
     };
 
-    let (target, host) = {
+    let (target, host, chat_only) = {
         let subs = subscriptions.read().await;
         match subs.get(&sub_id) {
-            Some(i) => (i.target.clone(), i.host.clone()),
+            Some(i) => (i.target.clone(), i.host.clone(), i.chat_only),
             None => return,
         }
     };
+    if chat_only && event_type != "newChatMessage" {
+        return;
+    }
 
     let note_key = match &target {
         SubscriptionTarget::Notes(key) => Some(key.clone()),
@@ -1846,6 +1874,88 @@ struct ChatPollState {
     since_id: Option<String>,
 }
 
+/// chat/history から newChatMessage を作るときのカーソル (#1223)。prime の意味は
+/// MainPollState と同じ
+#[derive(Default)]
+struct ChatNewsPollState {
+    primed: bool,
+    /// 配った (または基準にした) うち最も新しいメッセージ id
+    newest_id: Option<String>,
+    /// チャットの無いサーバー等で取得が API エラーになったら以後は取らない
+    unavailable: bool,
+}
+
+/// chat/history (1:1 とルーム) を取り、前回より新しく、未読で、他人が送った
+/// メッセージを main の `newChatMessage` として配る。サーバーの newChatMessage も
+/// 「3 秒たっても既読にならなかった他人のメッセージ」なので同じ条件にそろう。
+/// 失敗はポーリング全体の backoff に数えない (チャットは付随機能)
+#[allow(clippy::too_many_arguments)]
+async fn poll_new_chat_messages(
+    api_client: &MisskeyClient,
+    emitter: &dyn FrontendEmitter,
+    event_bus: &EventBus,
+    db: &Database,
+    account_id: &str,
+    host: &str,
+    token: &str,
+    sub_id: &str,
+    state: &mut ChatNewsPollState,
+) {
+    let mut messages = Vec::new();
+    for room in [false, true] {
+        match api_client.get_chat_history(host, token, 10, room).await {
+            Ok(m) => messages.extend(m),
+            Err(e) => {
+                if matches!(e, NoteDeckError::Api { .. }) {
+                    state.unavailable = true;
+                }
+                tracing::debug!(account_id, error = %e, "chat history polling failed");
+                return;
+            }
+        }
+    }
+    let newest = messages
+        .iter()
+        .map(|m| m.id.as_str())
+        .max()
+        .map(str::to_owned);
+    if !state.primed {
+        state.newest_id = newest;
+        state.primed = true;
+        return;
+    }
+    let my_id = db
+        .get_account(account_id)
+        .ok()
+        .flatten()
+        .map(|a| a.user_id.clone());
+    let since = state.newest_id.clone();
+    messages.retain(|m| {
+        since.as_deref().is_none_or(|s| m.id.as_str() > s)
+            && m.is_read == Some(false)
+            && Some(&m.from_user_id) != my_id.as_ref()
+    });
+    messages.sort_by(|a, b| a.id.cmp(&b.id));
+    if newest > state.newest_id {
+        state.newest_id = newest;
+    }
+    for message in messages {
+        let Ok(body) = serde_json::to_value(&message) else {
+            continue;
+        };
+        emit_both(
+            emitter,
+            event_bus,
+            StreamEvent::MainEvent(Box::new(StreamMainEvent {
+                account_id: account_id.to_string(),
+                subscription_id: sub_id.to_string(),
+                event_type: "newChatMessage".into(),
+                body,
+            })),
+        );
+    }
+}
+
 /// Top-level polling task. Periodically fetches notes for all active subscriptions.
 #[allow(clippy::too_many_arguments)]
 async fn polling_loop(
@@ -1864,6 +1974,7 @@ async fn polling_loop(
     let mut sub_states: HashMap<String, PollSubState> = HashMap::new();
     let mut main_state = MainPollState::default();
     let mut chat_states: HashMap<String, ChatPollState> = HashMap::new();
+    let mut chat_news_state = ChatNewsPollState::default();
     // Cached reaction counts for captured notes (for diff detection).
     let mut note_reaction_cache: HashMap<String, HashMap<String, i64>> = HashMap::new();
     let mut consecutive_failures: u64 = 0;
@@ -1958,12 +2069,14 @@ async fn polling_loop(
         // WS の main と同じイベント種別で emit するため、下流の query
         // ルーティング / OS 通知 / 未読バッジは WS モードとそのまま共通で動く。
         // #984 の dedup により main 購読はアカウントあたり高々 1 本。
+        // チャット用だけの main (#1223) は通知 / メンションを取らない。
         let main_sub_id: Option<String> = {
             let subs = subscriptions.read().await;
             subs.iter()
                 .find(|(_, info)| {
                     info.account_id == account_id
                         && info.active
+                        && !info.chat_only
                         && matches!(info.target, SubscriptionTarget::Main)
                 })
                 .map(|(id, _)| id.clone())
@@ -2084,6 +2197,35 @@ async fn polling_loop(
                         poll_failed = true;
                     }
                 }
+            }
+        }
+
+        // main の newChatMessage 相当 (#1223)。WS ではサーバーが流すが、ポーリング
+        // では来ないので chat/history を取って作る。チャット用だけの main でも回す
+        let any_main_sub_id: Option<String> = {
+            let subs = subscriptions.read().await;
+            subs.iter()
+                .find(|(_, info)| {
+                    info.account_id == account_id
+                        && info.active
+                        && matches!(info.target, SubscriptionTarget::Main)
+                })
+                .map(|(id, _)| id.clone())
+        };
+        if let Some(sub_id) = &any_main_sub_id {
+            if !chat_news_state.unavailable {
+                poll_new_chat_messages(
+                    &api_client,
+                    emitter.as_ref(),
+                    &event_bus,
+                    &db,
+                    &account_id,
+                    &host,
+                    &token,
+                    sub_id,
+                    &mut chat_news_state,
+                )
+                .await;
             }
         }
 
@@ -2498,6 +2640,88 @@ mod tests {
                 "type": "ch",
                 "body": { "id": "sub-1", "type": "read", "body": { "id": "m1" } }
             })
+        );
+    }
+
+    fn main_frame(sub_id: &str, event_type: &str, body: Value) -> String {
+        json!({
+            "type": "channel",
+            "body": { "id": sub_id, "type": event_type, "body": body }
+        })
+        .to_string()
+    }
+
+    /// main を WS で受けたときに外へ出るイベントの種別 (MainEvent は event_type)
+    async fn main_kinds_delivered(manager: &StreamingManager, sub_id: &str) -> Vec<String> {
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let emitter = ChannelEmitter(tx);
+        let notification = json!({
+            "id": "n1",
+            "createdAt": "2026-10-10T00:00:00.000Z",
+            "type": "follow",
+            "user": { "id": "u2", "username": "bob" }
+        });
+        let chat = json!({
+            "id": "m1",
+            "createdAt": "2026-10-10T00:00:00.000Z",
+            "fromUserId": "u2",
+            "toUserId": "u1",
+            "text": "hi"
+        });
+        for text in [
+            main_frame(sub_id, "notification", notification),
+            main_frame(sub_id, "followed", json!({ "id": "u2" })),
+            main_frame(sub_id, "newChatMessage", chat),
+        ] {
+            handle_ws_message(
+                &emitter,
+                &manager.event_bus,
+                &manager.db,
+                &manager.api_client,
+                "acc-1",
+                "example.com",
+                "tok",
+                &text,
+                &manager.subscriptions,
+            )
+            .await;
+        }
+        let mut kinds = Vec::new();
+        while let Ok(ev) = rx.try_recv() {
+            kinds.push(match ev {
+                StreamEvent::MainEvent(e) => e.event_type,
+                other => other.kind().to_string(),
+            });
+        }
+        kinds
+    }
+
+    /// チャットのためだけに張った main は newChatMessage だけを配る。通知を配ると
+    /// 通知カラムを置いていない人にも OS 通知が出る (#1223)
+    #[tokio::test]
+    async fn chat_only_main_delivers_new_chat_message_only() {
+        let (manager, _cmd_rx, _dir) = manager_with_fake_ws().await;
+        let sub_id = manager.subscribe_main_chat("acc-1").await.unwrap();
+        assert_eq!(
+            main_kinds_delivered(&manager, &sub_id).await,
+            vec!["newChatMessage"]
+        );
+    }
+
+    /// 通知などのために張られたら、同じ 1 本の main で全部を配る
+    #[tokio::test]
+    async fn subscribe_main_widens_chat_only_main() {
+        let (manager, mut cmd_rx, _dir) = manager_with_fake_ws().await;
+        let chat_id = manager.subscribe_main_chat("acc-1").await.unwrap();
+        let full_id = manager.subscribe_main("acc-1").await.unwrap();
+        assert_eq!(chat_id, full_id);
+        // チャット用に後から張っても狭めない
+        assert_eq!(manager.subscribe_main_chat("acc-1").await.unwrap(), full_id);
+        assert!(matches!(cmd_rx.try_recv(), Ok(WsCommand::Subscribe { .. })));
+        assert!(cmd_rx.try_recv().is_err(), "main は 1 本だけ張る");
+        assert_eq!(
+            main_kinds_delivered(&manager, &full_id).await,
+            vec!["stream-notification", "followed", "newChatMessage"]
         );
     }
 
@@ -3023,6 +3247,131 @@ mod tests {
         );
 
         manager.disconnect("acc-1").await;
+    }
+
+    /// チャットのためだけに張った main はポーリングで通知 / メンションを取らない
+    /// (取ると OS 通知が出る、#1223)
+    #[tokio::test]
+    async fn polling_skips_notifications_for_chat_only_main() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        for p in ["/api/i/notifications", "/api/notes/mentions"] {
+            Mock::given(method("POST"))
+                .and(path(p))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+                .expect(0)
+                .mount(&server)
+                .await;
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let mut manager =
+            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        manager.api_client = Arc::new(MisskeyClient::with_base_url(&server.uri()));
+
+        manager
+            .set_mode("acc-1", "127.0.0.1:1", "token", "polling", Some(50))
+            .await
+            .unwrap();
+        manager.subscribe_main_chat("acc-1").await.unwrap();
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        manager.disconnect("acc-1").await;
+        server.verify().await;
+    }
+
+    /// ポーリングでは main の newChatMessage が来ないので、chat/history を周期で取り、
+    /// 前回より新しく未読の他人のメッセージを newChatMessage として配る (#1223)。
+    /// 初回は基準を作るだけで配らない
+    #[tokio::test]
+    async fn polling_delivers_new_chat_messages_from_history() {
+        use wiremock::matchers::{body_partial_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        fn history_msg(id: &str, from: &str, is_read: bool) -> Value {
+            json!({
+                "id": id,
+                "createdAt": "2026-10-10T00:00:00.000Z",
+                "fromUserId": from,
+                "toUserId": if from == "u-self" { "u-other" } else { "u-self" },
+                "text": "hi",
+                "isRead": is_read,
+                "reactions": []
+            })
+        }
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/chat/history"))
+            .and(body_partial_json(json!({ "room": true })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&server)
+            .await;
+        // 初回 (基準): 既存の未読。配らない
+        Mock::given(method("POST"))
+            .and(path("/api/chat/history"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!([history_msg("a1", "u-other", false)])),
+            )
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/chat/history"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                history_msg("b3", "u-other", false),
+                history_msg("b2", "u-self", false),
+                history_msg("b1", "u-other", true),
+                history_msg("a1", "u-other", false),
+            ])))
+            .mount(&server)
+            .await;
+
+        let dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
+        db.upsert_account(&crate::models::Account {
+            id: "acc-1".into(),
+            host: "127.0.0.1:1".into(),
+            token: "token".into(),
+            user_id: "u-self".into(),
+            username: "me".into(),
+            display_name: None,
+            avatar_url: None,
+            software: "misskey".into(),
+        })
+        .unwrap();
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let mut manager =
+            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        manager.api_client = Arc::new(MisskeyClient::with_base_url(&server.uri()));
+
+        manager
+            .set_mode("acc-1", "127.0.0.1:1", "token", "polling", Some(50))
+            .await
+            .unwrap();
+        manager.subscribe_main_chat("acc-1").await.unwrap();
+
+        let mut ids = Vec::new();
+        let deadline = tokio::time::Instant::now() + Duration::from_millis(800);
+        while tokio::time::Instant::now() < deadline {
+            if let Ok(Some(StreamEvent::MainEvent(e))) =
+                tokio::time::timeout(Duration::from_millis(100), rx.recv()).await
+            {
+                assert_eq!(e.event_type, "newChatMessage");
+                assert_eq!(e.account_id, "acc-1");
+                ids.push(e.body["id"].as_str().unwrap().to_string());
+            }
+        }
+        manager.disconnect("acc-1").await;
+        assert_eq!(
+            ids,
+            vec!["b3"],
+            "新しく未読の他人のメッセージだけを 1 回配る"
+        );
     }
 
     #[tokio::test]
