@@ -865,6 +865,73 @@ impl ImageCache {
         .unwrap_or((0, 0))
     }
 
+    /// 画像プロキシの実行時の断面 (Dev Dashboard #977 の読み取り面)。「画像が出ない」を
+    /// 上流の失敗 / breaker / throttle / 並列度の詰まりのどれかに切り分けるための値
+    pub async fn stats(&self) -> MediaProxyStats {
+        let now = Instant::now();
+        let (threshold, cb_duration, max_total, max_bytes) = {
+            let perf = self.perf.read().await;
+            (
+                perf.circuit_breaker_threshold,
+                Duration::from_secs(perf.circuit_breaker_duration),
+                perf.memory_cache_max_total,
+                perf.image_cache_max_bytes,
+            )
+        };
+        let (mem_items, mem_bytes) = {
+            let mem = self.mem_cache.read().await;
+            (mem.entries.len(), mem.total_size)
+        };
+        let negative_entries = {
+            let neg = self.negative_cache.read().await;
+            neg.values()
+                .filter(|(at, ttl)| now.saturating_duration_since(*at) < *ttl)
+                .count()
+        };
+        let inflight = self.inflight.lock().await.len();
+        let (fetch_limit, fetch_available) = {
+            let limiter = self.fetch_limiter.lock().await;
+            (limiter.limit, limiter.semaphore.available_permits())
+        };
+        let mut hosts: Vec<HostCircuitStat> = {
+            let circuits = self.host_circuits.read().await;
+            circuits
+                .iter()
+                .map(|(host, st)| HostCircuitStat {
+                    host: host.clone(),
+                    consecutive_failures: st.consecutive_failures,
+                    tripped_ms_ago: st
+                        .tripped_at
+                        .map(|t| now.saturating_duration_since(t))
+                        .filter(|d| *d < cb_duration)
+                        .map(|d| d.as_millis() as u64),
+                    throttled_ms: st.throttle_remaining(now).map(|d| d.as_millis() as u64),
+                })
+                .collect()
+        };
+        hosts.sort_by(|a, b| {
+            b.consecutive_failures
+                .cmp(&a.consecutive_failures)
+                .then_with(|| a.host.cmp(&b.host))
+        });
+        let (disk_bytes, disk_files) = self.disk_stats().await;
+        MediaProxyStats {
+            mem_items,
+            mem_bytes,
+            mem_max_bytes: max_total,
+            disk_files,
+            disk_bytes,
+            disk_max_bytes: max_bytes,
+            negative_entries,
+            inflight,
+            fetch_limit,
+            fetch_available,
+            breaker_threshold: threshold,
+            breaker_duration_ms: cb_duration.as_millis() as u64,
+            hosts,
+        }
+    }
+
     /// ディスクキャッシュを全削除する。メモリキャッシュも合わせて捨てないと
     /// 削除したはずの画像が返り続ける
     pub async fn clear_disk(&self) -> Result<(), String> {
@@ -888,6 +955,40 @@ impl ImageCache {
         .await
         .map_err(|e| e.to_string())?
     }
+}
+
+/// [`ImageCache::stats`] の結果
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MediaProxyStats {
+    pub mem_items: usize,
+    pub mem_bytes: usize,
+    pub mem_max_bytes: usize,
+    pub disk_files: usize,
+    pub disk_bytes: u64,
+    pub disk_max_bytes: u64,
+    /// 失敗を覚えていて上流に投げない URL の数 (期限内のもの)
+    pub negative_entries: usize,
+    /// 取得中の URL の数
+    pub inflight: usize,
+    pub fetch_limit: usize,
+    /// 空いている取得枠。0 が続くなら並列度で詰まっている
+    pub fetch_available: usize,
+    pub breaker_threshold: u32,
+    pub breaker_duration_ms: u64,
+    /// 失敗か throttle を記録している host (失敗の多い順)
+    pub hosts: Vec<HostCircuitStat>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostCircuitStat {
+    pub host: String,
+    pub consecutive_failures: u32,
+    /// breaker が発火中ならその経過 (期限切れ / 未発火は None)
+    pub tripped_ms_ago: Option<u64>,
+    /// 429 の throttle 窓の残り
+    pub throttled_ms: Option<u64>,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -1321,6 +1422,47 @@ mod tests {
         );
         let err = cache.fetch_streaming(url).await.err().expect("must fail");
         assert!(err.contains("circuit breaker"), "got: {err}");
+    }
+
+    /// Dev Dashboard の断面は発火中の breaker と throttle 窓を host ごとに見せ、
+    /// 期限の切れた発火は「発火中」に数えない
+    #[tokio::test]
+    async fn stats_reports_breaker_and_throttle_per_host() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = ImageCache::new(dir.path());
+        let now = Instant::now();
+        {
+            let mut circuits = cache.host_circuits.write().await;
+            circuits.insert(
+                "down.example".into(),
+                HostCircuitState {
+                    consecutive_failures: 6,
+                    tripped_at: Some(now),
+                    probe_at: None,
+                    throttled_until: Some(now + Duration::from_secs(30)),
+                },
+            );
+            circuits.insert(
+                "old.example".into(),
+                HostCircuitState {
+                    consecutive_failures: 1,
+                    tripped_at: now.checked_sub(Duration::from_secs(600)),
+                    probe_at: None,
+                    throttled_until: None,
+                },
+            );
+        }
+        let stats = cache.stats().await;
+        assert_eq!(stats.hosts.len(), 2);
+        let down = &stats.hosts[0];
+        assert_eq!(down.host, "down.example");
+        assert!(down.tripped_ms_ago.is_some());
+        assert!(down.throttled_ms.is_some_and(|ms| ms > 0));
+        let old = &stats.hosts[1];
+        assert_eq!(old.tripped_ms_ago, None);
+        assert_eq!(old.throttled_ms, None);
+        assert_eq!(stats.fetch_available, stats.fetch_limit);
+        assert_eq!(stats.mem_items, 0);
     }
 
     /// ヒットした entry は「最後に使った時刻」として mtime が進む (1 日超のみ)。

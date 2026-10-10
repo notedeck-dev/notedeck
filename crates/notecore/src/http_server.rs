@@ -97,9 +97,14 @@ struct DeckState {
     /// 動画本体の中継 (`/proxy/media`) 用の上流 client。全体の timeout を
     /// 持たない専用のもの (画像側の共有 client とは分ける)
     media_client: Option<reqwest::Client>,
-    /// AI (HEARTBEAT) の状態。埋め込む側 (notemaid を持つアプリ) が渡す
-    ai_status: Arc<dyn Fn() -> Value + Send + Sync>,
+    /// AI (HEARTBEAT / notemaid) の状態。埋め込む側 (notemaid を持つアプリ) が渡す
+    heartbeat_status: StatusFn,
+    notemaid_status: StatusFn,
 }
+
+/// 埋め込む側が答える読み取り専用の状態 (`/api/heartbeat/status` / `/api/notemaid/status`)。
+/// notemaid は別プロセスのことがあるので、答えは socket 越しの問い合わせを含みうる
+pub type StatusFn = Arc<dyn Fn() -> futures_util::future::BoxFuture<'static, Value> + Send + Sync>;
 
 /// 画像・動画プロキシ (`/proxy/image` / `/proxy/media`) 用の起動毎トークン (#1099)。`<img src>` は
 /// Authorization ヘッダーを付けられないので query `t` で運ぶ。WebView は
@@ -237,8 +242,10 @@ pub struct ServeConfig {
     /// 終了通知 (#1098)。受けたら新規接続を止めて graceful に閉じる
     pub shutdown: crate::shutdown::ShutdownToken,
     /// `/api/heartbeat/status` が返す AI (HEARTBEAT) の snapshot。notecore は AI を知らないので
-    /// 埋め込む側が渡す
-    pub ai_status: Arc<dyn Fn() -> Value + Send + Sync>,
+    /// 埋め込む側が渡す。notemaid が別プロセスならその申告を返すこと (このプロセスの写しは空)
+    pub heartbeat_status: StatusFn,
+    /// `/api/notemaid/status` が返す notemaid の所在 (in-process / 子 / 常駐) と中継の状態 (#977)
+    pub notemaid_status: StatusFn,
 }
 
 /// 永続トークン → ephemeral トークンのブリッジ用 state。
@@ -321,7 +328,8 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
         api_token: config.api_token.clone(),
         image_cache: config.image_cache,
         media_client,
-        ai_status: config.ai_status.clone(),
+        heartbeat_status: config.heartbeat_status.clone(),
+        notemaid_status: config.notemaid_status.clone(),
     };
 
     let deck_state_for_mcp = deck_state.clone();
@@ -659,6 +667,19 @@ async fn get_perf_caches(State(state): State<DeckState>) -> Result<Json<Value>, 
     Ok(Json(data))
 }
 
+#[utoipa::path(get, path = "/api/perf/media", tag = "dev",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Image proxy runtime snapshot: memory / disk cache, negative cache, in-flight fetches, fetch slots, per-host circuit breaker and 429 throttle"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn get_perf_media(
+    State(state): State<DeckState>,
+) -> Json<crate::image_cache::MediaProxyStats> {
+    Json(state.image_cache.stats().await)
+}
+
 #[utoipa::path(get, path = "/api/logs/recent", tag = "dev",
     security(("bearer_auth" = [])),
     responses(
@@ -721,7 +742,18 @@ async fn get_inspector_recent(State(state): State<DeckState>) -> Result<Json<Val
     )
 )]
 async fn get_heartbeat_status(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
-    Ok(Json((state.ai_status)()))
+    Ok(Json((state.heartbeat_status)().await))
+}
+
+#[utoipa::path(get, path = "/api/notemaid/status", tag = "dev",
+    security(("bearer_auth" = [])),
+    responses(
+        (status = 200, description = "Where notemaid (the AI process) runs, the relay state, and its own status report (#1106)"),
+        (status = 401, description = "Unauthorized", body = ApiErrorResponse),
+    )
+)]
+async fn get_notemaid_status(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
+    Ok(Json((state.notemaid_status)().await))
 }
 
 #[utoipa::path(get, path = "/api/permissions/resolved", tag = "dev",
@@ -991,7 +1023,9 @@ fn deck_openapi_router() -> OpenApiRouter<DeckState> {
         .routes(routes!(get_startup_trace))
         .routes(routes!(get_permissions_resolved))
         .routes(routes!(get_heartbeat_status))
+        .routes(routes!(get_notemaid_status))
         .routes(routes!(get_perf_caches))
+        .routes(routes!(get_perf_media))
         .routes(routes!(get_logs_recent))
         .routes(routes!(get_querybridge_trace))
         .routes(routes!(get_inspector_recent))
