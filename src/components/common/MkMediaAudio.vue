@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
 import { useMediaPlayer } from '@/composables/useMediaPlayer'
 import { i18n } from '@/i18n'
 import { formatMediaTime } from '@/services/mediaTime'
 import { isSafeUrl } from '@/services/safeUrl'
+import { proxyMediaUrl } from '@/utils/mediaProxy'
 import MkMediaPlayerMenu from './MkMediaPlayerMenu.vue'
 import MkMediaRange from './MkMediaRange.vue'
 
 // 添付音声の独自プレイヤー (#1214)。本家 MkMediaAudio と同じ並び
-// (再生 / 時間 / 音量 / 設定 + シークバー)。本体は元の URL を直接読む
-// (理由は mediaProxy.ts の冒頭の注記)
+// (再生 / 時間 / 音量 / 設定 + シークバー)。本体は動画と同じ中継
+// (`/proxy/media`、Range をそのまま転送してキャッシュしない) から読み、
+// 読めなかったときだけ元の URL に戻す (理由は mediaProxy.ts の冒頭の注記)
 const props = defineProps<{
   file: NormalizedDriveFile
 }>()
@@ -21,9 +23,23 @@ const menuRef = ref<InstanceType<typeof MkMediaPlayerMenu>>()
 const player = useMediaPlayer(audioRef)
 const { playing, loop, rate } = player
 
-const src = computed(() =>
-  isSafeUrl(props.file.url) ? props.file.url : undefined,
+const streamFailed = ref(false)
+const src = computed(() => {
+  if (!isSafeUrl(props.file.url)) return undefined
+  return streamFailed.value ? props.file.url : proxyMediaUrl(props.file.url)
+})
+
+watch(
+  () => props.file.url,
+  () => {
+    streamFailed.value = false
+  },
 )
+
+// 中継で読めなかったものは元の URL で 1 度だけ読み直す
+function onAudioError() {
+  if (src.value !== props.file.url) streamFailed.value = true
+}
 </script>
 
 <template>
@@ -38,6 +54,7 @@ const src = computed(() =>
       :src="src"
       preload="metadata"
       v-on="player.events"
+      @error="onAudioError"
     />
     <div :class="$style.bar">
       <div :class="$style.left">

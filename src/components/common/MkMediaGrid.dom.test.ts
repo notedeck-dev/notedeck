@@ -263,8 +263,27 @@ describe('動画・音声の独自プレイヤー (#1214)', () => {
       },
     ])
     const audio = container?.querySelector('audio')
-    expect(audio?.getAttribute('src')).toBe('https://example.test/a.mp3')
+    expect(audio?.getAttribute('src')).toBe(
+      `http://localhost:19820/proxy/media?url=${encodeURIComponent('https://example.test/a.mp3')}`,
+    )
     expect(audio?.hasAttribute('controls')).toBe(false)
     expect(container?.textContent).toContain('a.mp3')
+  })
+
+  it('音声も中継で読めなければ元の URL に戻す', async () => {
+    mountGrid([
+      {
+        ...makeImage('a'),
+        name: 'a.mp3',
+        type: 'audio/mpeg',
+        url: 'https://example.test/a.mp3',
+      },
+    ])
+    container?.querySelector('audio')?.dispatchEvent(new Event('error'))
+    await vi.waitFor(() =>
+      expect(container?.querySelector('audio')?.getAttribute('src')).toBe(
+        'https://example.test/a.mp3',
+      ),
+    )
   })
 })

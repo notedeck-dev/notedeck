@@ -36,7 +36,7 @@ import { usePerformanceStore } from '@/stores/performance'
  * ガードは localhost を通す)。CSP / ATS / Android の cleartext 例外にも
  * localhost を足してある
  *
- * 音声の添付の本体はまだ元の URL を直接読む。
+ * 音声の添付の本体も同じ口で読む。
  */
 const HTTP_MEDIA_BASE = 'http://127.0.0.1:19820/proxy/image'
 const HTTP_STREAM_BASE = 'http://localhost:19820/proxy/media'

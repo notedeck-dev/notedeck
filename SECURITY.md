@@ -343,7 +343,7 @@ WebView 内・外部ツールとも HTTP API `/proxy/image` の一経路 (`crate
 | メモリキャッシュ | LRU (item / 総量とも上限あり) | 同上 |
 | ディスクキャッシュ | TTL + 総量上限で掃除 | 同上 |
 
-動画の本体だけは別の経路 `/proxy/media` (`crates/notecore/src/media_stream.rs`) を通る。WebView のシークに要る Range をそのまま上流へ転送し、キャッシュしないため、上の表のうちサイズ上限 / キャッシュ / サーキットブレーカー / 全体のタイムアウトは持たない (再生している間ずっと応答が続く)。持つのは同じプロキシトークン、HTTPS のみ、host の一次検査と名前解決後の SSRF 検証 (同じ resolver)、redirect の各 hop の HTTPS + host 検査、接続と読み取り間隔のタイムアウト。WebView からの宛先名は `localhost` にして画像 (`127.0.0.1`) と同時接続の枠を分けるため、ATS / networkSecurityConfig / CSP の例外にも `localhost` を足してある。
+動画・音声の本体だけは別の経路 `/proxy/media` (`crates/notecore/src/media_stream.rs`) を通る。WebView のシークに要る Range をそのまま上流へ転送し、キャッシュしないため、上の表のうちサイズ上限 / キャッシュ / サーキットブレーカー / 全体のタイムアウトは持たない (再生している間ずっと応答が続く)。持つのは同じプロキシトークン、HTTPS のみ、host の一次検査と名前解決後の SSRF 検証 (同じ resolver)、redirect の各 hop の HTTPS + host 検査、接続と読み取り間隔のタイムアウト。WebView からの宛先名は `localhost` にして画像 (`127.0.0.1`) と同時接続の枠を分けるため、ATS / networkSecurityConfig / CSP の例外にも `localhost` を足してある。
 
 閾値の既定値は `PerformanceConfig` (`crates/notecore/src/perf_config.rs`) が正本で、ユーザー設定から実行時に変更できる。
 
