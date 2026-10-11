@@ -3,6 +3,7 @@ import { type Ref, ref, type ShallowRef, shallowRef } from 'vue'
 import { type ParsedPluginMeta, parsePluginMeta } from '@/aiscript/plugin-api'
 import { i18n } from '@/i18n'
 import {
+  type DistributableKind,
   type DistributableMeta,
   type DistributableScope,
   type DistributableStoreOrigin,
@@ -292,7 +293,8 @@ function parseThemeSource(source: string): ThemeContent {
 // 判定・更新検知は 5 種の配布物で完全に同型なので 1 つに畳む (#1098)。
 // kind ごとに違うのは「どの store の個体か」だけ
 
-interface StoreEntryBase {
+/** レジストリの entry に共通の面 (5 種のストアカードと手続きが見る範囲) */
+export interface StoreEntryBase {
   id: string
   name: string
   version: string
@@ -996,8 +998,26 @@ export const useMisStoreStore = defineStore('misstore', () => {
   const updateSkill = (entry: StoreSkillEntry) => updateFrom(skillKind, entry)
   const updateTheme = (entry: StoreThemeEntry) => updateFrom(themeKind, entry)
 
-  const isQueryInstalled = (entry: StoreQueryEntry, scope?: ScopeTarget) =>
-    isInstalledIn(queryKind, entry, scope)
+  const kinds = {
+    plugin: pluginKind,
+    widget: widgetKind,
+    query: queryKind,
+    skill: skillKind,
+    theme: themeKind,
+  } satisfies Record<
+    DistributableKind,
+    { store(): KindStore<DistributableMeta<unknown, unknown>, unknown> }
+  >
+
+  /**
+   * ストアカードの「インストール済み」判定 (全 kind 共通)。`target` を渡すと
+   * カラムのスコープに参加している個体があるかで判定する (#1202 段階 3)
+   */
+  const installedIn = (
+    kind: DistributableKind,
+    entry: StoreEntryBase,
+    target?: ScopeTarget,
+  ) => isInstalledIn(kinds[kind], entry, target)
 
   return {
     plugins,
@@ -1036,7 +1056,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
     fetchQueries: queryFeed.fetch,
     refreshQueries,
     installQuery,
-    isQueryInstalled,
+    installedIn,
     isInstalled: pluginFeed.isInstalled,
     isThemeInstalled: themeFeed.isInstalled,
     isWidgetInstalled: widgetFeed.isInstalled,

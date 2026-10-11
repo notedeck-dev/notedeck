@@ -484,15 +484,15 @@ describe('installQuery', () => {
     expect(patch).not.toHaveProperty('name')
   })
 
-  it('isQueryInstalled は storeId で照合する', () => {
+  it('installedIn は storeId で照合する', () => {
     const store = useMisStoreStore()
     h.queriesStore.items = [{ id: 'q1', store: { id: 'ent-query' } }]
-    expect(store.isQueryInstalled(queryEntry())).toBe(true)
+    expect(store.installedIn('query', queryEntry())).toBe(true)
     h.queriesStore.items = [{ id: 'ent-query' }]
-    expect(store.isQueryInstalled(queryEntry())).toBe(false)
+    expect(store.installedIn('query', queryEntry())).toBe(false)
   })
 
-  it('isQueryInstalled: スコープ指定はそのスコープに参加している個体だけを済みとみなす (プラグインと同じ粒度)', () => {
+  it('installedIn: スコープ指定はそのスコープに参加している個体だけを済みとみなす (プラグインと同じ粒度)', () => {
     const store = useMisStoreStore()
     h.queriesStore.items = [
       {
@@ -502,18 +502,20 @@ describe('installQuery', () => {
       },
     ]
     expect(
-      store.isQueryInstalled(queryEntry(), {
+      store.installedIn('query', queryEntry(), {
         kind: 'account',
         key: 'yami.ski:u1',
       }),
     ).toBe(true)
     expect(
-      store.isQueryInstalled(queryEntry(), {
+      store.installedIn('query', queryEntry(), {
         kind: 'account',
         key: 'cloud.example:u2',
       }),
     ).toBe(false)
-    expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(false)
+    expect(store.installedIn('query', queryEntry(), { kind: 'global' })).toBe(
+      false,
+    )
     h.queriesStore.items = [
       {
         id: 'q1',
@@ -521,7 +523,9 @@ describe('installQuery', () => {
         scope: { kind: 'shared', global: true, installedFor: [] },
       },
     ]
-    expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(true)
+    expect(store.installedIn('query', queryEntry(), { kind: 'global' })).toBe(
+      true,
+    )
   })
 
   it('既存 (storeId 一致) に別スコープからインストールすると、そのスコープへ参加させる (プラグインと同型)', async () => {

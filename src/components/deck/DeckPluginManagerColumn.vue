@@ -1,19 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
-import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
-import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { getPluginDenial } from '@/permissions/pluginDenials'
 import { hasScopeTarget, type ScopeTarget } from '@/services/distributable'
 import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
-import {
-  accountScopeKey,
-  getAccountAvatarUrl,
-  useAccountsStore,
-} from '@/stores/accounts'
+import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import {
@@ -25,22 +18,22 @@ import {
 import { type PluginItem, usePluginsStore } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
-import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
-import ColumnSection from './ColumnSection.vue'
-import type { ColumnTabDef } from './ColumnTabs.vue'
-import ColumnTabs from './ColumnTabs.vue'
-import DeckColumn from './DeckColumn.vue'
+import DeckDistributableColumn, {
+  type EnabledFilterDecl,
+  type StoreFeedDecl,
+} from './DeckDistributableColumn.vue'
 import PluginCard from './PluginCard.vue'
 import {
   type CapabilityCheck,
   checkKnownCapabilities,
 } from './widgets/capabilities'
 
-// 拒否バッジのクリック → 権限ウィンドウの plugin 行 (#712 §8.4)
-function openPermissionSettings(): void {
-  useWindowsStore().open('permissions')
-}
+/**
+ * プラグイン管理カラム。殻は `DeckDistributableColumn` (#1202 段階 3)。
+ * ここにあるのはプラグイン固有の意味だけ: スコープ別プール (#771)、起動 /
+ * 停止を伴う有効切替 (store の hook)、権限の拒否バッジ、ストア由来の表示名補完
+ */
 
 const props = defineProps<{
   column: DeckColumnType
@@ -50,13 +43,14 @@ const pluginsStore = usePluginsStore()
 const windowsStore = useWindowsStore()
 const misStore = useMisStoreStore()
 const accountsStore = useAccountsStore()
-const { columnThemeVars, serverInfoImageUrl } = useColumnSetup(
-  () => props.column,
-)
+// 殻も setup するが、共通基盤の契約 (#1098 §4) はこのカラムでも結ぶ
+useColumnSetup(() => props.column)
 
 pluginsStore.ensureLoaded()
 // Store メタデータをインストール済みカードの表示にも使うため事前取得（TTL キャッシュあり）
 misStore.fetchPlugins()
+
+const shell = ref<{ closePicker(): void } | null>(null)
 
 const storeByName = computed(() => {
   const map = new Map<string, StorePluginEntry>()
@@ -64,7 +58,7 @@ const storeByName = computed(() => {
   return map
 })
 
-// --- Mode resolution (per-account / 全アカウント) ---
+// --- スコープ (per-account / 全アカウント) ---
 const isCrossAccount = computed(() => props.column.accountId == null)
 const account = computed(() =>
   isCrossAccount.value
@@ -73,10 +67,8 @@ const account = computed(() =>
       null),
 )
 /**
- * このカラムが管理するスコープ (#771)。
- * - 全アカウントカラム: 全体スコープ (global)
- * - per-account カラム: 当該アカウントのスコープ (accountScopeKey で紐付け)
- * per-account カラムでアカウントが見つからない (ログアウト済) 場合は null。
+ * このカラムが管理するスコープ (#771)。全アカウントカラムは全体、per-account
+ * カラムは当該アカウント。アカウントが見つからない (ログアウト済) なら null
  */
 const columnScope = computed<ScopeTarget | null>(() => {
   if (isCrossAccount.value) return { kind: 'global' }
@@ -84,142 +76,44 @@ const columnScope = computed<ScopeTarget | null>(() => {
   return { kind: 'account', key: accountScopeKey(account.value) }
 })
 
-/**
- * カラムのスコープに参加しているか。全アカウントカラムは全体スコープ参加分
- * のみ、per-account カラムは当該アカウントのスコープ参加分のみを表示する
- * (ウィジェットの「カラム別プール」に対応する「スコープ別プール」)。
- */
 function matchesContext(plugin: PluginItem): boolean {
   const scope = columnScope.value
   return scope ? hasScopeTarget(plugin.scope, scope) : false
 }
 
-// --- View mode ---
-type ViewTab = 'installed' | 'store'
-const viewTabs: ViewTab[] = ['installed', 'store']
-const viewTab = ref<ViewTab>('installed')
-const columnContentRef = ref<HTMLElement | null>(null)
-
-const scopeCount = computed(
-  () => pluginsStore.items.filter((p) => matchesContext(p)).length,
+/** カラムのスコープに参加している本体 (スコープ別プール) */
+const scopedPlugins = computed(() =>
+  pluginsStore.items.filter((p) => matchesContext(p)),
 )
 
-const tabDefs = computed<ColumnTabDef[]>(() => [
-  {
-    value: 'installed',
-    label: i18n.tsx._common.installedTab({
-      count: scopeCount.value,
-    }),
+/** このカラムのスコープに未参加のライブラリ本体 (= 追加可能候補)。 */
+const libraryCandidates = computed(() =>
+  pluginsStore.items.filter((p) => !matchesContext(p)),
+)
+
+const enabledFilter: EnabledFilterDecl<PluginItem> = {
+  get enabledTitle() {
+    return i18n.ts._deckPluginManagerColumn.enabledPlugins
   },
-  { value: 'store', label: i18n.ts._common.store },
-])
-
-function switchTab(tab: string) {
-  const t = tab as ViewTab
-  viewTab.value = t
-  if (t === 'store') misStore.fetchPlugins()
+  get disabledTitle() {
+    return i18n.ts._deckPluginManagerColumn.disabledPlugins
+  },
+  isEnabled: (p) => p.extra.active,
 }
 
-// Tab slide animation
-const tabIndex = computed(() => viewTabs.indexOf(viewTab.value))
-useTabSlide(tabIndex, columnContentRef)
+const texts = computed(() => ({
+  noMatches: i18n.ts._deckPluginManagerColumn.noMatches,
+  empty: i18n.ts._deckPluginManagerColumn.emptyInColumn,
+  noLibrary: i18n.ts._deckPluginManagerColumn.noLibraryCandidates,
+}))
 
-// --- Search & filter (shared) ---
-const searchQuery = ref('')
-
-// --- Installed tab ---
-type FilterMode = 'all' | 'enabled' | 'disabled'
-const activeFilter = computed<FilterMode>(() => {
-  const q = searchQuery.value.trimStart()
-  if (q.startsWith('@enabled')) return 'enabled'
-  if (q.startsWith('@disabled')) return 'disabled'
-  if (q.startsWith('@installed')) return 'all'
-  return 'all'
-})
-
-const textQuery = computed(() => {
-  return searchQuery.value
-    .replace(/^@(?:installed|enabled|disabled)\s*/, '')
-    .trim()
-    .toLowerCase()
-})
-
-interface PluginSection {
-  key: 'sideload' | 'store'
-  label: string
-  items: PluginItem[]
-}
-
-/** Context-filter + active-filter + text-search を通したリスト */
-const visiblePlugins = computed<PluginItem[]>(() => {
-  let list = pluginsStore.items.filter((p) => matchesContext(p))
-  if (activeFilter.value === 'enabled') {
-    list = list.filter((p) => p.extra.active)
-  } else if (activeFilter.value === 'disabled') {
-    list = list.filter((p) => !p.extra.active)
-  }
-  const q = textQuery.value
-  if (q) {
-    list = list.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        (p.description?.toLowerCase().includes(q) ?? false) ||
-        (p.extra.author?.toLowerCase().includes(q) ?? false),
-    )
-  }
-  return list
-})
-
-/**
- * インストール済みタブのセクション分け (出自 3 分類):
- *   - サイドロード: ＋ボタン手書き・AI 生成・インポート (storeId 無し)
- *   - ストア配布: storeId 持ち。MisStore に上流がある複製 (手で書き換えても
- *     storeId が残る限りここ)
- * 0 件のセクションは表示しない。
- */
-const installedSections = computed<PluginSection[]>(() => {
-  const sideloaded = visiblePlugins.value.filter((p) => !p.store)
-  const store = visiblePlugins.value.filter((p) => !!p.store)
-  const sections: PluginSection[] = [
-    {
-      key: 'sideload',
-      label: i18n.ts._common.sideload,
-      items: sideloaded,
-    },
-    {
-      key: 'store',
-      label: i18n.ts._common.storeDistributed,
-      items: store,
-    },
-  ]
-  return sections.filter((s) => s.items.length > 0)
-})
-
-const visiblePluginCount = computed(() => visiblePlugins.value.length)
-
-function setFilter(mode: FilterMode) {
-  searchQuery.value =
-    mode === 'enabled'
-      ? '@enabled '
-      : mode === 'disabled'
-        ? '@disabled '
-        : '@installed '
-}
-
-// --- Store tab ---
-const storeQuery = ref('')
-
-const filteredStorePlugins = computed(() => {
-  const q = storeQuery.value.trim().toLowerCase()
-  if (!q) return misStore.plugins
-  return misStore.plugins.filter(
-    (p) =>
-      p.name.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q) ||
-      p.author.toLowerCase().includes(q) ||
-      p.tags.some((t) => t.toLowerCase().includes(q)),
-  )
-})
+const storeFeed = computed<StoreFeedDecl<StorePluginEntry>>(() => ({
+  entries: misStore.plugins,
+  loading: misStore.loading,
+  error: misStore.error,
+  fetch: () => misStore.fetchPlugins(),
+  refresh: () => misStore.refresh(),
+}))
 
 // 未知 capability を宣言するエントリは install 不可 (要 NoteDeck アップデート)。
 // widget と違いカラム文脈 (accountId) の条件は無く、実行時の認可は
@@ -232,43 +126,8 @@ const capabilityChecks = computed<Record<string, CapabilityCheck>>(() => {
   return result
 })
 
-const installError = ref<string | null>(null)
+// --- 導入済みの操作 ---
 
-async function handleStoreInstall(entry: StorePluginEntry) {
-  const scope = columnScope.value
-  if (!scope) return
-  installError.value = null
-  try {
-    // 本体はライブラリに 1 つ。既にあればこのカラムのスコープへ参照追加、
-    // 無ければ取得してこのスコープで有効化 (#771)
-    await misStore.installPlugin(entry, scope)
-  } catch (e) {
-    installError.value =
-      e instanceof Error ? e.message : i18n.ts._common.installFailed
-  }
-}
-
-async function handleStoreUpdate(entry: StorePluginEntry) {
-  installError.value = null
-  try {
-    await misStore.updatePlugin(entry)
-  } catch (e) {
-    installError.value =
-      e instanceof Error ? e.message : i18n.ts._common.updateFailed
-  }
-}
-
-/** ストアエントリがこのカラムのスコープに参加済みか (「インストール済み」表示基準)。 */
-function isEntryInScope(entry: StorePluginEntry): boolean {
-  const plugin = pluginsStore.items.find((p) => p.store?.id === entry.id)
-  return plugin ? matchesContext(plugin) : false
-}
-
-function handleOpenStoreDetail(entry: StorePluginEntry) {
-  openSafeUrl(getPluginDetailUrl(entry.id))
-}
-
-// --- Installed tab actions ---
 /** 有効 / 無効の切替。起動 / 停止は store の hook が行う */
 async function toggleActive(plugin: PluginItem) {
   if (!(await pluginsStore.setEnabled(plugin.id, !plugin.extra.active))) {
@@ -322,15 +181,6 @@ const detachTitle = computed(() =>
     : i18n.ts._common.detachFromAccount,
 )
 
-// --- Library picker (スコープ未参加のライブラリ本体の追加/削除) ---
-// ウィジェットカラムのライブラリピッカーと同型 (#771)。
-const showLibraryPicker = ref(false)
-
-/** このカラムのスコープに未参加のライブラリ本体 (= 追加可能候補)。 */
-const libraryCandidates = computed<PluginItem[]>(() =>
-  pluginsStore.items.filter((p) => !matchesContext(p)),
-)
-
 async function placeFromLibrary(plugin: PluginItem) {
   const scope = columnScope.value
   if (!scope) return
@@ -338,7 +188,7 @@ async function placeFromLibrary(plugin: PluginItem) {
     useToast().show(readOnlyReason(), 'warning')
     return
   }
-  showLibraryPicker.value = false
+  shell.value?.closePicker()
 }
 
 const { confirm } = useConfirm()
@@ -361,444 +211,105 @@ async function deleteFromLibrary(plugin: PluginItem) {
     })
   }
 }
+
+// --- ストア ---
+
+/** 本体はライブラリに 1 つ。既にあればこのカラムのスコープへ参照追加、無ければ取得してこのスコープで有効化 (#771) */
+function installEntry(
+  entry: StorePluginEntry,
+  run: (action: () => Promise<unknown>) => Promise<void>,
+) {
+  const scope = columnScope.value
+  if (!scope) return
+  void run(() => misStore.installPlugin(entry, scope))
+}
+
+function openStoreDetail(entry: StorePluginEntry) {
+  openSafeUrl(getPluginDetailUrl(entry.id))
+}
+
+// 拒否バッジのクリック → 権限ウィンドウの plugin 行 (#712 §8.4)
+function openPermissionSettings(): void {
+  windowsStore.open('permissions')
+}
 </script>
 
 <template>
-  <DeckColumn
-    :column-id="column.id"
-    :title="column.name ?? i18n.ts._columns.pluginManager"
-    :theme-vars="columnThemeVars"
-    @header-click="() => {}"
+  <DeckDistributableColumn
+    ref="shell"
+    :column="column"
+    :title="i18n.ts._columns.pluginManager"
+    icon="puzzle"
+    :safe-mode-subject="i18n.ts._deckPluginManagerColumn.safeModeSubject"
+    :create-title="i18n.ts._deckPluginManagerColumn.create"
+    :can-create="canCreate"
+    :items="scopedPlugins"
+    :search-placeholder="i18n.ts._deckPluginManagerColumn.searchInstalled"
+    :search-text="(p) => [p.name, p.description, p.extra.author]"
+    :enabled-filter="enabledFilter"
+    :library-candidates="libraryCandidates"
+    :texts="texts"
+    :store="storeFeed"
+    @create="openNewPlugin"
   >
-    <template #header-icon>
-      <i class="ti ti-puzzle" :class="$style.headerIcon" />
-    </template>
-
-    <template #header-meta>
-      <button
-        v-if="viewTab === 'installed' && canCreate"
-        class="_button"
-        :class="$style.headerBtn"
-        :title="i18n.ts._deckPluginManagerColumn.create"
-        @click.stop="openNewPlugin"
-      >
-        <i class="ti ti-plus" />
-      </button>
-    </template>
-
-    <div ref="columnContentRef" :class="$style.wrapper">
-      <SafeModeNotice :subject="i18n.ts._deckPluginManagerColumn.safeModeSubject" />
-
-      <ColumnTabs
-        :tabs="tabDefs"
-        :model-value="viewTab"
-        :swipe-target="columnContentRef"
-        @update:model-value="switchTab"
+    <template #card="{ item: plugin, mode }">
+      <PluginCard
+        v-if="mode === 'installed'"
+        mode="installed"
+        :name="plugin.name"
+        :description="storeByName.get(plugin.name)?.description ?? plugin.description"
+        :author="storeByName.get(plugin.name)?.author ?? plugin.extra.author"
+        :version="plugin.extra.version"
+        :category="storeByName.get(plugin.name)?.category"
+        :category-label="storeByName.get(plugin.name)?.category ? PLUGIN_CATEGORY_LABELS[storeByName.get(plugin.name)!.category] : undefined"
+        :active="plugin.extra.active"
+        :read-only="plugin.readOnly"
+        :detach-title="detachTitle"
+        :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
+        :denied-badge="getPluginDenial(plugin.id)"
+        @click="openPluginDetail(plugin.id)"
+        @toggle="toggleActive(plugin)"
+        @detach="detachFromScope(plugin)"
+        @settings="openPluginDetail(plugin.id)"
+        @denied-click="openPermissionSettings()"
       />
+      <PluginCard
+        v-else
+        mode="library"
+        :name="plugin.name"
+        :description="storeByName.get(plugin.name)?.description ?? plugin.description"
+        :author="storeByName.get(plugin.name)?.author ?? plugin.extra.author"
+        :version="plugin.extra.version"
+        :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
+        :read-only="plugin.readOnly"
+        @click="openPluginDetail(plugin.id)"
+        @place="placeFromLibrary(plugin)"
+        @delete="deleteFromLibrary(plugin)"
+      />
+    </template>
 
-      <!-- Search bar -->
-      <div :class="$style.searchWrap">
-        <input
-          v-if="viewTab === 'installed'"
-          v-model="searchQuery"
-          :class="$style.searchInput"
-          type="text"
-          :placeholder="i18n.ts._deckPluginManagerColumn.searchInstalled"
-        />
-        <input
-          v-else
-          v-model="storeQuery"
-          :class="$style.searchInput"
-          type="text"
-          :placeholder="i18n.ts._common.browseStore"
-        />
-        <div v-if="viewTab === 'installed'" :class="$style.searchActions">
-          <button
-            class="_button"
-            :class="[$style.filterBtn, activeFilter === 'enabled' && $style.filterBtnActive]"
-            :title="i18n.ts._deckPluginManagerColumn.enabledPlugins"
-            @click="setFilter('enabled')"
-          >
-            <i class="ti ti-check" />
-          </button>
-          <button
-            class="_button"
-            :class="[$style.filterBtn, activeFilter === 'disabled' && $style.filterBtnActive]"
-            :title="i18n.ts._deckPluginManagerColumn.disabledPlugins"
-            @click="setFilter('disabled')"
-          >
-            <i class="ti ti-circle-off" />
-          </button>
-        </div>
-      </div>
-      <!-- ===== Installed tab ===== -->
-      <template v-if="viewTab === 'installed'">
-        <div :class="$style.list">
-          <ColumnSection
-            v-for="section in installedSections"
-            :key="section.key"
-            :label="section.label"
-            :count="section.items.length"
-          >
-            <PluginCard
-              v-for="plugin in section.items"
-              :key="plugin.id"
-              mode="installed"
-              :name="plugin.name"
-              :description="storeByName.get(plugin.name)?.description ?? plugin.description"
-              :author="storeByName.get(plugin.name)?.author ?? plugin.extra.author"
-              :version="plugin.extra.version"
-              :category="storeByName.get(plugin.name)?.category"
-              :category-label="storeByName.get(plugin.name)?.category ? PLUGIN_CATEGORY_LABELS[storeByName.get(plugin.name)!.category] : undefined"
-              :active="plugin.extra.active"
-              :read-only="plugin.readOnly"
-              :detach-title="detachTitle"
-              :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
-              :denied-badge="getPluginDenial(plugin.id)"
-              @click="openPluginDetail(plugin.id)"
-              @toggle="toggleActive(plugin)"
-              @detach="detachFromScope(plugin)"
-              @settings="openPluginDetail(plugin.id)"
-              @denied-click="openPermissionSettings()"
-            />
-          </ColumnSection>
-
-          <template v-if="visiblePluginCount === 0">
-            <div v-if="textQuery || activeFilter !== 'all'" :class="$style.empty">
-              {{ i18n.ts._deckPluginManagerColumn.noMatches }}
-            </div>
-            <ColumnEmptyState
-              v-else
-              :message="i18n.ts._deckPluginManagerColumn.emptyInColumn"
-              :image-url="serverInfoImageUrl"
-            />
-          </template>
-
-          <!-- Library picker: スコープ未参加のライブラリ本体を追加/削除 -->
-          <div :class="$style.addPluginArea">
-            <button
-              :class="[$style.addPluginBtn, showLibraryPicker && $style.addPluginBtnActive]"
-              @click="showLibraryPicker = !showLibraryPicker"
-            >
-              <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._common.addFromLibrary }}
-            </button>
-          </div>
-
-          <div v-if="showLibraryPicker" :class="$style.pickerWrap">
-            <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              {{ i18n.ts._deckPluginManagerColumn.noLibraryCandidates }}
-            </div>
-            <PluginCard
-              v-for="plugin in libraryCandidates"
-              :key="plugin.id"
-              mode="library"
-              :name="plugin.name"
-              :description="storeByName.get(plugin.name)?.description ?? plugin.description"
-              :author="storeByName.get(plugin.name)?.author ?? plugin.extra.author"
-              :version="plugin.extra.version"
-              :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
-              :read-only="plugin.readOnly"
-              @click="openPluginDetail(plugin.id)"
-              @place="placeFromLibrary(plugin)"
-              @delete="deleteFromLibrary(plugin)"
-            />
-          </div>
-        </div>
-      </template>
-
-      <!-- ===== Store tab ===== -->
-      <template v-else>
-        <!-- Error -->
-        <div v-if="installError" :class="$style.storeError">
-          <i class="ti ti-alert-circle" />
-          {{ installError }}
-          <button :aria-label="i18n.ts._common.close" class="_button" :class="$style.storeErrorClose" @click="installError = null">
-            <i class="ti ti-x" />
-          </button>
-        </div>
-
-        <div v-if="misStore.loading" :class="$style.storeLoading">
-          <i class="ti ti-loader-2 nd-spin" />
-          {{ i18n.ts._common.loading }}
-        </div>
-
-        <div v-else-if="misStore.error" :class="$style.empty">
-          <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>{{ i18n.ts._common.storeUnavailable }}</span>
-          <button class="_button" :class="$style.emptyLink" @click="misStore.refresh()">
-            {{ i18n.ts._common.retry }}
-          </button>
-        </div>
-
-        <div v-else :class="$style.list">
-          <PluginCard
-            v-for="entry in filteredStorePlugins"
-            :key="entry.id"
-            mode="store"
-            :name="entry.name"
-            :description="entry.description"
-            :author="entry.author"
-            :version="entry.version"
-            :category="entry.category"
-            :category-label="entry.category ? PLUGIN_CATEGORY_LABELS[entry.category] : undefined"
-            :installing="misStore.installing === entry.id"
-            :already-installed="isEntryInScope(entry)"
-            :has-update="misStore.hasPluginUpdate(entry)"
-            :updated-at="entry.updatedAt"
-            :capabilities="entry.capabilities"
-            :capability-ok="capabilityChecks[entry.id]?.ok"
-            :capability-badge="capabilityChecks[entry.id]?.badge"
-            :capability-reason="capabilityChecks[entry.id]?.reason"
-            :icon-url="entry.iconUrl"
-            @install="handleStoreInstall(entry)"
-            @update="handleStoreUpdate(entry)"
-            @open-detail="handleOpenStoreDetail(entry)"
-          />
-
-          <div v-if="filteredStorePlugins.length === 0 && !misStore.loading" :class="$style.empty">
-            {{ i18n.ts._deckPluginManagerColumn.noMatches }}
-          </div>
-        </div>
-      </template>
-    </div>
-  </DeckColumn>
+    <template #store-card="{ entry, run }">
+      <PluginCard
+        mode="store"
+        :name="entry.name"
+        :description="entry.description"
+        :author="entry.author"
+        :version="entry.version"
+        :category="entry.category"
+        :category-label="entry.category ? PLUGIN_CATEGORY_LABELS[entry.category] : undefined"
+        :installing="misStore.installing === entry.id"
+        :already-installed="misStore.installedIn('plugin', entry, columnScope ?? undefined)"
+        :has-update="misStore.hasPluginUpdate(entry)"
+        :updated-at="entry.updatedAt"
+        :capabilities="entry.capabilities"
+        :capability-ok="capabilityChecks[entry.id]?.ok"
+        :capability-badge="capabilityChecks[entry.id]?.badge"
+        :capability-reason="capabilityChecks[entry.id]?.reason"
+        :icon-url="entry.iconUrl"
+        @install="installEntry(entry, run)"
+        @update="run(() => misStore.updatePlugin(entry), i18n.ts._common.updateFailed)"
+        @open-detail="openStoreDetail(entry)"
+      />
+    </template>
+  </DeckDistributableColumn>
 </template>
-
-<style module lang="scss">
-@use '@/styles/buttons' as *;
-@use './column-common.module.scss';
-
-.headerIcon {
-  font-size: 1em;
-}
-
-// .headerAccount / .headerAvatar / .headerFavicon は column-common.module.scss
-// で定義された共通スタイル (DeckThemeManagerColumn 等と揃える)。
-
-.headerBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-fg);
-  opacity: 0.6;
-  transition:
-    background var(--nd-duration-fast),
-    opacity 0.1s;
-
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-    opacity: 1;
-  }
-}
-
-// --- Search bar ---
-.searchWrap {
-  display: flex;
-  align-items: center;
-  padding: 6px 10px 4px;
-  width: 100%;
-}
-
-.searchInput {
-  flex: 1;
-  min-width: 0;
-  height: 26px;
-  padding: 0 6px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-xs);
-  background: var(--nd-inputBg, var(--nd-bg));
-  color: var(--nd-fg);
-  font-size: 12px;
-
-  &::placeholder {
-    color: var(--nd-fg);
-    opacity: 0.4;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--nd-accent);
-  }
-}
-
-.searchActions {
-  display: flex;
-  align-items: center;
-  margin-left: 2px;
-  gap: 1px;
-}
-
-.filterBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--nd-radius-xs);
-  color: var(--nd-fg);
-  opacity: 0.45;
-  font-size: 13px;
-  transition:
-    opacity var(--nd-duration-fast),
-    background 0.1s;
-
-  &:hover {
-    opacity: 0.85;
-    background: var(--nd-buttonHoverBg);
-  }
-}
-
-.filterBtnActive {
-  opacity: 1;
-  color: var(--nd-accentText);
-}
-
-// --- Wrapper ---
-.wrapper {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-// --- List ---
-.list {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-color: var(--nd-scrollbarHandle) transparent;
-  scrollbar-width: thin;
-}
-
-// --- Library picker (ウィジェットカラムのピッカーと同型) ---
-.addPluginArea {
-  display: flex;
-  justify-content: center;
-  padding: 6px;
-}
-
-.addPluginBtn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px dashed var(--nd-divider);
-  border-radius: var(--nd-radius-md);
-  background: none;
-  color: var(--nd-fg);
-  cursor: pointer;
-  font-size: var(--nd-font-md);
-  opacity: 0.5;
-  transition: opacity var(--nd-duration-base), border-color var(--nd-duration-base);
-
-  &:hover {
-    opacity: 1;
-    border-color: var(--nd-accent);
-    color: var(--nd-accentText);
-  }
-}
-
-.addPluginBtnActive {
-  opacity: 1;
-  border-color: var(--nd-accent);
-  color: var(--nd-accentText);
-}
-
-.pickerWrap {
-  display: flex;
-  flex-direction: column;
-  padding: 4px 0 8px;
-}
-
-.pickerEmpty {
-  margin: 4px 10px;
-  padding: 12px;
-  border: 1px dashed var(--nd-divider);
-  border-radius: var(--nd-radius-md);
-  color: var(--nd-fg);
-  opacity: 0.6;
-  font-size: 11.5px;
-  text-align: center;
-}
-
-// --- Store states ---
-.storeLoading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 40px 20px;
-  color: var(--nd-fg);
-  opacity: 0.5;
-  font-size: 13px;
-}
-
-.storeError {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  margin: 6px 10px;
-  border-radius: var(--nd-radius-xs);
-  background: color-mix(in srgb, var(--nd-love) 10%, transparent);
-  color: var(--nd-love);
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.storeErrorClose {
-  @include nd-interactive;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--nd-radius-xs);
-  opacity: 0.6;
-  font-size: 12px;
-
-  &:hover {
-    opacity: 1;
-    background: color-mix(in srgb, var(--nd-love) 15%, transparent);
-  }
-}
-
-// --- Empty state ---
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 40px 20px;
-  color: var(--nd-fg);
-  opacity: 0.5;
-  font-size: 13px;
-  text-align: center;
-}
-
-.emptyIcon {
-  font-size: 36px;
-  opacity: 0.3;
-}
-
-.emptyLink {
-  color: var(--nd-accentText);
-  font-size: 12px;
-  margin-top: 4px;
-  opacity: 0.8;
-  transition: opacity var(--nd-duration-fast);
-
-  &:hover {
-    opacity: 1;
-    text-decoration: underline;
-  }
-}
-</style>

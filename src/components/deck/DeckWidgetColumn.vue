@@ -6,14 +6,13 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import { useAccountPicker } from '@/composables/useAccountPicker'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { usePointerReorder } from '@/composables/usePointerReorder'
-import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import type { ScopeTarget } from '@/services/distributable'
 import {
   findWidgetByStore,
   isStoreWidgetInstalled,
 } from '@/services/widgetInstances'
-import { samePlacement, type WidgetPlacement } from '@/services/widgetPlacement'
+import type { WidgetPlacement } from '@/services/widgetPlacement'
 import {
   accountScopeKey,
   findAccountByScopeKey,
@@ -36,9 +35,9 @@ import {
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
 import { isWindowExposed } from '@/windows/exposure'
-import type { ColumnTabDef } from './ColumnTabs.vue'
-import ColumnTabs from './ColumnTabs.vue'
-import DeckColumn from './DeckColumn.vue'
+import DeckDistributableColumn, {
+  type StoreFeedDecl,
+} from './DeckDistributableColumn.vue'
 import WidgetCard from './WidgetCard.vue'
 import {
   type CapabilityCheck,
@@ -50,6 +49,14 @@ const WidgetAiScript = defineAsyncComponent(
   () => import('./widgets/WidgetAiScript.vue'),
 )
 
+/**
+ * ウィジェットカラム。殻は `DeckDistributableColumn` (#1202 段階 3) で、導入済み
+ * タブの一覧だけは差し替える: 他の配布物は「スコープに参加した本体」を並べるが、
+ * ウィジェットは「このカラムの配置」(本体 + 実行アカウント) を動かして見せる。
+ * 本体は紐付け配列で共有し、実行アカウントは配置 (`widgetRefs`) が持つ
+ * (#1202 決定 (b) / (g))
+ */
+
 const props = defineProps<{
   column: DeckColumnType
 }>()
@@ -60,9 +67,12 @@ const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
 const accountsStore = useAccountsStore()
 widgetsStore.ensureLoaded()
+useColumnSetup(() => props.column)
 
-const { columnThemeVars, serverInfoImageUrl, scroller, scrollToTop } =
-  useColumnSetup(() => props.column)
+const shell = ref<{
+  closePicker(): void
+  showTab(tab: 'installed' | 'store'): void
+} | null>(null)
 
 /**
  * sidebar widget カラム (ナビバートグルで開閉) は sidebarPlacements[] を参照し、
@@ -209,8 +219,7 @@ async function openNewWidgetEditor() {
   windowsStore.open('widget-edit', { widgetId: widget.id, accountId })
 }
 
-// --- Library picker (配置タブ Add Widget ボタン) ---
-const showLibraryPicker = ref(false)
+// --- Library picker ---
 
 /**
  * 配置可能な本体。per-account カラムではこのカラムに未配置の本体、全アカウント
@@ -221,10 +230,6 @@ const libraryCandidates = computed<WidgetItem[]>(() => {
   const placedIds = new Set(placements.value.map((p) => p.id))
   return widgetsStore.items.filter((w) => !placedIds.has(w.id))
 })
-
-function toggleLibraryPicker() {
-  showLibraryPicker.value = !showLibraryPicker.value
-}
 
 /** ライブラリから配置する。本体をこのカラムのスコープに参加させ、配置を足す */
 async function placeFromLibrary(widget: WidgetItem) {
@@ -238,7 +243,7 @@ async function placeFromLibrary(widget: WidgetItem) {
     id: widget.id,
     ...(picked.accountKey ? { accountKey: picked.accountKey } : {}),
   })
-  showLibraryPicker.value = false
+  shell.value?.closePicker()
 }
 
 async function openLibraryWidgetEditor(widget: WidgetItem) {
@@ -279,49 +284,22 @@ async function deleteFromLibrary(widget: WidgetItem) {
   }
 }
 
-// --- View tabs (installed / store) ---
-// プラグイン/エディタと UX を揃えるため「インストール済み」表記。
-// 値はカラム永続化と関わらないため見かけのラベルのみ変更。
-type ViewTab = 'installed' | 'store'
-const viewTabs: ViewTab[] = ['installed', 'store']
-const viewTab = ref<ViewTab>('installed')
-const columnContentRef = ref<HTMLElement | null>(null)
-
-const tabDefs = computed<ColumnTabDef[]>(() => [
-  {
-    value: 'installed',
-    label: i18n.tsx._common.installedTab({
-      count: placed.value.length,
-    }),
-  },
-  { value: 'store', label: i18n.ts._common.store },
-])
-
-function switchTab(tab: string) {
-  const t = tab as ViewTab
-  viewTab.value = t
-  if (t === 'store') misStore.fetchWidgets()
-}
-
-const tabIndex = computed(() => viewTabs.indexOf(viewTab.value))
-useTabSlide(tabIndex, columnContentRef)
+const texts = computed(() => ({
+  noMatches: i18n.ts._deckWidgetColumn.noMatches,
+  empty: i18n.ts._deckWidgetColumn.empty,
+  noLibrary: i18n.ts._deckWidgetColumn.noLibraryWidgets,
+}))
 
 // --- Store tab ---
-const storeQuery = ref('')
-const installError = ref<string | null>(null)
 const installingId = ref<string | null>(null)
 
-const filteredStoreWidgets = computed(() => {
-  const q = storeQuery.value.trim().toLowerCase()
-  if (!q) return misStore.widgets
-  return misStore.widgets.filter(
-    (w) =>
-      w.name.toLowerCase().includes(q) ||
-      w.description.toLowerCase().includes(q) ||
-      w.author.toLowerCase().includes(q) ||
-      w.tags.some((t) => t.toLowerCase().includes(q)),
-  )
-})
+const storeFeed = computed<StoreFeedDecl<StoreWidgetEntry>>(() => ({
+  entries: misStore.widgets,
+  loading: misStore.widgetsLoading,
+  error: misStore.widgetsError,
+  fetch: () => misStore.fetchWidgets(),
+  refresh: () => misStore.refreshWidgets(),
+}))
 
 const capabilityChecks = computed<Record<string, CapabilityCheck>>(() => {
   const ctx = {
@@ -340,8 +318,8 @@ const capabilityChecks = computed<Record<string, CapabilityCheck>>(() => {
 /**
  * ストアカードの「インストール済み」判定 (#1061 / #1202)。本体は storeId に
  * つき 1 つで、どのアカウントで選べるかは紐付け。全アカウントのカラムでは
- * 「選べるアカウント全部が紐付けにあるか」を見る。未参加のアカウントが残る
- * うちは通常の状態で出す (プラグインのスコープ別判定と同じ粒度)
+ * 「選べるアカウント全部が紐付けにあるか」を見る (他の kind より厳しい —
+ * アカウント必須のウィジェットはアカウントごとに置き直すため)
  */
 const installedStoreIds = computed(() => {
   const scope = isAllAccounts(props.column)
@@ -364,14 +342,15 @@ const installedStoreIds = computed(() => {
   return result
 })
 
-async function handleStoreInstall(entry: StoreWidgetEntry) {
+/**
+ * 全アカウントのカラムはどのアカウントで動かすかが決まらないので、アカウント
+ * 必須のアイテムは先に選ばせる (#1018)。本体は storeId につき 1 つ (#1202 決定
+ * (b)): 既にあれば参加先を足して配置するだけ。配置したら導入済みタブへ戻る
+ */
+async function installEntry(entry: StoreWidgetEntry): Promise<void> {
   if (installingId.value) return
-  installError.value = null
   installingId.value = entry.id
   try {
-    // 全アカウントのカラムはどのアカウントで動かすかが決まらないので、
-    // アカウント必須のアイテムは先に選ばせる (#1018)。本体は storeId につき
-    // 1 つ (#1202 決定 (b)): 既にあれば参加先を足して配置するだけ
     let accountKey: string | undefined
     if (
       requiresAccount(entry.capabilities ?? []) &&
@@ -394,184 +373,103 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
     if (existing) {
       if (target) await widgetsStore.link(existing.id, target)
       deckStore.attachWidget(props.column.id, { ...placement, id: existing.id })
-      viewTab.value = 'installed'
-      return
+    } else {
+      // sha512 検証と baseline 記録は misstore 側の経路に一本化する
+      const widget = await misStore.installWidget(entry, target ?? undefined)
+      deckStore.attachWidget(props.column.id, { ...placement, id: widget.id })
     }
-    // sha512 検証と baseline 記録は misstore 側の経路に一本化する
-    const widget = await misStore.installWidget(entry, target ?? undefined)
-    deckStore.attachWidget(props.column.id, { ...placement, id: widget.id })
-    viewTab.value = 'installed'
-  } catch (e) {
-    installError.value =
-      e instanceof Error ? e.message : i18n.ts._common.installFailed
+    shell.value?.showTab('installed')
   } finally {
     installingId.value = null
   }
 }
 
-async function handleStoreUpdate(entry: StoreWidgetEntry) {
-  installError.value = null
-  try {
-    await misStore.updateWidget(entry)
-  } catch (e) {
-    installError.value =
-      e instanceof Error ? e.message : i18n.ts._common.updateFailed
-  }
-}
-
-function handleOpenStoreDetail(entry: StoreWidgetEntry) {
+function openStoreDetail(entry: StoreWidgetEntry) {
   openSafeUrl(getWidgetDetailUrl(entry.id))
 }
 </script>
 
 <template>
-  <DeckColumn :column-id="column.id" :title="column.name ?? i18n.ts._columns.widget" :theme-vars="columnThemeVars" data-column-type="widget" @header-click="scrollToTop">
-    <template #header-icon>
-      <i class="ti ti-layout-dashboard" />
+  <DeckDistributableColumn
+    ref="shell"
+    :column="column"
+    :title="i18n.ts._columns.widget"
+    icon="layout-dashboard"
+    :create-title="i18n.ts._deckWidgetColumn.createLocal"
+    :can-create="isWindowExposed('widget-edit')"
+    :installed-count="placed.length"
+    :library-candidates="libraryCandidates"
+    :picker-label="i18n.ts._deckWidgetColumn.addWidget"
+    :texts="texts"
+    :store="storeFeed"
+    @create="openNewWidgetEditor"
+  >
+    <template #installed="{ serverInfoImageUrl }">
+      <div :class="$style.widgetColumnBody">
+        <ColumnEmptyState
+          v-if="showEmptyState"
+          :message="i18n.ts._deckWidgetColumn.empty"
+          :image-url="serverInfoImageUrl"
+        />
+
+        <div
+          v-for="(entry, idx) in placed"
+          :key="placementKey(entry.placement)"
+          :data-widget-idx="idx"
+          :class="[
+            $style.widgetItem,
+            dragFromIndex === idx && $style.widgetItemDragging,
+            dragOverIndex === idx && $style.widgetItemDragOver,
+          ]"
+        >
+          <WidgetAiScript
+            :widget="entry.widget"
+            :column-id="column.id"
+            :account-id="entry.accountId"
+            :is-sidebar="isSidebar"
+            @remove="handleRemove(entry.placement)"
+            @drag-start="handleDragStart(idx, $event)"
+          />
+        </div>
+      </div>
     </template>
 
-    <template #header-meta>
-      <button
-        v-if="viewTab === 'installed' && isWindowExposed('widget-edit')"
-        class="_button"
-        :class="$style.headerBtn"
-        :title="i18n.ts._deckWidgetColumn.createLocal"
-        @click.stop="openNewWidgetEditor"
-      >
-        <i class="ti ti-plus" />
-      </button>
-    </template>
-
-    <div ref="columnContentRef" :class="$style.wrapper">
-      <ColumnTabs
-        :tabs="tabDefs"
-        :model-value="viewTab"
-        :swipe-target="columnContentRef"
-        @update:model-value="switchTab"
+    <template #card="{ item: w }">
+      <WidgetCard
+        mode="library"
+        :name="w.name"
+        :description="w.content ? `${w.content.length} chars` : i18n.ts._deckWidgetColumn.emptyCode"
+        :store-id="w.store?.id"
+        :icon-url="w.iconUrl"
+        :read-only="w.readOnly"
+        @place="placeFromLibrary(w)"
+        @edit="openLibraryWidgetEditor(w)"
+        @delete="deleteFromLibrary(w)"
       />
+    </template>
 
-      <!-- ===== Placed tab ===== -->
-      <template v-if="viewTab === 'installed'">
-        <div ref="scroller" :class="$style.widgetColumnBody">
-          <ColumnEmptyState
-            v-if="showEmptyState"
-            :message="i18n.ts._deckWidgetColumn.empty"
-            :image-url="serverInfoImageUrl"
-          />
-
-          <div
-            v-for="(entry, idx) in placed"
-            :key="placementKey(entry.placement)"
-            :data-widget-idx="idx"
-            :class="[
-              $style.widgetItem,
-              dragFromIndex === idx && $style.widgetItemDragging,
-              dragOverIndex === idx && $style.widgetItemDragOver,
-            ]"
-          >
-            <WidgetAiScript
-              :widget="entry.widget"
-              :column-id="column.id"
-              :account-id="entry.accountId"
-              :is-sidebar="isSidebar"
-              @remove="handleRemove(entry.placement)"
-              @drag-start="handleDragStart(idx, $event)"
-            />
-          </div>
-
-          <div :class="$style.addWidgetArea">
-            <button
-              :class="[$style.addWidgetBtn, showLibraryPicker && $style.addWidgetBtnActive]"
-              @click="toggleLibraryPicker"
-            >
-              <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._deckWidgetColumn.addWidget }}
-            </button>
-          </div>
-
-          <!-- ===== Library picker ===== -->
-          <div v-if="showLibraryPicker" :class="$style.pickerWrap">
-            <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              {{ i18n.ts._deckWidgetColumn.noLibraryWidgets }}
-            </div>
-            <WidgetCard
-              v-for="w in libraryCandidates"
-              :key="w.id"
-              mode="library"
-              :name="w.name"
-              :description="w.content ? `${w.content.length} chars` : i18n.ts._deckWidgetColumn.emptyCode"
-              :store-id="w.store?.id"
-              :icon-url="w.iconUrl"
-              :read-only="w.readOnly"
-              @place="placeFromLibrary(w)"
-              @edit="openLibraryWidgetEditor(w)"
-              @delete="deleteFromLibrary(w)"
-            />
-          </div>
-        </div>
-      </template>
-
-      <!-- ===== Store tab ===== -->
-      <template v-else>
-        <div :class="$style.searchWrap">
-          <input
-            v-model="storeQuery"
-            :class="$style.searchInput"
-            type="text"
-            :placeholder="i18n.ts._common.browseStore"
-          />
-        </div>
-
-        <div v-if="installError" :class="$style.storeError">
-          <i class="ti ti-alert-circle" />
-          {{ installError }}
-          <button :aria-label="i18n.ts._common.close" class="_button" :class="$style.storeErrorClose" @click="installError = null">
-            <i class="ti ti-x" />
-          </button>
-        </div>
-
-        <div v-if="misStore.widgetsLoading" :class="$style.storeLoading">
-          <i class="ti ti-loader-2 nd-spin" />
-          {{ i18n.ts._common.loading }}
-        </div>
-
-        <div v-else-if="misStore.widgetsError" :class="$style.empty">
-          <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>{{ i18n.ts._common.storeUnavailable }}</span>
-          <button class="_button" :class="$style.emptyLink" @click="misStore.refreshWidgets()">
-            {{ i18n.ts._common.retry }}
-          </button>
-        </div>
-
-        <div v-else :class="$style.storeList">
-          <WidgetCard
-            v-for="entry in filteredStoreWidgets"
-            :key="entry.id"
-            :name="entry.name"
-            :description="entry.description"
-            :author="entry.author"
-            :version="entry.version"
-            :capabilities="entry.capabilities ?? []"
-            :capability-ok="capabilityChecks[entry.id]?.ok"
-            :capability-badge="capabilityChecks[entry.id]?.badge"
-            :capability-reason="capabilityChecks[entry.id]?.reason"
-            :installing="installingId === entry.id || misStore.installingWidget === entry.id"
-            :already-installed="installedStoreIds.has(entry.id)"
-            :has-update="misStore.hasWidgetUpdate(entry)"
-            :updated-at="entry.updatedAt"
-            :icon-url="entry.iconUrl"
-            @install="handleStoreInstall(entry)"
-            @update="handleStoreUpdate(entry)"
-            @open-detail="handleOpenStoreDetail(entry)"
-          />
-
-          <div v-if="filteredStoreWidgets.length === 0 && !misStore.widgetsLoading" :class="$style.empty">
-            {{ i18n.ts._deckWidgetColumn.noMatches }}
-          </div>
-        </div>
-      </template>
-    </div>
-  </DeckColumn>
+    <template #store-card="{ entry, run }">
+      <WidgetCard
+        mode="store"
+        :name="entry.name"
+        :description="entry.description"
+        :author="entry.author"
+        :version="entry.version"
+        :capabilities="entry.capabilities ?? []"
+        :capability-ok="capabilityChecks[entry.id]?.ok"
+        :capability-badge="capabilityChecks[entry.id]?.badge"
+        :capability-reason="capabilityChecks[entry.id]?.reason"
+        :installing="installingId === entry.id || misStore.installingWidget === entry.id"
+        :already-installed="installedStoreIds.has(entry.id)"
+        :has-update="misStore.hasWidgetUpdate(entry)"
+        :updated-at="entry.updatedAt"
+        :icon-url="entry.iconUrl"
+        @install="run(() => installEntry(entry))"
+        @update="run(() => misStore.updateWidget(entry), i18n.ts._common.updateFailed)"
+        @open-detail="openStoreDetail(entry)"
+      />
+    </template>
+  </DeckDistributableColumn>
 
   <!-- 実行アカウントの選択 (コンパクト表示のみ。デスクトップはコマンドパレット) -->
   <AccountPickerSheet
@@ -585,42 +483,12 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 </template>
 
 <style lang="scss" module>
-@use '@/styles/buttons' as *;
-.wrapper {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.headerBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-fg);
-  opacity: 0.6;
-  transition:
-    background var(--nd-duration-fast),
-    opacity 0.1s;
-
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-    opacity: 1;
-  }
-}
-
-// --- Placed tab ---
+// --- 配置タブ ---
 .widgetColumnBody {
   display: flex;
   flex-direction: column;
   gap: 10px;
   padding: 10px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
 }
 
 .widgetItem {
@@ -641,172 +509,6 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
 .widgetItemDragOver {
   border-color: var(--nd-accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--nd-accent) 35%, transparent);
-}
-
-.addWidgetArea {
-  display: flex;
-  justify-content: center;
-  padding: 6px;
-}
-
-.addWidgetBtn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px dashed var(--nd-divider);
-  border-radius: var(--nd-radius-md);
-  background: none;
-  color: var(--nd-fg);
-  cursor: pointer;
-  font-size: var(--nd-font-md);
-  opacity: 0.5;
-  transition: opacity var(--nd-duration-base), border-color var(--nd-duration-base);
-
-  &:hover {
-    opacity: 1;
-    border-color: var(--nd-accent);
-    color: var(--nd-accentText);
-  }
-}
-
-.addWidgetBtnActive {
-  opacity: 1;
-  border-color: var(--nd-accent);
-  color: var(--nd-accentText);
-}
-
-// --- Library picker ---
-// ピッカーは WidgetCard (mode=library) を縦並びで render するだけ。
-// カード見た目はストアタブと統一 (= WidgetCard 内部 CSS)。
-.pickerWrap {
-  display: flex;
-  flex-direction: column;
-  padding: 4px 0 8px;
-}
-
-.pickerEmpty {
-  margin: 4px 10px;
-  padding: 12px;
-  border: 1px dashed var(--nd-divider);
-  border-radius: var(--nd-radius-md);
-  color: var(--nd-fg);
-  opacity: 0.6;
-  font-size: 11.5px;
-  text-align: center;
-}
-
-// --- Store tab: search ---
-.searchWrap {
-  display: flex;
-  align-items: center;
-  padding: 6px 10px 4px;
-  width: 100%;
-}
-
-.searchInput {
-  flex: 1;
-  min-width: 0;
-  height: 26px;
-  padding: 0 6px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-xs);
-  background: var(--nd-inputBg, var(--nd-bg));
-  color: var(--nd-fg);
-  font-size: 12px;
-
-  &::placeholder {
-    color: var(--nd-fg);
-    opacity: 0.4;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--nd-accent);
-  }
-}
-
-// --- Store states ---
-.storeLoading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 40px 20px;
-  color: var(--nd-fg);
-  opacity: 0.5;
-  font-size: 13px;
-}
-
-.storeError {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  margin: 6px 10px;
-  border-radius: var(--nd-radius-xs);
-  background: color-mix(in srgb, var(--nd-love) 10%, transparent);
-  color: var(--nd-love);
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.storeErrorClose {
-  @include nd-interactive;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--nd-radius-xs);
-  opacity: 0.6;
-  font-size: 12px;
-
-  &:hover {
-    opacity: 1;
-    background: color-mix(in srgb, var(--nd-love) 15%, transparent);
-  }
-}
-
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 40px 20px;
-  color: var(--nd-fg);
-  opacity: 0.5;
-  font-size: 13px;
-  text-align: center;
-}
-
-.emptyIcon {
-  font-size: 36px;
-  opacity: 0.3;
-}
-
-.emptyLink {
-  color: var(--nd-accentText);
-  font-size: 12px;
-  margin-top: 4px;
-  opacity: 0.8;
-  transition: opacity var(--nd-duration-fast);
-
-  &:hover {
-    opacity: 1;
-    text-decoration: underline;
-  }
-}
-
-// --- Store list (PluginCard 同様、card 内部の `& + &` で divider 描画) ---
-.storeList {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-color: var(--nd-scrollbarHandle) transparent;
-  scrollbar-width: thin;
 }
 
 /* ウィジェットカラムのヘッダーはプレーンに（Misskey本家準拠） */
