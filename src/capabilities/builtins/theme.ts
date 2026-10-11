@@ -25,14 +25,13 @@ export const themeApplyCapability = implement('theme.apply', {
     const id = typeof params?.id === 'string' ? params.id : ''
     if (!id) throw new Error('theme.apply: id is required')
     const store = useThemeStore()
-    const theme = store.installedThemes.find((t) => t.id === id)
+    const theme = store.get(id)
     if (!theme) {
       throw new Error(`theme.apply: theme "${id}" is not installed`)
     }
     const explicitMode =
       params?.mode === 'dark' || params?.mode === 'light' ? params.mode : null
-    const mode: 'dark' | 'light' =
-      explicitMode ?? (theme.base === 'light' ? 'light' : 'dark')
+    const mode: 'dark' | 'light' = explicitMode ?? theme.content.base
     store.selectTheme(id, mode)
     // 適用モード != 現在アプリモードなら manualMode も切り替えて画面に反映
     // (= ライトテーマ apply 時はライトモードに自動切替)

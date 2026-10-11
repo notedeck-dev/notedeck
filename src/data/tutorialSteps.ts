@@ -459,13 +459,12 @@ export function buildTutorialSteps(): TutorialStep[] {
       get description() {
         return i18n.ts._tutorialSteps.createThemeDescription
       },
-      precheck: () =>
-        useThemeStore().installedThemes.length > 0 ? 'skip' : 'show',
+      precheck: () => (useThemeStore().items.length > 0 ? 'skip' : 'show'),
       onEnter: () =>
         openAddColumnAndPoint('themeManager', i18n.ts._columns.themeManager),
       completion: {
-        watch: () => useThemeStore().installedThemes.length,
-        isComplete: () => useThemeStore().installedThemes.length > 0,
+        watch: () => useThemeStore().items.length,
+        isComplete: () => useThemeStore().items.length > 0,
       },
     },
 

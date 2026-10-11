@@ -2,8 +2,17 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef, watch } from 'vue'
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { i18n } from '@/i18n'
+import {
+  isValidThemeId,
+  misskeyThemeOf,
+  sameThemeContent,
+  type ThemeContent,
+  type ThemeItem,
+  themeCodec,
+} from '@/services/distributableCodecs/themeCodec'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
+import { createDistributableStore } from '@/stores/distributableStore'
 import { useSettingsStore } from '@/stores/settings'
 import * as themeFileSync from '@/stores/themeFileSync'
 import { applyTheme } from '@/theme/applier'
@@ -29,6 +38,11 @@ import {
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { notifyWarningToast } from '@/utils/toastNotify'
 import { withViewTransition } from '@/utils/viewTransition'
+
+export type { ThemeItem } from '@/services/distributableCodecs/themeCodec'
+export { misskeyThemeOf } from '@/services/distributableCodecs/themeCodec'
+
+const HISTORY_SUFFIX = '.history.json5'
 
 // Moved inside defineStore below to isolate per-window instance.
 // (Module-level Maps leak data between Tauri multi-window contexts.)
@@ -116,45 +130,76 @@ export const useThemeStore = defineStore('theme', () => {
   // dark/light フィールドが残っている場合など)。
   const ACCOUNT_THEME_CACHE_VERSION = 3
 
-  // User-installed custom themes.
-  // shallowRef: テーマは props (CSS 変数 Record) を多数持つため、deep reactive
-  // でラップすると N テーマ × ~50 プロパティ分の Proxy 生成コストが発生する。
-  // 本ストアではリスト自体の入れ替えのみ行い、テーマオブジェクト内部の
-  // in-place 更新は行わないため shallowRef で十分。
-  const installedThemes = shallowRef<MisskeyTheme[]>([])
   // Custom CSS
   const customCss = ref('')
-  // Whether file-based storage has been initialized
+  // 初回読込 (ファイル) が済んだか。読込前は選択中のテーマを組込で潰さない
   const initialized = ref(false)
-  // 変更系操作 (インストール・リネーム・削除) のファイル反映は
-  // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)
-  let resolveReady: (() => void) | undefined
-  const ready = new Promise<void>((resolve) => {
-    resolveReady = resolve
-  })
-  // 起動時の読み込みに失敗したセッションは、テーマのファイルに一切書かない。
-  // 一覧が空のまま同じ ID のテーマを入れると既存のファイルの横に別名で書かれ、
-  // 次の起動で片方が読み込まれなくなる
-  let fileLoadFailed = false
 
   /**
-   * ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
-   * localStorage には書かない (#1042。ウィンドウ間の追随は変更通知で行う)
+   * インストール済みテーマのプール (#1202 段階 1)。個体は envelope
+   * (`ThemeItem`)、本文は `{ base, props }`。スコープは紐付け配列だけで全体の
+   * 印は無く (紐付け 0 はどの管理カラムにも出ないゾンビなので) 外して空に
+   * なった本体は消す (`unlinkOrRemove`)。選択・適用はこの store の持ち物で、
+   * 削除 / 別の書き手の変更には hook で追随する。読込は `init` が起動時に
+   * 始める (eager。選択中のテーマを当てるのに一覧が要る)
    */
-  function saveInstalledThemes(): void {
-    if (settingsFs.isTauri) return
-    setStorageJson(STORAGE_KEYS.themeInstalledThemes, installedThemes.value)
+  function isSelected(id: string): boolean {
+    return selectedDarkThemeId.value === id || selectedLightThemeId.value === id
   }
-
-  /** テーマ 1 件をファイルへ反映する (ready 待ち)。 */
-  function persistThemeFile(theme: MisskeyTheme) {
-    if (!settingsFs.isTauri || fileLoadFailed) return
-    void ready
-      .then(() =>
-        themeFileSync.themeFiles.persistItem(theme, installedThemes.value),
-      )
-      .catch((e) => console.warn('[theme] failed to persist theme:', e))
+  interface SelectionSnapshot {
+    wasDark: boolean
+    wasLight: boolean
   }
+  const base = createDistributableStore<ThemeContent, ThemeItem>({
+    logTag: 'theme',
+    codec: themeCodec,
+    files: themeFileSync.themeFiles,
+    settingsScope: 'themes',
+    fileBaseOf: (name) =>
+      name.endsWith(settingsFs.THEME_EXT) && !name.endsWith(HISTORY_SUFFIX)
+        ? name.slice(0, -settingsFs.THEME_EXT.length)
+        : undefined,
+    browserStorageKey: STORAGE_KEYS.themeInstalledThemes,
+    generateId: () => `custom-${Date.now()}`,
+    // 履歴の形は `theme.revert` (notecore) とエディタの履歴窓が読むので
+    // キー名は on-disk の互換を保つ
+    history: {
+      kind: 'theme',
+      snapshot: (t) => ({
+        id: t.id,
+        name: t.name,
+        base: t.content.base,
+        props: t.content.props,
+      }),
+    },
+    contentEquals: sameThemeContent,
+    purgeAccount: 'unlinkOrRemove',
+    hooks: {
+      onLoadFailed: () => notifyWarningToast(i18n.ts._theme.loadFailed),
+      // 選択中のテーマの中身が変わったら (ストア更新 / 別の書き手) 当て直す
+      afterContentChange: (t) => {
+        if (isSelected(t.id)) applyCurrentTheme()
+      },
+      // 削除で選択を外し、undo で戻す
+      snapshotForUndo: (t): SelectionSnapshot => ({
+        wasDark: selectedDarkThemeId.value === t.id,
+        wasLight: selectedLightThemeId.value === t.id,
+      }),
+      afterRemove: (t) => {
+        if (selectedDarkThemeId.value === t.id) selectedDarkThemeId.value = null
+        if (selectedLightThemeId.value === t.id) {
+          selectedLightThemeId.value = null
+        }
+        applyCurrentTheme()
+      },
+      restoreFromUndo: (t, snapshot) => {
+        const snap = snapshot as SelectionSnapshot
+        if (snap.wasDark) selectedDarkThemeId.value = t.id
+        if (snap.wasLight) selectedLightThemeId.value = t.id
+        applyCurrentTheme()
+      },
+    },
+  })
 
   function init(): void {
     // Restore compiled CSS from localStorage first (sync, FOUC prevention).
@@ -170,14 +215,9 @@ export const useThemeStore = defineStore('theme', () => {
       applyTheme(storedCompiled)
     }
 
-    // ブラウザ dev モードだけ localStorage から復元する。Tauri はファイルから
-    // 読む (initFileStorage) までテーマ一覧を持たない (#1042)
-    if (!settingsFs.isTauri) {
-      installedThemes.value = getStorageJson<MisskeyTheme[]>(
-        STORAGE_KEYS.themeInstalledThemes,
-        [],
-      )
-    }
+    // 一覧の読込を始める (ブラウザ dev モードは localStorage から同期で、Tauri は
+    // ファイルから。Tauri は読み終わるまでテーマ一覧を持たない #1042)
+    base.ensureLoaded()
 
     // Restore custom CSS
     const storedCss = getStorageString(STORAGE_KEYS.themeCustomCss)
@@ -217,17 +257,13 @@ export const useThemeStore = defineStore('theme', () => {
       applyCurrentTheme(),
     )
 
-    // Kick off async file sync in background (Tauri only)
     if (settingsFs.isTauri) {
-      initFileStorage()
-        .catch((e) => console.warn('[theme] file storage init failed:', e))
-        .finally(() => resolveReady?.())
+      void base.whenReady().then(afterFilesLoaded)
+      void loadCustomCssFile()
     } else {
       initialized.value = true
-      // 非 Tauri (ブラウザ dev) は initFileStorage を通らないので、ここで移行を
-      // 仕掛ける。やらないと旧 UUID の紐付けが残り、テーマがカラムから消える
+      // 旧 UUID の紐付けが残ると テーマがカラムから消えるので、ここでも移行を仕掛ける
       scheduleScopeMigration()
-      resolveReady?.()
     }
   }
 
@@ -251,7 +287,7 @@ export const useThemeStore = defineStore('theme', () => {
       selectedId &&
       settingsFs.isTauri &&
       !initialized.value &&
-      !installedThemes.value.some((t) => t.id === selectedId)
+      !base.items.value.some((t) => t.id === selectedId)
     ) {
       // ファイル読込前は一覧が空。index.html が当てたコンパイル済みキャッシュを
       // 組込テーマで潰さず、initFileStorage の後の applyCurrentTheme に任せる
@@ -262,12 +298,12 @@ export const useThemeStore = defineStore('theme', () => {
       const dark = wantsDark()
       const selectedId = selectedThemeId(dark)
       const custom = selectedId
-        ? installedThemes.value.find((t) => t.id === selectedId)
+        ? base.items.value.find((t) => t.id === selectedId)
         : null
       if (custom) {
         applySource({
           kind: dark ? 'custom-dark' : 'custom-light',
-          theme: custom,
+          theme: misskeyThemeOf(custom),
         })
       } else {
         applySource({
@@ -306,216 +342,122 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   /**
-   * Install a Misskey theme from JSON code. Returns true on success.
-   * `forAccountKeys` はアカウントの安定キー (`accountScopeKey`、#1113)。
+   * テーマの JSON コード (Misskey 互換の id / name / base / props) を入れる。
+   * 同じ id があれば更新 (改名 / 本文。ストア由来の印は保つ)、無ければ追加。
+   * `forAccountKeys` はアカウントの安定キー (`accountScopeKey`、#1113) で、
+   * 紐付けに足す。false = テーマとして読めない
    */
   async function installTheme(
     code: string,
     forAccountKeys: string[] = [],
     attribution?: EditAttribution,
   ): Promise<boolean> {
+    let parsed: ReturnType<typeof themeCodec.decode>
     try {
-      const JSON5 = (await import('json5')).default
-      const parsed = JSON5.parse(code)
-      if (!parsed || typeof parsed !== 'object' || !parsed.props) return false
-
-      const theme: MisskeyTheme = {
-        id: parsed.id || `custom-${Date.now()}`,
-        name: parsed.name || 'Untitled',
-        base: parsed.base === 'light' ? 'light' : 'dark',
-        props: parsed.props,
-      }
-      // NoteDeck 独自メタ ($notedeck) はパススルー (misstore からの storeId 等)
-      if (parsed.$notedeck && typeof parsed.$notedeck === 'object') {
-        theme.$notedeck = { ...parsed.$notedeck }
-      }
-
-      // 同一 ID は更新扱い: 既存対応表のファイルへ書く (#913)。貼り付け
-      // コードに $notedeck が無ければ既存の $notedeck (storeId 等) を保持
-      // する — 落とすとストア同一性が消え、次のストアインストールが
-      // suffix 付き重複になり更新検知も恒久的に死ぬ
-      const existingTheme = installedThemes.value.find((t) => t.id === theme.id)
-      if (existingTheme) {
-        if (!theme.$notedeck && existingTheme.$notedeck) {
-          theme.$notedeck = { ...existingTheme.$notedeck }
-        }
-        theme.fileBase = existingTheme.fileBase
-      }
-      // forAccountKeys に指定された account 全てを installedFor に追加。
-      // per-account カラム経由なら [そのアカウントのキー]、全アカウントカラム
-      // 経由なら全 logged-in account のキー。
-      if (forAccountKeys.length > 0) {
-        const existing = theme.$notedeck?.installedFor ?? []
-        theme.$notedeck = {
-          ...(theme.$notedeck ?? {}),
-          installedFor: Array.from(new Set([...existing, ...forAccountKeys])),
-        }
-      }
-      // createdAt は既存 (同 ID の更新) を引き継ぎ、updatedAt は今 (#1202 段階 0)
-      const now = Date.now()
-      theme.$notedeck = {
-        ...(theme.$notedeck ?? {}),
-        createdAt:
-          existingTheme?.$notedeck?.createdAt ??
-          theme.$notedeck?.createdAt ??
-          now,
-        updatedAt: now,
-      }
-
-      if (existingTheme) {
-        // 上書きケース: 既存テーマの編集前 snapshot を history に push。
-        // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)
-        if (existingTheme.fileBase) {
-          pushSnapshot(
-            'theme',
-            existingTheme.fileBase,
-            {
-              id: existingTheme.id,
-              name: existingTheme.name,
-              base: existingTheme.base,
-              props: existingTheme.props,
-            },
-            attribution,
-          ).catch((e) => console.warn('[theme] history push failed:', e))
-        }
-        installedThemes.value = installedThemes.value.map((t) =>
-          t.id === theme.id ? theme : t,
-        )
-      } else {
-        installedThemes.value = [...installedThemes.value, theme]
-      }
-      saveInstalledThemes()
-      // Async: write only the changed theme to file (ready 待ち)
-      persistThemeFile(theme)
-      return true
+      parsed = themeCodec.decode(code)
     } catch {
       return false
     }
+    if (!parsed || typeof parsed !== 'object' || !parsed.props) return false
+    const content: ThemeContent = {
+      base: parsed.base === 'light' ? 'light' : 'dark',
+      props: parsed.props,
+    }
+    const id = isValidThemeId(parsed.id) ? parsed.id : undefined
+    const existing = id ? base.get(id) : undefined
+    let targetId: string
+    if (existing) {
+      await base.update(
+        existing.id,
+        { name: parsed.name || existing.name, content },
+        attribution,
+      )
+      targetId = existing.id
+    } else {
+      const nd = parsed.$notedeck
+      const added = await base.add({
+        id,
+        name: parsed.name || 'Untitled',
+        store: nd?.storeId
+          ? {
+              id: nd.storeId,
+              ...(nd.storeSha512 ? { sha512: nd.storeSha512 } : {}),
+              ...(nd.storeVersion ? { version: nd.storeVersion } : {}),
+            }
+          : undefined,
+        scope: {
+          kind: 'shared',
+          global: false,
+          installedFor: [...(nd?.installedFor ?? [])],
+        },
+        content,
+        extra: {},
+      })
+      targetId = added.id
+    }
+    for (const key of forAccountKeys) {
+      await base.link(targetId, { kind: 'account', key })
+    }
+    return true
   }
 
   /**
-   * インストール済みテーマを削除する。削除を取り消す undo を返す (#988 —
-   * skill / widget と同じ「confirm → 削除 → 元に戻すトースト」に揃えるため)。
-   * 未知の id なら undefined。
-   */
-  function removeTheme(id: string): (() => void) | undefined {
-    const idx = installedThemes.value.findIndex((t) => t.id === id)
-    const removed = installedThemes.value[idx]
-    installedThemes.value = installedThemes.value.filter((t) => t.id !== id)
-    // Clear selection if removed (computed setter → settingsStore)
-    const wasDark = selectedDarkThemeId.value === id
-    const wasLight = selectedLightThemeId.value === id
-    if (wasDark) {
-      selectedDarkThemeId.value = null
-    }
-    if (wasLight) {
-      selectedLightThemeId.value = null
-    }
-    saveInstalledThemes()
-    applyCurrentTheme()
-    // Async: delete the removed theme file (+ 履歴サイドカー、ready 待ち)
-    if (settingsFs.isTauri && !fileLoadFailed && removed) {
-      void ready
-        .then(() => themeFileSync.themeFiles.deleteItemFiles(removed))
-        .catch((e) => console.warn('[theme] failed to delete theme file:', e))
-    }
-    if (!removed) return undefined
-    return () => {
-      if (installedThemes.value.some((t) => t.id === id)) return
-      const at = Math.min(idx, installedThemes.value.length)
-      installedThemes.value = [
-        ...installedThemes.value.slice(0, at),
-        removed,
-        ...installedThemes.value.slice(at),
-      ]
-      if (wasDark) selectedDarkThemeId.value = id
-      if (wasLight) selectedLightThemeId.value = id
-      saveInstalledThemes()
-      applyCurrentTheme()
-      persistThemeFile(removed)
-    }
-  }
-
-  /**
-   * テーマの per-account 紐付け (`$notedeck.installedFor`) からアカウントの
-   * 安定キー (`accountScopeKey`) を外す。installedFor が空になれば
-   * installedThemes 自体からも削除する。
-   * per-account テーマカラムでの「× ボタン」=「このアカウントから外す」用。
+   * テーマの紐付けからアカウントの安定キーを外す。紐付けが空になれば本体ごと
+   * 消す (テーマには「全体」の印が無く、紐付け 0 はどの管理カラムにも出ない)。
+   * per-account テーマカラムの「× ボタン」=「このアカウントから外す」用。
    *
    * 本体ごと消えた場合のみ、削除を取り消す undo を返す (#988)。紐付けが残る
-   * ケースは可逆な「外す」なので undo は返さない (widget の detach と同じ)。
+   * ケースは可逆な「外す」なので undo は返さない (widget の detach と同じ)
    */
-  function unlinkAccountFromTheme(
+  async function unlinkAccountFromTheme(
     themeId: string,
     accountKey: string,
-  ): (() => void) | undefined {
-    const theme = installedThemes.value.find((t) => t.id === themeId)
-    if (!theme || !theme.$notedeck?.installedFor) {
-      // 紐付けが無いテーマ (Global ローカル / 古い installedFor 無し) の場合は
-      // per-account からの除去はそもそも責務外 → no-op
+  ): Promise<(() => void) | undefined> {
+    const theme = base.get(themeId)
+    if (
+      theme?.scope.kind !== 'shared' ||
+      !theme.scope.installedFor.includes(accountKey)
+    ) {
       return undefined
     }
-    const remaining = theme.$notedeck.installedFor.filter(
-      (key) => key !== accountKey,
-    )
-    if (remaining.length === 0) {
-      return removeTheme(themeId)
-    }
-    const updated: MisskeyTheme = {
-      ...theme,
-      $notedeck: { ...theme.$notedeck, installedFor: remaining },
-    }
-    installedThemes.value = installedThemes.value.map((t) =>
-      t.id === themeId ? updated : t,
-    )
-    saveInstalledThemes()
-    persistThemeFile(updated)
+    if (theme.scope.installedFor.length === 1) return base.remove(themeId)
+    await base.unlink(themeId, { kind: 'account', key: accountKey })
     return undefined
   }
 
   /**
-   * 更新検知の基準記録 (#1040)。$notedeck.storeSha512 未記録のストア由来
-   * テーマへ registry 現行値を無通知で記録する。本体 (props) には触れない
-   * (履歴 push もしない)。
+   * 既存のテーマをアカウントに紐付ける (ライブラリから追加)。プラグイン・
+   * クエリ・ウィジェットのライブラリピッカーと同型で、本体は 1 つのまま
+   * 紐付けに安定キーを足す (union)。false = 未知の id
    */
-  function recordStoreBaseline(
+  function linkAccountToTheme(
     themeId: string,
-    patch: { storeSha512: string; storeVersion: string },
-  ): void {
-    const theme = installedThemes.value.find((t) => t.id === themeId)
-    if (!theme?.$notedeck?.storeId) return
-    const updated: MisskeyTheme = {
-      ...theme,
-      $notedeck: { ...theme.$notedeck, ...patch },
-    }
-    installedThemes.value = installedThemes.value.map((t) =>
-      t.id === themeId ? updated : t,
-    )
-    saveInstalledThemes()
-    persistThemeFile(updated)
+    accountKey: string,
+  ): Promise<boolean> {
+    return base.link(themeId, { kind: 'account', key: accountKey })
   }
 
-  function renameTheme(themeId: string, newName: string): void {
-    const theme = installedThemes.value.find((t) => t.id === themeId)
-    if (!theme) return
-
-    theme.name = newName
-    theme.$notedeck = { ...(theme.$notedeck ?? {}), updatedAt: Date.now() }
-    saveInstalledThemes()
-
-    if (!settingsFs.isTauri || fileLoadFailed) return
-    // ファイルは rename コマンドで追随させる (ID 不変・主ファイル + 履歴。
-    // 旧削除 + 新書込の並行発火は旧ファイルを孤児化させるため禁止 #913)。
-    // rename の完了を待ってから保存する
-    void ready
-      .then(async () => {
-        await themeFileSync.themeFiles.renameItemFiles(
-          theme,
-          installedThemes.value,
-        )
-        await themeFileSync.themeFiles.persistItem(theme, installedThemes.value)
-      })
-      .catch((e) => console.warn('[theme] failed to rename theme file:', e))
+  /**
+   * アカウント削除時に、そのアカウントの紐付けをすべて外す (#1114)。
+   * 紐付けが無くなるテーマは手動の「外す」と同じく本体ごと消す (宣言
+   * `unlinkOrRemove`)。
+   *
+   * `accountId` (内部 ID) を渡すと per-account の適用キャッシュも捨てる。
+   * 紐付け (安定キー) と適用キャッシュ (内部 ID) はキー体系が違うので両方要る
+   */
+  async function purgeAccount(
+    accountKey: string,
+    accountId?: string,
+  ): Promise<void> {
+    await base.purgeAccount(accountKey)
+    if (!accountId) return
+    if (!accountThemeCache.value.has(accountId)) return
+    const next = new Map(accountThemeCache.value)
+    next.delete(accountId)
+    accountThemeCache.value = next
+    compiledCache.clear()
+    styleVarsCache.clear()
+    persistAccountThemes()
   }
 
   function selectTheme(id: string | null, mode: 'dark' | 'light'): void {
@@ -529,54 +471,6 @@ export const useThemeStore = defineStore('theme', () => {
     emitNoteDeckEvent('theme:applied', { id, mode })
   }
 
-  /**
-   * 既存のテーマをアカウントに紐付ける (ライブラリから追加)。プラグイン・
-   * クエリ・ウィジェットのライブラリピッカーと同型で、本体は 1 つのまま
-   * `installedFor` に安定キーを足す (union)。
-   */
-  function linkAccountToTheme(themeId: string, accountKey: string): boolean {
-    const theme = installedThemes.value.find((t) => t.id === themeId)
-    if (!theme) return false
-    const existing = theme.$notedeck?.installedFor ?? []
-    if (existing.includes(accountKey)) return true
-    const updated: MisskeyTheme = {
-      ...theme,
-      $notedeck: {
-        ...(theme.$notedeck ?? {}),
-        installedFor: [...existing, accountKey],
-      },
-    }
-    installedThemes.value = installedThemes.value.map((t) =>
-      t.id === themeId ? updated : t,
-    )
-    saveInstalledThemes()
-    persistThemeFile(updated)
-    return true
-  }
-
-  /**
-   * アカウント削除時に、そのアカウントの紐付けをすべて外す (#1114)。
-   * 紐付けが無くなるテーマは手動の「外す」と同じく本体ごと消す (テーマには
-   * 「全体」の印が無く、紐付け 0 はどの管理カラムにも出ないゾンビになるため)。
-   *
-   * `accountId` (内部 ID) を渡すと per-account の適用キャッシュも捨てる。
-   * 紐付け (安定キー) と適用キャッシュ (内部 ID) はキー体系が違うので両方要る
-   */
-  function purgeAccount(accountKey: string, accountId?: string): void {
-    const targets = installedThemes.value
-      .filter((t) => t.$notedeck?.installedFor?.includes(accountKey))
-      .map((t) => t.id)
-    for (const id of targets) unlinkAccountFromTheme(id, accountKey)
-    if (!accountId) return
-    if (!accountThemeCache.value.has(accountId)) return
-    const next = new Map(accountThemeCache.value)
-    next.delete(accountId)
-    accountThemeCache.value = next
-    compiledCache.clear()
-    styleVarsCache.clear()
-    persistAccountThemes()
-  }
-
   // --- installedFor の安定キー化 (#1113、プラグインの #771 と同型) ---
   const isScopeKey = (v: string) => v.includes(':')
   let scopesMigrated = false
@@ -588,44 +482,41 @@ export const useThemeStore = defineStore('theme', () => {
    * - 置換の結果 空 (紐付け先が全滅) → 現行の全アカウントに紐付け直す。
    *   テーマには「全体」の印が無く、紐付け 0 のテーマはどの管理カラムにも
    *   出ないゾンビになるため
-   * 安定キーのみ / 紐付け無しの個体には触れない (冪等)。
+   * 安定キーのみ / 紐付け無しの個体には触れない (冪等)
    */
-  function migrateScopes(): void {
+  async function migrateScopes(): Promise<void> {
     const accountsStore = useAccountsStore()
     if (!accountsStore.isLoaded || scopesMigrated) return
     scopesMigrated = true
+    await base.whenReady()
     const uuidToKey = new Map(
       accountsStore.accounts.map((a) => [a.id, accountScopeKey(a)]),
     )
-    const allKeys = accountsStore.accounts.map((a) => accountScopeKey(a))
-    let changed = false
-    const next = installedThemes.value.map((theme) => {
-      const list = theme.$notedeck?.installedFor
-      if (!list || list.length === 0 || list.every(isScopeKey)) return theme
-      const mapped = Array.from(
-        new Set(list.map((v) => (isScopeKey(v) ? v : uuidToKey.get(v)))),
-      ).filter((v): v is string => !!v)
-      const migrated: MisskeyTheme = {
-        ...theme,
-        $notedeck: {
-          ...theme.$notedeck,
-          installedFor: mapped.length > 0 ? mapped : allKeys,
-        },
+    const allKeys = [...uuidToKey.values()]
+    for (const theme of [...base.items.value]) {
+      if (theme.scope.kind !== 'shared') continue
+      const list = theme.scope.installedFor
+      if (list.length === 0 || list.every(isScopeKey)) continue
+      const mapped = [
+        ...new Set(list.map((v) => (isScopeKey(v) ? v : uuidToKey.get(v)))),
+      ].filter((v): v is string => !!v)
+      const next = mapped.length > 0 ? mapped : allKeys
+      // 先に足してから外す (空の瞬間を作らない — 空になると消える宣言)
+      for (const k of next) {
+        await base.link(theme.id, { kind: 'account', key: k })
       }
-      changed = true
-      persistThemeFile(migrated)
-      return migrated
-    })
-    if (!changed) return
-    installedThemes.value = next
-    saveInstalledThemes()
+      for (const v of list) {
+        if (!isScopeKey(v))
+          await base.unlink(theme.id, { kind: 'account', key: v })
+      }
+    }
   }
 
   /** accounts のロード完了を待って migrateScopes を 1 回だけ実行する。 */
   function scheduleScopeMigration(): void {
     const accountsStore = useAccountsStore()
     if (accountsStore.isLoaded) {
-      migrateScopes()
+      void migrateScopes()
       return
     }
     const stop = watch(
@@ -633,7 +524,7 @@ export const useThemeStore = defineStore('theme', () => {
       (ready) => {
         if (!ready) return
         stop()
-        migrateScopes()
+        void migrateScopes()
       },
     )
   }
@@ -712,68 +603,9 @@ export const useThemeStore = defineStore('theme', () => {
 
   const cssManager = new CustomCssManager()
 
-  // 別の書き手 (notecore の theme.* / styles.*、他のウィンドウ, #1133 / #1042) が
-  // テーマファイル / custom.css を書いた → そのファイルだけ写しを揃え、画面に反映する。
-  // 履歴ファイルは写しを持たないので無視する
-  registerSettingsFileHandler('themes', async (change) => {
-    if (!change.name.endsWith(settingsFs.THEME_EXT)) return
-    const fileBase = change.name.slice(0, -settingsFs.THEME_EXT.length)
-    if (change.op === 'delete') {
-      const removed = installedThemes.value.find((t) => t.fileBase === fileBase)
-      if (!removed) return
-      installedThemes.value = installedThemes.value.filter(
-        (t) => t.fileBase !== fileBase,
-      )
-      if (selectedDarkThemeId.value === removed.id) {
-        selectedDarkThemeId.value = null
-      }
-      if (selectedLightThemeId.value === removed.id) {
-        selectedLightThemeId.value = null
-      }
-      saveInstalledThemes()
-      applyCurrentTheme()
-      return
-    }
-    let raw: string
-    try {
-      raw = await settingsFs.readTheme(change.name)
-    } catch (e) {
-      console.warn(`[theme] reload ${change.name} failed:`, e)
-      return
-    }
-    const JSON5 = (await import('json5')).default
-    let parsed: unknown
-    try {
-      parsed = JSON5.parse(raw)
-    } catch {
-      return
-    }
-    if (!parsed || typeof parsed !== 'object') return
-    const p = parsed as Record<string, unknown>
-    if (!p.props || typeof p.props !== 'object') return
-    const theme: MisskeyTheme = {
-      ...themeFileSync.themeFromFile(
-        p,
-        typeof p.id === 'string' && p.id ? p.id : `custom-${change.name}`,
-        change.name,
-      ),
-      fileBase,
-    }
-    const idx = installedThemes.value.findIndex(
-      (t) => t.id === theme.id || t.fileBase === fileBase,
-    )
-    installedThemes.value =
-      idx >= 0
-        ? installedThemes.value.map((t, i) => (i === idx ? theme : t))
-        : [...installedThemes.value, theme]
-    saveInstalledThemes()
-    if (
-      selectedDarkThemeId.value === theme.id ||
-      selectedLightThemeId.value === theme.id
-    ) {
-      applyCurrentTheme()
-    }
-  })
+  // 別の書き手 (notecore の styles.*、他のウィンドウ, #1133 / #1042) が
+  // custom.css を書いた → 写しを揃えて画面に反映する (テーマファイルの変更通知は
+  // 共通層が受け、hook で選択中のテーマを当て直す)
   registerSettingsFileHandler('root', async (change) => {
     if (change.name !== 'custom.css') return
     let css: string
@@ -895,79 +727,54 @@ export const useThemeStore = defineStore('theme', () => {
     }
   }
 
-  /** Load themes from files and custom CSS. Files are source of truth. */
-  async function initFileStorage(): Promise<void> {
-    let data: themeFileSync.FileStorageData
-    try {
-      data = await themeFileSync.loadFromFiles()
-    } catch (e) {
-      fileLoadFailed = true
-      notifyWarningToast(i18n.ts._theme.loadFailed)
-      throw e
-    }
-
-    // 初期化 (この async 関数が走る間) にメモリ追加されたテーマは残す
-    // (各自の persistThemeFile が ready 後にファイル化する)
-    const fileIds = new Set(data.themes.map((t) => t.id))
-    const memoryOnly = installedThemes.value.filter((t) => !fileIds.has(t.id))
-
-    if (data.themes.length > 0) {
-      installedThemes.value = [...data.themes, ...memoryOnly]
-    }
-
-    if (data.customCss) {
-      customCss.value = data.customCss
-      setStorageString(STORAGE_KEYS.themeCustomCss, data.customCss)
-      applyCustomCss(data.customCss)
-    }
-
+  /**
+   * ファイルの読込が済んだ後 (Tauri)。選択中のテーマを当て、移行を仕掛け、
+   * メインウィンドウだけ themes/ の素の .json5 (コミュニティテーマ) を一回きり
+   * コピーして採用する (#1041。採用記録があるので冪等)
+   */
+  async function afterFilesLoaded(): Promise<void> {
     initialized.value = true
     // ファイルが揃ったので選択中のテーマを当てる (読込前は組込で潰さず待っていた)
     applyCurrentTheme()
     scheduleScopeMigration()
+    if (!settingsFs.isMainDeckWindow()) return
+    const adopted = await themeFileSync
+      .adoptDropIns(base.items.value)
+      .catch((e) => {
+        console.warn('[theme] drop-in adoption failed:', e)
+        return [] as ThemeItem[]
+      })
+    if (adopted.length === 0) return
+    base.items.value = [...base.items.value, ...adopted]
+    import('@/stores/toast')
+      .then(({ useToast }) => {
+        const names = adopted
+          .map((t) => i18n.tsx._theme.quotedName({ name: t.name }))
+          .join(' ')
+        useToast().show(i18n.tsx._theme.adoptedDropIns({ names }))
+      })
+      .catch(() => {
+        /* toast unavailable — skip */
+      })
+  }
 
-    // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
-    if (settingsFs.isMainDeckWindow()) {
-      // 規約外名の copy-adopt 正規化
-      await themeFileSync.themeFiles.migrateItems(installedThemes.value)
-      // on-disk の揃え (#1202 段階 0): $notedeck に createdAt / updatedAt の無い
-      // 旧ファイルを読込時に埋めた値で書き戻す。一度きり
-      for (const t of data.outdated) {
-        await themeFileSync.themeFiles
-          .persistItem(t, installedThemes.value)
-          .catch((e) =>
-            console.warn('[theme] failed to align on-disk format:', e),
-          )
-      }
-      // themes/ に置かれた素の .json5 (コミュニティテーマ) を一回きり
-      //     コピーして採用 (#1041)。採用記録があるので冪等
-      const adopted = await themeFileSync
-        .adoptDropIns(installedThemes.value)
-        .catch((e) => {
-          console.warn('[theme] drop-in adoption failed:', e)
-          return [] as MisskeyTheme[]
-        })
-      if (adopted.length > 0) {
-        installedThemes.value = [...installedThemes.value, ...adopted]
-        import('@/stores/toast')
-          .then(({ useToast }) => {
-            const names = adopted
-              .map((t) => i18n.tsx._theme.quotedName({ name: t.name }))
-              .join(' ')
-            useToast().show(i18n.tsx._theme.adoptedDropIns({ names }))
-          })
-          .catch(() => {
-            /* toast unavailable — skip */
-          })
-      }
-      // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
-      await themeFileSync.themeFiles
-        .sweepHistory()
-        .catch((e) => console.warn('[theme] history sweep failed:', e))
+  /**
+   * custom.css をファイルから読む (Tauri)。ファイルが無く端末ローカルにだけ
+   * あれば (旧形式) ファイルへ移す
+   */
+  async function loadCustomCssFile(): Promise<void> {
+    let css: string
+    try {
+      css = await settingsFs.readCustomCss()
+    } catch (e) {
+      console.warn('[theme] failed to read custom.css:', e)
+      return
     }
-
-    // Migrate custom CSS to file if not yet written
-    if (data.needsMigrateCss && customCss.value) {
+    if (css) {
+      customCss.value = css
+      setStorageString(STORAGE_KEYS.themeCustomCss, css)
+      applyCustomCss(css)
+    } else if (customCss.value) {
       themeFileSync
         .writeCustomCssFile(customCss.value)
         .catch((e) => console.warn('[theme] CSS migration failed:', e))
@@ -1039,10 +846,10 @@ export const useThemeStore = defineStore('theme', () => {
   }
 
   return {
+    ...base,
     currentSource,
     manualMode,
     accountThemeCache,
-    installedThemes,
     selectedDarkThemeId,
     selectedLightThemeId,
     customCss,
@@ -1052,13 +859,12 @@ export const useThemeStore = defineStore('theme', () => {
     resetToOsTheme,
     pinCurrentMode,
     installTheme,
-    removeTheme,
+    /** 削除。undo を返す (#988)。選択中なら外し、undo で戻す */
+    removeTheme: base.remove,
     unlinkAccountFromTheme,
     linkAccountToTheme,
     purgeAccount,
     migrateScopes,
-    recordStoreBaseline,
-    renameTheme,
     selectTheme,
     applyAccountTheme,
     clearAccountTheme,

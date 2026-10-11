@@ -16,7 +16,7 @@ import {
   type StoreThemeEntry,
   useMisStoreStore,
 } from '@/stores/misstore'
-import { useThemeStore } from '@/stores/theme'
+import { misskeyThemeOf, type ThemeItem, useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { MI_DARK, MI_LIGHT } from '@/theme/builtinThemes'
@@ -101,6 +101,11 @@ interface ThemeSection {
   items: ThemeEntry[]
 }
 
+/** 紐付け (アカウントの安定キー)。テーマのスコープは紐付け配列だけ */
+function installedForOf(t: ThemeItem): string[] {
+  return t.scope.kind === 'shared' ? t.scope.installedFor : []
+}
+
 // インストール済みタブのセクション構成 (出自 3 分類 + サーバー):
 //   per-account: サイドロード + ストア配布 (MisStore 由来) + サーバー (admin Branding)
 //   cross-account (Global): デフォルト (同梱) + サイドロード + ストア配布 — アプリ全体管理
@@ -140,11 +145,11 @@ const themeSections = computed<ThemeSection[]>(() => {
   // - per-account: installedFor に該当アカウントを含むもののみ
   // - 全アカウント: installedFor に少なくとも 1 つの logged-in account を含む
   //   もの (集約 viewer の semantics)
-  const sideloadedThemes = themeStore.installedThemes
+  const sideloadedThemes = themeStore.items
     .filter((t) => {
-      if (t.$notedeck?.storeId) return false
-      if ((t.base ?? 'dark') !== mode) return false
-      const installedFor = t.$notedeck?.installedFor ?? []
+      if (t.store) return false
+      if (t.content.base !== mode) return false
+      const installedFor = installedForOf(t)
       if (isCrossAccount.value) {
         return installedFor.some((key) => loggedInKeys.has(key))
       }
@@ -153,7 +158,7 @@ const themeSections = computed<ThemeSection[]>(() => {
       )
     })
     .map<ThemeEntry>((t) => ({
-      theme: t,
+      theme: misskeyThemeOf(t),
       source: 'local',
       removable: true,
     }))
@@ -169,16 +174,16 @@ const themeSections = computed<ThemeSection[]>(() => {
     const cached = themeStore.accountThemeCache.get(accountId.value)
     const metaTheme = mode === 'dark' ? cached?.metaDark : cached?.metaLight
 
-    const storeThemes = themeStore.installedThemes
+    const storeThemes = themeStore.items
       .filter(
         (t) =>
-          t.$notedeck?.storeId &&
+          t.store &&
           accountKey.value !== null &&
-          t.$notedeck?.installedFor?.includes(accountKey.value) &&
-          (t.base ?? 'dark') === mode,
+          installedForOf(t).includes(accountKey.value) &&
+          t.content.base === mode,
       )
       .map<ThemeEntry>((t) => ({
-        theme: t,
+        theme: misskeyThemeOf(t),
         source: 'misstore',
         removable: true,
       }))
@@ -198,15 +203,14 @@ const themeSections = computed<ThemeSection[]>(() => {
   } else {
     // 全アカウントカラム: ストア配布 (installedFor が少なくとも 1 つの
     // logged-in account を含むもの)
-    const storeThemes = themeStore.installedThemes
+    const storeThemes = themeStore.items
       .filter((t) => {
-        if (!t.$notedeck?.storeId) return false
-        if ((t.base ?? 'dark') !== mode) return false
-        const installedFor = t.$notedeck?.installedFor ?? []
-        return installedFor.some((key) => loggedInKeys.has(key))
+        if (!t.store) return false
+        if (t.content.base !== mode) return false
+        return installedForOf(t).some((key) => loggedInKeys.has(key))
       })
       .map<ThemeEntry>((t) => ({
-        theme: t,
+        theme: misskeyThemeOf(t),
         source: 'misstore',
         removable: true,
       }))
@@ -253,21 +257,19 @@ const storeQuery = ref('')
 const showLibraryPicker = ref(false)
 
 /** このアカウントに未紐付けの本体 (= 追加可能候補)。現在のモードに絞る */
-const libraryCandidates = computed<MisskeyTheme[]>(() => {
+const libraryCandidates = computed<ThemeItem[]>(() => {
   const key = accountKey.value
   if (isCrossAccount.value || !key) return []
   const mode = currentMode.value
-  return themeStore.installedThemes.filter(
-    (t) =>
-      (t.base ?? 'dark') === mode &&
-      !(t.$notedeck?.installedFor ?? []).includes(key),
+  return themeStore.items.filter(
+    (t) => t.content.base === mode && !installedForOf(t).includes(key),
   )
 })
 
-function placeFromLibrary(theme: MisskeyTheme): void {
+function placeFromLibrary(theme: ThemeItem): void {
   const key = accountKey.value
   if (!key) return
-  themeStore.linkAccountToTheme(theme.id, key)
+  void themeStore.linkAccountToTheme(theme.id, key)
   showLibraryPicker.value = false
 }
 
@@ -351,10 +353,12 @@ function editTheme(entry: ThemeEntry) {
 
 const { confirm } = useConfirm()
 
-/** このカラムのアカウントを外すとテーマ本体ごと消えるか (installedFor が空になる)。 */
+/** このカラムのアカウントを外すとテーマ本体ごと消えるか (紐付けが空になる)。 */
 function isLastAccountForTheme(theme: MisskeyTheme): boolean {
-  const installedFor = theme.$notedeck?.installedFor
-  if (!installedFor) return false
+  const item = themeStore.get(theme.id)
+  if (!item) return false
+  const installedFor = installedForOf(item)
+  if (installedFor.length === 0) return false
   return installedFor.every((key) => key === accountKey.value)
 }
 
@@ -390,7 +394,7 @@ async function removeTheme(entry: ThemeEntry) {
       })
       if (!ok) return
     }
-    const undo = themeStore.unlinkAccountFromTheme(
+    const undo = await themeStore.unlinkAccountFromTheme(
       entry.theme.id,
       accountKey.value ?? '',
     )
@@ -421,7 +425,7 @@ async function removeTheme(entry: ThemeEntry) {
       type: 'danger',
     })
     if (!ok) return
-    const undo = themeStore.removeTheme(entry.theme.id)
+    const undo = await themeStore.removeTheme(entry.theme.id)
     if (undo) {
       useToast().show(i18n.ts._deckThemeManagerColumn.deleted, 'info', {
         action: { label: i18n.ts._common.undo, onClick: undo },
@@ -593,8 +597,8 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
                 v-for="theme in libraryCandidates"
                 :key="`library:${theme.id}`"
                 mode="library"
-                :theme="theme"
-                :source="theme.$notedeck?.storeId ? 'misstore' : 'local'"
+                :theme="misskeyThemeOf(theme)"
+                :source="theme.store ? 'misstore' : 'local'"
                 @place="placeFromLibrary(theme)"
               />
             </div>

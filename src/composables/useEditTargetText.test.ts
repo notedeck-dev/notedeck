@@ -47,14 +47,17 @@ describe('useEditTargetText', () => {
     expect(text.value).toBe('戻したあとの本文')
   })
 
-  it('theme: fileBase を除いたテーマ全文 JSON を返す', () => {
+  it('theme: 履歴の snapshot と同じ形 (id / name / base / props) の JSON を返す', () => {
     const theme = useThemeStore()
-    theme.installedThemes = [
+    theme.items = [
       {
         id: 'th-1',
         name: 'T',
-        base: 'dark',
-        props: { accent: '#f00' },
+        createdAt: 0,
+        updatedAt: 0,
+        scope: { kind: 'shared', global: false, installedFor: [] },
+        content: { base: 'dark', props: { accent: '#f00' } },
+        extra: {},
         fileBase: 'my-theme',
       },
     ]

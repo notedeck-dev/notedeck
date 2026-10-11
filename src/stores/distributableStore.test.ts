@@ -148,6 +148,28 @@ describe('初回読込', () => {
     expect(f.persisted.map((i) => i.id)).toEqual(['old'])
   })
 
+  it('一覧の読込に失敗した起動では onLoadFailed を呼び、以後ファイルに書かない', async () => {
+    const f = fakeFiles()
+    f.files.loadAll = async () => {
+      throw new Error('list failed')
+    }
+    const onLoadFailed = vi.fn()
+    const store = makeStore({ files: f.files, hooks: { onLoadFailed } })
+    store.ensureLoaded()
+    await store.whenReady()
+    expect(onLoadFailed).toHaveBeenCalledTimes(1)
+    await store.add({
+      name: 'x',
+      scope: { kind: 'shared', global: false, installedFor: [] },
+      content: 'src',
+      extra: { active: true },
+    })
+    expect(store.items.value).toHaveLength(1)
+    expect(f.persisted).toHaveLength(0)
+    await store.remove('gen-1')
+    expect(f.deleted).toHaveLength(0)
+  })
+
   it('migrate hook が返した個体を永続化する', async () => {
     const f = fakeFiles([item({ id: 'a' }), item({ id: 'b' })])
     const store = makeStore({
