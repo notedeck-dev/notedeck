@@ -552,19 +552,19 @@ describe('DeckThemeManagerColumn', () => {
 
   it('ストアタブはレジストリの一覧を出し、未インストールのカードを押すとこのアカウント向けにインストールする', async () => {
     const misStore = useMisStoreStore()
-    const install = vi
-      .spyOn(misStore, 'installTheme')
-      .mockResolvedValue(undefined)
+    const install = vi.spyOn(misStore, 'install').mockResolvedValue(undefined)
     const wrapper = mountColumn(ACCOUNT_A.id)
     await switchToStore(wrapper)
 
     expect(fetchMock).toHaveBeenCalledWith(
       'https://store.notedeck.io/registry/themes.json',
     )
-    expect(misStore.isThemeInstalled(STORE_ENTRY)).toBe(false)
+    expect(misStore.installedIn('theme', STORE_ENTRY)).toBe(false)
     await cardNamed(wrapper, 'Registry Theme').trigger('click')
 
-    expect(install).toHaveBeenCalledWith(STORE_ENTRY, [KEY_A])
+    expect(install).toHaveBeenCalledWith('theme', STORE_ENTRY, [
+      { kind: 'account', key: KEY_A },
+    ])
   })
 
   it('ストアタブでインストール済み (storeId 一致) のカードを押しても再インストールしない', async () => {
@@ -575,13 +575,11 @@ describe('DeckThemeManagerColumn', () => {
       }),
     ]
     const misStore = useMisStoreStore()
-    const install = vi
-      .spyOn(misStore, 'installTheme')
-      .mockResolvedValue(undefined)
+    const install = vi.spyOn(misStore, 'install').mockResolvedValue(undefined)
     const wrapper = mountColumn(ACCOUNT_A.id)
     await switchToStore(wrapper)
 
-    expect(misStore.isThemeInstalled(STORE_ENTRY)).toBe(true)
+    expect(misStore.installedIn('theme', STORE_ENTRY)).toBe(true)
     await cardNamed(wrapper, 'Registry Theme').trigger('click')
 
     expect(install).not.toHaveBeenCalled()

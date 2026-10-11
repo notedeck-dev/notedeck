@@ -2491,7 +2491,6 @@ _deckThemeManagerColumn:
 _deckWidgetColumn:
   createLocal: "Create new local widget"
   empty: "Add widgets to customize this column"
-  addWidget: "Add widget"
   noLibraryWidgets: "No widgets in the library to place."
   emptyCode: "Empty code"
   noMatches: "No matching widgets"

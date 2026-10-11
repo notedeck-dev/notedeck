@@ -245,7 +245,7 @@ function placedAccountIds(wrapper: VueWrapper): [string, string][] {
 
 /** ライブラリピッカーを開いて、そこに並ぶカード名を返す */
 async function openPicker(wrapper: VueWrapper): Promise<string[]> {
-  const btn = findButtonByText(wrapper, 'ウィジェットを追加')
+  const btn = findButtonByText(wrapper, 'ライブラリから追加')
   expect(btn).toBeTruthy()
   await btn?.trigger('click')
   return pickerCardNames(wrapper)
@@ -327,7 +327,7 @@ describe('DeckWidgetColumn', () => {
       wrapper = await mountColumn(column)
 
       expect(wrapper.find('input[type="text"]').exists()).toBe(false)
-      expect(findButtonByText(wrapper, 'ウィジェットを追加')).toBeTruthy()
+      expect(findButtonByText(wrapper, 'ライブラリから追加')).toBeTruthy()
 
       await switchToStoreTab(wrapper)
       expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -337,14 +337,14 @@ describe('DeckWidgetColumn', () => {
       const search = wrapper.find('input[type="text"]')
       expect(search.exists()).toBe(true)
       expect(search.attributes('placeholder')).toBe('ストアを探す')
-      expect(findButtonByText(wrapper, 'ウィジェットを追加')).toBeUndefined()
+      expect(findButtonByText(wrapper, 'ライブラリから追加')).toBeUndefined()
 
       const installedTab = wrapper
         .findAll('button.column-tab')
         .find((b) => b.text().startsWith('インストール済み'))
       await installedTab?.trigger('click')
       expect(wrapper.find('input[type="text"]').exists()).toBe(false)
-      expect(findButtonByText(wrapper, 'ウィジェットを追加')).toBeTruthy()
+      expect(findButtonByText(wrapper, 'ライブラリから追加')).toBeTruthy()
     })
   })
 
@@ -734,8 +734,9 @@ describe('DeckWidgetColumn', () => {
         json: async () => ({ widgets: [entry] }),
       })
       const installSpy = vi
-        .spyOn(misStore, 'installWidget')
-        .mockImplementation(async (e, scope?: ScopeTarget) => {
+        .spyOn(misStore, 'install')
+        .mockImplementation(async (_kind, e, targets: ScopeTarget[] = []) => {
+          const scope = targets[0]
           const w = makeWidget(e.id, {
             name: e.name,
             store: { id: e.id },
@@ -755,10 +756,9 @@ describe('DeckWidgetColumn', () => {
       await storeCard(wrapper, 'Clock').vm.$emit('install')
       await flushPromises()
 
-      expect(installSpy).toHaveBeenCalledWith(entry, {
-        kind: 'account',
-        key: keyA,
-      })
+      expect(installSpy).toHaveBeenCalledWith('widget', entry, [
+        { kind: 'account', key: keyA },
+      ])
       expect(column.widgetRefs).toEqual([{ id: 'clock' }])
       expect(placedNames(wrapper)).toEqual(['Clock'])
       expect(wrapper.find('input[type="text"]').exists()).toBe(false)
@@ -777,7 +777,7 @@ describe('DeckWidgetColumn', () => {
         ok: true,
         json: async () => ({ widgets: [makeStoreEntry('clock')] }),
       })
-      const installSpy = vi.spyOn(misStore, 'installWidget')
+      const installSpy = vi.spyOn(misStore, 'install')
       const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
 
@@ -805,7 +805,7 @@ describe('DeckWidgetColumn', () => {
         ok: true,
         json: async () => ({ widgets: [entry] }),
       })
-      vi.spyOn(misStore, 'installWidget').mockImplementation(async (e) => {
+      vi.spyOn(misStore, 'install').mockImplementation(async (_kind, e) => {
         const w = makeWidget(e.id, { name: e.name, store: { id: e.id } })
         widgets.items.push(w)
         return w
@@ -818,10 +818,9 @@ describe('DeckWidgetColumn', () => {
       await storeCard(wrapper, 'Notes').vm.$emit('install')
       await flushPromises()
 
-      expect(misStore.installWidget).toHaveBeenCalledWith(entry, {
-        kind: 'account',
-        key: keyB,
-      })
+      expect(misStore.install).toHaveBeenCalledWith('widget', entry, [
+        { kind: 'account', key: keyB },
+      ])
       expect(column.widgetRefs).toEqual([{ id: 'notes', accountKey: keyB }])
       expect(placedAccountIds(wrapper)).toEqual([['notes', accountB.id]])
     })
@@ -866,7 +865,7 @@ describe('DeckWidgetColumn', () => {
       wrapper = await mountColumn(column)
       await switchToStoreTab(wrapper)
 
-      expect(useMisStoreStore().widgetsError).toBe('HTTP 503')
+      expect(useMisStoreStore().feed('widget').error).toBe('HTTP 503')
       expect(wrapper.findAllComponents({ name: 'WidgetCard' })).toHaveLength(0)
       const retry = findButtonByText(wrapper, '再試行')
       expect(retry).toBeTruthy()

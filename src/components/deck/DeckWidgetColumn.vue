@@ -293,12 +293,13 @@ const texts = computed(() => ({
 // --- Store tab ---
 const installingId = ref<string | null>(null)
 
+const widgetFeed = misStore.feed('widget')
 const storeFeed = computed<StoreFeedDecl<StoreWidgetEntry>>(() => ({
-  entries: misStore.widgets,
-  loading: misStore.widgetsLoading,
-  error: misStore.widgetsError,
-  fetch: () => misStore.fetchWidgets(),
-  refresh: () => misStore.refreshWidgets(),
+  entries: widgetFeed.entries,
+  loading: widgetFeed.loading,
+  error: widgetFeed.error,
+  fetch: widgetFeed.fetch,
+  refresh: widgetFeed.refresh,
 }))
 
 const capabilityChecks = computed<Record<string, CapabilityCheck>>(() => {
@@ -309,7 +310,7 @@ const capabilityChecks = computed<Record<string, CapabilityCheck>>(() => {
     canPickAccount: isAllAccounts(props.column) && hasPickableAccount.value,
   }
   const result: Record<string, CapabilityCheck> = {}
-  for (const w of misStore.widgets) {
+  for (const w of widgetFeed.entries) {
     result[w.id] = checkWidgetCapabilities(w.capabilities ?? [], ctx)
   }
   return result
@@ -332,7 +333,7 @@ const installedStoreIds = computed(() => {
         key: scopeKeyOf(props.column.accountId) ?? '',
       } as const)
   const result = new Set<string>()
-  for (const entry of misStore.widgets) {
+  for (const entry of widgetFeed.entries) {
     const installed = isStoreWidgetInstalled(widgetsStore.items, entry.id, {
       requiresAccount: requiresAccount(entry.capabilities ?? []),
       scope,
@@ -375,7 +376,12 @@ async function installEntry(entry: StoreWidgetEntry): Promise<void> {
       deckStore.attachWidget(props.column.id, { ...placement, id: existing.id })
     } else {
       // sha512 検証と baseline 記録は misstore 側の経路に一本化する
-      const widget = await misStore.installWidget(entry, target ?? undefined)
+      const widget = await misStore.install(
+        'widget',
+        entry,
+        target ? [target] : [],
+      )
+      if (!widget) throw new Error(i18n.ts._common.installFailed)
       deckStore.attachWidget(props.column.id, { ...placement, id: widget.id })
     }
     shell.value?.showTab('installed')
@@ -399,7 +405,6 @@ function openStoreDetail(entry: StoreWidgetEntry) {
     :can-create="isWindowExposed('widget-edit')"
     :installed-count="placed.length"
     :library-candidates="libraryCandidates"
-    :picker-label="i18n.ts._deckWidgetColumn.addWidget"
     :texts="texts"
     :store="storeFeed"
     @create="openNewWidgetEditor"
@@ -459,13 +464,13 @@ function openStoreDetail(entry: StoreWidgetEntry) {
         :capability-ok="capabilityChecks[entry.id]?.ok"
         :capability-badge="capabilityChecks[entry.id]?.badge"
         :capability-reason="capabilityChecks[entry.id]?.reason"
-        :installing="installingId === entry.id || misStore.installingWidget === entry.id"
+        :installing="installingId === entry.id || misStore.installing('widget') === entry.id"
         :already-installed="installedStoreIds.has(entry.id)"
-        :has-update="misStore.hasWidgetUpdate(entry)"
+        :has-update="misStore.hasUpdate('widget', entry)"
         :updated-at="entry.updatedAt"
         :icon-url="entry.iconUrl"
         @install="run(() => installEntry(entry))"
-        @update="run(() => misStore.updateWidget(entry), i18n.ts._common.updateFailed)"
+        @update="run(() => misStore.update('widget', entry), i18n.ts._common.updateFailed)"
         @open-detail="openStoreDetail(entry)"
       />
     </template>
