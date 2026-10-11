@@ -1,10 +1,6 @@
 import { defineStore } from 'pinia'
 import { type Ref, ref, type ShallowRef, shallowRef } from 'vue'
-import {
-  launchPlugin,
-  type ParsedPluginMeta,
-  parsePluginMeta,
-} from '@/aiscript/plugin-api'
+import { type ParsedPluginMeta, parsePluginMeta } from '@/aiscript/plugin-api'
 import { i18n } from '@/i18n'
 import {
   hasScopeTarget,
@@ -16,11 +12,7 @@ import { type Frontmatter, parseSkillFile } from '@/services/skillFrontmatter'
 import { findWidgetByStore } from '@/services/widgetInstances'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
-import {
-  type PluginMeta,
-  type PluginScope,
-  usePluginsStore,
-} from '@/stores/plugins'
+import { type PluginItem, usePluginsStore } from '@/stores/plugins'
 import { type SkillMeta, useSkillsStore } from '@/stores/skills'
 import { useThemeStore } from '@/stores/theme'
 import { useWidgetsStore, type WidgetItem } from '@/stores/widgets'
@@ -419,12 +411,17 @@ export const useMisStoreStore = defineStore('misstore', () => {
     'plugins',
     (entry) => {
       const store = usePluginsStore()
-      const p = store.plugins.find((p) => p.storeId === entry.id)
+      const p = store.items.find((p) => p.store?.id === entry.id)
       if (!p) return []
       return [
         {
-          storeSha512: p.storeSha512,
-          recordBaseline: (rec) => store.recordStoreBaseline(p.installId, rec),
+          storeSha512: p.store?.sha512,
+          recordBaseline: (rec) => {
+            void store.recordStoreBaseline(p.id, {
+              sha512: rec.storeSha512,
+              version: rec.storeVersion,
+            })
+          },
         },
       ]
     },
@@ -704,12 +701,12 @@ export const useMisStoreStore = defineStore('misstore', () => {
    */
   async function installPlugin(
     entry: StorePluginEntry,
-    scope: PluginScope,
+    scope: ScopeTarget,
   ): Promise<void> {
     installing.value = entry.id
     try {
       const pluginsStore = usePluginsStore()
-      const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
+      const existing = pluginsStore.items.find((p) => p.store?.id === entry.id)
 
       const {
         source,
@@ -727,7 +724,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
         // 権限が拡大するなら updatePlugin と同じ再同意を通す (#1040 —
         // この経路を無確認にすると再同意の抜け穴になる)。
         // sha 一致 = 中身が同じなら本体・権限には触れない
-        if (existing.storeSha512 !== hash) {
+        if (existing.store?.sha512 !== hash) {
           await confirmPluginUpdate(
             existing,
             { source, hash, entry: e },
@@ -737,7 +734,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
         }
         // 再同意を断られても「このスコープへ入れる」操作自体は成立させる
         // (中身は既存のまま)
-        pluginsStore.linkScope(existing.installId, scope)
+        await pluginsStore.link(existing.id, scope)
         return
       }
 
@@ -748,32 +745,31 @@ export const useMisStoreStore = defineStore('misstore', () => {
         }
       }
 
-      const newPlugin: PluginMeta = {
+      // 有効で追加するので store が起動まで行う
+      await pluginsStore.add({
         // 新規インストールのローカル ID = storeId (#913。再インストールで
         // 参照が生き残る)。衝突時のみ連番 suffix
-        installId: resolveAvailable(e.id, (c) =>
-          pluginsStore.plugins.some((p) => casefold(p.installId) === c),
+        id: resolveAvailable(e.id, (c) =>
+          pluginsStore.items.some((p) => casefold(p.id) === c),
         ),
         name: meta.name,
-        version: meta.version,
-        author: meta.author,
         description: meta.description,
-        permissions: meta.permissions,
-        config: meta.config,
-        configData,
-        src: source,
-        active: true,
-        storeId: e.id,
-        storeSha512: hash,
-        storeVersion: e.version,
         ...(e.iconUrl ? { iconUrl: e.iconUrl } : {}),
-        ...(scope.kind === 'global'
-          ? { global: true }
-          : { installedFor: [scope.key] }),
-      }
-
-      pluginsStore.addPlugin(newPlugin)
-      await launchPlugin(newPlugin)
+        store: { id: e.id, sha512: hash, version: e.version },
+        scope: withScopeTarget(
+          { kind: 'shared', global: false, installedFor: [] },
+          scope,
+        ),
+        content: source,
+        extra: {
+          version: meta.version,
+          author: meta.author,
+          permissions: meta.permissions,
+          config: meta.config,
+          configData,
+          active: true,
+        },
+      })
     } finally {
       installing.value = null
     }
@@ -967,13 +963,13 @@ export const useMisStoreStore = defineStore('misstore', () => {
    * @returns 適用したら true / ユーザーが拒否したら false
    */
   async function confirmPluginUpdate(
-    existing: PluginMeta,
+    existing: PluginItem,
     fetched: { source: string; hash: string; entry: StorePluginEntry },
     meta: ParsedPluginMeta,
     opts: { alwaysConfirm: boolean },
   ): Promise<boolean> {
     const { source, hash, entry: e } = fetched
-    const before = new Set(existing.permissions ?? [])
+    const before = new Set(existing.extra.permissions ?? [])
     const added = (meta.permissions ?? []).filter((p) => !before.has(p))
     if (opts.alwaysConfirm || added.length > 0) {
       let message = updateConfirmMessage(existing.name || e.name, e)
@@ -985,27 +981,26 @@ export const useMisStoreStore = defineStore('misstore', () => {
         message,
         okLabel: i18n.ts._common.update,
         ...(added.length > 0 ? { type: 'warning' as const } : {}),
-        diff: { old: existing.src, new: source, language: 'aiscript' },
+        diff: { old: existing.content, new: source, language: 'aiscript' },
       })
       if (!ok) return false
     }
-    usePluginsStore().applyStoreUpdate(existing.installId, {
-      src: source,
+    await usePluginsStore().applyStoreUpdate(existing.id, {
+      content: source,
       version: meta.version,
       author: meta.author,
       description: meta.description,
       permissions: meta.permissions,
       config: meta.config,
       iconUrl: e.iconUrl,
-      storeSha512: hash,
-      storeVersion: e.version,
+      store: { id: e.id, sha512: hash, version: e.version },
     })
     return true
   }
 
   async function updatePlugin(entry: StorePluginEntry): Promise<boolean> {
     const pluginsStore = usePluginsStore()
-    const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
+    const existing = pluginsStore.items.find((p) => p.store?.id === entry.id)
     if (!existing) return false
     installing.value = entry.id
     try {

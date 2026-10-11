@@ -2,7 +2,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { launchPlugin } from '@/aiscript/plugin-api'
 import type { CapabilityContext } from '@/capabilities/types'
-import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
+import { usePluginsStore } from '@/stores/plugins'
 import {
   PLUGINS_BUILTIN_CAPABILITIES,
   pluginsCreateCapability,
@@ -13,10 +13,13 @@ import {
   pluginsUpdateCapability,
 } from './plugins'
 
-vi.mock('@/aiscript/plugin-api', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/aiscript/plugin-api')>()
-  return { ...actual, launchPlugin: vi.fn().mockResolvedValue(undefined) }
-})
+// 実行基盤は丸ごと差し替える (importOriginal で本物を読むと、plugins store が
+// 本物の輪の中で読まれて hook の遅延 import がモックを見なくなる)
+vi.mock('@/aiscript/plugin-api', () => ({
+  launchPlugin: vi.fn(async () => undefined),
+  abortPlugin: vi.fn(),
+  parsePluginMeta: vi.fn(() => null),
+}))
 
 // unit プロジェクトは node 環境のため localStorage を stub する (deck.test.ts と同じ)
 const storage = new Map<string, string>()
@@ -38,17 +41,17 @@ describe('plugin capabilities — declaration', () => {
     expect(pluginsListCapability.signature?.cheap).toBe(true)
   })
 
-  it('plugins.create: write permission, aiTool:true, install preview confirmation', () => {
+  it('plugins.create: write permission, aiTool:true, install preview confirmation', async () => {
     expect(pluginsCreateCapability.id).toBe('plugins.create')
     expect(pluginsCreateCapability.permissions).toEqual(['plugins.write'])
     expect(pluginsCreateCapability.aiTool).toBe(true)
     expect(typeof pluginsCreateCapability.requiresConfirmation).toBe('function')
-    expect(() => pluginsCreateCapability.execute({})).toThrow(
+    await expect(pluginsCreateCapability.execute({})).rejects.toThrow(
       /name is required/,
     )
-    expect(() => pluginsCreateCapability.execute({ name: 'X' })).toThrow(
-      /src is required/,
-    )
+    await expect(
+      pluginsCreateCapability.execute({ name: 'X' }),
+    ).rejects.toThrow(/src is required/)
   })
 
   it('plugins.create: requiresConfirmation builds installPreview kind=plugin', async () => {
@@ -226,64 +229,62 @@ describe('PLUGINS_BUILTIN_CAPABILITIES', () => {
 describe('plugins.update — アクティブなら再起動する (#744)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    storage.clear()
     vi.mocked(launchPlugin).mockClear()
   })
 
-  function addPlugin(active: boolean): PluginMeta {
-    const plugin: PluginMeta = {
-      installId: `p-test-${active}`,
+  /** store の hook は実行基盤を遅延参照するので 1 tick 待つ */
+  const flush = () => new Promise<void>((r) => setTimeout(r, 0))
+
+  async function addPlugin(active: boolean, id = `p-test-${active}`) {
+    return await usePluginsStore().add({
+      id,
       name: 'test-plugin',
-      version: '1.0.0',
-      configData: {},
-      src: 'let x = 1',
-      active,
-    }
-    usePluginsStore().addPlugin(plugin)
-    return plugin
+      scope: { kind: 'shared', global: true, installedFor: [] },
+      content: 'let x = 1',
+      extra: { version: '1.0.0', configData: {}, active },
+    })
   }
 
   it('非アクティブなプラグインは再起動せず relaunched: false', async () => {
-    const plugin = addPlugin(false)
+    const plugin = await addPlugin(false)
     const r = (await pluginsUpdateCapability.execute({
-      installId: plugin.installId,
+      installId: plugin.id,
       src: 'let y = 2',
     })) as { relaunched: boolean }
+    await flush()
     expect(r.relaunched).toBe(false)
     expect(launchPlugin).not.toHaveBeenCalled()
   })
 
   it('アクティブなプラグインは新 src で再起動し relaunched: true', async () => {
-    const plugin = addPlugin(true)
+    const plugin = await addPlugin(true)
+    // 追加時の起動 (実行基盤の遅延参照なので待つ)
+    await vi.waitFor(() => expect(launchPlugin).toHaveBeenCalledTimes(1))
+    vi.mocked(launchPlugin).mockClear()
     const r = (await pluginsUpdateCapability.execute({
-      installId: plugin.installId,
+      installId: plugin.id,
       src: 'let y = 2',
     })) as { relaunched: boolean }
     expect(r.relaunched).toBe(true)
-    expect(launchPlugin).toHaveBeenCalledTimes(1)
+    await vi.waitFor(() => expect(launchPlugin).toHaveBeenCalledTimes(1))
     const arg = vi.mocked(launchPlugin).mock.calls[0]?.[0]
-    expect(arg?.src).toBe('let y = 2')
-    expect(arg?.active).toBe(true)
+    expect(arg?.content).toBe('let y = 2')
+    expect(arg?.extra.active).toBe(true)
   })
 
-  // 他テストと installId を共有すると localStorage ミラー経由で src を
+  // 他テストと id を共有すると localStorage ミラー経由で src を
   // 引き継いでしまうため、diff 検証は専用 id で作る
-  function addDiffPlugin(installId: string): string {
-    usePluginsStore().addPlugin({
-      installId,
-      name: 'diff-plugin',
-      version: '1.0.0',
-      configData: {},
-      src: 'let x = 1',
-      active: false,
-    })
-    return installId
+  async function addDiffPlugin(id: string): Promise<string> {
+    await addPlugin(false, id)
+    return id
   }
 
   it('確認は旧 src と新 src の全文 diff を見せる (#981)', async () => {
     if (typeof pluginsUpdateCapability.requiresConfirmation !== 'function') {
       throw new Error('requiresConfirmation must be a function')
     }
-    const installId = addDiffPlugin('p-diff-confirm')
+    const installId = await addDiffPlugin('p-diff-confirm')
     const ctx: CapabilityContext = {}
     const opts = await pluginsUpdateCapability.requiresConfirmation(
       { installId, src: 'let y = 2' },
@@ -298,34 +299,32 @@ describe('plugins.update — アクティブなら再起動する (#744)', () =>
   })
 
   it('確認後に src が変わっていたら書き込まない (#981)', async () => {
-    const installId = addDiffPlugin('p-diff-stale')
+    const installId = await addDiffPlugin('p-diff-stale')
     const store = usePluginsStore()
-    store.updateSrc(installId, 'ユーザーがエディタで書き換えた')
+    await store.update(installId, { content: 'ユーザーがエディタで書き換えた' })
     const ctx: CapabilityContext = {
       stagedEdit: { baseline: 'let x = 1', next: 'let y = 2' },
     }
     await expect(
       pluginsUpdateCapability.execute({ installId, src: 'let y = 2' }, ctx),
     ).rejects.toThrow(/changed after confirmation/)
-    expect(store.getPlugin(installId)?.src).toBe(
-      'ユーザーがエディタで書き換えた',
-    )
+    expect(store.get(installId)?.content).toBe('ユーザーがエディタで書き換えた')
   })
 
   it('確認ダイアログはアクティブ時のみ再起動を予告する', async () => {
     if (typeof pluginsUpdateCapability.requiresConfirmation !== 'function') {
       throw new Error('requiresConfirmation must be a function')
     }
-    const active = addPlugin(true)
+    const active = await addPlugin(true)
     const oActive = await pluginsUpdateCapability.requiresConfirmation(
-      { installId: active.installId, src: 'let y = 2' },
+      { installId: active.id, src: 'let y = 2' },
       {},
     )
     expect(oActive?.message).toContain('再起動されます')
 
-    const inactive = addPlugin(false)
+    const inactive = await addPlugin(false)
     const oInactive = await pluginsUpdateCapability.requiresConfirmation(
-      { installId: inactive.installId, src: 'let y = 2' },
+      { installId: inactive.id, src: 'let y = 2' },
       {},
     )
     expect(oInactive?.message).not.toContain('再起動されます')

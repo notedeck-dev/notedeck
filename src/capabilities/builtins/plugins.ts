@@ -1,7 +1,7 @@
-import { launchPlugin, parsePluginMeta } from '@/aiscript/plugin-api'
+import { parsePluginMeta } from '@/aiscript/plugin-api'
 import type { Command } from '@/commands/registry'
 import { i18n } from '@/i18n'
-import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
+import { usePluginsStore } from '@/stores/plugins'
 import { implement, implementCore } from '../declare'
 import { editAttribution } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
@@ -53,7 +53,7 @@ export const pluginsCreateCapability = implement('plugins.create', {
     cancelLabel: i18n.ts._common.cancel,
     type: 'normal',
   }),
-  execute: (params) => {
+  execute: async (params) => {
     const name = typeof params?.name === 'string' ? params.name : ''
     const src = typeof params?.src === 'string' ? params.src : ''
     if (!name) throw new Error('plugins.create: name is required')
@@ -69,25 +69,15 @@ export const pluginsCreateCapability = implement('plugins.create', {
     const permissions = isStringArray(params?.permissions)
       ? params.permissions
       : undefined
-    const installId = `nd-plugin-${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}`
-    const plugin: PluginMeta = {
-      installId,
+    const added = await usePluginsStore().add({
       name,
-      version,
-      author,
       description,
-      permissions,
-      configData: {},
-      src,
-      active: false,
       // AI 経由はカラム文脈を持たないため全体スコープで作成 (#771)
-      global: true,
-    }
-    const store = usePluginsStore()
-    store.addPlugin(plugin)
-    return { installId, name, active: false }
+      scope: { kind: 'shared', global: true, installedFor: [] },
+      content: src,
+      extra: { version, author, permissions, configData: {}, active: false },
+    })
+    return { installId: added.id, name, active: false }
   },
 })
 
@@ -97,28 +87,28 @@ export const pluginsUpdateCapability = implement('plugins.update', {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const src = typeof params?.src === 'string' ? params.src : ''
-    const cur = usePluginsStore().getPlugin(installId)
+    const cur = usePluginsStore().get(installId)
     if (!cur) return null
-    stageEdit(ctx, cur.src, src)
+    stageEdit(ctx, cur.content, src)
     const newMeta = parsePluginMeta(src)
     return {
       title: i18n.ts._pluginsCapability.updateTitle,
-      message: (cur.active
+      message: (cur.extra.active
         ? i18n.tsx._pluginsCapability.updateMessageActive
         : i18n.tsx._pluginsCapability.updateMessage)({
         name: cur.name,
-        from: cur.src.length,
+        from: cur.content.length,
         to: src.length,
       }),
       installPreview: {
         kind: 'plugin',
         name: newMeta?.name ?? cur.name,
-        version: newMeta?.version ?? cur.version,
-        author: newMeta?.author ?? cur.author,
+        version: newMeta?.version ?? cur.extra.version,
+        author: newMeta?.author ?? cur.extra.author,
         description: newMeta?.description ?? cur.description,
-        permissions: newMeta?.permissions ?? cur.permissions ?? [],
+        permissions: newMeta?.permissions ?? cur.extra.permissions ?? [],
       },
-      diff: { old: cur.src, new: src, language: 'aiscript' },
+      diff: { old: cur.content, new: src, language: 'aiscript' },
       okLabel: i18n.ts._common.update,
       cancelLabel: i18n.ts._common.cancel,
       type: 'warning',
@@ -131,21 +121,18 @@ export const pluginsUpdateCapability = implement('plugins.update', {
     if (!installId) throw new Error('plugins.update: installId is required')
     if (!src) throw new Error('plugins.update: src is required')
     const store = usePluginsStore()
-    const cur = store.getPlugin(installId)
+    const cur = store.get(installId)
     if (!cur) {
       throw new Error(`plugins.update: plugin "${installId}" not found`)
     }
-    const next = takeStagedEdit(ctx, 'plugins.update', cur.src, () => src)
-    store.updateSrc(installId, next, editAttribution(ctx, params))
-    // アクティブなら UI の保存と同様に新 src で再起動する (#744)。
-    // launchPlugin は内部で既存インスタンスを abort する。
-    const updated = store.getPlugin(installId)
-    let relaunched = false
-    if (updated?.active) {
-      await launchPlugin(updated)
-      relaunched = true
-    }
-    return { installId, length: next.length, relaunched }
+    const next = takeStagedEdit(ctx, 'plugins.update', cur.content, () => src)
+    await store.update(
+      installId,
+      { content: next },
+      editAttribution(ctx, params),
+    )
+    // アクティブなら store の hook が新 src で起動し直す (#744)
+    return { installId, length: next.length, relaunched: cur.extra.active }
   },
 })
 

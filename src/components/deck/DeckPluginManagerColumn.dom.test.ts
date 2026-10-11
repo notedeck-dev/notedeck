@@ -10,7 +10,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { type StorePluginEntry, useMisStoreStore } from '@/stores/misstore'
-import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
+import { type PluginItem, usePluginsStore } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import DeckPluginManagerColumn from './DeckPluginManagerColumn.vue'
@@ -53,16 +53,46 @@ const yami = {
 }
 const YAMI_KEY = 'yami.ski:u1'
 
-function makePlugin(partial: Partial<PluginMeta>): PluginMeta {
-  return {
-    installId: partial.installId ?? `p-${Math.random().toString(36).slice(2)}`,
-    name: partial.name ?? 'test-plugin',
-    version: '1.0.0',
-    configData: {},
-    src: '### {}',
-    active: true,
-    ...partial,
+/** 個体の仕込み。`global` / `installedFor` は紐付け、それ以外は envelope の key */
+interface Seed {
+  id: string
+  name: string
+  global?: boolean
+  installedFor?: string[]
+  active?: boolean
+  author?: string
+  readOnly?: boolean
+  store?: PluginItem['store']
+}
+
+async function seed(...seeds: Seed[]) {
+  const store = usePluginsStore()
+  for (const s of seeds) {
+    await store.add({
+      id: s.id,
+      name: s.name,
+      store: s.store,
+      scope: {
+        kind: 'shared',
+        global: s.global ?? false,
+        installedFor: s.installedFor ?? [],
+      },
+      content: '### {}',
+      extra: {
+        version: '1.0.0',
+        author: s.author,
+        configData: {},
+        active: s.active ?? true,
+      },
+    })
+    if (s.readOnly) {
+      const live = store.get(s.id)
+      if (live) live.readOnly = true
+    }
   }
+  await flush()
+  vi.mocked(launchPlugin).mockClear()
+  return store
 }
 
 function makeStoreEntry(partial: Partial<StorePluginEntry>): StorePluginEntry {
@@ -225,10 +255,7 @@ afterEach(() => {
 
 describe('DeckPluginManagerColumn — タブとスコープ', () => {
   it('インストール済みタブが初期表示で、ストアタブに切り替えるとストアの一覧に変わる', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({ installId: 'p1', name: 'alpha', global: true }),
-    )
+    await seed({ id: 'p1', name: 'alpha', global: true })
     registryEntries = [makeStoreEntry({ id: 'st-1', name: 'Store One' })]
     wrapper = await mountColumn()
 
@@ -245,18 +272,11 @@ describe('DeckPluginManagerColumn — タブとスコープ', () => {
   })
 
   it('全アカウントカラムは global 参加分だけを並べ、「外す」は全アカウント対象の文言になる', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({ installId: 'g', name: 'global-one', global: true }),
+    await seed(
+      { id: 'g', name: 'global-one', global: true },
+      { id: 'a', name: 'yami-only', installedFor: [YAMI_KEY] },
+      { id: 'lib', name: 'library-only' },
     )
-    store.addPlugin(
-      makePlugin({
-        installId: 'a',
-        name: 'yami-only',
-        installedFor: [YAMI_KEY],
-      }),
-    )
-    store.addPlugin(makePlugin({ installId: 'lib', name: 'library-only' }))
     wrapper = await mountColumn({ accountId: null })
 
     expect(cardNames(wrapper, 'installed')).toEqual(['global-one'])
@@ -267,23 +287,18 @@ describe('DeckPluginManagerColumn — タブとスコープ', () => {
   })
 
   it('アカウントのカラムは当該アカウントのスコープ参加分だけを並べ、「外す」はアカウントの文言になる', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({ installId: 'g', name: 'global-one', global: true }),
-    )
-    store.addPlugin(
-      makePlugin({
-        installId: 'a',
+    await seed(
+      { id: 'g', name: 'global-one', global: true },
+      {
+        id: 'a',
         name: 'yami-only',
         installedFor: [YAMI_KEY],
-      }),
-    )
-    store.addPlugin(
-      makePlugin({
-        installId: 'other',
+      },
+      {
+        id: 'other',
         name: 'other-account',
         installedFor: ['misskey.cloud:u2'],
-      }),
+      },
     )
     wrapper = await mountColumn({ accountId: yami.id })
 
@@ -295,48 +310,42 @@ describe('DeckPluginManagerColumn — タブとスコープ', () => {
   })
 
   it('サイドロードとストア配布をセクションで分け、0 件のセクションは出さない', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({ installId: 's', name: 'hand-made', global: true }),
-    )
-    store.addPlugin(
-      makePlugin({
-        installId: 'st',
+    const store = await seed(
+      { id: 's', name: 'hand-made', global: true },
+      {
+        id: 'st',
         name: 'from-store',
         global: true,
-        storeId: 'st-1',
-      }),
+        store: { id: 'st-1', sha512: 'sha-1' },
+      },
     )
     wrapper = await mountColumn()
     const text = wrapper.text()
     expect(text).toContain('サイドロード')
     expect(text).toContain('ストア配布')
 
-    store.removePlugin('st')
+    await store.remove('st')
     await nextTick()
     expect(wrapper.text()).not.toContain('ストア配布')
   })
 })
 
 describe('DeckPluginManagerColumn — 絞り込み', () => {
-  beforeEach(() => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({
-        installId: 'on',
+  beforeEach(async () => {
+    await seed(
+      {
+        id: 'on',
         name: 'clock',
         global: true,
         active: true,
-      }),
-    )
-    store.addPlugin(
-      makePlugin({
-        installId: 'off',
+      },
+      {
+        id: 'off',
         name: 'weather',
         global: true,
         active: false,
         author: 'alice',
-      }),
+      },
     )
   })
 
@@ -384,17 +393,14 @@ describe('DeckPluginManagerColumn — 絞り込み', () => {
 })
 
 describe('DeckPluginManagerColumn — 有効/無効の切り替え', () => {
-  it('無効なプラグインを「有効にする」と setActive(true) の後に起動する', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({
-        installId: 'p1',
-        name: 'alpha',
-        global: true,
-        active: false,
-      }),
-    )
-    const setActive = vi.spyOn(store, 'setActive')
+  it('無効なプラグインを「有効にする」と setEnabled(true) で store が起動する', async () => {
+    const store = await seed({
+      id: 'p1',
+      name: 'alpha',
+      global: true,
+      active: false,
+    })
+    const setEnabled = vi.spyOn(store, 'setEnabled')
     wrapper = await mountColumn()
 
     await buttonByText(card(wrapper, 'installed'), '有効にする').trigger(
@@ -402,24 +408,21 @@ describe('DeckPluginManagerColumn — 有効/無効の切り替え', () => {
     )
     await flush()
 
-    expect(setActive).toHaveBeenCalledWith('p1', true)
-    expect(store.plugins[0]?.active).toBe(true)
+    expect(setEnabled).toHaveBeenCalledWith('p1', true)
+    expect(store.items[0]?.extra.active).toBe(true)
     expect(launchPlugin).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(launchPlugin).mock.calls[0]?.[0]?.installId).toBe('p1')
+    expect(vi.mocked(launchPlugin).mock.calls[0]?.[0]?.id).toBe('p1')
     expect(abortPlugin).not.toHaveBeenCalled()
   })
 
-  it('有効なプラグインを「無効にする」と setActive(false) の後に停止する', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({
-        installId: 'p1',
-        name: 'alpha',
-        global: true,
-        active: true,
-      }),
-    )
-    const setActive = vi.spyOn(store, 'setActive')
+  it('有効なプラグインを「無効にする」と setEnabled(false) で store が停止する', async () => {
+    const store = await seed({
+      id: 'p1',
+      name: 'alpha',
+      global: true,
+      active: true,
+    })
+    const setEnabled = vi.spyOn(store, 'setEnabled')
     wrapper = await mountColumn()
 
     await buttonByText(card(wrapper, 'installed'), '無効にする').trigger(
@@ -427,23 +430,20 @@ describe('DeckPluginManagerColumn — 有効/無効の切り替え', () => {
     )
     await flush()
 
-    expect(setActive).toHaveBeenCalledWith('p1', false)
-    expect(store.plugins[0]?.active).toBe(false)
+    expect(setEnabled).toHaveBeenCalledWith('p1', false)
+    expect(store.items[0]?.extra.active).toBe(false)
     expect(abortPlugin).toHaveBeenCalledWith('p1')
     expect(launchPlugin).not.toHaveBeenCalled()
   })
 
   it('読取専用 (ソース欠損) のプラグインは切り替えを拒み、理由を警告トーストで出して起動しない', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({
-        installId: 'ro',
-        name: 'orphan',
-        global: true,
-        active: false,
-        readOnly: true,
-      }),
-    )
+    const store = await seed({
+      id: 'ro',
+      name: 'orphan',
+      global: true,
+      active: false,
+      readOnly: true,
+    })
     wrapper = await mountColumn()
     expect(wrapper.text()).toContain('ソース欠損')
 
@@ -452,7 +452,7 @@ describe('DeckPluginManagerColumn — 有効/無効の切り替え', () => {
     )
     await flush()
 
-    expect(store.plugins[0]?.active).toBe(false)
+    expect(store.items[0]?.extra.active).toBe(false)
     expect(launchPlugin).not.toHaveBeenCalled()
     const toasts = useToast().toasts.value
     expect(toasts).toHaveLength(1)
@@ -465,10 +465,7 @@ describe('DeckPluginManagerColumn — 有効/無効の切り替え', () => {
 
 describe('DeckPluginManagerColumn — スコープから外す', () => {
   it('「外す」はスコープ参照だけ外して本体をライブラリに残し、元に戻すトーストで復帰できる', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({ installId: 'p1', name: 'alpha', global: true }),
-    )
+    const store = await seed({ id: 'p1', name: 'alpha', global: true })
     wrapper = await mountColumn()
 
     await buttonByTitle(
@@ -478,8 +475,8 @@ describe('DeckPluginManagerColumn — スコープから外す', () => {
     await nextTick()
 
     expect(cards(wrapper, 'installed')).toHaveLength(0)
-    expect(store.plugins).toHaveLength(1)
-    expect(store.plugins[0]?.global).toBeUndefined()
+    expect(store.items).toHaveLength(1)
+    expect(store.items[0]?.scope).toMatchObject({ global: false })
     expect(useConfirm().confirm).not.toHaveBeenCalled()
 
     const toast = useToast().toasts.value[0]
@@ -487,19 +484,16 @@ describe('DeckPluginManagerColumn — スコープから外す', () => {
     expect(toast?.action?.label).toBe('元に戻す')
     toast?.action?.onClick()
     await nextTick()
-    expect(store.plugins[0]?.global).toBe(true)
+    expect(store.items[0]?.scope).toMatchObject({ global: true })
     expect(cardNames(wrapper, 'installed')).toEqual(['alpha'])
   })
 
   it('アカウントのカラムで「外す」とそのアカウントの参照だけ消え、他アカウントの参照は残る', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({
-        installId: 'p1',
-        name: 'alpha',
-        installedFor: [YAMI_KEY, 'misskey.cloud:u2'],
-      }),
-    )
+    const store = await seed({
+      id: 'p1',
+      name: 'alpha',
+      installedFor: [YAMI_KEY, 'misskey.cloud:u2'],
+    })
     wrapper = await mountColumn({ accountId: yami.id })
 
     await buttonByTitle(
@@ -509,19 +503,18 @@ describe('DeckPluginManagerColumn — スコープから外す', () => {
     await nextTick()
 
     expect(cards(wrapper, 'installed')).toHaveLength(0)
-    expect(store.plugins[0]?.installedFor).toEqual(['misskey.cloud:u2'])
+    expect(store.items[0]?.scope).toMatchObject({
+      installedFor: ['misskey.cloud:u2'],
+    })
   })
 
   it('読取専用のプラグインは外せず、理由を警告トーストで出す', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({
-        installId: 'ro',
-        name: 'orphan',
-        global: true,
-        readOnly: true,
-      }),
-    )
+    const store = await seed({
+      id: 'ro',
+      name: 'orphan',
+      global: true,
+      readOnly: true,
+    })
     wrapper = await mountColumn()
 
     await buttonByTitle(
@@ -530,7 +523,7 @@ describe('DeckPluginManagerColumn — スコープから外す', () => {
     ).trigger('click')
     await nextTick()
 
-    expect(store.plugins[0]?.global).toBe(true)
+    expect(store.items[0]?.scope).toMatchObject({ global: true })
     expect(cardNames(wrapper, 'installed')).toEqual(['orphan'])
     expect(useToast().toasts.value[0]?.type).toBe('warning')
   })
@@ -538,11 +531,10 @@ describe('DeckPluginManagerColumn — スコープから外す', () => {
 
 describe('DeckPluginManagerColumn — ライブラリピッカー', () => {
   it('「ライブラリから追加」でスコープ未参加の本体だけが候補に出て、「追加」でスコープに入る', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({ installId: 'in', name: 'in-scope', global: true }),
+    const store = await seed(
+      { id: 'in', name: 'in-scope', global: true },
+      { id: 'lib', name: 'library-only' },
     )
-    store.addPlugin(makePlugin({ installId: 'lib', name: 'library-only' }))
     wrapper = await mountColumn()
     expect(cards(wrapper, 'library')).toHaveLength(0)
 
@@ -552,7 +544,7 @@ describe('DeckPluginManagerColumn — ライブラリピッカー', () => {
 
     await buttonByText(card(wrapper, 'library'), '追加').trigger('click')
     await nextTick()
-    expect(store.plugins.find((p) => p.installId === 'lib')?.global).toBe(true)
+    expect(store.get('lib')?.scope).toMatchObject({ global: true })
     expect(cardNames(wrapper, 'installed')).toEqual([
       'in-scope',
       'library-only',
@@ -562,8 +554,7 @@ describe('DeckPluginManagerColumn — ライブラリピッカー', () => {
   })
 
   it('ライブラリからの削除は確認してから本体を消し、元に戻すトーストで復帰できる', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(makePlugin({ installId: 'lib', name: 'library-only' }))
+    const store = await seed({ id: 'lib', name: 'library-only' })
     wrapper = await mountColumn()
     await buttonByText(wrapper, 'ライブラリから追加').trigger('click')
     await nextTick()
@@ -582,7 +573,7 @@ describe('DeckPluginManagerColumn — ライブラリピッカー', () => {
         '「library-only」をライブラリから削除しますか？プラグインのコードも消えます。',
     })
     expect(abortPlugin).toHaveBeenCalledWith('lib')
-    expect(store.plugins).toHaveLength(0)
+    expect(store.items).toHaveLength(0)
     expect(cards(wrapper, 'library')).toHaveLength(0)
 
     const toast = useToast().toasts.value[0]
@@ -590,13 +581,12 @@ describe('DeckPluginManagerColumn — ライブラリピッカー', () => {
     expect(toast?.action?.label).toBe('元に戻す')
     toast?.action?.onClick()
     await nextTick()
-    expect(store.plugins.map((p) => p.installId)).toEqual(['lib'])
+    expect(store.items.map((p) => p.id)).toEqual(['lib'])
     expect(cardNames(wrapper, 'library')).toEqual(['library-only'])
   })
 
   it('削除の確認をキャンセルすると何も消えない', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(makePlugin({ installId: 'lib', name: 'library-only' }))
+    const store = await seed({ id: 'lib', name: 'library-only' })
     vi.mocked(useConfirm().confirm).mockResolvedValue(false)
     wrapper = await mountColumn()
     await buttonByText(wrapper, 'ライブラリから追加').trigger('click')
@@ -608,7 +598,7 @@ describe('DeckPluginManagerColumn — ライブラリピッカー', () => {
     ).trigger('click')
     await flush()
 
-    expect(store.plugins).toHaveLength(1)
+    expect(store.items).toHaveLength(1)
     expect(abortPlugin).not.toHaveBeenCalled()
     expect(useToast().toasts.value).toHaveLength(0)
   })
@@ -635,10 +625,7 @@ describe('DeckPluginManagerColumn — 編集ウィンドウ', () => {
   })
 
   it('カードを開くと installId とスコープを渡して編集ウィンドウを開く', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({ installId: 'p1', name: 'alpha', global: true }),
-    )
+    await seed({ id: 'p1', name: 'alpha', global: true })
     const open = vi.spyOn(useWindowsStore(), 'open').mockReturnValue('win-1')
     wrapper = await mountColumn()
 
@@ -659,24 +646,19 @@ describe('DeckPluginManagerColumn — 編集ウィンドウ', () => {
 
 describe('DeckPluginManagerColumn — ストアタブ', () => {
   it('このスコープに入っている entry は「インストール済み」、入っていなければ「インストール」を出す', async () => {
-    const store = usePluginsStore()
-    store.addPlugin(
-      makePlugin({
-        installId: 'in',
+    await seed(
+      {
+        id: 'in',
         name: 'in-scope',
         global: true,
-        storeId: 'st-in',
-        storeSha512: 'sha-1',
-      }),
-    )
-    store.addPlugin(
-      makePlugin({
-        installId: 'elsewhere',
+        store: { id: 'st-in', sha512: 'sha-1' },
+      },
+      {
+        id: 'elsewhere',
         name: 'other-scope',
         installedFor: ['misskey.cloud:u2'],
-        storeId: 'st-elsewhere',
-        storeSha512: 'sha-1',
-      }),
+        store: { id: 'st-elsewhere', sha512: 'sha-1' },
+      },
     )
     registryEntries = [
       makeStoreEntry({ id: 'st-in', name: 'In Scope' }),

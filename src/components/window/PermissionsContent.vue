@@ -443,7 +443,7 @@ function confirmSkipEntriesFor(id: ProfiledPrincipalId): ConfirmSkipEntry[] {
 function pluginOwnerLabel(pluginId: string): string | null {
   const name = pluginId.startsWith('widget:')
     ? widgetsStore.get(pluginId.slice('widget:'.length))?.name
-    : pluginsStore.plugins.find((p) => p.installId === pluginId)?.name
+    : pluginsStore.get(pluginId)?.name
   return principalActorLabel({ kind: 'plugin', pluginId, name })
 }
 
