@@ -337,13 +337,14 @@ function handleOpenWindow(type: WindowType, props: Record<string, unknown>) {
 
 async function handleInstallPlugin(pluginId: string): Promise<void> {
   const misStore = useMisStoreStore()
-  await misStore.fetchPlugins()
-  const entry = misStore.plugins.find((p) => p.id === pluginId)
+  const feed = misStore.feed('plugin')
+  await feed.fetch()
+  const entry = feed.entries.find((p) => p.id === pluginId)
   if (!entry) {
     console.warn('[deep-link] plugin not found in MisStore:', pluginId)
     return
   }
-  if (misStore.isInstalled(entry)) {
+  if (misStore.installedIn('plugin', entry)) {
     console.info('[deep-link] plugin already installed:', pluginId)
     return
   }
@@ -383,18 +384,19 @@ async function handleInstallPlugin(pluginId: string): Promise<void> {
   })
   if (!ok) return
   // deep link はカラム文脈を持たないため全体スコープでインストールする
-  await misStore.installPlugin(entry, { kind: 'global' })
+  await misStore.install('plugin', entry, [{ kind: 'global' }])
 }
 
 async function handleInstallTheme(themeId: string): Promise<void> {
   const misStore = useMisStoreStore()
-  await misStore.fetchThemes()
-  const entry = misStore.themes.find((t) => t.id === themeId)
+  const feed = misStore.feed('theme')
+  await feed.fetch()
+  const entry = feed.entries.find((t) => t.id === themeId)
   if (!entry) {
     console.warn('[deep-link] theme not found in MisStore:', themeId)
     return
   }
-  if (misStore.isThemeInstalled(entry)) {
+  if (misStore.installedIn('theme', entry)) {
     console.info('[deep-link] theme already installed:', themeId)
     return
   }
@@ -408,5 +410,5 @@ async function handleInstallTheme(themeId: string): Promise<void> {
     okLabel: i18n.ts._common.install,
   })
   if (!ok) return
-  await misStore.installTheme(entry)
+  await misStore.install('theme', entry)
 }

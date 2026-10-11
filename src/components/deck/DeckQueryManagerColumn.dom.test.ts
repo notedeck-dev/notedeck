@@ -723,7 +723,7 @@ describe('DeckQueryManagerColumn', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('ストアに接続できません')
-    expect(useMisStoreStore().queriesError).toBe('HTTP 503')
+    expect(useMisStoreStore().feed('query').error).toBe('HTTP 503')
 
     stubRegistry([makeStoreEntry()])
     await buttonByText(wrapper, '再試行').trigger('click')

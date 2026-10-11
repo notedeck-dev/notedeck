@@ -102,12 +102,13 @@ const texts = computed(() => ({
   noLibrary: i18n.ts._deckQueryManagerColumn.noLibraryCandidates,
 }))
 
+const queryFeed = misStore.feed('query')
 const storeFeed = computed<StoreFeedDecl<StoreQueryEntry>>(() => ({
-  entries: misStore.queries,
-  loading: misStore.queriesLoading,
-  error: misStore.queriesError,
-  fetch: () => misStore.fetchQueries(),
-  refresh: () => misStore.refreshQueries(),
+  entries: queryFeed.entries,
+  loading: queryFeed.loading,
+  error: queryFeed.error,
+  fetch: queryFeed.fetch,
+  refresh: queryFeed.refresh,
   text: (e) => [e.name, e.description, ...e.tags],
 }))
 
@@ -294,12 +295,12 @@ function openStoreDetail(entry: StoreQueryEntry): void {
         :version="entry.version"
         :icon-url="entry.iconUrl"
         :category-label="queryCategoryLabel(entry.category)"
-        :installing="misStore.installingQuery === entry.id"
+        :installing="misStore.installing('query') === entry.id"
         :already-installed="misStore.installedIn('query', entry, columnScope ?? undefined)"
-        :has-update="misStore.hasQueryUpdate(entry)"
+        :has-update="misStore.hasUpdate('query', entry)"
         :updated-at="entry.updatedAt"
-        @install="run(() => misStore.installQuery(entry, columnScope ?? undefined))"
-        @update="run(() => misStore.updateQuery(entry), i18n.ts._common.updateFailed)"
+        @install="run(() => misStore.install('query', entry, columnScope ? [columnScope] : []))"
+        @update="run(() => misStore.update('query', entry), i18n.ts._common.updateFailed)"
         @open-detail="openStoreDetail(entry)"
       />
     </template>

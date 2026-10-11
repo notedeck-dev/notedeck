@@ -318,6 +318,24 @@ interface KindStore<Item extends DistributableMeta<unknown, unknown>, Patch> {
   ): Promise<void>
 }
 
+/** kind → ストアの entry 型 (公開面は kind で引く、#1202 段階 3) */
+export type StoreEntryOf<K extends DistributableKind> = {
+  plugin: StorePluginEntry
+  widget: StoreWidgetEntry
+  query: StoreQueryEntry
+  skill: StoreSkillEntry
+  theme: StoreThemeEntry
+}[K]
+
+/** カラムから見たレジストリの状態 (読取専用の写し + 取得) */
+export interface StoreFeedView<E extends StoreEntryBase> {
+  readonly entries: E[]
+  readonly loading: boolean
+  readonly error: string | null
+  fetch(): Promise<void>
+  refresh(): Promise<void>
+}
+
 interface RegistryFeed<E extends StoreEntryBase> {
   entries: ShallowRef<E[]>
   loading: Ref<boolean>
@@ -515,25 +533,6 @@ export const useMisStoreStore = defineStore('misstore', () => {
   const queryFeed = createRegistryFeed<StoreQueryEntry>('queries', () =>
     useColumnQueriesStore(),
   )
-
-  // 公開名はカラム / capability / テストが参照するので feed へのエイリアスで維持
-  const plugins = pluginFeed.entries
-  const loading = pluginFeed.loading
-  const error = pluginFeed.error
-  const installing = pluginFeed.installing
-  const themes = themeFeed.entries
-  const installingTheme = themeFeed.installing
-  const widgets = widgetFeed.entries
-  const installingWidget = widgetFeed.installing
-  const skillEntries = skillFeed.entries
-  const installingSkill = skillFeed.installing
-  const queryEntries = queryFeed.entries
-  const installingQuery = queryFeed.installing
-  const refresh = pluginFeed.refresh
-  const refreshThemes = themeFeed.refresh
-  const refreshWidgets = widgetFeed.refresh
-  const refreshSkills = skillFeed.refresh
-  const refreshQueries = queryFeed.refresh
 
   // --- 検証付きソース取得 (#1040 リトライ) ---
 
@@ -943,71 +942,64 @@ export const useMisStoreStore = defineStore('misstore', () => {
     )
   }
 
-  // --- kind ごとの公開名 (カラム / capability / deep link が使う。段階 3 で畳む) ---
+  // --- 公開面 (kind で引く。カラム / deep link / テストが使う) ---
 
-  /** 参加先はカラムの文脈 (#771)。AI 経由はカラム文脈を持たないので全体 */
-  async function installPlugin(
-    entry: StorePluginEntry,
-    scope: ScopeTarget,
-  ): Promise<void> {
-    await installFrom(pluginKind, entry, [scope])
-  }
-
-  async function installWidget(
-    entry: StoreWidgetEntry,
-    scope?: ScopeTarget,
-  ): Promise<WidgetItem> {
-    const item = await installFrom(widgetKind, entry, scope ? [scope] : [])
-    if (!item) throw new Error(i18n.ts._common.installFailed)
-    return item
-  }
-
-  async function installQuery(
-    entry: StoreQueryEntry,
-    /** 参加させるスコープ (#1018)。カラムの文脈から渡す */
-    scope?: ScopeTarget,
-  ): Promise<void> {
-    await installFrom(queryKind, entry, scope ? [scope] : [])
-  }
-
-  async function installSkill(entry: StoreSkillEntry): Promise<void> {
-    await installFrom(skillKind, entry, [])
-  }
-
-  /**
-   * forAccountKeys (アカウントの安定キー、#1113) を紐付けに足す。per-account
-   * カラムなら [そのアカウント]、全アカウントカラムなら全 logged-in account、
-   * 設定経由など account コンテキスト無しなら空 (どの account にも紐付かない)
-   */
-  async function installTheme(
-    entry: StoreThemeEntry,
-    forAccountKeys: string[] = [],
-  ): Promise<void> {
-    await installFrom(
-      themeKind,
-      entry,
-      forAccountKeys.map((key) => ({ kind: 'account', key })),
-    )
-  }
-
-  const updatePlugin = (entry: StorePluginEntry) =>
-    updateFrom(pluginKind, entry)
-  const updateWidget = (entry: StoreWidgetEntry) =>
-    updateFrom(widgetKind, entry)
-  const updateQuery = (entry: StoreQueryEntry) => updateFrom(queryKind, entry)
-  const updateSkill = (entry: StoreSkillEntry) => updateFrom(skillKind, entry)
-  const updateTheme = (entry: StoreThemeEntry) => updateFrom(themeKind, entry)
-
-  const kinds = {
+  const kinds: {
+    [K in DistributableKind]: StoreKind<
+      StoreEntryOf<K>,
+      DistributableMeta<unknown, unknown>,
+      unknown,
+      ParsedSource<unknown>
+    >
+  } = {
     plugin: pluginKind,
     widget: widgetKind,
     query: queryKind,
     skill: skillKind,
     theme: themeKind,
-  } satisfies Record<
-    DistributableKind,
-    { store(): KindStore<DistributableMeta<unknown, unknown>, unknown> }
-  >
+  }
+
+  /** レジストリの状態 (一覧 / 読込中 / エラー / 取得 / 再取得) */
+  function feed<K extends DistributableKind>(
+    kind: K,
+  ): StoreFeedView<StoreEntryOf<K>> {
+    const f = kinds[kind].feed
+    return {
+      get entries() {
+        return f.entries.value
+      },
+      get loading() {
+        return f.loading.value
+      },
+      get error() {
+        return f.error.value
+      },
+      fetch: f.fetch,
+      refresh: f.refresh,
+    }
+  }
+
+  /**
+   * ストアからインストールする。`targets` は参加させるスコープ (カラムの文脈。
+   * plugin / query / widget は 1 つ、theme はアカウントの安定キーごと、skill は
+   * 空)。既存なら中身が変わっているときだけ確認して適用し、参加先を足す。
+   * 戻り値は対象の個体
+   */
+  function install<K extends DistributableKind>(
+    kind: K,
+    entry: StoreEntryOf<K>,
+    targets: ScopeTarget[] = [],
+  ): Promise<DistributableMeta<unknown, unknown> | undefined> {
+    return installFrom(kinds[kind], entry, targets)
+  }
+
+  /** 更新を適用する (#1040)。戻り値は「適用したか」 */
+  function update<K extends DistributableKind>(
+    kind: K,
+    entry: StoreEntryOf<K>,
+  ): Promise<boolean> {
+    return updateFrom(kinds[kind], entry)
+  }
 
   /**
    * ストアカードの「インストール済み」判定 (全 kind 共通)。`target` を渡すと
@@ -1019,57 +1011,23 @@ export const useMisStoreStore = defineStore('misstore', () => {
     target?: ScopeTarget,
   ) => isInstalledIn(kinds[kind], entry, target)
 
+  /** 個体のどれか 1 つでも古ければ更新あり (#1061) */
+  const hasUpdate = <K extends DistributableKind>(
+    kind: K,
+    entry: StoreEntryOf<K>,
+  ) => kinds[kind].feed.hasUpdate(entry)
+
+  /** インストール / 更新中の entry id (UI のスピナー用) */
+  const installing = (kind: DistributableKind): string | null =>
+    kinds[kind].feed.installing.value
+
   return {
-    plugins,
-    loading,
-    error,
-    installing,
-    themes,
-    themesLoading: themeFeed.loading,
-    themesError: themeFeed.error,
-    installingTheme,
-    widgets,
-    widgetsLoading: widgetFeed.loading,
-    widgetsError: widgetFeed.error,
-    installingWidget,
-    skills: skillEntries,
-    skillsLoading: skillFeed.loading,
-    skillsError: skillFeed.error,
-    installingSkill,
-    fetchPlugins: pluginFeed.fetch,
-    fetchThemes: themeFeed.fetch,
-    fetchWidgets: widgetFeed.fetch,
-    fetchWidgetSource,
-    fetchSkills: skillFeed.fetch,
-    refresh,
-    refreshThemes,
-    refreshWidgets,
-    refreshSkills,
-    installPlugin,
-    installTheme,
-    installWidget,
-    installSkill,
-    queries: queryEntries,
-    queriesLoading: queryFeed.loading,
-    queriesError: queryFeed.error,
-    installingQuery,
-    fetchQueries: queryFeed.fetch,
-    refreshQueries,
-    installQuery,
+    feed,
+    install,
+    update,
     installedIn,
-    isInstalled: pluginFeed.isInstalled,
-    isThemeInstalled: themeFeed.isInstalled,
-    isWidgetInstalled: widgetFeed.isInstalled,
-    isSkillInstalled: skillFeed.isInstalled,
-    hasPluginUpdate: pluginFeed.hasUpdate,
-    hasThemeUpdate: themeFeed.hasUpdate,
-    hasWidgetUpdate: widgetFeed.hasUpdate,
-    hasSkillUpdate: skillFeed.hasUpdate,
-    hasQueryUpdate: queryFeed.hasUpdate,
-    updatePlugin,
-    updateTheme,
-    updateWidget,
-    updateSkill,
-    updateQuery,
+    hasUpdate,
+    installing,
+    fetchWidgetSource,
   }
 })

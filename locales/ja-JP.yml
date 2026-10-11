@@ -2231,7 +2231,6 @@ _deckThemeManagerColumn:
 _deckWidgetColumn:
   createLocal: "新規ローカルウィジェットを作成"
   empty: "ウィジェットを追加してカスタマイズしよう"
-  addWidget: "ウィジェットを追加"
   noLibraryWidgets: "ライブラリに配置可能なウィジェットがありません。"
   emptyCode: "空のコード"
   noMatches: "一致するウィジェットがありません"

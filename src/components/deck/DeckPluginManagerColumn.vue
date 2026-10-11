@@ -48,13 +48,14 @@ useColumnSetup(() => props.column)
 
 pluginsStore.ensureLoaded()
 // Store メタデータをインストール済みカードの表示にも使うため事前取得（TTL キャッシュあり）
-misStore.fetchPlugins()
+const pluginFeed = misStore.feed('plugin')
+pluginFeed.fetch()
 
 const shell = ref<{ closePicker(): void } | null>(null)
 
 const storeByName = computed(() => {
   const map = new Map<string, StorePluginEntry>()
-  for (const entry of misStore.plugins) map.set(entry.name, entry)
+  for (const entry of pluginFeed.entries) map.set(entry.name, entry)
   return map
 })
 
@@ -108,11 +109,11 @@ const texts = computed(() => ({
 }))
 
 const storeFeed = computed<StoreFeedDecl<StorePluginEntry>>(() => ({
-  entries: misStore.plugins,
-  loading: misStore.loading,
-  error: misStore.error,
-  fetch: () => misStore.fetchPlugins(),
-  refresh: () => misStore.refresh(),
+  entries: pluginFeed.entries,
+  loading: pluginFeed.loading,
+  error: pluginFeed.error,
+  fetch: pluginFeed.fetch,
+  refresh: pluginFeed.refresh,
 }))
 
 // 未知 capability を宣言するエントリは install 不可 (要 NoteDeck アップデート)。
@@ -120,7 +121,7 @@ const storeFeed = computed<StoreFeedDecl<StorePluginEntry>>(() => ({
 // permissions.json5 の plugin principal 側で gate される。
 const capabilityChecks = computed<Record<string, CapabilityCheck>>(() => {
   const result: Record<string, CapabilityCheck> = {}
-  for (const p of misStore.plugins) {
+  for (const p of pluginFeed.entries) {
     result[p.id] = checkKnownCapabilities(p.capabilities ?? [])
   }
   return result
@@ -221,7 +222,7 @@ function installEntry(
 ) {
   const scope = columnScope.value
   if (!scope) return
-  void run(() => misStore.installPlugin(entry, scope))
+  void run(() => misStore.install('plugin', entry, [scope]))
 }
 
 function openStoreDetail(entry: StorePluginEntry) {
@@ -297,9 +298,9 @@ function openPermissionSettings(): void {
         :version="entry.version"
         :category="entry.category"
         :category-label="entry.category ? PLUGIN_CATEGORY_LABELS[entry.category] : undefined"
-        :installing="misStore.installing === entry.id"
+        :installing="misStore.installing('plugin') === entry.id"
         :already-installed="misStore.installedIn('plugin', entry, columnScope ?? undefined)"
-        :has-update="misStore.hasPluginUpdate(entry)"
+        :has-update="misStore.hasUpdate('plugin', entry)"
         :updated-at="entry.updatedAt"
         :capabilities="entry.capabilities"
         :capability-ok="capabilityChecks[entry.id]?.ok"
@@ -307,7 +308,7 @@ function openPermissionSettings(): void {
         :capability-reason="capabilityChecks[entry.id]?.reason"
         :icon-url="entry.iconUrl"
         @install="installEntry(entry, run)"
-        @update="run(() => misStore.updatePlugin(entry), i18n.ts._common.updateFailed)"
+        @update="run(() => misStore.update('plugin', entry), i18n.ts._common.updateFailed)"
         @open-detail="openStoreDetail(entry)"
       />
     </template>

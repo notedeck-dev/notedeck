@@ -40,7 +40,8 @@ const windowsStore = useWindowsStore()
 const accountsStore = useAccountsStore()
 useColumnSetup(() => props.column)
 
-misStore.fetchThemes()
+const themeFeed = misStore.feed('theme')
+themeFeed.fetch()
 
 const shell = ref<{ showTab(tab: 'installed' | 'store'): void } | null>(null)
 
@@ -212,11 +213,11 @@ const texts = computed(() => ({
 
 /** ストアも今の明暗に絞る。文字の絞り込みは殻 */
 const storeFeed = computed<StoreFeedDecl<StoreThemeEntry>>(() => ({
-  entries: misStore.themes.filter((t) => t.base === currentMode.value),
-  loading: misStore.themesLoading,
-  error: misStore.themesError,
-  fetch: () => misStore.fetchThemes(),
-  refresh: () => misStore.refreshThemes(),
+  entries: themeFeed.entries.filter((t) => t.base === currentMode.value),
+  loading: themeFeed.loading,
+  error: themeFeed.error,
+  fetch: themeFeed.fetch,
+  refresh: themeFeed.refresh,
 }))
 
 // --- Library picker (他アカウント向けに入れた / 紐付けの無いテーマをこのアカウントへ) ---
@@ -387,6 +388,15 @@ function contextAccountKeys(): string[] {
   return accountKey.value ? [accountKey.value] : []
 }
 
+/** ストアからこのカラムの対象アカウントに紐付けてインストールする */
+function installFromStore(entry: StoreThemeEntry) {
+  return misStore.install(
+    'theme',
+    entry,
+    contextAccountKeys().map((key) => ({ kind: 'account', key })),
+  )
+}
+
 // Store entry → MisskeyTheme (preview 用)
 // MisStore registry は themeProps にフル props を入れて返すので、そのまま
 // compileMisskeyTheme に渡せば本物と同じ着色になる。
@@ -473,13 +483,13 @@ function storeEntryToTheme(entry: StoreThemeEntry): MisskeyTheme {
         mode="store"
         :theme="storeEntryToTheme(entry)"
         source="misstore"
-        :installing="misStore.installingTheme === entry.id"
+        :installing="misStore.installing('theme') === entry.id"
         :already-installed="misStore.installedIn('theme', entry)"
-        :has-update="misStore.hasThemeUpdate(entry)"
+        :has-update="misStore.hasUpdate('theme', entry)"
         :updated-at="entry.updatedAt"
         :version="entry.version"
-        @install="run(() => misStore.installTheme(entry, contextAccountKeys()))"
-        @update="run(() => misStore.updateTheme(entry), i18n.ts._common.updateFailed)"
+        @install="run(() => installFromStore(entry))"
+        @update="run(() => misStore.update('theme', entry), i18n.ts._common.updateFailed)"
         @open-detail="openSafeUrl(getThemeDetailUrl(entry.id))"
       />
     </template>

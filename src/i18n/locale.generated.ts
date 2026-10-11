@@ -4019,8 +4019,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "createLocal": string
     /** ウィジェットを追加してカスタマイズしよう */
     readonly "empty": string
-    /** ウィジェットを追加 */
-    readonly "addWidget": string
     /** ライブラリに配置可能なウィジェットがありません。 */
     readonly "noLibraryWidgets": string
     /** 空のコード */

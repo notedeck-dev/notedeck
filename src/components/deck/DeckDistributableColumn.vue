@@ -71,8 +71,6 @@ const props = withDefaults(
     enabledFilter?: EnabledFilterDecl<Item>
     /** ライブラリピッカーの候補。無ければピッカーを出さない */
     libraryCandidates?: readonly Item[]
-    /** ピッカーを開くボタンの文言 (既定「ライブラリから追加」) */
-    pickerLabel?: string
     texts: {
       /** 検索に一致しない */
       noMatches: string
@@ -353,7 +351,7 @@ defineExpose({ closePicker, showTab })
                 @click="showLibraryPicker = !showLibraryPicker"
               >
                 <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-                {{ showLibraryPicker ? i18n.ts._common.close : (pickerLabel ?? i18n.ts._common.addFromLibrary) }}
+                {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._common.addFromLibrary }}
               </button>
             </div>
             <div v-if="showLibraryPicker" :class="$style.pickerWrap">

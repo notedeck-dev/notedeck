@@ -75,12 +75,13 @@ const texts = computed(() => ({
   storeEmpty: i18n.ts._deckSkillColumn.storeEmpty,
 }))
 
+const skillFeed = misStore.feed('skill')
 const storeFeed = computed<StoreFeedDecl<StoreSkillEntry>>(() => ({
-  entries: misStore.skills,
-  loading: misStore.skillsLoading,
-  error: misStore.skillsError,
-  fetch: () => misStore.fetchSkills(),
-  refresh: () => misStore.refreshSkills(),
+  entries: skillFeed.entries,
+  loading: skillFeed.loading,
+  error: skillFeed.error,
+  fetch: skillFeed.fetch,
+  refresh: skillFeed.refresh,
 }))
 
 function toggleActive(skill: SkillItem) {
@@ -181,12 +182,12 @@ function openStoreDetail(entry: StoreSkillEntry) {
         :version="entry.version"
         :icon-url="entry.iconUrl"
         :category-label="skillCategoryLabel(entry.category)"
-        :installing="misStore.installingSkill === entry.id"
+        :installing="misStore.installing('skill') === entry.id"
         :already-installed="misStore.installedIn('skill', entry)"
-        :has-update="misStore.hasSkillUpdate(entry)"
+        :has-update="misStore.hasUpdate('skill', entry)"
         :updated-at="entry.updatedAt"
-        @install="run(() => misStore.installSkill(entry))"
-        @update="run(() => misStore.updateSkill(entry), i18n.ts._common.updateFailed)"
+        @install="run(() => misStore.install('skill', entry))"
+        @update="run(() => misStore.update('skill', entry), i18n.ts._common.updateFailed)"
         @open-detail="openStoreDetail(entry)"
       />
     </template>

@@ -62,12 +62,12 @@ const {
         },
       ],
       themes: [{ id: 't1', name: 'Dusk', version: '2.0.0', author: 'bob' }],
-      fetchPlugins: vi.fn(async () => undefined),
-      fetchThemes: vi.fn(async () => undefined),
-      isInstalled: vi.fn(() => false),
-      isThemeInstalled: vi.fn(() => false),
-      installPlugin: vi.fn(async () => undefined),
-      installTheme: vi.fn(async () => undefined),
+      feed: (kind: 'plugin' | 'theme') => ({
+        entries: kind === 'plugin' ? misStore.plugins : misStore.themes,
+        fetch: async () => undefined,
+      }),
+      installedIn: vi.fn(() => false),
+      install: vi.fn(async () => undefined),
     },
   }
 })
@@ -226,15 +226,17 @@ describe('notedeck://install-plugin', () => {
     expect(opts?.message).toContain('Translator')
     expect(opts?.message).toContain('alice')
     expect(opts?.message).toContain('misskey-api')
-    expect(misStore.installPlugin).toHaveBeenCalledWith(misStore.plugins[0], {
-      kind: 'global',
-    })
+    expect(misStore.install).toHaveBeenCalledWith(
+      'plugin',
+      misStore.plugins[0],
+      [{ kind: 'global' }],
+    )
   })
 
   it('承認しなければ入れない', async () => {
     confirm.mockResolvedValueOnce(false)
     await handleDeepLink('notedeck://install-plugin?id=p1')
-    expect(misStore.installPlugin).not.toHaveBeenCalled()
+    expect(misStore.install).not.toHaveBeenCalled()
   })
 
   // ストアのカラムと同じ判定 (#1205)。未対応の機能を要求するものは入れずに理由を伝える
@@ -247,14 +249,14 @@ describe('notedeck://install-plugin', () => {
     }
     expect(opts.message).toContain('teleport')
     expect(opts.hideCancel).toBe(true)
-    expect(misStore.installPlugin).not.toHaveBeenCalled()
+    expect(misStore.install).not.toHaveBeenCalled()
   })
 
   it('入っているものは確認も出さない', async () => {
-    misStore.isInstalled.mockReturnValueOnce(true)
+    misStore.installedIn.mockReturnValueOnce(true)
     await handleDeepLink('notedeck://install-plugin?id=p1')
     expect(confirm).not.toHaveBeenCalled()
-    expect(misStore.installPlugin).not.toHaveBeenCalled()
+    expect(misStore.install).not.toHaveBeenCalled()
   })
 })
 
@@ -264,12 +266,12 @@ describe('notedeck://install-theme', () => {
     const opts = confirm.mock.calls[0]?.[0]
     expect(opts?.message).toContain('Dusk')
     expect(opts?.message).toContain('bob')
-    expect(misStore.installTheme).toHaveBeenCalledWith(misStore.themes[0])
+    expect(misStore.install).toHaveBeenCalledWith('theme', misStore.themes[0])
   })
 
   it('承認しなければ入れない', async () => {
     confirm.mockResolvedValueOnce(false)
     await handleDeepLink('notedeck://install-theme?id=t1')
-    expect(misStore.installTheme).not.toHaveBeenCalled()
+    expect(misStore.install).not.toHaveBeenCalled()
   })
 })

@@ -691,10 +691,10 @@ describe('DeckPluginManagerColumn — ストアタブ', () => {
     ).toBe(true)
   })
 
-  it('「インストール」を押すとカラムのスコープを添えて installPlugin を呼ぶ', async () => {
+  it('「インストール」を押すとカラムのスコープを添えて install を呼ぶ', async () => {
     registryEntries = [makeStoreEntry({ id: 'st-new', name: 'Brand New' })]
     const misStore = useMisStoreStore()
-    const install = vi.spyOn(misStore, 'installPlugin').mockResolvedValue()
+    const install = vi.spyOn(misStore, 'install').mockResolvedValue(undefined)
     wrapper = await mountColumn({ accountId: yami.id })
     await switchToStore(wrapper)
 
@@ -702,18 +702,16 @@ describe('DeckPluginManagerColumn — ストアタブ', () => {
     await flush()
 
     expect(install).toHaveBeenCalledTimes(1)
-    expect(install.mock.calls[0]?.[0]?.id).toBe('st-new')
-    expect(install.mock.calls[0]?.[1]).toEqual({
-      kind: 'account',
-      key: YAMI_KEY,
-    })
+    expect(install.mock.calls[0]?.[0]).toBe('plugin')
+    expect(install.mock.calls[0]?.[1]?.id).toBe('st-new')
+    expect(install.mock.calls[0]?.[2]).toEqual([
+      { kind: 'account', key: YAMI_KEY },
+    ])
   })
 
   it('インストールに失敗するとエラー行を出し、閉じるで消える', async () => {
     registryEntries = [makeStoreEntry({ id: 'st-new', name: 'Brand New' })]
-    vi.spyOn(useMisStoreStore(), 'installPlugin').mockRejectedValue(
-      new Error('boom'),
-    )
+    vi.spyOn(useMisStoreStore(), 'install').mockRejectedValue(new Error('boom'))
     wrapper = await mountColumn()
     await switchToStore(wrapper)
 
