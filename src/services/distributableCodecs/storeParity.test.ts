@@ -13,7 +13,6 @@ vi.mock('@/utils/settingsFs', () => ({
 
 import { sidecarMetaText } from '@/services/distributableCodecs/sidecar'
 import { parseSkillFile, serializeSkillFile } from '@/services/skillFrontmatter'
-import { _internal as queryInternal } from '@/stores/columnQueries'
 import { _internal as pluginInternal } from '@/stores/plugins'
 import { _internal as skillInternal } from '@/stores/skills'
 import {
@@ -27,7 +26,10 @@ import { _internal as widgetInternal } from '@/stores/widgets'
  * ことを固定する (#1202 段階 0)。段階 1 で store が codec に置き換わるとき、
  * ファイルが 1 バイトも変わらないことの保証。入力と期待値は golden
  * (`golden/vectors.json`) を共有する。欠損した時刻は store が `Date.now()` で
- * 埋めるので、vector の `now` を system time にして揃える
+ * 埋めるので、vector の `now` を system time にして揃える。
+ *
+ * codec に置き換わった kind (query、段階 1) はここから外れる — store の
+ * 書く形は codec そのもので、golden (`goldenVectors.test.ts`) が受ける
  */
 
 interface SidecarVector {
@@ -77,7 +79,6 @@ describe('store の serialize = codec の出力 (golden を共有)', () => {
   const sidecars = [
     ['plugin', pluginInternal],
     ['widget', widgetInternal],
-    ['query', queryInternal],
   ] as const
   for (const [kind, internal] of sidecars) {
     describe(kind, () => {

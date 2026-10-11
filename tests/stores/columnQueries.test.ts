@@ -15,58 +15,56 @@ describe('columnQueries store', () => {
     localStorage.clear()
   })
 
-  it('createQuery → getQuery → updateQuery → removeQuery の CRUD', async () => {
+  it('add → get → update → remove の CRUD', async () => {
     const store = useColumnQueriesStore()
-    const created = await store.createQuery({
+    const created = await store.add({
       name: 'テスト',
-      src: 'note.cw == null',
+      content: 'note.cw == null',
       description: '説明',
     })
     expect(created.id).toMatch(/^qry-/)
-    expect(store.getQuery(created.id)?.name).toBe('テスト')
+    expect(store.get(created.id)?.name).toBe('テスト')
 
-    await store.updateQuery(created.id, {
+    await store.update(created.id, {
       name: '改名',
-      src: 'note.text != null',
+      content: 'note.text != null',
     })
-    const updated = store.getQuery(created.id)
+    const updated = store.get(created.id)
     expect(updated?.name).toBe('改名')
-    expect(updated?.src).toBe('note.text != null')
+    expect(updated?.content).toBe('note.text != null')
     expect(updated?.updatedAt).toBeGreaterThanOrEqual(created.updatedAt)
 
-    await store.removeQuery(created.id)
-    expect(store.getQuery(created.id)).toBeUndefined()
+    await store.remove(created.id)
+    expect(store.get(created.id)).toBeUndefined()
   })
 
-  it('storeId 付きで作成するとストア由来として保持される', async () => {
+  it('ストア由来で作成するとその 3 点を保持する', async () => {
     const store = useColumnQueriesStore()
-    const created = await store.createQuery({
+    const created = await store.add({
       name: 'ストア配布',
-      src: 'note.localOnly == true',
-      storeId: 'no-federation',
+      content: 'note.localOnly == true',
+      store: { id: 'no-federation' },
       iconUrl: 'https://example.com/icon.svg',
     })
-    expect(store.getQuery(created.id)?.storeId).toBe('no-federation')
-    expect(store.getQuery(created.id)?.iconUrl).toBe(
-      'https://example.com/icon.svg',
-    )
+    expect(store.get(created.id)?.store?.id).toBe('no-federation')
+    expect(store.get(created.id)?.iconUrl).toBe('https://example.com/icon.svg')
   })
 
   it('localStorage ミラーに永続化され再ロードで復元される', async () => {
     const store = useColumnQueriesStore()
-    await store.createQuery({ name: '永続', src: 'note.cw == null' })
+    await store.add({ name: '永続', content: 'note.cw == null' })
 
     // 新しい pinia = アプリ再起動相当
     setActivePinia(createPinia())
     const reloaded = useColumnQueriesStore()
     reloaded.ensureLoaded()
-    expect(reloaded.queries).toHaveLength(1)
-    expect(reloaded.queries[0]?.name).toBe('永続')
+    expect(reloaded.items).toHaveLength(1)
+    expect(reloaded.items[0]?.name).toBe('永続')
   })
 
   it('refCountByQueryId がカラムの noteQueryRefs を集計する', async () => {
     const store = useColumnQueriesStore()
-    const q = await store.createQuery({ name: 'A', src: 'note.cw == null' })
+    const q = await store.add({ name: 'A', content: 'note.cw == null' })
 
     const deckStore = useDeckStore()
     deckStore.columns.push(

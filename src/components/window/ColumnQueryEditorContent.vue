@@ -47,10 +47,10 @@ const toast = useToast()
 
 queriesStore.ensureLoaded()
 
-const namedQuery = computed(() => queriesStore.getQuery(props.queryId))
+const namedQuery = computed(() => queriesStore.get(props.queryId))
 const queryName = ref(namedQuery.value?.name ?? '')
 const queryDescription = ref(namedQuery.value?.description ?? '')
-const source = ref(namedQuery.value?.src ?? '')
+const source = ref(namedQuery.value?.content ?? '')
 
 const compiled = computed(() => {
   const src = source.value
@@ -141,7 +141,7 @@ const canSave = computed(
 const isDirty = computed(() => {
   const q = namedQuery.value
   return (
-    source.value !== (q?.src ?? '') ||
+    source.value !== (q?.content ?? '') ||
     queryName.value !== (q?.name ?? '') ||
     queryDescription.value !== (q?.description ?? '')
   )
@@ -174,10 +174,10 @@ const historyActions = computed<EditorAction[]>(() =>
 
 async function save(): Promise<void> {
   if (!canSave.value) return
-  const ok = await queriesStore.updateQuery(props.queryId, {
+  const ok = await queriesStore.update(props.queryId, {
     name: queryName.value.trim(),
     description: queryDescription.value.trim() || undefined,
-    src: source.value,
+    content: source.value,
   })
   // 読取専用 (ソース欠損) は保存されない。成功トーストを出さず理由を見せる (#1111)
   if (!ok) {
@@ -200,7 +200,7 @@ async function save(): Promise<void> {
       :name="queryName || namedQuery.name"
     >
       <template #sub>
-        <span v-if="namedQuery.storeId" :class="$style.headerBadge">{{ i18n.ts._common.store }}</span>
+        <span v-if="namedQuery.store" :class="$style.headerBadge">{{ i18n.ts._common.store }}</span>
         <span v-else :class="$style.headerBadge">{{ i18n.ts._common.local }}</span>
       </template>
     </EditorItemHeader>

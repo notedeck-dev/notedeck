@@ -15,10 +15,7 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { variantKey } from '@/services/noteKey'
 import { matchesFilter } from '@/services/timelineFilter'
 import { type Account, useAccountsStore } from '@/stores/accounts'
-import {
-  type NamedQueryMeta,
-  useColumnQueriesStore,
-} from '@/stores/columnQueries'
+import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import type { DeckColumn } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
 import { useToast } from '@/stores/toast'
@@ -194,18 +191,18 @@ function addAccount(id: string, host = 'example.com', hasToken = true) {
 function seedQuery(
   id: string,
   src: string,
-  extra: Partial<NamedQueryMeta> = {},
+  extra: Partial<QueryItem['extra']> = {},
 ): void {
   const store = useColumnQueriesStore()
   store.ensureLoaded()
-  store.queries.push({
+  store.items.push({
     id,
     name: `named-${id}`,
-    src,
-    global: true,
+    content: src,
+    scope: { kind: 'shared', global: true, installedFor: [] },
+    extra: { scoped: true, active: true, ...extra },
     createdAt: 0,
     updatedAt: 0,
-    ...extra,
   })
 }
 
@@ -409,7 +406,7 @@ describe('useCrossAccountNotes: カラムクエリ (#783) が全アカウント�
 
   it('無効なクエリは評価上「無いもの」で、状態は disabled (#1043)', async () => {
     seedQuery('q-off', 'note.text != null && note.text.incl("keep")', {
-      disabled: true,
+      active: false,
     })
     addAccount('acc-a')
     const column = ref<Partial<DeckColumn>>({ noteQueryRefs: ['q-off'] })

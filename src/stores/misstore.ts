@@ -6,13 +6,14 @@ import {
   parsePluginMeta,
 } from '@/aiscript/plugin-api'
 import { i18n } from '@/i18n'
+import { hasScopeTarget, type ScopeTarget } from '@/services/distributable'
 import { casefold, resolveAvailable } from '@/services/settingsSlug'
 import { type Frontmatter, parseSkillFile } from '@/services/skillFrontmatter'
 import {
   findWidgetInstance,
   listWidgetInstances,
 } from '@/services/widgetInstances'
-import { type QueryScope, useColumnQueriesStore } from '@/stores/columnQueries'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
 import {
   type PluginMeta,
@@ -464,13 +465,16 @@ export const useMisStoreStore = defineStore('misstore', () => {
   })
   const queryFeed = createRegistryFeed<StoreQueryEntry>('queries', (entry) => {
     const store = useColumnQueriesStore()
-    const q = store.queries.find((q) => q.storeId === entry.id)
+    const q = store.items.find((q) => q.store?.id === entry.id)
     if (!q) return []
     return [
       {
-        storeSha512: q.storeSha512,
+        storeSha512: q.store?.sha512,
         recordBaseline: (rec) => {
-          void store.recordStoreBaseline(q.id, rec)
+          void store.recordStoreBaseline(q.id, {
+            sha512: rec.storeSha512,
+            version: rec.storeVersion,
+          })
         },
       },
     ]
@@ -620,7 +624,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
   async function installQuery(
     entry: StoreQueryEntry,
     /** 参加させるスコープ (#1018)。カラムの文脈から渡す */
-    scope?: QueryScope,
+    scope?: ScopeTarget,
   ): Promise<void> {
     installingQuery.value = entry.id
     try {
@@ -632,7 +636,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
       const queriesStore = useColumnQueriesStore()
       queriesStore.ensureLoaded()
-      const existing = queriesStore.queries.find((q) => q.storeId === e.id)
+      const existing = queriesStore.items.find((q) => q.store?.id === e.id)
       if (existing) {
         // 再インストール = 実質更新。ローカル編集を無言で消さない (#981)
         await confirmQueryUpdate(
@@ -642,21 +646,19 @@ export const useMisStoreStore = defineStore('misstore', () => {
         )
         // 別スコープからのインストールは本体を増やさず参加スコープを足す
         // (プラグインと同型)
-        if (scope) queriesStore.linkScope(existing.id, scope)
+        if (scope) await queriesStore.link(existing.id, scope)
       } else {
-        await queriesStore.createQuery({
+        await queriesStore.add({
           // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
           id: resolveAvailable(e.id, (c) =>
-            queriesStore.queries.some((q) => casefold(q.id) === c),
+            queriesStore.items.some((q) => casefold(q.id) === c),
           ),
           ...(scope ? { scope } : {}),
           name: e.name,
           description: e.description,
-          src: source,
-          storeId: e.id,
+          content: source,
           iconUrl: e.iconUrl,
-          storeSha512: hash,
-          storeVersion: e.version,
+          store: { id: e.id, sha512: hash, version: e.version },
         })
       }
     } finally {
@@ -671,16 +673,13 @@ export const useMisStoreStore = defineStore('misstore', () => {
    */
   function isQueryInstalled(
     entry: StoreQueryEntry,
-    scope?: QueryScope,
+    scope?: ScopeTarget,
   ): boolean {
     const queriesStore = useColumnQueriesStore()
     queriesStore.ensureLoaded()
-    return queriesStore.queries.some((q) => {
-      if (q.storeId !== entry.id) return false
-      if (!scope) return true
-      return scope.kind === 'global'
-        ? q.global === true
-        : (q.installedFor?.includes(scope.key) ?? false)
+    return queriesStore.items.some((q) => {
+      if (q.store?.id !== entry.id) return false
+      return scope ? hasScopeTarget(q.scope, scope) : true
     })
   }
 
@@ -1100,27 +1099,26 @@ export const useMisStoreStore = defineStore('misstore', () => {
    * installQuery の既存分岐と updateQuery の共用点 (confirmSkillUpdate と同型)。
    */
   async function confirmQueryUpdate(
-    existing: { id: string; name?: string; src: string },
+    existing: { id: string; name?: string; content: string },
     fetched: { source: string; hash: string; entry: StoreQueryEntry },
     opts: { alwaysConfirm: boolean },
   ): Promise<boolean> {
     const { source, hash, entry: e } = fetched
-    if (opts.alwaysConfirm || source !== existing.src) {
+    if (opts.alwaysConfirm || source !== existing.content) {
       const ok = await useConfirm().confirm({
         title: i18n.ts._misstore.updateQuery,
         message: updateConfirmMessage(existing.name || e.name, e),
         okLabel: i18n.ts._common.update,
-        diff: { old: existing.src, new: source, language: 'aiscript' },
+        diff: { old: existing.content, new: source, language: 'aiscript' },
       })
       if (!ok) return false
     }
     // 上書き更新: 本体とストア由来メタのみ。ローカル改名 (name) は維持
     await useColumnQueriesStore().applyStoreUpdate(existing.id, {
-      src: source,
+      content: source,
       description: e.description,
       iconUrl: e.iconUrl,
-      storeSha512: hash,
-      storeVersion: e.version,
+      store: { id: e.id, sha512: hash, version: e.version },
     })
     return true
   }
@@ -1128,7 +1126,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
   async function updateQuery(entry: StoreQueryEntry): Promise<boolean> {
     const queriesStore = useColumnQueriesStore()
     queriesStore.ensureLoaded()
-    const existing = queriesStore.queries.find((q) => q.storeId === entry.id)
+    const existing = queriesStore.items.find((q) => q.store?.id === entry.id)
     if (!existing) return false
     installingQuery.value = entry.id
     try {

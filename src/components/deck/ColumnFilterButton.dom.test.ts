@@ -48,11 +48,12 @@ beforeEach(() => {
   setActivePinia(createPinia())
   const store = useColumnQueriesStore()
   store.ensureLoaded()
-  store.queries.push({
+  store.items.push({
     id: 'q-global',
     name: 'しずかなタイムライン',
-    src: 'true',
-    global: true,
+    content: 'true',
+    scope: { kind: 'shared', global: true, installedFor: [] },
+    extra: { scoped: true, active: true },
     createdAt: 0,
     updatedAt: 0,
   })

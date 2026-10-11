@@ -26,11 +26,11 @@ const h = vi.hoisted(() => ({
     recordStoreBaseline: vi.fn(),
   },
   queriesStore: {
-    queries: [] as unknown[],
+    items: [] as unknown[],
     ensureLoaded: vi.fn(),
-    linkScope: vi.fn(),
-    createQuery: vi.fn(async () => undefined),
-    applyStoreUpdate: vi.fn(async () => undefined),
+    link: vi.fn(async () => true),
+    add: vi.fn(async () => undefined),
+    applyStoreUpdate: vi.fn(async () => true),
     recordStoreBaseline: vi.fn(async () => undefined),
   },
   themeStore: {
@@ -165,7 +165,7 @@ beforeEach(() => {
   h.skillsStore.skills = []
   h.pluginsStore.plugins = []
   h.widgetsStore.widgets = []
-  h.queriesStore.queries = []
+  h.queriesStore.items = []
   h.themeStore.installedThemes = []
   h.themeStore.installTheme.mockResolvedValue(true)
   h.confirm.mockResolvedValue(true)
@@ -406,19 +406,17 @@ describe('installSkill', () => {
 describe('installQuery', () => {
   const source = 'note.text != null'
 
-  it('新規は createQuery に storeId と storeSha512 / storeVersion を渡す (#913)', async () => {
+  it('新規は add にストア由来 3 点 (id / sha512 / version) を渡す (#913)', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
     await store.installQuery(queryEntry({ sha512: sha512Hex(source) }))
-    expect(h.queriesStore.createQuery).toHaveBeenCalledTimes(1)
-    expect(h.queriesStore.createQuery).toHaveBeenCalledWith(
+    expect(h.queriesStore.add).toHaveBeenCalledTimes(1)
+    expect(h.queriesStore.add).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Test Query',
         description: 'desc',
-        src: source,
-        storeId: 'ent-query',
-        storeSha512: sha512Hex(source),
-        storeVersion: '1.0.0',
+        content: source,
+        store: { id: 'ent-query', sha512: sha512Hex(source), version: '1.0.0' },
       }),
     )
     expect(store.installingQuery).toBeNull()
@@ -426,37 +424,40 @@ describe('installQuery', () => {
 
   it('既存 (storeId 一致) は applyStoreUpdate で更新し name を渡さない (#913)', async () => {
     const store = useMisStoreStore()
-    h.queriesStore.queries = [
-      { id: 'q-local', storeId: 'ent-query', name: 'My Renamed' },
+    h.queriesStore.items = [
+      { id: 'q-local', store: { id: 'ent-query' }, name: 'My Renamed' },
     ]
     fetchMock.mockResolvedValue(okText(source))
     await store.installQuery(queryEntry({ sha512: sha512Hex(source) }))
-    expect(h.queriesStore.createQuery).not.toHaveBeenCalled()
+    expect(h.queriesStore.add).not.toHaveBeenCalled()
     expect(h.queriesStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
     const [id, patch] = h.queriesStore.applyStoreUpdate.mock
       .calls[0] as unknown as [string, Record<string, unknown>]
     expect(id).toBe('q-local')
     expect(patch).toMatchObject({
-      src: source,
+      content: source,
       description: 'desc',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      store: { id: 'ent-query', sha512: sha512Hex(source), version: '1.0.0' },
     })
     expect(patch).not.toHaveProperty('name')
   })
 
   it('isQueryInstalled は storeId で照合する', () => {
     const store = useMisStoreStore()
-    h.queriesStore.queries = [{ id: 'q1', storeId: 'ent-query' }]
+    h.queriesStore.items = [{ id: 'q1', store: { id: 'ent-query' } }]
     expect(store.isQueryInstalled(queryEntry())).toBe(true)
-    h.queriesStore.queries = [{ id: 'ent-query' }]
+    h.queriesStore.items = [{ id: 'ent-query' }]
     expect(store.isQueryInstalled(queryEntry())).toBe(false)
   })
 
   it('isQueryInstalled: スコープ指定はそのスコープに参加している個体だけを済みとみなす (プラグインと同じ粒度)', () => {
     const store = useMisStoreStore()
-    h.queriesStore.queries = [
-      { id: 'q1', storeId: 'ent-query', installedFor: ['yami.ski:u1'] },
+    h.queriesStore.items = [
+      {
+        id: 'q1',
+        store: { id: 'ent-query' },
+        scope: { kind: 'shared', global: false, installedFor: ['yami.ski:u1'] },
+      },
     ]
     expect(
       store.isQueryInstalled(queryEntry(), {
@@ -471,22 +472,33 @@ describe('installQuery', () => {
       }),
     ).toBe(false)
     expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(false)
-    h.queriesStore.queries = [{ id: 'q1', storeId: 'ent-query', global: true }]
+    h.queriesStore.items = [
+      {
+        id: 'q1',
+        store: { id: 'ent-query' },
+        scope: { kind: 'shared', global: true, installedFor: [] },
+      },
+    ]
     expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(true)
   })
 
   it('既存 (storeId 一致) に別スコープからインストールすると、そのスコープへ参加させる (プラグインと同型)', async () => {
     const store = useMisStoreStore()
-    h.queriesStore.queries = [
-      { id: 'q-local', storeId: 'ent-query', src: source, global: true },
+    h.queriesStore.items = [
+      {
+        id: 'q-local',
+        store: { id: 'ent-query' },
+        content: source,
+        scope: { kind: 'shared', global: true, installedFor: [] },
+      },
     ]
     fetchMock.mockResolvedValue(okText(source))
     await store.installQuery(queryEntry({ sha512: sha512Hex(source) }), {
       kind: 'account',
       key: 'yami.ski:u1',
     })
-    expect(h.queriesStore.createQuery).not.toHaveBeenCalled()
-    expect(h.queriesStore.linkScope).toHaveBeenCalledWith('q-local', {
+    expect(h.queriesStore.add).not.toHaveBeenCalled()
+    expect(h.queriesStore.link).toHaveBeenCalledWith('q-local', {
       kind: 'account',
       key: 'yami.ski:u1',
     })
@@ -938,8 +950,8 @@ describe('更新検知 (#1040)', () => {
     ]
     expect(store.hasPluginUpdate(pluginEntry({ sha512: 'sha-new' }))).toBe(true)
 
-    h.queriesStore.queries = [
-      { id: 'q1', storeId: 'ent-query', storeSha512: 'sha-old' },
+    h.queriesStore.items = [
+      { id: 'q1', store: { id: 'ent-query', sha512: 'sha-old' } },
     ]
     expect(store.hasQueryUpdate(queryEntry({ sha512: 'sha-new' }))).toBe(true)
   })
@@ -1015,7 +1027,7 @@ describe('baseline 無通知記録 (#1040)', () => {
     const store = useMisStoreStore()
     h.skillsStore.skills = [{ id: 'local-1', storeId: 'ent-skill' }]
     h.pluginsStore.plugins = [{ installId: 'p1', storeId: 'ent-plugin' }]
-    h.queriesStore.queries = [{ id: 'q1', storeId: 'ent-query' }]
+    h.queriesStore.items = [{ id: 'q1', store: { id: 'ent-query' } }]
     fetchMock
       .mockResolvedValueOnce(
         okJson({ skills: [skillEntry({ sha512: 's-sha' })] }),
@@ -1037,9 +1049,10 @@ describe('baseline 無通知記録 (#1040)', () => {
       storeSha512: 'p-sha',
       storeVersion: '1.0.0',
     })
+    // query は envelope のストア由来 3 点の形で受ける (#1202 段階 1)
     expect(h.queriesStore.recordStoreBaseline).toHaveBeenCalledWith('q1', {
-      storeSha512: 'q-sha',
-      storeVersion: '1.0.0',
+      sha512: 'q-sha',
+      version: '1.0.0',
     })
   })
 
@@ -1167,8 +1180,13 @@ describe('更新適用 (#1040)', () => {
   it('installQuery: 既存への再インストールも diff 確認を通す (#981)', async () => {
     const store = useMisStoreStore()
     const newSrc = '<: "query v2"'
-    h.queriesStore.queries = [
-      { id: 'q0', storeId: 'ent-query', name: 'Q', src: '<: "local edit"' },
+    h.queriesStore.items = [
+      {
+        id: 'q0',
+        store: { id: 'ent-query' },
+        name: 'Q',
+        content: '<: "local edit"',
+      },
     ]
     fetchMock.mockResolvedValue(okText(newSrc))
     await store.installQuery(queryEntry({ sha512: sha512Hex(newSrc) }))
@@ -1184,8 +1202,13 @@ describe('更新適用 (#1040)', () => {
   it('installQuery: 確認をキャンセルしたら src を書き換えない (#981)', async () => {
     const store = useMisStoreStore()
     h.confirm.mockResolvedValueOnce(false)
-    h.queriesStore.queries = [
-      { id: 'q0', storeId: 'ent-query', name: 'Q', src: '<: "local edit"' },
+    h.queriesStore.items = [
+      {
+        id: 'q0',
+        store: { id: 'ent-query' },
+        name: 'Q',
+        content: '<: "local edit"',
+      },
     ]
     const newSrc = '<: "query v2"'
     fetchMock.mockResolvedValue(okText(newSrc))
@@ -1483,13 +1506,12 @@ describe('更新適用 (#1040)', () => {
   it('updateQuery: src の diff 確認 → applyStoreUpdate に確認したソースを渡す', async () => {
     const store = useMisStoreStore()
     const newSrc = 'note.text == null'
-    h.queriesStore.queries = [
+    h.queriesStore.items = [
       {
         id: 'q-local',
-        storeId: 'ent-query',
+        store: { id: 'ent-query', sha512: 'old-sha' },
         name: 'My Query',
-        src: 'note.text != null',
-        storeSha512: 'old-sha',
+        content: 'note.text != null',
       },
     ]
     fetchMock.mockResolvedValue(okText(newSrc))
@@ -1505,8 +1527,8 @@ describe('更新適用 (#1040)', () => {
     expect(h.queriesStore.applyStoreUpdate).toHaveBeenCalledWith(
       'q-local',
       expect.objectContaining({
-        src: newSrc,
-        storeSha512: sha512Hex(newSrc),
+        content: newSrc,
+        store: expect.objectContaining({ sha512: sha512Hex(newSrc) }),
       }),
     )
   })
@@ -1545,12 +1567,11 @@ describe('更新適用 (#1040)', () => {
   it('更新も sha 不一致なら index 再取得の 1 回リトライを経て新 entry を適用する', async () => {
     const store = useMisStoreStore()
     const newSrc = 'note.userId != null'
-    h.queriesStore.queries = [
+    h.queriesStore.items = [
       {
         id: 'q-local',
-        storeId: 'ent-query',
-        src: 'old',
-        storeSha512: 'old-sha',
+        store: { id: 'ent-query', sha512: 'old-sha' },
+        content: 'old',
       },
     ]
     const staleEntry = queryEntry({ sha512: sha512Hex('stale') })
@@ -1565,7 +1586,10 @@ describe('更新適用 (#1040)', () => {
     await expect(store.updateQuery(staleEntry)).resolves.toBe(true)
     expect(h.queriesStore.applyStoreUpdate).toHaveBeenCalledWith(
       'q-local',
-      expect.objectContaining({ src: newSrc, storeVersion: '3.0.0' }),
+      expect.objectContaining({
+        content: newSrc,
+        store: expect.objectContaining({ version: '3.0.0' }),
+      }),
     )
   })
 })
