@@ -82,7 +82,7 @@ export const EDIT_HISTORY_SPECS: Record<HistoryKind, EditHistorySpec> = {
     // props だけでは名前・base の変化が見えないのでテーマ全体を並べる
     snapshotText: (s) =>
       s && typeof s === 'object' ? serializeTheme(themeFromSnapshot(s)) : '',
-    revertCapabilityId: 'theme.revert',
+    revertCapabilityId: 'themes.revert',
     revertParams: (id, index) => ({ id, index }),
   },
   query: {

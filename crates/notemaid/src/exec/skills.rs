@@ -248,11 +248,11 @@ pub fn replace_section(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Valu
     Ok(json!({ "id": id, "replaced": replaced, "length": length }))
 }
 
-pub fn toggle(core: &Core, p: &Value) -> Result<Value> {
-    let id = require(p, "id", "skills.toggle")?;
-    let active = p.get("active").and_then(Value::as_bool) == Some(true);
-    skills::set_active(core, &id, active)?;
-    Ok(json!({ "id": id, "active": active }))
+pub fn set_enabled(core: &Core, p: &Value) -> Result<Value> {
+    let id = require(p, "id", "skills.setEnabled")?;
+    let enabled = p.get("enabled").and_then(Value::as_bool) == Some(true);
+    skills::set_active(core, &id, enabled)?;
+    Ok(json!({ "id": id, "enabled": enabled }))
 }
 
 fn index_of(p: &Value) -> i64 {
@@ -303,6 +303,16 @@ pub fn uninstall(core: &Core, p: &Value) -> Result<Value> {
     }
     skills::remove(core, &id)?;
     Ok(json!({ "id": id, "removed": true }))
+}
+
+/// `skills.delete`: id で消す。無ければ removed: false (予約 skill は本体が拒否する)
+pub fn delete(core: &Core, p: &Value) -> Result<Value> {
+    let id = require(p, "id", "skills.delete")?;
+    let existed = skills::get(core, &id)?.is_some();
+    if existed {
+        skills::remove(core, &id)?;
+    }
+    Ok(json!({ "id": id, "removed": existed }))
 }
 
 // --- MisStore ---
@@ -606,7 +616,7 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             }
             return Ok(Some(out));
         }
-        "skills.uninstall" => {
+        "skills.uninstall" | "skills.delete" => {
             let Some(cur) = skills::get(core, s(p, "id"))? else {
                 return Ok(None);
             };
@@ -727,8 +737,12 @@ mod tests {
         .unwrap();
         assert_eq!(rp["replaced"], false);
         assert_eq!(
-            toggle(&core, &json!({"id": id, "active": true})).unwrap()["active"],
+            set_enabled(&core, &json!({"id": id, "enabled": true})).unwrap()["enabled"],
             true
+        );
+        assert_eq!(
+            delete(&core, &json!({"id": "no-such-skill"})).unwrap()["removed"],
+            false
         );
         assert_eq!(
             uninstall(&core, &json!({"id": id})).unwrap()["removed"],

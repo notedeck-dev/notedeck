@@ -1,5 +1,6 @@
-//! カラムクエリの編集履歴 capability (`queries.*`、#1117)。本体は
-//! `notecore::sidecar::queries`。作成・編集は開発者モードのエディタ (デバイス) が担う。
+//! カラムクエリの capability (`queries.*`、#1117 / #1233)。本体は
+//! `notecore::sidecar::queries`。作成・更新は式の検証がデバイスにしか無いので
+//! デバイス (`queries.create` / `queries.update`) が担い、ここは読取・削除・履歴。
 
 use serde_json::{json, Value};
 
@@ -49,6 +50,43 @@ fn history_of(core: &Core, item: &Item) -> Result<Vec<HistoryEntry>> {
     Ok(queries::history(&notecore::sidecar::base_dir(core)?, item))
 }
 
+fn meta_of(q: &Item) -> Value {
+    json!({
+        "id": q.id,
+        "name": q.name(),
+        "description": q.description(),
+        "active": queries::is_active(q),
+        "storeId": q.str("storeId"),
+    })
+}
+
+pub fn list(core: &Core) -> Result<Value> {
+    Ok(Value::Array(
+        queries::list(core)?.iter().map(meta_of).collect(),
+    ))
+}
+
+pub fn read(core: &Core, p: &Value) -> Result<Value> {
+    let q = require(core, "queries.read", p)?;
+    let mut v = meta_of(&q);
+    v["src"] = Value::String(q.src.clone());
+    Ok(v)
+}
+
+/// `queries.delete`: id で消す。無ければ removed: false。適用中のカラムからの
+/// 剥がしはデバイスが変更通知で行う
+pub fn delete(core: &Core, p: &Value) -> Result<Value> {
+    let id = s(p, "id");
+    if id.is_empty() {
+        return Err(invalid("queries.delete: id is required".into()));
+    }
+    let existed = queries::get(core, id)?;
+    if let Some(q) = &existed {
+        notecore::sidecar::remove_item(core, &queries::KIND, &q.file_base)?;
+    }
+    Ok(json!({ "id": id, "removed": existed.is_some() }))
+}
+
 pub fn history(core: &Core, p: &Value) -> Result<Value> {
     let q = require(core, "queries.history", p)?;
     Ok(serde_json::to_value(history_of(core, &q)?)?)
@@ -79,6 +117,21 @@ pub fn revert(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
 }
 
 pub fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Option<Value>> {
+    if id == "queries.delete" {
+        let Some(cur) = queries::get(core, s(p, "id"))? else {
+            return Ok(None);
+        };
+        return Ok(Some(confirm(
+            "danger",
+            text("_native.preview.queries.delete.title", json!({})),
+            Some(text(
+                "_native.preview.queries.delete.message",
+                json!({ "name": cur.name() }),
+            )),
+            text("_native.preview.queries.delete.ok", json!({})),
+            json!({ "code": cur.src, "codeLanguage": "aiscript" }),
+        )));
+    }
     if id != "queries.revert" {
         return Ok(None);
     }
@@ -185,5 +238,50 @@ mod tests {
             .unwrap_err()
             .to_string()
             .contains("queries.revert: cannot change it because its source file is missing"));
+    }
+
+    #[test]
+    fn list_read_and_delete() {
+        let (_d, core, base) = temp_core();
+        std::fs::write(
+            base.join("queries/a.meta.json5"),
+            "{ id: 'a', name: 'A', description: 'd', active: false, createdAt: 1, updatedAt: 1 }",
+        )
+        .unwrap();
+        std::fs::write(base.join("queries/a.is"), "note.text != null").unwrap();
+        let ctx = ExecContext {
+            principal: "user".into(),
+            ..Default::default()
+        };
+        let l = list(&core).unwrap();
+        assert_eq!(l.as_array().unwrap().len(), 1);
+        assert_eq!(l[0]["name"], "A");
+        assert_eq!(l[0]["active"], false);
+        assert!(l[0].get("src").is_none());
+        let r = read(&core, &json!({"id": "a"})).unwrap();
+        assert_eq!(r["src"], "note.text != null");
+        assert_eq!(r["description"], "d");
+        assert!(read(&core, &json!({"id": "zz"}))
+            .unwrap_err()
+            .to_string()
+            .contains("query \"zz\" not found"));
+        let pv = preview(&core, "queries.delete", &json!({"id": "a"}), &ctx)
+            .unwrap()
+            .unwrap();
+        assert_eq!(pv["code"], "note.text != null");
+        assert!(preview(&core, "queries.delete", &json!({"id": "zz"}), &ctx)
+            .unwrap()
+            .is_none());
+        assert_eq!(delete(&core, &json!({"id": "a"})).unwrap()["removed"], true);
+        assert!(!base.join("queries/a.is").exists());
+        assert!(!base.join("queries/a.meta.json5").exists());
+        assert_eq!(
+            delete(&core, &json!({"id": "a"})).unwrap()["removed"],
+            false
+        );
+        assert!(delete(&core, &json!({}))
+            .unwrap_err()
+            .to_string()
+            .contains("id is required"));
     }
 }

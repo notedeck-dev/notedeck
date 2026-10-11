@@ -4,7 +4,7 @@ import {
   skillsCreateCapability,
   skillsInstallCapability,
   skillsListCapability,
-  skillsToggleCapability,
+  skillsSetEnabledCapability,
   skillsUninstallCapability,
 } from './skills'
 
@@ -20,10 +20,10 @@ describe('skill capabilities — declaration', () => {
     expect(skillsListCapability.signature?.cheap).toBe(true)
   })
 
-  it('skills.toggle: write permission, no confirm (= 可逆な切替)', () => {
-    expect(skillsToggleCapability.id).toBe('skills.toggle')
-    expect(skillsToggleCapability.permissions).toEqual(['skills.write'])
-    expect(skillsToggleCapability.requiresConfirmation).not.toBe(true)
+  it('skills.setEnabled: write permission, no confirm (= 可逆な切替)', () => {
+    expect(skillsSetEnabledCapability.id).toBe('skills.setEnabled')
+    expect(skillsSetEnabledCapability.permissions).toEqual(['skills.write'])
+    expect(skillsSetEnabledCapability.requiresConfirmation).not.toBe(true)
   })
 
   it('skills.install: write + network.external, confirmation', () => {
@@ -82,13 +82,14 @@ describe('SKILLS_BUILTIN_CAPABILITIES', () => {
     expect(SKILLS_BUILTIN_CAPABILITIES.map((c) => c.id).sort()).toEqual([
       'skills.append',
       'skills.create',
+      'skills.delete',
       'skills.history',
       'skills.install',
       'skills.list',
       'skills.read',
       'skills.replaceSection',
       'skills.revert',
-      'skills.toggle',
+      'skills.setEnabled',
       'skills.uninstall',
     ])
   })

@@ -112,12 +112,12 @@ pub fn history(core: &Core, p: &Value) -> Result<Value> {
 
 // --- 書込 ---
 
-pub fn set_active(core: &Core, p: &Value) -> Result<Value> {
-    let mut item = require(core, "plugins.setActive", p)?;
-    let active = p.get("active").and_then(Value::as_bool) == Some(true);
-    item.ensure_writable("plugins.setActive")?;
-    plugins::set_active(core, &mut item, active)?;
-    Ok(json!({ "installId": item.id, "active": active }))
+pub fn set_enabled(core: &Core, p: &Value) -> Result<Value> {
+    let mut item = require(core, "plugins.setEnabled", p)?;
+    let enabled = p.get("enabled").and_then(Value::as_bool) == Some(true);
+    item.ensure_writable("plugins.setEnabled")?;
+    plugins::set_active(core, &mut item, enabled)?;
+    Ok(json!({ "installId": item.id, "enabled": enabled }))
 }
 
 pub fn delete(core: &Core, p: &Value) -> Result<Value> {
@@ -229,8 +229,8 @@ pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value>
 
 pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Option<Value>> {
     Ok(match id {
-        "plugins.setActive" => {
-            if p.get("active").and_then(Value::as_bool) != Some(true) {
+        "plugins.setEnabled" => {
+            if p.get("enabled").and_then(Value::as_bool) != Some(true) {
                 return Ok(None);
             }
             let Some(cur) = plugins::get(core, s(p, "installId"))? else {
@@ -238,12 +238,12 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             };
             Some(confirm(
                 "warning",
-                text("_native.preview.plugins.setActive.title", json!({})),
+                text("_native.preview.plugins.setEnabled.title", json!({})),
                 Some(text(
-                    "_native.preview.plugins.setActive.message",
+                    "_native.preview.plugins.setEnabled.message",
                     json!({ "name": cur.name() }),
                 )),
-                text("_native.preview.plugins.setActive.ok", json!({})),
+                text("_native.preview.plugins.setEnabled.ok", json!({})),
                 json!({ "installPreview": install_preview(&cur) }),
             ))
         }
@@ -432,11 +432,11 @@ mod tests {
         assert_eq!(l[0]["author"], Value::Null);
         assert_eq!(l[0]["storeId"], Value::Null);
         assert_eq!(l[0]["permissions"], json!(["a"]));
-        // setActive: 無効化は確認なし、有効化は確認あり
+        // setEnabled: 無効化は確認なし、有効化は確認あり
         assert!(preview(
             &core,
-            "plugins.setActive",
-            &json!({"installId": "p", "active": false}),
+            "plugins.setEnabled",
+            &json!({"installId": "p", "enabled": false}),
             &ctx
         )
         .await
@@ -444,8 +444,8 @@ mod tests {
         .is_none());
         let pv = preview(
             &core,
-            "plugins.setActive",
-            &json!({"installId": "p", "active": true}),
+            "plugins.setEnabled",
+            &json!({"installId": "p", "enabled": true}),
             &ctx,
         )
         .await
@@ -454,7 +454,7 @@ mod tests {
         assert_eq!(pv["installPreview"]["permissions"], json!(["a"]));
         assert!(pv["installPreview"].get("author").is_none());
         assert_eq!(
-            set_active(&core, &json!({"installId": "p", "active": true})).unwrap()["active"],
+            set_enabled(&core, &json!({"installId": "p", "enabled": true})).unwrap()["enabled"],
             true
         );
         assert!(read(&core, &json!({"installId": "p"})).unwrap()["active"]
@@ -551,7 +551,7 @@ mod tests {
             "{ installId: 'o', name: 'O', version: '1' }",
         );
         assert!(
-            set_active(&core, &json!({"installId": "o", "active": true}))
+            set_enabled(&core, &json!({"installId": "o", "enabled": true}))
                 .unwrap_err()
                 .to_string()
                 .contains(notecore::sidecar::READ_ONLY_REASON)

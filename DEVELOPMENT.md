@@ -1024,9 +1024,10 @@ const { activate, deactivate } = useMenuKeyboard({
 - 設定 UI からの変更も同じ singleton に流れるため即時反映
 
 **自己改変系 capability の安全弁:**
-- skill / widget / plugin / theme の **write 系 capability** (例: `skills.create`, `skills.replaceSection`, `widgets.create`, `plugins.update`, `theme.create`) も `aiTool: true` で tool calling に露出する (plugin 導入時の `aiTool: false` ガードは #107 で廃止)
+- skill / widget / plugin / theme の **write 系 capability** (例: `skills.create`, `skills.replaceSection`, `widgets.create`, `plugins.update`, `themes.create`) も `aiTool: true` で tool calling に露出する (plugin 導入時の `aiTool: false` ガードは #107 で廃止)
 - 安全弁は 2 層: permission (`skills.write` 等。preset に加え #712 で principal 別解決、`skills.write` は plugin / external に恒久 deny) + `requiresConfirmation` の **確認ダイアログ** (引数 JSON は code block + Shiki シンタックスハイライトで表示)
 - `aiTool: false` が残るのは `ai.chat` (プラグイン専用 — AI 自身からの再帰呼び出し防止) のみ。詳細は [SKILLS.md §5.2](SKILLS.md)
+- **配布物の動詞は 1 つの語彙** ([#1233](https://github.com/notedeck-dev/notedeck/issues/1233)): plugin / widget / query / skill / theme の capability は `list` / `read` / `create` / `update` / `delete` / `install` / `uninstall` / `setEnabled` / `history` / `revert` を基本の動詞にし、kind にしか無い操作だけ kind 側の名前で残す (`widgets.setAutoRun` は有効フラグではないので別名、`themes.apply` は選択、`skills.append` / `skills.replaceSection` は AI が育てる長い本文向けの部分更新で、全置換の `skills.update` は意図的に置かない)。`delete` はローカル id で消す (無ければ `removed: false`)、`uninstall` はストア由来を外す (plugin / widget は storeId でも引け、無ければエラー)。theme の名前空間は他と同じ複数形 `themes.*` で、権限キーも `themes.read` / `themes.write` (読取系も他の配布物と同じく権限で守る。`permissions: []` は external に素通りする)。権限キーと capability id の改名に移行は無い (β): 古い `permissions.json5` の `theme.write` は読み捨てられて既定 (false) に戻り、`confirmSkips` の旧 id も効かなくなるので、更新後に設定し直す
 
 ### AI Capability Registry
 
@@ -1181,9 +1182,9 @@ healthcheck は doctor とキャッシュ統計を notecore の `health_core` �
 - `src/stores/theme.ts` — `manualMode` (`'light' | 'dark' | null`) + `isCurrentDark` の合流点
 - `src/capabilities/builtins/theme.ts` — theme.* capability 群
 
-**per-account 紐付け:** `theme.create` は作成時に当該 account の `installedFor` に自動追加。プロファイル切替で適用範囲が切り替わる (詳細は [DESIGN.md] の「per-account 設定」)。
+**per-account 紐付け:** `themes.create` は作成時に当該 account の `installedFor` に自動追加。プロファイル切替で適用範囲が切り替わる (詳細は [DESIGN.md] の「per-account 設定」)。
 
-**自動モード切替:** `theme.apply(id, mode?)` は明示 mode 指定がない場合でも、テーマの base (`light` / `dark`) に応じて `manualMode` を自動切替し、画面が即時更新される。AI が theme 作成 → apply のフローで「画面が変わる」体験を成立させるための仕組み。
+**自動モード切替:** `themes.apply(id, mode?)` は明示 mode 指定がない場合でも、テーマの base (`light` / `dark`) に応じて `manualMode` を自動切替し、画面が即時更新される。AI が theme 作成 → apply のフローで「画面が変わる」体験を成立させるための仕組み。
 
 
 ### パフォーマンス設定

@@ -3,31 +3,31 @@ import { useThemeStore } from '@/stores/theme'
 import { implement, implementCore } from '../declare'
 
 /**
- * `theme.list` — インストール済みテーマの一覧を返す。
- * AI が `theme.apply` で渡す ID を確認するために使う。
+ * `themes.list` — インストール済みテーマの一覧を返す。
+ * AI が `themes.apply` で渡す ID を確認するために使う。
  */
-export const themeListCapability = implementCore('theme.list')
+export const themeListCapability = implementCore('themes.list')
 
 /**
- * `theme.apply` — 指定 id のテーマを適用する。
+ * `themes.apply` — 指定 id のテーマを適用する。
  * テーマの `base` ('dark' | 'light') から適用先 mode を自動判定する。
- * `theme.list` で取得した id を渡す想定。
+ * `themes.list` で取得した id を渡す想定。
  */
 /**
- * `theme.read` — 指定 id のテーマの中身 (props) を返す。
- * AI が「現在の配色を見て調整」のように、theme.update を呼ぶ前の現状把握用。
- * 色情報は機密ではないため permission 不要 (theme.list / apply と同じ扱い)。
+ * `themes.read` — 指定 id のテーマの中身 (props) を返す。
+ * AI が「現在の配色を見て調整」のように、themes.update を呼ぶ前の現状把握用。
+ * 読取は `themes.read` 権限 (他の配布物の read と同じ扱い、#1233)。
  */
-export const themeReadCapability = implementCore('theme.read')
+export const themeReadCapability = implementCore('themes.read')
 
-export const themeApplyCapability = implement('theme.apply', {
+export const themeApplyCapability = implement('themes.apply', {
   execute: (params) => {
     const id = typeof params?.id === 'string' ? params.id : ''
-    if (!id) throw new Error('theme.apply: id is required')
+    if (!id) throw new Error('themes.apply: id is required')
     const store = useThemeStore()
     const theme = store.get(id)
     if (!theme) {
-      throw new Error(`theme.apply: theme "${id}" is not installed`)
+      throw new Error(`themes.apply: theme "${id}" is not installed`)
     }
     const explicitMode =
       params?.mode === 'dark' || params?.mode === 'light' ? params.mode : null
@@ -44,26 +44,26 @@ export const themeApplyCapability = implement('theme.apply', {
 })
 
 /**
- * `theme.create` — 新規テーマを installedThemes に追加する。
+ * `themes.create` — 新規テーマを installedThemes に追加する。
  * AI が「ユーザーの好みに合わせて配色提案」「メモのトーンに合わせた季節テーマ」
  * のように動的にテーマを作るための capability。frontmatter 相当の id は
  * 衝突しないよう自動生成 (`custom-<timestamp>`) でも、明示指定でも OK。
  */
-export const themeCreateCapability = implementCore('theme.create')
+export const themeCreateCapability = implementCore('themes.create')
 
 /**
- * `theme.update` — 既存テーマの props / name / base を部分更新する。
+ * `themes.update` — 既存テーマの props / name / base を部分更新する。
  * 内部的には installTheme (= upsert) を呼ぶので、id 不一致なら新規扱いに
  * ならないよう execute 側で必ず id 存在チェックを行う。
  */
-export const themeUpdateCapability = implementCore('theme.update')
+export const themeUpdateCapability = implementCore('themes.update')
 
-export const themeHistoryCapability = implementCore('theme.history')
+export const themeHistoryCapability = implementCore('themes.history')
 
-export const themeRevertCapability = implementCore('theme.revert')
+export const themeRevertCapability = implementCore('themes.revert')
 
 /**
- * `theme.install` — MisStore (store.notedeck.io) から既製テーマを取得して
+ * `themes.install` — MisStore (store.notedeck.io) から既製テーマを取得して
  * installedThemes に追加する。AI が「ダークなら Dracula が定番」のように
  * 推薦して install まで一気通貫で実行できるようにするためのラッパ。
  *
@@ -71,15 +71,18 @@ export const themeRevertCapability = implementCore('theme.revert')
  * sha512 検証・$notedeck.storeId 紐付け・既存 installedFor の union は
  * misstore store 側で実装済。
  */
-export const themeInstallCapability = implementCore('theme.install')
+export const themeInstallCapability = implementCore('themes.install')
 
 /**
- * `theme.uninstall` — インストール済みテーマを完全削除する。
+ * `themes.uninstall` — インストール済みテーマを完全削除する。
  * cross-account (Global) からの除去と同等で、ファイル・selection・
  * applyCurrentTheme まで連動する。per-account 紐付けの解除は別途
  * 設計が必要なため、ここではシンプルに「完全削除」に統一する。
  */
-export const themeUninstallCapability = implementCore('theme.uninstall')
+export const themeUninstallCapability = implementCore('themes.uninstall')
+
+/** `themes.delete` — id で削除する (無ければ removed: false) */
+export const themeDeleteCapability = implementCore('themes.delete')
 
 export const THEME_BUILTIN_CAPABILITIES: readonly Command[] = [
   themeListCapability,
@@ -89,6 +92,7 @@ export const THEME_BUILTIN_CAPABILITIES: readonly Command[] = [
   themeUpdateCapability,
   themeInstallCapability,
   themeUninstallCapability,
+  themeDeleteCapability,
   themeHistoryCapability,
   themeRevertCapability,
 ]

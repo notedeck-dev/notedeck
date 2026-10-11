@@ -65,17 +65,17 @@ pub fn list(core: &Core) -> Result<Value> {
 pub fn read(core: &Core, p: &Value) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
-        return Err(invalid("theme.read: id is required".into()));
+        return Err(invalid("themes.read: id is required".into()));
     }
     let t = themes::get(core, id)?
-        .ok_or_else(|| invalid(format!("theme.read: theme \"{id}\" is not installed")))?;
+        .ok_or_else(|| invalid(format!("themes.read: theme \"{id}\" is not installed")))?;
     Ok(json!({ "id": t.id, "name": t.name, "base": t.base, "props": t.props }))
 }
 
 pub fn history(core: &Core, p: &Value) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
-        return Err(invalid("theme.history: id is required".into()));
+        return Err(invalid("themes.history: id is required".into()));
     }
     Ok(serde_json::to_value(themes::history(core, id)?)?)
 }
@@ -85,12 +85,12 @@ pub fn history(core: &Core, p: &Value) -> Result<Value> {
 pub async fn create(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let name = s(p, "name");
     if name.is_empty() {
-        return Err(invalid("theme.create: name is required".into()));
+        return Err(invalid("themes.create: name is required".into()));
     }
     let base = base_param(p)
-        .ok_or_else(|| invalid("theme.create: base must be \"dark\" or \"light\"".into()))?;
+        .ok_or_else(|| invalid("themes.create: base must be \"dark\" or \"light\"".into()))?;
     let props = string_record(p.get("props"))
-        .ok_or_else(|| invalid("theme.create: props must be an object of string values".into()))?;
+        .ok_or_else(|| invalid("themes.create: props must be an object of string values".into()))?;
     let explicit = s(p, "id");
     let id = if explicit.is_empty() {
         format!("custom-{}", crate::ai_sessions::now_ms())
@@ -129,15 +129,15 @@ fn theme_update_patch(p: &Value, cur: &Theme) -> ThemePatch {
 pub fn update(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
-        return Err(invalid("theme.update: id is required".into()));
+        return Err(invalid("themes.update: id is required".into()));
     }
     let cur = themes::get(core, id)?
-        .ok_or_else(|| invalid(format!("theme.update: theme \"{id}\" is not installed")))?;
+        .ok_or_else(|| invalid(format!("themes.update: theme \"{id}\" is not installed")))?;
     let patch = theme_update_patch(p, &cur);
     let baseline =
         themes::serialize_theme_display(&themes::merge_theme_update(&cur, &ThemePatch::default()));
-    let key = staged::key("theme.update", ctx, p);
-    let text = staged::take_or("theme.update", &key, &baseline, || {
+    let key = staged::key("themes.update", ctx, p);
+    let text = staged::take_or("themes.update", &key, &baseline, || {
         themes::serialize_theme_display(&themes::merge_theme_update(&cur, &patch))
     })?;
     themes::install_theme(core, &text, &[], Some(&attribution(ctx, p)))?;
@@ -151,16 +151,16 @@ fn index_of(p: &Value) -> i64 {
 pub fn revert(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
-        return Err(invalid("theme.revert: id is required".into()));
+        return Err(invalid("themes.revert: id is required".into()));
     }
     let index = index_of(p);
     if index < 0 {
-        return Err(invalid("theme.revert: index must be >= 0".into()));
+        return Err(invalid("themes.revert: index must be >= 0".into()));
     }
     let entries = themes::history(core, id)?;
     let Some(entry) = entries.get(index as usize) else {
         return Err(invalid(format!(
-            "theme.revert: no snapshot at index {index}"
+            "themes.revert: no snapshot at index {index}"
         )));
     };
     let snap = themes::theme_from_snapshot(&entry.snapshot);
@@ -171,8 +171,8 @@ pub fn revert(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
             themes::serialize_theme_display(&themes::merge_theme_update(c, &ThemePatch::default()))
         })
         .unwrap_or_default();
-    let key = staged::key("theme.revert", ctx, p);
-    let text = staged::take_or("theme.revert", &key, &baseline, || {
+    let key = staged::key("themes.revert", ctx, p);
+    let text = staged::take_or("themes.revert", &key, &baseline, || {
         themes::serialize_theme_display(&snap)
     })?;
     themes::install_theme(core, &text, &[], Some(&attribution(ctx, p)))?;
@@ -182,14 +182,24 @@ pub fn revert(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
 pub fn uninstall(core: &Core, p: &Value) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
-        return Err(invalid("theme.uninstall: id is required".into()));
+        return Err(invalid("themes.uninstall: id is required".into()));
     }
     if !themes::remove(core, id)? {
         return Err(invalid(format!(
-            "theme.uninstall: theme \"{id}\" is not installed"
+            "themes.uninstall: theme \"{id}\" is not installed"
         )));
     }
     Ok(json!({ "id": id, "removed": true }))
+}
+
+/// `themes.delete`: id で消す。無ければ removed: false
+pub fn delete(core: &Core, p: &Value) -> Result<Value> {
+    let id = s(p, "id");
+    if id.is_empty() {
+        return Err(invalid("themes.delete: id is required".into()));
+    }
+    let removed = themes::remove(core, id)?;
+    Ok(json!({ "id": id, "removed": removed }))
 }
 
 /// `buildThemeWithMeta`: 配布ファイルに storeId / storeSha512 / storeVersion と installedFor を足す。
@@ -224,24 +234,26 @@ fn theme_with_meta(
 pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
-        return Err(invalid("theme.install: id is required".into()));
+        return Err(invalid("themes.install: id is required".into()));
     }
     let Some(entry) = registry_entry(core, "themes", id).await? else {
         return Err(invalid(format!(
-            "theme.install: theme \"{id}\" not found in MisStore (try misstore.search first)"
+            "themes.install: theme \"{id}\" not found in MisStore (try misstore.search first)"
         )));
     };
     let (source, hash) = fetch_verified_source(core, &entry).await?;
     let Some((parsed, _)) = themes::parse_theme_code(&source) else {
-        return Err(invalid("theme.install: failed to install the theme".into()));
+        return Err(invalid(
+            "themes.install: failed to install the theme".into(),
+        ));
     };
     let existing = themes::list(core)?
         .into_iter()
         .find(|t| t.store_id() == Some(id));
     if let Some(cur) = &existing {
-        let key = staged::key("theme.install", ctx, p);
+        let key = staged::key("themes.install", ctx, p);
         ensure_approved_hash(
-            "theme.install",
+            "themes.install",
             &key,
             &themes::serialize_theme_display(cur),
             &hash,
@@ -278,7 +290,7 @@ fn summary(base: &str, props: usize) -> Text {
 
 pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Option<Value>> {
     Ok(match id {
-        "theme.create" => {
+        "themes.create" => {
             let base = if s(p, "base") == "light" {
                 "light"
             } else {
@@ -323,7 +335,7 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 }),
             ))
         }
-        "theme.update" => {
+        "themes.update" => {
             let Some(cur) = themes::get(core, s(p, "id"))? else {
                 return Ok(None);
             };
@@ -365,7 +377,7 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 }),
             ))
         }
-        "theme.revert" => {
+        "themes.revert" => {
             let tid = s(p, "id");
             let index = index_of(p);
             if tid.is_empty() || index < 0 {
@@ -407,7 +419,7 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                 }),
             ))
         }
-        "theme.install" => {
+        "themes.install" => {
             let tid = s(p, "id");
             if tid.is_empty() {
                 return Ok(None);
@@ -473,7 +485,7 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
             }
             Some(out)
         }
-        "theme.uninstall" => {
+        "themes.uninstall" | "themes.delete" => {
             let Some(cur) = themes::get(core, s(p, "id"))? else {
                 return Ok(None);
             };
@@ -541,7 +553,7 @@ mod tests {
         assert_eq!(list(&core).unwrap()[0]["author"], Value::Null);
         // update: preview の diff と execute の staged が一致し、props はマージ
         let p = json!({"id": "neo", "props": {"panel": "#111", "accent": "#0f0"}, "reason": "r"});
-        let pv = preview(&core, "theme.update", &p, &ctx)
+        let pv = preview(&core, "themes.update", &p, &ctx)
             .await
             .unwrap()
             .unwrap();
@@ -584,7 +596,7 @@ mod tests {
             "#f00"
         );
         // uninstall の確認と実行
-        let pv = preview(&core, "theme.uninstall", &json!({"id": "neo"}), &ctx)
+        let pv = preview(&core, "themes.uninstall", &json!({"id": "neo"}), &ctx)
             .await
             .unwrap()
             .unwrap();

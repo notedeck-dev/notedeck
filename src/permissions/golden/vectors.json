@@ -26,7 +26,8 @@
     "ai.memory.write",
     "skills.read",
     "skills.write",
-    "theme.write",
+    "themes.read",
+    "themes.write",
     "styles.write",
     "navbar.write",
     "keybinds.write",
@@ -85,6 +86,7 @@
         "queries.read",
         "queries.write",
         "skills.read",
+        "themes.read",
         "widgets.read",
         "widgets.write"
       ]
@@ -119,6 +121,7 @@
         "skills.read",
         "skills.write",
         "tasks.run",
+        "themes.read",
         "widgets.read",
         "widgets.write"
       ]
@@ -140,6 +143,7 @@
         "plugins.read",
         "queries.read",
         "skills.read",
+        "themes.read",
         "widgets.read"
       ]
     },
@@ -181,7 +185,8 @@
         "queries.write",
         "skills.read",
         "styles.write",
-        "theme.write",
+        "themes.read",
+        "themes.write",
         "vault.use",
         "widgets.read",
         "widgets.write"
@@ -204,6 +209,7 @@
         "plugins.read",
         "queries.read",
         "skills.read",
+        "themes.read",
         "widgets.read"
       ]
     },
@@ -234,6 +240,7 @@
         "queries.read",
         "queries.write",
         "skills.read",
+        "themes.read",
         "widgets.read",
         "widgets.write"
       ]
@@ -290,6 +297,7 @@
         "plugins.read",
         "queries.read",
         "skills.read",
+        "themes.read",
         "widgets.read"
       ]
     },
@@ -321,6 +329,7 @@
         "plugins.read",
         "queries.read",
         "skills.read",
+        "themes.read",
         "widgets.read"
       ]
     },
@@ -372,7 +381,8 @@
         "queries.write",
         "skills.read",
         "styles.write",
-        "theme.write",
+        "themes.read",
+        "themes.write",
         "vault.use",
         "widgets.read",
         "widgets.write"
@@ -430,7 +440,8 @@
         "skills.write",
         "styles.write",
         "tasks.run",
-        "theme.write",
+        "themes.read",
+        "themes.write",
         "vault.use",
         "widgets.read",
         "widgets.write"
@@ -453,6 +464,7 @@
         "plugins.read",
         "queries.read",
         "skills.read",
+        "themes.read",
         "widgets.read"
       ]
     },
@@ -473,6 +485,7 @@
         "plugins.read",
         "queries.read",
         "skills.read",
+        "themes.read",
         "widgets.read"
       ]
     },
@@ -515,6 +528,7 @@
         "queries.read",
         "queries.write",
         "skills.read",
+        "themes.read",
         "widgets.read",
         "widgets.write"
       ]
@@ -547,6 +561,7 @@
         "plugins.read",
         "queries.read",
         "skills.read",
+        "themes.read",
         "widgets.read"
       ]
     },
@@ -567,6 +582,7 @@
         "plugins.read",
         "queries.read",
         "skills.read",
+        "themes.read",
         "widgets.read"
       ]
     },
@@ -613,7 +629,8 @@
         "skills.write",
         "styles.write",
         "tasks.run",
-        "theme.write",
+        "themes.read",
+        "themes.write",
         "vault.use",
         "widgets.read",
         "widgets.write"

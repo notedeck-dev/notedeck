@@ -8,7 +8,7 @@ import {
   pluginsCreateCapability,
   pluginsInstallCapability,
   pluginsListCapability,
-  pluginsSetActiveCapability,
+  pluginsSetEnabledCapability,
   pluginsUninstallCapability,
   pluginsUpdateCapability,
 } from './plugins'
@@ -91,11 +91,11 @@ describe('plugin capabilities — declaration', () => {
     ).rejects.toThrow(/src is required/)
   })
 
-  it('plugins.setActive: write permission, aiTool:true, install preview confirmation (有効化時のみ)', () => {
-    expect(pluginsSetActiveCapability.id).toBe('plugins.setActive')
-    expect(pluginsSetActiveCapability.permissions).toEqual(['plugins.write'])
-    expect(pluginsSetActiveCapability.aiTool).toBe(true)
-    expect(typeof pluginsSetActiveCapability.requiresConfirmation).toBe(
+  it('plugins.setEnabled: write permission, aiTool:true, install preview confirmation (有効化時のみ)', () => {
+    expect(pluginsSetEnabledCapability.id).toBe('plugins.setEnabled')
+    expect(pluginsSetEnabledCapability.permissions).toEqual(['plugins.write'])
+    expect(pluginsSetEnabledCapability.aiTool).toBe(true)
+    expect(typeof pluginsSetEnabledCapability.requiresConfirmation).toBe(
       'function',
     )
   })
@@ -193,7 +193,7 @@ describe('PLUGINS_BUILTIN_CAPABILITIES', () => {
       'plugins.list',
       'plugins.read',
       'plugins.revert',
-      'plugins.setActive',
+      'plugins.setEnabled',
       'plugins.uninstall',
       'plugins.update',
     ])

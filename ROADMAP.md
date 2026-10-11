@@ -870,11 +870,11 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 
 **Step 4.6: 自己拡張する IDE** (Hackable layer)
 - [x] **skill / theme / widget / plugin 編集 capability** — AI が IDE 自身を
-  編集できる: `skills.{append,replaceSection,toggle}` / `theme.{create,update,apply}` /
+  編集できる: `skills.{append,replaceSection,setEnabled}` / `themes.{create,update,apply}` /
   `widgets.{create,update,delete,setAutoRun}` / `plugins.{create,update,setActive,delete}`。
   全カテゴリで編集履歴 + revert (`*.history` / `*.revert`) 完備。
   write 系は `aiTool:false` ガードで AI から見えず、明示的に有効化が必要。
-  `theme.create` は `installedFor` で per-account 紐付け、`theme.apply` は manualMode 自動切替
+  `themes.create` は `installedFor` で per-account 紐付け、`themes.apply` は manualMode 自動切替
 - [x] **プラグインから本体 AI を呼ぶ `ai.chat` capability** + AI Actions プラグイン
 - [x] **AI 自己内省** — `meta.permissions` / `meta.activeSkills` / `meta.persona` /
   `meta.config` / `ai.sessions.{list,read,search}` / `logs.recent` で

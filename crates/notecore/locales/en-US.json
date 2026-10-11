@@ -131,7 +131,7 @@
         }
       },
       "plugins": {
-        "setActive": {
+        "setEnabled": {
           "title": "Enable plugin",
           "message": "Enables {name}. Its handlers start, and operations covered by the permissions below may run.",
           "ok": "Enable"
@@ -300,6 +300,11 @@
           "title": "Restore query to an earlier state",
           "message": "Restores {name} to edit history #{index} ({at}). The current source will be overwritten.",
           "ok": "Restore this state"
+        },
+        "delete": {
+          "title": "Delete query",
+          "message": "Permanently deletes {name}. Its source, metadata and edit history are removed, and columns using it stop filtering with it. This can’t be undone.",
+          "ok": "Delete"
         }
       },
       "cancel": "Cancel"
@@ -559,11 +564,16 @@
       "list": "List plugins",
       "read": "Read plugin AiScript",
       "revert": "Revert plugin to a past state",
-      "setActive": "Enable / disable plugin",
+      "setEnabled": "Enable / disable plugin",
       "uninstall": "Uninstall plugin",
       "update": "Update plugin AiScript"
     },
     "queries": {
+      "list": "List queries",
+      "read": "Read query source",
+      "create": "Create query",
+      "update": "Update query source",
+      "delete": "Delete query",
       "history": "Query edit history",
       "revert": "Revert query to a past state"
     },
@@ -582,13 +592,14 @@
     "skills": {
       "append": "Append to skill",
       "create": "Create skill",
+      "delete": "Delete skill",
       "history": "Get skill edit history",
       "install": "Install skill from MisStore",
       "list": "List skills",
       "read": "Read skill",
       "replaceSection": "Replace skill section",
       "revert": "Revert skill to a past state",
-      "toggle": "Enable / disable skill",
+      "setEnabled": "Enable / disable skill",
       "uninstall": "Uninstall skill"
     },
     "styles": {
@@ -601,9 +612,10 @@
     "tasks": {
       "run": "Run task"
     },
-    "theme": {
+    "themes": {
       "apply": "Apply theme",
       "create": "Create theme",
+      "delete": "Delete theme",
       "history": "Theme edit history",
       "install": "Install theme from MisStore",
       "list": "List themes",

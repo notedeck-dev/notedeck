@@ -291,11 +291,16 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | plugins | `plugins.list` | プラグイン一覧 | `plugins.read` | — |
 | plugins | `plugins.read` | プラグインの AiScript を読む | `plugins.read` | — |
 | plugins | `plugins.revert` | プラグインを過去の状態に戻す | `plugins.write` | あり |
-| plugins | `plugins.setActive` | プラグインの有効/無効を切替 | `plugins.write` | あり |
+| plugins | `plugins.setEnabled` | プラグインの有効/無効を切替 | `plugins.write` | あり |
 | plugins | `plugins.uninstall` | プラグインを削除 | `plugins.write` | あり |
 | plugins | `plugins.update` | プラグインの AiScript を更新 | `plugins.write` | あり |
+| queries | `queries.create` | クエリを作成 | `queries.write` | あり |
+| queries | `queries.delete` | クエリを削除 | `queries.write` | あり |
 | queries | `queries.history` | クエリの編集履歴 | `queries.read` | — |
+| queries | `queries.list` | クエリ一覧 | `queries.read` | — |
+| queries | `queries.read` | クエリのソースを読む | `queries.read` | — |
 | queries | `queries.revert` | クエリを過去の状態に戻す | `queries.write` | あり |
+| queries | `queries.update` | クエリのソースを更新 | `queries.write` | あり |
 | registry | `registry.delete` | registry の値を削除 | `account.write` | あり |
 | registry | `registry.get` | registry の値を取得 | `account.read` | — |
 | registry | `registry.listKeys` | registry の key 一覧 | `account.read` | — |
@@ -304,13 +309,14 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | sidebar | `sidebar.toggle` | サイドバーで開閉 | `deck.write` | — |
 | skills | `skills.append` | スキル本文に追記 | `skills.write` | あり |
 | skills | `skills.create` | スキルを作成 | `skills.write` | あり |
+| skills | `skills.delete` | スキルを削除 | `skills.write` | あり |
 | skills | `skills.history` | スキルの編集履歴を取得 | `skills.read` | — |
 | skills | `skills.install` | MisStore からスキルを入れる | `skills.write`, `network.external` | あり |
 | skills | `skills.list` | スキル一覧 | `skills.read` | — |
 | skills | `skills.read` | スキル本文を読む | `skills.read` | — |
 | skills | `skills.replaceSection` | スキルのセクションを置換 | `skills.write` | あり |
 | skills | `skills.revert` | スキルを過去の編集前状態に戻す | `skills.write` | あり |
-| skills | `skills.toggle` | スキルの有効/無効を切替 | `skills.write` | — |
+| skills | `skills.setEnabled` | スキルの有効/無効を切替 | `skills.write` | — |
 | skills | `skills.uninstall` | スキルを削除 | `skills.write` | あり |
 | soul | `soul.propose` | 人格の書き換えを提案 | `ai.persona.write` | あり |
 | styles | `styles.append` | カスタム CSS に追記 | `styles.write` | あり |
@@ -319,15 +325,16 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | styles | `styles.revert` | カスタム CSS を過去の状態に戻す | `styles.write` | あり |
 | styles | `styles.write` | カスタム CSS を全置換 | `styles.write` | あり |
 | tasks | `tasks.run` | タスク実行 | `tasks.run` | — |
-| theme | `theme.apply` | テーマを適用 | `deck.write` | — |
-| theme | `theme.create` | テーマを作成 | `theme.write` | あり |
-| theme | `theme.history` | テーマの編集履歴 | — | — |
-| theme | `theme.install` | MisStore からテーマを入れる | `theme.write`, `network.external` | あり |
-| theme | `theme.list` | テーマ一覧 | — | — |
-| theme | `theme.read` | テーマの内容を読む | — | — |
-| theme | `theme.revert` | テーマを過去の状態に戻す | `theme.write` | あり |
-| theme | `theme.uninstall` | テーマを削除 | `theme.write` | あり |
-| theme | `theme.update` | テーマを更新 | `theme.write` | あり |
+| themes | `themes.apply` | テーマを適用 | `deck.write` | — |
+| themes | `themes.create` | テーマを作成 | `themes.write` | あり |
+| themes | `themes.delete` | テーマを削除 | `themes.write` | あり |
+| themes | `themes.history` | テーマの編集履歴 | `themes.read` | — |
+| themes | `themes.install` | MisStore からテーマを入れる | `themes.write`, `network.external` | あり |
+| themes | `themes.list` | テーマ一覧 | `themes.read` | — |
+| themes | `themes.read` | テーマの内容を読む | `themes.read` | — |
+| themes | `themes.revert` | テーマを過去の状態に戻す | `themes.write` | あり |
+| themes | `themes.uninstall` | テーマを削除 | `themes.write` | あり |
+| themes | `themes.update` | テーマを更新 | `themes.write` | あり |
 | time | `time.now` | 現在時刻を取得 | — | — |
 | ui | `ui.notify` | デスクトップ通知 | `notifications` | — |
 | user | `user.follow` | ユーザーをフォロー | `account.write` | あり |
@@ -384,7 +391,7 @@ capability は原則 **`ApiAdapter` 経由** (`src/adapters/types.ts` + `src/ada
 
 ### 4.1 capability の id 命名規則
 
-- **`<subject>.<verb>` のドット区切り** (例: `notes.read`, `theme.apply`)
+- **`<subject>.<verb>` のドット区切り** (例: `notes.read`, `themes.apply`)
 - AI に渡す tool name は Anthropic / OpenAI の制約 (`^[a-zA-Z0-9_-]{1,128}$`) に合わせて **`.` → `_`** に自動変換される (`time.now` → `time_now`)
 - AI からの応答も sanitized name で来るが、dispatcher が逆引きするので意識不要
 
@@ -422,7 +429,7 @@ AI には `tool_result` の `content` として文字列化された結果が返
 | ローカル索引の読取 (`notes.readArchive`) | | | ✓ | 個別 |
 | 軽い書き込み (`notes.react` / `clips.write` / `drafts.write` / `clipboard` / `notifications` / `tasks.run` / `ai.invoke` / `deck.write`) | | ✓ | ✓ | 個別 |
 | 自己編集系 (`memos.write` / `skills.write` / `widgets.write` / `plugins.write` / `queries.write` / `ai.memory.write`) | | ✓ | ✓ | 個別 |
-| UI 設定 write (`theme.write` / `styles.write` / `navbar.write` / `keybinds.write` / `performance.write`) | | | ✓ | 個別 |
+| UI 設定 write (`themes.write` / `styles.write` / `navbar.write` / `keybinds.write` / `performance.write`) | | | ✓ | 個別 |
 | 高リスク write (`notes.write` / `account.write` / `account.actAs` / `drive.write` / `network.external` / `vault.use` / `ai.persona.write` / `files.export` / `backup.create`) | | | ✓ | 個別 |
 
 - キーの一覧は `crates/notecore/capabilities.json5` の `permissions` 節が正本 (TS / Rust の `PERMISSION_KEYS` はそこから生成、`pnpm gen:capabilities`)
@@ -438,9 +445,9 @@ AI には `tool_result` の `content` として文字列化された結果が返
 
 ### 5.2 自己改変系 capability の安全弁
 
-skill / widget / plugin / theme の **書き込み系 capability** (`skills.create|append|replaceSection` / `widgets.create|update|delete` / `plugins.create|update|delete|setActive` / `theme.create|update|revert` 等) は `aiTool: true` で tool calling に露出する (plugin 導入時の `aiTool: false` ガードは #107 で AI 開放に伴い廃止)。現在の安全弁は 3 層:
+skill / widget / plugin / theme の **書き込み系 capability** (`skills.create|append|replaceSection` / `widgets.create|update|delete` / `plugins.create|update|delete|setEnabled` / `themes.create|update|revert` 等) は `aiTool: true` で tool calling に露出する (plugin 導入時の `aiTool: false` ガードは #107 で AI 開放に伴い廃止)。現在の安全弁は 3 層:
 
-1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `theme.write` は preset (`safe` / `full`) か custom で許可されたときだけ通る。#712 以降は principal 別に解決され、`skills.write` / `ai.persona.write` / `ai.memory.write` (AI 指示チャネル) は plugin / external principal に対し保存値に関わらず恒久 deny (confused deputy 防止)
+1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `themes.write` は preset (`safe` / `full`) か custom で許可されたときだけ通る。#712 以降は principal 別に解決され、`skills.write` / `ai.persona.write` / `ai.memory.write` (AI 指示チャネル) は plugin / external principal に対し保存値に関わらず恒久 deny (confused deputy 防止)
 2. **確認ダイアログ**: `requiresConfirmation` で dispatch 直前にユーザー承認 (#714 の「今後確認しない」で capability 単位のスキップ可)
 3. **capability 個別ガード**: `skills.create` の frontmatter 遮断 + id 内部生成、`aiscript.validate` preflight 等
 
@@ -512,12 +519,12 @@ LLM は曖昧な指示で長文を返しがちなので、形式制約が効き�
 
 ```markdown
 テーマ変更を頼まれたら:
-1. theme.list で id を取得
+1. themes.list で id を取得
 2. ユーザー指定の名前と一致するテーマの id を選ぶ
-3. theme.apply(id) で適用
+3. themes.apply(id) で適用
 ```
 
-→ 「テーマを変えて」だけだと AI が `theme.apply` を呼ばずテキストだけで「変えました」と嘘応答するケースが防げます。
+→ 「テーマを変えて」だけだと AI が `themes.apply` を呼ばずテキストだけで「変えました」と嘘応答するケースが防げます。
 
 ---
 
@@ -552,12 +559,12 @@ LLM は曖昧な指示で長文を返しがちなので、形式制約が効き�
 
 ユーザーが「テーマを <名前> に変えて」「ダークにして」「明るくして」等と言ったとき:
 
-1. theme.list で id 一覧を取得
+1. themes.list で id 一覧を取得
 2. ユーザー指定の名前と各テーマの name を fuzzy match
    - 完全一致 → そのテーマ
    - 部分一致 → 最初の候補 (複数あれば候補をリストして確認)
    - "ダーク" "明るく" 等の汎用語 → installed の中で該当 base のテーマ
-3. theme.apply(id) で適用
+3. themes.apply(id) で適用
 4. "<テーマ名> を適用しました" と返す
 
 失敗時:
