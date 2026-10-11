@@ -27,6 +27,12 @@ export interface AiScriptEnvOptions {
   api?: (endpoint: string, params: Record<string, unknown>) => Promise<unknown>
   /** localStorage のキー prefix（Mk:save/Mk:load 用） */
   storagePrefix?: string
+  /**
+   * 名前空間化の前の prefix (#1202 決定 (h))。Mk:load は `storagePrefix` に
+   * 無い鍵だけここから読む。書くのは常に `storagePrefix` (次の Mk:save から
+   * 名前空間つきになる)。ウィジェットの `app-<installId>` だけが使う
+   */
+  legacyStoragePrefix?: string
   /** Mk:dialog のUI実装 */
   onDialog?: (
     title: string,
@@ -139,7 +145,12 @@ export function createAiScriptEnv(
   consts['Mk:load'] = values.FN_NATIVE(([keyVal]) => {
     if (keyVal?.type !== 'str') return values.NULL
     try {
-      const raw = getStorageString(storageKey(keyVal.value))
+      let raw = getStorageString(storageKey(keyVal.value))
+      if (raw === null && options.legacyStoragePrefix) {
+        raw = getStorageString(
+          `nd-aiscript-${options.legacyStoragePrefix}:${keyVal.value}`,
+        )
+      }
       if (raw === null) return values.NULL
       return utils.jsToVal(JSON.parse(raw))
     } catch {

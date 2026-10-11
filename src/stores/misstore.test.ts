@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PluginMeta } from '@/stores/plugins'
 import type { SkillMeta } from '@/stores/skills'
-import type { WidgetMeta } from '@/stores/widgets'
+import type { WidgetItem } from '@/stores/widgets'
 
 const h = vi.hoisted(() => ({
   skillsStore: {
@@ -20,10 +20,20 @@ const h = vi.hoisted(() => ({
     recordStoreBaseline: vi.fn(),
   },
   widgetsStore: {
-    widgets: [] as unknown[],
-    addWidget: vi.fn(),
-    applyStoreUpdate: vi.fn(),
-    recordStoreBaseline: vi.fn(),
+    items: [] as unknown[],
+    ensureLoaded: vi.fn(),
+    get: vi.fn((id: string) =>
+      (h.widgetsStore.items as { id?: string }[]).find((w) => w.id === id),
+    ),
+    add: vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      id: input.id ?? 'w-test-1',
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    link: vi.fn(async () => true),
+    applyStoreUpdate: vi.fn(async () => true),
+    recordStoreBaseline: vi.fn(async () => undefined),
   },
   queriesStore: {
     items: [] as unknown[],
@@ -164,7 +174,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   h.skillsStore.skills = []
   h.pluginsStore.plugins = []
-  h.widgetsStore.widgets = []
+  h.widgetsStore.items = []
   h.queriesStore.items = []
   h.themeStore.installedThemes = []
   h.themeStore.installTheme.mockResolvedValue(true)
@@ -703,23 +713,28 @@ describe('installWidget', () => {
   it('既存 (storeId 一致) は early return せず本体とメタを上書き更新する (#913)', async () => {
     const store = useMisStoreStore()
     const source = '<: "widget v2"'
-    const existing = { installId: 'w0', storeId: 'ent-widget' } as WidgetMeta
-    const updated = { ...existing, src: source } as WidgetMeta
-    h.widgetsStore.widgets = [existing]
-    h.widgetsStore.applyStoreUpdate.mockReturnValue(updated)
+    const existing = {
+      id: 'w0',
+      store: { id: 'ent-widget' },
+      content: '',
+    } as WidgetItem
+    h.widgetsStore.items = [existing]
     fetchMock.mockResolvedValue(okText(source))
     await expect(
       store.installWidget(widgetEntry({ sha512: sha512Hex(source) })),
-    ).resolves.toBe(updated)
+    ).resolves.toBe(existing)
     expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'w0',
       expect.objectContaining({
-        src: source,
-        storeSha512: sha512Hex(source),
-        storeVersion: '1.0.0',
+        content: source,
+        store: {
+          id: 'ent-widget',
+          sha512: sha512Hex(source),
+          version: '1.0.0',
+        },
       }),
     )
-    expect(h.widgetsStore.addWidget).not.toHaveBeenCalled()
+    expect(h.widgetsStore.add).not.toHaveBeenCalled()
     expect(store.installingWidget).toBeNull()
   })
 
@@ -732,70 +747,61 @@ describe('installWidget', () => {
     )
     expect(widget).toMatchObject({
       // 新規インストールのローカル ID = storeId (#913)
-      installId: 'ent-widget',
+      id: 'ent-widget',
       name: 'Test Widget',
-      src: source,
-      autoRun: true,
-      storeId: 'ent-widget',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      content: source,
+      extra: { autoRun: true },
+      store: { id: 'ent-widget', sha512: sha512Hex(source), version: '1.0.0' },
+      // scope を渡さなければ全体スコープ
+      scope: { kind: 'shared', global: true, installedFor: [] },
     })
-    expect(h.widgetsStore.addWidget).toHaveBeenCalledWith(widget)
+    expect(h.widgetsStore.add).toHaveBeenCalledTimes(1)
     expect(store.installingWidget).toBeNull()
   })
 
-  it('accountKey 指定: 同 storeId でもアカウント無しの個体があれば別個体として新規作成する (#1061)', async () => {
+  it('scope 指定: 既存の本体があれば増やさず紐付けを足す (#1202 決定 (b))', async () => {
     const store = useMisStoreStore()
     const source = '<: "widget"'
-    h.widgetsStore.widgets = [
-      { installId: 'ent-widget', storeId: 'ent-widget', src: source },
+    h.widgetsStore.items = [
+      { id: 'ent-widget', store: { id: 'ent-widget' }, content: source },
     ]
     fetchMock.mockResolvedValue(okText(source))
-    const widget = await store.installWidget(
-      widgetEntry({ sha512: sha512Hex(source) }),
-      'misskey.io:u1',
-    )
-    expect(widget).toMatchObject({
-      storeId: 'ent-widget',
-      accountKey: 'misskey.io:u1',
+    await store.installWidget(widgetEntry({ sha512: sha512Hex(source) }), {
+      kind: 'account',
+      key: 'misskey.io:u1',
     })
-    // ファイル名の正本は storeId のまま、ローカル ID は衝突を避けて suffix
-    expect(widget.installId).not.toBe('ent-widget')
-    expect(h.widgetsStore.addWidget).toHaveBeenCalledWith(widget)
-    expect(h.widgetsStore.applyStoreUpdate).not.toHaveBeenCalled()
+    expect(h.widgetsStore.add).not.toHaveBeenCalled()
+    expect(h.widgetsStore.link).toHaveBeenCalledWith('ent-widget', {
+      kind: 'account',
+      key: 'misskey.io:u1',
+    })
+    // 本文が同じなら確認は挟まず、ストア由来の基準だけ記録し直す
+    expect(h.confirm).not.toHaveBeenCalled()
+    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
   })
 
-  it('accountKey 指定: 同じアカウントの個体があれば更新扱い (#1061)', async () => {
+  it('scope 指定で新規なら、その紐付けを持つ本体を作る', async () => {
     const store = useMisStoreStore()
-    const source = '<: "widget v2"'
-    const existing = {
-      installId: 'w-acc',
-      storeId: 'ent-widget',
-      accountKey: 'misskey.io:u1',
-    } as WidgetMeta
-    h.widgetsStore.widgets = [
-      { installId: 'ent-widget', storeId: 'ent-widget' },
-      existing,
-    ]
-    h.widgetsStore.applyStoreUpdate.mockReturnValue({
-      ...existing,
-      src: source,
-    })
+    const source = '<: "widget"'
     fetchMock.mockResolvedValue(okText(source))
-    await store.installWidget(
-      widgetEntry({ sha512: sha512Hex(source) }),
-      'misskey.io:u1',
+    await store.installWidget(widgetEntry({ sha512: sha512Hex(source) }), {
+      kind: 'account',
+      key: 'misskey.io:u1',
+    })
+    expect(h.widgetsStore.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: {
+          kind: 'shared',
+          global: false,
+          installedFor: ['misskey.io:u1'],
+        },
+      }),
     )
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
-      'w-acc',
-      expect.objectContaining({ src: source }),
-    )
-    expect(h.widgetsStore.addWidget).not.toHaveBeenCalled()
   })
 
   it('isWidgetInstalled matches by storeId', () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [{ storeId: 'ent-widget' }]
+    h.widgetsStore.items = [{ store: { id: 'ent-widget' } }]
     expect(store.isWidgetInstalled(widgetEntry())).toBe(true)
     expect(store.isWidgetInstalled(widgetEntry({ id: 'other' }))).toBe(false)
   })
@@ -889,49 +895,32 @@ describe('更新検知 (#1040)', () => {
   it('hasWidgetUpdate: 記録済み storeSha512 と registry sha512 の不一致で true', () => {
     const store = useMisStoreStore()
     const entry = widgetEntry({ sha512: 'sha-new' })
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-old' },
+    h.widgetsStore.items = [
+      { id: 'w0', store: { id: 'ent-widget', sha512: 'sha-old' } },
     ]
     expect(store.hasWidgetUpdate(entry)).toBe(true)
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-new' },
+    h.widgetsStore.items = [
+      { id: 'w0', store: { id: 'ent-widget', sha512: 'sha-new' } },
     ]
     expect(store.hasWidgetUpdate(entry)).toBe(false)
-  })
-
-  it('hasWidgetUpdate: 同 storeId の個体が複数あれば 1 つでも古ければ true (#1061)', () => {
-    const store = useMisStoreStore()
-    const entry = widgetEntry({ sha512: 'sha-new' })
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-new' },
-      {
-        installId: 'w1',
-        storeId: 'ent-widget',
-        storeSha512: 'sha-old',
-        accountKey: 'misskey.io:u1',
-      },
-    ]
-    expect(store.hasWidgetUpdate(entry)).toBe(true)
   })
 
   it('未インストール / storeSha512 未記録 (baseline 前) は false', () => {
     const store = useMisStoreStore()
     const entry = widgetEntry({ sha512: 'sha-new' })
-    h.widgetsStore.widgets = []
+    h.widgetsStore.items = []
     expect(store.hasWidgetUpdate(entry)).toBe(false)
-    h.widgetsStore.widgets = [{ installId: 'w0', storeId: 'ent-widget' }]
+    h.widgetsStore.items = [{ id: 'w0', store: { id: 'ent-widget' } }]
     expect(store.hasWidgetUpdate(entry)).toBe(false)
   })
 
   it('version 文字列は判定に使わない (同一 version でも sha 不一致なら更新あり)', () => {
     const store = useMisStoreStore()
     const entry = widgetEntry({ sha512: 'sha-new', version: '1.0.0' })
-    h.widgetsStore.widgets = [
+    h.widgetsStore.items = [
       {
-        installId: 'w0',
-        storeId: 'ent-widget',
-        storeSha512: 'sha-old',
-        storeVersion: '1.0.0',
+        id: 'w0',
+        store: { id: 'ent-widget', sha512: 'sha-old', version: '1.0.0' },
       },
     ]
     expect(store.hasWidgetUpdate(entry)).toBe(true)
@@ -977,22 +966,21 @@ describe('更新検知 (#1040)', () => {
 describe('baseline 無通知記録 (#1040)', () => {
   it('fetchWidgets: storeSha512 未記録のインストール済みへ現行値を記録する', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [{ installId: 'w0', storeId: 'ent-widget' }]
+    h.widgetsStore.items = [{ id: 'w0', store: { id: 'ent-widget' } }]
     const entry = widgetEntry({ sha512: 'sha-now', version: '2.0.0' })
     fetchMock.mockResolvedValue(okJson({ widgets: [entry] }))
     await store.fetchWidgets()
+    // widget は envelope のストア由来 3 点の形で受ける (#1202 段階 1)
     expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w0', {
-      storeSha512: 'sha-now',
-      storeVersion: '2.0.0',
+      sha512: 'sha-now',
+      version: '2.0.0',
     })
   })
 
-  it('fetchWidgets: 同 storeId の個体が複数あれば未記録の全個体に baseline を記録する (#1061)', async () => {
+  it('fetchWidgets: 記録済みの本体には baseline を記録しない', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget' },
-      { installId: 'w1', storeId: 'ent-widget', accountKey: 'misskey.io:u1' },
-      { installId: 'w2', storeId: 'ent-widget', storeSha512: 'sha-cur' },
+    h.widgetsStore.items = [
+      { id: 'w2', store: { id: 'ent-widget', sha512: 'sha-cur' } },
     ]
     fetchMock.mockResolvedValue(
       okJson({
@@ -1000,21 +988,13 @@ describe('baseline 無通知記録 (#1040)', () => {
       }),
     )
     await store.fetchWidgets()
-    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledTimes(2)
-    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w0', {
-      storeSha512: 'sha-cur',
-      storeVersion: '1.2.0',
-    })
-    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w1', {
-      storeSha512: 'sha-cur',
-      storeVersion: '1.2.0',
-    })
+    expect(h.widgetsStore.recordStoreBaseline).not.toHaveBeenCalled()
   })
 
   it('記録済み storeSha512 があるものには触れない (更新検知を上書きしない)', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-old' },
+    h.widgetsStore.items = [
+      { id: 'w0', store: { id: 'ent-widget', sha512: 'sha-old' } },
     ]
     fetchMock.mockResolvedValue(
       okJson({ widgets: [widgetEntry({ sha512: 'sha-now' })] }),
@@ -1073,7 +1053,7 @@ describe('baseline 無通知記録 (#1040)', () => {
 
   it('インストールされていない registry エントリには何も記録しない', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [{ installId: 'w9', storeId: 'other-widget' }]
+    h.widgetsStore.items = [{ id: 'w9', store: { id: 'other-widget' } }]
     fetchMock.mockResolvedValue(okJson({ widgets: [widgetEntry()] }))
     await store.fetchWidgets()
     expect(h.widgetsStore.recordStoreBaseline).not.toHaveBeenCalled()
@@ -1128,8 +1108,8 @@ describe('ハッシュ不一致の 1 回リトライ (#1040)', () => {
       .mockResolvedValueOnce(okJson({ widgets: [freshEntry] }))
       .mockResolvedValueOnce(okText(newSrc))
     const widget = await store.installWidget(staleEntry)
-    expect(widget.storeSha512).toBe(sha512Hex(newSrc))
-    expect(widget.storeVersion).toBe('1.1.0')
+    expect(widget.store?.sha512).toBe(sha512Hex(newSrc))
+    expect(widget.store?.version).toBe('1.1.0')
   })
 })
 
@@ -1138,18 +1118,14 @@ describe('更新適用 (#1040)', () => {
     const store = useMisStoreStore()
     const oldSrc = '<: "local edit"'
     const newSrc = '<: "widget v2"'
-    h.widgetsStore.widgets = [
+    h.widgetsStore.items = [
       {
-        installId: 'w0',
-        storeId: 'ent-widget',
+        id: 'w0',
+        store: { id: 'ent-widget' },
         name: 'My Widget',
-        src: oldSrc,
+        content: oldSrc,
       },
     ]
-    h.widgetsStore.applyStoreUpdate.mockReturnValue({
-      installId: 'w0',
-      src: newSrc,
-    })
     fetchMock.mockResolvedValue(okText(newSrc))
     await store.installWidget(widgetEntry({ sha512: sha512Hex(newSrc) }))
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
@@ -1164,11 +1140,11 @@ describe('更新適用 (#1040)', () => {
     const store = useMisStoreStore()
     h.confirm.mockResolvedValueOnce(false)
     const existing = {
-      installId: 'w0',
-      storeId: 'ent-widget',
-      src: '<: "local edit"',
-    } as WidgetMeta
-    h.widgetsStore.widgets = [existing]
+      id: 'w0',
+      store: { id: 'ent-widget' },
+      content: '<: "local edit"',
+    } as WidgetItem
+    h.widgetsStore.items = [existing]
     const newSrc = '<: "widget v2"'
     fetchMock.mockResolvedValue(okText(newSrc))
     await expect(
@@ -1288,13 +1264,12 @@ describe('更新適用 (#1040)', () => {
     const store = useMisStoreStore()
     const oldSrc = '<: "widget v1"'
     const newSrc = '<: "widget v2"'
-    h.widgetsStore.widgets = [
+    h.widgetsStore.items = [
       {
-        installId: 'w0',
-        storeId: 'ent-widget',
+        id: 'w0',
+        store: { id: 'ent-widget', sha512: sha512Hex(oldSrc) },
         name: 'My Widget',
-        src: oldSrc,
-        storeSha512: sha512Hex(oldSrc),
+        content: oldSrc,
       },
     ]
     fetchMock.mockResolvedValue(okText(newSrc))
@@ -1310,9 +1285,12 @@ describe('更新適用 (#1040)', () => {
     expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'w0',
       expect.objectContaining({
-        src: newSrc,
-        storeSha512: sha512Hex(newSrc),
-        storeVersion: '2.0.0',
+        content: newSrc,
+        store: {
+          id: 'ent-widget',
+          sha512: sha512Hex(newSrc),
+          version: '2.0.0',
+        },
       }),
     )
     // 承認後の再 fetch なし: ソース取得は確認前の 1 回だけ (#981 不変条件)
@@ -1320,72 +1298,11 @@ describe('更新適用 (#1040)', () => {
     expect(store.installingWidget).toBeNull()
   })
 
-  it('updateWidget: 同 storeId の全個体に適用し、ソースが同じ個体は 1 回の確認で済ませる (#1061)', async () => {
-    const store = useMisStoreStore()
-    const oldSrc = '<: "widget v1"'
-    const newSrc = '<: "widget v2"'
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', src: oldSrc },
-      {
-        installId: 'w1',
-        storeId: 'ent-widget',
-        src: oldSrc,
-        accountKey: 'misskey.io:u1',
-      },
-    ]
-    fetchMock.mockResolvedValue(okText(newSrc))
-    const entry = widgetEntry({ sha512: sha512Hex(newSrc), version: '2.0.0' })
-    await expect(store.updateWidget(entry)).resolves.toBe(true)
-    expect(h.confirm).toHaveBeenCalledTimes(1)
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledTimes(2)
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
-      'w0',
-      expect.objectContaining({ src: newSrc }),
-    )
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
-      'w1',
-      expect.objectContaining({ src: newSrc }),
-    )
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('updateWidget: ローカル編集で分岐した個体は個別に diff 確認し、キャンセルはその個体だけ飛ばす (#1061)', async () => {
-    const store = useMisStoreStore()
-    const oldSrc = '<: "widget v1"'
-    const editedSrc = '<: "widget v1 (edited)"'
-    const newSrc = '<: "widget v2"'
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', src: oldSrc },
-      {
-        installId: 'w1',
-        storeId: 'ent-widget',
-        src: editedSrc,
-        accountKey: 'misskey.io:u1',
-      },
-    ]
-    h.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
-    fetchMock.mockResolvedValue(okText(newSrc))
-    const entry = widgetEntry({ sha512: sha512Hex(newSrc), version: '2.0.0' })
-    await expect(store.updateWidget(entry)).resolves.toBe(true)
-    expect(h.confirm).toHaveBeenCalledTimes(2)
-    const second = h.confirm.mock.calls[1]?.[0] as Record<string, unknown>
-    expect(second.diff).toEqual({
-      old: editedSrc,
-      new: newSrc,
-      language: 'aiscript',
-    })
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
-      'w0',
-      expect.anything(),
-    )
-  })
-
   it('updateWidget: キャンセルで適用しない', async () => {
     const store = useMisStoreStore()
     const newSrc = '<: "v2"'
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', src: 'old', storeSha512: 'x' },
+    h.widgetsStore.items = [
+      { id: 'w0', store: { id: 'ent-widget', sha512: 'x' }, content: 'old' },
     ]
     fetchMock.mockResolvedValue(okText(newSrc))
     h.confirm.mockResolvedValue(false)
@@ -1397,7 +1314,7 @@ describe('更新適用 (#1040)', () => {
 
   it('updateWidget: 未インストールなら fetch せず false', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = []
+    h.widgetsStore.items = []
     await expect(store.updateWidget(widgetEntry())).resolves.toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
   })

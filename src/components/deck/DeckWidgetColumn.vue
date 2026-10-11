@@ -8,14 +8,15 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { usePointerReorder } from '@/composables/usePointerReorder'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
+import type { ScopeTarget } from '@/services/distributable'
 import {
-  findWidgetInstance,
+  findWidgetByStore,
   isStoreWidgetInstalled,
 } from '@/services/widgetInstances'
+import { samePlacement, type WidgetPlacement } from '@/services/widgetPlacement'
 import {
   accountScopeKey,
   findAccountByScopeKey,
-  getAccountLabel,
   useAccountsStore,
 } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
@@ -30,7 +31,7 @@ import { useToast } from '@/stores/toast'
 import {
   generateWidgetId,
   useWidgetsStore,
-  type WidgetMeta,
+  type WidgetItem,
 } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
@@ -64,28 +65,58 @@ const { columnThemeVars, serverInfoImageUrl, scroller, scrollToTop } =
   useColumnSetup(() => props.column)
 
 /**
- * sidebar widget カラム (ナビバートグルで開閉) は sidebarWidgetIds[] を参照し、
- * non-sidebar widget カラムはカラム自身の widgetIds[] を参照する。
+ * sidebar widget カラム (ナビバートグルで開閉) は sidebarPlacements[] を参照し、
+ * non-sidebar widget カラムはカラム自身の widgetRefs[] を参照する。
  * 追加・削除の責務は deckStore 側に集約 (sidebar 判定は内部で実施)。
  */
 const isSidebar = computed(() => props.column.sidebar === true)
 
-const widgets = computed(() => {
-  const ids = isSidebar.value
-    ? widgetsStore.sidebarWidgetIds
-    : (props.column.widgetIds ?? [])
-  return ids
-    .map((id) => widgetsStore.getWidget(id))
-    .filter((w): w is NonNullable<typeof w> => w !== undefined)
-})
+const placements = computed<readonly WidgetPlacement[]>(() =>
+  isSidebar.value
+    ? widgetsStore.sidebarPlacements
+    : (props.column.widgetRefs ?? []),
+)
+
+/**
+ * 配置を動かすアカウント (#1018 / #1202 決定 (g))。配置の実行アカウント →
+ * カラムのアカウントの順。全アカウントカラムで未指定なら null (Misskey API は
+ * 呼べない)。配置が指すアカウントが現存しなければ null
+ */
+function accountIdOf(placement: WidgetPlacement): string | null {
+  if (placement.accountKey) {
+    return (
+      findAccountByScopeKey(accountsStore.accounts, placement.accountKey)?.id ??
+      null
+    )
+  }
+  return props.column.accountId
+}
+
+interface PlacedWidget {
+  placement: WidgetPlacement
+  widget: WidgetItem
+  accountId: string | null
+}
+
+const placed = computed<PlacedWidget[]>(() =>
+  placements.value.flatMap((placement) => {
+    const widget = widgetsStore.get(placement.id)
+    if (!widget) return []
+    return [{ placement, widget, accountId: accountIdOf(placement) }]
+  }),
+)
+
+function placementKey(p: WidgetPlacement): string {
+  return `${p.id}\u0000${p.accountKey ?? ''}`
+}
 
 const showEmptyState = computed(
-  () => widgets.value.length === 0 && props.column.accountId !== null,
+  () => placed.value.length === 0 && props.column.accountId !== null,
 )
 
 /** 配置から外す (可逆)。本体はライブラリに残るので確認は挟まず undo を出す。 */
-function handleRemove(installId: string) {
-  const undo = deckStore.removeWidget(props.column.id, installId)
+function handleRemove(placement: WidgetPlacement) {
+  const undo = deckStore.removeWidget(props.column.id, placement)
   if (undo) {
     useToast().show(i18n.ts._deckWidgetColumn.detached, 'info', {
       action: { label: i18n.ts._common.undo, onClick: undo },
@@ -97,19 +128,12 @@ function handleRemove(installId: string) {
 const { dragFromIndex, dragOverIndex, startDrag } = usePointerReorder({
   dataAttr: 'widget-idx',
   onReorder: (from, to) => {
-    if (isSidebar.value) {
-      const ids = [...widgetsStore.sidebarWidgetIds]
-      const [moved] = ids.splice(from, 1)
-      if (!moved) return
-      ids.splice(to, 0, moved)
-      widgetsStore.reorderSidebar(ids)
-    } else {
-      const ids = [...(props.column.widgetIds ?? [])]
-      const [moved] = ids.splice(from, 1)
-      if (!moved) return
-      ids.splice(to, 0, moved)
-      deckStore.reorderWidgetIds(props.column.id, ids)
-    }
+    const refs = [...placements.value]
+    const [moved] = refs.splice(from, 1)
+    if (!moved) return
+    refs.splice(to, 0, moved)
+    if (isSidebar.value) widgetsStore.reorderSidebar(refs)
+    else deckStore.reorderWidgetRefs(props.column.id, refs)
   },
 })
 
@@ -117,13 +141,51 @@ function handleDragStart(idx: number, e: PointerEvent) {
   startDrag(idx, e)
 }
 
+/** 内部 UUID → 安定キー (紐付けと配置はアカウントの安定キーで持つ、#1061) */
+function scopeKeyOf(accountId: string | null | undefined): string | undefined {
+  const account = accountId
+    ? accountsStore.accountMap.get(accountId)
+    : undefined
+  return account ? accountScopeKey(account) : undefined
+}
+
+/**
+ * このカラムが参加させるスコープ (#1018)。全アカウントカラムは全体、
+ * per-account カラムはそのアカウント。アカウントが見つからない (ログアウト済)
+ * なら null
+ */
+const columnScopeTarget = computed<ScopeTarget | null>(() => {
+  if (isAllAccounts(props.column)) return { kind: 'global' }
+  const key = scopeKeyOf(props.column.accountId)
+  return key ? { kind: 'account', key } : null
+})
+
+/**
+ * 全アカウントカラムで配置の実行アカウントを決める (#1018)。全アカウントの
+ * カラムはそのままだと accountId が決まらず、ウィジェットから Misskey API を
+ * 一切呼べない (「開けるが使えない」)。per-account カラムはカラムのアカウント。
+ * キャンセルは undefined
+ */
+async function pickPlacementAccount(
+  name: string,
+): Promise<{ accountId: string | null; accountKey?: string } | undefined> {
+  if (!isAllAccounts(props.column)) {
+    return { accountId: props.column.accountId }
+  }
+  const picked = await pickAccount(
+    i18n.tsx._deckWidgetColumn.pickAccountFor({ name }),
+  )
+  if (!picked) return undefined
+  return { accountId: picked, accountKey: scopeKeyOf(picked) }
+}
+
 /**
  * 新規ローカル保存ウィジェットをライブラリに追加し、ウィジェット詳細ウィンドウで開く。
- * column.widgetIds には push しない (= 配置タブには出ない)。
- * 配置はピッカー (= showLibraryPicker) から行う。
+ * カラムには配置しない (= 配置タブには出ない)。配置はピッカーから行う。
+ * このカラムの文脈で作る = そのスコープに参加した状態で始める
  */
 async function openNewWidgetEditor() {
-  let accountId: string | undefined
+  let accountId: string | null | undefined = props.column.accountId
   if (isAllAccounts(props.column)) {
     const picked = await pickAccount(
       i18n.ts._deckWidgetColumn.pickAccountForNew,
@@ -131,95 +193,60 @@ async function openNewWidgetEditor() {
     if (!picked) return
     accountId = picked
   }
-  const installId = generateWidgetId()
-  const now = Date.now()
-  widgetsStore.addWidget({
-    installId,
-    name: `Widget ${installId.slice(4, 12)}`,
-    src: '',
-    autoRun: false,
-    accountKey: scopeKeyOf(accountId),
-    createdAt: now,
-    updatedAt: now,
+  const target = columnScopeTarget.value
+  const id = generateWidgetId()
+  const widget = await widgetsStore.add({
+    id,
+    name: `Widget ${id.slice(4, 12)}`,
+    content: '',
+    scope: {
+      kind: 'shared',
+      global: target?.kind === 'global',
+      installedFor: target?.kind === 'account' ? [target.key] : [],
+    },
+    extra: { autoRun: false },
   })
-  windowsStore.open('widget-edit', {
-    widgetId: installId,
-    accountId: accountId ?? props.column.accountId,
-  })
-}
-
-/** 内部 UUID → 安定キー (ウィジェットの実行アカウントは安定キーで持つ、#1061) */
-function scopeKeyOf(accountId: string | undefined): string | undefined {
-  const account = accountId
-    ? accountsStore.accountMap.get(accountId)
-    : undefined
-  return account ? accountScopeKey(account) : undefined
-}
-
-/** ウィジェットに固定された実行アカウント (現存しなければ undefined) */
-function ownAccountOf(widget: WidgetMeta) {
-  if (!widget.accountKey) return undefined
-  return findAccountByScopeKey(accountsStore.accounts, widget.accountKey)
-}
-
-function ownAccountIdOf(widget: WidgetMeta): string | undefined {
-  return ownAccountOf(widget)?.id
-}
-
-/** ライブラリピッカーで同名の個体を見分けるためのラベル (#1061) */
-function ownAccountLabelOf(widget: WidgetMeta): string | undefined {
-  const account = ownAccountOf(widget)
-  return account ? getAccountLabel(account) : undefined
-}
-
-/**
- * ウィジェットを動かすアカウント (#1018)。ウィジェット固有の指定 → カラムの順。
- * 全アカウントのカラムはそのままだと accountId が決まらず、ウィジェットから
- * Misskey API を一切呼べない (「開けるが使えない」)。まだ決まっていなければ
- * 選ばせて、以後そのウィジェットに固定する。キャンセルは undefined。
- */
-async function resolveWidgetAccountId(
-  widget: WidgetMeta,
-): Promise<string | null | undefined> {
-  const own = ownAccountIdOf(widget)
-  if (own) return own
-  if (!isAllAccounts(props.column)) return props.column.accountId
-  const picked = await pickAccount(
-    i18n.tsx._deckWidgetColumn.pickAccountFor({ name: widget.name }),
-  )
-  if (!picked) return undefined
-  widgetsStore.setAccountKey(widget.installId, scopeKeyOf(picked))
-  return picked
+  windowsStore.open('widget-edit', { widgetId: widget.id, accountId })
 }
 
 // --- Library picker (配置タブ Add Widget ボタン) ---
 const showLibraryPicker = ref(false)
 
-/** カラムに未配置のライブラリ widget (= 配置可能候補)。 */
-const libraryCandidates = computed<WidgetMeta[]>(() => {
-  const placed = new Set(
-    isSidebar.value
-      ? widgetsStore.sidebarWidgetIds
-      : (props.column.widgetIds ?? []),
-  )
-  return widgetsStore.widgets.filter((w) => !placed.has(w.installId))
+/**
+ * 配置可能な本体。per-account カラムではこのカラムに未配置の本体、全アカウント
+ * カラムでは全部 (同じ本体を別のアカウントで置き直せる)
+ */
+const libraryCandidates = computed<WidgetItem[]>(() => {
+  if (isAllAccounts(props.column)) return widgetsStore.items
+  const placedIds = new Set(placements.value.map((p) => p.id))
+  return widgetsStore.items.filter((w) => !placedIds.has(w.id))
 })
 
 function toggleLibraryPicker() {
   showLibraryPicker.value = !showLibraryPicker.value
 }
 
-function placeFromLibrary(widget: WidgetMeta) {
-  deckStore.attachWidget(props.column.id, widget.installId)
+/** ライブラリから配置する。本体をこのカラムのスコープに参加させ、配置を足す */
+async function placeFromLibrary(widget: WidgetItem) {
+  const picked = await pickPlacementAccount(widget.name)
+  if (!picked) return
+  const target: ScopeTarget | null = picked.accountKey
+    ? { kind: 'account', key: picked.accountKey }
+    : columnScopeTarget.value
+  if (target) await widgetsStore.link(widget.id, target)
+  deckStore.attachWidget(props.column.id, {
+    id: widget.id,
+    ...(picked.accountKey ? { accountKey: picked.accountKey } : {}),
+  })
   showLibraryPicker.value = false
 }
 
-async function openLibraryWidgetEditor(widget: WidgetMeta) {
-  const accountId = await resolveWidgetAccountId(widget)
-  if (accountId === undefined) return
+async function openLibraryWidgetEditor(widget: WidgetItem) {
+  const picked = await pickPlacementAccount(widget.name)
+  if (!picked) return
   windowsStore.open('widget-edit', {
-    widgetId: widget.installId,
-    accountId,
+    widgetId: widget.id,
+    accountId: picked.accountId,
   })
 }
 
@@ -233,9 +260,9 @@ const {
 } = useAccountPicker()
 
 /** ライブラリから widget 本体を削除 (コードも消える)。
- *  本体削除前に全 widget カラムから参照を剥がして dangling id を残さない
- *  (widgetsStore 側は sidebarWidgetIds の自動 cleanup のみ)。 */
-async function deleteFromLibrary(widget: WidgetMeta) {
+ *  本体削除前に全 widget カラムから配置を剥がして dangling id を残さない
+ *  (widgetsStore 側は sidebarPlacements の自動 cleanup のみ)。 */
+async function deleteFromLibrary(widget: WidgetItem) {
   const ok = await confirm({
     title: i18n.ts._deckWidgetColumn.deleteTitle,
     message: i18n.tsx._deckWidgetColumn.deleteConfirm({ name: widget.name }),
@@ -243,8 +270,8 @@ async function deleteFromLibrary(widget: WidgetMeta) {
     type: 'danger',
   })
   if (!ok) return
-  deckStore.detachWidgetFromAllColumns(widget.installId)
-  const undo = widgetsStore.removeWidget(widget.installId)
+  deckStore.detachWidgetFromAllColumns(widget.id)
+  const undo = await widgetsStore.remove(widget.id)
   if (undo) {
     useToast().show(i18n.ts._deckWidgetColumn.deleted, 'info', {
       action: { label: i18n.ts._common.undo, onClick: undo },
@@ -264,7 +291,7 @@ const tabDefs = computed<ColumnTabDef[]>(() => [
   {
     value: 'installed',
     label: i18n.tsx._common.installedTab({
-      count: widgets.value.length,
+      count: placed.value.length,
     }),
   },
   { value: 'store', label: i18n.ts._common.store },
@@ -311,10 +338,10 @@ const capabilityChecks = computed<Record<string, CapabilityCheck>>(() => {
 })
 
 /**
- * ストアカードの「インストール済み」判定 (#1061)。個体は storeId × 実行
- * アカウントの組なので、全アカウントのカラムでは「選べるアカウント全部に
- * 個体が揃っているか」を見る。未インストールのアカウントが残るうちは
- * 通常の状態で出す (プラグインのスコープ別判定と同じ粒度)。
+ * ストアカードの「インストール済み」判定 (#1061 / #1202)。本体は storeId に
+ * つき 1 つで、どのアカウントで選べるかは紐付け。全アカウントのカラムでは
+ * 「選べるアカウント全部が紐付けにあるか」を見る。未参加のアカウントが残る
+ * うちは通常の状態で出す (プラグインのスコープ別判定と同じ粒度)
  */
 const installedStoreIds = computed(() => {
   const scope = isAllAccounts(props.column)
@@ -324,11 +351,11 @@ const installedStoreIds = computed(() => {
       } as const)
     : ({
         kind: 'account',
-        key: scopeKeyOf(props.column.accountId ?? undefined) ?? '',
+        key: scopeKeyOf(props.column.accountId) ?? '',
       } as const)
   const result = new Set<string>()
   for (const entry of misStore.widgets) {
-    const installed = isStoreWidgetInstalled(widgetsStore.widgets, entry.id, {
+    const installed = isStoreWidgetInstalled(widgetsStore.items, entry.id, {
       requiresAccount: requiresAccount(entry.capabilities ?? []),
       scope,
     })
@@ -343,10 +370,9 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
   installingId.value = entry.id
   try {
     // 全アカウントのカラムはどのアカウントで動かすかが決まらないので、
-    // アカウント必須のアイテムは先に選ばせる (#1018)。個体は storeId ×
-    // 実行アカウントの組で 1 つ (#1061): 同じ組が既にあれば attach のみ、
-    // 別アカウントなら新しい個体を作る。
-    let accountId: string | undefined
+    // アカウント必須のアイテムは先に選ばせる (#1018)。本体は storeId につき
+    // 1 つ (#1202 決定 (b)): 既にあれば参加先を足して配置するだけ
+    let accountKey: string | undefined
     if (
       requiresAccount(entry.capabilities ?? []) &&
       isAllAccounts(props.column)
@@ -355,22 +381,25 @@ async function handleStoreInstall(entry: StoreWidgetEntry) {
         i18n.tsx._deckWidgetColumn.pickAccountFor({ name: entry.name }),
       )
       if (!picked) return
-      accountId = picked
+      accountKey = scopeKeyOf(picked)
     }
-    const accountKey = scopeKeyOf(accountId)
-    const existing = findWidgetInstance(
-      widgetsStore.widgets,
-      entry.id,
-      accountKey,
-    )
+    const target: ScopeTarget | null = accountKey
+      ? { kind: 'account', key: accountKey }
+      : columnScopeTarget.value
+    const placement: WidgetPlacement = {
+      id: '',
+      ...(accountKey ? { accountKey } : {}),
+    }
+    const existing = findWidgetByStore(widgetsStore.items, entry.id)
     if (existing) {
-      deckStore.attachWidget(props.column.id, existing.installId)
+      if (target) await widgetsStore.link(existing.id, target)
+      deckStore.attachWidget(props.column.id, { ...placement, id: existing.id })
       viewTab.value = 'installed'
       return
     }
     // sha512 検証と baseline 記録は misstore 側の経路に一本化する
-    const widget = await misStore.installWidget(entry, accountKey)
-    deckStore.attachWidget(props.column.id, widget.installId)
+    const widget = await misStore.installWidget(entry, target ?? undefined)
+    deckStore.attachWidget(props.column.id, { ...placement, id: widget.id })
     viewTab.value = 'installed'
   } catch (e) {
     installError.value =
@@ -431,8 +460,8 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
           />
 
           <div
-            v-for="(widget, idx) in widgets"
-            :key="widget.installId"
+            v-for="(entry, idx) in placed"
+            :key="placementKey(entry.placement)"
             :data-widget-idx="idx"
             :class="[
               $style.widgetItem,
@@ -441,11 +470,11 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
             ]"
           >
             <WidgetAiScript
-              :widget="widget"
+              :widget="entry.widget"
               :column-id="column.id"
-              :account-id="ownAccountIdOf(widget) ?? column.accountId"
+              :account-id="entry.accountId"
               :is-sidebar="isSidebar"
-              @remove="handleRemove(widget.installId)"
+              @remove="handleRemove(entry.placement)"
               @drag-start="handleDragStart(idx, $event)"
             />
           </div>
@@ -467,13 +496,12 @@ function handleOpenStoreDetail(entry: StoreWidgetEntry) {
             </div>
             <WidgetCard
               v-for="w in libraryCandidates"
-              :key="w.installId"
+              :key="w.id"
               mode="library"
               :name="w.name"
-              :description="w.src ? `${w.src.length} chars` : i18n.ts._deckWidgetColumn.emptyCode"
-              :store-id="w.storeId"
+              :description="w.content ? `${w.content.length} chars` : i18n.ts._deckWidgetColumn.emptyCode"
+              :store-id="w.store?.id"
               :icon-url="w.iconUrl"
-              :account-label="ownAccountLabelOf(w)"
               :read-only="w.readOnly"
               @place="placeFromLibrary(w)"
               @edit="openLibraryWidgetEditor(w)"

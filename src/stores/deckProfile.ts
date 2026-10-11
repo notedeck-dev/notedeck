@@ -6,6 +6,7 @@ import {
   createProfileFiles,
   drainProfileLoadByproducts,
 } from '@/services/deckProfileFiles'
+import type { WidgetItem } from '@/services/distributableCodecs/widgetCodec'
 import { migrateSearchColumns } from '@/services/searchFilter'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import {
@@ -13,8 +14,9 @@ import {
   resolveAvailable,
   slugifyName,
 } from '@/services/settingsSlug'
+import type { WidgetPlacement } from '@/services/widgetPlacement'
 import type { DeckColumn, DeckProfile, DeckWindowLayout } from '@/stores/deck'
-import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
+import { useWidgetsStore } from '@/stores/widgets'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import * as settingsFs from '@/utils/settingsFs'
 import {
@@ -46,17 +48,22 @@ let pendingWidgetExtractionDirty = false
 let pendingSearchMigrationDirty = false
 
 /** 抽出した widget を widgetsStore に流し込む (重複 installId は skip)。 */
-function pushExtractedWidgets(extracted: WidgetMeta[], sidebarSeed: string[]) {
+function pushExtractedWidgets(
+  extracted: WidgetItem[],
+  sidebarSeed: WidgetPlacement[],
+) {
   if (extracted.length === 0 && sidebarSeed.length === 0) return
   pendingWidgetExtractionDirty = true
   const store = useWidgetsStore()
   store.ensureLoaded()
   for (const w of extracted) {
-    if (store.getWidget(w.installId)) continue
-    store.addWidget(w)
+    if (store.get(w.id)) continue
+    // 旧 widget.id をそのまま installId に使う (Mk:save キーを保全する最重要不変条件)
+    const { createdAt: _c, updatedAt: _u, ...input } = w
+    void store.add(input)
   }
-  for (const id of sidebarSeed) {
-    store.addToSidebar(id)
+  for (const placement of sidebarSeed) {
+    store.addToSidebar(placement)
   }
 }
 
@@ -295,8 +302,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
           droppedConsoleCount,
           extractedWidgets,
           sidebarSeed,
+          migratedWidgetRefs,
         } = migrateWidgetColumns(p.columns ?? [])
         pendingConsoleMigrationCount += droppedConsoleCount
+        if (migratedWidgetRefs > 0) pendingWidgetExtractionDirty = true
         pushExtractedWidgets(extractedWidgets, sidebarSeed)
         const { columns, migrated } = migrateSearchColumns(widgetMigrated)
         if (migrated > 0) pendingSearchMigrationDirty = true
@@ -556,6 +565,9 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       pendingConsoleMigrationCount += byproducts.droppedConsoleCount
       if (byproducts.migratedSearchColumns > 0) {
         pendingSearchMigrationDirty = true
+      }
+      if (byproducts.migratedWidgetRefs > 0) {
+        pendingWidgetExtractionDirty = true
       }
       pushExtractedWidgets(byproducts.extractedWidgets, byproducts.sidebarSeed)
       profilesData.value = items

@@ -1,6 +1,9 @@
 //! ウィジェット系 capability (`widgets.*`)。本体は `notecore::sidecar::widgets`。
 //! `widgets.create` / `widgets.update` は AiScript の構文検証 (preflight) が
 //! デバイスにしか無いのでデバイスに残る。表示中の再実行はデバイスが変更通知で行う。
+//!
+//! 本体は storeId につき 1 つで、どのアカウントのカラムで選べるかは紐付け配列
+//! (#1202 決定 (b))。実行アカウントはデバイスの配置が持つので、ここでは扱わない。
 
 use serde_json::{json, Value};
 
@@ -66,7 +69,7 @@ fn scope_key(a: &AccountPublic) -> String {
 
 pub async fn list(core: &Core) -> Result<Value> {
     let items = widgets::list(core)?;
-    let accounts = if items.iter().any(|w| w.account_key().is_some()) {
+    let accounts = if items.iter().any(|w| !w.installed_for().is_empty()) {
         accounts(core).await?
     } else {
         Vec::new()
@@ -75,16 +78,20 @@ pub async fn list(core: &Core) -> Result<Value> {
         items
             .iter()
             .map(|w| {
-                let account_id = w
-                    .account_key()
-                    .and_then(|k| accounts.iter().find(|a| scope_key(a) == k))
-                    .map(|a| a.id.clone());
+                // 紐付けは安定キーで持つので、現存するアカウントの内部 ID に写す
+                let account_ids: Vec<String> = w
+                    .installed_for()
+                    .iter()
+                    .filter_map(|k| accounts.iter().find(|a| &scope_key(a) == k))
+                    .map(|a| a.id.clone())
+                    .collect();
                 json!({
                     "installId": w.id,
                     "name": w.name(),
                     "autoRun": w.auto_run(),
                     "storeId": w.store_id(),
-                    "accountId": account_id,
+                    "global": w.global(),
+                    "accountIds": account_ids,
                     "updatedAt": w.updated_at(),
                 })
             })
@@ -148,17 +155,15 @@ pub fn revert(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     Ok(json!({ "installId": w.id, "reverted": true, "at": entry.at }))
 }
 
-/// installId 指定はその 1 件、storeId 指定は実行アカウント別の全個体 (#1061)。
-fn targets(core: &Core, p: &Value) -> Result<Vec<Item>> {
+/// installId 指定はその 1 件、storeId 指定はその本体 (storeId につき 1 つ)。
+fn target(core: &Core, p: &Value) -> Result<Option<Item>> {
     let install_id = s(p, "installId");
     let store_id = s(p, "storeId");
     let all = widgets::list(core)?;
     Ok(if !install_id.is_empty() {
-        all.into_iter().filter(|w| w.id == install_id).collect()
+        all.into_iter().find(|w| w.id == install_id)
     } else {
-        all.into_iter()
-            .filter(|w| w.store_id() == Some(store_id))
-            .collect()
+        widgets::find_by_store(&all, store_id).cloned()
     })
 }
 
@@ -170,20 +175,13 @@ pub fn uninstall(core: &Core, p: &Value) -> Result<Value> {
             "widgets.uninstall: installId or storeId is required".into(),
         ));
     }
-    let targets = targets(core, p)?;
-    let Some(first) = targets.first() else {
+    let Some(w) = target(core, p)? else {
         return Err(invalid(format!(
             "widgets.uninstall: widget not found (installId=\"{install_id}\" storeId=\"{store_id}\")"
         )));
     };
-    for w in &targets {
-        widgets::remove(core, w)?;
-    }
-    Ok(json!({
-        "installId": first.id,
-        "installIds": targets.iter().map(|w| w.id.clone()).collect::<Vec<_>>(),
-        "removed": true,
-    }))
+    widgets::remove(core, &w)?;
+    Ok(json!({ "installId": w.id, "removed": true }))
 }
 
 // --- MisStore ---
@@ -206,8 +204,9 @@ fn installed(w: &Item) -> Value {
     json!({ "installId": w.id, "name": w.name(), "autoRun": w.auto_run(), "installed": true })
 }
 
-/// `installWidget(entry, accountKey)`: 同じ storeId × 実行アカウントの既存があれば
-/// ソースが変わったときだけ更新、無ければ新規。
+/// `installWidget(entry, scope)`: 同じ storeId の本体があればソースが変わったときだけ
+/// 更新し、accountId が渡されていればそのアカウントの紐付けを足す。無ければ新規
+/// (accountId 付きならそのアカウント別、無ければ全体スコープ)。
 pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let id = s(p, "id");
     if id.is_empty() {
@@ -222,7 +221,7 @@ pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value>
     let (source, hash) = fetch_verified_source(core, &entry).await?;
     let icon = Some(s(&entry, "iconUrl")).filter(|u| !u.is_empty());
     let all = widgets::list(core)?;
-    if let Some(existing) = widgets::find_instance(&all, id, account_key.as_deref()) {
+    if let Some(existing) = widgets::find_by_store(&all, id) {
         let mut existing = existing.clone();
         if existing.src != source {
             let key = staged::key("widgets.install", ctx, p);
@@ -235,6 +234,9 @@ pub async fn install(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value>
                 &hash,
                 s(&entry, "version"),
             )?;
+        }
+        if let Some(k) = account_key.as_deref() {
+            widgets::link_account(core, &mut existing, k)?;
         }
         return Ok(installed(&existing));
     }
@@ -264,31 +266,21 @@ fn install_preview(name: &str) -> Value {
 pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Result<Option<Value>> {
     Ok(match id {
         "widgets.delete" | "widgets.uninstall" => {
-            let targets = if id == "widgets.delete" {
+            let cur = if id == "widgets.delete" {
                 widgets::get(core, s(p, "installId"))?
-                    .into_iter()
-                    .collect::<Vec<_>>()
             } else {
-                targets(core, p)?
+                target(core, p)?
             };
-            let Some(cur) = targets.first() else {
+            let Some(cur) = cur else {
                 return Ok(None);
-            };
-            let message = if targets.len() > 1 {
-                text(
-                    "_native.preview.widgets.delete.messageMany_plural",
-                    json!({ "name": cur.name(), "count": targets.len() - 1 }),
-                )
-            } else {
-                text(
-                    "_native.preview.widgets.delete.message",
-                    json!({ "name": cur.name() }),
-                )
             };
             Some(confirm(
                 "danger",
                 text("_native.preview.widgets.delete.title", json!({})),
-                Some(message),
+                Some(text(
+                    "_native.preview.widgets.delete.message",
+                    json!({ "name": cur.name() }),
+                )),
                 text("_native.preview.widgets.delete.ok", json!({})),
                 json!({ "installPreview": install_preview(&cur.name()) }),
             ))
@@ -375,13 +367,9 @@ pub async fn preview(core: &Core, id: &str, p: &Value, ctx: &ExecContext) -> Res
                     "codeLanguage": "plaintext",
                 }),
             );
-            // 既存 (同じ storeId × 実行アカウント) の更新: 本文の diff を 1 枚目に載せる
-            let account_key = account_key_of(core, "widgets.install", p)
-                .await
-                .ok()
-                .flatten();
+            // 既存 (同じ storeId の本体) の更新: 本文の diff を 1 枚目に載せる
             let all = widgets::list(core)?;
-            if let Some(cur) = widgets::find_instance(&all, wid, account_key.as_deref()) {
+            if let Some(cur) = widgets::find_by_store(&all, wid) {
                 if let Ok((source, hash)) = fetch_verified_source(core, &entry).await {
                     if source != cur.src {
                         localize_fields(
@@ -433,15 +421,15 @@ mod tests {
     #[tokio::test]
     async fn read_write_uninstall_and_revert() {
         let (_d, core, base) = temp_core();
-        put(&base, "w.meta.json5", "{ installId: 'w', name: 'W', autoRun: false, storeId: 'clock', createdAt: 1, updatedAt: 1 }");
+        put(&base, "w.meta.json5", "{ installId: 'w', name: 'W', autoRun: false, storeId: 'clock', global: true, createdAt: 1, updatedAt: 1 }");
         put(&base, "w.is", "a");
-        put(&base, "w2.meta.json5", "{ installId: 'w2', name: 'W', autoRun: true, storeId: 'clock', accountKey: 'h:u', createdAt: 2, updatedAt: 2 }");
+        put(&base, "w2.meta.json5", "{ installId: 'w2', name: 'W2', autoRun: true, global: false, installedFor: ['h:u'], createdAt: 2, updatedAt: 2 }");
         put(&base, "w2.is", "b");
         let ctx = ExecContext {
             principal: "user".into(),
             ..Default::default()
         };
-        // accountKey 付きの個体があるが DB が無いので list は呼ばない (blocking が待つ)
+        // 紐付け付きの本体があるが DB が無いので list は呼ばない (blocking が待つ)
         assert_eq!(
             read(&core, &json!({"installId": "w2"})).unwrap()["autoRun"],
             true
@@ -463,14 +451,11 @@ mod tests {
         .await
         .unwrap()
         .unwrap();
-        assert!(pv["message"]
-            .as_str()
-            .unwrap()
-            .starts_with("Deletes W and 1 other."));
+        assert!(pv["message"].as_str().unwrap().starts_with("Deletes W."));
         let hint = &pv["i18n"]["message"];
         assert!(
             notecore::i18n::render("ja-JP", hint["key"].as_str().unwrap(), &hint["params"])
-                .starts_with("W ほか 1 件を削除します。")
+                .starts_with("W を削除します。")
         );
         // revert
         let mut w = widgets::get(&core, "w").unwrap().unwrap();
@@ -488,8 +473,9 @@ mod tests {
         let rv = revert(&core, &json!({"installId": "w", "index": 0}), &ctx).unwrap();
         assert_eq!(rv["reverted"], true);
         assert_eq!(read(&core, &json!({"installId": "w"})).unwrap()["src"], "a");
+        // storeId 指定はその本体 1 つ
         let un = uninstall(&core, &json!({"storeId": "clock"})).unwrap();
-        assert_eq!(un["installIds"], json!(["w", "w2"]));
+        assert_eq!(un["installId"], "w");
         assert!(uninstall(&core, &json!({"installId": "w"}))
             .unwrap_err()
             .to_string()
@@ -497,6 +483,10 @@ mod tests {
         assert_eq!(
             delete(&core, &json!({"installId": "w"})).unwrap()["removed"],
             false
+        );
+        assert_eq!(
+            uninstall(&core, &json!({"installId": "w2"})).unwrap()["removed"],
+            true
         );
     }
 }

@@ -3330,7 +3330,7 @@
     },
     {
       "name": "widgets_install",
-      "description": "MisStore (store.notedeck.io) の既製ウィジェットをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 個体は storeId × 実行アカウントの組で 1 つ。同じ組が既にあれば更新して既存 installId を返す。",
+      "description": "MisStore (store.notedeck.io) の既製ウィジェットをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 本体は storeId につき 1 つ。既にあれば更新し、accountId を渡していればそのアカウントの紐付けを足して既存 installId を返す。",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -3340,7 +3340,7 @@
           },
           "accountId": {
             "type": "string",
-            "description": "どのアカウントで動かすか (全アカウントのウィジェットカラムに置く個体用)。 未指定なら実行アカウントを固定しない個体になる (per-account カラムに 置けばそのカラムのアカウントで動く)。呼び出し文脈のアカウントへは フォールバックしない。"
+            "description": "どのアカウントのカラムで選べるようにするか (紐付け)。 未指定なら全体 (どのアカウントのカラムでも選べる)。実行アカウントは カラムに置くときの配置が決める。呼び出し文脈のアカウントへは フォールバックしない。"
           }
         },
         "required": [
@@ -3421,7 +3421,7 @@
     },
     {
       "name": "widgets_uninstall",
-      "description": "インストール済みウィジェットを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。storeId 指定は 実行アカウント別の全個体を消す。 widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
+      "description": "インストール済みウィジェットを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。本体は storeId につき 1 つ。 widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
       "input_schema": {
         "type": "object",
         "properties": {

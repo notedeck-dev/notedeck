@@ -5916,8 +5916,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
           readonly "title": string
           /** {name} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。 */
           readonly "message": ParameterizedString<'name'>
-          /** {name} ほか {count} 件を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。 */
-          readonly "messageMany_plural": PluralString<'count' | 'name'>
           /** 削除 */
           readonly "ok": string
         }

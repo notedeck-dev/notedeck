@@ -1,13 +1,25 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
-import { registerSettingsFileHandler } from '@/services/settingsFileSync'
+import { withScopeTarget } from '@/services/distributable'
 import {
-  createSidecarCollection,
-  META_SUFFIX,
-  type SidecarItemFile,
-} from '@/services/sidecarFileCollection'
+  sidecarCollectionFor,
+  sidecarFileBaseOf,
+} from '@/services/distributableCodecs/sidecar'
+import {
+  type WidgetItem,
+  widgetCodec,
+} from '@/services/distributableCodecs/widgetCodec'
+import {
+  legacyWidgetStoragePrefix,
+  rewritePlacements,
+  samePlacement,
+  type WidgetPlacement,
+  type WidgetPlacementRewrite,
+  widgetStoragePrefix,
+} from '@/services/widgetPlacement'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
-import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
+import { createDistributableStore } from '@/stores/distributableStore'
+import { pushSnapshot } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import {
   getStorageByPrefix,
@@ -19,53 +31,24 @@ import {
 } from '@/utils/storage'
 import { notifyWarningToast } from '@/utils/toastNotify'
 
-export interface WidgetMeta extends SidecarItemFile {
-  installId: string
-  name: string
-  src: string
-  autoRun: boolean
-  storeId?: string
-  /** インストール/更新時に照合済みの配布ソース SHA-512 (#913。更新検知 #1040 の baseline) */
-  storeSha512?: string
-  /** インストール/更新時の registry バージョン (#913) */
-  storeVersion?: string
-  createdAt: number
-  updatedAt: number
-  /** 個別アイコン URL (MisStore registry の iconUrl 互換) */
-  iconUrl?: string
-  /**
-   * 実行アカウントの安定キー (`accountScopeKey`、#1018 / #1061)。全アカウントの
-   * カラムに置いたウィジェットは、カラムからアカウントを決められないので
-   * インストール時に選んだものをここに持つ。同じ storeId でもキーが違えば
-   * 別個体 (Mk:save 領域が個体単位なので本体を共有しない)。
-   * per-account カラムのウィジェットは未設定 — カラムの accountId で動く。
-   */
-  accountKey?: string
-  /**
-   * 旧形式の実行アカウント (内部 UUID)。ファイルから読んだ直後だけ持ち、
-   * accounts ロード後の migrateScopes で accountKey へ置換して消える。
-   */
-  legacyAccountId?: string
-}
+/**
+ * ウィジェット本体のプール。
+ *
+ * - 個体は envelope (`WidgetItem`、#1202 段階 1)。本文 (`content`) は AiScript
+ *   ソース、`extra.autoRun` は mount 時の自動実行 (有効フラグではない)
+ * - 本体は紐付け配列で共有する (決定 (b))。どのアカウントのカラムで選べるかは
+ *   `scope`、実行アカウントはカラム側の配置 (`services/widgetPlacement.ts`) が
+ *   持ち、Mk:save の状態は実行アカウントで名前空間が分かれる (決定 (g) / (h))
+ * - 保存は sidecar 形式 (`widgets/<name>.is` + `.meta.json5`)。projection は
+ *   `widgetCodec`
+ * - サイドバーのウィジェットカラム (ナビバートグルで開閉される 1 個固定) の
+ *   配置はカラムのライフサイクル外で持つ (localStorage)。再実行シグナルと
+ *   マウント数も store 外の状態としてここに置く
+ */
 
-/** Metadata fields stored in *.meta.json5 (everything except src). */
-interface WidgetFileMeta {
-  installId: string
-  name: string
-  autoRun: boolean
-  storeId?: string
-  storeSha512?: string
-  storeVersion?: string
-  createdAt: number
-  updatedAt: number
-  iconUrl?: string
-  accountKey?: string
-  /** @deprecated 旧形式 (内部 UUID)。読取専用 — migrateScopes で accountKey へ移行 */
-  accountId?: string
-}
+export type { WidgetItem } from '@/services/distributableCodecs/widgetCodec'
 
-/** .is + .meta.json5 ペアのファイル永続化 (#782 Phase 2、plugins と共通) */
-const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
+const widgetFiles = sidecarCollectionFor(widgetCodec, {
   logTag: 'widgets',
   notify: notifyWarningToast,
   kindFallback: 'widget',
@@ -77,287 +60,100 @@ const widgetFiles = createSidecarCollection<WidgetMeta, WidgetFileMeta>({
   remove: (filename) => settingsFs.deleteWidgetFile(filename),
   rename: (oldFilename, newFilename) =>
     settingsFs.renameWidgetFile(oldFilename, newFilename),
-  idOf: (w) => w.installId,
-  nameOf: (w) => w.name,
-  srcOf: (w) => w.src,
-  // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)
-  preferredBase: (w) => w.storeId,
-  toFileMeta: (w) => widgetToFileMeta(w),
-  fromFile: (meta, src, metaFile) => widgetFromFile(meta, src, metaFile),
 })
-
-/**
- * item → meta ファイルの projection。キー順と省略規則は notecore の
- * `sidecar/widgets.rs` `normalize_meta` と、codec (`services/distributableCodecs/
- * widgetCodec.ts`) の出力と一致する (storeParity.test / golden が固定)
- */
-function widgetToFileMeta(w: WidgetMeta): WidgetFileMeta {
-  return {
-    installId: w.installId,
-    name: w.name,
-    autoRun: w.autoRun,
-    ...(w.storeId ? { storeId: w.storeId } : {}),
-    ...(w.storeSha512 ? { storeSha512: w.storeSha512 } : {}),
-    ...(w.storeVersion ? { storeVersion: w.storeVersion } : {}),
-    ...(w.iconUrl ? { iconUrl: w.iconUrl } : {}),
-    ...(w.accountKey ? { accountKey: w.accountKey } : {}),
-    createdAt: w.createdAt,
-    updatedAt: w.updatedAt,
-  }
-}
-
-function widgetFromFile(
-  meta: WidgetFileMeta,
-  src: string,
-  metaFile: string,
-): WidgetMeta {
-  return {
-    installId: meta.installId || metaFile,
-    name: meta.name || metaFile,
-    src,
-    autoRun: meta.autoRun ?? false,
-    storeId: meta.storeId,
-    storeSha512: meta.storeSha512,
-    storeVersion: meta.storeVersion,
-    iconUrl: meta.iconUrl,
-    accountKey: meta.accountKey,
-    legacyAccountId: meta.accountKey ? undefined : meta.accountId,
-    createdAt: meta.createdAt ?? Date.now(),
-    updatedAt: meta.updatedAt ?? Date.now(),
-  }
-}
-
-/**
- * 内部関数の test 用 export (codec との一致検査)。プロダクトコードから直接
- * 呼ばないこと
- */
-export const _internal = {
-  toFileMeta: widgetToFileMeta,
-  fromFile: widgetFromFile,
-}
-
-// ブラウザ dev モード (Tauri 外) だけの永続化。Tauri ではファイルが唯一の正で、
-// localStorage には書かない (#1042。ウィンドウ間の追随は変更通知で行う)
-
-function loadWidgetsFromStorage(): WidgetMeta[] {
-  // 旧データは実行アカウントを内部 UUID の accountId で直接持つ (#1061)。
-  // ファイル経由 (fromFile) と同じ形に正規化しないと移行対象から漏れる
-  return getStorageJson<WidgetMeta[]>(STORAGE_KEYS.widgets, []).map((w) => {
-    const legacy = (w as WidgetMeta & { accountId?: string }).accountId
-    if (!legacy) return w
-    const { accountId: _drop, ...rest } = w as WidgetMeta & {
-      accountId?: string
-    }
-    return w.accountKey ? rest : { ...rest, legacyAccountId: legacy }
-  })
-}
-
-function saveWidgetsToStorage(widgets: WidgetMeta[]) {
-  if (settingsFs.isTauri) return
-  setStorageJson(STORAGE_KEYS.widgets, widgets)
-}
-
-function loadSidebarOrderFromStorage(): string[] {
-  return getStorageJson<string[]>(STORAGE_KEYS.widgetsSidebarOrder, [])
-}
-
-function saveSidebarOrderToStorage(ids: string[]) {
-  setStorageJson(STORAGE_KEYS.widgetsSidebarOrder, ids)
-}
 
 export function generateWidgetId(): string {
   return `wgt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
 
-export const useWidgetsStore = defineStore('widgets', () => {
-  const widgets = ref<WidgetMeta[]>([])
-  /**
-   * sidebar widget カラム (ナビバートグルで開閉される 1 個固定) に並べる widget の順序。
-   * カラムのライフサイクル外で永続化されるので、カラムを閉じても並びが消えない。
-   * non-sidebar widget カラムで作られた widget はここに自動追加されない。
-   */
-  const sidebarWidgetIds = ref<string[]>([])
-  let loaded = false
-  const initialized = ref(false)
-  // 変更系操作 (新規作成・リネーム・保存・削除) のファイル反映は
-  // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)
-  let resolveReady: (() => void) | undefined
-  const ready = new Promise<void>((resolve) => {
-    resolveReady = resolve
+/**
+ * この本体の Mk:save 領域の鍵の prefix (旧来の `app-<id>:` と名前空間つきの
+ * `app-<id>/` の 2 つ。区切りの違いは `services/widgetPlacement.ts` を参照)
+ */
+function storageAreaOf(installId: string): string[] {
+  const legacy = STORAGE_KEYS.aiscriptStorage(
+    legacyWidgetStoragePrefix(installId),
+  )
+  return [legacy, `${legacy.slice(0, -1)}/`]
+}
+
+function snapshotStorageArea(installId: string): Record<string, string> {
+  return Object.assign(
+    {},
+    ...storageAreaOf(installId).map((p) => getStorageByPrefix(p)),
+  )
+}
+
+function removeStorageArea(installId: string): void {
+  for (const p of storageAreaOf(installId)) removeStorageByPrefix(p)
+}
+
+/**
+ * Mk:save の状態を別の名前空間へ写す (複製の統合 / 固定の解除)。既にある鍵は
+ * 上書きしない (生き残る本体の状態を優先)
+ */
+function moveStorageArea(
+  fromPrefix: string,
+  toPrefix: string,
+  overwrite: boolean,
+): void {
+  const from = STORAGE_KEYS.aiscriptStorage(fromPrefix)
+  const to = STORAGE_KEYS.aiscriptStorage(toPrefix)
+  for (const [key, value] of Object.entries(getStorageByPrefix(from))) {
+    const next = to + key.slice(from.length)
+    if (!overwrite && localStorage.getItem(next) !== null) continue
+    setStorageString(next, value)
+  }
+  removeStorageByPrefix(from)
+}
+
+function loadSidebar(): WidgetPlacement[] {
+  const raw = getStorageJson<unknown[]>(STORAGE_KEYS.widgetsSidebarOrder, [])
+  // 旧形式 (installId の配列) は実行アカウント無しの配置として読む
+  return raw.flatMap((p): WidgetPlacement[] => {
+    if (typeof p === 'string') return [{ id: p }]
+    if (
+      p &&
+      typeof p === 'object' &&
+      typeof (p as WidgetPlacement).id === 'string'
+    ) {
+      return [p as WidgetPlacement]
+    }
+    return []
   })
+}
 
-  function ensureLoaded() {
-    if (loaded) return
-    loaded = true
-    sidebarWidgetIds.value = loadSidebarOrderFromStorage()
+interface UndoSnapshot {
+  storage: Record<string, string>
+  sidebar: { index: number; placement: WidgetPlacement }[]
+}
 
-    if (settingsFs.isTauri) {
-      initFileStorage()
-        .catch((e) => console.warn('[widgets] file storage init failed:', e))
-        .finally(() => resolveReady?.())
-    } else {
-      widgets.value = loadWidgetsFromStorage()
-      initialized.value = true
-      resolveReady?.()
-      scheduleScopeMigration()
-    }
+export const useWidgetsStore = defineStore('widgets', () => {
+  /**
+   * sidebar widget カラムに並べる配置。カラムのライフサイクル外で永続化される
+   * ので、カラムを閉じても並びが消えない。non-sidebar カラムで作られた
+   * ウィジェットはここに自動追加されない
+   */
+  const sidebarPlacements = ref<WidgetPlacement[]>(loadSidebar())
+  function saveSidebar(): void {
+    setStorageJson(STORAGE_KEYS.widgetsSidebarOrder, sidebarPlacements.value)
   }
 
-  /** sidebar 並び順から不在 widget を排除 (起動時のクリーンアップ) */
-  function pruneSidebarOrder() {
-    const present = new Set(widgets.value.map((w) => w.installId))
-    const filtered = sidebarWidgetIds.value.filter((id) => present.has(id))
-    if (filtered.length !== sidebarWidgetIds.value.length) {
-      sidebarWidgetIds.value = filtered
-      saveSidebarOrderToStorage(filtered)
-    }
-  }
-
-  function persist(widget?: WidgetMeta) {
-    if (!settingsFs.isTauri) {
-      saveWidgetsToStorage(widgets.value)
-      return
-    }
-    void ready
-      .then(async () => {
-        if (widget) {
-          // ref の深い reactivity で widgets.value の要素は proxy になるため、
-          // 占有判定の「操作対象自身は占有とみなさない」参照一致が崩れない
-          // よう live 要素 (proxy) を渡す
-          const live =
-            widgets.value.find((w) => w.installId === widget.installId) ??
-            widget
-          await widgetFiles.persistItem(live, widgets.value)
-        } else {
-          await widgetFiles.persistAll(widgets.value, widgets.value)
-        }
-      })
-      .catch((e) => console.warn('[widgets] failed to persist to files:', e))
-  }
-
-  /** Load widgets from files. Files are source of truth. */
-  async function initFileStorage(): Promise<void> {
-    const { items: fileWidgets } = await widgetFiles.loadAll()
-
-    // 初期化 (この async 関数が走る間) にメモリ追加された widget は残す
-    // (各自の persist が ready 後にファイル化する)
-    const fileIds = new Set(fileWidgets.map((w) => w.installId))
-    const memoryOnly = widgets.value.filter((w) => !fileIds.has(w.installId))
-
-    if (fileWidgets.length > 0) {
-      // 並び順を確定するため createdAt 昇順でソート (ファイル列挙順は OS 依存)
-      fileWidgets.sort((a, b) => a.createdAt - b.createdAt)
-      widgets.value = [...fileWidgets, ...memoryOnly]
-    }
-
-    // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
-    if (settingsFs.isMainDeckWindow()) {
-      // 規約外名の copy-adopt 正規化
-      await widgetFiles.migrateItems(widgets.value)
-      // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
-      await widgetFiles
-        .sweepHistory()
-        .catch((e) => console.warn('[widgets] history sweep failed:', e))
-    }
-
-    initialized.value = true
-    pruneSidebarOrder()
-    // 実行アカウントの安定キー化 (#1061)。files が source of truth に
-    // なった後で走らせる
-    scheduleScopeMigration()
-  }
-
-  function addWidget(widget: WidgetMeta) {
-    ensureLoaded()
-    widgets.value.push(widget)
-    persist(widget)
-  }
-
-  /** widget を削除する。undo トースト用に復元関数を返す (ファイル再書込方式) */
-  function removeWidget(installId: string): (() => void) | undefined {
-    ensureLoaded()
-    const idx = widgets.value.findIndex((w) => w.installId === installId)
-    const removed = widgets.value[idx]
-    // AiScript の Mk:save 領域を一掃 (storagePrefix='app-${installId}')。
-    // undo で戻せるよう消す前にスナップショットを取る
-    const storagePrefix = STORAGE_KEYS.aiscriptStorage(`app-${installId}`)
-    const savedStorage = getStorageByPrefix(storagePrefix)
-    removeStorageByPrefix(storagePrefix)
-    widgets.value = widgets.value.filter((w) => w.installId !== installId)
-    saveWidgetsToStorage(widgets.value)
-    // sidebar 並びからも自動的に剥がす
-    const sidebarIdx = sidebarWidgetIds.value.indexOf(installId)
-    if (sidebarIdx >= 0) {
-      sidebarWidgetIds.value = sidebarWidgetIds.value.filter(
-        (id) => id !== installId,
-      )
-      saveSidebarOrderToStorage(sidebarWidgetIds.value)
-    }
-    if (settingsFs.isTauri && removed) {
-      void ready
-        .then(() => widgetFiles.deleteItemFiles(removed))
-        .catch((e) =>
-          console.warn('[widgets] failed to delete widget files:', e),
-        )
-    }
-    if (!removed) return undefined
-    return () => {
-      if (widgets.value.some((w) => w.installId === installId)) return
-      const at = Math.min(idx, widgets.value.length)
-      widgets.value = [
-        ...widgets.value.slice(0, at),
-        removed,
-        ...widgets.value.slice(at),
-      ]
-      saveWidgetsToStorage(widgets.value)
-      for (const [key, value] of Object.entries(savedStorage)) {
-        setStorageString(key, value)
-      }
-      if (sidebarIdx >= 0 && !sidebarWidgetIds.value.includes(installId)) {
-        const sidebarAt = Math.min(sidebarIdx, sidebarWidgetIds.value.length)
-        sidebarWidgetIds.value = [
-          ...sidebarWidgetIds.value.slice(0, sidebarAt),
-          installId,
-          ...sidebarWidgetIds.value.slice(sidebarAt),
-        ]
-        saveSidebarOrderToStorage(sidebarWidgetIds.value)
-      }
-      if (settingsFs.isTauri) {
-        void ready
-          .then(() => widgetFiles.persistItem(removed, widgets.value))
-          .catch((e) =>
-            console.warn('[widgets] failed to restore widget files:', e),
-          )
-      }
-    }
-  }
-
-  function addToSidebar(installId: string) {
-    ensureLoaded()
-    if (sidebarWidgetIds.value.includes(installId)) return
-    sidebarWidgetIds.value = [...sidebarWidgetIds.value, installId]
-    saveSidebarOrderToStorage(sidebarWidgetIds.value)
-  }
-
-  function removeFromSidebar(installId: string) {
-    ensureLoaded()
-    if (!sidebarWidgetIds.value.includes(installId)) return
-    sidebarWidgetIds.value = sidebarWidgetIds.value.filter(
-      (id) => id !== installId,
-    )
-    saveSidebarOrderToStorage(sidebarWidgetIds.value)
-  }
-
-  function reorderSidebar(ids: string[]) {
-    ensureLoaded()
-    sidebarWidgetIds.value = ids
-    saveSidebarOrderToStorage(ids)
+  /**
+   * 移行で決まった配置の書き換え (旧 id → 本体 id + 実行アカウント)。デッキの
+   * プロファイルは deck store の持ち物なので、ここでは積むだけで deck が取り出す
+   */
+  const pendingPlacementRewrites = ref<WidgetPlacementRewrite[]>([])
+  function takePlacementRewrites(): WidgetPlacementRewrite[] {
+    const out = pendingPlacementRewrites.value
+    pendingPlacementRewrites.value = []
+    return out
   }
 
   // --- AI 経由の再実行シグナル (#744) ---
-  // widgets.update capability だけが requestRerun を発火し、マウント中の
-  // WidgetAiScript が rerunSignal を watch して新 src で再実行する。
-  // ユーザーの widget-edit ウィンドウでの編集 (debounce 自動保存) では発火しない。
+  // widgets.update capability と別の書き手の変更通知だけが requestRerun を発火し、
+  // マウント中の WidgetAiScript が rerunSignal を watch して新 src で再実行する。
+  // ユーザーの widget-edit ウィンドウでの編集 (debounce 自動保存) では発火しない
   const rerunSignals = ref<Map<string, number>>(new Map())
   const mountedCounts = ref<Map<string, number>>(new Map())
 
@@ -397,286 +193,258 @@ export const useWidgetsStore = defineStore('widgets', () => {
   }
 
   /**
-   * 読取専用 (ソース欠損) の個体は変更を拒否する (#1111)。保存できず端末
-   * ローカルにだけ載って次回起動で巻き戻るため、写しに書く前に抜ける
+   * 初回読込後の移行 (#1202 段階 1)。副作用 (ファイル削除 / Mk:save の移動 /
+   * 配置の書き換え) はメインウィンドウだけが行い、他のウィンドウは写しを揃える
+   * だけ (ファイルの削除は変更通知で届く)
+   * 1. 並び順を確定するため createdAt 昇順にする (ファイル列挙順は OS 依存)
+   * 2. 同じ storeId の複製を最古の本体に統合する (決定 (i)): 紐付けを束ね、
+   *    分岐した本文は本体の履歴へ、Mk:save は本体の名前空間へ写す
+   * 3. 旧形式で 1 アカウントに固定されていた本体は、その実行アカウントを配置へ
+   *    移す (決定 (g))。Mk:save も名前空間つきへ
+   * 4. サイドバーの並びから不在の本体を外す
    */
-  function rejectIfReadOnly(widget: WidgetMeta | undefined): boolean {
-    if (!widget?.readOnly) return false
-    console.warn('[widgets] read-only widget — change rejected')
-    return true
-  }
+  function migrateLoaded(items: WidgetItem[]): WidgetItem[] {
+    const effects = settingsFs.isMainDeckWindow()
+    const changed = new Set<WidgetItem>()
+    const rewrites: WidgetPlacementRewrite[] = []
+    items.sort((a, b) => a.createdAt - b.createdAt)
 
-  /** false = 読取専用で拒否 (#913 / #1111)。 */
-  function updateSrc(
-    installId: string,
-    src: string,
-    attribution?: EditAttribution,
-  ): boolean {
-    ensureLoaded()
-    const widget = widgets.value.find((w) => w.installId === installId)
-    if (!widget) return false
-    if (rejectIfReadOnly(widget)) return false
-    // 編集前 src を history sidecar に push (fire-and-forget)。
-    // 履歴キーは対応表の fileBase (未割当 = ファイル未作成なら履歴も無し)。
-    // 内容が同じ保存では積まない (plugins.updateSrc と同じ理由)
-    if (widget.fileBase && widget.src !== src) {
-      pushSnapshot(
-        'widget',
-        widget.fileBase,
-        {
-          src: widget.src,
-          name: widget.name,
-          autoRun: widget.autoRun,
-        },
-        attribution,
-      ).catch((e) => console.warn('[widgets] history push failed:', e))
+    // 2. 複製の統合
+    const byStore = new Map<string, WidgetItem[]>()
+    for (const w of items) {
+      if (!w.store) continue
+      const list = byStore.get(w.store.id) ?? []
+      list.push(w)
+      byStore.set(w.store.id, list)
     }
-    widget.src = src
-    widget.updatedAt = Date.now()
-    persist(widget)
-    return true
+    for (const [body, ...copies] of byStore.values()) {
+      if (!body || copies.length === 0) continue
+      for (const copy of copies) {
+        const key =
+          copy.extra.legacyAccountKey ??
+          (copy.scope.kind === 'shared'
+            ? copy.scope.installedFor[0]
+            : undefined)
+        if (copy.scope.kind === 'shared') {
+          for (const k of copy.scope.installedFor) {
+            body.scope = withScopeTarget(body.scope, {
+              kind: 'account',
+              key: k,
+            })
+          }
+          if (copy.scope.global) {
+            body.scope = withScopeTarget(body.scope, { kind: 'global' })
+          }
+        }
+        if (effects) {
+          if (copy.content !== body.content && body.fileBase) {
+            void pushSnapshot('widget', body.fileBase, {
+              src: copy.content,
+              name: copy.name,
+              autoRun: copy.extra.autoRun,
+            }).catch((e) => console.warn('[widgets] history push failed:', e))
+          }
+          moveStorageArea(
+            legacyWidgetStoragePrefix(copy.id),
+            widgetStoragePrefix(body.id, key),
+            false,
+          )
+          if (settingsFs.isTauri) {
+            void widgetFiles
+              .deleteItemFiles(copy)
+              .catch((e) => console.warn('[widgets] merge delete failed:', e))
+          }
+        }
+        rewrites.push({ from: copy.id, to: { id: body.id, accountKey: key } })
+        items.splice(items.indexOf(copy), 1)
+      }
+      changed.add(body)
+    }
+
+    // 3. 固定の解除
+    for (const w of items) {
+      const key = w.extra.legacyAccountKey
+      if (!key) continue
+      if (effects) {
+        moveStorageArea(
+          legacyWidgetStoragePrefix(w.id),
+          widgetStoragePrefix(w.id, key),
+          false,
+        )
+      }
+      rewrites.push({ from: w.id, to: { id: w.id, accountKey: key } })
+      w.extra = { ...w.extra, legacyAccountKey: undefined }
+      changed.add(w)
+    }
+
+    // 配置の書き換え: サイドバーは自分で、カラムは deck が取り出して行う
+    let sidebarChanged = false
+    if (rewrites.length > 0) {
+      const next = rewritePlacements(sidebarPlacements.value, rewrites)
+      if (next.changed) {
+        sidebarPlacements.value = next.placements
+        sidebarChanged = true
+      }
+      if (effects) pendingPlacementRewrites.value.push(...rewrites)
+    }
+    // 4. サイドバーの掃除
+    const present = new Set(items.map((w) => w.id))
+    const pruned = sidebarPlacements.value.filter((p) => present.has(p.id))
+    if (pruned.length !== sidebarPlacements.value.length) {
+      sidebarPlacements.value = pruned
+      sidebarChanged = true
+    }
+    if (sidebarChanged) saveSidebar()
+    return [...changed]
   }
 
-  /**
-   * 実行アカウントを固定する (#1018)。全アカウントのカラムに置いたウィジェットが
-   * どのアカウントで動くかは、カラムからは決まらないのでここに持つ。
-   */
-  function setAccountKey(
-    installId: string,
-    accountKey: string | undefined,
-  ): boolean {
-    ensureLoaded()
-    const widget = widgets.value.find((w) => w.installId === installId)
-    if (!widget) return false
-    if (rejectIfReadOnly(widget)) return false
-    widget.accountKey = accountKey
-    widget.updatedAt = Date.now()
-    persist(widget)
-    return true
+  function snapshotForUndo(w: WidgetItem): UndoSnapshot {
+    return {
+      storage: snapshotStorageArea(w.id),
+      sidebar: sidebarPlacements.value
+        .map((placement, index) => ({ index, placement }))
+        .filter((e) => e.placement.id === w.id),
+    }
   }
 
-  let scopesMigrated = false
+  function afterRemove(w: WidgetItem): void {
+    removeStorageArea(w.id)
+    if (sidebarPlacements.value.some((p) => p.id === w.id)) {
+      sidebarPlacements.value = sidebarPlacements.value.filter(
+        (p) => p.id !== w.id,
+      )
+      saveSidebar()
+    }
+  }
+
+  function restoreFromUndo(_w: WidgetItem, snapshot: unknown): void {
+    const snap = snapshot as UndoSnapshot
+    for (const [key, value] of Object.entries(snap.storage)) {
+      setStorageString(key, value)
+    }
+    if (snap.sidebar.length > 0) {
+      const next = [...sidebarPlacements.value]
+      for (const { index, placement } of snap.sidebar) {
+        if (next.some((p) => samePlacement(p, placement))) continue
+        next.splice(Math.min(index, next.length), 0, placement)
+      }
+      sidebarPlacements.value = next
+      saveSidebar()
+    }
+  }
+
+  const base = createDistributableStore<string, WidgetItem>({
+    logTag: 'widgets',
+    codec: widgetCodec,
+    files: widgetFiles,
+    settingsScope: 'widgets',
+    fileBaseOf: sidecarFileBaseOf,
+    browserStorageKey: STORAGE_KEYS.widgets,
+    generateId: generateWidgetId,
+    // 履歴の形は `widgets.revert` (notecore) とエディタの履歴窓が読むので
+    // キー名は on-disk の互換を保つ (src / name / autoRun)
+    history: {
+      kind: 'widget',
+      snapshot: (w) => ({
+        src: w.content,
+        name: w.name,
+        autoRun: w.extra.autoRun,
+      }),
+    },
+    // アカウント削除時は紐付けを外すだけ。配置の掃除は deck 側 (#1061)
+    purgeAccount: 'unlink',
+    hooks: {
+      migrate: migrateLoaded,
+      // 別の書き手 (notecore の widgets.* / 他のウィンドウ) がソースを変えたら
+      // 表示中のインスタンスに再実行を要求する。自分の編集 (エディタの自動保存)
+      // では発火しない (#744。AI 経由の保存は capability が明示的に発火する)
+      afterContentChange: (w, _prev, source) => {
+        if (source === 'external') requestRerun(w.id)
+      },
+      snapshotForUndo,
+      restoreFromUndo,
+      afterRemove,
+    },
+  })
 
   /**
-   * 実行アカウントの安定キー化 (#1061、plugins の migrateScopes と同型)。
-   * アカウント一覧が必要なので accounts ロード後に 1 回だけ走る。
-   * - 旧 accountId (UUID) → 現行アカウントに該当すれば安定キーへ置換
-   * - 該当しない UUID / 現存しない安定キー (バックアップ復元の孤児) →
-   *   「アカウント無し」へ戻す。次回実行時にアカウントを選び直させる
+   * 旧々形式 (内部 UUID の accountId) の紐付けを安定キーへ写す (#1061)。
+   * アカウント一覧が要るので accounts ロード後に 1 回だけ走る。該当する
+   * アカウントが無ければ全体スコープへ (次に使うカラムで選び直せる)
    */
-  function migrateScopes() {
+  let legacyAccountsMigrated = false
+  async function migrateLegacyAccountIds(): Promise<void> {
     const accountsStore = useAccountsStore()
-    if (!accountsStore.isLoaded || scopesMigrated) return
-    scopesMigrated = true
-    ensureLoaded()
-
+    if (!accountsStore.isLoaded || legacyAccountsMigrated) return
+    legacyAccountsMigrated = true
+    await base.whenReady()
     const uuidToKey = new Map(
       accountsStore.accounts.map((a) => [a.id, accountScopeKey(a)]),
     )
-    const liveKeys = new Set(uuidToKey.values())
-
-    for (const widget of widgets.value) {
-      let next = widget.accountKey
-      if (widget.legacyAccountId) {
-        next = uuidToKey.get(widget.legacyAccountId)
-      }
-      if (next && !liveKeys.has(next)) next = undefined
-      if (next === widget.accountKey && !widget.legacyAccountId) continue
-      widget.accountKey = next
-      widget.legacyAccountId = undefined
-      persist(widget)
+    for (const w of [...base.items.value]) {
+      const uuid = w.extra.legacyAccountId
+      if (!uuid) continue
+      const key = uuidToKey.get(uuid)
+      await base.link(w.id, key ? { kind: 'account', key } : { kind: 'global' })
+      await base.updateExtra(w.id, { legacyAccountId: undefined })
     }
   }
-
-  /** accounts のロード完了を待って migrateScopes を 1 回だけ実行する。 */
-  function scheduleScopeMigration() {
+  let legacyMigrationScheduled = false
+  function scheduleLegacyAccountMigration(): void {
+    if (legacyMigrationScheduled) return
+    legacyMigrationScheduled = true
     const accountsStore = useAccountsStore()
     if (accountsStore.isLoaded) {
-      migrateScopes()
+      void migrateLegacyAccountIds()
       return
     }
     const stop = watch(
       () => accountsStore.isLoaded,
-      (ready) => {
-        if (!ready) return
+      (loaded) => {
+        if (!loaded) return
         stop()
-        migrateScopes()
+        void migrateLegacyAccountIds()
       },
     )
   }
 
-  /**
-   * アカウント削除時に、そのアカウントに固定された個体をすべて消す (#1061)。
-   * カラムからの参照剥がしは呼び出し側 (deck) の責務。削除した installId を返す。
-   */
-  function purgeAccount(accountKey: string): string[] {
-    ensureLoaded()
-    const targets = widgets.value
-      .filter((w) => w.accountKey === accountKey)
-      .map((w) => w.installId)
-    for (const id of targets) removeWidget(id)
-    return targets
+  function ensureLoaded(): void {
+    base.ensureLoaded()
+    scheduleLegacyAccountMigration()
   }
 
-  /** false = 読取専用で拒否 (#1111)。 */
-  function setAutoRun(installId: string, autoRun: boolean): boolean {
-    ensureLoaded()
-    const widget = widgets.value.find((w) => w.installId === installId)
-    if (!widget) return false
-    if (rejectIfReadOnly(widget)) return false
-    widget.autoRun = autoRun
-    widget.updatedAt = Date.now()
-    persist(widget)
-    return true
+  /** mount 時の自動実行の切替。false = 読取専用で拒否 (#1111) */
+  function setAutoRun(installId: string, autoRun: boolean): Promise<boolean> {
+    return base.updateExtra(installId, { autoRun })
   }
 
-  /**
-   * ストア再インストール (#913): 本体 (src) とストア由来メタを上書き更新する。
-   * ローカル値 (name の改名・autoRun) は維持。ソース欠損の readOnly 個体は
-   * 検証済み配布ソースで復旧する (persist 抑止を解除)。
-   */
-  function applyStoreUpdate(
-    installId: string,
-    patch: {
-      src: string
-      iconUrl?: string
-      storeSha512: string
-      storeVersion: string
-    },
-  ): WidgetMeta | undefined {
-    ensureLoaded()
-    const widget = widgets.value.find((w) => w.installId === installId)
-    if (!widget) return undefined
-    // 編集前 src を history sidecar に push (updateSrc と同じ undo リング)
-    if (widget.fileBase && !widget.readOnly) {
-      pushSnapshot('widget', widget.fileBase, {
-        src: widget.src,
-        name: widget.name,
-        autoRun: widget.autoRun,
-      }).catch((e) => console.warn('[widgets] history push failed:', e))
-    }
-    widget.src = patch.src
-    widget.iconUrl = patch.iconUrl
-    widget.storeSha512 = patch.storeSha512
-    widget.storeVersion = patch.storeVersion
-    widget.updatedAt = Date.now()
-    widget.readOnly = undefined
-    persist(widget)
-    return widget
+  function addToSidebar(placement: WidgetPlacement) {
+    if (sidebarPlacements.value.some((p) => samePlacement(p, placement))) return
+    sidebarPlacements.value = [...sidebarPlacements.value, placement]
+    saveSidebar()
   }
 
-  /**
-   * 更新検知の基準記録 (#1040)。storeSha512 未記録のストア由来 widget へ
-   * registry 現行値を無通知で記録する。本体・ローカル値・updatedAt には
-   * 触れない (履歴 push もしない)。
-   */
-  function recordStoreBaseline(
-    installId: string,
-    patch: { storeSha512: string; storeVersion: string },
-  ): void {
-    ensureLoaded()
-    const widget = widgets.value.find((w) => w.installId === installId)
-    if (!widget) return
-    widget.storeSha512 = patch.storeSha512
-    widget.storeVersion = patch.storeVersion
-    persist(widget)
-  }
-
-  function setStoreId(installId: string, storeId: string | undefined) {
-    ensureLoaded()
-    const widget = widgets.value.find((w) => w.installId === installId)
-    if (widget) {
-      widget.storeId = storeId
-      widget.updatedAt = Date.now()
-      persist(widget)
-    }
-  }
-
-  /** false = 読取専用で拒否 (#1111)。 */
-  function renameWidget(installId: string, newName: string): boolean {
-    ensureLoaded()
-    const widget = widgets.value.find((w) => w.installId === installId)
-    if (!widget) return false
-    if (rejectIfReadOnly(widget)) return false
-
-    widget.name = newName
-    widget.updatedAt = Date.now()
-    saveWidgetsToStorage(widgets.value)
-    if (!settingsFs.isTauri) return true
-    // ファイルは rename で追随させる (ID 不変・旧削除 + 新書込の並行発火禁止)。
-    // rename の完了を待ってから保存する
-    void ready
-      .then(async () => {
-        await widgetFiles.renameItemFiles(widget, widgets.value)
-        await widgetFiles.persistItem(widget, widgets.value)
-      })
-      .catch((e) => console.warn('[widgets] failed to rename widget files:', e))
-    return true
-  }
-
-  function getWidget(installId: string): WidgetMeta | undefined {
-    ensureLoaded()
-    return widgets.value.find((w) => w.installId === installId)
-  }
-
-  // 別の書き手 (notecore の widgets.* / 他のウィンドウ, #1133 / #1042) がウィジェットの
-  // ファイルを書いた → その個体だけ写しを揃え、ソースが変わっていれば表示中の
-  // インスタンスに再実行を要求する。削除は Mk:save 領域とサイドバーの並びも掃除
-  registerSettingsFileHandler('widgets', async (change) => {
-    if (!change.name.endsWith(META_SUFFIX)) return
-    ensureLoaded()
-    await ready
-    const fileBase = change.name.slice(0, -META_SUFFIX.length)
-    if (change.op === 'delete') {
-      const removed = widgets.value.find((w) => w.fileBase === fileBase)
-      if (!removed) return
-      removeStorageByPrefix(
-        STORAGE_KEYS.aiscriptStorage(`app-${removed.installId}`),
-      )
-      widgets.value = widgets.value.filter((w) => w !== removed)
-      if (sidebarWidgetIds.value.includes(removed.installId)) {
-        sidebarWidgetIds.value = sidebarWidgetIds.value.filter(
-          (id) => id !== removed.installId,
-        )
-        saveSidebarOrderToStorage(sidebarWidgetIds.value)
-      }
-      return
-    }
-    let item: WidgetMeta | undefined
-    try {
-      item = await widgetFiles.loadOne(change.name)
-    } catch (e) {
-      console.warn(`[widgets] reload ${change.name} failed:`, e)
-      return
-    }
-    if (!item) return
-    const next = item
-    const prev = widgets.value.find(
-      (w) => w.installId === next.installId || w.fileBase === fileBase,
+  function removeFromSidebar(placement: WidgetPlacement) {
+    const next = sidebarPlacements.value.filter(
+      (p) => !samePlacement(p, placement),
     )
-    widgets.value = prev
-      ? widgets.value.map((w) => (w === prev ? next : w))
-      : [...widgets.value, next]
-    if (prev && prev.src !== next.src) requestRerun(next.installId)
-  })
+    if (next.length === sidebarPlacements.value.length) return
+    sidebarPlacements.value = next
+    saveSidebar()
+  }
+
+  function reorderSidebar(placements: WidgetPlacement[]) {
+    sidebarPlacements.value = placements
+    saveSidebar()
+  }
 
   return {
-    widgets,
-    sidebarWidgetIds,
-    initialized,
+    ...base,
     ensureLoaded,
-    addWidget,
-    removeWidget,
-    updateSrc,
     setAutoRun,
-    setAccountKey,
-    migrateScopes,
-    purgeAccount,
-    applyStoreUpdate,
-    recordStoreBaseline,
-    setStoreId,
-    renameWidget,
-    getWidget,
+    sidebarPlacements,
+    pendingPlacementRewrites,
+    takePlacementRewrites,
     addToSidebar,
     removeFromSidebar,
     reorderSidebar,

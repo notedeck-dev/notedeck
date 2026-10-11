@@ -14,16 +14,19 @@
 
 import JSON5 from 'json5'
 import { parseProfileFile, toFileFormat } from '@/services/deckProfileCodec'
+import type { WidgetItem } from '@/services/distributableCodecs/widgetCodec'
 import { injectJson5Id } from '@/services/idFreeze'
 import { createSingleFileCollection } from '@/services/singleFileCollection'
+import type { WidgetPlacement } from '@/services/widgetPlacement'
 import type { DeckProfile } from '@/stores/deck'
-import type { WidgetMeta } from '@/stores/widgets'
 import * as settingsFs from '@/utils/settingsFs'
 
 export interface ProfileLoadByproducts {
   droppedConsoleCount: number
-  extractedWidgets: WidgetMeta[]
-  sidebarSeed: string[]
+  extractedWidgets: WidgetItem[]
+  sidebarSeed: WidgetPlacement[]
+  /** 旧 `widgetIds[]` を配置に移したカラム数 (#1202 決定 (g)) */
+  migratedWidgetRefs: number
   /** 検索カラムの絞り込みを旧属性から移した数 (#1180) */
   migratedSearchColumns: number
 }
@@ -33,6 +36,7 @@ function emptyByproducts(): ProfileLoadByproducts {
     droppedConsoleCount: 0,
     extractedWidgets: [],
     sidebarSeed: [],
+    migratedWidgetRefs: 0,
     migratedSearchColumns: 0,
   }
 }
@@ -75,11 +79,13 @@ export function createProfileFiles(notify: (message: string) => void) {
         droppedConsoleCount,
         extractedWidgets,
         sidebarSeed,
+        migratedWidgetRefs,
         migratedSearchColumns,
       } = parseProfileFile(p, id, filename)
       pendingByproducts.droppedConsoleCount += droppedConsoleCount
       pendingByproducts.extractedWidgets.push(...extractedWidgets)
       pendingByproducts.sidebarSeed.push(...sidebarSeed)
+      pendingByproducts.migratedWidgetRefs += migratedWidgetRefs
       pendingByproducts.migratedSearchColumns += migratedSearchColumns
       return profile
     },
