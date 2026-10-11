@@ -442,9 +442,7 @@ function confirmSkipEntriesFor(id: ProfiledPrincipalId): ConfirmSkipEntry[] {
 /** plugin scope の個体表示名。installId ではなく配布名 (AtCoder 等) を出す。 */
 function pluginOwnerLabel(pluginId: string): string | null {
   const name = pluginId.startsWith('widget:')
-    ? widgetsStore.widgets.find(
-        (w) => w.installId === pluginId.slice('widget:'.length),
-      )?.name
+    ? widgetsStore.get(pluginId.slice('widget:'.length))?.name
     : pluginsStore.plugins.find((p) => p.installId === pluginId)?.name
   return principalActorLabel({ kind: 'plugin', pluginId, name })
 }

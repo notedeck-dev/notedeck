@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { computed, defineComponent, reactive, ref } from 'vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import type { ScopeTarget } from '@/services/distributable'
 import {
   type Account,
   accountScopeKey,
@@ -15,7 +16,7 @@ import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { type StoreWidgetEntry, useMisStoreStore } from '@/stores/misstore'
 import { useToast } from '@/stores/toast'
-import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
+import { useWidgetsStore, type WidgetItem } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
 import { isWindowExposed } from '@/windows/exposure'
 import DeckWidgetColumn from './DeckWidgetColumn.vue'
@@ -24,6 +25,9 @@ import DeckWidgetColumn from './DeckWidgetColumn.vue'
  * ウィジェットカラムの UI ブロック (配置 / ライブラリピッカー / ストア) の
  * 振る舞いを固定する。配布物の管理カラム 5 種を 1 つにまとめる作業 (#1202)
  * の安全網。AiScript の実行系 (WidgetAiScript) は名前を出すだけのスタブ。
+ *
+ * 本体は紐付け配列で共有し、実行アカウントは配置 (`widgetRefs`) が持つ
+ * (#1202 決定 (b) / (g))
  */
 
 vi.mock('@/utils/historyFs', () => ({
@@ -82,7 +86,7 @@ vi.mock('@/components/deck/widgets/WidgetAiScript.vue', () => ({
     },
     emits: ['remove', 'drag-start'],
     template: `
-      <div class="widget-stub" :data-install-id="widget.installId" :data-account-id="accountId ?? ''">
+      <div class="widget-stub" :data-install-id="widget.id" :data-account-id="accountId ?? ''">
         <span class="widget-stub-name">{{ widget.name }}</span>
         <button type="button" class="widget-stub-remove" @click="$emit('remove')">remove</button>
       </div>
@@ -111,20 +115,30 @@ function makeAccount(id: string, username: string): Account {
 
 const accountA = makeAccount('acc-a', 'alice')
 const accountB = makeAccount('acc-b', 'bob')
+const keyA = accountScopeKey(accountA)
+const keyB = accountScopeKey(accountB)
 
 function makeWidget(
   installId: string,
-  overrides: Partial<WidgetMeta> = {},
-): WidgetMeta {
+  overrides: Partial<WidgetItem> = {},
+): WidgetItem {
   return {
-    installId,
+    id: installId,
     name: `Widget ${installId}`,
-    src: `let x = 1 // ${installId}`,
-    autoRun: false,
+    content: `let x = 1 // ${installId}`,
+    scope: { kind: 'shared', global: true, installedFor: [] },
+    extra: { autoRun: false },
     createdAt: 1,
     updatedAt: 1,
     ...overrides,
   }
+}
+
+/** 本体をライブラリに直接置く (ファイル経路を通らない) */
+function seedWidget(...widgets: WidgetItem[]): void {
+  const store = useWidgetsStore()
+  store.ensureLoaded()
+  store.items.push(...widgets)
 }
 
 function makeStoreEntry(
@@ -220,13 +234,13 @@ function placedNames(wrapper: VueWrapper): string[] {
   return wrapper.findAll('.widget-stub-name').map((n) => n.text())
 }
 
-function placedAccountIds(wrapper: VueWrapper): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const el of wrapper.findAll('.widget-stub')) {
-    out[el.attributes('data-install-id') ?? ''] =
-      el.attributes('data-account-id') ?? ''
-  }
-  return out
+function placedAccountIds(wrapper: VueWrapper): [string, string][] {
+  return wrapper
+    .findAll('.widget-stub')
+    .map((el) => [
+      el.attributes('data-install-id') ?? '',
+      el.attributes('data-account-id') ?? '',
+    ])
 }
 
 /** ライブラリピッカーを開いて、そこに並ぶカード名を返す */
@@ -335,12 +349,15 @@ describe('DeckWidgetColumn', () => {
   })
 
   describe('配置タブ', () => {
-    it('column.widgetIds に並ぶウィジェットだけを描画し、ピッカーには未配置のものだけを出す', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w1', { name: 'Clock' }))
-      widgets.addWidget(makeWidget('w2', { name: 'Notes' }))
-      widgets.addWidget(makeWidget('w3', { name: 'Spare' }))
-      const column = addWidgetColumn({ widgetIds: ['w2', 'w1'] })
+    it('column.widgetRefs に並ぶウィジェットだけを描画し、ピッカーには未配置のものだけを出す', async () => {
+      seedWidget(
+        makeWidget('w1', { name: 'Clock' }),
+        makeWidget('w2', { name: 'Notes' }),
+        makeWidget('w3', { name: 'Spare' }),
+      )
+      const column = addWidgetColumn({
+        widgetRefs: [{ id: 'w2' }, { id: 'w1' }],
+      })
       wrapper = await mountColumn(column)
 
       expect(placedNames(wrapper)).toEqual(['Notes', 'Clock'])
@@ -353,18 +370,24 @@ describe('DeckWidgetColumn', () => {
 
       expect(await openPicker(wrapper)).toEqual(['Spare'])
 
-      // 配置すると描画に加わり、ピッカーは閉じる
+      // 配置すると描画に加わり、ピッカーは閉じる。本体はこのカラムのアカウントに紐付く
       await pickerCard(wrapper, 'Spare').vm.$emit('place')
       await flushPromises()
-      expect(column.widgetIds).toEqual(['w2', 'w1', 'w3'])
+      expect(column.widgetRefs).toEqual([
+        { id: 'w2' },
+        { id: 'w1' },
+        { id: 'w3' },
+      ])
       expect(placedNames(wrapper)).toEqual(['Notes', 'Clock', 'Spare'])
       expect(pickerCardNames(wrapper)).toEqual([])
+      expect(useWidgetsStore().get('w3')?.scope).toMatchObject({
+        installedFor: [keyA],
+      })
     })
 
     it('ピッカーに配置候補が無ければ空メッセージを出す', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w1'))
-      const column = addWidgetColumn({ widgetIds: ['w1'] })
+      seedWidget(makeWidget('w1'))
+      const column = addWidgetColumn({ widgetRefs: [{ id: 'w1' }] })
       wrapper = await mountColumn(column)
 
       expect(await openPicker(wrapper)).toEqual([])
@@ -373,37 +396,62 @@ describe('DeckWidgetColumn', () => {
       )
     })
 
-    it('全アカウントのカラムでは、ウィジェットに固定したアカウントで動かし、未固定のものはアカウント無し (null) で渡す', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(
-        makeWidget('w-fixed', { accountKey: accountScopeKey(accountB) }),
-      )
-      widgets.addWidget(makeWidget('w-free'))
+    it('全アカウントのカラムでは配置の実行アカウントで動かし、未指定の配置はアカウント無し (null) で渡す', async () => {
+      seedWidget(makeWidget('w-shared'), makeWidget('w-free'))
       const column = addWidgetColumn({
         accountId: null,
-        widgetIds: ['w-fixed', 'w-free'],
+        widgetRefs: [
+          { id: 'w-shared', accountKey: keyB },
+          { id: 'w-shared', accountKey: keyA },
+          { id: 'w-free' },
+        ],
       })
       wrapper = await mountColumn(column)
 
-      expect(placedAccountIds(wrapper)).toEqual({
-        'w-fixed': accountB.id,
-        'w-free': '',
-      })
+      // 同じ本体を alice 用と bob 用に 2 つ置ける (#1202 決定 (g))
+      expect(placedAccountIds(wrapper)).toEqual([
+        ['w-shared', accountB.id],
+        ['w-shared', accountA.id],
+        ['w-free', ''],
+      ])
     })
 
-    it('アカウント指定のカラムでは、未固定のウィジェットはカラムのアカウントで動かす', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w-free'))
-      const column = addWidgetColumn({ widgetIds: ['w-free'] })
+    it('アカウント指定のカラムでは、実行アカウント未指定の配置はカラムのアカウントで動かす', async () => {
+      seedWidget(makeWidget('w-free'))
+      const column = addWidgetColumn({ widgetRefs: [{ id: 'w-free' }] })
       wrapper = await mountColumn(column)
 
-      expect(placedAccountIds(wrapper)).toEqual({ 'w-free': accountA.id })
+      expect(placedAccountIds(wrapper)).toEqual([['w-free', accountA.id]])
     })
 
-    it('全アカウントのカラムで未固定のウィジェットを編集すると、アカウントを選ばせてそのウィジェットに固定してから編集ウィンドウを開く', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w-free', { name: 'Free' }))
-      const column = addWidgetColumn({ accountId: null, widgetIds: [] })
+    it('全アカウントのカラムでライブラリから配置すると、アカウントを選ばせてその実行アカウントで配置し、本体をそのアカウントに紐付ける', async () => {
+      seedWidget(
+        makeWidget('w-free', {
+          name: 'Free',
+          scope: { kind: 'shared', global: false, installedFor: [] },
+        }),
+      )
+      const column = addWidgetColumn({ accountId: null, widgetRefs: [] })
+      wrapper = await mountColumn(column)
+      pickAccountMock.mockResolvedValue(accountB.id)
+
+      await openPicker(wrapper)
+      await pickerCard(wrapper, 'Free').vm.$emit('place')
+      await flushPromises()
+
+      expect(pickAccountMock).toHaveBeenCalledWith(
+        '「Free」をどのアカウントで動かしますか？',
+      )
+      expect(column.widgetRefs).toEqual([{ id: 'w-free', accountKey: keyB }])
+      expect(useWidgetsStore().get('w-free')?.scope).toMatchObject({
+        installedFor: [keyB],
+      })
+      expect(placedAccountIds(wrapper)).toEqual([['w-free', accountB.id]])
+    })
+
+    it('全アカウントのカラムで編集を開くときはアカウントを選ばせ、本体には何も書かない', async () => {
+      seedWidget(makeWidget('w-free', { name: 'Free' }))
+      const column = addWidgetColumn({ accountId: null, widgetRefs: [] })
       wrapper = await mountColumn(column)
       const windows = useWindowsStore()
       const openSpy = vi.spyOn(windows, 'open').mockReturnValue('win-1')
@@ -416,57 +464,52 @@ describe('DeckWidgetColumn', () => {
       expect(pickAccountMock).toHaveBeenCalledWith(
         '「Free」をどのアカウントで動かしますか？',
       )
-      expect(widgets.getWidget('w-free')?.accountKey).toBe(
-        accountScopeKey(accountB),
-      )
+      expect(useWidgetsStore().get('w-free')?.scope).toMatchObject({
+        global: true,
+        installedFor: [],
+      })
       expect(openSpy).toHaveBeenCalledWith('widget-edit', {
         widgetId: 'w-free',
         accountId: accountB.id,
       })
     })
 
-    it('全アカウントのカラムでアカウント選択をキャンセルすると、固定も編集ウィンドウも起きない', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w-free', { name: 'Free' }))
-      const column = addWidgetColumn({ accountId: null, widgetIds: [] })
+    it('全アカウントのカラムでアカウント選択をキャンセルすると、配置も編集ウィンドウも起きない', async () => {
+      seedWidget(makeWidget('w-free', { name: 'Free' }))
+      const column = addWidgetColumn({ accountId: null, widgetRefs: [] })
       wrapper = await mountColumn(column)
       const openSpy = vi.spyOn(useWindowsStore(), 'open')
       pickAccountMock.mockResolvedValue(null)
 
       await openPicker(wrapper)
       await pickerCard(wrapper, 'Free').vm.$emit('edit')
+      await pickerCard(wrapper, 'Free').vm.$emit('place')
       await flushPromises()
 
-      expect(widgets.getWidget('w-free')?.accountKey).toBeUndefined()
+      expect(column.widgetRefs).toEqual([])
       expect(openSpy).not.toHaveBeenCalled()
     })
 
-    it('ピッカーのカードには固定した実行アカウントのラベルを出し、未固定には出さない', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(
-        makeWidget('w-fixed', {
-          name: 'Fixed',
-          accountKey: accountScopeKey(accountB),
-        }),
-      )
-      widgets.addWidget(makeWidget('w-free', { name: 'Free' }))
-      const column = addWidgetColumn({ accountId: null, widgetIds: [] })
+    it('全アカウントのカラムのピッカーは配置済みの本体も出す (別のアカウントで置き直せる)', async () => {
+      seedWidget(makeWidget('w1', { name: 'Clock' }))
+      const column = addWidgetColumn({
+        accountId: null,
+        widgetRefs: [{ id: 'w1', accountKey: keyA }],
+      })
       wrapper = await mountColumn(column)
-
-      await openPicker(wrapper)
-      expect(pickerCard(wrapper, 'Fixed').props('accountLabel')).toBe(
-        '@bob@misskey.test',
-      )
-      expect(pickerCard(wrapper, 'Free').props('accountLabel')).toBeUndefined()
+      expect(await openPicker(wrapper)).toEqual(['Clock'])
     })
   })
 
   describe('配置から外す', () => {
     it('ウィジェットを外すと配置だけ消えてライブラリには残り、トーストの「元に戻す」で同じ位置に戻る', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w1', { name: 'Clock' }))
-      widgets.addWidget(makeWidget('w2', { name: 'Notes' }))
-      const column = addWidgetColumn({ widgetIds: ['w1', 'w2'] })
+      seedWidget(
+        makeWidget('w1', { name: 'Clock' }),
+        makeWidget('w2', { name: 'Notes' }),
+      )
+      const column = addWidgetColumn({
+        widgetRefs: [{ id: 'w1' }, { id: 'w2' }],
+      })
       wrapper = await mountColumn(column)
 
       await wrapper
@@ -474,9 +517,9 @@ describe('DeckWidgetColumn', () => {
         .trigger('click')
       await flushPromises()
 
-      expect(column.widgetIds).toEqual(['w2'])
+      expect(column.widgetRefs).toEqual([{ id: 'w2' }])
       expect(placedNames(wrapper)).toEqual(['Notes'])
-      expect(widgets.getWidget('w1')).toBeTruthy()
+      expect(useWidgetsStore().get('w1')).toBeTruthy()
 
       const toast = useToast().toasts.value.at(-1)
       expect(toast?.text).toBe('ウィジェットを外しました')
@@ -484,18 +527,20 @@ describe('DeckWidgetColumn', () => {
 
       toast?.action?.onClick()
       await flushPromises()
-      expect(column.widgetIds).toEqual(['w1', 'w2'])
+      expect(column.widgetRefs).toEqual([{ id: 'w1' }, { id: 'w2' }])
       expect(placedNames(wrapper)).toEqual(['Clock', 'Notes'])
     })
   })
 
   describe('ライブラリから削除', () => {
     it('削除は確認を挟み、OK なら本体を消してトーストの「元に戻す」で復元する', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w1', { name: 'Clock' }))
-      widgets.addWidget(makeWidget('w2', { name: 'Notes' }))
-      const column = addWidgetColumn({ widgetIds: ['w1'] })
+      seedWidget(
+        makeWidget('w1', { name: 'Clock' }),
+        makeWidget('w2', { name: 'Notes' }),
+      )
+      const column = addWidgetColumn({ widgetRefs: [{ id: 'w1' }] })
       wrapper = await mountColumn(column)
+      const widgets = useWidgetsStore()
 
       await openPicker(wrapper)
       await pickerCard(wrapper, 'Notes').vm.$emit('delete')
@@ -508,21 +553,20 @@ describe('DeckWidgetColumn', () => {
           '「Notes」をライブラリから削除しますか？ウィジェットのコードも消えます。',
         type: 'danger',
       })
-      expect(widgets.getWidget('w2')).toBeUndefined()
+      expect(widgets.get('w2')).toBeUndefined()
       expect(pickerCardNames(wrapper)).toEqual([])
 
       const toast = useToast().toasts.value.at(-1)
       expect(toast?.text).toBe('ウィジェットを削除しました')
       toast?.action?.onClick()
       await flushPromises()
-      expect(widgets.getWidget('w2')?.name).toBe('Notes')
+      expect(widgets.get('w2')?.name).toBe('Notes')
       expect(pickerCardNames(wrapper)).toEqual(['Notes'])
     })
 
     it('確認でキャンセルすると何も消えない', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w2', { name: 'Notes' }))
-      const column = addWidgetColumn({ widgetIds: [] })
+      seedWidget(makeWidget('w2', { name: 'Notes' }))
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
       confirmMock.mockResolvedValue(false)
 
@@ -530,31 +574,30 @@ describe('DeckWidgetColumn', () => {
       await pickerCard(wrapper, 'Notes').vm.$emit('delete')
       await flushPromises()
 
-      expect(widgets.getWidget('w2')).toBeTruthy()
+      expect(useWidgetsStore().get('w2')).toBeTruthy()
       expect(pickerCardNames(wrapper)).toEqual(['Notes'])
       expect(useToast().toasts.value).toHaveLength(0)
     })
 
-    it('他のカラムに配置中のウィジェットを削除すると、そのカラムの参照も剥がす', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w-shared', { name: 'Shared' }))
-      const other = addWidgetColumn({ widgetIds: ['w-shared'] })
-      const column = addWidgetColumn({ widgetIds: [] })
+    it('他のカラムに配置中のウィジェットを削除すると、そのカラムの配置も剥がす', async () => {
+      seedWidget(makeWidget('w-shared', { name: 'Shared' }))
+      const other = addWidgetColumn({ widgetRefs: [{ id: 'w-shared' }] })
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
 
       await openPicker(wrapper)
       await pickerCard(wrapper, 'Shared').vm.$emit('delete')
       await flushPromises()
 
-      expect(useDeckStore().getColumn(other.id)?.widgetIds).toEqual([])
-      expect(widgets.getWidget('w-shared')).toBeUndefined()
+      expect(useDeckStore().getColumn(other.id)?.widgetRefs).toEqual([])
+      expect(useWidgetsStore().get('w-shared')).toBeUndefined()
     })
   })
 
   describe('新規作成', () => {
-    it('ヘッダーの + でライブラリに空のウィジェットを足して編集ウィンドウを開く (カラムには配置しない)', async () => {
+    it('ヘッダーの + でライブラリに空のウィジェットをこのカラムのアカウントに紐付けて足し、編集ウィンドウを開く (カラムには配置しない)', async () => {
       const widgets = useWidgetsStore()
-      const column = addWidgetColumn({ widgetIds: [] })
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
       const openSpy = vi.spyOn(useWindowsStore(), 'open').mockReturnValue('w')
 
@@ -563,21 +606,26 @@ describe('DeckWidgetColumn', () => {
       await plus?.trigger('click')
       await flushPromises()
 
-      expect(widgets.widgets).toHaveLength(1)
-      const created = widgets.widgets[0]
-      expect(created?.src).toBe('')
-      expect(created?.accountKey).toBeUndefined()
+      expect(widgets.items).toHaveLength(1)
+      const created = widgets.items[0]
+      expect(created?.content).toBe('')
+      expect(created?.name).toBe(`Widget ${created?.id.slice(4, 12)}`)
+      expect(created?.scope).toEqual({
+        kind: 'shared',
+        global: false,
+        installedFor: [keyA],
+      })
       expect(openSpy).toHaveBeenCalledWith('widget-edit', {
-        widgetId: created?.installId,
+        widgetId: created?.id,
         accountId: accountA.id,
       })
-      expect(column.widgetIds).toEqual([])
+      expect(column.widgetRefs).toEqual([])
       expect(pickAccountMock).not.toHaveBeenCalled()
     })
 
-    it('全アカウントのカラムでは先にアカウントを選ばせ、新規ウィジェットをそのアカウントに固定する', async () => {
+    it('全アカウントのカラムでは先にアカウントを選ばせ、全体スコープで作ってそのアカウントで編集ウィンドウを開く', async () => {
       const widgets = useWidgetsStore()
-      const column = addWidgetColumn({ accountId: null, widgetIds: [] })
+      const column = addWidgetColumn({ accountId: null, widgetRefs: [] })
       wrapper = await mountColumn(column)
       const openSpy = vi.spyOn(useWindowsStore(), 'open').mockReturnValue('w')
       pickAccountMock.mockResolvedValue(accountB.id)
@@ -591,16 +639,16 @@ describe('DeckWidgetColumn', () => {
       expect(pickAccountMock).toHaveBeenCalledWith(
         'ウィジェットをどのアカウントで動かしますか？',
       )
-      expect(widgets.widgets[0]?.accountKey).toBe(accountScopeKey(accountB))
+      expect(widgets.items[0]?.scope).toMatchObject({ global: true })
       expect(openSpy).toHaveBeenCalledWith('widget-edit', {
-        widgetId: widgets.widgets[0]?.installId,
+        widgetId: widgets.items[0]?.id,
         accountId: accountB.id,
       })
     })
 
     it('widget-edit ウィンドウが露出していなければ + ボタンを出さない', async () => {
       vi.mocked(isWindowExposed).mockReturnValue(false)
-      const column = addWidgetColumn({ widgetIds: [] })
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
 
       expect(
@@ -611,12 +659,12 @@ describe('DeckWidgetColumn', () => {
 
   describe('読取専用 (ソース欠損)', () => {
     it('ピッカーのカードに「ソース欠損」バッジを出し、store 側の変更は拒否される', async () => {
-      const widgets = useWidgetsStore()
-      widgets.addWidget(
-        makeWidget('w-ro', { name: 'Broken', src: '', readOnly: true }),
+      seedWidget(
+        makeWidget('w-ro', { name: 'Broken', content: '', readOnly: true }),
       )
-      const column = addWidgetColumn({ widgetIds: [] })
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
+      const widgets = useWidgetsStore()
 
       // 拒否時の console.warn は想定内なので黙らせる
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
@@ -627,24 +675,23 @@ describe('DeckWidgetColumn', () => {
       expect(card.text()).toContain('ソース欠損')
       expect(card.props('description')).toBe('空のコード')
 
-      expect(widgets.updateSrc('w-ro', 'let y = 2')).toBe(false)
-      expect(widgets.renameWidget('w-ro', 'Renamed')).toBe(false)
-      expect(widgets.getWidget('w-ro')?.name).toBe('Broken')
+      expect(await widgets.update('w-ro', { content: 'let y = 2' })).toBe(false)
+      expect(await widgets.update('w-ro', { name: 'Renamed' })).toBe(false)
+      expect(widgets.get('w-ro')?.name).toBe('Broken')
       expect(warn).toHaveBeenCalledTimes(2)
       warn.mockRestore()
     })
   })
 
   describe('ストアタブ', () => {
-    it('インストール済みの判定は storeId × 実行アカウントで決まり、済みなら「インストール済み」、未なら「インストール」を出す', async () => {
-      const widgets = useWidgetsStore()
-      // アカウント不要: 個体が 1 つでもあれば済み
-      widgets.addWidget(makeWidget('clock-inst', { storeId: 'clock' }))
-      // アカウント必須: 別アカウント (B) に固定した個体だけ → カラム A では未
-      widgets.addWidget(
+    it('インストール済みの判定は本体の紐付けで決まり、済みなら「インストール済み」、未なら「インストール」を出す', async () => {
+      seedWidget(
+        // アカウント不要: 本体があれば済み
+        makeWidget('clock-inst', { store: { id: 'clock' } }),
+        // アカウント必須: 別アカウント (B) にだけ紐付く本体 → カラム A では未
         makeWidget('notes-b', {
-          storeId: 'notes',
-          accountKey: accountScopeKey(accountB),
+          store: { id: 'notes' },
+          scope: { kind: 'shared', global: false, installedFor: [keyB] },
         }),
       )
       fetchMock.mockResolvedValue({
@@ -659,7 +706,7 @@ describe('DeckWidgetColumn', () => {
           ],
         }),
       })
-      const column = addWidgetColumn({ widgetIds: [] })
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
 
       await switchToStoreTab(wrapper)
@@ -678,7 +725,7 @@ describe('DeckWidgetColumn', () => {
       ).toBe(true)
     })
 
-    it('インストールすると misstore 経由で個体を作り、このカラムに配置して「インストール済み」タブへ戻る', async () => {
+    it('インストールすると misstore 経由でこのカラムのスコープに本体を作り、配置して「インストール済み」タブへ戻る', async () => {
       const widgets = useWidgetsStore()
       const misStore = useMisStoreStore()
       const entry = makeStoreEntry('clock', { name: 'Clock' })
@@ -688,50 +735,95 @@ describe('DeckWidgetColumn', () => {
       })
       const installSpy = vi
         .spyOn(misStore, 'installWidget')
-        .mockImplementation(async (e, accountKey) => {
+        .mockImplementation(async (e, scope?: ScopeTarget) => {
           const w = makeWidget(e.id, {
             name: e.name,
-            storeId: e.id,
-            ...(accountKey ? { accountKey } : {}),
+            store: { id: e.id },
+            scope: {
+              kind: 'shared',
+              global: scope?.kind === 'global',
+              installedFor: scope?.kind === 'account' ? [scope.key] : [],
+            },
           })
-          widgets.addWidget(w)
+          widgets.items.push(w)
           return w
         })
-      const column = addWidgetColumn({ widgetIds: [] })
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
 
       await switchToStoreTab(wrapper)
       await storeCard(wrapper, 'Clock').vm.$emit('install')
       await flushPromises()
 
-      expect(installSpy).toHaveBeenCalledWith(entry, undefined)
-      expect(column.widgetIds).toEqual(['clock'])
+      expect(installSpy).toHaveBeenCalledWith(entry, {
+        kind: 'account',
+        key: keyA,
+      })
+      expect(column.widgetRefs).toEqual([{ id: 'clock' }])
       expect(placedNames(wrapper)).toEqual(['Clock'])
       expect(wrapper.find('input[type="text"]').exists()).toBe(false)
     })
 
-    it('同じ storeId × アカウントの個体が既にあれば新しく作らず配置だけする', async () => {
-      const widgets = useWidgetsStore()
+    it('同じ storeId の本体が既にあれば新しく作らず、紐付けを足して配置だけする', async () => {
       const misStore = useMisStoreStore()
-      widgets.addWidget(
-        makeWidget('clock-inst', { name: 'Clock (local)', storeId: 'clock' }),
+      seedWidget(
+        makeWidget('clock-inst', {
+          name: 'Clock (local)',
+          store: { id: 'clock' },
+          scope: { kind: 'shared', global: false, installedFor: [keyB] },
+        }),
       )
       fetchMock.mockResolvedValue({
         ok: true,
         json: async () => ({ widgets: [makeStoreEntry('clock')] }),
       })
       const installSpy = vi.spyOn(misStore, 'installWidget')
-      const column = addWidgetColumn({ widgetIds: [] })
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
 
       await switchToStoreTab(wrapper)
-      // カードは「インストール済み」だが install イベント自体は配置に落ちる
       await storeCard(wrapper, 'Store clock').vm.$emit('install')
       await flushPromises()
 
       expect(installSpy).not.toHaveBeenCalled()
-      expect(column.widgetIds).toEqual(['clock-inst'])
-      expect(widgets.widgets).toHaveLength(1)
+      expect(column.widgetRefs).toEqual([{ id: 'clock-inst' }])
+      const widgets = useWidgetsStore()
+      expect(widgets.items).toHaveLength(1)
+      expect(widgets.get('clock-inst')?.scope).toMatchObject({
+        installedFor: [keyB, keyA],
+      })
+    })
+
+    it('全アカウントのカラムでアカウント必須のアイテムを入れると、選んだアカウントで配置する', async () => {
+      const widgets = useWidgetsStore()
+      const misStore = useMisStoreStore()
+      const entry = makeStoreEntry('notes', {
+        name: 'Notes',
+        capabilities: ['misskey-api'],
+      })
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({ widgets: [entry] }),
+      })
+      vi.spyOn(misStore, 'installWidget').mockImplementation(async (e) => {
+        const w = makeWidget(e.id, { name: e.name, store: { id: e.id } })
+        widgets.items.push(w)
+        return w
+      })
+      pickAccountMock.mockResolvedValue(accountB.id)
+      const column = addWidgetColumn({ accountId: null, widgetRefs: [] })
+      wrapper = await mountColumn(column)
+
+      await switchToStoreTab(wrapper)
+      await storeCard(wrapper, 'Notes').vm.$emit('install')
+      await flushPromises()
+
+      expect(misStore.installWidget).toHaveBeenCalledWith(entry, {
+        kind: 'account',
+        key: keyB,
+      })
+      expect(column.widgetRefs).toEqual([{ id: 'notes', accountKey: keyB }])
+      expect(placedAccountIds(wrapper)).toEqual([['notes', accountB.id]])
     })
 
     it('検索語で名前・説明・作者・タグを絞り込み、一致しなければ空メッセージを出す', async () => {
@@ -744,7 +836,7 @@ describe('DeckWidgetColumn', () => {
           ],
         }),
       })
-      const column = addWidgetColumn({ widgetIds: [] })
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
       await switchToStoreTab(wrapper)
 
@@ -770,7 +862,7 @@ describe('DeckWidgetColumn', () => {
 
     it('registry の取得に失敗したら「ストアを利用できません」と再試行ボタンを出す', async () => {
       fetchMock.mockResolvedValue({ ok: false, status: 503 })
-      const column = addWidgetColumn({ widgetIds: [] })
+      const column = addWidgetColumn({ widgetRefs: [] })
       wrapper = await mountColumn(column)
       await switchToStoreTab(wrapper)
 
@@ -791,13 +883,18 @@ describe('DeckWidgetColumn', () => {
   })
 
   describe('サイドバー', () => {
-    it('sidebar カラムは column.widgetIds ではなく sidebarWidgetIds を配置として使う', async () => {
+    it('sidebar カラムは column.widgetRefs ではなく sidebarPlacements を配置として使う', async () => {
       const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w-side', { name: 'Side' }))
-      widgets.addWidget(makeWidget('w-col', { name: 'Col' }))
-      widgets.addWidget(makeWidget('w-spare', { name: 'Spare' }))
-      widgets.addToSidebar('w-side')
-      const column = addWidgetColumn({ sidebar: true, widgetIds: ['w-col'] })
+      seedWidget(
+        makeWidget('w-side', { name: 'Side' }),
+        makeWidget('w-col', { name: 'Col' }),
+        makeWidget('w-spare', { name: 'Spare' }),
+      )
+      widgets.addToSidebar({ id: 'w-side' })
+      const column = addWidgetColumn({
+        sidebar: true,
+        widgetRefs: [{ id: 'w-col' }],
+      })
       wrapper = await mountColumn(column)
 
       expect(placedNames(wrapper)).toEqual(['Side'])
@@ -806,17 +903,22 @@ describe('DeckWidgetColumn', () => {
 
       await pickerCard(wrapper, 'Spare').vm.$emit('place')
       await flushPromises()
-      expect(widgets.sidebarWidgetIds).toEqual(['w-side', 'w-spare'])
-      expect(column.widgetIds).toEqual(['w-col'])
+      expect(widgets.sidebarPlacements).toEqual([
+        { id: 'w-side' },
+        { id: 'w-spare' },
+      ])
+      expect(column.widgetRefs).toEqual([{ id: 'w-col' }])
       expect(placedNames(wrapper)).toEqual(['Side', 'Spare'])
     })
 
-    it('sidebar カラムで外すと sidebarWidgetIds から消え、「元に戻す」で戻る', async () => {
+    it('sidebar カラムで外すと sidebarPlacements から消え、「元に戻す」で戻る', async () => {
       const widgets = useWidgetsStore()
-      widgets.addWidget(makeWidget('w-a', { name: 'A' }))
-      widgets.addWidget(makeWidget('w-b', { name: 'B' }))
-      widgets.addToSidebar('w-a')
-      widgets.addToSidebar('w-b')
+      seedWidget(
+        makeWidget('w-a', { name: 'A' }),
+        makeWidget('w-b', { name: 'B' }),
+      )
+      widgets.addToSidebar({ id: 'w-a' })
+      widgets.addToSidebar({ id: 'w-b' })
       const column = addWidgetColumn({ sidebar: true })
       wrapper = await mountColumn(column)
 
@@ -824,12 +926,12 @@ describe('DeckWidgetColumn', () => {
         .find('[data-install-id="w-a"] .widget-stub-remove')
         .trigger('click')
       await flushPromises()
-      expect(widgets.sidebarWidgetIds).toEqual(['w-b'])
-      expect(widgets.getWidget('w-a')).toBeTruthy()
+      expect(widgets.sidebarPlacements).toEqual([{ id: 'w-b' }])
+      expect(widgets.get('w-a')).toBeTruthy()
 
       useToast().toasts.value.at(-1)?.action?.onClick()
       await flushPromises()
-      expect(widgets.sidebarWidgetIds).toEqual(['w-a', 'w-b'])
+      expect(widgets.sidebarPlacements).toEqual([{ id: 'w-a' }, { id: 'w-b' }])
       expect(placedNames(wrapper)).toEqual(['A', 'B'])
     })
   })

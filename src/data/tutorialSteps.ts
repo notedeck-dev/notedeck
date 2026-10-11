@@ -440,11 +440,11 @@ export function buildTutorialSteps(): TutorialStep[] {
       get description() {
         return i18n.ts._tutorialSteps.createWidgetDescription
       },
-      precheck: () => (useWidgetsStore().widgets.length > 0 ? 'skip' : 'show'),
+      precheck: () => (useWidgetsStore().items.length > 0 ? 'skip' : 'show'),
       onEnter: () => openAddColumnAndPoint('widget', i18n.ts._columns.widget),
       completion: {
-        watch: () => useWidgetsStore().widgets.length,
-        isComplete: () => useWidgetsStore().widgets.length > 0,
+        watch: () => useWidgetsStore().items.length,
+        isComplete: () => useWidgetsStore().items.length > 0,
       },
     },
 

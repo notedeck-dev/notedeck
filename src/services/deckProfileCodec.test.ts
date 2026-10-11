@@ -22,33 +22,35 @@ function legacyWidgetColumn(partial: Partial<DeckColumn> = {}): DeckColumn {
 }
 
 describe('migrateWidgetColumns', () => {
-  it('旧 widgets[] を widgetIds[] へ変換し、本体を抽出して返す', () => {
+  it('旧 widgets[] を配置 (widgetRefs[]) へ変換し、本体を抽出して返す', () => {
     const { columns, extractedWidgets, droppedConsoleCount } =
       migrateWidgetColumns([legacyWidgetColumn()])
 
     const col = columns[0] as unknown as {
-      widgetIds?: string[]
+      widgetRefs?: unknown[]
       widgets?: unknown
     }
-    expect(col.widgetIds).toEqual(['wgt-12345678-abc'])
+    expect(col.widgetRefs).toEqual([{ id: 'wgt-12345678-abc' }])
     expect(col.widgets).toBeUndefined()
     expect(droppedConsoleCount).toBe(1)
     expect(extractedWidgets).toHaveLength(1)
-    expect(extractedWidgets[0]?.src).toBe('let x = 1')
-    expect(extractedWidgets[0]?.autoRun).toBe(true)
-    expect(extractedWidgets[0]?.storeId).toBe('clock')
+    expect(extractedWidgets[0]?.content).toBe('let x = 1')
+    expect(extractedWidgets[0]?.extra.autoRun).toBe(true)
+    expect(extractedWidgets[0]?.store?.id).toBe('clock')
+    // 当時はどのカラムでも使えた = 全体スコープ
+    expect(extractedWidgets[0]?.scope).toMatchObject({ global: true })
   })
 
   it('既存 widget.id を installId として保全する (Mk:save キー prefix の最重要不変条件)', () => {
     const { extractedWidgets } = migrateWidgetColumns([legacyWidgetColumn()])
-    expect(extractedWidgets[0]?.installId).toBe('wgt-12345678-abc')
+    expect(extractedWidgets[0]?.id).toBe('wgt-12345678-abc')
   })
 
   it('sidebar カラムの widget は sidebarSeed に並び順を引き継ぐ', () => {
     const { sidebarSeed } = migrateWidgetColumns([
       legacyWidgetColumn({ sidebar: true } as Partial<DeckColumn>),
     ])
-    expect(sidebarSeed).toEqual(['wgt-12345678-abc'])
+    expect(sidebarSeed).toEqual([{ id: 'wgt-12345678-abc' }])
 
     const { sidebarSeed: nonSidebar } = migrateWidgetColumns([
       legacyWidgetColumn(),
@@ -56,20 +58,40 @@ describe('migrateWidgetColumns', () => {
     expect(nonSidebar).toEqual([])
   })
 
-  it('widgetIds 化済みのカラムと widget 以外のカラムには触らない (冪等)', () => {
+  it('旧 widgetIds[] (installId だけ) は配置へ移し、件数を返す (#1202 決定 (g))', () => {
+    const legacy = {
+      id: 'col-2',
+      type: 'widget',
+      widgetIds: ['wgt-a', 'wgt-b'],
+    } as unknown as DeckColumn
+    const { columns, migratedWidgetRefs } = migrateWidgetColumns([legacy])
+    expect(columns[0]).toEqual({
+      id: 'col-2',
+      type: 'widget',
+      widgetRefs: [{ id: 'wgt-a' }, { id: 'wgt-b' }],
+    })
+    expect(migratedWidgetRefs).toBe(1)
+  })
+
+  it('widgetRefs 化済みのカラムと widget 以外のカラムには触らない (冪等)', () => {
     const alreadyMigrated = {
       id: 'col-2',
       type: 'widget',
-      widgetIds: ['wgt-a'],
+      widgetRefs: [{ id: 'wgt-a' }],
     } as unknown as DeckColumn
     const timeline = { id: 'col-3', type: 'home' } as unknown as DeckColumn
 
-    const { columns, extractedWidgets, droppedConsoleCount } =
-      migrateWidgetColumns([alreadyMigrated, timeline])
+    const {
+      columns,
+      extractedWidgets,
+      droppedConsoleCount,
+      migratedWidgetRefs,
+    } = migrateWidgetColumns([alreadyMigrated, timeline])
     expect(columns[0]).toBe(alreadyMigrated)
     expect(columns[1]).toBe(timeline)
     expect(extractedWidgets).toEqual([])
     expect(droppedConsoleCount).toBe(0)
+    expect(migratedWidgetRefs).toBe(0)
   })
 })
 
@@ -101,9 +123,7 @@ describe('parseProfileFile', () => {
       'main.ndprofile.json5',
     )
     expect(profile.name).toBe('メイン')
-    expect(
-      (profile.columns[0] as unknown as { widgetIds?: string[] }).widgetIds,
-    ).toEqual(['wgt-12345678-abc'])
+    expect(profile.columns[0]?.widgetRefs).toEqual([{ id: 'wgt-12345678-abc' }])
     expect(droppedConsoleCount).toBe(1)
     expect(extractedWidgets).toHaveLength(1)
   })

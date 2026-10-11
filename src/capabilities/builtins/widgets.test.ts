@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CapabilityContext } from '@/capabilities/types'
-import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
+import { useWidgetsStore, type WidgetItem } from '@/stores/widgets'
 
 // unit プロジェクトは node 環境のため localStorage を stub する (deck.test.ts と同じ)
 const storage = new Map<string, string>()
@@ -34,16 +34,16 @@ describe('widget capabilities — declaration', () => {
     expect(widgetsListCapability.signature?.cheap).toBe(true)
   })
 
-  it('widgets.create: write permission, install preview confirmation, requires name+src', () => {
+  it('widgets.create: write permission, install preview confirmation, requires name+src', async () => {
     expect(widgetsCreateCapability.id).toBe('widgets.create')
     expect(widgetsCreateCapability.permissions).toEqual(['widgets.write'])
     expect(typeof widgetsCreateCapability.requiresConfirmation).toBe('function')
-    expect(() => widgetsCreateCapability.execute({})).toThrow(
+    await expect(widgetsCreateCapability.execute({})).rejects.toThrow(
       /name is required/,
     )
-    expect(() => widgetsCreateCapability.execute({ name: 'X' })).toThrow(
-      /src is required/,
-    )
+    await expect(
+      widgetsCreateCapability.execute({ name: 'X' }),
+    ).rejects.toThrow(/src is required/)
   })
 
   it('widgets.create: requiresConfirmation builds installPreview kind=widget', async () => {
@@ -63,16 +63,16 @@ describe('widget capabilities — declaration', () => {
     expect(opts?.codeLanguage).toBe('is')
   })
 
-  it('widgets.update: write permission, install preview confirmation, requires installId+src', () => {
+  it('widgets.update: write permission, install preview confirmation, requires installId+src', async () => {
     expect(widgetsUpdateCapability.id).toBe('widgets.update')
     expect(widgetsUpdateCapability.permissions).toEqual(['widgets.write'])
     expect(typeof widgetsUpdateCapability.requiresConfirmation).toBe('function')
-    expect(() => widgetsUpdateCapability.execute({})).toThrow(
+    await expect(widgetsUpdateCapability.execute({})).rejects.toThrow(
       /installId is required/,
     )
-    expect(() => widgetsUpdateCapability.execute({ installId: 'x' })).toThrow(
-      /src is required/,
-    )
+    await expect(
+      widgetsUpdateCapability.execute({ installId: 'x' }),
+    ).rejects.toThrow(/src is required/)
   })
 
   it('widgets.setAutoRun: write permission, no confirm (= 可逆切替)', () => {
@@ -121,11 +121,10 @@ describe('widgets.uninstall capability', () => {
     )
   })
 
-  it('storeId 指定は全個体を消すので戻り値に installIds を宣言する (#1061)', () => {
+  it('本体は storeId につき 1 つなので uninstall / delete とも installId 1 つを返す (#1202)', () => {
     expect(
       widgetsUninstallCapability.signature?.returns?.description,
-    ).toContain('installIds')
-    // widgets.delete は installId 指定の 1 個体のみ — installIds は返さない
+    ).not.toContain('installIds')
     expect(
       widgetsDeleteCapability.signature?.returns?.description,
     ).not.toContain('installIds')
@@ -161,39 +160,40 @@ describe('widgets.update — 表示中なら再実行を要求する (#744)', ()
     setActivePinia(createPinia())
   })
 
-  function addWidget(): WidgetMeta {
-    const widget: WidgetMeta = {
-      installId: 'w-test-1',
+  function addWidget(id = 'w-test-1'): WidgetItem {
+    const widget: WidgetItem = {
+      id,
       name: 'test-widget',
-      src: 'let x = 1',
-      autoRun: false,
+      content: 'let x = 1',
+      scope: { kind: 'shared', global: true, installedFor: [] },
+      extra: { autoRun: false },
       createdAt: 0,
       updatedAt: 0,
     }
-    useWidgetsStore().addWidget(widget)
+    useWidgetsStore().items.push(widget)
     return widget
   }
 
-  it('未マウントなら rerunning: false', () => {
+  it('未マウントなら rerunning: false', async () => {
     const widget = addWidget()
-    const r = widgetsUpdateCapability.execute({
-      installId: widget.installId,
+    const r = (await widgetsUpdateCapability.execute({
+      installId: widget.id,
       src: 'let y = 2',
-    }) as { rerunning: boolean }
+    })) as { rerunning: boolean }
     expect(r.rerunning).toBe(false)
   })
 
-  it('マウント中なら rerunning: true でシグナルが進む', () => {
+  it('マウント中なら rerunning: true でシグナルが進む', async () => {
     const widget = addWidget()
     const store = useWidgetsStore()
-    store.registerMounted(widget.installId)
-    const r = widgetsUpdateCapability.execute({
-      installId: widget.installId,
+    store.registerMounted(widget.id)
+    const r = (await widgetsUpdateCapability.execute({
+      installId: widget.id,
       src: 'let y = 2',
-    }) as { rerunning: boolean }
+    })) as { rerunning: boolean }
     expect(r.rerunning).toBe(true)
-    expect(store.rerunSignal(widget.installId)).toBe(1)
-    expect(store.getWidget(widget.installId)?.src).toBe('let y = 2')
+    expect(store.rerunSignal(widget.id)).toBe(1)
+    expect(store.get(widget.id)?.content).toBe('let y = 2')
   })
 
   it('確認は旧 src と新 src の全文 diff を見せる (#981)', async () => {
@@ -202,14 +202,7 @@ describe('widgets.update — 表示中なら再実行を要求する (#744)', ()
     }
     // 他テストと installId を共有すると localStorage ミラー経由で src を
     // 引き継いでしまうため、diff 検証は専用 id で作る
-    useWidgetsStore().addWidget({
-      installId: 'w-diff-1',
-      name: 'diff-widget',
-      src: 'let x = 1',
-      autoRun: false,
-      createdAt: 0,
-      updatedAt: 0,
-    })
+    addWidget('w-diff-1')
     const ctx: CapabilityContext = {}
     const opts = await widgetsUpdateCapability.requiresConfirmation(
       { installId: 'w-diff-1', src: 'let y = 2' },
@@ -229,14 +222,14 @@ describe('widgets.update — 表示中なら再実行を要求する (#744)', ()
     }
     const widget = addWidget()
     const before = await widgetsUpdateCapability.requiresConfirmation(
-      { installId: widget.installId, src: 'let y = 2' },
+      { installId: widget.id, src: 'let y = 2' },
       {},
     )
     expect(before?.message).not.toContain('再実行されます')
 
-    useWidgetsStore().registerMounted(widget.installId)
+    useWidgetsStore().registerMounted(widget.id)
     const after = await widgetsUpdateCapability.requiresConfirmation(
-      { installId: widget.installId, src: 'let y = 2' },
+      { installId: widget.id, src: 'let y = 2' },
       {},
     )
     expect(after?.message).toContain('再実行されます')

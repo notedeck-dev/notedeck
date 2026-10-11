@@ -39,30 +39,41 @@ import { getStorageJson, setStorageJson } from '@/utils/storage'
  */
 
 /**
- * アカウント削除時の方針 (3 値)。呼び出し側 (account actions) の差は統合対象外
- * - `unlink`: 紐付けを外すだけ。本体はライブラリに残る (plugin / query)
- * - `remove`: そのアカウントに紐付く個体を消す (widget)
+ * アカウント削除時の方針。呼び出し側 (account actions) の差は統合対象外
+ * - `unlink`: 紐付けを外すだけ。本体はライブラリに残る (plugin / widget / query)
  * - `unlinkOrRemove`: 外して紐付けが空になったら本体ごと消す (theme)
  */
-export type PurgeAccountPolicy = 'unlink' | 'remove' | 'unlinkOrRemove'
+export type PurgeAccountPolicy = 'unlink' | 'unlinkOrRemove'
+
+/**
+ * 本文が変わった経路。`local` はこの store の API (編集 / ストア更新)、
+ * `external` は別の書き手 (notecore の capability / 他のウィンドウ) の変更通知
+ */
+export type ContentChangeSource = 'local' | 'external'
 
 export interface DistributableStoreHooks<Item> {
   /**
    * 初回読込の後の kind 側の移行 (旧 UUID → 安定キー、スコープ導入前の個体の
-   * 全体スコープ化 等)。in-place で直し、変えた個体を返す (永続化される)
+   * 全体スコープ化 等)。in-place で直し、変えた個体を返す (永続化される)。
+   * 個体を減らす移行 (複製の統合) は配列から splice し、ファイルは kind 側が消す
    */
   migrate?(items: Item[]): Item[]
   /**
    * 本文が変わった後 (本文更新 / ストア更新 / 変更通知)。有効 / 無効の切替では
    * 呼ばない (query のサスペンド解除は前者だけ、という判断を保つ)
    */
-  afterContentChange?(item: Item, prev: Item): void
+  afterContentChange?(item: Item, prev: Item, source: ContentChangeSource): void
   /** 有効 / 無効が変わった後 (切替 / 変更通知)。plugin の起動・停止はここ */
   afterEnabledChange?(item: Item): void
   /** 削除前に store 外の付帯状態 (Mk:save 領域 / サイドバーの並び) を退避する */
   snapshotForUndo?(item: Item): unknown
   /** undo で復活させた後、退避した付帯状態を戻す */
   restoreFromUndo?(item: Item, snapshot: unknown): void
+  /**
+   * 個体が消えた後 (削除 / 別の書き手による削除の通知)。store 外の付帯状態
+   * (Mk:save 領域 / サイドバーの並び) の掃除はここ。退避は `snapshotForUndo` が先
+   */
+  afterRemove?(item: Item): void
 }
 
 export interface DistributableStoreDeclaration<
@@ -133,7 +144,13 @@ export function createDistributableStore<
       void initFileStorage().finally(() => resolveReady?.())
     } else {
       if (decl.browserStorageKey) {
-        items.value = getStorageJson<Item[]>(decl.browserStorageKey, [])
+        // 読込前にメモリへ足された個体は残す (ファイル経路と同じ規則)
+        const stored = getStorageJson<Item[]>(decl.browserStorageKey, [])
+        const storedIds = new Set(stored.map((i) => i.id))
+        items.value = [
+          ...stored,
+          ...items.value.filter((i) => !storedIds.has(i.id)),
+        ]
       }
       runMigration()
       resolveReady?.()
@@ -283,7 +300,7 @@ export function createDistributableStore<
       patch.content !== undefined &&
       !contentEquals(patch.content as Content, prev.content)
     ) {
-      hooks.afterContentChange?.(next, prev)
+      hooks.afterContentChange?.(next, prev, 'local')
     }
     // 改名はファイルを rename で追随させる (ID 不変)。完了を待ってから保存
     if (settingsFs.isTauri && patch.name && patch.name !== prev.name) {
@@ -316,6 +333,26 @@ export function createDistributableStore<
   }
 
   /**
+   * kind 固有の付帯情報 (`extra`) の更新 (widget の autoRun / plugin の設定値 等)。
+   * 共通層は中を見ないので、本文や有効の hook は呼ばない
+   */
+  async function updateExtra(
+    id: string,
+    patch: Partial<Item['extra']>,
+  ): Promise<boolean> {
+    const prev = get(id)
+    if (!prev || rejectIfReadOnly(prev)) return false
+    const next: Item = {
+      ...prev,
+      extra: { ...(prev.extra as object), ...patch },
+      updatedAt: Date.now(),
+    }
+    replace(prev, next)
+    await persist(next)
+    return true
+  }
+
+  /**
    * ストア再インストール / 更新 (#913): 本文とストア由来を上書きする。
    * ローカル値 (改名した name / 参加先 / 有効) は維持。ソース欠損の readOnly
    * 個体は検証済み配布ソースで復旧する (persist 抑止を解除)
@@ -336,7 +373,7 @@ export function createDistributableStore<
     if (!prev.readOnly) await pushHistory(prev, next)
     replace(prev, next)
     if (!contentEquals(patch.content, prev.content)) {
-      hooks.afterContentChange?.(next, prev)
+      hooks.afterContentChange?.(next, prev, 'local')
     }
     await persist(next)
     return true
@@ -369,6 +406,7 @@ export function createDistributableStore<
     if (!target) return undefined
     const snapshot = hooks.snapshotForUndo?.(target)
     items.value = items.value.filter((i) => i.id !== id)
+    hooks.afterRemove?.(target)
     persistMirror()
     if (settingsFs.isTauri) {
       await ready
@@ -421,10 +459,6 @@ export function createDistributableStore<
     const target: ScopeTarget = { kind: 'account', key: scopeKey }
     for (const item of [...items.value]) {
       if (!hasScopeTarget(item.scope, target)) continue
-      if (decl.purgeAccount === 'remove') {
-        await remove(item.id)
-        continue
-      }
       // 掃除は読取専用でも通す (紐付けだけの変更で、本文を書き戻す訳ではない)
       const next: Item = {
         ...item,
@@ -448,7 +482,10 @@ export function createDistributableStore<
     ensureLoaded()
     await ready
     if (change.op === 'delete') {
+      const removed = items.value.filter((i) => i.fileBase === fileBase)
+      if (removed.length === 0) return
       items.value = items.value.filter((i) => i.fileBase !== fileBase)
+      for (const r of removed) hooks.afterRemove?.(r)
       return
     }
     let next: Item | undefined
@@ -467,7 +504,7 @@ export function createDistributableStore<
     else items.value = [...items.value, loaded]
     if (!prev) return
     if (!contentEquals(prev.content, loaded.content)) {
-      hooks.afterContentChange?.(loaded, prev)
+      hooks.afterContentChange?.(loaded, prev, 'external')
     }
     const declared = decl.codec.enabled
     if (declared && declared.get(prev) !== declared.get(loaded)) {
@@ -483,6 +520,7 @@ export function createDistributableStore<
     add,
     update,
     setEnabled,
+    updateExtra,
     applyStoreUpdate,
     recordStoreBaseline,
     remove,

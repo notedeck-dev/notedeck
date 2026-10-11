@@ -159,10 +159,6 @@
         "delete": {
           "title": "Delete widget",
           "message": "Deletes {name}. Its AiScript source, metadata and Mk:save storage are all removed. This can’t be undone.",
-          "messageMany_plural": {
-            "one": "Deletes {name} and {count} other. Their AiScript source, metadata and Mk:save storage are all removed. This can’t be undone.",
-            "other": "Deletes {name} and {count} others. Their AiScript source, metadata and Mk:save storage are all removed. This can’t be undone."
-          },
           "ok": "Delete"
         },
         "revert": {

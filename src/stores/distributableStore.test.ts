@@ -210,7 +210,29 @@ describe('add / update / rename', () => {
     expect(afterContentChange.mock.calls[0]?.[0]).toMatchObject({
       content: 'new',
     })
+    expect(afterContentChange.mock.calls[0]?.[2]).toBe('local')
     expect(store.get('a')?.updatedAt).toBeGreaterThan(1)
+  })
+
+  it('updateExtra は extra だけを差し替え、本文や有効の hook は呼ばない', async () => {
+    const f = fakeFiles([item({ id: 'a' })])
+    const afterContentChange = vi.fn()
+    const afterEnabledChange = vi.fn()
+    const store = makeStore({
+      files: f.files,
+      hooks: { afterContentChange, afterEnabledChange },
+    })
+    store.ensureLoaded()
+    await store.whenReady()
+    expect(await store.updateExtra('a', { active: false })).toBe(true)
+    expect(store.get('a')?.extra).toEqual({ active: false })
+    expect(store.get('a')?.updatedAt).toBeGreaterThan(1)
+    expect(afterContentChange).not.toHaveBeenCalled()
+    expect(afterEnabledChange).not.toHaveBeenCalled()
+    expect(f.persisted).toHaveLength(1)
+    // 読取専用は拒否
+    store.items.value = [item({ id: 'ro', readOnly: true })]
+    expect(await store.updateExtra('ro', { active: false })).toBe(false)
   })
 
   it('改名はファイル名を追随させてから永続化する', async () => {
@@ -324,9 +346,10 @@ describe('削除と undo', () => {
     ])
     const snapshotForUndo = vi.fn(() => 'snap')
     const restoreFromUndo = vi.fn()
+    const afterRemove = vi.fn()
     const store = makeStore({
       files: f.files,
-      hooks: { snapshotForUndo, restoreFromUndo },
+      hooks: { snapshotForUndo, restoreFromUndo, afterRemove },
     })
     store.ensureLoaded()
     await store.whenReady()
@@ -335,6 +358,13 @@ describe('削除と undo', () => {
     expect(store.items.value.map((i) => i.id)).toEqual(['a', 'c'])
     expect(f.deleted.map((i) => i.id)).toEqual(['b'])
     expect(snapshotForUndo).toHaveBeenCalledTimes(1)
+    // 退避 → 掃除の順
+    expect(afterRemove).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'b' }),
+    )
+    expect(snapshotForUndo.mock.invocationCallOrder[0]).toBeLessThan(
+      afterRemove.mock.invocationCallOrder[0] ?? 0,
+    )
 
     undo?.()
     await flush()
@@ -389,10 +419,8 @@ describe('スコープ', () => {
   })
 
   it.each<[PurgeAccountPolicy, string[], string[]]>([
-    // 紐付けを外すだけ (plugin / query): 本体は残る
+    // 紐付けを外すだけ (plugin / widget / query): 本体は残る
     ['unlink', ['only', 'both', 'other', 'none'], []],
-    // 個体を消す (widget): そのアカウントに紐付く個体を全部消す
-    ['remove', ['other', 'none'], ['only', 'both']],
     // 外して空なら消す (theme): 他に紐付く個体は残る
     ['unlinkOrRemove', ['both', 'other', 'none'], ['only']],
   ])('purgeAccount の方針 %s', async (policy, remaining, deleted) => {
@@ -455,9 +483,34 @@ describe('変更通知の受け口', () => {
       extra: { active: false },
     })
     expect(afterContentChange).toHaveBeenCalledTimes(1)
+    expect(afterContentChange.mock.calls[0]?.[2]).toBe('external')
     expect(afterEnabledChange).toHaveBeenCalledTimes(1)
     // 自分では書かない (書き手は別)
     expect(f.persisted).toHaveLength(0)
+  })
+
+  it('別の書き手による削除でも afterRemove で付帯状態を掃除する', async () => {
+    const f = fakeFiles([item({ id: 'a' })])
+    const afterRemove = vi.fn()
+    const store = makeStore({ files: f.files, hooks: { afterRemove } })
+    store.ensureLoaded()
+    await store.whenReady()
+    await dispatchSettingsChange({
+      subdir: 'fakes',
+      name: 'a.meta',
+      op: 'delete',
+    })
+    expect(store.items.value).toEqual([])
+    expect(afterRemove).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'a' }),
+    )
+    // 該当しない削除では呼ばない
+    await dispatchSettingsChange({
+      subdir: 'fakes',
+      name: 'zz.meta',
+      op: 'delete',
+    })
+    expect(afterRemove).toHaveBeenCalledTimes(1)
   })
 
   it('新しいファイルは追加、削除は fileBase で外す。対象外のファイル名は無視', async () => {

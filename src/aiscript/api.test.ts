@@ -202,6 +202,24 @@ describe('Mk:save / Mk:load / Mk:remove', () => {
     expect(result.type).toBe('null')
   })
 
+  it('Mk:load は名前空間つきの鍵に無ければ旧 prefix を読み、Mk:save は名前空間つきに書く (#1202 決定 (h))', async () => {
+    localStorage.setItem('nd-aiscript-app-w1:count', '3')
+    const env = makeEnv({
+      storagePrefix: 'app-w1/h:u',
+      legacyStoragePrefix: 'app-w1',
+    })
+    expect(
+      utils.valToJs(await callNative(env, 'Mk:load', [values.STR('count')])),
+    ).toBe(3)
+    await callNative(env, 'Mk:save', [values.STR('count'), values.NUM(4)])
+    expect(localStorage.getItem('nd-aiscript-app-w1/h:u:count')).toBe('4')
+    // 旧鍵は触らない。名前空間つきが出来たあとはそちらを読む
+    expect(localStorage.getItem('nd-aiscript-app-w1:count')).toBe('3')
+    expect(
+      utils.valToJs(await callNative(env, 'Mk:load', [values.STR('count')])),
+    ).toBe(4)
+  })
+
   it('Mk:load returns NULL for corrupt JSON', async () => {
     localStorage.setItem('nd-aiscript-default:bad', '{not json')
     const env = makeEnv()

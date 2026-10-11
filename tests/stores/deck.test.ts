@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { WidgetPlacement } from '@/services/widgetPlacement'
 import { DEFAULT_DECK_COLUMNS, useDeckStore } from '@/stores/deck'
 import { useWidgetsStore } from '@/stores/widgets'
 
@@ -774,62 +775,79 @@ describe('deck store', () => {
       })
       for (const name of ['first', 'second']) {
         const installId = `wgt-${name}`
-        widgets.addWidget({
-          installId,
+        widgets.items.push({
+          id: installId,
           name,
-          src: '',
-          autoRun: false,
+          content: '',
+          scope: { kind: 'shared', global: true, installedFor: [] },
+          extra: { autoRun: false },
           createdAt: 1,
           updatedAt: 1,
         })
-        deck.attachWidget(col.id, installId)
+        deck.attachWidget(col.id, { id: installId })
       }
-      const ids = sidebar
-        ? [...widgets.sidebarWidgetIds]
-        : [...(deck.getColumn(col.id)?.widgetIds ?? [])]
-      return { deck, widgets, col, ids }
+      const refs = sidebar
+        ? [...widgets.sidebarPlacements]
+        : [...(deck.getColumn(col.id)?.widgetRefs ?? [])]
+      return { deck, widgets, col, refs }
     }
 
-    const placedIds = (deck: ReturnType<typeof useDeckStore>, id: string) =>
-      deck.getColumn(id)?.widgetIds ?? []
+    const placedRefs = (deck: ReturnType<typeof useDeckStore>, id: string) =>
+      deck.getColumn(id)?.widgetRefs ?? []
 
     it('sidebar カラムでも widget 本体 (コード) を消さない', () => {
-      const { deck, widgets, col, ids } = setup(true)
+      const { deck, widgets, col, refs } = setup(true)
 
-      deck.removeWidget(col.id, ids[0] as string)
+      deck.removeWidget(col.id, refs[0] as WidgetPlacement)
 
-      expect(widgets.sidebarWidgetIds).toEqual([ids[1]])
+      expect(widgets.sidebarPlacements).toEqual([refs[1]])
       // 本体はライブラリに残る (ピッカーから再配置・完全削除できる)
-      expect(widgets.widgets.map((w) => w.installId).sort()).toEqual(
-        [...ids].sort(),
+      expect(widgets.items.map((w) => w.id).sort()).toEqual(
+        refs.map((r) => r.id).sort(),
       )
     })
 
     it('sidebar カラムの undo は元の位置に戻す', () => {
-      const { deck, widgets, col, ids } = setup(true)
+      const { deck, widgets, col, refs } = setup(true)
 
-      const undo = deck.removeWidget(col.id, ids[0] as string)
+      const undo = deck.removeWidget(col.id, refs[0] as WidgetPlacement)
       expect(undo).toBeTypeOf('function')
       undo?.()
 
-      expect(widgets.sidebarWidgetIds).toEqual(ids)
+      expect(widgets.sidebarPlacements).toEqual(refs)
     })
 
     it('通常カラムでも本体を消さず undo で元の位置に戻る', () => {
-      const { deck, widgets, col, ids } = setup(false)
+      const { deck, widgets, col, refs } = setup(false)
 
-      const undo = deck.removeWidget(col.id, ids[0] as string)
+      const undo = deck.removeWidget(col.id, refs[0] as WidgetPlacement)
 
-      expect(placedIds(deck, col.id)).toEqual([ids[1]])
-      expect(widgets.widgets).toHaveLength(2)
+      expect(placedRefs(deck, col.id)).toEqual([refs[1]])
+      expect(widgets.items).toHaveLength(2)
       undo?.()
-      expect(placedIds(deck, col.id)).toEqual(ids)
+      expect(placedRefs(deck, col.id)).toEqual(refs)
     })
 
     it('配置されていない widget を外しても undo は返さない', () => {
       const { deck, col } = setup(false)
 
-      expect(deck.removeWidget(col.id, 'not-placed')).toBeUndefined()
+      expect(deck.removeWidget(col.id, { id: 'not-placed' })).toBeUndefined()
+    })
+
+    it('同じ本体を別のアカウントで 2 つ置ける (#1202 決定 (g))', () => {
+      const { deck, col } = setup(false)
+      deck.attachWidget(col.id, { id: 'wgt-first', accountKey: 'h:u' })
+      deck.attachWidget(col.id, { id: 'wgt-first', accountKey: 'h:u' })
+      expect(placedRefs(deck, col.id)).toEqual([
+        { id: 'wgt-first' },
+        { id: 'wgt-second' },
+        { id: 'wgt-first', accountKey: 'h:u' },
+      ])
+      deck.removeWidget(col.id, { id: 'wgt-first', accountKey: 'h:u' })
+      expect(placedRefs(deck, col.id)).toEqual([
+        { id: 'wgt-first' },
+        { id: 'wgt-second' },
+      ])
     })
   })
 

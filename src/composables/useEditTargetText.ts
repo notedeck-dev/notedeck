@@ -30,7 +30,7 @@ export function useEditTargetText(
       case 'skill':
         return skills.get(id)?.body ?? ''
       case 'widget':
-        return widgets.getWidget(id)?.src ?? ''
+        return widgets.get(id)?.content ?? ''
       case 'plugin':
         return plugins.getPlugin(id)?.src ?? ''
       case 'query':

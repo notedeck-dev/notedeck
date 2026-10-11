@@ -3857,8 +3857,8 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "MisStore (store.notedeck.io) の既製ウィジェットをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 個体は storeId × 実行アカウントの組で 1 つ。同じ組が既にあれば更新して既存 installId を返す。",
-    params: {"id":{"type":"string","description":"MisStore registry 上の widget id"},"accountId":{"type":"string","description":"どのアカウントで動かすか (全アカウントのウィジェットカラムに置く個体用)。 未指定なら実行アカウントを固定しない個体になる (per-account カラムに 置けばそのカラムのアカウントで動く)。呼び出し文脈のアカウントへは フォールバックしない。","optional":true}},
+    description: "MisStore (store.notedeck.io) の既製ウィジェットをインストールする。 id は `misstore.search` で取得した値を渡す。sha512 検証付き。 本体は storeId につき 1 つ。既にあれば更新し、accountId を渡していればそのアカウントの紐付けを足して既存 installId を返す。",
+    params: {"id":{"type":"string","description":"MisStore registry 上の widget id"},"accountId":{"type":"string","description":"どのアカウントのカラムで選べるようにするか (紐付け)。 未指定なら全体 (どのアカウントのカラムでも選べる)。実行アカウントは カラムに置くときの配置が決める。呼び出し文脈のアカウントへは フォールバックしない。","optional":true}},
     returns: {"type":"object","description":"{ installId, name, autoRun, installed: boolean }"},
   },
   "widgets.list": {
@@ -3881,7 +3881,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "インストール済みウィジェットのメタデータ一覧を返す。 AiScript ソースは含まれない (src は widgets.read で個別取得)。",
     params: {},
-    returns: {"type":"array","description":"{ installId, name, autoRun, storeId?, accountId?, updatedAt } の配列。 accountId は個体に固定された実行アカウント (未固定は null)。 同じ storeId の個体が実行アカウント別に複数ありうる。"},
+    returns: {"type":"array","description":"{ installId, name, autoRun, storeId?, global, accountIds, updatedAt } の配列。 global はどのアカウントのカラムでも選べるか、accountIds は紐付けられた アカウント (内部 ID)。本体は storeId につき 1 つ。"},
   },
   "widgets.read": {
     id: "widgets.read",
@@ -3967,9 +3967,9 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "インストール済みウィジェットを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。storeId 指定は 実行アカウント別の全個体を消す。 widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
+    description: "インストール済みウィジェットを完全削除する。installId か storeId の どちらかを渡す (両方渡されたら installId 優先)。本体は storeId につき 1 つ。 widgets.delete と同等動作 (= AiScript ソース / メタ / Mk:save 領域すべて削除)。",
     params: {"installId":{"type":"string","description":"対象ウィジェットの installId (widgets.list で取得)","optional":true},"storeId":{"type":"string","description":"MisStore registry 上の id (= widgets.install で渡した id)","optional":true}},
-    returns: {"type":"object","description":"{ installId, installIds: string[], removed: boolean }。 storeId 指定は実行アカウント別の全個体が対象なので installIds に 消した個体をすべて返す。"},
+    returns: {"type":"object","description":"{ installId, removed: boolean }"},
   },
   "widgets.update": {
     id: "widgets.update",

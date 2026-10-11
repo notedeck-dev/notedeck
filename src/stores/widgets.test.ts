@@ -4,15 +4,41 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { pushSnapshot } from '@/utils/historyFs'
 import { STORAGE_KEYS, setStorageJson } from '@/utils/storage'
-import { useWidgetsStore, type WidgetMeta } from './widgets'
+import { useWidgetsStore, type WidgetItem } from './widgets'
 
 vi.mock('@/utils/historyFs', () => ({
   pushSnapshot: vi.fn(async () => undefined),
 }))
 
+const flush = () => new Promise<void>((r) => setTimeout(r, 0))
+
+function makeWidget(id: string, partial: Partial<WidgetItem> = {}): WidgetItem {
+  return {
+    id,
+    name: id,
+    content: `src of ${id}`,
+    scope: { kind: 'shared', global: true, installedFor: [] },
+    extra: { autoRun: false },
+    createdAt: 1,
+    updatedAt: 1,
+    ...partial,
+  }
+}
+
+function newWidget(id: string, partial: Partial<WidgetItem> = {}) {
+  const { createdAt: _c, updatedAt: _u, ...input } = makeWidget(id, partial)
+  return input
+}
+
+/** ロード前の localStorage ミラーに個体を仕込む (移行はロード直後に 1 回だけ走る) */
+function seed(...widgets: WidgetItem[]) {
+  setStorageJson(STORAGE_KEYS.widgets, widgets)
+}
+
 describe('useWidgetsStore — 再実行シグナル (#744)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    localStorage.clear()
   })
 
   it('未マウントなら requestRerun は発火せず 0 を返す', () => {
@@ -41,63 +67,66 @@ describe('useWidgetsStore — 再実行シグナル (#744)', () => {
     expect(store.requestRerun('w1')).toBe(0)
     expect(store.rerunSignal('w1')).toBe(0)
   })
+
+  it('自分の編集 (エディタの自動保存) では再実行しない (#744)', async () => {
+    const store = useWidgetsStore()
+    await store.add(newWidget('w1'))
+    store.registerMounted('w1')
+    await store.update('w1', { content: 'edited' })
+    expect(store.rerunSignal('w1')).toBe(0)
+  })
 })
 
-function makeWidget(installId: string, name = installId): WidgetMeta {
-  return {
-    installId,
-    name,
-    src: `src of ${installId}`,
-    autoRun: false,
-    createdAt: 1,
-    updatedAt: 1,
-  }
-}
-
-describe('useWidgetsStore.removeWidget (undo)', () => {
+describe('useWidgetsStore.remove (undo)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
   })
 
-  it('undo が widget を元の位置に復元する', () => {
+  it('undo が widget を元の位置に復元する', async () => {
     const store = useWidgetsStore()
-    store.addWidget(makeWidget('w1'))
-    store.addWidget(makeWidget('w2'))
-    store.addWidget(makeWidget('w3'))
-    const undo = store.removeWidget('w2')
-    expect(store.getWidget('w2')).toBeUndefined()
+    await store.add(newWidget('w1'))
+    await store.add(newWidget('w2'))
+    await store.add(newWidget('w3'))
+    const undo = await store.remove('w2')
+    expect(store.get('w2')).toBeUndefined()
     expect(undo).toBeTypeOf('function')
     undo?.()
-    expect(store.widgets.map((w) => w.installId)).toEqual(['w1', 'w2', 'w3'])
-    expect(store.getWidget('w2')?.src).toBe('src of w2')
+    expect(store.items.map((w) => w.id)).toEqual(['w1', 'w2', 'w3'])
+    expect(store.get('w2')?.content).toBe('src of w2')
   })
 
-  it('存在しない id は undefined を返す', () => {
+  it('存在しない id は undefined を返す', async () => {
     const store = useWidgetsStore()
-    expect(store.removeWidget('nope')).toBeUndefined()
+    expect(await store.remove('nope')).toBeUndefined()
   })
 
-  it('undo が sidebar 並び位置を復元する', () => {
+  it('undo が sidebar の配置と位置を復元する', async () => {
     const store = useWidgetsStore()
-    store.addWidget(makeWidget('w1'))
-    store.addWidget(makeWidget('w2'))
-    store.addToSidebar('w1')
-    store.addToSidebar('w2')
-    const undo = store.removeWidget('w1')
-    expect(store.sidebarWidgetIds).toEqual(['w2'])
+    await store.add(newWidget('w1'))
+    await store.add(newWidget('w2'))
+    store.addToSidebar({ id: 'w1', accountKey: 'h:u' })
+    store.addToSidebar({ id: 'w2' })
+    const undo = await store.remove('w1')
+    expect(store.sidebarPlacements).toEqual([{ id: 'w2' }])
     undo?.()
-    expect(store.sidebarWidgetIds).toEqual(['w1', 'w2'])
+    expect(store.sidebarPlacements).toEqual([
+      { id: 'w1', accountKey: 'h:u' },
+      { id: 'w2' },
+    ])
   })
 
-  it('undo が AiScript ストレージ (Mk:save 領域) を復元する', () => {
+  it('undo が AiScript ストレージ (Mk:save 領域、全名前空間) を復元する', async () => {
     const store = useWidgetsStore()
-    store.addWidget(makeWidget('w1'))
+    await store.add(newWidget('w1'))
     localStorage.setItem('nd-aiscript-app-w1:key', '"v"')
-    const undo = store.removeWidget('w1')
+    localStorage.setItem('nd-aiscript-app-w1/h:u:key', '"vu"')
+    const undo = await store.remove('w1')
     expect(localStorage.getItem('nd-aiscript-app-w1:key')).toBeNull()
+    expect(localStorage.getItem('nd-aiscript-app-w1/h:u:key')).toBeNull()
     undo?.()
     expect(localStorage.getItem('nd-aiscript-app-w1:key')).toBe('"v"')
+    expect(localStorage.getItem('nd-aiscript-app-w1/h:u:key')).toBe('"vu"')
   })
 })
 
@@ -107,117 +136,86 @@ describe('applyStoreUpdate (#913 ストア再インストール)', () => {
     localStorage.clear()
   })
 
-  it('src とストア由来メタを上書きし name / autoRun は維持する', () => {
+  it('本文とストア由来メタを上書きし name / autoRun / 紐付けは維持する', async () => {
     const store = useWidgetsStore()
-    store.addWidget({
-      ...makeWidget('w1', 'My Renamed'),
-      autoRun: true,
-      storeId: 'ent-widget',
-      iconUrl: 'https://example.com/old.svg',
-    })
-    const updated = store.applyStoreUpdate('w1', {
-      src: 'new src',
+    await store.add(
+      newWidget('w1', {
+        name: 'My Renamed',
+        extra: { autoRun: true },
+        store: { id: 'ent-widget' },
+        iconUrl: 'https://example.com/old.svg',
+        scope: { kind: 'shared', global: false, installedFor: ['h:u'] },
+      }),
+    )
+    await store.applyStoreUpdate('w1', {
+      content: 'new src',
       iconUrl: 'https://example.com/new.svg',
-      storeSha512: 'abc',
-      storeVersion: '2.0.0',
+      store: { id: 'ent-widget', sha512: 'abc', version: '2.0.0' },
     })
-    expect(updated).toBe(store.getWidget('w1'))
-    expect(store.getWidget('w1')).toMatchObject({
-      src: 'new src',
+    expect(store.get('w1')).toMatchObject({
+      content: 'new src',
       iconUrl: 'https://example.com/new.svg',
-      storeSha512: 'abc',
-      storeVersion: '2.0.0',
+      store: { id: 'ent-widget', sha512: 'abc', version: '2.0.0' },
       // ローカル値は維持
       name: 'My Renamed',
-      autoRun: true,
+      extra: { autoRun: true },
+      scope: { global: false, installedFor: ['h:u'] },
     })
   })
 
-  it('ソース欠損の readOnly 個体は検証済み配布ソースで復旧する', () => {
+  it('ソース欠損の readOnly 個体は検証済み配布ソースで復旧する', async () => {
     const store = useWidgetsStore()
-    store.addWidget({ ...makeWidget('w1'), readOnly: true, src: '' })
-    store.applyStoreUpdate('w1', {
-      src: 'recovered',
-      storeSha512: 'abc',
-      storeVersion: '1.0.0',
+    await store.add(newWidget('w1', { content: '' }))
+    store.items = [{ ...(store.get('w1') as WidgetItem), readOnly: true }]
+    await store.applyStoreUpdate('w1', {
+      content: 'recovered',
+      store: { id: 'ent', sha512: 'abc', version: '1.0.0' },
     })
-    expect(store.getWidget('w1')?.src).toBe('recovered')
-    expect(store.getWidget('w1')?.readOnly).toBeFalsy()
+    expect(store.get('w1')?.content).toBe('recovered')
+    expect(store.get('w1')?.readOnly).toBeFalsy()
   })
 
-  it('未知の installId には undefined を返す', () => {
+  it('未知の installId には false を返す', async () => {
     const store = useWidgetsStore()
     expect(
-      store.applyStoreUpdate('nope', {
-        src: 's',
-        storeSha512: 'a',
-        storeVersion: '1',
+      await store.applyStoreUpdate('nope', {
+        content: 's',
+        store: { id: 'ent', sha512: 'a', version: '1' },
       }),
-    ).toBeUndefined()
+    ).toBe(false)
   })
 })
 
 describe('編集履歴の同値ガード (#981)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    localStorage.clear()
     vi.mocked(pushSnapshot).mockClear()
   })
 
-  // localStorage ミラー経由で前テストの src を引き継がないよう id を分ける
-  function addWidget(installId: string): WidgetMeta {
-    const widget: WidgetMeta = {
-      installId,
-      name: 'hist',
-      src: '<: "v1"',
-      autoRun: false,
-      createdAt: 0,
-      updatedAt: 0,
-      fileBase: 'hist',
-    }
-    useWidgetsStore().addWidget(widget)
-    return widget
+  async function addWidget(id: string) {
+    const store = useWidgetsStore()
+    await store.add(newWidget(id, { name: 'hist', content: '<: "v1"' }))
+    const live = store.get(id)
+    if (live) live.fileBase = 'hist'
   }
 
-  it('内容が変わる保存は編集前 snapshot を積む', () => {
-    const w = addWidget('w-hist-changed')
-    useWidgetsStore().updateSrc(w.installId, '<: "v2"')
+  it('内容が変わる保存は編集前 snapshot (src / name / autoRun) を積む', async () => {
+    await addWidget('w-hist-changed')
+    await useWidgetsStore().update('w-hist-changed', { content: '<: "v2"' })
     expect(pushSnapshot).toHaveBeenCalledTimes(1)
+    expect(pushSnapshot).toHaveBeenCalledWith(
+      'widget',
+      'hist',
+      { src: '<: "v1"', name: 'hist', autoRun: false },
+      undefined,
+    )
   })
 
-  it('同じ内容の保存では積まない (自動保存でリングを使い潰さない)', () => {
-    const w = addWidget('w-hist-same')
-    useWidgetsStore().updateSrc(w.installId, '<: "v1"')
+  it('同じ内容の保存では積まない (自動保存でリングを使い潰さない)', async () => {
+    await addWidget('w-hist-same')
+    await useWidgetsStore().update('w-hist-same', { content: '<: "v1"' })
     expect(pushSnapshot).not.toHaveBeenCalled()
-  })
-})
-
-describe('useWidgetsStore.setAccountKey — ウィジェット単位の実行アカウント (#1018 / #1061)', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    localStorage.clear()
-  })
-
-  it('実行アカウントを安定キーで固定できる', () => {
-    const store = useWidgetsStore()
-    store.addWidget(makeWidget('w-acc'))
-
-    store.setAccountKey('w-acc', 'misskey.io:u1')
-
-    expect(store.getWidget('w-acc')?.accountKey).toBe('misskey.io:u1')
-  })
-
-  it('undefined を渡すと解除される (カラムのアカウントに従う状態へ戻す)', () => {
-    const store = useWidgetsStore()
-    store.addWidget({ ...makeWidget('w-acc'), accountKey: 'misskey.io:u1' })
-
-    store.setAccountKey('w-acc', undefined)
-
-    expect(store.getWidget('w-acc')?.accountKey).toBeUndefined()
-  })
-
-  it('未知の installId は no-op', () => {
-    const store = useWidgetsStore()
-    expect(() => store.setAccountKey('missing', 'misskey.io:u1')).not.toThrow()
   })
 })
 
@@ -235,93 +233,155 @@ function setupAccounts() {
   accounts.isLoaded = true
 }
 
-describe('useWidgetsStore.migrateScopes — 実行アカウントの安定キー化 (#1061)', () => {
+describe('初回読込の移行 (#1202 段階 1)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
   })
 
-  // 移行は初回ロード直後に 1 回だけ走るので、ロード前のデータとして仕込む
-  function seed(...widgets: WidgetMeta[]) {
-    setStorageJson(STORAGE_KEYS.widgets, widgets)
-  }
-
-  it('旧 accountId (UUID) が現行アカウントに該当すれば安定キーへ置換する', () => {
-    setupAccounts()
-    seed({ ...makeWidget('w1'), legacyAccountId: 'uuid-yami' })
-    const store = useWidgetsStore()
-
-    store.migrateScopes()
-
-    const w = store.getWidget('w1')
-    expect(w?.accountKey).toBe('yami.ski:u1')
-    expect(w?.legacyAccountId).toBeUndefined()
-  })
-
-  it('ミラーに旧形式 (accountId) のまま残っている個体も移行する', () => {
-    setupAccounts()
-    // 旧バージョンの localStorage ミラーはファイルを経由せず accountId を直接持つ
-    seed({ ...makeWidget('w1'), accountId: 'uuid-yami' } as WidgetMeta)
-    const store = useWidgetsStore()
-
-    store.migrateScopes()
-
-    const w = store.getWidget('w1') as WidgetMeta & { accountId?: string }
-    expect(w?.accountKey).toBe('yami.ski:u1')
-    expect(w?.accountId).toBeUndefined()
-  })
-
-  it('旧 accountId が現存しないアカウントなら「アカウント無し」へ戻して救済する', () => {
-    setupAccounts()
-    seed({ ...makeWidget('w1'), legacyAccountId: 'uuid-dead' })
-    const store = useWidgetsStore()
-
-    store.migrateScopes()
-
-    const w = store.getWidget('w1')
-    expect(w?.accountKey).toBeUndefined()
-    expect(w?.legacyAccountId).toBeUndefined()
-  })
-
-  it('現存しない安定キーも「アカウント無し」へ戻す (バックアップ復元の孤児)', () => {
-    setupAccounts()
+  it('createdAt 昇順に並べる', () => {
     seed(
-      { ...makeWidget('w1'), accountKey: 'gone.example:u9' },
-      { ...makeWidget('w2'), accountKey: 'yami.ski:u1' },
+      makeWidget('late', { createdAt: 20 }),
+      makeWidget('early', { createdAt: 10 }),
     )
     const store = useWidgetsStore()
-
-    store.migrateScopes()
-
-    expect(store.getWidget('w1')?.accountKey).toBeUndefined()
-    expect(store.getWidget('w2')?.accountKey).toBe('yami.ski:u1')
+    store.ensureLoaded()
+    expect(store.items.map((w) => w.id)).toEqual(['early', 'late'])
   })
 
-  it('accounts 未ロードなら何もしない', () => {
-    seed({ ...makeWidget('w1'), legacyAccountId: 'uuid-yami' })
+  it('同じ storeId の複製は最古を本体に統合し、紐付けを束ね、配置の書き換えを積む (決定 (i))', async () => {
+    localStorage.setItem('nd-aiscript-app-copy:count', '7')
+    localStorage.setItem('nd-aiscript-app-body:count', '1')
+    setStorageJson(STORAGE_KEYS.widgetsSidebarOrder, ['copy', 'body'])
+    seed(
+      makeWidget('copy', {
+        createdAt: 5,
+        content: 'diverged',
+        store: { id: 'clock' },
+        scope: { kind: 'shared', global: false, installedFor: ['h:v'] },
+        extra: { autoRun: false, legacyAccountKey: 'h:v' },
+      }),
+      makeWidget('body', {
+        createdAt: 2,
+        content: 'base',
+        store: { id: 'clock' },
+        scope: { kind: 'shared', global: false, installedFor: ['h:u'] },
+        extra: { autoRun: false, legacyAccountKey: 'h:u' },
+        fileBase: 'clock',
+      }),
+    )
     const store = useWidgetsStore()
+    store.ensureLoaded()
+    await flush()
 
-    store.migrateScopes()
+    expect(store.items.map((w) => w.id)).toEqual(['body'])
+    expect(store.get('body')?.scope).toEqual({
+      kind: 'shared',
+      global: false,
+      installedFor: ['h:u', 'h:v'],
+    })
+    // 分岐した本文は本体の履歴へ
+    expect(pushSnapshot).toHaveBeenCalledWith('widget', 'clock', {
+      src: 'diverged',
+      name: 'copy',
+      autoRun: false,
+    })
+    // Mk:save は本体の名前空間 (実行アカウント別) へ。本体の旧状態も自分の名前空間へ
+    expect(localStorage.getItem('nd-aiscript-app-body/h:v:count')).toBe('7')
+    expect(localStorage.getItem('nd-aiscript-app-copy:count')).toBeNull()
+    expect(localStorage.getItem('nd-aiscript-app-body/h:u:count')).toBe('1')
+    expect(localStorage.getItem('nd-aiscript-app-body:count')).toBeNull()
+    // 配置は本体 id + 実行アカウントへ (サイドバーは自分で、カラムは deck が取り出す)
+    expect(store.sidebarPlacements).toEqual([
+      { id: 'body', accountKey: 'h:v' },
+      { id: 'body', accountKey: 'h:u' },
+    ])
+    expect(store.takePlacementRewrites()).toEqual([
+      { from: 'copy', to: { id: 'body', accountKey: 'h:v' } },
+      { from: 'body', to: { id: 'body', accountKey: 'h:u' } },
+    ])
+    expect(store.pendingPlacementRewrites).toEqual([])
+    // 固定の印は消える
+    expect(store.get('body')?.extra.legacyAccountKey).toBeUndefined()
+  })
 
-    expect(store.getWidget('w1')?.legacyAccountId).toBe('uuid-yami')
+  it('旧 accountId (UUID) は accounts ロード後に安定キーの紐付けへ写す。該当しなければ全体スコープ', async () => {
+    setupAccounts()
+    seed(
+      makeWidget('w1', {
+        scope: { kind: 'shared', global: false, installedFor: [] },
+        extra: { autoRun: false, legacyAccountId: 'uuid-yami' },
+      }),
+      makeWidget('w2', {
+        scope: { kind: 'shared', global: false, installedFor: [] },
+        extra: { autoRun: false, legacyAccountId: 'uuid-dead' },
+      }),
+    )
+    const store = useWidgetsStore()
+    store.ensureLoaded()
+    await flush()
+
+    expect(store.get('w1')?.scope).toMatchObject({
+      installedFor: ['yami.ski:u1'],
+    })
+    expect(store.get('w1')?.extra.legacyAccountId).toBeUndefined()
+    expect(store.get('w2')?.scope).toMatchObject({ global: true })
+    expect(store.get('w2')?.extra.legacyAccountId).toBeUndefined()
+  })
+
+  it('accounts 未ロードなら旧 accountId の移行は待つ', async () => {
+    seed(
+      makeWidget('w1', {
+        extra: { autoRun: false, legacyAccountId: 'uuid-yami' },
+      }),
+    )
+    const store = useWidgetsStore()
+    store.ensureLoaded()
+    await flush()
+    expect(store.get('w1')?.extra.legacyAccountId).toBe('uuid-yami')
+  })
+
+  it('サイドバーの旧形式 (installId の配列) は配置として読み、不在の本体を外す', () => {
+    setStorageJson(STORAGE_KEYS.widgetsSidebarOrder, ['w1', 'gone'])
+    seed(makeWidget('w1'))
+    const store = useWidgetsStore()
+    store.ensureLoaded()
+    expect(store.sidebarPlacements).toEqual([{ id: 'w1' }])
   })
 })
 
-describe('useWidgetsStore.purgeAccount — アカウント削除で紐づく個体を消す (#1061)', () => {
+describe('useWidgetsStore.purgeAccount — アカウント削除で紐付けを外す (#1061 / #1114)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
   })
 
-  it('同じ安定キーの個体だけを削除し、削除した installId を返す', () => {
+  it('同じ安定キーの紐付けだけを外し、本体はライブラリに残す', async () => {
     const store = useWidgetsStore()
-    store.addWidget({ ...makeWidget('w1'), accountKey: 'yami.ski:u1' })
-    store.addWidget({ ...makeWidget('w2'), accountKey: 'cloud.example:u2' })
-    store.addWidget(makeWidget('w3'))
-
-    expect(store.purgeAccount('yami.ski:u1')).toEqual(['w1'])
-
-    expect(store.widgets.map((w) => w.installId)).toEqual(['w2', 'w3'])
+    await store.add(
+      newWidget('w1', {
+        scope: {
+          kind: 'shared',
+          global: false,
+          installedFor: ['yami.ski:u1', 'h:x'],
+        },
+      }),
+    )
+    await store.add(
+      newWidget('w2', {
+        scope: {
+          kind: 'shared',
+          global: false,
+          installedFor: ['cloud.example:u2'],
+        },
+      }),
+    )
+    await store.purgeAccount('yami.ski:u1')
+    expect(store.items.map((w) => w.id)).toEqual(['w1', 'w2'])
+    expect(store.get('w1')?.scope).toMatchObject({ installedFor: ['h:x'] })
+    expect(store.get('w2')?.scope).toMatchObject({
+      installedFor: ['cloud.example:u2'],
+    })
   })
 })
 
@@ -331,24 +391,24 @@ describe('読取専用 (ソース欠損) のウィジェットは変更を拒否
     localStorage.clear()
   })
 
-  it('自動実行・改名・ソース・実行アカウントの変更を拒否して false を返す', () => {
+  it('自動実行・改名・ソース・紐付けの変更を拒否して false を返す', async () => {
     const store = useWidgetsStore()
-    store.addWidget({ ...makeWidget('ro'), src: '' })
-    const live = store.getWidget('ro')
+    await store.add(newWidget('ro', { content: '' }))
+    const live = store.get('ro')
     if (live) live.readOnly = true
-    expect(store.setAutoRun('ro', true)).toBe(false)
-    expect(store.getWidget('ro')?.autoRun).toBe(false)
-    expect(store.renameWidget('ro', 'renamed')).toBe(false)
-    expect(store.getWidget('ro')?.name).toBe('ro')
-    expect(store.updateSrc('ro', 'x')).toBe(false)
-    expect(store.setAccountKey('ro', 'h:u')).toBe(false)
-    expect(store.getWidget('ro')?.accountKey).toBeUndefined()
+    expect(await store.setAutoRun('ro', true)).toBe(false)
+    expect(store.get('ro')?.extra.autoRun).toBe(false)
+    expect(await store.update('ro', { name: 'renamed' })).toBe(false)
+    expect(store.get('ro')?.name).toBe('ro')
+    expect(await store.update('ro', { content: 'x' })).toBe(false)
+    expect(await store.link('ro', { kind: 'account', key: 'h:u' })).toBe(false)
   })
 
-  it('通常のウィジェットでは true を返す', () => {
+  it('通常のウィジェットでは true を返す', async () => {
     const store = useWidgetsStore()
-    store.addWidget(makeWidget('ok'))
-    expect(store.setAutoRun('ok', true)).toBe(true)
-    expect(store.renameWidget('ok', 'renamed')).toBe(true)
+    await store.add(newWidget('ok'))
+    expect(await store.setAutoRun('ok', true)).toBe(true)
+    expect(store.get('ok')?.extra.autoRun).toBe(true)
+    expect(await store.update('ok', { name: 'renamed' })).toBe(true)
   })
 })

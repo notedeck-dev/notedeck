@@ -34,8 +34,12 @@ import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { i18n } from '@/i18n'
 import { readOnlyReason } from '@/services/sidecarFileCollection'
+import {
+  legacyWidgetStoragePrefix,
+  widgetStoragePrefix,
+} from '@/services/widgetPlacement'
 import { isExposed } from '@/settings/exposure'
-import { useAccountsStore } from '@/stores/accounts'
+import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
 import { useWidgetsStore } from '@/stores/widgets'
@@ -59,26 +63,27 @@ widgetsStore.ensureLoaded()
 const accountsStore = useAccountsStore()
 const { show: showToast } = useToast()
 
-const widget = computed(() => widgetsStore.getWidget(props.widgetId))
+const widget = computed(() => widgetsStore.get(props.widgetId))
 
 const activeAccountId = computed(() => props.accountId ?? null)
-const serverUrl = computed(() => {
+const activeAccount = computed(() => {
   const id = activeAccountId.value
-  if (!id) return ''
-  const a = accountsStore.accounts.find((acc) => acc.id === id)
-  return a ? `https://${a.host}` : ''
+  return id ? accountsStore.accounts.find((acc) => acc.id === id) : undefined
 })
+const serverUrl = computed(() =>
+  activeAccount.value ? `https://${activeAccount.value.host}` : '',
+)
 
-const code = ref(widget.value?.src ?? '')
+const code = ref(widget.value?.content ?? '')
 
 // debounce save (= WidgetAiScript と同じ仕組み)
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 const dirty = ref(false)
 const saved = ref(false)
 
-function commitSave(src: string) {
+async function commitSave(src: string) {
   if (!widget.value) return
-  if (!widgetsStore.updateSrc(widget.value.installId, src)) {
+  if (!(await widgetsStore.update(widget.value.id, { content: src }))) {
     // 読取専用 (ソース欠損) は保存されない。「保存しました」を出さない (#1111)
     showToast(readOnlyReason(), 'warning')
     return
@@ -94,7 +99,7 @@ function flushPendingSave() {
   if (saveTimer && widget.value) {
     clearTimeout(saveTimer)
     saveTimer = null
-    commitSave(code.value)
+    void commitSave(code.value)
   }
 }
 watch(code, (val) => {
@@ -105,7 +110,7 @@ watch(code, (val) => {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(() => {
     saveTimer = null
-    commitSave(val)
+    void commitSave(val)
   }, 500)
 })
 onBeforeUnmount(flushPendingSave)
@@ -116,7 +121,7 @@ onBeforeUnmount(flushPendingSave)
  * 書き戻される。規則は useExternalEditSync 側にある。
  */
 const { isSyncing } = useExternalEditSync<string>({
-  source: () => widget.value?.src,
+  source: () => widget.value?.content,
   current: () => code.value,
   isDirty: () => dirty.value,
   apply: (src) => {
@@ -134,8 +139,8 @@ function openHistory() {
   if (!w) return
   openEditHistoryWindow({
     kind: 'widget',
-    basename: historyBasename(w.fileBase, w.name, w.installId),
-    itemId: w.installId,
+    basename: historyBasename(w.fileBase, w.name, w.id),
+    itemId: w.id,
     name: w.name,
   })
 }
@@ -229,11 +234,16 @@ async function run() {
       pluginId: `widget:${props.widgetId}`,
       name: widget.value.name,
     },
-    storeId: widget.value.storeId,
+    storeId: widget.value.store?.id,
     accountId: activeAccountId.value,
-    storagePrefix: `app-${widget.value.installId}`,
+    // 編集プレビューも配置と同じ名前空間 (実行アカウント) で Mk:save を見る
+    storagePrefix: widgetStoragePrefix(
+      widget.value.id,
+      activeAccount.value ? accountScopeKey(activeAccount.value) : undefined,
+    ),
+    legacyStoragePrefix: legacyWidgetStoragePrefix(widget.value.id),
     globals: {
-      THIS_ID: widget.value.installId,
+      THIS_ID: widget.value.id,
       THIS_URL: '',
       USER_ID:
         accountsStore.accounts.find((a) => a.id === activeAccountId.value)
@@ -284,7 +294,7 @@ onBeforeUnmount(() => {
 })
 
 onMounted(() => {
-  if (widget.value?.autoRun && code.value) run()
+  if (widget.value?.extra.autoRun && code.value) run()
 })
 
 // --- Window header の「実行」ボタン (= editAction として登録) ---
@@ -307,15 +317,15 @@ function startRename() {
   renamingValue.value = widget.value.name
   isRenaming.value = true
 }
-function commitRename() {
+async function commitRename() {
   if (!widget.value) return
   const v = renamingValue.value.trim()
+  isRenaming.value = false
   if (v && v !== widget.value.name) {
-    if (!widgetsStore.renameWidget(widget.value.installId, v)) {
+    if (!(await widgetsStore.update(widget.value.id, { name: v }))) {
       showToast(readOnlyReason(), 'warning')
     }
   }
-  isRenaming.value = false
 }
 function cancelRename() {
   isRenaming.value = false
@@ -323,7 +333,7 @@ function cancelRename() {
 
 function toggleAutoRun() {
   if (!widget.value) return
-  widgetsStore.setAutoRun(widget.value.installId, !widget.value.autoRun)
+  void widgetsStore.setAutoRun(widget.value.id, !widget.value.extra.autoRun)
 }
 </script>
 
@@ -358,16 +368,16 @@ function toggleAutoRun() {
           </button>
         </div>
         <div :class="$style.headerSub">
-          <span v-if="widget.storeId" :class="$style.statusBadge">{{ i18n.ts._common.store }}</span>
+          <span v-if="widget.store" :class="$style.statusBadge">{{ i18n.ts._common.store }}</span>
           <span v-else :class="[$style.statusBadge, $style.statusBadgeLocal]">{{ i18n.ts._common.local }}</span>
           <button
             class="_button"
-            :class="[$style.autoRunBtn, widget.autoRun && $style.autoRunBtnActive]"
-            :title="widget.autoRun ? i18n.ts._widgetEditContent.autoRunOnTitle : i18n.ts._widgetEditContent.autoRunOffTitle"
+            :class="[$style.autoRunBtn, widget.extra.autoRun && $style.autoRunBtnActive]"
+            :title="widget.extra.autoRun ? i18n.ts._widgetEditContent.autoRunOnTitle : i18n.ts._widgetEditContent.autoRunOffTitle"
             @click="toggleAutoRun"
           >
-            <i :class="widget.autoRun ? 'ti ti-clock-play' : 'ti ti-clock-off'" />
-            <span>{{ widget.autoRun ? i18n.ts._widgetEditContent.autoRunOn : i18n.ts._widgetEditContent.autoRunOff }}</span>
+            <i :class="widget.extra.autoRun ? 'ti ti-clock-play' : 'ti ti-clock-off'" />
+            <span>{{ widget.extra.autoRun ? i18n.ts._widgetEditContent.autoRunOn : i18n.ts._widgetEditContent.autoRunOff }}</span>
           </button>
         </div>
       </div>

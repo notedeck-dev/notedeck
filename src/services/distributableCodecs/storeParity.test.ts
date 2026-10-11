@@ -19,7 +19,6 @@ import {
   themeFromFile,
   _internal as themeInternal,
 } from '@/stores/themeFileSync'
-import { _internal as widgetInternal } from '@/stores/widgets'
 
 /**
  * 今の store の serialize (fromFile → toFileMeta) が codec の出力と一致する
@@ -28,7 +27,7 @@ import { _internal as widgetInternal } from '@/stores/widgets'
  * (`golden/vectors.json`) を共有する。欠損した時刻は store が `Date.now()` で
  * 埋めるので、vector の `now` を system time にして揃える。
  *
- * codec に置き換わった kind (query、段階 1) はここから外れる — store の
+ * codec に置き換わった kind (query / widget、段階 1) はここから外れる — store の
  * 書く形は codec そのもので、golden (`goldenVectors.test.ts`) が受ける
  */
 
@@ -76,10 +75,7 @@ function withNow<T>(now: number, fn: () => T): T {
 }
 
 describe('store の serialize = codec の出力 (golden を共有)', () => {
-  const sidecars = [
-    ['plugin', pluginInternal],
-    ['widget', widgetInternal],
-  ] as const
+  const sidecars = [['plugin', pluginInternal]] as const
   for (const [kind, internal] of sidecars) {
     describe(kind, () => {
       for (const v of vectors[kind]) {

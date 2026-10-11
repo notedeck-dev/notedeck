@@ -8,9 +8,13 @@
  */
 
 import { COLUMN_LABELS_BY_TYPE } from '@/i18n/locale.generated'
+import type { WidgetItem } from '@/services/distributableCodecs/widgetCodec'
 import { migrateSearchColumns } from '@/services/searchFilter'
+import {
+  placementsFromIds,
+  type WidgetPlacement,
+} from '@/services/widgetPlacement'
 import type { DeckColumn, DeckProfile } from '@/stores/deck'
-import type { WidgetMeta } from '@/stores/widgets'
 
 /**
  * ファイルへ書く形にする (#913: id はファイルに書く。参照はファイル内 ID)。
@@ -25,26 +29,45 @@ export function toFileFormat(profile: DeckProfile): Record<string, unknown> {
 export interface WidgetMigrationResult {
   columns: DeckColumn[]
   droppedConsoleCount: number
-  extractedWidgets: WidgetMeta[]
-  sidebarSeed: string[]
+  extractedWidgets: WidgetItem[]
+  sidebarSeed: WidgetPlacement[]
+  /** 旧 `widgetIds[]` を配置 (`widgetRefs[]`) に移したカラム数。0 でなければ書き戻す */
+  migratedWidgetRefs: number
 }
 
 /**
  * Widget マイグレーション。
  * - 旧 `type: 'aiscriptConsole'` の widget 行は削除 (コードは失われる)。
- * - 旧 `widgets[]` は本体を抽出してストアに移送、カラムには `widgetIds[]` のみ残す。
- * - 既に `widgetIds[]` 化済みのカラムは触らない (idempotent)。
+ * - 旧 `widgets[]` は本体を抽出してストアに移送、カラムには配置のみ残す。
+ * - 旧 `widgetIds[]` (installId だけ) は配置 `widgetRefs[]` に移す (#1202 決定 (g))。
+ *   実行アカウントは widgets store の移行が後から足す
+ * - 既に `widgetRefs[]` 化済みのカラムは触らない (idempotent)。
  * 削除件数と抽出した widget は呼び出し側でストアに登録するため返す。
  */
 export function migrateWidgetColumns(
   columns: DeckColumn[],
 ): WidgetMigrationResult {
   let droppedConsoleCount = 0
-  const extractedWidgets: WidgetMeta[] = []
-  const sidebarSeed: string[] = []
+  let migratedWidgetRefs = 0
+  const extractedWidgets: WidgetItem[] = []
+  const sidebarSeed: WidgetPlacement[] = []
   const now = Date.now()
   const migrated = columns.map((col) => {
     if (col.type !== 'widget') return col
+    const legacyIds = (col as { widgetIds?: string[] }).widgetIds
+    if (!col.widgets && legacyIds) {
+      migratedWidgetRefs++
+      const { widgetIds: _ids, ...rest } = col as DeckColumn & {
+        widgetIds?: string[]
+      }
+      return {
+        ...rest,
+        widgetRefs: [
+          ...(col.widgetRefs ?? []),
+          ...placementsFromIds(legacyIds),
+        ],
+      } as DeckColumn
+    }
     if (!col.widgets) return col
 
     const newIds: string[] = []
@@ -59,27 +82,31 @@ export function migrateWidgetColumns(
       const installId = w.id
       newIds.push(installId)
       extractedWidgets.push({
-        installId,
+        id: installId,
         name: `Widget ${installId.slice(4, 12)}`,
-        src: w.data?.code ?? '',
-        autoRun: w.data?.autoRun ?? false,
-        storeId: w.data?.storeId,
+        content: w.data?.code ?? '',
+        ...(w.data?.storeId ? { store: { id: w.data.storeId } } : {}),
+        // 当時のウィジェットはどのカラムでも使えた = 全体スコープ
+        scope: { kind: 'shared', global: true, installedFor: [] },
+        extra: { autoRun: w.data?.autoRun ?? false },
         createdAt: now,
         updatedAt: now,
       })
     }
 
-    // sidebar widget カラムの並びはストア外 sidebarWidgetIds に引き継ぐ
-    if (col.sidebar) sidebarSeed.push(...newIds)
+    const refs = placementsFromIds(newIds)
+    // sidebar widget カラムの並びはストア外 sidebarPlacements に引き継ぐ
+    if (col.sidebar) sidebarSeed.push(...refs)
 
     const { widgets: _w, ...rest } = col
-    return { ...rest, widgetIds: newIds } as DeckColumn
+    return { ...rest, widgetRefs: refs } as DeckColumn
   })
   return {
     columns: migrated,
     droppedConsoleCount,
     extractedWidgets,
     sidebarSeed,
+    migratedWidgetRefs,
   }
 }
 
@@ -123,6 +150,7 @@ export function parseProfileFile(
     droppedConsoleCount,
     extractedWidgets,
     sidebarSeed,
+    migratedWidgetRefs,
   } = migrateWidgetColumns(rawColumns)
   const { columns, migrated: migratedSearchColumns } =
     migrateSearchColumns(widgetMigrated)
@@ -139,6 +167,7 @@ export function parseProfileFile(
     droppedConsoleCount,
     extractedWidgets,
     sidebarSeed,
+    migratedWidgetRefs,
     migratedSearchColumns,
   }
 }
