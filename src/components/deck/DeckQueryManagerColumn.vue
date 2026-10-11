@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
-import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { hasScopeTarget, type ScopeTarget } from '@/services/distributable'
@@ -25,23 +23,17 @@ import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { openSafeUrl } from '@/utils/url'
 import { isWindowExposed } from '@/windows/exposure'
-import ColumnSection from './ColumnSection.vue'
-import type { ColumnTabDef } from './ColumnTabs.vue'
-import ColumnTabs from './ColumnTabs.vue'
-import DeckColumn from './DeckColumn.vue'
+import DeckDistributableColumn, {
+  type EnabledFilterDecl,
+  type StoreFeedDecl,
+} from './DeckDistributableColumn.vue'
 import QueryCard from './QueryCard.vue'
 
 /**
- * クエリ管理カラム (#783 Phase 1.5、仕様追補 E)。
- *
- * テーマ・プラグイン・ウィジェット・スキルと同列のツールカラム。
- * スコープはプラグインと同型 (#1018): 全アカウントのカラムは全体スコープ、
- * per-account カラムはそのアカウントのスコープを管理し、どちらにも属さない
- * 本体はライブラリに残る。
- * 導入済みタブ: 名前付きクエリの一覧・作成・編集・削除と適用先カラム数。
- * ストアタブ: MisStore 配布クエリの検索・導入 (ソースのみ + sha512 検証 +
- * カラムへの自動適用なし。差分承認つき更新は Phase 3.5 で強化)。
- * 本体の有効/無効 (#1043) はプラグインと同型のキルスイッチで、ここで切り替える。
+ * クエリ管理カラム (#783 Phase 1.5、仕様追補 E)。殻は `DeckDistributableColumn`
+ * (#1202 段階 3)。ここにあるのはクエリ固有の意味だけ: スコープ別プール
+ * (#1018)、実行形態 (fast / degraded / invalid)、適用先カラム数、適用中の削除の
+ * 確認文、新規作成の雛形
  */
 
 const props = defineProps<{
@@ -53,11 +45,13 @@ const accountsStore = useAccountsStore()
 const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
 const { confirm } = useConfirm()
-const { columnThemeVars } = useColumnSetup(() => props.column)
+useColumnSetup(() => props.column)
 
 queriesStore.ensureLoaded()
 
-// --- Mode resolution (per-account / 全アカウント) ---
+const shell = ref<{ closePicker(): void } | null>(null)
+
+// --- スコープ (per-account / 全アカウント) ---
 const isCrossAccount = computed(() => props.column.accountId == null)
 const account = computed(() =>
   isCrossAccount.value
@@ -75,105 +69,47 @@ const columnScope = computed<ScopeTarget | null>(() => {
   return { kind: 'account', key: accountScopeKey(account.value) }
 })
 
-/** カラムのスコープに参加しているか (スコープ別プール)。 */
 function matchesContext(query: QueryItem): boolean {
   const scope = columnScope.value
   return scope ? hasScopeTarget(query.scope, scope) : false
 }
 
-type ViewTab = 'installed' | 'store'
-const viewTabs: ViewTab[] = ['installed', 'store']
-const viewTab = ref<ViewTab>('installed')
-const columnContentRef = ref<HTMLElement | null>(null)
-
-const scopeCount = computed(
-  () => queriesStore.items.filter((q) => matchesContext(q)).length,
-)
-
-const tabDefs = computed<ColumnTabDef[]>(() => [
-  {
-    value: 'installed',
-    label: i18n.tsx._common.installedTab({
-      count: scopeCount.value,
-    }),
-  },
-  { value: 'store', label: i18n.ts._common.store },
-])
-
-function switchTab(tab: string) {
-  viewTab.value = tab as ViewTab
-  if (tab === 'store') misStore.fetchQueries()
-}
-
-const tabIndex = computed(() => viewTabs.indexOf(viewTab.value))
-useTabSlide(tabIndex, columnContentRef)
-
-const searchQuery = ref('')
-const installError = ref<string | null>(null)
-
-// --- Installed tab ---
-
-/** プラグイン管理と同じ接頭辞フィルタ (@enabled / @disabled、#1043) */
-type FilterMode = 'all' | 'enabled' | 'disabled'
-const activeFilter = computed<FilterMode>(() => {
-  const q = searchQuery.value.trimStart()
-  if (q.startsWith('@enabled')) return 'enabled'
-  if (q.startsWith('@disabled')) return 'disabled'
-  return 'all'
-})
-const textQuery = computed(() =>
-  searchQuery.value
-    .replace(/^@(?:installed|enabled|disabled)\s*/, '')
-    .trim()
-    .toLowerCase(),
-)
-function setFilter(mode: FilterMode) {
-  searchQuery.value =
-    mode === 'enabled' ? '@enabled ' : mode === 'disabled' ? '@disabled ' : ''
-}
-
-const visibleQueries = computed(() => {
-  const q = textQuery.value
-  let sorted = queriesStore.items
+/** カラムのスコープに参加している本体。新しい順 */
+const scopedQueries = computed(() =>
+  queriesStore.items
     .filter((item) => matchesContext(item))
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-  if (activeFilter.value === 'enabled') {
-    sorted = sorted.filter((item) => isQueryActive(item))
-  } else if (activeFilter.value === 'disabled') {
-    sorted = sorted.filter((item) => !isQueryActive(item))
-  }
-  if (!q) return sorted
-  return sorted.filter(
-    (item) =>
-      item.name.toLowerCase().includes(q) ||
-      (item.description ?? '').toLowerCase().includes(q),
-  )
-})
+    .sort((a, b) => b.updatedAt - a.updatedAt),
+)
 
-/** スキルカラムと同じ 3 分類のアコーディオン (ビルドイン/サイドロード/ストア配布) */
-interface QuerySection {
-  key: string
-  label: string
-  items: QueryItem[]
+/** このカラムのスコープに未参加のライブラリ本体 (= 追加可能候補)。 */
+const libraryCandidates = computed(() =>
+  queriesStore.items.filter((q) => !matchesContext(q)),
+)
+
+const enabledFilter: EnabledFilterDecl<QueryItem> = {
+  get enabledTitle() {
+    return i18n.ts._deckQueryManagerColumn.enabledQueries
+  },
+  get disabledTitle() {
+    return i18n.ts._deckQueryManagerColumn.disabledQueries
+  },
+  isEnabled: isQueryActive,
 }
 
-const installedSections = computed<QuerySection[]>(() => {
-  const sideloaded = visibleQueries.value.filter((q) => !q.store)
-  const store = visibleQueries.value.filter((q) => !!q.store)
-  const sections: QuerySection[] = [
-    {
-      key: 'sideload',
-      label: i18n.ts._common.sideload,
-      items: sideloaded,
-    },
-    {
-      key: 'store',
-      label: i18n.ts._common.storeDistributed,
-      items: store,
-    },
-  ]
-  return sections.filter((s) => s.items.length > 0)
-})
+const texts = computed(() => ({
+  noMatches: i18n.ts._deckQueryManagerColumn.noMatches,
+  empty: i18n.ts._deckQueryManagerColumn.empty,
+  noLibrary: i18n.ts._deckQueryManagerColumn.noLibraryCandidates,
+}))
+
+const storeFeed = computed<StoreFeedDecl<StoreQueryEntry>>(() => ({
+  entries: misStore.queries,
+  loading: misStore.queriesLoading,
+  error: misStore.queriesError,
+  fetch: () => misStore.fetchQueries(),
+  refresh: () => misStore.refreshQueries(),
+  text: (e) => [e.name, e.description, ...e.tags],
+}))
 
 /**
  * クエリの実行形態 (#783)。
@@ -189,8 +125,13 @@ function refCount(query: QueryItem): number {
   return queriesStore.refCountByQueryId[query.id] ?? 0
 }
 
-/** クエリを「作る」面は開発者モードに従う (#1034)。導入・実行・削除は一般側 */
+/**
+ * クエリを「作る」面は開発者モードに従う (#1034)。導入・実行・削除は一般側。
+ * アカウントの見つからないカラムでは作らせない (どのスコープにも属さない個体が
+ * できて、作った直後に一覧から消える)
+ */
 const canEdit = computed(() => isWindowExposed('column-query-editor'))
+const canCreate = computed(() => canEdit.value && columnScope.value !== null)
 
 function openEditor(query: QueryItem): void {
   windowsStore.open('column-query-editor', { queryId: query.id })
@@ -233,14 +174,6 @@ const detachTitle = computed(() =>
     : i18n.ts._common.detachFromAccount,
 )
 
-// --- Library picker (スコープ未参加のライブラリ本体の追加) ---
-const showLibraryPicker = ref(false)
-
-/** このカラムのスコープに未参加のライブラリ本体 (= 追加可能候補)。 */
-const libraryCandidates = computed<QueryItem[]>(() =>
-  queriesStore.items.filter((q) => !matchesContext(q)),
-)
-
 async function placeFromLibrary(query: QueryItem): Promise<void> {
   const scope = columnScope.value
   if (!scope) return
@@ -248,7 +181,7 @@ async function placeFromLibrary(query: QueryItem): Promise<void> {
     useToast().show(readOnlyReason(), 'warning')
     return
   }
-  showLibraryPicker.value = false
+  shell.value?.closePicker()
 }
 
 /**
@@ -290,374 +223,90 @@ async function remove(query: QueryItem): Promise<void> {
   }
 }
 
-// --- Store tab ---
+// --- ストア ---
 
-const filteredStoreQueries = computed(() => {
-  const q = textQuery.value
-  if (!q) return misStore.queries
-  return misStore.queries.filter(
-    (entry) =>
-      entry.name.toLowerCase().includes(q) ||
-      entry.description.toLowerCase().includes(q) ||
-      entry.tags.some((t) => t.toLowerCase().includes(q)),
-  )
-})
-
-async function handleInstall(entry: StoreQueryEntry): Promise<void> {
-  installError.value = null
-  try {
-    // 入れた場所のスコープに参加させる (#1018)
-    await misStore.installQuery(entry, columnScope.value ?? undefined)
-  } catch (e) {
-    installError.value =
-      e instanceof Error ? e.message : i18n.ts._common.installFailed
-  }
-}
-
-async function handleUpdate(entry: StoreQueryEntry): Promise<void> {
-  installError.value = null
-  try {
-    await misStore.updateQuery(entry)
-  } catch (e) {
-    installError.value =
-      e instanceof Error ? e.message : i18n.ts._common.updateFailed
-  }
-}
-
-function handleOpenStoreDetail(entry: StoreQueryEntry): void {
+function openStoreDetail(entry: StoreQueryEntry): void {
   openSafeUrl(getQueryDetailUrl(entry.id))
 }
 </script>
 
 <template>
-  <DeckColumn
-    :column-id="column.id"
-    :title="column.name ?? i18n.ts._columns.queryManager"
-    :theme-vars="columnThemeVars"
+  <DeckDistributableColumn
+    ref="shell"
+    :column="column"
+    :title="i18n.ts._columns.queryManager"
+    icon="filter"
+    :safe-mode-subject="i18n.ts._deckQueryManagerColumn.safeModeSubject"
+    :create-title="i18n.ts._deckQueryManagerColumn.create"
+    :can-create="canCreate"
+    :items="scopedQueries"
+    :search-placeholder="i18n.ts._deckQueryManagerColumn.search"
+    :enabled-filter="enabledFilter"
+    :library-candidates="libraryCandidates"
+    :texts="texts"
+    :store="storeFeed"
+    @create="createNew"
   >
-    <template #header-icon>
-      <i class="ti ti-filter" :class="$style.headerIcon" />
-    </template>
-
-    <template #header-meta>
-      <button
-        v-if="viewTab === 'installed' && canEdit"
-        class="_button"
-        :class="$style.headerBtn"
-        :title="i18n.ts._deckQueryManagerColumn.create"
-        @click.stop="createNew"
-      >
-        <i class="ti ti-plus" />
-      </button>
-    </template>
-
-    <div ref="columnContentRef" :class="$style.wrapper">
-      <SafeModeNotice :subject="i18n.ts._deckQueryManagerColumn.safeModeSubject" />
-
-      <ColumnTabs
-        :tabs="tabDefs"
-        :model-value="viewTab"
-        :swipe-target="columnContentRef"
-        @update:model-value="switchTab"
-      />
-
-      <div :class="$style.searchWrap">
-        <input
-          v-model="searchQuery"
-          :class="$style.searchInput"
-          type="text"
-          :placeholder="i18n.ts._deckQueryManagerColumn.search"
-        />
-        <div v-if="viewTab === 'installed'" :class="$style.searchActions">
-          <button
-            class="_button"
-            :class="[$style.filterBtn, activeFilter === 'enabled' && $style.filterBtnActive]"
-            :title="i18n.ts._deckQueryManagerColumn.enabledQueries"
-            @click="setFilter(activeFilter === 'enabled' ? 'all' : 'enabled')"
-          >
-            <i class="ti ti-check" />
-          </button>
-          <button
-            class="_button"
-            :class="[$style.filterBtn, activeFilter === 'disabled' && $style.filterBtnActive]"
-            :title="i18n.ts._deckQueryManagerColumn.disabledQueries"
-            @click="setFilter(activeFilter === 'disabled' ? 'all' : 'disabled')"
-          >
-            <i class="ti ti-circle-off" />
-          </button>
-        </div>
+    <template #installed-empty>
+      <div :class="$style.empty">
+        <i class="ti ti-filter" :class="$style.emptyIcon" />
+        <span>{{ i18n.ts._deckQueryManagerColumn.empty }}</span>
+        <span :class="$style.emptyHint">
+          {{ i18n.ts._deckQueryManagerColumn.emptyHint }}
+        </span>
+        <button
+          v-if="canCreate"
+          class="_button"
+          :class="$style.emptyLink"
+          @click="createNew"
+        >
+          {{ i18n.ts._deckQueryManagerColumn.createQuery }}
+        </button>
       </div>
+    </template>
 
-      <!-- ===== Installed tab ===== -->
-      <template v-if="viewTab === 'installed'">
-        <div :class="$style.list">
-          <div v-if="visibleQueries.length === 0" :class="$style.empty">
-            <i class="ti ti-filter" :class="$style.emptyIcon" />
-            <span v-if="searchQuery">{{ i18n.ts._deckQueryManagerColumn.noMatches }}</span>
-            <template v-else>
-              <span>{{ i18n.ts._deckQueryManagerColumn.empty }}</span>
-              <span :class="$style.emptyHint">
-                {{ i18n.ts._deckQueryManagerColumn.emptyHint }}
-              </span>
-              <button
-                v-if="canEdit"
-                class="_button"
-                :class="$style.emptyLink"
-                @click="createNew"
-              >
-                {{ i18n.ts._deckQueryManagerColumn.createQuery }}
-              </button>
-            </template>
-          </div>
+    <template #card="{ item: query, mode }">
+      <QueryCard
+        :mode="mode"
+        :name="query.name"
+        :description="query.description"
+        :icon-url="query.iconUrl"
+        :store-id="query.store?.id"
+        :execution="executionOf(query)"
+        :ref-count="refCount(query)"
+        :detach-title="detachTitle"
+        :disabled="!isQueryActive(query)"
+        :read-only="query.readOnly"
+        @edit="openEditor(query)"
+        @delete="remove(query)"
+        @detach="detachFromScope(query)"
+        @place="placeFromLibrary(query)"
+        @toggle="toggleDisabled(query)"
+      />
+    </template>
 
-          <ColumnSection
-            v-for="section in installedSections"
-            :key="section.key"
-            :label="section.label"
-            :count="section.items.length"
-          >
-            <QueryCard
-              v-for="query in section.items"
-              :key="query.id"
-              mode="installed"
-              :name="query.name"
-              :description="query.description"
-              :icon-url="query.iconUrl"
-              :store-id="query.store?.id"
-              :execution="executionOf(query)"
-              :ref-count="refCount(query)"
-              :detach-title="detachTitle"
-              :disabled="!isQueryActive(query)"
-              :read-only="query.readOnly"
-              @edit="openEditor(query)"
-              @delete="remove(query)"
-              @detach="detachFromScope(query)"
-              @toggle="toggleDisabled(query)"
-            />
-          </ColumnSection>
-
-          <!-- Library picker: スコープ未参加のライブラリ本体を追加 -->
-          <div :class="$style.addArea">
-            <button
-              :class="[$style.addBtn, showLibraryPicker && $style.addBtnActive]"
-              @click="showLibraryPicker = !showLibraryPicker"
-            >
-              <i :class="showLibraryPicker ? 'ti ti-chevron-up' : 'ti ti-plus'" />
-              {{ showLibraryPicker ? i18n.ts._common.close : i18n.ts._common.addFromLibrary }}
-            </button>
-          </div>
-
-          <div v-if="showLibraryPicker" :class="$style.pickerWrap">
-            <div v-if="libraryCandidates.length === 0" :class="$style.pickerEmpty">
-              {{ i18n.ts._deckQueryManagerColumn.noLibraryCandidates }}
-            </div>
-            <QueryCard
-              v-for="query in libraryCandidates"
-              :key="query.id"
-              mode="library"
-              :name="query.name"
-              :description="query.description"
-              :icon-url="query.iconUrl"
-              :store-id="query.store?.id"
-              :execution="executionOf(query)"
-              :ref-count="refCount(query)"
-              :disabled="!isQueryActive(query)"
-              :read-only="query.readOnly"
-              @place="placeFromLibrary(query)"
-              @edit="openEditor(query)"
-              @delete="remove(query)"
-              @toggle="toggleDisabled(query)"
-            />
-          </div>
-        </div>
-      </template>
-
-      <!-- ===== Store tab ===== -->
-      <template v-else>
-        <div v-if="installError" :class="$style.storeError">
-          <i class="ti ti-alert-circle" />
-          {{ installError }}
-          <button
-            :aria-label="i18n.ts._common.close"
-            class="_button"
-            :class="$style.storeErrorClose"
-            @click="installError = null"
-          >
-            <i class="ti ti-x" />
-          </button>
-        </div>
-
-        <div v-if="misStore.queriesLoading" :class="$style.empty">
-          <i class="ti ti-loader-2 nd-spin" />
-          {{ i18n.ts._common.loading }}
-        </div>
-
-        <div v-else-if="misStore.queriesError" :class="$style.empty">
-          <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>{{ i18n.ts._common.storeUnavailable }}</span>
-          <button
-            class="_button"
-            :class="$style.emptyLink"
-            @click="misStore.refreshQueries()"
-          >
-            {{ i18n.ts._common.retry }}
-          </button>
-        </div>
-
-        <div v-else :class="$style.list">
-          <QueryCard
-            v-for="entry in filteredStoreQueries"
-            :key="entry.id"
-            mode="store"
-            :name="entry.name"
-            :description="entry.description"
-            :author="entry.author"
-            :version="entry.version"
-            :icon-url="entry.iconUrl"
-            :category-label="queryCategoryLabel(entry.category)"
-            :installing="misStore.installingQuery === entry.id"
-            :already-installed="
-              misStore.isQueryInstalled(entry, columnScope ?? undefined)
-            "
-            :has-update="misStore.hasQueryUpdate(entry)"
-            :updated-at="entry.updatedAt"
-            @install="handleInstall(entry)"
-            @update="handleUpdate(entry)"
-            @open-detail="handleOpenStoreDetail(entry)"
-          />
-
-          <div
-            v-if="filteredStoreQueries.length === 0 && !misStore.queriesLoading"
-            :class="$style.empty"
-          >
-            <i class="ti ti-filter" :class="$style.emptyIcon" />
-            <span>{{ i18n.ts._deckQueryManagerColumn.noMatches }}</span>
-          </div>
-        </div>
-      </template>
-    </div>
-  </DeckColumn>
+    <template #store-card="{ entry, run }">
+      <QueryCard
+        mode="store"
+        :name="entry.name"
+        :description="entry.description"
+        :author="entry.author"
+        :version="entry.version"
+        :icon-url="entry.iconUrl"
+        :category-label="queryCategoryLabel(entry.category)"
+        :installing="misStore.installingQuery === entry.id"
+        :already-installed="misStore.installedIn('query', entry, columnScope ?? undefined)"
+        :has-update="misStore.hasQueryUpdate(entry)"
+        :updated-at="entry.updatedAt"
+        @install="run(() => misStore.installQuery(entry, columnScope ?? undefined))"
+        @update="run(() => misStore.updateQuery(entry), i18n.ts._common.updateFailed)"
+        @open-detail="openStoreDetail(entry)"
+      />
+    </template>
+  </DeckDistributableColumn>
 </template>
 
 <style lang="scss" module>
-@use '@/styles/buttons' as *;
-.addArea {
-  padding: 8px 10px;
-}
-
-.addBtn {
-  @include nd-interactive;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  padding: 8px;
-  border-radius: var(--nd-radius-md);
-  border: 1px dashed var(--nd-divider);
-  background: transparent;
-  color: var(--nd-fg);
-  opacity: 0.8;
-  cursor: pointer;
-
-  &:hover {
-    opacity: 1;
-    background: var(--nd-buttonHoverBg);
-  }
-}
-
-.addBtnActive {
-  opacity: 1;
-  background: var(--nd-buttonHoverBg);
-}
-
-.pickerWrap {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 0 10px 10px;
-}
-
-.pickerEmpty {
-  padding: 12px;
-  text-align: center;
-  font-size: var(--nd-font-md);
-  opacity: 0.6;
-}
-
-.headerIcon {
-  opacity: 0.85;
-}
-
-.headerBtn {
-  padding: 4px 8px;
-  border-radius: var(--nd-radius-sm);
-}
-
-.wrapper {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-}
-
-.searchWrap {
-  display: flex;
-  align-items: center;
-  padding: 8px 10px 0;
-}
-
-.searchActions {
-  display: flex;
-  align-items: center;
-  margin-left: 2px;
-  gap: 1px;
-}
-
-.filterBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: var(--nd-radius-xs);
-  color: var(--nd-fg);
-  opacity: 0.45;
-  font-size: 13px;
-  transition:
-    opacity var(--nd-duration-fast),
-    background 0.1s;
-
-  &:hover {
-    opacity: 0.85;
-    background: var(--nd-buttonHoverBg);
-  }
-}
-
-.filterBtnActive {
-  opacity: 1;
-  color: var(--nd-accentText);
-}
-
-.searchInput {
-  width: 100%;
-  padding: 6px 10px;
-  border-radius: var(--nd-radius-md);
-  border: 1px solid var(--nd-divider);
-  background: var(--nd-panel);
-  color: inherit;
-  font: inherit;
-  font-size: var(--nd-font-md);
-}
-
-.list {
-  display: flex;
-  flex-direction: column;
-  padding: 6px 0;
-  overflow-y: auto;
-  min-height: 0;
-}
-
 .empty {
   display: flex;
   flex-direction: column;
@@ -685,22 +334,5 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
   border-radius: var(--nd-radius-sm);
   background: var(--nd-accent);
   color: var(--nd-fgOnAccent);
-}
-
-.storeError {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 8px 10px 0;
-  padding: 8px 10px;
-  border-radius: var(--nd-radius-md);
-  background: color-mix(in srgb, var(--nd-error) 15%, transparent);
-  color: var(--nd-error);
-  font-size: var(--nd-font-sm);
-}
-
-.storeErrorClose {
-  margin-left: auto;
-  padding: 2px 4px;
 }
 </style>
