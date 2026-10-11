@@ -1,137 +1,70 @@
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { i18n } from '@/i18n'
-import { injectFrontmatterId } from '@/services/idFreeze'
-import { registerSettingsFileHandler } from '@/services/settingsFileSync'
-import { createSingleFileCollection } from '@/services/singleFileCollection'
+import type {
+  DistributableFileCollection,
+  DistributableStoreOrigin,
+} from '@/services/distributable'
+import { singleFileCollectionFor } from '@/services/distributableCodecs/singleFile'
 import {
-  type ParsedSkillFile,
-  parseSkillFile,
-  serializeSkillFile,
-} from '@/services/skillFrontmatter'
-import { planStoreMovedMigration } from '@/services/storeMovedSkills'
-import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
+  reservedSkillKind,
+  type SkillExtra,
+  type SkillItem,
+  skillCodec,
+} from '@/services/distributableCodecs/skillCodec'
+import { injectFrontmatterId } from '@/services/idFreeze'
+import {
+  migrateLegacyAizu,
+  migrateStoreMovedSkills,
+} from '@/services/storeMovedSkills'
+import {
+  createDistributableStore,
+  type NewDistributable,
+} from '@/stores/distributableStore'
+import type { EditAttribution } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import { getStorageJson, removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { notifyWarningToast } from '@/utils/toastNotify'
 
 /**
- * Skill 実行モード:
- * - `always`: AI セッション開始時に常に system prompt に注入
- * - `manual`: ユーザーが UI からトグルしたときだけ active
- * - `trigger`: user 入力に triggers[] のいずれかが部分一致したら active 化し、
- *   そのセッション中は維持される (#725 session-sticky)。
- *   `triggerMatchingSkillIds` で判定 → session の triggeredSkillIds に累積 →
- *   セッションに累積した id を notemaid に渡して注入する (#1162)
- * - `heartbeat`: AI 設定の heartbeat 有効化中、tick ごとに body を AI に読ませる
- *   (OpenClaw HEARTBEAT.md 相当 / #411)
+ * skill のプール。
+ *
+ * - 個体は envelope (`SkillItem`、#1202 段階 1)。本文 (`content`) は frontmatter
+ *   を除いた Markdown、`extra` に mode / triggers / active / persona 等。スコープは
+ *   無い (`none`)
+ * - 保存は単一ファイル (`skills/<base>.md`、frontmatter がメタ)。projection は
+ *   `skillCodec`。ブラウザ dev モードでは保存しない (メモリだけ)
+ * - 予約 skill (`AGENTS.md` / `HEARTBEAT.md`、#1162) はファイル名で決まる。id /
+ *   ファイル名 / mode は固定で、改名・mode 変更・persona 化・有効無効・削除は
+ *   ここで拒否する (notemaid も拒否する。UI はボタンを出さない)。黙らせるには
+ *   本文を空にする
+ * - system prompt への本文の合流は notemaid が行う (#1162)。ここは一覧と状態だけ
  */
-export type SkillMode = 'always' | 'manual' | 'trigger' | 'heartbeat'
 
-export interface SkillMeta {
-  id: string
-  name: string
-  version: string
-  description?: string
-  author?: string
-  mode: SkillMode
-  triggers: string[]
-  /**
-   * 本体の有効 (#1116)。有効のときだけ frontmatter に書く省略書式 (値が無い =
-   * 無効。従来の「有効一覧に無ければ無効」と同じ既定)。mode='always' は
-   * この印に関係なく常時有効。プラグイン・クエリと同じくファイルが正で、
-   * 設定バックアップにそのまま乗る
-   */
-  active?: boolean
-  storeId?: string
-  /** インストール/更新時に照合済みの配布ソース SHA-512 (#913。更新検知 #1040 の baseline) */
-  storeSha512?: string
-  /** インストール/更新時の registry バージョン (#913) */
-  storeVersion?: string
-  /** Markdown 本文 (frontmatter を除いた指示文) */
-  body: string
-  createdAt: number
-  updatedAt: number
-  /**
-   * 旧・内蔵テンプレ由来 (#746 で同梱は廃止)。手元に残った旧同梱 skill を
-   * ストア配布版へ移行する判定にだけ使う。新しく true になる経路は無い
-   */
-  builtIn?: boolean
-  /** スキル個別アイコン URL (MisStore registry の iconUrl 互換) */
-  iconUrl?: string
-  /**
-   * tainted なセッション (他人の内容を読んだ後の AI) が書いた (#1103)。
-   * 一度付いたら外れない。注入 / 読取したセッションを tainted にする
-   */
-  tainted?: boolean
-  /**
-   * HEARTBEAT Cheap Check First (#411): tick 開始時に呼んで「変化検知」
-   * に使う capability id 配列。指定された capability は cheap=true な
-   * もののみ受け入れられる (重い API は無視)。
-   *
-   * - 空配列 (default) = cheap check 機構を発動しない (= 毎回 AI を叩く)
-   * - 1 個以上指定 = それらの結果を JSON.stringify で前回値と比較し、
-   *   変化なしなら AI を skip して HEARTBEAT_OK 扱い
-   *
-   * mode='heartbeat' な skill にのみ意味がある。
-   * 型は常に `string[]` (空配列含む) — `triggers` と同じパターン。
-   */
-  cheapCheckCapabilities: string[]
-  /**
-   * Persona-eligible flag (#491): この skill を AI session の persona
-   * 候補として扱うか。true のとき:
-   * - AI session のチャットヘッダ persona セレクタに表示される
-   * - session.personaSkillId として選ばれると `<persona>` block が
-   *   system prompt に注入され、authorId='skill:<id>' の memo を作れる
-   *
-   * skill.iconUrl は「skill そのもののアイコン」(例: 翻訳 skill のレンチ)、
-   * persona の avatar は「想起されるキャラクターの顔」と意味が違うので、
-   * iconUrl 有無ではなく明示フラグで判別する。
-   *
-   * 未指定 = false。
-   */
-  isPersona?: boolean
-  /**
-   * 実ファイル basename (#913 の ID → ファイル名対応表)。runtime-only —
-   * frontmatter には書かない (frontmatterFromMeta に含めないこと)。
-   */
-  fileBase?: string
-  /**
-   * 予約 skill (`skills/AGENTS.md` = 運用規約、`skills/HEARTBEAT.md` = 巡回の
-   * 手順、#1162)。ファイル名から決まる runtime-only の印で、id / ファイル名 /
-   * mode は固定、削除・改名・toggle・persona 化できない (notemaid も拒否する。
-   * ここは UI に出さないため)。黙らせるには本文を空にする
-   */
-  reserved?: boolean
-}
-
-export type ReservedSkillKind = 'agents' | 'heartbeat'
-
-/** 予約 skill のファイル名 (拡張子なし) → 種別。大文字小文字は区別する */
-export function reservedSkillKind(
-  fileBase: string,
-): ReservedSkillKind | undefined {
-  if (fileBase === 'AGENTS') return 'agents'
-  if (fileBase === 'HEARTBEAT') return 'heartbeat'
-  return undefined
-}
-
-const RESERVED_MODE: Record<ReservedSkillKind, SkillMode> = {
-  agents: 'always',
-  heartbeat: 'heartbeat',
-}
+export type {
+  ReservedSkillKind,
+  SkillExtra,
+  SkillItem,
+  SkillMode,
+} from '@/services/distributableCodecs/skillCodec'
+export { reservedSkillKind } from '@/services/distributableCodecs/skillCodec'
 
 /**
  * 一覧・エディタに出す名前。予約 skill はファイル名ではなく役割の語
  * (「ルール」/「巡回」) で見せる
  */
-export function skillDisplayName(skill: SkillMeta): string {
+export function skillDisplayName(skill: SkillItem): string {
   const kind = skill.fileBase ? reservedSkillKind(skill.fileBase) : undefined
   if (kind === 'agents') return i18n.ts._skills.reservedAgents
   if (kind === 'heartbeat') return i18n.ts._skills.reservedHeartbeat
   return skill.name
+}
+
+/** 実効の有効 (mode=always は印に関係なく常時有効)。判定は codec の宣言 1 箇所 */
+export function isSkillEnabled(skill: SkillItem): boolean {
+  return skillCodec.enabled.get(skill)
 }
 
 export function generateSkillId(name: string): string {
@@ -144,133 +77,32 @@ export function generateSkillId(name: string): string {
   return `${slug}-${Math.random().toString(36).slice(2, 6)}`
 }
 
-interface SkillFrontmatter {
-  id?: string
+/** 編集の patch。envelope の 3 項目と、編集で変わる `extra` の一部 */
+export interface SkillPatch {
   name?: string
-  version?: string
   description?: string
-  author?: string
-  mode?: string
-  triggers?: string[]
-  active?: boolean
-  storeId?: string
-  storeSha512?: string
-  storeVersion?: string
-  builtIn?: boolean
-  createdAt?: number
-  updatedAt?: number
+  content?: string
+  extra?: Partial<SkillExtra>
+}
+
+/** 配布ソースから決まる値 (frontmatter 由来 + ストア 3 点)。ローカル値は含まない */
+export interface SkillStorePatch {
+  content: string
+  description?: string
   iconUrl?: string
-  cheapCheckCapabilities?: string[]
-  isPersona?: boolean
-  tainted?: boolean
+  version: string
+  author?: string
+  triggers: string[]
+  cheapCheckCapabilities: string[]
+  isPersona: boolean
+  store: DistributableStoreOrigin
 }
 
-function asArray(v: unknown): string[] {
-  if (Array.isArray(v)) return v.map(String)
-  if (typeof v === 'string' && v) return [v]
-  return []
-}
-
-function frontmatterFromMeta(skill: SkillMeta): Record<string, unknown> {
-  const out: Record<string, unknown> = {
-    id: skill.id,
-    name: skill.name,
-    version: skill.version,
-    mode: skill.mode,
-    createdAt: skill.createdAt,
-    updatedAt: skill.updatedAt,
-  }
-  if (skill.description) out.description = skill.description
-  if (skill.author) out.author = skill.author
-  if (skill.triggers.length > 0) out.triggers = skill.triggers
-  if (skill.active) out.active = true
-  if (skill.storeId) out.storeId = skill.storeId
-  if (skill.storeSha512) out.storeSha512 = skill.storeSha512
-  if (skill.storeVersion) out.storeVersion = skill.storeVersion
-  if (skill.builtIn) out.builtIn = true
-  if (skill.iconUrl) out.iconUrl = skill.iconUrl
-  if (skill.cheapCheckCapabilities && skill.cheapCheckCapabilities.length > 0) {
-    out.cheapCheckCapabilities = skill.cheapCheckCapabilities
-  }
-  if (skill.isPersona) out.isPersona = true
-  if (skill.tainted) out.tainted = true
-  return out
-}
-
-/**
- * `fallbackId` はファイルの basename (ID 凍結の実効値)。予約 skill の判定も
- * ここから引く (mode はファイルが何と言おうと固定。notemaid の規則と同じ)
- */
-function metaFromFrontmatter(
-  fm: SkillFrontmatter,
-  body: string,
-  fallbackId: string,
-): SkillMeta {
-  const now = Date.now()
-  const reserved = reservedSkillKind(fallbackId)
-  const mode: SkillMode = reserved
-    ? RESERVED_MODE[reserved]
-    : fm.mode === 'always' ||
-        fm.mode === 'trigger' ||
-        fm.mode === 'heartbeat' ||
-        fm.mode === 'manual'
-      ? fm.mode
-      : 'manual'
-  return {
-    id: fm.id || fallbackId,
-    name: fm.name || fallbackId,
-    version: fm.version || '0.1.0',
-    description: fm.description,
-    author: fm.author,
-    mode,
-    triggers: asArray(fm.triggers),
-    ...(fm.active === true ? { active: true } : {}),
-    storeId: fm.storeId,
-    storeSha512: fm.storeSha512,
-    storeVersion: fm.storeVersion,
-    body,
-    createdAt: fm.createdAt ?? now,
-    updatedAt: fm.updatedAt ?? now,
-    builtIn: !!fm.builtIn,
-    iconUrl: fm.iconUrl,
-    cheapCheckCapabilities: asArray(fm.cheapCheckCapabilities),
-    isPersona: reserved ? false : !!fm.isPersona,
-    ...(fm.tainted === true ? { tainted: true } : {}),
-    ...(reserved ? { reserved: true } : {}),
-  }
-}
-
-/**
- * 内部関数の test 用 export。プロダクトコードから直接呼ばないこと
- * (公開 API は store の `add` / `setHeartbeat` 等を使う)。
- */
-export const _internal = {
-  metaFromFrontmatter,
-  frontmatterFromMeta,
-}
-
-function serializeSkill(skill: SkillMeta): string {
-  const fm = frontmatterFromMeta(skill)
-  return serializeSkillFile(
-    fm as Record<string, string | number | boolean | string[]>,
-    skill.body,
-  )
-}
-
-/**
- * skill (`skills/<base>.md` 単一ファイル・frontmatter が meta) の永続化
- * (#913 で ID → ファイル名対応表化)。
- * ID 凍結の実効値 = 拡張子を除いた basename (現行 fallbackId と同値)。
- */
-const skillFiles = createSingleFileCollection<SkillMeta, ParsedSkillFile>({
+const inner = singleFileCollectionFor(skillCodec, {
   logTag: 'skills',
   notify: notifyWarningToast,
   kindFallback: 'skill',
   ext: settingsFs.SKILL_EXT,
-  // ストアインストールはファイル名 = storeId (#913。占有時は連番 suffix)。
-  // builtin seed はテンプレ id (slug 適合) をそのままファイル名にする
-  // (表示名 slug だと `notedeck.md` / `notedeck-2.md` に化けて意味が消える)
-  preferredBase: (s) => s.storeId ?? (s.builtIn ? s.id : undefined),
   // 占有判定・sweep には .history.json5 を含む実列挙が要る
   // (規定拡張子の filter はコレクション側が行う)
   list: () => settingsFs.listSkillDirFiles(),
@@ -279,414 +111,198 @@ const skillFiles = createSingleFileCollection<SkillMeta, ParsedSkillFile>({
   remove: (filename) => settingsFs.deleteSkillFile(filename),
   rename: (oldFilename, newFilename) =>
     settingsFs.renameSkillFile(oldFilename, newFilename),
-  parse: (raw) => parseSkillFile(raw),
   rawIdOf: (p) => p.meta.id,
+  // ID 凍結の実効値 = 拡張子を除いた basename (codec の fallback と同値)
   effectiveIdOf: (_filename, base) => base,
   injectId: (raw, id) => injectFrontmatterId(raw, id),
-  fromFile: (p, id, filename) =>
-    metaFromFrontmatter(
-      { ...(p.meta as SkillFrontmatter), id },
-      p.body,
-      filename.replace(/\.md$/, ''),
-    ),
   displayNameOf: (p) => (typeof p.meta.name === 'string' ? p.meta.name : ''),
-  idOf: (s) => s.id,
-  nameOf: (s) => s.name,
-  serialize: serializeSkill,
 })
 
+/**
+ * 予約 skill は大文字のファイル名が正なので、規約外名の copy-adopt 正規化の
+ * 対象にしない (notecore も改名を拒否する)
+ */
+const skillFiles: DistributableFileCollection<SkillItem> = {
+  ...inner,
+  migrateItems: (items) =>
+    inner.migrateItems(items.filter((s) => !s.extra.reserved)),
+}
+
+const fileBaseOf = (filename: string): string | undefined =>
+  filename.endsWith(settingsFs.SKILL_EXT) &&
+  !filename.endsWith('.history.json5')
+    ? filename.slice(0, -settingsFs.SKILL_EXT.length)
+    : undefined
+
 export const useSkillsStore = defineStore('skills', () => {
-  const skills = ref<SkillMeta[]>([])
-  const initialized = ref(false)
-
-  // notecore が skill ファイルを書いた (AI の skills.* は notecore の本体が書く,
-  // #1133) → そのファイルだけ読み直して写しを揃える。履歴ファイルは写しを
-  // 持たないので無視する
-  registerSettingsFileHandler('skills', async (change) => {
-    if (!change.name.endsWith(settingsFs.SKILL_EXT)) return
-    if (change.op === 'delete') {
-      const base = change.name.slice(0, -settingsFs.SKILL_EXT.length)
-      skills.value = skills.value.filter((s) => s.fileBase !== base)
-      return
-    }
-    await reloadFile(change.name)
-  })
-
   /**
-   * 1 ファイルを読み直して写しに載せる (notemaid が書いた skill の取り込み。
-   * 変更通知と、通知を待たずに結果が要る呼び出し側の両方から使う)
+   * 初回読込後の移行。順序を確定するため createdAt 昇順にしてから、
+   * 旧 built-in (#746 / aizu) をストア配布版相当へ、端末ローカルにしか無かった
+   * 有効一覧をファイルへ (#1116、一度きり) 移す
    */
-  async function reloadFile(filename: string): Promise<void> {
-    const base = filename.endsWith(settingsFs.SKILL_EXT)
-      ? filename.slice(0, -settingsFs.SKILL_EXT.length)
-      : filename
-    let raw: string
-    try {
-      raw = await settingsFs.readSkillFile(filename)
-    } catch (e) {
-      console.warn(`[skills] reload ${filename} failed:`, e)
-      return
-    }
-    const parsed = parseSkillFile(raw)
-    const id = typeof parsed.meta.id === 'string' ? parsed.meta.id : base
-    const next: SkillMeta = {
-      ...metaFromFrontmatter(
-        { ...(parsed.meta as SkillFrontmatter), id },
-        parsed.body,
-        base,
-      ),
-      fileBase: base,
-    }
-    const idx = skills.value.findIndex(
-      (s) => s.id === next.id || s.fileBase === base,
-    )
-    skills.value =
-      idx >= 0
-        ? skills.value.map((s, i) => (i === idx ? next : s))
-        : [...skills.value, next]
-    emitNoteDeckEvent('skill:edited', { id: next.id })
-  }
-  let loaded = false
-  // 変更系操作 (新規作成・リネーム・保存・削除) のファイル反映は
-  // 「初回読込 (対応表確定) + 初回移行」の完了を待つゲート (#913)
-  let resolveReady: (() => void) | undefined
-  const ready = new Promise<void>((resolve) => {
-    resolveReady = resolve
-  })
-
-  function ensureLoaded() {
-    if (loaded) return
-    loaded = true
+  function migrate(items: SkillItem[]): SkillItem[] {
+    items.sort((a, b) => a.createdAt - b.createdAt)
+    const now = Date.now()
+    const changed = new Set<SkillItem>([
+      ...migrateLegacyAizu(items, now),
+      ...migrateStoreMovedSkills(items, now),
+    ])
     if (settingsFs.isTauri) {
-      initFileStorage()
-        .catch((e) => console.warn('[skills] file storage init failed:', e))
-        .finally(() => resolveReady?.())
-    } else {
-      initialized.value = true
-      resolveReady?.()
+      for (const s of migrateLegacyActiveList(items)) changed.add(s)
     }
-  }
-
-  function isActive(id: string): boolean {
-    return skills.value.find((s) => s.id === id)?.active === true
+    return [...changed]
   }
 
   /**
-   * 本体の有効 / 無効 (#1116)。ファイルの frontmatter に持つ (以前は端末
-   * ローカルの一覧で、バックアップに乗らなかった)。有効に戻すときは印ごと消す
+   * 端末ローカルにしか無かった有効一覧をファイルへ移す (#1116)。一覧に載っていて
+   * 印の無い個体だけ立て、終わったら一覧を消す。壊れた値 (配列でない JSON) で
+   * 初期化を止めず、捨てて先へ進む
    */
-  function setActive(id: string, active: boolean) {
-    ensureLoaded()
-    const idx = skills.value.findIndex((s) => s.id === id)
-    const current = skills.value[idx]
-    if (!current) return
-    if (current.reserved) throw new Error(i18n.ts._skills.reservedLocked)
-    if ((current.active === true) === active) return
-    const { active: _omit, ...rest } = current
-    const next: SkillMeta = active ? { ...rest, active: true } : rest
-    skills.value = skills.value.map((s) => (s.id === id ? next : s))
-    if (settingsFs.isTauri) {
-      void ready
-        .then(() => persist(next))
-        .catch((e) => console.warn('[skills] failed to persist active:', e))
-    }
-  }
-
-  /** mode='always' のスキルは常に active 扱い (UI でトグル不可)。 */
-  const effectiveActiveIds = computed(() =>
-    skills.value
-      .filter((s) => s.mode === 'always' || s.active === true)
-      .map((s) => s.id),
-  )
-
-  // system prompt への skill 本文の合流は notemaid が行う (#1162)。ここは一覧と
-  // 有効化の状態だけを持つ
-  /** ファイルへの直接反映 (初期化・seed 用。通常経路は ready ゲート越し)。 */
-  async function persist(skill: SkillMeta): Promise<void> {
-    if (!settingsFs.isTauri) return
-    // ref の深い reactivity で skills.value の要素は proxy になるため、
-    // 占有判定の「操作対象自身は占有とみなさない」参照一致が崩れないよう
-    // live 要素 (proxy) を渡す (raw を渡すと自分の ID/fileBase が占有扱いに
-    // なり preferredBase = id/storeId のファイル名へ無意味な suffix が付く)
-    const live = skills.value.find((s) => s.id === skill.id) ?? skill
-    await skillFiles.persistItem(live, skills.value)
-  }
-
-  async function initFileStorage(): Promise<void> {
-    const { items: fileSkills } = await skillFiles.loadAll()
-    fileSkills.sort((a, b) => a.createdAt - b.createdAt)
-
-    if (fileSkills.length === 0) {
-      // 同梱の skill はゼロ (#746 で全て MisStore 配布へ移した)。手元に何も
-      // 無い状態が正しい初期状態で、追加はストアからのインストールで行う
-      initialized.value = true
-      return
-    }
-
-    // 初期化 (この async 関数が走る間) にメモリ追加された skill は残す
-    const fileIds = new Set(fileSkills.map((s) => s.id))
-    const memoryOnly = skills.value.filter((s) => !fileIds.has(s.id))
-    skills.value = [...fileSkills, ...memoryOnly]
-
-    // マイグレーション (#913) はメインウィンドウのみが実行する。冪等。
-    // スキルは本文の localStorage ミラーが無いため (b) 再作成は非適用
-    // (外部削除 = 削除確定)
-    if (settingsFs.isMainDeckWindow()) {
-      // (a) 規約外名の copy-adopt 正規化。予約 skill (AGENTS / HEARTBEAT) は
-      // 大文字のファイル名が正なので対象外 (notecore も改名を拒否する)
-      await skillFiles.migrateItems(skills.value.filter((s) => !s.reserved))
-      // 履歴 sweep: 主ファイルと対応の取れない .history.json5 を削除
-      await skillFiles
-        .sweepHistory()
-        .catch((e) => console.warn('[skills] history sweep failed:', e))
-    }
-
-    await migrateLegacyAizu()
-    await migrateStoreMovedBuiltIns()
-    await migrateLegacyActiveList()
-    initialized.value = true
-  }
-
-  /**
-   * 端末ローカルにしか無かった有効一覧をファイルへ移す (#1116)。一度きり。
-   * 一覧に載っていてファイルに印の無い個体だけ書き、終わったら一覧を消す
-   */
-  async function migrateLegacyActiveList(): Promise<void> {
+  function migrateLegacyActiveList(items: SkillItem[]): SkillItem[] {
     const legacy = getStorageJson<unknown>(STORAGE_KEYS.skillsActive, null)
-    if (legacy === null) return
-    // 壊れた値 (配列でない JSON) で初期化ごと止めない。捨てて先へ進む
+    if (legacy === null) return []
+    removeStorage(STORAGE_KEYS.skillsActive)
     if (!Array.isArray(legacy)) {
       console.warn('[skills] legacy active list is not an array — discarded')
-      removeStorage(STORAGE_KEYS.skillsActive)
-      return
+      return []
     }
     const ids = new Set(legacy.map(String))
-    const changed: SkillMeta[] = []
-    skills.value = skills.value.map((s) => {
-      if (!ids.has(s.id) || s.active === true) return s
-      const next = { ...s, active: true }
-      changed.push(next)
-      return next
-    })
-    await Promise.all(changed.map((s) => persist(s)))
-    removeStorage(STORAGE_KEYS.skillsActive)
+    const changed: SkillItem[] = []
+    for (const s of items) {
+      if (!ids.has(s.id) || s.extra.active === true) continue
+      s.extra = { ...s.extra, active: true }
+      changed.push(s)
+    }
+    return changed
+  }
+
+  const base = createDistributableStore<string, SkillItem>({
+    logTag: 'skills',
+    codec: skillCodec,
+    files: skillFiles,
+    settingsScope: 'skills',
+    fileBaseOf,
+    // ブラウザ dev モードでは保存しない (browserStorageKey 無し)
+    generateId: () => generateSkillId('skill'),
+    // 履歴の形は `skills.revert` (notemaid) とエディタの履歴窓が読むので
+    // キー名は on-disk の互換を保つ
+    history: {
+      kind: 'skill',
+      snapshot: (s) => ({
+        body: s.content,
+        name: s.name,
+        version: s.extra.version,
+        mode: s.extra.mode,
+      }),
+    },
+    // スコープが無いので掃除の対象にならない (宣言は要るので unlink)
+    purgeAccount: 'unlink',
+    hooks: {
+      migrate,
+      // 別の書き手 (notemaid の skills.* / 他のウィンドウ) が本文を書いたら
+      // プラグインへ知らせる。自分の編集は `update` が知らせる
+      afterContentChange: (s, _prev, source) => {
+        if (source === 'external')
+          emitNoteDeckEvent('skill:edited', { id: s.id })
+      },
+    },
+  })
+
+  function isActive(id: string): boolean {
+    return base.get(id)?.extra.active === true
+  }
+
+  /** 予約 skill は本文 (と説明) だけ。名前 / mode / persona 化は固定 */
+  function rejectIfReservedLocked(current: SkillItem, patch: SkillPatch): void {
+    if (!current.extra.reserved) return
+    const renaming = patch.name !== undefined && patch.name !== current.name
+    const remoding =
+      patch.extra?.mode !== undefined && patch.extra.mode !== current.extra.mode
+    if (renaming || remoding || patch.extra?.isPersona === true) {
+      throw new Error(i18n.ts._skills.reservedLocked)
+    }
   }
 
   /**
-   * 旧 built-in aizu (mode='always', builtIn=true, ローカル iconUrl) を
-   * MisStore 配布版相当 (mode='manual', builtIn=false, storeId='aizu', remote iconUrl)
-   * に変換し、ユーザーが任意に有効/無効化できるようにする。
+   * 本体の有効 / 無効 (#1116)。frontmatter に持つ (バックアップに乗る)。
+   * 予約 skill は拒否する。false = 未知の id
    */
-  async function migrateLegacyAizu(): Promise<void> {
-    const idx = skills.value.findIndex(
-      (s) => s.id === 'aizu' && s.builtIn === true,
-    )
-    if (idx < 0) return
-    const current = skills.value[idx]
-    if (!current) return
-    const migrated: SkillMeta = {
-      ...current,
-      mode: 'manual',
-      builtIn: false,
-      storeId: 'aizu',
-      iconUrl: 'https://store.notedeck.io/registry/skills/aizu/icon.svg',
-      updatedAt: Date.now(),
-    }
-    skills.value = [
-      ...skills.value.slice(0, idx),
-      migrated,
-      ...skills.value.slice(idx + 1),
-    ]
-    await persist(migrated)
+  async function setActive(id: string, active: boolean): Promise<boolean> {
+    const current = base.get(id)
+    if (!current) return false
+    if (current.extra.reserved) throw new Error(i18n.ts._skills.reservedLocked)
+    return base.setEnabled(id, active)
   }
 
-  /**
-   * 同梱をやめた作者系 built-in (#969) を MisStore 配布版相当に変換する。
-   * 判定は `@/services/storeMovedSkills` 側の純関数が持つ。
-   */
-  async function migrateStoreMovedBuiltIns(): Promise<void> {
-    const { migrated, changed, changedSkills } = planStoreMovedMigration(
-      skills.value,
-      Date.now(),
-    )
-    if (!changed) return
-    skills.value = migrated
-    await Promise.all(changedSkills.map((s) => persist(s)))
-  }
-
-  function get(id: string): SkillMeta | undefined {
-    ensureLoaded()
-    return skills.value.find((s) => s.id === id)
-  }
-
-  function add(input: Omit<SkillMeta, 'createdAt' | 'updatedAt'>): SkillMeta {
-    ensureLoaded()
-    const now = Date.now()
-    const skill: SkillMeta = { ...input, createdAt: now, updatedAt: now }
-    skills.value = [...skills.value, skill]
-    if (settingsFs.isTauri) {
-      // 新規作成の fileBase は persistItem が割り当てる (storeId 優先 →
-      // 表示名 slug。ファイル名は ID からでなく対応表から #913)。
-      // ready 待ちで移行と直列化
-      void ready
-        .then(() => persist(skill))
-        .catch((e) => console.warn('[skills] failed to persist new skill:', e))
-    }
-    return skill
-  }
-
-  function update(
+  /** 編集 (名前 / 説明 / 本文 / mode 等)。予約 skill の固定項目は拒否する */
+  async function update(
     id: string,
-    patch: Partial<SkillMeta>,
+    patch: SkillPatch,
     attribution?: EditAttribution,
-  ): void {
-    ensureLoaded()
-    const idx = skills.value.findIndex((s) => s.id === id)
-    if (idx < 0) return
-    const current = skills.value[idx]
-    if (!current) return
-    if (current.reserved) {
-      // 予約 skill は本文 (と説明) だけ。名前 / mode / persona 化は固定
-      const renaming =
-        typeof patch.name === 'string' && patch.name !== current.name
-      const remoding =
-        typeof patch.mode === 'string' && patch.mode !== current.mode
-      if (renaming || remoding || patch.isPersona === true) {
-        throw new Error(i18n.ts._skills.reservedLocked)
-      }
-    }
-    const prevSnapshot = {
-      body: current.body,
-      name: current.name,
-      version: current.version,
-      mode: current.mode,
-    }
-    const renamed =
-      typeof patch.name === 'string' && patch.name !== current.name
-    const updated: SkillMeta = {
-      ...current,
-      ...patch,
-      id,
-      updatedAt: Date.now(),
-    }
-    // snapshot が記録する範囲が動いたときだけ履歴に積む。内容が同じ保存で
-    // 積むと、エディタのデバウンス自動保存がリングを使い潰し、意味のある
-    // 編集前の状態が押し出される
-    const snapshotChanged =
-      prevSnapshot.body !== updated.body ||
-      prevSnapshot.name !== updated.name ||
-      prevSnapshot.version !== updated.version ||
-      prevSnapshot.mode !== updated.mode
-    skills.value = [
-      ...skills.value.slice(0, idx),
-      updated,
-      ...skills.value.slice(idx + 1),
-    ]
-    if (settingsFs.isTauri) {
-      void ready
-        .then(async () => {
-          // 直近の状態を参照する (連続 update では最後の閉包が最新を書く)
-          const live = skills.value.find((s) => s.id === id)
-          if (!live) return // 既に削除された
-          // 編集前 snapshot を history sidecar に push。履歴キーは対応表の
-          // fileBase (未割当 = ファイル未作成なら履歴も無し)
-          if (live.fileBase && snapshotChanged) {
-            await pushSnapshot(
-              'skill',
-              live.fileBase,
-              prevSnapshot,
-              attribution,
-            )
-          }
-          // 表示名の変更はファイル rename で追随 (ID 不変・主ファイル + 履歴)。
-          // rename の完了を待ってから保存する (#913)
-          if (renamed) await skillFiles.renameItemFiles(live, skills.value)
-          await skillFiles.persistItem(live, skills.value)
-        })
-        .catch((e) => console.warn('[skills] failed to persist update:', e))
-    }
+  ): Promise<boolean> {
+    const current = base.get(id)
+    if (!current) return false
+    rejectIfReservedLocked(current, patch)
+    if (!(await base.update(id, patch, attribution))) return false
     emitNoteDeckEvent('skill:edited', { id })
+    return true
   }
 
   /**
-   * 更新検知の基準記録 (#1040)。storeSha512 未記録のストア由来スキルへ
-   * registry 現行値を無通知で記録する。update() と違い履歴 push・
-   * updatedAt 更新・skill:edited イベントを出さない。
+   * ストア再インストール / 更新 (#913 / #981): 本文とストア由来 (frontmatter
+   * 由来の版 / 作者 / triggers / cheap check / persona を含む) を上書きする。
+   * ローカル値 (改名した name / mode / 有効) は維持
    */
-  function recordStoreBaseline(
+  async function applyStoreUpdate(
     id: string,
-    patch: { storeSha512: string; storeVersion: string },
-  ): void {
-    ensureLoaded()
-    const idx = skills.value.findIndex((s) => s.id === id)
-    const current = skills.value[idx]
-    if (!current) return
-    const updated: SkillMeta = { ...current, ...patch }
-    skills.value = [
-      ...skills.value.slice(0, idx),
-      updated,
-      ...skills.value.slice(idx + 1),
-    ]
-    if (settingsFs.isTauri) {
-      void ready
-        .then(() => {
-          const live = skills.value.find((s) => s.id === id)
-          if (!live) return
-          return skillFiles.persistItem(live, skills.value)
-        })
-        .catch((e) => console.warn('[skills] failed to persist baseline:', e))
-    }
+    patch: SkillStorePatch,
+  ): Promise<boolean> {
+    const prev = base.get(id)
+    if (!prev) return false
+    const { content, description, iconUrl, store, ...fromSource } = patch
+    return base.applyStoreUpdate(id, {
+      content,
+      description,
+      iconUrl,
+      store,
+      extra: { ...prev.extra, ...fromSource },
+    })
   }
 
-  /** スキルを削除する。undo トースト用に復元関数を返す (ファイル再書込方式) */
-  function remove(id: string): (() => void) | undefined {
-    ensureLoaded()
-    const idx = skills.value.findIndex((s) => s.id === id)
-    const target = skills.value[idx]
-    if (!target) return undefined
-    if (target.reserved) throw new Error(i18n.ts._skills.reservedLocked)
-    skills.value = skills.value.filter((s) => s.id !== id)
-    if (settingsFs.isTauri) {
-      // 主ファイル + 履歴サイドカーを削除 (ready 待ち)
-      void ready
-        .then(() => skillFiles.deleteItemFiles(target))
-        .catch((e) => console.warn('[skills] failed to delete skill file:', e))
-    }
-    return () => {
-      if (skills.value.some((s) => s.id === id)) return
-      const at = Math.min(idx, skills.value.length)
-      skills.value = [
-        ...skills.value.slice(0, at),
-        target,
-        ...skills.value.slice(at),
-      ]
-      if (settingsFs.isTauri) {
-        void ready
-          .then(() => skillFiles.persistItem(target, skills.value))
-          .catch((e) =>
-            console.warn('[skills] failed to restore skill file:', e),
-          )
-      }
-    }
+  /** 削除。予約 skill は拒否する。undo を返す (ファイル再書込方式) */
+  async function remove(id: string): Promise<(() => void) | undefined> {
+    const target = base.get(id)
+    if (target?.extra.reserved) throw new Error(i18n.ts._skills.reservedLocked)
+    return base.remove(id)
+  }
+
+  /**
+   * 1 ファイルを読み直して写しに載せる (notemaid が置いた skill の取り込み。
+   * 変更通知を待たずに結果が要る呼び出し側が使う)
+   */
+  async function reload(filename: string): Promise<void> {
+    await base.reload(filename)
+    const fileBase = fileBaseOf(filename)
+    const loaded = base.items.value.find((s) => s.fileBase === fileBase)
+    if (loaded) emitNoteDeckEvent('skill:edited', { id: loaded.id })
   }
 
   // --- HEARTBEAT (#411) ---
 
   /**
-   * `mode: 'heartbeat'` の skill 一覧。runner が tick ごとにこれを
-   * 読んで AI に渡す。順序は skills の宣言順を保つ。
+   * `mode: 'heartbeat'` の skill 一覧。runner が tick ごとにこれを読んで AI に
+   * 渡す。順序は一覧の宣言順を保つ
    */
   const heartbeatSkills = computed(() =>
-    skills.value.filter((s) => s.mode === 'heartbeat'),
+    base.items.value.filter((s) => s.extra.mode === 'heartbeat'),
   )
 
   /**
    * skill の HEARTBEAT 対象を on/off する。enabled=true で mode='heartbeat'、
-   * false で mode='manual' に戻す (always / trigger は専用設定なので保持しない)。
-   * frontmatter にも書き戻され永続化される。
+   * false で mode='manual' に戻す (always / trigger は専用設定なので保持しない)
    */
-  function setHeartbeat(id: string, enabled: boolean): void {
-    update(id, { mode: enabled ? 'heartbeat' : 'manual' })
+  function setHeartbeat(id: string, enabled: boolean): Promise<boolean> {
+    return update(id, { extra: { mode: enabled ? 'heartbeat' : 'manual' } })
   }
 
   /**
@@ -696,11 +312,9 @@ export const useSkillsStore = defineStore('skills', () => {
    * 挟まないようにする)
    */
   async function seedHeartbeatSteps(): Promise<string> {
-    ensureLoaded()
+    base.ensureLoaded()
     const meta = unwrap(await commands.maidHeartbeatStepsSeed())
-    if (meta.fileBase) {
-      await reloadFile(`${meta.fileBase}${settingsFs.SKILL_EXT}`)
-    }
+    if (meta.fileBase) await reload(`${meta.fileBase}${settingsFs.SKILL_EXT}`)
     return meta.id
   }
 
@@ -710,11 +324,9 @@ export const useSkillsStore = defineStore('skills', () => {
    * 戻り値は skill id
    */
   async function seedAgents(): Promise<string> {
-    ensureLoaded()
+    base.ensureLoaded()
     const meta = unwrap(await commands.maidAgentsSeed())
-    if (meta.fileBase) {
-      await reloadFile(`${meta.fileBase}${settingsFs.SKILL_EXT}`)
-    }
+    if (meta.fileBase) await reload(`${meta.fileBase}${settingsFs.SKILL_EXT}`)
     return meta.id
   }
 
@@ -735,10 +347,10 @@ export const useSkillsStore = defineStore('skills', () => {
     const text = (input ?? '').toLocaleLowerCase()
     if (!text) return []
     const matched: string[] = []
-    for (const s of skills.value) {
-      if (s.mode !== 'trigger') continue
-      if (s.triggers.length === 0) continue
-      const hit = s.triggers.some((t) => {
+    for (const s of base.items.value) {
+      if (s.extra.mode !== 'trigger') continue
+      if (s.extra.triggers.length === 0) continue
+      const hit = s.extra.triggers.some((t) => {
         const trig = t.toLocaleLowerCase()
         return trig.length > 0 && text.includes(trig)
       })
@@ -748,18 +360,14 @@ export const useSkillsStore = defineStore('skills', () => {
   }
 
   return {
-    skills,
-    effectiveActiveIds,
-    initialized,
-    ensureLoaded,
+    ...base,
+    add: (input: NewDistributable<SkillItem>) => base.add(input),
     isActive,
     setActive,
-    get,
-    add,
     update,
-    recordStoreBaseline,
+    applyStoreUpdate,
     remove,
-    reloadFile,
+    reload,
     heartbeatSkills,
     setHeartbeat,
     seedHeartbeatSteps,

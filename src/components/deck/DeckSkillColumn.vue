@@ -13,7 +13,8 @@ import {
 } from '@/stores/misstore'
 import {
   generateSkillId,
-  type SkillMeta,
+  isSkillEnabled,
+  type SkillItem,
   skillDisplayName,
   useSkillsStore,
 } from '@/stores/skills'
@@ -54,7 +55,7 @@ const columnContentRef = ref<HTMLElement | null>(null)
 // 予約スキル (AGENTS / HEARTBEAT、#1162) は配布物ではなく AI の土台なので、このカラム
 // には出さない。編集の入口は AI 設定 (ペルソナの「ルール」/ HEARTBEAT の「巡回の手順」)
 const librarySkills = computed(() =>
-  skillsStore.skills.filter((s) => !s.reserved),
+  skillsStore.items.filter((s) => !s.extra.reserved),
 )
 
 const tabDefs = computed<ColumnTabDef[]>(() => [
@@ -80,7 +81,7 @@ const searchQuery = ref('')
 const visibleSkills = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   const list = [...librarySkills.value].sort((a, b) => {
-    if (a.mode !== b.mode) {
+    if (a.extra.mode !== b.extra.mode) {
       // always → heartbeat → trigger → manual の順で並べる
       const order: Record<string, number> = {
         always: 0,
@@ -88,7 +89,7 @@ const visibleSkills = computed(() => {
         trigger: 2,
         manual: 3,
       }
-      return (order[a.mode] ?? 9) - (order[b.mode] ?? 9)
+      return (order[a.extra.mode] ?? 9) - (order[b.extra.mode] ?? 9)
     }
     return a.name.localeCompare(b.name)
   })
@@ -103,7 +104,7 @@ const visibleSkills = computed(() => {
 interface SkillSection {
   key: 'sideload' | 'store'
   label: string
-  items: SkillMeta[]
+  items: SkillItem[]
 }
 
 /**
@@ -113,8 +114,8 @@ interface SkillSection {
  * 0 件のセクションは表示しない。
  */
 const installedSections = computed<SkillSection[]>(() => {
-  const sideloaded = visibleSkills.value.filter((s) => !s.storeId)
-  const store = visibleSkills.value.filter((s) => !!s.storeId)
+  const sideloaded = visibleSkills.value.filter((s) => !s.store)
+  const store = visibleSkills.value.filter((s) => !!s.store)
   const sections: SkillSection[] = [
     {
       key: 'sideload',
@@ -130,55 +131,60 @@ const installedSections = computed<SkillSection[]>(() => {
   return sections.filter((s) => s.items.length > 0)
 })
 
-function isToggleable(skill: SkillMeta): boolean {
-  return skill.mode !== 'always'
+function isToggleable(skill: SkillItem): boolean {
+  return skill.extra.mode !== 'always'
 }
 
-function isActive(skill: SkillMeta): boolean {
-  return skillsStore.isActive(skill.id) || skill.mode === 'always'
-}
+/** 実効の有効 (mode=always は印が無くても有効) */
+const isActive = isSkillEnabled
 
-function toggleTitle(skill: SkillMeta): string {
-  if (skill.mode === 'always') return i18n.ts._deckSkillColumn.alwaysActive
+function toggleTitle(skill: SkillItem): string {
+  if (skill.extra.mode === 'always') {
+    return i18n.ts._deckSkillColumn.alwaysActive
+  }
   return isActive(skill)
     ? i18n.ts._deckSkillColumn.deactivate
     : i18n.ts._deckSkillColumn.activate
 }
 
-function toggleActive(skill: SkillMeta) {
+function toggleActive(skill: SkillItem) {
   if (!isToggleable(skill)) return
-  skillsStore.setActive(skill.id, !skillsStore.isActive(skill.id))
+  void skillsStore.setActive(skill.id, !skillsStore.isActive(skill.id))
 }
 
 /** HEARTBEAT (#411): skill を定期実行対象にするか toggle (mode を切り替え)。 */
-function toggleHeartbeat(skill: SkillMeta) {
-  skillsStore.setHeartbeat(skill.id, skill.mode !== 'heartbeat')
+function toggleHeartbeat(skill: SkillItem) {
+  void skillsStore.setHeartbeat(skill.id, skill.extra.mode !== 'heartbeat')
 }
 
-function openInEditor(skill: SkillMeta) {
+function openInEditor(skill: SkillItem) {
   // カード全体と名前もこの関数を呼ぶので、入口はここで 1 本に絞る
   if (!canEdit.value) return
   windowsStore.open('skill-edit', { skillId: skill.id })
 }
 
-function createNewSkill() {
-  const id = generateSkillId('skill')
-  const skill = skillsStore.add({
-    id,
+async function createNewSkill() {
+  const skill = await skillsStore.add({
+    id: generateSkillId('skill'),
     name: i18n.ts._deckSkillColumn.newSkillName,
-    version: '0.1.0',
     description: '',
-    mode: 'manual',
-    triggers: [],
-    body: `${i18n.ts._deckSkillColumn.newSkillBody}\n`,
-    cheapCheckCapabilities: [],
+    scope: { kind: 'none' },
+    content: `${i18n.ts._deckSkillColumn.newSkillBody}\n`,
+    extra: {
+      version: '0.1.0',
+      mode: 'manual',
+      triggers: [],
+      builtIn: false,
+      cheapCheckCapabilities: [],
+      isPersona: false,
+    },
   })
   windowsStore.open('skill-edit', { skillId: skill.id })
 }
 
 const { confirm } = useConfirm()
 
-async function uninstall(skill: SkillMeta) {
+async function uninstall(skill: SkillItem) {
   const ok = await confirm({
     title: i18n.ts._deckSkillColumn.deleteTitle,
     message: i18n.tsx._deckSkillColumn.deleteConfirm({ name: skill.name }),
@@ -186,7 +192,7 @@ async function uninstall(skill: SkillMeta) {
     type: 'danger',
   })
   if (!ok) return
-  const undo = skillsStore.remove(skill.id)
+  const undo = await skillsStore.remove(skill.id)
   if (undo) {
     useToast().show(i18n.ts._deckSkillColumn.deleted, 'info', {
       action: { label: i18n.ts._common.undo, onClick: undo },
@@ -340,25 +346,25 @@ function handleOpenStoreDetail(entry: StoreSkillEntry) {
                     @click.stop="openInEditor(skill)"
                   >{{ skillDisplayName(skill) }}</button>
                   <span v-else :class="[$style.name, $style.cardStatic]">{{ skillDisplayName(skill) }}</span>
-                  <span :class="$style.modeBadge" :data-mode="skill.mode">
-                    <i v-if="skill.mode === 'heartbeat'" class="ti ti-activity-heartbeat" />
-                    {{ modeLabel[skill.mode] }}
+                  <span :class="$style.modeBadge" :data-mode="skill.extra.mode">
+                    <i v-if="skill.extra.mode === 'heartbeat'" class="ti ti-activity-heartbeat" />
+                    {{ modeLabel[skill.extra.mode] }}
                   </span>
                   <span v-if="!isActive(skill)" :class="$style.disabledBadge">{{ i18n.ts._common.disabled }}</span>
                   <span :class="$style.spacer" />
-                  <span :class="$style.version">v{{ skill.version }}</span>
+                  <span :class="$style.version">v{{ skill.extra.version }}</span>
                 </div>
                 <div :class="$style.row2">
                   {{ skill.description || 'No description' }}
                 </div>
                 <div :class="$style.row3">
-                  <span v-if="skill.author" :class="$style.author">{{ skill.author }}</span>
+                  <span v-if="skill.extra.author" :class="$style.author">{{ skill.extra.author }}</span>
                   <span :class="$style.spacer" />
                   <div :class="$style.actions">
                     <button
                       class="_button"
-                      :class="[$style.iconBtn, skill.mode === 'heartbeat' && $style.heartbeatActive]"
-                      :title="skill.mode === 'heartbeat' ? i18n.ts._deckSkillColumn.removeFromHeartbeat : i18n.ts._deckSkillColumn.addToHeartbeat"
+                      :class="[$style.iconBtn, skill.extra.mode === 'heartbeat' && $style.heartbeatActive]"
+                      :title="skill.extra.mode === 'heartbeat' ? i18n.ts._deckSkillColumn.removeFromHeartbeat : i18n.ts._deckSkillColumn.addToHeartbeat"
                       @click.stop="toggleHeartbeat(skill)"
                     >
                       <i class="ti ti-activity-heartbeat" />

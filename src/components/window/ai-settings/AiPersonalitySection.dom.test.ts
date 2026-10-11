@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { type SkillMeta, useSkillsStore } from '@/stores/skills'
+import { useSkillsStore } from '@/stores/skills'
 import { useWindowsStore } from '@/stores/windows'
 import AiPersonalitySection from './AiPersonalitySection.vue'
 
@@ -16,19 +16,25 @@ vi.mock('@/utils/historyFs', () => ({
   pushSnapshot: vi.fn(async () => undefined),
 }))
 
-function agents(body: string): Omit<SkillMeta, 'createdAt' | 'updatedAt'> {
-  return {
+/** 予約 skill AGENTS.md を写しに置く (ファイル名で決まるので fileBase も立てる) */
+async function seedAgents(body: string) {
+  const item = await useSkillsStore().add({
     id: 'AGENTS',
     name: 'AGENTS',
-    fileBase: 'AGENTS',
-    version: '1.0.0',
     description: '',
-    mode: 'always',
-    triggers: [],
-    body,
-    cheapCheckCapabilities: [],
-    reserved: true,
-  }
+    scope: { kind: 'none' },
+    content: body,
+    extra: {
+      version: '1.0.0',
+      mode: 'always',
+      triggers: [],
+      builtIn: false,
+      cheapCheckCapabilities: [],
+      isPersona: false,
+      reserved: true,
+    },
+  })
+  item.fileBase = 'AGENTS'
 }
 
 function mountSection() {
@@ -72,14 +78,14 @@ describe('AiPersonalitySection — ルール (AGENTS.md)', () => {
   })
 
   it('本文が案内のコメントだけ (実質空) なら「まだ何も書かれていません」を出す', async () => {
-    useSkillsStore().add(agents('# AGENTS.md\n\n<!-- ここに書く -->'))
+    await seedAgents('# AGENTS.md\n\n<!-- ここに書く -->')
     const wrapper = mountSection()
     await nextTick()
     expect(rulesCard(wrapper).text()).toContain('まだ何も書かれていません')
   })
 
   it('指示が書かれていれば空の案内は出さない', async () => {
-    useSkillsStore().add(agents('# AGENTS.md\n\n- 絵文字を使わない'))
+    await seedAgents('# AGENTS.md\n\n- 絵文字を使わない')
     const wrapper = mountSection()
     await nextTick()
     expect(rulesCard(wrapper).text()).not.toContain('まだ何も書かれていません')

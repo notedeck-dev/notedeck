@@ -159,6 +159,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/distributableCodecs/pluginCodec.ts`](src/services/distributableCodecs/pluginCodec.ts) | — |
 | [`src/services/distributableCodecs/queryCodec.ts`](src/services/distributableCodecs/queryCodec.ts) | — |
 | [`src/services/distributableCodecs/sidecar.ts`](src/services/distributableCodecs/sidecar.ts) | — |
+| [`src/services/distributableCodecs/singleFile.ts`](src/services/distributableCodecs/singleFile.ts) | — |
 | [`src/services/distributableCodecs/skillCodec.ts`](src/services/distributableCodecs/skillCodec.ts) | — |
 | [`src/services/distributableCodecs/themeCodec.ts`](src/services/distributableCodecs/themeCodec.ts) | — |
 | [`src/services/distributableCodecs/widgetCodec.ts`](src/services/distributableCodecs/widgetCodec.ts) | — |

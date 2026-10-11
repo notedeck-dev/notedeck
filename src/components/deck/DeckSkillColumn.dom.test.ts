@@ -6,7 +6,7 @@ import { nextTick } from 'vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import type { StoreSkillEntry } from '@/stores/misstore'
-import { type SkillMeta, useSkillsStore } from '@/stores/skills'
+import { type SkillItem, useSkillsStore } from '@/stores/skills'
 import { useWindowsStore } from '@/stores/windows'
 import ColumnSection from './ColumnSection.vue'
 import DeckSkillColumn from './DeckSkillColumn.vue'
@@ -51,19 +51,40 @@ const column: DeckColumnType = {
   accountId: null,
 } as DeckColumnType
 
-function makeSkill(
-  partial: Partial<SkillMeta> & Pick<SkillMeta, 'id'>,
-): Omit<SkillMeta, 'createdAt' | 'updatedAt'> {
-  return {
-    name: partial.id,
-    version: '1.0.0',
-    description: '',
-    mode: 'manual',
-    triggers: [],
-    body: 'body',
-    cheapCheckCapabilities: [],
-    ...partial,
+/** 個体の仕込み。`storeId` はストア由来、`mode` / `reserved` は extra に畳む */
+interface Seed {
+  id: string
+  name?: string
+  description?: string
+  storeId?: string
+  mode?: SkillItem['extra']['mode']
+  reserved?: boolean
+}
+
+async function seed(...seeds: Seed[]) {
+  const store = useSkillsStore()
+  for (const s of seeds) {
+    const item = await store.add({
+      id: s.id,
+      name: s.name ?? s.id,
+      description: s.description ?? '',
+      store: s.storeId ? { id: s.storeId } : undefined,
+      scope: { kind: 'none' },
+      content: 'body',
+      extra: {
+        version: '1.0.0',
+        mode: s.mode ?? 'manual',
+        triggers: [],
+        builtIn: false,
+        cheapCheckCapabilities: [],
+        isPersona: false,
+        ...(s.reserved ? { reserved: true } : {}),
+      },
+    })
+    // 予約 skill はファイル名で決まる (runtime-only の対応表)
+    if (s.reserved) item.fileBase = s.id
   }
+  return store
 }
 
 function storeEntry(
@@ -178,9 +199,7 @@ describe('DeckSkillColumn — タブ', () => {
   })
 
   it('インストール済みタブのラベルにスキル数を出す', async () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'a' }))
-    store.add(makeSkill({ id: 'b' }))
+    await seed({ id: 'a' }, { id: 'b' })
     const wrapper = mountColumn()
     await nextTick()
     expect(() => tabButton(wrapper, 'インストール済み 2')).not.toThrow()
@@ -189,12 +208,11 @@ describe('DeckSkillColumn — タブ', () => {
 
 describe('DeckSkillColumn — 一覧の検索と分類', () => {
   it('検索語を入れると名前か説明に一致するスキルだけに絞られる', async () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'alpha', name: 'Alpha' }))
-    store.add(
-      makeSkill({ id: 'beta', name: 'Beta', description: 'alpha を補助' }),
+    await seed(
+      { id: 'alpha', name: 'Alpha' },
+      { id: 'beta', name: 'Beta', description: 'alpha を補助' },
+      { id: 'gamma', name: 'Gamma' },
     )
-    store.add(makeSkill({ id: 'gamma', name: 'Gamma' }))
     const wrapper = mountColumn()
     await nextTick()
     expect(wrapper.text()).toContain('Gamma')
@@ -212,9 +230,10 @@ describe('DeckSkillColumn — 一覧の検索と分類', () => {
   })
 
   it('storeId の無いスキルは「サイドロード」、ある物は「ストア配布」のセクションに出る', async () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'mine', name: 'Mine' }))
-    store.add(makeSkill({ id: 'aizu', name: 'Aizu', storeId: 'aizu' }))
+    await seed(
+      { id: 'mine', name: 'Mine' },
+      { id: 'aizu', name: 'Aizu', storeId: 'aizu' },
+    )
     const wrapper = mountColumn()
     await nextTick()
 
@@ -230,7 +249,7 @@ describe('DeckSkillColumn — 一覧の検索と分類', () => {
   })
 
   it('0 件のセクションは表示しない', async () => {
-    useSkillsStore().add(makeSkill({ id: 'mine', name: 'Mine' }))
+    await seed({ id: 'mine', name: 'Mine' })
     const wrapper = mountColumn()
     await nextTick()
     const sections = wrapper.findAllComponents(ColumnSection)
@@ -246,26 +265,21 @@ describe('DeckSkillColumn — 一覧の検索と分類', () => {
 
 describe('DeckSkillColumn — 予約スキル (AGENTS / HEARTBEAT)', () => {
   it('予約スキルは配布物ではないのでスキルカラムに出さず、件数にも数えない (入口は AI 設定)', async () => {
-    const store = useSkillsStore()
-    store.add(
-      makeSkill({
+    await seed(
+      {
         id: 'AGENTS',
         name: 'AGENTS',
-        fileBase: 'AGENTS',
         mode: 'always',
         reserved: true,
-      }),
-    )
-    store.add(
-      makeSkill({
+      },
+      {
         id: 'HEARTBEAT',
         name: 'HEARTBEAT',
-        fileBase: 'HEARTBEAT',
         mode: 'heartbeat',
         reserved: true,
-      }),
+      },
+      { id: 'plain', name: 'Plain' },
     )
-    store.add(makeSkill({ id: 'plain', name: 'Plain' }))
     const wrapper = mountColumn()
     await nextTick()
 
@@ -280,8 +294,7 @@ describe('DeckSkillColumn — 予約スキル (AGENTS / HEARTBEAT)', () => {
 
 describe('DeckSkillColumn — 有効化と HEARTBEAT', () => {
   it('「有効にする」を押すと store の active が立ち、ボタンが「無効にする」に変わる', async () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'plain', name: 'Plain' }))
+    const store = await seed({ id: 'plain', name: 'Plain' })
     const wrapper = mountColumn()
     await nextTick()
 
@@ -305,24 +318,22 @@ describe('DeckSkillColumn — 有効化と HEARTBEAT', () => {
   })
 
   it('HEARTBEAT ボタンを押すと mode が heartbeat になり、もう一度押すと manual に戻る', async () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'plain', name: 'Plain' }))
+    const store = await seed({ id: 'plain', name: 'Plain' })
     const wrapper = mountColumn()
     await nextTick()
 
     buttonByTitle(cardOf(wrapper, 'Plain'), 'HEARTBEAT で定期実行する')?.click()
-    await nextTick()
-    expect(store.get('plain')?.mode).toBe('heartbeat')
+    await flushPromises()
+    expect(store.get('plain')?.extra.mode).toBe('heartbeat')
     expect(cardOf(wrapper, 'Plain').textContent).toContain('HEARTBEAT')
 
     buttonByTitle(cardOf(wrapper, 'Plain'), 'HEARTBEAT 対象から外す')?.click()
-    await nextTick()
-    expect(store.get('plain')?.mode).toBe('manual')
+    await flushPromises()
+    expect(store.get('plain')?.extra.mode).toBe('manual')
   })
 
   it('mode=always のスキルは active 印が無くても有効扱いで、トグルは押せない', async () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'rule', name: 'Rule', mode: 'always' }))
+    const store = await seed({ id: 'rule', name: 'Rule', mode: 'always' })
     const wrapper = mountColumn()
     await nextTick()
 
@@ -344,8 +355,7 @@ describe('DeckSkillColumn — 有効化と HEARTBEAT', () => {
 
 describe('DeckSkillColumn — 削除', () => {
   it('削除ボタン → 確認 OK で一覧から消え、「元に戻す」付きトーストから復元できる', async () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'plain', name: 'Plain' }))
+    const store = await seed({ id: 'plain', name: 'Plain' })
     const wrapper = mountColumn()
     await nextTick()
 
@@ -360,7 +370,7 @@ describe('DeckSkillColumn — 削除', () => {
       title: 'スキルを削除',
       type: 'danger',
     })
-    expect(store.skills.map((s) => s.id)).toEqual([])
+    expect(store.items.map((s) => s.id)).toEqual([])
     expect(wrapper.text()).not.toContain('Plain')
 
     expect(h.toastShow).toHaveBeenCalledTimes(1)
@@ -375,14 +385,13 @@ describe('DeckSkillColumn — 削除', () => {
 
     options.action?.onClick()
     await nextTick()
-    expect(store.skills.map((s) => s.id)).toEqual(['plain'])
+    expect(store.items.map((s) => s.id)).toEqual(['plain'])
     expect(wrapper.text()).toContain('Plain')
   })
 
   it('確認でキャンセルすると削除もトーストも起きない', async () => {
     h.confirm.mockResolvedValue(false)
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'plain', name: 'Plain' }))
+    const store = await seed({ id: 'plain', name: 'Plain' })
     const wrapper = mountColumn()
     await nextTick()
 
@@ -392,7 +401,7 @@ describe('DeckSkillColumn — 削除', () => {
     )?.click()
     await flushPromises()
 
-    expect(store.skills.map((s) => s.id)).toEqual(['plain'])
+    expect(store.items.map((s) => s.id)).toEqual(['plain'])
     expect(h.toastShow).not.toHaveBeenCalled()
   })
 })
@@ -412,18 +421,17 @@ describe('DeckSkillColumn — 作成と編集 (開発者モード #1034)', () =>
     await plus?.trigger('click')
     await nextTick()
 
-    expect(store.skills).toHaveLength(1)
-    const created = store.skills[0]
+    expect(store.items).toHaveLength(1)
+    const created = store.items[0]
     expect(created?.name).toBe('新規スキル')
-    expect(created?.mode).toBe('manual')
+    expect(created?.extra.mode).toBe('manual')
     expect(open).toHaveBeenCalledWith('skill-edit', { skillId: created?.id })
     expect(wrapper.text()).toContain('新規スキル')
   })
 
   it('skill-edit が露出していなければ「+」も編集ボタンも出ず、行を押しても開かない', async () => {
     h.isWindowExposed.mockReturnValue(false)
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'plain', name: 'Plain' }))
+    const store = await seed({ id: 'plain', name: 'Plain' })
     const windows = useWindowsStore()
     const open = vi.spyOn(windows, 'open')
     const wrapper = mountColumn()
@@ -441,13 +449,11 @@ describe('DeckSkillColumn — 作成と編集 (開発者モード #1034)', () =>
     card.click()
     await nextTick()
     expect(open).not.toHaveBeenCalled()
-    expect(store.skills).toHaveLength(1)
+    expect(store.items).toHaveLength(1)
   })
 
   it('編集ボタンと名前はそのスキルの id を skill-edit ウィンドウに渡す', async () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'alpha', name: 'Alpha' }))
-    store.add(makeSkill({ id: 'beta', name: 'Beta' }))
+    await seed({ id: 'alpha', name: 'Alpha' }, { id: 'beta', name: 'Beta' })
     const windows = useWindowsStore()
     const open = vi.spyOn(windows, 'open')
     const wrapper = mountColumn()
@@ -477,10 +483,11 @@ describe('DeckSkillColumn — ストアタブ', () => {
         ],
       }),
     )
-    const store = useSkillsStore()
-    store.add(
-      makeSkill({ id: 'aizu-local', name: 'Aizu (local)', storeId: 'aizu' }),
-    )
+    await seed({
+      id: 'aizu-local',
+      name: 'Aizu (local)',
+      storeId: 'aizu',
+    })
     const wrapper = mountColumn()
     await nextTick()
 

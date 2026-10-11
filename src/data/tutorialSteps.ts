@@ -504,11 +504,11 @@ export function buildTutorialSteps(): TutorialStep[] {
       get description() {
         return i18n.ts._tutorialSteps.createSkillDescription
       },
-      precheck: () => (useSkillsStore().skills.length > 0 ? 'skip' : 'show'),
+      precheck: () => (useSkillsStore().items.length > 0 ? 'skip' : 'show'),
       onEnter: () => openAddColumnAndPoint('skill', i18n.ts._columns.skill),
       completion: {
-        watch: () => useSkillsStore().skills.length,
-        isComplete: () => useSkillsStore().skills.length > 0,
+        watch: () => useSkillsStore().items.length,
+        isComplete: () => useSkillsStore().items.length > 0,
       },
     },
 

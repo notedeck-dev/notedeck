@@ -1,103 +1,44 @@
-import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it } from 'vitest'
-import { _internal, useSkillsStore } from '@/stores/skills'
+import { describe, expect, it } from 'vitest'
+import { skillCodec } from '@/services/distributableCodecs/skillCodec'
 
-describe('skills store / metaFromFrontmatter', () => {
+/** mode の読み書き (HEARTBEAT を独立フィールドではなく mode で持つ、#411) */
+describe('skillCodec / mode', () => {
+  const ctx = { filename: 'fallback-id.md', now: 0 }
+
   it('honors mode: heartbeat (新スキーマ / MisStore 配布)', () => {
-    const meta = _internal.metaFromFrontmatter(
-      { mode: 'heartbeat' },
-      'body',
-      'fallback-id',
+    const item = skillCodec.fromFile(
+      { meta: { mode: 'heartbeat' }, body: 'body' },
+      ctx,
     )
-    expect(meta.mode).toBe('heartbeat')
+    expect(item.extra.mode).toBe('heartbeat')
   })
 
   it('unknown mode falls back to manual', () => {
-    const meta = _internal.metaFromFrontmatter(
-      { mode: 'bogus' },
-      'body',
-      'fallback-id',
+    const item = skillCodec.fromFile(
+      { meta: { mode: 'bogus' }, body: 'body' },
+      ctx,
     )
-    expect(meta.mode).toBe('manual')
+    expect(item.extra.mode).toBe('manual')
   })
 
-  it('frontmatterFromMeta serializes mode (no separate heartbeat field)', () => {
-    const fm = _internal.frontmatterFromMeta({
+  it('toFile serializes mode (no separate heartbeat field)', () => {
+    const file = skillCodec.toFile({
       id: 'x',
       name: 'X',
-      version: '0.1.0',
-      mode: 'heartbeat',
-      triggers: [],
-      body: '',
+      scope: { kind: 'none' },
+      content: '',
       createdAt: 0,
       updatedAt: 0,
+      extra: {
+        version: '0.1.0',
+        mode: 'heartbeat',
+        triggers: [],
+        builtIn: false,
+        cheapCheckCapabilities: [],
+        isPersona: false,
+      },
     })
-    expect(fm.mode).toBe('heartbeat')
-    expect('heartbeat' in fm).toBe(false)
-  })
-})
-
-describe('skills store / setHeartbeat & heartbeatSkills', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-  })
-
-  it('setHeartbeat(true) puts skill into mode=heartbeat', () => {
-    const store = useSkillsStore()
-    store.add({
-      id: 's1',
-      name: 'S1',
-      version: '0.1.0',
-      mode: 'manual',
-      triggers: [],
-      body: '',
-    })
-    store.setHeartbeat('s1', true)
-    expect(store.get('s1')?.mode).toBe('heartbeat')
-    expect(store.heartbeatSkills.map((s) => s.id)).toEqual(['s1'])
-  })
-
-  it('setHeartbeat(false) reverts mode to manual', () => {
-    const store = useSkillsStore()
-    store.add({
-      id: 's1',
-      name: 'S1',
-      version: '0.1.0',
-      mode: 'heartbeat',
-      triggers: [],
-      body: '',
-    })
-    store.setHeartbeat('s1', false)
-    expect(store.get('s1')?.mode).toBe('manual')
-    expect(store.heartbeatSkills).toEqual([])
-  })
-
-  it('heartbeatSkills filters by mode, preserves declaration order', () => {
-    const store = useSkillsStore()
-    store.add({
-      id: 'a',
-      name: 'A',
-      version: '0.1.0',
-      mode: 'heartbeat',
-      triggers: [],
-      body: '',
-    })
-    store.add({
-      id: 'b',
-      name: 'B',
-      version: '0.1.0',
-      mode: 'manual',
-      triggers: [],
-      body: '',
-    })
-    store.add({
-      id: 'c',
-      name: 'C',
-      version: '0.1.0',
-      mode: 'heartbeat',
-      triggers: [],
-      body: '',
-    })
-    expect(store.heartbeatSkills.map((s) => s.id)).toEqual(['a', 'c'])
+    expect(file.meta.mode).toBe('heartbeat')
+    expect('heartbeat' in file.meta).toBe(false)
   })
 })
