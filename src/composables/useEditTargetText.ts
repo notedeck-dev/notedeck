@@ -28,7 +28,7 @@ export function useEditTargetText(
     const id = itemId() ?? ''
     switch (kind()) {
       case 'skill':
-        return skills.get(id)?.body ?? ''
+        return skills.get(id)?.content ?? ''
       case 'widget':
         return widgets.get(id)?.content ?? ''
       case 'plugin':

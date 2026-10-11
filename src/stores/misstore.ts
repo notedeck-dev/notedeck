@@ -13,7 +13,11 @@ import { findWidgetByStore } from '@/services/widgetInstances'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
 import { type PluginItem, usePluginsStore } from '@/stores/plugins'
-import { type SkillMeta, useSkillsStore } from '@/stores/skills'
+import {
+  type SkillItem,
+  type SkillStorePatch,
+  useSkillsStore,
+} from '@/stores/skills'
 import { useThemeStore } from '@/stores/theme'
 import { useWidgetsStore, type WidgetItem } from '@/stores/widgets'
 import type { MisskeyTheme } from '@/theme/types'
@@ -241,21 +245,19 @@ function buildSkillStorePatch(
   body: string,
   e: StoreSkillEntry,
   hash: string,
-): Partial<SkillMeta> {
+): SkillStorePatch {
   return {
-    version: (meta.version as string | undefined) || e.version,
+    content: body,
     description: (meta.description as string | undefined) || e.description,
+    iconUrl: (meta.iconUrl as string | undefined) || e.iconUrl,
+    version: (meta.version as string | undefined) || e.version,
     author: (meta.author as string | undefined) || e.author,
     triggers: Array.isArray(meta.triggers) ? (meta.triggers as string[]) : [],
-    body,
-    iconUrl: (meta.iconUrl as string | undefined) || e.iconUrl,
     cheapCheckCapabilities: Array.isArray(meta.cheapCheckCapabilities)
       ? (meta.cheapCheckCapabilities as string[])
       : [],
     isPersona: meta.isPersona === true,
-    storeId: e.id,
-    storeSha512: hash,
-    storeVersion: e.version,
+    store: { id: e.id, sha512: hash, version: e.version },
   }
 }
 
@@ -460,12 +462,17 @@ export const useMisStoreStore = defineStore('misstore', () => {
   )
   const skillFeed = createRegistryFeed<StoreSkillEntry>('skills', (entry) => {
     const store = useSkillsStore()
-    const k = store.skills.find((k) => k.storeId === entry.id)
+    const k = store.items.find((k) => k.store?.id === entry.id)
     if (!k) return []
     return [
       {
-        storeSha512: k.storeSha512,
-        recordBaseline: (rec) => store.recordStoreBaseline(k.id, rec),
+        storeSha512: k.store?.sha512,
+        recordBaseline: (rec) => {
+          void store.recordStoreBaseline(k.id, {
+            sha512: rec.storeSha512,
+            version: rec.storeVersion,
+          })
+        },
       },
     ]
   })
@@ -566,8 +573,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
       const { meta, body } = parseSkillFile(source)
       const skillsStore = useSkillsStore()
-      const existing = skillsStore.skills.find((s) => s.storeId === e.id)
-      const now = Date.now()
+      const existing = skillsStore.items.find((s) => s.store?.id === e.id)
 
       if (existing) {
         // 再インストール = 実質更新。ローカル編集を無言で消さないため
@@ -583,37 +589,35 @@ export const useMisStoreStore = defineStore('misstore', () => {
       // 新規: ローカル ID = storeId (配布物内の ID 宣言よりレジストリの
       // ディレクトリ名を正とする)。storeId 不一致の既存 ID に占有されて
       // いたら上書きせず連番 suffix で回避する
-      const takenIds = new Set(skillsStore.skills.map((s) => casefold(s.id)))
+      const takenIds = new Set(skillsStore.items.map((s) => casefold(s.id)))
       const id = resolveAvailable(e.id, (c) => takenIds.has(casefold(c)))
-      const newSkill: SkillMeta = {
+      const fromSource = buildSkillStorePatch(meta, body, e, hash)
+      const {
+        content,
+        description,
+        iconUrl,
+        store: origin,
+        ...extra
+      } = fromSource
+      await skillsStore.add({
         id,
         name: (meta.name as string | undefined) || e.name,
-        version: (meta.version as string | undefined) || e.version,
-        description: (meta.description as string | undefined) || e.description,
-        author: (meta.author as string | undefined) || e.author,
-        mode:
-          meta.mode === 'always' ||
-          meta.mode === 'trigger' ||
-          meta.mode === 'heartbeat'
-            ? meta.mode
-            : 'manual',
-        triggers: Array.isArray(meta.triggers)
-          ? (meta.triggers as string[])
-          : [],
-        storeId: e.id,
-        storeSha512: hash,
-        storeVersion: e.version,
-        body,
-        createdAt: now,
-        updatedAt: now,
-        builtIn: false,
-        iconUrl: (meta.iconUrl as string | undefined) || e.iconUrl,
-        cheapCheckCapabilities: Array.isArray(meta.cheapCheckCapabilities)
-          ? (meta.cheapCheckCapabilities as string[])
-          : [],
-        isPersona: meta.isPersona === true,
-      }
-      skillsStore.add(newSkill)
+        description,
+        iconUrl,
+        store: origin,
+        scope: { kind: 'none' },
+        content,
+        extra: {
+          ...extra,
+          mode:
+            meta.mode === 'always' ||
+            meta.mode === 'trigger' ||
+            meta.mode === 'heartbeat'
+              ? meta.mode
+              : 'manual',
+          builtIn: false,
+        },
+      })
     } finally {
       installingSkill.value = null
     }
@@ -1032,26 +1036,26 @@ export const useMisStoreStore = defineStore('misstore', () => {
    * @returns 適用したら true / ユーザーが拒否したら false
    */
   async function confirmSkillUpdate(
-    existing: SkillMeta,
+    existing: SkillItem,
     fetched: { source: string; hash: string; entry: StoreSkillEntry },
     opts: { alwaysConfirm: boolean },
   ): Promise<boolean> {
     const { source, hash, entry: e } = fetched
     const { meta, body } = parseSkillFile(source)
-    if (opts.alwaysConfirm || body !== existing.body) {
+    if (opts.alwaysConfirm || body !== existing.content) {
       const ok = await useConfirm().confirm({
         title: i18n.ts._misstore.updateSkill,
         message: updateConfirmMessage(existing.name || e.name, e),
         okLabel: i18n.ts._common.update,
         // 本体 = frontmatter を除いた body 同士で比較する (ローカルは body
         // しか保持しない。frontmatter 由来メタは patch 側が反映する)
-        diff: { old: existing.body, new: body, language: 'markdown' },
+        diff: { old: existing.content, new: body, language: 'markdown' },
       })
       if (!ok) return false
     }
     // 上書き更新: 本体とストア由来メタのみ。ローカル ID・name・mode・
-    // scope/installedFor・有効/無効 (active) は維持する
-    useSkillsStore().update(
+    // 有効/無効 (active) は維持する
+    await useSkillsStore().applyStoreUpdate(
       existing.id,
       buildSkillStorePatch(meta, body, e, hash),
     )
@@ -1060,7 +1064,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
   async function updateSkill(entry: StoreSkillEntry): Promise<boolean> {
     const skillsStore = useSkillsStore()
-    const existing = skillsStore.skills.find((s) => s.storeId === entry.id)
+    const existing = skillsStore.items.find((s) => s.store?.id === entry.id)
     if (!existing) return false
     installingSkill.value = entry.id
     try {

@@ -2,15 +2,19 @@ import { createHash } from 'node:crypto'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PluginItem } from '@/stores/plugins'
-import type { SkillMeta } from '@/stores/skills'
+import type { SkillItem } from '@/stores/skills'
 import type { WidgetItem } from '@/stores/widgets'
 
 const h = vi.hoisted(() => ({
   skillsStore: {
-    skills: [] as unknown[],
-    add: vi.fn(),
-    update: vi.fn(),
-    recordStoreBaseline: vi.fn(),
+    items: [] as unknown[],
+    add: vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    applyStoreUpdate: vi.fn(async () => true),
+    recordStoreBaseline: vi.fn(async () => undefined),
   },
   pluginsStore: {
     items: [] as unknown[],
@@ -177,7 +181,7 @@ const fetchMock = vi.fn()
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
-  h.skillsStore.skills = []
+  h.skillsStore.items = []
   h.pluginsStore.items = []
   h.widgetsStore.items = []
   h.queriesStore.items = []
@@ -281,6 +285,28 @@ describe('fetchWidgetSource', () => {
   })
 })
 
+/** 既存の skill (既定: ストア 'ent-skill' 由来) */
+function existingSkill(over: Partial<SkillItem>): SkillItem {
+  return {
+    id: 'local-1',
+    name: 'My Skill',
+    store: { id: 'ent-skill' },
+    scope: { kind: 'none' },
+    content: '',
+    extra: {
+      version: '1',
+      mode: 'manual',
+      triggers: [],
+      builtIn: false,
+      cheapCheckCapabilities: [],
+      isPersona: false,
+    },
+    createdAt: 0,
+    updatedAt: 0,
+    ...over,
+  }
+}
+
 describe('installSkill', () => {
   const source =
     '---\nname: Greeter\nmode: always\ntriggers: [hi, hello]\n---\nGreet the user'
@@ -290,17 +316,14 @@ describe('installSkill', () => {
     fetchMock.mockResolvedValue(okText(source))
     await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
     expect(h.skillsStore.add).toHaveBeenCalledTimes(1)
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
     expect(added).toMatchObject({
       id: 'ent-skill',
       name: 'Greeter',
-      mode: 'always',
-      triggers: ['hi', 'hello'],
-      storeId: 'ent-skill',
-      body: 'Greet the user',
-      builtIn: false,
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      content: 'Greet the user',
+      store: { id: 'ent-skill', sha512: sha512Hex(source), version: '1.0.0' },
+      scope: { kind: 'none' },
+      extra: { mode: 'always', triggers: ['hi', 'hello'], builtIn: false },
     })
     expect(store.installingSkill).toBeNull()
   })
@@ -310,20 +333,22 @@ describe('installSkill', () => {
     const declared = '---\nid: distributed-own-id\nname: Greeter\n---\nbody'
     fetchMock.mockResolvedValue(okText(declared))
     await store.installSkill(skillEntry({ sha512: sha512Hex(declared) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
     expect(added.id).toBe('ent-skill')
-    expect(added.storeId).toBe('ent-skill')
+    expect(added.store?.id).toBe('ent-skill')
   })
 
   it('storeId 不一致の既存 ID が storeId を占有していたら suffix で回避する (#913)', async () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [{ id: 'ent-skill', name: '自作' }]
+    h.skillsStore.items = [
+      existingSkill({ id: 'ent-skill', name: '自作', store: undefined }),
+    ]
     fetchMock.mockResolvedValue(okText(source))
     await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
-    expect(h.skillsStore.update).not.toHaveBeenCalled()
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    expect(h.skillsStore.applyStoreUpdate).not.toHaveBeenCalled()
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
     expect(added.id).toBe('ent-skill-2')
-    expect(added.storeId).toBe('ent-skill')
+    expect(added.store?.id).toBe('ent-skill')
   })
 
   it('falls back to mode=manual and entry metadata when frontmatter is absent', async () => {
@@ -331,43 +356,36 @@ describe('installSkill', () => {
     const bare = 'just a body'
     fetchMock.mockResolvedValue(okText(bare))
     await store.installSkill(skillEntry({ sha512: sha512Hex(bare) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
     expect(added.name).toBe('Test Skill')
-    expect(added.mode).toBe('manual')
-    expect(added.body).toBe(bare)
+    expect(added.extra.mode).toBe('manual')
+    expect(added.content).toBe(bare)
   })
 
   it('既存は storeId で照合しローカル ID・name・mode を維持して上書き更新する (#913)', async () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [
-      {
+    h.skillsStore.items = [
+      existingSkill({
         id: 'local-1',
-        storeId: 'ent-skill',
         name: 'My Renamed',
-        mode: 'heartbeat',
-      },
+        extra: { ...existingSkill({}).extra, mode: 'heartbeat' },
+      }),
     ]
     fetchMock.mockResolvedValue(okText(source))
     await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
     expect(h.skillsStore.add).not.toHaveBeenCalled()
-    expect(h.skillsStore.update).toHaveBeenCalledTimes(1)
-    const [id, patch] = h.skillsStore.update.mock.calls[0] as [
-      string,
-      Partial<SkillMeta>,
-    ]
+    expect(h.skillsStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
+    const [id, patch] = h.skillsStore.applyStoreUpdate.mock
+      .calls[0] as unknown as [string, Record<string, unknown>]
     expect(id).toBe('local-1')
     expect(patch).toMatchObject({
-      body: 'Greet the user',
+      content: 'Greet the user',
       triggers: ['hi', 'hello'],
-      storeId: 'ent-skill',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      store: { id: 'ent-skill', sha512: sha512Hex(source), version: '1.0.0' },
     })
-    // ローカル値 (改名・実行モード・スコープ・ID) は更新で上書きしない
+    // ローカル値 (改名・実行モード・ID) は配布ソースの patch に含めない
     expect(patch).not.toHaveProperty('name')
     expect(patch).not.toHaveProperty('mode')
-    expect(patch).not.toHaveProperty('scope')
-    expect(patch).not.toHaveProperty('installedFor')
     expect(patch).not.toHaveProperty('id')
   })
 
@@ -376,8 +394,8 @@ describe('installSkill', () => {
     const hb = '---\nname: Pulse\nmode: heartbeat\n---\nreport'
     fetchMock.mockResolvedValue(okText(hb))
     await store.installSkill(skillEntry({ sha512: sha512Hex(hb) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
-    expect(added.mode).toBe('heartbeat')
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
+    expect(added.extra.mode).toBe('heartbeat')
   })
 
   it('takes isPersona from frontmatter (#967)', async () => {
@@ -385,16 +403,16 @@ describe('installSkill', () => {
     const persona = '---\nname: Aizu\nisPersona: true\n---\npersona body'
     fetchMock.mockResolvedValue(okText(persona))
     await store.installSkill(skillEntry({ sha512: sha512Hex(persona) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
-    expect(added.isPersona).toBe(true)
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
+    expect(added.extra.isPersona).toBe(true)
   })
 
   it('defaults isPersona to false when frontmatter omits it (#967)', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
     await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
-    expect(added.isPersona).toBe(false)
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
+    expect(added.extra.isPersona).toBe(false)
   })
 
   it('rejects on hash mismatch and resets installingSkill', async () => {
@@ -409,11 +427,11 @@ describe('installSkill', () => {
 
   it('isSkillInstalled は storeId のみで照合する (内部 ID 一致では真にならない #913)', () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [{ id: 'local-id', storeId: 'ent-skill' }]
+    h.skillsStore.items = [existingSkill({ id: 'local-id' })]
     expect(store.isSkillInstalled(skillEntry())).toBe(true)
-    h.skillsStore.skills = [{ id: 'ent-skill' }]
+    h.skillsStore.items = [existingSkill({ id: 'ent-skill', store: undefined })]
     expect(store.isSkillInstalled(skillEntry())).toBe(false)
-    h.skillsStore.skills = [{ id: 'other' }]
+    h.skillsStore.items = [existingSkill({ id: 'other', store: undefined })]
     expect(store.isSkillInstalled(skillEntry())).toBe(false)
   })
 })
@@ -962,8 +980,11 @@ describe('更新検知 (#1040)', () => {
 
   it('hasSkillUpdate / hasPluginUpdate / hasQueryUpdate は storeId で照合する', () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [
-      { id: 'local-1', storeId: 'ent-skill', storeSha512: 'sha-old' },
+    h.skillsStore.items = [
+      existingSkill({
+        id: 'local-1',
+        store: { id: 'ent-skill', sha512: 'sha-old' },
+      }),
     ]
     expect(store.hasSkillUpdate(skillEntry({ sha512: 'sha-new' }))).toBe(true)
     expect(store.hasSkillUpdate(skillEntry({ sha512: 'sha-old' }))).toBe(false)
@@ -1039,7 +1060,7 @@ describe('baseline 無通知記録 (#1040)', () => {
 
   it('fetchSkills / fetchPlugins / fetchQueries も未記録分へ記録する', async () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [{ id: 'local-1', storeId: 'ent-skill' }]
+    h.skillsStore.items = [existingSkill({ id: 'local-1' })]
     h.pluginsStore.items = [existingPlugin({})]
     h.queriesStore.items = [{ id: 'q1', store: { id: 'ent-query' } }]
     fetchMock
@@ -1055,11 +1076,11 @@ describe('baseline 無通知記録 (#1040)', () => {
     await store.fetchSkills()
     await store.fetchPlugins()
     await store.fetchQueries()
+    // skill / plugin / query は envelope のストア由来 3 点の形で受ける (#1202 段階 1)
     expect(h.skillsStore.recordStoreBaseline).toHaveBeenCalledWith('local-1', {
-      storeSha512: 's-sha',
-      storeVersion: '1.0.0',
+      sha512: 's-sha',
+      version: '1.0.0',
     })
-    // plugin / query は envelope のストア由来 3 点の形で受ける (#1202 段階 1)
     expect(h.pluginsStore.recordStoreBaseline).toHaveBeenCalledWith('p1', {
       sha512: 'p-sha',
       version: '1.0.0',
@@ -1230,8 +1251,8 @@ describe('更新適用 (#1040)', () => {
     const store = useMisStoreStore()
     const body = '# v2\n\n新しい本文'
     const source = `---\nname: Test Skill\n---\n${body}`
-    h.skillsStore.skills = [
-      { id: 'sk0', storeId: 'ent-skill', name: 'Test Skill', body: '# v1' },
+    h.skillsStore.items = [
+      existingSkill({ id: 'sk0', name: 'Test Skill', content: '# v1' }),
     ]
     fetchMock.mockResolvedValue(okText(source))
     await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
@@ -1241,19 +1262,19 @@ describe('更新適用 (#1040)', () => {
       new: body,
       language: 'markdown',
     })
-    expect(h.skillsStore.update).toHaveBeenCalled()
+    expect(h.skillsStore.applyStoreUpdate).toHaveBeenCalled()
   })
 
   it('installSkill: 確認をキャンセルしたら本文を書き換えない (#981)', async () => {
     const store = useMisStoreStore()
     h.confirm.mockResolvedValueOnce(false)
-    h.skillsStore.skills = [
-      { id: 'sk0', storeId: 'ent-skill', name: 'Test Skill', body: '# v1' },
+    h.skillsStore.items = [
+      existingSkill({ id: 'sk0', name: 'Test Skill', content: '# v1' }),
     ]
     const source = '---\nname: Test Skill\n---\n# v2'
     fetchMock.mockResolvedValue(okText(source))
     await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
-    expect(h.skillsStore.update).not.toHaveBeenCalled()
+    expect(h.skillsStore.applyStoreUpdate).not.toHaveBeenCalled()
   })
 
   it('installTheme: 見た目が変わらない再インストール (installedFor 追加だけ) は確認しない (#981)', async () => {
@@ -1427,14 +1448,13 @@ describe('更新適用 (#1040)', () => {
   it('updateSkill: 本文 (body) 同士の markdown diff で確認し、承認でそのまま適用する', async () => {
     const store = useMisStoreStore()
     const newSource = '---\nname: Greeter\nversion: 2.0.0\n---\nNew body'
-    h.skillsStore.skills = [
-      {
+    h.skillsStore.items = [
+      existingSkill({
         id: 'local-1',
-        storeId: 'ent-skill',
         name: 'My Renamed',
-        body: 'Old body',
-        storeSha512: 'old-sha',
-      },
+        content: 'Old body',
+        store: { id: 'ent-skill', sha512: 'old-sha' },
+      }),
     ]
     fetchMock.mockResolvedValue(okText(newSource))
     await expect(
@@ -1446,18 +1466,24 @@ describe('更新適用 (#1040)', () => {
       new: 'New body',
       language: 'markdown',
     })
-    expect(h.skillsStore.update).toHaveBeenCalledWith(
+    expect(h.skillsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'local-1',
       expect.objectContaining({
-        body: 'New body',
-        storeSha512: sha512Hex(newSource),
+        content: 'New body',
+        store: {
+          id: 'ent-skill',
+          sha512: sha512Hex(newSource),
+          version: '1.0.0',
+        },
       }),
     )
     // ローカル値は維持 (installSkill の上書き更新と同じ境界)
-    const patch = h.skillsStore.update.mock.calls[0]?.[1] as Record<
-      string,
-      unknown
-    >
+    const patch = (
+      h.skillsStore.applyStoreUpdate.mock.calls[0] as unknown as [
+        string,
+        Record<string, unknown>,
+      ]
+    )[1]
     expect(patch).not.toHaveProperty('name')
     expect(patch).not.toHaveProperty('mode')
   })

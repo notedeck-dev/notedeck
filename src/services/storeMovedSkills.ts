@@ -1,4 +1,4 @@
-import type { SkillMeta } from '@/stores/skills'
+import type { SkillItem } from '@/services/distributableCodecs/skillCodec'
 
 /**
  * 同梱をやめて MisStore 配布に移した skill (#969 → #746)。
@@ -22,44 +22,45 @@ export const STORE_MOVED_SKILL_IDS = [
 
 const MOVED = new Set<string>(STORE_MOVED_SKILL_IDS)
 
-export interface StoreMovedMigrationPlan {
-  migrated: SkillMeta[]
-  /** 1 件でも変換したか (false なら永続化も不要) */
-  changed: boolean
-  /** 実際に変換した skill (呼び出し側はこれだけ persist すればよい) */
-  changedSkills: SkillMeta[]
-}
-
 /**
  * 既に seed 済みのユーザーの手元に残っている旧 built-in を、MisStore 配布版
- * 相当 (`builtIn: false` + `storeId`) に変換する。aizu で実績のあるパターン。
+ * 相当 (`builtIn: false` + `store`) に変換する。aizu で実績のあるパターン。
  *
  * 削除ではなく変換なのは、ユーザーが本文を書き換えている可能性があるため。
  * 本文・mode・triggers はそのまま残し、以降はストアから更新できるようにする
- * だけに留める。
+ * だけに留める。store factory の `migrate` hook の契約どおり in-place で直し、
+ * 変えた個体を返す
  */
-export function planStoreMovedMigration(
-  skills: readonly SkillMeta[],
+export function migrateStoreMovedSkills(
+  items: SkillItem[],
   now: number,
-): StoreMovedMigrationPlan {
-  if (!skills.some((s) => s.builtIn === true && MOVED.has(s.id))) {
-    return {
-      migrated: skills as SkillMeta[],
-      changed: false,
-      changedSkills: [],
-    }
+): SkillItem[] {
+  const changed: SkillItem[] = []
+  for (const s of items) {
+    if (!s.extra.builtIn || !MOVED.has(s.id)) continue
+    s.extra = { ...s.extra, builtIn: false }
+    s.store = { id: s.id }
+    s.updatedAt = now
+    changed.push(s)
   }
-  const changedSkills: SkillMeta[] = []
-  const migrated = skills.map((s) => {
-    if (s.builtIn !== true || !MOVED.has(s.id)) return s
-    const next: SkillMeta = {
-      ...s,
-      builtIn: false,
-      storeId: s.id,
-      updatedAt: now,
-    }
-    changedSkills.push(next)
-    return next
-  })
-  return { migrated, changed: true, changedSkills }
+  return changed
+}
+
+/**
+ * 旧 built-in aizu (mode='always', builtIn=true, ローカル iconUrl) を MisStore
+ * 配布版相当 (mode='manual', builtIn=false, store 'aizu', remote iconUrl) に
+ * 変換し、ユーザーが任意に有効 / 無効化できるようにする。in-place で直し、
+ * 変えた個体を返す
+ */
+export function migrateLegacyAizu(
+  items: SkillItem[],
+  now: number,
+): SkillItem[] {
+  const aizu = items.find((s) => s.id === 'aizu' && s.extra.builtIn)
+  if (!aizu) return []
+  aizu.extra = { ...aizu.extra, mode: 'manual', builtIn: false }
+  aizu.store = { id: 'aizu' }
+  aizu.iconUrl = 'https://store.notedeck.io/registry/skills/aizu/icon.svg'
+  aizu.updatedAt = now
+  return [aizu]
 }

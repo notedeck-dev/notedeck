@@ -46,7 +46,7 @@ skillsStore.ensureLoaded()
 const skill = computed(() => skillsStore.get(props.skillId))
 // 予約 skill (AGENTS / HEARTBEAT、#1162): 名前と mode は固定、persona 化不可。
 // 編集できるのは本文 (と説明) だけで、黙らせるには本文を空にする
-const reserved = computed(() => skill.value?.reserved === true)
+const reserved = computed(() => skill.value?.extra.reserved === true)
 
 // 外部エディタ起動はファイル名を対応表 (fileBase) から引く — ID から計算しない (#913)
 useWindowExternalFile(() => {
@@ -93,12 +93,12 @@ watch(
     suppressDirty = true
     name.value = skillDisplayName(s)
     description.value = s.description ?? ''
-    author.value = s.author ?? ''
-    version.value = s.version
-    mode.value = s.mode
-    isPersona.value = !!s.isPersona
-    body.value = s.body
-    triggersText.value = s.triggers.join('\n')
+    author.value = s.extra.author ?? ''
+    version.value = s.extra.version
+    mode.value = s.extra.mode
+    isPersona.value = s.extra.isPersona
+    body.value = s.content
+    triggersText.value = s.extra.triggers.join('\n')
     dirty.value = false
     suppressDirty = false
   },
@@ -132,20 +132,19 @@ function save() {
     .split('\n')
     .map((t) => t.trim())
     .filter((t) => t.length > 0)
-  skillsStore.update(props.skillId, {
+  void skillsStore.update(props.skillId, {
     // 予約 skill は固定の項目を送らない (store も notemaid も拒否する)
-    ...(reserved.value
-      ? {}
-      : {
-          name: name.value.trim() || skill.value.name,
-          mode: mode.value,
-          isPersona: isPersona.value,
-        }),
+    ...(reserved.value ? {} : { name: name.value.trim() || skill.value.name }),
     description: description.value || undefined,
-    author: author.value || undefined,
-    version: version.value || skill.value.version,
-    body: body.value,
-    triggers,
+    content: body.value,
+    extra: {
+      ...(reserved.value
+        ? {}
+        : { mode: mode.value, isPersona: isPersona.value }),
+      author: author.value || undefined,
+      version: version.value || skill.value.extra.version,
+      triggers,
+    },
   })
   dirty.value = false
   saved.value = true
@@ -154,7 +153,7 @@ function save() {
   }, 1500)
 }
 
-const isFromStore = computed(() => !!skill.value?.storeId)
+const isFromStore = computed(() => !!skill.value?.store)
 
 /**
  * 自動保存の状態。デバウンス保存なので「いま保存されているか」が
@@ -207,10 +206,10 @@ const barStatus = computed<EditorActionStatus | null>(() => {
         :name="name || skillDisplayName(skill)"
       >
         <template #sub>
-          <span :class="$style.headerVersion">v{{ version || skill.version }}</span>
+          <span :class="$style.headerVersion">v{{ version || skill.extra.version }}</span>
           <template v-if="author"> · {{ author }}</template>
           <span :class="$style.headerBadge">{{ headerModeLabel }}</span>
-          <span v-if="skill.storeId" :class="$style.headerBadge">{{ i18n.ts._common.store }}</span>
+          <span v-if="skill.store" :class="$style.headerBadge">{{ i18n.ts._common.store }}</span>
         </template>
       </EditorItemHeader>
 

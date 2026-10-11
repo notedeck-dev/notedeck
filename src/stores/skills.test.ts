@@ -7,208 +7,291 @@ vi.mock('@/utils/settingsFs', () => ({
   SKILL_EXT: '.md',
   PROFILE_EXT: '.ndprofile.json5',
 }))
+vi.mock('@/utils/historyFs', () => ({
+  pushSnapshot: vi.fn(async () => undefined),
+}))
 
-import type { SkillMeta } from '@/stores/skills'
-import { _internal, useSkillsStore } from '@/stores/skills'
+import { emitNoteDeckEvent } from '@/aiscript/events'
+import { isSkillEnabled, type SkillItem, useSkillsStore } from '@/stores/skills'
+
+vi.mock('@/aiscript/events', () => ({
+  emitNoteDeckEvent: vi.fn(),
+}))
 
 function makeSkill(
-  partial: Partial<SkillMeta> & Pick<SkillMeta, 'id'>,
-): Omit<SkillMeta, 'createdAt' | 'updatedAt'> {
+  id: string,
+  partial: Partial<SkillItem['extra']> & {
+    name?: string
+    content?: string
+  } = {},
+) {
+  const { name, content, ...extra } = partial
   return {
-    name: partial.name ?? partial.id,
-    version: '1.0.0',
-    mode: 'trigger',
-    triggers: [],
-    body: 'body',
-    cheapCheckCapabilities: [],
-    ...partial,
+    id,
+    name: name ?? id,
+    scope: { kind: 'none' } as const,
+    content: content ?? 'body',
+    extra: {
+      version: '1.0.0',
+      mode: 'trigger' as const,
+      triggers: [],
+      builtIn: false,
+      cheapCheckCapabilities: [],
+      isPersona: false,
+      ...extra,
+    },
   }
 }
 
-describe('useSkillsStore.triggerMatchingSkillIds', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-  })
+beforeEach(() => {
+  setActivePinia(createPinia())
+  localStorage.clear()
+  vi.mocked(emitNoteDeckEvent).mockClear()
+})
 
-  it('returns ids whose triggers substring-match the input (mode=trigger)', () => {
+describe('useSkillsStore.triggerMatchingSkillIds', () => {
+  it('returns ids whose triggers substring-match the input (mode=trigger)', async () => {
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'guide', triggers: ['どこ', '使い方'] }))
+    await store.add(makeSkill('guide', { triggers: ['どこ', '使い方'] }))
     expect(store.triggerMatchingSkillIds('投稿はどこ?')).toEqual(['guide'])
     expect(store.triggerMatchingSkillIds('使い方を教えて')).toEqual(['guide'])
   })
 
-  it('returns empty array when no trigger matches', () => {
+  it('returns empty array when no trigger matches', async () => {
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'guide', triggers: ['どこ', 'help'] }))
+    await store.add(makeSkill('guide', { triggers: ['どこ', 'help'] }))
     expect(store.triggerMatchingSkillIds('今日の天気は')).toEqual([])
   })
 
-  it('ignores skills whose mode is not "trigger"', () => {
+  it('ignores skills whose mode is not "trigger"', async () => {
     const store = useSkillsStore()
-    store.add(
-      makeSkill({ id: 'manual-skill', mode: 'manual', triggers: ['どこ'] }),
-    )
-    store.add(
-      makeSkill({ id: 'always-skill', mode: 'always', triggers: ['どこ'] }),
-    )
-    store.add(
-      makeSkill({
-        id: 'heartbeat-skill',
-        mode: 'heartbeat',
-        triggers: ['どこ'],
-      }),
+    await store.add(makeSkill('manual', { mode: 'manual', triggers: ['どこ'] }))
+    await store.add(makeSkill('always', { mode: 'always', triggers: ['どこ'] }))
+    await store.add(
+      makeSkill('heartbeat', { mode: 'heartbeat', triggers: ['どこ'] }),
     )
     expect(store.triggerMatchingSkillIds('どこ?')).toEqual([])
   })
 
-  it('matches case-insensitively (e.g. Help / HELP / help)', () => {
+  it('matches case-insensitively (e.g. Help / HELP / help)', async () => {
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'guide', triggers: ['Help'] }))
+    await store.add(makeSkill('guide', { triggers: ['Help'] }))
     expect(store.triggerMatchingSkillIds('HELP me')).toEqual(['guide'])
     expect(store.triggerMatchingSkillIds('please help')).toEqual(['guide'])
   })
 
-  it('returns all matching ids when multiple skills hit', () => {
+  it('returns all matching ids when multiple skills hit', async () => {
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'guide', triggers: ['どこ'] }))
-    store.add(makeSkill({ id: 'tour', triggers: ['使い方'] }))
+    await store.add(makeSkill('guide', { triggers: ['どこ'] }))
+    await store.add(makeSkill('tour', { triggers: ['使い方'] }))
     expect(store.triggerMatchingSkillIds('どこで使い方を見る?')).toEqual([
       'guide',
       'tour',
     ])
   })
 
-  it('returns empty array for empty / whitespace input', () => {
+  it('returns empty array for empty input / empty triggers / empty entries', async () => {
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'guide', triggers: ['どこ'] }))
+    await store.add(makeSkill('guide', { triggers: ['', 'どこ'] }))
+    await store.add(makeSkill('none', { triggers: [] }))
     expect(store.triggerMatchingSkillIds('')).toEqual([])
-  })
-
-  it('skips trigger skills with empty triggers[]', () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'guide', triggers: [] }))
-    expect(store.triggerMatchingSkillIds('どこ?')).toEqual([])
-  })
-
-  it('skips empty-string entries inside triggers[]', () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'guide', triggers: ['', 'どこ'] }))
     expect(store.triggerMatchingSkillIds('xyz')).toEqual([])
     expect(store.triggerMatchingSkillIds('どこ?')).toEqual(['guide'])
   })
 })
 
 describe('useSkillsStore.remove (undo)', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    localStorage.clear()
-  })
-
-  it('returns an undo that restores the skill at its original position', () => {
+  it('returns an undo that restores the skill at its original position', async () => {
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'a' }))
-    store.add(makeSkill({ id: 'b', body: 'b body' }))
-    store.add(makeSkill({ id: 'c' }))
-    const undo = store.remove('b')
+    await store.add(makeSkill('a'))
+    await store.add(makeSkill('b', { content: 'b body' }))
+    await store.add(makeSkill('c'))
+    const undo = await store.remove('b')
     expect(store.get('b')).toBeUndefined()
     expect(undo).toBeTypeOf('function')
     undo?.()
-    expect(store.skills.map((s) => s.id)).toEqual(['a', 'b', 'c'])
-    expect(store.get('b')?.body).toBe('b body')
+    expect(store.items.map((s) => s.id)).toEqual(['a', 'b', 'c'])
+    expect(store.get('b')?.content).toBe('b body')
   })
 
-  it('returns undefined for unknown id', () => {
+  it('returns undefined for unknown id', async () => {
     const store = useSkillsStore()
-    expect(store.remove('nope')).toBeUndefined()
+    expect(await store.remove('nope')).toBeUndefined()
   })
 
-  it('restores the active state on undo', () => {
+  it('restores the active state on undo', async () => {
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'a', mode: 'manual' }))
-    store.setActive('a', true)
-    const undo = store.remove('a')
+    await store.add(makeSkill('a', { mode: 'manual' }))
+    await store.setActive('a', true)
+    const undo = await store.remove('a')
     expect(store.isActive('a')).toBe(false)
     undo?.()
     expect(store.isActive('a')).toBe(true)
-  })
-
-  it('does not duplicate when the same id was re-added before undo', () => {
-    const store = useSkillsStore()
-    store.add(makeSkill({ id: 'a' }))
-    const undo = store.remove('a')
-    store.add(makeSkill({ id: 'a', name: 'readded' }))
-    undo?.()
-    expect(store.skills.filter((s) => s.id === 'a')).toHaveLength(1)
-    expect(store.get('a')?.name).toBe('readded')
   })
 })
 
-describe('スキルの有効 / 無効はファイル (frontmatter) に持つ (#1116)', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    localStorage.clear()
-  })
-
-  it('有効にすると個体に active が付き、無効に戻すと印ごと消える', () => {
+describe('スキルの有効 / 無効 (#1116)', () => {
+  it('有効にすると個体に active が付き、無効に戻すと印ごと消える', async () => {
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'a', mode: 'manual' }))
-    store.setActive('a', true)
-    expect(store.get('a')?.active).toBe(true)
+    await store.add(makeSkill('a', { mode: 'manual' }))
+    expect(await store.setActive('a', true)).toBe(true)
+    expect(store.get('a')?.extra.active).toBe(true)
     expect(store.isActive('a')).toBe(true)
-    store.setActive('a', false)
-    expect('active' in (store.get('a') ?? {})).toBe(false)
+    expect(await store.setActive('a', false)).toBe(true)
+    expect('active' in (store.get('a')?.extra ?? {})).toBe(false)
     expect(store.isActive('a')).toBe(false)
   })
 
-  it('frontmatter には有効のときだけ active を書き、読み戻せる', () => {
-    const base = {
-      ...makeSkill({ id: 'a', mode: 'manual' }),
-      createdAt: 1,
-      updatedAt: 1,
-    }
-    expect('active' in _internal.frontmatterFromMeta(base)).toBe(false)
-    expect(
-      _internal.frontmatterFromMeta({ ...base, active: true }).active,
-    ).toBe(true)
-    const parsed = _internal.metaFromFrontmatter(
-      { id: 'a', active: true },
-      'body',
-      'a',
-    )
-    expect(parsed.active).toBe(true)
-    const parsedOff = _internal.metaFromFrontmatter({ id: 'a' }, 'body', 'a')
-    expect('active' in parsedOff).toBe(false)
-  })
-
-  it('mode=always は印が無くても実効有効', () => {
+  it('mode=always は印が無くても実効有効 (isSkillEnabled)', async () => {
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'a', mode: 'always' }))
-    store.add(makeSkill({ id: 'b', mode: 'manual' }))
-    expect(store.effectiveActiveIds).toEqual(['a'])
-    store.setActive('b', true)
-    expect(store.effectiveActiveIds).toEqual(['a', 'b'])
+    await store.add(makeSkill('a', { mode: 'always' }))
+    await store.add(makeSkill('b', { mode: 'manual' }))
+    expect(store.items.filter(isSkillEnabled).map((s) => s.id)).toEqual(['a'])
+    await store.setActive('b', true)
+    expect(store.items.filter(isSkillEnabled).map((s) => s.id)).toEqual([
+      'a',
+      'b',
+    ])
   })
 
-  it('端末ローカル (localStorage) の有効一覧はもう読まない', () => {
+  it('未知の id は false', async () => {
+    const store = useSkillsStore()
+    expect(await store.setActive('nope', true)).toBe(false)
+  })
+
+  it('端末ローカル (localStorage) の有効一覧はブラウザ dev モードでは読まない', async () => {
     localStorage.setItem('nd-skills-active', JSON.stringify(['a']))
     const store = useSkillsStore()
-    store.add(makeSkill({ id: 'a', mode: 'manual' }))
+    await store.add(makeSkill('a', { mode: 'manual' }))
     expect(store.isActive('a')).toBe(false)
   })
+})
 
-  it('tainted ラベルは frontmatter に書き、読み戻し、合流判定に効く (#1103)', () => {
-    const base = {
-      ...makeSkill({ id: 'a', mode: 'always' }),
-      createdAt: 1,
-      updatedAt: 1,
-    }
-    expect('tainted' in _internal.frontmatterFromMeta(base)).toBe(false)
+describe('update (編集)', () => {
+  it('名前 / 本文 / extra をまとめて更新し、プラグインへ skill:edited を知らせる', async () => {
+    const store = useSkillsStore()
+    await store.add(makeSkill('a'))
     expect(
-      _internal.frontmatterFromMeta({ ...base, tainted: true }).tainted,
+      await store.update('a', {
+        name: 'renamed',
+        content: 'new body',
+        extra: { mode: 'manual', triggers: ['x'] },
+      }),
     ).toBe(true)
+    expect(store.get('a')).toMatchObject({
+      name: 'renamed',
+      content: 'new body',
+      extra: { mode: 'manual', triggers: ['x'], version: '1.0.0' },
+    })
+    expect(emitNoteDeckEvent).toHaveBeenCalledWith('skill:edited', { id: 'a' })
+  })
+
+  it('未知の id は false', async () => {
+    const store = useSkillsStore()
+    expect(await store.update('nope', { content: 'x' })).toBe(false)
+  })
+})
+
+describe('HEARTBEAT (#411)', () => {
+  it('setHeartbeat(true) で mode=heartbeat、false で manual に戻る', async () => {
+    const store = useSkillsStore()
+    await store.add(makeSkill('s1', { mode: 'manual' }))
+    await store.setHeartbeat('s1', true)
+    expect(store.get('s1')?.extra.mode).toBe('heartbeat')
+    expect(store.heartbeatSkills.map((s) => s.id)).toEqual(['s1'])
+    await store.setHeartbeat('s1', false)
+    expect(store.get('s1')?.extra.mode).toBe('manual')
+    expect(store.heartbeatSkills).toEqual([])
+  })
+
+  it('heartbeatSkills は mode で絞り、一覧の順を保つ', async () => {
+    const store = useSkillsStore()
+    await store.add(makeSkill('a', { mode: 'heartbeat' }))
+    await store.add(makeSkill('b', { mode: 'manual' }))
+    await store.add(makeSkill('c', { mode: 'heartbeat' }))
+    expect(store.heartbeatSkills.map((s) => s.id)).toEqual(['a', 'c'])
+  })
+})
+
+describe('applyStoreUpdate (#913 / #981)', () => {
+  it('本文とストア由来 (版 / 作者 / triggers / persona) を上書きし、name / mode / active は維持する', async () => {
+    const store = useSkillsStore()
+    await store.add(
+      makeSkill('s', {
+        name: 'My Renamed',
+        mode: 'heartbeat',
+        active: true,
+        triggers: ['old'],
+      }),
+    )
     expect(
-      _internal.metaFromFrontmatter({ id: 'a', tainted: true }, 'body', 'a')
-        .tainted,
+      await store.applyStoreUpdate('s', {
+        content: 'new body',
+        description: 'desc',
+        iconUrl: 'https://example.com/i.svg',
+        version: '2.0.0',
+        author: 'someone',
+        triggers: ['hi'],
+        cheapCheckCapabilities: ['notes.list'],
+        isPersona: true,
+        store: { id: 'ent', sha512: 'abc', version: '2.0.0' },
+      }),
     ).toBe(true)
+    expect(store.get('s')).toMatchObject({
+      name: 'My Renamed',
+      content: 'new body',
+      description: 'desc',
+      iconUrl: 'https://example.com/i.svg',
+      store: { id: 'ent', sha512: 'abc', version: '2.0.0' },
+      extra: {
+        mode: 'heartbeat',
+        active: true,
+        version: '2.0.0',
+        author: 'someone',
+        triggers: ['hi'],
+        cheapCheckCapabilities: ['notes.list'],
+        isPersona: true,
+      },
+    })
+  })
+})
+
+describe('予約 skill (#1162)', () => {
+  async function addReserved(id: 'AGENTS' | 'HEARTBEAT') {
+    const store = useSkillsStore()
+    const item = await store.add(
+      makeSkill(id, {
+        mode: id === 'AGENTS' ? 'always' : 'heartbeat',
+        reserved: true,
+      }),
+    )
+    item.fileBase = id
+    return store
+  }
+
+  it('改名 / mode 変更 / persona 化 / 有効無効 / 削除を拒否し、本文は書ける', async () => {
+    const store = await addReserved('HEARTBEAT')
+    await expect(
+      store.update('HEARTBEAT', { name: 'rounds' }),
+    ).rejects.toThrow()
+    await expect(
+      store.update('HEARTBEAT', { extra: { mode: 'manual' } }),
+    ).rejects.toThrow()
+    await expect(
+      store.update('HEARTBEAT', { extra: { isPersona: true } }),
+    ).rejects.toThrow()
+    await expect(store.setHeartbeat('HEARTBEAT', false)).rejects.toThrow()
+    await expect(store.setActive('HEARTBEAT', true)).rejects.toThrow()
+    await expect(store.remove('HEARTBEAT')).rejects.toThrow()
+    expect(store.get('HEARTBEAT')?.extra.mode).toBe('heartbeat')
+    // 同じ値を送るのは改名でも mode 変更でもない (エディタの自動保存)
+    expect(
+      await store.update('HEARTBEAT', {
+        name: 'HEARTBEAT',
+        content: '- check drafts\n',
+        extra: { mode: 'heartbeat' },
+      }),
+    ).toBe(true)
+    expect(store.get('HEARTBEAT')?.content).toBe('- check drafts\n')
   })
 })

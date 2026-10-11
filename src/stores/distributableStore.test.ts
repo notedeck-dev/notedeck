@@ -214,6 +214,36 @@ describe('add / update / rename', () => {
     expect(store.get('a')?.updatedAt).toBeGreaterThan(1)
   })
 
+  it('update の extra は編集として履歴に積み、他の extra は保つ', async () => {
+    type Rich = DistributableMeta<string, { active: boolean; mode: string }>
+    const f = fakeFiles([
+      { ...item({ id: 'a' }), extra: { active: true, mode: 'manual' } } as Rich,
+    ])
+    const store = createDistributableStore<string, Rich>({
+      logTag: 'fake',
+      codec: {},
+      files: f.files as unknown as DistributableFileCollection<Rich>,
+      settingsScope: 'fakes',
+      fileBaseOf: () => undefined,
+      generateId: () => 'x',
+      history: {
+        kind: 'skill',
+        snapshot: (i) => ({ content: i.content, mode: i.extra.mode }),
+      },
+      purgeAccount: 'unlink',
+    })
+    store.ensureLoaded()
+    await store.whenReady()
+    expect(await store.update('a', { extra: { mode: 'heartbeat' } })).toBe(true)
+    expect(store.get('a')?.extra).toEqual({ active: true, mode: 'heartbeat' })
+    expect(pushSnapshot).toHaveBeenCalledWith(
+      'skill',
+      'a',
+      { content: 'src', mode: 'manual' },
+      undefined,
+    )
+  })
+
   it('updateExtra は extra だけを差し替え、本文や有効の hook は呼ばない', async () => {
     const f = fakeFiles([item({ id: 'a' })])
     const afterContentChange = vi.fn()
@@ -487,6 +517,20 @@ describe('変更通知の受け口', () => {
     expect(afterEnabledChange).toHaveBeenCalledTimes(1)
     // 自分では書かない (書き手は別)
     expect(f.persisted).toHaveLength(0)
+  })
+
+  it('reload は通知を待たずに 1 ファイルを読み直す。対象外のファイル名は無視', async () => {
+    const f = fakeFiles([item({ id: 'a', content: 'old' })])
+    const store = makeStore({ files: f.files })
+    store.ensureLoaded()
+    await store.whenReady()
+    vi.mocked(f.files.loadOne).mockResolvedValueOnce(
+      item({ id: 'a', content: 'new' }),
+    )
+    await store.reload('a.meta')
+    expect(store.get('a')?.content).toBe('new')
+    await store.reload('a.src')
+    expect(f.files.loadOne).toHaveBeenCalledTimes(1)
   })
 
   it('別の書き手による削除でも afterRemove で付帯状態を掃除する', async () => {

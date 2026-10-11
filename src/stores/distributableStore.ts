@@ -282,17 +282,26 @@ export function createDistributableStore<
   }
 
   /**
-   * 名前 / 説明 / 本文の更新。改名はファイル名を追随させる (ID 不変)。
+   * 名前 / 説明 / 本文 (と編集で変わる kind 固有の値 `extra`) の更新。編集の
+   * 経路なので履歴の範囲が動けば積む。改名はファイル名を追随させる (ID 不変)。
    * false = 未知の id か読取専用で拒否 (UI は理由を出す)
    */
   async function update(
     id: string,
-    patch: Partial<Pick<Item, 'name' | 'description' | 'content'>>,
+    patch: Partial<Pick<Item, 'name' | 'description' | 'content'>> & {
+      extra?: Partial<Item['extra']>
+    },
     attribution?: EditAttribution,
   ): Promise<boolean> {
     const prev = get(id)
     if (!prev || rejectIfReadOnly(prev)) return false
-    const next: Item = { ...prev, ...patch, updatedAt: Date.now() }
+    const { extra, ...rest } = patch
+    const next: Item = {
+      ...prev,
+      ...rest,
+      ...(extra ? { extra: { ...(prev.extra as object), ...extra } } : {}),
+      updatedAt: Date.now(),
+    }
     await pushHistory(prev, next, attribution)
     replace(prev, next)
     // 写しの差し替えを watch する側 (署名変化 等) が走る前に hook を済ませる
@@ -334,7 +343,8 @@ export function createDistributableStore<
 
   /**
    * kind 固有の付帯情報 (`extra`) の更新 (widget の autoRun / plugin の設定値 等)。
-   * 共通層は中を見ないので、本文や有効の hook は呼ばない
+   * 状態の印なので履歴には積まず、本文や有効の hook も呼ばない (編集で変わる
+   * 値は `update` の `extra` で)
    */
   async function updateExtra(
     id: string,
@@ -476,25 +486,22 @@ export function createDistributableStore<
     }
   }
 
-  // 別の書き手 (notecore の capability / 他のウィンドウ, #1133 / #1042) が
-  // ファイルを書いた → その個体だけ写しを揃える
-  registerSettingsFileHandler(decl.settingsScope, async (change) => {
-    const fileBase = decl.fileBaseOf(change.name)
+  /**
+   * 1 ファイルを読み直して写しに載せる (別の書き手 = notecore の capability /
+   * 他のウィンドウ, #1133 / #1042)。変更通知の受け口と、通知を待たずに結果が
+   * 要る呼び出し側 (notemaid が置いた個体を開く等) の両方から使う。対象外の
+   * ファイル名 (ソース / 履歴) は何もしない
+   */
+  async function reload(filename: string): Promise<void> {
+    const fileBase = decl.fileBaseOf(filename)
     if (fileBase === undefined) return
     ensureLoaded()
     await ready
-    if (change.op === 'delete') {
-      const removed = items.value.filter((i) => i.fileBase === fileBase)
-      if (removed.length === 0) return
-      items.value = items.value.filter((i) => i.fileBase !== fileBase)
-      for (const r of removed) hooks.afterRemove?.(r)
-      return
-    }
     let next: Item | undefined
     try {
-      next = await decl.files.loadOne(change.name)
+      next = await decl.files.loadOne(filename)
     } catch (e) {
-      console.warn(`${tag} reload ${change.name} failed:`, e)
+      console.warn(`${tag} reload ${filename} failed:`, e)
       return
     }
     if (!next) return
@@ -512,12 +519,28 @@ export function createDistributableStore<
     if (declared && declared.get(prev) !== declared.get(loaded)) {
       hooks.afterEnabledChange?.(loaded)
     }
+  }
+
+  registerSettingsFileHandler(decl.settingsScope, async (change) => {
+    const fileBase = decl.fileBaseOf(change.name)
+    if (fileBase === undefined) return
+    if (change.op !== 'delete') {
+      await reload(change.name)
+      return
+    }
+    ensureLoaded()
+    await ready
+    const removed = items.value.filter((i) => i.fileBase === fileBase)
+    if (removed.length === 0) return
+    items.value = items.value.filter((i) => i.fileBase !== fileBase)
+    for (const r of removed) hooks.afterRemove?.(r)
   })
 
   return {
     items,
     ensureLoaded,
     whenReady,
+    reload,
     get,
     add,
     update,
