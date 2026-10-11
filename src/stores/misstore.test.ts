@@ -9,6 +9,7 @@ import type { WidgetItem } from '@/stores/widgets'
 const h = vi.hoisted(() => ({
   skillsStore: {
     items: [] as unknown[],
+    ensureLoaded: vi.fn(),
     add: vi.fn(async (input: Record<string, unknown>) => ({
       ...input,
       createdAt: 0,
@@ -19,6 +20,7 @@ const h = vi.hoisted(() => ({
   },
   pluginsStore: {
     items: [] as unknown[],
+    ensureLoaded: vi.fn(),
     link: vi.fn(async () => true),
     add: vi.fn(async (input: Record<string, unknown>) => ({
       ...input,
@@ -55,6 +57,7 @@ const h = vi.hoisted(() => ({
   },
   themeStore: {
     items: [] as unknown[],
+    ensureLoaded: vi.fn(),
     add: vi.fn(async (input: Record<string, unknown>) => ({
       ...input,
       createdAt: 0,
@@ -1531,7 +1534,7 @@ describe('更新適用 (#1040)', () => {
     ]
     fetchMock.mockResolvedValue(okText(source))
     await expect(
-      store.updateTheme(themeEntry({ sha512: sha512Hex(source) }), ['acc1']),
+      store.updateTheme(themeEntry({ sha512: sha512Hex(source) })),
     ).resolves.toBe(true)
     const opts = h.confirm.mock.calls[0]?.[0] as {
       diff: { old: string; new: string; language: string }
@@ -1546,10 +1549,8 @@ describe('更新適用 (#1040)', () => {
       content: { base: 'dark', props: { accent: '#0f0' } },
       store: { id: 'ent-theme', sha512: sha512Hex(source), version: '1.0.0' },
     })
-    expect(h.themeStore.link).toHaveBeenCalledWith('custom-1', {
-      kind: 'account',
-      key: 'acc1',
-    })
+    // 更新は参加先に触れない (有効範囲はローカル値)
+    expect(h.themeStore.link).not.toHaveBeenCalled()
   })
 
   it('更新も sha 不一致なら index 再取得の 1 回リトライを経て新 entry を適用する', async () => {
