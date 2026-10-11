@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import {
-  abortPlugin,
-  launchPlugin,
-  parsePluginMeta,
-} from '@/aiscript/plugin-api'
+import { parsePluginMeta } from '@/aiscript/plugin-api'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import FormSwitch from '@/components/common/form/FormSwitch.vue'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
@@ -20,14 +16,11 @@ import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { i18n } from '@/i18n'
+import { type ScopeTarget, withScopeTarget } from '@/services/distributable'
 import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
-import {
-  type PluginMeta,
-  type PluginScope,
-  usePluginsStore,
-} from '@/stores/plugins'
+import { usePluginsStore } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 
@@ -38,7 +31,7 @@ const props = defineProps<{
    *  - per-account カラム: { kind: 'account', key: accountScopeKey }
    *  - 全アカウントカラム: { kind: 'global' }
    *  未指定 (カラム外から開いた場合) は全体スコープ扱い。 */
-  initialScope?: PluginScope
+  initialScope?: ScopeTarget
 }>()
 
 const pluginsStore = usePluginsStore()
@@ -47,9 +40,7 @@ const pluginsStore = usePluginsStore()
 const editingPluginId = ref(props.initialPluginId ?? null)
 
 const plugin = computed(() =>
-  editingPluginId.value
-    ? pluginsStore.getPlugin(editingPluginId.value)
-    : undefined,
+  editingPluginId.value ? pluginsStore.get(editingPluginId.value) : undefined,
 )
 
 const aiscriptLogsStore = useAiScriptLogsStore()
@@ -80,7 +71,8 @@ const tabOptions = computed<readonly ('config' | 'code' | 'logs')[]>(() => {
   const tabs: ('config' | 'code' | 'logs')[] = codeExposed.value
     ? ['code', 'logs']
     : ['logs']
-  if (plugin.value?.config && Object.keys(plugin.value.config).length > 0) {
+  const config = plugin.value?.extra.config
+  if (config && Object.keys(config).length > 0) {
     tabs.unshift('config')
   }
   return tabs
@@ -89,8 +81,8 @@ const tabOptions = computed<readonly ('config' | 'code' | 'logs')[]>(() => {
 const defaultTab = computed(() => {
   if (isNewInstall.value) return 'code'
   if (props.initialTab === 'code' && codeExposed.value) return 'code'
-  if (plugin.value?.config && Object.keys(plugin.value.config).length > 0)
-    return 'config'
+  const config = plugin.value?.extra.config
+  if (config && Object.keys(config).length > 0) return 'config'
   return codeExposed.value ? 'code' : 'logs'
 })
 
@@ -137,7 +129,7 @@ const codeModified = ref(false)
 
 function initCode() {
   if (plugin.value) {
-    editingCode.value = plugin.value.src
+    editingCode.value = plugin.value.content
   } else {
     editingCode.value = ''
   }
@@ -147,13 +139,13 @@ initCode()
 
 watch(editingCode, (val) => {
   if (plugin.value) {
-    codeModified.value = val !== plugin.value.src
+    codeModified.value = val !== plugin.value.content
   }
 })
 
 watch(tab, (t) => {
   if (t === 'code' && plugin.value) {
-    editingCode.value = plugin.value.src
+    editingCode.value = plugin.value.content
     codeModified.value = false
   }
 })
@@ -163,7 +155,7 @@ watch(tab, (t) => {
  * バッファへ取り込む。規則は useExternalEditSync 側にある。
  */
 useExternalEditSync<string>({
-  source: () => plugin.value?.src,
+  source: () => plugin.value?.content,
   current: () => editingCode.value,
   isDirty: () => codeModified.value,
   apply: (src) => {
@@ -172,19 +164,18 @@ useExternalEditSync<string>({
   },
 })
 
+/** 保存。有効なら store の hook が新しいソースで起動し直す */
 async function saveCode() {
   if (!plugin.value) return
-  if (!pluginsStore.updateSrc(plugin.value.installId, editingCode.value)) {
+  const ok = await pluginsStore.update(plugin.value.id, {
+    content: editingCode.value,
+  })
+  if (!ok) {
     // 読取専用 (ソース欠損) は保存されない (#1111)
     useToast().show(readOnlyReason(), 'warning')
     return
   }
   codeModified.value = false
-
-  if (plugin.value.active) {
-    abortPlugin(plugin.value.installId)
-    await launchPlugin({ ...plugin.value, src: editingCode.value })
-  }
 }
 
 // --- Install ---
@@ -204,7 +195,7 @@ async function doInstall() {
     return
   }
 
-  if (pluginsStore.isDuplicate(meta.name)) {
+  if (pluginsStore.items.some((p) => p.name === meta.name)) {
     installError.value = i18n.tsx._pluginsContent.alreadyInstalled({
       name: meta.name,
     })
@@ -218,27 +209,26 @@ async function doInstall() {
     }
   }
 
-  const scope = props.initialScope ?? { kind: 'global' }
-  const newPlugin: PluginMeta = {
-    installId: `p-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  // 有効で追加するので store が起動まで行う
+  const added = await pluginsStore.add({
     name: meta.name,
-    version: meta.version,
-    author: meta.author,
     description: meta.description,
-    permissions: meta.permissions,
-    config: meta.config,
-    configData,
-    src: code,
-    active: true,
-    ...(scope.kind === 'global'
-      ? { global: true }
-      : { installedFor: [scope.key] }),
-  }
+    scope: withScopeTarget(
+      { kind: 'shared', global: false, installedFor: [] },
+      props.initialScope ?? { kind: 'global' },
+    ),
+    content: code,
+    extra: {
+      version: meta.version,
+      author: meta.author,
+      permissions: meta.permissions,
+      config: meta.config,
+      configData,
+      active: true,
+    },
+  })
 
-  pluginsStore.addPlugin(newPlugin)
-  await launchPlugin(newPlugin)
-
-  editingPluginId.value = newPlugin.installId
+  editingPluginId.value = added.id
   tab.value = 'config'
 }
 
@@ -252,15 +242,15 @@ function startRename() {
   isRenaming.value = true
 }
 
-function commitRename() {
+async function commitRename() {
   if (!plugin.value) return
   const newName = renamingValue.value.trim()
+  isRenaming.value = false
   if (newName && newName !== plugin.value.name) {
-    if (!pluginsStore.renamePlugin(plugin.value.installId, newName)) {
+    if (!(await pluginsStore.update(plugin.value.id, { name: newName }))) {
       useToast().show(readOnlyReason(), 'warning')
     }
   }
-  isRenaming.value = false
 }
 
 function cancelRename() {
@@ -268,42 +258,47 @@ function cancelRename() {
 }
 
 // --- Config ---
-function updateConfig(key: string, value: unknown) {
+/** 設定値の更新。有効なら store の hook が新しい値で起動し直す */
+async function updateConfig(key: string, value: unknown) {
   if (!plugin.value) return
-  const newData = { ...plugin.value.configData, [key]: value }
-  if (!pluginsStore.updateConfigData(plugin.value.installId, newData)) {
+  const newData = { ...plugin.value.extra.configData, [key]: value }
+  if (!(await pluginsStore.setConfigData(plugin.value.id, newData))) {
     useToast().show(readOnlyReason(), 'warning')
   }
 }
 
 function resetConfig(key: string) {
-  if (!plugin.value?.config?.[key]) return
-  updateConfig(key, plugin.value.config[key].default)
+  const def = plugin.value?.extra.config?.[key]
+  if (!def) return
+  void updateConfig(key, def.default)
 }
 
 function isConfigCustomized(key: string): boolean {
-  if (!plugin.value?.config?.[key]) return false
-  return plugin.value.configData[key] !== plugin.value.config[key].default
+  const def = plugin.value?.extra.config?.[key]
+  if (!def || !plugin.value) return false
+  return plugin.value.extra.configData[key] !== def.default
 }
 
 const { confirming: confirmingResetConfig, trigger: triggerResetConfig } =
   useDoubleConfirm()
 
 function handleResetAllConfig() {
-  if (!plugin.value?.config) return
+  if (!plugin.value?.extra.config) return
   triggerResetConfig(() => {
-    if (!plugin.value?.config) return
+    const p = plugin.value
+    if (!p?.extra.config) return
     const defaults: Record<string, unknown> = {}
-    for (const [key, def] of Object.entries(plugin.value.config)) {
+    for (const [key, def] of Object.entries(p.extra.config)) {
       defaults[key] = def.default
     }
-    pluginsStore.updateConfigData(plugin.value.installId, defaults)
+    void pluginsStore.setConfigData(p.id, defaults)
   })
 }
 
 const hasCustomConfig = computed(() => {
-  if (!plugin.value?.config) return false
-  return Object.keys(plugin.value.config).some((key) => isConfigCustomized(key))
+  const config = plugin.value?.extra.config
+  if (!config) return false
+  return Object.keys(config).some((key) => isConfigCustomized(key))
 })
 
 // --- Clipboard ---
@@ -319,7 +314,7 @@ const {
 
 async function exportPlugin() {
   if (!plugin.value) return
-  await copyToClipboard(plugin.value.src)
+  await copyToClipboard(plugin.value.content)
 }
 
 // --- 下部アクションバー (全編集ウィンドウ共通の並び) ---
@@ -364,8 +359,8 @@ function openHistory() {
   if (!p) return
   openEditHistoryWindow({
     kind: 'plugin',
-    basename: historyBasename(p.fileBase, p.name, p.installId),
-    itemId: p.installId,
+    basename: historyBasename(p.fileBase, p.name, p.id),
+    itemId: p.id,
     name: p.name,
   })
 }
@@ -436,9 +431,9 @@ async function importPlugin() {
           </button>
         </div>
         <div :class="$style.headerSub">
-          v{{ plugin.version }}
-          <template v-if="plugin.author"> · {{ plugin.author }}</template>
-          <span v-if="plugin.active" :class="$style.statusBadge">{{ i18n.ts._pluginsContent.enabled }}</span>
+          v{{ plugin.extra.version }}
+          <template v-if="plugin.extra.author"> · {{ plugin.extra.author }}</template>
+          <span v-if="plugin.extra.active" :class="$style.statusBadge">{{ i18n.ts._pluginsContent.enabled }}</span>
           <span v-else :class="[$style.statusBadge, $style.statusBadgeInactive]">{{ i18n.ts._common.disabled }}</span>
         </div>
         <div v-if="plugin.description" :class="$style.headerDesc">{{ plugin.description }}</div>
@@ -453,10 +448,10 @@ async function importPlugin() {
     />
 
     <!-- Config tab -->
-    <div v-if="!isNewInstall && tab === 'config' && plugin?.config" :class="$style.configPanel">
+    <div v-if="!isNewInstall && tab === 'config' && plugin?.extra.config" :class="$style.configPanel">
       <div :class="$style.configList">
         <div
-          v-for="(def, key) in plugin.config"
+          v-for="(def, key) in plugin.extra.config"
           :key="key"
           :class="[$style.configItem, { [$style.configItemCustomized]: isConfigCustomized(key as string) }]"
         >
@@ -475,7 +470,7 @@ async function importPlugin() {
           <p v-if="def.description" :class="$style.configDesc">{{ def.description }}</p>
           <template v-if="def.type === 'boolean'">
             <FormSwitch
-              :model-value="!!plugin.configData[key]"
+              :model-value="!!plugin.extra.configData[key]"
               :label="def.label"
               @update:model-value="(v) => updateConfig(key as string, v)"
             />
@@ -484,7 +479,7 @@ async function importPlugin() {
             <input
               :class="$style.configInput"
               type="text"
-              :value="plugin.configData[key] as string"
+              :value="plugin.extra.configData[key] as string"
               :placeholder="String(def.default ?? '')"
               @change="updateConfig(key as string, ($event.target as HTMLInputElement).value)"
             />
@@ -493,7 +488,7 @@ async function importPlugin() {
             <input
               :class="$style.configInput"
               type="number"
-              :value="plugin.configData[key] as number"
+              :value="plugin.extra.configData[key] as number"
               :placeholder="String(def.default ?? '')"
               @change="updateConfig(key as string, Number(($event.target as HTMLInputElement).value))"
             />

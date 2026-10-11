@@ -355,11 +355,13 @@ export function createDistributableStore<
   /**
    * ストア再インストール / 更新 (#913): 本文とストア由来を上書きする。
    * ローカル値 (改名した name / 参加先 / 有効) は維持。ソース欠損の readOnly
-   * 個体は検証済み配布ソースで復旧する (persist 抑止を解除)
+   * 個体は検証済み配布ソースで復旧する (persist 抑止を解除)。配布ソースから
+   * 決まる kind 固有の値 (plugin のヘッダ由来の版 / 権限 / 設定定義) は kind 側が
+   * `extra` に組んで渡す (ローカル値を残す規則は kind 側の持ち物)
    */
   async function applyStoreUpdate(
     id: string,
-    patch: StoreUpdatePatch<Content>,
+    patch: StoreUpdatePatch<Content> & { extra?: Item['extra'] },
   ): Promise<boolean> {
     const prev = get(id)
     if (!prev) return false

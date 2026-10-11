@@ -420,12 +420,12 @@ export function buildTutorialSteps(): TutorialStep[] {
       get description() {
         return i18n.ts._tutorialSteps.createPluginDescription
       },
-      precheck: () => (usePluginsStore().plugins.length > 0 ? 'skip' : 'show'),
+      precheck: () => (usePluginsStore().items.length > 0 ? 'skip' : 'show'),
       onEnter: () =>
         openAddColumnAndPoint('pluginManager', i18n.ts._columns.pluginManager),
       completion: {
-        watch: () => usePluginsStore().plugins.length,
-        isComplete: () => usePluginsStore().plugins.length > 0,
+        watch: () => usePluginsStore().items.length,
+        isComplete: () => usePluginsStore().items.length > 0,
       },
     },
 

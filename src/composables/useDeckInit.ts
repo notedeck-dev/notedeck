@@ -192,7 +192,7 @@ export function useDeckInit(options: {
         import('@/aiscript/plugin-api'),
         pluginsStore.whenReady(),
       ]).then(([{ launchAllPlugins }]) => {
-        launchAllPlugins(pluginsStore.plugins)
+        launchAllPlugins(pluginsStore.items)
       })
     })
 

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { abortPlugin, launchPlugin } from '@/aiscript/plugin-api'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import SafeModeNotice from '@/components/common/SafeModeNotice.vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { getPluginDenial } from '@/permissions/pluginDenials'
+import { hasScopeTarget, type ScopeTarget } from '@/services/distributable'
 import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { isExposed } from '@/settings/exposure'
 import {
@@ -22,11 +22,7 @@ import {
   type StorePluginEntry,
   useMisStoreStore,
 } from '@/stores/misstore'
-import {
-  type PluginMeta,
-  type PluginScope,
-  usePluginsStore,
-} from '@/stores/plugins'
+import { type PluginItem, usePluginsStore } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
@@ -82,7 +78,7 @@ const account = computed(() =>
  * - per-account カラム: 当該アカウントのスコープ (accountScopeKey で紐付け)
  * per-account カラムでアカウントが見つからない (ログアウト済) 場合は null。
  */
-const columnScope = computed<PluginScope | null>(() => {
+const columnScope = computed<ScopeTarget | null>(() => {
   if (isCrossAccount.value) return { kind: 'global' }
   if (!account.value) return null
   return { kind: 'account', key: accountScopeKey(account.value) }
@@ -93,11 +89,9 @@ const columnScope = computed<PluginScope | null>(() => {
  * のみ、per-account カラムは当該アカウントのスコープ参加分のみを表示する
  * (ウィジェットの「カラム別プール」に対応する「スコープ別プール」)。
  */
-function matchesContext(plugin: PluginMeta): boolean {
+function matchesContext(plugin: PluginItem): boolean {
   const scope = columnScope.value
-  if (!scope) return false
-  if (scope.kind === 'global') return plugin.global === true
-  return plugin.installedFor?.includes(scope.key) ?? false
+  return scope ? hasScopeTarget(plugin.scope, scope) : false
 }
 
 // --- View mode ---
@@ -107,7 +101,7 @@ const viewTab = ref<ViewTab>('installed')
 const columnContentRef = ref<HTMLElement | null>(null)
 
 const scopeCount = computed(
-  () => pluginsStore.plugins.filter((p) => matchesContext(p)).length,
+  () => pluginsStore.items.filter((p) => matchesContext(p)).length,
 )
 
 const tabDefs = computed<ColumnTabDef[]>(() => [
@@ -153,16 +147,16 @@ const textQuery = computed(() => {
 interface PluginSection {
   key: 'sideload' | 'store'
   label: string
-  items: PluginMeta[]
+  items: PluginItem[]
 }
 
 /** Context-filter + active-filter + text-search を通したリスト */
-const visiblePlugins = computed<PluginMeta[]>(() => {
-  let list = pluginsStore.plugins.filter((p) => matchesContext(p))
+const visiblePlugins = computed<PluginItem[]>(() => {
+  let list = pluginsStore.items.filter((p) => matchesContext(p))
   if (activeFilter.value === 'enabled') {
-    list = list.filter((p) => p.active)
+    list = list.filter((p) => p.extra.active)
   } else if (activeFilter.value === 'disabled') {
-    list = list.filter((p) => !p.active)
+    list = list.filter((p) => !p.extra.active)
   }
   const q = textQuery.value
   if (q) {
@@ -170,7 +164,7 @@ const visiblePlugins = computed<PluginMeta[]>(() => {
       (p) =>
         p.name.toLowerCase().includes(q) ||
         (p.description?.toLowerCase().includes(q) ?? false) ||
-        (p.author?.toLowerCase().includes(q) ?? false),
+        (p.extra.author?.toLowerCase().includes(q) ?? false),
     )
   }
   return list
@@ -184,8 +178,8 @@ const visiblePlugins = computed<PluginMeta[]>(() => {
  * 0 件のセクションは表示しない。
  */
 const installedSections = computed<PluginSection[]>(() => {
-  const sideloaded = visiblePlugins.value.filter((p) => !p.storeId)
-  const store = visiblePlugins.value.filter((p) => !!p.storeId)
+  const sideloaded = visiblePlugins.value.filter((p) => !p.store)
+  const store = visiblePlugins.value.filter((p) => !!p.store)
   const sections: PluginSection[] = [
     {
       key: 'sideload',
@@ -266,7 +260,7 @@ async function handleStoreUpdate(entry: StorePluginEntry) {
 
 /** ストアエントリがこのカラムのスコープに参加済みか (「インストール済み」表示基準)。 */
 function isEntryInScope(entry: StorePluginEntry): boolean {
-  const plugin = pluginsStore.plugins.find((p) => p.storeId === entry.id)
+  const plugin = pluginsStore.items.find((p) => p.store?.id === entry.id)
   return plugin ? matchesContext(plugin) : false
 }
 
@@ -275,17 +269,11 @@ function handleOpenStoreDetail(entry: StorePluginEntry) {
 }
 
 // --- Installed tab actions ---
-async function toggleActive(plugin: PluginMeta) {
-  const newActive = !plugin.active
-  if (!pluginsStore.setActive(plugin.installId, newActive)) {
+/** 有効 / 無効の切替。起動 / 停止は store の hook が行う */
+async function toggleActive(plugin: PluginItem) {
+  if (!(await pluginsStore.setEnabled(plugin.id, !plugin.extra.active))) {
     // 読取専用 (ソース欠損) は保存されず巻き戻る。起動もしない (#1111)
     useToast().show(readOnlyReason(), 'warning')
-    return
-  }
-  if (newActive) {
-    await launchPlugin(plugin)
-  } else {
-    abortPlugin(plugin.installId)
   }
 }
 
@@ -313,17 +301,17 @@ function openNewPlugin() {
  * 本体はライブラリに残り、ピッカーから再追加/完全削除できる。可逆なので
  * 確認は挟まず undo トーストで戻せるようにする (#1048)。
  */
-function detachFromScope(plugin: PluginMeta) {
+async function detachFromScope(plugin: PluginItem) {
   const scope = columnScope.value
   if (!scope) return
-  if (!pluginsStore.unlinkScope(plugin.installId, scope)) {
+  if (!(await pluginsStore.unlink(plugin.id, scope))) {
     useToast().show(readOnlyReason(), 'warning')
     return
   }
   useToast().show(i18n.ts._deckPluginManagerColumn.detached, 'info', {
     action: {
       label: i18n.ts._common.undo,
-      onClick: () => pluginsStore.linkScope(plugin.installId, scope),
+      onClick: () => void pluginsStore.link(plugin.id, scope),
     },
   })
 }
@@ -339,14 +327,14 @@ const detachTitle = computed(() =>
 const showLibraryPicker = ref(false)
 
 /** このカラムのスコープに未参加のライブラリ本体 (= 追加可能候補)。 */
-const libraryCandidates = computed<PluginMeta[]>(() =>
-  pluginsStore.plugins.filter((p) => !matchesContext(p)),
+const libraryCandidates = computed<PluginItem[]>(() =>
+  pluginsStore.items.filter((p) => !matchesContext(p)),
 )
 
-function placeFromLibrary(plugin: PluginMeta) {
+async function placeFromLibrary(plugin: PluginItem) {
   const scope = columnScope.value
   if (!scope) return
-  if (!pluginsStore.linkScope(plugin.installId, scope)) {
+  if (!(await pluginsStore.link(plugin.id, scope))) {
     useToast().show(readOnlyReason(), 'warning')
     return
   }
@@ -355,8 +343,8 @@ function placeFromLibrary(plugin: PluginMeta) {
 
 const { confirm } = useConfirm()
 
-/** ライブラリから本体ごと削除 (コードも消える)。 */
-async function deleteFromLibrary(plugin: PluginMeta) {
+/** ライブラリから本体ごと削除 (コードも消える)。停止は store の hook が行う */
+async function deleteFromLibrary(plugin: PluginItem) {
   const ok = await confirm({
     title: i18n.ts._deckPluginManagerColumn.deleteTitle,
     message: i18n.tsx._deckPluginManagerColumn.deleteConfirm({
@@ -366,8 +354,7 @@ async function deleteFromLibrary(plugin: PluginMeta) {
     type: 'danger',
   })
   if (!ok) return
-  abortPlugin(plugin.installId)
-  const undo = pluginsStore.removePlugin(plugin.installId)
+  const undo = await pluginsStore.remove(plugin.id)
   if (undo) {
     useToast().show(i18n.ts._deckPluginManagerColumn.deleted, 'info', {
       action: { label: i18n.ts._common.undo, onClick: undo },
@@ -455,23 +442,23 @@ async function deleteFromLibrary(plugin: PluginMeta) {
           >
             <PluginCard
               v-for="plugin in section.items"
-              :key="plugin.installId"
+              :key="plugin.id"
               mode="installed"
               :name="plugin.name"
               :description="storeByName.get(plugin.name)?.description ?? plugin.description"
-              :author="storeByName.get(plugin.name)?.author ?? plugin.author"
-              :version="plugin.version"
+              :author="storeByName.get(plugin.name)?.author ?? plugin.extra.author"
+              :version="plugin.extra.version"
               :category="storeByName.get(plugin.name)?.category"
               :category-label="storeByName.get(plugin.name)?.category ? PLUGIN_CATEGORY_LABELS[storeByName.get(plugin.name)!.category] : undefined"
-              :active="plugin.active"
+              :active="plugin.extra.active"
               :read-only="plugin.readOnly"
               :detach-title="detachTitle"
               :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
-              :denied-badge="getPluginDenial(plugin.installId)"
-              @click="openPluginDetail(plugin.installId)"
+              :denied-badge="getPluginDenial(plugin.id)"
+              @click="openPluginDetail(plugin.id)"
               @toggle="toggleActive(plugin)"
               @detach="detachFromScope(plugin)"
-              @settings="openPluginDetail(plugin.installId)"
+              @settings="openPluginDetail(plugin.id)"
               @denied-click="openPermissionSettings()"
             />
           </ColumnSection>
@@ -504,15 +491,15 @@ async function deleteFromLibrary(plugin: PluginMeta) {
             </div>
             <PluginCard
               v-for="plugin in libraryCandidates"
-              :key="plugin.installId"
+              :key="plugin.id"
               mode="library"
               :name="plugin.name"
               :description="storeByName.get(plugin.name)?.description ?? plugin.description"
-              :author="storeByName.get(plugin.name)?.author ?? plugin.author"
-              :version="plugin.version"
+              :author="storeByName.get(plugin.name)?.author ?? plugin.extra.author"
+              :version="plugin.extra.version"
               :icon-url="plugin.iconUrl ?? storeByName.get(plugin.name)?.iconUrl"
               :read-only="plugin.readOnly"
-              @click="openPluginDetail(plugin.installId)"
+              @click="openPluginDetail(plugin.id)"
               @place="placeFromLibrary(plugin)"
               @delete="deleteFromLibrary(plugin)"
             />

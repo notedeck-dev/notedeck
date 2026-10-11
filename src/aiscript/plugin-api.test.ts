@@ -8,7 +8,7 @@ import type { Command } from '@/commands/registry'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
-import { type PluginMeta, usePluginsStore } from '@/stores/plugins'
+import { type PluginItem, usePluginsStore } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { commands } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
@@ -87,16 +87,34 @@ const openSafeUrlMock = vi.mocked(openSafeUrl)
 let seq = 0
 const launchedIds: string[] = []
 
-function makePlugin(overrides: Partial<PluginMeta> = {}): PluginMeta {
+/** テスト用の個体。`src` / `active` / `global` / `installedFor` は envelope に畳む */
+interface PluginSeed {
+  src?: string
+  active?: boolean
+  global?: boolean
+  installedFor?: string[]
+  config?: PluginItem['extra']['config']
+  configData?: PluginItem['extra']['configData']
+}
+
+function makePlugin(overrides: PluginSeed = {}): PluginItem {
   return {
-    installId: `test-plugin-${++seq}`,
+    id: `test-plugin-${++seq}`,
     name: 'TestPlugin',
-    version: '1.0.0',
-    configData: {},
-    src: '',
-    active: true,
-    global: true,
-    ...overrides,
+    scope: {
+      kind: 'shared',
+      global: overrides.global ?? true,
+      installedFor: overrides.installedFor ?? [],
+    },
+    content: overrides.src ?? '',
+    extra: {
+      version: '1.0.0',
+      config: overrides.config,
+      configData: overrides.configData ?? {},
+      active: overrides.active ?? true,
+    },
+    createdAt: 0,
+    updatedAt: 0,
   }
 }
 
@@ -107,13 +125,13 @@ function makePlugin(overrides: Partial<PluginMeta> = {}): PluginMeta {
  */
 async function installAndLaunch(
   src: string,
-  overrides: Partial<PluginMeta> = {},
-): Promise<PluginMeta> {
+  overrides: PluginSeed = {},
+): Promise<PluginItem> {
   const headered =
     src === '' || src.startsWith('///') ? src : `/// @ 1.2.1\n${src}`
-  const plugin = makePlugin({ src: headered, ...overrides })
-  usePluginsStore().plugins.push(plugin)
-  launchedIds.push(plugin.installId)
+  const plugin = makePlugin({ ...overrides, src: headered })
+  usePluginsStore().items.push(plugin)
+  launchedIds.push(plugin.id)
   await launchPlugin(plugin)
   return plugin
 }
@@ -238,7 +256,7 @@ describe('launchPlugin / handler registry', () => {
     const handlers = getPluginHandlers('note_action')
     expect(handlers).toHaveLength(1)
     expect(handlers[0]?.title).toBe('Copy')
-    expect(handlers[0]?.pluginInstallId).toBe(plugin.installId)
+    expect(handlers[0]?.pluginInstallId).toBe(plugin.id)
     // 他 type には出てこない
     expect(getPluginHandlers('user_action')).toHaveLength(0)
   })
@@ -269,10 +287,7 @@ describe('launchPlugin / handler registry', () => {
 
   it('records "run completed" in the run log on success', async () => {
     const plugin = await installAndLaunch('let x = 1')
-    const entries = useAiScriptLogsStore().entriesFor(
-      'plugin',
-      plugin.installId,
-    )
+    const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
     expect(entries.map((e) => e.message)).toContain('run completed')
   })
 
@@ -280,10 +295,7 @@ describe('launchPlugin / handler registry', () => {
     const plugin = await installAndLaunch(
       'Plugin:register_note_action("bad", @(note) { note })\nlet x = (',
     )
-    const entries = useAiScriptLogsStore().entriesFor(
-      'plugin',
-      plugin.installId,
-    )
+    const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
     expect(entries.some((e) => e.message.startsWith('parse error:'))).toBe(true)
     expect(getPluginHandlers('note_action')).toHaveLength(0)
   })
@@ -336,7 +348,7 @@ describe('getPluginHandlers scope evaluation (#771)', () => {
 
   it('a plugin missing from the plugins store is filtered out', async () => {
     const plugin = makePlugin({ src: SRC })
-    launchedIds.push(plugin.installId)
+    launchedIds.push(plugin.id)
     // store に登録せず launch → handler は登録されるが scope 評価で落ちる
     await launchPlugin(plugin)
     expect(getPluginHandlers('note_action')).toHaveLength(0)
@@ -386,10 +398,10 @@ describe('interruptors', () => {
 })
 
 describe('AiScript version header requirement (launch)', () => {
-  async function launchRaw(src: string): Promise<PluginMeta> {
+  async function launchRaw(src: string): Promise<PluginItem> {
     const plugin = makePlugin({ src })
-    usePluginsStore().plugins.push(plugin)
-    launchedIds.push(plugin.installId)
+    usePluginsStore().items.push(plugin)
+    launchedIds.push(plugin.id)
     await launchPlugin(plugin)
     return plugin
   }
@@ -399,10 +411,7 @@ describe('AiScript version header requirement (launch)', () => {
       'Plugin:register_note_action("A", @(note) { note })',
     )
     expect(getPluginHandlers('note_action')).toHaveLength(0)
-    const entries = useAiScriptLogsStore().entriesFor(
-      'plugin',
-      plugin.installId,
-    )
+    const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
     expect(entries.some((e) => e.message.includes('version header'))).toBe(true)
   })
 
@@ -411,10 +420,7 @@ describe('AiScript version header requirement (launch)', () => {
       '/// @ 0.11.0\nPlugin:register_note_action("A", @(note) { note })',
     )
     expect(getPluginHandlers('note_action')).toHaveLength(0)
-    const entries = useAiScriptLogsStore().entriesFor(
-      'plugin',
-      plugin.installId,
-    )
+    const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
     expect(entries.some((e) => e.message.includes('not supported'))).toBe(true)
   })
 })
@@ -442,10 +448,7 @@ describe('Mk:api account context bridging', () => {
     const plugin = await installAndLaunch(SRC)
     getPluginHandlers('note_action')[0]?.handler({ id: 'n1' })
     await vi.waitFor(() => {
-      const entries = useAiScriptLogsStore().entriesFor(
-        'plugin',
-        plugin.installId,
-      )
+      const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
       expect(
         entries.some(
           (e) =>
@@ -459,14 +462,14 @@ describe('Mk:api account context bridging', () => {
   it('routes Mk:api through the gate and apiRequest with the set account', async () => {
     apiRequestMock.mockResolvedValue({ status: 'ok', data: { id: 'n1' } })
     const plugin = await installAndLaunch(SRC)
-    await withPluginAccountContext(plugin.installId, 'acc-9', () =>
+    await withPluginAccountContext(plugin.id, 'acc-9', () =>
       getPluginHandlers('note_action')[0]?.handler({ id: 'n1' }),
     )
     expect(apiRequestMock).toHaveBeenCalledWith('acc-9', 'notes/show', {
       noteId: 'n1',
     })
     expect(gateMock).toHaveBeenCalledWith(
-      { kind: 'plugin', pluginId: plugin.installId, name: plugin.name },
+      { kind: 'plugin', pluginId: plugin.id, name: plugin.name },
       'notes/show',
       { onBehalfOf: [] },
     )
@@ -482,11 +485,11 @@ describe('Mk:api account context bridging', () => {
       c.id.endsWith(':call'),
     )
     expect(cmd).toBeDefined()
-    await withPluginAccountContext(plugin.installId, 'acc-9', () =>
+    await withPluginAccountContext(plugin.id, 'acc-9', () =>
       cmd?.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
     )
     expect(gateMock).toHaveBeenCalledWith(
-      { kind: 'plugin', pluginId: plugin.installId, name: plugin.name },
+      { kind: 'plugin', pluginId: plugin.id, name: plugin.name },
       'notes/show',
       { onBehalfOf: [{ kind: 'ai.chat' }] },
     )
@@ -500,7 +503,7 @@ describe('withPluginAccountContext (#821)', () => {
   it('handler 完了後に文脈が必ず null へ戻る (以後の Mk:api は fail-closed)', async () => {
     const plugin = await installAndLaunch(SRC)
     const handler = getPluginHandlers('note_action')[0]?.handler
-    await withPluginAccountContext(plugin.installId, 'acc-1', () =>
+    await withPluginAccountContext(plugin.id, 'acc-1', () =>
       handler?.({ id: 'n1' }),
     )
     expect(apiRequestMock).toHaveBeenCalledWith('acc-1', 'notes/show', {
@@ -510,10 +513,7 @@ describe('withPluginAccountContext (#821)', () => {
     // 文脈外の発火は no account context エラー (既存挙動の維持)
     await handler?.({ id: 'n2' })
     expect(apiRequestMock).not.toHaveBeenCalled()
-    const entries = useAiScriptLogsStore().entriesFor(
-      'plugin',
-      plugin.installId,
-    )
+    const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
     expect(
       entries.some(
         (e) => e.level === 'error' && e.message.includes('no account context'),
@@ -532,10 +532,10 @@ describe('withPluginAccountContext (#821)', () => {
     const plugin = await installAndLaunch(SRC)
     const handler = getPluginHandlers('note_action')[0]?.handler
     await Promise.all([
-      withPluginAccountContext(plugin.installId, 'acc-1', () =>
+      withPluginAccountContext(plugin.id, 'acc-1', () =>
         handler?.({ id: 'n1' }),
       ),
-      withPluginAccountContext(plugin.installId, 'acc-2', () =>
+      withPluginAccountContext(plugin.id, 'acc-2', () =>
         handler?.({ id: 'n2' }),
       ),
     ])
@@ -559,7 +559,7 @@ describe('abort / launchAll', () => {
     )
     await installAndLaunch('Plugin:register_note_action("B", @(note) { note })')
     expect(getPluginHandlers('note_action')).toHaveLength(2)
-    abortPlugin(a.installId)
+    abortPlugin(a.id)
     const titles = getPluginHandlers('note_action').map((h) => h.title)
     expect(titles).toEqual(['B'])
   })
@@ -574,8 +574,8 @@ describe('abort / launchAll', () => {
     })
     const empty = makePlugin({ src: '' })
     const store = usePluginsStore()
-    store.plugins.push(active, inactive, empty)
-    launchedIds.push(active.installId, inactive.installId, empty.installId)
+    store.items.push(active, inactive, empty)
+    launchedIds.push(active.id, inactive.id, empty.id)
     await launchAllPlugins([active, inactive, empty])
     const titles = getPluginHandlers('note_action').map((h) => h.title)
     expect(titles).toEqual(['On'])
@@ -669,10 +669,7 @@ describe('UI 起点の実行エラー表示 (#1072 / #1074)', () => {
     expect(toasts.value[0]?.source).toBe(plugin.name)
     expect(toasts.value[0]?.text).toContain('unknown_capability')
     // runLog への記録は従来どおり残す (詳細はそちらで追う)
-    const entries = useAiScriptLogsStore().entriesFor(
-      'plugin',
-      plugin.installId,
-    )
+    const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
     expect(entries.some((e) => e.level === 'error')).toBe(true)
   })
 
@@ -720,10 +717,7 @@ describe('UI 起点の実行エラー表示 (#1072 / #1074)', () => {
     expect(useToast().toasts.value.map((t) => [t.text, t.type])).toEqual([
       ['error', 'info'],
     ])
-    const entries = useAiScriptLogsStore().entriesFor(
-      'plugin',
-      plugin.installId,
-    )
+    const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
     expect(entries.some((e) => e.level === 'error')).toBe(false)
   })
 

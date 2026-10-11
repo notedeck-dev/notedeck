@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PluginMeta } from '@/stores/plugins'
+import type { PluginItem } from '@/stores/plugins'
 import type { SkillMeta } from '@/stores/skills'
 import type { WidgetItem } from '@/stores/widgets'
 
@@ -13,11 +13,16 @@ const h = vi.hoisted(() => ({
     recordStoreBaseline: vi.fn(),
   },
   pluginsStore: {
-    plugins: [] as unknown[],
-    linkScope: vi.fn(),
-    addPlugin: vi.fn(),
-    applyStoreUpdate: vi.fn(),
-    recordStoreBaseline: vi.fn(),
+    items: [] as unknown[],
+    link: vi.fn(async () => true),
+    add: vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      id: input.id ?? 'p-test-1',
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    applyStoreUpdate: vi.fn(async () => true),
+    recordStoreBaseline: vi.fn(async () => undefined),
   },
   widgetsStore: {
     items: [] as unknown[],
@@ -173,7 +178,7 @@ beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
   h.skillsStore.skills = []
-  h.pluginsStore.plugins = []
+  h.pluginsStore.items = []
   h.widgetsStore.items = []
   h.queriesStore.items = []
   h.themeStore.installedThemes = []
@@ -515,6 +520,21 @@ describe('installQuery', () => {
   })
 })
 
+/** 既存の個体 (既定: ストア 'ent-plugin' 由来、id 'p1') */
+function existingPlugin(over: Partial<PluginItem>): PluginItem {
+  return {
+    id: 'p1',
+    name: 'My Plugin',
+    store: { id: 'ent-plugin' },
+    scope: { kind: 'shared', global: true, installedFor: [] },
+    content: '',
+    extra: { version: '1', configData: {}, active: true },
+    createdAt: 0,
+    updatedAt: 0,
+    ...over,
+  }
+}
+
 describe('installPlugin', () => {
   const source = '/* plugin source */'
   const meta = {
@@ -528,7 +548,7 @@ describe('installPlugin', () => {
 
   it('既存 (storeId 一致) は本体とストア由来メタを上書き更新して scope を追加する (#913)', async () => {
     const store = useMisStoreStore()
-    h.pluginsStore.plugins = [{ installId: 'p1', storeId: 'ent-plugin' }]
+    h.pluginsStore.items = [existingPlugin({})]
     fetchMock.mockResolvedValue(okText(source))
     h.parsePluginMeta.mockReturnValue(meta)
     await store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
@@ -537,53 +557,56 @@ describe('installPlugin', () => {
     expect(h.pluginsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'p1',
       expect.objectContaining({
-        src: source,
+        content: source,
         version: '1.0.0',
         config: meta.config,
-        storeSha512: sha512Hex(source),
-        storeVersion: '1.0.0',
+        store: {
+          id: 'ent-plugin',
+          sha512: sha512Hex(source),
+          version: '1.0.0',
+        },
       }),
     )
-    expect(h.pluginsStore.linkScope).toHaveBeenCalledWith('p1', {
+    expect(h.pluginsStore.link).toHaveBeenCalledWith('p1', {
       kind: 'global',
     })
-    expect(h.pluginsStore.addPlugin).not.toHaveBeenCalled()
+    expect(h.pluginsStore.add).not.toHaveBeenCalled()
     expect(store.installing).toBeNull()
   })
 
-  it('installs a new plugin with default configData and launches it (global scope)', async () => {
+  it('新規は既定の設定値で全体スコープに追加する (起動は plugins store の add が行う)', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
     h.parsePluginMeta.mockReturnValue(meta)
     await store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
       kind: 'global',
     })
-    expect(h.pluginsStore.addPlugin).toHaveBeenCalledTimes(1)
-    const added = h.pluginsStore.addPlugin.mock.calls[0]?.[0] as PluginMeta
+    expect(h.pluginsStore.add).toHaveBeenCalledTimes(1)
+    const added = h.pluginsStore.add.mock.calls[0]?.[0] as unknown as PluginItem
     expect(added).toMatchObject({
+      // ローカル ID = storeId (#913)
+      id: 'ent-plugin',
       name: 'MyPlugin',
-      src: source,
-      active: true,
-      storeId: 'ent-plugin',
-      global: true,
-      configData: { greet: 'hi' },
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      content: source,
+      store: { id: 'ent-plugin', sha512: sha512Hex(source), version: '1.0.0' },
+      scope: { kind: 'shared', global: true, installedFor: [] },
+      extra: { active: true, configData: { greet: 'hi' } },
     })
-    expect(added.installedFor).toBeUndefined()
-    expect(h.launchPlugin).toHaveBeenCalledWith(added)
+    expect(h.launchPlugin).not.toHaveBeenCalled()
     expect(store.installing).toBeNull()
   })
 
   it('同名の自作プラグインがあってもストア経路のインストールは拒否しない (#913)', async () => {
     const store = useMisStoreStore()
-    h.pluginsStore.plugins = [{ installId: 'p9', name: 'MyPlugin' }]
+    h.pluginsStore.items = [
+      existingPlugin({ id: 'p9', name: 'MyPlugin', store: undefined }),
+    ]
     fetchMock.mockResolvedValue(okText(source))
     h.parsePluginMeta.mockReturnValue(meta)
     await store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
       kind: 'global',
     })
-    expect(h.pluginsStore.addPlugin).toHaveBeenCalledTimes(1)
+    expect(h.pluginsStore.add).toHaveBeenCalledTimes(1)
   })
 
   it('installs into installedFor for an account scope', async () => {
@@ -594,9 +617,12 @@ describe('installPlugin', () => {
       kind: 'account',
       key: 'yami.ski:u1',
     })
-    const added = h.pluginsStore.addPlugin.mock.calls[0]?.[0] as PluginMeta
-    expect(added.installedFor).toEqual(['yami.ski:u1'])
-    expect(added.global).toBeUndefined()
+    const added = h.pluginsStore.add.mock.calls[0]?.[0] as unknown as PluginItem
+    expect(added.scope).toEqual({
+      kind: 'shared',
+      global: false,
+      installedFor: ['yami.ski:u1'],
+    })
   })
 
   it('rejects when plugin metadata cannot be parsed', async () => {
@@ -613,15 +639,17 @@ describe('installPlugin', () => {
   it('既存への追加インストールで権限が拡大するなら再同意を取る (#1040)', async () => {
     const store = useMisStoreStore()
     const newSrc = '/* v2 */'
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: '/* v1 */',
-        permissions: ['read:account'],
-        storeSha512: 'old-sha',
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: '/* v1 */',
+        store: { id: 'ent-plugin', sha512: 'old-sha' },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       ...meta,
@@ -637,7 +665,7 @@ describe('installPlugin', () => {
     expect(h.pluginsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'p1',
       expect.objectContaining({
-        src: newSrc,
+        content: newSrc,
         permissions: ['read:account', 'write:notes'],
       }),
     )
@@ -646,15 +674,17 @@ describe('installPlugin', () => {
   it('権限拡大の再同意を断ったら本体・権限は据え置きで scope だけ足す', async () => {
     const store = useMisStoreStore()
     const newSrc = '/* v2 */'
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: '/* v1 */',
-        permissions: ['read:account'],
-        storeSha512: 'old-sha',
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: '/* v1 */',
+        store: { id: 'ent-plugin', sha512: 'old-sha' },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       ...meta,
@@ -666,22 +696,24 @@ describe('installPlugin', () => {
       kind: 'global',
     })
     expect(h.pluginsStore.applyStoreUpdate).not.toHaveBeenCalled()
-    expect(h.pluginsStore.linkScope).toHaveBeenCalledWith('p1', {
+    expect(h.pluginsStore.link).toHaveBeenCalledWith('p1', {
       kind: 'global',
     })
   })
 
   it('ソースが変わっていなければ scope のリンクだけ行う (本体・権限を触らない)', async () => {
     const store = useMisStoreStore()
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: source,
-        permissions: ['read:account'],
-        storeSha512: sha512Hex(source),
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: source,
+        store: { id: 'ent-plugin', sha512: sha512Hex(source) },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       ...meta,
@@ -694,7 +726,7 @@ describe('installPlugin', () => {
     })
     expect(h.confirm).not.toHaveBeenCalled()
     expect(h.pluginsStore.applyStoreUpdate).not.toHaveBeenCalled()
-    expect(h.pluginsStore.linkScope).toHaveBeenCalledWith('p1', {
+    expect(h.pluginsStore.link).toHaveBeenCalledWith('p1', {
       kind: 'account',
       key: 'yami.ski:u1',
     })
@@ -702,9 +734,11 @@ describe('installPlugin', () => {
 
   it('isInstalled は storeId のみで照合する (名前一致では真にならない #913)', () => {
     const store = useMisStoreStore()
-    h.pluginsStore.plugins = [{ installId: 'p1', storeId: 'ent-plugin' }]
+    h.pluginsStore.items = [existingPlugin({})]
     expect(store.isInstalled(pluginEntry())).toBe(true)
-    h.pluginsStore.plugins = [{ installId: 'p1', name: 'Test Plugin' }]
+    h.pluginsStore.items = [
+      existingPlugin({ name: 'Test Plugin', store: undefined }),
+    ]
     expect(store.isInstalled(pluginEntry())).toBe(false)
   })
 })
@@ -934,8 +968,8 @@ describe('更新検知 (#1040)', () => {
     expect(store.hasSkillUpdate(skillEntry({ sha512: 'sha-new' }))).toBe(true)
     expect(store.hasSkillUpdate(skillEntry({ sha512: 'sha-old' }))).toBe(false)
 
-    h.pluginsStore.plugins = [
-      { installId: 'p1', storeId: 'ent-plugin', storeSha512: 'sha-old' },
+    h.pluginsStore.items = [
+      existingPlugin({ store: { id: 'ent-plugin', sha512: 'sha-old' } }),
     ]
     expect(store.hasPluginUpdate(pluginEntry({ sha512: 'sha-new' }))).toBe(true)
 
@@ -1006,7 +1040,7 @@ describe('baseline 無通知記録 (#1040)', () => {
   it('fetchSkills / fetchPlugins / fetchQueries も未記録分へ記録する', async () => {
     const store = useMisStoreStore()
     h.skillsStore.skills = [{ id: 'local-1', storeId: 'ent-skill' }]
-    h.pluginsStore.plugins = [{ installId: 'p1', storeId: 'ent-plugin' }]
+    h.pluginsStore.items = [existingPlugin({})]
     h.queriesStore.items = [{ id: 'q1', store: { id: 'ent-query' } }]
     fetchMock
       .mockResolvedValueOnce(
@@ -1025,11 +1059,11 @@ describe('baseline 無通知記録 (#1040)', () => {
       storeSha512: 's-sha',
       storeVersion: '1.0.0',
     })
+    // plugin / query は envelope のストア由来 3 点の形で受ける (#1202 段階 1)
     expect(h.pluginsStore.recordStoreBaseline).toHaveBeenCalledWith('p1', {
-      storeSha512: 'p-sha',
-      storeVersion: '1.0.0',
+      sha512: 'p-sha',
+      version: '1.0.0',
     })
-    // query は envelope のストア由来 3 点の形で受ける (#1202 段階 1)
     expect(h.queriesStore.recordStoreBaseline).toHaveBeenCalledWith('q1', {
       sha512: 'q-sha',
       version: '1.0.0',
@@ -1322,15 +1356,17 @@ describe('更新適用 (#1040)', () => {
   it('updatePlugin: permissions が拡大する更新は新規権限を明示する', async () => {
     const store = useMisStoreStore()
     const newSrc = '/* v2 */'
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: '/* v1 */',
-        permissions: ['read:account'],
-        storeSha512: 'old-sha',
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: '/* v1 */',
+        store: { id: 'ent-plugin', sha512: 'old-sha' },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       name: 'My Plugin',
@@ -1348,27 +1384,33 @@ describe('更新適用 (#1040)', () => {
     expect(h.pluginsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'p1',
       expect.objectContaining({
-        src: newSrc,
+        content: newSrc,
         permissions: ['read:account', 'write:notes'],
-        storeSha512: sha512Hex(newSrc),
+        store: {
+          id: 'ent-plugin',
+          sha512: sha512Hex(newSrc),
+          version: '1.0.0',
+        },
       }),
     )
-    // 更新はスコープに触れない (linkScope を呼ばない)
-    expect(h.pluginsStore.linkScope).not.toHaveBeenCalled()
+    // 更新はスコープに触れない (link を呼ばない)
+    expect(h.pluginsStore.link).not.toHaveBeenCalled()
   })
 
   it('updatePlugin: permissions が拡大しなければ警告文を出さない', async () => {
     const store = useMisStoreStore()
     const newSrc = '/* v2 */'
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: '/* v1 */',
-        permissions: ['read:account'],
-        storeSha512: 'old-sha',
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: '/* v1 */',
+        store: { id: 'ent-plugin', sha512: 'old-sha' },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       name: 'My Plugin',

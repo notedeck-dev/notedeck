@@ -32,7 +32,7 @@ export function useEditTargetText(
       case 'widget':
         return widgets.get(id)?.content ?? ''
       case 'plugin':
-        return plugins.getPlugin(id)?.src ?? ''
+        return plugins.get(id)?.content ?? ''
       case 'query':
         return queries.get(id)?.content ?? ''
       case 'theme': {

@@ -11,9 +11,7 @@ vi.mock('@/utils/settingsFs', () => ({
   SKILL_EXT: '.md',
 }))
 
-import { sidecarMetaText } from '@/services/distributableCodecs/sidecar'
 import { parseSkillFile, serializeSkillFile } from '@/services/skillFrontmatter'
-import { _internal as pluginInternal } from '@/stores/plugins'
 import { _internal as skillInternal } from '@/stores/skills'
 import {
   themeFromFile,
@@ -27,8 +25,8 @@ import {
  * (`golden/vectors.json`) を共有する。欠損した時刻は store が `Date.now()` で
  * 埋めるので、vector の `now` を system time にして揃える。
  *
- * codec に置き換わった kind (query / widget、段階 1) はここから外れる — store の
- * 書く形は codec そのもので、golden (`goldenVectors.test.ts`) が受ける
+ * codec に置き換わった kind (query / widget / plugin、段階 1) はここから外れる —
+ * store の書く形は codec そのもので、golden (`goldenVectors.test.ts`) が受ける
  */
 
 interface SidecarVector {
@@ -75,23 +73,6 @@ function withNow<T>(now: number, fn: () => T): T {
 }
 
 describe('store の serialize = codec の出力 (golden を共有)', () => {
-  const sidecars = [['plugin', pluginInternal]] as const
-  for (const [kind, internal] of sidecars) {
-    describe(kind, () => {
-      for (const v of vectors[kind]) {
-        it(v.name, () => {
-          const text = withNow(v.now, () => {
-            // biome-ignore lint/suspicious/noExplicitAny: kind ごとの FileMeta 型を 1 本のループで回す
-            const meta = JSON5.parse(v.meta) as any
-            const item = internal.fromFile(meta, v.src, v.filename)
-            return sidecarMetaText(internal.toFileMeta(item as never))
-          })
-          expect(text).toBe(v.expected)
-        })
-      }
-    })
-  }
-
   describe('theme', () => {
     for (const v of vectors.theme) {
       it(v.name, () => {
