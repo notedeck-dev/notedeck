@@ -146,11 +146,16 @@ export type CapabilityId =
   | "plugins.list"
   | "plugins.read"
   | "plugins.revert"
-  | "plugins.setActive"
+  | "plugins.setEnabled"
   | "plugins.uninstall"
   | "plugins.update"
+  | "queries.create"
+  | "queries.delete"
   | "queries.history"
+  | "queries.list"
+  | "queries.read"
   | "queries.revert"
+  | "queries.update"
   | "registry.delete"
   | "registry.get"
   | "registry.listKeys"
@@ -159,13 +164,14 @@ export type CapabilityId =
   | "sidebar.toggle"
   | "skills.append"
   | "skills.create"
+  | "skills.delete"
   | "skills.history"
   | "skills.install"
   | "skills.list"
   | "skills.read"
   | "skills.replaceSection"
   | "skills.revert"
-  | "skills.toggle"
+  | "skills.setEnabled"
   | "skills.uninstall"
   | "soul.propose"
   | "styles.append"
@@ -174,15 +180,16 @@ export type CapabilityId =
   | "styles.revert"
   | "styles.write"
   | "tasks.run"
-  | "theme.apply"
-  | "theme.create"
-  | "theme.history"
-  | "theme.install"
-  | "theme.list"
-  | "theme.read"
-  | "theme.revert"
-  | "theme.uninstall"
-  | "theme.update"
+  | "themes.apply"
+  | "themes.create"
+  | "themes.delete"
+  | "themes.history"
+  | "themes.install"
+  | "themes.list"
+  | "themes.read"
+  | "themes.revert"
+  | "themes.uninstall"
+  | "themes.update"
   | "time.now"
   | "ui.notify"
   | "user.follow"
@@ -317,11 +324,16 @@ export const CAPABILITY_IDS: readonly CapabilityId[] = [
   "plugins.list",
   "plugins.read",
   "plugins.revert",
-  "plugins.setActive",
+  "plugins.setEnabled",
   "plugins.uninstall",
   "plugins.update",
+  "queries.create",
+  "queries.delete",
   "queries.history",
+  "queries.list",
+  "queries.read",
   "queries.revert",
+  "queries.update",
   "registry.delete",
   "registry.get",
   "registry.listKeys",
@@ -330,13 +342,14 @@ export const CAPABILITY_IDS: readonly CapabilityId[] = [
   "sidebar.toggle",
   "skills.append",
   "skills.create",
+  "skills.delete",
   "skills.history",
   "skills.install",
   "skills.list",
   "skills.read",
   "skills.replaceSection",
   "skills.revert",
-  "skills.toggle",
+  "skills.setEnabled",
   "skills.uninstall",
   "soul.propose",
   "styles.append",
@@ -345,15 +358,16 @@ export const CAPABILITY_IDS: readonly CapabilityId[] = [
   "styles.revert",
   "styles.write",
   "tasks.run",
-  "theme.apply",
-  "theme.create",
-  "theme.history",
-  "theme.install",
-  "theme.list",
-  "theme.read",
-  "theme.revert",
-  "theme.uninstall",
-  "theme.update",
+  "themes.apply",
+  "themes.create",
+  "themes.delete",
+  "themes.history",
+  "themes.install",
+  "themes.list",
+  "themes.read",
+  "themes.revert",
+  "themes.uninstall",
+  "themes.update",
   "time.now",
   "ui.notify",
   "user.follow",
@@ -2537,7 +2551,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "device",
-    description: "AiScript ソースから新規プラグインを作成する。必ず `active: false` (= 無効化) で作成され、handler は走らない。有効化は plugins.setActive で別途ユーザー UI から行う (= AI が連鎖的に handler を走らせるのを防ぐ 二重承認境界)。permissions は Misskey 互換キー (read:account, write:notes 等)。",
+    description: "AiScript ソースから新規プラグインを作成する。必ず `active: false` (= 無効化) で作成され、handler は走らない。有効化は plugins.setEnabled で別途ユーザー UI から行う (= AI が連鎖的に handler を走らせるのを防ぐ 二重承認境界)。permissions は Misskey 互換キー (read:account, write:notes 等)。",
     params: {"name":{"type":"string","description":"プラグイン名 (UI 表示用)"},"src":{"type":"string","description":"AiScript ソースコード"},"version":{"type":"string","description":"バージョン文字列 (default \"1.0.0\")","optional":true},"author":{"type":"string","description":"作者表記","optional":true},"description":{"type":"string","description":"概要","optional":true},"permissions":{"type":"array","description":"プラグインが要求する permission の配列 (Misskey 互換)","optional":true}},
     returns: {"type":"object","description":"{ installId, name, active: false }"},
   },
@@ -2673,8 +2687,8 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     params: {"installId":{"type":"string","description":"対象プラグインの installId"},"index":{"type":"number","description":"snapshot index (0 = 最新)"},"reason":{"type":"string","description":"この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと"}},
     returns: {"type":"object","description":"{ installId, reverted: boolean, at: number }"},
   },
-  "plugins.setActive": {
-    id: "plugins.setActive",
+  "plugins.setEnabled": {
+    id: "plugins.setEnabled",
     label: "プラグインの有効/無効を切替",
     category: "general",
     icon: "ti-toggle-left",
@@ -2691,9 +2705,9 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "プラグインの active 状態を切り替える。有効化 (true) すると handler が起動して Misskey API 介入の副作用が走り得るので、AI が 呼ぶときは確認ダイアログでユーザー承認を取る。無効化 (false) は 即実行 (= 可逆な停止操作)。有効化後は aiscript.logs (source: plugin) に \"started\" が記録されるので起動確認に使える。",
-    params: {"installId":{"type":"string","description":"対象プラグインの installId"},"active":{"type":"boolean","description":"true = 有効化 / false = 無効化"}},
-    returns: {"type":"object","description":"{ installId, active }"},
+    description: "プラグインの有効 / 無効を切り替える。有効化 (true) すると handler が起動して Misskey API 介入の副作用が走り得るので、AI が 呼ぶときは確認ダイアログでユーザー承認を取る。無効化 (false) は 即実行 (= 可逆な停止操作)。有効化後は aiscript.logs (source: plugin) に \"started\" が記録されるので起動確認に使える。",
+    params: {"installId":{"type":"string","description":"対象プラグインの installId"},"enabled":{"type":"boolean","description":"true = 有効化 / false = 無効化"}},
+    returns: {"type":"object","description":"{ installId, enabled }"},
   },
   "plugins.uninstall": {
     id: "plugins.uninstall",
@@ -2739,6 +2753,50 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     params: {"installId":{"type":"string","description":"対象プラグインの installId"},"src":{"type":"string","description":"新しい AiScript ソース全文"},"reason":{"type":"string","description":"この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと"}},
     returns: {"type":"object","description":"{ installId, length: 新 src の文字数, relaunched: boolean }。relaunched=true ならアクティブなプラグインを新 src で再起動済み。"},
   },
+  "queries.create": {
+    id: "queries.create",
+    label: "クエリを作成",
+    category: "general",
+    icon: "ti-plus",
+    permissions: ["queries.write"],
+    aiTool: true,
+    confirm: true,
+    actsAsAccount: false,
+    cheap: false,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "device",
+    description: "AiScript の式から名前付きカラムクエリを作成する。式は `note` を受けて boolean を返す純粋な式でなければならない (副作用や非決定の API に届く式は拒否)。作成した個体はライブラリに入るだけで、どのカラムにも適用されない (適用はカラムのフィルターメニューから人が行う)。",
+    params: {"name":{"type":"string","description":"クエリ名 (UI 表示用)"},"src":{"type":"string","description":"AiScript の式 (例: `note.text != null && note.text.incl(\"misskey\")`)"},"description":{"type":"string","description":"概要","optional":true}},
+    returns: {"type":"object","description":"{ id, name }"},
+  },
+  "queries.delete": {
+    id: "queries.delete",
+    label: "クエリを削除",
+    category: "general",
+    icon: "ti-trash",
+    permissions: ["queries.write"],
+    aiTool: true,
+    confirm: true,
+    actsAsAccount: false,
+    cheap: false,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "core",
+    description: "名前付きクエリを id で削除する。ソース・メタ・編集履歴が消え、適用中のカラムからも外れる (= 不可逆)。無ければ removed: false。",
+    params: {"id":{"type":"string","description":"対象クエリの id"}},
+    returns: {"type":"object","description":"{ id, removed: boolean }"},
+  },
   "queries.history": {
     id: "queries.history",
     label: "クエリの編集履歴",
@@ -2761,6 +2819,50 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     params: {"id":{"type":"string","description":"対象クエリの id"}},
     returns: {"type":"array","description":"編集前 snapshot の配列 (新しい順)"},
   },
+  "queries.list": {
+    id: "queries.list",
+    label: "クエリ一覧",
+    category: "general",
+    icon: "ti-filter",
+    permissions: ["queries.read"],
+    aiTool: true,
+    confirm: false,
+    actsAsAccount: false,
+    cheap: true,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "core",
+    description: "名前付きカラムクエリ (#783) のメタデータ一覧を返す。ソースは含まれない (= queries.read で個別取得)。",
+    params: {},
+    returns: {"type":"array","description":"{ id, name, description?, active, storeId? } の配列"},
+  },
+  "queries.read": {
+    id: "queries.read",
+    label: "クエリのソースを読む",
+    category: "general",
+    icon: "ti-code",
+    permissions: ["queries.read"],
+    aiTool: true,
+    confirm: false,
+    actsAsAccount: false,
+    cheap: true,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "core",
+    description: "指定 id の名前付きクエリのソース (AiScript の式) を返す。",
+    params: {"id":{"type":"string","description":"対象クエリの id (queries.list で取得)"}},
+    returns: {"type":"object","description":"{ id, name, description?, src, active }"},
+  },
   "queries.revert": {
     id: "queries.revert",
     label: "クエリを過去の状態に戻す",
@@ -2782,6 +2884,28 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     description: "名前付きクエリのソースを編集履歴の index 番目に戻す。",
     params: {"id":{"type":"string","description":"対象クエリの id"},"index":{"type":"number","description":"snapshot index (0 = 最新)"},"reason":{"type":"string","description":"この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと"}},
     returns: {"type":"object","description":"{ id, reverted: boolean, at: number }"},
+  },
+  "queries.update": {
+    id: "queries.update",
+    label: "クエリのソースを更新",
+    category: "general",
+    icon: "ti-edit",
+    permissions: ["queries.write"],
+    aiTool: true,
+    confirm: true,
+    actsAsAccount: false,
+    cheap: false,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "device",
+    description: "名前付きクエリのソースを全文置換する。queries.read で現状を取得してから差分判断する運用を推奨。式の制約は queries.create と同じ。適用中のカラムは保存後に新しい式で再評価される。",
+    params: {"id":{"type":"string","description":"対象クエリの id"},"src":{"type":"string","description":"新しい AiScript の式 (全文)"},"reason":{"type":"string","description":"この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと"}},
+    returns: {"type":"object","description":"{ id, length: 新 src の文字数 }"},
   },
   "registry.delete": {
     id: "registry.delete",
@@ -2955,9 +3079,31 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "新規スキルを作成する。既存スキルの編集はできない (skills.append / skills.replaceSection を使う)。id は内部生成される。作成直後は mode=manual なら未有効 (skills.toggle で有効化)、trigger なら次ターンからマッチで自動ロード、always は常時注入される。body に frontmatter (---) を含めないこと (mode 等はパラメータで渡す)。",
+    description: "新規スキルを作成する。既存スキルの編集はできない (skills.append / skills.replaceSection を使う)。id は内部生成される。作成直後は mode=manual なら未有効 (skills.setEnabled で有効化)、trigger なら次ターンからマッチで自動ロード、always は常時注入される。body に frontmatter (---) を含めないこと (mode 等はパラメータで渡す)。",
     params: {"name":{"type":"string","description":"スキル名 (UI 表示用)"},"body":{"type":"string","description":"markdown 本文 (frontmatter は含めない)"},"description":{"type":"string","description":"スキル一覧に表示される 1 行説明","optional":true},"mode":{"type":"string","description":"実行モード (default: manual)。always / heartbeat は影響が大きいのでユーザーが明示したときのみ","optional":true,"enum":["manual","trigger","always","heartbeat"]},"triggers":{"type":"array","description":"mode=trigger のとき必須。user 入力への部分一致でロードされる語の配列 (大文字小文字無視)","optional":true},"cheapCheckCapabilities":{"type":"array","description":"mode=heartbeat 用。変化検知に使う cheap capability id の配列 (変化なしの tick は AI 呼び出しを skip)","optional":true}},
     returns: {"type":"object","description":"{ id, name, mode }"},
+  },
+  "skills.delete": {
+    id: "skills.delete",
+    label: "スキルを削除",
+    category: "general",
+    icon: "ti-trash",
+    permissions: ["skills.write"],
+    aiTool: true,
+    confirm: true,
+    actsAsAccount: false,
+    cheap: false,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "core",
+    description: "スキルを id で削除する。frontmatter・本文・編集履歴ファイルがすべて消える (= 不可逆)。予約スキル (AGENTS / HEARTBEAT) は削除できない。無ければ removed: false。",
+    params: {"id":{"type":"string","description":"対象 skill の id"}},
+    returns: {"type":"object","description":"{ id, removed: boolean }"},
   },
   "skills.history": {
     id: "skills.history",
@@ -3091,8 +3237,8 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     params: {"id":{"type":"string","description":"対象 skill の id"},"index":{"type":"number","description":"snapshot index (0 = 最新、skills.history の順序と一致)"},"reason":{"type":"string","description":"この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと"}},
     returns: {"type":"object","description":"{ id, reverted: boolean, at: number }"},
   },
-  "skills.toggle": {
-    id: "skills.toggle",
+  "skills.setEnabled": {
+    id: "skills.setEnabled",
     label: "スキルの有効/無効を切替",
     category: "general",
     icon: "ti-toggle-left",
@@ -3109,9 +3255,9 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "skill の active 状態を切り替える。mode=\"always\" の skill は常時 active 扱いのため設定は無視される。mode=\"trigger\" の skill は triggers[] が user 入力に部分一致したターンだけ自動 active になる。",
-    params: {"id":{"type":"string","description":"対象 skill の id"},"active":{"type":"boolean","description":"true = 有効化 / false = 無効化"}},
-    returns: {"type":"object","description":"{ id, active }"},
+    description: "skill の有効 / 無効を切り替える。mode=\"always\" の skill は常時有効扱いのため設定は無視される。mode=\"trigger\" の skill は triggers[] が user 入力に部分一致したターンだけ自動で有効になる。",
+    params: {"id":{"type":"string","description":"対象 skill の id"},"enabled":{"type":"boolean","description":"true = 有効化 / false = 無効化"}},
+    returns: {"type":"object","description":"{ id, enabled }"},
   },
   "skills.uninstall": {
     id: "skills.uninstall",
@@ -3289,8 +3435,8 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     params: {"taskId":{"type":"string","description":"TaskDefinition.id (tasks.json5 の各タスクの id)"},"inputs":{"type":"object","description":"TaskInput.id をキーに値を持つオブジェクト。省略時は UI prompt が出る。","optional":true}},
     returns: {"type":"object","description":"TaskRun projection: { runId, status: \"ok\"|\"error\"|\"running\"|\"cancelled\", response?, error? }"},
   },
-  "theme.apply": {
-    id: "theme.apply",
+  "themes.apply": {
+    id: "themes.apply",
     label: "テーマを適用",
     category: "general",
     icon: "ti-palette",
@@ -3307,16 +3453,16 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "device",
-    description: "インストール済みテーマを適用する。 theme.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。",
-    params: {"id":{"type":"string","description":"適用するテーマの id (theme.list で取得)"},"mode":{"type":"string","description":"明示的に dark / light どちらの slot に適用するか。省略時はテーマ自体の base を使う","optional":true,"enum":["dark","light"]}},
+    description: "インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。",
+    params: {"id":{"type":"string","description":"適用するテーマの id (themes.list で取得)"},"mode":{"type":"string","description":"明示的に dark / light どちらの slot に適用するか。省略時はテーマ自体の base を使う","optional":true,"enum":["dark","light"]}},
     returns: {"type":"object","description":"`{ applied: boolean, id, mode }`"},
   },
-  "theme.create": {
-    id: "theme.create",
+  "themes.create": {
+    id: "themes.create",
     label: "テーマを作成",
     category: "general",
     icon: "ti-palette",
-    permissions: ["theme.write"],
+    permissions: ["themes.write"],
     aiTool: true,
     confirm: true,
     actsAsAccount: false,
@@ -3329,16 +3475,38 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "新規テーマを作成して installedThemes に追加する。 props は Misskey 互換 CSS 変数 (例: { accent: \"#5f6\", panel: \"#0a0a0a\" })。 既存 id を指定した場合は theme.update と同等の挙動になる。",
+    description: "新規テーマを作成して installedThemes に追加する。 props は Misskey 互換 CSS 変数 (例: { accent: \"#5f6\", panel: \"#0a0a0a\" })。 既存 id を指定した場合は themes.update と同等の挙動になる。",
     params: {"name":{"type":"string","description":"テーマ名 (UI 表示用)"},"base":{"type":"string","description":"ダーク / ライト どちらの slot に置くか","enum":["dark","light"]},"props":{"type":"object","description":"Misskey 互換 CSS 変数のマップ ({ key: string })"},"id":{"type":"string","description":"テーマ id (省略時は custom-<timestamp> で自動生成)","optional":true},"reason":{"type":"string","description":"この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと"}},
     returns: {"type":"object","description":"{ id, name, base, installed: boolean }"},
   },
-  "theme.history": {
-    id: "theme.history",
+  "themes.delete": {
+    id: "themes.delete",
+    label: "テーマを削除",
+    category: "general",
+    icon: "ti-trash",
+    permissions: ["themes.write"],
+    aiTool: true,
+    confirm: true,
+    actsAsAccount: false,
+    cheap: false,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "core",
+    description: "テーマを id で削除する。選択中だった場合は selection も解除され、デフォルトテーマにフォールバックする。無ければ removed: false。",
+    params: {"id":{"type":"string","description":"対象テーマの id"}},
+    returns: {"type":"object","description":"{ id, removed: boolean }"},
+  },
+  "themes.history": {
+    id: "themes.history",
     label: "テーマの編集履歴",
     category: "general",
     icon: "ti-history",
-    permissions: [],
+    permissions: ["themes.read"],
     aiTool: true,
     confirm: false,
     actsAsAccount: false,
@@ -3355,12 +3523,12 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     params: {"id":{"type":"string","description":"対象テーマの id"}},
     returns: {"type":"array","description":"編集前 snapshot の配列 (新しい順)"},
   },
-  "theme.install": {
-    id: "theme.install",
+  "themes.install": {
+    id: "themes.install",
     label: "MisStore からテーマを入れる",
     category: "general",
     icon: "ti-download",
-    permissions: ["theme.write","network.external"],
+    permissions: ["themes.write","network.external"],
     aiTool: true,
     confirm: true,
     actsAsAccount: false,
@@ -3373,16 +3541,16 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "MisStore (store.notedeck.io) の既製テーマをインストールする。 id は `misstore.search` で取得した値を渡す。 sha512 検証付き。インストール後は theme.apply で適用可能。",
+    description: "MisStore (store.notedeck.io) の既製テーマをインストールする。 id は `misstore.search` で取得した値を渡す。 sha512 検証付き。インストール後は themes.apply で適用可能。",
     params: {"id":{"type":"string","description":"MisStore registry 上の theme id (例: \"ame\", \"dracula\")"}},
     returns: {"type":"object","description":"{ id, name, base, installed: boolean }"},
   },
-  "theme.list": {
-    id: "theme.list",
+  "themes.list": {
+    id: "themes.list",
     label: "テーマ一覧",
     category: "general",
     icon: "ti-palette",
-    permissions: [],
+    permissions: ["themes.read"],
     aiTool: true,
     confirm: false,
     actsAsAccount: false,
@@ -3399,12 +3567,12 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     params: {},
     returns: {"type":"array","description":"インストール済みテーマ一覧"},
   },
-  "theme.read": {
-    id: "theme.read",
+  "themes.read": {
+    id: "themes.read",
     label: "テーマの内容を読む",
     category: "general",
     icon: "ti-palette",
-    permissions: [],
+    permissions: ["themes.read"],
     aiTool: true,
     confirm: false,
     actsAsAccount: false,
@@ -3417,16 +3585,16 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。 theme.update で差分編集する前の現状把握に使う。",
-    params: {"id":{"type":"string","description":"対象テーマの id (theme.list で取得)"}},
+    description: "指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。 themes.update で差分編集する前の現状把握に使う。",
+    params: {"id":{"type":"string","description":"対象テーマの id (themes.list で取得)"}},
     returns: {"type":"object","description":"{ id, name, base, props: Record<string,string> }"},
   },
-  "theme.revert": {
-    id: "theme.revert",
+  "themes.revert": {
+    id: "themes.revert",
     label: "テーマを過去の状態に戻す",
     category: "general",
     icon: "ti-arrow-back-up",
-    permissions: ["theme.write"],
+    permissions: ["themes.write"],
     aiTool: true,
     confirm: true,
     actsAsAccount: false,
@@ -3443,12 +3611,12 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     params: {"id":{"type":"string","description":"対象テーマの id"},"index":{"type":"number","description":"snapshot index (0 = 最新)"},"reason":{"type":"string","description":"この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと"}},
     returns: {"type":"object","description":"{ id, reverted: boolean, at: number }"},
   },
-  "theme.uninstall": {
-    id: "theme.uninstall",
+  "themes.uninstall": {
+    id: "themes.uninstall",
     label: "テーマを削除",
     category: "general",
     icon: "ti-trash",
-    permissions: ["theme.write"],
+    permissions: ["themes.write"],
     aiTool: true,
     confirm: true,
     actsAsAccount: false,
@@ -3465,12 +3633,12 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     params: {"id":{"type":"string","description":"削除するテーマの id"}},
     returns: {"type":"object","description":"{ id, removed: boolean }"},
   },
-  "theme.update": {
-    id: "theme.update",
+  "themes.update": {
+    id: "themes.update",
     label: "テーマを更新",
     category: "general",
     icon: "ti-palette",
-    permissions: ["theme.write"],
+    permissions: ["themes.write"],
     aiTool: true,
     confirm: true,
     actsAsAccount: false,
@@ -3483,7 +3651,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "既存テーマの props / name / base を部分更新する。指定されたフィールドだけ上書きされる。id は theme.list で取得した値を渡す。",
+    description: "既存テーマの props / name / base を部分更新する。指定されたフィールドだけ上書きされる。id は themes.list で取得した値を渡す。",
     params: {"id":{"type":"string","description":"対象テーマの id"},"name":{"type":"string","description":"新しいテーマ名","optional":true},"base":{"type":"string","description":"ダーク / ライト","optional":true,"enum":["dark","light"]},"props":{"type":"object","description":"上書きする CSS 変数 ({ key: string })。既存とマージされる","optional":true},"reason":{"type":"string","description":"この編集の理由 (なぜ変えるか)。承認ダイアログに表示され、編集履歴に記録される。 後から履歴を読む人が意図を辿れるよう、必ず渡すこと"}},
     returns: {"type":"object","description":"{ id, updated: boolean }"},
   },

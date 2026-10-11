@@ -518,7 +518,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 
 skill / widget / plugin / theme の write 系 capability は、かつて `aiTool: false` で AI の tool schema から除外していたが、このガードは AI へのプラグイン生成開放 ([#107](https://github.com/notedeck-dev/notedeck/issues/107) / [#108](https://github.com/notedeck-dev/notedeck/issues/108)) に伴い廃止された。現在の安全弁は 3 層:
 
-1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `theme.write` が許可されたときだけ通る。plugin / external principal に対しては `skills.write` / `ai.persona.write` / `ai.memory.write` が恒久 deny
+1. **permission**: `skills.write` / `widgets.write` / `plugins.write` / `themes.write` が許可されたときだけ通る。plugin / external principal に対しては `skills.write` / `ai.persona.write` / `ai.memory.write` が恒久 deny
 2. **確認ダイアログ**: `requiresConfirmation` で dispatch 直前にユーザー承認
 3. **capability 個別ガード**: `skills.create` の frontmatter 遮断 + id 内部生成、`aiscript.validate` の preflight 等
 

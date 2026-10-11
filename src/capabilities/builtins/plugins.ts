@@ -16,9 +16,9 @@ import { preflightValidateSrc } from './aiscript'
  *
  * 安全策:
  * - `create` は常に `active: false` で作成 (widget の `autoRun: false` default
- *   と同じ思想)。handler 起動は `setActive(true)` での明示承認 (= 二重承認)。
- * - `setActive(true)` (有効化) は confirm で permissions を表示。
- *   `setActive(false)` (無効化) は handler 停止のみで confirm スキップ。
+ *   と同じ思想)。handler 起動は `setEnabled(true)` での明示承認 (= 二重承認)。
+ * - `setEnabled(true)` (有効化) は confirm で permissions を表示。
+ *   `setEnabled(false)` (無効化) は handler 停止のみで confirm スキップ。
  * - `delete` / `revert` は確認ダイアログで対象情報 / 戻し先 snapshot を表示。
  *
  * 読取系 (list / read / history) も `aiTool: true`。
@@ -136,7 +136,7 @@ export const pluginsUpdateCapability = implement('plugins.update', {
   },
 })
 
-export const pluginsSetActiveCapability = implementCore('plugins.setActive')
+export const pluginsSetEnabledCapability = implementCore('plugins.setEnabled')
 
 export const pluginsDeleteCapability = implementCore('plugins.delete')
 
@@ -175,7 +175,7 @@ export const PLUGINS_BUILTIN_CAPABILITIES: readonly Command[] = [
   pluginsReadCapability,
   pluginsCreateCapability,
   pluginsUpdateCapability,
-  pluginsSetActiveCapability,
+  pluginsSetEnabledCapability,
   pluginsDeleteCapability,
   pluginsInstallCapability,
   pluginsUninstallCapability,

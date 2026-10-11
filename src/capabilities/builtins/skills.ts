@@ -54,7 +54,7 @@ export const skillsReplaceSectionCapability = implementCore(
   'skills.replaceSection',
 )
 
-export const skillsToggleCapability = implementCore('skills.toggle')
+export const skillsSetEnabledCapability = implementCore('skills.setEnabled')
 
 export const skillsHistoryCapability = implementCore('skills.history')
 
@@ -82,15 +82,19 @@ export const skillsInstallCapability = implementCore('skills.install')
  */
 export const skillsUninstallCapability = implementCore('skills.uninstall')
 
+/** `skills.delete` — id で削除する (無ければ removed: false)。予約 skill は本体が拒否する */
+export const skillsDeleteCapability = implementCore('skills.delete')
+
 export const SKILLS_BUILTIN_CAPABILITIES: readonly Command[] = [
   skillsListCapability,
   skillsReadCapability,
   skillsCreateCapability,
   skillsAppendCapability,
   skillsReplaceSectionCapability,
-  skillsToggleCapability,
+  skillsSetEnabledCapability,
   skillsInstallCapability,
   skillsUninstallCapability,
+  skillsDeleteCapability,
   skillsHistoryCapability,
   skillsRevertCapability,
 ]

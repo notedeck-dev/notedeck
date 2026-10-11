@@ -189,10 +189,10 @@ describe('presetFromMap', () => {
       preset: 'safe',
       custom: {} as PermissionsConfig['custom'],
     })
-    map['theme.write'] = true
+    map['themes.write'] = true
     const result = presetFromMap(map)
     expect(result.preset).toBe('custom')
-    expect(result.custom['theme.write']).toBe(true)
+    expect(result.custom['themes.write']).toBe(true)
   })
 })
 

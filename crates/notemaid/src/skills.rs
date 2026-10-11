@@ -819,7 +819,7 @@ pub fn set_active(core: &Core, id: &str, active: bool) -> Result<SkillMeta> {
     let dir = base_dir(core)?;
     let loaded = load_all(&dir, now_ms()).items;
     let Some(mut item) = loaded.into_iter().find(|s| s.id == id) else {
-        return Err(not_found("skills.toggle", id));
+        return Err(not_found("skills.setEnabled", id));
     };
     reject_reserved(&item, "toggled (empty its body to silence it)")?;
     let next = active.then_some(true);
