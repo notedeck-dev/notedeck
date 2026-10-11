@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PluginItem } from '@/stores/plugins'
 import type { SkillItem } from '@/stores/skills'
+import type { ThemeItem } from '@/stores/theme'
 import type { WidgetItem } from '@/stores/widgets'
 
 const h = vi.hoisted(() => ({
@@ -53,9 +54,15 @@ const h = vi.hoisted(() => ({
     recordStoreBaseline: vi.fn(async () => undefined),
   },
   themeStore: {
-    installedThemes: [] as unknown[],
-    installTheme: vi.fn(async (_json: string) => true),
-    recordStoreBaseline: vi.fn(),
+    items: [] as unknown[],
+    add: vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    applyStoreUpdate: vi.fn(async () => true),
+    link: vi.fn(async () => true),
+    recordStoreBaseline: vi.fn(async () => undefined),
   },
   launchPlugin: vi.fn(async () => undefined),
   parsePluginMeta: vi.fn(),
@@ -185,8 +192,7 @@ beforeEach(() => {
   h.pluginsStore.items = []
   h.widgetsStore.items = []
   h.queriesStore.items = []
-  h.themeStore.installedThemes = []
-  h.themeStore.installTheme.mockResolvedValue(true)
+  h.themeStore.items = []
   h.confirm.mockResolvedValue(true)
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -859,86 +865,95 @@ describe('installWidget', () => {
   })
 })
 
+/** 既存の個体 (既定: ストア 'ent-theme' 由来、id 'custom-1') */
+function existingTheme(over: Partial<ThemeItem>): ThemeItem {
+  return {
+    id: 'custom-1',
+    name: 'Test Theme',
+    store: { id: 'ent-theme' },
+    createdAt: 0,
+    updatedAt: 0,
+    scope: { kind: 'shared', global: false, installedFor: [] },
+    content: { base: 'dark', props: { accent: '#f00' } },
+    extra: {},
+    ...over,
+  }
+}
+
 describe('installTheme', () => {
   const source = "{ id: 'ent-theme', props: { accent: '#f00' } }"
 
-  it('injects $notedeck (storeId / storeSha512) and unions installedFor with the existing install', async () => {
+  it('既存 (storeId 一致) は本体とストア由来を上書きし、紐付けを足す (ローカル ID と name は維持)', async () => {
     const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      {
-        id: 'ent-theme',
-        name: 'Test Theme',
-        $notedeck: { storeId: 'ent-theme', installedFor: ['acc1'] },
-      },
+    h.themeStore.items = [
+      existingTheme({
+        name: 'My Renamed',
+        scope: { kind: 'shared', global: false, installedFor: ['acc1'] },
+        content: { base: 'dark', props: { accent: '#0f0' } },
+      }),
     ]
     fetchMock.mockResolvedValue(okText(source))
     await store.installTheme(themeEntry({ sha512: sha512Hex(source) }), [
       'acc2',
       'acc1',
     ])
-    expect(h.themeStore.installTheme).toHaveBeenCalledTimes(1)
-    const json = h.themeStore.installTheme.mock.calls[0]?.[0] as string
-    const parsed = JSON.parse(json)
-    expect(parsed.id).toBe('ent-theme')
-    expect(parsed.$notedeck).toEqual({
-      storeId: 'ent-theme',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
-      installedFor: ['acc1', 'acc2'],
+    expect(h.themeStore.add).not.toHaveBeenCalled()
+    expect(h.themeStore.applyStoreUpdate).toHaveBeenCalledWith('custom-1', {
+      content: { base: 'dark', props: { accent: '#f00' } },
+      store: { id: 'ent-theme', sha512: sha512Hex(source), version: '1.0.0' },
     })
+    expect(h.themeStore.link.mock.calls).toEqual([
+      ['custom-1', { kind: 'account', key: 'acc2' }],
+      ['custom-1', { kind: 'account', key: 'acc1' }],
+    ])
     expect(store.installingTheme).toBeNull()
   })
 
-  it('既存 (storeId 一致) は配布内 UUID が変わってもローカル ID と name を維持する (#913)', async () => {
+  it('新規はローカル ID = storeId で、紐付けはカラムの文脈のアカウント', async () => {
     const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      {
-        id: 'custom-999',
-        name: 'My Renamed',
-        $notedeck: { storeId: 'ent-theme' },
-      },
-    ]
-    const changed = "{ id: 'new-uuid', name: 'Distributed', props: { a: '1' } }"
-    fetchMock.mockResolvedValue(okText(changed))
-    await store.installTheme(themeEntry({ sha512: sha512Hex(changed) }))
-    const json = h.themeStore.installTheme.mock.calls[0]?.[0] as string
-    const parsed = JSON.parse(json)
-    expect(parsed.id).toBe('custom-999')
-    expect(parsed.name).toBe('My Renamed')
-    expect(parsed.$notedeck.storeId).toBe('ent-theme')
+    fetchMock.mockResolvedValue(okText(source))
+    await store.installTheme(themeEntry({ sha512: sha512Hex(source) }), [
+      'acc1',
+    ])
+    expect(h.themeStore.add).toHaveBeenCalledTimes(1)
+    expect(h.themeStore.add.mock.calls[0]?.[0]).toMatchObject({
+      id: 'ent-theme',
+      name: 'Test Theme',
+      store: { id: 'ent-theme', sha512: sha512Hex(source), version: '1.0.0' },
+      scope: { kind: 'shared', global: false, installedFor: ['acc1'] },
+      content: { base: 'dark', props: { accent: '#f00' } },
+    })
   })
 
-  it('omits installedFor when no account context is given', async () => {
+  it('storeId 不一致の既存 ID が占有していたら suffix で避ける (#913)', async () => {
     const store = useMisStoreStore()
+    h.themeStore.items = [existingTheme({ id: 'ent-theme', store: undefined })]
     fetchMock.mockResolvedValue(okText(source))
     await store.installTheme(themeEntry({ sha512: sha512Hex(source) }))
-    const json = h.themeStore.installTheme.mock.calls[0]?.[0] as string
-    expect(JSON.parse(json).$notedeck).toEqual({
-      storeId: 'ent-theme',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+    expect(h.themeStore.add.mock.calls[0]?.[0]).toMatchObject({
+      id: 'ent-theme-2',
+      scope: { kind: 'shared', global: false, installedFor: [] },
     })
   })
 
-  it('rejects when the theme store reports failure', async () => {
+  it('props の無いソースはテーマではないので拒否する', async () => {
     const store = useMisStoreStore()
-    fetchMock.mockResolvedValue(okText(source))
-    h.themeStore.installTheme.mockResolvedValue(false)
+    const bare = "{ id: 'ent-theme', name: 'no props' }"
+    fetchMock.mockResolvedValue(okText(bare))
     await expect(
-      store.installTheme(themeEntry({ sha512: sha512Hex(source) })),
+      store.installTheme(themeEntry({ sha512: sha512Hex(bare) })),
     ).rejects.toThrow(/テーマのインストールに失敗/)
+    expect(h.themeStore.add).not.toHaveBeenCalled()
     expect(store.installingTheme).toBeNull()
   })
 
-  it('isThemeInstalled は $notedeck.storeId のみで照合する (内部 ID 一致では真にならない #913)', () => {
+  it('isThemeInstalled は store.id のみで照合する (内部 ID 一致では真にならない #913)', () => {
     const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      { id: 'custom-123', $notedeck: { storeId: 'ent-theme' } },
-    ]
+    h.themeStore.items = [existingTheme({})]
     expect(store.isThemeInstalled(themeEntry())).toBe(true)
-    h.themeStore.installedThemes = [{ id: 'ent-theme' }]
+    h.themeStore.items = [existingTheme({ id: 'ent-theme', store: undefined })]
     expect(store.isThemeInstalled(themeEntry())).toBe(false)
-    h.themeStore.installedThemes = [{ id: 'other' }]
+    h.themeStore.items = [existingTheme({ id: 'other', store: undefined })]
     expect(store.isThemeInstalled(themeEntry())).toBe(false)
   })
 })
@@ -1000,20 +1015,15 @@ describe('更新検知 (#1040)', () => {
     expect(store.hasQueryUpdate(queryEntry({ sha512: 'sha-new' }))).toBe(true)
   })
 
-  it('hasThemeUpdate は $notedeck.storeId / storeSha512 で照合する', () => {
+  it('hasThemeUpdate は store.id / sha512 で照合する', () => {
     const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      {
-        id: 'custom-1',
-        $notedeck: { storeId: 'ent-theme', storeSha512: 'sha-old' },
-      },
+    h.themeStore.items = [
+      existingTheme({ store: { id: 'ent-theme', sha512: 'sha-old' } }),
     ]
     expect(store.hasThemeUpdate(themeEntry({ sha512: 'sha-new' }))).toBe(true)
     expect(store.hasThemeUpdate(themeEntry({ sha512: 'sha-old' }))).toBe(false)
-    // baseline 前 (storeSha512 未記録) は false
-    h.themeStore.installedThemes = [
-      { id: 'custom-1', $notedeck: { storeId: 'ent-theme' } },
-    ]
+    // baseline 前 (sha512 未記録) は false
+    h.themeStore.items = [existingTheme({})]
     expect(store.hasThemeUpdate(themeEntry({ sha512: 'sha-new' }))).toBe(false)
   })
 })
@@ -1091,18 +1101,16 @@ describe('baseline 無通知記録 (#1040)', () => {
     })
   })
 
-  it('fetchThemes: $notedeck.storeSha512 未記録のテーマへ記録する', async () => {
+  it('fetchThemes: sha512 未記録のテーマへ記録する', async () => {
     const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      { id: 'custom-1', $notedeck: { storeId: 'ent-theme' } },
-    ]
+    h.themeStore.items = [existingTheme({})]
     fetchMock.mockResolvedValue(
       okJson({ themes: [themeEntry({ sha512: 't-sha' })] }),
     )
     await store.fetchThemes()
     expect(h.themeStore.recordStoreBaseline).toHaveBeenCalledWith('custom-1', {
-      storeSha512: 't-sha',
-      storeVersion: '1.0.0',
+      sha512: 't-sha',
+      version: '1.0.0',
     })
   })
 
@@ -1277,42 +1285,36 @@ describe('更新適用 (#1040)', () => {
     expect(h.skillsStore.applyStoreUpdate).not.toHaveBeenCalled()
   })
 
-  it('installTheme: 見た目が変わらない再インストール (installedFor 追加だけ) は確認しない (#981)', async () => {
+  it('installTheme: 見た目が変わらない再インストール (紐付け追加だけ) は確認しない (#981)', async () => {
     const store = useMisStoreStore()
     const source = "{ id: 'ent-theme', name: 'T', props: { accent: '#f00' } }"
-    h.themeStore.installedThemes = [
-      {
-        id: 'ent-theme',
-        name: 'T',
-        props: { accent: '#f00' },
-        $notedeck: { storeId: 'ent-theme', installedFor: ['acc1'] },
-      },
+    h.themeStore.items = [
+      existingTheme({
+        scope: { kind: 'shared', global: false, installedFor: ['acc1'] },
+      }),
     ]
     fetchMock.mockResolvedValue(okText(source))
     await store.installTheme(themeEntry({ sha512: sha512Hex(source) }), [
       'acc2',
     ])
     expect(h.confirm).not.toHaveBeenCalled()
-    expect(h.themeStore.installTheme).toHaveBeenCalledTimes(1)
+    expect(h.themeStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
+    expect(h.themeStore.link).toHaveBeenCalledWith('custom-1', {
+      kind: 'account',
+      key: 'acc2',
+    })
   })
 
   it('installTheme: props が変わる再インストールは diff 確認を通す (#981)', async () => {
     const store = useMisStoreStore()
     const source = "{ id: 'ent-theme', name: 'T', props: { accent: '#0f0' } }"
-    h.themeStore.installedThemes = [
-      {
-        id: 'ent-theme',
-        name: 'T',
-        props: { accent: '#f00' },
-        $notedeck: { storeId: 'ent-theme' },
-      },
-    ]
+    h.themeStore.items = [existingTheme({})]
     fetchMock.mockResolvedValue(okText(source))
     await store.installTheme(themeEntry({ sha512: sha512Hex(source) }))
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     const diff = opts.diff as { old: string; new: string }
-    expect(diff.old).toContain('"accent": "#f00"')
-    expect(diff.new).toContain('"accent": "#0f0"')
+    expect(diff.old).toContain("accent: '#f00'")
+    expect(diff.new).toContain("accent: '#0f0'")
   })
 
   it('updateWidget: diff 付き確認 → 承認で確認に使ったソースをそのまま適用する', async () => {
@@ -1518,17 +1520,14 @@ describe('更新適用 (#1040)', () => {
     )
   })
 
-  it('updateTheme: json5 diff で確認し、確認に使った全文をそのまま installTheme に渡す', async () => {
+  it('updateTheme: ファイルに書く形の json5 diff で確認し、本体とストア由来だけ適用する', async () => {
     const store = useMisStoreStore()
     const source = "{ id: 'new-uuid', props: { accent: '#0f0' } }"
-    h.themeStore.installedThemes = [
-      {
-        id: 'custom-1',
+    h.themeStore.items = [
+      existingTheme({
         name: 'My Theme',
-        base: 'dark',
-        props: { accent: '#f00' },
-        $notedeck: { storeId: 'ent-theme', storeSha512: 'old-sha' },
-      },
+        store: { id: 'ent-theme', sha512: 'old-sha' },
+      }),
     ]
     fetchMock.mockResolvedValue(okText(source))
     await expect(
@@ -1540,13 +1539,17 @@ describe('更新適用 (#1040)', () => {
     expect(opts.diff.language).toBe('json5')
     expect(opts.diff.old).toContain('#f00')
     // ローカル ID / 改名は維持される (#913 と同じ境界)
-    const applied = JSON.parse(opts.diff.new)
-    expect(applied.id).toBe('custom-1')
-    expect(applied.name).toBe('My Theme')
-    expect(applied.$notedeck.storeSha512).toBe(sha512Hex(source))
-    expect(applied.$notedeck.installedFor).toEqual(['acc1'])
-    // 不変条件: 確認に使った全文 = 書き込む全文
-    expect(h.themeStore.installTheme).toHaveBeenCalledWith(opts.diff.new)
+    expect(opts.diff.new).toContain("id: 'custom-1'")
+    expect(opts.diff.new).toContain("name: 'My Theme'")
+    expect(opts.diff.new).toContain(`storeSha512: '${sha512Hex(source)}'`)
+    expect(h.themeStore.applyStoreUpdate).toHaveBeenCalledWith('custom-1', {
+      content: { base: 'dark', props: { accent: '#0f0' } },
+      store: { id: 'ent-theme', sha512: sha512Hex(source), version: '1.0.0' },
+    })
+    expect(h.themeStore.link).toHaveBeenCalledWith('custom-1', {
+      kind: 'account',
+      key: 'acc1',
+    })
   })
 
   it('更新も sha 不一致なら index 再取得の 1 回リトライを経て新 entry を適用する', async () => {

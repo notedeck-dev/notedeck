@@ -3,8 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { useThemeStore } from '@/stores/theme'
-import type { MisskeyTheme } from '@/theme/types'
+import { type ThemeItem, useThemeStore } from '@/stores/theme'
 import ThemeEditorContent from './ThemeEditorContent.vue'
 
 /** 外部変更の取り込み (#981) の配線検証。詳細は WidgetEditContent の同名テスト。 */
@@ -13,16 +12,24 @@ vi.mock('@/utils/historyFs', () => ({
   pushSnapshot: vi.fn(async () => undefined),
 }))
 
-function makeTheme(props: Record<string, string>): MisskeyTheme {
-  return { id: 'th-sync', name: 'T', base: 'dark', props }
+function makeTheme(props: Record<string, string>, name = 'T'): ThemeItem {
+  return {
+    id: 'th-sync',
+    name,
+    createdAt: 0,
+    updatedAt: 0,
+    scope: { kind: 'shared', global: false, installedFor: [] },
+    content: { base: 'dark', props },
+    extra: {},
+  }
 }
 
 /** mount したものはテストの終わりで unmount する (プレビューの debounce が環境の
  *  破棄後に発火して document を触らないように) */
 const mounted: { unmount: () => void }[] = []
 
-async function mountEditor(theme: MisskeyTheme) {
-  useThemeStore().installedThemes = [theme]
+async function mountEditor(theme: ThemeItem) {
+  useThemeStore().items = [theme]
   const wrapper = mount(ThemeEditorContent, {
     props: { initialThemeId: theme.id },
     shallow: true,
@@ -67,9 +74,7 @@ describe('ThemeEditorContent — 外部変更の取り込み (#981)', () => {
     expect(nameOf(wrapper)).toBe('T')
 
     // 履歴からの revert / AI の theme.update に相当する外部からの書き換え
-    store.installedThemes = [
-      { id: 'th-sync', name: '戻したあとの名前', base: 'dark', props: {} },
-    ]
+    store.items = [makeTheme({}, '戻したあとの名前')]
     await nextTick()
     expect(nameOf(wrapper)).toBe('戻したあとの名前')
   })
@@ -83,9 +88,7 @@ describe('ThemeEditorContent — 外部変更の取り込み (#981)', () => {
     const input = wrapper.find('input[type="text"]')
     await input.setValue('編集中の名前')
 
-    store.installedThemes = [
-      { id: 'th-sync', name: '戻したあとの名前', base: 'dark', props: {} },
-    ]
+    store.items = [makeTheme({}, '戻したあとの名前')]
     await nextTick()
     expect(nameOf(wrapper)).toBe('編集中の名前')
   })

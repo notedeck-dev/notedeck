@@ -4,6 +4,7 @@ import type {
   DistributableMeta,
   FileContext,
 } from '@/services/distributable'
+import type { MisskeyTheme } from '@/theme/types'
 
 /**
  * テーマ (`themes/<slug>.ndtheme.json5` 単一ファイル) の codec (#1202 段階 0)。
@@ -50,15 +51,36 @@ export interface ThemeContent {
 export type ThemeItem = DistributableMeta<ThemeContent, Record<string, never>>
 
 /** ID 凍結の欠損判定 (single-file collection と同じ規則) */
-function isValidId(v: unknown): v is string {
+export function isValidThemeId(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= 256
+}
+
+/**
+ * コンパイラ / 適用器 / プレビューに渡す Misskey 互換の形 (id / name / base /
+ * props)。envelope の付帯情報 (store / scope / 時刻) は持たない
+ */
+export function misskeyThemeOf(item: ThemeItem): MisskeyTheme {
+  return {
+    id: item.id,
+    name: item.name,
+    base: item.content.base,
+    props: item.content.props,
+  }
+}
+
+/** 見た目に効く部分 (base / props) の同一性。メタの差は見ない */
+export function sameThemeContent(a: ThemeContent, b: ThemeContent): boolean {
+  if (a.base !== b.base) return false
+  const ka = Object.keys(a.props)
+  if (ka.length !== Object.keys(b.props).length) return false
+  return ka.every((k) => a.props[k] === b.props[k])
 }
 
 function fromFile(file: ThemeFileInput, ctx: FileContext): ThemeItem {
   const nd = file.$notedeck ?? {}
   return {
     // ID 凍結の実効値 = `custom-` + 完全ファイル名 (themeFileSync と同値)
-    id: isValidId(file.id) ? file.id : `custom-${ctx.filename}`,
+    id: isValidThemeId(file.id) ? file.id : `custom-${ctx.filename}`,
     name: file.name || ctx.filename,
     createdAt: typeof nd.createdAt === 'number' ? nd.createdAt : ctx.now,
     updatedAt: typeof nd.updatedAt === 'number' ? nd.updatedAt : ctx.now,

@@ -7,6 +7,11 @@ import {
   type ScopeTarget,
   withScopeTarget,
 } from '@/services/distributable'
+import {
+  sameThemeContent,
+  type ThemeContent,
+  themeCodec,
+} from '@/services/distributableCodecs/themeCodec'
 import { casefold, resolveAvailable } from '@/services/settingsSlug'
 import { type Frontmatter, parseSkillFile } from '@/services/skillFrontmatter'
 import { findWidgetByStore } from '@/services/widgetInstances'
@@ -18,9 +23,8 @@ import {
   type SkillStorePatch,
   useSkillsStore,
 } from '@/stores/skills'
-import { useThemeStore } from '@/stores/theme'
+import { type ThemeItem, useThemeStore } from '@/stores/theme'
 import { useWidgetsStore, type WidgetItem } from '@/stores/widgets'
-import type { MisskeyTheme } from '@/theme/types'
 
 const STORE_BASE_URL = 'https://store.notedeck.io'
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
@@ -262,31 +266,17 @@ function buildSkillStorePatch(
 }
 
 /**
- * ストア配布テーマの適用 JSON を組み立てる (#913 の境界)。既存インストールが
- * あれば配布内 UUID が変わってもローカル ID・ローカル改名を維持し
- * (themeStore.installTheme が同 ID を既存対応表のファイルへ書く)、
- * installedFor は既存と forAccountKeys (アカウントの安定キー、#1113) の union。
+ * ストア配布テーマのソース (Misskey 互換の JSON5) を本文に読む。`props` の無い
+ * ものはテーマではない
  */
-function buildThemeWithMeta(
-  parsed: Record<string, unknown>,
-  existing: MisskeyTheme | undefined,
-  e: StoreThemeEntry,
-  hash: string,
-  forAccountKeys: string[],
-): Record<string, unknown> {
-  const installedFor = Array.from(
-    new Set([...(existing?.$notedeck?.installedFor ?? []), ...forAccountKeys]),
-  )
+function parseThemeSource(source: string): ThemeContent {
+  const parsed = themeCodec.decode(source)
+  if (!parsed || typeof parsed !== 'object' || !parsed.props) {
+    throw new Error(i18n.ts._misstore.themeInstallFailed)
+  }
   return {
-    ...parsed,
-    ...(existing ? { id: existing.id, name: existing.name } : {}),
-    $notedeck: {
-      ...((parsed.$notedeck as Record<string, unknown> | undefined) ?? {}),
-      storeId: e.id,
-      storeSha512: hash,
-      storeVersion: e.version,
-      ...(installedFor.length > 0 ? { installedFor } : {}),
-    },
+    base: parsed.base === 'light' ? 'light' : 'dark',
+    props: parsed.props,
   }
 }
 
@@ -430,14 +420,17 @@ export const useMisStoreStore = defineStore('misstore', () => {
   )
   const themeFeed = createRegistryFeed<StoreThemeEntry>('themes', (entry) => {
     const store = useThemeStore()
-    const t = store.installedThemes.find(
-      (t) => t.$notedeck?.storeId === entry.id,
-    )
+    const t = store.items.find((t) => t.store?.id === entry.id)
     if (!t) return []
     return [
       {
-        storeSha512: t.$notedeck?.storeSha512,
-        recordBaseline: (rec) => store.recordStoreBaseline(t.id, rec),
+        storeSha512: t.store?.sha512,
+        recordBaseline: (rec) => {
+          void store.recordStoreBaseline(t.id, {
+            sha512: rec.storeSha512,
+            version: rec.storeVersion,
+          })
+        },
       },
     ]
   })
@@ -849,10 +842,13 @@ export const useMisStoreStore = defineStore('misstore', () => {
 
   /**
    * MisStore からテーマをインストールする。
-   * forAccountKeys (アカウントの安定キー、#1113) を installedFor に追加する。
-   * - per-account カラムから呼ぶ場合: [accountId]
-   * - cross-account (全アカウント) カラムから呼ぶ場合: 全 logged-in account の id 一覧
+   * forAccountKeys (アカウントの安定キー、#1113) を紐付けに足す。
+   * - per-account カラムから呼ぶ場合: [そのアカウントのキー]
+   * - cross-account (全アカウント) カラムから呼ぶ場合: 全 logged-in account のキー
    * - 設定経由など account コンテキスト無し: 空配列 (どの account にも紐付かない)
+   *
+   * 照合キーは storeId のみ (#913)。既存があれば本体の更新 (diff 確認を通す) +
+   * 紐付けの追加、無ければ新規 (ローカル ID = storeId、占有時は連番 suffix)
    */
   async function installTheme(
     entry: StoreThemeEntry,
@@ -865,37 +861,29 @@ export const useMisStoreStore = defineStore('misstore', () => {
         hash,
         entry: e,
       } = await fetchVerifiedSource(entry, refetchThemeEntry(entry.id))
-
-      const JSON5 = (await import('json5')).default
-      const parsed = JSON5.parse(source)
-      // 照合キーは storeId のみ (#913)。既存インストールがあれば
-      // installedFor を引き継ぎ、新規 ID と union
+      const content = parseThemeSource(source)
       const themeStore = useThemeStore()
-      const existing = themeStore.installedThemes.find(
-        (t) => t.$notedeck?.storeId === e.id,
-      )
+      const existing = themeStore.items.find((t) => t.store?.id === e.id)
       if (existing) {
         // 再インストール = 実質更新。ローカル編集を無言で消さない (#981)
         await confirmThemeUpdate(
           existing,
-          { parsed, hash, entry: e },
+          { content, hash, entry: e },
           forAccountKeys,
           { alwaysConfirm: false },
         )
         return
       }
-
-      const withMeta = buildThemeWithMeta(
-        parsed,
-        undefined,
-        e,
-        hash,
-        forAccountKeys,
-      )
-      const ok = await themeStore.installTheme(JSON.stringify(withMeta))
-      if (!ok) {
-        throw new Error(i18n.ts._misstore.themeInstallFailed)
-      }
+      await themeStore.add({
+        id: resolveAvailable(e.id, (c) =>
+          themeStore.items.some((t) => casefold(t.id) === c),
+        ),
+        name: e.name,
+        store: { id: e.id, sha512: hash, version: e.version },
+        scope: { kind: 'shared', global: false, installedFor: forAccountKeys },
+        content,
+        extra: {},
+      })
     } finally {
       installingTheme.value = null
     }
@@ -1128,54 +1116,46 @@ export const useMisStoreStore = defineStore('misstore', () => {
     }
   }
 
-  /** テーマの「見た目に効く部分」だけの同一性キー (メタの差は無視する)。 */
-  function themeBodyKey(theme: Record<string, unknown> | MisskeyTheme): string {
-    const t = theme as Record<string, unknown>
-    return JSON.stringify([t.name, t.base, t.props])
-  }
-
   /**
    * 取得済みソースを既存テーマへ適用する (#1040 / #981)。
    * installTheme の既存分岐と updateTheme の共用点 (confirmSkillUpdate と同型)。
+   * 見た目が変わらない再インストール (別アカウントへの紐付け追加だけ) では
+   * 確認を出さない。確認の diff はファイルに書く形 (codec の projection) 同士
    */
   async function confirmThemeUpdate(
-    existing: MisskeyTheme,
-    fetched: {
-      parsed: Record<string, unknown>
-      hash: string
-      entry: StoreThemeEntry
-    },
+    existing: ThemeItem,
+    fetched: { content: ThemeContent; hash: string; entry: StoreThemeEntry },
     forAccountKeys: string[],
     opts: { alwaysConfirm: boolean },
   ): Promise<boolean> {
-    const { parsed, hash, entry: e } = fetched
-    const withMeta = buildThemeWithMeta(
-      parsed,
-      existing,
-      e,
-      hash,
-      forAccountKeys,
-    )
-    // fileBase は runtime-only (書込前に strip される) なので diff に出さない
-    const { fileBase: _fileBase, ...currentTheme } = existing
-    const newJson = JSON.stringify(withMeta, null, 2)
-    const currentJson = JSON.stringify(currentTheme, null, 2)
-    // 見た目が変わらない再インストール (別アカウントへの installedFor 追加
-    // だけ) で確認を出さない。判定は表示に効く部分のみ
-    const changed = themeBodyKey(withMeta) !== themeBodyKey(currentTheme)
+    const { content, hash, entry: e } = fetched
+    const changed = !sameThemeContent(existing.content, content)
     if (opts.alwaysConfirm || changed) {
+      const next: ThemeItem = {
+        ...existing,
+        content,
+        store: { id: e.id, sha512: hash, version: e.version },
+      }
       const ok = await useConfirm().confirm({
         title: i18n.ts._misstore.updateTheme,
         message: updateConfirmMessage(existing.name || e.name, e),
         okLabel: i18n.ts._common.update,
-        diff: { old: currentJson, new: newJson, language: 'json5' },
+        diff: {
+          old: themeCodec.encode(themeCodec.toFile(existing)),
+          new: themeCodec.encode(themeCodec.toFile(next)),
+          language: 'json5',
+        },
       })
       if (!ok) return false
     }
-    // 不変条件: 確認に使った全文をそのまま書き込む (#981)
-    const applied = await useThemeStore().installTheme(newJson)
-    if (!applied) {
-      throw new Error(i18n.ts._misstore.themeInstallFailed)
+    const themeStore = useThemeStore()
+    // 上書き更新: 本体とストア由来のみ。ローカル ID・改名・紐付けは維持する
+    await themeStore.applyStoreUpdate(existing.id, {
+      content,
+      store: { id: e.id, sha512: hash, version: e.version },
+    })
+    for (const key of forAccountKeys) {
+      await themeStore.link(existing.id, { kind: 'account', key })
     }
     return true
   }
@@ -1185,9 +1165,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
     forAccountKeys: string[] = [],
   ): Promise<boolean> {
     const themeStore = useThemeStore()
-    const existing = themeStore.installedThemes.find(
-      (t) => t.$notedeck?.storeId === entry.id,
-    )
+    const existing = themeStore.items.find((t) => t.store?.id === entry.id)
     if (!existing) return false
     installingTheme.value = entry.id
     try {
@@ -1196,11 +1174,9 @@ export const useMisStoreStore = defineStore('misstore', () => {
         hash,
         entry: e,
       } = await fetchVerifiedSource(entry, refetchThemeEntry(entry.id))
-      const JSON5 = (await import('json5')).default
-      const parsed = JSON5.parse(source)
       return await confirmThemeUpdate(
         existing,
-        { parsed, hash, entry: e },
+        { content: parseThemeSource(source), hash, entry: e },
         forAccountKeys,
         { alwaysConfirm: true },
       )

@@ -34,8 +34,13 @@ vi.mock('@/utils/settingsFs', async () => {
     readCustomCss: async () => '',
     writeCustomCss: async () => undefined,
     readThemeDropInRecordVersioned: async () => ({ content: '', version: 0 }),
+    writeThemeDropInRecord: async () => undefined,
   }
 })
+
+vi.mock('@/utils/historyFs', () => ({
+  pushSnapshot: vi.fn(async () => undefined),
+}))
 
 import { useThemeStore } from './theme'
 
@@ -58,7 +63,7 @@ describe('useThemeStore — 読み込みに失敗したとき', () => {
     const store = useThemeStore()
     store.init()
     // 読み込み (失敗) が済むのを待つ
-    await new Promise((r) => setTimeout(r, 0))
+    await store.whenReady()
     listFails = false
 
     await store.installTheme(

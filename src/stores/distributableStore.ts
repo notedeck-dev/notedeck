@@ -74,6 +74,12 @@ export interface DistributableStoreHooks<Item> {
    * (Mk:save 領域 / サイドバーの並び) の掃除はここ。退避は `snapshotForUndo` が先
    */
   afterRemove?(item: Item): void
+  /**
+   * 初回読込に失敗した (一覧が取れなかった)。この起動中はファイルに一切書かない
+   * (一覧が空のまま同じ ID の個体を入れると既存のファイルの横に別名で書かれ、
+   * 次の起動で片方が読み込まれなくなる)。利用者への通知はここで
+   */
+  onLoadFailed?(error: unknown): void
 }
 
 export interface DistributableStoreDeclaration<
@@ -130,6 +136,8 @@ export function createDistributableStore<
   const hooks = decl.hooks ?? {}
 
   let loaded = false
+  // 初回読込に失敗した起動ではファイルに書かない (hooks.onLoadFailed 参照)
+  let loadFailed = false
   // 変更系操作のファイル反映は「初回読込 (対応表確定) + 初回移行」の完了を
   // 待つゲート (#913)
   let resolveReady: (() => void) | undefined
@@ -190,7 +198,9 @@ export function createDistributableStore<
           .catch((e) => console.warn(`${tag} history sweep failed:`, e))
       }
     } catch (e) {
+      loadFailed = true
       console.warn(`${tag} file storage init failed`, e)
+      hooks.onLoadFailed?.(e)
     }
   }
 
@@ -213,6 +223,7 @@ export function createDistributableStore<
     persistMirror()
     if (!settingsFs.isTauri) return
     await ready
+    if (loadFailed) return
     try {
       // ref の深い reactivity で items.value の要素は proxy になるため、
       // 占有判定の「操作対象自身は占有とみなさない」参照一致が崩れない
@@ -314,6 +325,7 @@ export function createDistributableStore<
     // 改名はファイルを rename で追随させる (ID 不変)。完了を待ってから保存
     if (settingsFs.isTauri && patch.name && patch.name !== prev.name) {
       await ready
+      if (loadFailed) return true
       try {
         await decl.files.renameItemFiles(next, items.value)
       } catch (e) {
@@ -423,7 +435,7 @@ export function createDistributableStore<
     if (settingsFs.isTauri) {
       await ready
       try {
-        await decl.files.deleteItemFiles(target)
+        if (!loadFailed) await decl.files.deleteItemFiles(target)
       } catch (e) {
         console.warn(`${tag} delete failed`, e)
       }

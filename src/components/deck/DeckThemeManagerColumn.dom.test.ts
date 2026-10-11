@@ -8,7 +8,7 @@ import { type Account, useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { type StoreThemeEntry, useMisStoreStore } from '@/stores/misstore'
 import { useSettingsStore } from '@/stores/settings'
-import { useThemeStore } from '@/stores/theme'
+import { type ThemeItem, useThemeStore } from '@/stores/theme'
 import { useWindowsStore } from '@/stores/windows'
 import type { MisskeyTheme } from '@/theme/types'
 import { STORAGE_KEYS } from '@/utils/storage'
@@ -75,16 +75,33 @@ function theme(
   return { id, name, base: 'dark', props: { bg: '#111111' }, ...extra }
 }
 
-/** サイドロード (storeId 無し) のテーマ。installedFor は呼び手が決める */
-function local(id: string, name: string, installedFor: string[]) {
-  return theme(id, name, { $notedeck: { installedFor } })
+/** サイドロード (ストア由来でない) の個体。紐付けは呼び手が決める */
+function local(
+  id: string,
+  name: string,
+  installedFor: string[],
+  partial: Partial<ThemeItem> = {},
+): ThemeItem {
+  return {
+    id,
+    name,
+    createdAt: 0,
+    updatedAt: 0,
+    scope: { kind: 'shared', global: false, installedFor },
+    content: { base: 'dark', props: { bg: '#111111' } },
+    extra: {},
+    ...partial,
+  }
 }
 
-/** MisStore 由来 (storeId 付き) のテーマ */
+/** MisStore 由来の個体 */
 function fromStore(id: string, name: string, installedFor: string[]) {
-  return theme(id, name, {
-    $notedeck: { storeId: `${id}-store`, installedFor },
-  })
+  return local(id, name, installedFor, { store: { id: `${id}-store` } })
+}
+
+function installedForOf(store: ReturnType<typeof useThemeStore>, id: string) {
+  const s = store.get(id)?.scope
+  return s?.kind === 'shared' ? s.installedFor : undefined
 }
 
 const STORE_ENTRY: StoreThemeEntry = {
@@ -225,7 +242,7 @@ describe('DeckThemeManagerColumn', () => {
 
   it('全アカウントカラムはサイドロードとストア配布を出自ごとに分け、サイドロードだけ編集できる', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [
+    themeStore.items = [
       local('side-1', 'Side One', [KEY_A]),
       fromStore('st-1', 'Store One', [KEY_B]),
     ]
@@ -263,7 +280,7 @@ describe('DeckThemeManagerColumn', () => {
 
   it('アカウントカラムは installedFor にそのアカウントを含むテーマだけを出す', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [
+    themeStore.items = [
       local('side-a', 'Side A', [KEY_A]),
       local('side-b', 'Side B', [KEY_B]),
       fromStore('st-ab', 'Store AB', [KEY_A, KEY_B]),
@@ -280,9 +297,11 @@ describe('DeckThemeManagerColumn', () => {
 
   it('現在のモードと違う base のテーマは出さない', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [
+    themeStore.items = [
       local('dark-1', 'Dark One', [KEY_A]),
-      { ...local('light-1', 'Light One', [KEY_A]), base: 'light' },
+      local('light-1', 'Light One', [KEY_A], {
+        content: { base: 'light', props: { bg: '#eeeeee' } },
+      }),
     ]
     const wrapper = mountColumn(null)
     await flushPromises()
@@ -293,7 +312,7 @@ describe('DeckThemeManagerColumn', () => {
 
   it('検索語を入れると名前の一致するテーマだけに絞り、空セクションは消える', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [
+    themeStore.items = [
       local('side-1', 'Sunset', [KEY_A]),
       fromStore('st-1', 'Midnight', [KEY_A]),
     ]
@@ -310,7 +329,7 @@ describe('DeckThemeManagerColumn', () => {
 
   it('全アカウントカラムで dark テーマのカードを押すと、settings の dark の選択が変わる', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [local('side-1', 'Sunset', [KEY_A])]
+    themeStore.items = [local('side-1', 'Sunset', [KEY_A])]
     const wrapper = mountColumn(null)
     await flushPromises()
 
@@ -324,9 +343,11 @@ describe('DeckThemeManagerColumn', () => {
     const themeStore = useThemeStore()
     themeStore.manualMode = 'light'
     themeStore.applyCurrentTheme()
-    themeStore.installedThemes = [
+    themeStore.items = [
       local('dark-1', 'Dark One', [KEY_A]),
-      { ...local('light-1', 'Light One', [KEY_A]), base: 'light' },
+      local('light-1', 'Light One', [KEY_A], {
+        content: { base: 'light', props: { bg: '#eeeeee' } },
+      }),
     ]
     const wrapper = mountColumn(null)
     await flushPromises()
@@ -342,7 +363,7 @@ describe('DeckThemeManagerColumn', () => {
 
   it('アカウントカラムでカードを押すと、そのアカウントの per-column 適用になる', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [local('side-1', 'Sunset', [KEY_A])]
+    themeStore.items = [local('side-1', 'Sunset', [KEY_A])]
     const wrapper = mountColumn(ACCOUNT_A.id)
     await flushPromises()
 
@@ -360,7 +381,7 @@ describe('DeckThemeManagerColumn', () => {
 
   it('他のアカウントにも紐付くテーマを外すと、本体は残りこのカラムからだけ消える', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [local('side-1', 'Shared', [KEY_A, KEY_B])]
+    themeStore.items = [local('side-1', 'Shared', [KEY_A, KEY_B])]
     const wrapper = mountColumn(ACCOUNT_A.id)
     await flushPromises()
 
@@ -370,16 +391,14 @@ describe('DeckThemeManagerColumn', () => {
     await flushPromises()
 
     expect(confirmMock).not.toHaveBeenCalled()
-    expect(themeStore.installedThemes).toHaveLength(1)
-    expect(themeStore.installedThemes[0]?.$notedeck?.installedFor).toEqual([
-      KEY_B,
-    ])
+    expect(themeStore.items).toHaveLength(1)
+    expect(installedForOf(themeStore, 'side-1')).toEqual([KEY_B])
     expect(wrapper.text()).not.toContain('Shared')
   })
 
   it('紐付けが自分だけのテーマを外すと確認のうえ本体ごと消え、トーストの「元に戻す」で戻る', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [local('side-1', 'Only Mine', [KEY_A])]
+    themeStore.items = [local('side-1', 'Only Mine', [KEY_A])]
     confirmMock.mockResolvedValue(true)
     const wrapper = mountColumn(ACCOUNT_A.id)
     await flushPromises()
@@ -395,7 +414,7 @@ describe('DeckThemeManagerColumn', () => {
         message: expect.stringContaining('Only Mine'),
       }),
     )
-    expect(themeStore.installedThemes).toHaveLength(0)
+    expect(themeStore.items).toHaveLength(0)
     expect(toastShow).toHaveBeenCalledWith(
       'テーマを削除しました',
       'info',
@@ -406,13 +425,13 @@ describe('DeckThemeManagerColumn', () => {
 
     toastShow.mock.calls[0]?.[2]?.action?.onClick()
     await nextTick()
-    expect(themeStore.installedThemes.map((t) => t.id)).toEqual(['side-1'])
+    expect(themeStore.items.map((t) => t.id)).toEqual(['side-1'])
     expect(wrapper.text()).toContain('Only Mine')
   })
 
   it('確認でキャンセルすると、最後の紐付けでもテーマは消えない', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [local('side-1', 'Only Mine', [KEY_A])]
+    themeStore.items = [local('side-1', 'Only Mine', [KEY_A])]
     confirmMock.mockResolvedValue(false)
     const wrapper = mountColumn(ACCOUNT_A.id)
     await flushPromises()
@@ -423,13 +442,13 @@ describe('DeckThemeManagerColumn', () => {
     ).trigger('click')
     await flushPromises()
 
-    expect(themeStore.installedThemes).toHaveLength(1)
+    expect(themeStore.items).toHaveLength(1)
     expect(toastShow).not.toHaveBeenCalled()
   })
 
   it('全アカウントカラムから削除すると確認のうえ本体が消え、「元に戻す」で選択状態ごと戻る', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [local('side-1', 'Sunset', [KEY_A])]
+    themeStore.items = [local('side-1', 'Sunset', [KEY_A])]
     themeStore.selectTheme('side-1', 'dark')
     confirmMock.mockResolvedValue(true)
     const wrapper = mountColumn(null)
@@ -449,7 +468,7 @@ describe('DeckThemeManagerColumn', () => {
       }),
     )
     const settings = useSettingsStore()
-    expect(themeStore.installedThemes).toHaveLength(0)
+    expect(themeStore.items).toHaveLength(0)
     expect(settings.get('theme.selectedDarkThemeId')).toBeNull()
     expect(toastShow).toHaveBeenCalledWith(
       'テーマを削除しました',
@@ -461,7 +480,7 @@ describe('DeckThemeManagerColumn', () => {
 
     toastShow.mock.calls[0]?.[2]?.action?.onClick()
     await nextTick()
-    expect(themeStore.installedThemes.map((t) => t.id)).toEqual(['side-1'])
+    expect(themeStore.items.map((t) => t.id)).toEqual(['side-1'])
     expect(settings.get('theme.selectedDarkThemeId')).toBe('side-1')
     expect(wrapper.text()).toContain('Sunset')
   })
@@ -490,7 +509,7 @@ describe('DeckThemeManagerColumn', () => {
 
   it('サイドロードのカードの編集を押すと、そのテーマを開いた状態でテーマエディタを開く', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [local('side-1', 'Sunset', [KEY_A])]
+    themeStore.items = [local('side-1', 'Sunset', [KEY_A])]
     const wrapper = mountColumn(ACCOUNT_A.id)
     await flushPromises()
 
@@ -507,7 +526,7 @@ describe('DeckThemeManagerColumn', () => {
 
   it('アカウントカラムの「ライブラリから追加」は未紐付けの本体を並べ、押すとこのアカウントに紐付く', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [
+    themeStore.items = [
       local('side-b', 'Side B', [KEY_B]),
       local('side-a', 'Side A', [KEY_A]),
     ]
@@ -526,10 +545,8 @@ describe('DeckThemeManagerColumn', () => {
     expect(picker.map((c) => c.text())).toEqual(['Side B'])
 
     await picker[0]?.trigger('click')
-    expect(
-      themeStore.installedThemes.find((t) => t.id === 'side-b')?.$notedeck
-        ?.installedFor,
-    ).toEqual([KEY_B, KEY_A])
+    await flushPromises()
+    expect(installedForOf(themeStore, 'side-b')).toEqual([KEY_B, KEY_A])
     expect(sectionThemes(wrapper, 'サイドロード')).toEqual(['Side B', 'Side A'])
   })
 
@@ -552,9 +569,9 @@ describe('DeckThemeManagerColumn', () => {
 
   it('ストアタブでインストール済み (storeId 一致) のカードを押しても再インストールしない', async () => {
     const themeStore = useThemeStore()
-    themeStore.installedThemes = [
-      theme('installed-reg', 'Registry Theme (local)', {
-        $notedeck: { storeId: STORE_ENTRY.id, installedFor: [KEY_A] },
+    themeStore.items = [
+      local('installed-reg', 'Registry Theme (local)', [KEY_A], {
+        store: { id: STORE_ENTRY.id },
       }),
     ]
     const misStore = useMisStoreStore()

@@ -27,7 +27,7 @@ import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
-import { useThemeStore } from '@/stores/theme'
+import { misskeyThemeOf, type ThemeItem, useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
 import { DARK_BASE, LIGHT_BASE } from '@/theme/builtinThemes'
 import { parseColor } from '@/theme/colorUtils'
@@ -78,9 +78,9 @@ const editingThemeId = ref<string | null>(null)
 // ファイル名は対応表 (fileBase) を参照する — 表示名から計算しない (#913)
 useWindowExternalFile(() => {
   if (tab.value !== 'code') return null
-  const current = themeStore.installedThemes.find(
-    (t) => t.id === editingThemeId.value,
-  )
+  const current = editingThemeId.value
+    ? themeStore.get(editingThemeId.value)
+    : undefined
   return {
     name: current?.fileBase ? `${current.fileBase}${THEME_EXT}` : '',
     subdir: 'themes',
@@ -466,9 +466,7 @@ const barPrimary = computed<EditorAction>(() => ({
 /** AI が過去に何を変えたかを diff で追う (#981)。編集中のテーマが対象。 */
 function openHistory() {
   const id = editingThemeId.value
-  const theme = id
-    ? themeStore.installedThemes.find((t) => t.id === id)
-    : undefined
+  const theme = id ? themeStore.get(id) : undefined
   if (!theme) return
   openEditHistoryWindow({
     kind: 'theme',
@@ -547,14 +545,14 @@ function loadFromInstalled(theme: MisskeyTheme) {
  * テーマはオブジェクトのまま比べると保存のたびに参照が変わるので、
  * 見た目に効く部分のキーで同一性を見る。
  */
-function editingThemeOf(): MisskeyTheme | undefined {
-  return editingThemeId.value
-    ? themeStore.installedThemes.find((t) => t.id === editingThemeId.value)
-    : undefined
+function editingThemeOf(): ThemeItem | undefined {
+  return editingThemeId.value ? themeStore.get(editingThemeId.value) : undefined
 }
 
-function themeKey(theme: MisskeyTheme | undefined): string {
-  return theme ? JSON.stringify([theme.name, theme.base, theme.props]) : ''
+function themeKey(theme: ThemeItem | undefined): string {
+  return theme
+    ? JSON.stringify([theme.name, theme.content.base, theme.content.props])
+    : ''
 }
 
 let lastSyncedThemeKey = ''
@@ -569,7 +567,7 @@ useExternalEditSync<string>({
     lastSyncedThemeKey = key
     const theme = editingThemeOf()
     if (!theme) return
-    loadFromInstalled(theme)
+    loadFromInstalled(misskeyThemeOf(theme))
     if (tab.value === 'code') syncCodeFromVisual()
   },
 })
@@ -577,7 +575,7 @@ useExternalEditSync<string>({
 // Delete installed theme
 // 他の配布物 (skill / widget / plugin / query) と同じく confirm → 元に戻せる
 // トースト (#988)
-async function deleteInstalledTheme(theme: MisskeyTheme, e: Event) {
+async function deleteInstalledTheme(theme: ThemeItem, e: Event) {
   e.stopPropagation()
   const ok = await confirm({
     title: i18n.ts._themeEditorContent.deleteTitle,
@@ -586,7 +584,7 @@ async function deleteInstalledTheme(theme: MisskeyTheme, e: Event) {
     type: 'danger',
   })
   if (!ok) return
-  const undo = themeStore.removeTheme(theme.id)
+  const undo = await themeStore.removeTheme(theme.id)
   if (undo) {
     useToast().show(i18n.ts._themeEditorContent.deleted, 'info', {
       action: { label: i18n.ts._common.undo, onClick: undo },
@@ -639,8 +637,8 @@ const showLoadDropdown = ref(false)
 const showAddPropDropdown = ref(false)
 const cssModule = useCssModule()
 
-function selectInstalledTheme(theme: MisskeyTheme) {
-  loadFromInstalled(theme)
+function selectInstalledTheme(theme: ThemeItem) {
+  loadFromInstalled(misskeyThemeOf(theme))
   showLoadDropdown.value = false
 }
 
@@ -673,9 +671,9 @@ watch(
   () => props.initialThemeId,
   (id) => {
     if (!id) return
-    const theme = themeStore.installedThemes.find((t) => t.id === id)
+    const theme = themeStore.get(id)
     if (theme) {
-      loadFromInstalled(theme)
+      loadFromInstalled(misskeyThemeOf(theme))
       if (tab.value === 'code') syncCodeFromVisual()
     }
   },
@@ -758,7 +756,7 @@ onUnmounted(() => {
         </div>
 
         <!-- Load from existing -->
-        <div v-if="themeStore.installedThemes.length" :class="$style.section">
+        <div v-if="themeStore.items.length" :class="$style.section">
           <button class="_button" :class="$style.sectionLabel" :aria-expanded="!!expandedSections.existing" @click="toggleSection('existing')">
             <i class="ti ti-folder-open" />
             {{ i18n.ts._themeEditorContent.existingThemes }}
@@ -777,17 +775,17 @@ onUnmounted(() => {
                 </button>
                 <div v-if="showLoadDropdown" :class="$style.dropdownPanel">
                   <div
-                    v-for="t in themeStore.installedThemes"
+                    v-for="t in themeStore.items"
                     :key="t.id"
                     :class="$style.dropdownItem"
                     @click="selectInstalledTheme(t)"
                   >
                     <div
                       :class="$style.themeSwatch"
-                      :style="{ background: themeAccentColor(t) }"
+                      :style="{ background: themeAccentColor(misskeyThemeOf(t)) }"
                     />
                     <span :class="$style.dropdownItemLabel">{{ t.name }}</span>
-                    <span :class="$style.dropdownItemBadge">{{ t.base }}</span>
+                    <span :class="$style.dropdownItemBadge">{{ t.content.base }}</span>
                     <button
                       class="_button"
                       :class="$style.dropdownItemDelete"
