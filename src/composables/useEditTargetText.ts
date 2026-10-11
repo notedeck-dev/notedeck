@@ -34,7 +34,7 @@ export function useEditTargetText(
       case 'plugin':
         return plugins.getPlugin(id)?.src ?? ''
       case 'query':
-        return queries.getQuery(id)?.src ?? ''
+        return queries.get(id)?.content ?? ''
       case 'theme': {
         const t = theme.installedThemes.find((x) => x.id === id)
         return t ? serializeTheme(mergeThemeUpdate(t, {})) : ''

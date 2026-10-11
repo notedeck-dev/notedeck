@@ -5,12 +5,12 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
+import { hasScopeTarget, type ScopeTarget } from '@/services/distributable'
 import { readOnlyReason } from '@/services/sidecarFileCollection'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   isQueryActive,
-  type NamedQueryMeta,
-  type QueryScope,
+  type QueryItem,
   useColumnQueriesStore,
 } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
@@ -69,18 +69,16 @@ const account = computed(() =>
  * このカラムが管理するスコープ (#1018)。
  * per-account カラムでアカウントが見つからない (ログアウト済) 場合は null。
  */
-const columnScope = computed<QueryScope | null>(() => {
+const columnScope = computed<ScopeTarget | null>(() => {
   if (isCrossAccount.value) return { kind: 'global' }
   if (!account.value) return null
   return { kind: 'account', key: accountScopeKey(account.value) }
 })
 
 /** カラムのスコープに参加しているか (スコープ別プール)。 */
-function matchesContext(query: NamedQueryMeta): boolean {
+function matchesContext(query: QueryItem): boolean {
   const scope = columnScope.value
-  if (!scope) return false
-  if (scope.kind === 'global') return query.global === true
-  return query.installedFor?.includes(scope.key) ?? false
+  return scope ? hasScopeTarget(query.scope, scope) : false
 }
 
 type ViewTab = 'installed' | 'store'
@@ -89,7 +87,7 @@ const viewTab = ref<ViewTab>('installed')
 const columnContentRef = ref<HTMLElement | null>(null)
 
 const scopeCount = computed(
-  () => queriesStore.queries.filter((q) => matchesContext(q)).length,
+  () => queriesStore.items.filter((q) => matchesContext(q)).length,
 )
 
 const tabDefs = computed<ColumnTabDef[]>(() => [
@@ -136,7 +134,7 @@ function setFilter(mode: FilterMode) {
 
 const visibleQueries = computed(() => {
   const q = textQuery.value
-  let sorted = queriesStore.queries
+  let sorted = queriesStore.items
     .filter((item) => matchesContext(item))
     .sort((a, b) => b.updatedAt - a.updatedAt)
   if (activeFilter.value === 'enabled') {
@@ -156,12 +154,12 @@ const visibleQueries = computed(() => {
 interface QuerySection {
   key: string
   label: string
-  items: NamedQueryMeta[]
+  items: QueryItem[]
 }
 
 const installedSections = computed<QuerySection[]>(() => {
-  const sideloaded = visibleQueries.value.filter((q) => !q.storeId)
-  const store = visibleQueries.value.filter((q) => !!q.storeId)
+  const sideloaded = visibleQueries.value.filter((q) => !q.store)
+  const store = visibleQueries.value.filter((q) => !!q.store)
   const sections: QuerySection[] = [
     {
       key: 'sideload',
@@ -181,29 +179,29 @@ const installedSections = computed<QuerySection[]>(() => {
  * クエリの実行形態 (#783)。
  * fast = QIR で高速評価 / degraded = 純粋なので逐次適用へ降格 / invalid = 評価不能
  */
-function executionOf(query: NamedQueryMeta): 'fast' | 'degraded' | 'invalid' {
-  const result = compileColumnQuery(query.src)
+function executionOf(query: QueryItem): 'fast' | 'degraded' | 'invalid' {
+  const result = compileColumnQuery(query.content)
   if (result.ok) return 'fast'
   return result.degradable ? 'degraded' : 'invalid'
 }
 
-function refCount(query: NamedQueryMeta): number {
+function refCount(query: QueryItem): number {
   return queriesStore.refCountByQueryId[query.id] ?? 0
 }
 
 /** クエリを「作る」面は開発者モードに従う (#1034)。導入・実行・削除は一般側 */
 const canEdit = computed(() => isWindowExposed('column-query-editor'))
 
-function openEditor(query: NamedQueryMeta): void {
+function openEditor(query: QueryItem): void {
   windowsStore.open('column-query-editor', { queryId: query.id })
 }
 
 async function createNew(): Promise<void> {
-  const query = await queriesStore.createQuery({
+  const query = await queriesStore.add({
     name: i18n.tsx._deckQueryManagerColumn.newQueryName({
-      n: queriesStore.queries.length + 1,
+      n: queriesStore.items.length + 1,
     }),
-    src: `note.text != null && note.text.incl("${i18n.ts._deckQueryManagerColumn.newQueryKeyword}")`,
+    content: `note.text != null && note.text.incl("${i18n.ts._deckQueryManagerColumn.newQueryKeyword}")`,
     // このカラムの文脈で作る = そのスコープに参加した状態で始める
     ...(columnScope.value ? { scope: columnScope.value } : {}),
   })
@@ -214,17 +212,17 @@ async function createNew(): Promise<void> {
  * カードの「外す」= このカラムのスコープから外す。本体はライブラリに残り、
  * ピッカーから再追加/完全削除できる。可逆なので確認は挟まず undo で戻す。
  */
-function detachFromScope(query: NamedQueryMeta): void {
+async function detachFromScope(query: QueryItem): Promise<void> {
   const scope = columnScope.value
   if (!scope) return
-  if (!queriesStore.unlinkScope(query.id, scope)) {
+  if (!(await queriesStore.unlink(query.id, scope))) {
     useToast().show(readOnlyReason(), 'warning')
     return
   }
   useToast().show(i18n.ts._deckQueryManagerColumn.detached, 'info', {
     action: {
       label: i18n.ts._common.undo,
-      onClick: () => queriesStore.linkScope(query.id, scope),
+      onClick: () => void queriesStore.link(query.id, scope),
     },
   })
 }
@@ -239,14 +237,14 @@ const detachTitle = computed(() =>
 const showLibraryPicker = ref(false)
 
 /** このカラムのスコープに未参加のライブラリ本体 (= 追加可能候補)。 */
-const libraryCandidates = computed<NamedQueryMeta[]>(() =>
-  queriesStore.queries.filter((q) => !matchesContext(q)),
+const libraryCandidates = computed<QueryItem[]>(() =>
+  queriesStore.items.filter((q) => !matchesContext(q)),
 )
 
-function placeFromLibrary(query: NamedQueryMeta): void {
+async function placeFromLibrary(query: QueryItem): Promise<void> {
   const scope = columnScope.value
   if (!scope) return
-  if (!queriesStore.linkScope(query.id, scope)) {
+  if (!(await queriesStore.link(query.id, scope))) {
     useToast().show(readOnlyReason(), 'warning')
     return
   }
@@ -257,12 +255,12 @@ function placeFromLibrary(query: NamedQueryMeta): void {
  * 本体の有効/無効 (#1043)。カラムの適用には触れない。読取専用 (ソース欠損) は
  * store が拒否するので理由を出す (可視化と復旧導線は #1111)
  */
-async function toggleDisabled(query: NamedQueryMeta): Promise<void> {
-  const ok = await queriesStore.setDisabled(query.id, isQueryActive(query))
+async function toggleDisabled(query: QueryItem): Promise<void> {
+  const ok = await queriesStore.setEnabled(query.id, !isQueryActive(query))
   if (!ok) useToast().show(readOnlyReason(), 'warning')
 }
 
-async function remove(query: NamedQueryMeta): Promise<void> {
+async function remove(query: QueryItem): Promise<void> {
   const used = refCount(query)
   // 無効中は今効いていないので、消すとカラムが止まる逆転を先に言う (#1043)
   const usedMessage = isQueryActive(query)
@@ -284,7 +282,7 @@ async function remove(query: NamedQueryMeta): Promise<void> {
     type: 'danger',
   })
   if (!ok) return
-  const undo = await queriesStore.removeQuery(query.id)
+  const undo = await queriesStore.remove(query.id)
   if (undo) {
     useToast().show(i18n.ts._deckQueryManagerColumn.deleted, 'info', {
       action: { label: i18n.ts._common.undo, onClick: undo },
@@ -425,7 +423,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
               :name="query.name"
               :description="query.description"
               :icon-url="query.iconUrl"
-              :store-id="query.storeId"
+              :store-id="query.store?.id"
               :execution="executionOf(query)"
               :ref-count="refCount(query)"
               :detach-title="detachTitle"
@@ -460,7 +458,7 @@ function handleOpenStoreDetail(entry: StoreQueryEntry): void {
               :name="query.name"
               :description="query.description"
               :icon-url="query.iconUrl"
-              :store-id="query.storeId"
+              :store-id="query.store?.id"
               :execution="executionOf(query)"
               :ref-count="refCount(query)"
               :disabled="!isQueryActive(query)"

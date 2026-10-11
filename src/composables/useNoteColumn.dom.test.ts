@@ -16,10 +16,7 @@ import type {
 } from '@/adapters/types'
 import { matchesFilter } from '@/services/timelineFilter'
 import { type Account, useAccountsStore } from '@/stores/accounts'
-import {
-  type NamedQueryMeta,
-  useColumnQueriesStore,
-} from '@/stores/columnQueries'
+import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
 import type { FramePriority } from './useFrameScheduler'
@@ -923,10 +920,12 @@ describe('useNoteColumn: QIR キャッシュ検索 (#783 Phase 3)', () => {
     // 名前付きクエリをプールに登録 (ensureLoaded 後でないと push が上書きされる)
     const queriesStore = useColumnQueriesStore()
     queriesStore.ensureLoaded()
-    queriesStore.queries.push({
+    queriesStore.items.push({
       id: 'q-vis-965',
       name: 'public only',
-      src: 'note.visibility == "public"',
+      content: 'note.visibility == "public"',
+      scope: { kind: 'shared', global: false, installedFor: [] },
+      extra: { scoped: true, active: true },
       createdAt: 0,
       updatedAt: 0,
     })
@@ -1519,17 +1518,18 @@ describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)
   function seed(
     id: string,
     src: string,
-    extra: Partial<NamedQueryMeta> = {},
+    extra: Partial<QueryItem['extra']> = {},
   ): void {
     const store = useColumnQueriesStore()
     store.ensureLoaded()
-    store.queries.push({
+    store.items.push({
       id,
       name: `named-${id}`,
-      src,
+      content: src,
+      scope: { kind: 'shared', global: false, installedFor: [] },
+      extra: { scoped: true, active: true, ...extra },
       createdAt: 0,
       updatedAt: 0,
-      ...extra,
     })
   }
   const mixed = async () => [
@@ -1538,7 +1538,7 @@ describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)
   ]
 
   it('無効な参照だけのカラムは絞り込まず、状態は「停止」', async () => {
-    seed('q-off-1', FAST, { disabled: true })
+    seed('q-off-1', FAST, { active: false })
     addAccount('acc-1043-only')
     const { api } = mountColumn({
       accountId: 'acc-1043-only',
@@ -1552,7 +1552,7 @@ describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)
   })
 
   it('一部だけ無効なら有効な部分で状態が決まり、無効名が付く', async () => {
-    seed('q-off-2', SLOW, { disabled: true })
+    seed('q-off-2', SLOW, { active: false })
     seed('q-on-2', FAST)
     addAccount('acc-1043-mix')
     const runsBefore = degraded.runCalls.length
@@ -1570,7 +1570,7 @@ describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)
   })
 
   it('解釈不能なクエリも無効化すれば fail-closed から復帰する', async () => {
-    seed('q-bad', 'Date:now() > 0', { disabled: true })
+    seed('q-bad', 'Date:now() > 0', { active: false })
     addAccount('acc-1043-bad')
     const { api } = mountColumn({
       accountId: 'acc-1043-bad',
@@ -1583,7 +1583,7 @@ describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)
   })
 
   it('無効と参照消失の混在は fail-closed のまま', async () => {
-    seed('q-off-3', FAST, { disabled: true })
+    seed('q-off-3', FAST, { active: false })
     addAccount('acc-1043-missing')
     const { api } = mountColumn({
       accountId: 'acc-1043-missing',
@@ -1596,7 +1596,7 @@ describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)
   })
 
   it('インライン式 + 全参照無効ならインライン式で状態が決まる', async () => {
-    seed('q-off-4', SLOW, { disabled: true })
+    seed('q-off-4', SLOW, { active: false })
     addAccount('acc-1043-inline')
     const { api } = mountColumn({
       accountId: 'acc-1043-inline',
@@ -1612,7 +1612,7 @@ describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)
   it('セーフモード中は無効なクエリがあってもセーフモード表示が優先', async () => {
     localStorage.setItem('nd-safe-mode', 'true')
     try {
-      seed('q-off-5', FAST, { disabled: true })
+      seed('q-off-5', FAST, { active: false })
       addAccount('acc-1043-safe')
       const { api } = mountColumn({
         accountId: 'acc-1043-safe',
@@ -1639,12 +1639,12 @@ describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)
     expect(ids(api)).toEqual(['a'])
     const calls = fetchImpl.mock.calls.length
 
-    await useColumnQueriesStore().setDisabled('q-tog', true)
+    await useColumnQueriesStore().setEnabled('q-tog', false)
     await flush(20)
     expect(ids(api)).toEqual(['a', 'b'])
     expect(fetchImpl.mock.calls.length).toBeGreaterThan(calls)
 
-    await useColumnQueriesStore().setDisabled('q-tog', false)
+    await useColumnQueriesStore().setEnabled('q-tog', true)
     await flush(20)
     expect(ids(api)).toEqual(['a'])
   })

@@ -481,15 +481,15 @@ export function buildTutorialSteps(): TutorialStep[] {
         return i18n.ts._tutorialSteps.createQueryDescription
       },
       precheck: () =>
-        useColumnQueriesStore().queries.length > 0 ? 'skip' : 'show',
+        useColumnQueriesStore().items.length > 0 ? 'skip' : 'show',
       onEnter: () =>
         openAddColumnAndPoint(
           'queryManager',
           i18n.ts._tutorialSteps.columnQueryItem,
         ),
       completion: {
-        watch: () => useColumnQueriesStore().queries.length,
-        isComplete: () => useColumnQueriesStore().queries.length > 0,
+        watch: () => useColumnQueriesStore().items.length,
+        isComplete: () => useColumnQueriesStore().items.length > 0,
       },
     },
 

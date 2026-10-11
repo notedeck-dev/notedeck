@@ -47,6 +47,69 @@ export type DistributableScope =
   | { kind: 'none' }
   | { kind: 'shared'; global: boolean; installedFor: string[] }
 
+/**
+ * 参加 / 離脱の対象 (#1018)。カラムの文脈から決まる: 全アカウントの面なら
+ * 全体、アカウントの面ならその `accountScopeKey`
+ */
+export type ScopeTarget = { kind: 'global' } | { kind: 'account'; key: string }
+
+/**
+ * `scopeKey` (`accountScopeKey`) のアカウントで選べるか。null は「アカウント
+ * 文脈なし」= 全体スコープのみ有効。`none` の kind は常に選べる
+ */
+export function isInScope(
+  scope: DistributableScope,
+  scopeKey: string | null,
+): boolean {
+  if (scope.kind === 'none') return true
+  if (scope.global) return true
+  if (!scopeKey) return false
+  return scope.installedFor.includes(scopeKey)
+}
+
+/** その対象に参加済みか (`isInScope` と違い、全体参加はアカウント参加を含まない) */
+export function hasScopeTarget(
+  scope: DistributableScope,
+  target: ScopeTarget,
+): boolean {
+  if (scope.kind !== 'shared') return false
+  return target.kind === 'global'
+    ? scope.global
+    : scope.installedFor.includes(target.key)
+}
+
+/** 参加させた新しいスコープ。変化が無ければ同じ参照を返す */
+export function withScopeTarget(
+  scope: DistributableScope,
+  target: ScopeTarget,
+): DistributableScope {
+  if (scope.kind !== 'shared' || hasScopeTarget(scope, target)) return scope
+  return target.kind === 'global'
+    ? { ...scope, global: true }
+    : { ...scope, installedFor: [...scope.installedFor, target.key] }
+}
+
+/** 離脱させた新しいスコープ。変化が無ければ同じ参照を返す */
+export function withoutScopeTarget(
+  scope: DistributableScope,
+  target: ScopeTarget,
+): DistributableScope {
+  if (scope.kind !== 'shared' || !hasScopeTarget(scope, target)) return scope
+  return target.kind === 'global'
+    ? { ...scope, global: false }
+    : {
+        ...scope,
+        installedFor: scope.installedFor.filter((k) => k !== target.key),
+      }
+}
+
+/** どこにも参加していない (ライブラリのみ)。`none` の kind は false */
+export function isScopeEmpty(scope: DistributableScope): boolean {
+  return (
+    scope.kind === 'shared' && !scope.global && scope.installedFor.length === 0
+  )
+}
+
 export interface DistributableMeta<Content, Extra> {
   /** 個体の参照 ID (ファイル名ではない。#913 の ID → ファイル名対応表の鍵) */
   id: string
@@ -128,4 +191,23 @@ export interface DistributableCodec<
   outdated(file: File): boolean
   /** 「有効」の宣言 (無い kind は undefined) */
   enabled?: EnabledDeclaration<Item>
+}
+
+/**
+ * store factory (`stores/distributableStore.ts`) が使うファイル永続化の口。
+ * sidecar (`sidecarFileCollection`) と単一ファイル (`singleFileCollection`) の
+ * コレクションが満たす共通部分 (どちらも状態を持たず、書込は直列化済み)
+ */
+export interface DistributableFileCollection<Item> {
+  loadAll(): Promise<{ items: Item[]; outdated: Item[] }>
+  /** 1 ファイルだけ読み直す (変更通知の受け口)。無ければ undefined */
+  loadOne(filename: string): Promise<Item | undefined>
+  persistItem(item: Item, allItems: readonly Item[]): Promise<void>
+  deleteItemFiles(item: Item): Promise<void>
+  /** 表示名の変更にファイル名を追随させる (ID 不変、#913) */
+  renameItemFiles(item: Item, allItems: readonly Item[]): Promise<void>
+  /** 規約外名の copy-adopt (#913)。メインウィンドウだけが呼ぶ */
+  migrateItems(items: readonly Item[]): Promise<void>
+  /** 主ファイルと対応の取れない履歴サイドカーの掃除 */
+  sweepHistory(): Promise<void>
 }

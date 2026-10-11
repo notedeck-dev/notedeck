@@ -83,7 +83,7 @@ export function useColumnQuery(deps: ColumnQueryDeps) {
 
     if (inline) classify(null, `${col.id}:inline`, inline)
     for (const id of refs) {
-      const named = columnQueriesStore.getQuery(id)
+      const named = columnQueriesStore.get(id)
       if (!named) {
         missing.push(id)
         continue
@@ -95,7 +95,7 @@ export function useColumnQuery(deps: ColumnQueryDeps) {
         continue
       }
       // key は名前付きクエリ id。同じクエリを使う全カラムでサスペンドを共有する
-      classify(named.name, id, named.src)
+      classify(named.name, id, named.content)
     }
     return { fast, degraded, rejected, missing, disabled }
   })

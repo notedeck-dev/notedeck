@@ -58,14 +58,14 @@ const namedQueryToggles = computed(() => {
       (a) => a.id === props.column.accountId,
     )
     const scopeKey = account ? accountScopeKey(account) : null
-    return columnQueriesStore.queries
+    return columnQueriesStore.items
       .filter((q) => isQueryOfferedFor(q, scopeKey, applied))
       .map((q) => ({ id: q.id, name: q.name, disabled: !isQueryActive(q) }))
   }
   // アカウントに紐づかない面 (全アカウント TL / クライアント検索) は全体スコープと、
   // ログイン中のどれかのアカウントのスコープに入っているクエリを出す
   const scopeKeys = accountsStore.accounts.map(accountScopeKey)
-  return columnQueriesStore.queries
+  return columnQueriesStore.items
     .filter((q) => isQueryOfferedForAny(q, scopeKeys, applied))
     .map((q) => ({ id: q.id, name: q.name, disabled: !isQueryActive(q) }))
 })
