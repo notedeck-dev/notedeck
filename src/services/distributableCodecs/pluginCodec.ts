@@ -10,7 +10,13 @@ import {
   storeFieldsOf,
   storeOriginOf,
 } from '@/services/distributableCodecs/sidecar'
-import type { PluginConfigDef } from '@/stores/plugins'
+/** プラグインヘッダ (`### { config }`) の設定項目の定義 */
+export interface PluginConfigDef {
+  type: 'string' | 'number' | 'boolean'
+  label: string
+  description?: string
+  default: unknown
+}
 
 /**
  * プラグイン (`plugins/<slug>.is` + `.meta.json5`) の codec (#1202 段階 0)。
@@ -55,7 +61,7 @@ export interface PluginExtra {
   config?: Record<string, PluginConfigDef>
   /** 設定値 (ローカル)。ストア更新で新しいキーだけ default を補う */
   configData: Record<string, unknown>
-  /** 本体の有効 (起動 / 停止はデバイスが変更通知で行う) */
+  /** 本体の有効。起動 / 停止は store の hook (`stores/plugins.ts`) が行う */
   active: boolean
 }
 

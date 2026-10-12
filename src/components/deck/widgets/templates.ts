@@ -31,16 +31,14 @@ function toTemplate(entry: StoreWidgetEntry): WidgetTemplate {
 }
 
 export function useWidgetTemplates() {
-  const store = useMisStoreStore()
-  if (store.widgets.length === 0 && !store.widgetsLoading) {
-    store.fetchWidgets()
+  const feed = useMisStoreStore().feed('widget')
+  if (feed.entries.length === 0 && !feed.loading) {
+    feed.fetch()
   }
-  const templates = computed(() => store.widgets.map(toTemplate))
-  const loaded = computed(
-    () => store.widgets.length > 0 || store.widgetsError !== null,
-  )
-  const loading = computed(() => store.widgetsLoading)
-  const error = computed(() => store.widgetsError)
+  const templates = computed(() => feed.entries.map(toTemplate))
+  const loaded = computed(() => feed.entries.length > 0 || feed.error !== null)
+  const loading = computed(() => feed.loading)
+  const error = computed(() => feed.error)
   return { templates, loaded, loading, error }
 }
 

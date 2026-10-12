@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
+import { useWidgetsStore, type WidgetItem } from '@/stores/widgets'
 import WidgetEditContent from './WidgetEditContent.vue'
 
 /**
@@ -17,22 +17,23 @@ vi.mock('@/utils/historyFs', () => ({
   pushSnapshot: vi.fn(async () => undefined),
 }))
 
-function makeWidget(installId: string, src: string): WidgetMeta {
+function makeWidget(installId: string, src: string): WidgetItem {
   return {
-    installId,
+    id: installId,
     name: 'test-widget',
-    src,
-    autoRun: false,
+    content: src,
+    scope: { kind: 'shared', global: true, installedFor: [] },
+    extra: { autoRun: false },
     createdAt: 0,
     updatedAt: 0,
     fileBase: installId,
   }
 }
 
-async function mountEditor(widget: WidgetMeta) {
-  useWidgetsStore().addWidget(widget)
+async function mountEditor(widget: WidgetItem) {
+  useWidgetsStore().items.push(widget)
   const wrapper = mount(WidgetEditContent, {
-    props: { widgetId: widget.installId },
+    props: { widgetId: widget.id },
     global: { stubs: { teleport: true } },
     shallow: true,
   })
@@ -57,7 +58,7 @@ describe('WidgetEditContent — 外部変更の取り込み (#981)', () => {
     expect(bufferOf(wrapper)).toBe('let x = 1')
 
     // 履歴からの revert / AI 編集に相当する外部からの書き換え
-    store.updateSrc('w-sync-clean', 'let y = 2')
+    await store.update('w-sync-clean', { content: 'let y = 2' })
     await nextTick()
     expect(bufferOf(wrapper)).toBe('let y = 2')
   })
@@ -71,7 +72,7 @@ describe('WidgetEditContent — 外部変更の取り込み (#981)', () => {
     editor.vm.$emit('update:modelValue', '打ちかけ')
     await nextTick()
 
-    store.updateSrc('w-sync-dirty', 'let y = 2')
+    await store.update('w-sync-dirty', { content: 'let y = 2' })
     await nextTick()
     expect(bufferOf(wrapper)).toBe('打ちかけ')
   })

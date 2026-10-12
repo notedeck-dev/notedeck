@@ -1,6 +1,7 @@
 import type {
   DistributableCodec,
   DistributableMeta,
+  EnabledDeclaration,
   FileContext,
 } from '@/services/distributable'
 import {
@@ -9,7 +10,16 @@ import {
   parseSkillFile,
   serializeSkillFile,
 } from '@/services/skillFrontmatter'
-import type { SkillMode } from '@/stores/skills'
+/**
+ * Skill 実行モード:
+ * - `always`: AI セッション開始時に常に system prompt に注入
+ * - `manual`: ユーザーが UI からトグルしたときだけ active
+ * - `trigger`: user 入力に triggers[] のいずれかが部分一致したら active 化し、
+ *   そのセッション中は維持される (#725 session-sticky)
+ * - `heartbeat`: AI 設定の heartbeat 有効化中、tick ごとに body を AI に読ませる
+ *   (OpenClaw HEARTBEAT.md 相当 / #411)
+ */
+export type SkillMode = 'always' | 'manual' | 'trigger' | 'heartbeat'
 
 /**
  * skill (`skills/<base>.md`、frontmatter がメタ) の codec (#1202 段階 0)。
@@ -51,16 +61,22 @@ export interface SkillExtra {
 
 export type SkillItem = DistributableMeta<string, SkillExtra>
 
-type ReservedKind = 'agents' | 'heartbeat'
+export type ReservedSkillKind = 'agents' | 'heartbeat'
 
-/** 予約 skill のファイル名 (拡張子なし) → 種別。大文字小文字は区別する */
-function reservedKindOf(fileBase: string): ReservedKind | undefined {
+/**
+ * 予約 skill (`AGENTS.md` = 運用規約、`HEARTBEAT.md` = 巡回の手順、#1162) の
+ * ファイル名 (拡張子なし) → 種別。大文字小文字は区別する。id / ファイル名 /
+ * mode は固定で、削除・改名・toggle・persona 化できない (notemaid も拒否する)
+ */
+export function reservedSkillKind(
+  fileBase: string,
+): ReservedSkillKind | undefined {
   if (fileBase === 'AGENTS') return 'agents'
   if (fileBase === 'HEARTBEAT') return 'heartbeat'
   return undefined
 }
 
-const RESERVED_MODE: Record<ReservedKind, SkillMode> = {
+const RESERVED_MODE: Record<ReservedSkillKind, SkillMode> = {
   agents: 'always',
   heartbeat: 'heartbeat',
 }
@@ -91,7 +107,7 @@ function modeOf(v: unknown): SkillMode {
 function fromFile(file: SkillFile, ctx: FileContext): SkillItem {
   const fm = file.meta
   const fallbackId = ctx.filename.replace(/\.md$/, '')
-  const reserved = reservedKindOf(fallbackId)
+  const reserved = reservedSkillKind(fallbackId)
   const storeId = str(fm.storeId)
   const storeSha512 = str(fm.storeSha512)
   const storeVersion = str(fm.storeVersion)
@@ -155,7 +171,9 @@ function toFile(item: SkillItem): SkillFile {
   return { meta, body: item.content }
 }
 
-export const skillCodec: DistributableCodec<SkillFile, SkillItem> = {
+export const skillCodec: DistributableCodec<SkillFile, SkillItem> & {
+  enabled: EnabledDeclaration<SkillItem>
+} = {
   kind: 'skill',
   fromFile,
   toFile,

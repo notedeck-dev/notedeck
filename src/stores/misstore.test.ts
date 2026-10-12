@@ -1,42 +1,71 @@
 import { createHash } from 'node:crypto'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { PluginMeta } from '@/stores/plugins'
-import type { SkillMeta } from '@/stores/skills'
-import type { WidgetMeta } from '@/stores/widgets'
+import type { PluginItem } from '@/stores/plugins'
+import type { SkillItem } from '@/stores/skills'
+import type { ThemeItem } from '@/stores/theme'
+import type { WidgetItem } from '@/stores/widgets'
 
 const h = vi.hoisted(() => ({
   skillsStore: {
-    skills: [] as unknown[],
-    add: vi.fn(),
-    update: vi.fn(),
-    recordStoreBaseline: vi.fn(),
+    items: [] as unknown[],
+    ensureLoaded: vi.fn(),
+    add: vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    applyStoreUpdate: vi.fn(async () => true),
+    recordStoreBaseline: vi.fn(async () => undefined),
   },
   pluginsStore: {
-    plugins: [] as unknown[],
-    linkScope: vi.fn(),
-    addPlugin: vi.fn(),
-    applyStoreUpdate: vi.fn(),
-    recordStoreBaseline: vi.fn(),
+    items: [] as unknown[],
+    ensureLoaded: vi.fn(),
+    link: vi.fn(async () => true),
+    add: vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      id: input.id ?? 'p-test-1',
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    applyStoreUpdate: vi.fn(async () => true),
+    recordStoreBaseline: vi.fn(async () => undefined),
   },
   widgetsStore: {
-    widgets: [] as unknown[],
-    addWidget: vi.fn(),
-    applyStoreUpdate: vi.fn(),
-    recordStoreBaseline: vi.fn(),
+    items: [] as unknown[],
+    ensureLoaded: vi.fn(),
+    get: vi.fn((id: string) =>
+      (h.widgetsStore.items as { id?: string }[]).find((w) => w.id === id),
+    ),
+    add: vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      id: input.id ?? 'w-test-1',
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    link: vi.fn(async () => true),
+    applyStoreUpdate: vi.fn(async () => true),
+    recordStoreBaseline: vi.fn(async () => undefined),
   },
   queriesStore: {
-    queries: [] as unknown[],
+    items: [] as unknown[],
     ensureLoaded: vi.fn(),
-    linkScope: vi.fn(),
-    createQuery: vi.fn(async () => undefined),
-    applyStoreUpdate: vi.fn(async () => undefined),
+    link: vi.fn(async () => true),
+    add: vi.fn(async () => undefined),
+    applyStoreUpdate: vi.fn(async () => true),
     recordStoreBaseline: vi.fn(async () => undefined),
   },
   themeStore: {
-    installedThemes: [] as unknown[],
-    installTheme: vi.fn(async (_json: string) => true),
-    recordStoreBaseline: vi.fn(),
+    items: [] as unknown[],
+    ensureLoaded: vi.fn(),
+    add: vi.fn(async (input: Record<string, unknown>) => ({
+      ...input,
+      createdAt: 0,
+      updatedAt: 0,
+    })),
+    applyStoreUpdate: vi.fn(async () => true),
+    link: vi.fn(async () => true),
+    recordStoreBaseline: vi.fn(async () => undefined),
   },
   launchPlugin: vi.fn(async () => undefined),
   parsePluginMeta: vi.fn(),
@@ -162,12 +191,11 @@ const fetchMock = vi.fn()
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
-  h.skillsStore.skills = []
-  h.pluginsStore.plugins = []
-  h.widgetsStore.widgets = []
-  h.queriesStore.queries = []
-  h.themeStore.installedThemes = []
-  h.themeStore.installTheme.mockResolvedValue(true)
+  h.skillsStore.items = []
+  h.pluginsStore.items = []
+  h.widgetsStore.items = []
+  h.queriesStore.items = []
+  h.themeStore.items = []
   h.confirm.mockResolvedValue(true)
   vi.stubGlobal('fetch', fetchMock)
 })
@@ -180,48 +208,48 @@ describe('useMisStoreStore registry fetch', () => {
   it('fetchPlugins populates plugins and clears loading', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okJson({ plugins: [pluginEntry()] }))
-    await store.fetchPlugins()
+    await store.feed('plugin').fetch()
     expect(fetchMock).toHaveBeenCalledWith(
       'https://store.notedeck.io/registry/plugins.json',
     )
-    expect(store.plugins).toHaveLength(1)
-    expect(store.loading).toBe(false)
-    expect(store.error).toBeNull()
+    expect(store.feed('plugin').entries).toHaveLength(1)
+    expect(store.feed('plugin').loading).toBe(false)
+    expect(store.feed('plugin').error).toBeNull()
   })
 
   it('skips refetch while the cache is valid, refresh() forces one', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okJson({ plugins: [pluginEntry()] }))
-    await store.fetchPlugins()
-    await store.fetchPlugins()
+    await store.feed('plugin').fetch()
+    await store.feed('plugin').fetch()
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    await store.refresh()
+    await store.feed('plugin').refresh()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('an empty registry result does not lock the cache', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okJson({ plugins: [] }))
-    await store.fetchPlugins()
-    await store.fetchPlugins()
+    await store.feed('plugin').fetch()
+    await store.feed('plugin').fetch()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it('records an HTTP error and keeps plugins empty', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(httpError(500))
-    await store.fetchPlugins()
-    expect(store.error).toBe('HTTP 500')
-    expect(store.plugins).toHaveLength(0)
-    expect(store.loading).toBe(false)
+    await store.feed('plugin').fetch()
+    expect(store.feed('plugin').error).toBe('HTTP 500')
+    expect(store.feed('plugin').entries).toHaveLength(0)
+    expect(store.feed('plugin').loading).toBe(false)
   })
 
   it('records a network error message', async () => {
     const store = useMisStoreStore()
     fetchMock.mockRejectedValue(new Error('offline'))
-    await store.fetchPlugins()
-    expect(store.error).toBe('offline')
-    expect(store.loading).toBe(false)
+    await store.feed('plugin').fetch()
+    expect(store.feed('plugin').error).toBe('offline')
+    expect(store.feed('plugin').loading).toBe(false)
   })
 
   it('fetchThemes / fetchWidgets / fetchSkills read their own registry keys', async () => {
@@ -230,12 +258,14 @@ describe('useMisStoreStore registry fetch', () => {
       .mockResolvedValueOnce(okJson({ themes: [themeEntry()] }))
       .mockResolvedValueOnce(okJson({ widgets: [widgetEntry()] }))
       .mockResolvedValueOnce(okJson({ skills: [skillEntry()] }))
-    await store.fetchThemes()
-    await store.fetchWidgets()
-    await store.fetchSkills()
-    expect(store.themes.map((t) => t.id)).toEqual(['ent-theme'])
-    expect(store.widgets.map((w) => w.id)).toEqual(['ent-widget'])
-    expect(store.skills.map((s) => s.id)).toEqual(['ent-skill'])
+    await store.feed('theme').fetch()
+    await store.feed('widget').fetch()
+    await store.feed('skill').fetch()
+    expect(store.feed('theme').entries.map((t) => t.id)).toEqual(['ent-theme'])
+    expect(store.feed('widget').entries.map((w) => w.id)).toEqual([
+      'ent-widget',
+    ])
+    expect(store.feed('skill').entries.map((s) => s.id)).toEqual(['ent-skill'])
   })
 })
 
@@ -266,6 +296,28 @@ describe('fetchWidgetSource', () => {
   })
 })
 
+/** 既存の skill (既定: ストア 'ent-skill' 由来) */
+function existingSkill(over: Partial<SkillItem>): SkillItem {
+  return {
+    id: 'local-1',
+    name: 'My Skill',
+    store: { id: 'ent-skill' },
+    scope: { kind: 'none' },
+    content: '',
+    extra: {
+      version: '1',
+      mode: 'manual',
+      triggers: [],
+      builtIn: false,
+      cheapCheckCapabilities: [],
+      isPersona: false,
+    },
+    createdAt: 0,
+    updatedAt: 0,
+    ...over,
+  }
+}
+
 describe('installSkill', () => {
   const source =
     '---\nname: Greeter\nmode: always\ntriggers: [hi, hello]\n---\nGreet the user'
@@ -273,86 +325,78 @@ describe('installSkill', () => {
   it('adds a new skill built from frontmatter + entry fallback', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
+    await store.install('skill', skillEntry({ sha512: sha512Hex(source) }))
     expect(h.skillsStore.add).toHaveBeenCalledTimes(1)
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
     expect(added).toMatchObject({
       id: 'ent-skill',
       name: 'Greeter',
-      mode: 'always',
-      triggers: ['hi', 'hello'],
-      storeId: 'ent-skill',
-      body: 'Greet the user',
-      builtIn: false,
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      content: 'Greet the user',
+      store: { id: 'ent-skill', sha512: sha512Hex(source), version: '1.0.0' },
+      scope: { kind: 'none' },
+      extra: { mode: 'always', triggers: ['hi', 'hello'], builtIn: false },
     })
-    expect(store.installingSkill).toBeNull()
+    expect(store.installing('skill')).toBeNull()
   })
 
   it('新規は frontmatter の id 宣言より storeId を正としてローカル ID にする (#913)', async () => {
     const store = useMisStoreStore()
     const declared = '---\nid: distributed-own-id\nname: Greeter\n---\nbody'
     fetchMock.mockResolvedValue(okText(declared))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(declared) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    await store.install('skill', skillEntry({ sha512: sha512Hex(declared) }))
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
     expect(added.id).toBe('ent-skill')
-    expect(added.storeId).toBe('ent-skill')
+    expect(added.store?.id).toBe('ent-skill')
   })
 
   it('storeId 不一致の既存 ID が storeId を占有していたら suffix で回避する (#913)', async () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [{ id: 'ent-skill', name: '自作' }]
+    h.skillsStore.items = [
+      existingSkill({ id: 'ent-skill', name: '自作', store: undefined }),
+    ]
     fetchMock.mockResolvedValue(okText(source))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
-    expect(h.skillsStore.update).not.toHaveBeenCalled()
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    await store.install('skill', skillEntry({ sha512: sha512Hex(source) }))
+    expect(h.skillsStore.applyStoreUpdate).not.toHaveBeenCalled()
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
     expect(added.id).toBe('ent-skill-2')
-    expect(added.storeId).toBe('ent-skill')
+    expect(added.store?.id).toBe('ent-skill')
   })
 
   it('falls back to mode=manual and entry metadata when frontmatter is absent', async () => {
     const store = useMisStoreStore()
     const bare = 'just a body'
     fetchMock.mockResolvedValue(okText(bare))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(bare) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
+    await store.install('skill', skillEntry({ sha512: sha512Hex(bare) }))
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
     expect(added.name).toBe('Test Skill')
-    expect(added.mode).toBe('manual')
-    expect(added.body).toBe(bare)
+    expect(added.extra.mode).toBe('manual')
+    expect(added.content).toBe(bare)
   })
 
   it('既存は storeId で照合しローカル ID・name・mode を維持して上書き更新する (#913)', async () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [
-      {
+    h.skillsStore.items = [
+      existingSkill({
         id: 'local-1',
-        storeId: 'ent-skill',
         name: 'My Renamed',
-        mode: 'heartbeat',
-      },
+        extra: { ...existingSkill({}).extra, mode: 'heartbeat' },
+      }),
     ]
     fetchMock.mockResolvedValue(okText(source))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
+    await store.install('skill', skillEntry({ sha512: sha512Hex(source) }))
     expect(h.skillsStore.add).not.toHaveBeenCalled()
-    expect(h.skillsStore.update).toHaveBeenCalledTimes(1)
-    const [id, patch] = h.skillsStore.update.mock.calls[0] as [
-      string,
-      Partial<SkillMeta>,
-    ]
+    expect(h.skillsStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
+    const [id, patch] = h.skillsStore.applyStoreUpdate.mock
+      .calls[0] as unknown as [string, Record<string, unknown>]
     expect(id).toBe('local-1')
     expect(patch).toMatchObject({
-      body: 'Greet the user',
+      content: 'Greet the user',
       triggers: ['hi', 'hello'],
-      storeId: 'ent-skill',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      store: { id: 'ent-skill', sha512: sha512Hex(source), version: '1.0.0' },
     })
-    // ローカル値 (改名・実行モード・スコープ・ID) は更新で上書きしない
+    // ローカル値 (改名・実行モード・ID) は配布ソースの patch に含めない
     expect(patch).not.toHaveProperty('name')
     expect(patch).not.toHaveProperty('mode')
-    expect(patch).not.toHaveProperty('scope')
-    expect(patch).not.toHaveProperty('installedFor')
     expect(patch).not.toHaveProperty('id')
   })
 
@@ -360,138 +404,171 @@ describe('installSkill', () => {
     const store = useMisStoreStore()
     const hb = '---\nname: Pulse\nmode: heartbeat\n---\nreport'
     fetchMock.mockResolvedValue(okText(hb))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(hb) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
-    expect(added.mode).toBe('heartbeat')
+    await store.install('skill', skillEntry({ sha512: sha512Hex(hb) }))
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
+    expect(added.extra.mode).toBe('heartbeat')
   })
 
   it('takes isPersona from frontmatter (#967)', async () => {
     const store = useMisStoreStore()
     const persona = '---\nname: Aizu\nisPersona: true\n---\npersona body'
     fetchMock.mockResolvedValue(okText(persona))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(persona) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
-    expect(added.isPersona).toBe(true)
+    await store.install('skill', skillEntry({ sha512: sha512Hex(persona) }))
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
+    expect(added.extra.isPersona).toBe(true)
   })
 
   it('defaults isPersona to false when frontmatter omits it (#967)', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
-    const added = h.skillsStore.add.mock.calls[0]?.[0] as SkillMeta
-    expect(added.isPersona).toBe(false)
+    await store.install('skill', skillEntry({ sha512: sha512Hex(source) }))
+    const added = h.skillsStore.add.mock.calls[0]?.[0] as unknown as SkillItem
+    expect(added.extra.isPersona).toBe(false)
   })
 
   it('rejects on hash mismatch and resets installingSkill', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
     await expect(
-      store.installSkill(skillEntry({ sha512: 'deadbeef' })),
+      store.install('skill', skillEntry({ sha512: 'deadbeef' })),
     ).rejects.toThrow(/ハッシュが一致しません/)
     expect(h.skillsStore.add).not.toHaveBeenCalled()
-    expect(store.installingSkill).toBeNull()
+    expect(store.installing('skill')).toBeNull()
   })
 
   it('isSkillInstalled は storeId のみで照合する (内部 ID 一致では真にならない #913)', () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [{ id: 'local-id', storeId: 'ent-skill' }]
-    expect(store.isSkillInstalled(skillEntry())).toBe(true)
-    h.skillsStore.skills = [{ id: 'ent-skill' }]
-    expect(store.isSkillInstalled(skillEntry())).toBe(false)
-    h.skillsStore.skills = [{ id: 'other' }]
-    expect(store.isSkillInstalled(skillEntry())).toBe(false)
+    h.skillsStore.items = [existingSkill({ id: 'local-id' })]
+    expect(store.installedIn('skill', skillEntry())).toBe(true)
+    h.skillsStore.items = [existingSkill({ id: 'ent-skill', store: undefined })]
+    expect(store.installedIn('skill', skillEntry())).toBe(false)
+    h.skillsStore.items = [existingSkill({ id: 'other', store: undefined })]
+    expect(store.installedIn('skill', skillEntry())).toBe(false)
   })
 })
 
 describe('installQuery', () => {
   const source = 'note.text != null'
 
-  it('新規は createQuery に storeId と storeSha512 / storeVersion を渡す (#913)', async () => {
+  it('新規は add にストア由来 3 点 (id / sha512 / version) を渡す (#913)', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
-    await store.installQuery(queryEntry({ sha512: sha512Hex(source) }))
-    expect(h.queriesStore.createQuery).toHaveBeenCalledTimes(1)
-    expect(h.queriesStore.createQuery).toHaveBeenCalledWith(
+    await store.install('query', queryEntry({ sha512: sha512Hex(source) }))
+    expect(h.queriesStore.add).toHaveBeenCalledTimes(1)
+    expect(h.queriesStore.add).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Test Query',
         description: 'desc',
-        src: source,
-        storeId: 'ent-query',
-        storeSha512: sha512Hex(source),
-        storeVersion: '1.0.0',
+        content: source,
+        store: { id: 'ent-query', sha512: sha512Hex(source), version: '1.0.0' },
       }),
     )
-    expect(store.installingQuery).toBeNull()
+    expect(store.installing('query')).toBeNull()
   })
 
   it('既存 (storeId 一致) は applyStoreUpdate で更新し name を渡さない (#913)', async () => {
     const store = useMisStoreStore()
-    h.queriesStore.queries = [
-      { id: 'q-local', storeId: 'ent-query', name: 'My Renamed' },
+    h.queriesStore.items = [
+      { id: 'q-local', store: { id: 'ent-query' }, name: 'My Renamed' },
     ]
     fetchMock.mockResolvedValue(okText(source))
-    await store.installQuery(queryEntry({ sha512: sha512Hex(source) }))
-    expect(h.queriesStore.createQuery).not.toHaveBeenCalled()
+    await store.install('query', queryEntry({ sha512: sha512Hex(source) }))
+    expect(h.queriesStore.add).not.toHaveBeenCalled()
     expect(h.queriesStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
     const [id, patch] = h.queriesStore.applyStoreUpdate.mock
       .calls[0] as unknown as [string, Record<string, unknown>]
     expect(id).toBe('q-local')
     expect(patch).toMatchObject({
-      src: source,
+      content: source,
       description: 'desc',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      store: { id: 'ent-query', sha512: sha512Hex(source), version: '1.0.0' },
     })
     expect(patch).not.toHaveProperty('name')
   })
 
-  it('isQueryInstalled は storeId で照合する', () => {
+  it('installedIn は storeId で照合する', () => {
     const store = useMisStoreStore()
-    h.queriesStore.queries = [{ id: 'q1', storeId: 'ent-query' }]
-    expect(store.isQueryInstalled(queryEntry())).toBe(true)
-    h.queriesStore.queries = [{ id: 'ent-query' }]
-    expect(store.isQueryInstalled(queryEntry())).toBe(false)
+    h.queriesStore.items = [{ id: 'q1', store: { id: 'ent-query' } }]
+    expect(store.installedIn('query', queryEntry())).toBe(true)
+    h.queriesStore.items = [{ id: 'ent-query' }]
+    expect(store.installedIn('query', queryEntry())).toBe(false)
   })
 
-  it('isQueryInstalled: スコープ指定はそのスコープに参加している個体だけを済みとみなす (プラグインと同じ粒度)', () => {
+  it('installedIn: スコープ指定はそのスコープに参加している個体だけを済みとみなす (プラグインと同じ粒度)', () => {
     const store = useMisStoreStore()
-    h.queriesStore.queries = [
-      { id: 'q1', storeId: 'ent-query', installedFor: ['yami.ski:u1'] },
+    h.queriesStore.items = [
+      {
+        id: 'q1',
+        store: { id: 'ent-query' },
+        scope: { kind: 'shared', global: false, installedFor: ['yami.ski:u1'] },
+      },
     ]
     expect(
-      store.isQueryInstalled(queryEntry(), {
+      store.installedIn('query', queryEntry(), {
         kind: 'account',
         key: 'yami.ski:u1',
       }),
     ).toBe(true)
     expect(
-      store.isQueryInstalled(queryEntry(), {
+      store.installedIn('query', queryEntry(), {
         kind: 'account',
         key: 'cloud.example:u2',
       }),
     ).toBe(false)
-    expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(false)
-    h.queriesStore.queries = [{ id: 'q1', storeId: 'ent-query', global: true }]
-    expect(store.isQueryInstalled(queryEntry(), { kind: 'global' })).toBe(true)
+    expect(store.installedIn('query', queryEntry(), { kind: 'global' })).toBe(
+      false,
+    )
+    h.queriesStore.items = [
+      {
+        id: 'q1',
+        store: { id: 'ent-query' },
+        scope: { kind: 'shared', global: true, installedFor: [] },
+      },
+    ]
+    expect(store.installedIn('query', queryEntry(), { kind: 'global' })).toBe(
+      true,
+    )
   })
 
   it('既存 (storeId 一致) に別スコープからインストールすると、そのスコープへ参加させる (プラグインと同型)', async () => {
     const store = useMisStoreStore()
-    h.queriesStore.queries = [
-      { id: 'q-local', storeId: 'ent-query', src: source, global: true },
+    h.queriesStore.items = [
+      {
+        id: 'q-local',
+        store: { id: 'ent-query' },
+        content: source,
+        scope: { kind: 'shared', global: true, installedFor: [] },
+      },
     ]
     fetchMock.mockResolvedValue(okText(source))
-    await store.installQuery(queryEntry({ sha512: sha512Hex(source) }), {
-      kind: 'account',
-      key: 'yami.ski:u1',
-    })
-    expect(h.queriesStore.createQuery).not.toHaveBeenCalled()
-    expect(h.queriesStore.linkScope).toHaveBeenCalledWith('q-local', {
+    await store.install('query', queryEntry({ sha512: sha512Hex(source) }), [
+      {
+        kind: 'account',
+        key: 'yami.ski:u1',
+      },
+    ])
+    expect(h.queriesStore.add).not.toHaveBeenCalled()
+    expect(h.queriesStore.link).toHaveBeenCalledWith('q-local', {
       kind: 'account',
       key: 'yami.ski:u1',
     })
   })
 })
+
+/** 既存の個体 (既定: ストア 'ent-plugin' 由来、id 'p1') */
+function existingPlugin(over: Partial<PluginItem>): PluginItem {
+  return {
+    id: 'p1',
+    name: 'My Plugin',
+    store: { id: 'ent-plugin' },
+    scope: { kind: 'shared', global: true, installedFor: [] },
+    content: '',
+    extra: { version: '1', configData: {}, active: true },
+    createdAt: 0,
+    updatedAt: 0,
+    ...over,
+  }
+}
 
 describe('installPlugin', () => {
   const source = '/* plugin source */'
@@ -506,75 +583,89 @@ describe('installPlugin', () => {
 
   it('既存 (storeId 一致) は本体とストア由来メタを上書き更新して scope を追加する (#913)', async () => {
     const store = useMisStoreStore()
-    h.pluginsStore.plugins = [{ installId: 'p1', storeId: 'ent-plugin' }]
+    h.pluginsStore.items = [existingPlugin({})]
     fetchMock.mockResolvedValue(okText(source))
     h.parsePluginMeta.mockReturnValue(meta)
-    await store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
-      kind: 'global',
-    })
+    await store.install('plugin', pluginEntry({ sha512: sha512Hex(source) }), [
+      {
+        kind: 'global',
+      },
+    ])
     expect(h.pluginsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'p1',
       expect.objectContaining({
-        src: source,
+        content: source,
         version: '1.0.0',
         config: meta.config,
-        storeSha512: sha512Hex(source),
-        storeVersion: '1.0.0',
+        store: {
+          id: 'ent-plugin',
+          sha512: sha512Hex(source),
+          version: '1.0.0',
+        },
       }),
     )
-    expect(h.pluginsStore.linkScope).toHaveBeenCalledWith('p1', {
+    expect(h.pluginsStore.link).toHaveBeenCalledWith('p1', {
       kind: 'global',
     })
-    expect(h.pluginsStore.addPlugin).not.toHaveBeenCalled()
-    expect(store.installing).toBeNull()
+    expect(h.pluginsStore.add).not.toHaveBeenCalled()
+    expect(store.installing('plugin')).toBeNull()
   })
 
-  it('installs a new plugin with default configData and launches it (global scope)', async () => {
+  it('新規は既定の設定値で全体スコープに追加する (起動は plugins store の add が行う)', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
     h.parsePluginMeta.mockReturnValue(meta)
-    await store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
-      kind: 'global',
-    })
-    expect(h.pluginsStore.addPlugin).toHaveBeenCalledTimes(1)
-    const added = h.pluginsStore.addPlugin.mock.calls[0]?.[0] as PluginMeta
+    await store.install('plugin', pluginEntry({ sha512: sha512Hex(source) }), [
+      {
+        kind: 'global',
+      },
+    ])
+    expect(h.pluginsStore.add).toHaveBeenCalledTimes(1)
+    const added = h.pluginsStore.add.mock.calls[0]?.[0] as unknown as PluginItem
     expect(added).toMatchObject({
+      // ローカル ID = storeId (#913)
+      id: 'ent-plugin',
       name: 'MyPlugin',
-      src: source,
-      active: true,
-      storeId: 'ent-plugin',
-      global: true,
-      configData: { greet: 'hi' },
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      content: source,
+      store: { id: 'ent-plugin', sha512: sha512Hex(source), version: '1.0.0' },
+      scope: { kind: 'shared', global: true, installedFor: [] },
+      extra: { active: true, configData: { greet: 'hi' } },
     })
-    expect(added.installedFor).toBeUndefined()
-    expect(h.launchPlugin).toHaveBeenCalledWith(added)
-    expect(store.installing).toBeNull()
+    expect(h.launchPlugin).not.toHaveBeenCalled()
+    expect(store.installing('plugin')).toBeNull()
   })
 
   it('同名の自作プラグインがあってもストア経路のインストールは拒否しない (#913)', async () => {
     const store = useMisStoreStore()
-    h.pluginsStore.plugins = [{ installId: 'p9', name: 'MyPlugin' }]
+    h.pluginsStore.items = [
+      existingPlugin({ id: 'p9', name: 'MyPlugin', store: undefined }),
+    ]
     fetchMock.mockResolvedValue(okText(source))
     h.parsePluginMeta.mockReturnValue(meta)
-    await store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
-      kind: 'global',
-    })
-    expect(h.pluginsStore.addPlugin).toHaveBeenCalledTimes(1)
+    await store.install('plugin', pluginEntry({ sha512: sha512Hex(source) }), [
+      {
+        kind: 'global',
+      },
+    ])
+    expect(h.pluginsStore.add).toHaveBeenCalledTimes(1)
   })
 
   it('installs into installedFor for an account scope', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
     h.parsePluginMeta.mockReturnValue(meta)
-    await store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
-      kind: 'account',
-      key: 'yami.ski:u1',
+    await store.install('plugin', pluginEntry({ sha512: sha512Hex(source) }), [
+      {
+        kind: 'account',
+        key: 'yami.ski:u1',
+      },
+    ])
+    const added = h.pluginsStore.add.mock.calls[0]?.[0] as unknown as PluginItem
+    expect(added.scope).toEqual({
+      kind: 'shared',
+      global: false,
+      installedFor: ['yami.ski:u1'],
     })
-    const added = h.pluginsStore.addPlugin.mock.calls[0]?.[0] as PluginMeta
-    expect(added.installedFor).toEqual(['yami.ski:u1'])
-    expect(added.global).toBeUndefined()
   })
 
   it('rejects when plugin metadata cannot be parsed', async () => {
@@ -582,40 +673,46 @@ describe('installPlugin', () => {
     fetchMock.mockResolvedValue(okText(source))
     h.parsePluginMeta.mockReturnValue(null)
     await expect(
-      store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
-        kind: 'global',
-      }),
+      store.install('plugin', pluginEntry({ sha512: sha512Hex(source) }), [
+        {
+          kind: 'global',
+        },
+      ]),
     ).rejects.toThrow(/メタデータを読み取れませんでした/)
   })
 
   it('既存への追加インストールで権限が拡大するなら再同意を取る (#1040)', async () => {
     const store = useMisStoreStore()
     const newSrc = '/* v2 */'
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: '/* v1 */',
-        permissions: ['read:account'],
-        storeSha512: 'old-sha',
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: '/* v1 */',
+        store: { id: 'ent-plugin', sha512: 'old-sha' },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       ...meta,
       permissions: ['read:account', 'write:notes'],
     })
     fetchMock.mockResolvedValue(okText(newSrc))
-    await store.installPlugin(pluginEntry({ sha512: sha512Hex(newSrc) }), {
-      kind: 'global',
-    })
+    await store.install('plugin', pluginEntry({ sha512: sha512Hex(newSrc) }), [
+      {
+        kind: 'global',
+      },
+    ])
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     expect(opts.message).toContain('新しい権限: write:notes')
     expect(opts.type).toBe('warning')
     expect(h.pluginsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'p1',
       expect.objectContaining({
-        src: newSrc,
+        content: newSrc,
         permissions: ['read:account', 'write:notes'],
       }),
     )
@@ -624,15 +721,17 @@ describe('installPlugin', () => {
   it('権限拡大の再同意を断ったら本体・権限は据え置きで scope だけ足す', async () => {
     const store = useMisStoreStore()
     const newSrc = '/* v2 */'
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: '/* v1 */',
-        permissions: ['read:account'],
-        storeSha512: 'old-sha',
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: '/* v1 */',
+        store: { id: 'ent-plugin', sha512: 'old-sha' },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       ...meta,
@@ -640,39 +739,45 @@ describe('installPlugin', () => {
     })
     fetchMock.mockResolvedValue(okText(newSrc))
     h.confirm.mockResolvedValueOnce(false)
-    await store.installPlugin(pluginEntry({ sha512: sha512Hex(newSrc) }), {
-      kind: 'global',
-    })
+    await store.install('plugin', pluginEntry({ sha512: sha512Hex(newSrc) }), [
+      {
+        kind: 'global',
+      },
+    ])
     expect(h.pluginsStore.applyStoreUpdate).not.toHaveBeenCalled()
-    expect(h.pluginsStore.linkScope).toHaveBeenCalledWith('p1', {
+    expect(h.pluginsStore.link).toHaveBeenCalledWith('p1', {
       kind: 'global',
     })
   })
 
   it('ソースが変わっていなければ scope のリンクだけ行う (本体・権限を触らない)', async () => {
     const store = useMisStoreStore()
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: source,
-        permissions: ['read:account'],
-        storeSha512: sha512Hex(source),
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: source,
+        store: { id: 'ent-plugin', sha512: sha512Hex(source) },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       ...meta,
       permissions: ['read:account', 'write:notes'],
     })
     fetchMock.mockResolvedValue(okText(source))
-    await store.installPlugin(pluginEntry({ sha512: sha512Hex(source) }), {
-      kind: 'account',
-      key: 'yami.ski:u1',
-    })
+    await store.install('plugin', pluginEntry({ sha512: sha512Hex(source) }), [
+      {
+        kind: 'account',
+        key: 'yami.ski:u1',
+      },
+    ])
     expect(h.confirm).not.toHaveBeenCalled()
     expect(h.pluginsStore.applyStoreUpdate).not.toHaveBeenCalled()
-    expect(h.pluginsStore.linkScope).toHaveBeenCalledWith('p1', {
+    expect(h.pluginsStore.link).toHaveBeenCalledWith('p1', {
       kind: 'account',
       key: 'yami.ski:u1',
     })
@@ -680,10 +785,12 @@ describe('installPlugin', () => {
 
   it('isInstalled は storeId のみで照合する (名前一致では真にならない #913)', () => {
     const store = useMisStoreStore()
-    h.pluginsStore.plugins = [{ installId: 'p1', storeId: 'ent-plugin' }]
-    expect(store.isInstalled(pluginEntry())).toBe(true)
-    h.pluginsStore.plugins = [{ installId: 'p1', name: 'Test Plugin' }]
-    expect(store.isInstalled(pluginEntry())).toBe(false)
+    h.pluginsStore.items = [existingPlugin({})]
+    expect(store.installedIn('plugin', pluginEntry())).toBe(true)
+    h.pluginsStore.items = [
+      existingPlugin({ name: 'Test Plugin', store: undefined }),
+    ]
+    expect(store.installedIn('plugin', pluginEntry())).toBe(false)
   })
 })
 
@@ -691,185 +798,197 @@ describe('installWidget', () => {
   it('既存 (storeId 一致) は early return せず本体とメタを上書き更新する (#913)', async () => {
     const store = useMisStoreStore()
     const source = '<: "widget v2"'
-    const existing = { installId: 'w0', storeId: 'ent-widget' } as WidgetMeta
-    const updated = { ...existing, src: source } as WidgetMeta
-    h.widgetsStore.widgets = [existing]
-    h.widgetsStore.applyStoreUpdate.mockReturnValue(updated)
+    const existing = {
+      id: 'w0',
+      store: { id: 'ent-widget' },
+      content: '',
+    } as WidgetItem
+    h.widgetsStore.items = [existing]
     fetchMock.mockResolvedValue(okText(source))
     await expect(
-      store.installWidget(widgetEntry({ sha512: sha512Hex(source) })),
-    ).resolves.toBe(updated)
+      store.install('widget', widgetEntry({ sha512: sha512Hex(source) })),
+    ).resolves.toBe(existing)
     expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'w0',
       expect.objectContaining({
-        src: source,
-        storeSha512: sha512Hex(source),
-        storeVersion: '1.0.0',
+        content: source,
+        store: {
+          id: 'ent-widget',
+          sha512: sha512Hex(source),
+          version: '1.0.0',
+        },
       }),
     )
-    expect(h.widgetsStore.addWidget).not.toHaveBeenCalled()
-    expect(store.installingWidget).toBeNull()
+    expect(h.widgetsStore.add).not.toHaveBeenCalled()
+    expect(store.installing('widget')).toBeNull()
   })
 
   it('installs a new widget from the verified source', async () => {
     const store = useMisStoreStore()
     const source = '<: "widget"'
     fetchMock.mockResolvedValue(okText(source))
-    const widget = await store.installWidget(
+    const widget = await store.install(
+      'widget',
       widgetEntry({ sha512: sha512Hex(source) }),
     )
     expect(widget).toMatchObject({
       // 新規インストールのローカル ID = storeId (#913)
-      installId: 'ent-widget',
+      id: 'ent-widget',
       name: 'Test Widget',
-      src: source,
-      autoRun: true,
-      storeId: 'ent-widget',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+      content: source,
+      extra: { autoRun: true },
+      store: { id: 'ent-widget', sha512: sha512Hex(source), version: '1.0.0' },
+      // scope を渡さなければ全体スコープ
+      scope: { kind: 'shared', global: true, installedFor: [] },
     })
-    expect(h.widgetsStore.addWidget).toHaveBeenCalledWith(widget)
-    expect(store.installingWidget).toBeNull()
+    expect(h.widgetsStore.add).toHaveBeenCalledTimes(1)
+    expect(store.installing('widget')).toBeNull()
   })
 
-  it('accountKey 指定: 同 storeId でもアカウント無しの個体があれば別個体として新規作成する (#1061)', async () => {
+  it('scope 指定: 既存の本体があれば増やさず紐付けを足す (#1202 決定 (b))', async () => {
     const store = useMisStoreStore()
     const source = '<: "widget"'
-    h.widgetsStore.widgets = [
-      { installId: 'ent-widget', storeId: 'ent-widget', src: source },
+    h.widgetsStore.items = [
+      { id: 'ent-widget', store: { id: 'ent-widget' }, content: source },
     ]
     fetchMock.mockResolvedValue(okText(source))
-    const widget = await store.installWidget(
-      widgetEntry({ sha512: sha512Hex(source) }),
-      'misskey.io:u1',
-    )
-    expect(widget).toMatchObject({
-      storeId: 'ent-widget',
-      accountKey: 'misskey.io:u1',
+    await store.install('widget', widgetEntry({ sha512: sha512Hex(source) }), [
+      {
+        kind: 'account',
+        key: 'misskey.io:u1',
+      },
+    ])
+    expect(h.widgetsStore.add).not.toHaveBeenCalled()
+    expect(h.widgetsStore.link).toHaveBeenCalledWith('ent-widget', {
+      kind: 'account',
+      key: 'misskey.io:u1',
     })
-    // ファイル名の正本は storeId のまま、ローカル ID は衝突を避けて suffix
-    expect(widget.installId).not.toBe('ent-widget')
-    expect(h.widgetsStore.addWidget).toHaveBeenCalledWith(widget)
-    expect(h.widgetsStore.applyStoreUpdate).not.toHaveBeenCalled()
+    // 本文が同じなら確認は挟まず、ストア由来の基準だけ記録し直す
+    expect(h.confirm).not.toHaveBeenCalled()
+    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
   })
 
-  it('accountKey 指定: 同じアカウントの個体があれば更新扱い (#1061)', async () => {
+  it('scope 指定で新規なら、その紐付けを持つ本体を作る', async () => {
     const store = useMisStoreStore()
-    const source = '<: "widget v2"'
-    const existing = {
-      installId: 'w-acc',
-      storeId: 'ent-widget',
-      accountKey: 'misskey.io:u1',
-    } as WidgetMeta
-    h.widgetsStore.widgets = [
-      { installId: 'ent-widget', storeId: 'ent-widget' },
-      existing,
-    ]
-    h.widgetsStore.applyStoreUpdate.mockReturnValue({
-      ...existing,
-      src: source,
-    })
+    const source = '<: "widget"'
     fetchMock.mockResolvedValue(okText(source))
-    await store.installWidget(
-      widgetEntry({ sha512: sha512Hex(source) }),
-      'misskey.io:u1',
+    await store.install('widget', widgetEntry({ sha512: sha512Hex(source) }), [
+      {
+        kind: 'account',
+        key: 'misskey.io:u1',
+      },
+    ])
+    expect(h.widgetsStore.add).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: {
+          kind: 'shared',
+          global: false,
+          installedFor: ['misskey.io:u1'],
+        },
+      }),
     )
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
-      'w-acc',
-      expect.objectContaining({ src: source }),
-    )
-    expect(h.widgetsStore.addWidget).not.toHaveBeenCalled()
   })
 
   it('isWidgetInstalled matches by storeId', () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [{ storeId: 'ent-widget' }]
-    expect(store.isWidgetInstalled(widgetEntry())).toBe(true)
-    expect(store.isWidgetInstalled(widgetEntry({ id: 'other' }))).toBe(false)
+    h.widgetsStore.items = [{ store: { id: 'ent-widget' } }]
+    expect(store.installedIn('widget', widgetEntry())).toBe(true)
+    expect(store.installedIn('widget', widgetEntry({ id: 'other' }))).toBe(
+      false,
+    )
   })
 })
+
+/** 既存の個体 (既定: ストア 'ent-theme' 由来、id 'custom-1') */
+function existingTheme(over: Partial<ThemeItem>): ThemeItem {
+  return {
+    id: 'custom-1',
+    name: 'Test Theme',
+    store: { id: 'ent-theme' },
+    createdAt: 0,
+    updatedAt: 0,
+    scope: { kind: 'shared', global: false, installedFor: [] },
+    content: { base: 'dark', props: { accent: '#f00' } },
+    extra: {},
+    ...over,
+  }
+}
 
 describe('installTheme', () => {
   const source = "{ id: 'ent-theme', props: { accent: '#f00' } }"
 
-  it('injects $notedeck (storeId / storeSha512) and unions installedFor with the existing install', async () => {
+  it('既存 (storeId 一致) は本体とストア由来を上書きし、紐付けを足す (ローカル ID と name は維持)', async () => {
     const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      {
-        id: 'ent-theme',
-        name: 'Test Theme',
-        $notedeck: { storeId: 'ent-theme', installedFor: ['acc1'] },
-      },
-    ]
-    fetchMock.mockResolvedValue(okText(source))
-    await store.installTheme(themeEntry({ sha512: sha512Hex(source) }), [
-      'acc2',
-      'acc1',
-    ])
-    expect(h.themeStore.installTheme).toHaveBeenCalledTimes(1)
-    const json = h.themeStore.installTheme.mock.calls[0]?.[0] as string
-    const parsed = JSON.parse(json)
-    expect(parsed.id).toBe('ent-theme')
-    expect(parsed.$notedeck).toEqual({
-      storeId: 'ent-theme',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
-      installedFor: ['acc1', 'acc2'],
-    })
-    expect(store.installingTheme).toBeNull()
-  })
-
-  it('既存 (storeId 一致) は配布内 UUID が変わってもローカル ID と name を維持する (#913)', async () => {
-    const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      {
-        id: 'custom-999',
+    h.themeStore.items = [
+      existingTheme({
         name: 'My Renamed',
-        $notedeck: { storeId: 'ent-theme' },
-      },
+        scope: { kind: 'shared', global: false, installedFor: ['acc1'] },
+        content: { base: 'dark', props: { accent: '#0f0' } },
+      }),
     ]
-    const changed = "{ id: 'new-uuid', name: 'Distributed', props: { a: '1' } }"
-    fetchMock.mockResolvedValue(okText(changed))
-    await store.installTheme(themeEntry({ sha512: sha512Hex(changed) }))
-    const json = h.themeStore.installTheme.mock.calls[0]?.[0] as string
-    const parsed = JSON.parse(json)
-    expect(parsed.id).toBe('custom-999')
-    expect(parsed.name).toBe('My Renamed')
-    expect(parsed.$notedeck.storeId).toBe('ent-theme')
+    fetchMock.mockResolvedValue(okText(source))
+    await store.install('theme', themeEntry({ sha512: sha512Hex(source) }), [
+      { kind: 'account', key: 'acc2' },
+      { kind: 'account', key: 'acc1' },
+    ])
+    expect(h.themeStore.add).not.toHaveBeenCalled()
+    expect(h.themeStore.applyStoreUpdate).toHaveBeenCalledWith('custom-1', {
+      content: { base: 'dark', props: { accent: '#f00' } },
+      store: { id: 'ent-theme', sha512: sha512Hex(source), version: '1.0.0' },
+    })
+    expect(h.themeStore.link.mock.calls).toEqual([
+      ['custom-1', { kind: 'account', key: 'acc2' }],
+      ['custom-1', { kind: 'account', key: 'acc1' }],
+    ])
+    expect(store.installing('theme')).toBeNull()
   })
 
-  it('omits installedFor when no account context is given', async () => {
+  it('新規はローカル ID = storeId で、紐付けはカラムの文脈のアカウント', async () => {
     const store = useMisStoreStore()
     fetchMock.mockResolvedValue(okText(source))
-    await store.installTheme(themeEntry({ sha512: sha512Hex(source) }))
-    const json = h.themeStore.installTheme.mock.calls[0]?.[0] as string
-    expect(JSON.parse(json).$notedeck).toEqual({
-      storeId: 'ent-theme',
-      storeSha512: sha512Hex(source),
-      storeVersion: '1.0.0',
+    await store.install('theme', themeEntry({ sha512: sha512Hex(source) }), [
+      { kind: 'account', key: 'acc1' },
+    ])
+    expect(h.themeStore.add).toHaveBeenCalledTimes(1)
+    expect(h.themeStore.add.mock.calls[0]?.[0]).toMatchObject({
+      id: 'ent-theme',
+      name: 'Test Theme',
+      store: { id: 'ent-theme', sha512: sha512Hex(source), version: '1.0.0' },
+      scope: { kind: 'shared', global: false, installedFor: ['acc1'] },
+      content: { base: 'dark', props: { accent: '#f00' } },
     })
   })
 
-  it('rejects when the theme store reports failure', async () => {
+  it('storeId 不一致の既存 ID が占有していたら suffix で避ける (#913)', async () => {
     const store = useMisStoreStore()
+    h.themeStore.items = [existingTheme({ id: 'ent-theme', store: undefined })]
     fetchMock.mockResolvedValue(okText(source))
-    h.themeStore.installTheme.mockResolvedValue(false)
-    await expect(
-      store.installTheme(themeEntry({ sha512: sha512Hex(source) })),
-    ).rejects.toThrow(/テーマのインストールに失敗/)
-    expect(store.installingTheme).toBeNull()
+    await store.install('theme', themeEntry({ sha512: sha512Hex(source) }))
+    expect(h.themeStore.add.mock.calls[0]?.[0]).toMatchObject({
+      id: 'ent-theme-2',
+      scope: { kind: 'shared', global: false, installedFor: [] },
+    })
   })
 
-  it('isThemeInstalled は $notedeck.storeId のみで照合する (内部 ID 一致では真にならない #913)', () => {
+  it('props の無いソースはテーマではないので拒否する', async () => {
     const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      { id: 'custom-123', $notedeck: { storeId: 'ent-theme' } },
-    ]
-    expect(store.isThemeInstalled(themeEntry())).toBe(true)
-    h.themeStore.installedThemes = [{ id: 'ent-theme' }]
-    expect(store.isThemeInstalled(themeEntry())).toBe(false)
-    h.themeStore.installedThemes = [{ id: 'other' }]
-    expect(store.isThemeInstalled(themeEntry())).toBe(false)
+    const bare = "{ id: 'ent-theme', name: 'no props' }"
+    fetchMock.mockResolvedValue(okText(bare))
+    await expect(
+      store.install('theme', themeEntry({ sha512: sha512Hex(bare) })),
+    ).rejects.toThrow(/テーマのインストールに失敗/)
+    expect(h.themeStore.add).not.toHaveBeenCalled()
+    expect(store.installing('theme')).toBeNull()
+  })
+
+  it('isThemeInstalled は store.id のみで照合する (内部 ID 一致では真にならない #913)', () => {
+    const store = useMisStoreStore()
+    h.themeStore.items = [existingTheme({})]
+    expect(store.installedIn('theme', themeEntry())).toBe(true)
+    h.themeStore.items = [existingTheme({ id: 'ent-theme', store: undefined })]
+    expect(store.installedIn('theme', themeEntry())).toBe(false)
+    h.themeStore.items = [existingTheme({ id: 'other', store: undefined })]
+    expect(store.installedIn('theme', themeEntry())).toBe(false)
   })
 })
 
@@ -877,145 +996,131 @@ describe('更新検知 (#1040)', () => {
   it('hasWidgetUpdate: 記録済み storeSha512 と registry sha512 の不一致で true', () => {
     const store = useMisStoreStore()
     const entry = widgetEntry({ sha512: 'sha-new' })
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-old' },
+    h.widgetsStore.items = [
+      { id: 'w0', store: { id: 'ent-widget', sha512: 'sha-old' } },
     ]
-    expect(store.hasWidgetUpdate(entry)).toBe(true)
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-new' },
+    expect(store.hasUpdate('widget', entry)).toBe(true)
+    h.widgetsStore.items = [
+      { id: 'w0', store: { id: 'ent-widget', sha512: 'sha-new' } },
     ]
-    expect(store.hasWidgetUpdate(entry)).toBe(false)
-  })
-
-  it('hasWidgetUpdate: 同 storeId の個体が複数あれば 1 つでも古ければ true (#1061)', () => {
-    const store = useMisStoreStore()
-    const entry = widgetEntry({ sha512: 'sha-new' })
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-new' },
-      {
-        installId: 'w1',
-        storeId: 'ent-widget',
-        storeSha512: 'sha-old',
-        accountKey: 'misskey.io:u1',
-      },
-    ]
-    expect(store.hasWidgetUpdate(entry)).toBe(true)
+    expect(store.hasUpdate('widget', entry)).toBe(false)
   })
 
   it('未インストール / storeSha512 未記録 (baseline 前) は false', () => {
     const store = useMisStoreStore()
     const entry = widgetEntry({ sha512: 'sha-new' })
-    h.widgetsStore.widgets = []
-    expect(store.hasWidgetUpdate(entry)).toBe(false)
-    h.widgetsStore.widgets = [{ installId: 'w0', storeId: 'ent-widget' }]
-    expect(store.hasWidgetUpdate(entry)).toBe(false)
+    h.widgetsStore.items = []
+    expect(store.hasUpdate('widget', entry)).toBe(false)
+    h.widgetsStore.items = [{ id: 'w0', store: { id: 'ent-widget' } }]
+    expect(store.hasUpdate('widget', entry)).toBe(false)
   })
 
   it('version 文字列は判定に使わない (同一 version でも sha 不一致なら更新あり)', () => {
     const store = useMisStoreStore()
     const entry = widgetEntry({ sha512: 'sha-new', version: '1.0.0' })
-    h.widgetsStore.widgets = [
+    h.widgetsStore.items = [
       {
-        installId: 'w0',
-        storeId: 'ent-widget',
-        storeSha512: 'sha-old',
-        storeVersion: '1.0.0',
+        id: 'w0',
+        store: { id: 'ent-widget', sha512: 'sha-old', version: '1.0.0' },
       },
     ]
-    expect(store.hasWidgetUpdate(entry)).toBe(true)
+    expect(store.hasUpdate('widget', entry)).toBe(true)
   })
 
   it('hasSkillUpdate / hasPluginUpdate / hasQueryUpdate は storeId で照合する', () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [
-      { id: 'local-1', storeId: 'ent-skill', storeSha512: 'sha-old' },
+    h.skillsStore.items = [
+      existingSkill({
+        id: 'local-1',
+        store: { id: 'ent-skill', sha512: 'sha-old' },
+      }),
     ]
-    expect(store.hasSkillUpdate(skillEntry({ sha512: 'sha-new' }))).toBe(true)
-    expect(store.hasSkillUpdate(skillEntry({ sha512: 'sha-old' }))).toBe(false)
+    expect(store.hasUpdate('skill', skillEntry({ sha512: 'sha-new' }))).toBe(
+      true,
+    )
+    expect(store.hasUpdate('skill', skillEntry({ sha512: 'sha-old' }))).toBe(
+      false,
+    )
 
-    h.pluginsStore.plugins = [
-      { installId: 'p1', storeId: 'ent-plugin', storeSha512: 'sha-old' },
+    h.pluginsStore.items = [
+      existingPlugin({ store: { id: 'ent-plugin', sha512: 'sha-old' } }),
     ]
-    expect(store.hasPluginUpdate(pluginEntry({ sha512: 'sha-new' }))).toBe(true)
+    expect(store.hasUpdate('plugin', pluginEntry({ sha512: 'sha-new' }))).toBe(
+      true,
+    )
 
-    h.queriesStore.queries = [
-      { id: 'q1', storeId: 'ent-query', storeSha512: 'sha-old' },
+    h.queriesStore.items = [
+      { id: 'q1', store: { id: 'ent-query', sha512: 'sha-old' } },
     ]
-    expect(store.hasQueryUpdate(queryEntry({ sha512: 'sha-new' }))).toBe(true)
+    expect(store.hasUpdate('query', queryEntry({ sha512: 'sha-new' }))).toBe(
+      true,
+    )
   })
 
-  it('hasThemeUpdate は $notedeck.storeId / storeSha512 で照合する', () => {
+  it('hasThemeUpdate は store.id / sha512 で照合する', () => {
     const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      {
-        id: 'custom-1',
-        $notedeck: { storeId: 'ent-theme', storeSha512: 'sha-old' },
-      },
+    h.themeStore.items = [
+      existingTheme({ store: { id: 'ent-theme', sha512: 'sha-old' } }),
     ]
-    expect(store.hasThemeUpdate(themeEntry({ sha512: 'sha-new' }))).toBe(true)
-    expect(store.hasThemeUpdate(themeEntry({ sha512: 'sha-old' }))).toBe(false)
-    // baseline 前 (storeSha512 未記録) は false
-    h.themeStore.installedThemes = [
-      { id: 'custom-1', $notedeck: { storeId: 'ent-theme' } },
-    ]
-    expect(store.hasThemeUpdate(themeEntry({ sha512: 'sha-new' }))).toBe(false)
+    expect(store.hasUpdate('theme', themeEntry({ sha512: 'sha-new' }))).toBe(
+      true,
+    )
+    expect(store.hasUpdate('theme', themeEntry({ sha512: 'sha-old' }))).toBe(
+      false,
+    )
+    // baseline 前 (sha512 未記録) は false
+    h.themeStore.items = [existingTheme({})]
+    expect(store.hasUpdate('theme', themeEntry({ sha512: 'sha-new' }))).toBe(
+      false,
+    )
   })
 })
 
 describe('baseline 無通知記録 (#1040)', () => {
   it('fetchWidgets: storeSha512 未記録のインストール済みへ現行値を記録する', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [{ installId: 'w0', storeId: 'ent-widget' }]
+    h.widgetsStore.items = [{ id: 'w0', store: { id: 'ent-widget' } }]
     const entry = widgetEntry({ sha512: 'sha-now', version: '2.0.0' })
     fetchMock.mockResolvedValue(okJson({ widgets: [entry] }))
-    await store.fetchWidgets()
+    await store.feed('widget').fetch()
+    // widget は envelope のストア由来 3 点の形で受ける (#1202 段階 1)
     expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w0', {
-      storeSha512: 'sha-now',
-      storeVersion: '2.0.0',
+      sha512: 'sha-now',
+      version: '2.0.0',
     })
   })
 
-  it('fetchWidgets: 同 storeId の個体が複数あれば未記録の全個体に baseline を記録する (#1061)', async () => {
+  it('fetchWidgets: 記録済みの本体には baseline を記録しない', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget' },
-      { installId: 'w1', storeId: 'ent-widget', accountKey: 'misskey.io:u1' },
-      { installId: 'w2', storeId: 'ent-widget', storeSha512: 'sha-cur' },
+    h.widgetsStore.items = [
+      { id: 'w2', store: { id: 'ent-widget', sha512: 'sha-cur' } },
     ]
     fetchMock.mockResolvedValue(
       okJson({
         widgets: [widgetEntry({ sha512: 'sha-cur', version: '1.2.0' })],
       }),
     )
-    await store.fetchWidgets()
-    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledTimes(2)
-    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w0', {
-      storeSha512: 'sha-cur',
-      storeVersion: '1.2.0',
-    })
-    expect(h.widgetsStore.recordStoreBaseline).toHaveBeenCalledWith('w1', {
-      storeSha512: 'sha-cur',
-      storeVersion: '1.2.0',
-    })
+    await store.feed('widget').fetch()
+    expect(h.widgetsStore.recordStoreBaseline).not.toHaveBeenCalled()
   })
 
   it('記録済み storeSha512 があるものには触れない (更新検知を上書きしない)', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', storeSha512: 'sha-old' },
+    h.widgetsStore.items = [
+      { id: 'w0', store: { id: 'ent-widget', sha512: 'sha-old' } },
     ]
     fetchMock.mockResolvedValue(
       okJson({ widgets: [widgetEntry({ sha512: 'sha-now' })] }),
     )
-    await store.fetchWidgets()
+    await store.feed('widget').fetch()
     expect(h.widgetsStore.recordStoreBaseline).not.toHaveBeenCalled()
   })
 
   it('fetchSkills / fetchPlugins / fetchQueries も未記録分へ記録する', async () => {
     const store = useMisStoreStore()
-    h.skillsStore.skills = [{ id: 'local-1', storeId: 'ent-skill' }]
-    h.pluginsStore.plugins = [{ installId: 'p1', storeId: 'ent-plugin' }]
-    h.queriesStore.queries = [{ id: 'q1', storeId: 'ent-query' }]
+    h.skillsStore.items = [existingSkill({ id: 'local-1' })]
+    h.pluginsStore.items = [existingPlugin({})]
+    h.queriesStore.items = [{ id: 'q1', store: { id: 'ent-query' } }]
     fetchMock
       .mockResolvedValueOnce(
         okJson({ skills: [skillEntry({ sha512: 's-sha' })] }),
@@ -1026,43 +1131,42 @@ describe('baseline 無通知記録 (#1040)', () => {
       .mockResolvedValueOnce(
         okJson({ queries: [queryEntry({ sha512: 'q-sha' })] }),
       )
-    await store.fetchSkills()
-    await store.fetchPlugins()
-    await store.fetchQueries()
+    await store.feed('skill').fetch()
+    await store.feed('plugin').fetch()
+    await store.feed('query').fetch()
+    // skill / plugin / query は envelope のストア由来 3 点の形で受ける (#1202 段階 1)
     expect(h.skillsStore.recordStoreBaseline).toHaveBeenCalledWith('local-1', {
-      storeSha512: 's-sha',
-      storeVersion: '1.0.0',
+      sha512: 's-sha',
+      version: '1.0.0',
     })
     expect(h.pluginsStore.recordStoreBaseline).toHaveBeenCalledWith('p1', {
-      storeSha512: 'p-sha',
-      storeVersion: '1.0.0',
+      sha512: 'p-sha',
+      version: '1.0.0',
     })
     expect(h.queriesStore.recordStoreBaseline).toHaveBeenCalledWith('q1', {
-      storeSha512: 'q-sha',
-      storeVersion: '1.0.0',
+      sha512: 'q-sha',
+      version: '1.0.0',
     })
   })
 
-  it('fetchThemes: $notedeck.storeSha512 未記録のテーマへ記録する', async () => {
+  it('fetchThemes: sha512 未記録のテーマへ記録する', async () => {
     const store = useMisStoreStore()
-    h.themeStore.installedThemes = [
-      { id: 'custom-1', $notedeck: { storeId: 'ent-theme' } },
-    ]
+    h.themeStore.items = [existingTheme({})]
     fetchMock.mockResolvedValue(
       okJson({ themes: [themeEntry({ sha512: 't-sha' })] }),
     )
-    await store.fetchThemes()
+    await store.feed('theme').fetch()
     expect(h.themeStore.recordStoreBaseline).toHaveBeenCalledWith('custom-1', {
-      storeSha512: 't-sha',
-      storeVersion: '1.0.0',
+      sha512: 't-sha',
+      version: '1.0.0',
     })
   })
 
   it('インストールされていない registry エントリには何も記録しない', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = [{ installId: 'w9', storeId: 'other-widget' }]
+    h.widgetsStore.items = [{ id: 'w9', store: { id: 'other-widget' } }]
     fetchMock.mockResolvedValue(okJson({ widgets: [widgetEntry()] }))
-    await store.fetchWidgets()
+    await store.feed('widget').fetch()
     expect(h.widgetsStore.recordStoreBaseline).not.toHaveBeenCalled()
   })
 })
@@ -1114,9 +1218,9 @@ describe('ハッシュ不一致の 1 回リトライ (#1040)', () => {
       .mockResolvedValueOnce(okText(newSrc))
       .mockResolvedValueOnce(okJson({ widgets: [freshEntry] }))
       .mockResolvedValueOnce(okText(newSrc))
-    const widget = await store.installWidget(staleEntry)
-    expect(widget.storeSha512).toBe(sha512Hex(newSrc))
-    expect(widget.storeVersion).toBe('1.1.0')
+    const widget = await store.install('widget', staleEntry)
+    expect(widget?.store?.sha512).toBe(sha512Hex(newSrc))
+    expect(widget?.store?.version).toBe('1.1.0')
   })
 })
 
@@ -1125,20 +1229,16 @@ describe('更新適用 (#1040)', () => {
     const store = useMisStoreStore()
     const oldSrc = '<: "local edit"'
     const newSrc = '<: "widget v2"'
-    h.widgetsStore.widgets = [
+    h.widgetsStore.items = [
       {
-        installId: 'w0',
-        storeId: 'ent-widget',
+        id: 'w0',
+        store: { id: 'ent-widget' },
         name: 'My Widget',
-        src: oldSrc,
+        content: oldSrc,
       },
     ]
-    h.widgetsStore.applyStoreUpdate.mockReturnValue({
-      installId: 'w0',
-      src: newSrc,
-    })
     fetchMock.mockResolvedValue(okText(newSrc))
-    await store.installWidget(widgetEntry({ sha512: sha512Hex(newSrc) }))
+    await store.install('widget', widgetEntry({ sha512: sha512Hex(newSrc) }))
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     expect(opts.diff).toEqual({
       old: oldSrc,
@@ -1151,15 +1251,15 @@ describe('更新適用 (#1040)', () => {
     const store = useMisStoreStore()
     h.confirm.mockResolvedValueOnce(false)
     const existing = {
-      installId: 'w0',
-      storeId: 'ent-widget',
-      src: '<: "local edit"',
-    } as WidgetMeta
-    h.widgetsStore.widgets = [existing]
+      id: 'w0',
+      store: { id: 'ent-widget' },
+      content: '<: "local edit"',
+    } as WidgetItem
+    h.widgetsStore.items = [existing]
     const newSrc = '<: "widget v2"'
     fetchMock.mockResolvedValue(okText(newSrc))
     await expect(
-      store.installWidget(widgetEntry({ sha512: sha512Hex(newSrc) })),
+      store.install('widget', widgetEntry({ sha512: sha512Hex(newSrc) })),
     ).resolves.toBe(existing)
     expect(h.widgetsStore.applyStoreUpdate).not.toHaveBeenCalled()
   })
@@ -1167,11 +1267,16 @@ describe('更新適用 (#1040)', () => {
   it('installQuery: 既存への再インストールも diff 確認を通す (#981)', async () => {
     const store = useMisStoreStore()
     const newSrc = '<: "query v2"'
-    h.queriesStore.queries = [
-      { id: 'q0', storeId: 'ent-query', name: 'Q', src: '<: "local edit"' },
+    h.queriesStore.items = [
+      {
+        id: 'q0',
+        store: { id: 'ent-query' },
+        name: 'Q',
+        content: '<: "local edit"',
+      },
     ]
     fetchMock.mockResolvedValue(okText(newSrc))
-    await store.installQuery(queryEntry({ sha512: sha512Hex(newSrc) }))
+    await store.install('query', queryEntry({ sha512: sha512Hex(newSrc) }))
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     expect(opts.diff).toEqual({
       old: '<: "local edit"',
@@ -1184,12 +1289,17 @@ describe('更新適用 (#1040)', () => {
   it('installQuery: 確認をキャンセルしたら src を書き換えない (#981)', async () => {
     const store = useMisStoreStore()
     h.confirm.mockResolvedValueOnce(false)
-    h.queriesStore.queries = [
-      { id: 'q0', storeId: 'ent-query', name: 'Q', src: '<: "local edit"' },
+    h.queriesStore.items = [
+      {
+        id: 'q0',
+        store: { id: 'ent-query' },
+        name: 'Q',
+        content: '<: "local edit"',
+      },
     ]
     const newSrc = '<: "query v2"'
     fetchMock.mockResolvedValue(okText(newSrc))
-    await store.installQuery(queryEntry({ sha512: sha512Hex(newSrc) }))
+    await store.install('query', queryEntry({ sha512: sha512Hex(newSrc) }))
     expect(h.queriesStore.applyStoreUpdate).not.toHaveBeenCalled()
   })
 
@@ -1197,86 +1307,79 @@ describe('更新適用 (#1040)', () => {
     const store = useMisStoreStore()
     const body = '# v2\n\n新しい本文'
     const source = `---\nname: Test Skill\n---\n${body}`
-    h.skillsStore.skills = [
-      { id: 'sk0', storeId: 'ent-skill', name: 'Test Skill', body: '# v1' },
+    h.skillsStore.items = [
+      existingSkill({ id: 'sk0', name: 'Test Skill', content: '# v1' }),
     ]
     fetchMock.mockResolvedValue(okText(source))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
+    await store.install('skill', skillEntry({ sha512: sha512Hex(source) }))
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     expect(opts.diff).toEqual({
       old: '# v1',
       new: body,
       language: 'markdown',
     })
-    expect(h.skillsStore.update).toHaveBeenCalled()
+    expect(h.skillsStore.applyStoreUpdate).toHaveBeenCalled()
   })
 
   it('installSkill: 確認をキャンセルしたら本文を書き換えない (#981)', async () => {
     const store = useMisStoreStore()
     h.confirm.mockResolvedValueOnce(false)
-    h.skillsStore.skills = [
-      { id: 'sk0', storeId: 'ent-skill', name: 'Test Skill', body: '# v1' },
+    h.skillsStore.items = [
+      existingSkill({ id: 'sk0', name: 'Test Skill', content: '# v1' }),
     ]
     const source = '---\nname: Test Skill\n---\n# v2'
     fetchMock.mockResolvedValue(okText(source))
-    await store.installSkill(skillEntry({ sha512: sha512Hex(source) }))
-    expect(h.skillsStore.update).not.toHaveBeenCalled()
+    await store.install('skill', skillEntry({ sha512: sha512Hex(source) }))
+    expect(h.skillsStore.applyStoreUpdate).not.toHaveBeenCalled()
   })
 
-  it('installTheme: 見た目が変わらない再インストール (installedFor 追加だけ) は確認しない (#981)', async () => {
+  it('installTheme: 見た目が変わらない再インストール (紐付け追加だけ) は確認しない (#981)', async () => {
     const store = useMisStoreStore()
     const source = "{ id: 'ent-theme', name: 'T', props: { accent: '#f00' } }"
-    h.themeStore.installedThemes = [
-      {
-        id: 'ent-theme',
-        name: 'T',
-        props: { accent: '#f00' },
-        $notedeck: { storeId: 'ent-theme', installedFor: ['acc1'] },
-      },
+    h.themeStore.items = [
+      existingTheme({
+        scope: { kind: 'shared', global: false, installedFor: ['acc1'] },
+      }),
     ]
     fetchMock.mockResolvedValue(okText(source))
-    await store.installTheme(themeEntry({ sha512: sha512Hex(source) }), [
-      'acc2',
+    await store.install('theme', themeEntry({ sha512: sha512Hex(source) }), [
+      { kind: 'account', key: 'acc2' },
     ])
     expect(h.confirm).not.toHaveBeenCalled()
-    expect(h.themeStore.installTheme).toHaveBeenCalledTimes(1)
+    expect(h.themeStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
+    expect(h.themeStore.link).toHaveBeenCalledWith('custom-1', {
+      kind: 'account',
+      key: 'acc2',
+    })
   })
 
   it('installTheme: props が変わる再インストールは diff 確認を通す (#981)', async () => {
     const store = useMisStoreStore()
     const source = "{ id: 'ent-theme', name: 'T', props: { accent: '#0f0' } }"
-    h.themeStore.installedThemes = [
-      {
-        id: 'ent-theme',
-        name: 'T',
-        props: { accent: '#f00' },
-        $notedeck: { storeId: 'ent-theme' },
-      },
-    ]
+    h.themeStore.items = [existingTheme({})]
     fetchMock.mockResolvedValue(okText(source))
-    await store.installTheme(themeEntry({ sha512: sha512Hex(source) }))
+    await store.install('theme', themeEntry({ sha512: sha512Hex(source) }))
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     const diff = opts.diff as { old: string; new: string }
-    expect(diff.old).toContain('"accent": "#f00"')
-    expect(diff.new).toContain('"accent": "#0f0"')
+    expect(diff.old).toContain("accent: '#f00'")
+    expect(diff.new).toContain("accent: '#0f0'")
   })
 
   it('updateWidget: diff 付き確認 → 承認で確認に使ったソースをそのまま適用する', async () => {
     const store = useMisStoreStore()
     const oldSrc = '<: "widget v1"'
     const newSrc = '<: "widget v2"'
-    h.widgetsStore.widgets = [
+    h.widgetsStore.items = [
       {
-        installId: 'w0',
-        storeId: 'ent-widget',
+        id: 'w0',
+        store: { id: 'ent-widget', sha512: sha512Hex(oldSrc) },
         name: 'My Widget',
-        src: oldSrc,
-        storeSha512: sha512Hex(oldSrc),
+        content: oldSrc,
       },
     ]
     fetchMock.mockResolvedValue(okText(newSrc))
     const entry = widgetEntry({ sha512: sha512Hex(newSrc), version: '2.0.0' })
-    await expect(store.updateWidget(entry)).resolves.toBe(true)
+    await expect(store.update('widget', entry)).resolves.toBe(true)
     expect(h.confirm).toHaveBeenCalledTimes(1)
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     expect(opts.diff).toEqual({
@@ -1287,110 +1390,54 @@ describe('更新適用 (#1040)', () => {
     expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'w0',
       expect.objectContaining({
-        src: newSrc,
-        storeSha512: sha512Hex(newSrc),
-        storeVersion: '2.0.0',
+        content: newSrc,
+        store: {
+          id: 'ent-widget',
+          sha512: sha512Hex(newSrc),
+          version: '2.0.0',
+        },
       }),
     )
     // 承認後の再 fetch なし: ソース取得は確認前の 1 回だけ (#981 不変条件)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(store.installingWidget).toBeNull()
-  })
-
-  it('updateWidget: 同 storeId の全個体に適用し、ソースが同じ個体は 1 回の確認で済ませる (#1061)', async () => {
-    const store = useMisStoreStore()
-    const oldSrc = '<: "widget v1"'
-    const newSrc = '<: "widget v2"'
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', src: oldSrc },
-      {
-        installId: 'w1',
-        storeId: 'ent-widget',
-        src: oldSrc,
-        accountKey: 'misskey.io:u1',
-      },
-    ]
-    fetchMock.mockResolvedValue(okText(newSrc))
-    const entry = widgetEntry({ sha512: sha512Hex(newSrc), version: '2.0.0' })
-    await expect(store.updateWidget(entry)).resolves.toBe(true)
-    expect(h.confirm).toHaveBeenCalledTimes(1)
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledTimes(2)
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
-      'w0',
-      expect.objectContaining({ src: newSrc }),
-    )
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
-      'w1',
-      expect.objectContaining({ src: newSrc }),
-    )
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-  })
-
-  it('updateWidget: ローカル編集で分岐した個体は個別に diff 確認し、キャンセルはその個体だけ飛ばす (#1061)', async () => {
-    const store = useMisStoreStore()
-    const oldSrc = '<: "widget v1"'
-    const editedSrc = '<: "widget v1 (edited)"'
-    const newSrc = '<: "widget v2"'
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', src: oldSrc },
-      {
-        installId: 'w1',
-        storeId: 'ent-widget',
-        src: editedSrc,
-        accountKey: 'misskey.io:u1',
-      },
-    ]
-    h.confirm.mockResolvedValueOnce(true).mockResolvedValueOnce(false)
-    fetchMock.mockResolvedValue(okText(newSrc))
-    const entry = widgetEntry({ sha512: sha512Hex(newSrc), version: '2.0.0' })
-    await expect(store.updateWidget(entry)).resolves.toBe(true)
-    expect(h.confirm).toHaveBeenCalledTimes(2)
-    const second = h.confirm.mock.calls[1]?.[0] as Record<string, unknown>
-    expect(second.diff).toEqual({
-      old: editedSrc,
-      new: newSrc,
-      language: 'aiscript',
-    })
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledTimes(1)
-    expect(h.widgetsStore.applyStoreUpdate).toHaveBeenCalledWith(
-      'w0',
-      expect.anything(),
-    )
+    expect(store.installing('widget')).toBeNull()
   })
 
   it('updateWidget: キャンセルで適用しない', async () => {
     const store = useMisStoreStore()
     const newSrc = '<: "v2"'
-    h.widgetsStore.widgets = [
-      { installId: 'w0', storeId: 'ent-widget', src: 'old', storeSha512: 'x' },
+    h.widgetsStore.items = [
+      { id: 'w0', store: { id: 'ent-widget', sha512: 'x' }, content: 'old' },
     ]
     fetchMock.mockResolvedValue(okText(newSrc))
     h.confirm.mockResolvedValue(false)
     await expect(
-      store.updateWidget(widgetEntry({ sha512: sha512Hex(newSrc) })),
+      store.update('widget', widgetEntry({ sha512: sha512Hex(newSrc) })),
     ).resolves.toBe(false)
     expect(h.widgetsStore.applyStoreUpdate).not.toHaveBeenCalled()
   })
 
   it('updateWidget: 未インストールなら fetch せず false', async () => {
     const store = useMisStoreStore()
-    h.widgetsStore.widgets = []
-    await expect(store.updateWidget(widgetEntry())).resolves.toBe(false)
+    h.widgetsStore.items = []
+    await expect(store.update('widget', widgetEntry())).resolves.toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('updatePlugin: permissions が拡大する更新は新規権限を明示する', async () => {
     const store = useMisStoreStore()
     const newSrc = '/* v2 */'
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: '/* v1 */',
-        permissions: ['read:account'],
-        storeSha512: 'old-sha',
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: '/* v1 */',
+        store: { id: 'ent-plugin', sha512: 'old-sha' },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       name: 'My Plugin',
@@ -1399,7 +1446,7 @@ describe('更新適用 (#1040)', () => {
     })
     fetchMock.mockResolvedValue(okText(newSrc))
     await expect(
-      store.updatePlugin(pluginEntry({ sha512: sha512Hex(newSrc) })),
+      store.update('plugin', pluginEntry({ sha512: sha512Hex(newSrc) })),
     ).resolves.toBe(true)
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     expect(opts.message).toContain('新しい権限: write:notes')
@@ -1408,27 +1455,33 @@ describe('更新適用 (#1040)', () => {
     expect(h.pluginsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'p1',
       expect.objectContaining({
-        src: newSrc,
+        content: newSrc,
         permissions: ['read:account', 'write:notes'],
-        storeSha512: sha512Hex(newSrc),
+        store: {
+          id: 'ent-plugin',
+          sha512: sha512Hex(newSrc),
+          version: '1.0.0',
+        },
       }),
     )
-    // 更新はスコープに触れない (linkScope を呼ばない)
-    expect(h.pluginsStore.linkScope).not.toHaveBeenCalled()
+    // 更新はスコープに触れない (link を呼ばない)
+    expect(h.pluginsStore.link).not.toHaveBeenCalled()
   })
 
   it('updatePlugin: permissions が拡大しなければ警告文を出さない', async () => {
     const store = useMisStoreStore()
     const newSrc = '/* v2 */'
-    h.pluginsStore.plugins = [
-      {
-        installId: 'p1',
-        storeId: 'ent-plugin',
-        name: 'My Plugin',
-        src: '/* v1 */',
-        permissions: ['read:account'],
-        storeSha512: 'old-sha',
-      },
+    h.pluginsStore.items = [
+      existingPlugin({
+        content: '/* v1 */',
+        store: { id: 'ent-plugin', sha512: 'old-sha' },
+        extra: {
+          version: '1',
+          configData: {},
+          active: true,
+          permissions: ['read:account'],
+        },
+      }),
     ]
     h.parsePluginMeta.mockReturnValue({
       name: 'My Plugin',
@@ -1436,7 +1489,7 @@ describe('更新適用 (#1040)', () => {
       permissions: ['read:account'],
     })
     fetchMock.mockResolvedValue(okText(newSrc))
-    await store.updatePlugin(pluginEntry({ sha512: sha512Hex(newSrc) }))
+    await store.update('plugin', pluginEntry({ sha512: sha512Hex(newSrc) }))
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     expect(opts.message).not.toContain('新しい権限')
     expect(opts.type).toBeUndefined()
@@ -1445,18 +1498,17 @@ describe('更新適用 (#1040)', () => {
   it('updateSkill: 本文 (body) 同士の markdown diff で確認し、承認でそのまま適用する', async () => {
     const store = useMisStoreStore()
     const newSource = '---\nname: Greeter\nversion: 2.0.0\n---\nNew body'
-    h.skillsStore.skills = [
-      {
+    h.skillsStore.items = [
+      existingSkill({
         id: 'local-1',
-        storeId: 'ent-skill',
         name: 'My Renamed',
-        body: 'Old body',
-        storeSha512: 'old-sha',
-      },
+        content: 'Old body',
+        store: { id: 'ent-skill', sha512: 'old-sha' },
+      }),
     ]
     fetchMock.mockResolvedValue(okText(newSource))
     await expect(
-      store.updateSkill(skillEntry({ sha512: sha512Hex(newSource) })),
+      store.update('skill', skillEntry({ sha512: sha512Hex(newSource) })),
     ).resolves.toBe(true)
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     expect(opts.diff).toEqual({
@@ -1464,18 +1516,24 @@ describe('更新適用 (#1040)', () => {
       new: 'New body',
       language: 'markdown',
     })
-    expect(h.skillsStore.update).toHaveBeenCalledWith(
+    expect(h.skillsStore.applyStoreUpdate).toHaveBeenCalledWith(
       'local-1',
       expect.objectContaining({
-        body: 'New body',
-        storeSha512: sha512Hex(newSource),
+        content: 'New body',
+        store: {
+          id: 'ent-skill',
+          sha512: sha512Hex(newSource),
+          version: '1.0.0',
+        },
       }),
     )
     // ローカル値は維持 (installSkill の上書き更新と同じ境界)
-    const patch = h.skillsStore.update.mock.calls[0]?.[1] as Record<
-      string,
-      unknown
-    >
+    const patch = (
+      h.skillsStore.applyStoreUpdate.mock.calls[0] as unknown as [
+        string,
+        Record<string, unknown>,
+      ]
+    )[1]
     expect(patch).not.toHaveProperty('name')
     expect(patch).not.toHaveProperty('mode')
   })
@@ -1483,18 +1541,17 @@ describe('更新適用 (#1040)', () => {
   it('updateQuery: src の diff 確認 → applyStoreUpdate に確認したソースを渡す', async () => {
     const store = useMisStoreStore()
     const newSrc = 'note.text == null'
-    h.queriesStore.queries = [
+    h.queriesStore.items = [
       {
         id: 'q-local',
-        storeId: 'ent-query',
+        store: { id: 'ent-query', sha512: 'old-sha' },
         name: 'My Query',
-        src: 'note.text != null',
-        storeSha512: 'old-sha',
+        content: 'note.text != null',
       },
     ]
     fetchMock.mockResolvedValue(okText(newSrc))
     await expect(
-      store.updateQuery(queryEntry({ sha512: sha512Hex(newSrc) })),
+      store.update('query', queryEntry({ sha512: sha512Hex(newSrc) })),
     ).resolves.toBe(true)
     const opts = h.confirm.mock.calls[0]?.[0] as Record<string, unknown>
     expect(opts.diff).toEqual({
@@ -1505,27 +1562,24 @@ describe('更新適用 (#1040)', () => {
     expect(h.queriesStore.applyStoreUpdate).toHaveBeenCalledWith(
       'q-local',
       expect.objectContaining({
-        src: newSrc,
-        storeSha512: sha512Hex(newSrc),
+        content: newSrc,
+        store: expect.objectContaining({ sha512: sha512Hex(newSrc) }),
       }),
     )
   })
 
-  it('updateTheme: json5 diff で確認し、確認に使った全文をそのまま installTheme に渡す', async () => {
+  it('updateTheme: ファイルに書く形の json5 diff で確認し、本体とストア由来だけ適用する', async () => {
     const store = useMisStoreStore()
     const source = "{ id: 'new-uuid', props: { accent: '#0f0' } }"
-    h.themeStore.installedThemes = [
-      {
-        id: 'custom-1',
+    h.themeStore.items = [
+      existingTheme({
         name: 'My Theme',
-        base: 'dark',
-        props: { accent: '#f00' },
-        $notedeck: { storeId: 'ent-theme', storeSha512: 'old-sha' },
-      },
+        store: { id: 'ent-theme', sha512: 'old-sha' },
+      }),
     ]
     fetchMock.mockResolvedValue(okText(source))
     await expect(
-      store.updateTheme(themeEntry({ sha512: sha512Hex(source) }), ['acc1']),
+      store.update('theme', themeEntry({ sha512: sha512Hex(source) })),
     ).resolves.toBe(true)
     const opts = h.confirm.mock.calls[0]?.[0] as {
       diff: { old: string; new: string; language: string }
@@ -1533,24 +1587,25 @@ describe('更新適用 (#1040)', () => {
     expect(opts.diff.language).toBe('json5')
     expect(opts.diff.old).toContain('#f00')
     // ローカル ID / 改名は維持される (#913 と同じ境界)
-    const applied = JSON.parse(opts.diff.new)
-    expect(applied.id).toBe('custom-1')
-    expect(applied.name).toBe('My Theme')
-    expect(applied.$notedeck.storeSha512).toBe(sha512Hex(source))
-    expect(applied.$notedeck.installedFor).toEqual(['acc1'])
-    // 不変条件: 確認に使った全文 = 書き込む全文
-    expect(h.themeStore.installTheme).toHaveBeenCalledWith(opts.diff.new)
+    expect(opts.diff.new).toContain("id: 'custom-1'")
+    expect(opts.diff.new).toContain("name: 'My Theme'")
+    expect(opts.diff.new).toContain(`storeSha512: '${sha512Hex(source)}'`)
+    expect(h.themeStore.applyStoreUpdate).toHaveBeenCalledWith('custom-1', {
+      content: { base: 'dark', props: { accent: '#0f0' } },
+      store: { id: 'ent-theme', sha512: sha512Hex(source), version: '1.0.0' },
+    })
+    // 更新は参加先に触れない (有効範囲はローカル値)
+    expect(h.themeStore.link).not.toHaveBeenCalled()
   })
 
   it('更新も sha 不一致なら index 再取得の 1 回リトライを経て新 entry を適用する', async () => {
     const store = useMisStoreStore()
     const newSrc = 'note.userId != null'
-    h.queriesStore.queries = [
+    h.queriesStore.items = [
       {
         id: 'q-local',
-        storeId: 'ent-query',
-        src: 'old',
-        storeSha512: 'old-sha',
+        store: { id: 'ent-query', sha512: 'old-sha' },
+        content: 'old',
       },
     ]
     const staleEntry = queryEntry({ sha512: sha512Hex('stale') })
@@ -1562,10 +1617,13 @@ describe('更新適用 (#1040)', () => {
       .mockResolvedValueOnce(okText(newSrc))
       .mockResolvedValueOnce(okJson({ queries: [freshEntry] }))
       .mockResolvedValueOnce(okText(newSrc))
-    await expect(store.updateQuery(staleEntry)).resolves.toBe(true)
+    await expect(store.update('query', staleEntry)).resolves.toBe(true)
     expect(h.queriesStore.applyStoreUpdate).toHaveBeenCalledWith(
       'q-local',
-      expect.objectContaining({ src: newSrc, storeVersion: '3.0.0' }),
+      expect.objectContaining({
+        content: newSrc,
+        store: expect.objectContaining({ version: '3.0.0' }),
+      }),
     )
   })
 })

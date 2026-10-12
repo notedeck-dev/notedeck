@@ -126,7 +126,7 @@
         }
       },
       "plugins": {
-        "setActive": {
+        "setEnabled": {
           "title": "プラグインを有効化",
           "message": "{name} を有効化します。handler が起動し、以下の permissions の操作が走り得ます。",
           "ok": "有効化"
@@ -154,9 +154,6 @@
         "delete": {
           "title": "ウィジェットを削除",
           "message": "{name} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。",
-          "messageMany_plural": {
-            "other": "{name} ほか {count} 件を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。"
-          },
           "ok": "削除"
         },
         "revert": {
@@ -294,6 +291,11 @@
           "title": "クエリを過去の状態に戻す",
           "message": "{name} を編集履歴 #{index} ({at}) の状態に戻します。現在のソースは上書きされます。",
           "ok": "この状態に戻す"
+        },
+        "delete": {
+          "title": "クエリを削除",
+          "message": "{name} を完全に削除します。ソース・メタ・編集履歴が消え、適用中のカラムからも外れます。この操作は取り消せません。",
+          "ok": "削除"
         }
       },
       "cancel": "キャンセル"
@@ -550,11 +552,16 @@
       "list": "プラグイン一覧",
       "read": "プラグインの AiScript を読む",
       "revert": "プラグインを過去の状態に戻す",
-      "setActive": "プラグインの有効/無効を切替",
+      "setEnabled": "プラグインの有効/無効を切替",
       "uninstall": "プラグインを削除",
       "update": "プラグインの AiScript を更新"
     },
     "queries": {
+      "list": "クエリ一覧",
+      "read": "クエリのソースを読む",
+      "create": "クエリを作成",
+      "update": "クエリのソースを更新",
+      "delete": "クエリを削除",
       "history": "クエリの編集履歴",
       "revert": "クエリを過去の状態に戻す"
     },
@@ -573,13 +580,14 @@
     "skills": {
       "append": "スキル本文に追記",
       "create": "スキルを作成",
+      "delete": "スキルを削除",
       "history": "スキルの編集履歴を取得",
       "install": "MisStore からスキルを入れる",
       "list": "スキル一覧",
       "read": "スキル本文を読む",
       "replaceSection": "スキルのセクションを置換",
       "revert": "スキルを過去の編集前状態に戻す",
-      "toggle": "スキルの有効/無効を切替",
+      "setEnabled": "スキルの有効/無効を切替",
       "uninstall": "スキルを削除"
     },
     "styles": {
@@ -592,9 +600,10 @@
     "tasks": {
       "run": "タスク実行"
     },
-    "theme": {
+    "themes": {
       "apply": "テーマを適用",
       "create": "テーマを作成",
+      "delete": "テーマを削除",
       "history": "テーマの編集履歴",
       "install": "MisStore からテーマを入れる",
       "list": "テーマ一覧",

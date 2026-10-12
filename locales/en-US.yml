@@ -314,12 +314,17 @@ _capabilities:
     list: "List plugins"
     read: "Read plugin AiScript"
     revert: "Revert plugin to a past state"
-    setActive: "Enable / disable plugin"
+    setEnabled: "Enable / disable plugin"
     uninstall: "Uninstall plugin"
     update: "Update plugin AiScript"
   queries:
+    create: "Create query"
+    delete: "Delete query"
     history: "Query edit history"
+    list: "List queries"
+    read: "Read query source"
     revert: "Revert query to a past state"
+    update: "Update query source"
   registry:
     delete: "Delete registry value"
     get: "Get registry value"
@@ -332,13 +337,14 @@ _capabilities:
   skills:
     append: "Append to skill"
     create: "Create skill"
+    delete: "Delete skill"
     history: "Get skill edit history"
     install: "Install skill from MisStore"
     list: "List skills"
     read: "Read skill"
     replaceSection: "Replace skill section"
     revert: "Revert skill to a past state"
-    toggle: "Enable / disable skill"
+    setEnabled: "Enable / disable skill"
     uninstall: "Uninstall skill"
   styles:
     append: "Append to custom CSS"
@@ -348,9 +354,10 @@ _capabilities:
     write: "Replace custom CSS"
   tasks:
     run: "Run task"
-  theme:
+  themes:
     apply: "Apply theme"
     create: "Create theme"
+    delete: "Delete theme"
     history: "Theme edit history"
     install: "Install theme from MisStore"
     list: "List themes"
@@ -400,6 +407,7 @@ _common:
   next: "Next"
   retry: "Retry"
   cancel: "Cancel"
+  create: "Create"
   delete: "Delete"
   close: "Close"
   disabled: "Disabled"
@@ -2491,7 +2499,6 @@ _deckThemeManagerColumn:
 _deckWidgetColumn:
   createLocal: "Create new local widget"
   empty: "Add widgets to customize this column"
-  addWidget: "Add widget"
   noLibraryWidgets: "No widgets in the library to place."
   emptyCode: "Empty code"
   noMatches: "No matching widgets"
@@ -2813,7 +2820,8 @@ _labels:
     aiMemoryWrite: "Update the AI's memory (about you / notes)"
     skillsRead: "Read skills"
     skillsWrite: "Append to / edit skills"
-    themeWrite: "Create / edit themes"
+    themesRead: "Read themes"
+    themesWrite: "Create / edit themes"
     stylesWrite: "Edit custom CSS"
     navbarWrite: "Edit navbar layout"
     keybindsWrite: "Edit keybindings"
@@ -3053,6 +3061,12 @@ _navbarCapability:
     one: "Replaces the whole navbar with {count} item. The current layout will be lost (navbar.reset restores the default)."
     other: "Replaces the whole navbar with {count} items. The current layout will be lost (navbar.reset restores the default)."
   setOk: "Overwrite"
+
+_queriesCapability:
+  createTitle: "Create query"
+  createMessage: "Creates the AI-generated query \"{name}\". It goes into the library only; apply it to a column from the column’s filter menu."
+  updateTitle: "Update query"
+  updateMessage: "Replaces the source of {name} ({from} → {to} characters). Columns using it are re-evaluated with the new expression."
 
 _pluginsCapability:
   createTitle: "Install plugin"
@@ -3540,7 +3554,7 @@ _native:
         one: "{base} theme / {count} variable"
         other: "{base} theme / {count} variables"
     plugins:
-      setActive:
+      setEnabled:
         title: "Enable plugin"
         message: "Enables {name}. Its handlers start, and operations covered by the permissions below may run."
         ok: "Enable"
@@ -3563,9 +3577,6 @@ _native:
       delete:
         title: "Delete widget"
         message: "Deletes {name}. Its AiScript source, metadata and Mk:save storage are all removed. This can’t be undone."
-        messageMany_plural:
-          one: "Deletes {name} and {count} other. Their AiScript source, metadata and Mk:save storage are all removed. This can’t be undone."
-          other: "Deletes {name} and {count} others. Their AiScript source, metadata and Mk:save storage are all removed. This can’t be undone."
         ok: "Delete"
       revert:
         title: "Restore widget to an earlier state"
@@ -3673,6 +3684,10 @@ _native:
         title: "Restore query to an earlier state"
         message: "Restores {name} to edit history #{index} ({at}). The current source will be overwritten."
         ok: "Restore this state"
+      delete:
+        title: "Delete query"
+        message: "Permanently deletes {name}. Its source, metadata and edit history are removed, and columns using it stop filtering with it. This can’t be undone."
+        ok: "Delete"
     cancel: "Cancel"
   heartbeat:
     stoppedDailyLimit: "HEARTBEAT stopped (reached today’s limit of {limit} AI runs)"

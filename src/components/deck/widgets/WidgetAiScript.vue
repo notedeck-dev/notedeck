@@ -26,21 +26,26 @@ const MkPostForm = defineAsyncComponent(
 )
 
 import {
-  findAccountByScopeKey,
+  legacyWidgetStoragePrefix,
+  widgetStoragePrefix,
+} from '@/services/widgetPlacement'
+import {
+  accountScopeKey,
   getAccountAvatarUrl,
   getAccountLabel,
   useAccountsStore,
 } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
-import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
+import { useWidgetsStore, type WidgetItem } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
 import { isWindowExposed } from '@/windows/exposure'
 import type { PostFormRequest } from './AiScriptUiRenderer.vue'
 import AiScriptUiRenderer from './AiScriptUiRenderer.vue'
 
 const props = defineProps<{
-  widget: WidgetMeta
+  widget: WidgetItem
   columnId: string
+  /** 配置の実行アカウント (配置の指定 → カラムの順で親が解いた値) */
   accountId: string | null
   isSidebar?: boolean
 }>()
@@ -63,16 +68,23 @@ const serverUrl = computed(() => {
   const account = accountsStore.accounts.find((a) => a.id === props.accountId)
   return account ? `https://${account.host}` : ''
 })
+const ownAccount = computed(() =>
+  props.accountId
+    ? accountsStore.accounts.find((a) => a.id === props.accountId)
+    : undefined,
+)
 /**
- * ウィジェット固有の実行アカウント (#1018)。カラムから決まる場合は undefined —
- * カラムヘッダーが既に示しているので重ねて出さない。
+ * Mk:save の名前空間は実行アカウントで分ける (#1202 決定 (h))。アカウントが
+ * 決まらない配置は旧来の鍵。名前空間化の前の状態は Mk:load の fallback で読む
  */
-const ownAccount = computed(() => {
-  const key = props.widget.accountKey
-  return key ? findAccountByScopeKey(accountsStore.accounts, key) : undefined
-})
+const storagePrefix = computed(() =>
+  widgetStoragePrefix(
+    props.widget.id,
+    ownAccount.value ? accountScopeKey(ownAccount.value) : undefined,
+  ),
+)
 // src の正本は widgetsStore (widget-edit window / AI 経由で更新される)。
-const code = computed(() => props.widget.src ?? '')
+const code = computed(() => props.widget.content ?? '')
 const uiComponents = ref<UiComponent[]>([])
 const output = ref<{ text: string; isError: boolean }[]>([])
 const outputOpen = ref(false)
@@ -104,7 +116,7 @@ function closePostForm() {
 const windowsStore = useWindowsStore()
 function openEditor() {
   windowsStore.open('widget-edit', {
-    widgetId: props.widget.installId,
+    widgetId: props.widget.id,
     accountId: props.accountId,
   })
 }
@@ -119,12 +131,12 @@ function stop() {
 
 onBeforeUnmount(() => {
   stop()
-  widgetsStore.unregisterMounted(props.widget.installId)
+  widgetsStore.unregisterMounted(props.widget.id)
 })
 
 // AI 経由の widgets.update (#744): 新しい src で再実行する。
 watch(
-  () => widgetsStore.rerunSignal(props.widget.installId),
+  () => widgetsStore.rerunSignal(props.widget.id),
   (sig, prev) => {
     if (sig <= (prev ?? 0)) return
     run()
@@ -147,7 +159,7 @@ async function run() {
 
   const runLog = useAiScriptLogsStore().beginRun(
     'widget',
-    props.widget.installId,
+    props.widget.id,
     props.widget.name,
   )
 
@@ -168,14 +180,15 @@ async function run() {
     // ウィジェットも MisStore 由来の第三者コードになり得るため plugin と同格
     principal: {
       kind: 'plugin',
-      pluginId: `widget:${props.widget.installId}`,
+      pluginId: `widget:${props.widget.id}`,
       name: props.widget.name,
     },
-    storeId: props.widget.storeId,
+    storeId: props.widget.store?.id,
     accountId: props.accountId,
-    storagePrefix: `app-${props.widget.installId}`,
+    storagePrefix: storagePrefix.value,
+    legacyStoragePrefix: legacyWidgetStoragePrefix(props.widget.id),
     globals: {
-      THIS_ID: props.widget.installId,
+      THIS_ID: props.widget.id,
       THIS_URL: '',
       USER_ID:
         accountsStore.accounts.find((a) => a.id === props.accountId)?.userId ??
@@ -224,8 +237,8 @@ async function run() {
 // autoRun=true な widget は mount のたびに自動実行する。
 // (フラグを下げない: カラム再表示・ナビバートグル・他カラム参照のたびに UI を出すため)
 onMounted(() => {
-  widgetsStore.registerMounted(props.widget.installId)
-  if (props.widget.autoRun && code.value) {
+  widgetsStore.registerMounted(props.widget.id)
+  if (props.widget.extra.autoRun && code.value) {
     run()
   }
 })

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ThemeItem } from '@/services/distributableCodecs/themeCodec'
 import { parseDropInRecord } from '@/services/themeDropIn'
-import type { MisskeyTheme } from '@/theme/types'
 
 /** インメモリ疑似 FS (themes/ ディレクトリ相当 + ルートの採用記録)。 */
 const files = new Map<string, string>()
@@ -57,11 +57,12 @@ describe('themeFileSync.adoptDropIns — themes/ の素の .json5 を取り込�
     files.set('Sakura Theme.json5', COMMUNITY)
     const adopted = await adoptDropIns([])
     expect(adopted).toHaveLength(1)
-    const t = adopted[0] as MisskeyTheme
+    const t = adopted[0] as ThemeItem
     expect(t.id).not.toBe('community-original-id')
     expect(t.id).toMatch(/^custom-\d+/)
     expect(t.name).toBe('Sakura')
-    expect(t.base).toBe('light')
+    expect(t.content.base).toBe('light')
+    expect(t.scope).toEqual({ kind: 'shared', global: false, installedFor: [] })
     expect(t.fileBase).toBe('sakura')
     expect(files.get('sakura.ndtheme.json5')).toContain(t.id)
     // 元ファイルはそのまま
@@ -109,11 +110,14 @@ describe('themeFileSync.adoptDropIns — themes/ の素の .json5 を取り込�
       '{ id: "mine", name: "Sakura", props: {} }',
     )
     files.set('drop.json5', COMMUNITY)
-    const mine: MisskeyTheme = {
+    const mine: ThemeItem = {
       id: 'mine',
       name: 'Sakura',
-      base: 'dark',
-      props: {},
+      createdAt: 0,
+      updatedAt: 0,
+      scope: { kind: 'shared', global: false, installedFor: [] },
+      content: { base: 'dark', props: {} },
+      extra: {},
       fileBase: 'sakura',
     }
     const [t] = await adoptDropIns([mine])

@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useColumnSetup } from '@/composables/useColumnSetup'
-import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { useConfirm } from '@/stores/confirm'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
@@ -13,20 +12,25 @@ import {
 } from '@/stores/misstore'
 import {
   generateSkillId,
-  type SkillMeta,
+  isSkillEnabled,
+  type SkillItem,
   skillDisplayName,
   useSkillsStore,
 } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
-import { formatDate } from '@/utils/format'
-import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
 import { openSafeUrl } from '@/utils/url'
 import { isWindowExposed } from '@/windows/exposure'
-import ColumnSection from './ColumnSection.vue'
-import type { ColumnTabDef } from './ColumnTabs.vue'
-import ColumnTabs from './ColumnTabs.vue'
-import DeckColumn from './DeckColumn.vue'
+import DeckDistributableColumn, {
+  type StoreFeedDecl,
+} from './DeckDistributableColumn.vue'
+import SkillCard from './SkillCard.vue'
+
+/**
+ * スキル管理カラム。殻は `DeckDistributableColumn` (#1202 段階 3)。ここにあるのは
+ * スキル固有の意味だけ: 予約 skill (AGENTS / HEARTBEAT) を出さない、mode の並び、
+ * HEARTBEAT 対象の切替、mode=always は常時有効。スコープは無いのでピッカーも無い
+ */
 
 const props = defineProps<{
   column: DeckColumnType
@@ -35,150 +39,88 @@ const props = defineProps<{
 const skillsStore = useSkillsStore()
 const misStore = useMisStoreStore()
 const windowsStore = useWindowsStore()
-
-/**
- * スキルを「作る」面は開発者モードに従う (#1034)。導入・実行・on/off・削除は
- * 一般側なので、隠れるのは新規作成と編集の入口だけ (テーマ・プラグイン・
- * ウィジェット・クエリと同じ規則)。
- */
-const canEdit = computed(() => isWindowExposed('skill-edit'))
-const { columnThemeVars } = useColumnSetup(() => props.column)
+useColumnSetup(() => props.column)
 
 skillsStore.ensureLoaded()
 
-type ViewTab = 'installed' | 'store'
-const viewTabs: ViewTab[] = ['installed', 'store']
-const viewTab = ref<ViewTab>('installed')
-const columnContentRef = ref<HTMLElement | null>(null)
+/**
+ * スキルを「作る」面は開発者モードに従う (#1034)。導入・実行・on/off・削除は
+ * 一般側なので、隠れるのは新規作成と編集の入口だけ
+ */
+const canEdit = computed(() => isWindowExposed('skill-edit'))
 
 // 予約スキル (AGENTS / HEARTBEAT、#1162) は配布物ではなく AI の土台なので、このカラム
-// には出さない。編集の入口は AI 設定 (ペルソナの「ルール」/ HEARTBEAT の「巡回の手順」)
+// には出さない。編集の入口は AI 設定 (ペルソナの「ルール」/ HEARTBEAT の「巡回の手順」)。
+// 並びは always → heartbeat → trigger → manual、同じ mode は名前順
+const MODE_ORDER: Record<string, number> = {
+  always: 0,
+  heartbeat: 1,
+  trigger: 2,
+  manual: 3,
+}
 const librarySkills = computed(() =>
-  skillsStore.skills.filter((s) => !s.reserved),
+  skillsStore.items
+    .filter((s) => !s.extra.reserved)
+    .sort((a, b) => {
+      if (a.extra.mode !== b.extra.mode) {
+        return (MODE_ORDER[a.extra.mode] ?? 9) - (MODE_ORDER[b.extra.mode] ?? 9)
+      }
+      return a.name.localeCompare(b.name)
+    }),
 )
 
-const tabDefs = computed<ColumnTabDef[]>(() => [
-  {
-    value: 'installed',
-    label: i18n.tsx._common.installedTab({
-      count: librarySkills.value.length,
-    }),
-  },
-  { value: 'store', label: i18n.ts._common.store },
-])
+const texts = computed(() => ({
+  noMatches: i18n.ts._deckSkillColumn.noMatches,
+  empty: i18n.ts._deckSkillColumn.empty,
+  storeEmpty: i18n.ts._deckSkillColumn.storeEmpty,
+}))
 
-function switchTab(tab: string) {
-  viewTab.value = tab as ViewTab
-  if (tab === 'store') misStore.fetchSkills()
-}
+const skillFeed = misStore.feed('skill')
+const storeFeed = computed<StoreFeedDecl<StoreSkillEntry>>(() => ({
+  entries: skillFeed.entries,
+  loading: skillFeed.loading,
+  error: skillFeed.error,
+  fetch: skillFeed.fetch,
+  refresh: skillFeed.refresh,
+}))
 
-const tabIndex = computed(() => viewTabs.indexOf(viewTab.value))
-useTabSlide(tabIndex, columnContentRef)
-
-const searchQuery = ref('')
-
-const visibleSkills = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  const list = [...librarySkills.value].sort((a, b) => {
-    if (a.mode !== b.mode) {
-      // always → heartbeat → trigger → manual の順で並べる
-      const order: Record<string, number> = {
-        always: 0,
-        heartbeat: 1,
-        trigger: 2,
-        manual: 3,
-      }
-      return (order[a.mode] ?? 9) - (order[b.mode] ?? 9)
-    }
-    return a.name.localeCompare(b.name)
-  })
-  if (!q) return list
-  return list.filter(
-    (s) =>
-      skillDisplayName(s).toLowerCase().includes(q) ||
-      (s.description?.toLowerCase().includes(q) ?? false),
-  )
-})
-
-interface SkillSection {
-  key: 'sideload' | 'store'
-  label: string
-  items: SkillMeta[]
-}
-
-/**
- * インストール済みタブのセクション分け (プラグインと同形 / 出自 2 分類):
- *   サイドロード: ユーザー手書き・AI 生成 (storeId 無し)
- *   ストア配布: storeId 持ち。MisStore に上流がある複製 (改造しても残留)
- * 0 件のセクションは表示しない。
- */
-const installedSections = computed<SkillSection[]>(() => {
-  const sideloaded = visibleSkills.value.filter((s) => !s.storeId)
-  const store = visibleSkills.value.filter((s) => !!s.storeId)
-  const sections: SkillSection[] = [
-    {
-      key: 'sideload',
-      label: i18n.ts._common.sideload,
-      items: sideloaded,
-    },
-    {
-      key: 'store',
-      label: i18n.ts._common.storeDistributed,
-      items: store,
-    },
-  ]
-  return sections.filter((s) => s.items.length > 0)
-})
-
-function isToggleable(skill: SkillMeta): boolean {
-  return skill.mode !== 'always'
-}
-
-function isActive(skill: SkillMeta): boolean {
-  return skillsStore.isActive(skill.id) || skill.mode === 'always'
-}
-
-function toggleTitle(skill: SkillMeta): string {
-  if (skill.mode === 'always') return i18n.ts._deckSkillColumn.alwaysActive
-  return isActive(skill)
-    ? i18n.ts._deckSkillColumn.deactivate
-    : i18n.ts._deckSkillColumn.activate
-}
-
-function toggleActive(skill: SkillMeta) {
-  if (!isToggleable(skill)) return
-  skillsStore.setActive(skill.id, !skillsStore.isActive(skill.id))
+function toggleActive(skill: SkillItem) {
+  if (skill.extra.mode === 'always') return
+  void skillsStore.setActive(skill.id, !skillsStore.isActive(skill.id))
 }
 
 /** HEARTBEAT (#411): skill を定期実行対象にするか toggle (mode を切り替え)。 */
-function toggleHeartbeat(skill: SkillMeta) {
-  skillsStore.setHeartbeat(skill.id, skill.mode !== 'heartbeat')
+function toggleHeartbeat(skill: SkillItem) {
+  void skillsStore.setHeartbeat(skill.id, skill.extra.mode !== 'heartbeat')
 }
 
-function openInEditor(skill: SkillMeta) {
-  // カード全体と名前もこの関数を呼ぶので、入口はここで 1 本に絞る
+function openInEditor(skill: SkillItem) {
   if (!canEdit.value) return
   windowsStore.open('skill-edit', { skillId: skill.id })
 }
 
-function createNewSkill() {
-  const id = generateSkillId('skill')
-  const skill = skillsStore.add({
-    id,
+async function createNewSkill() {
+  const skill = await skillsStore.add({
+    id: generateSkillId('skill'),
     name: i18n.ts._deckSkillColumn.newSkillName,
-    version: '0.1.0',
     description: '',
-    mode: 'manual',
-    triggers: [],
-    body: `${i18n.ts._deckSkillColumn.newSkillBody}\n`,
-    cheapCheckCapabilities: [],
+    scope: { kind: 'none' },
+    content: `${i18n.ts._deckSkillColumn.newSkillBody}\n`,
+    extra: {
+      version: '0.1.0',
+      mode: 'manual',
+      triggers: [],
+      builtIn: false,
+      cheapCheckCapabilities: [],
+      isPersona: false,
+    },
   })
   windowsStore.open('skill-edit', { skillId: skill.id })
 }
 
 const { confirm } = useConfirm()
 
-async function uninstall(skill: SkillMeta) {
+async function uninstall(skill: SkillItem) {
   const ok = await confirm({
     title: i18n.ts._deckSkillColumn.deleteTitle,
     message: i18n.tsx._deckSkillColumn.deleteConfirm({ name: skill.name }),
@@ -186,7 +128,7 @@ async function uninstall(skill: SkillMeta) {
     type: 'danger',
   })
   if (!ok) return
-  const undo = skillsStore.remove(skill.id)
+  const undo = await skillsStore.remove(skill.id)
   if (undo) {
     useToast().show(i18n.ts._deckSkillColumn.deleted, 'info', {
       action: { label: i18n.ts._common.undo, onClick: undo },
@@ -194,797 +136,60 @@ async function uninstall(skill: SkillMeta) {
   }
 }
 
-const modeLabel: Record<string, string> = {
-  get always() {
-    return i18n.ts._deckSkillColumn.modeAlways
-  },
-  get manual() {
-    return i18n.ts._deckSkillColumn.modeManual
-  },
-  get trigger() {
-    return i18n.ts._deckSkillColumn.modeTrigger
-  },
-  heartbeat: 'HEARTBEAT',
-}
-
-// --- Store tab ---
-const storeQuery = ref('')
-const installError = ref<string | null>(null)
-
-const filteredStoreSkills = computed(() => {
-  const q = storeQuery.value.trim().toLowerCase()
-  if (!q) return misStore.skills
-  return misStore.skills.filter(
-    (s) =>
-      s.name.toLowerCase().includes(q) ||
-      s.description.toLowerCase().includes(q) ||
-      s.author.toLowerCase().includes(q) ||
-      s.tags.some((t) => t.toLowerCase().includes(q)),
-  )
-})
-
-async function handleStoreInstall(entry: StoreSkillEntry) {
-  installError.value = null
-  try {
-    await misStore.installSkill(entry)
-  } catch (e) {
-    installError.value =
-      e instanceof Error ? e.message : i18n.ts._common.installFailed
-  }
-}
-
-async function handleStoreUpdate(entry: StoreSkillEntry) {
-  installError.value = null
-  try {
-    await misStore.updateSkill(entry)
-  } catch (e) {
-    installError.value =
-      e instanceof Error ? e.message : i18n.ts._common.updateFailed
-  }
-}
-
-/** 更新の主表示は updatedAt、version は補助 (#1040) */
-function storeUpdateTitle(entry: StoreSkillEntry): string {
-  return i18n.tsx._common.storeUpdatedWithVersion({
-    date: formatDate(entry.updatedAt),
-    version: entry.version,
-  })
-}
-
-function handleOpenStoreDetail(entry: StoreSkillEntry) {
+function openStoreDetail(entry: StoreSkillEntry) {
   openSafeUrl(getSkillDetailUrl(entry.id))
 }
 </script>
 
 <template>
-  <DeckColumn
-    :column-id="column.id"
-    :title="column.name ?? i18n.ts._columns.skill"
-    :theme-vars="columnThemeVars"
+  <DeckDistributableColumn
+    :column="column"
+    :title="i18n.ts._columns.skill"
+    icon="sparkles"
+    :create-title="i18n.ts._deckSkillColumn.create"
+    :can-create="canEdit"
+    :items="librarySkills"
+    :search-placeholder="i18n.ts._deckSkillColumn.search"
+    :search-text="(s) => [skillDisplayName(s), s.description]"
+    :texts="texts"
+    :store="storeFeed"
+    @create="createNewSkill"
   >
-    <template #header-icon>
-      <i class="ti ti-sparkles" :class="$style.headerIcon" />
-    </template>
-
-    <template #header-meta>
-      <button
-        v-if="viewTab === 'installed' && canEdit"
-        class="_button"
-        :class="$style.headerBtn"
-        :title="i18n.ts._deckSkillColumn.create"
-        @click.stop="createNewSkill"
-      >
-        <i class="ti ti-plus" />
-      </button>
-    </template>
-
-    <div ref="columnContentRef" :class="$style.wrapper">
-      <ColumnTabs
-        :tabs="tabDefs"
-        :model-value="viewTab"
-        :swipe-target="columnContentRef"
-        @update:model-value="switchTab"
+    <template #card="{ item: skill }">
+      <SkillCard
+        mode="installed"
+        :name="skillDisplayName(skill)"
+        :description="skill.description"
+        :author="skill.extra.author"
+        :version="skill.extra.version"
+        :icon-url="skill.iconUrl"
+        :skill-mode="skill.extra.mode"
+        :active="isSkillEnabled(skill)"
+        :can-edit="canEdit"
+        @edit="openInEditor(skill)"
+        @toggle="toggleActive(skill)"
+        @heartbeat="toggleHeartbeat(skill)"
+        @delete="uninstall(skill)"
       />
+    </template>
 
-      <div :class="$style.searchWrap">
-        <input
-          v-if="viewTab === 'installed'"
-          v-model="searchQuery"
-          :class="$style.searchInput"
-          type="text"
-          :placeholder="i18n.ts._deckSkillColumn.search"
-        />
-        <input
-          v-else
-          v-model="storeQuery"
-          :class="$style.searchInput"
-          type="text"
-          :placeholder="i18n.ts._common.browseStore"
-        />
-      </div>
-
-      <!-- ===== Installed tab ===== -->
-      <template v-if="viewTab === 'installed'">
-        <div :class="$style.list">
-          <ColumnSection
-            v-for="section in installedSections"
-            :key="section.key"
-            :label="section.label"
-            :count="section.items.length"
-          >
-            <div
-              v-for="skill in section.items"
-              :key="skill.id"
-              :class="[
-                $style.card,
-                !isActive(skill) && $style.cardDisabled,
-                !canEdit && $style.cardStatic,
-              ]"
-              @click="openInEditor(skill)"
-            >
-              <div :class="$style.icon">
-                <span
-                  v-if="isProxiable(skill.iconUrl)"
-                  :class="$style.iconImg"
-                  :style="{ '--icon-url': proxyCssUrl(skill.iconUrl, 48) }"
-                  aria-hidden="true"
-                />
-                <i v-else class="ti ti-sparkles" />
-              </div>
-              <div :class="$style.body">
-                <div :class="$style.row1">
-                  <button
-                    v-if="canEdit"
-                    type="button"
-                    :class="$style.name"
-                    @click.stop="openInEditor(skill)"
-                  >{{ skillDisplayName(skill) }}</button>
-                  <span v-else :class="[$style.name, $style.cardStatic]">{{ skillDisplayName(skill) }}</span>
-                  <span :class="$style.modeBadge" :data-mode="skill.mode">
-                    <i v-if="skill.mode === 'heartbeat'" class="ti ti-activity-heartbeat" />
-                    {{ modeLabel[skill.mode] }}
-                  </span>
-                  <span v-if="!isActive(skill)" :class="$style.disabledBadge">{{ i18n.ts._common.disabled }}</span>
-                  <span :class="$style.spacer" />
-                  <span :class="$style.version">v{{ skill.version }}</span>
-                </div>
-                <div :class="$style.row2">
-                  {{ skill.description || 'No description' }}
-                </div>
-                <div :class="$style.row3">
-                  <span v-if="skill.author" :class="$style.author">{{ skill.author }}</span>
-                  <span :class="$style.spacer" />
-                  <div :class="$style.actions">
-                    <button
-                      class="_button"
-                      :class="[$style.iconBtn, skill.mode === 'heartbeat' && $style.heartbeatActive]"
-                      :title="skill.mode === 'heartbeat' ? i18n.ts._deckSkillColumn.removeFromHeartbeat : i18n.ts._deckSkillColumn.addToHeartbeat"
-                      @click.stop="toggleHeartbeat(skill)"
-                    >
-                      <i class="ti ti-activity-heartbeat" />
-                    </button>
-                    <button
-                      class="_button"
-                      :class="[$style.iconBtn, $style.iconBtnDanger]"
-                      :title="i18n.ts._deckSkillColumn.deleteFromLibrary"
-                      @click.stop="uninstall(skill)"
-                    >
-                      <i class="ti ti-trash" />
-                    </button>
-                    <button
-                      v-if="canEdit"
-                      class="_button"
-                      :class="$style.iconBtn"
-                      :title="i18n.ts._common.edit"
-                      @click.stop="openInEditor(skill)"
-                    >
-                      <i class="ti ti-edit" />
-                    </button>
-                    <button
-                      class="_button"
-                      :class="[
-                        $style.primaryBtn,
-                        isActive(skill) ? $style.secondaryBtn : '',
-                        !isToggleable(skill) && $style.btnLocked,
-                      ]"
-                      :disabled="!isToggleable(skill)"
-                      :title="toggleTitle(skill)"
-                      @click.stop="toggleActive(skill)"
-                    >
-                      {{ isActive(skill) ? i18n.ts._common.disable : i18n.ts._common.enable }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </ColumnSection>
-
-          <div v-if="visibleSkills.length === 0" :class="$style.empty">
-            <i class="ti ti-sparkles" :class="$style.emptyIcon" />
-            <span v-if="searchQuery">{{ i18n.ts._deckSkillColumn.noMatches }}</span>
-            <span v-else>{{ i18n.ts._deckSkillColumn.empty }}</span>
-          </div>
-        </div>
-      </template>
-
-      <!-- ===== Store tab ===== -->
-      <template v-else>
-        <div v-if="installError" :class="$style.storeError">
-          <i class="ti ti-alert-circle" />
-          {{ installError }}
-          <button
-            :aria-label="i18n.ts._common.close"
-            class="_button"
-            :class="$style.storeErrorClose"
-            @click="installError = null"
-          >
-            <i class="ti ti-x" />
-          </button>
-        </div>
-
-        <div v-if="misStore.skillsLoading" :class="$style.empty">
-          <i class="ti ti-loader-2 nd-spin" />
-          {{ i18n.ts._common.loading }}
-        </div>
-
-        <div v-else-if="misStore.skillsError" :class="$style.empty">
-          <i class="ti ti-cloud-off" :class="$style.emptyIcon" />
-          <span>{{ i18n.ts._common.storeUnavailable }}</span>
-          <button
-            class="_button"
-            :class="$style.emptyLink"
-            @click="misStore.refreshSkills()"
-          >
-            {{ i18n.ts._common.retry }}
-          </button>
-        </div>
-
-        <div v-else :class="$style.list">
-          <div
-            v-for="entry in filteredStoreSkills"
-            :key="entry.id"
-            :class="$style.card"
-          >
-            <div :class="$style.icon">
-              <span
-                v-if="isProxiable(entry.iconUrl)"
-                :class="$style.iconImg"
-                :style="{ '--icon-url': proxyCssUrl(entry.iconUrl, 48) }"
-                aria-hidden="true"
-              />
-              <i v-else class="ti ti-sparkles" />
-            </div>
-            <div :class="$style.body">
-              <div :class="$style.row1">
-                <span :class="$style.name">{{ entry.name }}</span>
-                <span
-                  v-if="misStore.isSkillInstalled(entry) && misStore.hasSkillUpdate(entry)"
-                  :class="$style.updateBadge"
-                  :title="storeUpdateTitle(entry)"
-                >{{ i18n.ts._common.updateAvailable }}</span>
-                <i
-                  v-else-if="misStore.isSkillInstalled(entry)"
-                  class="ti ti-circle-check"
-                  :class="$style.installedMark"
-                  :title="i18n.ts._deckSkillColumn.installedMark"
-                />
-                <span :class="$style.spacer" />
-                <span :class="$style.version">v{{ entry.version }}</span>
-              </div>
-              <div :class="$style.row2">
-                {{ entry.description || 'No description' }}
-              </div>
-              <div :class="$style.row3">
-                <span v-if="entry.author" :class="$style.author">{{ entry.author }}</span>
-                <span :class="$style.category">{{ skillCategoryLabel(entry.category) }}</span>
-                <span :class="$style.spacer" />
-                <div :class="$style.actions">
-                  <button
-                    class="_button"
-                    :class="$style.iconBtn"
-                    :title="i18n.ts._common.openInMisStore"
-                    @click.stop="handleOpenStoreDetail(entry)"
-                  >
-                    <i class="ti ti-external-link" />
-                  </button>
-                  <button
-                    v-if="misStore.isSkillInstalled(entry) && misStore.hasSkillUpdate(entry)"
-                    class="_button"
-                    :class="$style.primaryBtn"
-                    :disabled="misStore.installingSkill === entry.id"
-                    :title="storeUpdateTitle(entry)"
-                    @click.stop="handleStoreUpdate(entry)"
-                  >
-                    <i v-if="misStore.installingSkill === entry.id" class="ti ti-loader-2 nd-spin" />
-                    <i v-else class="ti ti-refresh" />
-                    {{ i18n.ts._common.update }}
-                  </button>
-                  <button
-                    v-else-if="misStore.isSkillInstalled(entry)"
-                    class="_button"
-                    :class="$style.installedBadge"
-                    disabled
-                  >
-                    {{ i18n.ts._common.installed }}
-                  </button>
-                  <button
-                    v-else
-                    class="_button"
-                    :class="$style.primaryBtn"
-                    :disabled="misStore.installingSkill === entry.id"
-                    @click.stop="handleStoreInstall(entry)"
-                  >
-                    <i v-if="misStore.installingSkill === entry.id" class="ti ti-loader-2 nd-spin" />
-                    <i v-else class="ti ti-download" />
-                    {{ misStore.installingSkill === entry.id ? '...' : i18n.ts._common.install }}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="filteredStoreSkills.length === 0" :class="$style.empty">
-            <i class="ti ti-sparkles" :class="$style.emptyIcon" />
-            <span v-if="storeQuery">{{ i18n.ts._deckSkillColumn.noMatches }}</span>
-            <span v-else>{{ i18n.ts._deckSkillColumn.storeEmpty }}</span>
-          </div>
-        </div>
-      </template>
-    </div>
-  </DeckColumn>
+    <template #store-card="{ entry, run }">
+      <SkillCard
+        mode="store"
+        :name="entry.name"
+        :description="entry.description"
+        :author="entry.author"
+        :version="entry.version"
+        :icon-url="entry.iconUrl"
+        :category-label="skillCategoryLabel(entry.category)"
+        :installing="misStore.installing('skill') === entry.id"
+        :already-installed="misStore.installedIn('skill', entry)"
+        :has-update="misStore.hasUpdate('skill', entry)"
+        :updated-at="entry.updatedAt"
+        @install="run(() => misStore.install('skill', entry))"
+        @update="run(() => misStore.update('skill', entry), i18n.ts._common.updateFailed)"
+        @open-detail="openStoreDetail(entry)"
+      />
+    </template>
+  </DeckDistributableColumn>
 </template>
-
-<style module lang="scss">
-@use '@/styles/buttons' as *;
-@use './column-common.module.scss';
-
-.headerIcon {
-  font-size: 1em;
-}
-
-.headerBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--nd-radius-sm);
-  color: var(--nd-fg);
-  opacity: 0.6;
-  transition: background var(--nd-duration-fast), opacity var(--nd-duration-fast);
-
-  &:hover {
-    background: var(--nd-buttonHoverBg);
-    opacity: 1;
-  }
-}
-
-.wrapper {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-}
-
-.searchWrap {
-  display: flex;
-  padding: 6px 10px 4px;
-}
-
-.searchInput {
-  flex: 1;
-  min-width: 0;
-  height: 26px;
-  padding: 0 6px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-xs);
-  background: var(--nd-inputBg, var(--nd-bg));
-  color: var(--nd-fg);
-  font-size: 12px;
-
-  &::placeholder {
-    color: var(--nd-fg);
-    opacity: 0.4;
-  }
-
-  &:focus {
-    outline: none;
-    border-color: var(--nd-accent);
-  }
-}
-
-.list {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  scrollbar-color: var(--nd-scrollbarHandle) transparent;
-  scrollbar-width: thin;
-}
-
-.card {
-  position: relative;
-  display: flex;
-  gap: 12px;
-  padding: 12px 14px 12px 16px;
-  cursor: pointer;
-  transition: background var(--nd-duration-fast);
-
-  // ホバーの signal は背景ティント 1 つ (PluginCard と同型)
-  &:hover,
-  &:focus-within {
-    background: var(--nd-buttonHoverBg);
-  }
-
-  & + & {
-    border-top: 1px solid color-mix(in srgb, var(--nd-divider) 50%, transparent);
-  }
-}
-
-.cardDisabled {
-  opacity: 0.6;
-}
-
-.icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  flex-shrink: 0;
-  color: var(--nd-accentText);
-  font-size: 32px;
-}
-
-.iconImg {
-  width: 1em;
-  height: 1em;
-  background-color: currentColor;
-  -webkit-mask: var(--icon-url) center / contain no-repeat;
-  mask: var(--icon-url) center / contain no-repeat;
-}
-
-.body {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.row1 {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  min-width: 0;
-}
-
-// 行の主アクションはこの button が入口 (PluginCard と同型)
-// 開発者モード off ではカードも名前も編集を開かないので、押せる見た目にしない
-.cardStatic {
-  cursor: default;
-}
-
-.name {
-  appearance: none;
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: var(--nd-weight-bold);
-  color: var(--nd-fgHighlighted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  flex-shrink: 1;
-
-  &:focus-visible {
-    outline: 2px solid var(--nd-focusRing);
-    outline-offset: 2px;
-    border-radius: var(--nd-radius-xs);
-  }
-}
-
-// 予約 skill の錠 (#1162): 名前とモードが固定で消せない印
-
-.modeBadge {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  font-size: 9px;
-  padding: 0 6px;
-  line-height: 14px;
-  height: 14px;
-  border-radius: var(--nd-radius-xs);
-  background: color-mix(in srgb, var(--nd-fg) 12%, transparent);
-  color: var(--nd-fg);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  opacity: 0.7;
-
-  i {
-    font-size: 10px;
-  }
-
-  &[data-mode='always'] {
-    background: color-mix(in srgb, var(--nd-accent) 22%, transparent);
-    color: var(--nd-accentText);
-    opacity: 1;
-  }
-
-  // HEARTBEAT mode は accent (heartbeat pink) で強調
-  &[data-mode='heartbeat'] {
-    background: color-mix(in srgb, var(--nd-accent) 22%, transparent);
-    color: var(--nd-accentText);
-    opacity: 1;
-  }
-}
-
-.disabledBadge {
-  flex-shrink: 0;
-  padding: 0 6px;
-  font-size: 9px;
-  font-weight: var(--nd-weight-bold);
-  line-height: 14px;
-  height: 14px;
-  border-radius: var(--nd-radius-xs);
-  background: color-mix(in srgb, var(--nd-fg) 15%, transparent);
-  color: var(--nd-fg);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  opacity: 0.75;
-}
-
-.installedMark {
-  flex-shrink: 0;
-  color: var(--nd-accentText);
-  font-size: 14px;
-}
-
-.version {
-  font-size: 11px;
-  color: var(--nd-fg);
-  opacity: 0.45;
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.row2 {
-  font-size: 12px;
-  color: var(--nd-fg);
-  opacity: 0.7;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  line-height: 1.4;
-  margin-top: 1px;
-}
-
-.row3 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 4px;
-  min-width: 0;
-  min-height: 20px;
-}
-
-.author {
-  font-size: 11px;
-  color: var(--nd-fg);
-  opacity: 0.55;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 1;
-  min-width: 0;
-}
-
-.category {
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: var(--nd-radius-md);
-  background: color-mix(in srgb, var(--nd-fg) 8%, transparent);
-  color: var(--nd-fg);
-  opacity: 0.6;
-  flex-shrink: 0;
-  line-height: 1.3;
-}
-
-.spacer {
-  flex: 1;
-  min-width: 4px;
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  opacity: 0;
-  transition: opacity var(--nd-duration-base);
-
-  .card:hover &,
-  .card:focus-within & {
-    opacity: 1;
-  }
-
-  @media (hover: none) {
-    opacity: 1;
-  }
-}
-
-.iconBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: var(--nd-radius-xs);
-  color: var(--nd-fg);
-  font-size: 13px;
-  opacity: 0.7;
-  transition: background var(--nd-duration-fast), opacity var(--nd-duration-fast);
-
-  &:hover {
-    opacity: 1;
-    background: var(--nd-buttonHoverBg);
-  }
-}
-
-// 本体削除 (ti-trash) 用。他の配布物カードと同じ hover で朱に寄る表現 (#1048)
-.iconBtnDanger {
-  &:hover {
-    color: var(--nd-love);
-    background: color-mix(in srgb, var(--nd-love) 14%, transparent);
-  }
-}
-
-// HEARTBEAT 対象として toggle ON のとき、iconBtn を accent カラーで強調。
-// 非ホバー時も常時表示する (= hover で消える .actions の opacity を打ち消し)
-.heartbeatActive {
-  color: var(--nd-accentText);
-  opacity: 1 !important;
-  background: color-mix(in srgb, var(--nd-accent) 12%, transparent);
-}
-
-.primaryBtn {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 10px;
-  height: 22px;
-  font-size: 11px;
-  font-weight: var(--nd-weight-bold);
-  border-radius: var(--nd-radius-full);
-  background: var(--nd-accent);
-  color: var(--nd-fgOnAccent);
-  transition: filter var(--nd-duration-fast), opacity var(--nd-duration-fast);
-
-  &:hover:not(:disabled) {
-    filter: brightness(1.1);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-  }
-}
-
-.secondaryBtn {
-  @include nd-interactive;
-  background: transparent;
-  border: 1px solid var(--nd-divider);
-  color: var(--nd-fg);
-
-  &:hover:not(:disabled) {
-    filter: none;
-    background: var(--nd-buttonHoverBg);
-  }
-}
-
-.btnLocked {
-  opacity: 0.5;
-  cursor: default;
-}
-
-.installedBadge {
-  flex-shrink: 0;
-  padding: 2px 8px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  font-size: 10px;
-  border-radius: var(--nd-radius-xs);
-  border: 1px solid var(--nd-divider);
-  color: var(--nd-fg);
-  opacity: 0.6;
-  cursor: default;
-}
-
-/* 更新ありバッジ (#1040)。他ストアカードの originBadge と同型の accent チップ */
-.updateBadge {
-  flex-shrink: 0;
-  font-size: 10px;
-  padding: 1px 6px;
-  border-radius: var(--nd-radius-md);
-  background: color-mix(in srgb, var(--nd-accent) 15%, transparent);
-  color: var(--nd-accentText);
-  line-height: 1.3;
-}
-
-.empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 40px 20px;
-  color: var(--nd-fg);
-  opacity: 0.5;
-  font-size: 13px;
-  text-align: center;
-}
-
-.emptyIcon {
-  font-size: 36px;
-  opacity: 0.3;
-}
-
-.emptyHint {
-  font-size: 11px;
-  opacity: 0.7;
-}
-
-.emptyLink {
-  @include nd-interactive;
-  color: var(--nd-accentText);
-  font-size: 12px;
-  margin-top: 4px;
-  opacity: 0.8;
-
-  &:hover {
-    opacity: 1;
-    text-decoration: underline;
-  }
-}
-
-.storeError {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  margin: 6px 10px;
-  border-radius: var(--nd-radius-xs);
-  background: color-mix(in srgb, var(--nd-love) 10%, transparent);
-  color: var(--nd-love);
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-.storeErrorClose {
-  @include nd-interactive;
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: var(--nd-radius-xs);
-  opacity: 0.6;
-  font-size: 12px;
-
-  &:hover {
-    opacity: 1;
-    background: color-mix(in srgb, var(--nd-love) 15%, transparent);
-  }
-}
-</style>

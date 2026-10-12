@@ -48,13 +48,13 @@ function failed(e: unknown): void {
 const skillsStore = useSkillsStore()
 skillsStore.ensureLoaded()
 const personaCandidates = computed(() =>
-  skillsStore.skills.filter((s) => s.isPersona),
+  skillsStore.items.filter((s) => s.extra.isPersona),
 )
 const currentPersonaSkill = computed(() => {
   const id = config.value.personaSkillId
   if (!id) return null
   const s = skillsStore.get(id)
-  return s?.isPersona ? s : null
+  return s?.extra.isPersona ? s : null
 })
 
 // --- ルール (予約 skill AGENTS.md、#1162) ---
@@ -64,11 +64,11 @@ const currentPersonaSkill = computed(() => {
 
 const windowsStore = useWindowsStore()
 const agentsSkill = computed(() =>
-  skillsStore.skills.find((s) => s.reserved && s.fileBase === 'AGENTS'),
+  skillsStore.items.find((s) => s.extra.reserved && s.fileBase === 'AGENTS'),
 )
 /** 案内のコメントだけ (実質空) のあいだは notemaid が何も渡さない (HEARTBEAT.md と同じ判定) */
 const rulesEmpty = computed(
-  () => !agentsSkill.value || isHeartbeatStepsEmpty(agentsSkill.value.body),
+  () => !agentsSkill.value || isHeartbeatStepsEmpty(agentsSkill.value.content),
 )
 const rulesOpening = ref(false)
 

@@ -27,12 +27,12 @@
   ],
   "widget": [
     {
-      "name": "accountKey があれば旧 accountId は書かない (Rust の sorts_by_created_at と同じ入力)",
+      "name": "旧 accountKey は installedFor に写し、accountId は書かない (Rust の sorts_by_created_at と同じ入力)",
       "filename": "a.meta.json5",
       "now": 0,
       "meta": "{ installId: 'a', name: 'A', autoRun: true, createdAt: 20, updatedAt: 20, accountId: 'uuid', accountKey: 'h:u' }",
       "src": "",
-      "expected": "{\n  installId: 'a',\n  name: 'A',\n  autoRun: true,\n  accountKey: 'h:u',\n  createdAt: 20,\n  updatedAt: 20,\n}"
+      "expected": "{\n  installId: 'a',\n  name: 'A',\n  autoRun: true,\n  global: false,\n  installedFor: [\n    'h:u',\n  ],\n  createdAt: 20,\n  updatedAt: 20,\n}"
     },
     {
       "name": "ストア由来のウィジェット",
@@ -40,7 +40,7 @@
       "now": 0,
       "meta": "{ installId: 'clock', name: 'Clock', autoRun: false, storeId: 'clock', storeSha512: 'hash', storeVersion: '1.0', iconUrl: 'https://i', createdAt: 1, updatedAt: 2 }",
       "src": "src",
-      "expected": "{\n  installId: 'clock',\n  name: 'Clock',\n  autoRun: false,\n  storeId: 'clock',\n  storeSha512: 'hash',\n  storeVersion: '1.0',\n  iconUrl: 'https://i',\n  createdAt: 1,\n  updatedAt: 2,\n}"
+      "expected": "{\n  installId: 'clock',\n  name: 'Clock',\n  autoRun: false,\n  storeId: 'clock',\n  storeSha512: 'hash',\n  storeVersion: '1.0',\n  iconUrl: 'https://i',\n  global: true,\n  createdAt: 1,\n  updatedAt: 2,\n}"
     },
     {
       "name": "名前と時刻の無い最小のメタ",
@@ -48,7 +48,23 @@
       "now": 7,
       "meta": "{ installId: 'w' }",
       "src": "",
-      "expected": "{\n  installId: 'w',\n  name: 'w.meta.json5',\n  autoRun: false,\n  createdAt: 7,\n  updatedAt: 7,\n}"
+      "expected": "{\n  installId: 'w',\n  name: 'w.meta.json5',\n  autoRun: false,\n  global: true,\n  createdAt: 7,\n  updatedAt: 7,\n}"
+    },
+    {
+      "name": "accountId だけの旧々個体は移行待ちとして accountId を残し、参加先なし (global: false)",
+      "filename": "b.meta.json5",
+      "now": 0,
+      "meta": "{ installId: 'b', name: 'B', createdAt: 10, updatedAt: 10, accountId: 'uuid' }",
+      "src": "",
+      "expected": "{\n  installId: 'b',\n  name: 'B',\n  autoRun: false,\n  global: false,\n  createdAt: 10,\n  updatedAt: 10,\n  accountId: 'uuid',\n}"
+    },
+    {
+      "name": "紐付け配列を持つ新形式 (段階 1)",
+      "filename": "shared.meta.json5",
+      "now": 0,
+      "meta": "{ installId: 'shared', name: 'Shared', autoRun: true, storeId: 'clock', global: false, installedFor: ['h:u', 'h:v'], createdAt: 3, updatedAt: 4 }",
+      "src": "src",
+      "expected": "{\n  installId: 'shared',\n  name: 'Shared',\n  autoRun: true,\n  storeId: 'clock',\n  global: false,\n  installedFor: [\n    'h:u',\n    'h:v',\n  ],\n  createdAt: 3,\n  updatedAt: 4,\n}"
     }
   ],
   "query": [

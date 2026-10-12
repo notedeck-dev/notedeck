@@ -1,28 +1,38 @@
 import { defineStore } from 'pinia'
 import { type Ref, ref, type ShallowRef, shallowRef } from 'vue'
-import {
-  launchPlugin,
-  type ParsedPluginMeta,
-  parsePluginMeta,
-} from '@/aiscript/plugin-api'
+import { type ParsedPluginMeta, parsePluginMeta } from '@/aiscript/plugin-api'
 import { i18n } from '@/i18n'
+import {
+  type DistributableKind,
+  type DistributableMeta,
+  type DistributableScope,
+  type DistributableStoreOrigin,
+  hasScopeTarget,
+  type ScopeTarget,
+  withScopeTarget,
+} from '@/services/distributable'
+import {
+  sameThemeContent,
+  type ThemeContent,
+  themeCodec,
+} from '@/services/distributableCodecs/themeCodec'
 import { casefold, resolveAvailable } from '@/services/settingsSlug'
 import { type Frontmatter, parseSkillFile } from '@/services/skillFrontmatter'
-import {
-  findWidgetInstance,
-  listWidgetInstances,
-} from '@/services/widgetInstances'
-import { type QueryScope, useColumnQueriesStore } from '@/stores/columnQueries'
+import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
+import type { StoreUpdatePatch } from '@/stores/distributableStore'
 import {
-  type PluginMeta,
-  type PluginScope,
+  type PluginItem,
+  type PluginStorePatch,
   usePluginsStore,
 } from '@/stores/plugins'
-import { type SkillMeta, useSkillsStore } from '@/stores/skills'
-import { useThemeStore } from '@/stores/theme'
-import { useWidgetsStore, type WidgetMeta } from '@/stores/widgets'
-import type { MisskeyTheme } from '@/theme/types'
+import {
+  type SkillItem,
+  type SkillStorePatch,
+  useSkillsStore,
+} from '@/stores/skills'
+import { type ThemeItem, useThemeStore } from '@/stores/theme'
+import { useWidgetsStore, type WidgetItem } from '@/stores/widgets'
 
 const STORE_BASE_URL = 'https://store.notedeck.io'
 const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes
@@ -247,69 +257,83 @@ function buildSkillStorePatch(
   body: string,
   e: StoreSkillEntry,
   hash: string,
-): Partial<SkillMeta> {
+): SkillStorePatch {
   return {
-    version: (meta.version as string | undefined) || e.version,
+    content: body,
     description: (meta.description as string | undefined) || e.description,
+    iconUrl: (meta.iconUrl as string | undefined) || e.iconUrl,
+    version: (meta.version as string | undefined) || e.version,
     author: (meta.author as string | undefined) || e.author,
     triggers: Array.isArray(meta.triggers) ? (meta.triggers as string[]) : [],
-    body,
-    iconUrl: (meta.iconUrl as string | undefined) || e.iconUrl,
     cheapCheckCapabilities: Array.isArray(meta.cheapCheckCapabilities)
       ? (meta.cheapCheckCapabilities as string[])
       : [],
     isPersona: meta.isPersona === true,
-    storeId: e.id,
-    storeSha512: hash,
-    storeVersion: e.version,
+    store: { id: e.id, sha512: hash, version: e.version },
   }
 }
 
 /**
- * ストア配布テーマの適用 JSON を組み立てる (#913 の境界)。既存インストールが
- * あれば配布内 UUID が変わってもローカル ID・ローカル改名を維持し
- * (themeStore.installTheme が同 ID を既存対応表のファイルへ書く)、
- * installedFor は既存と forAccountKeys (アカウントの安定キー、#1113) の union。
+ * ストア配布テーマのソース (Misskey 互換の JSON5) を本文に読む。`props` の無い
+ * ものはテーマではない
  */
-function buildThemeWithMeta(
-  parsed: Record<string, unknown>,
-  existing: MisskeyTheme | undefined,
-  e: StoreThemeEntry,
-  hash: string,
-  forAccountKeys: string[],
-): Record<string, unknown> {
-  const installedFor = Array.from(
-    new Set([...(existing?.$notedeck?.installedFor ?? []), ...forAccountKeys]),
-  )
+function parseThemeSource(source: string): ThemeContent {
+  const parsed = themeCodec.decode(source)
+  if (!parsed || typeof parsed !== 'object' || !parsed.props) {
+    throw new Error(i18n.ts._misstore.themeInstallFailed)
+  }
   return {
-    ...parsed,
-    ...(existing ? { id: existing.id, name: existing.name } : {}),
-    $notedeck: {
-      ...((parsed.$notedeck as Record<string, unknown> | undefined) ?? {}),
-      storeId: e.id,
-      storeSha512: hash,
-      storeVersion: e.version,
-      ...(installedFor.length > 0 ? { installedFor } : {}),
-    },
+    base: parsed.base === 'light' ? 'light' : 'dark',
+    props: parsed.props,
   }
 }
 
 // --- Registry feed ---
 // レジストリ index の取得・TTL キャッシュ・baseline 記録・インストール済み
-// 判定・更新検知は 5 種の配布物で完全に同型だったので 1 つに畳む (#1098)。
-// kind ごとに違うのは「インストール済み個体をどう見つけるか」だけで、それを
-// instancesOf で受ける。install / update は kind ごとに意味が違うので畳まない。
+// 判定・更新検知は 5 種の配布物で完全に同型なので 1 つに畳む (#1098)。
+// kind ごとに違うのは「どの store の個体か」だけ
 
-interface StoreEntryBase {
+/** レジストリの entry に共通の面 (5 種のストアカードと手続きが見る範囲) */
+export interface StoreEntryBase {
   id: string
-  sha512: string
+  name: string
   version: string
+  sourceUrl: string
+  sha512: string
+  updatedAt: string
 }
 
-/** インストール済み個体のうち、更新検知と baseline 記録に要る最小の面。 */
-interface InstalledInstance {
-  storeSha512?: string
-  recordBaseline(rec: { storeSha512: string; storeVersion: string }): void
+/**
+ * ストア連携の相手になる kind の store (factory の面の部分集合、#1202 段階 2)。
+ * Pinia の store がそのまま満たす
+ */
+interface KindStore<Item extends DistributableMeta<unknown, unknown>, Patch> {
+  items: Item[]
+  ensureLoaded(): void
+  applyStoreUpdate(id: string, patch: Patch): Promise<boolean>
+  link(id: string, target: ScopeTarget): Promise<boolean>
+  recordStoreBaseline(
+    id: string,
+    baseline: { sha512: string; version: string },
+  ): Promise<void>
+}
+
+/** kind → ストアの entry 型 (公開面は kind で引く、#1202 段階 3) */
+export type StoreEntryOf<K extends DistributableKind> = {
+  plugin: StorePluginEntry
+  widget: StoreWidgetEntry
+  query: StoreQueryEntry
+  skill: StoreSkillEntry
+  theme: StoreThemeEntry
+}[K]
+
+/** カラムから見たレジストリの状態 (読取専用の写し + 取得) */
+export interface StoreFeedView<E extends StoreEntryBase> {
+  readonly entries: E[]
+  readonly loading: boolean
+  readonly error: string | null
+  fetch(): Promise<void>
+  refresh(): Promise<void>
 }
 
 interface RegistryFeed<E extends StoreEntryBase> {
@@ -326,9 +350,9 @@ interface RegistryFeed<E extends StoreEntryBase> {
 }
 
 /**
- * 更新検知 (#1040) の判定は「インストール時に記録した storeSha512」と registry
+ * 更新検知 (#1040) の判定は「インストール時に記録した sha512」と registry
  * 現行 sha512 の比較のみ。version 文字列は bump が機械強制されていないため
- * 使わない。storeSha512 未記録 (baseline 前) は false — 誤検知しない。
+ * 使わない。sha512 未記録 (baseline 前) は false — 誤検知しない。
  */
 function hasStoreUpdate(
   recorded: string | undefined,
@@ -339,8 +363,8 @@ function hasStoreUpdate(
 
 function createRegistryFeed<E extends StoreEntryBase>(
   registryKey: 'plugins' | 'themes' | 'widgets' | 'skills' | 'queries',
-  /** entry に対応するインストール済み個体。照合キーは storeId のみ (#913) */
-  instancesOf: (entry: E) => InstalledInstance[],
+  /** entry に対応するインストール済み個体を持つ store。照合キーは storeId のみ (#913) */
+  store: () => KindStore<DistributableMeta<unknown, unknown>, unknown>,
 ): RegistryFeed<E> {
   const entries = shallowRef<E[]>([])
   const loading = ref(false)
@@ -349,17 +373,21 @@ function createRegistryFeed<E extends StoreEntryBase>(
   let lastFetchedAt = 0
   const isCacheValid = () => Date.now() - lastFetchedAt < CACHE_TTL_MS
 
-  // baseline 無通知記録 (#1040): storeSha512 未記録のインストール済みアイテムは、
+  const instancesOf = (entry: E) =>
+    store().items.filter((i) => i.store?.id === entry.id)
+
+  // baseline 無通知記録 (#1040): sha512 未記録のインストール済みアイテムは、
   // レジストリ照会時に現行 entry.sha512 / version を無通知で基準記録し、次の
   // 変更から検知を始める (ローカルソースからの逆算は再シリアライズ形式のため
   // 不可能。誤って「全件更新あり」にしない)
   function recordBaselines(list: E[]): void {
+    const s = store()
     for (const entry of list) {
       for (const inst of instancesOf(entry)) {
-        if (inst.storeSha512) continue
-        inst.recordBaseline({
-          storeSha512: entry.sha512,
-          storeVersion: entry.version,
+        if (inst.store?.sha512) continue
+        void s.recordStoreBaseline(inst.id, {
+          sha512: entry.sha512,
+          version: entry.version,
         })
       }
     }
@@ -405,100 +433,106 @@ function createRegistryFeed<E extends StoreEntryBase>(
     // 個体のどれか 1 つでも古ければ更新あり (#1061)
     hasUpdate: (entry) =>
       instancesOf(entry).some((i) =>
-        hasStoreUpdate(i.storeSha512, entry.sha512),
+        hasStoreUpdate(i.store?.sha512, entry.sha512),
       ),
   }
+}
+
+// --- kind ごとの宣言 (#1202 段階 2) ---
+// インストール / 更新 / インストール済み判定の手続きは 5 種で同じ:
+//   取得 + sha 照合 → ソースを読む → storeId で既存を探す → 既存なら (sha が
+//   違えば) 確認して本体とストア由来を上書き + 参加先を足す / 無ければ新規
+//   (ローカル ID = storeId、占有時は連番 suffix)。
+// kind ごとに違うのは「ソースの読み方」「新規個体の形」「確認を出す条件と diff」
+// だけなので、それを宣言で受けて手続きは 1 本にする。
+
+/** 配布ソースを読んだ結果。`patch` はそのまま store の `applyStoreUpdate` へ */
+interface ParsedSource<Patch> {
+  patch: Patch
+}
+
+interface StoreKind<
+  E extends StoreEntryBase,
+  Item extends DistributableMeta<unknown, unknown>,
+  Patch,
+  P extends ParsedSource<Patch>,
+> {
+  feed: RegistryFeed<E>
+  store(): KindStore<Item, Patch>
+  /** 更新確認のタイトル */
+  title(): string
+  /** 確認 diff の言語 */
+  language: 'aiscript' | 'markdown' | 'json5'
+  /** 配布ソースを読む。読めなければ throw (利用者向けの文で) */
+  parse(source: string, entry: E, hash: string): P
+  /** 新規個体を足す (kind の `add` の形。参加先はカラムの文脈から) */
+  add(
+    store: KindStore<Item, Patch>,
+    parsed: P,
+    entry: E,
+    hash: string,
+    id: string,
+    targets: ScopeTarget[],
+  ): Promise<Item | undefined>
+  /**
+   * 再インストールで確認を出す条件 (本体が変わるか)。plugin は本文の差では
+   * 出さず、権限の拡大 (`caution`) だけで出す
+   */
+  changed(existing: Item, parsed: P): boolean
+  /** 確認文に足す注意 (plugin の新しい権限)。あれば必ず確認し warning にする */
+  caution?(existing: Item, parsed: P): string | null
+  diff(existing: Item, parsed: P): { old: string; new: string }
+}
+
+function storeOrigin(
+  e: StoreEntryBase,
+  hash: string,
+): DistributableStoreOrigin {
+  return { id: e.id, sha512: hash, version: e.version }
+}
+
+const LIBRARY_ONLY: DistributableScope = {
+  kind: 'shared',
+  global: false,
+  installedFor: [],
+}
+
+/** 参加先の一覧をスコープに畳む (無ければライブラリのみ) */
+function scopeOf(targets: ScopeTarget[]): DistributableScope {
+  return targets.reduce(withScopeTarget, LIBRARY_ONLY)
+}
+
+type PluginParsed = ParsedSource<PluginStorePatch> & {
+  meta: ParsedPluginMeta
+  source: string
+}
+type SkillParsed = ParsedSource<SkillStorePatch> & {
+  meta: Frontmatter
+  body: string
+}
+type SourceParsed = ParsedSource<StoreUpdatePatch<string>> & { source: string }
+type ThemeParsed = ParsedSource<StoreUpdatePatch<ThemeContent>> & {
+  content: ThemeContent
 }
 
 // --- Store ---
 
 export const useMisStoreStore = defineStore('misstore', () => {
-  const pluginFeed = createRegistryFeed<StorePluginEntry>(
-    'plugins',
-    (entry) => {
-      const store = usePluginsStore()
-      const p = store.plugins.find((p) => p.storeId === entry.id)
-      if (!p) return []
-      return [
-        {
-          storeSha512: p.storeSha512,
-          recordBaseline: (rec) => store.recordStoreBaseline(p.installId, rec),
-        },
-      ]
-    },
+  const pluginFeed = createRegistryFeed<StorePluginEntry>('plugins', () =>
+    usePluginsStore(),
   )
-  const themeFeed = createRegistryFeed<StoreThemeEntry>('themes', (entry) => {
-    const store = useThemeStore()
-    const t = store.installedThemes.find(
-      (t) => t.$notedeck?.storeId === entry.id,
-    )
-    if (!t) return []
-    return [
-      {
-        storeSha512: t.$notedeck?.storeSha512,
-        recordBaseline: (rec) => store.recordStoreBaseline(t.id, rec),
-      },
-    ]
-  })
-  const widgetFeed = createRegistryFeed<StoreWidgetEntry>(
-    'widgets',
-    (entry) => {
-      const store = useWidgetsStore()
-      // 同 storeId の個体は実行アカウント別に複数ありうる (#1061)
-      return listWidgetInstances(store.widgets, entry.id).map((w) => ({
-        storeSha512: w.storeSha512,
-        recordBaseline: (rec) => store.recordStoreBaseline(w.installId, rec),
-      }))
-    },
+  const themeFeed = createRegistryFeed<StoreThemeEntry>('themes', () =>
+    useThemeStore(),
   )
-  const skillFeed = createRegistryFeed<StoreSkillEntry>('skills', (entry) => {
-    const store = useSkillsStore()
-    const k = store.skills.find((k) => k.storeId === entry.id)
-    if (!k) return []
-    return [
-      {
-        storeSha512: k.storeSha512,
-        recordBaseline: (rec) => store.recordStoreBaseline(k.id, rec),
-      },
-    ]
-  })
-  const queryFeed = createRegistryFeed<StoreQueryEntry>('queries', (entry) => {
-    const store = useColumnQueriesStore()
-    const q = store.queries.find((q) => q.storeId === entry.id)
-    if (!q) return []
-    return [
-      {
-        storeSha512: q.storeSha512,
-        recordBaseline: (rec) => {
-          void store.recordStoreBaseline(q.id, rec)
-        },
-      },
-    ]
-  })
-
-  // 公開名はカラム / capability / テストが参照するので feed へのエイリアスで維持
-  const plugins = pluginFeed.entries
-  const loading = pluginFeed.loading
-  const error = pluginFeed.error
-  const installing = pluginFeed.installing
-  const themes = themeFeed.entries
-  const installingTheme = themeFeed.installing
-  const widgets = widgetFeed.entries
-  const installingWidget = widgetFeed.installing
-  const skillEntries = skillFeed.entries
-  const installingSkill = skillFeed.installing
-  const queryEntries = queryFeed.entries
-  const installingQuery = queryFeed.installing
-  const refresh = pluginFeed.refresh
-  const refreshThemes = themeFeed.refresh
-  const refreshWidgets = widgetFeed.refresh
-  const refreshSkills = skillFeed.refresh
-  const refreshQueries = queryFeed.refresh
-  const refetchPluginEntry = pluginFeed.refetchEntry
-  const refetchThemeEntry = themeFeed.refetchEntry
-  const refetchWidgetEntry = widgetFeed.refetchEntry
-  const refetchSkillEntry = skillFeed.refetchEntry
-  const refetchQueryEntry = queryFeed.refetchEntry
+  const widgetFeed = createRegistryFeed<StoreWidgetEntry>('widgets', () =>
+    useWidgetsStore(),
+  )
+  const skillFeed = createRegistryFeed<StoreSkillEntry>('skills', () =>
+    useSkillsStore(),
+  )
+  const queryFeed = createRegistryFeed<StoreQueryEntry>('queries', () =>
+    useColumnQueriesStore(),
+  )
 
   // --- 検証付きソース取得 (#1040 リトライ) ---
 
@@ -508,9 +542,7 @@ export const useMisStoreStore = defineStore('misstore', () => {
    * (ストア更新直後の TTL 内は正常な更新が偽の改ざん警告になるため)。
    * 再取得後も不一致なら従来どおり警告を投げる。
    */
-  async function fetchVerifiedSource<
-    E extends { id: string; sourceUrl: string; sha512: string },
-  >(
+  async function fetchVerifiedSource<E extends StoreEntryBase>(
     entry: E,
     refetchEntry: () => Promise<E | undefined>,
   ): Promise<{ source: string; hash: string; entry: E }> {
@@ -531,751 +563,471 @@ export const useMisStoreStore = defineStore('misstore', () => {
   async function fetchWidgetSource(entry: StoreWidgetEntry): Promise<string> {
     const { source } = await fetchVerifiedSource(
       entry,
-      refetchWidgetEntry(entry.id),
+      widgetFeed.refetchEntry(entry.id),
     )
     return source
   }
 
-  // --- Install skill ---
+  // --- 5 種の宣言 ---
 
-  /**
-   * MisStore からスキル (.md + frontmatter) を取得して skills/ に保存する。
-   * 照合キーは storeId のみ (#913 — 表示名・frontmatter の id 宣言は使わない)。
-   * 既存の同 storeId は上書き更新 (再インストール = アップデート)。
-   * ローカル値 (改名 name / 実行モード mode / スコープ) は更新で維持する。
-   * インストール直後に有効化はしない (mode=always のスキルは常時有効)。
-   */
-  async function installSkill(entry: StoreSkillEntry): Promise<void> {
-    installingSkill.value = entry.id
-    try {
-      const {
+  const pluginKind: StoreKind<
+    StorePluginEntry,
+    PluginItem,
+    PluginStorePatch,
+    PluginParsed
+  > = {
+    feed: pluginFeed,
+    store: () => usePluginsStore(),
+    title: () => i18n.ts._misstore.updatePlugin,
+    language: 'aiscript',
+    parse(source, e, hash) {
+      const meta = parsePluginMeta(source)
+      if (!meta) throw new Error(i18n.ts._misstore.pluginMetaParseFailed)
+      return {
+        meta,
         source,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchSkillEntry(entry.id))
-
-      const { meta, body } = parseSkillFile(source)
-      const skillsStore = useSkillsStore()
-      const existing = skillsStore.skills.find((s) => s.storeId === e.id)
-      const now = Date.now()
-
-      if (existing) {
-        // 再インストール = 実質更新。ローカル編集を無言で消さないため
-        // 更新導線と同じ diff 確認を通す (#981)
-        await confirmSkillUpdate(
-          existing,
-          { source, hash, entry: e },
-          { alwaysConfirm: false },
-        )
-        return
+        patch: {
+          content: source,
+          version: meta.version,
+          author: meta.author,
+          description: meta.description,
+          permissions: meta.permissions,
+          config: meta.config,
+          iconUrl: e.iconUrl,
+          store: storeOrigin(e, hash),
+        },
       }
+    },
+    // 有効で追加するので plugins store が起動まで行う
+    add(store, { meta, source }, e, hash, id, targets) {
+      const configData: Record<string, unknown> = {}
+      for (const [key, def] of Object.entries(meta.config ?? {})) {
+        configData[key] = def.default
+      }
+      return (store as unknown as ReturnType<typeof usePluginsStore>).add({
+        id,
+        name: meta.name,
+        description: meta.description,
+        ...(e.iconUrl ? { iconUrl: e.iconUrl } : {}),
+        store: storeOrigin(e, hash),
+        scope: scopeOf(targets),
+        content: source,
+        extra: {
+          version: meta.version,
+          author: meta.author,
+          permissions: meta.permissions,
+          config: meta.config,
+          configData,
+          active: true,
+        },
+      })
+    },
+    // 本文の差だけでは確認しない (再インストールは無言で更新)。権限が拡大する
+    // なら再同意を通す (#1040 — 無確認にすると再同意の抜け穴になる)。既存側の
+    // 記録が無いなど比較できない場合は拡大側に倒す (before = 空集合)
+    changed: () => false,
+    caution(existing, { meta }) {
+      const before = new Set(existing.extra.permissions ?? [])
+      const added = (meta.permissions ?? []).filter((p) => !before.has(p))
+      return added.length > 0
+        ? i18n.tsx._misstore.newPermissions({ permissions: added.join(', ') })
+        : null
+    },
+    diff: (existing, { source }) => ({ old: existing.content, new: source }),
+  }
 
-      // 新規: ローカル ID = storeId (配布物内の ID 宣言よりレジストリの
-      // ディレクトリ名を正とする)。storeId 不一致の既存 ID に占有されて
-      // いたら上書きせず連番 suffix で回避する
-      const takenIds = new Set(skillsStore.skills.map((s) => casefold(s.id)))
-      const id = resolveAvailable(e.id, (c) => takenIds.has(casefold(c)))
-      const newSkill: SkillMeta = {
+  const widgetKind: StoreKind<
+    StoreWidgetEntry,
+    WidgetItem,
+    StoreUpdatePatch<string>,
+    SourceParsed
+  > = {
+    feed: widgetFeed,
+    store: () => useWidgetsStore(),
+    title: () => i18n.ts._misstore.updateWidget,
+    language: 'aiscript',
+    parse: (source, e, hash) => ({
+      source,
+      patch: {
+        content: source,
+        iconUrl: e.iconUrl,
+        store: storeOrigin(e, hash),
+      },
+    }),
+    // 本体は storeId につき 1 つ (#1202 決定 (b))。参加先を渡さなければ全体
+    // スコープ (AI capability はカラム文脈を持たない)。カラムへの配置は後から
+    // ユーザーが UI でやる
+    add: (store, { source }, e, hash, id, targets) =>
+      (store as unknown as ReturnType<typeof useWidgetsStore>).add({
+        id,
+        name: e.name,
+        content: source,
+        ...(e.iconUrl ? { iconUrl: e.iconUrl } : {}),
+        store: storeOrigin(e, hash),
+        scope:
+          targets.length > 0
+            ? scopeOf(targets)
+            : { kind: 'shared', global: true, installedFor: [] },
+        extra: { autoRun: e.autoRun },
+      }),
+    changed: (existing, { source }) => existing.content !== source,
+    diff: (existing, { source }) => ({ old: existing.content, new: source }),
+  }
+
+  const queryKind: StoreKind<
+    StoreQueryEntry,
+    QueryItem,
+    StoreUpdatePatch<string>,
+    SourceParsed
+  > = {
+    feed: queryFeed,
+    store: () => useColumnQueriesStore(),
+    title: () => i18n.ts._misstore.updateQuery,
+    language: 'aiscript',
+    parse: (source, e, hash) => ({
+      source,
+      patch: {
+        content: source,
+        description: e.description,
+        iconUrl: e.iconUrl,
+        store: storeOrigin(e, hash),
+      },
+    }),
+    // 配布はソースのみ・ローカルで必ず再コンパイルされる (#783 不変条件 (e))。
+    // 導入してもカラムへの自動適用はしない (V18)。有効で入る (#1043)
+    add: (store, { source }, e, hash, id, targets) =>
+      (store as unknown as ReturnType<typeof useColumnQueriesStore>).add({
+        id,
+        ...(targets[0] ? { scope: targets[0] } : {}),
+        name: e.name,
+        description: e.description,
+        content: source,
+        iconUrl: e.iconUrl,
+        store: storeOrigin(e, hash),
+      }),
+    changed: (existing, { source }) => existing.content !== source,
+    diff: (existing, { source }) => ({ old: existing.content, new: source }),
+  }
+
+  const skillKind: StoreKind<
+    StoreSkillEntry,
+    SkillItem,
+    SkillStorePatch,
+    SkillParsed
+  > = {
+    feed: skillFeed,
+    store: () => useSkillsStore(),
+    title: () => i18n.ts._misstore.updateSkill,
+    language: 'markdown',
+    parse(source, e, hash) {
+      const { meta, body } = parseSkillFile(source)
+      return { meta, body, patch: buildSkillStorePatch(meta, body, e, hash) }
+    },
+    // 新規: ローカル ID = storeId (配布物内の ID 宣言よりレジストリのディレクトリ
+    // 名を正とする)。インストール直後に有効化はしない (mode=always は常時有効)
+    add(store, { meta, patch }, e, _hash, id) {
+      const { content, description, iconUrl, store: origin, ...extra } = patch
+      return (store as unknown as ReturnType<typeof useSkillsStore>).add({
         id,
         name: (meta.name as string | undefined) || e.name,
-        version: (meta.version as string | undefined) || e.version,
-        description: (meta.description as string | undefined) || e.description,
-        author: (meta.author as string | undefined) || e.author,
-        mode:
-          meta.mode === 'always' ||
-          meta.mode === 'trigger' ||
-          meta.mode === 'heartbeat'
-            ? meta.mode
-            : 'manual',
-        triggers: Array.isArray(meta.triggers)
-          ? (meta.triggers as string[])
-          : [],
-        storeId: e.id,
-        storeSha512: hash,
-        storeVersion: e.version,
-        body,
-        createdAt: now,
-        updatedAt: now,
-        builtIn: false,
-        iconUrl: (meta.iconUrl as string | undefined) || e.iconUrl,
-        cheapCheckCapabilities: Array.isArray(meta.cheapCheckCapabilities)
-          ? (meta.cheapCheckCapabilities as string[])
-          : [],
-        isPersona: meta.isPersona === true,
-      }
-      skillsStore.add(newSkill)
-    } finally {
-      installingSkill.value = null
-    }
+        description,
+        iconUrl,
+        store: origin,
+        scope: { kind: 'none' },
+        content,
+        extra: {
+          ...extra,
+          mode:
+            meta.mode === 'always' ||
+            meta.mode === 'trigger' ||
+            meta.mode === 'heartbeat'
+              ? meta.mode
+              : 'manual',
+          builtIn: false,
+        },
+      })
+    },
+    // 本体 = frontmatter を除いた body 同士で比較する (ローカルは body しか
+    // 保持しない。frontmatter 由来メタは patch 側が反映する)
+    changed: (existing, { body }) => existing.content !== body,
+    diff: (existing, { body }) => ({ old: existing.content, new: body }),
   }
 
-  // --- Install query (#783 カラムクエリ) ---
-
-  /**
-   * MisStore からカラムクエリのソースを取得して名前付きクエリプールへ保存する。
-   * 配布はソースのみ・ローカルで必ず再コンパイルされる (#783 不変条件 (e))。
-   * 導入してもカラムへの自動適用はしない (V18)。アイテムとしては有効で入る (#1043)。
-   * 既存の同 storeId は上書き更新 (再インストール = アップデート)。
-   */
-  async function installQuery(
-    entry: StoreQueryEntry,
-    /** 参加させるスコープ (#1018)。カラムの文脈から渡す */
-    scope?: QueryScope,
-  ): Promise<void> {
-    installingQuery.value = entry.id
-    try {
-      const {
-        source,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchQueryEntry(entry.id))
-
-      const queriesStore = useColumnQueriesStore()
-      queriesStore.ensureLoaded()
-      const existing = queriesStore.queries.find((q) => q.storeId === e.id)
-      if (existing) {
-        // 再インストール = 実質更新。ローカル編集を無言で消さない (#981)
-        await confirmQueryUpdate(
-          existing,
-          { source, hash, entry: e },
-          { alwaysConfirm: false },
-        )
-        // 別スコープからのインストールは本体を増やさず参加スコープを足す
-        // (プラグインと同型)
-        if (scope) queriesStore.linkScope(existing.id, scope)
-      } else {
-        await queriesStore.createQuery({
-          // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
-          id: resolveAvailable(e.id, (c) =>
-            queriesStore.queries.some((q) => casefold(q.id) === c),
-          ),
-          ...(scope ? { scope } : {}),
-          name: e.name,
-          description: e.description,
-          src: source,
-          storeId: e.id,
-          iconUrl: e.iconUrl,
-          storeSha512: hash,
-          storeVersion: e.version,
-        })
-      }
-    } finally {
-      installingQuery.value = null
-    }
-  }
-
-  /**
-   * scope を渡すと「そのスコープに参加している個体があるか」で判定する
-   * (プラグインのストアカードと同じ粒度)。未参加のスコープが残るうちは
-   * 通常の状態で出し、押せばそのスコープへ参加させる。
-   */
-  function isQueryInstalled(
-    entry: StoreQueryEntry,
-    scope?: QueryScope,
-  ): boolean {
-    const queriesStore = useColumnQueriesStore()
-    queriesStore.ensureLoaded()
-    return queriesStore.queries.some((q) => {
-      if (q.storeId !== entry.id) return false
-      if (!scope) return true
-      return scope.kind === 'global'
-        ? q.global === true
-        : (q.installedFor?.includes(scope.key) ?? false)
-    })
-  }
-
-  // --- Install ---
-
-  /**
-   * MisStore からプラグインをインストール / 更新する (#771, #913)。
-   * 照合キーは storeId のみ (同名の自作があってもインストール可能 —
-   * ファイル名は suffix が捌く)。
-   * - 同じ storeId の既存プラグインがあれば本体とストア由来メタを上書き更新し、
-   *   指定 scope への参照を追加する (active/configData/scope/name は維持)
-   * - 無ければ新規追加 (指定 scope で有効化、storeId 紐付け)
-   */
-  async function installPlugin(
-    entry: StorePluginEntry,
-    scope: PluginScope,
-  ): Promise<void> {
-    installing.value = entry.id
-    try {
-      const pluginsStore = usePluginsStore()
-      const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
-
-      const {
-        source,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchPluginEntry(entry.id))
-
-      const meta = parsePluginMeta(source)
-      if (!meta) {
-        throw new Error(i18n.ts._misstore.pluginMetaParseFailed)
-      }
-
-      if (existing) {
-        // 追加インストール (別スコープ) でもソースが変われば中身は更新になる。
-        // 権限が拡大するなら updatePlugin と同じ再同意を通す (#1040 —
-        // この経路を無確認にすると再同意の抜け穴になる)。
-        // sha 一致 = 中身が同じなら本体・権限には触れない
-        if (existing.storeSha512 !== hash) {
-          await confirmPluginUpdate(
-            existing,
-            { source, hash, entry: e },
-            meta,
-            { alwaysConfirm: false },
-          )
-        }
-        // 再同意を断られても「このスコープへ入れる」操作自体は成立させる
-        // (中身は既存のまま)
-        pluginsStore.linkScope(existing.installId, scope)
-        return
-      }
-
-      const configData: Record<string, unknown> = {}
-      if (meta.config) {
-        for (const [key, def] of Object.entries(meta.config)) {
-          configData[key] = def.default
-        }
-      }
-
-      const newPlugin: PluginMeta = {
-        // 新規インストールのローカル ID = storeId (#913。再インストールで
-        // 参照が生き残る)。衝突時のみ連番 suffix
-        installId: resolveAvailable(e.id, (c) =>
-          pluginsStore.plugins.some((p) => casefold(p.installId) === c),
-        ),
-        name: meta.name,
-        version: meta.version,
-        author: meta.author,
-        description: meta.description,
-        permissions: meta.permissions,
-        config: meta.config,
-        configData,
-        src: source,
-        active: true,
-        storeId: e.id,
-        storeSha512: hash,
-        storeVersion: e.version,
-        ...(e.iconUrl ? { iconUrl: e.iconUrl } : {}),
-        ...(scope.kind === 'global'
-          ? { global: true }
-          : { installedFor: [scope.key] }),
-      }
-
-      pluginsStore.addPlugin(newPlugin)
-      await launchPlugin(newPlugin)
-    } finally {
-      installing.value = null
-    }
-  }
-
-  // --- Install widget ---
-
-  /**
-   * MisStore からウィジェットを取得して widgetsStore に追加 / 更新する。
-   * 照合キーは storeId のみ (#913)。同 storeId の既存があれば本体とストア由来
-   * メタを上書き更新する (ローカル値 name/autoRun は維持)。
-   *
-   * AI capability (`widgets.install`) はカラム文脈を持たないので、
-   * deckStore.addWidget ではなく widgetsStore.addWidget を直接呼んで
-   * カラム外の独立 widget として保存する。カラムへの attach は後から
-   * ユーザーが UI でやる想定 (= 「とりあえず手元に入れておく」が正)。
-   *
-   * 個体は storeId × 実行アカウント (accountKey) の組で 1 つ (#1061)。
-   * 同じ組の既存があれば更新、別アカウントなら新しい個体を作る。
-   */
-  async function installWidget(
-    entry: StoreWidgetEntry,
-    accountKey?: string,
-  ): Promise<WidgetMeta> {
-    installingWidget.value = entry.id
-    try {
-      const widgetsStore = useWidgetsStore()
-      const existing = findWidgetInstance(
-        widgetsStore.widgets,
-        entry.id,
-        accountKey,
-      )
-
-      // fetchVerifiedSource が sha512 照合済み → hash = 検証済みの値。
-      // リトライで index が更新されていたら新 entry (e) の値を記録する
-      const {
-        source: src,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchWidgetEntry(entry.id))
-      if (existing) {
-        // 再インストール = 実質更新。ローカル編集を無言で消さない (#981)
-        const applied = await confirmWidgetUpdate(
-          existing,
-          { source: src, hash, entry: e },
-          { alwaysConfirm: false },
-        )
-        return applied || existing
-      }
-
-      const now = Date.now()
-      const widget: WidgetMeta = {
-        // 新規インストールのローカル ID = storeId (#913)。衝突時のみ suffix
-        installId: resolveAvailable(e.id, (c) =>
-          widgetsStore.widgets.some((w) => casefold(w.installId) === c),
-        ),
+  const themeKind: StoreKind<
+    StoreThemeEntry,
+    ThemeItem,
+    StoreUpdatePatch<ThemeContent>,
+    ThemeParsed
+  > = {
+    feed: themeFeed,
+    store: () => useThemeStore(),
+    title: () => i18n.ts._misstore.updateTheme,
+    language: 'json5',
+    parse(source, e, hash) {
+      const content = parseThemeSource(source)
+      return { content, patch: { content, store: storeOrigin(e, hash) } }
+    },
+    add: (store, { content }, e, hash, id, targets) =>
+      (store as unknown as ReturnType<typeof useThemeStore>).add({
+        id,
         name: e.name,
-        src,
-        autoRun: e.autoRun,
-        storeId: e.id,
-        storeSha512: hash,
-        storeVersion: e.version,
-        createdAt: now,
-        updatedAt: now,
-        ...(e.iconUrl ? { iconUrl: e.iconUrl } : {}),
-        ...(accountKey ? { accountKey } : {}),
-      }
-      widgetsStore.addWidget(widget)
-      return widget
-    } finally {
-      installingWidget.value = null
-    }
+        store: storeOrigin(e, hash),
+        scope: scopeOf(targets),
+        content,
+        extra: {},
+      }),
+    // 見た目が変わらない再インストール (別アカウントへの紐付け追加だけ) では
+    // 確認を出さない。diff はファイルに書く形 (codec の projection) 同士
+    changed: (existing, { content }) =>
+      !sameThemeContent(existing.content, content),
+    diff: (existing, { content, patch }) => ({
+      old: themeCodec.encode(themeCodec.toFile(existing)),
+      new: themeCodec.encode(
+        themeCodec.toFile({ ...existing, content, store: patch.store }),
+      ),
+    }),
   }
 
-  // --- Install theme ---
+  // --- 共通の手続き ---
 
   /**
-   * MisStore からテーマをインストールする。
-   * forAccountKeys (アカウントの安定キー、#1113) を installedFor に追加する。
-   * - per-account カラムから呼ぶ場合: [accountId]
-   * - cross-account (全アカウント) カラムから呼ぶ場合: 全 logged-in account の id 一覧
-   * - 設定経由など account コンテキスト無し: 空配列 (どの account にも紐付かない)
-   */
-  async function installTheme(
-    entry: StoreThemeEntry,
-    forAccountKeys: string[] = [],
-  ): Promise<void> {
-    installingTheme.value = entry.id
-    try {
-      const {
-        source,
-        hash,
-        entry: e,
-      } = await fetchVerifiedSource(entry, refetchThemeEntry(entry.id))
-
-      const JSON5 = (await import('json5')).default
-      const parsed = JSON5.parse(source)
-      // 照合キーは storeId のみ (#913)。既存インストールがあれば
-      // installedFor を引き継ぎ、新規 ID と union
-      const themeStore = useThemeStore()
-      const existing = themeStore.installedThemes.find(
-        (t) => t.$notedeck?.storeId === e.id,
-      )
-      if (existing) {
-        // 再インストール = 実質更新。ローカル編集を無言で消さない (#981)
-        await confirmThemeUpdate(
-          existing,
-          { parsed, hash, entry: e },
-          forAccountKeys,
-          { alwaysConfirm: false },
-        )
-        return
-      }
-
-      const withMeta = buildThemeWithMeta(
-        parsed,
-        undefined,
-        e,
-        hash,
-        forAccountKeys,
-      )
-      const ok = await themeStore.installTheme(JSON.stringify(withMeta))
-      if (!ok) {
-        throw new Error(i18n.ts._misstore.themeInstallFailed)
-      }
-    } finally {
-      installingTheme.value = null
-    }
-  }
-
-  // --- 更新適用 (#1040) ---
-  // 更新ボタン → ソース fetch + sha 照合 (不一致は index 再取得の 1 回リトライ)
-  // → 適用前に全文 diff 付き確認 → 承認で「確認に使った内容」をそのまま適用する。
-  // 承認後の再 fetch・再計算はしない — 見せたものと書くものの一致が承認 UI の
-  // 意味そのもの (#981 不変条件)。未インストール (既存なし) は install* の担当で
-  // false を返す。戻り値は「適用したか」(キャンセル / 未インストールで false)。
-
-  /**
-   * 取得済みソースを既存ウィジェットへ適用する (#1040 / #981)。
-   * installWidget の既存分岐と updateWidget の共用点 (confirmSkillUpdate と同型)。
-   */
-  async function confirmWidgetUpdate(
-    existing: WidgetMeta,
-    fetched: { source: string; hash: string; entry: StoreWidgetEntry },
-    opts: { alwaysConfirm: boolean },
-  ): Promise<WidgetMeta | undefined | false> {
-    const { source, hash, entry: e } = fetched
-    if (opts.alwaysConfirm || source !== existing.src) {
-      const ok = await useConfirm().confirm({
-        title: i18n.ts._misstore.updateWidget,
-        message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: i18n.ts._common.update,
-        diff: { old: existing.src, new: source, language: 'aiscript' },
-      })
-      if (!ok) return false
-    }
-    return useWidgetsStore().applyStoreUpdate(existing.installId, {
-      src: source,
-      iconUrl: e.iconUrl,
-      storeSha512: hash,
-      storeVersion: e.version,
-    })
-  }
-
-  /**
-   * 同 storeId の全個体に更新を当てる (#1061)。確認は先頭の個体で 1 回。
-   * 先頭と同じソースの個体は同じ diff を見せたことになるので無確認で適用し、
-   * ローカル編集で分岐した個体だけ個別に diff 確認する (キャンセルはその個体
-   * のみ飛ばす)。戻り値は先頭の個体に適用したか。
-   */
-  async function updateWidget(entry: StoreWidgetEntry): Promise<boolean> {
-    const widgetsStore = useWidgetsStore()
-    const [first, ...rest] = listWidgetInstances(widgetsStore.widgets, entry.id)
-    if (!first) return false
-    installingWidget.value = entry.id
-    try {
-      const fetched = await fetchVerifiedSource(
-        entry,
-        refetchWidgetEntry(entry.id),
-      )
-      const baseSrc = first.src
-      const applied = await confirmWidgetUpdate(first, fetched, {
-        alwaysConfirm: true,
-      })
-      if (applied === false) return false
-      for (const w of rest) {
-        if (w.src === baseSrc) {
-          widgetsStore.applyStoreUpdate(w.installId, {
-            src: fetched.source,
-            iconUrl: fetched.entry.iconUrl,
-            storeSha512: fetched.hash,
-            storeVersion: fetched.entry.version,
-          })
-          continue
-        }
-        await confirmWidgetUpdate(w, fetched, { alwaysConfirm: false })
-      }
-      return true
-    } finally {
-      installingWidget.value = null
-    }
-  }
-
-  /**
-   * 取得済みソースを既存プラグインへ適用する (#1040)。
-   * installPlugin の既存分岐と updatePlugin の共用点。
-   *
-   * 再同意: permissions が拡大する更新 (新規権限の出現) は新しい権限を明示して
-   * 確認する。既存側の記録が無いなど比較できない場合は拡大側に倒す
-   * (before = 空集合)。`alwaysConfirm` = 更新操作 (差分の確認自体が目的) は
-   * 権限が変わらなくても確認する。
+   * 既存の個体へ配布ソースを適用する (#1040 / #981)。再インストールも本体を
+   * 書き換える = ローカル編集が消えるので、kind の条件 (本体が変わる / 権限が
+   * 拡大する) で確認を通す。`alwaysConfirm` = 更新操作 (差分の確認自体が目的)
+   * は本体が同じでも確認する。承認後の再 fetch・再計算はしない — 見せたものと
+   * 書くものの一致が承認 UI の意味そのもの (#981 不変条件)。
+   * ローカル値 (ID / 改名 / 有効 / 参加先 / 設定値) は store 側の
+   * `applyStoreUpdate` が維持する。
    *
    * @returns 適用したら true / ユーザーが拒否したら false
    */
-  async function confirmPluginUpdate(
-    existing: PluginMeta,
-    fetched: { source: string; hash: string; entry: StorePluginEntry },
-    meta: ParsedPluginMeta,
+  async function confirmAndApply<
+    E extends StoreEntryBase,
+    Item extends DistributableMeta<unknown, unknown>,
+    Patch,
+    P extends ParsedSource<Patch>,
+  >(
+    kind: StoreKind<E, Item, Patch, P>,
+    store: KindStore<Item, Patch>,
+    existing: Item,
+    parsed: P,
+    e: E,
     opts: { alwaysConfirm: boolean },
   ): Promise<boolean> {
-    const { source, hash, entry: e } = fetched
-    const before = new Set(existing.permissions ?? [])
-    const added = (meta.permissions ?? []).filter((p) => !before.has(p))
-    if (opts.alwaysConfirm || added.length > 0) {
+    const caution = kind.caution?.(existing, parsed) ?? null
+    if (
+      opts.alwaysConfirm ||
+      caution !== null ||
+      kind.changed(existing, parsed)
+    ) {
       let message = updateConfirmMessage(existing.name || e.name, e)
-      if (added.length > 0) {
-        message += `\n${i18n.tsx._misstore.newPermissions({ permissions: added.join(', ') })}`
-      }
+      if (caution !== null) message += `\n${caution}`
+      const d = kind.diff(existing, parsed)
       const ok = await useConfirm().confirm({
-        title: i18n.ts._misstore.updatePlugin,
+        title: kind.title(),
         message,
         okLabel: i18n.ts._common.update,
-        ...(added.length > 0 ? { type: 'warning' as const } : {}),
-        diff: { old: existing.src, new: source, language: 'aiscript' },
+        ...(caution !== null ? { type: 'warning' as const } : {}),
+        diff: { old: d.old, new: d.new, language: kind.language },
       })
       if (!ok) return false
     }
-    usePluginsStore().applyStoreUpdate(existing.installId, {
-      src: source,
-      version: meta.version,
-      author: meta.author,
-      description: meta.description,
-      permissions: meta.permissions,
-      config: meta.config,
-      iconUrl: e.iconUrl,
-      storeSha512: hash,
-      storeVersion: e.version,
-    })
+    await store.applyStoreUpdate(existing.id, parsed.patch)
     return true
   }
 
-  async function updatePlugin(entry: StorePluginEntry): Promise<boolean> {
-    const pluginsStore = usePluginsStore()
-    const existing = pluginsStore.plugins.find((p) => p.storeId === entry.id)
-    if (!existing) return false
-    installing.value = entry.id
+  /**
+   * MisStore からインストールする (#771 / #913 / #1202)。照合キーは storeId のみ
+   * (同名の自作があってもインストール可能 — ファイル名は suffix が捌く)。
+   * - 既存があれば: sha が違えば (= 中身が変わっていれば) 再インストール =
+   *   更新として確認して上書きし、確認を断られても「この参加先へ入れる」操作
+   *   自体は成立させる (中身は既存のまま)
+   * - 無ければ新規 (ローカル ID = storeId、占有時は連番 suffix)
+   * 戻り値は対象の個体 (存在すれば)
+   */
+  async function installFrom<
+    E extends StoreEntryBase,
+    Item extends DistributableMeta<unknown, unknown>,
+    Patch,
+    P extends ParsedSource<Patch>,
+  >(
+    kind: StoreKind<E, Item, Patch, P>,
+    entry: E,
+    targets: ScopeTarget[],
+  ): Promise<Item | undefined> {
+    kind.feed.installing.value = entry.id
     try {
-      const fetched = await fetchVerifiedSource(
-        entry,
-        refetchPluginEntry(entry.id),
-      )
-      const meta = parsePluginMeta(fetched.source)
-      if (!meta) {
-        throw new Error(i18n.ts._misstore.pluginMetaParseFailed)
+      const store = kind.store()
+      store.ensureLoaded()
+      const {
+        source,
+        hash,
+        entry: e,
+      } = await fetchVerifiedSource(entry, kind.feed.refetchEntry(entry.id))
+      const parsed = kind.parse(source, e, hash)
+      const existing = store.items.find((i) => i.store?.id === e.id)
+      if (existing) {
+        // sha 一致 = 中身が同じなら本体に触れない (fetchVerifiedSource の
+        // リトライで index が更新されていたら新 entry の値を記録する)
+        if (existing.store?.sha512 !== hash) {
+          await confirmAndApply(kind, store, existing, parsed, e, {
+            alwaysConfirm: false,
+          })
+        }
+        for (const target of targets) await store.link(existing.id, target)
+        return store.items.find((i) => i.id === existing.id) ?? existing
       }
-      // 更新はスコープに触れない (linkScope しない — 有効範囲はローカル値)
-      return await confirmPluginUpdate(existing, fetched, meta, {
-        alwaysConfirm: true,
-      })
-    } finally {
-      installing.value = null
-    }
-  }
-
-  /**
-   * 取得済みソースを既存スキルへ適用する (#1040 / #981)。
-   * installSkill の既存分岐と updateSkill の共用点。
-   *
-   * 再インストールも本体を書き換える = ローカル編集が消えるので、本文が
-   * 変わるなら更新導線と同じ diff 確認を通す。`alwaysConfirm` = 更新操作
-   * (差分の確認自体が目的) は本文が同じでも確認する。
-   *
-   * @returns 適用したら true / ユーザーが拒否したら false
-   */
-  async function confirmSkillUpdate(
-    existing: SkillMeta,
-    fetched: { source: string; hash: string; entry: StoreSkillEntry },
-    opts: { alwaysConfirm: boolean },
-  ): Promise<boolean> {
-    const { source, hash, entry: e } = fetched
-    const { meta, body } = parseSkillFile(source)
-    if (opts.alwaysConfirm || body !== existing.body) {
-      const ok = await useConfirm().confirm({
-        title: i18n.ts._misstore.updateSkill,
-        message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: i18n.ts._common.update,
-        // 本体 = frontmatter を除いた body 同士で比較する (ローカルは body
-        // しか保持しない。frontmatter 由来メタは patch 側が反映する)
-        diff: { old: existing.body, new: body, language: 'markdown' },
-      })
-      if (!ok) return false
-    }
-    // 上書き更新: 本体とストア由来メタのみ。ローカル ID・name・mode・
-    // scope/installedFor・有効/無効 (active) は維持する
-    useSkillsStore().update(
-      existing.id,
-      buildSkillStorePatch(meta, body, e, hash),
-    )
-    return true
-  }
-
-  async function updateSkill(entry: StoreSkillEntry): Promise<boolean> {
-    const skillsStore = useSkillsStore()
-    const existing = skillsStore.skills.find((s) => s.storeId === entry.id)
-    if (!existing) return false
-    installingSkill.value = entry.id
-    try {
-      const fetched = await fetchVerifiedSource(
-        entry,
-        refetchSkillEntry(entry.id),
+      const id = resolveAvailable(e.id, (c) =>
+        store.items.some((i) => casefold(i.id) === c),
       )
-      return await confirmSkillUpdate(existing, fetched, {
-        alwaysConfirm: true,
-      })
+      return await kind.add(store, parsed, e, hash, id, targets)
     } finally {
-      installingSkill.value = null
+      kind.feed.installing.value = null
     }
   }
 
   /**
-   * 取得済みソースを既存クエリへ適用する (#1040 / #981)。
-   * installQuery の既存分岐と updateQuery の共用点 (confirmSkillUpdate と同型)。
+   * 更新を適用する (#1040)。更新ボタン → ソース fetch + sha 照合 (不一致は index
+   * 再取得の 1 回リトライ) → 全文 diff 付き確認 → 承認で確認に使った内容を
+   * そのまま適用。参加先には触れない (有効範囲はローカル値)。未インストールは
+   * install の担当で false。戻り値は「適用したか」(キャンセル / 未インストールで
+   * false)
    */
-  async function confirmQueryUpdate(
-    existing: { id: string; name?: string; src: string },
-    fetched: { source: string; hash: string; entry: StoreQueryEntry },
-    opts: { alwaysConfirm: boolean },
-  ): Promise<boolean> {
-    const { source, hash, entry: e } = fetched
-    if (opts.alwaysConfirm || source !== existing.src) {
-      const ok = await useConfirm().confirm({
-        title: i18n.ts._misstore.updateQuery,
-        message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: i18n.ts._common.update,
-        diff: { old: existing.src, new: source, language: 'aiscript' },
-      })
-      if (!ok) return false
-    }
-    // 上書き更新: 本体とストア由来メタのみ。ローカル改名 (name) は維持
-    await useColumnQueriesStore().applyStoreUpdate(existing.id, {
-      src: source,
-      description: e.description,
-      iconUrl: e.iconUrl,
-      storeSha512: hash,
-      storeVersion: e.version,
-    })
-    return true
-  }
-
-  async function updateQuery(entry: StoreQueryEntry): Promise<boolean> {
-    const queriesStore = useColumnQueriesStore()
-    queriesStore.ensureLoaded()
-    const existing = queriesStore.queries.find((q) => q.storeId === entry.id)
+  async function updateFrom<
+    E extends StoreEntryBase,
+    Item extends DistributableMeta<unknown, unknown>,
+    Patch,
+    P extends ParsedSource<Patch>,
+  >(kind: StoreKind<E, Item, Patch, P>, entry: E): Promise<boolean> {
+    const store = kind.store()
+    store.ensureLoaded()
+    const existing = store.items.find((i) => i.store?.id === entry.id)
     if (!existing) return false
-    installingQuery.value = entry.id
-    try {
-      const fetched = await fetchVerifiedSource(
-        entry,
-        refetchQueryEntry(entry.id),
-      )
-      return await confirmQueryUpdate(existing, fetched, {
-        alwaysConfirm: true,
-      })
-    } finally {
-      installingQuery.value = null
-    }
-  }
-
-  /** テーマの「見た目に効く部分」だけの同一性キー (メタの差は無視する)。 */
-  function themeBodyKey(theme: Record<string, unknown> | MisskeyTheme): string {
-    const t = theme as Record<string, unknown>
-    return JSON.stringify([t.name, t.base, t.props])
-  }
-
-  /**
-   * 取得済みソースを既存テーマへ適用する (#1040 / #981)。
-   * installTheme の既存分岐と updateTheme の共用点 (confirmSkillUpdate と同型)。
-   */
-  async function confirmThemeUpdate(
-    existing: MisskeyTheme,
-    fetched: {
-      parsed: Record<string, unknown>
-      hash: string
-      entry: StoreThemeEntry
-    },
-    forAccountKeys: string[],
-    opts: { alwaysConfirm: boolean },
-  ): Promise<boolean> {
-    const { parsed, hash, entry: e } = fetched
-    const withMeta = buildThemeWithMeta(
-      parsed,
-      existing,
-      e,
-      hash,
-      forAccountKeys,
-    )
-    // fileBase は runtime-only (書込前に strip される) なので diff に出さない
-    const { fileBase: _fileBase, ...currentTheme } = existing
-    const newJson = JSON.stringify(withMeta, null, 2)
-    const currentJson = JSON.stringify(currentTheme, null, 2)
-    // 見た目が変わらない再インストール (別アカウントへの installedFor 追加
-    // だけ) で確認を出さない。判定は表示に効く部分のみ
-    const changed = themeBodyKey(withMeta) !== themeBodyKey(currentTheme)
-    if (opts.alwaysConfirm || changed) {
-      const ok = await useConfirm().confirm({
-        title: i18n.ts._misstore.updateTheme,
-        message: updateConfirmMessage(existing.name || e.name, e),
-        okLabel: i18n.ts._common.update,
-        diff: { old: currentJson, new: newJson, language: 'json5' },
-      })
-      if (!ok) return false
-    }
-    // 不変条件: 確認に使った全文をそのまま書き込む (#981)
-    const applied = await useThemeStore().installTheme(newJson)
-    if (!applied) {
-      throw new Error(i18n.ts._misstore.themeInstallFailed)
-    }
-    return true
-  }
-
-  async function updateTheme(
-    entry: StoreThemeEntry,
-    forAccountKeys: string[] = [],
-  ): Promise<boolean> {
-    const themeStore = useThemeStore()
-    const existing = themeStore.installedThemes.find(
-      (t) => t.$notedeck?.storeId === entry.id,
-    )
-    if (!existing) return false
-    installingTheme.value = entry.id
+    kind.feed.installing.value = entry.id
     try {
       const {
         source,
         hash,
         entry: e,
-      } = await fetchVerifiedSource(entry, refetchThemeEntry(entry.id))
-      const JSON5 = (await import('json5')).default
-      const parsed = JSON5.parse(source)
-      return await confirmThemeUpdate(
+      } = await fetchVerifiedSource(entry, kind.feed.refetchEntry(entry.id))
+      return await confirmAndApply(
+        kind,
+        store,
         existing,
-        { parsed, hash, entry: e },
-        forAccountKeys,
+        kind.parse(source, e, hash),
+        e,
         { alwaysConfirm: true },
       )
     } finally {
-      installingTheme.value = null
+      kind.feed.installing.value = null
     }
   }
 
+  /**
+   * インストール済み判定。`target` を渡すと「その参加先に入っている個体が
+   * あるか」で判定する (カラムのストアカードの粒度。未参加のスコープが残る
+   * うちは通常の状態で出し、押せばそのスコープへ参加させる)
+   */
+  function isInstalledIn<E extends StoreEntryBase>(
+    kind: { store(): KindStore<DistributableMeta<unknown, unknown>, unknown> },
+    entry: E,
+    target?: ScopeTarget,
+  ): boolean {
+    const store = kind.store()
+    store.ensureLoaded()
+    return store.items.some(
+      (i) =>
+        i.store?.id === entry.id &&
+        (!target || hasScopeTarget(i.scope, target)),
+    )
+  }
+
+  // --- 公開面 (kind で引く。カラム / deep link / テストが使う) ---
+
+  const kinds: {
+    [K in DistributableKind]: StoreKind<
+      StoreEntryOf<K>,
+      DistributableMeta<unknown, unknown>,
+      unknown,
+      ParsedSource<unknown>
+    >
+  } = {
+    plugin: pluginKind,
+    widget: widgetKind,
+    query: queryKind,
+    skill: skillKind,
+    theme: themeKind,
+  }
+
+  /** レジストリの状態 (一覧 / 読込中 / エラー / 取得 / 再取得) */
+  function feed<K extends DistributableKind>(
+    kind: K,
+  ): StoreFeedView<StoreEntryOf<K>> {
+    const f = kinds[kind].feed
+    return {
+      get entries() {
+        return f.entries.value
+      },
+      get loading() {
+        return f.loading.value
+      },
+      get error() {
+        return f.error.value
+      },
+      fetch: f.fetch,
+      refresh: f.refresh,
+    }
+  }
+
+  /**
+   * ストアからインストールする。`targets` は参加させるスコープ (カラムの文脈。
+   * plugin / query / widget は 1 つ、theme はアカウントの安定キーごと、skill は
+   * 空)。既存なら中身が変わっているときだけ確認して適用し、参加先を足す。
+   * 戻り値は対象の個体
+   */
+  function install<K extends DistributableKind>(
+    kind: K,
+    entry: StoreEntryOf<K>,
+    targets: ScopeTarget[] = [],
+  ): Promise<DistributableMeta<unknown, unknown> | undefined> {
+    return installFrom(kinds[kind], entry, targets)
+  }
+
+  /** 更新を適用する (#1040)。戻り値は「適用したか」 */
+  function update<K extends DistributableKind>(
+    kind: K,
+    entry: StoreEntryOf<K>,
+  ): Promise<boolean> {
+    return updateFrom(kinds[kind], entry)
+  }
+
+  /**
+   * ストアカードの「インストール済み」判定 (全 kind 共通)。`target` を渡すと
+   * カラムのスコープに参加している個体があるかで判定する (#1202 段階 3)
+   */
+  const installedIn = (
+    kind: DistributableKind,
+    entry: StoreEntryBase,
+    target?: ScopeTarget,
+  ) => isInstalledIn(kinds[kind], entry, target)
+
+  /** 個体のどれか 1 つでも古ければ更新あり (#1061) */
+  const hasUpdate = <K extends DistributableKind>(
+    kind: K,
+    entry: StoreEntryOf<K>,
+  ) => kinds[kind].feed.hasUpdate(entry)
+
+  /** インストール / 更新中の entry id (UI のスピナー用) */
+  const installing = (kind: DistributableKind): string | null =>
+    kinds[kind].feed.installing.value
+
   return {
-    plugins,
-    loading,
-    error,
+    feed,
+    install,
+    update,
+    installedIn,
+    hasUpdate,
     installing,
-    themes,
-    themesLoading: themeFeed.loading,
-    themesError: themeFeed.error,
-    installingTheme,
-    widgets,
-    widgetsLoading: widgetFeed.loading,
-    widgetsError: widgetFeed.error,
-    installingWidget,
-    skills: skillEntries,
-    skillsLoading: skillFeed.loading,
-    skillsError: skillFeed.error,
-    installingSkill,
-    fetchPlugins: pluginFeed.fetch,
-    fetchThemes: themeFeed.fetch,
-    fetchWidgets: widgetFeed.fetch,
     fetchWidgetSource,
-    fetchSkills: skillFeed.fetch,
-    refresh,
-    refreshThemes,
-    refreshWidgets,
-    refreshSkills,
-    installPlugin,
-    installTheme,
-    installWidget,
-    installSkill,
-    queries: queryEntries,
-    queriesLoading: queryFeed.loading,
-    queriesError: queryFeed.error,
-    installingQuery,
-    fetchQueries: queryFeed.fetch,
-    refreshQueries,
-    installQuery,
-    isQueryInstalled,
-    isInstalled: pluginFeed.isInstalled,
-    isThemeInstalled: themeFeed.isInstalled,
-    isWidgetInstalled: widgetFeed.isInstalled,
-    isSkillInstalled: skillFeed.isInstalled,
-    hasPluginUpdate: pluginFeed.hasUpdate,
-    hasThemeUpdate: themeFeed.hasUpdate,
-    hasWidgetUpdate: widgetFeed.hasUpdate,
-    hasSkillUpdate: skillFeed.hasUpdate,
-    hasQueryUpdate: queryFeed.hasUpdate,
-    updatePlugin,
-    updateTheme,
-    updateWidget,
-    updateSkill,
-    updateQuery,
   }
 })

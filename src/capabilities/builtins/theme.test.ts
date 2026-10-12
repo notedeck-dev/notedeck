@@ -10,24 +10,24 @@ import {
   themeUpdateCapability,
 } from './theme'
 
-// Note: theme.apply の execute は最終的に applyCurrentTheme → window.matchMedia
+// Note: themes.apply の execute は最終的に applyCurrentTheme → window.matchMedia
 // に到達するため unit 環境では走らない。capability 定義の正しさだけ検証する。
 // 実 execute 挙動は dom テストか実機で確認。
 
-describe('theme.list capability', () => {
-  it('declares no permissions and aiTool: true', () => {
-    expect(themeListCapability.permissions).toEqual([])
+describe('themes.list capability', () => {
+  it('declares themes.read and aiTool: true', () => {
+    expect(themeListCapability.permissions).toEqual(['themes.read'])
     expect(themeListCapability.aiTool).toBe(true)
     expect(themeListCapability.signature?.returns?.type).toBe('array')
-    expect(themeListCapability.id).toBe('theme.list')
+    expect(themeListCapability.id).toBe('themes.list')
   })
 })
 
-describe('theme.apply capability', () => {
+describe('themes.apply capability', () => {
   it('declares deck.write and aiTool: true', () => {
     expect(themeApplyCapability.permissions).toEqual(['deck.write'])
     expect(themeApplyCapability.aiTool).toBe(true)
-    expect(themeApplyCapability.id).toBe('theme.apply')
+    expect(themeApplyCapability.id).toBe('themes.apply')
   })
 
   it('throws when id is missing', () => {
@@ -42,10 +42,10 @@ describe('theme.apply capability', () => {
   })
 })
 
-describe('theme.read capability', () => {
-  it('declares no permissions, aiTool: true, cheap: true', () => {
-    expect(themeReadCapability.id).toBe('theme.read')
-    expect(themeReadCapability.permissions).toEqual([])
+describe('themes.read capability', () => {
+  it('declares themes.read, aiTool: true, cheap: true', () => {
+    expect(themeReadCapability.id).toBe('themes.read')
+    expect(themeReadCapability.permissions).toEqual(['themes.read'])
     expect(themeReadCapability.aiTool).toBe(true)
     expect(themeReadCapability.signature?.cheap).toBe(true)
   })
@@ -57,10 +57,10 @@ describe('theme.read capability', () => {
   })
 })
 
-describe('theme.create capability', () => {
-  it('declares theme.write permission, install preview confirmation', () => {
-    expect(themeCreateCapability.id).toBe('theme.create')
-    expect(themeCreateCapability.permissions).toEqual(['theme.write'])
+describe('themes.create capability', () => {
+  it('declares themes.write permission, install preview confirmation', () => {
+    expect(themeCreateCapability.id).toBe('themes.create')
+    expect(themeCreateCapability.permissions).toEqual(['themes.write'])
     expect(themeCreateCapability.aiTool).toBe(true)
     expect(typeof themeCreateCapability.requiresConfirmation).toBe('function')
   })
@@ -77,10 +77,10 @@ describe('theme.create capability', () => {
   })
 })
 
-describe('theme.update capability', () => {
-  it('declares theme.write permission, install preview confirmation', () => {
-    expect(themeUpdateCapability.id).toBe('theme.update')
-    expect(themeUpdateCapability.permissions).toEqual(['theme.write'])
+describe('themes.update capability', () => {
+  it('declares themes.write permission, install preview confirmation', () => {
+    expect(themeUpdateCapability.id).toBe('themes.update')
+    expect(themeUpdateCapability.permissions).toEqual(['themes.write'])
     expect(typeof themeUpdateCapability.requiresConfirmation).toBe('function')
   })
 
@@ -93,11 +93,11 @@ describe('theme.update capability', () => {
   })
 })
 
-describe('theme.install capability', () => {
-  it('declares theme.write + network.external permissions and aiTool', () => {
-    expect(themeInstallCapability.id).toBe('theme.install')
+describe('themes.install capability', () => {
+  it('declares themes.write + network.external permissions and aiTool', () => {
+    expect(themeInstallCapability.id).toBe('themes.install')
     expect(themeInstallCapability.permissions).toEqual([
-      'theme.write',
+      'themes.write',
       'network.external',
     ])
     expect(themeInstallCapability.aiTool).toBe(true)
@@ -111,10 +111,10 @@ describe('theme.install capability', () => {
   })
 })
 
-describe('theme.uninstall capability', () => {
-  it('declares theme.write permission and aiTool', () => {
-    expect(themeUninstallCapability.id).toBe('theme.uninstall')
-    expect(themeUninstallCapability.permissions).toEqual(['theme.write'])
+describe('themes.uninstall capability', () => {
+  it('declares themes.write permission and aiTool', () => {
+    expect(themeUninstallCapability.id).toBe('themes.uninstall')
+    expect(themeUninstallCapability.permissions).toEqual(['themes.write'])
     expect(themeUninstallCapability.aiTool).toBe(true)
     expect(typeof themeUninstallCapability.requiresConfirmation).toBe(
       'function',

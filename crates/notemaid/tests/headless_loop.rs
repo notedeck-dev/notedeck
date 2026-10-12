@@ -264,7 +264,7 @@ async fn reads_across_the_core_capabilities_need_no_device() {
         "meta.permissions",
         "plugins.list",
         "widgets.read",
-        "theme.list",
+        "themes.list",
         "styles.read",
     ];
     let round: Vec<AiChatEvent> = reads

@@ -420,12 +420,12 @@ export function buildTutorialSteps(): TutorialStep[] {
       get description() {
         return i18n.ts._tutorialSteps.createPluginDescription
       },
-      precheck: () => (usePluginsStore().plugins.length > 0 ? 'skip' : 'show'),
+      precheck: () => (usePluginsStore().items.length > 0 ? 'skip' : 'show'),
       onEnter: () =>
         openAddColumnAndPoint('pluginManager', i18n.ts._columns.pluginManager),
       completion: {
-        watch: () => usePluginsStore().plugins.length,
-        isComplete: () => usePluginsStore().plugins.length > 0,
+        watch: () => usePluginsStore().items.length,
+        isComplete: () => usePluginsStore().items.length > 0,
       },
     },
 
@@ -440,11 +440,11 @@ export function buildTutorialSteps(): TutorialStep[] {
       get description() {
         return i18n.ts._tutorialSteps.createWidgetDescription
       },
-      precheck: () => (useWidgetsStore().widgets.length > 0 ? 'skip' : 'show'),
+      precheck: () => (useWidgetsStore().items.length > 0 ? 'skip' : 'show'),
       onEnter: () => openAddColumnAndPoint('widget', i18n.ts._columns.widget),
       completion: {
-        watch: () => useWidgetsStore().widgets.length,
-        isComplete: () => useWidgetsStore().widgets.length > 0,
+        watch: () => useWidgetsStore().items.length,
+        isComplete: () => useWidgetsStore().items.length > 0,
       },
     },
 
@@ -459,13 +459,12 @@ export function buildTutorialSteps(): TutorialStep[] {
       get description() {
         return i18n.ts._tutorialSteps.createThemeDescription
       },
-      precheck: () =>
-        useThemeStore().installedThemes.length > 0 ? 'skip' : 'show',
+      precheck: () => (useThemeStore().items.length > 0 ? 'skip' : 'show'),
       onEnter: () =>
         openAddColumnAndPoint('themeManager', i18n.ts._columns.themeManager),
       completion: {
-        watch: () => useThemeStore().installedThemes.length,
-        isComplete: () => useThemeStore().installedThemes.length > 0,
+        watch: () => useThemeStore().items.length,
+        isComplete: () => useThemeStore().items.length > 0,
       },
     },
 
@@ -481,15 +480,15 @@ export function buildTutorialSteps(): TutorialStep[] {
         return i18n.ts._tutorialSteps.createQueryDescription
       },
       precheck: () =>
-        useColumnQueriesStore().queries.length > 0 ? 'skip' : 'show',
+        useColumnQueriesStore().items.length > 0 ? 'skip' : 'show',
       onEnter: () =>
         openAddColumnAndPoint(
           'queryManager',
           i18n.ts._tutorialSteps.columnQueryItem,
         ),
       completion: {
-        watch: () => useColumnQueriesStore().queries.length,
-        isComplete: () => useColumnQueriesStore().queries.length > 0,
+        watch: () => useColumnQueriesStore().items.length,
+        isComplete: () => useColumnQueriesStore().items.length > 0,
       },
     },
 
@@ -504,11 +503,11 @@ export function buildTutorialSteps(): TutorialStep[] {
       get description() {
         return i18n.ts._tutorialSteps.createSkillDescription
       },
-      precheck: () => (useSkillsStore().skills.length > 0 ? 'skip' : 'show'),
+      precheck: () => (useSkillsStore().items.length > 0 ? 'skip' : 'show'),
       onEnter: () => openAddColumnAndPoint('skill', i18n.ts._columns.skill),
       completion: {
-        watch: () => useSkillsStore().skills.length,
-        isComplete: () => useSkillsStore().skills.length > 0,
+        watch: () => useSkillsStore().items.length,
+        isComplete: () => useSkillsStore().items.length > 0,
       },
     },
 

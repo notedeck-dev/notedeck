@@ -338,6 +338,8 @@ export interface Locale {
     readonly "retry": string
     /** キャンセル */
     readonly "cancel": string
+    /** 作成 */
+    readonly "create": string
     /** 削除 */
     readonly "delete": string
     /** 閉じる */
@@ -4019,8 +4021,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "createLocal": string
     /** ウィジェットを追加してカスタマイズしよう */
     readonly "empty": string
-    /** ウィジェットを追加 */
-    readonly "addWidget": string
     /** ライブラリに配置可能なウィジェットがありません。 */
     readonly "noLibraryWidgets": string
     /** 空のコード */
@@ -4636,8 +4636,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "skillsRead": string
       /** スキルの追記/編集 */
       readonly "skillsWrite": string
+      /** テーマの読取 */
+      readonly "themesRead": string
       /** テーマの作成/編集 */
-      readonly "themeWrite": string
+      readonly "themesWrite": string
       /** カスタム CSS の編集 */
       readonly "stylesWrite": string
       /** ナビバー構成の編集 */
@@ -5022,6 +5024,16 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "setMessage_plural": PluralString<'count'>
     /** 上書き */
     readonly "setOk": string
+  }
+  readonly "_queriesCapability": {
+    /** クエリを作成 */
+    readonly "createTitle": string
+    /** AI が生成したクエリ「{name}」を作成します。ライブラリに入るだけで、カラムへの適用はカラムのフィルターメニューから行ってください。 */
+    readonly "createMessage": ParameterizedString<'name'>
+    /** クエリを更新 */
+    readonly "updateTitle": string
+    /** {name} のソースを {from} → {to} 文字に置換します。適用中のカラムは新しい式で再評価されます。 */
+    readonly "updateMessage": ParameterizedString<'from' | 'name' | 'to'>
   }
   readonly "_pluginsCapability": {
     /** プラグインをインストール */
@@ -5871,7 +5883,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
         readonly "summary_plural": PluralString<'base' | 'count'>
       }
       readonly "plugins": {
-        readonly "setActive": {
+        readonly "setEnabled": {
           /** プラグインを有効化 */
           readonly "title": string
           /** {name} を有効化します。handler が起動し、以下の permissions の操作が走り得ます。 */
@@ -5916,8 +5928,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
           readonly "title": string
           /** {name} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。 */
           readonly "message": ParameterizedString<'name'>
-          /** {name} ほか {count} 件を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。 */
-          readonly "messageMany_plural": PluralString<'count' | 'name'>
           /** 削除 */
           readonly "ok": string
         }
@@ -6118,6 +6128,14 @@ AI プロバイダーの API キーを登録すると使えるようになりま
           /** {name} を編集履歴 #{index} ({at}) の状態に戻します。現在のソースは上書きされます。 */
           readonly "message": ParameterizedString<'at' | 'index' | 'name'>
           /** この状態に戻す */
+          readonly "ok": string
+        }
+        readonly "delete": {
+          /** クエリを削除 */
+          readonly "title": string
+          /** {name} を完全に削除します。ソース・メタ・編集履歴が消え、適用中のカラムからも外れます。この操作は取り消せません。 */
+          readonly "message": ParameterizedString<'name'>
+          /** 削除 */
           readonly "ok": string
         }
       }
@@ -6558,13 +6576,23 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       /** プラグインを過去の状態に戻す */
       readonly "revert": string
       /** プラグインの有効/無効を切替 */
-      readonly "setActive": string
+      readonly "setEnabled": string
       /** プラグインを削除 */
       readonly "uninstall": string
       /** プラグインの AiScript を更新 */
       readonly "update": string
     }
     readonly "queries": {
+      /** クエリ一覧 */
+      readonly "list": string
+      /** クエリのソースを読む */
+      readonly "read": string
+      /** クエリを作成 */
+      readonly "create": string
+      /** クエリのソースを更新 */
+      readonly "update": string
+      /** クエリを削除 */
+      readonly "delete": string
       /** クエリの編集履歴 */
       readonly "history": string
       /** クエリを過去の状態に戻す */
@@ -6593,6 +6621,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "append": string
       /** スキルを作成 */
       readonly "create": string
+      /** スキルを削除 */
+      readonly "delete": string
       /** スキルの編集履歴を取得 */
       readonly "history": string
       /** MisStore からスキルを入れる */
@@ -6606,7 +6636,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       /** スキルを過去の編集前状態に戻す */
       readonly "revert": string
       /** スキルの有効/無効を切替 */
-      readonly "toggle": string
+      readonly "setEnabled": string
       /** スキルを削除 */
       readonly "uninstall": string
     }
@@ -6626,11 +6656,13 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       /** タスク実行 */
       readonly "run": string
     }
-    readonly "theme": {
+    readonly "themes": {
       /** テーマを適用 */
       readonly "apply": string
       /** テーマを作成 */
       readonly "create": string
+      /** テーマを削除 */
+      readonly "delete": string
       /** テーマの編集履歴 */
       readonly "history": string
       /** MisStore からテーマを入れる */

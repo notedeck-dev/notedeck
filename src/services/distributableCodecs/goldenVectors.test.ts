@@ -21,7 +21,6 @@ import { widgetCodec } from '@/services/distributableCodecs/widgetCodec'
  *
  * 入力に書かないもの (両書き手で揺れることが分かっている差):
  * - 未知のキー (Rust は末尾に残し、TS は落とす)
- * - widget の旧 `accountId` だけの個体 (Rust は残し、TS は移行して落とす)
  * - テーマの props の数値 (Rust は文字列化し、TS はそのまま)
  */
 

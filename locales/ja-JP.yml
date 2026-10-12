@@ -185,6 +185,7 @@ _common:
   next: "次へ"
   retry: "再試行"
   cancel: "キャンセル"
+  create: "作成"
   delete: "削除"
   close: "閉じる"
   disabled: "無効"
@@ -2231,7 +2232,6 @@ _deckThemeManagerColumn:
 _deckWidgetColumn:
   createLocal: "新規ローカルウィジェットを作成"
   empty: "ウィジェットを追加してカスタマイズしよう"
-  addWidget: "ウィジェットを追加"
   noLibraryWidgets: "ライブラリに配置可能なウィジェットがありません。"
   emptyCode: "空のコード"
   noMatches: "一致するウィジェットがありません"
@@ -2552,7 +2552,8 @@ _labels:
     aiMemoryWrite: "AI の記憶の更新 (あなたについて / 覚え書き)"
     skillsRead: "スキルの読取"
     skillsWrite: "スキルの追記/編集"
-    themeWrite: "テーマの作成/編集"
+    themesRead: "テーマの読取"
+    themesWrite: "テーマの作成/編集"
     stylesWrite: "カスタム CSS の編集"
     navbarWrite: "ナビバー構成の編集"
     keybindsWrite: "キーバインドの編集"
@@ -2785,6 +2786,12 @@ _navbarCapability:
   setMessage_plural:
     other: "ナビバーを {count} 項目で全置換します。現在の構成は失われます (navbar.reset でデフォルトに戻せます)。"
   setOk: "上書き"
+
+_queriesCapability:
+  createTitle: "クエリを作成"
+  createMessage: "AI が生成したクエリ「{name}」を作成します。ライブラリに入るだけで、カラムへの適用はカラムのフィルターメニューから行ってください。"
+  updateTitle: "クエリを更新"
+  updateMessage: "{name} のソースを {from} → {to} 文字に置換します。適用中のカラムは新しい式で再評価されます。"
 
 _pluginsCapability:
   createTitle: "プラグインをインストール"
@@ -3261,7 +3268,7 @@ _native:
       summary_plural:
         other: "{base} テーマ / {count} 変数"
     plugins:
-      setActive:
+      setEnabled:
         title: "プラグインを有効化"
         message: "{name} を有効化します。handler が起動し、以下の permissions の操作が走り得ます。"
         ok: "有効化"
@@ -3284,8 +3291,6 @@ _native:
       delete:
         title: "ウィジェットを削除"
         message: "{name} を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。"
-        messageMany_plural:
-          other: "{name} ほか {count} 件を削除します。AiScript ソース・メタ・Mk:save 領域がすべて消えます。この操作は取り消せません。"
         ok: "削除"
       revert:
         title: "ウィジェットを過去の状態に戻す"
@@ -3389,6 +3394,10 @@ _native:
         title: "クエリを過去の状態に戻す"
         message: "{name} を編集履歴 #{index} ({at}) の状態に戻します。現在のソースは上書きされます。"
         ok: "この状態に戻す"
+      delete:
+        title: "クエリを削除"
+        message: "{name} を完全に削除します。ソース・メタ・編集履歴が消え、適用中のカラムからも外れます。この操作は取り消せません。"
+        ok: "削除"
     cancel: "キャンセル"
   heartbeat:
     stoppedDailyLimit: "HEARTBEAT を停止しました (本日の AI 起動が上限の {limit} 回に達しました)"

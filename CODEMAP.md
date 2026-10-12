@@ -159,6 +159,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/distributableCodecs/pluginCodec.ts`](src/services/distributableCodecs/pluginCodec.ts) | — |
 | [`src/services/distributableCodecs/queryCodec.ts`](src/services/distributableCodecs/queryCodec.ts) | — |
 | [`src/services/distributableCodecs/sidecar.ts`](src/services/distributableCodecs/sidecar.ts) | — |
+| [`src/services/distributableCodecs/singleFile.ts`](src/services/distributableCodecs/singleFile.ts) | — |
 | [`src/services/distributableCodecs/skillCodec.ts`](src/services/distributableCodecs/skillCodec.ts) | — |
 | [`src/services/distributableCodecs/themeCodec.ts`](src/services/distributableCodecs/themeCodec.ts) | — |
 | [`src/services/distributableCodecs/widgetCodec.ts`](src/services/distributableCodecs/widgetCodec.ts) | — |
@@ -235,6 +236,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/userLookupResult.ts`](src/services/userLookupResult.ts) | [`src/services/userLookupResult.test.ts`](src/services/userLookupResult.test.ts) |
 | [`src/services/userRef.ts`](src/services/userRef.ts) | [`src/services/userRef.test.ts`](src/services/userRef.test.ts) |
 | [`src/services/widgetInstances.ts`](src/services/widgetInstances.ts) | [`src/services/widgetInstances.test.ts`](src/services/widgetInstances.test.ts) |
+| [`src/services/widgetPlacement.ts`](src/services/widgetPlacement.ts) | [`src/services/widgetPlacement.test.ts`](src/services/widgetPlacement.test.ts) |
 | [`src/services/wordMuteMatch.ts`](src/services/wordMuteMatch.ts) | [`src/services/wordMuteMatch.test.ts`](src/services/wordMuteMatch.test.ts) |
 
 ## 設定ファイル

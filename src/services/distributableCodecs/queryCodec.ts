@@ -1,6 +1,7 @@
 import type {
   DistributableCodec,
   DistributableMeta,
+  EnabledDeclaration,
   FileContext,
 } from '@/services/distributable'
 import {
@@ -102,7 +103,9 @@ function toFile(item: QueryItem): QueryFile {
   return { meta, src: item.content }
 }
 
-export const queryCodec: DistributableCodec<QueryFile, QueryItem> = {
+export const queryCodec: DistributableCodec<QueryFile, QueryItem> & {
+  enabled: EnabledDeclaration<QueryItem>
+} = {
   kind: 'query',
   fromFile,
   toFile,

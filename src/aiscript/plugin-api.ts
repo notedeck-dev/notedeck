@@ -7,17 +7,17 @@ import {
 } from '@syuilo/aiscript'
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import { i18n } from '@/i18n'
+import { isInScope } from '@/services/distributable'
+import type {
+  PluginConfigDef,
+  PluginItem,
+} from '@/services/distributableCodecs/pluginCodec'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   type AiScriptRunLogger,
   useAiScriptLogsStore,
 } from '@/stores/aiscriptLogs'
-import {
-  isPluginEffectiveFor,
-  type PluginConfigDef,
-  type PluginMeta,
-  usePluginsStore,
-} from '@/stores/plugins'
+import { usePluginsStore } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { readSafeMode } from '@/utils/safeMode'
 import { openSafeUrl } from '@/utils/url'
@@ -195,10 +195,10 @@ export function getPluginHandlers<T extends HandlerType>(
     ? useAccountsStore().accounts.find((a) => a.id === accountId)
     : undefined
   const scopeKey = account ? accountScopeKey(account) : null
-  const plugins = usePluginsStore().plugins
+  const plugins = usePluginsStore().items
   return matched.filter((h) => {
-    const plugin = plugins.find((p) => p.installId === h.pluginInstallId)
-    return plugin ? isPluginEffectiveFor(plugin, scopeKey) : false
+    const plugin = plugins.find((p) => p.id === h.pluginInstallId)
+    return plugin ? isInScope(plugin.scope, scopeKey) : false
   })
 }
 
@@ -219,10 +219,10 @@ function removePluginHandlers(installId: string) {
 // ---------------------------------------------------------------------------
 
 function createPluginSpecificEnv(
-  plugin: PluginMeta,
+  plugin: PluginItem,
   ctx: PluginRunContext,
 ): Record<string, Value> {
-  const id = plugin.installId
+  const id = plugin.id
   const consts: Record<string, Value> = {}
 
   // UI 起点 (ユーザーのクリックが起点) の handler 実行 (#1072)。実行時エラーは
@@ -385,10 +385,10 @@ function createPluginSpecificEnv(
 
   // --- Plugin:config ---
   const configMap = new Map<string, Value>()
-  if (plugin.config) {
-    for (const [key, def] of Object.entries(plugin.config)) {
-      const val =
-        key in plugin.configData ? plugin.configData[key] : def.default
+  const { config, configData } = plugin.extra
+  if (config) {
+    for (const [key, def] of Object.entries(config)) {
+      const val = key in configData ? configData[key] : def.default
       configMap.set(key, utils.jsToVal(val))
     }
   }
@@ -473,26 +473,30 @@ export function applyNotePostInterruptors<T>(
 // installId ごとに保持し、abort 時の system イベント記録に使う。
 const pluginRunLoggers = new Map<string, AiScriptRunLogger>()
 
-export async function launchPlugin(plugin: PluginMeta): Promise<void> {
+/**
+ * 起動 (既に動いていれば止めてから)。呼び出し元は plugins store の hook
+ * (有効の切替 / 本文・設定値の変更 / undo / 追加) と起動時の一括起動だけ
+ */
+export async function launchPlugin(plugin: PluginItem): Promise<void> {
   // セーフモード (#794) — 起動経路を 1 箇所で塞ぐ。プラグイン管理からの手動
   // 再起動もここを通るので、追加の gate は要らない
   if (readSafeMode()) return
-  if (!plugin.src || !plugin.active) return
+  if (!plugin.content || !plugin.extra.active) return
 
   // Abort existing instance if re-launching
-  abortPlugin(plugin.installId)
+  abortPlugin(plugin.id)
 
   const runLog = useAiScriptLogsStore().beginRun(
     'plugin',
-    plugin.installId,
+    plugin.id,
     plugin.name,
   )
-  pluginRunLoggers.set(plugin.installId, runLog)
+  pluginRunLoggers.set(plugin.id, runLog)
 
   const ctx: PluginRunContext = { accountId: null, lastError: null }
-  pluginAccountContext.set(plugin.installId, ctx)
+  pluginAccountContext.set(plugin.id, ctx)
 
-  const code = sanitizeCode(plugin.src)
+  const code = sanitizeCode(plugin.content)
 
   // 本家 Misskey 同様、プラグインはバージョンヘッダー必須 (>= 0.12) で
   // 常に modern interpreter で実行する。legacy interpreter は Play 専用。
@@ -522,14 +526,14 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
     // MisStore 等から入れる第三者コード — plugin principal で enforce (#712)
     principal: {
       kind: 'plugin',
-      pluginId: plugin.installId,
+      pluginId: plugin.id,
       name: plugin.name,
     },
-    storeId: plugin.storeId,
+    storeId: plugin.store?.id,
     // Mk:api と Nd:call は同じアカウント文脈 (withPluginAccountContext) を
     // 呼び出しのたびに参照する (#821)。handler の外では fail-closed
     accountId: () => ctx.accountId,
-    storagePrefix: `plugin:${plugin.installId}`,
+    storagePrefix: `plugin:${plugin.id}`,
     globals: { LOCALE: i18n.lang },
     // onToast 未指定だと Mk:toast が無言の no-op になり、プラグインからの
     // 成否フィードバックが一切ユーザーに届かない (widget / Play は配線済み)
@@ -548,14 +552,14 @@ export async function launchPlugin(plugin: PluginMeta): Promise<void> {
     // 同様、エラーは err callback に流すだけで interpreter は止めない
     abortOnError: false,
   })
-  pluginNdContexts.set(plugin.installId, sandbox.ndCtx)
+  pluginNdContexts.set(plugin.id, sandbox.ndCtx)
   try {
     await sandbox.exec(ast)
     runLog.system('run completed')
   } catch (e) {
     runLog.system(`run aborted: ${e instanceof Error ? e.message : String(e)}`)
   }
-  pluginContexts.set(plugin.installId, sandbox.interpreter)
+  pluginContexts.set(plugin.id, sandbox.interpreter)
 }
 
 export function abortPlugin(installId: string): void {
@@ -628,8 +632,8 @@ export async function withPluginAccountContext<T>(
 /**
  * Launch all active plugins. Called once on app startup.
  */
-export async function launchAllPlugins(plugins: PluginMeta[]): Promise<void> {
-  const active = plugins.filter((p) => p.active && p.src)
+export async function launchAllPlugins(plugins: PluginItem[]): Promise<void> {
+  const active = plugins.filter((p) => p.extra.active && p.content)
   await Promise.allSettled(active.map((p) => launchPlugin(p)))
 }
 

@@ -224,9 +224,15 @@ export const PERMISSION_LABELS: Record<PermissionKey, PermissionLabel> = {
     },
     icon: 'ti-edit',
   },
-  'theme.write': {
+  'themes.read': {
     get label() {
-      return i18n.ts._labels.permissions.themeWrite
+      return i18n.ts._labels.permissions.themesRead
+    },
+    icon: 'ti-palette',
+  },
+  'themes.write': {
+    get label() {
+      return i18n.ts._labels.permissions.themesWrite
     },
     icon: 'ti-palette',
   },
@@ -366,6 +372,7 @@ export const PERMISSION_CATEGORIES: readonly {
       'widgets.read',
       'plugins.read',
       'queries.read',
+      'themes.read',
       'files.export',
       'backup.create',
     ],
@@ -386,7 +393,7 @@ export const PERMISSION_CATEGORIES: readonly {
       return i18n.ts._labels.categories.uiApp
     },
     keys: [
-      'theme.write',
+      'themes.write',
       'styles.write',
       'navbar.write',
       'keybinds.write',

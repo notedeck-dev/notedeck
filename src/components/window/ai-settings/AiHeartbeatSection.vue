@@ -37,7 +37,7 @@ skillsStore.ensureLoaded()
 
 /** heartbeat mode の skill 本文がすべて実質空 (= notemaid は tick を skip する) */
 const stepsEmpty = computed(() =>
-  skillsStore.heartbeatSkills.every((s) => isHeartbeatStepsEmpty(s.body)),
+  skillsStore.heartbeatSkills.every((s) => isHeartbeatStepsEmpty(s.content)),
 )
 const stepsOpening = ref(false)
 const stepsError = ref<string | null>(null)

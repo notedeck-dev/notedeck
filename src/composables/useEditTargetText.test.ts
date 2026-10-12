@@ -22,34 +22,42 @@ describe('useEditTargetText', () => {
     expect(text.value).toBe('.after {}')
   })
 
-  it('skill: 対象 id の本文を返す', () => {
+  it('skill: 対象 id の本文を返す', async () => {
     const skills = useSkillsStore()
-    const skill = skills.add({
+    const skill = await skills.add({
       id: 'sk-target',
       name: 'target',
-      version: '0.1.0',
-      mode: 'manual',
-      triggers: [],
-      body: '本文',
-      cheapCheckCapabilities: [],
+      scope: { kind: 'none' },
+      content: '本文',
+      extra: {
+        version: '0.1.0',
+        mode: 'manual',
+        triggers: [],
+        builtIn: false,
+        cheapCheckCapabilities: [],
+        isPersona: false,
+      },
     })
     const text = useEditTargetText(
       () => 'skill',
       () => skill.id,
     )
     expect(text.value).toBe('本文')
-    skills.update(skill.id, { body: '戻したあとの本文' })
+    await skills.update(skill.id, { content: '戻したあとの本文' })
     expect(text.value).toBe('戻したあとの本文')
   })
 
-  it('theme: fileBase を除いたテーマ全文 JSON を返す', () => {
+  it('theme: 履歴の snapshot と同じ形 (id / name / base / props) の JSON を返す', () => {
     const theme = useThemeStore()
-    theme.installedThemes = [
+    theme.items = [
       {
         id: 'th-1',
         name: 'T',
-        base: 'dark',
-        props: { accent: '#f00' },
+        createdAt: 0,
+        updatedAt: 0,
+        scope: { kind: 'shared', global: false, installedFor: [] },
+        content: { base: 'dark', props: { accent: '#f00' } },
+        extra: {},
         fileBase: 'my-theme',
       },
     ]

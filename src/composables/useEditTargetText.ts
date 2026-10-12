@@ -1,10 +1,10 @@
 import { type ComputedRef, computed } from 'vue'
 import { loadMemo, memosVersion } from '@/composables/useMemos'
-import { mergeThemeUpdate, serializeTheme } from '@/services/selfEditApply'
+import { serializeTheme } from '@/services/selfEditApply'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { usePluginsStore } from '@/stores/plugins'
 import { useSkillsStore } from '@/stores/skills'
-import { useThemeStore } from '@/stores/theme'
+import { misskeyThemeOf, useThemeStore } from '@/stores/theme'
 import { useWidgetsStore } from '@/stores/widgets'
 import type { HistoryKind } from '@/utils/settingsFs'
 
@@ -28,16 +28,17 @@ export function useEditTargetText(
     const id = itemId() ?? ''
     switch (kind()) {
       case 'skill':
-        return skills.get(id)?.body ?? ''
+        return skills.get(id)?.content ?? ''
       case 'widget':
-        return widgets.getWidget(id)?.src ?? ''
+        return widgets.get(id)?.content ?? ''
       case 'plugin':
-        return plugins.getPlugin(id)?.src ?? ''
+        return plugins.get(id)?.content ?? ''
       case 'query':
-        return queries.getQuery(id)?.src ?? ''
+        return queries.get(id)?.content ?? ''
       case 'theme': {
-        const t = theme.installedThemes.find((x) => x.id === id)
-        return t ? serializeTheme(mergeThemeUpdate(t, {})) : ''
+        // 履歴の snapshot と同じ形 (id / name / base / props) で比べる
+        const t = theme.get(id)
+        return t ? serializeTheme(misskeyThemeOf(t)) : ''
       }
       case 'css':
         return theme.customCss

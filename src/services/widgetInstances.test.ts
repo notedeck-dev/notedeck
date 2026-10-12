@@ -1,51 +1,35 @@
 import { describe, expect, it } from 'vitest'
-import {
-  findWidgetInstance,
-  isStoreWidgetInstalled,
-  listWidgetInstances,
-} from './widgetInstances'
+import type { DistributableScope } from '@/services/distributable'
+import { findWidgetByStore, isStoreWidgetInstalled } from './widgetInstances'
+
+const shared = (
+  global: boolean,
+  installedFor: string[] = [],
+): DistributableScope => ({ kind: 'shared', global, installedFor })
 
 const widgets = [
-  { installId: 'clock', storeId: 'clock' },
-  { installId: 'clock-2', storeId: 'clock', accountKey: 'misskey.io:u1' },
-  { installId: 'clock-3', storeId: 'clock', accountKey: 'misskey.io:u2' },
-  { installId: 'other', storeId: 'other' },
-  { installId: 'local' },
+  {
+    id: 'clock',
+    store: { id: 'clock' },
+    scope: shared(false, ['misskey.io:u1', 'misskey.io:u2']),
+  },
+  { id: 'other', store: { id: 'other' }, scope: shared(true) },
+  { id: 'local', scope: shared(true) },
 ]
 
-describe('findWidgetInstance — storeId × 実行アカウントの組で個体を引く (#1061)', () => {
-  it('accountKey 未指定は「アカウント無し」の枠にだけ一致する', () => {
-    expect(findWidgetInstance(widgets, 'clock', undefined)?.installId).toBe(
-      'clock',
-    )
-  })
-
-  it('accountKey 指定は同じアカウントの個体にだけ一致する', () => {
-    expect(
-      findWidgetInstance(widgets, 'clock', 'misskey.io:u2')?.installId,
-    ).toBe('clock-3')
-    expect(findWidgetInstance(widgets, 'clock', 'misskey.io:u9')).toBe(
-      undefined,
-    )
-  })
-
-  it('storeId を持たないローカル個体は対象外', () => {
-    expect(findWidgetInstance(widgets, 'local', undefined)).toBe(undefined)
-  })
-
-  it('listWidgetInstances は同 storeId の全個体を返す', () => {
-    expect(
-      listWidgetInstances(widgets, 'clock').map((w) => w.installId),
-    ).toEqual(['clock', 'clock-2', 'clock-3'])
-    expect(listWidgetInstances(widgets, 'none')).toEqual([])
+describe('findWidgetByStore — storeId につき本体 1 つ (#1202 決定 (b))', () => {
+  it('storeId で引く。ローカル個体は対象外', () => {
+    expect(findWidgetByStore(widgets, 'clock')?.id).toBe('clock')
+    expect(findWidgetByStore(widgets, 'local')).toBe(undefined)
+    expect(findWidgetByStore(widgets, 'none')).toBe(undefined)
   })
 })
 
-describe('isStoreWidgetInstalled — ストアカードの「インストール済み」判定 (#1061)', () => {
-  it('アカウント不要のアイテムは個体が 1 つでもあれば済み (全体で 1 つ)', () => {
+describe('isStoreWidgetInstalled — ストアカードの「インストール済み」判定', () => {
+  it('アカウント不要のアイテムは本体があれば済み', () => {
     const scope = { kind: 'all', accountKeys: ['misskey.io:u1'] } as const
     expect(
-      isStoreWidgetInstalled(widgets, 'other', {
+      isStoreWidgetInstalled(widgets, 'clock', {
         requiresAccount: false,
         scope,
       }),
@@ -58,13 +42,10 @@ describe('isStoreWidgetInstalled — ストアカードの「インストール�
     ).toBe(false)
   })
 
-  it('全アカウントカラム: 選べるアカウント全部に個体が揃って初めて済み', () => {
+  it('全アカウントカラム: 選べるアカウント全部が紐付けにあって初めて済み', () => {
     const ctx = {
       requiresAccount: true,
-      scope: {
-        kind: 'all',
-        accountKeys: ['misskey.io:u1', 'misskey.io:u2'],
-      },
+      scope: { kind: 'all', accountKeys: ['misskey.io:u1', 'misskey.io:u2'] },
     } as const
     expect(isStoreWidgetInstalled(widgets, 'clock', ctx)).toBe(true)
     const withMore = {
@@ -75,17 +56,11 @@ describe('isStoreWidgetInstalled — ストアカードの「インストール�
       },
     } as const
     expect(isStoreWidgetInstalled(widgets, 'clock', withMore)).toBe(false)
+    // 全体スコープの本体はどのアカウントでも済み
+    expect(isStoreWidgetInstalled(widgets, 'other', withMore)).toBe(true)
   })
 
-  it('全アカウントカラム: アカウント無しの個体は数えない (実行時に固定される過渡状態)', () => {
-    const ctx = {
-      requiresAccount: true,
-      scope: { kind: 'all', accountKeys: ['misskey.io:u3'] },
-    } as const
-    expect(isStoreWidgetInstalled(widgets, 'clock', ctx)).toBe(false)
-  })
-
-  it('全アカウントカラムで選べるアカウントが無いときは個体の有無で判定する', () => {
+  it('全アカウントカラムで選べるアカウントが無いときは本体の有無で判定する', () => {
     const ctx = {
       requiresAccount: true,
       scope: { kind: 'all', accountKeys: [] },
@@ -94,20 +69,17 @@ describe('isStoreWidgetInstalled — ストアカードの「インストール�
     expect(isStoreWidgetInstalled(widgets, 'none', ctx)).toBe(false)
   })
 
-  it('per-account カラム: アカウント無しの個体か、同じアカウントの個体があれば済み', () => {
+  it('per-account カラム: そのアカウントで選べるなら済み', () => {
     const own = {
       requiresAccount: true,
       scope: { kind: 'account', key: 'misskey.io:u1' },
     } as const
-    expect(isStoreWidgetInstalled(widgets, 'clock', own)).toBe(true)
-    const onlyOthers = [
-      { installId: 'clock-2', storeId: 'clock', accountKey: 'misskey.io:u1' },
-    ]
     const stranger = {
       requiresAccount: true,
       scope: { kind: 'account', key: 'misskey.io:u9' },
     } as const
-    expect(isStoreWidgetInstalled(onlyOthers, 'clock', stranger)).toBe(false)
-    expect(isStoreWidgetInstalled(onlyOthers, 'clock', own)).toBe(true)
+    expect(isStoreWidgetInstalled(widgets, 'clock', own)).toBe(true)
+    expect(isStoreWidgetInstalled(widgets, 'clock', stranger)).toBe(false)
+    expect(isStoreWidgetInstalled(widgets, 'other', stranger)).toBe(true)
   })
 })

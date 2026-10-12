@@ -1,6 +1,6 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
-import { computed, nextTick, reactive, ref } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import type { TimelineFilter, TimelineType } from '@/adapters/types'
 import { buildColumnDefaults, DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import * as snapshotStore from '@/composables/useSnapshotStore'
@@ -16,6 +16,11 @@ import {
 import type { VariantKey } from '@/services/noteKey'
 import { externalQueryPatch, type SearchFilter } from '@/services/searchFilter'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
+import {
+  rewritePlacements,
+  samePlacement,
+  type WidgetPlacement,
+} from '@/services/widgetPlacement'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useDeckWallpaperStore } from '@/stores/deckWallpaper'
@@ -189,9 +194,12 @@ export interface DeckColumn {
   channelId?: string
   roleId?: string
   userId?: string
-  /** widget カラムが参照する WidgetMeta の installId 列。本体は useWidgetsStore に存在 */
-  widgetIds?: string[]
-  /** @deprecated widgetIds + useWidgetsStore に移行済み。マイグレーション読取専用 */
+  /**
+   * widget カラムの配置 (本体の installId + 実行アカウント、#1202 決定 (g))。
+   * 本体は useWidgetsStore に存在。旧 `widgetIds: string[]` は読込時に移行
+   */
+  widgetRefs?: WidgetPlacement[]
+  /** @deprecated widgetRefs + useWidgetsStore に移行済み。マイグレーション読取専用 */
   widgets?: WidgetConfig[]
   aiscriptCode?: string
   flashId?: string
@@ -718,57 +726,90 @@ export const useDeckStore = defineStore('deck', () => {
     }
   }
 
-  // Widget helpers (widget 本体は useWidgetsStore、カラムは installId の参照のみ)
+  // Widget helpers (widget 本体は useWidgetsStore、カラムは配置 = 本体の
+  // installId + 実行アカウントだけを持つ、#1202 決定 (g))
   const widgetsStore = useWidgetsStore()
 
   /**
-   * 既存ライブラリ widget をカラムに配置する (= column.widgetIds への参照追加)。
+   * 既存ライブラリ widget をカラムに配置する (= column.widgetRefs への追加)。
    * widget 本体は widgetsStore に既にあるものを再利用する。
-   * sidebar widget カラムなら sidebarWidgetIds に、それ以外は column.widgetIds に push。
-   * 既に同 id があれば no-op。
+   * sidebar widget カラムなら sidebarPlacements に、それ以外は column.widgetRefs に push。
+   * 既に同じ配置 (id + 実行アカウント) があれば no-op。
    */
-  function attachWidget(columnId: string, installId: string) {
+  function attachWidget(columnId: string, placement: WidgetPlacement) {
     const col = getColumn(columnId)
     if (col?.type !== 'widget') return
     if (col.sidebar === true) {
-      widgetsStore.addToSidebar(installId)
+      widgetsStore.addToSidebar(placement)
       return
     }
-    if (!col.widgetIds) col.widgetIds = []
-    if (col.widgetIds.includes(installId)) return
-    col.widgetIds.push(installId)
+    if (!col.widgetRefs) col.widgetRefs = []
+    if (col.widgetRefs.some((p) => samePlacement(p, placement))) return
+    col.widgetRefs.push(placement)
     save()
   }
 
   /**
-   * 全 widget カラムから指定 installId への参照を一括で剥がす。
-   * widgetsStore.removeWidget で本体を削除する前に呼ぶことで dangling 参照
-   * (column.widgetIds に残った無効 id) を防ぐ。
-   * sidebar 並びの cleanup は widgetsStore 側で自動実施されるためここでは扱わない。
+   * 全 widget カラムから指定 installId への配置を一括で剥がす。
+   * widgetsStore.remove で本体を削除する前に呼ぶことで dangling 参照
+   * (column.widgetRefs に残った無効 id) を防ぐ。
+   * sidebar の cleanup は widgetsStore 側で自動実施されるためここでは扱わない。
    * mutateProfile 経由で profileVersion を bump し、依存 computed を再評価させる。
    */
   function detachWidgetFromAllColumns(installId: string) {
     profileStore.mutateProfile((p) => {
       if (!p.columns) return
       for (const col of p.columns) {
-        if (col.type !== 'widget' || !col.widgetIds) continue
-        if (col.widgetIds.includes(installId)) {
-          col.widgetIds = col.widgetIds.filter((id) => id !== installId)
+        if (col.type !== 'widget' || !col.widgetRefs) continue
+        if (col.widgetRefs.some((r) => r.id === installId)) {
+          col.widgetRefs = col.widgetRefs.filter((r) => r.id !== installId)
         }
       }
     })
   }
 
   /**
-   * アカウント削除時に、そのアカウントに固定されたウィジェット個体を
-   * 参照ごと消す (#1061)。本体削除の前に全カラムから剥がす。
+   * アカウント削除時に、そのアカウントで動かす配置を全カラムとサイドバーから
+   * 消し、本体の紐付けを外す (#1061 / #1114)。本体はライブラリに残る
    */
   function purgeAccountWidgets(accountKey: string) {
-    for (const w of widgetsStore.widgets) {
-      if (w.accountKey === accountKey) detachWidgetFromAllColumns(w.installId)
+    profileStore.mutateProfile((p) => {
+      if (!p.columns) return
+      for (const col of p.columns) {
+        if (col.type !== 'widget' || !col.widgetRefs) continue
+        if (col.widgetRefs.some((r) => r.accountKey === accountKey)) {
+          col.widgetRefs = col.widgetRefs.filter(
+            (r) => r.accountKey !== accountKey,
+          )
+        }
+      }
+    })
+    for (const p of widgetsStore.sidebarPlacements) {
+      if (p.accountKey === accountKey) widgetsStore.removeFromSidebar(p)
     }
-    widgetsStore.purgeAccount(accountKey)
+    void widgetsStore.purgeAccount(accountKey)
   }
+
+  // 移行で決まった配置の書き換え (旧 id → 本体 id + 実行アカウント、#1202 決定
+  // (i) / (g)) を全プロファイルに当てる。widgets store は読込時に積むだけで、
+  // プロファイルの持ち主であるここが取り出して書く
+  watch(
+    () => widgetsStore.pendingPlacementRewrites.length,
+    (n) => {
+      if (n === 0) return
+      const rewrites = widgetsStore.takePlacementRewrites()
+      for (const profile of profileStore.getProfiles()) {
+        profileStore.mutateProfile((p) => {
+          for (const col of p.columns ?? []) {
+            if (col.type !== 'widget' || !col.widgetRefs) continue
+            const next = rewritePlacements(col.widgetRefs, rewrites)
+            if (next.changed) col.widgetRefs = next.placements
+          }
+        }, profile.id)
+      }
+    },
+    { immediate: true },
+  )
 
   /**
    * widget カラムから widget を取り除く。sidebar / non-sidebar とも
@@ -781,41 +822,42 @@ export const useDeckStore = defineStore('deck', () => {
    */
   function removeWidget(
     columnId: string,
-    installId: string,
+    placement: WidgetPlacement,
   ): (() => void) | undefined {
     const col = getColumn(columnId)
     if (col?.type !== 'widget') return undefined
+    const same = (p: WidgetPlacement) => samePlacement(p, placement)
     if (col.sidebar === true) {
-      const idx = widgetsStore.sidebarWidgetIds.indexOf(installId)
+      const idx = widgetsStore.sidebarPlacements.findIndex(same)
       if (idx < 0) return undefined
-      widgetsStore.removeFromSidebar(installId)
+      widgetsStore.removeFromSidebar(placement)
       return () => {
-        const ids = [...widgetsStore.sidebarWidgetIds]
-        if (ids.includes(installId)) return
-        ids.splice(Math.min(idx, ids.length), 0, installId)
-        widgetsStore.reorderSidebar(ids)
+        const refs = [...widgetsStore.sidebarPlacements]
+        if (refs.some(same)) return
+        refs.splice(Math.min(idx, refs.length), 0, placement)
+        widgetsStore.reorderSidebar(refs)
       }
     }
-    const placed = col.widgetIds ?? []
-    const idx = placed.indexOf(installId)
+    const placed = col.widgetRefs ?? []
+    const idx = placed.findIndex(same)
     if (idx < 0) return undefined
-    col.widgetIds = placed.filter((id) => id !== installId)
+    col.widgetRefs = placed.filter((p) => !same(p))
     save()
     return () => {
       const target = getColumn(columnId)
       if (target?.type !== 'widget') return
-      const ids = [...(target.widgetIds ?? [])]
-      if (ids.includes(installId)) return
-      ids.splice(Math.min(idx, ids.length), 0, installId)
-      target.widgetIds = ids
+      const refs = [...(target.widgetRefs ?? [])]
+      if (refs.some(same)) return
+      refs.splice(Math.min(idx, refs.length), 0, placement)
+      target.widgetRefs = refs
       save()
     }
   }
 
-  function reorderWidgetIds(columnId: string, ids: string[]) {
+  function reorderWidgetRefs(columnId: string, refs: WidgetPlacement[]) {
     const col = getColumn(columnId)
     if (col?.type !== 'widget') return
-    col.widgetIds = ids
+    col.widgetRefs = refs
     save()
   }
 
@@ -953,7 +995,7 @@ export const useDeckStore = defineStore('deck', () => {
     detachWidgetFromAllColumns,
     purgeAccountWidgets,
     removeWidget,
-    reorderWidgetIds,
+    reorderWidgetRefs,
     // Wallpaper (facade)
     wallpaper: computed(() => wallpaperStore.wallpaper),
     setWallpaper: wallpaperStore.setWallpaper,

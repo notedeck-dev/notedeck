@@ -28,7 +28,7 @@ import {
   isGuestAccount,
   useAccountsStore,
 } from '@/stores/accounts'
-import { type SkillMeta, useSkillsStore } from '@/stores/skills'
+import { type SkillItem, useSkillsStore } from '@/stores/skills'
 
 export type IdentityKind = 'account' | 'persona'
 
@@ -60,7 +60,7 @@ function fromAccount(account: Account): Identity {
   }
 }
 
-function fromPersonaSkill(skill: SkillMeta): Identity {
+function fromPersonaSkill(skill: SkillItem): Identity {
   return {
     id: personaIdentityId(skill.id),
     kind: 'persona',
@@ -84,7 +84,7 @@ export function resolveIdentity(id: string): Identity | null {
     const skillId = extractSkillIdFromIdentity(id)
     if (!skillId) return null
     const skill = useSkillsStore().get(skillId)
-    if (!skill || !skill.isPersona) return null
+    if (!skill?.extra.isPersona) return null
     return fromPersonaSkill(skill)
   }
   const account = useAccountsStore().accounts.find((a) => a.id === id)
@@ -94,8 +94,8 @@ export function resolveIdentity(id: string): Identity | null {
 
 /** persona-eligible な skill 一覧 (UI セレクタ候補)。 */
 export function listPersonaIdentities(): Identity[] {
-  const skills = useSkillsStore().skills
-  return skills.filter((s) => s.isPersona).map(fromPersonaSkill)
+  const skills = useSkillsStore().items
+  return skills.filter((s) => s.extra.isPersona).map(fromPersonaSkill)
 }
 
 /** Identity から表示用 avatar URL を取り出す (なければ generic placeholder)。 */

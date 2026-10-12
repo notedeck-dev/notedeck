@@ -47,6 +47,8 @@ export interface AiScriptSandboxOptions {
   api?: AiScriptEnvOptions['api']
   /** localStorage のキー prefix (Mk:save / Mk:load) */
   storagePrefix?: string
+  /** 名前空間化の前の prefix (Mk:load の fallback、ウィジェットだけ) */
+  legacyStoragePrefix?: AiScriptEnvOptions['legacyStoragePrefix']
   /** AiScript のグローバル定数 (THIS_ID / USER_* 等) */
   globals?: AiScriptGlobalConstants
   onDialog?: AiScriptEnvOptions['onDialog']
@@ -123,6 +125,7 @@ export function createAiScriptSandbox(
       getCallers: () => callers,
       api,
       storagePrefix: options.storagePrefix,
+      legacyStoragePrefix: options.legacyStoragePrefix,
       onDialog: options.onDialog,
       onConfirm: options.onConfirm,
       onToast: options.onToast ?? ((text, type) => useToast().show(text, type)),

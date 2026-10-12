@@ -47,12 +47,9 @@ vi.mock('@/composables/useColumnSetup', async (orig) => {
 })
 
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import type { ScopeTarget } from '@/services/distributable'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
-import {
-  type NamedQueryMeta,
-  type QueryScope,
-  useColumnQueriesStore,
-} from '@/stores/columnQueries'
+import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { type StoreQueryEntry, useMisStoreStore } from '@/stores/misstore'
 import { useToast } from '@/stores/toast'
@@ -72,8 +69,8 @@ const alice = {
   software: 'misskey-dev/misskey' as const,
   hasToken: true,
 }
-const aliceScope: QueryScope = { kind: 'account', key: accountScopeKey(alice) }
-const globalScope: QueryScope = { kind: 'global' }
+const aliceScope: ScopeTarget = { kind: 'account', key: accountScopeKey(alice) }
+const globalScope: ScopeTarget = { kind: 'global' }
 
 function makeColumn(accountId: string | null): DeckColumnType {
   return {
@@ -117,24 +114,29 @@ function stubRegistry(entries: StoreQueryEntry[]) {
 }
 
 async function seedQuery(
-  input: { name: string; src?: string; scope?: QueryScope } & Partial<
-    Pick<NamedQueryMeta, 'description' | 'storeId' | 'disabled' | 'readOnly'>
-  >,
-): Promise<NamedQueryMeta> {
+  input: {
+    name: string
+    src?: string
+    scope?: ScopeTarget
+    storeId?: string
+    disabled?: boolean
+  } & Partial<Pick<QueryItem, 'description' | 'readOnly'>>,
+): Promise<QueryItem> {
   const store = useColumnQueriesStore()
-  const { disabled, readOnly, src, ...rest } = input
-  const created = await store.createQuery({
-    src: src ?? 'note.text != null',
+  const { disabled, readOnly, src, storeId, ...rest } = input
+  const created = await store.add({
+    content: src ?? 'note.text != null',
+    ...(storeId ? { store: { id: storeId } } : {}),
     ...rest,
   })
-  if (disabled) await store.setDisabled(created.id, true)
+  if (disabled) await store.setEnabled(created.id, false)
   if (readOnly) {
     // ソース欠損の読取専用個体 (#1111) は sidecar 読込でしか生まれないので直接印を付ける
-    store.queries = store.queries.map((q) =>
+    store.items = store.items.map((q) =>
       q.id === created.id ? { ...q, readOnly: true } : q,
     )
   }
-  const live = store.getQuery(created.id)
+  const live = store.get(created.id)
   if (!live) throw new Error('seed failed')
   return live
 }
@@ -334,7 +336,7 @@ describe('DeckQueryManagerColumn', () => {
       'click',
     )
     await flushPromises()
-    expect(store.getQuery(q.id)?.disabled).toBe(true)
+    expect(store.get(q.id)?.extra.active).toBe(false)
     expect(cardByName(wrapper, 'Toggle me').props('disabled')).toBe(true)
     expect(cardByName(wrapper, 'Toggle me').text()).toContain('無効')
 
@@ -342,7 +344,7 @@ describe('DeckQueryManagerColumn', () => {
       'click',
     )
     await flushPromises()
-    expect(store.getQuery(q.id)?.disabled).toBeUndefined()
+    expect(store.get(q.id)?.extra.active).toBe(true)
     expect(cardByName(wrapper, 'Toggle me').props('disabled')).toBe(false)
   })
 
@@ -396,7 +398,7 @@ describe('DeckQueryManagerColumn', () => {
       message: '「Doomed」を削除しますか？クエリの本文も消えます。',
       type: 'danger',
     })
-    expect(store.getQuery(q.id)).toBeUndefined()
+    expect(store.get(q.id)).toBeUndefined()
     expect(cardNames(wrapper)).toEqual([])
 
     const item = toast.toasts.value.find(
@@ -407,7 +409,7 @@ describe('DeckQueryManagerColumn', () => {
     toast.runAction(item)
     await flushPromises()
 
-    expect(store.getQuery(q.id)?.name).toBe('Doomed')
+    expect(store.get(q.id)?.name).toBe('Doomed')
     expect(cardNames(wrapper)).toEqual(['Doomed'])
   })
 
@@ -436,7 +438,7 @@ describe('DeckQueryManagerColumn', () => {
       message:
         '「In use」は 1 個のカラムに適用中です。削除するとそれらのカラムは評価不能 (fail-closed) になります。削除しますか？',
     })
-    expect(store.getQuery(q.id)).toBeDefined()
+    expect(store.get(q.id)).toBeDefined()
     expect(cardNames(wrapper)).toEqual(['In use'])
     expect(useToast().toasts.value).toHaveLength(0)
   })
@@ -455,8 +457,8 @@ describe('DeckQueryManagerColumn', () => {
     await flushPromises()
 
     expect(confirmMock).not.toHaveBeenCalled()
-    expect(store.getQuery(q.id)?.installedFor).toBeUndefined()
-    expect(store.getQuery(q.id)?.name).toBe('Detach me')
+    expect(store.get(q.id)?.scope).toMatchObject({ installedFor: [] })
+    expect(store.get(q.id)?.name).toBe('Detach me')
     expect(cardNames(wrapper)).toEqual([])
 
     const item = toast.toasts.value.find((t) => t.text === 'クエリを外しました')
@@ -465,7 +467,9 @@ describe('DeckQueryManagerColumn', () => {
     toast.runAction(item)
     await flushPromises()
 
-    expect(store.getQuery(q.id)?.installedFor).toEqual([aliceScope.key])
+    expect(store.get(q.id)?.scope).toMatchObject({
+      installedFor: [aliceScope.key],
+    })
     expect(cardNames(wrapper)).toEqual(['Detach me'])
   })
 
@@ -481,7 +485,7 @@ describe('DeckQueryManagerColumn', () => {
     ).trigger('click')
     await flushPromises()
 
-    expect(store.getQuery(q.id)?.global).toBeUndefined()
+    expect(store.get(q.id)?.scope).toMatchObject({ global: false })
     expect(cardNames(wrapper)).toEqual([])
   })
 
@@ -504,7 +508,7 @@ describe('DeckQueryManagerColumn', () => {
 
     await buttonByTitle(card, '全アカウント対象から外す').trigger('click')
     await flushPromises()
-    expect(store.getQuery(q.id)?.global).toBe(true)
+    expect(store.get(q.id)?.scope).toMatchObject({ global: true })
     expect(cardNames(wrapper)).toEqual(['Read only'])
     expect(toast.toasts.value).toMatchObject([
       { text: READ_ONLY_REASON, type: 'warning' },
@@ -514,7 +518,7 @@ describe('DeckQueryManagerColumn', () => {
     for (const item of [...toast.toasts.value]) toast.dismiss(item.id)
     card.vm.$emit('toggle')
     await flushPromises()
-    expect(store.getQuery(q.id)?.disabled).toBeUndefined()
+    expect(store.get(q.id)?.extra.active).toBe(true)
     expect(toast.toasts.value).toMatchObject([
       { text: READ_ONLY_REASON, type: 'warning' },
     ])
@@ -530,15 +534,14 @@ describe('DeckQueryManagerColumn', () => {
     await buttonByTitle(wrapper, '新規クエリを作成').trigger('click')
     await flushPromises()
 
-    expect(store.queries).toHaveLength(1)
-    const created = store.queries[0]
+    expect(store.items).toHaveLength(1)
+    const created = store.items[0]
     expect(created).toMatchObject({
       name: '新しいクエリ 1',
-      installedFor: [aliceScope.key],
-      scoped: true,
+      scope: { global: false, installedFor: [aliceScope.key] },
+      extra: { scoped: true },
     })
-    expect(created?.global).toBeUndefined()
-    expect(created?.src).toContain('キーワード')
+    expect(created?.content).toContain('キーワード')
     expect(openSpy).toHaveBeenCalledWith('column-query-editor', {
       queryId: created?.id,
     })
@@ -554,8 +557,10 @@ describe('DeckQueryManagerColumn', () => {
     await buttonByText(wrapper, 'クエリを作成').trigger('click')
     await flushPromises()
 
-    expect(store.queries[0]).toMatchObject({ global: true, scoped: true })
-    expect(store.queries[0]?.installedFor).toBeUndefined()
+    expect(store.items[0]).toMatchObject({
+      scope: { global: true, installedFor: [] },
+      extra: { scoped: true },
+    })
   })
 
   it('エディタが露出していないときは作成ボタンと編集ボタンを出さない', async () => {
@@ -622,8 +627,10 @@ describe('DeckQueryManagerColumn', () => {
     )
     await flushPromises()
 
-    expect(store.getQuery(lib.id)?.installedFor).toEqual([aliceScope.key])
-    expect(store.getQuery(other.id)?.installedFor).toBeUndefined()
+    expect(store.get(lib.id)?.scope).toMatchObject({
+      installedFor: [aliceScope.key],
+    })
+    expect(store.get(other.id)?.scope).toMatchObject({ installedFor: [] })
     expect(
       wrapper
         .findAllComponents(QueryCard)
@@ -716,7 +723,7 @@ describe('DeckQueryManagerColumn', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('ストアに接続できません')
-    expect(useMisStoreStore().queriesError).toBe('HTTP 503')
+    expect(useMisStoreStore().feed('query').error).toBe('HTTP 503')
 
     stubRegistry([makeStoreEntry()])
     await buttonByText(wrapper, '再試行').trigger('click')

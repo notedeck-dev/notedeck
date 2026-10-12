@@ -1,10 +1,6 @@
 import type { Command } from '@/commands/registry'
 import { i18n } from '@/i18n'
-import {
-  generateWidgetId,
-  useWidgetsStore,
-  type WidgetMeta,
-} from '@/stores/widgets'
+import { useWidgetsStore } from '@/stores/widgets'
 import { implement, implementCore } from '../declare'
 import { editAttribution } from '../editAttribution'
 import { stageEdit, takeStagedEdit } from '../stagedEdit'
@@ -53,27 +49,23 @@ export const widgetsCreateCapability = implement('widgets.create', {
       type: 'normal',
     }
   },
-  execute: (params) => {
+  execute: async (params) => {
     const name = typeof params?.name === 'string' ? params.name : ''
     const src = typeof params?.src === 'string' ? params.src : ''
     const autoRun = params?.autoRun === true
     if (!name) throw new Error('widgets.create: name is required')
     if (!src) throw new Error('widgets.create: src is required')
-    const now = Date.now()
-    const widget: WidgetMeta = {
-      installId: generateWidgetId(),
+    // カラム文脈を持たないので全体スコープ (どのカラムからも配置できる)
+    const widget = await useWidgetsStore().add({
       name,
-      src,
-      autoRun,
-      createdAt: now,
-      updatedAt: now,
-    }
-    const store = useWidgetsStore()
-    store.addWidget(widget)
+      content: src,
+      scope: { kind: 'shared', global: true, installedFor: [] },
+      extra: { autoRun },
+    })
     return {
-      installId: widget.installId,
+      installId: widget.id,
       name: widget.name,
-      autoRun: widget.autoRun,
+      autoRun: widget.extra.autoRun,
     }
   },
 })
@@ -84,41 +76,45 @@ export const widgetsUpdateCapability = implement('widgets.update', {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const src = typeof params?.src === 'string' ? params.src : ''
-    const cur = useWidgetsStore().getWidget(installId)
+    const cur = useWidgetsStore().get(installId)
     if (!cur) return null
-    stageEdit(ctx, cur.src, src)
+    stageEdit(ctx, cur.content, src)
     return {
       title: i18n.ts._widgetsCapability.updateTitle,
       message: (useWidgetsStore().mountedCount(installId) > 0
         ? i18n.tsx._widgetsCapability.updateMessageMounted
         : i18n.tsx._widgetsCapability.updateMessage)({
         name: cur.name,
-        from: cur.src.length,
+        from: cur.content.length,
         to: src.length,
       }),
       installPreview: {
         kind: 'widget',
         name: cur.name,
       },
-      diff: { old: cur.src, new: src, language: 'aiscript' },
+      diff: { old: cur.content, new: src, language: 'aiscript' },
       okLabel: i18n.ts._common.update,
       cancelLabel: i18n.ts._common.cancel,
       type: 'warning',
     }
   },
-  execute: (params, ctx) => {
+  execute: async (params, ctx) => {
     const installId =
       typeof params?.installId === 'string' ? params.installId : ''
     const src = typeof params?.src === 'string' ? params.src : ''
     if (!installId) throw new Error('widgets.update: installId is required')
     if (!src) throw new Error('widgets.update: src is required')
     const store = useWidgetsStore()
-    const cur = store.getWidget(installId)
+    const cur = store.get(installId)
     if (!cur) {
       throw new Error(`widgets.update: widget "${installId}" not found`)
     }
-    const next = takeStagedEdit(ctx, 'widgets.update', cur.src, () => src)
-    store.updateSrc(installId, next, editAttribution(ctx, params))
+    const next = takeStagedEdit(ctx, 'widgets.update', cur.content, () => src)
+    await store.update(
+      installId,
+      { content: next },
+      editAttribution(ctx, params),
+    )
     // 表示中のインスタンスに再実行を要求する (#744)。ユーザーのエディタ編集
     // (debounce 自動保存) と違い、AI 経由の保存だけがこのシグナルを発火する。
     const rerunning = store.requestRerun(installId) > 0
