@@ -3030,7 +3030,7 @@ onUnmounted(() => {
   color: var(--nd-error);
 }
 
-/* HEARTBEAT 有効時の鼓動 (スプラッシュの nd-heartbeat と同じリズム) */
+/* HEARTBEAT 有効時の鼓動。ハートのアイコンなので心拍 lub-dub のまま (ロゴは根元から伸びる別の動き) */
 .beat {
   display: inline-block;
   color: var(--nd-accentText);

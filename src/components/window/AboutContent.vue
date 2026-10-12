@@ -1125,16 +1125,18 @@ function reportBug() {
   border-radius: var(--nd-radius-lg);
 }
 
+/* 芽のモチーフなので、均一な scale ではなく根元 (m の下端 = viewBox の 416/512)
+ * から上へ伸びる二拍 (大・小)。notedeck.io / misstore のヒーローと同じ動き */
 .beating {
-  animation: heartbeat 0.9s ease-in-out;
+  transform-origin: 50% 81.25%;
+  animation: heartbeat 1.2s ease-in-out;
 }
 
 @keyframes heartbeat {
   0%, 100% { transform: scale(1); }
-  15% { transform: scale(1.12); }
-  30% { transform: scale(0.98); }
-  45% { transform: scale(1.18); }
-  70% { transform: scale(1); }
+  24% { transform: scaleY(1.07) scaleX(0.985); }
+  48% { transform: scale(1); }
+  72% { transform: scaleY(1.045) scaleX(0.99); }
 }
 
 @media (prefers-reduced-motion: reduce) {
