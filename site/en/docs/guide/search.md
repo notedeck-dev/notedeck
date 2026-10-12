@@ -1,5 +1,5 @@
 ---
-sourceHash: 234654635604
+sourceHash: 88095380ab5f
 ---
 
 # Finding notes
@@ -13,6 +13,8 @@ Search in NoteDeck has two layers.
 
 Most cases of "I know I saw it but cannot find it" are notes the server does not index. NoteDeck also keeps the notes it has shown locally, so you can find them there. Both open as columns, and you can use them side by side.
 
+In both columns the search terms define the base set, and you narrow it down by adding conditions from the filter menu in the header. Search terms can be combined as "any of / all of / exclude". Run the search from the button in the header.
+
 ## Client search column
 
 The "Client search" column searches the notes stored locally across servers and accounts at once. You can find a note even if you do not remember which server you saw it on.
@@ -22,9 +24,12 @@ The "Client search" column searches the notes stored locally across servers and 
 - Search terms and filters are saved in the column, so you can leave it open with the conditions in place
 - The same note seen on several servers is merged into one row, and the row's breakdown shows where you saw it
 - What is stored locally can be searched even without logging in to the server
+- [Column queries](#narrowing-each-column-s-view) can be applied too
+
+The filter menu of server search has a host setting (All / All servers (including remote) / Local / Local on each server / Specific host).
 
 ::: warning Chat is not included
-Chat messages cannot be searched by either server search or client search.
+Chat (messages) content shows up in neither server search nor client search. Inside the Messages column you can search the conversations already loaded.
 :::
 
 ## How notes stay with you
@@ -51,4 +56,4 @@ Separately from search, there is a mechanism called **column queries**. It filte
 
 Conditions are written as AiScript expressions. You can save what you write under a name and reuse it in several columns. You can also install queries others wrote from the [store](/en/docs/guide/store).
 
-Queries are managed from the "Queries" (クエリ) column, and applied by switching them in a timeline column's filter menu.
+Queries are managed from the "Queries" (クエリ) column, and applied by switching them in the filter menu of a timeline or client search column. Built-in toggles such as excluding renotes or media only live in the same menu. Writing your own needs [developer mode](/en/docs/#developer-mode) ([how to write them](/en/docs/dev/query)).

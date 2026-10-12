@@ -1,5 +1,5 @@
 ---
-sourceHash: 2d7e9ad8f988
+sourceHash: 9397afb87422
 ---
 
 # 通过链接打开（notedeck://）
@@ -34,7 +34,7 @@ sourceHash: 2d7e9ad8f988
 
 ## 打开账户的界面
 
-以 `notedeck://<服务器>/...` 的形式打开该服务器的界面。`<服务器>` 是 `misskey.io` 这样的主机名，并且需要已用该服务器的账户登录。
+以 `notedeck://<服务器>/...` 的形式打开该服务器的界面。`<服务器>` 是 `misskey.io` 这样的主机名。打开窗口需要已用该服务器的账户登录。列即使没有账户也会被添加，若该类型支持所有账户，就会成为“所有账户”的列。
 
 ### 添加列
 
@@ -48,7 +48,7 @@ sourceHash: 2d7e9ad8f988
 | `notedeck://<服务器>/favorites` | 收藏 |
 | `notedeck://<服务器>/mentions` | 提及 |
 | `notedeck://<服务器>/direct` | 指定用户 |
-| `notedeck://<服务器>/chat` | 聊天 |
+| `notedeck://<服务器>/chat` | 消息（聊天） |
 | `notedeck://<服务器>/announcements` | 公告 |
 | `notedeck://<服务器>/drive` | 网盘 |
 | `notedeck://<服务器>/gallery` | 图集 |

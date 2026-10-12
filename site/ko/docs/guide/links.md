@@ -1,5 +1,5 @@
 ---
-sourceHash: 2d7e9ad8f988
+sourceHash: 9397afb87422
 ---
 
 # 링크로 열기 (notedeck://)
@@ -34,7 +34,7 @@ sourceHash: 2d7e9ad8f988
 
 ## 계정의 화면 열기
 
-`notedeck://<서버>/...` 형태로 그 서버의 화면을 엽니다. `<서버>`는 `misskey.io` 같은 호스트 이름이며, 그 서버의 계정으로 로그인되어 있어야 합니다.
+`notedeck://<서버>/...` 형태로 그 서버의 화면을 엽니다. `<서버>`는 `misskey.io` 같은 호스트 이름입니다. 창을 열려면 그 서버의 계정으로 로그인되어 있어야 합니다. 칼럼은 계정이 없어도 추가되며, 모든 계정에 대응하는 종류라면 "모든 계정" (全アカウント) 칼럼이 됩니다.
 
 ### 칼럼 추가하기
 
@@ -48,7 +48,7 @@ sourceHash: 2d7e9ad8f988
 | `notedeck://<서버>/favorites` | 즐겨찾기 |
 | `notedeck://<서버>/mentions` | 멘션 |
 | `notedeck://<서버>/direct` | 다이렉트 |
-| `notedeck://<서버>/chat` | 채팅 |
+| `notedeck://<서버>/chat` | 메시지 (채팅) |
 | `notedeck://<서버>/announcements` | 공지사항 |
 | `notedeck://<서버>/drive` | 드라이브 |
 | `notedeck://<서버>/gallery` | 갤러리 |

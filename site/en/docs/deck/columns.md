@@ -1,5 +1,5 @@
 ---
-sourceHash: fd6c7e9c5a34
+sourceHash: af93c971dcae
 ---
 
 # Columns and windows
@@ -36,37 +36,41 @@ For each column you choose which account it runs as.
 - **A specific account** — shows things from that account's point of view (a normal timeline and so on)
 - **All accounts** (全アカウント) — merges every account into a single column
 
-Merged views (cross-account) are supported for **notifications, search, chat, mentions, direct messages and follow requests**. If you use several servers and do not want to miss notifications, placing a single notifications column set to "All accounts" is the easy way.
+"All accounts" is available for notifications, mentions, direct, messages, follow requests, server search, lookup and favorites, as well as timelines (home and global only; the same note seen on several servers is folded into one) and the tool columns. Types that cannot be set to "All accounts" appear in the "Add column" dialog as disabled rows with the reason. If you use several servers and do not want to miss notifications, placing a single notifications column set to "All accounts" is the easy way.
 
 ## Column types
 
-The "Add column" dialog is split into three groups.
+The "Add column" dialog is split into three groups. The dialog is the source of truth for column names and the full list.
 
 ### Account
 
-Things tied to your own account.
-
-Timeline / Notifications / Drive / Follow requests / Lists / Antennas / Favorites / Clips / Mentions / Direct / Chat / Achievements
+Things tied to your own account: timeline, notifications, drive, follow requests, lists, antennas, favorites, clips, mentions, direct, messages (chat), achievements and so on.
 
 ### Server
 
-Things that show information from the server side. Many of them can be viewed without logging in.
+Things that show information from the server side. Many of them can be viewed without logging in: server info, About Misskey, custom emoji, ads, explore, announcements, server search, lookup, channels, roles, gallery, Misskey Play, pages, users, charts, federation and so on.
 
-Server info / About Misskey / Custom emoji / Ads / Explore / Announcements / Search / Lookup / Channels / Roles / Gallery / Misskey Play / Pages / Users / Charts / Federation
-
-### Tool columns
+### Tools
 
 Work columns unique to NoteDeck. Some of them have nothing directly to do with Misskey servers.
 
 | Column | What it does |
 |---|---|
 | AI | Talk with AI. Switch sessions and keep the history |
-| Memo (メモ) | Local notes. Saved as Markdown files, so you can open them from Obsidian and others |
-| Tasks (タスク) | Manage things to do |
-| Scratchpad (スクラッチパッド) | A throwaway text area |
-| Themes / Plugins / Widgets / Skills / Queries | List what you have installed, turn it on or off, and edit it |
+| Client search | Search the notes accumulated on your machine across servers ([Finding notes](/en/docs/guide/search)) |
+| Memos (メモ) | Local notes. Saved as Markdown files, so you can open them from Obsidian and others |
+| Themes / Plugins / Widgets / Skills / Queries | List what you have installed, turn it on or off, and see its history (creating and editing need developer mode) |
+
+### Columns for developers
+
+Columns whose entrance appears in [developer mode](/en/docs/#developer-mode).
+
+| Column | What it does |
+|---|---|
 | Stream (ストリーム) | Watch the WebSocket traffic with the server in real time |
 | API console / API docs | Call the Misskey API directly and look up its spec |
+| Scratchpad (スクラッチパッド) | Run throwaway AiScript |
+| Tasks (タスク) | Run the tasks declared in `tasks.json5` |
 
 "Stream" shows exactly what is flowing behind the scenes in Misskey. Use it to narrow down odd behavior, or to learn how things work.
 
@@ -75,8 +79,8 @@ Work columns unique to NoteDeck. Some of them have nothing directly to do with M
 You do not "add" windows yourself; they open in response to what you do.
 
 - **Details** — note details, profiles, follow lists
-- **Inspector** — raw data (Raw JSON) of notes and notifications. Sensitive fields such as API keys are masked automatically and shown only when you ask
-- **Tools** — login, the various editors, settings
+- **Tools** — adding an account, settings, the various editors
+- **Inspector** (developer mode) — raw data (Raw JSON) of notes and notifications. Some sensitive fields, such as tokens in notifications, are masked and shown only when you ask
 
 ::: tip When there are too many columns to fit
 The more columns you line up, the narrower they get. It is more comfortable to split them into [profiles](/en/docs/deck/profiles) per purpose and switch between them.

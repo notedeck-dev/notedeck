@@ -1,5 +1,5 @@
 ---
-sourceHash: d8af57fc5914
+sourceHash: 1acdeeff014a
 ---
 
 # Try without logging in
@@ -8,7 +8,7 @@ Browse a server's public content with no sign-up and no email address. Use it wh
 
 ## Add a guest
 
-In the login window, enter the server's host name and then choose "**Browse as guest**" (ゲストとして閲覧). No authentication happens; it is added as an account that only uses the server's public API.
+In the "Add account" window, enter the server's host name and then choose "**Browse as guest**" (ゲストとして閲覧). No authentication happens; it is added as an account that only uses the server's public API.
 
 You can have guests on several servers at once, and mix them with logged-in accounts.
 
@@ -27,7 +27,8 @@ You can have guests on several servers at once, and mix them with logged-in acco
 
 - Post, react or follow
 - Receive notifications
-- Manage drive, lists, antennas or clips
+- Manage drive, lists, antennas, clips or roles
+- Use the AI column
 
 :::
 
@@ -37,6 +38,6 @@ What you can see depends on each server's visibility settings. On servers that s
 
 ## To stop
 
-Just remove the guest account. Choose "**Remove guest**" (ゲストを削除) from the account menu. Nothing is left on the server.
+Just remove the guest account. Choose "**Delete data**" (データを削除) from the account menu and confirm in the "Remove guest" (ゲストを削除) dialog. Nothing is left on the server.
 
 If you want to log in for real, [add an account](/en/docs/first-run#_1-add-an-account) as usual. Guests and logged-in accounts are separate, so there is no need to remove the guest first.

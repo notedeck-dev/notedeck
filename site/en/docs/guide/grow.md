@@ -1,5 +1,5 @@
 ---
-sourceHash: 266c208c49fc
+sourceHash: 026b805577d5
 ---
 
 # Growing your environment
@@ -25,18 +25,20 @@ Open an AI column and ask about the notes visible on screen. Summaries, translat
 
 The AI knows **what you are looking at right now**, so there is no need to paste URLs or copy text.
 
+Even without an API key, if you have an AI CLI logged in on your machine you can start using it [as the AI as it is](/en/docs/guide/ai#making-a-local-cli-the-ai).
+
 ## 2. Make it remember
 
-Say "remember this" and it goes into a memo that **survives closing the conversation**. From then on, it answers with that in mind.
+Say "remember this" and the AI files it according to what it is. How to address you and how you like it to talk go under "What it remembers about you", small facts and decisions go into its own **notes to self**, and longer pieces of text go into a memo. **None of it disappears when you close the conversation.** Memory takes effect from the next conversation, and memos are searched and read by the AI when it needs them.
 
-The AI also keeps its own **notes**, where it jots down small facts and decisions it picks up from your exchanges. You can read what it remembers in the AI settings at any time, and fix or delete it line by line.
+You can read what it remembers under "Memory" (メモリー) in the Agent settings at any time, and fix or delete it line by line.
 
 ## 3. Hand over the deck
 
 The AI does not just look at the screen; it can operate the deck itself.
 
 - "Put notifications and home side by side" → the columns are laid out
-- "I don't need renotes in this column" → a filter is applied
+- "Rename this column and make it a bit wider" → the settings change
 - "Switch to my alt account" → the account is switched
 
 Places the AI touched flash briefly. You can learn the app in this order: **say what you want in words before you memorize where the menu is**.
@@ -49,13 +51,13 @@ There is no need to enter your preferences in a settings screen. Your record of 
 
 ## 5. Give it a persona
 
-The AI has a **core personality** that stays the same even when you switch characters. On top of it you can dress it in a tone or a role, so you never have to type "keep it short" again. The first time you talk to it, you can decide its name and vibe together (it will not ask unless you do).
+The AI has a **core personality** that stays the same even when you switch characters. On top of it you can dress it in a tone or a role (a character), so you never have to type "keep it short" again. The first time you talk to it, you can decide its name and vibe together (it will not ask unless you do).
 
-Go further and **the AI proposes changes to its own personality and notes**. It adds the preferences it picked up from conversations to its own settings. Only the core changes when you approve it.
+Go further and **the AI proposes changes to its own personality and notes to self**. It adds the preferences it picked up from conversations to its own settings. Only the core changes when you approve it.
 
 ## 6. Have it design the look
 
-"Make a theme with sunset colors" creates and applies one on the spot. "A bit darker" fixes it, and you can always revert.
+"Make a theme with sunset colors" creates and applies one on the spot. "A bit darker" fixes it, and you can always revert. To let it make themes, allow theme writes in the permissions (off by default).
 
 ## 7. Have it build tools
 
@@ -63,9 +65,9 @@ This is where it really starts.
 
 - "Add a button to the note menu that does X" → a plugin
 - "I want a small panel that shows X" → a widget
-- "I don't want to see notes like this" → a column filter
+- "Make a condition that hides notes like this" → a column query (turn the result on in the filter menu of the column that should use it)
 
-**It does not have to work on the first try.** The AI finds mistakes in the code it wrote, fixes them and repeats until it works. You can look inside what it made, or [rewrite it yourself](/en/docs/dev/).
+**It does not have to work on the first try.** The AI finds mistakes in the code it wrote, fixes them and repeats until it works. You can look inside what it made, or [rewrite it yourself](/en/docs/dev/) (install the author skill from MisStore and the AI reads it while writing).
 
 ::: tip You will be asked for permission
 Before impactful actions such as building tools or posting, a confirmation appears. Read it before allowing.
@@ -77,7 +79,7 @@ Register connections to external services and the AI can fetch information from 
 
 ## 9. Drive it from outside
 
-It works the other way too. While the app is running, NoteDeck opens an entrance only inside your own machine, so terminals and other apps can call its commands. It cannot be reached from outside networks.
+It works the other way too. While the app is running, NoteDeck opens an entrance only inside your own machine, so terminals and other apps can call its commands. It cannot be reached from outside networks. External AI agents reach it through [MCP](/en/docs/guide/ai#using-notedeck-from-an-external-ai-agent-mcp), browsers and launchers through [`notedeck://` links](/en/docs/guide/links), and while you are in another app, through [system-wide hotkeys](/en/docs/guide/keyboard).
 
 This is where the tools from step 7 pay off. **Once built, they can be called from any entrance** — asking the AI, the command palette, a keyboard shortcut, or an external script.
 
@@ -85,13 +87,13 @@ This is where the tools from step 7 pay off. **Once built, they can be called fr
 
 Turn on [HEARTBEAT](/en/docs/guide/ai#running-while-you-are-away-heartbeat) and the AI runs on its own periodically. Besides keeping watch like "only tell me about important notifications", it can **run the tools you had it build on a schedule**.
 
-If there is nothing to report, it stays quiet.
+If there is nothing to report, it stays quiet. When it has something to tell you it lands in app notifications, and if you make it [resident](/en/docs/notemaid#making-it-resident) it keeps going while the app is closed. It does not run on a connection where a local CLI is the AI.
 
 ## 11. The loop starts turning
 
 Once you get here, the loop closes.
 
-It wakes up periodically to check → writes down what it noticed in a memo → reads that and decides "a tool like this would help" → builds it and fixes it until it works → uses it on the next scheduled run → the result goes back into a memo.
+It wakes up periodically to check → writes down what it noticed in its notes to self → reads that and decides "a tool like this would help" → builds it and fixes it until it works → uses it on the next scheduled run → the result goes back into its notes to self.
 
 **Your environment grows in places you never gave instructions for.** This is the state NoteDeck is aiming for.
 
@@ -103,7 +105,7 @@ The further you go, the more the AI can do, but **you can step back from any sta
 
 - Permissions can be tightened at any time (effective immediately)
 - Whatever the AI made or rewrote keeps a history and can be reverted
-- Turn off a skill and that persona is gone
+- Turn off the character skill and the tone and role go back. The core personality is only ever what you approved
 - Scheduled runs can be stopped (they also stop automatically after repeated failures)
 
 ## Things to keep in mind as you go
