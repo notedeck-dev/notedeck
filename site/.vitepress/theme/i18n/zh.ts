@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: 744d7c22947c
+// sourceHash: ec547cb3e0bf
 
 import type { Messages } from './ja'
 
@@ -22,6 +22,39 @@ const zh: Messages = {
     download: '下载',
     tryGuest: '不登录试用',
     screenshotAlt: 'NoteDeck 的 Deck 界面 — 多个列横向排列的布局',
+    screenshotMobileAlt: '手机版 NoteDeck — 每次显示一个列',
+    columns: [
+      '首页',
+      '本地',
+      '社交',
+      '全局',
+      '通知',
+      '提及',
+      '搜索',
+      '列表',
+      '天线',
+      '频道',
+      '聊天',
+      '便签',
+      '收藏',
+      '角色',
+      '网盘',
+      '图集',
+      '表情符号',
+      '联合',
+      '图表',
+      'AI',
+      '小工具',
+      'Play',
+      '页面',
+      'API 控制台',
+      '流',
+      '插件',
+      '主题',
+      '查询',
+      '备忘',
+      '成就',
+    ],
   },
   keyFeatures: [
     {
@@ -46,6 +79,19 @@ const zh: Messages = {
       body: '冷启动不到 1 秒，从托盘恢复瞬间完成。滚动流畅，也更省电。无需一直开着浏览器标签页，也没有沉重的运行时。',
     },
   ],
+  getStarted: {
+    title: '开始使用 NoteDeck',
+    download: { title: '安装', button: '下载' },
+    docs: { title: '了解用法', button: '文档' },
+    store: { title: '换装与扩展', button: '商店' },
+    dev: { title: '参与开发', button: 'GitHub' },
+  },
+  intro: {
+    title: '其实，它是一个“IDE”',
+    descHtml:
+      'NoteDeck 的真面目是 <strong>Misskey 集成 Deck 环境</strong> (Integrated Deck Environment)。它不只是用来看时间线的“客户端”，而是把多个服务器汇聚起来、把刷过的帖子留在手边、并通过扩展和 AI 培育成专属工具的环境。',
+    tip: 'NoteDeck 是不带服务器的“客户端”。账户在 misskey.io 等 Misskey 服务器上创建，然后用该账户登录 NoteDeck。需要安装的只有你设备上的应用。',
+  },
   guest: {
     title: '无需登录，即可试用',
     lead: '添加访客账户后，无需在任何地方注册即可浏览公开内容。',
@@ -60,14 +106,38 @@ const zh: Messages = {
     cannot: ['发帖、回应、关注', '接收通知', '管理网盘、列表、天线、便签'],
     foot: '可浏览的范围取决于各服务器的公开设置。不想用时只需“删除访客” — 不需要注册账户，也不需要邮箱地址。',
   },
+  servers: {
+    title: '官方版、分支版，任何服务器都行',
+    desc: '支持 Misskey 官方版本，以及仍以 Misskey 为名的分支。自动识别服务器类型，分支特有的时间线也能直接使用。多个服务器的账户可以并排放在一个 Deck 里，无论换服务器还是加服务器，看的地方都不变。',
+    forkTitle: '把你所在服务器的独有功能带到 NoteDeck',
+    forkBodyHtml:
+      '各分支之间的差异由<strong>适配器</strong>负责处理。如果有用不了的独有功能，请告诉我们（对象为仍以 Misskey 为名的分支）。',
+    forkButton: '申请支持',
+  },
+  useCases: {
+    title: '可以这样使用',
+    items: [
+      { label: 'Multi', title: '同时使用多个服务器，把通知和时间线汇总起来追踪' },
+      { label: 'Keep', title: '把刷过的帖子留在手边，日后用全文搜索翻出来' },
+      { label: 'Watch', title: '不登录，浏览公开时间线和自定义表情符号' },
+      { label: 'Hack', title: '窥探 API，用插件和 AI 把 Deck 培育成专属工具' },
+    ],
+  },
+  free: {
+    title: 'NoteDeck 永远免费开源',
+    desc: 'NoteDeck 是以 AGPL-3.0 发布的开源软件。任何人都可以免费使用、阅读源代码并修改。与 Misskey 官方一样使用 Vue 3 + TypeScript，能读懂 Misskey 代码的人也能直接读懂它。',
+    github: 'View GitHub',
+    sponsor: 'Sponsor',
+  },
   features: {
     title: '功能',
+    desc: 'Deck 的基本功能，加上桌面应用才有的工具。',
     deck: {
       chip: 'Deck UI',
       title: '自由排列，专属于你的布局',
       body: '首页、本地、通知、搜索、列表、天线、频道、聊天 — 任意列都能横向排开一览。拖动即可调整宽度，排列方式可保存为“配置文件”，一键切换。',
       list: [
-        '16 种以上的列类型',
+        '40 种以上的列类型',
         '统一显示多个账户的通知与搜索',
         '将列弹出为独立窗口',
         '画中画（始终置顶的小窗口），善用多显示器',
@@ -98,7 +168,6 @@ const zh: Messages = {
     },
   },
   more: {
-    title: '还有更多',
     keyboard: {
       title: '键盘全搞定',
       body: '在命令面板（Ctrl+K）中搜索并执行 30 个以上的命令。所有快捷键都可以自定义。',
@@ -137,9 +206,8 @@ const zh: Messages = {
     },
   },
   ide: {
-    title: '其实，它是一个“IDE”',
-    descHtml:
-      'NoteDeck 的真面目是 <strong>Misskey 集成 Deck 环境</strong> (Integrated Deck Environment)',
+    title: '作为 IDE 的一面',
+    desc: '不是封闭的盒子，而是敞开的盒子。不止于出厂时的功能，而是在使用者手中不断拓展。',
     store: {
       title: '在商店里换装和扩展',
       strong: '插件、主题、小工具一键安装。',
@@ -156,8 +224,6 @@ const zh: Messages = {
       strong: '原原本本地观察 Misskey 的幕后。',
       body: '内置可实时查看与服务器之间通信的检查器，以及显示帖子原始数据的 Raw JSON 视图。敏感字段会自动遮蔽。这是了解 Misskey 运作机制的捷径。',
     },
-    openTitle: '不是封闭的盒子，而是敞开的盒子',
-    openLead: '不止于出厂时的功能，而是在使用者手中不断拓展。',
     extend: {
       title: '可以自己扩展',
       strong: '写出新命令，它当场就成为 Deck 的功能。',
@@ -198,10 +264,6 @@ const zh: Messages = {
       label: 'Misskey 客户端',
       desc: 'Misskey API、WebSocket 流式传输、SQLite (FTS5)。它不了解 NoteDeck 特有的东西，可以作为库或 CLI 单独运行。',
     },
-    forkTitle: '把你所在服务器的独有功能带到 NoteDeck',
-    forkBodyHtml:
-      '各分支之间的差异由<strong>适配器</strong>负责处理。如果有用不了的独有功能，请告诉我们（对象为仍以 Misskey 为名的分支）。',
-    forkButton: '申请支持',
   },
   download: {
     title: '下载',

@@ -37,6 +37,10 @@
   --nav-bg:        rgba(238, 238, 238, 0.86);
   --code-bg:       #fff;
   --dots:          rgba(0, 0, 0, 0.13);
+  --barcode:       rgba(0, 0, 0, 0.13);   /* Hub の section_top_barcode #0002 */
+  --usecase-glow:  rgba(132, 179, 0, 0.12); /* Hub の section_useCases_item #84b3001f */
+  --usecase-border: rgba(125, 179, 0, 0.11);
+  --usecase-ink:   #484a40;
   --focus:         #4a7a00;
 
   /* Shell syntax */
@@ -135,6 +139,10 @@
   --nav-bg:        rgba(26, 26, 26, 0.86);
   --code-bg:       #111;
   --dots:          rgba(255, 255, 255, 0.13);
+  --barcode:       rgba(255, 255, 255, 0.13);
+  --usecase-glow:  rgba(132, 179, 0, 0.18);
+  --usecase-border: rgba(154, 209, 27, 0.25);
+  --usecase-ink:   #f0ffc7;
   --accent-text:   #a8d824;
   --focus:         #c9f526;
   --sh-dim:        #9e9e9e;

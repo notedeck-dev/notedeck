@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: 744d7c22947c
+// sourceHash: ec547cb3e0bf
 
 import type { Messages } from './ja'
 
@@ -22,6 +22,39 @@ const en: Messages = {
     download: 'Download',
     tryGuest: 'Try without logging in',
     screenshotAlt: 'The NoteDeck deck — columns laid out side by side',
+    screenshotMobileAlt: 'NoteDeck on a phone — one column at a time',
+    columns: [
+      'Home',
+      'Local',
+      'Social',
+      'Global',
+      'Notifications',
+      'Mentions',
+      'Search',
+      'Lists',
+      'Antennas',
+      'Channels',
+      'Chat',
+      'Clips',
+      'Favorites',
+      'Roles',
+      'Drive',
+      'Gallery',
+      'Emoji',
+      'Federation',
+      'Charts',
+      'AI',
+      'Widgets',
+      'Play',
+      'Pages',
+      'API console',
+      'Stream',
+      'Plugins',
+      'Themes',
+      'Queries',
+      'Memos',
+      'Achievements',
+    ],
   },
   keyFeatures: [
     {
@@ -46,6 +79,19 @@ const en: Messages = {
       body: 'Cold start in under a second, instant resume from the tray, smooth scrolling and easy on the battery. No browser tab left open, no heavy runtime.',
     },
   ],
+  getStarted: {
+    title: 'Get started with NoteDeck',
+    download: { title: 'Install it', button: 'Download' },
+    docs: { title: 'Learn how it works', button: 'Docs' },
+    store: { title: 'Restyle and extend', button: 'Store' },
+    dev: { title: 'Join development', button: 'GitHub' },
+  },
+  intro: {
+    title: 'It is actually an “IDE”',
+    descHtml:
+      'Under the hood, NoteDeck is a <strong>Misskey Integrated Deck Environment</strong>. Not just a “client” for watching timelines: an environment that brings your servers together, keeps the notes that scroll by, and grows into your own tool through extensions and AI.',
+    tip: 'NoteDeck is a “client” — it does not run a server. You create your account on a Misskey server such as misskey.io and log in to NoteDeck with it. The only thing you install is the app on your device.',
+  },
   guest: {
     title: 'Try it without logging in',
     lead: 'Add a guest account to browse public content without signing up anywhere.',
@@ -64,14 +110,38 @@ const en: Messages = {
     ],
     foot: 'What you can see depends on each server’s visibility settings. To stop, just “Remove guest” — no sign-up, no email address.',
   },
+  servers: {
+    title: 'Upstream or fork, any server',
+    desc: 'Works with upstream Misskey and with forks that still call themselves Misskey. The server type is detected automatically and fork-specific timelines just work. Accounts from several servers sit side by side in one deck, so moving to a new server or adding another never changes where you look.',
+    forkTitle: 'Bring your server’s features to NoteDeck',
+    forkBodyHtml:
+      'Differences between forks are handled by <strong>adapters</strong>. Tell us about features that do not work yet (forks that still call themselves Misskey).',
+    forkButton: 'Request support',
+  },
+  useCases: {
+    title: 'Ways to use it',
+    items: [
+      { label: 'Multi', title: 'Juggle several servers and follow their notifications and timelines together' },
+      { label: 'Keep', title: 'Keep the notes that scrolled by and dig them up later with full-text search' },
+      { label: 'Watch', title: 'Browse public timelines and custom emoji without logging in' },
+      { label: 'Hack', title: 'Peek at the API and grow the deck into your own tool with plugins and AI' },
+    ],
+  },
+  free: {
+    title: 'NoteDeck stays free and open',
+    desc: 'NoteDeck is open source software released under AGPL-3.0. Anyone can use it for free, read the source and change it. It uses Vue 3 + TypeScript like upstream Misskey, so if you can read the Misskey codebase, you can read this one.',
+    github: 'View GitHub',
+    sponsor: 'Sponsor',
+  },
   features: {
     title: 'Features',
+    desc: 'The basics of a deck, plus tools only a desktop app can offer.',
     deck: {
       chip: 'Deck UI',
       title: 'Your own layout, arranged your way',
       body: 'Home, local, notifications, search, lists, antennas, channels, chat — line up any column side by side. Drag to resize, then save the arrangement as a “profile” and switch with one click.',
       list: [
-        'More than 16 column types',
+        'More than 40 column types',
         'Unified notifications and search across accounts',
         'Pop a column out into its own window',
         'Picture-in-picture (always on top) for multi-monitor setups',
@@ -102,7 +172,6 @@ const en: Messages = {
     },
   },
   more: {
-    title: 'And more',
     keyboard: {
       title: 'Keyboard first',
       body: 'Search and run more than 30 commands from the command palette (Ctrl+K). Every keybinding can be customized.',
@@ -141,9 +210,8 @@ const en: Messages = {
     },
   },
   ide: {
-    title: 'It is actually an “IDE”',
-    descHtml:
-      'Under the hood, NoteDeck is a <strong>Misskey Integrated Deck Environment</strong>',
+    title: 'The IDE side',
+    desc: 'An open box, not a closed one. It does not stop at what ships: it grows in the hands of the people who use it.',
     store: {
       title: 'Restyle and extend from the store',
       strong: 'Plugins, themes and widgets in one click. ',
@@ -160,8 +228,6 @@ const en: Messages = {
       strong: 'Watch how Misskey works behind the scenes. ',
       body: 'Built-in inspectors show traffic with the server in real time, and a raw JSON view shows each note as data. Sensitive fields are masked automatically. The fastest way to learn how Misskey works.',
     },
-    openTitle: 'An open box, not a closed one',
-    openLead: 'It does not stop at what ships. It grows in the hands of the people who use it.',
     extend: {
       title: 'Extend it yourself',
       strong: 'Write a new command and it becomes part of your deck. ',
@@ -202,10 +268,6 @@ const en: Messages = {
       label: 'Misskey client',
       desc: 'Misskey API, WebSocket streaming, SQLite (FTS5). It knows nothing about NoteDeck and runs on its own as a library or a CLI.',
     },
-    forkTitle: 'Bring your server’s features to NoteDeck',
-    forkBodyHtml:
-      'Differences between forks are handled by <strong>adapters</strong>. Tell us about features that do not work yet (forks that still call themselves Misskey).',
-    forkButton: 'Request support',
   },
   download: {
     title: 'Download',

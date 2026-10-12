@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: 744d7c22947c
+// sourceHash: ec547cb3e0bf
 
 import type { Messages } from './ja'
 
@@ -22,6 +22,39 @@ const ko: Messages = {
     download: '다운로드',
     tryGuest: '로그인 없이 써 보기',
     screenshotAlt: 'NoteDeck의 덱 화면 — 칼럼을 가로로 나란히 배치한 레이아웃',
+    screenshotMobileAlt: '스마트폰용 NoteDeck — 칼럼을 하나씩 표시',
+    columns: [
+      '홈',
+      '로컬',
+      '소셜',
+      '글로벌',
+      '알림',
+      '멘션',
+      '검색',
+      '리스트',
+      '안테나',
+      '채널',
+      '채팅',
+      '클립',
+      '즐겨찾기',
+      '롤',
+      '드라이브',
+      '갤러리',
+      '이모지',
+      '연합',
+      '차트',
+      'AI',
+      '위젯',
+      'Play',
+      '페이지',
+      'API 콘솔',
+      '스트림',
+      '플러그인',
+      '테마',
+      '쿼리',
+      '메모',
+      '업적',
+    ],
   },
   keyFeatures: [
     {
@@ -46,6 +79,19 @@ const ko: Messages = {
       body: '콜드 스타트는 1초 미만, 트레이에서의 복귀는 순식간입니다. 스크롤은 매끄럽고 배터리에도 부담이 적습니다. 계속 열어 둔 브라우저 탭이나 무거운 런타임과는 무관합니다.',
     },
   ],
+  getStarted: {
+    title: 'NoteDeck 시작하기',
+    download: { title: '설치하기', button: '다운로드' },
+    docs: { title: '사용법 알아보기', button: '문서' },
+    store: { title: '꾸미기와 확장', button: '스토어' },
+    dev: { title: '개발에 참여하기', button: 'GitHub' },
+  },
+  intro: {
+    title: '사실 이건 "IDE"입니다',
+    descHtml:
+      'NoteDeck의 정체는 <strong>Misskey 통합 덱 환경</strong> (Integrated Deck Environment). 타임라인을 바라보기만 하는 "클라이언트"가 아니라, 여러 서버를 묶고, 흘러간 노트를 손안에 남기고, 확장과 AI로 나만의 도구로 키워 가는 환경입니다.',
+    tip: 'NoteDeck은 서버를 갖지 않는 "클라이언트"입니다. 계정은 misskey.io 등 Misskey 서버에서 만들고, NoteDeck에는 그 계정으로 로그인합니다. 설치하는 것은 손안의 기기에 있는 앱뿐입니다.',
+  },
   guest: {
     title: '로그인 없이 써 볼 수 있습니다',
     lead: '게스트 계정을 추가하면 회원 가입 없이 공개 콘텐츠를 열람할 수 있습니다.',
@@ -64,14 +110,38 @@ const ko: Messages = {
     ],
     foot: '열람할 수 있는 범위는 각 서버의 공개 설정을 따릅니다. 그만둘 때는 "게스트 삭제"만 하면 됩니다 — 회원 가입도 이메일 주소도 필요 없습니다.',
   },
+  servers: {
+    title: '본가도, 포크도, 어느 서버든',
+    desc: 'Misskey 본가와 Misskey라는 이름을 계속 쓰는 포크를 지원합니다. 서버 종류는 자동으로 판별하고, 포크 고유의 타임라인도 그대로 쓸 수 있습니다. 여러 서버의 계정을 하나의 덱에 나란히 놓을 수 있으니, 서버를 옮기든 늘리든 보는 곳은 바뀌지 않습니다.',
+    forkTitle: '여러분 서버의 고유 기능을 NoteDeck에',
+    forkBodyHtml:
+      '포크마다 다른 부분은 <strong>어댑터</strong>가 맡습니다. 쓸 수 없는 고유 기능이 있다면 알려 주세요 (대상은 Misskey라는 이름을 계속 쓰는 포크).',
+    forkButton: '지원 요청하기',
+  },
+  useCases: {
+    title: '이렇게 쓸 수 있습니다',
+    items: [
+      { label: 'Multi', title: '여러 서버를 함께 쓰며 알림과 타임라인을 한데 모아 따라가기' },
+      { label: 'Keep', title: '흘러간 노트를 손안에 남기고 나중에 전문 검색으로 되찾기' },
+      { label: 'Watch', title: '로그인 없이 공개 타임라인과 커스텀 이모지를 둘러보기' },
+      { label: 'Hack', title: 'API를 들여다보고 플러그인과 AI로 덱을 나만의 도구로 키우기' },
+    ],
+  },
+  free: {
+    title: 'NoteDeck은 언제나 무료이며 오픈',
+    desc: 'NoteDeck은 AGPL-3.0으로 공개된 오픈 소스 소프트웨어입니다. 누구나 무료로 쓰고, 소스 코드를 읽고, 손볼 수 있습니다. Misskey 본가와 같은 Vue 3 + TypeScript이므로 본가 코드를 읽을 수 있는 분이라면 그대로 읽을 수 있습니다.',
+    github: 'View GitHub',
+    sponsor: 'Sponsor',
+  },
   features: {
     title: '기능',
+    desc: '덱의 기본과 데스크톱이기에 가능한 도구들.',
     deck: {
       chip: '덱 UI',
       title: '자유롭게 배치하는 나만의 레이아웃',
       body: '홈, 로컬, 알림, 검색, 리스트, 안테나, 채널, 채팅 — 어떤 칼럼이든 가로로 나란히 놓고 한눈에 볼 수 있습니다. 너비는 드래그로 자유롭게 조절하고, 배치는 "프로파일"로 저장해 클릭 한 번으로 전환합니다.',
       list: [
-        '16종류 이상의 칼럼 타입',
+        '40종류 이상의 칼럼 타입',
         '여러 계정의 알림과 검색을 통합 표시',
         '칼럼을 팝아웃해 별도 창으로',
         'PiP (항상 위에 표시되는 작은 창)로 멀티 모니터 활용',
@@ -102,7 +172,6 @@ const ko: Messages = {
     },
   },
   more: {
-    title: '그 밖에도',
     keyboard: {
       title: '키보드만으로 완결',
       body: '명령 팔레트 (Ctrl+K)에서 30개 이상의 명령을 검색하고 실행합니다. 키 바인딩은 모두 사용자 지정할 수 있습니다.',
@@ -141,9 +210,8 @@ const ko: Messages = {
     },
   },
   ide: {
-    title: '사실 이건 "IDE"입니다',
-    descHtml:
-      'NoteDeck의 정체는 <strong>Misskey 통합 덱 환경</strong> (Integrated Deck Environment)',
+    title: 'IDE로서의 얼굴',
+    desc: '닫힌 상자가 아닌 열린 상자. 출하 시의 기능으로 끝나지 않고, 쓰는 사람의 손으로 넓혀 가기 위해.',
     store: {
       title: '스토어에서 꾸미고 기능을 더하기',
       strong: '플러그인, 테마, 위젯을 클릭 한 번으로. ',
@@ -160,8 +228,6 @@ const ko: Messages = {
       strong: 'Misskey의 이면을 그대로 관찰할 수 있습니다. ',
       body: '서버와 주고받는 내용을 실시간으로 들여다보는 인스펙터와 노트의 원시 데이터 (Raw JSON) 뷰를 내장했습니다. 민감한 필드는 자동으로 마스킹됩니다. Misskey의 구조를 배우는 가장 빠른 길입니다.',
     },
-    openTitle: '닫힌 상자가 아닌 열린 상자',
-    openLead: '출하 시의 기능으로 끝나지 않습니다. 쓰는 사람의 손으로 넓혀 가기 위해.',
     extend: {
       title: '직접 확장할 수 있습니다',
       strong: '새 명령을 쓰면 그 자리에서 덱의 기능이 됩니다. ',
@@ -202,10 +268,6 @@ const ko: Messages = {
       label: 'Misskey 클라이언트',
       desc: 'Misskey API, WebSocket 스트리밍, SQLite (FTS5). NoteDeck 고유의 것은 알지 못하며, 라이브러리로도 CLI로도 단독으로 동작합니다.',
     },
-    forkTitle: '여러분 서버의 고유 기능을 NoteDeck에',
-    forkBodyHtml:
-      '포크마다 다른 부분은 <strong>어댑터</strong>가 맡습니다. 쓸 수 없는 고유 기능이 있다면 알려 주세요 (대상은 Misskey라는 이름을 계속 쓰는 포크).',
-    forkButton: '지원 요청하기',
   },
   download: {
     title: '다운로드',
