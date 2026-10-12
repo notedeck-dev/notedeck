@@ -318,18 +318,11 @@
   margin-top: var(--space-lg);
 }
 
-/* Hub の Mi3d の位置: アプリアイコンをハートビート (ドクン、ドクン) で脈打たせる。
- * 芽のモチーフなので、根元 (下端中央) を軸に風でそよぐのを別周期で重ねる */
+/* Hub の Mi3d の位置: アプリアイコンをハートビート (ドクン、ドクン) で脈打たせる */
 .hero-visual {
   position: relative; flex: 1;
   display: flex; align-items: center; justify-content: center;
   min-width: 0;
-  transform-origin: 50% 100%;
-  animation: hero-sway 5.6s ease-in-out infinite;
-}
-@keyframes hero-sway {
-  0%, 100% { transform: rotate(-1.5deg); }
-  50%      { transform: rotate(1.5deg); }
 }
 /* PNG は背景透過で葉が左上隅まで伸びているので、角丸を掛けると葉が切れる */
 .hero-icon {
