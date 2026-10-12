@@ -340,9 +340,9 @@
   36%      { transform: scaleY(1.045) scaleX(0.99); }
   50%      { transform: scale(1); }
 }
-@media (max-width: 900px) {
-  .hero-visual { order: -1; margin-top: var(--space-md); }
-  .hero-icon { width: 160px; }
+/* Hub のモバイル版 (≤1200px、ナビが畳まれる幅) はロゴ (Mi3d) を出さない。同じ挙動にする */
+@media (max-width: 1200px) {
+  .hero-visual { display: none; }
 }
 
 /* Hub .section_top_barcode — 右下の薄いバーコード */
