@@ -1,5 +1,5 @@
 ---
-sourceHash: 8ff2c7d208fc
+sourceHash: e5cbbdfad684
 ---
 
 # Installation
@@ -8,10 +8,12 @@ Installers for each OS are published on [GitHub Releases](https://github.com/not
 
 | OS | Format |
 |---|---|
-| Windows | `.exe` (installer) |
-| macOS | `.dmg` (Universal — Intel and Apple Silicon) |
-| Linux | `.deb` / `.AppImage` |
-| Android | `.apk` |
+| Windows | `.exe` (installer) / portable `.zip` |
+| macOS | `.dmg` (Universal — Intel and Apple Silicon) / `.zip` of the `.app` |
+| Linux | `.deb` / `.AppImage` / `.tar.gz` (the app + notemaid + a systemd user unit) |
+| Android | `.apk` (three builds by CPU: `arm64` / `armv7` / `x86_64`. Almost every real device is `arm64`) |
+
+The same Release also carries standalone binaries of [notemaid](/en/docs/notemaid), the AI's separate process, and of the notecli CLI (for Linux and Apple Silicon macOS). The app bundles notemaid, so you normally do not need them.
 
 ## Package managers
 
@@ -22,32 +24,35 @@ winget install NotedeckDev.NoteDeck
 ```
 
 ```bash [AUR (Arch Linux)]
-yay -S misskey-notedeck-bin
+yay -S misskey-notedeck-bin   # bundles notemaid and the user unit
+yay -S notecli-bin            # when you only want the CLI
 ```
 
 ```bash [Nix Flake]
-# The app itself is not packaged for Nix yet (use the AppImage or the tarball).
-# The flake provides the resident core and the CLI
-nix profile add 'github:notedeck-dev/notedeck#notemaid'
-nix profile add 'github:notedeck-dev/notedeck#notecli'
+# The app itself is not distributed through Nix (use the AppImage or the tarball).
+# The flake provides notemaid (the AI's separate process) and the CLI
+nix profile install 'github:notedeck-dev/notedeck#notemaid'
+nix profile install 'github:notedeck-dev/notedeck#notecli'
 ```
 
 :::
+
+To keep notemaid resident with Nix, use the flake's home-manager module (`services.notemaid.enable`). The resident toggle inside the app cannot register a binary that lives in the Nix store.
 
 ## Warning on first launch
 
 The Windows and macOS builds are not code-signed yet, so you will see an "unknown publisher" warning on first launch.
 
 - **Windows**: on the SmartScreen dialog, click "More info" → "Run anyway"
-- **macOS**: right-click the app in Finder → "Open" → "Open" again (you can also allow it from System Settings → "Privacy & Security")
+- **macOS**: in System Settings → "Privacy & Security", choose "Open Anyway" for the blocked app (on older macOS, right-clicking the app in Finder → "Open" also works)
 
-The missing signature is a matter of cost and review, not malicious code. Releases are built by GitHub Actions from the source in the public repository, and you can verify their hashes with `SHA256SUMS.txt`.
+The missing signature is a matter of cost and review, not malicious code. Releases are built by GitHub Actions from the source in the public repository, and you can verify the hashes of the `.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` with `SHA256SUMS.txt`.
 
 Removing the warning requires passing review for free open-source code signing from [SignPath Foundation](https://signpath.org/) on Windows, and notarization through the Apple Developer Program on macOS. SignPath Foundation will not sign code nobody knows about and looks at real-world usage, so [stars on GitHub](https://github.com/notedeck-dev/notedeck) and download counts count directly. If you can help, see [the section at the bottom of the download page](/en/#store-distribution).
 
 ## Mobile
 
-On Android, install the `.apk` directly. If you are asked to allow installing apps from unknown sources, allow it.
+On Android, install the `.apk` directly. Pick the one that matches your device's CPU (recent devices are almost always `arm64`). If you are asked to allow installing apps from unknown sources, allow it.
 
 With [Obtainium](https://obtainium.imranr.dev/), you can follow APK updates automatically using GitHub Releases as the source. Tap the badge below to hand a preconfigured setup to Obtainium. To add it manually, paste the repository URL `https://github.com/notedeck-dev/notedeck` into Obtainium's "Add App". The APK matching your device's CPU is picked automatically.
 
@@ -57,12 +62,14 @@ NoteDeck is not on Google Play or the App Store yet. Store distribution needs de
 
 ## Updates
 
-The desktop builds update themselves. When a new version is out, you are notified on launch and can update right there.
+Desktop builds installed with an installer (`.exe` / `.dmg` / `.AppImage`) check for a new version on launch and download it. When the download finishes you see "Update ready to install" (更新の準備ができました), and a restart switches over.
 
-If you installed with a package manager, follow its update procedure instead (`winget upgrade`, `yay -Syu` and so on).
+If you installed with a package manager, follow its update procedure instead (`winget upgrade`, `yay -Syu` and so on). The `.deb` / `.tar.gz` likewise need the new Release installed by hand.
 
 The Android build has no auto-update. [Obtainium](#mobile) can notify you about new APKs on GitHub Releases and install them.
 
 ## Your data stays after uninstalling
 
-Removing the app leaves the settings files and the note cache in your OS's application data folder. To erase everything, delete the whole folder described in [Settings files](/en/docs/config/files#where-settings-live).
+Removing the app leaves the settings files and the note cache in your OS's application data area. To erase everything, delete the [settings folder](/en/docs/config/files#where-settings-live) and its parent, the app data folder (which holds the note cache `notecli.db` and the logs). Tokens stored in the OS keychain remain separately.
+
+If you had [notemaid running resident](/en/docs/notemaid#making-it-resident), turn the toggle off first (or run `notemaid service uninstall`) so that no login task is left pointing at a binary that no longer exists.

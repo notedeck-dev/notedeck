@@ -1,5 +1,5 @@
 ---
-sourceHash: 406ad98400e8
+sourceHash: bdb9cc5cbe62
 ---
 
 # The AI process (notemaid)
@@ -11,50 +11,55 @@ NoteDeck's AI (the agent loop and HEARTBEAT) runs in a separate process, **notem
 | Form | Who starts it | What you get |
 |---|---|---|
 | Default (child process) | The app | No setup. Starts and stops with the app. If you close the window to the tray, the AI stays alive |
-| Resident | A login task of your OS (the toggle in AI settings) | HEARTBEAT keeps going after you quit the app. The next launch connects to it automatically, and reports from while the app was closed arrive in app notifications as one summary |
+| Resident | A login task of your OS (the toggle in the Agent settings) | HEARTBEAT keeps going after you quit the app completely. The next launch connects to it automatically, and reports from while the app was closed arrive in app notifications as one summary |
 
-Both run on the same device. There is no way to connect to a notemaid on another device or your own server: it would give you only what the resident form already gives (the rounds keep going), at the cost of authentication and key handling.
+Both run on the same device. There is no way to connect to a notemaid on another device or your own server: it would give you only what the resident form already gives (the rounds keep going), at the cost of a lot of trouble with authentication and where to keep the keys.
 
-At startup the app first checks whether a resident notemaid is there, connects if so, and otherwise starts a child process. In every form your data (archive, subscriptions, deck) stays on the device, and notemaid uses the app settings and the tokens of the same accounts from the OS keychain (it never opens the app database). The version has to match the app (if not, AI settings shows why).
+At startup the app first checks whether a resident notemaid is there, connects if so, and otherwise starts a child process. If the bundled notemaid is missing or fails to start, the AI runs inside the app (the self-check in **About NoteDeck** shows "running inside the app" with the reason). In every form your data (archive, subscriptions, deck) stays on the device, and notemaid uses the app settings and the tokens of the same accounts from the OS keychain (it never opens the app database). The version has to match the app (if not, the self-check shows why).
 
 ## Making it resident
 
-Only needed if you want HEARTBEAT to keep running after you quit the app completely. Turn on "Keep running after the app exits" under **AI settings** → HEARTBEAT: it registers a login task with your OS (a systemd user unit on Linux, a LaunchAgent on macOS, the Run registry key on Windows) and switches over on the spot, no restart needed. Turning it off removes the task and goes back to the child process.
+Only needed if you want HEARTBEAT to keep running after you quit the app completely. Turn on "Keep running after the app exits" (アプリを終了しても続ける) under **Agent** → HEARTBEAT in the settings menu ("Keep AI running after the app exits" in the tray menu is the same toggle): it registers a login task with your OS (a systemd user unit on Linux, a LaunchAgent on macOS, the per-user Run registry key (auto-start at login) on Windows) and switches over on the spot, no restart needed. Turning it off removes the task and goes back to the child process.
 
 What resident mode gives you is that the rounds never stop. Reports live in the HEARTBEAT session: those that arrive while the app is closed show up the next time you open the app, as a single "reports while the app was closed" entry in app notifications (together with any actions waiting for your confirmation). No OS notifications are shown while the app is closed.
 
-The AppImage mounts at a different path every launch, so the toggle is not available there. Put the standalone binary from Releases somewhere on your PATH and register it by hand.
+The AppImage mounts at a different path every launch, so the toggle is not available there. Put the standalone binary from Releases (such as `notemaid-<version>-linux-amd64`; pick the same version as the app, rename it to `notemaid` and make it executable) somewhere on your PATH and register it by hand. The same goes for a notemaid installed with Nix: pass its location with `--exec-path`, or use the flake's home-manager module.
 
 ```bash
-notemaid service install    # write the login task
-notemaid service enable     # register and start
+notemaid service install                      # write the login task
+notemaid service install --exec-path /path/to/notemaid   # when it lives outside PATH
+notemaid service enable                       # register and start
 ```
 
 On Linux, to keep it running after logout, set `loginctl enable-linger`. Stop it with `notemaid service stop`, or `uninstall` if you no longer need it.
 
-If you only want to connect to the resident one (never start a child process), set `client.json5` in the settings folder to `{ backend: "resident" }`. To always run in-process instead (development, troubleshooting), use `{ backend: "embedded" }`. The default is `auto`.
+If you only want to connect to the resident one (never start a child process), set `client.json5` in the settings folder to `{ backend: "resident" }`. If no login task is registered, set it back to `auto` to run as a child process. To always run inside the app instead (development, troubleshooting), use `{ backend: "embedded" }`. The default is `auto`. This file is per device and is not part of the [backup](/en/docs/config/backup).
 
 ## Requirements
 
 - For resident mode on Linux, a systemd **user session** must be running (`systemctl --user status` works). On WSL2 enable systemd in `/etc/wsl.conf`
-- The resident socket needs `XDG_RUNTIME_DIR`. The child process works without it (it uses the temp directory)
+- The resident socket needs `XDG_RUNTIME_DIR`. Without it the resident one stops with a dedicated exit code. The child process works without it (it uses a temp directory)
 
 ## Troubleshooting
 
-- **Logs**: the child process and the resident one on macOS / Windows write to `logs/notemaid.log` in the data directory; on Linux the resident one goes to `journalctl --user -u notemaid -e`
+- **Logs**: the child process and the resident one on macOS / Windows write to `logs/notemaid.log.<date>` in the app data folder (one file per day); on Linux the resident one goes to `journalctl --user -u notemaid -e`
 - **Version mismatch**: update notemaid to the same version as the app. The child process is bundled, so it always matches
-- **notemaid stops by itself**: for states a restart cannot fix (another notemaid owns the data directory, the secret key cannot be read) it exits with a dedicated code and systemd does not restart it. The reason is in the log
+- **notemaid stops by itself**: for states a restart cannot fix (another notemaid is running on the same data directory, `XDG_RUNTIME_DIR` is missing, the secret key cannot be read) it exits with a dedicated code and systemd does not restart it. The reason is in the log
 
 ## What notemaid owns
 
-notemaid writes only its own things inside the settings folder: the AI's personality and memory (`notemaid/`), AI sessions (`sessions/`), memos (`memos/`), skills (`skills/`) and the AI settings (`ai.json5`). It never opens the app database. You read and edit the personality and memory under "AI personality and memory" in the AI settings; the file list is in [Settings files](/en/docs/config/files).
+notemaid writes only its own things inside the settings folder: the AI's personality and memory (`notemaid/`), AI sessions (`sessions/`), memos (`memos/`), skills (`skills/`) and the AI settings (`ai.json5`). It never opens the app database. The list of accounts copied over from the app (`notemaid-accounts.json`, without tokens) goes in the app data folder. On Linux without Secret Service it also writes an encrypted file and a key as the fallback store for tokens.
+
+You read and edit the personality and memory under "Persona" (ペルソナ) and "Memory" (メモリー) in the Agent settings (only the personality text itself, SOUL.md, is edited in a developer-mode tab or an external editor). The file list is in [Settings files](/en/docs/config/files).
 
 ## Commands
 
 ```bash
-notemaid run                 # run in the foreground
+notemaid                     # run is the default subcommand
+notemaid run                 # run in the foreground (on Linux tokens default to file storage; use --secrets keychain to share the app's keychain)
 notemaid status              # status of the running notemaid
+notemaid mcp                 # act as a stdio MCP server relaying to the running NoteDeck (Using AI → MCP)
 notemaid service install     # write the login task (no start)
 notemaid service enable      # register and start
-notemaid service status | stop | restart | uninstall
+notemaid service start | status | stop | restart | uninstall
 ```

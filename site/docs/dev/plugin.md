@@ -4,7 +4,7 @@
 
 ## 最小構成
 
-先頭にメタヘッダを書きます。AiScript のバージョン指定を省くと古いパーサで解釈され、後述の interruptor が使えません。
+先頭に AiScript のバージョンとメタヘッダを書きます。バージョンの行は必須で、無いとプラグインは起動せず、ログに `version header required` と出ます。実行は常に新しい方のインタプリタです。
 
 ```is
 /// @ 1.2.1
@@ -16,6 +16,8 @@
   permissions: []
 }
 ```
+
+メタで必須なのは `name` と `version` だけです。`config` を書くと、その値が `Plugin:config` で読めます。
 
 ## 登録できるフック
 
@@ -29,7 +31,8 @@
 | `register_note_view_interruptor` | ノートを表示する直前 |
 | `register_note_post_interruptor` | ノートを投稿する直前 |
 | `register_page_view_interruptor` | ページを表示する直前 |
-| `register_command` | コマンドとして呼ばれたとき |
+
+コマンドパレットのコマンドは、フックではなく後述の `Nd:register_command` で足します。
 
 ::: warning interruptor は同期実行
 `*_interruptor` は同期的に呼ばれるため、中で確認ダイアログを出すことはできません。投稿をガードする用途では、確認を挟まずに自動で処理する（CW を自動で付ける、公開範囲を下げる）方式にします。
@@ -45,17 +48,26 @@
 | `Nd:http(url, options)` | 外部への HTTP リクエスト |
 | `Nd:on(event, handler)` | アプリ内のイベントを購読する |
 | `Nd:register_command(...)` | コマンドパレットにコマンドを足す |
+| `Plugin:open_url(url)` | URL を既定のブラウザで開く |
 
-`Nd:on` で購読できるイベントには、ノートの到着、通知の到着、アカウントの切り替え、カラムの増減、ストリーミングの接続状態、メモの作成・更新・削除、スキルの編集、テーマの適用があります。
+`Nd:on` で購読できるイベントは、ノートの到着、通知の到着、カラムの増減、ストリーミングの接続状態、メモの作成・更新・削除、スキルの編集、テーマの適用です。
+
+`Nd:register_command` で足したコマンドは、コマンドパレット・キーバインド・AI のツール・ローカル API のどこからでも呼べます。AI やローカル API から呼ばれたときの実効権限は「呼び出し元の権限 ∩ プラグインの権限」です。
 
 ## Misskey 互換 API
 
-`Mk:api` `Mk:dialog` `Mk:confirm` `Mk:toast` `Mk:save` `Mk:load` `Mk:remove` `Mk:url` `Mk:nyaize` が使えます。Misskey 本体のプラグインをそのまま持ち込む場合は、この範囲で書かれているかを確認してください。
+`Mk:api` `Mk:dialog` `Mk:confirm` `Mk:toast` `Mk:save` `Mk:load` `Mk:remove` `Mk:url` `Mk:nyaize` が使えます。Misskey 本体のプラグインをそのまま持ち込む場合は、この範囲で書かれているかを確認してください。`Mk:save` の値はファイルではなくアプリ内の保存領域に入り、[バックアップ](/docs/config/backup)には含まれません。
 
 ## 権限
 
-外部通信やノートの投稿など、影響のある操作には権限が要ります。メタヘッダの `permissions` に宣言し、導入時にユーザーが承認します。宣言していない操作は実行時に拒否されます。
+プラグインができることは、[権限設定](/docs/guide/ai#権限)の「プラグイン」の行で決まります。既定は読み取り中心の安全な範囲と外部への通信で、投稿などの書き込みは個別に許可します。`Nd:call` / `Nd:http` / `Mk:api` はいずれもこの設定で判定され、拒否された操作はプラグインカラムに拒否のバッジとして出ます。スキルの書き込みや AI への指示にあたる操作は、設定に関わらず常に拒否されます。
+
+メタヘッダの `permissions` は、ストアから更新したときに「新しく要求する権限」を示して再同意を取るための宣言です。
+
+## 保存場所
+
+設定フォルダの `plugins/` に、コード本体 `<slug>.is` とメタ情報 `<slug>.meta.json5` の 2 ファイルで保存されます。一覧はメタファイルから作られるので、`.is` だけを置いても読まれません。手で置くときは、開発者モードのエディタで新規作成してから中身を差し替えるのが確実です。ファイル名は表示名から作った slug（ストア由来なら storeId）で、参照はファイルの中の id で行われます。同じ id が重複すると後のものは読み飛ばされ、トーストで知らされます。
 
 ## 作る・配る
 
-AI カラムで「〇〇するプラグインを作って」と頼むのが最短です。手で書く場合は設定フォルダに置きます。作ったものは [MisStore](https://store.notedeck.io) で配布できます（[提出のしかた](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [書式](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md#プラグイン)）。
+AI カラムで「〇〇するプラグインを作って」と頼むのが最短です（先に MisStore の作者スキルを入れておきます）。作成と編集の入口は[開発者モード](/docs/#開発者モード)で開放されます。作ったものは [MisStore](https://store.notedeck.io) で配布できます（[提出のしかた](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [書式](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md#プラグイン)）。

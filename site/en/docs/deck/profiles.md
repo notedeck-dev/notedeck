@@ -1,5 +1,5 @@
 ---
-sourceHash: bf8edf26e679
+sourceHash: a9c742f4b4e2
 ---
 
 # Profiles
@@ -10,17 +10,19 @@ It is not the same as a "profile" in the sense of user information. In Japanese,
 
 ## When to use them
 
-- **Everyday** — home, notifications, chat
+- **Everyday** — home, notifications, messages
 - **Events** — a specific channel side by side with a hashtag search
-- **Work** — AI, memos, scratchpad, stream
+- **Work** — AI, memos, client search
 
 When what you want to see changes with the situation, you no longer have to add and remove columns each time.
 
 ## Switching and managing
 
-Just pick one from the profile list and the whole deck is swapped. Creating, duplicating, deleting and reordering profiles are done from there too.
+Just pick one from the list in the profile menu (single key `g`) and the whole deck is swapped. You can also switch directly with `Alt+1` to `Alt+9`, or from a [`notedeck://profile/<name>`](/en/docs/guide/links) link. Creating and deleting are done from the same menu; editing the name and other details happens in the profile editor.
 
-What gets saved is which columns are lined up, in what order and at what width. The [navbar](/en/docs/deck/navbar)'s button layout is independent of profiles and does not change when you switch. Accounts themselves are not tied to profiles; every account you have added is available in every profile.
+What gets saved is which columns are lined up, in what order and at what width, plus the position and size of popped-out OS windows. The [navbar](/en/docs/deck/navbar)'s button layout is independent of profiles and does not change when you switch. Accounts themselves are not tied to profiles; every account you have added is available in every profile.
+
+On first launch you start with a profile holding the default column layout.
 
 ## Relationship with windows
 

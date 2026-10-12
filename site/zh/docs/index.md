@@ -1,5 +1,5 @@
 ---
-sourceHash: 14d7254d7da0
+sourceHash: ac5f7065e02c
 ---
 
 # NoteDeck 是什么
@@ -11,6 +11,8 @@ NoteDeck 是一款以 **Deck** 形式使用 Misskey 的桌面 / 移动应用。�
 - **可以跨账户排列** — 为每个列分配不同的账户，或把所有账户的通知汇总到同一个列中
 - **刷过的帖子会留在本地** — 显示过的帖子会存入本地数据库，之后可以全文搜索
 - **可以使用操作系统的功能** — 全局热键、原生通知、系统托盘、拆分到独立窗口
+
+NoteDeck 是一个不自带服务器的“客户端”。账户要在 misskey.io 等 Misskey 服务器上创建，然后用该账户登录 NoteDeck。
 
 ::: info 应用界面暂不支持中文
 应用界面目前只提供日语和英语（翻译工作在 [#135](https://github.com/notedeck-dev/notedeck/issues/135) 中跟进）。默认跟随操作系统的语言，也可以在「外观（Appearance / アピアランス）」→「语言（Language / 表示言語）」中切换。本文档在按钮和菜单名称旁附上日语原文，方便你在界面上找到它们。
@@ -34,15 +36,24 @@ NoteDeck 是一款以 **Deck** 形式使用 Misskey 的桌面 / 移动应用。�
 - 想不注册账户先试试 → [不登录试用](/zh/docs/guest)
 - 想了解如何搭建界面 → [列与窗口](/zh/docs/deck/columns)
 - 想不用鼠标操作 → [键盘操作](/zh/docs/guide/keyboard)
+- 想接入 AI，或想了解独立进程的机制 → [与 AI 一起使用](/zh/docs/guide/ai) / [AI 的独立进程（notemaid）](/zh/docs/notemaid)
 - 想直接修改设置文件 → [设置文件](/zh/docs/config/files)
 
 ## 为什么叫它“IDE”
 
 NoteDeck 自称 Integrated Deck Environment（集成 Deck 环境）。正如编辑器内置了调试器和终端后就不再只是“写文本的地方”，NoteDeck 也不只是“读和写” Misskey 的工具。
 
-- 原样查看与服务器之间通信的[检查器](/zh/docs/deck/columns#工具类列)
+- 原样查看与服务器之间通信的[检查器](/zh/docs/deck/columns#面向开发者的列)
 - 从[商店](/zh/docs/guide/store)安装的插件、主题和小工具
 - 能把自己写的处理变成命令的 AiScript
 - 让 [AI](/zh/docs/guide/ai) 作为搭档常驻的机制
 
 即使不用这些，它也是一个完整的普通客户端；但越深入，它就越成为你自己的工具。
+
+## 开发者模式
+
+面向深入使用者的入口默认是隐藏的。在**关于 NoteDeck**（NoteDeck について / About）窗口中打开“开发者模式”（開発者モード），或在命令面板中执行“切换开发者模式”（開発者モードを切り替え），即可开放。
+
+开发者模式下会出现的有：API 控制台 / API 文档 / 流 / 草稿板 / 任务这几个列，帖子和通知的原始数据（Raw JSON），直接编辑设置文件原文的标签页，以及主题、插件、小工具、查询、技能的**创建与编辑**。如果只是从商店安装来用，就不需要开发者模式。
+
+隐藏的只是入口。已经放到 Deck 上的列，即使关闭开发者模式也会继续运行。AI 不在此范围内，始终显示。

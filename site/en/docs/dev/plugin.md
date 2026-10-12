@@ -1,5 +1,5 @@
 ---
-sourceHash: 351a0242008d
+sourceHash: ac3b7e39d353
 ---
 
 # Plugins
@@ -8,7 +8,7 @@ Plugins are extensions written in AiScript. They can add actions on notes and us
 
 ## Minimal example
 
-Start with a meta header. If you omit the AiScript version, the file is parsed by the old parser and the interruptors described below cannot be used.
+Start with the AiScript version and a meta header. The version line is required: without it the plugin does not start, and the log says `version header required`. Execution always uses the newer interpreter.
 
 ```is
 /// @ 1.2.1
@@ -20,6 +20,8 @@ Start with a meta header. If you omit the AiScript version, the file is parsed b
   permissions: []
 }
 ```
+
+Only `name` and `version` are required in the meta. If you write `config`, its values can be read with `Plugin:config`.
 
 ## Hooks you can register
 
@@ -33,7 +35,8 @@ Register hooks with `Plugin:register_*`. A plugin runs once when it is loaded, a
 | `register_note_view_interruptor` | Right before a note is displayed |
 | `register_note_post_interruptor` | Right before a note is posted |
 | `register_page_view_interruptor` | Right before a page is displayed |
-| `register_command` | It is invoked as a command |
+
+Command palette commands are added not with a hook but with `Nd:register_command`, described below.
 
 ::: warning Interruptors run synchronously
 `*_interruptor` hooks are called synchronously, so they cannot show a confirmation dialog. When guarding posts, handle things automatically without asking (add a CW automatically, lower the visibility).
@@ -49,17 +52,26 @@ Register hooks with `Plugin:register_*`. A plugin runs once when it is loaded, a
 | `Nd:http(url, options)` | An HTTP request to the outside |
 | `Nd:on(event, handler)` | Subscribe to events inside the app |
 | `Nd:register_command(...)` | Add a command to the command palette |
+| `Plugin:open_url(url)` | Open a URL in the default browser |
 
-Events you can subscribe to with `Nd:on` include notes arriving, notifications arriving, switching accounts, columns being added or removed, streaming connection state, memos being created, updated or deleted, skills being edited, and themes being applied.
+Events you can subscribe to with `Nd:on` are notes arriving, notifications arriving, columns being added or removed, streaming connection state, memos being created, updated or deleted, skills being edited, and themes being applied.
+
+A command added with `Nd:register_command` can be called from the command palette, keybindings, the AI's tools and the local API. When called from the AI or the local API, the effective permissions are "the caller's permissions ∩ the plugin's permissions".
 
 ## Misskey-compatible APIs
 
-`Mk:api` `Mk:dialog` `Mk:confirm` `Mk:toast` `Mk:save` `Mk:load` `Mk:remove` `Mk:url` `Mk:nyaize` are available. If you bring over a plugin from Misskey itself, check that it stays within this set.
+`Mk:api` `Mk:dialog` `Mk:confirm` `Mk:toast` `Mk:save` `Mk:load` `Mk:remove` `Mk:url` `Mk:nyaize` are available. If you bring over a plugin from Misskey itself, check that it stays within this set. Values saved with `Mk:save` go into the app's internal storage rather than a file, and are not included in [backups](/en/docs/config/backup).
 
 ## Permissions
 
-Operations with side effects, such as external requests or posting notes, need permissions. Declare them in `permissions` in the meta header, and the user approves them on install. Undeclared operations are rejected at run time.
+What plugins can do is decided by the "Plugins" row of the [permission settings](/en/docs/guide/ai#permissions). The default is a safe, mostly read-only range plus requests to the outside; writes such as posting are allowed individually. `Nd:call` / `Nd:http` / `Mk:api` are all judged by this setting, and rejected operations show up as a rejection badge in the Plugins column. Operations that amount to writing skills or instructing the AI are always rejected regardless of the setting.
+
+`permissions` in the meta header is a declaration used when updating from the store: it shows "newly requested permissions" and asks for your consent again.
+
+## Where they are stored
+
+Plugins are stored in `plugins/` in the settings folder as two files: the code `<slug>.is` and the metadata `<slug>.meta.json5`. The list is built from the meta files, so a `.is` on its own is not picked up. When placing one by hand, the reliable way is to create a new one in the developer-mode editor and then replace its contents. The file name is a slug made from the display name (or the storeId for store items), and references use the id inside the file. If the same id appears twice, the later one is skipped and a toast tells you.
 
 ## Make and share
 
-The quickest way is to ask an AI column "make a plugin that does X". To write one by hand, put it in the settings folder. You can distribute what you make on [MisStore](https://store.notedeck.io) ([how to submit](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [format](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md#プラグイン)).
+The quickest way is to ask an AI column "make a plugin that does X" (install the author skill from MisStore first). The entrance for creating and editing is opened by [developer mode](/en/docs/#developer-mode). You can distribute what you make on [MisStore](https://store.notedeck.io) ([how to submit](https://github.com/notedeck-dev/misstore/blob/main/CONTRIBUTING.md) / [format](https://github.com/notedeck-dev/misstore/blob/main/docs/registry-format.md#プラグイン)).

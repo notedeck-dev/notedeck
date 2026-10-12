@@ -1,5 +1,5 @@
 ---
-sourceHash: 2d7e9ad8f988
+sourceHash: 9397afb87422
 ---
 
 # Opening from links (notedeck://)
@@ -34,7 +34,7 @@ A column's id is written in the profile file under `profiles/` in the settings f
 
 ## Opening an account's screens
 
-The form `notedeck://<server>/...` opens a screen on that server. `<server>` is a host name like `misskey.io`, and you need to be logged in with an account on that server.
+The form `notedeck://<server>/...` opens a screen on that server. `<server>` is a host name like `misskey.io`. Opening a window requires being logged in with an account on that server. Columns are added even without an account, and kinds that support it become "All accounts" columns.
 
 ### Adding columns
 
@@ -48,7 +48,7 @@ The form `notedeck://<server>/...` opens a screen on that server. `<server>` is 
 | `notedeck://<server>/favorites` | Favorites |
 | `notedeck://<server>/mentions` | Mentions |
 | `notedeck://<server>/direct` | Direct |
-| `notedeck://<server>/chat` | Chat |
+| `notedeck://<server>/chat` | Messages (chat) |
 | `notedeck://<server>/announcements` | Announcements |
 | `notedeck://<server>/drive` | Drive |
 | `notedeck://<server>/gallery` | Gallery |
