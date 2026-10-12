@@ -324,9 +324,9 @@
   display: flex; align-items: center; justify-content: center;
   min-width: 0;
 }
+/* PNG は背景透過で葉が左上隅まで伸びているので、角丸を掛けると葉が切れる */
 .hero-icon {
   width: min(360px, 60vw); height: auto;
-  border-radius: 22%;
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.25));
   transform-origin: center;
   animation: hero-heartbeat 1.6s ease-in-out infinite;
