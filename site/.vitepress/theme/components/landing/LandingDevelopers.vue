@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from '../../i18n'
+import LandingFrame from './LandingFrame.vue'
 
 const { t } = useI18n()
 
@@ -14,17 +15,16 @@ const DOC_LINKS = [
 </script>
 
 <template>
-  <section id="dev" class="hub-section w-secondary">
-    <div class="section-head" data-fade>
-      <h2 class="section-title"><b class="u-line">{{ t.developers.title }}</b></h2>
-      <p class="section-desc">{{ t.developers.desc }}</p>
-    </div>
-    <div class="arch-grid" data-fade>
-      <div class="arch-box">
+  <LandingFrame id="dev" label="DEVELOPERS" side="left" :title="t.developers.title" :desc="t.developers.desc">
+    <!-- 縦 1 列の構成図: 手元の端末 (Tauri) → notecore → notecli。
+         Tauri と notecore の間は 2 経路で、左の縦線が「素通り (既定)」、
+         右が notemaid (任意、点線) を経由する「中継」 -->
+    <div class="arch-grid">
+      <div class="arch-box acrylic">
         <div class="arch-label">{{ t.developers.device.label }}</div>
         <div class="arch-title">Tauri v2</div>
         <div class="arch-desc">{{ t.developers.device.desc }}</div>
-        <div class="arch-layer acrylic">
+        <div class="arch-layer">
           <div class="arch-label">{{ t.developers.frontend.label }}</div>
           <div class="arch-title">Vue 3 + Pinia</div>
           <div class="arch-desc">{{ t.developers.frontend.desc }}</div>
@@ -52,11 +52,11 @@ const DOC_LINKS = [
           </div>
         </div>
       </div>
-      <div class="arch-box">
+      <div class="arch-box acrylic">
         <div class="arch-label">{{ t.developers.core.label }}</div>
         <div class="arch-title">notecore</div>
         <div class="arch-desc">{{ t.developers.core.desc }}</div>
-        <div class="arch-layer acrylic arch-highlight">
+        <div class="arch-layer arch-highlight">
           <div class="arch-label">{{ t.developers.client.label }}</div>
           <div class="arch-title">notecli</div>
           <div class="arch-desc">{{ t.developers.client.desc }}</div>
@@ -67,18 +67,10 @@ const DOC_LINKS = [
       </div>
     </div>
 
-    <div class="fork-cta" data-fade>
-      <h3>{{ t.developers.forkTitle }}</h3>
-      <p v-html="t.developers.forkBodyHtml" />
-      <a :href="`${REPO}/issues/new?template=fork_support.yml`" class="btn btn-accent">
-        {{ t.developers.forkButton }}
-      </a>
-    </div>
-
-    <div class="arch-tags arch-doc-links" data-fade>
+    <div class="arch-tags arch-doc-links">
       <a v-for="link in DOC_LINKS" :key="link.file" :href="`${REPO}/blob/main/${link.file}`">
         {{ link.text }}
       </a>
     </div>
-  </section>
+  </LandingFrame>
 </template>
