@@ -10,10 +10,10 @@
       #nd-splash.nd-splash-leaving{opacity:0}
       #nd-splash.nd-splash-leaving svg{transform:scale(.8);opacity:0}
       #nd-splash svg{transition:transform .3s cubic-bezier(.16,1,.3,1),opacity .2s ease-out}
-      #nd-splash svg{animation:nd-heartbeat 1.4s cubic-bezier(.4,0,.2,1) infinite,nd-heartglow 1.4s cubic-bezier(.4,0,.2,1) infinite;transform-origin:center;will-change:transform,filter}
-      /* 待機: 心拍 lub-dub (本物の心臓リズム) + ビート同期グロー */
-      @keyframes nd-heartbeat{0%,55%,100%{transform:scale(1)}10%{transform:scale(1.18)}22%{transform:scale(1)}32%{transform:scale(1.1)}44%{transform:scale(1)}}
-      @keyframes nd-heartglow{0%,55%,100%{filter:none}10%,32%{filter:drop-shadow(0 0 14px #aad6359a)}}
+      #nd-splash svg{animation:nd-heartbeat 2.4s ease-in-out infinite,nd-heartglow 2.4s ease-in-out infinite;transform-origin:50% 81.25%;will-change:transform,filter}
+      /* 待機: 二拍 (大・小) + 休み。芽のモチーフなので均一な scale ではなく、根元 (m の下端 = 416/512) から上へ伸ばす。notedeck.io / misstore のヒーローと同じ動き + ビート同期グロー */
+      @keyframes nd-heartbeat{0%,50%,100%{transform:scale(1)}12%{transform:scaleY(1.07) scaleX(.985)}24%{transform:scale(1)}36%{transform:scaleY(1.045) scaleX(.99)}}
+      @keyframes nd-heartglow{0%,50%,100%{filter:none}12%,36%{filter:drop-shadow(0 0 14px #aad6359a)}}
       @media(prefers-reduced-motion:reduce){#nd-splash svg{animation:none;transition:none}#nd-splash{transition:none}}
     </style>
   </head>

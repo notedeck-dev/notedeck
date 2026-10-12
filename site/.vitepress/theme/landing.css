@@ -328,15 +328,16 @@
 .hero-icon {
   width: min(360px, 60vw); height: auto;
   filter: drop-shadow(0 24px 40px rgba(0, 0, 0, 0.25));
-  transform-origin: center;
-  animation: hero-heartbeat 1.6s ease-in-out infinite;
+  transform-origin: 50% 100%;
+  animation: hero-heartbeat 2.4s ease-in-out infinite;
 }
-/* 二拍 (大・小) のあとひと休み。心電図の lub-dub と同じ間 */
+/* 二拍 (大・小) のあとひと休み (HEARTBEAT)。均一な scale ではなく根元から
+ * 上へ伸ばし、拍のたびに芽が育つように見せる */
 @keyframes hero-heartbeat {
   0%, 100% { transform: scale(1); }
-  12%      { transform: scale(1.08); }
+  12%      { transform: scaleY(1.07) scaleX(0.985); }
   24%      { transform: scale(1); }
-  36%      { transform: scale(1.05); }
+  36%      { transform: scaleY(1.045) scaleX(0.99); }
   50%      { transform: scale(1); }
 }
 @media (max-width: 900px) {
