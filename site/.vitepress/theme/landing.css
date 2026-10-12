@@ -527,7 +527,8 @@
 }
 @media (max-width: 900px) { .intro-desc { max-width: none; } }
 
-/* Hub .swiper: acrylic の枠にスライドを横並び、中央スナップ */
+/* Hub .swiper: acrylic の枠にスライドを横並び、中央スナップ。
+ * 高さを揃え、幅は画像の縦横比に任せる (デスクトップは横長、スマホは縦長) */
 .intro-gallery {
   position: relative;
   padding: var(--space-2lg);
@@ -538,30 +539,19 @@
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-  /* 1 枚だけのときは中央、複数のときは端から */
+  /* 収まるときは中央、はみ出すときは端から */
   justify-content: safe center;
 }
 .intro-track::-webkit-scrollbar { display: none; }
 .intro-slide {
-  flex: 0 0 min(700px, 100%);
+  flex: 0 0 auto;
+  height: min(520px, 60vw);
   scroll-snap-align: center;
   border-radius: var(--radius);
   overflow: clip;
   user-select: none;
 }
-.intro-slide img { display: block; width: 100%; height: auto; }
-.intro-nav {
-  position: absolute; top: 50%;
-  transform: translateY(-50%);
-  width: 44px; height: 44px;
-  display: grid; place-content: center;
-  border: none; border-radius: var(--radius-pill);
-  background: var(--surface); color: var(--text);
-  box-shadow: var(--shadow-btn);
-  cursor: pointer;
-}
-.intro-nav-prev { left: var(--space-xs); }
-.intro-nav-next { right: var(--space-xs); }
+.intro-slide img { display: block; height: 100%; width: auto; }
 @media (max-width: 800px) { .intro-gallery { padding: var(--space-md); } }
 
 /* Hub .introductionTip */

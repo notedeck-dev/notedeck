@@ -4,35 +4,35 @@ import { useI18n } from '../../i18n'
 
 const { t } = useI18n()
 
-/** README が載せている最新スクショ。ここに書いてある URL で先に塗る。 */
-const DEFAULT_SCREENSHOT =
-  'https://github.com/user-attachments/assets/610f1403-471b-4298-abd9-a1f92cc5942d'
+type Shot = { src: string; width: number; height: number; alt: string }
 
-const shots = ref([DEFAULT_SCREENSHOT])
+/** README が載せている最新のデスクトップ版スクショ。ここに書いてある URL で先に塗る。 */
+const DESKTOP_SCREENSHOT =
+  'https://github.com/user-attachments/assets/610f1403-471b-4298-abd9-a1f92cc5942d'
+/** スマホ版は #1154 のコメントに貼ったもの */
+const MOBILE_SCREENSHOT =
+  'https://github.com/user-attachments/assets/3019c26d-414e-406e-836d-8fada5fc14a9'
+
+const shots = ref<Shot[]>([
+  { src: DESKTOP_SCREENSHOT, width: 2376, height: 1706, alt: t.value.hero.screenshotAlt },
+  { src: MOBILE_SCREENSHOT, width: 836, height: 1500, alt: t.value.hero.screenshotMobileAlt },
+])
 
 onMounted(async () => {
-  // README が別のスクショに差し替わっていたときだけ追従する
+  // README のデスクトップ版が別のスクショに差し替わっていたときだけ追従する
   try {
     const res = await fetch(
       'https://raw.githubusercontent.com/notedeck-dev/notedeck/main/README.md',
     )
     const md = await res.text()
-    const found = [
-      ...md.matchAll(/<img[^>]+src="(https:\/\/github\.com\/user-attachments\/assets\/[^"]+)"/g),
-    ].map((m) => m[1])
-    if (found.length > 0) shots.value = found
+    const found = md.match(
+      /<img[^>]+src="(https:\/\/github\.com\/user-attachments\/assets\/[^"]+)"/,
+    )
+    if (found) shots.value[0].src = found[1]
   } catch {
     /* 取れなければ既定のスクショのまま */
   }
 })
-
-const track = ref<HTMLElement | null>(null)
-function scrollBy(direction: 1 | -1) {
-  const el = track.value
-  if (!el) return
-  const slide = el.querySelector<HTMLElement>('.intro-slide')
-  el.scrollBy({ left: (slide?.offsetWidth ?? el.clientWidth) * direction, behavior: 'smooth' })
-}
 </script>
 
 <template>
@@ -50,27 +50,20 @@ function scrollBy(direction: 1 | -1) {
       </div>
     </div>
     <div data-fade>
+      <!-- 高さを揃えて横に並べる。横長 (デスクトップ) と縦長 (スマホ) が混ざるので幅は画像任せ -->
       <div class="intro-gallery acrylic w-secondary">
-        <div ref="track" class="intro-track">
-          <figure v-for="(src, i) in shots" :key="src" class="intro-slide">
+        <div class="intro-track">
+          <figure v-for="(shot, i) in shots" :key="shot.src" class="intro-slide">
             <img
-              :src="src"
-              :alt="t.hero.screenshotAlt"
-              width="2376"
-              height="1706"
+              :src="shot.src"
+              :alt="shot.alt"
+              :width="shot.width"
+              :height="shot.height"
               :loading="i === 0 ? 'eager' : 'lazy'"
               decoding="async"
             />
           </figure>
         </div>
-        <template v-if="shots.length > 1">
-          <button type="button" class="intro-nav intro-nav-prev" aria-label="prev" @click="scrollBy(-1)">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6" /></svg>
-          </button>
-          <button type="button" class="intro-nav intro-nav-next" aria-label="next" @click="scrollBy(1)">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-          </button>
-        </template>
       </div>
     </div>
   </section>

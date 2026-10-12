@@ -21,6 +21,7 @@ const ja = {
     download: 'ダウンロード',
     tryGuest: 'ログインせずに試す',
     screenshotAlt: 'NoteDeck のデッキ画面 — カラムを横に並べたレイアウト',
+    screenshotMobileAlt: 'スマホ版の NoteDeck — カラムを 1 枚ずつ表示',
     /** ヒーロー上端のティッカーに流すカラムの名前。正本は BuiltinColumnType */
     columns: [
       'ホーム',

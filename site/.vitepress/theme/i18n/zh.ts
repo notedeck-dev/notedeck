@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: c98b70ba755c
+// sourceHash: ec547cb3e0bf
 
 import type { Messages } from './ja'
 
@@ -22,6 +22,7 @@ const zh: Messages = {
     download: '下载',
     tryGuest: '不登录试用',
     screenshotAlt: 'NoteDeck 的 Deck 界面 — 多个列横向排列的布局',
+    screenshotMobileAlt: '手机版 NoteDeck — 每次显示一个列',
     columns: [
       '首页',
       '本地',

@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: c98b70ba755c
+// sourceHash: ec547cb3e0bf
 
 import type { Messages } from './ja'
 
@@ -22,6 +22,7 @@ const en: Messages = {
     download: 'Download',
     tryGuest: 'Try without logging in',
     screenshotAlt: 'The NoteDeck deck — columns laid out side by side',
+    screenshotMobileAlt: 'NoteDeck on a phone — one column at a time',
     columns: [
       'Home',
       'Local',

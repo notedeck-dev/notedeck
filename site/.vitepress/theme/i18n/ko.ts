@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: c98b70ba755c
+// sourceHash: ec547cb3e0bf
 
 import type { Messages } from './ja'
 
@@ -22,6 +22,7 @@ const ko: Messages = {
     download: '다운로드',
     tryGuest: '로그인 없이 써 보기',
     screenshotAlt: 'NoteDeck의 덱 화면 — 칼럼을 가로로 나란히 배치한 레이아웃',
+    screenshotMobileAlt: '스마트폰용 NoteDeck — 칼럼을 하나씩 표시',
     columns: [
       '홈',
       '로컬',
