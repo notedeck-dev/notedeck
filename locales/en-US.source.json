@@ -402,6 +402,7 @@
   "_capabilities.column.move": "6ec6a8c2a455",
   "_capabilities.column.remove": "dd3a5baf37d1",
   "_capabilities.column.updateSettings": "b89b3badf3f4",
+  "_capabilities.commands.list": "0132d0ae926e",
   "_capabilities.drafts.create": "472933863fea",
   "_capabilities.drafts.delete": "9c61ed26a6eb",
   "_capabilities.drafts.list": "35630f47dd05",

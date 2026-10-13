@@ -29,9 +29,10 @@ describe('keybinds capabilities — declaration', () => {
 })
 
 describe('KEYBINDS_BUILTIN_CAPABILITIES', () => {
-  it('contains list / set / reset / resetAll', () => {
+  it('contains commands.list and keybinds list / set / reset / resetAll', () => {
     const ids = KEYBINDS_BUILTIN_CAPABILITIES.map((c) => c.id).sort()
     expect(ids).toEqual([
+      'commands.list',
       'keybinds.list',
       'keybinds.reset',
       'keybinds.resetAll',

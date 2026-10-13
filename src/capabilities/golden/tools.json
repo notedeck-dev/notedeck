@@ -650,6 +650,14 @@
       }
     },
     {
+      "name": "commands_list",
+      "description": "コマンドパレットに並ぶコマンドの表示名・アイコン・登録元・現在のショートカットを返す。 keybinds.list の commandId を人が読める名前に引くときに使う。 表示名は今の UI 言語。 source は builtin (本体) / task (タスク) / プラグインの登録元 (storeId か local:<installId>)。",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      }
+    },
+    {
       "name": "drafts_create",
       "description": "新規下書きを作成する。投稿はされず、サーバーに下書きとして保存される。 text 必須。scheduledAt + isActuallyScheduled で予約投稿としても保存可能。",
       "input_schema": {

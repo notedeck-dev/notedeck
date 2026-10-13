@@ -42,6 +42,7 @@ describe('ALL_BUILTIN_CAPABILITIES', () => {
         'column.move',
         'column.remove',
         'column.updateSettings',
+        'commands.list',
         'sidebar.toggle',
         'drafts.create',
         'drafts.delete',
@@ -240,6 +241,7 @@ const WITHOUT_PERMISSIONS = [
   // HEARTBEAT の応答契約 (報告を返すだけ。HEARTBEAT の実行中以外は記録しない)
   'heartbeat.report',
   'aiscript.validate',
+  'commands.list',
   'keybinds.list',
   'meta.activeSkills',
   'meta.config',

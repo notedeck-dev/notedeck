@@ -1644,6 +1644,19 @@
         description: '{ status: number, headers: object, body: string }',
       },
     },
+    'commands.list': {
+      label: 'コマンド一覧',
+      category: 'general',
+      icon: 'ti-command',
+      permissions: [],
+      cheap: true,
+      exec: 'device',
+      description: 'コマンドパレットに並ぶコマンドの表示名・アイコン・登録元・現在のショートカットを返す。 keybinds.list の commandId を人が読める名前に引くときに使う。 表示名は今の UI 言語。 source は builtin (本体) / task (タスク) / プラグインの登録元 (storeId か local:<installId>)。',
+      returns: {
+        type: 'array',
+        description: '各要素は { id, label, icon, source, shortcuts: Shortcut[] }',
+      },
+    },
     'keybinds.list': {
       label: 'キーバインド一覧',
       category: 'general',

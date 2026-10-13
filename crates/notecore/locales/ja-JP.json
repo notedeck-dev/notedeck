@@ -474,6 +474,9 @@
     "http": {
       "fetch": "外部 HTTP リクエスト"
     },
+    "commands": {
+      "list": "コマンド一覧"
+    },
     "keybinds": {
       "list": "キーバインド一覧",
       "reset": "キーバインドを default に戻す",
