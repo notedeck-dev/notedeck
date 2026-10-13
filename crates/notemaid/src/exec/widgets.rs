@@ -101,7 +101,15 @@ pub async fn list(core: &Core) -> Result<Value> {
 
 pub fn read(core: &Core, p: &Value) -> Result<Value> {
     let w = require(core, "widgets.read", p)?;
-    Ok(json!({ "installId": w.id, "name": w.name(), "src": w.src, "autoRun": w.auto_run() }))
+    Ok(json!({
+        "installId": w.id,
+        "name": w.name(),
+        "src": w.src,
+        "autoRun": w.auto_run(),
+        "storeId": w.str("storeId"),
+        "storeSha512": w.str("storeSha512"),
+        "storeVersion": w.str("storeVersion"),
+    }))
 }
 
 pub fn history(core: &Core, p: &Value) -> Result<Value> {
@@ -421,7 +429,7 @@ mod tests {
     #[tokio::test]
     async fn read_write_uninstall_and_revert() {
         let (_d, core, base) = temp_core();
-        put(&base, "w.meta.json5", "{ installId: 'w', name: 'W', autoRun: false, storeId: 'clock', global: true, createdAt: 1, updatedAt: 1 }");
+        put(&base, "w.meta.json5", "{ installId: 'w', name: 'W', autoRun: false, storeId: 'clock', storeSha512: 'h', storeVersion: '1.0.0', global: true, createdAt: 1, updatedAt: 1 }");
         put(&base, "w.is", "a");
         put(&base, "w2.meta.json5", "{ installId: 'w2', name: 'W2', autoRun: true, global: false, installedFor: ['h:u'], createdAt: 2, updatedAt: 2 }");
         put(&base, "w2.is", "b");
@@ -433,6 +441,11 @@ mod tests {
         assert_eq!(
             read(&core, &json!({"installId": "w2"})).unwrap()["autoRun"],
             true
+        );
+        let w = read(&core, &json!({"installId": "w"})).unwrap();
+        assert_eq!(
+            (&w["storeId"], &w["storeSha512"], &w["storeVersion"]),
+            (&json!("clock"), &json!("h"), &json!("1.0.0"))
         );
         assert!(read(&core, &json!({"installId": "x"}))
             .unwrap_err()

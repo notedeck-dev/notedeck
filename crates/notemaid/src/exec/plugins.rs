@@ -102,6 +102,9 @@ pub fn read(core: &Core, p: &Value) -> Result<Value> {
         "active": item.active(),
         "permissions": item.permissions(),
         "configData": item.config_data(),
+        "storeId": item.str("storeId"),
+        "storeSha512": item.str("storeSha512"),
+        "storeVersion": item.str("storeVersion"),
     }))
 }
 
@@ -428,6 +431,9 @@ mod tests {
         assert_eq!(r["src"], "let x = 1");
         assert_eq!(r["active"], false);
         assert_eq!(r["configData"], json!({ "k": 1 }));
+        // ローカル作成は出自が無い (null で返す)
+        assert_eq!(r["storeId"], Value::Null);
+        assert_eq!(r["storeSha512"], Value::Null);
         let l = list(&core).unwrap();
         assert_eq!(l[0]["author"], Value::Null);
         assert_eq!(l[0]["storeId"], Value::Null);

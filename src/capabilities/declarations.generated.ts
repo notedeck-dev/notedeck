@@ -76,6 +76,7 @@ export type CapabilityId =
   | "column.move"
   | "column.remove"
   | "column.updateSettings"
+  | "commands.list"
   | "drafts.create"
   | "drafts.delete"
   | "drafts.list"
@@ -254,6 +255,7 @@ export const CAPABILITY_IDS: readonly CapabilityId[] = [
   "column.move",
   "column.remove",
   "column.updateSettings",
+  "commands.list",
   "drafts.create",
   "drafts.delete",
   "drafts.list",
@@ -1013,7 +1015,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "device",
     description: "現在フォーカスされているカラム情報を返す。なければ { column: null }。column.list より軽量で、AI が「今ユーザーが見てる場所」を 1 呼び出しで把握できる。",
     params: {},
-    returns: {"type":"object","description":"{ column: { id, type, name, accountId, tl?, query?, listId?, ... } | null }"},
+    returns: {"type":"object","description":"{ column: { id, type, name, accountId, width, tl?, query?, listId?, antennaId?, channelId?, clipId?, userId?, roleId?, flashId?, pageId?, queryIds? } | null }"},
   },
   "column.add": {
     id: "column.add",
@@ -1057,7 +1059,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "device",
     description: "現在 active なカラム内で focus 中のノートを返す。未 focus / activeカラムが none の場合は { note: null }。AI Actions が「これ翻訳」のような操作で使う。",
     params: {},
-    returns: {"type":"object","description":"{ columnId, noteId, accountId, note: { id, text, userId, ... } } | { note: null }"},
+    returns: {"type":"object","description":"{ columnId, noteId, accountId, note: { id, text, userId, username, host, createdAt, cw, renoteId, replyId } } | { note: null }。host はローカルユーザーなら null"},
   },
   "column.list": {
     id: "column.list",
@@ -1077,9 +1079,9 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "device",
-    description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。",
+    description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 queryIds は適用中のカラムクエリの id。 カラムの種類と取得元を作り直す材料にはなるが、検索の絞り込み・ウィジェットの配置・カラム内のスクリプトなどは含まないので、構成をそのまま復元できるとは限らない。",
     params: {},
-    returns: {"type":"array","description":"DeckColumn 軽量 projection の配列 (id / type / name / accountId / accountHost)"},
+    returns: {"type":"array","description":"DeckColumn projection の配列 (id / type / name / accountId / accountHost / width と、設定されているときだけ tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds)"},
   },
   "column.move": {
     id: "column.move",
@@ -1146,6 +1148,28 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     description: "既存カラムの表示プロパティ (name / width / query / soundMuted) を更新する。 identity 系 (type / accountId / listId 等) は触れない (= AI 経路で塞ぐ)。",
     params: {"columnId":{"type":"string","description":"対象 columnId"},"name":{"type":"string","description":"カラム表示名 (空文字でリセット)","optional":true},"width":{"type":"number","description":"カラム幅 (px)","optional":true},"query":{"type":"string","description":"search カラムなどの検索クエリ","optional":true},"soundMuted":{"type":"boolean","description":"カラム単位のサウンドミュート","optional":true}},
     returns: {"type":"object","description":"{ updated: true, columnId, applied: 適用したフィールド名の配列 }"},
+  },
+  "commands.list": {
+    id: "commands.list",
+    label: "コマンド一覧",
+    category: "general",
+    icon: "ti-command",
+    permissions: [],
+    aiTool: true,
+    confirm: false,
+    actsAsAccount: false,
+    cheap: true,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "device",
+    description: "コマンドパレットに並ぶコマンドの表示名・アイコン・登録元・現在のショートカットを返す。 keybinds.list の commandId を人が読める名前に引くときに使う。 表示名は今の UI 言語。 source は builtin (本体) / task (タスク) / プラグインの登録元 (storeId か local:<installId>)。",
+    params: {},
+    returns: {"type":"array","description":"各要素は { id, label, icon, source, shortcuts: Shortcut[] }"},
   },
   "drafts.create": {
     id: "drafts.create",
@@ -2113,7 +2137,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "Misskey にノートを投稿する。text 必須。visibility のデフォルトは public。 投稿前に確認モーダルが出る。 別サーバーから投稿するときは accountId を指定する。",
     params: {"text":{"type":"string","description":"投稿本文 (空文字は不可)"},"cw":{"type":"string","description":"CW (内容警告)。空文字なし","optional":true},"visibility":{"type":"string","description":"公開範囲: public / home / followers / specified (default: public)","optional":true,"enum":["public","home","followers","specified"]},"replyId":{"type":"string","description":"リプライ先の noteId","optional":true},"renoteId":{"type":"string","description":"引用 / リノートの対象 noteId (text 空ならただのリノート)","optional":true},"accountId":{"type":"string","description":"どのアカウントで実行するか。未指定なら呼び出し文脈のアカウント (per-account の AI カラムならそのアカウント)。全アカウントのカラムや HEARTBEAT には文脈アカウントが無いので、`account.list` か `<currentColumn>.accountId` から選んで必ず渡す。","optional":true}},
-    returns: {"type":"object","description":"投稿された note projection (id / userId / username / text / createdAt)"},
+    returns: {"type":"object","description":"投稿された note projection (id / userId / username / text / createdAt / replyId / renoteId)"},
   },
   "notes.delete": {
     id: "notes.delete",
@@ -2199,7 +2223,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
+    description: "キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt / replyId / renoteId) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
     params: {"query":{"type":"string","description":"検索キーワード (空文字は不可)"},"limit":{"type":"number","description":"取得件数 (1-100, default 10)","optional":true},"untilId":{"type":"string","description":"この ID より前のノートを取得 (ページング用)。前回呼び出しの最後のノートの id を渡す。","optional":true},"accountId":{"type":"string","description":"どのアカウントで実行するか。未指定なら呼び出し文脈のアカウント (per-account の AI カラムならそのアカウント)。全アカウントのカラムや HEARTBEAT には文脈アカウントが無いので、`account.list` か `<currentColumn>.accountId` から選んで必ず渡す。","optional":true}},
     returns: {"type":"array","description":"ノート projection の配列"},
   },
@@ -2223,7 +2247,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "手元に貯めたノート (自分の画面に流れてきたもの) を、サーバーとアカウントを 跨いでまとめて検索する。「先週〇〇の話をしていた人は誰か」のような、 サーバー検索では引けない過去の記憶に答えるための道具。query / author / since / until / hasFiles は全部任意で、AND で絞る (全部省略すると新しい順に 並べるだけ)。既定では公開範囲が public のノートだけを返す。 結果は note projection に accountId (どのアカウントで見たか) と serverHost (そのサーバー) を足したもの。同じノートを複数サーバーで見ていれば複数行になる。 続きを取るときは最後のノートの createdAt を until に渡して再呼び出し。",
     params: {"query":{"type":"string","description":"本文の検索語 (部分一致)。省略可","optional":true},"author":{"type":"string","description":"投稿者。`name` または `name@host`。省略可","optional":true},"since":{"type":"string","description":"この日時 (ISO 8601) 以降。省略可","optional":true},"until":{"type":"string","description":"この日時 (ISO 8601) 以前。ページングにも使う。省略可","optional":true},"hasFiles":{"type":"boolean","description":"true = 添付あり、false = 添付なし。省略時は問わない","optional":true},"includePrivate":{"type":"boolean","description":"フォロワー限定・ダイレクトも含める。既定 false (public だけ)。 ユーザーが明示的に求めたときだけ true にする","optional":true},"accountIds":{"type":"array","description":"検索対象のアカウント ID 列 (account.list で得られる)。省略時は全アカウント","optional":true},"limit":{"type":"number","description":"取得件数 (1-100, default 10)","optional":true}},
-    returns: {"type":"array","description":"ノート projection (id / userId / username / text / createdAt) + accountId / serverHost の配列"},
+    returns: {"type":"array","description":"ノート projection (id / userId / username / text / createdAt / replyId / renoteId) + accountId / serverHost の配列"},
   },
   "notes.show": {
     id: "notes.show",
@@ -2245,7 +2269,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "noteId で 1 件のノートを取得する。リプライ先や引用元の本文を見たい ときに使う。戻り値は単一の note projection (配列ではない)。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
     params: {"noteId":{"type":"string","description":"Misskey 内部の note ID"},"accountId":{"type":"string","description":"どのアカウントで実行するか。未指定なら呼び出し文脈のアカウント (per-account の AI カラムならそのアカウント)。全アカウントのカラムや HEARTBEAT には文脈アカウントが無いので、`account.list` か `<currentColumn>.accountId` から選んで必ず渡す。","optional":true}},
-    returns: {"type":"object","description":"note projection (id / userId / username / text / createdAt)"},
+    returns: {"type":"object","description":"note projection (id / userId / username / text / createdAt / replyId / renoteId)"},
   },
   "notes.timeline": {
     id: "notes.timeline",
@@ -2353,7 +2377,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt 等の projection が返る。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。",
+    description: "指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt / username / noteText の projection が返る (Misskey の通知は 1 件ごとの既読を持たないので、未読は返さない)。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。",
     params: {"limit":{"type":"number","description":"取得件数 (1-100, default 10)","optional":true},"untilId":{"type":"string","description":"この ID より前の通知を取得 (ページング用)。前回呼び出しの最後の通知の id を渡す。","optional":true},"accountId":{"type":"string","description":"どのアカウントで実行するか。未指定なら呼び出し文脈のアカウント (per-account の AI カラムならそのアカウント)。全アカウントのカラムや HEARTBEAT には文脈アカウントが無いので、`account.list` か `<currentColumn>.accountId` から選んで必ず渡す。","optional":true}},
     returns: {"type":"array","description":"通知 projection の配列"},
   },
@@ -2663,7 +2687,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 installId のプラグインの AiScript ソースを返す。",
     params: {"installId":{"type":"string","description":"対象プラグインの installId (plugins.list で取得)"}},
-    returns: {"type":"object","description":"{ installId, name, version, src, active, permissions, configData }"},
+    returns: {"type":"object","description":"{ installId, name, version, src, active, permissions, configData, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "plugins.revert": {
     id: "plugins.revert",
@@ -2861,7 +2885,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 id の名前付きクエリのソース (AiScript の式) を返す。",
     params: {"id":{"type":"string","description":"対象クエリの id (queries.list で取得)"}},
-    returns: {"type":"object","description":"{ id, name, description?, src, active }"},
+    returns: {"type":"object","description":"{ id, name, description?, src, active, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "queries.revert": {
     id: "queries.revert",
@@ -3191,7 +3215,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 id の skill の markdown 本文を返す。",
     params: {"id":{"type":"string","description":"対象 skill の id (skills.list で取得)"}},
-    returns: {"type":"object","description":"{ id, name, body, mode }"},
+    returns: {"type":"object","description":"{ id, name, body, mode, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "skills.replaceSection": {
     id: "skills.replaceSection",
@@ -3453,9 +3477,9 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "device",
-    description: "インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。",
-    params: {"id":{"type":"string","description":"適用するテーマの id (themes.list で取得)"},"mode":{"type":"string","description":"明示的に dark / light どちらの slot に適用するか。省略時はテーマ自体の base を使う","optional":true,"enum":["dark","light"]}},
-    returns: {"type":"object","description":"`{ applied: boolean, id, mode }`"},
+    description: "インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。 accountId を渡すとそのアカウントのカラムだけに適用する (アカウント別の配色。省略時はデッキ全体)。",
+    params: {"id":{"type":"string","description":"適用するテーマの id (themes.list で取得)"},"mode":{"type":"string","description":"明示的に dark / light どちらの slot に適用するか。省略時はテーマ自体の base を使う","optional":true,"enum":["dark","light"]},"accountId":{"type":"string","description":"このアカウントのカラムだけに適用する。省略時はデッキ全体 (呼び出し元のアカウントでは補わない)","optional":true}},
+    returns: {"type":"object","description":"`{ applied: boolean, id, mode, accountId? }`"},
   },
   "themes.create": {
     id: "themes.create",
@@ -3587,7 +3611,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。 themes.update で差分編集する前の現状把握に使う。",
     params: {"id":{"type":"string","description":"対象テーマの id (themes.list で取得)"}},
-    returns: {"type":"object","description":"{ id, name, base, props: Record<string,string> }"},
+    returns: {"type":"object","description":"{ id, name, base, props: Record<string,string>, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "themes.revert": {
     id: "themes.revert",
@@ -3783,8 +3807,8 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "core",
-    description: "username (+ 任意で host) から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。",
-    params: {"username":{"type":"string","description":"username (先頭の `@` は不要)"},"host":{"type":"string","description":"リモートホスト (例: `yami.ski`)。同インスタンス内ユーザーなら省略。","optional":true},"accountId":{"type":"string","description":"どのアカウントの adapter で lookup するか。未指定なら active アカウント。 別サーバーのカラムを操作中なら `<currentColumn>.accountId` を渡す。","optional":true}},
+    description: "username (+ 任意で host) か userId から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 ノートの userId から投稿者を引くときは userId を渡す (host が要らない)。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。",
+    params: {"username":{"type":"string","description":"username (先頭の `@` は不要)。userId を渡すときは省略","optional":true},"userId":{"type":"string","description":"Misskey 内部の user ID。指定すると username / host より優先する","optional":true},"host":{"type":"string","description":"リモートホスト (例: `yami.ski`)。同インスタンス内ユーザーなら省略。","optional":true},"accountId":{"type":"string","description":"どのアカウントの adapter で lookup するか。未指定なら active アカウント。 別サーバーのカラムを操作中なら `<currentColumn>.accountId` を渡す。","optional":true}},
     returns: {"type":"object","description":"NormalizedUser (id / username / host / name / avatarUrl 等)"},
   },
   "user.mute": {
@@ -3805,9 +3829,9 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: ["userId"],
     exec: "device",
-    description: "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。",
-    params: {"userId":{"type":"string","description":"対象 userId (user.lookup / search で取得)"},"accountId":{"type":"string","description":"操作元アカウント。未指定なら active。","optional":true}},
-    returns: {"type":"object","description":"{ muted: true, userId }"},
+    description: "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。 expiresAt を渡すとその時刻に自動で解除される (「24 時間だけ」など)。",
+    params: {"userId":{"type":"string","description":"対象 userId (user.lookup / search で取得)"},"expiresAt":{"type":"string","description":"解除する時刻 (ISO 8601、例: 2026-10-14T09:00:00+09:00)。未来の時刻に限る。省略時は無期限","optional":true},"accountId":{"type":"string","description":"操作元アカウント。未指定なら active。","optional":true}},
+    returns: {"type":"object","description":"{ muted: true, userId, expiresAt? }"},
   },
   "user.renoteMute": {
     id: "user.renoteMute",
@@ -4071,7 +4095,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 installId のウィジェットの AiScript ソースを返す。",
     params: {"installId":{"type":"string","description":"対象ウィジェットの installId (widgets.list で取得)"}},
-    returns: {"type":"object","description":"{ installId, name, src, autoRun }"},
+    returns: {"type":"object","description":"{ installId, name, src, autoRun, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "widgets.revert": {
     id: "widgets.revert",

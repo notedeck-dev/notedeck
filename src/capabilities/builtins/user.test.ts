@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  parseMuteExpiresAt,
   USER_BUILTIN_CAPABILITIES,
   userLookupCapability,
   userSearchCapability,
@@ -13,9 +14,10 @@ describe('user.lookup capability', () => {
     expect(userLookupCapability.signature?.returns?.type).toBe('object')
   })
 
-  it('marks username as required and host as optional', () => {
+  it('accepts either username (+ host) or userId, so all are optional', () => {
     const params = userLookupCapability.signature?.params
-    expect(params?.username?.optional).not.toBe(true)
+    expect(params?.username?.optional).toBe(true)
+    expect(params?.userId?.optional).toBe(true)
     expect(params?.host?.optional).toBe(true)
   })
 })
@@ -110,5 +112,25 @@ describe('USER_BUILTIN_CAPABILITIES', () => {
       'user.unmute',
       'user.unrenoteMute',
     ])
+  })
+})
+
+describe('user.mute の expiresAt', () => {
+  it('省略・null・空文字は無期限 (undefined)', () => {
+    expect(parseMuteExpiresAt(undefined)).toBeUndefined()
+    expect(parseMuteExpiresAt(null)).toBeUndefined()
+    expect(parseMuteExpiresAt('')).toBeUndefined()
+  })
+
+  it('ISO 8601 と UNIX ms を UNIX ms に揃える', () => {
+    const future = Date.now() + 86_400_000
+    expect(parseMuteExpiresAt(future)).toBe(future)
+    const iso = new Date(future).toISOString()
+    expect(parseMuteExpiresAt(iso)).toBe(Date.parse(iso))
+  })
+
+  it('読めない値と過去の時刻は拒否する', () => {
+    expect(() => parseMuteExpiresAt('tomorrow')).toThrow(/ISO 8601/)
+    expect(() => parseMuteExpiresAt(Date.now() - 1000)).toThrow(/future/)
   })
 })

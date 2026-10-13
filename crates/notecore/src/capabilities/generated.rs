@@ -1078,7 +1078,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         params: &[],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ column: { id, type, name, accountId, tl?, query?, listId?, ... } | null }"),
+            description: Some("{ column: { id, type, name, accountId, width, tl?, query?, listId?, antennaId?, channelId?, clipId?, userId?, roleId?, flashId?, pageId?, queryIds? } | null }"),
         }),
     },
     CapabilityDecl {
@@ -1206,7 +1206,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         params: &[],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ columnId, noteId, accountId, note: { id, text, userId, ... } } | { note: null }"),
+            description: Some("{ columnId, noteId, accountId, note: { id, text, userId, username, host, createdAt, cw, renoteId, replyId } } | { note: null }。host はローカルユーザーなら null"),
         }),
     },
     CapabilityDecl {
@@ -1227,11 +1227,11 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Device,
-        description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。",
+        description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 queryIds は適用中のカラムクエリの id。 カラムの種類と取得元を作り直す材料にはなるが、検索の絞り込み・ウィジェットの配置・カラム内のスクリプトなどは含まないので、構成をそのまま復元できるとは限らない。",
         params: &[],
         returns: Some(ReturnDecl {
             ty: ReturnType::Array,
-            description: Some("DeckColumn 軽量 projection の配列 (id / type / name / accountId / accountHost)"),
+            description: Some("DeckColumn projection の配列 (id / type / name / accountId / accountHost / width と、設定されているときだけ tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds)"),
         }),
     },
     CapabilityDecl {
@@ -1366,6 +1366,31 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
             description: Some("{ updated: true, columnId, applied: 適用したフィールド名の配列 }"),
+        }),
+    },
+    CapabilityDecl {
+        id: "commands.list",
+        label: "コマンド一覧",
+        category: Category::General,
+        icon: "ti-command",
+        permissions: &[],
+        ai_tool: true,
+        confirm: false,
+        acts_as_account: false,
+        cheap: true,
+        visible: false,
+        untrusted: false,
+        unattended: false,
+        always_confirm: false,
+        confirm_key_params: &[],
+        unattended_deny: false,
+        destinations: &[],
+        exec: Exec::Device,
+        description: "コマンドパレットに並ぶコマンドの表示名・アイコン・登録元・現在のショートカットを返す。 keybinds.list の commandId を人が読める名前に引くときに使う。 表示名は今の UI 言語。 source は builtin (本体) / task (タスク) / プラグインの登録元 (storeId か local:<installId>)。",
+        params: &[],
+        returns: Some(ReturnDecl {
+            ty: ReturnType::Array,
+            description: Some("各要素は { id, label, icon, source, shortcuts: Shortcut[] }"),
         }),
     },
     CapabilityDecl {
@@ -3290,7 +3315,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("投稿された note projection (id / userId / username / text / createdAt)"),
+            description: Some("投稿された note projection (id / userId / username / text / createdAt / replyId / renoteId)"),
         }),
     },
     CapabilityDecl {
@@ -3438,7 +3463,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Core,
-        description: "キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
+        description: "キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt / replyId / renoteId) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
             ParamDecl {
                 name: "query",
@@ -3553,7 +3578,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Array,
-            description: Some("ノート projection (id / userId / username / text / createdAt) + accountId / serverHost の配列"),
+            description: Some("ノート projection (id / userId / username / text / createdAt / replyId / renoteId) + accountId / serverHost の配列"),
         }),
     },
     CapabilityDecl {
@@ -3593,7 +3618,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("note projection (id / userId / username / text / createdAt)"),
+            description: Some("note projection (id / userId / username / text / createdAt / replyId / renoteId)"),
         }),
     },
     CapabilityDecl {
@@ -3802,7 +3827,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Core,
-        description: "指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt 等の projection が返る。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。",
+        description: "指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt / username / noteText の projection が返る (Misskey の通知は 1 件ごとの既読を持たないので、未読は返さない)。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。",
         params: &[
             ParamDecl {
                 name: "limit",
@@ -4329,7 +4354,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ installId, name, version, src, active, permissions, configData }"),
+            description: Some("{ installId, name, version, src, active, permissions, configData, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {
@@ -4674,7 +4699,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ id, name, description?, src, active }"),
+            description: Some("{ id, name, description?, src, active, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {
@@ -5322,7 +5347,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ id, name, body, mode }"),
+            description: Some("{ id, name, body, mode, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {
@@ -5767,7 +5792,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Device,
-        description: "インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。",
+        description: "インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。 accountId を渡すとそのアカウントのカラムだけに適用する (アカウント別の配色。省略時はデッキ全体)。",
         params: &[
             ParamDecl {
                 name: "id",
@@ -5783,10 +5808,17 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
                 optional: true,
                 enum_values: Some(&["dark", "light"]),
             },
+            ParamDecl {
+                name: "accountId",
+                ty: ParamType::String,
+                description: "このアカウントのカラムだけに適用する。省略時はデッキ全体 (呼び出し元のアカウントでは補わない)",
+                optional: true,
+                enum_values: None,
+            },
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("`{ applied: boolean, id, mode }`"),
+            description: Some("`{ applied: boolean, id, mode, accountId? }`"),
         }),
     },
     CapabilityDecl {
@@ -6004,7 +6036,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ id, name, base, props: Record<string,string> }"),
+            description: Some("{ id, name, base, props: Record<string,string>, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {
@@ -6379,13 +6411,20 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Core,
-        description: "username (+ 任意で host) から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。",
+        description: "username (+ 任意で host) か userId から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 ノートの userId から投稿者を引くときは userId を渡す (host が要らない)。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。",
         params: &[
             ParamDecl {
                 name: "username",
                 ty: ParamType::String,
-                description: "username (先頭の `@` は不要)",
-                optional: false,
+                description: "username (先頭の `@` は不要)。userId を渡すときは省略",
+                optional: true,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "userId",
+                ty: ParamType::String,
+                description: "Misskey 内部の user ID。指定すると username / host より優先する",
+                optional: true,
                 enum_values: None,
             },
             ParamDecl {
@@ -6426,13 +6465,20 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &["userId"],
         exec: Exec::Device,
-        description: "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。",
+        description: "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。 expiresAt を渡すとその時刻に自動で解除される (「24 時間だけ」など)。",
         params: &[
             ParamDecl {
                 name: "userId",
                 ty: ParamType::String,
                 description: "対象 userId (user.lookup / search で取得)",
                 optional: false,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "expiresAt",
+                ty: ParamType::String,
+                description: "解除する時刻 (ISO 8601、例: 2026-10-14T09:00:00+09:00)。未来の時刻に限る。省略時は無期限",
+                optional: true,
                 enum_values: None,
             },
             ParamDecl {
@@ -6445,7 +6491,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ muted: true, userId }"),
+            description: Some("{ muted: true, userId, expiresAt? }"),
         }),
     },
     CapabilityDecl {
@@ -6931,7 +6977,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ installId, name, src, autoRun }"),
+            description: Some("{ installId, name, src, autoRun, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {

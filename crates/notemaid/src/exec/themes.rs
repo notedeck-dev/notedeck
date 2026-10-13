@@ -69,7 +69,23 @@ pub fn read(core: &Core, p: &Value) -> Result<Value> {
     }
     let t = themes::get(core, id)?
         .ok_or_else(|| invalid(format!("themes.read: theme \"{id}\" is not installed")))?;
-    Ok(json!({ "id": t.id, "name": t.name, "base": t.base, "props": t.props }))
+    // 手で書き換えられたファイルでも文字列か null に揃える
+    let nd = |k: &str| {
+        t.notedeck
+            .as_ref()
+            .and_then(|m| m.get(k))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    };
+    Ok(json!({
+        "id": t.id,
+        "name": t.name,
+        "base": t.base,
+        "props": t.props,
+        "storeId": nd("storeId"),
+        "storeSha512": nd("storeSha512"),
+        "storeVersion": nd("storeVersion"),
+    }))
 }
 
 pub fn history(core: &Core, p: &Value) -> Result<Value> {
@@ -551,6 +567,33 @@ mod tests {
             "#f00"
         );
         assert_eq!(list(&core).unwrap()[0]["author"], Value::Null);
+        assert_eq!(
+            read(&core, &json!({"id": "neo"})).unwrap()["storeId"],
+            Value::Null
+        );
+        themes::install_theme(
+            &core,
+            "{ id: 'st', name: 'St', base: 'dark', props: {}, $notedeck: { storeId: 'st', storeSha512: 'h', storeVersion: '1.0.0' } }",
+            &[],
+            None,
+        )
+        .unwrap();
+        themes::install_theme(
+            &core,
+            "{ id: 'odd', name: 'Odd', base: 'dark', props: {}, $notedeck: { storeId: 1 } }",
+            &[],
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            read(&core, &json!({"id": "odd"})).unwrap()["storeId"],
+            Value::Null
+        );
+        let st = read(&core, &json!({"id": "st"})).unwrap();
+        assert_eq!(
+            (&st["storeId"], &st["storeSha512"], &st["storeVersion"]),
+            (&json!("st"), &json!("h"), &json!("1.0.0"))
+        );
         // update: preview の diff と execute の staged が一致し、props はマージ
         let p = json!({"id": "neo", "props": {"panel": "#111", "accent": "#0f0"}, "reason": "r"});
         let pv = preview(&core, "themes.update", &p, &ctx)

@@ -1,0 +1,179 @@
+{
+  "queries": [
+    {
+      "id": "bot-only",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// Bot のみクエリ — true = 表示\n//\n// Bot アカウントのノートだけに絞り込み、ニュースや RSS、観測 bot の投稿を\n// まとめて眺めるカラムにする。組込のフィルタトグルは Bot を隠す向きだけ\n// なので、その対になる。isBot を立てていない bot は通らない。\n// note.user.isBot はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nnote.user.isBot == true\n"
+    },
+    {
+      "id": "calm-timeline",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// しずかなタイムラインクエリ — true = 表示\n//\n// 純リノート・リプライ・冒頭 @ の呼びかけ・ダイレクト投稿をまとめて隠し、\n// フォロイーが自分の言葉で書いたノートだけを流す。\n// 冒頭が @ のノートは返信扱いでなくても誰かに宛てた会話なので隠す\n// (文中に @ が出るだけの言及は通す)。\nlet is_pure_renote = note.renoteId != null && note.text == null\nlet is_reply = note.replyId != null\nlet is_mention = note.text != null && note.text.starts_with(\"@\")\nlet is_direct = note.visibility == \"specified\"\n\n!is_pure_renote && !is_reply && !is_mention && !is_direct\n"
+    },
+    {
+      "id": "cat-only",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// ねこのみクエリ — true = 表示\n//\n// ねこ (isCat) なユーザーのノートだけに絞り込む。\n// note.user.isCat はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\n// isCat が無いサーバー由来のノートは == の型不一致で false になるだけで\n// per-note エラーにはならない。\nnote.user.isCat == true\n"
+    },
+    {
+      "id": "channel-hide",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// チャンネルノートを隠すクエリ — true = 表示\n//\n// チャンネル投稿を隠し、ソーシャル / ローカル TL を通常ノートだけにする。\n// yamisskey の excludeChannelNotesNonFollowing に近い使い心地を\n// どのサーバーでも得るための近似 (フォロー中チャンネルの判別は\n// コンテキスト述語 (notedeck#783 Phase 4) 待ちのため、全チャンネルを隠す)。\n// note.channelId はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nnote.channelId == null\n"
+    },
+    {
+      "id": "channel-only",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// チャンネルノートのみクエリ — true = 表示\n//\n// チャンネル投稿だけに絞り込み、ソーシャル / ホーム TL に混ざる\n// チャンネルの流れだけを 1 つのカラムに取り出す。channel-hide の対。\n// どのチャンネルかは問わない (特定チャンネルはチャンネルカラムを使う)。\n// note.channelId はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nnote.channelId != null\n"
+    },
+    {
+      "id": "discussion-watch",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// 返信が集まるノートクエリ — true = 表示\n//\n// 返信が 3 件以上ついたノートだけに絞り、会話や議論が盛り上がっている\n// ノートを追う。しきい値は末尾の数字を書き換えて使う。\n// 返信そのものではなく「返信を集めている元ノート」が通る点が\n// 組込のリプライ表示トグルとの違い。\n// note.repliesCount はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nnote.repliesCount != null && note.repliesCount >= 3\n"
+    },
+    {
+      "id": "foreign-reply-hide",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// 他人への返信を隠すクエリ — true = 表示\n//\n// 返信のうち、他人のノートに向けたものだけを隠す。自分のノートに続けた\n// 返信 (スレッド・連投) は投稿者が同じなので残る。組込のリプライ非表示\n// トグルはスレッドも消してしまうため、その精密版。\n// 返信元の情報 (note.reply) が届いていない返信は判定できないので隠す。\n// note.reply はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nlet is_reply = note.replyId != null\nlet same_user = note.reply != null && note.reply.user != null && note.reply.user.username == note.user.username\nlet same_host = note.reply != null && note.reply.user != null && note.reply.user.host == note.user.host\n\n!is_reply || (same_user && same_host)\n"
+    },
+    {
+      "id": "hashtag-hide",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// ハッシュタグ付きを隠すクエリ — true = 表示\n//\n// ハッシュタグを含むノートを、リノート先の本文も含めて隠す。\n// yamisskey の withHashtags=false 相当をどのサーバーでも得るための近似。\n// サーバーが解析したタグ一覧 (note.tags) は届かないため本文の \"#\" で\n// 判定する (URL のフラグメント等も稀に巻き込む)。\n// note.renote はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nlet has_tag = note.text != null && note.text.incl(\"#\")\nlet renote_has_tag = note.renote != null && note.renote.text != null && note.renote.text.incl(\"#\")\n!has_tag && !renote_has_tag\n"
+    },
+    {
+      "id": "hashtag-watch",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// ハッシュタグ購読クエリ — true = 表示\n//\n// 指定ハッシュタグを含むノートだけを流すテンプレート。\n// hit 内の incl の並びを書き換えて自分のタグリストにする。\n@hit(lowered) {\n\tlowered.incl(\"#技術書典\") || lowered.incl(\"#photomisskey\")\n}\n\nnote.text != null && hit(note.text.lower())\n"
+    },
+    {
+      "id": "keyword-dig",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// キーワード発掘クエリ — true = 表示\n//\n// 単一キーワードを含むノートだけを流す高速版テンプレート。\n// キーワードを 3 文字以上にすると全文検索インデックス (FTS) が効き、\n// キャッシュ検索でも高速に遡れる。lower() を挟むと FTS が効かなくなる\n// ため、大小文字を無視したい英語キーワードは topic-watch を使う。\nnote.text != null && note.text.incl(\"ノートデック\")\n"
+    },
+    {
+      "id": "keyword-hide",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// キーワード非表示クエリ — true = 表示\n//\n// このカラムだけ NG ワードを含むノートを隠すテンプレート。\n// hit 内の incl の並びを書き換えて自分のリストにする。\n// アカウント全体で隠したい語は本体設定のワードミュートを使う\n// (あちらは全カラム + 通知に効く。こちらはカラム単位の視界定義)。\n@hit(lowered) {\n\tlowered.incl(\"懸賞\") || lowered.incl(\"プレゼント企画\") || lowered.incl(\"拡散希望\")\n}\n\n!(note.text != null && hit(note.text.lower())) && !(note.cw != null && hit(note.cw.lower()))\n"
+    },
+    {
+      "id": "link-only",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// リンク付きのみクエリ — true = 表示\n//\n// URL を含むノートだけに絞り込み、記事やニュースの共有を拾うカラムにする。\nnote.text != null && note.text.lower().incl(\"http\")\n"
+    },
+    {
+      "id": "local-only",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// ローカルのみクエリ — true = 表示\n//\n// リモートユーザーのノートを隠し、自サーバーのユーザーだけに絞る。\n// ローカルユーザーは host が null になる。\nnote.user.host == null\n"
+    },
+    {
+      "id": "long-hide",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// 長文を隠すクエリ — true = 表示\n//\n// 本文が 300 文字以上のノートを隠し、長文の連投や MFM アートで\n// カラムが埋まるのを防ぐ。しきい値は末尾の数字を書き換えて使う。\n// 本文のないノート (純リノート・添付のみ) はそのまま通す。\n// 文字列の len はサブセット外のため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nnote.text == null || note.text.len < 300\n"
+    },
+    {
+      "id": "long-only",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// 長文のみクエリ — true = 表示\n//\n// 本文が 300 文字以上のノートだけに絞り込み、じっくり読む読み物の\n// カラムにする。long-hide の対。しきい値は末尾の数字を書き換えて使う。\n// 文字列の len はサブセット外のため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nnote.text != null && note.text.len >= 300\n"
+    },
+    {
+      "id": "no-cw",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// CW 付きを隠すクエリ — true = 表示\n//\n// CW (内容警告) つきのノートを、このカラムでは畳まずまるごと隠す。\nnote.cw == null\n"
+    },
+    {
+      "id": "no-federation",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// 連合なしのみクエリ — true = 表示\n//\n// 連合に配送されないノート (ローカル限定投稿) だけに絞り込む。\n// サーバー内だけの内輪の話題を追うカラムにする。\nnote.localOnly == true\n"
+    },
+    {
+      "id": "no-link",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// リンク付きを隠すクエリ — true = 表示\n//\n// URL を含むノートを隠し、宣伝や自動投稿でカラムが埋まるのを防ぐ。\n// 本文が無いノート (メディアのみ・純リノート) はそのまま通す。\n!(note.text != null && note.text.lower().incl(\"http\"))\n"
+    },
+    {
+      "id": "non-public-only",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// 非公開ノートのみクエリ — true = 表示\n//\n// フォロワー限定・ダイレクトのノートだけに絞り込む。\n// 流速の速いホーム TL で内輪の投稿を見逃さないためのカラムにする。\nnote.visibility == \"followers\" || note.visibility == \"specified\"\n"
+    },
+    {
+      "id": "poll-watch",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// アンケートのみクエリ — true = 表示\n//\n// アンケート (投票) つきのノートだけに絞り込み、投票して回るカラムにする。\n// note.poll はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nnote.poll != null\n"
+    },
+    {
+      "id": "public-only",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// 公開ノートのみクエリ — true = 表示\n//\n// 公開ノートだけに絞る。ホーム TL やリストからホーム限定・\n// フォロワー限定・ダイレクトを外し、引用や共有をしてよい\n// ノートだけが流れるカラムにする (「非公開ノートのみ」の対)。\nnote.visibility == \"public\"\n"
+    },
+    {
+      "id": "quotes-only",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// 引用のみクエリ — true = 表示\n//\n// 本文つきのリノート (引用) だけに絞り込む。\n// 話題へのコメントや反応だけを追うカラムにする。\nnote.renoteId != null && note.text != null\n"
+    },
+    {
+      "id": "reacted-hide",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// リアクション済みを隠すクエリ — true = 表示\n//\n// 自分がリアクションしたノートを隠す。リアクションを既読印として使うと、\n// まだ目を通していないノートだけが残る受信箱のようなカラムになる。\n// 判定はカラムのアカウントから見た myReaction なので、別アカウントでの\n// リアクションは反映されない。\n// note.myReaction はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nnote.myReaction == null\n"
+    },
+    {
+      "id": "reaction-boost",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// リアクションで絞るクエリ — true = 表示\n//\n// 指定した絵文字のリアクションが 3 件以上ついたノートだけに絞る。\n// hit のしきい値と末尾の絵文字を書き換えて使う\n// (カスタム絵文字は \":name@host:\" 表記。リモートは \":name@example.com:\")。\n// reactions が null のノートは && の短絡で hit を評価しないので、\n// リアクション 0 のノートが per-note エラーにならない。この順番は変えない。\n@hit(count) {\n\tcount != null && count >= 3\n}\n\nnote.reactions != null && hit(note.reactions[\"👍\"])\n"
+    },
+    {
+      "id": "remote-only",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// リモートのみクエリ — true = 表示\n//\n// 自サーバーのユーザーを隠し、連合先のノートだけに絞る。\n// ローカルユーザーは host が null になる (「ローカルのみ」の対)。\nnote.user.host != null\n"
+    },
+    {
+      "id": "renote-boost",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// リノートで絞るクエリ — true = 表示\n//\n// リノートが 3 件以上ついたノートだけに絞り、広く拡散されている話題だけを追う。\n// しきい値は末尾の数字を書き換えて使う。reaction-boost は絵文字別の反応量、\n// こちらは絵文字を問わない拡散量で見る。\n// 純リノート自身の renoteCount は 0 なので、拡散元のノートが流れてきたときだけ通る。\n// note.renoteCount はサブセット外フィールドのため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nnote.renoteCount != null && note.renoteCount >= 3\n"
+    },
+    {
+      "id": "server-hide",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// 特定サーバーを隠すクエリ — true = 表示\n//\n// 指定サーバーのユーザーのノートを隠すテンプレート。\n// blocked 内の並びを書き換えて自分のリストにする。\n// ends_with を使うと \"a.example.com\" \"b.example.com\" のような\n// サブドメイン群をまとめて隠せる (ドット付きで書き、本体は == で別に挙げる)。\n// ローカルユーザー (host == null) は常に通す。\n@blocked(host) {\n\thost == \"example.com\" || host.ends_with(\".example.com\") || host == \"spam.example\"\n}\n\nnote.user.host == null || !blocked(note.user.host)\n"
+    },
+    {
+      "id": "server-only",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// 特定サーバーのみクエリ — true = 表示\n//\n// 指定サーバーのユーザーのノートだけに絞り込むテンプレート。\n// グローバル TL やリストから特定サーバーの流れだけを取り出す。\n// 自サーバーに絞るときは「ローカルのみ」を使う (ローカルは host が null)。\nnote.user.host == \"misskey.io\"\n"
+    },
+    {
+      "id": "spam-guard",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// スパムらしき投稿を隠すクエリ — true = 表示\n//\n// 連合スパムの典型形「リモートから、誰かに @ を飛ばしつつリンクを貼る」\n// 「表示名を設定していないアカウントがリンクを貼る」を近似で隠す。\n// 本文のキーワードに依存しないので、文言が変わる波にも効く。\n// ローカルユーザーは常に通し、リンクのない投稿も常に通す。\n// 表示名を設定していないだけの正規ユーザーのリンク投稿も巻き込むので、\n// 平時は無効にし、スパムの波が来たときだけ有効にする使い方が合う。\nlet remote = note.user.host != null\nlet has_link = note.text != null && note.text.lower().incl(\"http\")\nlet has_mention = note.text != null && note.text.incl(\"@\")\nlet no_name = note.user.name == null\n\n!(remote && has_link && (has_mention || no_name))\n"
+    },
+    {
+      "id": "text-only",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// テキストのみクエリ — true = 表示\n//\n// 添付ファイルのあるノートを隠し、文字だけの読み物タイムラインにする。\n// files が無いノートも安全に通す (null ガード)。\nnote.files == null || note.files.len == 0\n"
+    },
+    {
+      "id": "topic-watch",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// キーワード購読クエリ — true = 表示\n//\n// 指定キーワードを含むノートだけを流す購読カラムのテンプレート。\n// hit 内の incl の並びを書き換えて自分の話題リストにする。\n// アンテナと違いサーバー側の設定が不要で、既存のどのカラムにも重ねられる。\n@hit(lowered) {\n\tlowered.incl(\"notedeck\") || lowered.incl(\"misskey\")\n}\n\n(note.text != null && hit(note.text.lower())) || (note.cw != null && hit(note.cw.lower()))\n"
+    },
+    {
+      "id": "user-hide",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// 特定ユーザーを隠すクエリ — true = 表示\n//\n// 指定ユーザーのノートをこのカラムだけで隠すテンプレート。\n// blocked 内の並びを書き換えて自分のリストにする (username は小文字で書く)。\n// username だけを見るので、同名のリモートユーザーも一緒に隠れる。\n// アカウント全体で隠すなら本体のミュート/ブロックを使う\n// (あちらは全カラム + 通知に効く。こちらはカラム単位の視界定義)。\n@blocked(name) {\n\tname == \"example_user\" || name == \"noisy_account\"\n}\n\n!blocked(note.user.username.lower())\n"
+    },
+    {
+      "id": "user-watch",
+      "sequential": false,
+      "source": "/// @ 1.2.1\n// 特定ユーザーのみクエリ — true = 表示\n//\n// 指定ユーザーのノートだけに絞り込むテンプレート。user-hide の対。\n// hit 内の並びを書き換えて自分のリストにする\n// (host はローカルユーザーなら null、リモートは \"example.com\")。\n@hit(username, host) {\n\t(username == \"alice\" && host == null) || (username == \"bob\" && host == \"misskey.io\")\n}\n\nhit(note.user.username, note.user.host)\n"
+    },
+    {
+      "id": "video-only",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// 動画付きのみクエリ — true = 表示\n//\n// 動画ファイルが添付されたノートだけに絞り込む。組込の「メディアのみ」\n// トグルは画像も通すので、その細分として動画だけを流すカラムにする。\n// 純リノートは本体に添付がないので、リノート先の添付も見る。\n// 判定は MIME タイプの先頭 \"video/\" で、音声だけなら \"audio/\" に、\n// 画像だけなら \"image/\" に書き換えて使える。\n// note.files の要素と note.renote はサブセット外のため 🐢 逐次適用になり、\n// キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\nlet own = note.files != null && note.files.some(@(f) { f.type != null && f.type.starts_with(\"video/\") })\nlet via = note.renote != null && note.renote.files != null && note.renote.files.some(@(f) { f.type != null && f.type.starts_with(\"video/\") })\nown || via\n"
+    },
+    {
+      "id": "yami-hide",
+      "sequential": true,
+      "source": "/// @ 1.2.1\n// やみノートを隠すクエリ — true = 表示\n//\n// yamisskey のやみモード (isNoteInYamiMode) で投稿されたノートを隠し、\n// 通常のカラムには昼のノートだけを流す。やみノートはやみ TL カラムで読む。\n// フラグを持たないサーバーのノートは常に通る。\n// フォーク固有のモードフラグ (note.modeFlags) はサブセット外のため\n// 🐢 逐次適用になり、キャッシュ検索・高速検索は使えない (1 件ずつ判定)。\n!(note.modeFlags != null && note.modeFlags[\"isNoteInYamiMode\"] == true)\n"
+    }
+  ]
+}

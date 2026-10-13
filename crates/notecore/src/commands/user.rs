@@ -300,9 +300,14 @@ pub async fn api_get_user_relations(
     client.get_user_relations(&host, &token, &user_ids).await
 }
 
-pub async fn api_mute_user(core: &Core, account_id: String, user_id: String) -> Result<()> {
+pub async fn api_mute_user(
+    core: &Core,
+    account_id: String,
+    user_id: String,
+    expires_at: Option<i64>,
+) -> Result<()> {
     let (client, host, token) = core.authed(&account_id).await?;
-    client.mute_user(&host, &token, &user_id).await
+    client.mute_user(&host, &token, &user_id, expires_at).await
 }
 
 pub async fn api_unmute_user(core: &Core, account_id: String, user_id: String) -> Result<()> {
