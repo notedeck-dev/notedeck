@@ -94,7 +94,15 @@ pub fn read(core: &Core, p: &Value) -> Result<(Value, bool)> {
     let id = require(p, "id", "skills.read")?;
     let sk = skills::require(core, "skills.read", &id)?;
     Ok((
-        json!({ "id": sk.id, "name": sk.name, "body": sk.body, "mode": sk.mode }),
+        json!({
+            "id": sk.id,
+            "name": sk.name,
+            "body": sk.body,
+            "mode": sk.mode,
+            "storeId": sk.store_id,
+            "storeSha512": sk.store_sha512,
+            "storeVersion": sk.store_version,
+        }),
         sk.tainted == Some(true),
     ))
 }
@@ -684,6 +692,8 @@ mod tests {
         )
         .unwrap();
         let id = skills::list(&core).unwrap()[0].id.clone();
+        let (r, _) = read(&core, &json!({"id": id})).unwrap();
+        assert_eq!(r["storeId"], Value::Null);
         let p = json!({"id": id, "content": "追記した行", "reason": " why "});
         let pv = preview(&core, "skills.append", &p, &ctx)
             .await

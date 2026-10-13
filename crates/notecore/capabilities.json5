@@ -2997,7 +2997,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ installId, name, version, src, active, permissions, configData }',
+        description: '{ installId, name, version, src, active, permissions, configData, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null',
       },
     },
     'plugins.revert': {
@@ -3143,7 +3143,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ id, name, description?, src, active }',
+        description: '{ id, name, description?, src, active, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null',
       },
     },
     'queries.create': {
@@ -3636,7 +3636,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ id, name, body, mode }',
+        description: '{ id, name, body, mode, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null',
       },
     },
     'skills.replaceSection': {
@@ -4044,7 +4044,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ id, name, base, props: Record<string,string> }',
+        description: '{ id, name, base, props: Record<string,string>, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null',
       },
     },
     'themes.revert': {
@@ -4706,7 +4706,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ installId, name, src, autoRun }',
+        description: '{ installId, name, src, autoRun, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null',
       },
     },
     'widgets.revert': {

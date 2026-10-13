@@ -2663,7 +2663,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 installId のプラグインの AiScript ソースを返す。",
     params: {"installId":{"type":"string","description":"対象プラグインの installId (plugins.list で取得)"}},
-    returns: {"type":"object","description":"{ installId, name, version, src, active, permissions, configData }"},
+    returns: {"type":"object","description":"{ installId, name, version, src, active, permissions, configData, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "plugins.revert": {
     id: "plugins.revert",
@@ -2861,7 +2861,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 id の名前付きクエリのソース (AiScript の式) を返す。",
     params: {"id":{"type":"string","description":"対象クエリの id (queries.list で取得)"}},
-    returns: {"type":"object","description":"{ id, name, description?, src, active }"},
+    returns: {"type":"object","description":"{ id, name, description?, src, active, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "queries.revert": {
     id: "queries.revert",
@@ -3191,7 +3191,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 id の skill の markdown 本文を返す。",
     params: {"id":{"type":"string","description":"対象 skill の id (skills.list で取得)"}},
-    returns: {"type":"object","description":"{ id, name, body, mode }"},
+    returns: {"type":"object","description":"{ id, name, body, mode, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "skills.replaceSection": {
     id: "skills.replaceSection",
@@ -3587,7 +3587,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 id のテーマの全プロパティ (Misskey 互換 CSS 変数) を返す。 themes.update で差分編集する前の現状把握に使う。",
     params: {"id":{"type":"string","description":"対象テーマの id (themes.list で取得)"}},
-    returns: {"type":"object","description":"{ id, name, base, props: Record<string,string> }"},
+    returns: {"type":"object","description":"{ id, name, base, props: Record<string,string>, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "themes.revert": {
     id: "themes.revert",
@@ -4071,7 +4071,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "指定 installId のウィジェットの AiScript ソースを返す。",
     params: {"installId":{"type":"string","description":"対象ウィジェットの installId (widgets.list で取得)"}},
-    returns: {"type":"object","description":"{ installId, name, src, autoRun }"},
+    returns: {"type":"object","description":"{ installId, name, src, autoRun, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"},
   },
   "widgets.revert": {
     id: "widgets.revert",
