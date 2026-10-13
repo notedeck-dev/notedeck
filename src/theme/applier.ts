@@ -4,12 +4,24 @@ import type { CompiledProps } from './types'
 
 const UNSAFE_CSS_RE = /[;{}]|url\s*\(/i
 
+/**
+ * 直前のテーマが書いたキー。新しいテーマに無いキーを消すのに使う (#1246)。
+ * `:root` の `--nd-*` は performance store なども書くので、全消去はしない
+ */
+let appliedKeys = new Set<string>()
+
 export function applyTheme(compiled: CompiledProps): void {
   const root = document.documentElement
+  const next = new Set<string>()
   for (const [key, value] of Object.entries(compiled)) {
     if (UNSAFE_CSS_RE.test(value)) continue
     root.style.setProperty(`--nd-${key}`, value)
+    next.add(key)
   }
+  for (const key of appliedKeys) {
+    if (!next.has(key)) root.style.removeProperty(`--nd-${key}`)
+  }
+  appliedKeys = next
 
   // Set color-scheme for native UI elements
   const bg = compiled.bg
