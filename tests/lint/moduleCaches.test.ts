@@ -39,6 +39,8 @@ const ALLOWED: Record<string, string> = {
   'src/composables/useNoteSound.ts:bufferCache': 'bounded: soundCacheMax',
   'src/composables/useNoteSound.ts:audioElCache': 'bounded: soundCacheMax',
   'src/composables/useOgpPreview.ts:ogpCache': 'bounded: ogpCacheMax',
+  'src/theme/applier.ts:appliedKeys':
+    'bounded: 適用のたびに直前のテーマ 1 つ分のキーへ差し替える',
   'src/composables/useImagePrefetch.ts:prefetchedUrls':
     'bounded: prefetchTrackedMax',
   'src/composables/useSnapshotStore.ts:store':
