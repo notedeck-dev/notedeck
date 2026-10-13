@@ -31,6 +31,27 @@ function lookupIdKey(type: ColumnType): keyof DeckColumn | undefined {
  * `column.list` — 現在のデッキに存在するカラム一覧を返す。
  * AI が「このユーザーは今どのカラムを開いているか」を理解できる。
  */
+/**
+ * カラムを同じ形で作り直すのに要る設定 (#1242)。設定されているものだけ返す。
+ * `queryIds` は適用中のカラムクエリ (`noteQueryRefs`)。
+ */
+function columnSettings(c: DeckColumn) {
+  return {
+    width: c.width,
+    ...(c.tl ? { tl: c.tl } : {}),
+    ...(c.query ? { query: c.query } : {}),
+    ...(c.listId ? { listId: c.listId } : {}),
+    ...(c.antennaId ? { antennaId: c.antennaId } : {}),
+    ...(c.channelId ? { channelId: c.channelId } : {}),
+    ...(c.clipId ? { clipId: c.clipId } : {}),
+    ...(c.userId ? { userId: c.userId } : {}),
+    ...(c.roleId ? { roleId: c.roleId } : {}),
+    ...(c.flashId ? { flashId: c.flashId } : {}),
+    ...(c.pageId ? { pageId: c.pageId } : {}),
+    ...(c.noteQueryRefs?.length ? { queryIds: c.noteQueryRefs } : {}),
+  }
+}
+
 export const columnListCapability = implement('column.list', {
   execute: () => {
     const accounts = useAccountsStore().accounts
@@ -43,6 +64,7 @@ export const columnListCapability = implement('column.list', {
         name: c.name,
         accountId: c.accountId,
         ...(host ? { accountHost: host } : {}),
+        ...columnSettings(c),
       }
     })
   },
@@ -69,13 +91,7 @@ export const columnActiveCapability = implement('column.active', {
         type: col.type,
         name: col.name,
         accountId: col.accountId,
-        ...(col.tl ? { tl: col.tl } : {}),
-        ...(col.query ? { query: col.query } : {}),
-        ...(col.listId ? { listId: col.listId } : {}),
-        ...(col.antennaId ? { antennaId: col.antennaId } : {}),
-        ...(col.channelId ? { channelId: col.channelId } : {}),
-        ...(col.clipId ? { clipId: col.clipId } : {}),
-        ...(col.userId ? { userId: col.userId } : {}),
+        ...columnSettings(col),
       },
     }
   },

@@ -574,7 +574,7 @@
     },
     {
       "name": "column_list",
-      "description": "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。",
+      "description": "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 カラム設定はデッキ構成の保存・復元に使える (queryIds は適用中のカラムクエリの id)。",
       "input_schema": {
         "type": "object",
         "properties": {}

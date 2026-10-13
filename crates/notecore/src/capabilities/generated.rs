@@ -1078,7 +1078,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         params: &[],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ column: { id, type, name, accountId, tl?, query?, listId?, ... } | null }"),
+            description: Some("{ column: { id, type, name, accountId, width, tl?, query?, listId?, antennaId?, channelId?, clipId?, userId?, roleId?, flashId?, pageId?, queryIds? } | null }"),
         }),
     },
     CapabilityDecl {
@@ -1227,11 +1227,11 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Device,
-        description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。",
+        description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 カラム設定はデッキ構成の保存・復元に使える (queryIds は適用中のカラムクエリの id)。",
         params: &[],
         returns: Some(ReturnDecl {
             ty: ReturnType::Array,
-            description: Some("DeckColumn 軽量 projection の配列 (id / type / name / accountId / accountHost)"),
+            description: Some("DeckColumn projection の配列 (id / type / name / accountId / accountHost / width と、設定されているときだけ tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds)"),
         }),
     },
     CapabilityDecl {
