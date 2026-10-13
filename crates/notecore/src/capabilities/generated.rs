@@ -1206,7 +1206,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         params: &[],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ columnId, noteId, accountId, note: { id, text, userId, ... } } | { note: null }"),
+            description: Some("{ columnId, noteId, accountId, note: { id, text, userId, username, host, createdAt, cw, renoteId, replyId } } | { note: null }。host はローカルユーザーなら null"),
         }),
     },
     CapabilityDecl {
@@ -6379,13 +6379,20 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Core,
-        description: "username (+ 任意で host) から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。",
+        description: "username (+ 任意で host) か userId から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 ノートの userId から投稿者を引くときは userId を渡す (host が要らない)。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。",
         params: &[
             ParamDecl {
                 name: "username",
                 ty: ParamType::String,
-                description: "username (先頭の `@` は不要)",
-                optional: false,
+                description: "username (先頭の `@` は不要)。userId を渡すときは省略",
+                optional: true,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "userId",
+                ty: ParamType::String,
+                description: "Misskey 内部の user ID。指定すると username / host より優先する",
+                optional: true,
                 enum_values: None,
             },
             ParamDecl {

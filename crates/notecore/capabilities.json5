@@ -916,7 +916,7 @@
       description: '現在 active なカラム内で focus 中のノートを返す。未 focus / activeカラムが none の場合は { note: null }。AI Actions が「これ翻訳」のような操作で使う。',
       returns: {
         type: 'object',
-        description: '{ columnId, noteId, accountId, note: { id, text, userId, ... } } | { note: null }',
+        description: '{ columnId, noteId, accountId, note: { id, text, userId, username, host, createdAt, cw, renoteId, replyId } } | { note: null }。host はローカルユーザーなら null',
       },
     },
     'column.list': {
@@ -4308,11 +4308,17 @@
         'account.read',
       ],
       exec: 'core',
-      description: 'username (+ 任意で host) から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。',
+      description: 'username (+ 任意で host) か userId から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 ノートの userId から投稿者を引くときは userId を渡す (host が要らない)。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。',
       params: {
         username: {
           type: 'string',
-          description: 'username (先頭の `@` は不要)',
+          description: 'username (先頭の `@` は不要)。userId を渡すときは省略',
+          optional: true,
+        },
+        userId: {
+          type: 'string',
+          description: 'Misskey 内部の user ID。指定すると username / host より優先する',
+          optional: true,
         },
         host: {
           type: 'string',

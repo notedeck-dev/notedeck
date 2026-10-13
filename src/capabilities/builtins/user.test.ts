@@ -13,9 +13,10 @@ describe('user.lookup capability', () => {
     expect(userLookupCapability.signature?.returns?.type).toBe('object')
   })
 
-  it('marks username as required and host as optional', () => {
+  it('accepts either username (+ host) or userId, so all are optional', () => {
     const params = userLookupCapability.signature?.params
-    expect(params?.username?.optional).not.toBe(true)
+    expect(params?.username?.optional).toBe(true)
+    expect(params?.userId?.optional).toBe(true)
     expect(params?.host?.optional).toBe(true)
   })
 })

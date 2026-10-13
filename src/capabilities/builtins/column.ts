@@ -172,6 +172,9 @@ export const columnFocusedNoteCapability = implement('column.focusedNote', {
         id: note.id,
         text: note.text ?? null,
         userId: note.userId ?? null,
+        username: note.user?.username ?? null,
+        // ローカルユーザーは null (user.lookup にそのまま渡せる)
+        host: note.user?.host ?? null,
         createdAt: note.createdAt ?? null,
         cw: note.cw ?? null,
         renoteId: note.renoteId ?? null,
@@ -186,6 +189,7 @@ interface NormalizedNoteLike {
   _accountId?: string
   text?: string | null
   userId?: string | null
+  user?: { username?: string; host?: string | null }
   createdAt?: string | null
   cw?: string | null
   renoteId?: string | null

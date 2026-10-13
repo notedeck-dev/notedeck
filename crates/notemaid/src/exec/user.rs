@@ -16,10 +16,16 @@ pub(crate) fn lookup_args(params: &Value) -> Result<(String, Option<String>)> {
     Ok((username, host))
 }
 
+/// `userId` があればそれで引き (`users/show` は userId でも引ける)、無ければ username + host。
 pub async fn lookup(core: &Core, params: &Value, ctx: &ExecContext) -> Result<Value> {
-    let (username, host) = lookup_args(params)?;
     let account_id = resolve_account_id(params, ctx)?;
-    let u = user::api_lookup_user(core, account_id, username, host).await?;
+    let u = match param_str(params, "userId") {
+        Some(user_id) => user::api_get_user(core, account_id, user_id.to_string()).await?,
+        None => {
+            let (username, host) = lookup_args(params)?;
+            user::api_lookup_user(core, account_id, username, host).await?
+        }
+    };
     Ok(project::strip_credentials(serde_json::to_value(u)?))
 }
 
