@@ -27,6 +27,9 @@ describe('MISSKEY_ENDPOINT_RULES — 生成 sanity', () => {
     expect(MISSKEY_ENDPOINT_RULES['notes/show']).toBe('allow')
     expect(MISSKEY_ENDPOINT_RULES['users/show']).toBe('allow')
     expect(MISSKEY_ENDPOINT_RULES.meta).toBe('allow')
+    // 配布プラグイン / ウィジェットが呼ぶトップレベル endpoint (#1250)
+    expect(MISSKEY_ENDPOINT_RULES.emojis).toBe('allow')
+    expect(MISSKEY_ENDPOINT_RULES.stats).toBe('allow')
     // 高感度 (kind 無し + credential 必須) は deny
     expect(MISSKEY_ENDPOINT_RULES['i/regenerate-token']).toMatch(/^deny:/)
     expect(MISSKEY_ENDPOINT_RULES['i/delete-account']).toMatch(/^deny:/)
