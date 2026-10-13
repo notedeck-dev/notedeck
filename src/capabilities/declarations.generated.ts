@@ -1013,7 +1013,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "device",
     description: "現在フォーカスされているカラム情報を返す。なければ { column: null }。column.list より軽量で、AI が「今ユーザーが見てる場所」を 1 呼び出しで把握できる。",
     params: {},
-    returns: {"type":"object","description":"{ column: { id, type, name, accountId, tl?, query?, listId?, ... } | null }"},
+    returns: {"type":"object","description":"{ column: { id, type, name, accountId, width, tl?, query?, listId?, antennaId?, channelId?, clipId?, userId?, roleId?, flashId?, pageId?, queryIds? } | null }"},
   },
   "column.add": {
     id: "column.add",
@@ -1077,9 +1077,9 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "device",
-    description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。",
+    description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 カラム設定はデッキ構成の保存・復元に使える (queryIds は適用中のカラムクエリの id)。",
     params: {},
-    returns: {"type":"array","description":"DeckColumn 軽量 projection の配列 (id / type / name / accountId / accountHost)"},
+    returns: {"type":"array","description":"DeckColumn projection の配列 (id / type / name / accountId / accountHost / width と、設定されているときだけ tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds)"},
   },
   "column.move": {
     id: "column.move",
