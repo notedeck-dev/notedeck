@@ -916,7 +916,7 @@
       description: '現在 active なカラム内で focus 中のノートを返す。未 focus / activeカラムが none の場合は { note: null }。AI Actions が「これ翻訳」のような操作で使う。',
       returns: {
         type: 'object',
-        description: '{ columnId, noteId, accountId, note: { id, text, userId, ... } } | { note: null }',
+        description: '{ columnId, noteId, accountId, note: { id, text, userId, username, host, createdAt, cw, renoteId, replyId } } | { note: null }。host はローカルユーザーなら null',
       },
     },
     'column.list': {
@@ -2302,7 +2302,7 @@
       },
       returns: {
         type: 'object',
-        description: '投稿された note projection (id / userId / username / text / createdAt)',
+        description: '投稿された note projection (id / userId / username / text / createdAt / replyId / renoteId)',
       },
     },
     'notes.delete': {
@@ -2400,7 +2400,7 @@
         'notes.read',
       ],
       exec: 'core',
-      description: 'キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 ${accountIdHint}',
+      description: 'キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt / replyId / renoteId) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 ${accountIdHint}',
       params: {
         query: {
           type: 'string',
@@ -2481,7 +2481,7 @@
       },
       returns: {
         type: 'array',
-        description: 'ノート projection (id / userId / username / text / createdAt) + accountId / serverHost の配列',
+        description: 'ノート projection (id / userId / username / text / createdAt / replyId / renoteId) + accountId / serverHost の配列',
       },
     },
     'notes.show': {
@@ -2507,7 +2507,7 @@
       },
       returns: {
         type: 'object',
-        description: 'note projection (id / userId / username / text / createdAt)',
+        description: 'note projection (id / userId / username / text / createdAt / replyId / renoteId)',
       },
     },
     'notes.timeline': {
@@ -2652,7 +2652,7 @@
         'notifications',
       ],
       exec: 'core',
-      description: '指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt 等の projection が返る。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。',
+      description: '指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt / username / noteText の projection が返る (Misskey の通知は 1 件ごとの既読を持たないので、未読は返さない)。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。',
       params: {
         limit: {
           type: 'number',
@@ -3880,7 +3880,7 @@
         'deck.write',
       ],
       exec: 'device',
-      description: 'インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。',
+      description: 'インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。 accountId を渡すとそのアカウントのカラムだけに適用する (アカウント別の配色。省略時はデッキ全体)。',
       params: {
         id: {
           type: 'string',
@@ -3895,10 +3895,15 @@
             'light',
           ],
         },
+        accountId: {
+          type: 'string',
+          description: 'このアカウントのカラムだけに適用する。省略時はデッキ全体 (呼び出し元のアカウントでは補わない)',
+          optional: true,
+        },
       },
       returns: {
         type: 'object',
-        description: '`{ applied: boolean, id, mode }`',
+        description: '`{ applied: boolean, id, mode, accountId? }`',
       },
     },
     'themes.create': {
@@ -4308,11 +4313,17 @@
         'account.read',
       ],
       exec: 'core',
-      description: 'username (+ 任意で host) から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。',
+      description: 'username (+ 任意で host) か userId から Misskey ユーザー情報を取得する。 `@user@example.com` 形式から userId を引いて notes.user に渡す動線で使う。 ノートの userId から投稿者を引くときは userId を渡す (host が要らない)。 戻り値の id が Misskey 内部の user ID。 別サーバー視点で lookup したいときは `<currentColumn>.accountId` を渡す。',
       params: {
         username: {
           type: 'string',
-          description: 'username (先頭の `@` は不要)',
+          description: 'username (先頭の `@` は不要)。userId を渡すときは省略',
+          optional: true,
+        },
+        userId: {
+          type: 'string',
+          description: 'Misskey 内部の user ID。指定すると username / host より優先する',
+          optional: true,
         },
         host: {
           type: 'string',
@@ -4341,11 +4352,16 @@
       confirm: true,
       actsAsAccount: true,
       exec: 'device',
-      description: '指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。',
+      description: '指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。 expiresAt を渡すとその時刻に自動で解除される (「24 時間だけ」など)。',
       params: {
         userId: {
           type: 'string',
           description: '対象 userId (user.lookup / search で取得)',
+        },
+        expiresAt: {
+          type: 'string',
+          description: '解除する時刻 (ISO 8601。UNIX ms の数値も可)。未来の時刻に限る。省略時は無期限',
+          optional: true,
         },
         accountId: {
           type: 'string',
@@ -4355,7 +4371,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ muted: true, userId }',
+        description: '{ muted: true, userId, expiresAt? }',
       },
     },
     'user.renoteMute': {

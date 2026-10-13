@@ -59,6 +59,33 @@ function pickUserId(
   return userId
 }
 
+/** setTimeout が扱える最大の遅延 (2^31 - 1 ms ≒ 24.8 日) */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1
+
+/**
+ * `user.mute` の expiresAt を UNIX ms に揃える。ISO 8601 文字列か UNIX ms を
+ * 受け、省略は無期限 (undefined)。過去の時刻は Misskey 側でも即解除になる
+ * だけなので、取り違えとみなして拒否する。
+ */
+export function parseMuteExpiresAt(v: unknown): number | undefined {
+  if (v === undefined || v === null || v === '') return undefined
+  const ms =
+    typeof v === 'number'
+      ? v
+      : typeof v === 'string'
+        ? Date.parse(v)
+        : Number.NaN
+  if (!Number.isFinite(ms)) {
+    throw new Error(
+      'user.mute: expiresAt must be an ISO 8601 string or UNIX ms',
+    )
+  }
+  if (ms <= Date.now()) {
+    throw new Error('user.mute: expiresAt must be in the future')
+  }
+  return Math.floor(ms)
+}
+
 export const userMuteCapability = implement('user.mute', {
   requiresConfirmation: muteConfirm((userId) => ({
     title: i18n.ts._userCapability.muteTitle,
@@ -67,12 +94,24 @@ export const userMuteCapability = implement('user.mute', {
   })),
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.mute')
+    const expiresAt = parseMuteExpiresAt(params?.expiresAt)
     const accountId = resolveAccountId(params?.accountId, ctx)
     const api = await getApiAdapter(accountId, ctx)
-    await api.muteUser(userId)
+    await api.muteUser(userId, expiresAt)
     // 過去ノートを即時非表示に（#574）。UserProfileContent と同じ楽観反映。
-    useMutesStore().muteUser(accountId, userId)
-    return { muted: true, userId }
+    const mutes = useMutesStore()
+    mutes.muteUser(accountId, userId)
+    // 期限つきは手元の非表示も期限で戻す。setTimeout に載らない先の期限は
+    // 次回起動時の mute/list 同期 (期限切れは返らない) に任せる
+    if (expiresAt !== undefined) {
+      const delay = expiresAt - Date.now()
+      if (delay <= MAX_TIMEOUT_MS) {
+        setTimeout(() => mutes.unmuteUser(accountId, userId), delay)
+      }
+    }
+    return expiresAt === undefined
+      ? { muted: true, userId }
+      : { muted: true, userId, expiresAt: new Date(expiresAt).toISOString() }
   },
 })
 

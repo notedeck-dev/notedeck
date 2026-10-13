@@ -182,9 +182,11 @@ export function createUsersApi(
       )
     },
 
-    async muteUser(userId: string): Promise<void> {
+    async muteUser(userId: string, expiresAt?: number): Promise<void> {
       ctx.requireAuth()
-      unwrapAny(await commands.apiMuteUser(ctx.accountId, userId))
+      unwrapAny(
+        await commands.apiMuteUser(ctx.accountId, userId, expiresAt ?? null),
+      )
     },
 
     async unmuteUser(userId: string): Promise<void> {

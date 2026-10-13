@@ -1,5 +1,8 @@
 import type { Command } from '@/commands/registry'
+import { misskeyThemeOf } from '@/services/distributableCodecs/themeCodec'
+import { useAccountsStore } from '@/stores/accounts'
 import { useThemeStore } from '@/stores/theme'
+import { pickAccountId } from '../accountContext'
 import { implement, implementCore } from '../declare'
 
 /**
@@ -32,6 +35,15 @@ export const themeApplyCapability = implement('themes.apply', {
     const explicitMode =
       params?.mode === 'dark' || params?.mode === 'light' ? params.mode : null
     const mode: 'dark' | 'light' = explicitMode ?? theme.content.base
+    // accountId は呼び出し文脈から補わない: 省略 = 従来どおりデッキ全体
+    const accountId = pickAccountId(params?.accountId)
+    if (accountId) {
+      if (!useAccountsStore().accounts.some((a) => a.id === accountId)) {
+        throw new Error(`themes.apply: account "${accountId}" not found`)
+      }
+      store.applyAccountTheme(misskeyThemeOf(theme), mode, accountId)
+      return { applied: true, id, mode, accountId }
+    }
     store.selectTheme(id, mode)
     // 適用モード != 現在アプリモードなら manualMode も切り替えて画面に反映
     // (= ライトテーマ apply 時はライトモードに自動切替)
