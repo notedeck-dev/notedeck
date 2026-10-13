@@ -70,6 +70,8 @@ pub fn read(core: &Core, p: &Value) -> Result<Value> {
     let q = require(core, "queries.read", p)?;
     let mut v = meta_of(&q);
     v["src"] = Value::String(q.src.clone());
+    v["storeSha512"] = json!(q.str("storeSha512"));
+    v["storeVersion"] = json!(q.str("storeVersion"));
     Ok(v)
 }
 
@@ -261,6 +263,7 @@ mod tests {
         let r = read(&core, &json!({"id": "a"})).unwrap();
         assert_eq!(r["src"], "note.text != null");
         assert_eq!(r["description"], "d");
+        assert_eq!(r["storeSha512"], Value::Null);
         assert!(read(&core, &json!({"id": "zz"}))
             .unwrap_err()
             .to_string()

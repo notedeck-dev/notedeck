@@ -4329,7 +4329,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ installId, name, version, src, active, permissions, configData }"),
+            description: Some("{ installId, name, version, src, active, permissions, configData, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {
@@ -4674,7 +4674,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ id, name, description?, src, active }"),
+            description: Some("{ id, name, description?, src, active, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {
@@ -5322,7 +5322,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ id, name, body, mode }"),
+            description: Some("{ id, name, body, mode, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {
@@ -6011,7 +6011,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ id, name, base, props: Record<string,string> }"),
+            description: Some("{ id, name, base, props: Record<string,string>, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {
@@ -6952,7 +6952,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ installId, name, src, autoRun }"),
+            description: Some("{ installId, name, src, autoRun, storeId, storeSha512, storeVersion }。store* はストアから導入したときの配布物の ID / sha512 / 版で、ローカルで作ったものは null"),
         }),
     },
     CapabilityDecl {
