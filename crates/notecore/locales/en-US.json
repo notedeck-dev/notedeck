@@ -486,6 +486,9 @@
     "http": {
       "fetch": "External HTTP request"
     },
+    "commands": {
+      "list": "List commands"
+    },
     "keybinds": {
       "list": "List keybindings",
       "reset": "Reset keybinding to default",

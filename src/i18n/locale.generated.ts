@@ -6444,6 +6444,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       /** 外部 HTTP リクエスト */
       readonly "fetch": string
     }
+    readonly "commands": {
+      /** コマンド一覧 */
+      readonly "list": string
+    }
     readonly "keybinds": {
       /** キーバインド一覧 */
       readonly "list": string

@@ -219,6 +219,8 @@ _capabilities:
     move: "Move column"
     remove: "Remove column"
     updateSettings: "Update column settings"
+  commands:
+    list: "List commands"
   drafts:
     create: "Create draft"
     delete: "Delete draft"

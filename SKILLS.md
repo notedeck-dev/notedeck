@@ -221,6 +221,7 @@ builtin capability の実体は `src/capabilities/builtins/` 配下にあり、�
 | column | `column.move` | カラムを移動 | `deck.write` | — |
 | column | `column.remove` | カラムを削除 | `deck.write` | — |
 | column | `column.updateSettings` | カラム設定を更新 | `deck.write` | — |
+| commands | `commands.list` | コマンド一覧 | — | — |
 | drafts | `drafts.create` | 下書きを作成 | `drafts.write` | あり |
 | drafts | `drafts.delete` | 下書きを削除 | `drafts.write` | あり |
 | drafts | `drafts.list` | 下書き一覧 | `drafts.read` | — |

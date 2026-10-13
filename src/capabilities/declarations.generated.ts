@@ -76,6 +76,7 @@ export type CapabilityId =
   | "column.move"
   | "column.remove"
   | "column.updateSettings"
+  | "commands.list"
   | "drafts.create"
   | "drafts.delete"
   | "drafts.list"
@@ -254,6 +255,7 @@ export const CAPABILITY_IDS: readonly CapabilityId[] = [
   "column.move",
   "column.remove",
   "column.updateSettings",
+  "commands.list",
   "drafts.create",
   "drafts.delete",
   "drafts.list",
@@ -1146,6 +1148,28 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     description: "既存カラムの表示プロパティ (name / width / query / soundMuted) を更新する。 identity 系 (type / accountId / listId 等) は触れない (= AI 経路で塞ぐ)。",
     params: {"columnId":{"type":"string","description":"対象 columnId"},"name":{"type":"string","description":"カラム表示名 (空文字でリセット)","optional":true},"width":{"type":"number","description":"カラム幅 (px)","optional":true},"query":{"type":"string","description":"search カラムなどの検索クエリ","optional":true},"soundMuted":{"type":"boolean","description":"カラム単位のサウンドミュート","optional":true}},
     returns: {"type":"object","description":"{ updated: true, columnId, applied: 適用したフィールド名の配列 }"},
+  },
+  "commands.list": {
+    id: "commands.list",
+    label: "コマンド一覧",
+    category: "general",
+    icon: "ti-command",
+    permissions: [],
+    aiTool: true,
+    confirm: false,
+    actsAsAccount: false,
+    cheap: true,
+    visible: false,
+    untrusted: false,
+    unattended: false,
+    alwaysConfirm: false,
+    confirmKeyParams: [],
+    unattendedDeny: false,
+    destinations: [],
+    exec: "device",
+    description: "コマンドパレットに並ぶコマンドの表示名・アイコン・登録元・現在のショートカットを返す。 keybinds.list の commandId を人が読める名前に引くときに使う。 表示名は今の UI 言語。 source は builtin (本体) / task (タスク) / プラグインの登録元 (storeId か local:<installId>)。",
+    params: {},
+    returns: {"type":"array","description":"各要素は { id, label, icon, source, shortcuts: Shortcut[] }"},
   },
   "drafts.create": {
     id: "drafts.create",
