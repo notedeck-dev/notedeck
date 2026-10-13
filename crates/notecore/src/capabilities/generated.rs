@@ -3290,7 +3290,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("投稿された note projection (id / userId / username / text / createdAt)"),
+            description: Some("投稿された note projection (id / userId / username / text / createdAt / replyId / renoteId)"),
         }),
     },
     CapabilityDecl {
@@ -3438,7 +3438,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Core,
-        description: "キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
+        description: "キーワードでノートを全文検索する。Misskey の /notes/search を使う。 結果は note projection (id / userId / username / text / createdAt / replyId / renoteId) で返す。 100 件を超えて取得したい場合は、最後のノートの id を untilId に渡して再呼び出し。 `accountId` 未指定なら呼び出し文脈のアカウント (per-account の AI カラムならその アカウント) を使う。文脈が無い全アカウントのカラムでは `account.list` か `<currentColumn>.accountId` から選んで渡す。",
         params: &[
             ParamDecl {
                 name: "query",
@@ -3553,7 +3553,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Array,
-            description: Some("ノート projection (id / userId / username / text / createdAt) + accountId / serverHost の配列"),
+            description: Some("ノート projection (id / userId / username / text / createdAt / replyId / renoteId) + accountId / serverHost の配列"),
         }),
     },
     CapabilityDecl {
@@ -3593,7 +3593,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("note projection (id / userId / username / text / createdAt)"),
+            description: Some("note projection (id / userId / username / text / createdAt / replyId / renoteId)"),
         }),
     },
     CapabilityDecl {
@@ -3802,7 +3802,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Core,
-        description: "指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt 等の projection が返る。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。",
+        description: "指定アカウント (未指定なら active) の通知一覧を取得する。 type / userId / noteId / reaction / createdAt / username / noteText の projection が返る (Misskey の通知は 1 件ごとの既読を持たないので、未読は返さない)。 100 件を超えて取得したい場合は、最後の通知の id を untilId に渡して再呼び出し。 別サーバーの通知を読むときは `<currentColumn>.accountId` を渡す。",
         params: &[
             ParamDecl {
                 name: "limit",

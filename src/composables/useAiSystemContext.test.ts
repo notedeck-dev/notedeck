@@ -349,6 +349,16 @@ describe('projectVisibleNotes', () => {
     })
   })
 
+  it('includes replyId / renoteId only when present', () => {
+    const out = projectVisibleNotes([
+      { id: 'n1', replyId: 'r1', renoteId: 'q1' },
+      { id: 'n2', replyId: null },
+    ])
+    expect(out[0]).toMatchObject({ replyId: 'r1', renoteId: 'q1' })
+    expect(out[1]).not.toHaveProperty('replyId')
+    expect(out[1]).not.toHaveProperty('renoteId')
+  })
+
   it('replaces text with [CW: <reason>] when cw is set', () => {
     const out = projectVisibleNotes([
       { id: 'n1', cw: 'spoiler', text: 'big secret' },

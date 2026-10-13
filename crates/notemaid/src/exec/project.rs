@@ -13,15 +13,22 @@ fn note_text(text: Option<&str>, cw: Option<&str>) -> Option<String> {
     }
 }
 
-/// ノート 1 件: `{ id, username, text?, createdAt }`。
+/// ノート 1 件: `{ id, userId, username, text?, createdAt, replyId?, renoteId? }`。
 pub fn note(o: &NormalizedNote) -> Value {
     let mut m = Map::new();
     m.insert("id".into(), Value::String(o.id.clone()));
+    m.insert("userId".into(), Value::String(o.user.id.clone()));
     m.insert("username".into(), Value::String(o.user.username.clone()));
     if let Some(t) = note_text(o.text.as_deref(), o.cw.as_deref()) {
         m.insert("text".into(), Value::String(t));
     }
     m.insert("createdAt".into(), Value::String(o.created_at.clone()));
+    if let Some(id) = &o.reply_id {
+        m.insert("replyId".into(), Value::String(id.clone()));
+    }
+    if let Some(id) = &o.renote_id {
+        m.insert("renoteId".into(), Value::String(id.clone()));
+    }
     Value::Object(m)
 }
 
@@ -30,12 +37,18 @@ pub fn notes(list: &[NormalizedNote], limit: usize) -> Value {
     Value::Array(list.iter().take(limit).map(note).collect())
 }
 
-/// 通知 1 件: `{ kind: "notification", id, type, reaction?, createdAt, username?, noteText? }`。
+/// 通知 1 件: `{ kind: "notification", id, type, userId?, noteId?, reaction?, createdAt, username?, noteText? }`。
 pub fn notification(n: &NormalizedNotification) -> Value {
     let mut m = Map::new();
     m.insert("kind".into(), json!("notification"));
     m.insert("id".into(), Value::String(n.id.clone()));
     m.insert("type".into(), Value::String(n.notification_type.clone()));
+    if let Some(u) = &n.user {
+        m.insert("userId".into(), Value::String(u.id.clone()));
+    }
+    if let Some(note) = &n.note {
+        m.insert("noteId".into(), Value::String(note.id.clone()));
+    }
     if let Some(r) = &n.reaction {
         m.insert("reaction".into(), Value::String(r.clone()));
     }
@@ -135,8 +148,14 @@ mod tests {
         let plain = note(&fixtures::note("n1", "alice", Some("hi"), None));
         assert_eq!(
             plain,
-            json!({"id": "n1", "username": "alice", "text": "hi", "createdAt": "2026-09-24T00:00:00.000Z"})
+            json!({"id": "n1", "userId": "u1", "username": "alice", "text": "hi", "createdAt": "2026-09-24T00:00:00.000Z"})
         );
+        let mut reply = fixtures::note("n4", "alice", Some("re"), None);
+        reply.reply_id = Some("n1".into());
+        reply.renote_id = Some("n0".into());
+        let reply = note(&reply);
+        assert_eq!(reply["replyId"], "n1");
+        assert_eq!(reply["renoteId"], "n0");
         let cw = note(&fixtures::note(
             "n2",
             "alice",
@@ -162,13 +181,15 @@ mod tests {
         assert_eq!(
             n,
             json!({
-                "kind": "notification", "id": "no1", "type": "reaction", "reaction": "👍",
+                "kind": "notification", "id": "no1", "type": "reaction",
+                "userId": "u2", "noteId": "n1", "reaction": "👍",
                 "createdAt": "2026-09-24T00:00:00.000Z", "username": "bob", "noteText": "hi"
             })
         );
         let bare = notification(&fixtures::notification("no2", "follow", None));
         assert!(bare.get("reaction").is_none());
         assert!(bare.get("noteText").is_none());
+        assert!(bare.get("noteId").is_none());
     }
 
     #[test]

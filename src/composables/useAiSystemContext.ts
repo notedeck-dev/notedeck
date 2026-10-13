@@ -101,6 +101,8 @@ export interface ProjectedNote extends ProjectedItem {
   username?: string
   text?: string
   createdAt?: string
+  replyId?: string
+  renoteId?: string
 }
 
 const NOTE_LIKE_COLUMN_TYPES: ReadonlySet<string> = new Set([
@@ -207,7 +209,10 @@ function projectOneNote(n: unknown): ProjectedNote {
       : undefined
   const text =
     cw != null ? `[CW: ${cw}]` : typeof o.text === 'string' ? o.text : undefined
-  return { id, userId, username, text, createdAt }
+  const out: ProjectedNote = { id, userId, username, text, createdAt }
+  if (typeof o.replyId === 'string') out.replyId = o.replyId
+  if (typeof o.renoteId === 'string') out.renoteId = o.renoteId
+  return out
 }
 
 function projectOneNotification(n: unknown): ProjectedItem {
