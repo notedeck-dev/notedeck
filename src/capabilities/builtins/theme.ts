@@ -37,6 +37,9 @@ export const themeApplyCapability = implement('themes.apply', {
     const mode: 'dark' | 'light' = explicitMode ?? theme.content.base
     // accountId は呼び出し文脈から補わない: 省略 = 従来どおりデッキ全体
     const accountId = pickAccountId(params?.accountId)
+    if (typeof params?.accountId === 'string' && !accountId) {
+      throw new Error('themes.apply: accountId must not be empty')
+    }
     if (accountId) {
       if (!useAccountsStore().accounts.some((a) => a.id === accountId)) {
         throw new Error(`themes.apply: account "${accountId}" not found`)

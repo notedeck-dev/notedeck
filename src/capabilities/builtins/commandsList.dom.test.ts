@@ -23,6 +23,8 @@ describe('commands.list', () => {
     store.register({ ...base, id: 'my-plugin:hello', label: 'Hello' })
     store.register({ ...base, id: 'local:abc:hi', label: 'Hi' })
     store.register({ ...base, id: 'hidden', label: 'x', visible: false })
+    // 開発者モードが無効 (既定) なのでパレットにも出ない
+    store.register({ ...base, id: 'dev', label: 'y', exposure: 'developer' })
 
     const rows = commandsListCapability.execute({}) as {
       id: string

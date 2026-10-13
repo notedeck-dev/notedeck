@@ -59,9 +59,6 @@ function pickUserId(
   return userId
 }
 
-/** setTimeout が扱える最大の遅延 (2^31 - 1 ms ≒ 24.8 日) */
-const MAX_TIMEOUT_MS = 2 ** 31 - 1
-
 /**
  * `user.mute` の expiresAt を UNIX ms に揃える。ISO 8601 文字列か UNIX ms を
  * 受け、省略は無期限 (undefined)。過去の時刻は Misskey 側でも即解除になる
@@ -99,16 +96,8 @@ export const userMuteCapability = implement('user.mute', {
     const api = await getApiAdapter(accountId, ctx)
     await api.muteUser(userId, expiresAt)
     // 過去ノートを即時非表示に（#574）。UserProfileContent と同じ楽観反映。
-    const mutes = useMutesStore()
-    mutes.muteUser(accountId, userId)
-    // 期限つきは手元の非表示も期限で戻す。setTimeout に載らない先の期限は
-    // 次回起動時の mute/list 同期 (期限切れは返らない) に任せる
-    if (expiresAt !== undefined) {
-      const delay = expiresAt - Date.now()
-      if (delay <= MAX_TIMEOUT_MS) {
-        setTimeout(() => mutes.unmuteUser(accountId, userId), delay)
-      }
-    }
+    // 期限つきは手元の非表示も期限で戻す
+    useMutesStore().muteUser(accountId, userId, expiresAt)
     return expiresAt === undefined
       ? { muted: true, userId }
       : { muted: true, userId, expiresAt: new Date(expiresAt).toISOString() }

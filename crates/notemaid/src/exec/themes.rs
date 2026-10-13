@@ -69,7 +69,14 @@ pub fn read(core: &Core, p: &Value) -> Result<Value> {
     }
     let t = themes::get(core, id)?
         .ok_or_else(|| invalid(format!("themes.read: theme \"{id}\" is not installed")))?;
-    let nd = |k: &str| t.notedeck.as_ref().and_then(|m| m.get(k)).cloned();
+    // 手で書き換えられたファイルでも文字列か null に揃える
+    let nd = |k: &str| {
+        t.notedeck
+            .as_ref()
+            .and_then(|m| m.get(k))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    };
     Ok(json!({
         "id": t.id,
         "name": t.name,
@@ -571,6 +578,17 @@ mod tests {
             None,
         )
         .unwrap();
+        themes::install_theme(
+            &core,
+            "{ id: 'odd', name: 'Odd', base: 'dark', props: {}, $notedeck: { storeId: 1 } }",
+            &[],
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            read(&core, &json!({"id": "odd"})).unwrap()["storeId"],
+            Value::Null
+        );
         let st = read(&core, &json!({"id": "st"})).unwrap();
         assert_eq!(
             (&st["storeId"], &st["storeSha512"], &st["storeVersion"]),

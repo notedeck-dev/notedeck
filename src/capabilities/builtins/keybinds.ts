@@ -1,5 +1,6 @@
 import { type Command, useCommandStore } from '@/commands/registry'
 import { TASK_COMMAND_PREFIX } from '@/commands/taskCommandPrefix'
+import { isExposed } from '@/settings/exposure'
 import { useKeybindsStore } from '@/stores/keybinds'
 import { implement, implementCore } from '../declare'
 
@@ -29,15 +30,18 @@ function commandSource(id: string): string {
 export const commandsListCapability = implement('commands.list', {
   execute: () => {
     const keybinds = useKeybindsStore()
-    return [...useCommandStore().commands.values()]
-      .filter((c) => c.visible !== false)
-      .map((c) => ({
-        id: c.id,
-        label: c.label,
-        icon: c.icon,
-        source: commandSource(c.id),
-        shortcuts: keybinds.getShortcuts(c.id),
-      }))
+    return (
+      [...useCommandStore().commands.values()]
+        // パレットと同じ条件 (開発者向けは開発者モードのときだけ)
+        .filter((c) => c.visible !== false && isExposed(c.exposure))
+        .map((c) => ({
+          id: c.id,
+          label: c.label,
+          icon: c.icon,
+          source: commandSource(c.id),
+          shortcuts: keybinds.getShortcuts(c.id),
+        }))
+    )
   },
 })
 

@@ -48,6 +48,9 @@ function createAccountSet() {
   return { has, add, remove, replace, removalVersion }
 }
 
+/** setTimeout が扱える最大の遅延 (2^31 - 1 ms ≒ 24.8 日) */
+const MAX_TIMEOUT_MS = 2 ** 31 - 1
+
 interface AccountWordMutes {
   soft: MutedWord[]
   hard: MutedWord[]
@@ -95,11 +98,53 @@ export const useMutesStore = defineStore('mutes', () => {
     return w ? matchMutedWords(text, w[kind]) : false
   }
 
+  // 期限つきミュートの手元の解除予約 (アカウント × ユーザー)。付け直し・解除で取り消す
+  const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
+  function clearExpiry(key: string) {
+    clearTimeout(expiryTimers.get(key))
+    expiryTimers.delete(key)
+  }
+
+  function scheduleExpiry(
+    accountId: string,
+    userId: string,
+    expiresAt: number,
+  ) {
+    const key = `${accountId}\n${userId}`
+    const delay = expiresAt - Date.now()
+    if (delay <= 0) {
+      expiryTimers.delete(key)
+      users.remove(accountId, userId)
+      return
+    }
+    // setTimeout は約 24.8 日までしか待てないので、上限ごとに予約し直す
+    expiryTimers.set(
+      key,
+      setTimeout(
+        () => scheduleExpiry(accountId, userId, expiresAt),
+        Math.min(delay, MAX_TIMEOUT_MS),
+      ),
+    )
+  }
+
+  /** `expiresAt` (UNIX ms) を渡すと、その時刻に手元のミュートも外す */
+  function muteUser(accountId: string, userId: string, expiresAt?: number) {
+    clearExpiry(`${accountId}\n${userId}`)
+    users.add(accountId, userId)
+    if (expiresAt !== undefined) scheduleExpiry(accountId, userId, expiresAt)
+  }
+
+  function unmuteUser(accountId: string, userId: string) {
+    clearExpiry(`${accountId}\n${userId}`)
+    users.remove(accountId, userId)
+  }
+
   return {
     // user mute
     isUserMuted: users.has,
-    muteUser: users.add,
-    unmuteUser: users.remove,
+    muteUser,
+    unmuteUser,
     setMutedUsers: users.replace,
     /** 集合が縮んだときだけ増えるバージョン (派生キャッシュの purge 用、#575) */
     mutedUsersRemovalVersion: users.removalVersion,

@@ -46,6 +46,12 @@ describe('themes.apply の accountId', () => {
     expect(store.selectedDarkThemeId).toBe(before)
   })
 
+  it('空の accountId はデッキ全体に流さず拒否する', () => {
+    expect(() =>
+      themeApplyCapability.execute({ id: 'red', accountId: ' ' }),
+    ).toThrow(/must not be empty/)
+  })
+
   it('知らないアカウントは拒否する', () => {
     expect(() =>
       themeApplyCapability.execute({ id: 'red', accountId: 'nope' }),

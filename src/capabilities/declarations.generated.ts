@@ -1079,7 +1079,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: [],
     exec: "device",
-    description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 カラム設定はデッキ構成の保存・復元に使える (queryIds は適用中のカラムクエリの id)。",
+    description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 queryIds は適用中のカラムクエリの id。 カラムの種類と取得元を作り直す材料にはなるが、検索の絞り込み・ウィジェットの配置・カラム内のスクリプトなどは含まないので、構成をそのまま復元できるとは限らない。",
     params: {},
     returns: {"type":"array","description":"DeckColumn projection の配列 (id / type / name / accountId / accountHost / width と、設定されているときだけ tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds)"},
   },
@@ -3830,7 +3830,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     destinations: ["userId"],
     exec: "device",
     description: "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。 expiresAt を渡すとその時刻に自動で解除される (「24 時間だけ」など)。",
-    params: {"userId":{"type":"string","description":"対象 userId (user.lookup / search で取得)"},"expiresAt":{"type":"string","description":"解除する時刻 (ISO 8601。UNIX ms の数値も可)。未来の時刻に限る。省略時は無期限","optional":true},"accountId":{"type":"string","description":"操作元アカウント。未指定なら active。","optional":true}},
+    params: {"userId":{"type":"string","description":"対象 userId (user.lookup / search で取得)"},"expiresAt":{"type":"string","description":"解除する時刻 (ISO 8601、例: 2026-10-14T09:00:00+09:00)。未来の時刻に限る。省略時は無期限","optional":true},"accountId":{"type":"string","description":"操作元アカウント。未指定なら active。","optional":true}},
     returns: {"type":"object","description":"{ muted: true, userId, expiresAt? }"},
   },
   "user.renoteMute": {

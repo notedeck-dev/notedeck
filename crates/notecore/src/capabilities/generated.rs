@@ -1227,7 +1227,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Device,
-        description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 カラム設定はデッキ構成の保存・復元に使える (queryIds は適用中のカラムクエリの id)。",
+        description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 queryIds は適用中のカラムクエリの id。 カラムの種類と取得元を作り直す材料にはなるが、検索の絞り込み・ウィジェットの配置・カラム内のスクリプトなどは含まないので、構成をそのまま復元できるとは限らない。",
         params: &[],
         returns: Some(ReturnDecl {
             ty: ReturnType::Array,
@@ -6477,7 +6477,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
             ParamDecl {
                 name: "expiresAt",
                 ty: ParamType::String,
-                description: "解除する時刻 (ISO 8601。UNIX ms の数値も可)。未来の時刻に限る。省略時は無期限",
+                description: "解除する時刻 (ISO 8601、例: 2026-10-14T09:00:00+09:00)。未来の時刻に限る。省略時は無期限",
                 optional: true,
                 enum_values: None,
             },
