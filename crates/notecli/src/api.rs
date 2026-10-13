@@ -2336,14 +2336,19 @@ impl MisskeyClient {
 
     // --- Mute/Block ---
 
+    /// `expires_at` は解除する時刻 (UNIX ms)。None は無期限。
     pub async fn mute_user(
         &self,
         host: &str,
         token: &str,
         user_id: &str,
+        expires_at: Option<i64>,
     ) -> Result<(), NoteDeckError> {
-        self.request(host, token, "mute/create", json!({ "userId": user_id }))
-            .await?;
+        let mut params = json!({ "userId": user_id });
+        if let Some(t) = expires_at {
+            params["expiresAt"] = json!(t);
+        }
+        self.request(host, token, "mute/create", params).await?;
         Ok(())
     }
 

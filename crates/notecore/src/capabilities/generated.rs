@@ -5767,7 +5767,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Device,
-        description: "インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。",
+        description: "インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。 accountId を渡すとそのアカウントのカラムだけに適用する (アカウント別の配色。省略時はデッキ全体)。",
         params: &[
             ParamDecl {
                 name: "id",
@@ -5783,10 +5783,17 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
                 optional: true,
                 enum_values: Some(&["dark", "light"]),
             },
+            ParamDecl {
+                name: "accountId",
+                ty: ParamType::String,
+                description: "このアカウントのカラムだけに適用する。省略時はデッキ全体 (呼び出し元のアカウントでは補わない)",
+                optional: true,
+                enum_values: None,
+            },
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("`{ applied: boolean, id, mode }`"),
+            description: Some("`{ applied: boolean, id, mode, accountId? }`"),
         }),
     },
     CapabilityDecl {
@@ -6433,13 +6440,20 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &["userId"],
         exec: Exec::Device,
-        description: "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。",
+        description: "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。 expiresAt を渡すとその時刻に自動で解除される (「24 時間だけ」など)。",
         params: &[
             ParamDecl {
                 name: "userId",
                 ty: ParamType::String,
                 description: "対象 userId (user.lookup / search で取得)",
                 optional: false,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "expiresAt",
+                ty: ParamType::String,
+                description: "解除する時刻 (ISO 8601。UNIX ms の数値も可)。未来の時刻に限る。省略時は無期限",
+                optional: true,
                 enum_values: None,
             },
             ParamDecl {
@@ -6452,7 +6466,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ muted: true, userId }"),
+            description: Some("{ muted: true, userId, expiresAt? }"),
         }),
     },
     CapabilityDecl {

@@ -631,7 +631,8 @@ export interface UsersApi {
     options?: { limit?: number; untilId?: string },
   ): Promise<FollowRelation[]>
   getUserRelations(userIds: string[]): Promise<UserRelation[]>
-  muteUser(userId: string): Promise<void>
+  /** `expiresAt` は解除する時刻 (UNIX ms)。省略は無期限 */
+  muteUser(userId: string, expiresAt?: number): Promise<void>
   unmuteUser(userId: string): Promise<void>
   /** 自分がミュート中のユーザー ID 一覧（#574: 起動時の mute store hydrate 用）。 */
   getMutedUsers(): Promise<string[]>

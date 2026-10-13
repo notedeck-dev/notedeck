@@ -2884,7 +2884,7 @@
     },
     {
       "name": "themes_apply",
-      "description": "インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。",
+      "description": "インストール済みテーマを適用する。 themes.list で id を取得してから呼ぶ。 mode はテーマの base から自動判定 (省略可)。 accountId を渡すとそのアカウントのカラムだけに適用する (アカウント別の配色。省略時はデッキ全体)。",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -2899,6 +2899,10 @@
               "dark",
               "light"
             ]
+          },
+          "accountId": {
+            "type": "string",
+            "description": "このアカウントのカラムだけに適用する。省略時はデッキ全体 (呼び出し元のアカウントでは補わない)"
           }
         },
         "required": [
@@ -3227,13 +3231,17 @@
     },
     {
       "name": "user_mute",
-      "description": "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。",
+      "description": "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。 expiresAt を渡すとその時刻に自動で解除される (「24 時間だけ」など)。",
       "input_schema": {
         "type": "object",
         "properties": {
           "userId": {
             "type": "string",
             "description": "対象 userId (user.lookup / search で取得)"
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "解除する時刻 (ISO 8601。UNIX ms の数値も可)。未来の時刻に限る。省略時は無期限"
           },
           "accountId": {
             "type": "string",

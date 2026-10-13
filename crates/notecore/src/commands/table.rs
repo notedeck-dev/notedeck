@@ -76,7 +76,7 @@ macro_rules! with_command_table {
         data api_get_following(account_id: String, user_id: String, limit: Option<i64>, until_id: Option<String>) -> serde_json::Value = $crate::commands::user::api_get_following;
         data api_get_followers(account_id: String, user_id: String, limit: Option<i64>, until_id: Option<String>) -> serde_json::Value = $crate::commands::user::api_get_followers;
         data api_get_user_relations(account_id: String, user_ids: Vec<String>) -> serde_json::Value = $crate::commands::user::api_get_user_relations;
-        data api_mute_user(account_id: String, user_id: String) -> () = $crate::commands::user::api_mute_user;
+        data api_mute_user(account_id: String, user_id: String, expires_at: Option<i64>) -> () = $crate::commands::user::api_mute_user;
         data api_unmute_user(account_id: String, user_id: String) -> () = $crate::commands::user::api_unmute_user;
         data api_renote_mute_user(account_id: String, user_id: String) -> () = $crate::commands::user::api_renote_mute_user;
         data api_unrenote_mute_user(account_id: String, user_id: String) -> () = $crate::commands::user::api_unrenote_mute_user;

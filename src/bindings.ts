@@ -774,9 +774,9 @@ async apiUnpinNote(accountId: string, noteId: string) : Promise<Result<null, { c
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiMuteUser(accountId: string, userId: string, expiresAt: number | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("api_mute_user", { accountId, userId }) };
+    return { status: "ok", data: await TAURI_INVOKE("api_mute_user", { accountId, userId, expiresAt }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
