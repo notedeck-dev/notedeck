@@ -124,7 +124,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 
 | service | テスト |
 |---|---|
-| [`src/services/achievements.ts`](src/services/achievements.ts) | — |
+| [`src/services/achievements.ts`](src/services/achievements.ts) | [`src/services/achievements.test.ts`](src/services/achievements.test.ts) |
 | [`src/services/acpPreapproval.ts`](src/services/acpPreapproval.ts) | [`src/services/acpPreapproval.test.ts`](src/services/acpPreapproval.test.ts) |
 | [`src/services/aiSessionCodec.ts`](src/services/aiSessionCodec.ts) | [`src/services/aiSessionCodec.test.ts`](src/services/aiSessionCodec.test.ts) |
 | [`src/services/aiSessionId.ts`](src/services/aiSessionId.ts) | [`src/services/aiSessionId.test.ts`](src/services/aiSessionId.test.ts) |
@@ -156,16 +156,16 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/defaultDeck.ts`](src/services/defaultDeck.ts) | [`src/services/defaultDeck.test.ts`](src/services/defaultDeck.test.ts) |
 | [`src/services/developerMode.ts`](src/services/developerMode.ts) | [`src/services/developerMode.test.ts`](src/services/developerMode.test.ts) |
 | [`src/services/distributable.ts`](src/services/distributable.ts) | — |
-| [`src/services/distributableCodecs/pluginCodec.ts`](src/services/distributableCodecs/pluginCodec.ts) | — |
-| [`src/services/distributableCodecs/queryCodec.ts`](src/services/distributableCodecs/queryCodec.ts) | — |
-| [`src/services/distributableCodecs/sidecar.ts`](src/services/distributableCodecs/sidecar.ts) | — |
-| [`src/services/distributableCodecs/singleFile.ts`](src/services/distributableCodecs/singleFile.ts) | — |
-| [`src/services/distributableCodecs/skillCodec.ts`](src/services/distributableCodecs/skillCodec.ts) | — |
-| [`src/services/distributableCodecs/themeCodec.ts`](src/services/distributableCodecs/themeCodec.ts) | — |
-| [`src/services/distributableCodecs/widgetCodec.ts`](src/services/distributableCodecs/widgetCodec.ts) | — |
+| [`src/services/distributableCodecs/pluginCodec.ts`](src/services/distributableCodecs/pluginCodec.ts) | [`src/services/distributableCodecs/pluginCodec.test.ts`](src/services/distributableCodecs/pluginCodec.test.ts) |
+| [`src/services/distributableCodecs/queryCodec.ts`](src/services/distributableCodecs/queryCodec.ts) | [`src/services/distributableCodecs/queryCodec.test.ts`](src/services/distributableCodecs/queryCodec.test.ts) |
+| [`src/services/distributableCodecs/sidecar.ts`](src/services/distributableCodecs/sidecar.ts) | [`src/services/distributableCodecs/sidecar.test.ts`](src/services/distributableCodecs/sidecar.test.ts) |
+| [`src/services/distributableCodecs/singleFile.ts`](src/services/distributableCodecs/singleFile.ts) | [`src/services/distributableCodecs/singleFile.test.ts`](src/services/distributableCodecs/singleFile.test.ts) |
+| [`src/services/distributableCodecs/skillCodec.ts`](src/services/distributableCodecs/skillCodec.ts) | [`src/services/distributableCodecs/skillCodec.test.ts`](src/services/distributableCodecs/skillCodec.test.ts) |
+| [`src/services/distributableCodecs/themeCodec.ts`](src/services/distributableCodecs/themeCodec.ts) | [`src/services/distributableCodecs/themeCodec.test.ts`](src/services/distributableCodecs/themeCodec.test.ts) |
+| [`src/services/distributableCodecs/widgetCodec.ts`](src/services/distributableCodecs/widgetCodec.ts) | [`src/services/distributableCodecs/widgetCodec.test.ts`](src/services/distributableCodecs/widgetCodec.test.ts) |
 | [`src/services/duplicateIdNotice.ts`](src/services/duplicateIdNotice.ts) | [`src/services/duplicateIdNotice.test.ts`](src/services/duplicateIdNotice.test.ts) |
 | [`src/services/editHistory.ts`](src/services/editHistory.ts) | [`src/services/editHistory.test.ts`](src/services/editHistory.test.ts) |
-| [`src/services/embedCode.ts`](src/services/embedCode.ts) | — |
+| [`src/services/embedCode.ts`](src/services/embedCode.ts) | [`src/services/embedCode.test.ts`](src/services/embedCode.test.ts) |
 | [`src/services/emojiMute.ts`](src/services/emojiMute.ts) | [`src/services/emojiMute.test.ts`](src/services/emojiMute.test.ts) |
 | [`src/services/emojiSearch.ts`](src/services/emojiSearch.ts) | [`src/services/emojiSearch.test.ts`](src/services/emojiSearch.test.ts) |
 | [`src/services/emojiSkinTone.ts`](src/services/emojiSkinTone.ts) | [`src/services/emojiSkinTone.test.ts`](src/services/emojiSkinTone.test.ts) |
@@ -225,7 +225,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/timelineFilter.ts`](src/services/timelineFilter.ts) | [`src/services/timelineFilter.test.ts`](src/services/timelineFilter.test.ts) |
 | [`src/services/timelineGap.ts`](src/services/timelineGap.ts) | [`src/services/timelineGap.test.ts`](src/services/timelineGap.test.ts) |
 | [`src/services/timelinePolicy.ts`](src/services/timelinePolicy.ts) | [`src/services/timelinePolicy.test.ts`](src/services/timelinePolicy.test.ts) |
-| [`src/services/toggleFavorite.ts`](src/services/toggleFavorite.ts) | — |
+| [`src/services/toggleFavorite.ts`](src/services/toggleFavorite.ts) | [`src/services/toggleFavorite.test.ts`](src/services/toggleFavorite.test.ts) |
 | [`src/services/trayMenu.ts`](src/services/trayMenu.ts) | [`src/services/trayMenu.test.ts`](src/services/trayMenu.test.ts) |
 | [`src/services/tutorialAchievements.ts`](src/services/tutorialAchievements.ts) | [`src/services/tutorialAchievements.test.ts`](src/services/tutorialAchievements.test.ts) |
 | [`src/services/tutorialNotifications.ts`](src/services/tutorialNotifications.ts) | [`src/services/tutorialNotifications.test.ts`](src/services/tutorialNotifications.test.ts) |

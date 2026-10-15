@@ -72,7 +72,7 @@ describe('mergeProgress', () => {
   it('衝突した達成時刻は早い方を残す (別ウィンドウの書き込みで巻き戻さない)', () => {
     const a = markItemDone(emptyProgress(), 'a', 200)
     const b = markItemDone(emptyProgress(), 'a', 100)
-    expect(mergeProgress(a, b).items['a']).toBe(100)
+    expect(mergeProgress(a, b).items.a).toBe(100)
   })
 
   it('実績も同様に統合する', () => {

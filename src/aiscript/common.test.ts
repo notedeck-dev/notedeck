@@ -34,7 +34,7 @@ async function setupHeavyCallback() {
     }),
   }
   const ioOpts = createInterpreterOptions({
-    onOutput: () => {},
+    onOutput: () => undefined,
     onError: (e) => errors.push(e),
   })
   const { ast, legacy } = parseAiScript(CODE)
@@ -94,7 +94,7 @@ describe('createAiScriptInterpreter stepCount reset (#733)', () => {
       }),
     }
     const ioOpts = createInterpreterOptions({
-      onOutput: () => {},
+      onOutput: () => undefined,
       onError: (e) => errors.push(e),
     })
     const code = `/// @ 1.2.1

@@ -8,7 +8,6 @@ use super::error::VaultResult;
 /// 上位 UI が「値が長すぎる」等を事前に判定できるようにする。
 /// Phase B 以降で参照する。
 #[derive(Debug, Clone, Copy)]
-#[allow(dead_code)]
 pub struct BackendCapabilities {
     /// 1 エントリーあたりの最大バイト数。
     pub max_value_bytes: usize,
@@ -32,6 +31,5 @@ pub trait SecretBackend: Send + Sync {
     fn delete(&self, conn_id: &str, slot: &str) -> VaultResult<()>;
 
     /// backend の能力を報告する。Phase B 以降で参照する。
-    #[allow(dead_code)]
     fn capabilities(&self) -> BackendCapabilities;
 }

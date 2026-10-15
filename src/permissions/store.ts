@@ -263,7 +263,7 @@ export function parsePermissionsFile(content: string): {
 async function _initFileStorage(): Promise<void> {
   // 進行中の save() の書き込みを待ってから読む (save→reload レースで
   // 未完了の書き込みより前の内容を読み戻さない #716)。
-  await _pendingWrite.catch(() => {})
+  await _pendingWrite.catch(() => undefined)
   const { content, version } = await readPermissionsSettingsVersioned()
   _version = version
   if (content) {

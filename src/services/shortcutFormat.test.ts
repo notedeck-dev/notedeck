@@ -24,5 +24,6 @@ describe('formatShortcut', () => {
     expect(formatShortcut({ key: 'Escape', scope: 'body' }, false)).toBe('Esc')
     expect(formatShortcut({ key: 'ArrowUp', scope: 'body' }, false)).toBe('↑')
     expect(formatShortcut({ key: 'F5', scope: 'body' }, false)).toBe('F5')
+    expect(formatShortcut({ key: ' ', scope: 'body' }, false)).toBe('Space')
   })
 })

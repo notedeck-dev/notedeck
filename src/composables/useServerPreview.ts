@@ -21,7 +21,7 @@ export function useServerPreview(host: Ref<string>, debounceMs = 350) {
       .replace(/^https?:\/\//, '')
       .replace(/\/$/, '')
 
-    if (!trimmed || !trimmed.includes('.')) {
+    if (!trimmed?.includes('.')) {
       status.value = 'idle'
       serverInfo.value = null
       errorMessage.value = ''

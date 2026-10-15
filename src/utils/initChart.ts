@@ -23,29 +23,25 @@ import 'chartjs-adapter-date-fns'
 import { MatrixController, MatrixElement } from 'chartjs-chart-matrix'
 import gradient from 'chartjs-plugin-gradient'
 
-let registered = false
-
-if (!registered) {
-  Chart.register(
-    MatrixController,
-    MatrixElement,
-    BarController,
-    BarElement,
-    LineController,
-    LineElement,
-    PointElement,
-    Filler,
-    TimeScale,
-    CategoryScale,
-    LinearScale,
-    Tooltip,
-    Legend,
-    Title,
-    gradient,
-  )
-  Chart.defaults.animation = false
-  registered = true
-}
+// ES module は 1 度しか評価されないので、二重登録はモジュールのキャッシュが防ぐ
+Chart.register(
+  MatrixController,
+  MatrixElement,
+  BarController,
+  BarElement,
+  LineController,
+  LineElement,
+  PointElement,
+  Filler,
+  TimeScale,
+  CategoryScale,
+  LinearScale,
+  Tooltip,
+  Legend,
+  Title,
+  gradient,
+)
+Chart.defaults.animation = false
 
 /**
  * Misskey 本家 MkHeatmap.vue の固定ブランドカラーに合わせる
@@ -56,10 +52,17 @@ export function getHeatmapColor(isDark: boolean): string {
 }
 
 /**
- * #RRGGBB を rgba(r, g, b, a) に変換する。Misskey の alpha() 相当。
+ * #RRGGBB (または #RGB) を rgba(r, g, b, a) に変換する。Misskey の alpha() 相当。
  */
 export function applyAlpha(hex: string, alpha: number): string {
-  const h = hex.replace('#', '')
+  const raw = hex.replace('#', '')
+  const h =
+    raw.length === 3
+      ? raw
+          .split('')
+          .map((c) => c + c)
+          .join('')
+      : raw
   const r = Number.parseInt(h.slice(0, 2), 16)
   const g = Number.parseInt(h.slice(2, 4), 16)
   const b = Number.parseInt(h.slice(4, 6), 16)

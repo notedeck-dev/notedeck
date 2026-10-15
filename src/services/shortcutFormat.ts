@@ -14,7 +14,6 @@ export function formatShortcut(s: Shortcut, isMac: boolean): string {
 }
 
 function formatKey(key: string): string {
-  if (key.length === 1) return key.toUpperCase()
   const map: Record<string, string> = {
     Escape: 'Esc',
     ArrowUp: '↑',
@@ -26,5 +25,6 @@ function formatKey(key: string): string {
     Delete: 'Del',
     ' ': 'Space',
   }
-  return map[key] ?? key
+  // 1 文字キーより先に表を引く (スペースも 1 文字なので)
+  return map[key] ?? (key.length === 1 ? key.toUpperCase() : key)
 }

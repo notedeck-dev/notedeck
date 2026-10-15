@@ -1742,6 +1742,18 @@ export interface Locale {
     readonly "invalidateFollower": string
     /** @{username} をミュートしますか？ */
     readonly "muteConfirm": ParameterizedString<'username'>
+    readonly "mutePeriods": {
+      /** 無期限 */
+      readonly "indefinitely": string
+      /** 10 分 */
+      readonly "tenMinutes": string
+      /** 1 時間 */
+      readonly "oneHour": string
+      /** 1 日 */
+      readonly "oneDay": string
+      /** 1 週間 */
+      readonly "oneWeek": string
+    }
     /** @{username} をブロックしますか？ */
     readonly "blockConfirm": ParameterizedString<'username'>
     /** @{username} のフォロワーを解除しますか？ */

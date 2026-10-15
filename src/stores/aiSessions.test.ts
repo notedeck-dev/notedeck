@@ -175,7 +175,7 @@ describe('useAiSessionsStore (#1133: notecore が単一の書き手)', () => {
   })
 
   it('settled は送信済みの操作が notecore に届くまで待つ', async () => {
-    let release: () => void = () => {}
+    let release: () => void = () => undefined
     holdCreate = new Promise<void>((r) => {
       release = r
     })

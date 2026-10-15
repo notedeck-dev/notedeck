@@ -34,7 +34,7 @@ describe('toast center', () => {
       const c = createToastCenter()
       c.registerStatusHost()
       c.show('削除しました', 'info', {
-        action: { label: '元に戻す', onClick: () => {} },
+        action: { label: '元に戻す', onClick: () => undefined },
       })
       expect(c.toasts.value).toHaveLength(1)
       expect(c.inbox.value).toHaveLength(1)

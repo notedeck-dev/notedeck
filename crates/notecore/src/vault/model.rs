@@ -6,7 +6,6 @@ use super::error::{VaultError, VaultResult};
 pub const SCHEMA_VERSION: u32 = 1;
 
 /// secret slot 名のデフォルト値。Phase B 以降 / フロントエンドで参照する。
-#[allow(dead_code)]
 pub const DEFAULT_SLOT: &str = "primary";
 
 /// 認証方式。Rust 側で secret を注入する際の形を判別共用体で表現する。

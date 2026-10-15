@@ -360,7 +360,7 @@ function parseRegisterCommandOptions(
   optionsVal: Value | undefined,
 ): ParsedRegisterCommandOptions {
   const out: ParsedRegisterCommandOptions = { aiTool: false }
-  if (!optionsVal || optionsVal.type !== 'obj') return out
+  if (optionsVal?.type !== 'obj') return out
 
   const options = utils.valToJs(optionsVal) as Record<string, unknown>
   if (options.aiTool === true) out.aiTool = true

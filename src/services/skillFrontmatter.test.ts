@@ -106,6 +106,22 @@ describe('parseSkillFile', () => {
   })
 })
 
+describe('単引用符を含む値の往復', () => {
+  it('書いて読み直しても元の値に戻り、保存を繰り返しても増えない', () => {
+    const meta = {
+      description: "it's: a test",
+      triggers: ["don't", 'x, y'],
+    }
+    let raw = serializeSkillFile(meta, 'body')
+    for (let i = 0; i < 3; i++) {
+      const parsed = parseSkillFile(raw)
+      expect(parsed.meta.description).toBe("it's: a test")
+      expect(parsed.meta.triggers).toEqual(["don't", 'x, y'])
+      raw = serializeSkillFile(parsed.meta, parsed.body)
+    }
+  })
+})
+
 describe('serializeSkillFile', () => {
   it('round-trips through parseSkillFile', () => {
     const original = {

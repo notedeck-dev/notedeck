@@ -279,7 +279,7 @@ export function resolveAiConnection(
     return { kind: 'harness', connectionId: id, harness, model: '' }
   }
   const connection = connections.find((c) => c.id === id)
-  if (!connection || !connection.protocol) return null
+  if (!connection?.protocol) return null
   return {
     kind: 'vault',
     connectionId: connection.id,

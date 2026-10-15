@@ -99,7 +99,34 @@ function parseValue(raw: string): FrontmatterValue {
 function parseInlineArray(raw: string): string[] {
   const inner = raw.slice(1, -1).trim()
   if (!inner) return []
-  return inner.split(',').map((s) => stripQuotes(s.trim()))
+  // 引用の中のカンマでは区切らない (書き出しはカンマを含む値を引用する)
+  const items: string[] = []
+  let cur = ''
+  let quote: string | null = null
+  for (let i = 0; i < inner.length; i++) {
+    const c = inner[i] ?? ''
+    if (quote) {
+      // 単引用符の中の '' は ' 1 文字 (YAML と同じ)
+      if (c === quote && quote === "'" && inner[i + 1] === "'") {
+        cur += "''"
+        i++
+        continue
+      }
+      if (c === quote) quote = null
+      cur += c
+    } else if ((c === "'" || c === '"') && cur.trim() === '') {
+      // 引用は要素の先頭にあるときだけ (don't のような語中の ' は文字)
+      quote = c
+      cur += c
+    } else if (c === ',') {
+      items.push(stripQuotes(cur.trim()))
+      cur = ''
+    } else {
+      cur += c
+    }
+  }
+  items.push(stripQuotes(cur.trim()))
+  return items
 }
 
 function stripQuotes(s: string): string {
@@ -107,7 +134,9 @@ function stripQuotes(s: string): string {
     const first = s[0]
     const last = s[s.length - 1]
     if ((first === '"' || first === "'") && first === last) {
-      return s.slice(1, -1)
+      const inner = s.slice(1, -1)
+      // 書き出しは単引用符の中の ' を '' にする。読むときに戻す
+      return first === "'" ? inner.replace(/''/g, "'") : inner
     }
   }
   return s

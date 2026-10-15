@@ -292,7 +292,6 @@ const statusBadges = computed(() => {
             </div>
 
             <!-- Description (sanitized HTML) -->
-            <!-- eslint-disable-next-line vue/no-v-html -->
             <div
               v-if="sanitizedDescription"
               :class="$style.description"
