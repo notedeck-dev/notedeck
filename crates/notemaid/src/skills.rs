@@ -54,13 +54,54 @@ fn fm_str<'a>(fm: &'a Frontmatter, key: &str) -> Option<&'a str> {
     }
 }
 
-fn strip_quotes(s: &str) -> &str {
+fn strip_quotes(s: &str) -> String {
     let b = s.as_bytes();
     if b.len() >= 2 && (b[0] == b'\'' || b[0] == b'"') && b[b.len() - 1] == b[0] {
-        &s[1..s.len() - 1]
+        let inner = &s[1..s.len() - 1];
+        // 書き出しは単引用符の中の ' を '' にする。読むときに戻す
+        if b[0] == b'\'' {
+            inner.replace("''", "'")
+        } else {
+            inner.to_string()
+        }
     } else {
-        s
+        s.to_string()
     }
+}
+
+/// インライン配列の中身を区切る。引用の中のカンマでは区切らない
+fn split_inline_list(inner: &str) -> Vec<String> {
+    let mut items = Vec::new();
+    let mut cur = String::new();
+    let mut quote: Option<char> = None;
+    let mut chars = inner.chars().peekable();
+    while let Some(c) = chars.next() {
+        match quote {
+            Some(q) => {
+                if c == q && q == '\'' && chars.peek() == Some(&'\'') {
+                    cur.push_str("''");
+                    chars.next();
+                    continue;
+                }
+                if c == q {
+                    quote = None;
+                }
+                cur.push(c);
+            }
+            // 引用は要素の先頭にあるときだけ (don't のような語中の ' は文字)
+            None if (c == '\'' || c == '"') && cur.trim().is_empty() => {
+                quote = Some(c);
+                cur.push(c);
+            }
+            None if c == ',' => {
+                items.push(strip_quotes(cur.trim()));
+                cur.clear();
+            }
+            None => cur.push(c),
+        }
+    }
+    items.push(strip_quotes(cur.trim()));
+    items
 }
 
 fn number_re() -> &'static Regex {
@@ -80,19 +121,14 @@ fn parse_value(raw: &str) -> FmValue {
         if inner.is_empty() {
             return FmValue::List(Vec::new());
         }
-        return FmValue::List(
-            inner
-                .split(',')
-                .map(|s| strip_quotes(s.trim()).to_string())
-                .collect(),
-        );
+        return FmValue::List(split_inline_list(inner));
     }
     if number_re().is_match(raw) {
         if let Ok(n) = raw.parse::<f64>() {
             return FmValue::Num(n);
         }
     }
-    FmValue::Str(strip_quotes(raw).to_string())
+    FmValue::Str(strip_quotes(raw))
 }
 
 fn parse_frontmatter(text: &str) -> Frontmatter {
@@ -124,7 +160,7 @@ fn parse_frontmatter(text: &str) -> Frontmatter {
                 let Some(m) = item.captures(lines[i]) else {
                     break;
                 };
-                items.push(strip_quotes(m[1].trim()).to_string());
+                items.push(strip_quotes(m[1].trim()));
                 i += 1;
             }
             if items.is_empty() {
@@ -285,8 +321,14 @@ fn is_true(v: Option<&FmValue>) -> bool {
     matches!(v, Some(FmValue::Bool(true)))
 }
 
+/// 文字列の値。手書きで `version: 1.5` のように数値になった値も文字列として受ける
+/// (デバイス側 skillCodec の `str` と同じ規則)
 fn opt_str(fm: &Frontmatter, key: &str) -> Option<String> {
-    fm_str(fm, key).map(str::to_string)
+    match fm_get(fm, key) {
+        Some(FmValue::Str(s)) => Some(s.clone()),
+        Some(FmValue::Num(n)) if n.is_finite() => Some(n.to_string()),
+        _ => None,
+    }
 }
 
 /// frontmatter + 本文 → meta (`metaFromFrontmatter`)。
@@ -296,7 +338,7 @@ pub fn meta_from_frontmatter(
     fallback_id: &str,
     now: u64,
 ) -> SkillMeta {
-    let nonempty = |k: &str| fm_str(fm, k).filter(|s| !s.is_empty()).map(str::to_string);
+    let nonempty = |k: &str| opt_str(fm, k).filter(|s| !s.is_empty());
     SkillMeta {
         id: nonempty("id").unwrap_or_else(|| fallback_id.to_string()),
         name: nonempty("name").unwrap_or_else(|| fallback_id.to_string()),
@@ -907,6 +949,37 @@ mod tests {
         let core = Core::new();
         core.set_app_dir(dir.to_path_buf());
         core
+    }
+
+    #[test]
+    fn numeric_name_and_version_are_read_as_text() {
+        let fm: Frontmatter = vec![
+            ("name".into(), FmValue::Num(2024.0)),
+            ("version".into(), FmValue::Num(1.5)),
+        ];
+        let m = meta_from_frontmatter(&fm, "b", "fallback", 0);
+        assert_eq!(m.name, "2024");
+        assert_eq!(m.version, "1.5");
+    }
+
+    #[test]
+    fn single_quotes_round_trip_without_doubling() {
+        let fm: Frontmatter = vec![
+            ("description".into(), FmValue::Str("it's: a test".into())),
+            (
+                "triggers".into(),
+                FmValue::List(vec!["don't".into(), "x, y".into()]),
+            ),
+        ];
+        let mut raw = serialize_skill_file(&fm, "body");
+        for _ in 0..3 {
+            let (parsed, body) = parse_skill_file(&raw);
+            assert_eq!(fm_str(&parsed, "description"), Some("it's: a test"));
+            assert!(
+                matches!(fm_get(&parsed, "triggers"), Some(FmValue::List(v)) if v == &vec!["don't".to_string(), "x, y".to_string()])
+            );
+            raw = serialize_skill_file(&parsed, &body);
+        }
     }
 
     #[test]

@@ -222,7 +222,7 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
   })
 
   it('セッションへの書込が届くまで notecore にターンを投げない (#1106)', async () => {
-    let release: () => void = () => {}
+    let release: () => void = () => undefined
     const gate = new Promise<void>((r) => {
       release = r
     })

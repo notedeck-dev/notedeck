@@ -87,7 +87,9 @@ function asArray(v: unknown): string[] {
   return []
 }
 
+/** 手書きで `version: 1.5` のように数値になった値も文字列として受ける */
 function str(v: unknown): string | undefined {
+  if (typeof v === 'number' && Number.isFinite(v)) return String(v)
   return typeof v === 'string' ? v : undefined
 }
 

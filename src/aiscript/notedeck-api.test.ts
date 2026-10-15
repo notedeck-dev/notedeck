@@ -125,7 +125,7 @@ async function callNative(
   args: (Value | undefined)[],
 ): Promise<Value> {
   const fn = env[name]
-  if (!fn || fn.type !== 'fn' || !fn.native) {
+  if (fn?.type !== 'fn' || !fn.native) {
     throw new Error(`${name} is not a native fn`)
   }
   // biome-ignore lint/suspicious/noExplicitAny: AiScript の native opts は run-time に大量のコールバックを持つ

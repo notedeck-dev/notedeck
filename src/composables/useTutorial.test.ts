@@ -371,7 +371,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     const a = mockSteps.find((s) => s.id === 'a')
     if (a) a.precheck = () => 'skip'
     store.startCategory('getting-started')
-    expect(store.progress.items['a']).toBeDefined()
+    expect(store.progress.items.a).toBeDefined()
     expect(store.progress.achievements['getting-started']).toBeUndefined()
   })
 
@@ -490,7 +490,7 @@ describe('カテゴリ実行と実績 (#1029)', () => {
     store.resetProgress()
     // 走らせ直す = 明示的な再スタート
     store.startCategory('getting-started')
-    expect(store.progress.items['a']).toBeDefined()
+    expect(store.progress.items.a).toBeDefined()
   })
 
   it('完走したカテゴリは、条件が戻っても完走のまま (latch 基準)', () => {
@@ -539,12 +539,12 @@ describe('カテゴリ実行と実績 (#1029)', () => {
       if (s.category) s.precheck = () => 'skip'
     }
     store.startCategory('getting-started')
-    expect(store.progress.items['a']).toBeDefined()
+    expect(store.progress.items.a).toBeDefined()
     // 読み込みが後から完了しても、走行中に記録した分は消えない
     deferredRead.resolve()
     await loading
     deferredRead = null
-    expect(store.progress.items['a']).toBeDefined()
+    expect(store.progress.items.a).toBeDefined()
   })
 
   it('resetProgress で達成記録が消える', () => {
