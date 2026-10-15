@@ -99,8 +99,6 @@ fn record_negative(neg: &mut NegativeCache, hash: String, ttl: Duration) {
 const DEFAULT_MEMORY_CACHE_MAX_ITEM: usize = 256 * 1024;
 const DEFAULT_MEMORY_CACHE_MAX_TOTAL: usize = 32 * 1024 * 1024;
 const DEFAULT_MAX_CONCURRENT_FETCHES: usize = 30;
-#[allow(dead_code)]
-const DEFAULT_CIRCUIT_BREAKER_THRESHOLD: u32 = 5;
 
 /// host 単位の上流健全性。circuit breaker (連続失敗で塞ぐ) と throttle 窓
 /// (429 で待つ) を同じ場所に持つ — どちらも「この host にいま投げてよいか」

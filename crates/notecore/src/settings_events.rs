@@ -86,7 +86,6 @@ impl SettingsSink for MemorySink {
     }
 }
 
-#[allow(dead_code)]
 fn _assert_object_safe(_: &Arc<dyn SettingsSink>) {}
 
 #[cfg(test)]

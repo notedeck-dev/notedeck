@@ -11,7 +11,6 @@ pub enum VaultError {
     /// connection_id が `connections.json` に存在しない。
     ConnectionNotFound,
     /// secret が当該 slot に設定されていない。Phase B (`vault_fetch`) で使う。
-    #[allow(dead_code)]
     SecretNotSet,
     /// secret が短すぎる (最小 16 文字)。redaction の誤マッチ防止のため拒否する。
     SecretTooShort,
