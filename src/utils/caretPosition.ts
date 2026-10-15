@@ -26,7 +26,6 @@ const MIRROR_PROPERTIES = [
   'textTransform',
   'wordSpacing',
   'textIndent',
-  'whiteSpace',
   'wordBreak',
   'overflowWrap',
   'tabSize',
@@ -50,7 +49,7 @@ export function getCaretCoordinates(
   mirror.style.visibility = 'hidden'
   mirror.style.top = '0'
   mirror.style.left = '-9999px'
-  // textarea は常に折り返すので pre-wrap 相当を強制
+  // textarea は常に折り返すので pre-wrap 相当を強制 (複製対象には入れない)
   mirror.style.whiteSpace = 'pre-wrap'
   mirror.style.wordWrap = 'break-word'
   for (const prop of MIRROR_PROPERTIES) {
