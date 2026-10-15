@@ -27,7 +27,12 @@ export function withViewTransition(
     reduceMotion ||
     typeof doc.startViewTransition !== 'function'
   ) {
-    return Promise.resolve(fn())
+    // 同期で投げた場合も API 経路と同じく reject で返す
+    try {
+      return Promise.resolve(fn())
+    } catch (e) {
+      return Promise.reject(e)
+    }
   }
   const vt = doc.startViewTransition(fn) as {
     updateCallbackDone?: Promise<void>
