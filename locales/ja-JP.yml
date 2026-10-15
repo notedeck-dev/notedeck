@@ -962,6 +962,12 @@ _userProfileMenu:
   unblock: "ブロック解除"
   invalidateFollower: "フォロワーを解除"
   muteConfirm: "@{username} をミュートしますか？"
+  mutePeriods:
+    indefinitely: "無期限"
+    tenMinutes: "10 分"
+    oneHour: "1 時間"
+    oneDay: "1 日"
+    oneWeek: "1 週間"
   blockConfirm: "@{username} をブロックしますか？"
   invalidateFollowerConfirm: "@{username} のフォロワーを解除しますか？"
   noLists: "リストがありません"

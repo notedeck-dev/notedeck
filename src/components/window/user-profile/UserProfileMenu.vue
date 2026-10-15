@@ -117,12 +117,38 @@ function userMenuBack() {
   reportComment.value = ''
 }
 
-async function handleMuteUser() {
+/** ミュートの期間 (本家 Misskey Web と同じ選択肢、#1260)。null は無期限 */
+const MUTE_PERIODS = [
+  {
+    ms: null,
+    label: () => i18n.ts._userProfileMenu.mutePeriods.indefinitely,
+  },
+  {
+    ms: 10 * 60 * 1000,
+    label: () => i18n.ts._userProfileMenu.mutePeriods.tenMinutes,
+  },
+  {
+    ms: 60 * 60 * 1000,
+    label: () => i18n.ts._userProfileMenu.mutePeriods.oneHour,
+  },
+  {
+    ms: 24 * 60 * 60 * 1000,
+    label: () => i18n.ts._userProfileMenu.mutePeriods.oneDay,
+  },
+  {
+    ms: 7 * 24 * 60 * 60 * 1000,
+    label: () => i18n.ts._userProfileMenu.mutePeriods.oneWeek,
+  },
+] as const
+
+async function handleMuteUser(periodMs: number | null) {
   if (!props.adapter || !props.user) return
+  const expiresAt = periodMs === null ? undefined : Date.now() + periodMs
   try {
-    await props.adapter.api.muteUser(props.user.id)
+    await props.adapter.api.muteUser(props.user.id, expiresAt)
     // 過去ノートをリロード無しで即時非表示にする（#574）。表示述語が reactive に再評価。
-    mutesStore.muteUser(props.accountId, props.user.id)
+    // 期限つきは手元の非表示も期限で戻る
+    mutesStore.muteUser(props.accountId, props.user.id, expiresAt)
     toast.show(i18n.ts._userProfileMenu.muted)
     void refreshUserRelation()
     closeUserMenu()
@@ -605,9 +631,14 @@ async function addToAntenna(antenna: Antenna) {
     <!-- Mute confirm -->
     <template v-else-if="userMenuView === 'muteConfirm'">
       <div class="_popupConfirmText">{{ i18n.tsx._userProfileMenu.muteConfirm({ username: user?.username ?? '' }) }}</div>
-      <button class="_popupItem _popupItemDanger" @click="handleMuteUser">
-        <i class="ti ti-eye-off" />
-        {{ i18n.ts._common.mute }}
+      <button
+        v-for="period in MUTE_PERIODS"
+        :key="period.ms ?? 'indefinitely'"
+        class="_popupItem _popupItemDanger"
+        @click="handleMuteUser(period.ms)"
+      >
+        <i :class="period.ms === null ? 'ti ti-eye-off' : 'ti ti-clock'" />
+        {{ period.label() }}
       </button>
       <button class="_popupItem" @click="userMenuBack">
         <i class="ti ti-x" />
