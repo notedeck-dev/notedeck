@@ -57,7 +57,7 @@ function valueToUiComponent(val: Value): UiComponent | null {
   const typeVal = obj.get('type')
   const propsVal = obj.get('props')
   const idVal = obj.get('id')
-  if (!typeVal || typeVal.type !== 'str') return null
+  if (typeVal?.type !== 'str') return null
 
   const id = idVal?.type === 'str' ? idVal.value : genComponentId()
   const props: Record<string, unknown> = {}

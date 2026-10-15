@@ -26,7 +26,7 @@ describe('useNewChatMessages.follow (#1223)', () => {
   it('後から増えたアカウントも新着を受ける (張るのは増えた分だけ)', async () => {
     const ids = ref(['a1'])
     const scope = effectScope()
-    scope.run(() => useNewChatMessages(() => {}).follow(() => ids.value))
+    scope.run(() => useNewChatMessages(() => undefined).follow(() => ids.value))
     expect(streamSubscribeMain.mock.calls.map((c) => c[0])).toEqual(['a1'])
 
     ids.value = ['a1', 'a2']
@@ -41,7 +41,7 @@ describe('useNewChatMessages.follow (#1223)', () => {
   it('外れてから戻ったアカウント (再ログイン等) は張り直す', async () => {
     const ids = ref(['a1'])
     const scope = effectScope()
-    scope.run(() => useNewChatMessages(() => {}).follow(() => ids.value))
+    scope.run(() => useNewChatMessages(() => undefined).follow(() => ids.value))
 
     ids.value = []
     await nextTick()

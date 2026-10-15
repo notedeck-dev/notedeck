@@ -13,6 +13,7 @@ describe('i18n-lint の数え方', () => {
       '   コメントも */',
       '/** JSDoc も */',
       "const url = 'https://example.com' // 行末コメント",
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: 検査対象のソースを文字列で与えている
       'show(`失敗: ${e}`)',
     ].join('\n')
     expect(count('src/a.ts', text).japanese).toBe(2)

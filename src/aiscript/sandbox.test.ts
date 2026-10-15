@@ -39,7 +39,7 @@ async function callNative(
   args: Value[],
 ): Promise<Value> {
   const fn = env[name] as VFn | undefined
-  if (!fn || fn.type !== 'fn' || !fn.native) throw new Error(`${name} missing`)
+  if (fn?.type !== 'fn' || !fn.native) throw new Error(`${name} missing`)
   return (await fn.native(args, {} as never)) ?? values.NULL
 }
 

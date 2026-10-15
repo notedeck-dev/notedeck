@@ -30,7 +30,7 @@ describe('useNoteList: 保持上限の切り捨て方向 (#834)', () => {
     return useNoteList({
       getAdapter: () => null,
       deleteHandler: async () => false,
-      closePostForm: () => {},
+      closePostForm: () => undefined,
       maxNotes,
     })
   }
@@ -122,7 +122,7 @@ describe('useNoteList: noteCapture 同期の通知経路 (#939)', () => {
     return useNoteList({
       getAdapter: () => null,
       deleteHandler: async () => false,
-      closePostForm: () => {},
+      closePostForm: () => undefined,
       maxNotes,
     })
   }
@@ -161,7 +161,7 @@ describe('useNoteList: noteCapture 同期の通知経路 (#939)', () => {
     const list = useNoteList({
       getAdapter: () => null,
       deleteHandler: async () => false, // 削除失敗
-      closePostForm: () => {},
+      closePostForm: () => undefined,
       maxNotes: 10,
     })
     const seen: string[][] = []
@@ -208,7 +208,7 @@ describe('useNoteList: 束ねる面のサイレント挿入 (#1058 §6)', () => 
       bundle: true,
       getAdapter: () => null,
       deleteHandler: async () => false,
-      closePostForm: () => {},
+      closePostForm: () => undefined,
     })
   }
 

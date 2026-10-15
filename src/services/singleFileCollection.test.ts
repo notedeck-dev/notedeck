@@ -281,7 +281,7 @@ describe('loadOne (別の書き手の変更通知の写し更新用)', () => {
   it('規定拡張子以外・履歴ファイル・読めないファイル・不採用の内容は undefined', async () => {
     const fs = makeFakeFs({
       [`bad${EXT}`]: '{ id: "x", name: "no props" }',
-      [`h.history.json5`]: '{}',
+      'h.history.json5': '{}',
     })
     const col = makeCollection(fs)
     expect(await col.loadOne('other.txt')).toBeUndefined()
