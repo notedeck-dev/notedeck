@@ -247,7 +247,6 @@ pub struct QirSearchCursor {
 
 /// per-note の判定結果 (V14 の 3 値)。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
 pub enum QirVerdict {
     Match,
     Unmatch,
@@ -256,19 +255,15 @@ pub enum QirVerdict {
 }
 
 /// 評価中の per-note エラー。呼び出し側では Verdict::Error に畳まれる。
-#[allow(dead_code)]
 struct EvalError;
 
-#[allow(dead_code)]
 type EvalResult<'a> = std::result::Result<Cow<'a, JsonValue>, EvalError>;
 
-#[allow(dead_code)]
 struct Evaluator<'a> {
     note: &'a JsonValue,
     slots: HashMap<u32, JsonValue>,
 }
 
-#[allow(dead_code)]
 impl<'a> Evaluator<'a> {
     fn new(note: &'a JsonValue) -> Self {
         Self {
@@ -433,7 +428,6 @@ impl<'a> Evaluator<'a> {
 ///
 /// 意味論は JS 評価器・AiScript 1.2.1 と同一で、共有 golden vector で
 /// 一致を検証する (不変条件 (a))。
-#[allow(dead_code)]
 pub fn evaluate_qir(query: &QirQuery, note: &JsonValue) -> QirVerdict {
     if query.schema_version != QIR_SCHEMA_VERSION {
         return QirVerdict::Error;
@@ -469,7 +463,6 @@ const FTS_MIN_CHARS: usize = 3;
 ///
 /// 返り値は AND 結合で使う想定。MATCH 文字列の組み立てとエスケープは
 /// クエリを発行する側 (notecli) の責務。
-#[allow(dead_code)]
 pub fn extract_fts_literals(query: &QirQuery) -> Vec<String> {
     let mut out = Vec::new();
     if query.schema_version != QIR_SCHEMA_VERSION {

@@ -1191,6 +1191,7 @@ struct ProxyImageParams {
     static_frame: Option<u8>,
     /// 起動毎の画像プロキシトークン (#1099)。WebView が
     /// `get_media_proxy_token` で受け取って付ける。無効なら 403
+    // OpenAPI の params に載せるための宣言。検証は middleware がクエリから直接読む
     #[allow(dead_code)]
     t: Option<String>,
 }
@@ -1314,6 +1315,7 @@ struct ProxyMediaParams {
     /// Upstream media URL (https only, public hosts only)
     url: String,
     /// 起動毎のメディアプロキシトークン (#1099)。`/proxy/image` と同じ値
+    // OpenAPI の params に載せるための宣言。検証は middleware がクエリから直接読む
     #[allow(dead_code)]
     t: Option<String>,
 }

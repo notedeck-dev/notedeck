@@ -42,25 +42,18 @@ struct BskyRecord {
 // Embed views returned by the API
 #[derive(Debug, Deserialize)]
 #[serde(tag = "$type")]
-#[allow(dead_code)]
 enum BskyEmbedView {
     #[serde(rename = "app.bsky.embed.images#view")]
     Images { images: Vec<BskyImageView> },
     #[serde(rename = "app.bsky.embed.video#view")]
-    Video {
-        thumbnail: Option<String>,
-        playlist: Option<String>,
-        aspect_ratio: Option<BskyAspectRatio>,
-    },
+    Video { thumbnail: Option<String> },
     #[serde(rename = "app.bsky.embed.external#view")]
     External { external: BskyExternalView },
     #[serde(rename = "app.bsky.embed.record#view")]
-    Record { record: serde_json::Value },
+    // 引用は本文を出さないので、種別だけ受ける
+    Record,
     #[serde(rename = "app.bsky.embed.recordWithMedia#view")]
-    RecordWithMedia {
-        media: Box<BskyEmbedView>,
-        record: serde_json::Value,
-    },
+    RecordWithMedia { media: Box<BskyEmbedView> },
 }
 
 #[derive(Debug, Deserialize)]
@@ -70,18 +63,7 @@ struct BskyImageView {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
-struct BskyAspectRatio {
-    width: Option<u32>,
-    height: Option<u32>,
-}
-
-#[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct BskyExternalView {
-    uri: Option<String>,
-    title: Option<String>,
-    description: Option<String>,
     thumb: Option<String>,
 }
 
@@ -184,4 +166,29 @@ async fn fetch_json<T: serde::de::DeserializeOwned>(
     resp.json()
         .await
         .map_err(|e| PluginError::ParseFailed(e.to_string()))
+}
+
+#[cfg(test)]
+mod embed_tests {
+    use super::*;
+
+    #[test]
+    fn quote_embeds_parse_without_reading_the_record() {
+        let quote: BskyEmbedView = serde_json::from_value(serde_json::json!({
+            "$type": "app.bsky.embed.record#view",
+            "record": { "uri": "at://x", "value": { "text": "引用" } }
+        }))
+        .unwrap();
+        assert!(matches!(quote, BskyEmbedView::Record));
+        let with_media: BskyEmbedView = serde_json::from_value(serde_json::json!({
+            "$type": "app.bsky.embed.recordWithMedia#view",
+            "record": { "record": {} },
+            "media": { "$type": "app.bsky.embed.video#view", "thumbnail": "t", "playlist": "p" }
+        }))
+        .unwrap();
+        assert!(matches!(
+            extract_media(Some(&with_media)).0.as_deref(),
+            Some("t")
+        ));
+    }
 }

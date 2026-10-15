@@ -41,12 +41,8 @@ struct FxPhoto {
 }
 
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 struct FxVideo {
-    url: Option<String>,
     thumbnail_url: Option<String>,
-    width: Option<u32>,
-    height: Option<u32>,
 }
 
 #[async_trait]

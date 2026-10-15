@@ -213,7 +213,6 @@ onMounted(() => {
       <div :class="$style.formSection">
         <div :class="$style.formKvRow">
           <div :class="$style.formKvKey">{{ i18n.ts._common.overview }}</div>
-          <!-- eslint-disable-next-line vue/no-v-html -->
           <div v-if="sanitizedDescription" :class="$style.description" v-html="sanitizedDescription" />
           <div v-else :class="$style.muted">{{ i18n.ts._deckServerInfoColumn.noDescription }}</div>
         </div>
@@ -290,7 +289,6 @@ onMounted(() => {
             <ol :class="$style.rulesList">
               <li v-for="(rule, i) in meta.serverRules" :key="i" :class="$style.ruleItem">
                 <span :class="$style.ruleNumber">{{ i + 1 }}</span>
-                <!-- eslint-disable-next-line vue/no-v-html -->
                 <div :class="$style.ruleText" v-html="DOMPurify.sanitize(rule, {
                   ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'br', 'p', 'ul', 'ol', 'li', 'code'],
                   ALLOWED_ATTR: ['href', 'target', 'rel'],

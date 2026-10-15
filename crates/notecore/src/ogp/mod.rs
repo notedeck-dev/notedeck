@@ -130,7 +130,6 @@ pub struct OgpCache {
 
 impl OgpCache {
     /// Create with a default HTTP client (used in tests).
-    #[allow(dead_code)]
     pub fn new(db: Arc<notecli::db::Database>) -> Self {
         let perf = Arc::new(tokio::sync::RwLock::new(
             crate::perf_config::PerformanceConfig::default(),
