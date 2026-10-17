@@ -24,11 +24,13 @@ import { fuzzyMatch } from '@/services/fuzzyMatch'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
+import { useKeybindsStore } from '@/stores/keybinds'
 import { isImeComposing } from '@/utils/ime'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { shortcutLabel } from '@/utils/shortcutLabel'
 
 const commandStore = useCommandStore()
+const keybindsStore = useKeybindsStore()
 const spotlightStore = useSpotlightStore()
 const query = ref('')
 const selectedIndex = ref(0)
@@ -460,8 +462,9 @@ function hintLabel(groupItemIndex: number): string | null {
 }
 
 function primaryShortcut(cmd: Command): string | null {
-  const s =
-    cmd.shortcuts.find((s) => s.ctrl || s.shift || s.alt) ?? cmd.shortcuts[0]
+  // 設定で変えた後の値を出す (登録時の写しは古い、#1243)
+  const shortcuts = keybindsStore.resolveShortcuts(cmd)
+  const s = shortcuts.find((s) => s.ctrl || s.shift || s.alt) ?? shortcuts[0]
   return s ? shortcutLabel(s) : null
 }
 </script>

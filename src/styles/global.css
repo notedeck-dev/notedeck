@@ -42,6 +42,10 @@
   --nd-fgHighlighted: #fff;
   --nd-fgOnAccent: #fff;
   --nd-fgOnWhite: #333;
+  /* 補足テキストの色 (NoteDeck 独自 prop)。テーマが書かなければ fg を紙面側に
+     寄せた値にする。テーマが fgMuted を持てば applier の inline 変数が勝ち、
+     持たないテーマへ切り替えると applier が変数を消してここへ戻る (#1246) */
+  --nd-fgMuted: color-mix(in srgb, var(--nd-fg) 70%, var(--nd-bg));
   --nd-divider: rgba(255, 255, 255, 0.14);
   --nd-indicator: #86b300;
   --nd-panel: #2d2d2d;

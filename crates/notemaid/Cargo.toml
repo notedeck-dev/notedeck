@@ -1,6 +1,6 @@
 [package]
 name = "notemaid"
-version = "1.85.1"
+version = "1.85.2"
 edition = "2021"
 description = "NoteDeck の AI (メイド): エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ。アプリが使うライブラリと、別プロセスとして走るバイナリの 1 クレート (#1106)"
 repository = "https://github.com/notedeck-dev/notedeck"
@@ -37,6 +37,7 @@ dirs = { version = "6", optional = true }
 tracing-appender = { version = "0.2", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 tracing = "0.1"
+uuid = { version = "1", features = ["v5"] }
 
 # Windows: GUI サブシステムのまま端末から使うときに親のコンソールへ繋ぐ (main.rs)
 [target.'cfg(windows)'.dependencies]

@@ -6,6 +6,7 @@ import { useCommandStore } from '@/commands/registry'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
+import { useKeybindsStore } from '@/stores/keybinds'
 import { getLogDir, getSettingsDir } from '@/utils/settingsFs'
 import { shortcutLabel } from '@/utils/shortcutLabel'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -143,11 +144,13 @@ async function openDownloadDir() {
 // ズームはコマンド経由 (キーバインドと同じ経路で settings.json5 に残る, #704)。
 // 表示するショートカットもユーザーの割り当てから引く
 const commandStore = useCommandStore()
+const keybindsStore = useKeybindsStore()
 function runZoom(id: 'zoom-in' | 'zoom-out' | 'zoom-reset') {
   commandStore.execute(id)
 }
 function zoomShortcut(id: string): string {
-  const s = commandStore.commands.get(id)?.shortcuts[0]
+  const cmd = commandStore.commands.get(id)
+  const s = cmd ? keybindsStore.resolveShortcuts(cmd)[0] : undefined
   return s ? shortcutLabel(s) : ''
 }
 

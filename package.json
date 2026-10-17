@@ -2,7 +2,7 @@
   "name": "notedeck",
   "description": "Misskey Pro — integrated deck environment (IDE) for Misskey power users",
   "private": true,
-  "version": "1.85.1",
+  "version": "1.85.2",
   "type": "module",
   "packageManager": "pnpm@11.18.0",
   "engines": {
@@ -18,6 +18,7 @@
     "gen:golden-qir": "UPDATE_GOLDEN_QIR=1 vitest run src/services/columnQuery/goldenVectors.test.ts",
     "gen:capabilities": "node scripts/gen-capabilities.mjs",
     "gen:codemap": "node scripts/gen-codemap.mjs",
+    "gen:connection-templates": "node scripts/gen-connection-templates.mjs",
     "gen:aiscript-grammar": "node scripts/gen-aiscript-grammar.mjs",
     "gen:i18n": "node scripts/gen-i18n.ts",
     "gen:golden-permissions": "UPDATE_GOLDEN_PERMISSIONS=1 vitest run src/permissions/goldenVectors.test.ts",

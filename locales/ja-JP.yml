@@ -1132,6 +1132,7 @@ _keybindsContent:
   categoryNavigation: "ナビゲーション"
   categoryColumn: "カラム"
   categoryWindow: "ウィンドウ"
+  categoryPlugin: "プラグイン"
   jsonParseError: "JSON パースエラー"
 
 _listDetailContent:
@@ -3428,6 +3429,7 @@ _native:
     errorContent: "⚠️ {error}"
     errorContentAfter: "{partial}\n\n⚠️ {error}"
     roundLimit: "{partial}\n\n⚠️ tool 呼び出しが上限 ({max} 回) に達しました。"
+    redirectNotFollowed: "AI プロバイダーがリダイレクト (HTTP {status}) を返しました。{host} へは追従しません。接続の URL を最終的な宛先に直してください"
   backup:
     skippedSame: "スキップ (既存と内容が同じ): {items}"
     restoredRenamed: "別名で復元 (既存と衝突): {items} → {renamed}"

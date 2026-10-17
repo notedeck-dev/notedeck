@@ -323,7 +323,8 @@
       "resumeFailed": "ターンを再開できません: {error}",
       "errorContent": "⚠️ {error}",
       "errorContentAfter": "{partial}\n\n⚠️ {error}",
-      "roundLimit": "{partial}\n\n⚠️ tool 呼び出しが上限 ({max} 回) に達しました。"
+      "roundLimit": "{partial}\n\n⚠️ tool 呼び出しが上限 ({max} 回) に達しました。",
+      "redirectNotFollowed": "AI プロバイダーがリダイレクト (HTTP {status}) を返しました。{host} へは追従しません。接続の URL を最終的な宛先に直してください"
     },
     "backup": {
       "skippedSame": "スキップ (既存と内容が同じ): {items}",

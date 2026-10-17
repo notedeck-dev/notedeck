@@ -28,6 +28,16 @@ ignore = [
   # 上流が対応したら cargo-deny が unmatched ignore を警告するので、そこで外す
   { id = "RUSTSEC-2026-0194", reason = "推移的依存 (tauri/plist, notify-rust)。上流の quick-xml 0.41 待ち" },
   { id = "RUSTSEC-2026-0195", reason = "推移的依存 (tauri/plist, notify-rust)。上流の quick-xml 0.41 待ち" },
+  # zip の展開まわり 3 件 (SUID/SGID の保持、展開先の外を指す symlink、symlink 越しの
+  # 権限適用。9.0.0 で修正)。tauri-plugin-updater 経由の推移的依存で、2.x の最新
+  # (2.14.0) も zip ^4 のままなので上げても消えない。zip は updater の Windows 専用の
+  # 依存で、展開するのは更新物 (.nsis.zip) だけ。展開はダウンロード直後の minisign
+  # 署名検証を通った後なので、展開されるのは自分の CI が署名したアーカイブに限られる。
+  # 更新物の形式 (createUpdaterArtifacts: v1Compatible) を変えれば zip は不要になるが、
+  # 既存の利用者の自動更新に関わるので別に判断する。上流が zip 9 に上げたら外す
+  { id = "RUSTSEC-2026-0367", reason = "推移的依存 (tauri-plugin-updater)。Windows の署名済み更新物の展開だけ。上流の zip 9 待ち" },
+  { id = "RUSTSEC-2026-0368", reason = "推移的依存 (tauri-plugin-updater)。Windows の署名済み更新物の展開だけ。上流の zip 9 待ち" },
+  { id = "RUSTSEC-2026-0369", reason = "推移的依存 (tauri-plugin-updater)。Windows の署名済み更新物の展開だけ。上流の zip 9 待ち" },
 ]
 
 [licenses]

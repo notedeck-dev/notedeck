@@ -771,7 +771,7 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
     dispatcher caller は transport 由来固定
   - HTTP API (19820) からは vault を完全排除、CLI は Tauri IPC + peer credential 検査
   - 内蔵接続テンプレ (AI プロバイダー + MisStore 配布物が要求する外部サービス)
-    + URL ペースト推論。テンプレ一覧は `src/data/connectionTemplates.ts` が正本。
+    + URL ペースト推論。テンプレ一覧は `crates/notecore/connection_templates.json5` が正本。
     ここに無いサービスは手動登録できる
   - OAuth 2 フロー / Webhook (inbound) / MCP 連携 / dynamic capability は v2 以降。
     詳細仕様は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault" 節
@@ -791,7 +791,7 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 **Step 1: 要約・チャット**
 - [x] **AI チャットカラム** (#103) — カラム追加ダイアログから追加可能、他カラムと同じくリサイズ・削除可能。
   **Anthropic Messages 互換 / OpenAI Chat Completions 互換**の 2 プロトコル対応
-  (内蔵テンプレは `src/data/connectionTemplates.ts` が正本)、
+  (内蔵テンプレは `crates/notecore/connection_templates.json5` が正本)、
   SSE ストリーミング応答、セッション永続化 (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`、Unix では 0600。
   カラムから独立、master-detail UI で一覧/切替/CRUD)、
   Markdown レンダリング (自前実装 + DOMPurify)、コードブロック個別コピー、

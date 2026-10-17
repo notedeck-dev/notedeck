@@ -23,6 +23,7 @@ pub mod capabilities;
 pub mod client_config;
 pub mod clock;
 pub mod commands;
+pub mod connection_templates;
 pub mod context;
 pub mod crash_report;
 pub mod credentials;

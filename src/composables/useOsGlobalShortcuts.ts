@@ -1,3 +1,4 @@
+import { useDebounceFn } from '@vueuse/core'
 import { onUnmounted, watch } from 'vue'
 import { useCommandStore } from '@/commands/registry'
 import { i18n } from '@/i18n'
@@ -37,8 +38,13 @@ export function useOsGlobalShortcuts() {
     )
     if (gen !== generation) return
 
+    // 上書きを通した今のショートカットで集める (プラグインの command は登録時の
+    // 宣言が空で、keybinds.json5 の上書きだけが効く、#1243)
     const bindings = collectOsGlobalBindings(
-      Array.from(commandStore.commands.values()),
+      Array.from(commandStore.commands.values(), (cmd) => ({
+        id: cmd.id,
+        shortcuts: keybindsStore.resolveShortcuts(cmd),
+      })),
     )
     try {
       await unregisterAll()
@@ -88,16 +94,16 @@ export function useOsGlobalShortcuts() {
     apply().catch((e) =>
       console.warn('[os-global-shortcuts] initial apply failed:', e),
     )
-    // キーバインドの上書きが変わったら登録し直す (設定 UI / AI の keybinds.* / 外部編集)
-    watch(
-      () => keybindsStore.overrides,
-      () => {
-        apply().catch((e) =>
-          console.warn('[os-global-shortcuts] re-apply failed:', e),
-        )
-      },
-      { deep: true },
-    )
+    // キーバインドの上書きが変わったら登録し直す (設定 UI / AI の keybinds.* / 外部編集)。
+    // command の登録 / 解除 (プラグインの読み込み、#1243) でも登録し直す。起動時は
+    // 登録が連続するので、まとめて 1 回にする
+    const reapply = useDebounceFn(() => {
+      apply().catch((e) =>
+        console.warn('[os-global-shortcuts] re-apply failed:', e),
+      )
+    }, 200)
+    watch(() => keybindsStore.overrides, reapply, { deep: true })
+    watch(() => commandStore.commands, reapply)
   }
 
   async function cleanup(): Promise<void> {

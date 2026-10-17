@@ -12,6 +12,7 @@ import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { i18n } from '@/i18n'
+import { parseRegistrationId } from '@/plugins/registrationId'
 import { isExposed } from '@/settings/exposure'
 import { useKeybindsStore } from '@/stores/keybinds'
 import { useToast } from '@/stores/toast'
@@ -78,6 +79,29 @@ const commandIds = computed(() =>
     .getAllCommandIds()
     .filter((id) => isExposed(commandStore.commands.get(id)?.exposure)),
 )
+
+// プラグインが `Nd:register_command` で登録した command (#1243)。id は
+// `<provider>:<name>` (registrationId.ts) で既定ファイルには無いので、一覧は
+// registry から引く。表示名はプラグインが付けた label
+const PLUGIN_CATEGORY = 'plugin'
+const pluginCommandIds = computed(() =>
+  [...commandStore.commands.values()]
+    .filter((c) => parseRegistrationId(c.id) !== null && isExposed(c.exposure))
+    .map((c) => c.id),
+)
+
+function commandLabel(cmdId: string): string {
+  return (
+    COMMAND_LABELS[cmdId]?.() ??
+    commandStore.commands.get(cmdId)?.label ??
+    cmdId
+  )
+}
+
+/** プラグイン command の登録元 (storeId か `local:<installId>`)。組込は null */
+function commandProvider(cmdId: string): string | null {
+  return parseRegistrationId(cmdId)?.provider ?? null
+}
 
 // 文言は表示言語の切り替えに追従するよう、引くたびに辞書を読む (#135)
 const COMMAND_LABELS: Record<string, () => string> = {
@@ -246,6 +270,14 @@ const groupedCommands = computed(() => {
         commands: cmds,
       })
     }
+  }
+  if (pluginCommandIds.value.length > 0) {
+    groups.push({
+      category: PLUGIN_CATEGORY,
+      label: i18n.ts._keybindsContent.categoryPlugin,
+      icon: 'ti-puzzle',
+      commands: pluginCommandIds.value,
+    })
   }
   return groups
 })
@@ -477,7 +509,8 @@ function handleReset() {
             :class="[$style.keybindRow, { [$style.customized]: keybindsStore.isCustomized(cmdId) }]"
           >
             <div :class="$style.keybindLabel">
-              {{ COMMAND_LABELS[cmdId]?.() ?? cmdId }}
+              {{ commandLabel(cmdId) }}
+              <span v-if="commandProvider(cmdId)" :class="$style.sourceTag">{{ commandProvider(cmdId) }}</span>
             </div>
             <div :class="$style.keybindShortcuts">
               <template v-for="(shortcut, idx) in keybindsStore.getShortcuts(cmdId)" :key="idx">
@@ -750,6 +783,13 @@ function handleReset() {
   font-family: inherit;
   font-size: 1em;
   color: var(--nd-accentText);
+}
+
+/* プラグイン command の登録元 (#1243) */
+.sourceTag {
+  margin-left: 6px;
+  font-size: var(--nd-font-sm);
+  color: var(--nd-fgMuted);
 }
 
 .osGlobalTag {

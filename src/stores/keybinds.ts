@@ -87,6 +87,22 @@ export const useKeybindsStore = defineStore('keybinds', () => {
     return DEFAULT_KEYBINDS.map((e) => e.commandId)
   }
 
+  /**
+   * 登録済み command の今のショートカット (#1243)。上書き → 既定ファイル →
+   * command 自身の宣言の順。組込は登録時に既定を写しているが、プラグインが
+   * `Nd:register_command` で登録した command は宣言が空で既定ファイルにも無いので、
+   * keybinds.json5 の上書きだけが効く。キー入力の照合 / OS グローバルの登録 /
+   * 表示はすべてこれを通す (登録時の写しを見ない)
+   */
+  function resolveShortcuts(cmd: {
+    id: string
+    shortcuts: readonly Shortcut[]
+  }): readonly Shortcut[] {
+    if (cmd.id in overrides.value) return overrides.value[cmd.id] ?? []
+    const entry = DEFAULT_KEYBINDS.find((e) => e.commandId === cmd.id)
+    return entry?.shortcuts ?? cmd.shortcuts
+  }
+
   // notecore が keybinds.json5 を書いた (AI の keybinds.* は notecore の本体が
   // 書く, #1133) → 写しを読み直す
   registerSettingsFileHandler('root', async (change) => {
@@ -111,5 +127,6 @@ export const useKeybindsStore = defineStore('keybinds', () => {
     resetAll,
     isCustomized,
     getAllCommandIds,
+    resolveShortcuts,
   }
 })

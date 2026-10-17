@@ -46,6 +46,7 @@ use serde_json::{json, Map, Value};
 use specta::Type;
 use tokio::task::JoinHandle;
 
+use crate::ai_affinity::ConversationKey;
 use crate::ai_chat_service::{
     self, AiChatEvent, AiChatMessage, AiChatRequest, AiChatRole, AiChatSink, ResolvedConnection,
 };
@@ -883,6 +884,19 @@ fn round_request(
             Some(Value::Array(tools.to_vec()))
         },
         session_id: req.session_id.clone(),
+        affinity: Some(conversation_key(req)),
+    }
+}
+
+/// このターンをプロバイダーにどの会話として見せるか (#1160)。HEARTBEAT は接続ごとに
+/// 1 本、チャットは session、session の無いターンは turn 単位。タイトル生成も同じ鍵
+fn conversation_key(req: &AiTurnRequest) -> ConversationKey {
+    if req.principal == "ai.heartbeat" {
+        return ConversationKey::Heartbeat;
+    }
+    match &req.session_id {
+        Some(sid) => ConversationKey::Session(sid.clone()),
+        None => ConversationKey::Turn(req.turn_id.clone()),
     }
 }
 
@@ -951,6 +965,7 @@ async fn generate_title(
         read_timeout_ms: req.read_timeout_ms,
         tools: None,
         session_id: None,
+        affinity: Some(conversation_key(req)),
     };
     let chars = request_chars(&title_req);
     if let Some((dir, daily)) = budget {
@@ -3862,5 +3877,72 @@ mod tests {
         core.set_frontend_bridge(device);
         let err = start_turn_with_sink(&core, req, sink).await.unwrap_err();
         assert!(err.to_string().contains("principal"));
+    }
+
+    // --- 会話アフィニティ ID (#1160) ---
+
+    #[tokio::test]
+    async fn every_request_of_a_session_carries_the_same_conversation_key() {
+        // round 1 (tool) → round 2 → タイトル: 全部同じ session の会話
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "time_now", json!({}))],
+            vec![delta("12 時です")],
+            vec![delta("現在時刻")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "12:00"}));
+        let h = harness(provider.clone(), &[], device);
+        let mut req = request();
+        req.generate_title = true;
+        drive(h.rt.clone(), TurnState::new(req.clone())).await;
+        assert_eq!(h.sink.last().kind, "title");
+        let reqs = provider.requests.lock().unwrap();
+        assert_eq!(reqs.len(), 3);
+        for r in reqs.iter() {
+            assert_eq!(
+                r.affinity,
+                Some(ConversationKey::Session("s1".into())),
+                "{}",
+                r.stream_id
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn continuation_of_the_same_session_keeps_the_key_and_other_sessions_differ() {
+        let provider = ScriptedProvider::new(vec![vec![delta("続き")], vec![delta("別")]]);
+        let device = FakeDevice::new(Value::Null);
+        let h = harness(provider.clone(), &[], device);
+        let mut cont = request();
+        cont.continuation = true;
+        drive(h.rt.clone(), TurnState::new(cont)).await;
+        let mut other = request();
+        other.session_id = Some("s2".into());
+        drive(h.rt.clone(), TurnState::new(other)).await;
+        let reqs = provider.requests.lock().unwrap();
+        assert_eq!(
+            reqs[0].affinity,
+            Some(ConversationKey::Session("s1".into()))
+        );
+        assert_eq!(
+            reqs[1].affinity,
+            Some(ConversationKey::Session("s2".into()))
+        );
+    }
+
+    #[test]
+    fn heartbeat_is_one_conversation_per_connection_and_sessionless_turns_key_by_turn() {
+        let mut req = request();
+        req.principal = "ai.heartbeat".into();
+        assert_eq!(conversation_key(&req), ConversationKey::Heartbeat);
+        // HEARTBEAT に session を付けても (報告先は別経路) 鍵は固定
+        req.session_id = Some("hb-session".into());
+        assert_eq!(conversation_key(&req), ConversationKey::Heartbeat);
+
+        let mut req = request();
+        req.session_id = None;
+        assert_eq!(
+            conversation_key(&req),
+            ConversationKey::Turn(req.turn_id.clone())
+        );
     }
 }
