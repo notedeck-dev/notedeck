@@ -4787,6 +4787,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "public": string
     /** パブリック (非 LTL) */
     readonly "publicNonLtl": string
+    /** プライベート */
+    readonly "private": string
     /** ダイレクト */
     readonly "specified": string
   }

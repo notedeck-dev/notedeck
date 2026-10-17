@@ -1,5 +1,5 @@
 ---
-sourceHash: 960d75866506
+sourceHash: d3caf05786d2
 ---
 
 # Supported servers
@@ -12,7 +12,7 @@ NoteDeck supports upstream Misskey and the forks that still call themselves Miss
 |---|---|
 | Misskey (upstream) | The baseline for every feature |
 | Misskey.io | Fork-specific features are listed below |
-| yamisskey | Yami timeline / yami mode |
+| yamisskey | Yami timeline / yami mode / private |
 | Misskey tempura | Semi-public visibility / quote list / reactions with remote emoji |
 | hanamisskey | Hanami timeline / hanami search / hana mode |
 
@@ -41,6 +41,7 @@ NoteDeck never changes its behaviour based on a fork's name. It looks at what th
 | hanamisskey | Hanami search | Works. Server search is swapped for hanami search |
 | hanamisskey | Hana mode | Implemented (pending verification on a real server) |
 | yamisskey | Yami timeline / yami mode | Implemented (pending verification on a real server) |
+| yamisskey | Private (visible only to you) | Implemented. The post form shows the option only on yamisskey accounts. A direct note with no recipients is shown with the "private" icon on every server (pending verification on a real server) |
 
 ### Deliberately not supported
 

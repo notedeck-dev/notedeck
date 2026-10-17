@@ -112,7 +112,7 @@ export interface NotedeckSettings {
   'postForm.rememberVisibility'?: boolean
   'postForm.lastUsedVisibilityByAccount'?: Record<
     string,
-    'public' | 'public_non_ltl' | 'home' | 'followers' | 'specified'
+    'public' | 'public_non_ltl' | 'home' | 'followers' | 'specified' | 'private'
   >
   'postForm.lastUsedLocalOnlyByAccount'?: Record<string, boolean>
 

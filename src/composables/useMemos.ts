@@ -1,6 +1,6 @@
 import yaml from 'js-yaml'
 import { ref } from 'vue'
-import type { PostVisibility } from '@/adapters/types'
+import type { FormVisibility, PostVisibility } from '@/adapters/types'
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
@@ -17,7 +17,7 @@ export interface MemoData {
   text: string
   cw: string
   showCw: boolean
-  visibility: PostVisibility
+  visibility: FormVisibility
   localOnly: boolean
   fileIds: string[]
   pollChoices: string[]

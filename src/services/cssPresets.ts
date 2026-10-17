@@ -149,6 +149,13 @@ export const VISIBILITY_BG_COLORS: Record<
     },
     color: 'rgba(255, 90, 120, 0.1)',
   },
+  // yamisskey の「プライベート」(宛先なしのダイレクト、#1265)
+  private: {
+    get label() {
+      return i18n.ts._postFormConstants.private
+    },
+    color: 'rgba(120, 120, 120, 0.1)',
+  },
 }
 
 export const VISIBILITY_BG_OPTIONS = [
