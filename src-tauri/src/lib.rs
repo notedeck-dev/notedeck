@@ -1033,6 +1033,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::api_search_notes_hanami,
             commands::api_get_note_children,
             commands::api_get_note_renotes,
+            commands::api_get_note_quotes,
             commands::api_get_note_conversation,
             commands::api_lookup_user,
             commands::api_get_cached_timeline,

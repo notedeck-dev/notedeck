@@ -580,6 +580,14 @@ export interface NotesApi {
     noteId: string,
     options?: PaginationOptions,
   ): Promise<NormalizedNote[]>
+  /**
+   * 引用リノートの一覧。本家には無く、専用 API を持つフォークの adapter だけが
+   * 実装する (tempura の `notes/quotes`、#1263)。UI は有無でタブを出し分ける
+   */
+  getNoteQuotes?(
+    noteId: string,
+    options?: PaginationOptions,
+  ): Promise<NormalizedNote[]>
   getNoteConversation(
     noteId: string,
     options?: PaginationOptions,

@@ -86,6 +86,9 @@ async function setAncestorsKeepingFocal(list: NormalizedNote[]) {
   if (s && f) s.scrollTop = f.offsetTop - before
 }
 const renotes = ref<NormalizedNote[]>([])
+const quotes = ref<NormalizedNote[]>([])
+/** 引用一覧を持つ adapter (tempura) でだけ「引用」タブを出す (#1263) */
+const hasQuotesTab = ref(false)
 const reactionUsers = ref<NoteReaction[]>([])
 // 本家準拠: リアクション種別チップで絞り込んでユーザー一覧を表示する
 const reactionTab = ref<string | null>(null)
@@ -138,10 +141,10 @@ const { sync: syncCapture } = useNoteCapture(
   },
 )
 
-type DetailTab = 'replies' | 'renotes' | 'reactions'
+type DetailTab = 'replies' | 'renotes' | 'quotes' | 'reactions'
 const activeTab = ref<DetailTab>('replies')
 
-const DETAIL_TABS: { key: DetailTab; label: string; icon: string }[] = [
+const ALL_DETAIL_TABS: { key: DetailTab; label: string; icon: string }[] = [
   {
     key: 'replies',
     get label() {
@@ -157,6 +160,13 @@ const DETAIL_TABS: { key: DetailTab; label: string; icon: string }[] = [
     icon: 'ti ti-repeat',
   },
   {
+    key: 'quotes',
+    get label() {
+      return i18n.ts._common.quote
+    },
+    icon: 'ti ti-quote',
+  },
+  {
     key: 'reactions',
     get label() {
       return i18n.ts._common.reactions
@@ -164,6 +174,9 @@ const DETAIL_TABS: { key: DetailTab; label: string; icon: string }[] = [
     icon: 'ti ti-mood-happy',
   },
 ]
+const DETAIL_TABS = computed(() =>
+  ALL_DETAIL_TABS.filter((t) => t.key !== 'quotes' || hasQuotesTab.value),
+)
 
 let adapter: ServerAdapter | null = null
 
@@ -178,7 +191,6 @@ onMounted(async () => {
     return
   }
   myUserId.value = account.userId
-
   // Show cached note immediately (skip skeleton) while fetching fresh data
   const cached = noteStore.get(variantKey(props.accountId, props.noteId))
   if (cached) {
@@ -192,6 +204,7 @@ onMounted(async () => {
       hasToken: account.hasToken,
     })
     adapter = result.adapter
+    hasQuotesTab.value = typeof adapter.api.getNoteQuotes === 'function'
     // adapter は非リアクティブなローカル変数なので、キャッシュ即描画の窓で
     // 初期化前に選ばれたタブ・種別は watch では拾えない。ここで拾い直す
     // (PR #1086 レビュー)
@@ -251,6 +264,8 @@ async function loadTabContent(tab: DetailTab): Promise<void> {
   try {
     if (tab === 'renotes') {
       renotes.value = await adapter.api.getNoteRenotes(props.noteId)
+    } else if (tab === 'quotes' && adapter.api.getNoteQuotes) {
+      quotes.value = await adapter.api.getNoteQuotes(props.noteId)
     }
   } catch (e) {
     console.warn('[NoteDetail] failed to load tab:', tab, e)
@@ -607,6 +622,28 @@ async function handlePosted(editedNoteId?: string) {
         </div>
       </div>
 
+      <!-- Tab: Quotes (tempura の notes/quotes があるサーバーだけ) -->
+      <div v-if="activeTab === 'quotes'">
+        <div v-if="quotes.length > 0" :class="$style.quoteList">
+          <MkNote
+            v-for="q in quotes"
+            :key="q.id"
+            :note="q"
+            @react="handleReaction"
+            @reply="handleReply"
+            @renote="handleRenote"
+            @quote="handleQuote"
+            @delete="handleDelete"
+            @edit="handleEdit"
+            @delete-and-edit="handleDeleteAndEdit"
+            @vote="handleVote"
+          />
+        </div>
+        <div v-else :class="$style.stateMessage">
+          {{ i18n.ts._noteDetailContent.noQuotes }}
+        </div>
+      </div>
+
       <!-- Tab: Reactions -->
       <div v-if="activeTab === 'reactions'">
         <div v-if="reactionTypes.length > 0" :class="$style.tabPane">
@@ -757,6 +794,12 @@ async function handlePosted(editedNoteId?: string) {
 
   i {
     font-size: 1em;
+  }
+}
+
+.quoteList {
+  :global(.note-root + .note-root) {
+    border-top: none;
   }
 }
 

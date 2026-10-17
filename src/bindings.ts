@@ -648,6 +648,15 @@ async apiGetNoteRenotes(accountId: string, noteId: string, limit: number | null)
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
+async apiGetNoteQuotes(accountId: string, noteId: string, limit: number | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_get_note_quotes", { accountId, noteId, limit, untilId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/timeline.rs */
 async apiGetNoteConversation(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_conversation", { accountId, noteId, limit }) };
