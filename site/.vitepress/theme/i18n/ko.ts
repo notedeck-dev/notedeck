@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: ec547cb3e0bf
+// sourceHash: d3fb3914e19f
 
 import type { Messages } from './ja'
 
@@ -117,6 +117,7 @@ const ko: Messages = {
     forkBodyHtml:
       '포크마다 다른 부분은 <strong>어댑터</strong>가 맡습니다. 쓸 수 없는 고유 기능이 있다면 알려 주세요 (대상은 Misskey라는 이름을 계속 쓰는 포크).',
     forkButton: '지원 요청하기',
+    forkDocsButton: '지원 현황 보기',
   },
   useCases: {
     title: '이렇게 쓸 수 있습니다',
