@@ -190,7 +190,9 @@ function renderKatex(formula: string, displayMode: boolean): string {
 }
 
 const hexColorRe = /^[0-9a-fA-F]{3,8}$/
-const cssTimeRe = /^\d+(\.\d+)?(s|ms)$/
+// 本家 (mfm-renderer の validTime) と同じく負の値も通す。負の duration は CSS として
+// 無効で捨てられ、負の delay は位相をずらす正当な書き方 (MFM アートで使う)
+const cssTimeRe = /^-?\d+(\.\d+)?(s|ms)$/
 const cssNumRe = /^-?\d+(\.\d+)?$/
 
 // 値域の上限 (#704)。scale は本家と同じ 5 倍 (本家は上側だけだが負でも同じだけ
@@ -296,6 +298,11 @@ function fnStyle(
 
   if (typeof args.speed === 'string' && cssTimeRe.test(args.speed)) {
     s.animationDuration = args.speed
+  }
+  // 本家と同じ `delay` (#1083)。複数要素の位相をずらす MFM アートはこれが無いと
+  // 全部同時に動く
+  if (typeof args.delay === 'string' && cssTimeRe.test(args.delay)) {
+    s.animationDelay = args.delay
   }
 
   switch (name) {
