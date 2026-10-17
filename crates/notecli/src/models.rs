@@ -186,6 +186,10 @@ pub struct NormalizedNote {
     pub updated_at: Option<String>,
     #[serde(default)]
     pub local_only: bool,
+    /// tempura のセミパブリック (public だが LTL に載らない)。packed の `dontShowOnLtl`。
+    /// 送信側の `public_non_ltl` は応答で `public` に書き換わるので、この flag が唯一の手掛かり (#936)
+    #[serde(default)]
+    pub dont_show_on_ltl: bool,
     #[serde(default)]
     pub visible_user_ids: Vec<String>,
     #[serde(default)]
@@ -1854,6 +1858,11 @@ impl RawNote {
             url: self.url,
             updated_at: self.updated_at,
             local_only: self.local_only,
+            dont_show_on_ltl: self
+                .extra
+                .get("dontShowOnLtl")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
             visible_user_ids: self.visible_user_ids,
             is_favorited: self.is_favorited,
             mode_flags: self
@@ -2611,6 +2620,19 @@ mod tests {
         assert!(*note.mode_flags.get("isNoteInYamiMode").unwrap());
         assert!(!*note.mode_flags.get("isNoteInSuperMode").unwrap());
         assert!(!note.mode_flags.contains_key("unrelatedField"));
+    }
+
+    #[test]
+    fn raw_note_normalize_dont_show_on_ltl() {
+        let mut j = raw_note_json();
+        j["dontShowOnLtl"] = json!(true);
+        let raw: RawNote = serde_json::from_value(j).unwrap();
+        let note = raw.normalize("acc1", "misskey.io");
+        assert!(note.dont_show_on_ltl);
+        assert_eq!(note.visibility, "public");
+        // 本家 (フィールド無し) は false
+        let raw: RawNote = serde_json::from_value(raw_note_json()).unwrap();
+        assert!(!raw.normalize("acc1", "misskey.io").dont_show_on_ltl);
     }
 
     #[test]

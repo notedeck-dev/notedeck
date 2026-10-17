@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { useIntersectionObserver } from '@vueuse/core'
 import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from 'vue'
+import { effectivePostVisibility } from '@/adapters/misskey-tempura/semiPublic'
 import type {
   NormalizedNote,
   NormalizedUser,
-  NoteVisibility,
+  PostVisibility,
 } from '@/adapters/types'
 import { applyNoteViewInterruptors } from '@/aiscript/plugin-api'
 import AppTime from '@/components/common/AppTime.vue'
@@ -456,7 +457,10 @@ function closeUserPopup() {
   userPopup.forceClose()
 }
 
-const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
+const VISIBILITY_ICONS: Record<PostVisibility, string> = {
+  // tempura のセミパブリック: 公式 Web の broadcast 系アイコンに寄せる (#936)
+  public_non_ltl:
+    'M12 11c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 2c0-3.31-2.69-6-6-6s-6 2.69-6 6c0 2.22 1.21 4.15 3 5.19l1-1.74c-1.19-.7-2-1.97-2-3.45 0-2.21 1.79-4 4-4s4 1.79 4 4c0 1.48-.81 2.75-2 3.45l1 1.74c1.79-1.04 3-2.97 3-5.19zM12 3C6.48 3 2 7.48 2 13c0 3.7 2.01 6.92 4.99 8.65l1-1.73C5.61 18.53 4 15.96 4 13c0-4.42 3.58-8 8-8s8 3.58 8 8c0 2.96-1.61 5.53-4 6.92l1 1.73c2.99-1.73 5-4.95 5-8.65 0-5.52-4.48-10-10-10z',
   public:
     'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
   home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
@@ -465,6 +469,11 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
   specified:
     'M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z',
 }
+
+/** 受信値 + dontShowOnLtl から見た公開範囲 (セミパブリックは public_non_ltl) */
+const effectiveVisibility = computed(() =>
+  effectivePostVisibility(effectiveNote.value),
+)
 
 const activeModeFlags = computed(() =>
   deriveActiveModeFlags(effectiveNote.value.modeFlags),
@@ -960,7 +969,7 @@ function handlePickerReaction(reaction: string) {
       },
     ]"
     :style="channelInfo && showChannelInfo ? { '--nd-channel-color': channelInfo.color } : undefined"
-    :data-visibility="effectiveNote.visibility"
+    :data-visibility="effectiveVisibility"
     :data-own="isOwnNote"
     tabindex="0"
     @mousedown="clearSpotlight"
@@ -1103,13 +1112,14 @@ function handlePickerReaction(reaction: string) {
               :title="i18n.ts._mkNote.localOnly"
             />
             <svg
-              v-if="effectiveNote.visibility !== 'public'"
+              v-if="effectiveVisibility !== 'public'"
               :class="$style.visibilityIcon"
               viewBox="0 0 24 24"
               width="14"
               height="14"
             >
-              <path :d="VISIBILITY_ICONS[effectiveNote.visibility] || VISIBILITY_ICONS.public" fill="currentColor" />
+              <title v-if="effectiveVisibility === 'public_non_ltl'">{{ i18n.ts._postFormConstants.publicNonLtl }}</title>
+              <path :d="VISIBILITY_ICONS[effectiveVisibility] || VISIBILITY_ICONS.public" fill="currentColor" />
             </svg>
           </span>
         </header>

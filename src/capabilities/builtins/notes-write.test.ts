@@ -36,9 +36,10 @@ describe('notes.create capability', () => {
     expect(params?.accountId?.optional).toBe(true)
   })
 
-  it('declares the visibility enum', () => {
+  it('declares the visibility enum (本家の 4 値 + tempura のセミパブリック #936)', () => {
     expect(notesCreateCapability.signature?.params?.visibility?.enum).toEqual([
       'public',
+      'public_non_ltl',
       'home',
       'followers',
       'specified',

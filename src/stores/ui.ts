@@ -1,7 +1,7 @@
 import { type Platform, platform } from '@tauri-apps/plugin-os'
 import { defineStore, storeToRefs } from 'pinia'
 import { computed, onScopeDispose, ref } from 'vue'
-import type { NoteVisibility } from '@/adapters/types'
+import type { PostVisibility } from '@/adapters/types'
 import { isTauri } from '@/utils/settingsFs'
 
 export function detectPlatformFromUserAgent(
@@ -42,7 +42,7 @@ export const MOBILE_WINDOW_SIZE = { width: MOBILE_BREAKPOINT, height: 780 }
 export interface ComposeRequest {
   text?: string
   cw?: string
-  visibility?: NoteVisibility
+  visibility?: PostVisibility
   /** 同じ内容の要求が続いても watch が発火するよう付ける */
   ts?: number
 }

@@ -1,5 +1,6 @@
 import { computed, ref, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
+import { renoteVisibilityFor } from '@/adapters/misskey-tempura/semiPublic'
 import type {
   ChannelSubscription,
   ManagedChannelSubscription,
@@ -317,7 +318,10 @@ export function useColumnSetup(
     // API 待ちの間に届いたライブ更新を巻き戻す
     applyPatch(note, (cur) => ({ renoteCount: (cur.renoteCount ?? 0) + 1 }))
     try {
-      await api.createNote({ renoteId: note.id })
+      await api.createNote({
+        renoteId: note.id,
+        visibility: await renoteVisibilityFor(note, note._accountId),
+      })
     } catch (e) {
       applyPatch(note, (cur) => ({
         renoteCount: Math.max(0, (cur.renoteCount ?? 1) - 1),

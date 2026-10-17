@@ -676,6 +676,7 @@
             "description": "公開範囲 (default: public)",
             "enum": [
               "public",
+              "public_non_ltl",
               "home",
               "followers",
               "specified"
@@ -767,6 +768,7 @@
             "description": "公開範囲",
             "enum": [
               "public",
+              "public_non_ltl",
               "home",
               "followers",
               "specified"
@@ -1622,9 +1624,10 @@
           },
           "visibility": {
             "type": "string",
-            "description": "公開範囲: public / home / followers / specified (default: public)",
+            "description": "公開範囲: public / home / followers / specified (default: public)。public_non_ltl はセミパブリック (パブリックだが LTL に載らない) を持つサーバーだけ",
             "enum": [
               "public",
+              "public_non_ltl",
               "home",
               "followers",
               "specified"

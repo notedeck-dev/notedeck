@@ -1,7 +1,7 @@
 import type {
   NormalizedNote,
   NormalizedPoll,
-  NoteVisibility,
+  PostVisibility,
 } from '@/adapters/types'
 import { localNoteIdentity } from '@/services/noteUrl'
 import type { Account } from '@/stores/accounts'
@@ -24,7 +24,7 @@ export interface BuildPreviewNoteOptions {
   createdAt: string
   text: string | null
   cw: string | null
-  visibility: NoteVisibility
+  visibility: PostVisibility
   localOnly: boolean
   replyId?: string | null
   renoteId?: string | null
@@ -86,7 +86,10 @@ export function buildPreviewNote(
       name: opts.author?.displayName ?? account.displayName,
       avatarUrl: opts.author?.avatarUrl ?? deps.accountAvatarUrl(account),
     },
-    visibility: opts.visibility,
+    // セミパブリックは受信形 (public + dontShowOnLtl) に寄せて、表示側の判定を 1 本にする (#936)
+    visibility:
+      opts.visibility === 'public_non_ltl' ? 'public' : opts.visibility,
+    dontShowOnLtl: opts.visibility === 'public_non_ltl',
     emojis: opts.emojis ?? {},
     reactionEmojis: opts.reactionEmojis ?? {},
     reactions: {},

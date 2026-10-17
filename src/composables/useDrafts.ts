@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { NoteVisibility } from '@/adapters/types'
+import type { PostVisibility } from '@/adapters/types'
 import type { JsonValue, NoteDraft } from '@/bindings'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -12,7 +12,7 @@ export interface DraftData {
   text: string
   cw: string
   showCw: boolean
-  visibility: NoteVisibility
+  visibility: PostVisibility
   localOnly: boolean
   fileIds: string[]
   pollChoices: string[]
@@ -60,7 +60,7 @@ function toStored(raw: NoteDraft): StoredDraft {
       text: raw.text ?? '',
       cw: raw.cw ?? '',
       showCw: !!raw.cw,
-      visibility: (raw.visibility as NoteVisibility) ?? 'public',
+      visibility: (raw.visibility as PostVisibility) ?? 'public',
       localOnly: raw.localOnly ?? false,
       fileIds: raw.fileIds ?? [],
       pollChoices: pollChoices.length >= 2 ? pollChoices : ['', ''],

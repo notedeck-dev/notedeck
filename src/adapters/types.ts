@@ -53,6 +53,11 @@ export interface ServerFeatures {
 }
 
 export type NoteVisibility = 'public' | 'home' | 'followers' | 'specified'
+/**
+ * 投稿時に送れる公開範囲。受信側 (`NoteVisibility`) との差は tempura のセミパブリック
+ * `public_non_ltl` で、応答では `public` + `dontShowOnLtl` に書き換わって返る (#936)
+ */
+export type PostVisibility = NoteVisibility | 'public_non_ltl'
 
 /** Standard timeline types. Custom forks may add more (e.g., 'bubble', 'recommended'). */
 export type TimelineType =
@@ -253,6 +258,8 @@ export interface NormalizedNote {
    * 化けて Rust 面 (常に bool) と食い違う (#783 レビュー修正 2)
    */
   localOnly: boolean
+  /** tempura のセミパブリック (public だが LTL に載らない)。本家では常に false (#936) */
+  dontShowOnLtl?: boolean
   visibleUserIds?: string[]
   isFavorited?: boolean
   /** Fork-specific mode flags (e.g., isNoteInYamiMode) */
@@ -439,7 +446,7 @@ export interface NormalizedNotification {
 export interface CreateNoteParams {
   text?: string
   cw?: string | null
-  visibility?: NoteVisibility
+  visibility?: PostVisibility
   localOnly?: boolean
   modeFlags?: Record<string, boolean>
   replyId?: string

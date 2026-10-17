@@ -1,10 +1,10 @@
-import type { NoteVisibility } from '@/adapters/types'
+import type { PostVisibility } from '@/adapters/types'
 import { i18n } from '@/i18n'
 
 export const MAX_TEXT_LENGTH = 3000
 
 export interface VisibilityOption {
-  value: NoteVisibility
+  value: PostVisibility
   label: string
   icon: string
 }

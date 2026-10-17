@@ -1,3 +1,4 @@
+import { renoteVisibilityFor } from '@/adapters/misskey-tempura/semiPublic'
 import type { NormalizedNote } from '@/adapters/types'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { i18n } from '@/i18n'
@@ -118,7 +119,10 @@ export function useCrossAccountNoteActions() {
     if (!adapter) return
 
     try {
-      await adapter.api.createNote({ renoteId: noteId })
+      await adapter.api.createNote({
+        renoteId: noteId,
+        visibility: await renoteVisibilityFor(note, accountId),
+      })
       toast.show(
         i18n.tsx._useCrossAccountNoteActions.renoted({
           account: labelFor(accountId),

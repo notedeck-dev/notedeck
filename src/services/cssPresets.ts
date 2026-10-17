@@ -130,6 +130,13 @@ export const VISIBILITY_BG_COLORS: Record<
     },
     color: 'rgba(51, 127, 255, 0.08)',
   },
+  // tempura のセミパブリック (#936)。公式 Web の既定色 #86B300 に寄せる
+  public_non_ltl: {
+    get label() {
+      return i18n.ts._postFormConstants.publicNonLtl
+    },
+    color: 'rgba(134, 179, 0, 0.08)',
+  },
   followers: {
     get label() {
       return i18n.ts._common.followers

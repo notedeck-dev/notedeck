@@ -4785,6 +4785,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_postFormConstants": {
     /** パブリック */
     readonly "public": string
+    /** パブリック (非 LTL) */
+    readonly "publicNonLtl": string
     /** ダイレクト */
     readonly "specified": string
   }

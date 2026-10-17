@@ -1,4 +1,4 @@
-import type { NoteVisibility } from '@/adapters/types'
+import type { NoteVisibility, PostVisibility } from '@/adapters/types'
 import type { Command } from '@/commands/registry'
 import {
   type DraftData,
@@ -28,8 +28,9 @@ import { implement } from '../declare'
  * - delete は warning タイプの確認 (= 失われると戻せない)
  */
 
-const VALID_VISIBILITIES: readonly NoteVisibility[] = [
+const VALID_VISIBILITIES: readonly PostVisibility[] = [
   'public',
+  'public_non_ltl',
   'home',
   'followers',
   'specified',
