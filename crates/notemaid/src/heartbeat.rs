@@ -1254,6 +1254,7 @@ async fn generate_title(core: &Core, cfg: &AiConfigLite, report: &str) -> Option
         max_tokens: Some(cfg.generation.title_max_tokens),
         read_timeout_ms: Some(u64::from(cfg.generation.read_timeout_seconds) * 1000),
         tools: None,
+        affinity: Some(crate::ai_affinity::ConversationKey::Heartbeat),
     };
     // タイトル生成も接続の token 予算に数える (超過なら呼ばない)
     let budget = cfg.daily_budget_for(&cfg.active_connection_id);

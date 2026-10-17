@@ -6203,6 +6203,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
 
 ⚠️ tool 呼び出しが上限 ({max} 回) に達しました。 */
       readonly "roundLimit": ParameterizedString<'max' | 'partial'>
+      /** AI プロバイダーがリダイレクト (HTTP {status}) を返しました。{host} へは追従しません。接続の URL を最終的な宛先に直してください */
+      readonly "redirectNotFollowed": ParameterizedString<'host' | 'status'>
     }
     readonly "backup": {
       /** スキップ (既存と内容が同じ): {items} */

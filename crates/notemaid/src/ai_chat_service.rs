@@ -19,6 +19,8 @@ use tokio::task::JoinHandle;
 
 use notecli::error::NoteDeckError;
 
+use crate::ai_affinity::{affinity_id, ConversationKey};
+
 use notecore::error::Result;
 
 /// In-flight chat streaming tasks keyed by `stream_id`. Used by `ai_chat_cancel`
@@ -96,6 +98,12 @@ pub struct AiChatRequest {
     /// 書込先の NoteDeck セッション (手元の CLI が自分のセッションと対応づけるため、#1104)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_id: Option<String>,
+    /// どの会話の一部としてプロバイダーに見せるか (#1160)。会話を知っている層
+    /// (ターン実行器 / HEARTBEAT / 1 往復の入口) が決め、wire (フロント・外部) からは
+    /// 指定できない。宛先がプロバイダー固有の会話 ID ヘッダーを要求するときだけ使う
+    #[serde(skip)]
+    #[specta(skip)]
+    pub affinity: Option<ConversationKey>,
 }
 
 /// Wire-format event sent over the `nd:ai-chat-event` channel.
@@ -299,6 +307,10 @@ fn streaming_client(read_timeout: Duration) -> reqwest::Client {
                 .connect_timeout(CONNECT_TIMEOUT)
                 .read_timeout(read_timeout)
                 .user_agent("notedeck-ai-streaming")
+                // redirect は追わない (#1160): ホストをまたぐ redirect で API キーと会話
+                // ID が持ち越され、「宛先ホストで決める」が崩れる。3xx は明示エラーにする
+                // ([`reject_redirect`])
+                .redirect(reqwest::redirect::Policy::none())
                 .build()
                 .expect("failed to build AI streaming client")
         })
@@ -327,6 +339,44 @@ fn describe_stream_error(e: &reqwest::Error) -> String {
         source = s.source();
     }
     details
+}
+
+/// 宛先がプロバイダー固有の会話 ID ヘッダーを要求するなら、その (名前, 値) (#1160)。
+/// ヘッダー名は宛先ホストで引き、値は接続 ID と会話の鍵から導出する。鍵を持たない
+/// リクエスト (想定外の入口) は stream ID を鍵にして、ヘッダー無しの 400 にはしない。
+fn affinity_header(req: &AiChatRequest, endpoint: &str) -> Option<(&'static str, String)> {
+    let name = notecore::connection_templates::affinity_header_for(endpoint)?;
+    let fallback;
+    let key = match &req.affinity {
+        Some(key) => key,
+        None => {
+            fallback = ConversationKey::Stream(req.stream_id.clone());
+            &fallback
+        }
+    };
+    Some((name, affinity_id(&req.connection_id, key)))
+}
+
+/// 3xx は追わない (#1160)。リダイレクト先のホストを含む明示エラーにする (301/302 は
+/// POST が GET に化けるので元々動いておらず、307/308 で動いていた構成はこれで気付ける)。
+fn reject_redirect(resp: &reqwest::Response, request_url: &str) -> Option<AttemptError> {
+    if !resp.status().is_redirection() {
+        return None;
+    }
+    let location = resp
+        .headers()
+        .get(reqwest::header::LOCATION)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let host = reqwest::Url::parse(request_url)
+        .ok()
+        .and_then(|base| base.join(location).ok())
+        .and_then(|u| u.host_str().map(str::to_string))
+        .unwrap_or_else(|| "?".to_string());
+    Some(AttemptError::localized(notecore::i18n::text(
+        "_native.ai.redirectNotFollowed",
+        json!({ "status": resp.status().as_u16(), "host": host }),
+    )))
 }
 
 /// リクエストの入力検証 (model / サイズ上限)。ターン実行器 (#1133) とも共有する。
@@ -428,9 +478,11 @@ pub async fn start_stream(
     sink: Arc<dyn AiChatSink>,
     app_dir: &Path,
     _client: reqwest::Client,
-    req: AiChatRequest,
+    mut req: AiChatRequest,
 ) -> Result<()> {
     validate_request(&req)?;
+    // 1 往復の経路は会話を持たない。呼び出しごとに新しい会話として見せる (#1160)
+    req.affinity = Some(ConversationKey::Stream(req.stream_id.clone()));
     if crate::acp::harness_id(&req.connection_id).is_some() {
         // 手元の CLI (#1104) はターン実行器 (ai_turn) だけが回す。1 往復の経路は無い
         return Err(NoteDeckError::InvalidInput(
@@ -694,16 +746,23 @@ async fn run_anthropic_attempt(
     let url = format!("{}/v1/messages", endpoint.trim_end_matches('/'));
     let body = anthropic_body(req);
 
-    let resp = streaming_client(resolve_read_timeout(req))
+    let mut request = streaming_client(resolve_read_timeout(req))
         .post(&url)
         .header("x-api-key", api_key)
         .header("anthropic-version", ANTHROPIC_VERSION)
-        .header("content-type", "application/json")
+        .header("content-type", "application/json");
+    if let Some((name, value)) = affinity_header(req, endpoint) {
+        request = request.header(name, value);
+    }
+    let resp = request
         .json(&body)
         .send()
         .await
         .map_err(|e| AttemptError::retryable(format!("network error: {e}")))?;
 
+    if let Some(e) = reject_redirect(&resp, &url) {
+        return Err(e);
+    }
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
         let text = resp.text().await.unwrap_or_default();
@@ -956,11 +1015,17 @@ async fn run_openai_compat_attempt(
     if !api_key.is_empty() {
         request = request.header("authorization", format!("Bearer {api_key}"));
     }
+    if let Some((name, value)) = affinity_header(req, endpoint) {
+        request = request.header(name, value);
+    }
     let resp = request
         .send()
         .await
         .map_err(|e| AttemptError::retryable(format!("network error: {e}")))?;
 
+    if let Some(e) = reject_redirect(&resp, &url) {
+        return Err(e);
+    }
     if !resp.status().is_success() {
         let status = resp.status().as_u16();
         let text = resp.text().await.unwrap_or_default();
@@ -1388,6 +1453,7 @@ mod tests {
             read_timeout_ms: None,
             tools,
             session_id: None,
+            affinity: None,
         }
     }
 
@@ -1437,5 +1503,166 @@ mod tests {
         assert!(m.tool_use_name.is_none());
         assert!(m.tool_use_input.is_none());
         assert!(m.tool_result_for.is_none());
+    }
+
+    // --- 会話アフィニティ ID (#1160) ---
+
+    fn opencode_request(stream_id: &str, affinity: Option<ConversationKey>) -> AiChatRequest {
+        let mut req = request_with_tools(None);
+        req.stream_id = stream_id.into();
+        req.connection_id = "conn-1".into();
+        req.affinity = affinity;
+        req
+    }
+
+    #[test]
+    fn opencode_destinations_get_the_session_header_derived_from_the_conversation() {
+        let key = ConversationKey::Session("20261001120000".into());
+        let (name, value) = affinity_header(
+            &opencode_request("t1:0", Some(key.clone())),
+            "https://opencode.ai/zen/go/v1",
+        )
+        .expect("header");
+        assert_eq!(name, "x-opencode-session");
+        assert_eq!(value, affinity_id("conn-1", &key));
+        assert!(!value.contains("20261001120000"));
+        assert!(uuid::Uuid::parse_str(&value).is_ok());
+
+        // 同じ session の別ターン / 別 round は同じ値、別 session・別接続は違う値
+        let (_, again) = affinity_header(
+            &opencode_request("t2:3", Some(key.clone())),
+            "https://opencode.ai/zen/v1",
+        )
+        .unwrap();
+        assert_eq!(again, value);
+        let (_, other_session) = affinity_header(
+            &opencode_request("t1:0", Some(ConversationKey::Session("other".into()))),
+            "https://opencode.ai/zen/go/v1",
+        )
+        .unwrap();
+        assert_ne!(other_session, value);
+        let mut other_conn = opencode_request("t1:0", Some(key));
+        other_conn.connection_id = "conn-2".into();
+        let (_, other_conn_value) =
+            affinity_header(&other_conn, "https://opencode.ai/zen/go/v1").unwrap();
+        assert_ne!(other_conn_value, value);
+    }
+
+    #[test]
+    fn requests_without_a_conversation_key_fall_back_to_the_stream_id() {
+        let (_, a) = affinity_header(
+            &opencode_request("stream-a", None),
+            "https://opencode.ai/zen/go/v1",
+        )
+        .unwrap();
+        let (_, b) = affinity_header(
+            &opencode_request("stream-b", None),
+            "https://opencode.ai/zen/go/v1",
+        )
+        .unwrap();
+        assert_ne!(a, b);
+        assert_eq!(
+            a,
+            affinity_id("conn-1", &ConversationKey::Stream("stream-a".into()))
+        );
+    }
+
+    #[test]
+    fn other_hosts_get_no_affinity_header() {
+        let key = Some(ConversationKey::Session("s".into()));
+        for endpoint in [
+            "https://api.openai.com/v1",
+            "https://api.anthropic.com",
+            "https://notopencode.ai/zen/go/v1",
+            "https://opencode.ai.example/zen/go/v1",
+            "https://api.opencode.ai/zen/go/v1",
+            "not a url",
+        ] {
+            assert!(
+                affinity_header(&opencode_request("t", key.clone()), endpoint).is_none(),
+                "{endpoint}"
+            );
+        }
+    }
+
+    #[test]
+    fn start_stream_entry_keys_every_call_separately() {
+        // 1 往復の経路は呼び出しごとに新しい会話 (OpenClaw の CLI と同じ割り切り)
+        let mut req = opencode_request("stream-x", Some(ConversationKey::Heartbeat));
+        req.affinity = Some(ConversationKey::Stream(req.stream_id.clone()));
+        assert_eq!(
+            req.affinity,
+            Some(ConversationKey::Stream("stream-x".into()))
+        );
+    }
+
+    #[test]
+    fn affinity_is_not_part_of_the_wire_format() {
+        // フロント / 外部から指定できない: serialize に出ず、deserialize は無視する
+        let req = opencode_request("s", Some(ConversationKey::Heartbeat));
+        let json = serde_json::to_value(&req).unwrap();
+        assert!(json.get("affinity").is_none());
+        let back: AiChatRequest = serde_json::from_value(json!({
+            "stream_id": "s", "connection_id": "c", "model": "m", "messages": [],
+            "system": null, "max_tokens": null, "read_timeout_ms": null, "tools": null,
+            "affinity": {"Heartbeat": null}
+        }))
+        .unwrap();
+        assert_eq!(back.affinity, None);
+    }
+
+    /// 1 接続だけ受けて固定の応答を返し、受け取ったリクエスト行とヘッダーを返す
+    async fn one_shot_server(response: &'static str) -> (String, tokio::task::JoinHandle<String>) {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let handle = tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            let mut buf = Vec::new();
+            let mut chunk = [0u8; 1024];
+            loop {
+                let n = sock.read(&mut chunk).await.unwrap();
+                if n == 0 {
+                    break;
+                }
+                buf.extend_from_slice(&chunk[..n]);
+                if buf.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            sock.write_all(response.as_bytes()).await.unwrap();
+            sock.shutdown().await.ok();
+            String::from_utf8_lossy(&buf).to_string()
+        });
+        (format!("http://{addr}"), handle)
+    }
+
+    #[tokio::test]
+    async fn redirects_are_not_followed_and_name_the_destination_host() {
+        let (endpoint, server) = one_shot_server(
+            "HTTP/1.1 307 Temporary Redirect\r\nLocation: https://other.example/v1/chat/completions\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        )
+        .await;
+        struct Nop;
+        impl AiChatSink for Nop {
+            fn emit(&self, _event: AiChatEvent) {}
+        }
+        let req = opencode_request("s", None);
+        let err = run_openai_compat(&req, &endpoint, "key", &Nop)
+            .await
+            .expect_err("redirect must fail");
+        assert!(err.message.contains("other.example"), "{}", err.message);
+        assert!(err.message.contains("307"), "{}", err.message);
+        assert_eq!(
+            err.i18n
+                .as_ref()
+                .and_then(|v| v.get("key"))
+                .and_then(Value::as_str),
+            Some("_native.ai.redirectNotFollowed")
+        );
+        let received = server.await.unwrap();
+        assert!(received.starts_with("POST /chat/completions"), "{received}");
+        // 宛先は opencode.ai ではないので会話 ID のヘッダーは付かない
+        assert!(!received.to_ascii_lowercase().contains("x-opencode-session"));
     }
 }

@@ -332,7 +332,8 @@
       "resumeFailed": "Can’t resume the turn: {error}",
       "errorContent": "⚠️ {error}",
       "errorContentAfter": "{partial}\n\n⚠️ {error}",
-      "roundLimit": "{partial}\n\n⚠️ Reached the limit of {max} tool calls."
+      "roundLimit": "{partial}\n\n⚠️ Reached the limit of {max} tool calls.",
+      "redirectNotFollowed": "The AI provider returned a redirect (HTTP {status}). Not following it to {host}. Point the connection’s URL at the final destination"
     },
     "backup": {
       "skippedSame": "Skipped (same as existing): {items}",

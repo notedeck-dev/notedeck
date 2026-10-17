@@ -1010,7 +1010,7 @@ const { activate, deactivate } = useMenuKeyboard({
 - AI 設定は `ai.json5` に格納 (`useAiConfig` が単一 source of truth)。`activeConnectionId` + `models` のみで、API キー / endpoint は持たない
 - **API キーは Secret Vault (OS キーチェーン)** に統合。詳細は [AI Credentials](#ai-credentials)
 
-**対応プロバイダー:** Anthropic Messages 互換 / OpenAI Chat Completions 互換のどちらかを話すサービス (自前 LLM ゲートウェイを含む)。Vault 接続として登録し、AI 設定でピッカー選択する。API キーを貼るだけで繋がる内蔵テンプレの一覧は `src/data/connectionTemplates.ts` が正本。詳細は [AI Chat Streaming](#ai-chat-streaming)。
+**対応プロバイダー:** Anthropic Messages 互換 / OpenAI Chat Completions 互換のどちらかを話すサービス (自前 LLM ゲートウェイを含む)。Vault 接続として登録し、AI 設定でピッカー選択する。API キーを貼るだけで繋がる内蔵テンプレの一覧は `crates/notecore/connection_templates.json5` が正本 (TS / Rust の表を `pnpm gen:connection-templates` で生成)。詳細は [AI Chat Streaming](#ai-chat-streaming)。
 
 **主要セクション:**
 - データソース (`dataSources: DataSourcesConfig`): system prompt の `<notedeck-context>` ブロックに含める情報の制御 (現在のアカウント / カラム / 可視ノート / 会話履歴)
@@ -1371,12 +1371,12 @@ AI プロバイダーとして使える接続は `Connection.protocol` (`anthrop
 |---------|------|
 | `src/composables/useAiConfig.ts` | `AiConfig` schema (`activeConnectionId` + `models`)、`resolveAiConnection()`、`migrateProvidersToVault()` |
 | `src/components/window/AiSettingsContent.vue` | AI 接続ピッカー (Vault 接続のラジオリスト) + モデル名入力。接続の追加・編集は「接続」ウィンドウへ誘導 |
-| `src/data/connectionTemplates.ts` | 内蔵接続テンプレ (`BUILTIN_TEMPLATES`) の正本。AI プロバイダーのテンプレは `protocol` / `defaultModel` を持つ |
+| `crates/notecore/connection_templates.json5` | 内蔵接続テンプレの正本 (#1160)。AI プロバイダーのテンプレは `protocol` / `defaultModel` を持ち、会話 ID のヘッダーを要求するプロバイダーは `affinityHeader` を宣言する。`pnpm gen:connection-templates` で `src/data/connectionTemplates.generated.ts` (宣言表 `BUILTIN_TEMPLATE_DECLS`) と `crates/notecore/src/connection_templates.generated.rs` を生成し、鮮度は `tests/lint/connectionTemplates.test.ts` が検査する。UI が使う `BUILTIN_TEMPLATES` と手書きの補助 (辞書ラベルの解決 / favicon 導出 / URL ペーストの照合) は `src/data/connectionTemplates.ts` |
 | `src/defaults/ai.json5` | `activeConnectionId` + `models` スキーマ。**API キー / endpoint は含まない** |
 
 #### 新しい AI プロバイダーを追加するとき
 
-ユーザーは「接続」ウィンドウから手動で任意の OpenAI 互換 / Anthropic 互換エンドポイントを登録できます。内蔵テンプレを増やす場合は `src/data/connectionTemplates.ts` の `BUILTIN_TEMPLATES` に `protocol` 付きでエントリーを追加するだけ。新しい SSE プロトコルを足す場合のみ `ConnectionProtocol` enum (`crates/notecore/src/vault/model.rs`) と `crates/notemaid/src/ai_chat_service.rs` の dispatch に分岐を追加します。
+ユーザーは「接続」ウィンドウから手動で任意の OpenAI 互換 / Anthropic 互換エンドポイントを登録できます。内蔵テンプレを増やす場合は `crates/notecore/connection_templates.json5` に `protocol` 付きでエントリーを追加して `pnpm gen:connection-templates` を実行するだけ。新しい SSE プロトコルを足す場合のみ `ConnectionProtocol` enum (`crates/notecore/src/vault/model.rs`) と `crates/notemaid/src/ai_chat_service.rs` の dispatch に分岐を追加します。
 
 ### Secret Vault ([#564](https://github.com/notedeck-dev/notedeck/issues/564))
 
@@ -1446,6 +1446,8 @@ file lock / rate limit / `vault.manage` 権限 / error 3 値正規化 / latency 
 | `openai-compat` | `<baseUrl>/chat/completions` | `Authorization: Bearer <key>` | OpenAI Chat Completions 互換 (SSE: `data: {...}` + `[DONE]`)。OpenAI / OpenRouter / Groq / 自前ゲートウェイ等 |
 
 endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` から Rust 側で取得する。フロントは決してキー本体を持たない (詳細は [AI Credentials](#ai-credentials))。
+
+**会話アフィニティ ID (#1160)**: 「会話ごとに安定した ID」を要求するプロバイダー (OpenCode の `x-opencode-session`。無いと 400 `MissingSessionID`) のために、1 リクエストは「どの会話の一部か」(`AiChatRequest::affinity`、`ai_affinity::ConversationKey`) を持つ。値を決めるのは会話を知っている層で、チャットのターン (round / 透過リトライ / continuation / チェックポイント再開 / タイトル生成を含む) は session ID、HEARTBEAT は接続ごとに固定、1 往復の `ai_chat_send` は呼び出しごとの stream ID。送る値は接続 ID + 鍵から導出した UUID v5 で生の session ID は出ず、フロント / 外部からは指定できない (wire に無い)。**どのヘッダーに載せるかは宛先ホストで決める**: 接続の `baseUrl` のホストが `connection_templates.json5` の `allowedHosts` に一致するテンプレの `affinityHeader` を使う (テンプレ id では引かない。既存の接続・手動追加・同じホストの別 API にもアップデートだけで効く)。AI ストリーミングの HTTP client は **redirect を追わない** (ホストをまたぐ redirect で API キーと会話 ID が持ち越されるため)。3xx はリダイレクト先ホストを含む明示エラー (`_native.ai.redirectNotFollowed`) になる。
 
 #### ターンのフロー
 
