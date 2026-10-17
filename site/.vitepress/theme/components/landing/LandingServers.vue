@@ -26,11 +26,3 @@ const FORK_REQUEST =
     </div>
   </section>
 </template>
-
-<style scoped>
-.servers-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-</style>
