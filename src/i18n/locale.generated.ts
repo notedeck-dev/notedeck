@@ -2098,6 +2098,8 @@ export interface Locale {
     readonly "noReplies": string
     /** リノートはありません */
     readonly "noRenotes": string
+    /** 引用はありません */
+    readonly "noQuotes": string
     /** リアクションはありません */
     readonly "noReactions": string
     /** 返信 */

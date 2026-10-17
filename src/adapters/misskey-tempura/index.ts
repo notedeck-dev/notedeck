@@ -1,10 +1,18 @@
+import { commands } from '@/utils/tauriInvoke'
 import { createMisskeyAdapter } from '../misskey'
-import type { ServerAdapter, ServerFeatures, ServerInfo } from '../types'
+import { unwrapAny } from '../misskey/api/context'
+import type {
+  NormalizedNote,
+  PaginationOptions,
+  ServerAdapter,
+  ServerFeatures,
+  ServerInfo,
+} from '../types'
 
 /**
  * Misskey tempura (lqvp/misskey-tempura) 用アダプター。
  *
- * 叩くエンドポイントは本家と同じで、差分は静的に宣言する capability のみ。
+ * 本家との差分は、静的に宣言する capability と、本家に無い引用一覧 API。
  */
 export const MISSKEY_TEMPURA_FEATURES: Partial<ServerFeatures> = {
   // リモート絵文字でのリアクション (#630)。本家は `@ホスト名` 付きを ❤ に
@@ -18,5 +26,27 @@ export function createMisskeyTempuraAdapter(
   accountId: string,
   hasToken = true,
 ): ServerAdapter {
-  return createMisskeyAdapter(serverInfo, accountId, hasToken)
+  const base = createMisskeyAdapter(serverInfo, accountId, hasToken)
+
+  return {
+    ...base,
+    api: {
+      ...base.api,
+      // tempura は `notes/renotes` を純リノートだけに絞り、引用は専用の
+      // `notes/quotes` でしか取れない (#1263)。未ログインはサーバーが [] を返す
+      async getNoteQuotes(
+        noteId: string,
+        options: PaginationOptions = {},
+      ): Promise<NormalizedNote[]> {
+        return unwrapAny(
+          await commands.apiGetNoteQuotes(
+            accountId,
+            noteId,
+            options.limit ?? 30,
+            options.untilId ?? null,
+          ),
+        )
+      },
+    },
+  }
 }
