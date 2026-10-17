@@ -666,7 +666,12 @@
   min-width: 0; overflow-wrap: anywhere;
 }
 .servers-fork p { font-size: var(--text-sm); max-width: 60ch; margin-inline: auto; }
-.servers-fork .btn { margin-top: var(--space-md); }
+/* 依頼 / 対応状況の 2 ボタン。カードが中央寄せなので箱も中央に */
+.servers-actions {
+  display: flex; flex-wrap: wrap; justify-content: center;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
 
 /* ===== Use cases — Hub .section_useCases ===== */
 .use-cases { margin-top: var(--space-2lg); }
