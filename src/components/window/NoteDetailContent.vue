@@ -9,6 +9,7 @@ import {
   watch,
 } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
+import { renoteVisibilityFor } from '@/adapters/misskey-tempura/semiPublic'
 import type {
   NormalizedNote,
   NoteReaction,
@@ -351,7 +352,10 @@ const postFormInitialNote = ref<NormalizedNote | undefined>()
 async function handleRenote(target: NormalizedNote) {
   if (!adapter) return
   try {
-    await adapter.api.createNote({ renoteId: target.id })
+    await adapter.api.createNote({
+      renoteId: target.id,
+      visibility: await renoteVisibilityFor(target, props.accountId),
+    })
   } catch (e) {
     error.value = AppError.from(e)
   }

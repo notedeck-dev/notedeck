@@ -26,7 +26,7 @@ use notecore::yaml_lite;
 
 pub const SUBDIR: &str = "memos";
 pub const EXT: &str = ".md";
-const VISIBILITIES: &[&str] = &["public", "home", "followers", "specified"];
+const VISIBILITIES: &[&str] = &["public", "public_non_ltl", "home", "followers", "specified"];
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]

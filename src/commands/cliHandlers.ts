@@ -1,4 +1,4 @@
-import type { NoteVisibility } from '@/adapters/types'
+import type { NoteVisibility, PostVisibility } from '@/adapters/types'
 import { i18n } from '@/i18n'
 import { FAVORITES_CACHE_KEY } from '@/services/columnCacheKey'
 import type { useAccountsStore } from '@/stores/accounts'
@@ -26,8 +26,9 @@ interface ParsedFlags {
   rest: string
 }
 
-const VALID_VISIBILITIES: readonly NoteVisibility[] = [
+const VALID_VISIBILITIES: readonly PostVisibility[] = [
   'public',
+  'public_non_ltl',
   'home',
   'followers',
   'specified',

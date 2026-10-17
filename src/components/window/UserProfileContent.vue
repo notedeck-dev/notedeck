@@ -9,6 +9,7 @@ import {
   watch,
 } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
+import { renoteVisibilityFor } from '@/adapters/misskey-tempura/semiPublic'
 import type {
   NormalizedNote,
   NormalizedUserDetail,
@@ -639,7 +640,10 @@ async function handleVote(choice: number, target: NormalizedNote) {
 async function handleRenote(target: NormalizedNote) {
   if (!adapter.value) return
   try {
-    await adapter.value.api.createNote({ renoteId: target.id })
+    await adapter.value.api.createNote({
+      renoteId: target.id,
+      visibility: await renoteVisibilityFor(target, props.accountId),
+    })
   } catch (e) {
     error.value = AppError.from(e)
   }

@@ -37,9 +37,10 @@ describe('drafts capabilities — declaration', () => {
     )
   })
 
-  it('drafts.create: visibility enum is the 4 Misskey visibilities', () => {
+  it('drafts.create: visibility enum は本家の 4 値 + tempura のセミパブリック (#936)', () => {
     expect(draftsCreateCapability.signature?.params?.visibility?.enum).toEqual([
       'public',
+      'public_non_ltl',
       'home',
       'followers',
       'specified',

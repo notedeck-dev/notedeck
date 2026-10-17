@@ -34,6 +34,13 @@ describe('matchesFilter', () => {
     expect(matchesFilter(makeNote())).toBe(true)
   })
 
+  it('セミパブリック (public + dontShowOnLtl) は local では落とし global では通す', () => {
+    const semi = makeNote({ visibility: 'public', dontShowOnLtl: true })
+    expect(matchesFilter(semi, undefined, 'local')).toBe(false)
+    expect(matchesFilter(semi, undefined, 'global')).toBe(true)
+    expect(matchesFilter(semi, undefined, 'home')).toBe(true)
+  })
+
   it('excludes non-public notes on local/global timelines', () => {
     const home = makeNote({ visibility: 'home' })
     expect(matchesFilter(home, undefined, 'local')).toBe(false)

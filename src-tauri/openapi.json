@@ -2311,6 +2311,10 @@
               "null"
             ]
           },
+          "dontShowOnLtl": {
+            "type": "boolean",
+            "description": "tempura のセミパブリック (public だが LTL に載らない)。packed の `dontShowOnLtl`。\n送信側の `public_non_ltl` は応答で `public` に書き換わるので、この flag が唯一の手掛かり (#936)"
+          },
           "emojis": {
             "type": "object",
             "additionalProperties": {

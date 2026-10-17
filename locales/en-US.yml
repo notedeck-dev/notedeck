@@ -2909,6 +2909,7 @@ _aiConfirmRequests:
 
 _postFormConstants:
   public: "Public"
+  publicNonLtl: "Public (non-LTL)"
   specified: "Direct"
 
 _useAccountActions:

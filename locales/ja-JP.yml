@@ -2638,6 +2638,7 @@ _aiConfirmRequests:
 
 _postFormConstants:
   public: "パブリック"
+  publicNonLtl: "パブリック (非 LTL)"
   specified: "ダイレクト"
 
 _useAccountActions:

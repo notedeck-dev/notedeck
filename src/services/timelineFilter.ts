@@ -10,7 +10,11 @@ function matchesVisibility(
   timelineType?: TimelineType,
 ): boolean {
   if (!timelineType) return true
-  if (timelineType === 'local' || timelineType === 'global') {
+  if (timelineType === 'local') {
+    // tempura のセミパブリック (public + dontShowOnLtl) は LTL に載らない (#936)
+    return note.visibility === 'public' && note.dontShowOnLtl !== true
+  }
+  if (timelineType === 'global') {
     return note.visibility === 'public'
   }
   return true

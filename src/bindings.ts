@@ -3586,7 +3586,12 @@ _identityTrusted?: boolean;
 /**
  * サーバーが本文を隠した状態 (packed の isHidden)。ミュート由来の非表示とは別概念。
  */
-contentHidden?: boolean; createdAt: string; text: string | null; cw: string | null; user: NormalizedUser; visibility: string; emojis?: Partial<{ [key in string]: string }>; reactionEmojis?: Partial<{ [key in string]: string }>; reactions?: Partial<{ [key in string]: number }>; myReaction: string | null; renoteCount: number; repliesCount: number; files?: NormalizedDriveFile[]; poll?: NormalizedPoll | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; channel?: Channel | null; reactionAcceptance?: string | null; uri?: string | null; url?: string | null; updatedAt?: string | null; localOnly?: boolean; visibleUserIds?: string[]; isFavorited?: boolean; 
+contentHidden?: boolean; createdAt: string; text: string | null; cw: string | null; user: NormalizedUser; visibility: string; emojis?: Partial<{ [key in string]: string }>; reactionEmojis?: Partial<{ [key in string]: string }>; reactions?: Partial<{ [key in string]: number }>; myReaction: string | null; renoteCount: number; repliesCount: number; files?: NormalizedDriveFile[]; poll?: NormalizedPoll | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; channel?: Channel | null; reactionAcceptance?: string | null; uri?: string | null; url?: string | null; updatedAt?: string | null; localOnly?: boolean; 
+/**
+ * tempura のセミパブリック (public だが LTL に載らない)。packed の `dontShowOnLtl`。
+ * 送信側の `public_non_ltl` は応答で `public` に書き換わるので、この flag が唯一の手掛かり (#936)
+ */
+dontShowOnLtl?: boolean; visibleUserIds?: string[]; isFavorited?: boolean; 
 /**
  * Fork-specific mode flags (e.g., isNoteInYamiMode)
  */
