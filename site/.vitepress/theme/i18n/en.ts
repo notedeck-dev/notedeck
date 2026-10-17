@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: ec547cb3e0bf
+// sourceHash: d3fb3914e19f
 
 import type { Messages } from './ja'
 
@@ -117,6 +117,7 @@ const en: Messages = {
     forkBodyHtml:
       'Differences between forks are handled by <strong>adapters</strong>. Tell us about features that do not work yet (forks that still call themselves Misskey).',
     forkButton: 'Request support',
+    forkDocsButton: 'See what is supported',
   },
   useCases: {
     title: 'Ways to use it',

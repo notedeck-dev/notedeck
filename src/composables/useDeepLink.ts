@@ -1,4 +1,4 @@
-import type { NoteVisibility } from '@/adapters/types'
+import type { NoteVisibility, PostVisibility } from '@/adapters/types'
 import { checkKnownCapabilities } from '@/components/deck/widgets/capabilities'
 import {
   ensureMemosLoaded,
@@ -16,8 +16,9 @@ import { useUiStore } from '@/stores/ui'
 import type { WindowType } from '@/stores/windows'
 import { useWindowsStore } from '@/stores/windows'
 
-const NOTE_VISIBILITIES: ReadonlyArray<NoteVisibility> = [
+const NOTE_VISIBILITIES: ReadonlyArray<PostVisibility> = [
   'public',
+  'public_non_ltl',
   'home',
   'followers',
   'specified',

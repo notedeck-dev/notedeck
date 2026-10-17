@@ -1183,3 +1183,55 @@ describe('フォーム操作', () => {
     expect(initAdapterForMock).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('post: プライベート (yamisskey、#1265)', () => {
+  function mountWithPrivateNote() {
+    initAdapterForMock.mockResolvedValueOnce({
+      adapter: {
+        api: { createNote: createNoteMock, updateNote: updateNoteMock },
+      },
+      serverInfo: { features: { scheduledNotes: false, privateNote: true } },
+    })
+    return mount()
+  }
+
+  it('adapter が privateNote を宣言したときだけ選択肢の最後に出る', async () => {
+    const form = mountWithPrivateNote()
+    await form.initAdapter()
+    expect(form.visibilityOptions.value.at(-1)?.value).toBe('private')
+
+    const plain = mount()
+    await plain.initAdapter()
+    expect(
+      plain.visibilityOptions.value.some((o) => o.value === 'private'),
+    ).toBe(false)
+  })
+
+  it('プライベートで投稿するとダイレクト + ローカルのみで送る', async () => {
+    const form = mountWithPrivateNote()
+    await form.initAdapter()
+    form.text.value = '自分だけ'
+    form.visibility.value = 'private'
+    form.localOnly.value = false
+    await form.post()
+    expect(createNoteMock).toHaveBeenCalledWith(
+      expect.objectContaining({ visibility: 'specified', localOnly: true }),
+    )
+  })
+
+  it('「削除して編集」で宛先なしのダイレクトを開くとプライベートに戻る', async () => {
+    const form = mountWithPrivateNote()
+    await form.initAdapter()
+    form.restoreFromNote({
+      id: 'n1',
+      text: 'x',
+      cw: null,
+      visibility: 'specified',
+      visibleUserIds: [],
+      user: { id: 'me' },
+      files: [],
+      localOnly: true,
+    } as never)
+    expect(form.visibility.value).toBe('private')
+  })
+})

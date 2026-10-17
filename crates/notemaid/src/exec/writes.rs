@@ -13,7 +13,7 @@ use notecore::commands::{clips, content, messaging, timeline, user};
 use notecore::context::Core;
 use notecore::error::Result;
 
-const VALID_VISIBILITIES: &[&str] = &["public", "home", "followers", "specified"];
+const VALID_VISIBILITIES: &[&str] = &["public", "public_non_ltl", "home", "followers", "specified"];
 
 /// `notes.create`
 pub async fn notes_create(core: &Core, params: &Value, ctx: &ExecContext) -> Result<Value> {

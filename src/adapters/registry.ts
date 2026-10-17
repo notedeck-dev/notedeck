@@ -10,7 +10,7 @@ import type {
   ServerInfo,
   ServerSoftware,
 } from './types'
-import { createYamisskeyAdapter } from './yamisskey'
+import { createYamisskeyAdapter, YAMISSKEY_FEATURES } from './yamisskey'
 
 type AdapterFactory = (
   info: ServerInfo,
@@ -180,7 +180,11 @@ export function getRegisteredSoftware(): ServerSoftware[] {
 // 未登録のフォーク (misskey.io 等) は本家アダプターにフォールバックする。
 registerAdapter('misskey-dev/misskey', createMisskeyAdapter)
 registerAdapter('hanamisskey/misskey', createHanamisskeyAdapter)
-registerAdapter('yamisskey-dev/yamisskey', createYamisskeyAdapter)
+registerAdapter(
+  'yamisskey-dev/yamisskey',
+  createYamisskeyAdapter,
+  YAMISSKEY_FEATURES,
+)
 registerAdapter(
   'lqvp/misskey-tempura',
   createMisskeyTempuraAdapter,

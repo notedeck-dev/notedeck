@@ -105,6 +105,8 @@ const ALLOWED: Record<string, string> = {
   'src/composables/useLoginPrompt.ts:reloginPromptShownAt': 'keyed: アカウント',
   'src/composables/useSearchScopeMeta.ts:cache': 'keyed: アカウント',
   'src/composables/noteTranslation.ts:availability': 'keyed: アカウント',
+  'src/adapters/misskey-tempura/semiPublic.ts:canPostByAccount':
+    'keyed: アカウント',
   'src/composables/useUnreadCounter.ts:sharedStates': 'keyed: カラム',
   'src/composables/useNoteSound.ts:failedHosts': 'keyed: ホスト',
   'src/utils/customTimelines.ts:customTlMemCache': 'keyed: アカウント',

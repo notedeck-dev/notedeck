@@ -1,6 +1,6 @@
 import yaml from 'js-yaml'
 import { ref } from 'vue'
-import type { NoteVisibility } from '@/adapters/types'
+import type { FormVisibility, PostVisibility } from '@/adapters/types'
 import { emitNoteDeckEvent } from '@/aiscript/events'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { type EditAttribution, pushSnapshot } from '@/utils/historyFs'
@@ -17,7 +17,7 @@ export interface MemoData {
   text: string
   cw: string
   showCw: boolean
-  visibility: NoteVisibility
+  visibility: FormVisibility
   localOnly: boolean
   fileIds: string[]
   pollChoices: string[]
@@ -64,8 +64,9 @@ export interface StoredMemo {
 
 export type StoredMemos = Record<string, StoredMemo>
 
-const VALID_VISIBILITIES: ReadonlyArray<NoteVisibility> = [
+const VALID_VISIBILITIES: ReadonlyArray<PostVisibility> = [
   'public',
+  'public_non_ltl',
   'home',
   'followers',
   'specified',
@@ -222,10 +223,10 @@ function parseMemoContent(fileContent: string): {
   const updatedAt =
     typeof fm.updatedAt === 'string' ? fm.updatedAt : new Date().toISOString()
   const createdAt = typeof fm.createdAt === 'string' ? fm.createdAt : updatedAt
-  const visibility: NoteVisibility = VALID_VISIBILITIES.includes(
-    fm.visibility as NoteVisibility,
+  const visibility: PostVisibility = VALID_VISIBILITIES.includes(
+    fm.visibility as PostVisibility,
   )
-    ? (fm.visibility as NoteVisibility)
+    ? (fm.visibility as PostVisibility)
     : 'public'
 
   const data: MemoData = {

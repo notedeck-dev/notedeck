@@ -10,7 +10,9 @@ import {
   watch,
   watchEffect,
 } from 'vue'
+import { semiPublicReplyDefault } from '@/adapters/misskey-tempura/semiPublic'
 import type { NormalizedDriveFile, NormalizedNote } from '@/adapters/types'
+import { privateReplyDefault } from '@/adapters/yamisskey/privateNote'
 import {
   getPluginHandlers,
   type PluginHandler,
@@ -135,6 +137,8 @@ const {
   isUploading,
   noteModeFlags,
   disabledVisibilities,
+  semiPublicAvailable,
+  privateNoteAvailable,
   activeAccountId,
   // 返信・引用の文脈は props ではなくフォーム側が持つ (#1073): 下書きを
   // 復元すると、その下書きが保存していた返信先・引用先に差し替わる
@@ -494,7 +498,14 @@ onMounted(async () => {
     }
     visibility.value = props.editNote.visibility
   } else if (props.replyTo) {
-    visibility.value = props.replyTo.visibility
+    visibility.value =
+      privateReplyDefault(props.replyTo, privateNoteAvailable.value) ??
+      semiPublicReplyDefault(
+        props.replyTo,
+        account.value?.userId,
+        semiPublicAvailable.value,
+      ) ??
+      props.replyTo.visibility
     // リプライ先 + 本文中の会話参加者へのメンションを prefill (#707 で抽出)
     const mentions = buildReplyMentions(props.replyTo, account.value ?? null)
     if (mentions.length > 0) {
@@ -722,7 +733,7 @@ function onPaste(e: ClipboardEvent) {
 
           <!-- Local only (hidden in inline channel mode: always local-only) -->
           <button
-            v-if="!inline && visibility !== 'specified'"
+            v-if="!inline && visibility !== 'specified' && visibility !== 'private'"
             class="_button"
             :class="[$style.headerBtn, $style.localOnlyBtn, { [$style.active]: localOnly }]"
             :title="localOnly ? i18n.ts._mkPostForm.localOnly : i18n.ts._mkPostForm.federated"

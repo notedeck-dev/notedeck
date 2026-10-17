@@ -1397,6 +1397,7 @@ _navEditorContent:
 _noteDetailContent:
   noReplies: "No replies"
   noRenotes: "No renotes"
+  noQuotes: "No quotes"
   noReactions: "No reactions"
   replies: "Replies"
 
@@ -2908,6 +2909,8 @@ _aiConfirmRequests:
 
 _postFormConstants:
   public: "Public"
+  publicNonLtl: "Public (non-LTL)"
+  private: "Private"
   specified: "Direct"
 
 _useAccountActions:

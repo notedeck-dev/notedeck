@@ -1432,7 +1432,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
                 ty: ParamType::String,
                 description: "公開範囲 (default: public)",
                 optional: true,
-                enum_values: Some(&["public", "home", "followers", "specified"]),
+                enum_values: Some(&["public", "public_non_ltl", "home", "followers", "specified"]),
             },
             ParamDecl {
                 name: "replyId",
@@ -1601,7 +1601,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
                 ty: ParamType::String,
                 description: "公開範囲",
                 optional: true,
-                enum_values: Some(&["public", "home", "followers", "specified"]),
+                enum_values: Some(&["public", "public_non_ltl", "home", "followers", "specified"]),
             },
             ParamDecl {
                 name: "scheduledAt",
@@ -3287,9 +3287,9 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
             ParamDecl {
                 name: "visibility",
                 ty: ParamType::String,
-                description: "公開範囲: public / home / followers / specified (default: public)",
+                description: "公開範囲: public / home / followers / specified (default: public)。public_non_ltl はセミパブリック (パブリックだが LTL に載らない) を持つサーバーだけ",
                 optional: true,
-                enum_values: Some(&["public", "home", "followers", "specified"]),
+                enum_values: Some(&["public", "public_non_ltl", "home", "followers", "specified"]),
             },
             ParamDecl {
                 name: "replyId",

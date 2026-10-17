@@ -1159,6 +1159,7 @@ _navEditorContent:
 _noteDetailContent:
   noReplies: "返信はありません"
   noRenotes: "リノートはありません"
+  noQuotes: "引用はありません"
   noReactions: "リアクションはありません"
   replies: "返信"
 
@@ -2637,6 +2638,8 @@ _aiConfirmRequests:
 
 _postFormConstants:
   public: "パブリック"
+  publicNonLtl: "パブリック (非 LTL)"
+  private: "プライベート"
   specified: "ダイレクト"
 
 _useAccountActions:

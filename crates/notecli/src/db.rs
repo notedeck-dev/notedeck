@@ -2628,6 +2628,7 @@ mod tests {
             url: None,
             updated_at: None,
             local_only: false,
+            dont_show_on_ltl: false,
             visible_user_ids: Vec::new(),
             is_favorited: false,
             mode_flags: HashMap::new(),

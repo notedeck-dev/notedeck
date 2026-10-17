@@ -699,6 +699,34 @@ pub async fn api_get_note_renotes(
         .collect())
 }
 
+/// 引用リノートの一覧 (tempura の `notes/quotes`)。本家には無く、tempura では
+/// `notes/renotes` が純リノートだけを返すようになるため、引用はこちらでしか取れない。
+/// 呼ぶのは tempura 用 adapter だけ (#1263)
+pub async fn api_get_note_quotes(
+    core: &Core,
+    account_id: String,
+    note_id: String,
+    limit: Option<u32>,
+    until_id: Option<String>,
+) -> Result<Vec<NormalizedNote>> {
+    let (client, host, token) = core.authed_or_anon(&account_id).await?;
+    let mut params = serde_json::json!({
+        "noteId": note_id,
+        "limit": limit.unwrap_or(30).clamp(1, 100),
+    });
+    if let Some(until) = until_id {
+        params["untilId"] = serde_json::Value::String(until);
+    }
+    let data = client
+        .request(&host, &token, "notes/quotes", params)
+        .await?;
+    let raw: Vec<RawNote> = serde_json::from_value(data)?;
+    Ok(raw
+        .into_iter()
+        .map(|n| n.normalize(&account_id, &host))
+        .collect())
+}
+
 pub async fn api_get_note_conversation(
     core: &Core,
     account_id: String,

@@ -1,10 +1,24 @@
 import { computed, nextTick, ref, shallowRef, watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
+import {
+  canPostSemiPublic,
+  effectivePostVisibility,
+  narrowerVisibility,
+  SEMI_PUBLIC,
+  SEMI_PUBLIC_POLICY,
+  semiPublicVisibilityOption,
+} from '@/adapters/misskey-tempura/semiPublic'
 import type {
+  FormVisibility,
   NormalizedNote,
-  NoteVisibility,
   ServerAdapter,
 } from '@/adapters/types'
+import {
+  isPrivateNote,
+  PRIVATE,
+  privateVisibilityOption,
+  toPostVisibility,
+} from '@/adapters/yamisskey/privateNote'
 import { applyNotePostInterruptors } from '@/aiscript/plugin-api'
 import {
   defaultVisibility,
@@ -73,7 +87,23 @@ export function usePostFormState(
   const text = ref('')
   const cw = ref('')
   const showCw = ref(false)
-  const visibility = ref<NoteVisibility>('public')
+  const visibility = ref<FormVisibility>('public')
+  /** yamisskey の「プライベート」を選べるか (adapter の静的宣言、#1265) */
+  const privateNoteAvailable = ref(false)
+  /** tempura のセミパブリックを選べるか (ロールポリシー、#936) */
+  const semiPublicAvailable = ref(false)
+  const availableVisibilityOptions = computed(() => {
+    const base = semiPublicAvailable.value
+      ? [
+          defaultVisibility,
+          semiPublicVisibilityOption,
+          ...visibilityOptions.slice(1),
+        ]
+      : visibilityOptions
+    return privateNoteAvailable.value
+      ? [...base, privateVisibilityOption]
+      : base
+  })
   const localOnly = ref(
     !!(props.channelId ?? props.initialNote?.channelId ?? undefined),
   )
@@ -236,8 +266,9 @@ export function usePostFormState(
 
   const currentVisibility = computed(
     (): VisibilityOption =>
-      visibilityOptions.find((o) => o.value === visibility.value) ??
-      defaultVisibility,
+      availableVisibilityOptions.value.find(
+        (o) => o.value === visibility.value,
+      ) ?? defaultVisibility,
   )
 
   // サーバー meta の maxNoteTextLength に initAdapter で同期する (取得失敗や
@@ -300,7 +331,9 @@ export function usePostFormState(
     disabled.add('home')
     disabledVisibilities.value = disabled
     if (disabled.has(visibility.value)) {
-      const first = visibilityOptions.find((o) => !disabled.has(o.value))
+      const first = availableVisibilityOptions.value.find(
+        (o) => !disabled.has(o.value),
+      )
       if (first) visibility.value = first.value
     }
   }
@@ -322,9 +355,12 @@ export function usePostFormState(
       adapter = result.adapter
       supportsScheduledNotes.value =
         result.serverInfo.features.scheduledNotes === true
+      privateNoteAvailable.value =
+        result.serverInfo.features.privateNote === true
     } catch (e) {
       error.value = AppError.from(e).message
       supportsScheduledNotes.value = false
+      privateNoteAvailable.value = false
     }
 
     // Fetch modes, policies, and user settings in parallel (all independent after adapter init)
@@ -369,11 +405,14 @@ export function usePostFormState(
     const disabled = new Set<string>()
     if (policiesResult.status === 'fulfilled') {
       const policies = policiesResult.value
+      semiPublicAvailable.value = canPostSemiPublic(policies)
       if (policies.canPublicNote === false) disabled.add('public')
       for (const [key, value] of Object.entries(policies)) {
         if (value !== false) continue
         const match = key.match(/^can(.+)Note$/)
-        if (!match || key === 'canPublicNote') continue
+        // セミパブリックは disabled ではなく選択肢の有無で扱う (#936)
+        if (!match || key === 'canPublicNote' || key === SEMI_PUBLIC_POLICY)
+          continue
         const name =
           (match[1]?.charAt(0).toLowerCase() ?? '') + (match[1]?.slice(1) ?? '')
         disabled.add(name)
@@ -400,8 +439,8 @@ export function usePostFormState(
     if (userInfoResult.status === 'fulfilled') {
       const userInfo = userInfoResult.value
       const v = userInfo.defaultNoteVisibility
-      if (v && visibilityOptions.some((o) => o.value === v)) {
-        visibility.value = v as NoteVisibility
+      if (v && availableVisibilityOptions.value.some((o) => o.value === v)) {
+        visibility.value = v as FormVisibility
       }
       if (!channelId.value) {
         localOnly.value = userInfo.defaultNoteLocalOnly === true
@@ -416,8 +455,11 @@ export function usePostFormState(
     if (!isContextual && settingsStore.get('postForm.rememberVisibility')) {
       const lastMap = settingsStore.get('postForm.lastUsedVisibilityByAccount')
       const last = lastMap?.[activeAccountId.value]
-      if (last && visibilityOptions.some((o) => o.value === last)) {
-        visibility.value = last as NoteVisibility
+      if (
+        last &&
+        availableVisibilityOptions.value.some((o) => o.value === last)
+      ) {
+        visibility.value = last as FormVisibility
       }
       const lastLocalMap = settingsStore.get(
         'postForm.lastUsedLocalOnlyByAccount',
@@ -430,8 +472,20 @@ export function usePostFormState(
 
     // Auto-correct if current visibility is disabled
     if (disabled.has(visibility.value)) {
-      const first = visibilityOptions.find((o) => !disabled.has(o.value))
+      const first = availableVisibilityOptions.value.find(
+        (o) => !disabled.has(o.value),
+      )
       if (first) visibility.value = first.value
+    }
+
+    // 引用元がセミパブリックなら引き継ぎ、狭い方を取る (#936)
+    if (
+      quoteNote.value &&
+      semiPublicAvailable.value &&
+      visibility.value !== PRIVATE &&
+      effectivePostVisibility(quoteNote.value) === SEMI_PUBLIC
+    ) {
+      visibility.value = narrowerVisibility(visibility.value, SEMI_PUBLIC)
     }
   }
 
@@ -560,15 +614,18 @@ export function usePostFormState(
                 : undefined),
           }
         : undefined
+    // プライベート (yamisskey) はダイレクト + ローカルのみ、ダイレクトはローカルのみを送らない
+    const sendVisibility = toPostVisibility(visibility.value, localOnly.value)
     const noteParams = applyNotePostInterruptors(
       {
         text: text.value || undefined,
         cw: showCw.value && cw.value ? cw.value : undefined,
-        visibility: visibility.value,
+        visibility: sendVisibility.visibility,
+        // ダイレクトは false を明示して送る (従来どおり)、それ以外は true のときだけ
         localOnly:
-          visibility.value === 'specified'
-            ? false
-            : localOnly.value || undefined,
+          sendVisibility.visibility === 'specified'
+            ? sendVisibility.localOnly
+            : sendVisibility.localOnly || undefined,
         modeFlags,
         replyId: replyId.value ?? undefined,
         renoteId: renoteId.value ?? undefined,
@@ -644,7 +701,7 @@ export function usePostFormState(
     })
   }
 
-  function selectVisibility(v: NoteVisibility) {
+  function selectVisibility(v: FormVisibility) {
     visibility.value = v
     showVisibilityMenu.value = false
   }
@@ -868,7 +925,13 @@ export function usePostFormState(
     text.value = note.text ?? ''
     cw.value = note.cw ?? ''
     showCw.value = note.cw != null
-    visibility.value = note.visibility
+    // セミパブリックは受信値が public に潰れているので dontShowOnLtl から戻す (#936)
+    visibility.value =
+      privateNoteAvailable.value && isPrivateNote(note)
+        ? PRIVATE
+        : semiPublicAvailable.value
+          ? effectivePostVisibility(note)
+          : note.visibility
     localOnly.value = note.localOnly ?? false
     if (note.files.length > 0) attachDriveFiles(note.files)
     if (note.poll) {
@@ -932,12 +995,14 @@ export function usePostFormState(
     account,
     formThemeVars,
     currentVisibility,
+    semiPublicAvailable,
+    privateNoteAvailable,
     remainingChars,
     maxTextLength,
     canPost,
     // Constants
     MAX_TEXT_LENGTH,
-    visibilityOptions,
+    visibilityOptions: availableVisibilityOptions,
     // Functions
     initAdapter,
     switchAccount,

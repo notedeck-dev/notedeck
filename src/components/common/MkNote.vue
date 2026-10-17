@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { useIntersectionObserver } from '@vueuse/core'
 import { computed, defineAsyncComponent, ref, useTemplateRef, watch } from 'vue'
+import { effectivePostVisibility } from '@/adapters/misskey-tempura/semiPublic'
 import type {
+  FormVisibility,
   NormalizedNote,
   NormalizedUser,
-  NoteVisibility,
 } from '@/adapters/types'
+import { isPrivateNote } from '@/adapters/yamisskey/privateNote'
 import { applyNoteViewInterruptors } from '@/aiscript/plugin-api'
 import AppTime from '@/components/common/AppTime.vue'
 import {
@@ -456,7 +458,13 @@ function closeUserPopup() {
   userPopup.forceClose()
 }
 
-const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
+const VISIBILITY_ICONS: Record<FormVisibility, string> = {
+  // yamisskey の「プライベート」(ダイレクトで宛先なし): 目を閉じた形 (#1265)
+  private:
+    'M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z',
+  // tempura のセミパブリック: 公式 Web の broadcast 系アイコンに寄せる (#936)
+  public_non_ltl:
+    'M12 11c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 2c0-3.31-2.69-6-6-6s-6 2.69-6 6c0 2.22 1.21 4.15 3 5.19l1-1.74c-1.19-.7-2-1.97-2-3.45 0-2.21 1.79-4 4-4s4 1.79 4 4c0 1.48-.81 2.75-2 3.45l1 1.74c1.79-1.04 3-2.97 3-5.19zM12 3C6.48 3 2 7.48 2 13c0 3.7 2.01 6.92 4.99 8.65l1-1.73C5.61 18.53 4 15.96 4 13c0-4.42 3.58-8 8-8s8 3.58 8 8c0 2.96-1.61 5.53-4 6.92l1 1.73c2.99-1.73 5-4.95 5-8.65 0-5.52-4.48-10-10-10z',
   public:
     'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z',
   home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z',
@@ -465,6 +473,21 @@ const VISIBILITY_ICONS: Record<NoteVisibility, string> = {
   specified:
     'M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z',
 }
+
+/** 受信値から見た公開範囲 (セミパブリックは public_non_ltl、宛先なしのダイレクトは private) */
+const effectiveVisibility = computed(
+  (): FormVisibility =>
+    isPrivateNote(effectiveNote.value)
+      ? 'private'
+      : effectivePostVisibility(effectiveNote.value),
+)
+const visibilityTitle = computed(() => {
+  if (effectiveVisibility.value === 'public_non_ltl')
+    return i18n.ts._postFormConstants.publicNonLtl
+  if (effectiveVisibility.value === 'private')
+    return i18n.ts._postFormConstants.private
+  return undefined
+})
 
 const activeModeFlags = computed(() =>
   deriveActiveModeFlags(effectiveNote.value.modeFlags),
@@ -960,7 +983,7 @@ function handlePickerReaction(reaction: string) {
       },
     ]"
     :style="channelInfo && showChannelInfo ? { '--nd-channel-color': channelInfo.color } : undefined"
-    :data-visibility="effectiveNote.visibility"
+    :data-visibility="effectiveVisibility"
     :data-own="isOwnNote"
     tabindex="0"
     @mousedown="clearSpotlight"
@@ -1103,13 +1126,14 @@ function handlePickerReaction(reaction: string) {
               :title="i18n.ts._mkNote.localOnly"
             />
             <svg
-              v-if="effectiveNote.visibility !== 'public'"
+              v-if="effectiveVisibility !== 'public'"
               :class="$style.visibilityIcon"
               viewBox="0 0 24 24"
               width="14"
               height="14"
             >
-              <path :d="VISIBILITY_ICONS[effectiveNote.visibility] || VISIBILITY_ICONS.public" fill="currentColor" />
+              <title v-if="visibilityTitle">{{ visibilityTitle }}</title>
+              <path :d="VISIBILITY_ICONS[effectiveVisibility] || VISIBILITY_ICONS.public" fill="currentColor" />
             </svg>
           </span>
         </header>

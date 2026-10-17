@@ -41,6 +41,7 @@ macro_rules! with_command_table {
         data api_remove_note_from_clip(account_id: String, clip_id: String, note_id: String) -> () = $crate::commands::timeline::api_remove_note_from_clip;
         data api_get_note_children(account_id: String, note_id: String, limit: Option<u32>) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_get_note_children;
         data api_get_note_renotes(account_id: String, note_id: String, limit: Option<u32>) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_get_note_renotes;
+        data api_get_note_quotes(account_id: String, note_id: String, limit: Option<u32>, until_id: Option<String>) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_get_note_quotes;
         data api_get_note_conversation(account_id: String, note_id: String, limit: Option<u32>) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_get_note_conversation;
         data api_search_notes(account_id: String, query: String, options: Option<notecli::models::SearchOptions>) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_search_notes;
         data api_search_notes_hanami(account_id: String, query: String, options: Option<notecli::models::SearchOptions>) -> Vec<notecli::models::NormalizedNote> = $crate::commands::timeline::api_search_notes_hanami;
