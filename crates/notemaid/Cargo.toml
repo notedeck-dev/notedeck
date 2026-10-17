@@ -37,6 +37,7 @@ dirs = { version = "6", optional = true }
 tracing-appender = { version = "0.2", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
 tracing = "0.1"
+uuid = { version = "1", features = ["v5"] }
 
 # Windows: GUI サブシステムのまま端末から使うときに親のコンソールへ繋ぐ (main.rs)
 [target.'cfg(windows)'.dependencies]

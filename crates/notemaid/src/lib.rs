@@ -21,6 +21,7 @@
 //! AI 側の 3 つの sink の形に変換する)。
 
 pub mod acp;
+pub mod ai_affinity;
 pub mod ai_budget;
 pub mod ai_chat_service;
 pub mod ai_config;

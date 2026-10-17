@@ -1873,6 +1873,7 @@
   "_native.ai.httpUnauthorized": "5fada6dd30ec",
   "_native.ai.notAiProvider": "87e0af7acb8f",
   "_native.ai.rateLimited": "c6a1b976f639",
+  "_native.ai.redirectNotFollowed": "a27a4b3c29ff",
   "_native.ai.requestTooLarge": "5dbcdb4696d9",
   "_native.ai.resumeFailed": "bcfc9595020b",
   "_native.ai.roundLimit": "4a65cc73a623",
