@@ -1707,7 +1707,22 @@ Misskey を名乗るフォークは追加の設定なしで自動的に認識さ
 
 - **カスタムタイムライン**（bubble, yami, hanami 等）— `/api/endpoints` スキャンで自動検出（`src/utils/customTimelines.ts`）
 - **モードフラグ**（`isInYamiMode`, `isNoteInYamiMode` 等）— ポリシー API から動的に検出
-- **タイムラインフィルター**（`withBots`, `withSensitive` 等）— ポリシー API で可用性を判定
+- **タイムラインフィルター**（`withBots`, `withSensitive` 等）— `/api/endpoint` が返すパラメータ名の有無で可用性を判定（ポリシーではない）
+- **公開範囲の制限**（`canPublicNote` 等の `can*Note`）— ポリシーが false の公開範囲を選択肢から外す
+
+#### 差分の型と置き場
+
+フォークとの差分は 3 つの型に分かれ、型ごとに置き場が決まっている。「フォーク名で分岐しない」「フォークの知識をフォークのディレクトリから外に漏らさない」の両方を満たすための分け方で、どちらか一方だけで決めない。
+
+| 差分の型 | 可否の判定 | コードの置き場 | 実例 |
+|---|---|---|---|
+| 本家と同じエンドポイントに、フォーク固有の **値や属性** が乗る | 動的（ポリシーのキー / ノートのフラグ / meta のキー） | 規則は純関数にして `src/adapters/<fork>/` に置き、呼ぶ側（投稿フォーム・MkNote・フィルター）はその関数だけを見る。notecli は `RawNote::normalize` で属性を `NormalizedNote` に残す | モードフラグ（`isNoteIn*Mode`）、tempura のセミパブリック（`src/adapters/misskey-tempura/semiPublic.ts`、#936） |
+| フォークにしか無い **エンドポイント** | 静的（nodeinfo の repository で選ばれる adapter が持つか） | `src/adapters/<fork>/index.ts` が本家 adapter を spread して `api` に足す。`MisskeyApi` の契約では任意（`?`）にし、UI は「adapter が持つか」で出し分ける。Rust の command は notecore に共有でよい | はなみ検索（`searchNotes` の差し替え）、tempura の引用一覧（`getNoteQuotes`、#1263） |
+| API からは判定できない **静的な知識** | 静的（`ServerFeatures` の宣言） | `src/adapters/<fork>/index.ts` の `*_FEATURES` を `registerAdapter()` に渡す | tempura のリモート絵文字リアクション（#630） |
+
+値や属性の型をエンドポイント一覧の有無で判定して本家 adapter に足すと、本家が応えられないメソッドが共通の契約に混ざる。逆にエンドポイントの型を動的検出にすると、フォークの語彙が共通層に漏れる。迷ったら「本家サーバーに同じ要求を送って意味があるか」で分ける。
+
+利用者向けの対応状況の一覧は [`site/docs/forks.md`](site/docs/forks.md)（英語版は `site/en/docs/forks.md`）が正本。フォークごとの棚卸しと未対応の候補は追跡 issue（Misskey.io #1101 / tempura #1199 / はなみすきー #1200 / yamisskey #1264）に置き、ドキュメントには確定した判断だけを書く。
 
 #### フォーク固有の adapter 対応を追加する
 
@@ -1769,6 +1784,7 @@ API の実体は notecli 側にあるため、**エンドポイントの差し�
 **PR を出す前に:**
 - `pnpm lint && pnpm typecheck && pnpm test` を通す
 - フォークのどの機能が動的検出では動かず、なぜ静的な capability 宣言が必要かを PR 本文に記載する
+- 利用者向けの対応表 `site/docs/forks.md`（と英語版）を更新する。`pnpm lint:docs` は root の .md しか見ないので、ここは人が揃える
 
 ### アイコン語彙
 
