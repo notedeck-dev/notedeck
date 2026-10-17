@@ -1,7 +1,7 @@
 import type {
+  FormVisibility,
   NormalizedNote,
   NormalizedPoll,
-  PostVisibility,
 } from '@/adapters/types'
 import { localNoteIdentity } from '@/services/noteUrl'
 import type { Account } from '@/stores/accounts'
@@ -24,7 +24,7 @@ export interface BuildPreviewNoteOptions {
   createdAt: string
   text: string | null
   cw: string | null
-  visibility: PostVisibility
+  visibility: FormVisibility
   localOnly: boolean
   replyId?: string | null
   renoteId?: string | null
@@ -88,7 +88,11 @@ export function buildPreviewNote(
     },
     // セミパブリックは受信形 (public + dontShowOnLtl) に寄せて、表示側の判定を 1 本にする (#936)
     visibility:
-      opts.visibility === 'public_non_ltl' ? 'public' : opts.visibility,
+      opts.visibility === 'public_non_ltl'
+        ? 'public'
+        : opts.visibility === 'private'
+          ? 'specified'
+          : opts.visibility,
     dontShowOnLtl: opts.visibility === 'public_non_ltl',
     emojis: opts.emojis ?? {},
     reactionEmojis: opts.reactionEmojis ?? {},
@@ -96,7 +100,8 @@ export function buildPreviewNote(
     renoteCount: 0,
     repliesCount: 0,
     files: [],
-    localOnly: opts.localOnly,
+    // プライベート (yamisskey) はサーバーがローカルのみを強制する (#1265)
+    localOnly: opts.localOnly || opts.visibility === 'private',
     replyId: opts.replyId ?? null,
     renoteId: opts.renoteId ?? null,
     channelId: opts.channelId ?? null,

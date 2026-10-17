@@ -105,5 +105,6 @@ function defaultFeatures(): ServerFeatures {
     scheduledNotes: false,
     groupedNotifications: false,
     remoteEmojiReactions: false,
+    privateNote: false,
   }
 }

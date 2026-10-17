@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import type { PostVisibility } from '@/adapters/types'
+import type { FormVisibility, PostVisibility } from '@/adapters/types'
 import type { JsonValue, NoteDraft } from '@/bindings'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -12,7 +12,7 @@ export interface DraftData {
   text: string
   cw: string
   showCw: boolean
-  visibility: PostVisibility
+  visibility: FormVisibility
   localOnly: boolean
   fileIds: string[]
   pollChoices: string[]

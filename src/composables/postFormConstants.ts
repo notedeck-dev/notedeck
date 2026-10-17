@@ -1,10 +1,10 @@
-import type { PostVisibility } from '@/adapters/types'
+import type { FormVisibility } from '@/adapters/types'
 import { i18n } from '@/i18n'
 
 export const MAX_TEXT_LENGTH = 3000
 
 export interface VisibilityOption {
-  value: PostVisibility
+  value: FormVisibility
   label: string
   icon: string
 }

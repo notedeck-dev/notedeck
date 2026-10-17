@@ -49,6 +49,8 @@ export interface ServerFeatures {
   groupedNotifications: boolean
   /** リモート絵文字 (`:name@host:`) でリアクションできるか (#630) */
   remoteEmojiReactions: boolean
+  /** 公開範囲「プライベート」(ダイレクト + 宛先なし) を投稿フォームで選べるか (yamisskey、#1265) */
+  privateNote: boolean
   [key: string]: boolean
 }
 
@@ -58,6 +60,11 @@ export type NoteVisibility = 'public' | 'home' | 'followers' | 'specified'
  * `public_non_ltl` で、応答では `public` + `dontShowOnLtl` に書き換わって返る (#936)
  */
 export type PostVisibility = NoteVisibility | 'public_non_ltl'
+/**
+ * 投稿フォームの選択値。`private` は yamisskey の「プライベート」で、送信時に
+ * `specified` + ローカルのみへ落とす (公開範囲の値ではない、#1265)
+ */
+export type FormVisibility = PostVisibility | 'private'
 
 /** Standard timeline types. Custom forks may add more (e.g., 'bubble', 'recommended'). */
 export type TimelineType =
