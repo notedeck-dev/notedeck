@@ -252,6 +252,8 @@ export function createNoteDeckEnv(
         label: labelVal.value,
         icon: iconVal.value,
         category: 'general',
+        // キーバインドは keybinds.json5 の上書き (設定 GUI の「プラグイン」節 / AI の
+        // keybinds.set) で付け、読む側が resolveShortcuts で引く (#1243)
         shortcuts: [],
         execute: async (params, capCtx) => {
           const interp = ctx.interpreter
