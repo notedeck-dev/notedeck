@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from '../../i18n'
 
-const { t } = useI18n()
+const { t, localePath } = useI18n()
 
 const FORK_REQUEST =
   'https://github.com/notedeck-dev/notedeck/issues/new?template=fork_support.yml'
@@ -17,9 +17,20 @@ const FORK_REQUEST =
         <div class="servers-fork tint-card">
           <h3>{{ t.servers.forkTitle }}</h3>
           <p v-html="t.servers.forkBodyHtml" />
-          <a :href="FORK_REQUEST" class="btn btn-accent">{{ t.servers.forkButton }}</a>
+          <div class="servers-actions">
+            <a :href="FORK_REQUEST" class="btn btn-accent">{{ t.servers.forkButton }}</a>
+            <a :href="localePath('/docs/forks')" class="btn btn-plain">{{ t.servers.forkDocsButton }}</a>
+          </div>
         </div>
       </div>
     </div>
   </section>
 </template>
+
+<style scoped>
+.servers-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+</style>

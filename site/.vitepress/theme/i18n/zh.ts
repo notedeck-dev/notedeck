@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: ec547cb3e0bf
+// sourceHash: d3fb3914e19f
 
 import type { Messages } from './ja'
 
@@ -113,6 +113,7 @@ const zh: Messages = {
     forkBodyHtml:
       '各分支之间的差异由<strong>适配器</strong>负责处理。如果有用不了的独有功能，请告诉我们（对象为仍以 Misskey 为名的分支）。',
     forkButton: '申请支持',
+    forkDocsButton: '查看支持情况',
   },
   useCases: {
     title: '可以这样使用',

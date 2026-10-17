@@ -117,6 +117,7 @@ const ja = {
     forkBodyHtml:
       'フォークごとの違いは<strong>アダプター</strong>が引き受けます。使えない独自機能があれば教えてください（対象は Misskey を名乗り続けるフォーク）。',
     forkButton: '対応を依頼する',
+    forkDocsButton: '対応状況を見る',
   },
   useCases: {
     title: 'こんな使い方ができます',
