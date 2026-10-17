@@ -1132,6 +1132,7 @@ _keybindsContent:
   categoryNavigation: "ナビゲーション"
   categoryColumn: "カラム"
   categoryWindow: "ウィンドウ"
+  categoryPlugin: "プラグイン"
   jsonParseError: "JSON パースエラー"
 
 _listDetailContent:

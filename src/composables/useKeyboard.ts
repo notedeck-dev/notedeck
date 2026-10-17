@@ -1,9 +1,11 @@
 import { onUnmounted } from 'vue'
 import { type Shortcut, useCommandStore } from '@/commands/registry'
+import { useKeybindsStore } from '@/stores/keybinds'
 import { useUiStore } from '@/stores/ui'
 
 export function useKeyboard() {
   const commandStore = useCommandStore()
+  const keybindsStore = useKeybindsStore()
   // os-global はデスクトップの Tauri では OS 側の登録 (useOsGlobalShortcuts) が
   // 受けるので、ここで二重に実行しない。それ以外の環境ではアプリ内の global として扱う
   const osGlobalHandledByOs = useUiStore().isDesktop
@@ -19,7 +21,8 @@ export function useKeyboard() {
       target.isContentEditable
 
     for (const cmd of commandStore.getEnabled()) {
-      for (const shortcut of cmd.shortcuts) {
+      // 上書き (プラグインの command はこれだけ) に追従する (#1243)
+      for (const shortcut of keybindsStore.resolveShortcuts(cmd)) {
         if (shortcut.scope === 'os-global' && osGlobalHandledByOs) continue
         if (matchesShortcut(e, shortcut, isInput)) {
           e.preventDefault()

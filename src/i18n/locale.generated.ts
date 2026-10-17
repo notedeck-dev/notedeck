@@ -2054,6 +2054,8 @@ export interface Locale {
     readonly "categoryColumn": string
     /** ウィンドウ */
     readonly "categoryWindow": string
+    /** プラグイン */
+    readonly "categoryPlugin": string
     /** JSON パースエラー */
     readonly "jsonParseError": string
   }
