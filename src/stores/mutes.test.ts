@@ -140,4 +140,16 @@ describe('同期で取り込んだ期限つきミュート (#1260)', () => {
     expect(m.isUserMuted('b', 'u')).toBe(true)
     expect(() => vi.advanceTimersByTime(2 * DAY)).not.toThrow()
   })
+
+  it('purgeAccount はリノート / インスタンス / ワードミュートも捨てる', () => {
+    const m = useMutesStore()
+    m.muteRenote('a', 'r')
+    m.setMutedInstances('a', ['bad.example'])
+    m.setMutedWords('a', [['spam']], [['worse']])
+    m.purgeAccount('a')
+    expect(m.isRenoteMuted('a', 'r')).toBe(false)
+    expect(m.isInstanceMuted('a', 'bad.example')).toBe(false)
+    expect(m.matchesSoftWord('a', 'spam')).toBe(false)
+    expect(m.matchesHardWord('a', 'worse')).toBe(false)
+  })
 })

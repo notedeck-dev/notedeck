@@ -10,6 +10,7 @@
  * Vapor 制約 (h() 禁止) があるので template で書く。文言はテキストとして
  * 描くので HTML として解釈されない。
  */
+// biome-ignore lint/style/useVueMultiWordComponentNames: 本家 Misskey の I18n.vue と同じ名前で呼べるようにする
 import { computed } from 'vue'
 import type { ParameterizedString } from '@/i18n/types'
 
