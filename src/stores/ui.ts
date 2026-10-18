@@ -92,7 +92,7 @@ export const useUiStore = defineStore('ui', () => {
 
   // --- Reactive signals (replaces window.dispatchEvent event bus) ---
 
-  /** Incremented on deck resume (visibility change, offline→online). Watch to react. */
+  /** 復帰のたびに増える (発生源は useDeckResume: 可視化 / 時刻ジャンプ / Android onResume / OS の回線復帰、ほかにアプリのオフラインモード解除)。watch して反応する */
   const deckResumeSignal = ref(0)
   function emitDeckResume() {
     deckResumeSignal.value++
