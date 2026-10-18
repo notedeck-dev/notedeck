@@ -1,6 +1,8 @@
 import type { Command } from '@/commands/registry'
 import { i18n } from '@/i18n'
 import { useMutesStore } from '@/stores/mutes'
+import { AppError } from '@/utils/errors'
+import { formatMuteExpiry } from '@/utils/formatTime'
 import { getApiAdapter, resolveAccountId } from '../accountContext'
 import { implement, implementCore } from '../declare'
 
@@ -34,7 +36,10 @@ export const userSearchCapability = implementCore('user.search')
  * かつ相手側に通知が飛ばないため心理的負荷が低い。
  */
 function muteConfirm(
-  text: (userId: string) => {
+  text: (
+    userId: string,
+    params: Record<string, unknown> | undefined,
+  ) => {
     title: string
     message: string
     okLabel: string
@@ -43,10 +48,26 @@ function muteConfirm(
   return (params: Record<string, unknown> | undefined) => {
     const userId = typeof params?.userId === 'string' ? params.userId : ''
     return {
-      ...text(userId),
+      ...text(userId, params),
       cancelLabel: i18n.ts._common.cancel,
       type: 'normal' as const,
     }
+  }
+}
+
+/**
+ * `user.mute` の確認に出す期限 (#1260)。承認する内容に期限が含まれることを
+ * 見せる。読めない値は実行時に parseMuteExpiresAt が拒否するので、ここでは
+ * 文言を変えない。
+ */
+function muteExpiryForConfirm(
+  params: Record<string, unknown> | undefined,
+): string | null {
+  try {
+    const at = parseMuteExpiresAt(params?.expiresAt)
+    return at === undefined ? null : formatMuteExpiry(at)
+  } catch {
+    return null
   }
 }
 
@@ -61,8 +82,8 @@ function pickUserId(
 
 /**
  * `user.mute` の expiresAt を UNIX ms に揃える。ISO 8601 文字列か UNIX ms を
- * 受け、省略は無期限 (undefined)。過去の時刻は Misskey 側でも即解除になる
- * だけなので、取り違えとみなして拒否する。
+ * 受け、省略は無期限 (undefined)。過去の時刻は Misskey 側がエラーを返さず
+ * 何もしない (ミュートされない) ので、取り違えとみなして拒否する。
  */
 export function parseMuteExpiresAt(v: unknown): number | undefined {
   if (v === undefined || v === null || v === '') return undefined
@@ -84,17 +105,31 @@ export function parseMuteExpiresAt(v: unknown): number | undefined {
 }
 
 export const userMuteCapability = implement('user.mute', {
-  requiresConfirmation: muteConfirm((userId) => ({
-    title: i18n.ts._userCapability.muteTitle,
-    message: i18n.tsx._userCapability.muteMessage({ userId }),
-    okLabel: i18n.ts._common.mute,
-  })),
+  requiresConfirmation: muteConfirm((userId, params) => {
+    const date = muteExpiryForConfirm(params)
+    return {
+      title: i18n.ts._userCapability.muteTitle,
+      message:
+        date === null
+          ? i18n.tsx._userCapability.muteMessage({ userId })
+          : i18n.tsx._userCapability.muteMessageUntil({ userId, date }),
+      okLabel: i18n.ts._common.mute,
+    }
+  }),
   execute: async (params, ctx) => {
     const userId = pickUserId(params, 'user.mute')
     const expiresAt = parseMuteExpiresAt(params?.expiresAt)
     const accountId = resolveAccountId(params?.accountId, ctx)
     const api = await getApiAdapter(accountId, ctx)
-    await api.muteUser(userId, expiresAt)
+    try {
+      await api.muteUser(userId, expiresAt)
+    } catch (e) {
+      // 既にミュート中 (手元が知らなかっただけ)。手元もミュート中にして成功扱い
+      // (#1260、手動メニューと同じ)。期限は分からないので無期限扱い
+      if (AppError.from(e).apiCode !== 'ALREADY_MUTING') throw e
+      useMutesStore().muteUser(accountId, userId)
+      return { muted: true, userId, alreadyMuted: true }
+    }
     // 過去ノートを即時非表示に（#574）。UserProfileContent と同じ楽観反映。
     // 期限つきは手元の非表示も期限で戻す
     useMutesStore().muteUser(accountId, userId, expiresAt)
@@ -114,10 +149,19 @@ export const userUnmuteCapability = implement('user.unmute', {
     const userId = pickUserId(params, 'user.unmute')
     const accountId = resolveAccountId(params?.accountId, ctx)
     const api = await getApiAdapter(accountId, ctx)
-    await api.unmuteUser(userId)
+    let alreadyUnmuted = false
+    try {
+      await api.unmuteUser(userId)
+    } catch (e) {
+      // 期限が来てサーバー側で先に消えていた (#1260): 解除済みなので成功扱い
+      if (AppError.from(e).apiCode !== 'NOT_MUTING') throw e
+      alreadyUnmuted = true
+    }
     // 隠れていた過去ノートを即時復活（#574）。
     useMutesStore().unmuteUser(accountId, userId)
-    return { unmuted: true, userId }
+    return alreadyUnmuted
+      ? { unmuted: true, userId, alreadyUnmuted: true }
+      : { unmuted: true, userId }
   },
 })
 

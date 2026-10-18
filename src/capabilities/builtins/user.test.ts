@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { formatMuteExpiry } from '@/utils/formatTime'
 import {
   parseMuteExpiresAt,
   USER_BUILTIN_CAPABILITIES,
@@ -132,5 +133,33 @@ describe('user.mute の expiresAt', () => {
   it('読めない値と過去の時刻は拒否する', () => {
     expect(() => parseMuteExpiresAt('tomorrow')).toThrow(/ISO 8601/)
     expect(() => parseMuteExpiresAt(Date.now() - 1000)).toThrow(/future/)
+  })
+})
+
+describe('user.mute の確認文言 (#1260)', () => {
+  async function confirmMessage(
+    params: Record<string, unknown>,
+  ): Promise<string> {
+    const cap = USER_BUILTIN_CAPABILITIES.find((c) => c.id === 'user.mute')
+    if (!cap || typeof cap.requiresConfirmation !== 'function') {
+      throw new Error('user.mute confirmation not found')
+    }
+    const opts = await cap.requiresConfirmation(
+      params,
+      {} as Parameters<typeof cap.requiresConfirmation>[1],
+    )
+    if (!opts) throw new Error('user.mute confirmation returned null')
+    return opts.message
+  }
+
+  it('期限つきなら確認に「〜まで」を出す', async () => {
+    const future = Date.now() + 86_400_000
+    const msg = await confirmMessage({ userId: 'u1', expiresAt: future })
+    expect(msg).toContain(formatMuteExpiry(future))
+    expect(msg).toContain('まで')
+  })
+
+  it('無期限なら期限を出さない', async () => {
+    expect(await confirmMessage({ userId: 'u1' })).not.toContain('まで')
   })
 })

@@ -1692,6 +1692,16 @@ pub enum MutedWord {
     Pattern(String),
 }
 
+/// `mute/list` の 1 件 (#1260)。期限は Misskey が返す ISO 8601 文字列のまま
+/// (無期限は None)。ms への変換は notecli に日時 crate を入れず呼び手が行う。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, utoipa::ToSchema)]
+#[cfg_attr(feature = "specta", derive(specta::Type))]
+#[serde(rename_all = "camelCase")]
+pub struct Muting {
+    pub mutee_id: String,
+    pub expires_at: Option<String>,
+}
+
 /// `i`(meDetailed) から取得する word mute 設定（read のみ、#610）。
 /// soft = `mutedWords`（隠して展開可）、hard = `hardMutedWords`（完全非表示）。
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]

@@ -98,6 +98,25 @@ export function formatAbsoluteTime(
   return formatters().ABSOLUTE.format(date)
 }
 
+const YEAR_MS = 365 * 86_400_000
+
+/**
+ * ミュートの期限 (#1260) — 「10/18 15:30」のように月日 + 時分だけ (秒なし)。
+ * メニューから付けられる期限は最長 1 週間なので年は省くが、API 経由では
+ * 任意の期限が入りうるので 1 年以上先なら年も出す (誤読を防ぐ)。
+ */
+export function formatMuteExpiry(at: number, nowMs = Date.now()): string {
+  if (!Number.isFinite(at)) return ''
+  const withYear = at - nowMs >= YEAR_MS
+  return new Intl.DateTimeFormat(i18n.lang, {
+    ...(withYear ? { year: 'numeric' } : {}),
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(new Date(at))
+}
+
 /** <time datetime> 属性の値 (ISO 8601)。読めない値では属性ごと落とす。 */
 export function toDatetimeAttr(
   at: string | number | null | undefined,

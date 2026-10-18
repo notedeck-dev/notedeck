@@ -87,6 +87,20 @@ describe('useDeckResume: 復帰シグナル発生源の一元管理 (#791)', () 
     expect(uiStore.deckResumeSignal).toBe(1)
   })
 
+  it('OS の回線復帰 (online) で発火する (可視時のみ)', () => {
+    mountHost()
+    const uiStore = useUiStore()
+
+    // 隠れている間の回線復帰は可視化時の visibilitychange に任せる
+    setHidden(true)
+    window.dispatchEvent(new Event('online'))
+    expect(uiStore.deckResumeSignal).toBe(0)
+
+    setHidden(false)
+    window.dispatchEvent(new Event('online'))
+    expect(uiStore.deckResumeSignal).toBe(1)
+  })
+
   it('unmount 後はどの経路でも発火しない', () => {
     const app = mountHost()
     const uiStore = useUiStore()
@@ -95,6 +109,7 @@ describe('useDeckResume: 復帰シグナル発生源の一元管理 (#791)', () 
 
     document.dispatchEvent(new Event('visibilitychange'))
     window.dispatchEvent(new Event('nd-app-resumed'))
+    window.dispatchEvent(new Event('online'))
     vi.setSystemTime(Date.now() + 3 * 60 * 60 * 1000)
     vi.advanceTimersByTime(SLEEP_TICK_INTERVAL_MS)
     expect(uiStore.deckResumeSignal).toBe(0)

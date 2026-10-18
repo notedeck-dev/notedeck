@@ -1,8 +1,6 @@
-import { watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
-import { useAccountsStore } from '@/stores/accounts'
 import { useMutesStore } from '@/stores/mutes'
-import { catchLog } from '@/utils/logger'
+import { useAccountSync } from './useAccountSync'
 
 /**
  * 各アカウントの mutedWords / hardMutedWords / mutedInstances を `i` から取得し
@@ -10,36 +8,15 @@ import { catchLog } from '@/utils/logger'
  * `useMuteSync`（userId ミュート）と同型。read のみ。`i` 取得は 1 回で両方を満たす。
  *
  * Misskey 側で設定済みの語句/インスタンスを起動時から適用するため、App.vue で
- * 1 回呼び、accounts の変化を watch して未同期アカウントを埋める。
+ * 1 回呼ぶ。同期の契機と再試行は `useAccountSync`。
  */
 export function useWordMuteSync() {
-  const accountsStore = useAccountsStore()
   const mutesStore = useMutesStore()
-  const synced = new Set<string>()
-
-  async function syncAccount(accountId: string, host: string) {
-    if (synced.has(accountId)) return
-    synced.add(accountId)
-    try {
-      const { adapter } = await initAdapterFor(host, accountId)
-      const { mutedWords, hardMutedWords, mutedInstances } =
-        await adapter.api.getMutedWords()
-      mutesStore.setMutedWords(accountId, mutedWords, hardMutedWords)
-      mutesStore.setMutedInstances(accountId, mutedInstances)
-    } catch (e) {
-      synced.delete(accountId) // 次の accounts 変化で再試行できるように
-      catchLog('word-mute-sync')(e)
-    }
-  }
-
-  watch(
-    () => accountsStore.accounts,
-    (accounts) => {
-      for (const acc of accounts) {
-        // 認証済みアカウントのみ（ゲスト/匿名は i を取得できない）
-        if (acc.hasToken) void syncAccount(acc.id, acc.host)
-      }
-    },
-    { immediate: true },
-  )
+  useAccountSync('word-mute-sync', async (accountId, host) => {
+    const { adapter } = await initAdapterFor(host, accountId)
+    const { mutedWords, hardMutedWords, mutedInstances } =
+      await adapter.api.getMutedWords()
+    mutesStore.setMutedWords(accountId, mutedWords, hardMutedWords)
+    mutesStore.setMutedInstances(accountId, mutedInstances)
+  })
 }

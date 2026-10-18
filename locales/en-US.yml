@@ -1211,6 +1211,8 @@ _userProfileMenu:
   muted: "Muted"
   muteFailed: "Couldn’t mute ({code})"
   unmuted: "Unmuted"
+  unmuteUntil: "Unmute (until {date})"
+  alreadyMuted: "Already muted"
   unmuteFailed: "Couldn’t unmute ({code})"
   blocked: "Blocked"
   blockFailed: "Couldn’t block ({code})"
@@ -3090,6 +3092,7 @@ _pluginsCapability:
 _userCapability:
   muteTitle: "Mute notes + notifications"
   muteMessage: "Mutes notes and notifications from userId `{userId}` (they are not notified)."
+  muteMessageUntil: "Mutes notes and notifications from userId `{userId}` until {date} (they are not notified)."
   unmuteTitle: "Unmute notes + notifications"
   unmuteMessage: "Unmutes notes and notifications from userId `{userId}` (they are not notified)."
   unmuteOk: "Unmute"

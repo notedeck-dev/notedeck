@@ -1,40 +1,18 @@
-import { watch } from 'vue'
 import { initAdapterFor } from '@/adapters/factory'
-import { useAccountsStore } from '@/stores/accounts'
 import { useMutesStore } from '@/stores/mutes'
-import { catchLog } from '@/utils/logger'
+import { useAccountSync } from './useAccountSync'
 
 /**
  * 各アカウントの renote mute 一覧（renote-mute/list）を取得し store を hydrate
- * する（#614）。`useMuteSync` と同型。起動時 / アカウント追加時に同期する。
+ * する（#614）。`useMuteSync` と同型。同期の契機と再試行は `useAccountSync`。
  */
 export function useRenoteMuteSync() {
-  const accountsStore = useAccountsStore()
   const mutesStore = useMutesStore()
-  const synced = new Set<string>()
-
-  async function syncAccount(accountId: string, host: string) {
-    if (synced.has(accountId)) return
-    synced.add(accountId)
-    try {
-      const { adapter } = await initAdapterFor(host, accountId)
-      mutesStore.setMutedRenoters(
-        accountId,
-        await adapter.api.getRenoteMutedUsers(),
-      )
-    } catch (e) {
-      synced.delete(accountId) // 次の accounts 変化で再試行できるように
-      catchLog('renote-mute-sync')(e)
-    }
-  }
-
-  watch(
-    () => accountsStore.accounts,
-    (accounts) => {
-      for (const acc of accounts) {
-        if (acc.hasToken) void syncAccount(acc.id, acc.host)
-      }
-    },
-    { immediate: true },
-  )
+  useAccountSync('renote-mute-sync', async (accountId, host) => {
+    const { adapter } = await initAdapterFor(host, accountId)
+    mutesStore.setMutedRenoters(
+      accountId,
+      await adapter.api.getRenoteMutedUsers(),
+    )
+  })
 }
