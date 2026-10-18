@@ -6491,7 +6491,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ muted: true, userId, expiresAt? }"),
+            description: Some("{ muted: true, userId, expiresAt?, alreadyMuted? } — alreadyMuted はサーバー側で既にミュート中だったとき (期限は不明)"),
         }),
     },
     CapabilityDecl {
@@ -6658,7 +6658,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ unmuted: true, userId }"),
+            description: Some("{ unmuted: true, userId, alreadyUnmuted? } — alreadyUnmuted はサーバー側で既に解除されていたとき (期限切れなど)"),
         }),
     },
     CapabilityDecl {

@@ -1,6 +1,7 @@
 import type { Command } from '@/commands/registry'
 import { i18n } from '@/i18n'
 import { useMutesStore } from '@/stores/mutes'
+import { AppError } from '@/utils/errors'
 import { formatMuteExpiry } from '@/utils/formatTime'
 import { getApiAdapter, resolveAccountId } from '../accountContext'
 import { implement, implementCore } from '../declare'
@@ -120,7 +121,15 @@ export const userMuteCapability = implement('user.mute', {
     const expiresAt = parseMuteExpiresAt(params?.expiresAt)
     const accountId = resolveAccountId(params?.accountId, ctx)
     const api = await getApiAdapter(accountId, ctx)
-    await api.muteUser(userId, expiresAt)
+    try {
+      await api.muteUser(userId, expiresAt)
+    } catch (e) {
+      // 既にミュート中 (手元が知らなかっただけ)。手元もミュート中にして成功扱い
+      // (#1260、手動メニューと同じ)。期限は分からないので無期限扱い
+      if (AppError.from(e).apiCode !== 'ALREADY_MUTING') throw e
+      useMutesStore().muteUser(accountId, userId)
+      return { muted: true, userId, alreadyMuted: true }
+    }
     // 過去ノートを即時非表示に（#574）。UserProfileContent と同じ楽観反映。
     // 期限つきは手元の非表示も期限で戻す
     useMutesStore().muteUser(accountId, userId, expiresAt)
@@ -140,10 +149,19 @@ export const userUnmuteCapability = implement('user.unmute', {
     const userId = pickUserId(params, 'user.unmute')
     const accountId = resolveAccountId(params?.accountId, ctx)
     const api = await getApiAdapter(accountId, ctx)
-    await api.unmuteUser(userId)
+    let alreadyUnmuted = false
+    try {
+      await api.unmuteUser(userId)
+    } catch (e) {
+      // 期限が来てサーバー側で先に消えていた (#1260): 解除済みなので成功扱い
+      if (AppError.from(e).apiCode !== 'NOT_MUTING') throw e
+      alreadyUnmuted = true
+    }
     // 隠れていた過去ノートを即時復活（#574）。
     useMutesStore().unmuteUser(accountId, userId)
-    return { unmuted: true, userId }
+    return alreadyUnmuted
+      ? { unmuted: true, userId, alreadyUnmuted: true }
+      : { unmuted: true, userId }
   },
 })
 

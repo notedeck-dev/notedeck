@@ -4387,7 +4387,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ muted: true, userId, expiresAt? }',
+        description: '{ muted: true, userId, expiresAt?, alreadyMuted? } — alreadyMuted はサーバー側で既にミュート中だったとき (期限は不明)',
       },
     },
     'user.renoteMute': {
@@ -4503,7 +4503,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ unmuted: true, userId }',
+        description: '{ unmuted: true, userId, alreadyUnmuted? } — alreadyUnmuted はサーバー側で既に解除されていたとき (期限切れなど)',
       },
     },
     'user.unrenoteMute': {
