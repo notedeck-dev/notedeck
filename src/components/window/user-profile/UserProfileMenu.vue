@@ -18,6 +18,7 @@ import { useDeckStore } from '@/stores/deck'
 import { useMutesStore } from '@/stores/mutes'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
+import { formatMuteExpiry } from '@/utils/formatTime'
 
 const props = defineProps<{
   adapter: ServerAdapter | null
@@ -93,8 +94,22 @@ const userMenuView = computed<UserMenuView>(() => {
 })
 
 function open(event: MouseEvent) {
+  // 開くたびに relation を取り直す (#1260): 手元で期限が過ぎたあとに古い
+  // 「ミュート解除」が残るのを短くする。取り直し中は前の値のまま出す
+  if (props.hasToken && !props.isOwnProfile) void refreshUserRelation()
   userMenuRef.value?.open(event)
 }
+
+/** ミュート中の項目のラベル。手元で期限を知っていれば「(〜まで)」を添える (#1260) */
+const muteItemLabel = computed(() => {
+  if (!userRelation.value?.isMuted) return i18n.ts._common.mute
+  const until = props.user
+    ? mutesStore.mutedUntil(props.accountId, props.user.id)
+    : null
+  return until === null
+    ? i18n.ts._common.unmute
+    : i18n.tsx._userProfileMenu.unmuteUntil({ date: formatMuteExpiry(until) })
+})
 
 defineExpose({ open })
 
@@ -154,6 +169,15 @@ async function handleMuteUser(periodMs: number | null) {
     closeUserMenu()
   } catch (e) {
     const err = AppError.from(e)
+    if (err.apiCode === 'ALREADY_MUTING') {
+      // relation が古かった (開いた後に他クライアントでミュートした等)。
+      // 手元もミュート中にして表示を直す。期限は分からないので無期限扱い
+      mutesStore.muteUser(props.accountId, props.user.id)
+      toast.show(i18n.ts._userProfileMenu.alreadyMuted)
+      void refreshUserRelation()
+      closeUserMenu()
+      return
+    }
     console.error('[user:mute]', err.code, err.message)
     toast.show(
       i18n.tsx._userProfileMenu.muteFailed({ code: err.displayCode }),
@@ -165,7 +189,12 @@ async function handleMuteUser(periodMs: number | null) {
 async function handleUnmuteUser() {
   if (!props.adapter || !props.user) return
   try {
-    await props.adapter.api.unmuteUser(props.user.id)
+    try {
+      await props.adapter.api.unmuteUser(props.user.id)
+    } catch (e) {
+      // 期限が来てサーバー側で先に消えていた (#1260): 解除済みなので成功扱い
+      if (AppError.from(e).apiCode !== 'NOT_MUTING') throw e
+    }
     // ミュート中に隠れていた過去ノートを即時復活させる（#574）。
     mutesStore.unmuteUser(props.accountId, props.user.id)
     toast.show(i18n.ts._userProfileMenu.unmuted)
@@ -178,6 +207,8 @@ async function handleUnmuteUser() {
       i18n.tsx._userProfileMenu.unmuteFailed({ code: err.displayCode }),
       'error',
     )
+    // 表示が実態に追随するように (失敗の原因が古い relation のこともある)
+    void refreshUserRelation()
   }
 }
 
@@ -586,7 +617,7 @@ async function addToAntenna(antenna: Antenna) {
         "
       >
         <i :class="userRelation?.isMuted ? 'ti ti-eye' : 'ti ti-eye-off'" />
-        {{ userRelation?.isMuted ? i18n.ts._common.unmute : i18n.ts._common.mute }}
+        {{ muteItemLabel }}
       </button>
       <button
         class="_popupItem"

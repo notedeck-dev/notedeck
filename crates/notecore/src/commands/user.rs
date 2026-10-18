@@ -4,8 +4,8 @@
 use notecli::api::SearchUsersOptions;
 use notecli::error::NoteDeckError;
 use notecli::models::{
-    Flash, GalleryPost, MutedWordsResult, NormalizedNote, NormalizedUser, NormalizedUserDetail,
-    Page, TimelineKey, TimelineOptions, UserReaction,
+    Flash, GalleryPost, MutedWordsResult, Muting, NormalizedNote, NormalizedUser,
+    NormalizedUserDetail, Page, TimelineKey, TimelineOptions, UserReaction,
 };
 
 use crate::commands::{typed_request, validate_host};
@@ -329,10 +329,10 @@ pub async fn api_unrenote_mute_user(
     client.unrenote_mute_user(&host, &token, &user_id).await
 }
 
-/// 自分がミュート中のユーザー ID 一覧を取得する（#574: 起動時の mute store hydrate）。
-pub async fn api_get_muted_users(core: &Core, account_id: String) -> Result<Vec<String>> {
+/// 自分のミュート一覧 (相手の ID + 期限) を取得する（#574: 起動時の mute store hydrate、#1260: 期限も）。
+pub async fn api_get_muted_users(core: &Core, account_id: String) -> Result<Vec<Muting>> {
     let (client, host, token) = core.authed(&account_id).await?;
-    client.muted_user_ids(&host, &token).await
+    client.mutings(&host, &token).await
 }
 
 /// 自分の mutedWords / hardMutedWords / mutedInstances を取得する

@@ -183,6 +183,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/mapEviction.ts`](src/services/mapEviction.ts) | [`src/services/mapEviction.test.ts`](src/services/mapEviction.test.ts) |
 | [`src/services/mediaTime.ts`](src/services/mediaTime.ts) | [`src/services/mediaTime.test.ts`](src/services/mediaTime.test.ts) |
 | [`src/services/mfmParser.ts`](src/services/mfmParser.ts) | — |
+| [`src/services/muteExpiry.ts`](src/services/muteExpiry.ts) | [`src/services/muteExpiry.test.ts`](src/services/muteExpiry.test.ts) |
 | [`src/services/nativeContextMenu.ts`](src/services/nativeContextMenu.ts) | [`src/services/nativeContextMenu.dom.test.ts`](src/services/nativeContextMenu.dom.test.ts) |
 | [`src/services/noteFrame.ts`](src/services/noteFrame.ts) | [`src/services/noteFrame.test.ts`](src/services/noteFrame.test.ts) |
 | [`src/services/noteGroup.ts`](src/services/noteGroup.ts) | [`src/services/noteGroup.test.ts`](src/services/noteGroup.test.ts) |

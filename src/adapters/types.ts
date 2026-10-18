@@ -133,6 +133,7 @@ export interface SearchOptions {
 // `UserList` は specta 経由で Rust 側から自動生成される正規化型 (notecli の
 // notecli::models::UserList)。重複定義を避けるため bindings から re-export。
 import type { UserList } from '@/bindings'
+import type { MutedUser } from '@/services/muteExpiry'
 
 export type { UserList }
 
@@ -656,8 +657,8 @@ export interface UsersApi {
   /** `expiresAt` は解除する時刻 (UNIX ms)。省略は無期限 */
   muteUser(userId: string, expiresAt?: number): Promise<void>
   unmuteUser(userId: string): Promise<void>
-  /** 自分がミュート中のユーザー ID 一覧（#574: 起動時の mute store hydrate 用）。 */
-  getMutedUsers(): Promise<string[]>
+  /** 自分のミュート一覧 (相手の ID + 期限)（#574: 起動時の mute store hydrate 用、#1260: 期限も）。 */
+  getMutedUsers(): Promise<MutedUser[]>
   /** 自分の mutedWords / hardMutedWords / mutedInstances（#610/#613: 起動時 hydrate 用、read のみ）。 */
   getMutedWords(): Promise<MutedWordsResult>
   /** 自分が renote mute 中のユーザー ID 一覧（#614: 起動時の renote mute store hydrate 用）。 */

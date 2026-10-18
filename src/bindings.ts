@@ -819,7 +819,7 @@ async apiUnrenoteMuteUser(accountId: string, userId: string) : Promise<Result<nu
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetMutedUsers(accountId: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetMutedUsers(accountId: string) : Promise<Result<Muting[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_muted_users", { accountId }) };
 } catch (e) {
@@ -3555,6 +3555,11 @@ export type MutedWordsResult = { mutedWords: MutedWord[]; hardMutedWords: MutedW
  * インスタンスミュート（#613）。ミュート対象ホスト名の配列。同じ `i` から取得。
  */
 mutedInstances: string[] }
+/**
+ * `mute/list` の 1 件 (#1260)。期限は Misskey が返す ISO 8601 文字列のまま
+ * (無期限は None)。ms への変換は notecli に日時 crate を入れず呼び手が行う。
+ */
+export type Muting = { muteeId: string; expiresAt: string | null }
 export type NormalizedDriveFile = { id: string; name: string; type: string; url: string; thumbnailUrl: string | null; size?: number; isSensitive?: boolean; 
 /**
  * 画像の幅 (px)。フロントの aspect-ratio 予約 (レイアウトシフト防止) 用

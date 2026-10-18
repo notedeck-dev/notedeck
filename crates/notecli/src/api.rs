@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use crate::error::{AuthErrorKind, NoteDeckError};
 use crate::models::{
     Antenna, AuthResult, Channel, ChatMessage, ChatUser, Clip, CreateNoteParams, MutedWordsResult,
-    NormalizedDriveFile, NormalizedNote, NormalizedNoteReaction, NormalizedNotification,
+    Muting, NormalizedDriveFile, NormalizedNote, NormalizedNoteReaction, NormalizedNotification,
     NormalizedUser, NormalizedUserDetail, RawCreateNoteResponse, RawDriveFile, RawEmojisResponse,
     RawMiAuthResponse, RawNote, RawNoteReaction, RawNotification, RawUser, RawUserDetail,
     SearchOptions, ServerEmoji, TimelineKey, TimelineOptions, UserList,
@@ -2363,15 +2363,12 @@ impl MisskeyClient {
         Ok(())
     }
 
-    /// 自分がミュート中のユーザー ID 一覧を取得する（`mute/list` を全ページ走査）。
+    /// 自分のミュート一覧を取得する（`mute/list` を全ページ走査）。
     /// #574: 起動時にフロントの mute store を hydrate し、過去ノートを即時非表示にする。
-    pub async fn muted_user_ids(
-        &self,
-        host: &str,
-        token: &str,
-    ) -> Result<Vec<String>, NoteDeckError> {
+    /// #1260: 期限 (`expiresAt`) も返し、同期で取り込んだ期限つきミュートを手元で戻せるようにする。
+    pub async fn mutings(&self, host: &str, token: &str) -> Result<Vec<Muting>, NoteDeckError> {
         const PAGE: usize = 100;
-        let mut ids = Vec::new();
+        let mut mutings = Vec::new();
         let mut until_id: Option<String> = None;
         loop {
             let mut params = json!({ "limit": PAGE });
@@ -2383,7 +2380,13 @@ impl MisskeyClient {
             }
             for item in arr {
                 if let Some(mutee_id) = item.get("muteeId").and_then(|v| v.as_str()) {
-                    ids.push(mutee_id.to_string());
+                    mutings.push(Muting {
+                        mutee_id: mutee_id.to_string(),
+                        expires_at: item
+                            .get("expiresAt")
+                            .and_then(|v| v.as_str())
+                            .map(String::from),
+                    });
                 }
             }
             // 次ページの起点は Muting レコードの id（mutee の id ではない）。
@@ -2396,7 +2399,7 @@ impl MisskeyClient {
                 break;
             }
         }
-        Ok(ids)
+        Ok(mutings)
     }
 
     /// `i`(meDetailed) から `mutedWords` / `hardMutedWords` を取得する（read のみ、#610）。
@@ -2723,20 +2726,32 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn muted_user_ids_collects_mutee_ids() {
+    async fn mutings_collects_mutee_ids_and_expiry() {
         let server = MockServer::start().await;
         Mock::given(method("POST"))
             .and(path("/api/mute/list"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!([
-                { "id": "muting1", "muteeId": "userA", "mutee": { "id": "userA" } },
-                { "id": "muting2", "muteeId": "userB", "mutee": { "id": "userB" } }
+                { "id": "muting1", "muteeId": "userA", "expiresAt": "2026-10-25T06:30:00.000Z", "mutee": { "id": "userA" } },
+                { "id": "muting2", "muteeId": "userB", "expiresAt": null, "mutee": { "id": "userB" } }
             ])))
             .mount(&server)
             .await;
 
         let client = MisskeyClient::with_base_url(&server.uri());
-        let ids = client.muted_user_ids("h", "token").await.unwrap();
-        assert_eq!(ids, vec!["userA".to_string(), "userB".to_string()]);
+        let mutings = client.mutings("h", "token").await.unwrap();
+        assert_eq!(
+            mutings,
+            vec![
+                Muting {
+                    mutee_id: "userA".to_string(),
+                    expires_at: Some("2026-10-25T06:30:00.000Z".to_string()),
+                },
+                Muting {
+                    mutee_id: "userB".to_string(),
+                    expires_at: None,
+                },
+            ]
+        );
     }
 
     #[tokio::test]

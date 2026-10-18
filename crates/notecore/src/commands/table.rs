@@ -81,7 +81,7 @@ macro_rules! with_command_table {
         data api_unmute_user(account_id: String, user_id: String) -> () = $crate::commands::user::api_unmute_user;
         data api_renote_mute_user(account_id: String, user_id: String) -> () = $crate::commands::user::api_renote_mute_user;
         data api_unrenote_mute_user(account_id: String, user_id: String) -> () = $crate::commands::user::api_unrenote_mute_user;
-        data api_get_muted_users(account_id: String) -> Vec<String> = $crate::commands::user::api_get_muted_users;
+        data api_get_muted_users(account_id: String) -> Vec<notecli::models::Muting> = $crate::commands::user::api_get_muted_users;
         data api_get_muted_words(account_id: String) -> notecli::models::MutedWordsResult = $crate::commands::user::api_get_muted_words;
         data api_get_renote_muted_users(account_id: String) -> Vec<String> = $crate::commands::user::api_get_renote_muted_users;
         data api_block_user(account_id: String, user_id: String) -> () = $crate::commands::user::api_block_user;

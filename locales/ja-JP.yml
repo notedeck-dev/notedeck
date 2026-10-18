@@ -975,6 +975,8 @@ _userProfileMenu:
   muted: "ミュートしました"
   muteFailed: "ミュートに失敗しました ({code})"
   unmuted: "ミュートを解除しました"
+  unmuteUntil: "ミュート解除 ({date}まで)"
+  alreadyMuted: "すでにミュート中です"
   unmuteFailed: "ミュート解除に失敗しました ({code})"
   blocked: "ブロックしました"
   blockFailed: "ブロックに失敗しました ({code})"
@@ -2813,6 +2815,7 @@ _pluginsCapability:
 _userCapability:
   muteTitle: "ノート + 通知をミュート"
   muteMessage: "userId `{userId}` を ノート + 通知ミュートします (相手に通知は飛びません)。"
+  muteMessageUntil: "userId `{userId}` を {date} まで ノート + 通知ミュートします (相手に通知は飛びません)。"
   unmuteTitle: "ノート + 通知を解除"
   unmuteMessage: "userId `{userId}` を ノート + 通知解除します (相手に通知は飛びません)。"
   unmuteOk: "解除"
