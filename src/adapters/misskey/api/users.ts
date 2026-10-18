@@ -1,3 +1,5 @@
+import type { Muting } from '@/bindings'
+import { type MutedUser, parseMutingExpiry } from '@/services/muteExpiry'
 import { commands } from '@/utils/tauriInvoke'
 import type {
   FollowRelation,
@@ -194,9 +196,13 @@ export function createUsersApi(
       unwrapAny(await commands.apiUnmuteUser(ctx.accountId, userId))
     },
 
-    async getMutedUsers(): Promise<string[]> {
+    async getMutedUsers(): Promise<MutedUser[]> {
       ctx.requireAuth()
-      return unwrapAny(await commands.apiGetMutedUsers(ctx.accountId))
+      const mutings = unwrapAny(await commands.apiGetMutedUsers(ctx.accountId))
+      return mutings.map((m: Muting) => ({
+        userId: m.muteeId,
+        expiresAt: parseMutingExpiry(m.expiresAt),
+      }))
     },
 
     async getMutedWords(): Promise<MutedWordsResult> {

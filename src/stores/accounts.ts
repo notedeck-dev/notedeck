@@ -5,6 +5,7 @@ import type { ServerSoftware } from '@/adapters/types'
 import { i18n } from '@/i18n'
 import { invalidateResolutionCache } from '@/services/entityResolution'
 import { useClientLayerStore } from '@/stores/clientLayer'
+import { useMutesStore } from '@/stores/mutes'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { removeStorage, STORAGE_KEYS } from '@/utils/storage'
 import { listenTauri } from '@/utils/tauriEvents'
@@ -184,6 +185,7 @@ export const useAccountsStore = defineStore('accounts', () => {
     removeStorage(STORAGE_KEYS.notificationCache(id))
     removeStorage(STORAGE_KEYS.policies(id))
     useSuspensionsStore().purgeAccount(id)
+    useMutesStore().purgeAccount(id)
     // メモはアカウントに紐づかない (#1018) ので purge しない。サーバーへ
     // 送っていないローカルの書き物で、アカウントを消した後も残す
   }

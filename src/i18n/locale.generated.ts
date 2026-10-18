@@ -1768,6 +1768,10 @@ export interface Locale {
     readonly "muteFailed": ParameterizedString<'code'>
     /** ミュートを解除しました */
     readonly "unmuted": string
+    /** ミュート解除 ({date}まで) */
+    readonly "unmuteUntil": ParameterizedString<'date'>
+    /** すでにミュート中です */
+    readonly "alreadyMuted": string
     /** ミュート解除に失敗しました ({code}) */
     readonly "unmuteFailed": ParameterizedString<'code'>
     /** ブロックしました */
@@ -5072,6 +5076,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "muteTitle": string
     /** userId `{userId}` を ノート + 通知ミュートします (相手に通知は飛びません)。 */
     readonly "muteMessage": ParameterizedString<'userId'>
+    /** userId `{userId}` を {date} まで ノート + 通知ミュートします (相手に通知は飛びません)。 */
+    readonly "muteMessageUntil": ParameterizedString<'date' | 'userId'>
     /** ノート + 通知を解除 */
     readonly "unmuteTitle": string
     /** userId `{userId}` を ノート + 通知解除します (相手に通知は飛びません)。 */

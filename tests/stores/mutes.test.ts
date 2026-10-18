@@ -30,7 +30,10 @@ describe('useMutesStore', () => {
     it('replaces the muted set on setMutedUsers (mute/list sync)', () => {
       const store = useMutesStore()
       store.muteUser('acc1', 'old')
-      store.setMutedUsers('acc1', ['a', 'b'])
+      store.setMutedUsers('acc1', [
+        { userId: 'a', expiresAt: null },
+        { userId: 'b', expiresAt: null },
+      ])
       expect(store.isUserMuted('acc1', 'old')).toBe(false)
       expect(store.isUserMuted('acc1', 'a')).toBe(true)
       expect(store.isUserMuted('acc1', 'b')).toBe(true)
