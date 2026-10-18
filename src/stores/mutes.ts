@@ -214,10 +214,14 @@ export const useMutesStore = defineStore('mutes', () => {
     if (entries.length > 0) triggerRef(expiry)
   }
 
-  /** アカウント削除時にそのアカウントのユーザーミュートの集合と予約を捨てる */
+  /** アカウント削除時にそのアカウントのミュート状態 (全種) と予約を捨てる */
   function purgeAccount(accountId: string) {
     clearAccountExpiry(accountId)
     users.replace(accountId, [])
+    renoters.replace(accountId, [])
+    instances.replace(accountId, [])
+    words.value.delete(accountId)
+    triggerRef(words)
   }
 
   return {
