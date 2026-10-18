@@ -3831,7 +3831,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "device",
     description: "指定 userId をミュートする (ノート + 通知が見えなくなる)。相手に通知は飛ばない。リノートだけ消したいなら user.renoteMute を使う。 expiresAt を渡すとその時刻に自動で解除される (「24 時間だけ」など)。",
     params: {"userId":{"type":"string","description":"対象 userId (user.lookup / search で取得)"},"expiresAt":{"type":"string","description":"解除する時刻 (ISO 8601、例: 2026-10-14T09:00:00+09:00)。未来の時刻に限る。省略時は無期限","optional":true},"accountId":{"type":"string","description":"操作元アカウント。未指定なら active。","optional":true}},
-    returns: {"type":"object","description":"{ muted: true, userId, expiresAt? }"},
+    returns: {"type":"object","description":"{ muted: true, userId, expiresAt?, alreadyMuted? } — alreadyMuted はサーバー側で既にミュート中だったとき (期限は不明)"},
   },
   "user.renoteMute": {
     id: "user.renoteMute",
@@ -3919,7 +3919,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "device",
     description: "指定 userId のミュートを解除する。",
     params: {"userId":{"type":"string","description":"対象 userId (user.lookup / search で取得)"},"accountId":{"type":"string","description":"操作元アカウント。未指定なら active。","optional":true}},
-    returns: {"type":"object","description":"{ unmuted: true, userId }"},
+    returns: {"type":"object","description":"{ unmuted: true, userId, alreadyUnmuted? } — alreadyUnmuted はサーバー側で既に解除されていたとき (期限切れなど)"},
   },
   "user.unrenoteMute": {
     id: "user.unrenoteMute",
