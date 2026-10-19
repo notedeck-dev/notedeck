@@ -15,8 +15,26 @@ export function useMultiAccountAdapters() {
   // Local reference set — the actual caching is handled by initAdapterFor()
   const adapters = new Map<string, ServerAdapter>()
 
-  async function getOrCreate(accountId: string): Promise<ServerAdapter | null> {
+  /** adapter を作った時点のログイン状態。変わっていたら factory 側は作り直している */
+  const tokenAt = new Map<string, boolean>()
+
+  /**
+   * 手元の参照が現在のアカウント状態と合うときだけ返す。ログアウト → 再ログインで
+   * factory が adapter を作り直した (destroyAdapter) あとに古い adapter を使い続けると、
+   * 購読は外れたまま、Note Capture は購読済みのつもり、になる
+   */
+  function fresh(accountId: string): ServerAdapter | undefined {
     const cached = adapters.get(accountId)
+    if (!cached) return undefined
+    const acc = accountsStore.accounts.find((a) => a.id === accountId)
+    if (acc && acc.hasToken === tokenAt.get(accountId)) return cached
+    adapters.delete(accountId)
+    tokenAt.delete(accountId)
+    return undefined
+  }
+
+  async function getOrCreate(accountId: string): Promise<ServerAdapter | null> {
+    const cached = fresh(accountId)
     if (cached) return cached
 
     const acc = accountsStore.accounts.find((a) => a.id === accountId)
@@ -24,18 +42,20 @@ export function useMultiAccountAdapters() {
 
     const { adapter } = await initAdapterFor(acc.host, acc.id)
     adapters.set(accountId, adapter)
+    tokenAt.set(accountId, acc.hasToken)
     return adapter
   }
 
   /** 生成済みならその adapter (同期)。ストリーム購読の同期など非同期を避けたい場面用 */
   function getCached(accountId: string): ServerAdapter | undefined {
-    return adapters.get(accountId)
+    return fresh(accountId)
   }
 
   function cleanup() {
     // Adapters are shared globally — do NOT call stream.cleanup() here
     // as it would destroy handlers for other columns using the same adapter.
     adapters.clear()
+    tokenAt.clear()
   }
 
   return { getOrCreate, getCached, cleanup }
