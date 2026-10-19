@@ -215,6 +215,7 @@ function mountColumn(opts: {
   fetch: NoteColumnConfig['fetch']
   filterNotes?: NoteColumnConfig['filterNotes']
   refreshFetch?: NoteColumnConfig['refreshFetch']
+  cursorOf?: NoteColumnConfig['cursorOf']
   fetchKey?: NoteColumnConfig['fetchKey']
   filters?: Ref<TimelineFilter | undefined>
   streaming?: boolean
@@ -239,6 +240,7 @@ function mountColumn(opts: {
         cache: { getKey: () => tlKey.value },
         filterNotes: opts.filterNotes,
         refreshFetch: opts.refreshFetch,
+        cursorOf: opts.cursorOf,
         fetchKey: opts.fetchKey,
         streaming: opts.streaming
           ? { subscribe: () => ({ dispose: vi.fn() }) }
@@ -712,6 +714,37 @@ describe('useNoteColumn: フェッチカーソル (#831 Step 0)', () => {
     await flush()
     expect(fetchImpl).toHaveBeenCalledTimes(2)
     expect(fetchImpl.mock.calls[1]?.[0]).toEqual({ untilId: 'h08' })
+  })
+
+  it('面ごとのカーソル (cursorOf): お気に入りはページ末尾のお気に入り ID で遡る', async () => {
+    addAccount('acc-cursor-fav')
+    // お気に入り順は投稿時刻順ではない: 古いノートを後からお気に入りした行が先頭に来る
+    const fav = (id: string, favoriteId: string) =>
+      ({ ...note(id), _favoriteId: favoriteId }) as NormalizedNote
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([fav('h01', 'F9'), fav('h08', 'F8')])
+      .mockResolvedValueOnce([fav('h05', 'F7')])
+      .mockResolvedValueOnce([])
+    const { api } = mountColumn({
+      accountId: 'acc-cursor-fav',
+      fetch: (_a, opts) => fetchImpl(opts),
+      cursorOf: (page) => {
+        const last = page.at(-1)
+        return last
+          ? { id: last._favoriteId ?? last.id, createdAt: last.createdAt }
+          : null
+      },
+    })
+    await flush()
+    await api.loadMore()
+    await flush()
+    // 投稿時刻の最古 (h01) ではなく、ページ末尾のお気に入り ID で遡る
+    expect(fetchImpl.mock.calls[1]?.[0]).toEqual({ untilId: 'F8' })
+    await api.loadMore()
+    await flush()
+    // 2 ページ目の末尾 (h05 = F7) は 1 ページ目の h01 より投稿時刻が新しいが、カーソルは進む
+    expect(fetchImpl.mock.calls[2]?.[0]).toEqual({ untilId: 'F7' })
   })
 
   it('reconnect でカーソルがリセットされ、旧世代の位置から取り直さない', async () => {

@@ -117,6 +117,16 @@ export interface CrossAccountNotesOptions {
   paging?: 'horizon'
 
   /**
+   * 面ごとのページング位置の取り方 (per-account の `NoteColumnConfig.cursorOf` と同じ)。
+   * 既定は生ページの createdAt 最古。お気に入りは「ページ末尾のお気に入り ID」。
+   * 水平線を使わない面でも、遡りの位置は列の行ではなくこれで持つ (列の切り詰めで
+   * 行が消えると位置を失い、最新ページを取り直す往復になる)
+   */
+  cursorOf?: (
+    page: NormalizedNote[],
+  ) => { id: string; createdAt: string } | null
+
+  /**
    * 組込フィルタ (#841) + カラムクエリ (#783) を全アカウント面にも通す。
    * per-account と同じ評価器 (useColumnQuery) を使い、全取り込み経路
    * (キャッシュ / 初回 / 追加読み込み / 復帰 / streaming) で AND 合成する。
@@ -228,6 +238,33 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   }
   /** 表示の下限。null は制限なし。connect 世代内では単調に下がるだけ */
   const horizon = shallowRef<string | null>(null)
+  /**
+   * 水平線を使わない面のアカウント別の遡り位置 (生ページ基準、#831 §1.4)。
+   * 面ごとの `cursorOf` があればそれで、無ければ createdAt の最古で進む
+   */
+  const legacyCursors = new Map<string, { id: string; createdAt: string }>()
+  function pageCursorOf(
+    page: readonly NormalizedNote[],
+  ): { id: string; createdAt: string } | null {
+    if (options.cursorOf) return options.cursorOf([...page])
+    let oldest: NormalizedNote | null = null
+    for (const n of page) {
+      if (!oldest || n.createdAt < oldest.createdAt) oldest = n
+    }
+    return oldest ? { id: oldest.id, createdAt: oldest.createdAt } : null
+  }
+  function advanceLegacyCursor(
+    accountId: string,
+    page: readonly NormalizedNote[],
+  ) {
+    const next = pageCursorOf(page)
+    if (!next) return
+    const cur = legacyCursors.get(accountId)
+    const behind = options.cursorOf
+      ? !cur || next.id < cur.id
+      : !cur || next.createdAt < cur.createdAt
+    if (behind) legacyCursors.set(accountId, next)
+  }
   const aboveHorizon = (n: NormalizedNote) =>
     horizon.value === null || n.createdAt >= horizon.value
 
@@ -653,6 +690,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     cursors.clear()
     cursorsVersion.value++
     horizon.value = null
+    legacyCursors.clear()
 
     // オフラインファースト: キャッシュを即時表示（ログアウト中のアカウント分も含む）
     const cached = await loadCrossAccountCache()
@@ -704,9 +742,10 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
             }
             return
           }
-          // 到達点は生ページ (フィルタ前) の最古で決める
+          // 到達点は生ページ (フィルタ前) で決める
           if (horizonPaging)
             setCursor(resetCursor(initialCursor(acc.id), r.value))
+          else advanceLegacyCursor(acc.id, r.value)
           live.push(...r.value)
           // 何も出ていなければ最初に返った分で描画する (#1095)。既に何か
           // (キャッシュや先に返った分) が出ていれば全部揃ってから 1 回で
@@ -864,27 +903,34 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       await mapWithConcurrency(
         accountsStore.accounts,
         async (acc) => {
-          const lastForAccount = [...rawNotes.value]
-            .reverse()
-            .find((n) => n._accountId === acc.id)
+          // 遡りの位置はカーソル (生ページ基準)。無ければ列に残るそのアカウントの
+          // 最古行 (キャッシュだけで出ているアカウント)
+          const cursor =
+            legacyCursors.get(acc.id) ??
+            [...rawNotes.value].reverse().find((n) => n._accountId === acc.id)
 
           if (acc.hasToken) {
             const adapter = await multiAdapters.getOrCreate(acc.id)
             if (!adapter) return []
-            if (!lastForAccount) return fetchNotes(adapter)
-            return fetchNotes(adapter, { untilId: lastForAccount.id })
+            const page = cursor
+              ? await fetchNotes(adapter, { untilId: cursor.id })
+              : await fetchNotes(adapter)
+            advanceLegacyCursor(acc.id, page)
+            return page
           }
 
           // ログアウト中: hasToken 不要でキャッシュを遡る。
-          // createdAt / id は同一ノート (lastForAccount) からペアで渡す (§6-14)
-          if (!key || !lastForAccount) return []
+          // createdAt / id は同一ノート由来のペアで渡す (§6-14)
+          if (!key || !cursor) return []
           try {
-            return await loadCachedTimelineBefore(
+            const page = await loadCachedTimelineBefore(
               acc.id,
               key,
-              lastForAccount.createdAt,
-              lastForAccount.id,
+              cursor.createdAt,
+              cursor.id,
             )
+            advanceLegacyCursor(acc.id, page)
+            return page
           } catch {
             return []
           }

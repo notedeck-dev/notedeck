@@ -82,6 +82,15 @@ export interface NoteColumnConfig {
     currentNotes: NormalizedNote[],
   ) => Promise<{ notes: NormalizedNote[]; mode: 'replace' | 'prepend' }>
   /**
+   * 面ごとのページング位置の取り方。既定は「生ページの createdAt 最古」で、
+   * createdAt 順でない面 (お気に入り = お気に入り順、untilId はお気に入り ID)
+   * だけが差し替える。指定時はカーソルの前進判定も createdAt でなく id の辞書順
+   * (同じサーバーの ID は時刻順に並ぶ) で行う
+   */
+  cursorOf?: (
+    page: NormalizedNote[],
+  ) => { id: string; createdAt: string } | null
+  /**
    * クライアント側防御フィルタ。SQLite キャッシュ復元と REST 取得結果の
    * 両方に適用される (ストリーミング挿入はカラム側 subscribe 内で適用)。
    * local/global の public 限定などサーバー応答に依存しない可視性保証 (#651)。
@@ -400,6 +409,14 @@ export function useNoteColumn(config: NoteColumnConfig) {
    * pullRefresh / resume の最新側ページでカーソルが新しい方向へ戻ることを禁止。
    */
   function advanceFetchCursor(page: NormalizedNote[]): void {
+    if (config.cursorOf) {
+      const next = config.cursorOf(page)
+      if (!next) return
+      const cur = fetchCursor.value
+      if (cur && next.id >= cur.id) return
+      fetchCursor.value = next
+      return
+    }
     const oldest = oldestOf(page)
     if (!oldest) return
     const cur = fetchCursor.value

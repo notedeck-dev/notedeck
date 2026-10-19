@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import type { NormalizedNote } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -32,10 +33,22 @@ const isCrossAccount = computed(() => props.column.accountId == null)
 // 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
 provideNoteFrame(isCrossAccount)
 
+/**
+ * お気に入りはお気に入りした順で返り、untilId はノート ID ではなくお気に入り ID
+ * (本家は NoteFavorite の id で解く)。遡りの位置はページ末尾の行のお気に入り ID
+ */
+function favoriteCursorOf(page: NormalizedNote[]) {
+  const last = page.at(-1)
+  return last
+    ? { id: last._favoriteId ?? last.id, createdAt: last.createdAt }
+    : null
+}
+
 // Single-account config
 const noteColumnConfig: NoteColumnConfig = {
   getColumn: () => props.column,
   fetch: (adapter, opts) => adapter.api.getFavorites(opts),
+  cursorOf: favoriteCursorOf,
   cache: {
     getKey: () => columnCacheKey(props.column, cacheKeyDeps),
   },
@@ -69,6 +82,7 @@ const {
   crossProgress,
 } = useCrossAccountNotes({
   fetchNotes: (adapter, opts) => adapter.api.getFavorites(opts),
+  cursorOf: favoriteCursorOf,
   isCrossAccount: () => isCrossAccount.value,
   cacheKey: () => columnCacheKey(props.column, cacheKeyDeps),
   visibility,

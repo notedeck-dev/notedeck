@@ -20,7 +20,10 @@ import type { DeckColumn } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
 import { usePerformanceStore } from '@/stores/performance'
 import { useToast } from '@/stores/toast'
-import { useCrossAccountNotes } from './useCrossAccountNotes'
+import {
+  type CrossAccountNotesOptions,
+  useCrossAccountNotes,
+} from './useCrossAccountNotes'
 
 /**
  * 全アカウント面 (useCrossAccountNotes) のテスト土台。
@@ -250,6 +253,7 @@ function mountCross(opts: {
   ) => NormalizedNote[] | Promise<NormalizedNote[]>
   streaming?: boolean
   paging?: 'horizon'
+  cursorOf?: CrossAccountNotesOptions['cursorOf']
 }) {
   const live = new Map<string, Live>()
   let api: ReturnType<typeof useCrossAccountNotes> | null = null
@@ -279,6 +283,7 @@ function mountCross(opts: {
         isCrossAccount: () => true,
         cacheKey: () => 'home',
         paging: opts.paging,
+        cursorOf: opts.cursorOf,
         isLoading,
         error,
         scroller,
@@ -716,6 +721,39 @@ describe('useCrossAccountNotes: 水平線で下端を揃える (#1184)', () => {
       'b30',
       'b25',
       'b08',
+    ])
+  })
+
+  it('水平線を使わない面でも遡りの位置は列の行でなくカーソルで持ち、面ごとの cursorOf を使う', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    const fav = (id: string, favoriteId: string) =>
+      ({ ...note(id), _favoriteId: favoriteId }) as NormalizedNote
+    const calls: { id: string; untilId?: string }[] = []
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      cursorOf: (page) => {
+        const last = page.at(-1)
+        return last
+          ? { id: last._favoriteId ?? last.id, createdAt: last.createdAt }
+          : null
+      },
+      fetchFor: (id, o) => {
+        calls.push({ id, untilId: o?.untilId })
+        if (id === 'acc-a') {
+          return o?.untilId ? [] : [fav('a10', 'FA9'), fav('a50', 'FA8')]
+        }
+        return o?.untilId ? [] : [fav('b30', 'FB9')]
+      },
+    })
+    await flush()
+    await api.loadMoreCrossAccount()
+    await flush()
+    // 列の最古行 (a10) ではなく、ページ末尾のお気に入り ID から遡る
+    expect(calls.filter((c) => c.untilId)).toEqual([
+      { id: 'acc-a', untilId: 'FA8' },
+      { id: 'acc-b', untilId: 'FB9' },
     ])
   })
 

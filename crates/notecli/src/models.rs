@@ -147,6 +147,14 @@ pub struct NormalizedNote {
     /// ローカル投稿者 (user.host = None) は identity を自分で組むので常に true。
     #[serde(rename = "_identityTrusted", default)]
     pub identity_trusted: bool,
+    /// `i/favorites` の行だけが持つお気に入り ID。お気に入りのページングは
+    /// ノート ID ではなくこの ID で進む (本家は NoteFavorite の id で untilId を解く)
+    #[serde(
+        rename = "_favoriteId",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub favorite_id: Option<String>,
     /// サーバーが本文を隠した状態 (packed の isHidden)。ミュート由来の非表示とは別概念。
     #[serde(default)]
     pub content_hidden: bool,
@@ -1833,6 +1841,7 @@ impl RawNote {
             identity,
             is_origin,
             identity_trusted,
+            favorite_id: None,
             content_hidden: self.is_hidden,
             created_at: self.created_at,
             text: self.text,

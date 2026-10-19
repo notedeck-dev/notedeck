@@ -2267,6 +2267,13 @@
           "_accountId": {
             "type": "string"
           },
+          "_favoriteId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`i/favorites` の行だけが持つお気に入り ID。お気に入りのページングは\nノート ID ではなくこの ID で進む (本家は NoteFavorite の id で untilId を解く)"
+          },
           "_identity": {
             "type": "string",
             "description": "同一性キー (正規化 AP object id)。導出は `identity::identity_of` (notedeck#1058)。\n旧 JSON には無いので default で読み、`fill_identity` で補う。"
