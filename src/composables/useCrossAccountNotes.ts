@@ -360,6 +360,11 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   }[] = []
   /** connect のたびに進める。古い connect / resume の結果を捨てる */
   let generation = 0
+  /**
+   * connect が走っている間は true。可視性の watch が同時に動いても一時停止を
+   * 解かない — 解くと取得中に届いた新着が列に入り、最終マージ (全置換) で消える
+   */
+  let connecting = false
   /** 全アカウント取得の進捗 (#1095)。取得中以外は null */
   const crossProgress = ref<SettleProgress | null>(null)
 
@@ -488,7 +493,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         if (seq !== transition) return
         wantLive = true
         setRuntimeState('live')
-        streamingBatch.setPaused(false)
+        if (!connecting) streamingBatch.setPaused(false)
       },
       { immediate: true },
     )
@@ -508,6 +513,24 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   }
 
   let lastResumeAt = 0
+  let resumeTimer: ReturnType<typeof setTimeout> | null = null
+  onScopeDispose(() => {
+    if (resumeTimer) clearTimeout(resumeTimer)
+  })
+
+  /**
+   * 接続時に adapter を作れなかった (サーバー情報の解決に失敗した等) アカウントは
+   * 購読が無いまま残る。後で取得に成功した時点で購読を張る
+   */
+  function ensureSubscribed(
+    accountId: string,
+    adapter: ServerAdapter,
+    gen: number,
+  ) {
+    if (!streaming || gen !== generation || subscriptions.has(accountId)) return
+    adapter.stream.connect()
+    subscribeAccount(accountId, adapter)
+  }
 
   /**
    * Pull to Refresh (per-account の pullRefresh 相当)。列があれば復帰時と同じ
@@ -542,14 +565,27 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     if (rawNotes.value.length === 0) {
       // 起動時に全アカウントの取得が失敗しキャッシュも無いと列は空のまま。
       // 復帰 (回線が戻った / 画面に戻った) は取り直しの合図にする。
-      // 取得中 (起動直後の connect) は二重に走らせない
-      if (!isLoading.value) void connectCrossAccount()
+      // 一度も connect していない (mount 直後の watch) / 取得中は走らせない
+      if (generation > 0 && !isLoading.value) void connectCrossAccount()
       return
     }
     // ウィンドウが隠れている間 (#986) は REST を叩かない (useNoteColumn と同じ)
     if (systemStateStore.adaptation.suspendStreams) return
     const now = Date.now()
-    if (now - lastResumeAt < 3000) return
+    if (now - lastResumeAt < 3000) {
+      // 間引きで落とさず後ろにずらす。複数アカウントが数秒ずれて再接続すると、
+      // 後から戻ったアカウントの catch-up が黙って消える
+      if (!resumeTimer) {
+        resumeTimer = setTimeout(
+          () => {
+            resumeTimer = null
+            void onResume()
+          },
+          3000 - (now - lastResumeAt),
+        )
+      }
+      return
+    }
     lastResumeAt = now
 
     const accounts = accountsStore.accounts.filter((a) => a.hasToken)
@@ -560,6 +596,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       async (acc): Promise<[string, NormalizedNote[]]> => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return [acc.id, []]
+        ensureSubscribed(acc.id, adapter, gen)
         try {
           return [acc.id, await fetchNotes(adapter)]
         } catch {
@@ -681,6 +718,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   async function connectCrossAccount() {
     error.value = null
     isLoading.value = true
+    connecting = true
     const gen = ++generation
     // 取得中の auto-flush ちらつきを防ぐ。購読は張り直す (TL タブ切替も
     // ここを通るため、旧タブの購読を残さない)
@@ -713,7 +751,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         seedCursors([], cached, null)
         settleHorizon()
       }
+      connecting = false
       isLoading.value = false
+      if (wantLive) streamingBatch?.setPaused(false)
       return
     }
 
@@ -780,6 +820,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (gen === generation) error.value = AppError.from(e)
     } finally {
       if (gen === generation) {
+        connecting = false
         isLoading.value = false
         crossProgress.value = null
         if (wantLive) streamingBatch?.setPaused(false)
@@ -854,6 +895,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (acc.hasToken) {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) throw new Error(`no adapter for ${acc.id}`)
+        ensureSubscribed(acc.id, adapter, gen)
         raw = await fetchNotes(
           adapter,
           cursor.oldest ? { untilId: cursor.oldest.id } : undefined,
