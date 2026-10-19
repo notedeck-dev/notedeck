@@ -214,6 +214,7 @@ function mountColumn(opts: {
   columnId?: string
   fetch: NoteColumnConfig['fetch']
   filterNotes?: NoteColumnConfig['filterNotes']
+  refreshFetch?: NoteColumnConfig['refreshFetch']
   fetchKey?: NoteColumnConfig['fetchKey']
   filters?: Ref<TimelineFilter | undefined>
   streaming?: boolean
@@ -237,6 +238,7 @@ function mountColumn(opts: {
         fetch: opts.fetch,
         cache: { getKey: () => tlKey.value },
         filterNotes: opts.filterNotes,
+        refreshFetch: opts.refreshFetch,
         fetchKey: opts.fetchKey,
         streaming: opts.streaming
           ? { subscribe: () => ({ dispose: vi.fn() }) }
@@ -686,6 +688,30 @@ describe('useNoteColumn: フェッチカーソル (#831 Step 0)', () => {
     expect(before?.args[2]).toBe(note('h04').createdAt)
     // keyset cursor は createdAt と同一ノート由来の note_id をペアで渡す (§6-14)
     expect(before?.args[3]).toBe('h04')
+  })
+
+  it('取り直し (refreshFetch の全置換) でも生ページでカーソルを置く。全件フィルタ落ちでも最新ページを取り直さない', async () => {
+    addAccount('acc-cursor-refresh')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([note('h05'), note('h04')]) // mount 時 connect
+      .mockResolvedValueOnce([]) // loadMore (h08 から)
+    const { api } = mountColumn({
+      accountId: 'acc-cursor-refresh',
+      fetch: (_a, opts) => fetchImpl(opts),
+      filterNotes: () => [],
+      refreshFetch: async () => ({
+        notes: [note('h09'), note('h08')],
+        mode: 'replace' as const,
+      }),
+    })
+    await flush()
+    await api.refresh({ force: true })
+    await flush()
+    await api.loadMore()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(fetchImpl.mock.calls[1]?.[0]).toEqual({ untilId: 'h08' })
   })
 
   it('reconnect でカーソルがリセットされ、旧世代の位置から取り直さない', async () => {

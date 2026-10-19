@@ -937,7 +937,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
         const refreshed = await applyFilter(result.notes)
         if (result.mode === 'replace') {
           setNotes(refreshed)
-          resetFetchCursor(refreshed)
+          // カーソルは生ページ基準 (#831 §1.4)。フィルタ後で置くとページ全件が
+          // 落ちたとき位置が消え、次の追加読み込みが最新ページを取り直す
+          resetFetchCursor(result.notes)
           scrollToTop()
         } else if (refreshed.length > 0) {
           setNotes(insertIntoSorted(rawNotes.value, refreshed))
