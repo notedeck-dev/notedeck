@@ -534,6 +534,10 @@ _commandPalette:
   categoryColumn: "Column"
   inputPlaceholder: "Type a command..."
 
+_crossAccountEndMarker:
+  aligned: "All accounts are caught up to here. Next post from {account} is on {date}"
+  failing: "Could not fetch from {accounts} (retrying)"
+
 _crossAccountProgress:
   waiting: "Waiting on {pending} of {total} accounts"
 

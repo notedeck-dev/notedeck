@@ -303,26 +303,42 @@ export function clusterByIdentity(notes: NormalizedNote[]): NormalizedNote[] {
  * 上限を group (行) 数で数えて切り詰める。variant 数で数えると N アカウントで
  * 行数が N 分の 1 になり、投稿が疎なアカウントの分から落ちる。
  * 入力は `clusterByIdentity` 済み (同 identity が隣接) を前提にする。
+ * `counts` を渡すと、それが偽を返す group は上限に数えず、落とさない (全アカウント面で
+ * 水平線より下に隠れている行、#1184。隠れた尾は別に有界で、落とすと到達点が
+ * 列の行から消えて水平線が跳ねる)
  */
 export function truncateByGroups(
   notes: NormalizedNote[],
   maxGroups: number,
+  counts?: (variants: readonly NormalizedNote[]) => boolean,
 ): NormalizedNote[] {
   let groups = 0
-  let last: string | null = null
-  let end = notes.length
-  for (let i = 0; i < notes.length; i++) {
+  let start = 0
+  let kept: NormalizedNote[] | null = null
+  while (start < notes.length) {
     // biome-ignore lint/style/noNonNullAssertion: bounded loop
-    const n = notes[i]!
-    const key = n._identityTrusted ? n._identity : variantKeyOf(n)
-    if (key !== last) {
-      groups++
-      last = key
-      if (groups > maxGroups) {
-        end = i
-        break
+    const head = notes[start]!
+    const key = head._identityTrusted ? head._identity : variantKeyOf(head)
+    let end = start + 1
+    while (end < notes.length) {
+      // biome-ignore lint/style/noNonNullAssertion: bounded loop
+      const n = notes[end]!
+      if ((n._identityTrusted ? n._identity : variantKeyOf(n)) !== key) break
+      end++
+    }
+    const counted = !counts || counts(notes.slice(start, end))
+    if (counted) groups++
+    const drop = counted && groups > maxGroups
+    if (drop) {
+      if (!counts) return notes.slice(0, start)
+      if (kept === null) kept = notes.slice(0, start)
+    } else if (kept !== null) {
+      for (let i = start; i < end; i++) {
+        // biome-ignore lint/style/noNonNullAssertion: bounded loop
+        kept.push(notes[i]!)
       }
     }
+    start = end
   }
-  return end === notes.length ? notes : notes.slice(0, end)
+  return kept ?? notes
 }

@@ -310,6 +310,10 @@ _commandPalette:
   categoryColumn: "カラム"
   inputPlaceholder: "コマンドを入力..."
 
+_crossAccountEndMarker:
+  aligned: "ここまで全アカウント揃っています。{account} の次の投稿は {date}"
+  failing: "{accounts} は取得できていません (再試行中)"
+
 _crossAccountProgress:
   waiting: "{total} アカウントのうち {pending} 件待ち"
 
