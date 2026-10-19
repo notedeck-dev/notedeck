@@ -120,13 +120,17 @@ export function useNoteSound(
 ) {
   let lastPlayedAt = 0
 
-  async function play() {
+  /**
+   * `hostOverride` は全アカウント面用。カラムにアカウントが無いので、鳴らす音の
+   * 出所 (効果音を配信するサーバー) は届いた項目の取得元アカウントで決める
+   */
+  async function play(hostOverride?: string) {
     if (isMuted()) return
     const now = Date.now()
     if (now - lastPlayedAt < 300) return
     lastPlayedAt = now
 
-    const host = getHost()
+    const host = hostOverride ?? getHost()
     if (!host) return
 
     if (IS_ANDROID) {
