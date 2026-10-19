@@ -23,6 +23,11 @@ export interface UseStreamingBatchOptions {
   insertSilently?: (notes: NormalizedNote[]) => void
   /** pending の新着数を group 数で数えるための identity (束ねる面のみ) */
   identityOf?: (note: NormalizedNote) => string
+  /**
+   * 新着数に数えるノート (#1184)。全アカウント面の水平線より古い行は列に入っても
+   * 表示されないので、数えると「N 件」と出て押しても増えない
+   */
+  countsNote?: (note: NormalizedNote) => boolean
 }
 
 export function useStreamingBatch(options: UseStreamingBatchOptions) {
@@ -37,7 +42,9 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
   /** Combined count: presence (>0) drives the "新しいノート" banner visibility.
    *  束ねる面では variant 数ではなく identity の distinct 数 (= 増える行数) */
   const pendingCount = computed(() => {
-    const all = [...pendingNotes.value, ...queuedNotes.value]
+    let all = [...pendingNotes.value, ...queuedNotes.value]
+    const counts = options.countsNote
+    if (counts) all = all.filter(counts)
     const identityOf = options.identityOf
     if (!identityOf) return all.length
     return new Set(all.map(identityOf)).size

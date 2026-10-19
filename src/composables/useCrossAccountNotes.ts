@@ -5,6 +5,7 @@ import {
   onScopeDispose,
   type Ref,
   ref,
+  shallowRef,
   watch,
 } from 'vue'
 import type {
@@ -30,6 +31,17 @@ import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { i18n } from '@/i18n'
 import { mapWithConcurrency, type SettleProgress } from '@/services/concurrency'
+import {
+  type AccountCursor,
+  advanceCursor,
+  horizonOf,
+  initialCursor,
+  markFailed,
+  nextHorizon,
+  pickNextAccount,
+  reseedFromRows,
+  resetCursor,
+} from '@/services/crossAccountPaging'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { insertIntoSorted } from '@/services/sortNotes'
 import { hasGap } from '@/services/timelineGap'
@@ -96,6 +108,15 @@ export interface CrossAccountNotesOptions {
   }
 
   /**
+   * 下方向のページングの規則 (#1184)。'horizon' は列の底を「まだ遡れるアカウントの
+   * うち到達点がいちばん浅いもの」で揃え、それより古い行は表示に出さない。追加読み込みは
+   * そのアカウントだけ 1 ページ取る。createdAt 順で並ぶ面 (TL / メンション) だけが指定する。
+   * 未指定は従来どおり全アカウントを各自の最古行から遡る (お気に入りのように並びが
+   * createdAt でない面)
+   */
+  paging?: 'horizon'
+
+  /**
    * 組込フィルタ (#841) + カラムクエリ (#783) を全アカウント面にも通す。
    * per-account と同じ評価器 (useColumnQuery) を使い、全取り込み経路
    * (キャッシュ / 初回 / 追加読み込み / 復帰 / streaming) で AND 合成する。
@@ -110,6 +131,11 @@ export interface CrossAccountNotesOptions {
     builtinAdmits: (note: NormalizedNote) => boolean
   }
 }
+
+/** 末尾の区切り行の状態 (#1184) */
+export type CrossEndState =
+  | { kind: 'aligned'; account: string; createdAt: string }
+  | { kind: 'failing'; accounts: string[] }
 
 type StreamEventName = 'connected' | 'disconnected' | 'reconnecting'
 
@@ -190,16 +216,33 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const systemStateStore = useSystemStateStore()
   const { noteScrollerRef } = useNoteScrollerRef(scroller)
 
+  // --- 水平線ページング (#1184) ---
+  const horizonPaging = options.paging === 'horizon'
+  /** アカウント別の遡りカーソル。列の行ではなく取得した生ページで進む */
+  const cursors = new Map<string, AccountCursor>()
+  /** cursors の変更通知 (Map は reactive にしない) */
+  const cursorsVersion = ref(0)
+  function setCursor(cursor: AccountCursor) {
+    cursors.set(cursor.accountId, cursor)
+    cursorsVersion.value++
+  }
+  /** 表示の下限。null は制限なし。connect 世代内では単調に下がるだけ */
+  const horizon = shallowRef<string | null>(null)
+  const aboveHorizon = (n: NormalizedNote) =>
+    horizon.value === null || n.createdAt >= horizon.value
+
   const list = useNoteList({
     bundle: true,
     getAdapter: () => null,
     visibility: options.visibility,
     closePostForm: options.closePostForm ?? (() => undefined),
     deleteHandler: options.deleteNote,
+    displayFloor: horizonPaging ? () => horizon.value : undefined,
   })
   const {
     notes,
     groups,
+    hiddenGroups,
     rawNotes,
     noteKeys,
     setNotes,
@@ -264,6 +307,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         hasGroup: list.hasGroupFor,
         insertSilently: list.insertSilently,
         identityOf: (n) => (n._identityTrusted ? n._identity : variantKeyOf(n)),
+        countsNote: horizonPaging ? aboveHorizon : undefined,
         onOverflow: () => {
           toast.show(i18n.ts._useCrossAccountNotes.overflowSkipped, 'warning')
         },
@@ -497,6 +541,16 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (hasGap(fetched, shown, shown.size > 0)) {
         gapAccounts.add(accountId)
         replacement.push(...fetched)
+        // 置換したアカウントの到達点は最新ページに戻る。水平線は上げない
+        // (1 アカウントの gap で他アカウントの表示行を消さない)
+        if (horizonPaging) {
+          setCursor(
+            resetCursor(
+              cursors.get(accountId) ?? initialCursor(accountId),
+              fetched,
+            ),
+          )
+        }
       } else {
         overlap.push(...fetched)
       }
@@ -590,6 +644,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     streamingBatch?.setPaused(true)
     streamingBatch?.resetBatch()
     disposeSubscriptions()
+    cursors.clear()
+    cursorsVersion.value++
+    horizon.value = null
 
     // オフラインファースト: キャッシュを即時表示（ログアウト中のアカウント分も含む）
     const cached = await loadCrossAccountCache()
@@ -607,6 +664,11 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     // アカウントの行が残る
     if (accounts.length === 0) {
       if (cached.length === 0) setNotes([])
+      else if (horizonPaging) {
+        // キャッシュだけの列にも水平線を当てる (最終マージを通らない分岐)
+        seedCursors([], cached, null)
+        settleHorizon()
+      }
       isLoading.value = false
       return
     }
@@ -625,10 +687,20 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           return fetchNotes(adapter)
         },
         3,
-        async (r, _acc, progress) => {
+        async (r, acc, progress) => {
           if (gen !== generation) return
           crossProgress.value = progress
-          if (r.status !== 'fulfilled' || !r.value) return
+          if (r.status !== 'fulfilled' || !r.value) {
+            // 到達点が無い (取れなかった) アカウント。水平線は決めないが、追加読み込みで
+            // 先に最新ページを取り直す対象になる
+            if (horizonPaging && r.status === 'rejected') {
+              setCursor(markFailed(initialCursor(acc.id), Date.now()))
+            }
+            return
+          }
+          // 到達点は生ページ (フィルタ前) の最古で決める
+          if (horizonPaging)
+            setCursor(resetCursor(initialCursor(acc.id), r.value))
           live.push(...r.value)
           // 何も出ていなければ最初に返った分で描画する (#1095)。既に何か
           // (キャッシュや先に返った分) が出ていれば全部揃ってから 1 回で
@@ -649,11 +721,16 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (gen !== generation) return
 
       // live を優先しつつキャッシュとマージ（dedup は先勝ち）
-      const merged = await admit(
-        await dedupAsync([...live, ...dropGappedCache(live, cached)]),
-      )
+      const keptCache = dropGappedCache(live, cached)
+      const merged = await admit(await dedupAsync([...live, ...keptCache]))
       if (gen !== generation) return
+      if (horizonPaging) {
+        // 切り詰めは見えている行で数えるので、先に水平線を仮置きしてから載せる
+        seedCursors(live, keptCache, accounts)
+        horizon.value = horizonOf([...cursors.values()])
+      }
       setNotes(merged)
+      if (horizonPaging) settleHorizon()
     } catch (e) {
       if (gen === generation) error.value = AppError.from(e)
     } finally {
@@ -665,7 +742,105 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     }
   }
 
+  /**
+   * 起動時のカーソル: live のページで置いた到達点に、残したキャッシュの分だけ
+   * 遡らせる。トークンの無いアカウントはキャッシュが到達点のすべてで、
+   * キャッシュも無ければ遡れない (尽きた扱い)
+   */
+  function seedCursors(
+    live: readonly NormalizedNote[],
+    keptCache: readonly NormalizedNote[],
+    withToken: readonly { id: string }[] | null,
+  ) {
+    const tokenIds = new Set((withToken ?? []).map((a) => a.id))
+    for (const acc of accountsStore.accounts) {
+      let c = cursors.get(acc.id) ?? initialCursor(acc.id)
+      const rows = keptCache.filter((n) => n._accountId === acc.id)
+      if (rows.length > 0) c = advanceCursor(c, rows)
+      else if (
+        !tokenIds.has(acc.id) &&
+        !live.some((n) => n._accountId === acc.id)
+      ) {
+        c = { ...c, exhausted: true }
+      }
+      setCursor(c)
+    }
+  }
+
+  /**
+   * 列に載せた後の確定。切り詰めで落ちた行を飛ばさないよう、列に残っている行の
+   * 最古へ到達点を戻してから水平線を引く (connect の最終マージ専用。以後は
+   * nextHorizon で単調に下げるだけ)
+   */
+  function settleHorizon() {
+    const current = rawNotes.value
+    for (const c of cursors.values()) {
+      setCursor(
+        reseedFromRows(
+          c,
+          current.filter((n) => n._accountId === c.accountId),
+        ),
+      )
+    }
+    horizon.value = horizonOf([...cursors.values()])
+  }
+
+  /**
+   * 水平線のページング (#1184): 底を決めているアカウントだけ 1 ページ遡る。
+   * そのアカウントがバックオフ中なら何も取らない (他のアカウントで底を掘り進めると、
+   * 隠れた尾が有界でなくなり、復帰後に塊が挟まる)
+   */
+  async function loadMoreHorizon() {
+    if (isLoading.value) return
+    const now = Date.now()
+    const pick = pickNextAccount([...cursors.values()], now)
+    if (!pick) return
+    const acc = accountsStore.accountMap.get(pick)
+    const cursor = cursors.get(pick)
+    if (!acc || !cursor) return
+    isLoading.value = true
+    const key = cacheKey?.()
+    const gen = generation
+    try {
+      let raw: NormalizedNote[] = []
+      if (acc.hasToken) {
+        const adapter = await multiAdapters.getOrCreate(acc.id)
+        if (!adapter) throw new Error(`no adapter for ${acc.id}`)
+        raw = await fetchNotes(
+          adapter,
+          cursor.oldest ? { untilId: cursor.oldest.id } : undefined,
+        )
+      } else if (key && cursor.oldest) {
+        raw = await loadCachedTimelineBefore(
+          acc.id,
+          key,
+          cursor.oldest.createdAt,
+          cursor.oldest.id,
+        )
+      }
+      if (gen !== generation) return
+      setCursor(advanceCursor(cursor, raw))
+      // 切り詰めは見えている行で数えるので、載せる前に水平線を下げる
+      horizon.value = nextHorizon(horizon.value, [...cursors.values()])
+      if (raw.length > 0) {
+        const existingKeys = new Set<string>(rawNotes.value.map(variantKeyOf))
+        const newOlder = await admit(await dedupAsync(raw, existingKeys))
+        if (gen !== generation) return
+        if (newOlder.length > 0) {
+          setNotes(insertIntoSorted(rawNotes.value, newOlder), 'newest')
+        }
+      }
+    } catch (e) {
+      if (gen !== generation) return
+      setCursor(markFailed(cursor, now))
+      error.value = AppError.from(e)
+    } finally {
+      if (gen === generation) isLoading.value = false
+    }
+  }
+
   async function loadMoreCrossAccount() {
+    if (horizonPaging) return loadMoreHorizon()
     if (isLoading.value || rawNotes.value.length === 0) return
     isLoading.value = true
     const key = cacheKey?.()
@@ -734,6 +909,38 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     onScrollReport()
   }
 
+  /**
+   * 列の末尾の区切り行の材料 (#1184)。取得できていないアカウントがあればそれを、
+   * 無ければ水平線の下に隠れている最初の行 (どのアカウントの、いつの投稿までが
+   * 揃っているか) を返す。何も無ければ null (通常の終端)
+   */
+  const crossEndState = computed<CrossEndState | null>(() => {
+    if (!horizonPaging) return null
+    void cursorsVersion.value
+    const label = (accountId: string) => {
+      const a = accountsStore.accountMap.get(accountId)
+      return a ? `@${a.username}@${a.host}` : accountId
+    }
+    const failing = [...cursors.values()].filter(
+      (c) => c.failures > 0 && !c.exhausted,
+    )
+    if (failing.length > 0) {
+      return {
+        kind: 'failing',
+        accounts: failing.map((c) => label(c.accountId)),
+      }
+    }
+    const next = hiddenGroups.value[0]
+    if (next) {
+      return {
+        kind: 'aligned',
+        account: label(next.primary._accountId),
+        createdAt: next.primary.createdAt,
+      }
+    }
+    return null
+  })
+
   // アカウントの追加・削除で対象が変わったら取り直す
   watch(
     () => accountsStore.accounts.map((a) => `${a.id}:${a.hasToken}`).join(','),
@@ -756,6 +963,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     connectCrossAccount,
     loadMoreCrossAccount,
     crossProgress,
+    hiddenGroups,
+    crossEndState,
     handleScroll,
     removeNote,
     pendingCount,

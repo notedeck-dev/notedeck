@@ -10,6 +10,7 @@ import type {
   TimelineType,
 } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import CrossAccountEndMarker from '@/components/common/CrossAccountEndMarker.vue'
 import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAd from '@/components/common/MkAd.vue'
@@ -278,6 +279,7 @@ const {
   pendingCount,
   animatingRowKeys,
   crossProgress,
+  crossEndState,
   isPulling: crossIsPulling,
   isPulledEnough: crossIsPulledEnough,
   isRefreshing: crossIsRefreshing,
@@ -305,6 +307,8 @@ const {
   },
   // per-account と同じ 'home' / 'social' キーで各アカウントのキャッシュを読む
   cacheKey: () => columnCacheKey(props.column, cacheKeyDeps),
+  // 下端はいちばん浅いアカウントの到達点で揃える (#1184)
+  paging: 'horizon',
   isLoading,
   error,
   scroller,
@@ -770,6 +774,7 @@ onMounted(async () => {
             <div v-else-if="isLoading && crossNotes.length > 0" :class="$style.loadingMore">
               <LoadingSpinner />
             </div>
+            <CrossAccountEndMarker v-else-if="crossEndState" :state="crossEndState" />
           </template>
         </NoteScroller>
       </template>
