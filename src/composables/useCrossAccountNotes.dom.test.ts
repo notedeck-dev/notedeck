@@ -697,6 +697,35 @@ describe('useCrossAccountNotes: 水平線で下端を揃える (#1184)', () => {
     expect(ids(api)).toEqual(['a50', 'a40'])
   })
 
+  it('全アカウントの取得が揃うまでに届いたストリーミングの新着は捨てず、揃ったら出す', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    const gate: { release: ((notes: NormalizedNote[]) => void) | null } = {
+      release: null,
+    }
+    const column = ref<Partial<DeckColumn>>({})
+    const { api, live } = mountCross({
+      column,
+      paging: 'horizon',
+      streaming: true,
+      fetchFor: (id) =>
+        id === 'acc-a'
+          ? [note('a50'), note('a40')]
+          : new Promise<NormalizedNote[]>((resolve) => {
+              gate.release = resolve
+            }),
+    })
+    await flushFrames()
+    // acc-a は返ったが acc-b 待ち。この間に acc-a の新着が届く
+    expect(live.has('acc-a')).toBe(true)
+    live.get('acc-a')?.enqueue(note('a60'))
+    await flushFrames()
+    gate.release?.([note('b30')])
+    await flushFrames()
+    expect(ids(api)).toContain('a60')
+    expect(ids(api)[0]).toBe('a60')
+  })
+
   it('起動時、最新ページと重ならないアカウントのキャッシュは落とす (per-account と同じ gap 判定)', async () => {
     addAccount('acc-a')
     addAccount('acc-b')
