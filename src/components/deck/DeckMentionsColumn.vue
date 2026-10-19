@@ -6,6 +6,7 @@ import {
 } from '@/adapters/misskey/query'
 import type { NormalizedNote } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import CrossAccountEndMarker from '@/components/common/CrossAccountEndMarker.vue'
 import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
@@ -110,6 +111,7 @@ const {
   pendingCount,
   animatingRowKeys,
   crossProgress,
+  crossEndState,
 } = useCrossAccountNotes({
   fetchNotes: (adapter, opts) =>
     isSpecified.value
@@ -117,6 +119,8 @@ const {
       : adapter.api.getMentions(opts),
   isCrossAccount: () => isCrossAccount.value,
   cacheKey: () => columnCacheKey(props.column, cacheKeyDeps),
+  // 下端はいちばん浅いアカウントの到達点で揃える (#1184)
+  paging: 'horizon',
   isLoading,
   error,
   scroller,
@@ -124,6 +128,7 @@ const {
   deleteNote: handlers.delete,
   streaming: {
     columnId: props.column.id,
+    columnType: 'mentions',
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
       createQuerySubscription({
         open: async () =>
@@ -215,6 +220,7 @@ const {
             <div v-else-if="isLoading && notes.length > 0" :class="$style.loadingMore">
               <LoadingSpinner />
             </div>
+            <CrossAccountEndMarker v-else-if="crossEndState" :state="crossEndState" />
           </template>
         </NoteScroller>
       </template>

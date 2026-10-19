@@ -23,6 +23,11 @@ export interface UseStreamingBatchOptions {
   insertSilently?: (notes: NormalizedNote[]) => void
   /** pending の新着数を group 数で数えるための identity (束ねる面のみ) */
   identityOf?: (note: NormalizedNote) => string
+  /**
+   * 新着数に数えるノート (#1184)。全アカウント面の水平線より古い行は列に入っても
+   * 表示されないので、数えると「N 件」と出て押しても増えない
+   */
+  countsNote?: (note: NormalizedNote) => boolean
 }
 
 export function useStreamingBatch(options: UseStreamingBatchOptions) {
@@ -37,7 +42,9 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
   /** Combined count: presence (>0) drives the "新しいノート" banner visibility.
    *  束ねる面では variant 数ではなく identity の distinct 数 (= 増える行数) */
   const pendingCount = computed(() => {
-    const all = [...pendingNotes.value, ...queuedNotes.value]
+    let all = [...pendingNotes.value, ...queuedNotes.value]
+    const counts = options.countsNote
+    if (counts) all = all.filter(counts)
     const identityOf = options.identityOf
     if (!identityOf) return all.length
     return new Set(all.map(identityOf)).size
@@ -87,8 +94,17 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     for (const n of options.notes.value) options.noteKeys.add(variantKeyOf(n))
   }
 
+  /**
+   * 一時停止中に届いた新着は捨てずに溜め、再開時に flush する。全アカウント面は
+   * 全アカウントの取得が揃うまで止めるので、捨てると遅いサーバーが返るまでの
+   * 新着 (数十秒ぶん) が抜け、埋める経路も無い
+   */
   function setPaused(paused: boolean) {
     _paused = paused
+    if (!paused && rafBuffer.length > 0 && !rafScheduled) {
+      rafScheduled = true
+      schedule(flushRafBuffer, 'normal')
+    }
   }
 
   /** 既存 group に畳める variant を先に差し込み、行が増える分だけ返す */
@@ -102,18 +118,47 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     return fresh
   }
 
+  /**
+   * 上限超過の切り詰め。`countsNote` があるときは数えるノートだけ上限に入れ、
+   * 数えないノート (全アカウント面で水平線の下に隠れている行、#1184) は落とさない。
+   * 落とすと到達点が列から消えて、その区間は二度と戻らない
+   */
+  function truncateInPlace(merged: NormalizedNote[]): boolean {
+    const counts = options.countsNote
+    if (!counts) {
+      if (merged.length <= MAX_NOTES) return false
+      merged.length = MAX_NOTES
+      return true
+    }
+    let visible = 0
+    const kept: NormalizedNote[] = []
+    for (const n of merged) {
+      if (counts(n)) {
+        visible++
+        if (visible > MAX_NOTES) continue
+      }
+      kept.push(n)
+    }
+    if (kept.length === merged.length) return false
+    merged.length = 0
+    merged.push(...kept)
+    return true
+  }
+
   function flushRafBuffer() {
     rafScheduled = false
     if (rafBuffer.length === 0) return
-    const batch = takeSilent(rafBuffer)
+    // 一時停止中に取得が済んで列に入ったものは、新着として数えずアニメーションもしない
+    const batch = takeSilent(rafBuffer).filter(
+      (n) => !options.noteKeys.has(variantKeyOf(n)),
+    )
     rafBuffer = []
     if (batch.length === 0) return
     if (isAtTop.value) {
       enableAnimation(batch.map(variantKeyOf))
       for (const n of batch) options.noteKeys.add(variantKeyOf(n))
       const merged = insertIntoSorted(options.notes.value, batch)
-      const truncated = merged.length > MAX_NOTES
-      if (truncated) merged.length = MAX_NOTES
+      const truncated = truncateInPlace(merged)
       options.notes.value = merged
       if (truncated) syncNoteKeys()
       options.onNewNotes?.(batch)
@@ -127,7 +172,6 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
   let _overflowNotified = false
 
   function enqueueNote(note: NormalizedNote) {
-    if (_paused) return
     // Emergency cap: prevent unbounded buffer growth (e.g. from listener leaks)
     if (rafBuffer.length >= MAX_NOTES * 2) {
       if (!_overflowNotified) {
@@ -138,7 +182,7 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     }
     _overflowNotified = false
     rafBuffer.push(note)
-    if (!rafScheduled) {
+    if (!_paused && !rafScheduled) {
       rafScheduled = true
       schedule(flushRafBuffer, 'normal')
     }
@@ -157,8 +201,7 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     enableAnimation(newNotes.map(variantKeyOf))
     for (const n of newNotes) options.noteKeys.add(variantKeyOf(n))
     const merged = insertIntoSorted(options.notes.value, newNotes)
-    const truncated = merged.length > MAX_NOTES
-    if (truncated) merged.length = MAX_NOTES
+    const truncated = truncateInPlace(merged)
     options.notes.value = merged
     if (truncated) syncNoteKeys()
     pendingNotes.value = []

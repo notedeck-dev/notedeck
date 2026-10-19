@@ -23,9 +23,18 @@ export function useMultiNoteCapture(
   const perfStore = usePerformanceStore()
   /** accountId → 購読中の noteId 集合 */
   const captured = new Map<string, Set<string>>()
+  /** accountId → 購読を出した接続。接続が替わったら (再ログイン) 購読済みの記憶を捨てる */
+  const capturedOn = new Map<string, StreamAdapter>()
 
   function sync(notes: readonly NormalizedNote[]) {
     const wanted = captureTargets(notes, perfStore.get('noteCaptureMax'))
+
+    for (const [accountId, stream] of capturedOn) {
+      if (getStreamFor(accountId) === stream) continue
+      // 古い接続の購読は接続ごと消えている。新しい接続で出し直す
+      captured.delete(accountId)
+      capturedOn.delete(accountId)
+    }
 
     for (const [accountId, ids] of wanted) {
       const stream = getStreamFor(accountId)
@@ -35,6 +44,7 @@ export function useMultiNoteCapture(
         current = new Set()
         captured.set(accountId, current)
       }
+      capturedOn.set(accountId, stream)
       for (const id of ids) {
         if (!current.has(id)) {
           current.add(id)
@@ -51,7 +61,10 @@ export function useMultiNoteCapture(
         current.delete(id)
         stream?.unsubNote(id, onUpdate)
       }
-      if (current.size === 0) captured.delete(accountId)
+      if (current.size === 0) {
+        captured.delete(accountId)
+        capturedOn.delete(accountId)
+      }
     }
   }
 
@@ -61,6 +74,7 @@ export function useMultiNoteCapture(
       if (stream) for (const id of current) stream.unsubNote(id, onUpdate)
     }
     captured.clear()
+    capturedOn.clear()
   }
 
   onUnmounted(cleanup)

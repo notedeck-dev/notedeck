@@ -34,8 +34,9 @@ export const renderedReactionNotes = createRenderedMemo(2000)
 export const loadedMediaUrls = createRenderedMemo(2000)
 
 /**
- * 利用者が開いた CW / 長文のノート id (MkNote)。キーは `cw:` / `long:` 接頭辞付き。
- * 行が作り直されても開いたままにする
+ * 利用者が開いた CW / 長文のノート (MkNote)。キーは `cw:` / `long:` / `muted:` 接頭辞 +
+ * ノートの identity (無ければ取得元アカウント + id)。ノート ID 単独は別サーバーの同じ
+ * ID と混ざる (#1010)。行が作り直されても開いたままにする
  */
 export const expandedNoteContent = createRenderedMemo(2000)
 

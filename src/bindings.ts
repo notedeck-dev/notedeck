@@ -3589,6 +3589,11 @@ _isOrigin?: boolean;
  */
 _identityTrusted?: boolean; 
 /**
+ * `i/favorites` の行だけが持つお気に入り ID。お気に入りのページングは
+ * ノート ID ではなくこの ID で進む (本家は NoteFavorite の id で untilId を解く)
+ */
+_favoriteId?: string | null; 
+/**
  * サーバーが本文を隠した状態 (packed の isHidden)。ミュート由来の非表示とは別概念。
  */
 contentHidden?: boolean; createdAt: string; text: string | null; cw: string | null; user: NormalizedUser; visibility: string; emojis?: Partial<{ [key in string]: string }>; reactionEmojis?: Partial<{ [key in string]: string }>; reactions?: Partial<{ [key in string]: number }>; myReaction: string | null; renoteCount: number; repliesCount: number; files?: NormalizedDriveFile[]; poll?: NormalizedPoll | null; replyId?: string | null; renoteId?: string | null; channelId?: string | null; channel?: Channel | null; reactionAcceptance?: string | null; uri?: string | null; url?: string | null; updatedAt?: string | null; localOnly?: boolean; 

@@ -237,6 +237,11 @@ export interface NormalizedNote {
   _isOrigin: boolean
   /** 整合検査: リモート投稿者の host と identity の host が一致するか。不一致なら束ねない */
   _identityTrusted: boolean
+  /**
+   * お気に入り一覧の行だけが持つお気に入り ID。お気に入りのページング (untilId) は
+   * ノート ID ではなくこの ID で進む (本家は NoteFavorite の id で解く)
+   */
+  _favoriteId?: string
   /** サーバーが本文を隠した状態 (packed の isHidden)。ミュート由来の非表示とは別概念 */
   contentHidden: boolean
   createdAt: string

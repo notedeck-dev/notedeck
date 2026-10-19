@@ -5,6 +5,7 @@ import {
   onScopeDispose,
   type Ref,
   ref,
+  shallowRef,
   watch,
 } from 'vue'
 import type {
@@ -30,11 +31,23 @@ import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { i18n } from '@/i18n'
 import { mapWithConcurrency, type SettleProgress } from '@/services/concurrency'
+import {
+  type AccountCursor,
+  advanceCursor,
+  horizonOf,
+  initialCursor,
+  markFailed,
+  nextHorizon,
+  pickNextAccount,
+  reseedFromRows,
+  resetCursor,
+} from '@/services/crossAccountPaging'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import { insertIntoSorted } from '@/services/sortNotes'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
+import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
@@ -87,6 +100,8 @@ export interface CrossAccountNotesOptions {
    */
   streaming?: {
     columnId: string
+    /** Stream Inspector に出すカラム種別 (購読はアカウントごとに 1 行) */
+    columnType: string
     subscribe: (
       accountId: string,
       adapter: ServerAdapter,
@@ -94,6 +109,25 @@ export interface CrossAccountNotesOptions {
       callbacks: { onNoteUpdated: (event: NoteUpdateEvent) => void },
     ) => ChannelSubscription
   }
+
+  /**
+   * 下方向のページングの規則 (#1184)。'horizon' は列の底を「まだ遡れるアカウントの
+   * うち到達点がいちばん浅いもの」で揃え、それより古い行は表示に出さない。追加読み込みは
+   * そのアカウントだけ 1 ページ取る。createdAt 順で並ぶ面 (TL / メンション) だけが指定する。
+   * 未指定は従来どおり全アカウントを各自の最古行から遡る (お気に入りのように並びが
+   * createdAt でない面)
+   */
+  paging?: 'horizon'
+
+  /**
+   * 面ごとのページング位置の取り方 (per-account の `NoteColumnConfig.cursorOf` と同じ)。
+   * 既定は生ページの createdAt 最古。お気に入りは「ページ末尾のお気に入り ID」。
+   * 水平線を使わない面でも、遡りの位置は列の行ではなくこれで持つ (列の切り詰めで
+   * 行が消えると位置を失い、最新ページを取り直す往復になる)
+   */
+  cursorOf?: (
+    page: NormalizedNote[],
+  ) => { id: string; createdAt: string } | null
 
   /**
    * 組込フィルタ (#841) + カラムクエリ (#783) を全アカウント面にも通す。
@@ -110,6 +144,11 @@ export interface CrossAccountNotesOptions {
     builtinAdmits: (note: NormalizedNote) => boolean
   }
 }
+
+/** 末尾の区切り行の状態 (#1184) */
+export type CrossEndState =
+  | { kind: 'aligned'; account: string; createdAt: string }
+  | { kind: 'failing'; accounts: string[] }
 
 type StreamEventName = 'connected' | 'disconnected' | 'reconnecting'
 
@@ -190,16 +229,60 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const systemStateStore = useSystemStateStore()
   const { noteScrollerRef } = useNoteScrollerRef(scroller)
 
+  // --- 水平線ページング (#1184) ---
+  const horizonPaging = options.paging === 'horizon'
+  /** アカウント別の遡りカーソル。列の行ではなく取得した生ページで進む */
+  const cursors = new Map<string, AccountCursor>()
+  /** cursors の変更通知 (Map は reactive にしない) */
+  const cursorsVersion = ref(0)
+  function setCursor(cursor: AccountCursor) {
+    cursors.set(cursor.accountId, cursor)
+    cursorsVersion.value++
+  }
+  /** 表示の下限。null は制限なし。connect 世代内では単調に下がるだけ */
+  const horizon = shallowRef<string | null>(null)
+  /**
+   * 水平線を使わない面のアカウント別の遡り位置 (生ページ基準、#831 §1.4)。
+   * 面ごとの `cursorOf` があればそれで、無ければ createdAt の最古で進む
+   */
+  const legacyCursors = new Map<string, { id: string; createdAt: string }>()
+  function pageCursorOf(
+    page: readonly NormalizedNote[],
+  ): { id: string; createdAt: string } | null {
+    if (options.cursorOf) return options.cursorOf([...page])
+    let oldest: NormalizedNote | null = null
+    for (const n of page) {
+      if (!oldest || n.createdAt < oldest.createdAt) oldest = n
+    }
+    return oldest ? { id: oldest.id, createdAt: oldest.createdAt } : null
+  }
+  function advanceLegacyCursor(
+    accountId: string,
+    page: readonly NormalizedNote[],
+  ) {
+    const next = pageCursorOf(page)
+    if (!next) return
+    const cur = legacyCursors.get(accountId)
+    const behind = options.cursorOf
+      ? !cur || next.id < cur.id
+      : !cur || next.createdAt < cur.createdAt
+    if (behind) legacyCursors.set(accountId, next)
+  }
+  const aboveHorizon = (n: NormalizedNote) =>
+    horizon.value === null || n.createdAt >= horizon.value
+
   const list = useNoteList({
     bundle: true,
     getAdapter: () => null,
     visibility: options.visibility,
     closePostForm: options.closePostForm ?? (() => undefined),
     deleteHandler: options.deleteNote,
+    displayFloor: horizonPaging ? () => horizon.value : undefined,
   })
   const {
     notes,
     groups,
+    hiddenGroups,
     rawNotes,
     noteKeys,
     setNotes,
@@ -264,6 +347,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         hasGroup: list.hasGroupFor,
         insertSilently: list.insertSilently,
         identityOf: (n) => (n._identityTrusted ? n._identity : variantKeyOf(n)),
+        countsNote: horizonPaging ? aboveHorizon : undefined,
         onOverflow: () => {
           toast.show(i18n.ts._useCrossAccountNotes.overflowSkipped, 'warning')
         },
@@ -279,14 +363,34 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   }[] = []
   /** connect のたびに進める。古い connect / resume の結果を捨てる */
   let generation = 0
+  /**
+   * connect が走っている間は true。可視性の watch が同時に動いても一時停止を
+   * 解かない — 解くと取得中に届いた新着が列に入り、最終マージ (全置換) で消える
+   */
+  let connecting = false
   /** 全アカウント取得の進捗 (#1095)。取得中以外は null */
   const crossProgress = ref<SettleProgress | null>(null)
 
   function setRuntimeState(state: SubscriptionRuntimeState) {
     runtimeState = state
-    for (const sub of subscriptions.values()) {
+    for (const [accountId, sub] of subscriptions) {
       ;(sub as Partial<ManagedChannelSubscription>).setRuntimeState?.(state)
+      reportRuntime(accountId, sub)
     }
+  }
+
+  /** Stream Inspector 用 (debug 観測のみ)。全アカウント面はアカウントごとに 1 行 */
+  function reportRuntime(accountId: string, sub: ChannelSubscription) {
+    if (!streaming) return
+    const managed = sub as Partial<ManagedChannelSubscription>
+    useStreamInspectorStore().reportRuntimeState({
+      columnId: streaming.columnId,
+      accountId,
+      columnType: streaming.columnType,
+      subscriptionId: managed.subscriptionId ?? null,
+      state: runtimeState,
+      ts: Date.now(),
+    })
   }
 
   function disposeSubscriptions() {
@@ -336,6 +440,11 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       runtimeState,
     )
     subscriptions.set(accountId, sub)
+    reportRuntime(accountId, sub)
+    // subscriptionId は open 解決後に確定するので、確定したら再通知
+    ;(sub as Partial<ManagedChannelSubscription>)
+      .whenReady?.()
+      .then(() => reportRuntime(accountId, sub))
 
     // WS 瞬断からの再接続で、切断中に欠けたノートを埋める (#704 K)。
     // 初回接続では発火しない
@@ -407,7 +516,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         if (seq !== transition) return
         wantLive = true
         setRuntimeState('live')
-        streamingBatch.setPaused(false)
+        if (!connecting) streamingBatch.setPaused(false)
       },
       { immediate: true },
     )
@@ -427,6 +536,24 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   }
 
   let lastResumeAt = 0
+  let resumeTimer: ReturnType<typeof setTimeout> | null = null
+  onScopeDispose(() => {
+    if (resumeTimer) clearTimeout(resumeTimer)
+  })
+
+  /**
+   * 接続時に adapter を作れなかった (サーバー情報の解決に失敗した等) アカウントは
+   * 購読が無いまま残る。後で取得に成功した時点で購読を張る
+   */
+  function ensureSubscribed(
+    accountId: string,
+    adapter: ServerAdapter,
+    gen: number,
+  ) {
+    if (!streaming || gen !== generation || subscriptions.has(accountId)) return
+    adapter.stream.connect()
+    subscribeAccount(accountId, adapter)
+  }
 
   /**
    * Pull to Refresh (per-account の pullRefresh 相当)。列があれば復帰時と同じ
@@ -458,11 +585,30 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
    */
   async function onResume() {
     if (!isCrossAccount() || !streamingBatch) return
-    if (rawNotes.value.length === 0) return
+    if (rawNotes.value.length === 0) {
+      // 起動時に全アカウントの取得が失敗しキャッシュも無いと列は空のまま。
+      // 復帰 (回線が戻った / 画面に戻った) は取り直しの合図にする。
+      // 一度も connect していない (mount 直後の watch) / 取得中は走らせない
+      if (generation > 0 && !isLoading.value) void connectCrossAccount()
+      return
+    }
     // ウィンドウが隠れている間 (#986) は REST を叩かない (useNoteColumn と同じ)
     if (systemStateStore.adaptation.suspendStreams) return
     const now = Date.now()
-    if (now - lastResumeAt < 3000) return
+    if (now - lastResumeAt < 3000) {
+      // 間引きで落とさず後ろにずらす。複数アカウントが数秒ずれて再接続すると、
+      // 後から戻ったアカウントの catch-up が黙って消える
+      if (!resumeTimer) {
+        resumeTimer = setTimeout(
+          () => {
+            resumeTimer = null
+            void onResume()
+          },
+          3000 - (now - lastResumeAt),
+        )
+      }
+      return
+    }
     lastResumeAt = now
 
     const accounts = accountsStore.accounts.filter((a) => a.hasToken)
@@ -473,6 +619,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       async (acc): Promise<[string, NormalizedNote[]]> => {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) return [acc.id, []]
+        ensureSubscribed(acc.id, adapter, gen)
         try {
           return [acc.id, await fetchNotes(adapter)]
         } catch {
@@ -497,6 +644,16 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (hasGap(fetched, shown, shown.size > 0)) {
         gapAccounts.add(accountId)
         replacement.push(...fetched)
+        // 置換したアカウントの到達点は最新ページに戻る。水平線は上げない
+        // (1 アカウントの gap で他アカウントの表示行を消さない)
+        if (horizonPaging) {
+          setCursor(
+            resetCursor(
+              cursors.get(accountId) ?? initialCursor(accountId),
+              fetched,
+            ),
+          )
+        }
       } else {
         overlap.push(...fetched)
       }
@@ -584,12 +741,17 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   async function connectCrossAccount() {
     error.value = null
     isLoading.value = true
+    connecting = true
     const gen = ++generation
     // 取得中の auto-flush ちらつきを防ぐ。購読は張り直す (TL タブ切替も
     // ここを通るため、旧タブの購読を残さない)
     streamingBatch?.setPaused(true)
     streamingBatch?.resetBatch()
     disposeSubscriptions()
+    cursors.clear()
+    cursorsVersion.value++
+    horizon.value = null
+    legacyCursors.clear()
 
     // オフラインファースト: キャッシュを即時表示（ログアウト中のアカウント分も含む）
     const cached = await loadCrossAccountCache()
@@ -607,7 +769,14 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     // アカウントの行が残る
     if (accounts.length === 0) {
       if (cached.length === 0) setNotes([])
+      else if (horizonPaging) {
+        // キャッシュだけの列にも水平線を当てる (最終マージを通らない分岐)
+        seedCursors([], cached, null)
+        settleHorizon()
+      }
+      connecting = false
       isLoading.value = false
+      if (wantLive) streamingBatch?.setPaused(false)
       return
     }
 
@@ -625,10 +794,21 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           return fetchNotes(adapter)
         },
         3,
-        async (r, _acc, progress) => {
+        async (r, acc, progress) => {
           if (gen !== generation) return
           crossProgress.value = progress
-          if (r.status !== 'fulfilled' || !r.value) return
+          if (r.status !== 'fulfilled' || !r.value) {
+            // 到達点が無い (取れなかった) アカウント。水平線は決めないが、追加読み込みで
+            // 先に最新ページを取り直す対象になる
+            if (horizonPaging && r.status === 'rejected') {
+              setCursor(markFailed(initialCursor(acc.id), Date.now()))
+            }
+            return
+          }
+          // 到達点は生ページ (フィルタ前) で決める
+          if (horizonPaging)
+            setCursor(resetCursor(initialCursor(acc.id), r.value))
+          else advanceLegacyCursor(acc.id, r.value)
           live.push(...r.value)
           // 何も出ていなければ最初に返った分で描画する (#1095)。既に何か
           // (キャッシュや先に返った分) が出ていれば全部揃ってから 1 回で
@@ -649,15 +829,21 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (gen !== generation) return
 
       // live を優先しつつキャッシュとマージ（dedup は先勝ち）
-      const merged = await admit(
-        await dedupAsync([...live, ...dropGappedCache(live, cached)]),
-      )
+      const keptCache = dropGappedCache(live, cached)
+      const merged = await admit(await dedupAsync([...live, ...keptCache]))
       if (gen !== generation) return
+      if (horizonPaging) {
+        // 切り詰めは見えている行で数えるので、先に水平線を仮置きしてから載せる
+        seedCursors(live, keptCache, accounts)
+        horizon.value = horizonOf([...cursors.values()])
+      }
       setNotes(merged)
+      if (horizonPaging) settleHorizon()
     } catch (e) {
       if (gen === generation) error.value = AppError.from(e)
     } finally {
       if (gen === generation) {
+        connecting = false
         isLoading.value = false
         crossProgress.value = null
         if (wantLive) streamingBatch?.setPaused(false)
@@ -665,7 +851,111 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     }
   }
 
+  /**
+   * 起動時のカーソル: live のページで置いた到達点に、残したキャッシュの分だけ
+   * 遡らせる。トークンの無いアカウントはキャッシュが到達点のすべてで、
+   * キャッシュも無ければ遡れない (尽きた扱い)
+   */
+  function seedCursors(
+    live: readonly NormalizedNote[],
+    keptCache: readonly NormalizedNote[],
+    withToken: readonly { id: string }[] | null,
+  ) {
+    const tokenIds = new Set((withToken ?? []).map((a) => a.id))
+    for (const acc of accountsStore.accounts) {
+      let c = cursors.get(acc.id) ?? initialCursor(acc.id)
+      const rows = keptCache.filter((n) => n._accountId === acc.id)
+      if (rows.length > 0) {
+        // キャッシュで到達点を遡らせるだけで、live の失敗 (バックオフ) は消さない
+        const { failures, nextRetryAt } = c
+        c = { ...advanceCursor(c, rows), failures, nextRetryAt }
+      } else if (
+        !tokenIds.has(acc.id) &&
+        !live.some((n) => n._accountId === acc.id)
+      ) {
+        c = { ...c, exhausted: true }
+      }
+      setCursor(c)
+    }
+  }
+
+  /**
+   * 列に載せた後の確定。切り詰めで落ちた行を飛ばさないよう、列に残っている行の
+   * 最古へ到達点を戻してから水平線を引く (connect の最終マージ専用。以後は
+   * nextHorizon で単調に下げるだけ)
+   */
+  function settleHorizon() {
+    const current = rawNotes.value
+    for (const c of cursors.values()) {
+      setCursor(
+        reseedFromRows(
+          c,
+          current.filter((n) => n._accountId === c.accountId),
+        ),
+      )
+    }
+    horizon.value = horizonOf([...cursors.values()])
+  }
+
+  /**
+   * 水平線のページング (#1184): 底を決めているアカウントだけ 1 ページ遡る。
+   * そのアカウントがバックオフ中なら何も取らない (他のアカウントで底を掘り進めると、
+   * 隠れた尾が有界でなくなり、復帰後に塊が挟まる)
+   */
+  async function loadMoreHorizon() {
+    if (isLoading.value) return
+    const now = Date.now()
+    const pick = pickNextAccount([...cursors.values()], now)
+    if (!pick) return
+    const acc = accountsStore.accountMap.get(pick)
+    const cursor = cursors.get(pick)
+    if (!acc || !cursor) return
+    isLoading.value = true
+    const key = cacheKey?.()
+    const gen = generation
+    try {
+      let raw: NormalizedNote[] = []
+      if (acc.hasToken) {
+        const adapter = await multiAdapters.getOrCreate(acc.id)
+        if (!adapter) throw new Error(`no adapter for ${acc.id}`)
+        ensureSubscribed(acc.id, adapter, gen)
+        raw = await fetchNotes(
+          adapter,
+          cursor.oldest ? { untilId: cursor.oldest.id } : undefined,
+        )
+      } else if (key && cursor.oldest) {
+        raw = await loadCachedTimelineBefore(
+          acc.id,
+          key,
+          cursor.oldest.createdAt,
+          cursor.oldest.id,
+        )
+      }
+      if (gen !== generation) return
+      setCursor(advanceCursor(cursor, raw))
+      // 切り詰めは見えている行で数えるので、載せる前に水平線を下げる
+      horizon.value = nextHorizon(horizon.value, [...cursors.values()])
+      if (raw.length > 0) {
+        const existingKeys = new Set<string>(rawNotes.value.map(variantKeyOf))
+        const newOlder = await admit(await dedupAsync(raw, existingKeys))
+        if (gen !== generation) return
+        if (newOlder.length > 0) {
+          setNotes(insertIntoSorted(rawNotes.value, newOlder), 'newest')
+        }
+      }
+    } catch (e) {
+      if (gen !== generation) return
+      // 1 アカウントの失敗で列ごとエラー画面に替えない。失敗は末尾の区切り行
+      // (crossEndState) が「取得できていません」と示し、バックオフ後に再試行する
+      setCursor(markFailed(cursor, now))
+      if (import.meta.env.DEV) console.debug('[cross-account loadMore]', e)
+    } finally {
+      if (gen === generation) isLoading.value = false
+    }
+  }
+
   async function loadMoreCrossAccount() {
+    if (horizonPaging) return loadMoreHorizon()
     if (isLoading.value || rawNotes.value.length === 0) return
     isLoading.value = true
     const key = cacheKey?.()
@@ -678,27 +968,34 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       await mapWithConcurrency(
         accountsStore.accounts,
         async (acc) => {
-          const lastForAccount = [...rawNotes.value]
-            .reverse()
-            .find((n) => n._accountId === acc.id)
+          // 遡りの位置はカーソル (生ページ基準)。無ければ列に残るそのアカウントの
+          // 最古行 (キャッシュだけで出ているアカウント)
+          const cursor =
+            legacyCursors.get(acc.id) ??
+            [...rawNotes.value].reverse().find((n) => n._accountId === acc.id)
 
           if (acc.hasToken) {
             const adapter = await multiAdapters.getOrCreate(acc.id)
             if (!adapter) return []
-            if (!lastForAccount) return fetchNotes(adapter)
-            return fetchNotes(adapter, { untilId: lastForAccount.id })
+            const page = cursor
+              ? await fetchNotes(adapter, { untilId: cursor.id })
+              : await fetchNotes(adapter)
+            advanceLegacyCursor(acc.id, page)
+            return page
           }
 
           // ログアウト中: hasToken 不要でキャッシュを遡る。
-          // createdAt / id は同一ノート (lastForAccount) からペアで渡す (§6-14)
-          if (!key || !lastForAccount) return []
+          // createdAt / id は同一ノート由来のペアで渡す (§6-14)
+          if (!key || !cursor) return []
           try {
-            return await loadCachedTimelineBefore(
+            const page = await loadCachedTimelineBefore(
               acc.id,
               key,
-              lastForAccount.createdAt,
-              lastForAccount.id,
+              cursor.createdAt,
+              cursor.id,
             )
+            advanceLegacyCursor(acc.id, page)
+            return page
           } catch {
             return []
           }
@@ -734,6 +1031,38 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     onScrollReport()
   }
 
+  /**
+   * 列の末尾の区切り行の材料 (#1184)。取得できていないアカウントがあればそれを、
+   * 無ければ水平線の下に隠れている最初の行 (どのアカウントの、いつの投稿までが
+   * 揃っているか) を返す。何も無ければ null (通常の終端)
+   */
+  const crossEndState = computed<CrossEndState | null>(() => {
+    if (!horizonPaging) return null
+    void cursorsVersion.value
+    const label = (accountId: string) => {
+      const a = accountsStore.accountMap.get(accountId)
+      return a ? `@${a.username}@${a.host}` : accountId
+    }
+    const failing = [...cursors.values()].filter(
+      (c) => c.failures > 0 && !c.exhausted,
+    )
+    if (failing.length > 0) {
+      return {
+        kind: 'failing',
+        accounts: failing.map((c) => label(c.accountId)),
+      }
+    }
+    const next = hiddenGroups.value[0]
+    if (next) {
+      return {
+        kind: 'aligned',
+        account: label(next.primary._accountId),
+        createdAt: next.primary.createdAt,
+      }
+    }
+    return null
+  })
+
   // アカウントの追加・削除で対象が変わったら取り直す
   watch(
     () => accountsStore.accounts.map((a) => `${a.id}:${a.hasToken}`).join(','),
@@ -756,6 +1085,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     connectCrossAccount,
     loadMoreCrossAccount,
     crossProgress,
+    hiddenGroups,
+    crossEndState,
     handleScroll,
     removeNote,
     pendingCount,

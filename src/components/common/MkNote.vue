@@ -369,17 +369,23 @@ async function handleUnrenote() {
   }
 }
 // 開閉は仮想スクロールで行が作り直されても保つ (#704)。開く演出は
-// この場で開いたときだけ (戻ってきた行で再生しない)
-const cwExpanded = ref(expandedNoteContent.has(`cw:${effectiveNote.value.id}`))
+// この場で開いたときだけ (戻ってきた行で再生しない)。
+// キーはノート ID 単独にしない (別サーバーの同じ ID と混ざる、#1010)。束ねた行の
+// 主ビューが別アカウントの variant に替わっても開いたままにするため identity で持つ
+const contentKey = (() => {
+  const n = effectiveNote.value
+  return n._identityTrusted && n._identity
+    ? n._identity
+    : `${n._accountId ?? props.note._accountId}:${n.id}`
+})()
+const cwExpanded = ref(expandedNoteContent.has(`cw:${contentKey}`))
 const cwJustRevealed = ref(false)
-const longTextExpanded = ref(
-  expandedNoteContent.has(`long:${effectiveNote.value.id}`),
-)
+const longTextExpanded = ref(expandedNoteContent.has(`long:${contentKey}`))
 
 function toggleCw() {
   cwExpanded.value = !cwExpanded.value
   cwJustRevealed.value = cwExpanded.value
-  expandedNoteContent.set(`cw:${effectiveNote.value.id}`, cwExpanded.value)
+  expandedNoteContent.set(`cw:${contentKey}`, cwExpanded.value)
 }
 
 // 翻訳 (#704)。本家と同じくサーバーの notes/translate に頼み、本文の下に出す
@@ -405,21 +411,16 @@ async function handleTranslate() {
 
 function toggleLongText() {
   longTextExpanded.value = !longTextExpanded.value
-  expandedNoteContent.set(
-    `long:${effectiveNote.value.id}`,
-    longTextExpanded.value,
-  )
+  expandedNoteContent.set(`long:${contentKey}`, longTextExpanded.value)
 }
 
 // ワードミュート soft（#610）: mutedWords にマッチしたら本文を折りたたみ、展開可能にする
 const visibility = useNoteVisibility()
 // 「表示する」で開いたものは CW と同じく作り直しでも保つ
-const wordMuteRevealed = ref(
-  expandedNoteContent.has(`muted:${effectiveNote.value.id}`),
-)
+const wordMuteRevealed = ref(expandedNoteContent.has(`muted:${contentKey}`))
 function revealWordMuted() {
   wordMuteRevealed.value = true
-  expandedNoteContent.set(`muted:${effectiveNote.value.id}`, true)
+  expandedNoteContent.set(`muted:${contentKey}`, true)
 }
 const softMuteCollapsed = computed(
   () =>

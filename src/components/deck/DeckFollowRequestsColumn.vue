@@ -161,7 +161,7 @@ async function handleAction(
     } else {
       unwrap(await commands.apiCancelFollowRequest(accountId, req.followee.id))
     }
-    actionStates.value = { ...actionStates.value, [req.id]: action }
+    actionStates.value = { ...actionStates.value, [reqKey(req)]: action }
   } catch (e) {
     const appErr = AppError.from(e)
     // 相手が取り下げた等でリクエストが既に無い (accept: NO_FOLLOW_REQUEST /
@@ -170,11 +170,16 @@ async function handleAction(
       appErr.apiCode === 'NO_FOLLOW_REQUEST' ||
       appErr.apiCode === 'FOLLOW_REQUEST_NOT_FOUND'
     ) {
-      actionStates.value = { ...actionStates.value, [req.id]: action }
+      actionStates.value = { ...actionStates.value, [reqKey(req)]: action }
     } else {
       toast.show(appErr.message, 'error')
     }
   }
+}
+
+/** 行キー。リクエスト ID はサーバー内でしか一意でない (#1010) */
+function reqKey(req: FollowRequest): string {
+  return `${req._accountId ?? ''}:${req.id}`
 }
 
 function getRequestAccountId(req: FollowRequest): string | undefined {
@@ -228,6 +233,14 @@ watch(activeTab, () => {
 onMounted(() => {
   fetchRequests()
 })
+
+// アカウントの追加・削除・ログイン状態の変化に追随する (全アカウント面)
+watch(
+  () => accountsStore.accounts.map((a) => `${a.id}:${a.hasToken}`).join(','),
+  () => {
+    if (isCrossAccount.value) fetchRequests()
+  },
+)
 </script>
 
 <template>
@@ -276,7 +289,7 @@ onMounted(() => {
       <div v-else ref="scroller" :class="$style.frScroller">
         <div
           v-for="req in requests"
-          :key="req.id"
+          :key="reqKey(req)"
           :class="$style.frItem"
         >
           <div :class="$style.frUser" role="button" tabindex="0" @click="getRequestAccountId(req) && navToUser(getRequestAccountId(req)!, requestUser(req).id)" @keydown.enter="getRequestAccountId(req) && navToUser(getRequestAccountId(req)!, requestUser(req).id)" @keydown.space.self.prevent="getRequestAccountId(req) && navToUser(getRequestAccountId(req)!, requestUser(req).id)">
@@ -310,9 +323,9 @@ onMounted(() => {
           </div>
 
           <div :class="$style.frActions">
-            <template v-if="actionStates[req.id]">
+            <template v-if="actionStates[reqKey(req)]">
               <span :class="$style.frDone">
-                {{ actionStates[req.id] === 'accepted' ? i18n.ts._deckFollowRequestsColumn.accepted : actionStates[req.id] === 'rejected' ? i18n.ts._deckFollowRequestsColumn.rejected : i18n.ts._deckFollowRequestsColumn.canceled }}
+                {{ actionStates[reqKey(req)] === 'accepted' ? i18n.ts._deckFollowRequestsColumn.accepted : actionStates[reqKey(req)] === 'rejected' ? i18n.ts._deckFollowRequestsColumn.rejected : i18n.ts._deckFollowRequestsColumn.canceled }}
               </span>
             </template>
             <template v-else-if="activeTab === 'sent'">

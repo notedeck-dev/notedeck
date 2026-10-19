@@ -18,8 +18,12 @@ import { type Account, useAccountsStore } from '@/stores/accounts'
 import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import type { DeckColumn } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
+import { usePerformanceStore } from '@/stores/performance'
 import { useToast } from '@/stores/toast'
-import { useCrossAccountNotes } from './useCrossAccountNotes'
+import {
+  type CrossAccountNotesOptions,
+  useCrossAccountNotes,
+} from './useCrossAccountNotes'
 
 /**
  * 全アカウント面 (useCrossAccountNotes) のテスト土台。
@@ -248,6 +252,8 @@ function mountCross(opts: {
     opts?: { untilId?: string },
   ) => NormalizedNote[] | Promise<NormalizedNote[]>
   streaming?: boolean
+  paging?: 'horizon'
+  cursorOf?: CrossAccountNotesOptions['cursorOf']
 }) {
   const live = new Map<string, Live>()
   let api: ReturnType<typeof useCrossAccountNotes> | null = null
@@ -276,6 +282,8 @@ function mountCross(opts: {
         },
         isCrossAccount: () => true,
         cacheKey: () => 'home',
+        paging: opts.paging,
+        cursorOf: opts.cursorOf,
         isLoading,
         error,
         scroller,
@@ -288,6 +296,7 @@ function mountCross(opts: {
         streaming: opts.streaming
           ? {
               columnId: 'col-cross',
+              columnType: 'timeline',
               subscribe: (accountId, _adapter, enqueue, callbacks) => {
                 live.set(accountId, {
                   enqueue: (n) => enqueue(stamp(n, accountId)),
@@ -454,8 +463,331 @@ describe('useCrossAccountNotes: カラムクエリ (#783) が全アカウント�
   })
 })
 
-describe('useCrossAccountNotes: 列は経路を問わず createdAt 降順 (#1184)', () => {
-  it('追加読み込みの古いページを他アカウントの行と時系列で混ぜる', async () => {
+describe('useCrossAccountNotes: 水平線で下端を揃える (#1184)', () => {
+  /** 取得の呼び出し記録: accountId と untilId */
+  function recorder(
+    pages: Record<string, (untilId?: string) => NormalizedNote[]>,
+  ) {
+    const calls: { id: string; untilId?: string }[] = []
+    return {
+      calls,
+      fetchFor: (id: string, o?: { untilId?: string }) => {
+        calls.push({ id, untilId: o?.untilId })
+        return pages[id]?.(o?.untilId) ?? []
+      },
+    }
+  }
+
+  it('起動時、いちばん浅いアカウントの最古行より古い行は隠す', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      fetchFor: (id) =>
+        id === 'acc-a'
+          ? [note('a50'), note('a40')]
+          : [note('b30'), note('b10')],
+    })
+    await flush()
+    // acc-a は :40 までしか取れていないので、:30 以前の acc-b の行はまだ出さない
+    expect(ids(api)).toEqual(['a50', 'a40'])
+    expect(api.hiddenGroups.value.map((g) => g.primary.id)).toEqual([
+      'b30',
+      'b10',
+    ])
+  })
+
+  it('追加読み込みは水平線を決めているアカウントだけ遡り、尽きたら次のアカウントへ', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    const rec = recorder({
+      'acc-a': (u) =>
+        u
+          ? u === 'a40'
+            ? [note('a35'), note('a33')]
+            : []
+          : [note('a50'), note('a40')],
+      'acc-b': (u) => (u ? [note('b05')] : [note('b30'), note('b10')]),
+    })
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      fetchFor: rec.fetchFor,
+    })
+    await flush()
+    await api.loadMoreCrossAccount()
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40', 'a35', 'a33'])
+    // acc-b は追加読み込みされていない
+    expect(rec.calls.filter((c) => c.id === 'acc-b' && c.untilId)).toHaveLength(
+      0,
+    )
+    // acc-a が尽きると水平線は acc-b に移り、隠れていた行が出る
+    await api.loadMoreCrossAccount()
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40', 'a35', 'a33', 'b30', 'b10'])
+    await api.loadMoreCrossAccount()
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40', 'a35', 'a33', 'b30', 'b10', 'b05'])
+    expect(rec.calls.at(-1)).toEqual({ id: 'acc-b', untilId: 'b10' })
+  })
+
+  it('切り詰めで行が消えても遡りの位置を失わず、最新ページを取り直さない', async () => {
+    // 上限は設定の下限値まで下げる (それより小さくは丸められる)
+    const perf = usePerformanceStore()
+    perf.set('noteListMax', 1)
+    const max = perf.get('noteListMax')
+    addAccount('acc-a')
+    addAccount('acc-b')
+    const a = (sec: number) => note(`a${String(sec).padStart(2, '0')}`)
+    const sec = (id: string) => Number(id.slice(1))
+    // acc-a: live は :99〜:70 の 30 件、キャッシュは :70 から上限ぶん (live と重なる = 続いている)
+    bindings.responses.apiGetCachedTimeline = (accountId: string) =>
+      accountId === 'acc-a'
+        ? Array.from({ length: max }, (_, i) => stamp(a(70 - i), 'acc-a'))
+        : []
+    const rec = recorder({
+      'acc-a': (u) =>
+        u === undefined
+          ? Array.from({ length: 30 }, (_, i) => a(99 - i))
+          : [a(sec(u) - 1), a(sec(u) - 2)],
+      'acc-b': (u) => (u ? [] : [note('b95'), note('b05')]),
+    })
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      fetchFor: rec.fetchFor,
+    })
+    await flush()
+    // 見えている行で上限まで切り詰められ、acc-a の到達点は列に残った最古行に戻る
+    expect(ids(api)).toHaveLength(max)
+    expect(ids(api)).toContain('b95')
+    const lastA = ids(api).at(-1) ?? ''
+    expect(lastA.startsWith('a')).toBe(true)
+    await api.loadMoreCrossAccount()
+    await flush()
+    // 遡りは列に残った最古行から。最新ページを取り直していない
+    expect(rec.calls.slice(2)).toEqual([{ id: 'acc-a', untilId: lastA }])
+    // 下方向のページングは新しい側を捨てる
+    expect(ids(api)).toHaveLength(max)
+    expect(ids(api)[0]).not.toBe('a99')
+    expect(ids(api).slice(-2)).toEqual([
+      a(sec(lastA) - 1).id,
+      a(sec(lastA) - 2).id,
+    ])
+  })
+
+  it('取得に失敗したアカウントはバックオフし、その間は追加読み込みが何も取らない', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    let failA = false
+    const rec = recorder({
+      'acc-a': (u) => {
+        if (u && failA) throw new Error('boom')
+        return u ? [note('a35')] : [note('a50'), note('a40')]
+      },
+      'acc-b': () => [note('b30'), note('b10')],
+    })
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      fetchFor: rec.fetchFor,
+    })
+    await flush()
+    const now = vi.spyOn(Date, 'now')
+    now.mockReturnValue(100_000)
+    failA = true
+    await api.loadMoreCrossAccount()
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40'])
+    const callsBefore = rec.calls.length
+    // バックオフ中 (1 秒): 水平線のアカウントが取れないので何も取らない (acc-b で底を掘らない)
+    now.mockReturnValue(100_500)
+    await api.loadMoreCrossAccount()
+    await flush()
+    expect(rec.calls.length).toBe(callsBefore)
+    // バックオフが明けたら再試行する
+    failA = false
+    now.mockReturnValue(101_100)
+    await api.loadMoreCrossAccount()
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40', 'a35'])
+    now.mockRestore()
+  })
+
+  it('復帰の取り直しで到達点が新しくなっても水平線は上げない (既表示行を隠さない)', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    let resumed = false
+    const rec = recorder({
+      'acc-a': (u) =>
+        u
+          ? u === 'a80'
+            ? [note('a70')]
+            : []
+          : resumed
+            ? [note('a90'), note('a80')]
+            : [note('a50'), note('a40')],
+      'acc-b': () => [note('b30'), note('b10')],
+    })
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      streaming: true,
+      fetchFor: rec.fetchFor,
+    })
+    await flushFrames()
+    expect(ids(api)).toEqual(['a50', 'a40'])
+    resumed = true
+    await api.pullRefresh()
+    await flushFrames()
+    // acc-a は gap で置換され、到達点は a80。水平線は a40 のままなので b30 はまだ隠れる
+    expect(ids(api)).toEqual(['a90', 'a80'])
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(rec.calls.at(-1)).toEqual({ id: 'acc-a', untilId: 'a80' })
+    expect(ids(api)).toEqual(['a90', 'a80', 'a70'])
+  })
+
+  it('起動時に取得が失敗したアカウントはキャッシュで到達点を置いても失敗中のまま (区切り行に出る)', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    bindings.responses.apiGetCachedTimeline = (accountId: string) =>
+      accountId === 'acc-b' ? [stamp(note('b20'), 'acc-b')] : []
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      fetchFor: (id) => {
+        if (id === 'acc-b') throw new Error('down')
+        return [note('a50'), note('a40')]
+      },
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40'])
+    expect(api.crossEndState.value).toEqual({
+      kind: 'failing',
+      accounts: ['@acc-b@example.com'],
+    })
+  })
+
+  it('起動時に全アカウントの取得が失敗して列が空なら、復帰で取り直す', async () => {
+    addAccount('acc-a')
+    let down = true
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      streaming: true,
+      fetchFor: () => {
+        if (down) throw new Error('offline')
+        return [note('a50'), note('a40')]
+      },
+    })
+    await flushFrames()
+    expect(ids(api)).toEqual([])
+    down = false
+    await api.onResume()
+    await flushFrames()
+    expect(ids(api)).toEqual(['a50', 'a40'])
+  })
+
+  it('全アカウントの取得が揃うまでに届いたストリーミングの新着は捨てず、揃ったら出す', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    const gate: { release: ((notes: NormalizedNote[]) => void) | null } = {
+      release: null,
+    }
+    const column = ref<Partial<DeckColumn>>({})
+    const { api, live } = mountCross({
+      column,
+      paging: 'horizon',
+      streaming: true,
+      fetchFor: (id) =>
+        id === 'acc-a'
+          ? [note('a50'), note('a40')]
+          : new Promise<NormalizedNote[]>((resolve) => {
+              gate.release = resolve
+            }),
+    })
+    await flushFrames()
+    // acc-a は返ったが acc-b 待ち。この間に acc-a の新着が届く
+    expect(live.has('acc-a')).toBe(true)
+    live.get('acc-a')?.enqueue(note('a60'))
+    await flushFrames()
+    gate.release?.([note('b30')])
+    await flushFrames()
+    expect(ids(api)).toContain('a60')
+    expect(ids(api)[0]).toBe('a60')
+  })
+
+  it('起動時、最新ページと重ならないアカウントのキャッシュは落とす (per-account と同じ gap 判定)', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    // acc-a は最新ページ (a50, a40) とキャッシュ (a20, a10) が重ならない = 間に穴
+    // acc-b は最新ページ (b30, b25) にキャッシュの b30 が含まれる = 続いている
+    bindings.responses.apiGetCachedTimeline = (accountId: string) =>
+      accountId === 'acc-a'
+        ? [stamp(note('a20'), 'acc-a'), stamp(note('a10'), 'acc-a')]
+        : [stamp(note('b30'), 'acc-b'), stamp(note('b08'), 'acc-b')]
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      fetchFor: (id) =>
+        id === 'acc-a'
+          ? [note('a50'), note('a40')]
+          : [note('b30'), note('b25')],
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40'])
+    expect(api.hiddenGroups.value.map((g) => g.primary.id)).toEqual([
+      'b30',
+      'b25',
+      'b08',
+    ])
+  })
+
+  it('水平線を使わない面でも遡りの位置は列の行でなくカーソルで持ち、面ごとの cursorOf を使う', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    const fav = (id: string, favoriteId: string) =>
+      ({ ...note(id), _favoriteId: favoriteId }) as NormalizedNote
+    const calls: { id: string; untilId?: string }[] = []
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      cursorOf: (page) => {
+        const last = page.at(-1)
+        return last
+          ? { id: last._favoriteId ?? last.id, createdAt: last.createdAt }
+          : null
+      },
+      fetchFor: (id, o) => {
+        calls.push({ id, untilId: o?.untilId })
+        if (id === 'acc-a') {
+          return o?.untilId ? [] : [fav('a10', 'FA9'), fav('a50', 'FA8')]
+        }
+        return o?.untilId ? [] : [fav('b30', 'FB9')]
+      },
+    })
+    await flush()
+    await api.loadMoreCrossAccount()
+    await flush()
+    // 列の最古行 (a10) ではなく、ページ末尾のお気に入り ID から遡る
+    expect(calls.filter((c) => c.untilId)).toEqual([
+      { id: 'acc-a', untilId: 'FA8' },
+      { id: 'acc-b', untilId: 'FB9' },
+    ])
+  })
+
+  it('水平線を使わない面 (お気に入り等) は従来どおり全アカウントを到着順に遡る', async () => {
     addAccount('acc-a')
     addAccount('acc-b')
     const column = ref<Partial<DeckColumn>>({})
@@ -474,29 +806,7 @@ describe('useCrossAccountNotes: 列は経路を問わず createdAt 降順 (#1184
     expect(ids(api)).toEqual(['a50', 'a40', 'b30', 'b10'])
     await api.loadMoreCrossAccount()
     await flush()
-    // 投稿の多い acc-a の遡り分 (a35 / a33) は acc-b の b30 より新しいので上に入る
     expect(ids(api)).toEqual(['a50', 'a40', 'a35', 'a33', 'b30', 'b10', 'b05'])
-  })
-
-  it('起動時、最新ページと重ならないアカウントのキャッシュは落とす (per-account と同じ gap 判定)', async () => {
-    addAccount('acc-a')
-    addAccount('acc-b')
-    // acc-a は最新ページ (a50, a40) とキャッシュ (a20, a10) が重ならない = 間に穴
-    // acc-b は最新ページ (b30, b25) にキャッシュの b30 が含まれる = 続いている
-    bindings.responses.apiGetCachedTimeline = (accountId: string) =>
-      accountId === 'acc-a'
-        ? [stamp(note('a20'), 'acc-a'), stamp(note('a10'), 'acc-a')]
-        : [stamp(note('b30'), 'acc-b'), stamp(note('b08'), 'acc-b')]
-    const column = ref<Partial<DeckColumn>>({})
-    const { api } = mountCross({
-      column,
-      fetchFor: (id) =>
-        id === 'acc-a'
-          ? [note('a50'), note('a40')]
-          : [note('b30'), note('b25')],
-    })
-    await flush()
-    expect(ids(api)).toEqual(['a50', 'a40', 'b30', 'b25', 'b08'])
   })
 })
 

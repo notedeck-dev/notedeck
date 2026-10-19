@@ -583,6 +583,12 @@ export interface Locale {
     /** コマンドを入力... */
     readonly "inputPlaceholder": string
   }
+  readonly "_crossAccountEndMarker": {
+    /** ここまで全アカウント揃っています。{account} の次の投稿は {date} */
+    readonly "aligned": ParameterizedString<'account' | 'date'>
+    /** {accounts} は取得できていません (再試行中) */
+    readonly "failing": ParameterizedString<'accounts'>
+  }
   readonly "_crossAccountProgress": {
     /** {total} アカウントのうち {pending} 件待ち */
     readonly "waiting": ParameterizedString<'pending' | 'total'>

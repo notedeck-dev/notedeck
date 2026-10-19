@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "1.87.0"
+    "version": "1.87.1"
   },
   "paths": {
     "/api": {
@@ -2266,6 +2266,13 @@
         "properties": {
           "_accountId": {
             "type": "string"
+          },
+          "_favoriteId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`i/favorites` の行だけが持つお気に入り ID。お気に入りのページングは\nノート ID ではなくこの ID で進む (本家は NoteFavorite の id で untilId を解く)"
           },
           "_identity": {
             "type": "string",

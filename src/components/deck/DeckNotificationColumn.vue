@@ -17,12 +17,14 @@ import {
 import type {
   ApiAdapter,
   ChannelSubscription,
+  ManagedChannelSubscription,
   NormalizedNote,
   NormalizedNotification,
   NormalizedUser,
 } from '@/adapters/types'
 import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
+import CrossAccountEndMarker from '@/components/common/CrossAccountEndMarker.vue'
 import CrossAccountProgress from '@/components/common/CrossAccountProgress.vue'
 import I18n from '@/components/common/I18n.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -35,6 +37,7 @@ import PopupMenu from '@/components/common/PopupMenu.vue'
 import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import type { CrossEndState } from '@/composables/useCrossAccountNotes'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
@@ -51,6 +54,16 @@ import { getStreamHealth } from '@/core/streamHealth'
 import { i18n } from '@/i18n'
 import { createBoundedCache } from '@/services/boundedCache'
 import { mapWithConcurrency, type SettleProgress } from '@/services/concurrency'
+import {
+  type AccountCursor,
+  advanceCursor,
+  horizonOf,
+  initialCursor,
+  markFailed,
+  nextHorizon,
+  pickNextAccount,
+  resetCursor,
+} from '@/services/crossAccountPaging'
 import { dateSeparator } from '@/services/dateSeparator'
 import { parseVariantKey, variantKey } from '@/services/noteKey'
 import { getNoteSummary } from '@/services/noteSummary'
@@ -71,6 +84,7 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePerformanceStore } from '@/stores/performance'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useServersStore } from '@/stores/servers'
+import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
@@ -281,6 +295,35 @@ const perfStore = usePerformanceStore()
 const deckStore = useDeckStore()
 const notifications = shallowRef<NormalizedNotification[]>([])
 
+// --- ページングの位置 (#1184) ---
+// 遡りの位置は列に残っている行ではなく「取得した生ページの最古」で持つ (#831 §1.4)。
+// 列の行から取ると、上限の切り詰めで行が消えたとき位置を失って同じページを取り直す
+/** per-account の到達点 */
+let perAccountCursor: { id: string; createdAt: string } | null = null
+function oldestOf(
+  page: readonly NormalizedNotification[],
+): { id: string; createdAt: string } | null {
+  let oldest: NormalizedNotification | null = null
+  for (const n of page) {
+    if (!oldest || n.createdAt < oldest.createdAt) oldest = n
+  }
+  return oldest ? { id: oldest.id, createdAt: oldest.createdAt } : null
+}
+/** 全アカウント: アカウント別カーソルと水平線 (全アカウント TL と同じ規則) */
+const crossCursors = new Map<string, AccountCursor>()
+const crossCursorsVersion = ref(0)
+function setCrossCursor(cursor: AccountCursor) {
+  crossCursors.set(cursor.accountId, cursor)
+  crossCursorsVersion.value++
+}
+/** 表示の下限。これより古い通知は列に載せたまま表示に出さない。接続中は単調に下がるだけ */
+const crossHorizon = shallowRef<string | null>(null)
+function resetCrossPaging() {
+  crossCursors.clear()
+  crossCursorsVersion.value++
+  crossHorizon.value = null
+}
+
 // リアクション等の楽観的更新 (handlers.reaction) は noteStore に入るが、
 // このカラムは notification.note を独自保持しているため store の変更が
 // 表示に届かない。mutation のたびに store 側の最新オブジェクトへ差し替えて
@@ -368,10 +411,12 @@ function mergeNotifications(
   fresh: NormalizedNotification[],
   cached: NormalizedNotification[],
 ): NormalizedNotification[] {
+  // 全アカウント面の水平線より古い通知は上限に数えず、落とさない (#1184)
   return mergeNotificationLists(
     fresh,
     cached,
     perfStore.get('maxNotifications'),
+    { floor: crossHorizon.value },
   )
 }
 
@@ -496,7 +541,11 @@ function achievementLabel(name: string): string {
 }
 const visibleNotifications = computed(() =>
   notifications.value
-    .filter((n) => !isNotificationHidden(n))
+    .filter(
+      (n) =>
+        !isNotificationHidden(n) &&
+        (crossHorizon.value === null || n.createdAt >= crossHorizon.value),
+    )
     .map((n) => {
       if (n.type === 'reaction:grouped' && n.reactions) {
         return { ...n, reactions: visibleReactions(n) }
@@ -601,7 +650,7 @@ function getCachedReactionUrl(
   reaction: string,
   notification: NormalizedNotification,
 ): string | null {
-  const key = `${notification.id}:${reaction}`
+  const key = `${notification._accountId}:${notification.id}:${reaction}`
   const cached = reactionUrlLookup.get(key)
   // 返却時にプロキシへ通す (キャッシュには生 URL を保持 — proxyEmojiUrl を
   // render 中に呼ぶことで二段階配信の再読込世代がリアクティブに効く)
@@ -1003,6 +1052,7 @@ async function connectPerAccount(useCache = false) {
     if (!adapter) return
 
     const fetched = await fetchNotifications(adapter.api, account.value?.host)
+    perAccountCursor = oldestOf(fetched)
     notifications.value = mergeNotifications(fetched, cached)
     saveCache()
 
@@ -1038,6 +1088,24 @@ async function connectPerAccount(useCache = false) {
   }
 }
 
+/** Stream Inspector 用 (debug 観測のみ)。全アカウント面はアカウントごとに 1 行 */
+function reportCrossRuntime(accountId: string, sub: ChannelSubscription) {
+  const report = () => {
+    const managed = sub as Partial<ManagedChannelSubscription>
+    useStreamInspectorStore().reportRuntimeState({
+      columnId: props.column.id,
+      accountId,
+      columnType: 'notification',
+      subscriptionId: managed.subscriptionId ?? null,
+      state: 'live',
+      ts: Date.now(),
+    })
+  }
+  report()
+  // subscriptionId は open 解決後に確定するので、確定したら再通知
+  ;(sub as Partial<ManagedChannelSubscription>).whenReady?.().then(report)
+}
+
 async function connectCrossAccount(useCache = false) {
   // この呼び出しの世代。#1005 でアカウント集合の変化と復帰補完の両方から
   // 呼ばれるようになり、並行実行が現実的になった。古い呼び出しが新しい
@@ -1049,6 +1117,7 @@ async function connectCrossAccount(useCache = false) {
   error.value = null
   isLoading.value = true
   noMoreData.value = false
+  resetCrossPaging()
   const accounts = accountsStore.accounts.filter((a) => a.hasToken)
   // 削除済みアカウントの通知を永続キャッシュから復活させない。
   // 表示中リストの filter (下の watch) だけでは localStorage に残った分が
@@ -1071,10 +1140,17 @@ async function connectCrossAccount(useCache = false) {
         return fetchNotifications(adapter.api, acc.host)
       },
       accounts.length,
-      (r, _acc, progress) => {
+      (r, acc, progress) => {
         if (isStale()) return
         crossProgress.value = progress
-        if (r.status !== 'fulfilled' || !r.value) return
+        if (r.status !== 'fulfilled' || !r.value) {
+          if (r.status === 'rejected') {
+            setCrossCursor(markFailed(initialCursor(acc.id), Date.now()))
+          }
+          return
+        }
+        // 到達点は生ページの最古で決める
+        setCrossCursor(resetCursor(initialCursor(acc.id), r.value))
         allNotifs.push(...r.value)
         // 何も出ていなければ最初に返った分で描画する (#1095)。既に何か出て
         // いれば全部揃ってから 1 回で並べ直す (画面が動くのを 1 回に抑える)
@@ -1089,7 +1165,14 @@ async function connectCrossAccount(useCache = false) {
     )
     if (isStale()) return
 
-    notifications.value = mergeNotifications(allNotifs, cached)
+    // 列の底はいちばん浅いアカウントの到達点で揃える。切り詰めは見えている分で数える
+    crossHorizon.value = horizonOf([...crossCursors.values()])
+    notifications.value = mergeNotificationLists(
+      allNotifs,
+      cached,
+      perfStore.get('maxNotifications'),
+      { floor: crossHorizon.value },
+    )
     saveCache()
 
     // Dispose previous cross-account subscriptions before re-subscribing
@@ -1104,21 +1187,22 @@ async function connectCrossAccount(useCache = false) {
       if (isStale()) return
       if (!adapter) continue
       adapter.stream.connect()
-      crossSubscriptions.push(
-        createQuerySubscription({
-          open: async () =>
-            unwrap(await commands.querySubscribeNotifications(acc.id)),
-          onInsert: (item) => {
-            const notification = queryItemAsNotification(item)
-            if (!notification) return
-            if (!props.column.soundMuted) noteSound.play()
-            rafBuffer.push(notification)
-            if (rafId === null) {
-              rafId = requestAnimationFrame(flushRafBuffer)
-            }
-          },
-        }),
-      )
+      const sub = createQuerySubscription({
+        open: async () =>
+          unwrap(await commands.querySubscribeNotifications(acc.id)),
+        onInsert: (item) => {
+          const notification = queryItemAsNotification(item)
+          if (!notification) return
+          // 全アカウント面はカラムにアカウントが無いので、取得元のサーバーで鳴らす
+          if (!props.column.soundMuted) noteSound.play(acc.host)
+          rafBuffer.push(notification)
+          if (rafId === null) {
+            rafId = requestAnimationFrame(flushRafBuffer)
+          }
+        },
+      })
+      crossSubscriptions.push(sub)
+      reportCrossRuntime(acc.id, sub)
     }
   } catch (e) {
     if (isStale()) return
@@ -1155,17 +1239,27 @@ async function loadMorePerAccount() {
   isLoading.value = true
   try {
     const older = await fetchNotifications(adapter.api, account.value?.host, {
-      untilId: last.id,
+      untilId: (perAccountCursor ?? last).id,
     })
     if (older.length === 0) {
       noMoreData.value = true
       return
     }
-    const merged = [...notifications.value, ...older]
-    notifications.value =
-      merged.length > perfStore.get('maxNotifications')
-        ? merged.slice(0, perfStore.get('maxNotifications'))
-        : merged
+    const oldest = oldestOf(older)
+    if (
+      oldest &&
+      (!perAccountCursor || oldest.createdAt < perAccountCursor.createdAt)
+    ) {
+      perAccountCursor = oldest
+    }
+    // 下方向のページングは新しい側を捨てる。古い側を捨てると足した分が即消えて
+    // 位置も進まず、同じページを取り続ける
+    notifications.value = mergeNotificationLists(
+      older,
+      notifications.value,
+      perfStore.get('maxNotifications'),
+      { trim: 'newest' },
+    )
     saveCache()
   } catch (e) {
     error.value = AppError.from(e)
@@ -1177,62 +1271,89 @@ async function loadMorePerAccount() {
 async function loadMoreCrossAccount() {
   if (isLoading.value || noMoreData.value) return
   if (notifications.value.length === 0) return
+  // 水平線を決めているアカウントだけ 1 ページ遡る (#1184)。全アカウントを各自の
+  // 最古行から遡ると、通知の少ないアカウントだけ何か月も進んで塊になる。
+  // バックオフ中なら何も取らない (他のアカウントで底を掘り進めない)
+  const now = Date.now()
+  const cursorsNow = [...crossCursors.values()]
+  const pick = pickNextAccount(cursorsNow, now)
+  if (!pick) {
+    if (cursorsNow.length > 0 && cursorsNow.every((c) => c.exhausted)) {
+      noMoreData.value = true
+    }
+    return
+  }
+  const acc = accountsStore.accountMap.get(pick)
+  const cursor = crossCursors.get(pick)
+  if (!acc || !cursor) return
   // connectCrossAccount と世代を共有する。追加取得中にアカウント集合が変わって
   // 張り直しが始まったら、削除済みアカウントの通知を戻さず、表示状態も奪わない
   const generation = crossReconnectGeneration
   const isStale = () => generation !== crossReconnectGeneration
   isLoading.value = true
 
-  const accounts = accountsStore.accounts.filter((a) => a.hasToken)
-
-  // Build last-notification-per-account map in a single reverse pass (O(n))
-  const lastByAccount = new Map<string, NormalizedNotification>()
-  for (let i = notifications.value.length - 1; i >= 0; i--) {
-    const n = notifications.value[i]
-    if (n && !lastByAccount.has(n._accountId))
-      lastByAccount.set(n._accountId, n)
-  }
-
   try {
-    crossProgress.value = { done: 0, total: accounts.length }
-    let gotAny = false
-    await mapWithConcurrency(
-      accounts,
-      async (acc) => {
-        const adapter = await multiAdapters.getOrCreate(acc.id)
-        if (!adapter) return []
-        const lastForAccount = lastByAccount.get(acc.id)
-        if (!lastForAccount) return fetchNotifications(adapter.api, acc.host)
-        return fetchNotifications(adapter.api, acc.host, {
-          untilId: lastForAccount.id,
-        })
-      },
-      accounts.length,
-      // 返ったアカウントの分から順に足す (#1095)
-      (r, _acc, progress) => {
-        if (isStale()) return
-        crossProgress.value = progress
-        if (r.status !== 'fulfilled' || !r.value?.length) return
-        gotAny = true
-        notifications.value = mergeNotifications(r.value, notifications.value)
-      },
+    const adapter = await multiAdapters.getOrCreate(acc.id)
+    if (!adapter) throw new Error(`no adapter for ${acc.id}`)
+    const page = await fetchNotifications(
+      adapter.api,
+      acc.host,
+      cursor.oldest ? { untilId: cursor.oldest.id } : undefined,
     )
     if (isStale()) return
-
-    if (!gotAny) {
-      noMoreData.value = true
-      return
+    setCrossCursor(advanceCursor(cursor, page))
+    // 切り詰めは見えている分で数えるので、載せる前に水平線を下げる
+    crossHorizon.value = nextHorizon(crossHorizon.value, [
+      ...crossCursors.values(),
+    ])
+    if (page.length > 0) {
+      notifications.value = mergeNotificationLists(
+        page,
+        notifications.value,
+        perfStore.get('maxNotifications'),
+        { trim: 'newest', floor: crossHorizon.value },
+      )
+      saveCache()
     }
-    saveCache()
   } catch (e) {
-    if (!isStale()) error.value = AppError.from(e)
+    if (isStale()) return
+    // 1 アカウントの失敗で列ごとエラー画面に替えない。末尾の区切り行が示す
+    setCrossCursor(markFailed(cursor, now))
+    if (import.meta.env.DEV) console.debug('[cross-account loadMore]', e)
   } finally {
-    if (!isStale()) {
-      isLoading.value = false
-      crossProgress.value = null
-    }
+    if (!isStale()) isLoading.value = false
   }
 }
+
+/**
+ * 列の末尾の区切り行の材料 (#1184)。取得できていないアカウントがあればそれを、
+ * 無ければ水平線の下に隠れている最初の通知を返す。何も無ければ null (通常の終端)
+ */
+const crossEndState = computed<CrossEndState | null>(() => {
+  if (!isCrossAccount.value) return null
+  void crossCursorsVersion.value
+  const label = (accountId: string) => {
+    const a = accountsStore.accountMap.get(accountId)
+    return a ? `@${a.username}@${a.host}` : accountId
+  }
+  const failing = [...crossCursors.values()].filter(
+    (c) => c.failures > 0 && !c.exhausted,
+  )
+  if (failing.length > 0) {
+    return { kind: 'failing', accounts: failing.map((c) => label(c.accountId)) }
+  }
+  const floor = crossHorizon.value
+  if (floor === null) return null
+  const next = notifications.value.find((n) => n.createdAt < floor)
+  if (next) {
+    return {
+      kind: 'aligned',
+      account: label(next._accountId),
+      createdAt: next.createdAt,
+    }
+  }
+  return null
+})
 
 async function loadMore() {
   if (isCrossAccount.value) {
@@ -1694,6 +1815,7 @@ onUnmounted(() => {
             <CrossAccountProgress v-if="crossProgress" :progress="crossProgress" :size="20" />
             <LoadingSpinner v-else />
           </div>
+          <CrossAccountEndMarker v-else-if="crossEndState" :state="crossEndState" />
         </template>
       </NoteScroller>
     </div>

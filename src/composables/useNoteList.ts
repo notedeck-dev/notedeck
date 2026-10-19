@@ -35,6 +35,12 @@ export interface UseNoteListOptions {
    * group 数で数える。`notes` は各 group の主ビュー、`groups` が表示単位
    */
   bundle?: boolean
+  /**
+   * 表示の下限 (createdAt、全アカウント面の水平線、#1184)。これより古い group は
+   * 列には載せたまま表示に出さない。上限 (maxNotes) も見えている group で数える。
+   * 束ねる面でだけ効く
+   */
+  displayFloor?: () => string | null
 }
 
 /**
@@ -59,6 +65,14 @@ export function useNoteList(options: UseNoteListOptions) {
   const maxNotes = options.maxNotes ?? perfStore.get('noteListMax')
   const bundle = options.bundle === true
   const groupContext = bundle ? useNoteGroupContext(options.visibility) : null
+  const displayFloor = options.displayFloor
+  /** 水平線以上の variant を 1 つでも持つ group が見える */
+  function aboveFloor(variants: readonly NormalizedNote[]): boolean {
+    const floor = displayFloor?.() ?? null
+    if (floor === null) return true
+    return variants.some((v) => v.createdAt >= floor)
+  }
+  const countsGroup = displayFloor ? aboveFloor : undefined
   /**
    * 列のメンバーシップ。キーは variant key = (取得元アカウント, ノート ID) の複合
    * (#1010)。ノート ID 単独だと別サーバー由来の同じ ID が衝突する
@@ -111,7 +125,7 @@ export function useNoteList(options: UseNoteListOptions) {
     set: (newNotes: NormalizedNote[]) => {
       // 束ねる面は同 identity を隣接させてから group 数で切り詰める (§4)
       const trimmed = bundle
-        ? truncateByGroups(clusterByIdentity(newNotes), maxNotes)
+        ? truncateByGroups(clusterByIdentity(newNotes), maxNotes, countsGroup)
         : newNotes.length > maxNotes
           ? newNotes.slice(0, maxNotes)
           : newNotes
@@ -155,8 +169,25 @@ export function useNoteList(options: UseNoteListOptions) {
    * 評価する (ユーザー意思は variant の OR / サーバー判断は origin のみ)。
    * 束ねない面では空配列。
    */
-  const groups = computed<NoteGroup[]>((prev) =>
+  const allGroups = computed<NoteGroup[]>((prev) =>
     keepIfSame(prev, groupContext ? groupContext.groupsOf(rawNotes.value) : []),
+  )
+  const groups = computed<NoteGroup[]>((prev) =>
+    keepIfSame(
+      prev,
+      displayFloor
+        ? allGroups.value.filter((g) => aboveFloor(g.variants))
+        : allGroups.value,
+    ),
+  )
+  /** 水平線より下に隠れている group (末尾の区切り行の材料)。水平線が無ければ空 */
+  const hiddenGroups = computed<NoteGroup[]>((prev) =>
+    keepIfSame(
+      prev,
+      displayFloor
+        ? allGroups.value.filter((g) => !aboveFloor(g.variants))
+        : [],
+    ),
   )
 
   const notes = computed((prev?: NormalizedNote[]) =>
@@ -228,6 +259,7 @@ export function useNoteList(options: UseNoteListOptions) {
             ...truncateByGroups(
               [...clusterByIdentity(newNotes)].reverse(),
               maxNotes,
+              countsGroup,
             ),
           ].reverse()
         : newNotes.length > maxNotes
@@ -319,6 +351,7 @@ export function useNoteList(options: UseNoteListOptions) {
   return {
     notes,
     groups,
+    hiddenGroups,
     // unfiltered な書込基底。同期位置の決定（sinceId / untilId / 空ガード等）は
     // 隠れたノートを含むこちらを読む（#831 §1.4 の読取判別規則）
     rawNotes,

@@ -342,4 +342,25 @@ describe('clusterByIdentity / truncateByGroups', () => {
     })
     expect(truncateByGroups([a, b, x, y], 2)).toEqual([a, b, x])
   })
+
+  it('数えない group (水平線の下に隠れた行) は上限に入れず、落とさない (#1184)', () => {
+    const row = (id: string, createdAt: string) =>
+      makeNote({ id, _accountId: 'acc-a', _serverHost: 'a.example', createdAt })
+    const n1 = row('n1', '2025-01-05T00:00:00.000Z')
+    const n2 = row('n2', '2025-01-04T00:00:00.000Z')
+    const hidden = row('h', '2025-01-01T00:00:00.000Z')
+    const n3 = row('n3', '2025-01-03T00:00:00.000Z')
+    const floor = '2025-01-02T00:00:00.000Z'
+    const counts = (vs: readonly NormalizedNote[]) =>
+      vs.some((v) => v.createdAt >= floor)
+    // 見えている 3 group のうち上限 2 を超えた n3 だけ落ち、隠れた h は残る
+    expect(truncateByGroups([n1, n2, n3, hidden], 2, counts)).toEqual([
+      n1,
+      n2,
+      hidden,
+    ])
+    // 上限内なら同じ配列を返す
+    const same = [n1, n2, hidden]
+    expect(truncateByGroups(same, 2, counts)).toBe(same)
+  })
 })

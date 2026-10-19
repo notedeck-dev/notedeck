@@ -690,7 +690,10 @@ function onNewMessage(msg: ChatMessage) {
   // append で DOM が伸びる前に「最下部付近にいたか」を測る
   const wasNearBottom = isNearBottom()
   thread.append(msg)
-  if (!props.column.soundMuted) chatSound.play()
+  // 全アカウント面はカラムにアカウントが無いので、会話のアカウントのサーバーで鳴らす
+  if (!props.column.soundMuted) {
+    chatSound.play(activeServerHost.value ?? undefined)
+  }
   // 検索中・過去ログ閲覧中は表示位置を維持する (強制スクロールで読書位置を失わない)。
   if (!isConvSearching.value && wasNearBottom) scrollToBottom()
 }
@@ -1119,6 +1122,17 @@ watch(
     })
   },
   { immediate: true },
+)
+
+// アカウントの追加・削除・ログイン状態の変化に追随する (全アカウント面)。
+// 通知・TL と同じ。会話を開いている間は履歴に戻ったときに取り直す
+watch(
+  () => accountsStore.accounts.map((a) => `${a.id}:${a.hasToken}`).join(','),
+  () => {
+    if (isCrossAccount.value && viewMode.value === 'history') {
+      void connectCrossAccount()
+    }
+  },
 )
 
 onMounted(() => {
