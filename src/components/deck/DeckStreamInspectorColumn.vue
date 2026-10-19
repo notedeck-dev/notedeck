@@ -20,6 +20,7 @@ import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import {
   ALL_KINDS,
+  type ColumnRuntimeInfo,
   KIND_LABELS,
   type StreamEventEntry,
   useStreamInspectorStore,
@@ -183,9 +184,17 @@ function connToStatus(
 const dashboardRows = computed(() => {
   const aid = props.column.accountId
   return deckStore.layout.flat().flatMap((colId) => {
-    const info = inspectorStore.runtimeStates.get(colId)
-    if (!info) return []
-    if (aid != null && info.accountId !== aid) return []
+    // 全アカウント面はアカウントごとに 1 行
+    const infos = inspectorStore.runtimeStatesOf(colId)
+    if (aid != null) {
+      return infos.filter((i) => i.accountId === aid).flatMap(rowOf)
+    }
+    return infos.flatMap(rowOf)
+  })
+})
+
+function rowOf(info: ColumnRuntimeInfo) {
+  {
     const connection = info.accountId
       ? (inspectorStore.connectionState.get(info.accountId) ?? null)
       : null
@@ -204,8 +213,8 @@ const dashboardRows = computed(() => {
           : null,
       },
     ]
-  })
-})
+  }
+}
 
 function ageText(ts: number | null): string {
   if (ts == null) return '—'

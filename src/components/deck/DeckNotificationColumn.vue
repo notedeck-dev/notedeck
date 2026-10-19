@@ -17,6 +17,7 @@ import {
 import type {
   ApiAdapter,
   ChannelSubscription,
+  ManagedChannelSubscription,
   NormalizedNote,
   NormalizedNotification,
   NormalizedUser,
@@ -83,6 +84,7 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePerformanceStore } from '@/stores/performance'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useServersStore } from '@/stores/servers'
+import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
@@ -1086,6 +1088,24 @@ async function connectPerAccount(useCache = false) {
   }
 }
 
+/** Stream Inspector 用 (debug 観測のみ)。全アカウント面はアカウントごとに 1 行 */
+function reportCrossRuntime(accountId: string, sub: ChannelSubscription) {
+  const report = () => {
+    const managed = sub as Partial<ManagedChannelSubscription>
+    useStreamInspectorStore().reportRuntimeState({
+      columnId: props.column.id,
+      accountId,
+      columnType: 'notification',
+      subscriptionId: managed.subscriptionId ?? null,
+      state: 'live',
+      ts: Date.now(),
+    })
+  }
+  report()
+  // subscriptionId は open 解決後に確定するので、確定したら再通知
+  ;(sub as Partial<ManagedChannelSubscription>).whenReady?.().then(report)
+}
+
 async function connectCrossAccount(useCache = false) {
   // この呼び出しの世代。#1005 でアカウント集合の変化と復帰補完の両方から
   // 呼ばれるようになり、並行実行が現実的になった。古い呼び出しが新しい
@@ -1167,22 +1187,22 @@ async function connectCrossAccount(useCache = false) {
       if (isStale()) return
       if (!adapter) continue
       adapter.stream.connect()
-      crossSubscriptions.push(
-        createQuerySubscription({
-          open: async () =>
-            unwrap(await commands.querySubscribeNotifications(acc.id)),
-          onInsert: (item) => {
-            const notification = queryItemAsNotification(item)
-            if (!notification) return
-            // 全アカウント面はカラムにアカウントが無いので、取得元のサーバーで鳴らす
-            if (!props.column.soundMuted) noteSound.play(acc.host)
-            rafBuffer.push(notification)
-            if (rafId === null) {
-              rafId = requestAnimationFrame(flushRafBuffer)
-            }
-          },
-        }),
-      )
+      const sub = createQuerySubscription({
+        open: async () =>
+          unwrap(await commands.querySubscribeNotifications(acc.id)),
+        onInsert: (item) => {
+          const notification = queryItemAsNotification(item)
+          if (!notification) return
+          // 全アカウント面はカラムにアカウントが無いので、取得元のサーバーで鳴らす
+          if (!props.column.soundMuted) noteSound.play(acc.host)
+          rafBuffer.push(notification)
+          if (rafId === null) {
+            rafId = requestAnimationFrame(flushRafBuffer)
+          }
+        },
+      })
+      crossSubscriptions.push(sub)
+      reportCrossRuntime(acc.id, sub)
     }
   } catch (e) {
     if (isStale()) return

@@ -333,6 +333,7 @@ const {
   deleteNote: handlers.delete,
   streaming: {
     columnId: props.column.id,
+    columnType: 'timeline',
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
       createQuerySubscription({
         open: async () =>

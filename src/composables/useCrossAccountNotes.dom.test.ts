@@ -296,6 +296,7 @@ function mountCross(opts: {
         streaming: opts.streaming
           ? {
               columnId: 'col-cross',
+              columnType: 'timeline',
               subscribe: (accountId, _adapter, enqueue, callbacks) => {
                 live.set(accountId, {
                   enqueue: (n) => enqueue(stamp(n, accountId)),

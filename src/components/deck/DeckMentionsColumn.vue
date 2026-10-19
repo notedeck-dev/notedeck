@@ -128,6 +128,7 @@ const {
   deleteNote: handlers.delete,
   streaming: {
     columnId: props.column.id,
+    columnType: 'mentions',
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
       createQuerySubscription({
         open: async () =>

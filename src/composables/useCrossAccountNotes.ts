@@ -47,6 +47,7 @@ import { insertIntoSorted } from '@/services/sortNotes'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
+import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
@@ -99,6 +100,8 @@ export interface CrossAccountNotesOptions {
    */
   streaming?: {
     columnId: string
+    /** Stream Inspector に出すカラム種別 (購読はアカウントごとに 1 行) */
+    columnType: string
     subscribe: (
       accountId: string,
       adapter: ServerAdapter,
@@ -370,9 +373,24 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
 
   function setRuntimeState(state: SubscriptionRuntimeState) {
     runtimeState = state
-    for (const sub of subscriptions.values()) {
+    for (const [accountId, sub] of subscriptions) {
       ;(sub as Partial<ManagedChannelSubscription>).setRuntimeState?.(state)
+      reportRuntime(accountId, sub)
     }
+  }
+
+  /** Stream Inspector 用 (debug 観測のみ)。全アカウント面はアカウントごとに 1 行 */
+  function reportRuntime(accountId: string, sub: ChannelSubscription) {
+    if (!streaming) return
+    const managed = sub as Partial<ManagedChannelSubscription>
+    useStreamInspectorStore().reportRuntimeState({
+      columnId: streaming.columnId,
+      accountId,
+      columnType: streaming.columnType,
+      subscriptionId: managed.subscriptionId ?? null,
+      state: runtimeState,
+      ts: Date.now(),
+    })
   }
 
   function disposeSubscriptions() {
@@ -422,6 +440,11 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       runtimeState,
     )
     subscriptions.set(accountId, sub)
+    reportRuntime(accountId, sub)
+    // subscriptionId は open 解決後に確定するので、確定したら再通知
+    ;(sub as Partial<ManagedChannelSubscription>)
+      .whenReady?.()
+      .then(() => reportRuntime(accountId, sub))
 
     // WS 瞬断からの再接続で、切断中に欠けたノートを埋める (#704 K)。
     // 初回接続では発火しない
