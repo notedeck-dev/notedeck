@@ -649,6 +649,28 @@ describe('useCrossAccountNotes: 水平線で下端を揃える (#1184)', () => {
     expect(ids(api)).toEqual(['a90', 'a80', 'a70'])
   })
 
+  it('起動時に取得が失敗したアカウントはキャッシュで到達点を置いても失敗中のまま (区切り行に出る)', async () => {
+    addAccount('acc-a')
+    addAccount('acc-b')
+    bindings.responses.apiGetCachedTimeline = (accountId: string) =>
+      accountId === 'acc-b' ? [stamp(note('b20'), 'acc-b')] : []
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      fetchFor: (id) => {
+        if (id === 'acc-b') throw new Error('down')
+        return [note('a50'), note('a40')]
+      },
+    })
+    await flush()
+    expect(ids(api)).toEqual(['a50', 'a40'])
+    expect(api.crossEndState.value).toEqual({
+      kind: 'failing',
+      accounts: ['@acc-b@example.com'],
+    })
+  })
+
   it('起動時、最新ページと重ならないアカウントのキャッシュは落とす (per-account と同じ gap 判定)', async () => {
     addAccount('acc-a')
     addAccount('acc-b')

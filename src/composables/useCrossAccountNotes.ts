@@ -756,8 +756,11 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     for (const acc of accountsStore.accounts) {
       let c = cursors.get(acc.id) ?? initialCursor(acc.id)
       const rows = keptCache.filter((n) => n._accountId === acc.id)
-      if (rows.length > 0) c = advanceCursor(c, rows)
-      else if (
+      if (rows.length > 0) {
+        // キャッシュで到達点を遡らせるだけで、live の失敗 (バックオフ) は消さない
+        const { failures, nextRetryAt } = c
+        c = { ...advanceCursor(c, rows), failures, nextRetryAt }
+      } else if (
         !tokenIds.has(acc.id) &&
         !live.some((n) => n._accountId === acc.id)
       ) {
