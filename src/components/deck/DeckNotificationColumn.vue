@@ -1174,7 +1174,8 @@ async function connectCrossAccount(useCache = false) {
           onInsert: (item) => {
             const notification = queryItemAsNotification(item)
             if (!notification) return
-            if (!props.column.soundMuted) noteSound.play()
+            // 全アカウント面はカラムにアカウントが無いので、取得元のサーバーで鳴らす
+            if (!props.column.soundMuted) noteSound.play(acc.host)
             rafBuffer.push(notification)
             if (rafId === null) {
               rafId = requestAnimationFrame(flushRafBuffer)
