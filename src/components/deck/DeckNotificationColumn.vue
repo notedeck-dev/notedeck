@@ -409,10 +409,12 @@ function mergeNotifications(
   fresh: NormalizedNotification[],
   cached: NormalizedNotification[],
 ): NormalizedNotification[] {
+  // 全アカウント面の水平線より古い通知は上限に数えず、落とさない (#1184)
   return mergeNotificationLists(
     fresh,
     cached,
     perfStore.get('maxNotifications'),
+    { floor: crossHorizon.value },
   )
 }
 
@@ -646,7 +648,7 @@ function getCachedReactionUrl(
   reaction: string,
   notification: NormalizedNotification,
 ): string | null {
-  const key = `${notification.id}:${reaction}`
+  const key = `${notification._accountId}:${notification.id}:${reaction}`
   const cached = reactionUrlLookup.get(key)
   // 返却時にプロキシへ通す (キャッシュには生 URL を保持 — proxyEmojiUrl を
   // render 中に呼ぶことで二段階配信の再読込世代がリアクティブに効く)
@@ -1294,8 +1296,9 @@ async function loadMoreCrossAccount() {
     }
   } catch (e) {
     if (isStale()) return
+    // 1 アカウントの失敗で列ごとエラー画面に替えない。末尾の区切り行が示す
     setCrossCursor(markFailed(cursor, now))
-    error.value = AppError.from(e)
+    if (import.meta.env.DEV) console.debug('[cross-account loadMore]', e)
   } finally {
     if (!isStale()) isLoading.value = false
   }

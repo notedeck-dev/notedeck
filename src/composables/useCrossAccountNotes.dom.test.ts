@@ -671,6 +671,27 @@ describe('useCrossAccountNotes: 水平線で下端を揃える (#1184)', () => {
     })
   })
 
+  it('起動時に全アカウントの取得が失敗して列が空なら、復帰で取り直す', async () => {
+    addAccount('acc-a')
+    let down = true
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      streaming: true,
+      fetchFor: () => {
+        if (down) throw new Error('offline')
+        return [note('a50'), note('a40')]
+      },
+    })
+    await flushFrames()
+    expect(ids(api)).toEqual([])
+    down = false
+    await api.onResume()
+    await flushFrames()
+    expect(ids(api)).toEqual(['a50', 'a40'])
+  })
+
   it('起動時、最新ページと重ならないアカウントのキャッシュは落とす (per-account と同じ gap 判定)', async () => {
     addAccount('acc-a')
     addAccount('acc-b')

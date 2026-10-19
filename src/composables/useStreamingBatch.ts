@@ -109,6 +109,33 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     return fresh
   }
 
+  /**
+   * 上限超過の切り詰め。`countsNote` があるときは数えるノートだけ上限に入れ、
+   * 数えないノート (全アカウント面で水平線の下に隠れている行、#1184) は落とさない。
+   * 落とすと到達点が列から消えて、その区間は二度と戻らない
+   */
+  function truncateInPlace(merged: NormalizedNote[]): boolean {
+    const counts = options.countsNote
+    if (!counts) {
+      if (merged.length <= MAX_NOTES) return false
+      merged.length = MAX_NOTES
+      return true
+    }
+    let visible = 0
+    const kept: NormalizedNote[] = []
+    for (const n of merged) {
+      if (counts(n)) {
+        visible++
+        if (visible > MAX_NOTES) continue
+      }
+      kept.push(n)
+    }
+    if (kept.length === merged.length) return false
+    merged.length = 0
+    merged.push(...kept)
+    return true
+  }
+
   function flushRafBuffer() {
     rafScheduled = false
     if (rafBuffer.length === 0) return
@@ -119,8 +146,7 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
       enableAnimation(batch.map(variantKeyOf))
       for (const n of batch) options.noteKeys.add(variantKeyOf(n))
       const merged = insertIntoSorted(options.notes.value, batch)
-      const truncated = merged.length > MAX_NOTES
-      if (truncated) merged.length = MAX_NOTES
+      const truncated = truncateInPlace(merged)
       options.notes.value = merged
       if (truncated) syncNoteKeys()
       options.onNewNotes?.(batch)
@@ -164,8 +190,7 @@ export function useStreamingBatch(options: UseStreamingBatchOptions) {
     enableAnimation(newNotes.map(variantKeyOf))
     for (const n of newNotes) options.noteKeys.add(variantKeyOf(n))
     const merged = insertIntoSorted(options.notes.value, newNotes)
-    const truncated = merged.length > MAX_NOTES
-    if (truncated) merged.length = MAX_NOTES
+    const truncated = truncateInPlace(merged)
     options.notes.value = merged
     if (truncated) syncNoteKeys()
     pendingNotes.value = []

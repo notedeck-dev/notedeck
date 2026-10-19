@@ -91,4 +91,35 @@ describe('useStreamingBatch: 束ねる面のサイレント挿入 (#1058 §6)', 
     expect([...batch.animatingIds.value]).toEqual([variantKey('b', 'y')])
     expect(batch.pendingCount.value).toBe(0)
   })
+
+  it('新着の flush で上限を切るとき、数えないノート (水平線の下) は落とさず数えない (#1184)', () => {
+    const floor = '2026-01-02T00:00:00.000Z'
+    const list = useNoteList({
+      bundle: true,
+      getAdapter: () => null,
+      deleteHandler: async () => false,
+      closePostForm: () => undefined,
+      displayFloor: () => floor,
+    })
+    const batch = useStreamingBatch({
+      notes: list.rawNotes,
+      noteKeys: list.noteKeys,
+      scroller: ref<HTMLElement | null>(null),
+      maxNotes: 1,
+      hasGroup: list.hasGroupFor,
+      insertSilently: list.insertSilently,
+      identityOf: (n) => n._identity,
+      countsNote: (n) => n.createdAt >= floor,
+    })
+    list.setNotes([
+      variant('n3', 'a', 'https://o/notes/n3', '2026-01-03T00:00:00.000Z'),
+      variant('h', 'b', 'https://o/notes/h', '2026-01-01T00:00:00.000Z'),
+    ])
+    batch.addQueued([
+      variant('n4', 'a', 'https://o/notes/n4', '2026-01-04T00:00:00.000Z'),
+    ])
+    batch.flushToTop()
+    // 見えている 2 件のうち上限 1 を超えた n3 だけ落ち、隠れた h は残る
+    expect(list.rawNotes.value.map((n) => n.id)).toEqual(['n4', 'h'])
+  })
 })

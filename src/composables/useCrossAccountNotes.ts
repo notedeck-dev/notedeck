@@ -502,7 +502,13 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
    */
   async function onResume() {
     if (!isCrossAccount() || !streamingBatch) return
-    if (rawNotes.value.length === 0) return
+    if (rawNotes.value.length === 0) {
+      // 起動時に全アカウントの取得が失敗しキャッシュも無いと列は空のまま。
+      // 復帰 (回線が戻った / 画面に戻った) は取り直しの合図にする。
+      // 取得中 (起動直後の connect) は二重に走らせない
+      if (!isLoading.value) void connectCrossAccount()
+      return
+    }
     // ウィンドウが隠れている間 (#986) は REST を叩かない (useNoteColumn と同じ)
     if (systemStateStore.adaptation.suspendStreams) return
     const now = Date.now()
@@ -835,8 +841,10 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       }
     } catch (e) {
       if (gen !== generation) return
+      // 1 アカウントの失敗で列ごとエラー画面に替えない。失敗は末尾の区切り行
+      // (crossEndState) が「取得できていません」と示し、バックオフ後に再試行する
       setCursor(markFailed(cursor, now))
-      error.value = AppError.from(e)
+      if (import.meta.env.DEV) console.debug('[cross-account loadMore]', e)
     } finally {
       if (gen === generation) isLoading.value = false
     }
