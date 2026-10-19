@@ -50,6 +50,10 @@ export const KIND_LABELS: Record<string, string> = {
 }
 
 /** カラム単位の runtime_state（フロントが意図した状態）スナップショット */
+export function runtimeKey(columnId: string, accountId: string | null) {
+  return `${columnId}:${accountId ?? ''}`
+}
+
 export interface ColumnRuntimeInfo {
   columnId: string
   accountId: string | null
@@ -72,6 +76,10 @@ export const useStreamInspectorStore = defineStore('streamInspector', () => {
   /** account_id -> 直近の WS 接続状態 (stream-status raw event 由来) */
   const connectionState = ref<Map<string, StreamConnectionState>>(new Map())
   /** column_id -> フロントが意図した runtime_state (keep-alive 中は live) */
+  /**
+   * カラムの購読状態。キーは「カラム ID + アカウント ID」— 全アカウント面は
+   * アカウントごとに購読を持つので、カラム ID 単独だと互いに上書きして 1 本しか見えない
+   */
   const runtimeStates = ref<Map<string, ColumnRuntimeInfo>>(new Map())
 
   // --- Dedup ---
@@ -235,7 +243,16 @@ export const useStreamInspectorStore = defineStore('streamInspector', () => {
 
   /** 各カラムの runtime_state を Inspector に通知する (useColumnSetup から呼ぶ) */
   function reportRuntimeState(info: ColumnRuntimeInfo) {
-    runtimeStates.value.set(info.columnId, info)
+    runtimeStates.value.set(runtimeKey(info.columnId, info.accountId), info)
+  }
+
+  /** そのカラムの購読状態 (全アカウント面はアカウントごとに複数) */
+  function runtimeStatesOf(columnId: string): ColumnRuntimeInfo[] {
+    const out: ColumnRuntimeInfo[] = []
+    for (const info of runtimeStates.value.values()) {
+      if (info.columnId === columnId) out.push(info)
+    }
+    return out
   }
 
   return {
@@ -244,6 +261,7 @@ export const useStreamInspectorStore = defineStore('streamInspector', () => {
     runtimeStates,
     capturing,
     reportRuntimeState,
+    runtimeStatesOf,
     startWatching,
   }
 })
