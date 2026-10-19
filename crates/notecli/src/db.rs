@@ -2594,6 +2594,7 @@ mod tests {
             identity: String::new(),
             is_origin: false,
             identity_trusted: false,
+            favorite_id: None,
             content_hidden: false,
             created_at: "2025-01-01T00:00:00Z".to_string(),
             text: Some(text.to_string()),

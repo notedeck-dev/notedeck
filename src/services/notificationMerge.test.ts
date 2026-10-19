@@ -90,4 +90,32 @@ describe('mergeNotifications', () => {
 
     expect(merged).toHaveLength(1)
   })
+
+  it('下方向のページングは新しい側を捨てる (trim: newest)。足した古い分が即消えて進まなくなるのを防ぐ', () => {
+    const merged = mergeNotifications(
+      [makeNotif('old', '2026-01-01T00:00:01.000Z')],
+      [
+        makeNotif('new', '2026-01-01T00:00:03.000Z'),
+        makeNotif('mid', '2026-01-01T00:00:02.000Z'),
+      ],
+      2,
+      { trim: 'newest' },
+    )
+    expect(merged.map((n) => n.id)).toEqual(['mid', 'old'])
+  })
+
+  it('水平線 (floor) より古い通知は上限に数えず、落とさない (#1184)', () => {
+    const merged = mergeNotifications(
+      [makeNotif('hidden', '2025-12-01T00:00:00.000Z', { _accountId: 'acc2' })],
+      [
+        makeNotif('n3', '2026-01-01T00:00:03.000Z'),
+        makeNotif('n2', '2026-01-01T00:00:02.000Z'),
+        makeNotif('n1', '2026-01-01T00:00:01.000Z'),
+      ],
+      2,
+      { floor: '2026-01-01T00:00:00.000Z' },
+    )
+    // 見えている 3 件のうち上限 2 を超えた n1 だけ落ち、隠れた hidden は残る
+    expect(merged.map((n) => n.id)).toEqual(['n3', 'n2', 'hidden'])
+  })
 })

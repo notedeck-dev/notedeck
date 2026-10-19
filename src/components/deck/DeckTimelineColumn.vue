@@ -295,11 +295,28 @@ const {
 } = useCrossAccountNotes({
   // 組込フィルタは API 側パラメータ (per-account と同じ) + クライアント側の
   // 防御層、クエリは共有の評価器で、全アカウント面でも効かせる
-  fetchNotes: (adapter, opts) =>
-    adapter.api.getTimeline(tlType.value, {
-      ...opts,
-      ...buildTimelineOptions(),
-    }),
+  fetchNotes: async (adapter, opts) => {
+    try {
+      return await adapter.api.getTimeline(tlType.value, {
+        ...opts,
+        ...buildTimelineOptions(),
+      })
+    } catch (e) {
+      // そのサーバーで無効な TL (GTL_DISABLED 等) や認証が要る TL は「尽きた」
+      // (空ページ) として扱う。失敗にすると、1 ページも無いアカウントとして追加
+      // 読み込みのたびに最優先で選ばれ、毎回失敗する
+      const err = AppError.from(e)
+      const code = err.displayCode ?? err.apiCode
+      if (
+        code === 'CREDENTIAL_REQUIRED' ||
+        code?.endsWith('_DISABLED') === true ||
+        err.apiCode?.endsWith('_DISABLED') === true
+      ) {
+        return []
+      }
+      throw e
+    }
+  },
   isCrossAccount: () => isCrossAccount.value,
   filter: {
     getColumn: () => props.column,

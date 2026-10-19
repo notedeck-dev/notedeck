@@ -360,9 +360,12 @@ impl MisskeyClient {
         let items: Vec<Value> = serde_json::from_value(data)?;
         let mut notes = Vec::with_capacity(items.len());
         for mut item in items {
+            let favorite_id = item.get("id").and_then(Value::as_str).map(str::to_string);
             if let Some(note_val) = item.get_mut("note").map(Value::take) {
                 let raw: RawNote = serde_json::from_value(note_val)?;
-                notes.push(raw.normalize(account_id, host));
+                let mut note = raw.normalize(account_id, host);
+                note.favorite_id = favorite_id;
+                notes.push(note);
             }
         }
         Ok(notes)
@@ -3173,6 +3176,8 @@ mod tests {
         assert_eq!(notes.len(), 1);
         assert_eq!(notes[0].id, "n1");
         assert_eq!(notes[0].text.as_deref(), Some("fav note"));
+        // お気に入りのページングはこの ID で進む (ノート ID ではない)
+        assert_eq!(notes[0].favorite_id.as_deref(), Some("fav1"));
     }
 
     #[tokio::test]

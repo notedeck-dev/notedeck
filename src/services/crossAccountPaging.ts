@@ -12,12 +12,13 @@
  * - 水平線は接続中は単調に下がるだけ。全アカウントが尽きたら制限なし (null)
  */
 
-import type { NormalizedNote } from '@/adapters/types'
-
 export interface PageCursor {
   id: string
   createdAt: string
 }
+
+/** ページの要素に要るのは id と createdAt だけ (ノートも通知も同じ形) */
+export type Dated = Pick<PageCursor, 'id' | 'createdAt'>
 
 export interface AccountCursor {
   accountId: string
@@ -47,8 +48,8 @@ export function initialCursor(
   }
 }
 
-function oldestOf(notes: readonly NormalizedNote[]): PageCursor | null {
-  let oldest: NormalizedNote | null = null
+function oldestOf(notes: readonly Dated[]): PageCursor | null {
+  let oldest: Dated | null = null
   for (const n of notes) {
     if (!oldest || n.createdAt < oldest.createdAt) oldest = n
   }
@@ -58,7 +59,7 @@ function oldestOf(notes: readonly NormalizedNote[]): PageCursor | null {
 /** 生ページを取り込んだ。空なら尽きた。最古が現在より古いときだけ前進する */
 export function advanceCursor(
   cursor: AccountCursor,
-  rawPage: readonly NormalizedNote[],
+  rawPage: readonly Dated[],
 ): AccountCursor {
   const oldest = oldestOf(rawPage)
   if (!oldest) {
@@ -74,7 +75,7 @@ export function advanceCursor(
 /** 全置換 (起動 / gap の取り直し)。旧カーソルが残ると間の時間帯を黙って飛ばす */
 export function resetCursor(
   cursor: AccountCursor,
-  rawPage: readonly NormalizedNote[],
+  rawPage: readonly Dated[],
 ): AccountCursor {
   const oldest = oldestOf(rawPage)
   return {
@@ -99,7 +100,7 @@ export function markFailed(cursor: AccountCursor, now: number): AccountCursor {
  */
 export function reseedFromRows(
   cursor: AccountCursor,
-  rows: readonly NormalizedNote[],
+  rows: readonly Dated[],
 ): AccountCursor {
   const oldest = oldestOf(rows)
   return oldest ? { ...cursor, oldest } : cursor
