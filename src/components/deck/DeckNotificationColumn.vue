@@ -1585,9 +1585,6 @@ onUnmounted(() => {
         :class="[$style.notifScroller, 'nd-fade-appear']"
         @scroll="handleScroll"
       >
-        <template #append>
-          <CrossAccountEndMarker v-if="crossEndState && !isLoading" :state="crossEndState" />
-        </template>
         <template #default="{ item: notif, index, nearViewport }">
           <div>
             <!-- 日付の区切り (本家 MkStreamingNotificationsTimeline と同じ: 上が新しい日、下が古い日) -->
@@ -1818,6 +1815,7 @@ onUnmounted(() => {
             <CrossAccountProgress v-if="crossProgress" :progress="crossProgress" :size="20" />
             <LoadingSpinner v-else />
           </div>
+          <CrossAccountEndMarker v-else-if="crossEndState" :state="crossEndState" />
         </template>
       </NoteScroller>
     </div>
