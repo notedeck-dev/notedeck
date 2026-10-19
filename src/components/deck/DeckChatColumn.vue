@@ -1124,6 +1124,17 @@ watch(
   { immediate: true },
 )
 
+// アカウントの追加・削除・ログイン状態の変化に追随する (全アカウント面)。
+// 通知・TL と同じ。会話を開いている間は履歴に戻ったときに取り直す
+watch(
+  () => accountsStore.accounts.map((a) => `${a.id}:${a.hasToken}`).join(','),
+  () => {
+    if (isCrossAccount.value && viewMode.value === 'history') {
+      void connectCrossAccount()
+    }
+  },
+)
+
 onMounted(() => {
   unregisterRoot = chatMessageStore.registerRoot(() => {
     if (viewMode.value === 'conversation') return messageIds.value
