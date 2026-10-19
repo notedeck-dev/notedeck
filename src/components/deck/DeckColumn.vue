@@ -315,7 +315,7 @@ function openAsPip() {
       </button>
 
       <!-- Grabber (Misskey 6-dot pattern, hidden in PiP)。タッチは長押しで掴む (#704) -->
-      <i v-if="!isPipMode" :class="$style.grabber" class="column-grabber ti ti-grip-vertical" @contextmenu.prevent />
+      <i v-if="!isPipMode" :class="[$style.grabber, !hasWallpaper && $style.grabberBesideTab]" class="column-grabber ti ti-grip-vertical" @contextmenu.prevent />
 
       <!-- Menu button (shared between PiP and Deck) -->
       <button ref="menuBtnEl" :class="$style.headerBtn" class="_button" :title="i18n.ts._common.menu" @pointerdown.stop @click.stop="toggleMenu">
@@ -509,6 +509,12 @@ function openAsPip() {
   &:active {
     cursor: grabbing;
   }
+}
+
+/* タブ形の切り欠き (壁紙なし) を出しているとき、右端の斜めの境界線はヘッダー右端から
+   56px の位置で始まる。グリップがその線をまたがないよう、メニューとの間を広げる */
+.grabberBesideTab {
+  margin-right: 12px;
 }
 
 /* Nested for specificity 0,2,0 to beat ._button (0,1,0) regardless of
