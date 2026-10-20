@@ -45,34 +45,59 @@ export function parseTokens(text: string, opts: ParseOptions = {}): MfmNode[] {
 // そのまま mfm-js が面倒を見る
 const MEMO_LINK_RE = /\]\(memo:(\d{14})\)/g
 const MEMO_SENTINEL_HOST = 'notedeck-memo.invalid'
+const MEMO_SENTINEL_URL = `https://${MEMO_SENTINEL_HOST}/`
 const MEMO_SENTINEL_RE = new RegExp(
   `https://${MEMO_SENTINEL_HOST.replace('.', '\\.')}/(\\d{14})`,
   'g',
 )
 
+function restoreMemo(value: string): string {
+  return value.replace(MEMO_SENTINEL_RE, 'memo:$1')
+}
+
 function parseWithMemoLinks(text: string): mfm.MfmNode[] {
-  const replaced = text.replace(
-    MEMO_LINK_RE,
-    `](https://${MEMO_SENTINEL_HOST}/$1)`,
-  )
+  const replaced = text.replace(MEMO_LINK_RE, `](${MEMO_SENTINEL_URL}$1)`)
   const nodes = mfm.parse(replaced)
-  if (replaced === text) return nodes
-  mfm.inspect(nodes, (node) => {
-    // link 以外にも戻すのは、コードの中に書かれた記法を原文のまま見せるため
+  if (replaced !== text) restoreMemoSentinels(nodes)
+  return nodes
+}
+
+/**
+ * 置き換えた URL を `memo:<id>` に戻す。link 以外にも戻すのは、コードの中に
+ * 書かれた記法を原文のまま見せるため。`[](memo:...)` のようにリンクの形になって
+ * いないと mfm-js は bare な url ノードにするので、それは text に戻して隣の text
+ * と繋ぐ (旧パーサと同じくただの文字列になる)
+ */
+function restoreMemoSentinels(nodes: mfm.MfmNode[]): void {
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i] as mfm.MfmNode
     switch (node.type) {
+      case 'url':
+        if (node.props.url.startsWith(MEMO_SENTINEL_URL)) {
+          nodes[i] = mfm.TEXT(restoreMemo(node.props.url))
+        }
+        break
       case 'link':
-        node.props.url = node.props.url.replace(MEMO_SENTINEL_RE, 'memo:$1')
+        node.props.url = restoreMemo(node.props.url)
         break
       case 'text':
-        node.props.text = node.props.text.replace(MEMO_SENTINEL_RE, 'memo:$1')
+        node.props.text = restoreMemo(node.props.text)
         break
       case 'inlineCode':
       case 'blockCode':
-        node.props.code = node.props.code.replace(MEMO_SENTINEL_RE, 'memo:$1')
+        node.props.code = restoreMemo(node.props.code)
         break
     }
-  })
-  return nodes
+    if (node.children) restoreMemoSentinels(node.children)
+  }
+  for (let i = nodes.length - 1; i > 0; i--) {
+    const prev = nodes[i - 1] as mfm.MfmNode
+    const cur = nodes[i] as mfm.MfmNode
+    if (prev.type === 'text' && cur.type === 'text') {
+      prev.props.text += cur.props.text
+      nodes.splice(i, 1)
+    }
+  }
 }
 
 const HEADING_RE = /^(#{1,6}) (.*)$/

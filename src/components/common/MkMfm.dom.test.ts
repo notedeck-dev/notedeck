@@ -297,3 +297,19 @@ describe('MkMfm 本家の既定値との揃え (段階 2 の残り)', () => {
     )
   })
 })
+
+describe('MkMfm $[unixtime] の値域 (Release PR #1274 のレビュー指摘)', () => {
+  it('Date で表せない大きな値でも描画が落ちず ? を出す', () => {
+    mountMfm('前 $[unixtime 99999999999999] 後')
+    expect(container?.textContent).toBe('前 ? 後')
+    expect(container?.querySelector('time')?.getAttribute('datetime')).toBe('')
+  })
+
+  it('0 (1970-01-01) は有効な時刻として描画する', () => {
+    mountMfm('$[unixtime 0]')
+    expect(container?.querySelector('time')?.getAttribute('datetime')).toBe(
+      '1970-01-01T00:00:00.000Z',
+    )
+    expect(container?.textContent).toMatch(/1970/)
+  })
+})

@@ -212,6 +212,16 @@ describe('parseTokens memo 向け拡張 (markdown: true)', () => {
     ])
   })
 
+  it('リンクの形になっていない `](memo:<id>)` は原文のままの text にする (置換用の URL を残さない)', () => {
+    for (const src of [
+      '[](memo:20260101000000)',
+      'foo](memo:20260101000000)',
+      '[a\nb](memo:20260101000000)',
+    ]) {
+      expect(parse(src)).toEqual([text(src)])
+    }
+  })
+
   it('14 桁でない memo: はリンクにしない', () => {
     expect(parse('[a](memo:1234)')).toEqual([text('[a](memo:1234)')])
   })

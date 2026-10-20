@@ -505,13 +505,13 @@ function clickableEv(token: MfmFn): string {
 
 function unixtimeISO(token: MfmFn): string {
   const ts = unixtimeValue(token)
-  return ts ? new Date(ts * 1000).toISOString() : ''
+  return ts === null ? '' : new Date(ts * 1000).toISOString()
 }
 
 /** 本家 MkTime の detail と同じ「絶対時刻 (相対時刻)」 */
 function unixtimeDisplay(token: MfmFn): string {
   const ts = unixtimeValue(token)
-  if (!ts) return '?'
+  if (ts === null) return '?'
   const ms = ts * 1000
   return `${formatAbsoluteTime(ms)} (${formatTime(ms, clock.value)})`
 }
@@ -520,7 +520,9 @@ function unixtimeValue(token: MfmFn): number | null {
   if (token.children.length !== 1 || token.children[0]?.type !== 'text')
     return null
   const n = Number(token.children[0].props.text)
-  return Number.isFinite(n) ? n : null
+  // Date で表せる範囲 (±8.64e15 ms) を超えると toISOString が RangeError を投げ、
+  // カラムごと落ちる。投稿 1 つで起こせるので値の側で止める
+  return Number.isFinite(n) && Math.abs(n * 1000) <= 8.64e15 ? n : null
 }
 </script>
 
