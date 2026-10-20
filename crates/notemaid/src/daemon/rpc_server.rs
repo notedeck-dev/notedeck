@@ -357,12 +357,14 @@ impl RpcServer {
                         code: "NO_CONNECTION".into(),
                         message: e,
                         i18n: None,
+                        retry_after_ms: None,
                     }),
                 },
                 _ => Outcome::failure(RpcError {
                     code: "INVALID_INPUT".into(),
                     message: format!("unknown daemon request: {name}"),
                     i18n: None,
+                    retry_after_ms: None,
                 }),
             };
         }
@@ -402,6 +404,7 @@ fn unauthorized() -> RpcError {
         code: "UNAUTHORIZED".into(),
         message: "secret does not match this notemaid".into(),
         i18n: None,
+        retry_after_ms: None,
     }
 }
 

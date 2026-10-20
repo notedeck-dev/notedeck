@@ -2929,6 +2929,9 @@ _quickPickProviders:
   selectUser: "ユーザーを選択"
   searchUser: "ユーザーを検索..."
   namePlaceholder: "{label}名を入力..."
+  selectSources: "{label}を選んで束ねる"
+  addSelected: "{count} 件で追加"
+  selectedCount: "{count} 件選択中"
 
 _taskCommands:
   label: "タスク: {label}"
@@ -2936,6 +2939,7 @@ _taskCommands:
 _deckCrossSourcesColumn:
   empty: "ノートはありません"
   noSources: "束ねる項目がありません。カラムを作り直してください"
+  allExcluded: "フィルター / クエリですべて除外されています"
 
 _accountScope:
   server: "サーバー単位の面のため、アカウントをまたぐ意味がありません"

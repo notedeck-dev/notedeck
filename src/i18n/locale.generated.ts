@@ -5288,6 +5288,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "searchUser": string
     /** {label}名を入力... */
     readonly "namePlaceholder": ParameterizedString<'label'>
+    /** {label}を選んで束ねる */
+    readonly "selectSources": ParameterizedString<'label'>
+    /** {count} 件で追加 */
+    readonly "addSelected": ParameterizedString<'count'>
+    /** {count} 件選択中 */
+    readonly "selectedCount": ParameterizedString<'count'>
   }
   readonly "_taskCommands": {
     /** タスク: {label} */
@@ -5298,6 +5304,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "empty": string
     /** 束ねる項目がありません。カラムを作り直してください */
     readonly "noSources": string
+    /** フィルター / クエリですべて除外されています */
+    readonly "allExcluded": string
   }
   readonly "_accountScope": {
     /** サーバー単位の面のため、アカウントをまたぐ意味がありません */

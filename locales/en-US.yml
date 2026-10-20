@@ -3206,6 +3206,9 @@ _quickPickProviders:
   selectUser: "Select a user"
   searchUser: "Search users..."
   namePlaceholder: "Enter {label} name..."
+  selectSources: "Choose {label} to combine"
+  addSelected: "Add {count}"
+  selectedCount: "{count} selected"
 
 _taskCommands:
   label: "Task: {label}"
@@ -3213,6 +3216,7 @@ _taskCommands:
 _deckCrossSourcesColumn:
   empty: "No notes"
   noSources: "Nothing to combine. Re-create the column"
+  allExcluded: "Everything is excluded by the filter / query"
 
 _accountScope:
   server: "This is a per-server view, so spanning accounts has no meaning"

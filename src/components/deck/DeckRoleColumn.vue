@@ -97,6 +97,7 @@ const noteColumnConfig: NoteColumnConfig = {
     column-type="role"
     :fetch-notes="fetchSource"
     :cache-key-of="cacheKeyOf"
+    :filter-keys="['withRenotes', 'withReplies', 'withFiles', 'withBots']"
     :subscribe="subscribeSource"
   />
   <DeckNoteColumn

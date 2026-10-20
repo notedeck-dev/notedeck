@@ -1851,6 +1851,35 @@ async fn handle_ws_message(
 // ---------------------------------------------------------------------------
 
 const MAX_POLL_BACKOFF_SECS: u64 = 60;
+/// レート制限 (notedeck#1271) でサーバーが示す待ち時間の上限。壊れたヘッダーで
+/// ポーリングが止まったままにならないため
+const MAX_RATE_LIMIT_WAIT_SECS: u64 = 600;
+
+/// 失敗した tick の次の試行までの間隔。指数バックオフと、レート制限ならサーバーの
+/// 示す待ち時間 (notedeck#1271) の長い方
+fn poll_backoff(consecutive_failures: u64, rate_limit_wait: Option<Duration>) -> Duration {
+    let backoff = if consecutive_failures > 10 {
+        MAX_POLL_BACKOFF_SECS
+    } else {
+        (1u64 << consecutive_failures.min(5)).min(MAX_POLL_BACKOFF_SECS)
+    };
+    let backoff = Duration::from_secs(backoff);
+    match rate_limit_wait {
+        Some(wait) => backoff.max(wait.min(Duration::from_secs(MAX_RATE_LIMIT_WAIT_SECS))),
+        None => backoff,
+    }
+}
+
+/// レート制限なら待ち時間を記録する。同じ tick で複数の取得が制限されたら長い方
+fn note_rate_limit(current: Option<Duration>, e: &NoteDeckError) -> Option<Duration> {
+    match e.retry_after_ms() {
+        Some(ms) => {
+            let wait = Duration::from_millis(ms);
+            Some(current.map_or(wait, |c| c.max(wait)))
+        }
+        None => current,
+    }
+}
 
 /// Per-subscription state for polling (tracks last seen note ID).
 struct PollSubState {
@@ -2006,6 +2035,7 @@ async fn polling_loop(
         };
 
         let mut poll_failed = false;
+        let mut rate_limit_wait: Option<Duration> = None;
 
         for (sub_id, key) in &subs_snapshot {
             let state = sub_states
@@ -2063,6 +2093,7 @@ async fn polling_loop(
                         "polling fetch failed"
                     );
                     poll_failed = true;
+                    rate_limit_wait = note_rate_limit(rate_limit_wait, &e);
                 }
             }
         }
@@ -2118,6 +2149,7 @@ async fn polling_loop(
                                 error = %e,
                                 "main polling prime failed"
                             );
+                            rate_limit_wait = note_rate_limit(rate_limit_wait, &e);
                         }
                         poll_failed = true;
                     }
@@ -2158,6 +2190,7 @@ async fn polling_loop(
                             "notification polling failed"
                         );
                         poll_failed = true;
+                        rate_limit_wait = note_rate_limit(rate_limit_wait, &e);
                     }
                 }
 
@@ -2197,6 +2230,7 @@ async fn polling_loop(
                             "mention polling failed"
                         );
                         poll_failed = true;
+                        rate_limit_wait = note_rate_limit(rate_limit_wait, &e);
                     }
                 }
             }
@@ -2340,6 +2374,7 @@ async fn polling_loop(
                         "chat polling failed"
                     );
                     poll_failed = true;
+                    rate_limit_wait = note_rate_limit(rate_limit_wait, &e);
                 }
             }
         }
@@ -2425,18 +2460,13 @@ async fn polling_loop(
         // Determine sleep duration
         let sleep_duration = if poll_failed {
             consecutive_failures += 1;
-            let backoff = if consecutive_failures > 10 {
-                MAX_POLL_BACKOFF_SECS
-            } else {
-                (1u64 << consecutive_failures.min(5)).min(MAX_POLL_BACKOFF_SECS)
-            };
 
             emitter.emit(StreamEvent::Status(Box::new(StreamStatusEvent {
                 account_id: account_id.clone(),
                 state: StreamConnectionState::Reconnecting,
             })));
 
-            Duration::from_secs(backoff)
+            poll_backoff(consecutive_failures, rate_limit_wait)
         } else {
             interval
         };
@@ -2454,6 +2484,42 @@ async fn polling_loop(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn poll_backoff_honors_rate_limit_wait() {
+        // notedeck#1271: 指数バックオフより長ければサーバーの待ち時間に従う
+        assert_eq!(poll_backoff(1, None), Duration::from_secs(2));
+        assert_eq!(
+            poll_backoff(1, Some(Duration::from_secs(30))),
+            Duration::from_secs(30)
+        );
+        // 短ければ指数バックオフのまま
+        assert_eq!(
+            poll_backoff(3, Some(Duration::from_secs(1))),
+            Duration::from_secs(8)
+        );
+        // 壊れた値は上限で切る
+        assert_eq!(
+            poll_backoff(1, Some(Duration::from_secs(86_400))),
+            Duration::from_secs(MAX_RATE_LIMIT_WAIT_SECS)
+        );
+    }
+
+    #[test]
+    fn note_rate_limit_keeps_the_longest_wait() {
+        let limited = |ms: u64| NoteDeckError::RateLimited {
+            endpoint: "x".into(),
+            retry_after_ms: Some(ms),
+        };
+        let other = NoteDeckError::ConnectionClosed;
+        assert_eq!(note_rate_limit(None, &other), None);
+        let w = note_rate_limit(None, &limited(5000));
+        assert_eq!(w, Some(Duration::from_millis(5000)));
+        let w = note_rate_limit(w, &limited(2000));
+        assert_eq!(w, Some(Duration::from_millis(5000)));
+        let w = note_rate_limit(w, &limited(9000));
+        assert_eq!(w, Some(Duration::from_millis(9000)));
+    }
 
     #[test]
     fn backoff_jitter_stays_within_equal_jitter_bounds() {

@@ -103,6 +103,7 @@ const { rename, deleteEntity, config } = useEntityCrud(
     column-type="antenna"
     :fetch-notes="fetchSource"
     :cache-key-of="cacheKeyOf"
+    :filter-keys="['withRenotes', 'withReplies', 'withFiles', 'withBots']"
     :subscribe="subscribeSource"
   />
   <DeckNoteColumn

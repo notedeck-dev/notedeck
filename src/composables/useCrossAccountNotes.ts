@@ -295,6 +295,12 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
    * 面ごとの `cursorOf` があればそれで、無ければ createdAt の最古で進む
    */
   const legacyCursors = new Map<string, { id: string; createdAt: string }>()
+  /**
+   * 水平線を使わない面の組別の失敗 (バックオフ)。水平線あり面の `markFailed` と同じ
+   * 規則で、レート制限 (#1271) ならサーバーの示す待ち時間に従う。カーソルの
+   * `failures` / `nextRetryAt` だけを使う
+   */
+  const legacyFailures = new Map<string, AccountCursor>()
   function pageCursorOf(
     page: readonly NormalizedNote[],
   ): { id: string; createdAt: string } | null {
@@ -822,6 +828,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     cursorsVersion.value++
     horizon.value = null
     legacyCursors.clear()
+    legacyFailures.clear()
 
     // オフラインファースト: キャッシュを即時表示（ログアウト中のアカウント分も含む）
     const { notes: cached, bySource: cachedBySource } =
@@ -1054,6 +1061,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     isLoading.value = true
     const gen = generation
     const targets = allSources()
+    const now = Date.now()
 
     try {
       // 全組を対象（ログアウト中も含む）。ログイン中は live API で
@@ -1065,6 +1073,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           const key = sourceKey(s)
           const acc = accountsStore.accountMap.get(s.accountId)
           if (!acc) return []
+          // 失敗した組はバックオフの間は取らない (他の組は取る)
+          const failed = legacyFailures.get(key)
+          if (failed && failed.nextRetryAt > now) return []
           // 遡りの位置はカーソル (生ページ基準)。無ければ列に残るそのアカウントの
           // 最古行 (キャッシュだけで出ているアカウント)
           const cursor =
@@ -1076,13 +1087,29 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           if (acc.hasToken) {
             const adapter = await multiAdapters.getOrCreate(acc.id)
             if (!adapter) return []
-            const page = await fetchNotes(
-              adapter,
-              cursor ? { untilId: cursor.id } : undefined,
-              s,
-            )
-            advanceLegacyCursor(key, page)
-            return page
+            try {
+              const page = await fetchNotes(
+                adapter,
+                cursor ? { untilId: cursor.id } : undefined,
+                s,
+              )
+              legacyFailures.delete(key)
+              advanceLegacyCursor(key, page)
+              return page
+            } catch (e) {
+              // 1 組の失敗で列ごとエラー画面に替えない。次の追加読み込みまで待つ
+              legacyFailures.set(
+                key,
+                markFailed(
+                  failed ?? initialCursor(key),
+                  now,
+                  rateLimitRetryAfter(e),
+                ),
+              )
+              if (import.meta.env.DEV)
+                console.debug('[cross-account loadMore]', e)
+              return []
+            }
           }
 
           // ログアウト中: hasToken 不要でキャッシュを遡る。

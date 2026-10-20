@@ -11,6 +11,7 @@ import type {
   NormalizedNote,
   NoteUpdateEvent,
   ServerAdapter,
+  TimelineFilter,
 } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import CrossAccountEndMarker from '@/components/common/CrossAccountEndMarker.vue'
@@ -25,9 +26,14 @@ import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { VisibilityOpts } from '@/composables/useNoteVisibility'
 import { i18n } from '@/i18n'
 import { type ColumnSource, normalizeSources } from '@/services/columnSource'
+import { matchesFilter } from '@/services/timelineFilter'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { useDeckStore } from '@/stores/deck'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
+import ColumnFilterButton from './ColumnFilterButton.vue'
 import ColumnPullFrame from './ColumnPullFrame.vue'
+import ColumnQueryBadge from './ColumnQueryBadge.vue'
+import ColumnQueryBanners from './ColumnQueryBanners.vue'
 import DeckColumn from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -51,7 +57,11 @@ const props = defineProps<{
     callbacks: { onNoteUpdated: (event: NoteUpdateEvent) => void },
   ) => ChannelSubscription
   visibility?: VisibilityOpts
+  /** 組込フィルタのトグル (per-account の `filter-keys` と同じ)。無い面は省く */
+  filterKeys?: (keyof TimelineFilter)[]
 }>()
+
+const deckStore = useDeckStore()
 
 const isCrossAccount = computed(() => props.column.accountId == null)
 // 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
@@ -89,12 +99,26 @@ const {
   isPulledEnough,
   isRefreshing,
   displayHeight,
+  columnQueryState,
+  columnQueryErrorCount,
+  columnQueryExcludedCount,
+  columnQuerySuspendedKeys,
+  columnQuerySuspendedCount,
+  columnQueryMissingIds,
+  resumeSuspendedQueries,
+  dropMissingQueryRefs,
 } = useCrossAccountNotes({
   fetchNotes: (adapter, opts, source) =>
     props.fetchNotes(adapter, opts, source),
   sources: () => sources.value,
   isCrossAccount: () => isCrossAccount.value,
   cacheKey: (source) => props.cacheKeyOf(source),
+  // 組込フィルタ + カラムクエリは per-account と同じ評価器で全経路に通す。
+  // 組込フィルタの API 側パラメータは面ごとに違うのでクライアント側の防御層だけ
+  filter: {
+    getColumn: () => props.column,
+    builtinAdmits: (n) => matchesFilter(n, props.column.filters),
+  },
   // 組はどれも createdAt 順で並ぶ面なので、下端はいちばん浅い組の到達点で揃える
   paging: 'horizon',
   visibility: props.visibility,
@@ -126,6 +150,22 @@ const {
       <i :class="['ti', icon, $style.tlHeaderIcon]" />
     </template>
 
+    <template #header-extra>
+      <div :class="$style.subHeaderRow">
+        <div :class="$style.subHeaderMain" />
+        <ColumnQueryBadge
+          :state="columnQueryState"
+          :error-count="columnQueryErrorCount"
+          @open="deckStore.toggleSidebarColumn('queryManager', null)"
+        />
+        <ColumnFilterButton
+          :column="column"
+          :filter-keys="filterKeys"
+          :theme-vars="columnThemeVars"
+        />
+      </div>
+    </template>
+
     <ColumnEmptyState
       v-if="error"
       :error="error"
@@ -144,6 +184,15 @@ const {
         :is-refreshing="isRefreshing"
         :height="displayHeight()"
       />
+      <ColumnQueryBanners
+        :state="columnQueryState"
+        :error-count="columnQueryErrorCount"
+        :missing-ids="columnQueryMissingIds"
+        :suspended-keys="columnQuerySuspendedKeys"
+        :suspended-count="columnQuerySuspendedCount"
+        @resume="resumeSuspendedQueries"
+        @drop-missing="dropMissingQueryRefs"
+      />
       <!-- 組が無いカラム (アカウントを消して空になった等) は取りに行く先が無い -->
       <ColumnEmptyState
         v-if="sources.length === 0"
@@ -152,7 +201,7 @@ const {
       />
       <ColumnEmptyState
         v-else-if="notes.length === 0 && !isLoading"
-        :message="i18n.ts._deckCrossSourcesColumn.empty"
+        :message="columnQueryExcludedCount > 0 ? i18n.ts._deckCrossSourcesColumn.allExcluded : i18n.ts._deckCrossSourcesColumn.empty"
         :image-url="serverInfoImageUrl"
       />
 
@@ -204,4 +253,16 @@ const {
 
 <style lang="scss" module>
 @use './column-common.module.scss';
+
+/* 全アカウント面のサブヘッダ (DeckTimelineColumn と同じ行構成) */
+.subHeaderRow {
+  display: flex;
+  align-items: stretch;
+  background: var(--nd-bg);
+}
+
+.subHeaderMain {
+  flex: 1;
+  min-width: 0;
+}
 </style>

@@ -66,6 +66,7 @@ const noteColumnConfig: NoteColumnConfig = {
     column-type="user"
     :fetch-notes="fetchSource"
     :cache-key-of="cacheKeyOf"
+    :filter-keys="['withRenotes', 'withReplies', 'withFiles']"
     :visibility="noteColumnConfig.visibility"
   />
   <!-- 単一ユーザーのカラムに Bot 除外は不要 (#841) -->

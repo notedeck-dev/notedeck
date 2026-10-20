@@ -1053,3 +1053,46 @@ describe('useCrossAccountNotes: 組を束ねる面 (#1017 案 2)', () => {
     expect(fetchFor.mock.calls[0]?.[2]?.id).toBe('l1')
   })
 })
+
+describe('useCrossAccountNotes: 水平線なしの追加読み込みのバックオフ (#1271)', () => {
+  it('失敗したアカウントは待ち時間のあいだ取らず、他のアカウントは取る', async () => {
+    addAccount('a')
+    addAccount('b')
+    const fetchFor = vi.fn((accountId: string, o?: { untilId?: string }) => {
+      if (!o?.untilId) return [note(`${accountId}09`), note(`${accountId}08`)]
+      if (accountId === 'a') {
+        throw {
+          code: 'RATE_LIMITED',
+          message: 'x',
+          apiCode: 'RATE_LIMIT_EXCEEDED',
+          retryAfterMs: 20_000,
+        }
+      }
+      return []
+    })
+    const column = ref<Partial<DeckColumn>>({ type: 'favorites' })
+    const { api } = mountCross({ column, fetchFor })
+    await flushFrames()
+    fetchFor.mockClear()
+
+    const base = Date.now()
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(base)
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(fetchFor.mock.calls.map((c) => c[0]).sort()).toEqual(['a', 'b'])
+    fetchFor.mockClear()
+
+    // a はサーバーの示す 20 秒のあいだ取らない。b は取る
+    nowSpy.mockReturnValue(base + 5000)
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(fetchFor.mock.calls.map((c) => c[0])).toEqual(['b'])
+    fetchFor.mockClear()
+
+    nowSpy.mockReturnValue(base + 21_000)
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(fetchFor.mock.calls.map((c) => c[0]).sort()).toEqual(['a', 'b'])
+    nowSpy.mockRestore()
+  })
+})

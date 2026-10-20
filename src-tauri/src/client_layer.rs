@@ -126,6 +126,7 @@ fn unavailable(message: &str) -> RpcError {
         code: "NO_CONNECTION".into(),
         message: message.to_string(),
         i18n: None,
+        retry_after_ms: None,
     }
 }
 
@@ -474,6 +475,7 @@ impl RelayClient {
                     code: "JSON".into(),
                     message: format!("{name}: response did not match the expected type: {e}"),
                     i18n: None,
+                    retry_after_ms: None,
                 })
             })
         } else {
@@ -585,6 +587,7 @@ mod tests {
                     code: "INVALID_INPUT".into(),
                     message: format!("unknown command: {name}"),
                     i18n: None,
+                    retry_after_ms: None,
                 }),
             };
             let mut line = serde_json::to_string(&Frame::Response { id, outcome }).unwrap();
