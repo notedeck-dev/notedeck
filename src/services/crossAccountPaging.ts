@@ -12,6 +12,8 @@
  * - 水平線は接続中は単調に下がるだけ。全アカウントが尽きたら制限なし (null)
  */
 
+import { rateLimitWaitMs } from './rateLimit'
+
 export interface PageCursor {
   id: string
   createdAt: string
@@ -87,9 +89,20 @@ export function resetCursor(
   }
 }
 
-export function markFailed(cursor: AccountCursor, now: number): AccountCursor {
+/**
+ * 失敗を記録して次に取る時刻を決める。`retryAfterMs` を渡す (null 含む) とレート
+ * 制限 (#1271) で、サーバーの示す待ち時間を指数バックオフより優先する
+ */
+export function markFailed(
+  cursor: AccountCursor,
+  now: number,
+  retryAfterMs?: number | null,
+): AccountCursor {
   const failures = cursor.failures + 1
-  const delay = Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (failures - 1))
+  const delay =
+    retryAfterMs === undefined
+      ? Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (failures - 1))
+      : rateLimitWaitMs(retryAfterMs)
   return { ...cursor, failures, nextRetryAt: now + delay }
 }
 

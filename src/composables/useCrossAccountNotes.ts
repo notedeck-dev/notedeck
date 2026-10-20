@@ -43,6 +43,7 @@ import {
   resetCursor,
 } from '@/services/crossAccountPaging'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
+import { rateLimitRetryAfter } from '@/services/rateLimit'
 import { insertIntoSorted } from '@/services/sortNotes'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
@@ -801,7 +802,13 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
             // 到達点が無い (取れなかった) アカウント。水平線は決めないが、追加読み込みで
             // 先に最新ページを取り直す対象になる
             if (horizonPaging && r.status === 'rejected') {
-              setCursor(markFailed(initialCursor(acc.id), Date.now()))
+              setCursor(
+                markFailed(
+                  initialCursor(acc.id),
+                  Date.now(),
+                  rateLimitRetryAfter(r.reason),
+                ),
+              )
             }
             return
           }
@@ -947,7 +954,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (gen !== generation) return
       // 1 アカウントの失敗で列ごとエラー画面に替えない。失敗は末尾の区切り行
       // (crossEndState) が「取得できていません」と示し、バックオフ後に再試行する
-      setCursor(markFailed(cursor, now))
+      // レート制限 (#1271) はサーバーの示す待ち時間に従う
+      setCursor(markFailed(cursor, now, rateLimitRetryAfter(e)))
       if (import.meta.env.DEV) console.debug('[cross-account loadMore]', e)
     } finally {
       if (gen === generation) isLoading.value = false

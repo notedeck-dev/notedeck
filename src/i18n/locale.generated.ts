@@ -412,6 +412,10 @@ export interface Locale {
     readonly "offline": string
     /** ポーリング */
     readonly "polling": string
+    /** レート制限中 */
+    readonly "rateLimited": string
+    /** サーバーのレート制限中 (しばらく待ってから再試行します) */
+    readonly "rateLimitedDetail": string
     /** ストア */
     readonly "store": string
     /** ストアに接続できません */
@@ -4767,6 +4771,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_columnEmptyState": {
     /** サーバーに接続できません。ネットワークを確認してください。 */
     readonly "networkError": string
+    /** サーバーのレート制限中です。しばらく待ってから再試行します */
+    readonly "rateLimited": string
     /** 読み込みに失敗しました ({code}) */
     readonly "loadFailed": ParameterizedString<'code'>
     /** 情報 */

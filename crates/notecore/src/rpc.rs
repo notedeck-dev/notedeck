@@ -161,6 +161,7 @@ fn static_code(code: &str) -> &'static str {
         "JSON",
         "ACCOUNT_NOT_FOUND",
         "API",
+        "RATE_LIMITED",
         "NO_CONNECTION",
         "CONNECTION_CLOSED",
         "INVALID_INPUT",

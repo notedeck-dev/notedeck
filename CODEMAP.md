@@ -200,6 +200,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/petSprite.ts`](src/services/petSprite.ts) | [`src/services/petSprite.test.ts`](src/services/petSprite.test.ts) |
 | [`src/services/pollVote.ts`](src/services/pollVote.ts) | [`src/services/pollVote.test.ts`](src/services/pollVote.test.ts) |
 | [`src/services/previewNote.ts`](src/services/previewNote.ts) | [`src/services/previewNote.test.ts`](src/services/previewNote.test.ts) |
+| [`src/services/rateLimit.ts`](src/services/rateLimit.ts) | [`src/services/rateLimit.test.ts`](src/services/rateLimit.test.ts) |
 | [`src/services/reactionKey.ts`](src/services/reactionKey.ts) | [`src/services/reactionKey.test.ts`](src/services/reactionKey.test.ts) |
 | [`src/services/reactionRecount.ts`](src/services/reactionRecount.ts) | [`src/services/reactionRecount.test.ts`](src/services/reactionRecount.test.ts) |
 | [`src/services/reactionToggle.ts`](src/services/reactionToggle.ts) | [`src/services/reactionToggle.test.ts`](src/services/reactionToggle.test.ts) |

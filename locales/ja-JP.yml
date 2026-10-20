@@ -222,6 +222,8 @@ _common:
   local: "ローカル"
   offline: "オフライン"
   polling: "ポーリング"
+  rateLimited: "レート制限中"
+  rateLimitedDetail: "サーバーのレート制限中 (しばらく待ってから再試行します)"
   store: "ストア"
   storeUnavailable: "ストアに接続できません"
   browseStore: "ストアを探す"
@@ -2626,6 +2628,7 @@ _deepLinkInstall:
 
 _columnEmptyState:
   networkError: "サーバーに接続できません。ネットワークを確認してください。"
+  rateLimited: "サーバーのレート制限中です。しばらく待ってから再試行します"
   loadFailed: "読み込みに失敗しました ({code})"
   defaultSubject: "情報"
 

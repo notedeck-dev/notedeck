@@ -81,6 +81,7 @@ const {
   serverErrorImageUrl,
   isLoading,
   isOffline,
+  isRateLimited,
   isLoggedOut,
   viewMarkerId,
   error,
@@ -271,6 +272,14 @@ defineExpose({
         @click="showOfflineDetail"
       >
         <i class="ti ti-cloud-off" />{{ i18n.ts._common.offline }}
+      </div>
+      <!-- レート制限 (#1271): 一時的な状態。待ち時間が明けると消え、次の読み込みで再試行する -->
+      <div
+        v-else-if="isRateLimited && !isLoggedOut"
+        :class="$style.offlineBanner"
+        :title="i18n.ts._common.rateLimitedDetail"
+      >
+        <i class="ti ti-hourglass" />{{ i18n.ts._common.rateLimited }}
       </div>
       <div v-else-if="isPollingMode && !isLoggedOut" :class="$style.pollingBanner">
         <i class="ti ti-bolt-off" />{{ i18n.ts._common.polling }}

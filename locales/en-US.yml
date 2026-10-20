@@ -446,6 +446,8 @@ _common:
   local: "Local"
   offline: "Offline"
   polling: "Polling"
+  rateLimited: "Rate limited"
+  rateLimitedDetail: "Rate limited by the server (will retry after a short wait)"
   store: "Store"
   storeUnavailable: "Can’t connect to the store"
   browseStore: "Browse the store"
@@ -2896,6 +2898,7 @@ _deepLinkInstall:
 
 _columnEmptyState:
   networkError: "Can't connect to the server. Check your network connection."
+  rateLimited: "Rate limited by the server. Will retry after a short wait."
   loadFailed: "Failed to load ({code})"
   defaultSubject: "information"
 

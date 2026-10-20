@@ -72,6 +72,7 @@ import {
   dropDeletedNote,
   syncNotificationNotes,
 } from '@/services/notificationNoteSync'
+import { rateLimitRetryAfter } from '@/services/rateLimit'
 import { TUTORIAL_ACHIEVEMENT_LABELS } from '@/services/tutorialAchievements'
 import {
   isTutorialNotificationId,
@@ -1145,7 +1146,13 @@ async function connectCrossAccount(useCache = false) {
         crossProgress.value = progress
         if (r.status !== 'fulfilled' || !r.value) {
           if (r.status === 'rejected') {
-            setCrossCursor(markFailed(initialCursor(acc.id), Date.now()))
+            setCrossCursor(
+              markFailed(
+                initialCursor(acc.id),
+                Date.now(),
+                rateLimitRetryAfter(r.reason),
+              ),
+            )
           }
           return
         }
@@ -1318,7 +1325,7 @@ async function loadMoreCrossAccount() {
   } catch (e) {
     if (isStale()) return
     // 1 アカウントの失敗で列ごとエラー画面に替えない。末尾の区切り行が示す
-    setCrossCursor(markFailed(cursor, now))
+    setCrossCursor(markFailed(cursor, now, rateLimitRetryAfter(e)))
     if (import.meta.env.DEV) console.debug('[cross-account loadMore]', e)
   } finally {
     if (!isStale()) isLoading.value = false

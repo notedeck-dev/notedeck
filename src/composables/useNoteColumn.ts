@@ -38,6 +38,7 @@ import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { i18n } from '@/i18n'
 import { variantKey, variantKeyOf } from '@/services/noteKey'
+import { rateLimitWaitMs } from '@/services/rateLimit'
 import { insertIntoSorted } from '@/services/sortNotes'
 import { matchesFilter } from '@/services/timelineFilter'
 import { hasGap as hasTimelineGap } from '@/services/timelineGap'
@@ -297,6 +298,32 @@ export function useNoteColumn(config: NoteColumnConfig) {
 
   /** True when API is unreachable and displaying cached notes */
   const isOffline = ref(false)
+
+  // レート制限 (#1271): サーバーの示す待ち時間が明けるまで REST を叩かない。
+  // オフラインとは別の一時的な状態で、再試行は時間が解く (ボタンではない)
+  let rateLimitedUntil = 0
+  const isRateLimited = ref(false)
+  let rateLimitTimer: ReturnType<typeof setTimeout> | undefined
+
+  /** 失敗が 429 なら待ち時間を記録して true (オフライン扱いにしない) */
+  function handleRateLimit(e: unknown): boolean {
+    const err = AppError.from(e)
+    if (!err.isRateLimited) return false
+    const wait = rateLimitWaitMs(err.retryAfterMs)
+    rateLimitedUntil = Date.now() + wait
+    isRateLimited.value = true
+    clearTimeout(rateLimitTimer)
+    rateLimitTimer = setTimeout(() => {
+      isRateLimited.value = false
+    }, wait)
+    return true
+  }
+
+  function inRateLimit(): boolean {
+    if (Date.now() < rateLimitedUntil) return true
+    isRateLimited.value = false
+    return false
+  }
 
   /**
    * Read marker: viewMarkerId points to the note that was topmost at the
@@ -568,8 +595,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     e: unknown,
     tryCacheFallback = false,
   ): Promise<void> {
+    const rateLimited = handleRateLimit(e)
     if (notes.value.length > 0) {
-      isOffline.value = true
+      if (!rateLimited) isOffline.value = true
       return
     }
     if (tryCacheFallback) {
@@ -876,6 +904,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (isLoading.value) return
     if (fetchCursor.value == null && rawNotes.value.length === 0) return
     if (config.validate && !config.validate()) return
+    if (inRateLimit()) return
 
     // Offline: load from cache instead
     if (isOffline.value) {
@@ -909,6 +938,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
         }
       }
     } catch (e) {
+      if (handleRateLimit(e)) return
       logWarn('load-more', e)
       isOffline.value = true
       await loadMoreFromCache()
@@ -971,8 +1001,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
       }
       isOffline.value = false
     } catch (e) {
+      const rateLimited = handleRateLimit(e)
       if (notes.value.length > 0) {
-        isOffline.value = true
+        if (!rateLimited) isOffline.value = true
       } else {
         error.value = AppError.from(e)
       }
@@ -993,8 +1024,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
       if (fetched.length > 0) mergeUpdate(fetched)
       isOffline.value = false
     } catch (e) {
-      logWarn('pull-refresh', e)
-      isOffline.value = true
+      if (!handleRateLimit(e)) {
+        logWarn('pull-refresh', e)
+        isOffline.value = true
+      }
     }
     scrollToTop()
   }
@@ -1025,7 +1058,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
     // クエリ変更のように「今は空だが取り直したい」場合に判定を迂回する。
     // hadNotes は本来「まだ 1 ページも取っていない = 初回接続が担うので
     // catch-up 不要」を見るためのもので、一時的に空になった列には当たらない
-    const shouldFetch = hadNotes || opts?.force === true
+    // レート制限中は取り直さない (待ち時間が明けた次の復帰で取る)
+    const shouldFetch = (hadNotes || opts?.force === true) && !inRateLimit()
     const stillCurrent = tabGuard()
 
     // Run cache fetch and API fetch in parallel. Fetch the LATEST page (not
@@ -1044,8 +1078,10 @@ export function useNoteColumn(config: NoteColumnConfig) {
     >
     const apiPromise = shouldFetch
       ? fetchAndAdmit(adapter, {}).catch((e) => {
-          logWarn('resume-api', e)
-          apiFailed = true
+          if (!handleRateLimit(e)) {
+            logWarn('resume-api', e)
+            apiFailed = true
+          }
           return empty
         })
       : Promise.resolve(empty)
@@ -1218,9 +1254,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
         if (!gap) dropRejectedExisting(raw, fetched)
         mergeOrEnqueue(fetched, gap ? { replace: true } : undefined)
         isOffline.value = false
-      } catch {
+      } catch (e) {
         // API failure with snapshot displayed — mark offline
-        isOffline.value = true
+        if (!handleRateLimit(e)) isOffline.value = true
       }
     } finally {
       // Resume streaming after transition is complete
@@ -1299,6 +1335,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     }
     disconnect()
     streamingBatch?.resetBatch()
+    clearTimeout(rateLimitTimer)
   })
 
   const { noteScrollerRef } = useNoteScrollerRef(scroller)
@@ -1312,6 +1349,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
     serverErrorImageUrl,
     isLoading,
     isOffline,
+    isRateLimited,
     isLoggedOut,
     viewMarkerId,
     error,
