@@ -35,6 +35,7 @@ const ALLOWED: Record<string, string> = {
   'src/utils/mediaProxy.ts:proxyUrlCache': 'bounded: imageProxyCacheMax',
   'src/utils/mfm.ts:parseCache': 'bounded: mfmCacheMax',
   'src/utils/mfm.ts:parseCacheMd': 'bounded: mfmCacheMax',
+  'src/utils/mfm.ts:parseCacheSimple': 'bounded: mfmCacheMax',
   'src/utils/formatTime.ts:parsedCache': 'bounded: 分が変わるたび clear',
   'src/composables/useNoteSound.ts:bufferCache': 'bounded: soundCacheMax',
   'src/composables/useNoteSound.ts:audioElCache': 'bounded: soundCacheMax',

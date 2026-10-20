@@ -209,8 +209,19 @@ export function setEmojiStaticMode(on: boolean): void {
   emojiStaticMode.value = on
 }
 
+/**
+ * カスタム絵文字の中継 URL。通常は高さ 128px に縮めるが、`originalSize` では
+ * 縮めない (本家の useOriginalSize。$[x3] などで大きく出すとき 128px では粗い)
+ */
 export function proxyEmojiUrl(
   url: string | null | undefined,
+  originalSize = false,
 ): string | undefined {
-  return buildProxyUrl(url, emojiStaticMode.value ? 'h=128&static=1' : 'h=128')
+  const query = [
+    originalSize ? null : 'h=128',
+    emojiStaticMode.value ? 'static=1' : null,
+  ]
+    .filter((q) => q !== null)
+    .join('&')
+  return buildProxyUrl(url, query || undefined)
 }

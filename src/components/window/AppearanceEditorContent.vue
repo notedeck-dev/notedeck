@@ -108,6 +108,20 @@ function toggleNyaize() {
   settingsStore.set('note.nyaize', !nyaizeEnabled.value)
 }
 
+// 本家の advancedMfm / animatedMfm と同じ 2 段 (アニメーションは高度な MFM の中)
+const advancedMfm = computed(() => settingsStore.get('mfm.advanced') !== false)
+const animatedMfm = computed(() => settingsStore.get('mfm.animated') !== false)
+
+function toggleAdvancedMfm() {
+  hapticSelection()
+  settingsStore.set('mfm.advanced', !advancedMfm.value)
+}
+
+function toggleAnimatedMfm() {
+  hapticSelection()
+  settingsStore.set('mfm.animated', !animatedMfm.value)
+}
+
 // ── Code tab: raw JSON editor ──
 const jsonCode = ref(serializeOverrides())
 
@@ -256,6 +270,21 @@ const statusClass = computed(() => {
           icon="ti-cat"
           :on="nyaizeEnabled"
           @toggle="toggleNyaize"
+        />
+        <FormSwitchRow
+          :label="i18n.ts._appearanceEditorContent.advancedMfm"
+          :sub-label="i18n.ts._appearanceEditorContent.advancedMfmDescription"
+          icon="ti-sparkles"
+          :on="advancedMfm"
+          @toggle="toggleAdvancedMfm"
+        />
+        <FormSwitchRow
+          v-if="advancedMfm"
+          :label="i18n.ts._appearanceEditorContent.animatedMfm"
+          :sub-label="i18n.ts._appearanceEditorContent.animatedMfmDescription"
+          icon="ti-player-play"
+          :on="animatedMfm"
+          @toggle="toggleAnimatedMfm"
         />
       </div>
 
