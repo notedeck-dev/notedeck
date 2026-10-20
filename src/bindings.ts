@@ -3131,7 +3131,13 @@ export type ChatCacheStats = { messageCount: number; bytes: number }
  * hard cap、TTL なし」(チャット履歴の永続性を尊重 — 設計判断は notedeck #460)。
  */
 export type ChatEvictionConfig = { perAccountLimit: number | null; ttlDays: number | null }
-export type ChatMessage = { id: string; createdAt: string; fromUserId: string; fromUser: ChatUser | null; toUserId: string | null; toUser: ChatUser | null; toRoomId: string | null; toRoom: ChatRoom | null; text: string | null; fileId: string | null; file: NormalizedDriveFile | null; isRead: boolean | null; reactions?: ChatMessageReaction[] }
+export type ChatMessage = { id: string; 
+/**
+ * 取得元アカウント (notedeck#1270)。Misskey の ID はサーバー内でしか一意でない
+ * ので、複数アカウントを混ぜる面では (account_id, id) が同一性。API の生 JSON
+ * と旧キャッシュには無いため default で読み、受け取った側 (`fill_account_id`) が補う
+ */
+_accountId?: string; createdAt: string; fromUserId: string; fromUser: ChatUser | null; toUserId: string | null; toUser: ChatUser | null; toRoomId: string | null; toRoom: ChatRoom | null; text: string | null; fileId: string | null; file: NormalizedDriveFile | null; isRead: boolean | null; reactions?: ChatMessageReaction[] }
 export type ChatMessageReaction = { user: ChatReactionUser | null; reaction: string }
 export type ChatReactionUser = { id: string; name: string | null; username: string; host: string | null; avatarUrl: string | null }
 export type ChatRoom = { id: string; name: string | null; description: string | null }

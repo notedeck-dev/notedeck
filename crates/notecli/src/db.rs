@@ -2056,6 +2056,8 @@ impl Database {
         for m in rows.flatten() {
             msgs.push(m);
         }
+        // 旧 JSON には取得元が無いので行の持ち主で補う (notedeck#1270)
+        ChatMessage::fill_account_id(&mut msgs, account_id);
         Ok(msgs)
     }
 
@@ -2106,6 +2108,8 @@ impl Database {
             )?;
             rows.filter_map(|r| r.ok()).collect()
         };
+        let mut msgs: Vec<ChatMessage> = msgs;
+        ChatMessage::fill_account_id(&mut msgs, account_id);
         Ok(msgs)
     }
 
@@ -2995,6 +2999,7 @@ mod tests {
     fn dm_msg(id: &str, from: &str, to: &str, text: &str, created_at: &str) -> ChatMessage {
         ChatMessage {
             id: id.to_string(),
+            account_id: String::new(),
             created_at: created_at.to_string(),
             from_user_id: from.to_string(),
             from_user: None,
@@ -3013,6 +3018,7 @@ mod tests {
     fn room_msg(id: &str, from: &str, room: &str, text: &str, created_at: &str) -> ChatMessage {
         ChatMessage {
             id: id.to_string(),
+            account_id: String::new(),
             created_at: created_at.to_string(),
             from_user_id: from.to_string(),
             from_user: None,
@@ -3064,6 +3070,7 @@ mod tests {
     fn derive_thread_key_returns_none_for_invalid_msg() {
         let msg = ChatMessage {
             id: "m4".to_string(),
+            account_id: String::new(),
             created_at: "2026-05-01T00:00:00Z".to_string(),
             from_user_id: "alice".to_string(),
             from_user: None,
@@ -3092,12 +3099,15 @@ mod tests {
         let history = db.get_cached_chat_history("acc-1", 10).unwrap();
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].id, "m1");
+        // 読み出しは行の持ち主を _accountId に載せる (notedeck#1270)
+        assert_eq!(history[0].account_id, "acc-1");
 
         let thread = db
             .get_cached_chat_thread_messages("acc-1", "u:alice", None, 10)
             .unwrap();
         assert_eq!(thread.len(), 1);
         assert_eq!(thread[0].id, "m1");
+        assert_eq!(thread[0].account_id, "acc-1");
     }
 
     #[test]
@@ -3119,6 +3129,7 @@ mod tests {
         let (_dir, db) = temp_db();
         let invalid = ChatMessage {
             id: "m1".to_string(),
+            account_id: String::new(),
             created_at: "2026-05-01T00:00:00Z".to_string(),
             from_user_id: "alice".to_string(),
             from_user: None,

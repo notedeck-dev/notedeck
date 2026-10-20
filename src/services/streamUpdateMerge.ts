@@ -33,6 +33,8 @@ export type ChatReactorInput = {
 export type ChatMessageUpdateEvent =
   | {
       type: 'reacted'
+      /** 受信したアカウント。ストアのキーは (accountId, messageId) (#1270) */
+      accountId: string
       messageId: string
       userId?: string | null
       reaction: string
@@ -40,6 +42,8 @@ export type ChatMessageUpdateEvent =
     }
   | {
       type: 'unreacted'
+      /** 受信したアカウント。ストアのキーは (accountId, messageId) (#1270) */
+      accountId: string
       messageId: string
       userId?: string | null
       reaction: string
@@ -47,6 +51,8 @@ export type ChatMessageUpdateEvent =
     }
   | {
       type: 'deleted'
+      /** 受信したアカウント。ストアのキーは (accountId, messageId) (#1270) */
+      accountId: string
       messageId: string
     }
 

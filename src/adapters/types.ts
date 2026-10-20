@@ -192,6 +192,8 @@ export interface ChatMessageReaction {
 
 export interface ChatMessage {
   id: string
+  /** 取得元アカウント (#1270)。ストアのキーは (accountId, id) の `VariantKey` */
+  _accountId: string
   createdAt: string
   fromUserId: string
   fromUser?: ChatUser

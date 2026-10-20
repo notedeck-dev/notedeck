@@ -56,6 +56,7 @@ import {
   withLatestChatMessage,
   withLatestCrossAccountMessage,
 } from '@/services/chatHistoryEntries'
+import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useChatMessageStore } from '@/stores/chatMessageStore'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
@@ -214,7 +215,7 @@ const thread = useChatThread({
   isViewing: () => document.visibilityState === 'visible',
 })
 
-const { messages, messageIds } = thread
+const { messages } = thread
 const currentRoomId = computed(() =>
   thread.target.value?.kind === 'room' ? thread.target.value.roomId : null,
 )
@@ -310,10 +311,10 @@ const hasNoConvSearchHits = computed(
 
 const isConvSearching = computed(() => convSearchQuery.value.trim() !== '')
 
-// Per-account: chatHistory も messageIds ベースで store から resolve する (B-5)。
-const chatHistoryIds = ref<string[]>([])
+// Per-account: chatHistory も store のキー参照で resolve する (B-5 / #1270)。
+const chatHistoryKeys = ref<VariantKey[]>([])
 const chatHistory = computed(() =>
-  chatMessageStore.resolve(chatHistoryIds.value),
+  chatMessageStore.resolve(chatHistoryKeys.value),
 )
 
 const myUserId = computed(() => {
@@ -437,7 +438,7 @@ async function connectPerAccount() {
   } catch (e) {
     // キャッシュで既に hydrate 済みならエラー表示しない (B-1 fallback と同じ判断)。
     // 「オフライン」表示は DeckColumn の offlineBanner に任せる。
-    if (chatHistoryIds.value.length === 0) {
+    if (chatHistoryKeys.value.length === 0) {
       error.value = AppError.from(e)
     }
   } finally {
@@ -447,12 +448,12 @@ async function connectPerAccount() {
 
 /**
  * Per-account history を store + IDs に流す (B-5)。`chatMessageStore.put` で
- * 実体を入れ、`chatHistoryIds` に id を持たせて UI には computed `chatHistory`
+ * 実体を入れ、`chatHistoryKeys` に id を持たせて UI には computed `chatHistory`
  * から resolve させる。
  */
 function setChatHistory(msgs: ChatMessage[]) {
   chatMessageStore.put(msgs)
-  chatHistoryIds.value = msgs.map((m) => m.id)
+  chatHistoryKeys.value = msgs.map(variantKeyOf)
 }
 
 async function connectCrossAccount() {
@@ -584,7 +585,7 @@ const filteredPerAccountEntries = computed<PerAccountHistoryEntry[]>(() =>
 
 // 開いた会話の未読の点は、履歴を取り直すまで手元で消しておく
 // (会話を開くと本家側で既読になるが、履歴の entry は取り直さないと変わらない)
-const openedMessageIds = ref(new Set<string>())
+const openedMessageKeys = ref(new Set<VariantKey>())
 
 /** 履歴の未読の点 (#1207)。判定は isChatHistoryUnread */
 function isUnread(
@@ -595,7 +596,7 @@ function isUnread(
   const acc = accountsStore.accounts.find((a) => a.id === accountId)
   return isChatHistoryUnread(message, myId, {
     loggedOut: !acc?.hasToken,
-    openedIds: openedMessageIds.value,
+    openedKeys: openedMessageKeys.value,
   })
 }
 
@@ -616,8 +617,8 @@ async function openConversation(
   convSearchQuery.value = ''
 
   if ('message' in entry) {
-    openedMessageIds.value = new Set(openedMessageIds.value).add(
-      entry.message.id,
+    openedMessageKeys.value = new Set(openedMessageKeys.value).add(
+      variantKeyOf(entry.message),
     )
   }
   conversationTitle.value = entry.name
@@ -684,7 +685,7 @@ async function openConversation(
 }
 
 function onNewMessage(msg: ChatMessage) {
-  if (messageIds.value.includes(msg.id)) return
+  if (thread.has(msg)) return
   // ミュート送信者の着信は存在ごと無視（append もサウンドもしない）
   if (isMessageHidden(activeAccountId.value, msg)) return
   // append で DOM が伸びる前に「最下部付近にいたか」を測る
@@ -718,7 +719,9 @@ function goBack() {
 function reflectLatestIntoHistory() {
   const latest = messages.value.at(-1)
   if (!latest) return
-  openedMessageIds.value = new Set(openedMessageIds.value).add(latest.id)
+  openedMessageKeys.value = new Set(openedMessageKeys.value).add(
+    variantKeyOf(latest),
+  )
   if (isCrossAccount.value) {
     const accountId = conversationAccountId.value
     const host =
@@ -805,7 +808,7 @@ async function sendMessage() {
     ) as unknown as ChatMessage
     messageText.value = ''
     attachedFile.value = null
-    if (!messageIds.value.includes(sent.id)) {
+    if (!thread.has(sent)) {
       thread.append(sent)
       scrollToBottom()
     }
@@ -972,6 +975,7 @@ function updateMessageReaction(
     add
       ? {
           type: 'reacted',
+          accountId: acc.id,
           messageId,
           userId,
           reaction,
@@ -979,6 +983,7 @@ function updateMessageReaction(
         }
       : {
           type: 'unreacted',
+          accountId: acc.id,
           messageId,
           userId,
           reaction,
@@ -1064,9 +1069,9 @@ function scrollToTop(smooth = false) {
   })
 }
 
-// B-5: 表示中の message id を chatMessageStore に登録して eviction から保護する。
-// view mode に応じて conversation の messageIds、history view の chatHistoryIds と
-// historyEntries 内の message.id を返す。
+// B-5: 表示中のメッセージのキーを chatMessageStore に登録して eviction から保護する。
+// view mode に応じて conversation の messageKeys、history view の chatHistoryKeys と
+// historyEntries 内のメッセージを返す。
 let unregisterRoot: (() => void) | null = null
 
 // B-3: WS reaction event を `chatMessageStore.applyUpdate()` に流して UI 反映する。
@@ -1074,13 +1079,15 @@ let unregisterRoot: (() => void) | null = null
 const reactionUnlisteners: UnlistenFn[] = []
 
 async function subscribeReactionEvents() {
-  // #781 Phase 2: specta 契約済みの typed イベントを購読する。message id
-  // スコープの applyUpdate なので account フィルタは不要 (cross-account
-  // カラムでも既存メッセージにだけ作用する)。
+  // #781 Phase 2: specta 契約済みの typed イベントを購読する。applyUpdate は
+  // (受信アカウント, message id) のキーで当てるので、別サーバーの同じ ID には
+  // 作用しない (#1270)。カラム側の account フィルタは要らない (既存メッセージ
+  // にだけ作用する)。
   const reactedUnlisten = await events.streamChatMessageReacted.listen(
-    ({ payload: { messageId, reaction, user } }) => {
+    ({ payload: { accountId, messageId, reaction, user } }) => {
       chatMessageStore.applyUpdate({
         type: 'reacted',
+        accountId,
         messageId,
         userId: user?.id ?? null,
         reaction,
@@ -1091,9 +1098,10 @@ async function subscribeReactionEvents() {
   reactionUnlisteners.push(reactedUnlisten)
 
   const unreactedUnlisten = await events.streamChatMessageUnreacted.listen(
-    ({ payload: { messageId, reaction, user } }) => {
+    ({ payload: { accountId, messageId, reaction, user } }) => {
       chatMessageStore.applyUpdate({
         type: 'unreacted',
+        accountId,
         messageId,
         userId: user?.id ?? null,
         reaction,
@@ -1137,11 +1145,11 @@ watch(
 
 onMounted(() => {
   unregisterRoot = chatMessageStore.registerRoot(() => {
-    if (viewMode.value === 'conversation') return messageIds.value
-    // history view: per-account の chatHistoryIds + cross-account historyEntries
-    const ids: string[] = [...chatHistoryIds.value]
-    for (const e of historyEntries.value) ids.push(e.message.id)
-    return ids
+    if (viewMode.value === 'conversation') return thread.messageKeys.value
+    // history view: per-account の chatHistoryKeys + cross-account historyEntries
+    const keys: VariantKey[] = [...chatHistoryKeys.value]
+    for (const e of historyEntries.value) keys.push(variantKeyOf(e.message))
+    return keys
   })
   subscribeReactionEvents()
   connect()

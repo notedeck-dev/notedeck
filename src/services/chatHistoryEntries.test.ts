@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ChatMessage } from '@/adapters/types'
+import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 import {
   buildCrossAccountHistoryEntries,
   buildPerAccountHistoryEntries,
@@ -22,6 +23,7 @@ function dm(
   seq++
   return {
     id: `m${seq}`,
+    _accountId: 'acc-a',
     createdAt: `2026-07-0${(seq % 9) + 1}T00:00:00.000Z`,
     ...partial,
   }
@@ -235,12 +237,12 @@ describe('chatMessageMatchesSearch', () => {
 })
 
 describe('isChatHistoryUnread (#1207 / #1216)', () => {
-  const none = new Set<string>()
+  const none = new Set<VariantKey>()
 
   it('相手からの未読メッセージに点を出す', () => {
     const msg = dm({ fromUserId: OTHER, toUserId: ME, isRead: false })
     expect(
-      isChatHistoryUnread(msg, ME, { loggedOut: false, openedIds: none }),
+      isChatHistoryUnread(msg, ME, { loggedOut: false, openedKeys: none }),
     ).toBe(true)
   })
 
@@ -248,7 +250,10 @@ describe('isChatHistoryUnread (#1207 / #1216)', () => {
     const mine = dm({ fromUserId: ME, toUserId: OTHER, isRead: false })
     const read = dm({ fromUserId: OTHER, toUserId: ME, isRead: true })
     const opened = dm({ fromUserId: OTHER, toUserId: ME, isRead: false })
-    const opts = { loggedOut: false, openedIds: new Set([opened.id]) }
+    const opts = {
+      loggedOut: false,
+      openedKeys: new Set([variantKeyOf(opened)]),
+    }
     expect(isChatHistoryUnread(mine, ME, opts)).toBe(false)
     expect(isChatHistoryUnread(read, ME, opts)).toBe(false)
     expect(isChatHistoryUnread(opened, ME, opts)).toBe(false)
@@ -259,7 +264,7 @@ describe('isChatHistoryUnread (#1207 / #1216)', () => {
   it('ログアウト中は点を出さない', () => {
     const msg = dm({ fromUserId: OTHER, toUserId: ME, isRead: false })
     expect(
-      isChatHistoryUnread(msg, ME, { loggedOut: true, openedIds: none }),
+      isChatHistoryUnread(msg, ME, { loggedOut: true, openedKeys: none }),
     ).toBe(false)
   })
 })
@@ -331,6 +336,42 @@ describe('withLatestCrossAccountMessage (#1216)', () => {
     expect(next.map((e) => e.message.text)).toEqual(['b2', 'a'])
     expect(next[0]?.serverHost).toBe('b.example')
   })
+
+  // Misskey の ID はサーバーごとなので、別アカウントの履歴に同じ ID が並び得る
+  it('別アカウントの同じ ID の entry を巻き添えにしない (#1270)', () => {
+    const getUserId = () => ME
+    const onA = dm({
+      fromUserId: OTHER,
+      toUserId: ME,
+      createdAt: '2026-07-03T00:00:00.000Z',
+      text: 'a',
+    })
+    const onB: ChatMessage = {
+      ...onA,
+      _accountId: 'acc-b',
+      fromUserId: 'other-b',
+      createdAt: '2026-07-02T00:00:00.000Z',
+      text: 'b',
+    }
+    const entries = buildCrossAccountHistoryEntries(
+      [
+        { msg: onA, accountId: 'acc-a', host: 'a.example' },
+        { msg: onB, accountId: 'acc-b', host: 'b.example' },
+      ],
+      getUserId,
+    )
+    const latest: ChatMessage = {
+      ...onA,
+      createdAt: '2026-07-05T00:00:00.000Z',
+      text: 'a2',
+    }
+    const next = withLatestCrossAccountMessage(
+      entries,
+      { msg: latest, accountId: 'acc-a', host: 'a.example' },
+      getUserId,
+    )
+    expect(next.map((e) => e.message.text)).toEqual(['a2', 'b'])
+  })
 })
 
 describe('newChatMessageForHistory', () => {
@@ -343,7 +384,7 @@ describe('newChatMessageForHistory', () => {
     expect(
       isChatHistoryUnread(added, ME, {
         loggedOut: false,
-        openedIds: new Set(),
+        openedKeys: new Set(),
       }),
     ).toBe(true)
   })

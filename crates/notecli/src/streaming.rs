@@ -1730,6 +1730,7 @@ async fn handle_ws_message(
     } else if is_chat {
         if event_type == "message" {
             if let Ok(mut msg) = serde_json::from_value::<ChatMessage>(event_body) {
+                msg.account_id = account_id.to_string();
                 // Misskey 本家の chat:message WS event は Lite packer 固定で
                 // fromUser/toUser を含まない (#460) ため hydrate する。
                 api_client
@@ -1939,6 +1940,7 @@ async fn poll_new_chat_messages(
     if newest > state.newest_id {
         state.newest_id = newest;
     }
+    ChatMessage::fill_account_id(&mut messages, account_id);
     for message in messages {
         let Ok(body) = serde_json::to_value(&message) else {
             continue;
@@ -2295,7 +2297,8 @@ async fn polling_loop(
                         state.since_id = Some(newest.id.clone());
                     }
                     if state.primed {
-                        for msg in messages.into_iter().rev() {
+                        for mut msg in messages.into_iter().rev() {
+                            msg.account_id = account_id.clone();
                             if let Some(user_id) = &own_user_id {
                                 let db = db.clone();
                                 let msg_for_cache = msg.clone();

@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { ChatMessage } from '@/adapters/types'
+import { variantKey } from '@/services/noteKey'
 import { useChatMessageStore } from '@/stores/chatMessageStore'
 
 const ME = 'user-me'
@@ -10,6 +11,7 @@ const R = ':meow:'
 function makeMessage(): ChatMessage {
   return {
     id: 'm1',
+    _accountId: 'acc',
     createdAt: '2026-01-01T00:00:00.000Z',
     text: 'hi',
     fromUserId: OTHER,
@@ -29,7 +31,7 @@ describe('chatMessageStore.applyUpdate の reaction dedup', () => {
   let store: ReturnType<typeof useChatMessageStore>
 
   function reactions() {
-    return store.messageMap.get('m1')?.reactions ?? []
+    return store.messageMap.get(variantKey('acc', 'm1'))?.reactions ?? []
   }
 
   beforeEach(() => {
@@ -44,6 +46,7 @@ describe('chatMessageStore.applyUpdate の reaction dedup', () => {
   it('1on1: reactor 無しの楽観的更新と WS event は 1 件に dedup される', () => {
     const optimistic = {
       type: 'reacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: null,
       reaction: R,
@@ -60,6 +63,7 @@ describe('chatMessageStore.applyUpdate の reaction dedup', () => {
   it('1on1: WS が楽観的更新より先着しても 1 件に収まる', () => {
     const event = {
       type: 'reacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: null,
       reaction: R,
@@ -75,6 +79,7 @@ describe('chatMessageStore.applyUpdate の reaction dedup', () => {
   it('room: reactor 付きの楽観的更新と WS event も 1 件に dedup される', () => {
     const event = {
       type: 'reacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: ME,
       reaction: R,
@@ -90,6 +95,7 @@ describe('chatMessageStore.applyUpdate の reaction dedup', () => {
   it('room: 別ユーザーの同一リアクションは dedup されず両方載る', () => {
     store.applyUpdate({
       type: 'reacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: ME,
       reaction: R,
@@ -97,6 +103,7 @@ describe('chatMessageStore.applyUpdate の reaction dedup', () => {
     })
     store.applyUpdate({
       type: 'reacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: 'user-third',
       reaction: R,
@@ -109,6 +116,7 @@ describe('chatMessageStore.applyUpdate の reaction dedup', () => {
   it('1on1: reactor 無しの unreacted は reactor 無しの reaction を消す', () => {
     store.applyUpdate({
       type: 'reacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: null,
       reaction: R,
@@ -116,6 +124,7 @@ describe('chatMessageStore.applyUpdate の reaction dedup', () => {
     })
     store.applyUpdate({
       type: 'unreacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: null,
       reaction: R,
