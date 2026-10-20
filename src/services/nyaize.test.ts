@@ -1,5 +1,6 @@
+import type { MfmText } from 'mfm-js'
 import { describe, expect, it } from 'vitest'
-import type { MfmToken } from './mfmParser'
+import type { MfmNode } from './mfmParser'
 import { nyaize, nyaizeTokens } from './nyaize'
 
 describe('nyaize', () => {
@@ -27,49 +28,79 @@ describe('nyaize', () => {
   })
 })
 
+const text = (value: string): MfmText => ({
+  type: 'text',
+  props: { text: value },
+})
+
 describe('nyaizeTokens', () => {
   it('text ノードの値を にゃ化する', () => {
-    const tokens: MfmToken[] = [{ type: 'text', value: 'なんと' }]
-    expect(nyaizeTokens(tokens)).toEqual([{ type: 'text', value: 'にゃんと' }])
+    expect(nyaizeTokens([text('なんと')])).toEqual([text('にゃんと')])
   })
 
   it('URL / コード / メンション / カスタム絵文字 / plain は変換しない', () => {
-    const tokens: MfmToken[] = [
-      { type: 'url', value: 'https://nano.example/' },
-      { type: 'inlineCode', value: 'なんと' },
-      { type: 'codeBlock', lang: null, value: 'なんと' },
-      { type: 'mention', username: 'nana', host: null, acct: '@nana' },
-      { type: 'customEmoji', shortcode: 'nande' },
-      { type: 'plain', value: 'なんと' },
+    const nodes: MfmNode[] = [
+      { type: 'url', props: { url: 'https://nano.example/' } },
+      { type: 'inlineCode', props: { code: 'なんと' } },
+      { type: 'blockCode', props: { code: 'なんと', lang: null } },
+      {
+        type: 'mention',
+        props: { username: 'nana', host: null, acct: '@nana' },
+      },
+      { type: 'emojiCode', props: { name: 'nande' } },
+      {
+        type: 'plain',
+        children: [{ type: 'text', props: { text: 'なんと' } }],
+      },
     ]
-    expect(nyaizeTokens(tokens)).toEqual(tokens)
+    expect(nyaizeTokens(nodes)).toEqual(nodes)
   })
 
-  it('bold / fn などの子ノード内の text も変換する', () => {
-    const tokens: MfmToken[] = [
-      { type: 'bold', children: [{ type: 'text', value: 'な' }] },
+  it('bold / fn / link / heading / list の子ノード内の text も変換する', () => {
+    const nodes: MfmNode[] = [
+      { type: 'bold', children: [{ type: 'text', props: { text: 'な' } }] },
       {
         type: 'fn',
-        name: 'shake',
-        args: {},
-        children: [{ type: 'text', value: 'ナ' }],
+        props: { name: 'shake', args: {} },
+        children: [{ type: 'text', props: { text: 'ナ' } }],
       },
+      {
+        type: 'link',
+        props: { silent: false, url: 'https://example.com' },
+        children: [{ type: 'text', props: { text: 'な' } }],
+      },
+      {
+        type: 'heading',
+        props: { level: 1 },
+        children: [text('な')],
+      },
+      { type: 'list', props: { ordered: false, items: [[text('な')]] } },
     ]
-    expect(nyaizeTokens(tokens)).toEqual([
-      { type: 'bold', children: [{ type: 'text', value: 'にゃ' }] },
+    expect(nyaizeTokens(nodes)).toEqual([
+      { type: 'bold', children: [{ type: 'text', props: { text: 'にゃ' } }] },
       {
         type: 'fn',
-        name: 'shake',
-        args: {},
-        children: [{ type: 'text', value: 'ニャ' }],
+        props: { name: 'shake', args: {} },
+        children: [{ type: 'text', props: { text: 'ニャ' } }],
       },
+      {
+        type: 'link',
+        props: { silent: false, url: 'https://example.com' },
+        children: [{ type: 'text', props: { text: 'にゃ' } }],
+      },
+      {
+        type: 'heading',
+        props: { level: 1 },
+        children: [text('にゃ')],
+      },
+      { type: 'list', props: { ordered: false, items: [[text('にゃ')]] } },
     ])
   })
 
-  it('入力のトークンツリーを破壊しない (parseMfm キャッシュ保護)', () => {
-    const child: MfmToken = { type: 'text', value: 'な' }
-    const tokens: MfmToken[] = [{ type: 'bold', children: [child] }]
-    nyaizeTokens(tokens)
-    expect(child.value).toBe('な')
+  it('入力のノードツリーを破壊しない (parseMfm キャッシュ保護)', () => {
+    const child = { type: 'text', props: { text: 'な' } } as const
+    const nodes: MfmNode[] = [{ type: 'bold', children: [child] }]
+    nyaizeTokens(nodes)
+    expect(child.props.text).toBe('な')
   })
 })

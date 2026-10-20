@@ -1,22 +1,22 @@
 /**
- * MFM トークン列から URL を再帰抽出するユーティリティ。
+ * MFM ノード列から URL を再帰抽出するユーティリティ。
  * Misskey 本家 `packages/frontend/src/utility/extract-url-from-mfm.ts` 準拠。
  *
- * - `url` トークンと `link` トークンの URL を収集
+ * - `url` ノードと `link` ノードの URL を収集
  * - `link` の `silent === true` は既定で除外（`respectSilentFlag=false` で含む）
- * - `link.label` の中に含まれる `url` / `link` も再帰的に拾う
+ * - `link` のラベルの中に含まれる `url` / `link` も再帰的に拾う
  * - 完全一致の重複排除 → ハッシュ (#...) 除去キーでの重複排除を 2 段で適用
  */
-import type { MfmToken } from './mfmParser'
+import type { MfmNode } from './mfmParser'
 
 const removeHash = (url: string): string => url.replace(/#[^#]*$/, '')
 
 export function extractUrlFromMfm(
-  tokens: MfmToken[],
+  nodes: MfmNode[],
   respectSilentFlag = true,
 ): string[] {
   const collected: string[] = []
-  walk(tokens, collected, respectSilentFlag)
+  walk(nodes, collected, respectSilentFlag)
 
   const seen = new Set<string>()
   const unique: string[] = []
@@ -35,28 +35,20 @@ export function extractUrlFromMfm(
 }
 
 function walk(
-  tokens: MfmToken[],
+  nodes: MfmNode[],
   out: string[],
   respectSilentFlag: boolean,
 ): void {
-  for (const t of tokens) {
-    switch (t.type) {
-      case 'url':
-        out.push(t.value)
-        break
-      case 'link':
-        if (!respectSilentFlag || !t.silent) out.push(t.url)
-        walk(t.label, out, respectSilentFlag)
-        break
-      case 'bold':
-      case 'italic':
-      case 'strike':
-      case 'small':
-      case 'center':
-      case 'quote':
-      case 'fn':
-        walk(t.children, out, respectSilentFlag)
-        break
+  for (const n of nodes) {
+    if (n.type === 'url') {
+      out.push(n.props.url)
+    } else if (n.type === 'link') {
+      if (!respectSilentFlag || !n.props.silent) out.push(n.props.url)
+      walk(n.children, out, respectSilentFlag)
+    } else if (n.type === 'list') {
+      for (const item of n.props.items) walk(item, out, respectSilentFlag)
+    } else if ('children' in n && n.children) {
+      walk(n.children, out, respectSilentFlag)
     }
   }
 }

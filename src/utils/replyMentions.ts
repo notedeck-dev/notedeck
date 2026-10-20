@@ -31,14 +31,14 @@ export function buildReplyMentions(
   if (replyTo.text) {
     for (const token of parseMfm(replyTo.text)) {
       if (token.type !== 'mention') continue
-      const acct = token.acct
+      const { username, host, acct } = token.props
       const lower = acct.toLowerCase()
       if (seen.has(lower)) continue
       // Skip self
-      const isSelf = token.host
-        ? token.username.toLowerCase() === me?.username?.toLowerCase() &&
-          token.host.toLowerCase() === me?.host?.toLowerCase()
-        : token.username.toLowerCase() === me?.username?.toLowerCase()
+      const isSelf = host
+        ? username.toLowerCase() === me?.username?.toLowerCase() &&
+          host.toLowerCase() === me?.host?.toLowerCase()
+        : username.toLowerCase() === me?.username?.toLowerCase()
       if (isSelf) continue
       seen.add(lower)
       mentions.push(acct)

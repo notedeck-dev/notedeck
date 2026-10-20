@@ -3,16 +3,16 @@
  * Re-exports parser types and functions for convenience.
  */
 
-import type { MfmToken, ParseOptions } from '@/services/mfmParser'
+import type { MfmNode, ParseOptions } from '@/services/mfmParser'
 import { parseTokens } from '@/services/mfmParser'
 import { usePerformanceStore } from '@/stores/performance'
 
-export type { MfmToken, ParseOptions } from '@/services/mfmParser'
+export type { MfmNode, ParseOptions } from '@/services/mfmParser'
 export { parseTokens } from '@/services/mfmParser'
 
-// 標準 MFM と markdown 拡張は別 cache (token 構造が異なるため key を分ける)
-const parseCache = new Map<string, MfmToken[]>()
-const parseCacheMd = new Map<string, MfmToken[]>()
+// 標準 MFM と memo 向け拡張は別 cache (ノード構造が異なるため key を分ける)
+const parseCache = new Map<string, MfmNode[]>()
+const parseCacheMd = new Map<string, MfmNode[]>()
 const MAX_MFM_LENGTH = 10000
 
 function getMfmCacheMax(): number {
@@ -23,12 +23,12 @@ function getMfmCacheMax(): number {
   }
 }
 
-export function parseMfm(text: string, opts?: ParseOptions): MfmToken[] {
+export function parseMfm(text: string, opts?: ParseOptions): MfmNode[] {
   if (!text) return []
 
   // Prevent excessive CPU/memory from extremely long MFM input
   if (text.length > MAX_MFM_LENGTH) {
-    return [{ type: 'text', value: text }]
+    return [{ type: 'text', props: { text } }]
   }
 
   const cache = opts?.markdown ? parseCacheMd : parseCache
@@ -59,7 +59,7 @@ export function parseCacheHas(text: string): boolean {
 }
 
 /** Inject pre-parsed tokens into the cache (e.g. from a Web Worker). */
-export function warmCache(text: string, tokens: MfmToken[]): void {
+export function warmCache(text: string, tokens: MfmNode[]): void {
   if (parseCache.has(text)) return
   const cacheMax = getMfmCacheMax()
   if (parseCache.size >= cacheMax) {

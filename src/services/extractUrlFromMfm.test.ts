@@ -55,14 +55,11 @@ describe('extractUrlFromMfm', () => {
       ])
     })
 
-    it('link の label 内に含まれる url トークンも再帰的に抽出する', () => {
+    it('link のラベルは mfm-js (本家) では URL を解釈しないので、link の URL だけ抽出する', () => {
       const tokens = parseTokens(
         '[https://inner.example を見る](https://outer.example)',
       )
-      expect(extractUrlFromMfm(tokens)).toEqual([
-        'https://outer.example',
-        'https://inner.example',
-      ])
+      expect(extractUrlFromMfm(tokens)).toEqual(['https://outer.example'])
     })
   })
 
