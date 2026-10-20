@@ -7,10 +7,10 @@ let app: App | null = null
 let container: HTMLElement | null = null
 let pinia: ReturnType<typeof createPinia>
 
-function mountMfm(text: string) {
+function mountMfm(text: string, props: Record<string, unknown> = {}) {
   container = document.createElement('div')
   document.body.appendChild(container)
-  app = createApp(MkMfm, { text })
+  app = createApp(MkMfm, { text, ...props })
   app.use(pinia)
   app.mount(container)
 }
@@ -115,5 +115,36 @@ describe('MkMfm リンク (#704)', () => {
     expect(container?.querySelector('a')?.getAttribute('title')).toBe(
       'https://evil.example/x',
     )
+  })
+})
+
+describe('MkMfm memo 向け拡張 (markdown)', () => {
+  it('heading / list / memo リンクを描画する (#494)', () => {
+    mountMfm('# 見出し\n- a\n- b\n[t](memo:20260101000000)', {
+      markdown: true,
+    })
+    expect(container?.querySelector('h1')?.textContent).toBe('見出し')
+    expect(container?.querySelectorAll('ul > li')).toHaveLength(2)
+    const a = container?.querySelector('a')
+    expect(a?.textContent).toBe('t')
+    // memo: は外部 URL ではないので href には出さない
+    expect(a?.getAttribute('href')).toBe('#')
+  })
+
+  it('markdown 無しでは heading にならない', () => {
+    mountMfm('# 見出し')
+    expect(container?.querySelector('h1')).toBeNull()
+  })
+})
+
+describe('MkMfm 本家パーサの契約', () => {
+  it('***big*** は $[tada] として描画する', () => {
+    mountMfm('***big***')
+    expect(container?.querySelector('span[class*="mfmTada"]')).toBeTruthy()
+  })
+
+  it('入れ子の x2 は本家と同じく縮む (nestLimit の範囲で)', () => {
+    mountMfm('$[x2 $[x2 a]]')
+    expect(container?.querySelectorAll('span[class*="mfmX2"]')).toHaveLength(2)
   })
 })

@@ -3,7 +3,7 @@
  * Misskey 本家は v13.13.0 以降、保存時ではなく描画時に適用する方式。
  * 変換ロジックは misskey-js/src/nyaize.ts と同一。
  */
-import type { MfmToken } from './mfmParser'
+import type { MfmNode } from './mfmParser'
 
 const enRegex1 = /(?<=n)a/gi
 const enRegex2 = /(?<=morn)ing/gi
@@ -32,34 +32,43 @@ export function nyaize(text: string): string {
 }
 
 /**
- * parse 済み MFM トークンツリーの text ノードだけ にゃ化した新しいツリーを返す
+ * parse 済み MFM ノードツリーの text ノードだけ にゃ化した新しいツリーを返す
  * (本家 frontend の `nyaize: 'respect'` 相当)。URL・コード・メンション・
  * カスタム絵文字・`<plain>` は変換しない。
  * parseMfm の LRU キャッシュを汚染しないよう、入力は変更せずコピーを返す。
  */
-export function nyaizeTokens(tokens: MfmToken[]): MfmToken[] {
-  return tokens.map((token) => {
-    switch (token.type) {
+export function nyaizeTokens(nodes: MfmNode[]): MfmNode[] {
+  return nodes.map((node) => {
+    switch (node.type) {
       case 'text':
-        return { ...token, value: nyaize(token.value) }
+        return { ...node, props: { text: nyaize(node.props.text) } }
       case 'bold':
       case 'italic':
       case 'strike':
       case 'small':
       case 'center':
       case 'quote':
-      case 'heading':
       case 'fn':
-        return { ...token, children: nyaizeTokens(token.children) }
       case 'link':
-        return { ...token, label: nyaizeTokens(token.label) }
+      case 'heading':
+        return nyaizeChildren(node)
       case 'list':
         return {
-          ...token,
-          items: token.items.map((item) => nyaizeTokens(item)),
+          ...node,
+          props: {
+            ...node.props,
+            items: node.props.items.map(
+              (item) => nyaizeTokens(item) as typeof item,
+            ),
+          },
         }
       default:
-        return token
+        return node
     }
   })
+}
+
+/** 子の型 (MfmInline[] など) は変えないので元の型のまま返す */
+function nyaizeChildren<T extends { children: MfmNode[] }>(node: T): T {
+  return { ...node, children: nyaizeTokens(node.children) as T['children'] }
 }
