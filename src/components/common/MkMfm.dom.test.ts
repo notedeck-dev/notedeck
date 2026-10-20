@@ -246,3 +246,54 @@ describe('MkMfm plain (本家の parseSimple)', () => {
     expect(container?.textContent).toContain('**b**')
   })
 })
+
+describe('MkMfm 本家の既定値との揃え (段階 2 の残り)', () => {
+  it('$[tada] はアニメーションの有無に関わらず文字が 150% になる', () => {
+    mountMfm('$[tada a]')
+    expect(container?.querySelector('span[class*="mfmTada"]')).toBeTruthy()
+    app?.unmount()
+    useSettingsStore().set('mfm.animated', false)
+    mountMfm('$[tada b]')
+    expect(
+      container?.querySelector('span[class*="mfmTadaStatic"]'),
+    ).toBeTruthy()
+  })
+
+  it('italic は本家と同じく oblique のクラスを持つ', () => {
+    mountMfm('*a*')
+    expect(container?.querySelector('i[class*="mfmItalic"]')).toBeTruthy()
+  })
+
+  it('$[fg] / $[bg] は色が無効なら本家と同じく赤になる', () => {
+    mountMfm('$[fg a]$[bg.color=zzz b]')
+    const spans = Array.from(
+      container?.querySelectorAll('span[style]') ?? [],
+    ) as HTMLElement[]
+    const red = ['#f00', 'rgb(255, 0, 0)']
+    expect(red).toContain(spans[0]?.style.color)
+    expect(red).toContain(spans[1]?.style.backgroundColor)
+  })
+
+  it('2.5 倍以上に拡大された中のカスタム絵文字は縮小版でなく原寸を使う', () => {
+    const emojis = { e: 'https://example.com/e.png' }
+    mountMfm(':e:', { emojis })
+    expect(container?.querySelector('img')?.getAttribute('src')).toContain(
+      'h=128',
+    )
+    app?.unmount()
+    mountMfm('$[x3 :e:]', { emojis })
+    expect(container?.querySelector('img')?.getAttribute('src')).not.toContain(
+      'h=128',
+    )
+    app?.unmount()
+    mountMfm('$[x2 $[x2 :e:]]', { emojis })
+    expect(container?.querySelector('img')?.getAttribute('src')).not.toContain(
+      'h=128',
+    )
+    app?.unmount()
+    mountMfm('$[scale.x=3 :e:]', { emojis })
+    expect(container?.querySelector('img')?.getAttribute('src')).not.toContain(
+      'h=128',
+    )
+  })
+})
