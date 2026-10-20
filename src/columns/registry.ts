@@ -229,6 +229,8 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
     icon: 'list',
     group: 'account',
+    // 全アカウント = アカウントごとに選んだ組を束ねる (#1017 案 2、`sources`)
+    crossAccount: true,
     selectable: {
       idKey: 'listId',
       fetch: fetchListsWithFavorites,
@@ -241,6 +243,8 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
     icon: 'antenna-bars-5',
     group: 'account',
+    // 全アカウント = アカウントごとに選んだ組を束ねる (#1017 案 2、`sources`)
+    crossAccount: true,
     selectable: {
       idKey: 'antennaId',
       fetch: (aid) => commands.apiGetAntennas(aid).then(unwrapItems),
@@ -276,6 +280,8 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
     icon: 'paperclip',
     group: 'account',
+    // 全アカウント = アカウントごとに選んだ組を束ねる (#1017 案 2、`sources`)
+    crossAccount: true,
     selectable: {
       idKey: 'clipId',
       fetch: fetchClipsWithFavorites,
@@ -416,6 +422,8 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     icon: 'device-tv',
     group: 'server',
     guestAllowed: true,
+    // 全アカウント = アカウントごとに選んだ組を束ねる (#1017 案 2、`sources`)
+    crossAccount: true,
     selectable: {
       idKey: 'channelId',
       fetch: (aid) => commands.apiGetChannels(aid).then(unwrapItems),
@@ -428,6 +436,8 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     },
     icon: 'badge',
     group: 'server',
+    // 全アカウント = アカウントごとに選んだ組を束ねる (#1017 案 2、`sources`)
+    crossAccount: true,
     selectable: {
       idKey: 'roleId',
       fetch: (aid) => commands.apiGetRoles(aid).then(unwrapRoles),
@@ -474,6 +484,8 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     icon: 'user',
     group: 'server',
     guestAllowed: true,
+    // 全アカウント = アカウントごとに選んだ組を束ねる (#1017 案 2、`sources`)
+    crossAccount: true,
     selectable: {
       idKey: 'userId',
       fetch: (aid) =>
@@ -535,9 +547,8 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     group: 'tool',
     guestAllowed: true,
     // accountId == null は「全アカウント」widget カラムとして機能する
-    // (themeManager / pluginManager と同じ semantics)。配置済 widget は
-    // column.accountId を `Mk:api` に渡して使うため、null = 認証必須機能の
-    // capability チェックで弾かれる仕様。
+    // (themeManager / pluginManager と同じ semantics)。実行アカウントは配置
+    // (`widgetRefs[].accountKey`) が持ち、置くときに選ばせる (#1061)。
     crossAccount: true,
     customAddFlow: true,
     defaultProps: { widgets: [] },

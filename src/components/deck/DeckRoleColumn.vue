@@ -1,15 +1,23 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import {
+  createNoteQuerySubscription,
   createQuerySubscription,
   queryItemAsNote,
 } from '@/adapters/misskey/query'
-import type { NormalizedNote } from '@/adapters/types'
+import type {
+  NormalizedNote,
+  NoteUpdateEvent,
+  ServerAdapter,
+} from '@/adapters/types'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
-import { columnCacheKey } from '@/services/columnCacheKey'
+import { columnCacheKey, roleCacheKey } from '@/services/columnCacheKey'
+import type { ColumnSource } from '@/services/columnSource'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import DeckCrossSourcesColumn from './DeckCrossSourcesColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{
@@ -17,6 +25,32 @@ const props = defineProps<{
 }>()
 
 const cacheKeyDeps = accountsCacheKeyDeps()
+
+// 全アカウント (#1017 案 2): 組 (アカウント + ロール ID) ごとに取得・購読する
+const isCrossAccount = computed(() => props.column.accountId == null)
+function fetchSource(
+  adapter: ServerAdapter,
+  opts: { untilId?: string } | undefined,
+  source: ColumnSource,
+) {
+  return adapter.api.getRoleNotes(source.id, opts)
+}
+const cacheKeyOf = (source: ColumnSource) => roleCacheKey(source.id)
+
+function subscribeSource(
+  accountId: string,
+  source: ColumnSource,
+  enqueue: (note: NormalizedNote) => void,
+  callbacks: { onNoteUpdated: (event: NoteUpdateEvent) => void },
+) {
+  return createNoteQuerySubscription({
+    accountId,
+    open: async () =>
+      unwrap(await commands.querySubscribeRole(accountId, source.id)),
+    enqueue,
+    onNoteUpdated: callbacks.onNoteUpdated,
+  })
+}
 
 const noteColumnConfig: NoteColumnConfig = {
   getColumn: () => props.column,
@@ -55,7 +89,18 @@ const noteColumnConfig: NoteColumnConfig = {
 </script>
 
 <template>
+  <DeckCrossSourcesColumn
+    v-if="isCrossAccount"
+    :column="column"
+    :title="i18n.ts._columns.role"
+    icon="ti-badge"
+    column-type="role"
+    :fetch-notes="fetchSource"
+    :cache-key-of="cacheKeyOf"
+    :subscribe="subscribeSource"
+  />
   <DeckNoteColumn
+    v-else
     :column="column"
     :title="i18n.ts._columns.role"
     icon="ti-badge"

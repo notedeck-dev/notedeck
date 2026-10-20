@@ -1,5 +1,6 @@
 import { ALL_COLUMN_TYPES, COLUMN_REGISTRY } from '@/columns/registry'
 import type { Command } from '@/commands/registry'
+import { type ColumnSource, normalizeSources } from '@/services/columnSource'
 import { parseVariantKey } from '@/services/noteKey'
 import { externalQueryPatch } from '@/services/searchFilter'
 import { useAccountsStore } from '@/stores/accounts'
@@ -46,6 +47,7 @@ function columnSettings(c: DeckColumn) {
     ...(c.clipId ? { clipId: c.clipId } : {}),
     ...(c.userId ? { userId: c.userId } : {}),
     ...(c.roleId ? { roleId: c.roleId } : {}),
+    ...(c.sources?.length ? { sources: c.sources } : {}),
     ...(c.flashId ? { flashId: c.flashId } : {}),
     ...(c.pageId ? { pageId: c.pageId } : {}),
     ...(c.noteQueryRefs?.length ? { queryIds: c.noteQueryRefs } : {}),
@@ -102,9 +104,25 @@ export const columnActiveCapability = implement('column.active', {
  * AI が「ノートのカラムを追加して」と頼まれたときに呼ぶ。AiScript プラグインからも
  * `Nd:call('column.add', ...)` 経由で同じ entrypoint を呼ぶ。
  *
- * list / antenna / channel / clip / user は対応する lookup ID
- * (`listId` / `antennaId` 等) を渡す必要がある。
+ * list / antenna / channel / clip / role / user は対応する lookup ID
+ * (`listId` / `antennaId` 等) を渡す必要がある。全アカウント (`accountId` 無し)
+ * では代わりに `sources` (アカウント + ID の組の配列、#1017 案 2) を渡す。
  */
+/** `sources` の生の値を組の配列に読む。形が違う要素は捨てる */
+function parseSources(raw: unknown): ColumnSource[] {
+  if (!Array.isArray(raw)) return []
+  const out: ColumnSource[] = []
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue
+    const { accountId, id, name } = item as Record<string, unknown>
+    if (typeof accountId !== 'string' || typeof id !== 'string') continue
+    out.push(
+      typeof name === 'string' ? { accountId, id, name } : { accountId, id },
+    )
+  }
+  return out
+}
+
 export const columnAddCapability = implement('column.add', {
   // 実行時登録された種別 (plugin 由来) も AI に見せる
   enumOf: { type: addableColumnTypes },
@@ -117,28 +135,45 @@ export const columnAddCapability = implement('column.add', {
           `Supported: ${addable.join(', ')}`,
       )
     }
+    const accountId =
+      typeof params?.accountId === 'string' ? params.accountId : null
     const requiredIdKey = lookupIdKey(type as ColumnType)
-    if (requiredIdKey && typeof params?.[requiredIdKey] !== 'string') {
-      throw new Error(`${requiredIdKey} is required for column type "${type}"`)
+    const sources = normalizeSources(parseSources(params?.sources))
+    if (requiredIdKey) {
+      if (accountId && typeof params?.[requiredIdKey] !== 'string') {
+        throw new Error(
+          `${requiredIdKey} is required for column type "${type}"`,
+        )
+      }
+      if (!accountId && sources.length === 0) {
+        throw new Error(
+          `${requiredIdKey} is required for column type "${type}" (with accountId), ` +
+            'or sources ([{ accountId, id }]) for all accounts',
+        )
+      }
     }
     const partial: Omit<DeckColumn, 'id'> = {
       type: type as ColumnType,
       name: typeof params?.name === 'string' ? params.name : null,
       width: typeof params?.width === 'number' ? params.width : 380,
-      accountId:
-        typeof params?.accountId === 'string' ? params.accountId : null,
+      accountId,
     }
     if (typeof params?.tl === 'string') partial.tl = params.tl
     if (typeof params?.query === 'string') partial.query = params.query
-    for (const idKey of [
-      'listId',
-      'antennaId',
-      'channelId',
-      'clipId',
-      'userId',
-    ] as const) {
-      const v = params?.[idKey]
-      if (typeof v === 'string') partial[idKey] = v
+    if (accountId) {
+      for (const idKey of [
+        'listId',
+        'antennaId',
+        'channelId',
+        'clipId',
+        'roleId',
+        'userId',
+      ] as const) {
+        const v = params?.[idKey]
+        if (typeof v === 'string') partial[idKey] = v
+      }
+    } else if (sources.length > 0) {
+      partial.sources = sources
     }
     const col = useDeckStore().addColumn(partial)
     return { id: col.id, type: col.type }

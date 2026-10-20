@@ -16,6 +16,33 @@ import { onQueryDelta } from '@/core/queryDeltaBus'
 import { registerQuery, unregisterQuery } from '@/core/queryRegistry'
 import { commands } from '@/utils/tauriInvoke'
 
+/**
+ * ノート面の購読 (#1017)。insert はノートとして流し、delete は `NoteUpdateEvent`
+ * に写し、update はそのまま渡す。各カラムが同じ写しを書いていたのを 1 つにする
+ */
+export function createNoteQuerySubscription(opts: {
+  accountId: string
+  open: () => Promise<QuerySnapshot>
+  enqueue: (note: NormalizedNote) => void
+  onNoteUpdated: (event: NoteUpdateEvent) => void
+}): ManagedChannelSubscription {
+  return createQuerySubscription({
+    open: opts.open,
+    onInsert: (item) => {
+      const note = queryItemAsNote(item)
+      if (note) opts.enqueue(note)
+    },
+    onDelete: (id) =>
+      opts.onNoteUpdated({
+        accountId: opts.accountId,
+        noteId: id,
+        type: 'deleted',
+        body: {},
+      }),
+    onUpdate: (event) => opts.onNoteUpdated(event),
+  })
+}
+
 export interface CreateQuerySubscriptionOptions {
   /** Opens the query and returns its snapshot. Called once. */
   open: () => Promise<QuerySnapshot>

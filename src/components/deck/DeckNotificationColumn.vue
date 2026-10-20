@@ -314,7 +314,7 @@ function oldestOf(
 const crossCursors = new Map<string, AccountCursor>()
 const crossCursorsVersion = ref(0)
 function setCrossCursor(cursor: AccountCursor) {
-  crossCursors.set(cursor.accountId, cursor)
+  crossCursors.set(cursor.key, cursor)
   crossCursorsVersion.value++
 }
 /** 表示の下限。これより古い通知は列に載せたまま表示に出さない。接続中は単調に下がるだけ */
@@ -1347,7 +1347,7 @@ const crossEndState = computed<CrossEndState | null>(() => {
     (c) => c.failures > 0 && !c.exhausted,
   )
   if (failing.length > 0) {
-    return { kind: 'failing', accounts: failing.map((c) => label(c.accountId)) }
+    return { kind: 'failing', accounts: failing.map((c) => label(c.key)) }
   }
   const floor = crossHorizon.value
   if (floor === null) return null

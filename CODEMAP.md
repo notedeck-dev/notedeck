@@ -146,6 +146,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/columnQuery/evaluator.ts`](src/services/columnQuery/evaluator.ts) | — |
 | [`src/services/columnQuery/purity.ts`](src/services/columnQuery/purity.ts) | [`src/services/columnQuery/purity.test.ts`](src/services/columnQuery/purity.test.ts) |
 | [`src/services/columnQuery/referenceEvaluator.ts`](src/services/columnQuery/referenceEvaluator.ts) | [`src/services/columnQuery/referenceEvaluator.test.ts`](src/services/columnQuery/referenceEvaluator.test.ts) |
+| [`src/services/columnSource.ts`](src/services/columnSource.ts) | [`src/services/columnSource.test.ts`](src/services/columnSource.test.ts) |
 | [`src/services/columnUri.ts`](src/services/columnUri.ts) | — |
 | [`src/services/concurrency.ts`](src/services/concurrency.ts) | [`src/services/concurrency.test.ts`](src/services/concurrency.test.ts) |
 | [`src/services/crossAccountPaging.ts`](src/services/crossAccountPaging.ts) | [`src/services/crossAccountPaging.test.ts`](src/services/crossAccountPaging.test.ts) |

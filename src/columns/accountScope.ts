@@ -56,25 +56,16 @@ export function isAccountIndependent(
  * いない種別で行を黙って消す代わりに、無効の行と理由を出すために使う。
  * 構造上できないのか、まだ作っていないのかをユーザーが区別できるようにする。
  *
- * - `selectable`: サーバーごとに ID を選ぶ面 (リスト / アンテナ / クリップ /
- *   チャンネル / ロール / ユーザー)。「各アカウントの当該リソースを束ねる」の
- *   意味を決めないと実装できない
  * - `server`: サーバー単位の面 (サーバー情報 / 絵文字 / みつける / チャート
  *   等)。束ねる単位はアカウントではなくサーバーなので、全アカウントの意味が薄い
  * - `unsupported`: 構造上の理由は無く、まだ対応していないだけ
  */
-export type CrossAccountUnavailableReason =
-  | 'selectable'
-  | 'server'
-  | 'unsupported'
+export type CrossAccountUnavailableReason = 'server' | 'unsupported'
 
 export const CROSS_ACCOUNT_UNAVAILABLE_LABELS: Record<
   CrossAccountUnavailableReason,
   string
 > = {
-  get selectable() {
-    return i18n.ts._accountScope.selectable
-  },
   get server() {
     return i18n.ts._accountScope.server
   },
@@ -90,8 +81,9 @@ export function crossAccountUnavailableReason(
   if (CROSS_ACCOUNT_TYPES.has(type) || ACCOUNT_INDEPENDENT_TYPES.has(type)) {
     return null
   }
+  // サーバーごとに ID を選ぶ面は「アカウントごとに選んで束ねる」(#1017 案 2) で
+  // 全アカウントに対応したので、理由として残らない
   const spec = COLUMN_REGISTRY[type]
-  if (spec?.selectable) return 'selectable'
   if (spec?.group === 'server') return 'server'
   return 'unsupported'
 }

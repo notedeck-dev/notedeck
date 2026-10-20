@@ -30,6 +30,14 @@ import type { VisibilityOpts } from '@/composables/useNoteVisibility'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { i18n } from '@/i18n'
+import {
+  accountSource,
+  type ColumnSource,
+  normalizeSources,
+  parseSourceKey,
+  type SourceKey,
+  sourceKey,
+} from '@/services/columnSource'
 import { mapWithConcurrency, type SettleProgress } from '@/services/concurrency'
 import {
   type AccountCursor,
@@ -58,11 +66,22 @@ import { createWorkerClient } from '@/utils/workerClient'
 import type { DedupResponse } from '@/workers/dedupWorker'
 
 export interface CrossAccountNotesOptions {
-  /** API call to fetch notes for one account */
+  /**
+   * 1 つの取得単位 (組) のノートを取る。全アカウントを 1 回ずつ回す面では
+   * `source.id` は空、組を束ねる面 (#1017 案 2) ではリソース ID が入る
+   */
   fetchNotes: (
     adapter: ServerAdapter,
-    opts?: { untilId?: string },
+    opts: { untilId?: string } | undefined,
+    source: ColumnSource,
   ) => Promise<NormalizedNote[]>
+
+  /**
+   * 束ねる組 (#1017 案 2)。未指定なら「ログイン中の全アカウントを 1 回ずつ」。
+   * 指定すると (アカウント, リソース ID) の組ごとに取得・遡り・購読する。
+   * アカウント一覧に無いアカウントの組は無視する
+   */
+  sources?: () => readonly ColumnSource[]
 
   /** Whether this is cross-account mode */
   isCrossAccount: () => boolean
@@ -71,8 +90,9 @@ export interface CrossAccountNotesOptions {
    * Offline cache key (e.g. 'mentions' | 'specified')。指定すると、
    * ログイン中アカウントが無い（全員ログアウト）場合でも全アカウントの
    * SQLite キャッシュを読んで表示する。未指定なら従来通り live のみ。
+   * 組を束ねる面では組ごとのキー (`user-list:<id>` 等) を返す
    */
-  cacheKey?: () => string | null
+  cacheKey?: (source: ColumnSource) => string | null
 
   /** Loading / error / scroller refs from useColumnSetup */
   isLoading: Ref<boolean>
@@ -108,6 +128,7 @@ export interface CrossAccountNotesOptions {
       adapter: ServerAdapter,
       enqueue: (note: NormalizedNote) => void,
       callbacks: { onNoteUpdated: (event: NoteUpdateEvent) => void },
+      source: ColumnSource,
     ) => ChannelSubscription
   }
 
@@ -230,20 +251,47 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   const systemStateStore = useSystemStateStore()
   const { noteScrollerRef } = useNoteScrollerRef(scroller)
 
+  // --- 取得単位 (#1017 案 2) ---
+  /** 束ねる組。アカウント一覧に無いアカウントの組は落とす */
+  function allSources(): ColumnSource[] {
+    if (!options.sources) {
+      return accountsStore.accounts.map((a) => accountSource(a.id))
+    }
+    return normalizeSources(options.sources()).filter((s) =>
+      accountsStore.accountMap.has(s.accountId),
+    )
+  }
+  /** ログイン中のアカウントの組 (live で取れるもの) */
+  function liveSources(): ColumnSource[] {
+    return allSources().filter(
+      (s) => accountsStore.accountMap.get(s.accountId)?.hasToken === true,
+    )
+  }
+  function sourceOfKey(key: string): ColumnSource {
+    const { accountId, id } = parseSourceKey(key as SourceKey)
+    return (
+      allSources().find((s) => s.accountId === accountId && s.id === id) ?? {
+        accountId,
+        id,
+      }
+    )
+  }
+  const cacheKeyOf = (source: ColumnSource) => cacheKey?.(source) ?? null
+
   // --- 水平線ページング (#1184) ---
   const horizonPaging = options.paging === 'horizon'
-  /** アカウント別の遡りカーソル。列の行ではなく取得した生ページで進む */
+  /** 組 (sourceKey) 別の遡りカーソル。列の行ではなく取得した生ページで進む */
   const cursors = new Map<string, AccountCursor>()
   /** cursors の変更通知 (Map は reactive にしない) */
   const cursorsVersion = ref(0)
   function setCursor(cursor: AccountCursor) {
-    cursors.set(cursor.accountId, cursor)
+    cursors.set(cursor.key, cursor)
     cursorsVersion.value++
   }
   /** 表示の下限。null は制限なし。connect 世代内では単調に下がるだけ */
   const horizon = shallowRef<string | null>(null)
   /**
-   * 水平線を使わない面のアカウント別の遡り位置 (生ページ基準、#831 §1.4)。
+   * 水平線を使わない面の組別の遡り位置 (生ページ基準、#831 §1.4)。
    * 面ごとの `cursorOf` があればそれで、無ければ createdAt の最古で進む
    */
   const legacyCursors = new Map<string, { id: string; createdAt: string }>()
@@ -257,17 +305,14 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     }
     return oldest ? { id: oldest.id, createdAt: oldest.createdAt } : null
   }
-  function advanceLegacyCursor(
-    accountId: string,
-    page: readonly NormalizedNote[],
-  ) {
+  function advanceLegacyCursor(key: string, page: readonly NormalizedNote[]) {
     const next = pageCursorOf(page)
     if (!next) return
-    const cur = legacyCursors.get(accountId)
+    const cur = legacyCursors.get(key)
     const behind = options.cursorOf
       ? !cur || next.id < cur.id
       : !cur || next.createdAt < cur.createdAt
-    if (behind) legacyCursors.set(accountId, next)
+    if (behind) legacyCursors.set(key, next)
   }
   const aboveHorizon = (n: NormalizedNote) =>
     horizon.value === null || n.createdAt >= horizon.value
@@ -354,7 +399,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         },
       })
     : null
-  /** accountId → 購読。runtime state はカラム単位で共有する */
+  /** sourceKey → 購読。runtime state はカラム単位で共有する */
   const subscriptions = new Map<string, ChannelSubscription>()
   let runtimeState: SubscriptionRuntimeState = 'live'
   const streamHandlers: {
@@ -374,9 +419,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
 
   function setRuntimeState(state: SubscriptionRuntimeState) {
     runtimeState = state
-    for (const [accountId, sub] of subscriptions) {
+    for (const [key, sub] of subscriptions) {
       ;(sub as Partial<ManagedChannelSubscription>).setRuntimeState?.(state)
-      reportRuntime(accountId, sub)
+      reportRuntime(parseSourceKey(key as SourceKey).accountId, sub)
     }
   }
 
@@ -412,9 +457,11 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     streamHandlers.push({ adapter, event, handler })
   }
 
-  function subscribeAccount(accountId: string, adapter: ServerAdapter) {
+  function subscribeSource(source: ColumnSource, adapter: ServerAdapter) {
     if (!streaming || !streamingBatch) return
-    subscriptions.get(accountId)?.dispose()
+    const key = sourceKey(source)
+    const accountId = source.accountId
+    subscriptions.get(key)?.dispose()
     const sub = streaming.subscribe(
       accountId,
       adapter,
@@ -436,11 +483,12 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
           else onNoteUpdate(event)
         },
       },
+      source,
     )
     ;(sub as Partial<ManagedChannelSubscription>).setRuntimeState?.(
       runtimeState,
     )
-    subscriptions.set(accountId, sub)
+    subscriptions.set(key, sub)
     reportRuntime(accountId, sub)
     // subscriptionId は open 解決後に確定するので、確定したら再通知
     ;(sub as Partial<ManagedChannelSubscription>)
@@ -547,13 +595,14 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
    * 購読が無いまま残る。後で取得に成功した時点で購読を張る
    */
   function ensureSubscribed(
-    accountId: string,
+    source: ColumnSource,
     adapter: ServerAdapter,
     gen: number,
   ) {
-    if (!streaming || gen !== generation || subscriptions.has(accountId)) return
+    if (!streaming || gen !== generation) return
+    if (subscriptions.has(sourceKey(source))) return
     adapter.stream.connect()
-    subscribeAccount(accountId, adapter)
+    subscribeSource(source, adapter)
   }
 
   /**
@@ -612,19 +661,19 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     }
     lastResumeAt = now
 
-    const accounts = accountsStore.accounts.filter((a) => a.hasToken)
-    if (accounts.length === 0) return
+    const sources = liveSources()
+    if (sources.length === 0) return
     const gen = generation
     const results = await mapWithConcurrency(
-      accounts,
-      async (acc): Promise<[string, NormalizedNote[]]> => {
-        const adapter = await multiAdapters.getOrCreate(acc.id)
-        if (!adapter) return [acc.id, []]
-        ensureSubscribed(acc.id, adapter, gen)
+      sources,
+      async (s): Promise<[ColumnSource, NormalizedNote[]]> => {
+        const adapter = await multiAdapters.getOrCreate(s.accountId)
+        if (!adapter) return [s, []]
+        ensureSubscribed(s, adapter, gen)
         try {
-          return [acc.id, await fetchNotes(adapter)]
+          return [s, await fetchNotes(adapter, undefined, s)]
         } catch {
-          return [acc.id, []]
+          return [s, []]
         }
       },
       3,
@@ -635,9 +684,17 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     const gapAccounts = new Set<string>()
     const replacement: NormalizedNote[] = []
     const overlap: NormalizedNote[] = []
+    // gap はアカウント単位で見る。行はどの組から来たかを持たないので、同じ
+    // アカウントの組 (#1017 案 2) はページを合わせて判定し、まとめて置換する
+    const pagesByAccount = new Map<string, [ColumnSource, NormalizedNote[]][]>()
     for (const r of results) {
       if (r.status !== 'fulfilled') continue
-      const [accountId, fetched] = r.value
+      const pages = pagesByAccount.get(r.value[0].accountId)
+      if (pages) pages.push(r.value)
+      else pagesByAccount.set(r.value[0].accountId, [r.value])
+    }
+    for (const [accountId, pages] of pagesByAccount) {
+      const fetched = pages.flatMap(([, page]) => page)
       const shown = new Set<VariantKey>()
       for (const n of current) {
         if (n._accountId === accountId) shown.add(variantKeyOf(n))
@@ -648,12 +705,10 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         // 置換したアカウントの到達点は最新ページに戻る。水平線は上げない
         // (1 アカウントの gap で他アカウントの表示行を消さない)
         if (horizonPaging) {
-          setCursor(
-            resetCursor(
-              cursors.get(accountId) ?? initialCursor(accountId),
-              fetched,
-            ),
-          )
+          for (const [s, page] of pages) {
+            const key = sourceKey(s)
+            setCursor(resetCursor(cursors.get(key) ?? initialCursor(key), page))
+          }
         }
       } else {
         overlap.push(...fetched)
@@ -694,22 +749,36 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     }
   }
 
-  /** 全アカウント（ログアウト済み含む）の SQLite キャッシュを読んで merge する */
-  async function loadCrossAccountCache(): Promise<NormalizedNote[]> {
-    const key = cacheKey?.()
-    if (!key) return []
+  /**
+   * 全組（ログアウト済みアカウント含む）の SQLite キャッシュを読んで merge する。
+   * 組ごとの読み出しも返す (カーソルは組ごとに遡らせるため。行は束ねた後どの組から
+   * 来たかを持たない)
+   */
+  async function loadCrossAccountCache(): Promise<{
+    notes: NormalizedNote[]
+    bySource: Map<string, NormalizedNote[]>
+  }> {
+    const bySource = new Map<string, NormalizedNote[]>()
+    if (!cacheKey) return { notes: [], bySource }
+    const targets = allSources()
     const results = await mapWithConcurrency(
-      accountsStore.accounts,
-      async (acc) => {
+      targets,
+      async (s) => {
+        const key = cacheKeyOf(s)
+        if (!key) return []
         try {
-          return await loadCachedTimeline(acc.id, key)
+          return await loadCachedTimeline(s.accountId, key)
         } catch {
           return []
         }
       },
       3,
     )
-    return dedupAsync(collectFulfilled(results))
+    results.forEach((r, i) => {
+      const s = targets[i]
+      if (s && r.status === 'fulfilled') bySource.set(sourceKey(s), r.value)
+    })
+    return { notes: await dedupAsync(collectFulfilled(results)), bySource }
   }
 
   /**
@@ -755,7 +824,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     legacyCursors.clear()
 
     // オフラインファースト: キャッシュを即時表示（ログアウト中のアカウント分も含む）
-    const cached = await loadCrossAccountCache()
+    const { notes: cached, bySource: cachedBySource } =
+      await loadCrossAccountCache()
     if (gen !== generation) return
     if (cached.length > 0) {
       const admitted = await admit(cached)
@@ -763,16 +833,16 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       setNotes(admitted)
     }
 
-    const accounts = accountsStore.accounts.filter((a) => a.hasToken)
+    const targets = liveSources()
     // 全アカウントがログアウト中なら live fetch せずキャッシュ表示のみ。
     // キャッシュも無ければ (最後のアカウントを消した等) 表示を空にする —
     // 上の setNotes は空キャッシュで呼ばないので、ここで消さないと削除済み
     // アカウントの行が残る
-    if (accounts.length === 0) {
+    if (targets.length === 0) {
       if (cached.length === 0) setNotes([])
       else if (horizonPaging) {
         // キャッシュだけの列にも水平線を当てる (最終マージを通らない分岐)
-        seedCursors([], cached, null)
+        seedCursors([], cached, [], cachedBySource)
         settleHorizon()
       }
       connecting = false
@@ -782,29 +852,30 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     }
 
     try {
-      crossProgress.value = { done: 0, total: accounts.length }
+      crossProgress.value = { done: 0, total: targets.length }
       const live: NormalizedNote[] = []
       await mapWithConcurrency(
-        accounts,
-        async (acc) => {
-          const adapter = await multiAdapters.getOrCreate(acc.id)
+        targets,
+        async (s) => {
+          const adapter = await multiAdapters.getOrCreate(s.accountId)
           if (!adapter) return []
           // capture 用に接続を張る (既に接続済みなら no-op)
           adapter.stream.connect()
-          if (gen === generation) subscribeAccount(acc.id, adapter)
-          return fetchNotes(adapter)
+          if (gen === generation) subscribeSource(s, adapter)
+          return fetchNotes(adapter, undefined, s)
         },
         3,
-        async (r, acc, progress) => {
+        async (r, s, progress) => {
           if (gen !== generation) return
           crossProgress.value = progress
+          const key = sourceKey(s)
           if (r.status !== 'fulfilled' || !r.value) {
-            // 到達点が無い (取れなかった) アカウント。水平線は決めないが、追加読み込みで
+            // 到達点が無い (取れなかった) 組。水平線は決めないが、追加読み込みで
             // 先に最新ページを取り直す対象になる
             if (horizonPaging && r.status === 'rejected') {
               setCursor(
                 markFailed(
-                  initialCursor(acc.id),
+                  initialCursor(key),
                   Date.now(),
                   rateLimitRetryAfter(r.reason),
                 ),
@@ -813,9 +884,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
             return
           }
           // 到達点は生ページ (フィルタ前) で決める
-          if (horizonPaging)
-            setCursor(resetCursor(initialCursor(acc.id), r.value))
-          else advanceLegacyCursor(acc.id, r.value)
+          if (horizonPaging) setCursor(resetCursor(initialCursor(key), r.value))
+          else advanceLegacyCursor(key, r.value)
           live.push(...r.value)
           // 何も出ていなければ最初に返った分で描画する (#1095)。既に何か
           // (キャッシュや先に返った分) が出ていれば全部揃ってから 1 回で
@@ -841,7 +911,7 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       if (gen !== generation) return
       if (horizonPaging) {
         // 切り詰めは見えている行で数えるので、先に水平線を仮置きしてから載せる
-        seedCursors(live, keptCache, accounts)
+        seedCursors(live, keptCache, targets, cachedBySource)
         horizon.value = horizonOf([...cursors.values()])
       }
       setNotes(merged)
@@ -860,25 +930,31 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
 
   /**
    * 起動時のカーソル: live のページで置いた到達点に、残したキャッシュの分だけ
-   * 遡らせる。トークンの無いアカウントはキャッシュが到達点のすべてで、
-   * キャッシュも無ければ遡れない (尽きた扱い)
+   * 遡らせる。トークンの無いアカウントの組はキャッシュが到達点のすべてで、
+   * キャッシュも無ければ遡れない (尽きた扱い)。遡らせるのはその組のキャッシュの
+   * うち列に残した行だけ (同じアカウントの別の組の行で遡ると、間を飛ばす)
    */
   function seedCursors(
     live: readonly NormalizedNote[],
     keptCache: readonly NormalizedNote[],
-    withToken: readonly { id: string }[] | null,
+    liveTargets: readonly ColumnSource[],
+    cachedBySource: ReadonlyMap<string, readonly NormalizedNote[]>,
   ) {
-    const tokenIds = new Set((withToken ?? []).map((a) => a.id))
-    for (const acc of accountsStore.accounts) {
-      let c = cursors.get(acc.id) ?? initialCursor(acc.id)
-      const rows = keptCache.filter((n) => n._accountId === acc.id)
+    const liveKeys = new Set(liveTargets.map(sourceKey))
+    const keptKeys = new Set(keptCache.map(variantKeyOf))
+    for (const s of allSources()) {
+      const key = sourceKey(s)
+      let c = cursors.get(key) ?? initialCursor(key)
+      const rows = (cachedBySource.get(key) ?? []).filter((n) =>
+        keptKeys.has(variantKeyOf(n)),
+      )
       if (rows.length > 0) {
         // キャッシュで到達点を遡らせるだけで、live の失敗 (バックオフ) は消さない
         const { failures, nextRetryAt } = c
         c = { ...advanceCursor(c, rows), failures, nextRetryAt }
       } else if (
-        !tokenIds.has(acc.id) &&
-        !live.some((n) => n._accountId === acc.id)
+        !liveKeys.has(key) &&
+        !live.some((n) => n._accountId === s.accountId)
       ) {
         c = { ...c, exhausted: true }
       }
@@ -894,10 +970,18 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   function settleHorizon() {
     const current = rawNotes.value
     for (const c of cursors.values()) {
+      const { accountId } = parseSourceKey(c.key as SourceKey)
+      // 行はどの組から来たかを持たない。戻す先は自分の到達点より新しい側だけ
+      // (同じアカウントの別の組のもっと古い行まで下げると、間を飛ばす)
+      const floor = c.oldest?.createdAt
       setCursor(
         reseedFromRows(
           c,
-          current.filter((n) => n._accountId === c.accountId),
+          current.filter(
+            (n) =>
+              n._accountId === accountId &&
+              (floor === undefined || n.createdAt >= floor),
+          ),
         ),
       )
     }
@@ -914,21 +998,23 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     const now = Date.now()
     const pick = pickNextAccount([...cursors.values()], now)
     if (!pick) return
-    const acc = accountsStore.accountMap.get(pick)
+    const source = sourceOfKey(pick)
+    const acc = accountsStore.accountMap.get(source.accountId)
     const cursor = cursors.get(pick)
     if (!acc || !cursor) return
     isLoading.value = true
-    const key = cacheKey?.()
+    const key = cacheKeyOf(source)
     const gen = generation
     try {
       let raw: NormalizedNote[] = []
       if (acc.hasToken) {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) throw new Error(`no adapter for ${acc.id}`)
-        ensureSubscribed(acc.id, adapter, gen)
+        ensureSubscribed(source, adapter, gen)
         raw = await fetchNotes(
           adapter,
           cursor.oldest ? { untilId: cursor.oldest.id } : undefined,
+          source,
         )
       } else if (key && cursor.oldest) {
         raw = await loadCachedTimelineBefore(
@@ -966,43 +1052,51 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     if (horizonPaging) return loadMoreHorizon()
     if (isLoading.value || rawNotes.value.length === 0) return
     isLoading.value = true
-    const key = cacheKey?.()
     const gen = generation
+    const targets = allSources()
 
     try {
-      // 全アカウントを対象（ログアウト中も含む）。ログイン中は live API で
+      // 全組を対象（ログアウト中も含む）。ログイン中は live API で
       // untilId 遡り、ログアウト中は SQLite キャッシュを createdAt で遡る。
-      crossProgress.value = { done: 0, total: accountsStore.accounts.length }
+      crossProgress.value = { done: 0, total: targets.length }
       await mapWithConcurrency(
-        accountsStore.accounts,
-        async (acc) => {
+        targets,
+        async (s) => {
+          const key = sourceKey(s)
+          const acc = accountsStore.accountMap.get(s.accountId)
+          if (!acc) return []
           // 遡りの位置はカーソル (生ページ基準)。無ければ列に残るそのアカウントの
           // 最古行 (キャッシュだけで出ているアカウント)
           const cursor =
-            legacyCursors.get(acc.id) ??
-            [...rawNotes.value].reverse().find((n) => n._accountId === acc.id)
+            legacyCursors.get(key) ??
+            [...rawNotes.value]
+              .reverse()
+              .find((n) => n._accountId === s.accountId)
 
           if (acc.hasToken) {
             const adapter = await multiAdapters.getOrCreate(acc.id)
             if (!adapter) return []
-            const page = cursor
-              ? await fetchNotes(adapter, { untilId: cursor.id })
-              : await fetchNotes(adapter)
-            advanceLegacyCursor(acc.id, page)
+            const page = await fetchNotes(
+              adapter,
+              cursor ? { untilId: cursor.id } : undefined,
+              s,
+            )
+            advanceLegacyCursor(key, page)
             return page
           }
 
           // ログアウト中: hasToken 不要でキャッシュを遡る。
           // createdAt / id は同一ノート由来のペアで渡す (§6-14)
-          if (!key || !cursor) return []
+          const cacheKeyForSource = cacheKeyOf(s)
+          if (!cacheKeyForSource || !cursor) return []
           try {
             const page = await loadCachedTimelineBefore(
               acc.id,
-              key,
+              cacheKeyForSource,
               cursor.createdAt,
               cursor.id,
             )
-            advanceLegacyCursor(acc.id, page)
+            advanceLegacyCursor(key, page)
             return page
           } catch {
             return []
@@ -1051,13 +1145,19 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       const a = accountsStore.accountMap.get(accountId)
       return a ? `@${a.username}@${a.host}` : accountId
     }
+    // 組を束ねる面では、どのアカウントのどのリソースかまで示す
+    const sourceLabel = (key: string) => {
+      const s = sourceOfKey(key)
+      const who = label(s.accountId)
+      return s.name ? `${who} (${s.name})` : who
+    }
     const failing = [...cursors.values()].filter(
       (c) => c.failures > 0 && !c.exhausted,
     )
     if (failing.length > 0) {
       return {
         kind: 'failing',
-        accounts: failing.map((c) => label(c.accountId)),
+        accounts: failing.map((c) => sourceLabel(c.key)),
       }
     }
     const next = hiddenGroups.value[0]
@@ -1071,9 +1171,15 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     return null
   })
 
-  // アカウントの追加・削除で対象が変わったら取り直す
+  // アカウントの追加・削除、組の変更で対象が変わったら取り直す
   watch(
-    () => accountsStore.accounts.map((a) => `${a.id}:${a.hasToken}`).join(','),
+    () =>
+      [
+        accountsStore.accounts.map((a) => `${a.id}:${a.hasToken}`).join(','),
+        options.sources
+          ? normalizeSources(options.sources()).map(sourceKey).join(',')
+          : '',
+      ].join('|'),
     () => {
       if (isCrossAccount()) connectCrossAccount()
     },

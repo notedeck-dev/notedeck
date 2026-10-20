@@ -49,7 +49,7 @@ describe('getAccountScope — 「全アカウント」と「アカウントな�
   })
 
   it('accountId が消えた per-account 種別は none に倒す (束ねる対象がない)', () => {
-    expect(getAccountScope(column({ type: 'list' }))).toBe('none')
+    expect(getAccountScope(column({ type: 'drive' }))).toBe('none')
   })
 
   it('registry の 2 つの集合は排他 — 種別から意味が一意に復元できる', () => {
@@ -97,10 +97,10 @@ describe('crossAccountUnavailableReason — 全アカウントで開けない理
     expect(crossAccountUnavailableReason('memos')).toBeNull()
   })
 
-  it('サーバーごとに ID を選ぶ面は selectable (束ね方が未定)', () => {
-    expect(crossAccountUnavailableReason('list')).toBe('selectable')
-    expect(crossAccountUnavailableReason('antenna')).toBe('selectable')
-    expect(crossAccountUnavailableReason('user')).toBe('selectable')
+  it('サーバーごとに ID を選ぶ面はアカウントごとに選んで束ねる (#1017 案 2) ので開ける', () => {
+    expect(crossAccountUnavailableReason('list')).toBeNull()
+    expect(crossAccountUnavailableReason('antenna')).toBeNull()
+    expect(crossAccountUnavailableReason('user')).toBeNull()
   })
 
   it('サーバー単位の面は server (束ねる単位がアカウントでない)', () => {

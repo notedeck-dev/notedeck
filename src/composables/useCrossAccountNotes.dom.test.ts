@@ -12,6 +12,7 @@ import {
 import { initAdapterFor } from '@/adapters/factory'
 import type { NormalizedNote, NoteUpdateEvent } from '@/adapters/types'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import type { ColumnSource } from '@/services/columnSource'
 import { variantKey } from '@/services/noteKey'
 import { matchesFilter } from '@/services/timelineFilter'
 import { type Account, useAccountsStore } from '@/stores/accounts'
@@ -250,10 +251,13 @@ function mountCross(opts: {
   fetchFor: (
     accountId: string,
     opts?: { untilId?: string },
+    source?: ColumnSource,
   ) => NormalizedNote[] | Promise<NormalizedNote[]>
   streaming?: boolean
   paging?: 'horizon'
   cursorOf?: CrossAccountNotesOptions['cursorOf']
+  /** 組を束ねる面 (#1017 案 2)。未指定は全アカウントを 1 回ずつ */
+  sources?: () => ColumnSource[]
 }) {
   const live = new Map<string, Live>()
   let api: ReturnType<typeof useCrossAccountNotes> | null = null
@@ -274,14 +278,15 @@ function mountCross(opts: {
       api = useCrossAccountNotes({
         // 実 adapter は取得元アカウント (_accountId) を付けて返す。全アカウント
         // 面は variant キーと追加読み込みの位置決めにこれを使うので土台でも付ける
-        fetchNotes: async (adapter, o) => {
+        fetchNotes: async (adapter, o, source) => {
           const accountId = (adapter as unknown as { accountId: string })
             .accountId
-          const fetched = await opts.fetchFor(accountId, o)
+          const fetched = await opts.fetchFor(accountId, o, source)
           return fetched.map((n) => stamp(n, accountId))
         },
+        sources: opts.sources,
         isCrossAccount: () => true,
-        cacheKey: () => 'home',
+        cacheKey: (source) => (source.id ? `user-list:${source.id}` : 'home'),
         paging: opts.paging,
         cursorOf: opts.cursorOf,
         isLoading,
@@ -297,8 +302,8 @@ function mountCross(opts: {
           ? {
               columnId: 'col-cross',
               columnType: 'timeline',
-              subscribe: (accountId, _adapter, enqueue, callbacks) => {
-                live.set(accountId, {
+              subscribe: (accountId, _adapter, enqueue, callbacks, source) => {
+                live.set(source.id ? `${accountId}/${source.id}` : accountId, {
                   enqueue: (n) => enqueue(stamp(n, accountId)),
                   onNoteUpdated: callbacks.onNoteUpdated,
                 })
@@ -976,5 +981,75 @@ describe('useCrossAccountNotes: ノートアクションは取得元アカウン
     await expect(handlers.deleteAndEdit(first(api))).resolves.toBe(false)
     expect(useNoteStore().get(keyA)).toBeDefined()
     expect(postForm.show.value).toBe(false)
+  })
+})
+
+describe('useCrossAccountNotes: 組を束ねる面 (#1017 案 2)', () => {
+  it('同じアカウントの 2 つのリストを別の組として取り、1 列に束ねる', async () => {
+    addAccount('a')
+    addAccount('b')
+    const fetchFor = vi.fn(
+      (_accountId: string, _o?: { untilId?: string }, source?: ColumnSource) =>
+        source?.id === 'l1'
+          ? [note('x02'), note('x01')]
+          : source?.id === 'l2'
+            ? [note('y04'), note('y03')]
+            : [],
+    )
+    const column = ref<Partial<DeckColumn>>({ type: 'list' })
+    const { api } = mountCross({
+      column,
+      fetchFor,
+      paging: 'horizon',
+      streaming: true,
+      sources: () => [
+        { accountId: 'a', id: 'l1', name: 'one' },
+        { accountId: 'a', id: 'l2', name: 'two' },
+      ],
+    })
+    await flushFrames()
+
+    // 組ごとに 1 回ずつ取り、アカウント b (組に無い) は取らない
+    const calls = fetchFor.mock.calls.map((c) => `${c[0]}/${c[2]?.id}`)
+    expect(calls.sort()).toEqual(['a/l1', 'a/l2'])
+    // 水平線は到達点が浅い l2 (y03) で引かれ、l1 のそれより古い行は列に載せた
+    // まま隠れる (全アカウント TL と同じ規則)
+    expect(ids(api).sort()).toEqual(['y03', 'y04'])
+    expect(api.hiddenGroups.value.map((g) => g.primary.id).sort()).toEqual([
+      'x01',
+      'x02',
+    ])
+  })
+
+  it('追加読み込みは底を決めている組だけ、その組の untilId で遡る', async () => {
+    addAccount('a')
+    const fetchFor = vi.fn(
+      (_accountId: string, o?: { untilId?: string }, source?: ColumnSource) => {
+        if (o?.untilId) return []
+        return source?.id === 'l1'
+          ? [note('x09'), note('x08')]
+          : [note('y04'), note('y03')]
+      },
+    )
+    const column = ref<Partial<DeckColumn>>({ type: 'list' })
+    const { api } = mountCross({
+      column,
+      fetchFor,
+      paging: 'horizon',
+      sources: () => [
+        { accountId: 'a', id: 'l1' },
+        { accountId: 'a', id: 'l2' },
+      ],
+    })
+    await flushFrames()
+    fetchFor.mockClear()
+
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+
+    // 水平線は到達点が浅い l1 (x08) が決めるので、l1 だけを x08 から遡る
+    expect(fetchFor).toHaveBeenCalledTimes(1)
+    expect(fetchFor.mock.calls[0]?.[1]).toEqual({ untilId: 'x08' })
+    expect(fetchFor.mock.calls[0]?.[2]?.id).toBe('l1')
   })
 })

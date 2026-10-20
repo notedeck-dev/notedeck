@@ -3610,6 +3610,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "guestUnavailable": string
     /** ログインすると利用できます */
     readonly "loginRequired": string
+    /** {label}を選んで束ねる */
+    readonly "selectSources": ParameterizedString<'label'>
+    /** {count} 件で追加 */
+    readonly "addSelected": ParameterizedString<'count'>
+    /** アカウントごとに{label}を選びます。選んだものを 1 つのカラムにまとめます */
+    readonly "sourcesHint": ParameterizedString<'label'>
   }
   readonly "_columnErrorBoundary": {
     /** カラムの表示中に問題が発生しました */
@@ -5287,9 +5293,13 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     /** タスク: {label} */
     readonly "label": ParameterizedString<'label'>
   }
+  readonly "_deckCrossSourcesColumn": {
+    /** ノートはありません */
+    readonly "empty": string
+    /** 束ねる項目がありません。カラムを作り直してください */
+    readonly "noSources": string
+  }
   readonly "_accountScope": {
-    /** サーバーごとに選ぶ項目のため、全アカウントでの束ね方が決まっていません */
-    readonly "selectable": string
     /** サーバー単位の面のため、アカウントをまたぐ意味がありません */
     readonly "server": string
     /** このカラムはまだ全アカウントに対応していません */

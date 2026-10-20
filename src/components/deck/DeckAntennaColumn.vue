@@ -1,16 +1,24 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import {
+  createNoteQuerySubscription,
   createQuerySubscription,
   queryItemAsNote,
 } from '@/adapters/misskey/query'
-import type { NormalizedNote } from '@/adapters/types'
+import type {
+  NormalizedNote,
+  NoteUpdateEvent,
+  ServerAdapter,
+} from '@/adapters/types'
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
-import { columnCacheKey } from '@/services/columnCacheKey'
+import { antennaCacheKey, columnCacheKey } from '@/services/columnCacheKey'
+import type { ColumnSource } from '@/services/columnSource'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import DeckCrossSourcesColumn from './DeckCrossSourcesColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{
@@ -18,6 +26,32 @@ const props = defineProps<{
 }>()
 
 const cacheKeyDeps = accountsCacheKeyDeps()
+
+// 全アカウント (#1017 案 2): 組 (アカウント + アンテナ ID) ごとに取得・購読する
+const isCrossAccount = computed(() => props.column.accountId == null)
+function fetchSource(
+  adapter: ServerAdapter,
+  opts: { untilId?: string } | undefined,
+  source: ColumnSource,
+) {
+  return adapter.api.getAntennaNotes(source.id, opts)
+}
+const cacheKeyOf = (source: ColumnSource) => antennaCacheKey(source.id)
+
+function subscribeSource(
+  accountId: string,
+  source: ColumnSource,
+  enqueue: (note: NormalizedNote) => void,
+  callbacks: { onNoteUpdated: (event: NoteUpdateEvent) => void },
+) {
+  return createNoteQuerySubscription({
+    accountId,
+    open: async () =>
+      unwrap(await commands.querySubscribeAntenna(accountId, source.id)),
+    enqueue,
+    onNoteUpdated: callbacks.onNoteUpdated,
+  })
+}
 
 const noteColumnConfig: NoteColumnConfig = {
   getColumn: () => props.column,
@@ -61,7 +95,18 @@ const { rename, deleteEntity, config } = useEntityCrud(
 </script>
 
 <template>
+  <DeckCrossSourcesColumn
+    v-if="isCrossAccount"
+    :column="column"
+    :title="i18n.ts._columns.antenna"
+    icon="ti-antenna-bars-5"
+    column-type="antenna"
+    :fetch-notes="fetchSource"
+    :cache-key-of="cacheKeyOf"
+    :subscribe="subscribeSource"
+  />
   <DeckNoteColumn
+    v-else
     :column="column"
     :title="i18n.ts._columns.antenna"
     icon="ti-antenna-bars-5"
