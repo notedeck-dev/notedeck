@@ -238,3 +238,15 @@ describe('parseTokens memo 向け拡張 (markdown: true)', () => {
     ])
   })
 })
+
+describe('parseTokens simple (本家の plain = parseSimple)', () => {
+  it('絵文字と text だけに分け、装飾や fn は文字のまま', () => {
+    expect(parseTokens('**b** :e: 😀 $[spin x]', { simple: true })).toEqual([
+      text('**b** '),
+      { type: 'emojiCode', props: { name: 'e' } },
+      text(' '),
+      { type: 'unicodeEmoji', props: { emoji: '😀' } },
+      text(' $[spin x]'),
+    ])
+  })
+})

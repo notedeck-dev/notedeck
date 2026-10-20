@@ -27,10 +27,16 @@ export interface ParseOptions {
    * ノート本文では使わない (MemoCard だけが opt-in する)。
    */
   markdown?: boolean
+  /**
+   * 本家の `plain` (parseSimple): 絵文字と text だけに分け、装飾や fn は文字の
+   * まま。ユーザー名など本文でない短い文字列向け。
+   */
+  simple?: boolean
 }
 
 export function parseTokens(text: string, opts: ParseOptions = {}): MfmNode[] {
   if (!text) return []
+  if (opts.simple) return mfm.parseSimple(text)
   return opts.markdown ? parseMemo(text) : mfm.parse(text)
 }
 

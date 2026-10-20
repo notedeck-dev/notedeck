@@ -10,9 +10,10 @@ import { usePerformanceStore } from '@/stores/performance'
 export type { MfmNode, ParseOptions } from '@/services/mfmParser'
 export { parseTokens } from '@/services/mfmParser'
 
-// 標準 MFM と memo 向け拡張は別 cache (ノード構造が異なるため key を分ける)
+// 標準 MFM / memo 向け拡張 / simple は別 cache (同じ文字列でもノードが異なる)
 const parseCache = new Map<string, MfmNode[]>()
 const parseCacheMd = new Map<string, MfmNode[]>()
+const parseCacheSimple = new Map<string, MfmNode[]>()
 const MAX_MFM_LENGTH = 10000
 
 function getMfmCacheMax(): number {
@@ -31,7 +32,11 @@ export function parseMfm(text: string, opts?: ParseOptions): MfmNode[] {
     return [{ type: 'text', props: { text } }]
   }
 
-  const cache = opts?.markdown ? parseCacheMd : parseCache
+  const cache = opts?.markdown
+    ? parseCacheMd
+    : opts?.simple
+      ? parseCacheSimple
+      : parseCache
 
   const cached = cache.get(text)
   if (cached) {

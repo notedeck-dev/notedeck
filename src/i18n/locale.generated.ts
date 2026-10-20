@@ -1886,6 +1886,14 @@ export interface Locale {
     readonly "nyaize": string
     /** 本家 Web UI と同じ表示。コピー・検索は原文のまま */
     readonly "nyaizeDescription": string
+    /** 高度な MFM を有効にする */
+    readonly "advancedMfm": string
+    /** 拡大・位置・伸縮などの装飾。切ると本文だけを読みやすくなる */
+    readonly "advancedMfmDescription": string
+    /** 動きのある MFM を有効にする */
+    readonly "animatedMfm": string
+    /** 回転・揺れ・虹色・きらめき。切ると静止した表示になる */
+    readonly "animatedMfmDescription": string
     /** デフォルト値からの差分のみ表示 — 変更は自動保存されます */
     readonly "codeHint": string
     /** トップレベルは JSON オブジェクト {} である必要があります */

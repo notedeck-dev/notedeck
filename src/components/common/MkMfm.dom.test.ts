@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { type App, createApp, nextTick } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
 import MkMfm from './MkMfm.vue'
 
 let app: App | null = null
@@ -146,5 +147,102 @@ describe('MkMfm 本家パーサの契約', () => {
   it('入れ子の x2 は本家と同じく縮む (nestLimit の範囲で)', () => {
     mountMfm('$[x2 $[x2 a]]')
     expect(container?.querySelectorAll('span[class*="mfmX2"]')).toHaveLength(2)
+  })
+})
+
+describe('MkMfm 本家の描画との揃え (段階 2)', () => {
+  it('未知の fn は本家と同じく $[name ...] の原文で描画する', () => {
+    mountMfm('$[nosuchfn abc]')
+    expect(container?.textContent).toBe('$[nosuchfn abc]')
+  })
+
+  it('$[font.emoji] / $[font.math] も font-family になる', () => {
+    mountMfm('$[font.emoji a]$[font.math b]')
+    const spans = Array.from(
+      container?.querySelectorAll('span[style*="font-family"]') ?? [],
+    ) as HTMLElement[]
+    expect(spans.map((s) => s.style.fontFamily)).toEqual(['emoji', 'math'])
+  })
+
+  it('$[clickable.ev=foo] はクリックを親に伝えず clickEv を emit する', () => {
+    const events: string[] = []
+    let outer = 0
+    container = document.createElement('div')
+    container.addEventListener('click', () => outer++)
+    document.body.appendChild(container)
+    app = createApp(MkMfm, {
+      text: '$[clickable.ev=foo push]',
+      onClickEv: (ev: string) => events.push(ev),
+    })
+    app.use(pinia)
+    app.mount(container)
+    // 一番内側の span (外側の .mfm も同じ textContent を持つ)
+    const target = Array.from(container.querySelectorAll('span'))
+      .filter((s) => s.textContent === 'push')
+      .at(-1)
+    target?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(events).toEqual(['foo'])
+    expect(outer).toBe(0)
+  })
+
+  it('$[ruby] は複数の子を持てる (最後の text が rt)', () => {
+    mountMfm('$[ruby :e: るび]')
+    const ruby = container?.querySelector('ruby')
+    expect(ruby?.querySelector('rt')?.textContent).toBe('るび')
+    expect(ruby?.querySelector('img, .custom-emoji')).toBeTruthy()
+  })
+
+  it('$[unixtime] は絶対時刻と相対時刻を出す', () => {
+    const ts = Math.floor(Date.now() / 1000) - 3600
+    mountMfm(`$[unixtime ${ts}]`)
+    const time = container?.querySelector('time')
+    expect(time?.getAttribute('datetime')).toBe(
+      new Date(ts * 1000).toISOString(),
+    )
+    // 絶対時刻 (年を含む) と相対時刻 (括弧つき) の両方
+    expect(time?.textContent).toMatch(/\d{4}/)
+    expect(time?.textContent).toMatch(/\(.+\)/)
+  })
+
+  it('$[sparkle] は粒子コンポーネントで包む', () => {
+    mountMfm('$[sparkle a]')
+    expect(container?.querySelector('span[class*="root"]')).toBeTruthy()
+  })
+})
+
+describe('MkMfm の設定 (本家の advancedMfm / animatedMfm)', () => {
+  it('アニメーションを切ると動く fn は静止し、sparkle は子だけになる', () => {
+    useSettingsStore().set('mfm.animated', false)
+    mountMfm('$[spin a]$[sparkle b]$[rainbow c]')
+    expect(container?.querySelector('span[class*="mfmSpin"]')).toBeNull()
+    expect(container?.querySelector('span[class*="root"]')).toBeNull()
+    // rainbow は本家と同じく静的なグラデーションに落ちる
+    expect(
+      container?.querySelector('span[class*="mfmRainbowStatic"]'),
+    ).toBeTruthy()
+    expect(container?.textContent).toBe('abc')
+  })
+
+  it('高度な MFM を切ると拡大 / 位置 / 伸縮が効かず、アニメーションも止まる', () => {
+    useSettingsStore().set('mfm.advanced', false)
+    mountMfm('$[x2 a]$[position.x=2 b]$[scale.x=2 c]$[spin d]')
+    expect(container?.querySelector('span[class*="mfmX2"]')).toBeNull()
+    expect(container?.querySelector('span[style*="transform"]')).toBeNull()
+    expect(container?.querySelector('span[class*="mfmSpin"]')).toBeNull()
+  })
+
+  it('既定では両方とも有効', () => {
+    mountMfm('$[x2 a]$[spin b]')
+    expect(container?.querySelector('span[class*="mfmX2"]')).toBeTruthy()
+    expect(container?.querySelector('span[class*="mfmSpin"]')).toBeTruthy()
+  })
+})
+
+describe('MkMfm plain (本家の parseSimple)', () => {
+  it('plain では装飾を解釈せず、絵文字だけ描画する', () => {
+    mountMfm('**b** 😀', { plain: true })
+    expect(container?.querySelector('b')).toBeNull()
+    expect(container?.querySelector('img, .twemoji')).toBeTruthy()
+    expect(container?.textContent).toContain('**b**')
   })
 })

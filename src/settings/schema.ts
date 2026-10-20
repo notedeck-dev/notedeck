@@ -66,6 +66,13 @@ export interface NotedeckSettings {
    * 表示専用でコピー・検索は原文のまま。false で原文表示。
    */
   'note.nyaize'?: boolean
+  /**
+   * 高度な MFM (拡大 / 位置 / 伸縮) を描画する (本家の advancedMfm)。
+   * false で装飾を落とし本文だけを読む。
+   */
+  'mfm.advanced'?: boolean
+  /** 動きのある MFM (回転 / 揺れ / 虹色 / きらめき) を動かす (本家の animatedMfm) */
+  'mfm.animated'?: boolean
 
   // --- Mute (#612) ---
   /**
@@ -203,6 +210,8 @@ export const DEFAULT_SETTINGS: NotedeckSettings = {
   'modes.offline': false,
   // 本家 Web UI と同じ表示を基準にするため default ON (#763)
   'note.nyaize': true,
+  'mfm.advanced': true,
+  'mfm.animated': true,
   // notedeck の差別化要素「過去ノートを一瞬でローカル全文検索」を尊重し、
   // デフォルトは notecli の `EvictionConfig::default()` (= per-account 1M cap、
   // TTL なし) と同等のバランスプリセット。
