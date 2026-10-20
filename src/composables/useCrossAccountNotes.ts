@@ -690,8 +690,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     const gapAccounts = new Set<string>()
     const replacement: NormalizedNote[] = []
     const overlap: NormalizedNote[] = []
-    // gap はアカウント単位で見る。行はどの組から来たかを持たないので、同じ
-    // アカウントの組 (#1017 案 2) はページを合わせて判定し、まとめて置換する
+    // 置換はアカウント単位。行はどの組から来たかを持たないので、同じアカウントの
+    // 組 (#1017 案 2) はまとめて置換する。判定は組ごと — ページを合わせて判定すると、
+    // 1 つの組が既存行と重なるだけで別の組の欠落が隠れる
     const pagesByAccount = new Map<string, [ColumnSource, NormalizedNote[]][]>()
     for (const r of results) {
       if (r.status !== 'fulfilled') continue
@@ -705,7 +706,10 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       for (const n of current) {
         if (n._accountId === accountId) shown.add(variantKeyOf(n))
       }
-      if (hasGap(fetched, shown, shown.size > 0)) {
+      const gapped = pages.some(
+        ([, page]) => page.length > 0 && hasGap(page, shown, shown.size > 0),
+      )
+      if (gapped) {
         gapAccounts.add(accountId)
         replacement.push(...fetched)
         // 置換したアカウントの到達点は最新ページに戻る。水平線は上げない
@@ -977,17 +981,18 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
   function settleHorizon() {
     const current = rawNotes.value
     for (const c of cursors.values()) {
+      // 到達点の無い組は「まだ取っていない」のまま残す。同じアカウントの別の組の
+      // 行で付け直すと、その組の最新ページを飛ばす
+      if (!c.oldest) continue
       const { accountId } = parseSourceKey(c.key as SourceKey)
       // 行はどの組から来たかを持たない。戻す先は自分の到達点より新しい側だけ
       // (同じアカウントの別の組のもっと古い行まで下げると、間を飛ばす)
-      const floor = c.oldest?.createdAt
+      const floor = c.oldest.createdAt
       setCursor(
         reseedFromRows(
           c,
           current.filter(
-            (n) =>
-              n._accountId === accountId &&
-              (floor === undefined || n.createdAt >= floor),
+            (n) => n._accountId === accountId && n.createdAt >= floor,
           ),
         ),
       )

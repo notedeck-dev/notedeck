@@ -1096,3 +1096,78 @@ describe('useCrossAccountNotes: 水平線なしの追加読み込みのバック
     nowSpy.mockRestore()
   })
 })
+
+describe('useCrossAccountNotes: 組を束ねる面の復帰と到達点 (#1017、CodeRabbit #1273)', () => {
+  it('復帰の gap は組ごとに判定する (別の組が重なっても欠落を見落とさない)', async () => {
+    addAccount('a')
+    let round = 0
+    const fetchFor = vi.fn(
+      (
+        _accountId: string,
+        _o?: { untilId?: string },
+        source?: ColumnSource,
+      ) => {
+        if (round === 0) {
+          return source?.id === 'l1'
+            ? [note('x02'), note('x01')]
+            : [note('y04'), note('y03')]
+        }
+        // 復帰: l1 は既存行と重なり、l2 は 1 ページを超えて進んだ (重ならない)
+        return source?.id === 'l1'
+          ? [note('x02'), note('x01')]
+          : [note('y59'), note('y58')]
+      },
+    )
+    const column = ref<Partial<DeckColumn>>({ type: 'list' })
+    const { api } = mountCross({
+      column,
+      fetchFor,
+      streaming: true,
+      sources: () => [
+        { accountId: 'a', id: 'l1' },
+        { accountId: 'a', id: 'l2' },
+      ],
+    })
+    await flushFrames()
+    round = 1
+    await api.onResume()
+    await flushFrames()
+
+    // l2 の欠落でアカウント a の行は最新ページで置き換わる (古い y03/y04 が残って
+    // 間に穴が開いたままにならない)
+    expect(ids(api).sort()).toEqual(['x01', 'x02', 'y58', 'y59'])
+  })
+
+  it('到達点の無い組は同じアカウントの別の組の行で付け直さない', async () => {
+    addAccount('a')
+    const fetchFor = vi.fn(
+      (_accountId: string, o?: { untilId?: string }, source?: ColumnSource) => {
+        if (source?.id === 'l2') throw new Error('offline')
+        if (o?.untilId) return []
+        return [note('x09'), note('x08')]
+      },
+    )
+    const column = ref<Partial<DeckColumn>>({ type: 'list' })
+    const { api } = mountCross({
+      column,
+      fetchFor,
+      paging: 'horizon',
+      sources: () => [
+        { accountId: 'a', id: 'l1' },
+        { accountId: 'a', id: 'l2' },
+      ],
+    })
+    await flushFrames()
+    fetchFor.mockClear()
+
+    // l2 はまだ 1 ページも取れていないので、バックオフ明けに最新ページ (untilId 無し)
+    // から取り直す。l1 の行 (x08) を l2 の位置にすると最新ページを飛ばす
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 120_000)
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    nowSpy.mockRestore()
+    const l2 = fetchFor.mock.calls.find((c) => c[2]?.id === 'l2')
+    expect(l2).toBeDefined()
+    expect(l2?.[1]).toBeUndefined()
+  })
+})

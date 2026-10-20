@@ -604,11 +604,23 @@ export function useNoteColumn(config: NoteColumnConfig) {
       const filtered = await loadFilteredCache('fallback-cache')
       if (filtered.length > 0) {
         setNotes(filtered)
-        isOffline.value = true
+        if (!rateLimited) isOffline.value = true
         return
       }
     }
     error.value = AppError.from(e)
+    if (rateLimited) {
+      // 行が無いと追加読み込みも復帰も走らないので、待ち時間が明けたら自分で
+      // 取り直す (再試行は時間が解く)
+      clearTimeout(rateLimitTimer)
+      rateLimitTimer = setTimeout(
+        () => {
+          isRateLimited.value = false
+          void connect(true)
+        },
+        Math.max(0, rateLimitedUntil - Date.now()),
+      )
+    }
   }
 
   // アカウント一覧の読み込みより先にマウントすると「キャッシュのみ・オフライン」

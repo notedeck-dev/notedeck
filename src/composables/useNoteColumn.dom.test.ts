@@ -1791,6 +1791,28 @@ describe('useNoteColumn: レート制限 (#1271)', () => {
     nowSpy.mockRestore()
   })
 
+  it('初回接続が 429 で行が無ければ、待ち時間が明けたら自分で取り直す', async () => {
+    addAccount('acc-rl-auto')
+    // 待ち時間を短くして実時間で待つ (happy-dom の timer は fake timers が届かない)
+    const fetchImpl = vi
+      .fn()
+      .mockRejectedValueOnce({ ...rateLimited(), retryAfterMs: 5 })
+      .mockResolvedValue([note('h01')])
+    const { api } = mountColumn({
+      accountId: 'acc-rl-auto',
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    expect(api.error.value?.isRateLimited).toBe(true)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+
+    await new Promise((r) => setTimeout(r, 30))
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(api.error.value).toBeNull()
+    expect(ids(api)).toEqual(['h01'])
+  })
+
   it('初回接続が 429 で行が無ければ error に RATE_LIMITED が立つ', async () => {
     addAccount('acc-rl-first')
     const { api } = mountColumn({
