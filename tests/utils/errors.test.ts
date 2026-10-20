@@ -124,3 +124,41 @@ describe('AppError.from()', () => {
     ).toBe(false)
   })
 })
+
+describe('AppError: レート制限 (#1271)', () => {
+  it('RATE_LIMITED は isRateLimited で、待ち時間を retryAfterMs に持つ', () => {
+    const err = AppError.from({
+      code: 'RATE_LIMITED',
+      message: 'notes/timeline: rate limit exceeded',
+      apiCode: 'RATE_LIMIT_EXCEEDED',
+      i18n: null,
+      retryAfterMs: 7000,
+    })
+    expect(err.code).toBe('RATE_LIMITED')
+    expect(err.isRateLimited).toBe(true)
+    expect(err.retryAfterMs).toBe(7000)
+    expect(err.isNetwork).toBe(false)
+    expect(err.isAuth).toBe(false)
+  })
+
+  it('待ち時間が無い (null / 欠落) ときは retryAfterMs が null', () => {
+    expect(
+      AppError.from({ code: 'RATE_LIMITED', message: 'x', retryAfterMs: null })
+        .retryAfterMs,
+    ).toBeNull()
+    expect(
+      AppError.from({ code: 'RATE_LIMITED', message: 'x' }).retryAfterMs,
+    ).toBeNull()
+  })
+
+  it('一般の API エラーは isRateLimited でない', () => {
+    const err = AppError.from({
+      code: 'API',
+      message: 'x',
+      apiCode: 'NO_SUCH_NOTE',
+      retryAfterMs: null,
+    })
+    expect(err.isRateLimited).toBe(false)
+    expect(err.retryAfterMs).toBeNull()
+  })
+})

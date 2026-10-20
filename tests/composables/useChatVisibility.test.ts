@@ -7,6 +7,7 @@ import { useMutesStore } from '@/stores/mutes'
 function makeMessage(fromUserId: string): ChatMessage {
   return {
     id: 'm1',
+    _accountId: 'acc',
     createdAt: '2026-01-01T00:00:00.000Z',
     fromUserId,
     text: 'hi',

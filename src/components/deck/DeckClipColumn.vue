@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
-import { columnCacheKey } from '@/services/columnCacheKey'
+import { clipCacheKey, columnCacheKey } from '@/services/columnCacheKey'
+import type { ColumnSource } from '@/services/columnSource'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
+import DeckCrossSourcesColumn from './DeckCrossSourcesColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{
@@ -12,6 +16,17 @@ const props = defineProps<{
 }>()
 
 const cacheKeyDeps = accountsCacheKeyDeps()
+
+// 全アカウント (#1017 案 2): 組 (アカウント + クリップ ID) ごとに取得・購読する
+const isCrossAccount = computed(() => props.column.accountId == null)
+function fetchSource(
+  adapter: ServerAdapter,
+  opts: { untilId?: string } | undefined,
+  source: ColumnSource,
+) {
+  return adapter.api.getClipNotes(source.id, opts)
+}
+const cacheKeyOf = (source: ColumnSource) => clipCacheKey(source.id)
 
 const noteColumnConfig: NoteColumnConfig = {
   getColumn: () => props.column,
@@ -35,7 +50,18 @@ const { rename, deleteEntity, config } = useEntityCrud(
 </script>
 
 <template>
+  <DeckCrossSourcesColumn
+    v-if="isCrossAccount"
+    :column="column"
+    :title="i18n.ts._columns.clip"
+    icon="ti-paperclip"
+    column-type="clip"
+    :fetch-notes="fetchSource"
+    :cache-key-of="cacheKeyOf"
+    :visibility="noteColumnConfig.visibility"
+  />
   <DeckNoteColumn
+    v-else
     :column="column"
     :title="i18n.ts._columns.clip"
     icon="ti-paperclip"

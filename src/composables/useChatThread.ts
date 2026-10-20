@@ -1,5 +1,6 @@
 import { computed, ref, shallowRef } from 'vue'
 import type { ChatMessage } from '@/adapters/types'
+import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 
 /**
  * チャット会話 thread の状態機械 (#707)。DeckChatColumn から抽出した
@@ -22,8 +23,8 @@ export function chatThreadId(target: ChatThreadTarget): string {
 /** chatMessageStore の必要最小面。 */
 export interface ChatThreadStorePort {
   put(msgs: ChatMessage[]): void
-  resolve(ids: string[]): ChatMessage[]
-  remove(id: string): void
+  resolve(keys: readonly VariantKey[]): ChatMessage[]
+  remove(key: VariantKey): void
 }
 
 /** 解決済みの API 面 (adapter 相当)。メッセージは newest-first で返る。 */
@@ -80,41 +81,51 @@ const CACHE_PAGE_SIZE = 50
 export type ChatThreadOpenOutcome = 'opened' | 'aborted'
 
 export function useChatThread(deps: ChatThreadDeps) {
-  // メッセージは store からの ID 参照のみで管理する (#460 B-5)。
-  // `messageIds` の真値を持ち、`messages` は store から resolve した derived。
-  const messageIds = ref<string[]>([])
-  const messages = computed(() => deps.store.resolve(messageIds.value))
+  // メッセージは store からのキー参照のみで管理する (#460 B-5)。キーは
+  // 「取得元アカウント + ID」(#1270)。`messageKeys` の真値を持ち、`messages` は
+  // store から resolve した derived。
+  const messageKeys = ref<VariantKey[]>([])
+  const messages = computed(() => deps.store.resolve(messageKeys.value))
   const target = shallowRef<ChatThreadTarget | null>(null)
+  /** 開いている会話のアカウント。WS の削除は ID だけ運ぶので、キーはこれで組む */
+  let openAccountId: string | null = null
 
   let sub: ChatThreadSubscription | null = null
 
   function setMessages(msgs: ChatMessage[]) {
     deps.store.put(msgs)
-    messageIds.value = msgs.map((m) => m.id)
+    messageKeys.value = msgs.map(variantKeyOf)
+  }
+
+  /** 会話に載っているか (append 済みの着信や送信の重複判定) */
+  function has(msg: ChatMessage): boolean {
+    return messageKeys.value.includes(variantKeyOf(msg))
   }
 
   function append(msg: ChatMessage) {
-    if (messageIds.value.includes(msg.id)) return
+    if (has(msg)) return
     deps.store.put([msg])
-    messageIds.value = [...messageIds.value, msg.id]
+    messageKeys.value = [...messageKeys.value, variantKeyOf(msg)]
   }
 
   /** newest-first の older ページを oldest-first に直して前置する。 */
   function prepend(older: ChatMessage[]) {
     if (older.length === 0) return
     deps.store.put(older)
-    const existing = new Set(messageIds.value)
-    const newIds = older
+    const existing = new Set(messageKeys.value)
+    const newKeys = older
       .slice()
       .reverse()
-      .map((m) => m.id)
-      .filter((id) => !existing.has(id))
-    messageIds.value = [...newIds, ...messageIds.value]
+      .map(variantKeyOf)
+      .filter((key) => !existing.has(key))
+    messageKeys.value = [...newKeys, ...messageKeys.value]
   }
 
+  /** 開いている会話のメッセージを ID で取り除く (WS の deleted / 自分の削除) */
   function remove(messageId: string) {
-    messageIds.value = messageIds.value.filter((id) => id !== messageId)
-    deps.store.remove(messageId)
+    const key = variantKey(openAccountId ?? '', messageId)
+    messageKeys.value = messageKeys.value.filter((k) => k !== key)
+    deps.store.remove(key)
   }
 
   async function loadCached(
@@ -141,17 +152,19 @@ export function useChatThread(deps: ChatThreadDeps) {
    * 表示状態を変えない。
    */
   async function open(
-    accountId: string,
+    nextAccountId: string,
     nextTarget: ChatThreadTarget,
     opts: { loggedOut: boolean; onHydrated?(): void },
   ): Promise<ChatThreadOpenOutcome> {
     sub?.dispose()
     sub = null
+    const accountId = nextAccountId
 
     const api = await deps.resolveApi(accountId)
     if (!api && !opts.loggedOut) return 'aborted'
 
     target.value = nextTarget
+    openAccountId = accountId
     const threadId = chatThreadId(nextTarget)
 
     // 1. Cache hydrate (B-2): 即時に thread を表示する (newest-first → 表示順)
@@ -227,17 +240,19 @@ export function useChatThread(deps: ChatThreadDeps) {
   function close() {
     sub?.dispose()
     sub = null
-    messageIds.value = []
+    messageKeys.value = []
     target.value = null
+    openAccountId = null
   }
 
   return {
-    messageIds,
+    messageKeys,
     messages,
     target,
     open,
     loadOlder,
     append,
+    has,
     remove,
     close,
   }

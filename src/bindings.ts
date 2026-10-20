@@ -18,7 +18,7 @@ async setStatusBarStyle(lightBackground: boolean) : Promise<void> {
     await TAURI_INVOKE("set_status_bar_style", { lightBackground });
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async loadAccounts() : Promise<Result<AccountPublic[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async loadAccounts() : Promise<Result<AccountPublic[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_accounts") };
 } catch (e) {
@@ -27,7 +27,7 @@ async loadAccounts() : Promise<Result<AccountPublic[], { code: string; message: 
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async deleteAccount(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async deleteAccount(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_account", { id }) };
 } catch (e) {
@@ -36,7 +36,7 @@ async deleteAccount(id: string) : Promise<Result<null, { code: string; message: 
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async logoutAccount(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async logoutAccount(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("logout_account", { id }) };
 } catch (e) {
@@ -45,7 +45,7 @@ async logoutAccount(id: string) : Promise<Result<null, { code: string; message: 
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async createGuestAccount(host: string, software: string) : Promise<Result<AccountPublic, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async createGuestAccount(host: string, software: string) : Promise<Result<AccountPublic, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_guest_account", { host, software }) };
 } catch (e) {
@@ -54,7 +54,7 @@ async createGuestAccount(host: string, software: string) : Promise<Result<Accoun
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async cacheStats() : Promise<Result<CacheStats, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async cacheStats() : Promise<Result<CacheStats, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("cache_stats") };
 } catch (e) {
@@ -63,7 +63,7 @@ async cacheStats() : Promise<Result<CacheStats, { code: string; message: string;
 }
 },
 /** @see crates/notecore/src/commands/column_query.rs */
-async qirValidate(query: QirQuery) : Promise<Result<QirValidation, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async qirValidate(query: QirQuery) : Promise<Result<QirValidation, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("qir_validate", { query }) };
 } catch (e) {
@@ -72,7 +72,7 @@ async qirValidate(query: QirQuery) : Promise<Result<QirValidation, { code: strin
 }
 },
 /** @see crates/notecore/src/commands/column_query.rs */
-async qirSearchCache(accountId: string, query: QirQuery, timelineKey: string | null, limit: number | null, maxScannedRows: number | null, cursor: QirSearchCursor | null) : Promise<Result<QirSearchResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async qirSearchCache(accountId: string, query: QirQuery, timelineKey: string | null, limit: number | null, maxScannedRows: number | null, cursor: QirSearchCursor | null) : Promise<Result<QirSearchResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("qir_search_cache", { accountId, query, timelineKey, limit, maxScannedRows, cursor }) };
 } catch (e) {
@@ -81,7 +81,7 @@ async qirSearchCache(accountId: string, query: QirQuery, timelineKey: string | n
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async accountCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async accountCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("account_cache_count", { accountId }) };
 } catch (e) {
@@ -90,7 +90,7 @@ async accountCacheCount(accountId: string) : Promise<Result<number, { code: stri
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async clearAccountCache(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async clearAccountCache(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_account_cache", { accountId }) };
 } catch (e) {
@@ -99,7 +99,7 @@ async clearAccountCache(accountId: string) : Promise<Result<number, { code: stri
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async clearAllCache() : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async clearAllCache() : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_all_cache") };
 } catch (e) {
@@ -108,7 +108,7 @@ async clearAllCache() : Promise<Result<number, { code: string; message: string; 
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async applyEvictionConfig(config: EvictionConfig) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async applyEvictionConfig(config: EvictionConfig) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("apply_eviction_config", { config }) };
 } catch (e) {
@@ -117,7 +117,7 @@ async applyEvictionConfig(config: EvictionConfig) : Promise<Result<number, { cod
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async defaultEvictionConfig() : Promise<Result<EvictionConfig, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async defaultEvictionConfig() : Promise<Result<EvictionConfig, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("default_eviction_config") };
 } catch (e) {
@@ -126,7 +126,7 @@ async defaultEvictionConfig() : Promise<Result<EvictionConfig, { code: string; m
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async chatCacheStats() : Promise<Result<ChatCacheStats, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async chatCacheStats() : Promise<Result<ChatCacheStats, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("chat_cache_stats") };
 } catch (e) {
@@ -135,7 +135,7 @@ async chatCacheStats() : Promise<Result<ChatCacheStats, { code: string; message:
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async chatCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async chatCacheCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("chat_cache_count", { accountId }) };
 } catch (e) {
@@ -144,7 +144,7 @@ async chatCacheCount(accountId: string) : Promise<Result<number, { code: string;
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async clearChatCacheForAccount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async clearChatCacheForAccount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_chat_cache_for_account", { accountId }) };
 } catch (e) {
@@ -153,7 +153,7 @@ async clearChatCacheForAccount(accountId: string) : Promise<Result<number, { cod
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async applyChatEvictionConfig(config: ChatEvictionConfig) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async applyChatEvictionConfig(config: ChatEvictionConfig) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("apply_chat_eviction_config", { config }) };
 } catch (e) {
@@ -162,7 +162,7 @@ async applyChatEvictionConfig(config: ChatEvictionConfig) : Promise<Result<numbe
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async defaultChatEvictionConfig() : Promise<Result<ChatEvictionConfig, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async defaultChatEvictionConfig() : Promise<Result<ChatEvictionConfig, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("default_chat_eviction_config") };
 } catch (e) {
@@ -171,7 +171,7 @@ async defaultChatEvictionConfig() : Promise<Result<ChatEvictionConfig, { code: s
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async loadServerDetections() : Promise<Result<ServerDetection[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async loadServerDetections() : Promise<Result<ServerDetection[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("load_server_detections") };
 } catch (e) {
@@ -180,7 +180,7 @@ async loadServerDetections() : Promise<Result<ServerDetection[], { code: string;
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async getServerDetection(host: string) : Promise<Result<ServerDetection, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async getServerDetection(host: string) : Promise<Result<ServerDetection, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_server_detection", { host }) };
 } catch (e) {
@@ -189,7 +189,7 @@ async getServerDetection(host: string) : Promise<Result<ServerDetection, { code:
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
-async detectServer(host: string) : Promise<Result<ServerDetection, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async detectServer(host: string) : Promise<Result<ServerDetection, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("detect_server", { host }) };
 } catch (e) {
@@ -198,7 +198,7 @@ async detectServer(host: string) : Promise<Result<ServerDetection, { code: strin
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetEndpoints(host: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetEndpoints(host: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_endpoints", { host }) };
 } catch (e) {
@@ -207,7 +207,7 @@ async apiGetEndpoints(host: string) : Promise<Result<string[], { code: string; m
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetEndpointParams(host: string, endpoint: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetEndpointParams(host: string, endpoint: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_endpoint_params", { host, endpoint }) };
 } catch (e) {
@@ -216,7 +216,7 @@ async apiGetEndpointParams(host: string, endpoint: string) : Promise<Result<stri
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetUserPolicies(accountId: string) : Promise<Result<Partial<{ [key in string]: boolean }>, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserPolicies(accountId: string) : Promise<Result<Partial<{ [key in string]: boolean }>, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_policies", { accountId }) };
 } catch (e) {
@@ -225,7 +225,7 @@ async apiGetUserPolicies(accountId: string) : Promise<Result<Partial<{ [key in s
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiUpdateUserSetting(accountId: string, key: string, value: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdateUserSetting(accountId: string, key: string, value: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_user_setting", { accountId, key, value }) };
 } catch (e) {
@@ -234,7 +234,7 @@ async apiUpdateUserSetting(accountId: string, key: string, value: boolean) : Pro
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetTimeline(accountId: string, timelineType: string, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetTimeline(accountId: string, timelineType: string, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_timeline", { accountId, timelineType, options }) };
 } catch (e) {
@@ -243,7 +243,7 @@ async apiGetTimeline(accountId: string, timelineType: string, options: TimelineO
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetUserLists(accountId: string) : Promise<Result<UserList[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserLists(accountId: string) : Promise<Result<UserList[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_lists", { accountId }) };
 } catch (e) {
@@ -252,7 +252,7 @@ async apiGetUserLists(accountId: string) : Promise<Result<UserList[], { code: st
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetAntennas(accountId: string) : Promise<Result<Antenna[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetAntennas(accountId: string) : Promise<Result<Antenna[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antennas", { accountId }) };
 } catch (e) {
@@ -261,7 +261,7 @@ async apiGetAntennas(accountId: string) : Promise<Result<Antenna[], { code: stri
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetAntenna(accountId: string, antennaId: string) : Promise<Result<Antenna, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetAntenna(accountId: string, antennaId: string) : Promise<Result<Antenna, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antenna", { accountId, antennaId }) };
 } catch (e) {
@@ -270,7 +270,7 @@ async apiGetAntenna(accountId: string, antennaId: string) : Promise<Result<Anten
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiUpdateAntenna(accountId: string, antenna: Antenna) : Promise<Result<Antenna, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdateAntenna(accountId: string, antenna: Antenna) : Promise<Result<Antenna, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_antenna", { accountId, antenna }) };
 } catch (e) {
@@ -279,7 +279,7 @@ async apiUpdateAntenna(accountId: string, antenna: Antenna) : Promise<Result<Ant
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetAntennaNotes(accountId: string, antennaId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetAntennaNotes(accountId: string, antennaId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_antenna_notes", { accountId, antennaId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -288,7 +288,7 @@ async apiGetAntennaNotes(accountId: string, antennaId: string, limit: number | n
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetFavorites(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetFavorites(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_favorites", { accountId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -297,7 +297,7 @@ async apiGetFavorites(accountId: string, limit: number | null, sinceId: string |
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetFeaturedNotes(accountId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetFeaturedNotes(accountId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_featured_notes", { accountId, limit }) };
 } catch (e) {
@@ -306,7 +306,7 @@ async apiGetFeaturedNotes(accountId: string, limit: number | null) : Promise<Res
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetMentions(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null, visibility: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetMentions(accountId: string, limit: number | null, sinceId: string | null, untilId: string | null, visibility: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_mentions", { accountId, limit, sinceId, untilId, visibility }) };
 } catch (e) {
@@ -315,7 +315,7 @@ async apiGetMentions(accountId: string, limit: number | null, sinceId: string | 
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetClips(accountId: string) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetClips(accountId: string) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_clips", { accountId }) };
 } catch (e) {
@@ -324,7 +324,7 @@ async apiGetClips(accountId: string) : Promise<Result<Clip[], { code: string; me
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetClipNotes(accountId: string, clipId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetClipNotes(accountId: string, clipId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_clip_notes", { accountId, clipId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -333,7 +333,7 @@ async apiGetClipNotes(accountId: string, clipId: string, limit: number | null, s
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetChannels(accountId: string) : Promise<Result<Channel[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetChannels(accountId: string) : Promise<Result<Channel[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_channels", { accountId }) };
 } catch (e) {
@@ -342,7 +342,7 @@ async apiGetChannels(accountId: string) : Promise<Result<Channel[], { code: stri
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiSearchChannels(accountId: string, query: string) : Promise<Result<Channel[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSearchChannels(accountId: string, query: string) : Promise<Result<Channel[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_channels", { accountId, query }) };
 } catch (e) {
@@ -351,7 +351,7 @@ async apiSearchChannels(accountId: string, query: string) : Promise<Result<Chann
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetChannelNotes(accountId: string, channelId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetChannelNotes(accountId: string, channelId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_channel_notes", { accountId, channelId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -360,7 +360,7 @@ async apiGetChannelNotes(accountId: string, channelId: string, limit: number | n
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetRoleNotes(accountId: string, roleId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetRoleNotes(accountId: string, roleId: string, limit: number | null, sinceId: string | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_role_notes", { accountId, roleId, limit, sinceId, untilId }) };
 } catch (e) {
@@ -369,7 +369,7 @@ async apiGetRoleNotes(accountId: string, roleId: string, limit: number | null, s
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetNote(accountId: string, noteId: string) : Promise<Result<NormalizedNote, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetNote(accountId: string, noteId: string) : Promise<Result<NormalizedNote, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note", { accountId, noteId }) };
 } catch (e) {
@@ -378,7 +378,7 @@ async apiGetNote(accountId: string, noteId: string) : Promise<Result<NormalizedN
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiCreateNote(accountId: string, params: CreateNoteParams, channelId: string | null) : Promise<Result<NormalizedNote, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiCreateNote(accountId: string, params: CreateNoteParams, channelId: string | null) : Promise<Result<NormalizedNote, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_note", { accountId, params, channelId }) };
 } catch (e) {
@@ -387,7 +387,7 @@ async apiCreateNote(accountId: string, params: CreateNoteParams, channelId: stri
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiCreateReaction(accountId: string, noteId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiCreateReaction(accountId: string, noteId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_reaction", { accountId, noteId, reaction }) };
 } catch (e) {
@@ -396,7 +396,7 @@ async apiCreateReaction(accountId: string, noteId: string, reaction: string) : P
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiDeleteReaction(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiDeleteReaction(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_reaction", { accountId, noteId }) };
 } catch (e) {
@@ -405,7 +405,7 @@ async apiDeleteReaction(accountId: string, noteId: string) : Promise<Result<null
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiVotePoll(accountId: string, noteId: string, choice: number) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiVotePoll(accountId: string, noteId: string, choice: number) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_vote_poll", { accountId, noteId, choice }) };
 } catch (e) {
@@ -414,7 +414,7 @@ async apiVotePoll(accountId: string, noteId: string, choice: number) : Promise<R
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetNoteReactions(accountId: string, noteId: string, reactionType: string | null, limit: number | null, untilId: string | null) : Promise<Result<NormalizedNoteReaction[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetNoteReactions(accountId: string, noteId: string, reactionType: string | null, limit: number | null, untilId: string | null) : Promise<Result<NormalizedNoteReaction[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_reactions", { accountId, noteId, reactionType, limit, untilId }) };
 } catch (e) {
@@ -423,7 +423,7 @@ async apiGetNoteReactions(accountId: string, noteId: string, reactionType: strin
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiUpdateNote(accountId: string, noteId: string, params: CreateNoteParams) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdateNote(accountId: string, noteId: string, params: CreateNoteParams) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_note", { accountId, noteId, params }) };
 } catch (e) {
@@ -432,7 +432,7 @@ async apiUpdateNote(accountId: string, noteId: string, params: CreateNoteParams)
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiUploadFile(accountId: string, fileName: string, fileData: number[], contentType: string, isSensitive: boolean, folderId: string | null) : Promise<Result<NormalizedDriveFile, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUploadFile(accountId: string, fileName: string, fileData: number[], contentType: string, isSensitive: boolean, folderId: string | null) : Promise<Result<NormalizedDriveFile, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_upload_file", { accountId, fileName, fileData, contentType, isSensitive, folderId }) };
 } catch (e) {
@@ -441,7 +441,7 @@ async apiUploadFile(accountId: string, fileName: string, fileData: number[], con
 }
 },
 /** @see src-tauri/src/commands/timeline.rs */
-async apiUploadFileFromPath(accountId: string, filePath: string, isSensitive: boolean, folderId: string | null) : Promise<Result<NormalizedDriveFile, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUploadFileFromPath(accountId: string, filePath: string, isSensitive: boolean, folderId: string | null) : Promise<Result<NormalizedDriveFile, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_upload_file_from_path", { accountId, filePath, isSensitive, folderId }) };
 } catch (e) {
@@ -450,7 +450,7 @@ async apiUploadFileFromPath(accountId: string, filePath: string, isSensitive: bo
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiCreateFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiCreateFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_favorite", { accountId, noteId }) };
 } catch (e) {
@@ -459,7 +459,7 @@ async apiCreateFavorite(accountId: string, noteId: string) : Promise<Result<null
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiDeleteFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiDeleteFavorite(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_favorite", { accountId, noteId }) };
 } catch (e) {
@@ -468,7 +468,7 @@ async apiDeleteFavorite(accountId: string, noteId: string) : Promise<Result<null
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiDeleteNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiDeleteNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_note", { accountId, noteId }) };
 } catch (e) {
@@ -477,7 +477,7 @@ async apiDeleteNote(accountId: string, noteId: string) : Promise<Result<null, { 
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiFollowUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiFollowUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_follow_user", { accountId, userId }) };
 } catch (e) {
@@ -486,7 +486,7 @@ async apiFollowUser(accountId: string, userId: string) : Promise<Result<null, { 
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiUnfollowUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnfollowUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unfollow_user", { accountId, userId }) };
 } catch (e) {
@@ -495,7 +495,7 @@ async apiUnfollowUser(accountId: string, userId: string) : Promise<Result<null, 
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiInvalidateFollower(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiInvalidateFollower(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_invalidate_follower", { accountId, userId }) };
 } catch (e) {
@@ -504,7 +504,7 @@ async apiInvalidateFollower(accountId: string, userId: string) : Promise<Result<
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiUpdateFollowing(accountId: string, userId: string, notify: string | null, withReplies: boolean | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdateFollowing(accountId: string, userId: string, notify: string | null, withReplies: boolean | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_following", { accountId, userId, notify, withReplies }) };
 } catch (e) {
@@ -513,7 +513,7 @@ async apiUpdateFollowing(accountId: string, userId: string, notify: string | nul
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiUpdateUserMemo(accountId: string, userId: string, memo: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdateUserMemo(accountId: string, userId: string, memo: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_user_memo", { accountId, userId, memo }) };
 } catch (e) {
@@ -522,7 +522,7 @@ async apiUpdateUserMemo(accountId: string, userId: string, memo: string) : Promi
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiAcceptFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiAcceptFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_accept_follow_request", { accountId, userId }) };
 } catch (e) {
@@ -531,7 +531,7 @@ async apiAcceptFollowRequest(accountId: string, userId: string) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiRejectFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiRejectFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_reject_follow_request", { accountId, userId }) };
 } catch (e) {
@@ -540,7 +540,7 @@ async apiRejectFollowRequest(accountId: string, userId: string) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiCancelFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiCancelFollowRequest(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_cancel_follow_request", { accountId, userId }) };
 } catch (e) {
@@ -549,7 +549,7 @@ async apiCancelFollowRequest(accountId: string, userId: string) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUser(accountId: string, userId: string) : Promise<Result<NormalizedUser, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUser(accountId: string, userId: string) : Promise<Result<NormalizedUser, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user", { accountId, userId }) };
 } catch (e) {
@@ -558,7 +558,7 @@ async apiGetUser(accountId: string, userId: string) : Promise<Result<NormalizedU
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserDetail(accountId: string, userId: string) : Promise<Result<NormalizedUserDetail, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserDetail(accountId: string, userId: string) : Promise<Result<NormalizedUserDetail, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_detail", { accountId, userId }) };
 } catch (e) {
@@ -567,7 +567,7 @@ async apiGetUserDetail(accountId: string, userId: string) : Promise<Result<Norma
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserNotes(accountId: string, userId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserNotes(accountId: string, userId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_notes", { accountId, userId, options }) };
 } catch (e) {
@@ -576,7 +576,7 @@ async apiGetUserNotes(accountId: string, userId: string, options: TimelineOption
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetServerEmojis(accountId: string, refresh: boolean) : Promise<Result<ServerEmoji[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetServerEmojis(accountId: string, refresh: boolean) : Promise<Result<ServerEmoji[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_server_emojis", { accountId, refresh }) };
 } catch (e) {
@@ -585,7 +585,7 @@ async apiGetServerEmojis(accountId: string, refresh: boolean) : Promise<Result<S
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetPinnedReactions(accountId: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetPinnedReactions(accountId: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_pinned_reactions", { accountId }) };
 } catch (e) {
@@ -594,7 +594,7 @@ async apiGetPinnedReactions(accountId: string) : Promise<Result<string[], { code
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetNotifications(accountId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNotification[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetNotifications(accountId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNotification[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_notifications", { accountId, options }) };
 } catch (e) {
@@ -603,7 +603,7 @@ async apiGetNotifications(accountId: string, options: TimelineOptions | null) : 
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetNotificationsGrouped(accountId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNotification[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetNotificationsGrouped(accountId: string, options: TimelineOptions | null) : Promise<Result<NormalizedNotification[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_notifications_grouped", { accountId, options }) };
 } catch (e) {
@@ -612,7 +612,7 @@ async apiGetNotificationsGrouped(accountId: string, options: TimelineOptions | n
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiSearchNotes(accountId: string, query: string, options: SearchOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSearchNotes(accountId: string, query: string, options: SearchOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes", { accountId, query, options }) };
 } catch (e) {
@@ -621,7 +621,7 @@ async apiSearchNotes(accountId: string, query: string, options: SearchOptions | 
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiSearchNotesHanami(accountId: string, query: string, options: SearchOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSearchNotesHanami(accountId: string, query: string, options: SearchOptions | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes_hanami", { accountId, query, options }) };
 } catch (e) {
@@ -630,7 +630,7 @@ async apiSearchNotesHanami(accountId: string, query: string, options: SearchOpti
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetNoteChildren(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetNoteChildren(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_children", { accountId, noteId, limit }) };
 } catch (e) {
@@ -639,7 +639,7 @@ async apiGetNoteChildren(accountId: string, noteId: string, limit: number | null
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetNoteRenotes(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetNoteRenotes(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_renotes", { accountId, noteId, limit }) };
 } catch (e) {
@@ -648,7 +648,7 @@ async apiGetNoteRenotes(accountId: string, noteId: string, limit: number | null)
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetNoteQuotes(accountId: string, noteId: string, limit: number | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetNoteQuotes(accountId: string, noteId: string, limit: number | null, untilId: string | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_quotes", { accountId, noteId, limit, untilId }) };
 } catch (e) {
@@ -657,7 +657,7 @@ async apiGetNoteQuotes(accountId: string, noteId: string, limit: number | null, 
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetNoteConversation(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetNoteConversation(accountId: string, noteId: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_conversation", { accountId, noteId, limit }) };
 } catch (e) {
@@ -666,7 +666,7 @@ async apiGetNoteConversation(accountId: string, noteId: string, limit: number | 
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiLookupUser(accountId: string, username: string, host: string | null) : Promise<Result<NormalizedUser, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiLookupUser(accountId: string, username: string, host: string | null) : Promise<Result<NormalizedUser, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_lookup_user", { accountId, username, host }) };
 } catch (e) {
@@ -675,7 +675,7 @@ async apiLookupUser(accountId: string, username: string, host: string | null) : 
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetCachedTimeline(accountId: string, timelineType: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetCachedTimeline(accountId: string, timelineType: string, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_timeline", { accountId, timelineType, limit }) };
 } catch (e) {
@@ -684,7 +684,7 @@ async apiGetCachedTimeline(accountId: string, timelineType: string, limit: numbe
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiDeleteCachedNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiDeleteCachedNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_cached_note", { accountId, noteId }) };
 } catch (e) {
@@ -693,7 +693,7 @@ async apiDeleteCachedNote(accountId: string, noteId: string) : Promise<Result<nu
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiClearTimelineCache(accountId: string, timelineKey: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiClearTimelineCache(accountId: string, timelineKey: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_clear_timeline_cache", { accountId, timelineKey }) };
 } catch (e) {
@@ -702,7 +702,7 @@ async apiClearTimelineCache(accountId: string, timelineKey: string) : Promise<Re
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<VerifyNotesResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<VerifyNotesResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_verify_notes", { accountId, noteIds }) };
 } catch (e) {
@@ -711,7 +711,7 @@ async apiVerifyNotes(accountId: string, noteIds: string[]) : Promise<Result<Veri
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before: string, beforeNoteId: string | null, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before: string, beforeNoteId: string | null, limit: number | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_timeline_before", { accountId, timelineType, before, beforeNoteId, limit }) };
 } catch (e) {
@@ -720,7 +720,7 @@ async apiGetCachedTimelineBefore(accountId: string, timelineType: string, before
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiGetCacheDateRange(accountId: string, timelineType: string) : Promise<Result<[string, string] | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetCacheDateRange(accountId: string, timelineType: string) : Promise<Result<[string, string] | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cache_date_range", { accountId, timelineType }) };
 } catch (e) {
@@ -729,7 +729,7 @@ async apiGetCacheDateRange(accountId: string, timelineType: string) : Promise<Re
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiSearchNotesLocal(accountId: string, query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSearchNotesLocal(accountId: string, query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes_local", { accountId, query, limit, sinceDate, untilDate, ascending }) };
 } catch (e) {
@@ -738,7 +738,7 @@ async apiSearchNotesLocal(accountId: string, query: string, limit: number | null
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null, filters: CachedSearchFilters | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: number | null, sinceDate: string | null, untilDate: string | null, ascending: boolean | null, filters: CachedSearchFilters | null) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_notes_cached_across", { accountIds, query, limit, sinceDate, untilDate, ascending, filters }) };
 } catch (e) {
@@ -747,7 +747,7 @@ async apiSearchNotesCachedAcross(accountIds: string[], query: string, limit: num
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiFindNotesByIdentity(uri: string) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiFindNotesByIdentity(uri: string) : Promise<Result<NormalizedNote[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_find_notes_by_identity", { uri }) };
 } catch (e) {
@@ -756,7 +756,7 @@ async apiFindNotesByIdentity(uri: string) : Promise<Result<NormalizedNote[], { c
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiNoteIdentity(uri: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiNoteIdentity(uri: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_note_identity", { uri }) };
 } catch (e) {
@@ -765,7 +765,7 @@ async apiNoteIdentity(uri: string) : Promise<Result<string, { code: string; mess
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiPinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiPinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_pin_note", { accountId, noteId }) };
 } catch (e) {
@@ -774,7 +774,7 @@ async apiPinNote(accountId: string, noteId: string) : Promise<Result<null, { cod
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiUnpinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnpinNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unpin_note", { accountId, noteId }) };
 } catch (e) {
@@ -783,7 +783,7 @@ async apiUnpinNote(accountId: string, noteId: string) : Promise<Result<null, { c
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiMuteUser(accountId: string, userId: string, expiresAt: number | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiMuteUser(accountId: string, userId: string, expiresAt: number | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_mute_user", { accountId, userId, expiresAt }) };
 } catch (e) {
@@ -792,7 +792,7 @@ async apiMuteUser(accountId: string, userId: string, expiresAt: number | null) :
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiUnmuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnmuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unmute_user", { accountId, userId }) };
 } catch (e) {
@@ -801,7 +801,7 @@ async apiUnmuteUser(accountId: string, userId: string) : Promise<Result<null, { 
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiRenoteMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiRenoteMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_renote_mute_user", { accountId, userId }) };
 } catch (e) {
@@ -810,7 +810,7 @@ async apiRenoteMuteUser(accountId: string, userId: string) : Promise<Result<null
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiUnrenoteMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnrenoteMuteUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unrenote_mute_user", { accountId, userId }) };
 } catch (e) {
@@ -819,7 +819,7 @@ async apiUnrenoteMuteUser(accountId: string, userId: string) : Promise<Result<nu
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetMutedUsers(accountId: string) : Promise<Result<Muting[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetMutedUsers(accountId: string) : Promise<Result<Muting[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_muted_users", { accountId }) };
 } catch (e) {
@@ -828,7 +828,7 @@ async apiGetMutedUsers(accountId: string) : Promise<Result<Muting[], { code: str
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetMutedWords(accountId: string) : Promise<Result<MutedWordsResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetMutedWords(accountId: string) : Promise<Result<MutedWordsResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_muted_words", { accountId }) };
 } catch (e) {
@@ -837,7 +837,7 @@ async apiGetMutedWords(accountId: string) : Promise<Result<MutedWordsResult, { c
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetRenoteMutedUsers(accountId: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetRenoteMutedUsers(accountId: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_renote_muted_users", { accountId }) };
 } catch (e) {
@@ -846,7 +846,7 @@ async apiGetRenoteMutedUsers(accountId: string) : Promise<Result<string[], { cod
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiBlockUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiBlockUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_block_user", { accountId, userId }) };
 } catch (e) {
@@ -855,7 +855,7 @@ async apiBlockUser(accountId: string, userId: string) : Promise<Result<null, { c
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiUnblockUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnblockUser(accountId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unblock_user", { accountId, userId }) };
 } catch (e) {
@@ -864,7 +864,7 @@ async apiUnblockUser(accountId: string, userId: string) : Promise<Result<null, {
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiReportUser(accountId: string, userId: string, comment: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiReportUser(accountId: string, userId: string, comment: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_report_user", { accountId, userId, comment }) };
 } catch (e) {
@@ -873,7 +873,7 @@ async apiReportUser(accountId: string, userId: string, comment: string) : Promis
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiAddNoteToClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiAddNoteToClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_add_note_to_clip", { accountId, clipId, noteId }) };
 } catch (e) {
@@ -882,7 +882,7 @@ async apiAddNoteToClip(accountId: string, clipId: string, noteId: string) : Prom
 }
 },
 /** @see crates/notecore/src/commands/timeline.rs */
-async apiRemoveNoteFromClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiRemoveNoteFromClip(accountId: string, clipId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_remove_note_from_clip", { accountId, clipId, noteId }) };
 } catch (e) {
@@ -891,7 +891,7 @@ async apiRemoveNoteFromClip(accountId: string, clipId: string, noteId: string) :
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiAddUserToList(accountId: string, listId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiAddUserToList(accountId: string, listId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_add_user_to_list", { accountId, listId, userId }) };
 } catch (e) {
@@ -900,7 +900,7 @@ async apiAddUserToList(accountId: string, listId: string, userId: string) : Prom
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiRemoveUserFromList(accountId: string, listId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiRemoveUserFromList(accountId: string, listId: string, userId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_remove_user_from_list", { accountId, listId, userId }) };
 } catch (e) {
@@ -909,7 +909,7 @@ async apiRemoveUserFromList(accountId: string, listId: string, userId: string) :
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetFollowing(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetFollowing(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_following", { accountId, userId, limit, untilId }) };
 } catch (e) {
@@ -918,7 +918,7 @@ async apiGetFollowing(accountId: string, userId: string, limit: number | null, u
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetFollowers(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetFollowers(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_followers", { accountId, userId, limit, untilId }) };
 } catch (e) {
@@ -927,7 +927,7 @@ async apiGetFollowers(accountId: string, userId: string, limit: number | null, u
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserRelations(accountId: string, userIds: string[]) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserRelations(accountId: string, userIds: string[]) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_relations", { accountId, userIds }) };
 } catch (e) {
@@ -936,7 +936,7 @@ async apiGetUserRelations(accountId: string, userIds: string[]) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetUnreadNotificationCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUnreadNotificationCount(accountId: string) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_unread_notification_count", { accountId }) };
 } catch (e) {
@@ -945,7 +945,7 @@ async apiGetUnreadNotificationCount(accountId: string) : Promise<Result<number, 
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiMarkAllNotificationsAsRead(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiMarkAllNotificationsAsRead(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_mark_all_notifications_as_read", { accountId }) };
 } catch (e) {
@@ -954,7 +954,7 @@ async apiMarkAllNotificationsAsRead(accountId: string) : Promise<Result<null, { 
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetUnreadChat(accountId: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUnreadChat(accountId: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_unread_chat", { accountId }) };
 } catch (e) {
@@ -963,7 +963,7 @@ async apiGetUnreadChat(accountId: string) : Promise<Result<boolean, { code: stri
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetSelf(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetSelf(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_self", { accountId }) };
 } catch (e) {
@@ -972,7 +972,7 @@ async apiGetSelf(accountId: string) : Promise<Result<JsonValue, { code: string; 
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetDriveFolders(accountId: string, folderId: string | null, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetDriveFolders(accountId: string, folderId: string | null, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_drive_folders", { accountId, folderId, limit }) };
 } catch (e) {
@@ -981,7 +981,7 @@ async apiGetDriveFolders(accountId: string, folderId: string | null, limit: numb
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetDriveFiles(accountId: string, folderId: string | null, limit: number | null, fileType: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetDriveFiles(accountId: string, folderId: string | null, limit: number | null, fileType: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_drive_files", { accountId, folderId, limit, fileType }) };
 } catch (e) {
@@ -990,7 +990,7 @@ async apiGetDriveFiles(accountId: string, folderId: string | null, limit: number
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiDeleteDriveFile(accountId: string, fileId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiDeleteDriveFile(accountId: string, fileId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_drive_file", { accountId, fileId }) };
 } catch (e) {
@@ -999,7 +999,7 @@ async apiDeleteDriveFile(accountId: string, fileId: string) : Promise<Result<nul
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiCreateDriveFolder(accountId: string, name: string, parentId: string | null) : Promise<Result<CreatedDriveFolder, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiCreateDriveFolder(accountId: string, name: string, parentId: string | null) : Promise<Result<CreatedDriveFolder, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_drive_folder", { accountId, name, parentId }) };
 } catch (e) {
@@ -1008,7 +1008,7 @@ async apiCreateDriveFolder(accountId: string, name: string, parentId: string | n
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiUpdateDriveFolder(accountId: string, folderId: string, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdateDriveFolder(accountId: string, folderId: string, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_drive_folder", { accountId, folderId, name }) };
 } catch (e) {
@@ -1017,7 +1017,7 @@ async apiUpdateDriveFolder(accountId: string, folderId: string, name: string) : 
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiDeleteDriveFolder(accountId: string, folderId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiDeleteDriveFolder(accountId: string, folderId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_drive_folder", { accountId, folderId }) };
 } catch (e) {
@@ -1026,7 +1026,7 @@ async apiDeleteDriveFolder(accountId: string, folderId: string) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiUpdateDriveFile(accountId: string, fileId: string, name: string | null, comment: string | null, isSensitive: boolean | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdateDriveFile(accountId: string, fileId: string, name: string | null, comment: string | null, isSensitive: boolean | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_drive_file", { accountId, fileId, name, comment, isSensitive }) };
 } catch (e) {
@@ -1035,7 +1035,7 @@ async apiUpdateDriveFile(accountId: string, fileId: string, name: string | null,
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiMoveDriveFiles(accountId: string, fileIds: string[], folderId: string | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiMoveDriveFiles(accountId: string, fileIds: string[], folderId: string | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_move_drive_files", { accountId, fileIds, folderId }) };
 } catch (e) {
@@ -1044,7 +1044,7 @@ async apiMoveDriveFiles(accountId: string, fileIds: string[], folderId: string |
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_follow_requests", { accountId, limit }) };
 } catch (e) {
@@ -1053,7 +1053,7 @@ async apiGetFollowRequests(accountId: string, limit: number | null) : Promise<Re
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetSentFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetSentFollowRequests(accountId: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_sent_follow_requests", { accountId, limit }) };
 } catch (e) {
@@ -1062,7 +1062,7 @@ async apiGetSentFollowRequests(accountId: string, limit: number | null) : Promis
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiSearchUsers(accountId: string, query: string | null, origin: string | null, sort: string | null, state: string | null, limit: number | null, offset: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSearchUsers(accountId: string, query: string | null, origin: string | null, sort: string | null, state: string | null, limit: number | null, offset: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_users", { accountId, query, origin, sort, state, limit, offset }) };
 } catch (e) {
@@ -1071,7 +1071,7 @@ async apiSearchUsers(accountId: string, query: string | null, origin: string | n
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetRoles(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetRoles(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_roles", { accountId }) };
 } catch (e) {
@@ -1080,7 +1080,7 @@ async apiGetRoles(accountId: string) : Promise<Result<JsonValue, { code: string;
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetRoleUsers(accountId: string, roleId: string, limit: number | null, offset: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetRoleUsers(accountId: string, roleId: string, limit: number | null, offset: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_role_users", { accountId, roleId, limit, offset }) };
 } catch (e) {
@@ -1089,7 +1089,7 @@ async apiGetRoleUsers(accountId: string, roleId: string, limit: number | null, o
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetAnnouncements(accountId: string, limit: number | null, isActive: boolean | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetAnnouncements(accountId: string, limit: number | null, isActive: boolean | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_announcements", { accountId, limit, isActive }) };
 } catch (e) {
@@ -1098,7 +1098,7 @@ async apiGetAnnouncements(accountId: string, limit: number | null, isActive: boo
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiReadAnnouncement(accountId: string, announcementId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiReadAnnouncement(accountId: string, announcementId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_read_announcement", { accountId, announcementId }) };
 } catch (e) {
@@ -1107,7 +1107,7 @@ async apiReadAnnouncement(accountId: string, announcementId: string) : Promise<R
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiReactChatMessage(accountId: string, messageId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiReactChatMessage(accountId: string, messageId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_react_chat_message", { accountId, messageId, reaction }) };
 } catch (e) {
@@ -1116,7 +1116,7 @@ async apiReactChatMessage(accountId: string, messageId: string, reaction: string
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiUnreactChatMessage(accountId: string, messageId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnreactChatMessage(accountId: string, messageId: string, reaction: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unreact_chat_message", { accountId, messageId, reaction }) };
 } catch (e) {
@@ -1125,7 +1125,7 @@ async apiUnreactChatMessage(accountId: string, messageId: string, reaction: stri
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiDeleteChatMessage(accountId: string, messageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiDeleteChatMessage(accountId: string, messageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_chat_message", { accountId, messageId }) };
 } catch (e) {
@@ -1134,7 +1134,7 @@ async apiDeleteChatMessage(accountId: string, messageId: string) : Promise<Resul
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiSearchUsersByQuery(accountId: string, query: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSearchUsersByQuery(accountId: string, query: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_users_by_query", { accountId, query, limit }) };
 } catch (e) {
@@ -1143,7 +1143,7 @@ async apiSearchUsersByQuery(accountId: string, query: string, limit: number | nu
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiSearchHashtags(accountId: string, query: string, limit: number | null) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSearchHashtags(accountId: string, query: string, limit: number | null) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_search_hashtags", { accountId, query, limit }) };
 } catch (e) {
@@ -1152,7 +1152,7 @@ async apiSearchHashtags(accountId: string, query: string, limit: number | null) 
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiApShow(accountId: string, uri: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiApShow(accountId: string, uri: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_ap_show", { accountId, uri }) };
 } catch (e) {
@@ -1161,7 +1161,7 @@ async apiApShow(accountId: string, uri: string) : Promise<Result<JsonValue, { co
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetServerStats(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetServerStats(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_server_stats", { accountId }) };
 } catch (e) {
@@ -1170,7 +1170,7 @@ async apiGetServerStats(accountId: string) : Promise<Result<JsonValue, { code: s
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetMetaDetail(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetMetaDetail(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_meta_detail", { accountId }) };
 } catch (e) {
@@ -1179,7 +1179,7 @@ async apiGetMetaDetail(accountId: string) : Promise<Result<JsonValue, { code: st
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserAchievements(accountId: string, userId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserAchievements(accountId: string, userId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_achievements", { accountId, userId }) };
 } catch (e) {
@@ -1188,7 +1188,7 @@ async apiGetUserAchievements(accountId: string, userId: string) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserNotesFiltered(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserNotesFiltered(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_notes_filtered", { accountId, params }) };
 } catch (e) {
@@ -1197,7 +1197,7 @@ async apiGetUserNotesFiltered(accountId: string, params: JsonValue) : Promise<Re
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserFeaturedNotes(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserFeaturedNotes(accountId: string, userId: string, limit: number | null, untilId: string | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_featured_notes", { accountId, userId, limit, untilId }) };
 } catch (e) {
@@ -1206,7 +1206,7 @@ async apiGetUserFeaturedNotes(accountId: string, userId: string, limit: number |
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetPages(accountId: string, endpoint: string, limit: number | null) : Promise<Result<Page[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetPages(accountId: string, endpoint: string, limit: number | null) : Promise<Result<Page[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_pages", { accountId, endpoint, limit }) };
 } catch (e) {
@@ -1215,7 +1215,7 @@ async apiGetPages(accountId: string, endpoint: string, limit: number | null) : P
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetPage(accountId: string, pageId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetPage(accountId: string, pageId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_page", { accountId, pageId }) };
 } catch (e) {
@@ -1224,7 +1224,7 @@ async apiGetPage(accountId: string, pageId: string) : Promise<Result<JsonValue, 
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiLikePage(accountId: string, pageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiLikePage(accountId: string, pageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_like_page", { accountId, pageId }) };
 } catch (e) {
@@ -1233,7 +1233,7 @@ async apiLikePage(accountId: string, pageId: string) : Promise<Result<null, { co
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiUnlikePage(accountId: string, pageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnlikePage(accountId: string, pageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unlike_page", { accountId, pageId }) };
 } catch (e) {
@@ -1242,7 +1242,7 @@ async apiUnlikePage(accountId: string, pageId: string) : Promise<Result<null, { 
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetGalleryPosts(accountId: string, limit: number | null, untilId: string | null) : Promise<Result<GalleryPost[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetGalleryPosts(accountId: string, limit: number | null, untilId: string | null) : Promise<Result<GalleryPost[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_gallery_posts", { accountId, limit, untilId }) };
 } catch (e) {
@@ -1251,7 +1251,7 @@ async apiGetGalleryPosts(accountId: string, limit: number | null, untilId: strin
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiLikeGalleryPost(accountId: string, postId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiLikeGalleryPost(accountId: string, postId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_like_gallery_post", { accountId, postId }) };
 } catch (e) {
@@ -1260,7 +1260,7 @@ async apiLikeGalleryPost(accountId: string, postId: string) : Promise<Result<nul
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiUnlikeGalleryPost(accountId: string, postId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnlikeGalleryPost(accountId: string, postId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unlike_gallery_post", { accountId, postId }) };
 } catch (e) {
@@ -1269,7 +1269,7 @@ async apiUnlikeGalleryPost(accountId: string, postId: string) : Promise<Result<n
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetFlashes(accountId: string, endpoint: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetFlashes(accountId: string, endpoint: string, limit: number | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_flashes", { accountId, endpoint, limit }) };
 } catch (e) {
@@ -1278,7 +1278,7 @@ async apiGetFlashes(accountId: string, endpoint: string, limit: number | null) :
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetFlash(accountId: string, flashId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetFlash(accountId: string, flashId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_flash", { accountId, flashId }) };
 } catch (e) {
@@ -1287,7 +1287,7 @@ async apiGetFlash(accountId: string, flashId: string) : Promise<Result<JsonValue
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiLikeFlash(accountId: string, flashId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiLikeFlash(accountId: string, flashId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_like_flash", { accountId, flashId }) };
 } catch (e) {
@@ -1296,7 +1296,7 @@ async apiLikeFlash(accountId: string, flashId: string) : Promise<Result<null, { 
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiUnlikeFlash(accountId: string, flashId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnlikeFlash(accountId: string, flashId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unlike_flash", { accountId, flashId }) };
 } catch (e) {
@@ -1305,7 +1305,7 @@ async apiUnlikeFlash(accountId: string, flashId: string) : Promise<Result<null, 
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiRequest(accountId: string, endpoint: string, params: JsonValue | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiRequest(accountId: string, endpoint: string, params: JsonValue | null) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_request", { accountId, endpoint, params }) };
 } catch (e) {
@@ -1314,7 +1314,7 @@ async apiRequest(accountId: string, endpoint: string, params: JsonValue | null) 
 }
 },
 /** @see crates/notecore/src/commands/charts.rs */
-async apiChartsUserNotes(accountId: string, params: JsonValue) : Promise<Result<UserNotesChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiChartsUserNotes(accountId: string, params: JsonValue) : Promise<Result<UserNotesChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_user_notes", { accountId, params }) };
 } catch (e) {
@@ -1323,7 +1323,7 @@ async apiChartsUserNotes(accountId: string, params: JsonValue) : Promise<Result<
 }
 },
 /** @see crates/notecore/src/commands/charts.rs */
-async apiChartsUserFollowing(accountId: string, params: JsonValue) : Promise<Result<UserFollowingChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiChartsUserFollowing(accountId: string, params: JsonValue) : Promise<Result<UserFollowingChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_user_following", { accountId, params }) };
 } catch (e) {
@@ -1332,7 +1332,7 @@ async apiChartsUserFollowing(accountId: string, params: JsonValue) : Promise<Res
 }
 },
 /** @see crates/notecore/src/commands/charts.rs */
-async apiChartsUserPv(accountId: string, params: JsonValue) : Promise<Result<UserPvChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiChartsUserPv(accountId: string, params: JsonValue) : Promise<Result<UserPvChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_user_pv", { accountId, params }) };
 } catch (e) {
@@ -1341,7 +1341,7 @@ async apiChartsUserPv(accountId: string, params: JsonValue) : Promise<Result<Use
 }
 },
 /** @see crates/notecore/src/commands/charts.rs */
-async apiChartsActiveUsers(accountId: string, params: JsonValue) : Promise<Result<ActiveUsersChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiChartsActiveUsers(accountId: string, params: JsonValue) : Promise<Result<ActiveUsersChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_active_users", { accountId, params }) };
 } catch (e) {
@@ -1350,7 +1350,7 @@ async apiChartsActiveUsers(accountId: string, params: JsonValue) : Promise<Resul
 }
 },
 /** @see crates/notecore/src/commands/charts.rs */
-async apiChartsNotes(accountId: string, params: JsonValue) : Promise<Result<ServerNotesChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiChartsNotes(accountId: string, params: JsonValue) : Promise<Result<ServerNotesChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_notes", { accountId, params }) };
 } catch (e) {
@@ -1359,7 +1359,7 @@ async apiChartsNotes(accountId: string, params: JsonValue) : Promise<Result<Serv
 }
 },
 /** @see crates/notecore/src/commands/charts.rs */
-async apiChartsUsers(accountId: string, params: JsonValue) : Promise<Result<ServerUsersChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiChartsUsers(accountId: string, params: JsonValue) : Promise<Result<ServerUsersChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_users", { accountId, params }) };
 } catch (e) {
@@ -1368,7 +1368,7 @@ async apiChartsUsers(accountId: string, params: JsonValue) : Promise<Result<Serv
 }
 },
 /** @see crates/notecore/src/commands/charts.rs */
-async apiChartsFederation(accountId: string, params: JsonValue) : Promise<Result<FederationChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiChartsFederation(accountId: string, params: JsonValue) : Promise<Result<FederationChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_federation", { accountId, params }) };
 } catch (e) {
@@ -1377,7 +1377,7 @@ async apiChartsFederation(accountId: string, params: JsonValue) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/charts.rs */
-async apiChartsApRequest(accountId: string, params: JsonValue) : Promise<Result<ApRequestChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiChartsApRequest(accountId: string, params: JsonValue) : Promise<Result<ApRequestChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_ap_request", { accountId, params }) };
 } catch (e) {
@@ -1386,7 +1386,7 @@ async apiChartsApRequest(accountId: string, params: JsonValue) : Promise<Result<
 }
 },
 /** @see crates/notecore/src/commands/charts.rs */
-async apiChartsDrive(accountId: string, params: JsonValue) : Promise<Result<ServerDriveChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiChartsDrive(accountId: string, params: JsonValue) : Promise<Result<ServerDriveChart, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_charts_drive", { accountId, params }) };
 } catch (e) {
@@ -1395,7 +1395,7 @@ async apiChartsDrive(accountId: string, params: JsonValue) : Promise<Result<Serv
 }
 },
 /** @see crates/notecore/src/commands/federation.rs */
-async apiGetFederationInstances(accountId: string, params: JsonValue) : Promise<Result<FederationInstance[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetFederationInstances(accountId: string, params: JsonValue) : Promise<Result<FederationInstance[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_federation_instances", { accountId, params }) };
 } catch (e) {
@@ -1404,7 +1404,7 @@ async apiGetFederationInstances(accountId: string, params: JsonValue) : Promise<
 }
 },
 /** @see crates/notecore/src/commands/federation.rs */
-async apiGetFederationInstance(accountId: string, params: JsonValue) : Promise<Result<FederationInstance, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetFederationInstance(accountId: string, params: JsonValue) : Promise<Result<FederationInstance, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_federation_instance", { accountId, params }) };
 } catch (e) {
@@ -1413,7 +1413,7 @@ async apiGetFederationInstance(accountId: string, params: JsonValue) : Promise<R
 }
 },
 /** @see crates/notecore/src/commands/drafts.rs */
-async apiGetDrafts(accountId: string, params: JsonValue) : Promise<Result<NoteDraft[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetDrafts(accountId: string, params: JsonValue) : Promise<Result<NoteDraft[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_drafts", { accountId, params }) };
 } catch (e) {
@@ -1422,7 +1422,7 @@ async apiGetDrafts(accountId: string, params: JsonValue) : Promise<Result<NoteDr
 }
 },
 /** @see crates/notecore/src/commands/drafts.rs */
-async apiCreateDraft(accountId: string, params: JsonValue) : Promise<Result<NoteDraft, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiCreateDraft(accountId: string, params: JsonValue) : Promise<Result<NoteDraft, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_draft", { accountId, params }) };
 } catch (e) {
@@ -1431,7 +1431,7 @@ async apiCreateDraft(accountId: string, params: JsonValue) : Promise<Result<Note
 }
 },
 /** @see crates/notecore/src/commands/drafts.rs */
-async apiUpdateDraft(accountId: string, params: JsonValue) : Promise<Result<NoteDraft, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdateDraft(accountId: string, params: JsonValue) : Promise<Result<NoteDraft, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_draft", { accountId, params }) };
 } catch (e) {
@@ -1440,7 +1440,7 @@ async apiUpdateDraft(accountId: string, params: JsonValue) : Promise<Result<Note
 }
 },
 /** @see crates/notecore/src/commands/drafts.rs */
-async apiDeleteDraft(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiDeleteDraft(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_draft", { accountId, params }) };
 } catch (e) {
@@ -1449,7 +1449,7 @@ async apiDeleteDraft(accountId: string, params: JsonValue) : Promise<Result<null
 }
 },
 /** @see crates/notecore/src/commands/clips.rs */
-async apiGetClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_clip", { accountId, params }) };
 } catch (e) {
@@ -1458,7 +1458,7 @@ async apiGetClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { 
 }
 },
 /** @see crates/notecore/src/commands/clips.rs */
-async apiGetMyFavoriteClips(accountId: string, params: JsonValue) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetMyFavoriteClips(accountId: string, params: JsonValue) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_my_favorite_clips", { accountId, params }) };
 } catch (e) {
@@ -1467,7 +1467,7 @@ async apiGetMyFavoriteClips(accountId: string, params: JsonValue) : Promise<Resu
 }
 },
 /** @see crates/notecore/src/commands/clips.rs */
-async apiCreateClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiCreateClip(accountId: string, params: JsonValue) : Promise<Result<Clip, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_clip", { accountId, params }) };
 } catch (e) {
@@ -1476,7 +1476,7 @@ async apiCreateClip(accountId: string, params: JsonValue) : Promise<Result<Clip,
 }
 },
 /** @see crates/notecore/src/commands/clips.rs */
-async apiFavoriteClip(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiFavoriteClip(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_favorite_clip", { accountId, params }) };
 } catch (e) {
@@ -1485,7 +1485,7 @@ async apiFavoriteClip(accountId: string, params: JsonValue) : Promise<Result<nul
 }
 },
 /** @see crates/notecore/src/commands/clips.rs */
-async apiUnfavoriteClip(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnfavoriteClip(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unfavorite_clip", { accountId, params }) };
 } catch (e) {
@@ -1494,7 +1494,7 @@ async apiUnfavoriteClip(accountId: string, params: JsonValue) : Promise<Result<n
 }
 },
 /** @see crates/notecore/src/commands/clips.rs */
-async apiGetUserClips(accountId: string, params: JsonValue) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserClips(accountId: string, params: JsonValue) : Promise<Result<Clip[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_clips", { accountId, params }) };
 } catch (e) {
@@ -1503,7 +1503,7 @@ async apiGetUserClips(accountId: string, params: JsonValue) : Promise<Result<Cli
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiUpdatePage(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdatePage(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_page", { accountId, params }) };
 } catch (e) {
@@ -1512,7 +1512,7 @@ async apiUpdatePage(accountId: string, params: JsonValue) : Promise<Result<JsonV
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiUpdateFlash(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUpdateFlash(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_update_flash", { accountId, params }) };
 } catch (e) {
@@ -1521,7 +1521,7 @@ async apiUpdateFlash(accountId: string, params: JsonValue) : Promise<Result<Json
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetNoteRaw(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetNoteRaw(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_note_raw", { accountId, params }) };
 } catch (e) {
@@ -1530,7 +1530,7 @@ async apiGetNoteRaw(accountId: string, params: JsonValue) : Promise<Result<JsonV
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetDriveFile(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetDriveFile(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_drive_file", { accountId, params }) };
 } catch (e) {
@@ -1539,7 +1539,7 @@ async apiGetDriveFile(accountId: string, params: JsonValue) : Promise<Result<Jso
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserRaw(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserRaw(accountId: string, params: JsonValue) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_raw", { accountId, params }) };
 } catch (e) {
@@ -1548,7 +1548,7 @@ async apiGetUserRaw(accountId: string, params: JsonValue) : Promise<Result<JsonV
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiProbeUsersSuspended(accountId: string, userIds: string[]) : Promise<Result<UserSuspensionStatus[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiProbeUsersSuspended(accountId: string, userIds: string[]) : Promise<Result<UserSuspensionStatus[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_probe_users_suspended", { accountId, userIds }) };
 } catch (e) {
@@ -1557,7 +1557,7 @@ async apiProbeUsersSuspended(accountId: string, userIds: string[]) : Promise<Res
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserReactions(accountId: string, params: JsonValue) : Promise<Result<UserReaction[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserReactions(accountId: string, params: JsonValue) : Promise<Result<UserReaction[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_reactions", { accountId, params }) };
 } catch (e) {
@@ -1566,7 +1566,7 @@ async apiGetUserReactions(accountId: string, params: JsonValue) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserPagesBy(accountId: string, params: JsonValue) : Promise<Result<Page[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserPagesBy(accountId: string, params: JsonValue) : Promise<Result<Page[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_pages_by", { accountId, params }) };
 } catch (e) {
@@ -1575,7 +1575,7 @@ async apiGetUserPagesBy(accountId: string, params: JsonValue) : Promise<Result<P
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserFlashs(accountId: string, params: JsonValue) : Promise<Result<Flash[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserFlashs(accountId: string, params: JsonValue) : Promise<Result<Flash[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_flashs", { accountId, params }) };
 } catch (e) {
@@ -1584,7 +1584,7 @@ async apiGetUserFlashs(accountId: string, params: JsonValue) : Promise<Result<Fl
 }
 },
 /** @see crates/notecore/src/commands/user.rs */
-async apiGetUserGalleryBy(accountId: string, params: JsonValue) : Promise<Result<GalleryPost[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserGalleryBy(accountId: string, params: JsonValue) : Promise<Result<GalleryPost[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_gallery_by", { accountId, params }) };
 } catch (e) {
@@ -1593,7 +1593,7 @@ async apiGetUserGalleryBy(accountId: string, params: JsonValue) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/lists.rs */
-async apiGetList(accountId: string, params: JsonValue) : Promise<Result<UserList, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetList(accountId: string, params: JsonValue) : Promise<Result<UserList, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_list", { accountId, params }) };
 } catch (e) {
@@ -1602,7 +1602,7 @@ async apiGetList(accountId: string, params: JsonValue) : Promise<Result<UserList
 }
 },
 /** @see crates/notecore/src/commands/lists.rs */
-async apiGetUserListsBy(accountId: string, params: JsonValue) : Promise<Result<UserList[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetUserListsBy(accountId: string, params: JsonValue) : Promise<Result<UserList[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_user_lists_by", { accountId, params }) };
 } catch (e) {
@@ -1611,7 +1611,7 @@ async apiGetUserListsBy(accountId: string, params: JsonValue) : Promise<Result<U
 }
 },
 /** @see crates/notecore/src/commands/lists.rs */
-async apiFavoriteList(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiFavoriteList(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_favorite_list", { accountId, params }) };
 } catch (e) {
@@ -1620,7 +1620,7 @@ async apiFavoriteList(accountId: string, params: JsonValue) : Promise<Result<nul
 }
 },
 /** @see crates/notecore/src/commands/lists.rs */
-async apiUnfavoriteList(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiUnfavoriteList(accountId: string, params: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_unfavorite_list", { accountId, params }) };
 } catch (e) {
@@ -1629,7 +1629,7 @@ async apiUnfavoriteList(accountId: string, params: JsonValue) : Promise<Result<n
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiFetchAccountTheme(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiFetchAccountTheme(accountId: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_fetch_account_theme", { accountId }) };
 } catch (e) {
@@ -1638,7 +1638,7 @@ async apiFetchAccountTheme(accountId: string) : Promise<Result<JsonValue, { code
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiGetRegistryValue(accountId: string, scope: string[], key: string) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetRegistryValue(accountId: string, scope: string[], key: string) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_registry_value", { accountId, scope, key }) };
 } catch (e) {
@@ -1647,7 +1647,7 @@ async apiGetRegistryValue(accountId: string, scope: string[], key: string) : Pro
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiSetRegistryValue(accountId: string, scope: string[], key: string, value: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiSetRegistryValue(accountId: string, scope: string[], key: string, value: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_set_registry_value", { accountId, scope, key, value }) };
 } catch (e) {
@@ -1656,7 +1656,7 @@ async apiSetRegistryValue(accountId: string, scope: string[], key: string, value
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiDeleteRegistryValue(accountId: string, scope: string[], key: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiDeleteRegistryValue(accountId: string, scope: string[], key: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_delete_registry_value", { accountId, scope, key }) };
 } catch (e) {
@@ -1665,7 +1665,7 @@ async apiDeleteRegistryValue(accountId: string, scope: string[], key: string) : 
 }
 },
 /** @see crates/notecore/src/commands/content.rs */
-async apiListRegistryKeys(accountId: string, scope: string[]) : Promise<Result<Partial<{ [key in string]: string }>, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiListRegistryKeys(accountId: string, scope: string[]) : Promise<Result<Partial<{ [key in string]: string }>, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_list_registry_keys", { accountId, scope }) };
 } catch (e) {
@@ -1674,7 +1674,7 @@ async apiListRegistryKeys(accountId: string, scope: string[]) : Promise<Result<P
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetChatHistory(accountId: string, limit: number | null, room: boolean | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetChatHistory(accountId: string, limit: number | null, room: boolean | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_chat_history", { accountId, limit, room, cache }) };
 } catch (e) {
@@ -1683,7 +1683,7 @@ async apiGetChatHistory(accountId: string, limit: number | null, room: boolean |
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetChatUserMessages(accountId: string, userId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetChatUserMessages(accountId: string, userId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_chat_user_messages", { accountId, userId, limit, sinceId, untilId, cache }) };
 } catch (e) {
@@ -1692,7 +1692,7 @@ async apiGetChatUserMessages(accountId: string, userId: string, limit: number | 
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetChatRoomMessages(accountId: string, roomId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetChatRoomMessages(accountId: string, roomId: string, limit: number | null, sinceId: string | null, untilId: string | null, cache: boolean | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_chat_room_messages", { accountId, roomId, limit, sinceId, untilId, cache }) };
 } catch (e) {
@@ -1701,7 +1701,7 @@ async apiGetChatRoomMessages(accountId: string, roomId: string, limit: number | 
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiCreateChatMessage(accountId: string, userId: string | null, roomId: string | null, text: string | null, fileId: string | null) : Promise<Result<ChatMessage, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiCreateChatMessage(accountId: string, userId: string | null, roomId: string | null, text: string | null, fileId: string | null) : Promise<Result<ChatMessage, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_create_chat_message", { accountId, userId, roomId, text, fileId }) };
 } catch (e) {
@@ -1710,7 +1710,7 @@ async apiCreateChatMessage(accountId: string, userId: string | null, roomId: str
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetCachedChatHistory(accountId: string, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetCachedChatHistory(accountId: string, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_chat_history", { accountId, limit }) };
 } catch (e) {
@@ -1719,7 +1719,7 @@ async apiGetCachedChatHistory(accountId: string, limit: number | null) : Promise
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetCachedChatThreadMessages(accountId: string, threadId: string, untilId: string | null, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetCachedChatThreadMessages(accountId: string, threadId: string, untilId: string | null, limit: number | null) : Promise<Result<ChatMessage[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_chat_thread_messages", { accountId, threadId, untilId, limit }) };
 } catch (e) {
@@ -1728,7 +1728,7 @@ async apiGetCachedChatThreadMessages(accountId: string, threadId: string, untilI
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
-async apiGetCachedChatLatestMessageId(accountId: string, threadId: string) : Promise<Result<string | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async apiGetCachedChatLatestMessageId(accountId: string, threadId: string) : Promise<Result<string | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_cached_chat_latest_message_id", { accountId, threadId }) };
 } catch (e) {
@@ -1737,7 +1737,7 @@ async apiGetCachedChatLatestMessageId(accountId: string, threadId: string) : Pro
 }
 },
 /** @see crates/notecore/src/commands/auth.rs */
-async authStart(host: string, permissions: string[] | null) : Promise<Result<AuthSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async authStart(host: string, permissions: string[] | null) : Promise<Result<AuthSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("auth_start", { host, permissions }) };
 } catch (e) {
@@ -1746,7 +1746,7 @@ async authStart(host: string, permissions: string[] | null) : Promise<Result<Aut
 }
 },
 /** @see crates/notecore/src/commands/auth.rs */
-async authCompleteAndSave(session: AuthSession, software: string) : Promise<Result<AccountPublic, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async authCompleteAndSave(session: AuthSession, software: string) : Promise<Result<AccountPublic, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("auth_complete_and_save", { session, software }) };
 } catch (e) {
@@ -1755,7 +1755,7 @@ async authCompleteAndSave(session: AuthSession, software: string) : Promise<Resu
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
-async streamConnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async streamConnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_connect", { accountId }) };
 } catch (e) {
@@ -1764,7 +1764,7 @@ async streamConnect(accountId: string) : Promise<Result<null, { code: string; me
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
-async streamSubscribeMain(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async streamSubscribeMain(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_subscribe_main", { accountId }) };
 } catch (e) {
@@ -1773,7 +1773,7 @@ async streamSubscribeMain(accountId: string) : Promise<Result<null, { code: stri
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
-async streamDisconnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async streamDisconnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_disconnect", { accountId }) };
 } catch (e) {
@@ -1782,7 +1782,7 @@ async streamDisconnect(accountId: string) : Promise<Result<null, { code: string;
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
-async streamSetMode(accountId: string, mode: string, intervalMs: number | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async streamSetMode(accountId: string, mode: string, intervalMs: number | null) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_set_mode", { accountId, mode, intervalMs }) };
 } catch (e) {
@@ -1791,7 +1791,7 @@ async streamSetMode(accountId: string, mode: string, intervalMs: number | null) 
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
-async streamSubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async streamSubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_sub_note", { accountId, noteId }) };
 } catch (e) {
@@ -1800,7 +1800,7 @@ async streamSubNote(accountId: string, noteId: string) : Promise<Result<null, { 
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
-async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_unsub_note", { accountId, noteId }) };
 } catch (e) {
@@ -1809,7 +1809,7 @@ async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, 
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
-async streamChatRead(accountId: string, subscriptionId: string, messageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async streamChatRead(accountId: string, subscriptionId: string, messageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_chat_read", { accountId, subscriptionId, messageId }) };
 } catch (e) {
@@ -1818,7 +1818,7 @@ async streamChatRead(accountId: string, subscriptionId: string, messageId: strin
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
-async streamObserveStart() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async streamObserveStart() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_observe_start") };
 } catch (e) {
@@ -1827,7 +1827,7 @@ async streamObserveStart() : Promise<Result<null, { code: string; message: strin
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
-async streamObserveStop() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async streamObserveStop() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_observe_stop") };
 } catch (e) {
@@ -1836,7 +1836,7 @@ async streamObserveStop() : Promise<Result<null, { code: string; message: string
 }
 },
 /** @see crates/notecore/src/commands/enrichment.rs */
-async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryData, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryData, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_ogp", { url, accountId }) };
 } catch (e) {
@@ -1845,7 +1845,7 @@ async fetchOgp(url: string, accountId: string | null) : Promise<Result<SummaryDa
 }
 },
 /** @see crates/notecore/src/commands/enrichment.rs */
-async fetchServerMeta(host: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async fetchServerMeta(host: string) : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_server_meta", { host }) };
 } catch (e) {
@@ -1854,7 +1854,7 @@ async fetchServerMeta(host: string) : Promise<Result<JsonValue, { code: string; 
 }
 },
 /** @see crates/notecore/src/commands/enrichment.rs */
-async fetchImageBase64(url: string) : Promise<Result<string | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async fetchImageBase64(url: string) : Promise<Result<string | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_image_base64", { url }) };
 } catch (e) {
@@ -1863,7 +1863,7 @@ async fetchImageBase64(url: string) : Promise<Result<string | null, { code: stri
 }
 },
 /** @see crates/notecore/src/commands/enrichment.rs */
-async fetchImageBytes(url: string) : Promise<Result<number[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async fetchImageBytes(url: string) : Promise<Result<number[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("fetch_image_bytes", { url }) };
 } catch (e) {
@@ -1872,7 +1872,7 @@ async fetchImageBytes(url: string) : Promise<Result<number[], { code: string; me
 }
 },
 /** @see crates/notecore/src/commands/utility.rs */
-async getCliCommands() : Promise<Result<CliCommandInfo[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async getCliCommands() : Promise<Result<CliCommandInfo[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_cli_commands") };
 } catch (e) {
@@ -1891,7 +1891,7 @@ async setUiLanguage(lang: string) : Promise<void> {
     await TAURI_INVOKE("set_ui_language", { lang });
 },
 /** @see crates/notecore/src/commands/utility.rs */
-async getOpenapiSpec() : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async getOpenapiSpec() : Promise<Result<JsonValue, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_openapi_spec") };
 } catch (e) {
@@ -1939,7 +1939,7 @@ async setUnreadBadge(count: number) : Promise<void> {
  *
  * @see src-tauri/src/commands/utility.rs
  */
-async exportDb() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async exportDb() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("export_db") };
 } catch (e) {
@@ -1957,7 +1957,7 @@ async exportDb() : Promise<Result<boolean, { code: string; message: string; apiC
  *
  * @see src-tauri/src/commands/utility.rs
  */
-async importDb() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async importDb() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("import_db") };
 } catch (e) {
@@ -1970,7 +1970,7 @@ async importDb() : Promise<Result<boolean, { code: string; message: string; apiC
  *
  * @see src-tauri/src/commands/utility.rs
  */
-async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_image_to_file", { url }) };
 } catch (e) {
@@ -1979,7 +1979,7 @@ async saveImageToFile(url: string) : Promise<Result<boolean, { code: string; mes
 }
 },
 /** @see crates/notecore/src/commands/utility.rs */
-async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("image_cache_stats") };
 } catch (e) {
@@ -1988,7 +1988,7 @@ async imageCacheStats() : Promise<Result<ImageCacheStats, { code: string; messag
 }
 },
 /** @see crates/notecore/src/commands/utility.rs */
-async clearImageCache() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async clearImageCache() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("clear_image_cache") };
 } catch (e) {
@@ -1997,7 +1997,7 @@ async clearImageCache() : Promise<Result<null, { code: string; message: string; 
 }
 },
 /** @see crates/notecore/src/commands/utility.rs */
-async warmMedia(urls: string[], h: number | null) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async warmMedia(urls: string[], h: number | null) : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("warm_media", { urls, h }) };
 } catch (e) {
@@ -2006,7 +2006,7 @@ async warmMedia(urls: string[], h: number | null) : Promise<Result<number, { cod
 }
 },
 /** @see crates/notecore/src/commands/pet.rs */
-async petInstall(slug: string) : Promise<Result<PetInfo, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async petInstall(slug: string) : Promise<Result<PetInfo, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("pet_install", { slug }) };
 } catch (e) {
@@ -2015,7 +2015,7 @@ async petInstall(slug: string) : Promise<Result<PetInfo, { code: string; message
 }
 },
 /** @see crates/notecore/src/commands/pet.rs */
-async petLoad(slug: string) : Promise<Result<PetLoaded | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async petLoad(slug: string) : Promise<Result<PetLoaded | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("pet_load", { slug }) };
 } catch (e) {
@@ -2024,7 +2024,7 @@ async petLoad(slug: string) : Promise<Result<PetLoaded | null, { code: string; m
 }
 },
 /** @see crates/notecore/src/commands/pet.rs */
-async petClear() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async petClear() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("pet_clear") };
 } catch (e) {
@@ -2037,7 +2037,7 @@ async petClear() : Promise<Result<null, { code: string; message: string; apiCode
  *
  * @see src-tauri/src/commands/backup.rs
  */
-async getBackupDir() : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async getBackupDir() : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_backup_dir") };
 } catch (e) {
@@ -2050,7 +2050,7 @@ async getBackupDir() : Promise<Result<string, { code: string; message: string; a
  *
  * @see src-tauri/src/commands/backup.rs
  */
-async backupCreate(stamp: string, keep: number | null, includeDb: boolean | null, includeSettings: boolean | null) : Promise<Result<BackupResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async backupCreate(stamp: string, keep: number | null, includeDb: boolean | null, includeSettings: boolean | null) : Promise<Result<BackupResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("backup_create", { stamp, keep, includeDb, includeSettings }) };
 } catch (e) {
@@ -2091,7 +2091,7 @@ async exportFilesCancel(taskId: string) : Promise<void> {
     await TAURI_INVOKE("export_files_cancel", { taskId });
 },
 /** @see crates/notecore/src/commands/utility.rs */
-async readImageExif(url: string) : Promise<Result<ExifField[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async readImageExif(url: string) : Promise<Result<ExifField[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_image_exif", { url }) };
 } catch (e) {
@@ -2100,7 +2100,7 @@ async readImageExif(url: string) : Promise<Result<ExifField[], { code: string; m
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async listSettingsFiles(subdir: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async listSettingsFiles(subdir: string) : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("list_settings_files", { subdir }) };
 } catch (e) {
@@ -2109,7 +2109,7 @@ async listSettingsFiles(subdir: string) : Promise<Result<string[], { code: strin
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_settings_file", { subdir, name }) };
 } catch (e) {
@@ -2118,7 +2118,7 @@ async readSettingsFile(subdir: string, name: string) : Promise<Result<string, { 
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async writeSettingsFile(subdir: string, name: string, content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async writeSettingsFile(subdir: string, name: string, content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("write_settings_file", { subdir, name, content, expected }) };
 } catch (e) {
@@ -2127,7 +2127,7 @@ async writeSettingsFile(subdir: string, name: string, content: string, expected:
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async deleteSettingsFile(subdir: string, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async deleteSettingsFile(subdir: string, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("delete_settings_file", { subdir, name }) };
 } catch (e) {
@@ -2136,7 +2136,7 @@ async deleteSettingsFile(subdir: string, name: string) : Promise<Result<null, { 
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async renameSettingsFile(subdir: string, oldName: string, newName: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async renameSettingsFile(subdir: string, oldName: string, newName: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("rename_settings_file", { subdir, oldName, newName }) };
 } catch (e) {
@@ -2149,7 +2149,7 @@ async renameSettingsFile(subdir: string, oldName: string, newName: string) : Pro
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async getSettingsDir() : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async getSettingsDir() : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_settings_dir") };
 } catch (e) {
@@ -2175,7 +2175,7 @@ async getMediaProxyToken() : Promise<string | null> {
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async getLogDir() : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async getLogDir() : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_log_dir") };
 } catch (e) {
@@ -2190,7 +2190,7 @@ async getLogDir() : Promise<Result<string, { code: string; message: string; apiC
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async openSettingsFileInEditor(subdir: string | null, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async openSettingsFileInEditor(subdir: string | null, name: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("open_settings_file_in_editor", { subdir, name }) };
 } catch (e) {
@@ -2199,7 +2199,7 @@ async openSettingsFileInEditor(subdir: string | null, name: string) : Promise<Re
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async readRootSettingsFile(name: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async readRootSettingsFile(name: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_root_settings_file", { name }) };
 } catch (e) {
@@ -2208,7 +2208,7 @@ async readRootSettingsFile(name: string) : Promise<Result<string, { code: string
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async readRootSettingsFileVersioned(name: string) : Promise<Result<VersionedText, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async readRootSettingsFileVersioned(name: string) : Promise<Result<VersionedText, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_root_settings_file_versioned", { name }) };
 } catch (e) {
@@ -2217,7 +2217,7 @@ async readRootSettingsFileVersioned(name: string) : Promise<Result<VersionedText
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async writeRootSettingsFile(name: string, content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async writeRootSettingsFile(name: string, content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("write_root_settings_file", { name, content, expected }) };
 } catch (e) {
@@ -2226,7 +2226,7 @@ async writeRootSettingsFile(name: string, content: string, expected: string | nu
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async readNotedeckJson() : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async readNotedeckJson() : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_notedeck_json") };
 } catch (e) {
@@ -2235,7 +2235,7 @@ async readNotedeckJson() : Promise<Result<string, { code: string; message: strin
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async readNotedeckJsonVersioned() : Promise<Result<VersionedText, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async readNotedeckJsonVersioned() : Promise<Result<VersionedText, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("read_notedeck_json_versioned") };
 } catch (e) {
@@ -2244,7 +2244,7 @@ async readNotedeckJsonVersioned() : Promise<Result<VersionedText, { code: string
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async writeNotedeckJson(content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async writeNotedeckJson(content: string, expected: string | null) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("write_notedeck_json", { content, expected }) };
 } catch (e) {
@@ -2257,7 +2257,7 @@ async writeNotedeckJson(content: string, expected: string | null) : Promise<Resu
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async exportSettingsJson() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async exportSettingsJson() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("export_settings_json") };
 } catch (e) {
@@ -2270,7 +2270,7 @@ async exportSettingsJson() : Promise<Result<boolean, { code: string; message: st
  *
  * @see src-tauri/src/commands/settings.rs
  */
-async importSettingsJson() : Promise<Result<ImportSettingsResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async importSettingsJson() : Promise<Result<ImportSettingsResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("import_settings_json") };
 } catch (e) {
@@ -2279,7 +2279,7 @@ async importSettingsJson() : Promise<Result<ImportSettingsResult, { code: string
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_send", { req }) };
 } catch (e) {
@@ -2288,7 +2288,7 @@ async aiChatSend(req: AiChatRequest) : Promise<Result<null, { code: string; mess
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_chat_cancel", { streamId }) };
 } catch (e) {
@@ -2297,7 +2297,7 @@ async aiChatCancel(streamId: string) : Promise<Result<null, { code: string; mess
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async aiTurnRun(req: AiTurnRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiTurnRun(req: AiTurnRequest) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_turn_run", { req }) };
 } catch (e) {
@@ -2306,7 +2306,7 @@ async aiTurnRun(req: AiTurnRequest) : Promise<Result<null, { code: string; messa
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async aiTurnCancel(turnId: string) : Promise<Result<SessionMessage | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiTurnCancel(turnId: string) : Promise<Result<SessionMessage | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_turn_cancel", { turnId }) };
 } catch (e) {
@@ -2315,7 +2315,7 @@ async aiTurnCancel(turnId: string) : Promise<Result<SessionMessage | null, { cod
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async aiConfirmRespond(requestId: string, accepted: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiConfirmRespond(requestId: string, accepted: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_confirm_respond", { requestId, accepted }) };
 } catch (e) {
@@ -2324,7 +2324,7 @@ async aiConfirmRespond(requestId: string, accepted: boolean) : Promise<Result<nu
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_confirm_shown", { requestId }) };
 } catch (e) {
@@ -2333,7 +2333,7 @@ async aiConfirmShown(requestId: string) : Promise<Result<null, { code: string; m
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async aiHarnessList() : Promise<Result<HarnessInfo[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiHarnessList() : Promise<Result<HarnessInfo[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_harness_list") };
 } catch (e) {
@@ -2342,7 +2342,7 @@ async aiHarnessList() : Promise<Result<HarnessInfo[], { code: string; message: s
 }
 },
 /** @see crates/notemaid/src/commands/workspace.rs */
-async maidWorkspaceList() : Promise<Result<WorkspaceFile[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async maidWorkspaceList() : Promise<Result<WorkspaceFile[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("maid_workspace_list") };
 } catch (e) {
@@ -2351,7 +2351,7 @@ async maidWorkspaceList() : Promise<Result<WorkspaceFile[], { code: string; mess
 }
 },
 /** @see crates/notemaid/src/commands/workspace.rs */
-async maidWorkspaceWrite(kind: Kind, body: string) : Promise<Result<WorkspaceFile, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async maidWorkspaceWrite(kind: Kind, body: string) : Promise<Result<WorkspaceFile, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("maid_workspace_write", { kind, body }) };
 } catch (e) {
@@ -2360,7 +2360,7 @@ async maidWorkspaceWrite(kind: Kind, body: string) : Promise<Result<WorkspaceFil
 }
 },
 /** @see crates/notemaid/src/commands/workspace.rs */
-async maidUserMemorySet(enabled: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async maidUserMemorySet(enabled: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("maid_user_memory_set", { enabled }) };
 } catch (e) {
@@ -2369,7 +2369,7 @@ async maidUserMemorySet(enabled: boolean) : Promise<Result<null, { code: string;
 }
 },
 /** @see crates/notemaid/src/commands/workspace.rs */
-async maidHeartbeatStepsSeed() : Promise<Result<SkillMeta, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async maidHeartbeatStepsSeed() : Promise<Result<SkillMeta, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("maid_heartbeat_steps_seed") };
 } catch (e) {
@@ -2378,7 +2378,7 @@ async maidHeartbeatStepsSeed() : Promise<Result<SkillMeta, { code: string; messa
 }
 },
 /** @see crates/notemaid/src/commands/workspace.rs */
-async maidAgentsSeed() : Promise<Result<SkillMeta, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async maidAgentsSeed() : Promise<Result<SkillMeta, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("maid_agents_seed") };
 } catch (e) {
@@ -2387,7 +2387,7 @@ async maidAgentsSeed() : Promise<Result<SkillMeta, { code: string; message: stri
 }
 },
 /** @see crates/notemaid/src/commands/workspace.rs */
-async maidTurnSystem(turnId: string) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async maidTurnSystem(turnId: string) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("maid_turn_system", { turnId }) };
 } catch (e) {
@@ -2396,7 +2396,7 @@ async maidTurnSystem(turnId: string) : Promise<Result<JsonValue | null, { code: 
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted, pluginId }) };
 } catch (e) {
@@ -2405,7 +2405,7 @@ async capabilityExecute(id: string, params: JsonValue, principal: string, accoun
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted, pluginId }) };
 } catch (e) {
@@ -2414,7 +2414,7 @@ async capabilityPreview(id: string, params: JsonValue, principal: string, accoun
 }
 },
 /** @see crates/notemaid/src/commands/ai_sessions.rs */
-async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_sessions_load_all") };
 } catch (e) {
@@ -2423,7 +2423,7 @@ async aiSessionsLoadAll() : Promise<Result<AiSession[], { code: string; message:
 }
 },
 /** @see crates/notemaid/src/commands/ai_sessions.rs */
-async aiSessionGet(id: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiSessionGet(id: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_get", { id }) };
 } catch (e) {
@@ -2432,7 +2432,7 @@ async aiSessionGet(id: string) : Promise<Result<AiSession, { code: string; messa
 }
 },
 /** @see crates/notemaid/src/commands/ai_sessions.rs */
-async aiSessionCreate(req: AiSessionCreate) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiSessionCreate(req: AiSessionCreate) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_create", { req }) };
 } catch (e) {
@@ -2441,7 +2441,7 @@ async aiSessionCreate(req: AiSessionCreate) : Promise<Result<AiSession, { code: 
 }
 },
 /** @see crates/notemaid/src/commands/ai_sessions.rs */
-async aiSessionAppend(id: string, messages: SessionMessage[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiSessionAppend(id: string, messages: SessionMessage[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_append", { id, messages }) };
 } catch (e) {
@@ -2450,7 +2450,7 @@ async aiSessionAppend(id: string, messages: SessionMessage[]) : Promise<Result<A
 }
 },
 /** @see crates/notemaid/src/commands/ai_sessions.rs */
-async aiSessionRemoveMessages(id: string, messageIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiSessionRemoveMessages(id: string, messageIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_remove_messages", { id, messageIds }) };
 } catch (e) {
@@ -2459,7 +2459,7 @@ async aiSessionRemoveMessages(id: string, messageIds: string[]) : Promise<Result
 }
 },
 /** @see crates/notemaid/src/commands/ai_sessions.rs */
-async aiSessionRename(id: string, title: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiSessionRename(id: string, title: string) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_rename", { id, title }) };
 } catch (e) {
@@ -2468,7 +2468,7 @@ async aiSessionRename(id: string, title: string) : Promise<Result<AiSession, { c
 }
 },
 /** @see crates/notemaid/src/commands/ai_sessions.rs */
-async aiSessionAddTriggeredSkills(id: string, skillIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiSessionAddTriggeredSkills(id: string, skillIds: string[]) : Promise<Result<AiSession, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_add_triggered_skills", { id, skillIds }) };
 } catch (e) {
@@ -2477,7 +2477,7 @@ async aiSessionAddTriggeredSkills(id: string, skillIds: string[]) : Promise<Resu
 }
 },
 /** @see crates/notemaid/src/commands/ai_sessions.rs */
-async aiSessionDelete(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async aiSessionDelete(id: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("ai_session_delete", { id }) };
 } catch (e) {
@@ -2486,7 +2486,7 @@ async aiSessionDelete(id: string) : Promise<Result<null, { code: string; message
 }
 },
 /** @see crates/notecore/src/commands/http.rs */
-async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("http_fetch", { request }) };
 } catch (e) {
@@ -2501,7 +2501,7 @@ async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, {
  *
  * @see src-tauri/src/commands/heartbeat.rs
  */
-async heartbeatConfigure(intervalMinutes: number) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async heartbeatConfigure(intervalMinutes: number) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_configure", { intervalMinutes }) };
 } catch (e) {
@@ -2514,7 +2514,7 @@ async heartbeatConfigure(intervalMinutes: number) : Promise<Result<null, { code:
  *
  * @see src-tauri/src/commands/heartbeat.rs
  */
-async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_unconfigure") };
 } catch (e) {
@@ -2523,7 +2523,7 @@ async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: str
 }
 },
 /** @see crates/notemaid/src/commands/heartbeat.rs */
-async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_trigger_now") };
 } catch (e) {
@@ -2532,7 +2532,7 @@ async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: stri
 }
 },
 /** @see crates/notemaid/src/commands/heartbeat.rs */
-async heartbeatNoticesSince(since: number) : Promise<Result<HeartbeatNotice[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async heartbeatNoticesSince(since: number) : Promise<Result<HeartbeatNotice[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_notices_since", { since }) };
 } catch (e) {
@@ -2545,7 +2545,7 @@ async heartbeatNoticesSince(since: number) : Promise<Result<HeartbeatNotice[], {
  *
  * @see src-tauri/src/commands/heartbeat.rs
  */
-async heartbeatStatus() : Promise<Result<number | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async heartbeatStatus() : Promise<Result<number | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_status") };
 } catch (e) {
@@ -2554,7 +2554,7 @@ async heartbeatStatus() : Promise<Result<number | null, { code: string; message:
 }
 },
 /** @see src-tauri/src/commands/system_state.rs */
-async systemStateGet() : Promise<Result<SystemState, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async systemStateGet() : Promise<Result<SystemState, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("system_state_get") };
 } catch (e) {
@@ -2604,7 +2604,7 @@ async traySync(state: TrayMenuState) : Promise<Result<null, string>> {
 }
 },
 /** @see src-tauri/src/commands/health.rs */
-async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("run_healthcheck") };
 } catch (e) {
@@ -2613,7 +2613,7 @@ async runHealthcheck() : Promise<Result<HealthReport, { code: string; message: s
 }
 },
 /** @see crates/notecore/src/commands/health.rs */
-async healthCore() : Promise<Result<CoreHealth, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async healthCore() : Promise<Result<CoreHealth, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("health_core") };
 } catch (e) {
@@ -2626,7 +2626,7 @@ async listApiTokens() : Promise<ApiTokenMeta[]> {
     return await TAURI_INVOKE("list_api_tokens");
 },
 /** @see src-tauri/src/commands/api_tokens.rs */
-async createApiToken(name: string) : Promise<Result<CreatedApiToken, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async createApiToken(name: string) : Promise<Result<CreatedApiToken, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("create_api_token", { name }) };
 } catch (e) {
@@ -2635,7 +2635,7 @@ async createApiToken(name: string) : Promise<Result<CreatedApiToken, { code: str
 }
 },
 /** @see src-tauri/src/commands/api_tokens.rs */
-async revokeApiToken(id: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async revokeApiToken(id: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("revoke_api_token", { id }) };
 } catch (e) {
@@ -2770,7 +2770,7 @@ async aiMigrateProviderToVault(provider: string, name: string, baseUrl: string, 
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async querySubscribeTimeline(accountId: string, timelineType: string, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async querySubscribeTimeline(accountId: string, timelineType: string, listId: string | null) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_timeline", { accountId, timelineType, listId }) };
 } catch (e) {
@@ -2779,7 +2779,7 @@ async querySubscribeTimeline(accountId: string, timelineType: string, listId: st
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_antenna", { accountId, antennaId }) };
 } catch (e) {
@@ -2788,7 +2788,7 @@ async querySubscribeAntenna(accountId: string, antennaId: string) : Promise<Resu
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async querySubscribeChannel(accountId: string, channelId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async querySubscribeChannel(accountId: string, channelId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_channel", { accountId, channelId }) };
 } catch (e) {
@@ -2797,7 +2797,7 @@ async querySubscribeChannel(accountId: string, channelId: string) : Promise<Resu
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_role", { accountId, roleId }) };
 } catch (e) {
@@ -2806,7 +2806,7 @@ async querySubscribeRole(accountId: string, roleId: string) : Promise<Result<Que
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_mentions", { accountId }) };
 } catch (e) {
@@ -2815,7 +2815,7 @@ async querySubscribeMentions(accountId: string) : Promise<Result<QuerySnapshot, 
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_notifications", { accountId }) };
 } catch (e) {
@@ -2824,7 +2824,7 @@ async querySubscribeNotifications(accountId: string) : Promise<Result<QuerySnaps
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_chat_user", { accountId, otherId }) };
 } catch (e) {
@@ -2833,7 +2833,7 @@ async querySubscribeChatUser(accountId: string, otherId: string) : Promise<Resul
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_subscribe_chat_room", { accountId, roomId }) };
 } catch (e) {
@@ -2842,7 +2842,7 @@ async querySubscribeChatRoom(accountId: string, roomId: string) : Promise<Result
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<Result<QuerySnapshot, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_set_runtime_state", { queryId, state }) };
 } catch (e) {
@@ -2851,7 +2851,7 @@ async querySetRuntimeState(queryId: string, state: QueryRuntimeState) : Promise<
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async queryClose(queryId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async queryClose(queryId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_close", { queryId }) };
 } catch (e) {
@@ -2860,7 +2860,7 @@ async queryClose(queryId: string) : Promise<Result<null, { code: string; message
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_get_snapshot", { queryId }) };
 } catch (e) {
@@ -2869,7 +2869,7 @@ async queryGetSnapshot(queryId: string) : Promise<Result<QuerySnapshot | null, {
 }
 },
 /** @see crates/notecore/src/commands/query.rs */
-async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise<Result<QueryReadModelSnapshot | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise<Result<QueryReadModelSnapshot | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("query_get_read_model_snapshot", { queryId, limit }) };
 } catch (e) {
@@ -2878,7 +2878,7 @@ async queryGetReadModelSnapshot(queryId: string, limit: number | null) : Promise
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("update_performance_config", { config }) };
 } catch (e) {
@@ -2887,7 +2887,7 @@ async updatePerformanceConfig(config: PerformanceConfig) : Promise<Result<null, 
 }
 },
 /** @see crates/notecore/src/commands/settings.rs */
-async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null }>> {
+async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_performance_config") };
 } catch (e) {
@@ -3131,7 +3131,13 @@ export type ChatCacheStats = { messageCount: number; bytes: number }
  * hard cap、TTL なし」(チャット履歴の永続性を尊重 — 設計判断は notedeck #460)。
  */
 export type ChatEvictionConfig = { perAccountLimit: number | null; ttlDays: number | null }
-export type ChatMessage = { id: string; createdAt: string; fromUserId: string; fromUser: ChatUser | null; toUserId: string | null; toUser: ChatUser | null; toRoomId: string | null; toRoom: ChatRoom | null; text: string | null; fileId: string | null; file: NormalizedDriveFile | null; isRead: boolean | null; reactions?: ChatMessageReaction[] }
+export type ChatMessage = { id: string; 
+/**
+ * 取得元アカウント (notedeck#1270)。Misskey の ID はサーバー内でしか一意でない
+ * ので、複数アカウントを混ぜる面では (account_id, id) が同一性。API の生 JSON
+ * と旧キャッシュには無いため default で読み、受け取った側 (`fill_account_id`) が補う
+ */
+_accountId?: string; createdAt: string; fromUserId: string; fromUser: ChatUser | null; toUserId: string | null; toUser: ChatUser | null; toRoomId: string | null; toRoom: ChatRoom | null; text: string | null; fileId: string | null; file: NormalizedDriveFile | null; isRead: boolean | null; reactions?: ChatMessageReaction[] }
 export type ChatMessageReaction = { user: ChatReactionUser | null; reaction: string }
 export type ChatReactionUser = { id: string; name: string | null; username: string; host: string | null; avatarUrl: string | null }
 export type ChatRoom = { id: string; name: string | null; description: string | null }

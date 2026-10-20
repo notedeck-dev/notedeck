@@ -6,6 +6,7 @@ import { buildColumnDefaults, DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import * as snapshotStore from '@/composables/useSnapshotStore'
 import defaultDeckJson5 from '@/defaults/deck.json5?raw'
 import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
+import type { ColumnSource } from '@/services/columnSource'
 import { buildColumnUri } from '@/services/columnUri'
 import * as deckLayout from '@/services/deckLayout'
 import {
@@ -194,6 +195,12 @@ export interface DeckColumn {
   channelId?: string
   roleId?: string
   userId?: string
+  /**
+   * 全アカウント (`accountId: null`) で、サーバーに閉じた ID を選ぶ面 (リスト /
+   * アンテナ / クリップ / チャンネル / ロール / ユーザー) が束ねる組 (#1017 案 2)。
+   * per-account では使わず、上の `listId` 等がそのまま 1 つの ID を持つ
+   */
+  sources?: ColumnSource[]
   /**
    * widget カラムの配置 (本体の installId + 実行アカウント、#1202 決定 (g))。
    * 本体は useWidgetsStore に存在。旧 `widgetIds: string[]` は読込時に移行

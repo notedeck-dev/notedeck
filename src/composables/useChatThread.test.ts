@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ChatMessage } from '@/adapters/types'
+import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 import {
   type ChatThreadDeps,
   type ChatThreadSubscription,
@@ -11,23 +12,29 @@ import {
 // ---- fakes ----
 
 function msg(id: string, createdAt = '2026-07-01T00:00:00.000Z'): ChatMessage {
-  return { id, createdAt, fromUserId: 'u-from', text: `text-${id}` }
+  return {
+    id,
+    _accountId: 'acc-1',
+    createdAt,
+    fromUserId: 'u-from',
+    text: `text-${id}`,
+  }
 }
 
 function makeStore() {
-  const map = new Map<string, ChatMessage>()
+  const map = new Map<VariantKey, ChatMessage>()
   return {
     put: (msgs: ChatMessage[]) => {
-      for (const m of msgs) map.set(m.id, m)
+      for (const m of msgs) map.set(variantKeyOf(m), m)
     },
-    resolve: (ids: string[]) =>
-      ids.flatMap((id) => {
-        const m = map.get(id)
+    resolve: (keys: readonly VariantKey[]) =>
+      keys.flatMap((key) => {
+        const m = map.get(key)
         return m ? [m] : []
       }),
-    remove: (id: string) => {
-      map.delete(id)
-    },
+    remove: vi.fn((key: VariantKey) => {
+      map.delete(key)
+    }),
   }
 }
 
@@ -351,7 +358,7 @@ describe('close', () => {
     thread.close()
 
     expect(subs[0]?.disposed).toBe(true)
-    expect(thread.messageIds.value).toEqual([])
+    expect(thread.messageKeys.value).toEqual([])
     expect(thread.target.value).toBeNull()
   })
 })

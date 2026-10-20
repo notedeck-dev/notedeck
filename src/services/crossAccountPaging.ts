@@ -12,6 +12,8 @@
  * - 水平線は接続中は単調に下がるだけ。全アカウントが尽きたら制限なし (null)
  */
 
+import { rateLimitWaitMs } from './rateLimit'
+
 export interface PageCursor {
   id: string
   createdAt: string
@@ -21,7 +23,11 @@ export interface PageCursor {
 export type Dated = Pick<PageCursor, 'id' | 'createdAt'>
 
 export interface AccountCursor {
-  accountId: string
+  /**
+   * 取得単位のキー。全アカウントを 1 回ずつ回す面ではアカウント ID、組を束ねる面
+   * (#1017 案 2) では `sourceKey` (アカウント + リソース ID)
+   */
+  key: string
   /** 取得済みの生ページ (フィルタ前) の最古。null はまだ 1 ページも取っていない */
   oldest: PageCursor | null
   /** 空ページが返り、これ以上遡れない */
@@ -36,11 +42,11 @@ const BACKOFF_BASE_MS = 1000
 const BACKOFF_MAX_MS = 60_000
 
 export function initialCursor(
-  accountId: string,
+  key: string,
   opts: { exhausted?: boolean } = {},
 ): AccountCursor {
   return {
-    accountId,
+    key,
     oldest: null,
     exhausted: opts.exhausted === true,
     failures: 0,
@@ -87,9 +93,20 @@ export function resetCursor(
   }
 }
 
-export function markFailed(cursor: AccountCursor, now: number): AccountCursor {
+/**
+ * 失敗を記録して次に取る時刻を決める。`retryAfterMs` を渡す (null 含む) とレート
+ * 制限 (#1271) で、サーバーの示す待ち時間を指数バックオフより優先する
+ */
+export function markFailed(
+  cursor: AccountCursor,
+  now: number,
+  retryAfterMs?: number | null,
+): AccountCursor {
   const failures = cursor.failures + 1
-  const delay = Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (failures - 1))
+  const delay =
+    retryAfterMs === undefined
+      ? Math.min(BACKOFF_MAX_MS, BACKOFF_BASE_MS * 2 ** (failures - 1))
+      : rateLimitWaitMs(retryAfterMs)
   return { ...cursor, failures, nextRetryAt: now + delay }
 }
 
@@ -130,7 +147,7 @@ export function nextHorizon(
 }
 
 /**
- * 次に 1 ページ取るアカウント。まだ 1 ページも無いアカウントを先に、無ければ
+ * 次に 1 ページ取る取得単位 (キー)。まだ 1 ページも無いものを先に、無ければ
  * 水平線を決めているアカウント。それがバックオフ中なら null (他のアカウントで
  * 底を掘り進めると、隠れる尾が有界でなくなる)
  */
@@ -140,7 +157,7 @@ export function pickNextAccount(
 ): string | null {
   const live = cursors.filter((c) => !c.exhausted)
   const missing = live.find((c) => !c.oldest && c.nextRetryAt <= now)
-  if (missing) return missing.accountId
+  if (missing) return missing.key
   let top: AccountCursor | null = null
   let topCreatedAt = ''
   for (const c of live) {
@@ -151,5 +168,5 @@ export function pickNextAccount(
     }
   }
   if (!top) return null
-  return top.nextRetryAt <= now ? top.accountId : null
+  return top.nextRetryAt <= now ? top.key : null
 }

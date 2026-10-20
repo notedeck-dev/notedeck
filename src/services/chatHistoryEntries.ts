@@ -1,6 +1,7 @@
 import type { AvatarDecoration, ChatMessage, ChatUser } from '@/adapters/types'
 import type { ChatThreadTarget } from '@/composables/useChatThread'
 import type { PrefetchTarget } from '@/composables/useChatThreadPrefetch'
+import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 
 /**
  * チャット履歴 view の thread entry 構築ロジック (#707)。
@@ -216,20 +217,20 @@ export function chatMessageMatchesSearch(
 
 /**
  * 履歴の未読の点 (#1207)。本家 MkChatHistories と同じく、相手からの未読の
- * 最新メッセージに出す。開いた会話 (`openedIds`) は履歴を取り直すまで消しておく。
+ * 最新メッセージに出す。開いた会話 (`openedKeys`) は履歴を取り直すまで消しておく。
  * ログアウト中の履歴は手元のキャッシュで、既読状態は保存した時点のまま
  * 更新されないため、読み終えた会話にも点が残る。分からないときは出さない (#1216)
  */
 export function isChatHistoryUnread(
   message: ChatMessage,
   myUserId: string | undefined,
-  opts: { loggedOut: boolean; openedIds: ReadonlySet<string> },
+  opts: { loggedOut: boolean; openedKeys: ReadonlySet<VariantKey> },
 ): boolean {
   return (
     !opts.loggedOut &&
     message.isRead === false &&
     message.fromUserId !== myUserId &&
-    !opts.openedIds.has(message.id)
+    !opts.openedKeys.has(variantKeyOf(message))
   )
 }
 
@@ -242,7 +243,8 @@ export function withLatestChatMessage(
   history: ChatMessage[],
   latest: ChatMessage,
 ): ChatMessage[] {
-  return [latest, ...history.filter((m) => m.id !== latest.id)].sort(
+  const latestKey = variantKeyOf(latest)
+  return [latest, ...history.filter((m) => variantKeyOf(m) !== latestKey)].sort(
     (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
   )
 }
@@ -257,7 +259,8 @@ export function withLatestCrossAccountMessage(
     [
       latest,
       ...entries
-        .filter((e) => e.message.id !== latest.msg.id)
+        // 別サーバーの同じ ID を巻き添えにしない (#1270)
+        .filter((e) => variantKeyOf(e.message) !== variantKeyOf(latest.msg))
         .map((e) => ({
           msg: e.message,
           accountId: e.accountId,

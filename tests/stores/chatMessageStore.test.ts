@@ -1,12 +1,17 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChatMessage } from '@/adapters/types'
+import { variantKey } from '@/services/noteKey'
 import { useChatMessageStore } from '@/stores/chatMessageStore'
 import { usePerformanceStore } from '@/stores/performance'
+
+/** ストアのキーは取得元アカウント + ID (#1270)。既存ケースは 1 アカウントで読む */
+const k = (id: string) => variantKey('acc', id)
 
 function makeMessage(id: string, over: Partial<ChatMessage> = {}): ChatMessage {
   return {
     id,
+    _accountId: 'acc',
     createdAt: `2026-01-01T00:00:00.${id.padStart(3, '0')}Z`,
     fromUserId: 'u1',
     text: `msg ${id}`,
@@ -31,23 +36,23 @@ describe('useChatMessageStore', () => {
     it('put stores messages and resolve returns them in id order, skipping unknown ids', () => {
       const store = useChatMessageStore()
       store.put([makeMessage('1'), makeMessage('2')])
-      const resolved = store.resolve(['2', 'missing', '1'])
+      const resolved = store.resolve(['2', 'missing', '1'].map(k))
       expect(resolved.map((m) => m.id)).toEqual(['2', '1'])
     })
 
     it('get returns the message and refreshes LRU insertion order', () => {
       const store = useChatMessageStore()
       store.put([makeMessage('1'), makeMessage('2'), makeMessage('3')])
-      expect(store.get('1')?.id).toBe('1')
+      expect(store.get(k('1'))?.id).toBe('1')
       // LRU refresh: 直近アクセスが insertion order の末尾に来る
-      expect([...store.messageMap.keys()]).toEqual(['2', '3', '1'])
+      expect([...store.messageMap.keys()]).toEqual(['2', '3', '1'].map(k))
     })
 
     it('update replaces a stored message', () => {
       const store = useChatMessageStore()
       store.put([makeMessage('1')])
-      store.update('1', makeMessage('1', { text: 'edited' }))
-      expect(store.get('1')?.text).toBe('edited')
+      store.update(k('1'), makeMessage('1', { text: 'edited' }))
+      expect(store.get(k('1'))?.text).toBe('edited')
     })
   })
 
@@ -57,9 +62,9 @@ describe('useChatMessageStore', () => {
       const listener = vi.fn()
       store.onDelete(listener)
       store.put([makeMessage('1')])
-      store.remove('1')
-      expect(store.get('1')).toBeUndefined()
-      expect(listener).toHaveBeenCalledWith('1')
+      store.remove(k('1'))
+      expect(store.get(k('1'))).toBeUndefined()
+      expect(listener).toHaveBeenCalledWith(k('1'))
     })
 
     it('onDelete unsubscribe stops notifications', () => {
@@ -68,7 +73,7 @@ describe('useChatMessageStore', () => {
       const off = store.onDelete(listener)
       off()
       store.put([makeMessage('1')])
-      store.remove('1')
+      store.remove(k('1'))
       expect(listener).not.toHaveBeenCalled()
     })
   })
@@ -86,9 +91,9 @@ describe('useChatMessageStore', () => {
       const listener = vi.fn()
       store.onDelete(listener)
       store.put([makeMessage('1')])
-      store.applyUpdate({ type: 'deleted', messageId: '1' })
-      expect(store.get('1')).toBeUndefined()
-      expect(listener).toHaveBeenCalledWith('1')
+      store.applyUpdate({ type: 'deleted', accountId: 'acc', messageId: '1' })
+      expect(store.get(k('1'))).toBeUndefined()
+      expect(listener).toHaveBeenCalledWith(k('1'))
     })
 
     it('reacted appends a reaction and normalizes reactor null fields to undefined', () => {
@@ -96,12 +101,13 @@ describe('useChatMessageStore', () => {
       store.put([makeMessage('1')])
       store.applyUpdate({
         type: 'reacted',
+        accountId: 'acc',
         messageId: '1',
         userId: 'u2',
         reaction: '👍',
         reactor,
       })
-      const reactions = store.get('1')?.reactions
+      const reactions = store.get(k('1'))?.reactions
       expect(reactions).toHaveLength(1)
       expect(reactions?.[0]?.reaction).toBe('👍')
       expect(reactions?.[0]?.user?.id).toBe('u2')
@@ -114,11 +120,12 @@ describe('useChatMessageStore', () => {
       store.put([makeMessage('1')])
       store.applyUpdate({
         type: 'reacted',
+        accountId: 'acc',
         messageId: '1',
         userId: 'u2',
         reaction: '👍',
       })
-      expect(store.get('1')?.reactions?.[0]?.user).toBeNull()
+      expect(store.get(k('1'))?.reactions?.[0]?.user).toBeNull()
     })
 
     it('dedups an identical event within the dedup window', () => {
@@ -126,6 +133,7 @@ describe('useChatMessageStore', () => {
       store.put([makeMessage('1')])
       const event = {
         type: 'reacted',
+        accountId: 'acc',
         messageId: '1',
         userId: 'u2',
         reaction: '👍',
@@ -133,7 +141,7 @@ describe('useChatMessageStore', () => {
       } as const
       store.applyUpdate(event)
       store.applyUpdate(event)
-      expect(store.get('1')?.reactions).toHaveLength(1)
+      expect(store.get(k('1'))?.reactions).toHaveLength(1)
     })
 
     it('applies the same event again after the dedup window expires', () => {
@@ -141,6 +149,7 @@ describe('useChatMessageStore', () => {
       store.put([makeMessage('1')])
       const event = {
         type: 'reacted',
+        accountId: 'acc',
         messageId: '1',
         userId: 'u2',
         reaction: '👍',
@@ -149,13 +158,14 @@ describe('useChatMessageStore', () => {
       store.applyUpdate(event)
       vi.advanceTimersByTime(1600)
       store.applyUpdate(event)
-      expect(store.get('1')?.reactions).toHaveLength(2)
+      expect(store.get(k('1'))?.reactions).toHaveLength(2)
     })
 
     it('an event for an unloaded message is not recorded for dedup and applies after load', () => {
       const store = useChatMessageStore()
       const event = {
         type: 'reacted',
+        accountId: 'acc',
         messageId: '1',
         userId: 'u2',
         reaction: '👍',
@@ -166,7 +176,7 @@ describe('useChatMessageStore', () => {
       store.put([makeMessage('1')])
       // ロード直後の再配送（dedup window 内）は適用される
       store.applyUpdate(event)
-      expect(store.get('1')?.reactions).toHaveLength(1)
+      expect(store.get(k('1'))?.reactions).toHaveLength(1)
     })
 
     it('an event with a different signature is not deduped', () => {
@@ -174,6 +184,7 @@ describe('useChatMessageStore', () => {
       store.put([makeMessage('1')])
       store.applyUpdate({
         type: 'reacted',
+        accountId: 'acc',
         messageId: '1',
         userId: 'u2',
         reaction: '👍',
@@ -181,12 +192,13 @@ describe('useChatMessageStore', () => {
       })
       store.applyUpdate({
         type: 'reacted',
+        accountId: 'acc',
         messageId: '1',
         userId: 'u2',
         reaction: '❤',
         reactor,
       })
-      expect(store.get('1')?.reactions).toHaveLength(2)
+      expect(store.get(k('1'))?.reactions).toHaveLength(2)
     })
 
     it('unreacted removes only the first matching (userId, reaction) entry', () => {
@@ -202,11 +214,12 @@ describe('useChatMessageStore', () => {
       ])
       store.applyUpdate({
         type: 'unreacted',
+        accountId: 'acc',
         messageId: '1',
         userId: 'u2',
         reaction: '👍',
       })
-      const reactions = store.get('1')?.reactions
+      const reactions = store.get(k('1'))?.reactions
       expect(reactions).toHaveLength(2)
       expect(reactions?.map((r) => r.user?.id)).toEqual(['u2', 'u3'])
     })
@@ -216,8 +229,13 @@ describe('useChatMessageStore', () => {
       store.put([
         makeMessage('1', { reactions: [{ user: null, reaction: '👍' }] }),
       ])
-      store.applyUpdate({ type: 'unreacted', messageId: '1', reaction: '👍' })
-      expect(store.get('1')?.reactions).toHaveLength(0)
+      store.applyUpdate({
+        type: 'unreacted',
+        accountId: 'acc',
+        messageId: '1',
+        reaction: '👍',
+      })
+      expect(store.get(k('1'))?.reactions).toHaveLength(0)
     })
 
     it('unreacted is a no-op when no entry matches', () => {
@@ -229,11 +247,12 @@ describe('useChatMessageStore', () => {
       ])
       store.applyUpdate({
         type: 'unreacted',
+        accountId: 'acc',
         messageId: '1',
         userId: 'u9',
         reaction: '👍',
       })
-      expect(store.get('1')?.reactions).toHaveLength(1)
+      expect(store.get(k('1'))?.reactions).toHaveLength(1)
     })
 
     it('does not throw for updates targeting an unknown message', () => {
@@ -241,6 +260,7 @@ describe('useChatMessageStore', () => {
       expect(() =>
         store.applyUpdate({
           type: 'reacted',
+          accountId: 'acc',
           messageId: 'missing',
           userId: 'u2',
           reaction: '👍',
@@ -264,26 +284,26 @@ describe('useChatMessageStore', () => {
         makeMessage('3'),
         makeMessage('4'),
       ])
-      expect([...store.messageMap.keys()]).toEqual(['2', '3', '4'])
+      expect([...store.messageMap.keys()]).toEqual(['2', '3', '4'].map(k))
     })
 
     it('protects ids referenced by a registered root', () => {
       setMax(3)
       const store = useChatMessageStore()
-      store.registerRoot(() => ['1'])
+      store.registerRoot(() => ['1'].map(k))
       store.put([
         makeMessage('1'),
         makeMessage('2'),
         makeMessage('3'),
         makeMessage('4'),
       ])
-      expect([...store.messageMap.keys()]).toEqual(['1', '3', '4'])
+      expect([...store.messageMap.keys()]).toEqual(['1', '3', '4'].map(k))
     })
 
     it('unregistering a root makes its ids evictable again', () => {
       setMax(3)
       const store = useChatMessageStore()
-      const unregister = store.registerRoot(() => ['1'])
+      const unregister = store.registerRoot(() => ['1'].map(k))
       store.put([
         makeMessage('1'),
         makeMessage('2'),
@@ -292,13 +312,13 @@ describe('useChatMessageStore', () => {
       ])
       unregister()
       store.put([makeMessage('5')])
-      expect([...store.messageMap.keys()]).toEqual(['3', '4', '5'])
+      expect([...store.messageMap.keys()]).toEqual(['3', '4', '5'].map(k))
     })
 
     it('falls back to createdAt order when every message is live', () => {
       setMax(3)
       const store = useChatMessageStore()
-      store.registerRoot(() => ['1', '2', '3', '4'])
+      store.registerRoot(() => ['1', '2', '3', '4'].map(k))
       store.put([
         makeMessage('4'),
         makeMessage('2'),
@@ -307,7 +327,50 @@ describe('useChatMessageStore', () => {
       ])
       // createdAt が最古の '1' が削除される (insertion order ではなく)
       expect(store.messageMap.size).toBe(3)
-      expect(store.get('1')).toBeUndefined()
+      expect(store.get(k('1'))).toBeUndefined()
     })
+  })
+})
+
+describe('useChatMessageStore: 取得元アカウント + ID の複合キー (#1270)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+  })
+  // Misskey の ID はサーバーごとに独立して生成されるので、別サーバーの
+  // メッセージが同じ ID を持ち得る。全アカウント面で片方が黙って消えないこと
+  const onA = () => makeMessage('1', { _accountId: 'acc-a', text: 'from a' })
+  const onB = () => makeMessage('1', { _accountId: 'acc-b', text: 'from b' })
+
+  it('別アカウントの同じ ID は共存し、それぞれの本文を保つ', () => {
+    const store = useChatMessageStore()
+    store.put([onA(), onB()])
+    expect(store.get(variantKey('acc-a', '1'))?.text).toBe('from a')
+    expect(store.get(variantKey('acc-b', '1'))?.text).toBe('from b')
+  })
+
+  it('リアクションは受信したアカウントのメッセージにだけ当たる', () => {
+    const store = useChatMessageStore()
+    store.put([onA(), onB()])
+    store.applyUpdate({
+      type: 'reacted',
+      accountId: 'acc-b',
+      messageId: '1',
+      userId: 'u2',
+      reaction: '👍',
+      reactor,
+    })
+    expect(store.get(variantKey('acc-a', '1'))?.reactions ?? []).toHaveLength(0)
+    expect(store.get(variantKey('acc-b', '1'))?.reactions).toHaveLength(1)
+  })
+
+  it('削除も受信したアカウントのメッセージだけを消す', () => {
+    const store = useChatMessageStore()
+    const listener = vi.fn()
+    store.onDelete(listener)
+    store.put([onA(), onB()])
+    store.applyUpdate({ type: 'deleted', accountId: 'acc-a', messageId: '1' })
+    expect(store.get(variantKey('acc-a', '1'))).toBeUndefined()
+    expect(store.get(variantKey('acc-b', '1'))?.text).toBe('from b')
+    expect(listener).toHaveBeenCalledWith(variantKey('acc-a', '1'))
   })
 })

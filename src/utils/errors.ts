@@ -16,6 +16,7 @@ export type ErrorCode =
   | 'JSON'
   | 'ACCOUNT_NOT_FOUND'
   | 'API'
+  | 'RATE_LIMITED'
   | AuthErrorCode
   | 'NO_CONNECTION'
   | 'CONNECTION_CLOSED'
@@ -54,16 +55,29 @@ export class AppError extends Error {
   readonly code: ErrorCode
   /** Misskey が返した `error.code`。API エラー以外では null */
   readonly apiCode: string | null
+  /** レート制限の再試行までの待ち時間 (ms、#1271)。分からない / 制限以外は null */
+  readonly retryAfterMs: number | null
 
-  constructor(code: ErrorCode, message: string, apiCode: string | null = null) {
+  constructor(
+    code: ErrorCode,
+    message: string,
+    apiCode: string | null = null,
+    retryAfterMs: number | null = null,
+  ) {
     super(message)
     this.code = code
     this.apiCode = apiCode
+    this.retryAfterMs = retryAfterMs
     this.name = 'AppError'
   }
 
   get isNetwork(): boolean {
     return this.code === 'NETWORK' || this.code === 'CONNECTION_CLOSED'
+  }
+
+  /** サーバーのレート制限 (HTTP 429)。一時的な状態なので一般エラーの再試行にしない */
+  get isRateLimited(): boolean {
+    return this.code === 'RATE_LIMITED'
   }
 
   get isAuth(): boolean {
@@ -85,11 +99,13 @@ export class AppError extends Error {
     if (e instanceof AppError) return e
     if (typeof e === 'object' && e !== null && 'code' in e && 'message' in e) {
       const apiCode = (e as { apiCode?: unknown }).apiCode
+      const retryAfterMs = (e as { retryAfterMs?: unknown }).retryAfterMs
       const message = extractErrorMessage((e as { message: unknown }).message)
       return new AppError(
         (e as { code: string }).code as ErrorCode,
         localizedMessage((e as { i18n?: unknown }).i18n, message),
         typeof apiCode === 'string' ? apiCode : null,
+        typeof retryAfterMs === 'number' ? retryAfterMs : null,
       )
     }
     if (typeof e === 'string') return new AppError('UNKNOWN', e)

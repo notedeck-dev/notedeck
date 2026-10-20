@@ -52,6 +52,7 @@ const emit = defineEmits<{
 /** 生の error.message を出さないフレンドリー文言。コードは括弧で残す */
 function friendlyErrorMessage(err: AppError): string {
   if (err.isAuth) return authErrorMessage()
+  if (err.isRateLimited) return i18n.ts._columnEmptyState.rateLimited
   if (err.isNetwork) return i18n.ts._columnEmptyState.networkError
   return i18n.tsx._columnEmptyState.loadFailed({ code: err.displayCode })
 }

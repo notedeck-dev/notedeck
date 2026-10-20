@@ -112,6 +112,8 @@ struct ApiError {
     status: StatusCode,
     code: String,
     message: String,
+    /// レート制限 (notedeck#1271) の再試行までの秒数。`Retry-After` に出す
+    retry_after_secs: Option<u64>,
 }
 
 impl ApiError {
@@ -120,6 +122,7 @@ impl ApiError {
             status: StatusCode::NOT_FOUND,
             code: "NOT_FOUND".to_string(),
             message: msg.to_string(),
+            retry_after_secs: None,
         }
     }
 
@@ -128,6 +131,7 @@ impl ApiError {
             status: StatusCode::UNAUTHORIZED,
             code: "UNAUTHORIZED".to_string(),
             message: "Missing or invalid Bearer token".to_string(),
+            retry_after_secs: None,
         }
     }
 }
@@ -138,6 +142,9 @@ impl From<crate::error::NoteDeckError> for ApiError {
         let status = match &e {
             // クライアント入力起因 (不正なタイムラインキー等) は 400。
             crate::error::NoteDeckError::InvalidInput(_) => StatusCode::BAD_REQUEST,
+            // Misskey 側のレート制限はそのまま 429 で通す (notedeck#1271)。500 にすると
+            // 呼び出し側が待つべき時間を知れない
+            crate::error::NoteDeckError::RateLimited { .. } => StatusCode::TOO_MANY_REQUESTS,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         Self {
@@ -146,6 +153,7 @@ impl From<crate::error::NoteDeckError> for ApiError {
             // 外部へ出すメッセージは必ず safe_message() を通す。Display は
             // Internal / Database の内部詳細をそのまま含み得る。
             message: e.safe_message(),
+            retry_after_secs: e.retry_after_ms().map(|ms| ms.div_ceil(1000)),
         }
     }
 }
@@ -153,7 +161,13 @@ impl From<crate::error::NoteDeckError> for ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> axum::response::Response {
         let body = json!({ "error": self.code, "message": self.message });
-        (self.status, Json(body)).into_response()
+        let mut res = (self.status, Json(body)).into_response();
+        if let Some(secs) = self.retry_after_secs {
+            if let Ok(v) = axum::http::HeaderValue::from_str(&secs.to_string()) {
+                res.headers_mut().insert(axum::http::header::RETRY_AFTER, v);
+            }
+        }
+        res
     }
 }
 
@@ -424,6 +438,7 @@ async fn search_notes(
             status: StatusCode::BAD_REQUEST,
             code: "BAD_REQUEST".to_string(),
             message: "Missing query parameter: q".to_string(),
+            retry_after_secs: None,
         });
     }
     let account_id = state.account_id_for_host(&host)?;
@@ -838,6 +853,32 @@ struct CreateNoteBody {
 mod tests {
     use super::*;
     use utoipa::Modify;
+
+    #[test]
+    fn rate_limited_passes_through_as_429_with_retry_after() {
+        // notedeck#1271: Misskey のレート制限を 500 に潰さず、待ち時間も伝える
+        let err = ApiError::from(crate::error::NoteDeckError::RateLimited {
+            endpoint: "notes/timeline".into(),
+            retry_after_ms: Some(6500),
+        });
+        assert_eq!(err.status, StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(err.code, "RATE_LIMITED");
+        let res = err.into_response();
+        assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert_eq!(
+            res.headers().get(axum::http::header::RETRY_AFTER).unwrap(),
+            "7"
+        );
+
+        // 待ち時間が分からなければヘッダーは出さない
+        let res = ApiError::from(crate::error::NoteDeckError::RateLimited {
+            endpoint: "x".into(),
+            retry_after_ms: None,
+        })
+        .into_response();
+        assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
+        assert!(res.headers().get(axum::http::header::RETRY_AFTER).is_none());
+    }
 
     /// Every core route must appear in the generated OpenAPI spec.
     /// `routes!` makes this structural — this test guards against the

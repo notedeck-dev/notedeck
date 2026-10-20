@@ -412,6 +412,10 @@ export interface Locale {
     readonly "offline": string
     /** ポーリング */
     readonly "polling": string
+    /** レート制限中 */
+    readonly "rateLimited": string
+    /** サーバーのレート制限中 (しばらく待ってから再試行します) */
+    readonly "rateLimitedDetail": string
     /** ストア */
     readonly "store": string
     /** ストアに接続できません */
@@ -3606,6 +3610,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "guestUnavailable": string
     /** ログインすると利用できます */
     readonly "loginRequired": string
+    /** {label}を選んで束ねる */
+    readonly "selectSources": ParameterizedString<'label'>
+    /** {count} 件で追加 */
+    readonly "addSelected": ParameterizedString<'count'>
+    /** アカウントごとに{label}を選びます。選んだものを 1 つのカラムにまとめます */
+    readonly "sourcesHint": ParameterizedString<'label'>
   }
   readonly "_columnErrorBoundary": {
     /** カラムの表示中に問題が発生しました */
@@ -4767,6 +4777,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_columnEmptyState": {
     /** サーバーに接続できません。ネットワークを確認してください。 */
     readonly "networkError": string
+    /** サーバーのレート制限中です。しばらく待ってから再試行します */
+    readonly "rateLimited": string
     /** 読み込みに失敗しました ({code}) */
     readonly "loadFailed": ParameterizedString<'code'>
     /** 情報 */
@@ -5276,14 +5288,26 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "searchUser": string
     /** {label}名を入力... */
     readonly "namePlaceholder": ParameterizedString<'label'>
+    /** {label}を選んで束ねる */
+    readonly "selectSources": ParameterizedString<'label'>
+    /** {count} 件で追加 */
+    readonly "addSelected": ParameterizedString<'count'>
+    /** {count} 件選択中 */
+    readonly "selectedCount": ParameterizedString<'count'>
   }
   readonly "_taskCommands": {
     /** タスク: {label} */
     readonly "label": ParameterizedString<'label'>
   }
+  readonly "_deckCrossSourcesColumn": {
+    /** ノートはありません */
+    readonly "empty": string
+    /** 束ねる項目がありません。カラムを作り直してください */
+    readonly "noSources": string
+    /** フィルター / クエリですべて除外されています */
+    readonly "allExcluded": string
+  }
   readonly "_accountScope": {
-    /** サーバーごとに選ぶ項目のため、全アカウントでの束ね方が決まっていません */
-    readonly "selectable": string
     /** サーバー単位の面のため、アカウントをまたぐ意味がありません */
     readonly "server": string
     /** このカラムはまだ全アカウントに対応していません */

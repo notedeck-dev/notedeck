@@ -6,7 +6,7 @@
     "license": {
       "name": "MIT"
     },
-    "version": "1.87.1"
+    "version": "1.88.0"
   },
   "paths": {
     "/api": {
@@ -1907,6 +1907,10 @@
           "fromUserId"
         ],
         "properties": {
+          "_accountId": {
+            "type": "string",
+            "description": "取得元アカウント (notedeck#1270)。Misskey の ID はサーバー内でしか一意でない\nので、複数アカウントを混ぜる面では (account_id, id) が同一性。API の生 JSON\nと旧キャッシュには無いため default で読み、受け取った側 (`fill_account_id`) が補う"
+          },
           "createdAt": {
             "type": "string"
           },

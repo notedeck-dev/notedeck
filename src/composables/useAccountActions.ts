@@ -1,5 +1,6 @@
 import { useVault } from '@/composables/useVault'
 import { i18n } from '@/i18n'
+import { withoutAccountSources } from '@/services/columnSource'
 import { webUiUrl } from '@/services/safeUrl'
 import {
   type Account,
@@ -68,6 +69,12 @@ export function useAccountActions() {
     for (const col of [...deckStore.columns]) {
       if (col.accountId === acc.id) {
         deckStore.removeColumn(col.id)
+      } else if (col.sources?.some((s) => s.accountId === acc.id)) {
+        // 全アカウントで束ねている組 (#1017 案 2) からこのアカウントの分を外す。
+        // カラム自体は残す (他のアカウントの組が残っていれば動き続ける)
+        deckStore.updateColumn(col.id, {
+          sources: withoutAccountSources(col.sources, acc.id),
+        })
       }
     }
     // 通知キャッシュは notecli DB ではなく localStorage なので個別に消す。

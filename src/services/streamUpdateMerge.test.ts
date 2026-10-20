@@ -334,6 +334,7 @@ describe('mergeChatUpdate', () => {
   it('reacted は reactor の null フィールドを undefined に正規化して追加する', () => {
     const merged = mergeChatUpdate(msg, {
       type: 'reacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: 'u2',
       reaction: '🎉',
@@ -355,6 +356,7 @@ describe('mergeChatUpdate', () => {
   it('unreacted は (userId, reaction) 一致の最初の 1 件だけ削除する', () => {
     const merged = mergeChatUpdate(msg, {
       type: 'unreacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: 'u1',
       reaction: '👍',
@@ -366,6 +368,7 @@ describe('mergeChatUpdate', () => {
   it('unreacted は userId 無し ↔ user null をマッチさせる', () => {
     const merged = mergeChatUpdate(msg, {
       type: 'unreacted',
+      accountId: 'acc',
       messageId: 'm1',
       reaction: '👍',
     })
@@ -376,6 +379,7 @@ describe('mergeChatUpdate', () => {
   it('一致しない unreacted は no-op (null)', () => {
     const merged = mergeChatUpdate(msg, {
       type: 'unreacted',
+      accountId: 'acc',
       messageId: 'm1',
       userId: 'u9',
       reaction: '💀',

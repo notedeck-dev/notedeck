@@ -1249,9 +1249,9 @@ CREATE INDEX idx_chat_cache_cached_at ON chat_messages_cache (cached_at);
 
 ```mermaid
 graph TB
-    UI["DeckChatColumn.vue<br/>threads/messages: ID 配列のみ"]
+    UI["DeckChatColumn.vue<br/>threads/messages: キー配列のみ"]
     SS["SnapshotStore (chat namespace)<br/>cacheKey: chatHistory:&lt;acc&gt;<br/>cacheKey: chatThread:&lt;acc&gt;:&lt;thread&gt;<br/>ID-only · TTL eviction"]
-    CMS["chatMessageStore (Pinia)<br/>Map&lt;messageId, NormalizedChatMessage&gt;<br/>applyUpdate(event) で in-place 更新"]
+    CMS["chatMessageStore (Pinia)<br/>Map&lt;(accountId, messageId), ChatMessage&gt;<br/>applyUpdate(event) で in-place 更新"]
     SC["SQLite chat_messages_cache<br/>永続 · per-account 1M cap"]
 
     UI -.->|resolve| CMS
@@ -1263,9 +1263,9 @@ graph TB
 責務:
 
 - **SQLite `chat_messages_cache`** (Layer 1, 永続) — REST/WS で受信した全メッセージを upsert。eviction を担う
-- **`chatMessageStore`** (Layer 0, frontend 正規化ストア) — 唯一の実体。Pinia store として `noteStore` ([src/stores/notes.ts](src/stores/notes.ts)) のシグネチャを流用。`put()` / `update(id, msg)` / `applyUpdate(event)` で in-place 更新 → UI 自動伝播。LRU 風 eviction (`chatMessageStoreMax`、既定値は `src/defaults/performance.json5`)
+- **`chatMessageStore`** (Layer 0, frontend 正規化ストア) — 唯一の実体。Pinia store として `noteStore` ([src/stores/notes.ts](src/stores/notes.ts)) のシグネチャを流用。キーは `noteStore` と同じ「取得元アカウント + メッセージ ID」の `VariantKey` (notedeck#1270、Misskey の ID はサーバー内でしか一意でない)。`put()` / `update(key, msg)` / `applyUpdate(event)` で in-place 更新 → UI 自動伝播。LRU 風 eviction (`chatMessageStoreMax`、既定値は `src/defaults/performance.json5`)
 - **SnapshotStore** (Layer 2, ID-only) — タブ切替・カラム再マウント時の即時復元用。`noteStore` と同じ TTL eviction 機構 ([src/composables/useSnapshotStore.ts](src/composables/useSnapshotStore.ts)) を共有 (cacheKey で namespace 分離)
-- **DeckChatColumn.vue** (UI) — `threads: Ref<thread_id[]>` と `messages: Ref<message_id[]>` のみ保持。実体は `chatMessageStore.resolve()` で取得
+- **DeckChatColumn.vue** (UI) — `threads: Ref<thread_id[]>` と `messages: Ref<VariantKey[]>` のみ保持。実体は `chatMessageStore.resolve()` で取得
 
 ### データフロー
 
@@ -1281,11 +1281,11 @@ WS chat:message ──────────────────► stream
                                         └─► db.cache_chat_message()
 
 WS chat:react / chat:unreact ─────► streaming.rs
-                                        ├─► chatMessageStore.applyUpdate({ kind:'reaction', msgId, ... })
+                                        ├─► chatMessageStore.applyUpdate({ type:'reacted', accountId, msgId, ... })
                                         └─► db.update_chat_message_reactions(msgId, account_id, reactions)
 
 WS chat:deleted ──────────────────► streaming.rs
-                                        ├─► chatMessageStore.remove(msgId)
+                                        ├─► chatMessageStore.applyUpdate({ type:'deleted', accountId, msgId })
                                         └─► db.delete_cached_chat_message()
 ```
 
@@ -1356,9 +1356,9 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 ### キー不変条件
 
-1. **`chatMessageStore` が唯一の実体**: `noteStore` と同じ哲学。UI/カラム/SnapshotStore はすべて ID 参照のみ
+1. **`chatMessageStore` が唯一の実体**: `noteStore` と同じ哲学。UI/カラム/SnapshotStore はすべてキー参照のみ。キーは (取得元アカウント, message_id) で、ID 単独をキーにする箇所は残さない (notedeck#1270)
 2. **`notes_cache` は変更しない**: 完全に増分追加で済ませる
-3. **`(message_id, account_id)` が PK**: 同じメッセージが複数アカウントで観測された場合は別行
+3. **`(message_id, account_id)` が PK**: 同じメッセージが複数アカウントで観測された場合は別行。フロントのストアも同じ規則で、`ChatMessage._accountId` (読み出し側が必ず埋める) から組む
 4. **`thread_id` は `"u:<userId>"` または `"r:<roomId>"` の形式**: prefix で kind を識別、`thread_kind` 列でも CHECK 制約。DM の partner は write 時に `from == account.user_id ? to : from` で計算
 5. **削除 reconciliation はしない**: Misskey 側削除を確実検出する公式 API が無いため、API fetch 結果に存在しない行も保持
 6. **gap 検出は client 側責務**: Misskey に sync token が無いため、起動/再接続時に `since_id` ベースで補完

@@ -111,7 +111,8 @@ pub struct StreamNewChatMessageEvent {
 pub fn new_chat_message(event: &StreamEvent) -> Option<StreamNewChatMessageEvent> {
     match event {
         StreamEvent::MainEvent(e) if e.event_type == "newChatMessage" => {
-            let message = serde_json::from_value::<ChatMessage>(e.body.clone()).ok()?;
+            let mut message = serde_json::from_value::<ChatMessage>(e.body.clone()).ok()?;
+            message.account_id = e.account_id.clone();
             Some(StreamNewChatMessageEvent {
                 account_id: e.account_id.clone(),
                 message,

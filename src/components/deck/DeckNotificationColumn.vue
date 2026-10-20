@@ -72,6 +72,7 @@ import {
   dropDeletedNote,
   syncNotificationNotes,
 } from '@/services/notificationNoteSync'
+import { rateLimitRetryAfter } from '@/services/rateLimit'
 import { TUTORIAL_ACHIEVEMENT_LABELS } from '@/services/tutorialAchievements'
 import {
   isTutorialNotificationId,
@@ -313,7 +314,7 @@ function oldestOf(
 const crossCursors = new Map<string, AccountCursor>()
 const crossCursorsVersion = ref(0)
 function setCrossCursor(cursor: AccountCursor) {
-  crossCursors.set(cursor.accountId, cursor)
+  crossCursors.set(cursor.key, cursor)
   crossCursorsVersion.value++
 }
 /** 表示の下限。これより古い通知は列に載せたまま表示に出さない。接続中は単調に下がるだけ */
@@ -1145,7 +1146,13 @@ async function connectCrossAccount(useCache = false) {
         crossProgress.value = progress
         if (r.status !== 'fulfilled' || !r.value) {
           if (r.status === 'rejected') {
-            setCrossCursor(markFailed(initialCursor(acc.id), Date.now()))
+            setCrossCursor(
+              markFailed(
+                initialCursor(acc.id),
+                Date.now(),
+                rateLimitRetryAfter(r.reason),
+              ),
+            )
           }
           return
         }
@@ -1318,7 +1325,7 @@ async function loadMoreCrossAccount() {
   } catch (e) {
     if (isStale()) return
     // 1 アカウントの失敗で列ごとエラー画面に替えない。末尾の区切り行が示す
-    setCrossCursor(markFailed(cursor, now))
+    setCrossCursor(markFailed(cursor, now, rateLimitRetryAfter(e)))
     if (import.meta.env.DEV) console.debug('[cross-account loadMore]', e)
   } finally {
     if (!isStale()) isLoading.value = false
@@ -1340,7 +1347,7 @@ const crossEndState = computed<CrossEndState | null>(() => {
     (c) => c.failures > 0 && !c.exhausted,
   )
   if (failing.length > 0) {
-    return { kind: 'failing', accounts: failing.map((c) => label(c.accountId)) }
+    return { kind: 'failing', accounts: failing.map((c) => label(c.key)) }
   }
   const floor = crossHorizon.value
   if (floor === null) return null

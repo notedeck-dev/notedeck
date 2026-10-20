@@ -53,6 +53,16 @@ pub enum NoteDeckError {
         message: String,
     },
 
+    /// Misskey のレート制限 (HTTP 429 / `RATE_LIMIT_EXCEEDED`、#1271)。一般の API
+    /// エラーと分け、呼び出し側がサーバーの示す待ち時間に従えるようにする。
+    #[error("{endpoint}: rate limit exceeded")]
+    RateLimited {
+        endpoint: String,
+        /// 再試行までの待ち時間。`Retry-After` ヘッダー → 本文 `error.info.resetMs`
+        /// の順で読み、どちらも無ければ None (呼び出し側が既定のバックオフで待つ)
+        retry_after_ms: Option<u64>,
+    },
+
     #[error("{0}")]
     Auth(AuthErrorKind),
 
@@ -90,6 +100,7 @@ impl NoteDeckError {
             Self::Json(_) => "JSON",
             Self::AccountNotFound(_) => "ACCOUNT_NOT_FOUND",
             Self::Api { .. } => "API",
+            Self::RateLimited { .. } => "RATE_LIMITED",
             Self::Auth(kind) => kind.code(),
             Self::NoConnection(_) => "NO_CONNECTION",
             Self::ConnectionClosed => "CONNECTION_CLOSED",
@@ -112,6 +123,16 @@ impl NoteDeckError {
     pub fn api_code(&self) -> Option<&str> {
         match self {
             Self::Api { api_code, .. } => api_code.as_deref(),
+            Self::RateLimited { .. } => Some("RATE_LIMIT_EXCEEDED"),
+            _ => None,
+        }
+    }
+
+    /// レート制限の再試行までの待ち時間 (ms)。レート制限以外、または手がかりが
+    /// 無いときは None
+    pub fn retry_after_ms(&self) -> Option<u64> {
+        match self {
+            Self::RateLimited { retry_after_ms, .. } => *retry_after_ms,
             _ => None,
         }
     }
@@ -158,6 +179,7 @@ impl NoteDeckError {
             }
             // These contain messages we control — safe to expose
             Self::Api { message, .. } => message.clone(),
+            Self::RateLimited { .. } => self.to_string(),
             Self::Auth(kind) => kind.to_string(),
             Self::AccountNotFound(id) => format!("Account not found: {id}"),
             Self::NoConnection(id) => format!("No connection for account: {id}"),
@@ -180,6 +202,8 @@ struct NoteDeckErrorShape {
     /// 表示言語で描き直す手がかり `{ key, params }` (#135)。`message` は英語の正本文
     #[specta(rename = "i18n")]
     i18n: Option<serde_json::Value>,
+    /// レート制限の再試行までの待ち時間 (ms、#1271)。`RATE_LIMITED` 以外は null
+    retry_after_ms: Option<u64>,
 }
 
 #[cfg(feature = "specta")]
@@ -198,11 +222,12 @@ impl serde::Serialize for NoteDeckError {
         S: serde::Serializer,
     {
         use serde::ser::SerializeStruct;
-        let mut s = serializer.serialize_struct("NoteDeckError", 4)?;
+        let mut s = serializer.serialize_struct("NoteDeckError", 5)?;
         s.serialize_field("code", self.code())?;
         s.serialize_field("message", &self.safe_message())?;
         s.serialize_field("apiCode", &self.api_code())?;
         s.serialize_field("i18n", &self.i18n())?;
+        s.serialize_field("retryAfterMs", &self.retry_after_ms())?;
         s.end()
     }
 }
@@ -348,6 +373,33 @@ mod tests {
         // endpoint and status should NOT appear in serialized output
         assert!(json.get("endpoint").is_none());
         assert!(json.get("status").is_none());
+    }
+
+    #[test]
+    fn rate_limited_serializes_retry_after_ms() {
+        // #1271: レート制限はコードと待ち時間だけでフロントが判定できる形で出す
+        let err = NoteDeckError::RateLimited {
+            endpoint: "notes/timeline".into(),
+            retry_after_ms: Some(5000),
+        };
+        assert_eq!(err.code(), "RATE_LIMITED");
+        assert_eq!(err.api_code(), Some("RATE_LIMIT_EXCEEDED"));
+        let json = serde_json::to_value(&err).unwrap();
+        assert_eq!(json["code"], "RATE_LIMITED");
+        assert_eq!(json["apiCode"], "RATE_LIMIT_EXCEEDED");
+        assert_eq!(json["retryAfterMs"], 5000);
+        assert!(json.get("endpoint").is_none());
+
+        // 待ち時間が分からないときは null
+        let unknown = NoteDeckError::RateLimited {
+            endpoint: "notes/timeline".into(),
+            retry_after_ms: None,
+        };
+        let json = serde_json::to_value(&unknown).unwrap();
+        assert!(json["retryAfterMs"].is_null());
+        // ほかのエラーでも項目は必ず存在する (TS 型が optional にならないように)
+        let json = serde_json::to_value(&NoteDeckError::ConnectionClosed).unwrap();
+        assert!(json["retryAfterMs"].is_null());
     }
 
     #[test]

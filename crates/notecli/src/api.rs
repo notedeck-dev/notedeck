@@ -56,6 +56,21 @@ fn misskey_id_at(ms: i64) -> String {
     format!("{s:0>8}")
 }
 
+/// レート制限の再試行までの待ち時間 (ms)。本家は `Retry-After` を秒で付け、本文の
+/// `error.info.resetMs` に絶対時刻 (epoch ms) を入れる (#1271)。ヘッダーを優先し、
+/// 無ければ resetMs から残りを出す。どちらも無ければ None。
+fn retry_after_ms(retry_after_header: Option<&str>, reset_ms: Option<u64>) -> Option<u64> {
+    if let Some(secs) = retry_after_header.and_then(|v| v.trim().parse::<u64>().ok()) {
+        return Some(secs.saturating_mul(1000));
+    }
+    let reset_ms = reset_ms?;
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_millis() as u64;
+    Some(reset_ms.saturating_sub(now_ms))
+}
+
 pub struct MisskeyClient {
     client: Client,
     /// Override base URL for testing (e.g. "http://127.0.0.1:PORT").
@@ -157,20 +172,34 @@ impl MisskeyClient {
 
         if !res.status().is_success() {
             let status = res.status().as_u16();
-            let (api_code, detail) = match res.json::<Value>().await {
-                Ok(body) => {
-                    let code = body
-                        .pointer("/error/code")
-                        .and_then(|v| v.as_str())
-                        .map(String::from);
-                    let msg = body
-                        .pointer("/error/message")
-                        .and_then(|v| v.as_str())
-                        .map(String::from);
-                    (code, msg)
-                }
-                Err(_) => (None, None),
-            };
+            // 本体を読む前に取る (読んだ後はヘッダーに触れない)
+            let retry_after_header = res
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok())
+                .map(String::from);
+            let body = res.json::<Value>().await.ok();
+            let api_code = body
+                .as_ref()
+                .and_then(|b| b.pointer("/error/code"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
+            // #1271: レート制限は一般の API エラーと分け、待ち時間を添える
+            if status == 429 || api_code.as_deref() == Some("RATE_LIMIT_EXCEEDED") {
+                let reset_ms = body
+                    .as_ref()
+                    .and_then(|b| b.pointer("/error/info/resetMs"))
+                    .and_then(|v| v.as_u64());
+                return Err(NoteDeckError::RateLimited {
+                    endpoint: endpoint.to_string(),
+                    retry_after_ms: retry_after_ms(retry_after_header.as_deref(), reset_ms),
+                });
+            }
+            let detail = body
+                .as_ref()
+                .and_then(|b| b.pointer("/error/message"))
+                .and_then(|v| v.as_str())
+                .map(String::from);
             let message = match (&api_code, &detail) {
                 (Some(c), Some(d)) => format!("{endpoint}: {c}: {d}"),
                 (Some(c), None) => format!("{endpoint}: {c}"),
@@ -2791,6 +2820,97 @@ mod tests {
             .unwrap_err();
         assert_eq!(err.code(), "API");
         assert!(err.to_string().contains("No such note"));
+    }
+
+    #[tokio::test]
+    async fn request_rate_limited_reads_retry_after_header() {
+        // #1271: 429 は一般の API エラーと分け、Retry-After (秒) を ms にして返す
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/notes/timeline"))
+            .respond_with(
+                ResponseTemplate::new(429)
+                    .insert_header("Retry-After", "7")
+                    .set_body_json(json!({"error": {
+                        "message": "Rate limit exceeded. Please try again later.",
+                        "code": "RATE_LIMIT_EXCEEDED",
+                        "id": "d5826d14-3982-4d2e-8011-b9e9f02499ef",
+                        "info": {"total": 10, "remaining": 0, "reset": 1, "resetMs": 1000}
+                    }})),
+            )
+            .mount(&server)
+            .await;
+
+        let client = MisskeyClient::with_base_url(&server.uri());
+        let err = client
+            .request("h", "token", "notes/timeline", json!({}))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code(), "RATE_LIMITED");
+        assert!(matches!(
+            err,
+            NoteDeckError::RateLimited {
+                retry_after_ms: Some(7000),
+                ..
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn request_rate_limited_falls_back_to_reset_ms() {
+        // ヘッダーが無ければ本文 info.resetMs (絶対時刻 epoch ms) から残り時間を出す
+        let server = MockServer::start().await;
+        let reset_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64
+            + 30_000;
+        Mock::given(method("POST"))
+            .and(path("/api/notes/timeline"))
+            .respond_with(ResponseTemplate::new(429).set_body_json(json!({"error": {
+                "code": "RATE_LIMIT_EXCEEDED",
+                "info": {"resetMs": reset_ms}
+            }})))
+            .mount(&server)
+            .await;
+
+        let client = MisskeyClient::with_base_url(&server.uri());
+        let err = client
+            .request("h", "token", "notes/timeline", json!({}))
+            .await
+            .unwrap_err();
+        let NoteDeckError::RateLimited {
+            retry_after_ms: Some(ms),
+            ..
+        } = err
+        else {
+            panic!("expected RateLimited with retry_after_ms, got {err:?}");
+        };
+        assert!((20_000..=30_000).contains(&ms), "retry_after_ms = {ms}");
+    }
+
+    #[tokio::test]
+    async fn request_rate_limited_without_hint() {
+        // 429 だけで待ち時間の手がかりが無い (古いサーバー / プロキシ) ときは None
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/test"))
+            .respond_with(ResponseTemplate::new(429).set_body_string(""))
+            .mount(&server)
+            .await;
+
+        let client = MisskeyClient::with_base_url(&server.uri());
+        let err = client
+            .request("h", "token", "test", json!({}))
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            NoteDeckError::RateLimited {
+                retry_after_ms: None,
+                ..
+            }
+        ));
     }
 
     #[tokio::test]

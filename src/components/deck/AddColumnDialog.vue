@@ -30,6 +30,7 @@ import {
 } from '@/composables/useSpotlight'
 import { formatUserHandle, useUserSearch } from '@/composables/useUserSearch'
 import { i18n } from '@/i18n'
+import { type ColumnSource, sameSource } from '@/services/columnSource'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
@@ -200,6 +201,10 @@ function addColumnForAccount(accountId: string | null) {
     fetchSelectItems(selectable, accountId)
     return
   }
+  if (selectable) {
+    startSourcesPick(selectable)
+    return
+  }
   finalizeColumn({
     type,
     ...buildColumnDefaults(type, accountId),
@@ -304,6 +309,120 @@ async function fetchSelectItems(config: ActiveSelectable, accountId: string) {
   }
 }
 
+// --- 全アカウント × 選択式 (#1017 案 2): アカウントごとに項目を選んで束ねる ---
+const sourcesConfig = ref<ActiveSelectable | null>(null)
+/** 選べるアカウント (ログイン中で、認証が要る種別ならゲストを除く) */
+const sourceAccounts = computed(() =>
+  accountsStore.accounts.filter(
+    (a) => a.hasToken && !(requiresAuth.value && isGuestAccount(a)),
+  ),
+)
+const expandedSourceAccount = ref<string | null>(null)
+const sourceItems = reactive<Record<string, SelectableItem[]>>({})
+const sourceLoading = reactive<Record<string, boolean>>({})
+const sourceQuery = ref('')
+const selectedSources = ref<ColumnSource[]>([])
+let sourceSearchDebounce: ReturnType<typeof setTimeout> | undefined
+
+function startSourcesPick(config: ActiveSelectable) {
+  sourcesConfig.value = config
+  selectedSources.value = []
+  sourceQuery.value = ''
+  for (const k of Object.keys(sourceItems)) delete sourceItems[k]
+  expandedSourceAccount.value = null
+  const first = sourceAccounts.value[0]
+  if (first) void toggleSourceAccount(first.id)
+}
+
+function resetSourcesPick() {
+  sourcesConfig.value = null
+  selectedSources.value = []
+  expandedSourceAccount.value = null
+  sourceQuery.value = ''
+}
+
+async function toggleSourceAccount(accountId: string) {
+  if (expandedSourceAccount.value === accountId) {
+    expandedSourceAccount.value = null
+    return
+  }
+  expandedSourceAccount.value = accountId
+  sourceQuery.value = ''
+  if (!sourceItems[accountId]) await loadSourceItems(accountId, '')
+}
+
+async function loadSourceItems(accountId: string, query: string) {
+  const config = sourcesConfig.value
+  if (!config) return
+  sourceLoading[accountId] = true
+  try {
+    const q = query.trim()
+    if (q && config.spec.search) {
+      sourceItems[accountId] = await config.spec.search(accountId, q)
+    } else if (config.type === 'user') {
+      // ユーザーは検索専用で初期一覧が無い
+      sourceItems[accountId] = []
+    } else {
+      sourceItems[accountId] = await config.spec.fetch(accountId)
+    }
+  } catch (e) {
+    logWarn(`deck-sources-${config.type}`, e)
+    sourceItems[accountId] = []
+  } finally {
+    sourceLoading[accountId] = false
+  }
+}
+
+watch(sourceQuery, (val) => {
+  if (sourceSearchDebounce) clearTimeout(sourceSearchDebounce)
+  const accountId = expandedSourceAccount.value
+  if (!sourcesConfig.value || !accountId) return
+  sourceSearchDebounce = setTimeout(
+    () => void loadSourceItems(accountId, val),
+    300,
+  )
+})
+
+function isSourceSelected(accountId: string, item: SelectableItem): boolean {
+  return selectedSources.value.some((s) =>
+    sameSource(s, { accountId, id: item.id }),
+  )
+}
+
+function toggleSource(accountId: string, item: SelectableItem) {
+  const config = sourcesConfig.value
+  if (!config) return
+  const target = { accountId, id: item.id }
+  if (isSourceSelected(accountId, item)) {
+    selectedSources.value = selectedSources.value.filter(
+      (s) => !sameSource(s, target),
+    )
+    return
+  }
+  const name = config.spec.formatName ? config.spec.formatName(item) : item.name
+  selectedSources.value = [...selectedSources.value, { ...target, name }]
+}
+
+function selectedCountFor(accountId: string): number {
+  return selectedSources.value.filter((s) => s.accountId === accountId).length
+}
+
+function addSourcesColumn() {
+  const config = sourcesConfig.value
+  const sources = selectedSources.value
+  if (!config || sources.length === 0) return
+  // 名前は ID にならない写し。1 つだけなら per-account と同じくその名前を出す
+  const only = sources.length === 1 ? sources[0] : undefined
+  finalizeColumn({
+    type: config.type,
+    name: only?.name ?? null,
+    width: DEFAULT_COLUMN_WIDTH,
+    accountId: null,
+    sources,
+    active: true,
+  } as Omit<DeckColumn, 'id'>)
+}
+
 // --- Inline create for list/antenna/clip ---
 const showCreateForm = ref(false)
 const createName = ref('')
@@ -386,15 +505,18 @@ function close() {
     :class="[mode === 'pip' ? $style.addInline : [$style.addOverlay, '_nativeDialog', isSheet && $style.mobileBackdrop]]"
   >
     <div ref="popupRef" :class="[mode === 'pip' ? $style.addPopupInline : $style.addPopup, isSheet && [$style.addSheet, $style.sheetContentEnter]]">
-      <div v-if="!(mode === 'pip' && !addColumnType && !selectConfig)" :class="[$style.addPopupHeader, mode === 'pip' && $style.addPopupHeaderPip]">
-        <button v-if="addColumnType && !selectConfig" :aria-label="i18n.ts._common.back" class="_button" :class="$style.addBackBtn" @click="addColumnType = null">
+      <div v-if="!(mode === 'pip' && !addColumnType && !selectConfig && !sourcesConfig)" :class="[$style.addPopupHeader, mode === 'pip' && $style.addPopupHeaderPip]">
+        <button v-if="addColumnType && !selectConfig && !sourcesConfig" :aria-label="i18n.ts._common.back" class="_button" :class="$style.addBackBtn" @click="addColumnType = null">
+          <i class="ti ti-arrow-left" />
+        </button>
+        <button v-else-if="sourcesConfig" :aria-label="i18n.ts._common.back" class="_button" :class="$style.addBackBtn" @click="resetSourcesPick()">
           <i class="ti ti-arrow-left" />
         </button>
         <button v-else-if="selectConfig" :aria-label="i18n.ts._common.back" class="_button" :class="$style.addBackBtn" @click="selectConfig = null; selectItems = []; selectAccountId = null; searchQuery = ''">
           <i class="ti ti-arrow-left" />
         </button>
         <span :class="$style.addPopupTitle">
-          {{ selectConfig ? i18n.tsx._addColumnDialog.selectItem({ label: selectConfig.label }) : addColumnType ? i18n.ts._addColumnDialog.selectAccount : i18n.ts._commands.addColumn }}
+          {{ sourcesConfig ? i18n.tsx._addColumnDialog.selectSources({ label: sourcesConfig.label }) : selectConfig ? i18n.tsx._addColumnDialog.selectItem({ label: selectConfig.label }) : addColumnType ? i18n.ts._addColumnDialog.selectAccount : i18n.ts._commands.addColumn }}
         </span>
       </div>
 
@@ -423,6 +545,68 @@ function close() {
             </button>
           </CollapseBox>
         </div>
+      </template>
+
+      <!-- Step 3b: 全アカウント × 選択式 — アカウントごとに項目を選んで 1 つのカラムに束ねる (#1017 案 2) -->
+      <template v-else-if="sourcesConfig">
+        <div :class="$style.sourcesHint">{{ i18n.tsx._addColumnDialog.sourcesHint({ label: sourcesConfig.label }) }}</div>
+        <template v-for="account in sourceAccounts" :key="account.id">
+          <AccountPickerRow
+            :label="getAccountLabel(account)"
+            :hint="selectedCountFor(account.id) > 0 ? String(selectedCountFor(account.id)) : undefined"
+            @click="toggleSourceAccount(account.id)"
+          >
+            <template #avatar>
+              <AccountAvatar
+                :src="getAccountAvatarUrl(account)"
+                :host="account.host"
+                :size="32"
+                show-server
+                badge-background="var(--nd-navBg)"
+              />
+            </template>
+          </AccountPickerRow>
+          <CollapseBox :open="expandedSourceAccount === account.id">
+            <div v-if="sourcesConfig.spec.search" :class="$style.selectSearchBar">
+              <i class="ti ti-search" :class="$style.selectSearchIcon" />
+              <input
+                v-model="sourceQuery"
+                :class="$style.selectSearchInput"
+                type="text"
+                :placeholder="i18n.tsx._common.searchItem({ label: sourcesConfig.label })"
+              />
+            </div>
+            <div v-if="sourceLoading[account.id]" :class="$style.addPopupLoading"><LoadingSpinner /></div>
+            <div
+              v-else-if="(sourceItems[account.id] ?? []).length === 0 && (!sourcesConfig.spec.search || sourceQuery.trim())"
+              :class="$style.addPopupEmpty"
+            >
+              {{ i18n.tsx._addColumnDialog.notFound({ label: sourcesConfig.label }) }}
+            </div>
+            <button
+              v-for="item in sourceItems[account.id] ?? []"
+              :key="item.id"
+              class="_button"
+              :class="[$style.addTypeBtn, $style.sourceItem, isSourceSelected(account.id, item) && $style.sourceSelected]"
+              :aria-pressed="isSourceSelected(account.id, item)"
+              @click="toggleSource(account.id, item)"
+            >
+              <img v-if="item.avatarUrl" :src="proxyThumbUrl(item.avatarUrl, 56)" :class="$style.selectItemAvatar" />
+              <i v-else class="ti" :class="`ti-${COLUMN_ICONS[sourcesConfig.type]}`" />
+              <span>{{ item.name }}</span>
+              <i v-if="isSourceSelected(account.id, item)" class="ti ti-check" :class="$style.sourceCheck" />
+            </button>
+          </CollapseBox>
+        </template>
+        <button
+          class="_button"
+          :class="[$style.addTypeBtn, $style.createBtn]"
+          :disabled="selectedSources.length === 0"
+          @click="addSourcesColumn"
+        >
+          <i class="ti ti-plus" />
+          <span>{{ i18n.tsx._addColumnDialog.addSelected({ count: selectedSources.length }) }}</span>
+        </button>
       </template>
 
       <!-- Step 3a: Item selection (list/antenna/channel/clip/user) -->
@@ -745,6 +929,24 @@ function close() {
 .chevron {
   margin-left: auto;
   font-size: var(--nd-font-body);
+}
+
+.sourcesHint {
+  padding: 8px 24px;
+  font-size: var(--nd-font-sm);
+  color: var(--nd-fgTransparentWeak);
+}
+
+.sourceItem {
+  padding-left: 40px;
+}
+
+.sourceSelected {
+  color: var(--nd-accentText);
+}
+
+.sourceCheck {
+  margin-left: auto;
 }
 
 .selectSearchBar {

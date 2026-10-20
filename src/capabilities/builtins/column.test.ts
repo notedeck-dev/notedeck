@@ -161,6 +161,25 @@ describe('addable な種別はレジストリ由来 (#794 W2)', () => {
     expect(enumTypes()).toContain('x:demo')
   })
 
+  it('全アカウント (accountId 無し) の選択式は sources を案内する (#1017 案 2)', () => {
+    // deckStore に触る前の引数バリデーションだけを見る (上の注記のとおり)
+    expect(() =>
+      columnAddCapability.execute?.(
+        { type: 'list' },
+        { principal: { kind: 'user' } },
+      ),
+    ).toThrow(/sources/)
+    expect(() =>
+      columnAddCapability.execute?.(
+        {
+          type: 'list',
+          sources: [{ bogus: true }, { accountId: 'a', id: '' }],
+        },
+        { principal: { kind: 'user' } },
+      ),
+    ).toThrow(/sources/)
+  })
+
   it('lookup ID 必須の対応表もレジストリの selectable.idKey 由来', () => {
     // role は registry で roleId を宣言しているので、ID 無しでは弾かれる
     expect(() =>

@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
-import { columnCacheKey } from '@/services/columnCacheKey'
+import { columnCacheKey, userNotesCacheKey } from '@/services/columnCacheKey'
+import type { ColumnSource } from '@/services/columnSource'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
+import DeckCrossSourcesColumn from './DeckCrossSourcesColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
 const props = defineProps<{
@@ -13,6 +17,17 @@ const props = defineProps<{
 
 const accountsStore = useAccountsStore()
 const cacheKeyDeps = accountsCacheKeyDeps()
+
+// 全アカウント (#1017 案 2): 組 (アカウント + ユーザー ID) ごとに取得・購読する
+const isCrossAccount = computed(() => props.column.accountId == null)
+function fetchSource(
+  adapter: ServerAdapter,
+  opts: { untilId?: string } | undefined,
+  source: ColumnSource,
+) {
+  return adapter.api.getUserNotes(source.id, opts)
+}
+const cacheKeyOf = (source: ColumnSource) => userNotesCacheKey(source.id)
 
 const noteColumnConfig: NoteColumnConfig = {
   getColumn: () => props.column,
@@ -43,8 +58,20 @@ const noteColumnConfig: NoteColumnConfig = {
 </script>
 
 <template>
+  <DeckCrossSourcesColumn
+    v-if="isCrossAccount"
+    :column="column"
+    :title="i18n.ts._columns.user"
+    icon="ti-user"
+    column-type="user"
+    :fetch-notes="fetchSource"
+    :cache-key-of="cacheKeyOf"
+    :filter-keys="['withRenotes', 'withReplies', 'withFiles']"
+    :visibility="noteColumnConfig.visibility"
+  />
   <!-- 単一ユーザーのカラムに Bot 除外は不要 (#841) -->
   <DeckNoteColumn
+    v-else
     :column="column"
     :title="column.name || i18n.ts._columns.user"
     icon="ti-user"

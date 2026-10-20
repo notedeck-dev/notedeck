@@ -222,6 +222,8 @@ _common:
   local: "ローカル"
   offline: "オフライン"
   polling: "ポーリング"
+  rateLimited: "レート制限中"
+  rateLimitedDetail: "サーバーのレート制限中 (しばらく待ってから再試行します)"
   store: "ストア"
   storeUnavailable: "ストアに接続できません"
   browseStore: "ストアを探す"
@@ -1982,6 +1984,9 @@ _addColumnDialog:
   noAccount: "アカウントなし"
   guestUnavailable: "ゲストアカウントではこのカラムを使えません"
   loginRequired: "ログインすると利用できます"
+  selectSources: "{label}を選んで束ねる"
+  addSelected: "{count} 件で追加"
+  sourcesHint: "アカウントごとに{label}を選びます。選んだものを 1 つのカラムにまとめます"
 
 _columnErrorBoundary:
   title: "カラムの表示中に問題が発生しました"
@@ -2626,6 +2631,7 @@ _deepLinkInstall:
 
 _columnEmptyState:
   networkError: "サーバーに接続できません。ネットワークを確認してください。"
+  rateLimited: "サーバーのレート制限中です。しばらく待ってから再試行します"
   loadFailed: "読み込みに失敗しました ({code})"
   defaultSubject: "情報"
 
@@ -2923,12 +2929,19 @@ _quickPickProviders:
   selectUser: "ユーザーを選択"
   searchUser: "ユーザーを検索..."
   namePlaceholder: "{label}名を入力..."
+  selectSources: "{label}を選んで束ねる"
+  addSelected: "{count} 件で追加"
+  selectedCount: "{count} 件選択中"
 
 _taskCommands:
   label: "タスク: {label}"
 
+_deckCrossSourcesColumn:
+  empty: "ノートはありません"
+  noSources: "束ねる項目がありません。カラムを作り直してください"
+  allExcluded: "フィルター / クエリですべて除外されています"
+
 _accountScope:
-  selectable: "サーバーごとに選ぶ項目のため、全アカウントでの束ね方が決まっていません"
   server: "サーバー単位の面のため、アカウントをまたぐ意味がありません"
   unsupported: "このカラムはまだ全アカウントに対応していません"
 

@@ -17,6 +17,7 @@ import { switchProfileWithWindows } from '@/composables/useDeckWindow'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { formatUserHandle, searchUsers } from '@/composables/useUserSearch'
 import { i18n } from '@/i18n'
+import type { ColumnSource } from '@/services/columnSource'
 import { SETTINGS_SECTIONS } from '@/settings/sections'
 import {
   getAccountAvatarUrl,
@@ -35,7 +36,7 @@ import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isWindowExposed } from '@/windows/exposure'
 import { WINDOW_ICONS, WINDOW_LABELS } from '@/windows/registry'
-import type { QuickPickItem } from './quickPick'
+import type { QuickPickItem, QuickPickStep } from './quickPick'
 import { useCommandStore } from './registry'
 
 // ============================================================
@@ -256,6 +257,11 @@ async function buildDetailStep(
   }
 
   const selectable = getSelectable(type)
+  // 全アカウント × 選択式 (#1017 案 2): アカウントごとに選んで束ねる
+  if (selectable && accountId === null) {
+    buildSourcesStep(selectable)
+    return []
+  }
   if (selectable && accountId) {
     // Searchable config: build step with search input + initial items
     if (selectable.spec.search) {
@@ -302,6 +308,146 @@ async function buildDetailStep(
 
   finalizeAddColumn(type, accountId)
   return []
+}
+
+/**
+ * 全アカウント × 選択式 (#1017 案 2): アカウントごとに項目を選んで 1 つのカラムに
+ * 束ねる。項目を選ぶとアカウント一覧に戻り (パレットは閉じない)、先頭の
+ * 「N 件で追加」で確定する。AddColumnDialog の同じステップと対
+ */
+function buildSourcesStep(config: QPSelectable) {
+  const commandStore = useCommandStore()
+  const accountsStore = useAccountsStore()
+  const authRequired = !GUEST_ALLOWED_TYPES.has(config.type)
+  const accounts = accountsStore.accounts.filter(
+    (a) => a.hasToken && !(authRequired && isGuestAccount(a)),
+  )
+  const label = COLUMN_LABELS[config.type] ?? config.type
+  const icon = COLUMN_ICONS[config.type] ?? 'dots'
+  const selected: ColumnSource[] = []
+
+  const step = reactive<QuickPickStep>({
+    title: i18n.tsx._quickPickProviders.selectSources({ label }),
+    placeholder: i18n.tsx._common.searchItem({ label }),
+    items: [],
+  })
+
+  function refresh() {
+    const items: QuickPickItem[] = []
+    if (selected.length > 0) {
+      items.push({
+        id: 'add-sources',
+        label: i18n.tsx._quickPickProviders.addSelected({
+          count: selected.length,
+        }),
+        icon: 'plus',
+        action: () => {
+          // 名前は ID にならない写し。1 つだけなら per-account と同じくその名前
+          const only = selected.length === 1 ? selected[0] : undefined
+          useDeckStore().addColumn({
+            type: config.type,
+            name: only?.name ?? null,
+            width: 360,
+            accountId: null,
+            sources: [...selected],
+            active: true,
+          } as Omit<DeckColumn, 'id'>)
+        },
+      })
+    }
+    for (const account of accounts) {
+      const count = selected.filter((s) => s.accountId === account.id).length
+      items.push({
+        id: `account-${account.id}`,
+        label: getAccountLabel(account),
+        description:
+          count > 0
+            ? i18n.tsx._quickPickProviders.selectedCount({ count })
+            : undefined,
+        icon: 'user',
+        avatarUrl: getAccountAvatarUrl(account),
+        serverHost: account.host,
+        children: () => buildSourceItems(account.id),
+      })
+    }
+    step.items = items
+  }
+
+  function toggle(accountId: string, item: SelectableItem) {
+    const idx = selected.findIndex(
+      (s) => s.accountId === accountId && s.id === item.id,
+    )
+    if (idx >= 0) selected.splice(idx, 1)
+    else {
+      const name = config.spec.formatName
+        ? config.spec.formatName(item)
+        : item.name
+      selected.push({ accountId, id: item.id, name })
+    }
+    refresh()
+  }
+
+  function itemToQuickPick(accountId: string, item: SelectableItem) {
+    const picked = selected.some(
+      (s) => s.accountId === accountId && s.id === item.id,
+    )
+    return {
+      id: `source-${accountId}-${item.id}`,
+      label: picked ? `✓ ${item.name}` : item.name,
+      icon,
+      avatarUrl: item.avatarUrl,
+      description: item.description,
+      group: item.group,
+      // action はパレットを閉じるので、children で選択を切り替えて項目のステップを
+      // 自分で閉じる (空を返すとパレットは何も積まない)
+      children: () => {
+        toggle(accountId, item)
+        commandStore.popQuickPick()
+        return []
+      },
+    } satisfies QuickPickItem
+  }
+
+  async function buildSourceItems(accountId: string): Promise<QuickPickItem[]> {
+    if (config.spec.search) {
+      let debounceTimer: ReturnType<typeof setTimeout> | undefined
+      const itemsStep = reactive<QuickPickStep>({
+        title: i18n.tsx._quickPickProviders.selectItem({ label }),
+        placeholder: i18n.tsx._common.searchItem({ label }),
+        items: [],
+        loading: true,
+        onQueryChange(q: string) {
+          if (debounceTimer) clearTimeout(debounceTimer)
+          debounceTimer = setTimeout(() => fetchItems(q), 300)
+        },
+      })
+      async function fetchItems(query: string) {
+        itemsStep.loading = true
+        try {
+          const q = query.trim()
+          const items =
+            q && config.spec.search
+              ? await config.spec.search(accountId, q)
+              : config.type === 'user'
+                ? []
+                : await config.spec.fetch(accountId)
+          itemsStep.items = items.map((i) => itemToQuickPick(accountId, i))
+        } catch {
+          itemsStep.items = []
+        } finally {
+          itemsStep.loading = false
+        }
+      }
+      commandStore.pushQuickPick(itemsStep)
+      void fetchItems('')
+      return []
+    }
+    const items = await config.spec.fetch(accountId)
+    return items.map((i) => itemToQuickPick(accountId, i))
+  }
+
+  refresh()
+  commandStore.pushQuickPick(step)
 }
 
 /** Build a searchable Quick Pick step with initial items + server-side search */

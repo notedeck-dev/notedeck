@@ -1243,6 +1243,11 @@ pub struct Channel {
 #[serde(rename_all = "camelCase")]
 pub struct ChatMessage {
     pub id: String,
+    /// 取得元アカウント (notedeck#1270)。Misskey の ID はサーバー内でしか一意でない
+    /// ので、複数アカウントを混ぜる面では (account_id, id) が同一性。API の生 JSON
+    /// と旧キャッシュには無いため default で読み、受け取った側 (`fill_account_id`) が補う
+    #[serde(rename = "_accountId", default)]
+    pub account_id: String,
     pub created_at: String,
     pub from_user_id: String,
     pub from_user: Option<ChatUser>,
@@ -1256,6 +1261,16 @@ pub struct ChatMessage {
     pub is_read: Option<bool>,
     #[serde(default, deserialize_with = "deserialize_nullable_vec")]
     pub reactions: Vec<ChatMessageReaction>,
+}
+
+impl ChatMessage {
+    /// 取得元アカウントを載せる。API 応答・キャッシュの読み出し・WS 受信の各経路で、
+    /// フロントに渡す前に必ず通す
+    pub fn fill_account_id(msgs: &mut [ChatMessage], account_id: &str) {
+        for m in msgs {
+            m.account_id = account_id.to_string();
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, utoipa::ToSchema)]
@@ -2067,6 +2082,22 @@ impl RawNotification {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn chat_message_reads_legacy_json_without_account_id() {
+        // notedeck#1270: 旧キャッシュ / API の生 JSON には _accountId が無い
+        let legacy = serde_json::json!({
+            "id": "m1",
+            "createdAt": "2026-05-01T00:00:00Z",
+            "fromUserId": "alice",
+            "text": "hi"
+        });
+        let mut msg: ChatMessage = serde_json::from_value(legacy).unwrap();
+        assert_eq!(msg.account_id, "");
+        ChatMessage::fill_account_id(std::slice::from_mut(&mut msg), "acc-1");
+        let json = serde_json::to_value(&msg).unwrap();
+        assert_eq!(json["_accountId"], "acc-1");
+    }
+
     use super::*;
     use serde_json::json;
 

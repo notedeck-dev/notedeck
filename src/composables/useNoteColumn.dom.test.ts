@@ -1708,3 +1708,119 @@ describe('useNoteColumn: 無効なクエリは評価上「無いもの」(#1043)
     expect(ids(api)).toEqual(['a'])
   })
 })
+
+describe('useNoteColumn: レート制限 (#1271)', () => {
+  const rateLimited = () => ({
+    code: 'RATE_LIMITED',
+    message: 'notes/timeline: rate limit exceeded',
+    apiCode: 'RATE_LIMIT_EXCEEDED',
+    i18n: null,
+    retryAfterMs: 5000,
+  })
+
+  it('loadMore が 429 なら オフラインにせず、待ち時間のあいだは再試行しない', async () => {
+    addAccount('acc-rl')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([note('h05'), note('h04')]) // mount 時 connect
+      .mockRejectedValueOnce(rateLimited())
+      .mockResolvedValue([])
+    const { api } = mountColumn({
+      accountId: 'acc-rl',
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+
+    const base = Date.now()
+    const nowSpy = vi.spyOn(Date, 'now')
+    nowSpy.mockReturnValue(base)
+    await api.loadMore()
+    await flush()
+    expect(api.isOffline.value).toBe(false)
+    expect(api.isRateLimited.value).toBe(true)
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+
+    // 待ち時間の途中: 叩かない
+    nowSpy.mockReturnValue(base + 3000)
+    await api.loadMore()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+
+    // 待ち時間が明けたら再試行する
+    nowSpy.mockReturnValue(base + 5001)
+    await api.loadMore()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    expect(api.isRateLimited.value).toBe(false)
+    nowSpy.mockRestore()
+  })
+
+  it('復帰の取り直しも待ち時間のあいだは叩かない', async () => {
+    addAccount('acc-rl-resume')
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce([note('h05')]) // mount 時 connect
+      .mockRejectedValueOnce(rateLimited()) // loadMore → 429
+      .mockResolvedValue([note('h05')])
+    const { api } = mountColumn({
+      accountId: 'acc-rl-resume',
+      fetch: () => fetchImpl(),
+      streaming: true,
+    })
+    await flush()
+
+    // dedup のレスポンスキャッシュは実時刻で期限を持つので、実時刻からずらす
+    const base = Date.now() + 10_000
+    const nowSpy = vi.spyOn(Date, 'now')
+    nowSpy.mockReturnValue(base)
+    await api.loadMore()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+
+    // ストリーミング列のリロードは復帰 catch-up と同じ経路 (onResume)
+    nowSpy.mockReturnValue(base + 4000)
+    await api.refresh()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(api.isOffline.value).toBe(false)
+
+    nowSpy.mockReturnValue(base + 10_000)
+    await api.refresh()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(3)
+    nowSpy.mockRestore()
+  })
+
+  it('初回接続が 429 で行が無ければ、待ち時間が明けたら自分で取り直す', async () => {
+    addAccount('acc-rl-auto')
+    // 待ち時間を短くして実時間で待つ (happy-dom の timer は fake timers が届かない)
+    const fetchImpl = vi
+      .fn()
+      .mockRejectedValueOnce({ ...rateLimited(), retryAfterMs: 5 })
+      .mockResolvedValue([note('h01')])
+    const { api } = mountColumn({
+      accountId: 'acc-rl-auto',
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    expect(api.error.value?.isRateLimited).toBe(true)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+
+    await new Promise((r) => setTimeout(r, 30))
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+    expect(api.error.value).toBeNull()
+    expect(ids(api)).toEqual(['h01'])
+  })
+
+  it('初回接続が 429 で行が無ければ error に RATE_LIMITED が立つ', async () => {
+    addAccount('acc-rl-first')
+    const { api } = mountColumn({
+      accountId: 'acc-rl-first',
+      fetch: () => Promise.reject(rateLimited()),
+    })
+    await flush()
+    expect(api.error.value?.isRateLimited).toBe(true)
+    expect(api.isOffline.value).toBe(false)
+  })
+})

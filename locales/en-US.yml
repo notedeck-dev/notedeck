@@ -446,6 +446,8 @@ _common:
   local: "Local"
   offline: "Offline"
   polling: "Polling"
+  rateLimited: "Rate limited"
+  rateLimitedDetail: "Rate limited by the server (will retry after a short wait)"
   store: "Store"
   storeUnavailable: "Can’t connect to the store"
   browseStore: "Browse the store"
@@ -2246,6 +2248,9 @@ _addColumnDialog:
   noAccount: "No account"
   guestUnavailable: "This column isn't available for guest accounts"
   loginRequired: "Log in to use this"
+  selectSources: "Choose {label} to combine"
+  addSelected: "Add {count}"
+  sourcesHint: "Pick {label} per account. The selection becomes one column"
 
 _columnErrorBoundary:
   title: "Something went wrong while displaying this column"
@@ -2896,6 +2901,7 @@ _deepLinkInstall:
 
 _columnEmptyState:
   networkError: "Can't connect to the server. Check your network connection."
+  rateLimited: "Rate limited by the server. Will retry after a short wait."
   loadFailed: "Failed to load ({code})"
   defaultSubject: "information"
 
@@ -3200,12 +3206,19 @@ _quickPickProviders:
   selectUser: "Select a user"
   searchUser: "Search users..."
   namePlaceholder: "Enter {label} name..."
+  selectSources: "Choose {label} to combine"
+  addSelected: "Add {count}"
+  selectedCount: "{count} selected"
 
 _taskCommands:
   label: "Task: {label}"
 
+_deckCrossSourcesColumn:
+  empty: "No notes"
+  noSources: "Nothing to combine. Re-create the column"
+  allExcluded: "Everything is excluded by the filter / query"
+
 _accountScope:
-  selectable: "This is chosen per server, so there is no defined way to combine it across all accounts"
   server: "This is a per-server view, so spanning accounts has no meaning"
   unsupported: "This column does not support all accounts yet"
 

@@ -30,6 +30,9 @@ pub struct RpcError {
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub i18n: Option<Value>,
+    /// レート制限 (notedeck#1271) の再試行までの待ち時間 (ms)。`RATE_LIMITED` だけ
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub retry_after_ms: Option<u64>,
 }
 
 impl From<&notecli::error::NoteDeckError> for RpcError {
@@ -38,6 +41,7 @@ impl From<&notecli::error::NoteDeckError> for RpcError {
             code: e.code().to_string(),
             message: e.safe_message(),
             i18n: e.i18n().cloned(),
+            retry_after_ms: e.retry_after_ms(),
         }
     }
 }
@@ -161,6 +165,7 @@ fn static_code(code: &str) -> &'static str {
         "JSON",
         "ACCOUNT_NOT_FOUND",
         "API",
+        "RATE_LIMITED",
         "NO_CONNECTION",
         "CONNECTION_CLOSED",
         "INVALID_INPUT",
@@ -181,6 +186,19 @@ fn static_code(code: &str) -> &'static str {
 
 impl From<RpcError> for NoteDeckError {
     fn from(e: RpcError) -> Self {
+        // レート制限は待ち時間を持つ型に戻す (notedeck#1271)。message は
+        // `<endpoint>: rate limit exceeded` の形 (RateLimited の Display)
+        if e.code == "RATE_LIMITED" {
+            let endpoint = e
+                .message
+                .strip_suffix(": rate limit exceeded")
+                .unwrap_or(&e.message)
+                .to_string();
+            return NoteDeckError::RateLimited {
+                endpoint,
+                retry_after_ms: e.retry_after_ms,
+            };
+        }
         NoteDeckError::Localized {
             code: static_code(&e.code),
             message: e.message,
@@ -234,6 +252,7 @@ mod tests {
                 code: "INVALID_INPUT".into(),
                 message: "bad".into(),
                 i18n: None,
+                retry_after_ms: None,
             }),
         };
         let text = serde_json::to_string(&r).unwrap();
@@ -256,6 +275,7 @@ mod tests {
             code: "INVALID_INPUT".into(),
             message: "bad".into(),
             i18n: None,
+            retry_after_ms: None,
         }
         .into();
         assert_eq!(e.code(), "INVALID_INPUT");
@@ -264,10 +284,29 @@ mod tests {
             code: "SOMETHING_NEW".into(),
             message: "x".into(),
             i18n: Some(json!({ "key": "k" })),
+            retry_after_ms: None,
         }
         .into();
         assert_eq!(e.code(), "REMOTE");
         assert_eq!(e.i18n().unwrap()["key"], "k");
+    }
+
+    #[test]
+    fn rate_limited_round_trips_retry_after_through_the_relay() {
+        // notedeck#1271: 中継を通っても待ち時間と種別が落ちない
+        let original = NoteDeckError::RateLimited {
+            endpoint: "notes/timeline".into(),
+            retry_after_ms: Some(7000),
+        };
+        let wire = RpcError::from(&original);
+        assert_eq!(wire.code, "RATE_LIMITED");
+        assert_eq!(wire.retry_after_ms, Some(7000));
+        let text = serde_json::to_string(&wire).unwrap();
+        assert!(text.contains("\"retryAfterMs\":7000"));
+        let back: NoteDeckError = serde_json::from_str::<RpcError>(&text).unwrap().into();
+        assert_eq!(back.code(), "RATE_LIMITED");
+        assert_eq!(back.retry_after_ms(), Some(7000));
+        assert_eq!(back.safe_message(), "notes/timeline: rate limit exceeded");
     }
 
     #[test]

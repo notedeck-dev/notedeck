@@ -8,9 +8,9 @@ import { useMutesStore } from '@/stores/mutes'
  * 適用しない（DM/通知は muting するのに非対称）。NoteDeck は「ミュート＝存在を
  * 無視する」方針を貫くため、チャットでも独自にミュートユーザーを隠す（#575）。
  *
- * ChatMessage は `_accountId` を持たないため、判定は account 文脈を持つ
- * 呼び出し側（DeckChatColumn の per-account / cross-account 履歴）から
- * accountId を渡す。room の個別発言は isMessageHidden、DM 相手単位の
+ * 判定は account 文脈を持つ呼び出し側（DeckChatColumn の per-account /
+ * cross-account 履歴）から accountId を渡す (ChatMessage の `_accountId` は
+ * 取得元の記録 (#1270) で、履歴の entry 単位で判定するため引数で受ける)。room の個別発言は isMessageHidden、DM 相手単位の
  * 履歴除外は isPartnerMuted で扱う。
  */
 export function useChatVisibility() {

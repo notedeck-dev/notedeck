@@ -103,9 +103,10 @@ pub async fn api_get_chat_history(
     cache: Option<bool>,
 ) -> Result<Vec<ChatMessage>> {
     let (client, host, token) = core.authed(&account_id).await?;
-    let msgs = client
+    let mut msgs = client
         .get_chat_history(&host, &token, limit.unwrap_or(100), room.unwrap_or(false))
         .await?;
+    ChatMessage::fill_account_id(&mut msgs, &account_id);
     if let Some(db) = core.try_db() {
         cache_chat_response(&db, &msgs, &account_id, &host, cache);
     }
@@ -122,7 +123,7 @@ pub async fn api_get_chat_user_messages(
     cache: Option<bool>,
 ) -> Result<Vec<ChatMessage>> {
     let (client, host, token) = core.authed(&account_id).await?;
-    let msgs = client
+    let mut msgs = client
         .get_chat_user_messages(
             &host,
             &token,
@@ -132,6 +133,7 @@ pub async fn api_get_chat_user_messages(
             until_id.as_deref(),
         )
         .await?;
+    ChatMessage::fill_account_id(&mut msgs, &account_id);
     if let Some(db) = core.try_db() {
         cache_chat_response(&db, &msgs, &account_id, &host, cache);
     }
@@ -148,7 +150,7 @@ pub async fn api_get_chat_room_messages(
     cache: Option<bool>,
 ) -> Result<Vec<ChatMessage>> {
     let (client, host, token) = core.authed(&account_id).await?;
-    let msgs = client
+    let mut msgs = client
         .get_chat_room_messages(
             &host,
             &token,
@@ -158,6 +160,7 @@ pub async fn api_get_chat_room_messages(
             until_id.as_deref(),
         )
         .await?;
+    ChatMessage::fill_account_id(&mut msgs, &account_id);
     if let Some(db) = core.try_db() {
         cache_chat_response(&db, &msgs, &account_id, &host, cache);
     }
@@ -179,7 +182,7 @@ pub async fn api_create_chat_message(
     let (client, host, token) = core.authed(&account_id).await?;
     let text_ref = text.as_deref();
     let file_id_ref = file_id.as_deref();
-    let msg = match (user_id, room_id) {
+    let mut msg = match (user_id, room_id) {
         (Some(uid), _) => {
             client
                 .create_chat_message_to_user(&host, &token, &uid, text_ref, file_id_ref)
@@ -196,6 +199,7 @@ pub async fn api_create_chat_message(
             ))
         }
     };
+    msg.account_id = account_id.clone();
     // 送信メッセージも DB に書く (WS で同じ msg が往復するが UPSERT で冪等)。索引が無ければ省く
     if let Some(db) = core.try_db() {
         cache_chat_response(&db, std::slice::from_ref(&msg), &account_id, &host, None);

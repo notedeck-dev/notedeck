@@ -60,6 +60,19 @@ describe('crossAccountPaging: カーソル', () => {
     expect(c.nextRetryAt).toBe(0)
   })
 
+  it('レート制限ならサーバーの示す待ち時間を優先する (#1271)', () => {
+    let c = initialCursor('a')
+    c = markFailed(c, 0, 7000)
+    expect(c.failures).toBe(1)
+    expect(c.nextRetryAt).toBe(7000)
+    // 待ち時間の分からないレート制限は既定の待ち時間 (指数より長い)
+    c = markFailed(c, 0, null)
+    expect(c.nextRetryAt).toBeGreaterThan(2000)
+    // 一般の失敗 (undefined) は指数バックオフのまま
+    c = markFailed(c, 0)
+    expect(c.nextRetryAt).toBe(4000)
+  })
+
   it('reseed: 列に残った行があればその最古、無ければ生ページの最古を保つ', () => {
     const c = advanceCursor(initialCursor('a'), [n('y', T('05'))])
     expect(
