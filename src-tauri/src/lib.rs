@@ -368,6 +368,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     let db = core.db().await;
                     match db.load_accounts() {
                         Ok(list) => {
+                            notemaid::redact::register_misskey_tokens(&list);
                             let outcome = relay
                                 .request("notemaid.accounts", serde_json::json!({ "accounts": list }), None)
                                 .await;

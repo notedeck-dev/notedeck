@@ -520,7 +520,10 @@ onMounted(async () => {
   }
   if (props.initialVisibility)
     visibility.value = props.initialVisibility as typeof visibility.value
-  if (props.initialLocalOnly) localOnly.value = true
+  // 明示された値はアカウントの既定 / 記憶値 (initAdapter が復元済み) より優先する。
+  // false も「連合させる」という指定なので上書きする
+  if (props.initialLocalOnly !== undefined)
+    localOnly.value = props.initialLocalOnly
   if (props.initialFilePaths?.length) {
     uploadFilesFromPaths(props.initialFilePaths)
   }

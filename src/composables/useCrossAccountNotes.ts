@@ -642,6 +642,14 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
    */
   async function onResume() {
     if (!isCrossAccount() || !streamingBatch) return
+    // オフラインモード中 (手動 / 回線断、#461) は REST を叩かない
+    if (useOfflineModeStore().isOfflineMode) return
+    // オフラインモード中に接続した列は購読を持たない (connectCrossAccount が
+    // キャッシュ表示で終わる)。復帰では接続からやり直して購読を張る
+    if (subscriptions.size === 0 && !isLoading.value) {
+      void connectCrossAccount()
+      return
+    }
     if (rawNotes.value.length === 0) {
       // 起動時に全アカウントの取得が失敗しキャッシュも無いと列は空のまま。
       // 復帰 (回線が戻った / 画面に戻った) は取り直しの合図にする。

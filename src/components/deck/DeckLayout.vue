@@ -382,6 +382,7 @@ function acceptCrossWindowDrop() {
         :initial-text="pendingComposePreset?.text"
         :initial-cw="pendingComposePreset?.cw"
         :initial-visibility="pendingComposePreset?.visibility"
+        :initial-local-only="pendingComposePreset?.localOnly"
         @close="closeCompose"
         @posted="closeCompose"
       />

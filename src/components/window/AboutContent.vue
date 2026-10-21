@@ -807,6 +807,8 @@ function reportViaMisskey() {
   uiStore.requestCompose({
     text: buildMisskeyReportText({ version: appVersion, os, webView }),
     visibility: 'home',
+    // 公式アカウントは別サーバーなので、連合しないと届かない
+    localOnly: false,
   })
 }
 </script>

@@ -60,12 +60,19 @@ pub async fn core_set_resident(
     }
 }
 
-/// 口座が変わったとき、別プロセスの notemaid に一覧を写し直す (in-process なら何もしない)
+/// 口座が変わったとき、別プロセスの notemaid に一覧を写し直す。このプロセスでも
+/// トークンを秘匿化の既知の値に覚える (in-process で AI を回す経路、#1164)
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
-pub async fn core_sync_accounts() {
+pub async fn core_sync_accounts(
+    app_state: tauri::State<'_, super::AppState>,
+) -> Result<(), String> {
+    if let Ok(list) = app_state.db().await.load_accounts() {
+        notemaid::redact::register_misskey_tokens(&list);
+    }
     if let Some(relay) = crate::client_layer::relay() {
         relay.resync();
     }
+    Ok(())
 }

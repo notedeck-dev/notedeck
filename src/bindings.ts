@@ -2583,12 +2583,18 @@ async coreSetResident(enabled: boolean) : Promise<Result<ClientLayerState, strin
 }
 },
 /**
- * 口座が変わったとき、別プロセスの notemaid に一覧を写し直す (in-process なら何もしない)
+ * 口座が変わったとき、別プロセスの notemaid に一覧を写し直す。このプロセスでも
+ * トークンを秘匿化の既知の値に覚える (in-process で AI を回す経路、#1164)
  *
  * @see src-tauri/src/commands/resident.rs
  */
-async coreSyncAccounts() : Promise<void> {
-    await TAURI_INVOKE("core_sync_accounts");
+async coreSyncAccounts() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("core_sync_accounts") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 },
 /**
  * トレイメニューの文言とチェック状態を反映する。トレイが無い環境では何もしない

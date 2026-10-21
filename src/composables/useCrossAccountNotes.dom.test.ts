@@ -19,7 +19,9 @@ import { type Account, useAccountsStore } from '@/stores/accounts'
 import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import type { DeckColumn } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePerformanceStore } from '@/stores/performance'
+import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
 import {
   type CrossAccountNotesOptions,
@@ -1169,5 +1171,28 @@ describe('useCrossAccountNotes: 組を束ねる面の復帰と到達点 (#1017�
     const l2 = fetchFor.mock.calls.find((c) => c[2]?.id === 'l2')
     expect(l2).toBeDefined()
     expect(l2?.[1]).toBeUndefined()
+  })
+})
+
+describe('useCrossAccountNotes: オフラインモードと復帰 (#461)', () => {
+  it('オフラインモード中に接続した列は取りに行かず、解除で接続からやり直して購読を張る', async () => {
+    addAccount('acc-a')
+    useSettingsStore().set('modes.offline', true)
+    const fetchFor = vi.fn(() => [note('a50')])
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({
+      column,
+      paging: 'horizon',
+      streaming: true,
+      fetchFor,
+    })
+    await flushFrames()
+    expect(fetchFor).not.toHaveBeenCalled()
+    expect(ids(api)).toEqual([])
+
+    await useOfflineModeStore().disable()
+    await flushFrames()
+    expect(fetchFor).toHaveBeenCalled()
+    expect(ids(api)).toEqual(['a50'])
   })
 })

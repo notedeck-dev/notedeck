@@ -227,14 +227,16 @@ pub fn failure_signature(message: &str) -> String {
 
 /// 失敗を記録し、初めて見る signature なら通知する (`true`)。
 pub fn record_failure(state: &mut PersistedState, source: &str, message: &str, now: u64) -> bool {
-    let signature = failure_signature(message);
+    // signature も状態ファイルに残るので、秘匿化してから作る (#1164)
+    let message = crate::redact::text(message);
+    let signature = failure_signature(&message);
     state.failures.insert(
         0,
         FailureRecord {
             at: now,
             source: source.to_string(),
             signature: signature.clone(),
-            message: crate::redact::text(message).chars().take(500).collect(),
+            message: message.chars().take(500).collect(),
         },
     );
     state.failures.truncate(FAILURES_LIMIT);
@@ -1524,6 +1526,17 @@ mod tests {
         let mut st = PersistedState::default();
         assert!(record_failure(&mut st, "scheduled", "HTTP 503 from api", 1));
         assert!(record_failure(&mut st, "scheduled", "HTTP 502 from api", 2));
+        // 秘密は message にも signature にも残らない (#1164)
+        let key = "heartbeat-test-vault-key-0123456789";
+        crate::redact::register(crate::redact::Kind::Vault, key);
+        assert!(record_failure(
+            &mut st,
+            "scheduled",
+            &format!("bad key {key}"),
+            3
+        ));
+        let dump = serde_json::to_string(&st).unwrap();
+        assert!(!dump.contains(key), "{dump}");
         assert!(!record_failure(
             &mut st,
             "scheduled",

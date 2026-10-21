@@ -62,12 +62,13 @@ static KNOWN: LazyLock<RwLock<Vec<Known>>> = LazyLock::new(|| RwLock::new(Vec::n
 /// 永続トークン (`ndp_`) と GitHub の個人トークン (`ghp_`) を足した
 static PATTERNS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     vec![
-        Regex::new(r"sk-ant-[A-Za-z0-9_\-]{20,}").unwrap(),
-        Regex::new(r"sk-[A-Za-z0-9_\-]{20,}").unwrap(),
-        Regex::new(r"ndp_[A-Za-z0-9_\-]{20,}").unwrap(),
-        Regex::new(r"ghp_[A-Za-z0-9]{36}").unwrap(),
-        Regex::new(r"(?i)Bearer\s+[A-Za-z0-9._\-]{20,}").unwrap(),
-        Regex::new(r#"(?i)x-api-key["'\s:=]+[A-Za-z0-9_\-]{20,}"#).unwrap(),
+        // 単語境界 (`\b`) を付け、`task-runner-...` のような語の途中で一致させない
+        Regex::new(r"\bsk-ant-[A-Za-z0-9_\-]{20,}").unwrap(),
+        Regex::new(r"\bsk-[A-Za-z0-9_\-]{20,}").unwrap(),
+        Regex::new(r"\bndp_[A-Za-z0-9_\-]{20,}").unwrap(),
+        Regex::new(r"\bghp_[A-Za-z0-9]{36}").unwrap(),
+        Regex::new(r"(?i)\bBearer\s+[A-Za-z0-9._\-]{20,}").unwrap(),
+        Regex::new(r#"(?i)\bx-api-key["'\s:=]+[A-Za-z0-9_\-]{20,}"#).unwrap(),
     ]
 });
 
@@ -82,6 +83,31 @@ pub const SENSITIVE_KEYS: &[&str] = &[
     "secret",
 ];
 
+/// JSON のキーが資格情報らしいか。`SENSITIVE_KEYS` の完全一致に加え、区切りと
+/// 大小を無視した形 (`api_key` / `Authorization` / `client_secret` …) も見る。
+/// `strip_credentials` (projection) は従来どおり完全一致のまま
+fn is_sensitive_key(k: &str) -> bool {
+    if SENSITIVE_KEYS.contains(&k) {
+        return true;
+    }
+    let normalized: String = k
+        .chars()
+        .filter(|c| *c != '_' && *c != '-')
+        .map(|c| c.to_ascii_lowercase())
+        .collect();
+    matches!(
+        normalized.as_str(),
+        "token"
+            | "accesstoken"
+            | "refreshtoken"
+            | "apikey"
+            | "password"
+            | "secret"
+            | "clientsecret"
+            | "authorization"
+    )
+}
+
 /// 既知の秘密を覚える。短いもの・空は無視。同じ値の再登録は無視
 pub fn register(kind: Kind, value: &str) {
     if value.len() < MIN_KNOWN_LEN {
@@ -95,6 +121,22 @@ pub fn register(kind: Kind, value: &str) {
         kind,
         value: value.to_string(),
     });
+}
+
+/// 口座一覧の Misskey トークンを覚える。写しの列 (キーチェーンが無い環境) が空なら
+/// キーチェーンから同じ id で読む。別プロセスの notemaid (`SyncedAccounts`) と、
+/// in-process で AI を回すアプリの両方がここを通る
+pub fn register_misskey_tokens(accounts: &[notecli::models::Account]) {
+    for a in accounts {
+        let token = if a.token.is_empty() {
+            notecli::keychain::get_token(&a.id).ok().flatten()
+        } else {
+            Some(a.token.clone())
+        };
+        if let Some(t) = token {
+            register(Kind::MisskeyToken, &t);
+        }
+    }
 }
 
 /// 文字列から秘密を消す。何も無ければ借用のまま返す
@@ -128,7 +170,7 @@ pub fn value(v: Value) -> Value {
         Value::Object(o) => Value::Object(
             o.into_iter()
                 .map(|(k, v)| {
-                    if SENSITIVE_KEYS.contains(&k.as_str()) {
+                    if is_sensitive_key(&k) {
                         (k, Value::String(MARKER_FIELD.into()))
                     } else {
                         (k, value(v))
@@ -147,6 +189,8 @@ pub fn message(mut m: SessionMessage) -> SessionMessage {
     }
     m.tool_use_input = m.tool_use_input.map(value);
     m.intent = m.intent.map(value);
+    // 定型本文の i18n params (失敗時の `partial` / `error`) にも本文が入る
+    m.i18n = m.i18n.map(value);
     m
 }
 
@@ -220,6 +264,40 @@ mod tests {
     fn ノート_id_やハッシュは消さない() {
         let s = "note 9xk2abcd1234efgh user a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 ok";
         assert_eq!(text(s), s);
+    }
+
+    #[test]
+    fn 語の途中の_sk_や_bearer_は消さない() {
+        let s = "task-runner-configuration-file disk-usage-monitoring-daemon \
+                 forbearer-of-long-traditions-here max-api-key-length-unlimited";
+        assert_eq!(text(s), s);
+    }
+
+    #[test]
+    fn 資格情報キーは区切りと大小を無視して当てる() {
+        let v = json!({ "api_key": "x", "Authorization": "y", "client_secret": "z", "ApiKeyId": "keep", "tokens": "keep" });
+        assert_eq!(
+            value(v),
+            json!({ "api_key": "[redacted:field]", "Authorization": "[redacted:field]", "client_secret": "[redacted:field]", "ApiKeyId": "keep", "tokens": "keep" })
+        );
+    }
+
+    #[test]
+    fn セッションメッセージの_i18n_params_も対象() {
+        register(Kind::Vault, VAULT_KEY);
+        let m = SessionMessage {
+            id: "m2".into(),
+            role: "assistant".into(),
+            content: String::new(),
+            timestamp: 1,
+            i18n: Some(
+                json!({ "content": { "key": "_native.ai.errorContentAfter", "params": { "partial": format!("said {VAULT_KEY}"), "error": "x" } } }),
+            ),
+            ..Default::default()
+        };
+        let dump = serde_json::to_string(&message(m)).unwrap();
+        assert!(!dump.contains(VAULT_KEY), "{dump}");
+        assert!(dump.contains("_native.ai.errorContentAfter"), "{dump}");
     }
 
     #[test]
