@@ -2366,6 +2366,10 @@ export interface Locale {
     readonly "copyInfo": string
     /** バグを報告 */
     readonly "reportBug": string
+    /** Misskey で報告 */
+    readonly "reportViaMisskey": string
+    /** GitHub アカウント不要。公式アカウント宛てのノートの下書きを開きます (ノートは公開されます。診断ログは載せません) */
+    readonly "reportViaMisskeyHint": string
     /** 自己診断 */
     readonly "selfDiagnosis": string
     /** 問題は見つかりませんでした */

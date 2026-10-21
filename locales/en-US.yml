@@ -1551,6 +1551,8 @@ _aboutContent:
   versionInfo: "Version info"
   copyInfo: "Copy info"
   reportBug: "Report a bug"
+  reportViaMisskey: "Report on Misskey"
+  reportViaMisskeyHint: "No GitHub account needed. Opens a draft note addressed to the official account (the note is public; no diagnostics are included)"
   selfDiagnosis: "Self-diagnosis"
   noProblems: "No problems found"
   rediagnose: "Run again"

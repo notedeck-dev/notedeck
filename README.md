@@ -61,6 +61,12 @@ yay -S misskey-notedeck-bin
 
 [<img src="site/public/badge_obtainium.png" alt="Get it on Obtainium" height="48" />](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.notedeck.desktop%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fnotedeck-dev%2Fnotedeck%22%2C%22author%22%3A%22notedeck-dev%22%2C%22name%22%3A%22NoteDeck%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Afalse%2C%5C%22versionDetection%5C%22%3Atrue%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22autoApkFilterByArch%5C%22%3Atrue%2C%5C%22appName%5C%22%3A%5C%22NoteDeck%5C%22%2C%5C%22appAuthor%5C%22%3A%5C%22notedeck-dev%5C%22%7D%22%7D)
 
+## 不具合・要望
+
+- GitHub アカウントがあれば [Issues](https://github.com/notedeck-dev/notedeck/issues) へ。アプリの「バージョン情報 → バグを報告」から環境情報入りで開けます
+- 無ければ Misskey で [@notedeck@misskey.io](https://misskey.io/@notedeck) にメンションしてください。アプリの「バージョン情報 → Misskey で報告」から下書きを開けます
+- 質問や雑談は [Discussions](https://github.com/notedeck-dev/notedeck/discussions)
+
 ## 貢献する
 
 PR を歓迎します。詳しくは [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。

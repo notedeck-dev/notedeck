@@ -14,6 +14,7 @@ import {
 } from '@/core/streamHealth'
 import type { QualityLevel } from '@/engine/telemetry/frameTelemetry'
 import { i18n } from '@/i18n'
+import { buildMisskeyReportText } from '@/services/bugReport'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useLogsStore } from '@/stores/logs'
 import { useOfflineModeStore } from '@/stores/offlineMode'
@@ -798,6 +799,16 @@ function reportBug() {
   const url = `${REPO_URL}/issues/new?labels=bug&body=${encodeURIComponent(body)}`
   openSafeUrl(url)
 }
+
+// GitHub アカウントを持たない人の受け口 (#1019): 公式 Misskey アカウント宛ての
+// ノートの下書きを投稿フォームに開く。PiP (別 WebView) には投稿フォームが無い
+const inPip = location.pathname === '/pip'
+function reportViaMisskey() {
+  uiStore.requestCompose({
+    text: buildMisskeyReportText({ version: appVersion, os, webView }),
+    visibility: 'home',
+  })
+}
 </script>
 
 <template>
@@ -941,6 +952,18 @@ function reportBug() {
           <i class="ti ti-bug" :class="$style.formLinkIcon" />
           <span>{{ i18n.ts._aboutContent.reportBug }}</span>
           <span :class="$style.formLinkSuffix">GitHub Issues <i class="ti ti-external-link" /></span>
+        </button>
+        <button
+          v-if="!inPip"
+          type="button"
+          class="_button"
+          :class="$style.formLink"
+          :title="i18n.ts._aboutContent.reportViaMisskeyHint"
+          @click="reportViaMisskey"
+        >
+          <i class="ti ti-at" :class="$style.formLinkIcon" />
+          <span>{{ i18n.ts._aboutContent.reportViaMisskey }}</span>
+          <span :class="$style.formLinkSuffix">Misskey</span>
         </button>
       </div>
     </div>

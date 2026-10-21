@@ -1313,6 +1313,8 @@ _aboutContent:
   versionInfo: "バージョン情報"
   copyInfo: "情報をコピー"
   reportBug: "バグを報告"
+  reportViaMisskey: "Misskey で報告"
+  reportViaMisskeyHint: "GitHub アカウント不要。公式アカウント宛てのノートの下書きを開きます (ノートは公開されます。診断ログは載せません)"
   selfDiagnosis: "自己診断"
   noProblems: "問題は見つかりませんでした"
   rediagnose: "再診断"
