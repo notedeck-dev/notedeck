@@ -1515,6 +1515,23 @@ mod tests {
     }
 
     #[test]
+    fn failure_record_keeps_no_secret_in_message_or_signature() {
+        // 秘密は message にも signature にも残らない (#1164)
+        let key = "heartbeat-test-vault-key-0123456789";
+        crate::redact::register(crate::redact::Kind::Vault, key);
+        let mut st = PersistedState::default();
+        assert!(record_failure(
+            &mut st,
+            "scheduled",
+            &format!("bad key {key}"),
+            1
+        ));
+        let dump = serde_json::to_string(&st).unwrap();
+        assert!(!dump.contains(key), "{dump}");
+        assert!(dump.contains("[redacted:vault]"), "{dump}");
+    }
+
+    #[test]
     fn failure_signature_and_first_notification() {
         // ステータスコード (3 桁以下) は原因なので残し、長い数字 (id 等) は潰す
         assert_eq!(failure_signature("HTTP 503  from api"), "http 503 from api");
@@ -1526,17 +1543,6 @@ mod tests {
         let mut st = PersistedState::default();
         assert!(record_failure(&mut st, "scheduled", "HTTP 503 from api", 1));
         assert!(record_failure(&mut st, "scheduled", "HTTP 502 from api", 2));
-        // 秘密は message にも signature にも残らない (#1164)
-        let key = "heartbeat-test-vault-key-0123456789";
-        crate::redact::register(crate::redact::Kind::Vault, key);
-        assert!(record_failure(
-            &mut st,
-            "scheduled",
-            &format!("bad key {key}"),
-            3
-        ));
-        let dump = serde_json::to_string(&st).unwrap();
-        assert!(!dump.contains(key), "{dump}");
         assert!(!record_failure(
             &mut st,
             "scheduled",
