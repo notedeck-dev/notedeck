@@ -410,6 +410,8 @@ export interface Locale {
     readonly "local": string
     /** オフライン */
     readonly "offline": string
+    /** オフライン (回線なし) */
+    readonly "offlineNoLink": string
     /** ポーリング */
     readonly "polling": string
     /** レート制限中 */
@@ -5592,6 +5594,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "readOnlyHint": string
   }
   readonly "_systemAdaptation": {
+    /** 回線が切れたため、オフラインモードに入りました。戻ると自動で再接続します */
+    readonly "linkOffline": string
     /** 従量制回線のため、画像・動画はタップで読み込む表示にしました */
     readonly "meteredDeferMedia": string
     /** 省電力モードのため、画像の先読みとアニメーション絵文字を止めました */

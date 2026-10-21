@@ -221,6 +221,7 @@ _common:
   syncToVisual: "ビジュアルに同期"
   local: "ローカル"
   offline: "オフライン"
+  offlineNoLink: "オフライン (回線なし)"
   polling: "ポーリング"
   rateLimited: "レート制限中"
   rateLimitedDetail: "サーバーのレート制限中 (しばらく待ってから再試行します)"
@@ -3102,6 +3103,7 @@ _sidecarFileCollection:
   readOnlyHint: "ソースファイルが見つかりません。ソースを置き直せば次回起動で復帰します。ストア配布物はストアから再導入、不要なら削除してください"
 
 _systemAdaptation:
+  linkOffline: "回線が切れたため、オフラインモードに入りました。戻ると自動で再接続します"
   meteredDeferMedia: "従量制回線のため、画像・動画はタップで読み込む表示にしました"
   lowPowerStaticEmoji: "省電力モードのため、画像の先読みとアニメーション絵文字を止めました"
   batteryStaticEmoji: "バッテリー駆動のため、画像の先読みとアニメーション絵文字を止めました"

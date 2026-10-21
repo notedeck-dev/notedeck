@@ -332,7 +332,7 @@ function openAsPip() {
         <i class="ti ti-logout" />{{ i18n.ts._deckColumn.loggedOut }}
       </div>
       <div v-else-if="offlineModeStore.isOfflineMode && !isLoggedOut" :class="$style.offlineBanner">
-        <i class="ti ti-cloud-off" />{{ i18n.ts._common.offline }}
+        <i class="ti ti-cloud-off" />{{ offlineModeStore.isAutoOffline ? i18n.ts._common.offlineNoLink : i18n.ts._common.offline }}
       </div>
       <div
         v-if="showPullFrame"

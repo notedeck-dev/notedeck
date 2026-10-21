@@ -445,6 +445,7 @@ _common:
   syncToVisual: "Sync to visual"
   local: "Local"
   offline: "Offline"
+  offlineNoLink: "Offline (no network)"
   polling: "Polling"
   rateLimited: "Rate limited"
   rateLimitedDetail: "Rate limited by the server (will retry after a short wait)"
@@ -3385,6 +3386,7 @@ _sidecarFileCollection:
   readOnlyHint: "The source file was not found. Put the source back and it will recover on the next launch. Reinstall store items from the store, or delete it if you do not need it"
 
 _systemAdaptation:
+  linkOffline: "Network is down, so offline mode is on. Reconnects automatically when it returns"
   meteredDeferMedia: "On a metered connection, so images and videos now load when tapped"
   lowPowerStaticEmoji: "In low power mode, so image preloading and animated emoji are paused"
   batteryStaticEmoji: "On battery power, so image preloading and animated emoji are paused"

@@ -1656,7 +1656,7 @@ session 一覧では `AiSessionKind` 別の icon 統一 (`chat` → `ti-message-
 - **当たり判定は不透明領域だけ**: 要素は矩形だが、透過画素の上のクリック・タップ・スクロールは下のデッキに届く (petdex desktop は別 OS ウィンドウなので矩形で困らないが、デッキの上に載せる NoteDeck では死に領域になる)。`pet_store::hit_mask` が読み込み時にスプライトの alpha から状態 (行) ごとのブロックマスクを作り (行内の全コマの和集合を透明側に膨らませたもの)、`services/petSprite.ts` の `petHitClipPath` が表示寸法の `clip-path: path()` にする。clip-path は描画も切るので「見える画素を必ず含む」が不変条件で、Rust テストで固定している。コマごとではなく状態ごとにしているのは、押した場所の判定が数百 ms で変わらないようにするため。マスクが作れない・`path()` 非対応なら矩形に戻る
 
 
-### OS の状態への自動適応 ([#931](https://github.com/notedeck-dev/notedeck/issues/931) / [#935](https://github.com/notedeck-dev/notedeck/issues/935) / [#928](https://github.com/notedeck-dev/notedeck/issues/928) / [#986](https://github.com/notedeck-dev/notedeck/issues/986))
+### OS の状態への自動適応 ([#931](https://github.com/notedeck-dev/notedeck/issues/931) / [#935](https://github.com/notedeck-dev/notedeck/issues/935) / [#928](https://github.com/notedeck-dev/notedeck/issues/928) / [#986](https://github.com/notedeck-dev/notedeck/issues/986) / [#461](https://github.com/notedeck-dev/notedeck/issues/461))
 
 バッテリー駆動・省電力モード・従量制回線・集中モードを OS から読み、ウィンドウが隠れていることをフロントで検知して、アプリの挙動を自動で落とす。前者は Web API では取れない領域 (Battery Status API は WebKit に無く、従量制と集中モードは API 自体が無い) なので観測は Rust が担う。
 
@@ -1664,6 +1664,7 @@ session 一覧では `AiSessionKind` 別の icon 統一 (`chat` → `ti-message-
 |---|---|---|
 | 観測 (OS) | `src-tauri/src/system_state.rs` | OS ごとのプローブを定期ポーリングし、変化時だけ `SystemState` event を emit。取れない項目は `null` |
 | 観測 (ウィンドウ) | `src/composables/useAppBackground.ts` | `document.hidden` が猶予を超えて続いたら `uiStore.isBackground`。`useDeckResume` (復帰) の対になる離脱の発生源 |
+| 観測 (回線) | `src/stores/systemState.ts` | WebView の `navigator.onLine` と `online` / `offline` イベント。OS ごとの到達性 API は持たない (#791 の時刻ジャンプ検知と同じく JS 1 実装) |
 | IPC | `src-tauri/src/commands/system_state.rs` | 起動時の初期値取得 (`system_state_get`) |
 | 判断 | `src/services/systemAdaptation.ts` | 状態 → 「何を落とすか」の純ロジック (`deriveAdaptation`) と、入るときの通知文言 |
 | 購読 | `src/stores/systemState.ts` | event 購読 + 現在値 + `adaptation` computed。`App.vue` が各ウィンドウで `start()` |
@@ -1673,7 +1674,24 @@ session 一覧では `AiSessionKind` 別の icon 統一 (`chat` → `ti-message-
 - バッテリー駆動 / 省電力モード → 画像の先読み (`useImagePrefetch`) を止め、カスタム絵文字を `static=1` で 1 フレーム目に潰す (`proxyEmojiUrl` / `media_proxy.rs`)
 - 従量制回線 → 先読みを止め、添付画像・動画は `MkMediaGrid` でタップするまで読まない。ストリーミングは維持する (切ると通知が届かなくなる)
 - 集中モード → 自前再生の通知音 (`useNoteSound.play`) を鳴らさない。通知はカラムに積まれ、解除後に鳴らし直さない。OS 通知は OS 側が抑制するので触らない
+- 回線が無い (#461) → アプリのオフラインモードに自動で入り (`goOffline`)、戻ったら自動で抜けて復帰信号で再接続する。手動で入れたオフラインモード (`modes.offline`) は回線が戻っても抜けない。自動で入っている間に利用者が解除したら、次に回線が切れるまで自動を抑止する (回線検知の誤りで閉じ込めない)。実効値 = 手動 or 自動で、副作用 (ストリーム切断 / 輸送路の再適用 / 復帰信号) は `offlineMode` store の watcher 1 箇所。カラムのバナーは自動のとき「回線なし」と出す
 - ウィンドウが隠れている (#986) → タイムラインカラムの購読を warm に落とす (`useNoteColumn` / `useCrossAccountNotes` の可視性 watch に合流)。カラム単位の不可視と同じ経路で Rust 側が `suspend_subscription` する。**WS 接続と main チャネルは残す**ので OS 通知は届き続ける (main は notecli が suspend を no-op にしている)。復帰は `useDeckResume` → 各カラムの `onResume()` (gap 検知つき差分埋め) がそのまま担う。未読ポーリングは元から hidden で止まる
+
+**オフラインモード中に止まる要求** (手動 / 自動とも同じ。#461 の棚卸し):
+
+| 要求 | 止め方 |
+|---|---|
+| ストリーミング (WS / polling の輸送路) | 入るときに `disconnectAll`。抜けるときに `applyPersistedMode` で輸送路を戻す |
+| 復帰信号に乗るもの (ストリーム再接続 / カラムの catch-up / ミュート同期の取り直し / 通知カラムの backfill) | `useDeckResume` がオフライン中は信号を出さない。解除時に `offlineMode` store が 1 回出す |
+| ノート系カラムの接続・手動更新・pull-to-refresh | `useNoteColumn` / `useCrossAccountNotes` がキャッシュだけ表示 |
+| 書込 (リアクション / リノート / 返信 / 削除 / 編集 / ブックマーク) | `useColumnSetup.checkOffline` |
+| 未読ポーリング (通知 / チャット) | `useUnreadCounter.fetchAll` が空振り |
+| HEARTBEAT | `useHeartbeatDaemon` が timer を unconfigure (届かない AI 呼び出しが連続失敗 → 自動停止に至るのを防ぐ)。解除で再構成 |
+| OGP | `useOgpPreview` が取りに行かず、失敗としても覚えない |
+| 更新チェック | `useUpdater` が確認せず、起動 1 回の `checked` も立てない |
+| MisStore の索引 | `misstore.fetchIndex` がエラー表示だけ |
+
+**止めないもの** (理由ごと): 絵文字辞書の miss 駆動リフレッシュ (`emojis` store が `offlineMode` を読むと accounts → adapters/factory → emojis の import 循環になる。失敗はホスト単位のバックオフで吸収され 1 回で済む) / ドライブ・ギャラリー・チャット送信・投稿 (利用者が明示的に押す操作。失敗を見せる方が、押せない理由を探させるより分かる) / 画像の中継とキャッシュ (Rust 側。回線が無ければ即失敗し 5 秒の負キャッシュに乗る)。
 
 **設定は 1 つだけ**: `settings.json5` の `system.autoAdapt` (既定 ON、パフォーマンス設定の先頭トグル)。どの状態で何を落とすかは選ばせない。細かく決めたい場合は手動のパフォーマンス設定を使う。集中モードの消音はこの設定に依らず常に効く (#928: OS が静かにしろと言っているなら黙る)。
 

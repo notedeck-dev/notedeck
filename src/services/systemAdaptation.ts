@@ -8,6 +8,8 @@ import { i18n } from '@/i18n'
  *
  * - 取れない項目 (null) は「非対応 = 通常どおり」。代替トグルは作らない
  * - 電源・回線・ウィンドウへの適応は `system.autoAdapt` (既定 ON) 1 つで全体を切る
+ * - 回線の有無 (#461) は WebView の `navigator.onLine` で観測する (`systemState` store)。
+ *   OS ごとの到達性 API は持たない (#791 の時刻ジャンプ検知と同じく JS 1 実装)
  * - 集中モードで通知音を止めるのは設定に依らない (#928)。OS が静かにしろと
  *   言っているなら黙るだけで、ユーザーに選ばせる余地を作らない
  */
@@ -25,6 +27,11 @@ export interface Adaptation {
    * WS 接続と main チャネル (OS 通知の経路) は維持し、復帰は既存の gap 検知で埋める
    */
   suspendStreams: boolean
+  /**
+   * 回線が無い (#461): アプリのオフラインモードに自動で入る。戻ったら自動で抜ける。
+   * 手動で入れたオフラインモードはこれに依らず残る (offlineMode store)
+   */
+  goOffline: boolean
 }
 
 export const NO_ADAPTATION: Adaptation = {
@@ -33,12 +40,14 @@ export const NO_ADAPTATION: Adaptation = {
   deferMedia: false,
   muteSounds: false,
   suspendStreams: false,
+  goOffline: false,
 }
 
 export function deriveAdaptation(
   state: SystemState,
   autoAdapt: boolean,
   background = false,
+  online: boolean | null = null,
 ): Adaptation {
   const powerSaving =
     autoAdapt && (state.onBattery === true || state.lowPowerMode === true)
@@ -49,6 +58,7 @@ export function deriveAdaptation(
     deferMedia: metered,
     muteSounds: state.doNotDisturb === true,
     suspendStreams: autoAdapt && background,
+    goOffline: autoAdapt && online === false,
   }
 }
 
@@ -62,6 +72,9 @@ export function describeAdaptationEntry(
   next: Adaptation,
   state: SystemState,
 ): string | null {
+  if (!prev.goOffline && next.goOffline) {
+    return i18n.ts._systemAdaptation.linkOffline
+  }
   if (!prev.deferMedia && next.deferMedia) {
     return i18n.ts._systemAdaptation.meteredDeferMedia
   }

@@ -976,6 +976,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
   }
 
   async function refresh(opts?: { force?: boolean }) {
+    // オフラインモード中は手動更新でもサーバーに行かない (#461)
+    if (useOfflineModeStore().isOfflineMode) return
     if (isStreaming) {
       // ストリーミングカラムのリロードボタン: 復帰 catch-up と同じ経路で
       // 最新ページを取得し gap 判定する。手動操作なのでスロットルは無視 (#791)
@@ -1025,6 +1027,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
   }
 
   async function pullRefresh() {
+    if (useOfflineModeStore().isOfflineMode) return
     const adapter = getAdapter()
     if (!adapter) return
     if (config.validate && !config.validate()) return

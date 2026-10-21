@@ -56,6 +56,7 @@ import { insertIntoSorted } from '@/services/sortNotes'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
@@ -842,6 +843,14 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       const admitted = await admit(cached)
       if (gen !== generation) return
       setNotes(admitted)
+    }
+
+    // アプリのオフラインモード (手動 / 回線断、#461): キャッシュ表示のみ。
+    // 解除時の復帰信号で onResume → connectCrossAccount が走り直す
+    if (useOfflineModeStore().isOfflineMode) {
+      connecting = false
+      isLoading.value = false
+      return
     }
 
     const targets = liveSources()

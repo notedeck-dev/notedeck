@@ -1,4 +1,5 @@
 import { onMounted, onUnmounted } from 'vue'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { startSleepDetector } from '@/utils/sleepDetector'
 
@@ -20,21 +21,29 @@ import { startSleepDetector } from '@/utils/sleepDetector'
  *    ときはこれが唯一の経路。隠れている間は可視化時の visibilitychange に任せる
  *
  * アプリ自身のオフラインモードの解除 (offlineMode store) も同じ信号を出す。
+ * オフラインモード中 (手動 / 回線断による自動、#461) はどの経路も黙る。
+ * 下流の再接続・catch-up・同期の取り直しはすべてこの信号に乗っているので、
+ * ここで止めればまとめて止まる。解除時は offlineMode store が信号を出す。
  */
 export function useDeckResume() {
   const uiStore = useUiStore()
+  const offlineMode = useOfflineModeStore()
   let stopSleepDetector: (() => void) | null = null
 
+  function emit() {
+    if (!offlineMode.isOfflineMode) uiStore.emitDeckResume()
+  }
+
   function onVisibilityChange() {
-    if (!document.hidden) uiStore.emitDeckResume()
+    if (!document.hidden) emit()
   }
 
   function onNativeResume() {
-    uiStore.emitDeckResume()
+    emit()
   }
 
   function onOnline() {
-    if (!document.hidden) uiStore.emitDeckResume()
+    if (!document.hidden) emit()
   }
 
   onMounted(() => {
@@ -44,7 +53,7 @@ export function useDeckResume() {
     stopSleepDetector = startSleepDetector(() => {
       // hidden 中のジャンプ (背景タイマー間引き含む) は可視化時の
       // visibilitychange に任せる
-      if (!document.hidden) uiStore.emitDeckResume()
+      if (!document.hidden) emit()
     })
   })
 
