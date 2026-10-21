@@ -36,6 +36,7 @@ pub mod heartbeat_schedule;
 pub mod injection_patterns;
 pub mod memos;
 pub mod migrations;
+pub mod redact;
 pub mod sinks;
 pub mod skills;
 pub mod transport;

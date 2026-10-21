@@ -32,6 +32,17 @@ impl SyncedAccounts {
     /// アプリからの写しで置き換える。一覧に無い口座は消える。書けなくてもメモリは更新する
     pub fn replace(&self, accounts: Vec<Account>) -> Result<usize> {
         let n = accounts.len();
+        for a in &accounts {
+            // 写しの列 (キーチェーンが無い環境) か、キーチェーンの実値を覚える (#1164)
+            let token = if a.token.is_empty() {
+                notecli::keychain::get_token(&a.id).ok().flatten()
+            } else {
+                Some(a.token.clone())
+            };
+            if let Some(t) = token {
+                crate::redact::register(crate::redact::Kind::MisskeyToken, &t);
+            }
+        }
         let body = serde_json::to_vec(&accounts)
             .map_err(|e| notecli::error::NoteDeckError::Internal(e.to_string()))?;
         *self.rows.write().unwrap_or_else(|e| e.into_inner()) = accounts;

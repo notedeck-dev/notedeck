@@ -234,7 +234,7 @@ pub fn record_failure(state: &mut PersistedState, source: &str, message: &str, n
             at: now,
             source: source.to_string(),
             signature: signature.clone(),
-            message: message.chars().take(500).collect(),
+            message: crate::redact::text(message).chars().take(500).collect(),
         },
     );
     state.failures.truncate(FAILURES_LIMIT);

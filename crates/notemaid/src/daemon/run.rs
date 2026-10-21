@@ -209,6 +209,7 @@ async fn serve(
 
     // RPC 面
     let secret = new_secret();
+    crate::redact::register(crate::redact::Kind::RpcSecret, &secret);
     let status_core = core.clone();
     let status_timer = timer.clone();
     let status_socket = socket.clone();

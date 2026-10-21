@@ -13,6 +13,18 @@ pub enum LogTarget {
 
 const LOG_FILE_GENERATIONS: usize = 14;
 
+/// 書き手を `redact::Writer` で包む (保存前の秘匿化、#1164)
+struct Redacting<M>(M);
+
+impl<'a, M: tracing_subscriber::fmt::MakeWriter<'a>> tracing_subscriber::fmt::MakeWriter<'a>
+    for Redacting<M>
+{
+    type Writer = crate::redact::Writer<M::Writer>;
+    fn make_writer(&'a self) -> Self::Writer {
+        crate::redact::Writer(self.0.make_writer())
+    }
+}
+
 pub fn resolve(target: Option<LogTarget>) -> LogTarget {
     target.unwrap_or_else(|| {
         if std::env::var_os("JOURNAL_STREAM").is_some() {
@@ -48,12 +60,16 @@ pub fn init(target: LogTarget, data_dir: &Path) {
                     Box::leak(Box::new(guard));
                     tracing_subscriber::fmt::layer()
                         .with_ansi(false)
-                        .with_writer(non_blocking)
+                        .with_writer(Redacting(non_blocking))
                 })
         }
     };
     let stdout_layer = match target {
-        LogTarget::Stdout => Some(tracing_subscriber::fmt::layer().with_ansi(false)),
+        LogTarget::Stdout => Some(
+            tracing_subscriber::fmt::layer()
+                .with_ansi(false)
+                .with_writer(Redacting(std::io::stdout)),
+        ),
         LogTarget::File => None,
     };
     tracing_subscriber::registry()
