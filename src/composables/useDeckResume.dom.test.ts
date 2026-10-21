@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type App, createApp, defineComponent } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
 import { SLEEP_TICK_INTERVAL_MS } from '@/utils/sleepDetector'
 import { useDeckResume } from './useDeckResume'
@@ -99,6 +100,18 @@ describe('useDeckResume: 復帰シグナル発生源の一元管理 (#791)', () 
     setHidden(false)
     window.dispatchEvent(new Event('online'))
     expect(uiStore.deckResumeSignal).toBe(1)
+  })
+
+  it('オフラインモード中はどの経路でも発火しない (#461)', () => {
+    mountHost()
+    const uiStore = useUiStore()
+    useSettingsStore().set('modes.offline', true)
+
+    setHidden(false)
+    document.dispatchEvent(new Event('visibilitychange'))
+    window.dispatchEvent(new Event('nd-app-resumed'))
+    window.dispatchEvent(new Event('online'))
+    expect(uiStore.deckResumeSignal).toBe(0)
   })
 
   it('unmount 後はどの経路でも発火しない', () => {

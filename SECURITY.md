@@ -248,6 +248,19 @@ AI プロバイダーの API キーを含む外部サービスのシークレッ
 
 AI チャットは `connection_id` から endpoint / キー / protocol を Rust 側で解決するため、キー本体はフロントにも AI にも渡らない。SSRF・redaction の詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault"。
 
+### 保存前の秘匿化 ([#1164](https://github.com/notedeck-dev/notedeck/issues/1164))
+
+AI セッション (`sessions/`) はバックアップと同期の対象になるため、tool の出力に混ざって戻ってきた秘密が平文で複製されないよう、**表示時のマスクではなく保存する前に** 消す (`crates/notemaid/src/redact.rs`)。
+
+| 対象 | 掛ける場所 |
+|----|------|
+| tool の入力と結果 | ターン実行器の分岐点。実行には生の入力を渡し、UI へのイベント / セッション / 次のラウンドの履歴に出る写しだけ消す |
+| セッションの全メッセージ・タイトル | 単一の書き手 `ai_sessions` (デバイス発のメッセージ・ユーザー入力・HEARTBEAT の報告と受信箱カードも通る) |
+| HEARTBEAT の失敗記録 | 状態ファイルに書く直前 |
+| notemaid とアプリのログ | `tracing` の書き手を包み、1 書込ごとに掛ける |
+
+検出は、このプロセスに流れた既知の値 (Vault の api_key / Misskey トークン / harness トークン / RPC 秘密) の完全一致を主にし、形の規則 (`sk-` / `sk-ant-` / `ndp_` / `ghp_` 接頭辞、`Bearer` / `x-api-key` ヘッダ、JSON の資格情報キー) は Misskey の id やハッシュを巻き込まないよう保守的に絞る。置換は `[redacted:<種別>]` で元に戻せない。確認待ちの turn のチェックポイント (`notemaid/turns/`) は短命で close 時に中身が置き換わるため対象外。LLM に渡す前にも消すので、AI は秘密を見ない (Vault fetch の redaction と同じ前提)。
+
 ### MiAuth スコープ
 
 - Misskey 認証時の必須スコープには **read/write 系の chat / mutes / blocks** が含まれる (`crates/notecore/src/auth_service.rs`)

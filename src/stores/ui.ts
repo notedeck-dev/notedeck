@@ -43,6 +43,8 @@ export interface ComposeRequest {
   text?: string
   cw?: string
   visibility?: PostVisibility
+  /** 連合の有無。省略時はアカウントの既定 / 記憶値 */
+  localOnly?: boolean
   /** 同じ内容の要求が続いても watch が発火するよう付ける */
   ts?: number
 }

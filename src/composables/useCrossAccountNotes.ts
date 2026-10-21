@@ -56,6 +56,7 @@ import { insertIntoSorted } from '@/services/sortNotes'
 import { hasGap } from '@/services/timelineGap'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
@@ -641,6 +642,14 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
    */
   async function onResume() {
     if (!isCrossAccount() || !streamingBatch) return
+    // オフラインモード中 (手動 / 回線断、#461) は REST を叩かない
+    if (useOfflineModeStore().isOfflineMode) return
+    // オフラインモード中に接続した列は購読を持たない (connectCrossAccount が
+    // キャッシュ表示で終わる)。復帰では接続からやり直して購読を張る
+    if (subscriptions.size === 0 && !isLoading.value) {
+      void connectCrossAccount()
+      return
+    }
     if (rawNotes.value.length === 0) {
       // 起動時に全アカウントの取得が失敗しキャッシュも無いと列は空のまま。
       // 復帰 (回線が戻った / 画面に戻った) は取り直しの合図にする。
@@ -842,6 +851,14 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
       const admitted = await admit(cached)
       if (gen !== generation) return
       setNotes(admitted)
+    }
+
+    // アプリのオフラインモード (手動 / 回線断、#461): キャッシュ表示のみ。
+    // 解除時の復帰信号で onResume → connectCrossAccount が走り直す
+    if (useOfflineModeStore().isOfflineMode) {
+      connecting = false
+      isLoading.value = false
+      return
     }
 
     const targets = liveSources()

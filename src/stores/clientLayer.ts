@@ -59,7 +59,7 @@ export const useClientLayerStore = defineStore('clientLayer', () => {
   async function syncAccounts(): Promise<void> {
     if (!isTauri) return
     try {
-      await commands.coreSyncAccounts()
+      unwrap(await commands.coreSyncAccounts())
     } catch (e) {
       console.warn('[client-layer] account sync failed:', e)
     }

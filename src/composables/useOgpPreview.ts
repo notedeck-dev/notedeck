@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import type { OgpData } from '@/services/ogp'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePerformanceStore } from '@/stores/performance'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -69,6 +70,12 @@ export function useOgpPreview(initialUrl: string, accountId?: string) {
     const cached = getOgpCache(targetUrl)
     if (cached !== undefined) {
       data.value = cached
+      loading.value = false
+      return
+    }
+    // オフラインモード中は取りに行かない (#461)。失敗として覚えると復帰後も
+    // 出なくなるので、キャッシュには触れない
+    if (useOfflineModeStore().isOfflineMode) {
       loading.value = false
       return
     }

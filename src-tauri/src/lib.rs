@@ -52,6 +52,18 @@ const LOG_FILE_GENERATIONS: usize = 14;
 /// previous default (`notedeck=info,notecli=info,warn`) and still honors `RUST_LOG`.
 /// If the log dir can't be resolved we log to stdout only — logging must never
 /// block startup. Called once from `setup`.
+/// 書き手を `notemaid::redact::Writer` で包む (保存前の秘匿化、#1164)
+struct RedactingLog<M>(M);
+
+impl<'a, M: tracing_subscriber::fmt::MakeWriter<'a>> tracing_subscriber::fmt::MakeWriter<'a>
+    for RedactingLog<M>
+{
+    type Writer = notemaid::redact::Writer<M::Writer>;
+    fn make_writer(&'a self) -> Self::Writer {
+        notemaid::redact::Writer(self.0.make_writer())
+    }
+}
+
 fn init_logging(app: &tauri::App) {
     use tracing_subscriber::prelude::*;
 
@@ -83,13 +95,13 @@ fn init_logging(app: &tauri::App) {
             Some(
                 tracing_subscriber::fmt::layer()
                     .with_ansi(false)
-                    .with_writer(non_blocking),
+                    .with_writer(RedactingLog(non_blocking)),
             )
         });
 
     tracing_subscriber::registry()
         .with(filter)
-        .with(tracing_subscriber::fmt::layer())
+        .with(tracing_subscriber::fmt::layer().with_writer(RedactingLog(std::io::stdout)))
         .with(file_layer)
         .init();
 }
@@ -356,6 +368,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     let db = core.db().await;
                     match db.load_accounts() {
                         Ok(list) => {
+                            notemaid::redact::register_misskey_tokens(&list);
                             let outcome = relay
                                 .request("notemaid.accounts", serde_json::json!({ "accounts": list }), None)
                                 .await;

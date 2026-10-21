@@ -132,6 +132,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/aiTurnIds.ts`](src/services/aiTurnIds.ts) | [`src/services/aiTurnIds.test.ts`](src/services/aiTurnIds.test.ts) |
 | [`src/services/aiWorkspaceEdit.ts`](src/services/aiWorkspaceEdit.ts) | [`src/services/aiWorkspaceEdit.test.ts`](src/services/aiWorkspaceEdit.test.ts) |
 | [`src/services/boundedCache.ts`](src/services/boundedCache.ts) | [`src/services/boundedCache.test.ts`](src/services/boundedCache.test.ts) |
+| [`src/services/bugReport.ts`](src/services/bugReport.ts) | [`src/services/bugReport.test.ts`](src/services/bugReport.test.ts) |
 | [`src/services/cacheEvictionConfig.ts`](src/services/cacheEvictionConfig.ts) | — |
 | [`src/services/captureBudget.ts`](src/services/captureBudget.ts) | [`src/services/captureBudget.test.ts`](src/services/captureBudget.test.ts) |
 | [`src/services/chatDateSeparators.ts`](src/services/chatDateSeparators.ts) | [`src/services/chatDateSeparators.test.ts`](src/services/chatDateSeparators.test.ts) |

@@ -20,8 +20,9 @@ const UNKNOWN: SystemState = {
 }
 
 /**
- * OS の電源・回線・集中モード状態 (#931 / #935 / #928)。
+ * OS の電源・回線・集中モード状態 (#931 / #935 / #928) と回線の有無 (#461)。
  * Rust の `system_state.rs` が観測して変化時に `SystemState` event で配る。
+ * 回線の有無だけは WebView の `navigator.onLine` で観測する。
  * ここは購読 + 現在値 + 「何を落とすか」(`services/systemAdaptation.ts`) の
  * 導出だけ。各消費側 (先読み / 絵文字 URL / メディアグリッド / 通知音) は
  * `adaptation` を読む。
@@ -41,8 +42,18 @@ export const useSystemStateStore = defineStore('systemState', () => {
   // ウィンドウが隠れている (#986) は Rust ではなく `useAppBackground` が観測し、
   // ui store に置く。同じ思想の別トリガーなので判断はここに合流させる
   const uiStore = useUiStore()
+  /**
+   * 回線の有無 (#461)。WebView の `navigator.onLine` と `online` / `offline`
+   * イベントで観測する (Rust の OS 別 API は持たない)。null = 未観測
+   */
+  const online = ref<boolean | null>(null)
   const adaptation = computed(() =>
-    deriveAdaptation(state.value, autoAdapt.value, uiStore.isBackground),
+    deriveAdaptation(
+      state.value,
+      autoAdapt.value,
+      uiStore.isBackground,
+      online.value,
+    ),
   )
 
   // 絵文字 URL の組み立ては util (mediaProxy.ts) にあり store を見ないので、
@@ -67,8 +78,30 @@ export const useSystemStateStore = defineStore('systemState', () => {
   /** event を受けた回数。初期値取得中に届いた event を初期値で上書きしないため */
   let eventGeneration = 0
 
+  const onLinkOnline = () => {
+    online.value = true
+  }
+  const onLinkOffline = () => {
+    online.value = false
+  }
+  let linkWatched = false
+  function startLink(): void {
+    if (linkWatched || typeof window === 'undefined') return
+    linkWatched = true
+    online.value = navigator.onLine
+    window.addEventListener('online', onLinkOnline)
+    window.addEventListener('offline', onLinkOffline)
+  }
+  function stopLink(): void {
+    if (!linkWatched) return
+    linkWatched = false
+    window.removeEventListener('online', onLinkOnline)
+    window.removeEventListener('offline', onLinkOffline)
+  }
+
   /** ウィンドウごとに 1 回呼ぶ。listen を先に張ってから初期値を取る (取りこぼし防止)。失敗しても reject しない */
   async function start(): Promise<void> {
+    startLink()
     if (unlisten) return
     try {
       unlisten = await events.systemState.listen(({ payload }) => {
@@ -84,9 +117,10 @@ export const useSystemStateStore = defineStore('systemState', () => {
   }
 
   function stop(): void {
+    stopLink()
     unlisten?.()
     unlisten = null
   }
 
-  return { state, autoAdapt, adaptation, start, stop }
+  return { state, online, autoAdapt, adaptation, start, stop }
 })

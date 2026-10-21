@@ -404,7 +404,7 @@ pub fn create(base: &Path, req: AiSessionCreate) -> Result<AiSession> {
         } else {
             req.kind
         },
-        title: req.title,
+        title: crate::redact::text(&req.title).into_owned(),
         model: req.model,
         connection_id: req.connection_id,
         created_at: now,
@@ -423,6 +423,8 @@ pub fn create(base: &Path, req: AiSessionCreate) -> Result<AiSession> {
 pub fn append(base: &Path, id: &str, messages: Vec<SessionMessage>) -> Result<AiSession> {
     mutate(base, id, |file| {
         for m in messages {
+            // 保存前の秘匿化 (#1164)。書き手が誰でもここを通る
+            let m = crate::redact::message(m);
             if let Some(slot) = file.messages.iter_mut().find(|x| x.wire.id == m.id) {
                 slot.wire = m;
             } else {
@@ -444,7 +446,7 @@ pub fn remove_messages(base: &Path, id: &str, ids: &[String]) -> Result<AiSessio
 pub fn rename(base: &Path, id: &str, title: &str) -> Result<AiSession> {
     // 利用者が付けた名前なので、定型タイトルの手がかりは捨てる (#135)
     mutate(base, id, |file| {
-        file.title = title.to_string();
+        file.title = crate::redact::text(title).into_owned();
         file.i18n = None;
     })
 }

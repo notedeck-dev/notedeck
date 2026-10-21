@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { i18n } from '@/i18n'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 
 const isChecking = ref(false)
@@ -18,6 +19,8 @@ let checked = false
 
 async function checkForUpdate(force = false) {
   if (isChecking.value || useUiStore().isMobilePlatform) return
+  // オフラインモード中は確認しない (#461)。`checked` は立てず、次の機会に回す
+  if (useOfflineModeStore().isOfflineMode) return
   if (!force && checked) return
   checked = true
   isChecking.value = true

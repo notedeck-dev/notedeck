@@ -68,15 +68,7 @@ pub fn notifications(list: &[NormalizedNotification], limit: usize) -> Value {
     Value::Array(list.iter().take(limit).map(notification).collect())
 }
 
-const SENSITIVE_KEYS: &[&str] = &[
-    "token",
-    "i",
-    "accessToken",
-    "refreshToken",
-    "apiKey",
-    "password",
-    "secret",
-];
+use crate::redact::SENSITIVE_KEYS;
 
 /// 資格情報らしいキーを再帰的に落とす (TS 側 stripCredentials と同じ集合)。
 pub fn strip_credentials(v: Value) -> Value {

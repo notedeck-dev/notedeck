@@ -25,6 +25,7 @@ import {
 import { useAiActivity } from '@/stores/aiActivity'
 import { useAiSessionsStore } from '@/stores/aiSessions'
 import { useDeckStore } from '@/stores/deck'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { sendDesktopNotification } from '@/utils/desktopNotification'
@@ -166,10 +167,13 @@ export function useHeartbeatDaemon() {
     }
   }
 
-  // 設定 → Rust の timer (変更のたびに replace。冪等)
+  // 設定 → Rust の timer (変更のたびに replace。冪等)。オフラインモード中は
+  // 止める (#461): 届かない AI 呼び出しが連続失敗として数えられ、自動停止に
+  // 至るのを防ぐ。解除で再び構成する
+  const offlineMode = useOfflineModeStore()
   watch(
     () => ({
-      enabled: config.value.heartbeat.enabled,
+      enabled: config.value.heartbeat.enabled && !offlineMode.isOfflineMode,
       interval: config.value.heartbeat.intervalMinutes,
     }),
     async (next) => {

@@ -976,6 +976,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
   }
 
   async function refresh(opts?: { force?: boolean }) {
+    // オフラインモード中は手動更新でもサーバーに行かない (#461)
+    if (useOfflineModeStore().isOfflineMode) return
     if (isStreaming) {
       // ストリーミングカラムのリロードボタン: 復帰 catch-up と同じ経路で
       // 最新ページを取得し gap 判定する。手動操作なのでスロットルは無視 (#791)
@@ -1025,6 +1027,7 @@ export function useNoteColumn(config: NoteColumnConfig) {
   }
 
   async function pullRefresh() {
+    if (useOfflineModeStore().isOfflineMode) return
     const adapter = getAdapter()
     if (!adapter) return
     if (config.validate && !config.validate()) return
@@ -1055,6 +1058,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
   let lastResumeAt = 0
 
   async function onResume(opts?: { force?: boolean }) {
+    // オフラインモード中 (手動 / 回線断、#461) は REST を叩かない
+    if (useOfflineModeStore().isOfflineMode) return
     const adapter = getAdapter()
     if (!adapter || !account.value) return
     if (config.validate && !config.validate()) return
@@ -1279,7 +1284,15 @@ export function useNoteColumn(config: NoteColumnConfig) {
   const uiStore = useUiStore()
   watch(
     () => uiStore.deckResumeSignal,
-    () => onResume(),
+    () => {
+      // オフラインモード中にマウントした列は adapter を持たない (connect が
+      // キャッシュ表示で終わる)。復帰 = オフライン解除では接続からやり直す (#461)
+      if (!getAdapter() && !useOfflineModeStore().isOfflineMode) {
+        void reconnect(true)
+        return
+      }
+      void onResume()
+    },
   )
 
   // Non-streaming columns: watch cache-key invalidation signal (clip/favorites mutations)

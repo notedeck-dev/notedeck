@@ -1591,6 +1591,9 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
     while state.next_index < state.pending.len() {
         let i = state.next_index;
         let tu = state.pending[i].clone();
+        // 実行には生の入力を使い、UI / セッション / 次のラウンド / チェックポイントに
+        // 出る写しは秘匿化する (#1164)
+        let input_record = crate::redact::value(tu.input.clone());
         let assistant_text = if i == 0 {
             state.round_text.clone()
         } else {
@@ -1604,7 +1607,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
         e.text = Some(assistant_text.clone());
         e.tool_use_id = Some(tu.id.clone());
         e.tool_use_name = Some(tu.name.clone());
-        e.tool_use_input = Some(tu.input.clone());
+        e.tool_use_input = Some(input_record.clone());
         e.message_id = Some(tool_use_msg_id.clone());
         rt.sink.emit(e);
 
@@ -1614,7 +1617,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             let mut e = AiTurnEvent::new(&turn_id, "intent");
             e.tool_use_id = Some(tu.id.clone());
             e.tool_use_name = tu.capability_id.clone();
-            e.tool_use_input = Some(tu.input.clone());
+            e.tool_use_input = Some(input_record.clone());
             // 生成元の汚染 (デバイス文脈 / この turn で読んだ他人の内容 / ラベル付きの
             // 内容)。人がボタンを押すときの一文と、実行時のラベル付けに使う
             e.reason = state.label_writes.then(|| "untrusted".to_string());
@@ -1712,6 +1715,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                     .await;
             }
         }
+        let result = crate::redact::text(&result).into_owned();
         let mut e = AiTurnEvent::new(&turn_id, "tool_result");
         e.tool_use_id = Some(tu.id.clone());
         e.text = Some(result.clone());
@@ -1726,7 +1730,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                 SessionMessage {
                     tool_use_id: Some(tu.id.clone()),
                     tool_use_name: Some(tu.name.clone()),
-                    tool_use_input: Some(tu.input.clone()),
+                    tool_use_input: Some(input_record.clone()),
                     ..session_message(tool_use_msg_id, "assistant", assistant_text.clone())
                 },
                 SessionMessage {
@@ -1741,7 +1745,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
             content: assistant_text,
             tool_use_id: Some(tu.id.clone()),
             tool_use_name: Some(tu.name),
-            tool_use_input: Some(tu.input),
+            tool_use_input: Some(input_record),
             tool_result_for: None,
         });
         state.messages.push(AiChatMessage {
@@ -2592,6 +2596,46 @@ mod tests {
             written,
             _dir: dir,
         }
+    }
+
+    /// 保存前の秘匿化 (#1164): tool の実行には生の入力を渡すが、UI へのイベント /
+    /// セッション / 次のラウンドの履歴には既知の秘密も鍵らしい形も残らない
+    #[tokio::test]
+    async fn secrets_in_tool_input_and_result_are_redacted_before_they_are_recorded() {
+        const KEY: &str = "turn-test-vault-key-0123456789abcdef";
+        crate::redact::register(crate::redact::Kind::Vault, KEY);
+        let header = format!("Bearer {}", "abcdefghij".repeat(3));
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "time_now", json!({ "echo": KEY }))],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({
+            "ok": true,
+            "result": format!("got {KEY} and {header}"),
+        }));
+        let h = harness(provider.clone(), &[], device.clone());
+        drive(h.rt.clone(), TurnState::new(request())).await;
+
+        // 実行は生の入力で
+        assert_eq!(device.executes()[0]["params"]["echo"], KEY);
+        // UI へのイベント
+        let tool_use_event = h.sink.find("tool_use").unwrap();
+        assert_eq!(
+            tool_use_event.tool_use_input.unwrap()["echo"],
+            "[redacted:vault]"
+        );
+        assert_eq!(
+            h.sink.find("tool_result").unwrap().text.as_deref(),
+            Some("got [redacted:vault] and [redacted:key]")
+        );
+        // セッション
+        let dump = serde_json::to_string(&h.written.written()).unwrap();
+        assert!(!dump.contains(KEY), "{dump}");
+        assert!(!dump.contains(&header), "{dump}");
+        // 次のラウンドの履歴 (チェックポイントに書かれるのも同じもの)
+        let reqs = provider.requests.lock().unwrap();
+        let history = serde_json::to_string(&reqs[1].messages).unwrap();
+        assert!(!history.contains(KEY), "{history}");
     }
 
     #[tokio::test]

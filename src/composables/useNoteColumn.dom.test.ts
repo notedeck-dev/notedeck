@@ -18,6 +18,8 @@ import { matchesFilter } from '@/services/timelineFilter'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
+import { useOfflineModeStore } from '@/stores/offlineMode'
+import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
 import type { FramePriority } from './useFrameScheduler'
 import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
@@ -1822,5 +1824,41 @@ describe('useNoteColumn: レート制限 (#1271)', () => {
     await flush()
     expect(api.error.value?.isRateLimited).toBe(true)
     expect(api.isOffline.value).toBe(false)
+  })
+})
+
+describe('useNoteColumn: オフラインモードと復帰 (#461)', () => {
+  it('オフラインモード中にマウントした列は adapter を持たず、解除で接続からやり直す', async () => {
+    addAccount('acc-off')
+    useSettingsStore().set('modes.offline', true)
+    const fetchImpl = vi.fn().mockResolvedValue([note('h01')])
+    const { api } = mountColumn({
+      accountId: 'acc-off',
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    expect(fetchImpl).not.toHaveBeenCalled()
+    expect(api.isOffline.value).toBe(true)
+
+    // 解除 = 復帰信号。adapter が無いので onResume ではなく接続からやり直す
+    await useOfflineModeStore().disable()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalled()
+    expect(ids(api)).toEqual(['h01'])
+    expect(api.isOffline.value).toBe(false)
+  })
+
+  it('オフラインモード中は復帰信号でも REST を叩かない', async () => {
+    addAccount('acc-off2')
+    const fetchImpl = vi.fn().mockResolvedValue([note('h01')])
+    mountColumn({ accountId: 'acc-off2', fetch: () => fetchImpl() })
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+
+    await useOfflineModeStore().enable()
+    vi.advanceTimersByTime(6000)
+    useUiStore().emitDeckResume()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 })

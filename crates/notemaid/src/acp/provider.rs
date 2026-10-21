@@ -188,6 +188,7 @@ impl AcpProvider {
         };
         let token = issued.get("token").and_then(Value::as_str)?.to_string();
         let id = issued.get("id").and_then(Value::as_str)?.to_string();
+        crate::redact::register(crate::redact::Kind::HarnessToken, &token);
         self.registry
             .tokens
             .lock()

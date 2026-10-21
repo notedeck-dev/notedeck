@@ -410,6 +410,8 @@ export interface Locale {
     readonly "local": string
     /** オフライン */
     readonly "offline": string
+    /** オフライン (回線なし) */
+    readonly "offlineNoLink": string
     /** ポーリング */
     readonly "polling": string
     /** レート制限中 */
@@ -2364,6 +2366,10 @@ export interface Locale {
     readonly "copyInfo": string
     /** バグを報告 */
     readonly "reportBug": string
+    /** Misskey で報告 */
+    readonly "reportViaMisskey": string
+    /** GitHub アカウント不要。公式アカウント宛てのノートの下書きを開きます (ノートは公開されます。診断ログは載せません) */
+    readonly "reportViaMisskeyHint": string
     /** 自己診断 */
     readonly "selfDiagnosis": string
     /** 問題は見つかりませんでした */
@@ -5592,6 +5598,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "readOnlyHint": string
   }
   readonly "_systemAdaptation": {
+    /** 回線が切れたため、オフラインモードに入りました。戻ると自動で再接続します */
+    readonly "linkOffline": string
     /** 従量制回線のため、画像・動画はタップで読み込む表示にしました */
     readonly "meteredDeferMedia": string
     /** 省電力モードのため、画像の先読みとアニメーション絵文字を止めました */

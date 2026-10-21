@@ -134,3 +134,23 @@ describe('describeAdaptationEntry', () => {
     ).toBeNull()
   })
 })
+
+describe('回線断 (#461)', () => {
+  it('回線が無いときだけ goOffline になり、自動調整 OFF なら入らない', () => {
+    expect(deriveAdaptation(NONE, true, false, false).goOffline).toBe(true)
+    expect(deriveAdaptation(NONE, true, false, true).goOffline).toBe(false)
+    expect(deriveAdaptation(NONE, true, false, null).goOffline).toBe(false)
+    expect(deriveAdaptation(NONE, false, false, false).goOffline).toBe(false)
+  })
+
+  it('入るときは回線断を最優先で伝える', () => {
+    const state = { ...NONE, metered: true }
+    expect(
+      describeAdaptationEntry(
+        NO_ADAPTATION,
+        deriveAdaptation(state, true, false, false),
+        state,
+      ),
+    ).toMatch(/回線が切れ/)
+  })
+})

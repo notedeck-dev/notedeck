@@ -21,6 +21,7 @@ import { type Frontmatter, parseSkillFile } from '@/services/skillFrontmatter'
 import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
 import type { StoreUpdatePatch } from '@/stores/distributableStore'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import {
   type PluginItem,
   type PluginStorePatch,
@@ -395,6 +396,11 @@ function createRegistryFeed<E extends StoreEntryBase>(
 
   async function fetchIndex(): Promise<void> {
     if (isCacheValid() && entries.value.length > 0) return
+    // オフラインモード中は取りに行かない (#461)
+    if (useOfflineModeStore().isOfflineMode) {
+      error.value = i18n.ts._common.offline
+      return
+    }
     loading.value = true
     error.value = null
     try {

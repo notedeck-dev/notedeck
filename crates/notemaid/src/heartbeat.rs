@@ -227,7 +227,9 @@ pub fn failure_signature(message: &str) -> String {
 
 /// 失敗を記録し、初めて見る signature なら通知する (`true`)。
 pub fn record_failure(state: &mut PersistedState, source: &str, message: &str, now: u64) -> bool {
-    let signature = failure_signature(message);
+    // signature も状態ファイルに残るので、秘匿化してから作る (#1164)
+    let message = crate::redact::text(message);
+    let signature = failure_signature(&message);
     state.failures.insert(
         0,
         FailureRecord {
@@ -1510,6 +1512,23 @@ mod tests {
             false
         );
         assert!(report_tool(&json!({"body": " "}), &hb).is_err());
+    }
+
+    #[test]
+    fn failure_record_keeps_no_secret_in_message_or_signature() {
+        // 秘密は message にも signature にも残らない (#1164)
+        let key = "heartbeat-test-vault-key-0123456789";
+        crate::redact::register(crate::redact::Kind::Vault, key);
+        let mut st = PersistedState::default();
+        assert!(record_failure(
+            &mut st,
+            "scheduled",
+            &format!("bad key {key}"),
+            1
+        ));
+        let dump = serde_json::to_string(&st).unwrap();
+        assert!(!dump.contains(key), "{dump}");
+        assert!(dump.contains("[redacted:vault]"), "{dump}");
     }
 
     #[test]

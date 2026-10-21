@@ -23,6 +23,8 @@ impl SyncedAccounts {
             .ok()
             .and_then(|b| serde_json::from_slice::<Vec<Account>>(&b).ok())
             .unwrap_or_default();
+        // 再起動後、アプリが繋ぐ前 (常駐で HEARTBEAT だけ回る間) も秘匿化が効くよう覚える (#1164)
+        crate::redact::register_misskey_tokens(&rows);
         Self {
             path,
             rows: RwLock::new(rows),
@@ -32,6 +34,7 @@ impl SyncedAccounts {
     /// アプリからの写しで置き換える。一覧に無い口座は消える。書けなくてもメモリは更新する
     pub fn replace(&self, accounts: Vec<Account>) -> Result<usize> {
         let n = accounts.len();
+        crate::redact::register_misskey_tokens(&accounts);
         let body = serde_json::to_vec(&accounts)
             .map_err(|e| notecli::error::NoteDeckError::Internal(e.to_string()))?;
         *self.rows.write().unwrap_or_else(|e| e.into_inner()) = accounts;
