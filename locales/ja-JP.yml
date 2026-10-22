@@ -2629,6 +2629,8 @@ _widgetCapabilities:
   loginRequired: "ログイン済みアカウントが必要です"
 
 # notedeck:// リンクからのインストール確認 (#1204)
+_deepLink:
+  accountNotFound: "このリンクのアカウントではログインしていません"
 _deepLinkInstall:
   pluginTitle: "プラグインをインストールしますか？"
   themeTitle: "テーマをインストールしますか？"
@@ -2736,6 +2738,7 @@ _useLoginPrompt:
   reloginToContinue: "再ログインすると操作できます"
   sessionExpired: "ログインの有効期限が切れました"
   sessionExpiredUseMenu: "ログインの有効期限が切れました。アカウントメニューから再ログインしてください。"
+  permissionMissing: "この操作には新しい権限が要ります。再ログインすると使えます。"
 
 _useHeartbeatDaemon:
   pending_plural:

@@ -134,6 +134,7 @@ macro_rules! with_command_table {
         data api_get_notifications_grouped(account_id: String, options: Option<notecli::models::TimelineOptions>) -> Vec<notecli::models::NormalizedNotification> = $crate::commands::messaging::api_get_notifications_grouped;
         data api_get_unread_notification_count(account_id: String) -> i64 = $crate::commands::messaging::api_get_unread_notification_count;
         data api_mark_all_notifications_as_read(account_id: String) -> () = $crate::commands::messaging::api_mark_all_notifications_as_read;
+        data api_read_notifications_on_view(account_id: String) -> () = $crate::commands::messaging::api_read_notifications_on_view;
         data api_get_unread_chat(account_id: String) -> bool = $crate::commands::messaging::api_get_unread_chat;
         data api_get_chat_history(account_id: String, limit: Option<i64>, room: Option<bool>, cache: Option<bool>) -> Vec<notecli::models::ChatMessage> = $crate::commands::messaging::api_get_chat_history;
         data api_get_chat_user_messages(account_id: String, user_id: String, limit: Option<i64>, since_id: Option<String>, until_id: Option<String>, cache: Option<bool>) -> Vec<notecli::models::ChatMessage> = $crate::commands::messaging::api_get_chat_user_messages;
@@ -215,11 +216,13 @@ macro_rules! with_command_table {
             // --- streaming (crates/notecore/src/commands/streaming.rs) ---
         data stream_connect(account_id: String) -> () = $crate::commands::streaming::stream_connect;
         data stream_subscribe_main(account_id: String) -> () = $crate::commands::streaming::stream_subscribe_main;
+        data stream_subscribe_main_all() -> Vec<String> = $crate::commands::streaming::stream_subscribe_main_all;
         data stream_disconnect(account_id: String) -> () = $crate::commands::streaming::stream_disconnect;
         data stream_set_mode(account_id: String, mode: String, interval_ms: Option<u64>) -> () = $crate::commands::streaming::stream_set_mode;
         data stream_sub_note(account_id: String, note_id: String) -> () = $crate::commands::streaming::stream_sub_note;
         data stream_unsub_note(account_id: String, note_id: String) -> () = $crate::commands::streaming::stream_unsub_note;
         data stream_chat_read(account_id: String, subscription_id: String, message_id: String) -> () = $crate::commands::streaming::stream_chat_read;
+        data stream_read_notifications(account_id: String) -> () = $crate::commands::streaming::stream_read_notifications;
         data stream_observe_start() -> () = $crate::commands::streaming::stream_observe_start;
         data stream_observe_stop() -> () = $crate::commands::streaming::stream_observe_stop;
             // --- pet (crates/notecore/src/commands/pet.rs) ---

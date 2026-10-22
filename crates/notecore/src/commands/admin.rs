@@ -187,6 +187,10 @@ pub fn replace_database_file(app_dir: &std::path::Path, src: &std::path::Path) -
 
 /// アカウントを削除する (資格情報の失効を含む認可境界、表の種別 authz)
 pub async fn delete_account(core: &Core, id: String) -> Result<()> {
+    // 口座セッションが張った main を含め、その口座の接続を先に落とす (#330 §3.1)
+    if let Ok(streaming) = core.streaming() {
+        streaming.disconnect(&id).await;
+    }
     let db = core.db().await;
     crate::account_service::delete(&db, &id)?;
     crate::commands::export_account_list(core, &db);
@@ -195,6 +199,9 @@ pub async fn delete_account(core: &Core, id: String) -> Result<()> {
 
 /// ログアウト: トークンだけ消し、アカウントの記録とカラムは残す
 pub async fn logout_account(core: &Core, id: String) -> Result<()> {
+    if let Ok(streaming) = core.streaming() {
+        streaming.disconnect(&id).await;
+    }
     let db = core.db().await;
     crate::account_service::logout(&db, &id)?;
     crate::commands::export_account_list(core, &db);

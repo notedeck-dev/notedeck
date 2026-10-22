@@ -2899,6 +2899,8 @@ _widgetCapabilities:
   loginRequired: "A logged-in account is required"
 
 # notedeck:// リンクからのインストール確認 (#1204)
+_deepLink:
+  accountNotFound: "You are not logged in as the account this link refers to"
 _deepLinkInstall:
   pluginTitle: "Install this plugin?"
   themeTitle: "Install this theme?"
@@ -3007,6 +3009,7 @@ _useLoginPrompt:
   reloginToContinue: "Log in again to continue"
   sessionExpired: "Your login has expired"
   sessionExpiredUseMenu: "Your login has expired. Log in again from the account menu."
+  permissionMissing: "This action needs a new permission. Log in again to use it."
 
 _useHeartbeatDaemon:
   pending_plural:

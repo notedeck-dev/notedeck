@@ -954,6 +954,15 @@ async apiMarkAllNotificationsAsRead(accountId: string) : Promise<Result<null, { 
 }
 },
 /** @see crates/notecore/src/commands/messaging.rs */
+async apiReadNotificationsOnView(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("api_read_notifications_on_view", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/messaging.rs */
 async apiGetUnreadChat(accountId: string) : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("api_get_unread_chat", { accountId }) };
@@ -1773,6 +1782,15 @@ async streamSubscribeMain(accountId: string) : Promise<Result<null, { code: stri
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
+async streamSubscribeMainAll() : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_subscribe_main_all") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamDisconnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_disconnect", { accountId }) };
@@ -1812,6 +1830,15 @@ async streamUnsubNote(accountId: string, noteId: string) : Promise<Result<null, 
 async streamChatRead(accountId: string, subscriptionId: string, messageId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_chat_read", { accountId, subscriptionId, messageId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/streaming.rs */
+async streamReadNotifications(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_read_notifications", { accountId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };

@@ -14,6 +14,7 @@ import {
   saveCurrentWindowLayout,
 } from '@/composables/useDeckWindow'
 import { handleDeepLink } from '@/composables/useDeepLink'
+import { useMainStreamKeeper } from '@/composables/useMainStreamKeeper'
 import { initOgpListener } from '@/composables/useOgpPreview'
 import { useOsGlobalShortcuts } from '@/composables/useOsGlobalShortcuts'
 import { destroyApiBridge, initApiBridge } from '@/core/apiBridge'
@@ -56,6 +57,7 @@ export function useDeckInit(options: {
   // 復帰検知 (visibilitychange / OS スリープ / Android ネイティブ) は
   // useDeckResume に一元化。ここは検知後の下流処理だけを持つ
   useDeckResume()
+  useMainStreamKeeper()
   // 対になる離脱検知 (#986)。猶予を超えて隠れたら購読を warm に落とす
   useAppBackground()
 

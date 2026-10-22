@@ -267,6 +267,9 @@ pub enum Commands {
         /// 取得する通知数 (1-100)
         #[arg(long, short, default_value_t = 20)]
         limit: i64,
+        /// 取得しても既読にしない (既定では本家と同じく取得した時点で全部既読になる)
+        #[arg(long)]
+        keep_unread: bool,
     },
 
     /// メンション一覧を取得

@@ -40,6 +40,30 @@ pub async fn stream_subscribe_main(core: &Core, account_id: String) -> Result<()
     Ok(())
 }
 
+/// 口座の「通知を配る main」を張る (接続も含む、冪等)。通知の OS 通知の消費者は
+/// Rust なので、カラムの有無に関わらず口座セッションが張る (#330 §3.1)
+pub async fn subscribe_main_for_account(core: &Core, account_id: &str) -> Result<()> {
+    let streaming = core.streaming()?;
+    let db = core.db().await;
+    ensure_stream_connected(&db, streaming, account_id).await?;
+    streaming.subscribe_main(account_id).await?;
+    Ok(())
+}
+
+/// トークンのある全口座について main を張る。起動時 (接続モードの適用後)、復帰時、
+/// オフラインモードの解除時に呼ぶ。失敗した口座は warn して続け、張れた口座の id を返す
+pub async fn stream_subscribe_main_all(core: &Core) -> Result<Vec<String>> {
+    let accounts = crate::commands::admin::load_accounts(core).await?;
+    let mut done = Vec::new();
+    for account in accounts.into_iter().filter(|a| a.has_token) {
+        match subscribe_main_for_account(core, &account.id).await {
+            Ok(()) => done.push(account.id),
+            Err(e) => tracing::warn!(account = account.id, "[stream] main: {e}"),
+        }
+    }
+    Ok(done)
+}
+
 pub async fn stream_disconnect(core: &Core, account_id: String) -> Result<()> {
     let streaming = core.streaming()?;
     streaming.disconnect(&account_id).await;
@@ -81,6 +105,14 @@ pub async fn stream_chat_read(
         .await
 }
 
+/// 可視の通知カラムに新着が届いたときの既読化。本家 Web が可視ウィンドウへの到着で
+/// 送る `readNotification` と同じで、権限の検査が無い。接続が無い (polling) ときは
+/// 何もしないので、呼ぶ側は次の可視中の取得に任せる
+pub async fn stream_read_notifications(core: &Core, account_id: String) -> Result<()> {
+    let streaming = core.streaming()?;
+    streaming.read_notifications(&account_id).await
+}
+
 pub async fn stream_unsub_note(core: &Core, account_id: String, note_id: String) -> Result<()> {
     let streaming = core.streaming()?;
     streaming.unsub_note(&account_id, &note_id).await
@@ -96,4 +128,46 @@ pub async fn stream_observe_start(core: &Core) -> Result<()> {
 pub async fn stream_observe_stop(core: &Core) -> Result<()> {
     core.stream_observation().stop();
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use notecli::event_bus::EventBus;
+    use notecli::models::Account;
+    use notecli::streaming::{NoopEmitter, StreamingManager};
+
+    use crate::context::test_support::temp_core;
+
+    fn account(id: &str, token: &str) -> Account {
+        Account {
+            id: id.into(),
+            host: "127.0.0.1:9".into(),
+            token: token.into(),
+            user_id: format!("u-{id}"),
+            username: id.into(),
+            display_name: None,
+            avatar_url: None,
+            software: "misskey".into(),
+        }
+    }
+
+    /// 通知を配る main は、カラムではなく口座セッションが全口座について張る (#330 §3.1)。
+    /// トークンの無い口座 (ログアウト済み) は対象外
+    #[tokio::test]
+    async fn subscribe_main_all_targets_every_account_with_a_token() {
+        let (_dir, core) = temp_core();
+        let db = core.db().await;
+        db.upsert_account(&account("with-token", "tok")).unwrap();
+        db.upsert_account(&account("logged-out", "")).unwrap();
+        core.set_streaming(Arc::new(StreamingManager::new(
+            Arc::new(NoopEmitter),
+            Arc::new(EventBus::new()),
+            db.clone(),
+        )));
+
+        let done = super::stream_subscribe_main_all(&core).await.unwrap();
+        assert_eq!(done, vec!["with-token".to_string()]);
+    }
 }

@@ -19,7 +19,6 @@ NoteDeck の開発者はサーバーを一切運営していません。ユー�
 
 - **Misskey アクセストークン** (各サーバー / 各アカウントごと)
 - **AI プロバイダーの API キー** (Secret Vault 経由、接続単位で格納)
-- **WebPush 通知用 VAPID キー** (Push 通知有効時のみ)
 
 格納先:
 
@@ -61,11 +60,10 @@ Linux の暗号化ファイルは、同じ OS ユーザーの他プロセスか�
 
 NoteDeck が行う外部通信は以下に限定されます：
 
-1. **Misskey サーバー** — REST / WebSocket ストリーミング、画像取得
+1. **Misskey サーバー** — REST / WebSocket ストリーミング、画像取得。Android ではアプリを閉じている間も、通知の確認のために同じサーバーへ定期的に REST で接続します
 2. **AI プロバイダー** — AI チャット使用時のみ。Anthropic Messages API / OpenAI Chat Completions API 互換
-3. **WebPush エンドポイント** — Push 通知有効化時のみ
-4. **アップデートチェック** — `https://github.com/notedeck-dev/notedeck/releases/latest` (Tauri Updater)
-5. **OGP 取得** — ノート内 URL の OGP 情報取得 (設定で無効化可能)
+3. **アップデートチェック** — `https://github.com/notedeck-dev/notedeck/releases/latest` (Tauri Updater)
+4. **OGP 取得** — ノート内 URL の OGP 情報取得 (設定で無効化可能)
 
 ### NoteDeck が行わない通信
 

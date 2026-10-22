@@ -980,14 +980,17 @@ impl MisskeyClient {
             .collect())
     }
 
+    /// 通知を取得する。`mark_as_read` は本家の `markAsRead` (既定 true = 取得しただけで
+    /// 全部既読) を明示で送る。アプリは「通知カラムを見たとき」の取得だけ true にする
     pub async fn get_notifications(
         &self,
         host: &str,
         token: &str,
         account_id: &str,
         options: TimelineOptions,
+        mark_as_read: bool,
     ) -> Result<Vec<NormalizedNotification>, NoteDeckError> {
-        let mut params = json!({ "limit": options.limit() });
+        let mut params = json!({ "limit": options.limit(), "markAsRead": mark_as_read });
         apply_pagination(
             &mut params,
             options.since_id.as_deref(),
@@ -1007,8 +1010,9 @@ impl MisskeyClient {
         token: &str,
         account_id: &str,
         options: TimelineOptions,
+        mark_as_read: bool,
     ) -> Result<Vec<NormalizedNotification>, NoteDeckError> {
-        let mut params = json!({ "limit": options.limit() });
+        let mut params = json!({ "limit": options.limit(), "markAsRead": mark_as_read });
         apply_pagination(
             &mut params,
             options.since_id.as_deref(),
@@ -1504,15 +1508,18 @@ impl MisskeyClient {
 
     // --- Notifications ---
 
+    /// 未読の通知数。本家に専用のエンドポイントは無く、`i` の
+    /// `unreadNotificationsCount` (既読位置より後の件数) で取る
     pub async fn get_unread_notification_count(
         &self,
         host: &str,
         token: &str,
     ) -> Result<i64, NoteDeckError> {
-        let data = self
-            .request(host, token, "notifications/unread-count", json!({}))
-            .await?;
-        Ok(data.get("count").and_then(|v| v.as_i64()).unwrap_or(0))
+        let data = self.request(host, token, "i", json!({})).await?;
+        Ok(data
+            .get("unreadNotificationsCount")
+            .and_then(|v| v.as_i64())
+            .unwrap_or(0))
     }
 
     pub async fn mark_all_notifications_as_read(
@@ -3087,12 +3094,65 @@ mod tests {
 
         let client = MisskeyClient::with_base_url(&server.uri());
         let notifs = client
-            .get_notifications("h", "token", "acc1", TimelineOptions::default())
+            .get_notifications("h", "token", "acc1", TimelineOptions::default(), false)
             .await
             .unwrap();
         assert_eq!(notifs.len(), 1);
         assert_eq!(notifs[0].notification_type, "reaction");
         assert_eq!(notifs[0].reaction.as_deref(), Some(":star:"));
+    }
+
+    /// 通知の取得は既読にするかを明示で送る。本家の既定は true (取得しただけで
+    /// 全部既読) なので、アプリは false を明示し、見たときの取得だけ true にする
+    #[tokio::test]
+    async fn get_notifications_sends_mark_as_read_explicitly() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/i/notifications"))
+            .and(body_partial_json(json!({ "markAsRead": false })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/i/notifications-grouped"))
+            .and(body_partial_json(json!({ "markAsRead": true })))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = MisskeyClient::with_base_url(&server.uri());
+        client
+            .get_notifications("h", "token", "acc1", TimelineOptions::default(), false)
+            .await
+            .unwrap();
+        client
+            .get_notifications_grouped("h", "token", "acc1", TimelineOptions::default(), true)
+            .await
+            .unwrap();
+    }
+
+    /// 未読数は `i` の unreadNotificationsCount から取る (専用エンドポイントは本家に無い)
+    #[tokio::test]
+    async fn get_unread_notification_count_reads_i() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/i"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "id": "u1",
+                "unreadNotificationsCount": 3,
+                "hasUnreadNotification": true
+            })))
+            .mount(&server)
+            .await;
+
+        let client = MisskeyClient::with_base_url(&server.uri());
+        let count = client
+            .get_unread_notification_count("h", "token")
+            .await
+            .unwrap();
+        assert_eq!(count, 3);
     }
 
     #[tokio::test]
@@ -3119,7 +3179,7 @@ mod tests {
 
         let client = MisskeyClient::with_base_url(&server.uri());
         let notifs = client
-            .get_notifications("h", "token", "acc1", TimelineOptions::default())
+            .get_notifications("h", "token", "acc1", TimelineOptions::default(), false)
             .await
             .unwrap();
         assert_eq!(notifs.len(), 1);

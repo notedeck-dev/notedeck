@@ -12,9 +12,11 @@ import type { ColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useMisStoreStore } from '@/stores/misstore'
+import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import type { WindowType } from '@/stores/windows'
 import { useWindowsStore } from '@/stores/windows'
+import { commands } from '@/utils/tauriInvoke'
 
 const NOTE_VISIBILITIES: ReadonlyArray<PostVisibility> = [
   'public',
@@ -50,6 +52,8 @@ const NOTE_VISIBILITIES: ReadonlyArray<PostVisibility> = [
  *   notedeck://<host>/mentions
  *   notedeck://<host>/direct
  *   notedeck://<host>/chat
+ *   notedeck://<host>/chat/user/<userId>   (その相手との会話を開く)
+ *   notedeck://<host>/chat/room/<roomId>   (今はメッセージのカラムを開くだけ)
  *   notedeck://<host>/announcements
  *   notedeck://<host>/drive
  *   notedeck://<host>/gallery
@@ -57,6 +61,10 @@ const NOTE_VISIBILITIES: ReadonlyArray<PostVisibility> = [
  *   notedeck://<host>/page/<pageId>
  *   notedeck://<host>/play/<flashId>
  *   notedeck://<host>/instance/<targetHost>
+ *
+ * アカウント付きルートは `?account=<Misskey ユーザー ID>` で口座を指定できる (#330 §3.4)。
+ * 同じホストに複数の口座があるときに、通知由来のリンクが別の口座で開かないため。
+ * 指定が実在しなければ開かない。指定が無ければ従来どおりホストの先頭の口座。
  */
 export async function handleDeepLink(rawUrl: string): Promise<void> {
   let url: URL
@@ -122,7 +130,22 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
   if (!host) return
 
   const accountsStore = useAccountsStore()
-  const account = accountsStore.accounts.find((a) => a.host === host)
+  let account: (typeof accountsStore.accounts)[number] | undefined
+  if (url.searchParams.has('account')) {
+    // 空の指定 (`?account=`) も不一致として扱う。壊れたリンクを先頭の口座で開かない
+    const requestedUserId = url.searchParams.get('account') ?? ''
+    account = accountsStore.accounts.find(
+      (a) => a.host === host && a.userId === requestedUserId && a.hasToken,
+    )
+    if (!account) {
+      // 先頭の口座で開くと、そこから返信して別の口座から出る事故になる
+      console.warn('[deep-link] account not found:', host, requestedUserId)
+      useToast().show(i18n.ts._deepLink.accountNotFound, 'warning')
+      return
+    }
+  } else {
+    account = accountsStore.accounts.find((a) => a.host === host)
+  }
   const accountId = account?.id ?? null
 
   const [action, ...rest] = pathSegments
@@ -199,7 +222,12 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
       break
 
     case 'chat':
-      handleAddColumn('chat', accountId)
+      if (rest[0] === 'user' && rest[1] && accountId) {
+        await handleOpenChatWith(accountId, host, rest[1])
+      } else {
+        // ルーム単位 (chat/room/<id>) はまだ会話を直接開く口が無いのでカラムを開く
+        handleAddColumn('chat', accountId)
+      }
       break
 
     case 'announcements':
@@ -328,6 +356,32 @@ function handleAddColumn(
     width: 360,
     accountId,
     ...extra,
+  })
+}
+
+/** 相手との会話をサイドバーのメッセージカラムで開く。相手を引けなくても ID を名前にして開く */
+async function handleOpenChatWith(
+  accountId: string,
+  host: string,
+  userId: string,
+) {
+  let name = userId
+  let avatarUrl: string | null = null
+  try {
+    const result = await commands.apiGetUser(accountId, userId)
+    if (result.status === 'ok') {
+      name = result.data.name ?? result.data.username
+      avatarUrl = result.data.avatarUrl
+    }
+  } catch {
+    // 会話は相手の表示名が無くても開ける
+  }
+  useDeckStore().openChatWith({
+    accountId,
+    userId,
+    name,
+    avatarUrl,
+    serverHost: host,
   })
 }
 

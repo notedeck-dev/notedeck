@@ -59,7 +59,13 @@ pub async fn api_get_notifications(
 ) -> Result<Vec<NormalizedNotification>> {
     let (client, host, token) = core.authed(&account_id).await?;
     client
-        .get_notifications(&host, &token, &account_id, options.unwrap_or_default())
+        .get_notifications(
+            &host,
+            &token,
+            &account_id,
+            options.unwrap_or_default(),
+            false,
+        )
         .await
 }
 
@@ -70,7 +76,13 @@ pub async fn api_get_notifications_grouped(
 ) -> Result<Vec<NormalizedNotification>> {
     let (client, host, token) = core.authed(&account_id).await?;
     client
-        .get_notifications_grouped(&host, &token, &account_id, options.unwrap_or_default())
+        .get_notifications_grouped(
+            &host,
+            &token,
+            &account_id,
+            options.unwrap_or_default(),
+            false,
+        )
         .await
 }
 
@@ -82,6 +94,23 @@ pub async fn api_get_unread_notification_count(core: &Core, account_id: String) 
 pub async fn api_mark_all_notifications_as_read(core: &Core, account_id: String) -> Result<()> {
     let (client, host, token) = core.authed(&account_id).await?;
     client.mark_all_notifications_as_read(&host, &token).await
+}
+
+/// 通知カラムを見たときの既読化。`i/notifications` を `markAsRead: true` で 1 件だけ取る
+/// (本家はその取得でその口座の通知を全部既読にする)。`write:notifications` 権限が
+/// 要らないので、明示の全既読と違って既存のトークンで通る
+pub async fn api_read_notifications_on_view(core: &Core, account_id: String) -> Result<()> {
+    let (client, host, token) = core.authed(&account_id).await?;
+    client
+        .get_notifications(
+            &host,
+            &token,
+            &account_id,
+            TimelineOptions::new(1, None, None),
+            true,
+        )
+        .await?;
+    Ok(())
 }
 
 pub async fn api_get_unread_chat(core: &Core, account_id: String) -> Result<bool> {

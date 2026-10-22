@@ -23,6 +23,9 @@ pub const DEFAULT_MIAUTH_PERMISSIONS: &[&str] = &[
     "read:account",
     "write:account",
     "read:notifications",
+    // 明示の「全部既読」(notifications/mark-all-as-read) に要る。以前は要求して
+    // おらず、権限不足を握っていた
+    "write:notifications",
     "read:reactions",
     "read:favorites",
     "read:drive",
