@@ -4776,6 +4776,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     /** ログイン済みアカウントが必要です */
     readonly "loginRequired": string
   }
+  readonly "_deepLink": {
+    /** このリンクのアカウントではログインしていません */
+    readonly "accountNotFound": string
+  }
   readonly "_deepLinkInstall": {
     /** プラグインをインストールしますか？ */
     readonly "pluginTitle": string

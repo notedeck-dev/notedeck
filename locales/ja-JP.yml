@@ -2629,6 +2629,8 @@ _widgetCapabilities:
   loginRequired: "ログイン済みアカウントが必要です"
 
 # notedeck:// リンクからのインストール確認 (#1204)
+_deepLink:
+  accountNotFound: "このリンクのアカウントではログインしていません"
 _deepLinkInstall:
   pluginTitle: "プラグインをインストールしますか？"
   themeTitle: "テーマをインストールしますか？"
