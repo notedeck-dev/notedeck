@@ -81,6 +81,14 @@ pub async fn stream_chat_read(
         .await
 }
 
+/// 可視の通知カラムに新着が届いたときの既読化。本家 Web が可視ウィンドウへの到着で
+/// 送る `readNotification` と同じで、権限の検査が無い。接続が無い (polling) ときは
+/// 何もしないので、呼ぶ側は次の可視中の取得に任せる
+pub async fn stream_read_notifications(core: &Core, account_id: String) -> Result<()> {
+    let streaming = core.streaming()?;
+    streaming.read_notifications(&account_id).await
+}
+
 pub async fn stream_unsub_note(core: &Core, account_id: String, note_id: String) -> Result<()> {
     let streaming = core.streaming()?;
     streaming.unsub_note(&account_id, &note_id).await

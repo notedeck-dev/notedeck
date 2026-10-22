@@ -109,7 +109,9 @@ pub async fn run_cli(
         Commands::React { note_id, reaction } => notes::run_react(&ctx, note_id, reaction).await,
         Commands::Unreact { note_id } => notes::run_unreact(&ctx, note_id).await,
         Commands::Renote { note_id } => notes::run_renote(&ctx, note_id).await,
-        Commands::Notifications { limit } => notes::run_notifications(&ctx, *limit).await,
+        Commands::Notifications { limit, keep_unread } => {
+            notes::run_notifications(&ctx, *limit, *keep_unread).await
+        }
         Commands::Mentions { limit } => notes::run_mentions(&ctx, *limit).await,
         Commands::Favorite { note_id } => notes::run_favorite(&ctx, note_id).await,
         Commands::Unfavorite { note_id } => notes::run_unfavorite(&ctx, note_id).await,

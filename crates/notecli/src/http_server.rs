@@ -371,7 +371,7 @@ async fn get_notifications(
     let options = opts.into_timeline_options();
     let notifications = state
         .client
-        .get_notifications(&h, &token, &account_id, options)
+        .get_notifications(&h, &token, &account_id, options, false)
         .await?;
     Ok(Json(notifications))
 }

@@ -352,7 +352,14 @@ enum WsCommand {
         kind: String,
         body: Value,
     },
+    /// 通知を全部既読にする (`readNotification`、本家 Web が可視時の到着で送るもの)
+    ReadNotification,
     Shutdown,
+}
+
+/// `readNotification` のフレーム。本家は body を見ず、その口座の通知を全部既読にする
+fn read_notification_frame() -> Value {
+    json!({ "type": "readNotification" })
 }
 
 /// チャンネルへのメッセージの WS フレーム (misskey-js の `Connection.send` と同じ形)
@@ -1002,6 +1009,21 @@ impl StreamingManager {
         Ok(())
     }
 
+    /// 口座の通知を全部既読にする (`readNotification`)。本家 Web UI が可視ウィンドウへの
+    /// 通知到着時に送るものと同じで、権限の検査が無いので既存のトークンで通る。
+    /// 接続が無い (polling) ときは何もしない: その場合は見たときの取得
+    /// (`markAsRead: true`) が既読にする
+    pub async fn read_notifications(&self, account_id: &str) -> Result<(), NoteDeckError> {
+        let conns = self.connections.lock().await;
+        if let Some(handle) = conns.get(account_id) {
+            return handle
+                .cmd_tx
+                .send(WsCommand::ReadNotification)
+                .map_err(|_| NoteDeckError::ConnectionClosed);
+        }
+        Ok(())
+    }
+
     /// 会話のチャンネル (chatUser / chatRoom) で既読をサーバーに送る。本家 Web UI が
     /// 会話を開いている間に届いた他人のメッセージごとに送る `read` と同じで、サーバーは
     /// 相手 / ルーム単位で既読にする (ChatService.readUserChatMessage / readRoomChatMessage)。
@@ -1460,6 +1482,13 @@ async fn ws_loop(
                         let mut w = write.lock().await;
                         if let Err(e) = w.send(Message::Text(msg.to_string().into())).await {
                             tracing::warn!(error = %e, "channel message send failed");
+                        }
+                    }
+                    Some(WsCommand::ReadNotification) => {
+                        let msg = read_notification_frame();
+                        let mut w = write.lock().await;
+                        if let Err(e) = w.send(Message::Text(msg.to_string().into())).await {
+                            tracing::warn!(error = %e, "readNotification send failed");
                         }
                     }
                     Some(WsCommand::Shutdown) | None => {
@@ -2124,6 +2153,7 @@ async fn polling_loop(
                         &token,
                         &account_id,
                         TimelineOptions::new(1, None, None),
+                        false,
                     )
                     .await;
                 let mention_head = api_client
@@ -2161,6 +2191,7 @@ async fn polling_loop(
                         &token,
                         &account_id,
                         TimelineOptions::new(30, main_state.notif_since_id.clone(), None),
+                        false,
                     )
                     .await
                 {
@@ -2686,6 +2717,22 @@ mod tests {
             }
             _ => panic!("read should be sent on the channel"),
         }
+    }
+
+    /// 本家 Web UI が可視ウィンドウへの通知到着時に送る `readNotification` と同じ
+    /// トップレベルメッセージを main の接続に送る。接続が無ければ (polling) 何もしない
+    #[tokio::test]
+    async fn read_notifications_sends_read_notification_frame() {
+        let (manager, mut cmd_rx, _dir) = manager_with_fake_ws().await;
+        manager.read_notifications("acc-1").await.unwrap();
+        assert!(matches!(cmd_rx.try_recv(), Ok(WsCommand::ReadNotification)));
+        // 接続の無い口座は no-op
+        manager.read_notifications("acc-none").await.unwrap();
+        assert!(cmd_rx.try_recv().is_err());
+        assert_eq!(
+            read_notification_frame(),
+            json!({ "type": "readNotification" })
+        );
     }
 
     #[tokio::test]
@@ -3228,7 +3275,7 @@ mod tests {
         // 初回 prime (limit 1・sinceId なし): 既存分を返す。emit されないこと
         Mock::given(method("POST"))
             .and(path("/api/i/notifications"))
-            .and(body_partial_json(json!({"limit": 1})))
+            .and(body_partial_json(json!({"limit": 1, "markAsRead": false})))
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_body_json(json!([raw_notification_json("notif-old")])),
@@ -3246,7 +3293,9 @@ mod tests {
         // 2 回目以降: prime で確立したカーソル付きで新着を返す
         Mock::given(method("POST"))
             .and(path("/api/i/notifications"))
-            .and(body_partial_json(json!({"sinceId": "notif-old"})))
+            .and(body_partial_json(
+                json!({"sinceId": "notif-old", "markAsRead": false}),
+            ))
             .respond_with(
                 ResponseTemplate::new(200)
                     .set_body_json(json!([raw_notification_json("notif-new")])),

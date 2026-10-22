@@ -2794,6 +2794,7 @@
   "_useHeartbeatDaemon.awayReports_plural": "fb53064958ee",
   "_useHeartbeatDaemon.pending_plural": "a2b19d14883a",
   "_useHeartbeatDaemon.sessionMissing": "3810a174509d",
+  "_useLoginPrompt.permissionMissing": "972cce6cdd90",
   "_useLoginPrompt.reloginToContinue": "efc1f9460be6",
   "_useLoginPrompt.sessionExpired": "cdb4fe763386",
   "_useLoginPrompt.sessionExpiredUseMenu": "956f3aff04cf",

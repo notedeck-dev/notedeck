@@ -3007,6 +3007,7 @@ _useLoginPrompt:
   reloginToContinue: "Log in again to continue"
   sessionExpired: "Your login has expired"
   sessionExpiredUseMenu: "Your login has expired. Log in again from the account menu."
+  permissionMissing: "This action needs a new permission. Log in again to use it."
 
 _useHeartbeatDaemon:
   pending_plural:

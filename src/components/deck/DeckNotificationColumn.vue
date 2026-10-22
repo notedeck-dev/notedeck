@@ -46,6 +46,7 @@ import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import { useNoteSound } from '@/composables/useNoteSound'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
+import { useNotificationReadOnView } from '@/composables/useNotificationReadOnView'
 import { usePortal } from '@/composables/usePortal'
 import { useReadMarker } from '@/composables/useReadMarker'
 import { useTabSlide } from '@/composables/useTabSlide'
@@ -133,6 +134,14 @@ const isCrossAccount = computed(() => props.column.accountId == null)
 // 全アカウント面ではノートの基準サーバーを絶対にする (#1059)
 provideNoteFrame(isCrossAccount)
 const accountsStore = useAccountsStore()
+// 既読は「見たとき」だけ (#330 §3.2): 可視になったら取得で、可視中の新着は WS で既読にする
+const readOnView = useNotificationReadOnView(props.column.id, () =>
+  isCrossAccount.value
+    ? accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id)
+    : props.column.accountId
+      ? [props.column.accountId]
+      : [],
+)
 const serversStore = useServersStore()
 const multiAdapters = useMultiAccountAdapters()
 
@@ -1068,6 +1077,7 @@ async function connectPerAccount(useCache = false) {
         onInsert: (item) => {
           const notification = queryItemAsNotification(item)
           if (!notification) return
+          readOnView.onArrival(accountId)
           if (!props.column.soundMuted) noteSound.play()
           rafBuffer.push(notification)
           if (rafId === null) {
@@ -1200,6 +1210,7 @@ async function connectCrossAccount(useCache = false) {
         onInsert: (item) => {
           const notification = queryItemAsNotification(item)
           if (!notification) return
+          readOnView.onArrival(acc.id)
           // 全アカウント面はカラムにアカウントが無いので、取得元のサーバーで鳴らす
           if (!props.column.soundMuted) noteSound.play(acc.host)
           rafBuffer.push(notification)

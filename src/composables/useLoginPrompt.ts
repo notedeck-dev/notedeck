@@ -41,3 +41,25 @@ export function showReloginPrompt(accountId?: string): void {
     toast.show(i18n.ts._useLoginPrompt.sessionExpiredUseMenu, 'warning')
   }
 }
+
+/**
+ * 権限不足 (PERMISSION_DENIED) の案内。要求する権限を後から増やしたとき、以前の
+ * トークンのままの口座には再ログインしてもらう (例: `write:notifications` の
+ * 「全部既読」)。失効ではないので、同じ口座への表示は失効の案内と同じく抑止する
+ */
+export function showPermissionReloginPrompt(accountId: string): void {
+  const now = Date.now()
+  const last = reloginPromptShownAt.get(accountId)
+  if (last !== undefined && now - last < RELOGIN_PROMPT_DEDUPE_MS) return
+  reloginPromptShownAt.set(accountId, now)
+  const toast = useToast()
+  const account = useAccountsStore().accounts.find((a) => a.id === accountId)
+  if (!account) return
+  const { relogin } = useAccountActions()
+  toast.show(i18n.ts._useLoginPrompt.permissionMissing, 'warning', {
+    action: {
+      label: i18n.ts._common.relogin,
+      onClick: () => relogin(account),
+    },
+  })
+}

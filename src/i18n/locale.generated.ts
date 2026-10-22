@@ -4960,6 +4960,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "sessionExpired": string
     /** ログインの有効期限が切れました。アカウントメニューから再ログインしてください。 */
     readonly "sessionExpiredUseMenu": string
+    /** この操作には新しい権限が要ります。再ログインすると使えます。 */
+    readonly "permissionMissing": string
   }
   readonly "_useHeartbeatDaemon": {
     /** 確認待ちの操作が {count} 件あります */

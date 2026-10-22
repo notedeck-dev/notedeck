@@ -2736,6 +2736,7 @@ _useLoginPrompt:
   reloginToContinue: "再ログインすると操作できます"
   sessionExpired: "ログインの有効期限が切れました"
   sessionExpiredUseMenu: "ログインの有効期限が切れました。アカウントメニューから再ログインしてください。"
+  permissionMissing: "この操作には新しい権限が要ります。再ログインすると使えます。"
 
 _useHeartbeatDaemon:
   pending_plural:

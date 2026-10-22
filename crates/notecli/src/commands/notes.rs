@@ -215,7 +215,11 @@ pub async fn run_renote(ctx: &CmdContext, note_id: &str) -> Result<(), NoteDeckE
     Ok(())
 }
 
-pub async fn run_notifications(ctx: &CmdContext, limit: i64) -> Result<(), NoteDeckError> {
+pub async fn run_notifications(
+    ctx: &CmdContext,
+    limit: i64,
+    keep_unread: bool,
+) -> Result<(), NoteDeckError> {
     let notifications = ctx
         .client
         .get_notifications(
@@ -223,6 +227,7 @@ pub async fn run_notifications(ctx: &CmdContext, limit: i64) -> Result<(), NoteD
             &ctx.token,
             &ctx.account.id,
             TimelineOptions::new(limit, None, None),
+            !keep_unread,
         )
         .await?;
     print_notifications(&notifications, ctx.fmt);
