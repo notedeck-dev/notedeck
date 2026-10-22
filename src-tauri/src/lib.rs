@@ -671,6 +671,19 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             app_state.initialize(db.clone(), client.clone());
             stage("stage2-full-ready");
 
+            // 通知を配る main チャンネルを、カラムではなく口座セッションが張る (#330 §3.1)。
+            // 先に永続化された接続モード (polling) を適用してから張る: 逆だと WS が一瞬
+            // 開いてから閉じる
+            {
+                let core: commands::AppState = app_state.inner().clone();
+                tauri::async_runtime::spawn(async move {
+                    notecore::stream_mode::apply(&core, true).await;
+                    if let Err(e) = notecore::commands::streaming::stream_subscribe_main_all(&core).await {
+                        tracing::warn!("[stream] main for all accounts at boot: {e}");
+                    }
+                });
+            }
+
             // OGP cache (lazy-loaded on first access via ensure_loaded())
             let ogp_cache = notecore::ogp::OgpCache::with_client(db.clone(), shared_http, shared_perf_bg.clone());
             app_state.set_ogp(ogp_cache.clone());
@@ -1179,6 +1192,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::auth_complete_and_save,
             commands::stream_connect,
             commands::stream_subscribe_main,
+            commands::stream_subscribe_main_all,
             commands::stream_disconnect,
             commands::stream_set_mode,
             commands::stream_sub_note,

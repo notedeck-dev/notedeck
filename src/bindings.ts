@@ -1782,6 +1782,15 @@ async streamSubscribeMain(accountId: string) : Promise<Result<null, { code: stri
 }
 },
 /** @see crates/notecore/src/commands/streaming.rs */
+async streamSubscribeMainAll() : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("stream_subscribe_main_all") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/streaming.rs */
 async streamDisconnect(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("stream_disconnect", { accountId }) };
