@@ -25,6 +25,11 @@ vi.mock('@/bindings', () => ({
   commands: { apiReadNotificationsOnView, streamReadNotifications },
 }))
 
+const realtime = vi.hoisted(() => ({ isRealtime: true }))
+vi.mock('@/stores/realtimeMode', () => ({
+  useRealtimeModeStore: () => realtime,
+}))
+
 function mountWith(getAccountIds: () => string[]) {
   let api!: ReturnType<typeof useNotificationReadOnView>
   const Host = defineComponent({
@@ -48,6 +53,7 @@ describe('useNotificationReadOnView', () => {
     setActivePinia(createPinia())
     apiReadNotificationsOnView.mockClear()
     streamReadNotifications.mockClear()
+    realtime.isRealtime = true
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
   })
 
@@ -83,6 +89,17 @@ describe('useNotificationReadOnView', () => {
     await nextTick()
     api.onArrival('a')
     expect(streamReadNotifications).toHaveBeenCalledTimes(1)
+    unmount()
+  })
+
+  it('ポーリング中の新着は WS が無いので取得で既読にする', async () => {
+    realtime.isRealtime = false
+    const { api, unmount } = mountWith(() => ['a'])
+    await nextTick()
+    apiReadNotificationsOnView.mockClear()
+    api.onArrival('a')
+    expect(streamReadNotifications).not.toHaveBeenCalled()
+    expect(apiReadNotificationsOnView).toHaveBeenCalledWith('a')
     unmount()
   })
 })

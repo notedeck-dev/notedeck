@@ -89,11 +89,12 @@ describe('notedeck://<host>/note/<id>?account=', () => {
     })
   })
 
-  it('account 指定が実在しない / トークンが無ければ開かず知らせる', async () => {
+  it('account 指定が実在しない / トークンが無い / 空なら開かず知らせる', async () => {
     await handleDeepLink('notedeck://example.com/note/n1?account=u-none')
     await handleDeepLink('notedeck://example.com/note/n1?account=u-c')
+    await handleDeepLink('notedeck://example.com/note/n1?account=')
     expect(openWindow).not.toHaveBeenCalled()
-    expect(toastShow).toHaveBeenCalledTimes(2)
+    expect(toastShow).toHaveBeenCalledTimes(3)
   })
 })
 

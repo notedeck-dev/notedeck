@@ -1,5 +1,6 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { useColumnLive } from '@/composables/useColumnMount'
+import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { commands } from '@/utils/tauriInvoke'
 
 /**
@@ -11,7 +12,7 @@ import { commands } from '@/utils/tauriInvoke'
  *
  * - 可視になったとき: 口座ごとに `markAsRead: true` の取得で既読にする (権限不要)
  * - 可視のまま新着が届いたとき: WS の `readNotification` で既読にする (本家 Web と同じ、
- *   権限不要。polling 中は接続が無いので何もせず、次の可視中の取得に任せる)
+ *   権限不要)。ポーリング中は WS が無いので、可視になったときと同じ取得で既読にする
  *
  * 通知の取得そのものは既読にしないので、復帰時の補填やポーリングで「見ていないのに
  * 既読」にならない。
@@ -64,7 +65,10 @@ export function useNotificationReadOnView(
   /** 新着が届いたときに呼ぶ。見ている最中なら既読にする */
   function onArrival(accountId: string) {
     if (!viewed.value) return
-    commands.streamReadNotifications(accountId).catch(() => {
+    const read = useRealtimeModeStore().isRealtime
+      ? commands.streamReadNotifications(accountId)
+      : commands.apiReadNotificationsOnView(accountId)
+    read.catch(() => {
       // 同上
     })
   }

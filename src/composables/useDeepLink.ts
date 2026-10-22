@@ -130,9 +130,10 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
   if (!host) return
 
   const accountsStore = useAccountsStore()
-  const requestedUserId = url.searchParams.get('account')
   let account: (typeof accountsStore.accounts)[number] | undefined
-  if (requestedUserId) {
+  if (url.searchParams.has('account')) {
+    // 空の指定 (`?account=`) も不一致として扱う。壊れたリンクを先頭の口座で開かない
+    const requestedUserId = url.searchParams.get('account') ?? ''
     account = accountsStore.accounts.find(
       (a) => a.host === host && a.userId === requestedUserId && a.hasToken,
     )
