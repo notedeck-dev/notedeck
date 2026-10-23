@@ -1928,6 +1928,8 @@
   "_native.notification.channels.other": "84e2338840f9",
   "_native.notification.channels.posts": "0647acc5386e",
   "_native.notification.channels.reactions": "edc18730c2b9",
+  "_native.notification.chatFile": "32d31cc2a80c",
+  "_native.notification.chatInRoom": "19dc0f4c2927",
   "_native.notification.follow": "7572d7ddaae1",
   "_native.notification.followRequestAccepted": "538b7ff23277",
   "_native.notification.generic": "646bb04d1f6c",

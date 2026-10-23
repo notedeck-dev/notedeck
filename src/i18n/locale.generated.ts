@@ -6331,6 +6331,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "listSeparator": string
       /** 投稿 */
       readonly "note": string
+      /** ファイルを送信しました */
+      readonly "chatFile": string
+      /** {sender} ({room}) */
+      readonly "chatInRoom": ParameterizedString<'room' | 'sender'>
       readonly "channels": {
         /** メンション・返信 */
         readonly "mentions": string

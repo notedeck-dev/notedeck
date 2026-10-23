@@ -3495,6 +3495,8 @@ _native:
     groupOthers: "{names} ほか"
     listSeparator: "、"
     note: "投稿"
+    chatFile: "ファイルを送信しました"
+    chatInRoom: "{sender} ({room})"
     channels:
       mentions: "メンション・返信"
       reactions: "リアクション・リノート"

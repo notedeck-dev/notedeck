@@ -296,6 +296,90 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         }
     }
 
+    /// メッセージの新着を OS 通知にする。deep link に要る口座のサーバーは口座表から引く
+    fn send_native_chat_notification(
+        &self,
+        ev: &notecore::stream_fanout::StreamNewChatMessageEvent,
+    ) {
+        let host = self
+            .app
+            .try_state::<crate::commands::AppState>()
+            .and_then(|core| core.accounts().ok())
+            .and_then(|store| store.get(&ev.account_id).ok().flatten())
+            .map(|a| a.host.clone());
+        let Some(host) = host else {
+            tracing::warn!(account = %ev.account_id, "[notification] chat: account host unknown");
+            return;
+        };
+        if let OsNotifPlan::ShowNow {
+            title,
+            body,
+            context,
+            media,
+            deep_link,
+            android,
+        } = self.plan_chat_notification(ev, &host)
+        {
+            show_os_notification(
+                &self.app,
+                &title,
+                body.as_deref(),
+                context.as_ref(),
+                media.as_ref(),
+                deep_link.as_deref(),
+                android.as_ref(),
+            );
+        }
+    }
+
+    /// メッセージの OS 通知の判定 (表示副作用なし)。同じメッセージは 1 回だけ。
+    /// バースト集約はしない (通知とは別の種類で、まとめると文面が消えるため)
+    fn plan_chat_notification(
+        &self,
+        ev: &notecore::stream_fanout::StreamNewChatMessageEvent,
+        host: &str,
+    ) -> OsNotifPlan {
+        {
+            let mut seen = self.recent_notif_ids.lock().unwrap();
+            if !seen.insert(format!("chat:{}", ev.message.id)) {
+                return OsNotifPlan::Suppress;
+            }
+            if seen.len() > DEDUP_MAX_IDS {
+                seen.clear();
+            }
+        }
+        let notecore::notify_plan::NotifyPlan {
+            title,
+            body,
+            click,
+            icon_url,
+            image_url,
+            deep_link,
+            channel,
+            tag,
+            id,
+        } = notecore::notify_plan::plan_chat(&ev.message, host, &crate::ui_lang::current());
+        OsNotifPlan::ShowNow {
+            title,
+            body,
+            context: click.map(|c| NotificationClicked {
+                account_id: c.account_id,
+                note_id: c.note_id,
+                user_id: c.user_id,
+            }),
+            media: (icon_url.is_some() || image_url.is_some()).then_some(NotifyMedia {
+                icon_url,
+                image_url,
+            }),
+            deep_link,
+            android: Some(AndroidNotifyKey {
+                tag,
+                id,
+                channel_id: channel.id(),
+            }),
+        }
+    }
+
     fn send_native_notification(&self, notification: &NormalizedNotification) {
         match self.plan_os_notification(notification) {
             OsNotifPlan::Suppress => {}
@@ -511,8 +595,13 @@ impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
                 .emit(&self.app)
                 .err(),
             E::EmojiChanged(e) => StreamEmojiChanged((**e).clone()).emit(&self.app).err(),
-            E::MainEvent(_) => notecore::stream_fanout::new_chat_message(&event)
-                .and_then(|m| StreamNewChatMessage(m).emit(&self.app).err()),
+            E::MainEvent(_) => notecore::stream_fanout::new_chat_message(&event).and_then(|m| {
+                // メッセージの新着も OS 通知にする (#330 §4.1)。サーバーは受信から
+                // 3 秒たっても既読にならなかった他人のメッセージだけを流すので、
+                // 開いている会話の分はここに来ない
+                self.send_native_chat_notification(&m);
+                StreamNewChatMessage(m).emit(&self.app).err()
+            }),
             _ => None,
         };
         if let Some(e) = dedicated {
@@ -1046,6 +1135,51 @@ mod tests {
         emitter.visible_scopes.0.lock().unwrap().clear();
         *emitter.last_os_notif.lock().unwrap() = None;
         assert!(shown(&test_notification("v3", "mention")));
+    }
+
+    /// メッセージの新着は「メッセージ」チャネルの OS 通知になり、同じメッセージは 1 回だけ
+    #[test]
+    fn chat_message_plans_os_notification_once() {
+        let app = mock_app();
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
+        let ev = notecore::stream_fanout::StreamNewChatMessageEvent {
+            account_id: "acct-1".into(),
+            message: serde_json::from_value(json!({
+                "id": "m1",
+                "_accountId": "acct-1",
+                "createdAt": "2026-01-01T00:00:00.000Z",
+                "fromUserId": "u2",
+                "fromUser": { "id": "u2", "username": "bob", "name": "Bob" },
+                "toUserId": "u1",
+                "text": "hi",
+                "reactions": [],
+            }))
+            .unwrap(),
+        };
+        match emitter.plan_chat_notification(&ev, "misskey.example") {
+            OsNotifPlan::ShowNow {
+                title,
+                body,
+                android,
+                deep_link,
+                ..
+            } => {
+                assert_eq!(title, "Bob");
+                assert_eq!(body.as_deref(), Some("hi"));
+                let key = android.expect("android key");
+                assert_eq!(key.channel_id, "notedeck_messages");
+                assert_eq!(key.tag, "chat:acct-1");
+                assert_eq!(
+                    deep_link.as_deref(),
+                    Some("notedeck://misskey.example/chat/user/u2")
+                );
+            }
+            _ => panic!("chat message should be shown"),
+        }
+        assert!(matches!(
+            emitter.plan_chat_notification(&ev, "misskey.example"),
+            OsNotifPlan::Suppress
+        ));
     }
 
     #[test]

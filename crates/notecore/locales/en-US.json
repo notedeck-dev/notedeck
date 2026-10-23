@@ -369,6 +369,8 @@
       "groupOthers": "{names} and others",
       "listSeparator": ", ",
       "note": "New post",
+      "chatFile": "Sent a file",
+      "chatInRoom": "{sender} ({room})",
       "channels": {
         "mentions": "Mentions & replies",
         "reactions": "Reactions & renotes",

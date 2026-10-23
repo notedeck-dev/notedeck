@@ -6,7 +6,7 @@
 //! ネットワーク・Tauri・端末 API には触らない (tests/lint/rustCoreBoundary が検査)。
 //! 画像のローカル化 (キャッシュ) は手元側の仕事。
 
-use notecli::models::NormalizedNotification;
+use notecli::models::{ChatMessage, NormalizedNotification};
 use serde_json::json;
 
 use crate::i18n;
@@ -239,6 +239,54 @@ pub fn plan(n: &NormalizedNotification, lang: &str) -> Option<NotifyPlan> {
     })
 }
 
+/// メッセージ (チャット) の新着を OS 通知の内容に組み立てる。見出しは送信者
+/// (ルームなら「送信者 (ルーム名)」)、本文はテキスト (無ければファイルを送った旨)。
+/// タップで相手との会話 (ルームはメッセージのカラム) を開く。`server_host` は
+/// 口座のサーバー (deep link 用)
+pub fn plan_chat(m: &ChatMessage, server_host: &str, lang: &str) -> NotifyPlan {
+    let sender = m
+        .from_user
+        .as_ref()
+        .map(|u| u.name.clone().unwrap_or_else(|| u.username.clone()))
+        .unwrap_or_else(|| i18n::render(lang, "_native.notification.someone", &json!({})));
+    let room_name = m
+        .to_room
+        .as_ref()
+        .map(|r| r.name.clone().unwrap_or_else(|| r.id.clone()));
+    let title = match &room_name {
+        Some(room) => i18n::render(
+            lang,
+            "_native.notification.chatInRoom",
+            &json!({ "sender": sender, "room": room }),
+        ),
+        None => sender,
+    };
+    let body = m.text.clone().filter(|t| !t.trim().is_empty()).or_else(|| {
+        m.file
+            .is_some()
+            .then(|| i18n::render(lang, "_native.notification.chatFile", &json!({})))
+    });
+    let deep_link = match &m.to_room_id {
+        Some(room_id) => format!("notedeck://{server_host}/chat/room/{room_id}"),
+        None => format!("notedeck://{server_host}/chat/user/{}", m.from_user_id),
+    };
+    NotifyPlan {
+        title,
+        body,
+        click: Some(ClickTarget {
+            account_id: m.account_id.clone(),
+            note_id: None,
+            user_id: Some(m.from_user_id.clone()),
+        }),
+        channel: Channel::Messages,
+        tag: notify_tag(&m.account_id, NotifyKind::Message),
+        id: notify_id(&m.id),
+        icon_url: m.from_user.as_ref().and_then(|u| u.avatar_url.clone()),
+        image_url: None,
+        deep_link: Some(deep_link),
+    }
+}
+
 /// 実績の表示名 (TS と同じ辞書の `_achievementLabels`)。辞書に無い実績は id のまま
 pub fn achievement_label(lang: &str, name: &str) -> String {
     let key = format!("_achievementLabels.{name}");
@@ -252,7 +300,7 @@ pub fn achievement_label(lang: &str, name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use notecli::models::NormalizedNotification;
+    use notecli::models::{ChatMessage, NormalizedNotification};
     use serde_json::json;
 
     use super::*;
@@ -380,6 +428,55 @@ mod tests {
         assert_eq!(Channel::Mentions.label("ja-JP"), "メンション・返信");
         assert!(Channel::Messages.important() && !Channel::Other.important());
         assert_eq!(Channel::ALL.len(), 7);
+    }
+
+    /// メッセージは送信者を見出し、本文をそのまま。ファイルだけなら定型文。
+    /// タップで相手との会話を開く (ルームはメッセージのカラム)
+    #[test]
+    fn chat_message_builds_sender_title_and_conversation_link() {
+        let dm: ChatMessage = serde_json::from_value(json!({
+            "id": "m1",
+            "_accountId": "acct-1",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "fromUserId": "u2",
+            "fromUser": { "id": "u2", "username": "bob", "name": "Bob", "avatarUrl": "https://misskey.example/b.png" },
+            "toUserId": "u1",
+            "text": "こんにちは",
+            "reactions": [],
+        }))
+        .unwrap();
+        let p = plan_chat(&dm, "misskey.example", "ja-JP");
+        assert_eq!(p.title, "Bob");
+        assert_eq!(p.body.as_deref(), Some("こんにちは"));
+        assert_eq!(p.channel, Channel::Messages);
+        assert_eq!(p.tag, "chat:acct-1");
+        assert_eq!(p.id, notify_id("m1"));
+        assert_eq!(
+            p.deep_link.as_deref(),
+            Some("notedeck://misskey.example/chat/user/u2")
+        );
+        assert_eq!(p.icon_url.as_deref(), Some("https://misskey.example/b.png"));
+
+        let room: ChatMessage = serde_json::from_value(json!({
+            "id": "m2",
+            "_accountId": "acct-1",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "fromUserId": "u2",
+            "fromUser": { "id": "u2", "username": "bob" },
+            "toRoomId": "r1",
+            "toRoom": { "id": "r1", "name": "雑談" },
+            "fileId": "f1",
+            "file": { "id": "f1", "name": "a.png", "type": "image/png", "url": "https://x/a.png" },
+            "reactions": [],
+        }))
+        .unwrap();
+        let p = plan_chat(&room, "misskey.example", "ja-JP");
+        assert_eq!(p.title, "bob (雑談)");
+        assert_eq!(p.body.as_deref(), Some("ファイルを送信しました"));
+        assert_eq!(
+            p.deep_link.as_deref(),
+            Some("notedeck://misskey.example/chat/room/r1")
+        );
     }
 
     #[test]
