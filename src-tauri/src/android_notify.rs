@@ -171,6 +171,31 @@ pub fn show(
     );
 }
 
+/// 通知が OS で許可されているか。入口の登録前は None
+pub fn notifications_enabled() -> Option<bool> {
+    let bridge = BRIDGE.get()?;
+    let mut env = bridge.vm.attach_current_thread().ok()?;
+    let result = env
+        .call_static_method(&bridge.renderer_class, "notificationsEnabled", "()Z", &[])
+        .and_then(|v| v.z());
+    match result {
+        Ok(enabled) => Some(enabled),
+        Err(e) => {
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_describe();
+                let _ = env.exception_clear();
+            }
+            tracing::warn!("[notification] notificationsEnabled failed: {e}");
+            None
+        }
+    }
+}
+
+/// OS のこのアプリの通知設定を開く
+pub fn open_settings() {
+    call_static("openSettings", "()V", |_env| Ok(vec![]), None);
+}
+
 /// tag の通知を全部消す (既読になった口座の分)
 pub fn cancel(tag: &str) {
     call_static(

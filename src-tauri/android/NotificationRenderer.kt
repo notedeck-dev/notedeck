@@ -101,6 +101,32 @@ object NotificationRenderer {
     }
   }
 
+  /** 通知が OS で許可されているか (権限の拒否 / アプリ単位のブロックを含む) */
+  @JvmStatic
+  fun notificationsEnabled(): Boolean {
+    val context = appContext ?: return true
+    return androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+  }
+
+  /** OS のこのアプリの通知設定を開く (拒否が重なってダイアログが出なくなった後の導線) */
+  @JvmStatic
+  fun openSettings() {
+    val context = appContext ?: return
+    try {
+      val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+          .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+      } else {
+        Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+          .setData(android.net.Uri.parse("package:" + context.packageName))
+      }
+      intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+      context.startActivity(intent)
+    } catch (e: Throwable) {
+      Log.w(TAG, "Failed to open notification settings", e)
+    }
+  }
+
   /** tag の通知を全部消す (既読になった口座の分)。Rust から JNI で呼ばれる */
   @JvmStatic
   fun cancel(tag: String) {

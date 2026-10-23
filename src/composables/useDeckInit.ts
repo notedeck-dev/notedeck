@@ -15,6 +15,7 @@ import {
 } from '@/composables/useDeckWindow'
 import { handleDeepLink } from '@/composables/useDeepLink'
 import { useMainStreamKeeper } from '@/composables/useMainStreamKeeper'
+import { useNotificationPermissionPrompt } from '@/composables/useNotificationPermissionPrompt'
 import { initOgpListener } from '@/composables/useOgpPreview'
 import { useOsGlobalShortcuts } from '@/composables/useOsGlobalShortcuts'
 import { destroyApiBridge, initApiBridge } from '@/core/apiBridge'
@@ -58,6 +59,7 @@ export function useDeckInit(options: {
   // useDeckResume に一元化。ここは検知後の下流処理だけを持つ
   useDeckResume()
   useMainStreamKeeper()
+  useNotificationPermissionPrompt()
   // 対になる離脱検知 (#986)。猶予を超えて隠れたら購読を warm に落とす
   useAppBackground()
 

@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import { computed, ref, toRef } from 'vue'
+import { computed, ref, toRef, watch } from 'vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
+import { useNotificationPermissionState } from '@/composables/useNotificationPermissionState'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { webUiUrl } from '@/services/safeUrl'
 import { modeIcon } from '@/services/timelinePolicy'
 import { type Account, isGuestAccount } from '@/stores/accounts'
+import { useUiStore } from '@/stores/ui'
 import { modeLabel } from '@/utils/customTimelines'
 import { hapticSelection } from '@/utils/haptics'
 import { openSafeUrl } from '@/utils/url'
@@ -42,6 +44,21 @@ useNativeDialog(
   {
     onCancel: () => emit('close'),
     leaveDuration: 200,
+  },
+)
+
+// 閉じている間の通知の状態行 (#330 §4.5)。モバイルは定期確認、デスクトップは開いている
+// 間だけ。Android で通知が許可されていなければ OS の設定への導線を出す
+const uiStore = useUiStore()
+const {
+  granted: notificationPermissionGranted,
+  refresh: refreshNotificationPermission,
+  openSettings: openOsNotificationSettings,
+} = useNotificationPermissionState()
+watch(
+  () => props.show,
+  (show) => {
+    if (show && uiStore.isMobilePlatform) void refreshNotificationPermission()
   },
 )
 
@@ -105,6 +122,18 @@ const hasUpperSection = computed(
         <i class="ti ti-eraser" />
       </button>
       <template v-if="account.hasToken">
+        <div :class="$style.navAccountMenuStatus">
+          {{ uiStore.isMobilePlatform ? i18n.ts._backgroundNotify.polling : i18n.ts._backgroundNotify.foregroundOnly }}
+        </div>
+        <button
+          v-if="notificationPermissionGranted === false"
+          class="_button"
+          :class="[$style.navAccountMenuItem, $style.navAccountRelogin]"
+          @click="openOsNotificationSettings"
+        >
+          <span>{{ i18n.ts._backgroundNotify.permissionDenied }} — {{ i18n.ts._backgroundNotify.openSettings }}</span>
+          <i class="ti ti-bell-off" />
+        </button>
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
           <span>{{ i18n.ts._common.logout }}</span>
           <i class="ti ti-logout" />
@@ -148,6 +177,12 @@ const hasUpperSection = computed(
   &:focus-visible {
     outline: none;
   }
+}
+
+.navAccountMenuStatus {
+  padding: 6px 16px 2px;
+  font-size: var(--nd-font-sm);
+  color: var(--nd-fgMuted);
 }
 
 .navAccountMenuItem {

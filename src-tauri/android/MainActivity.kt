@@ -31,7 +31,8 @@ class MainActivity : TauriActivity() {
     // 預け、Rust に JavaVM とクラス参照を渡す (ネイティブライブラリは super が読み込み済み)
     NotificationRenderer.init(applicationContext)
     NotificationBridge.register(applicationContext)
-    requestNotificationPermission()
+    // 通知の権限は起動時ではなく、最初の口座を追加した直後に説明つきで求める
+    // (#330 §4.5)。Rust の request_notification_permission から JNI で呼ばれる
     scheduleNotificationPolling()
   }
 
@@ -88,7 +89,8 @@ class MainActivity : TauriActivity() {
     return null
   }
 
-  private fun requestNotificationPermission() {
+  /** 通知の権限を求める (Android 13+)。Rust から JNI (call_method) で呼ばれる */
+  fun requestNotificationPermission() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       if (ContextCompat.checkSelfPermission(
           this,

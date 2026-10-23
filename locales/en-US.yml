@@ -2899,6 +2899,16 @@ _widgetCapabilities:
   loginRequired: "A logged-in account is required"
 
 # notedeck:// リンクからのインストール確認 (#1204)
+_notifyPermission:
+  title: "Notifications"
+  message: "Notifications arrive right away while the app is open. While it is closed, NoteDeck checks periodically (this can be delayed while saving power)."
+
+_backgroundNotify:
+  polling: "Notifications while closed: checked periodically"
+  foregroundOnly: "Notifications arrive while the app is open"
+  permissionDenied: "Notifications are not allowed"
+  openSettings: "Open OS notification settings"
+
 _deepLink:
   accountNotFound: "You are not logged in as the account this link refers to"
 _deepLinkInstall:
