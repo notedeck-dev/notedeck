@@ -184,6 +184,8 @@ fn show_os_notification<R: tauri::Runtime>(
         // variant を要求する (静止画のみ縮小、アニメーションは原本素通し)
         const AVATAR_MAX_WIDTH: u32 = 256;
 
+        // 遷移先は純関数が組んだ deep link で渡る。context はデスクトップのクリック用
+        let _ = context;
         let deep_link = deep_link.map(str::to_string);
         let app = app.clone();
         let title = title.to_string();
@@ -232,8 +234,8 @@ fn show_os_notification<R: tauri::Runtime>(
     }
 }
 
-/// MainActivity.showRichNotification を JNI で呼ぶ。avatar_path / image_path
-/// は ImageCache のローカルファイル (URL ではない)。
+/// NotificationRenderer.show を JNI の静的メソッドとして呼ぶ (Activity 非依存、
+/// android_notify.rs)。avatar_path / image_path は ImageCache のローカルファイル。
 #[cfg(target_os = "android")]
 fn show_android_notification(
     title: &str,
@@ -242,69 +244,14 @@ fn show_android_notification(
     avatar_path: Option<&str>,
     image_path: Option<&str>,
 ) {
-    use jni::objects::{JObject, JValue};
-
-    let ctx = ndk_context::android_context();
-    let vm = match unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) } {
-        Ok(vm) => vm,
-        Err(e) => {
-            tracing::warn!("[notification] JavaVM unavailable: {e}");
-            return;
-        }
-    };
-    let mut env = match vm.attach_current_thread() {
-        Ok(env) => env,
-        Err(e) => {
-            tracing::warn!("[notification] attach_current_thread failed: {e}");
-            return;
-        }
-    };
-    let activity = unsafe { JObject::from_raw(ctx.context().cast()) };
-
-    // Option<&str> → Java の String / null
-    fn jstr<'a>(
-        env: &mut jni::JNIEnv<'a>,
-        s: Option<&str>,
-    ) -> std::result::Result<JObject<'a>, jni::errors::Error> {
-        match s {
-            Some(s) => Ok(env.new_string(s)?.into()),
-            None => Ok(JObject::null()),
-        }
-    }
-
-    let result = (|| -> std::result::Result<(), jni::errors::Error> {
-        let j_title = jstr(&mut env, Some(title))?;
-        let j_body = jstr(&mut env, body)?;
-        let j_link = jstr(&mut env, deep_link)?;
-        let j_avatar = jstr(&mut env, avatar_path)?;
-        let j_image = jstr(&mut env, image_path)?;
-
-        env.call_method(
-            &activity,
-            "showRichNotification",
-            "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
-            &[
-                JValue::Int(next_notification_id()),
-                JValue::Object(&j_title),
-                JValue::Object(&j_body),
-                JValue::Object(&j_link),
-                JValue::Object(&j_avatar),
-                JValue::Object(&j_image),
-            ],
-        )?;
-        Ok(())
-    })();
-    if let Err(e) = result {
-        // Err を warn するだけで済ませると JVM 側の pending exception が残り、
-        // 同一スレッドの次の JNI 呼び出しで ART が "called with pending
-        // exception" として abort する (プロセス即死)。必ずクリアする
-        // (describe で logcat に原因を残す)
-        if env.exception_check().unwrap_or(false) {
-            let _ = env.exception_describe();
-            let _ = env.exception_clear();
-        }
-        tracing::warn!("[notification] JNI call failed: {e}");
-    }
+    crate::android_notify::show(
+        next_notification_id(),
+        title,
+        body,
+        deep_link,
+        avatar_path,
+        image_path,
+    );
 }
 
 /// Android の通知タップで開く deep link。デスクトップの遷移仕様に合わせ、

@@ -12,6 +12,8 @@ mkdir -p "$JAVA_DIR"
 
 cp "$SCRIPT_DIR/MainActivity.kt" "$JAVA_DIR/MainActivity.kt"
 cp "$SCRIPT_DIR/NotificationWorker.kt" "$JAVA_DIR/NotificationWorker.kt"
+cp "$SCRIPT_DIR/NotificationRenderer.kt" "$JAVA_DIR/NotificationRenderer.kt"
+cp "$SCRIPT_DIR/NotificationBridge.kt" "$JAVA_DIR/NotificationBridge.kt"
 cp "$SCRIPT_DIR/AndroidManifest.xml" "$GEN_DIR/AndroidManifest.xml"
 
 # networkSecurityConfig (#921): release はループバック (127.0.0.1) のみ

@@ -26,6 +26,8 @@ pub mod http_server {
         notecore::http_server::build_openapi(env!("CARGO_PKG_VERSION"))
     }
 }
+#[cfg(target_os = "android")]
+mod android_notify;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
 mod ipc_index;
