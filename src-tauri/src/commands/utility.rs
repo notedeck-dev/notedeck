@@ -52,6 +52,20 @@ pub fn notification_take_pending_click(
     state.0.lock().ok().and_then(|mut pending| pending.take())
 }
 
+/// 見えている通知カラムの口座を写す (#330 §3.3)。フロントがカラムの可視 (viewport 内 +
+/// フォーカス) の変化ごとに和集合を送る。含まれる口座の通知は OS 通知にしない
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub fn set_visible_notification_scopes(
+    state: tauri::State<'_, crate::os_notify::VisibleNotificationScopes>,
+    account_ids: Vec<String>,
+) {
+    if let Ok(mut scopes) = state.0.lock() {
+        *scopes = account_ids.into_iter().collect();
+    }
+}
+
 /// Android のステータスバー/ナビゲーションバーのアイコン色をアプリテーマに
 /// 追従させる (#755)。edge-to-edge (enableEdgeToEdge) 環境ではバー背景は
 /// WebView がそのまま透けるため、切り替えが必要なのはアイコンの明暗のみ。

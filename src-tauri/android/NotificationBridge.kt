@@ -16,4 +16,12 @@ object NotificationBridge {
   /** JavaVM とクラス参照を Rust に預ける。冪等 */
   @JvmStatic
   external fun register(context: Context)
+
+  /**
+   * Activity が前面にあるか (onStart / onStop)。前面で通知カラムが見えているときの
+   * OS 通知の抑止に使う (#330 §3.3)。WebView の可視性は凍結中に古いまま残りうる
+   * ので、OS が確定的に呼ぶこちらを正とする
+   */
+  @JvmStatic
+  external fun setForeground(foreground: Boolean)
 }

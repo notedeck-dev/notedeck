@@ -265,6 +265,8 @@ pub struct TauriEmitter<R: tauri::Runtime = tauri::Wry> {
     /// Tracks recently shown notification IDs to prevent duplicate OS notifications
     /// when multiple subscriptions exist for the same account.
     recent_notif_ids: Mutex<HashSet<String>>,
+    /// 見えている通知カラムの口座 (managed state の写し。テストでは直接触る)
+    visible_scopes: crate::os_notify::VisibleNotificationScopes,
     /// 直近に OS 通知を出した (またはバッファした) 時刻。バースト判定用。
     #[cfg(not(target_os = "android"))]
     last_os_notif: Mutex<Option<Instant>>,
@@ -278,10 +280,15 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         app: AppHandle<R>,
         observation: Arc<notecore::stream_fanout::StreamObservation>,
     ) -> Self {
+        let visible_scopes = app
+            .try_state::<crate::os_notify::VisibleNotificationScopes>()
+            .map(|s| s.inner().clone())
+            .unwrap_or_default();
         Self {
             app,
             observation,
             recent_notif_ids: Mutex::new(HashSet::new()),
+            visible_scopes,
             #[cfg(not(target_os = "android"))]
             last_os_notif: Mutex::new(None),
             #[cfg(not(target_os = "android"))]
@@ -337,6 +344,20 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         }
     }
 
+    /// その口座の通知カラムが見えているか。Android では WebView の可視性が凍結中に
+    /// 古いまま残りうるので、Activity の前面フラグ (OS が確定的に呼ぶ) と組で判定する
+    fn notification_column_visible(&self, account_id: &str) -> bool {
+        let visible = self
+            .visible_scopes
+            .0
+            .lock()
+            .map(|s| s.contains(account_id))
+            .unwrap_or(false);
+        #[cfg(target_os = "android")]
+        let visible = visible && crate::android_notify::is_foreground();
+        visible
+    }
+
     /// OS 通知の表示可否・形態を判定する。表示副作用は持たない (テスト用に分離)。
     fn plan_os_notification(&self, notification: &NormalizedNotification) -> OsNotifPlan {
         // Deduplicate by notification ID — multiple subscriptions for the same
@@ -383,6 +404,13 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             image_url,
         });
 
+        // その口座の通知カラムが見えていれば OS 通知にしない (#330 §3.3)。見ている
+        // 最中はアプリ内の表示で足りる。見えていないカラムや通知カラムの無い口座は
+        // 出す (以前のフォーカス中一律抑止だと気づく手段が無かった)
+        if self.notification_column_visible(&notification.account_id) {
+            return OsNotifPlan::Suppress;
+        }
+
         // Android は webview が凍結されうるため常に即時表示 (グルーピングは
         // channel 経由で OS が行う)
         #[cfg(target_os = "android")]
@@ -399,16 +427,6 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
 
         #[cfg(not(target_os = "android"))]
         {
-            // フォーカス中はアプリ内表示 + 音で足りるため OS 通知は出さない (#704 K)。
-            let focused = self
-                .app
-                .get_webview_window("main")
-                .map(|w| w.is_focused().unwrap_or(false))
-                .unwrap_or(false);
-            if focused {
-                return OsNotifPlan::Suppress;
-            }
-
             // バースト集約 (#750): 直近の通知から GROUP_WINDOW 内ならバッファし、
             // flusher が窓の終わりに要約 1 件へまとめる。窓外の 1 件目は即時表示。
             let now = Instant::now();
@@ -1005,6 +1023,31 @@ mod tests {
 
     /// plan_os_notification はアクター系通知にクリック遷移コンテキスト
     /// (accountId + noteId/userId) を載せる (#754)。
+    #[test]
+    fn visible_notification_column_suppresses_os_notification() {
+        let app = mock_app();
+        let emitter = TauriEmitter::new(app.handle().clone(), observing());
+        let shown = |n: &NormalizedNotification| {
+            matches!(emitter.plan_os_notification(n), OsNotifPlan::ShowNow { .. })
+        };
+        emitter
+            .visible_scopes
+            .0
+            .lock()
+            .unwrap()
+            .insert("acct-1".to_string());
+        // 見えている口座 (acct-1) の通知は出さない
+        assert!(!shown(&test_notification("v1", "mention")));
+        // 見えていない口座は出す
+        let mut other = test_notification("v2", "mention");
+        other.account_id = "acct-2".to_string();
+        assert!(shown(&other));
+        // 見えなくなったら出す
+        emitter.visible_scopes.0.lock().unwrap().clear();
+        *emitter.last_os_notif.lock().unwrap() = None;
+        assert!(shown(&test_notification("v3", "mention")));
+    }
+
     #[test]
     fn plan_carries_click_context() {
         let app = mock_app();

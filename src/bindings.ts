@@ -1942,6 +1942,15 @@ async notificationTakePendingClick() : Promise<NotificationClicked | null> {
     return await TAURI_INVOKE("notification_take_pending_click");
 },
 /**
+ * 見えている通知カラムの口座を写す (#330 §3.3)。フロントがカラムの可視 (viewport 内 +
+ * フォーカス) の変化ごとに和集合を送る。含まれる口座の通知は OS 通知にしない
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async setVisibleNotificationScopes(accountIds: string[]) : Promise<void> {
+    await TAURI_INVOKE("set_visible_notification_scopes", { accountIds });
+},
+/**
  * 未読合計を OS へ反映する (#748):
  * - macOS Dock / Linux ランチャー: バッジ件数
  * - Windows: タスクバーのオーバーレイドット

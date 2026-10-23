@@ -13,6 +13,7 @@
 //! release は `panic = "abort"` なので、この境界の中は Result 一本で書く
 //! (unwrap / expect / 添字アクセスを使わない)。
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
 use jni::objects::{GlobalRef, JClass, JObject, JValue};
@@ -24,6 +25,26 @@ struct Bridge {
 }
 
 static BRIDGE: OnceLock<Bridge> = OnceLock::new();
+
+/// Activity が前面にあるか (onStart / onStop)。プロセスが死ねば消える静的な状態
+static FOREGROUND: AtomicBool = AtomicBool::new(false);
+
+/// 前面なら true。WebView の可視性は凍結中に古いまま残りうるので、前面で通知カラムが
+/// 見えているときの抑止 (#330 §3.3) はこのフラグと組で判定する
+pub fn is_foreground() -> bool {
+    FOREGROUND.load(Ordering::Relaxed)
+}
+
+/// Kotlin の `NotificationBridge.setForeground(boolean)` から呼ばれる入口
+// nd-entry: local
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_setForeground(
+    _env: JNIEnv,
+    _class: JClass,
+    foreground: jni::sys::jboolean,
+) {
+    FOREGROUND.store(foreground != 0, Ordering::Relaxed);
+}
 
 /// JNI シグネチャ: `NotificationRenderer.show(String tag, int id, String channelId, String title,
 /// String body, String deepLink, String avatarPath, String imagePath)`

@@ -253,6 +253,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // コマンド (notification_take_pending_click) は全プラットフォームに
         // 生えるので state も無条件に用意する (Windows 以外は常に None)。
         app.manage(os_notify::PendingNotificationClick::default());
+        // 見えている通知カラムの口座 (#330 §3.3)。ストリーミングの emitter が抑止に読む
+        app.manage(os_notify::VisibleNotificationScopes::default());
 
         // ══════════════════════════════════════════════════════════
         // Phase 1: Lightweight init (< 50ms) — window shows immediately after this
@@ -1213,6 +1215,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::get_openapi_spec,
             commands::open_devtools,
             commands::notification_take_pending_click,
+            commands::set_visible_notification_scopes,
             commands::set_unread_badge,
             commands::export_db,
             commands::import_db,

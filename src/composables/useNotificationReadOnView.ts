@@ -17,6 +17,22 @@ import { commands } from '@/utils/tauriInvoke'
  * 通知の取得そのものは既読にしないので、復帰時の補填やポーリングで「見ていないのに
  * 既読」にならない。
  */
+/**
+ * 見えている通知カラムの口座 (カラム横断の和集合)。Rust はここに含まれる口座の
+ * 通知を OS 通知にしない (#330 §3.3: 見ている最中はアプリ内の表示で足りる)。
+ * デスクトップも Android も同じ規則。Android は Activity の前面フラグと組で判定する
+ */
+const visibleByColumn = new Map<string, string[]>()
+
+function reportVisibleScopes() {
+  const union = new Set<string>()
+  for (const ids of visibleByColumn.values())
+    for (const id of ids) union.add(id)
+  commands.setVisibleNotificationScopes([...union]).catch(() => {
+    // 抑止が効かないだけで表示には影響しない
+  })
+}
+
 export function useNotificationReadOnView(
   columnId: string,
   getAccountIds: () => string[],
@@ -55,12 +71,32 @@ export function useNotificationReadOnView(
     }
   }
 
-  watch(viewed, (v) => v && readOnView(), { immediate: true })
+  function publishVisible() {
+    if (viewed.value) visibleByColumn.set(columnId, getAccountIds())
+    else visibleByColumn.delete(columnId)
+    reportVisibleScopes()
+  }
+
+  watch(
+    viewed,
+    (v) => {
+      if (v) readOnView()
+      publishVisible()
+    },
+    { immediate: true },
+  )
   // 可視のまま口座が増えたら (全アカウント面に追加された等) その分も既読にする
   watch(
     () => getAccountIds().join('\n'),
-    () => viewed.value && readOnView(),
+    () => {
+      if (viewed.value) readOnView()
+      publishVisible()
+    },
   )
+  onScopeDispose(() => {
+    visibleByColumn.delete(columnId)
+    reportVisibleScopes()
+  })
 
   /** 新着が届いたときに呼ぶ。見ている最中なら既読にする */
   function onArrival(accountId: string) {

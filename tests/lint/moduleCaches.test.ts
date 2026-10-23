@@ -109,6 +109,8 @@ const ALLOWED: Record<string, string> = {
   'src/adapters/misskey-tempura/semiPublic.ts:canPostByAccount':
     'keyed: アカウント',
   'src/composables/useUnreadCounter.ts:sharedStates': 'keyed: カラム',
+  'src/composables/useNotificationReadOnView.ts:visibleByColumn':
+    'keyed: カラム (scope の破棄で消える)',
   'src/composables/useNoteSound.ts:failedHosts': 'keyed: ホスト',
   'src/utils/customTimelines.ts:customTlMemCache': 'keyed: アカウント',
   'src/utils/customTimelines.ts:availableTlCache': 'keyed: アカウント',

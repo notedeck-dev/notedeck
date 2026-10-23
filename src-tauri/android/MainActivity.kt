@@ -35,6 +35,16 @@ class MainActivity : TauriActivity() {
     scheduleNotificationPolling()
   }
 
+  override fun onStart() {
+    super.onStart()
+    NotificationBridge.setForeground(true)
+  }
+
+  override fun onStop() {
+    NotificationBridge.setForeground(false)
+    super.onStop()
+  }
+
   /**
    * フォアグラウンド復帰を WebView の JS に確実に伝える (#506)。
    *

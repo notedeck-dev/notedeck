@@ -26,6 +26,15 @@ pub const NOTIFICATION_PROTOCOL: &str = "notedeck-notification";
 #[derive(Default)]
 pub struct PendingNotificationClick(pub std::sync::Mutex<Option<NotificationClicked>>);
 
+/// 見えている通知カラムの口座 (フロントが `set_visible_notification_scopes` で写す)。
+/// ここに含まれる口座の通知は OS 通知にしない (#330 §3.3: 見ている最中はアプリ内の
+/// 表示で足りる)。デスクトップも Android も同じ規則で、以前のフォーカス中一律抑止は
+/// やめた (通知カラムを置いていない口座に気づく手段が無かった)
+#[derive(Default, Clone)]
+pub struct VisibleNotificationScopes(
+    pub std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+);
+
 /// OS 通知クリック時にフロントへ渡す遷移コンテキスト。
 /// noteId があればノート詳細、なければ userId でユーザー詳細を開く。
 /// どちらもない (要約通知・システム通知) 場合はウィンドウのフォーカスのみ。
