@@ -80,6 +80,8 @@ enum OsNotifPlan {
         body: Option<String>,
         context: Option<NotificationClicked>,
         media: Option<NotifyMedia>,
+        /// Android の通知タップの遷移先 (notedeck://)。要約通知には無い
+        deep_link: Option<String>,
     },
     /// バーストとしてバッファ済み。spawn_flusher が true なら flush タスクを起動する
     #[cfg_attr(target_os = "android", allow(dead_code))]
@@ -128,21 +130,21 @@ fn summarize_group(items: &[PendingOsNotification]) -> Option<PendingOsNotificat
     }
 }
 
-/// `host` は Android の deep link 組み立て用 (通知元アカウントのサーバー)。
-/// バースト要約通知は複数サーバーにまたがりうるので None。
+/// `deep_link` は Android の通知タップの遷移先 (notedeck://)。バースト要約通知は
+/// 単一の遷移先を持たないので None。
 fn show_os_notification<R: tauri::Runtime>(
     app: &AppHandle<R>,
     title: &str,
     body: Option<&str>,
     context: Option<&NotificationClicked>,
     media: Option<&NotifyMedia>,
-    host: Option<&str>,
+    deep_link: Option<&str>,
 ) {
     // Linux / Windows: user-notify 経由 (クリック遷移 + 画像添付, #754)。
     // 画像取得は ImageCache を通す (setup 前の呼び出しでは None = 画像なし)
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     {
-        let _ = host;
+        let _ = deep_link;
         let cache = app
             .try_state::<std::sync::Arc<notecore::image_cache::ImageCache>>()
             .map(|s| s.inner().clone());
@@ -153,7 +155,7 @@ fn show_os_notification<R: tauri::Runtime>(
     // (クリック遷移・画像は署名導入までブロック, #754)
     #[cfg(target_os = "macos")]
     {
-        let _ = (context, media, host);
+        let _ = (context, media, deep_link);
         let mut builder = app.notification().builder().title(title);
         if let Some(body) = body {
             builder = builder.body(body);
@@ -182,7 +184,7 @@ fn show_os_notification<R: tauri::Runtime>(
         // variant を要求する (静止画のみ縮小、アニメーションは原本素通し)
         const AVATAR_MAX_WIDTH: u32 = 256;
 
-        let deep_link = host.and_then(|h| android_deep_link(h, context));
+        let deep_link = deep_link.map(str::to_string);
         let app = app.clone();
         let title = title.to_string();
         let body = body.map(str::to_string);
@@ -309,17 +311,6 @@ fn show_android_notification(
 /// note があればノート詳細、なければ user でユーザー詳細、どちらもなければ
 /// None (アプリを前面に出すだけ)。
 #[cfg(target_os = "android")]
-fn android_deep_link(host: &str, context: Option<&NotificationClicked>) -> Option<String> {
-    let ctx = context?;
-    if let Some(note_id) = &ctx.note_id {
-        Some(format!("notedeck://{host}/note/{note_id}"))
-    } else {
-        ctx.user_id
-            .as_ref()
-            .map(|user_id| format!("notedeck://{host}/user/{user_id}"))
-    }
-}
-
 /// Android の通知 ID。同じ ID で notify すると上書きされるため通知ごとに進める。
 #[cfg(target_os = "android")]
 fn next_notification_id() -> i32 {
@@ -384,6 +375,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 body,
                 context,
                 media,
+                deep_link,
             } => {
                 show_os_notification(
                     &self.app,
@@ -391,7 +383,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                     body.as_deref(),
                     context.as_ref(),
                     media.as_ref(),
-                    Some(&notification.server_host),
+                    deep_link.as_deref(),
                 );
             }
             OsNotifPlan::Buffer { spawn_flusher } => {
@@ -434,100 +426,29 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             }
         }
 
-        let notif_type = notification.notification_type.as_str();
-
-        // アクター系: 送信元ユーザーを title に。user が欠落したら "誰か" で従来挙動を維持。
-        let actor_name = || {
-            notification
-                .user
-                .as_ref()
-                .and_then(|u| u.name.as_deref().or(Some(u.username.as_str())))
-                .map(str::to_string)
-                .unwrap_or_else(|| label("_native.notification.someone"))
+        // 文言 / 遷移先 / 画像の URL の組み立ては notecore の純関数 1 箇所 (#330 §4.1)。
+        // ここは表示言語を渡して、端末側の型に写すだけ
+        let Some(plan) = notecore::notify_plan::plan(notification, &crate::ui_lang::current())
+        else {
+            return OsNotifPlan::Suppress;
         };
-
-        // Misskey 本家 (packages/sw/src/scripts/create-notification.ts) に合わせ、
-        // アクター系 (title = user) と自己/システム通知 (title = 固定ラベル) を分ける。
-        let (title, body_opt): (String, Option<String>) = match notif_type {
-            "reaction" => {
-                let body = notification
-                    .reaction
-                    .as_deref()
-                    .map(|r| {
-                        crate::ui_lang::t(
-                            "_native.notification.reactionWith",
-                            json!({ "reaction": r }),
-                        )
-                    })
-                    .unwrap_or_else(|| label("_native.notification.reaction"));
-                (actor_name(), Some(body))
-            }
-            "reply" => (actor_name(), Some(label("_native.notification.reply"))),
-            "renote" => (actor_name(), Some(label("_native.notification.renote"))),
-            "quote" => (actor_name(), Some(label("_native.notification.quote"))),
-            "mention" => (actor_name(), Some(label("_native.notification.mention"))),
-            "follow" => (actor_name(), Some(label("_native.notification.follow"))),
-            "followRequestAccepted" => (
-                actor_name(),
-                Some(label("_native.notification.followRequestAccepted")),
-            ),
-            "receiveFollowRequest" => (
-                actor_name(),
-                Some(label("_native.notification.receiveFollowRequest")),
-            ),
-
-            // user フィールドを持たない自己/システム通知
-            "achievementEarned" => {
-                let body = notification.achievement.as_deref().map(achievement_label);
-                (label("_native.notification.achievementEarned"), body)
-            }
-            "login" => (label("_native.notification.login"), None),
-            "pollEnded" => (label("_native.notification.pollEnded"), None),
-            // 外部アプリ (notifications/create) 由来。本家 sw に合わせ header が
-            // あれば title=header / body=body、無ければ body を title に繰り上げる
-            "app" => match (notification.header.as_deref(), notification.body.as_deref()) {
-                (Some(header), body) => (header.to_string(), body.map(str::to_string)),
-                (None, Some(body)) => (body.to_string(), None),
-                (None, None) => (label("_native.notification.generic"), None),
-            },
-            "test" => (
-                label("_native.notification.test"),
-                Some(label("_native.notification.test")),
-            ),
-
-            _ => return OsNotifPlan::Suppress,
-        };
-
-        // クリック時の遷移コンテキスト (#754)。note があればノート詳細、
-        // なければ user でユーザー詳細。どちらもなければフォーカスのみ。
-        let context = Some(NotificationClicked {
-            account_id: notification.account_id.clone(),
-            note_id: notification.note.as_ref().map(|n| n.id.clone()),
-            user_id: notification.user.as_ref().map(|u| u.id.clone()),
+        let notecore::notify_plan::NotifyPlan {
+            title,
+            body: body_opt,
+            click,
+            icon_url,
+            image_url,
+            deep_link,
+        } = plan;
+        let context = click.map(|c| NotificationClicked {
+            account_id: c.account_id,
+            note_id: c.note_id,
+            user_id: c.user_id,
         });
-
-        // 通知メディア: 本家 web push (icon=アバター, badge=絵文字) に倣い、
-        // icon = アクターのアバター、リアクションのカスタム絵文字 (":name:" /
-        // ":name@host:") はフルカラー画像として添付。Unicode 絵文字は本文に
-        // 出るので画像なし。URL の形式は notify_media::emoji_image_url 参照。
-        let media = {
-            // app 通知はアクターが居ないので、送信元アプリの icon を代わりに使う
-            let icon_url = notification
-                .user
-                .as_ref()
-                .and_then(|u| u.avatar_url.clone())
-                .or_else(|| notification.icon.clone());
-            let image_url = (notif_type == "reaction")
-                .then_some(notification.reaction.as_deref())
-                .flatten()
-                .and_then(|r| {
-                    notecore::notify_media::emoji_image_url(&notification.server_host, r)
-                });
-            (icon_url.is_some() || image_url.is_some()).then_some(NotifyMedia {
-                icon_url,
-                image_url,
-            })
-        };
+        let media = (icon_url.is_some() || image_url.is_some()).then_some(NotifyMedia {
+            icon_url,
+            image_url,
+        });
 
         // Android は webview が凍結されうるため常に即時表示 (グルーピングは
         // channel 経由で OS が行う)
@@ -538,6 +459,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 body: body_opt,
                 context,
                 media,
+                deep_link,
             }
         }
 
@@ -565,6 +487,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                     body: body_opt,
                     context,
                     media,
+                    deep_link,
                 };
             }
             let mut pending = self.pending_group.lock().unwrap();
@@ -578,22 +501,6 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             OsNotifPlan::Buffer { spawn_flusher }
         }
     }
-}
-
-/// 実績の表示名 (TS と同じ辞書の `_achievementLabels`)。辞書に無い実績は id のまま
-fn achievement_label(name: &str) -> String {
-    let key = format!("_achievementLabels.{name}");
-    let text = crate::ui_lang::t(&key, json!({}));
-    if text == key {
-        name.to_string()
-    } else {
-        text
-    }
-}
-
-/// OS 通知の固定の見出し
-fn label(key: &str) -> String {
-    crate::ui_lang::t(key, json!({}))
 }
 
 /// 表示言語が変わったら Android の通知チャネル名を付け直す (同じ id で作り直すと
@@ -1303,17 +1210,5 @@ mod tests {
             "Unicode 絵文字は画像なしのはず"
         );
         assert!(unicode.icon_url.is_some());
-    }
-
-    #[test]
-    fn achievement_label_maps_known_and_falls_back() {
-        crate::ui_lang::set_for_tests("ja-JP");
-        assert_eq!(achievement_label("notes1"), "はじめてのノート");
-        assert_eq!(achievement_label("iLoveMisskey"), "I Love Misskey");
-        // 未知の実績名はそのまま返す
-        assert_eq!(
-            achievement_label("unknownFutureBadge"),
-            "unknownFutureBadge"
-        );
     }
 }
