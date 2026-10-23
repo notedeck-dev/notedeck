@@ -20,12 +20,113 @@ pub struct ClickTarget {
     pub user_id: Option<String>,
 }
 
+/// OS の通知チャネル (Android)。種別群で分け、利用者は OS の通知設定で群ごとに
+/// 音や表示を変えられる (#747 の「通知設定は OS に委ねる」の粒度、#330 §4.4)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Channel {
+    /// mention / reply / quote
+    Mentions,
+    /// reaction / renote
+    Reactions,
+    /// follow / receiveFollowRequest / followRequestAccepted
+    Follows,
+    /// note (特定ユーザーの投稿通知)
+    Posts,
+    /// login / app
+    Account,
+    /// achievementEarned / pollEnded / test
+    Other,
+    /// newChatMessage
+    Messages,
+}
+
+impl Channel {
+    pub const ALL: [Channel; 7] = [
+        Channel::Mentions,
+        Channel::Reactions,
+        Channel::Follows,
+        Channel::Posts,
+        Channel::Account,
+        Channel::Other,
+        Channel::Messages,
+    ];
+
+    /// OS に登録するチャネル ID。固定 (利用者の設定が結びつく)
+    pub fn id(self) -> &'static str {
+        match self {
+            Channel::Mentions => "notedeck_mentions",
+            Channel::Reactions => "notedeck_reactions",
+            Channel::Follows => "notedeck_follows",
+            Channel::Posts => "notedeck_posts",
+            Channel::Account => "notedeck_account",
+            Channel::Other => "notedeck_other",
+            Channel::Messages => "notedeck_messages",
+        }
+    }
+
+    /// 表示名の辞書キー
+    pub fn label_key(self) -> &'static str {
+        match self {
+            Channel::Mentions => "_native.notification.channels.mentions",
+            Channel::Reactions => "_native.notification.channels.reactions",
+            Channel::Follows => "_native.notification.channels.follows",
+            Channel::Posts => "_native.notification.channels.posts",
+            Channel::Account => "_native.notification.channels.account",
+            Channel::Other => "_native.notification.channels.other",
+            Channel::Messages => "_native.notification.channels.messages",
+        }
+    }
+
+    /// 既定で heads-up にする群 (人からの呼びかけだけ)
+    pub fn important(self) -> bool {
+        matches!(self, Channel::Mentions | Channel::Messages)
+    }
+
+    pub fn label(self, lang: &str) -> String {
+        i18n::render(lang, self.label_key(), &json!({}))
+    }
+}
+
+/// 以前の 1 本だけのチャネル。更新時に消す
+pub const LEGACY_CHANNEL_ID: &str = "notedeck_notifications";
+
+/// 通知の種別 (OS 通知のタグの一部)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotifyKind {
+    Notification,
+    Message,
+}
+
+/// OS 通知のタグ。口座と種別で区切るので、別口座の通知を上書きしたりタップ先が
+/// 入れ替わったりしない。既読でまとめて消すときの単位でもある
+pub fn notify_tag(account_id: &str, kind: NotifyKind) -> String {
+    match kind {
+        NotifyKind::Notification => format!("notif:{account_id}"),
+        NotifyKind::Message => format!("chat:{account_id}"),
+    }
+}
+
+/// OS 通知の ID。Misskey の ID から決める (同じ通知を 2 経路で受けても上書きされる
+/// だけで 2 件にならない)。FNV-1a 32bit の非負部分
+pub fn notify_id(misskey_id: &str) -> i32 {
+    let mut h: u32 = 0x811c_9dc5;
+    for b in misskey_id.bytes() {
+        h ^= u32::from(b);
+        h = h.wrapping_mul(0x0100_0193);
+    }
+    (h & 0x7fff_ffff) as i32
+}
+
 /// OS 通知 1 件分の組み立て結果
 #[derive(Debug, Clone, PartialEq)]
 pub struct NotifyPlan {
     pub title: String,
     pub body: Option<String>,
     pub click: Option<ClickTarget>,
+    pub channel: Channel,
+    /// OS 通知の (tag, id)。後着が上書きし、既読は tag 単位で消す
+    pub tag: String,
+    pub id: i32,
     /// アクターのアバター (app 通知は送信元アプリのアイコン)。本家 web push の icon と同じ
     pub icon_url: Option<String>,
     /// リアクションのカスタム絵文字 (フルカラー)。Unicode 絵文字は本文に出るので無し
@@ -67,6 +168,7 @@ pub fn plan(n: &NormalizedNotification, lang: &str) -> Option<NotifyPlan> {
         "renote" => (actor_name(), Some(label("_native.notification.renote"))),
         "quote" => (actor_name(), Some(label("_native.notification.quote"))),
         "mention" => (actor_name(), Some(label("_native.notification.mention"))),
+        "note" => (actor_name(), Some(label("_native.notification.note"))),
         "follow" => (actor_name(), Some(label("_native.notification.follow"))),
         "followRequestAccepted" => (
             actor_name(),
@@ -96,6 +198,14 @@ pub fn plan(n: &NormalizedNotification, lang: &str) -> Option<NotifyPlan> {
         _ => return None,
     };
 
+    let channel = match n.notification_type.as_str() {
+        "mention" | "reply" | "quote" => Channel::Mentions,
+        "reaction" | "renote" => Channel::Reactions,
+        "follow" | "receiveFollowRequest" | "followRequestAccepted" => Channel::Follows,
+        "note" => Channel::Posts,
+        "login" | "app" => Channel::Account,
+        _ => Channel::Other,
+    };
     let click = Some(ClickTarget {
         account_id: n.account_id.clone(),
         note_id: n.note.as_ref().map(|note| note.id.clone()),
@@ -120,6 +230,9 @@ pub fn plan(n: &NormalizedNotification, lang: &str) -> Option<NotifyPlan> {
         title,
         body,
         click,
+        channel,
+        tag: notify_tag(&n.account_id, NotifyKind::Notification),
+        id: notify_id(&n.id),
         icon_url,
         image_url,
         deep_link,
@@ -241,6 +354,32 @@ mod tests {
         }))
         .unwrap();
         assert!(plan(&n, "ja-JP").is_none());
+    }
+
+    /// チャネルは種別群で決まり、タグは口座 + 種別、ID は Misskey の ID から安定して決まる
+    #[test]
+    fn channel_tag_and_id_are_stable_per_notification() {
+        let p = plan(&reaction("n1", "👍"), "ja-JP").unwrap();
+        assert_eq!(p.channel, Channel::Reactions);
+        assert_eq!(p.tag, "notif:acct-1");
+        assert_eq!(p.id, notify_id("n1"));
+        assert!(p.id >= 0);
+        assert_ne!(notify_id("n1"), notify_id("n2"));
+        let post: NormalizedNotification = serde_json::from_value(json!({
+            "id": "p1",
+            "_accountId": "acct-1",
+            "_serverHost": "misskey.example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "type": "note",
+            "user": { "id": "u1", "username": "alice" },
+        }))
+        .unwrap();
+        let p = plan(&post, "ja-JP").expect("投稿通知は出す");
+        assert_eq!(p.channel, Channel::Posts);
+        assert_eq!(p.body.as_deref(), Some("投稿"));
+        assert_eq!(Channel::Mentions.label("ja-JP"), "メンション・返信");
+        assert!(Channel::Messages.important() && !Channel::Other.important());
+        assert_eq!(Channel::ALL.len(), 7);
     }
 
     #[test]

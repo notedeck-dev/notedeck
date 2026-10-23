@@ -1,5 +1,6 @@
 package com.notedeck.desktop
 
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -10,8 +11,10 @@ import android.graphics.BitmapShader
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Shader
+import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import org.json.JSONArray
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -38,8 +41,8 @@ import kotlin.math.roundToInt
 object NotificationRenderer {
   private const val TAG = "NotificationRenderer"
 
-  /** NotificationWorker / Rust 側 (streaming.rs) と同一チャンネル */
-  private const val CHANNEL_ID = "notedeck_notifications"
+  /** 以前の 1 本だけのチャネル。種別群のチャネルに移行するときに消す */
+  private const val LEGACY_CHANNEL_ID = "notedeck_notifications"
 
   /**
    * リアクション絵文字を載せる透明カンバス。Android の big picture は
@@ -66,12 +69,63 @@ object NotificationRenderer {
   }
 
   /**
+   * 通知チャネルを種別群で作る / 名前を付け直す (#330 §4.4)。Rust が表示言語で
+   * 組んだ名前を JSON (`[{id, name, important}]`) で渡す。同じ id で作り直すと
+   * 名前だけ更新される。以前の 1 本だけのチャネルが残っていれば消し、そこに
+   * 出ていた通知 (旧ビルドの連番 ID、tag 無し) も全部消す。
+   */
+  @JvmStatic
+  fun ensureChannels(json: String) {
+    val context = appContext ?: return
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    try {
+      val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      val items = JSONArray(json)
+      for (i in 0 until items.length()) {
+        val item = items.getJSONObject(i)
+        val importance = if (item.optBoolean("important")) {
+          NotificationManager.IMPORTANCE_HIGH
+        } else {
+          NotificationManager.IMPORTANCE_DEFAULT
+        }
+        val channel = NotificationChannel(item.getString("id"), item.getString("name"), importance)
+          .apply { setShowBadge(true) }
+        manager.createNotificationChannel(channel)
+      }
+      if (manager.getNotificationChannel(LEGACY_CHANNEL_ID) != null) {
+        manager.cancelAll()
+        manager.deleteNotificationChannel(LEGACY_CHANNEL_ID)
+      }
+    } catch (e: Throwable) {
+      Log.w(TAG, "Failed to ensure channels", e)
+    }
+  }
+
+  /** tag の通知を全部消す (既読になった口座の分)。Rust から JNI で呼ばれる */
+  @JvmStatic
+  fun cancel(tag: String) {
+    val context = appContext ?: return
+    try {
+      val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      for (n in manager.activeNotifications) {
+        if (n.tag == tag) manager.cancel(tag, n.id)
+      }
+    } catch (e: Throwable) {
+      Log.w(TAG, "Failed to cancel notifications", e)
+    }
+  }
+
+  /**
    * 通知を出す。Rust から JNI で呼ばれる (スレッドは問わない)。
+   * (tag, id) は Rust が口座 + 種別と Misskey の ID から決める: 同じ通知を
+   * 2 経路で受けても上書きされるだけで 2 件にならず、既読は tag 単位で消す。
    * init 前に呼ばれたら何もしない (起動直後の競合)。
    */
   @JvmStatic
   fun show(
+    tag: String,
     id: Int,
+    channelId: String,
     title: String,
     body: String?,
     deepLink: String?,
@@ -86,11 +140,12 @@ object NotificationRenderer {
     // Bitmap decode があるので呼び出しスレッドを塞がない
     Thread {
       try {
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, channelId)
           .setSmallIcon(R.mipmap.ic_launcher)
           .setContentTitle(title)
           .setPriority(NotificationCompat.PRIORITY_DEFAULT)
           .setAutoCancel(true)
+          .setOnlyAlertOnce(true)
           .setContentIntent(buildContentIntent(context, id, deepLink))
         if (body != null) builder.setContentText(body)
 
@@ -105,7 +160,7 @@ object NotificationRenderer {
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE)
           as NotificationManager
-        manager.notify(id, builder.build())
+        manager.notify(tag, id, builder.build())
       } catch (e: Throwable) {
         // OutOfMemoryError 等の Error も含めて握る。生 Thread の未捕捉
         // Throwable は uncaughtExceptionHandler がプロセスを殺す

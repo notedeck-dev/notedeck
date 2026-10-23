@@ -368,7 +368,16 @@
       },
       "groupOthers": "{names} and others",
       "listSeparator": ", ",
-      "channelName": "Notifications"
+      "note": "New post",
+      "channels": {
+        "mentions": "Mentions & replies",
+        "reactions": "Reactions & renotes",
+        "follows": "Follows",
+        "posts": "Post notifications",
+        "account": "Account",
+        "other": "Other",
+        "messages": "Messages"
+      }
     },
     "tray": {
       "unread_plural": {

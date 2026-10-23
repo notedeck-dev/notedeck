@@ -3494,7 +3494,15 @@ _native:
       other: "新着通知 {count} 件"
     groupOthers: "{names} ほか"
     listSeparator: "、"
-    channelName: "通知"
+    note: "投稿"
+    channels:
+      mentions: "メンション・返信"
+      reactions: "リアクション・リノート"
+      follows: "フォロー"
+      posts: "投稿の通知"
+      account: "アカウント"
+      other: "その他"
+      messages: "メッセージ"
   tray:
     unread_plural:
       other: "NoteDeck — 未読 {count} 件"

@@ -6329,8 +6329,24 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "groupOthers": ParameterizedString<'names'>
       /** 、 */
       readonly "listSeparator": string
-      /** 通知 */
-      readonly "channelName": string
+      /** 投稿 */
+      readonly "note": string
+      readonly "channels": {
+        /** メンション・返信 */
+        readonly "mentions": string
+        /** リアクション・リノート */
+        readonly "reactions": string
+        /** フォロー */
+        readonly "follows": string
+        /** 投稿の通知 */
+        readonly "posts": string
+        /** アカウント */
+        readonly "account": string
+        /** その他 */
+        readonly "other": string
+        /** メッセージ */
+        readonly "messages": string
+      }
     }
     readonly "tray": {
       /** NoteDeck — 未読 {count} 件 */

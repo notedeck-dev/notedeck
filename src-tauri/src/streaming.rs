@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(not(target_os = "android"))]
+use std::time::Instant;
 
 use notecli::models::NormalizedNotification;
 use notecli::streaming::FrontendEmitter;
@@ -9,6 +11,7 @@ use serde_json::json;
 use specta::Type;
 use tauri::{AppHandle, Manager};
 #[cfg(any(target_os = "macos", target_os = "android"))]
+#[cfg(target_os = "macos")]
 use tauri_plugin_notification::NotificationExt;
 use tauri_specta::Event;
 
@@ -45,9 +48,6 @@ pub struct StreamNewChatMessage(pub notecore::stream_fanout::StreamNewChatMessag
 #[derive(Debug, Clone, Serialize, Deserialize, Type, Event)]
 pub struct StreamEmojiChanged(pub notecli::streaming::StreamEmojiChangedEvent);
 
-#[cfg(target_os = "android")]
-const NOTIFICATION_CHANNEL_ID: &str = "notedeck_notifications";
-
 /// Maximum number of notification IDs to keep for deduplication.
 /// When exceeded, the set is cleared to prevent unbounded growth.
 const DEDUP_MAX_IDS: usize = 500;
@@ -70,7 +70,19 @@ struct PendingOsNotification {
     media: Option<NotifyMedia>,
 }
 
+/// Android の OS 通知の識別と置き場 (notecore の notify_plan が決める)
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+struct AndroidNotifyKey {
+    tag: String,
+    id: i32,
+    channel_id: &'static str,
+}
+
 /// send_native_notification の判定結果。表示 (副作用) と分離してテスト可能にする。
+// ShowNow は通知 1 件の中身を丸ごと持つので他の variant より大きいが、判定結果は
+// その場で消費するだけなので Box で間接化する価値が無い
+#[allow(clippy::large_enum_variant)]
 enum OsNotifPlan {
     /// dedup 済み・未知 type・フォーカス中 → 何もしない
     Suppress,
@@ -82,6 +94,8 @@ enum OsNotifPlan {
         media: Option<NotifyMedia>,
         /// Android の通知タップの遷移先 (notedeck://)。要約通知には無い
         deep_link: Option<String>,
+        /// Android の (tag, id, チャネル)。後着が上書きし、既読は tag 単位で消す
+        android: Option<AndroidNotifyKey>,
     },
     /// バーストとしてバッファ済み。spawn_flusher が true なら flush タスクを起動する
     #[cfg_attr(target_os = "android", allow(dead_code))]
@@ -139,12 +153,13 @@ fn show_os_notification<R: tauri::Runtime>(
     context: Option<&NotificationClicked>,
     media: Option<&NotifyMedia>,
     deep_link: Option<&str>,
+    android: Option<&AndroidNotifyKey>,
 ) {
     // Linux / Windows: user-notify 経由 (クリック遷移 + 画像添付, #754)。
     // 画像取得は ImageCache を通す (setup 前の呼び出しでは None = 画像なし)
     #[cfg(any(target_os = "linux", target_os = "windows"))]
     {
-        let _ = deep_link;
+        let _ = (deep_link, android);
         let cache = app
             .try_state::<std::sync::Arc<notecore::image_cache::ImageCache>>()
             .map(|s| s.inner().clone());
@@ -155,7 +170,7 @@ fn show_os_notification<R: tauri::Runtime>(
     // (クリック遷移・画像は署名導入までブロック, #754)
     #[cfg(target_os = "macos")]
     {
-        let _ = (context, media, deep_link);
+        let _ = (context, media, deep_link, android);
         let mut builder = app.notification().builder().title(title);
         if let Some(body) = body {
             builder = builder.body(body);
@@ -186,6 +201,10 @@ fn show_os_notification<R: tauri::Runtime>(
 
         // 遷移先は純関数が組んだ deep link で渡る。context はデスクトップのクリック用
         let _ = context;
+        let Some(key) = android.cloned() else {
+            // 要約通知は Android では作らない (OS がチャネルで束ねる)
+            return;
+        };
         let deep_link = deep_link.map(str::to_string);
         let app = app.clone();
         let title = title.to_string();
@@ -223,7 +242,10 @@ fn show_os_notification<R: tauri::Runtime>(
                 }
                 None => (None, None),
             };
-            show_android_notification(
+            crate::android_notify::show(
+                &key.tag,
+                key.id,
+                key.channel_id,
                 &title,
                 body.as_deref(),
                 deep_link.as_deref(),
@@ -232,42 +254,6 @@ fn show_os_notification<R: tauri::Runtime>(
             );
         });
     }
-}
-
-/// NotificationRenderer.show を JNI の静的メソッドとして呼ぶ (Activity 非依存、
-/// android_notify.rs)。avatar_path / image_path は ImageCache のローカルファイル。
-#[cfg(target_os = "android")]
-fn show_android_notification(
-    title: &str,
-    body: Option<&str>,
-    deep_link: Option<&str>,
-    avatar_path: Option<&str>,
-    image_path: Option<&str>,
-) {
-    crate::android_notify::show(
-        next_notification_id(),
-        title,
-        body,
-        deep_link,
-        avatar_path,
-        image_path,
-    );
-}
-
-/// Android の通知タップで開く deep link。デスクトップの遷移仕様に合わせ、
-/// note があればノート詳細、なければ user でユーザー詳細、どちらもなければ
-/// None (アプリを前面に出すだけ)。
-#[cfg(target_os = "android")]
-/// Android の通知 ID。同じ ID で notify すると上書きされるため通知ごとに進める。
-#[cfg(target_os = "android")]
-fn next_notification_id() -> i32 {
-    use std::sync::atomic::{AtomicI32, Ordering};
-    static NEXT: AtomicI32 = AtomicI32::new(1);
-    // NotificationWorker の GROUP_SUMMARY_ID (i32::MAX - 1) と衝突しない範囲で回す
-    NEXT.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |v| {
-        Some(if v >= 1_000_000 { 1 } else { v + 1 })
-    })
-    .unwrap_or(1)
 }
 
 // Runtime generic は MockRuntime でのユニットテスト用。本番は default の Wry
@@ -292,17 +278,6 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         app: AppHandle<R>,
         observation: Arc<notecore::stream_fanout::StreamObservation>,
     ) -> Self {
-        #[cfg(target_os = "android")]
-        {
-            use tauri_plugin_notification::{Channel, Importance};
-            let channel = Channel::builder(
-                NOTIFICATION_CHANNEL_ID,
-                crate::ui_lang::t("_native.notification.channelName", json!({})),
-            )
-            .importance(Importance::Default)
-            .build();
-            let _ = app.notification().create_channel(channel);
-        }
         Self {
             app,
             observation,
@@ -323,6 +298,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 context,
                 media,
                 deep_link,
+                android,
             } => {
                 show_os_notification(
                     &self.app,
@@ -331,6 +307,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                     context.as_ref(),
                     media.as_ref(),
                     deep_link.as_deref(),
+                    android.as_ref(),
                 );
             }
             OsNotifPlan::Buffer { spawn_flusher } => {
@@ -348,6 +325,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                                 summary.body.as_deref(),
                                 summary.context.as_ref(),
                                 summary.media.as_ref(),
+                                None,
                                 None,
                             );
                         }
@@ -386,7 +364,15 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             icon_url,
             image_url,
             deep_link,
+            channel,
+            tag,
+            id,
         } = plan;
+        let android = Some(AndroidNotifyKey {
+            tag,
+            id,
+            channel_id: channel.id(),
+        });
         let context = click.map(|c| NotificationClicked {
             account_id: c.account_id,
             note_id: c.note_id,
@@ -407,6 +393,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 context,
                 media,
                 deep_link,
+                android,
             }
         }
 
@@ -435,6 +422,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                     context,
                     media,
                     deep_link,
+                    android,
                 };
             }
             let mut pending = self.pending_group.lock().unwrap();
@@ -454,18 +442,19 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
 /// 名前だけ更新される)。ほかの OS では何もしない
 pub fn refresh_notification_channel(app: &tauri::AppHandle) {
     #[cfg(target_os = "android")]
-    {
-        use tauri_plugin_notification::{Channel, Importance, NotificationExt};
-        let channel = Channel::builder(
-            NOTIFICATION_CHANNEL_ID,
-            crate::ui_lang::t("_native.notification.channelName", json!({})),
-        )
-        .importance(Importance::Default)
-        .build();
-        let _ = app.notification().create_channel(channel);
-    }
-    #[cfg(not(target_os = "android"))]
+    crate::android_notify::ensure_channels(&android_channels());
     let _ = app;
+}
+
+/// Android の通知チャネル (種別群、#330 §4.4) を今の表示言語で組む。入口の登録時と
+/// 表示言語の変更時に Kotlin に渡す
+#[cfg(target_os = "android")]
+pub fn android_channels() -> Vec<(String, String, bool)> {
+    let lang = crate::ui_lang::current();
+    notecore::notify_plan::Channel::ALL
+        .iter()
+        .map(|c| (c.id().to_string(), c.label(&lang), c.important()))
+        .collect()
 }
 
 impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
@@ -514,6 +503,17 @@ impl<R: tauri::Runtime> FrontendEmitter for TauriEmitter<R> {
 
         // 未読カウンタへの合図は専用チャネル (生封筒に依存しない)
         if let Some(unread) = notecore::stream_fanout::unread_signal(&event) {
+            // 既読になった口座の OS 通知はまとめて消す (#330 §3.4)。他端末で読んだ分も
+            // サーバーが readAllNotifications を流すのでここに来る
+            #[cfg(target_os = "android")]
+            if unread.op == notecore::stream_fanout::UnreadOp::Clear
+                && unread.kind == notecore::stream_fanout::UnreadKind::Notification
+            {
+                crate::android_notify::cancel(&notecore::notify_plan::notify_tag(
+                    &unread.account_id,
+                    notecore::notify_plan::NotifyKind::Notification,
+                ));
+            }
             if let Err(e) = StreamUnread(unread).emit(&self.app) {
                 tracing::warn!("[stream] emit stream-unread failed: {e}");
             }

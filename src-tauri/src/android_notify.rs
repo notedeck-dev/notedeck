@@ -25,9 +25,11 @@ struct Bridge {
 
 static BRIDGE: OnceLock<Bridge> = OnceLock::new();
 
-/// JNI シグネチャ: `NotificationRenderer.show(int, String, String, String, String, String)`
-const SHOW_SIG: &str =
-    "(ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V";
+/// JNI シグネチャ: `NotificationRenderer.show(String tag, int id, String channelId, String title,
+/// String body, String deepLink, String avatarPath, String imagePath)`
+const SHOW_SIG: &str = "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V";
+/// `NotificationRenderer.cancel(String tag)` / `ensureChannels(String json)`
+const STRING_ARG_SIG: &str = "(Ljava/lang/String;)V";
 
 /// Kotlin の `NotificationBridge.register(context)` から呼ばれる入口。
 /// JavaVM とクラス参照を預かるだけで、Context は今は使わない (ワーカーの keychain
@@ -52,6 +54,8 @@ pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_register(
     match result {
         Ok(bridge) => {
             let _ = BRIDGE.set(bridge);
+            // 通知チャネルは入口が揃ってから作る (Tauri の setup はこの登録より先に走る)
+            ensure_channels(&crate::streaming::android_channels());
         }
         Err(e) => {
             if env.exception_check().unwrap_or(false) {
@@ -63,18 +67,15 @@ pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_register(
     }
 }
 
-/// 通知を描く。`avatar_path` / `image_path` は ImageCache のローカルファイル。
-/// 入口 (register) 前に呼ばれたら何もしない
-pub fn show(
-    id: i32,
-    title: &str,
-    body: Option<&str>,
-    deep_link: Option<&str>,
-    avatar_path: Option<&str>,
-    image_path: Option<&str>,
+/// 預かった参照でヘルパーの静的メソッドを呼ぶ共通部。入口 (register) 前は何もしない
+fn call_static(
+    name: &str,
+    sig: &str,
+    build: impl for<'a> FnOnce(&mut JNIEnv<'a>) -> Result<Vec<JObject<'a>>, jni::errors::Error>,
+    int_arg: Option<i32>,
 ) {
     let Some(bridge) = BRIDGE.get() else {
-        tracing::warn!("[notification] bridge not registered: dropped");
+        tracing::warn!("[notification] bridge not registered: {name} dropped");
         return;
     };
     let mut env = match bridge.vm.attach_current_thread() {
@@ -84,34 +85,19 @@ pub fn show(
             return;
         }
     };
-
-    // Option<&str> → Java の String / null
-    fn jstr<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObject<'a>, jni::errors::Error> {
-        match s {
-            Some(s) => Ok(env.new_string(s)?.into()),
-            None => Ok(JObject::null()),
-        }
-    }
-
     let result = (|| -> Result<(), jni::errors::Error> {
-        let j_title = jstr(&mut env, Some(title))?;
-        let j_body = jstr(&mut env, body)?;
-        let j_link = jstr(&mut env, deep_link)?;
-        let j_avatar = jstr(&mut env, avatar_path)?;
-        let j_image = jstr(&mut env, image_path)?;
-        env.call_static_method(
-            &bridge.renderer_class,
-            "show",
-            SHOW_SIG,
-            &[
-                JValue::Int(id),
-                JValue::Object(&j_title),
-                JValue::Object(&j_body),
-                JValue::Object(&j_link),
-                JValue::Object(&j_avatar),
-                JValue::Object(&j_image),
-            ],
-        )?;
+        let objs = build(&mut env)?;
+        let mut args: Vec<JValue> = Vec::with_capacity(objs.len() + 1);
+        // show は (tag, id, ...) の順で、id だけ int。他は String だけ
+        for (idx, o) in objs.iter().enumerate() {
+            args.push(JValue::Object(o));
+            if idx == 0 {
+                if let Some(id) = int_arg {
+                    args.push(JValue::Int(id));
+                }
+            }
+        }
+        env.call_static_method(&bridge.renderer_class, name, sig, &args)?;
         Ok(())
     })();
     if let Err(e) = result {
@@ -121,6 +107,75 @@ pub fn show(
             let _ = env.exception_describe();
             let _ = env.exception_clear();
         }
-        tracing::warn!("[notification] JNI call failed: {e}");
+        tracing::warn!("[notification] JNI call {name} failed: {e}");
     }
+}
+
+// Option<&str> → Java の String / null
+fn jstr<'a>(env: &mut JNIEnv<'a>, s: Option<&str>) -> Result<JObject<'a>, jni::errors::Error> {
+    match s {
+        Some(s) => Ok(env.new_string(s)?.into()),
+        None => Ok(JObject::null()),
+    }
+}
+
+/// 通知を描く。`avatar_path` / `image_path` は ImageCache のローカルファイル。
+/// (tag, id) は notecore の notify_plan が決める
+#[allow(clippy::too_many_arguments)]
+pub fn show(
+    tag: &str,
+    id: i32,
+    channel_id: &str,
+    title: &str,
+    body: Option<&str>,
+    deep_link: Option<&str>,
+    avatar_path: Option<&str>,
+    image_path: Option<&str>,
+) {
+    call_static(
+        "show",
+        SHOW_SIG,
+        |env| {
+            Ok(vec![
+                jstr(env, Some(tag))?,
+                jstr(env, Some(channel_id))?,
+                jstr(env, Some(title))?,
+                jstr(env, body)?,
+                jstr(env, deep_link)?,
+                jstr(env, avatar_path)?,
+                jstr(env, image_path)?,
+            ])
+        },
+        Some(id),
+    );
+}
+
+/// tag の通知を全部消す (既読になった口座の分)
+pub fn cancel(tag: &str) {
+    call_static(
+        "cancel",
+        STRING_ARG_SIG,
+        |env| Ok(vec![jstr(env, Some(tag))?]),
+        None,
+    );
+}
+
+/// 通知チャネルを種別群で作る / 表示言語で名前を付け直す。`channels` は
+/// (id, name, important)。以前の 1 本だけのチャネルは Kotlin 側が消す
+pub fn ensure_channels(channels: &[(String, String, bool)]) {
+    let json = serde_json::Value::Array(
+        channels
+            .iter()
+            .map(|(id, name, important)| {
+                serde_json::json!({ "id": id, "name": name, "important": important })
+            })
+            .collect(),
+    )
+    .to_string();
+    call_static(
+        "ensureChannels",
+        STRING_ARG_SIG,
+        |env| Ok(vec![jstr(env, Some(&json))?]),
+        None,
+    );
 }
