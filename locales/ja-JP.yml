@@ -2636,7 +2636,6 @@ _notifyPermission:
 
 _backgroundNotify:
   polling: "閉じている間の通知: 定期的に確認"
-  foregroundOnly: "通知は開いている間に届きます"
   permissionDenied: "通知が許可されていません"
   openSettings: "OS の通知設定を開く"
   pushActive: "閉じている間の通知: プッシュ通知"
