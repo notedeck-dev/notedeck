@@ -155,12 +155,11 @@ async fn poll_account(
         crate::android_notify::cancel(&notify_tag(&account.id, NotifyKind::Notification));
     } else {
         let cursor = crate::notify_cursor_file::load(app_dir);
-        let since = cursor
-            .position(&account.id, NotifyKind::Notification)
-            .map(str::to_string);
-        // 処理位置より新しい分だけ取る。初回 (位置なし) は新しい方から未読数ぶん。
-        // markAsRead は必ず false: 既読は「通知カラムを見たとき」だけ (#330 §3.2)
-        let options = TimelineOptions::new(unread.min(MAX_NOTIFICATIONS) as i64, since, None);
+        // 新しい方から未読数ぶんを取り、処理位置で絞る。本家の既読は位置 1 本なので、
+        // 未読は常に新しい方の n 件。sinceId に処理位置を渡してはいけない: 本家は
+        // sinceId だけのとき古い順で返すので、位置が古いと既読の分を取って新しい未読を
+        // 取りこぼす。markAsRead は必ず false: 既読は「通知カラムを見たとき」だけ (#330 §3.2)
+        let options = TimelineOptions::new(unread.min(MAX_NOTIFICATIONS) as i64, None, None);
         let fetched = client
             .get_notifications(&account.host, token, &account.id, options, false)
             .await?;
