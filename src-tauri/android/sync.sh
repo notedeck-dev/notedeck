@@ -28,6 +28,10 @@ cp "$SCRIPT_DIR/network_security_config_debug.xml" "$GEN_DIR/../debug/res/xml/ne
 cp "$SCRIPT_DIR/backup_rules.xml" "$GEN_DIR/res/xml/backup_rules.xml"
 cp "$SCRIPT_DIR/data_extraction_rules.xml" "$GEN_DIR/res/xml/data_extraction_rules.xml"
 
+# Rust から JNI で呼ぶメソッドを release の R8 から守る。build.gradle.kts は
+# app 直下の *.pro を全部読むので置くだけで効く
+cp "$SCRIPT_DIR/proguard-jni.pro" "$SCRIPT_DIR/../gen/android/app/proguard-jni.pro"
+
 # Add WorkManager dependency to build.gradle.kts if not already present
 BUILD_GRADLE="$SCRIPT_DIR/../gen/android/app/build.gradle.kts"
 WORK_DEP='implementation("androidx.work:work-runtime-ktx:2.10.1")'
