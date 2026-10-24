@@ -1,5 +1,6 @@
-//! push の購読登録のコード (#330 §5) の golden。AiScript 1.2.1 (本家のフロントと同じ版) で
-//! 実際に動かす検査 (tests/core/pushRegisterCode.test.ts) がこのファイルを読む。
+//! push の購読登録のコード (#330) の golden。本家の AiScript (現行の 1.2.1 と、古い版の
+//! サーバーに残る 0.19) で実際に動かす検査 (tests/core/pushRegisterCode.test.ts) がこの
+//! ファイルを読む。
 //! 純関数のモジュール (push_register) は I/O を持てないので、ファイルの読み書きはここ。
 //! 辞書や組み立てを変えたら `UPDATE_GOLDEN=1 cargo test -p notecore --test push_register_golden`
 //! で書き直す

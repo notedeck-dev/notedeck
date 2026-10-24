@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { Interpreter, Parser, utils, values } from '@syuilo/aiscript'
+import * as current from '@syuilo/aiscript'
+import * as legacy from '@syuilo/aiscript-0-19-0'
 import { describe, expect, it } from 'vitest'
 
 /**
@@ -10,7 +11,8 @@ import { describe, expect, it } from 'vitest'
  * 文法や組み込み関数を間違えると利用者の手元で初めて壊れる。
  *
  * Scratchpad と同じく USER_ID / USER_USERNAME / Mk:api / Mk:dialog を差し込み、本家の
- * レジストリ (domain = アプリのトークンの id) と i/apps を手元の表で模す。
+ * レジストリ (domain = アプリのトークンの id) と i/apps を手元の表で模す。本家の現行
+ * (1.2.1) と、まだ残っている古い版のサーバーの 0.19 の両方で同じ場面を回す。
  * 判定表 (#330 issuecomment-6383525709):
  * - 登録に進むのは「生きている domain の登録待ちがちょうど 1 件、印が 0 件」だけ
  * - 0 件 + 取り消し済み → 古いコード (出力欄に 1 行)
@@ -47,7 +49,18 @@ interface World {
   registerResponse?: Record<string, unknown> | 'error'
 }
 
-async function run(world: World, source = code) {
+/** 本家の AiScript の版 (Scratchpad はサーバーの版で動く) */
+type Engine = Pick<
+  typeof current,
+  'Interpreter' | 'Parser' | 'utils' | 'values'
+>
+const ENGINES: [string, Engine][] = [
+  ['1.2.1', current],
+  ['0.19', legacy as unknown as Engine],
+]
+
+async function runWith(engine: Engine, world: World, source = code) {
+  const { Interpreter, Parser, utils, values } = engine
   const calls: { endpoint: string; params: Record<string, unknown> }[] = []
   const dialogs: { title: string; text: string; type: string }[] = []
   const printed: string[] = []
@@ -170,7 +183,9 @@ const stateOf = (world: World, domain: string | null, key: string) =>
     | Record<string, unknown>
     | undefined
 
-describe('push の購読登録のコード (AiScript)', () => {
+describe.each(ENGINES)('push の購読登録のコード (AiScript %s)', (_, engine) => {
+  const run = (world: World, source?: string) => runWith(engine, world, source)
+
   it('正常: 登録待ちが 1 件なら登録し、済みの印で秘密を消し、テスト通知を送る', async () => {
     const r = await run({
       apps: ['tokA'],
