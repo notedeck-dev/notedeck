@@ -3298,6 +3298,7 @@ dependencies = [
  "colored",
  "dirs 6.0.0",
  "futures-util",
+ "jni 0.21.1",
  "keyring-core",
  "linux-keyutils-keyring-store",
  "rand 0.9.4",
@@ -3367,7 +3368,7 @@ dependencies = [
 
 [[package]]
 name = "notedeck"
-version = "1.92.0"
+version = "1.93.0"
 dependencies = [
  "async-trait",
  "axum",
@@ -3435,7 +3436,7 @@ dependencies = [
 
 [[package]]
 name = "notemaid"
-version = "1.92.0"
+version = "1.93.0"
 dependencies = [
  "chrono",
  "clap",

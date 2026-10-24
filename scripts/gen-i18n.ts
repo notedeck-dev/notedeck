@@ -37,8 +37,6 @@ const CAPABILITIES_SECTION = '_capabilities'
 export const NATIVE_SECTION = '_native'
 export const NATIVE_DIR = join(ROOT, 'crates/notecore/locales')
 export const NATIVE_RS_PATH = join(ROOT, 'crates/notecore/src/i18n/dictionaries.generated.rs')
-/** Android の文字列リソース (`_native.android` 節)。sync.sh が gen/android へコピーする */
-export const ANDROID_RES_DIR = join(ROOT, 'src-tauri/android/res')
 
 /** 正本の言語 */
 export const SOURCE_LANG = 'ja-JP'
@@ -422,41 +420,10 @@ const snake = (key: string) =>
     .replace(PLURAL_SUFFIX, '')
     .replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
 
-/**
- * Android の文字列リソース。Kotlin の通知ワーカーは Rust を通らずに通知を出すので
- * 辞書を Android の形で渡す。言語は端末の言語で選ばれる。param は `{count}` だけ
- */
-function androidResources(): Map<string, string> {
-  const files = new Map<string, string>()
-  for (const { code } of realLanguages()) {
-    const tree = (compose(code)[NATIVE_SECTION] as LocaleTree | undefined)?.android
-    if (!tree || typeof tree === 'string') continue
-    const lines: string[] = []
-    for (const [key, value] of Object.entries(tree)) {
-      const name = `nd_${snake(key)}`
-      if (typeof value === 'string') {
-        lines.push(`    <string name="${name}">${xmlText(value)}</string>`)
-      } else {
-        lines.push(`    <plurals name="${name}">`)
-        for (const [q, v] of Object.entries(value))
-          lines.push(`        <item quantity="${q}">${xmlText(v as string)}</item>`)
-        lines.push('    </plurals>')
-      }
-    }
-    const dir = code === FALLBACK_LANG ? 'values' : `values-${code.split('-')[0]}`
-    files.set(
-      join(ANDROID_RES_DIR, dir, 'nd_strings.xml'),
-      `<?xml version="1.0" encoding="utf-8"?>\n<!-- 生成物 — 編集しない。locales/ の _native.android から \`pnpm gen:i18n\` で作る (#135) -->\n<resources>\n${lines.join('\n')}\n</resources>\n`,
-    )
-  }
-  return files
-}
-
 /** Rust に埋め込む辞書 (言語ごとの `_native` 節。欠けたキーは fallback で埋まっている) */
 export function generateNative(): {
   files: Map<string, string>
   rs: string
-  android: Map<string, string>
 } {
   const files = new Map<string, string>()
   const languages = realLanguages()
@@ -489,15 +456,11 @@ pub const PUBLISHED: &[&str] = &[${languages
     .map((l) => `"${l.code}"`)
     .join(', ')}];
 `
-  return { files, rs, android: androidResources() }
+  return { files, rs }
 }
 
 function writeNative(): void {
-  const { files, rs, android } = generateNative()
-  for (const [path, text] of android) {
-    mkdirSync(dirname(path), { recursive: true })
-    writeFileSync(path, text)
-  }
+  const { files, rs } = generateNative()
   mkdirSync(NATIVE_DIR, { recursive: true })
   for (const [code, text] of files) writeFileSync(join(NATIVE_DIR, `${code}.json`), text)
   mkdirSync(dirname(NATIVE_RS_PATH), { recursive: true })

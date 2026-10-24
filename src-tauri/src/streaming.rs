@@ -301,6 +301,12 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         &self,
         ev: &notecore::stream_fanout::StreamNewChatMessageEvent,
     ) {
+        #[cfg(target_os = "android")]
+        self.advance_notify_cursor(
+            &ev.account_id,
+            notecore::notify_plan::NotifyKind::Message,
+            &ev.message.id,
+        );
         let host = self
             .app
             .try_state::<crate::commands::AppState>()
@@ -381,6 +387,14 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
     }
 
     fn send_native_notification(&self, notification: &NormalizedNotification) {
+        // Android のワーカーと処理位置を共有する (#330 段階 C)。見えていて抑止する分や
+        // 重複分も「ここまで扱った」には含める
+        #[cfg(target_os = "android")]
+        self.advance_notify_cursor(
+            &notification.account_id,
+            notecore::notify_plan::NotifyKind::Notification,
+            &notification.id,
+        );
         match self.plan_os_notification(notification) {
             OsNotifPlan::Suppress => {}
             OsNotifPlan::ShowNow {
@@ -426,6 +440,27 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
                 let _ = spawn_flusher;
             }
         }
+    }
+
+    /// OS 通知の処理位置を進める (Android)。ワーカーはこの位置より新しいものだけを
+    /// 取るので、アプリが生きている間に扱った通知を 15 分後に出し直さない。ファイルの
+    /// 書込なので WS の読みループを塞がないよう別スレッドで
+    #[cfg(target_os = "android")]
+    fn advance_notify_cursor(
+        &self,
+        account_id: &str,
+        kind: notecore::notify_plan::NotifyKind,
+        id: &str,
+    ) {
+        let app_dir =
+            notecore::app_dir::override_from_env().or_else(|| self.app.path().app_data_dir().ok());
+        let Some(app_dir) = app_dir else {
+            return;
+        };
+        let (account_id, id) = (account_id.to_string(), id.to_string());
+        tauri::async_runtime::spawn_blocking(move || {
+            crate::notify_cursor_file::advance(&app_dir, &account_id, kind, &id);
+        });
     }
 
     /// その口座の通知カラムが見えているか。Android では WebView の可視性が凍結中に

@@ -65,7 +65,7 @@ describe.each(CRATES)('%s の境界 (#1106)', (crate) => {
     // OS 通知の組み立て (#330 §4.1) は、どの経路 (ストリーミング / ワーカー / push)
     // からも同じ関数を通す。ワーカーは Activity の無いプロセスで走るので、ここに
     // 端末依存やネットワークが混ざると気づかずに落ちる経路になる
-    const PURE_MODULES = ['src/notify_plan.rs']
+    const PURE_MODULES = ['src/notify_plan.rs', 'src/notify_cursor.rs']
     const FORBIDDEN =
       /\b(reqwest|tokio|ndk_context|jni|keyring|keychain|image_cache|std::net|std::fs|std::process)\b/
     const violations: string[] = []

@@ -430,6 +430,7 @@ iOS / Android は in-process の transport (コマンド面は同じ)
 - **行数の多い DB の読み書き (取り込み / キャッシュ検索 / 一括削除) は `Core::blocking` を通す** (notecli の Database は同期の rusqlite なので、async の本体から直接呼ぶと tokio の worker を塞ぐ)。1 行のキー引きや統計は直接呼んでよい。プール化や async API を notecli 側に持たせる判断 (#1098) はこの境界の裏で差し替える
 - 表に載らない `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
 - Kotlin から直接呼ぶ Rust の入口 (JNI の `extern "system" fn Java_…`、Android の通知ブリッジやワーカーが使う) は `#[tauri::command]` ではないので、直前の行に `// nd-entry: local` を持つ (同じ lint)。OS 統合なので種別は local 固定。入口の中は release の `panic = "abort"` を前提に Result 一本で書き、`ndk_context` に触らない (#330 §4.1)
+- **Android の閉じている間の通知はワーカーも Rust が本体** (`src-tauri/src/android_worker.rs`、#330 段階 C)。Kotlin の `NotificationWorker` は「ライブラリの読込 → 描画ヘルパーの初期化 → OS の通知許可の確認 → `NotificationBridge.runWorker`」だけで、口座の読取 (`Database::open_read_only`) / トークン (keychain は Kotlin から渡された application Context で開く `init_store_with_android_context`) / Misskey への問い合わせ / 文言 (`notecore::notify_plan`、ストリーミングと同じ) / 描画 (`android_notify`) は Rust。「ここまで OS 通知にした」は口座 × 種別の処理位置 (`notecore::notify_cursor`、ファイルは `notify_cursor_file`) で、ストリーミングとワーカーの両方が進める。文言を Kotlin の文字列リソースで二重に持つことはしない (`_native.android` は廃止)
 
 ```
 src/                        # Vue 3 frontend

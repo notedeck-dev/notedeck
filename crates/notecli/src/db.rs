@@ -409,6 +409,31 @@ impl Database {
         Ok(db)
     }
 
+    /// 読み取り専用で開く (migration / cleanup / VACUUM を一切走らせない)。
+    /// アプリとは別の入口 (Android の通知ワーカー、notedeck#330 段階 C) が口座の
+    /// 一覧を読むためのもので、アプリが同じ DB を開いていても衝突しない (WAL)。
+    /// ファイルが無ければ Err (作らない)。書き込み系のメソッドは失敗する
+    pub fn open_read_only(path: &Path) -> Result<Self, NoteDeckError> {
+        if !path.is_file() {
+            return Err(NoteDeckError::Database(rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
+                Some(format!("database not found: {}", path.display())),
+            )));
+        }
+        let open = || {
+            let conn = Connection::open_with_flags(
+                path,
+                OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_NO_MUTEX,
+            )?;
+            conn.execute_batch(PRAGMAS_READER)?;
+            Ok::<_, NoteDeckError>(conn)
+        };
+        Ok(Self {
+            writer: Mutex::new(open()?),
+            reader: Mutex::new(open()?),
+        })
+    }
+
     /// refinery_schema_history の最新 version。テーブルが無い (新規 DB) なら None。
     fn schema_version(conn: &Connection) -> Option<i64> {
         conn.query_row(
@@ -2240,6 +2265,37 @@ mod tests {
 
     fn tk(s: &str) -> TimelineKey {
         TimelineKey::parse(s).unwrap()
+    }
+
+    /// 読み取り専用で開くと口座が読め、書き込みは失敗し、無いファイルは作らない
+    /// (Android の通知ワーカーの入口、notedeck#330 段階 C)
+    #[test]
+    fn open_read_only_reads_accounts_but_never_writes_or_creates() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("test.db");
+        {
+            let db = Database::open(&db_path).unwrap();
+            db.upsert_account(&Account {
+                id: "acct-1".into(),
+                host: "misskey.example".into(),
+                token: String::new(),
+                user_id: "u1".into(),
+                username: "alice".into(),
+                display_name: None,
+                avatar_url: None,
+                software: "misskey".into(),
+            })
+            .unwrap();
+        }
+        let ro = Database::open_read_only(&db_path).unwrap();
+        let accounts = ro.load_accounts().unwrap();
+        assert_eq!(accounts.len(), 1);
+        assert_eq!(accounts[0].host, "misskey.example");
+        assert!(ro.delete_account("acct-1").is_err(), "read-only は書けない");
+
+        let missing = dir.path().join("missing.db");
+        assert!(Database::open_read_only(&missing).is_err());
+        assert!(!missing.exists(), "無い DB を作らない");
     }
 
     // --- Migration status (pre-start check, notedeck#1106) ---

@@ -28,9 +28,13 @@ pub mod http_server {
 }
 #[cfg(target_os = "android")]
 mod android_notify;
+#[cfg(target_os = "android")]
+mod android_worker;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
 mod ipc_index;
+#[cfg(target_os = "android")]
+mod notify_cursor_file;
 mod os_notify;
 mod query_bridge;
 mod streaming;
@@ -645,8 +649,6 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 });
             }
-
-            commands::export_account_list(&app_state, &db);
 
             // Streaming manager (depends on DB)。
             // 必ず emit_accounts_early より前に manage する: アカウント一覧を

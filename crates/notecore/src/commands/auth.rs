@@ -55,7 +55,6 @@ pub async fn auth_complete_and_save(
     let saved =
         auth_service::complete_and_save(&db, &client, &session.host, &session.session_id, software)
             .await?;
-    crate::commands::export_account_list(core, &db);
     // 口座の追加に追随して通知を配る main を張る (#330 §3.1)。張れなくても追加は成功
     if let Err(e) = crate::commands::streaming::subscribe_main_for_account(core, &saved.id).await {
         tracing::warn!(account = saved.id, "[stream] main after login: {e}");

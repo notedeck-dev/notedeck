@@ -3814,14 +3814,6 @@ _native:
       other: "NoteDeck — {count} unread"
   apiTokens:
     nameRequired: "Enter a token name"
-  android:
-    newNotifications_plural:
-      one: "{count} new notification"
-      other: "{count} new notifications"
-    newNotification: "You have a new notification"
-    multipleAccounts: "New notifications on multiple accounts"
-    channelName: "Misskey notifications"
-    channelDescription: "Follows, reactions, mentions and other notifications"
 
 _useAiConfig:
   customProviderName: "Custom (OpenAI-compatible)"

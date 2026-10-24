@@ -6,7 +6,7 @@ use notecli::error::NoteDeckError;
 use notecli::models::{AccountPublic, ServerDetection};
 
 use crate::account_service;
-use crate::commands::{export_account_list, validate_host};
+use crate::commands::validate_host;
 use crate::context::Core;
 use crate::error::Result;
 
@@ -132,7 +132,6 @@ pub async fn create_guest_account(
     let db = core.db().await;
     let host = validate_host(&host)?;
     let account = account_service::create_guest(&db, host, software)?;
-    export_account_list(core, &db);
     Ok(AccountPublic::new(&account, false))
 }
 
@@ -193,7 +192,6 @@ pub async fn delete_account(core: &Core, id: String) -> Result<()> {
     }
     let db = core.db().await;
     crate::account_service::delete(&db, &id)?;
-    crate::commands::export_account_list(core, &db);
     Ok(())
 }
 
@@ -204,7 +202,6 @@ pub async fn logout_account(core: &Core, id: String) -> Result<()> {
     }
     let db = core.db().await;
     crate::account_service::logout(&db, &id)?;
-    crate::commands::export_account_list(core, &db);
     Ok(())
 }
 

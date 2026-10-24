@@ -6376,18 +6376,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       /** トークン名を入力してください */
       readonly "nameRequired": string
     }
-    readonly "android": {
-      /** {count} 件の新しい通知があります */
-      readonly "newNotifications_plural": PluralString<'count'>
-      /** 新しい通知があります */
-      readonly "newNotification": string
-      /** 複数のアカウントに新しい通知があります */
-      readonly "multipleAccounts": string
-      /** Misskey の通知 */
-      readonly "channelName": string
-      /** フォロー、リアクション、メンションなどの通知 */
-      readonly "channelDescription": string
-    }
   }
   readonly "_useAiConfig": {
     /** Custom (OpenAI 互換) */
