@@ -389,17 +389,18 @@ pub fn complete(account: &Account, response: &str) -> Result<(), CompleteError> 
 }
 
 /// 本家の購読を解除し (失敗しても進める)、写しを消す。同じホストの口座が誰も使って
-/// いなければ配送アプリからも外す。`others` は同じ端末のほかの口座
+/// いなければ配送アプリからも外す。`others` は同じ端末のほかの口座。
+/// 写しを消せなかったときだけ Err (消えていない写しは「使っている」と表示され続ける)
 pub async fn disable(
     client: &notecli::api::MisskeyClient,
     account: &Account,
     token: &str,
     others: &[Account],
-) {
+) -> Result<(), notecli::error::NoteDeckError> {
     // 登録していない口座は何もしない (同じホストで登録しかけている別口座の
     // エンドポイントを巻き込まない)
     let Some(subscription) = load_subscription(&account.id) else {
-        return;
+        return Ok(());
     };
     if let Err(e) = client
         .sw_unregister(
@@ -413,13 +414,12 @@ pub async fn disable(
     {
         tracing::warn!("[push] unregister failed: {e}");
     }
-    if let Err(e) = notecli::keychain::delete_token(&secret_id(&account.id)) {
-        tracing::warn!("[push] forget subscription failed: {e}");
-    }
+    let forgotten = notecli::keychain::delete_token(&secret_id(&account.id));
     let host_still_used = others.iter().any(|a| {
         a.id != account.id && a.host == account.host && load_subscription(&a.id).is_some()
     });
     if !host_still_used {
         unregister(&account.host);
     }
+    forgotten
 }

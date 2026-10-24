@@ -228,8 +228,13 @@ async fn poll_account(
 
 /// この巡回で使う画像キャッシュ (アプリと同じディスク領域)。クライアントを作れなければ None
 pub(crate) fn image_cache(app_dir: &Path) -> Option<ImageCache> {
+    // SSRF の防御はアプリの共有クライアントと同じ: リダイレクト先の検証と、名前解決の
+    // 結果を接続前に確かめる resolver (private / loopback に解決される公開ホスト名を
+    // 弾く、#857)。通知の画像の URL は他人が書いたものなので省かない
     let http = reqwest::Client::builder()
         .timeout(IMAGE_FETCH_TIMEOUT)
+        .redirect(notecore::ssrf::external_redirect_policy(5))
+        .dns_resolver(std::sync::Arc::new(notecore::ssrf::ValidatingResolver))
         .build()
         .ok()?;
     let perf = std::sync::Arc::new(tokio::sync::RwLock::new(

@@ -33,7 +33,9 @@ fn ais_str(s: &str) -> String {
 
 /// Scratchpad で実行してもらうコード。先頭で口座名を照合し、別の口座で本家 Web に
 /// ログインしていたら止める (別口座の購読を作らない)。既読の合図も受け取る
-/// (他端末で全部既読にしたら通知を消すため、§5.3)。成功したら応答の JSON を
+/// (他端末で全部既読にしたら通知を消すため、§5.3)。同じ三つ組の購読が既にあると
+/// 本家の sw/register は既読の合図の設定を更新せずに返すので、無効なら
+/// sw/update-registration で有効にしてから見せる。成功したら応答の JSON を
 /// コピーしやすい形で出す
 pub fn register_code(username: &str, keys: &PushKeys, lang: &str) -> String {
     let wrong_account = i18n::render(
@@ -55,7 +57,16 @@ pub fn register_code(username: &str, keys: &PushKeys, lang: &str) -> String {
          if (Core:type(response) == 'error') {{\n\
          \tMk:dialog(response.name, Core:to_str(response.info), 'error')\n\
          }} else {{\n\
-         \tMk:dialog({copy}, ['```json', Json:stringify(response), '```'].join(Str:lf), 'success')\n\
+         \tvar updated = response\n\
+         \tif (response.sendReadMessage != true) {{\n\
+         \t\tupdated = Mk:api('sw/update-registration', {{ endpoint: {endpoint}, sendReadMessage: true }})\n\
+         \t}}\n\
+         \tif (Core:type(updated) == 'error') {{\n\
+         \t\tMk:dialog(updated.name, Core:to_str(updated.info), 'error')\n\
+         \t}} else {{\n\
+         \t\tresponse.sendReadMessage = updated.sendReadMessage\n\
+         \t\tMk:dialog({copy}, ['```json', Json:stringify(response), '```'].join(Str:lf), 'success')\n\
+         \t}}\n\
          }}\n",
         user = ais_str(username),
         wrong = ais_str(&wrong_account),

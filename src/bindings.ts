@@ -2018,7 +2018,8 @@ async pushComplete(accountId: string, response: string) : Promise<Result<PushPro
 },
 /**
  * push をやめる。本家の購読を解除し (失敗しても進める)、登録の写しを消す。
- * 口座の削除 / ログアウトの前にも呼ぶ (トークンがあるうちに認証つきで解除する)
+ * 口座の削除 / ログアウトの前にも呼ぶ (トークンがあるうちに認証つきで解除する)。
+ * 写しを消せなかったら Err (呼び手の削除 / ログアウトはこの失敗を無視して進める)
  *
  * @see src-tauri/src/commands/push.rs
  */

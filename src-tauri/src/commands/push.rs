@@ -173,6 +173,10 @@ pub async fn push_complete(
         use crate::android_push::CompleteError;
         use notecore::push_register::VerifyError;
         let account = account(&core, &account_id).await?;
+        // ログアウトした口座には保存しない (再ログインで知らないうちに有効にならない)
+        if crate::android_worker::token_for(&account).is_none() {
+            return Ok(Some(PushProblem::Unavailable));
+        }
         Ok(match crate::android_push::complete(&account, &response) {
             Ok(()) => None,
             Err(CompleteError::Verify(VerifyError::Unreadable)) => Some(PushProblem::Unreadable),
@@ -197,7 +201,8 @@ pub async fn push_complete(
 }
 
 /// push をやめる。本家の購読を解除し (失敗しても進める)、登録の写しを消す。
-/// 口座の削除 / ログアウトの前にも呼ぶ (トークンがあるうちに認証つきで解除する)
+/// 口座の削除 / ログアウトの前にも呼ぶ (トークンがあるうちに認証つきで解除する)。
+/// 写しを消せなかったら Err (呼び手の削除 / ログアウトはこの失敗を無視して進める)
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
@@ -212,8 +217,7 @@ pub async fn push_disable(core: tauri::State<'_, AppState>, account_id: String) 
             .unwrap_or_default();
         let others = db.load_accounts()?;
         let client = core.client().await;
-        crate::android_push::disable(&client, &account, &token, &others).await;
-        Ok(())
+        crate::android_push::disable(&client, &account, &token, &others).await
     }
     #[cfg(not(target_os = "android"))]
     {

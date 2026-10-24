@@ -62,9 +62,12 @@ export function usePushRegistration(accountId: MaybeRefOrGetter<string>) {
   }
 
   async function disable() {
-    await run(async () => {
+    const done = await run(async () => {
       unwrap(await commands.pushDisable(toValue(accountId)))
+      return true
     })
+    // 失敗したら読み直さない (読み直しの run が error を消してしまう)
+    if (!done) return
     prepared.value = null
     await refresh()
   }

@@ -73,6 +73,19 @@ describe('usePushRegistration', () => {
     expect(push.prepared.value?.code).toBe('c')
   })
 
+  it('やめるのに失敗したら状態を読み直さず、エラーを残す', async () => {
+    const push = usePushRegistration(() => 'acct-1')
+    pushDisable.mockImplementation(() =>
+      Promise.resolve({
+        status: 'error' as const,
+        error: { code: 'KEYCHAIN', message: 'locked' },
+      }),
+    )
+    await push.disable()
+    expect(pushStatus).not.toHaveBeenCalled()
+    expect(push.error.value).toBeTruthy()
+  })
+
   it('やめると状態を読み直す。IPC の失敗は error に入れて投げない', async () => {
     const push = usePushRegistration(() => 'acct-1')
     pushDisable.mockImplementation(() => ok(null))

@@ -26,7 +26,12 @@ const RESPONSE = {
   sendReadMessage: true,
 }
 
-async function runAs(username: string) {
+/**
+ * `registered` は sw/register の応答。既に同じ購読があると本家は sendReadMessage を
+ * 更新せずに返すので、false の応答も試す。sw/update-registration は本家と同じく
+ * { userId, endpoint, sendReadMessage } を返す
+ */
+async function runAs(username: string, registered: object = RESPONSE) {
   const calls: { endpoint: string; params: unknown }[] = []
   const dialogs: { title: string; text: string; type: string }[] = []
   const errors: unknown[] = []
@@ -34,11 +39,17 @@ async function runAs(username: string) {
     {
       USER_USERNAME: values.STR(username),
       'Mk:api': values.FN_NATIVE(([endpoint, params]) => {
-        calls.push({
-          endpoint: utils.valToJs(endpoint) as string,
-          params: utils.valToJs(params),
-        })
-        return utils.jsToVal(RESPONSE)
+        const name = utils.valToJs(endpoint) as string
+        const body = utils.valToJs(params) as Record<string, unknown>
+        calls.push({ endpoint: name, params: body })
+        if (name === 'sw/update-registration') {
+          return utils.jsToVal({
+            userId: 'u1',
+            endpoint: body.endpoint,
+            sendReadMessage: body.sendReadMessage,
+          })
+        }
+        return utils.jsToVal(registered)
       }),
       'Mk:dialog': values.FN_NATIVE(([title, text, type]) => {
         dialogs.push({
@@ -92,6 +103,27 @@ describe('push の購読登録のコード (AiScript)', () => {
     expect(
       JSON.parse(shown.slice('```json\n'.length, -'\n```'.length)),
     ).toEqual(RESPONSE)
+  })
+
+  it('既存の購読が既読の合図なしで返ったら、sw/update-registration で有効にしてから見せる', async () => {
+    const { calls, dialogs, errors } = await runAs('alice', {
+      ...RESPONSE,
+      state: 'already-subscribed',
+      sendReadMessage: false,
+    })
+    expect(errors).toEqual([])
+    expect(calls.map((c) => c.endpoint)).toEqual([
+      'sw/register',
+      'sw/update-registration',
+    ])
+    expect(calls[1]?.params).toEqual({
+      endpoint: 'https://ntfy.example/upAbC?up=1',
+      sendReadMessage: true,
+    })
+    const shown = dialogs[0]?.text ?? ''
+    expect(
+      JSON.parse(shown.slice('```json\n'.length, -'\n```'.length)),
+    ).toEqual({ ...RESPONSE, state: 'already-subscribed' })
   })
 
   it('別の口座で本家 Web にログインしていたら、登録せずに止まる', async () => {
