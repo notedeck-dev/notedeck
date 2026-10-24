@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 端末外バックアップと端末間移行から外すもの (Android 12 以上、#330 §4.3)。
+     理由は backup_rules.xml (Android 11 以下) と同じで、両方に同じものを書く -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="keyring-default.xml" />
+        <exclude domain="root" path="notify_cursor.json" />
+        <exclude domain="root" path="notify_cursor.json.tmp" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="keyring-default.xml" />
+        <exclude domain="root" path="notify_cursor.json" />
+        <exclude domain="root" path="notify_cursor.json.tmp" />
+    </device-transfer>
+</data-extraction-rules>

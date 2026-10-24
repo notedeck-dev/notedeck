@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 端末外バックアップから外すもの (Android 11 以下、#330 §4.3)。Android 12 以上は
+     data_extraction_rules.xml。両方に同じものを書く。
+     - keyring-default: トークンの暗号文。鍵は Android Keystore にあり Keystore の鍵は
+       バックアップされないので、復元しても読めない残骸になる
+     - notify_cursor.json: OS 通知の処理位置。端末ごとの状態で、別の端末に戻すと
+       そこで出していない通知を「出した」扱いにする -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="keyring-default.xml" />
+    <exclude domain="root" path="notify_cursor.json" />
+    <exclude domain="root" path="notify_cursor.json.tmp" />
+</full-backup-content>

@@ -22,6 +22,10 @@ mkdir -p "$GEN_DIR/res/xml" "$GEN_DIR/../debug/res/xml"
 cp "$SCRIPT_DIR/network_security_config.xml" "$GEN_DIR/res/xml/network_security_config.xml"
 cp "$SCRIPT_DIR/network_security_config_debug.xml" "$GEN_DIR/../debug/res/xml/network_security_config.xml"
 
+# 端末外バックアップの除外 (#330 §4.3)。Android 11 以下 / 12 以上の 2 方式
+cp "$SCRIPT_DIR/backup_rules.xml" "$GEN_DIR/res/xml/backup_rules.xml"
+cp "$SCRIPT_DIR/data_extraction_rules.xml" "$GEN_DIR/res/xml/data_extraction_rules.xml"
+
 # Add WorkManager dependency to build.gradle.kts if not already present
 BUILD_GRADLE="$SCRIPT_DIR/../gen/android/app/build.gradle.kts"
 WORK_DEP='implementation("androidx.work:work-runtime-ktx:2.10.1")'
