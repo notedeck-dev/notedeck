@@ -378,15 +378,6 @@
     },
     "apiTokens": {
       "nameRequired": "トークン名を入力してください"
-    },
-    "android": {
-      "newNotifications_plural": {
-        "other": "{count} 件の新しい通知があります"
-      },
-      "newNotification": "新しい通知があります",
-      "multipleAccounts": "複数のアカウントに新しい通知があります",
-      "channelName": "Misskey の通知",
-      "channelDescription": "フォロー、リアクション、メンションなどの通知"
     }
   },
   "_capabilities": {

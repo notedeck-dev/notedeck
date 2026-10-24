@@ -110,10 +110,13 @@ class MainActivity : TauriActivity() {
     }
   }
 
+  /**
+   * 閉じている間の巡回を 15 分おきに予約する (#330 段階 C)。制約はネットワークだけ:
+   * 電池が少ないときも通知は要る (判断 J)。既存の予約があれば制約と間隔を更新する
+   */
   private fun scheduleNotificationPolling() {
     val constraints = Constraints.Builder()
       .setRequiredNetworkType(NetworkType.CONNECTED)
-      .setRequiresBatteryNotLow(true)
       .build()
 
     val request = PeriodicWorkRequestBuilder<NotificationWorker>(
@@ -129,7 +132,7 @@ class MainActivity : TauriActivity() {
 
     WorkManager.getInstance(this).enqueueUniquePeriodicWork(
       "notedeck_notification_poll",
-      ExistingPeriodicWorkPolicy.KEEP,
+      ExistingPeriodicWorkPolicy.UPDATE,
       request,
     )
   }

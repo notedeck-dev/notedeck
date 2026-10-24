@@ -7,8 +7,8 @@
 //!
 //! 今は起動時に Kotlin (NotificationBridge.register) が JavaVM と描画ヘルパー
 //! (NotificationRenderer) のクラス参照を 1 回預け、以後はそれを使って静的メソッドを
-//! 呼ぶ。通知の経路では誰も `ndk_context` に触らない。ワーカー / push の経路
-//! (段階 C / F) も同じ入口を使う。
+//! 呼ぶ。通知の経路では誰も `ndk_context` に触らない。ワーカー (android_worker、
+//! 段階 C) と push の経路 (段階 F) も同じ入口を使う。
 //!
 //! release は `panic = "abort"` なので、この境界の中は Result 一本で書く
 //! (unwrap / expect / 添字アクセスを使わない)。
@@ -53,8 +53,8 @@ const SHOW_SIG: &str = "(Ljava/lang/String;ILjava/lang/String;Ljava/lang/String;
 const STRING_ARG_SIG: &str = "(Ljava/lang/String;)V";
 
 /// Kotlin の `NotificationBridge.register(context)` から呼ばれる入口。
-/// JavaVM とクラス参照を預かるだけで、Context は今は使わない (ワーカーの keychain
-/// 用に将来渡す)。冪等 (2 回目以降は何もしない)
+/// JavaVM とクラス参照を預かるだけで、Context は使わない (ワーカーの keychain は
+/// 自分の入口で受け取る)。冪等 (2 回目以降は何もしない)
 // nd-entry: local
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_register(
@@ -62,6 +62,13 @@ pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_register(
     _class: JClass,
     _context: JObject,
 ) {
+    register_bridge(&mut env);
+}
+
+/// 入口の登録 (JavaVM + 描画ヘルパーのクラス参照)。登録済みなら何もしない。
+/// Activity の onCreate からと、Activity 無しのワーカー (android_worker) からの両方が
+/// 呼ぶ: ワーカーだけのプロセスでは誰も register を通っていない
+pub fn register_bridge(env: &mut JNIEnv) {
     if BRIDGE.get().is_some() {
         return;
     }

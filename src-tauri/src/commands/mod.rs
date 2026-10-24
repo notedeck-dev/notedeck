@@ -34,7 +34,6 @@ use notecli::db::Database;
 
 pub(crate) use crate::error::Result;
 
-pub use notecore::commands::export_account_list;
 /// notecore の実行文脈。旧 `AppState` (二段階初期化) はそのまま notecore へ移った。
 /// managed state は `Arc<Core>` (長生きする task が `Core::shared()` で自分の Arc を取れる)
 pub type AppState = std::sync::Arc<notecore::context::Core>;

@@ -45,6 +45,7 @@ pub mod media_warm;
 pub mod migration;
 pub mod migrations;
 pub mod navbar;
+pub mod notify_cursor;
 pub mod notify_media;
 pub mod notify_plan;
 pub mod ogp;

@@ -1,0 +1,219 @@
+//! Android の通知ワーカーの本体 (#330 段階 C)。
+//!
+//! WorkManager が 15 分おきに Kotlin の `NotificationWorker` を起こし、それが
+//! `NotificationBridge.runWorker` でここに入る。Kotlin 側は薄く (ライブラリの読込、
+//! 描画ヘルパーの初期化、OS の通知許可の確認、戻り値で retry) 、口座の読取 /
+//! トークン / Misskey への問い合わせ / 文言 / 描画の呼出は全部 Rust が持つ。以前の
+//! Kotlin 実装は口座一覧の写し (`poll_accounts.json`) と keyring の内部形式の復号を
+//! 自前で持ち、通知も種別を持たない要約 1 件だったが、ストリーミングと同じ
+//! `notify_plan` を通すので文言 / チャネル / タップ先 / (tag, id) が揃う。
+//!
+//! Activity が無いプロセスで走ることがあるので、`ndk_context` には触らない:
+//! 描画は `android_notify` の入口 (Kotlin が預けた JavaVM + クラス参照)、keychain は
+//! Kotlin から渡された application Context で開く。release は `panic = "abort"`
+//! なのでこの中は Result 一本で書く (unwrap / expect / 添字アクセスを使わない)。
+//!
+//! 流れ (口座ごと): `i` で未読数と未読メッセージの有無 → 未読があれば処理位置
+//! (`notify_cursor_file`) より新しい通知を取って 1 件ずつ描く → 位置を進める。
+//! 未読 0 なら出ている通知を tag ごと消す (他端末で読んだ分)。画像 (アバター /
+//! 絵文字) はまだ付けない。
+
+use std::path::{Path, PathBuf};
+
+use jni::objects::{JClass, JObject, JString};
+use jni::sys::jint;
+use jni::JNIEnv;
+use notecli::api::MisskeyClient;
+use notecli::error::NoteDeckError;
+use notecli::models::{Account, ChatMessage, TimelineOptions};
+use notecore::notify_plan::{self, notify_tag, NotifyKind, NotifyPlan};
+
+/// Kotlin への戻り値。`Result.success()`
+const RESULT_SUCCESS: jint = 0;
+/// `Result.retry()` (全口座がネットワークの失敗)
+const RESULT_RETRY: jint = 1;
+
+/// 1 回の巡回で口座ごとに取る通知の上限 (本家 `i/notifications` の最大)
+const MAX_NOTIFICATIONS: u64 = 100;
+/// メッセージ履歴 (相手ごと / ルームごとの最新 1 件) の取得数
+const CHAT_HISTORY_LIMIT: i64 = 30;
+
+/// Kotlin の `NotificationBridge.runWorker(context, dataDir)` から呼ばれる入口。
+/// `data_dir` は Tauri の `app_data_dir()` と同じ場所 (`Context.getDataDir()`)
+// nd-entry: local
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_runWorker(
+    mut env: JNIEnv,
+    _class: JClass,
+    context: JObject,
+    data_dir: JString,
+) -> jint {
+    // 前面ならアプリのストリーミングが配っている (見ている通知カラムの抑止もそちら)
+    if crate::android_notify::is_foreground() {
+        return RESULT_SUCCESS;
+    }
+    let app_dir: PathBuf = match env.get_string(&data_dir) {
+        Ok(s) => PathBuf::from(String::from(s)),
+        Err(e) => {
+            tracing::warn!("[worker] data dir unreadable: {e}");
+            return RESULT_SUCCESS;
+        }
+    };
+    // 表示言語 → 入口 (初回登録時にチャネルを作るので言語が先)
+    crate::ui_lang::init_if_unset(&app_dir);
+    crate::android_notify::register_bridge(&mut env);
+    if let Err(e) = notecli::keychain::init_store_with_android_context(&mut env, &context) {
+        tracing::warn!("[worker] keychain unavailable: {e}");
+        return RESULT_SUCCESS;
+    }
+    let runtime = match tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            tracing::warn!("[worker] runtime: {e}");
+            return RESULT_SUCCESS;
+        }
+    };
+    runtime.block_on(run(&app_dir))
+}
+
+async fn run(app_dir: &Path) -> jint {
+    let accounts = match notecli::db::Database::open_read_only(&app_dir.join("notecli.db"))
+        .and_then(|db| db.load_accounts())
+    {
+        Ok(accounts) => accounts,
+        Err(e) => {
+            // DB がまだ無い (口座を足していない) のは正常
+            tracing::info!("[worker] accounts unavailable: {e}");
+            return RESULT_SUCCESS;
+        }
+    };
+    let client = match MisskeyClient::new() {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::warn!("[worker] http client: {e}");
+            return RESULT_SUCCESS;
+        }
+    };
+    let lang = crate::ui_lang::current();
+    let mut attempted = 0;
+    let mut network_failures = 0;
+    for account in &accounts {
+        // ゲスト口座 (トークン無し) は通知を持たない
+        let Some(token) = token_for(account) else {
+            continue;
+        };
+        attempted += 1;
+        match poll_account(&client, account, &token, &lang, app_dir).await {
+            Ok(()) => {}
+            Err(NoteDeckError::Network(e)) => {
+                network_failures += 1;
+                tracing::warn!(host = %account.host, "[worker] network: {e}");
+            }
+            Err(e) => tracing::warn!(host = %account.host, "[worker] poll failed: {e}"),
+        }
+    }
+    // 全口座がネットワークで落ちたときだけ WorkManager に再試行を頼む (圏外など)
+    if attempted > 0 && network_failures == attempted {
+        RESULT_RETRY
+    } else {
+        RESULT_SUCCESS
+    }
+}
+
+/// 口座のトークン。keychain 優先、無ければ DB の列 (keychain が永続しない環境の
+/// フォールバック)。どちらも空ならゲスト
+fn token_for(account: &Account) -> Option<String> {
+    let from_keychain = notecli::keychain::get_token(&account.id)
+        .ok()
+        .flatten()
+        .filter(|t| !t.is_empty());
+    from_keychain.or_else(|| (!account.token.is_empty()).then(|| account.token.clone()))
+}
+
+async fn poll_account(
+    client: &MisskeyClient,
+    account: &Account,
+    token: &str,
+    lang: &str,
+    app_dir: &Path,
+) -> Result<(), NoteDeckError> {
+    let me = client.get_self(&account.host, token).await?;
+    let unread = me
+        .get("unreadNotificationsCount")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    let has_unread_chat = me
+        .get("hasUnreadChatMessages")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false);
+
+    if unread == 0 {
+        crate::android_notify::cancel(&notify_tag(&account.id, NotifyKind::Notification));
+    } else {
+        let cursor = crate::notify_cursor_file::load(app_dir);
+        let since = cursor
+            .position(&account.id, NotifyKind::Notification)
+            .map(str::to_string);
+        // 処理位置より新しい分だけ取る。初回 (位置なし) は新しい方から未読数ぶん。
+        // markAsRead は必ず false: 既読は「通知カラムを見たとき」だけ (#330 §3.2)
+        let options = TimelineOptions::new(unread.min(MAX_NOTIFICATIONS) as i64, since, None);
+        let fetched = client
+            .get_notifications(&account.host, token, &account.id, options, false)
+            .await?;
+        let fresh = cursor.newer_than(&account.id, NotifyKind::Notification, fetched, |n| &n.id);
+        for n in &fresh {
+            if let Some(plan) = notify_plan::plan(n, lang) {
+                show(&plan);
+            }
+            crate::notify_cursor_file::advance(
+                app_dir,
+                &account.id,
+                NotifyKind::Notification,
+                &n.id,
+            );
+        }
+    }
+
+    if !has_unread_chat {
+        crate::android_notify::cancel(&notify_tag(&account.id, NotifyKind::Message));
+        return Ok(());
+    }
+    // 相手ごと / ルームごとの最新 1 件。未読で他人からのものだけが対象
+    let mut messages = client
+        .get_chat_history(&account.host, token, CHAT_HISTORY_LIMIT, false)
+        .await?;
+    messages.extend(
+        client
+            .get_chat_history(&account.host, token, CHAT_HISTORY_LIMIT, true)
+            .await?,
+    );
+    ChatMessage::fill_account_id(&mut messages, &account.id);
+    let unread_messages: Vec<ChatMessage> = messages
+        .into_iter()
+        .filter(|m| m.is_read == Some(false) && m.from_user_id != account.user_id)
+        .collect();
+    let cursor = crate::notify_cursor_file::load(app_dir);
+    let fresh = cursor.newer_than(&account.id, NotifyKind::Message, unread_messages, |m| &m.id);
+    for m in &fresh {
+        show(&notify_plan::plan_chat(m, &account.host, lang));
+        crate::notify_cursor_file::advance(app_dir, &account.id, NotifyKind::Message, &m.id);
+    }
+    Ok(())
+}
+
+/// 画像は付けずに描く (アバター / 絵文字のローカル化は ImageCache が要るので後回し)
+fn show(plan: &NotifyPlan) {
+    crate::android_notify::show(
+        &plan.tag,
+        plan.id,
+        plan.channel.id(),
+        &plan.title,
+        plan.body.as_deref(),
+        plan.deep_link.as_deref(),
+        None,
+        None,
+    );
+}

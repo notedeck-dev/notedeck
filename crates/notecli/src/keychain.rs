@@ -79,6 +79,30 @@ pub fn init_store() -> Result<(), NoteDeckError> {
     Ok(())
 }
 
+/// Activity の無い経路 (Android の WorkManager ワーカー、notedeck#330 段階 C) 用。
+/// `init_store` は `ndk_context` から Activity を取るので、ワーカーだけが走る
+/// プロセスでは使えない。Kotlin から渡された application Context で同じ store
+/// (同じ名前の vault) を開く。すでに既定 store があれば何もしない (アプリが生きて
+/// いるプロセスでワーカーが走ったとき)。`ndk_context` には触らない
+#[cfg(all(feature = "keyring", target_os = "android"))]
+pub fn init_store_with_android_context(
+    env: &mut jni::JNIEnv,
+    context: &jni::objects::JObject,
+) -> Result<(), NoteDeckError> {
+    if keyring_core::get_default_store().is_some() {
+        return Ok(());
+    }
+    let context = android_native_keyring_store::AndroidContext::new(env, context)
+        .map_err(|e| NoteDeckError::Keychain(e.to_string()))?;
+    let store = android_native_keyring_store::by_store::Store::new_with_context(
+        context,
+        android_native_keyring_store::by_store::store::StoreConfig::default(),
+    )
+    .map_err(|e| NoteDeckError::Keychain(e.to_string()))?;
+    keyring_core::set_default_store(store);
+    Ok(())
+}
+
 /// store に実際に書いて読めるか確認する。接続可否ではなく roundtrip で判定するのは、
 /// secret-service が「接続は成功するが collection が無く書込不能」という中間状態を
 /// 取りうるため (WSL2 の gnome-keyring 等)。

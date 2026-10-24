@@ -41,6 +41,8 @@ wiremock = "0.6"
 # 1.0 は 0.6 と API 互換 (new() のまま)。workspace の [patch.crates-io] で上流 PR #50
 # (Context を明示で渡して開く Store::new_with_context) を先行して指す (#330 段階 0 / C)
 android-native-keyring-store = { version = "1", optional = true }
+# Activity の無いワーカーから application Context で store を開く入口 (keychain.rs)
+jni = { version = "0.21", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "1", features = ["keychain"], optional = true }
@@ -62,6 +64,7 @@ default = ["keyring"]
 keyring = [
     "dep:keyring-core",
     "dep:android-native-keyring-store",
+    "dep:jni",
     "dep:apple-native-keyring-store",
     "dep:windows-native-keyring-store",
     "dep:linux-keyutils-keyring-store",

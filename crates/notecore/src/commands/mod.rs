@@ -43,10 +43,8 @@ pub mod vault;
 use std::sync::LazyLock;
 
 use notecli::api::MisskeyClient;
-use notecli::db::Database;
 use notecli::error::NoteDeckError;
 
-use crate::context::Core;
 use crate::error::Result;
 
 pub const MAX_UPLOAD_BYTES: usize = 50 * 1024 * 1024; // 50 MB
@@ -81,31 +79,6 @@ pub async fn typed_request<T: serde::de::DeserializeOwned>(
 ) -> Result<T> {
     let raw = client.request(host, token, endpoint, params).await?;
     Ok(serde_json::from_value(raw)?)
-}
-
-/// Write account list (non-secret metadata only) to a JSON file for background workers.
-/// The file contains host, account_id, and username — no tokens.
-pub fn export_account_list(core: &Core, db: &Database) {
-    let Ok(app_dir) = core.app_dir() else {
-        return;
-    };
-    let Ok(accounts) = db.load_accounts() else {
-        return;
-    };
-    let list: Vec<serde_json::Value> = accounts
-        .iter()
-        .map(|a| {
-            serde_json::json!({
-                "id": a.id,
-                "host": a.host,
-                "username": a.username,
-            })
-        })
-        .collect();
-    let _ = std::fs::write(
-        app_dir.join("poll_accounts.json"),
-        serde_json::to_string(&list).unwrap_or_default(),
-    );
 }
 
 pub fn validate_host(host: &str) -> Result<String> {
