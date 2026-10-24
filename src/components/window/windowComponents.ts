@@ -59,6 +59,7 @@ const WINDOW_LOADERS: Record<WindowType, Loader> = {
   tutorial: () => import('@/components/tutorial/TutorialContent.vue'),
   tutorialEditor: () => import('@/components/window/TutorialEditorContent.vue'),
   'ai-turn-prompt': () => import('@/components/window/AiTurnPromptContent.vue'),
+  'push-register': () => import('@/components/window/PushRegisterContent.vue'),
 }
 
 /** DeckWindowLayer が `<component :is>` で描くためのマップ */

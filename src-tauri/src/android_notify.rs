@@ -22,6 +22,9 @@ use jni::{JNIEnv, JavaVM};
 struct Bridge {
     vm: JavaVM,
     renderer_class: GlobalRef,
+    /// push の Kotlin 側 (PushBridge、#330 §5)。Tauri コマンドのスレッドからは
+    /// FindClass でアプリのクラスを引けないので、ここで一緒に預かる
+    push_class: GlobalRef,
 }
 
 static BRIDGE: OnceLock<Bridge> = OnceLock::new();
@@ -81,7 +84,13 @@ pub fn register_bridge(env: &mut JNIEnv) {
         // Java のスレッドから呼ばれているので、アプリのクラスローダーで解決できる
         let class = env.find_class("com/notedeck/desktop/NotificationRenderer")?;
         let renderer_class = env.new_global_ref(class)?;
-        Ok(Bridge { vm, renderer_class })
+        let class = env.find_class("com/notedeck/desktop/PushBridge")?;
+        let push_class = env.new_global_ref(class)?;
+        Ok(Bridge {
+            vm,
+            renderer_class,
+            push_class,
+        })
     })();
     match result {
         Ok(bridge) => {
@@ -180,6 +189,26 @@ pub fn show(
         },
         Some(id),
     );
+}
+
+/// PushBridge (Kotlin) の静的メソッドを呼ぶ。入口の登録前や例外は None (例外は消してから戻る)
+pub fn with_push_class<T>(
+    name: &str,
+    call: impl for<'a> FnOnce(&mut JNIEnv<'a>, &GlobalRef) -> Result<T, jni::errors::Error>,
+) -> Option<T> {
+    let bridge = BRIDGE.get()?;
+    let mut env = bridge.vm.attach_current_thread().ok()?;
+    match call(&mut env, &bridge.push_class) {
+        Ok(value) => Some(value),
+        Err(e) => {
+            if env.exception_check().unwrap_or(false) {
+                let _ = env.exception_describe();
+                let _ = env.exception_clear();
+            }
+            tracing::warn!("[push] JNI call {name} failed: {e}");
+            None
+        }
+    }
 }
 
 /// 通知が OS で許可されているか。入口の登録前は None

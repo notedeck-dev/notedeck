@@ -381,6 +381,10 @@
         "messages": "Messages"
       }
     },
+    "push": {
+      "wrongAccount": "Log in as {user} before running this",
+      "copyResponse": "Copy this and paste it into NoteDeck"
+    },
     "tray": {
       "unread_plural": {
         "one": "NoteDeck — {count} unread",

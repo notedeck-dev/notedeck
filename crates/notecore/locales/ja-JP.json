@@ -371,6 +371,10 @@
         "messages": "メッセージ"
       }
     },
+    "push": {
+      "wrongAccount": "{user} でログインしてから実行してください",
+      "copyResponse": "この内容をコピーして NoteDeck に貼り付けてください"
+    },
     "tray": {
       "unread_plural": {
         "other": "NoteDeck — 未読 {count} 件"

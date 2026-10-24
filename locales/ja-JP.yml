@@ -109,6 +109,7 @@ _windows:
   tutorial: "チュートリアル"
   tutorialEditor: "チュートリアル"
   aiTurnPrompt: "この応答に送った指示"
+  pushRegister: "プッシュ通知"
 
 _commands:
   commandPalette: "コマンドパレット"
@@ -2638,6 +2639,41 @@ _backgroundNotify:
   foregroundOnly: "通知は開いている間に届きます"
   permissionDenied: "通知が許可されていません"
   openSettings: "OS の通知設定を開く"
+  pushActive: "閉じている間の通知: プッシュ通知"
+  pushNeedsRegistration: "プッシュ通知: 登録し直しが要ります"
+  pushActionRequired: "プッシュ通知: プッシュ通知アプリで操作が要ります"
+  pushSetup: "プッシュ通知"
+
+_pushRegister:
+  intro: "プッシュ通知アプリ (UnifiedPush 対応のアプリ) を使うと、NoteDeck を閉じている間も通知がすぐ届きます。使わなくても、閉じている間は定期的に確認して知らせます。"
+  noDistributor: "プッシュ通知アプリが入っていません。ntfy など UnifiedPush 対応のアプリを入れてから、もう一度開いてください。"
+  howItWorks: "Misskey の仕組みにより、登録はこのアカウントでログインした Web UI で 1 回だけ行います。"
+  start: "登録を始める"
+  waiting: "プッシュ通知アプリの応答を待っています"
+  stepRun: "1. コードをコピーし、Web UI の Scratchpad に貼って実行します"
+  copyCode: "コードをコピー"
+  openScratchpad: "Scratchpad を開く"
+  stepPaste: "2. 表示された内容をコピーして、ここに貼り付けます"
+  responsePlaceholder: "表示された内容"
+  submit: "登録する"
+  active: "このアカウントの通知はプッシュ通知で届きます。"
+  disable: "プッシュ通知をやめる"
+  disableTitle: "プッシュ通知をやめますか？"
+  disableMessage: "閉じている間は、定期的に確認して知らせる方式に戻ります。"
+  needsRegistration: "プッシュ通知アプリ側の登録が変わりました。もう一度登録してください。"
+  actionRequired: "プッシュ通知アプリで操作が必要です。アプリを開いて確認してから、もう一度登録してください。"
+  learnMore: "仕組みの説明"
+  failed: "うまくいきませんでした。通信の状態を確認して、もう一度お試しください。"
+  _problem:
+    unavailable: "このアカウントではプッシュ通知を使えません。"
+    serverUnsupported: "このサーバーはプッシュ通知に対応していません (サーバーで Web Push が設定されていません)。"
+    noDistributor: "プッシュ通知アプリが入っていません。ntfy など UnifiedPush 対応のアプリを入れてください。"
+    distributorFailed: "プッシュ通知アプリが登録に応じませんでした。アプリを確認してから、もう一度お試しください。"
+    unreadable: "貼り付けた内容を読み取れませんでした。表示された内容をすべてコピーしてください。"
+    otherAccount: "別のアカウントで登録されています。このアカウントで Web UI にログインしてから実行してください。"
+    otherEndpoint: "古いコードで登録されています。「登録を始める」からやり直してください。"
+    endpointGone: "プッシュ通知アプリ側の登録が無くなりました。「登録を始める」からやり直してください。"
+    storage: "登録を保存できませんでした。"
 
 _deepLink:
   accountNotFound: "このリンクのアカウントではログインしていません"
@@ -3515,6 +3551,9 @@ _native:
       account: "アカウント"
       other: "その他"
       messages: "メッセージ"
+  push:
+    wrongAccount: "{user} でログインしてから実行してください"
+    copyResponse: "この内容をコピーして NoteDeck に貼り付けてください"
   tray:
     unread_plural:
       other: "NoteDeck — 未読 {count} 件"

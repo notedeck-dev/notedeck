@@ -1,0 +1,14 @@
+if (USER_USERNAME != 'alice') {
+	Core:abort('@alice でログインしてから実行してください')
+}
+let response = Mk:api('sw/register', {
+	endpoint: 'https://ntfy.example/upAbC?up=1',
+	auth: 'aGVsbG8',
+	publickey: 'BPub_key-1',
+	sendReadMessage: true,
+})
+if (Core:type(response) == 'error') {
+	Mk:dialog(response.name, Core:to_str(response.info), 'error')
+} else {
+	Mk:dialog('この内容をコピーして NoteDeck に貼り付けてください', ['```json', Json:stringify(response), '```'].join(Str:lf), 'success')
+}

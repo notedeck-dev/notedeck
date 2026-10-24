@@ -102,6 +102,7 @@ _windows:
   tutorial: "Tutorial"
   tutorialEditor: "Tutorial"
   aiTurnPrompt: "Instructions sent for this reply"
+  pushRegister: "Push notifications"
 
 _commands:
   commandPalette: "Command palette"
@@ -2908,6 +2909,41 @@ _backgroundNotify:
   foregroundOnly: "Notifications arrive while the app is open"
   permissionDenied: "Notifications are not allowed"
   openSettings: "Open OS notification settings"
+  pushActive: "Notifications while closed: push notifications"
+  pushNeedsRegistration: "Push notifications: register again"
+  pushActionRequired: "Push notifications: check your push notification app"
+  pushSetup: "Push notifications"
+
+_pushRegister:
+  intro: "With a push notification app (one that supports UnifiedPush), notifications arrive right away even while NoteDeck is closed. Without one, NoteDeck still checks periodically while closed."
+  noDistributor: "No push notification app is installed. Install a UnifiedPush app such as ntfy, then open this again."
+  howItWorks: "Because of how Misskey works, you register once in the Web UI while logged in as this account."
+  start: "Start registering"
+  waiting: "Waiting for the push notification app"
+  stepRun: "1. Copy the code, paste it into Scratchpad in the Web UI, and run it"
+  copyCode: "Copy code"
+  openScratchpad: "Open Scratchpad"
+  stepPaste: "2. Copy what it shows and paste it here"
+  responsePlaceholder: "What Scratchpad showed"
+  submit: "Register"
+  active: "Notifications for this account arrive as push notifications."
+  disable: "Stop push notifications"
+  disableTitle: "Stop push notifications?"
+  disableMessage: "While closed, NoteDeck goes back to checking periodically."
+  needsRegistration: "The push notification app's registration changed. Register again."
+  actionRequired: "Your push notification app needs attention. Open it, then register again."
+  learnMore: "How it works"
+  failed: "That didn't work. Check your connection and try again."
+  _problem:
+    unavailable: "Push notifications aren't available for this account."
+    serverUnsupported: "This server doesn't support push notifications (Web Push isn't configured on the server)."
+    noDistributor: "No push notification app is installed. Install a UnifiedPush app such as ntfy."
+    distributorFailed: "The push notification app didn't respond. Check the app and try again."
+    unreadable: "Couldn't read what you pasted. Copy everything Scratchpad showed."
+    otherAccount: "It was registered for a different account. Log in to the Web UI as this account, then run it."
+    otherEndpoint: "It was registered with an old code. Start again from \"Start registering\"."
+    endpointGone: "The push notification app's registration is gone. Start again from \"Start registering\"."
+    storage: "Couldn't save the registration."
 
 _deepLink:
   accountNotFound: "You are not logged in as the account this link refers to"
@@ -3808,6 +3844,9 @@ _native:
       account: "Account"
       other: "Other"
       messages: "Messages"
+  push:
+    wrongAccount: "Log in as {user} before running this"
+    copyResponse: "Copy this and paste it into NoteDeck"
   tray:
     unread_plural:
       one: "NoteDeck — {count} unread"

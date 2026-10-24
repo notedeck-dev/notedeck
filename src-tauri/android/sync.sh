@@ -14,6 +14,8 @@ cp "$SCRIPT_DIR/MainActivity.kt" "$JAVA_DIR/MainActivity.kt"
 cp "$SCRIPT_DIR/NotificationWorker.kt" "$JAVA_DIR/NotificationWorker.kt"
 cp "$SCRIPT_DIR/NotificationRenderer.kt" "$JAVA_DIR/NotificationRenderer.kt"
 cp "$SCRIPT_DIR/NotificationBridge.kt" "$JAVA_DIR/NotificationBridge.kt"
+cp "$SCRIPT_DIR/PushBridge.kt" "$JAVA_DIR/PushBridge.kt"
+cp "$SCRIPT_DIR/NotedeckPushService.kt" "$JAVA_DIR/NotedeckPushService.kt"
 cp "$SCRIPT_DIR/AndroidManifest.xml" "$GEN_DIR/AndroidManifest.xml"
 
 # networkSecurityConfig (#921): release はループバック (127.0.0.1) のみ
@@ -32,6 +34,16 @@ WORK_DEP='implementation("androidx.work:work-runtime-ktx:2.10.1")'
 if [ -f "$BUILD_GRADLE" ] && ! grep -q "work-runtime-ktx" "$BUILD_GRADLE"; then
     sed -i "/androidx.appcompat:appcompat/a\\    $WORK_DEP" "$BUILD_GRADLE"
     echo "WorkManager dependency added."
+fi
+
+# push の受け口 (#330 §5)。配送アプリ (distributor) は同梱しない。
+# 3.0 系に固定する: Tauri が生成するプロジェクトの Kotlin プラグインは 1.9.25 で、
+# 読めるメタデータは 2.0 まで。connector 3.1 以降は kotlin-stdlib 2.2 以上を引き込み、
+# アプリの Kotlin が全部コンパイルできなくなる (手元の APK ビルドで確認)
+PUSH_DEP='implementation("org.unifiedpush.android:connector:3.0.10")'
+if [ -f "$BUILD_GRADLE" ] && ! grep -q "unifiedpush.android:connector" "$BUILD_GRADLE"; then
+    sed -i "/androidx.appcompat:appcompat/a\\    $PUSH_DEP" "$BUILD_GRADLE"
+    echo "UnifiedPush connector dependency added."
 fi
 
 echo "Android custom files synced."

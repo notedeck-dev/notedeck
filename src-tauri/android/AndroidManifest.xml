@@ -43,6 +43,15 @@
             </intent-filter>
         </activity>
 
+        <!-- push の受け口 (#330 §5)。配送アプリ (UnifiedPush) からだけ届く。非公開・同一プロセス -->
+        <service
+            android:name=".NotedeckPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+
         <provider
           android:name="androidx.core.content.FileProvider"
           android:authorities="${applicationId}.fileprovider"

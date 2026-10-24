@@ -6,10 +6,18 @@
         <exclude domain="sharedpref" path="keyring-default.xml" />
         <exclude domain="root" path="notify_cursor.json" />
         <exclude domain="root" path="notify_cursor.json.tmp" />
+        <exclude domain="sharedpref" path="notedeck_push.xml" />
+        <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
+        <exclude domain="database" path="unifiedpush-connector" />
+        <exclude domain="database" path="unifiedpush-connector-journal" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="keyring-default.xml" />
         <exclude domain="root" path="notify_cursor.json" />
         <exclude domain="root" path="notify_cursor.json.tmp" />
+        <exclude domain="sharedpref" path="notedeck_push.xml" />
+        <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
+        <exclude domain="database" path="unifiedpush-connector" />
+        <exclude domain="database" path="unifiedpush-connector-journal" />
     </device-transfer>
 </data-extraction-rules>

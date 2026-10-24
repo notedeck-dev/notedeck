@@ -1977,6 +1977,60 @@ async openOsNotificationSettings() : Promise<void> {
     await TAURI_INVOKE("open_os_notification_settings");
 },
 /**
+ * 口座の push の状態
+ *
+ * @see src-tauri/src/commands/push.rs
+ */
+async pushStatus(accountId: string) : Promise<Result<PushStatus, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("push_status", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 配送アプリに登録し、本家の Scratchpad で実行してもらうコードを組む。
+ * 配送アプリの返事を待つので数秒かかることがある
+ *
+ * @see src-tauri/src/commands/push.rs
+ */
+async pushPrepare(accountId: string) : Promise<Result<PushPrepareResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("push_prepare", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 本家で実行した応答を受け取り、合っていれば push を使い始める。成功は None
+ *
+ * @see src-tauri/src/commands/push.rs
+ */
+async pushComplete(accountId: string, response: string) : Promise<Result<PushProblem | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("push_complete", { accountId, response }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * push をやめる。本家の購読を解除し (失敗しても進める)、登録の写しを消す。
+ * 口座の削除 / ログアウトの前にも呼ぶ (トークンがあるうちに認証つきで解除する)
+ *
+ * @see src-tauri/src/commands/push.rs
+ */
+async pushDisable(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("push_disable", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * 未読合計を OS へ反映する (#748):
  * - macOS Dock / Linux ランチャー: バッジ件数
  * - Windows: タスクバーのオーバーレイドット
@@ -3907,6 +3961,82 @@ export type PrincipalClass =
  * HTTP API 経由の外部アプリ (全永続トークン)
  */
 "external"
+/**
+ * 準備の結果。`prepared` か `problem` のどちらか
+ */
+export type PushPrepareResult = { prepared: PushPrepared | null; problem: PushProblem | null }
+/**
+ * 本家 Web の Scratchpad で実行してもらうコードと、その Scratchpad の URL
+ */
+export type PushPrepared = { code: string; scratchpadUrl: string }
+/**
+ * 準備 / 登録の失敗の理由。成功は None
+ */
+export type PushProblem = 
+/**
+ * この端末では使えない
+ */
+"unavailable" | 
+/**
+ * サーバーが Web Push を設定していない
+ */
+"serverUnsupported" | 
+/**
+ * プッシュ通知アプリが入っていない / 登録を始められない
+ */
+"noDistributor" | 
+/**
+ * プッシュ通知アプリが登録に失敗した / 返事が無い
+ */
+"distributorFailed" | 
+/**
+ * 貼られた内容が登録の応答として読めない
+ */
+"unreadable" | 
+/**
+ * 本家 Web に別の口座でログインしていた
+ */
+"otherAccount" | 
+/**
+ * 古いコードを実行した (端末の登録と違う)
+ */
+"otherEndpoint" | 
+/**
+ * 端末の登録が無くなった (準備からやり直す)
+ */
+"endpointGone" | 
+/**
+ * 保存できなかった
+ */
+"storage"
+/**
+ * 口座の背面の通知の経路 (状態行に出す)
+ */
+export type PushStatus = 
+/**
+ * この端末では push を扱わない (Android 以外 / ゲスト)
+ */
+"unavailable" | 
+/**
+ * プッシュ通知アプリ (配送アプリ) が入っていない
+ */
+"noDistributor" | 
+/**
+ * 使っていない (閉じている間は定期確認だけ)
+ */
+"off" | 
+/**
+ * 使っている
+ */
+"active" | 
+/**
+ * 端末側の登録が変わったので、本家での登録し直しが要る
+ */
+"needsRegistration" | 
+/**
+ * プッシュ通知アプリ側で操作が要る
+ */
+"actionRequired"
 export type PvChartGroup = { user: number[]; visitor: number[] }
 /**
  * let 束縛。slot はコンパイラが式全体で一意に割り当てる

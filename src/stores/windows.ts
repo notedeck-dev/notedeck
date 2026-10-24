@@ -45,6 +45,7 @@ export type WindowType =
   | 'tutorial'
   | 'tutorialEditor'
   | 'ai-turn-prompt'
+  | 'push-register'
 
 export interface DeckWindow {
   id: string
@@ -107,6 +108,8 @@ export const useWindowsStore = defineStore('windows', () => {
     'edit-history': ['kind', 'basename'],
     connectionEdit: ['connectionId'],
     'ai-turn-prompt': ['turnId'],
+    // 口座ごとに 1 つ (#330 §5)
+    'push-register': ['accountId'],
   }
 
   /** Types that are always singletons (at most one instance). */

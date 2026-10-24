@@ -138,7 +138,7 @@ async fn run(app_dir: &Path) -> jint {
 
 /// 口座のトークン。keychain 優先、無ければ DB の列 (keychain が永続しない環境の
 /// フォールバック)。どちらも空ならゲスト
-fn token_for(account: &Account) -> Option<String> {
+pub(crate) fn token_for(account: &Account) -> Option<String> {
     let from_keychain = notecli::keychain::get_token(&account.id)
         .ok()
         .flatten()
@@ -227,7 +227,7 @@ async fn poll_account(
 }
 
 /// この巡回で使う画像キャッシュ (アプリと同じディスク領域)。クライアントを作れなければ None
-fn image_cache(app_dir: &Path) -> Option<ImageCache> {
+pub(crate) fn image_cache(app_dir: &Path) -> Option<ImageCache> {
     let http = reqwest::Client::builder()
         .timeout(IMAGE_FETCH_TIMEOUT)
         .build()
@@ -240,7 +240,7 @@ fn image_cache(app_dir: &Path) -> Option<ImageCache> {
 
 /// 本文を先に描き、画像 (アバター / リアクションの絵文字) が取れたら同じ (tag, id) で
 /// 描き直す。描き直しは OS が音を鳴らし直さない (NotificationRenderer の onlyAlertOnce)
-async fn show(images: Option<&ImageCache>, plan: &NotifyPlan) {
+pub(crate) async fn show(images: Option<&ImageCache>, plan: &NotifyPlan) {
     draw(plan, None, None);
     let Some(cache) = images else {
         return;

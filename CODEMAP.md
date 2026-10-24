@@ -67,7 +67,7 @@
 
 正本: [`src/windows/registry.ts`](src/windows/registry.ts) の `WINDOW_REGISTRY`
 
-`note-detail` / `note-inspector` / `notification-inspector` / `user-profile` / `federation-instance` / `follow-list` / `aiSettings` / `permissions` / `plugins` / `keybinds` / `cssEditor` / `themeEditor` / `profileEditor` / `login` / `about` / `navEditor` / `performanceEditor` / `appearanceEditor` / `backup` / `cacheEditor` / `tasksEditor` / `snippetsEditor` / `memoEditor` / `column-query-editor` / `page-detail` / `play-detail` / `gallery-detail` / `list-detail` / `clip-detail` / `drive-file-detail` / `page-edit` / `play-edit` / `widget-edit` / `skill-edit` / `edit-history` / `connections` / `connectionEdit` / `tutorial` / `tutorialEditor` / `ai-turn-prompt`
+`note-detail` / `note-inspector` / `notification-inspector` / `user-profile` / `federation-instance` / `follow-list` / `aiSettings` / `permissions` / `plugins` / `keybinds` / `cssEditor` / `themeEditor` / `profileEditor` / `login` / `about` / `navEditor` / `performanceEditor` / `appearanceEditor` / `backup` / `cacheEditor` / `tasksEditor` / `snippetsEditor` / `memoEditor` / `column-query-editor` / `page-detail` / `play-detail` / `gallery-detail` / `list-detail` / `clip-detail` / `drive-file-detail` / `page-edit` / `play-edit` / `widget-edit` / `skill-edit` / `edit-history` / `connections` / `connectionEdit` / `tutorial` / `tutorialEditor` / `ai-turn-prompt` / `push-register`
 
 ## Pinia ストア
 

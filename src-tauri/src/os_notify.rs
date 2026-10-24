@@ -41,6 +41,13 @@ pub struct VisibleNotificationScopes(
 );
 
 impl VisibleNotificationScopes {
+    /// プロセスで 1 つの実体。Tauri の managed state はこれの写しで、AppHandle を持たない
+    /// JNI の入口 (Android の push、#330 §5) も同じ集合を見て抑止する
+    pub fn process() -> &'static Self {
+        static SCOPES: std::sync::OnceLock<VisibleNotificationScopes> = std::sync::OnceLock::new();
+        SCOPES.get_or_init(Self::default)
+    }
+
     /// そのウィンドウで見えている口座を置き換える
     pub fn set(&self, window_label: &str, account_ids: impl IntoIterator<Item = String>) {
         if let Ok(mut by_window) = self.0.lock() {

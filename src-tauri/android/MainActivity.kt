@@ -31,9 +31,17 @@ class MainActivity : TauriActivity() {
     // 預け、Rust に JavaVM とクラス参照を渡す (ネイティブライブラリは super が読み込み済み)
     NotificationRenderer.init(applicationContext)
     NotificationBridge.register(applicationContext)
+    // push (#330 §5): 配送アプリが複数あるときの選択画面に Activity が要る
+    PushBridge.init(applicationContext)
+    PushBridge.attachActivity(this)
     // 通知の権限は起動時ではなく、最初の口座を追加した直後に説明つきで求める
     // (#330 §4.5)。Rust の request_notification_permission から JNI で呼ばれる
     scheduleNotificationPolling()
+  }
+
+  override fun onDestroy() {
+    PushBridge.attachActivity(null)
+    super.onDestroy()
   }
 
   override fun onStart() {
