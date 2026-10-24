@@ -89,9 +89,13 @@ class MainActivity : TauriActivity() {
     return null
   }
 
-  /** 通知の権限を求める (Android 13+)。Rust から JNI (call_method) で呼ばれる */
+  /**
+   * 通知の権限を求める (Android 13+)。Rust から JNI (call_method) で呼ばれるので、
+   * JVM の main thread 外から来る。権限ダイアログは UI スレッドで出す
+   */
   fun requestNotificationPermission() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    runOnUiThread {
       if (ContextCompat.checkSelfPermission(
           this,
           Manifest.permission.POST_NOTIFICATIONS

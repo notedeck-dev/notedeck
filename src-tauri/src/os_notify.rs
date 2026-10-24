@@ -29,11 +29,40 @@ pub struct PendingNotificationClick(pub std::sync::Mutex<Option<NotificationClic
 /// 見えている通知カラムの口座 (フロントが `set_visible_notification_scopes` で写す)。
 /// ここに含まれる口座の通知は OS 通知にしない (#330 §3.3: 見ている最中はアプリ内の
 /// 表示で足りる)。デスクトップも Android も同じ規則で、以前のフォーカス中一律抑止は
-/// やめた (通知カラムを置いていない口座に気づく手段が無かった)
+/// やめた (通知カラムを置いていない口座に気づく手段が無かった)。
+///
+/// デッキは別の WebView ウィンドウでも開けるので、集合はウィンドウラベルごとに持ち、
+/// 判定は全ウィンドウの和集合で行う (1 つの集合に置き換えると別ウィンドウの分が消える)
 #[derive(Default, Clone)]
 pub struct VisibleNotificationScopes(
-    pub std::sync::Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    pub  std::sync::Arc<
+        std::sync::Mutex<std::collections::HashMap<String, std::collections::HashSet<String>>>,
+    >,
 );
+
+impl VisibleNotificationScopes {
+    /// そのウィンドウで見えている口座を置き換える
+    pub fn set(&self, window_label: &str, account_ids: impl IntoIterator<Item = String>) {
+        if let Ok(mut by_window) = self.0.lock() {
+            by_window.insert(window_label.to_string(), account_ids.into_iter().collect());
+        }
+    }
+
+    /// ウィンドウが閉じたらその分を外す
+    pub fn remove_window(&self, window_label: &str) {
+        if let Ok(mut by_window) = self.0.lock() {
+            by_window.remove(window_label);
+        }
+    }
+
+    /// どこかのウィンドウで見えているか
+    pub fn contains(&self, account_id: &str) -> bool {
+        self.0
+            .lock()
+            .map(|by_window| by_window.values().any(|ids| ids.contains(account_id)))
+            .unwrap_or(false)
+    }
+}
 
 /// OS 通知クリック時にフロントへ渡す遷移コンテキスト。
 /// noteId があればノート詳細、なければ userId でユーザー詳細を開く。

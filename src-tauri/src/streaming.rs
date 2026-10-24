@@ -431,12 +431,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
     /// その口座の通知カラムが見えているか。Android では WebView の可視性が凍結中に
     /// 古いまま残りうるので、Activity の前面フラグ (OS が確定的に呼ぶ) と組で判定する
     fn notification_column_visible(&self, account_id: &str) -> bool {
-        let visible = self
-            .visible_scopes
-            .0
-            .lock()
-            .map(|s| s.contains(account_id))
-            .unwrap_or(false);
+        let visible = self.visible_scopes.contains(account_id);
         #[cfg(target_os = "android")]
         let visible = visible && crate::android_notify::is_foreground();
         visible
@@ -1119,20 +1114,19 @@ mod tests {
         let shown = |n: &NormalizedNotification| {
             matches!(emitter.plan_os_notification(n), OsNotifPlan::ShowNow { .. })
         };
-        emitter
-            .visible_scopes
-            .0
-            .lock()
-            .unwrap()
-            .insert("acct-1".to_string());
+        emitter.visible_scopes.set("main", ["acct-1".to_string()]);
         // 見えている口座 (acct-1) の通知は出さない
         assert!(!shown(&test_notification("v1", "mention")));
         // 見えていない口座は出す
         let mut other = test_notification("v2", "mention");
         other.account_id = "acct-2".to_string();
         assert!(shown(&other));
+        // 別のウィンドウが空の集合を送っても、このウィンドウの分は消えない
+        emitter.visible_scopes.set("deck-2", Vec::<String>::new());
+        *emitter.last_os_notif.lock().unwrap() = None;
+        assert!(!shown(&test_notification("v2b", "mention")));
         // 見えなくなったら出す
-        emitter.visible_scopes.0.lock().unwrap().clear();
+        emitter.visible_scopes.remove_window("main");
         *emitter.last_os_notif.lock().unwrap() = None;
         assert!(shown(&test_notification("v3", "mention")));
     }

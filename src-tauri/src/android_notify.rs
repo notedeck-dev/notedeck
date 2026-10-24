@@ -209,6 +209,10 @@ pub fn cancel(tag: &str) {
 /// 通知チャネルを種別群で作る / 表示言語で名前を付け直す。`channels` は
 /// (id, name, important)。以前の 1 本だけのチャネルは Kotlin 側が消す
 pub fn ensure_channels(channels: &[(String, String, bool)]) {
+    // 入口の登録前 (Tauri の setup 中の表示言語の決定) は、登録時に作るので黙って戻る
+    if BRIDGE.get().is_none() {
+        return;
+    }
     let json = serde_json::Value::Array(
         channels
             .iter()

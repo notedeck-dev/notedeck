@@ -58,12 +58,12 @@ pub fn notification_take_pending_click(
 #[tauri::command]
 #[specta::specta]
 pub fn set_visible_notification_scopes(
+    window: tauri::Window,
     state: tauri::State<'_, crate::os_notify::VisibleNotificationScopes>,
     account_ids: Vec<String>,
 ) {
-    if let Ok(mut scopes) = state.0.lock() {
-        *scopes = account_ids.into_iter().collect();
-    }
+    // 呼び出し元のウィンドウの分だけ置き換える (別ウィンドウのデッキの分は残る)
+    state.set(window.label(), account_ids);
 }
 
 /// 通知の権限を求める (Android 13 以上。他では no-op)。起動時ではなく、最初の口座を

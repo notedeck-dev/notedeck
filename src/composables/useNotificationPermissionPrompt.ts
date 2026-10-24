@@ -20,17 +20,26 @@ export function useNotificationPermissionPrompt(): void {
   const accounts = useAccountsStore()
   const tokenCount = () => accounts.accounts.filter((a) => a.hasToken).length
 
+  // 保存済みの口座は起動時に非同期で載る。その 0 → 1 を初回追加と取り違えないよう、
+  // ロードが終わってから見始める (loadAccounts は冪等で、進行中の Promise を返す)
   let prompted = false
-  watch(tokenCount, async (now, before) => {
-    if (prompted || before !== 0 || now !== 1) return
-    prompted = true
-    await useConfirm().confirm({
-      title: i18n.ts._notifyPermission.title,
-      message: i18n.ts._notifyPermission.message,
-      hideCancel: true,
+  void accounts
+    .loadAccounts()
+    .catch(() => {
+      // ロードに失敗しても、以後の追加は見る
     })
-    commands.requestNotificationPermission().catch(() => {
-      // 権限が求められなくても口座の追加は成功している
+    .then(() => {
+      watch(tokenCount, async (now, before) => {
+        if (prompted || before !== 0 || now !== 1) return
+        prompted = true
+        await useConfirm().confirm({
+          title: i18n.ts._notifyPermission.title,
+          message: i18n.ts._notifyPermission.message,
+          hideCancel: true,
+        })
+        commands.requestNotificationPermission().catch(() => {
+          // 権限が求められなくても口座の追加は成功している
+        })
+      })
     })
-  })
 }
