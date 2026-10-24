@@ -1,0 +1,115 @@
+# push の状態の遷移表 (#330)。生成: crates/notecore/tests/push_state_golden.rs
+# マス = 遷移後の状態 g世代 / 届いた push の扱い / 後始末のキュー (変わったときだけ。
+# U = 本家の解除、T = 印の取り消し、R = 配送アプリから外す)
+
+## off (off)
+push                → off / drop
+push(other gen)     → off / drop
+disable             → off
+redo                → off
+new gen             → pending g1
+gen failed          → off
+endpoint gone       → off
+server key changed  → off
+missed x2           → off
+reconcile           → off / queue[g0:UR]
+reconcile +11 min   → off / queue[g0:UR]
+cleanup done        → off
+
+## preparing (preparing g1)
+push                → active g1 / confirmed
+push(other gen)     → preparing g1 / drop
+disable             → unregistering g1 / queue[g1:UR]
+redo                → off g1
+new gen             → pending g2 / queue[g1:UR]
+gen failed          → off g1 / queue[g1:R]
+endpoint gone       → preparing g1
+server key changed  → preparing g1
+missed x2           → preparing g1
+reconcile           → preparing g1
+reconcile +11 min   → off g1 / queue[g1:R]
+cleanup done        → preparing g1
+
+## pending (pending g1)
+push                → active g1 / confirmed
+push(other gen)     → pending g1 / drop
+disable             → unregistering g1 / queue[g1:UTR]
+redo                → off g1
+new gen             → pending g2 / queue[g1:UR]
+gen failed          → pending g1
+endpoint gone       → needsRereg:endpoint g1
+server key changed  → pending g1
+missed x2           → pending g1
+reconcile           → pending g1
+reconcile +11 min   → pending g1
+cleanup done        → pending g1
+
+## active (active g1)
+push                → active g1 / show
+push(other gen)     → active g1 / drop
+disable             → unregistering g1 / queue[g1:UTR]
+redo                → off g1
+new gen             → pending g2 / queue[g1:UR]
+gen failed          → active g1
+endpoint gone       → needsRereg:endpoint g1
+server key changed  → needsRereg:server g1
+missed x2           → needsRereg:missing g1
+reconcile           → active g1
+reconcile +11 min   → active g1
+cleanup done        → active g1
+
+## needsRereg:endpoint (needsRereg:endpoint g1)
+push                → needsRereg:endpoint g1 / show
+push(other gen)     → needsRereg:endpoint g1 / drop
+disable             → unregistering g1 / queue[g1:UTR]
+redo                → off g1
+new gen             → pending g2 / queue[g1:UR]
+gen failed          → needsRereg:endpoint g1
+endpoint gone       → needsRereg:endpoint g1
+server key changed  → needsRereg:endpoint g1
+missed x2           → needsRereg:endpoint g1
+reconcile           → needsRereg:endpoint g1
+reconcile +11 min   → needsRereg:endpoint g1
+cleanup done        → needsRereg:endpoint g1
+
+## needsRereg:missing (needsRereg:missing g1)
+push                → active g1 / show
+push(other gen)     → needsRereg:missing g1 / drop
+disable             → unregistering g1 / queue[g1:UTR]
+redo                → off g1
+new gen             → pending g2 / queue[g1:UR]
+gen failed          → needsRereg:missing g1
+endpoint gone       → needsRereg:missing g1
+server key changed  → needsRereg:missing g1
+missed x2           → needsRereg:missing g1
+reconcile           → needsRereg:missing g1
+reconcile +11 min   → needsRereg:missing g1
+cleanup done        → needsRereg:missing g1
+
+## needsRereg:migrated (needsRereg:migrated g0)
+push                → needsRereg:migrated g0 / show
+push(other gen)     → needsRereg:migrated g0 / drop
+disable             → off g0
+redo                → off g0
+new gen             → pending g1
+gen failed          → needsRereg:migrated g0
+endpoint gone       → needsRereg:migrated g0
+server key changed  → needsRereg:migrated g0
+missed x2           → needsRereg:migrated g0
+reconcile           → needsRereg:migrated g0
+reconcile +11 min   → needsRereg:migrated g0
+cleanup done        → needsRereg:migrated g0
+
+## unregistering (unregistering g1)
+push                → unregistering g1 / drop
+push(other gen)     → unregistering g1 / drop
+disable             → unregistering g1
+redo                → unregistering g1
+new gen             → pending g2
+gen failed          → unregistering g1
+endpoint gone       → unregistering g1
+server key changed  → unregistering g1
+missed x2           → unregistering g1
+reconcile           → unregistering g1
+reconcile +11 min   → unregistering g1
+cleanup done        → off g1 / queue[]

@@ -386,11 +386,17 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         // Android のワーカーと処理位置を共有する (#330 段階 C)。見えていて抑止する分や
         // 重複分も「ここまで扱った」には含める
         #[cfg(target_os = "android")]
-        self.advance_notify_cursor(
-            &notification.account_id,
-            notecore::notify_plan::NotifyKind::Notification,
-            &notification.id,
-        );
+        {
+            self.advance_notify_cursor(
+                &notification.account_id,
+                notecore::notify_plan::NotifyKind::Notification,
+                &notification.id,
+            );
+            // push の登録の確定に使ったテスト通知は push の側で専用の文言で出した (#330)
+            if notification.notification_type == "test" && self.is_push_confirmation(notification) {
+                return;
+            }
+        }
         match self.plan_os_notification(notification) {
             OsNotifPlan::Suppress => {}
             OsNotifPlan::ShowNow {
@@ -457,6 +463,20 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         tauri::async_runtime::spawn_blocking(move || {
             crate::notify_cursor_file::advance(&app_dir, &account_id, kind, &id);
         });
+    }
+
+    /// push の登録の確定に使ったテスト通知か (Android)
+    #[cfg(target_os = "android")]
+    fn is_push_confirmation(&self, notification: &NormalizedNotification) -> bool {
+        notecore::app_dir::override_from_env()
+            .or_else(|| self.app.path().app_data_dir().ok())
+            .is_some_and(|app_dir| {
+                crate::push_flow::is_confirmation(
+                    &app_dir,
+                    &notification.account_id,
+                    &notification.id,
+                )
+            })
     }
 
     /// その口座の通知カラムが見えているか。Android では WebView の可視性が凍結中に

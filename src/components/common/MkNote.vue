@@ -1493,21 +1493,22 @@ function handlePickerReaction(reaction: string) {
 @use '@/styles/spotlight' as *;
 
 /* 束ね (#1058 §7): 視点の数。文字ラベルは置かず (狭いカラムで名前が潰れる) アイコン + 数字 */
+/* 見た目はヘッダー内のもう 1 つのバッジ (.isBot) と揃える。押せる分 hover だけ足す */
 .bundleBadge {
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  margin-left: 6px;
-  padding: 0 6px;
-  height: 18px;
-  border: 1px solid var(--nd-divider);
-  border-radius: var(--nd-radius-full);
+  margin-left: 2px;
+  padding: 1px 6px;
+  border: solid 0.5px var(--nd-divider);
+  border-radius: var(--nd-radius-xs);
   background: transparent;
   color: inherit;
-  font-size: var(--nd-font-xs);
-  line-height: 1;
+  font: inherit;
+  font-size: 80%;
+  line-height: inherit;
   cursor: pointer;
-  opacity: 0.8;
+  opacity: 0.7;
 
   &:hover {
     opacity: 1;

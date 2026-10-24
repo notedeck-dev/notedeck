@@ -1593,6 +1593,63 @@ impl MisskeyClient {
         Ok(())
     }
 
+    // --- Registry ---
+
+    /// レジストリの項目を読む (`i/registry/get`)。無ければ None。アプリのトークンで
+    /// 呼ぶと、そのトークン専用の領域 (domain) だけを読む
+    pub async fn registry_get(
+        &self,
+        host: &str,
+        token: &str,
+        scope: &[&str],
+        key: &str,
+    ) -> Result<Option<Value>, NoteDeckError> {
+        match self
+            .request(
+                host,
+                token,
+                "i/registry/get",
+                json!({ "scope": scope, "key": key }),
+            )
+            .await
+        {
+            Ok(value) => Ok(Some(value)),
+            Err(NoteDeckError::Api { api_code, .. })
+                if api_code.as_deref() == Some("NO_SUCH_KEY") =>
+            {
+                Ok(None)
+            }
+            Err(e) => Err(e),
+        }
+    }
+
+    /// レジストリの項目を書く (`i/registry/set`)。アプリのトークンで呼ぶと、そのトークン
+    /// 専用の領域に入る (他のアプリからは読めない)
+    pub async fn registry_set(
+        &self,
+        host: &str,
+        token: &str,
+        scope: &[&str],
+        key: &str,
+        value: Value,
+    ) -> Result<(), NoteDeckError> {
+        self.request(
+            host,
+            token,
+            "i/registry/set",
+            json!({ "scope": scope, "key": key, "value": value }),
+        )
+        .await?;
+        Ok(())
+    }
+
+    /// テスト通知を自分に送る (`notifications/test-notification`、要 write:notifications)
+    pub async fn test_notification(&self, host: &str, token: &str) -> Result<(), NoteDeckError> {
+        self.request(host, token, "notifications/test-notification", json!({}))
+            .await?;
+        Ok(())
+    }
+
     // --- Self (current user) ---
 
     pub async fn get_self(&self, host: &str, token: &str) -> Result<Value, NoteDeckError> {
@@ -2815,6 +2872,74 @@ mod tests {
                 },
             ]
         );
+    }
+
+    /// レジストリの読み書き (notedeck#330 の push の登録)。アプリのトークンで書いた項目は
+    /// そのトークン専用の領域に入る。無い項目は None
+    #[tokio::test]
+    async fn registry_get_returns_none_for_missing_key_and_set_sends_scope() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/i/registry/get"))
+            .and(wiremock::matchers::body_partial_json(
+                json!({ "key": "missing" }),
+            ))
+            .respond_with(ResponseTemplate::new(400).set_body_json(json!({
+                "error": { "code": "NO_SUCH_KEY", "message": "No such key.", "id": "x" }
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/i/registry/get"))
+            .and(wiremock::matchers::body_partial_json(
+                json!({ "key": "k1" }),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "state": "done" })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/api/i/registry/set"))
+            .and(wiremock::matchers::body_json(json!({
+                "i": "t",
+                "scope": ["notedeck", "push"],
+                "key": "k1",
+                "value": { "state": "pending" },
+            })))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = MisskeyClient::with_base_url(&server.uri());
+        let scope = ["notedeck", "push"];
+        assert_eq!(
+            client
+                .registry_get("h", "t", &scope, "missing")
+                .await
+                .unwrap(),
+            None
+        );
+        assert_eq!(
+            client.registry_get("h", "t", &scope, "k1").await.unwrap(),
+            Some(json!({ "state": "done" }))
+        );
+        client
+            .registry_set("h", "t", &scope, "k1", json!({ "state": "pending" }))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_notification_posts_to_the_endpoint() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/notifications/test-notification"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let client = MisskeyClient::with_base_url(&server.uri());
+        client.test_notification("h", "t").await.unwrap();
     }
 
     /// push の購読の解除は三つ組で所有を示す。トークンが空なら未認証で呼ぶ

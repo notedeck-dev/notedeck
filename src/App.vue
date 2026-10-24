@@ -17,6 +17,7 @@ import { useMuteSync } from '@/composables/useMuteSync'
 import { useOsUnreadBadge } from '@/composables/useOsUnreadBadge'
 import { useOsWindowTitle } from '@/composables/useOsWindowTitle'
 import { listenPipEvents } from '@/composables/usePipWindow'
+import { usePushAttention } from '@/composables/usePushAttention'
 import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
 import { startSettingsFileSync } from '@/composables/useSettingsFileSync'
 import { useTheme } from '@/composables/useTheme'
@@ -123,6 +124,11 @@ startSettingsFileSync()
 // PiP ウィンドウでは mount しない (= main window だけが daemon を持つ)。
 if (!isPipWindow.value) {
   useHeartbeatDaemon()
+}
+
+// push の登録し直しの知らせ (#330、Android)。起動時と復帰時に突き合わせて受信トレイへ
+if (isTauri && !isPipWindow.value) {
+  usePushAttention()
 }
 
 // OS 統合 (#748): ウィンドウタイトルは各デッキウィンドウが自分の内容を反映、

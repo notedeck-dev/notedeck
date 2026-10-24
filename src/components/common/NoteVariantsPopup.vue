@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useVaporTransition } from '@/composables/useVaporTransition'
@@ -27,6 +27,7 @@ const props = defineProps<{
 const accountsStore = useAccountsStore()
 const show = ref(false)
 const pos = ref({ x: 0, y: 0 })
+const maxWidth = ref(360)
 const theme = ref<Record<string, string>>({})
 const rootRef = ref<HTMLElement | null>(null)
 const triggerRef = ref<HTMLElement | null>(null)
@@ -64,17 +65,51 @@ const rows = computed(() =>
   }),
 )
 
+const MARGIN = 8
+
 function open(anchor: MouseEvent | HTMLElement) {
   const el =
     anchor instanceof HTMLElement
       ? anchor
       : (anchor.currentTarget as HTMLElement)
   triggerRef.value = el
-  const rect = el.getBoundingClientRect()
-  pos.value = { x: rect.left, y: rect.bottom + 4 }
   const column = el.closest(COLUMN_SELECTOR) as HTMLElement | null
   if (column) theme.value = extractThemeVars(column)
+  const rect = el.getBoundingClientRect()
+  const bounds = column?.getBoundingClientRect() ?? null
+  // 狭いカラム (最小 180px) でも横にはみ出さないよう、幅の上限をカラム幅に合わせる
+  maxWidth.value = Math.min(360, (bounds?.width ?? Infinity) - MARGIN * 2)
+  // 仮置き。popover は showPopover() されるまで寸法が取れないので、
+  // 表示後の次フレーム (描画前) に測って位置を確定する (PopupMenu と同じ)
+  pos.value = {
+    x: rect.right - Math.min(240, maxWidth.value),
+    y: rect.bottom + 4,
+  }
   show.value = !show.value
+  if (!show.value) return
+  nextTick(() => requestAnimationFrame(() => place(rect, bounds)))
+}
+
+/**
+ * バッジはヘッダー右端にあるので、ポップの右端をバッジの右端に揃えて左へ開く。
+ * 置き場はカラムの内側 (カラム外なら画面の内側)。下に入らなければ上に出す
+ */
+function place(anchor: DOMRect, bounds: DOMRect | null) {
+  const el = rootRef.value
+  if (!el) return
+  // 入場アニメの scale を含めないよう offset 寸法で測る
+  const width = el.offsetWidth
+  const height = el.offsetHeight
+  const vw = document.documentElement.clientWidth
+  const vh = document.documentElement.clientHeight
+  const minX = Math.max(MARGIN, (bounds?.left ?? 0) + MARGIN)
+  const maxX = Math.min(vw, bounds?.right ?? vw) - MARGIN
+  let x = anchor.right - width
+  if (x + width > maxX) x = maxX - width
+  if (x < minX) x = minX
+  let y = anchor.bottom + 4
+  if (y + height > vh - MARGIN) y = anchor.top - height - 4
+  pos.value = { x, y: Math.max(MARGIN, y) }
 }
 
 function close() {
@@ -91,7 +126,7 @@ defineExpose({ open, close })
     popover="manual"
     class="_popup"
     :class="[$style.root, leaving ? $style.leave : $style.enter]"
-    :style="{ ...theme, left: `${pos.x}px`, top: `${pos.y}px` }"
+    :style="{ ...theme, left: `${pos.x}px`, top: `${pos.y}px`, minWidth: `${Math.min(240, maxWidth)}px`, maxWidth: `${maxWidth}px` }"
     role="dialog"
     :aria-label="i18n.ts._noteVariantsPopup.ariaLabel"
   >
@@ -101,7 +136,7 @@ defineExpose({ open, close })
         <AccountAvatar
           :src="proxyThumbUrl(row.avatarUrl, 40) ?? ''"
           :host="row.host"
-          :size="20"
+          :size="24"
           :show-server="false"
         />
         <span :class="$style.label">{{ row.label }}</span>
@@ -120,11 +155,11 @@ defineExpose({ open, close })
 <style lang="scss" module>
 .root {
   position: fixed;
-  min-width: 240px;
-  max-width: 360px;
+  z-index: calc(var(--nd-z-popup) + 1);
   padding: 8px 0;
   font-size: var(--nd-font-md);
-  transform-origin: top left;
+  /* 右端をバッジに揃えて左へ開くので、拡大の起点も右上 */
+  transform-origin: top right;
 }
 
 .enter { animation: variantsIn var(--nd-duration-medium) var(--nd-ease-menu); }

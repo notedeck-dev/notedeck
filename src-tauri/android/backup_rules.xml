@@ -6,11 +6,15 @@
      - notify_cursor.json: OS 通知の処理位置。端末ごとの状態で、別の端末に戻すと
        そこで出していない通知を「出した」扱いにする
      - notedeck_push / unifiedpush.connector / unifiedpush-connector (DB): push の
-       エンドポイントと復号鍵 (#330 §5)。配送アプリへの登録は端末ごと -->
+       エンドポイントと復号鍵 (#330 §5)。配送アプリへの登録は端末ごと
+     - push_state.json: 口座ごとの push の状態と後始末のキュー。端末の登録と組でしか
+       意味を持たない -->
 <full-backup-content>
     <exclude domain="sharedpref" path="keyring-default.xml" />
     <exclude domain="root" path="notify_cursor.json" />
     <exclude domain="root" path="notify_cursor.json.tmp" />
+    <exclude domain="root" path="push_state.json" />
+    <exclude domain="root" path="push_state.json.tmp" />
     <exclude domain="sharedpref" path="notedeck_push.xml" />
     <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
     <exclude domain="database" path="unifiedpush-connector" />

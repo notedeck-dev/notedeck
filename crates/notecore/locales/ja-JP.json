@@ -372,8 +372,16 @@
       }
     },
     "push": {
-      "wrongAccount": "{user} でログインしてから実行してください",
-      "copyResponse": "この内容をコピーして NoteDeck に貼り付けてください"
+      "title": "NoteDeck のプッシュ通知",
+      "loginFirst": "ログインしてから ▶ を押してください",
+      "notTarget": "このアカウント ({user}) は対象ではありません。{targets} に切り替えて ▶ を押してください",
+      "enabled": "{user} を有効にしました。数分以内にテスト通知が届きます (届かなくても NoteDeck に戻れば続きます)。NoteDeck に戻ってください",
+      "enabledNext": "{user} を有効にしました。数分以内にテスト通知が届きます。続けて {others} に切り替えて ▶ を押すか、NoteDeck に戻ってください",
+      "oldCode": "古いコードです。NoteDeck から貼り替えてください",
+      "registered": "{user} は登録済みです。NoteDeck で届くのを待っています",
+      "noPending": "{user} には登録待ちがありません。{targets} に切り替えて ▶ を押してください",
+      "cannotConfirm": "登録待ちを確かめられませんでした。NoteDeck で「やり直す」を押してください",
+      "confirmed": "{user} のプッシュ通知が届くようになりました"
     },
     "tray": {
       "unread_plural": {

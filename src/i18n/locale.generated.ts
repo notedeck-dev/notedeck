@@ -4795,70 +4795,100 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "openSettings": string
     /** 閉じている間の通知: プッシュ通知 */
     readonly "pushActive": string
+    /** プッシュ通知: 登録の途中です */
+    readonly "pushPending": string
     /** プッシュ通知: 登録し直しが要ります */
     readonly "pushNeedsRegistration": string
-    /** プッシュ通知: プッシュ通知アプリで操作が要ります */
-    readonly "pushActionRequired": string
-    /** プッシュ通知 */
-    readonly "pushSetup": string
   }
   readonly "_pushRegister": {
     /** プッシュ通知アプリ (UnifiedPush 対応のアプリ) を使うと、NoteDeck を閉じている間も通知がすぐ届きます。使わなくても、閉じている間は定期的に確認して知らせます。 */
     readonly "intro": string
-    /** プッシュ通知アプリが入っていません。ntfy など UnifiedPush 対応のアプリを入れてから、もう一度開いてください。 */
-    readonly "noDistributor": string
-    /** Misskey の仕組みにより、登録はこのアカウントでログインした Web UI で 1 回だけ行います。 */
+    /** Misskey の仕組みにより、登録はこのサーバーの Web UI でアカウントごとに 1 回だけ行います。同じサーバーのアカウントは 1 つのコードでまとめて登録できます。 */
     readonly "howItWorks": string
-    /** 登録を始める */
-    readonly "start": string
+    /** プッシュ通知アプリが入っていません。ntfy など UnifiedPush 対応のアプリを入れてから戻ってください。 */
+    readonly "noDistributor": string
+    /** プッシュ通知アプリを探す */
+    readonly "getApp": string
+    /** もう一度確かめる */
+    readonly "checkAgain": string
+    /** 使うプッシュ通知アプリを選んでください */
+    readonly "chooseDistributor": string
+    /** 有効にする */
+    readonly "enable": string
     /** プッシュ通知アプリの応答を待っています */
     readonly "waiting": string
-    /** 1. コードをコピーし、Web UI の Scratchpad に貼って実行します */
-    readonly "stepRun": string
-    /** コードをコピー */
-    readonly "copyCode": string
-    /** Scratchpad を開く */
-    readonly "openScratchpad": string
-    /** 2. 表示された内容をコピーして、ここに貼り付けます */
-    readonly "stepPaste": string
-    /** 表示された内容 */
-    readonly "responsePlaceholder": string
-    /** 登録する */
-    readonly "submit": string
-    /** このアカウントの通知はプッシュ通知で届きます。 */
-    readonly "active": string
-    /** プッシュ通知をやめる */
+    /** コピーしてスクラッチパッドを開く */
+    readonly "copyAndOpen": string
+    /** 1. ブラウザーで、登録するアカウントでログインしていることを確かめます */
+    readonly "step1": string
+    /** 2. スクラッチパッドの中身をすべて選んで、コピーしたコードを貼り付けます (空なら長押しで貼り付け) */
+    readonly "step2": string
+    /** 3. コードのすぐ下の ▶ を押します。同じサーバーのほかのアカウントは、切り替えてから同じように ▶ します */
+    readonly "step3": string
+    /** コードを見る */
+    readonly "showCode": string
+    /** まだ届きません。このサーバーからプッシュ通知アプリのサーバーに届いていないかもしれません (自分で立てたサーバーや、家の中だけのネットワークなど)。プッシュ通知アプリの設定を確かめてください。 */
+    readonly "notArriving": string
+    /** やり直す */
+    readonly "redo": string
+    /** オフにする */
     readonly "disable": string
-    /** プッシュ通知をやめますか？ */
-    readonly "disableTitle": string
+    /** {user} のプッシュ通知をオフにしますか？ */
+    readonly "disableTitle": ParameterizedString<'user'>
     /** 閉じている間は、定期的に確認して知らせる方式に戻ります。 */
     readonly "disableMessage": string
-    /** プッシュ通知アプリ側の登録が変わりました。もう一度登録してください。 */
-    readonly "needsRegistration": string
-    /** プッシュ通知アプリで操作が必要です。アプリを開いて確認してから、もう一度登録してください。 */
-    readonly "actionRequired": string
+    /** {user} のプッシュ通知を登録し直してください */
+    readonly "attention": ParameterizedString<'user'>
     /** 仕組みの説明 */
     readonly "learnMore": string
     /** うまくいきませんでした。通信の状態を確認して、もう一度お試しください。 */
     readonly "failed": string
+    readonly "_state": {
+      /** ログインし直すと使えます */
+      readonly "unavailable": string
+      /** 使っていません */
+      readonly "off": string
+      /** プッシュ通知アプリに登録しています */
+      readonly "preparing": string
+      /** スクラッチパッドでの実行を待っています */
+      readonly "unexecuted": string
+      /** 届くのを待っています (数分かかることがあります。閉じても大丈夫です) */
+      readonly "awaiting": string
+      /** プッシュ通知で届きます */
+      readonly "active": string
+      /** 登録し直しが要ります */
+      readonly "needsReregistration": string
+      /** 解除しています */
+      readonly "unregistering": string
+    }
+    readonly "_reason": {
+      /** プッシュ通知アプリの登録が変わりました */
+      readonly "endpointChanged": string
+      /** サーバーの設定が変わりました */
+      readonly "serverChanged": string
+      /** プッシュ通知で届いていないようです */
+      readonly "missing": string
+      /** 登録の仕組みが新しくなりました */
+      readonly "migrated": string
+    }
     readonly "_problem": {
       /** このアカウントではプッシュ通知を使えません。 */
       readonly "unavailable": string
-      /** このサーバーはプッシュ通知に対応していません (サーバーで Web Push が設定されていません)。 */
+      /** このサーバーはプッシュ通知に対応していません。管理者が設定すると使えます。それまでは定期的な確認で届きます。 */
       readonly "serverUnsupported": string
       /** プッシュ通知アプリが入っていません。ntfy など UnifiedPush 対応のアプリを入れてください。 */
       readonly "noDistributor": string
+      /** 使うプッシュ通知アプリを選べませんでした。下の一覧から選んでください。 */
+      readonly "chooseDistributor": string
       /** プッシュ通知アプリが登録に応じませんでした。アプリを確認してから、もう一度お試しください。 */
       readonly "distributorFailed": string
-      /** 貼り付けた内容を読み取れませんでした。表示された内容をすべてコピーしてください。 */
-      readonly "unreadable": string
-      /** 別のアカウントで登録されています。このアカウントで Web UI にログインしてから実行してください。 */
-      readonly "otherAccount": string
-      /** 古いコードで登録されています。「登録を始める」からやり直してください。 */
-      readonly "otherEndpoint": string
-      /** プッシュ通知アプリ側の登録が無くなりました。「登録を始める」からやり直してください。 */
-      readonly "endpointGone": string
-      /** 登録を保存できませんでした。 */
+      /** プッシュ通知アプリの設定で https のサーバーに切り替えると使えます。 */
+      readonly "endpointUnusable": string
+      /** このアカウントにログインし直してから、もう一度お試しください (以前のログインには必要な権限がありません)。 */
+      readonly "relogin": string
+      /** サーバーに繋がりませんでした。通信の状態を確認して、もう一度お試しください。 */
+      readonly "network": string
+      /** 端末に保存できませんでした。 */
       readonly "storage": string
     }
   }
@@ -6439,10 +6469,26 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       }
     }
     readonly "push": {
-      /** {user} でログインしてから実行してください */
-      readonly "wrongAccount": ParameterizedString<'user'>
-      /** この内容をコピーして NoteDeck に貼り付けてください */
-      readonly "copyResponse": string
+      /** NoteDeck のプッシュ通知 */
+      readonly "title": string
+      /** ログインしてから ▶ を押してください */
+      readonly "loginFirst": string
+      /** このアカウント ({user}) は対象ではありません。{targets} に切り替えて ▶ を押してください */
+      readonly "notTarget": ParameterizedString<'targets' | 'user'>
+      /** {user} を有効にしました。数分以内にテスト通知が届きます (届かなくても NoteDeck に戻れば続きます)。NoteDeck に戻ってください */
+      readonly "enabled": ParameterizedString<'user'>
+      /** {user} を有効にしました。数分以内にテスト通知が届きます。続けて {others} に切り替えて ▶ を押すか、NoteDeck に戻ってください */
+      readonly "enabledNext": ParameterizedString<'others' | 'user'>
+      /** 古いコードです。NoteDeck から貼り替えてください */
+      readonly "oldCode": string
+      /** {user} は登録済みです。NoteDeck で届くのを待っています */
+      readonly "registered": ParameterizedString<'user'>
+      /** {user} には登録待ちがありません。{targets} に切り替えて ▶ を押してください */
+      readonly "noPending": ParameterizedString<'targets' | 'user'>
+      /** 登録待ちを確かめられませんでした。NoteDeck で「やり直す」を押してください */
+      readonly "cannotConfirm": string
+      /** {user} のプッシュ通知が届くようになりました */
+      readonly "confirmed": ParameterizedString<'user'>
     }
     readonly "tray": {
       /** NoteDeck — 未読 {count} 件 */

@@ -3,7 +3,7 @@ import { computed, ref, toRef, watch } from 'vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNotificationPermissionState } from '@/composables/useNotificationPermissionState'
-import { usePushRegistration } from '@/composables/usePushRegistration'
+import { usePushState } from '@/composables/usePushRegistration'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { webUiUrl } from '@/services/safeUrl'
@@ -57,9 +57,9 @@ const {
   refresh: refreshNotificationPermission,
   openSettings: openOsNotificationSettings,
 } = useNotificationPermissionState()
-// push (#330 §5) は口座ごとのオプトイン。状態行は push の状態で出し分け、
-// 登録や解除は専用のウィンドウで行う
-const push = usePushRegistration(() => props.account.id)
+// push (#330) は口座ごとのオプトイン。状態行は push の状態で出し分け、
+// 登録や解除はサーバー単位の専用のウィンドウで行う (同じサーバーの口座をまとめて登録できる)
+const push = usePushState(() => props.account.id)
 watch(
   () => props.show,
   (show) => {
@@ -70,13 +70,14 @@ watch(
 )
 const backgroundNotifyLine = computed(() => {
   if (!uiStore.isMobilePlatform) return i18n.ts._backgroundNotify.foregroundOnly
-  switch (push.status.value) {
+  switch (push.state.value) {
     case 'active':
       return i18n.ts._backgroundNotify.pushActive
-    case 'needsRegistration':
+    case 'needsReregistration':
       return i18n.ts._backgroundNotify.pushNeedsRegistration
-    case 'actionRequired':
-      return i18n.ts._backgroundNotify.pushActionRequired
+    case 'preparing':
+    case 'pending':
+      return i18n.ts._backgroundNotify.pushPending
     default:
       return i18n.ts._backgroundNotify.polling
   }
@@ -84,11 +85,25 @@ const backgroundNotifyLine = computed(() => {
 const canSetUpPush = computed(
   () =>
     uiStore.isMobilePlatform &&
-    push.status.value !== null &&
-    push.status.value !== 'unavailable',
+    push.state.value !== null &&
+    push.state.value !== 'unavailable',
 )
+// 対応が要る状態は、再ログイン / OS の通知設定と同じアクセント色で出す
+const pushNeedsAttention = computed(
+  () => push.state.value === 'needsReregistration',
+)
+const pushIcon = computed(() => {
+  switch (push.state.value) {
+    case 'active':
+      return 'ti-bell-ringing'
+    case 'needsReregistration':
+      return 'ti-bell-exclamation'
+    default:
+      return 'ti-bell'
+  }
+})
 function openPushRegister() {
-  useWindowsStore().open('push-register', { accountId: props.account.id })
+  useWindowsStore().open('push-register', { host: props.account.host })
   emit('close')
 }
 
@@ -152,18 +167,19 @@ const hasUpperSection = computed(
         <i class="ti ti-eraser" />
       </button>
       <template v-if="account.hasToken">
-        <div :class="$style.navAccountMenuStatus">
-          {{ backgroundNotifyLine }}
-        </div>
+        <!-- push を扱える端末では状態行そのものを押して登録の窓を開く (ほかの項目と同じ 1 行 = 1 操作) -->
         <button
           v-if="canSetUpPush"
           class="_button"
-          :class="$style.navAccountMenuItem"
+          :class="[$style.navAccountMenuItem, { [$style.navAccountRelogin]: pushNeedsAttention }]"
           @click="openPushRegister"
         >
-          <span>{{ i18n.ts._backgroundNotify.pushSetup }}</span>
-          <i class="ti ti-bell-ringing" />
+          <span :class="$style.navAccountMenuLabel">{{ backgroundNotifyLine }}</span>
+          <i :class="['ti', pushIcon]" />
         </button>
+        <div v-else :class="$style.navAccountMenuStatus">
+          {{ backgroundNotifyLine }}
+        </div>
         <button
           v-if="notificationPermissionGranted === false"
           class="_button"

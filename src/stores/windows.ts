@@ -108,8 +108,8 @@ export const useWindowsStore = defineStore('windows', () => {
     'edit-history': ['kind', 'basename'],
     connectionEdit: ['connectionId'],
     'ai-turn-prompt': ['turnId'],
-    // 口座ごとに 1 つ (#330 §5)
-    'push-register': ['accountId'],
+    // サーバーごとに 1 つ (同じサーバーの口座はまとめて登録する、#330)
+    'push-register': ['host'],
   }
 
   /** Types that are always singletons (at most one instance). */
