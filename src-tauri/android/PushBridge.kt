@@ -3,6 +3,7 @@ package com.notedeck.desktop
 import android.app.Activity
 import android.content.Context
 import android.util.Log
+import org.json.JSONArray
 import org.json.JSONObject
 import org.unifiedpush.android.connector.UnifiedPush
 import org.unifiedpush.android.connector.data.PushEndpoint
@@ -15,7 +16,8 @@ import java.lang.ref.WeakReference
  * 保持は Kotlin。Misskey への購読登録・振り分け・文言・描画の組み立ては Rust。
  * Kotlin は Misskey の認証情報を知らず、Rust に渡すのは「復号できた push の中身」だけ。
  *
- * instance はホスト (VAPID 公開鍵がホストごとなので、配送アプリへの登録はホスト単位)。
+ * instance は「口座 ID + 世代」(Rust の push_state::instance_name)。connector には登録の
+ * 一覧を返す API が無いので、登録した instance はここで覚えておく ([instances])。
  */
 object PushBridge {
   private const val TAG = "PushBridge"
@@ -25,6 +27,12 @@ object PushBridge {
 
   /** Cargo の [lib] name (NotificationWorker と同じ) */
   private const val NATIVE_LIBRARY = "notedeck_lib"
+
+  /** 登録した instance の一覧 */
+  private const val INSTANCES = "instances"
+
+  /** 複数の配送アプリから選べなかった (Rust の push_flow::FAILURE_NOT_CHOSEN と同じ値) */
+  private const val FAILURE_NOT_CHOSEN = "NOT_CHOSEN"
 
   @Volatile
   private var appContext: Context? = null
@@ -109,6 +117,13 @@ object PushBridge {
 
   // ---- Rust から JNI で呼ぶ静的メソッド ----
 
+  /**
+   * Context を預かっているか。無いプロセスでは登録の有無を読めず「無い」と区別できない
+   * ので、Rust は突き合わせを止める
+   */
+  @JvmStatic
+  fun isReady(): Boolean = appContext != null
+
   /** "none" (配送アプリが無い) / "ready" (使う配送アプリが決まっている) / "choose" (複数あって未選択) */
   @JvmStatic
   fun distributorState(): String {
@@ -131,20 +146,21 @@ object PushBridge {
   }
 
   /**
-   * instance (ホスト) をサーバーの VAPID 公開鍵つきで配送アプリに登録する。
-   * エンドポイントは後から PushService.onNewEndpoint に届く (Rust は [endpoint] を待つ)。
-   * 配送アプリが 1 つなら自動で選び、複数で既定が無ければ OS の選択画面に委ねる。
-   * 始められたら true
+   * instance をサーバーの VAPID 公開鍵つきで配送アプリに登録する。`message` は配送アプリの
+   * 画面で口座を見分けるための文 (`@user@host`)。エンドポイントは後から
+   * PushService.onNewEndpoint に届く (Rust は [endpoint] を待つ)。配送アプリが 1 つなら
+   * 自動で選び、複数で既定が無ければ OS の選択画面に委ね、選べなければ失敗の種別に
+   * [FAILURE_NOT_CHOSEN] を残す (NoteDeck の一覧で選んでもらう)。始められたら true
    */
   @JvmStatic
-  fun register(instance: String, vapid: String): Boolean {
+  fun register(instance: String, vapid: String, message: String): Boolean {
     val c = appContext ?: return false
     return try {
       val prefs = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
       prefs.edit().remove(failureKey(instance)).apply()
       val decided = UnifiedPush.getAckDistributor(c) != null || UnifiedPush.getSavedDistributor(c) != null
       if (decided) {
-        UnifiedPush.register(c, instance, null, vapid)
+        start(c, instance, vapid, message)
         return true
       }
       val found = UnifiedPush.getDistributors(c)
@@ -152,14 +168,18 @@ object PushBridge {
         found.isEmpty() -> false
         found.size == 1 -> {
           UnifiedPush.saveDistributor(c, found[0])
-          UnifiedPush.register(c, instance, null, vapid)
+          start(c, instance, vapid, message)
           true
         }
         else -> {
           val a = activity?.get() ?: return false
           a.runOnUiThread {
             UnifiedPush.tryUseCurrentOrDefaultDistributor(a) { ok ->
-              if (ok) UnifiedPush.register(c, instance, null, vapid)
+              if (ok) {
+                start(c, instance, vapid, message)
+              } else {
+                saveFailure(c, instance, FAILURE_NOT_CHOSEN)
+              }
             }
           }
           true
@@ -171,6 +191,58 @@ object PushBridge {
     }
   }
 
+  private fun start(c: Context, instance: String, vapid: String, message: String) {
+    val prefs = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val known = prefs.getStringSet(INSTANCES, emptySet()).orEmpty().toMutableSet()
+    known.add(instance)
+    prefs.edit().putStringSet(INSTANCES, known).apply()
+    UnifiedPush.register(c, instance, message, vapid)
+  }
+
+  /** 登録した instance (JSON の文字列の配列)。v1.94.0 が残したサーバー単位の分も含む */
+  @JvmStatic
+  fun instances(): String {
+    val c = appContext ?: return "[]"
+    val prefs = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val all = prefs.getStringSet(INSTANCES, emptySet()).orEmpty().toMutableSet()
+    for (key in prefs.all.keys) {
+      if (key.startsWith(ENDPOINT_PREFIX)) all.add(key.removePrefix(ENDPOINT_PREFIX))
+    }
+    return JSONArray(all.sorted()).toString()
+  }
+
+  /** 入っている配送アプリ (JSON `[{package, label}]`) */
+  @JvmStatic
+  fun distributors(): String {
+    val c = appContext ?: return "[]"
+    val list = JSONArray()
+    try {
+      val pm = c.packageManager
+      for (pkg in UnifiedPush.getDistributors(c)) {
+        val label = try {
+          pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+        } catch (e: Throwable) {
+          pkg
+        }
+        list.put(JSONObject().put("package", pkg).put("label", label))
+      }
+    } catch (e: Throwable) {
+      Log.w(TAG, "distributors failed", e)
+    }
+    return list.toString()
+  }
+
+  /** 使う配送アプリを決める (OS の選択画面を出せなかったとき) */
+  @JvmStatic
+  fun saveDistributor(pkg: String) {
+    val c = appContext ?: return
+    try {
+      UnifiedPush.saveDistributor(c, pkg)
+    } catch (e: Throwable) {
+      Log.w(TAG, "saveDistributor failed", e)
+    }
+  }
+
   /** 保存済みのエンドポイントと鍵 (JSON `{url, pubKey, auth}`)。無ければ null */
   @JvmStatic
   fun endpoint(instance: String): String? {
@@ -178,14 +250,14 @@ object PushBridge {
     return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(endpointKey(instance), null)
   }
 
-  /** 配送アプリへの登録の失敗の種別 (FailedReason の名前)。無ければ null */
+  /** 配送アプリへの登録の失敗の種別 (FailedReason の名前か [FAILURE_NOT_CHOSEN])。無ければ null */
   @JvmStatic
   fun failure(instance: String): String? {
     val c = appContext ?: return null
     return c.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(failureKey(instance), null)
   }
 
-  /** instance を配送アプリから外し、保存したエンドポイントも捨てる */
+  /** instance を配送アプリから外し、保存したエンドポイントと失敗の記録も捨てる */
   @JvmStatic
   fun unregister(instance: String) {
     val c = appContext ?: return
@@ -194,9 +266,17 @@ object PushBridge {
     } catch (e: Throwable) {
       Log.w(TAG, "unregister failed", e)
     }
-    clearEndpoint(c, instance)
+    val prefs = c.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    val known = prefs.getStringSet(INSTANCES, emptySet()).orEmpty().toMutableSet()
+    known.remove(instance)
+    prefs.edit()
+      .putStringSet(INSTANCES, known)
+      .remove(endpointKey(instance))
+      .remove(failureKey(instance))
+      .apply()
   }
 
-  private fun endpointKey(instance: String) = "endpoint:$instance"
+  private const val ENDPOINT_PREFIX = "endpoint:"
+  private fun endpointKey(instance: String) = "$ENDPOINT_PREFIX$instance"
   private fun failureKey(instance: String) = "failure:$instance"
 }

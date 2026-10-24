@@ -33,7 +33,7 @@ use jni::sys::jint;
 use jni::JNIEnv;
 use notecli::api::MisskeyClient;
 use notecli::error::NoteDeckError;
-use notecli::models::{Account, ChatMessage, TimelineOptions};
+use notecli::models::{Account, ChatMessage, NormalizedNotification, TimelineOptions};
 use notecore::image_cache::ImageCache;
 use notecore::notify_plan::{self, notify_tag, NotifyKind, NotifyPlan};
 
@@ -109,6 +109,19 @@ async fn run(app_dir: &Path) -> jint {
         }
     };
     let lang = crate::ui_lang::current();
+    // push (#330) の後始末と突き合わせ。前面に出ていない間の解除の再試行もここで進む
+    let push_accounts: Vec<crate::push_flow::PushAccount> = accounts
+        .iter()
+        .map(crate::push_flow::PushAccount::from_account)
+        .collect();
+    let push_ctx = crate::push_flow::Ctx {
+        app_dir,
+        server: &client,
+        distributor: &crate::android_push::KotlinDistributor,
+        vault: &crate::android_push::Keychain,
+        now_ms: crate::push_flow::now_ms(),
+    };
+    crate::push_flow::reconcile(&push_ctx, &push_accounts, false).await;
     // 作れなければ画像なしで描く
     let images = image_cache(app_dir);
     let mut attempted = 0;
@@ -166,6 +179,7 @@ async fn poll_account(
 
     if unread == 0 {
         crate::android_notify::cancel(&notify_tag(&account.id, NotifyKind::Notification));
+        observe_push(app_dir, &account.id, &[]);
     } else {
         let cursor = crate::notify_cursor_file::load(app_dir);
         // 新しい方から未読数ぶんを取り、処理位置で絞る。本家の既読は位置 1 本なので、
@@ -177,9 +191,17 @@ async fn poll_account(
             .get_notifications(&account.host, token, &account.id, options, false)
             .await?;
         let fresh = cursor.newer_than(&account.id, NotifyKind::Notification, fetched, |n| &n.id);
+        // push が有効なのに push で来ていない未読があれば数える (続いたら登録し直し)
+        observe_push(app_dir, &account.id, &fresh);
         // 初めての巡回は新しい 1 件だけ知らせ、残りは位置だけ進める (notify_cursor)
         let silent = cursor.silent_prefix(&account.id, NotifyKind::Notification, fresh.len());
         for n in fresh.iter().skip(silent) {
+            // push の登録の確定に使ったテスト通知は push の側で出した
+            if n.notification_type == "test"
+                && crate::push_flow::is_confirmation(app_dir, &account.id, &n.id)
+            {
+                continue;
+            }
             if let Some(plan) = notify_plan::plan(n, lang) {
                 show(images, &plan).await;
             }
@@ -224,6 +246,16 @@ async fn poll_account(
         crate::notify_cursor_file::advance(app_dir, &account.id, NotifyKind::Message, &newest.id);
     }
     Ok(())
+}
+
+/// 処理位置より新しい通知を push の状態に渡す (有効な口座だけが数える)
+fn observe_push(app_dir: &Path, account_id: &str, fresh: &[NormalizedNotification]) {
+    let created: Vec<u64> = fresh
+        .iter()
+        .filter_map(|n| notecore::push_state::iso_to_ms(&n.created_at))
+        .collect();
+    let now = crate::push_flow::now_ms();
+    crate::push_store_file::update(app_dir, |s| s.worker_observed(account_id, &created, now));
 }
 
 /// この巡回で使う画像キャッシュ (アプリと同じディスク領域)。クライアントを作れなければ None

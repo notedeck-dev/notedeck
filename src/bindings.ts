@@ -1977,11 +1977,11 @@ async openOsNotificationSettings() : Promise<void> {
     await TAURI_INVOKE("open_os_notification_settings");
 },
 /**
- * 口座の push の状態
+ * 口座の push の状態 (ネットワークに出ない)
  *
  * @see src-tauri/src/commands/push.rs
  */
-async pushStatus(accountId: string) : Promise<Result<PushStatus, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async pushStatus(accountId: string) : Promise<Result<PushState, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("push_status", { accountId }) };
 } catch (e) {
@@ -1990,42 +1990,96 @@ async pushStatus(accountId: string) : Promise<Result<PushStatus, { code: string;
 }
 },
 /**
- * 配送アプリに登録し、本家の Scratchpad で実行してもらうコードを組む。
- * 配送アプリの返事を待つので数秒かかることがある
+ * サーバー単位の状態。登録待ちの口座はレジストリを読んで「未実行」と「到着待ち」を
+ * 見分ける (窓が開いている間は数秒おきに呼ばれる)
  *
  * @see src-tauri/src/commands/push.rs
  */
-async pushPrepare(accountId: string) : Promise<Result<PushPrepareResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async pushHostStatus(host: string) : Promise<Result<PushHostStatus, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("push_prepare", { accountId }) };
+    return { status: "ok", data: await TAURI_INVOKE("push_host_status", { host }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * 本家で実行した応答を受け取り、合っていれば push を使い始める。成功は None
+ * サーバーの口座をまとめて登録の準備をする (プッシュ通知アプリへの登録と、レジストリへの
+ * 書込)。プッシュ通知アプリの返事を待つので数秒かかることがある。成功は None
  *
  * @see src-tauri/src/commands/push.rs
  */
-async pushComplete(accountId: string, response: string) : Promise<Result<PushProblem | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async pushPrepare(host: string) : Promise<Result<PushProblem | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("push_complete", { accountId, response }) };
+    return { status: "ok", data: await TAURI_INVOKE("push_prepare", { host }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * push をやめる。本家の購読を解除し (失敗しても進める)、登録の写しを消す。
- * 口座の削除 / ログアウトの前にも呼ぶ (トークンがあるうちに認証つきで解除する)。
- * 写しを消せなかったら Err (呼び手の削除 / ログアウトはこの失敗を無視して進める)
+ * 口座の登録を新しい鍵と合言葉で作り直す。前の登録は新しい方がそろってから外す
+ *
+ * @see src-tauri/src/commands/push.rs
+ */
+async pushRedo(accountId: string) : Promise<Result<PushProblem | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("push_redo", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * push をやめる。本家の購読の解除・レジストリの印・登録の取り外しを後始末に積んで
+ * すぐ試す。通らなかった分は解除待ちのまま残し、起動時と巡回で再試行する。
+ * 口座の削除 / ログアウトの前にも呼ぶ (トークンがあるうちに認証つきで解除する)
  *
  * @see src-tauri/src/commands/push.rs
  */
 async pushDisable(accountId: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("push_disable", { accountId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 入っているプッシュ通知アプリ (OS の選択画面が出せなかったときに選んでもらう)
+ *
+ * @see src-tauri/src/commands/push.rs
+ */
+async pushDistributors() : Promise<Result<PushDistributor[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("push_distributors") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 使うプッシュ通知アプリを決める
+ *
+ * @see src-tauri/src/commands/push.rs
+ */
+async pushChooseDistributor(packageName: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("push_choose_distributor", { packageName }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 起動時と復帰時の突き合わせ (以前の版からの移行・状態の知らない登録の後始末・
+ * 送り先とサーバーの変化の検出)。返り値は登録し直しが要る口座 (受信トレイに出す)
+ *
+ * @see src-tauri/src/commands/push.rs
+ */
+async pushAttention() : Promise<Result<string[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("push_attention") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -3963,15 +4017,43 @@ export type PrincipalClass =
  */
 "external"
 /**
- * 準備の結果。`prepared` か `problem` のどちらか
+ * 窓の 1 行 (口座)
  */
-export type PushPrepareResult = { prepared: PushPrepared | null; problem: PushProblem | null }
+export type PushAccountRow = { accountId: string; state: PushState; reason: PushReason | null; 
 /**
- * 本家 Web の Scratchpad で実行してもらうコードと、その Scratchpad の URL
+ * 登録待ちのうち、コードはもう走っていて push の到着を待っている
  */
-export type PushPrepared = { code: string; scratchpadUrl: string }
+awaiting: boolean; 
 /**
- * 準備 / 登録の失敗の理由。成功は None
+ * 到着待ちが続いたので NoteDeck からテスト通知を送り直した
+ */
+resent: boolean }
+/**
+ * 入っているプッシュ通知アプリ
+ */
+export type PushDistributor = { package: string; label: string }
+/**
+ * プッシュ通知アプリ (配送アプリ) の状態
+ */
+export type PushDistributorState = 
+/**
+ * 入っていない
+ */
+"none" | 
+/**
+ * 使うものが決まっている (または 1 つだけ)
+ */
+"ready" | 
+/**
+ * 複数あって既定が無い
+ */
+"choose"
+/**
+ * サーバー単位の状態。`code` は未実行の登録待ちがあるときの Scratchpad 用のコード
+ */
+export type PushHostStatus = { distributor: PushDistributorState; accounts: PushAccountRow[]; code: string | null; scratchpadUrl: string }
+/**
+ * 準備 / やり直しの失敗の理由
  */
 export type PushProblem = 
 /**
@@ -3987,57 +4069,77 @@ export type PushProblem =
  */
 "noDistributor" | 
 /**
+ * プッシュ通知アプリを選べなかった (一覧から選んでもらう)
+ */
+"chooseDistributor" | 
+/**
  * プッシュ通知アプリが登録に失敗した / 返事が無い
  */
 "distributorFailed" | 
 /**
- * 貼られた内容が登録の応答として読めない
+ * プッシュ通知アプリの送り先が https でない
  */
-"unreadable" | 
+"endpointUnusable" | 
 /**
- * 本家 Web に別の口座でログインしていた
+ * ログインし直しが要る (古いトークンに権限が無い / 失効した)
  */
-"otherAccount" | 
+"relogin" | 
 /**
- * 古いコードを実行した (端末の登録と違う)
+ * サーバーに繋がらない
  */
-"otherEndpoint" | 
+"network" | 
 /**
- * 端末の登録が無くなった (準備からやり直す)
- */
-"endpointGone" | 
-/**
- * 保存できなかった
+ * 端末に保存できなかった
  */
 "storage"
 /**
- * 口座の背面の通知の経路 (状態行に出す)
+ * 「登録し直しが要る」の理由
  */
-export type PushStatus = 
+export type PushReason = 
+/**
+ * プッシュ通知アプリの登録が変わった
+ */
+"endpointChanged" | 
+/**
+ * サーバーの設定が変わった
+ */
+"serverChanged" | 
+/**
+ * push で届いていないようだ (推定)
+ */
+"missing" | 
+/**
+ * 以前の版の登録から移った
+ */
+"migrated"
+/**
+ * 口座の push の状態 (アカウントメニューの状態行と、窓の行)
+ */
+export type PushState = 
 /**
  * この端末では push を扱わない (Android 以外 / ゲスト)
  */
 "unavailable" | 
 /**
- * プッシュ通知アプリ (配送アプリ) が入っていない
- */
-"noDistributor" | 
-/**
  * 使っていない (閉じている間は定期確認だけ)
  */
 "off" | 
 /**
- * 使っている
+ * プッシュ通知アプリに登録している
  */
-"active" | 
+"preparing" | 
 /**
- * 端末側の登録が変わったので、本家での登録し直しが要る
+ * 本家での実行か、最初の push が届くのを待っている
  */
-"needsRegistration" | 
+"pending" | "active" | 
 /**
- * プッシュ通知アプリ側で操作が要る
+ * 本家での登録し直しが要る
  */
-"actionRequired"
+"needsReregistration" | 
+/**
+ * 解除を終えるのを待っている
+ */
+"unregistering"
 export type PvChartGroup = { user: number[]; visitor: number[] }
 /**
  * let 束縛。slot はコンパイラが式全体で一意に割り当てる

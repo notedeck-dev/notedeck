@@ -32,6 +32,8 @@ class NotificationWorker(
     return try {
       System.loadLibrary(NATIVE_LIBRARY)
       NotificationRenderer.init(applicationContext)
+      // push の後始末と突き合わせ (#330) で Rust が配送アプリへの登録を読み書きする
+      PushBridge.init(applicationContext)
       // 許可されていなければ問い合わせだけ無駄になる
       if (!NotificationRenderer.notificationsEnabled()) return Result.success()
       // Tauri 2.10 の app_data_dir() は Context.getDataDir() そのもの (Tauri の doc の

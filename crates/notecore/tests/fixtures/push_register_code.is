@@ -1,23 +1,104 @@
-if (USER_USERNAME != 'alice') {
-	Core:abort('@alice でログインしてから実行してください')
-}
-let response = Mk:api('sw/register', {
-	endpoint: 'https://ntfy.example/upAbC?up=1',
-	auth: 'aGVsbG8',
-	publickey: 'BPub_key-1',
-	sendReadMessage: true,
-})
-if (Core:type(response) == 'error') {
-	Mk:dialog(response.name, Core:to_str(response.info), 'error')
-} else {
-	var updated = response
-	if (response.sendReadMessage != true) {
-		updated = Mk:api('sw/update-registration', { endpoint: 'https://ntfy.example/upAbC?up=1', sendReadMessage: true })
+eval {
+	@run() {
+		let PASS = 'newnonceaaaaaaaa'
+		let TARGETS = [{ id: 'u1', name: '@alice' }, { id: 'u2', name: '@bob' }]
+		let SEP = '、'
+		let TITLE = 'NoteDeck のプッシュ通知'
+		let SCOPE = ['notedeck', 'push']
+		if (USER_ID == null) {
+			Mk:dialog(TITLE, 'ログインしてから ▶ を押してください', 'warning')
+			return null
+		}
+		let names = TARGETS.map(@(x) { x.name }).join(SEP)
+		let me = TARGETS.filter(@(x) { x.id == USER_ID })
+		if (me.len == 0) {
+			Mk:dialog(TITLE, 'このアカウント ({user}) は対象ではありません。{targets} に切り替えて ▶ を押してください'.replace('{user}', `@{USER_USERNAME}`).replace('{targets}', names), 'warning')
+			return null
+		}
+		let user = me[0].name
+		let others = TARGETS.filter(@(x) { x.id != USER_ID }).map(@(x) { x.name }).join(SEP)
+		let all = Mk:api('i/registry/scopes-with-domain', {})
+		if (Core:type(all) == 'error') {
+			Mk:dialog(all.name, Core:to_str(all.info), 'error')
+			return null
+		}
+		let apps = Mk:api('i/apps', {})
+		if (Core:type(apps) == 'error') {
+			Mk:dialog(apps.name, Core:to_str(apps.info), 'error')
+			return null
+		}
+		let live = apps.map(@(a) { a.id })
+		let mine = all.filter(@(d) { (d.domain != null) && d.scopes.some(@(s) { s.join('/') == 'notedeck/push' }) }).map(@(d) { d.domain })
+		var pending = []
+		var marks = 0
+		var superseded = false
+		each let d, mine {
+			let items = Mk:api('i/registry/get-all', { scope: SCOPE, domain: d })
+			if (Core:type(items) == 'error') {
+				Mk:dialog(items.name, Core:to_str(items.info), 'error')
+				return null
+			}
+			let alive = live.incl(d)
+			if (!alive) {
+				each let k, Obj:keys(items) {
+					let v = Obj:get(items, k)
+					if (Core:type(v) == 'obj' && v.state == 'pending') {
+						Mk:api('i/registry/set', { scope: SCOPE, key: k, domain: d, value: { v: 1, state: 'superseded' } })
+						Obj:set(items, k, { v: 1, state: 'superseded' })
+					}
+				}
+			}
+			let v = Obj:get(items, PASS)
+			if (Core:type(v) != 'obj') {
+				continue
+			}
+			if (v.state == 'pending' && alive) {
+				pending.push({ domain: d, item: v })
+			} elif (v.state == 'superseded') {
+				marks += 1
+				superseded = true
+			} elif (v.state == 'done') {
+				marks += 1
+			}
+		}
+		let count = pending.len
+		if (count == 1 && marks == 0) {
+			let p = pending[0]
+			let t = p.item
+			let r = Mk:api('sw/register', { endpoint: t.endpoint, auth: t.auth, publickey: t.publickey, sendReadMessage: true })
+			if (Core:type(r) == 'error') {
+				Mk:dialog(r.name, Core:to_str(r.info), 'error')
+				return null
+			}
+			if (r.sendReadMessage != true) {
+				let u = Mk:api('sw/update-registration', { endpoint: t.endpoint, sendReadMessage: true })
+				if (Core:type(u) == 'error') {
+					Mk:dialog(u.name, Core:to_str(u.info), 'error')
+					return null
+				}
+			}
+			Mk:api('i/registry/set', { scope: SCOPE, key: PASS, domain: p.domain, value: { v: 1, state: 'done', at: Date:now(), key: r.key, userId: USER_ID } })
+			Mk:api('notifications/test-notification', {})
+			if (others == '') {
+				Mk:dialog(TITLE, '{user} を有効にしました。数分以内にテスト通知が届きます (届かなくても NoteDeck に戻れば続きます)。NoteDeck に戻ってください'.replace('{user}', user), 'success')
+			} else {
+				Mk:dialog(TITLE, '{user} を有効にしました。数分以内にテスト通知が届きます。続けて {others} に切り替えて ▶ を押すか、NoteDeck に戻ってください'.replace('{user}', user).replace('{others}', others), 'success')
+			}
+			return null
+		}
+		if (count == 0 && superseded) {
+			<: '古いコードです。NoteDeck から貼り替えてください'
+			return null
+		}
+		if (count == 0 && marks >= 1) {
+			Mk:dialog(TITLE, '{user} は登録済みです。NoteDeck で届くのを待っています'.replace('{user}', user), 'info')
+			return null
+		}
+		if (count == 0) {
+			Mk:dialog(TITLE, '{user} には登録待ちがありません。{targets} に切り替えて ▶ を押してください'.replace('{user}', user).replace('{targets}', names), 'warning')
+			return null
+		}
+		Mk:dialog(TITLE, '登録待ちを確かめられませんでした。NoteDeck で「やり直す」を押してください', 'error')
 	}
-	if (Core:type(updated) == 'error') {
-		Mk:dialog(updated.name, Core:to_str(updated.info), 'error')
-	} else {
-		response.sendReadMessage = updated.sendReadMessage
-		Mk:dialog('この内容をコピーして NoteDeck に貼り付けてください', ['```json', Json:stringify(response), '```'].join(Str:lf), 'success')
-	}
+	run()
 }

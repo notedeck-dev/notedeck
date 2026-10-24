@@ -38,6 +38,8 @@ mod ipc_index;
 #[cfg(target_os = "android")]
 mod notify_cursor_file;
 mod os_notify;
+mod push_flow;
+mod push_store_file;
 mod query_bridge;
 mod streaming;
 mod system_state;
@@ -1239,9 +1241,13 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::notification_permission_granted,
             commands::open_os_notification_settings,
             commands::push_status,
+            commands::push_host_status,
             commands::push_prepare,
-            commands::push_complete,
+            commands::push_redo,
             commands::push_disable,
+            commands::push_distributors,
+            commands::push_choose_distributor,
+            commands::push_attention,
             commands::set_unread_badge,
             commands::export_db,
             commands::import_db,

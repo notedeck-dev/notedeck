@@ -70,6 +70,7 @@ describe.each(CRATES)('%s の境界 (#1106)', (crate) => {
       'src/notify_cursor.rs',
       'src/push_payload.rs',
       'src/push_register.rs',
+      'src/push_state.rs',
     ]
     const FORBIDDEN =
       /\b(reqwest|tokio|ndk_context|jni|keyring|keychain|image_cache|std::net|std::fs|std::process)\b/
