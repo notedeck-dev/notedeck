@@ -51,6 +51,7 @@ Linux の暗号化ファイルは、同じ OS ユーザーの他プロセスか�
 | `notedeck/memos/` | AI メモ |
 | `notedeck/sessions/` | AI チャットセッション履歴 |
 | `notedeck/notemaid/` | AI の人格と記憶 (SOUL.md / USER.md / MEMORY.md 等) |
+| `notify_cursor.json` (Android) | OS 通知にした最後の通知の位置 (口座ごと)。同じ通知を 2 度知らせないため。端末外バックアップから除外 |
 
 このほか、OS のログフォルダに日次ローテーションのアプリケーションログが、アプリがクラッシュした場合はその情報がローカルに記録されます。いずれも自動送信されません。
 
@@ -64,6 +65,7 @@ NoteDeck が行う外部通信は以下に限定されます：
 2. **AI プロバイダー** — AI チャット使用時のみ。Anthropic Messages API / OpenAI Chat Completions API 互換
 3. **アップデートチェック** — `https://github.com/notedeck-dev/notedeck/releases/latest` (Tauri Updater)
 4. **OGP 取得** — ノート内 URL の OGP 情報取得 (設定で無効化可能)
+5. **プッシュ通知 (Android、アカウントごとに利用者が有効にした場合のみ)** — 利用者が入れたプッシュ通知アプリ (UnifiedPush) とその配送サーバーを経由して、Misskey サーバーから暗号化された通知が届きます。NoteDeck は中継サーバーを持ちません。送り先 (エンドポイント) と復号の鍵は端末の中 (キーチェーンとアプリ専用領域) に置き、端末外バックアップから除外します。やめるときは Misskey サーバーに購読の解除を送ります
 
 ### NoteDeck が行わない通信
 
