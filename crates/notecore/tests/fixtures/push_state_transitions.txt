@@ -6,7 +6,7 @@
 push                → off / drop
 push(other gen)     → off / drop
 disable             → off
-redo                → off
+app switched        → off
 new gen             → pending g1
 gen failed          → off
 endpoint gone       → off
@@ -20,7 +20,7 @@ cleanup done        → off
 push                → active g1 / confirmed
 push(other gen)     → preparing g1 / drop
 disable             → unregistering g1 / queue[g1:UR]
-redo                → off g1
+app switched        → preparing g1
 new gen             → pending g2 / queue[g1:UR]
 gen failed          → off g1 / queue[g1:R]
 endpoint gone       → preparing g1
@@ -34,7 +34,7 @@ cleanup done        → preparing g1
 push                → active g1 / confirmed
 push(other gen)     → pending g1 / drop
 disable             → unregistering g1 / queue[g1:UTR]
-redo                → off g1
+app switched        → needsRereg:endpoint g1
 new gen             → pending g2 / queue[g1:UR]
 gen failed          → pending g1
 endpoint gone       → needsRereg:endpoint g1
@@ -48,7 +48,7 @@ cleanup done        → pending g1
 push                → active g1 / show
 push(other gen)     → active g1 / drop
 disable             → unregistering g1 / queue[g1:UTR]
-redo                → off g1
+app switched        → needsRereg:endpoint g1
 new gen             → pending g2 / queue[g1:UR]
 gen failed          → active g1
 endpoint gone       → needsRereg:endpoint g1
@@ -62,7 +62,7 @@ cleanup done        → active g1
 push                → needsRereg:endpoint g1 / show
 push(other gen)     → needsRereg:endpoint g1 / drop
 disable             → unregistering g1 / queue[g1:UTR]
-redo                → off g1
+app switched        → needsRereg:endpoint g1
 new gen             → pending g2 / queue[g1:UR]
 gen failed          → needsRereg:endpoint g1
 endpoint gone       → needsRereg:endpoint g1
@@ -76,7 +76,7 @@ cleanup done        → needsRereg:endpoint g1
 push                → active g1 / show
 push(other gen)     → needsRereg:missing g1 / drop
 disable             → unregistering g1 / queue[g1:UTR]
-redo                → off g1
+app switched        → needsRereg:missing g1
 new gen             → pending g2 / queue[g1:UR]
 gen failed          → needsRereg:missing g1
 endpoint gone       → needsRereg:missing g1
@@ -90,7 +90,7 @@ cleanup done        → needsRereg:missing g1
 push                → needsRereg:migrated g0 / show
 push(other gen)     → needsRereg:migrated g0 / drop
 disable             → off g0
-redo                → off g0
+app switched        → needsRereg:migrated g0
 new gen             → pending g1
 gen failed          → needsRereg:migrated g0
 endpoint gone       → needsRereg:migrated g0
@@ -104,7 +104,7 @@ cleanup done        → needsRereg:migrated g0
 push                → unregistering g1 / drop
 push(other gen)     → unregistering g1 / drop
 disable             → unregistering g1
-redo                → unregistering g1
+app switched        → unregistering g1
 new gen             → pending g2
 gen failed          → unregistering g1
 endpoint gone       → unregistering g1

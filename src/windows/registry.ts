@@ -413,7 +413,7 @@ export const WINDOW_REGISTRY: Record<WindowType, WindowSpec> = {
     width: 620,
     maxHeight: 720,
   },
-  // サーバー単位の push の登録 (#330、Android)。入口はアカウントメニューの状態行
+  // push の設定 (#330、Android)。プッシュ通知アプリの選択とアカウントごとのオン / オフ。入口は設定メニュー
   'push-register': {
     get label() {
       return i18n.ts._windows.pushRegister

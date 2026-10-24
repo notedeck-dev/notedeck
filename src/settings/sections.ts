@@ -1,5 +1,6 @@
 import { usePerformanceStore } from '@/stores/performance'
 import { useThemeStore } from '@/stores/theme'
+import { useUiStore } from '@/stores/ui'
 import type { WindowType } from '@/stores/windows'
 
 /**
@@ -27,6 +28,16 @@ export interface SettingsSection {
    * Pinia store を読むので、setup 済みの文脈から呼ぶこと。
    */
   hasOverride?: () => boolean
+  /**
+   * この端末で使える面か (未指定は常に使える)。露出タグ (#1034) は対象者の軸で、
+   * こちらは端末の軸 (push は Android だけ、など)。Pinia store を読んでよい
+   */
+  available?: () => boolean
+}
+
+/** この端末で出すセクションか */
+export function isSectionAvailable(section: SettingsSection): boolean {
+  return section.available?.() ?? true
 }
 
 /** 表示順はこの配列の順 */
@@ -38,6 +49,11 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   { window: 'aiSettings' },
   { window: 'permissions' },
   { window: 'connections' },
+  // プッシュ通知 (#330)。プッシュ通知アプリの選択は端末で 1 つ、オン / オフはアカウントごと
+  {
+    window: 'push-register',
+    available: () => useUiStore().platformName === 'android',
+  },
   { window: 'keybinds' },
   {
     window: 'performanceEditor',

@@ -279,28 +279,30 @@ impl Distributor for KotlinDistributor {
             .and_then(|json| serde_json::from_str(&json).ok())
             .unwrap_or_default()
     }
-}
 
-/// 入っているプッシュ通知アプリ (OS の選択画面を出せなかったときの一覧)
-pub fn distributors() -> Vec<PushDistributor> {
-    #[derive(serde::Deserialize)]
-    struct Item {
-        package: String,
-        label: String,
+    fn installed(&self) -> Vec<PushDistributor> {
+        #[derive(serde::Deserialize)]
+        struct Item {
+            package: String,
+            label: String,
+            #[serde(default)]
+            active: bool,
+        }
+        call_string("distributors")
+            .and_then(|json| serde_json::from_str::<Vec<Item>>(&json).ok())
+            .unwrap_or_default()
+            .into_iter()
+            .map(|i| PushDistributor {
+                package: i.package,
+                label: i.label,
+                active: i.active,
+            })
+            .collect()
     }
-    call_string("distributors")
-        .and_then(|json| serde_json::from_str::<Vec<Item>>(&json).ok())
-        .unwrap_or_default()
-        .into_iter()
-        .map(|i| PushDistributor {
-            package: i.package,
-            label: i.label,
-        })
-        .collect()
-}
 
-pub fn save_distributor(package: &str) {
-    call_void_arg("saveDistributor", package);
+    fn choose(&self, package: &str) {
+        call_void_arg("saveDistributor", package);
+    }
 }
 
 /// 三つ組の置き場の実物 (OS の keychain。トークンと同じ名前空間)

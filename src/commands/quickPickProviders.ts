@@ -18,7 +18,7 @@ import { showLoginPrompt } from '@/composables/useLoginPrompt'
 import { formatUserHandle, searchUsers } from '@/composables/useUserSearch'
 import { i18n } from '@/i18n'
 import type { ColumnSource } from '@/services/columnSource'
-import { SETTINGS_SECTIONS } from '@/settings/sections'
+import { isSectionAvailable, SETTINGS_SECTIONS } from '@/settings/sections'
 import {
   getAccountAvatarUrl,
   getAccountLabel,
@@ -46,8 +46,8 @@ import { useCommandStore } from './registry'
 export function getSettingsItems(): QuickPickItem[] {
   // 定義元は SETTINGS_SECTIONS 1 本 (#1035)。表示名とアイコンはウィンドウ
   // レジストリから引くので、メニューとパレットで名前がずれない
-  return SETTINGS_SECTIONS.filter((section) =>
-    isWindowExposed(section.window),
+  return SETTINGS_SECTIONS.filter(
+    (section) => isWindowExposed(section.window) && isSectionAvailable(section),
   ).map((section) => ({
     id: section.window,
     label: WINDOW_LABELS[section.window] ?? section.window,

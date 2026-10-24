@@ -98,8 +98,8 @@ fn events() -> Vec<(&'static str, Event)> {
             s.begin_disable(ACCOUNT);
             None
         }),
-        ("redo", |s| {
-            s.begin_redo(ACCOUNT);
+        ("app switched", |s| {
+            s.distributor_switched();
             None
         }),
         ("new gen", |s| {

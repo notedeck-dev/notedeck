@@ -26,7 +26,8 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 use crate::commands::{
-    PushAccountRow, PushDistributorState, PushHostStatus, PushProblem, PushReason, PushState,
+    PushAccountRow, PushDistributor, PushDistributorState, PushHostStatus, PushOverview,
+    PushProblem, PushReason, PushState,
 };
 use crate::push_store_file;
 
@@ -103,6 +104,10 @@ pub trait Distributor {
     fn failure(&self, instance: &str) -> Option<String>;
     fn unregister(&self, instance: &str);
     fn instances(&self) -> Vec<String>;
+    /// 入っているプッシュ通知アプリ (今使っているものに印)
+    fn installed(&self) -> Vec<PushDistributor>;
+    /// 使うプッシュ通知アプリを決める
+    fn choose(&self, package: &str);
 }
 
 /// 三つ組の置き場 (実物は OS の keychain)
@@ -252,17 +257,6 @@ fn reason_view(reason: Reason) -> PushReason {
     }
 }
 
-/// 口座の状態 (ネットワークに出ない)
-pub fn state_of(app_dir: &Path, account: &PushAccount) -> PushState {
-    if account.token.is_none() {
-        return PushState::Unavailable;
-    }
-    push_store_file::load(app_dir)
-        .account(&account.id)
-        .map(|a| state_view(a.phase))
-        .unwrap_or(PushState::Off)
-}
-
 /// 登録し直しが要る口座 (トークンのあるもの)
 pub fn needing_attention(app_dir: &Path, accounts: &[PushAccount]) -> Vec<String> {
     let store = push_store_file::load(app_dir);
@@ -405,11 +399,49 @@ pub(crate) async fn host_status<S: Server, D: Distributor, V: Vault>(
         push_register::register_code(nonce, &targets, lang)
     });
     PushHostStatus {
-        distributor: ctx.distributor.state(),
+        host: host.to_string(),
         accounts: rows,
         code,
         scratchpad_url: push_register::scratchpad_url(host),
     }
+}
+
+/// 端末の push の全体 (窓が読む)。サーバーの並びは口座の並びのまま
+pub(crate) async fn overview<S: Server, D: Distributor, V: Vault>(
+    ctx: &Ctx<'_, S, D, V>,
+    accounts: &[PushAccount],
+    lang: &str,
+) -> PushOverview {
+    let mut hosts: Vec<&str> = Vec::new();
+    for account in accounts {
+        if !hosts.contains(&account.host.as_str()) {
+            hosts.push(&account.host);
+        }
+    }
+    let mut statuses = Vec::new();
+    for host in hosts {
+        statuses.push(host_status(ctx, host, accounts, lang).await);
+    }
+    PushOverview {
+        distributor: ctx.distributor.state(),
+        apps: ctx.distributor.installed(),
+        hosts: statuses,
+    }
+}
+
+/// 使うプッシュ通知アプリを決める。今と同じなら何もしない。切り替えたら、登録待ち・有効の
+/// 口座は前のアプリの送り先なので登録し直しが要る
+pub(crate) fn choose_distributor<S, D: Distributor, V>(ctx: &Ctx<'_, S, D, V>, package: &str) {
+    if ctx
+        .distributor
+        .installed()
+        .iter()
+        .any(|app| app.package == package && app.active)
+    {
+        return;
+    }
+    ctx.distributor.choose(package);
+    push_store_file::update(ctx.app_dir, |s| s.distributor_switched());
 }
 
 // ---- 準備 ----
@@ -458,15 +490,15 @@ async fn register_generation<S, D: Distributor, V: Vault>(
     Ok(endpoint.fingerprint())
 }
 
-/// サーバーの口座をまとめて準備する。使っていない / 登録し直しが要る口座は新しい世代で
-/// 登録し、登録待ちの口座と合わせてレジストリに書く。未実行の登録待ちだけなら何も書かず
-/// 同じコードを渡し直す。`redo` の口座は今の登録を作り直す (前の世代は新しい世代が
-/// そろってから外す)。`random` は合言葉の乱数
+/// 口座をオンにする準備。使っていない / 登録し直しが要る口座は新しい世代で登録し、同じ
+/// サーバーの登録待ちの口座と合わせてレジストリに書く (1 つのコードで全部 ▶ できる)。
+/// 未実行の登録待ちだけなら何も書かず同じコードを渡し直す。`only` があれば新しく登録するのは
+/// その口座だけ (None ならサーバーの該当する口座すべて)。`random` は合言葉の乱数
 pub(crate) async fn prepare<S: Server, D: Distributor, V: Vault>(
     ctx: &Ctx<'_, S, D, V>,
     host: &str,
     accounts: &[PushAccount],
-    redo: Option<&str>,
+    only: Option<&str>,
     random: [u8; 10],
 ) -> Result<(), PushProblem> {
     let on_host: Vec<&PushAccount> = accounts
@@ -485,10 +517,6 @@ pub(crate) async fn prepare<S: Server, D: Distributor, V: Vault>(
         .await
         .map_err(|_| PushProblem::Network)?;
     let vapid = push_register::server_vapid(&meta).ok_or(PushProblem::ServerUnsupported)?;
-    if let Some(account) = redo {
-        push_store_file::update(ctx.app_dir, |s| s.begin_redo(account));
-    }
-
     // 口座を振り分ける: 新しい世代 / 項目の書き直し / 未実行のまま (同じコード)
     let store = push_store_file::load(ctx.app_dir);
     let mut fresh = Vec::new();
@@ -496,7 +524,9 @@ pub(crate) async fn prepare<S: Server, D: Distributor, V: Vault>(
     let mut unchanged: Vec<(&PushAccount, Option<String>)> = Vec::new();
     for account in &on_host {
         if store.needs_new_generation(&account.id) {
-            fresh.push(*account);
+            if only.is_none_or(|id| id == account.id) {
+                fresh.push(*account);
+            }
             continue;
         }
         let Some(rec) = store.account(&account.id) else {
@@ -909,6 +939,8 @@ mod tests {
         failure: RefCell<Option<String>>,
         /// 送り先を差し替えたい instance
         replaced: RefCell<BTreeMap<String, Endpoint>>,
+        /// 入っているアプリ (package, 使っているか)
+        apps: RefCell<Vec<(String, bool)>>,
     }
 
     impl FakeDistributor {
@@ -920,6 +952,7 @@ mod tests {
                 endpoint_base: RefCell::new("https://ntfy.example/up".into()),
                 failure: RefCell::default(),
                 replaced: RefCell::default(),
+                apps: RefCell::new(vec![("io.heckel.ntfy".into(), true)]),
             }
         }
 
@@ -965,6 +998,22 @@ mod tests {
         }
         fn instances(&self) -> Vec<String> {
             self.instances_sorted()
+        }
+        fn installed(&self) -> Vec<PushDistributor> {
+            self.apps
+                .borrow()
+                .iter()
+                .map(|(package, active)| PushDistributor {
+                    package: package.clone(),
+                    label: package.clone(),
+                    active: *active,
+                })
+                .collect()
+        }
+        fn choose(&self, package: &str) {
+            for (p, active) in self.apps.borrow_mut().iter_mut() {
+                *active = p == package;
+            }
         }
     }
 
@@ -1151,14 +1200,40 @@ mod tests {
         );
     }
 
-    /// やり直す: 新しい世代がそろってから前の世代を本家で解除し、登録を外す
+    /// オンにするのは押した口座だけ。同じサーバーのほかの口座は使っていないまま
     #[tokio::test]
-    async fn redo_replaces_the_generation_after_the_new_one_is_ready() {
+    async fn only_the_pressed_account_is_turned_on() {
+        let w = World::new();
+        assert_eq!(w.prepare(Some("b"), 1).await, Ok(()));
+        assert_eq!(w.distributor.instances(), vec!["b#1"]);
+        assert_eq!(w.phase("a"), Phase::Off);
+        assert_eq!(w.phase("b"), Phase::Pending);
+        // あとから押した a も、未実行の b と同じ 1 つのコードに入る
+        w.prepare(Some("a"), 2).await.unwrap();
+        assert_eq!(w.nonce("a"), w.nonce("b"));
+        let code = w.status().await.code.unwrap();
+        assert!(code.contains("user-a") && code.contains("user-b"));
+    }
+
+    /// プッシュ通知アプリを切り替えると、使っている口座は登録し直しが要る。もう一度オンに
+    /// すると、新しい世代がそろってから前の世代を本家で解除し、登録を外す
+    #[tokio::test]
+    async fn switching_apps_needs_reregistration_and_replaces_the_generation() {
         let w = World::new();
         w.prepare(None, 1).await.unwrap();
         w.server.run_code("tokA", &w.nonce("a"));
         w.confirm("a");
         let old = w.nonce("a");
+        w.distributor
+            .apps
+            .borrow_mut()
+            .push(("org.unifiedpush.distributor.sunup".into(), false));
+        choose_distributor(&w.ctx(), "io.heckel.ntfy");
+        assert_eq!(w.phase("a"), Phase::Active, "同じアプリを選んでも変えない");
+        choose_distributor(&w.ctx(), "org.unifiedpush.distributor.sunup");
+        assert_eq!(w.phase("a"), Phase::NeedsReregistration);
+        assert_eq!(w.phase("b"), Phase::NeedsReregistration);
+        assert!(w.store().cleanup.is_empty(), "前の世代はまだ外さない");
         assert_eq!(w.prepare(Some("a"), 2).await, Ok(()));
         assert_eq!(w.phase("a"), Phase::Pending);
         assert_eq!(w.distributor.instances(), vec!["a#2", "b#1"]);

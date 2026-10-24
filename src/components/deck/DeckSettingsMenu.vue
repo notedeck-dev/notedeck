@@ -3,7 +3,11 @@ import { computed, ref, toRef } from 'vue'
 
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
-import { SETTINGS_SECTIONS, type SettingsSection } from '@/settings/sections'
+import {
+  isSectionAvailable,
+  SETTINGS_SECTIONS,
+  type SettingsSection,
+} from '@/settings/sections'
 import { useWindowsStore } from '@/stores/windows'
 import { isWindowExposed } from '@/windows/exposure'
 import { WINDOW_ICONS, WINDOW_LABELS } from '@/windows/registry'
@@ -16,9 +20,11 @@ const emit = defineEmits<{
   close: []
 }>()
 
-/** 開発者モードが off なら開発者向けのセクションは出さない (#1034) */
+/** 開発者モードが off なら開発者向けのセクションは出さない (#1034)。この端末で使えない面も出さない */
 const sections = computed(() =>
-  SETTINGS_SECTIONS.filter((s) => isWindowExposed(s.window)),
+  SETTINGS_SECTIONS.filter(
+    (s) => isWindowExposed(s.window) && isSectionAvailable(s),
+  ),
 )
 
 const { visible: menuVisible, leaving: menuLeaving } = useVaporTransition(

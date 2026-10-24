@@ -1977,54 +1977,29 @@ async openOsNotificationSettings() : Promise<void> {
     await TAURI_INVOKE("open_os_notification_settings");
 },
 /**
- * 口座の push の状態 (ネットワークに出ない)
- *
- * @see src-tauri/src/commands/push.rs
- */
-async pushStatus(accountId: string) : Promise<Result<PushState, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("push_status", { accountId }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * サーバー単位の状態。登録待ちの口座はレジストリを読んで「未実行」と「到着待ち」を
+ * 端末の push の全体。登録待ちの口座はレジストリを読んで「未実行」と「到着待ち」を
  * 見分ける (窓が開いている間は数秒おきに呼ばれる)
  *
  * @see src-tauri/src/commands/push.rs
  */
-async pushHostStatus(host: string) : Promise<Result<PushHostStatus, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async pushOverview() : Promise<Result<PushOverview, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("push_host_status", { host }) };
+    return { status: "ok", data: await TAURI_INVOKE("push_overview") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /**
- * サーバーの口座をまとめて登録の準備をする (プッシュ通知アプリへの登録と、レジストリへの
- * 書込)。プッシュ通知アプリの返事を待つので数秒かかることがある。成功は None
+ * 口座をオンにする (プッシュ通知アプリへの登録と、レジストリへの書込)。同じサーバーに
+ * 未実行の登録待ちがあれば 1 つのコードにまとめる。プッシュ通知アプリの返事を待つので
+ * 数秒かかることがある。成功は None
  *
  * @see src-tauri/src/commands/push.rs
  */
-async pushPrepare(host: string) : Promise<Result<PushProblem | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async pushPrepare(accountId: string) : Promise<Result<PushProblem | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("push_prepare", { host }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * 口座の登録を新しい鍵と合言葉で作り直す。前の登録は新しい方がそろってから外す
- *
- * @see src-tauri/src/commands/push.rs
- */
-async pushRedo(accountId: string) : Promise<Result<PushProblem | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("push_redo", { accountId }) };
+    return { status: "ok", data: await TAURI_INVOKE("push_prepare", { accountId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2046,20 +2021,7 @@ async pushDisable(accountId: string) : Promise<Result<null, { code: string; mess
 }
 },
 /**
- * 入っているプッシュ通知アプリ (OS の選択画面が出せなかったときに選んでもらう)
- *
- * @see src-tauri/src/commands/push.rs
- */
-async pushDistributors() : Promise<Result<PushDistributor[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("push_distributors") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * 使うプッシュ通知アプリを決める
+ * 使うプッシュ通知アプリを決める。切り替えたら、使っている口座は登録し直しが要る
  *
  * @see src-tauri/src/commands/push.rs
  */
@@ -4031,7 +3993,11 @@ resent: boolean }
 /**
  * 入っているプッシュ通知アプリ
  */
-export type PushDistributor = { package: string; label: string }
+export type PushDistributor = { package: string; label: string; 
+/**
+ * 今使っている (まだ決めていなくても 1 つしか無ければそれ)
+ */
+active: boolean }
 /**
  * プッシュ通知アプリ (配送アプリ) の状態
  */
@@ -4051,9 +4017,17 @@ export type PushDistributorState =
 /**
  * サーバー単位の状態。`code` は未実行の登録待ちがあるときの Scratchpad 用のコード
  */
-export type PushHostStatus = { distributor: PushDistributorState; accounts: PushAccountRow[]; code: string | null; scratchpadUrl: string }
+export type PushHostStatus = { host: string; accounts: PushAccountRow[]; code: string | null; scratchpadUrl: string }
 /**
- * 準備 / やり直しの失敗の理由
+ * 端末の push の全体 (窓が読む)
+ */
+export type PushOverview = { distributor: PushDistributorState; 
+/**
+ * 入っているプッシュ通知アプリ
+ */
+apps: PushDistributor[]; hosts: PushHostStatus[] }
+/**
+ * オンにする操作の失敗の理由
  */
 export type PushProblem = 
 /**
@@ -4113,7 +4087,7 @@ export type PushReason =
  */
 "migrated"
 /**
- * 口座の push の状態 (アカウントメニューの状態行と、窓の行)
+ * 口座の push の状態 (窓の行)
  */
 export type PushState = 
 /**

@@ -4785,36 +4785,32 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "message": string
   }
   readonly "_backgroundNotify": {
-    /** 閉じている間の通知: 定期的に確認 */
-    readonly "polling": string
     /** 通知が許可されていません */
     readonly "permissionDenied": string
     /** OS の通知設定を開く */
     readonly "openSettings": string
-    /** 閉じている間の通知: プッシュ通知 */
-    readonly "pushActive": string
-    /** プッシュ通知: 登録の途中です */
-    readonly "pushPending": string
-    /** プッシュ通知: 登録し直しが要ります */
-    readonly "pushNeedsRegistration": string
   }
   readonly "_pushRegister": {
     /** プッシュ通知アプリ (UnifiedPush 対応のアプリ) を使うと、NoteDeck を閉じている間も通知がすぐ届きます。使わなくても、閉じている間は定期的に確認して知らせます。 */
     readonly "intro": string
-    /** Misskey の仕組みにより、登録はこのサーバーの Web UI でアカウントごとに 1 回だけ行います。同じサーバーのアカウントは 1 つのコードでまとめて登録できます。 */
+    /** Misskey の仕組みにより、オンにするときはこのサーバーの Web UI でアカウントごとに 1 回だけ操作します。同じサーバーのアカウントは 1 つのコードでまとめて登録できます。 */
     readonly "howItWorks": string
+    /** プッシュ通知アプリ */
+    readonly "apps": string
+    /** アカウント */
+    readonly "accounts": string
+    /** プッシュ通知アプリを切り替えますか？ */
+    readonly "switchTitle": string
+    /** プッシュ通知を使っているアカウントは、切り替えた後にもう一度オンにする必要があります。 */
+    readonly "switchMessage": string
     /** プッシュ通知アプリが入っていません。ntfy など UnifiedPush 対応のアプリを入れてから戻ってください。 */
     readonly "noDistributor": string
     /** プッシュ通知アプリを探す */
     readonly "getApp": string
-    /** もう一度確かめる */
-    readonly "checkAgain": string
     /** 使うプッシュ通知アプリを選んでください */
     readonly "chooseDistributor": string
-    /** 有効にする */
+    /** オンにする */
     readonly "enable": string
-    /** プッシュ通知アプリの応答を待っています */
-    readonly "waiting": string
     /** コピーしてスクラッチパッドを開く */
     readonly "copyAndOpen": string
     /** 1. ブラウザーで、登録するアカウントでログインしていることを確かめます */
@@ -4827,8 +4823,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "showCode": string
     /** まだ届きません。このサーバーからプッシュ通知アプリのサーバーに届いていないかもしれません (自分で立てたサーバーや、家の中だけのネットワークなど)。プッシュ通知アプリの設定を確かめてください。 */
     readonly "notArriving": string
-    /** やり直す */
-    readonly "redo": string
     /** オフにする */
     readonly "disable": string
     /** {user} のプッシュ通知をオフにしますか？ */
