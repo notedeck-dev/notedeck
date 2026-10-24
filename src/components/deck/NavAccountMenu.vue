@@ -3,12 +3,14 @@ import { computed, ref, toRef, watch } from 'vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNotificationPermissionState } from '@/composables/useNotificationPermissionState'
+import { usePushRegistration } from '@/composables/usePushRegistration'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { webUiUrl } from '@/services/safeUrl'
 import { modeIcon } from '@/services/timelinePolicy'
 import { type Account, isGuestAccount } from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
+import { useWindowsStore } from '@/stores/windows'
 import { modeLabel } from '@/utils/customTimelines'
 import { hapticSelection } from '@/utils/haptics'
 import { openSafeUrl } from '@/utils/url'
@@ -55,12 +57,40 @@ const {
   refresh: refreshNotificationPermission,
   openSettings: openOsNotificationSettings,
 } = useNotificationPermissionState()
+// push (#330 §5) は口座ごとのオプトイン。状態行は push の状態で出し分け、
+// 登録や解除は専用のウィンドウで行う
+const push = usePushRegistration(() => props.account.id)
 watch(
   () => props.show,
   (show) => {
-    if (show && uiStore.isMobilePlatform) void refreshNotificationPermission()
+    if (!show || !uiStore.isMobilePlatform) return
+    void refreshNotificationPermission()
+    if (props.account.hasToken) void push.refresh()
   },
 )
+const backgroundNotifyLine = computed(() => {
+  if (!uiStore.isMobilePlatform) return i18n.ts._backgroundNotify.foregroundOnly
+  switch (push.status.value) {
+    case 'active':
+      return i18n.ts._backgroundNotify.pushActive
+    case 'needsRegistration':
+      return i18n.ts._backgroundNotify.pushNeedsRegistration
+    case 'actionRequired':
+      return i18n.ts._backgroundNotify.pushActionRequired
+    default:
+      return i18n.ts._backgroundNotify.polling
+  }
+})
+const canSetUpPush = computed(
+  () =>
+    uiStore.isMobilePlatform &&
+    push.status.value !== null &&
+    push.status.value !== 'unavailable',
+)
+function openPushRegister() {
+  useWindowsStore().open('push-register', { accountId: props.account.id })
+  emit('close')
+}
 
 const hasUpperSection = computed(
   () =>
@@ -123,8 +153,17 @@ const hasUpperSection = computed(
       </button>
       <template v-if="account.hasToken">
         <div :class="$style.navAccountMenuStatus">
-          {{ uiStore.isMobilePlatform ? i18n.ts._backgroundNotify.polling : i18n.ts._backgroundNotify.foregroundOnly }}
+          {{ backgroundNotifyLine }}
         </div>
+        <button
+          v-if="canSetUpPush"
+          class="_button"
+          :class="$style.navAccountMenuItem"
+          @click="openPushRegister"
+        >
+          <span>{{ i18n.ts._backgroundNotify.pushSetup }}</span>
+          <i class="ti ti-bell-ringing" />
+        </button>
         <button
           v-if="notificationPermissionGranted === false"
           class="_button"

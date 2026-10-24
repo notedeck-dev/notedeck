@@ -17,7 +17,14 @@
 //! (`notify_cursor_file`) より新しい通知を取って 1 件ずつ描く → 位置を進める。
 //! 位置が無い初めての巡回は新しい 1 件だけ描く (`notify_cursor::FIRST_RUN_NOTIFY`)。
 //! 未読 0 なら出ている通知を tag ごと消す (他端末で読んだ分)。画像 (アバター /
-//! 絵文字) はまだ付けない。
+//! 絵文字) は本文を先に出してから取り、取れたら同じ (tag, id) で描き直す (#330 §4.1)。
+//!
+//! runtime / HTTP クライアント / 画像キャッシュはこの巡回の中で作って捨てる。Tauri の
+//! runtime (`tauri::async_runtime`) には触らない: 未初期化のまま触ると既定の runtime が
+//! 立ち、後から Activity が起動したときの `async_runtime::set` が panic (= abort) する。
+//! reqwest のクライアントは作った runtime に縛られるので、アプリ側のものも借りない。
+//! 画像キャッシュはアプリと同じディスク領域を指す (同じ URL を同時に取ったときだけ
+//! 同じ中身を 2 回書く)。
 
 use std::path::{Path, PathBuf};
 
@@ -27,6 +34,7 @@ use jni::JNIEnv;
 use notecli::api::MisskeyClient;
 use notecli::error::NoteDeckError;
 use notecli::models::{Account, ChatMessage, TimelineOptions};
+use notecore::image_cache::ImageCache;
 use notecore::notify_plan::{self, notify_tag, NotifyKind, NotifyPlan};
 
 /// Kotlin への戻り値。`Result.success()`
@@ -38,6 +46,8 @@ const RESULT_RETRY: jint = 1;
 const MAX_NOTIFICATIONS: u64 = 100;
 /// メッセージ履歴 (相手ごと / ルームごとの最新 1 件) の取得数
 const CHAT_HISTORY_LIMIT: i64 = 30;
+/// 画像の取得の上限 (アプリの共有クライアントと同じ)
+const IMAGE_FETCH_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
 
 /// Kotlin の `NotificationBridge.runWorker(context, dataDir)` から呼ばれる入口。
 /// `data_dir` は Tauri の `app_data_dir()` と同じ場所 (`Context.getDataDir()`)
@@ -99,6 +109,8 @@ async fn run(app_dir: &Path) -> jint {
         }
     };
     let lang = crate::ui_lang::current();
+    // 作れなければ画像なしで描く
+    let images = image_cache(app_dir);
     let mut attempted = 0;
     let mut network_failures = 0;
     for account in &accounts {
@@ -107,7 +119,7 @@ async fn run(app_dir: &Path) -> jint {
             continue;
         };
         attempted += 1;
-        match poll_account(&client, account, &token, &lang, app_dir).await {
+        match poll_account(&client, images.as_ref(), account, &token, &lang, app_dir).await {
             Ok(()) => {}
             Err(NoteDeckError::Network(e)) => {
                 network_failures += 1;
@@ -126,7 +138,7 @@ async fn run(app_dir: &Path) -> jint {
 
 /// 口座のトークン。keychain 優先、無ければ DB の列 (keychain が永続しない環境の
 /// フォールバック)。どちらも空ならゲスト
-fn token_for(account: &Account) -> Option<String> {
+pub(crate) fn token_for(account: &Account) -> Option<String> {
     let from_keychain = notecli::keychain::get_token(&account.id)
         .ok()
         .flatten()
@@ -136,6 +148,7 @@ fn token_for(account: &Account) -> Option<String> {
 
 async fn poll_account(
     client: &MisskeyClient,
+    images: Option<&ImageCache>,
     account: &Account,
     token: &str,
     lang: &str,
@@ -155,12 +168,11 @@ async fn poll_account(
         crate::android_notify::cancel(&notify_tag(&account.id, NotifyKind::Notification));
     } else {
         let cursor = crate::notify_cursor_file::load(app_dir);
-        let since = cursor
-            .position(&account.id, NotifyKind::Notification)
-            .map(str::to_string);
-        // 処理位置より新しい分だけ取る。初回 (位置なし) は新しい方から未読数ぶん。
-        // markAsRead は必ず false: 既読は「通知カラムを見たとき」だけ (#330 §3.2)
-        let options = TimelineOptions::new(unread.min(MAX_NOTIFICATIONS) as i64, since, None);
+        // 新しい方から未読数ぶんを取り、処理位置で絞る。本家の既読は位置 1 本なので、
+        // 未読は常に新しい方の n 件。sinceId に処理位置を渡してはいけない: 本家は
+        // sinceId だけのとき古い順で返すので、位置が古いと既読の分を取って新しい未読を
+        // 取りこぼす。markAsRead は必ず false: 既読は「通知カラムを見たとき」だけ (#330 §3.2)
+        let options = TimelineOptions::new(unread.min(MAX_NOTIFICATIONS) as i64, None, None);
         let fetched = client
             .get_notifications(&account.host, token, &account.id, options, false)
             .await?;
@@ -169,7 +181,7 @@ async fn poll_account(
         let silent = cursor.silent_prefix(&account.id, NotifyKind::Notification, fresh.len());
         for n in fresh.iter().skip(silent) {
             if let Some(plan) = notify_plan::plan(n, lang) {
-                show(&plan);
+                show(images, &plan).await;
             }
         }
         // 位置は最後にまとめて進める。途中で落ちても、次の巡回で出し直す分は (tag, id) が
@@ -206,7 +218,7 @@ async fn poll_account(
     let fresh = cursor.newer_than(&account.id, NotifyKind::Message, unread_messages, |m| &m.id);
     let silent = cursor.silent_prefix(&account.id, NotifyKind::Message, fresh.len());
     for m in fresh.iter().skip(silent) {
-        show(&notify_plan::plan_chat(m, &account.host, lang));
+        show(images, &notify_plan::plan_chat(m, &account.host, lang)).await;
     }
     if let Some(newest) = fresh.last() {
         crate::notify_cursor_file::advance(app_dir, &account.id, NotifyKind::Message, &newest.id);
@@ -214,8 +226,56 @@ async fn poll_account(
     Ok(())
 }
 
-/// 画像は付けずに描く (アバター / 絵文字のローカル化は ImageCache が要るので後回し)
-fn show(plan: &NotifyPlan) {
+/// この巡回で使う画像キャッシュ (アプリと同じディスク領域)。クライアントを作れなければ None
+pub(crate) fn image_cache(app_dir: &Path) -> Option<ImageCache> {
+    // SSRF の防御はアプリの共有クライアントと同じ: リダイレクト先の検証と、名前解決の
+    // 結果を接続前に確かめる resolver (private / loopback に解決される公開ホスト名を
+    // 弾く、#857)。通知の画像の URL は他人が書いたものなので省かない
+    let http = reqwest::Client::builder()
+        .timeout(IMAGE_FETCH_TIMEOUT)
+        .redirect(notecore::ssrf::external_redirect_policy(5))
+        .dns_resolver(std::sync::Arc::new(notecore::ssrf::ValidatingResolver))
+        .build()
+        .ok()?;
+    let perf = std::sync::Arc::new(tokio::sync::RwLock::new(
+        notecore::perf_config::PerformanceConfig::default(),
+    ));
+    Some(ImageCache::with_client(app_dir, http, perf))
+}
+
+/// 本文を先に描き、画像 (アバター / リアクションの絵文字) が取れたら同じ (tag, id) で
+/// 描き直す。描き直しは OS が音を鳴らし直さない (NotificationRenderer の onlyAlertOnce)
+pub(crate) async fn show(images: Option<&ImageCache>, plan: &NotifyPlan) {
+    draw(plan, None, None);
+    let Some(cache) = images else {
+        return;
+    };
+    let icon = match plan.icon_url.as_deref() {
+        Some(url) => {
+            notecore::notify_media::ensure_local_file(
+                cache,
+                url,
+                Some(crate::android_notify::AVATAR_MAX_WIDTH),
+            )
+            .await
+        }
+        None => None,
+    };
+    // 絵文字はアニメーション保持のため変換なし (原本)。decode の上限は Kotlin 側
+    let image = match plan.image_url.as_deref() {
+        Some(url) => notecore::notify_media::ensure_local_file(cache, url, None).await,
+        None => None,
+    };
+    if icon.is_some() || image.is_some() {
+        draw(
+            plan,
+            icon.as_deref().and_then(|p| p.to_str()),
+            image.as_deref().and_then(|p| p.to_str()),
+        );
+    }
+}
+
+fn draw(plan: &NotifyPlan, avatar_path: Option<&str>, image_path: Option<&str>) {
     crate::android_notify::show(
         &plan.tag,
         plan.id,
@@ -223,7 +283,7 @@ fn show(plan: &NotifyPlan) {
         &plan.title,
         plan.body.as_deref(),
         plan.deep_link.as_deref(),
-        None,
-        None,
+        avatar_path,
+        image_path,
     );
 }

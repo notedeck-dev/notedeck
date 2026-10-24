@@ -192,6 +192,8 @@ export interface Locale {
     readonly "tutorialEditor": string
     /** この応答に送った指示 */
     readonly "aiTurnPrompt": string
+    /** プッシュ通知 */
+    readonly "pushRegister": string
   }
   readonly "_commands": {
     /** コマンドパレット */
@@ -4791,6 +4793,74 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "permissionDenied": string
     /** OS の通知設定を開く */
     readonly "openSettings": string
+    /** 閉じている間の通知: プッシュ通知 */
+    readonly "pushActive": string
+    /** プッシュ通知: 登録し直しが要ります */
+    readonly "pushNeedsRegistration": string
+    /** プッシュ通知: プッシュ通知アプリで操作が要ります */
+    readonly "pushActionRequired": string
+    /** プッシュ通知 */
+    readonly "pushSetup": string
+  }
+  readonly "_pushRegister": {
+    /** プッシュ通知アプリ (UnifiedPush 対応のアプリ) を使うと、NoteDeck を閉じている間も通知がすぐ届きます。使わなくても、閉じている間は定期的に確認して知らせます。 */
+    readonly "intro": string
+    /** プッシュ通知アプリが入っていません。ntfy など UnifiedPush 対応のアプリを入れてから、もう一度開いてください。 */
+    readonly "noDistributor": string
+    /** Misskey の仕組みにより、登録はこのアカウントでログインした Web UI で 1 回だけ行います。 */
+    readonly "howItWorks": string
+    /** 登録を始める */
+    readonly "start": string
+    /** プッシュ通知アプリの応答を待っています */
+    readonly "waiting": string
+    /** 1. コードをコピーし、Web UI の Scratchpad に貼って実行します */
+    readonly "stepRun": string
+    /** コードをコピー */
+    readonly "copyCode": string
+    /** Scratchpad を開く */
+    readonly "openScratchpad": string
+    /** 2. 表示された内容をコピーして、ここに貼り付けます */
+    readonly "stepPaste": string
+    /** 表示された内容 */
+    readonly "responsePlaceholder": string
+    /** 登録する */
+    readonly "submit": string
+    /** このアカウントの通知はプッシュ通知で届きます。 */
+    readonly "active": string
+    /** プッシュ通知をやめる */
+    readonly "disable": string
+    /** プッシュ通知をやめますか？ */
+    readonly "disableTitle": string
+    /** 閉じている間は、定期的に確認して知らせる方式に戻ります。 */
+    readonly "disableMessage": string
+    /** プッシュ通知アプリ側の登録が変わりました。もう一度登録してください。 */
+    readonly "needsRegistration": string
+    /** プッシュ通知アプリで操作が必要です。アプリを開いて確認してから、もう一度登録してください。 */
+    readonly "actionRequired": string
+    /** 仕組みの説明 */
+    readonly "learnMore": string
+    /** うまくいきませんでした。通信の状態を確認して、もう一度お試しください。 */
+    readonly "failed": string
+    readonly "_problem": {
+      /** このアカウントではプッシュ通知を使えません。 */
+      readonly "unavailable": string
+      /** このサーバーはプッシュ通知に対応していません (サーバーで Web Push が設定されていません)。 */
+      readonly "serverUnsupported": string
+      /** プッシュ通知アプリが入っていません。ntfy など UnifiedPush 対応のアプリを入れてください。 */
+      readonly "noDistributor": string
+      /** プッシュ通知アプリが登録に応じませんでした。アプリを確認してから、もう一度お試しください。 */
+      readonly "distributorFailed": string
+      /** 貼り付けた内容を読み取れませんでした。表示された内容をすべてコピーしてください。 */
+      readonly "unreadable": string
+      /** 別のアカウントで登録されています。このアカウントで Web UI にログインしてから実行してください。 */
+      readonly "otherAccount": string
+      /** 古いコードで登録されています。「登録を始める」からやり直してください。 */
+      readonly "otherEndpoint": string
+      /** プッシュ通知アプリ側の登録が無くなりました。「登録を始める」からやり直してください。 */
+      readonly "endpointGone": string
+      /** 登録を保存できませんでした。 */
+      readonly "storage": string
+    }
   }
   readonly "_deepLink": {
     /** このリンクのアカウントではログインしていません */
@@ -6367,6 +6437,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
         /** メッセージ */
         readonly "messages": string
       }
+    }
+    readonly "push": {
+      /** {user} でログインしてから実行してください */
+      readonly "wrongAccount": ParameterizedString<'user'>
+      /** この内容をコピーして NoteDeck に貼り付けてください */
+      readonly "copyResponse": string
     }
     readonly "tray": {
       /** NoteDeck — 未読 {count} 件 */

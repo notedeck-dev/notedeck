@@ -4956,6 +4956,7 @@
             'tutorial',
             'tutorialEditor',
             'ai-turn-prompt',
+            'push-register',
           ],
         },
         props: {

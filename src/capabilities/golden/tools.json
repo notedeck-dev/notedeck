@@ -3702,7 +3702,8 @@
               "connectionEdit",
               "tutorial",
               "tutorialEditor",
-              "ai-turn-prompt"
+              "ai-turn-prompt",
+              "push-register"
             ]
           },
           "props": {

@@ -38,6 +38,13 @@ const props = defineProps<{
    */
   nyaize?: boolean
   /**
+   * 1 行に収める (本家の nowrap)。構文は通常どおり描画し、改行とブロック要素
+   * (中央寄せ・引用・コード・検索・数式) を行内に畳む。あふれは省略記号、拡大は
+   * 行の高さで切る。通知の要約 1 行で使う (#1210 / #1279)。入れ子の MkMfm には
+   * 渡さず、根のクラスから CSS で効かせる
+   */
+  nowrap?: boolean
+  /**
    * 親からの拡大率 (本家 genEl の scale)。$[x2] や $[scale] の中で増え、
    * 2.5 倍以上ならカスタム絵文字を縮小版でなく原寸で出す
    */
@@ -527,7 +534,7 @@ function unixtimeValue(token: MfmFn): number | null {
 </script>
 
 <template>
-  <span class="mfm" :class="$style.mfm"><template v-for="(token, i) in resolvedTokens" :key="i"><!--
+  <span class="mfm" :class="[$style.mfm, nowrap && $style.mfmNowrap]"><template v-for="(token, i) in resolvedTokens" :key="i"><!--
     --><!-- URL --><a v-if="token.type === 'url'" :href="isSafeUrl(token.props.url) ? token.props.url : '#'" :class="$style.mfmUrl" target="_blank" rel="noopener noreferrer" @click.stop="handleLinkClick($event, token.props.url)">{{ token.props.url }}</a><!--
     --><!-- Link --><a v-else-if="token.type === 'link'" :href="isSafeUrl(token.props.url) ? token.props.url : '#'" :title="token.props.url" :class="$style.mfmUrl" target="_blank" rel="noopener noreferrer" @click.stop="handleLinkClick($event, token.props.url)"><MkMfm :tokens="token.children" :emojis="emojis" :reaction-emojis="reactionEmojis" :server-host="serverHost" :my-username="myUsername" :my-host="myHost" @mention-click="(u, h) => emit('mentionClick', u, h)" @mention-hover="(e, u, h) => emit('mentionHover', e, u, h)" @mention-leave="emit('mentionLeave')" @memo-link-click="(id) => emit('memoLinkClick', id)" @click-ev="(ev) => emit('clickEv', ev)" :scale="currentScale" /></a><!--
     --><!-- Mention --><span v-else-if="token.type === 'mention'" :class="isMentionMe(token.props.username, token.props.host) ? $style.mfmMentionMe : $style.mfmMention" @click.stop="emit('mentionClick', token.props.username, token.props.host)" @mouseenter="emit('mentionHover', $event, token.props.username, token.props.host)" @mouseleave="emit('mentionLeave')">{{ token.props.acct }}</span><!--
@@ -571,6 +578,39 @@ function unixtimeValue(token: MfmFn): number | null {
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.5;
+}
+
+/* 1 行に収める (nowrap prop、#1279)。入れ子の MkMfm も同じモジュールのクラスを
+   持つので、根から子孫ごと畳める */
+.mfmNowrap {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* $[x3] などで行が伸びないよう 1 行の高さで切る (line-height と同じ) */
+  max-height: 1.5em;
+
+  .mfm {
+    white-space: inherit;
+  }
+
+  :is(div, blockquote, pre, h1, h2, h3, h4, h5, h6, ol, ul, li),
+  .mfmCenter,
+  .mfmQuote,
+  .mfmSearch,
+  .mfmMathBlock {
+    display: inline;
+    margin: 0;
+    padding: 0;
+    border: none;
+  }
+
+  /* カスタム絵文字は文字の高さにそろえる (本家の plain と同じ大きさ) */
+  .customEmoji {
+    height: 1.25em;
+    min-width: 1.25em;
+    vertical-align: -0.25em;
+  }
 }
 
 .mfmUrl {

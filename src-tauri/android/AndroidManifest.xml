@@ -10,12 +10,16 @@
          メディア配信をループバック HTTP (内蔵サーバー) に載せる。
          NSC がある場合 usesCleartextTraffic は無視されるため、dev サーバー
          (LAN IP への http) 用の緩い設定は debug ビルド側の同名リソースで
-         上書きする (sync.sh 参照)。 -->
+         上書きする (sync.sh 参照)。
+         バックアップの除外 (#330 §4.3) は backup_rules.xml (Android 11 以下) と
+         data_extraction_rules.xml (Android 12 以上)。 -->
     <application
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:theme="@style/Theme.notedeck"
         android:networkSecurityConfig="@xml/network_security_config"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:usesCleartextTraffic="${usesCleartextTraffic}">
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
@@ -38,6 +42,15 @@
                 <data android:scheme="notedeck" />
             </intent-filter>
         </activity>
+
+        <!-- push の受け口 (#330 §5)。配送アプリ (UnifiedPush) からだけ届く。非公開・同一プロセス -->
+        <service
+            android:name=".NotedeckPushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
 
         <provider
           android:name="androidx.core.content.FileProvider"

@@ -29,6 +29,8 @@ pub mod http_server {
 #[cfg(target_os = "android")]
 mod android_notify;
 #[cfg(target_os = "android")]
+mod android_push;
+#[cfg(target_os = "android")]
 mod android_worker;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
@@ -258,7 +260,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // 生えるので state も無条件に用意する (Windows 以外は常に None)。
         app.manage(os_notify::PendingNotificationClick::default());
         // 見えている通知カラムの口座 (#330 §3.3)。ストリーミングの emitter が抑止に読む
-        app.manage(os_notify::VisibleNotificationScopes::default());
+        app.manage(os_notify::VisibleNotificationScopes::process().clone());
 
         // ══════════════════════════════════════════════════════════
         // Phase 1: Lightweight init (< 50ms) — window shows immediately after this
@@ -1236,6 +1238,10 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::request_notification_permission,
             commands::notification_permission_granted,
             commands::open_os_notification_settings,
+            commands::push_status,
+            commands::push_prepare,
+            commands::push_complete,
+            commands::push_disable,
             commands::set_unread_badge,
             commands::export_db,
             commands::import_db,

@@ -174,8 +174,20 @@ export const useAccountsStore = defineStore('accounts', () => {
   // 接続も最後の切断がまとめて掃除する。副次効果として、backend 側の
   // 無効化が失敗した場合に adapter を壊さない (アカウントはまだ生きている)。
 
+  // push (#330 §5) の購読は、トークンがあるうちに認証つきで解除する。解除できなくても
+  // 削除 / ログアウトは進める (本家は送り先が 410 を返した購読を消す)。push を扱わない
+  // 端末では何もしない
+  async function releasePush(id: string): Promise<void> {
+    try {
+      await commands.pushDisable(id)
+    } catch {
+      // 進める
+    }
+  }
+
   async function removeAccount(id: string): Promise<void> {
     const account = accounts.value.find((a) => a.id === id)
+    await releasePush(id)
     unwrap(await commands.deleteAccount(id))
     accounts.value = accounts.value.filter((a) => a.id !== id)
     void useClientLayerStore().syncAccounts()
@@ -191,6 +203,7 @@ export const useAccountsStore = defineStore('accounts', () => {
   }
 
   async function logoutAccount(id: string): Promise<void> {
+    await releasePush(id)
     unwrap(await commands.logoutAccount(id))
     const account = accounts.value.find((a) => a.id === id)
     if (account) account.hasToken = false

@@ -1,5 +1,5 @@
 ---
-sourceHash: 3eeceeacd9b7
+sourceHash: be6db22249b0
 ---
 
 # Receiving notifications
@@ -9,7 +9,7 @@ Notifications arrive differently depending on whether the app is open.
 | State | How they arrive |
 |---|---|
 | **App open** | Right away. NoteDeck keeps a live connection to each server, and notifications for accounts you are not looking at show up as OS notifications |
-| **App closed (Android)** | NoteDeck checks periodically and shows what arrived. This can be delayed while the device is saving power |
+| **App closed (Android)** | NoteDeck checks periodically and shows what arrived. This can be delayed while the device is saving power. With a push notification app they arrive right away ([Receive push notifications](#receive-push-notifications-android)) |
 | **App closed (desktop)** | They do not arrive. Only while the app is open |
 
 ## When notifications become read
@@ -36,6 +36,21 @@ Changing sounds, silencing a type, or showing without sound is done in the OS se
 
 Right after you add your first account, NoteDeck explains how notifications work and asks for the permission. If you declined and want them later, use "Open OS notification settings" in the account menu on the navigation bar.
 
-## Instant notifications while closed
+## Receive push notifications (Android)
 
-NoteDeck does not deliver instant notifications while it is closed. If you need them, add the Misskey web UI to your phone's home screen; the server's own Web Push will reach you there. These may overlap with NoteDeck's notifications.
+With a push notification app (one that supports UnifiedPush, such as ntfy), notifications arrive right away while NoteDeck is closed. You choose per account. Without one, NoteDeck still checks periodically while closed.
+
+Because of how Misskey works, the app cannot register for push notifications by itself. You do it once per account in the Web UI.
+
+1. Open "Push notifications" from the account menu on the navigation bar and press "Start registering". If you have more than one push notification app, a screen asks which one to use
+2. Press "Copy code", then "Open Scratchpad", paste the code into Scratchpad in the Web UI and run it. Log in to the Web UI as that account first
+3. Copy what it shows, paste it into NoteDeck, and press "Register"
+
+- How fast notifications arrive depends on the push notification app and its delivery server. It does not work if the server has no Web Push configured
+- If the push notification app's registration changes, the account menu says "register again". Repeat the same steps
+- To stop, press "Stop push notifications" on the same screen. Deleting an account or logging out also unregisters it
+- The registration (where pushes go and the keys) stays on the device and is not included in backups
+
+## Use Misskey's own Web Push
+
+If you want instant notifications without a push notification app, add the Misskey web to your phone's home screen to receive Misskey's own Web Push. You may get notifications from both it and NoteDeck.

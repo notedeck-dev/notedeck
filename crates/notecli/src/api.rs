@@ -1569,6 +1569,30 @@ impl MisskeyClient {
         Ok(false)
     }
 
+    // --- Web Push (sw) ---
+
+    /// push の購読を解除する (`sw/unregister`)。本家は認証任意で、購読の三つ組
+    /// (endpoint / auth / publickey) で所有を確かめる。`token` が空なら未認証で呼ぶ
+    /// (トークンを失った後の解除、notedeck#330 §5.3)。登録 (`sw/register`) は
+    /// ネイティブトークン限定でアプリからは呼べない
+    pub async fn sw_unregister(
+        &self,
+        host: &str,
+        token: &str,
+        endpoint: &str,
+        auth: &str,
+        publickey: &str,
+    ) -> Result<(), NoteDeckError> {
+        self.request(
+            host,
+            token,
+            "sw/unregister",
+            json!({ "endpoint": endpoint, "auth": auth, "publickey": publickey }),
+        )
+        .await?;
+        Ok(())
+    }
+
     // --- Self (current user) ---
 
     pub async fn get_self(&self, host: &str, token: &str) -> Result<Value, NoteDeckError> {
@@ -2791,6 +2815,30 @@ mod tests {
                 },
             ]
         );
+    }
+
+    /// push の購読の解除は三つ組で所有を示す。トークンが空なら未認証で呼ぶ
+    /// (トークンを失った後の解除、notedeck#330 §5.3)
+    #[tokio::test]
+    async fn sw_unregister_sends_the_triple_without_token() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/api/sw/unregister"))
+            .and(wiremock::matchers::body_json(json!({
+                "endpoint": "https://push.example/e",
+                "auth": "a",
+                "publickey": "p",
+            })))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = MisskeyClient::with_base_url(&server.uri());
+        client
+            .sw_unregister("h", "", "https://push.example/e", "a", "p")
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
