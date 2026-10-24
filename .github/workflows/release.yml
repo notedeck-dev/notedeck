@@ -596,12 +596,19 @@ jobs:
     permissions:
       contents: read
     steps:
+      # 投稿後にマニフェストを直すスクリプトだけ使う
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: scripts/winget-drop-display-version.mjs
+          sparse-checkout-cone-mode: false
+
       - name: Get version
         id: version
         shell: bash
         run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
       - name: Submit to winget
+        id: winget
         uses: vedantmgoyal9/winget-releaser@v2
         with:
           # org 名義に寄せる。winget-pkgs では ID 変更 = 新規パッケージ申請
@@ -612,6 +619,17 @@ jobs:
           token: ${{ secrets.WINGET_TOKEN }}
           # winget-pkgs fork は notedeck-dev org に移管済み (デフォルトはトークン所有者を参照)
           fork-user: notedeck-dev
+
+      # winget-pkgs のメンテナーから「DisplayVersion が PackageVersion と同じなら消すべき」と
+      # 毎回指摘される。Komac は重複を新しい版を書き込む前に比べるので消し損ねる。
+      # PR を作った直後に fork 側の PR ブランチで直す。見た目の指摘なのでリリースは止めない
+      - name: Drop DisplayVersion equal to PackageVersion
+        if: steps.winget.outputs.pr-url != ''
+        continue-on-error: true
+        run: node scripts/winget-drop-display-version.mjs
+        env:
+          PR_URL: ${{ steps.winget.outputs.pr-url }}
+          GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
 
   announce:
     needs: publish
