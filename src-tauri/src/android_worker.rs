@@ -15,6 +15,7 @@
 //!
 //! 流れ (口座ごと): `i` で未読数と未読メッセージの有無 → 未読があれば処理位置
 //! (`notify_cursor_file`) より新しい通知を取って 1 件ずつ描く → 位置を進める。
+//! 位置が無い初めての巡回は新しい 1 件だけ描く (`notify_cursor::FIRST_RUN_NOTIFY`)。
 //! 未読 0 なら出ている通知を tag ごと消す (他端末で読んだ分)。画像 (アバター /
 //! 絵文字) はまだ付けない。
 
@@ -164,15 +165,21 @@ async fn poll_account(
             .get_notifications(&account.host, token, &account.id, options, false)
             .await?;
         let fresh = cursor.newer_than(&account.id, NotifyKind::Notification, fetched, |n| &n.id);
-        for n in &fresh {
+        // 初めての巡回は新しい 1 件だけ知らせ、残りは位置だけ進める (notify_cursor)
+        let silent = cursor.silent_prefix(&account.id, NotifyKind::Notification, fresh.len());
+        for n in fresh.iter().skip(silent) {
             if let Some(plan) = notify_plan::plan(n, lang) {
                 show(&plan);
             }
+        }
+        // 位置は最後にまとめて進める。途中で落ちても、次の巡回で出し直す分は (tag, id) が
+        // 同じなので上書きになるだけで 2 件にならない
+        if let Some(newest) = fresh.last() {
             crate::notify_cursor_file::advance(
                 app_dir,
                 &account.id,
                 NotifyKind::Notification,
-                &n.id,
+                &newest.id,
             );
         }
     }
@@ -197,9 +204,12 @@ async fn poll_account(
         .collect();
     let cursor = crate::notify_cursor_file::load(app_dir);
     let fresh = cursor.newer_than(&account.id, NotifyKind::Message, unread_messages, |m| &m.id);
-    for m in &fresh {
+    let silent = cursor.silent_prefix(&account.id, NotifyKind::Message, fresh.len());
+    for m in fresh.iter().skip(silent) {
         show(&notify_plan::plan_chat(m, &account.host, lang));
-        crate::notify_cursor_file::advance(app_dir, &account.id, NotifyKind::Message, &m.id);
+    }
+    if let Some(newest) = fresh.last() {
+        crate::notify_cursor_file::advance(app_dir, &account.id, NotifyKind::Message, &newest.id);
     }
     Ok(())
 }

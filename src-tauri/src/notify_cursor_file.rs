@@ -13,6 +13,7 @@ use notecore::notify_cursor::NotifyCursor;
 use notecore::notify_plan::NotifyKind;
 
 const FILE_NAME: &str = "notify_cursor.json";
+const TMP_NAME: &str = "notify_cursor.json.tmp";
 
 static LOCK: Mutex<()> = Mutex::new(());
 
@@ -39,7 +40,14 @@ pub fn advance(app_dir: &Path, account_id: &str, kind: NotifyKind, id: &str) {
     if !cursor.advance(account_id, kind, id) {
         return;
     }
-    if let Err(e) = std::fs::write(path(app_dir), cursor.to_json()) {
+    // 一時ファイルに書いてから rename で置き換える (同じディレクトリ内なら atomic)。
+    // 直接上書きだと、書込の途中で Android がプロセスを殺すと空や途中までの JSON が
+    // 残り、全口座の位置が消える。一時ファイル名が固定でよいのは LOCK で直列化して
+    // いるから (ワーカーも WorkManager がアプリと同じプロセスで走らせる)
+    let tmp = app_dir.join(TMP_NAME);
+    let result =
+        std::fs::write(&tmp, cursor.to_json()).and_then(|()| std::fs::rename(&tmp, path(app_dir)));
+    if let Err(e) = result {
         tracing::warn!("[notification] cursor write failed: {e}");
     }
 }

@@ -34,6 +34,9 @@ class NotificationWorker(
       NotificationRenderer.init(applicationContext)
       // 許可されていなければ問い合わせだけ無駄になる
       if (!NotificationRenderer.notificationsEnabled()) return Result.success()
+      // Tauri 2.10 の app_data_dir() は Context.getDataDir() そのもの (Tauri の doc の
+      // 「/${bundle_identifier}」は実装と違い、何も足さない)。以前の実装が見ていた
+      // filesDir は 1 段深く、Rust が書いた口座一覧を一度も読めていなかった
       val code = NotificationBridge.runWorker(applicationContext, applicationContext.dataDir.absolutePath)
       if (code == RESULT_RETRY) Result.retry() else Result.success()
     } catch (e: Throwable) {

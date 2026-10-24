@@ -16,6 +16,11 @@ use std::collections::BTreeMap;
 
 use crate::notify_plan::{notify_tag, NotifyKind};
 
+/// 位置が無い (その口座・種別で初めての巡回) ときに知らせる件数。導入直後や口座を
+/// 足した直後に、それまでの未読を何十件も OS 通知にしない。黙って全部を処理済みにも
+/// しない (閉じている間に来た新着に気づく手段が無くなる) ので、新しい方の 1 件は出す
+pub const FIRST_RUN_NOTIFY: usize = 1;
+
 /// 口座 × 種別ごとの「OS 通知にした最新の Misskey ID」
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NotifyCursor {
@@ -71,6 +76,19 @@ impl NotifyCursor {
     }
 }
 
+impl NotifyCursor {
+    /// `newer_than` の結果 (古い順、`fresh_len` 件) のうち、OS 通知にせず位置だけ
+    /// 進める件数 (古い方から)。位置があれば 0、無ければ新しい方の
+    /// [`FIRST_RUN_NOTIFY`] 件を残した残り
+    pub fn silent_prefix(&self, account_id: &str, kind: NotifyKind, fresh_len: usize) -> usize {
+        if self.position(account_id, kind).is_some() {
+            0
+        } else {
+            fresh_len.saturating_sub(FIRST_RUN_NOTIFY)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -103,6 +121,25 @@ mod tests {
         assert_eq!(
             c.newer_than("a", NotifyKind::Notification, all, |s| s),
             vec!["n9"]
+        );
+    }
+
+    /// 位置が無い (初めての巡回) ときは新しい方から FIRST_RUN_NOTIFY 件だけ知らせ、
+    /// 古い未読は知らせずに位置だけ進める。位置があれば新しいものは全部知らせる
+    #[test]
+    fn first_run_notifies_only_the_newest_and_later_runs_notify_all() {
+        let mut c = NotifyCursor::default();
+        assert_eq!(
+            c.silent_prefix("a", NotifyKind::Notification, 5),
+            5 - FIRST_RUN_NOTIFY
+        );
+        assert_eq!(c.silent_prefix("a", NotifyKind::Notification, 0), 0);
+        c.advance("a", NotifyKind::Notification, "n5");
+        assert_eq!(c.silent_prefix("a", NotifyKind::Notification, 5), 0);
+        // 種別ごとに初回は別
+        assert_eq!(
+            c.silent_prefix("a", NotifyKind::Message, 3),
+            3 - FIRST_RUN_NOTIFY
         );
     }
 
