@@ -56,6 +56,7 @@ pub mod permissions_profile;
 pub mod pet_store;
 pub mod push_payload;
 pub mod push_register;
+pub mod push_state;
 pub mod query_runtime;
 pub mod rate_limit;
 pub mod rpc;

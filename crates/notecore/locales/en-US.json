@@ -382,8 +382,16 @@
       }
     },
     "push": {
-      "wrongAccount": "Log in as {user} before running this",
-      "copyResponse": "Copy this and paste it into NoteDeck"
+      "title": "NoteDeck push notifications",
+      "loginFirst": "Log in, then press ▶",
+      "notTarget": "This account ({user}) is not one to register. Switch to {targets} and press ▶",
+      "enabled": "{user} is enabled. A test notification arrives within a few minutes (if it doesn't, NoteDeck still finishes when you return). Go back to NoteDeck",
+      "enabledNext": "{user} is enabled. A test notification arrives within a few minutes. Next, switch to {others} and press ▶, or go back to NoteDeck",
+      "oldCode": "This is an old code. Paste the new one from NoteDeck",
+      "registered": "{user} is already registered. NoteDeck is waiting for the first notification",
+      "noPending": "{user} has nothing waiting to register. Switch to {targets} and press ▶",
+      "cannotConfirm": "Couldn't confirm what to register. Press \"Start over\" in NoteDeck",
+      "confirmed": "Push notifications for {user} now arrive"
     },
     "tray": {
       "unread_plural": {

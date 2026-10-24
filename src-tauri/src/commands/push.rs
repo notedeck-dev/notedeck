@@ -1,43 +1,90 @@
-//! push (口座ごとのオプトイン、#330 §5) のコマンド。本体は Android の
-//! `android_push`。ほかの OS では push を扱わないので「使えない」を返す。
+//! push (口座ごとのオプトイン、#330) のコマンド。手順の本体は `push_flow`、配送アプリと
+//! keychain の実物は Android の `android_push`。ほかの OS では push を扱わないので
+//! 「使えない」を返す。
+//!
+//! 登録はサーバー単位で進める (同じサーバーの口座は 1 つのコードでまとめて ▶ できる)。
+//! 窓は `push_host_status` を読み直しながら、行ごとの状態とコードを出す。
 
 use serde::Serialize;
 use specta::Type;
 
 use super::{AppState, Result};
 
-/// 口座の背面の通知の経路 (状態行に出す)
+/// 口座の push の状態 (アカウントメニューの状態行と、窓の行)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 // 値の多くは Android でだけ作る
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
-pub enum PushStatus {
+pub enum PushState {
     /// この端末では push を扱わない (Android 以外 / ゲスト)
     Unavailable,
-    /// プッシュ通知アプリ (配送アプリ) が入っていない
-    NoDistributor,
     /// 使っていない (閉じている間は定期確認だけ)
     Off,
-    /// 使っている
+    /// プッシュ通知アプリに登録している
+    Preparing,
+    /// 本家での実行か、最初の push が届くのを待っている
+    Pending,
     Active,
-    /// 端末側の登録が変わったので、本家での登録し直しが要る
-    NeedsRegistration,
-    /// プッシュ通知アプリ側で操作が要る
-    ActionRequired,
+    /// 本家での登録し直しが要る
+    NeedsReregistration,
+    /// 解除を終えるのを待っている
+    Unregistering,
 }
 
-/// 本家 Web の Scratchpad で実行してもらうコードと、その Scratchpad の URL
+/// 「登録し直しが要る」の理由
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub enum PushReason {
+    /// プッシュ通知アプリの登録が変わった
+    EndpointChanged,
+    /// サーバーの設定が変わった
+    ServerChanged,
+    /// push で届いていないようだ (推定)
+    Missing,
+    /// 以前の版の登録から移った
+    Migrated,
+}
+
+/// プッシュ通知アプリ (配送アプリ) の状態
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub enum PushDistributorState {
+    /// 入っていない
+    None,
+    /// 使うものが決まっている (または 1 つだけ)
+    Ready,
+    /// 複数あって既定が無い
+    Choose,
+}
+
+/// 窓の 1 行 (口座)
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct PushPrepared {
-    pub code: String,
+pub struct PushAccountRow {
+    pub account_id: String,
+    pub state: PushState,
+    pub reason: Option<PushReason>,
+    /// 登録待ちのうち、コードはもう走っていて push の到着を待っている
+    pub awaiting: bool,
+    /// 到着待ちが続いたので NoteDeck からテスト通知を送り直した
+    pub resent: bool,
+}
+
+/// サーバー単位の状態。`code` は未実行の登録待ちがあるときの Scratchpad 用のコード
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PushHostStatus {
+    pub distributor: PushDistributorState,
+    pub accounts: Vec<PushAccountRow>,
+    pub code: Option<String>,
     pub scratchpad_url: String,
 }
 
-/// 準備 / 登録の失敗の理由。成功は None
+/// 準備 / やり直しの失敗の理由
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-// 値の多くは Android でだけ作る
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 pub enum PushProblem {
     /// この端末では使えない
@@ -46,182 +93,280 @@ pub enum PushProblem {
     ServerUnsupported,
     /// プッシュ通知アプリが入っていない / 登録を始められない
     NoDistributor,
+    /// プッシュ通知アプリを選べなかった (一覧から選んでもらう)
+    ChooseDistributor,
     /// プッシュ通知アプリが登録に失敗した / 返事が無い
     DistributorFailed,
-    /// 貼られた内容が登録の応答として読めない
-    Unreadable,
-    /// 本家 Web に別の口座でログインしていた
-    OtherAccount,
-    /// 古いコードを実行した (端末の登録と違う)
-    OtherEndpoint,
-    /// 端末の登録が無くなった (準備からやり直す)
-    EndpointGone,
-    /// 保存できなかった
+    /// プッシュ通知アプリの送り先が https でない
+    EndpointUnusable,
+    /// ログインし直しが要る (古いトークンに権限が無い / 失効した)
+    Relogin,
+    /// サーバーに繋がらない
+    Network,
+    /// 端末に保存できなかった
     Storage,
 }
 
-/// 準備の結果。`prepared` か `problem` のどちらか
+/// 入っているプッシュ通知アプリ
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
-pub struct PushPrepareResult {
-    pub prepared: Option<PushPrepared>,
-    pub problem: Option<PushProblem>,
+pub struct PushDistributor {
+    pub package: String,
+    pub label: String,
 }
 
 #[cfg(target_os = "android")]
-async fn account(core: &AppState, account_id: &str) -> Result<notecli::models::Account> {
-    core.db()
-        .await
-        .get_account(account_id)?
-        .ok_or_else(|| notecli::error::NoteDeckError::AccountNotFound(account_id.to_string()))
+mod android {
+    use std::path::PathBuf;
+
+    use super::{AppState, Result};
+    use crate::push_flow::{Ctx, PushAccount};
+
+    pub(super) struct Env {
+        pub app_dir: PathBuf,
+        pub client: std::sync::Arc<notecli::api::MisskeyClient>,
+        pub accounts: Vec<PushAccount>,
+    }
+
+    pub(super) async fn env(core: &AppState) -> Result<Env> {
+        let app_dir = core.app_dir()?.to_path_buf();
+        let accounts = core
+            .db()
+            .await
+            .load_accounts()?
+            .iter()
+            .map(PushAccount::from_account)
+            .collect();
+        Ok(Env {
+            app_dir,
+            client: core.client().await,
+            accounts,
+        })
+    }
+
+    impl Env {
+        pub fn ctx(
+            &self,
+        ) -> Ctx<
+            '_,
+            notecli::api::MisskeyClient,
+            crate::android_push::KotlinDistributor,
+            crate::android_push::Keychain,
+        > {
+            Ctx {
+                app_dir: &self.app_dir,
+                server: &self.client,
+                distributor: &crate::android_push::KotlinDistributor,
+                vault: &crate::android_push::Keychain,
+                now_ms: crate::push_flow::now_ms(),
+            }
+        }
+
+        pub fn host_of(&self, account_id: &str) -> Option<String> {
+            self.accounts
+                .iter()
+                .find(|a| a.id == account_id)
+                .map(|a| a.host.clone())
+        }
+    }
+
+    pub(super) fn random() -> [u8; 10] {
+        rand::random()
+    }
+
+    /// サーバーの鍵と Web Push の停止を見るのは 1 時間に 1 回 (復帰のたびに meta を引かない)
+    pub(super) fn server_check_due(now_ms: u64) -> bool {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        const INTERVAL_MS: u64 = 60 * 60 * 1000;
+        static LAST: AtomicU64 = AtomicU64::new(0);
+        let last = LAST.load(Ordering::Relaxed);
+        if last != 0 && now_ms.saturating_sub(last) < INTERVAL_MS {
+            return false;
+        }
+        LAST.store(now_ms, Ordering::Relaxed);
+        true
+    }
 }
 
-/// 口座の push の状態
+/// 口座の push の状態 (ネットワークに出ない)
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn push_status(
     core: tauri::State<'_, AppState>,
     account_id: String,
-) -> Result<PushStatus> {
+) -> Result<PushState> {
     #[cfg(target_os = "android")]
     {
-        let account = account(&core, &account_id).await?;
-        if crate::android_worker::token_for(&account).is_none() {
-            return Ok(PushStatus::Unavailable);
-        }
-        use crate::android_push::State;
-        Ok(match crate::android_push::state(&account) {
-            State::NoDistributor => PushStatus::NoDistributor,
-            State::Off => PushStatus::Off,
-            State::Active => PushStatus::Active,
-            State::NeedsRegistration => PushStatus::NeedsRegistration,
-            State::ActionRequired => PushStatus::ActionRequired,
-        })
+        let env = android::env(&core).await?;
+        Ok(env
+            .accounts
+            .iter()
+            .find(|a| a.id == account_id)
+            .map(|a| crate::push_flow::state_of(&env.app_dir, a))
+            .unwrap_or(PushState::Unavailable))
     }
     #[cfg(not(target_os = "android"))]
     {
         let _ = (core, account_id);
-        Ok(PushStatus::Unavailable)
+        Ok(PushState::Unavailable)
     }
 }
 
-/// 配送アプリに登録し、本家の Scratchpad で実行してもらうコードを組む。
-/// 配送アプリの返事を待つので数秒かかることがある
+/// サーバー単位の状態。登録待ちの口座はレジストリを読んで「未実行」と「到着待ち」を
+/// 見分ける (窓が開いている間は数秒おきに呼ばれる)
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub async fn push_host_status(
+    core: tauri::State<'_, AppState>,
+    host: String,
+) -> Result<PushHostStatus> {
+    #[cfg(target_os = "android")]
+    {
+        let env = android::env(&core).await?;
+        let lang = crate::ui_lang::current();
+        Ok(crate::push_flow::host_status(&env.ctx(), &host, &env.accounts, &lang).await)
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = core;
+        Ok(PushHostStatus {
+            distributor: PushDistributorState::None,
+            accounts: Vec::new(),
+            code: None,
+            scratchpad_url: notecore::push_register::scratchpad_url(&host),
+        })
+    }
+}
+
+/// サーバーの口座をまとめて登録の準備をする (プッシュ通知アプリへの登録と、レジストリへの
+/// 書込)。プッシュ通知アプリの返事を待つので数秒かかることがある。成功は None
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn push_prepare(
     core: tauri::State<'_, AppState>,
-    account_id: String,
-) -> Result<PushPrepareResult> {
-    let problem = |p| PushPrepareResult {
-        prepared: None,
-        problem: Some(p),
-    };
+    host: String,
+) -> Result<Option<PushProblem>> {
     #[cfg(target_os = "android")]
     {
-        use crate::android_push::PrepareError;
-        let account = account(&core, &account_id).await?;
-        // ゲスト (トークン無し) には通知が無い
-        if crate::android_worker::token_for(&account).is_none() {
-            return Ok(problem(PushProblem::Unavailable));
-        }
-        let db = core.db().await;
-        let (host, token) = notecore::credentials::get_credentials(&db, &account_id)?;
-        let meta = core.client().await.get_meta(&host, &token).await?;
-        let Some(vapid) = meta
-            .get("swPublickey")
-            .and_then(serde_json::Value::as_str)
-            .filter(|k| !k.is_empty())
-        else {
-            return Ok(problem(PushProblem::ServerUnsupported));
-        };
-        let lang = crate::ui_lang::current();
+        let env = android::env(&core).await?;
         Ok(
-            match crate::android_push::prepare(&account, vapid, &lang).await {
-                Ok((code, scratchpad_url)) => PushPrepareResult {
-                    prepared: Some(PushPrepared {
-                        code,
-                        scratchpad_url,
-                    }),
-                    problem: None,
-                },
-                Err(PrepareError::NoDistributor) => problem(PushProblem::NoDistributor),
-                Err(PrepareError::DistributorFailed) => problem(PushProblem::DistributorFailed),
-            },
+            crate::push_flow::prepare(&env.ctx(), &host, &env.accounts, None, android::random())
+                .await
+                .err(),
         )
     }
     #[cfg(not(target_os = "android"))]
     {
-        let _ = (core, account_id);
-        Ok(problem(PushProblem::Unavailable))
-    }
-}
-
-/// 本家で実行した応答を受け取り、合っていれば push を使い始める。成功は None
-// nd-command: local
-#[tauri::command]
-#[specta::specta]
-pub async fn push_complete(
-    core: tauri::State<'_, AppState>,
-    account_id: String,
-    response: String,
-) -> Result<Option<PushProblem>> {
-    #[cfg(target_os = "android")]
-    {
-        use crate::android_push::CompleteError;
-        use notecore::push_register::VerifyError;
-        let account = account(&core, &account_id).await?;
-        // ログアウトした口座には保存しない (再ログインで知らないうちに有効にならない)
-        if crate::android_worker::token_for(&account).is_none() {
-            return Ok(Some(PushProblem::Unavailable));
-        }
-        Ok(match crate::android_push::complete(&account, &response) {
-            Ok(()) => None,
-            Err(CompleteError::Verify(VerifyError::Unreadable)) => Some(PushProblem::Unreadable),
-            Err(CompleteError::Verify(VerifyError::OtherAccount)) => {
-                Some(PushProblem::OtherAccount)
-            }
-            Err(CompleteError::Verify(VerifyError::OtherEndpoint)) => {
-                Some(PushProblem::OtherEndpoint)
-            }
-            Err(CompleteError::Verify(VerifyError::ServerWithoutKey)) => {
-                Some(PushProblem::ServerUnsupported)
-            }
-            Err(CompleteError::EndpointGone) => Some(PushProblem::EndpointGone),
-            Err(CompleteError::Storage) => Some(PushProblem::Storage),
-        })
-    }
-    #[cfg(not(target_os = "android"))]
-    {
-        let _ = (core, account_id, response);
+        let _ = (core, host);
         Ok(Some(PushProblem::Unavailable))
     }
 }
 
-/// push をやめる。本家の購読を解除し (失敗しても進める)、登録の写しを消す。
-/// 口座の削除 / ログアウトの前にも呼ぶ (トークンがあるうちに認証つきで解除する)。
-/// 写しを消せなかったら Err (呼び手の削除 / ログアウトはこの失敗を無視して進める)
+/// 口座の登録を新しい鍵と合言葉で作り直す。前の登録は新しい方がそろってから外す
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub async fn push_redo(
+    core: tauri::State<'_, AppState>,
+    account_id: String,
+) -> Result<Option<PushProblem>> {
+    #[cfg(target_os = "android")]
+    {
+        let env = android::env(&core).await?;
+        let Some(host) = env.host_of(&account_id) else {
+            return Ok(Some(PushProblem::Unavailable));
+        };
+        Ok(crate::push_flow::prepare(
+            &env.ctx(),
+            &host,
+            &env.accounts,
+            Some(&account_id),
+            android::random(),
+        )
+        .await
+        .err())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (core, account_id);
+        Ok(Some(PushProblem::Unavailable))
+    }
+}
+
+/// push をやめる。本家の購読の解除・レジストリの印・登録の取り外しを後始末に積んで
+/// すぐ試す。通らなかった分は解除待ちのまま残し、起動時と巡回で再試行する。
+/// 口座の削除 / ログアウトの前にも呼ぶ (トークンがあるうちに認証つきで解除する)
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn push_disable(core: tauri::State<'_, AppState>, account_id: String) -> Result<()> {
     #[cfg(target_os = "android")]
     {
-        let account = account(&core, &account_id).await?;
-        let db = core.db().await;
-        // トークンが無ければ未認証で解除する (本家は三つ組で所有を確かめる)
-        let token = notecore::credentials::get_credentials(&db, &account_id)
-            .map(|(_, token)| token)
-            .unwrap_or_default();
-        let others = db.load_accounts()?;
-        let client = core.client().await;
-        crate::android_push::disable(&client, &account, &token, &others).await
+        let env = android::env(&core).await?;
+        crate::push_flow::disable(&env.ctx(), &account_id, &env.accounts).await;
+        Ok(())
     }
     #[cfg(not(target_os = "android"))]
     {
         let _ = (core, account_id);
         Ok(())
+    }
+}
+
+/// 入っているプッシュ通知アプリ (OS の選択画面が出せなかったときに選んでもらう)
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub async fn push_distributors() -> Result<Vec<PushDistributor>> {
+    #[cfg(target_os = "android")]
+    {
+        Ok(crate::android_push::distributors())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        Ok(Vec::new())
+    }
+}
+
+/// 使うプッシュ通知アプリを決める
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub async fn push_choose_distributor(package_name: String) -> Result<()> {
+    #[cfg(target_os = "android")]
+    {
+        crate::android_push::save_distributor(&package_name);
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = package_name;
+    }
+    Ok(())
+}
+
+/// 起動時と復帰時の突き合わせ (以前の版からの移行・状態の知らない登録の後始末・
+/// 送り先とサーバーの変化の検出)。返り値は登録し直しが要る口座 (受信トレイに出す)
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub async fn push_attention(core: tauri::State<'_, AppState>) -> Result<Vec<String>> {
+    #[cfg(target_os = "android")]
+    {
+        let env = android::env(&core).await?;
+        let ctx = env.ctx();
+        let check_server = android::server_check_due(ctx.now_ms);
+        crate::push_flow::reconcile(&ctx, &env.accounts, check_server).await;
+        Ok(crate::push_flow::needing_attention(
+            &env.app_dir,
+            &env.accounts,
+        ))
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = core;
+        Ok(Vec::new())
     }
 }

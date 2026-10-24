@@ -6,6 +6,8 @@
         <exclude domain="sharedpref" path="keyring-default.xml" />
         <exclude domain="root" path="notify_cursor.json" />
         <exclude domain="root" path="notify_cursor.json.tmp" />
+        <exclude domain="root" path="push_state.json" />
+        <exclude domain="root" path="push_state.json.tmp" />
         <exclude domain="sharedpref" path="notedeck_push.xml" />
         <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
         <exclude domain="database" path="unifiedpush-connector" />
@@ -15,6 +17,8 @@
         <exclude domain="sharedpref" path="keyring-default.xml" />
         <exclude domain="root" path="notify_cursor.json" />
         <exclude domain="root" path="notify_cursor.json.tmp" />
+        <exclude domain="root" path="push_state.json" />
+        <exclude domain="root" path="push_state.json.tmp" />
         <exclude domain="sharedpref" path="notedeck_push.xml" />
         <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
         <exclude domain="database" path="unifiedpush-connector" />
