@@ -313,3 +313,26 @@ describe('MkMfm $[unixtime] の値域 (Release PR #1274 のレビュー指摘)',
     expect(container?.textContent).toMatch(/1970/)
   })
 })
+
+/**
+ * 通知の要約 1 行 (#1210) でも MFM を描画する (#1279)。nowrap は根に 1 行のクラスを
+ * 付けるだけで、構文は通常どおり解釈する (本家の通知は plain で構文が生のまま出る)
+ */
+describe('MkMfm nowrap (#1279)', () => {
+  it('1 行の要約でも MFM を描画し、根に 1 行のクラスを付ける', async () => {
+    mountMfm('<center>$[fg.color=f00 **私が作りました**]</center>', {
+      nowrap: true,
+    })
+    await nextTick()
+    expect(container?.querySelector('span[class*="mfmNowrap"]')).toBeTruthy()
+    expect(container?.querySelector('b')?.textContent).toBe('私が作りました')
+    expect(container?.textContent).not.toContain('**')
+    expect(container?.textContent).not.toContain('$[')
+  })
+
+  it('nowrap でなければ 1 行のクラスを付けない', async () => {
+    mountMfm('**a**')
+    await nextTick()
+    expect(container?.querySelector('span[class*="mfmNowrap"]')).toBeNull()
+  })
+})

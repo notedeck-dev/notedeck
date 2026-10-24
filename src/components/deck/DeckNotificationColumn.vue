@@ -1689,7 +1689,8 @@ onUnmounted(() => {
                     <AppTime :class="$style.notifTime" :at="notif.createdAt" />
                   </div>
 
-                  <!-- 対象ノートの要約 1 行 (リアクション / リノート / 投票終了 / 予約投稿 / 新しいノート)。全体がノートへのリンク -->
+                  <!-- 対象ノートの要約 1 行 (リアクション / リノート / 投票終了 / 予約投稿 / 新しいノート)。全体がノートへのリンク。
+                       MFM は描画したまま 1 行に畳む (本家の通知は plain で構文が生のまま出る、#1279) -->
                   <button
                     v-if="summaryOf(notif)"
                     type="button"
@@ -1699,7 +1700,7 @@ onUnmounted(() => {
                   >
                     <i v-if="summaryOf(notif)!.quoted" class="ti ti-quote" :class="[$style.quote, $style.quoteOpen]" />
                     <span :class="$style.notifSummaryText">
-                      <MkMfm :text="summaryOf(notif)!.line" :emojis="summaryOf(notif)!.note.emojis" :server-host="notif._serverHost" plain />
+                      <MkMfm :text="summaryOf(notif)!.line" :emojis="summaryOf(notif)!.note.emojis" :server-host="notif._serverHost" nowrap />
                     </span>
                     <i v-if="summaryOf(notif)!.quoted" class="ti ti-quote" :class="$style.quote" />
                   </button>
@@ -2092,6 +2093,11 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+
+  /* MFM のリンクやメンションは押せないようにする (行全体がノートへのリンク、#1279) */
+  * {
+    pointer-events: none;
+  }
 }
 
 /* 小さく薄い引用符で挟む (本家と同じ)。開き側は上下を返す */
