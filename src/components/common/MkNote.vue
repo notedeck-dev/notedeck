@@ -1497,7 +1497,7 @@ function handlePickerReaction(reaction: string) {
 .bundleBadge {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 2px;
   margin-left: 2px;
   padding: 1px 6px;
   border: solid 0.5px var(--nd-divider);
