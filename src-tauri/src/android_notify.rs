@@ -26,6 +26,10 @@ struct Bridge {
 
 static BRIDGE: OnceLock<Bridge> = OnceLock::new();
 
+/// 通知の large icon (アバター) に要求する幅。表示の上限は 64dp 程度なので 3x 密度でも
+/// 足りる幅 (静止画のみ縮小、アニメーションは原本素通し)。ストリーミングとワーカーで共有
+pub const AVATAR_MAX_WIDTH: u32 = 256;
+
 /// Activity が前面にあるか (onStart / onStop)。プロセスが死ねば消える静的な状態
 static FOREGROUND: AtomicBool = AtomicBool::new(false);
 

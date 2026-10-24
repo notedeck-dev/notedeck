@@ -195,10 +195,6 @@ fn show_os_notification<R: tauri::Runtime>(
     // 塞がないよう spawn したタスクで行う。
     #[cfg(target_os = "android")]
     {
-        // 通知の large icon の表示上限は 64dp 程度。3x 密度でも足りる幅の
-        // variant を要求する (静止画のみ縮小、アニメーションは原本素通し)
-        const AVATAR_MAX_WIDTH: u32 = 256;
-
         // 遷移先は純関数が組んだ deep link で渡る。context はデスクトップのクリック用
         let _ = context;
         let Some(key) = android.cloned() else {
@@ -224,7 +220,7 @@ fn show_os_notification<R: tauri::Runtime>(
                             notecore::notify_media::ensure_local_file(
                                 &cache,
                                 &u,
-                                Some(AVATAR_MAX_WIDTH),
+                                Some(crate::android_notify::AVATAR_MAX_WIDTH),
                             )
                             .await
                         }
