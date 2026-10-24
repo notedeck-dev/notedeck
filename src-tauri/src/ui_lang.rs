@@ -47,6 +47,9 @@ pub fn init(app: &tauri::AppHandle) {
     let preference = read_preference(app).unwrap_or_else(|| "ja-JP".to_string());
     let system: Vec<String> = tauri_plugin_os::locale().into_iter().collect();
     set(&i18n::resolve_language(&preference, &system));
+    // Android の通知チャネル名を決めた言語で揃える。Kotlin の入口 (NotificationBridge
+    // .register) が先か後かに依存しない: 入口が未登録なら何もせず、登録時に作られる
+    crate::streaming::refresh_notification_channel(app);
 }
 
 /// 表示言語で文を組む

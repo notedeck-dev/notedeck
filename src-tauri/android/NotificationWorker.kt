@@ -28,7 +28,8 @@ class NotificationWorker(
 
     companion object {
         private const val TAG = "NotificationWorker"
-        private const val CHANNEL_ID = "notedeck_notifications"
+        /** 種別群のチャネルのうち「その他」(NotificationRenderer / Rust と同じ id)。ワーカーの要約は種別を持たない */
+        private const val CHANNEL_ID = "notedeck_other"
         private const val NOTIFICATION_GROUP = "notedeck_notifications_group"
         private const val GROUP_SUMMARY_ID = Int.MAX_VALUE - 1
         private const val KEYSTORE_ALIAS = "keyring-default"

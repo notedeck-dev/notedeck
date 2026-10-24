@@ -4776,6 +4776,22 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     /** ログイン済みアカウントが必要です */
     readonly "loginRequired": string
   }
+  readonly "_notifyPermission": {
+    /** 通知 */
+    readonly "title": string
+    /** 開いている間はすぐ届きます。閉じている間は一定時間ごとに確認します (省電力中は遅れることがあります)。 */
+    readonly "message": string
+  }
+  readonly "_backgroundNotify": {
+    /** 閉じている間の通知: 定期的に確認 */
+    readonly "polling": string
+    /** 通知は開いている間に届きます */
+    readonly "foregroundOnly": string
+    /** 通知が許可されていません */
+    readonly "permissionDenied": string
+    /** OS の通知設定を開く */
+    readonly "openSettings": string
+  }
   readonly "_deepLink": {
     /** このリンクのアカウントではログインしていません */
     readonly "accountNotFound": string
@@ -6329,8 +6345,28 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "groupOthers": ParameterizedString<'names'>
       /** 、 */
       readonly "listSeparator": string
-      /** 通知 */
-      readonly "channelName": string
+      /** 投稿 */
+      readonly "note": string
+      /** ファイルを送信しました */
+      readonly "chatFile": string
+      /** {sender} ({room}) */
+      readonly "chatInRoom": ParameterizedString<'room' | 'sender'>
+      readonly "channels": {
+        /** メンション・返信 */
+        readonly "mentions": string
+        /** リアクション・リノート */
+        readonly "reactions": string
+        /** フォロー */
+        readonly "follows": string
+        /** 投稿の通知 */
+        readonly "posts": string
+        /** アカウント */
+        readonly "account": string
+        /** その他 */
+        readonly "other": string
+        /** メッセージ */
+        readonly "messages": string
+      }
     }
     readonly "tray": {
       /** NoteDeck — 未読 {count} 件 */

@@ -26,6 +26,8 @@ pub mod http_server {
         notecore::http_server::build_openapi(env!("CARGO_PKG_VERSION"))
     }
 }
+#[cfg(target_os = "android")]
+mod android_notify;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
 mod ipc_index;
@@ -251,6 +253,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // コマンド (notification_take_pending_click) は全プラットフォームに
         // 生えるので state も無条件に用意する (Windows 以外は常に None)。
         app.manage(os_notify::PendingNotificationClick::default());
+        // 見えている通知カラムの口座 (#330 §3.3)。ストリーミングの emitter が抑止に読む
+        app.manage(os_notify::VisibleNotificationScopes::default());
 
         // ══════════════════════════════════════════════════════════
         // Phase 1: Lightweight init (< 50ms) — window shows immediately after this
@@ -933,17 +937,32 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     });
 
-    // Hide to tray on close (desktop only, requires tray icon)
-    #[cfg(not(mobile))]
+    // on_window_event は 1 つしか登録できないので、ウィンドウ単位の後始末をまとめる
     {
+        #[cfg(not(mobile))]
         let has_tray = has_tray.clone();
         builder = builder.on_window_event(move |window, event| {
+            use tauri::Manager;
+            // 閉じたウィンドウで見えていた通知カラムの口座を外す (#330 §3.3)。別の
+            // デッキウィンドウの分だけが残る
+            if let tauri::WindowEvent::Destroyed = event {
+                if let Some(scopes) = window
+                    .app_handle()
+                    .try_state::<os_notify::VisibleNotificationScopes>()
+                {
+                    scopes.remove_window(window.label());
+                }
+            }
+            // Hide to tray on close (desktop only, requires tray icon)
+            #[cfg(not(mobile))]
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if has_tray.load(Ordering::Relaxed) {
                     api.prevent_close();
                     let _ = window.hide();
                 }
             }
+            #[cfg(mobile)]
+            let _ = window;
         });
     }
 
@@ -1211,6 +1230,10 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::get_openapi_spec,
             commands::open_devtools,
             commands::notification_take_pending_click,
+            commands::set_visible_notification_scopes,
+            commands::request_notification_permission,
+            commands::notification_permission_granted,
+            commands::open_os_notification_settings,
             commands::set_unread_badge,
             commands::export_db,
             commands::import_db,

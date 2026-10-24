@@ -1,25 +1,14 @@
 package com.notedeck.desktop
 
 import android.Manifest
-import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.BitmapShader
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Shader
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.view.ViewGroup
 import android.webkit.WebView
 import androidx.activity.enableEdgeToEdge
 import androidx.core.app.ActivityCompat
-import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.work.BackoffPolicy
@@ -29,38 +18,32 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
-import kotlin.math.min
-import kotlin.math.roundToInt
 
 class MainActivity : TauriActivity() {
   companion object {
-    private const val TAG = "MainActivity"
     private const val NOTIFICATION_PERMISSION_CODE = 42
-
-    /** NotificationWorker / Rust 側 (streaming.rs) と同一チャンネル */
-    private const val CHANNEL_ID = "notedeck_notifications"
-
-    /**
-     * リアクション絵文字を載せる透明カンバス。Android の big picture は
-     * 通知の横幅に合わせて拡縮されるため、表示される高さは画像のアスペクト比
-     * だけで決まる。カンバスを固定比にすることで絵文字ごとの高さを揃える
-     * (Windows toast と同じ理由 — os_notify.rs の normalize_emoji_height 参照)。
-     */
-    private const val EMOJI_CANVAS_W = 728
-    private const val EMOJI_CANVAS_H = 128
-
-    /** decode 後の長辺の上限。large icon の表示サイズには十分 */
-    private const val AVATAR_MAX_DIM = 512
-
-    /** 絵文字 (big picture) の decode 上限。カンバス幅の 728px を賄える値 */
-    private const val EMOJI_MAX_DIM = 1024
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
-    requestNotificationPermission()
+    // OS 通知の描画を Activity から切り離す (#330 §4.1)。application Context を
+    // 預け、Rust に JavaVM とクラス参照を渡す (ネイティブライブラリは super が読み込み済み)
+    NotificationRenderer.init(applicationContext)
+    NotificationBridge.register(applicationContext)
+    // 通知の権限は起動時ではなく、最初の口座を追加した直後に説明つきで求める
+    // (#330 §4.5)。Rust の request_notification_permission から JNI で呼ばれる
     scheduleNotificationPolling()
+  }
+
+  override fun onStart() {
+    super.onStart()
+    NotificationBridge.setForeground(true)
+  }
+
+  override fun onStop() {
+    NotificationBridge.setForeground(false)
+    super.onStop()
   }
 
   /**
@@ -96,141 +79,6 @@ class MainActivity : TauriActivity() {
     }
   }
 
-  /**
-   * アバター / リアクション絵文字を添付した通知を出す (#754 の Android 版)。
-   * Rust の show_os_notification から JNI で呼ばれる。
-   *
-   * tauri-plugin-notification の Android 実装は largeIcon に drawable リソース名
-   * しか渡せず (attachments は Android 側で無視される)、サーバーから取ってくる
-   * 動的画像を添付できないため自前で組む。配置はデスクトップ (user-notify) と
-   * 揃える:
-   *   avatarPath -> large icon   (アクターのアバター。Windows の appLogoOverride)
-   *   imagePath  -> big picture  (リアクションのカスタム絵文字。Windows のインライン画像)
-   *
-   * 画像は Rust 側が ImageCache (ディスクキャッシュ・サイズ上限・negative
-   * cache) を通してローカルファイル化済み。ここではネットワークに触れず
-   * decode するだけ。decode は inSampleSize で寸法を抑える — 上限なしの
-   * 原寸デコードは OutOfMemoryError でプロセスごと落ちる。
-   *
-   * クリック遷移は plugin の extra + JS onAction ではなく notedeck:// deep link
-   * で行う (NotificationWorker と同じ経路。アプリ終了中のタップでも遷移できる)。
-   */
-  fun showRichNotification(
-    id: Int,
-    title: String,
-    body: String?,
-    deepLink: String?,
-    avatarPath: String?,
-    imagePath: String?,
-  ) {
-    // Bitmap decode があるので UI スレッドを塞がない
-    Thread {
-      try {
-        val builder = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-          .setSmallIcon(R.mipmap.ic_launcher)
-          .setContentTitle(title)
-          .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-          .setAutoCancel(true)
-          .setContentIntent(buildContentIntent(id, deepLink))
-        if (body != null) builder.setContentText(body)
-
-        avatarPath?.let { decodeBounded(it, AVATAR_MAX_DIM) }?.let {
-          builder.setLargeIcon(circleCrop(it))
-        }
-        imagePath?.let { decodeBounded(it, EMOJI_MAX_DIM) }?.let {
-          builder.setStyle(
-            NotificationCompat.BigPictureStyle().bigPicture(normalizeEmojiHeight(it))
-          )
-        }
-
-        val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE)
-          as NotificationManager
-        manager.notify(id, builder.build())
-      } catch (e: Throwable) {
-        // OutOfMemoryError 等の Error も含めて握る。生 Thread の未捕捉
-        // Throwable は uncaughtExceptionHandler がプロセスを殺す
-        Log.w(TAG, "Failed to show notification", e)
-      }
-    }.start()
-  }
-
-  private fun buildContentIntent(id: Int, deepLink: String?): PendingIntent {
-    val intent = Intent(applicationContext, MainActivity::class.java).apply {
-      flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-      if (deepLink != null) {
-        action = Intent.ACTION_VIEW
-        data = android.net.Uri.parse(deepLink)
-      }
-    }
-    return PendingIntent.getActivity(
-      applicationContext,
-      id,
-      intent,
-      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-    )
-  }
-
-  /**
-   * 寸法を抑えてローカルファイルを decode する。まず bounds だけ読み、
-   * 長辺が maxDim に収まる inSampleSize を選んでから本体を decode する
-   * (Android 標準のサブサンプリングパターン)。任意の巨大寸法でもメモリを
-   * 確保しない。壊れた画像・寸法 0 は null (画像なしで通知を出す)。
-   */
-  private fun decodeBounded(path: String, maxDim: Int): Bitmap? {
-    return try {
-      val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-      BitmapFactory.decodeFile(path, bounds)
-      if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-      var sample = 1
-      while (bounds.outWidth / (sample * 2) >= maxDim || bounds.outHeight / (sample * 2) >= maxDim) {
-        sample *= 2
-      }
-      BitmapFactory.decodeFile(path, BitmapFactory.Options().apply { inSampleSize = sample })
-    } catch (e: Throwable) {
-      Log.w(TAG, "Failed to decode image: $path", e)
-      null
-    }
-  }
-
-  /** large icon は角丸のまま出るランチャーがあるので自前で円形に抜く */
-  private fun circleCrop(src: Bitmap): Bitmap {
-    val size = min(src.width, src.height)
-    val square = Bitmap.createBitmap(
-      src,
-      (src.width - size) / 2,
-      (src.height - size) / 2,
-      size,
-      size,
-    )
-    val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-    val paint = Paint().apply {
-      isAntiAlias = true
-      shader = BitmapShader(square, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
-    }
-    val radius = size / 2f
-    Canvas(out).drawCircle(radius, radius, radius, paint)
-    return out
-  }
-
-  /**
-   * 絵文字を高さ基準でスケールし、固定サイズの透明カンバスに中央配置する。
-   * 横幅はカンバス内で絵文字ごとに変わったままにする (揃えると横長絵文字が
-   * 潰れて小さく見えるため)。
-   */
-  private fun normalizeEmojiHeight(src: Bitmap): Bitmap {
-    // カンバス比 (5.7:1) より横長の絵文字だけは幅で頭打ちになり高さが縮む
-    val scale = min(
-      EMOJI_CANVAS_W.toFloat() / src.width,
-      EMOJI_CANVAS_H.toFloat() / src.height,
-    )
-    val w = (src.width * scale).roundToInt().coerceAtLeast(1)
-    val h = (src.height * scale).roundToInt().coerceAtLeast(1)
-    val scaled = Bitmap.createScaledBitmap(src, w, h, true)
-    val out = Bitmap.createBitmap(EMOJI_CANVAS_W, EMOJI_CANVAS_H, Bitmap.Config.ARGB_8888)
-    Canvas(out).drawBitmap(scaled, (EMOJI_CANVAS_W - w) / 2f, (EMOJI_CANVAS_H - h) / 2f, null)
-    return out
-  }
-
   private fun findWebView(group: ViewGroup): WebView? {
     for (i in 0 until group.childCount) {
       when (val child = group.getChildAt(i)) {
@@ -241,8 +89,13 @@ class MainActivity : TauriActivity() {
     return null
   }
 
-  private fun requestNotificationPermission() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+  /**
+   * 通知の権限を求める (Android 13+)。Rust から JNI (call_method) で呼ばれるので、
+   * JVM の main thread 外から来る。権限ダイアログは UI スレッドで出す
+   */
+  fun requestNotificationPermission() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+    runOnUiThread {
       if (ContextCompat.checkSelfPermission(
           this,
           Manifest.permission.POST_NOTIFICATIONS

@@ -10,19 +10,28 @@ import { useNotificationReadOnView } from './useNotificationReadOnView'
  * 見ていない間は何も送らない。
  */
 
-const { apiReadNotificationsOnView, streamReadNotifications } = vi.hoisted(
-  () => ({
-    apiReadNotificationsOnView: vi.fn((_accountId: string) =>
-      Promise.resolve({ status: 'ok' as const, data: null }),
-    ),
-    streamReadNotifications: vi.fn((_accountId: string) =>
-      Promise.resolve({ status: 'ok' as const, data: null }),
-    ),
-  }),
-)
+const {
+  apiReadNotificationsOnView,
+  streamReadNotifications,
+  setVisibleNotificationScopes,
+} = vi.hoisted(() => ({
+  apiReadNotificationsOnView: vi.fn((_accountId: string) =>
+    Promise.resolve({ status: 'ok' as const, data: null }),
+  ),
+  streamReadNotifications: vi.fn((_accountId: string) =>
+    Promise.resolve({ status: 'ok' as const, data: null }),
+  ),
+  setVisibleNotificationScopes: vi.fn((_ids: string[]) =>
+    Promise.resolve({ status: 'ok' as const, data: null }),
+  ),
+}))
 
 vi.mock('@/bindings', () => ({
-  commands: { apiReadNotificationsOnView, streamReadNotifications },
+  commands: {
+    apiReadNotificationsOnView,
+    streamReadNotifications,
+    setVisibleNotificationScopes,
+  },
 }))
 
 const realtime = vi.hoisted(() => ({ isRealtime: true }))
@@ -53,6 +62,7 @@ describe('useNotificationReadOnView', () => {
     setActivePinia(createPinia())
     apiReadNotificationsOnView.mockClear()
     streamReadNotifications.mockClear()
+    setVisibleNotificationScopes.mockClear()
     realtime.isRealtime = true
     vi.spyOn(document, 'hasFocus').mockReturnValue(true)
   })
@@ -90,6 +100,24 @@ describe('useNotificationReadOnView', () => {
     api.onArrival('a')
     expect(streamReadNotifications).toHaveBeenCalledTimes(1)
     unmount()
+  })
+
+  it('見えている通知カラムの口座を Rust に知らせ、見えなくなったら外す (OS 通知の抑止)', async () => {
+    const { unmount } = mountWith(() => ['a', 'b'])
+    await nextTick()
+    expect(setVisibleNotificationScopes).toHaveBeenLastCalledWith(['a', 'b'])
+
+    setFocus(false)
+    await nextTick()
+    expect(setVisibleNotificationScopes).toHaveBeenLastCalledWith([])
+
+    setFocus(true)
+    await nextTick()
+    expect(setVisibleNotificationScopes).toHaveBeenLastCalledWith(['a', 'b'])
+
+    unmount()
+    await nextTick()
+    expect(setVisibleNotificationScopes).toHaveBeenLastCalledWith([])
   })
 
   it('ポーリング中の新着は WS が無いので取得で既読にする', async () => {

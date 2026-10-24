@@ -29,3 +29,8 @@ codegen-units = 1
 strip = "symbols"
 panic = "abort"
 
+# Android の keychain: 上流 PR #50 (Store::new_with_context、ndk-context を初期化せずに
+# application Context で開く) をリリース前に指す。Activity の無いワーカーから
+# keychain を読むのに要る (#330 段階 0 / C)。リリースされたら外す
+[patch.crates-io]
+android-native-keyring-store = { git = "https://github.com/open-source-cooperative/android-native-keyring-store.git", rev = "55bb0256e02dd2871e428147707dabce69354dec" }

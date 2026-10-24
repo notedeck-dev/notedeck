@@ -358,7 +358,18 @@
       },
       "groupOthers": "{names} ほか",
       "listSeparator": "、",
-      "channelName": "通知"
+      "note": "投稿",
+      "chatFile": "ファイルを送信しました",
+      "chatInRoom": "{sender} ({room})",
+      "channels": {
+        "mentions": "メンション・返信",
+        "reactions": "リアクション・リノート",
+        "follows": "フォロー",
+        "posts": "投稿の通知",
+        "account": "アカウント",
+        "other": "その他",
+        "messages": "メッセージ"
+      }
     },
     "tray": {
       "unread_plural": {

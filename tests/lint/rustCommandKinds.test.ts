@@ -176,6 +176,28 @@ const commands = [
 ]
 
 describe('Rust IPC コマンドの種別宣言 (#1106 段階 0a)', () => {
+  it('JNI の静的エントリ (Kotlin から呼ぶ入口) は `// nd-entry: local` を宣言している', () => {
+    // #[tauri::command] ではない Rust の入口 (Java_... の extern "system")。
+    // ワーカー / 通知ブリッジが使う。OS 統合なので種別は local 固定で、
+    // 宣言が無い入口は規約の外に置かれたものとして落とす (#330 §4.1)
+    const ENTRY = /^\s*pub extern "system" fn (Java_[A-Za-z0-9_]+)/
+    const ENTRY_MARKER = /^\s*\/\/ nd-entry: local\s*$/
+    const violations: string[] = []
+    for (const path of rustFiles(RUST_SRC)) {
+      const lines = readFileSync(path, 'utf-8').split('\n')
+      lines.forEach((line, i) => {
+        const m = line.match(ENTRY)
+        if (!m) return
+        // 直前の数行 (属性の上) にマーカーがあればよい
+        const above = lines.slice(Math.max(0, i - 3), i)
+        if (!above.some((l) => ENTRY_MARKER.test(l))) {
+          violations.push(`${relative(ROOT, path)}:${i + 1}: ${m[1]}`)
+        }
+      })
+    }
+    expect(violations).toEqual([])
+  })
+
   it('コマンドが 1 つ以上見つかる (検査対象を見失っていない)', () => {
     expect(commands.length).toBeGreaterThan(200)
     expect(commandsInTable().length).toBeGreaterThan(0)

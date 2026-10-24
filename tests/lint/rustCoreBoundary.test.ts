@@ -61,6 +61,29 @@ describe.each(CRATES)('%s の境界 (#1106)', (crate) => {
     expect(violations).toEqual([])
   })
 
+  it('純関数のモジュールは I/O (ネットワーク / 端末 / 非同期ランタイム) を参照しない', () => {
+    // OS 通知の組み立て (#330 §4.1) は、どの経路 (ストリーミング / ワーカー / push)
+    // からも同じ関数を通す。ワーカーは Activity の無いプロセスで走るので、ここに
+    // 端末依存やネットワークが混ざると気づかずに落ちる経路になる
+    const PURE_MODULES = ['src/notify_plan.rs']
+    const FORBIDDEN =
+      /\b(reqwest|tokio|ndk_context|jni|keyring|keychain|image_cache|std::net|std::fs|std::process)\b/
+    const violations: string[] = []
+    for (const rel of PURE_MODULES) {
+      const path = resolve(CRATE, rel)
+      if (!files.includes(path)) continue
+      const lines = readFileSync(path, 'utf-8').split('\n')
+      lines.forEach((line, i) => {
+        if (line.trim().startsWith('//')) return
+        const code = line.replace(/"[^"]*"/g, '""')
+        if (FORBIDDEN.test(code)) {
+          violations.push(`${relative(ROOT, path)}:${i + 1}: ${line.trim()}`)
+        }
+      })
+    }
+    expect(violations).toEqual([])
+  })
+
   it('ソースで tauri を参照しない', () => {
     const violations: string[] = []
     for (const path of files) {

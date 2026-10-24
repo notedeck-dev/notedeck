@@ -2629,6 +2629,16 @@ _widgetCapabilities:
   loginRequired: "ログイン済みアカウントが必要です"
 
 # notedeck:// リンクからのインストール確認 (#1204)
+_notifyPermission:
+  title: "通知"
+  message: "開いている間はすぐ届きます。閉じている間は一定時間ごとに確認します (省電力中は遅れることがあります)。"
+
+_backgroundNotify:
+  polling: "閉じている間の通知: 定期的に確認"
+  foregroundOnly: "通知は開いている間に届きます"
+  permissionDenied: "通知が許可されていません"
+  openSettings: "OS の通知設定を開く"
+
 _deepLink:
   accountNotFound: "このリンクのアカウントではログインしていません"
 _deepLinkInstall:
@@ -3494,7 +3504,17 @@ _native:
       other: "新着通知 {count} 件"
     groupOthers: "{names} ほか"
     listSeparator: "、"
-    channelName: "通知"
+    note: "投稿"
+    chatFile: "ファイルを送信しました"
+    chatInRoom: "{sender} ({room})"
+    channels:
+      mentions: "メンション・返信"
+      reactions: "リアクション・リノート"
+      follows: "フォロー"
+      posts: "投稿の通知"
+      account: "アカウント"
+      other: "その他"
+      messages: "メッセージ"
   tray:
     unread_plural:
       other: "NoteDeck — 未読 {count} 件"

@@ -77,4 +77,6 @@ wildcards = "allow"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
-allow-git = []
+# android-native-keyring-store: 上流 PR #50 (Context を明示で渡して開く口) をリリース前に
+# [patch.crates-io] で指している (#330 段階 E)。上流がリリースされたら patch と一緒に外す
+allow-git = ["https://github.com/open-source-cooperative/android-native-keyring-store.git"]

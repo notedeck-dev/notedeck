@@ -1942,6 +1942,41 @@ async notificationTakePendingClick() : Promise<NotificationClicked | null> {
     return await TAURI_INVOKE("notification_take_pending_click");
 },
 /**
+ * 見えている通知カラムの口座を写す (#330 §3.3)。フロントがカラムの可視 (viewport 内 +
+ * フォーカス) の変化ごとに和集合を送る。含まれる口座の通知は OS 通知にしない
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async setVisibleNotificationScopes(accountIds: string[]) : Promise<void> {
+    await TAURI_INVOKE("set_visible_notification_scopes", { accountIds });
+},
+/**
+ * 通知の権限を求める (Android 13 以上。他では no-op)。起動時ではなく、最初の口座を
+ * 追加した直後に説明つきで呼ぶ (#330 §4.5)
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async requestNotificationPermission() : Promise<void> {
+    await TAURI_INVOKE("request_notification_permission");
+},
+/**
+ * 通知が OS で許可されているか。Android 以外 (OS 通知の許可を別に持たない) と、
+ * Android で判定できないときは None
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async notificationPermissionGranted() : Promise<boolean | null> {
+    return await TAURI_INVOKE("notification_permission_granted");
+},
+/**
+ * OS のこのアプリの通知設定を開く (Android。他では no-op)
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async openOsNotificationSettings() : Promise<void> {
+    await TAURI_INVOKE("open_os_notification_settings");
+},
+/**
  * 未読合計を OS へ反映する (#748):
  * - macOS Dock / Linux ランチャー: バッジ件数
  * - Windows: タスクバーのオーバーレイドット

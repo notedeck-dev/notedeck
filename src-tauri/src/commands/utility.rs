@@ -52,6 +52,74 @@ pub fn notification_take_pending_click(
     state.0.lock().ok().and_then(|mut pending| pending.take())
 }
 
+/// 見えている通知カラムの口座を写す (#330 §3.3)。フロントがカラムの可視 (viewport 内 +
+/// フォーカス) の変化ごとに和集合を送る。含まれる口座の通知は OS 通知にしない
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub fn set_visible_notification_scopes(
+    window: tauri::Window,
+    state: tauri::State<'_, crate::os_notify::VisibleNotificationScopes>,
+    account_ids: Vec<String>,
+) {
+    // 呼び出し元のウィンドウの分だけ置き換える (別ウィンドウのデッキの分は残る)
+    state.set(window.label(), account_ids);
+}
+
+/// 通知の権限を求める (Android 13 以上。他では no-op)。起動時ではなく、最初の口座を
+/// 追加した直後に説明つきで呼ぶ (#330 §4.5)
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub fn request_notification_permission() {
+    #[cfg(target_os = "android")]
+    {
+        // tauri コマンドは JVM main thread 外で走るため FindClass ではアプリクラスを
+        // 解決できない。Activity のメソッドなので ndk_context の Activity に直接
+        // call_method する (set_status_bar_style と同じ)
+        let result = (|| -> std::result::Result<(), jni::errors::Error> {
+            let ctx = ndk_context::android_context();
+            let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast()) }?;
+            let mut env = vm.attach_current_thread()?;
+            let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+            let call = env.call_method(&activity, "requestNotificationPermission", "()V", &[]);
+            if call.is_err() && env.exception_check().unwrap_or(false) {
+                let _ = env.exception_describe();
+                let _ = env.exception_clear();
+            }
+            call.map(|_| ())
+        })();
+        if let Err(e) = result {
+            tracing::warn!("[notification] permission request failed: {e}");
+        }
+    }
+}
+
+/// 通知が OS で許可されているか。Android 以外 (OS 通知の許可を別に持たない) と、
+/// Android で判定できないときは None
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub fn notification_permission_granted() -> Option<bool> {
+    #[cfg(target_os = "android")]
+    {
+        crate::android_notify::notifications_enabled()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        None
+    }
+}
+
+/// OS のこのアプリの通知設定を開く (Android。他では no-op)
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub fn open_os_notification_settings() {
+    #[cfg(target_os = "android")]
+    crate::android_notify::open_settings();
+}
+
 /// Android のステータスバー/ナビゲーションバーのアイコン色をアプリテーマに
 /// 追従させる (#755)。edge-to-edge (enableEdgeToEdge) 環境ではバー背景は
 /// WebView がそのまま透けるため、切り替えが必要なのはアイコンの明暗のみ。
