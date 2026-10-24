@@ -108,13 +108,13 @@ export const useWindowsStore = defineStore('windows', () => {
     'edit-history': ['kind', 'basename'],
     connectionEdit: ['connectionId'],
     'ai-turn-prompt': ['turnId'],
-    // サーバーごとに 1 つ (同じサーバーの口座はまとめて登録する、#330)
-    'push-register': ['host'],
   }
 
   /** Types that are always singletons (at most one instance). */
   const SINGLETON_TYPES: ReadonlySet<WindowType> = new Set([
     'login',
+    // 端末の push は 1 つの窓で全アカウントを扱う (#330)
+    'push-register',
     'plugins',
     'keybinds',
     'cssEditor',

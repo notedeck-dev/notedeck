@@ -40,7 +40,7 @@ vi.mock('@/utils/tauriInvoke', () => ({
 
 import { refreshProfileCommands } from '@/commands/definitions'
 import { switchProfileWithWindows } from '@/composables/useDeckWindow'
-import { SETTINGS_SECTIONS } from '@/settings/sections'
+import { isSectionAvailable, SETTINGS_SECTIONS } from '@/settings/sections'
 import { useDeckStore } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useThemeStore } from '@/stores/theme'
@@ -108,13 +108,13 @@ describe('getSettingsItems', () => {
 
   it('設定メニューと同じウィンドウ・同じ表示名になる (#1035)', () => {
     // 定義元は SETTINGS_SECTIONS 1 本。表示名とアイコンはウィンドウレジストリ
-    // から引くので、メニューとパレットで名前がずれない。両者は同じ露出判定で
-    // 絞られるため比較は開発者モード on で行う
+    // から引くので、メニューとパレットで名前がずれない。両者は同じ露出判定と
+    // 端末の判定で絞られるため比較は開発者モード on で行う
     devMode = true
     const items = getSettingsItems()
 
     expect(items.map((i) => i.id)).toEqual(
-      SETTINGS_SECTIONS.map((s) => s.window),
+      SETTINGS_SECTIONS.filter(isSectionAvailable).map((s) => s.window),
     )
     for (const item of items) {
       expect(item.label, item.id).toBe(WINDOW_LABELS[item.id])

@@ -5,21 +5,23 @@ import type { Account } from '@/stores/accounts'
 import NavAccountMenu from './NavAccountMenu.vue'
 
 /**
- * アカウントメニューの「閉じている間の通知」の行 (#330)。メニューは開くたびに v-if で
- * 作られ、show は最初から true で渡される。開いた時点で push と OS の通知の許可を
- * 読まないと、行が押せる行にならず登録の窓へ進めない (v1.94.0 / v1.95.0 の不具合)
+ * アカウントメニューの通知まわり (#330)。push の設定は端末で 1 つなので設定メニューに置き、
+ * アカウントメニューには出さない。OS の通知の許可は、メニューは開くたびに v-if で作られ
+ * show が最初から true で渡されるので、開いた時点で読む (v1.94.0 / v1.95.0 の不具合)
  */
 
-const ok = <T>(data: T) => Promise.resolve({ status: 'ok' as const, data })
-
-const { pushStatus, notificationPermissionGranted } = vi.hoisted(() => ({
-  pushStatus: vi.fn(),
+const { notificationPermissionGranted } = vi.hoisted(() => ({
   notificationPermissionGranted: vi.fn(),
 }))
 
 vi.mock('@/bindings', () => ({
-  commands: { pushStatus, notificationPermissionGranted },
+  commands: { notificationPermissionGranted },
 }))
+
+const buttonWith = (text: string) =>
+  [...document.querySelectorAll('button')].find((b) =>
+    b.textContent?.includes(text),
+  )
 
 // 端末の判定はモジュールの読込時に決まるので、Android として振る舞う店に差し替える
 vi.mock('@/stores/ui', async (importOriginal) => {
@@ -71,7 +73,6 @@ async function flush() {
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  pushStatus.mockReset()
   notificationPermissionGranted.mockReset()
 })
 
@@ -82,28 +83,20 @@ afterEach(() => {
   container = null
 })
 
-describe('NavAccountMenu の閉じている間の通知', () => {
-  it('開いた時点で push の状態を読み、状態行を押せる行にする', async () => {
-    pushStatus.mockImplementation(() => ok('off'))
+describe('NavAccountMenu の通知まわり', () => {
+  it('push の項目は出さない (設定メニューにある)', async () => {
     notificationPermissionGranted.mockResolvedValue(true)
     mountMenu()
     await flush()
-    expect(pushStatus).toHaveBeenCalledWith('acct-1')
-    const row = [...document.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('閉じている間の通知'),
-    )
-    expect(row).toBeDefined()
+    expect(buttonWith('プッシュ通知')).toBeUndefined()
+    expect(buttonWith('OS の通知設定を開く')).toBeUndefined()
   })
 
   it('開いた時点で OS の通知の許可を読み、拒否なら設定への導線を出す', async () => {
-    pushStatus.mockImplementation(() => ok('off'))
     notificationPermissionGranted.mockResolvedValue(false)
     mountMenu()
     await flush()
     expect(notificationPermissionGranted).toHaveBeenCalled()
-    const settings = [...document.querySelectorAll('button')].find((b) =>
-      b.textContent?.includes('OS の通知設定を開く'),
-    )
-    expect(settings).toBeDefined()
+    expect(buttonWith('OS の通知設定を開く')).toBeDefined()
   })
 })

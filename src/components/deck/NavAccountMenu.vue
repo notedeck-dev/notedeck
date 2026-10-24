@@ -3,14 +3,12 @@ import { computed, ref, toRef, watch } from 'vue'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNotificationPermissionState } from '@/composables/useNotificationPermissionState'
-import { usePushState } from '@/composables/usePushRegistration'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { webUiUrl } from '@/services/safeUrl'
 import { modeIcon } from '@/services/timelinePolicy'
 import { type Account, isGuestAccount } from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
-import { useWindowsStore } from '@/stores/windows'
 import { modeLabel } from '@/utils/customTimelines'
 import { hapticSelection } from '@/utils/haptics'
 import { openSafeUrl } from '@/utils/url'
@@ -49,66 +47,25 @@ useNativeDialog(
   },
 )
 
-// 閉じている間の通知の状態行 (#330 §4.5)。モバイルだけ (定期確認か push か)。デスクトップは
-// 開いている間に届くのが当たり前で、操作にもつながらないので出さない。Android で通知が
-// 許可されていなければ OS の設定への導線を出す
+// Android で通知が許可されていなければ OS の設定への導線を出す (#330 §4.5)。push の設定は
+// 端末で 1 つ (プッシュ通知アプリの選択) なので、アカウントメニューではなく設定メニューから開く
 const uiStore = useUiStore()
 const {
   granted: notificationPermissionGranted,
   refresh: refreshNotificationPermission,
   openSettings: openOsNotificationSettings,
 } = useNotificationPermissionState()
-// push (#330) は口座ごとのオプトイン。状態行は push の状態で出し分け、
-// 登録や解除はサーバー単位の専用のウィンドウで行う (同じサーバーの口座をまとめて登録できる)
-const push = usePushState(() => props.account.id)
-// メニューは開くたびに v-if で作られ、show は最初から true で来る。開いた時点でも読まないと
-// 状態が null のままで、状態行が押せる行にならない (登録の窓へ進めない)
+// メニューは開くたびに v-if で作られ、show は最初から true で来る。開いた時点でも読む
 watch(
   () => props.show,
   (show) => {
-    if (!show || !uiStore.isMobilePlatform) return
-    void refreshNotificationPermission()
-    if (props.account.hasToken) void push.refresh()
+    if (show && uiStore.isMobilePlatform) void refreshNotificationPermission()
   },
   { immediate: true },
 )
-const backgroundNotifyLine = computed(() => {
-  switch (push.state.value) {
-    case 'active':
-      return i18n.ts._backgroundNotify.pushActive
-    case 'needsReregistration':
-      return i18n.ts._backgroundNotify.pushNeedsRegistration
-    case 'preparing':
-    case 'pending':
-      return i18n.ts._backgroundNotify.pushPending
-    default:
-      return i18n.ts._backgroundNotify.polling
-  }
-})
-const canSetUpPush = computed(
-  () =>
-    uiStore.isMobilePlatform &&
-    push.state.value !== null &&
-    push.state.value !== 'unavailable',
+const showPermissionPrompt = computed(
+  () => props.account.hasToken && notificationPermissionGranted.value === false,
 )
-// 対応が要る状態は、再ログイン / OS の通知設定と同じアクセント色で出す
-const pushNeedsAttention = computed(
-  () => push.state.value === 'needsReregistration',
-)
-const pushIcon = computed(() => {
-  switch (push.state.value) {
-    case 'active':
-      return 'ti-bell-ringing'
-    case 'needsReregistration':
-      return 'ti-bell-exclamation'
-    default:
-      return 'ti-bell'
-  }
-})
-function openPushRegister() {
-  useWindowsStore().open('push-register', { host: props.account.host })
-  emit('close')
-}
 
 const hasUpperSection = computed(
   () =>
@@ -164,27 +121,10 @@ const hasUpperSection = computed(
         <i class="ti ti-external-link" />
       </button>
 
-      <div v-if="hasUpperSection" :class="$style.navAccountMenuDivider" />
-      <button class="_button" :class="$style.navAccountMenuItem" @click="emit('clear-cache')">
-        <span>{{ i18n.ts._common.clearCache }}</span>
-        <i class="ti ti-eraser" />
-      </button>
-      <template v-if="account.hasToken">
-        <!-- push を扱える端末では状態行そのものを押して登録の窓を開く (ほかの項目と同じ 1 行 = 1 操作) -->
+      <!-- 通知が許可されていない (Android)。OS の設定への導線 -->
+      <template v-if="showPermissionPrompt">
+        <div v-if="hasUpperSection" :class="$style.navAccountMenuDivider" />
         <button
-          v-if="canSetUpPush"
-          class="_button"
-          :class="[$style.navAccountMenuItem, { [$style.navAccountRelogin]: pushNeedsAttention }]"
-          @click="openPushRegister"
-        >
-          <span :class="$style.navAccountMenuLabel">{{ backgroundNotifyLine }}</span>
-          <i :class="['ti', pushIcon]" />
-        </button>
-        <div v-else-if="uiStore.isMobilePlatform" :class="$style.navAccountMenuStatus">
-          {{ backgroundNotifyLine }}
-        </div>
-        <button
-          v-if="notificationPermissionGranted === false"
           class="_button"
           :class="[$style.navAccountMenuItem, $style.navAccountRelogin]"
           @click="openOsNotificationSettings"
@@ -192,6 +132,14 @@ const hasUpperSection = computed(
           <span>{{ i18n.ts._backgroundNotify.permissionDenied }} — {{ i18n.ts._backgroundNotify.openSettings }}</span>
           <i class="ti ti-bell-off" />
         </button>
+      </template>
+
+      <div v-if="hasUpperSection || showPermissionPrompt" :class="$style.navAccountMenuDivider" />
+      <button class="_button" :class="$style.navAccountMenuItem" @click="emit('clear-cache')">
+        <span>{{ i18n.ts._common.clearCache }}</span>
+        <i class="ti ti-eraser" />
+      </button>
+      <template v-if="account.hasToken">
         <button class="_button" :class="[$style.navAccountMenuItem, $style.navAccountLogout]" @click="emit('logout')">
           <span>{{ i18n.ts._common.logout }}</span>
           <i class="ti ti-logout" />
@@ -237,11 +185,6 @@ const hasUpperSection = computed(
   }
 }
 
-.navAccountMenuStatus {
-  padding: 6px 16px 2px;
-  font-size: var(--nd-font-sm);
-  color: var(--nd-fgMuted);
-}
 
 .navAccountMenuItem {
   display: flex;

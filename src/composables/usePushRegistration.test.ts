@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { usePushRegistration, usePushState } from './usePushRegistration'
+import { usePushRegistration } from './usePushRegistration'
 
 /**
- * push の登録 (#330)。サーバー単位の状態を読み、準備・やり直し・やめるのあとで
- * 読み直す。失敗は理由 (problem) で返り、例外にしない。
+ * push の登録 (#330)。全サーバーの状態をまとめて読み、オン / オフ / プッシュ通知アプリの
+ * 選択のあとで読み直す。失敗は理由 (problem) で返り、例外にしない。
  */
 
 const ok = <T>(data: T) => Promise.resolve({ status: 'ok' as const, data })
@@ -19,113 +19,103 @@ const fail = () =>
     },
   })
 
-const {
-  pushStatus,
-  pushHostStatus,
-  pushPrepare,
-  pushRedo,
-  pushDisable,
-  pushDistributors,
-  pushChooseDistributor,
-} = vi.hoisted(() => ({
-  pushStatus: vi.fn(),
-  pushHostStatus: vi.fn(),
-  pushPrepare: vi.fn(),
-  pushRedo: vi.fn(),
-  pushDisable: vi.fn(),
-  pushDistributors: vi.fn(),
-  pushChooseDistributor: vi.fn(),
-}))
+const { pushOverview, pushPrepare, pushDisable, pushChooseDistributor } =
+  vi.hoisted(() => ({
+    pushOverview: vi.fn(),
+    pushPrepare: vi.fn(),
+    pushDisable: vi.fn(),
+    pushChooseDistributor: vi.fn(),
+  }))
 
 vi.mock('@/bindings', () => ({
   commands: {
-    pushStatus,
-    pushHostStatus,
+    pushOverview,
     pushPrepare,
-    pushRedo,
     pushDisable,
-    pushDistributors,
     pushChooseDistributor,
   },
 }))
 
 const status = (code: string | null) => ({
   distributor: 'ready',
-  accounts: [
+  apps: [{ package: 'io.heckel.ntfy', label: 'ntfy', active: true }],
+  hosts: [
     {
-      accountId: 'acct-1',
-      state: code ? 'pending' : 'off',
-      reason: null,
-      awaiting: false,
-      resent: false,
+      host: 'h',
+      accounts: [
+        {
+          accountId: 'acct-1',
+          state: code ? 'pending' : 'off',
+          reason: null,
+          awaiting: false,
+          resent: false,
+        },
+      ],
+      code,
+      scratchpadUrl: 'https://h/scratchpad',
     },
   ],
-  code,
-  scratchpadUrl: 'https://h/scratchpad',
 })
 
 describe('usePushRegistration', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    pushHostStatus.mockImplementation(() => ok(status(null)))
+    pushOverview.mockImplementation(() => ok(status(null)))
   })
 
-  it('準備するとサーバー単位で呼び、読み直した状態にコードが載る', async () => {
-    const push = usePushRegistration(() => 'h')
+  it('口座をオンにすると、読み直した状態にコードが載る', async () => {
+    const push = usePushRegistration()
     await push.refresh()
-    expect(push.status.value?.code).toBeNull()
+    expect(push.status.value?.hosts[0]?.code).toBeNull()
 
     pushPrepare.mockImplementation(() => ok(null))
-    pushHostStatus.mockImplementation(() => ok(status('let PASS = 1')))
-    await push.prepare()
-    expect(pushPrepare).toHaveBeenCalledWith('h')
+    pushOverview.mockImplementation(() => ok(status('let PASS = 1')))
+    await push.prepare('acct-1')
+    expect(pushPrepare).toHaveBeenCalledWith('acct-1')
     expect(push.problem.value).toBeNull()
-    expect(push.status.value?.code).toBe('let PASS = 1')
+    expect(push.status.value?.hosts[0]?.code).toBe('let PASS = 1')
   })
 
   it('準備の失敗は理由として残る', async () => {
-    const push = usePushRegistration(() => 'h')
+    const push = usePushRegistration()
     pushPrepare.mockImplementation(() => ok('serverUnsupported'))
-    await push.prepare()
+    await push.prepare('acct-1')
     expect(push.problem.value).toBe('serverUnsupported')
   })
 
-  it('やり直しは口座ごと、プッシュ通知アプリを選んだら準備し直す', async () => {
-    const push = usePushRegistration(() => 'h')
-    pushRedo.mockImplementation(() => ok(null))
-    await push.redo('acct-1')
-    expect(pushRedo).toHaveBeenCalledWith('acct-1')
+  it('選べなくて止まったオンは、プッシュ通知アプリを選んだ後にやり直す', async () => {
+    const push = usePushRegistration()
+    pushPrepare.mockImplementation(() => ok('chooseDistributor'))
+    await push.prepare('acct-1')
+    expect(push.problem.value).toBe('chooseDistributor')
 
     pushChooseDistributor.mockImplementation(() => ok(null))
     pushPrepare.mockImplementation(() => ok(null))
     await push.choose('io.heckel.ntfy')
     expect(pushChooseDistributor).toHaveBeenCalledWith('io.heckel.ntfy')
-    expect(pushPrepare).toHaveBeenCalledWith('h')
+    expect(pushPrepare).toHaveBeenLastCalledWith('acct-1')
+    expect(push.problem.value).toBeNull()
+  })
+
+  it('止まっていなければ、プッシュ通知アプリを選んでも読み直すだけ', async () => {
+    const push = usePushRegistration()
+    pushChooseDistributor.mockImplementation(() => ok(null))
+    await push.choose('org.unifiedpush.distributor.sunup')
+    expect(pushPrepare).not.toHaveBeenCalled()
+    expect(pushOverview).toHaveBeenCalled()
   })
 
   it('やめるのに失敗したら状態を読み直さず、エラーを残す', async () => {
-    const push = usePushRegistration(() => 'h')
+    const push = usePushRegistration()
     pushDisable.mockImplementation(fail)
     await push.disable('acct-1')
     expect(push.error.value).not.toBeNull()
-    expect(pushHostStatus).not.toHaveBeenCalled()
+    expect(pushOverview).not.toHaveBeenCalled()
   })
 
   it('読み直しが重なったら後の方は捨てる', async () => {
-    const push = usePushRegistration(() => 'h')
+    const push = usePushRegistration()
     await Promise.all([push.refresh(), push.refresh()])
-    expect(pushHostStatus).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('usePushState', () => {
-  it('口座の状態を読み、読めなければ null', async () => {
-    pushStatus.mockImplementation(() => ok('active'))
-    const push = usePushState(() => 'acct-1')
-    await push.refresh()
-    expect(push.state.value).toBe('active')
-    pushStatus.mockImplementation(fail)
-    await push.refresh()
-    expect(push.state.value).toBeNull()
+    expect(pushOverview).toHaveBeenCalledTimes(1)
   })
 })

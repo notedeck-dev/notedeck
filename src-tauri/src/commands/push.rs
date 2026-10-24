@@ -2,15 +2,16 @@
 //! keychain の実物は Android の `android_push`。ほかの OS では push を扱わないので
 //! 「使えない」を返す。
 //!
-//! 登録はサーバー単位で進める (同じサーバーの口座は 1 つのコードでまとめて ▶ できる)。
-//! 窓は `push_host_status` を読み直しながら、行ごとの状態とコードを出す。
+//! 窓 (設定メニューの「プッシュ通知」) はアプリ全体で 1 つ。プッシュ通知アプリの選択は端末で
+//! 1 つ、オン / オフは口座ごと、Scratchpad のコードはサーバーごと (同じサーバーの口座は
+//! 1 つのコードでまとめて ▶ できる)。窓は `push_overview` を読み直しながら進み具合を出す。
 
 use serde::Serialize;
 use specta::Type;
 
 use super::{AppState, Result};
 
-/// 口座の push の状態 (アカウントメニューの状態行と、窓の行)
+/// 口座の push の状態 (窓の行)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 // 値の多くは Android でだけ作る
@@ -76,13 +77,23 @@ pub struct PushAccountRow {
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PushHostStatus {
-    pub distributor: PushDistributorState,
+    pub host: String,
     pub accounts: Vec<PushAccountRow>,
     pub code: Option<String>,
     pub scratchpad_url: String,
 }
 
-/// 準備 / やり直しの失敗の理由
+/// 端末の push の全体 (窓が読む)
+#[derive(Debug, Clone, Serialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct PushOverview {
+    pub distributor: PushDistributorState,
+    /// 入っているプッシュ通知アプリ
+    pub apps: Vec<PushDistributor>,
+    pub hosts: Vec<PushHostStatus>,
+}
+
+/// オンにする操作の失敗の理由
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Type)]
 #[serde(rename_all = "camelCase")]
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
@@ -113,6 +124,8 @@ pub enum PushProblem {
 pub struct PushDistributor {
     pub package: String,
     pub label: String,
+    /// 今使っている (まだ決めていなくても 1 つしか無ければそれ)
+    pub active: bool,
 }
 
 #[cfg(target_os = "android")]
@@ -188,88 +201,36 @@ mod android {
     }
 }
 
-/// 口座の push の状態 (ネットワークに出ない)
-// nd-command: local
-#[tauri::command]
-#[specta::specta]
-pub async fn push_status(
-    core: tauri::State<'_, AppState>,
-    account_id: String,
-) -> Result<PushState> {
-    #[cfg(target_os = "android")]
-    {
-        let env = android::env(&core).await?;
-        Ok(env
-            .accounts
-            .iter()
-            .find(|a| a.id == account_id)
-            .map(|a| crate::push_flow::state_of(&env.app_dir, a))
-            .unwrap_or(PushState::Unavailable))
-    }
-    #[cfg(not(target_os = "android"))]
-    {
-        let _ = (core, account_id);
-        Ok(PushState::Unavailable)
-    }
-}
-
-/// サーバー単位の状態。登録待ちの口座はレジストリを読んで「未実行」と「到着待ち」を
+/// 端末の push の全体。登録待ちの口座はレジストリを読んで「未実行」と「到着待ち」を
 /// 見分ける (窓が開いている間は数秒おきに呼ばれる)
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
-pub async fn push_host_status(
-    core: tauri::State<'_, AppState>,
-    host: String,
-) -> Result<PushHostStatus> {
+pub async fn push_overview(core: tauri::State<'_, AppState>) -> Result<PushOverview> {
     #[cfg(target_os = "android")]
     {
         let env = android::env(&core).await?;
         let lang = crate::ui_lang::current();
-        Ok(crate::push_flow::host_status(&env.ctx(), &host, &env.accounts, &lang).await)
+        Ok(crate::push_flow::overview(&env.ctx(), &env.accounts, &lang).await)
     }
     #[cfg(not(target_os = "android"))]
     {
         let _ = core;
-        Ok(PushHostStatus {
+        Ok(PushOverview {
             distributor: PushDistributorState::None,
-            accounts: Vec::new(),
-            code: None,
-            scratchpad_url: notecore::push_register::scratchpad_url(&host),
+            apps: Vec::new(),
+            hosts: Vec::new(),
         })
     }
 }
 
-/// サーバーの口座をまとめて登録の準備をする (プッシュ通知アプリへの登録と、レジストリへの
-/// 書込)。プッシュ通知アプリの返事を待つので数秒かかることがある。成功は None
+/// 口座をオンにする (プッシュ通知アプリへの登録と、レジストリへの書込)。同じサーバーに
+/// 未実行の登録待ちがあれば 1 つのコードにまとめる。プッシュ通知アプリの返事を待つので
+/// 数秒かかることがある。成功は None
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub async fn push_prepare(
-    core: tauri::State<'_, AppState>,
-    host: String,
-) -> Result<Option<PushProblem>> {
-    #[cfg(target_os = "android")]
-    {
-        let env = android::env(&core).await?;
-        Ok(
-            crate::push_flow::prepare(&env.ctx(), &host, &env.accounts, None, android::random())
-                .await
-                .err(),
-        )
-    }
-    #[cfg(not(target_os = "android"))]
-    {
-        let _ = (core, host);
-        Ok(Some(PushProblem::Unavailable))
-    }
-}
-
-/// 口座の登録を新しい鍵と合言葉で作り直す。前の登録は新しい方がそろってから外す
-// nd-command: local
-#[tauri::command]
-#[specta::specta]
-pub async fn push_redo(
     core: tauri::State<'_, AppState>,
     account_id: String,
 ) -> Result<Option<PushProblem>> {
@@ -316,33 +277,22 @@ pub async fn push_disable(core: tauri::State<'_, AppState>, account_id: String) 
     }
 }
 
-/// 入っているプッシュ通知アプリ (OS の選択画面が出せなかったときに選んでもらう)
+/// 使うプッシュ通知アプリを決める。切り替えたら、使っている口座は登録し直しが要る
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
-pub async fn push_distributors() -> Result<Vec<PushDistributor>> {
+pub async fn push_choose_distributor(
+    core: tauri::State<'_, AppState>,
+    package_name: String,
+) -> Result<()> {
     #[cfg(target_os = "android")]
     {
-        Ok(crate::android_push::distributors())
+        let env = android::env(&core).await?;
+        crate::push_flow::choose_distributor(&env.ctx(), &package_name);
     }
     #[cfg(not(target_os = "android"))]
     {
-        Ok(Vec::new())
-    }
-}
-
-/// 使うプッシュ通知アプリを決める
-// nd-command: local
-#[tauri::command]
-#[specta::specta]
-pub async fn push_choose_distributor(package_name: String) -> Result<()> {
-    #[cfg(target_os = "android")]
-    {
-        crate::android_push::save_distributor(&package_name);
-    }
-    #[cfg(not(target_os = "android"))]
-    {
-        let _ = package_name;
+        let _ = (core, package_name);
     }
     Ok(())
 }

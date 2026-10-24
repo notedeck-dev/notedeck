@@ -211,20 +211,25 @@ object PushBridge {
     return JSONArray(all.sorted()).toString()
   }
 
-  /** 入っている配送アプリ (JSON `[{package, label}]`) */
+  /** 入っている配送アプリ (JSON `[{package, label, active}]`)。active は今使っているもの */
   @JvmStatic
   fun distributors(): String {
     val c = appContext ?: return "[]"
     val list = JSONArray()
     try {
       val pm = c.packageManager
-      for (pkg in UnifiedPush.getDistributors(c)) {
+      val found = UnifiedPush.getDistributors(c)
+      // まだ決めていなくても 1 つしか無ければ、登録のときにそれを使う ([register])
+      val current = UnifiedPush.getAckDistributor(c)
+        ?: UnifiedPush.getSavedDistributor(c)
+        ?: found.singleOrNull()
+      for (pkg in found) {
         val label = try {
           pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
         } catch (e: Throwable) {
           pkg
         }
-        list.put(JSONObject().put("package", pkg).put("label", label))
+        list.put(JSONObject().put("package", pkg).put("label", label).put("active", pkg == current))
       }
     } catch (e: Throwable) {
       Log.w(TAG, "distributors failed", e)
@@ -232,7 +237,7 @@ object PushBridge {
     return list.toString()
   }
 
-  /** 使う配送アプリを決める (OS の選択画面を出せなかったとき) */
+  /** 使う配送アプリを決める (一覧から選んだとき) */
   @JvmStatic
   fun saveDistributor(pkg: String) {
     val c = appContext ?: return

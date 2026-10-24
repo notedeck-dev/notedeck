@@ -1,5 +1,5 @@
 ---
-sourceHash: 24f19480c163
+sourceHash: a5d2a8109be6
 ---
 
 # Receiving notifications
@@ -42,15 +42,16 @@ With a push notification app (one that supports UnifiedPush, such as ntfy), noti
 
 Because of how Misskey works, the app cannot finish registering for push notifications on its own. Once per account, you run a code in Scratchpad in that server's Web UI. Accounts on the same server can be registered with a single code.
 
-1. In the account menu on the navigation bar, press the "Notifications while closed" row to open the registration screen, then press "Turn on". If no push notification app is installed, a button opens where to get one. If you have more than one, a screen asks which one to use
-2. Press "Copy and open Scratchpad"
+1. Open "Push notifications" from the settings menu. Installed push notification apps are listed; pick the one to use (if there is only one, it is already selected). If none is installed, get one from "Find a push notification app"
+2. Under "Accounts", press the row of each account to turn it on, then press "Copy and open Scratchpad"
 3. In the browser that opens, make sure you are logged in as the account you are registering. Select everything in Scratchpad and paste the code (if it is empty, long-press to paste), then press ▶ right below the code
 4. When it says the account is turned on, you are done in the browser. Within a few minutes a notification says push notifications now arrive. For other accounts on the same server, switch to each in the browser and press ▶ the same way
 
 - There is nothing to paste back into NoteDeck. It turns on when the first push notification arrives, and you can close the screen while waiting
 - How fast notifications arrive depends on the push notification app and its delivery server. It does not work if the server has no Web Push configured. If the push notification app's server is self-hosted or only on your home network, the Misskey server may not be able to reach it
-- If the push notification app's or the server's registration changes, or notifications don't seem to arrive by push, an app notification asks you to register again. Pressing it opens the same screen; press "Turn on" again
-- To start over, press "Start over" on that row. To stop, press "Turn off". Deleting an account or logging out also unregisters it
+- If the push notification app's or the server's registration changes, or notifications don't seem to arrive by push, an app notification asks you to register again. Pressing it opens the same screen; press that account's row to turn it on again
+- To stop, press the row of an account that is on to turn it off. To start over, turn it off and on again. Deleting an account or logging out also unregisters it
+- If you switch push notification apps, accounts that use push notifications need to be turned on again
 - The registration (where pushes go and the keys) stays on the device and is not included in backups. To hand it to Scratchpad, it is also kept for a while in that account's Misskey registry (NoteDeck's own area: other apps cannot read it, and you can see it in the Web UI), and removed when registration finishes, when you start over, or when you turn it off
 
 ### The code you run in Scratchpad

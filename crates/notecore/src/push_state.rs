@@ -347,13 +347,14 @@ impl PushStore {
         self.settle(account_id);
     }
 
-    /// 「やり直す」: 次の準備で新しい世代と合言葉を作らせる。今の世代は新しい世代が
-    /// そろってから外す (`generation_ready`)、前の合言葉は準備が取り消し済みにする
-    pub fn begin_redo(&mut self, account_id: &str) {
-        if let Some(rec) = self.accounts.get_mut(account_id) {
-            if rec.phase != Phase::Unregistering {
-                rec.phase = Phase::Off;
-                rec.reason = None;
+    /// 使うプッシュ通知アプリを切り替えた。登録待ち・有効の口座は今の送り先が前のアプリの
+    /// ものなので、登録し直しが要る。前の世代は新しい世代がそろってから外す
+    /// (`generation_ready`。先に外すと最後の登録が消えて、選んだアプリまで忘れられる)
+    pub fn distributor_switched(&mut self) {
+        for rec in self.accounts.values_mut() {
+            if matches!(rec.phase, Phase::Pending | Phase::Active) {
+                rec.phase = Phase::NeedsReregistration;
+                rec.reason = Some(Reason::EndpointChanged);
             }
         }
     }
@@ -645,8 +646,12 @@ mod tests {
         let mut s = PushStore::default();
         let first = ready(&mut s, "a");
         s.on_push("a", first, None, 0);
-        s.begin_redo("a");
-        assert!(s.cleanup.is_empty(), "やり直しの時点ではまだ外さない");
+        s.distributor_switched();
+        assert_eq!(
+            s.account("a").map(|a| (a.phase, a.reason)),
+            Some((Phase::NeedsReregistration, Some(Reason::EndpointChanged)))
+        );
+        assert!(s.cleanup.is_empty(), "切り替えた時点ではまだ外さない");
         assert!(s.needs_new_generation("a"));
         let second = s.begin_generation("a", "h", 0);
         assert!(s.cleanup.is_empty());

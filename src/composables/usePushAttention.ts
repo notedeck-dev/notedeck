@@ -9,8 +9,8 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
 /**
  * push の登録し直しの知らせ (#330、Android)。起動時と復帰時に Rust 側の突き合わせ
  * (以前の版からの移行・後始末の再試行・送り先とサーバーの変化の検出) を走らせ、
- * 登録し直しが要る口座をアプリの通知 (受信トレイ) に出す。押すとそのサーバーの登録の
- * 窓を開く。同じ口座はアプリを開いている間に 1 回だけ知らせ、直ったら忘れる。
+ * 登録し直しが要る口座をアプリの通知 (受信トレイ) に出す。押すと push の設定の窓を
+ * 開く。同じ口座はアプリを開いている間に 1 回だけ知らせ、直ったら忘れる。
  */
 export function usePushAttention() {
   const uiStore = useUiStore()
@@ -39,8 +39,7 @@ export function usePushAttention() {
         i18n.tsx._pushRegister.attention({ user: getAccountLabel(account) }),
         'warning',
         {
-          onClick: () =>
-            useWindowsStore().open('push-register', { host: account.host }),
+          onClick: () => useWindowsStore().open('push-register'),
         },
       )
     }

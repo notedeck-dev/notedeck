@@ -3,39 +3,49 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import type {
   PushAccountRow,
   PushDistributor,
+  PushHostStatus,
   PushProblem,
   PushReason,
   PushState,
 } from '@/bindings'
+import AccountAvatar from '@/components/common/AccountAvatar.vue'
+import AccountPickerRow from '@/components/common/AccountPickerRow.vue'
+import ChoiceCard from '@/components/common/ChoiceCard.vue'
+import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { usePushRegistration } from '@/composables/usePushRegistration'
 import { i18n } from '@/i18n'
-import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
+import {
+  getAccountAvatarUrl,
+  getAccountLabel,
+  isGuestAccount,
+  useAccountsStore,
+} from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
 import { useUiStore } from '@/stores/ui'
 import { openSafeUrl } from '@/utils/url'
 
 /**
- * サーバー単位の push の登録 (#330、Android)。本家の購読登録はアプリのトークンでは
- * 呼べないので、「有効にする」で NoteDeck が送り先をレジストリに書き、利用者は
- * コピーしたコードを本家 Web のスクラッチパッドで ▶ するだけ。届いた push で確定する
- * ので応答の貼り戻しは無い。窓を開いている間は数秒おきに読み直して進み具合を出す。
- * 使わなくても閉じている間は定期確認で届く (オプトイン)。
+ * push の設定 (#330、Android。入口は設定メニュー)。上にプッシュ通知アプリの候補 (接続や
+ * ペットと同じカード、端末で 1 つ)、下に全アカウント (ほかの画面と同じアカウントの行)。
+ * 行を押すとオン / オフが切り替わる。本家の購読登録はアプリのトークンでは呼べないので、
+ * オンにすると NoteDeck が送り先をレジストリに書き、利用者はサーバーごとのコードを本家
+ * Web のスクラッチパッドで ▶ するだけ。届いた push で確定するので応答の貼り戻しは無い。
+ * 窓を開いている間は数秒おきに読み直して進み具合を出す。使わなくても閉じている間は
+ * 定期確認で届く (オプトイン)。
  */
-const props = defineProps<{
-  host: string
-}>()
 
 const DOCS_URL = 'https://notedeck.io/docs/guide/notifications'
 const DISTRIBUTORS_URL = 'https://unifiedpush.org/users/distributors/'
 const POLL_MS = 10_000
 
-const push = usePushRegistration(() => props.host)
+const push = usePushRegistration()
 const accountsStore = useAccountsStore()
 const uiStore = useUiStore()
 const { copied, copyToClipboard } = useClipboardFeedback()
 const { confirm } = useConfirm()
-const choices = ref<PushDistributor[]>([])
+/** 今オン / オフを切り替えている行 (行の右端に待ちの印を出す) */
+const acting = ref<string | null>(null)
 
 let timer: ReturnType<typeof setInterval> | undefined
 onMounted(() => {
@@ -50,22 +60,29 @@ watch(
 )
 
 const status = computed(() => push.status.value)
-const rows = computed(() => status.value?.accounts ?? [])
-const hasDistributor = computed(
-  () => status.value !== null && status.value.distributor !== 'none',
+const apps = computed(() => status.value?.apps ?? [])
+// ゲストは通知を持たないので出さない
+const rows = computed(() =>
+  (status.value?.hosts ?? [])
+    .flatMap((h) => h.accounts)
+    .filter((r) => {
+      const a = account(r.accountId)
+      return a !== undefined && !isGuestAccount(a)
+    }),
 )
-const canEnable = computed(() =>
-  rows.value.some(
-    (r) => r.state === 'off' || r.state === 'needsReregistration',
+/** 未実行の登録待ちがあるサーバー (サーバーごとに 1 つのコード) */
+const codes = computed(() =>
+  (status.value?.hosts ?? []).filter(
+    (h): h is PushHostStatus & { code: string } => h.code !== null,
   ),
 )
+const canEnable = computed(() => rows.value.some((r) => turnsOn(r.state)))
 const notArriving = computed(() =>
   rows.value.some((r) => r.awaiting && r.resent),
 )
 
-function label(accountId: string): string {
-  const account = accountsStore.accounts.find((a) => a.id === accountId)
-  return account ? getAccountLabel(account) : accountId
+function account(accountId: string) {
+  return accountsStore.accounts.find((a) => a.id === accountId)
 }
 
 // 文言の表。値が増えたら型エラーで気づく
@@ -96,41 +113,73 @@ const PROBLEM_TEXT: Record<PushProblem, () => string> = {
   storage: () => i18n.ts._pushRegister._problem.storage,
 }
 
-function stateText(row: PushAccountRow): string {
-  if (row.state === 'pending' && row.awaiting) {
-    return i18n.ts._pushRegister._state.awaiting
+/** 押すとオンにする状態 */
+function turnsOn(state: PushState): boolean {
+  return state === 'off' || state === 'needsReregistration'
+}
+
+/** 押すとオフにする状態 */
+function turnsOff(state: PushState): boolean {
+  return state === 'pending' || state === 'active'
+}
+
+function rowHint(row: PushAccountRow): string {
+  const state =
+    row.state === 'pending' && row.awaiting
+      ? i18n.ts._pushRegister._state.awaiting
+      : STATE_TEXT[row.state]()
+  if (row.state === 'needsReregistration' && row.reason) {
+    return `${state} — ${REASON_TEXT[row.reason]()}`
   }
-  return STATE_TEXT[row.state]()
+  return state
 }
 
 const problemText = computed(() =>
   push.problem.value ? PROBLEM_TEXT[push.problem.value]() : null,
 )
 
-// 選べなかったときだけ一覧を出す
-watch(
-  () => push.problem.value,
-  async (problem) => {
-    choices.value =
-      problem === 'chooseDistributor' ? await push.distributors() : []
-  },
-)
-
-async function copyAndOpen() {
-  const s = status.value
-  if (!s?.code) return
-  await copyToClipboard(s.code)
-  void openSafeUrl(s.scratchpadUrl)
+async function toggle(row: PushAccountRow) {
+  acting.value = row.accountId
+  try {
+    if (turnsOn(row.state)) {
+      await push.prepare(row.accountId)
+      return
+    }
+    if (!turnsOff(row.state)) return
+    const target = account(row.accountId)
+    const ok = await confirm({
+      title: i18n.tsx._pushRegister.disableTitle({
+        user: target ? getAccountLabel(target) : row.accountId,
+      }),
+      message: i18n.ts._pushRegister.disableMessage,
+      okLabel: i18n.ts._pushRegister.disable,
+      type: 'danger',
+    })
+    if (ok) await push.disable(row.accountId)
+  } finally {
+    acting.value = null
+  }
 }
 
-async function stop(accountId: string) {
-  const ok = await confirm({
-    title: i18n.tsx._pushRegister.disableTitle({ user: label(accountId) }),
-    message: i18n.ts._pushRegister.disableMessage,
-    okLabel: i18n.ts._pushRegister.disable,
-    type: 'danger',
-  })
-  if (ok) await push.disable(accountId)
+async function pickApp(app: PushDistributor) {
+  if (app.active) return
+  // 使っているアカウントがあれば、切り替えると登録し直しが要る
+  if (rows.value.some((r) => turnsOff(r.state))) {
+    const ok = await confirm({
+      title: i18n.ts._pushRegister.switchTitle,
+      message: i18n.ts._pushRegister.switchMessage,
+    })
+    if (!ok) return
+  }
+  await push.choose(app.package)
+}
+
+const copiedHost = ref<string | null>(null)
+
+async function copyAndOpen(host: PushHostStatus & { code: string }) {
+  copiedHost.value = host.host
+  await copyToClipboard(host.code)
+  void openSafeUrl(host.scratchpadUrl)
 }
 </script>
 
@@ -138,103 +187,102 @@ async function stop(accountId: string) {
   <div :class="$style.content">
     <p :class="$style.hint">{{ i18n.ts._pushRegister.intro }}</p>
 
-    <template v-if="status !== null && !hasDistributor">
-      <p :class="$style.notice">{{ i18n.ts._pushRegister.noDistributor }}</p>
-      <div :class="$style.btnRow">
-        <button class="_button" :class="$style.primaryBtn" @click="openSafeUrl(DISTRIBUTORS_URL)">
-          <i class="ti ti-external-link" />
-          {{ i18n.ts._pushRegister.getApp }}
-        </button>
-        <button class="_button" :class="$style.actionBtn" @click="push.refresh()">
-          <i class="ti ti-refresh" />
-          {{ i18n.ts._pushRegister.checkAgain }}
-        </button>
+    <!-- プッシュ通知アプリの候補 (接続やペットと同じカード) -->
+    <section :class="$style.section">
+      <div :class="$style.heading">
+        <i class="ti ti-apps" />
+        <span>{{ i18n.ts._pushRegister.apps }}</span>
       </div>
-    </template>
-
-    <ul v-if="rows.length > 0" :class="$style.rows">
-      <li v-for="row in rows" :key="row.accountId" :class="$style.row">
-        <div :class="$style.rowText">
-          <span :class="$style.rowName">{{ label(row.accountId) }}</span>
-          <span :class="$style.rowState">
-            <i v-if="row.state === 'active'" class="ti ti-bell-ringing" :class="$style.activeIcon" />
-            {{ stateText(row) }}
-          </span>
-          <span v-if="row.reason && row.state === 'needsReregistration'" :class="$style.rowReason">
-            {{ REASON_TEXT[row.reason]() }}
-          </span>
-        </div>
-        <div :class="$style.rowActions">
-          <button
-            v-if="row.state === 'pending'"
-            class="_button"
-            :class="$style.rowBtn"
-            :disabled="push.busy.value"
-            @click="push.redo(row.accountId)"
-          >
-            {{ i18n.ts._pushRegister.redo }}
-          </button>
-          <button
-            v-if="row.state === 'pending' || row.state === 'active' || row.state === 'needsReregistration'"
-            class="_button"
-            :class="$style.rowBtnDanger"
-            :disabled="push.busy.value"
-            @click="stop(row.accountId)"
-          >
-            {{ i18n.ts._pushRegister.disable }}
-          </button>
-        </div>
-      </li>
-    </ul>
-
-    <template v-if="hasDistributor && canEnable">
-      <p :class="$style.hint">{{ i18n.ts._pushRegister.howItWorks }}</p>
-      <div :class="$style.btnRow">
-        <button class="_button" :class="$style.primaryBtn" :disabled="push.busy.value" @click="push.prepare()">
-          <i class="ti ti-bell-ringing" />
-          {{ push.busy.value ? i18n.ts._pushRegister.waiting : i18n.ts._pushRegister.enable }}
-        </button>
-      </div>
-    </template>
-
-    <div v-if="choices.length > 0" :class="$style.step">
-      <span :class="$style.stepTitle">{{ i18n.ts._pushRegister.chooseDistributor }}</span>
-      <div :class="$style.choices">
-        <button
-          v-for="d in choices"
-          :key="d.package"
-          class="_button"
-          :class="$style.actionBtn"
+      <ChoiceCardGrid v-if="apps.length > 0">
+        <ChoiceCard
+          v-for="app in apps"
+          :key="app.package"
+          icon="bell-ringing"
+          :label="app.label"
+          :title="app.package"
+          :active="app.active"
           :disabled="push.busy.value"
-          @click="push.choose(d.package)"
-        >
-          {{ d.label }}
-        </button>
-      </div>
-    </div>
-
-    <div v-if="status?.code" :class="$style.step">
-      <button class="_button" :class="[$style.primaryBtn, { [$style.feedback]: copied }]" @click="copyAndOpen">
-        <i :class="copied ? 'ti ti-check' : 'ti ti-copy'" />
-        {{ i18n.ts._pushRegister.copyAndOpen }}
+          @click="pickApp(app)"
+        />
+      </ChoiceCardGrid>
+      <p v-else-if="status !== null" :class="$style.notice">
+        {{ i18n.ts._pushRegister.noDistributor }}
+      </p>
+      <p v-if="push.problem.value === 'chooseDistributor' && apps.length > 0" :class="$style.hint">
+        {{ i18n.ts._pushRegister.chooseDistributor }}
+      </p>
+      <button type="button" :class="$style.link" @click="openSafeUrl(DISTRIBUTORS_URL)">
+        <i class="ti ti-external-link" />
+        {{ i18n.ts._pushRegister.getApp }}
       </button>
+    </section>
+
+    <!-- このサーバーのアカウント (ほかの画面と同じアカウントの行)。押すとオン / オフ -->
+    <section v-if="rows.length > 0" :class="$style.section">
+      <div :class="$style.heading">
+        <i class="ti ti-users" />
+        <span>{{ i18n.ts._pushRegister.accounts }}</span>
+      </div>
+      <div :class="$style.rows">
+        <AccountPickerRow
+          v-for="row in rows"
+          :key="row.accountId"
+          :label="getAccountLabel(account(row.accountId)!)"
+          :hint="rowHint(row)"
+          :disabled="push.busy.value || !(turnsOn(row.state) || turnsOff(row.state))"
+          @click="toggle(row)"
+        >
+          <template #avatar>
+            <AccountAvatar
+              :src="getAccountAvatarUrl(account(row.accountId)!)"
+              :host="account(row.accountId)!.host"
+              :size="32"
+            />
+          </template>
+          <template #trailing>
+            <i v-if="acting === row.accountId && push.busy.value" class="ti ti-loader-2" :class="[$style.trailing, $style.spin]" />
+            <span v-else-if="turnsOn(row.state)" :class="[$style.trailing, $style.turnOn]">
+              {{ i18n.ts._pushRegister.enable }}
+            </span>
+            <span v-else-if="turnsOff(row.state)" :class="[$style.trailing, $style.turnOff]">
+              {{ i18n.ts._pushRegister.disable }}
+            </span>
+          </template>
+        </AccountPickerRow>
+      </div>
+      <p v-if="canEnable" :class="$style.hint">{{ i18n.ts._pushRegister.howItWorks }}</p>
+    </section>
+
+    <!-- 未実行の登録待ちがあるサーバーごとのコード (同じサーバーのアカウントはまとめて 1 つ) -->
+    <div v-if="codes.length > 0" :class="$style.section">
+      <template v-for="h in codes" :key="h.host">
+        <span v-if="codes.length > 1" :class="$style.codeHost">{{ h.host }}</span>
+        <button
+          class="_button"
+          :class="[$style.primaryBtn, { [$style.feedback]: copied && copiedHost === h.host }]"
+          @click="copyAndOpen(h)"
+        >
+          <i :class="copied && copiedHost === h.host ? 'ti ti-check' : 'ti ti-copy'" />
+          {{ i18n.ts._pushRegister.copyAndOpen }}
+        </button>
+        <details :class="$style.codeDetails">
+          <summary>{{ i18n.ts._pushRegister.showCode }}</summary>
+          <pre :class="$style.code">{{ h.code }}</pre>
+        </details>
+      </template>
       <ol :class="$style.steps">
         <li>{{ i18n.ts._pushRegister.step1 }}</li>
         <li>{{ i18n.ts._pushRegister.step2 }}</li>
         <li>{{ i18n.ts._pushRegister.step3 }}</li>
       </ol>
-      <details :class="$style.codeDetails">
-        <summary>{{ i18n.ts._pushRegister.showCode }}</summary>
-        <pre :class="$style.code">{{ status.code }}</pre>
-      </details>
     </div>
 
     <p v-if="notArriving" :class="$style.notice">{{ i18n.ts._pushRegister.notArriving }}</p>
 
-    <div v-if="problemText" :class="$style.error">{{ problemText }}</div>
+    <div v-if="problemText && push.problem.value !== 'chooseDistributor'" :class="$style.error">{{ problemText }}</div>
     <div v-else-if="push.error.value" :class="$style.error">{{ i18n.ts._pushRegister.failed }}</div>
 
-    <button class="_button" :class="$style.docsLink" @click="openSafeUrl(DOCS_URL)">
+    <button type="button" :class="$style.link" @click="openSafeUrl(DOCS_URL)">
       <i class="ti ti-book" />
       {{ i18n.ts._pushRegister.learnMore }}
     </button>
@@ -248,14 +296,29 @@ async function stop(accountId: string) {
   display: flex;
   flex-direction: column;
   padding: 16px;
-  gap: 12px;
-  // 行・手順・案内が全部出ると窓の max-height を超える。DeckWindow の本体は
-  // overflow: hidden なので、スクロールは中身の側で持つ (PermissionsContent と同じ)
+  gap: 16px;
+  // 中身が窓の max-height を超える。DeckWindow の本体は overflow: hidden なので、
+  // スクロールは中身の側で持つ (PermissionsContent と同じ)
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   scrollbar-color: var(--nd-scrollbarHandle) transparent;
   scrollbar-width: thin;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+// ペットや接続の設定と同じ見出し
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--nd-font-md);
+  color: var(--nd-fg);
 }
 
 .hint {
@@ -278,75 +341,32 @@ async function stop(accountId: string) {
 .rows {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+  margin: 0 -12px;
 }
 
-.row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: var(--nd-bg);
-  border-radius: var(--nd-radius-sm);
-}
-
-.rowText {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  gap: 2px;
-}
-
-.rowName {
-  overflow: hidden;
+.trailing {
+  margin-left: auto;
+  flex-shrink: 0;
   font-size: var(--nd-font-sm);
-  font-weight: var(--nd-weight-bold);
-  color: var(--nd-fg);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.rowState,
-.rowReason {
-  font-size: var(--nd-font-sm);
-  line-height: 1.4;
-  color: var(--nd-fgMuted);
-}
-
-.activeIcon {
+.turnOn {
   color: var(--nd-accentText);
 }
 
-.rowActions {
-  display: flex;
-  flex-shrink: 0;
-  gap: 4px;
+.turnOff {
+  color: var(--nd-fgMuted);
 }
 
-.rowBtn {
-  @include btn-secondary;
+.spin {
+  display: inline-block;
+  animation: spin 1s linear infinite;
 }
 
-.rowBtnDanger {
-  @include btn-danger-ghost;
-  // 共通部品は幅いっぱいに広がるので、行の右端に収める
-  width: auto;
-}
-
-.step {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.stepTitle {
-  font-size: var(--nd-font-sm);
-  font-weight: var(--nd-weight-bold);
-  color: var(--nd-fg);
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .steps {
@@ -361,10 +381,10 @@ async function stop(accountId: string) {
   list-style: none;
 }
 
-.choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.codeHost {
+  font-size: var(--nd-font-sm);
+  font-weight: var(--nd-weight-bold);
+  color: var(--nd-fg);
 }
 
 .codeDetails {
@@ -385,31 +405,32 @@ async function stop(accountId: string) {
   border-radius: var(--nd-radius-sm);
 }
 
-.btnRow {
-  display: flex;
-  gap: 8px;
-}
-
-.actionBtn {
-  @include btn-action;
-}
-
 .feedback {
   color: var(--nd-accentText);
 }
 
 .primaryBtn {
   @include btn-primary;
-  flex: 1;
 }
 
-.docsLink {
-  display: flex;
+// ペットの「探す」と同じリンク
+.link {
+  @include nd-interactive;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   align-self: flex-start;
-  font-size: var(--nd-font-sm);
-  color: var(--nd-accentText);
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--nd-font-xs);
+  color: var(--nd-fgMuted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--nd-accentText);
+  }
 }
 
 .error {
