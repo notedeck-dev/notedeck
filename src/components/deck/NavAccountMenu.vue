@@ -49,8 +49,9 @@ useNativeDialog(
   },
 )
 
-// 閉じている間の通知の状態行 (#330 §4.5)。モバイルは定期確認、デスクトップは開いている
-// 間だけ。Android で通知が許可されていなければ OS の設定への導線を出す
+// 閉じている間の通知の状態行 (#330 §4.5)。モバイルだけ (定期確認か push か)。デスクトップは
+// 開いている間に届くのが当たり前で、操作にもつながらないので出さない。Android で通知が
+// 許可されていなければ OS の設定への導線を出す
 const uiStore = useUiStore()
 const {
   granted: notificationPermissionGranted,
@@ -69,7 +70,6 @@ watch(
   },
 )
 const backgroundNotifyLine = computed(() => {
-  if (!uiStore.isMobilePlatform) return i18n.ts._backgroundNotify.foregroundOnly
   switch (push.state.value) {
     case 'active':
       return i18n.ts._backgroundNotify.pushActive
@@ -177,7 +177,7 @@ const hasUpperSection = computed(
           <span :class="$style.navAccountMenuLabel">{{ backgroundNotifyLine }}</span>
           <i :class="['ti', pushIcon]" />
         </button>
-        <div v-else :class="$style.navAccountMenuStatus">
+        <div v-else-if="uiStore.isMobilePlatform" :class="$style.navAccountMenuStatus">
           {{ backgroundNotifyLine }}
         </div>
         <button

@@ -2906,7 +2906,6 @@ _notifyPermission:
 
 _backgroundNotify:
   polling: "Notifications while closed: checked periodically"
-  foregroundOnly: "Notifications arrive while the app is open"
   permissionDenied: "Notifications are not allowed"
   openSettings: "Open OS notification settings"
   pushActive: "Notifications while closed: push notifications"

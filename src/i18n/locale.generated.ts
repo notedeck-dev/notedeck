@@ -4787,8 +4787,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_backgroundNotify": {
     /** 閉じている間の通知: 定期的に確認 */
     readonly "polling": string
-    /** 通知は開いている間に届きます */
-    readonly "foregroundOnly": string
     /** 通知が許可されていません */
     readonly "permissionDenied": string
     /** OS の通知設定を開く */
