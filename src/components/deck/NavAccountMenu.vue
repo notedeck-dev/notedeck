@@ -61,6 +61,8 @@ const {
 // push (#330) は口座ごとのオプトイン。状態行は push の状態で出し分け、
 // 登録や解除はサーバー単位の専用のウィンドウで行う (同じサーバーの口座をまとめて登録できる)
 const push = usePushState(() => props.account.id)
+// メニューは開くたびに v-if で作られ、show は最初から true で来る。開いた時点でも読まないと
+// 状態が null のままで、状態行が押せる行にならない (登録の窓へ進めない)
 watch(
   () => props.show,
   (show) => {
@@ -68,6 +70,7 @@ watch(
     void refreshNotificationPermission()
     if (props.account.hasToken) void push.refresh()
   },
+  { immediate: true },
 )
 const backgroundNotifyLine = computed(() => {
   switch (push.state.value) {
