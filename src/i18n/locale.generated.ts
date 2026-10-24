@@ -4799,8 +4799,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "pushPending": string
     /** プッシュ通知: 登録し直しが要ります */
     readonly "pushNeedsRegistration": string
-    /** プッシュ通知 */
-    readonly "pushSetup": string
   }
   readonly "_pushRegister": {
     /** プッシュ通知アプリ (UnifiedPush 対応のアプリ) を使うと、NoteDeck を閉じている間も通知がすぐ届きます。使わなくても、閉じている間は定期的に確認して知らせます。 */

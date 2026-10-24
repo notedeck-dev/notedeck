@@ -88,6 +88,20 @@ const canSetUpPush = computed(
     push.state.value !== null &&
     push.state.value !== 'unavailable',
 )
+// 対応が要る状態は、再ログイン / OS の通知設定と同じアクセント色で出す
+const pushNeedsAttention = computed(
+  () => push.state.value === 'needsReregistration',
+)
+const pushIcon = computed(() => {
+  switch (push.state.value) {
+    case 'active':
+      return 'ti-bell-ringing'
+    case 'needsReregistration':
+      return 'ti-bell-exclamation'
+    default:
+      return 'ti-bell'
+  }
+})
 function openPushRegister() {
   useWindowsStore().open('push-register', { host: props.account.host })
   emit('close')
@@ -153,18 +167,19 @@ const hasUpperSection = computed(
         <i class="ti ti-eraser" />
       </button>
       <template v-if="account.hasToken">
-        <div :class="$style.navAccountMenuStatus">
-          {{ backgroundNotifyLine }}
-        </div>
+        <!-- push を扱える端末では状態行そのものを押して登録の窓を開く (ほかの項目と同じ 1 行 = 1 操作) -->
         <button
           v-if="canSetUpPush"
           class="_button"
-          :class="$style.navAccountMenuItem"
+          :class="[$style.navAccountMenuItem, { [$style.navAccountRelogin]: pushNeedsAttention }]"
           @click="openPushRegister"
         >
-          <span>{{ i18n.ts._backgroundNotify.pushSetup }}</span>
-          <i class="ti ti-bell-ringing" />
+          <span :class="$style.navAccountMenuLabel">{{ backgroundNotifyLine }}</span>
+          <i :class="['ti', pushIcon]" />
         </button>
+        <div v-else :class="$style.navAccountMenuStatus">
+          {{ backgroundNotifyLine }}
+        </div>
         <button
           v-if="notificationPermissionGranted === false"
           class="_button"

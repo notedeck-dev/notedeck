@@ -1,5 +1,5 @@
 ---
-sourceHash: 6505c119cecc
+sourceHash: 24f19480c163
 ---
 
 # Receiving notifications
@@ -42,7 +42,7 @@ With a push notification app (one that supports UnifiedPush, such as ntfy), noti
 
 Because of how Misskey works, the app cannot finish registering for push notifications on its own. Once per account, you run a code in Scratchpad in that server's Web UI. Accounts on the same server can be registered with a single code.
 
-1. Open "Push notifications" from the account menu on the navigation bar and press "Turn on". If no push notification app is installed, a button opens where to get one. If you have more than one, a screen asks which one to use
+1. In the account menu on the navigation bar, press the "Notifications while closed" row to open the registration screen, then press "Turn on". If no push notification app is installed, a button opens where to get one. If you have more than one, a screen asks which one to use
 2. Press "Copy and open Scratchpad"
 3. In the browser that opens, make sure you are logged in as the account you are registering. Select everything in Scratchpad and paste the code (if it is empty, long-press to paste), then press ▶ right below the code
 4. When it says the account is turned on, you are done in the browser. Within a few minutes a notification says push notifications now arrive. For other accounts on the same server, switch to each in the browser and press ▶ the same way

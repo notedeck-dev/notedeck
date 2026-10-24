@@ -2912,7 +2912,6 @@ _backgroundNotify:
   pushActive: "Notifications while closed: push notifications"
   pushPending: "Push notifications: registration in progress"
   pushNeedsRegistration: "Push notifications: register again"
-  pushSetup: "Push notifications"
 
 _pushRegister:
   intro: "With a push notification app (one that supports UnifiedPush), notifications arrive right away even while NoteDeck is closed. Without one, NoteDeck still checks periodically while closed."

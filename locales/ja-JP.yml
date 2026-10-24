@@ -2642,7 +2642,6 @@ _backgroundNotify:
   pushActive: "閉じている間の通知: プッシュ通知"
   pushPending: "プッシュ通知: 登録の途中です"
   pushNeedsRegistration: "プッシュ通知: 登録し直しが要ります"
-  pushSetup: "プッシュ通知"
 
 _pushRegister:
   intro: "プッシュ通知アプリ (UnifiedPush 対応のアプリ) を使うと、NoteDeck を閉じている間も通知がすぐ届きます。使わなくても、閉じている間は定期的に確認して知らせます。"

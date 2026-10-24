@@ -168,7 +168,7 @@ async function stop(accountId: string) {
           <button
             v-if="row.state === 'pending'"
             class="_button"
-            :class="$style.smallBtn"
+            :class="$style.rowBtn"
             :disabled="push.busy.value"
             @click="push.redo(row.accountId)"
           >
@@ -177,7 +177,7 @@ async function stop(accountId: string) {
           <button
             v-if="row.state === 'pending' || row.state === 'active' || row.state === 'needsReregistration'"
             class="_button"
-            :class="[$style.smallBtn, $style.dangerText]"
+            :class="$style.rowBtnDanger"
             :disabled="push.busy.value"
             @click="stop(row.accountId)"
           >
@@ -249,6 +249,13 @@ async function stop(accountId: string) {
   flex-direction: column;
   padding: 16px;
   gap: 12px;
+  // 行・手順・案内が全部出ると窓の max-height を超える。DeckWindow の本体は
+  // overflow: hidden なので、スクロールは中身の側で持つ (PermissionsContent と同じ)
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-color: var(--nd-scrollbarHandle) transparent;
+  scrollbar-width: thin;
 }
 
 .hint {
@@ -320,15 +327,14 @@ async function stop(accountId: string) {
   gap: 4px;
 }
 
-.smallBtn {
-  padding: 4px 8px;
-  font-size: var(--nd-font-sm);
-  color: var(--nd-accentText);
-  border-radius: var(--nd-radius-sm);
+.rowBtn {
+  @include btn-secondary;
 }
 
-.dangerText {
-  color: var(--nd-love);
+.rowBtnDanger {
+  @include btn-danger-ghost;
+  // 共通部品は幅いっぱいに広がるので、行の右端に収める
+  width: auto;
 }
 
 .step {
