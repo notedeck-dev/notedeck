@@ -26,6 +26,18 @@ const emit = defineEmits<{
 
 const openFolders = reactive<Record<string, boolean>>({})
 
+// #1249: 本家 MkAsUi の text / mfm が持つ font prop (serif / sans-serif / monospace)。
+// 等幅は MFM の $[font.monospace] を書かなくても指定できるようにする
+const FONT_FAMILIES: Record<string, string> = {
+  serif: 'serif',
+  'sans-serif': 'sans-serif',
+  monospace: 'var(--nd-font-mono)',
+}
+function fontStyle(font: unknown): CSSProperties | undefined {
+  const family = typeof font === 'string' ? FONT_FAMILIES[font] : undefined
+  return family ? { fontFamily: family } : undefined
+}
+
 // select は選んだ値を手元に持つ (default を据え置いたまま描き直すと選択が戻るため)。
 // スクリプトが default を変えたらそちらに従う (本家の Ui:C:select と同じ)
 const picked = reactive<Record<string, { from: string; value: string }>>({})
@@ -96,7 +108,11 @@ function handlePostFormButton(comp: UiComponent) {
   <div :class="$style.aisUiRenderer">
     <template v-for="comp in components" :key="comp.id">
       <!-- text / mfm (both rendered as MFM, matching Misskey behavior) -->
-      <div v-if="comp.type === 'text' || comp.type === 'mfm'" :class="$style.aisMfm">
+      <div
+        v-if="comp.type === 'text' || comp.type === 'mfm'"
+        :class="$style.aisMfm"
+        :style="fontStyle(comp.props.font)"
+      >
         <MkMfm :text="(comp.props.text as string) ?? ''" :server-host="serverHost" />
       </div>
 
