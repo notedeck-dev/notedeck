@@ -34,6 +34,7 @@ const SECRET_LABELS = {
   apiToken: () => i18n.ts._connectionTemplates.apiToken,
   apiTokenRaw: () => i18n.ts._connectionTemplates.apiTokenRaw,
   deeplAuthHeader: () => i18n.ts._connectionTemplates.deeplAuthHeader,
+  vrchatAuthCookie: () => i18n.ts._connectionTemplates.vrchatAuthCookie,
 } satisfies Record<SecretLabelKey, () => string>
 
 export const BUILTIN_TEMPLATES: ConnectionTemplate[] =

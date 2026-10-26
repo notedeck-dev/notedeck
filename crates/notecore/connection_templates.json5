@@ -264,4 +264,19 @@
     secretLabel: { i18n: 'apiKeyMewk' },
     secretHelpUrl: 'https://mewk.app/settings/developer',
   },
+  {
+    // MisStore の vrc-in-here (VRChat のワールド移動を投稿) が要求する。VRChat API は
+    // 非公式で cookie 認証。Creator Guidelines がツールによるログイン情報の要求を禁じて
+    // いるので、ログイン済みブラウザの auth cookie (2FA 済みなら twoFactorAuth cookie も)
+    // を Cookie ヘッダー値としてそのまま秘匿する
+    id: 'builtin:vrchat@1',
+    name: 'VRChat',
+    icon: 'headset',
+    baseUrl: 'https://api.vrchat.cloud',
+    authType: { kind: 'header', name: 'Cookie' },
+    allowedHosts: ['api.vrchat.cloud'],
+    testPath: '/api/1/auth/user',
+    secretLabel: { i18n: 'vrchatAuthCookie' },
+    secretHelpUrl: 'https://store.notedeck.io/plugins/vrc-in-here',
+  },
 ]
