@@ -22,6 +22,8 @@ const me = ref('')
 
 // --- 絵文字 (サーバーの /api/emojis を直接引く。ブラウザからでも CORS で読める) ---
 const host = ref('misskey.io')
+/** プレビューに渡すホスト。絵文字の辞書と同じサーバーを指すよう、取得できた組で更新する */
+const previewHost = ref('misskey.io')
 const emojis = shallowRef<Record<string, string>>({})
 const emojiStatus = ref('')
 const emojiBusy = ref(false)
@@ -31,6 +33,8 @@ async function fetchEmojis() {
     .replace(/^https?:\/\//, '')
     .replace(/\/.*$/, '')
   if (!h) return
+  // 入力は取得の前に正規化しておく。応答を待つ間に書き換えられたら結果は捨てる
+  host.value = h
   emojiBusy.value = true
   emojiStatus.value = ''
   try {
@@ -39,10 +43,11 @@ async function fetchEmojis() {
     const body = (await res.json()) as {
       emojis?: { name: string; url: string }[]
     }
+    if (host.value !== h) return
     const map: Record<string, string> = {}
     for (const e of body.emojis ?? []) map[e.name] = e.url
     emojis.value = map
-    host.value = h
+    previewHost.value = h
     emojiStatus.value = i18n.tsx._devMfm.emojisLoaded({
       count: Object.keys(map).length,
     })
@@ -80,7 +85,10 @@ async function loadNote() {
       _serverHost?: string
     }
     text.value = note.text ?? note.cw ?? ''
-    if (note._serverHost) host.value = note._serverHost
+    if (note._serverHost) {
+      host.value = note._serverHost
+      previewHost.value = note._serverHost
+    }
     emojis.value = { ...emojis.value, ...(note.emojis ?? {}) }
     noteStatus.value = i18n.ts._devMfm.noteLoaded
   } catch (e) {
@@ -92,7 +100,7 @@ async function loadNote() {
 </script>
 
 <template>
-  <MfmPlayground v-model="text" :emojis="emojis" :server-host="host" :my-username="me || undefined" dev-tools>
+  <MfmPlayground v-model="text" :emojis="emojis" :server-host="previewHost" :my-username="me || undefined" dev-tools>
     <template #settings>
       <div :class="$style.group">
         <p :class="$style.groupTitle">{{ i18n.ts._devMfm.appSettings }}</p>

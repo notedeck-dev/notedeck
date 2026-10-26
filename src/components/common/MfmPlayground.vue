@@ -52,7 +52,10 @@ const lang = jsonLang()
 const sampleId = ref<MfmPlaygroundSample['id'] | ''>('')
 watch(sampleId, (id) => {
   const sample = MFM_PLAYGROUND_SAMPLES.find((s) => s.id === id)
-  if (sample) text.value = sample.text
+  if (!sample) return
+  text.value = sample.text
+  // 選択を戻しておかないと、同じサンプルを選び直しても watch が発火しない
+  sampleId.value = ''
 })
 const sampleLabels = computed<Record<MfmPlaygroundSample['id'], string>>(
   () => ({
