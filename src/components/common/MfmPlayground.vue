@@ -4,13 +4,13 @@ import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import FormInput from '@/components/common/form/FormInput.vue'
 import FormSelect from '@/components/common/form/FormSelect.vue'
 import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
+import MfmFunctionTable from '@/components/common/MfmFunctionTable.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { formatTime } from '@/utils/formatTime'
 import { type MfmNode, parseTokens } from '@/utils/mfm'
 import {
-  MFM_PLAYGROUND_FUNCTION_ROWS,
   MFM_PLAYGROUND_SAMPLES,
   type MfmPlaygroundSample,
 } from './mfmPlaygroundSamples'
@@ -142,7 +142,6 @@ function onPreviewClick(e: MouseEvent) {
       <div :class="$style.paneHead">
         <span :class="$style.paneTitle">MFM</span>
         <div :class="$style.headActions">
-          <slot name="editorActions" />
           <FormSelect v-model="sampleId" :label="i18n.ts._mfmPlayground.sample" filled>
             <option value="">{{ i18n.ts._mfmPlayground.sample }}</option>
             <option v-for="s in MFM_PLAYGROUND_SAMPLES" :key="s.id" :value="s.id">
@@ -205,22 +204,7 @@ function onPreviewClick(e: MouseEvent) {
           <CodeEditor :model-value="astJson" :language="lang" read-only auto-height />
         </div>
         <div v-else :class="$style.fnBody" :style="{ fontSize: `${fontSize}px` }">
-          <table :class="$style.fnTable">
-            <thead>
-              <tr>
-                <th>{{ i18n.ts._mfmPlayground.fnSyntax }}</th>
-                <th>{{ i18n.ts._mfmPlayground.fnRender }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in MFM_PLAYGROUND_FUNCTION_ROWS" :key="row">
-                <td><code :class="$style.code">{{ row }}</code></td>
-                <td :style="{ '--nd-mfm-play-state': paused ? 'paused' : 'running' }">
-                  <MkMfm :text="row" :emojis="props.emojis" :server-host="props.serverHost" />
-                </td>
-              </tr>
-            </tbody>
-          </table>
+          <MfmFunctionTable :emojis="props.emojis" :server-host="props.serverHost" :paused="paused" />
         </div>
       </div>
 
@@ -425,33 +409,6 @@ function onPreviewClick(e: MouseEvent) {
 .fnBody {
   padding: 8px 12px;
   overflow: auto;
-}
-
-.fnTable {
-  width: 100%;
-  border-collapse: collapse;
-
-  th,
-  td {
-    padding: 8px;
-    border-bottom: 1px solid var(--nd-divider);
-    text-align: left;
-    vertical-align: middle;
-  }
-
-  th {
-    font-size: var(--nd-font-xs);
-    opacity: 0.6;
-  }
-
-  td:first-child {
-    width: 45%;
-  }
-}
-
-.code {
-  font-family: var(--nd-font-mono);
-  font-size: var(--nd-font-xs);
 }
 
 .linkBtn {

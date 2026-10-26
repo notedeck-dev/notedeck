@@ -20,14 +20,11 @@ vi.mock('@/composables/useColumnSetup', async (orig) => {
   return { useColumnSetup: vi.fn(actual.useColumnSetup) }
 })
 
-// プレイグラウンド本体 (MkMfm / CodeMirror) は対象外。v-model だけ見える stub にする
+// プレビュー (MkMfm / 関数一覧 / CodeMirror) は対象外
 const stubs = {
-  MfmPlayground: {
-    props: ['modelValue'],
-    emits: ['update:modelValue'],
-    template:
-      '<div><textarea data-mfm :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" /><slot name="editorActions" /></div>',
-  },
+  MkMfm: true,
+  MfmFunctionTable: true,
+  CodeEditor: true,
 }
 
 beforeEach(() => {
@@ -60,7 +57,7 @@ describe('DeckMfmEditorColumn', () => {
       const deckStore = useDeckStore()
       deckStore.columns.push(column)
       const wrapper = await mountColumn(DeckMfmEditorColumn, column, stubs)
-      const area = wrapper.find('textarea[data-mfm]')
+      const area = wrapper.find('textarea')
       expect((area.element as HTMLTextAreaElement).value).toBe('$[spin a]')
 
       await area.setValue('$[tada b]')
