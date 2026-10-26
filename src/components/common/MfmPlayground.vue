@@ -6,6 +6,7 @@ import FormSelect from '@/components/common/form/FormSelect.vue'
 import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { i18n } from '@/i18n'
+import { isExposed } from '@/settings/exposure'
 import { formatTime } from '@/utils/formatTime'
 import { type MfmNode, parseTokens } from '@/utils/mfm'
 import {
@@ -33,7 +34,14 @@ const props = defineProps<{
   serverHost?: string
   /** 自分のユーザー名 (メンションの強調) */
   myUsername?: string
+  /**
+   * 開発者向けの要素 (AST タブ / 画面外と同じ停止状態) を常に出す。省略時は
+   * 開発者モード (#1034) のときだけ出す。Dev Dashboard は常に出す
+   */
+  devTools?: boolean
 }>()
+
+const showDevTools = computed(() => props.devTools || isExposed('developer'))
 
 const CodeEditor = defineAsyncComponent(
   () => import('@/components/deck/widgets/CodeEditor.vue'),
@@ -66,6 +74,11 @@ const noteFrame = ref(true)
 const width = ref<'360' | '420' | '560' | 'auto'>('360')
 const fontSize = ref<'14' | '15' | '16' | '17'>('15')
 const tab = ref<'preview' | 'ast' | 'functions'>('preview')
+const tabs = computed(() =>
+  showDevTools.value
+    ? (['preview', 'ast', 'functions'] as const)
+    : (['preview', 'functions'] as const),
+)
 
 const frameStyle = computed(() => ({
   width: width.value === 'auto' ? undefined : `${width.value}px`,
@@ -124,7 +137,7 @@ function onPreviewClick(e: MouseEvent) {
 </script>
 
 <template>
-  <div :class="$style.root">
+  <div :class="$style.host"><div :class="$style.root">
     <section :class="$style.editor">
       <div :class="$style.paneHead">
         <span :class="$style.paneTitle">MFM</span>
@@ -155,7 +168,7 @@ function onPreviewClick(e: MouseEvent) {
         <div :class="$style.paneHead">
           <div :class="$style.tabs" role="tablist">
             <button
-              v-for="t in (['preview', 'ast', 'functions'] as const)"
+              v-for="t in tabs"
               :key="t"
               type="button"
               role="tab"
@@ -233,6 +246,7 @@ function onPreviewClick(e: MouseEvent) {
       <div :class="$style.group">
         <p :class="$style.groupTitle">{{ i18n.ts._mfmPlayground.display }}</p>
         <FormSwitchRow
+          v-if="showDevTools"
           :label="i18n.ts._mfmPlayground.paused"
           :sub-label="i18n.ts._mfmPlayground.pausedDesc"
           :on="paused"
@@ -268,14 +282,19 @@ function onPreviewClick(e: MouseEvent) {
       </div>
       <slot name="settings" />
     </aside>
-  </div>
+  </div></div>
 </template>
 
 <style lang="scss" module>
 @use '@/styles/buttons' as *;
 
-.root {
+/* コンテナクエリは祖先のコンテナを見るので、グリッド自身ではなく外側を
+   コンテナにする */
+.host {
   container-type: inline-size;
+}
+
+.root {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) 300px;
   gap: 12px;

@@ -84,6 +84,8 @@ export interface Locale {
     readonly "queryManager": string
     /** メモ */
     readonly "memos": string
+    /** MFM エディター */
+    readonly "mfmEditor": string
     /** AI */
     readonly "ai": string
     /** スキル */
@@ -1274,6 +1276,12 @@ export interface Locale {
     readonly "launchAsDesktopApp": string
     /** 起動を検知すると自動で Dev Dashboard に切り替わります */
     readonly "autoSwitchHint": string
+  }
+  readonly "_deckMfmEditorColumn": {
+    /** 投稿フォームへ */
+    readonly "sendToPostForm": string
+    /** この本文で投稿フォームを開く */
+    readonly "sendToPostFormTitle": string
   }
   readonly "_mfmPlayground": {
     /** サンプル */
@@ -7254,6 +7262,11 @@ export const COLUMN_LABELS_BY_TYPE: Readonly<Record<string, readonly string[]>> 
     "メモ",
     "Memos",
     "[Méḿóš ĺ]"
+  ],
+  "mfmEditor": [
+    "MFM エディター",
+    "MFM editor",
+    "[MFM éđíťóŕ ĺóŕ]"
   ],
   "ai": [
     "AI",

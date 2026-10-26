@@ -576,6 +576,19 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     accountIndependent: true,
     defaultProps: { accountId: null },
   },
+  mfmEditor: {
+    get label() {
+      return i18n.ts._columns.mfmEditor
+    },
+    icon: 'text-caption',
+    group: 'tool',
+    guestAllowed: true,
+    // 書く面なので一般に出す (開発者向けの AST / 停止は部品の中で開発者モードに
+    // 絞る)。本文はカラム設定に持ち、絵文字の解決は予備のアカウントのサーバー
+    accountIndependent: true,
+    defaultWidth: 420,
+    defaultProps: { accountId: null },
+  },
   // 「もっと」はこの並び順で出る。AI はスキル / スクラッチパッドの前
   ai: {
     get label() {

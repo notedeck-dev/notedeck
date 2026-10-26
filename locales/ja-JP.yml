@@ -52,6 +52,7 @@ _columns:
   widget: "ウィジェット"
   queryManager: "クエリ"
   memos: "メモ"
+  mfmEditor: "MFM エディター"
   ai: "AI"
   skill: "スキル"
   aiscript: "スクラッチパッド"
@@ -709,6 +710,9 @@ _devWelcome:
   launchAsDesktopApp: "デスクトップアプリとして起動してください"
   autoSwitchHint: "起動を検知すると自動で Dev Dashboard に切り替わります"
 
+_deckMfmEditorColumn:
+  sendToPostForm: "投稿フォームへ"
+  sendToPostFormTitle: "この本文で投稿フォームを開く"
 _mfmPlayground:
   sample: "サンプル"
   sampleBasic: "基本"

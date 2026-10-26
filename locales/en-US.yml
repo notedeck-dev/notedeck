@@ -45,6 +45,7 @@ _columns:
   widget: "Widget"
   queryManager: "Queries"
   memos: "Memos"
+  mfmEditor: "MFM editor"
   ai: "AI"
   skill: "Skills"
   aiscript: "Scratchpad"

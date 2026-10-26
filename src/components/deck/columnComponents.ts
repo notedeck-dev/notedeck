@@ -64,6 +64,7 @@ const BUILTIN_COLUMN_LOADERS: Record<BuiltinColumnType, Loader> = {
   widget: () => import('@/components/deck/DeckWidgetColumn.vue'),
   queryManager: () => import('@/components/deck/DeckQueryManagerColumn.vue'),
   memos: () => import('@/components/deck/DeckMemoColumn.vue'),
+  mfmEditor: () => import('@/components/deck/DeckMfmEditorColumn.vue'),
   ai: () => import('@/components/deck/DeckAiColumn.vue'),
   skill: () => import('@/components/deck/DeckSkillColumn.vue'),
   aiscript: () => import('@/components/deck/DeckAiScriptColumn.vue'),

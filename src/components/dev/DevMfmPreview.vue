@@ -92,7 +92,7 @@ async function loadNote() {
 </script>
 
 <template>
-  <MfmPlayground v-model="text" :emojis="emojis" :server-host="host" :my-username="me || undefined">
+  <MfmPlayground v-model="text" :emojis="emojis" :server-host="host" :my-username="me || undefined" dev-tools>
     <template #settings>
       <div :class="$style.group">
         <p :class="$style.groupTitle">{{ i18n.ts._devMfm.appSettings }}</p>
