@@ -9,7 +9,7 @@
  *   OpenAI:    https://platform.openai.com/docs/guides/function-calling
  */
 
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { sanitizeToolName } from './identifier'
 import type { CapabilitySignature, ParameterDef } from './types'
 
@@ -33,7 +33,7 @@ export interface AnthropicTool {
   input_schema: InputSchema
 }
 
-export function toAnthropicTool(cmd: Command): AnthropicTool {
+export function toAnthropicTool(cmd: Capability): AnthropicTool {
   if (!cmd.signature) {
     throw new Error(`Capability "${cmd.id}" has no signature`)
   }
@@ -55,7 +55,7 @@ export interface OpenAiTool {
   }
 }
 
-export function toOpenAiTool(cmd: Command): OpenAiTool {
+export function toOpenAiTool(cmd: Capability): OpenAiTool {
   if (!cmd.signature) {
     throw new Error(`Capability "${cmd.id}" has no signature`)
   }

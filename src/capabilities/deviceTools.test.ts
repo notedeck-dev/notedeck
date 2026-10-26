@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { collectDeviceTools, collectRuntimeEnums } from './deviceTools'
 
-function cmd(partial: Partial<Command> & { id: string }): Command {
+function cmd(partial: Partial<Capability> & { id: string }): Capability {
   return {
     label: partial.id,
     icon: 'ti-bolt',
     category: 'general',
-    shortcuts: [],
-    visible: false,
+    signature: { description: partial.id },
     execute: async () => undefined,
     ...partial,
   }

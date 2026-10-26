@@ -3,8 +3,10 @@ import type { Value } from '@syuilo/aiscript/interpreter/value.js'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   _clearCapabilitiesForTest,
+  getCapability,
   registerCapability,
 } from '@/capabilities/registry'
+import type { Capability } from '@/capabilities/types'
 import type { Command, useCommandStore } from '@/commands/registry'
 import type { Principal } from '@/permissions/principal'
 import { setPermissionPreset } from '@/permissions/schema'
@@ -88,13 +90,12 @@ function setPresetForTest(preset: 'readonly' | 'safe' | 'full'): void {
   )
 }
 
-function makeCapability(overrides: Partial<Command> = {}): Command {
+function makeCapability(overrides: Partial<Capability> = {}): Capability {
   return {
     id: 'test.cap',
     label: 'test',
     icon: 'ti-flask',
     category: 'general',
-    shortcuts: [],
     aiTool: true,
     permissions: [],
     signature: { description: 'test capability' },
@@ -176,10 +177,8 @@ describe('Nd:register_command (4-arg legacy form)', () => {
     expect(cmd.label).toBe('Greet')
     expect(cmd.icon).toBe('ti-hand')
     expect(cmd.category).toBe('general')
-    expect(cmd.aiTool).toBeUndefined()
-    expect(cmd.signature).toBeUndefined()
-    expect(cmd.permissions).toBeUndefined()
-    expect(cmd.requiresConfirmation).toBeUndefined()
+    // options 無しは capability にならない
+    expect(getCapability('acme.clock:greet')).toBeUndefined()
   })
 })
 
@@ -210,7 +209,7 @@ describe('Nd:register_command (5-arg with options)', () => {
     expect(register).not.toHaveBeenCalled()
   })
 
-  it('forwards aiTool/signature/permissions/requiresConfirmation to commandStore', async () => {
+  it('aiTool と signature を宣言した options は capability としても登録される', async () => {
     const options = utils.jsToVal({
       aiTool: true,
       permissions: ['notes.write'],
@@ -235,14 +234,15 @@ describe('Nd:register_command (5-arg with options)', () => {
       options,
     ])
     expect(register).toHaveBeenCalledTimes(1)
-    const cmd = nthCommand(register, 0)
-    expect(cmd.aiTool).toBe(true)
-    expect(cmd.permissions).toEqual(['notes.write'])
-    expect(cmd.requiresConfirmation).toBe(true)
-    expect(cmd.signature?.description).toBe('Reverse the input string')
-    expect(cmd.signature?.params?.text?.type).toBe('string')
-    expect(cmd.signature?.returns?.type).toBe('string')
-    expect(cmd.signature?.cheap).toBe(true)
+    expect(nthCommand(register, 0).id).toBe('acme.clock:reverse')
+    const cap = getCapability('acme.clock:reverse')
+    expect(cap?.aiTool).toBe(true)
+    expect(cap?.permissions).toEqual(['notes.write'])
+    expect(cap?.requiresConfirmation).toBe(true)
+    expect(cap?.signature.description).toBe('Reverse the input string')
+    expect(cap?.signature.params?.text?.type).toBe('string')
+    expect(cap?.signature.returns?.type).toBe('string')
+    expect(cap?.signature.cheap).toBe(true)
   })
 
   it('keeps aiTool false when omitted, even if signature is present', async () => {
@@ -256,9 +256,9 @@ describe('Nd:register_command (5-arg with options)', () => {
       dummyHandler,
       options,
     ])
-    const cmd = nthCommand(register, 0)
-    expect(cmd.aiTool).toBeUndefined()
-    expect(cmd.signature?.description).toBe('no ai exposure')
+    expect(nthCommand(register, 0).id).toBe('acme.clock:local-only')
+    // signature だけで aiTool が無ければ capability にはならない
+    expect(getCapability('acme.clock:local-only')).toBeUndefined()
   })
 
   it('drops non-string entries from permissions array', async () => {
@@ -274,8 +274,10 @@ describe('Nd:register_command (5-arg with options)', () => {
       dummyHandler,
       options,
     ])
-    const cmd = nthCommand(register, 0)
-    expect(cmd.permissions).toEqual(['notes.read', 'notifications'])
+    expect(getCapability('acme.clock:mixed')?.permissions).toEqual([
+      'notes.read',
+      'notifications',
+    ])
   })
 
   it('ignores a non-object options argument', async () => {
@@ -286,9 +288,8 @@ describe('Nd:register_command (5-arg with options)', () => {
       dummyHandler,
       values.STR('not-an-object'),
     ])
-    const cmd = nthCommand(register, 0)
-    expect(cmd.aiTool).toBeUndefined()
-    expect(cmd.signature).toBeUndefined()
+    expect(nthCommand(register, 0).id).toBe('acme.clock:plain')
+    expect(getCapability('acme.clock:plain')).toBeUndefined()
   })
 })
 
@@ -707,18 +708,24 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
     } as unknown as Interpreter
   }
 
+  afterEach(() => {
+    _clearCapabilitiesForTest()
+  })
+  /** capability (dispatcher 経由の実行体) とパレットの Command の両方を返す */
   async function registerOne(
     stores: ReturnType<typeof makeFakeStores>,
-  ): Promise<Command> {
+  ): Promise<{ cap: Capability; cmd: Command }> {
     const env = createNoteDeckEnv(stores.ctx)
     await callRegisterCommand(env, [
       values.STR('cmd'),
       values.STR('Cmd'),
       values.STR('ti-x'),
       values.FN_NATIVE(() => values.NULL),
-      utils.jsToVal({ aiTool: true }),
+      utils.jsToVal({ aiTool: true, signature: { description: 'd' } }),
     ])
-    return nthCommand(stores.register, 0)
+    const cap = getCapability('acme.clock:cmd')
+    if (!cap) throw new Error('capability not registered')
+    return { cap, cmd: nthCommand(stores.register, 0) }
   }
 
   it('dispatcher 経由の実行中は呼び出し元が積まれ、終了後に降りる', async () => {
@@ -727,8 +734,8 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
     stores.ctx.interpreter = fakeInterpreter(() => {
       seen = [...stores.ctx.callers]
     })
-    const cmd = await registerOne(stores)
-    const result = await cmd.execute(
+    const { cap } = await registerOne(stores)
+    const result = await cap.execute(
       { x: 1 },
       { principal: { kind: 'ai.chat' } },
     )
@@ -744,8 +751,8 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
       seen = [...stores.ctx.callers]
     })
     stores.ctx.interpreter = interp
-    const cmd = await registerOne(stores)
-    await cmd.execute(undefined, { principal: { kind: 'external' } })
+    const { cap } = await registerOne(stores)
+    await cap.execute(undefined, { principal: { kind: 'external' } })
     expect(seen).toEqual([{ kind: 'external' }])
     expect(interp.execFnSimple).toHaveBeenCalledWith(expect.anything(), [])
   })
@@ -756,8 +763,8 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
     stores.ctx.interpreter = fakeInterpreter(() => {
       seen = [...stores.ctx.callers]
     })
-    const cmd = await registerOne(stores)
-    await cmd.execute(
+    const { cap } = await registerOne(stores)
+    await cap.execute(
       { x: 1 },
       {
         principal: { kind: 'plugin', pluginId: 'other' },
@@ -779,9 +786,9 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
         throw new Error('boom')
       }),
     } as unknown as Interpreter
-    const cmd = await registerOne(stores)
+    const { cap } = await registerOne(stores)
     await expect(
-      cmd.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
+      cap.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
     ).rejects.toThrow('boom')
     expect(stores.ctx.callers).toEqual([])
   })
@@ -792,8 +799,8 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
     stores.ctx.interpreter = fakeInterpreter(() => {
       seen = [...stores.ctx.callers]
     })
-    const cmd = await registerOne(stores)
-    await cmd.execute({ x: 1 }, { principal: { kind: 'user' } })
+    const { cap } = await registerOne(stores)
+    await cap.execute({ x: 1 }, { principal: { kind: 'user' } })
     expect(seen).toEqual([])
   })
 
@@ -801,7 +808,7 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
     const stores = makeFakeStores()
     const interp = fakeInterpreter(noop)
     stores.ctx.interpreter = interp
-    const cmd = await registerOne(stores)
+    const { cmd } = await registerOne(stores)
     await cmd.execute()
     expect(interp.execFn).toHaveBeenCalledWith(expect.anything(), [])
     expect(interp.execFnSimple).not.toHaveBeenCalled()

@@ -33,12 +33,6 @@ describe('tasks.run capability', () => {
       /taskId is required/,
     )
   })
-
-  it('is hidden from command palette (visible: false)', () => {
-    // タスクは TaskRunner カラムから run するもので、コマンドパレット経由
-    // で実行する想定はない (= 重複 UI を避ける)
-    expect(tasksRunCapability.visible).toBe(false)
-  })
 })
 
 describe('TASKS_BUILTIN_CAPABILITIES export', () => {

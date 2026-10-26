@@ -1,6 +1,5 @@
 import type { Connection, PrincipalClass } from '@/bindings'
-import type { CapabilityContext } from '@/capabilities/types'
-import type { Command } from '@/commands/registry'
+import type { Capability, CapabilityContext } from '@/capabilities/types'
 import { i18n } from '@/i18n'
 import { type Principal, principalActorLabel } from '@/permissions/principal'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -190,6 +189,6 @@ function isStringRecord(v: unknown): v is Record<string, string> {
   return true
 }
 
-export const VAULT_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const VAULT_BUILTIN_CAPABILITIES: readonly Capability[] = [
   vaultFetchCapability,
 ]

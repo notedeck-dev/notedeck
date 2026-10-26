@@ -1,12 +1,15 @@
 /**
- * Capability Registry の型定義 (Phase 2 入口)。
+ * Capability Registry の型定義。
  *
- * Capability = 「NoteDeck で実行できる操作」の単位。
- * 既存の `Command` interface に optional フィールドを追加することで、
- * UI / CLI / HTTP API / AiScript / AI Tool calling の 5 つの呼び出し口で
- * 共通利用できる Single Source of Truth へ進化させる。
+ * Capability = 「NoteDeck で実行できる操作」の単位。宣言 (id / 権限 / 確認 /
+ * 引数の型) は `crates/notecore/capabilities.json5` が正本で、実装は
+ * `implement()` で結び付ける。AI tool calling / HTTP API / AiScript (`Nd:call`) /
+ * slash / 外部トークンの経路はすべて dispatcher を通ってここに届く。
  *
- * Phase 2 A-1 (本ファイル): 型定義のみ。実 dispatcher は A-2 で実装。
+ * コマンドパレットの `Command` (`src/commands/registry.ts`) とは別物 (#1098 §9):
+ * Command は人が押す UI の入口 (ラベル / アイコン / ショートカット / 露出) で、
+ * capability を呼ぶかどうかは中身の自由。id も別の名前空間 (Command は
+ * kebab、capability は dotted)。
  *
  * 設計詳細: #408 "Capability Registry as Single Source of Truth"
  *   https://github.com/notedeck-dev/notedeck/issues/408#issuecomment-4334932896
@@ -14,6 +17,7 @@
 
 import type { Principal } from '@/permissions/principal'
 import type { PermissionKey } from '@/permissions/schema'
+import type { ConfirmOptions } from '@/stores/confirm'
 
 /**
  * Capability の引数 1 つを表す型情報。
@@ -112,4 +116,72 @@ export interface CapabilityContext {
    * tainted にする
    */
   markTainted?: () => void
+}
+
+/** capability / Command が属する分類 (パレットのグループと AI 向けの一覧で共用) */
+export type CapabilityCategory =
+  | 'general'
+  | 'navigation'
+  | 'column'
+  | 'account'
+  | 'note'
+  | 'window'
+
+export interface PreflightFailure {
+  /** AI へそのまま返るエラー文字列。診断 JSON を埋め込んでよい。 */
+  error: string
+}
+
+/**
+ * 実行できる操作 1 つ。宣言 (capabilities.json5) から `implement()` が組む。
+ * プラグインの `Nd:register_command` (options 付き) も同じ形で登録する。
+ */
+export interface Capability {
+  /** dotted id (`notes.create`)。プラグイン由来は provider 付き */
+  id: string
+  label: string
+  /** Tabler icon 名 */
+  icon: string
+  category: CapabilityCategory
+  /**
+   * 実行関数。`params` は AI tool / Nd:call / HTTP / slash から、`ctx` は
+   * dispatcher が組み立てる実行コンテキスト。戻り値は AI tool への応答。
+   */
+  execute: (
+    params?: Record<string, unknown>,
+    ctx?: CapabilityContext,
+  ) => unknown
+  /** params / returns の型。AI tool schema / OpenAPI spec の生成元 */
+  signature: CapabilitySignature
+  /** 実行に要る権限。principal のプロファイルと照合する */
+  permissions?: PermissionKey[]
+  /** AI tool として公開するか (false でも他経路からは呼べる) */
+  aiTool?: boolean
+  /**
+   * `params.accountId` が実行主体を意味する宣言 (#777)。非 user principal が
+   * 文脈と違うアカウントを指定したとき `account.actAs` を要求する
+   */
+  actsAsAccount?: boolean
+  /**
+   * 実行前の確認。dispatcher 経路でだけ enforce される。
+   * - `true` — label + description + 引数 JSON の汎用モーダル
+   * - 関数 — params を見て `ConfirmOptions` を返す。`null` でその回はスキップ
+   */
+  requiresConfirmation?:
+    | boolean
+    | ((
+        params: Record<string, unknown> | undefined,
+        ctx: CapabilityContext,
+      ) => ConfirmOptions | null | Promise<ConfirmOptions | null>)
+  /** 「次回から確認しない」が ON のまま許可されたときの副作用 */
+  onConfirmRemember?: (
+    params: Record<string, unknown> | undefined,
+    ctx: CapabilityContext,
+  ) => void | Promise<void>
+  /** confirm より前の入力検証。`{ error }` で fail-fast (#553) */
+  preflight?: (
+    params: Record<string, unknown> | undefined,
+  ) => PreflightFailure | null | Promise<PreflightFailure | null>
+  /** false を返すと今は実行できない (dispatcher が弾く) */
+  enabled?: () => boolean
 }

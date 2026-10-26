@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /**
@@ -85,7 +85,7 @@ export const skillsUninstallCapability = implementCore('skills.uninstall')
 /** `skills.delete` — id で削除する (無ければ removed: false)。予約 skill は本体が拒否する */
 export const skillsDeleteCapability = implementCore('skills.delete')
 
-export const SKILLS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const SKILLS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   skillsListCapability,
   skillsReadCapability,
   skillsCreateCapability,

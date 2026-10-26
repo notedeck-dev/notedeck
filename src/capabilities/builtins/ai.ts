@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { sendAiChatOnce } from '@/composables/useAiChat'
 import { resolveAiConnection } from '@/composables/useAiConfig'
 import { useVault } from '@/composables/useVault'
@@ -62,4 +62,4 @@ export const aiChatCapability = implement('ai.chat', {
   },
 })
 
-export const AI_BUILTIN_CAPABILITIES: readonly Command[] = [aiChatCapability]
+export const AI_BUILTIN_CAPABILITIES: readonly Capability[] = [aiChatCapability]

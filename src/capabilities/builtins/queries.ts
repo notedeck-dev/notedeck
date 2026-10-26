@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { i18n } from '@/i18n'
 import { compileColumnQuery } from '@/services/columnQuery/compiler'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
@@ -103,7 +103,7 @@ export const queriesHistoryCapability = implementCore('queries.history')
 
 export const queriesRevertCapability = implementCore('queries.revert')
 
-export const QUERIES_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const QUERIES_BUILTIN_CAPABILITIES: readonly Capability[] = [
   queriesListCapability,
   queriesReadCapability,
   queriesCreateCapability,

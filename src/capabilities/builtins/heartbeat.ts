@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /**
@@ -8,6 +8,6 @@ import { implementCore } from '../declare'
  */
 export const heartbeatReportCapability = implementCore('heartbeat.report')
 
-export const HEARTBEAT_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const HEARTBEAT_BUILTIN_CAPABILITIES: readonly Capability[] = [
   heartbeatReportCapability,
 ]

@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /** `notes.search` — Misskey の /notes/search 経由でキーワード検索 */
@@ -26,7 +26,7 @@ export const notesShowCapability = implementCore('notes.show')
 /** `notes.children` — 指定ノートへのリプライ (子ノート) を取得 */
 export const notesChildrenCapability = implementCore('notes.children')
 
-export const NOTES_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const NOTES_BUILTIN_CAPABILITIES: readonly Capability[] = [
   notesSearchCapability,
   notesSearchArchiveCapability,
   notesTimelineCapability,

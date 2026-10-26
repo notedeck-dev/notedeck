@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { i18n } from '@/i18n'
 import { formatLocalTimestamp } from '@/services/aiSessionId'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -67,6 +67,6 @@ export const backupCreateCapability = implement('backup.create', {
   },
 })
 
-export const BACKUP_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const BACKUP_BUILTIN_CAPABILITIES: readonly Capability[] = [
   backupCreateCapability,
 ]

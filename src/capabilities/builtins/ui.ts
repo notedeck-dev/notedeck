@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { sendDesktopNotification } from '@/utils/desktopNotification'
 import { implement } from '../declare'
 
@@ -19,4 +19,6 @@ export const uiNotifyCapability = implement('ui.notify', {
   },
 })
 
-export const UI_BUILTIN_CAPABILITIES: readonly Command[] = [uiNotifyCapability]
+export const UI_BUILTIN_CAPABILITIES: readonly Capability[] = [
+  uiNotifyCapability,
+]

@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /**
@@ -11,4 +11,4 @@ import { implementCore } from '../declare'
 export const timeNowCapability = implementCore('time.now')
 
 /** Builtin capability すべて。起動時に register する用。 */
-export const BUILTIN_CAPABILITIES: readonly Command[] = [timeNowCapability]
+export const BUILTIN_CAPABILITIES: readonly Capability[] = [timeNowCapability]

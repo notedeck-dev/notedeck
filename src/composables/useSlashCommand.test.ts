@@ -4,7 +4,7 @@ import {
   _clearCapabilitiesForTest,
   registerCapability,
 } from '@/capabilities/registry'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { setPermissionPreset } from '@/permissions/schema'
 import { usePermissionsConfig } from '@/permissions/store'
 import {
@@ -25,28 +25,25 @@ function setPresetForTest(preset: 'readonly' | 'safe' | 'full'): void {
   )
 }
 
-const mockTimeNow: Command = {
+const mockTimeNow: Capability = {
   id: 'time.now',
   label: 'time.now',
   icon: '',
   category: 'general',
-  shortcuts: [],
   aiTool: true,
   signature: {
     description: '現在時刻',
     params: {},
     returns: { type: 'string', description: 'ISO timestamp' },
   },
-  visible: false,
   execute: () => '2026-05-01T00:00:00Z',
 }
 
-const mockEcho: Command = {
+const mockEcho: Capability = {
   id: 'echo.say',
   label: 'echo.say',
   icon: '',
   category: 'general',
-  shortcuts: [],
   aiTool: true,
   permissions: ['notes.write'],
   signature: {
@@ -57,7 +54,6 @@ const mockEcho: Command = {
     },
     returns: { type: 'string', description: 'echoed' },
   },
-  visible: false,
   execute: (params) => {
     const msg = (params?.msg as string) ?? ''
     const n = (params?.n as number) ?? 1

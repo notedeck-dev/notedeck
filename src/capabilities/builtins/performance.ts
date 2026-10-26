@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 export const performanceListCapability = implementCore('performance.list')
@@ -15,7 +15,7 @@ export const performanceApplySliderCapability = implementCore(
   'performance.applySlider',
 )
 
-export const PERFORMANCE_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const PERFORMANCE_BUILTIN_CAPABILITIES: readonly Capability[] = [
   performanceListCapability,
   performanceSetCapability,
   performanceResetCapability,

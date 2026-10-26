@@ -13,7 +13,7 @@
  */
 
 import type { DeviceTool } from '@/bindings'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { CAPABILITY_DECLARATIONS } from './declarations.generated'
 import type { ParameterDef } from './types'
 
@@ -22,7 +22,7 @@ function isDeclared(id: string): boolean {
 }
 
 /** 宣言表に無い AI tool (plugin 由来) */
-export function collectDeviceTools(caps: readonly Command[]): DeviceTool[] {
+export function collectDeviceTools(caps: readonly Capability[]): DeviceTool[] {
   const out: DeviceTool[] = []
   for (const cap of caps) {
     if (!cap.aiTool || !cap.signature || isDeclared(cap.id)) continue
@@ -48,7 +48,7 @@ export function collectDeviceTools(caps: readonly Command[]): DeviceTool[] {
 
 /** 宣言表にある capability のうち、実行時に決まった enum を持つ引数 */
 export function collectRuntimeEnums(
-  caps: readonly Command[],
+  caps: readonly Capability[],
 ): Record<string, Record<string, string[]>> | null {
   const out: Record<string, Record<string, string[]>> = {}
   for (const cap of caps) {

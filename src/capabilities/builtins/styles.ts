@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 export const stylesReadCapability = implementCore('styles.read')
@@ -11,7 +11,7 @@ export const stylesHistoryCapability = implementCore('styles.history')
 
 export const stylesRevertCapability = implementCore('styles.revert')
 
-export const STYLES_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const STYLES_BUILTIN_CAPABILITIES: readonly Capability[] = [
   stylesReadCapability,
   stylesWriteCapability,
   stylesAppendCapability,

@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { CAPABILITY_DECLARATIONS } from './declarations.generated'
 import golden from './golden/tools.json'
 import { toAnthropicTool } from './toolSchema'
@@ -25,7 +25,7 @@ function toolFromDeclaration(id: keyof typeof CAPABILITY_DECLARATIONS) {
   const cmd = {
     id: d.id,
     signature: { description: d.description, params: d.params },
-  } as unknown as Command
+  } as unknown as Capability
   return JSON.parse(JSON.stringify(toAnthropicTool(cmd)))
 }
 

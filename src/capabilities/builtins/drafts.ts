@@ -1,5 +1,5 @@
 import type { NoteVisibility, PostVisibility } from '@/adapters/types'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import {
   type DraftData,
   deleteDraft,
@@ -179,7 +179,7 @@ export const draftsDeleteCapability = implement('drafts.delete', {
   },
 })
 
-export const DRAFTS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const DRAFTS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   draftsListCapability,
   draftsCreateCapability,
   draftsUpdateCapability,

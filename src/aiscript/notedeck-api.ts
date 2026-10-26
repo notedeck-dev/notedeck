@@ -2,8 +2,16 @@ import type { Interpreter } from '@syuilo/aiscript'
 import { utils, values } from '@syuilo/aiscript'
 import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
 import { dispatchCapability } from '@/capabilities/dispatcher'
-import { listCapabilities } from '@/capabilities/registry'
-import type { CapabilitySignature, PermissionKey } from '@/capabilities/types'
+import {
+  listCapabilities,
+  registerCapability,
+  unregisterCapability,
+} from '@/capabilities/registry'
+import type {
+  Capability,
+  CapabilitySignature,
+  PermissionKey,
+} from '@/capabilities/types'
 import type { Command, useCommandStore } from '@/commands/registry'
 import type { Principal } from '@/permissions/principal'
 import { PERMISSION_KEYS } from '@/permissions/schema'
@@ -247,6 +255,8 @@ export function createNoteDeckEnv(
         )
       }
       const handler = handlerVal as VFn
+
+      // 1. パレットの入口 (本人操作): 戻り値不要なので fire-and-forget
       const command: Command = {
         id: commandId,
         label: labelVal.value,
@@ -255,6 +265,34 @@ export function createNoteDeckEnv(
         // キーバインドは keybinds.json5 の上書き (設定 GUI の「プラグイン」節 / AI の
         // keybinds.set) で付け、読む側が resolveShortcuts で引く (#1243)
         shortcuts: [],
+        execute: () => {
+          const interp = ctx.interpreter
+          if (!interp) {
+            console.warn('[Nd:register_command] interpreter not available')
+            return
+          }
+          try {
+            interp.execFn(handler, [])
+          } catch (e) {
+            console.warn('[Nd:register_command]', e)
+            throw e
+          }
+        },
+      }
+      commandStore.register(command)
+      ctx.disposers.push(() => commandStore.unregister(commandId))
+
+      // 2. options で aiTool と signature を宣言したものだけ capability にもなる
+      //    (AI tool / HTTP API / 他プラグインの Nd:call から呼べる)。Command と
+      //    capability は別の登録で、片方だけ消えることは無い (disposers が両方外す)
+      if (!(parsed.aiTool && parsed.signature)) return
+      const capability: Capability = {
+        id: commandId,
+        label: labelVal.value,
+        icon: iconVal.value,
+        category: 'general',
+        aiTool: true,
+        signature: parsed.signature,
         execute: async (params, capCtx) => {
           const interp = ctx.interpreter
           if (!interp) {
@@ -263,7 +301,6 @@ export function createNoteDeckEnv(
           }
           const caller = capCtx?.principal
           if (!caller) {
-            // UI コマンドパレット (本人操作): 戻り値不要なので fire-and-forget
             try {
               interp.execFn(handler, [])
             } catch (e) {
@@ -275,9 +312,8 @@ export function createNoteDeckEnv(
           // dispatcher 経由 (AI tool / HTTP API / 他プラグイン): 呼び出し元を
           // 積んで handler の完了を待つ。handler 内の Nd:call / Nd:http / Mk:api
           // は「呼び出し元 ∩ plugin」で判定される (#1099)。user はプロファイルを
-          // 持たないので積まない。以前は params ありを同期実行 (execFnSync)
-          // していたが、同期実行では async native (Nd:call 等) を呼べず、
-          // params なしは fire-and-forget で呼び出し元が失われていた
+          // 持たないので積まない。同期実行では async native (Nd:call 等) を
+          // 呼べないので execFnSimple で待つ
           const args =
             params && Object.keys(params).length > 0
               ? [utils.jsToVal(params)]
@@ -302,15 +338,12 @@ export function createNoteDeckEnv(
           }
         },
       }
-      if (parsed.aiTool) command.aiTool = true
-      if (parsed.permissions) command.permissions = parsed.permissions
+      if (parsed.permissions) capability.permissions = parsed.permissions
       if (parsed.requiresConfirmation !== undefined) {
-        command.requiresConfirmation = parsed.requiresConfirmation
+        capability.requiresConfirmation = parsed.requiresConfirmation
       }
-      if (parsed.signature) command.signature = parsed.signature
-
-      commandStore.register(command)
-      ctx.disposers.push(() => commandStore.unregister(commandId))
+      registerCapability(capability)
+      ctx.disposers.push(() => unregisterCapability(commandId))
     },
   )
 

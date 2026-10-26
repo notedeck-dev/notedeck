@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { misskeyThemeOf } from '@/services/distributableCodecs/themeCodec'
 import { useAccountsStore } from '@/stores/accounts'
 import { useThemeStore } from '@/stores/theme'
@@ -99,7 +99,7 @@ export const themeUninstallCapability = implementCore('themes.uninstall')
 /** `themes.delete` — id で削除する (無ければ removed: false) */
 export const themeDeleteCapability = implementCore('themes.delete')
 
-export const THEME_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const THEME_BUILTIN_CAPABILITIES: readonly Capability[] = [
   themeListCapability,
   themeReadCapability,
   themeApplyCapability,

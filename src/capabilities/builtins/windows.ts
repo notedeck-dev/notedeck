@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { i18n } from '@/i18n'
 import { useWindowsStore, type WindowType } from '@/stores/windows'
 import { WINDOW_SIZES } from '@/windows/registry'
@@ -107,7 +107,7 @@ export const windowsCloseAllCapability = implement('windows.closeAll', {
   },
 })
 
-export const WINDOWS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const WINDOWS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   windowsListCapability,
   windowsOpenCapability,
   windowsCloseCapability,

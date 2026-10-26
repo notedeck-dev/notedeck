@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 export const registryListKeysCapability = implementCore('registry.listKeys')
@@ -9,7 +9,7 @@ export const registrySetCapability = implementCore('registry.set')
 
 export const registryDeleteCapability = implementCore('registry.delete')
 
-export const REGISTRY_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const REGISTRY_BUILTIN_CAPABILITIES: readonly Capability[] = [
   registryListKeysCapability,
   registryGetCapability,
   registrySetCapability,

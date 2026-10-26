@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /** `notes.create` — 新規ノートを投稿する */
@@ -34,7 +34,7 @@ export const notesPinCapability = implementCore('notes.pin')
 
 export const notesUnpinCapability = implementCore('notes.unpin')
 
-export const NOTES_WRITE_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const NOTES_WRITE_BUILTIN_CAPABILITIES: readonly Capability[] = [
   notesCreateCapability,
   notesReactCapability,
   notesUnreactCapability,

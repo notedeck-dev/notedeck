@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { useUiStore } from '@/stores/ui'
 import { implement } from '../declare'
 
@@ -30,7 +30,7 @@ export const appShowCapability = implement('app.show', {
   },
 })
 
-export const APP_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const APP_BUILTIN_CAPABILITIES: readonly Capability[] = [
   appHideCapability,
   appShowCapability,
 ]

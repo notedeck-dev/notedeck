@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { i18n } from '@/i18n'
 import { useMutesStore } from '@/stores/mutes'
 import { AppError } from '@/utils/errors'
@@ -207,7 +207,7 @@ export const userFollowersCapability = implementCore('user.followers')
 
 export const userFollowingCapability = implementCore('user.following')
 
-export const USER_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const USER_BUILTIN_CAPABILITIES: readonly Capability[] = [
   userLookupCapability,
   userSearchCapability,
   userMuteCapability,

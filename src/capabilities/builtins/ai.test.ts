@@ -51,10 +51,6 @@ describe('ai.chat capability', () => {
     expect(aiChatCapability.id).toBe('ai.chat')
   })
 
-  it('is visible (= コマンドパレットから手動で叩ける)', () => {
-    expect(aiChatCapability.visible).toBe(true)
-  })
-
   it('does NOT require per-call confirmation (permission gate で十分)', () => {
     expect(aiChatCapability.requiresConfirmation).toBe(false)
   })

@@ -1,5 +1,5 @@
 import { validateAiScript } from '@/aiscript/validate'
-import type { Command, PreflightFailure } from '@/commands/registry'
+import type { Capability, PreflightFailure } from '@/capabilities/types'
 import {
   type AiScriptLogLevel,
   type AiScriptSourceKind,
@@ -64,7 +64,7 @@ export const aiscriptLogsCapability = implement('aiscript.logs', {
   },
 })
 
-export const AISCRIPT_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const AISCRIPT_BUILTIN_CAPABILITIES: readonly Capability[] = [
   aiscriptValidateCapability,
   aiscriptLogsCapability,
 ]

@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /**
@@ -19,7 +19,7 @@ export const accountCurrentCapability = implementCore('account.current')
  */
 export const accountListCapability = implementCore('account.list')
 
-export const ACCOUNT_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const ACCOUNT_BUILTIN_CAPABILITIES: readonly Capability[] = [
   accountCurrentCapability,
   accountListCapability,
 ]

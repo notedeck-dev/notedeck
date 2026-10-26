@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /**
@@ -19,7 +19,7 @@ export const aiSessionsReadCapability = implementCore('ai.sessions.read')
 
 export const aiSessionsSearchCapability = implementCore('ai.sessions.search')
 
-export const AI_SESSIONS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const AI_SESSIONS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   aiSessionsListCapability,
   aiSessionsReadCapability,
   aiSessionsSearchCapability,

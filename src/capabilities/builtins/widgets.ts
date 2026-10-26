@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { i18n } from '@/i18n'
 import { useWidgetsStore } from '@/stores/widgets'
 import { implement, implementCore } from '../declare'
@@ -149,7 +149,7 @@ export const widgetsInstallCapability = implementCore('widgets.install')
  */
 export const widgetsUninstallCapability = implementCore('widgets.uninstall')
 
-export const WIDGETS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const WIDGETS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   widgetsListCapability,
   widgetsReadCapability,
   widgetsCreateCapability,
