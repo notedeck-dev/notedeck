@@ -144,9 +144,8 @@ mod android {
     pub(super) async fn env(core: &AppState) -> Result<Env> {
         let app_dir = core.app_dir()?.to_path_buf();
         let accounts = core
-            .db()
-            .await
-            .load_accounts()?
+            .blocking(|db| db.load_accounts())
+            .await?
             .iter()
             .map(PushAccount::from_account)
             .collect();
