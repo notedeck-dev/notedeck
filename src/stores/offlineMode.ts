@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import { useAccountsStore } from '@/stores/accounts'
-import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useSettingsStore } from '@/stores/settings'
 import { useStreamingStore } from '@/stores/streaming'
 import { useSystemStateStore } from '@/stores/systemState'
@@ -58,8 +57,9 @@ export const useOfflineModeStore = defineStore('offlineMode', () => {
       }
       // polling モードなら輸送路を再開する (#1004)。disconnectAll が polling
       // タスクも止めるため、再適用しないと復帰時の connect で実動作が
-      // realtime に化ける
-      useRealtimeModeStore().applyPersistedMode()
+      // realtime に化ける。realtimeMode store を経由しないのは、そちらが
+      // こちらの isOfflineMode を見る (向きを一方向に保つ、#1098)
+      useStreamingStore().applyPersistedMode(useAccountsStore().accounts)
       // 再接続と catch-up は復帰信号に乗せる
       useUiStore().emitDeckResume()
     },

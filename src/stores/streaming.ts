@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { shallowRef, triggerRef } from 'vue'
+import { usePerformanceStore } from '@/stores/performance'
+import { useSettingsStore } from '@/stores/settings'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 export type OnlineStatus = 'online' | 'active' | 'offline' | 'unknown'
@@ -63,6 +65,21 @@ export const useStreamingStore = defineStore('streaming', () => {
     }
   }
 
+  /**
+   * 永続化された輸送路 (`settings.json5` の `modes.realtime`) をバックエンドの
+   * 実動作へ適用する (#1004)。realtime はバックエンドの既定 (connect = WS) なので
+   * polling のときだけ明示的に送る。起動時とオフラインモード解除時に呼ぶ
+   * (オフライン中に呼ばないのは呼ぶ側の責任。offlineMode と realtimeMode の
+   * 両方から使うのでここに置き、store どうしの輪を作らない、#1098)
+   */
+  function applyPersistedMode(
+    accounts: { id: string; hasToken: boolean }[],
+  ): void {
+    if (useSettingsStore().get('modes.realtime') ?? true) return
+    const intervalMs = usePerformanceStore().get('streamPollingInterval') * 1000
+    void setModeAll(accounts, 'polling', intervalMs)
+  }
+
   return {
     states,
     fetchOnlineStatus,
@@ -70,5 +87,6 @@ export const useStreamingStore = defineStore('streaming', () => {
     disconnect,
     disconnectAll,
     setModeAll,
+    applyPersistedMode,
   }
 })

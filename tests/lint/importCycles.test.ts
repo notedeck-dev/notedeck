@@ -15,10 +15,7 @@ const ROOT = resolve(import.meta.dirname, '../..')
 const SRC = join(ROOT, 'src')
 
 /** 凍結した SCC: ソート済みのメンバー一覧を '|' で繋いだ鍵 → 理由 */
-const ALLOWED: Record<string, string> = {
-  'src/stores/offlineMode.ts|src/stores/realtimeMode.ts':
-    '凍結 (#1098): オフラインとリアルタイムの相互参照。片方の状態を引数で渡すか、両方を 1 つの接続状態 store に畳むべき',
-}
+const ALLOWED: Record<string, string> = {}
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
