@@ -16,14 +16,25 @@ import { describe, expect, it } from 'vitest'
 const ROOT = resolve(import.meta.dirname, '../..')
 const SRC = join(ROOT, 'src')
 
-function vueFiles(dir: string): string[] {
+const MODULE_STYLESHEET = /\.module\.s?css$/
+
+/** `.vue` と、ファイル全体が CSS Modules の `*.module.(s)css` */
+function styleFiles(dir: string): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name)
-    if (entry.isDirectory()) out.push(...vueFiles(full))
-    else if (entry.name.endsWith('.vue')) out.push(full)
+    if (entry.isDirectory()) out.push(...styleFiles(full))
+    else if (entry.name.endsWith('.vue') || MODULE_STYLESHEET.test(entry.name))
+      out.push(full)
   }
   return out
+}
+
+/** `*.module.(s)css` はファイル全体を `<style module>` として検査する */
+function asModuleSource(file: string, text: string): string {
+  return MODULE_STYLESHEET.test(file)
+    ? `<style module>\n${text}\n</style>`
+    : text
 }
 
 /** postcss-modules と同じ変換 (`foo-bar` → `fooBar`) */
@@ -63,10 +74,11 @@ function findKeyframeCollisions(
 }
 
 describe('CSS Modules の @keyframes 名はクラス名と衝突しない (#1083)', () => {
-  it('src/**/*.vue の <style module> に衝突が無い', () => {
+  it('src の <style module> と *.module.(s)css に衝突が無い', () => {
     const violations: string[] = []
-    for (const file of vueFiles(SRC)) {
-      for (const c of findKeyframeCollisions(readFileSync(file, 'utf8'))) {
+    for (const file of styleFiles(SRC)) {
+      const source = asModuleSource(file, readFileSync(file, 'utf8'))
+      for (const c of findKeyframeCollisions(source)) {
         violations.push(
           `${relative(ROOT, file)}: @keyframes ${c.keyframes} と .${c.className} が同じキー ${camelCase(c.keyframes)} になる`,
         )
@@ -91,6 +103,15 @@ describe('CSS Modules の @keyframes 名はクラス名と衝突しない (#1083
         '<style module>\n.spin { animation: kf-spin 1s; }\n@keyframes kf-spin { to { opacity: 0; } }\n</style>',
       ),
     ).toEqual([])
+    // *.module.(s)css はファイル全体が対象
+    expect(
+      findKeyframeCollisions(
+        asModuleSource(
+          'a.module.scss',
+          '.slideDown { animation: slide-down 1s; }\n@keyframes slide-down { to { opacity: 0; } }',
+        ),
+      ),
+    ).toEqual([{ keyframes: 'slide-down', className: 'slideDown' }])
     // module でない <style> は対象外
     expect(
       findKeyframeCollisions(
