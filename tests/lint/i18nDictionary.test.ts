@@ -61,6 +61,23 @@ const rustSources = ['crates', 'src-tauri/src']
   })
   .join('\n')
 
+/**
+ * コードが `.key` でキーを引いているか。キーの直後が識別子の文字なら別のキー
+ * (`.sendToPostForm` に対する `.sendToPostFormTitle`) なので数えない。部分一致の
+ * ままだと、前方一致する長いキーが残っている限り死にキーを見逃す
+ */
+function referencesKey(code: string, key: string): boolean {
+  const needle = `.${key}`
+  for (
+    let i = code.indexOf(needle);
+    i !== -1;
+    i = code.indexOf(needle, i + 1)
+  ) {
+    if (!/[\w$]/.test(code[i + needle.length] ?? '')) return true
+  }
+  return false
+}
+
 const NATIVE_KEY = new RegExp(`"(${NATIVE_SECTION}\\.[\\w.]+)"`, 'g')
 
 const FUNCTION_LIKE = new Set([
@@ -134,7 +151,7 @@ describe('UI 文言の辞書 (#135)', () => {
     const dead = [...flatten(loadLocale(SOURCE_LANG)).keys()].filter(
       (key) =>
         !DYNAMIC_SECTIONS.some((s) => key.startsWith(`${s}.`)) &&
-        !code.includes(`.${key}`) &&
+        !referencesKey(code, key) &&
         !rustSources.includes(`"${key}"`),
     )
     expect(dead, '使われていないキーは辞書から消す').toEqual([])

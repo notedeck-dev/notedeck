@@ -1278,8 +1278,6 @@ export interface Locale {
     readonly "autoSwitchHint": string
   }
   readonly "_deckMfmEditorColumn": {
-    /** 投稿フォームへ */
-    readonly "sendToPostForm": string
     /** この本文で投稿フォームを開く */
     readonly "sendToPostFormTitle": string
   }
