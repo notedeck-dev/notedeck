@@ -174,14 +174,14 @@ defineProps<{
 .animLine {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: line var(--duration, 0.5s) cubic-bezier(0, 0, 0.25, 1) 1 forwards;
+  animation: kf-line var(--duration, 0.5s) cubic-bezier(0, 0, 0.25, 1) 1 forwards;
   animation-delay: var(--delay, 0s);
 }
 
 .animCircle {
   stroke-dasharray: 1;
   stroke-dashoffset: 1;
-  animation: line var(--duration, 0.5s) cubic-bezier(0, 0, 0.25, 1) 1 forwards;
+  animation: kf-line var(--duration, 0.5s) cubic-bezier(0, 0, 0.25, 1) 1 forwards;
   animation-delay: var(--delay, 0s);
   transform-origin: center;
   transform: rotate(-90deg);
@@ -190,7 +190,7 @@ defineProps<{
 .animCircleWaiting {
   stroke-dasharray: 1;
   stroke-dashoffset: calc(1 / 1.5);
-  animation: waiting 0.75s linear infinite;
+  animation: kf-waiting 0.75s linear infinite;
   transform-origin: center;
 }
 
@@ -200,7 +200,7 @@ defineProps<{
   animation-delay: var(--delay, 0s);
 }
 
-@keyframes line {
+@keyframes kf-line {
   0% {
     stroke-dashoffset: 1;
     opacity: 0;
@@ -211,7 +211,7 @@ defineProps<{
   }
 }
 
-@keyframes waiting {
+@keyframes kf-waiting {
   0% {
     transform: rotate(0deg);
   }

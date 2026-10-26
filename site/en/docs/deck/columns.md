@@ -1,5 +1,5 @@
 ---
-sourceHash: af93c971dcae
+sourceHash: 711d9f6d9ebc
 ---
 
 # Columns and windows
@@ -59,6 +59,7 @@ Work columns unique to NoteDeck. Some of them have nothing directly to do with M
 | AI | Talk with AI. Switch sessions and keep the history |
 | Client search | Search the notes accumulated on your machine across servers ([Finding notes](/en/docs/guide/search)) |
 | Memos (メモ) | Local notes. Saved as Markdown files, so you can open them from Obsidian and others |
+| MFM editor (MFM エディター) | Write MFM while checking it with the same renderer as the deck, then send it to the post form. Comes with samples and a function reference |
 | Themes / Plugins / Widgets / Skills / Queries | List what you have installed, turn it on or off, and see its history (creating and editing need developer mode) |
 
 ### Columns for developers

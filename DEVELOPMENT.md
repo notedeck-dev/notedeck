@@ -221,6 +221,15 @@ attach モードはデバイス側アプリを終了させず、デッキ操作�
 - **実効権限** — principal 別 (ai.chat / ai.heartbeat / plugin / external /
   scratchpad) の granted マトリクス。Capabilities で選んだ capability の要求キー行を
   ハイライトし、403 の理由をその場で照合する
+- **MFM** — デッキと同じ `MkMfm` (同じ CSS Modules) で描く MFM プレビュー
+  ([#1083](https://github.com/notedeck-dev/notedeck/issues/1083))。ここで動かなければ本体でも動かない。
+  サンプル (基本 / 全構文 / 全関数 / アニメーション / MFM アート / 境界条件) と
+  自由入力、ノートの枠 (`contain` / `overflow: clip`) での切り取り、画面外と同じ
+  停止状態 (`--nd-mfm-play-state`)、高度な MFM / 動きのある MFM の設定、plain /
+  nowrap / にゃ化、サーバーの `/api/emojis` からの絵文字、AST (mfm-js のノード)、
+  関数一覧の対照表、実行中アプリの `/api/{host}/notes/{id}` からの実ノートの
+  読み込み、メンション / `$[clickable]` のイベントログ。mfm-vue のプレイグラウンドに
+  ある要素はすべて含む
 
 診断:
 
@@ -674,7 +683,7 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 | 分類 | UI | 用途 | 永続性 |
 |------|-----|------|--------|
 | **ストリーム** | カラム | 継続的なデータフィード（TL、通知、検索、チャット等） | プロファイルに永続化 |
-| **IDE ツール** | カラム | 開発・デバッグ支援（Stream Inspector 等）、ローカル PKM（メモ — `notedeck/memos/*.md` を Obsidian vault としても開ける。サーバーへ送らずローカルで完結し、同じくアカウントなしの AI カラムから参照されるため **アカウントに紐づかない**（#1018）。他のテキストと同じ編集履歴を持つ） | プロファイルに永続化 |
+| **IDE ツール** | カラム | 開発・デバッグ支援（Stream Inspector 等）、MFM エディター（デッキと同じ `MkMfm` で確かめながら書き、投稿フォームへ送る。本文はカラム設定 `mfmText`）、ローカル PKM（メモ — `notedeck/memos/*.md` を Obsidian vault としても開ける。サーバーへ送らずローカルで完結し、同じくアカウントなしの AI カラムから参照されるため **アカウントに紐づかない**（#1018）。他のテキストと同じ編集履歴を持つ） | プロファイルに永続化 |
 | **詳細** | ウィンドウ | 特定アイテムの一時的な表示（ノート詳細、プロフィール、フォローリスト） | セッション限り |
 | **インスペクタ** | ウィンドウ | Raw JSON 表示・デバッグ（ノート/通知インスペクタ、settings.json5 エディタ） | セッション限り |
 | **ツール** | ウィンドウ | アプリ設定・管理（ログイン、エディタ群、プラグイン、about） | セッション限り |
@@ -957,6 +966,7 @@ import { i18n } from '@/i18n'
 
 - `<style module lang="scss">` で CSS Modules として定義し、テンプレートから `$style.xxx` で参照
 - `vite.config.ts` で `localsConvention: 'camelCaseOnly'` を設定済み（`kebab-case` → `camelCase` 自動変換）
+- **`@keyframes` の名前はクラス名と camelCase で衝突させない** (この repo では `kf-` 接頭辞)。CSS Modules は keyframes も export に載せるので、`@keyframes mfm-spin` と `.mfmSpin` は同じキー `mfmSpin` になり、keyframes の方がクラスを上書きして `$style.mfmSpin` が hash 化された keyframes 名を返す (= クラスが一度も当たらない)。MFM のアニメーションが丸ごと死んでいた真因 ([#1083](https://github.com/notedeck-dev/notedeck/issues/1083))。`tests/lint/cssModuleKeyframes.test.ts` が検査する
 - グローバルな CSS 変数は `src/styles/global.css` で定義
 - モバイル/デスクトップの切り替えは CSS の `display` ではなく `v-if` で制御
 - 入力欄・スイッチ・セレクト・スライダー・数値 + 単位は `src/components/common/form/` の部品 (`FormInput` / `FormSwitch` / `FormSwitchRow` / `FormSelect` / `FormRange` / `FormNumber`) を使う。部品にしない欄も枠・フォーカス・placeholder・disabled は `src/styles/_inputs.scss` の `input-base` に寄せ、画面ごとに書き直さない ([#704](https://github.com/notedeck-dev/notedeck/issues/704))

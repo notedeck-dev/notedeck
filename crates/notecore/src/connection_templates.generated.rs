@@ -70,6 +70,16 @@ pub static CONNECTION_TEMPLATES: &[ConnectionTemplateDecl] = &[
         affinity_header: None,
     },
     ConnectionTemplateDecl {
+        id: "builtin:osu@1",
+        allowed_hosts: &["osu.ppy.sh"],
+        affinity_header: None,
+    },
+    ConnectionTemplateDecl {
+        id: "builtin:chunirec@1",
+        allowed_hosts: &["api.chunirec.net"],
+        affinity_header: None,
+    },
+    ConnectionTemplateDecl {
         id: "builtin:shodan@1",
         allowed_hosts: &["api.shodan.io"],
         affinity_header: None,

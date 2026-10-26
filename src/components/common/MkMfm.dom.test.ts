@@ -58,7 +58,7 @@ describe('MkMfm math', () => {
   })
 })
 
-describe('MkMfm 値域の clamp (#704)', () => {
+describe('MkMfm 値域 (本家 mfm-renderer と同じ、#1083)', () => {
   function transformOf(text: string): string | undefined {
     mountMfm(text)
     return (container?.querySelector('span[style*="transform"]') as HTMLElement)
@@ -69,13 +69,13 @@ describe('MkMfm 値域の clamp (#704)', () => {
     expect(transformOf('$[scale.x=100,y=3 a]')).toBe('scale(5,3)')
   })
 
-  it('$[scale] の負の値も絶対値 5 で止める', () => {
-    expect(transformOf('$[scale.x=-100 a]')).toBe('scale(-5,1)')
+  it('$[scale] の負の値は本家と同じく反転としてそのまま通す (MFM アートが使う)', () => {
+    expect(transformOf('$[scale.x=-12,y=-8 a]')).toBe('scale(-12,-8)')
   })
 
-  it('$[position] は ±10em に収める', () => {
+  it('$[position] は本家と同じく上限を置かない (軌道を作る MFM アートが使う)', () => {
     expect(transformOf('$[position.x=1000,y=-1000 a]')).toBe(
-      'translate(10em,-10em)',
+      'translate(1000em,-1000em)',
     )
   })
 
@@ -83,6 +83,27 @@ describe('MkMfm 値域の clamp (#704)', () => {
     expect(transformOf('$[position.x=1.5,y=-2 a]')).toBe(
       'translate(1.5em,-2em)',
     )
+  })
+
+  it('$[rotate] は本家と同じく中心を軸にする', () => {
+    mountMfm('$[rotate.deg=30 a]')
+    const el = container?.querySelector(
+      'span[style*="transform"]',
+    ) as HTMLElement
+    expect(el.style.transform).toBe('rotate(30deg)')
+    expect(el.style.transformOrigin).toBe('center center')
+  })
+
+  it('style を持つ fn は本家と同じくすべて inline-block (fg / bg / font も)', () => {
+    mountMfm('$[fg.color=f00 a]$[bg.color=0f0 b]$[font.serif c]')
+    const spans = Array.from(
+      container?.querySelectorAll('span[style]') ?? [],
+    ) as HTMLElement[]
+    expect(spans.map((s) => s.style.display)).toEqual([
+      'inline-block',
+      'inline-block',
+      'inline-block',
+    ])
   })
 })
 
@@ -328,6 +349,21 @@ describe('MkMfm nowrap (#1279)', () => {
     expect(container?.querySelector('b')?.textContent).toBe('私が作りました')
     expect(container?.textContent).not.toContain('**')
     expect(container?.textContent).not.toContain('$[')
+  })
+
+  it('nowrap では fn の装飾を外して中身だけ出す (MFM アートが 1 行で崩れないように)', async () => {
+    mountMfm(
+      '$[x2 $[spin 🍣]] $[position.x=5 $[scale.x=3 $[fg.color=f00 文字]]] $[ruby 漢字 かんじ]',
+      { nowrap: true },
+    )
+    await nextTick()
+    expect(container?.querySelector('span[class*="mfmX2"]')).toBeNull()
+    expect(container?.querySelector('span[class*="mfmSpin"]')).toBeNull()
+    expect(container?.querySelector('span[style*="transform"]')).toBeNull()
+    expect(container?.querySelector('span[style*="color"]')).toBeNull()
+    expect(container?.textContent).toContain('文字')
+    // 行内の文字として成立する ruby は残す
+    expect(container?.querySelector('ruby rt')?.textContent).toBe('かんじ')
   })
 
   it('nowrap でなければ 1 行のクラスを付けない', async () => {

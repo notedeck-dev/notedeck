@@ -46,6 +46,10 @@ interface SseRow {
 const CodeEditor = defineAsyncComponent(
   () => import('@/components/deck/widgets/CodeEditor.vue'),
 )
+// MFM プレビューは MkMfm (+ KaTeX / shiki の遅延読み込み) を抱えるので開いたときだけ
+const DevMfmPreview = defineAsyncComponent(
+  () => import('@/components/dev/DevMfmPreview.vue'),
+)
 const lang = jsonLang()
 
 // --- OpenClaw Control UI 流のビュー切替 (サイドバー + 単一ペイン) ---
@@ -64,6 +68,7 @@ type ViewId =
   | 'media'
   | 'qbtrace'
   | 'mcp'
+  | 'mfm'
 
 const activeView = ref<ViewId>('overview')
 
@@ -113,6 +118,7 @@ const NAV_GROUPS: {
     items: [
       { id: 'caps', icon: 'ti ti-bolt', label: 'Capabilities' },
       { id: 'mcp', icon: 'ti ti-plug-connected', label: 'MCP' },
+      { id: 'mfm', icon: 'ti ti-text-caption', label: 'MFM' },
       {
         id: 'perms',
         icon: 'ti ti-shield-lock',
@@ -1660,6 +1666,19 @@ onUnmounted(() => {
           </div>
         </section>
 
+        <section v-if="activeView === 'mfm'" :class="$style.view">
+          <header :class="$style.viewHead">
+            <div>
+              <h2 :class="$style.viewTitle">
+                <i class="ti ti-text-caption" /> {{ i18n.ts._devMfm.title }}
+              </h2>
+              <p :class="$style.viewDesc">
+                {{ i18n.ts._devMfm.desc }}
+              </p>
+            </div>
+          </header>
+          <DevMfmPreview />
+        </section>
         <section v-if="activeView === 'qbtrace'" :class="$style.view">
           <header :class="$style.viewHead">
             <div>
@@ -3034,11 +3053,11 @@ onUnmounted(() => {
 .beat {
   display: inline-block;
   color: var(--nd-accentText);
-  animation: beat 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: kf-beat 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   transform-origin: center;
 }
 
-@keyframes beat {
+@keyframes kf-beat {
   0%,
   55%,
   100% {

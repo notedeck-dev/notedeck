@@ -77,6 +77,7 @@ export type BuiltinColumnType =
   | 'federation'
   | 'skill'
   | 'queryManager'
+  | 'mfmEditor'
 
 /**
  * カラム種別 (#794 W2)。プラグインが実行時に登録できるよう open にしてある。
@@ -209,6 +210,8 @@ export interface DeckColumn {
   /** @deprecated widgetRefs + useWidgetsStore に移行済み。マイグレーション読取専用 */
   widgets?: WidgetConfig[]
   aiscriptCode?: string
+  /** MFM エディタカラムの本文 */
+  mfmText?: string
   flashId?: string
   pageId?: string
   soundMuted?: boolean

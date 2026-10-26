@@ -55,6 +55,7 @@
 | `widget` | [`src/components/deck/DeckWidgetColumn.vue`](src/components/deck/DeckWidgetColumn.vue) |
 | `queryManager` | [`src/components/deck/DeckQueryManagerColumn.vue`](src/components/deck/DeckQueryManagerColumn.vue) |
 | `memos` | [`src/components/deck/DeckMemoColumn.vue`](src/components/deck/DeckMemoColumn.vue) |
+| `mfmEditor` | [`src/components/deck/DeckMfmEditorColumn.vue`](src/components/deck/DeckMfmEditorColumn.vue) |
 | `ai` | [`src/components/deck/DeckAiColumn.vue`](src/components/deck/DeckAiColumn.vue) |
 | `skill` | [`src/components/deck/DeckSkillColumn.vue`](src/components/deck/DeckSkillColumn.vue) |
 | `aiscript` | [`src/components/deck/DeckAiScriptColumn.vue`](src/components/deck/DeckAiScriptColumn.vue) |

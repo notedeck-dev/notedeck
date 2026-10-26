@@ -218,6 +218,9 @@ onMounted(() => {
   line-height: 1.6;
   color: var(--nd-fg);
   word-break: break-word;
+  /* $[position] / $[scale] などで本文の外へ出た MFM を切る (本家と同じ)。切らないと
+     スクロール領域が横に広がる。ノートは contain: content で切れている */
+  overflow: clip;
 }
 
 .announcementActions {

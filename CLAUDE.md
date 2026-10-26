@@ -43,6 +43,7 @@ pnpm doctor       # 開発環境の診断（ツールチェーン・システム
 
 - `<style module lang="scss">` + `$style.xxx` で参照（CSS Modules）
 - グローバル CSS 変数: `src/styles/global.css`
+- `<style module>` の `@keyframes` 名はクラス名と camelCase で衝突させない (`kf-` 接頭辞。衝突すると keyframes 名がクラスを上書きしてクラスが当たらなくなる、#1083。lint で検査)
 - モバイル/デスクトップ切り替えは `v-if`（CSS display ではない）
 
 ## UI 文言（#135）

@@ -43,6 +43,7 @@ describe('カラムの帰属タグ', () => {
       'widget',
       'queryManager',
       'memos',
+      'mfmEditor',
       'skill',
       'ai',
     ]) {
