@@ -1,43 +1,31 @@
 //! messaging のデータ系コマンド本体 (#1106 段階 0b)。各関数は `&Core` と引数を取り、
 //! コマンド表 (commands/table.rs) から呼ばれる。
 
-use std::sync::Arc;
-
 use notecli::db::Database;
 use notecli::models::{ChatMessage, NormalizedNotification, TimelineOptions};
 
 use crate::context::Core;
 use crate::error::Result;
 
-/// REST レスポンスで取得した chat メッセージを fire-and-forget で DB に upsert する。
+/// REST レスポンスで取得した chat メッセージを DB に upsert する。呼び出し側は
+/// `Core::spawn_archive_write` で blocking スレッドに乗せ、返事を待たせない。
 /// `cache` フラグが false なら何もしない (`chat.cacheEnabled = false` 時の opt-out)。
 fn cache_chat_response(
-    db: &Arc<Database>,
+    db: &Database,
     msgs: &[ChatMessage],
     account_id: &str,
     host: &str,
     cache: Option<bool>,
-) {
-    if !cache.unwrap_or(true) {
-        return;
-    }
-    if msgs.is_empty() {
-        return;
+) -> Result<()> {
+    if !cache.unwrap_or(true) || msgs.is_empty() {
+        return Ok(());
     }
     // user_id が取れない (account 削除直後等) は skip
     let Ok(Some(account)) = db.get_account(account_id) else {
-        return;
+        return Ok(());
     };
-    let db = db.clone();
-    let msgs = msgs.to_vec();
-    let account_id = account_id.to_string();
-    let host = host.to_string();
-    let user_id = account.user_id.clone();
-    tokio::task::spawn_blocking(move || {
-        if let Err(e) = db.cache_chat_messages(&msgs, &account_id, &user_id, &host) {
-            tracing::warn!(error = %e, "failed to cache chat REST response");
-        }
-    });
+    db.cache_chat_messages(msgs, account_id, &account.user_id, host)?;
+    Ok(())
 }
 
 // --- Notifications ---
@@ -136,9 +124,8 @@ pub async fn api_get_chat_history(
         .get_chat_history(&host, &token, limit.unwrap_or(100), room.unwrap_or(false))
         .await?;
     ChatMessage::fill_account_id(&mut msgs, &account_id);
-    if let Some(db) = core.try_db() {
-        cache_chat_response(&db, &msgs, &account_id, &host, cache);
-    }
+    let cached = msgs.clone();
+    core.spawn_archive_write(move |db| cache_chat_response(db, &cached, &account_id, &host, cache));
     Ok(msgs)
 }
 
@@ -163,9 +150,8 @@ pub async fn api_get_chat_user_messages(
         )
         .await?;
     ChatMessage::fill_account_id(&mut msgs, &account_id);
-    if let Some(db) = core.try_db() {
-        cache_chat_response(&db, &msgs, &account_id, &host, cache);
-    }
+    let cached = msgs.clone();
+    core.spawn_archive_write(move |db| cache_chat_response(db, &cached, &account_id, &host, cache));
     Ok(msgs)
 }
 
@@ -190,9 +176,8 @@ pub async fn api_get_chat_room_messages(
         )
         .await?;
     ChatMessage::fill_account_id(&mut msgs, &account_id);
-    if let Some(db) = core.try_db() {
-        cache_chat_response(&db, &msgs, &account_id, &host, cache);
-    }
+    let cached = msgs.clone();
+    core.spawn_archive_write(move |db| cache_chat_response(db, &cached, &account_id, &host, cache));
     Ok(msgs)
 }
 
@@ -230,9 +215,10 @@ pub async fn api_create_chat_message(
     };
     msg.account_id = account_id.clone();
     // 送信メッセージも DB に書く (WS で同じ msg が往復するが UPSERT で冪等)。索引が無ければ省く
-    if let Some(db) = core.try_db() {
-        cache_chat_response(&db, std::slice::from_ref(&msg), &account_id, &host, None);
-    }
+    let cached = msg.clone();
+    core.spawn_archive_write(move |db| {
+        cache_chat_response(db, std::slice::from_ref(&cached), &account_id, &host, None)
+    });
     Ok(msg)
 }
 

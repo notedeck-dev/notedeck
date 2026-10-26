@@ -17,12 +17,18 @@ pub struct CoreHealth {
 }
 
 pub async fn health_core(core: &Core) -> Result<CoreHealth> {
-    let db = core.db().await;
     let db_path = core.app_dir()?.join("notecli.db");
-    // doctor のチェックを丸ごと再利用 (account_spec = None で全アカウント対象)
+    // doctor のチェックを丸ごと再利用 (account_spec = None で全アカウント対象)。
+    // diagnose は notecli の async 関数で DB も中で触る (自己診断の 1 回きり)
+    let db = core.db().await;
     let mut doctor = notecli::commands::doctor::diagnose(db.as_ref(), &db_path, None).await?;
-    strip_guest_credential_checks(&mut doctor, &db.load_accounts().unwrap_or_default());
-    let (note_cache_count, db_size_bytes) = db.cache_stats()?;
+    drop(db);
+    let accounts = core
+        .blocking(|db| db.load_accounts())
+        .await
+        .unwrap_or_default();
+    strip_guest_credential_checks(&mut doctor, &accounts);
+    let (note_cache_count, db_size_bytes) = core.blocking(|db| db.cache_stats()).await?;
     Ok(CoreHealth {
         doctor,
         note_cache_count,

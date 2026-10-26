@@ -394,19 +394,18 @@ pub async fn api_remove_user_from_list(
     // 次回フェッチで再構築 (失敗は warn + Ok)。破棄の完了は待ってから返す —
     // detach するとフロントの再フェッチ ingest 後に破棄が走るレースになる。
     // 索引を持たないプロセス (notemaid) では何もしない
-    let Some(db) = core.try_db() else {
-        return Ok(());
-    };
     let account_id_owned = account_id.clone();
     let key = TimelineKey::UserList {
         list_id: list_id.clone(),
     };
-    let cleared =
-        tokio::task::spawn_blocking(move || db.clear_timeline(&account_id_owned, &key)).await;
-    match cleared {
-        Ok(Err(e)) => tracing::warn!("[cache] failed to clear user-list bucket: {e}"),
-        Err(e) => tracing::warn!("[cache] clear user-list bucket task failed: {e}"),
-        Ok(Ok(_)) => {}
+    if let Err(e) = core
+        .with_archive((), move |db, ()| {
+            db.clear_timeline(&account_id_owned, &key)?;
+            Ok(())
+        })
+        .await
+    {
+        tracing::warn!("[cache] failed to clear user-list bucket: {e}");
     }
     Ok(())
 }

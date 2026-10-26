@@ -9,7 +9,6 @@ use crate::query_runtime::{
 };
 
 use crate::context::Core;
-use crate::credentials::get_credentials;
 use crate::error::Result;
 
 // query_open (QueryKey を invoke 引数に取る汎用オープン) は削除した。
@@ -25,8 +24,7 @@ pub async fn query_subscribe_timeline(
 ) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
-    let db = core.db().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
     // 境界アダプタ: ('user-list', listId) → canonical キー合成 (api_get_timeline と同規約)
@@ -64,8 +62,7 @@ pub async fn query_subscribe_antenna(
 ) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
-    let db = core.db().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
     let tl_key = TimelineKey::Antenna {
@@ -90,8 +87,7 @@ pub async fn query_subscribe_channel(
 ) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
-    let db = core.db().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
     let tl_key = TimelineKey::Channel {
@@ -116,8 +112,7 @@ pub async fn query_subscribe_role(
 ) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
-    let db = core.db().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
     let tl_key = TimelineKey::Role {
@@ -138,8 +133,7 @@ pub async fn query_subscribe_role(
 pub async fn query_subscribe_mentions(core: &Core, account_id: String) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
-    let db = core.db().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
     // mentions は QueryKey 識別子としてのみ Timeline に折り畳む。
@@ -164,8 +158,7 @@ pub async fn query_subscribe_notifications(
 ) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
-    let db = core.db().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
     let opened = runtime.open(QueryKey::Notifications {
@@ -188,8 +181,7 @@ pub async fn query_subscribe_chat_user(
 ) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
-    let db = core.db().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
     let opened = runtime.open(QueryKey::ChatUser {
@@ -213,8 +205,7 @@ pub async fn query_subscribe_chat_room(
 ) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
-    let db = core.db().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
     let opened = runtime.open(QueryKey::ChatRoom {

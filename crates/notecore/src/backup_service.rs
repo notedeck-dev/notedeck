@@ -129,12 +129,10 @@ pub async fn create(
     // DB スナップショット (トークンは常に除去)
     let db_bytes = if include_db {
         let db_path = dir.join(DB_FILE);
-        let db = core.db().await;
         {
             let db_path = db_path.clone();
-            tokio::task::spawn_blocking(move || db.backup_to(&db_path, true))
-                .await
-                .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))??;
+            core.blocking(move |db| db.backup_to(&db_path, true))
+                .await?;
         }
         Some(std::fs::metadata(&db_path).map(|m| m.len()).unwrap_or(0))
     } else {
