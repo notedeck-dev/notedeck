@@ -5,6 +5,10 @@ import type { Check, HealthReport, Status } from '@/bindings'
 import type { MetricsSnapshot } from '@/capabilities/builtins/metrics'
 import { dispatchCapability } from '@/capabilities/dispatcher'
 import FormSwitchRow from '@/components/common/form/FormSwitchRow.vue'
+import {
+  runHealthcheck as runHealthcheckCommand,
+  rustcVersion,
+} from '@/composables/appDiagnostics'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useUpdater } from '@/composables/useUpdater'
 import {
@@ -24,7 +28,6 @@ import { AppError } from '@/utils/errors'
 import { formatBytes } from '@/utils/format'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import { version as appVersion } from '../../../package.json'
 
@@ -316,7 +319,7 @@ async function runHealthcheck() {
   healthError.value = null
   healthCheckedAt.value = Date.now()
   try {
-    health.value = unwrap(await commands.runHealthcheck())
+    health.value = await runHealthcheckCommand()
   } catch (e) {
     healthError.value = AppError.from(e).message
   } finally {
@@ -740,7 +743,7 @@ onMounted(async () => {
     // Fallback for environments where Tauri API is unavailable
   }
   try {
-    rustVersion.value = await commands.getRustcVersion()
+    rustVersion.value = await rustcVersion()
   } catch {
     // Fallback for environments where Tauri API is unavailable
   }

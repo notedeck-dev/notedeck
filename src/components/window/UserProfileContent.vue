@@ -8,14 +8,12 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import { renoteVisibilityFor } from '@/adapters/misskey-tempura/semiPublic'
 import type {
   NormalizedNote,
   NormalizedUserDetail,
   ServerAdapter,
 } from '@/adapters/types'
-import type { JsonValue } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -59,6 +57,7 @@ const UserActivityPvChart = defineAsyncComponent(
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePaginatedList } from '@/composables/usePaginatedList'
@@ -77,7 +76,6 @@ import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
 import { formatDate } from '@/utils/format'
 import { proxyEmojiUrl, proxyUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { toggleReaction } from '@/utils/toggleReaction'
 import { openSafeUrl } from '@/utils/url'
 
@@ -85,6 +83,8 @@ const props = defineProps<{
   accountId: string
   userId: string
 }>()
+
+const { forView, apiFor } = useMultiAccountAdapters()
 
 const { navigateToUser: navToUser } = useNavigation()
 const portalRef = useTemplateRef<HTMLElement>('portalRef')
@@ -393,11 +393,8 @@ onMounted(async () => {
   }
 
   try {
-    const result = await initAdapterFor(account.host, account.id, {
-      pinnedReactions: false,
-      hasToken: account.hasToken,
-    })
-    const a = result.adapter
+    const a = await forView(account.id)
+    if (!a) throw new Error(i18n.ts._common.accountNotFound)
     adapter.value = a
     // ポップアップ等で取得済みなら先に描き、取り直したもので差し替える (#1212)。
     // スピナー → プロフィール → ノート一覧の 2 段を、ヒーローとノート一覧の
@@ -454,11 +451,9 @@ async function loadRawUserJson() {
   isLoadingRaw.value = true
   rawError.value = null
   try {
-    const raw = unwrap(
-      await commands.apiGetUserRaw(props.accountId, {
-        userId: props.userId,
-      } as never),
-    )
+    const raw = await (await apiFor(props.accountId)).getUserRaw({
+      userId: props.userId,
+    })
     rawUserObj.value = raw
     // Mirror the privacy flag so the reactions tab can appear without a
     // second users/show round-trip.
@@ -478,14 +473,10 @@ async function fetchUserReactions(
 ): Promise<UserReactionEntry[]> {
   const a = adapter.value
   if (!a) return []
-  const params: Record<string, JsonValue> = {
-    userId: props.userId,
+  const raw = await a.api.getUserReactions(props.userId, {
     limit: REACTIONS_PAGE_SIZE,
-  }
-  if (untilId) params.untilId = untilId
-  const raw = unwrap(
-    await commands.apiGetUserReactions(props.accountId, params),
-  )
+    untilId,
+  })
 
   // users/reactions returns NoteReaction-with-note objects; normalize each
   // note via the adapter so MkNote can render them like any other feed item.

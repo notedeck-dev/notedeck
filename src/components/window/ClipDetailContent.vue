@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import type { NormalizedNote, ServerAdapter } from '@/adapters/types'
 import type { Clip } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
@@ -14,7 +14,6 @@ import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { toggleReaction } from '@/utils/toggleReaction'
 
 const props = defineProps<{
@@ -24,6 +23,7 @@ const props = defineProps<{
 
 const accountsStore = useAccountsStore()
 const toast = useToast()
+const { forView, apiFor } = useMultiAccountAdapters()
 
 const account = computed(() =>
   accountsStore.accounts.find((a) => a.id === props.accountId),
@@ -126,9 +126,7 @@ async function loadClip() {
   clipLoading.value = true
   clipError.value = null
   try {
-    clip.value = unwrap(
-      await commands.apiGetClip(props.accountId, { clipId: props.clipId }),
-    )
+    clip.value = await (await apiFor(props.accountId)).getClip(props.clipId)
   } catch (e) {
     clipError.value = AppError.from(e).message
   } finally {
@@ -153,12 +151,9 @@ async function toggleFavorite() {
   togglingFavorite.value = true
   const wasFav = clip.value.isFavorited === true
   try {
-    const params = { clipId: clip.value.id }
-    unwrap(
-      wasFav
-        ? await commands.apiUnfavoriteClip(props.accountId, params)
-        : await commands.apiFavoriteClip(props.accountId, params),
-    )
+    const api = await apiFor(props.accountId)
+    if (wasFav) await api.unfavoriteClip(clip.value.id)
+    else await api.favoriteClip(clip.value.id)
     clip.value.isFavorited = !wasFav
     clip.value.favoritedCount += wasFav ? -1 : 1
   } catch (e) {
@@ -181,11 +176,7 @@ onMounted(async () => {
     return
   }
   try {
-    const result = await initAdapterFor(acc.host, acc.id, {
-      pinnedReactions: false,
-      hasToken: acc.hasToken,
-    })
-    adapter = result.adapter
+    adapter = await forView(acc.id)
   } catch (e) {
     clipError.value = AppError.from(e).message
     clipLoading.value = false

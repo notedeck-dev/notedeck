@@ -4,16 +4,17 @@ import { MisskeyAuth } from '@/adapters/misskey/auth'
 import type { AuthSession } from '@/adapters/types'
 import FormInput from '@/components/common/form/FormInput.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import {
+  addGuestAccount,
+  completeLogin as finishLogin,
+} from '@/composables/login'
 import { useServerPreview } from '@/composables/useServerPreview'
 import { useVaporTransitionSwitch } from '@/composables/useVaporTransition'
 import { detectServer } from '@/core/server'
 import { i18n } from '@/i18n'
-import type { Account } from '@/stores/accounts'
-import { useAccountsStore } from '@/stores/accounts'
 import { useServersStore } from '@/stores/servers'
 import { useIsCompactLayout } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 
 const props = defineProps<{
@@ -25,7 +26,6 @@ const emit = defineEmits<{
   success: []
 }>()
 
-const accountsStore = useAccountsStore()
 const serversStore = useServersStore()
 const isCompact = useIsCompactLayout()
 const auth = new MisskeyAuth()
@@ -87,11 +87,7 @@ async function completeLogin() {
     // 結果で即上書きする。これをしないと以降の getServerInfo が stale な
     // features.scheduledNotes = false 等を返し続ける。
     await serversStore.refreshServer(serverInfo)
-    const account = unwrap(
-      await commands.authCompleteAndSave(currentSession, serverInfo.software),
-    ) as unknown as Account
-
-    accountsStore.addAccount(account)
+    await finishLogin(currentSession, serverInfo.software)
     emit('success')
   } catch (e) {
     step.value = 'error'
@@ -107,10 +103,7 @@ async function startGuest() {
     step.value = 'guestLoading'
     const serverInfo = await detectServer(trimmedHost)
     await serversStore.refreshServer(serverInfo)
-    const account = unwrap(
-      await commands.createGuestAccount(trimmedHost, serverInfo.software),
-    ) as unknown as Account
-    accountsStore.addAccount(account)
+    await addGuestAccount(trimmedHost, serverInfo.software)
     emit('success')
   } catch (e) {
     step.value = 'error'

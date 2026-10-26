@@ -14,6 +14,7 @@ import AiScriptUiRenderer, {
   type PostFormRequest,
 } from '@/components/deck/widgets/AiScriptUiRenderer.vue'
 import { useAiScriptRunner } from '@/composables/useAiScriptRunner'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
@@ -23,7 +24,6 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -38,6 +38,8 @@ const props = defineProps<{
   accountId: string
   flashId: string
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const accountsStore = useAccountsStore()
 const windowsStore = useWindowsStore()
@@ -146,9 +148,9 @@ async function loadFlash() {
   fetching.value = true
   mode.value = 'ready'
   try {
-    flash.value = unwrap(
-      await commands.apiGetFlash(props.accountId, props.flashId),
-    ) as unknown as FlashDetail
+    flash.value = (await (
+      await apiFor(props.accountId)
+    ).getFlash(props.flashId)) as FlashDetail
   } catch (e) {
     fetchError.value = AppError.from(e).message
   } finally {
@@ -184,10 +186,11 @@ async function startPlay() {
 async function toggleLike() {
   if (!flash.value) return
   try {
+    const api = await apiFor(props.accountId)
     if (flash.value.isLiked) {
-      unwrap(await commands.apiUnlikeFlash(props.accountId, flash.value.id))
+      await api.unlikeFlash(flash.value.id)
     } else {
-      unwrap(await commands.apiLikeFlash(props.accountId, flash.value.id))
+      await api.likeFlash(flash.value.id)
     }
     flash.value.isLiked = !flash.value.isLiked
     flash.value.likedCount += flash.value.isLiked ? 1 : -1

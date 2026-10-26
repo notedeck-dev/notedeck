@@ -14,8 +14,9 @@
 // 落とす。ALLOWED の項目が直ったら消す (消し忘れは下の「実在する違反だけを
 // 挙げる」で落ちる)。`import type` は依存ではないので数えない。
 //
-// components の直接 IPC は「窓の中身は自分で取りに行く」設計が混在していて、
-// 一括で composable に寄せる判断は別 issue。ここでは増やさないことだけ守る。
+// components の直接 IPC (監査時点 73 件) は #1258 で composable / adapter 経由に
+// 寄せ切った。Misskey API は adapter (useColumnSetup / useMultiAccountAdapters)、
+// ローカルの command は用途別の小さな composable を通す。
 
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
@@ -113,41 +114,7 @@ const RULES: Record<string, Rule> = {
       '@/adapters/factory',
       '@tauri-apps/api/core',
     ],
-    allowed: frozen(
-      [
-        'src/components/window/AboutContent.vue',
-        'src/components/window/BackupContent.vue',
-        'src/components/window/CacheEditorContent.vue',
-        'src/components/window/ClipDetailContent.vue',
-        'src/components/window/DriveFileDetailContent.vue',
-        'src/components/window/FollowListContent.vue',
-        'src/components/window/GalleryDetailContent.vue',
-        'src/components/window/InstanceProfileContent.vue',
-        'src/components/window/ListDetailContent.vue',
-        'src/components/window/LoginContent.vue',
-        'src/components/window/NoteDetailContent.vue',
-        'src/components/window/NoteInspectorContent.vue',
-        'src/components/window/NotificationInspectorContent.vue',
-        'src/components/window/PageDetailContent.vue',
-        'src/components/window/PageEditContent.vue',
-        'src/components/window/PermissionsContent.vue',
-        'src/components/window/PlayDetailContent.vue',
-        'src/components/window/PlayEditContent.vue',
-        'src/components/window/UserActivityFollowingChart.vue',
-        'src/components/window/UserActivityHeatmap.vue',
-        'src/components/window/UserActivityNotesChart.vue',
-        'src/components/window/UserActivityPvChart.vue',
-        'src/components/window/UserProfileContent.vue',
-        'src/components/window/user-profile/UserProfileAchievementsPane.vue',
-        'src/components/window/user-profile/UserProfileClipsPane.vue',
-        'src/components/window/user-profile/UserProfileGalleryPane.vue',
-        'src/components/window/user-profile/UserProfileListsPane.vue',
-        'src/components/window/user-profile/UserProfilePagesPane.vue',
-        'src/components/window/user-profile/UserProfilePlayPane.vue',
-        'src/components/window/user-profile/UserProfileQrCode.vue',
-      ],
-      '凍結 (#1098): 監査時点の直接 IPC / adapter factory 呼び出し。composable か store に寄せる順番は #1098 のチェックリストで決める',
-    ),
+    allowed: {},
   },
 }
 

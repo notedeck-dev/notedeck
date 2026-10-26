@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import type {
   FollowRelation,
   NormalizedUser,
@@ -10,6 +9,7 @@ import type {
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkFollowButton from '@/components/common/MkFollowButton.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
@@ -27,6 +27,8 @@ const props = defineProps<{
   userHost?: string | null
   initialTab?: 'following' | 'followers'
 }>()
+
+const { forView } = useMultiAccountAdapters()
 
 const accountsStore = useAccountsStore()
 const toast = useToast()
@@ -95,11 +97,7 @@ const {
 onMounted(async () => {
   if (!account) return
   try {
-    const result = await initAdapterFor(account.host, account.id, {
-      pinnedReactions: false,
-      hasToken: account.hasToken,
-    })
-    adapter = result.adapter
+    adapter = await forView(account.id)
     await loadUsers()
   } catch (e) {
     const err = AppError.from(e)

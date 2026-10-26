@@ -9,6 +9,11 @@ import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import PermissionProfileEditor from '@/components/window/PermissionProfileEditor.vue'
+import {
+  createApiToken,
+  listApiTokens,
+  revokeApiToken,
+} from '@/composables/httpApiServer'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
@@ -34,12 +39,12 @@ import {
   usePermissionsConfig,
 } from '@/permissions/store'
 import { isExposed } from '@/settings/exposure'
+import { useClientLayerStore } from '@/stores/clientLayer'
 import { usePluginsStore } from '@/stores/plugins'
 import { useUiStore } from '@/stores/ui'
 import { useWidgetsStore } from '@/stores/widgets'
 import { useWindowsStore } from '@/stores/windows'
 import { APP_HTTP_PORT } from '@/utils/appHttpPort'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
  * 権限ウィンドウ (#712 §8.1)。principal-first — 「誰に」が行、「何を」が
@@ -235,7 +240,7 @@ const copied = ref(false)
 
 async function refreshApiTokens(): Promise<void> {
   try {
-    apiTokens.value = await commands.listApiTokens()
+    apiTokens.value = await listApiTokens()
   } catch {
     // 非 Tauri (ブラウザ dev) では invoke 不可 — 空のまま
   }
@@ -246,7 +251,7 @@ async function createToken(): Promise<void> {
   if (!name) return
   tokenError.value = ''
   try {
-    const created = unwrap(await commands.createApiToken(name))
+    const created = await createApiToken(name)
     createdToken.value = { name: created.meta.name, token: created.token }
     newTokenName.value = ''
     await refreshApiTokens()
@@ -258,7 +263,7 @@ async function createToken(): Promise<void> {
 async function revokeToken(id: string): Promise<void> {
   tokenError.value = ''
   try {
-    unwrap(await commands.revokeApiToken(id))
+    await revokeApiToken(id)
     await refreshApiTokens()
   } catch (e) {
     tokenError.value = e instanceof Error ? e.message : String(e)
@@ -299,8 +304,9 @@ const sidecarPath = ref<string | null>(null)
 async function loadSidecarPath(): Promise<void> {
   if (!useUiStore().isDesktop) return
   try {
-    const status = await commands.coreResidentStatus()
-    sidecarPath.value = status.sidecar ?? null
+    const clientLayer = useClientLayerStore()
+    await clientLayer.refreshResident()
+    sidecarPath.value = clientLayer.resident?.sidecar ?? null
   } catch {
     sidecarPath.value = null
   }

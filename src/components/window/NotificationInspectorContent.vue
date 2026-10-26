@@ -5,15 +5,17 @@ import EditorTabs from '@/components/common/EditorTabs.vue'
 import I18n from '@/components/common/I18n.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
 import { i18n } from '@/i18n'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   accountId: string
   notification: NormalizedNotification
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 // Notifications may contain `token` in web-push payloads
 const SENSITIVE_RAW_KEYS = new Set<string>(['token'])
@@ -55,7 +57,7 @@ async function loadActivityPub() {
   isLoadingAp.value = true
   apError.value = null
   try {
-    apRaw.value = unwrap(await commands.apiApShow(props.accountId, uri))
+    apRaw.value = await (await apiFor(props.accountId)).apShow(uri)
   } catch (e) {
     apError.value = AppError.from(e).message
   } finally {

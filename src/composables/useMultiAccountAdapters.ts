@@ -1,5 +1,6 @@
 import { initAdapterFor } from '@/adapters/factory'
-import type { ServerAdapter } from '@/adapters/types'
+import type { ApiAdapter, ServerAdapter } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 
 /**
@@ -79,5 +80,15 @@ export function useMultiAccountAdapters() {
     tokenAt.clear()
   }
 
-  return { getOrCreate, forView, getCached, cleanup }
+  /**
+   * ウィンドウ向けの API (forView と同じ既定)。口座が無ければ投げるので、
+   * 呼び出し側は既存の catch でそのまま表示に落とせる
+   */
+  async function apiFor(accountId: string): Promise<ApiAdapter> {
+    const adapter = await forView(accountId)
+    if (!adapter) throw new Error(i18n.ts._common.accountNotFound)
+    return adapter.api
+  }
+
+  return { getOrCreate, forView, apiFor, getCached, cleanup }
 }

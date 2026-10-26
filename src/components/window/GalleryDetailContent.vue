@@ -4,12 +4,12 @@ import type { NormalizedDriveFile } from '@/adapters/types'
 import MkMediaLightbox from '@/components/common/MkMediaLightbox.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { safeUrl } from '@/composables/useDriveFolder'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
 import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 interface GalleryFile {
   id: string
@@ -45,6 +45,8 @@ const props = defineProps<{
   postId: string
   post: GalleryPost
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const accountsStore = useAccountsStore()
 const account = computed(
@@ -143,17 +145,11 @@ async function toggleLike() {
   if (liking.value) return
   liking.value = true
   try {
+    const api = await apiFor(props.accountId)
     if (detailPost.value.isLiked) {
-      unwrap(
-        await commands.apiUnlikeGalleryPost(
-          props.accountId,
-          detailPost.value.id,
-        ),
-      )
+      await api.unlikeGalleryPost(detailPost.value.id)
     } else {
-      unwrap(
-        await commands.apiLikeGalleryPost(props.accountId, detailPost.value.id),
-      )
+      await api.likeGalleryPost(detailPost.value.id)
     }
     detailPost.value.isLiked = !detailPost.value.isLiked
     detailPost.value.likedCount += detailPost.value.isLiked ? 1 : -1

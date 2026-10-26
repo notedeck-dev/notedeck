@@ -8,8 +8,8 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import type { UserPvChart } from '@/adapters/types'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 import { useServersStore } from '@/stores/servers'
@@ -20,6 +20,8 @@ const props = defineProps<{
   accountId: string
   userId: string
 }>()
+
+const { forView } = useMultiAccountAdapters()
 
 const accountsStore = useAccountsStore()
 const serversStore = useServersStore()
@@ -66,10 +68,8 @@ async function render(): Promise<void> {
 
   let raw: UserPvChart
   try {
-    const { adapter } = await initAdapterFor(account.host, account.id, {
-      pinnedReactions: false,
-      hasToken: account.hasToken,
-    })
+    const adapter = await forView(account.id)
+    if (!adapter) throw new Error(i18n.ts._common.accountNotFound)
     raw = await adapter.api.getUserPvChart(props.userId, 'day', CHART_LIMIT)
   } catch {
     serverErrorImageUrl.value = serversStore.getServer(

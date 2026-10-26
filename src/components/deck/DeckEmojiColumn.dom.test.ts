@@ -33,9 +33,12 @@ describe('DeckEmojiColumn (共通基盤)', () => {
     ]
     await mountColumn(DeckEmojiColumn, makeColumn({ type: 'emoji' }), stubs)
 
-    expect(bindings.callsOf('apiGetServerEmojis')).toEqual([
-      { name: 'apiGetServerEmojis', args: ['acc-1', false] },
-    ])
+    // adapter の生成 (initAdapterFor) も同じ辞書を先に温めに行くので、呼び出しは
+    // 1 回以上。カラム自身の取得はカラムのアカウントで refresh なし
+    expect(bindings.callsOf('apiGetServerEmojis').at(-1)).toEqual({
+      name: 'apiGetServerEmojis',
+      args: ['acc-1', false],
+    })
     expect(useEmojisStore().has('example.com')).toBe(true)
   })
 

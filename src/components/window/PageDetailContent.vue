@@ -15,6 +15,7 @@ import AiScriptUiRenderer, {
   type PostFormRequest,
 } from '@/components/deck/widgets/AiScriptUiRenderer.vue'
 import { useAiScriptRunner } from '@/composables/useAiScriptRunner'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { usePortal } from '@/composables/usePortal'
 import { useWindowEditAction } from '@/composables/useWindowEditAction'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
@@ -26,7 +27,6 @@ import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { parseMfm } from '@/utils/mfm'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -39,6 +39,8 @@ const props = defineProps<{
   accountId: string
   pageId: string
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const accountsStore = useAccountsStore()
 const windowsStore = useWindowsStore()
@@ -196,9 +198,9 @@ async function loadPage() {
   fetchError.value = null
   fetching.value = true
   try {
-    const detail = unwrap(
-      await commands.apiGetPage(props.accountId, props.pageId),
-    ) as unknown as PageDetail
+    const detail = (await (
+      await apiFor(props.accountId)
+    ).getPage(props.pageId)) as PageDetail
     page.value = applyPageViewInterruptors(detail, props.accountId)
     if (detail.script) {
       await runScript(detail.script, {
@@ -232,10 +234,11 @@ async function loadPage() {
 async function toggleLike() {
   if (!page.value) return
   try {
+    const api = await apiFor(props.accountId)
     if (page.value.isLiked) {
-      unwrap(await commands.apiUnlikePage(props.accountId, page.value.id))
+      await api.unlikePage(page.value.id)
     } else {
-      unwrap(await commands.apiLikePage(props.accountId, page.value.id))
+      await api.likePage(page.value.id)
     }
     page.value.isLiked = !page.value.isLiked
     page.value.likedCount += page.value.isLiked ? 1 : -1
