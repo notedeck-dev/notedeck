@@ -360,10 +360,10 @@ async function copyAndOpen(host: PushHostStatus & { code: string }) {
 
 .spin {
   display: inline-block;
-  animation: spin 1s linear infinite;
+  animation: kf-spin 1s linear infinite;
 }
 
-@keyframes spin {
+@keyframes kf-spin {
   to {
     transform: rotate(360deg);
   }

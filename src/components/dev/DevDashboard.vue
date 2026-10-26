@@ -3034,11 +3034,11 @@ onUnmounted(() => {
 .beat {
   display: inline-block;
   color: var(--nd-accentText);
-  animation: beat 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  animation: kf-beat 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
   transform-origin: center;
 }
 
-@keyframes beat {
+@keyframes kf-beat {
   0%,
   55%,
   100% {

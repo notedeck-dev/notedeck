@@ -2329,22 +2329,22 @@ function handlePickerReaction(reaction: string) {
 }
 
 .reactionEnter {
-  animation: reaction-enter 0.2s var(--nd-ease-spring) both;
+  animation: kf-reaction-enter 0.2s var(--nd-ease-spring) both;
 }
 
 .reactionLeave {
-  animation: reaction-leave 0.2s var(--nd-ease-spring) both;
+  animation: kf-reaction-leave 0.2s var(--nd-ease-spring) both;
   position: absolute;
 }
 
-@keyframes reaction-enter {
+@keyframes kf-reaction-enter {
   from {
     opacity: 0;
     transform: scale(0.7);
   }
 }
 
-@keyframes reaction-leave {
+@keyframes kf-reaction-leave {
   to {
     opacity: 0;
     transform: scale(0.7);

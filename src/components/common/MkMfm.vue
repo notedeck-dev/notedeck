@@ -231,12 +231,12 @@ const hexColorRe = /^[0-9a-fA-F]{3,8}$/
 const cssTimeRe = /^-?\d+(\.\d+)?(s|ms)$/
 const cssNumRe = /^-?\d+(\.\d+)?$/
 
-// 値域の上限 (#704)。scale は本家と同じ 5 倍 (本家は上側だけだが負でも同じだけ
-// 広がるので絶対値で止める)。position は本家に上限が無く、ノートの
-// overflow: clip に任せている。MkMfm はノート以外 (プロフィール / チャット等) でも
-// 使うので、こちらで ±10em に収める
+// 本家 (mfm-renderer) と同じ値域: scale は上側だけ 5 倍で止め (負の値は本家と同じく
+// 反転としてそのまま通す)、position には上限を置かない。MFM アートは
+// `$[position.x=-1000 $[spin $[position.x=1000 …]]]` のように大きな値で軌道を作るので、
+// ここで丸めると本家と違う絵になる (#1083)。はみ出しはノートの overflow: clip /
+// contain に任せる (本家も同じ)
 const MFM_SCALE_LIMIT = 5
-const MFM_POSITION_LIMIT_EM = 10
 
 function validColor(value: string | true | undefined): string | null {
   return typeof value === 'string' && hexColorRe.test(value) ? value : null
@@ -254,25 +254,20 @@ function childScale(token: MfmFn): number {
     case 'x4':
       return currentScale.value * 4
     case 'scale':
-      return (
-        currentScale.value *
-        Math.max(
-          Math.abs(clampedNumArg(args.x, 1, MFM_SCALE_LIMIT)),
-          Math.abs(clampedNumArg(args.y, 1, MFM_SCALE_LIMIT)),
-        )
-      )
+      return currentScale.value * Math.max(scaleArg(args.x), scaleArg(args.y))
     default:
       return currentScale.value
   }
 }
 
-function clampedNumArg(
-  value: string | true | undefined,
-  fallback: number,
-  limit: number,
-): number {
+function numArg(value: string | true | undefined, fallback: number): number {
   if (typeof value !== 'string' || !cssNumRe.test(value)) return fallback
-  return Math.min(Math.max(Number(value), -limit), limit)
+  return Number(value)
+}
+
+/** 本家と同じく上側だけ MFM_SCALE_LIMIT で止める (負は反転として通す) */
+function scaleArg(value: string | true | undefined): number {
+  return Math.min(numArg(value, 1), MFM_SCALE_LIMIT)
 }
 const borderStyles = new Set([
   'solid',
@@ -377,33 +372,33 @@ function fnStyle(token: MfmFn): Record<string, string> | undefined {
           ? args.deg
           : '90'
       s.transform = `rotate(${deg}deg)`
+      s.transformOrigin = 'center center'
       s.display = 'inline-block'
       break
     }
     case 'scale': {
       if (!advancedMfm.value) break
-      const sx = clampedNumArg(args.x, 1, MFM_SCALE_LIMIT)
-      const sy = clampedNumArg(args.y, 1, MFM_SCALE_LIMIT)
-      s.transform = `scale(${sx},${sy})`
+      s.transform = `scale(${scaleArg(args.x)},${scaleArg(args.y)})`
       s.display = 'inline-block'
       break
     }
     case 'position': {
       if (!advancedMfm.value) break
-      const px = clampedNumArg(args.x, 0, MFM_POSITION_LIMIT_EM)
-      const py = clampedNumArg(args.y, 0, MFM_POSITION_LIMIT_EM)
-      s.transform = `translate(${px}em,${py}em)`
+      s.transform = `translate(${numArg(args.x, 0)}em,${numArg(args.y, 0)}em)`
       s.display = 'inline-block'
       break
     }
     // 色が無効なときの赤は本家と同じ既定値
+    // 本家は style を持つ fn をすべて inline-block で描く (fg / bg / font も同じ)
     case 'fg':
       s.color = `#${validColor(args.color) ?? 'f00'}`
       s.overflowWrap = 'anywhere'
+      s.display = 'inline-block'
       break
     case 'bg':
       s.backgroundColor = `#${validColor(args.color) ?? 'f00'}`
       s.overflowWrap = 'anywhere'
+      s.display = 'inline-block'
       break
     case 'x2':
     case 'x3':
@@ -417,6 +412,7 @@ function fnStyle(token: MfmFn): Record<string, string> | undefined {
       else if (args.fantasy) s.fontFamily = 'fantasy'
       else if (args.emoji) s.fontFamily = 'emoji'
       else if (args.math) s.fontFamily = 'math'
+      if (s.fontFamily) s.display = 'inline-block'
       break
     case 'border': {
       const w =
@@ -430,7 +426,7 @@ function fnStyle(token: MfmFn): Record<string, string> | undefined {
       const c =
         typeof args.color === 'string' && hexColorRe.test(args.color)
           ? `#${args.color}`
-          : 'var(--nd-fg)'
+          : 'var(--nd-accent)'
       const r =
         typeof args.radius === 'string' && cssNumRe.test(args.radius)
           ? args.radius
@@ -817,109 +813,140 @@ function unixtimeValue(token: MfmFn): number | null {
   }
 }
 
-/* Spin */
-@keyframes mfm-spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-@keyframes mfm-spinX {
-  from { transform: perspective(128px) rotateX(0deg); }
-  to { transform: perspective(128px) rotateX(360deg); }
-}
-@keyframes mfm-spinY {
-  from { transform: perspective(128px) rotateY(0deg); }
-  to { transform: perspective(128px) rotateY(360deg); }
-}
-.mfmSpin { display: inline-block; animation: mfm-spin 1.5s linear infinite; }
-.mfmSpinLeft { display: inline-block; animation: mfm-spin 1.5s linear infinite reverse; }
-.mfmSpinAlternate { display: inline-block; animation: mfm-spin 1.5s linear infinite alternate; }
-.mfmSpinX { display: inline-block; animation: mfm-spinX 1.5s linear infinite; }
-.mfmSpinXLeft { display: inline-block; animation: mfm-spinX 1.5s linear infinite reverse; }
-.mfmSpinXAlternate { display: inline-block; animation: mfm-spinX 1.5s linear infinite alternate; }
-.mfmSpinY { display: inline-block; animation: mfm-spinY 1.5s linear infinite; }
-.mfmSpinYLeft { display: inline-block; animation: mfm-spinY 1.5s linear infinite reverse; }
-.mfmSpinYAlternate { display: inline-block; animation: mfm-spinY 1.5s linear infinite alternate; }
+/* keyframes の名前はクラス名と camelCase で衝突させない。CSS Modules は @keyframes も
+   export するので、`@keyframes mfm-spin` と `.mfmSpin` が同じキー `mfmSpin` になり、
+   クラスの方が keyframes 名で上書きされて (= クラスが当たらず) アニメーションが
+   丸ごと死んでいた (#1083)。tests/lint/cssModuleKeyframes.test.ts が検査する。
+   値は本家 packages/frontend/src/style.scss の同名 keyframes に揃える */
 
-/* Shake — 8 keyframes (imperceptible difference at 0.5s, 60% less interpolation) */
-@keyframes mfm-shake {
-  0%   { transform: translate(-3px, -1px) rotate(-8deg); }
-  14%  { transform: translate(1px, -3px) rotate(6deg); }
-  28%  { transform: translate(-2px, 1px) rotate(-3deg); }
-  42%  { transform: translate(2px, -2px) rotate(10deg); }
-  57%  { transform: translate(-1px, 2px) rotate(-9deg); }
-  71%  { transform: translate(1px, -3px) rotate(8deg); }
-  85%  { transform: translate(-2px, 0) rotate(-3deg); }
+/* Spin */
+@keyframes kf-mfm-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes kf-mfm-spinX {
+  0% { transform: perspective(128px) rotateX(0deg); }
+  100% { transform: perspective(128px) rotateX(360deg); }
+}
+@keyframes kf-mfm-spinY {
+  0% { transform: perspective(128px) rotateY(0deg); }
+  100% { transform: perspective(128px) rotateY(360deg); }
+}
+.mfmSpin { display: inline-block; animation: kf-mfm-spin 1.5s linear infinite; }
+.mfmSpinLeft { display: inline-block; animation: kf-mfm-spin 1.5s linear infinite reverse; }
+.mfmSpinAlternate { display: inline-block; animation: kf-mfm-spin 1.5s linear infinite alternate; }
+.mfmSpinX { display: inline-block; animation: kf-mfm-spinX 1.5s linear infinite; }
+.mfmSpinXLeft { display: inline-block; animation: kf-mfm-spinX 1.5s linear infinite reverse; }
+.mfmSpinXAlternate { display: inline-block; animation: kf-mfm-spinX 1.5s linear infinite alternate; }
+.mfmSpinY { display: inline-block; animation: kf-mfm-spinY 1.5s linear infinite; }
+.mfmSpinYLeft { display: inline-block; animation: kf-mfm-spinY 1.5s linear infinite reverse; }
+.mfmSpinYAlternate { display: inline-block; animation: kf-mfm-spinY 1.5s linear infinite alternate; }
+
+/* Shake (本家 mfm-shake) */
+@keyframes kf-mfm-shake {
+  0% { transform: translate(-3px, -1px) rotate(-8deg); }
+  5% { transform: translate(0px, -1px) rotate(-10deg); }
+  10% { transform: translate(1px, -3px) rotate(0deg); }
+  15% { transform: translate(1px, 1px) rotate(11deg); }
+  20% { transform: translate(-2px, 1px) rotate(1deg); }
+  25% { transform: translate(-1px, -2px) rotate(-2deg); }
+  30% { transform: translate(-1px, 2px) rotate(-3deg); }
+  35% { transform: translate(2px, 1px) rotate(6deg); }
+  40% { transform: translate(-2px, -3px) rotate(-9deg); }
+  45% { transform: translate(0px, -1px) rotate(-12deg); }
+  50% { transform: translate(1px, 2px) rotate(10deg); }
+  55% { transform: translate(0px, -3px) rotate(8deg); }
+  60% { transform: translate(1px, -1px) rotate(8deg); }
+  65% { transform: translate(0px, -1px) rotate(-7deg); }
+  70% { transform: translate(-1px, -3px) rotate(6deg); }
+  75% { transform: translate(0px, -2px) rotate(4deg); }
+  80% { transform: translate(-2px, -1px) rotate(3deg); }
+  85% { transform: translate(1px, -3px) rotate(-10deg); }
+  90% { transform: translate(1px, 0px) rotate(3deg); }
+  95% { transform: translate(-2px, 0px) rotate(-3deg); }
   100% { transform: translate(2px, 1px) rotate(2deg); }
 }
-.mfmShake { display: inline-block; animation: mfm-shake 0.5s ease infinite; }
+.mfmShake { display: inline-block; animation: kf-mfm-shake 0.5s ease infinite; }
 
-/* Bounce */
-@keyframes mfm-bounce {
+/* Bounce (本家 mfm-bounce) */
+@keyframes kf-mfm-bounce {
   0% { transform: translateY(0) scale(1, 1); }
   25% { transform: translateY(-16px) scale(1, 1); }
   50% { transform: translateY(0) scale(1, 1); }
   75% { transform: translateY(0) scale(1.5, 0.75); }
   100% { transform: translateY(0) scale(1, 1); }
 }
-.mfmBounce { display: inline-block; animation: mfm-bounce 0.75s linear infinite; transform-origin: center bottom; }
+.mfmBounce { display: inline-block; animation: kf-mfm-bounce 0.75s linear infinite; transform-origin: center bottom; }
 
-/* Jelly — unified scale() */
-@keyframes mfm-jelly {
-  0% { transform: scale(1, 1); }
-  33% { transform: scale(1.2, 0.8); }
-  66% { transform: scale(0.8, 1.2); }
-  100% { transform: scale(1, 1); }
+/* Jelly (本家 mfm-rubberBand) */
+@keyframes kf-mfm-jelly {
+  from { transform: scale3d(1, 1, 1); }
+  30% { transform: scale3d(1.25, 0.75, 1); }
+  40% { transform: scale3d(0.75, 1.25, 1); }
+  50% { transform: scale3d(1.15, 0.85, 1); }
+  65% { transform: scale3d(0.95, 1.05, 1); }
+  75% { transform: scale3d(1.05, 0.95, 1); }
+  to { transform: scale3d(1, 1, 1); }
 }
-.mfmJelly { display: inline-block; animation: mfm-jelly 1s ease infinite; }
+.mfmJelly { display: inline-block; animation: kf-mfm-jelly 1s linear infinite both; }
 
-/* Tada */
-@keyframes mfm-tada {
-  from { transform: rotate(0deg) scale(1); }
-  10% { transform: rotate(-5deg) scale(0.9); }
-  20% { transform: rotate(-5deg) scale(0.9); }
-  30% { transform: rotate(5deg) scale(1.3); }
-  40% { transform: rotate(-3deg) scale(1.3); }
-  50% { transform: rotate(3deg) scale(1.3); }
-  60% { transform: rotate(-3deg) scale(1.3); }
-  70% { transform: rotate(3deg) scale(1.3); }
-  80% { transform: rotate(-3deg) scale(1.3); }
-  90% { transform: rotate(3deg) scale(1.3); }
-  to { transform: rotate(0deg) scale(1); }
+/* Tada (本家 global-tada) */
+@keyframes kf-mfm-tada {
+  from { transform: scale3d(1, 1, 1); }
+  10%, 20% { transform: scale3d(0.91, 0.91, 0.91) rotate3d(0, 0, 1, -2deg); }
+  30%, 70% { transform: scale3d(1.09, 1.09, 1.09) rotate3d(0, 0, 1, 2deg); }
+  50%, 90% { transform: scale3d(1.09, 1.09, 1.09) rotate3d(0, 0, 1, -2deg); }
+  to { transform: scale3d(1, 1, 1); }
 }
-.mfmTada { display: inline-block; font-size: 150%; animation: mfm-tada 1s linear infinite; }
+.mfmTada { display: inline-block; font-size: 150%; animation: kf-mfm-tada 1s linear infinite both; }
 /* アニメーションを切っても文字の大きさは本家と同じく 150% のまま */
 .mfmTadaStatic { font-size: 150%; }
 
-/* Jump */
-@keyframes mfm-jump {
+/* Jump (本家 mfm-jump) */
+@keyframes kf-mfm-jump {
   0% { transform: translateY(0); }
   25% { transform: translateY(-16px); }
   50% { transform: translateY(0); }
   75% { transform: translateY(-8px); }
   100% { transform: translateY(0); }
 }
-.mfmJump { display: inline-block; animation: mfm-jump 0.75s linear infinite; }
+.mfmJump { display: inline-block; animation: kf-mfm-jump 0.75s linear infinite; }
 
-/* Twitch — 6 keyframes (imperceptible at 0.5s, 70% less interpolation) */
-@keyframes mfm-twitch {
-  0%   { transform: translate(7px, -2px); }
-  20%  { transform: translate(-8px, 6px); }
-  40%  { transform: translate(-8px, -3px); }
-  60%  { transform: translate(3px, -8px); }
-  80%  { transform: translate(-3px, 7px); }
-  100% { transform: translate(7px, -2px); }
+/* Twitch (本家 mfm-twitch) */
+@keyframes kf-mfm-twitch {
+  0% { transform: translate(7px, -2px); }
+  5% { transform: translate(-3px, 1px); }
+  10% { transform: translate(-7px, -1px); }
+  15% { transform: translate(0px, -1px); }
+  20% { transform: translate(-8px, 6px); }
+  25% { transform: translate(-4px, -3px); }
+  30% { transform: translate(-4px, -6px); }
+  35% { transform: translate(-8px, -8px); }
+  40% { transform: translate(4px, 6px); }
+  45% { transform: translate(-3px, 1px); }
+  50% { transform: translate(2px, -10px); }
+  55% { transform: translate(-7px, 0px); }
+  60% { transform: translate(-2px, 4px); }
+  65% { transform: translate(3px, -8px); }
+  70% { transform: translate(6px, 7px); }
+  75% { transform: translate(-7px, -2px); }
+  80% { transform: translate(-7px, -8px); }
+  85% { transform: translate(9px, 3px); }
+  90% { transform: translate(-3px, -2px); }
+  95% { transform: translate(-10px, 2px); }
+  100% { transform: translate(-2px, -6px); }
 }
-.mfmTwitch { display: inline-block; animation: mfm-twitch 0.5s ease infinite; }
+.mfmTwitch { display: inline-block; animation: kf-mfm-twitch 0.5s ease infinite; }
 
 /* Rainbow — 本家と同じく filter: hue-rotate で回す。color のアニメは毎フレーム
    テキストの再ペイントになるが、filter は合成で済む。hue-rotate は無彩色を
    動かさないので、起点の色を赤に固定してから回す (中の絵文字も色が回るのは本家と同じ)。
    純色の赤から回すと緑〜青緑が暗く沈むので、少し明るい赤 + saturate で持ち上げる */
-@keyframes mfm-rainbow {
+@keyframes kf-mfm-rainbow {
   from { filter: hue-rotate(0deg) saturate(150%); }
   to { filter: hue-rotate(360deg) saturate(150%); }
 }
-.mfmRainbow { color: #ff4d4d; animation: mfm-rainbow 1s linear infinite; }
+.mfmRainbow { color: #ff4d4d; animation: kf-mfm-rainbow 1s linear infinite; }
 
 /* アニメーションを切ったときの rainbow (本家 _mfm_rainbow_fallback_) */
 .mfmRainbowStatic {
