@@ -212,6 +212,10 @@ watch(
   border-radius: var(--nd-radius-sm);
   outline: none;
 
+  &:focus {
+    box-shadow: 0 0 0 2px var(--nd-accent);
+  }
+
   &::placeholder {
     color: var(--nd-fg);
     opacity: 0.35;
@@ -287,6 +291,10 @@ watch(
   border: none;
   border-radius: var(--nd-radius-sm);
   outline: none;
+
+  &:focus {
+    box-shadow: 0 0 0 2px var(--nd-accent);
+  }
 }
 
 .pollExpiryDatetime {
