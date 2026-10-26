@@ -2,10 +2,10 @@
 import { nextTick, ref } from 'vue'
 import type { NormalizedUserDetail } from '@/adapters/types'
 import MkMfm from '@/components/common/MkMfm.vue'
+import { fetchImageBase64 } from '@/composables/imageFiles'
 import { i18n } from '@/i18n'
 import { useServersStore } from '@/stores/servers'
 import { proxyUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   user: NormalizedUserDetail | null
@@ -19,7 +19,7 @@ const qrCodeContainerEl = ref<HTMLDivElement | null>(null)
 
 async function fetchImageAsDataUrl(url: string): Promise<string | undefined> {
   try {
-    return unwrap(await commands.fetchImageBase64(url)) ?? undefined
+    return (await fetchImageBase64(url)) ?? undefined
   } catch {
     return undefined
   }

@@ -10,6 +10,7 @@ import type {
   NoteUpdateEvent,
   ServerAdapter,
 } from '@/adapters/types'
+import { openChannelQuery } from '@/composables/querySubscriptions'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
 import { channelCacheKey, columnCacheKey } from '@/services/columnCacheKey'
@@ -17,7 +18,6 @@ import type { ColumnSource } from '@/services/columnSource'
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckCrossSourcesColumn from './DeckCrossSourcesColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
@@ -56,8 +56,7 @@ function subscribeSource(
 ) {
   return createNoteQuerySubscription({
     accountId,
-    open: async () =>
-      unwrap(await commands.querySubscribeChannel(accountId, source.id)),
+    open: async () => openChannelQuery(accountId, source.id),
     enqueue,
     onNoteUpdated: callbacks.onNoteUpdated,
   })
@@ -79,8 +78,7 @@ const noteColumnConfig: NoteColumnConfig = {
       // biome-ignore lint/style/noNonNullAssertion: channelId 不在は validate() で connect スキップ
       const channelId = props.column.channelId!
       return createQuerySubscription({
-        open: async () =>
-          unwrap(await commands.querySubscribeChannel(accountId, channelId)),
+        open: async () => openChannelQuery(accountId, channelId),
         onInsert: (item) => {
           const note = queryItemAsNote(item)
           if (note) enqueue(note)

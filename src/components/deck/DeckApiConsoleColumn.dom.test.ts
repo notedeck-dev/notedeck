@@ -35,7 +35,9 @@ describe('DeckApiConsoleColumn (共通基盤)', () => {
     bindings.responses.apiRequest = { ok: true }
     const wrapper = await mountAndRun('meta', '{"detail": false}')
 
-    expect(bindings.calls.map((c) => c.name)).toEqual(['apiRequest'])
+    // 送信時に adapter を作るので、辞書の温め (絵文字 / ピン留め) も同時に走る。
+    // 見るのは apiRequest が 1 回だけ、カラムのアカウントで呼ばれること
+    expect(bindings.callsOf('apiRequest')).toHaveLength(1)
     expect(bindings.callsOf('apiRequest')[0]?.args).toEqual([
       'acc-1',
       'meta',

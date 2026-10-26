@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { destroyAdapter } from '@/adapters/factory'
 import type { ServerSoftware } from '@/adapters/types'
 import { i18n } from '@/i18n'
+import { accountScopeKey } from '@/services/accountScope'
 import { invalidateResolutionCache } from '@/services/entityResolution'
 import { useClientLayerStore } from '@/stores/clientLayer'
 import { useMutesStore } from '@/stores/mutes'
@@ -24,17 +25,8 @@ export interface Account {
 
 const GUEST_USER_ID = '__guest__'
 
-/**
- * per-account 紐付けに使う安定キー。内部 UUID (`Account.id`) はログインの
- * たびに再生成されるため永続データの紐付けには使えない (#771)。
- * host + サーバー側 userId は再ログインしても変わらない。
- */
-export function accountScopeKey(account: {
-  host: string
-  userId: string
-}): string {
-  return `${account.host}:${account.userId}`
-}
+// 安定キーの導出は純ロジックなので services に置き、ここからも引けるようにする
+export { accountScopeKey }
 
 /** 安定キー → 現行アカウント (無ければ undefined)。 */
 export function findAccountByScopeKey(

@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /** `memos.create` — 新規メモを作成する */
@@ -13,7 +13,7 @@ export const memosDeleteCapability = implementCore('memos.delete')
 /** `memos.revert` — メモを編集履歴の過去状態に戻す (#981 と同型) */
 export const memosRevertCapability = implementCore('memos.revert')
 
-export const MEMOS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const MEMOS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   memosCreateCapability,
   memosUpdateCapability,
   memosDeleteCapability,

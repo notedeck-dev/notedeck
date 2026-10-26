@@ -14,8 +14,9 @@
 // 落とす。ALLOWED の項目が直ったら消す (消し忘れは下の「実在する違反だけを
 // 挙げる」で落ちる)。`import type` は依存ではないので数えない。
 //
-// components の直接 IPC は「窓の中身は自分で取りに行く」設計が混在していて、
-// 一括で composable に寄せる判断は別 issue。ここでは増やさないことだけ守る。
+// components の直接 IPC (監査時点 73 件) は #1258 で composable / adapter 経由に
+// 寄せ切った。Misskey API は adapter (useColumnSetup / useMultiAccountAdapters)、
+// ローカルの command は用途別の小さな composable を通す。
 
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
@@ -32,11 +33,6 @@ interface Rule {
   allowed: Record<string, string>
 }
 
-/** 監査時点 (#1098) の違反をまとめて凍結する。個別の理由が要るものは直接書く。 */
-function frozen(paths: string[], reason: string): Record<string, string> {
-  return Object.fromEntries(paths.map((p) => [p, reason]))
-}
-
 const RULES: Record<string, Rule> = {
   'services は stores / composables / components / UI 通知 / vue / pinia を runtime import しない':
     {
@@ -49,10 +45,7 @@ const RULES: Record<string, Rule> = {
         'vue',
         'pinia',
       ],
-      allowed: {
-        'src/services/entityResolution.ts':
-          '凍結 (#1098): accounts store を直接引く。アカウント一覧は引数で受けるべき',
-      },
+      allowed: {},
     },
   'deck のカラムは共通基盤 (useColumnSetup) を通り、その内部 (useColumnTheme / useServerImages) を直接 import しない (#1098 §4)':
     {
@@ -71,24 +64,12 @@ const RULES: Record<string, Rule> = {
   'stores は composables を import しない (向きの逆転)': {
     from: 'src/stores',
     forbid: ['@/composables/'],
-    allowed: frozen(
-      [
-        'src/stores/chatMessageStore.ts',
-        'src/stores/deck.ts',
-        'src/stores/notes.ts',
-        'src/stores/performance.ts',
-        'src/stores/windows.ts',
-      ],
-      '凍結 (#1098): frame scheduler / snapshot / adaptive quality / back button / PiP は composable ではなく core か services に置くべきもの',
-    ),
+    allowed: {},
   },
   'adapters は stores を import しない (向きの逆転)': {
     from: 'src/adapters',
     forbid: ['@/stores/'],
-    allowed: {
-      'src/adapters/factory.ts':
-        '凍結 (#1098): 絵文字 / pinned reaction / server store を adapter 初期化時に引く。依存は呼び出し側から注入すべき',
-    },
+    allowed: {},
   },
   'columns のレジストリは components を import しない': {
     from: 'src/columns',
@@ -113,79 +94,7 @@ const RULES: Record<string, Rule> = {
       '@/adapters/factory',
       '@tauri-apps/api/core',
     ],
-    allowed: frozen(
-      [
-        'src/components/common/MkChatMessage.vue',
-        'src/components/common/MkDrivePicker.vue',
-        'src/components/common/MkMediaLightbox.vue',
-        'src/components/common/MkNote.vue',
-        'src/components/common/MkNoteEmbed.vue',
-        'src/components/common/MkReactionUsersPopup.vue',
-        'src/components/common/MkUserPopup.vue',
-        'src/components/common/NoteMoreMenu.vue',
-        'src/components/common/NoteReactionUsersModal.vue',
-        'src/components/common/RenoteMoreMenu.vue',
-        'src/components/common/TitleBarMenu.vue',
-        'src/components/deck/AddColumnDialog.vue',
-        'src/components/deck/DeckAboutMisskeyColumn.vue',
-        'src/components/deck/DeckAchievementsColumn.vue',
-        'src/components/deck/DeckAnnouncementsColumn.vue',
-        'src/components/deck/DeckAntennaColumn.vue',
-        'src/components/deck/DeckApiConsoleColumn.vue',
-        'src/components/deck/DeckApiDocsColumn.vue',
-        'src/components/deck/DeckChannelColumn.vue',
-        'src/components/deck/DeckChatColumn.vue',
-        'src/components/deck/DeckClientSearchColumn.vue',
-        'src/components/deck/DeckDriveColumn.vue',
-        'src/components/deck/DeckEmojiColumn.vue',
-        'src/components/deck/DeckExploreColumn.vue',
-        'src/components/deck/DeckFollowRequestsColumn.vue',
-        'src/components/deck/DeckGalleryColumn.vue',
-        'src/components/deck/DeckLayout.vue',
-        'src/components/deck/DeckListColumn.vue',
-        'src/components/deck/DeckLookupColumn.vue',
-        'src/components/deck/DeckMentionsColumn.vue',
-        'src/components/deck/DeckNavbar.vue',
-        'src/components/deck/DeckNotificationColumn.vue',
-        'src/components/deck/DeckPageColumn.vue',
-        'src/components/deck/DeckPlayColumn.vue',
-        'src/components/deck/DeckRoleColumn.vue',
-        'src/components/deck/DeckSearchColumn.vue',
-        'src/components/deck/DeckServerInfoColumn.vue',
-        'src/components/deck/DeckTimelineColumn.vue',
-        'src/components/window/AboutContent.vue',
-        'src/components/window/BackupContent.vue',
-        'src/components/window/CacheEditorContent.vue',
-        'src/components/window/ClipDetailContent.vue',
-        'src/components/window/DriveFileDetailContent.vue',
-        'src/components/window/FollowListContent.vue',
-        'src/components/window/GalleryDetailContent.vue',
-        'src/components/window/InstanceProfileContent.vue',
-        'src/components/window/ListDetailContent.vue',
-        'src/components/window/LoginContent.vue',
-        'src/components/window/NoteDetailContent.vue',
-        'src/components/window/NoteInspectorContent.vue',
-        'src/components/window/NotificationInspectorContent.vue',
-        'src/components/window/PageDetailContent.vue',
-        'src/components/window/PageEditContent.vue',
-        'src/components/window/PermissionsContent.vue',
-        'src/components/window/PlayDetailContent.vue',
-        'src/components/window/PlayEditContent.vue',
-        'src/components/window/UserActivityFollowingChart.vue',
-        'src/components/window/UserActivityHeatmap.vue',
-        'src/components/window/UserActivityNotesChart.vue',
-        'src/components/window/UserActivityPvChart.vue',
-        'src/components/window/UserProfileContent.vue',
-        'src/components/window/user-profile/UserProfileAchievementsPane.vue',
-        'src/components/window/user-profile/UserProfileClipsPane.vue',
-        'src/components/window/user-profile/UserProfileGalleryPane.vue',
-        'src/components/window/user-profile/UserProfileListsPane.vue',
-        'src/components/window/user-profile/UserProfilePagesPane.vue',
-        'src/components/window/user-profile/UserProfilePlayPane.vue',
-        'src/components/window/user-profile/UserProfileQrCode.vue',
-      ],
-      '凍結 (#1098): 監査時点の直接 IPC / adapter factory 呼び出し。composable か store に寄せる順番は #1098 のチェックリストで決める',
-    ),
+    allowed: {},
   },
 }
 

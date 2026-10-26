@@ -1,5 +1,6 @@
 import { initAdapterFor } from '@/adapters/factory'
-import type { ServerAdapter } from '@/adapters/types'
+import type { ApiAdapter, ServerAdapter } from '@/adapters/types'
+import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
 
 /**
@@ -33,17 +34,38 @@ export function useMultiAccountAdapters() {
     return undefined
   }
 
-  async function getOrCreate(accountId: string): Promise<ServerAdapter | null> {
+  /**
+   * `options` は factory にそのまま渡す。ウィンドウ / ポップアップは
+   * `{ pinnedReactions: false, hasToken: acc.hasToken }` で呼ぶ (ログアウト中の
+   * アカウントでも読取だけは anon adapter で描く)。省略時は factory の既定
+   */
+  async function getOrCreate(
+    accountId: string,
+    options?: Parameters<typeof initAdapterFor>[2],
+  ): Promise<ServerAdapter | null> {
     const cached = fresh(accountId)
     if (cached) return cached
 
     const acc = accountsStore.accounts.find((a) => a.id === accountId)
     if (!acc) return null
 
-    const { adapter } = await initAdapterFor(acc.host, acc.id)
+    const { adapter } = await initAdapterFor(acc.host, acc.id, options)
     adapters.set(accountId, adapter)
     tokenAt.set(accountId, acc.hasToken)
     return adapter
+  }
+
+  /**
+   * ウィンドウ / ポップアップ向けの既定: ピン留めリアクションは引かず、
+   * アカウントのログイン状態どおりの adapter を返す (#1258)
+   */
+  function forView(accountId: string): Promise<ServerAdapter | null> {
+    const acc = accountsStore.accounts.find((a) => a.id === accountId)
+    if (!acc) return Promise.resolve(null)
+    return getOrCreate(accountId, {
+      pinnedReactions: false,
+      hasToken: acc.hasToken,
+    })
   }
 
   /** 生成済みならその adapter (同期)。ストリーム購読の同期など非同期を避けたい場面用 */
@@ -58,5 +80,15 @@ export function useMultiAccountAdapters() {
     tokenAt.clear()
   }
 
-  return { getOrCreate, getCached, cleanup }
+  /**
+   * ウィンドウ向けの API (forView と同じ既定)。口座が無ければ投げるので、
+   * 呼び出し側は既存の catch でそのまま表示に落とせる
+   */
+  async function apiFor(accountId: string): Promise<ApiAdapter> {
+    const adapter = await forView(accountId)
+    if (!adapter) throw new Error(i18n.ts._common.accountNotFound)
+    return adapter.api
+  }
+
+  return { getOrCreate, forView, apiFor, getCached, cleanup }
 }

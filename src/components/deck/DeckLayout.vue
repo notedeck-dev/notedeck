@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { convertFileSrc } from '@tauri-apps/api/core'
 import { storeToRefs } from 'pinia'
 import {
   computed,
@@ -20,8 +19,9 @@ import NotificationCenter from '@/components/common/notifications/NotificationCe
 import { useBackButton } from '@/composables/useBackButton'
 import { useDeckInit } from '@/composables/useDeckInit'
 import { requestMoveColumn } from '@/composables/useDeckWindow'
-import { useFileDrop } from '@/composables/useFileDrop'
+import { droppedFileSrc, useFileDrop } from '@/composables/useFileDrop'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
 import { usePortal } from '@/composables/usePortal'
 import { useRippleEffect } from '@/composables/useRippleEffect'
@@ -39,7 +39,6 @@ import {
   useIsCompactLayout,
   useUiStore,
 } from '@/stores/ui'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckBottomBar from './DeckBottomBar.vue'
 import DeckColumnsArea from './DeckColumnsArea.vue'
 import DeckMobileNav from './DeckMobileNav.vue'
@@ -167,6 +166,7 @@ function toggleAddMenu() {
 // Drop targets follow physical layering: only the topmost visible surface accepts drops.
 // - Post form open → only the form itself (not the backdrop)
 // - Post form closed → only columns (not the deck background)
+const { getOrCreate } = useMultiAccountAdapters()
 const fileDrop = useFileDrop((paths, position) => {
   const el = document.elementFromPoint(position.x, position.y)
 
@@ -191,18 +191,18 @@ const fileDrop = useFileDrop((paths, position) => {
       (el?.closest('[data-drive-folder-id]') as HTMLElement | null)?.dataset
         .driveFolderId || null
     for (const path of paths) {
-      commands
-        .apiUploadFileFromPath(accountId, path, false, folderId)
-        .then((r) => {
-          unwrap(r)
-          uiStore.emitDriveFilesChanged(accountId)
+      getOrCreate(accountId)
+        .then((adapter) => {
+          if (!adapter) throw new Error('account not found')
+          return adapter.api.uploadFileFromPath(path, false, folderId)
         })
+        .then(() => uiStore.emitDriveFilesChanged(accountId))
     }
     return
   }
 
   if (paths.length === 1 && IMAGE_EXTENSIONS.test(paths[0] ?? '')) {
-    deckStore.setWallpaper(convertFileSrc(paths[0] ?? ''))
+    deckStore.setWallpaper(droppedFileSrc(paths[0] ?? ''))
   }
 })
 

@@ -4,7 +4,7 @@ import {
   _clearCapabilitiesForTest,
   registerCapability,
 } from '@/capabilities/registry'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -478,15 +478,13 @@ describe('Mk:api account context bridging', () => {
   it('Nd:register_command の handler から呼ぶ Mk:api は呼び出し元の権限も検査する (#1099)', async () => {
     apiRequestMock.mockResolvedValue({ status: 'ok', data: { id: 'n1' } })
     const plugin = await installAndLaunch(
-      'Nd:register_command("call", "Call", "ti-x", @(p) { Mk:api("notes/show", { noteId: "n1" }) }, { aiTool: true })',
+      'Nd:register_command("call", "Call", "ti-x", @(p) { Mk:api("notes/show", { noteId: "n1" }) }, { aiTool: true, signature: { description: "d" } })',
     )
-    const { useCommandStore } = await import('@/commands/registry')
-    const cmd = [...useCommandStore().commands.values()].find((c) =>
-      c.id.endsWith(':call'),
-    )
-    expect(cmd).toBeDefined()
+    const { listCapabilities } = await import('@/capabilities/registry')
+    const cap = listCapabilities().find((c) => c.id.endsWith(':call'))
+    expect(cap).toBeDefined()
     await withPluginAccountContext(plugin.id, 'acc-9', () =>
-      cmd?.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
+      cap?.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
     )
     expect(gateMock).toHaveBeenCalledWith(
       { kind: 'plugin', pluginId: plugin.id, name: plugin.name },
@@ -632,13 +630,12 @@ describe('Mk:toast (プラグイン env の配線)', () => {
 })
 
 describe('UI 起点の実行エラー表示 (#1072 / #1074)', () => {
-  function makeCapability(overrides: Partial<Command>): Command {
+  function makeCapability(overrides: Partial<Capability>): Capability {
     return {
       id: 'test.cap',
       label: 'test',
       icon: 'ti-flask',
       category: 'general',
-      shortcuts: [],
       permissions: [],
       signature: { description: 'test capability' },
       execute: () => 'ok',

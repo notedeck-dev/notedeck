@@ -160,8 +160,10 @@ impl Core {
         !self.db_absent.load(std::sync::atomic::Ordering::Acquire)
     }
 
-    /// 今すぐ使える DB (待たない)。初期化前と DB を持たない構成では None
-    pub fn try_db(&self) -> Option<Arc<Database>> {
+    /// 今すぐ使える DB (待たない)。初期化前と DB を持たない構成では None。
+    /// 同期の rusqlite を async から直接触らせないため crate の外には出さない
+    /// (#1098 §7)。外からは `blocking` / `with_archive` を通す
+    pub(crate) fn try_db(&self) -> Option<Arc<Database>> {
         self.db_rx.borrow().clone()
     }
 
@@ -371,7 +373,9 @@ impl Core {
     }
 
     /// Await until DB is ready (fast path — does not wait for MisskeyClient).
-    pub async fn db(&self) -> Arc<Database> {
+    /// 生のハンドルは crate の中だけ (#1098 §7)。コマンド本体は `blocking` /
+    /// `with_archive` で blocking スレッドに寄せ、async の worker で rusqlite を回さない
+    pub(crate) async fn db(&self) -> Arc<Database> {
         let mut rx = self.db_rx.clone();
         let r = rx.wait_for(|v| v.is_some()).await.unwrap();
         Arc::clone(r.as_ref().unwrap())
@@ -413,6 +417,23 @@ impl Core {
         self.blocking(move |db| f(db, value)).await
     }
 
+    /// 索引への書込を待たずに blocking スレッドで回す (fire-and-forget)。取得した
+    /// 応答をキャッシュへ写すような「返事を遅らせたくない」書込用。索引が無ければ
+    /// 何もしない。失敗は warn に落とす
+    pub fn spawn_archive_write<F>(&self, f: F)
+    where
+        F: FnOnce(&Database) -> Result<()> + Send + 'static,
+    {
+        let Some(db) = self.try_db() else {
+            return;
+        };
+        tokio::task::spawn_blocking(move || {
+            if let Err(e) = f(&db) {
+                tracing::warn!(error = %e, "[archive] background write failed");
+            }
+        });
+    }
+
     /// Await until the Misskey client is set (DB を持たない構成でも待てる)。
     pub async fn client(&self) -> Arc<MisskeyClient> {
         let mut rx = self.rx.clone();
@@ -427,10 +448,23 @@ impl Core {
         Arc::clone(&r.as_ref().unwrap().server_info)
     }
 
-    /// `client()` + `get_credentials` の定型を 1 行に畳む (#782 R2)。DB を持たない構成でも動く。
+    /// 口座の資格情報 (host, token)。口座の所在 (`AccountStore`: アプリでは DB、
+    /// notemaid では写し) を資格情報キャッシュ越しに引く。キャッシュ miss のときだけ
+    /// 1 行の短い読みが走るので worker で許容する (#1098 §7)。コマンド本体が
+    /// `db()` を取って `get_credentials` に渡す形はこれに置き換える
+    pub fn credentials(&self, account_id: &str) -> Result<(String, String)> {
+        get_credentials(&*self.accounts()?, account_id)
+    }
+
+    /// 匿名フォールバック版 (公開エンドポイント用)。
+    pub fn credentials_or_anon(&self, account_id: &str) -> Result<(String, String)> {
+        get_credentials_or_anon(&*self.accounts()?, account_id)
+    }
+
+    /// `client()` + `credentials` の定型を 1 行に畳む (#782 R2)。DB を持たない構成でも動く。
     pub async fn authed(&self, account_id: &str) -> Result<(Arc<MisskeyClient>, String, String)> {
         let client = self.client().await;
-        let (host, token) = get_credentials(&*self.accounts()?, account_id)?;
+        let (host, token) = self.credentials(account_id)?;
         Ok((client, host, token))
     }
 
@@ -440,7 +474,7 @@ impl Core {
         account_id: &str,
     ) -> Result<(Arc<MisskeyClient>, String, String)> {
         let client = self.client().await;
-        let (host, token) = get_credentials_or_anon(&*self.accounts()?, account_id)?;
+        let (host, token) = self.credentials_or_anon(account_id)?;
         Ok((client, host, token))
     }
 }

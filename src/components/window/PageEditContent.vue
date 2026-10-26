@@ -1,23 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import type { JsonValue } from '@/bindings'
 import EditorTabs, {
   type EditorTabDef,
 } from '@/components/common/EditorTabs.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
 import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   accountId: string
   pageId: string
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const accountsStore = useAccountsStore()
 const account = computed(
@@ -112,9 +113,9 @@ async function load() {
   fetching.value = true
   fetchError.value = null
   try {
-    const detail = unwrap(
-      await commands.apiGetPage(props.accountId, props.pageId),
-    ) as unknown as PageDetail
+    const detail = (await (
+      await apiFor(props.accountId)
+    ).getPage(props.pageId)) as PageDetail
     original.value = detail
     editingTitle.value = detail.title
     editingSummary.value = detail.summary ?? ''
@@ -142,21 +143,19 @@ async function save() {
   ]
 
   try {
-    unwrap(
-      await commands.apiUpdatePage(props.accountId, {
-        pageId: original.value.id,
-        title: editingTitle.value,
-        name: original.value.name,
-        summary: editingSummary.value || null,
-        content: newContent,
-        variables: original.value.variables,
-        script: original.value.script,
-        alignCenter: original.value.alignCenter ?? false,
-        hideTitleWhenPinned: original.value.hideTitleWhenPinned ?? false,
-        font: original.value.font ?? 'sans-serif',
-        eyeCatchingImageId: original.value.eyeCatchingImageId ?? null,
-      } as never),
-    )
+    await (await apiFor(props.accountId)).updatePage({
+      pageId: original.value.id,
+      title: editingTitle.value,
+      name: original.value.name,
+      summary: editingSummary.value || null,
+      content: newContent,
+      variables: original.value.variables,
+      script: original.value.script,
+      alignCenter: original.value.alignCenter ?? false,
+      hideTitleWhenPinned: original.value.hideTitleWhenPinned ?? false,
+      font: original.value.font ?? 'sans-serif',
+      eyeCatchingImageId: original.value.eyeCatchingImageId ?? null,
+    } as never)
     original.value.title = editingTitle.value
     original.value.summary = editingSummary.value || null
     original.value.content = newContent

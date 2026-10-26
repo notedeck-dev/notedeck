@@ -216,5 +216,9 @@ export function createNotesApi(ctx: MisskeyApiContext): NotesApi {
         ),
       )
     },
+
+    async getNoteRaw(noteId: string): Promise<unknown> {
+      return unwrapAny(await commands.apiGetNoteRaw(ctx.accountId, { noteId }))
+    },
   }
 }

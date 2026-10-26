@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, shallowRef, watch } from 'vue'
 import type { UserList } from '@/adapters/types'
-import type { JsonValue } from '@/bindings'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import ProfileItemCards from './ProfileItemCards.vue'
 
 const props = defineProps<{
@@ -16,6 +15,8 @@ const props = defineProps<{
   infoImageUrl?: string
   errorImageUrl?: string
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const windowsStore = useWindowsStore()
 
@@ -33,12 +34,8 @@ async function load() {
   isLoading.value = true
   error.value = null
   try {
-    const params: Record<string, JsonValue> = {}
-    if (!props.isOwnProfile) {
-      params.userId = props.userId
-    }
-    profileLists.value = unwrap(
-      await commands.apiGetUserListsBy(props.accountId, params),
+    profileLists.value = await (await apiFor(props.accountId)).getUserListsBy(
+      props.isOwnProfile ? undefined : props.userId,
     )
   } catch (e) {
     error.value = AppError.from(e).message

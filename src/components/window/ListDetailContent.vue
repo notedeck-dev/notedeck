@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, shallowRef } from 'vue'
-import type { JsonValue, UserList } from '@/bindings'
+import type { UserList } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
 import { webUiUrl } from '@/services/safeUrl'
@@ -11,7 +12,6 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   accountId: string
@@ -28,6 +28,7 @@ const props = defineProps<{
 const accountsStore = useAccountsStore()
 const settingsStore = useSettingsStore()
 const toast = useToast()
+const { apiFor } = useMultiAccountAdapters()
 
 const account = computed(() =>
   accountsStore.accounts.find((a) => a.id === props.accountId),
@@ -73,9 +74,10 @@ async function loadList() {
     // 省略する必要がある (省略時は userId=me.id で filter される)。
     const isOtherUsersList =
       !!props.ownerUserId && props.ownerUserId !== account.value?.userId
-    const params: Record<string, JsonValue> = { listId: props.listId }
-    if (isOtherUsersList) params.forPublic = true
-    const fetched = unwrap(await commands.apiGetList(props.accountId, params))
+    const fetched = await (await apiFor(props.accountId)).getList(
+      props.listId,
+      { forPublic: isOtherUsersList },
+    )
     list.value = fetched
     if (fetched.userIds && fetched.userIds.length > 0) {
       await loadMembers(fetched.userIds)
@@ -91,9 +93,7 @@ async function loadMembers(userIds: string[]) {
   membersLoading.value = true
   membersError.value = null
   try {
-    const raw = unwrap(
-      await commands.apiGetUserRaw(props.accountId, { userIds }),
-    ) as unknown
+    const raw = await (await apiFor(props.accountId)).getUserRaw({ userIds })
     if (Array.isArray(raw)) {
       members.value = raw as UserSummary[]
     }
@@ -128,12 +128,9 @@ async function toggleFavorite() {
   togglingFavorite.value = true
   const wasFav = list.value.isLiked === true
   try {
-    const params = { listId: list.value.id }
-    unwrap(
-      wasFav
-        ? await commands.apiUnfavoriteList(props.accountId, params)
-        : await commands.apiFavoriteList(props.accountId, params),
-    )
+    const api = await apiFor(props.accountId)
+    if (wasFav) await api.unfavoriteList(list.value.id)
+    else await api.favoriteList(list.value.id)
     list.value.isLiked = !wasFav
     if (typeof list.value.likedCount === 'number') {
       list.value.likedCount += wasFav ? -1 : 1

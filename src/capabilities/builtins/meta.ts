@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /**
@@ -31,7 +31,7 @@ export const metaConfigCapability = implementCore('meta.config')
  */
 export const metaHeartbeatCapability = implementCore('meta.heartbeat')
 
-export const META_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const META_BUILTIN_CAPABILITIES: readonly Capability[] = [
   metaPermissionsCapability,
   metaActiveSkillsCapability,
   metaPersonaCapability,

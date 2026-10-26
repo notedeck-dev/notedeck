@@ -8,7 +8,6 @@ import {
   useTemplateRef,
   watch,
 } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import { renoteVisibilityFor } from '@/adapters/misskey-tempura/semiPublic'
 import type {
   NormalizedNote,
@@ -33,6 +32,7 @@ const MkPostForm = defineAsyncComponent(
 
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNoteCapture } from '@/composables/useNoteCapture'
 import { useNoteVisibility } from '@/composables/useNoteVisibility'
@@ -58,6 +58,7 @@ const emit = defineEmits<{ close: [] }>()
 
 const noteStore = useNoteStore()
 const accountsStore = useAccountsStore()
+const { forView } = useMultiAccountAdapters()
 const isCompact = useIsCompactLayout()
 const { navigateToUser: navToUser } = useNavigation()
 const { reactionUrl: reactionUrlRaw } = useEmojiResolver()
@@ -200,11 +201,9 @@ onMounted(async () => {
   }
 
   try {
-    const result = await initAdapterFor(account.host, account.id, {
-      pinnedReactions: false,
-      hasToken: account.hasToken,
-    })
-    adapter = result.adapter
+    const a = await forView(account.id)
+    if (!a) throw new Error(i18n.ts._common.accountNotFound)
+    adapter = a
     hasQuotesTab.value = typeof adapter.api.getNoteQuotes === 'function'
     // adapter は非リアクティブなローカル変数なので、キャッシュ即描画の窓で
     // 初期化前に選ばれたタブ・種別は watch では拾えない。ここで拾い直す

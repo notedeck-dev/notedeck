@@ -6,12 +6,12 @@ import MkChatMessageMoreMenu from '@/components/common/MkChatMessageMoreMenu.vue
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useEmojiResolver } from '@/composables/useEmojiResolver'
 import { USER_POPUP_HOVER, useHoverPopup } from '@/composables/useHoverPopup'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
 import { provideNoteAccountId } from '@/composables/useNoteContext'
 import { usePortal } from '@/composables/usePortal'
 import { i18n } from '@/i18n'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkUserPopup = defineAsyncComponent(() => import('./MkUserPopup.vue'))
 
@@ -164,6 +164,7 @@ function handleReactionClick(reaction: string, reacted: boolean) {
 
 // User hover popup for mentions
 const mentionPopup = useHoverPopup(USER_POPUP_HOVER)
+const { getOrCreate } = useMultiAccountAdapters()
 const mentionUserId = ref('')
 let mentionHovering = false
 
@@ -176,9 +177,9 @@ async function onMentionHover(
   mentionHovering = true
   const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
   try {
-    const user = unwrap(
-      await commands.apiLookupUser(props.accountId, username, host ?? null),
-    )
+    const adapter = await getOrCreate(props.accountId)
+    if (!adapter) return
+    const user = await adapter.api.lookupUser(username, host)
     if (!mentionHovering) return
     mentionUserId.value = user.id
     mentionPopup.show({ x: rect.right + 8, y: rect.top })

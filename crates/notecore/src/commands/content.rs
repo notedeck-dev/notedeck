@@ -8,7 +8,6 @@ use notecli::models::{GalleryPost, Page, ServerEmoji};
 
 use crate::commands::{typed_request, validate_host};
 use crate::context::Core;
-use crate::credentials::get_credentials_or_anon;
 use crate::error::Result;
 
 // --- Server metadata ---
@@ -127,10 +126,7 @@ pub async fn api_get_server_emojis(
 
     if !refresh {
         // host の解決は DB (Stage 1) だけで済ませ、命中時は full-ready を待たない
-        let host = {
-            let db = core.db().await;
-            get_credentials_or_anon(&db, &account_id)?.0
-        };
+        let host = core.credentials_or_anon(&account_id)?.0;
         let dir = app_dir.clone();
         let cached = tokio::task::spawn_blocking(move || cache::read(&dir, &host))
             .await

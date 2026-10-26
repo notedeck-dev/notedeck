@@ -4,10 +4,10 @@ import { i18n } from '@/i18n'
 import '@scalar/api-reference/style.css'
 import { computed, onMounted, ref } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { openapiSpec } from '@/composables/httpApiServer'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useThemeStore } from '@/stores/theme'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -22,7 +22,7 @@ const spec = ref<string | null>(null)
 
 onMounted(() =>
   withLoading(async () => {
-    const data = unwrap(await commands.getOpenapiSpec())
+    const data = await openapiSpec()
     spec.value = JSON.stringify(data)
   }),
 )

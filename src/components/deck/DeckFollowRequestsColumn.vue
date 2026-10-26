@@ -6,6 +6,7 @@ import MkAvatar from '@/components/common/MkAvatar.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavigation } from '@/composables/useNavigation'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
@@ -14,7 +15,6 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useServersStore } from '@/stores/servers'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -50,9 +50,20 @@ const {
   withLoading,
   scroller,
   scrollToTop,
+  initAdapter,
 } = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 const toast = useToast()
+const multiAdapters = useMultiAccountAdapters()
+
+/** 全アカウント面は共有キャッシュの adapter、per-account はカラムの adapter */
+async function apiFor(accountId: string) {
+  const adapter = isCrossAccount.value
+    ? await multiAdapters.getOrCreate(accountId)
+    : await initAdapter()
+  if (!adapter) throw new Error(`account not found: ${accountId}`)
+  return adapter.api
+}
 
 const requests = ref<FollowRequest[]>([])
 const actionStates = ref<Record<string, 'accepted' | 'rejected' | 'canceled'>>(
@@ -94,10 +105,14 @@ const emptyMessage = computed(() =>
     : i18n.ts._deckFollowRequestsColumn.noRequests,
 )
 
-function fetchForAccount(accountId: string, tab: TabValue) {
-  return tab === 'sent'
-    ? commands.apiGetSentFollowRequests(accountId, 30)
-    : commands.apiGetFollowRequests(accountId, 30)
+async function fetchForAccount(
+  accountId: string,
+  tab: TabValue,
+): Promise<FollowRequest[]> {
+  const api = await apiFor(accountId)
+  return (
+    tab === 'sent' ? api.getSentFollowRequests(30) : api.getFollowRequests(30)
+  ) as Promise<FollowRequest[]>
 }
 
 async function fetchRequests() {
@@ -114,9 +129,7 @@ function fetchRequestsPerAccount() {
   if (!acc) return
   const tab = activeTab.value
   return withLoading(async (stillCurrent) => {
-    const reqs = unwrap(
-      await fetchForAccount(acc.id, tab),
-    ) as unknown as FollowRequest[]
+    const reqs = await fetchForAccount(acc.id, tab)
     if (!stillCurrent()) return
     requests.value = reqs
   })
@@ -128,9 +141,7 @@ function fetchRequestsCrossAccount() {
   return withLoading(async (stillCurrent) => {
     const results = await Promise.allSettled(
       accounts.map(async (acc) => {
-        const reqs = unwrap(
-          await fetchForAccount(acc.id, tab),
-        ) as unknown as FollowRequest[]
+        const reqs = await fetchForAccount(acc.id, tab)
         return reqs.map((r) => ({ ...r, _accountId: acc.id }))
       }),
     )
@@ -154,12 +165,13 @@ async function handleAction(
   if (!accountId) return
 
   try {
+    const api = await apiFor(accountId)
     if (action === 'accepted') {
-      unwrap(await commands.apiAcceptFollowRequest(accountId, req.follower.id))
+      await api.acceptFollowRequest(req.follower.id)
     } else if (action === 'rejected') {
-      unwrap(await commands.apiRejectFollowRequest(accountId, req.follower.id))
+      await api.rejectFollowRequest(req.follower.id)
     } else {
-      unwrap(await commands.apiCancelFollowRequest(accountId, req.followee.id))
+      await api.cancelFollowRequest(req.followee.id)
     }
     actionStates.value = { ...actionStates.value, [reqKey(req)]: action }
   } catch (e) {

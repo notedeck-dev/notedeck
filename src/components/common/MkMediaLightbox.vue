@@ -8,6 +8,7 @@ import {
   watch,
 } from 'vue'
 import type { NormalizedDriveFile } from '@/adapters/types'
+import { saveImageToFile } from '@/composables/imageFiles'
 import { useBackButton } from '@/composables/useBackButton'
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useLongPress } from '@/composables/useLongPress'
@@ -18,7 +19,6 @@ import { i18n } from '@/i18n'
 import { isSafeUrl } from '@/services/safeUrl'
 import { useSystemStateStore } from '@/stores/systemState'
 import { proxyUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import MkMediaVideo from './MkMediaVideo.vue'
 import PopupMenu from './PopupMenu.vue'
@@ -299,7 +299,7 @@ async function copyImage() {
 async function downloadImage() {
   const f = file.value
   if (!f?.url || !isSafeUrl(f.url)) return
-  unwrap(await commands.saveImageToFile(f.url))
+  await saveImageToFile(f.url)
   menuRef.value?.close()
 }
 

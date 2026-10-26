@@ -109,23 +109,32 @@ pub async fn complete_and_save(
         software,
     };
 
-    db.upsert_account(&account)?;
-
-    let saved = db
-        .get_account_by_host_user(host, &auth_result.user.id)?
-        .ok_or_else(|| NoteDeckError::Internal("account missing right after upsert".to_string()))?;
-
-    if keychain::store_token(&saved.id, &token).is_ok()
-        && keychain::get_token(&saved.id).ok().flatten().is_some()
-        && keychain::is_persistent()
-    {
-        let _ = db.clear_token(&saved.id);
-    }
+    // DB の書込とキーチェーンは同期 IO なので blocking スレッドへ (#1098 §7)
+    let db = Arc::clone(db);
+    let host_owned = host.to_string();
+    let user_id = auth_result.user.id.clone();
+    let saved = tokio::task::spawn_blocking(move || -> Result<Account> {
+        db.upsert_account(&account)?;
+        let saved = db
+            .get_account_by_host_user(&host_owned, &user_id)?
+            .ok_or_else(|| {
+                NoteDeckError::Internal("account missing right after upsert".to_string())
+            })?;
+        if keychain::store_token(&saved.id, &token).is_ok()
+            && keychain::get_token(&saved.id).ok().flatten().is_some()
+            && keychain::is_persistent()
+        {
+            let _ = db.clear_token(&saved.id);
+        }
+        token.zeroize();
+        Ok(saved)
+    })
+    .await
+    .map_err(|e| NoteDeckError::Internal(format!("blocking task failed: {e}")))??;
     // 同じ host + user の再ログインは id を維持する (upsert) ので、資格情報の
     // キャッシュに古いトークンが残る。新しいトークンを置いた後に無効化する
     // (先に無効化すると、置くまでの間に古い値を読み直して載せ直されうる)
     invalidate_credentials(&saved.id);
-    token.zeroize();
 
     Ok(AccountPublic::new(&saved, true))
     // account, saved が drop → token が zeroize される

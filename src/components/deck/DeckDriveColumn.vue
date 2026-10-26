@@ -23,7 +23,6 @@ import { useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -38,6 +37,7 @@ const {
   isLoggedOut,
   scroller,
   scrollToTop,
+  initAdapter,
 } = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 
@@ -168,8 +168,10 @@ async function batchDelete() {
   batchDeleteError.value = null
   const idsToDelete = [...selectedIds.value]
   try {
+    const adapter = await initAdapter()
+    if (!adapter) throw new Error('account not found')
     for (const fileId of idsToDelete) {
-      unwrap(await commands.apiDeleteDriveFile(props.column.accountId, fileId))
+      await adapter.api.deleteDriveFile(fileId)
       files.value = files.value.filter((f) => f.id !== fileId)
     }
     deselectAll()
@@ -198,6 +200,7 @@ async function resolveSelectedFiles(): Promise<{
   const inView = new Map(files.value.map((f) => [f.id, f]))
   const targets: NormalizedDriveFile[] = []
   let missing = 0
+  const adapter = await initAdapter()
   for (const id of selectedIds.value) {
     const known = inView.get(id)
     if (known) {
@@ -206,9 +209,8 @@ async function resolveSelectedFiles(): Promise<{
     }
     // 他階層で選択したファイルは ID しか手元に無いため個別に取得する
     try {
-      const raw = unwrap(
-        await commands.apiGetDriveFile(accountId, { fileId: id } as never),
-      )
+      if (!adapter) throw new Error('account not found')
+      const raw = await adapter.api.getDriveFile(id)
       targets.push(normalizeDriveFile(raw as never))
     } catch {
       missing++
@@ -337,17 +339,16 @@ async function onFileSelected(e: Event) {
   if (!input.files?.length || !props.column.accountId) return
   uploading.value = true
   try {
+    const adapter = await initAdapter()
+    if (!adapter) throw new Error('account not found')
     for (const file of input.files) {
       const buf = await file.arrayBuffer()
-      unwrap(
-        await commands.apiUploadFile(
-          props.column.accountId,
-          file.name,
-          [...new Uint8Array(buf)],
-          file.type || 'application/octet-stream',
-          false,
-          currentFolderId.value,
-        ),
+      await adapter.api.uploadFile(
+        file.name,
+        [...new Uint8Array(buf)],
+        file.type || 'application/octet-stream',
+        false,
+        currentFolderId.value,
       )
     }
     fetchDrive()

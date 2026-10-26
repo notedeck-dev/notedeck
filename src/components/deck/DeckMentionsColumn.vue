@@ -12,6 +12,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import NewNotesBanner from '@/components/deck/NewNotesBanner.vue'
+import { openMentionsQuery } from '@/composables/querySubscriptions'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
@@ -20,7 +21,6 @@ import { i18n } from '@/i18n'
 import { columnCacheKey } from '@/services/columnCacheKey'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
@@ -66,8 +66,7 @@ const noteColumnConfig: NoteColumnConfig = {
       // biome-ignore lint/style/noNonNullAssertion: guaranteed by upstream gate
       const accountId = props.column.accountId!
       return createQuerySubscription({
-        open: async () =>
-          unwrap(await commands.querySubscribeMentions(accountId)),
+        open: async () => openMentionsQuery(accountId),
         onInsert: (item) => {
           const note = queryItemAsNote(item)
           if (!note) return
@@ -131,8 +130,7 @@ const {
     columnType: 'mentions',
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
       createQuerySubscription({
-        open: async () =>
-          unwrap(await commands.querySubscribeMentions(accountId)),
+        open: async () => openMentionsQuery(accountId),
         onInsert: (item) => {
           const note = queryItemAsNote(item)
           if (!note) return

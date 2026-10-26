@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import {
   listStreamHealth,
   type StreamHealthSummary,
@@ -109,6 +109,6 @@ export const metricsReadCapability = implement('metrics.read', {
   }),
 })
 
-export const METRICS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const METRICS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   metricsReadCapability,
 ]

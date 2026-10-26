@@ -11,7 +11,6 @@ import { getNoteShareUrl } from '@/services/noteUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import PopupMenu from './PopupMenu.vue'
 
 const props = defineProps<{
@@ -91,7 +90,9 @@ async function copyAndClose(text: string) {
 
 async function deleteRenote() {
   try {
-    unwrap(await commands.apiDeleteNote(props.note._accountId, props.note.id))
+    const adapter = await getOrCreate(props.note._accountId)
+    if (!adapter) throw new Error('account not found')
+    await adapter.api.deleteNote(props.note.id)
     emit('delete', props.note)
     close()
   } catch (e) {

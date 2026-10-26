@@ -1,5 +1,5 @@
+import type { Capability } from '@/capabilities/types'
 import { ALL_COLUMN_TYPES, COLUMN_REGISTRY } from '@/columns/registry'
-import type { Command } from '@/commands/registry'
 import { type ColumnSource, normalizeSources } from '@/services/columnSource'
 import { parseVariantKey } from '@/services/noteKey'
 import { externalQueryPatch } from '@/services/searchFilter'
@@ -383,7 +383,7 @@ export const sidebarToggleCapability = implement('sidebar.toggle', {
   },
 })
 
-export const COLUMN_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const COLUMN_BUILTIN_CAPABILITIES: readonly Capability[] = [
   columnActiveCapability,
   columnFocusedNoteCapability,
   columnListCapability,

@@ -1,18 +1,17 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
-import type { JsonValue } from '@/bindings'
 import EditorTabs, {
   type EditorTabDef,
 } from '@/components/common/EditorTabs.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
 import { webUiUrl } from '@/services/safeUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { useToast } from '@/stores/toast'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const AiScriptEditor = defineAsyncComponent(
   () => import('@/components/deck/widgets/AiScriptEditor.vue'),
@@ -22,6 +21,8 @@ const props = defineProps<{
   accountId: string
   flashId: string
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const accountsStore = useAccountsStore()
 const account = computed(
@@ -96,9 +97,9 @@ async function load() {
   fetching.value = true
   fetchError.value = null
   try {
-    const detail = unwrap(
-      await commands.apiGetFlash(props.accountId, props.flashId),
-    ) as unknown as FlashDetail
+    const detail = (await (
+      await apiFor(props.accountId)
+    ).getFlash(props.flashId)) as FlashDetail
     original.value = detail
     editingTitle.value = detail.title
     editingSummary.value = detail.summary
@@ -116,15 +117,13 @@ async function save() {
   saveError.value = null
   saved.value = false
   try {
-    unwrap(
-      await commands.apiUpdateFlash(props.accountId, {
-        flashId: original.value.id,
-        title: editingTitle.value,
-        summary: editingSummary.value,
-        script: editingScript.value,
-        permissions: original.value.permissions ?? [],
-      } as never),
-    )
+    await (await apiFor(props.accountId)).updateFlash({
+      flashId: original.value.id,
+      title: editingTitle.value,
+      summary: editingSummary.value,
+      script: editingScript.value,
+      permissions: original.value.permissions ?? [],
+    } as never)
     original.value.title = editingTitle.value
     original.value.summary = editingSummary.value
     original.value.script = editingScript.value

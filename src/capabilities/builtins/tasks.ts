@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import { useTaskRunnerStore } from '@/stores/taskRunner'
 import { useTasksStore } from '@/stores/tasks'
@@ -49,6 +49,6 @@ export const tasksRunCapability = implement('tasks.run', {
   },
 })
 
-export const TASKS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const TASKS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   tasksRunCapability,
 ]

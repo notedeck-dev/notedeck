@@ -523,9 +523,15 @@ import type { FederationInstance } from '@/bindings'
 export type { FederationInstance }
 
 // Pages / Gallery / Flash 型も specta 経由で Rust 側から自動生成される。
-import type { Flash, GalleryPost, Page } from '@/bindings'
+import type {
+  Flash,
+  GalleryPost,
+  JsonValue,
+  Page,
+  UserReaction,
+} from '@/bindings'
 
-export type { Flash, GalleryPost, Page }
+export type { Flash, GalleryPost, Page, UserReaction }
 
 // ワードミュート（#610）。mutedWords / hardMutedWords は notecli が `i` から取得。
 import type { MutedWord, MutedWordsResult } from '@/bindings'
@@ -623,6 +629,8 @@ export interface NotesApi {
     roleId: string,
     options?: PaginationOptions,
   ): Promise<NormalizedNote[]>
+  /** サーバー応答そのまま (notes/show)。インスペクタの Raw JSON 表示用 */
+  getNoteRaw(noteId: string): Promise<unknown>
 }
 
 /** ユーザーの取得・フォロー関係・ミュート/ブロック/通報 (users/* + following/*) */
@@ -675,6 +683,40 @@ export interface UsersApi {
   blockUser(userId: string): Promise<void>
   unblockUser(userId: string): Promise<void>
   reportUser(userId: string, comment: string): Promise<void>
+  /** 自分のユーザー情報そのまま (i)。isAdmin / isModerator 等の生フィールド用 */
+  getSelf(): Promise<unknown>
+  /** 自分の設定の真偽値 1 つを更新する (i/update) */
+  updateUserSetting(key: string, value: boolean): Promise<void>
+  /** サーバー応答そのまま (users/show)。単体 (userId) と複数 (userIds) の両形 */
+  getUserRaw(
+    params: { userId: string } | { userIds: string[] },
+  ): Promise<unknown>
+  /** ユーザーの公開リアクション (users/reactions) */
+  getUserReactions(
+    userId: string,
+    options?: PaginationOptions,
+  ): Promise<UserReaction[]>
+  getUserAchievements(userId: string): Promise<unknown>
+  /** users (ユーザー一覧 / 検索)。サーバー応答そのまま */
+  searchUsers(params: SearchUsersParams): Promise<unknown>
+  getRoles(): Promise<unknown>
+  getRoleUsers(
+    roleId: string,
+    options?: { limit?: number; offset?: number },
+  ): Promise<unknown>
+  /** 自分宛てのフォローリクエスト (following/requests/list)。サーバー応答そのまま */
+  getFollowRequests(limit?: number): Promise<unknown>
+  /** 自分が送ったフォローリクエスト (following/requests/sent)。サーバー応答そのまま */
+  getSentFollowRequests(limit?: number): Promise<unknown>
+}
+
+export interface SearchUsersParams {
+  query?: string | null
+  origin?: string | null
+  sort?: string | null
+  state?: string | null
+  limit?: number | null
+  offset?: number | null
 }
 
 /** リスト・アンテナ・クリップ・チャンネル (ノートを束ねるコレクション系) */
@@ -703,15 +745,31 @@ export interface CollectionsApi {
     channelId: string,
     options?: PaginationOptions,
   ): Promise<NormalizedNote[]>
+  getClip(clipId: string): Promise<Clip>
+  createClip(name: string): Promise<Clip>
+  favoriteClip(clipId: string): Promise<void>
+  unfavoriteClip(clipId: string): Promise<void>
+  /** 他人の公開クリップ (users/clips)。自分のは getClips */
+  getUserClips(userId: string, options?: PaginationOptions): Promise<Clip[]>
+  /** `forPublic` は他人の公開リストを引くとき */
+  getList(listId: string, options?: { forPublic?: boolean }): Promise<UserList>
+  favoriteList(listId: string): Promise<void>
+  unfavoriteList(listId: string): Promise<void>
+  /** 公開リスト一覧 (users/lists/list)。userId 省略で自分の */
+  getUserListsBy(userId?: string): Promise<UserList[]>
 }
 
 /**
- * チャット (Misskey v2025 Chat API #15686) の read 系。
- * 書込・DB キャッシュは Misskey 専用機能として `commands.*` 直呼びが例外的に
- * 認められた経路 (DeckChatColumn / useChatThreadPrefetch)。
+ * チャット (Misskey v2025 Chat API #15686)。Misskey 専用機能なのでフォーク差異は
+ * 想定せず、書込と手元の DB キャッシュの読取もここに置く (#1258)。
  */
 export interface ChatApi {
   getChatHistory(limit?: number, cache?: boolean | null): Promise<ChatMessage[]>
+  /** ルームの履歴 (chat/history room=true)。ルーム未対応のサーバーは投げる */
+  getChatRoomHistory(
+    limit?: number,
+    cache?: boolean | null,
+  ): Promise<ChatMessage[]>
   getChatUserMessages(
     userId: string,
     options?: PaginationOptions & { cache?: boolean | null },
@@ -719,6 +777,22 @@ export interface ChatApi {
   getChatRoomMessages(
     roomId: string,
     options?: PaginationOptions & { cache?: boolean | null },
+  ): Promise<ChatMessage[]>
+  /** userId (DM) か roomId のどちらか。text / fileId はどちらか一方でも送れる */
+  createChatMessage(params: {
+    userId?: string | null
+    roomId?: string | null
+    text?: string | null
+    fileId?: string | null
+  }): Promise<ChatMessage>
+  deleteChatMessage(messageId: string): Promise<void>
+  reactChatMessage(messageId: string, reaction: string): Promise<void>
+  unreactChatMessage(messageId: string, reaction: string): Promise<void>
+  /** 手元の DB キャッシュだけを読む (サーバーへ行かない) */
+  getCachedChatHistory(limit?: number): Promise<ChatMessage[]>
+  getCachedChatThreadMessages(
+    threadId: string,
+    options?: { untilId?: string | null; limit?: number | null },
   ): Promise<ChatMessage[]>
 }
 
@@ -746,6 +820,9 @@ export interface DriveApi {
     isSensitive?: boolean,
     folderId?: string | null,
   ): Promise<NormalizedDriveFile>
+  /** サーバー応答そのまま (drive/files/show)。normalizeDriveFile で整える */
+  getDriveFile(fileId: string): Promise<unknown>
+  deleteDriveFile(fileId: string): Promise<void>
 }
 
 /** アクティビティチャート (charts/*) */
@@ -812,6 +889,32 @@ export interface ServerContentApi {
     params?: FederationInstancesParams,
   ): Promise<FederationInstance[]>
   getFederationInstance(host: string): Promise<FederationInstance>
+  /** サーバー情報の詳細 (meta detail=true)。サーバー応答そのまま */
+  getMetaDetail(): Promise<unknown>
+  /** サーバー統計 (stats)。サーバー応答そのまま */
+  getServerStats(): Promise<unknown>
+  readAnnouncement(announcementId: string): Promise<void>
+  likePage(pageId: string): Promise<void>
+  unlikePage(pageId: string): Promise<void>
+  /** pages/update。params はサーバーの引数そのまま */
+  updatePage(params: JsonValue): Promise<unknown>
+  likeFlash(flashId: string): Promise<void>
+  unlikeFlash(flashId: string): Promise<void>
+  /** flash/update。params はサーバーの引数そのまま */
+  updateFlash(params: JsonValue): Promise<unknown>
+  likeGalleryPost(postId: string): Promise<void>
+  unlikeGalleryPost(postId: string): Promise<void>
+  getUserPagesBy(userId: string, options?: PaginationOptions): Promise<Page[]>
+  /** エンドポイント名は本家のスペルどおり users/flashs */
+  getUserFlashs(userId: string, options?: PaginationOptions): Promise<Flash[]>
+  getUserGalleryBy(
+    userId: string,
+    options?: PaginationOptions,
+  ): Promise<GalleryPost[]>
+  /** ActivityPub オブジェクトの照会 (ap/show)。サーバー応答そのまま */
+  apShow(uri: string): Promise<unknown>
+  /** 任意エンドポイントの生呼び出し。API コンソールとレジストリ駆動の作成用 */
+  request(endpoint: string, params: JsonValue | null): Promise<unknown>
 }
 
 /**

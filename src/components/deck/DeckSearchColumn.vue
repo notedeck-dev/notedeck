@@ -48,12 +48,12 @@ import {
   unionHostOptions,
 } from '@/services/searchFilter'
 import { acctOf } from '@/services/userRef'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
 )
 
+import { searchArchiveNotes } from '@/composables/archiveSearch'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNoteFocus } from '@/composables/useNoteFocus'
@@ -477,16 +477,14 @@ async function searchLocalDb(
   limit: number | null,
 ): Promise<NormalizedNote[]> {
   const { since, until } = dateBounds(filter.value)
-  return unwrap(
-    await commands.apiSearchNotesLocal(
-      accountId,
-      hint,
-      limit,
-      since,
-      until,
-      ascending.value,
-    ),
-  ) as NormalizedNote[]
+  return searchArchiveNotes(
+    accountId,
+    hint,
+    limit,
+    since,
+    until,
+    ascending.value,
+  )
 }
 
 function mergeNotes(

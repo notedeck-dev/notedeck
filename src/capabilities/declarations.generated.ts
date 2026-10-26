@@ -2,8 +2,11 @@
 // 生成は `pnpm gen:capabilities` (scripts/gen-capabilities.mjs)。
 // 生成物が最新かは tests/lint/capabilityDeclarations.test.ts が検査する (#1133)。
 
-import type { Command } from '@/commands/registry'
-import type { ParameterDef, ReturnTypeDef } from '@/capabilities/types'
+import type {
+  CapabilityCategory,
+  ParameterDef,
+  ReturnTypeDef,
+} from '@/capabilities/types'
 import type { PermissionKey } from '@/permissions/schema'
 
 /** capability の実行属性 (#1106 §4.8): core = notecore 単独で実行できる /
@@ -13,7 +16,7 @@ export type CapabilityExec = 'core' | 'device' | 'live'
 export interface CapabilityDeclaration {
   id: CapabilityId
   label: string
-  category: Command['category']
+  category: CapabilityCategory
   icon: string
   permissions: readonly PermissionKey[]
   aiTool: boolean

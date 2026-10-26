@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import {
   _clearCapabilitiesForTest,
   getCapability,
@@ -8,13 +8,12 @@ import {
   unregisterCapability,
 } from './registry'
 
-function makeCapability(overrides: Partial<Command> = {}): Command {
+function makeCapability(overrides: Partial<Capability> = {}): Capability {
   return {
     id: 'test.cap',
     label: 'test',
     icon: 'ti-flask',
     category: 'general',
-    shortcuts: [],
     aiTool: true,
     signature: { description: 'test capability' },
     execute: () => 'ok',

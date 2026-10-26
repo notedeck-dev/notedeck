@@ -1,4 +1,5 @@
-import { type Command, useCommandStore } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
+import { useCommandStore } from '@/commands/registry'
 import { TASK_COMMAND_PREFIX } from '@/commands/taskCommandPrefix'
 import { isExposed } from '@/settings/exposure'
 import { useKeybindsStore } from '@/stores/keybinds'
@@ -45,7 +46,7 @@ export const commandsListCapability = implement('commands.list', {
   },
 })
 
-export const KEYBINDS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const KEYBINDS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   commandsListCapability,
   keybindsListCapability,
   keybindsSetCapability,

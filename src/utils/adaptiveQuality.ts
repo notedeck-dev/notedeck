@@ -3,6 +3,7 @@
  *
  * ゲームエンジンの「自動画質調整」を Web に適用。
  * 検出結果は推奨のみ — 自動適用はしない（ユーザーが設定 UI で確認）。
+ * navigator / matchMedia を読む platform glue なので utils に置く (#1098)。
  */
 export type QualityPreset = 'low' | 'balanced' | 'high'
 

@@ -15,7 +15,7 @@ import {
   queryItemAsChatMessage,
 } from '@/adapters/misskey/query'
 import type { ChatMessage, NormalizedDriveFile } from '@/adapters/types'
-import { type ChatReactionUser, events } from '@/bindings'
+import type { ChatReactionUser } from '@/bindings'
 import AppTime from '@/components/common/AppTime.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -24,6 +24,14 @@ import MkChatMessage from '@/components/common/MkChatMessage.vue'
 import MkDrivePicker from '@/components/common/MkDrivePicker.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
+import {
+  listenChatReactionEvents,
+  markChatRead,
+} from '@/composables/chatStream'
+import {
+  openChatRoomQuery,
+  openChatUserQuery,
+} from '@/composables/querySubscriptions'
 import {
   type ChatThreadTarget,
   useChatThread,
@@ -64,7 +72,6 @@ import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
 const MkReactionPicker = defineAsyncComponent(
@@ -93,6 +100,21 @@ const {
 const accountsStore = useAccountsStore()
 const deckStore = useDeckStore()
 const multiAdapters = useMultiAccountAdapters()
+
+/**
+ * 操作先アカウントの adapter。全アカウント面は共有キャッシュ、per-account は
+ * カラムの adapter (まだ無ければ作る)
+ */
+async function adapterFor(accountId: string) {
+  if (isCrossAccount.value) return multiAdapters.getOrCreate(accountId)
+  return getAdapter() ?? (await initAdapter())
+}
+
+async function apiFor(accountId: string) {
+  const adapter = await adapterFor(accountId)
+  if (!adapter) throw new Error(`account not found: ${accountId}`)
+  return adapter.api
+}
 const chatMessageStore = useChatMessageStore()
 const serversStore = useServersStore()
 const { prefetch: prefetchThreads } = useChatThreadPrefetch()
@@ -157,15 +179,11 @@ const viewMode = ref<'history' | 'conversation'>('history')
 // ここは port (Tauri commands / adapter 解決 / WS 購読) を束ねるだけ。
 const thread = useChatThread({
   store: chatMessageStore,
-  getCached: async (accountId, threadId, untilId, limit) =>
-    unwrap(
-      await commands.apiGetCachedChatThreadMessages(
-        accountId,
-        threadId,
-        untilId,
-        limit,
-      ),
-    ) as unknown as ChatMessage[],
+  getCached: async (accountId, threadId, untilId, limit) => {
+    const adapter = await adapterFor(accountId)
+    if (!adapter) return []
+    return adapter.api.getCachedChatThreadMessages(threadId, { untilId, limit })
+  },
   resolveApi: async (accountId) => {
     // cross-account は multiAdapters、per-account はカラムの adapter
     const adapter = isCrossAccount.value
@@ -187,12 +205,10 @@ const thread = useChatThread({
       adapter?.stream.connect()
     }
     const sub = createQuerySubscription({
-      open: async () =>
-        unwrap(
-          target.kind === 'room'
-            ? await commands.querySubscribeChatRoom(accountId, target.roomId)
-            : await commands.querySubscribeChatUser(accountId, target.otherId),
-        ),
+      open: () =>
+        target.kind === 'room'
+          ? openChatRoomQuery(accountId, target.roomId)
+          : openChatUserQuery(accountId, target.otherId),
       onInsert: (item) => {
         const msg = queryItemAsChatMessage(item)
         if (msg) handlers.onInsert(msg)
@@ -204,9 +220,9 @@ const thread = useChatThread({
       markRead: (messageId) => {
         const subscriptionId = sub.subscriptionId
         if (!subscriptionId) return
-        commands
-          .streamChatRead(accountId, subscriptionId, messageId)
-          .catch((e) => console.warn('[chat] read failed:', e))
+        markChatRead(accountId, subscriptionId, messageId).catch((e) =>
+          console.warn('[chat] read failed:', e),
+        )
       },
     }
   },
@@ -363,9 +379,8 @@ async function connect() {
  */
 async function loadCachedHistory(accountId: string): Promise<ChatMessage[]> {
   try {
-    return unwrap(
-      await commands.apiGetCachedChatHistory(accountId, 100),
-    ) as unknown as ChatMessage[]
+    const adapter = await adapterFor(accountId)
+    return adapter ? await adapter.api.getCachedChatHistory(100) : []
   } catch {
     return []
   }
@@ -405,14 +420,7 @@ async function connectPerAccount() {
 
     let roomHistory: ChatMessage[] = []
     if (props.column.accountId) {
-      roomHistory = unwrap(
-        await commands.apiGetChatHistory(
-          props.column.accountId,
-          100,
-          true,
-          null,
-        ),
-      ) as unknown as ChatMessage[]
+      roomHistory = await adapter.api.getChatRoomHistory(100)
     }
 
     setChatHistory(
@@ -504,9 +512,7 @@ async function connectCrossAccount() {
         const userHistory = await adapter.api.getChatHistory()
         let roomHistory: ChatMessage[] = []
         try {
-          roomHistory = unwrap(
-            await commands.apiGetChatHistory(acc.id, 100, true, null),
-          ) as unknown as ChatMessage[]
+          roomHistory = await adapter.api.getChatRoomHistory(100)
         } catch {
           // room chat not supported
         }
@@ -797,15 +803,12 @@ async function sendMessage() {
   try {
     const text = messageText.value.trim() || null
     const fileId = attachedFile.value?.id ?? null
-    const sent = unwrap(
-      await commands.apiCreateChatMessage(
-        accId,
-        currentOtherId.value,
-        currentRoomId.value,
-        text,
-        fileId,
-      ),
-    ) as unknown as ChatMessage
+    const sent = await (await apiFor(accId)).createChatMessage({
+      userId: currentOtherId.value,
+      roomId: currentRoomId.value,
+      text,
+      fileId,
+    })
     messageText.value = ''
     attachedFile.value = null
     if (!thread.has(sent)) {
@@ -887,7 +890,7 @@ async function handleReact(messageId: string, reaction: string) {
   }
 
   try {
-    unwrap(await commands.apiReactChatMessage(accId, messageId, reaction))
+    await (await apiFor(accId)).reactChatMessage(messageId, reaction)
     // Optimistically add reaction to local state
     updateMessageReaction(messageId, reaction, true)
   } catch (e) {
@@ -901,7 +904,7 @@ async function handleUnreact(messageId: string, reaction: string) {
   if (!ensureActiveAccountAuth()) return
 
   try {
-    unwrap(await commands.apiUnreactChatMessage(accId, messageId, reaction))
+    await (await apiFor(accId)).unreactChatMessage(messageId, reaction)
     updateMessageReaction(messageId, reaction, false)
   } catch (e) {
     handleActionError(e)
@@ -920,7 +923,7 @@ async function handleDelete(messageId: string) {
   if (!ensureActiveAccountAuth()) return
 
   try {
-    unwrap(await commands.apiDeleteChatMessage(accId, messageId))
+    await (await apiFor(accId)).deleteChatMessage(messageId)
   } catch (e) {
     handleActionError(e)
   }
@@ -1079,37 +1082,7 @@ let unregisterRoot: (() => void) | null = null
 const reactionUnlisteners: UnlistenFn[] = []
 
 async function subscribeReactionEvents() {
-  // #781 Phase 2: specta 契約済みの typed イベントを購読する。applyUpdate は
-  // (受信アカウント, message id) のキーで当てるので、別サーバーの同じ ID には
-  // 作用しない (#1270)。カラム側の account フィルタは要らない (既存メッセージ
-  // にだけ作用する)。
-  const reactedUnlisten = await events.streamChatMessageReacted.listen(
-    ({ payload: { accountId, messageId, reaction, user } }) => {
-      chatMessageStore.applyUpdate({
-        type: 'reacted',
-        accountId,
-        messageId,
-        userId: user?.id ?? null,
-        reaction,
-        reactor: user ?? null,
-      })
-    },
-  )
-  reactionUnlisteners.push(reactedUnlisten)
-
-  const unreactedUnlisten = await events.streamChatMessageUnreacted.listen(
-    ({ payload: { accountId, messageId, reaction, user } }) => {
-      chatMessageStore.applyUpdate({
-        type: 'unreacted',
-        accountId,
-        messageId,
-        userId: user?.id ?? null,
-        reaction,
-        reactor: user ?? null,
-      })
-    },
-  )
-  reactionUnlisteners.push(unreactedUnlisten)
+  reactionUnlisteners.push(await listenChatReactionEvents(chatMessageStore))
 }
 
 // プロフィール等から DM 起動の合図が来たら会話を開く。sidebar チャットカラムのみ

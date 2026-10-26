@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { toAnthropicTool, toOpenAiTool } from './toolSchema'
 
-function makeCapability(overrides: Partial<Command> = {}): Command {
+function makeCapability(overrides: Partial<Capability> = {}): Capability {
   return {
     id: 'notes.post',
     label: 'ノートを投稿',
     icon: 'ti-pencil',
     category: 'note',
-    shortcuts: [],
     aiTool: true,
     permissions: ['notes.write'],
     signature: {

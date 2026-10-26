@@ -1,5 +1,5 @@
 import { parsePluginMeta } from '@/aiscript/plugin-api'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { i18n } from '@/i18n'
 import { usePluginsStore } from '@/stores/plugins'
 import { implement, implementCore } from '../declare'
@@ -170,7 +170,7 @@ export const pluginsInstallCapability = implementCore('plugins.install')
  */
 export const pluginsUninstallCapability = implementCore('plugins.uninstall')
 
-export const PLUGINS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const PLUGINS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   pluginsListCapability,
   pluginsReadCapability,
   pluginsCreateCapability,

@@ -58,16 +58,13 @@ let fileName = 'photo.png'
 let sensitive = true
 const readImageExifMock = vi.fn()
 
-vi.mock('@/utils/tauriInvoke', async () => {
-  const actual = await vi.importActual<typeof import('@/utils/tauriInvoke')>(
-    '@/utils/tauriInvoke',
-  )
-  return {
-    unwrap: actual.unwrap,
-    commands: {
-      apiGetDriveFile: vi.fn(async () => ({
-        status: 'ok',
-        data: {
+// 取得は adapter 経由、EXIF は composable 経由 (#1258)。readImageExifMock は
+// 従来どおり Result の形で応答を書けるようにして、ここで剥がす
+vi.mock('@/composables/useMultiAccountAdapters', () => ({
+  useMultiAccountAdapters: () => ({
+    getOrCreate: async () => ({
+      api: {
+        getDriveFile: vi.fn(async () => ({
           id: 'f1',
           name: fileName,
           type: 'image/png',
@@ -75,12 +72,18 @@ vi.mock('@/utils/tauriInvoke', async () => {
           thumbnailUrl: null,
           size: 100,
           isSensitive: sensitive,
-        },
-      })),
-      readImageExif: (url: string) => readImageExifMock(url),
-    },
-  }
-})
+        })),
+      },
+    }),
+  }),
+}))
+vi.mock('@/composables/imageFiles', () => ({
+  readImageExif: async (url: string) => {
+    const r = await readImageExifMock(url)
+    if (r.status === 'ok') return r.data
+    throw r.error
+  },
+}))
 
 import { useUiStore } from '@/stores/ui'
 import { APP_HTTP_PORT } from '@/utils/appHttpPort'

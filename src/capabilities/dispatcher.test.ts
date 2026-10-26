@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { useSpotlightStore } from '@/composables/useSpotlight'
 import {
   _clearPluginDenialsForTest,
@@ -25,13 +25,12 @@ import {
 } from './dispatcher'
 import { _clearCapabilitiesForTest, registerCapability } from './registry'
 
-function makeCapability(overrides: Partial<Command> = {}): Command {
+function makeCapability(overrides: Partial<Capability> = {}): Capability {
   return {
     id: 'test.cap',
     label: 'test',
     icon: 'ti-flask',
     category: 'general',
-    shortcuts: [],
     aiTool: true,
     permissions: [],
     signature: { description: 'test capability' },
@@ -1833,7 +1832,7 @@ describe('account.actAs gate (#777)', () => {
   })
 
   /** actsAsAccount 宣言付きの write 系 capability (permissions は空で actAs だけを検査する) */
-  function actAsCap(overrides: Partial<Command> = {}): Command {
+  function actAsCap(overrides: Partial<Capability> = {}): Capability {
     return makeCapability({
       id: 'notes.create',
       actsAsAccount: true,
@@ -2014,7 +2013,7 @@ describe('plugin 拒否の UI 操作起点 toast (#712 §8.4 補強)', () => {
     setActivePinia(createPinia())
   })
 
-  function deniedCap(): Command {
+  function deniedCap(): Capability {
     return makeCapability({
       id: 'files.export',
       permissions: ['files.export'],

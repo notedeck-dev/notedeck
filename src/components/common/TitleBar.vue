@@ -10,13 +10,13 @@ import {
 import { useCommandStore } from '@/commands/registry'
 import { useColumnHistory } from '@/composables/useColumnHistory'
 import { openDeckWindow } from '@/composables/useDeckWindow'
-import { openPipWindow } from '@/composables/usePipWindow'
 import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { MOBILE_WINDOW_SIZE, useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
+import { openPipWindow } from '@/windows/pip'
 import { buildWindowUri } from '@/windows/registry'
 
 const CommandPalette = defineAsyncComponent(

@@ -10,13 +10,13 @@ import type {
   NoteUpdateEvent,
   ServerAdapter,
 } from '@/adapters/types'
+import { openRoleQuery } from '@/composables/querySubscriptions'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
 import { columnCacheKey, roleCacheKey } from '@/services/columnCacheKey'
 import type { ColumnSource } from '@/services/columnSource'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckCrossSourcesColumn from './DeckCrossSourcesColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
@@ -45,8 +45,7 @@ function subscribeSource(
 ) {
   return createNoteQuerySubscription({
     accountId,
-    open: async () =>
-      unwrap(await commands.querySubscribeRole(accountId, source.id)),
+    open: async () => openRoleQuery(accountId, source.id),
     enqueue,
     onNoteUpdated: callbacks.onNoteUpdated,
   })
@@ -68,8 +67,7 @@ const noteColumnConfig: NoteColumnConfig = {
       // biome-ignore lint/style/noNonNullAssertion: roleId 不在は validate() で connect スキップ
       const roleId = props.column.roleId!
       return createQuerySubscription({
-        open: async () =>
-          unwrap(await commands.querySubscribeRole(accountId, roleId)),
+        open: async () => openRoleQuery(accountId, roleId),
         onInsert: (item) => {
           const note = queryItemAsNote(item)
           if (note) enqueue(note)

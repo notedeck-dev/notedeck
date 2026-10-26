@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /** `memos.list` — tag / 日付 / キーワードで絞り込んでメモを列挙 */
@@ -10,7 +10,7 @@ export const memosSearchCapability = implementCore('memos.search')
 /** `memos.backlinks` — 指定 memo を `[name](memo:<id>)` で参照しているメモを返す (#494) */
 export const memosBacklinksCapability = implementCore('memos.backlinks')
 
-export const MEMOS_READ_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const MEMOS_READ_BUILTIN_CAPABILITIES: readonly Capability[] = [
   memosListCapability,
   memosSearchCapability,
   memosBacklinksCapability,

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import type { JsonValue, Page } from '@/bindings'
+import type { Page } from '@/bindings'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import ProfileItemCards from './ProfileItemCards.vue'
 
 const props = defineProps<{
@@ -14,6 +14,8 @@ const props = defineProps<{
   infoImageUrl?: string
   errorImageUrl?: string
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const PAGE_SIZE = 20
 
@@ -27,12 +29,10 @@ const {
   loadMore,
 } = usePaginatedList<Page>({
   fetch: async (untilId) => {
-    const params: Record<string, JsonValue> = {
-      userId: props.userId,
+    return (await apiFor(props.accountId)).getUserPagesBy(props.userId, {
       limit: PAGE_SIZE,
-    }
-    if (untilId) params.untilId = untilId
-    return unwrap(await commands.apiGetUserPagesBy(props.accountId, params))
+      untilId,
+    })
   },
   pageSize: PAGE_SIZE,
 })

@@ -436,7 +436,7 @@ iOS / Android は in-process の transport (コマンド面は同じ)
 
 - notecore 側のモジュールは `crates/notecore` に置く (2026-09-23 にクレート化済み)。notecore は `tauri` を参照せず、Cargo.toml に tauri 系を足さない (`tests/lint/rustCoreBoundary.test.ts`)。手元側 (WebView / managed state / OS 統合) が要る処理は trait (`FrontendBridge` / `AiChatSink`) で受け取り、Tauri 側 (`src-tauri/`) が実装を渡す。app dir のような値は `&Path` で受ける
 - **データ系コマンドは notecore のコマンド表に載せる** (`crates/notecore/src/commands/table.rs`、#1106 §4.1。2026-09-23 に既存のデータ系は全件移行済み。跨り (mixed) も「データ側は notecore の関数 (`export_service` / `backup_service` / `commands::admin` 等)、手元側は dialog や保存先の解決だけの薄い包み」に分けたので、`src-tauri/src/commands/` に `#[tauri::command]` で残るのは local と authz だけ)。本体は `&Core` と引数を取る関数として `crates/notecore/src/commands/<module>.rs` に書き、表に 1 行足す。表から Tauri ラッパー (`src-tauri/src/commands/table.rs`)、JSON アダプタ (`dispatch`)、フィクスチャが生成され、属性検査 (許可ウィンドウ) は型付き経路でも JSON 経路でも本体の前に通る。全コマンドを JSON 経路で往復させるテストが notecore にあり、引数の型は `Default` を要求する。手元側 (OS 統合) と認可境界のコマンドは従来どおり `#[tauri::command]` で書く
-- **行数の多い DB の読み書き (取り込み / キャッシュ検索 / 一括削除) は `Core::blocking` を通す** (notecli の Database は同期の rusqlite なので、async の本体から直接呼ぶと tokio の worker を塞ぐ)。1 行のキー引きや統計は直接呼んでよい。プール化や async API を notecli 側に持たせる判断 (#1098) はこの境界の裏で差し替える
+- **DB の読み書きはすべて `Core::blocking` / `with_archive` / `spawn_archive_write` を通す** (notecli の Database は同期の rusqlite なので、async の本体から直接呼ぶと tokio の worker を塞ぐ)。生のハンドル (`Core::db()` / `try_db()`) は notecore の中だけで、コマンド本体やアプリ側からは取れない (#1098 §7、2026-10-27)。資格情報は `Core::credentials` / `credentials_or_anon` (口座の所在をキャッシュ越しに引く。miss 時の 1 行読みだけ worker で許容)。notecli に async API を足す案は不採用: 接続が writer / reader 1 本ずつの設計では中身が spawn_blocking になるだけで並行度が上がらず、CLI に runtime を持ち込む。プール化するなら notes キャッシュ再設計 (notecli#30) の中で、この境界の裏で差し替える
 - 表に載らない `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
 - Kotlin から直接呼ぶ Rust の入口 (JNI の `extern "system" fn Java_…`、Android の通知ブリッジやワーカーが使う) は `#[tauri::command]` ではないので、直前の行に `// nd-entry: local` を持つ (同じ lint)。OS 統合なので種別は local 固定。入口の中は release の `panic = "abort"` を前提に Result 一本で書き、`ndk_context` に触らない (#330 §4.1)
 - 逆向き (Rust から JNI で Kotlin を呼ぶ) のメソッドは、Kotlin からは誰も呼ばないので release の R8 に消される。**呼び先を足したら `src-tauri/android/proguard-jni.pro` にも足す** (`sync.sh` が gen の app 直下に置く)。debug ビルドは縮小しないので手元では動き、release 版だけで静かに壊れる (v1.92.0〜v1.95.1 は OS 通知の描画・push・ステータスバーの明暗が release で動いていなかった)。`tests/lint/androidJniKeep.test.ts` が Rust 側の呼び先と突き合わせる
@@ -530,7 +530,7 @@ src-tauri/src/              # Rust backend (Tauri 固有部分 = 手元側)
 components → composables → stores → services → adapters → bindings
 ```
 
-services は store / composables / components / Vue / Pinia を runtime import しない (純ロジック)。stores は composables を、adapters は stores を import しない。components は IPC (`tauriInvoke` / `bindings`) と adapter の factory を直接叩かず composable を通す。既存の違反は lint の凍結一覧に理由つきで載っていて、直したら消す。`import type` は依存に数えない。
+services は store / composables / components / Vue / Pinia を runtime import しない (純ロジック)。stores は composables を、adapters は stores を import しない。components は IPC (`tauriInvoke` / `bindings`) と adapter の factory を直接叩かず composable を通す (#1258 で凍結ゼロ): Misskey の API は adapter (`ApiAdapter` に無いメソッドは足す) をカラムなら `useColumnSetup` / `useNoteColumn` の `initAdapter`、ウィンドウやポップアップなら `useMultiAccountAdapters` の `forView` / `apiFor` で引き、クエリ購読やキャッシュ・バックアップ・画像などの手元の command は `src/composables/` の用途別の小さなモジュール (`querySubscriptions` / `archiveSearch` / `cacheMaintenance` / `backupFiles` / `imageFiles` / `httpApiServer` / `appDiagnostics` / `login` / `chatStream`) を通す。adapters の factory は stores を知らず、サーバー情報の取得と絵文字 / ピン留めの温めは起動時に `wireAdapterFactory` (stores 側) で注入する。services がアカウントを要るときは引数で受ける (`resolveNoteUriFor`)。層依存と循環 import の凍結は 2026-10-27 にすべて解消した (offlineMode ↔ realtimeMode は、輸送路の再適用を streaming store に置いて一方向にした)。`import type` は依存に数えない。
 
 Misskey API クライアント・DB・モデル・ストリーミングコアは `notecli` クレートにある。`src-tauri/` が抱えていた Tauri に依存しないドメイン (OGP 抽出とサイト別プラグイン / Secret Vault / クエリランタイム / 画像キャッシュ / HTTP API サーバー / カラムクエリの QIR 評価器) は notecore に、AI SSE クライアントは notemaid に移した (上のツリー)。
 
@@ -1050,7 +1050,7 @@ const { activate, deactivate } = useMenuKeyboard({
 
 **ファイル:** `src/capabilities/`
 
-`Capability` は `Command` を拡張した構造 (`signature` / `permissions` / `requiresConfirmation` / `aiTool`) で、**コマンドパレット / HTTP API / CLI / AiScript (`Nd:call`) / AI tool calling** の 5 経路が同じ registry を共有する。
+`Capability` (`src/capabilities/types.ts`) は「実行できる操作」の単位で、**HTTP API / パレットの CLI と slash / AiScript (`Nd:call`) / AI tool calling** が同じ registry を dispatcher 越しに共有する。コマンドパレットの `Command` (`src/commands/registry.ts`) は人が押す入口 (ラベル / アイコン / ショートカット / 露出 / `execute()`) で、型としては別物 (#1098 §9、2026-10-27)。Command が capability を呼ぶかどうかは中身の自由で、`useCommandStore.register` は capability registry に何もしない。id の名前空間も分かれる (Command は kebab `note-react`、capability は dotted `notes.react`)。パレットの CLI (`src/commands/cliHandlers.ts`) のうち API を叩く動詞 (react / renote / delete / follow / favorite など) は `dispatchCapability` を user principal で呼ぶので、slash と同じ確認ダイアログを通る。capability に無い引数を持つ `post` (`--local-only`) と `update` だけが IPC 直呼びで残る。
 
 #### 宣言の正本と生成物
 
@@ -1100,7 +1100,7 @@ notecore 側のファイルは AI (notemaid) とデバイスの両方が書く�
 
 別プロセスの notemaid (`crates/notemaid/src/daemon/`) は AI 系 (notemaid の表) だけを RPC で受け、HEARTBEAT timer を持つ。起動役は上の「目指す構成」のとおり (子プロセスが既定、常駐は AI 設定のトグル = `notemaid service`)。SQLite は開かず、口座の所在は notecore の `AccountStore` trait (アプリは notecli.db が実装、notemaid は `SyncedAccounts` = 接続したアプリが `notemaid.accounts` で写した一覧をメモリと小さなファイルに持ち、口座が変わると `core_sync_accounts` で写し直す)。資格情報の解決 (`credentials.rs`) と口座一覧 (`account_service::list_public_from`) はこの trait だけを見るので、`Core` は DB なし (`initialize_client` + `set_account_store`) でも AI のターンを回せる。トークンは OS キーチェーンから同じ id で読み、キーチェーンが無い環境 (WSL2 など) ではアプリの DB と同じくトークン列が経路になる (写しに含める。保護水準はアプリの DB と同じ)。子プロセスが繋がる前に死んだ / 答えないときは in-process に退避する。
 
-**DB なしの Core で待ち続けない規則**: `Core::ready()` は廃止し `authed*()` / `client()` を使う。取得系が索引 (notes キャッシュ) へ書くのは `Core::with_archive` (索引があるときだけ回し、無ければ素通し) と `try_db()` で、`blocking` は DB の無いプロセスでは即 Err。手元の索引を読む `notes.searchArchive` は `FrontendBridge::archive_search` (型付き。wire は `archive/search`) で端末に聞き、アプリの Rust (`query_bridge::answer_archive_search`) が自分の Core で答える (WebView は通らない)。server_info の検出結果は DB があれば DB、無ければメモリ (`ServerInfoService::new_in_memory`)。この規則は `context.rs` の `client_only_core_never_waits_for_a_database` と notemaid の `search_archive_asks_the_device_through_the_bridge` が押さえる。
+**DB なしの Core で待ち続けない規則**: `Core::ready()` は廃止し `authed*()` / `client()` を使う。取得系が索引 (notes キャッシュ) へ書くのは `Core::with_archive` (索引があるときだけ回し、無ければ素通し) と `spawn_archive_write` (待たない) で、`blocking` は DB の無いプロセスでは即 Err。手元の索引を読む `notes.searchArchive` は `FrontendBridge::archive_search` (型付き。wire は `archive/search`) で端末に聞き、アプリの Rust (`query_bridge::answer_archive_search`) が自分の Core で答える (WebView は通らない)。server_info の検出結果は DB があれば DB、無ければメモリ (`ServerInfoService::new_in_memory`)。この規則は `context.rs` の `client_only_core_never_waits_for_a_database` と notemaid の `search_archive_asks_the_device_through_the_bridge` が押さえる。
 
 #### アプリと notemaid の間 (クライアント層と橋)
 
@@ -1165,7 +1165,7 @@ healthcheck は doctor とキャッシュ統計を notecore の `health_core` �
 
 **AiScript からの拡張:**
 - AiScript の実行環境 (Mk:* / Nd:* / Ui:* + interpreter) は `src/aiscript/sandbox.ts` の `createAiScriptSandbox` 1 本で組む (#1099)。プラグイン / ウィジェット / Play / Page / スクラッチパッドはすべてここを通り、principal は必須引数で 1 回だけ渡す — Mk:api の endpoint gate、Nd:call / Nd:http の dispatcher 判定、登録 ID の名前空間、呼び出し元の AND 判定に使う `callers` が同じ値を見る。実行面を足すときも `createAiScriptEnv` / `createNoteDeckEnv` を直接組まない
-- `Nd:register_command(id, label, fn, options)` の `options` に `signature` / `permissions` / `aiTool` / `requiresConfirmation` を渡すと **capability registry にもミラー登録**され、即 5 経路に公開される
+- `Nd:register_command(id, label, icon, fn, options)` はパレットの `Command` を登録する。`options` に `aiTool: true` と `signature` を渡したものだけ **別に `Capability` としても登録**され (permissions / requiresConfirmation も options から)、HTTP API / `Nd:call` / AI tool calling から呼べる。停止時は両方の登録を disposers が外す
 - `Nd:capabilities()` で registry にある capability の宣言情報を列挙 (プラグインの自己発見)
 - `Nd:on(name, handler)` で `column:added` / `column:removed` / `streaming:status` / `note:new` / `notification:new` を購読。`note:new` / `notification:new` は queryDelta を `core/queryRegistry`（queryId → flavor/accountId）で振り分けて fan-out する
 
@@ -1270,7 +1270,7 @@ graph LR
 ```
 
 - `src/engine/telemetry/frameTelemetry.ts` — P95 計測、自動品質調整（low/balanced/high）
-- `src/composables/useAdaptiveQuality.ts` — デバイス検出（CPU, RAM, prefers-reduced-motion）
+- `src/utils/adaptiveQuality.ts` — デバイス検出（CPU, RAM, prefers-reduced-motion）
 - 開発時のみ `DevFrameOverlay`（Ctrl+Shift+F）で FPS/フレーム時間を可視化
 
 #### ディレクトリ構成
@@ -1433,7 +1433,7 @@ AiScript / AI / プラグインが**任意の外部サービス** (GitHub / Line
 
 #### AI 統合
 
-- `vault.fetch` は capability registry に登録 (`aiTool: true`, permission `vault.use`, `requiresConfirmation: true`)。AI / AiScript / コマンドパレットから呼べる
+- `vault.fetch` は capability registry に登録 (`aiTool: true`, permission `vault.use`, `requiresConfirmation: true`)。AI / AiScript / slash から呼べる
 - 開示は principal クラス別 (#712 §6.1 / #759): `exposedTo: ('ai' | 'plugin' | 'external')[]` (接続単位、default 空 = 非開示)。「AI に見せる」「プラグイン・ウィジェットに見せる」「外部アプリに見せる」は別の同意で、`vault.fetch` capability は呼び出し principal のクラスに開示された接続のみ `connectionRef` (name / id) で解決。plugin クラスは接続ごとの明示 opt-in (#759 — secret 自体は Rust 側注入のまま AiScript に露出しない)
 - 「今後確認なし」(`trustedFor`) もクラス別 — 外部アプリでの確認同意が AI の trust に化けない。plugin クラスのみクラス一括ではなく**個体単位** (`trustedPlugins: {id, name}[]`) — 1 ウィジェットへの同意が全プラグイン / Play / Page に波及しない。取り消しは接続編集の信頼済み一覧から
 - AI の system prompt に `<available-connections>` ブロックを注入 (Ai クラスに開示された接続の name / baseUrl / auth のみ、secret / id は出さない)

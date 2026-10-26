@@ -1,4 +1,5 @@
 import type { NoteVisibility, PostVisibility } from '@/adapters/types'
+import { dispatchCapability } from '@/capabilities/dispatcher'
 import { i18n } from '@/i18n'
 import { FAVORITES_CACHE_KEY } from '@/services/columnCacheKey'
 import type { useAccountsStore } from '@/stores/accounts'
@@ -20,6 +21,21 @@ export interface CliHandlerDeps {
 }
 
 export type CliHandler = (args: string) => void | Promise<void>
+
+/**
+ * API を叩く動詞は capability を dispatcher 経由で呼ぶ (#1098 §9)。本人の操作
+ * なので principal は user (プロファイルでは縛られない)。宣言が confirm の
+ * capability は slash (`/notes.react`) と同じく確認ダイアログを通る。
+ * キャンセルは正常な操作なので投げない。失敗は投げて呼び出し側のログに残す
+ */
+async function run(id: string, params: Record<string, unknown>): Promise<void> {
+  const result = await dispatchCapability(id, params, {
+    principal: { kind: 'user' },
+  })
+  if (!result.ok && result.code !== 'user_cancelled') {
+    throw new Error(`${id}: ${result.error}`)
+  }
+}
 
 interface ParsedFlags {
   flags: Record<string, string | true>
@@ -81,6 +97,8 @@ export function createCliHandlers(
   deps: CliHandlerDeps,
 ): Record<string, CliHandler> {
   return {
+    // post と update は capability (notes.create) に無い引数 (--local-only /
+    // 編集) を持つので IPC を直接叩く。宣言に足したら run() に寄せる
     post: async (args) => {
       if (!args.trim()) return
       const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickPost)
@@ -238,7 +256,7 @@ export function createCliHandlers(
       if (!args.trim()) return
       const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickDelete)
       if (!accountId) return
-      unwrap(await commands.apiDeleteNote(accountId, args.trim()))
+      await run('notes.delete', { noteId: args.trim(), accountId })
     },
 
     update: async (args) => {
@@ -277,38 +295,25 @@ export function createCliHandlers(
       if (parts.length < 2) return
       const noteId = parts[0] as string
       const reaction = parts.slice(1).join(' ')
-      unwrap(await commands.apiCreateReaction(accountId, noteId, reaction))
+      await run('notes.react', { noteId, reaction, accountId })
     },
 
     unreact: async (args) => {
       if (!args.trim()) return
       const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickUnreact)
       if (!accountId) return
-      unwrap(await commands.apiDeleteReaction(accountId, args.trim()))
+      await run('notes.unreact', { noteId: args.trim(), accountId })
     },
 
     renote: async (args) => {
       if (!args.trim()) return
       const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickRenote)
       if (!accountId) return
-      unwrap(
-        await commands.apiCreateNote(
-          accountId,
-          {
-            text: null,
-            cw: null,
-            renoteId: args.trim(),
-            visibility: 'public',
-            replyId: null,
-            localOnly: null,
-            modeFlags: null,
-            fileIds: null,
-            poll: null,
-            scheduledAt: null,
-          },
-          null,
-        ),
-      )
+      await run('notes.create', {
+        renoteId: args.trim(),
+        visibility: 'public',
+        accountId,
+      })
     },
 
     user: async (args) => {
@@ -337,21 +342,21 @@ export function createCliHandlers(
       if (!args.trim()) return
       const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickCommand)
       if (!accountId) return
-      unwrap(await commands.apiFollowUser(accountId, args.trim()))
+      await run('user.follow', { userId: args.trim(), accountId })
     },
 
     unfollow: async (args) => {
       if (!args.trim()) return
       const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickCommand)
       if (!accountId) return
-      unwrap(await commands.apiUnfollowUser(accountId, args.trim()))
+      await run('user.unfollow', { userId: args.trim(), accountId })
     },
 
     favorite: async (args) => {
       if (!args.trim()) return
       const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickCommand)
       if (!accountId) return
-      unwrap(await commands.apiCreateFavorite(accountId, args.trim()))
+      await run('favorites.add', { noteId: args.trim(), accountId })
       deps.deckStore.invalidateColumnByKey(FAVORITES_CACHE_KEY)
     },
 
@@ -359,7 +364,7 @@ export function createCliHandlers(
       if (!args.trim()) return
       const accountId = await deps.pickAccount(i18n.ts._cliHandlers.pickCommand)
       if (!accountId) return
-      unwrap(await commands.apiDeleteFavorite(accountId, args.trim()))
+      await run('favorites.remove', { noteId: args.trim(), accountId })
       deps.deckStore.invalidateColumnByKey(FAVORITES_CACHE_KEY)
     },
 

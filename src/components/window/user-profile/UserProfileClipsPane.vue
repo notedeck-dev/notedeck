@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import type { Clip, JsonValue } from '@/bindings'
+import type { Clip } from '@/bindings'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import ProfileItemCards from './ProfileItemCards.vue'
 
 const props = defineProps<{
@@ -15,6 +15,8 @@ const props = defineProps<{
   infoImageUrl?: string
   errorImageUrl?: string
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const PAGE_SIZE = 20
 
@@ -34,14 +36,12 @@ const {
       // clips/list はページング非対応。loadMore からの呼び出し (untilId あり)
       // では常に空を返して打ち切る。
       if (untilId) return []
-      return unwrap(await commands.apiGetClips(props.accountId))
+      return (await apiFor(props.accountId)).getClips()
     }
-    const params: Record<string, JsonValue> = {
-      userId: props.userId,
+    return (await apiFor(props.accountId)).getUserClips(props.userId, {
       limit: PAGE_SIZE,
-    }
-    if (untilId) params.untilId = untilId
-    return unwrap(await commands.apiGetUserClips(props.accountId, params))
+      untilId,
+    })
   },
   pageSize: PAGE_SIZE,
   // 自プロフィールの clips/list はページング非対応 — 初回で全件取得済み

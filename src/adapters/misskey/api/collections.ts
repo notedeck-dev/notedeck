@@ -1,3 +1,4 @@
+import type { JsonValue } from '@/bindings'
 import { commands } from '@/utils/tauriInvoke'
 import type {
   Antenna,
@@ -105,6 +106,61 @@ export function createCollectionsApi(ctx: MisskeyApiContext): CollectionsApi {
           options.untilId ?? null,
         ),
       )
+    },
+
+    async getClip(clipId: string): Promise<Clip> {
+      return unwrapAny(await commands.apiGetClip(ctx.accountId, { clipId }))
+    },
+
+    async createClip(name: string): Promise<Clip> {
+      ctx.requireAuth()
+      return unwrapAny(await commands.apiCreateClip(ctx.accountId, { name }))
+    },
+
+    async favoriteClip(clipId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrapAny(await commands.apiFavoriteClip(ctx.accountId, { clipId }))
+    },
+
+    async unfavoriteClip(clipId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrapAny(await commands.apiUnfavoriteClip(ctx.accountId, { clipId }))
+    },
+
+    async getUserClips(
+      userId: string,
+      options: PaginationOptions = {},
+    ): Promise<Clip[]> {
+      const params: Record<string, JsonValue> = { userId }
+      if (options.limit != null) params.limit = options.limit
+      if (options.sinceId) params.sinceId = options.sinceId
+      if (options.untilId) params.untilId = options.untilId
+      return unwrapAny(await commands.apiGetUserClips(ctx.accountId, params))
+    },
+
+    async getList(
+      listId: string,
+      options: { forPublic?: boolean } = {},
+    ): Promise<UserList> {
+      const params: Record<string, JsonValue> = { listId }
+      if (options.forPublic) params.forPublic = true
+      return unwrapAny(await commands.apiGetList(ctx.accountId, params))
+    },
+
+    async favoriteList(listId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrapAny(await commands.apiFavoriteList(ctx.accountId, { listId }))
+    },
+
+    async unfavoriteList(listId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrapAny(await commands.apiUnfavoriteList(ctx.accountId, { listId }))
+    },
+
+    async getUserListsBy(userId?: string): Promise<UserList[]> {
+      const params: Record<string, JsonValue> = {}
+      if (userId) params.userId = userId
+      return unwrapAny(await commands.apiGetUserListsBy(ctx.accountId, params))
     },
   }
 }

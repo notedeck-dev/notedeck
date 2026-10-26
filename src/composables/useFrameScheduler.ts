@@ -1,47 +1,11 @@
 import { onScopeDispose } from 'vue'
+import { createFrameScheduler } from '@/engine/frameScheduler'
 
-import { type FramePhase, frameEngine } from '@/engine/frameEngine'
+export type { FramePriority } from '@/engine/frameScheduler'
 
-/**
- * Frame-aware priority scheduler。
- *
- * Frame Engine の Vue composable ラッパー。
- * 既存の API (high/normal/idle) を維持しつつ、RAF ループにルーティングする。
- *
- * - high:   Frame Engine の 'input' phase（ユーザー入力応答）
- * - normal: Frame Engine の 'write' phase（ストリーミング、DOM更新）
- * - idle:   Frame Engine の 'idle' phase（プリフェッチ、キャッシュ更新）
- */
-export type FramePriority = 'high' | 'normal' | 'idle'
-
-/** Map legacy priority names to Frame Engine phases. */
-const PHASE_MAP: Record<FramePriority, FramePhase> = {
-  high: 'input',
-  normal: 'write',
-  idle: 'idle',
-}
-
+/** `createFrameScheduler` の Vue 包み。scope の破棄で予約をまとめて取り消す */
 export function useFrameScheduler() {
-  const tracked = new Set<() => void>()
-
-  function schedule(fn: () => void, priority: FramePriority = 'normal'): void {
-    tracked.add(fn)
-    frameEngine.schedule(PHASE_MAP[priority], fn)
-  }
-
-  function cancel(fn: () => void): void {
-    tracked.delete(fn)
-    frameEngine.cancel(fn)
-  }
-
-  function dispose() {
-    for (const fn of tracked) {
-      frameEngine.cancel(fn)
-    }
-    tracked.clear()
-  }
-
-  onScopeDispose(dispose)
-
-  return { schedule, cancel, dispose }
+  const scheduler = createFrameScheduler()
+  onScopeDispose(scheduler.dispose)
+  return scheduler
 }

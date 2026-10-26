@@ -1,8 +1,11 @@
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { type Component, nextTick } from 'vue'
+import type { ServerInfo } from '@/adapters/types'
 import { type Account, useAccountsStore } from '@/stores/accounts'
+import { wireAdapterFactory } from '@/stores/adapterFactoryDeps'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
+import { useServersStore } from '@/stores/servers'
 
 export { bindings, bindingsMock } from './columnTestKit.bindings'
 
@@ -47,8 +50,20 @@ export function makeColumn(
 /** pinia を張り直し、アカウントを 1 件 (または指定分) 入れる */
 export function setupStores(accounts: Account[] = [makeAccount()]) {
   setActivePinia(createPinia())
+  wireAdapterFactory()
   const store = useAccountsStore()
   store.accounts.push(...accounts)
+  // カラムは adapter 経由で API を叩く (#1258)。adapter の生成はサーバー情報を
+  // 要るので、検出 (getServerDetection) を IPC に行かせず store に先に置く
+  const servers = useServersStore()
+  for (const acc of accounts) {
+    servers.refreshServer({
+      host: acc.host,
+      software: acc.software,
+      version: '0.0.0',
+      features: {},
+    } as ServerInfo)
+  }
   return store
 }
 

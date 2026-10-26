@@ -11,8 +11,8 @@
  */
 
 import { nextTick } from 'vue'
+import type { Capability } from '@/capabilities/types'
 import { COLUMN_LABELS } from '@/columns/registry'
-import type { Command } from '@/commands/registry'
 import { useAiConfig } from '@/composables/useAiConfig'
 import {
   accountTargetId,
@@ -539,7 +539,7 @@ interface PreparedConfirmation {
  * null = この呼び出しでは確認しない (宣言なし / no-op / 記憶済み)。
  */
 async function prepareConfirmation(
-  cap: Command,
+  cap: Capability,
   params: Record<string, unknown> | undefined,
   capCtx: CapabilityContext,
   ctx: DispatchContext,
@@ -695,7 +695,7 @@ export async function rememberConfirmation(
 }
 
 async function buildConfirmOptions(
-  cap: Command,
+  cap: Capability,
   params: Record<string, unknown> | undefined,
   ctx: CapabilityContext,
   opts?: { force?: boolean },

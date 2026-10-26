@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { relaunch } from '@tauri-apps/plugin-process'
 import { ref } from 'vue'
+import {
+  exportDatabaseFile,
+  exportSettingsFile,
+  importDatabaseFile,
+  importSettingsFile,
+} from '@/composables/backupFiles'
 import { i18n } from '@/i18n'
 import { nativeField } from '@/i18n/native'
 import { type ConfirmOptions, useConfirm } from '@/stores/confirm'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 defineProps<{
   initialTab?: 'notedeck' | 'db'
@@ -39,15 +44,13 @@ async function backupAction(
 }
 
 const exportSettings = () =>
-  backupAction(isExportingSettings, () =>
-    commands.exportSettingsJson().then((r) => unwrap(r)),
-  )
+  backupAction(isExportingSettings, exportSettingsFile)
 
 const importSettings = () =>
   backupAction(
     isImportingSettings,
     async () => {
-      const result = unwrap(await commands.importSettingsJson())
+      const result = await importSettingsFile()
       if (!result.imported) return false // dialog cancelled
       // スキップ / 別名退避したエントリ (#913) を再起動前に開示する。
       // 再起動後では警告が失われるのでここで見せるしかない
@@ -77,23 +80,18 @@ const importSettings = () =>
     },
   )
 
-const exportDb = () =>
-  backupAction(isExportingDb, () => commands.exportDb().then((r) => unwrap(r)))
+const exportDb = () => backupAction(isExportingDb, exportDatabaseFile)
 
 const importDb = () =>
-  backupAction(
-    isImportingDb,
-    () => commands.importDb().then((r) => unwrap(r)),
-    {
-      confirmOpts: {
-        title: i18n.ts._backupContent.importDbTitle,
-        message: i18n.ts._backupContent.importDbMessage,
-        okLabel: i18n.ts._common.import,
-        type: 'danger',
-      },
-      relaunch: true,
+  backupAction(isImportingDb, importDatabaseFile, {
+    confirmOpts: {
+      title: i18n.ts._backupContent.importDbTitle,
+      message: i18n.ts._backupContent.importDbMessage,
+      okLabel: i18n.ts._common.import,
+      type: 'danger',
     },
-  )
+    relaunch: true,
+  })
 </script>
 
 <template>

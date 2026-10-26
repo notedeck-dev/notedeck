@@ -1,5 +1,5 @@
+import type { Capability } from '@/capabilities/types'
 import { isColumnType } from '@/columns/registry'
-import type { Command } from '@/commands/registry'
 import { i18n } from '@/i18n'
 import { type ColumnType, type NavItem, useDeckStore } from '@/stores/deck'
 import { implement, implementCore } from '../declare'
@@ -81,7 +81,7 @@ export const navbarSetCapability = implement('navbar.set', {
 
 export const navbarResetCapability = implementCore('navbar.reset')
 
-export const NAVBAR_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const NAVBAR_BUILTIN_CAPABILITIES: readonly Capability[] = [
   navbarListCapability,
   navbarSetCapability,
   navbarResetCapability,

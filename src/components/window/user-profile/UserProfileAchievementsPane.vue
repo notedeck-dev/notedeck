@@ -2,16 +2,18 @@
 import { ref, watch } from 'vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkAchievementsGrid from '@/components/common/MkAchievementsGrid.vue'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { i18n } from '@/i18n'
 import type { Achievement } from '@/services/achievements'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   accountId: string
   userId: string
   active: boolean
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const achievements = ref<Achievement[]>([])
 const isLoading = ref(false)
@@ -24,9 +26,9 @@ async function load() {
   isLoading.value = true
   error.value = null
   try {
-    achievements.value = unwrap(
-      await commands.apiGetUserAchievements(props.accountId, props.userId),
-    ) as unknown as Achievement[]
+    achievements.value = (await (
+      await apiFor(props.accountId)
+    ).getUserAchievements(props.userId)) as Achievement[]
   } catch (e) {
     error.value = AppError.from(e).message
     loaded.value = false

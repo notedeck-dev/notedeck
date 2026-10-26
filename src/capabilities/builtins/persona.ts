@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implementCore } from '../declare'
 
 /**
@@ -30,7 +30,7 @@ export const memoryUpdateCapability = implementCore('memory.update')
 /** 人格の核 (SOUL.md) の書き換え提案。常に人が承認する (#1162) */
 export const soulProposeCapability = implementCore('soul.propose')
 
-export const PERSONA_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const PERSONA_BUILTIN_CAPABILITIES: readonly Capability[] = [
   aiListPersonasCapability,
   aiSetPersonaCapability,
   memoryUpdateCapability,

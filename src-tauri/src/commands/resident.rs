@@ -68,7 +68,7 @@ pub async fn core_set_resident(
 pub async fn core_sync_accounts(
     app_state: tauri::State<'_, super::AppState>,
 ) -> Result<(), String> {
-    if let Ok(list) = app_state.db().await.load_accounts() {
+    if let Ok(list) = app_state.blocking(|db| db.load_accounts()).await {
         notemaid::redact::register_misskey_tokens(&list);
     }
     if let Some(relay) = crate::client_layer::relay() {

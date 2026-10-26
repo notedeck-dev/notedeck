@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { implement } from '../declare'
 
 /**
@@ -32,7 +32,7 @@ export const clipboardWriteCapability = implement('clipboard.write', {
   },
 })
 
-export const CLIPBOARD_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const CLIPBOARD_BUILTIN_CAPABILITIES: readonly Capability[] = [
   clipboardReadCapability,
   clipboardWriteCapability,
 ]

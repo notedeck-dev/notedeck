@@ -5,14 +5,7 @@ vi.mock('@/utils/tauriInvoke', () => {
   return {
     commands: {
       apiCreateNote: vi.fn(async () => ok),
-      apiDeleteNote: vi.fn(async () => ok),
       apiUpdateNote: vi.fn(async () => ok),
-      apiCreateReaction: vi.fn(async () => ok),
-      apiDeleteReaction: vi.fn(async () => ok),
-      apiFollowUser: vi.fn(async () => ok),
-      apiUnfollowUser: vi.fn(async () => ok),
-      apiCreateFavorite: vi.fn(async () => ok),
-      apiDeleteFavorite: vi.fn(async () => ok),
     },
     unwrap: (r: { status: string; data?: unknown; error?: unknown }) => {
       if (r.status === 'ok') return r.data
@@ -21,8 +14,16 @@ vi.mock('@/utils/tauriInvoke', () => {
   }
 })
 
+// API を叩く動詞は capability を dispatcher 経由で呼ぶ (#1098 §9)
+const dispatchCapability = vi.hoisted(() =>
+  vi.fn(async () => ({ ok: true as const, result: null })),
+)
+vi.mock('@/capabilities/dispatcher', () => ({ dispatchCapability }))
+
 import { commands } from '@/utils/tauriInvoke'
 import { type CliHandlerDeps, createCliHandlers } from './cliHandlers'
+
+const asUser = { principal: { kind: 'user' } }
 
 interface FakeColumn {
   id: string
@@ -186,10 +187,30 @@ describe('note navigation and mutation', () => {
     expect(deps.navigateToUser).toHaveBeenCalledWith('acc-1', 'u7')
   })
 
-  it('delete calls apiDeleteNote with the note id', async () => {
+  it('delete dispatches notes.delete with the note id', async () => {
     const { handlers } = makeDeps()
     await handlers.delete?.('n99')
-    expect(commands.apiDeleteNote).toHaveBeenCalledWith('acc-1', 'n99')
+    expect(dispatchCapability).toHaveBeenCalledWith(
+      'notes.delete',
+      { noteId: 'n99', accountId: 'acc-1' },
+      asUser,
+    )
+  })
+
+  it('キャンセルは投げず、他の失敗は投げる', async () => {
+    const { handlers } = makeDeps()
+    dispatchCapability.mockResolvedValueOnce({
+      ok: false,
+      code: 'user_cancelled',
+      error: 'cancelled',
+    } as never)
+    await expect(handlers.delete?.('n1')).resolves.toBeUndefined()
+    dispatchCapability.mockResolvedValueOnce({
+      ok: false,
+      code: 'execute_failed',
+      error: 'boom',
+    } as never)
+    await expect(handlers.delete?.('n1')).rejects.toThrow('notes.delete: boom')
   })
 
   it('update requires both id and text', async () => {
@@ -208,18 +229,15 @@ describe('note navigation and mutation', () => {
     )
   })
 
-  it('renote creates a note with renoteId only', async () => {
+  it('renote dispatches notes.create with renoteId only', async () => {
     const { handlers } = makeDeps()
     await handlers.renote?.('n5')
-    expect(commands.apiCreateNote).toHaveBeenCalledWith(
-      'acc-1',
-      expect.objectContaining({
-        text: null,
-        renoteId: 'n5',
-        visibility: 'public',
-      }),
-      null,
+    expect(dispatchCapability).toHaveBeenCalledWith(
+      'notes.create',
+      { renoteId: 'n5', visibility: 'public', accountId: 'acc-1' },
+      asUser,
     )
+    expect(commands.apiCreateNote).not.toHaveBeenCalled()
   })
 })
 
@@ -227,16 +245,16 @@ describe('react', () => {
   it('requires both note id and reaction', async () => {
     const { handlers } = makeDeps()
     await handlers.react?.('n1')
-    expect(commands.apiCreateReaction).not.toHaveBeenCalled()
+    expect(dispatchCapability).not.toHaveBeenCalled()
   })
 
   it('sends the reaction, joining trailing parts with spaces', async () => {
     const { handlers } = makeDeps()
     await handlers.react?.('n1 :ablob: extra')
-    expect(commands.apiCreateReaction).toHaveBeenCalledWith(
-      'acc-1',
-      'n1',
-      ':ablob: extra',
+    expect(dispatchCapability).toHaveBeenCalledWith(
+      'notes.react',
+      { noteId: 'n1', reaction: ':ablob: extra', accountId: 'acc-1' },
+      asUser,
     )
   })
 })
@@ -245,7 +263,11 @@ describe('favorite / unfavorite', () => {
   it('favorite calls the API and invalidates the favorites column', async () => {
     const { deps, handlers } = makeDeps()
     await handlers.favorite?.('n1')
-    expect(commands.apiCreateFavorite).toHaveBeenCalledWith('acc-1', 'n1')
+    expect(dispatchCapability).toHaveBeenCalledWith(
+      'favorites.add',
+      { noteId: 'n1', accountId: 'acc-1' },
+      asUser,
+    )
     expect(deps.deckStore.invalidateColumnByKey).toHaveBeenCalledWith(
       'favorites',
     )
@@ -254,7 +276,11 @@ describe('favorite / unfavorite', () => {
   it('unfavorite calls the API and invalidates the favorites column', async () => {
     const { deps, handlers } = makeDeps()
     await handlers.unfavorite?.('n1')
-    expect(commands.apiDeleteFavorite).toHaveBeenCalledWith('acc-1', 'n1')
+    expect(dispatchCapability).toHaveBeenCalledWith(
+      'favorites.remove',
+      { noteId: 'n1', accountId: 'acc-1' },
+      asUser,
+    )
     expect(deps.deckStore.invalidateColumnByKey).toHaveBeenCalledWith(
       'favorites',
     )

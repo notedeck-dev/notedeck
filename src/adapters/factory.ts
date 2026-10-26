@@ -1,8 +1,38 @@
-import { useEmojisStore } from '@/stores/emojis'
-import { usePinnedReactionsStore } from '@/stores/pinnedReactions'
-import { useServersStore } from '@/stores/servers'
 import { createAdapter } from './registry'
 import type { ServerAdapter, ServerInfo } from './types'
+
+/**
+ * factory が外側 (store) に頼む仕事。adapters 層は stores を import しないので
+ * (#1098)、アプリの起動時に `configureAdapterFactory` で渡す
+ */
+export interface AdapterFactoryDeps {
+  /** ホストのサーバー情報 (キャッシュ済みならそれ) */
+  getServerInfo(host: string): Promise<ServerInfo>
+  /**
+   * adapter を返すたびに呼ぶ (作った直後もキャッシュ済みも)。絵文字辞書や
+   * ピン留めリアクションの温めなど、冪等な副作用の置き場
+   */
+  onAdapterReady?(
+    adapter: ServerAdapter,
+    ctx: { host: string; accountId: string; hasToken: boolean },
+    options?: { pinnedReactions?: boolean },
+  ): void
+}
+
+let deps: AdapterFactoryDeps | null = null
+
+export function configureAdapterFactory(next: AdapterFactoryDeps): void {
+  deps = next
+}
+
+function requireDeps(): AdapterFactoryDeps {
+  if (!deps) {
+    throw new Error(
+      'adapter factory is not configured: call configureAdapterFactory() at startup',
+    )
+  }
+  return deps
+}
 
 export interface InitAdapterResult {
   adapter: ServerAdapter
@@ -31,7 +61,11 @@ export async function initAdapterFor(
   const cached = adapterCache.get(accountId)
   if (cached) {
     const serverInfo = cached.serverInfo
-    ensureSideEffects(host, accountId, cached, hasToken, options)
+    requireDeps().onAdapterReady?.(
+      cached,
+      { host, accountId, hasToken },
+      options,
+    )
     return { adapter: cached, serverInfo }
   }
 
@@ -40,12 +74,12 @@ export async function initAdapterFor(
   if (inflight) return inflight
 
   const promise = (async (): Promise<InitAdapterResult> => {
-    const serversStore = useServersStore()
-    const serverInfo = await serversStore.getServerInfo(host)
+    const d = requireDeps()
+    const serverInfo = await d.getServerInfo(host)
     const adapter = createAdapter(serverInfo, accountId, hasToken)
 
     adapterCache.set(accountId, adapter)
-    ensureSideEffects(host, accountId, adapter, hasToken, options)
+    d.onAdapterReady?.(adapter, { host, accountId, hasToken }, options)
 
     return { adapter, serverInfo }
   })()
@@ -55,25 +89,6 @@ export async function initAdapterFor(
     return await promise
   } finally {
     adapterPending.delete(accountId)
-  }
-}
-
-/** Kick off emoji / pinned-reaction loading (idempotent) */
-function ensureSideEffects(
-  host: string,
-  accountId: string,
-  adapter: ServerAdapter,
-  hasToken: boolean,
-  options?: { pinnedReactions?: boolean },
-): void {
-  const emojisStore = useEmojisStore()
-  emojisStore.ensureLoaded(host, (opts) => adapter.api.getServerEmojis(opts))
-
-  if (hasToken && options?.pinnedReactions !== false) {
-    const pinnedReactionsStore = usePinnedReactionsStore()
-    pinnedReactionsStore.ensureLoaded(accountId, () =>
-      adapter.api.getPinnedReactions(),
-    )
   }
 }
 

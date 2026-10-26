@@ -17,13 +17,13 @@ import MkAd from '@/components/common/MkAd.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import NewNotesBanner from '@/components/deck/NewNotesBanner.vue'
+import { openTimelineQuery } from '@/composables/querySubscriptions'
 import { useAds } from '@/composables/useAds'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { NoteScrollerExpose } from '@/composables/useNoteScrollerRef'
-import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useTabSlide } from '@/composables/useTabSlide'
 import { i18n } from '@/i18n'
 import { columnCacheKey } from '@/services/columnCacheKey'
@@ -37,6 +37,7 @@ import {
 import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import * as snapshotStore from '@/stores/snapshots'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
 import type { CustomTimelineInfo } from '@/utils/customTimelines'
 import {
@@ -49,7 +50,6 @@ import {
   markTimelineDenied,
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import ColumnPullFrame from './ColumnPullFrame.vue'
@@ -166,14 +166,7 @@ const noteColumnConfig: NoteColumnConfig = {
       // biome-ignore lint/style/noNonNullAssertion: column.accountId は connect ガードで保証
       const accountId = props.column.accountId!
       return createQuerySubscription({
-        open: async () =>
-          unwrap(
-            await commands.querySubscribeTimeline(
-              accountId,
-              tlType.value,
-              null,
-            ),
-          ),
+        open: async () => openTimelineQuery(accountId, tlType.value, null),
         onInsert: (item) => {
           // 組込フィルタ・可視性防御は useNoteColumn の enqueue 前段が担う (#841)
           const note = queryItemAsNote(item)
@@ -336,14 +329,7 @@ const {
     columnType: 'timeline',
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
       createQuerySubscription({
-        open: async () =>
-          unwrap(
-            await commands.querySubscribeTimeline(
-              accountId,
-              tlType.value,
-              null,
-            ),
-          ),
+        open: async () => openTimelineQuery(accountId, tlType.value, null),
         onInsert: (item) => {
           const note = queryItemAsNote(item)
           if (note) enqueue(note)

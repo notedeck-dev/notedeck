@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import DOMPurify from 'dompurify'
 import { computed, onMounted, reactive, ref, shallowRef } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import type { FederationInstance } from '@/adapters/types'
 import AppTime from '@/components/common/AppTime.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
@@ -9,14 +8,15 @@ import I18n from '@/components/common/I18n.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useWindowExternalLink } from '@/composables/useWindowExternalLink'
 import { i18n } from '@/i18n'
 import { safeCssUrl, webUiUrl } from '@/services/safeUrl'
 import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
+import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
 import { formatCount, formatDate } from '@/utils/format'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   accountId: string
@@ -26,6 +26,8 @@ const props = defineProps<{
 }>()
 
 const accountsStore = useAccountsStore()
+const serversStore = useServersStore()
+const { getOrCreate } = useMultiAccountAdapters()
 
 type Tab = 'overview' | 'raw'
 // Raw はプロトコルが見える面 (#1034)
@@ -56,7 +58,7 @@ const remoteMeta = shallowRef<Record<string, unknown> | null>(null)
 
 async function loadRemoteMeta() {
   try {
-    const data = unwrap(await commands.fetchServerMeta(props.host))
+    const data = await serversStore.fetchMeta(props.host)
     remoteMeta.value = data as unknown as Record<string, unknown>
   } catch {
     // 古い/応答しないサーバーでは失敗するが、致命的ではないので握りつぶす。
@@ -73,9 +75,8 @@ async function loadInstance() {
   if (!props.initialInstance) isLoading.value = true
   error.value = null
   try {
-    const { adapter } = await initAdapterFor(acc.host, acc.id, {
-      hasToken: acc.hasToken,
-    })
+    const adapter = await getOrCreate(acc.id, { hasToken: acc.hasToken })
+    if (!adapter) throw new Error(i18n.ts._common.accountNotFound)
     instance.value = await adapter.api.getFederationInstance(props.host)
   } catch (e) {
     error.value = AppError.from(e).message

@@ -5,9 +5,11 @@ import { useCommandStore } from '@/commands/registry'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import AccountPickerSheet from '@/components/common/AccountPickerSheet.vue'
 import ColumnBadges from '@/components/common/ColumnBadges.vue'
+import { clearAccountNoteCache } from '@/composables/cacheMaintenance'
 import { useAccountActions } from '@/composables/useAccountActions'
 import { useColumnBadge } from '@/composables/useColumnBadge'
 import { COLUMN_ICONS, COLUMN_LABELS } from '@/composables/useColumnTabs'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNavbarResize } from '@/composables/useNavbarResize'
 import { useNavigation } from '@/composables/useNavigation'
 import {
@@ -37,7 +39,6 @@ import {
 } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckLaunchPad from './DeckLaunchPad.vue'
 import DeckProfileMenu from './DeckProfileMenu.vue'
 import DeckSettingsMenu from './DeckSettingsMenu.vue'
@@ -50,6 +51,8 @@ const props = defineProps<{
   showSettingsMenu: boolean
   updateAvailable: boolean
 }>()
+
+const { getOrCreate } = useMultiAccountAdapters()
 
 const emit = defineEmits<{
   'open-compose': []
@@ -303,7 +306,9 @@ async function loadAccountModes(id: string) {
     // non-critical
   }
   try {
-    const me = unwrap(await commands.apiGetSelf(id)) as Record<string, unknown>
+    const adapter = await getOrCreate(id)
+    if (!adapter) return
+    const me = (await adapter.api.getSelf()) as Record<string, unknown>
     accountIsAdmin.value = {
       ...accountIsAdmin.value,
       [id]: me.isAdmin === true || me.isModerator === true,
@@ -319,7 +324,9 @@ async function toggleAccountMode(accountId: string, key: string) {
   try {
     const modes = accountModes.value[accountId] ?? {}
     const newValue = !modes[key]
-    unwrap(await commands.apiUpdateUserSetting(accountId, key, newValue))
+    const adapter = await getOrCreate(accountId)
+    if (!adapter) throw new Error('account not found')
+    await adapter.api.updateUserSetting(key, newValue)
     accountModes.value = {
       ...accountModes.value,
       [accountId]: { ...modes, [key]: newValue },
@@ -371,7 +378,7 @@ async function clearAccountCache(accountId: string) {
     type: 'danger',
   })
   if (!ok) return
-  unwrap(await commands.clearAccountCache(accountId))
+  await clearAccountNoteCache(accountId)
 }
 
 function toggleFirstAccountMenu() {

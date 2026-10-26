@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { ACCOUNT_BUILTIN_CAPABILITIES } from './account'
 import { AI_BUILTIN_CAPABILITIES } from './ai'
 import { AI_SESSIONS_BUILTIN_CAPABILITIES } from './aiSessions'
@@ -59,7 +59,7 @@ import { WINDOWS_BUILTIN_CAPABILITIES } from './windows'
  * Anthropic / OpenAI の tool name 制約に合わせて `toolSchema.ts` で
  * `_` に変換される (`time.now` → `time_now`)。
  */
-export const ALL_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const ALL_BUILTIN_CAPABILITIES: readonly Capability[] = [
   ...TIME_BUILTIN_CAPABILITIES,
   ...APP_BUILTIN_CAPABILITIES,
   ...ACCOUNT_BUILTIN_CAPABILITIES,

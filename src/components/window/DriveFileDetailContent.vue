@@ -10,6 +10,7 @@ import MkDriveFolderSelectDialog from '@/components/common/MkDriveFolderSelectDi
 import MkMediaAudio from '@/components/common/MkMediaAudio.vue'
 import MkMediaLightbox from '@/components/common/MkMediaLightbox.vue'
 import MkMediaVideo from '@/components/common/MkMediaVideo.vue'
+import { readImageExif } from '@/composables/imageFiles'
 import { useDriveActions } from '@/composables/useDriveActions'
 import {
   isAudio,
@@ -17,12 +18,12 @@ import {
   isVideo,
   safeUrl,
 } from '@/composables/useDriveFolder'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { i18n } from '@/i18n'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { formatBytes } from '@/utils/format'
 import { proxyUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   accountId: string
@@ -39,6 +40,7 @@ const emit = defineEmits<{
 const driveActions = useDriveActions()
 const uiStore = useUiStore()
 
+const { getOrCreate } = useMultiAccountAdapters()
 const file = ref<NormalizedDriveFile | null>(null)
 const loading = ref(true)
 const error = ref<string | null>(null)
@@ -46,11 +48,9 @@ const error = ref<string | null>(null)
 async function fetchFile() {
   error.value = null
   try {
-    const raw = unwrap(
-      await commands.apiGetDriveFile(props.accountId, {
-        fileId: props.fileId,
-      } as never),
-    )
+    const adapter = await getOrCreate(props.accountId)
+    if (!adapter) throw new Error('account not found')
+    const raw = await adapter.api.getDriveFile(props.fileId)
     file.value = normalizeDriveFile(raw as never)
     // EXIF は常時表示欄として自動照会する（画像のみ・初回のみ）
     if (isImage(file.value) && exifFields.value === null) loadExif()
@@ -131,7 +131,7 @@ async function loadExif() {
   exifLoading.value = true
   exifError.value = null
   try {
-    exifFields.value = unwrap(await commands.readImageExif(file.value.url))
+    exifFields.value = await readImageExif(file.value.url)
   } catch (e) {
     exifError.value = AppError.from(e).message
   } finally {

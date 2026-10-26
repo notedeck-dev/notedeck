@@ -1,7 +1,7 @@
 /**
  * Capability registry — capability 登録・lookup API。AiScript (`Nd:call`) /
- * HTTP API / CLI / コマンドパレット / AI tool calling の 5 経路から共通で
- * 参照される。
+ * HTTP API / slash / パレットの CLI / AI tool calling の経路から共通で
+ * 参照される (dispatcher を通る)。
  *
  * `aiTool` フラグは「AI tool schema に含めるか」だけを意味し、registry 登録
  * の前提条件ではない。`aiTool: false` でも他経路 (= AiScript / HTTP API /
@@ -12,12 +12,12 @@
  * て登録する。
  */
 
-import type { Command } from '@/commands/registry'
+import type { Capability } from './types'
 
-const capabilities = new Map<string, Command>()
+const capabilities = new Map<string, Capability>()
 
 /** Capability を registry に登録する。`signature` 必須。 */
-export function registerCapability(cmd: Command): void {
+export function registerCapability(cmd: Capability): void {
   if (!cmd.signature) {
     throw new Error(
       `Capability "${cmd.id}" must have a signature to be registered`,
@@ -30,11 +30,11 @@ export function unregisterCapability(id: string): void {
   capabilities.delete(id)
 }
 
-export function getCapability(id: string): Command | undefined {
+export function getCapability(id: string): Capability | undefined {
   return capabilities.get(id)
 }
 
-export function listCapabilities(): Command[] {
+export function listCapabilities(): Capability[] {
   return [...capabilities.values()]
 }
 

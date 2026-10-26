@@ -2,6 +2,13 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import FormNumber from '@/components/common/form/FormNumber.vue'
 import FormSelect from '@/components/common/form/FormSelect.vue'
+import {
+  applyEvictionConfig,
+  clearAllNoteCache,
+  clearImageCache,
+  imageCacheStats,
+  noteCacheStats,
+} from '@/composables/cacheMaintenance'
 import { i18n } from '@/i18n'
 import {
   type EvictionPreset,
@@ -12,7 +19,6 @@ import { usePerformanceStore } from '@/stores/performance'
 import { useSettingsStore } from '@/stores/settings'
 import { PRESET_OPTIONS } from '@/utils/cacheEviction'
 import { formatBytes } from '@/utils/format'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const { confirm } = useConfirm()
 const settingsStore = useSettingsStore()
@@ -39,10 +45,10 @@ const imageCacheTTLDays = computed({
 
 async function refreshStats() {
   try {
-    const stats = unwrap(await commands.cacheStats())
+    const stats = await noteCacheStats()
     noteCount.value = stats.noteCount
     dbBytes.value = stats.dbSizeBytes
-    const img = unwrap(await commands.imageCacheStats())
+    const img = await imageCacheStats()
     imageBytes.value = img.bytes
     imageFiles.value = img.files
   } catch (e) {
@@ -61,7 +67,7 @@ async function clearAll() {
   isClearing.value = true
   errorMessage.value = ''
   try {
-    unwrap(await commands.clearAllCache())
+    await clearAllNoteCache()
     await refreshStats()
   } catch (e) {
     errorMessage.value = e instanceof Error ? e.message : String(e)
@@ -81,7 +87,7 @@ async function clearImages() {
   isClearingImages.value = true
   errorMessage.value = ''
   try {
-    unwrap(await commands.clearImageCache())
+    await clearImageCache()
     await refreshStats()
   } catch (e) {
     errorMessage.value = e instanceof Error ? e.message : String(e)
@@ -171,7 +177,7 @@ async function applyAndPersist() {
   errorMessage.value = ''
   try {
     const config = resolveEvictionConfig(settingsStore.settings)
-    unwrap(await commands.applyEvictionConfig(config))
+    await applyEvictionConfig(config)
     await refreshStats()
   } catch (e) {
     errorMessage.value = e instanceof Error ? e.message : String(e)

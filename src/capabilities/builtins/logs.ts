@@ -1,4 +1,4 @@
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { type LogLevel, useLogsStore } from '@/stores/logs'
 import { implement } from '../declare'
 
@@ -20,6 +20,6 @@ export const logsRecentCapability = implement('logs.recent', {
   },
 })
 
-export const LOGS_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const LOGS_BUILTIN_CAPABILITIES: readonly Capability[] = [
   logsRecentCapability,
 ]

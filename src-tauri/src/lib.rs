@@ -377,8 +377,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     // 口座の行をそのまま写す (トークン列を含む)。キーチェーンが使える環境では列は空で
                     // notemaid もキーチェーンから読む。無い環境 (WSL2 など) ではこの列が唯一の経路で、
                     // アプリ自身の DB と同じ保護水準 (同じデータディレクトリ、同じユーザー)
-                    let db = core.db().await;
-                    match db.load_accounts() {
+                    match core.blocking(|db| db.load_accounts()).await {
                         Ok(list) => {
                             notemaid::redact::register_misskey_tokens(&list);
                             let outcome = relay

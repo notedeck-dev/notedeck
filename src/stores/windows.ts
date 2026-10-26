@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { pushOverlay } from '@/composables/useBackButton'
 import { useUiStore } from '@/stores/ui'
+import { pushOverlay } from '@/utils/overlayBackStack'
 import { WINDOW_SIZES } from '@/windows/registry'
 
 export type WindowType =
@@ -146,11 +146,9 @@ export const useWindowsStore = defineStore('windows', () => {
 
   function open(type: WindowType, props: Record<string, unknown> = {}): string {
     if (isInPipContext()) {
-      import('@/composables/usePipWindow').then(
-        ({ openPipWindowForWindow }) => {
-          openPipWindowForWindow(type, props)
-        },
-      )
+      import('@/windows/pip').then(({ openPipWindowForWindow }) => {
+        openPipWindowForWindow(type, props)
+      })
       return ''
     }
 

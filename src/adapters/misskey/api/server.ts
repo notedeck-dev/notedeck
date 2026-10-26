@@ -1,3 +1,4 @@
+import type { JsonValue } from '@/bindings'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import type {
   Announcement,
@@ -8,6 +9,7 @@ import type {
   GalleryPost,
   Page,
   PagesEndpoint,
+  PaginationOptions,
   ServerContentApi,
   ServerEmoji,
 } from '../../types'
@@ -101,5 +103,117 @@ export function createServerContentApi(
         await commands.apiGetFederationInstance(ctx.accountId, { host }),
       )
     },
+
+    async getMetaDetail(): Promise<unknown> {
+      return unwrap(await commands.apiGetMetaDetail(ctx.accountId))
+    },
+
+    async getServerStats(): Promise<unknown> {
+      return unwrap(await commands.apiGetServerStats(ctx.accountId))
+    },
+
+    async readAnnouncement(announcementId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrap(await commands.apiReadAnnouncement(ctx.accountId, announcementId))
+    },
+
+    async likePage(pageId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrap(await commands.apiLikePage(ctx.accountId, pageId))
+    },
+
+    async unlikePage(pageId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrap(await commands.apiUnlikePage(ctx.accountId, pageId))
+    },
+
+    async updatePage(params: JsonValue): Promise<unknown> {
+      ctx.requireAuth()
+      return unwrap(await commands.apiUpdatePage(ctx.accountId, params))
+    },
+
+    async likeFlash(flashId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrap(await commands.apiLikeFlash(ctx.accountId, flashId))
+    },
+
+    async unlikeFlash(flashId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrap(await commands.apiUnlikeFlash(ctx.accountId, flashId))
+    },
+
+    async updateFlash(params: JsonValue): Promise<unknown> {
+      ctx.requireAuth()
+      return unwrap(await commands.apiUpdateFlash(ctx.accountId, params))
+    },
+
+    async likeGalleryPost(postId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrap(await commands.apiLikeGalleryPost(ctx.accountId, postId))
+    },
+
+    async unlikeGalleryPost(postId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrap(await commands.apiUnlikeGalleryPost(ctx.accountId, postId))
+    },
+
+    async getUserPagesBy(
+      userId: string,
+      options: PaginationOptions = {},
+    ): Promise<Page[]> {
+      return unwrap(
+        await commands.apiGetUserPagesBy(
+          ctx.accountId,
+          userPagination(userId, options),
+        ),
+      )
+    },
+
+    async getUserFlashs(
+      userId: string,
+      options: PaginationOptions = {},
+    ): Promise<Flash[]> {
+      return unwrapAny(
+        await commands.apiGetUserFlashs(
+          ctx.accountId,
+          userPagination(userId, options),
+        ),
+      )
+    },
+
+    async getUserGalleryBy(
+      userId: string,
+      options: PaginationOptions = {},
+    ): Promise<GalleryPost[]> {
+      return unwrap(
+        await commands.apiGetUserGalleryBy(
+          ctx.accountId,
+          userPagination(userId, options),
+        ),
+      )
+    },
+
+    async apShow(uri: string): Promise<unknown> {
+      return unwrap(await commands.apiApShow(ctx.accountId, uri))
+    },
+
+    async request(
+      endpoint: string,
+      params: JsonValue | null,
+    ): Promise<unknown> {
+      return unwrap(await commands.apiRequest(ctx.accountId, endpoint, params))
+    },
   }
+}
+
+/** users/pages, users/flashs, users/gallery/posts に共通の引数 */
+function userPagination(
+  userId: string,
+  options: PaginationOptions,
+): Record<string, JsonValue> {
+  const params: Record<string, JsonValue> = { userId }
+  if (options.limit != null) params.limit = options.limit
+  if (options.sinceId) params.sinceId = options.sinceId
+  if (options.untilId) params.untilId = options.untilId
+  return params
 }

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { shallowRef, triggerRef } from 'vue'
 import type { NormalizedNote, NoteUpdateEvent } from '@/adapters/types'
-import { useFrameScheduler } from '@/composables/useFrameScheduler'
+import { createFrameScheduler } from '@/engine/frameScheduler'
 import { createBoundedCache } from '@/services/boundedCache'
 import { evictByLiveness } from '@/services/mapEviction'
 import {
@@ -38,7 +38,7 @@ const TOMBSTONE_MAX = 5000
  */
 export const useNoteStore = defineStore('notes', () => {
   const perfStore = usePerformanceStore()
-  const { schedule } = useFrameScheduler()
+  const { schedule } = createFrameScheduler()
   const noteMap = shallowRef(new Map<VariantKey, NormalizedNote>())
   const deleteListeners = new Set<
     (key: VariantKey, tombstone: boolean) => void

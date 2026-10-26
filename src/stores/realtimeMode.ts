@@ -38,15 +38,13 @@ export const useRealtimeModeStore = defineStore('realtimeMode', () => {
   }
 
   /**
-   * 永続化されたモードをバックエンドの実動作へ適用する (#1004)。
-   * 起動時とオフラインモード解除時に呼ぶ。realtime はバックエンドの既定
-   * (connect = WS) なので、polling のときだけ明示的に送る。オフライン中は
-   * ネットワークを起こさない (解除時の再適用に委ねる)。
+   * 永続化されたモードをバックエンドの実動作へ適用する (#1004)。起動時に呼ぶ
+   * (オフラインモード解除時の再適用は offlineMode store が streaming store を
+   * 直接呼ぶ)。オフライン中はネットワークを起こさない (解除時の再適用に委ねる)。
    */
   function applyPersistedMode(): void {
-    if (enabled.value) return
     if (useOfflineModeStore().isOfflineMode) return
-    applyToAllAccounts()
+    useStreamingStore().applyPersistedMode(useAccountsStore().accounts)
   }
 
   function setRealtimeMode(value: boolean): void {

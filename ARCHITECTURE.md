@@ -184,7 +184,7 @@ iOS / Android と sidecar が無い開発時は in-process の transport (コマ
 
 #### A-2b. PiP ウィンドウ（常前面フローティングカラム）
 
-**場所**: `usePipWindow.ts` + `src/views/PipPage.vue`
+**場所**: `src/windows/pip.ts` + `src/views/PipPage.vue`
 
 - デッキのカラムを常前面フローティングウィンドウとして切り離し
 - 375×700px（リサイズ可能）、`alwaysOnTop`、複数同時起動（動的ラベル `pip-*`）
@@ -600,7 +600,7 @@ Vue 3.6 で導入予定の Vapor モード（仮想DOMレス）への移行準�
 - **account 単位の共有**: `pinnedReactionsStore`（in-flight dedup）
 - **Rust 側の stream dedup**: `stream_connect(accountId)` は idempotent — 物理 WebSocket 接続は account 単位で 1 本
 - **Viewport 制御**: `useColumnMount`（IntersectionObserver + 遅延 unmount）、`maxLiveColumns`（active 近傍のみ live）、非表示カラムの streaming batch pause
-- **スナップショット復元**: `useSnapshotStore`（ID-only、TTL eviction、再マウント時の即時復元）
+- **スナップショット復元**: `stores/snapshots`（ID-only、TTL eviction、再マウント時の即時復元）
 
 **解消済みの column-centric な課題**:
 
@@ -1025,7 +1025,7 @@ column は `createQuerySubscription()`（`adapters/misskey/query.ts`）で query
 | 同時 live 数制限 | `useColumnMount` の `maxLiveColumns` budget | **実装済み** | active からの距離順に budget 配分 |
 | 可視性制御 | `useColumnMount` + `maxLiveColumns` | **実装済み** | — |
 | off-screen pause | `useNoteColumn` で streaming batch 処理を pause | **実装済み** | 変更不要 |
-| snapshot 復元 | `useSnapshotStore`（ID-only, TTL、インメモリ = 再起動を跨がない） + shell preview | **実装済み** | — |
+| snapshot 復元 | `stores/snapshots`（ID-only, TTL、インメモリ = 再起動を跨がない） + shell preview | **実装済み** | — |
 | note invalidation | `noteStore`（RAF batch + skipTrigger） | **実装済み** | 変更不要（計測の結果、コスト無視できる） |
 
 ---
@@ -1264,7 +1264,7 @@ graph TB
 
 - **SQLite `chat_messages_cache`** (Layer 1, 永続) — REST/WS で受信した全メッセージを upsert。eviction を担う
 - **`chatMessageStore`** (Layer 0, frontend 正規化ストア) — 唯一の実体。Pinia store として `noteStore` ([src/stores/notes.ts](src/stores/notes.ts)) のシグネチャを流用。キーは `noteStore` と同じ「取得元アカウント + メッセージ ID」の `VariantKey` (notedeck#1270、Misskey の ID はサーバー内でしか一意でない)。`put()` / `update(key, msg)` / `applyUpdate(event)` で in-place 更新 → UI 自動伝播。LRU 風 eviction (`chatMessageStoreMax`、既定値は `src/defaults/performance.json5`)
-- **SnapshotStore** (Layer 2, ID-only) — タブ切替・カラム再マウント時の即時復元用。`noteStore` と同じ TTL eviction 機構 ([src/composables/useSnapshotStore.ts](src/composables/useSnapshotStore.ts)) を共有 (cacheKey で namespace 分離)
+- **SnapshotStore** (Layer 2, ID-only) — タブ切替・カラム再マウント時の即時復元用。`noteStore` と同じ TTL eviction 機構 ([src/stores/snapshots.ts](src/stores/snapshots.ts)) を共有 (cacheKey で namespace 分離)
 - **DeckChatColumn.vue** (UI) — `threads: Ref<thread_id[]>` と `messages: Ref<VariantKey[]>` のみ保持。実体は `chatMessageStore.resolve()` で取得
 
 ### データフロー
@@ -1449,7 +1449,7 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 ### 課題 5: プラグイン境界
 
-`aiscript/plugin-api.ts` の `launchPlugin` でプラグインが `commandStore` への直接参照を取得し、`notedeck-api.ts` の `Nd:register_command` で store に直接作用する。カラム操作（旧 `Nd:addColumn` / `Nd:removeColumn`）は廃止し、capability registry 経由の `Nd:call('column.add', ...)` 等で行う。
+`aiscript/plugin-api.ts` の `launchPlugin` でプラグインが `commandStore` への直接参照を取得し、`notedeck-api.ts` の `Nd:register_command` でパレットの `Command` を登録する (options で `aiTool` と `signature` を宣言したものは `Capability` としても別に登録、#1098 §9)。カラム操作（旧 `Nd:addColumn` / `Nd:removeColumn`）は廃止し、capability registry 経由の `Nd:call('column.add', ...)` 等で行う。
 
 **現状の評価**: 拡張性は高いが、第三者プラグインを増やす場合、store への直接アクセスは保守負債になる。
 

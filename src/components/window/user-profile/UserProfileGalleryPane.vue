@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { watch } from 'vue'
-import type { GalleryPost, JsonValue } from '@/bindings'
+import type { GalleryPost } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { safeUrl } from '@/composables/useDriveFolder'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { usePaginatedList } from '@/composables/usePaginatedList'
 import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   accountId: string
@@ -16,6 +16,8 @@ const props = defineProps<{
   infoImageUrl?: string
   errorImageUrl?: string
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const PAGE_SIZE = 20
 
@@ -29,12 +31,10 @@ const {
   loadMore,
 } = usePaginatedList<GalleryPost>({
   fetch: async (untilId) => {
-    const params: Record<string, JsonValue> = {
-      userId: props.userId,
+    return (await apiFor(props.accountId)).getUserGalleryBy(props.userId, {
       limit: PAGE_SIZE,
-    }
-    if (untilId) params.untilId = untilId
-    return unwrap(await commands.apiGetUserGalleryBy(props.accountId, params))
+      untilId,
+    })
   },
   pageSize: PAGE_SIZE,
 })

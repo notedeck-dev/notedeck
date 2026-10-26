@@ -15,7 +15,7 @@
 import { defineStore } from 'pinia'
 import { shallowRef, triggerRef } from 'vue'
 import type { ChatMessage } from '@/adapters/types'
-import { useFrameScheduler } from '@/composables/useFrameScheduler'
+import { createFrameScheduler } from '@/engine/frameScheduler'
 import { evictByLiveness } from '@/services/mapEviction'
 import { type VariantKey, variantKey, variantKeyOf } from '@/services/noteKey'
 import type { ChatMessageUpdateEvent } from '@/services/streamUpdateMerge'
@@ -35,7 +35,7 @@ const CHAT_UPDATE_DEDUP_WINDOW_MS = 1500
 
 export const useChatMessageStore = defineStore('chatMessages', () => {
   const perfStore = usePerformanceStore()
-  const { schedule } = useFrameScheduler()
+  const { schedule } = createFrameScheduler()
   const messageMap = shallowRef(new Map<VariantKey, ChatMessage>())
   const deleteListeners = new Set<(key: VariantKey) => void>()
   const updateDeduper = createUpdateDeduper(CHAT_UPDATE_DEDUP_WINDOW_MS)

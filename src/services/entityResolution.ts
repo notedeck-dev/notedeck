@@ -7,9 +7,9 @@
  */
 
 import type { NormalizedNote } from '@/adapters/types'
+import { accountScopeKey } from '@/services/accountScope'
 import { evictByLiveness } from '@/services/mapEviction'
 import { parseNoteUrl } from '@/services/noteUrl'
-import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
@@ -21,6 +21,14 @@ export type ResolveNoteError = {
 export type ResolveNoteResult =
   | { ok: true; noteId: string }
   | ({ ok: false } & ResolveNoteError)
+
+/** 解決に使うアカウント。呼び出し側が accounts store から引いて渡す (#1098) */
+export interface ResolverAccount {
+  id: string
+  host: string
+  userId: string
+  hasToken: boolean
+}
 
 // キーは `${accountScopeKey}|${uri}`。Account.id はログインごとに
 // 再生成されるためキャッシュキーには使えない (#771)。
@@ -52,13 +60,10 @@ function toResolveError(e: unknown): ResolveNoteError {
 
 /** uri を指定アカウントのサーバー上のノート ID に解決する */
 export async function resolveNoteUriFor(
-  accountId: string,
+  account: ResolverAccount,
   uri: string,
 ): Promise<ResolveNoteResult> {
-  const account = useAccountsStore().accountMap.get(accountId)
-  if (!account) {
-    throw new Error(`resolveNoteUriFor: unknown account ${accountId}`)
-  }
+  const accountId = account.id
 
   // 同一ホスト高速パス: 自サーバーの URL は ap/show 不要
   const parsed = parseNoteUrl(uri)
@@ -111,9 +116,9 @@ export async function resolveNoteUriFor(
 
 /** NormalizedNote を指定アカウント上の ID に解決する（同一アカウントは短絡） */
 export async function resolveNoteFor(
-  accountId: string,
+  account: ResolverAccount,
   note: NormalizedNote,
 ): Promise<ResolveNoteResult> {
-  if (note._accountId === accountId) return { ok: true, noteId: note.id }
-  return resolveNoteUriFor(accountId, note._identity)
+  if (note._accountId === account.id) return { ok: true, noteId: note.id }
+  return resolveNoteUriFor(account, note._identity)
 }

@@ -6,7 +6,6 @@ use base64::Engine;
 use notecli::error::NoteDeckError;
 
 use crate::context::Core;
-use crate::credentials::get_credentials;
 use crate::error::Result;
 
 // --- OGP Preview ---
@@ -19,7 +18,6 @@ pub async fn fetch_ogp(
     account_id: Option<String>,
 ) -> Result<crate::ogp::OgpData> {
     let ogp_cache = core.ogp_cache()?;
-    let db = core.db().await;
     if url.len() > 2048 {
         return Err(NoteDeckError::InvalidInput("URL too long".to_string()));
     }
@@ -27,7 +25,7 @@ pub async fn fetch_ogp(
     // With server context: plugins → server → direct HTML parse
     // Without: plugins → direct HTML parse
     let result = if let Some(ref aid) = account_id {
-        if let Ok((host, token)) = get_credentials(&db, aid) {
+        if let Ok((host, token)) = core.credentials(aid) {
             ogp_cache.get_ogp_via_server(&url, &host, &token).await
         } else {
             ogp_cache.get_ogp(&url).await

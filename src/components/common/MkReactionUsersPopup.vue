@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { defineAsyncComponent, onMounted, onUnmounted, ref, watch } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import type { NoteReaction } from '@/adapters/types'
 import { useEmojiMute } from '@/composables/useEmojiMute'
 import { useHoverPopupLeaving } from '@/composables/useHoverPopup'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { normalizeEmojiMuteKey } from '@/services/emojiMute'
-import { useAccountsStore } from '@/stores/accounts'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
 import { extractColumnThemeVars } from '@/utils/themeVars'
 import MkAvatar from './MkAvatar.vue'
@@ -31,6 +30,8 @@ const props = defineProps<{
   y: number
 }>()
 
+const { forView } = useMultiAccountAdapters()
+
 const emit = defineEmits<{
   close: []
   openModal: [reaction: string]
@@ -38,7 +39,6 @@ const emit = defineEmits<{
 
 const { navigateToUser } = useNavigation()
 const { isEmojiMuted, toggleEmojiMuteWithConfirm } = useEmojiMute()
-const accountsStore = useAccountsStore()
 const isLeaving = useHoverPopupLeaving()
 
 // プレビュー内の軽量アクション (#612)。hover popup と右クリックメニューが
@@ -77,12 +77,8 @@ async function fetchReactions() {
   isLoading.value = true
   reactions.value = []
   try {
-    const account = accountsStore.accounts.find((a) => a.id === props.accountId)
-    if (!account) return
-    const { adapter } = await initAdapterFor(account.host, account.id, {
-      pinnedReactions: false,
-      hasToken: account.hasToken,
-    })
+    const adapter = await forView(props.accountId)
+    if (!adapter) return
     reactions.value = await adapter.api.getNoteReactions(
       props.noteId,
       props.reaction,

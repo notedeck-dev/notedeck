@@ -3,13 +3,13 @@ import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
 import { onMounted, ref } from 'vue'
 import { useCommandStore } from '@/commands/registry'
+import { backupDirPath, exportDirPath } from '@/composables/backupFiles'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
 import { useKeybindsStore } from '@/stores/keybinds'
 import { getLogDir, getSettingsDir } from '@/utils/settingsFs'
 import { shortcutLabel } from '@/utils/shortcutLabel'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const menuOpen = ref(false)
 const activeCategory = ref<string | null>(null)
@@ -124,7 +124,7 @@ async function openLogDir() {
 
 async function openBackupDir() {
   try {
-    await revealItemInDir(unwrap(await commands.getBackupDir()))
+    await revealItemInDir(await backupDirPath())
   } catch {
     // バックアップディレクトリが解決できない環境では何もしない
   }
@@ -133,7 +133,7 @@ async function openBackupDir() {
 
 async function openDownloadDir() {
   try {
-    await revealItemInDir(unwrap(await commands.getExportDir()))
+    await revealItemInDir(await exportDirPath())
   } catch {
     // ダウンロードディレクトリが解決できない環境では何もしない
   }

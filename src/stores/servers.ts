@@ -56,11 +56,17 @@ export const useServersStore = defineStore('servers', () => {
     setServer(info.host, info)
   }
 
+  /** サーバーの meta をそのまま取る (口座を要らない公開 API)。サーバー応答そのまま */
+  function fetchMeta(host: string): Promise<unknown> {
+    return commands.fetchServerMeta(host).then(unwrap)
+  }
+
   return {
     servers,
     loadCachedServers,
     getServerInfo,
     getServer,
     refreshServer,
+    fetchMeta,
   }
 })

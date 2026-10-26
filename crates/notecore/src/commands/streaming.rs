@@ -1,11 +1,9 @@
 //! streaming のデータ系コマンド本体 (#1106 段階 0b)。各関数は `&Core` と引数を取り、
 //! コマンド表 (commands/table.rs) から呼ばれる。
 
-use notecli::db::Database;
 use notecli::streaming::StreamingManager;
 
 use crate::context::Core;
-use crate::credentials::get_credentials;
 use crate::error::Result;
 
 /// Ensure the streaming WebSocket is connected for the given account.
@@ -14,18 +12,17 @@ use crate::error::Result;
 /// 返す (invoke の resolve は接続確立を意味しない)。接続の生死は
 /// stream-status イベントでフロントへ伝わる。
 async fn ensure_stream_connected(
-    db: &Database,
+    core: &Core,
     streaming: &StreamingManager,
     account_id: &str,
 ) -> Result<()> {
-    let (host, token) = get_credentials(db, account_id)?;
+    let (host, token) = core.credentials(account_id)?;
     streaming.connect(account_id, &host, &token).await
 }
 
 pub async fn stream_connect(core: &Core, account_id: String) -> Result<()> {
     let streaming = core.streaming()?;
-    let db = core.db().await;
-    ensure_stream_connected(&db, streaming, &account_id).await
+    ensure_stream_connected(core, streaming, &account_id).await
 }
 
 /// アカウントの main チャンネルを張る。main はアカウント単位の共有チャンネルで、
@@ -34,8 +31,7 @@ pub async fn stream_connect(core: &Core, account_id: String) -> Result<()> {
 /// 通知などは配らない (チャットを開いただけで OS 通知が出ないように、#1223)
 pub async fn stream_subscribe_main(core: &Core, account_id: String) -> Result<()> {
     let streaming = core.streaming()?;
-    let db = core.db().await;
-    ensure_stream_connected(&db, streaming, &account_id).await?;
+    ensure_stream_connected(core, streaming, &account_id).await?;
     streaming.subscribe_main_chat(&account_id).await?;
     Ok(())
 }
@@ -44,8 +40,7 @@ pub async fn stream_subscribe_main(core: &Core, account_id: String) -> Result<()
 /// Rust なので、カラムの有無に関わらず口座セッションが張る (#330 §3.1)
 pub async fn subscribe_main_for_account(core: &Core, account_id: &str) -> Result<()> {
     let streaming = core.streaming()?;
-    let db = core.db().await;
-    ensure_stream_connected(&db, streaming, account_id).await?;
+    ensure_stream_connected(core, streaming, account_id).await?;
     streaming.subscribe_main(account_id).await?;
     Ok(())
 }
@@ -79,8 +74,7 @@ pub async fn stream_set_mode(
     interval_ms: Option<u64>,
 ) -> Result<()> {
     let streaming = core.streaming()?;
-    let db = core.db().await;
-    let (host, token) = get_credentials(&db, &account_id)?;
+    let (host, token) = core.credentials(&account_id)?;
     streaming
         .set_mode(&account_id, &host, &token, &mode, interval_ms)
         .await

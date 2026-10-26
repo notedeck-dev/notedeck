@@ -17,6 +17,10 @@ import type {
 } from '@/components/common/MkNoteTree.vue'
 import MkNoteTree from '@/components/common/MkNoteTree.vue'
 import MkUserListItem from '@/components/common/MkUserListItem.vue'
+import {
+  findArchiveNotesByIdentity,
+  noteIdentityOf,
+} from '@/composables/archiveSearch'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
@@ -49,7 +53,6 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useSuspensionsStore } from '@/stores/suspensions'
 import { isImeComposing } from '@/utils/ime'
 import { isRenoteOnly } from '@/utils/noteViewModel'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import DeckColumn from './DeckColumn.vue'
 import DeckLookupUserRows from './DeckLookupUserRows.vue'
@@ -260,12 +263,9 @@ async function performLookup() {
     const userQuery = parseUserRef(q)
     if (userQuery) {
       const { username } = userQuery
-      const user = unwrap(
-        await commands.apiLookupUser(
-          accountId,
-          username,
-          hostParamFor(userQuery, acc.host),
-        ),
+      const user = await api.lookupUser(
+        username,
+        hostParamFor(userQuery, acc.host),
       )
       result.value = {
         type: 'User',
@@ -295,7 +295,7 @@ async function performLookup() {
     }
 
     // ノート解決（同一ホスト高速パス + ap/show）はサービスに委譲
-    const resolved = await resolveNoteUriFor(accountId, q)
+    const resolved = await resolveNoteUriFor(acc, q)
     if (resolved.ok) {
       const note = await api.getNote(resolved.noteId)
       result.value = { type: 'Note', note }
@@ -306,7 +306,7 @@ async function performLookup() {
     // not_found は「ap/show が Note 以外を返した」可能性がある —
     // ユーザー URL 等は User として照会し直す
     if (resolved.code === 'not_found') {
-      const res = unwrap(await commands.apiApShow(accountId, q)) as unknown as {
+      const res = (await api.apShow(q)) as {
         type: string
         object?: {
           id: string
@@ -387,7 +387,7 @@ async function performLookupCrossAccount(q: string) {
   }
 
   // 束ねのキーは identity (正規化 AP object id)。導出は notecli 側 1 か所 (#1058)
-  const focalUri = unwrap(await commands.apiNoteIdentity(q))
+  const focalUri = await noteIdentityOf(q)
   const allFragments: ThreadFragment[] = []
   // 主ビュー選択の文脈 (#1058 §5.2)。ゲスト取得の variant (Phase 1 のローカル
   // DB 由来) は最下位になる
@@ -395,9 +395,7 @@ async function performLookupCrossAccount(q: string) {
 
   // Phase 1: ローカル DB 横断検索（即座）
   try {
-    const cached = unwrap(
-      await commands.apiFindNotesByIdentity(focalUri),
-    ) as unknown as NormalizedNote[]
+    const cached = await findArchiveNotesByIdentity(focalUri)
     if (cached.length > 0) {
       for (const note of cached) {
         allFragments.push({ note, sourceAccountId: note._accountId })
@@ -426,7 +424,7 @@ async function performLookupCrossAccount(q: string) {
         if (!adapter) return fragments
 
         // このアカウントのサーバー上の noteId に解決（高速パス + ap/show）
-        const resolved = await resolveNoteUriFor(acc.id, focalUri)
+        const resolved = await resolveNoteUriFor(acc, focalUri)
         if (!resolved.ok) return fragments
         const localNoteId = resolved.noteId
 

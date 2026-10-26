@@ -35,6 +35,7 @@ import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
 import PopupMenu from '@/components/common/PopupMenu.vue'
 import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
+import { openNotificationsQuery } from '@/composables/querySubscriptions'
 import { useColumnPullScroller } from '@/composables/useColumnPullScroller'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import type { CrossEndState } from '@/composables/useCrossAccountNotes'
@@ -101,7 +102,6 @@ import {
   loadNotificationCache,
   saveNotificationCache,
 } from '@/utils/notificationCache'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isWindowExposed } from '@/windows/exposure'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import type { ColumnTabDef } from './ColumnTabs.vue'
@@ -1072,8 +1072,7 @@ async function connectPerAccount(useCache = false) {
     const accountId = props.column.accountId!
     setSubscription(
       createQuerySubscription({
-        open: async () =>
-          unwrap(await commands.querySubscribeNotifications(accountId)),
+        open: async () => openNotificationsQuery(accountId),
         onInsert: (item) => {
           const notification = queryItemAsNotification(item)
           if (!notification) return
@@ -1205,8 +1204,7 @@ async function connectCrossAccount(useCache = false) {
       if (!adapter) continue
       adapter.stream.connect()
       const sub = createQuerySubscription({
-        open: async () =>
-          unwrap(await commands.querySubscribeNotifications(acc.id)),
+        open: async () => openNotificationsQuery(acc.id),
         onInsert: (item) => {
           const notification = queryItemAsNotification(item)
           if (!notification) return

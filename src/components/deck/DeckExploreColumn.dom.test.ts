@@ -12,23 +12,31 @@ import DeckExploreColumn from './DeckExploreColumn.vue'
 vi.mock('@/bindings', async () =>
   (await import('./columnTestKit.bindings')).bindingsMock(),
 )
-// ノートタブは useNoteColumn (別テスト済み)。adapter は featured を空で返す
-vi.mock('@/adapters/factory', () => ({
-  initAdapterFor: vi.fn(async () => ({
-    adapter: {
-      api: { getFeaturedNotes: vi.fn(async () => []) },
-      stream: {
-        connect: vi.fn(),
-        reconnect: vi.fn(),
-        on: vi.fn(),
-        off: vi.fn(),
-        subNote: vi.fn(),
-        unsubNote: vi.fn(),
+// ノートタブは useNoteColumn (別テスト済み)。adapter は featured を空で返し、
+// ユーザー / ロールの取得は本物の Misskey API 実装 (→ bindings の記録) を通す
+vi.mock('@/adapters/factory', async () => {
+  const { createMisskeyApi } = await import('@/adapters/misskey/api')
+  return {
+    configureAdapterFactory: vi.fn(),
+    initAdapterFor: vi.fn(async () => ({
+      adapter: {
+        api: {
+          ...createMisskeyApi('acc-1', 'example.com', true),
+          getFeaturedNotes: vi.fn(async () => []),
+        },
+        stream: {
+          connect: vi.fn(),
+          reconnect: vi.fn(),
+          on: vi.fn(),
+          off: vi.fn(),
+          subNote: vi.fn(),
+          unsubNote: vi.fn(),
+        },
       },
-    },
-    serverInfo: { iconUrl: null },
-  })),
-}))
+      serverInfo: { iconUrl: null },
+    })),
+  }
+})
 // dedup Worker は happy-dom に無いので常に失敗させ、メインスレッド fallback を通す
 vi.mock('@/utils/workerClient', () => ({
   createWorkerClient: () => ({

@@ -6,10 +6,10 @@ import FormSelect from '@/components/common/form/FormSelect.vue'
 import I18n from '@/components/common/I18n.vue'
 import RawJsonView from '@/components/common/RawJsonView.vue'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useSensitiveMask } from '@/composables/useSensitiveMask'
 import { i18n } from '@/i18n'
 import { AppError } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   accountId: string
@@ -29,6 +29,8 @@ const props = defineProps<{
     identity: string
   }[]
 }>()
+
+const { apiFor } = useMultiAccountAdapters()
 
 const activeVariant = ref(0)
 const variantList = computed(() =>
@@ -99,10 +101,8 @@ async function loadMisskey() {
   isLoadingMisskey.value = true
   misskeyError.value = null
   try {
-    const raw = unwrap(
-      await commands.apiGetNoteRaw(active.value.accountId, {
-        noteId: active.value.noteId,
-      } as never),
+    const raw = await (await apiFor(active.value.accountId)).getNoteRaw(
+      active.value.noteId,
     )
     if (gen === viewGeneration) misskeyRaw.value = raw
   } catch (e) {
@@ -123,7 +123,7 @@ async function loadActivityPub() {
   isLoadingAp.value = true
   apError.value = null
   try {
-    const raw = unwrap(await commands.apiApShow(active.value.accountId, uri))
+    const raw = await (await apiFor(active.value.accountId)).apShow(uri)
     if (gen === viewGeneration) apRaw.value = raw
   } catch (e) {
     if (gen === viewGeneration) apError.value = AppError.from(e).message

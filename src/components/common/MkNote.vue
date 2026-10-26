@@ -75,7 +75,6 @@ import {
   expandedNoteContent,
   renderedReactionNotes,
 } from '@/utils/renderedMemo'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { extractColumnThemeVars } from '@/utils/themeVars'
 import { toggleReaction } from '@/utils/toggleReaction'
 import AccountAvatar from './AccountAvatar.vue'
@@ -343,9 +342,8 @@ function openRenoteMenu(e: MouseEvent) {
 
   // Check if already renoted
   myRenoteId.value = null
-  commands
-    .apiGetNoteRenotes(props.note._accountId, effectiveNote.value.id, 30)
-    .then((r) => unwrap(r))
+  apiFor(props.note._accountId)
+    .then((api) => api.getNoteRenotes(effectiveNote.value.id, { limit: 30 }))
     .then((renotes) => {
       const account = accountsStore.accountMap.get(props.note._accountId)
       const mine = renotes.find((r) => r.user.id === account?.userId)
@@ -372,7 +370,7 @@ async function handleUnrenote() {
   isRenoted.value = false
   myRenoteId.value = null
   try {
-    unwrap(await commands.apiDeleteNote(props.note._accountId, renoteId))
+    await (await apiFor(props.note._accountId)).deleteNote(renoteId)
   } catch {
     effectiveNote.value.renoteCount = (effectiveNote.value.renoteCount ?? 0) + 1
     isRenoted.value = true
@@ -739,12 +737,9 @@ watch(
 
 async function handleMentionClick(username: string, host: string | null) {
   try {
-    const user = unwrap(
-      await commands.apiLookupUser(
-        props.note._accountId,
-        username,
-        host ?? null,
-      ),
+    const user = await (await apiFor(props.note._accountId)).lookupUser(
+      username,
+      host,
     )
     navToUser(props.note._accountId, user.id)
   } catch (e) {
@@ -767,12 +762,9 @@ async function onMentionHover(
   const rect = el.getBoundingClientRect()
   popupTheme.value = extractColumnThemeVars(el)
   try {
-    const user = unwrap(
-      await commands.apiLookupUser(
-        props.note._accountId,
-        username,
-        host ?? null,
-      ),
+    const user = await (await apiFor(props.note._accountId)).lookupUser(
+      username,
+      host,
     )
     if (!mentionHovering) return
     mentionUserId.value = user.id
@@ -892,6 +884,13 @@ const pickerAccount = ref<{ serverHost: string; accountId: string } | null>(
 )
 const crossQuoteTarget = ref<QuoteAsTarget | null>(null)
 const { getOrCreate: getAdapterFor } = useMultiAccountAdapters()
+
+/** 取得元アカウントの API。口座が無ければ投げる (呼び出し側の catch で拾う) */
+async function apiFor(accountId: string) {
+  const adapter = await getAdapterFor(accountId)
+  if (!adapter) throw new Error(`account not found: ${accountId}`)
+  return adapter.api
+}
 const { reactAs, renoteAs, quoteAs } = useCrossAccountNoteActions()
 
 function openCrossAccountPicker(accountId: string) {

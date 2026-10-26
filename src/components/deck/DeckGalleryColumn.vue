@@ -14,7 +14,6 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -31,6 +30,7 @@ const {
   scroller,
   onScroll,
   scrollToTop,
+  initAdapter,
 } = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 const windowsStore = useWindowsStore()
@@ -46,11 +46,9 @@ const {
   reload,
 } = usePaginatedList<GalleryPost>({
   fetch: async (untilId) => {
-    const accountId = props.column.accountId
-    if (!accountId) return []
-    return unwrap(
-      await commands.apiGetGalleryPosts(accountId, PAGE_SIZE, untilId ?? null),
-    )
+    const adapter = await initAdapter()
+    if (!adapter) return []
+    return adapter.api.getGalleryPosts({ limit: PAGE_SIZE, untilId })
   },
   pageSize: PAGE_SIZE,
   onError: (e) => {

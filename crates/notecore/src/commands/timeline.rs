@@ -155,17 +155,18 @@ pub async fn api_update_antenna(
     // ため spawn_blocking で退避しつつ、完了は待ってから返す — detach すると
     // フロントの再フェッチが ingest した直後に破棄が走り、再構築したばかりの
     // バケットを消すレースになる
-    let db = core.db().await;
     let account_id_owned = account_id.clone();
     let key = TimelineKey::Antenna {
         antenna_id: updated.id.clone(),
     };
-    let cleared =
-        tokio::task::spawn_blocking(move || db.clear_timeline(&account_id_owned, &key)).await;
-    match cleared {
-        Ok(Err(e)) => tracing::warn!("[cache] failed to clear antenna bucket: {e}"),
-        Err(e) => tracing::warn!("[cache] clear antenna bucket task failed: {e}"),
-        Ok(Ok(_)) => {}
+    if let Err(e) = core
+        .with_archive((), move |db, ()| {
+            db.clear_timeline(&account_id_owned, &key)?;
+            Ok(())
+        })
+        .await
+    {
+        tracing::warn!("[cache] failed to clear antenna bucket: {e}");
     }
     Ok(updated)
 }
@@ -181,10 +182,9 @@ pub async fn api_clear_timeline_cache(
 ) -> Result<u32> {
     // parse Err は Err 返却 (フロントのキー組み間違いを顕在化)
     let key = TimelineKey::parse(&timeline_key)?;
-    let db = core.db().await;
-    let removed = tokio::task::spawn_blocking(move || db.clear_timeline(&account_id, &key))
-        .await
-        .map_err(|e| NoteDeckError::Internal(format!("clear_timeline task failed: {e}")))??;
+    let removed = core
+        .blocking(move |db| db.clear_timeline(&account_id, &key))
+        .await?;
     Ok(removed.min(u32::MAX as u64) as u32)
 }
 

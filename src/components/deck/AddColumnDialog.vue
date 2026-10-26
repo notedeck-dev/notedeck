@@ -23,6 +23,7 @@ import AccountPickerRow from '@/components/common/AccountPickerRow.vue'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { showLoginPrompt } from '@/composables/useLoginPrompt'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import {
   commandItemTargetId,
@@ -44,11 +45,12 @@ import { useIsCompactLayout } from '@/stores/ui'
 import { logWarn } from '@/utils/logger'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
 import { motionDuration } from '@/utils/motion'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   mode?: 'deck' | 'pip'
 }>()
+
+const { getOrCreate } = useMultiAccountAdapters()
 
 const emit = defineEmits<{
   close: []
@@ -436,12 +438,12 @@ async function createNewItem() {
   if (!name) return
   createLoading.value = true
   try {
-    const created = unwrap(
-      await commands.apiRequest(accountId, config.spec.createEndpoint, {
-        name,
-        ...config.spec.createDefaults,
-      }),
-    ) as unknown as SelectableItem
+    const adapter = await getOrCreate(accountId)
+    if (!adapter) throw new Error('account not found')
+    const created = (await adapter.api.request(config.spec.createEndpoint, {
+      name,
+      ...config.spec.createDefaults,
+    })) as SelectableItem
     // Add column with the newly created item
     const colName = config.spec.formatName
       ? config.spec.formatName(created)

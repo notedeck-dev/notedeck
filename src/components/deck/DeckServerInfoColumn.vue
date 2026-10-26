@@ -12,7 +12,6 @@ import { i18n } from '@/i18n'
 import { isExposed } from '@/settings/exposure'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { proxyThumbUrl, proxyUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
 interface ServerMeta {
@@ -57,6 +56,7 @@ const {
   withLoading,
   scroller,
   scrollToTop,
+  initAdapter,
 } = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 
@@ -141,12 +141,14 @@ async function fetchServerInfo() {
   const acc = account.value
   if (!acc) return
   await withLoading(async () => {
+    const adapter = await initAdapter()
+    if (!adapter) return
     const [metaResult, statsResult] = await Promise.all([
-      commands.apiGetMetaDetail(acc.id),
-      commands.apiGetServerStats(acc.id),
+      adapter.api.getMetaDetail(),
+      adapter.api.getServerStats(),
     ])
-    meta.value = unwrap(metaResult) as unknown as ServerMeta
-    stats.value = unwrap(statsResult) as unknown as ServerStats
+    meta.value = metaResult as ServerMeta
+    stats.value = statsResult as ServerStats
   })
 }
 

@@ -69,5 +69,16 @@ export function createDriveApi(ctx: MisskeyApiContext): DriveApi {
         ),
       )
     },
+
+    async getDriveFile(fileId: string): Promise<unknown> {
+      return unwrapAny(
+        await commands.apiGetDriveFile(ctx.accountId, { fileId }),
+      )
+    },
+
+    async deleteDriveFile(fileId: string): Promise<void> {
+      ctx.requireAuth()
+      unwrapAny(await commands.apiDeleteDriveFile(ctx.accountId, fileId))
+    },
   }
 }

@@ -8,7 +8,6 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { proxyUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
 interface Announcement {
@@ -41,6 +40,7 @@ const {
   withLoading,
   scroller,
   scrollToTop,
+  initAdapter,
 } = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 
@@ -64,9 +64,12 @@ async function fetchAnnouncements() {
   const acc = account.value
   if (!acc) return
   await withLoading(async () => {
-    announcements.value = unwrap(
-      await commands.apiGetAnnouncements(acc.id, 20, true),
-    ) as unknown as Announcement[]
+    const adapter = await initAdapter()
+    if (!adapter) return
+    announcements.value = (await adapter.api.getAnnouncements({
+      limit: 20,
+      isActive: true,
+    })) as unknown as Announcement[]
   })
 }
 
@@ -76,7 +79,9 @@ async function markAsRead(announcement: Announcement) {
   if (!acc) return
 
   try {
-    unwrap(await commands.apiReadAnnouncement(acc.id, announcement.id))
+    const adapter = await initAdapter()
+    if (!adapter) return
+    await adapter.api.readAnnouncement(announcement.id)
     announcement.isRead = true
     announcements.value = [...announcements.value]
   } catch {

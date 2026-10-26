@@ -5,7 +5,6 @@ import { useColumnSetup } from '@/composables/useColumnSetup'
 import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { AppError, authErrorMessage } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -18,6 +17,7 @@ const {
   isLoading,
   error,
   withLoading,
+  initAdapter,
   scroller,
   scrollToTop,
 } = useColumnSetup(() => props.column)
@@ -57,12 +57,11 @@ function execute() {
   if (!endpoint.value.trim() || !accountId) return
   response.value = null
   return withLoading(async () => {
-    const result = unwrap(
-      await commands.apiRequest(
-        accountId,
-        endpoint.value.trim(),
-        parseParams(),
-      ),
+    const adapter = await initAdapter()
+    if (!adapter) throw new Error('account not found')
+    const result = await adapter.api.request(
+      endpoint.value.trim(),
+      parseParams(),
     )
     response.value = JSON.stringify(result, null, 2)
   })

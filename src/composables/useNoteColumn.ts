@@ -34,7 +34,6 @@ import { useNoteSound } from '@/composables/useNoteSound'
 import type { VisibilityOpts } from '@/composables/useNoteVisibility'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useReadMarker } from '@/composables/useReadMarker'
-import * as snapshotStore from '@/composables/useSnapshotStore'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
 import { i18n } from '@/i18n'
 import { variantKey, variantKeyOf } from '@/services/noteKey'
@@ -45,6 +44,7 @@ import { hasGap as hasTimelineGap } from '@/services/timelineGap'
 import { isGuestAccount } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
+import * as snapshotStore from '@/stores/snapshots'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useToast } from '@/stores/toast'
@@ -1393,6 +1393,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
     focusedNoteId,
     pendingCount,
     animatingIds,
+    /** カラムのアカウントの adapter (ノート以外の一覧を同じ口座で引く用) */
+    initAdapter,
     postForm,
     handlers,
     noteScrollerRef,

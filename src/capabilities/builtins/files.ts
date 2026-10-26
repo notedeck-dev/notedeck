@@ -1,7 +1,7 @@
 import { normalizeDriveFile } from '@/adapters/misskey/api/drive'
 import type { ExportFileItem, ExportProgress } from '@/bindings'
 import { events } from '@/bindings'
-import type { Command } from '@/commands/registry'
+import type { Capability } from '@/capabilities/types'
 import { i18n } from '@/i18n'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { resolveAccountId } from '../accountContext'
@@ -230,6 +230,6 @@ export const filesExportCapability = implement('files.export', {
   },
 })
 
-export const FILES_BUILTIN_CAPABILITIES: readonly Command[] = [
+export const FILES_BUILTIN_CAPABILITIES: readonly Capability[] = [
   filesExportCapability,
 ]
