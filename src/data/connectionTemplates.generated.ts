@@ -5,7 +5,7 @@
 import type { AuthType, ConnectionProtocol } from '@/bindings'
 
 /** secret 入力欄のラベルに使う辞書キー (`_connectionTemplates.<key>`) */
-export type SecretLabelKey = "apiKey" | "apiKeyMewk" | "apiToken" | "apiTokenRaw" | "deeplAuthHeader"
+export type SecretLabelKey = "apiKey" | "apiKeyMewk" | "apiToken" | "apiTokenRaw" | "deeplAuthHeader" | "vrchatAuthCookie"
 
 export interface ConnectionTemplateDecl {
   /** `builtin:<id>@<version>` 形式の識別子。 */
@@ -265,5 +265,16 @@ export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [
     testPath: "/api/v1/users/me/stats",
     secretLabel: {"i18n":"apiKeyMewk"},
     secretHelpUrl: "https://mewk.app/settings/developer",
+  },
+  {
+    id: "builtin:vrchat@1",
+    name: "VRChat",
+    icon: "headset",
+    baseUrl: "https://api.vrchat.cloud",
+    authType: {"kind":"header","name":"Cookie"},
+    allowedHosts: ["api.vrchat.cloud"],
+    testPath: "/api/1/auth/user",
+    secretLabel: {"i18n":"vrchatAuthCookie"},
+    secretHelpUrl: "https://store.notedeck.io/plugins/vrc-in-here",
   },
 ]

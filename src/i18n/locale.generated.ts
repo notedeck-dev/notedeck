@@ -5552,6 +5552,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "apiKey": string
     /** API キー (mewk_...) */
     readonly "apiKeyMewk": string
+    /** Cookie ヘッダー値 (auth=<auth cookie>; twoFactorAuth=<twoFactorAuth cookie>) */
+    readonly "vrchatAuthCookie": string
   }
   readonly "_tutorialSteps": {
     /** チュートリアルが{label}の項目を示しています */

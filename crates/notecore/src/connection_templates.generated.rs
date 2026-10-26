@@ -99,4 +99,9 @@ pub static CONNECTION_TEMPLATES: &[ConnectionTemplateDecl] = &[
         allowed_hosts: &["mewk.app"],
         affinity_header: None,
     },
+    ConnectionTemplateDecl {
+        id: "builtin:vrchat@1",
+        allowed_hosts: &["api.vrchat.cloud"],
+        affinity_header: None,
+    },
 ];

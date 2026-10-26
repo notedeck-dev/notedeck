@@ -3307,6 +3307,7 @@ _connectionTemplates:
   apiTokenRaw: "API token (raw value)"
   apiKey: "API key"
   apiKeyMewk: "API key (mewk_...)"
+  vrchatAuthCookie: "Cookie header value (auth=<auth cookie>; twoFactorAuth=<twoFactorAuth cookie>)"
 
 _tutorialSteps:
   pointingItem: "The tutorial is pointing at the {label} item"
