@@ -4,7 +4,7 @@ import { registerQuery, unregisterQuery } from '@/core/queryRegistry'
 import {
   _resetEventStateForTest,
   diffColumns,
-  diffStreamingStates,
+  diffStreamHealth,
   extractInsertIds,
   SUPPORTED_EVENT_NAMES,
   subscribeNoteDeckEvent,
@@ -144,31 +144,34 @@ describe('subscribeNoteDeckEvent (Phase 2: note:new / notification:new)', () => 
   })
 })
 
-describe('diffStreamingStates', () => {
-  it('returns no changes when states are identical', () => {
+describe('diffStreamHealth (#1240)', () => {
+  it('returns no changes when every account keeps its state', () => {
     expect(
-      diffStreamingStates(
-        { 'acc-1': 'online', 'acc-2': 'offline' },
-        { 'acc-1': 'online', 'acc-2': 'offline' },
-      ),
+      diffStreamHealth({ 'acc-1': { state: 'connected', since: 1 } }, [
+        { accountId: 'acc-1', state: 'connected', since: 1 },
+      ]),
     ).toEqual([])
   })
 
-  it('detects status transitions', () => {
+  it('emits the WebSocket state transition with its timestamp', () => {
     expect(
-      diffStreamingStates(
-        { 'acc-1': 'online' },
-        { 'acc-1': 'offline', 'acc-2': 'online' },
-      ),
+      diffStreamHealth({ 'acc-1': { state: 'connected', since: 1 } }, [
+        { accountId: 'acc-1', state: 'reconnecting', since: 5 },
+        { accountId: 'acc-2', state: 'initializing', since: 7 },
+      ]),
     ).toEqual([
-      { accountId: 'acc-1', status: 'offline' },
-      { accountId: 'acc-2', status: 'online' },
+      { accountId: 'acc-1', state: 'reconnecting', since: 5 },
+      { accountId: 'acc-2', state: 'initializing', since: 7 },
     ])
   })
 
-  it('returns the change row for an account newly seen in current', () => {
-    expect(diffStreamingStates({}, { 'acc-1': 'unknown' })).toEqual([
-      { accountId: 'acc-1', status: 'unknown' },
-    ])
+  it('does not emit when only the timestamp changed', () => {
+    // recordStreamHealth は同じ state では since を更新しないが、
+    // 比較は state だけで行い、同じ状態への再記録を発火させない
+    expect(
+      diffStreamHealth({ 'acc-1': { state: 'disconnected', since: 1 } }, [
+        { accountId: 'acc-1', state: 'disconnected', since: 9 },
+      ]),
+    ).toEqual([])
   })
 })
