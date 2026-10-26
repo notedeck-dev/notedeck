@@ -100,36 +100,46 @@ const NoteReactionUsersModal = defineAsyncComponent(
   () => import('./NoteReactionUsersModal.vue'),
 )
 
-const props = defineProps<{
-  note: NormalizedNote
-  detailed?: boolean
-  focused?: boolean
-  pinnedNoteIds?: string[]
-  embedded?: boolean
-  /**
-   * 詰めた表示 (通知カラムに添える引用など): アバターを出さず、余白と文字を
-   * 小さくする。外から :deep で子のクラスを狙っても CSS Modules では当たらない
-   * ので、表示の切り替えは prop で受ける
-   */
-  compact?: boolean
-  /** Hint from virtual scroller: this note is near the viewport, use eager image loading */
-  nearViewport?: boolean
-  /** チャンネルカラム内など、チャンネル情報を重複表示したくない時に true */
-  hideChannelBadge?: boolean
-  /**
-   * article 全体クリックでの navigateToDetail を抑制する。メモプレビュー等
-   * で合成 ID (`memo:<accountId>:<key>`) を渡すケースで、navigate すると
-   * 404 になるため使用。親側が wrapper の click handler でメモエディタ
-   * 等への遷移を行う想定 (= 親 wrapper は capture phase で click を奪わず
-   * bubble に任せる + 内部 button の `.stop` 修飾子に依存する)。
-   */
-  disableArticleClick?: boolean
-  /**
-   * 束ねた行 (#1058)。`note` はその主ビュー。variants を持つと、他アカウントの
-   * 反応の 2 段階表示・合成チップ・内訳バッジ・variant 直接操作が有効になる
-   */
-  group?: NoteGroup
-}>()
+const props = withDefaults(
+  defineProps<{
+    note: NormalizedNote
+    detailed?: boolean
+    focused?: boolean
+    pinnedNoteIds?: string[]
+    embedded?: boolean
+    /**
+     * 詰めた表示 (通知カラムに添える引用など): アバターを出さず、余白と文字を
+     * 小さくする。外から :deep で子のクラスを狙っても CSS Modules では当たらない
+     * ので、表示の切り替えは prop で受ける
+     */
+    compact?: boolean
+    /**
+     * 仮想スクローラからの手がかり: 可視範囲の近くなら画像を eager に読み、false なら
+     * MFM の無限アニメを止める。渡さない面は undefined のまま (下の withDefaults)
+     */
+    nearViewport?: boolean
+    /** チャンネルカラム内など、チャンネル情報を重複表示したくない時に true */
+    hideChannelBadge?: boolean
+    /**
+     * article 全体クリックでの navigateToDetail を抑制する。メモプレビュー等
+     * で合成 ID (`memo:<accountId>:<key>`) を渡すケースで、navigate すると
+     * 404 になるため使用。親側が wrapper の click handler でメモエディタ
+     * 等への遷移を行う想定 (= 親 wrapper は capture phase で click を奪わず
+     * bubble に任せる + 内部 button の `.stop` 修飾子に依存する)。
+     */
+    disableArticleClick?: boolean
+    /**
+     * 束ねた行 (#1058)。`note` はその主ビュー。variants を持つと、他アカウントの
+     * 反応の 2 段階表示・合成チップ・内訳バッジ・variant 直接操作が有効になる
+     */
+    group?: NoteGroup
+  }>(),
+  // boolean prop は渡さないと undefined でなく false に畳まれる (Vue の Boolean
+  // casting)。nearViewport は「渡さない = 判定なし」を区別したいので default を
+  // undefined にして畳ませない。これが無いと仮想スクローラの外 (ノート詳細 /
+  // 引用 / プロフィール) の MkNote が全部 .offscreen になり、MFM のアニメが止まる
+  { nearViewport: undefined },
+)
 
 // ビューモデル導出は utils/noteViewModel.ts に抽出済み (#707)
 /** Pure renote → show inner note, otherwise show note itself */
