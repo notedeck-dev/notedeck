@@ -17,6 +17,7 @@ vi.mock('@/bindings', async () =>
 vi.mock('@/adapters/factory', async () => {
   const { createMisskeyApi } = await import('@/adapters/misskey/api')
   return {
+    configureAdapterFactory: vi.fn(),
     initAdapterFor: vi.fn(async () => ({
       adapter: {
         api: {

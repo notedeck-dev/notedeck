@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { detectQualitySync } from './useAdaptiveQuality'
+import { detectQualitySync } from './adaptiveQuality'
 
 describe('detectQualitySync', () => {
   it('prefers-reduced-motion で low を返す', () => {

@@ -125,6 +125,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 
 | service | テスト |
 |---|---|
+| [`src/services/accountScope.ts`](src/services/accountScope.ts) | — |
 | [`src/services/achievements.ts`](src/services/achievements.ts) | [`src/services/achievements.test.ts`](src/services/achievements.test.ts) |
 | [`src/services/acpPreapproval.ts`](src/services/acpPreapproval.ts) | [`src/services/acpPreapproval.test.ts`](src/services/acpPreapproval.test.ts) |
 | [`src/services/aiSessionCodec.ts`](src/services/aiSessionCodec.ts) | [`src/services/aiSessionCodec.test.ts`](src/services/aiSessionCodec.test.ts) |

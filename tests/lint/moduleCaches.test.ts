@@ -44,8 +44,7 @@ const ALLOWED: Record<string, string> = {
     'bounded: 適用のたびに直前のテーマ 1 つ分のキーへ差し替える',
   'src/composables/useImagePrefetch.ts:prefetchedUrls':
     'bounded: prefetchTrackedMax',
-  'src/composables/useSnapshotStore.ts:store':
-    'bounded: TTL 超過で削除 + カラム破棄で削除',
+  'src/stores/snapshots.ts:store': 'bounded: TTL 超過で削除 + カラム破棄で削除',
   'src/services/entityResolution.ts:resolutionCache':
     'bounded: MAX_CACHE_ENTRIES',
 
@@ -72,9 +71,8 @@ const ALLOWED: Record<string, string> = {
     'lifecycle: 通知のクリック/クローズで削除',
   'src/utils/startupTrace.ts:marks': 'lifecycle: 起動時の計測点のみ',
   'src/composables/useMemos.ts:writeTimers': 'lifecycle: 書き込み完了で削除',
-  'src/composables/usePipWindow.ts:pipWindows':
-    'lifecycle: ウィンドウを閉じると削除',
-  'src/composables/usePipWindow.ts:creatingSet': 'lifecycle: 生成完了で削除',
+  'src/windows/pip.ts:pipWindows': 'lifecycle: ウィンドウを閉じると削除',
+  'src/windows/pip.ts:creatingSet': 'lifecycle: 生成完了で削除',
   'src/composables/useDeckWindow.ts:openWindows':
     'lifecycle: ウィンドウを閉じると削除',
   'src/adapters/factory.ts:adapterPending': 'lifecycle: 初期化完了で削除',

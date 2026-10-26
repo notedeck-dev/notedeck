@@ -33,11 +33,6 @@ interface Rule {
   allowed: Record<string, string>
 }
 
-/** 監査時点 (#1098) の違反をまとめて凍結する。個別の理由が要るものは直接書く。 */
-function frozen(paths: string[], reason: string): Record<string, string> {
-  return Object.fromEntries(paths.map((p) => [p, reason]))
-}
-
 const RULES: Record<string, Rule> = {
   'services は stores / composables / components / UI 通知 / vue / pinia を runtime import しない':
     {
@@ -50,10 +45,7 @@ const RULES: Record<string, Rule> = {
         'vue',
         'pinia',
       ],
-      allowed: {
-        'src/services/entityResolution.ts':
-          '凍結 (#1098): accounts store を直接引く。アカウント一覧は引数で受けるべき',
-      },
+      allowed: {},
     },
   'deck のカラムは共通基盤 (useColumnSetup) を通り、その内部 (useColumnTheme / useServerImages) を直接 import しない (#1098 §4)':
     {
@@ -72,24 +64,12 @@ const RULES: Record<string, Rule> = {
   'stores は composables を import しない (向きの逆転)': {
     from: 'src/stores',
     forbid: ['@/composables/'],
-    allowed: frozen(
-      [
-        'src/stores/chatMessageStore.ts',
-        'src/stores/deck.ts',
-        'src/stores/notes.ts',
-        'src/stores/performance.ts',
-        'src/stores/windows.ts',
-      ],
-      '凍結 (#1098): frame scheduler / snapshot / adaptive quality / back button / PiP は composable ではなく core か services に置くべきもの',
-    ),
+    allowed: {},
   },
   'adapters は stores を import しない (向きの逆転)': {
     from: 'src/adapters',
     forbid: ['@/stores/'],
-    allowed: {
-      'src/adapters/factory.ts':
-        '凍結 (#1098): 絵文字 / pinned reaction / server store を adapter 初期化時に引く。依存は呼び出し側から注入すべき',
-    },
+    allowed: {},
   },
   'columns のレジストリは components を import しない': {
     from: 'src/columns',

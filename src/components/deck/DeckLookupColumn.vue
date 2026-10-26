@@ -295,7 +295,7 @@ async function performLookup() {
     }
 
     // ノート解決（同一ホスト高速パス + ap/show）はサービスに委譲
-    const resolved = await resolveNoteUriFor(accountId, q)
+    const resolved = await resolveNoteUriFor(acc, q)
     if (resolved.ok) {
       const note = await api.getNote(resolved.noteId)
       result.value = { type: 'Note', note }
@@ -424,7 +424,7 @@ async function performLookupCrossAccount(q: string) {
         if (!adapter) return fragments
 
         // このアカウントのサーバー上の noteId に解決（高速パス + ap/show）
-        const resolved = await resolveNoteUriFor(acc.id, focalUri)
+        const resolved = await resolveNoteUriFor(acc, focalUri)
         if (!resolved.ok) return fragments
         const localNoteId = resolved.noteId
 

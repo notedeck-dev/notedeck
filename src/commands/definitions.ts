@@ -1046,7 +1046,7 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('pip-window'),
       execute: () => {
-        import('@/composables/usePipWindow').then(({ openPipWindow }) => {
+        import('@/windows/pip').then(({ openPipWindow }) => {
           openPipWindow()
         })
       },

@@ -16,7 +16,6 @@ import { initKeyboardInset } from '@/composables/useKeyboardInset'
 import { useMuteSync } from '@/composables/useMuteSync'
 import { useOsUnreadBadge } from '@/composables/useOsUnreadBadge'
 import { useOsWindowTitle } from '@/composables/useOsWindowTitle'
-import { listenPipEvents } from '@/composables/usePipWindow'
 import { usePushAttention } from '@/composables/usePushAttention'
 import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
 import { startSettingsFileSync } from '@/composables/useSettingsFileSync'
@@ -30,6 +29,7 @@ import { useSystemStateStore } from '@/stores/systemState'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { exitSafeMode, readSafeMode } from '@/utils/safeMode'
 import { markStartup } from '@/utils/startupTrace'
+import { listenPipEvents } from '@/windows/pip'
 
 const uiStore = useUiStore()
 const { isTauri, isDesktop } = uiStore

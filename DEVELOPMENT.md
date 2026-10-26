@@ -530,7 +530,7 @@ src-tauri/src/              # Rust backend (Tauri 固有部分 = 手元側)
 components → composables → stores → services → adapters → bindings
 ```
 
-services は store / composables / components / Vue / Pinia を runtime import しない (純ロジック)。stores は composables を、adapters は stores を import しない。components は IPC (`tauriInvoke` / `bindings`) と adapter の factory を直接叩かず composable を通す (#1258 で凍結ゼロ): Misskey の API は adapter (`ApiAdapter` に無いメソッドは足す) をカラムなら `useColumnSetup` / `useNoteColumn` の `initAdapter`、ウィンドウやポップアップなら `useMultiAccountAdapters` の `forView` / `apiFor` で引き、クエリ購読やキャッシュ・バックアップ・画像などの手元の command は `src/composables/` の用途別の小さなモジュール (`querySubscriptions` / `archiveSearch` / `cacheMaintenance` / `backupFiles` / `imageFiles` / `httpApiServer` / `appDiagnostics` / `login` / `chatStream`) を通す。残りの規則の既存の違反は lint の凍結一覧に理由つきで載っていて、直したら消す。`import type` は依存に数えない。
+services は store / composables / components / Vue / Pinia を runtime import しない (純ロジック)。stores は composables を、adapters は stores を import しない。components は IPC (`tauriInvoke` / `bindings`) と adapter の factory を直接叩かず composable を通す (#1258 で凍結ゼロ): Misskey の API は adapter (`ApiAdapter` に無いメソッドは足す) をカラムなら `useColumnSetup` / `useNoteColumn` の `initAdapter`、ウィンドウやポップアップなら `useMultiAccountAdapters` の `forView` / `apiFor` で引き、クエリ購読やキャッシュ・バックアップ・画像などの手元の command は `src/composables/` の用途別の小さなモジュール (`querySubscriptions` / `archiveSearch` / `cacheMaintenance` / `backupFiles` / `imageFiles` / `httpApiServer` / `appDiagnostics` / `login` / `chatStream`) を通す。adapters の factory は stores を知らず、サーバー情報の取得と絵文字 / ピン留めの温めは起動時に `wireAdapterFactory` (stores 側) で注入する。services がアカウントを要るときは引数で受ける (`resolveNoteUriFor`)。層依存の凍結は 2026-10-27 にすべて解消した (残るのは循環 lint の offlineMode ↔ realtimeMode だけ)。`import type` は依存に数えない。
 
 Misskey API クライアント・DB・モデル・ストリーミングコアは `notecli` クレートにある。`src-tauri/` が抱えていた Tauri に依存しないドメイン (OGP 抽出とサイト別プラグイン / Secret Vault / クエリランタイム / 画像キャッシュ / HTTP API サーバー / カラムクエリの QIR 評価器) は notecore に、AI SSE クライアントは notemaid に移した (上のツリー)。
 
@@ -1270,7 +1270,7 @@ graph LR
 ```
 
 - `src/engine/telemetry/frameTelemetry.ts` — P95 計測、自動品質調整（low/balanced/high）
-- `src/composables/useAdaptiveQuality.ts` — デバイス検出（CPU, RAM, prefers-reduced-motion）
+- `src/utils/adaptiveQuality.ts` — デバイス検出（CPU, RAM, prefers-reduced-motion）
 - 開発時のみ `DevFrameOverlay`（Ctrl+Shift+F）で FPS/フレーム時間を可視化
 
 #### ディレクトリ構成

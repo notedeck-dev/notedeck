@@ -72,6 +72,7 @@ const api = vi.hoisted(() => {
   }
 })
 vi.mock('@/adapters/factory', () => ({
+  configureAdapterFactory: vi.fn(),
   initAdapterFor: vi.fn(async () => ({
     adapter: {
       api,

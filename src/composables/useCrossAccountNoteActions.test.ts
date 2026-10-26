@@ -142,7 +142,7 @@ describe('useCrossAccountNoteActions: reactAs (#627)', () => {
     createReactionMock.mockResolvedValueOnce(undefined)
     await useCrossAccountNoteActions().reactAs('acc-2', note(), '👍')
     expect(resolveNoteForMock).toHaveBeenCalledWith(
-      'acc-2',
+      expect.objectContaining({ id: 'acc-2' }),
       expect.objectContaining({ id: 'n1' }),
     )
     expect(createReactionMock).toHaveBeenCalledWith('remote-n1', '👍')

@@ -33,7 +33,9 @@ export function useCrossAccountNoteActions() {
     accountId: string,
     note: NormalizedNote,
   ): Promise<string | null> {
-    const resolved = await resolveNoteFor(accountId, note)
+    const account = accountsStore.accountMap.get(accountId)
+    if (!account) throw new Error(`resolveTarget: unknown account ${accountId}`)
+    const resolved = await resolveNoteFor(account, note)
     if (resolved.ok) return resolved.noteId
     if (resolved.code === 'no_token') {
       toast.show(i18n.ts._useCrossAccountNoteActions.notLoggedIn, 'error')

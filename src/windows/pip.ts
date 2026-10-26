@@ -1,3 +1,5 @@
+// PiP ウィンドウ (カラム 1 本 / 派生ウィンドウ) の生成と監視。Vue に依存しない
+// Tauri の窓操作なので windows 層に置く (#1098)
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import type { DeckColumn } from '@/stores/deck'

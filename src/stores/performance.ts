@@ -1,13 +1,13 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import { detectQualitySync } from '@/composables/useAdaptiveQuality'
 import { frameEngine } from '@/engine/frameEngine'
 import {
   frameTelemetry,
   type QualityLevel,
 } from '@/engine/telemetry/frameTelemetry'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
+import { detectQualitySync } from '@/utils/adaptiveQuality'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readPerformance, writePerformance } from '@/utils/settingsFs'
 import { commands, unwrap } from '@/utils/tauriInvoke'

@@ -5,7 +5,7 @@ import { ref } from 'vue'
  *
  * PiP は 1 枚ごとに別 WebView = 別 JS realm なので、module 変数がそのまま
  * このウィンドウ 1 枚分の状態になる（＝ PiP ごとに独立して切り替えられる）。
- * 生成時は最前面固定で開くため初期値は true（usePipWindow の alwaysOnTop と対）。
+ * 生成時は最前面固定で開くため初期値は true（windows/pip の alwaysOnTop と対）。
  */
 const alwaysOnTop = ref(true)
 

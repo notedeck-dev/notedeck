@@ -10,6 +10,7 @@ import { router, setupFirstRunTutorial } from './router'
 import { resolveEvictionConfig } from './services/cacheEvictionConfig'
 import { allowsNativeContextMenu } from './services/nativeContextMenu'
 import { initEarlyAccountListener, useAccountsStore } from './stores/accounts'
+import { wireAdapterFactory } from './stores/adapterFactoryDeps'
 import { useDeckStore } from './stores/deck'
 import { useDeckProfileStore } from './stores/deckProfile'
 import { useKeybindsStore } from './stores/keybinds'
@@ -103,6 +104,7 @@ _idle(() => {
 const app = createApp(App)
 const pinia = createPinia()
 app.use(pinia)
+wireAdapterFactory()
 
 // 表示言語を決めて辞書を読む (#135)。Tauri では下の設定ロードと並列に待つ
 const localeReady = initLocale()

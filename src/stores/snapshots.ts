@@ -1,3 +1,6 @@
+// カラムの表示状態 (ノート id 列 + スクロール位置) の退避。Pinia ではなく
+// モジュールの Map で持つ (TTL と件数で bounded)。composable ではないので
+// stores に置く (#1098)
 import type { NormalizedNote } from '@/adapters/types'
 import type { VariantKey } from '@/services/noteKey'
 import { useNoteStore } from '@/stores/notes'

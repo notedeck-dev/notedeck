@@ -89,6 +89,11 @@ function makeNote(
 
 const REMOTE_URI = 'https://remote.example/notes/remote1'
 
+/** store にあればそれ、無ければ既定値のアカウント (解決はアカウントを引数で受ける) */
+function acc(id: string): Account {
+  return useAccountsStore().accountMap.get(id) ?? makeAccount({ id })
+}
+
 function apShowOk(type: string, object: unknown) {
   apiApShow.mockResolvedValue({ status: 'ok', data: { type, object } })
 }
@@ -107,16 +112,12 @@ describe('resolveNoteUriFor', () => {
     apiApShow.mockReset()
   })
 
-  it('アカウントが見つからなければ throw する', async () => {
-    await expect(resolveNoteUriFor('missing', REMOTE_URI)).rejects.toThrow()
-  })
-
   it('同一ホストのノート URL は ap/show なしで解決する', async () => {
     const store = useAccountsStore()
     store.accounts.push(makeAccount({ id: 'acc-1', host: 'a.example' }))
 
     const result = await resolveNoteUriFor(
-      'acc-1',
+      acc('acc-1'),
       'https://a.example/notes/n1',
     )
 
@@ -131,7 +132,7 @@ describe('resolveNoteUriFor', () => {
     )
 
     const result = await resolveNoteUriFor(
-      'acc-1',
+      acc('acc-1'),
       'https://a.example/notes/n1',
     )
 
@@ -142,7 +143,7 @@ describe('resolveNoteUriFor', () => {
     const store = useAccountsStore()
     store.accounts.push(makeAccount({ id: 'acc-1', hasToken: false }))
 
-    const result = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const result = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(result).toMatchObject({ ok: false, code: 'no_token' })
     expect(apiApShow).not.toHaveBeenCalled()
@@ -153,7 +154,7 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(makeAccount({ id: 'acc-1' }))
     apShowOk('Note', { id: 'local1' })
 
-    const result = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const result = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(result).toEqual({ ok: true, noteId: 'local1' })
     expect(apiApShow).toHaveBeenCalledWith('acc-1', REMOTE_URI)
@@ -164,7 +165,7 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(makeAccount({ id: 'acc-1' }))
     apShowOk('User', { id: 'u1' })
 
-    const result = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const result = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(result).toMatchObject({ ok: false, code: 'not_found' })
   })
@@ -174,7 +175,7 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(makeAccount({ id: 'acc-1' }))
     apShowOk('Note', {})
 
-    const result = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const result = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(result).toMatchObject({ ok: false, code: 'not_found' })
   })
@@ -188,7 +189,7 @@ describe('resolveNoteUriFor', () => {
       'NO_SUCH_OBJECT',
     )
 
-    const result = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const result = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(result).toMatchObject({ ok: false, code: 'not_found' })
   })
@@ -198,7 +199,7 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(makeAccount({ id: 'acc-1' }))
     apShowError('API', 'HTTP 404 Not Found')
 
-    const result = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const result = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(result).toMatchObject({ ok: false, code: 'not_found' })
   })
@@ -208,7 +209,7 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(makeAccount({ id: 'acc-1' }))
     apShowError('NETWORK', 'connection refused')
 
-    const result = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const result = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(result).toMatchObject({ ok: false, code: 'retryable' })
   })
@@ -218,7 +219,7 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(makeAccount({ id: 'acc-1' }))
     apShowError('API', 'misskey api error: RATE_LIMIT_EXCEEDED: slow down')
 
-    const result = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const result = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(result).toMatchObject({ ok: false, code: 'retryable' })
   })
@@ -228,8 +229,8 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(makeAccount({ id: 'acc-1' }))
     apShowOk('Note', { id: 'local1' })
 
-    const first = await resolveNoteUriFor('acc-1', REMOTE_URI)
-    const second = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const first = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
+    const second = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(first).toEqual({ ok: true, noteId: 'local1' })
     expect(second).toEqual({ ok: true, noteId: 'local1' })
@@ -241,9 +242,9 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(makeAccount({ id: 'acc-1' }))
     apShowError('NETWORK', 'connection refused')
 
-    const first = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const first = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
     apShowOk('Note', { id: 'local1' })
-    const second = await resolveNoteUriFor('acc-1', REMOTE_URI)
+    const second = await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(first).toMatchObject({ ok: false, code: 'retryable' })
     expect(second).toEqual({ ok: true, noteId: 'local1' })
@@ -256,9 +257,9 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(account)
     apShowOk('Note', { id: 'local1' })
 
-    await resolveNoteUriFor('acc-1', REMOTE_URI)
+    await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
     invalidateResolutionCache(accountScopeKey(account))
-    await resolveNoteUriFor('acc-1', REMOTE_URI)
+    await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
 
     expect(apiApShow).toHaveBeenCalledTimes(2)
   })
@@ -269,8 +270,8 @@ describe('resolveNoteUriFor', () => {
     store.accounts.push(makeAccount({ id: 'acc-2', host: 'b.example' }))
     apShowOk('Note', { id: 'local1' })
 
-    await resolveNoteUriFor('acc-1', REMOTE_URI)
-    await resolveNoteUriFor('acc-2', REMOTE_URI)
+    await resolveNoteUriFor(acc('acc-1'), REMOTE_URI)
+    await resolveNoteUriFor(acc('acc-2'), REMOTE_URI)
 
     expect(apiApShow).toHaveBeenCalledTimes(2)
   })
@@ -290,7 +291,7 @@ describe('resolveNoteFor', () => {
       _serverHost: 'a.example',
     })
 
-    const result = await resolveNoteFor('acc-1', note)
+    const result = await resolveNoteFor(acc('acc-1'), note)
 
     expect(result).toEqual({ ok: true, noteId: 'n1' })
     expect(apiApShow).not.toHaveBeenCalled()
@@ -307,7 +308,7 @@ describe('resolveNoteFor', () => {
       uri: REMOTE_URI,
     })
 
-    const result = await resolveNoteFor('acc-2', note)
+    const result = await resolveNoteFor(acc('acc-2'), note)
 
     expect(result).toEqual({ ok: true, noteId: 'local-b' })
     expect(apiApShow).toHaveBeenCalledWith('acc-2', REMOTE_URI)
@@ -323,7 +324,7 @@ describe('resolveNoteFor', () => {
       _serverHost: 'a.example',
     })
 
-    const result = await resolveNoteFor('acc-2', note)
+    const result = await resolveNoteFor(acc('acc-2'), note)
 
     expect(result).toEqual({ ok: true, noteId: 'local-b' })
     expect(apiApShow).toHaveBeenCalledWith(

@@ -253,7 +253,7 @@ function openAsPip() {
   const col = deckStore.getColumn(props.columnId)
   if (!col) return
   const { id: _, ...config } = col
-  import('@/composables/usePipWindow').then(({ openPipWindow }) => {
+  import('@/windows/pip').then(({ openPipWindow }) => {
     openPipWindow(config)
     deckStore.removeColumn(props.columnId)
   })
