@@ -1275,11 +1275,7 @@ export interface Locale {
     /** 起動を検知すると自動で Dev Dashboard に切り替わります */
     readonly "autoSwitchHint": string
   }
-  readonly "_devMfm": {
-    /** MFM プレビュー */
-    readonly "title": string
-    /** デッキと同じ MkMfm (同じ CSS) で描く。ここで動かなければ本体でも動かない。ノートの枠での切り取り、画面外と同じ停止状態、AST、関数一覧、実行中アプリからの実ノートの読み込みができる */
-    readonly "desc": string
+  readonly "_mfmPlayground": {
     /** サンプル */
     readonly "sample": string
     /** 基本 */
@@ -1328,6 +1324,18 @@ export interface Locale {
     readonly "width": string
     /** 文字サイズ */
     readonly "fontSize": string
+    /** イベント */
+    readonly "events": string
+    /** メンション / #タグ / $[clickable] の操作がここに出ます */
+    readonly "eventsEmpty": string
+  }
+  readonly "_devMfm": {
+    /** MFM プレビュー */
+    readonly "title": string
+    /** デッキと同じ MkMfm (同じ CSS) で描く。ここで動かなければ本体でも動かない。ノートの枠での切り取り、画面外と同じ停止状態、AST、関数一覧、実行中アプリからの実ノートの読み込みができる */
+    readonly "desc": string
+    /** アプリの設定 */
+    readonly "appSettings": string
     /** サーバーと絵文字 */
     readonly "server": string
     /** ホスト */
@@ -1350,10 +1358,6 @@ export interface Locale {
     readonly "noteLoaded": string
     /** ノートの読み込みに失敗しました */
     readonly "noteLoadFailed": string
-    /** イベント */
-    readonly "events": string
-    /** メンション / #タグ / $[clickable] の操作がここに出ます */
-    readonly "eventsEmpty": string
   }
   readonly "_devDashboard": {
     /** アプリ接続なし — 再接続待ち... */

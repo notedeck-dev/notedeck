@@ -1,8 +1,8 @@
-// Dev Dashboard の MFM プレビュー (#977) に載せるサンプル。UI 文言ではなく MFM の
-// データなので辞書には置かない (scripts/i18n-lint.ts の EXEMPT_FILES)。
-// 中身は自作。他人の投稿は入れない
+// MFM プレイグラウンド (Dev Dashboard の MFM プレビュー #977 / MFM エディタカラム) に
+// 載せるサンプル。UI 文言ではなく MFM のデータなので辞書には置かない
+// (scripts/i18n-lint.ts の EXEMPT_FILES)。中身は自作。他人の投稿は入れない
 
-export interface DevMfmSample {
+export interface MfmPlaygroundSample {
   id: 'basic' | 'syntax' | 'functions' | 'animations' | 'art' | 'edge'
   text: string
 }
@@ -124,7 +124,7 @@ const EDGE = `長い URL https://example.com/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg $[fg 深い]]]]]]]]]]]]]]]]]]]]]]]]]
 $[position.x=99999 遠く] $[scale.x=99 広く] $[unixtime 99999999999999999]`
 
-export const DEV_MFM_SAMPLES: readonly DevMfmSample[] = [
+export const MFM_PLAYGROUND_SAMPLES: readonly MfmPlaygroundSample[] = [
   { id: 'basic', text: BASIC },
   { id: 'syntax', text: SYNTAX },
   { id: 'functions', text: FUNCTIONS },
@@ -134,7 +134,7 @@ export const DEV_MFM_SAMPLES: readonly DevMfmSample[] = [
 ]
 
 /** 関数一覧タブ: 本家 mfm-renderer が描く 24 種の fn を 1 行ずつ */
-export const DEV_MFM_FUNCTION_ROWS: readonly string[] = [
+export const MFM_PLAYGROUND_FUNCTION_ROWS: readonly string[] = [
   '$[tada text]',
   '$[jelly text]',
   '$[twitch text]',

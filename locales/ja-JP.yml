@@ -709,9 +709,7 @@ _devWelcome:
   launchAsDesktopApp: "デスクトップアプリとして起動してください"
   autoSwitchHint: "起動を検知すると自動で Dev Dashboard に切り替わります"
 
-_devMfm:
-  title: "MFM プレビュー"
-  desc: "デッキと同じ MkMfm (同じ CSS) で描く。ここで動かなければ本体でも動かない。ノートの枠での切り取り、画面外と同じ停止状態、AST、関数一覧、実行中アプリからの実ノートの読み込みができる"
+_mfmPlayground:
   sample: "サンプル"
   sampleBasic: "基本"
   sampleSyntax: "全構文"
@@ -736,6 +734,12 @@ _devMfm:
   nyaize: "にゃ化 (isCat)"
   width: "幅"
   fontSize: "文字サイズ"
+  events: "イベント"
+  eventsEmpty: "メンション / #タグ / $[clickable] の操作がここに出ます"
+_devMfm:
+  title: "MFM プレビュー"
+  desc: "デッキと同じ MkMfm (同じ CSS) で描く。ここで動かなければ本体でも動かない。ノートの枠での切り取り、画面外と同じ停止状態、AST、関数一覧、実行中アプリからの実ノートの読み込みができる"
+  appSettings: "アプリの設定"
   server: "サーバーと絵文字"
   host: "ホスト"
   fetchEmojis: "絵文字を取得"
@@ -747,8 +751,6 @@ _devMfm:
   noteRefInvalid: "https://host/notes/id の形で入れてください"
   noteLoaded: "読み込みました"
   noteLoadFailed: "ノートの読み込みに失敗しました"
-  events: "イベント"
-  eventsEmpty: "メンション / #タグ / $[clickable] の操作がここに出ます"
 _devDashboard:
   appDisconnected: "アプリ接続なし — 再接続待ち..."
   expandNav: "ナビゲーションを開く"
