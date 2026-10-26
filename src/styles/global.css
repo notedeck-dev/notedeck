@@ -416,10 +416,16 @@ summary,
 }
 
 /* ---- Popover API reset ---- */
-/* Override UA :popover-open defaults (inset: 0; margin: auto; border; padding) */
+/* Override UA :popover-open defaults (inset: 0; margin: auto; border; padding).
+   :where で詳細度 0 にする。`[popover]:popover-open` のままだとクラス 1 つの
+   指定 (._popupMenu / .popupMenu / .filterPopup の上下の余白など) に勝って
+   しまい、開いている間の余白が一度も効いていなかった (#1212)。author の
+   指定は詳細度 0 でも UA の既定より強いので、リセットとしては足りる。
+   カスケードレイヤーは入れない: 同じ効果がこれで得られ、共通のボタンの
+   クラスまでレイヤーに入れると各部品の「輪郭なし」がフォーカスリングに
+   勝つ問題を持ち込むため */
 
-[popover],
-[popover]:popover-open {
+:where([popover], [popover]:popover-open) {
   border: none;
   margin: 0;
   padding: 0;

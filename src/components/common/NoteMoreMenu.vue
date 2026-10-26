@@ -72,6 +72,14 @@ const showReportForm = ref(false)
 // (#627 / #1018 — 選ばせ方はナビバーのアカウント一覧に揃える)
 const showActAs = ref(false)
 const actAsAccountId = ref<string | null>(null)
+// 「戻る」「閉じる」で actAsAccountId を null にした直後も、2 段目は退場の
+// フェードの間だけ描かれ続ける (AccountPickerSheet は段を写しで持つ)。その間
+// null で描くと「リアクション解除」が「リアクション」に一瞬変わるので、
+// 2 段目の描画は直前に選んだアカウントで行う (#1212)
+const actAsDetailId = ref<string | null>(null)
+watch(actAsAccountId, (id) => {
+  if (id) actAsDetailId.value = id
+})
 const reportComment = ref('')
 const localIsFavorited = ref(props.isFavorited)
 const localIsPinned = ref(props.isPinned)
@@ -589,14 +597,14 @@ defineExpose({ open })
   >
     <template #detail>
       <!-- 非公開 variant は desktop の actAsOperations と同じく全操作を出さない -->
-      <div v-if="actAsAccountId && variantHidden(actAsAccountId)" class="_popupItem" aria-disabled="true" style="opacity: 0.6; cursor: default">
+      <div v-if="actAsDetailId && variantHidden(actAsDetailId)" class="_popupItem" aria-disabled="true" style="opacity: 0.6; cursor: default">
         <i class="ti ti-lock" />
         {{ i18n.ts._noteMoreMenu.contentHiddenForAccount }}
       </div>
       <template v-else>
-        <button v-if="actAsAccountId && variantReaction(actAsAccountId)" class="_popupItem" @click="actAs('unreactAs')">
+        <button v-if="actAsDetailId && variantReaction(actAsDetailId)" class="_popupItem" @click="actAs('unreactAs')">
           <i class="ti ti-mood-minus" />
-          {{ i18n.tsx._noteMoreMenu.unreactWith({ reaction: variantReaction(actAsAccountId) ?? '' }) }}
+          {{ i18n.tsx._noteMoreMenu.unreactWith({ reaction: variantReaction(actAsDetailId) ?? '' }) }}
         </button>
         <button v-else class="_popupItem" @click="actAs('reactAs')">
           <i class="ti ti-mood-plus" />

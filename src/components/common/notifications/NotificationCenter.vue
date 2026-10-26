@@ -13,9 +13,7 @@ import NotificationInboxList from './NotificationInboxList.vue'
 
 const { inboxOpen, setInboxOpen } = useToast()
 
-// 位置は inline で持つ。global.css の popover リセット
-// (`[popover]:popover-open { top/right/bottom/left: auto }`) の詳細度が
-// クラス 1 つより高く、class で書くと左上に出てしまう。
+// 位置は inline で持つ (他のポップアップと同じく位置は描画時の値)。
 // デスクトップはボトムバー (42px) の上、右端に揃える
 const PANEL_POSITION = { right: '12px', bottom: '54px' }
 const isCompact = useIsCompactLayout()
