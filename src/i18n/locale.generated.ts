@@ -1275,6 +1275,86 @@ export interface Locale {
     /** 起動を検知すると自動で Dev Dashboard に切り替わります */
     readonly "autoSwitchHint": string
   }
+  readonly "_devMfm": {
+    /** MFM プレビュー */
+    readonly "title": string
+    /** デッキと同じ MkMfm (同じ CSS) で描く。ここで動かなければ本体でも動かない。ノートの枠での切り取り、画面外と同じ停止状態、AST、関数一覧、実行中アプリからの実ノートの読み込みができる */
+    readonly "desc": string
+    /** サンプル */
+    readonly "sample": string
+    /** 基本 */
+    readonly "sampleBasic": string
+    /** 全構文 */
+    readonly "sampleSyntax": string
+    /** 全関数 */
+    readonly "sampleFunctions": string
+    /** アニメーション */
+    readonly "sampleAnimations": string
+    /** MFM アート */
+    readonly "sampleArt": string
+    /** 境界条件 */
+    readonly "sampleEdge": string
+    /** MFM の入力 */
+    readonly "editorLabel": string
+    /** {chars} 文字 · {nodes} ノード · 深さ {depth} · 解析 {ms} ms */
+    readonly "stats": ParameterizedString<'chars' | 'depth' | 'ms' | 'nodes'>
+    /** プレビュー */
+    readonly "tabPreview": string
+    /** AST */
+    readonly "tabAst": string
+    /** 関数一覧 */
+    readonly "tabFunctions": string
+    /** 構文 */
+    readonly "fnSyntax": string
+    /** 描画 */
+    readonly "fnRender": string
+    /** 表示 */
+    readonly "display": string
+    /** アニメーションを止める */
+    readonly "paused": string
+    /** 画面外のノートと同じ状態 (--nd-mfm-play-state: paused) */
+    readonly "pausedDesc": string
+    /** ノートの枠で切る */
+    readonly "noteFrame": string
+    /** MkNote と同じ contain / overflow: clip。はみ出すアートの見え方を確かめる */
+    readonly "noteFrameDesc": string
+    /** 絵文字と文字だけ (名前欄と同じ) */
+    readonly "plainDesc": string
+    /** 1 行に畳む (通知の要約と同じ) */
+    readonly "nowrapDesc": string
+    /** にゃ化 (isCat) */
+    readonly "nyaize": string
+    /** 幅 */
+    readonly "width": string
+    /** 文字サイズ */
+    readonly "fontSize": string
+    /** サーバーと絵文字 */
+    readonly "server": string
+    /** ホスト */
+    readonly "host": string
+    /** 絵文字を取得 */
+    readonly "fetchEmojis": string
+    /** {count} 個の絵文字を読み込みました */
+    readonly "emojisLoaded": ParameterizedString<'count'>
+    /** 絵文字の取得に失敗しました */
+    readonly "emojisFailed": string
+    /** 自分のユーザー名 */
+    readonly "me": string
+    /** ノートを読み込む */
+    readonly "loadNote": string
+    /** 実行中アプリの HTTP API (/api/{host}/notes/{id}) から本文と絵文字を取り込む。ログイン中のアカウントで読める範囲 */
+    readonly "loadNoteDesc": ParameterizedString<'host' | 'id'>
+    /** https://host/notes/id の形で入れてください */
+    readonly "noteRefInvalid": string
+    /** 読み込みました */
+    readonly "noteLoaded": string
+    /** ノートの読み込みに失敗しました */
+    readonly "noteLoadFailed": string
+    /** イベント */
+    readonly "events": string
+    /** メンション / #タグ / $[clickable] の操作がここに出ます */
+    readonly "eventsEmpty": string
+  }
   readonly "_devDashboard": {
     /** アプリ接続なし — 再接続待ち... */
     readonly "appDisconnected": string
