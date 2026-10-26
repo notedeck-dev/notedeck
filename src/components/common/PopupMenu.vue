@@ -129,6 +129,9 @@ function open(e: MouseEvent) {
 }
 
 function close() {
+  // キーボードで項目に居たまま閉じると焦点が body に落ちて次の Tab が先頭から
+  // になるので、開いたトリガーへ戻す
+  if (menuRef.value?.contains(document.activeElement)) triggerRef.value?.focus()
   showMenu.value = false
   emit('close')
 }

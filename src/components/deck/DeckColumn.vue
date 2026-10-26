@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, inject, provide, ref, watch } from 'vue'
+import { computed, inject, nextTick, provide, ref, watch } from 'vue'
 import { isAllAccounts } from '@/columns/accountScope'
 import AccountAvatar from '@/components/common/AccountAvatar.vue'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
@@ -7,6 +7,7 @@ import {
   popOutColumnToWindow,
   requestMoveColumn,
 } from '@/composables/useDeckWindow'
+import { useMenuKeyboard } from '@/composables/useMenuKeyboard'
 import { useNativePopover } from '@/composables/useNativePopover'
 import { usePipAlwaysOnTop } from '@/composables/usePipAlwaysOnTop'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
@@ -120,6 +121,19 @@ useNativePopover(menuEl, menuVisible, {
   dismissOnOutsideClick: true,
 })
 
+// ノートのメニュー (PopupMenu) と同じく、矢印 / Home / End で項目を移り
+// Esc で閉じる。開いたら先頭に焦点を置き、閉じたら開いたボタンへ戻す
+const { activate: activateMenuKeyboard, deactivate: deactivateMenuKeyboard } =
+  useMenuKeyboard({
+    containerRef: menuEl,
+    itemSelector: 'button',
+    onClose: () => closeMenu(),
+  })
+watch(menuVisible, (v) => {
+  if (v) nextTick(activateMenuKeyboard)
+  else deactivateMenuKeyboard()
+})
+
 function updateMenuPosition() {
   if (!menuBtnEl.value) return
   const rect = menuBtnEl.value.getBoundingClientRect()
@@ -137,6 +151,7 @@ function toggleMenu() {
 }
 
 function closeMenu() {
+  if (menuEl.value?.contains(document.activeElement)) menuBtnEl.value?.focus()
   showMenu.value = false
 }
 
