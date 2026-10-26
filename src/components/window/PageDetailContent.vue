@@ -395,6 +395,9 @@ onMounted(loadPage)
   display: flex;
   flex-direction: column;
   gap: 12px;
+  /* $[position] / $[scale] などで本文の外へ出た MFM を切る (本家と同じ)。切らないと
+     スクロール領域が横に広がる。ノートは contain: content で切れている */
+  overflow: clip;
 }
 
 .heading {

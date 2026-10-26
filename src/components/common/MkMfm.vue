@@ -259,8 +259,10 @@ const cssNumRe = /^-?\d+(\.\d+)?$/
 // 本家 (mfm-renderer) と同じ値域: scale は上側だけ 5 倍で止め (負の値は本家と同じく
 // 反転としてそのまま通す)、position には上限を置かない。MFM アートは
 // `$[position.x=-1000 $[spin $[position.x=1000 …]]]` のように大きな値で軌道を作るので、
-// ここで丸めると本家と違う絵になる (#1083)。はみ出しはノートの overflow: clip /
-// contain に任せる (本家も同じ)
+// ここで丸めると本家と違う絵になる (#1083)。はみ出しは描く面の側で切る (本家も同じ)。
+// ノート / メモカードは contain: content、それ以外 (プロフィール / チャット / ページ /
+// お知らせ / AiScript の UI) は本文の枠の overflow: clip。MFM を全文で描く面を
+// 足すときは同じく切る。切らないとスクロール領域が横に広がる
 const MFM_SCALE_LIMIT = 5
 
 function validColor(value: string | true | undefined): string | null {

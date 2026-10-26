@@ -308,6 +308,9 @@ function handlePostFormButton(comp: UiComponent) {
   word-break: break-word;
   font-size: var(--nd-font-md);
   line-height: 1.5;
+  /* $[position] / $[scale] などで本文の外へ出た MFM を切る (本家と同じ)。切らないと
+     スクロール領域が横に広がる。ノートは contain: content で切れている */
+  overflow: clip;
 }
 
 .aisButton {
