@@ -351,6 +351,21 @@ describe('MkMfm nowrap (#1279)', () => {
     expect(container?.textContent).not.toContain('$[')
   })
 
+  it('nowrap では fn の装飾を外して中身だけ出す (MFM アートが 1 行で崩れないように)', async () => {
+    mountMfm(
+      '$[x2 $[spin 🍣]] $[position.x=5 $[scale.x=3 $[fg.color=f00 文字]]] $[ruby 漢字 かんじ]',
+      { nowrap: true },
+    )
+    await nextTick()
+    expect(container?.querySelector('span[class*="mfmX2"]')).toBeNull()
+    expect(container?.querySelector('span[class*="mfmSpin"]')).toBeNull()
+    expect(container?.querySelector('span[style*="transform"]')).toBeNull()
+    expect(container?.querySelector('span[style*="color"]')).toBeNull()
+    expect(container?.textContent).toContain('文字')
+    // 行内の文字として成立する ruby は残す
+    expect(container?.querySelector('ruby rt')?.textContent).toBe('かんじ')
+  })
+
   it('nowrap でなければ 1 行のクラスを付けない', async () => {
     mountMfm('**a**')
     await nextTick()

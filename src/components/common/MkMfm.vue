@@ -38,10 +38,11 @@ const props = defineProps<{
    */
   nyaize?: boolean
   /**
-   * 1 行に収める (本家の nowrap)。構文は通常どおり描画し、改行とブロック要素
-   * (中央寄せ・引用・コード・検索・数式) を行内に畳む。あふれは省略記号、拡大は
-   * 行の高さで切る。通知の要約 1 行で使う (#1210 / #1279)。入れ子の MkMfm には
-   * 渡さず、根のクラスから CSS で効かせる
+   * 1 行に収める (本家の nowrap)。改行とブロック要素 (中央寄せ・引用・コード・
+   * 検索・数式) を行内に畳み、fn の装飾 (拡大 / 位置 / アニメ…) は外して中身の
+   * 文字と絵文字だけ出す (MFM アートは 1 行では崩れるだけなので)。あふれは省略記号。
+   * 通知の要約 1 行で使う (#1210 / #1279)。入れ子の MkMfm には渡さず、根で fn を
+   * 畳み、残りは根のクラスから CSS で効かせる
    */
   nowrap?: boolean
   /**
@@ -87,14 +88,38 @@ function isMentionMe(username: string, host: string | null): boolean {
 
 const resolvedTokens = computed(() => {
   // plain は本家と同じく parseSimple (絵文字と text だけ)
-  const tokens =
+  const parsed =
     props.tokens ??
     parseMfm(props.text ?? '', {
       markdown: props.markdown,
       simple: props.plain,
     })
+  const tokens = props.nowrap ? flattenFnNodes(parsed) : parsed
   return props.nyaize ? nyaizeTokens(tokens) : tokens
 })
+
+/** 1 行要約でも行内の文字として成立する fn。それ以外の fn は装飾を外して中身だけ出す */
+const NOWRAP_KEPT_FNS = new Set(['ruby', 'unixtime'])
+
+/**
+ * nowrap では fn の装飾 (拡大 / 位置 / 回転 / 反転 / 枠 / アニメ…) を外して子だけを
+ * 残す。MFM アートを 1 行に畳むと位置指定や拡大が噛み合わず崩れるだけで、本家の
+ * 通知 (plain) のように構文を生で見せるのも読みにくい。文字と絵文字だけ残せば
+ * 「何を書いたノートか」は 1 行で分かる
+ */
+function flattenFnNodes(nodes: MfmNode[]): MfmNode[] {
+  const out: MfmNode[] = []
+  for (const node of nodes) {
+    if (node.type === 'fn' && !NOWRAP_KEPT_FNS.has(node.props.name)) {
+      out.push(...flattenFnNodes(node.children))
+    } else if ('children' in node && Array.isArray(node.children)) {
+      out.push({ ...node, children: flattenFnNodes(node.children) } as MfmNode)
+    } else {
+      out.push(node)
+    }
+  }
+  return out
+}
 
 const currentScale = computed(() => props.scale ?? 1)
 /** 2.5 倍以上に拡大された絵文字は 128px の縮小版だと粗いので原寸を使う (本家と同じ) */
