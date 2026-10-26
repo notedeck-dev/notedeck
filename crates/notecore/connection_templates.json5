@@ -216,6 +216,32 @@
     secretHelpUrl: 'https://steamcommunity.com/dev/apikey',
   },
   {
+    id: 'builtin:osu@1',
+    name: 'osu!',
+    icon: 'target',
+    baseUrl: 'https://osu.ppy.sh',
+    // legacy API (v1)。v2 は client credentials を body で送る OAuth なので Vault に乗らない
+    authType: { kind: 'query', param: 'k' },
+    allowedHosts: ['osu.ppy.sh'],
+    // 身元を返すエンドポイントが無いので、公開ユーザー (peppy, id=2) を引いて鍵の有効性だけを見る
+    testPath: '/api/get_user?u=2&type=id',
+    secretLabel: { i18n: 'apiKey' },
+    secretHelpUrl: 'https://osu.ppy.sh/home/account/edit#legacy-api',
+  },
+  {
+    id: 'builtin:chunirec@1',
+    name: 'chunirec',
+    icon: 'music',
+    baseUrl: 'https://api.chunirec.net',
+    // GET はクエリ、それ以外は body にトークンを含める仕様。Vault からは GET のみ使う
+    authType: { kind: 'query', param: 'token' },
+    allowedHosts: ['api.chunirec.net'],
+    // トークン所持者のアカウント情報 (region 不要)
+    testPath: '/2.0/users/show.json',
+    secretLabel: { i18n: 'apiToken' },
+    secretHelpUrl: 'https://developer.chunirec.net/',
+  },
+  {
     id: 'builtin:shodan@1',
     name: 'Shodan',
     icon: 'shield-search',
