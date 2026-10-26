@@ -7,13 +7,16 @@
  * Phase 1 で提供する 4 種類:
  *   - column:added — 新しいカラムがデッキに追加されたとき
  *   - column:removed — カラムがデッキから削除されたとき
- *   - streaming:status — accountId 単位の接続状態が変化したとき
+ *   - streaming:status — accountId 単位の WebSocket 接続状態 (initializing /
+ *     connected / reconnecting / disconnected) が遷移したとき (#1240)。
+ *     アカウントの onlineStatus ではない
  *
  * `note:new` / `notification:new` は queryDelta の query kind 抽象化と
  * 一緒に Phase 2 で追加予定。
  */
 
 import { watch } from 'vue'
+import type { StreamConnectionState } from '@/adapters/types'
 import type { QueryItem } from '@/bindings'
 import { onQueryDelta } from '@/core/queryDeltaBus'
 import {
@@ -21,8 +24,8 @@ import {
   getQueryInfo,
   type QueryFlavor,
 } from '@/core/queryRegistry'
+import { listStreamHealth } from '@/core/streamHealth'
 import { useDeckStore } from '@/stores/deck'
-import { type OnlineStatus, useStreamingStore } from '@/stores/streaming'
 
 export type NoteDeckEventName =
   | 'column:added'
@@ -123,13 +126,25 @@ export function diffColumns(
 /**
  * streaming 状態の前後差分から変化のあった (accountId, status) ペアを返す。
  */
-export function diffStreamingStates(
-  prev: Readonly<Record<string, OnlineStatus>>,
-  current: Readonly<Record<string, OnlineStatus>>,
-): { accountId: string; status: OnlineStatus }[] {
-  const changes: { accountId: string; status: OnlineStatus }[] = []
-  for (const [accountId, status] of Object.entries(current)) {
-    if (prev[accountId] !== status) changes.push({ accountId, status })
+export interface StreamHealthEvent {
+  accountId: string
+  state: StreamConnectionState
+  /** この state に遷移した時刻 (epoch ms) */
+  since: number
+}
+
+type StreamHealthRecord = Readonly<
+  Record<string, { state: StreamConnectionState; since: number }>
+>
+
+/** #1240: 接続状態 (state) が変わったアカウントだけを返す。削除は流さない。 */
+export function diffStreamHealth(
+  prev: StreamHealthRecord,
+  current: ReadonlyArray<StreamHealthEvent>,
+): StreamHealthEvent[] {
+  const changes: StreamHealthEvent[] = []
+  for (const h of current) {
+    if (prev[h.accountId]?.state !== h.state) changes.push({ ...h })
   }
   return changes
 }
@@ -264,17 +279,22 @@ function subscribeColumnRemoved(handler: EventHandler): Unsubscribe {
   )
 }
 
+function toStreamHealthRecord(
+  list: ReadonlyArray<StreamHealthEvent>,
+): StreamHealthRecord {
+  return Object.fromEntries(
+    list.map((h) => [h.accountId, { state: h.state, since: h.since }]),
+  )
+}
+
 function subscribeStreamingStatus(handler: EventHandler): Unsubscribe {
-  const store = useStreamingStore()
-  let prev = { ...store.states }
+  let prev = toStreamHealthRecord(listStreamHealth())
   return watch(
-    () => store.states,
-    (states) => {
-      const changes = diffStreamingStates(prev, states)
-      for (const c of changes) handler(c)
-      prev = { ...states }
+    () => listStreamHealth(),
+    (list) => {
+      for (const c of diffStreamHealth(prev, list)) handler({ ...c })
+      prev = toStreamHealthRecord(list)
     },
-    { deep: true },
   )
 }
 

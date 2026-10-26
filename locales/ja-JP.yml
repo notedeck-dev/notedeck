@@ -3026,6 +3026,7 @@ _connectionTemplates:
   apiTokenRaw: "API トークン (生の値)"
   apiKey: "API キー"
   apiKeyMewk: "API キー (mewk_...)"
+  vrchatAuthCookie: "Cookie ヘッダー値 (auth=<auth cookie>; twoFactorAuth=<twoFactorAuth cookie>)"
 
 _tutorialSteps:
   pointingItem: "チュートリアルが{label}の項目を示しています"

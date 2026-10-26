@@ -1191,6 +1191,12 @@ onUnmounted(() => {
   top: 0;
   background: var(--nd-panel);
   z-index: 1;
+  transition: border-color var(--nd-duration-base);
+
+  // 入力欄は枠なしなので、焦点はバーの下線で見せる
+  &:focus-within {
+    border-bottom-color: var(--nd-accent);
+  }
 }
 
 .searchIcon {

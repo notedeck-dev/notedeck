@@ -4,6 +4,7 @@ import { type ColumnSource, normalizeSources } from '@/services/columnSource'
 import { parseVariantKey } from '@/services/noteKey'
 import { externalQueryPatch } from '@/services/searchFilter'
 import { useAccountsStore } from '@/stores/accounts'
+import { useColumnQueriesStore } from '@/stores/columnQueries'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { implement } from '../declare'
@@ -17,6 +18,10 @@ import { implement } from '../declare'
  *
  * 除外するのは「先に中身を作る」固有フローを持つ種別 (customAddFlow) だけ。
  */
+function isString(v: unknown): v is string {
+  return typeof v === 'string'
+}
+
 function addableColumnTypes(): readonly ColumnType[] {
   return ALL_COLUMN_TYPES.filter((t) => !COLUMN_REGISTRY[t]?.customAddFlow)
 }
@@ -278,12 +283,18 @@ const SAFE_COLUMN_UPDATE_FIELDS = [
   'width',
   'query',
   'soundMuted',
+  'queryIds',
 ] as const
 type SafeColumnUpdateField = (typeof SAFE_COLUMN_UPDATE_FIELDS)[number]
 
 /**
  * `column.updateSettings` — 既存カラムの安全な表示プロパティ (name / width /
- * query / soundMuted) のみを更新。identity (type / accountId 等) は触らない。
+ * query / soundMuted / queryIds) のみを更新。identity (type / accountId 等) は
+ * 触らない。
+ *
+ * `queryIds` は適用中の名前付きクエリ (`noteQueryRefs`) の全置換 (#1241)。
+ * ライブラリに無い id は拒む: 参照消失は useColumnQuery が fail-closed に
+ * するので、黙って受けるとカラムが無言で空になる。
  */
 export const columnUpdateSettingsCapability = implement(
   'column.updateSettings',
@@ -312,9 +323,21 @@ export const columnUpdateSettingsCapability = implement(
         updates.soundMuted = params.soundMuted
         applied.push('soundMuted')
       }
+      if (Array.isArray(params?.queryIds)) {
+        const ids = [...new Set(params.queryIds.filter(isString))]
+        const known = new Set(useColumnQueriesStore().items.map((q) => q.id))
+        const unknown = ids.filter((id) => !known.has(id))
+        if (unknown.length > 0) {
+          throw new Error(
+            `column.updateSettings: unknown query id(s): ${unknown.join(', ')}`,
+          )
+        }
+        updates.noteQueryRefs = ids.length > 0 ? ids : undefined
+        applied.push('queryIds')
+      }
       if (applied.length === 0) {
         throw new Error(
-          'column.updateSettings: at least one of name/width/query/soundMuted is required',
+          'column.updateSettings: at least one of name/width/query/soundMuted/queryIds is required',
         )
       }
       const store = useDeckStore()
