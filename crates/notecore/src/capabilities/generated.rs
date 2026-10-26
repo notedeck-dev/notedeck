@@ -1325,7 +1325,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Device,
-        description: "既存カラムの表示プロパティ (name / width / query / soundMuted) を更新する。 identity 系 (type / accountId / listId 等) は触れない (= AI 経路で塞ぐ)。",
+        description: "既存カラムの表示プロパティ (name / width / query / soundMuted / queryIds) を更新する。 identity 系 (type / accountId / listId 等) は触れない (= AI 経路で塞ぐ)。 queryIds は適用中の名前付きカラムクエリの全置換で、column.list の queryIds と対になる。",
         params: &[
             ParamDecl {
                 name: "columnId",
@@ -1359,6 +1359,13 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
                 name: "soundMuted",
                 ty: ParamType::Boolean,
                 description: "カラム単位のサウンドミュート",
+                optional: true,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "queryIds",
+                ty: ParamType::Array,
+                description: "適用する名前付きカラムクエリの id 列 (string[]、全置換)。空配列 [] で全解除。 ライブラリに無い id は拒む (queries.list で確認)",
                 optional: true,
                 enum_values: None,
             },
@@ -4549,7 +4556,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Device,
-        description: "AiScript の式から名前付きカラムクエリを作成する。式は `note` を受けて boolean を返す純粋な式でなければならない (副作用や非決定の API に届く式は拒否)。作成した個体はライブラリに入るだけで、どのカラムにも適用されない (適用はカラムのフィルターメニューから人が行う)。",
+        description: "AiScript の式から名前付きカラムクエリを作成する。式は `note` を受けて boolean を返す純粋な式でなければならない (副作用や非決定の API に届く式は拒否)。作成した個体はライブラリに入るだけで、どのカラムにも適用されない (適用はカラムのフィルターメニューから人が行うか、column.updateSettings の queryIds で行う)。",
         params: &[
             ParamDecl {
                 name: "name",
