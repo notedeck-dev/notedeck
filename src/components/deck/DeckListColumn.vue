@@ -10,6 +10,7 @@ import type {
   NoteUpdateEvent,
   ServerAdapter,
 } from '@/adapters/types'
+import { openTimelineQuery } from '@/composables/querySubscriptions'
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
@@ -18,7 +19,6 @@ import type { ColumnSource } from '@/services/columnSource'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckCrossSourcesColumn from './DeckCrossSourcesColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
@@ -57,14 +57,7 @@ function subscribeSource(
 ) {
   return createNoteQuerySubscription({
     accountId,
-    open: async () =>
-      unwrap(
-        await commands.querySubscribeTimeline(
-          accountId,
-          'user-list',
-          source.id,
-        ),
-      ),
+    open: async () => openTimelineQuery(accountId, 'user-list', source.id),
     enqueue,
     onNoteUpdated: callbacks.onNoteUpdated,
   })
@@ -88,14 +81,7 @@ const noteColumnConfig: NoteColumnConfig = {
       // biome-ignore lint/style/noNonNullAssertion: listId 不在は validate() で connect 自体がスキップされる
       const listId = props.column.listId!
       return createQuerySubscription({
-        open: async () =>
-          unwrap(
-            await commands.querySubscribeTimeline(
-              accountId,
-              'user-list',
-              listId,
-            ),
-          ),
+        open: async () => openTimelineQuery(accountId, 'user-list', listId),
         onInsert: (item) => {
           const note = queryItemAsNote(item)
           if (note) enqueue(note)

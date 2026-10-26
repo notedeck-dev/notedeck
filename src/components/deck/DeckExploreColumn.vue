@@ -9,7 +9,6 @@ import NoteScroller from '@/components/common/NoteScroller.vue'
 import ReadMarkerDivider from '@/components/common/ReadMarkerDivider.vue'
 import { i18n } from '@/i18n'
 import { variantKeyOf } from '@/services/noteKey'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -79,6 +78,7 @@ const {
   handlePosted,
   removeNote,
   refresh: refreshNotes,
+  initAdapter,
   isPulling,
   isPulledEnough,
   isRefreshing,
@@ -132,12 +132,9 @@ const userRelations = ref<Map<string, UserRelation>>(new Map())
 async function fetchUserRelations(batch: { id: string }[]) {
   if (!props.column.accountId || batch.length === 0) return
   try {
-    const fetched = unwrap(
-      await commands.apiGetUserRelations(
-        props.column.accountId,
-        batch.map((u) => u.id),
-      ),
-    ) as unknown as UserRelation[]
+    const adapter = await initAdapter()
+    if (!adapter) return
+    const fetched = await adapter.api.getUserRelations(batch.map((u) => u.id))
     const next = new Map(userRelations.value)
     for (const r of fetched) next.set(r.id, r)
     userRelations.value = next
@@ -155,17 +152,14 @@ const {
   fetch: async () => {
     const accountId = props.column.accountId
     if (!accountId) return []
-    const fetched = unwrap(
-      await commands.apiSearchUsers(
-        accountId,
-        null,
-        'combined',
-        '+follower',
-        'alive',
-        30,
-        null,
-      ),
-    ) as unknown as UserSummary[]
+    const adapter = await initAdapter()
+    if (!adapter) return []
+    const fetched = (await adapter.api.searchUsers({
+      origin: 'combined',
+      sort: '+follower',
+      state: 'alive',
+      limit: 30,
+    })) as UserSummary[]
     fetchUserRelations(fetched)
     return fetched
   },
@@ -197,9 +191,9 @@ const {
   fetch: async () => {
     const accountId = props.column.accountId
     if (!accountId) return []
-    const allRoles = unwrap(
-      await commands.apiGetRoles(accountId),
-    ) as unknown as RoleSummary[]
+    const adapter = await initAdapter()
+    if (!adapter) return []
+    const allRoles = (await adapter.api.getRoles()) as RoleSummary[]
     return allRoles
       .filter((r) => r.target === 'manual')
       .sort((a, b) => b.displayOrder - a.displayOrder)
@@ -223,9 +217,12 @@ const {
     const accountId = props.column.accountId
     const role = selectedRole.value
     if (!accountId || !role) return []
-    const result = unwrap(
-      await commands.apiGetRoleUsers(accountId, role.id, 30, null),
-    ) as unknown as { id: string; user: UserSummary }[]
+    const adapter = await initAdapter()
+    if (!adapter) return []
+    const result = (await adapter.api.getRoleUsers(role.id, { limit: 30 })) as {
+      id: string
+      user: UserSummary
+    }[]
     const fetched = result.map((entry) => entry.user)
     fetchUserRelations(fetched)
     return fetched

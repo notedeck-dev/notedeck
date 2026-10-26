@@ -14,7 +14,6 @@ import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useEmojisStore } from '@/stores/emojis'
 import { proxyEmojiUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckColumn from './DeckColumn.vue'
 
 const props = defineProps<{
@@ -33,6 +32,7 @@ const {
   withLoading,
   scroller,
   scrollToTop,
+  initAdapter,
 } = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 const searchQuery = ref('')
@@ -155,7 +155,9 @@ async function loadEmojis() {
   if (!acc) return
   await withLoading(async () => {
     if (!emojisStore.has(acc.host)) {
-      const emojis = unwrap(await commands.apiGetServerEmojis(acc.id, false))
+      const adapter = await initAdapter()
+      if (!adapter) return
+      const emojis = await adapter.api.getServerEmojis()
       emojisStore.set(acc.host, emojis)
     }
   })

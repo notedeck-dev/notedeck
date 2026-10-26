@@ -1,4 +1,4 @@
-import type { Muting } from '@/bindings'
+import type { JsonValue, Muting } from '@/bindings'
 import { type MutedUser, parseMutingExpiry } from '@/services/muteExpiry'
 import { commands } from '@/utils/tauriInvoke'
 import type {
@@ -9,7 +9,9 @@ import type {
   NormalizedUserDetail,
   NotesApi,
   PaginationOptions,
+  SearchUsersParams,
   UserNotesOptions,
+  UserReaction,
   UserRelation,
   UsersApi,
 } from '../../types'
@@ -238,6 +240,87 @@ export function createUsersApi(
     async reportUser(userId: string, comment: string): Promise<void> {
       ctx.requireAuth()
       unwrapAny(await commands.apiReportUser(ctx.accountId, userId, comment))
+    },
+
+    async getSelf(): Promise<unknown> {
+      ctx.requireAuth()
+      return unwrapAny(await commands.apiGetSelf(ctx.accountId))
+    },
+
+    async updateUserSetting(key: string, value: boolean): Promise<void> {
+      ctx.requireAuth()
+      unwrapAny(await commands.apiUpdateUserSetting(ctx.accountId, key, value))
+    },
+
+    async getUserRaw(
+      params: { userId: string } | { userIds: string[] },
+    ): Promise<unknown> {
+      return unwrapAny(await commands.apiGetUserRaw(ctx.accountId, params))
+    },
+
+    async getUserReactions(
+      userId: string,
+      options: PaginationOptions = {},
+    ): Promise<UserReaction[]> {
+      const params: Record<string, JsonValue> = { userId }
+      if (options.limit != null) params.limit = options.limit
+      if (options.sinceId) params.sinceId = options.sinceId
+      if (options.untilId) params.untilId = options.untilId
+      return unwrapAny(
+        await commands.apiGetUserReactions(ctx.accountId, params),
+      )
+    },
+
+    async getUserAchievements(userId: string): Promise<unknown> {
+      return unwrapAny(
+        await commands.apiGetUserAchievements(ctx.accountId, userId),
+      )
+    },
+
+    async searchUsers(params: SearchUsersParams): Promise<unknown> {
+      return unwrapAny(
+        await commands.apiSearchUsers(
+          ctx.accountId,
+          params.query ?? null,
+          params.origin ?? null,
+          params.sort ?? null,
+          params.state ?? null,
+          params.limit ?? null,
+          params.offset ?? null,
+        ),
+      )
+    },
+
+    async getRoles(): Promise<unknown> {
+      return unwrapAny(await commands.apiGetRoles(ctx.accountId))
+    },
+
+    async getRoleUsers(
+      roleId: string,
+      options: { limit?: number; offset?: number } = {},
+    ): Promise<unknown> {
+      return unwrapAny(
+        await commands.apiGetRoleUsers(
+          ctx.accountId,
+          roleId,
+          options.limit ?? null,
+          options.offset ?? null,
+        ),
+      )
+    },
+
+    async getFollowRequests(limit?: number): Promise<unknown> {
+      ctx.requireAuth()
+      return unwrapAny(
+        await commands.apiGetFollowRequests(ctx.accountId, limit ?? null),
+      )
+    },
+
+    async getSentFollowRequests(limit?: number): Promise<unknown> {
+      ctx.requireAuth()
+      return unwrapAny(
+        await commands.apiGetSentFollowRequests(ctx.accountId, limit ?? null),
+      )
     },
   }
 }

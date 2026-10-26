@@ -8,11 +8,11 @@ import {
   shallowRef,
   watch,
 } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import type { NormalizedUserDetail, ServerAdapter } from '@/adapters/types'
 import I18n from '@/components/common/I18n.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useHoverPopupLeaving } from '@/composables/useHoverPopup'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { i18n } from '@/i18n'
 import type { FollowState } from '@/services/followTransition'
 import {
@@ -36,6 +36,8 @@ const props = defineProps<{
   /** 退場中 (呼び出し元が自前で開閉するとき)。useHoverPopup 経由なら不要 */
   leaving?: boolean
 }>()
+
+const { forView } = useMultiAccountAdapters()
 
 const emit = defineEmits<{
   close: []
@@ -74,14 +76,7 @@ function onFollowUpdate(next: FollowState) {
 
 onMounted(async () => {
   try {
-    const acc = accountsStore.accounts.find((a) => a.id === props.accountId)
-    if (acc) {
-      const { adapter } = await initAdapterFor(acc.host, acc.id, {
-        pinnedReactions: false,
-        hasToken: acc.hasToken,
-      })
-      adapterRef.value = adapter
-    }
+    adapterRef.value = await forView(props.accountId)
 
     // キャッシュはプロフィールのウィンドウと共有 (services/userDetailCache)
     const cached = getCachedUserDetail(props.accountId, props.userId)

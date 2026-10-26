@@ -6,7 +6,6 @@ import { useNoteAccountId } from '@/composables/useNoteContext'
 import { parseNoteUrl } from '@/services/noteUrl'
 import { useAccountsStore } from '@/stores/accounts'
 import { usePerformanceStore } from '@/stores/performance'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const perfStore = usePerformanceStore()
 
@@ -66,9 +65,10 @@ async function fetchNote() {
         if (account && account.host === parsed.host) {
           return await api.getNote(parsed.noteId)
         }
-        const result = unwrap(
-          await commands.apiApShow(accountId, props.url),
-        ) as unknown as { type: string; object?: { id: string } }
+        const result = (await api.apShow(props.url)) as {
+          type: string
+          object?: { id: string }
+        }
         if (result.type === 'Note' && result.object?.id) {
           return await api.getNote(result.object.id)
         }

@@ -5,6 +5,10 @@ import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkNote from '@/components/common/MkNote.vue'
 import NoteScroller from '@/components/common/NoteScroller.vue'
+import {
+  type CachedSearchFilters,
+  searchArchiveNotesAcross,
+} from '@/composables/archiveSearch'
 import { useColumnQuery } from '@/composables/useColumnQuery'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
@@ -31,7 +35,6 @@ import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import { AppError } from '@/utils/errors'
 import { scrollToTopSmart } from '@/utils/motion'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
 import ColumnFilterButton from './ColumnFilterButton.vue'
 import ColumnQueryBadge from './ColumnQueryBadge.vue'
@@ -200,7 +203,7 @@ watch(
  * は行をまたいでも意味が変わらない)
  */
 function textArgs(): Pick<
-  NonNullable<Parameters<typeof commands.apiSearchNotesCachedAcross>[6]>,
+  CachedSearchFilters,
   'textAny' | 'textAll' | 'textExclude'
 > {
   const anyGroups: string[][] = []
@@ -237,22 +240,20 @@ async function fetchPage(cursor: string | null): Promise<NormalizedNote[]> {
   // 境界は両端含みなので重なった 1 件は行キーで除外する
   const until = filter.value.ascending ? bounds.until : (cursor ?? bounds.until)
   const since = filter.value.ascending ? (cursor ?? bounds.since) : bounds.since
-  return unwrap(
-    await commands.apiSearchNotesCachedAcross(
-      accountIds,
-      query.value.trim(),
-      PAGE_SIZE,
-      since,
-      until,
-      filter.value.ascending ?? false,
-      {
-        author: filter.value.author?.trim() || null,
-        hasFiles: filter.value.hasFiles ?? null,
-        publicOnly: null,
-        ...textArgs(),
-      },
-    ),
-  ) as NormalizedNote[]
+  return searchArchiveNotesAcross(
+    accountIds,
+    query.value.trim(),
+    PAGE_SIZE,
+    since,
+    until,
+    filter.value.ascending ?? false,
+    {
+      author: filter.value.author?.trim() || null,
+      hasFiles: filter.value.hasFiles ?? null,
+      publicOnly: null,
+      ...textArgs(),
+    },
+  )
 }
 
 /**

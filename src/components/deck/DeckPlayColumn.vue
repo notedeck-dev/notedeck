@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import type { FlashesEndpoint } from '@/adapters/types'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkMfm from '@/components/common/MkMfm.vue'
@@ -10,7 +11,6 @@ import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -29,6 +29,7 @@ const {
   withLoading,
   scroller,
   scrollToTop,
+  initAdapter,
 } = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 const windowsStore = useWindowsStore()
@@ -78,22 +79,23 @@ interface FlashSummary {
 const listItems = ref<FlashSummary[]>([])
 
 async function fetchList(tab?: Tab) {
-  const accountId = props.column.accountId
-  if (!accountId) return
+  if (!props.column.accountId) return
   const t = tab ?? activeTab.value
   activeTab.value = t
   listItems.value = []
 
-  const endpointMap: Record<Tab, string> = {
+  const endpointMap: Record<Tab, FlashesEndpoint> = {
     featured: 'flash/featured',
     my: 'flash/my',
     likes: 'flash/my-likes',
   }
 
   await withLoading(async (stillCurrent) => {
-    const raw = unwrap(
-      await commands.apiGetFlashes(accountId, endpointMap[t], 30),
-    ) as unknown as FlashSummary[] | { id: string; flash: FlashSummary }[]
+    const adapter = await initAdapter()
+    if (!adapter) return
+    const raw = (await adapter.api.getFlashes(endpointMap[t], 30)) as unknown as
+      | FlashSummary[]
+      | { id: string; flash: FlashSummary }[]
     // タブ切替中に返った旧タブの結果は捨てる
     if (!stillCurrent()) return
     // flash/my-likes returns { id, flash } wrapper objects

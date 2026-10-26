@@ -5,17 +5,18 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import MkFileGrid from '@/components/common/MkFileGrid.vue'
 import MkFolderGrid from '@/components/common/MkFolderGrid.vue'
 import { useDriveFolder } from '@/composables/useDriveFolder'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { i18n } from '@/i18n'
 import { useThemeStore } from '@/stores/theme'
 import { useUiStore } from '@/stores/ui'
 import { AppError, authErrorMessage } from '@/utils/errors'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const props = defineProps<{
   accountId: string
 }>()
 
 const themeStore = useThemeStore()
+const { getOrCreate } = useMultiAccountAdapters()
 const themeVars = computed(() =>
   themeStore.getStyleVarsForAccount(props.accountId),
 )
@@ -58,17 +59,16 @@ async function onFileSelected(e: Event) {
     const uploaded: NormalizedDriveFile[] = []
     for (const file of input.files) {
       const buf = await file.arrayBuffer()
-      const result = unwrap(
-        await commands.apiUploadFile(
-          props.accountId,
-          file.name,
-          [...new Uint8Array(buf)],
-          file.type || 'application/octet-stream',
-          false,
-          currentFolderId.value,
-        ),
+      const adapter = await getOrCreate(props.accountId)
+      if (!adapter) throw new Error('account not found')
+      const result = await adapter.api.uploadFile(
+        file.name,
+        [...new Uint8Array(buf)],
+        file.type || 'application/octet-stream',
+        false,
+        currentFolderId.value,
       )
-      uploaded.push(result as unknown as NormalizedDriveFile)
+      uploaded.push(result)
     }
     await fetchDrive()
     // Auto-select uploaded files so user just taps 添付 to confirm.

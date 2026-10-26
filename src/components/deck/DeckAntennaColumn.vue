@@ -10,6 +10,7 @@ import type {
   NoteUpdateEvent,
   ServerAdapter,
 } from '@/adapters/types'
+import { openAntennaQuery } from '@/composables/querySubscriptions'
 import { useEntityCrud } from '@/composables/useEntityCrud'
 import type { NoteColumnConfig } from '@/composables/useNoteColumn'
 import { i18n } from '@/i18n'
@@ -17,7 +18,6 @@ import { antennaCacheKey, columnCacheKey } from '@/services/columnCacheKey'
 import type { ColumnSource } from '@/services/columnSource'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { accountsCacheKeyDeps } from '@/utils/columnCacheKeyDeps'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import DeckCrossSourcesColumn from './DeckCrossSourcesColumn.vue'
 import DeckNoteColumn from './DeckNoteColumn.vue'
 
@@ -46,8 +46,7 @@ function subscribeSource(
 ) {
   return createNoteQuerySubscription({
     accountId,
-    open: async () =>
-      unwrap(await commands.querySubscribeAntenna(accountId, source.id)),
+    open: async () => openAntennaQuery(accountId, source.id),
     enqueue,
     onNoteUpdated: callbacks.onNoteUpdated,
   })
@@ -69,8 +68,7 @@ const noteColumnConfig: NoteColumnConfig = {
       // biome-ignore lint/style/noNonNullAssertion: antennaId 不在は validate() で connect スキップ
       const antennaId = props.column.antennaId!
       return createQuerySubscription({
-        open: async () =>
-          unwrap(await commands.querySubscribeAntenna(accountId, antennaId)),
+        open: async () => openAntennaQuery(accountId, antennaId),
         onInsert: (item) => {
           const note = queryItemAsNote(item)
           if (note) enqueue(note)

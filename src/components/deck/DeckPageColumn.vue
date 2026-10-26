@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import type { PagesEndpoint } from '@/adapters/types'
 import type { Page } from '@/bindings'
 import ColumnEmptyState from '@/components/common/ColumnEmptyState.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -11,7 +12,6 @@ import { i18n } from '@/i18n'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useWindowsStore } from '@/stores/windows'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -30,6 +30,7 @@ const {
   withLoading,
   scroller,
   scrollToTop,
+  initAdapter,
 } = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 const windowsStore = useWindowsStore()
@@ -62,13 +63,12 @@ const listContentRef = ref<HTMLElement | null>(null)
 const listItems = ref<Page[]>([])
 
 async function fetchList(tab?: Tab) {
-  const accountId = props.column.accountId
-  if (!accountId) return
+  if (!props.column.accountId) return
   const t = tab ?? activeTab.value
   activeTab.value = t
   listItems.value = []
 
-  const endpointMap: Record<Tab, string> = {
+  const endpointMap: Record<Tab, PagesEndpoint> = {
     featured: 'pages/featured',
     my: 'i/pages',
     likes: 'i/page-likes',
@@ -76,9 +76,9 @@ async function fetchList(tab?: Tab) {
 
   await withLoading(async (stillCurrent) => {
     // i/page-likes wrapper は Rust 側で剥がして Page[] に統一済み。
-    const items = unwrap(
-      await commands.apiGetPages(accountId, endpointMap[t], 30),
-    )
+    const adapter = await initAdapter()
+    if (!adapter) return
+    const items = await adapter.api.getPages(endpointMap[t], 30)
     // タブ切替中に返った旧タブの結果は捨てる
     if (!stillCurrent()) return
     listItems.value = items

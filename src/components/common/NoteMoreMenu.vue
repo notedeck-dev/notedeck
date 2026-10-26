@@ -28,7 +28,6 @@ import { useIsCompactLayout } from '@/stores/ui'
 import { useWindowsStore } from '@/stores/windows'
 import { AppError } from '@/utils/errors'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import { isWindowExposed } from '@/windows/exposure'
 import AccountPickerSheet from './AccountPickerSheet.vue'
 import PopupMenu from './PopupMenu.vue'
@@ -274,9 +273,9 @@ async function createClipAndAdd() {
   })
   if (!name) return
   try {
-    const created = unwrap(
-      await commands.apiCreateClip(props.note._accountId, { name }),
-    )
+    const adapter = await getOrCreate(props.note._accountId)
+    if (!adapter) throw new Error('account not found')
+    const created = await adapter.api.createClip(name)
     await addToClip(created.id, created.name)
   } catch (e) {
     const err = AppError.from(e)
@@ -385,7 +384,9 @@ function openActAs() {
 async function openClipQuickPick() {
   close()
   try {
-    const clipList = unwrap(await commands.apiGetClips(props.note._accountId))
+    const adapter = await getOrCreate(props.note._accountId)
+    if (!adapter) throw new Error('account not found')
+    const clipList = await adapter.api.getClips()
     const items = [
       {
         id: 'create-new-clip',

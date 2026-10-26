@@ -1,5 +1,11 @@
+import { convertFileSrc } from '@tauri-apps/api/core'
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { onMounted, onUnmounted, ref } from 'vue'
+
+/** 落とされたファイルのパスを WebView が読める URL にする */
+export function droppedFileSrc(path: string): string {
+  return convertFileSrc(path)
+}
 
 export type FileDropHandler = (
   paths: string[],

@@ -20,7 +20,6 @@ import { isExposed } from '@/settings/exposure'
 import { getAccountAvatarUrl } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { proxyThumbUrl } from '@/utils/mediaProxy'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 import type { ColumnTabDef } from './ColumnTabs.vue'
 import ColumnTabs from './ColumnTabs.vue'
 import DeckColumn from './DeckColumn.vue'
@@ -40,6 +39,7 @@ const {
   withLoading,
   scroller,
   scrollToTop,
+  initAdapter,
 } = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 
@@ -109,9 +109,11 @@ async function fetchAchievements() {
   const acc = account.value
   if (!accountId || !acc) return
   await withLoading(async () => {
-    achievements.value = unwrap(
-      await commands.apiGetUserAchievements(accountId, acc.userId),
-    ) as unknown as Achievement[]
+    const adapter = await initAdapter()
+    if (!adapter) return
+    achievements.value = (await adapter.api.getUserAchievements(
+      acc.userId,
+    )) as Achievement[]
   })
 }
 

@@ -1393,6 +1393,8 @@ export function useNoteColumn(config: NoteColumnConfig) {
     focusedNoteId,
     pendingCount,
     animatingIds,
+    /** カラムのアカウントの adapter (ノート以外の一覧を同じ口座で引く用) */
+    initAdapter,
     postForm,
     handlers,
     noteScrollerRef,

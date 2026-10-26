@@ -7,7 +7,6 @@ import {
   useTemplateRef,
 } from 'vue'
 import { i18n } from '@/i18n'
-import { commands, unwrap } from '@/utils/tauriInvoke'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -32,8 +31,15 @@ const props = defineProps<{
   column: DeckColumnType
 }>()
 
-const { account, columnThemeVars, error, withLoading, scroller, scrollToTop } =
-  useColumnSetup(() => props.column)
+const {
+  account,
+  columnThemeVars,
+  error,
+  withLoading,
+  scroller,
+  scrollToTop,
+  initAdapter,
+} = useColumnSetup(() => props.column)
 useColumnPullScroller(scroller)
 
 const meta = ref<ServerMeta | null>(null)
@@ -132,9 +138,9 @@ async function fetchMeta() {
   const acc = account.value
   if (!acc) return
   await withLoading(async () => {
-    meta.value = unwrap(
-      await commands.apiGetMetaDetail(acc.id),
-    ) as unknown as ServerMeta
+    const adapter = await initAdapter()
+    if (!adapter) return
+    meta.value = (await adapter.api.getMetaDetail()) as ServerMeta
   })
 }
 

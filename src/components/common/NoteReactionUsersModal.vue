@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { ref, watch } from 'vue'
-import { initAdapterFor } from '@/adapters/factory'
 import type { NoteReaction } from '@/adapters/types'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import { useEmojiMute } from '@/composables/useEmojiMute'
+import { useMultiAccountAdapters } from '@/composables/useMultiAccountAdapters'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
-import { useAccountsStore } from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
 import { proxyEmojiUrl, proxyThumbUrl } from '@/utils/mediaProxy'
 import MkEmoji from './MkEmoji.vue'
@@ -23,10 +22,11 @@ const props = defineProps<{
   reactionUrls: Record<string, string | null>
 }>()
 
+const { forView } = useMultiAccountAdapters()
+
 const { isCompactLayout: isCompact } = storeToRefs(useUiStore())
 const { navigateToUser } = useNavigation()
 const { isEmojiMuted } = useEmojiMute()
-const accountsStore = useAccountsStore()
 
 const show = ref(false)
 const selectedReaction = ref('')
@@ -62,12 +62,8 @@ async function fetchReactions(untilId?: string) {
   if (isLoading.value) return
   isLoading.value = true
   try {
-    const account = accountsStore.accounts.find((a) => a.id === props.accountId)
-    if (!account) return
-    const { adapter } = await initAdapterFor(account.host, account.id, {
-      pinnedReactions: false,
-      hasToken: account.hasToken,
-    })
+    const adapter = await forView(props.accountId)
+    if (!adapter) return
     const result = await adapter.api.getNoteReactions(
       props.noteId,
       selectedReaction.value,
