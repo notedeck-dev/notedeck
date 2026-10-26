@@ -1449,7 +1449,7 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 ### 課題 5: プラグイン境界
 
-`aiscript/plugin-api.ts` の `launchPlugin` でプラグインが `commandStore` への直接参照を取得し、`notedeck-api.ts` の `Nd:register_command` で store に直接作用する。カラム操作（旧 `Nd:addColumn` / `Nd:removeColumn`）は廃止し、capability registry 経由の `Nd:call('column.add', ...)` 等で行う。
+`aiscript/plugin-api.ts` の `launchPlugin` でプラグインが `commandStore` への直接参照を取得し、`notedeck-api.ts` の `Nd:register_command` でパレットの `Command` を登録する (options で `aiTool` と `signature` を宣言したものは `Capability` としても別に登録、#1098 §9)。カラム操作（旧 `Nd:addColumn` / `Nd:removeColumn`）は廃止し、capability registry 経由の `Nd:call('column.add', ...)` 等で行う。
 
 **現状の評価**: 拡張性は高いが、第三者プラグインを増やす場合、store への直接アクセスは保守負債になる。
 

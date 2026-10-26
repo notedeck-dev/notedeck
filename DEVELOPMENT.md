@@ -1050,7 +1050,7 @@ const { activate, deactivate } = useMenuKeyboard({
 
 **ファイル:** `src/capabilities/`
 
-`Capability` は `Command` を拡張した構造 (`signature` / `permissions` / `requiresConfirmation` / `aiTool`) で、**コマンドパレット / HTTP API / CLI / AiScript (`Nd:call`) / AI tool calling** の 5 経路が同じ registry を共有する。
+`Capability` (`src/capabilities/types.ts`) は「実行できる操作」の単位で、**HTTP API / パレットの CLI と slash / AiScript (`Nd:call`) / AI tool calling** が同じ registry を dispatcher 越しに共有する。コマンドパレットの `Command` (`src/commands/registry.ts`) は人が押す入口 (ラベル / アイコン / ショートカット / 露出 / `execute()`) で、型としては別物 (#1098 §9、2026-10-27)。Command が capability を呼ぶかどうかは中身の自由で、`useCommandStore.register` は capability registry に何もしない。id の名前空間も分かれる (Command は kebab `note-react`、capability は dotted `notes.react`)。パレットの CLI (`src/commands/cliHandlers.ts`) のうち API を叩く動詞 (react / renote / delete / follow / favorite など) は `dispatchCapability` を user principal で呼ぶので、slash と同じ確認ダイアログを通る。capability に無い引数を持つ `post` (`--local-only`) と `update` だけが IPC 直呼びで残る。
 
 #### 宣言の正本と生成物
 
@@ -1165,7 +1165,7 @@ healthcheck は doctor とキャッシュ統計を notecore の `health_core` �
 
 **AiScript からの拡張:**
 - AiScript の実行環境 (Mk:* / Nd:* / Ui:* + interpreter) は `src/aiscript/sandbox.ts` の `createAiScriptSandbox` 1 本で組む (#1099)。プラグイン / ウィジェット / Play / Page / スクラッチパッドはすべてここを通り、principal は必須引数で 1 回だけ渡す — Mk:api の endpoint gate、Nd:call / Nd:http の dispatcher 判定、登録 ID の名前空間、呼び出し元の AND 判定に使う `callers` が同じ値を見る。実行面を足すときも `createAiScriptEnv` / `createNoteDeckEnv` を直接組まない
-- `Nd:register_command(id, label, fn, options)` の `options` に `signature` / `permissions` / `aiTool` / `requiresConfirmation` を渡すと **capability registry にもミラー登録**され、即 5 経路に公開される
+- `Nd:register_command(id, label, icon, fn, options)` はパレットの `Command` を登録する。`options` に `aiTool: true` と `signature` を渡したものだけ **別に `Capability` としても登録**され (permissions / requiresConfirmation も options から)、HTTP API / `Nd:call` / AI tool calling から呼べる。停止時は両方の登録を disposers が外す
 - `Nd:capabilities()` で registry にある capability の宣言情報を列挙 (プラグインの自己発見)
 - `Nd:on(name, handler)` で `column:added` / `column:removed` / `streaming:status` / `note:new` / `notification:new` を購読。`note:new` / `notification:new` は queryDelta を `core/queryRegistry`（queryId → flavor/accountId）で振り分けて fan-out する
 
@@ -1433,7 +1433,7 @@ AiScript / AI / プラグインが**任意の外部サービス** (GitHub / Line
 
 #### AI 統合
 
-- `vault.fetch` は capability registry に登録 (`aiTool: true`, permission `vault.use`, `requiresConfirmation: true`)。AI / AiScript / コマンドパレットから呼べる
+- `vault.fetch` は capability registry に登録 (`aiTool: true`, permission `vault.use`, `requiresConfirmation: true`)。AI / AiScript / slash から呼べる
 - 開示は principal クラス別 (#712 §6.1 / #759): `exposedTo: ('ai' | 'plugin' | 'external')[]` (接続単位、default 空 = 非開示)。「AI に見せる」「プラグイン・ウィジェットに見せる」「外部アプリに見せる」は別の同意で、`vault.fetch` capability は呼び出し principal のクラスに開示された接続のみ `connectionRef` (name / id) で解決。plugin クラスは接続ごとの明示 opt-in (#759 — secret 自体は Rust 側注入のまま AiScript に露出しない)
 - 「今後確認なし」(`trustedFor`) もクラス別 — 外部アプリでの確認同意が AI の trust に化けない。plugin クラスのみクラス一括ではなく**個体単位** (`trustedPlugins: {id, name}[]`) — 1 ウィジェットへの同意が全プラグイン / Play / Page に波及しない。取り消しは接続編集の信頼済み一覧から
 - AI の system prompt に `<available-connections>` ブロックを注入 (Ai クラスに開示された接続の name / baseUrl / auth のみ、secret / id は出さない)
