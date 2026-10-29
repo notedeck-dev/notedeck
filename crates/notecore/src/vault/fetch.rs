@@ -93,6 +93,20 @@ impl VaultFetchResponse {
     }
 }
 
+/// 通信断の理由を人向けの文にする。reqwest のエラー文は要求 URL を含み
+/// (`... for url (https://host/path?param=...)`)、Query 認証では secret が
+/// URL に注入されているので、落としてから表に出す (`error` は secret を含まない)
+fn transport_error_message(e: reqwest::Error) -> String {
+    if e.is_timeout() {
+        VaultError::Timeout.to_string()
+    } else {
+        VaultError::RequestFailed {
+            message: e.without_url().to_string(),
+        }
+        .to_string()
+    }
+}
+
 fn parse_method(method: Option<&str>) -> VaultResult<reqwest::Method> {
     let m = method.unwrap_or("GET").to_ascii_uppercase();
     match m.as_str() {
@@ -237,14 +251,9 @@ pub async fn vault_fetch(
     let response = match req.send().await {
         Ok(r) => r,
         Err(e) => {
-            let reason = if e.is_timeout() {
-                VaultError::Timeout
-            } else {
-                VaultError::RequestFailed {
-                    message: e.to_string(),
-                }
-            };
-            return Ok(VaultFetchResponse::transport_failure(reason.to_string()));
+            return Ok(VaultFetchResponse::transport_failure(
+                transport_error_message(e),
+            ))
         }
     };
 
@@ -276,7 +285,8 @@ pub async fn vault_fetch(
             Ok(None) => break,
             Err(e) => {
                 return Ok(VaultFetchResponse::transport_failure(format!(
-                    "response read failed: {e}"
+                    "response read failed: {}",
+                    e.without_url()
                 )));
             }
         }
@@ -322,6 +332,20 @@ mod tests {
         // path が host を変えようとしても base host を維持する。
         let u = resolve_url("https://api.github.com/v3", "repos/foo").unwrap();
         assert_eq!(u.host_str(), Some("api.github.com"));
+    }
+
+    /// Query 認証の secret は URL に乗る。通信断の理由にその URL を残さない
+    #[tokio::test]
+    async fn transport_error_message_drops_the_url() {
+        let e = reqwest::Client::new()
+            .get("https://nonexistent.invalid/x?token=SECRET_VALUE")
+            .send()
+            .await
+            .expect_err("名前解決が失敗する");
+        let msg = transport_error_message(e);
+        assert!(!msg.contains("SECRET_VALUE"), "{msg}");
+        assert!(!msg.contains("nonexistent.invalid"), "{msg}");
+        assert!(msg.starts_with("request failed: "), "{msg}");
     }
 
     #[test]
