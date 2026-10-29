@@ -2254,7 +2254,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ status: number, headers: object, body: string }"),
+            description: Some("{ status: number, headers: object, body: string, error?: string }。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト) は失敗ではなく status 0 で返り、理由が error に入る"),
         }),
     },
     CapabilityDecl {
@@ -6773,7 +6773,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ status, headers, body, redactedCount, bytesTotal, truncated }"),
+            description: Some("{ status, headers, body, redactedCount, bytesTotal, truncated, error? }。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト) は失敗ではなく status 0 で返り、理由が error に入る"),
         }),
     },
     CapabilityDecl {

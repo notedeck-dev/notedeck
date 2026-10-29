@@ -1,5 +1,5 @@
 ---
-sourceHash: ac3b7e39d353
+sourceHash: cb4fd9250a85
 ---
 
 # 플러그인
@@ -49,7 +49,7 @@ sourceHash: ac3b7e39d353
 | `Nd:version` | 앱 버전 |
 | `Nd:call(id, params)` | capability를 호출합니다. 권한 범위 안에서만 성공합니다. 확인 대화 상자가 취소되면 오류가 되지 않고, `Core:type`이 `"error"`인 값이 돌아옵니다 |
 | `Nd:capabilities()` | 호출할 수 있는 capability 목록 |
-| `Nd:http(url, options)` | 외부로의 HTTP 요청 |
+| `Nd:http(url, options)` | 외부로의 HTTP 요청. `{ status, headers, body }`가 돌아옵니다. 통신 두절(이름 풀이 실패・연결 거부・타임아웃)도 오류가 되지 않고, `status`가 `0`이며 `error`에 이유가 들어갑니다 |
 | `Nd:on(event, handler)` | 앱 안의 이벤트를 구독합니다 |
 | `Nd:register_command(...)` | 명령 팔레트에 명령을 더합니다 |
 | `Plugin:open_url(url)` | URL을 기본 브라우저로 엽니다 |

@@ -1,5 +1,5 @@
 ---
-sourceHash: ac3b7e39d353
+sourceHash: cb4fd9250a85
 ---
 
 # Plugins
@@ -49,7 +49,7 @@ Command palette commands are added not with a hook but with `Nd:register_command
 | `Nd:version` | The app version |
 | `Nd:call(id, params)` | Call a capability. Succeeds only within your permissions. If the confirmation dialog is cancelled, it does not throw; it returns a value whose `Core:type` is `"error"` |
 | `Nd:capabilities()` | The list of callable capabilities |
-| `Nd:http(url, options)` | An HTTP request to the outside |
+| `Nd:http(url, options)` | An HTTP request to the outside. Returns `{ status, headers, body }`. A transport failure (DNS failure, connection refused, timeout) does not throw either: `status` is `0` and `error` holds the reason |
 | `Nd:on(event, handler)` | Subscribe to events inside the app |
 | `Nd:register_command(...)` | Add a command to the command palette |
 | `Plugin:open_url(url)` | Open a URL in the default browser |

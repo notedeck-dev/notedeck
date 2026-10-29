@@ -45,7 +45,7 @@
 | `Nd:version` | アプリのバージョン |
 | `Nd:call(id, params)` | capability を呼ぶ。権限の範囲内でのみ成功する。確認ダイアログをキャンセルされた場合はエラーにならず、`Core:type` が `"error"` の値が返る |
 | `Nd:capabilities()` | 呼べる capability の一覧 |
-| `Nd:http(url, options)` | 外部への HTTP リクエスト |
+| `Nd:http(url, options)` | 外部への HTTP リクエスト。`{ status, headers, body }` が返る。通信断（名前解決の失敗・接続拒否・タイムアウト）もエラーにならず、`status` が `0` で `error` に理由が入る |
 | `Nd:on(event, handler)` | アプリ内のイベントを購読する |
 | `Nd:register_command(...)` | コマンドパレットにコマンドを足す |
 | `Plugin:open_url(url)` | URL を既定のブラウザで開く |

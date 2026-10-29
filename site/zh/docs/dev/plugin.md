@@ -1,5 +1,5 @@
 ---
-sourceHash: ac3b7e39d353
+sourceHash: cb4fd9250a85
 ---
 
 # 插件
@@ -49,7 +49,7 @@ sourceHash: ac3b7e39d353
 | `Nd:version` | 应用的版本 |
 | `Nd:call(id, params)` | 调用 capability。只在权限范围内才会成功。如果确认对话框被取消，不会报错，而是返回 `Core:type` 为 `"error"` 的值 |
 | `Nd:capabilities()` | 可调用的 capability 列表 |
-| `Nd:http(url, options)` | 向外部发送 HTTP 请求 |
+| `Nd:http(url, options)` | 向外部发送 HTTP 请求。返回 `{ status, headers, body }`。通信中断（域名解析失败、连接被拒绝、超时）也不会报错，而是 `status` 为 `0`，原因放在 `error` 中 |
 | `Nd:on(event, handler)` | 订阅应用内的事件 |
 | `Nd:register_command(...)` | 向命令面板添加命令 |
 | `Plugin:open_url(url)` | 在默认浏览器中打开 URL |

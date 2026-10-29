@@ -21,9 +21,15 @@
 //! - `.local` / `.internal` / `.localhost` の reserved TLD を deny
 //!
 //! # 制限
-//! - response body は 10 MB まで (超過分は切り捨て + エラー)
+//! - response body は 10 MB まで (超過は status 0 + error)
 //! - timeout は呼び出し側指定 (1〜120s)、未指定なら 30s
 //! - レスポンス body は UTF-8 文字列前提 (バイナリは別途 base64 等を検討)
+//!
+//! # 失敗の返し方 (#1294)
+//! - 要求の形の誤り (URL / method / timeout の範囲 / SSRF 拒否) → Err
+//! - 通信断 (名前解決の失敗 / 接続拒否 / タイムアウト / 応答の読み取り失敗 /
+//!   body 上限超過) → Ok で `status: 0` + `error`。HTTP の 4xx / 5xx と同じく
+//!   値で返すので、try/catch の無い AiScript (ウィジェット) でも分岐できる
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -57,9 +63,28 @@ pub struct HttpFetchRequest {
 #[derive(Debug, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct HttpFetchResponse {
+    /// HTTP ステータス。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト /
+    /// 応答の読み取り失敗) は 0 で、理由は `error` に入る (#1294)
     pub status: u16,
     pub headers: HashMap<String, String>,
     pub body: String,
+    /// 通信断の理由。status が 0 のときだけ Some
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+impl HttpFetchResponse {
+    /// 通信断を表す応答。要求の形は正しかったが相手に届かなかった /
+    /// 応答が使えなかったときに返す。AiScript には try/catch が無いので、
+    /// Err (= throw) にするとウィジェットが「通信できません」を描けない
+    fn transport_failure(message: String) -> Self {
+        Self {
+            status: 0,
+            headers: HashMap::new(),
+            body: String::new(),
+            error: Some(message),
+        }
+    }
 }
 
 async fn http_fetch_inner(
@@ -110,10 +135,14 @@ async fn http_fetch_inner(
         req = req.body(body);
     }
 
-    let response = req
-        .send()
-        .await
-        .map_err(|e| format!("request failed: {e}"))?;
+    let response = match req.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            return Ok(HttpFetchResponse::transport_failure(format!(
+                "request failed: {e}"
+            )))
+        }
+    };
     let status = response.status().as_u16();
     let mut headers = HashMap::new();
     for (name, value) in response.headers() {
@@ -123,16 +152,20 @@ async fn http_fetch_inner(
     }
 
     // Body size guard: bytes() で読みきり、その後 size 検証
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("response read failed: {e}"))?;
+    let bytes = match response.bytes().await {
+        Ok(b) => b,
+        Err(e) => {
+            return Ok(HttpFetchResponse::transport_failure(format!(
+                "response read failed: {e}"
+            )))
+        }
+    };
     if bytes.len() > MAX_RESPONSE_BYTES {
-        return Err(format!(
+        return Ok(HttpFetchResponse::transport_failure(format!(
             "response body exceeds {} bytes limit ({})",
             MAX_RESPONSE_BYTES,
             bytes.len()
-        ));
+        )));
     }
     let body = String::from_utf8_lossy(&bytes).into_owned();
 
@@ -140,6 +173,7 @@ async fn http_fetch_inner(
         status,
         headers,
         body,
+        error: None,
     })
 }
 
@@ -183,5 +217,44 @@ mod tests {
     #[test]
     fn parse_method_defaults_to_get() {
         assert_eq!(parse_method(None).unwrap(), reqwest::Method::GET);
+    }
+
+    /// 通信断 (名前解決の失敗 / 接続拒否 / タイムアウト) は Err ではなく
+    /// status 0 の応答。AiScript には try/catch が無いので、throw にすると
+    /// ウィジェットが「通信できません」を描けない (#1294)
+    #[tokio::test]
+    async fn transport_failure_is_a_status_zero_response() {
+        let res = http_fetch_inner(HttpFetchRequest {
+            // RFC 6761 の予約 TLD: 名前解決が必ず失敗する
+            url: "https://nonexistent.invalid/".into(),
+            method: None,
+            headers: None,
+            body: None,
+            timeout_ms: Some(2_000),
+        })
+        .await
+        .expect("transport failure must not be Err");
+        assert_eq!(res.status, 0);
+        assert!(res.body.is_empty());
+        assert!(res.headers.is_empty());
+        assert!(res
+            .error
+            .as_deref()
+            .unwrap_or("")
+            .starts_with("request failed: "));
+    }
+
+    /// 要求の形の誤り (method / timeout の範囲 / SSRF) は従来どおり Err
+    #[tokio::test]
+    async fn invalid_request_shape_is_still_an_error() {
+        let res = http_fetch_inner(HttpFetchRequest {
+            url: "http://127.0.0.1/".into(),
+            method: None,
+            headers: None,
+            body: None,
+            timeout_ms: None,
+        })
+        .await;
+        assert!(res.is_err());
     }
 }

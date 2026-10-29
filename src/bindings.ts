@@ -3648,7 +3648,16 @@ sessionId: string | null }
  * Serialize / Default はコマンド表のフィクスチャ用。
  */
 export type HttpFetchRequest = { url: string; method: string | null; headers: Partial<{ [key in string]: string }> | null; body: string | null; timeoutMs: number | null }
-export type HttpFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; body: string }
+export type HttpFetchResponse = { 
+/**
+ * HTTP ステータス。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト /
+ * 応答の読み取り失敗) は 0 で、理由は `error` に入る (#1294)
+ */
+status: number; headers: Partial<{ [key in string]: string }>; body: string; 
+/**
+ * 通信断の理由。status が 0 のときだけ Some
+ */
+error?: string | null }
 /**
  * 画像ディスクキャッシュの使用量 (#815)。設定のキャッシュ画面で表示する
  */
@@ -4682,7 +4691,12 @@ slot?: string | null }
 /**
  * `vault_fetch` のレスポンス。
  */
-export type VaultFetchResponse = { status: number; headers: Partial<{ [key in string]: string }>; 
+export type VaultFetchResponse = { 
+/**
+ * HTTP ステータス。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト /
+ * 応答の読み取り失敗) は 0 で、理由は `error` に入る (#1294、http.fetch と同形)
+ */
+status: number; headers: Partial<{ [key in string]: string }>; 
 /**
  * redaction 済みの body。
  */
@@ -4698,7 +4712,11 @@ bytesTotal: number;
 /**
  * 500 KiB 上限で打ち切ったか。
  */
-truncated: boolean }
+truncated: boolean; 
+/**
+ * 通信断の理由。status が 0 のときだけ Some。secret は含まない
+ */
+error?: string | null }
 /**
  * 接続の疎通テスト結果。
  */

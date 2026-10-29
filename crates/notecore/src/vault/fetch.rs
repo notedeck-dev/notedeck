@@ -61,6 +61,8 @@ pub struct VaultFetchRequest {
 #[derive(Debug, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct VaultFetchResponse {
+    /// HTTP ステータス。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト /
+    /// 応答の読み取り失敗) は 0 で、理由は `error` に入る (#1294、http.fetch と同形)
     pub status: u16,
     pub headers: HashMap<String, String>,
     /// redaction 済みの body。
@@ -71,6 +73,24 @@ pub struct VaultFetchResponse {
     pub bytes_total: u32,
     /// 500 KiB 上限で打ち切ったか。
     pub truncated: bool,
+    /// 通信断の理由。status が 0 のときだけ Some。secret は含まない
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+impl VaultFetchResponse {
+    /// 通信断を表す応答 (http.fetch の同名と同じ扱い)
+    fn transport_failure(message: String) -> Self {
+        Self {
+            status: 0,
+            headers: HashMap::new(),
+            body: String::new(),
+            redacted_count: 0,
+            bytes_total: 0,
+            truncated: false,
+            error: Some(message),
+        }
+    }
 }
 
 fn parse_method(method: Option<&str>) -> VaultResult<reqwest::Method> {
@@ -213,16 +233,20 @@ pub async fn vault_fetch(
     // 認証情報を注入する (secret を展開するのはここだけ)。
     req = inject_auth(req, &connection.auth_type, &secret);
 
-    // 送信。
-    let response = req.send().await.map_err(|e| {
-        if e.is_timeout() {
-            VaultError::Timeout
-        } else {
-            VaultError::RequestFailed {
-                message: e.to_string(),
-            }
+    // 送信。通信断は Err ではなく status 0 の応答 (#1294)
+    let response = match req.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            let reason = if e.is_timeout() {
+                VaultError::Timeout
+            } else {
+                VaultError::RequestFailed {
+                    message: e.to_string(),
+                }
+            };
+            return Ok(VaultFetchResponse::transport_failure(reason.to_string()));
         }
-    })?;
+    };
 
     let status = response.status().as_u16();
 
@@ -251,9 +275,9 @@ pub async fn vault_fetch(
             }
             Ok(None) => break,
             Err(e) => {
-                return Err(VaultError::RequestFailed {
-                    message: format!("response read failed: {e}"),
-                });
+                return Ok(VaultFetchResponse::transport_failure(format!(
+                    "response read failed: {e}"
+                )));
             }
         }
     }
@@ -273,6 +297,7 @@ pub async fn vault_fetch(
         redacted_count: redacted.count,
         bytes_total,
         truncated,
+        error: None,
     })
 }
 
