@@ -69,4 +69,26 @@ describe('WidgetAiScript の handler エラー (#1294)', () => {
       { timeout: 1000, interval: 10 },
     )
   })
+
+  it('handler のエラーが続いても出力の行数は上限で止まる', async () => {
+    // interpreter を止めなくなった分、失敗し続ける interval がエラー行を
+    // 積み続ける。上限を超えた分は古い行から捨てる (#987 の不変条件)
+    wrapper = mount(WidgetAiScript, {
+      props: {
+        widget: makeWidget('Async:interval(1, @() { Core:add(1, "a") })'),
+        columnId: 'col-1',
+        accountId: null,
+      },
+    })
+    const count = () => {
+      const text = wrapper?.find('[class*="outputSummary"]').text() ?? ''
+      return Number(text.match(/\d+/)?.[0] ?? 0)
+    }
+    await vi.waitFor(() => expect(count()).toBeGreaterThanOrEqual(200), {
+      timeout: 5000,
+      interval: 20,
+    })
+    await new Promise((r) => setTimeout(r, 100))
+    expect(count()).toBe(200)
+  })
 })

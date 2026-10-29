@@ -87,6 +87,15 @@ const storagePrefix = computed(() =>
 const code = computed(() => props.widget.content ?? '')
 const uiComponents = ref<UiComponent[]>([])
 const output = ref<{ text: string; isError: boolean }[]>([])
+// interpreter を 1 回のエラーで止めない (#1294) ので、失敗し続ける Async:interval
+// がエラー行を積み続ける。上限を超えた分は古い行から捨てる (#987 の不変条件)
+const MAX_OUTPUT_LINES = 200
+function pushOutput(line: { text: string; isError: boolean }) {
+  output.value.push(line)
+  if (output.value.length > MAX_OUTPUT_LINES) {
+    output.value.splice(0, output.value.length - MAX_OUTPUT_LINES)
+  }
+}
 const outputOpen = ref(false)
 const error = ref<string | null>(null)
 const running = ref(false)
@@ -210,12 +219,12 @@ async function run() {
     },
     io: {
       onOutput: (text) => {
-        output.value.push({ text, isError: false })
+        pushOutput({ text, isError: false })
         runLog.print(text)
       },
       onError: (err) => {
         error.value = err.message
-        output.value.push({ text: err.message, isError: true })
+        pushOutput({ text: err.message, isError: true })
         runLog.error(err.message)
       },
     },
