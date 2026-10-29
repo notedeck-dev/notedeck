@@ -138,7 +138,10 @@ export function createNoteDeckEnv(
 
   // --- Nd:http ---
   // 外部 HTTP API (CORS なし) を叩く。Rust 側で SSRF 防御 / size limit /
-  // timeout を通す。
+  // timeout を通す。通信断 (DNS 失敗 / 接続拒否 / タイムアウト) は Rust 側が
+  // `status: 0` + `error` の値で返す (#1294) — AiScript には try/catch が
+  // 無いので throw ではウィジェットが「通信できません」を描けない。throw が
+  // 残るのは権限拒否 / 確認のキャンセル / 要求の形の誤りだけ
   //
   // #712 §5.5 / #711: plugin 文脈では `http.fetch` capability (= dispatcher)
   // への薄い alias — plugin プロファイルの `network.external` gate + 確認
@@ -166,6 +169,7 @@ export function createNoteDeckEnv(
         status: response.status,
         headers: response.headers,
         body: response.body,
+        ...(response.error != null ? { error: response.error } : {}),
       })
     }
     const params: Record<string, unknown> = { url: urlVal.value }
@@ -187,11 +191,13 @@ export function createNoteDeckEnv(
       status: number
       headers: Record<string, string>
       body: string
+      error?: string
     }
     return utils.jsToVal({
       status: response.status,
       headers: response.headers,
       body: response.body,
+      ...(response.error != null ? { error: response.error } : {}),
     })
   })
 

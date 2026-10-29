@@ -59,8 +59,9 @@ export interface AiScriptSandboxOptions {
   ui?: UiCallbacks
   io: AiScriptIOCallbacks
   /**
-   * 既定 true。長寿命の interpreter 1 つに handler を登録する構造 (プラグイン) は
-   * false — handler が 1 回エラーを出しただけで interpreter を止めない
+   * 既定 true。長寿命の interpreter 1 つに handler を登録する構造 (プラグイン /
+   * ウィジェット) は false — handler が 1 回エラーを出しただけで interpreter を
+   * 止めない (#1294)
    */
   abortOnError?: boolean
   /** 0.19 interpreter で動かす (Play の旧スクリプト専用) */

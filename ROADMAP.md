@@ -714,7 +714,9 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
     `localhost:19820` / `.local` / `.internal` / `.localhost` を deny)、
     timeout 1〜120s、response 10MB 上限。実体は `http.fetch` capability で、
     `Nd:call('http.fetch', ...)` でも呼べる。`requiresConfirmation: true` で
-    呼び出し都度に URL を確認させる
+    呼び出し都度に URL を確認させる。通信断 (名前解決の失敗 / 接続拒否 /
+    タイムアウト) は throw ではなく `status: 0` + `error` の値 (#1294、AiScript
+    に try/catch が無いため。`vault.fetch` も同形)
   - カラム操作は `Nd:call('column.list')` / `Nd:call('column.add', ...)` /
     `Nd:call('column.remove', ...)` 経由 (旧 `Nd:columns` / `Nd:addColumn` /
     `Nd:removeColumn` は β段階のため後方互換は残さず capability に統合)

@@ -398,6 +398,55 @@ describe('Nd:call', () => {
     ).rejects.toThrow(/permission_denied/)
   })
 
+  it('Nd:http は通信断を throw せず status 0 + error の値で返す (#1294)', async () => {
+    // DNS 失敗 / 接続拒否 / タイムアウトは Rust 側が status 0 の応答にする。
+    // AiScript に try/catch は無いので、ここで throw するとウィジェットは
+    // 「通信できません」を描けない。値の形は HTTP エラー (4xx / 5xx) と揃える
+    registerCapability(
+      makeCapability({
+        id: 'http.fetch',
+        permissions: ['network.external'],
+        execute: () => ({
+          status: 0,
+          headers: {},
+          body: '',
+          error: 'request failed: dns error',
+        }),
+      }),
+    )
+    const stores = makeFakeStores()
+    const env = createNoteDeckEnv(stores.ctx)
+    const result = await callNative(env, 'Nd:http', [
+      values.STR('https://api.example.com'),
+    ])
+    expect(utils.valToJs(result)).toEqual({
+      status: 0,
+      headers: {},
+      body: '',
+      error: 'request failed: dns error',
+    })
+  })
+
+  it('Nd:http は成功時の応答に error を混ぜない', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'http.fetch',
+        permissions: ['network.external'],
+        execute: () => ({ status: 200, headers: {}, body: 'ok' }),
+      }),
+    )
+    const stores = makeFakeStores()
+    const env = createNoteDeckEnv(stores.ctx)
+    const result = await callNative(env, 'Nd:http', [
+      values.STR('https://api.example.com'),
+    ])
+    expect(utils.valToJs(result)).toEqual({
+      status: 200,
+      headers: {},
+      body: 'ok',
+    })
+  })
+
   it('chat プロファイルを緩めても plugin は緩まない (#712 PR 1c 分離)', async () => {
     registerCapability(
       makeCapability({

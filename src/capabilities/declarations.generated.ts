@@ -1524,7 +1524,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "core",
     description: "外部 HTTP/HTTPS API にリクエストを送信する。Misskey 以外の API (翻訳・天気・RSS など) との連携に使う。loopback / private / link-local アドレスへの接続は SSRF 防御のため拒否される。",
     params: {"url":{"type":"string","description":"リクエスト先 URL (http または https のみ)"},"method":{"type":"string","description":"HTTP メソッド (default: GET)","optional":true,"enum":["GET","POST","PUT","DELETE","PATCH","HEAD","OPTIONS"]},"headers":{"type":"object","description":"リクエストヘッダ ({ key: string, value: string })","optional":true},"body":{"type":"string","description":"リクエストボディ (文字列)","optional":true},"timeoutMs":{"type":"number","description":"タイムアウト ms (1000〜120000, default 30000)","optional":true}},
-    returns: {"type":"object","description":"{ status: number, headers: object, body: string }"},
+    returns: {"type":"object","description":"{ status: number, headers: object, body: string, error?: string }。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト) は失敗ではなく status 0 で返り、理由が error に入る"},
   },
   "keybinds.list": {
     id: "keybinds.list",
@@ -3966,7 +3966,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     exec: "device",
     description: "登録済みの外部サービス接続を使って HTTP リクエストを送る。 secret (API キー等) は NoteDeck が Rust 側で注入するため、 connectionRef で接続を指定するだけでよい。利用可能な接続は system prompt の <available-connections> に列挙される。",
     params: {"connectionRef":{"type":"string","description":"接続の名前 (<available-connections> に出ているもの)。"},"path":{"type":"string","description":"接続の baseUrl からの相対パス (例: /user/repos)"},"method":{"type":"string","description":"HTTP メソッド (default: GET)","optional":true,"enum":["GET","POST","PUT","DELETE","PATCH","HEAD","OPTIONS"]},"headers":{"type":"object","description":"リクエストヘッダ。Authorization / Cookie 等は無視される (secret は自動注入)。","optional":true},"body":{"type":"string","description":"リクエストボディ (文字列)","optional":true},"timeoutMs":{"type":"number","description":"タイムアウト ms (1000〜120000, default 30000)","optional":true}},
-    returns: {"type":"object","description":"{ status, headers, body, redactedCount, bytesTotal, truncated }"},
+    returns: {"type":"object","description":"{ status, headers, body, redactedCount, bytesTotal, truncated, error? }。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト) は失敗ではなく status 0 で返り、理由が error に入る"},
   },
   "widgets.create": {
     id: "widgets.create",

@@ -394,6 +394,13 @@ pub async fn test_connection(
     };
 
     match fetch::vault_fetch(app_dir, id, request).await {
+        // 通信断は status 0 + error で返る (#1294)。疎通テストでは「届かなかった」
+        // として status 無し + 理由にする
+        Ok(resp) if resp.status == 0 => Ok(VaultTestResult {
+            status: None,
+            ok: false,
+            error: resp.error,
+        }),
         Ok(resp) => Ok(VaultTestResult {
             status: Some(resp.status),
             ok: (200..400).contains(&resp.status),

@@ -87,6 +87,15 @@ const storagePrefix = computed(() =>
 const code = computed(() => props.widget.content ?? '')
 const uiComponents = ref<UiComponent[]>([])
 const output = ref<{ text: string; isError: boolean }[]>([])
+// interpreter を 1 回のエラーで止めない (#1294) ので、失敗し続ける Async:interval
+// がエラー行を積み続ける。上限を超えた分は古い行から捨てる (#987 の不変条件)
+const MAX_OUTPUT_LINES = 200
+function pushOutput(line: { text: string; isError: boolean }) {
+  output.value.push(line)
+  if (output.value.length > MAX_OUTPUT_LINES) {
+    output.value.splice(0, output.value.length - MAX_OUTPUT_LINES)
+  }
+}
 const outputOpen = ref(false)
 const error = ref<string | null>(null)
 const running = ref(false)
@@ -210,15 +219,21 @@ async function run() {
     },
     io: {
       onOutput: (text) => {
-        output.value.push({ text, isError: false })
+        pushOutput({ text, isError: false })
         runLog.print(text)
       },
       onError: (err) => {
         error.value = err.message
-        output.value.push({ text: err.message, isError: true })
+        pushOutput({ text: err.message, isError: true })
         runLog.error(err.message)
       },
     },
+    // ウィジェットもプラグインと同じく長寿命の interpreter 1 つに Async:interval /
+    // Ui の handler を登録する構造。共通値の abortOnError: true だと Nd:http の
+    // 通信断など handler の 1 回の throw (AiScript には try/catch が無い) で
+    // interpreter ごと止まり、以後の tick も「更新」ボタンも死ぬ (#1294)。
+    // エラーは従来どおり onError でログと表示に出す
+    abortOnError: false,
   })
   currentSandbox = sandbox
   interpreter.value = sandbox.interpreter

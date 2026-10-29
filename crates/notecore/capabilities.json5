@@ -1648,7 +1648,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ status: number, headers: object, body: string }',
+        description: '{ status: number, headers: object, body: string, error?: string }。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト) は失敗ではなく status 0 で返り、理由が error に入る',
       },
     },
     'commands.list': {
@@ -4592,7 +4592,7 @@
       },
       returns: {
         type: 'object',
-        description: '{ status, headers, body, redactedCount, bytesTotal, truncated }',
+        description: '{ status, headers, body, redactedCount, bytesTotal, truncated, error? }。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト) は失敗ではなく status 0 で返り、理由が error に入る',
       },
     },
     'widgets.create': {
