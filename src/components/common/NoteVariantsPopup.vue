@@ -68,6 +68,12 @@ const rows = computed(() =>
 const MARGIN = 8
 
 function open(anchor: MouseEvent | HTMLElement) {
+  // バッジの再押下は閉じるだけ。位置を書き直すと退場アニメの間に
+  // 仮置きの座標へ飛んでから消える
+  if (show.value) {
+    close()
+    return
+  }
   const el =
     anchor instanceof HTMLElement
       ? anchor
@@ -85,8 +91,7 @@ function open(anchor: MouseEvent | HTMLElement) {
     x: rect.right - Math.min(240, maxWidth.value),
     y: rect.bottom + 4,
   }
-  show.value = !show.value
-  if (!show.value) return
+  show.value = true
   nextTick(() => requestAnimationFrame(() => place(rect, bounds)))
 }
 

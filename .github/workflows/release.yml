@@ -162,6 +162,10 @@ jobs:
           cd "$WORK_DIR"
           chmod +x "$APPIMAGE"
           "$APPIMAGE" --appimage-extract
+          # appimagetool (continuous, 2026-10-29〜) は AppDir に全ユーザーが読めない
+          # パス (0700 のディレクトリ等) があると AppImage を作らない。抽出直後に
+          # 揃えておく (AppImage は作った本人以外も実行するので、本来そうあるべき)
+          chmod -R a+rX squashfs-root
           echo "::endgroup::"
 
           # linuxdeploy excludes mesa/EGL libs by default (they should come from host).
