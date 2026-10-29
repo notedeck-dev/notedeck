@@ -219,6 +219,12 @@ async function run() {
         runLog.error(err.message)
       },
     },
+    // ウィジェットもプラグインと同じく長寿命の interpreter 1 つに Async:interval /
+    // Ui の handler を登録する構造。共通値の abortOnError: true だと Nd:http の
+    // 通信断など handler の 1 回の throw (AiScript には try/catch が無い) で
+    // interpreter ごと止まり、以後の tick も「更新」ボタンも死ぬ (#1294)。
+    // エラーは従来どおり onError でログと表示に出す
+    abortOnError: false,
   })
   currentSandbox = sandbox
   interpreter.value = sandbox.interpreter
