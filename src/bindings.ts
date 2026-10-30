@@ -1931,17 +1931,6 @@ async openDevtools() : Promise<void> {
     await TAURI_INVOKE("open_devtools");
 },
 /**
- * Windows の Action Center からの cold start (#754): 起動引数の
- * notedeck-notification:// URL から復元した通知クリックの遷移コンテキストを
- * 1 回だけ返す。フロントはデッキ初期化時に呼び、あればノート/ユーザーへ
- * 遷移する。Windows 以外では常に None。
- *
- * @see src-tauri/src/commands/utility.rs
- */
-async notificationTakePendingClick() : Promise<NotificationClicked | null> {
-    return await TAURI_INVOKE("notification_take_pending_click");
-},
-/**
  * 見えている通知カラムの口座を写す (#330 §3.3)。フロントがカラムの可視 (viewport 内 +
  * フォーカス) の変化ごとに和集合を送る。含まれる口座の通知は OS 通知にしない
  *
@@ -3067,12 +3056,14 @@ async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string;
 
 
 export const events = __makeEvents__<{
+addressedDeepLink: AddressedDeepLink,
 exportProgress: ExportProgressEvent,
 ndAiHeartbeatEvent: HeartbeatEventWire,
 ndSettingsFileChanged: SettingsFileChangedEvent,
 noteCaptureBatch: NoteCaptureBatchEvent,
-notificationClicked: NotificationClicked,
+notificationClickAddressed: NotificationClickAddressed,
 queryDelta: QueryDeltaEvent,
+queryRequest: QueryRequest,
 streamChatMessageReacted: StreamChatMessageReacted,
 streamChatMessageUnreacted: StreamChatMessageUnreacted,
 streamEmojiChanged: StreamEmojiChanged,
@@ -3081,14 +3072,17 @@ streamNewChatMessage: StreamNewChatMessage,
 streamStatus: StreamStatus,
 streamUnread: StreamUnread,
 systemState: SystemState,
+trayToggle: TrayToggle,
 windowRolesChanged: WindowRolesChanged
 }>({
+addressedDeepLink: "addressed-deep-link",
 exportProgress: "export-progress",
 ndAiHeartbeatEvent: "nd:ai-heartbeat-event",
 ndSettingsFileChanged: "nd:settings-file-changed",
 noteCaptureBatch: "note-capture-batch",
-notificationClicked: "notification-clicked",
+notificationClickAddressed: "notification-click-addressed",
 queryDelta: "query-delta",
+queryRequest: "query-request",
 streamChatMessageReacted: "stream-chat-message-reacted",
 streamChatMessageUnreacted: "stream-chat-message-unreacted",
 streamEmojiChanged: "stream-emoji-changed",
@@ -3097,6 +3091,7 @@ streamNewChatMessage: "stream-new-chat-message",
 streamStatus: "stream-status",
 streamUnread: "stream-unread",
 systemState: "system-state",
+trayToggle: "tray-toggle",
 windowRolesChanged: "window-roles-changed"
 })
 
@@ -3114,6 +3109,10 @@ export type AccountPublic = { id: string; host: string; userId: string; username
  * `charts/active-users`
  */
 export type ActiveUsersChart = { readWrite: number[]; read: number[]; write: number[]; registeredWithinWeek: number[]; registeredWithinMonth: number[]; registeredWithinYear: number[]; registeredOutsideWeek: number[]; registeredOutsideMonth: number[]; registeredOutsideYear: number[] }
+/**
+ * `notedeck://` の deep link。宛先は見ている窓
+ */
+export type AddressedDeepLink = { to: string; url: string }
 export type AiChatMessage = { role: AiChatRole; content: string; 
 /**
  * AI が呼び出した tool の id (Anthropic `toolu_...` / OpenAI `call_...`)。
@@ -3926,9 +3925,14 @@ logDir: string | null }
  */
 export type NotificationChatRoomInvitation = { id: string; room: ChatRoom }
 /**
+ * OS 通知のクリック。宛先は見ている窓
+ */
+export type NotificationClickAddressed = { to: string; click: NotificationClicked }
+/**
  * OS 通知クリック時にフロントへ渡す遷移コンテキスト。
  * noteId があればノート詳細、なければ userId でユーザー詳細を開く。
  * どちらもない (要約通知・システム通知) 場合はウィンドウのフォーカスのみ。
+ * 配送は宛先付きの `NotificationClickAddressed` (見ている窓 1 つへ、#1131)
  */
 export type NotificationClicked = { accountId: string; noteId: string | null; userId: string | null }
 /**
@@ -4315,6 +4319,11 @@ export type QueryReadModelSnapshot = { queryId: string; revision: number;
  * Rust 側に持たない (二重化回避)。
  */
 itemIds: string[] }
+/**
+ * HTTP API / notemaid からの WebView への問い合わせ。宛先は問いの名前で決まる
+ * (窓ごとに値が違う問いと確認を出し得る問いは見ている窓、他は代表窓)
+ */
+export type QueryRequest = { to: string; id: string; queryType: string; params: JsonValue }
 export type QueryRuntimeState = "live" | "warm" | "suspended"
 export type QuerySnapshot = { queryId: string; key: QueryKey; runtimeState: QueryRuntimeState; subscriberCount: number; revision: number; sourceSubscriptionId: string | null }
 export type ReactionEmoji = { name: string; url: string } | string
@@ -4550,6 +4559,14 @@ export type TrayMenuState = { showLabel: string; offlineLabel: string; offline: 
  * 常駐の切り替えが今できるか (HEARTBEAT 有効 + 別プロセスの notemaid + この OS で可能)
  */
 residentEnabled: boolean; quitLabel: string }
+/**
+ * トレイの切替。宛先は代表窓 (切替の実行はプロセスに 1 回)
+ */
+export type TrayToggle = { to: string; which: TrayToggleKind }
+/**
+ * トレイのメニューで切り替えるもの
+ */
+export type TrayToggleKind = "offline" | "realtime" | "heartbeat" | "aiResident"
 /**
  * 「確認なしで使う」のプラグイン個体単位の記憶。
  * 

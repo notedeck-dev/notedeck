@@ -1,5 +1,6 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { computed, watch } from 'vue'
+import { events } from '@/bindings'
 import { useAiConfig } from '@/composables/useAiConfig'
 import { i18n } from '@/i18n'
 import { trayMenuState } from '@/services/trayMenu'
@@ -7,7 +8,7 @@ import { useClientLayerStore } from '@/stores/clientLayer'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useToast } from '@/stores/toast'
-import { listenTauri } from '@/utils/tauriEvents'
+import { listenAddressed } from '@/utils/addressedEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /**
@@ -71,7 +72,9 @@ export function useTrayMenu() {
     })
   }
 
-  void listenTauri('nd:toggle-heartbeat', () => {
+  // トレイの切替は代表窓 1 つに届く (#1131)
+  void listenAddressed(events.trayToggle, ({ which }) => {
+    if (which !== 'heartbeat') return
     // ai.json5 を読み終える前に押されたら、既定値で上書きしないよう無視する
     if (!initialized.value) {
       resync()
@@ -82,7 +85,8 @@ export function useTrayMenu() {
     save()
   })
 
-  void listenTauri('nd:toggle-ai-resident', async () => {
+  void listenAddressed(events.trayToggle, async ({ which }) => {
+    if (which !== 'aiResident') return
     if (!state.value.residentEnabled) {
       resync()
       return

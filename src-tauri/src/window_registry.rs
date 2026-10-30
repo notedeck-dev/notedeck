@@ -173,8 +173,6 @@ impl WindowRegistry {
 
     /// 前に出す窓: 見ている窓が可視ならそれ、不可視なら最も古い可視のデッキ窓、
     /// どれも無ければ代表窓 (呼び元が show する)
-    // #1131 の後続 (宛先付きイベント / 親子と上限) で使う。使った段で外す
-    #[allow(dead_code)]
     pub fn front_target(&self, is_visible: impl Fn(&str) -> bool) -> Option<String> {
         if let Some(v) = self.viewing() {
             if is_visible(&v) {
@@ -191,6 +189,34 @@ impl WindowRegistry {
             .first()
             .map(|e| e.label.clone())
             .or_else(|| self.representative())
+    }
+
+    /// 外部からの問い合わせの答え手。窓ごとに値が違う問いと、確認ダイアログを
+    /// 出し得る問い (隠れた窓に出すと利用者に見えずタイムアウトする) は見ている窓、
+    /// それ以外の窓を問わない問いは代表窓
+    pub fn query_target(&self, query_type: &str) -> Option<String> {
+        const VIEWING_PREFIXES: [&str; 8] = [
+            "deck/",
+            "health/",
+            "startup/",
+            "perf/",
+            "logs/",
+            "inspector/",
+            "querybridge/",
+            "commands/",
+        ];
+        const VIEWING_EXACT: [&str; 3] = [
+            "acp/confirm",
+            "ai/execute-capability",
+            "capabilities/execute",
+        ];
+        let to_viewing = VIEWING_PREFIXES.iter().any(|p| query_type.starts_with(p))
+            || VIEWING_EXACT.contains(&query_type);
+        if to_viewing {
+            self.viewing()
+        } else {
+            self.representative()
+        }
     }
 
     /// デッキ窓が 1 つも無いか
@@ -289,6 +315,32 @@ mod tests {
         // 見ていた窓が消えたら代表窓へ
         let roles = r.remove("deck-a").unwrap();
         assert_eq!(roles.viewing.as_deref(), Some("main"));
+    }
+
+    #[test]
+    fn queries_about_a_window_or_needing_confirmation_go_to_the_viewing_window() {
+        let mut r = WindowRegistry::default();
+        r.announce("main", WindowKind::Main);
+        r.announce("deck-a", WindowKind::Mirror);
+        r.focused("deck-a");
+        for q in [
+            "deck/active",
+            "health/streams",
+            "acp/confirm",
+            "capabilities/execute",
+        ] {
+            assert_eq!(r.query_target(q).as_deref(), Some("deck-a"), "{q}");
+        }
+        for q in [
+            "capabilities/list",
+            "permissions/resolved",
+            "ai/confirm-preview",
+        ] {
+            assert_eq!(r.query_target(q).as_deref(), Some("main"), "{q}");
+        }
+        r.remove("main");
+        r.remove("deck-a");
+        assert!(r.query_target("deck/active").is_none());
     }
 
     #[test]

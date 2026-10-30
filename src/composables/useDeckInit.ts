@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import { onMounted, onUnmounted, watch } from 'vue'
-import { commands, events } from '@/bindings'
+import { events } from '@/bindings'
 import { loadCliCommands } from '@/commands/cliParser'
 import {
   registerDefaultCommands,
@@ -28,11 +28,11 @@ import { usePostFormStore } from '@/stores/postForm'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useTasksStore } from '@/stores/tasks'
 import { useUiStore } from '@/stores/ui'
+import { listenAddressed } from '@/utils/addressedEvents'
 import {
   initDesktopNotifications,
   onNotificationAction,
 } from '@/utils/desktopNotification'
-import { isMainDeckWindow } from '@/utils/settingsFs'
 import { logStartupSummary, markStartup } from '@/utils/startupTrace'
 
 export function useDeckInit(options: {
@@ -128,22 +128,19 @@ export function useDeckInit(options: {
         options.navbarRef.value?.toggleFirstAccountMenu(),
     })
 
-    // プロセスに 1 つでよい仕事は main の窓だけが持つ (暫定ガード、#1297)。
-    // 以前はデッキ画面を描く全窓 (ミラー / ポップアウト) で走り、外部からの問い合わせ
-    // への応答や通知クリックの遷移が窓の数だけ実行されていた。役の置き場は #1131
-    // (代表窓) で決め直す
-    const isMain = isMainDeckWindow()
+    // 外部からの問い合わせ / 通知クリック / deep link / トレイの切替は宛先付きで届く
+    // (#1131)。Rust が見ている窓か代表窓の 1 つに振り分けるので、どの窓も購読する
+    // だけでよく、窓の種別で分岐しない
 
     // Defer non-critical initialization to after first paint
     requestAnimationFrame(() => {
       osGlobalShortcuts.init()
-      if (isMain) initApiBridge()
+      initApiBridge()
       initDesktopNotifications()
       initOgpListener()
       loadCliCommands()
       startTaskCommandSync()
       void useTasksStore().init()
-      if (!isMain) return
       // OS 通知クリックの遷移先解決 (#754)。noteId 優先、なければ userId。
       // どちらもない (要約通知・システム通知) 場合はフォーカスのみで何もしない。
       const navigateFromNotification = (ctx: {
@@ -159,22 +156,13 @@ export function useDeckInit(options: {
       }
       // JS 経路 (sendDesktopNotification + Android onAction)
       onNotificationAction(navigateFromNotification)
-      // Rust 経路 (Linux/Windows の user-notify クリック)
-      events.notificationClicked
-        .listen((e) => navigateFromNotification(e.payload))
+      // Rust 経路 (Linux/Windows の user-notify クリック、Windows の toast)。見ている窓
+      // 1 つに届く。冷えた起動で購読前に届いた分は Rust が預かり、名乗りの時点で流す
+      listenAddressed(events.notificationClickAddressed, ({ click }) =>
+        navigateFromNotification(click),
+      )
         .then((fn) => {
           unlistenNotificationClick = fn
-        })
-        .catch(() => {
-          // Non-Tauri environment (vitest / ブラウザ)
-        })
-      // Windows cold start (#754): アプリ終了後の Action Center クリックは
-      // protocol 起動になり、リスナー登録前に Rust 側へ届いている。
-      // pending を取り出して遷移する (Windows 以外は常に null)
-      commands
-        .notificationTakePendingClick()
-        .then((ctx) => {
-          if (ctx) navigateFromNotification(ctx)
         })
         .catch(() => {
           // Non-Tauri environment (vitest / ブラウザ)
@@ -210,30 +198,26 @@ export function useDeckInit(options: {
 
     // Deep link (notedeck://)。モバイルでも登録する — Android の
     // NotificationWorker 通知クリックがこの経路で通知カラムを開く (#754)。
-    // 受け手は main だけ (暫定ガード、#1297)
-    if (isMain) {
-      import('@/utils/tauriEvents').then(({ listenTauri }) => {
-        listenTauri('nd:deep-link', (url) => {
-          handleDeepLink(url)
-        }).then((fn) => {
-          unlistenDeepLink = fn
-        })
+    // 見ている窓 1 つに届く (#1131)
+    listenAddressed(events.addressedDeepLink, ({ url }) => {
+      handleDeepLink(url)
+    })
+      .then((fn) => {
+        unlistenDeepLink = fn
       })
-    }
+      .catch(() => {
+        // Non-Tauri environment (vitest / ブラウザ)
+      })
 
     if (uiStore.isDesktop) {
-      // トレイからの切替。受け手は main だけ (暫定ガード、#1297)。以前は全窓が
-      // 受けて反転が窓の数だけ走っていた
-      if (isMain) {
-        import('@/utils/tauriEvents').then(({ listenTauri }) => {
-          listenTauri('nd:toggle-offline-mode', () => {
-            useOfflineModeStore().toggle()
-          })
-          listenTauri('nd:toggle-realtime-mode', () => {
-            useRealtimeModeStore().toggle()
-          })
-        })
-      }
+      // トレイからの切替。代表窓 1 つに届く (#1131)。以前は全窓が受けて反転が
+      // 窓の数だけ走っていた。HEARTBEAT / 常駐の切替は useTrayMenu が受ける
+      void listenAddressed(events.trayToggle, ({ which }) => {
+        if (which === 'offline') useOfflineModeStore().toggle()
+        else if (which === 'realtime') useRealtimeModeStore().toggle()
+      }).catch(() => {
+        // Non-Tauri environment (vitest / ブラウザ)
+      })
 
       // Cross-window event listeners (all windows listen for IPC events)
       listenDeckWindowEvents().then((fn) => {

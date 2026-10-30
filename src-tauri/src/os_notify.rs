@@ -12,19 +12,12 @@
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use tauri_specta::Event;
 
 /// Windows toast の protocol 起動 (#754) に使う専用 URI スキーム。
 /// notedeck:// と分けるのは、通知クリック URL (user-notify の encode 形式:
 /// `<scheme>://<notification_id>/__default__?<base64 user_info>`) が
 /// 通常の deep-link (notedeck://<host>/...) と構文が違うため。
 pub const NOTIFICATION_PROTOCOL: &str = "notedeck-notification";
-
-/// Windows の Action Center からの cold start (#754) で、フロントの
-/// リスナー登録前に届いた通知クリックを保持する。フロントがデッキ初期化時に
-/// `notification_take_pending_click` で取り出す (take で 1 回きり)。
-#[derive(Default)]
-pub struct PendingNotificationClick(pub std::sync::Mutex<Option<NotificationClicked>>);
 
 /// 見えている通知カラムの口座 (フロントが `set_visible_notification_scopes` で写す)。
 /// ここに含まれる口座の通知は OS 通知にしない (#330 §3.3: 見ている最中はアプリ内の
@@ -74,7 +67,8 @@ impl VisibleNotificationScopes {
 /// OS 通知クリック時にフロントへ渡す遷移コンテキスト。
 /// noteId があればノート詳細、なければ userId でユーザー詳細を開く。
 /// どちらもない (要約通知・システム通知) 場合はウィンドウのフォーカスのみ。
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type, Event)]
+/// 配送は宛先付きの `NotificationClickAddressed` (見ている窓 1 つへ、#1131)
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationClicked {
     pub account_id: String,
@@ -99,7 +93,6 @@ mod desktop {
     use std::sync::{Arc, OnceLock};
 
     use tauri::Manager;
-    use tauri_specta::Event;
     use user_notify::{NotificationManager, NotificationResponseAction};
 
     use super::NotificationClicked;
@@ -125,21 +118,17 @@ mod desktop {
                 if !matches!(response.action, NotificationResponseAction::Default) {
                     return;
                 }
-                if let Some(w) = handle.get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.unminimize();
-                    let _ = w.set_focus();
-                }
+                // 前に出すのは利用者が見ている窓 (#1131)
+                let roles = handle.state::<crate::commands::WindowRoleState>();
+                roles.bring_to_front(&handle);
                 let info = &response.user_info;
                 if let Some(account_id) = info.get("accountId") {
-                    let event = NotificationClicked {
+                    let ctx = NotificationClicked {
                         account_id: account_id.clone(),
                         note_id: info.get("noteId").cloned(),
                         user_id: info.get("userId").cloned(),
                     };
-                    if let Err(e) = event.emit(&handle) {
-                        tracing::warn!("[notification] click emit failed: {e}");
-                    }
+                    roles.deliver_notification_click(&handle, ctx);
                 }
             }),
             vec![],
