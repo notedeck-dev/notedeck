@@ -1951,6 +1951,33 @@ async setVisibleNotificationScopes(accountIds: string[]) : Promise<void> {
     await TAURI_INVOKE("set_visible_notification_scopes", { accountIds });
 },
 /**
+ * 窓が名乗る。同じ窓からの再呼び出しは冪等 (リロードしても順位は変わらない)。
+ * 種別は URL から Rust が決める
+ *
+ * @see src-tauri/src/commands/window_role.rs
+ */
+async deckWindowAnnounce() : Promise<Result<WindowRolesView, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("deck_window_announce") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 現在の役を問う (名乗らない)
+ *
+ * @see src-tauri/src/commands/window_role.rs
+ */
+async windowRolesCurrent() : Promise<Result<WindowRolesView, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("window_roles_current") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * 通知の権限を求める (Android 13 以上。他では no-op)。起動時ではなく、最初の口座を
  * 追加した直後に説明つきで呼ぶ (#330 §4.5)
  *
@@ -3053,7 +3080,8 @@ streamEnvelope: StreamEnvelope,
 streamNewChatMessage: StreamNewChatMessage,
 streamStatus: StreamStatus,
 streamUnread: StreamUnread,
-systemState: SystemState
+systemState: SystemState,
+windowRolesChanged: WindowRolesChanged
 }>({
 exportProgress: "export-progress",
 ndAiHeartbeatEvent: "nd:ai-heartbeat-event",
@@ -3068,7 +3096,8 @@ streamEnvelope: "stream-envelope",
 streamNewChatMessage: "stream-new-chat-message",
 streamStatus: "stream-status",
 streamUnread: "stream-unread",
-systemState: "system-state"
+systemState: "system-state",
+windowRolesChanged: "window-roles-changed"
 })
 
 /** user-defined constants **/
@@ -4752,6 +4781,34 @@ missing: string[] }
  * 読んだ内容と、その版 (次の条件付き書込に添える)
  */
 export type VersionedText = { content: string; version: string }
+/**
+ * 窓の種別。ラベルの接頭辞ではミラーとポップアウトを区別できないので、URL で決める
+ */
+export type WindowKind = 
+/**
+ * 起動時に Tauri が作る窓 (label `main`)
+ */
+"main" | 
+/**
+ * 利用者が開いた 2 枚目以降のデッキ窓 (`/?profile=`)
+ */
+"mirror" | 
+/**
+ * カラム群を切り出した子窓 (`/?profile=&window=`)
+ */
+"popout" | 
+/**
+ * カラム 1 本かウィンドウ内容 1 つの子窓 (`/pip`)
+ */
+"pip"
+/**
+ * 役が変わった。全窓へ流す (宛先付きではない)。受けた窓は自分の label と比べる
+ */
+export type WindowRolesChanged = { representative: string | null; viewing: string | null }
+/**
+ * 名乗りの返事。自分の label と、現在の役
+ */
+export type WindowRolesView = { label: string; kind: WindowKind; representative: string | null; viewing: string | null }
 /**
  * 1 ファイルの写し (UI 表示用)
  */

@@ -45,6 +45,7 @@ mod streaming;
 mod system_state;
 mod ui_lang;
 mod win_chrome;
+mod window_registry;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -263,6 +264,14 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         app.manage(os_notify::PendingNotificationClick::default());
         // 見えている通知カラムの口座 (#330 §3.3)。ストリーミングの emitter が抑止に読む
         app.manage(os_notify::VisibleNotificationScopes::process().clone());
+        // 窓の名簿と役 (代表窓 / 見ている窓、#1131)。起動時の窓は Tauri が作るので
+        // ここで名乗らせる。他の窓は自分で deck_window_announce を呼ぶ
+        app.manage(commands::WindowRoleState::default());
+        app.state::<commands::WindowRoleState>().announce(
+            &app.handle().clone(),
+            "main",
+            window_registry::WindowKind::Main,
+        );
 
         // ══════════════════════════════════════════════════════════
         // Phase 1: Lightweight init (< 50ms) — window shows immediately after this
@@ -975,6 +984,21 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // 窓の名簿 (#1131): フォーカスで「見ている窓」を、破棄で名簿を更新する。
+    // 役が変われば WindowRolesChanged が全窓へ流れる
+    builder = builder.on_window_event(|window, event| {
+        use tauri::Manager;
+        let app = window.app_handle();
+        let Some(roles) = app.try_state::<commands::WindowRoleState>() else {
+            return;
+        };
+        match event {
+            tauri::WindowEvent::Focused(true) => roles.on_focused(app, window.label()),
+            tauri::WindowEvent::Destroyed => roles.on_destroyed(app, window.label()),
+            _ => {}
+        }
+    });
+
     let app = builder.build(tauri::generate_context!())?;
     app.run(|app, event| {
         if let tauri::RunEvent::ExitRequested { .. } = event {
@@ -1240,6 +1264,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::open_devtools,
             commands::notification_take_pending_click,
             commands::set_visible_notification_scopes,
+            commands::deck_window_announce,
+            commands::window_roles_current,
             commands::request_notification_permission,
             commands::notification_permission_granted,
             commands::open_os_notification_settings,
@@ -1373,6 +1399,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::SettingsFileChangedEvent,
             commands::HeartbeatEventWire,
             system_state::SystemState,
+            commands::WindowRolesChanged,
         ])
 }
 

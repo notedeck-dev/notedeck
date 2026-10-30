@@ -18,6 +18,7 @@ import { useOsUnreadBadge } from '@/composables/useOsUnreadBadge'
 import { useOsWindowTitle } from '@/composables/useOsWindowTitle'
 import { usePushAttention } from '@/composables/usePushAttention'
 import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
+import { announceWindow } from '@/composables/useRepresentative'
 import { startSettingsFileSync } from '@/composables/useSettingsFileSync'
 import { useTheme } from '@/composables/useTheme'
 import { useTrayMenu } from '@/composables/useTrayMenu'
@@ -107,6 +108,10 @@ if (isTauri) {
   const { init: initKeyboard } = useKeyboard()
   initKeyboard()
 }
+
+// 窓の名簿に名乗る (#1131)。代表窓 / 見ている窓はこの返事と変更通知で決まる。
+// PiP も名乗る (種別は Rust が URL から決め、PiP は役の候補にならない)
+void announceWindow()
 
 // コード面の明暗 (#1053) — 設定 + アプリのテーマから実効値を決めて root に
 // 出す。PiP ウィンドウも自分の document を持つので両方で mount する。

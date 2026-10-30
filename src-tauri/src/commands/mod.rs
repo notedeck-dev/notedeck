@@ -14,6 +14,7 @@ mod table;
 mod timeline;
 mod tray;
 mod utility;
+mod window_role;
 
 // Re-export all commands so lib.rs `commands::xxx` paths remain unchanged
 pub use ai_chat::*;
@@ -31,6 +32,7 @@ pub use table::*;
 pub use timeline::*;
 pub use tray::*;
 pub use utility::*;
+pub use window_role::*;
 
 use notecli::db::Database;
 
