@@ -115,11 +115,16 @@ impl WindowRoleState {
         let Some(label) = target else {
             return;
         };
+        // show / unminimize / set_focus はデスクトップの WebviewWindow にしか無い
+        // (モバイルは窓が 1 つで、OS が前面化する)
+        #[cfg(desktop)]
         if let Some(w) = app.get_webview_window(&label) {
             let _ = w.show();
             let _ = w.unminimize();
             let _ = w.set_focus();
         }
+        #[cfg(not(desktop))]
+        let _ = label;
     }
 
     /// deep link を見ている窓へ。デッキ窓が無ければ預ける
