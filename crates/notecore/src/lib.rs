@@ -30,6 +30,7 @@ pub mod credentials;
 pub mod edit_history;
 pub mod emoji_cache_store;
 pub mod error;
+pub mod eviction_preset;
 pub mod export_service;
 pub mod frontend_bridge;
 pub mod http_server;

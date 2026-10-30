@@ -8,7 +8,6 @@ import App from './App.vue'
 import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
 import { router, setupFirstRunTutorial } from './router'
-import { resolveEvictionConfig } from './services/cacheEvictionConfig'
 import { allowsNativeContextMenu } from './services/nativeContextMenu'
 import { initEarlyAccountListener, useAccountsStore } from './stores/accounts'
 import { wireAdapterFactory } from './stores/adapterFactoryDeps'
@@ -24,7 +23,7 @@ import { printSelfXssWarning } from './utils/selfXssWarning'
 import { isTauri } from './utils/settingsFs'
 import { logStartupSummary, markStartup } from './utils/startupTrace'
 import { listenTauri } from './utils/tauriEvents'
-import { commands, unwrap } from './utils/tauriInvoke'
+import { commands } from './utils/tauriInvoke'
 import '@tabler/icons-webfont/dist/tabler-icons.min.css'
 import './styles/global.css'
 
@@ -184,17 +183,6 @@ if (isTauri) {
       .catch((e) => console.warn('[media-proxy] token unavailable:', e)),
   ])
   markStartup('settings-loaded')
-
-  // ユーザー設定の eviction policy を Rust 側に反映 (fire-and-forget)。
-  // Database::open はデフォルト (balanced) で既に開かれているので、 設定が
-  // balanced 以外のときだけ追加 cleanup が走る。 失敗してもアプリ起動は続行。
-  void commands
-    .applyEvictionConfig(resolveEvictionConfig(settingsStore.settings))
-    .then((r) => unwrap(r))
-    .catch((e) => {
-      if (import.meta.env.DEV)
-        console.debug('[cache-eviction] apply on startup failed:', e)
-    })
 
   // Apply cached theme before mount to prevent FOUC
   useThemeStore().init()

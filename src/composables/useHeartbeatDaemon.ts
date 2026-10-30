@@ -5,7 +5,6 @@
  * 報告先への書込 / 失敗の数え方) は notecore (`crates/notecore/src/heartbeat.rs`)。
  * ここに残るのは
  *
- * - 設定 (enabled / intervalMinutes) を Rust の timer に伝える
  * - notecore の出来事 (`nd:ai-heartbeat-event`) をデバイスに反映する:
  *   報告先セッションの写しの読み直し、アプリの通知 (受信トレイに残し、押せば
  *   該当の AI セッション / AI 設定の HEARTBEAT を開く, #1165)、OS 通知、ペットの活動表示
@@ -26,7 +25,6 @@ import {
 import { useAiActivity } from '@/stores/aiActivity'
 import { useAiSessionsStore } from '@/stores/aiSessions'
 import { useDeckStore } from '@/stores/deck'
-import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useToast } from '@/stores/toast'
 import { useWindowsStore } from '@/stores/windows'
 import { sendDesktopNotification } from '@/utils/desktopNotification'
@@ -149,43 +147,8 @@ export function useHeartbeatDaemon() {
       { immediate: true },
     )
   }
-
-  async function configureScheduler(intervalMinutes: number): Promise<void> {
-    if (!isTauri) return
-    try {
-      unwrap(await commands.heartbeatConfigure(intervalMinutes))
-    } catch (e) {
-      console.warn('[heartbeat] configure failed:', e)
-    }
-  }
-
-  async function unconfigureScheduler(): Promise<void> {
-    if (!isTauri) return
-    try {
-      unwrap(await commands.heartbeatUnconfigure())
-    } catch (e) {
-      console.warn('[heartbeat] unconfigure failed:', e)
-    }
-  }
-
-  // 設定 → Rust の timer (変更のたびに replace。冪等)。オフラインモード中は
-  // 止める (#461): 届かない AI 呼び出しが連続失敗として数えられ、自動停止に
-  // 至るのを防ぐ。解除で再び構成する
-  const offlineMode = useOfflineModeStore()
-  watch(
-    () => ({
-      enabled: config.value.heartbeat.enabled && !offlineMode.isOfflineMode,
-      interval: config.value.heartbeat.intervalMinutes,
-    }),
-    async (next) => {
-      if (next.enabled) {
-        await configureScheduler(next.interval)
-      } else {
-        await unconfigureScheduler()
-      }
-    },
-    { immediate: true, deep: true },
-  )
+  // timer の構成は Rust が ai.json5 と settings.json5 (オフライン) から自分で組む
+  // (#1131、`src-tauri/src/commands/heartbeat.rs`)。端末は出来事の反映だけ
 
   // notecore の出来事 → デバイスの反映
   ;(async () => {
@@ -255,6 +218,5 @@ export function useHeartbeatDaemon() {
   onScopeDispose(() => {
     if (unlisten) unlisten()
     endRunning?.()
-    void unconfigureScheduler()
   })
 }

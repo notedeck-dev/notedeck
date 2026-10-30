@@ -79,6 +79,14 @@ pub struct TauriSettingsSink(pub tauri::AppHandle);
 impl notecore::settings_events::SettingsSink for TauriSettingsSink {
     fn settings_changed(&self, change: notecore::settings_events::SettingsChange) {
         use tauri_specta::Event;
+        // in-process の HEARTBEAT timer は ai.json5 / settings.json5 (オフライン) の
+        // 変更で組み直す (#1131)。timer は spawn するので runtime 上で
+        if heartbeat::affects_heartbeat_timer(&change) {
+            let app = self.0.clone();
+            tauri::async_runtime::spawn(async move {
+                heartbeat::sync_heartbeat_timer(&app);
+            });
+        }
         let _ = SettingsFileChangedEvent(change).emit(&self.0);
     }
 }

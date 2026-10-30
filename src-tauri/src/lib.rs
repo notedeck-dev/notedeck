@@ -505,9 +505,9 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
 
-        // HEARTBEAT scheduler (#411): per-AI-column tokio interval task。
-        // フロントの useHeartbeatScheduler から configure / trigger される。
-        app.manage(std::sync::Arc::new(commands::HeartbeatScheduler::new()));
+        // HEARTBEAT の timer (#411 / #1131): in-process 構成では notemaid の HeartbeatTimer
+        // をこのプロセスが持つ。組むのは Phase 2 (設定が読める) 以降
+        app.manage(commands::HeartbeatTimerState::default());
 
         // Initialize event bus (SSE broadcasting)
         let event_bus = std::sync::Arc::new(notecli::event_bus::EventBus::new());
@@ -690,8 +690,18 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // 開いてから閉じる
             {
                 let core: commands::AppState = app_state.inner().clone();
+                let heartbeat_app = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
                     notecore::stream_mode::apply(&core, true).await;
+                    // 掃き出し設定もコアが自分で読んで適用する (#1131)。以前は全窓が
+                    // 起動のたびに送っていた
+                    if let Err(e) =
+                        notecore::commands::admin::apply_eviction_from_settings(&core).await
+                    {
+                        tracing::warn!("[cache-eviction] apply on startup failed: {e}");
+                    }
+                    // HEARTBEAT の timer を ai.json5 から組む (#1131)
+                    commands::sync_heartbeat_timer(&heartbeat_app);
                     if let Err(e) = notecore::commands::streaming::stream_subscribe_main_all(&core).await {
                         tracing::warn!("[stream] main for all accounts at boot: {e}");
                     }
@@ -1008,8 +1018,8 @@ fn begin_shutdown(app: &tauri::AppHandle) {
     if let Some(s) = app.try_state::<std::sync::Arc<notecore::shutdown::Shutdown>>() {
         s.trigger();
     }
-    if let Some(h) = app.try_state::<std::sync::Arc<commands::HeartbeatScheduler>>() {
-        h.unregister();
+    if let Some(t) = app.try_state::<commands::HeartbeatTimerState>() {
+        t.stop();
     }
     notemaid::ai_chat_service::abort_all_streams();
     notemaid::ai_turn::abort_all_turns();
@@ -1042,6 +1052,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::clear_account_cache,
             commands::clear_all_cache,
             commands::apply_eviction_config,
+            commands::apply_eviction_from_settings,
             commands::default_eviction_config,
             commands::chat_cache_stats,
             commands::chat_cache_count,
@@ -1324,11 +1335,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // HTTP fetch (http.fetch capability / Nd:http)
             commands::http_fetch,
             // HEARTBEAT (#411 Phase 6) — per-column scheduler
-            commands::heartbeat_configure,
-            commands::heartbeat_unconfigure,
             commands::heartbeat_trigger_now,
             commands::heartbeat_notices_since,
-            commands::heartbeat_status,
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,
             client_layer::client_layer_state,

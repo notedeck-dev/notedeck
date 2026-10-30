@@ -1,9 +1,13 @@
 /**
- * eviction preset の選択肢 (設定画面用)。preset → `EvictionConfig` の解決は
- * services/cacheEvictionConfig。
+ * eviction preset の選択肢 (設定画面用)。preset → 掃き出し設定の解決は notecore
+ * (`crates/notecore/src/eviction_preset.rs`) が settings.json5 を読んで行う (#1131)。
  */
 import { i18n } from '@/i18n'
-import type { EvictionPreset } from '@/services/cacheEvictionConfig'
+import type { NotedeckSettings } from '@/settings/schema'
+
+export type EvictionPreset = NonNullable<
+  NotedeckSettings['cache.evictionPreset']
+>
 
 export const PRESET_OPTIONS: ReadonlyArray<{
   value: EvictionPreset

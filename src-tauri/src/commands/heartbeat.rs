@@ -1,149 +1,58 @@
-//! HEARTBEAT (#411) — AI が定期的に自律起動するための global scheduler。
+//! HEARTBEAT (#411) の timer (in-process 構成)。
 //!
-//! Tauri アプリ起動中、グローバルに 1 つだけ走る tokio::time::interval task を
-//! spawn し、tick が来るたびにフロントへ `nd:ai-heartbeat-tick` event を emit する。
+//! 役はプロセスが持つ (#1131): timer は窓ではなく Rust が組む。実体は notemaid の
+//! `HeartbeatTimer` (常駐バイナリと同じもの。ai.json5 を自分で読み、刻み方は
+//! `heartbeat_schedule`)。設定ファイルの変更通知で組み直し、オフラインモード中は
+//! 止める (#461: 届かない AI 呼び出しが連続失敗として数えられ、自動停止に至るのを防ぐ)。
+//! 常駐構成 (sidecar / サービス) では notemaid 自身が timer を持つので、ここは何もしない。
 //!
-//! - JS 側 (App-level) で `heartbeat_configure(interval_minutes)` を呼ぶ
-//! - 設定が変わったら `heartbeat_configure` を再呼び出し (= replace)
-//! - 無効化は `heartbeat_unconfigure()`
-//! - Manual trigger は `heartbeat_trigger_now()`
-//!
-//! AI カラムの有無 / 何個開いているかには依存しない (= OpenClaw HEARTBEAT
-//! と同じ daemon モデル)。tick の本体 (skill 取得 / cheap check / AI 呼び出し /
-//! 報告) は notecore の `heartbeat::run_once` (#1133 縦切り 5)。ここは timer と、
-//! notecore の出来事を WebView へ流す口だけ。
+//! 以前は端末 (useHeartbeatDaemon) が窓ごとに `heartbeat_configure` を送っていて、
+//! デッキ画面を描く窓の数だけ timer が組み直されていた。
+//! tick の本体 (skill 取得 / cheap check / AI 呼び出し / 報告) は notemaid の `heartbeat`。
+//! Manual trigger は `heartbeat_trigger_now` (表の行)。
 
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::sync::Arc;
 
-use tauri::{async_runtime::JoinHandle, Manager, State};
+use tauri::Manager;
 
-use notecli::error::NoteDeckError;
+pub use notemaid::heartbeat_timer::HeartbeatTimer;
 
-use super::Result;
+/// managed state (Arc で health レポートと終了処理からも読む)
+pub type HeartbeatTimerState = Arc<HeartbeatTimer>;
 
-/// 上限/下限。`useAiConfig.ts` の HEARTBEAT_INTERVAL_*_MINUTES と揃える。
-const MIN_INTERVAL_MINUTES: u32 = 1;
-const MAX_INTERVAL_MINUTES: u32 = 24 * 60;
-
-struct ScheduledTask {
-    interval_minutes: u32,
-    handle: JoinHandle<()>,
-}
-
-#[derive(Default)]
-pub struct HeartbeatScheduler {
-    inner: Mutex<Option<ScheduledTask>>,
-}
-
-impl HeartbeatScheduler {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// 既に登録済みでも (interval 変更時に) replace できるよう、いったん
-    /// abort してから新規 spawn する。
-    fn replace(&self, interval_minutes: u32, app: tauri::AppHandle) {
-        let mut slot = match self.inner.lock() {
-            Ok(g) => g,
-            Err(e) => {
-                tracing::error!("[heartbeat] scheduler mutex poisoned: {e}");
-                return;
-            }
-        };
-
-        if let Some(prev) = slot.take() {
-            prev.handle.abort();
-        }
-
-        let app_for_task = app.clone();
-        // 刻み方 (実時計の期限 / スリープからの復帰で 1 回) は notemaid と同じ規則
-        let handle = tauri::async_runtime::spawn(async move {
-            let dur = Duration::from_secs(u64::from(interval_minutes) * 60);
-            notemaid::heartbeat_schedule::run(dur, |due| {
-                let app = app_for_task.clone();
-                async move {
-                    let core = app.state::<crate::commands::AppState>();
-                    notemaid::heartbeat::run_due(&core, due).await;
-                }
-            })
-            .await;
-        });
-
-        *slot = Some(ScheduledTask {
-            interval_minutes,
-            handle,
-        });
-    }
-
-    /// scheduler を止める。unconfigure と終了処理 (#1098) の両方から呼ばれる。
-    pub(crate) fn unregister(&self) {
-        let mut slot = match self.inner.lock() {
-            Ok(g) => g,
-            Err(e) => {
-                tracing::error!("[heartbeat] scheduler mutex poisoned: {e}");
-                return;
-            }
-        };
-        if let Some(prev) = slot.take() {
-            prev.handle.abort();
-        }
-    }
-
-    pub(crate) fn current_interval(&self) -> Option<u32> {
-        self.inner
-            .lock()
-            .ok()
-            .and_then(|slot| slot.as_ref().map(|t| t.interval_minutes))
-    }
-}
-
-fn clamp_interval(minutes: u32) -> Result<u32> {
-    if !(MIN_INTERVAL_MINUTES..=MAX_INTERVAL_MINUTES).contains(&minutes) {
-        return Err(NoteDeckError::InvalidInput(format!(
-            "interval_minutes out of range ({MIN_INTERVAL_MINUTES}-{MAX_INTERVAL_MINUTES}): {minutes}"
-        )));
-    }
-    Ok(minutes)
-}
-
-// HEARTBEAT の timer は手元側 (アプリの寿命に紐づく)。本体は notecore。
-/// global heartbeat を登録 / 更新する。既存があれば interval を
-/// 上書きする。同じ interval が既に動いていたとしても abort + 再 spawn
-/// するので、JS 側の reactive watch から idempotent に呼んで OK。
-// nd-command: local
-#[tauri::command]
-#[specta::specta]
-pub async fn heartbeat_configure(
-    app: tauri::AppHandle,
-    scheduler: State<'_, Arc<HeartbeatScheduler>>,
-    interval_minutes: u32,
-) -> Result<()> {
-    let interval = clamp_interval(interval_minutes)?;
+/// ai.json5 と settings.json5 の今の断面で timer を組み直す。起動時と、どちらかの
+/// ファイルが変わったときに呼ぶ。tokio の runtime 上で呼ぶこと (timer は spawn する)
+pub fn sync_heartbeat_timer(app: &tauri::AppHandle) {
     if crate::client_layer::relay().is_some() {
         // 常駐構成では notemaid が timer を持つ (ai.json5 から組む)
-        tracing::info!("[heartbeat] resident backend: timer is owned by notemaid");
-        return Ok(());
+        return;
     }
-    scheduler.replace(interval, app);
-    Ok(())
+    let Some(timer) = app.try_state::<HeartbeatTimerState>() else {
+        return;
+    };
+    let Some(core) = app.try_state::<super::AppState>() else {
+        return;
+    };
+    let core: super::AppState = core.inner().clone();
+    if offline_enabled(&core) {
+        timer.stop();
+        tracing::info!("[heartbeat] offline mode: timer stopped");
+        return;
+    }
+    timer.reconfigure(core);
 }
 
-/// global heartbeat を停止する。未登録なら no-op。
-// nd-command: local
-#[tauri::command]
-#[specta::specta]
-pub async fn heartbeat_unconfigure(scheduler: State<'_, Arc<HeartbeatScheduler>>) -> Result<()> {
-    scheduler.unregister();
-    Ok(())
+fn offline_enabled(core: &notecore::context::Core) -> bool {
+    let Ok(base) = notecore::commands::settings::settings_base_dir(core) else {
+        return false;
+    };
+    let text = notecore::settings_store::read_settings_json(&base).unwrap_or_default();
+    notecore::stream_mode::offline_enabled(&text)
 }
 
-/// 現在 scheduler に登録されているかどうかを返す (デバッグ / UI ヘルパ)。
-// nd-command: local
-#[tauri::command]
-#[specta::specta]
-pub async fn heartbeat_status(
-    scheduler: State<'_, Arc<HeartbeatScheduler>>,
-) -> Result<Option<u32>> {
-    Ok(scheduler.current_interval())
+/// 設定ファイルの変更が timer に関わるものか (ai.json5 と settings.json5 のどちらか)
+pub fn affects_heartbeat_timer(change: &notecore::settings_events::SettingsChange) -> bool {
+    change.subdir.is_none()
+        && (change.name == notemaid::ai_config::FILE_NAME
+            || change.name == notecore::stream_mode::SETTINGS_FILE)
 }

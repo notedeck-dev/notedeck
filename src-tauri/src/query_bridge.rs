@@ -124,8 +124,7 @@ impl FrontendBridge for TauriBridge {
         Box::pin(async move {
             let app = &self.0;
             let app_state = app.state::<crate::commands::AppState>();
-            let scheduler = app.state::<Arc<crate::commands::HeartbeatScheduler>>();
-            let report = crate::commands::build_health_report(app, &app_state, &scheduler)
+            let report = crate::commands::build_health_report(app, &app_state)
                 .await
                 .map_err(|e| e.to_string())?;
             serde_json::to_value(&report).map_err(|e| e.to_string())

@@ -117,6 +117,15 @@ async applyEvictionConfig(config: EvictionConfig) : Promise<Result<number, { cod
 }
 },
 /** @see crates/notecore/src/commands/admin.rs */
+async applyEvictionFromSettings() : Promise<Result<number, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("apply_eviction_from_settings") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/admin.rs */
 async defaultEvictionConfig() : Promise<Result<EvictionConfig, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("default_eviction_config") };
@@ -2643,34 +2652,6 @@ async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, {
     else return { status: "error", error: e  as any };
 }
 },
-/**
- * global heartbeat を登録 / 更新する。既存があれば interval を
- * 上書きする。同じ interval が既に動いていたとしても abort + 再 spawn
- * するので、JS 側の reactive watch から idempotent に呼んで OK。
- *
- * @see src-tauri/src/commands/heartbeat.rs
- */
-async heartbeatConfigure(intervalMinutes: number) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("heartbeat_configure", { intervalMinutes }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * global heartbeat を停止する。未登録なら no-op。
- *
- * @see src-tauri/src/commands/heartbeat.rs
- */
-async heartbeatUnconfigure() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("heartbeat_unconfigure") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 /** @see crates/notemaid/src/commands/heartbeat.rs */
 async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
@@ -2684,19 +2665,6 @@ async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: stri
 async heartbeatNoticesSince(since: number) : Promise<Result<HeartbeatNotice[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_notices_since", { since }) };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
-/**
- * 現在 scheduler に登録されているかどうかを返す (デバッグ / UI ヘルパ)。
- *
- * @see src-tauri/src/commands/heartbeat.rs
- */
-async heartbeatStatus() : Promise<Result<number | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("heartbeat_status") };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -3621,7 +3589,7 @@ doctor: Report;
  */
 backendReady: boolean; noteCacheCount: number; dbSizeBytes: number; 
 /**
- * HEARTBEAT scheduler の現在 interval (分)。未登録なら null。
+ * in-process の HEARTBEAT timer の現在 interval (分)。止まっているか常駐構成なら null。
  */
 heartbeatIntervalMinutes: number | null; 
 /**
