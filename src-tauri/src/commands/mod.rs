@@ -13,6 +13,7 @@ mod system_state;
 mod table;
 mod timeline;
 mod tray;
+mod updater;
 mod utility;
 mod window_role;
 
@@ -31,6 +32,7 @@ pub use system_state::*;
 pub use table::*;
 pub use timeline::*;
 pub use tray::*;
+pub use updater::*;
 pub use utility::*;
 pub use window_role::*;
 

@@ -508,6 +508,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // HEARTBEAT の timer (#411 / #1131): in-process 構成では notemaid の HeartbeatTimer
         // をこのプロセスが持つ。組むのは Phase 2 (設定が読める) 以降
         app.manage(commands::HeartbeatTimerState::default());
+        // 更新の状態 (#1131): 確認・ダウンロードは Rust が 1 回、窓は写しを描く
+        app.manage(commands::UpdaterState::default());
 
         // Initialize event bus (SSE broadcasting)
         let event_bus = std::sync::Arc::new(notecli::event_bus::EventBus::new());
@@ -702,6 +704,12 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     // HEARTBEAT の timer を ai.json5 から組む (#1131)
                     commands::sync_heartbeat_timer(&heartbeat_app);
+                    // 更新確認は起動の山を越えてから 1 回 (#1131)。以前は窓ごとに確認していた
+                    let updater_app = heartbeat_app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(8)).await;
+                        commands::check(&updater_app, false).await;
+                    });
                     if let Err(e) = notecore::commands::streaming::stream_subscribe_main_all(&core).await {
                         tracing::warn!("[stream] main for all accounts at boot: {e}");
                     }
@@ -1266,6 +1274,10 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::set_visible_notification_scopes,
             commands::deck_window_announce,
             commands::window_roles_current,
+            commands::update_state_get,
+            commands::update_check,
+            commands::update_install,
+            commands::update_restart,
             commands::request_notification_permission,
             commands::notification_permission_granted,
             commands::open_os_notification_settings,
@@ -1400,6 +1412,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::NotificationClickAddressed,
             commands::TrayToggle,
             commands::QueryRequest,
+            commands::UpdateState,
         ])
 }
 

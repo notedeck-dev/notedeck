@@ -1976,6 +1976,58 @@ async windowRolesCurrent() : Promise<Result<WindowRolesView, { code: string; mes
 }
 },
 /**
+ * 今の状態 (後から開いた窓が最初に読む)
+ *
+ * @see src-tauri/src/commands/updater.rs
+ */
+async updateStateGet() : Promise<Result<UpdateState, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_state_get") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 更新を確認する (About の「確認」は force)
+ *
+ * @see src-tauri/src/commands/updater.rs
+ */
+async updateCheck(force: boolean) : Promise<Result<UpdateState, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_check", { force }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 見つかっている更新をダウンロードして差し替える
+ *
+ * @see src-tauri/src/commands/updater.rs
+ */
+async updateInstall() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_install") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 差し替え後の再起動 (利用者がボタンを押したとき)
+ *
+ * @see src-tauri/src/commands/updater.rs
+ */
+async updateRestart() : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("update_restart") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * 通知の権限を求める (Android 13 以上。他では no-op)。起動時ではなく、最初の口座を
  * 追加した直後に説明つきで呼ぶ (#330 §4.5)
  *
@@ -3041,6 +3093,7 @@ streamStatus: StreamStatus,
 streamUnread: StreamUnread,
 systemState: SystemState,
 trayToggle: TrayToggle,
+updateState: UpdateState,
 windowRolesChanged: WindowRolesChanged
 }>({
 addressedDeepLink: "addressed-deep-link",
@@ -3060,6 +3113,7 @@ streamStatus: "stream-status",
 streamUnread: "stream-unread",
 systemState: "system-state",
 trayToggle: "tray-toggle",
+updateState: "update-state",
 windowRolesChanged: "window-roles-changed"
 })
 
@@ -4562,6 +4616,27 @@ export type UnreadOp =
  * サーバー側で既読になった (0 に戻す)
  */
 "clear"
+export type UpdatePhase = "idle" | "checking" | "upToDate" | "available" | "installing" | 
+/**
+ * 差し替えが済み、再起動を待っている (Windows は installer が起動してここに来ない)
+ */
+"ready" | "failed"
+/**
+ * 更新の状態。変わるたびに全窓へ流す
+ */
+export type UpdateState = { phase: UpdatePhase; 
+/**
+ * 見つかった新しい版
+ */
+version: string | null; 
+/**
+ * ダウンロードの進捗 (0-100)。全長が分からないときは None
+ */
+progress: number | null; 
+/**
+ * 失敗の内容 (表示の文言は端末が i18n で組む)
+ */
+error: string | null }
 export type Usage = { chars: number; limit: number }
 export type UserField = { name: string; value: string }
 /**

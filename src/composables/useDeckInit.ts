@@ -47,7 +47,6 @@ export function useDeckInit(options: {
     toggleFirstAccountMenu(): void
     handleResize(): void
   } | null>
-  checkForUpdate: () => void
 }) {
   const deckStore = useDeckStore()
   const pluginsStore = usePluginsStore()
@@ -85,8 +84,6 @@ export function useDeckInit(options: {
       void reattachQueryDeltaListener()
     },
   )
-
-  let updateCheckHandle: { cancel: () => void } | undefined
 
   onMounted(() => {
     uiStore.deckMounted = true
@@ -155,18 +152,6 @@ export function useDeckInit(options: {
         })
     })
 
-    // Update check: アイドル時に確認（旧: 固定 5000ms 遅延）。
-    // 起動直後のネットワーク負荷を避けつつ、idle で即実行されるので結果確認が速い。
-    if (window.requestIdleCallback) {
-      const id = window.requestIdleCallback(options.checkForUpdate, {
-        timeout: 3000,
-      })
-      updateCheckHandle = { cancel: () => window.cancelIdleCallback(id) }
-    } else {
-      const id = setTimeout(options.checkForUpdate, 2000)
-      updateCheckHandle = { cancel: () => clearTimeout(id) }
-    }
-
     // Plugins — defer to idle since AiScript is not on the critical startup path.
     // requestIdleCallback 未実装環境でも体感遅延が出ないよう 50ms に短縮（旧: 500ms）
     const idle =
@@ -231,7 +216,6 @@ export function useDeckInit(options: {
     document.removeEventListener('visibilitychange', onVisibilityChange)
     window.removeEventListener('pagehide', onPageHide)
     unlistenDeepLink?.()
-    updateCheckHandle?.cancel()
     unlistenWindowEvents?.()
     unlistenNotificationClick?.()
   })
