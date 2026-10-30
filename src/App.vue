@@ -28,6 +28,7 @@ import { useLogsStore } from '@/stores/logs'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { exitSafeMode, readSafeMode } from '@/utils/safeMode'
+import { isMainDeckWindow } from '@/utils/settingsFs'
 import { markStartup } from '@/utils/startupTrace'
 import { listenPipEvents } from '@/windows/pip'
 
@@ -121,8 +122,10 @@ startSettingsFileSync()
 // HEARTBEAT (#411) — App-level singleton daemon。AI カラムの有無に関係なく
 // アプリ起動中ずっと走る。manual trigger は AI 設定画面から
 // commands.heartbeatTriggerNow() を直接叩く (provide/inject 経由しない)。
-// PiP ウィンドウでは mount しない (= main window だけが daemon を持つ)。
-if (!isPipWindow.value) {
+// main の窓だけが持つ (暫定ガード、#1297)。以前は PiP 以外の全窓で mount され、
+// timer の構成と報告の toast / OS 通知が窓の数だけ走っていた。役の置き場は
+// #1131 (代表窓) で決め直す
+if (isMainDeckWindow()) {
   useHeartbeatDaemon()
 }
 
@@ -223,8 +226,9 @@ onMounted(async () => {
   useRenoteMuteSync()
 
   if (isTauri) {
-    // Set up PiP event listener in main window
-    if (!isPipWindow.value) {
+    // PiP の「デッキに戻す」の受け手は main だけ (暫定ガード、#1297)。以前は
+    // PiP 以外の全窓が受けて、窓の数だけ addColumn していた。親の窓に届ける形は #1131
+    if (isMainDeckWindow()) {
       const { useDeckStore } = await import('@/stores/deck')
       const deckStore = useDeckStore()
       cleanupPipListener = await listenPipEvents({
