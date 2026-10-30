@@ -5,6 +5,7 @@ import { useSettingsStore } from '@/stores/settings'
 import { useStreamingStore } from '@/stores/streaming'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useUiStore } from '@/stores/ui'
+import { useRepresentative } from '@/windows/roles'
 
 /**
  * アプリ全体のオフラインモード。
@@ -59,7 +60,10 @@ export const useOfflineModeStore = defineStore('offlineMode', () => {
       // タスクも止めるため、再適用しないと復帰時の connect で実動作が
       // realtime に化ける。realtimeMode store を経由しないのは、そちらが
       // こちらの isOfflineMode を見る (向きを一方向に保つ、#1098)
-      useStreamingStore().applyPersistedMode(useAccountsStore().accounts)
+      // 輸送路への適用はプロセスに 1 回でよいので代表窓だけが送る (#1131)
+      if (useRepresentative().isRepresentative.value) {
+        useStreamingStore().applyPersistedMode(useAccountsStore().accounts)
+      }
       // 再接続と catch-up は復帰信号に乗せる
       useUiStore().emitDeckResume()
     },
