@@ -1804,7 +1804,7 @@ _deckColumn:
   unstack: "分割を解除"
   popOut: "別ウィンドウで開く"
   openAsPip: "PiP ウィンドウとして開く"
-  recallToMain: "メインウィンドウに戻す"
+  recallToMain: "デッキに戻す"
   deleteTitle: "カラムを削除"
   deleteConfirm: "このカラムを削除しますか？"
   deleted: "カラムを削除しました"

@@ -3302,7 +3302,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "popOut": string
     /** PiP ウィンドウとして開く */
     readonly "openAsPip": string
-    /** メインウィンドウに戻す */
+    /** デッキに戻す */
     readonly "recallToMain": string
     /** カラムを削除 */
     readonly "deleteTitle": string
