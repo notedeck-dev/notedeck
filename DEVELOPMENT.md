@@ -1423,7 +1423,7 @@ AiScript / AI / プラグインが**任意の外部サービス** (GitHub / Line
 
 #### Tauri コマンド (`crates/notecore/src/commands/vault.rs`)
 
-コマンド: `vault_list_connections` / `vault_get_connection` / `vault_upsert_connection` / `vault_upsert_connection_with_secret` / `vault_set_secret` / `vault_get_secret_status` / `vault_delete_secret` / `vault_delete_connection` / `vault_set_exposed` / `vault_set_trusted` / `vault_set_trusted_plugin` / `vault_fetch` / `vault_test_connection` / `ai_migrate_provider_to_vault`。コマンド表の `(window = main)` 属性で main ウィンドウ限定にし、本体で `validate_slot` + `validate_connection_id`。secret は `secrecy::SecretString` で扱い、最小長 16 文字を強制。
+コマンド: `vault_list_connections` / `vault_get_connection` / `vault_upsert_connection` / `vault_upsert_connection_with_secret` / `vault_set_secret` / `vault_get_secret_status` / `vault_delete_secret` / `vault_delete_connection` / `vault_set_exposed` / `vault_set_trusted` / `vault_set_trusted_plugin` / `vault_fetch` / `vault_test_connection` / `ai_migrate_provider_to_vault`。コマンド表の `(window = app)` 属性で「Tauri の窓から呼ばれたこと」を要求し (JSON 経路からは呼べない。以前は `main` 限定で、ポップアウト / ミラー / PiP の AI カラムが接続を解決できなかった、#1297)、本体で `validate_slot` + `validate_connection_id`。secret は `secrecy::SecretString` で扱い、最小長 16 文字を強制。
 
 #### `vault.fetch` のセキュリティ
 
