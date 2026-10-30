@@ -2,6 +2,7 @@ import { createPinia } from 'pinia'
 import { createApp } from 'vue'
 import { initDeveloperMode } from '@/composables/useDeveloperMode'
 import { initLocale } from '@/composables/useLocale'
+import { announceWindow } from '@/composables/useRepresentative'
 import { i18n } from '@/i18n'
 import App from './App.vue'
 import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
@@ -161,6 +162,8 @@ if (isTauri) {
   markStartup('settings-await')
   await Promise.all([
     settingsStore.load(),
+    // 窓の名簿に名乗る (#1131)。代表窓かどうかを後続の移行・seed が読む
+    announceWindow(),
     // 表示言語の辞書 (#135)。以降の初期化が出す toast も辞書を引くので先に揃える
     localeReady,
     usePerformanceStore().init(),

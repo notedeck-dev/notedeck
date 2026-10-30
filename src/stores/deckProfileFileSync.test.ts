@@ -13,9 +13,20 @@ async function notifyOtherWindow(name: string, op: 'write' | 'delete') {
   await dispatchSettingsChange({ subdir: 'profiles', name, op })
 }
 
+vi.mock('@/windows/roles', () => ({
+  announceWindow: async () => undefined,
+  isRepresentativeNow: async () => true,
+  whenRepresentative: async () => undefined,
+  useRepresentative: () => ({
+    isRepresentative: { value: true },
+    isViewing: { value: true },
+    representative: { value: 'main' },
+    viewing: { value: 'main' },
+  }),
+}))
+
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
-  isMainDeckWindow: () => true,
   PROFILE_EXT: '.ndprofile.json5',
   listProfileDirFiles: async () => {
     if (listFails) throw new Error('list failed')

@@ -1,4 +1,3 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { computed, watch } from 'vue'
 import { events } from '@/bindings'
 import { useAiConfig } from '@/composables/useAiConfig'
@@ -17,11 +16,9 @@ import { commands, unwrap } from '@/utils/tauriInvoke'
  * 文言 (表示言語) とチェック状態 (オフライン / リアルタイム / HEARTBEAT / 常駐) の
  * 正本はフロントの store にあるので、変わるたびに Rust へ押し込む。トレイからの
  * 切り替えはイベントで届き、設定画面と同じ store を動かす (2 つ目の設定を作らない)。
- * トレイは OS 全体で 1 つなので main ウィンドウだけが持つ。
+ * トレイは OS 全体で 1 つなので代表窓だけが持つ (<RepresentativeDuties> が mount する、#1131)。
  */
 export function useTrayMenu() {
-  if (getCurrentWindow().label !== 'main') return
-
   const offline = useOfflineModeStore()
   const realtime = useRealtimeModeStore()
   const clientLayer = useClientLayerStore()

@@ -11,7 +11,8 @@
  *   該当の AI セッション / AI 設定の HEARTBEAT を開く, #1165)、OS 通知、ペットの活動表示
  * - アプリを閉じている間に届いた報告を、次に開いたときにアプリの通知へ 1 件にまとめて出す
  *
- * App.vue で 1 回だけ mount する (PiP では mount しない = main window だけ)。
+ * 代表窓だけが mount する (<RepresentativeDuties>、#1131)。以前は PiP 以外の全窓で
+ * mount され、timer の構成と報告の表示が窓の数だけ走っていた。
  */
 
 import type { UnlistenFn } from '@tauri-apps/api/event'

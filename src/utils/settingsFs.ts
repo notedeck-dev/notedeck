@@ -23,19 +23,6 @@ export function currentWindowLabel(): string | null {
   return internals?.metadata?.currentWindow?.label ?? null
 }
 
-/**
- * このウィンドウがメインウィンドウか (#913 マイグレーションの実行主体判定、
- * 設定ファイルの移行や配布物の書き戻しはメインだけが行う)。
- *
- * 判定は Tauri の window label (#1131)。以前は URL に `?profile=` / `?window=`
- * が無いことで判定していたが、PiP (`/pip?col=`) はどちらも持たないため
- * メインを自称し、移行や書き戻しがメインと競合していた。Tauri 外は常に true。
- */
-export function isMainDeckWindow(): boolean {
-  if (!isTauri) return true
-  return currentWindowLabel() === 'main'
-}
-
 /** Characters not allowed in filenames (Windows + Unix safety). */
 const INVALID_CHARS = /[<>:"/\\|?*]/g
 

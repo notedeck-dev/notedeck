@@ -6,6 +6,18 @@ const files = new Map<string, string>()
 /** true の間は一覧の取得が失敗する (読み込みごと失敗する状況の再現) */
 let listFails = false
 
+vi.mock('@/windows/roles', () => ({
+  announceWindow: async () => undefined,
+  isRepresentativeNow: async () => true,
+  whenRepresentative: async () => undefined,
+  useRepresentative: () => ({
+    isRepresentative: { value: true },
+    isViewing: { value: true },
+    representative: { value: 'main' },
+    viewing: { value: 'main' },
+  }),
+}))
+
 vi.mock('@/utils/settingsFs', async () => {
   const actual =
     await vi.importActual<typeof import('@/utils/settingsFs')>(
@@ -14,7 +26,6 @@ vi.mock('@/utils/settingsFs', async () => {
   return {
     ...actual,
     isTauri: true,
-    isMainDeckWindow: () => true,
     listThemeDirFiles: async () => {
       if (listFails) throw new Error('list failed')
       return Array.from(files.keys())

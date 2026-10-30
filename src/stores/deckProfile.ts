@@ -27,6 +27,7 @@ import {
   setStorageString,
 } from '@/utils/storage'
 import { notifyWarningToast } from '@/utils/toastNotify'
+import { isRepresentativeNow } from '@/windows/roles'
 
 const profileFiles = createProfileFiles(notifyWarningToast)
 
@@ -635,8 +636,8 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   }
 
   async function initFileStorage(): Promise<void> {
-    // マイグレーション (#913) はメインウィンドウのみが実行する。冪等
-    if (settingsFs.isMainDeckWindow() && !fileLoadFailed) {
+    // マイグレーション (#913) は代表窓だけが実行する (#1131)。冪等
+    if (!fileLoadFailed && (await isRepresentativeNow())) {
       // 規約外名の copy-adopt 正規化。凍結済み ID (= 旧完全ファイル名) は
       // 不変なので、activeProfileId / `?profile=` はファイル名が変わっても
       // 無追随で整合する

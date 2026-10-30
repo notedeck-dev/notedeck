@@ -7,9 +7,20 @@ import { parseDropInRecord } from '@/services/themeDropIn'
 const files = new Map<string, string>()
 let record = ''
 
+vi.mock('@/windows/roles', () => ({
+  announceWindow: async () => undefined,
+  isRepresentativeNow: async () => true,
+  whenRepresentative: async () => undefined,
+  useRepresentative: () => ({
+    isRepresentative: { value: true },
+    isViewing: { value: true },
+    representative: { value: 'main' },
+    viewing: { value: 'main' },
+  }),
+}))
+
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
-  isMainDeckWindow: () => true,
   THEME_EXT: '.ndtheme.json5',
   listThemeDirFiles: async () => Array.from(files.keys()),
   readTheme: async (f: string) => {

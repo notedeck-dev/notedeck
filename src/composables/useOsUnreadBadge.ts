@@ -1,4 +1,3 @@
-import { getCurrentWindow } from '@tauri-apps/api/window'
 import { computed, watch } from 'vue'
 import { useUnreadChat } from '@/composables/useUnreadChat'
 import { useUnreadNotifications } from '@/composables/useUnreadNotifications'
@@ -10,12 +9,9 @@ import { commands } from '@/utils/tauriInvoke'
  * 実表示は Rust 側 set_unread_badge が担当:
  * Dock/ランチャーのバッジ件数、Windows タスクバーのオーバーレイ、
  * トレイの tooltip とアイコンの未読ドット。
- * hide-to-tray 設計のため、メインウィンドウで 1 mount する。
+ * OS 全体で 1 つなので代表窓だけが更新する (<RepresentativeDuties> が mount する、#1131)。
  */
 export function useOsUnreadBadge() {
-  // バッジと通知トレイは OS 全体で 1 つなので main ウィンドウだけが更新する
-  if (getCurrentWindow().label !== 'main') return
-
   const { totalUnread: notificationUnread } = useUnreadNotifications()
   const { totalUnread: chatUnread } = useUnreadChat()
 
