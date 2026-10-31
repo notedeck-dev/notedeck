@@ -662,10 +662,10 @@ stateDiagram-v2
 - **ウィンドウ**: プロファイルの表示先。同じプロファイルを複数ウィンドウで開ける
 
 ```
-Profile A ──→ Main Window（windowId なしのカラムを表示）
-         └──→ Sub Window 1（windowId = "w1" のカラムを表示）
+Profile A ──→ デッキ窓（windowId なしのカラムを表示。起動時の窓 `main` とミラーは対等）
+         └──→ ポップアウト "w1"（windowId = "w1" のカラムを表示。デッキ窓の子）
 
-Profile B ──→ Main Window（プロファイル切り替え時）
+Profile B ──→ デッキ窓（プロファイル切り替え時）
 ```
 
 **設計原則:**
@@ -687,6 +687,26 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 | **詳細** | ウィンドウ | 特定アイテムの一時的な表示（ノート詳細、プロフィール、フォローリスト） | セッション限り |
 | **インスペクタ** | ウィンドウ | Raw JSON 表示・デバッグ（ノート/通知インスペクタ、settings.json5 エディタ） | セッション限り |
 | **ツール** | ウィンドウ | アプリ設定・管理（ログイン、エディタ群、プラグイン、about） | セッション限り |
+
+**OS の窓の種類と役（[#1131](https://github.com/notedeck-dev/notedeck/issues/1131)）:**
+
+役はプロセスが持ち、窓は持たない。プロセスに 1 つの仕事（トレイ / OS バッジ / 更新確認 / HEARTBEAT の構成 / 通知クリックと deep link の遷移 / 外部からの問い合わせへの応答 / 設定ファイルの移行 / プラグインの無人の副作用）は Rust が所有し、WebView が無いとできない仕事は Rust が選んだ**代表窓**に任せる。VS Code の「UI を持たない main プロセス + 対等なワークベンチ窓」と同じ形。label `main` に残る意味は「起動時に Tauri が作る窓」「window-state プラグインの保存対象」の 2 つだけ。代表窓は利用者向けの語ではないので UI 文言と GLOSSARY に出さない。
+
+| 窓 | label と URL | 親 | 永続化 | 生成数の上限 |
+|---|---|---|---|---|
+| **デッキ窓**（起動時の窓と、利用者が開くミラー。デッキ全体を描き、対等） | `main` / `deck-*` + `?profile=` | 無し | main は window-state プラグイン、ミラーは非永続 | ミラーだけ数える |
+| **ポップアウト**（カラム群を切り出した子。デッキの画面で描く） | `deck-*` + `?profile=&window=<id>`（id はプロファイルの `windows[].id`） | デッキ窓 | プロファイルの `windows[]` | 数える |
+| **PiP**（カラム 1 本かウィンドウ内容 1 つ） | `pip-*` + `/pip` | デッキ画面を描く窓か PiP | 非永続 | 数える |
+
+- **窓を作るのは Rust**（`sub_window_create`、`src-tauri/src/commands/sub_window.rs`）。URL と label は Rust が組む。ポップアウトの label はプロファイルの `windows[].id` と一致させる必要があるので JS が渡すが、Rust が形式を検証し `main` / `pip-*` は名乗れない。kind ごとの呼び元（ポップアウト / ミラーを頼めるのはデッキ窓だけ）も Rust が検査する。capability から窓生成の権限は外してあり、`new WebviewWindow` と `'/pip'` の比較と label `'main'` の比較の出現ゼロを lint（`tests/lint/windowRoles.test.ts`）で検査する。名簿（`window_registry.rs`）は Tauri 非依存の純 struct で、親子・上限・CloseRequested の印を持ち、効果を値で返す。窓のイベント（CloseRequested / Destroyed / Focused / Moved / Resized）は `window_events.rs` の dispatcher に集める
+- **代表窓**は参照時に計算する（`main` が居ればそれ、無ければ最も古いデッキ窓）。claim / grant のリースは不採用（リロードや WebProcess の再起動で役が死ぬ）。JS は `useRepresentative()` の `isRepresentative` で判定し、代表窓だけが持つ仕事（HEARTBEAT の表示 / OS バッジ / トレイ）は `<RepresentativeDuties>` が mount する。起動時の 1 回限りの仕事（ファイル移行 / seed）は `isRepresentativeNow()`
+- **見ている窓** = 最後にフォーカスされたデッキ窓。通知クリック / deep link / 単一インスタンス起動 / グローバルホットキーの前面化と、窓ごとに値が違う問い（`deck/active`）・確認ダイアログを出し得る問いの答え手。トレイの左クリックと「表示」だけは `main` の表示切替のまま（トレイは `main` を隠す操作の対）
+- **宛先付きイベント**: 1 窓だけが処理するもの（deep link / 通知クリック / トレイの切替 / 外部からの問い合わせ / 子窓からの知らせ）は `to` を持つ struct を全窓へ流し、受けた窓は `listenAddressed`（`src/utils/addressedEvents.ts`）で自分宛て以外を捨てる。`emit_to` は `Any` 購読が残ると漏れるので使わない。デッキ窓がまだ無い冷えた起動の遷移は Rust が預かり（`pending_inbox.rs`）、最初の名乗りで流す
+- **親子・回収・上限**: 子が閉じたら Rust が親（居なければ代表窓）宛てに `ChildClosed { reason }` を流す。reason は Rust が決める（その窓で CloseRequested を見れば `user`、見なければ `lost`。JS に「閉じる前に告げる」口は無い）。カラムの回収（`recallColumnsFromWindow`）は `user` だけで、`lost` は回収せず次回起動で開き直す。プロファイル切替の一括クローズは `sub_window_close` の `destroy()`（lost）、「すべてのウィンドウを閉じる」は `close()`（user）。上限は Rust の定数 `MAX_SUB_WINDOWS` で設定項目にしない。自動の経路（起動時 / プロファイル切替の復元）は拒んで受信トレイに残し、人の操作は開いた上で枚数を警告する（人の操作は止めない）。デッキ窓が 0 になれば残る子も終わり、アプリは終了する（トレイ無し環境で PiP だけ残す使い方は支えない）。子窓にも起動フューズがあり、mount に失敗して不可視のまま残った窓は Rust が show する
+- **クエリ購読の所有者**: `QueryRuntime` は購読を窓の label 別に数え、コマンド表の `(owner = window)` 属性で呼び元の label を本体に渡す。窓が消えたら Rust が `close_owner` でその窓の分だけ閉じる（JS の unmount と二重になっても組が無ければ無視）
+- **表示と復元の規則**: `windowLayout` はデッキ窓では「windowId 無し」か「その窓が開いておらず復元待ちでもない」カラムを描き、後者はヘッダーに「別ウィンドウのカラム」のボタン（押すと開き直す）とメニューの「このウィンドウに戻す」を出す。保存は触らない。名簿の写し `liveWindowIds` は Rust の `SubWindowsChanged` で届き、未取得の間は windowId 付きを描かない。起動時は代表窓が `windows[]` のうちカラムのある窓を自動で開き直す（VS Code の `window.restoreWindows` と同じ。この機能を含む版への更新後の初回だけは開かずバッジで出す）。`windows[]` に無い窓のカラムは起動時に回収する。プロファイル切替は呼んだ窓とその子だけが対象で、アクティブプロファイルの保存は全窓共有（ミラーで切り替えると次回起動のプロファイルも変わる）。プロファイルの同時編集（デッキ窓 ↔ ミラー / ポップアウト）は last-writer-wins で保証しない
+- **プラグイン**: `launchAllPlugins` はデッキ窓とポップアウトで走り、PiP では起こさない（ノート表示フックは PiP で効かない）。`Nd:on` の配送と、起動時の top-level から呼ばれた UI（`Mk:dialog` / `Mk:confirm` / `Mk:toast`）は代表窓だけ（`uiAllowed`）。UI 起点の hook の中は窓を問わない。PiP の中からの capability `windows.open` は Err
+- **採用しなかったもの**: ポップアウト専用画面（`/popout`。ROADMAP が謳うモニター 2 での操作を削る）/ 別の端末やサーバーの notemaid に繋ぐ構成 / ポップアウトの最大化保存（モバイルサイズ表示が用途）/ リースの状態機械 / プロファイルファイルの書き手 1 本化（別 issue）/ 「メインが消えたらサブウィンドウも落とす」規則（ミラーは子ではなく対等）
 
 **ウィンドウのジオメトリ永続化（[#874](https://github.com/notedeck-dev/notedeck/issues/874)）:**
 
