@@ -36,4 +36,15 @@ describe('窓の役は名簿で決める (#1131)', () => {
   it('isMainDeckWindow は無い (useRepresentative に置き換わった)', () => {
     expect(offenders(/isMainDeckWindow/)).toEqual([])
   })
+
+  // 窓を作るのは Rust (`sub_window_create`、#1131 段 4)。URL と label を JS で組む口を
+  // 残さない。capability からも窓生成の権限を外してある
+  it('new WebviewWindow は無い (窓は Rust が作る)', () => {
+    expect(offenders(/new WebviewWindow\b/)).toEqual([])
+  })
+
+  it("'/pip' の比較は src/windows/kind.ts だけ (窓の素性の判定は 1 本)", () => {
+    const hits = offenders(/(?:===|!==)\s*'\/pip'|startsWith\('\/pip'\)/)
+    expect(hits).toEqual(['src/windows/kind.ts'])
+  })
 })

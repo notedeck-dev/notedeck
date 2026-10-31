@@ -1976,6 +1976,62 @@ async windowRolesCurrent() : Promise<Result<WindowRolesView, { code: string; mes
 }
 },
 /**
+ * 子窓を作る。親は呼び元の窓 (ミラーは対等なので親を記録しない)
+ *
+ * @see src-tauri/src/commands/sub_window.rs
+ */
+async subWindowCreate(request: SubWindowRequest, origin: SubWindowOrigin, size: SubWindowSize) : Promise<Result<SubWindowCreateResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sub_window_create", { request, origin, size }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 子窓を閉じる。名簿に居る `main` 以外だけ。
+ * `graceful` なら `close()` (CloseRequested を見るので理由は `user`、カラムは回収される。
+ * 「すべてのウィンドウを閉じる」用)、そうでなければ `destroy()` (`lost`。プロファイル
+ * 切替の一括クローズ用で、旧プロファイルの windowId は残り切り戻しで復元される)
+ *
+ * @see src-tauri/src/commands/sub_window.rs
+ */
+async subWindowClose(label: string, graceful: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sub_window_close", { label, graceful }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 名簿 (全窓)。受けた知らせの label が居ないことの確認や、自分の子の列挙に使う
+ *
+ * @see src-tauri/src/commands/sub_window.rs
+ */
+async subWindowList() : Promise<Result<SubWindowEntry[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("sub_window_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * PiP の「デッキに戻す」。カラムの設定を最も近いデッキ画面を描く祖先へ届ける。
+ * 窓は呼び元が自分で close する (CloseRequested を見るので `user`)
+ *
+ * @see src-tauri/src/commands/sub_window.rs
+ */
+async pipReturnToDeck(column: JsonValue) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("pip_return_to_deck", { column }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
  * 今の状態 (後から開いた窓が最初に読む)
  *
  * @see src-tauri/src/commands/updater.rs
@@ -3077,11 +3133,14 @@ async getPerformanceConfig() : Promise<Result<PerformanceConfig, { code: string;
 
 export const events = __makeEvents__<{
 addressedDeepLink: AddressedDeepLink,
+childClosed: ChildClosed,
+childGeometry: ChildGeometry,
 exportProgress: ExportProgressEvent,
 ndAiHeartbeatEvent: HeartbeatEventWire,
 ndSettingsFileChanged: SettingsFileChangedEvent,
 noteCaptureBatch: NoteCaptureBatchEvent,
 notificationClickAddressed: NotificationClickAddressed,
+pipReturnRequested: PipReturnRequested,
 queryDelta: QueryDeltaEvent,
 queryRequest: QueryRequest,
 streamChatMessageReacted: StreamChatMessageReacted,
@@ -3097,11 +3156,14 @@ updateState: UpdateState,
 windowRolesChanged: WindowRolesChanged
 }>({
 addressedDeepLink: "addressed-deep-link",
+childClosed: "child-closed",
+childGeometry: "child-geometry",
 exportProgress: "export-progress",
 ndAiHeartbeatEvent: "nd:ai-heartbeat-event",
 ndSettingsFileChanged: "nd:settings-file-changed",
 noteCaptureBatch: "note-capture-batch",
 notificationClickAddressed: "notification-click-addressed",
+pipReturnRequested: "pip-return-requested",
 queryDelta: "query-delta",
 queryRequest: "query-request",
 streamChatMessageReacted: "stream-chat-message-reacted",
@@ -3345,6 +3407,18 @@ account?: string | null;
  */
 fix?: string | null }
 /**
+ * 子窓が消えた。宛先は親 (居なければ代表窓)。`reason` は Rust が決める
+ */
+export type ChildClosed = { to: string; label: string; kind: WindowKind; reason: CloseReason; 
+/**
+ * 最後に記録した位置と大きさ (ポップアウトだけ)
+ */
+geometry: WindowGeometry | null }
+/**
+ * 子窓 (ポップアウト) が動いた / 大きさが変わった (debounce 済み)。宛先は親
+ */
+export type ChildGeometry = { to: string; label: string; geometry: WindowGeometry }
+/**
  * Metadata for a single CLI argument.
  */
 export type CliArgInfo = { name: string; help: string | null; required: boolean; default_value: string | null }
@@ -3386,6 +3460,22 @@ isFavorited?: boolean | null;
  * `notesCount` は一部エンドポイントのみ返る。
  */
 notesCount?: number | null }
+/**
+ * 子窓が閉じた理由。Rust が決める (JS に「閉じる前に告げる」口は作らない)
+ */
+export type CloseReason = 
+/**
+ * その窓で CloseRequested を見た (× / `close()`)。カラムは回収する
+ */
+"user" | 
+/**
+ * 見ていない (終了 / クラッシュ / `destroy()`)。回収せず次回起動で開き直す
+ */
+"lost" | 
+/**
+ * 生成に失敗した (上限 / ビルダーの失敗)。開いた側が後始末する
+ */
+"failed"
 /**
  * 接続メタデータ。secret 本体は含まない (OS キーチェーンに別管理)。
  * 
@@ -4022,6 +4112,11 @@ dataUrl: string;
  * 状態ごとの当たり判定 (clip-path の元)。作れなければ None = 矩形のまま
  */
 hitMask: PetHitMask | null }
+/**
+ * PiP の「デッキに戻す」。宛先は最も近いデッキ画面を描く祖先 (無ければ代表窓)。
+ * 受けた窓は自分の windowId を付けて addColumn する
+ */
+export type PipReturnRequested = { to: string; column: JsonValue }
 export type Player = { url: string; width: number | null; height: number | null; allow?: string[] }
 /**
  * 接続を開示する先の principal クラス (#712 §6.1)。
@@ -4548,6 +4643,45 @@ export type StreamUnread = StreamUnreadEvent
  * 未読カウンタへの合図。件数そのものは持たない (正は REST の取得)
  */
 export type StreamUnreadEvent = { accountId: string; kind: UnreadKind; op: UnreadOp }
+export type SubWindowCreateResult = 
+/**
+ * 開いた。`over_limit` なら呼び元が警告を出す (枚数つき)
+ */
+{ status: "created"; label: string; openCount: number; overLimit: boolean } | 
+/**
+ * 自動の経路で上限に達していたので開かなかった
+ */
+{ status: "rejected"; openCount: number }
+/**
+ * 名簿の 1 行 (`main` を含む)
+ */
+export type SubWindowEntry = { label: string; kind: WindowKind; parent: string | null }
+/**
+ * 誰が開こうとしたか。上限に達したとき、自動は拒み、人の操作は警告して開く
+ */
+export type SubWindowOrigin = "user" | "automatic"
+/**
+ * 開きたい窓。URL は Rust が組む
+ */
+export type SubWindowRequest = 
+/**
+ * カラム群を切り出す。label はプロファイルの `windows[].id` と一致させる必要が
+ * あるので JS が渡す (形式は Rust が検証する)
+ */
+{ kind: "popout"; profileId: string; windowId: string } | 
+/**
+ * 2 枚目以降のデッキ窓 (対等)
+ */
+{ kind: "mirror"; profileId: string } | 
+/**
+ * カラム 1 本 (`col`) かウィンドウ内容 1 つ (`win`)。どちらも base64 の JSON
+ * (PipPage が復号する)。無ければカラムの選択画面
+ */
+{ kind: "pip"; col: string | null; win: string | null }
+/**
+ * 描画知識 (論理 px)。JS が決める
+ */
+export type SubWindowSize = { width: number; height: number; minWidth: number; minHeight: number; x: number | null; y: number | null }
 export type SummaryData = { title: string | null; description: string | null; icon: string | null; sitename: string | null; thumbnail: string | null; medias: string[]; player: Player | null; url: string; sensitive: boolean }
 /**
  * OS 状態のスナップショット。`None` = その項目をこのプラットフォームでは
@@ -4841,6 +4975,10 @@ missing: string[] }
  * 読んだ内容と、その版 (次の条件付き書込に添える)
  */
 export type VersionedText = { content: string; version: string }
+/**
+ * 窓の位置と大きさ (論理 px)。`WebviewWindow` の生成オプションと同じ単位
+ */
+export type WindowGeometry = { x: number; y: number; width: number; height: number; monitor: string | null }
 /**
  * 窓の種別。ラベルの接頭辞ではミラーとポップアウトを区別できないので、URL で決める
  */

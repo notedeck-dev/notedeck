@@ -4187,6 +4187,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_deckWindow": {
     /** Web UI で開く */
     readonly "openInWebUi": string
+    /** ウィンドウが {count} 枚開いています。多すぎると動作が重くなります */
+    readonly "tooManyWindows": ParameterizedString<'count'>
     /** OS のデフォルトエディターで {name} を開く */
     readonly "openInDefaultEditor": ParameterizedString<'name'>
     /** 最小化 */

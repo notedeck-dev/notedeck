@@ -46,6 +46,7 @@ mod streaming;
 mod system_state;
 mod ui_lang;
 mod win_chrome;
+mod window_events;
 mod window_registry;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -263,6 +264,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // 窓の名簿と役 (代表窓 / 見ている窓、#1131)。起動時の窓は Tauri が作るので
         // ここで名乗らせる。他の窓は自分で deck_window_announce を呼ぶ
         app.manage(commands::WindowRoleState::default());
+        app.manage(window_events::GeometryTracker::default());
         app.state::<commands::WindowRoleState>().announce(
             &app.handle().clone(),
             "main",
@@ -959,53 +961,15 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     });
 
-    // ウィンドウ単位の後始末をここにまとめる (on_window_event は複数登録できるが、
-    // 散らすと Destroyed / CloseRequested の規則が追えなくなる)
+    // 窓のイベントは 1 本の dispatcher (#1131 段 4)。CloseRequested / Destroyed /
+    // Focused / Moved / Resized の規則は window_events.rs に集める
     {
         #[cfg(not(mobile))]
         let has_tray = has_tray.clone();
-        builder = builder.on_window_event(move |window, event| {
-            use tauri::Manager;
-            // 閉じたウィンドウで見えていた通知カラムの口座を外す (#330 §3.3)。別の
-            // デッキウィンドウの分だけが残る
-            if let tauri::WindowEvent::Destroyed = event {
-                if let Some(scopes) = window
-                    .app_handle()
-                    .try_state::<os_notify::VisibleNotificationScopes>()
-                {
-                    scopes.remove_window(window.label());
-                }
-            }
-            // Hide to tray on close (desktop only, requires tray icon)。
-            // 対象はメインだけ (#1131)。以前はラベルを見ずに全窓を隠していたため、
-            // ポップアウト / PiP の × が破棄にならず WebView が残り、
-            // `tauri://destroyed` も来ないのでカラムの回収や復元が壊れていた
-            #[cfg(not(mobile))]
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" && has_tray.load(Ordering::Relaxed) {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
-            }
-            #[cfg(mobile)]
-            let _ = window;
-        });
+        #[cfg(mobile)]
+        let has_tray = Arc::new(AtomicBool::new(false));
+        builder = builder.on_window_event(window_events::handler(has_tray));
     }
-
-    // 窓の名簿 (#1131): フォーカスで「見ている窓」を、破棄で名簿を更新する。
-    // 役が変われば WindowRolesChanged が全窓へ流れる
-    builder = builder.on_window_event(|window, event| {
-        use tauri::Manager;
-        let app = window.app_handle();
-        let Some(roles) = app.try_state::<commands::WindowRoleState>() else {
-            return;
-        };
-        match event {
-            tauri::WindowEvent::Focused(true) => roles.on_focused(app, window.label()),
-            tauri::WindowEvent::Destroyed => roles.on_destroyed(app, window.label()),
-            _ => {}
-        }
-    });
 
     let app = builder.build(tauri::generate_context!())?;
     app.run(|app, event| {
@@ -1274,6 +1238,10 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::set_visible_notification_scopes,
             commands::deck_window_announce,
             commands::window_roles_current,
+            commands::sub_window_create,
+            commands::sub_window_close,
+            commands::sub_window_list,
+            commands::pip_return_to_deck,
             commands::update_state_get,
             commands::update_check,
             commands::update_install,
@@ -1413,6 +1381,9 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::TrayToggle,
             commands::QueryRequest,
             commands::UpdateState,
+            commands::ChildClosed,
+            commands::ChildGeometry,
+            commands::PipReturnRequested,
         ])
 }
 

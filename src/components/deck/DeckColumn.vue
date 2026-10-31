@@ -26,6 +26,7 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { openSafeUrl } from '@/utils/url'
+import { isPipWindow } from '@/windows/kind'
 
 const props = defineProps<{
   columnId: string
@@ -55,7 +56,7 @@ const { isPulling, isPulledEnough, isRefreshing, displayHeight } =
 
 const showPullFrame = computed(() => !!props.pullRefresh && isPulling.value)
 
-const isPipMode = window.location.pathname === '/pip'
+const isPipMode = isPipWindow()
 const pipColumnConfig = inject<(() => DeckColumnType | null) | undefined>(
   'pipColumnConfig',
   undefined,
@@ -186,10 +187,8 @@ async function returnToDeck() {
   const config = pipColumnConfig?.()
   if (!config) return
   const { id: _, ...rest } = config
-  const { emitTauri } = await import('@/utils/tauriEvents')
-  await emitTauri('pip:return-to-deck', rest)
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
-  await getCurrentWindow().close()
+  const { returnPipColumnToDeck } = await import('@/windows/pip')
+  await returnPipColumnToDeck(rest)
 }
 
 /** 縦分割グループの一員かどうか (分割を解除できるのはこのときだけ) */

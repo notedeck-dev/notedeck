@@ -24,6 +24,7 @@ import { isTauri } from './utils/settingsFs'
 import { logStartupSummary, markStartup } from './utils/startupTrace'
 import { listenTauri } from './utils/tauriEvents'
 import { commands } from './utils/tauriInvoke'
+import { isPipWindow } from './windows/kind'
 import '@tabler/icons-webfont/dist/tabler-icons.min.css'
 import './styles/global.css'
 
@@ -71,7 +72,7 @@ if (isTauri) {
   // Pre-warm Tauri API module (critical path in App.vue onMounted)
   import('@tauri-apps/api/window')
 
-  const isPipRoute = location.pathname === '/pip'
+  const isPipRoute = isPipWindow()
 
   if (!isPipRoute) {
     // Pre-fetch DeckPage chunk so its CSS <link> is inserted early.

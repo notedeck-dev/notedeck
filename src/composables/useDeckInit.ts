@@ -9,10 +9,7 @@ import {
 import { startTaskCommandSync } from '@/commands/taskCommands'
 import { useAppBackground } from '@/composables/useAppBackground'
 import { useDeckResume } from '@/composables/useDeckResume'
-import {
-  listenDeckWindowEvents,
-  saveCurrentWindowLayout,
-} from '@/composables/useDeckWindow'
+import { listenDeckWindowEvents } from '@/composables/useDeckWindow'
 import { handleDeepLink } from '@/composables/useDeepLink'
 import { useMainStreamKeeper } from '@/composables/useMainStreamKeeper'
 import { useNotificationPermissionPrompt } from '@/composables/useNotificationPermissionPrompt'
@@ -190,19 +187,12 @@ export function useDeckInit(options: {
         // Non-Tauri environment (vitest / ブラウザ)
       })
 
-      // Cross-window event listeners (all windows listen for IPC events)
+      // Cross-window event listeners (all deck-screen windows listen)。
+      // 子窓のジオメトリは Rust が記録して親に届けるので、beforeunload での保存は
+      // 要らなくなった (#1131 段 4)
       listenDeckWindowEvents().then((fn) => {
         unlistenWindowEvents = fn
       })
-
-      // サブウィンドウは beforeunload でレイアウトをプロファイルに保存する。
-      // `immediate` で debounce を飛ばし、webview が消える前にファイルへの
-      // 書込を始める (保存先は localStorage ではなくプロファイルのファイル)
-      if (deckStore.currentWindowId) {
-        window.addEventListener('beforeunload', () => {
-          saveCurrentWindowLayout({ immediate: true })
-        })
-      }
     }
   })
 

@@ -20,7 +20,9 @@ use tauri_specta::Event;
 use super::Result;
 use crate::os_notify::NotificationClicked;
 use crate::pending_inbox::PendingInbox;
-use crate::window_registry::{kind_from_url, Roles, WindowKind, WindowRegistry};
+use crate::window_registry::{
+    kind_from_url, Entry, RemoveEffects, Roles, WindowKind, WindowRegistry,
+};
 
 /// 冷えた起動のあいだに預かる遷移。遷移系だけ (トレイの切替や問い合わせは預けない)
 #[derive(Debug, Clone)]
@@ -96,10 +98,98 @@ impl WindowRoleState {
         }
     }
 
-    pub fn on_destroyed<R: tauri::Runtime>(&self, app: &tauri::AppHandle<R>, label: &str) {
-        if let Some(changed) = self.with(|r| r.remove(label)) {
+    /// 窓が消えた。役の変化を全窓へ、子の知らせを親 (か代表窓) へ流し、
+    /// デッキ窓が 0 になっていれば残る子を返す (destroy は呼び元が別スレッドで行う)
+    pub fn on_destroyed<R: tauri::Runtime>(
+        &self,
+        app: &tauri::AppHandle<R>,
+        label: &str,
+        geometry: Option<super::WindowGeometry>,
+    ) -> Vec<String> {
+        let RemoveEffects {
+            roles,
+            closed,
+            orphans,
+        } = self.with(|r| r.remove(label));
+        if let Some(changed) = roles {
             emit_changed(app, changed);
         }
+        if let Some(c) = closed {
+            match c.to {
+                Some(to) => emit_event(
+                    app,
+                    super::ChildClosed {
+                        to,
+                        label: c.label,
+                        kind: c.kind,
+                        reason: c.reason,
+                        geometry,
+                    },
+                ),
+                None => tracing::info!(
+                    label = c.label,
+                    "[window-roles] closed with no deck window to tell"
+                ),
+            }
+        }
+        orphans
+    }
+
+    /// Rust が子窓を作った (名乗りより先に名簿へ)
+    pub fn register<R: tauri::Runtime>(
+        &self,
+        app: &tauri::AppHandle<R>,
+        label: &str,
+        kind: WindowKind,
+        parent: Option<&str>,
+    ) {
+        if let Some(changed) = self.with(|r| r.register(label, kind, parent)) {
+            emit_changed(app, changed);
+        }
+    }
+
+    pub fn begin_create(&self, label: &str) {
+        self.with(|r| r.begin_create(label));
+    }
+
+    pub fn end_create(&self, label: &str) {
+        self.with(|r| r.end_create(label));
+    }
+
+    /// (今の枚数, 上限に達しているか)
+    pub fn limit_check(&self) -> (usize, bool) {
+        self.with(|r| r.limit_check())
+    }
+
+    pub fn on_close_requested(&self, label: &str) {
+        self.with(|r| r.on_close_requested(label));
+    }
+
+    pub fn entries(&self) -> Vec<Entry> {
+        self.with(|r| r.entries().to_vec())
+    }
+
+    /// 子窓からの知らせ (ジオメトリ) の届け先: 親が生きていれば親、居なければ代表窓
+    pub fn delivery_target_for(&self, label: &str) -> Option<String> {
+        self.with(|r| {
+            let parent = r.parent(label).map(str::to_string);
+            r.delivery_target(parent.as_deref())
+        })
+    }
+
+    /// PiP の「デッキに戻す」を最も近いデッキ画面を描く祖先へ
+    pub fn deliver_pip_return<R: tauri::Runtime>(
+        &self,
+        app: &tauri::AppHandle<R>,
+        from: &str,
+        column: serde_json::Value,
+    ) -> bool {
+        let Some(to) = self.with(|r| r.nearest_deck_screen(from)) else {
+            tracing::warn!(from, "[window-roles] pip return dropped: no deck screen");
+            return false;
+        };
+        emit_event(app, super::PipReturnRequested { to, column });
+        true
     }
 
     /// 利用者が見ている窓を前に出す。見ている窓が隠れていれば可視のデッキ窓、

@@ -1,15 +1,17 @@
 import type { Capability } from '@/capabilities/types'
 import { i18n } from '@/i18n'
 import { useWindowsStore, type WindowType } from '@/stores/windows'
+import { isPipWindow } from '@/windows/kind'
 import { WINDOW_SIZES } from '@/windows/registry'
 import { implement } from '../declare'
 
 /**
  * Windows 系 capability — DeckWindow (= 一時 UI、設定エディタ / プロファイル
- * 詳細など) を AI から操作する。column.* と同じく UI state なので permission
- * は不要 ([] = 誰でも呼べる)。各ウィンドウ内部の実際の操作は対応する
- * capability で guard される (例: cssEditor を開くこと自体は安全だが、
- * CSS 書込は styles.write perm が必要)。
+ * 詳細など) を AI から操作する。permission は宣言表 (`capabilities.json5`) の
+ * とおり `deck.write` (column.* と同じ UI 操作の権限)。各ウィンドウ内部の実際の
+ * 操作は対応する capability で guard される (例: cssEditor を開くこと自体は
+ * 安全だが、CSS 書込は styles.write perm が必要)。OS の窓を増やす経路 (PiP の中)
+ * は認可とは別に塞ぐ (#1131 §7)。
  *
  * 設計判断:
  * - windows.open は確認 UI 無し (開いて閉じるだけなら可逆)
@@ -60,6 +62,11 @@ export const windowsOpenCapability = implement('windows.open', {
     if (!type) throw new Error('windows.open: type is required')
     if (!isValidWindowType(type)) {
       throw new Error(`windows.open: unknown window type "${type}"`)
+    }
+    // PiP の中では DeckWindow が無く、開くと前面固定の OS 窓が増える。第三者コードに
+    // その経路を開けない (#1131 §7)
+    if (isPipWindow()) {
+      throw new Error('windows.open: not available inside a PiP window')
     }
     const propsRaw = params?.props
     const props =
