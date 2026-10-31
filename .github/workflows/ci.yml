@@ -208,6 +208,39 @@ jobs:
       - name: Type check (app + notecore + notemaid, Windows)
         run: cargo check -p notedeck --lib -p notecore -p notemaid --features notemaid/daemon
 
+  # Android 向けの clippy (#1300)。Release (Android) はタグ push でしか走らないので、
+  # デスクトップ専用コードの cfg 漏れ (updater / 窓の操作 / 中継) はリリースで初めて落ちていた
+  # (v1.98.1 / v1.99.0)。runner 同梱の NDK を使い、APK は作らずに lib の clippy だけ回す
+  rust-android:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+          targets: aarch64-linux-android
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+          shared-key: rust-android
+          save-if: ${{ github.event_name == 'push' }}
+
+      - name: Clippy (app, Android)
+        run: |
+          set -euo pipefail
+          TOOLCHAIN="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android24-clang"
+          export CXX_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android24-clang++"
+          export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
+          export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android24-clang"
+          cargo clippy -p notedeck --lib --target aarch64-linux-android -- -D warnings
+
   # E2E (#702): 実アプリを xvfb 上の隔離プロファイルで起動し、
   # 外部アプリと同じ HTTP API 面 (#709) で駆動する
   e2e:

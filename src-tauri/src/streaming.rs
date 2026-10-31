@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
+#[cfg(not(target_os = "android"))]
 use std::time::Duration;
 #[cfg(not(target_os = "android"))]
 use std::time::Instant;
@@ -7,6 +8,7 @@ use std::time::Instant;
 use notecli::models::NormalizedNotification;
 use notecli::streaming::FrontendEmitter;
 use serde::{Deserialize, Serialize};
+#[cfg(not(target_os = "android"))]
 use serde_json::json;
 use specta::Type;
 use tauri::{AppHandle, Manager};
@@ -55,12 +57,15 @@ const DEDUP_MAX_IDS: usize = 500;
 /// デスクトップ OS 通知のバースト集約窓 (#750)。直前の OS 通知からこの時間内に
 /// 届いた通知は個別に出さずバッファし、窓の終わりに要約 1 件へまとめる。
 /// Android は channel で OS 側がグルーピングするため対象外。
+#[cfg(not(target_os = "android"))]
 const GROUP_WINDOW: Duration = Duration::from_secs(2);
 
 /// 要約 body に列挙する通知元 (title) の最大数。超過分は「ほか」に畳む。
+#[cfg(not(target_os = "android"))]
 const GROUP_MAX_NAMES: usize = 3;
 
 /// バッファ中の OS 通知 1 件分。title はアクター系なら送信元ユーザー名。
+#[cfg(not(target_os = "android"))]
 struct PendingOsNotification {
     title: String,
     body: Option<String>,
@@ -106,6 +111,7 @@ enum OsNotifPlan {
 /// 「新着通知 N 件」+ 通知元名の列挙 (dedup、GROUP_MAX_NAMES 超は「ほか」)。
 /// 複数件の要約は単一の遷移先を持たないため context は None (クリック =
 /// ウィンドウフォーカスのみ)。
+#[cfg(not(target_os = "android"))]
 fn summarize_group(items: &[PendingOsNotification]) -> Option<PendingOsNotification> {
     match items {
         [] => None,
