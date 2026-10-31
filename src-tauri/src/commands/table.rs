@@ -6,9 +6,10 @@
 //! 呼ぶだけで、ここには本体を書かない。名前と引数名は表のとおりなので、フロントの
 //! `commands.xxx()` と bindings.ts は変わらない。
 //!
-//! 許可ウィンドウ属性 (`window = main`) を持つ行だけ `tauri::Window` を注入して label を
-//! 検査する。持たない行には注入しない (specta の関数引数数の上限に当たるため、要らない
-//! ものは足さない)。
+//! 許可ウィンドウ属性 (`window = app`) を持つ行だけ `tauri::Window` を注入して label を
+//! 検査する。所有者属性 (`owner = window`) の行は検査せず、label を本体の第 2 引数に渡す
+//! (クエリ購読の所有者、#1131 段 5)。どちらも持たない行には注入しない (specta の関数
+//! 引数数の上限に当たるため、要らないものは足さない)。
 
 /// クライアント層の切替点 (#1106 案 B)。notecore の行 (データ系) は常に in-process、
 /// notemaid の行 (AI 系) だけが常駐構成で別プロセスに中継される。表のクレート名で腕を分ける
@@ -45,6 +46,25 @@ macro_rules! wrapper_one {
             .map_err(<$err>::from)?;
             relay_step!($tc, $name, $ret, $err, Some(window.label().to_string()), [$($arg),*]);
             $path(&core, $( $arg, )*).await
+        }
+    };
+    // 所有者の注入: Window を注入して label を本体に渡す (検査は無い)
+    ($tc:ident $kind:ident [owner = window] $name:ident ( $( $arg:ident : $ty:ty ),* ) -> $ret:ty [$err:ty] = $path:path) => {
+        #[tauri::command]
+        #[specta::specta]
+        #[allow(clippy::too_many_arguments)]
+        pub async fn $name(
+            window: tauri::Window,
+            core: tauri::State<'_, crate::commands::AppState>,
+            $( $arg: $ty, )*
+        ) -> std::result::Result<$ret, $err> {
+            $tc::commands::check(
+                $tc::commands::CommandId::$name,
+                &notecore::commands::CallContext::window(window.label()),
+            )
+            .map_err(<$err>::from)?;
+            relay_step!($tc, $name, $ret, $err, Some(window.label().to_string()), [$($arg),*]);
+            $path(&core, Some(window.label().to_string()), $( $arg, )*).await
         }
     };
     // 属性なし

@@ -111,6 +111,19 @@ pub fn handler(
                 {
                     scopes.remove_window(label);
                 }
+                // 消えた窓が所有するクエリ購読を閉じる (#1131 段 5)。JS の unmount が
+                // 間に合わなくても、別の窓の購読は巻き添えにならない
+                if let Some(core) = app.try_state::<crate::commands::AppState>() {
+                    let core = core.inner().clone();
+                    let owner = label.to_string();
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) =
+                            notecore::commands::query::query_close_owner(&core, &owner).await
+                        {
+                            tracing::warn!(owner, "[window-events] query close_owner failed: {e}");
+                        }
+                    });
+                }
                 let geometry = app
                     .try_state::<GeometryTracker>()
                     .and_then(|t| t.take(label));

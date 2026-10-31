@@ -18,6 +18,7 @@ use crate::error::Result;
 
 pub async fn query_subscribe_timeline(
     core: &Core,
+    owner: Option<String>,
     account_id: String,
     timeline_type: String,
     list_id: Option<String>,
@@ -46,7 +47,7 @@ pub async fn query_subscribe_timeline(
         account_id: account_id.clone(),
         key: tl_key.as_canonical(),
     };
-    let opened = runtime.open(key)?;
+    let opened = runtime.open(key, owner.as_deref())?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
@@ -57,6 +58,7 @@ pub async fn query_subscribe_timeline(
 
 pub async fn query_subscribe_antenna(
     core: &Core,
+    owner: Option<String>,
     account_id: String,
     antenna_id: String,
 ) -> Result<QuerySnapshot> {
@@ -68,10 +70,13 @@ pub async fn query_subscribe_antenna(
     let tl_key = TimelineKey::Antenna {
         antenna_id: antenna_id.clone(),
     };
-    let opened = runtime.open(QueryKey::Timeline {
-        account_id: account_id.clone(),
-        key: tl_key.as_canonical(),
-    })?;
+    let opened = runtime.open(
+        QueryKey::Timeline {
+            account_id: account_id.clone(),
+            key: tl_key.as_canonical(),
+        },
+        owner.as_deref(),
+    )?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
@@ -82,6 +87,7 @@ pub async fn query_subscribe_antenna(
 
 pub async fn query_subscribe_channel(
     core: &Core,
+    owner: Option<String>,
     account_id: String,
     channel_id: String,
 ) -> Result<QuerySnapshot> {
@@ -93,10 +99,13 @@ pub async fn query_subscribe_channel(
     let tl_key = TimelineKey::Channel {
         channel_id: channel_id.clone(),
     };
-    let opened = runtime.open(QueryKey::Timeline {
-        account_id: account_id.clone(),
-        key: tl_key.as_canonical(),
-    })?;
+    let opened = runtime.open(
+        QueryKey::Timeline {
+            account_id: account_id.clone(),
+            key: tl_key.as_canonical(),
+        },
+        owner.as_deref(),
+    )?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
@@ -107,6 +116,7 @@ pub async fn query_subscribe_channel(
 
 pub async fn query_subscribe_role(
     core: &Core,
+    owner: Option<String>,
     account_id: String,
     role_id: String,
 ) -> Result<QuerySnapshot> {
@@ -118,10 +128,13 @@ pub async fn query_subscribe_role(
     let tl_key = TimelineKey::Role {
         role_id: role_id.clone(),
     };
-    let opened = runtime.open(QueryKey::Timeline {
-        account_id: account_id.clone(),
-        key: tl_key.as_canonical(),
-    })?;
+    let opened = runtime.open(
+        QueryKey::Timeline {
+            account_id: account_id.clone(),
+            key: tl_key.as_canonical(),
+        },
+        owner.as_deref(),
+    )?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
@@ -130,7 +143,11 @@ pub async fn query_subscribe_role(
     runtime.attach_stream_subscription(&opened.query_id, subscription_id)
 }
 
-pub async fn query_subscribe_mentions(core: &Core, account_id: String) -> Result<QuerySnapshot> {
+pub async fn query_subscribe_mentions(
+    core: &Core,
+    owner: Option<String>,
+    account_id: String,
+) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
     let (host, token) = core.credentials(&account_id)?;
@@ -138,10 +155,13 @@ pub async fn query_subscribe_mentions(core: &Core, account_id: String) -> Result
 
     // mentions は QueryKey 識別子としてのみ Timeline に折り畳む。
     // 購読は従来どおり main チャンネル経由 (ws_channel を持たない種別)。
-    let opened = runtime.open(QueryKey::Timeline {
-        account_id: account_id.clone(),
-        key: TimelineKey::Mentions.as_canonical(),
-    })?;
+    let opened = runtime.open(
+        QueryKey::Timeline {
+            account_id: account_id.clone(),
+            key: TimelineKey::Mentions.as_canonical(),
+        },
+        owner.as_deref(),
+    )?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
@@ -154,6 +174,7 @@ pub async fn query_subscribe_mentions(core: &Core, account_id: String) -> Result
 
 pub async fn query_subscribe_notifications(
     core: &Core,
+    owner: Option<String>,
     account_id: String,
 ) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
@@ -161,9 +182,12 @@ pub async fn query_subscribe_notifications(
     let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
-    let opened = runtime.open(QueryKey::Notifications {
-        account_id: account_id.clone(),
-    })?;
+    let opened = runtime.open(
+        QueryKey::Notifications {
+            account_id: account_id.clone(),
+        },
+        owner.as_deref(),
+    )?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
@@ -176,6 +200,7 @@ pub async fn query_subscribe_notifications(
 
 pub async fn query_subscribe_chat_user(
     core: &Core,
+    owner: Option<String>,
     account_id: String,
     other_id: String,
 ) -> Result<QuerySnapshot> {
@@ -184,10 +209,13 @@ pub async fn query_subscribe_chat_user(
     let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
-    let opened = runtime.open(QueryKey::ChatUser {
-        account_id: account_id.clone(),
-        other_id: other_id.clone(),
-    })?;
+    let opened = runtime.open(
+        QueryKey::ChatUser {
+            account_id: account_id.clone(),
+            other_id: other_id.clone(),
+        },
+        owner.as_deref(),
+    )?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
@@ -200,6 +228,7 @@ pub async fn query_subscribe_chat_user(
 
 pub async fn query_subscribe_chat_room(
     core: &Core,
+    owner: Option<String>,
     account_id: String,
     room_id: String,
 ) -> Result<QuerySnapshot> {
@@ -208,10 +237,13 @@ pub async fn query_subscribe_chat_room(
     let (host, token) = core.credentials(&account_id)?;
     streaming.connect(&account_id, &host, &token).await?;
 
-    let opened = runtime.open(QueryKey::ChatRoom {
-        account_id: account_id.clone(),
-        room_id: room_id.clone(),
-    })?;
+    let opened = runtime.open(
+        QueryKey::ChatRoom {
+            account_id: account_id.clone(),
+            room_id: room_id.clone(),
+        },
+        owner.as_deref(),
+    )?;
     if opened.source_subscription_id.is_some() {
         return Ok(opened);
     }
@@ -282,12 +314,25 @@ pub async fn query_set_runtime_state(
     Ok(result)
 }
 
-pub async fn query_close(core: &Core, query_id: String) -> Result<()> {
+pub async fn query_close(core: &Core, owner: Option<String>, query_id: String) -> Result<()> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
-    runtime.cancel_warm_timer(&query_id);
-    if let Some((account_id, subscription_id)) = runtime.close(&query_id)? {
+    if let Some((account_id, subscription_id)) = runtime.close(&query_id, owner.as_deref())? {
+        runtime.cancel_warm_timer(&query_id);
         streaming.unsubscribe(&account_id, &subscription_id).await?;
+    }
+    Ok(())
+}
+
+/// 窓が消えた。その窓が所有する購読をすべて閉じる (#1131 段 5)。JS の unmount の
+/// `query_close` と二重になっても、組が無ければ無視されるので安全
+pub async fn query_close_owner(core: &Core, owner: &str) -> Result<()> {
+    let streaming = core.streaming()?;
+    let runtime = core.query_runtime()?;
+    for (account_id, subscription_id) in runtime.close_owner(owner)? {
+        if let Err(e) = streaming.unsubscribe(&account_id, &subscription_id).await {
+            tracing::warn!(owner, "[query] unsubscribe after window closed failed: {e}");
+        }
     }
     Ok(())
 }

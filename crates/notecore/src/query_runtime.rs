@@ -145,6 +145,9 @@ struct QueryEntry {
     key: QueryKey,
     canonical_key: String,
     runtime_state: QueryRuntimeState,
+    /// 所有者別の購読数 (#1131 段 5)。所有者は窓の label (JSON 経路など窓の無い
+    /// 呼び元は `ANON_OWNER`)。`subscriber_count` はこの合計
+    subscribers: HashMap<String, u32>,
     subscriber_count: u32,
     revision: u64,
     source_subscription_id: Option<String>,
@@ -201,8 +204,17 @@ impl QueryRuntime {
     }
 }
 
+/// 窓の無い呼び元 (JSON 経路) の所有者名
+const ANON_OWNER: &str = "";
+
+fn owner_key(owner: Option<&str>) -> String {
+    owner.unwrap_or(ANON_OWNER).to_string()
+}
+
 impl QueryRuntime {
-    pub fn open(&self, key: QueryKey) -> Result<QuerySnapshot, NoteDeckError> {
+    /// 購読を開く。`owner` は呼び元の窓の label (窓が無ければ None)。同じ key は
+    /// 1 つの entry に折り畳み、所有者別に数える
+    pub fn open(&self, key: QueryKey, owner: Option<&str>) -> Result<QuerySnapshot, NoteDeckError> {
         let canonical_key = canonicalize_key(&key)?;
         let mut inner = self.lock()?;
 
@@ -211,6 +223,7 @@ impl QueryRuntime {
                 .entries
                 .get_mut(&query_id)
                 .ok_or_else(|| runtime_error("query index is inconsistent"))?;
+            *entry.subscribers.entry(owner_key(owner)).or_insert(0) += 1;
             entry.subscriber_count = entry.subscriber_count.saturating_add(1);
             entry.runtime_state = QueryRuntimeState::Live;
             entry.revision = entry.revision.saturating_add(1);
@@ -223,6 +236,7 @@ impl QueryRuntime {
             key,
             canonical_key: canonical_key.clone(),
             runtime_state: QueryRuntimeState::Live,
+            subscribers: HashMap::from([(owner_key(owner), 1)]),
             subscriber_count: 1,
             revision: 1,
             source_subscription_id: None,
@@ -367,19 +381,64 @@ impl QueryRuntime {
         }
     }
 
-    pub fn close(&self, query_id: &str) -> Result<Option<(String, String)>, NoteDeckError> {
+    /// 購読を 1 つ閉じる。(owner, query_id) の組が無ければ何もしない (二重減算で
+    /// 別の窓の購読を巻き添えにしない)。最後の購読が消えたら entry を外し、
+    /// 解除すべき stream 購読 (account_id, subscription_id) を返す
+    pub fn close(
+        &self,
+        query_id: &str,
+        owner: Option<&str>,
+    ) -> Result<Option<(String, String)>, NoteDeckError> {
         let mut inner = self.lock()?;
         let Some(entry) = inner.entries.get_mut(query_id) else {
             return Ok(None);
         };
-
+        let key = owner_key(owner);
+        let Some(count) = entry.subscribers.get_mut(&key) else {
+            return Ok(None);
+        };
+        *count -= 1;
+        if *count == 0 {
+            entry.subscribers.remove(&key);
+        }
         entry.subscriber_count = entry.subscriber_count.saturating_sub(1);
         entry.revision = entry.revision.saturating_add(1);
         if entry.subscriber_count > 0 {
             return Ok(None);
         }
+        Ok(Self::remove_entry(&mut inner, query_id))
+    }
 
-        let canonical_key = entry.canonical_key.clone();
+    /// 所有者の購読をすべて閉じる (窓が消えたとき)。entry が消えたものの
+    /// 解除すべき stream 購読を返す。warm timer もここで止める
+    pub fn close_owner(&self, owner: &str) -> Result<Vec<(String, String)>, NoteDeckError> {
+        let mut inner = self.lock()?;
+        let key = owner_key(Some(owner));
+        let mut emptied = Vec::new();
+        for (query_id, entry) in inner.entries.iter_mut() {
+            let Some(count) = entry.subscribers.remove(&key) else {
+                continue;
+            };
+            entry.subscriber_count = entry.subscriber_count.saturating_sub(count);
+            entry.revision = entry.revision.saturating_add(1);
+            if entry.subscriber_count == 0 {
+                emptied.push(query_id.clone());
+            }
+        }
+        let mut sources = Vec::new();
+        for query_id in emptied {
+            if let Some(handle) = inner.warm_timers.remove(&query_id) {
+                handle.abort();
+            }
+            if let Some(source) = Self::remove_entry(&mut inner, &query_id) {
+                sources.push(source);
+            }
+        }
+        Ok(sources)
+    }
+
+    fn remove_entry(inner: &mut QueryRuntimeInner, query_id: &str) -> Option<(String, String)> {
+        let entry = inner.entries.remove(query_id)?;
         let source = entry
             .source_subscription_id
             .clone()
@@ -387,10 +446,9 @@ impl QueryRuntime {
         if let Some((_, subscription_id)) = source.as_ref() {
             inner.query_ids_by_subscription.remove(subscription_id);
         }
-        inner.ids_by_key.remove(&canonical_key);
+        inner.ids_by_key.remove(&entry.canonical_key);
         inner.pending_query_ids.remove(query_id);
-        inner.entries.remove(query_id);
-        Ok(source)
+        source
     }
 
     pub fn snapshot(&self, query_id: &str) -> Result<Option<QuerySnapshot>, NoteDeckError> {
@@ -697,7 +755,60 @@ mod tests {
     }
 
     fn open_home(rt: &QueryRuntime, account: &str) -> QuerySnapshot {
-        rt.open(home_key(account)).expect("open should succeed")
+        rt.open(home_key(account), None)
+            .expect("open should succeed")
+    }
+
+    /// 所有者 (窓) 別に数え、他人の購読を巻き添えにしない (#1131 段 5)
+    #[test]
+    fn close_ignores_owners_that_did_not_open_and_close_owner_takes_only_its_own() {
+        let rt = QueryRuntime::default();
+        let a = rt.open(home_key("acct-1"), Some("main")).unwrap();
+        let b = rt.open(home_key("acct-1"), Some("deck-1-1")).unwrap();
+        assert_eq!(a.query_id, b.query_id);
+        assert_eq!(b.subscriber_count, 2);
+
+        // 開いていない窓からの close は無視 (数は減らない)
+        rt.close(&a.query_id, Some("pip-1-1")).unwrap();
+        rt.close(&a.query_id, None).unwrap();
+        assert_eq!(
+            rt.snapshot(&a.query_id).unwrap().unwrap().subscriber_count,
+            2
+        );
+
+        // 同じ窓の二重 close も 1 回しか効かない
+        rt.close(&a.query_id, Some("main")).unwrap();
+        rt.close(&a.query_id, Some("main")).unwrap();
+        assert_eq!(
+            rt.snapshot(&a.query_id).unwrap().unwrap().subscriber_count,
+            1
+        );
+
+        // 窓が消えたら、その窓の分だけ閉じる
+        let other = rt.open(home_key("acct-2"), Some("main")).unwrap();
+        rt.open(home_key("acct-2"), Some("deck-1-1")).unwrap();
+        let closed = rt.close_owner("deck-1-1").unwrap();
+        // acct-1 は deck-1-1 だけだったので消える。stream 購読は未 attach なので戻りは空
+        assert!(closed.is_empty());
+        assert!(rt.snapshot(&a.query_id).unwrap().is_none());
+        assert_eq!(
+            rt.snapshot(&other.query_id)
+                .unwrap()
+                .unwrap()
+                .subscriber_count,
+            1
+        );
+    }
+
+    #[test]
+    fn close_owner_returns_the_stream_subscriptions_to_unsubscribe() {
+        let rt = QueryRuntime::default();
+        let s = rt.open(home_key("acct-1"), Some("deck-1-1")).unwrap();
+        rt.attach_stream_subscription(&s.query_id, "sub-1".into())
+            .unwrap();
+        let closed = rt.close_owner("deck-1-1").unwrap();
+        assert_eq!(closed, vec![("acct-1".to_string(), "sub-1".to_string())]);
+        assert!(rt.close_owner("deck-1-1").unwrap().is_empty());
     }
 
     fn test_note(note_id: &str) -> std::sync::Arc<NormalizedNote> {
@@ -791,8 +902,8 @@ mod tests {
     #[test]
     fn main_events_route_by_account_and_kind() {
         let rt = QueryRuntime::default();
-        let mentions = rt.open(mentions_key("acct-1")).unwrap();
-        let notifications = rt.open(notifications_key("acct-1")).unwrap();
+        let mentions = rt.open(mentions_key("acct-1"), None).unwrap();
+        let notifications = rt.open(notifications_key("acct-1"), None).unwrap();
 
         // どちらの query にも attach していない状態で main イベントが届く
         // (subscription_id はどの query とも紐付いていない共有 main の id)。
@@ -824,8 +935,8 @@ mod tests {
     #[test]
     fn main_events_do_not_cross_accounts() {
         let rt = QueryRuntime::default();
-        let n1 = rt.open(notifications_key("acct-1")).unwrap();
-        let n2 = rt.open(notifications_key("acct-2")).unwrap();
+        let n1 = rt.open(notifications_key("acct-1"), None).unwrap();
+        let n2 = rt.open(notifications_key("acct-2"), None).unwrap();
 
         assert!(rt.ingest_stream_event(&notification_event("sub-main", "acct-2", "notif-x")));
 
@@ -840,14 +951,14 @@ mod tests {
     #[test]
     fn notification_delivery_survives_mentions_suspend_and_close() {
         let rt = QueryRuntime::default();
-        let mentions = rt.open(mentions_key("acct-1")).unwrap();
-        let notifications = rt.open(notifications_key("acct-1")).unwrap();
+        let mentions = rt.open(mentions_key("acct-1"), None).unwrap();
+        let notifications = rt.open(notifications_key("acct-1"), None).unwrap();
 
         rt.set_runtime_state(&mentions.query_id, QueryRuntimeState::Suspended)
             .unwrap();
         assert!(rt.ingest_stream_event(&notification_event("sub-main", "acct-1", "notif-1")));
 
-        rt.close(&mentions.query_id).unwrap();
+        rt.close(&mentions.query_id, None).unwrap();
         assert!(rt.ingest_stream_event(&notification_event("sub-main", "acct-1", "notif-2")));
 
         let snap = rt
@@ -888,12 +999,12 @@ mod tests {
         let _ = open_home(&rt, "acct-1");
 
         // 1 回目 close: subscriber 1 残るので Some(None)
-        let after_first = rt.close(&s.query_id).unwrap();
+        let after_first = rt.close(&s.query_id, None).unwrap();
         assert!(after_first.is_none(), "subscription はまだ生きているはず");
         assert!(rt.snapshot(&s.query_id).unwrap().is_some());
 
         // 2 回目 close: 0 になり entry が消える。subscription が attach されていないので戻り値は None。
-        let after_second = rt.close(&s.query_id).unwrap();
+        let after_second = rt.close(&s.query_id, None).unwrap();
         assert!(after_second.is_none());
         assert!(rt.snapshot(&s.query_id).unwrap().is_none());
     }
@@ -906,7 +1017,7 @@ mod tests {
         rt.attach_stream_subscription(&s.query_id, "sub-A".into())
             .unwrap();
 
-        let result = rt.close(&s.query_id).unwrap();
+        let result = rt.close(&s.query_id, None).unwrap();
         assert_eq!(result, Some(("acct-1".to_string(), "sub-A".to_string())));
     }
 
