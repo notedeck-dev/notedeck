@@ -51,6 +51,7 @@ export interface AiScriptSandboxOptions {
   legacyStoragePrefix?: AiScriptEnvOptions['legacyStoragePrefix']
   /** AiScript のグローバル定数 (THIS_ID / USER_* 等) */
   globals?: AiScriptGlobalConstants
+  uiAllowed?: AiScriptEnvOptions['uiAllowed']
   onDialog?: AiScriptEnvOptions['onDialog']
   onConfirm?: AiScriptEnvOptions['onConfirm']
   /** 未指定なら toast store に流す (無言の no-op にしない) */
@@ -127,6 +128,7 @@ export function createAiScriptSandbox(
       api,
       storagePrefix: options.storagePrefix,
       legacyStoragePrefix: options.legacyStoragePrefix,
+      uiAllowed: options.uiAllowed,
       onDialog: options.onDialog,
       onConfirm: options.onConfirm,
       onToast: options.onToast ?? ((text, type) => useToast().show(text, type)),

@@ -21,6 +21,7 @@ import { usePluginsStore } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { readSafeMode } from '@/utils/safeMode'
 import { openSafeUrl } from '@/utils/url'
+import { useRepresentative } from '@/windows/roles'
 import { cleanupNoteDeckEnv, type NoteDeckEnvContext } from './notedeck-api'
 import { createAiScriptSandbox } from './sandbox'
 import { sanitizeCode } from './sanitize'
@@ -495,6 +496,8 @@ export async function launchPlugin(plugin: PluginItem): Promise<void> {
 
   const ctx: PluginRunContext = { accountId: null, lastError: null }
   pluginAccountContext.set(plugin.id, ctx)
+  // 起動時の top-level の実行中か (uiAllowed が見る)
+  let inTopLevel = true
 
   const code = sanitizeCode(plugin.content)
 
@@ -538,6 +541,10 @@ export async function launchPlugin(plugin: PluginItem): Promise<void> {
     // onToast 未指定だと Mk:toast が無言の no-op になり、プラグインからの
     // 成否フィードバックが一切ユーザーに届かない (widget / Play は配線済み)
     onToast: (text, type) => useToast().show(text, type),
+    // 起動時の top-level から呼ばれた UI は代表窓だけが出す (#1131 §7)。
+    // プラグインはデッキ画面を描く窓ごとに動くので、放っておくと同じダイアログが
+    // 窓の数だけ出る。UI 起点の hook の中 (top-level の実行が終わった後) は窓を問わない
+    uiAllowed: () => !inTopLevel || useRepresentative().isRepresentative.value,
     extraEnv: () => createPluginSpecificEnv(plugin, ctx),
     io: {
       onOutput: (text) => runLog.print(text),
@@ -558,6 +565,8 @@ export async function launchPlugin(plugin: PluginItem): Promise<void> {
     runLog.system('run completed')
   } catch (e) {
     runLog.system(`run aborted: ${e instanceof Error ? e.message : String(e)}`)
+  } finally {
+    inTopLevel = false
   }
   pluginContexts.set(plugin.id, sandbox.interpreter)
 }
