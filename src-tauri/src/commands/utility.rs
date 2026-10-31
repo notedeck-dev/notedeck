@@ -295,7 +295,8 @@ pub fn set_unread_badge(app: tauri::AppHandle, count: u32) {
         if let Some(window) = app.get_webview_window("main") {
             #[cfg(target_os = "windows")]
             {
-                let overlay = (count > 0).then(|| overlay_count_icon(count));
+                let scale = window.scale_factor().unwrap_or(1.0);
+                let overlay = (count > 0).then(|| overlay_count_icon(count, scale));
                 let _ = window.set_overlay_icon(overlay);
             }
             #[cfg(not(target_os = "windows"))]
@@ -326,6 +327,10 @@ pub fn set_unread_badge(app: tauri::AppHandle, count: u32) {
     }
 }
 
+/// 未読バッジの赤。Discord のブランドカラーの赤 (#ED4245) に揃える
+#[cfg(any(test, not(mobile)))]
+const BADGE_RED: [u8; 4] = [0xED, 0x42, 0x45, 0xFF];
+
 /// ベースアイコンの右上に未読ドット (赤円) を焼き込む。
 /// image crate 等の依存を増やさないため RGBA バッファを直接操作する。
 #[cfg(not(mobile))]
@@ -342,115 +347,81 @@ fn icon_with_unread_dot(base: &tauri::image::Image<'_>) -> tauri::image::Image<'
             let dy = y as f64 - cy;
             if dx * dx + dy * dy <= radius * radius {
                 let i = (y * width + x) * 4;
-                rgba[i..i + 4].copy_from_slice(&[0xE8, 0x11, 0x23, 0xFF]);
+                rgba[i..i + 4].copy_from_slice(&BADGE_RED);
             }
         }
     }
     tauri::image::Image::new_owned(rgba, width as u32, height as u32)
 }
 
-/// Windows タスクバー用: 赤円に未読件数 (10 以上は「9+」) を白で描いたオーバーレイアイコン。
-/// 置き場所 (アイコンのどの角か) は OS が決めるので、ここでは選べない。
-#[cfg(all(not(mobile), target_os = "windows"))]
-fn overlay_count_icon(count: u32) -> tauri::image::Image<'static> {
-    let rgba = overlay_count_rgba(count);
-    tauri::image::Image::new_owned(rgba, OVERLAY_SIZE as u32, OVERLAY_SIZE as u32)
+/// Windows タスクバー用の未読バッジ。置き場所 (アイコンのどの角か) は OS が決めるので、
+/// ここでは選べない。OS はオーバーレイを 16px × 表示倍率で描くため、その実寸で渡す
+/// (大きく渡して OS に縮めさせるとにじむ)
+#[cfg(target_os = "windows")]
+fn overlay_count_icon(count: u32, scale: f64) -> tauri::image::Image<'static> {
+    let size = (16.0 * scale).round() as u32;
+    tauri::image::Image::new_owned(overlay_badge_rgba(count, size), size, size)
 }
 
-#[cfg(any(test, all(not(mobile), target_os = "windows")))]
-const OVERLAY_SIZE: usize = 32;
-
-/// 3x5 のビットマップ数字。各行の下位 3 ビットが左から右の画素
-#[cfg(any(test, all(not(mobile), target_os = "windows")))]
-const GLYPHS: [[u8; 5]; 11] = [
-    [0b111, 0b101, 0b101, 0b101, 0b111], // 0
-    [0b010, 0b110, 0b010, 0b010, 0b111], // 1
-    [0b111, 0b001, 0b111, 0b100, 0b111], // 2
-    [0b111, 0b001, 0b111, 0b001, 0b111], // 3
-    [0b101, 0b101, 0b111, 0b001, 0b001], // 4
-    [0b111, 0b100, 0b111, 0b001, 0b111], // 5
-    [0b111, 0b100, 0b111, 0b101, 0b111], // 6
-    [0b111, 0b001, 0b010, 0b010, 0b010], // 7
-    [0b111, 0b101, 0b111, 0b101, 0b111], // 8
-    [0b111, 0b101, 0b111, 0b001, 0b111], // 9
-    [0b000, 0b010, 0b111, 0b010, 0b000], // +
-];
-
-#[cfg(any(test, all(not(mobile), target_os = "windows")))]
-fn overlay_count_rgba(count: u32) -> Vec<u8> {
-    const SIZE: usize = OVERLAY_SIZE;
-    const RED: [u8; 4] = [0xE8, 0x11, 0x23, 0xFF];
-    const WHITE: [u8; 4] = [0xFF, 0xFF, 0xFF, 0xFF];
-    let mut rgba = vec![0u8; SIZE * SIZE * 4];
-    let center = SIZE as f64 / 2.0 - 0.5;
-    let radius = SIZE as f64 / 2.0;
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            let dx = x as f64 - center;
-            let dy = y as f64 - center;
-            if dx * dx + dy * dy <= radius * radius {
-                let i = (y * SIZE + x) * 4;
-                rgba[i..i + 4].copy_from_slice(&RED);
-            }
-        }
-    }
-
-    // 1 桁は大きく、「9+」は 2 文字が円に収まる大きさで描く
-    let (glyphs, scale): (&[usize], usize) = match count {
-        0 => return rgba,
-        1..=9 => (&[count as usize][..], 4),
-        _ => (&[9, 10][..], 3),
-    };
-    let gap = scale;
-    let width = glyphs.len() * 3 * scale + (glyphs.len() - 1) * gap;
-    let height = 5 * scale;
-    let left = (SIZE - width) / 2;
-    let top = (SIZE - height) / 2;
-    for (n, &g) in glyphs.iter().enumerate() {
-        let gx = left + n * (3 * scale + gap);
-        for (row, bits) in GLYPHS[g].iter().enumerate() {
-            for col in 0..3 {
-                if bits & (0b100 >> col) == 0 {
-                    continue;
-                }
-                for py in 0..scale {
-                    for px in 0..scale {
-                        let x = gx + col * scale + px;
-                        let y = top + row * scale + py;
-                        let i = (y * SIZE + x) * 4;
-                        rgba[i..i + 4].copy_from_slice(&WHITE);
-                    }
-                }
-            }
-        }
-    }
-    rgba
+/// 赤円に未読件数 (10 以上は「9+」) を白で描いたバッジを size 四方で返す。
+/// 元画像は `scripts/gen-badge-icons.mjs` が大きめの解像度で描いたもの
+#[cfg(any(all(test, target_os = "linux"), target_os = "windows"))]
+fn overlay_badge_rgba(count: u32, size: u32) -> Vec<u8> {
+    const BADGES: [&[u8]; 10] = [
+        include_bytes!("../../icons/badge/badge-1.png"),
+        include_bytes!("../../icons/badge/badge-2.png"),
+        include_bytes!("../../icons/badge/badge-3.png"),
+        include_bytes!("../../icons/badge/badge-4.png"),
+        include_bytes!("../../icons/badge/badge-5.png"),
+        include_bytes!("../../icons/badge/badge-6.png"),
+        include_bytes!("../../icons/badge/badge-7.png"),
+        include_bytes!("../../icons/badge/badge-8.png"),
+        include_bytes!("../../icons/badge/badge-9.png"),
+        include_bytes!("../../icons/badge/badge-9plus.png"),
+    ];
+    let png = BADGES[count.clamp(1, 10) as usize - 1];
+    let badge = image::load_from_memory_with_format(png, image::ImageFormat::Png)
+        .expect("embedded badge PNG")
+        .into_rgba8();
+    image::imageops::resize(&badge, size, size, image::imageops::FilterType::CatmullRom).into_raw()
 }
 
-#[cfg(test)]
+// image crate は Linux / Windows だけの依存なので、テストは Linux で回す
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
 
-    fn white_pixels(rgba: &[u8]) -> usize {
-        rgba.chunks(4)
-            .filter(|p| *p == [0xFF, 0xFF, 0xFF, 0xFF])
-            .count()
+    fn pixel(rgba: &[u8], size: u32, x: u32, y: u32) -> [u8; 4] {
+        let i = ((y * size + x) * 4) as usize;
+        rgba[i..i + 4].try_into().unwrap()
     }
 
     #[test]
-    fn overlay_draws_count_in_white_on_red_circle() {
-        let one = overlay_count_rgba(1);
-        assert_eq!(one.len(), OVERLAY_SIZE * OVERLAY_SIZE * 4);
-        // 「1」は 8 画素ぶんのグリフを 4 倍で描く
-        assert_eq!(white_pixels(&one), 8 * 16);
-        // 中央の行の左端あたりは赤
-        let i = (OVERLAY_SIZE / 2 * OVERLAY_SIZE + 2) * 4;
-        assert_eq!(&one[i..i + 4], &[0xE8, 0x11, 0x23, 0xFF]);
+    fn overlay_badge_is_drawn_at_the_requested_size() {
+        for size in [16, 20, 24, 40] {
+            assert_eq!(
+                overlay_badge_rgba(1, size).len(),
+                (size * size * 4) as usize
+            );
+        }
     }
 
     #[test]
-    fn overlay_shows_9_plus_for_ten_or_more() {
-        assert_eq!(overlay_count_rgba(10), overlay_count_rgba(250));
-        assert_ne!(overlay_count_rgba(9), overlay_count_rgba(10));
+    fn overlay_badge_shows_9_plus_for_ten_or_more() {
+        assert_eq!(overlay_badge_rgba(10, 16), overlay_badge_rgba(250, 16));
+        assert_ne!(overlay_badge_rgba(9, 16), overlay_badge_rgba(10, 16));
+    }
+
+    #[test]
+    fn overlay_badge_is_a_red_circle_smaller_than_the_slot() {
+        let rgba = overlay_badge_rgba(1, 32);
+        // 枠の左端の中央は円の外 (透明)
+        assert_eq!(pixel(&rgba, 32, 0, 16)[3], 0);
+        // 円の上寄り (数字の外) はトレイのドットと同じ赤
+        assert_eq!(pixel(&rgba, 32, 16, 5), BADGE_RED);
+        // 中央付近に白い数字がある
+        assert!((12..20)
+            .flat_map(|y| (12..20).map(move |x| (x, y)))
+            .any(|(x, y)| pixel(&rgba, 32, x, y) == [0xFF, 0xFF, 0xFF, 0xFF]));
     }
 }
