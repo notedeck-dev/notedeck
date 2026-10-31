@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { pushOverlay } from '@/utils/overlayBackStack'
+import { isPipWindow } from '@/windows/kind'
 import { WINDOW_SIZES } from '@/windows/registry'
 
 export type WindowType =
@@ -137,15 +138,8 @@ export const useWindowsStore = defineStore('windows', () => {
 
   // PiP WebView (別 OS ウィンドウ) 内では DeckWindow オーバーレイが存在しないため、
   // open() 呼び出しを新規 PiP ウィンドウの起動にリダイレクトする。
-  function isInPipContext(): boolean {
-    return (
-      typeof window !== 'undefined' &&
-      window.location.pathname.startsWith('/pip')
-    )
-  }
-
   function open(type: WindowType, props: Record<string, unknown> = {}): string {
-    if (isInPipContext()) {
+    if (isPipWindow()) {
       import('@/windows/pip').then(({ openPipWindowForWindow }) => {
         openPipWindowForWindow(type, props)
       })

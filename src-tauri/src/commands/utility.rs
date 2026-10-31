@@ -39,19 +39,6 @@ pub fn open_devtools(window: tauri::WebviewWindow) {
     window.open_devtools();
 }
 
-/// Windows の Action Center からの cold start (#754): 起動引数の
-/// notedeck-notification:// URL から復元した通知クリックの遷移コンテキストを
-/// 1 回だけ返す。フロントはデッキ初期化時に呼び、あればノート/ユーザーへ
-/// 遷移する。Windows 以外では常に None。
-// nd-command: local
-#[tauri::command]
-#[specta::specta]
-pub fn notification_take_pending_click(
-    state: tauri::State<'_, crate::os_notify::PendingNotificationClick>,
-) -> Option<crate::os_notify::NotificationClicked> {
-    state.0.lock().ok().and_then(|mut pending| pending.take())
-}
-
 /// 見えている通知カラムの口座を写す (#330 §3.3)。フロントがカラムの可視 (viewport 内 +
 /// フォーカス) の変化ごとに和集合を送る。含まれる口座の通知は OS 通知にしない
 // nd-command: local
@@ -292,8 +279,10 @@ pub async fn save_image_to_file(
 
 /// 未読合計を OS へ反映する (#748):
 /// - macOS Dock / Linux ランチャー: バッジ件数
-/// - Windows: タスクバーのオーバーレイドット
+/// - Windows: タスクバーのオーバーレイドット (窓ごとなので、デッキ窓すべてに付ける。#1131 §2)
 /// - トレイ: tooltip の件数表記 + アイコン右上の未読ドット
+///
+/// 件数を送るのは代表窓だけ (`useOsUnreadBadge`)。付ける先は窓の種別で決める
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
@@ -305,7 +294,21 @@ pub fn set_unread_badge(app: tauri::AppHandle, count: u32) {
     {
         use tauri::Manager;
 
-        if let Some(window) = app.get_webview_window("main") {
+        let deck_labels: Vec<String> = app
+            .try_state::<super::WindowRoleState>()
+            .map(|roles| {
+                roles
+                    .entries()
+                    .into_iter()
+                    .filter(|e| e.kind.is_deck())
+                    .map(|e| e.label)
+                    .collect()
+            })
+            .unwrap_or_else(|| vec!["main".to_string()]);
+        for label in deck_labels {
+            let Some(window) = app.get_webview_window(&label) else {
+                continue;
+            };
             #[cfg(target_os = "windows")]
             {
                 let scale = window.scale_factor().unwrap_or(1.0);

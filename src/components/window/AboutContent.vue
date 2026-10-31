@@ -29,6 +29,7 @@ import { formatBytes } from '@/utils/format'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
 import { openSafeUrl } from '@/utils/url'
+import { isPipWindow } from '@/windows/kind'
 import { version as appVersion } from '../../../package.json'
 
 const emit = defineEmits<{
@@ -805,7 +806,7 @@ function reportBug() {
 
 // GitHub アカウントを持たない人の受け口 (#1019): 公式 Misskey アカウント宛ての
 // ノートの下書きを投稿フォームに開く。PiP (別 WebView) には投稿フォームが無い
-const inPip = location.pathname === '/pip'
+const inPip = isPipWindow()
 function reportViaMisskey() {
   uiStore.requestCompose({
     text: buildMisskeyReportText({ version: appVersion, os, webView }),

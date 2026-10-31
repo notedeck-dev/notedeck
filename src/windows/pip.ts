@@ -1,11 +1,12 @@
-// PiP ウィンドウ (カラム 1 本 / 派生ウィンドウ) の生成と監視。Vue に依存しない
-// Tauri の窓操作なので windows 層に置く (#1098)
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+// PiP ウィンドウ (カラム 1 本 / 派生ウィンドウ) を Rust に頼む。Vue に依存しない
+// Tauri の窓操作なので windows 層に置く (#1098)。窓を作るのは Rust (#1131 段 4)
+import { commands } from '@/bindings'
 import { DEFAULT_COLUMN_WIDTH } from '@/columns/registry'
 import type { DeckColumn } from '@/stores/deck'
 import type { WindowType } from '@/stores/windows'
-import { listenTauri } from '@/utils/tauriEvents'
+import { unwrap } from '@/utils/tauriInvoke'
 import { WINDOW_SIZES } from '@/windows/registry'
+import { createSubWindow } from '@/windows/subWindow'
 
 /**
  * PiP はカラム 1 本を切り出した窓なので、幅はデッキのカラムと同じにする。
@@ -27,14 +28,7 @@ const PIP_MIN_WIDTH = 280
 const PIP_MIN_HEIGHT = 400
 const PIP_WINDOW_MAX_HEIGHT = 900
 
-const pipWindows = new Map<string, WebviewWindow>()
-const creatingSet = new Set<string>()
-let pipCounter = 0
-
-function genPipLabel(): string {
-  return `pip-${Date.now()}-${++pipCounter}`
-}
-
+/** URL の query に載せる形 (PipPage が `decodeURIComponent(atob(..))` で戻す) */
 function encodePayload(value: unknown): string {
   return btoa(encodeURIComponent(JSON.stringify(value)))
 }
@@ -47,13 +41,22 @@ function encodePayload(value: unknown): string {
 export async function openPipWindow(
   columnConfig?: Omit<DeckColumn, 'id'>,
 ): Promise<void> {
-  const url = columnConfig ? `/pip?col=${encodePayload(columnConfig)}` : '/pip'
-  await createPipWebview(url, {
-    width: PIP_WIDTH,
-    height: PIP_HEIGHT,
-    minWidth: PIP_MIN_WIDTH,
-    minHeight: PIP_MIN_HEIGHT,
-  })
+  await createSubWindow(
+    {
+      kind: 'pip',
+      col: columnConfig ? encodePayload(columnConfig) : null,
+      win: null,
+    },
+    'user',
+    {
+      width: PIP_WIDTH,
+      height: PIP_HEIGHT,
+      minWidth: PIP_MIN_WIDTH,
+      minHeight: PIP_MIN_HEIGHT,
+      x: null,
+      y: null,
+    },
+  )
 }
 
 /**
@@ -68,91 +71,32 @@ export async function openPipWindowForWindow(
   const size = WINDOW_SIZES[type]
   const width = size?.width ?? PIP_WIDTH
   const height = Math.min(size?.maxHeight ?? PIP_HEIGHT, PIP_WINDOW_MAX_HEIGHT)
-  const url = `/pip?win=${encodePayload({ type, props })}`
-  await createPipWebview(url, {
-    width,
-    height,
-    minWidth: PIP_MIN_WIDTH,
-    minHeight: Math.min(PIP_MIN_HEIGHT, height),
-  })
-}
-
-async function createPipWebview(
-  url: string,
-  sizes: {
-    width: number
-    height: number
-    minWidth: number
-    minHeight: number
-  },
-): Promise<void> {
-  const label = genPipLabel()
-
-  if (creatingSet.has(label)) return
-  creatingSet.add(label)
-
-  try {
-    const win = new WebviewWindow(label, {
-      url,
-      title: 'NoteDeck PiP',
-      width: sizes.width,
-      height: sizes.height,
-      minWidth: sizes.minWidth,
-      minHeight: sizes.minHeight,
-      decorations: false,
-      alwaysOnTop: true,
-      resizable: true,
-      minimizable: false,
-      maximizable: false,
-      visible: true,
-      dragDropEnabled: false,
-    })
-
-    // Wait for actual creation or error
-    await new Promise<void>((resolve, reject) => {
-      win.once('tauri://created', () => resolve())
-      win.once('tauri://error', (e) => reject(new Error(String(e.payload))))
-    })
-
-    // Windows: constructor alwaysOnTop may not take effect; re-apply explicitly
-    await win.setAlwaysOnTop(true)
-
-    pipWindows.set(label, win)
-
-    // Clean up reference when window is closed
-    win.once('tauri://destroyed', () => {
-      pipWindows.delete(label)
-    })
-  } catch {
-    // ignore
-  } finally {
-    creatingSet.delete(label)
-  }
-}
-
-export async function closeAllPipWindows(): Promise<void> {
-  for (const [, win] of pipWindows) {
-    try {
-      await win.close()
-    } catch {
-      // Already closed
-    }
-  }
-  pipWindows.clear()
-}
-
-export function isPipOpen(): boolean {
-  return pipWindows.size > 0
+  await createSubWindow(
+    { kind: 'pip', col: null, win: encodePayload({ type, props }) },
+    'user',
+    {
+      width,
+      height,
+      minWidth: PIP_MIN_WIDTH,
+      minHeight: Math.min(PIP_MIN_HEIGHT, height),
+      x: null,
+      y: null,
+    },
+  )
 }
 
 /**
- * Listen for IPC events from PiP windows (call from main window).
- * Returns cleanup function.
+ * PiP のカラムをデッキに戻す。届け先 (最も近いデッキ画面を描く祖先、無ければ代表窓)
+ * は Rust が決め (`pip_return_to_deck`)、受けた窓が型を検証して足す。届けてから
+ * 自分を閉じる (× と同じ経路なので理由は user)
  */
-export async function listenPipEvents(handlers: {
-  onReturnToDeck?: (columnConfig: Omit<DeckColumn, 'id'>) => void
-}): Promise<() => void> {
-  return await listenTauri('pip:return-to-deck', (payload) => {
-    handlers.onReturnToDeck?.(payload)
-  })
+export async function returnPipColumnToDeck(
+  columnConfig: Omit<DeckColumn, 'id'>,
+): Promise<void> {
+  // カラム設定は JSON で届ける
+  unwrap(
+    await commands.pipReturnToDeck(JSON.parse(JSON.stringify(columnConfig))),
+  )
+  const { getCurrentWindow } = await import('@tauri-apps/api/window')
+  await getCurrentWindow().close()
 }

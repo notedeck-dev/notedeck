@@ -33,6 +33,7 @@ pub mod daemon;
 pub mod exec;
 pub mod heartbeat;
 pub mod heartbeat_schedule;
+pub mod heartbeat_timer;
 pub mod injection_patterns;
 pub mod memos;
 pub mod migrations;

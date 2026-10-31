@@ -79,6 +79,12 @@ export const STORAGE_KEYS = {
   // TODO: `deck` は pre-profile 時代 (<= v0.10.2) からの migration 読取専用。
   // 十分時間が経ったら読取ごと削除する。
   deck: 'nd-deck',
+  /**
+   * ポップアウトの起動時復元を有効にした印 (#1131 §6)。無ければ今回は自動で開かず
+   * バッジだけ出して立て、次回から自動で開く (閉じても隠れるだけだった版からの更新で
+   * 身に覚えのない窓が一斉に開かないように)
+   */
+  windowRestoreArmed: 'nd-window-restore-armed',
   deckProfiles: 'nd-deck-profiles',
   deckActiveProfile: 'nd-deck-active-profile',
   deckWallpaper: 'nd-deck-wallpaper',

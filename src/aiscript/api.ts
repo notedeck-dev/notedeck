@@ -33,6 +33,12 @@ export interface AiScriptEnvOptions {
    * 名前空間つきになる)。ウィジェットの `app-<installId>` だけが使う
    */
   legacyStoragePrefix?: string
+  /**
+   * UI (Mk:dialog / Mk:confirm / Mk:toast) を出してよいか。false なら出さずに
+   * 戻る (dialog は何もせず、confirm は false、toast は捨てる)。プラグインの起動時の
+   * top-level から呼ばれた UI を代表窓以外で捨てるのに使う (#1131 §7)
+   */
+  uiAllowed?: () => boolean
   /** Mk:dialog のUI実装 */
   onDialog?: (
     title: string,
@@ -81,6 +87,7 @@ export function createAiScriptEnv(
         | 'success'
         | 'warning'
         | 'error'
+      if (options.uiAllowed && !options.uiAllowed()) return values.NULL
       if (options.onDialog) {
         await options.onDialog(title, text, type)
       } else {
@@ -101,6 +108,7 @@ export function createAiScriptEnv(
   consts['Mk:confirm'] = values.FN_NATIVE(async ([titleVal, textVal]) => {
     const title = titleVal?.type === 'str' ? titleVal.value : ''
     const text = textVal?.type === 'str' ? textVal.value : ''
+    if (options.uiAllowed && !options.uiAllowed()) return values.BOOL(false)
     if (options.onConfirm) {
       const result = await options.onConfirm(title, text)
       return values.BOOL(result)
@@ -170,6 +178,7 @@ export function createAiScriptEnv(
 
   // --- Mk:toast ---
   consts['Mk:toast'] = values.FN_NATIVE(([textVal, typeVal]) => {
+    if (options.uiAllowed && !options.uiAllowed()) return values.NULL
     const text = textVal?.type === 'str' ? textVal.value : ''
     const type = typeVal?.type === 'str' ? typeVal.value : 'info'
     if (options.onToast) {

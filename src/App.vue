@@ -4,23 +4,24 @@ import {
   defineAsyncComponent,
   onErrorCaptured,
   onMounted,
-  onUnmounted,
   watch,
 } from 'vue'
 import { useRoute } from 'vue-router'
+import RepresentativeDuties from '@/components/boot/RepresentativeDuties.vue'
 import TitleBarShell from '@/components/common/TitleBarShell.vue'
 import { useCodeScheme } from '@/composables/useCodeScheme'
-import { useHeartbeatDaemon } from '@/composables/useHeartbeatDaemon'
 import { useKeyboard } from '@/composables/useKeyboard'
 import { initKeyboardInset } from '@/composables/useKeyboardInset'
 import { useMuteSync } from '@/composables/useMuteSync'
-import { useOsUnreadBadge } from '@/composables/useOsUnreadBadge'
 import { useOsWindowTitle } from '@/composables/useOsWindowTitle'
 import { usePushAttention } from '@/composables/usePushAttention'
 import { useRenoteMuteSync } from '@/composables/useRenoteMuteSync'
+import {
+  announceWindow,
+  useRepresentative,
+} from '@/composables/useRepresentative'
 import { startSettingsFileSync } from '@/composables/useSettingsFileSync'
 import { useTheme } from '@/composables/useTheme'
-import { useTrayMenu } from '@/composables/useTrayMenu'
 import { applyUiZoom } from '@/composables/useUiZoom'
 import { useWordMuteSync } from '@/composables/useWordMuteSync'
 import { i18n } from '@/i18n'
@@ -28,9 +29,7 @@ import { useLogsStore } from '@/stores/logs'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useIsCompactLayout, useUiStore } from '@/stores/ui'
 import { exitSafeMode, readSafeMode } from '@/utils/safeMode'
-import { isMainDeckWindow } from '@/utils/settingsFs'
 import { markStartup } from '@/utils/startupTrace'
-import { listenPipEvents } from '@/windows/pip'
 
 const uiStore = useUiStore()
 const { isTauri, isDesktop } = uiStore
@@ -108,6 +107,12 @@ if (isTauri) {
   initKeyboard()
 }
 
+// 窓の名簿に名乗る (#1131)。代表窓 / 見ている窓はこの返事と変更通知で決まる。
+// PiP も名乗る (種別は Rust が URL から決め、PiP は役の候補にならない)。
+// main.ts も起動の並列ロードで名乗っているので、ここは冪等な保険
+void announceWindow()
+const { isRepresentative } = useRepresentative()
+
 // コード面の明暗 (#1053) — 設定 + アプリのテーマから実効値を決めて root に
 // 出す。PiP ウィンドウも自分の document を持つので両方で mount する。
 useCodeScheme()
@@ -119,28 +124,16 @@ applyUiZoom()
 // 1 回ずつ (各ウィンドウの store が自分の面だけ追従する)
 startSettingsFileSync()
 
-// HEARTBEAT (#411) — App-level singleton daemon。AI カラムの有無に関係なく
-// アプリ起動中ずっと走る。manual trigger は AI 設定画面から
-// commands.heartbeatTriggerNow() を直接叩く (provide/inject 経由しない)。
-// main の窓だけが持つ (暫定ガード、#1297)。以前は PiP 以外の全窓で mount され、
-// timer の構成と報告の toast / OS 通知が窓の数だけ走っていた。役の置き場は
-// #1131 (代表窓) で決め直す
-if (isMainDeckWindow()) {
-  useHeartbeatDaemon()
-}
-
 // push の登録し直しの知らせ (#330、Android)。起動時と復帰時に突き合わせて受信トレイへ
 if (isTauri && !isPipWindow.value) {
   usePushAttention()
 }
 
-// OS 統合 (#748): ウィンドウタイトルは各デッキウィンドウが自分の内容を反映、
-// 未読バッジ (Dock/タスクバー/トレイ) は useOsUnreadBadge 内で main のみ有効化
+// OS 統合 (#748): ウィンドウタイトルは各デッキウィンドウが自分の内容を反映する。
+// 未読バッジ / トレイ / HEARTBEAT の表示 / PiP の戻し受け手は代表窓の仕事で、
+// <RepresentativeDuties> が持つ (#1131)
 if (isTauri && !isPipWindow.value) {
   useOsWindowTitle()
-  useOsUnreadBadge()
-  // トレイのメニュー (#1174) も OS 全体で 1 つ。useTrayMenu 内で main のみ有効化
-  useTrayMenu()
 }
 
 // OS の電源・回線・集中モード状態 (#931 / #935 / #928)。event は全ウィンドウに
@@ -148,9 +141,6 @@ if (isTauri && !isPipWindow.value) {
 if (isTauri) {
   useSystemStateStore().start()
 }
-
-// Listen for PiP IPC events (main window only)
-let cleanupPipListener: (() => void) | null = null
 
 // Dismiss splash screen (inserted by the index.html boot script).
 function dismissSplash() {
@@ -224,26 +214,6 @@ onMounted(async () => {
   useWordMuteSync()
   // リノートミュート一覧を各アカウント分 hydrate（#614）
   useRenoteMuteSync()
-
-  if (isTauri) {
-    // PiP の「デッキに戻す」の受け手は main だけ (暫定ガード、#1297)。以前は
-    // PiP 以外の全窓が受けて、窓の数だけ addColumn していた。親の窓に届ける形は #1131
-    if (isMainDeckWindow()) {
-      const { useDeckStore } = await import('@/stores/deck')
-      const deckStore = useDeckStore()
-      cleanupPipListener = await listenPipEvents({
-        onReturnToDeck: async (columnConfig) => {
-          deckStore.addColumn(columnConfig)
-          const { getCurrentWindow } = await import('@tauri-apps/api/window')
-          await getCurrentWindow().setFocus()
-        },
-      }).catch(() => null)
-    }
-  }
-})
-
-onUnmounted(() => {
-  cleanupPipListener?.()
 })
 </script>
 
@@ -265,6 +235,7 @@ onUnmounted(() => {
     <template v-if="!isPipWindow">
       <DeckWindowLayer />
     </template>
+    <RepresentativeDuties v-if="isTauri && isRepresentative" />
     <DevFrameOverlay v-if="DevFrameOverlay" />
   </div>
 </template>

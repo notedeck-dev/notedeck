@@ -71,10 +71,6 @@ const ALLOWED: Record<string, string> = {
     'lifecycle: 通知のクリック/クローズで削除',
   'src/utils/startupTrace.ts:marks': 'lifecycle: 起動時の計測点のみ',
   'src/composables/useMemos.ts:writeTimers': 'lifecycle: 書き込み完了で削除',
-  'src/windows/pip.ts:pipWindows': 'lifecycle: ウィンドウを閉じると削除',
-  'src/windows/pip.ts:creatingSet': 'lifecycle: 生成完了で削除',
-  'src/composables/useDeckWindow.ts:openWindows':
-    'lifecycle: ウィンドウを閉じると削除',
   'src/adapters/factory.ts:adapterPending': 'lifecycle: 初期化完了で削除',
   'src/aiscript/plugin-api.ts:pluginContexts':
     'lifecycle: プラグイン停止で削除',

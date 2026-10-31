@@ -1,4 +1,4 @@
-import type { CacheStats, EvictionConfig, ImageCacheStats } from '@/bindings'
+import type { CacheStats, ImageCacheStats } from '@/bindings'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 
 /** 手元のキャッシュ (ノート DB / 画像) の統計と掃除 (#1258) */
@@ -25,7 +25,10 @@ export function clearImageCache(): Promise<void> {
   })
 }
 
-/** 退避設定を今すぐ適用し、消した行数を返す */
-export function applyEvictionConfig(config: EvictionConfig): Promise<number> {
-  return commands.applyEvictionConfig(config).then(unwrap)
+/**
+ * settings.json5 の掃き出し設定を Rust が解いて今すぐ適用し、消した行数を返す (#1131)。
+ * プリセットの表は notecore (`eviction_preset.rs`) にだけある
+ */
+export function applyEvictionFromSettings(): Promise<number> {
+  return commands.applyEvictionFromSettings().then(unwrap)
 }

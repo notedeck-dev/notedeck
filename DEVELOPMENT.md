@@ -435,7 +435,7 @@ iOS / Android は in-process の transport (コマンド面は同じ)
 **今すぐ守ること (段階 0a、機械検査あり)**:
 
 - notecore 側のモジュールは `crates/notecore` に置く (2026-09-23 にクレート化済み)。notecore は `tauri` を参照せず、Cargo.toml に tauri 系を足さない (`tests/lint/rustCoreBoundary.test.ts`)。手元側 (WebView / managed state / OS 統合) が要る処理は trait (`FrontendBridge` / `AiChatSink`) で受け取り、Tauri 側 (`src-tauri/`) が実装を渡す。app dir のような値は `&Path` で受ける
-- **データ系コマンドは notecore のコマンド表に載せる** (`crates/notecore/src/commands/table.rs`、#1106 §4.1。2026-09-23 に既存のデータ系は全件移行済み。跨り (mixed) も「データ側は notecore の関数 (`export_service` / `backup_service` / `commands::admin` 等)、手元側は dialog や保存先の解決だけの薄い包み」に分けたので、`src-tauri/src/commands/` に `#[tauri::command]` で残るのは local と authz だけ)。本体は `&Core` と引数を取る関数として `crates/notecore/src/commands/<module>.rs` に書き、表に 1 行足す。表から Tauri ラッパー (`src-tauri/src/commands/table.rs`)、JSON アダプタ (`dispatch`)、フィクスチャが生成され、属性検査 (許可ウィンドウ) は型付き経路でも JSON 経路でも本体の前に通る。全コマンドを JSON 経路で往復させるテストが notecore にあり、引数の型は `Default` を要求する。手元側 (OS 統合) と認可境界のコマンドは従来どおり `#[tauri::command]` で書く
+- **データ系コマンドは notecore のコマンド表に載せる** (`crates/notecore/src/commands/table.rs`、#1106 §4.1。2026-09-23 に既存のデータ系は全件移行済み。跨り (mixed) も「データ側は notecore の関数 (`export_service` / `backup_service` / `commands::admin` 等)、手元側は dialog や保存先の解決だけの薄い包み」に分けたので、`src-tauri/src/commands/` に `#[tauri::command]` で残るのは local と authz だけ)。本体は `&Core` と引数を取る関数として `crates/notecore/src/commands/<module>.rs` に書き、表に 1 行足す。表から Tauri ラッパー (`src-tauri/src/commands/table.rs`)、JSON アダプタ (`dispatch`)、フィクスチャが生成され、属性検査 (`(window = app)`: Tauri の窓から呼ばれたこと) は型付き経路でも JSON 経路でも本体の前に通る。注入の属性 `(owner = window)` は検査ではなく、呼び元の窓の label (JSON 経路では None) を本体の第 2 引数 `owner` に渡す (クエリ購読の所有者。窓が消えたら Rust が `close_owner` でその窓の購読だけ閉じる、#1131)。全コマンドを JSON 経路で往復させるテストが notecore にあり、引数の型は `Default` を要求する。手元側 (OS 統合) と認可境界のコマンドは従来どおり `#[tauri::command]` で書く
 - **DB の読み書きはすべて `Core::blocking` / `with_archive` / `spawn_archive_write` を通す** (notecli の Database は同期の rusqlite なので、async の本体から直接呼ぶと tokio の worker を塞ぐ)。生のハンドル (`Core::db()` / `try_db()`) は notecore の中だけで、コマンド本体やアプリ側からは取れない (#1098 §7、2026-10-27)。資格情報は `Core::credentials` / `credentials_or_anon` (口座の所在をキャッシュ越しに引く。miss 時の 1 行読みだけ worker で許容)。notecli に async API を足す案は不採用: 接続が writer / reader 1 本ずつの設計では中身が spawn_blocking になるだけで並行度が上がらず、CLI に runtime を持ち込む。プール化するなら notes キャッシュ再設計 (notecli#30) の中で、この境界の裏で差し替える
 - 表に載らない `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
 - Kotlin から直接呼ぶ Rust の入口 (JNI の `extern "system" fn Java_…`、Android の通知ブリッジやワーカーが使う) は `#[tauri::command]` ではないので、直前の行に `// nd-entry: local` を持つ (同じ lint)。OS 統合なので種別は local 固定。入口の中は release の `panic = "abort"` を前提に Result 一本で書き、`ndk_context` に触らない (#330 §4.1)
@@ -662,10 +662,10 @@ stateDiagram-v2
 - **ウィンドウ**: プロファイルの表示先。同じプロファイルを複数ウィンドウで開ける
 
 ```
-Profile A ──→ Main Window（windowId なしのカラムを表示）
-         └──→ Sub Window 1（windowId = "w1" のカラムを表示）
+Profile A ──→ デッキ窓（windowId なしのカラムを表示。起動時の窓 `main` とミラーは対等）
+         └──→ ポップアウト "w1"（windowId = "w1" のカラムを表示。デッキ窓の子）
 
-Profile B ──→ Main Window（プロファイル切り替え時）
+Profile B ──→ デッキ窓（プロファイル切り替え時）
 ```
 
 **設計原則:**
@@ -688,6 +688,26 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 | **インスペクタ** | ウィンドウ | Raw JSON 表示・デバッグ（ノート/通知インスペクタ、settings.json5 エディタ） | セッション限り |
 | **ツール** | ウィンドウ | アプリ設定・管理（ログイン、エディタ群、プラグイン、about） | セッション限り |
 
+**OS の窓の種類と役（[#1131](https://github.com/notedeck-dev/notedeck/issues/1131)）:**
+
+役はプロセスが持ち、窓は持たない。プロセスに 1 つの仕事（トレイ / OS バッジ / 更新確認 / HEARTBEAT の構成 / 通知クリックと deep link の遷移 / 外部からの問い合わせへの応答 / 設定ファイルの移行 / プラグインの無人の副作用）は Rust が所有し、WebView が無いとできない仕事は Rust が選んだ**代表窓**に任せる。VS Code の「UI を持たない main プロセス + 対等なワークベンチ窓」と同じ形。label `main` に残る意味は「起動時に Tauri が作る窓」「window-state プラグインの保存対象」の 2 つだけ。代表窓は利用者向けの語ではないので UI 文言と GLOSSARY に出さない。
+
+| 窓 | label と URL | 親 | 永続化 | 生成数の上限 |
+|---|---|---|---|---|
+| **デッキ窓**（起動時の窓と、利用者が開くミラー。デッキ全体を描き、対等） | `main` / `deck-*` + `?profile=` | 無し | main は window-state プラグイン、ミラーは非永続 | ミラーだけ数える |
+| **ポップアウト**（カラム群を切り出した子。デッキの画面で描く） | `deck-*` + `?profile=&window=<id>`（id はプロファイルの `windows[].id`） | デッキ窓 | プロファイルの `windows[]` | 数える |
+| **PiP**（カラム 1 本かウィンドウ内容 1 つ） | `pip-*` + `/pip` | デッキ画面を描く窓か PiP | 非永続 | 数える |
+
+- **窓を作るのは Rust**（`sub_window_create`、`src-tauri/src/commands/sub_window.rs`）。URL と label は Rust が組む。ポップアウトの label はプロファイルの `windows[].id` と一致させる必要があるので JS が渡すが、Rust が形式を検証し `main` / `pip-*` は名乗れない。kind ごとの呼び元（ポップアウト / ミラーを頼めるのはデッキ窓だけ）も Rust が検査する。capability から窓生成の権限は外してあり、`new WebviewWindow` と `'/pip'` の比較と label `'main'` の比較の出現ゼロを lint（`tests/lint/windowRoles.test.ts`）で検査する。名簿（`window_registry.rs`）は Tauri 非依存の純 struct で、親子・上限・CloseRequested の印を持ち、効果を値で返す。窓のイベント（CloseRequested / Destroyed / Focused / Moved / Resized）は `window_events.rs` の dispatcher に集める
+- **代表窓**は参照時に計算する（`main` が居ればそれ、無ければ最も古いデッキ窓）。claim / grant のリースは不採用（リロードや WebProcess の再起動で役が死ぬ）。JS は `useRepresentative()` の `isRepresentative` で判定し、代表窓だけが持つ仕事（HEARTBEAT の表示 / OS バッジ / トレイ）は `<RepresentativeDuties>` が mount する。起動時の 1 回限りの仕事（ファイル移行 / seed）は `isRepresentativeNow()`
+- **見ている窓** = 最後にフォーカスされたデッキ窓。通知クリック / deep link / 単一インスタンス起動 / グローバルホットキーの前面化と、窓ごとに値が違う問い（`deck/active`）・確認ダイアログを出し得る問いの答え手。トレイの左クリックと「表示」だけは `main` の表示切替のまま（トレイは `main` を隠す操作の対）
+- **宛先付きイベント**: 1 窓だけが処理するもの（deep link / 通知クリック / トレイの切替 / 外部からの問い合わせ / 子窓からの知らせ）は `to` を持つ struct を全窓へ流し、受けた窓は `listenAddressed`（`src/utils/addressedEvents.ts`）で自分宛て以外を捨てる。`emit_to` は `Any` 購読が残ると漏れるので使わない。デッキ窓がまだ無い冷えた起動の遷移は Rust が預かり（`pending_inbox.rs`）、最初の名乗りで流す
+- **親子・回収・上限**: 子が閉じたら Rust が親（居なければ代表窓）宛てに `ChildClosed { reason }` を流す。reason は Rust が決める（その窓で CloseRequested を見れば `user`、見なければ `lost`。JS に「閉じる前に告げる」口は無い）。カラムの回収（`recallColumnsFromWindow`）は `user` だけで、`lost` は回収せず次回起動で開き直す。プロファイル切替の一括クローズは `sub_window_close` の `destroy()`（lost）、「すべてのウィンドウを閉じる」は `close()`（user）。上限は Rust の定数 `MAX_SUB_WINDOWS` で設定項目にしない。自動の経路（起動時 / プロファイル切替の復元）は拒んで受信トレイに残し、人の操作は開いた上で枚数を警告する（人の操作は止めない）。デッキ窓が 0 になれば残る子も終わり、アプリは終了する（トレイ無し環境で PiP だけ残す使い方は支えない）。子窓にも起動フューズがあり、mount に失敗して不可視のまま残った窓は Rust が show する
+- **クエリ購読の所有者**: `QueryRuntime` は購読を窓の label 別に数え、コマンド表の `(owner = window)` 属性で呼び元の label を本体に渡す。窓が消えたら Rust が `close_owner` でその窓の分だけ閉じる（JS の unmount と二重になっても組が無ければ無視）
+- **表示と復元の規則**: `windowLayout` はデッキ窓では「windowId 無し」か「その窓が開いておらず復元待ちでもない」カラムを描き、後者はヘッダーに「別ウィンドウのカラム」のボタン（押すと開き直す）とメニューの「このウィンドウに戻す」を出す。保存は触らない。名簿の写し `liveWindowIds` は Rust の `SubWindowsChanged` で届き、未取得の間は windowId 付きを描かない。起動時は代表窓が `windows[]` のうちカラムのある窓を自動で開き直す（VS Code の `window.restoreWindows` と同じ。この機能を含む版への更新後の初回だけは開かずバッジで出す）。`windows[]` に無い窓のカラムは起動時に回収する。プロファイル切替は呼んだ窓とその子だけが対象で、アクティブプロファイルの保存は全窓共有（ミラーで切り替えると次回起動のプロファイルも変わる）。プロファイルの同時編集（デッキ窓 ↔ ミラー / ポップアウト）は last-writer-wins で保証しない
+- **プラグイン**: `launchAllPlugins` はデッキ窓とポップアウトで走り、PiP では起こさない（ノート表示フックは PiP で効かない）。`Nd:on` の配送と、起動時の top-level から呼ばれた UI（`Mk:dialog` / `Mk:confirm` / `Mk:toast`）は代表窓だけ（`uiAllowed`）。UI 起点の hook の中は窓を問わない。PiP の中からの capability `windows.open` は Err
+- **採用しなかったもの**: ポップアウト専用画面（`/popout`。ROADMAP が謳うモニター 2 での操作を削る）/ 別の端末やサーバーの notemaid に繋ぐ構成 / ポップアウトの最大化保存（モバイルサイズ表示が用途）/ リースの状態機械 / プロファイルファイルの書き手 1 本化（別 issue）/ 「メインが消えたらサブウィンドウも落とす」規則（ミラーは子ではなく対等）
+
 **ウィンドウのジオメトリ永続化（[#874](https://github.com/notedeck-dev/notedeck/issues/874)）:**
 
 位置・サイズの保存と復元は、ウィンドウの種類ごとに要件が違うので**機構を分けたまま統合しない**。「同じ仕事の二重実装」ではなく、グローバル vs per-profile、描画前復元 vs プロファイル適用時復元という要件差から来ている。
@@ -695,11 +715,11 @@ Profile B ──→ Main Window（プロファイル切り替え時）
 | ウィンドウ | 保存先 | 復元 | 内容 |
 |---|---|---|---|
 | **main** | `tauri-plugin-window-state`（Rust 側、ラベル → ジオメトリのグローバル map。`src-tauri/src/lib.rs`） | 初回描画前。クラッシュやトレイからの Quit でも保存される | サイズ・位置・最大化・フルスクリーン。可視状態は除外（close → トレイ hide → Quit で不可視が保存されると次回起動が見えなくなる）、装飾も除外（`decorations: false` 固定） |
-| **デッキ派生**（カラムのポップアウト。`?profile=&window=<id>`） | プロファイル内の `windows[]`（per-profile。`useDeckWindow` が論理 px に正規化して保存し、モニタ名を添える） | プロファイル適用時に、カラムが割り当てられているものだけ開き直す。保存モニタが無ければ primary の中央、はみ出していれば境界に clamp | 位置・サイズ・モニタ名。最大化状態は持たない（現状） |
+| **デッキ派生**（カラムのポップアウト。`?profile=&window=<id>`） | プロファイル内の `windows[]`（per-profile。Rust が子窓の Moved / Resized を論理 px で記録し、debounce して親の窓に `ChildGeometry` で届ける。親が `saveWindowLayout` でプロファイルに書く。#1131） | プロファイル適用時に、カラムが割り当てられているものだけ開き直す。保存モニタが無ければ primary の中央、はみ出していれば境界に clamp | 位置・サイズ・モニタ名。最大化状態は持たない（現状） |
 | **ミラー**（`?profile=` のみ、windowId なし）/ **PiP**（`pip-<時刻>-<連番>`） | 非永続 | 都度、既定サイズで開く | — |
 
 - **Rust プラグインに寄せない理由**: 派生ウィンドウのジオメトリはプロファイル切替でウィンドウ構成ごと復元される per-profile データで、プラグインのグローバル map にはプロファイルを載せる場所がない。どのウィンドウを作るかはアプリロジックなので、生成時にジオメトリを渡す現行の形が最も atomic。プロファイルは持ち出せる単位なので、ジオメトリだけ別ファイルに分けるとバックアップ・エクスポートの整合が壊れる
-- **フロント側に寄せない理由**: 描画前の復元とクラッシュ時・トレイ Quit 時の保存は Rust 側でフックしているから成立している。フロントに移すと復元は JS ブート後（見えてから跳ぶ）、保存は beforeunload 頼みになり、プラグインが解決済みのクロスプラットフォームの罠を再実装することになる
+- **フロント側に寄せない理由**: 描画前の復元とクラッシュ時・トレイ Quit 時の保存は Rust 側でフックしているから成立している。フロントに移すと復元は JS ブート後（見えてから跳ぶ）になり、プラグインが解決済みのクロスプラットフォームの罠を再実装することになる。派生ウィンドウの保存点も同じ理由で Rust 側の窓イベント（`window_events.rs`）にあり、フロントの beforeunload には頼らない
 - **動的ラベルのウィンドウをプラグインの対象から外す理由**: 復元先が二度と一致せず、state ファイルにゴミが溜まり続ける。ラベルを安定化しても、プロファイル削除時に同じ問題が形を変えて再発する
 - どちらも他方の上位互換ではない。プラグインは現存モニタと交差しなければ OS に配置を任せるオフスクリーンガードと最大化・フルスクリーンを持ち、フロント側はモニタ名一致・境界 clamp・primary 中央寄せ・論理 px 正規化を持つ
 
@@ -881,13 +901,13 @@ plugin / widget / query / skill / theme の 5 種は on-disk の形が違う（s
 - **codec は固定 projection**: `toFile(fromFile(x))` が store の書くファイルとバイト一致する。TS が正本で、Rust（notecore の `sidecar/{plugins,widgets,queries}.rs` の `normalize_meta` と `themes.rs`、notemaid の `skills.rs`）は同じ golden `src/services/distributableCodecs/golden/vectors.json` を読んで一致を検査する（期待値は `pnpm gen:golden-distributables` で採り直す。tools.json と同じ運用）。store の書く形は codec そのもの（段階 1 で 5 種とも factory に載ったので、store 側の serialize と codec の一致を別に固定するテストは無い）
 - **store factory は kind を知らない**: 共通のアクション（初回読込ゲート / add / remove+undo / 改名・本文更新 / 有効切替 / ストア更新の適用 / 基準記録 / 紐付け / アカウント削除時の掃除 / 変更通知の受け口 / 履歴 push）を 1 実装で持ち、kind 固有は宣言（`codec.enabled` / `purgeAccount` の `unlink` か `unlinkOrRemove` / 履歴の snapshot / `browserStorageKey`）と hook（`migrate` / `afterContentChange` / `afterEnabledChange` / `snapshotForUndo` / `restoreFromUndo` / `afterRemove`）で差し込む。**共通層に kind の分岐を書かない**。`afterContentChange` は本文が変わったときだけ（有効 / 無効の切替では呼ばない — query のサスペンド解除がその判断に乗っている）で、経路（自分の API か別の書き手の変更通知か）を受け取る（widget の再実行は別の書き手のときだけ — エディタの自動保存で走らせない #744）。`extra` の更新は `updateExtra`（widget の autoRun 等）。変更系は async に統一（決定 (e)）。sidecar の kind は `sidecarCollectionFor(codec, io)` で codec をコレクションに載せる。公開名は kind を問わず `items` / `get` / `add` / `update` / `setEnabled` / `remove` / `link` / `unlink` / `purgeAccount` / `applyStoreUpdate` / `recordStoreBaseline`（段階 3 の共通管理カラムがこの面を使う）
 - **段階 0 で揃えた on-disk**: plugin と theme に createdAt / updatedAt を足した（theme は Misskey 互換の上位を保つため `$notedeck` の下）。query の `disabled`（反転・true のときだけ）は `active: boolean`（常に書く）になった。skill は変えていない
-- **段階 1 の widget の回で揃えた on-disk（決定 (b) / (g) / (h) / (i)）**: `accountKey`（1 アカウントに固定）を `global: boolean`（常に書く）+ `installedFor`（空は書かない）に。固定も紐付けも無い旧個体は `global: true`、`accountId`（内部 UUID）だけの旧々個体は移行待ちとして `accountId` を残す（両書き手とも）。**実行アカウントは本体ではなくカラム側の配置が持つ**（`DeckColumn.widgetRefs: { id, accountKey? }[]`、サイドバーの並びも同形。旧 `widgetIds: string[]` はプロファイル読込で移す。同じ本体を alice 用と bob 用に 2 つ置くのは配置の重複）。**Mk:save は `app-<installId>/<accountKey>` で名前空間を分け**、Mk:load は名前空間つきの鍵に無ければ旧 `app-<installId>` を読む（`services/widgetPlacement.ts`）。同じ storeId の複製（アカウント別のコピー）は初回読込で最古の本体に統合し（紐付けを束ね、分岐した本文は本体の履歴へ、Mk:save は本体の名前空間へ、配置は本体 id + 実行アカウントへ書き換え）、固定だった本体の配置にも実行アカウントを足す。副作用はメインウィンドウだけが行い、カラムの配置の書き換えは widgets store が積んだものを deck store が取り出して全プロファイルに当てる
+- **段階 1 の widget の回で揃えた on-disk（決定 (b) / (g) / (h) / (i)）**: `accountKey`（1 アカウントに固定）を `global: boolean`（常に書く）+ `installedFor`（空は書かない）に。固定も紐付けも無い旧個体は `global: true`、`accountId`（内部 UUID）だけの旧々個体は移行待ちとして `accountId` を残す（両書き手とも）。**実行アカウントは本体ではなくカラム側の配置が持つ**（`DeckColumn.widgetRefs: { id, accountKey? }[]`、サイドバーの並びも同形。旧 `widgetIds: string[]` はプロファイル読込で移す。同じ本体を alice 用と bob 用に 2 つ置くのは配置の重複）。**Mk:save は `app-<installId>/<accountKey>` で名前空間を分け**、Mk:load は名前空間つきの鍵に無ければ旧 `app-<installId>` を読む（`services/widgetPlacement.ts`）。同じ storeId の複製（アカウント別のコピー）は初回読込で最古の本体に統合し（紐付けを束ね、分岐した本文は本体の履歴へ、Mk:save は本体の名前空間へ、配置は本体 id + 実行アカウントへ書き換え）、固定だった本体の配置にも実行アカウントを足す。副作用は代表窓だけが行い（`isRepresentativeNow`、#1131）、カラムの配置の書き換えは widgets store が積んだものを deck store が取り出して全プロファイルに当てる
 - **段階 1 の plugin の回で揃えたこと**: on-disk は変えていない（段階 0 で揃え済み）。**起動 / 停止は plugins store の hook に一本化**し、呼び出し側（管理カラム / 編集ウィンドウ / capability / misstore / 変更通知）は store の API（`setEnabled` / `update` / `setConfigData` / `applyStoreUpdate` / `remove` と undo / `add`）だけを呼ぶ。有効の切替・本文の変更・設定値の変更（`Plugin:config` は起動時に組まれるので新しい値で起動し直す）・ストア更新・undo の復活は「写しの状態に実行基盤を合わせる」1 関数で、削除と別の書き手による削除は停止。store は実行基盤（`aiscript/plugin-api`）を遅延 import する（plugin-api は handler のスコープ評価で store を見るので、静的に輪を作らない。テストで plugin-api をモックするときは `importOriginal` を使わず丸ごと差し替える — 本物を読むと store が本物の輪の中で読まれ、hook の遅延 import がモックを見ない）。`installedFor` の旧 UUID → 安定キーの移行は accounts ロード後に kind 側で走り、「どこにも参加していない個体を全体スコープへ救済する」旧規則は外した（「外す」で空にした本体が次の起動で全体スコープへ戻るバグだった。参加先が全滅した個体もライブラリのみに残る）
 - **段階 1 の skill の回で揃えたこと**: on-disk は変えていない。単一ファイルの kind は `singleFileCollectionFor(codec, io)`（`distributableCodecs/singleFile.ts`、sidecar 版と対。ID 凍結の実効値 / 注入は codec では決まらないので io が持つ）で codec をコレクションに載せる。**予約 skill（AGENTS / HEARTBEAT）はファイル名で決まる runtime-only の印**（codec が `extra.reserved` に立てる）で、改名・mode 変更・persona 化・有効無効・削除の拒否は kind 側の store が行い（共通層は予約を知らない。読取専用のゲートは skill には無関係 — 単一ファイルにソース欠損は無い）、規約外名の copy-adopt からも kind 側のコレクションの包みで外す。ブラウザ dev モードでは保存しない（`browserStorageKey` 無し、メモリだけ）。factory の `update` は編集で変わる kind 固有の値を `extra` で受け（履歴の範囲が動けば積む。skill の mode 等）、状態の印だけの `updateExtra`（履歴なし）と使い分ける。`reload(filename)` は変更通知を待たずに 1 ファイルを読み直す口（notemaid が置いた予約 skill を開く経路）。旧 built-in（aizu / 同梱をやめた 9 本）と端末ローカルの有効一覧の移行は `migrate` hook（純ロジックは `services/storeMovedSkills.ts`）
 - **段階 1 の theme の回で揃えたこと**: on-disk は変えていない。インストール済みテーマのプールだけを factory に載せ、選択・適用・per-account の適用キャッシュ・カスタム CSS は `useThemeStore` の持ち物のまま（削除で選択を外す / undo で戻す / 選択中のテーマの中身が変わったら当て直す、は hook）。読込は `init` が起動時に始める（eager。選択中のテーマを当てるのに一覧が要る）。コンパイラ / 適用器 / プレビューに渡す Misskey 互換の形は `misskeyThemeOf(item)`。紐付けが空になった本体は消す（`unlinkOrRemove`。テーマには「全体」の印が無く、紐付け 0 はどの管理カラムにも出ない）ので、旧 UUID → 安定キーの移行では先に足してから外す。ストアからのインストールは他の kind と同じ `add` / `applyStoreUpdate` + `link` になり（ローカル ID = storeId、占有時は連番）、確認の diff はファイルに書く形（codec の projection）同士。factory に「一覧の読込に失敗した起動ではファイルに一切書かない」ガード（`onLoadFailed` hook で通知）を足した — theme だけが持っていた規則で、同じ ID の個体を入れると既存のファイルの横に別名で書かれる事故を全 kind で防ぐ
 - **段階 2 (ストア連携の一本化)**: MisStore からのインストール / 更新 / インストール済み判定の手続きは `src/stores/misstore.ts` の 1 本（`installFrom` / `updateFrom` / `isInstalledIn`）で、kind ごとに違うのは宣言（`StoreKind`: レジストリの feed、相手の store、ソースの読み方 `parse`、新規個体の形 `add`、確認を出す条件 `changed` と注意 `caution`、diff の中身と言語、確認のタイトル）だけ。手続き: 取得 + sha 照合（不一致は index 再取得の 1 回リトライ）→ ソースを読む → storeId で既存を探す → 既存なら sha が違うときだけ（= 中身が変わっているときだけ）kind の条件で確認して `applyStoreUpdate`、確認を断られても参加先（`link`）は足す → 無ければ `add`（ローカル ID = storeId、占有時は連番 suffix）。更新は参加先に触れない。plugin の確認条件は本文の差ではなく権限の拡大（再同意の抜け穴を作らない）、theme は見た目（base / props）の差。feed（index の取得 / TTL / baseline 記録 / 更新検知）は相手の store を受けるだけで kind を知らない。kind 名つきの公開名（`installPlugin` / `updateTheme` 等）は段階 3 で畳み、公開面は kind を引数に取る `feed(kind)`（一覧 / 読込中 / エラー / 取得 / 再取得）/ `install(kind, entry, targets)` / `update(kind, entry)` / `installedIn(kind, entry, target?)` / `hasUpdate(kind, entry)` / `installing(kind)` だけ（widget のソース取得 `fetchWidgetSource` は配置側のテンプレが使うので別）
 - **段階 3 (管理カラムの共通殻)**: 5 種の管理カラム（`DeckPluginManagerColumn` / `DeckWidgetColumn` / `DeckQueryManagerColumn` / `DeckSkillColumn` / `DeckThemeManagerColumn`）は `src/components/deck/DeckDistributableColumn.vue` の 1 つの殻に載る。殻が持つのは kind を知らない面だけ: ヘッダー（タイトル / セーフモードの注意 / 「+」/ ストアの再取得）、「インストール済み / ストア」タブ、検索、有効 / 無効の絞り込み（`@enabled` / `@disabled` 接頭辞、宣言した kind だけ出す）、ライブラリからの追加ピッカー、sideload と store の区分（`item.store` の有無）、ストアの取得状態（読込 / エラーバナー、インストール・更新の失敗もここに流す `run(action, fallback)`）、空表示。kind 側（wrapper）は宣言（`items` / `libraryCandidates` / `enabledFilter` / `texts` / `store` の feed）と slot（`card` の中身、`store-card`、必要なら `installed` の一覧全体や `installed-empty`）だけを渡す。theme は一覧を区分（既定 / sideload / store / サーバー）で、widget は配置順の並べ替えで `installed` slot を差し替える。ストアとのやりとりは `useMisStoreStore()` の kind 引数つきの公開面（段階 2 の項）だけで、kind 名つきの名前は無い。殻に揃えて直した差: theme の「外す」も undo つきトースト（他と同じ）、query はアカウントの見つからないカラムで「+」を出さない（作った直後に消える個体を作らせない）、絞り込みボタンはもう一度押すと解除。ピッカーを開くボタンの文言は全 kind「ライブラリから追加」。殻は `generic` で Item / entry の型を受けるので、`<script setup … generic=…>` は 1 行で書く（Vapor 互換 lint が `<script setup` を行単位で探す）
-- **移行は読込時の書き戻し**: 旧形式のファイルは両方の書き手が読め（コレクションの `isOutdated` → `loadAll().outdated`）、TS はメインウィンドウが起動時に一度だけ書き戻す。Rust は書くときに埋める（`normalize_meta` / `install_theme`）
+- **移行は読込時の書き戻し**: 旧形式のファイルは両方の書き手が読め（コレクションの `isOutdated` → `loadAll().outdated`）、TS は代表窓が起動時に一度だけ書き戻す（`isRepresentativeNow`、#1131）。Rust は書くときに埋める（`normalize_meta` / `install_theme`）
 - **「有効」は kind が宣言で opt-in する**（`codec.enabled`）: plugin / query は `active`、skill は `active` + mode=always の実効値。widget（autoRun は有効フラグではない）と theme（選択は settings 側）は持たない
 - **スコープは「共有 / なし」の 2 戦略**（決定 (b)）: plugin / widget / query は global + installedFor、theme は installedFor だけ、skill は無し。widget の紐付けは「どのアカウントのカラムで選べるか」で、実行アカウントは配置が持つ
 
@@ -1110,7 +1130,7 @@ notecore 側のファイルは AI (notemaid) とデバイスの両方が書く�
 
 認可境界の操作 (認証の保存 / アカウントの削除・ログアウト / Vault の secret と信頼の書込 / ルート設定ファイルの書込) も本体は notecore にあり、コマンド表では種別 `authz` の行になる。lint は表の行の種別を名前で固定する (`tests/lint/rustCommandKinds.test.ts` の `TABLE_AUTHZ`)。公開 API 面の永続トークン (external principal) を RPC 面の秘密として出しても通らないことは notemaid の smoke テスト (`crates/notemaid/tests/smoke.rs`) が golden として押さえる。
 
-healthcheck は doctor とキャッシュ統計を notecore の `health_core` から取り、ログ場所や直近の panic は手元で足す。HEARTBEAT の手動実行は notemaid の `run_once` を呼ぶ表の行で、別プロセスの notemaid に繋いでいるときは timer も notemaid が持つ (ai.json5 から組み、変更通知で組み直す) ので `heartbeat_configure` は何もしない。
+healthcheck は doctor とキャッシュ統計を notecore の `health_core` から取り、ログ場所や直近の panic は手元で足す。HEARTBEAT の手動実行は notemaid の `run_once` を呼ぶ表の行。timer は in-process でも常駐でも notemaid の `HeartbeatTimer` で、別プロセスの notemaid に繋いでいるときは手元の timer は組まない。
 
 #### ストリームの生イベントと未読
 
@@ -1447,7 +1467,7 @@ file lock / rate limit / `vault.manage` 権限 / error 3 値正規化 / latency 
 
 #### Tauri コマンド追補
 
-`ai_migrate_provider_to_vault(provider, name, baseUrl, protocol)` — 旧 `ai.<provider>` キーチェーンを Vault 接続へ移行 (`origin = External`, `externalSource = "ai-provider"`)。`vault.rs` に定義、main ウィンドウ限定。
+`ai_migrate_provider_to_vault(provider, name, baseUrl, protocol)` — 旧 `ai.<provider>` キーチェーンを Vault 接続へ移行 (`origin = External`, `externalSource = "ai-provider"`)。`vault.rs` に定義、コマンド表の `(window = app)` 属性で Tauri の窓からの呼び出しに限る（#1297 までは `main` 限定だった）。
 
 ### AI Chat Streaming
 
@@ -1571,11 +1591,11 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 
 ```
 ┌─ 手元側 ──────────────────────────────────────────────┐
-│  [Tauri] HeartbeatScheduler (Option<ScheduledTask>)    │
-│    heartbeat_configure / unconfigure / trigger_now     │
-│    tick → notemaid::heartbeat::run_once(&core, source) │
-│  [JS] useHeartbeatDaemon (App.vue で 1 mount)          │
-│    設定 (enabled / interval) → timer                    │
+│  [Tauri] notemaid の HeartbeatTimer を in-process で持つ  │
+│    ai.json5 / settings.json5 の変更通知で組み直す        │
+│    (オフライン中は止める)。手動は heartbeat_trigger_now  │
+│    tick → notemaid::heartbeat::run_due(&core, due)      │
+│  [JS] useHeartbeatDaemon (代表窓だけが mount, #1131)    │
 │    'nd:ai-heartbeat-event' → セッション写しの読み直し / │
 │      アプリの通知 / OS 通知 / ペットの活動表示           │
 │    起動時: 閉じている間の報告を 1 件にまとめて通知       │
@@ -1599,8 +1619,8 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 |---------|------|
 | `crates/notemaid/src/heartbeat.rs` | daemon 本体。skill 選択 / cheap check / 日次上限 / system prompt / ターン / 応答契約 / 報告先の解決と書込 / タイトル生成 / 失敗の数え方と自動停止 / 観測用の状態 |
 | `crates/notemaid/src/ai_config.rs` | ai.json5 の読取断面 (HEARTBEAT / 接続 / 生成の値、正規化はデバイスの `useAiConfig` と同じ規則) と `heartbeat.enabled` の書換 |
-| `src-tauri/src/commands/heartbeat.rs` | timer (global single scheduler)。tick で notemaid を呼ぶ。`HeartbeatSink` は notemaid の `sinks.rs` が Core の EventSink に写す |
-| `src/composables/useHeartbeatDaemon.ts` | 設定を timer に伝え、notemaid の出来事をデバイスに反映する |
+| `crates/notemaid/src/heartbeat_timer.rs` | timer。ai.json5 を自分で読んで組み、常駐バイナリと in-process の Tauri (`src-tauri/src/commands/heartbeat.rs` が設定ファイルの変更通知で組み直し、オフライン中は止める) の両方が使う。`HeartbeatSink` は notemaid の `sinks.rs` が Core の EventSink に写す |
+| `src/composables/useHeartbeatDaemon.ts` | notemaid の出来事をデバイスに反映する (代表窓だけが mount する、#1131)。timer の構成は Rust が持つ |
 | `src/composables/useAiConfig.ts` | `HeartbeatConfig` の正本 (デバイス側)。notemaid が ai.json5 を書いたら変更通知で読み直す |
 
 #### Skill 駆動
@@ -1666,7 +1686,7 @@ session 一覧では `AiSessionKind` 別の icon 統一 (`chat` → `ti-message-
 - **取得は Rust**: petdex のアセット CDN は CORS ヘッダを返さないので、解決 API → スプライト取得 → 寸法からグリッド判定 (v1 / v2) → 保存 を `commands/pet.rs` が行う。フロントは base64 で受けて Blob URL を CSS 背景に敷く
 - **スプライトの表**: 行と状態の対応、コマ数、コマごとの表示時間は pet.json に無く描画側の固定表 (`services/petSprite.ts`、petdex desktop と同じ値)
 - **AI 活動の集約状態** (`stores/aiActivity.ts`): 「生成中 / ツール実行中 (読み取り系は review) / 承認待ち / 完了 / 失敗」を横断して見られる唯一のリアクティブ状態。`useAiChat` / `useAiTurn` / capability dispatcher (AI principal のみ) / `taskRunner` が `begin` / `pulse` で報告し、`services/petActivity.ts` が優先順位で 1 つに畳む。ペットはその最初の消費者で、Dev Dashboard や Spotlight も読める
-- **表示**: メインウィンドウのデッキ上に 1 体 (`DeckPetOverlay`)。PiP では出さない。コンパクトレイアウトでは下端の基準をモバイルナビの上端 (`--nd-mobileNavHeight`) に置き、位置未設定なら FAB の上に載せる。ドラッグで位置を変えられ (向きで running-left / right)、省電力の `staticEmoji` とウィンドウ非表示の間は 1 コマ目で止める
+- **表示**: デッキ画面を描く窓 (デッキ窓とポップアウト) のデッキ上に 1 体ずつ (`DeckPetOverlay`。表示は全窓の原則、#1131)。PiP では出さない。コンパクトレイアウトでは下端の基準をモバイルナビの上端 (`--nd-mobileNavHeight`) に置き、位置未設定なら FAB の上に載せる。ドラッグで位置を変えられ (向きで running-left / right)、省電力の `staticEmoji` とウィンドウ非表示の間は 1 コマ目で止める
 - **当たり判定は不透明領域だけ**: 要素は矩形だが、透過画素の上のクリック・タップ・スクロールは下のデッキに届く (petdex desktop は別 OS ウィンドウなので矩形で困らないが、デッキの上に載せる NoteDeck では死に領域になる)。`pet_store::hit_mask` が読み込み時にスプライトの alpha から状態 (行) ごとのブロックマスクを作り (行内の全コマの和集合を透明側に膨らませたもの)、`services/petSprite.ts` の `petHitClipPath` が表示寸法の `clip-path: path()` にする。clip-path は描画も切るので「見える画素を必ず含む」が不変条件で、Rust テストで固定している。コマごとではなく状態ごとにしているのは、押した場所の判定が数百 ms で変わらないようにするため。マスクが作れない・`path()` 非対応なら矩形に戻る
 
 

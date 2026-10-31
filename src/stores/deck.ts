@@ -364,6 +364,48 @@ export const useDeckStore = defineStore('deck', () => {
   }
   /** This window's sub-window ID (null = main window) */
   const currentWindowId = ref<string | null>(null)
+  /**
+   * 開いている窓の名簿 (Rust が正本、`SubWindowsChanged` の写し)。null は「まだ
+   * 分からない」で、その間は windowId 付きのカラムをデッキ窓で描かない (#1131 §6)
+   */
+  const liveWindowIds = ref<ReadonlySet<string> | null>(null)
+  /** 開く予定の窓 (復元中)。開けるまでデッキ窓で描かない */
+  const pendingWindowIds = ref<ReadonlySet<string>>(new Set())
+
+  function setLiveWindowIds(labels: readonly string[]) {
+    liveWindowIds.value = new Set(labels)
+  }
+
+  function addLiveWindowId(label: string) {
+    liveWindowIds.value = new Set([...(liveWindowIds.value ?? []), label])
+  }
+
+  function markWindowPending(id: string) {
+    pendingWindowIds.value = new Set([...pendingWindowIds.value, id])
+  }
+
+  function clearWindowPending(id: string) {
+    if (!pendingWindowIds.value.has(id)) return
+    const next = new Set(pendingWindowIds.value)
+    next.delete(id)
+    pendingWindowIds.value = next
+  }
+
+  /**
+   * windowId を持つが、その窓が開いておらず復元待ちでもない = デッキ窓で描く
+   * (「別ウィンドウのカラム」のバッジ。押すと開き直す)
+   */
+  function isWindowDetached(windowId: string): boolean {
+    const live = liveWindowIds.value
+    if (!live) return false
+    return !live.has(windowId) && !pendingWindowIds.value.has(windowId)
+  }
+
+  function isColumnDetachedHere(columnId: string): boolean {
+    if (currentWindowId.value) return false
+    const wid = columnMap.value.get(columnId)?.windowId
+    return !!wid && isWindowDetached(wid)
+  }
   /** Column ID being dragged from another window (for cross-window D&D overlay) */
   const crossWindowDragColumnId = ref<string | null>(null)
 
@@ -914,7 +956,7 @@ export const useDeckStore = defineStore('deck', () => {
     const belongsHere = (colId: string) => {
       const col = colMap.get(colId)
       if (!col) return false
-      if (!wid) return !col.windowId
+      if (!wid) return !col.windowId || isWindowDetached(col.windowId)
       return col.windowId === wid
     }
     return layout.value
@@ -937,6 +979,23 @@ export const useDeckStore = defineStore('deck', () => {
       col.windowId = undefined
       save()
     }
+  }
+
+  /**
+   * 掃除 (#1131 §6): windowId を持つのに `windows[]` に無いカラムは復元できないので
+   * デッキ窓に戻す (閉じても隠れるだけだった頃のポップアウトに割り当てたままの名残)。
+   * 代表窓が起動時に 1 回呼ぶ
+   */
+  function recallOrphanWindowColumns() {
+    const saved = new Set(profileStore.getWindowLayouts().map((w) => w.id))
+    let changed = false
+    for (const col of columns.value) {
+      if (col.windowId && !saved.has(col.windowId)) {
+        col.windowId = undefined
+        changed = true
+      }
+    }
+    if (changed) save()
   }
 
   function recallColumnsFromWindow(windowId: string) {
@@ -1024,10 +1083,17 @@ export const useDeckStore = defineStore('deck', () => {
     initWindowProfile: profileStore.initWindowProfile,
     createEmptyProfile: profileStore.createEmptyProfile,
     currentWindowId,
+    liveWindowIds,
+    setLiveWindowIds,
+    addLiveWindowId,
+    markWindowPending,
+    clearWindowPending,
+    isColumnDetachedHere,
     windowLayout,
     popOutColumn,
     recallColumn,
     recallColumnsFromWindow,
+    recallOrphanWindowColumns,
     moveColumnToWindow,
     saveWindowLayout: profileStore.saveWindowLayout,
     removeWindowLayout: profileStore.removeWindowLayout,

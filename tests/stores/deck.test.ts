@@ -759,6 +759,56 @@ describe('deck store', () => {
       deck.currentWindowId = 'w1'
       expect(deck.windowLayout).toEqual([[col2.id]])
     })
+
+    // #1131 §6: 窓の名簿が分かってから、開いていない (復元待ちでもない) 窓の
+    // カラムはデッキ窓で描く (「別ウィンドウのカラム」のバッジつき)
+    it('名簿が分かるまでは windowId 付きのカラムをデッキ窓で描かない', () => {
+      const { deck, col1, col2 } = stackedPair()
+      deck.updateColumn(col2.id, { windowId: 'w1' })
+      expect(deck.windowLayout).toEqual([[col1.id]])
+      expect(deck.isColumnDetachedHere(col2.id)).toBe(false)
+    })
+
+    it('名簿に居ない窓のカラムはデッキ窓で描き、復元待ちと生きている窓は描かない', () => {
+      const { deck, col1, col2 } = stackedPair()
+      deck.updateColumn(col2.id, { windowId: 'w1' })
+
+      // 分割グループの中にそのまま戻る (配置は触らない)
+      deck.setLiveWindowIds(['main'])
+      expect(deck.windowLayout).toEqual([[col1.id, col2.id]])
+      expect(deck.isColumnDetachedHere(col2.id)).toBe(true)
+
+      deck.markWindowPending('w1')
+      expect(deck.windowLayout).toEqual([[col1.id]])
+
+      deck.clearWindowPending('w1')
+      deck.setLiveWindowIds(['main', 'w1'])
+      expect(deck.windowLayout).toEqual([[col1.id]])
+      expect(deck.isColumnDetachedHere(col2.id)).toBe(false)
+
+      // ポップアウト側の判定は変わらない
+      deck.currentWindowId = 'w1'
+      expect(deck.windowLayout).toEqual([[col2.id]])
+      expect(deck.isColumnDetachedHere(col2.id)).toBe(false)
+    })
+
+    it('recallOrphanWindowColumns は windows[] に無い窓のカラムだけ回収する', () => {
+      const { deck, col1, col2 } = stackedPair()
+      deck.updateColumn(col1.id, { windowId: 'w-saved' })
+      deck.updateColumn(col2.id, { windowId: 'w-gone' })
+      deck.saveWindowLayout({
+        id: 'w-saved',
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 600,
+      })
+
+      deck.recallOrphanWindowColumns()
+
+      expect(deck.getColumn(col1.id)?.windowId).toBe('w-saved')
+      expect(deck.getColumn(col2.id)?.windowId).toBeUndefined()
+    })
   })
 
   describe('removeWidget は配置から外すだけ (#1048)', () => {

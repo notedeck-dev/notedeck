@@ -15,7 +15,6 @@ pub enum SecretsBackend {
 
 pub mod accounts;
 pub mod exit;
-pub mod heartbeat_timer;
 pub mod lock;
 pub mod logging;
 pub mod mcp_stdio;

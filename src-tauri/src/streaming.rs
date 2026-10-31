@@ -934,7 +934,9 @@ mod tests {
         app.manage(std::sync::Arc::new(QueryRuntime::default()));
         let snap = {
             let rt = app.state::<std::sync::Arc<QueryRuntime>>();
-            let snap = rt.open(home_key("acct-1")).expect("open should succeed");
+            let snap = rt
+                .open(home_key("acct-1"), None)
+                .expect("open should succeed");
             rt.attach_stream_subscription(&snap.query_id, "sub-A".into())
                 .expect("attach should succeed");
             snap

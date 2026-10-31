@@ -153,6 +153,7 @@ macro_rules! with_command_table {
         data clear_account_cache(account_id: String) -> u64 = $crate::commands::admin::clear_account_cache;
         data clear_all_cache() -> u64 = $crate::commands::admin::clear_all_cache;
         data apply_eviction_config(config: notecli::db::EvictionConfig) -> u64 = $crate::commands::admin::apply_eviction_config;
+        data apply_eviction_from_settings() -> u64 = $crate::commands::admin::apply_eviction_from_settings;
         data default_eviction_config() -> notecli::db::EvictionConfig = $crate::commands::admin::default_eviction_config;
         data chat_cache_stats() -> $crate::commands::admin::ChatCacheStats = $crate::commands::admin::chat_cache_stats;
         data chat_cache_count(account_id: String) -> i64 = $crate::commands::admin::chat_cache_count;
@@ -230,16 +231,16 @@ macro_rules! with_command_table {
         data pet_load(slug: String) -> Option<$crate::commands::pet::PetLoaded> = $crate::commands::pet::pet_load;
         data pet_clear() -> () = $crate::commands::pet::pet_clear;
             // --- query (crates/notecore/src/commands/query.rs) ---
-        data query_subscribe_timeline(account_id: String, timeline_type: String, list_id: Option<String>) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_timeline;
-        data query_subscribe_antenna(account_id: String, antenna_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_antenna;
-        data query_subscribe_channel(account_id: String, channel_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_channel;
-        data query_subscribe_role(account_id: String, role_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_role;
-        data query_subscribe_mentions(account_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_mentions;
-        data query_subscribe_notifications(account_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_notifications;
-        data query_subscribe_chat_user(account_id: String, other_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_chat_user;
-        data query_subscribe_chat_room(account_id: String, room_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_chat_room;
+        data (owner = window) query_subscribe_timeline(account_id: String, timeline_type: String, list_id: Option<String>) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_timeline;
+        data (owner = window) query_subscribe_antenna(account_id: String, antenna_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_antenna;
+        data (owner = window) query_subscribe_channel(account_id: String, channel_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_channel;
+        data (owner = window) query_subscribe_role(account_id: String, role_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_role;
+        data (owner = window) query_subscribe_mentions(account_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_mentions;
+        data (owner = window) query_subscribe_notifications(account_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_notifications;
+        data (owner = window) query_subscribe_chat_user(account_id: String, other_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_chat_user;
+        data (owner = window) query_subscribe_chat_room(account_id: String, room_id: String) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_subscribe_chat_room;
         data query_set_runtime_state(query_id: String, state: $crate::query_runtime::QueryRuntimeState) -> $crate::query_runtime::QuerySnapshot = $crate::commands::query::query_set_runtime_state;
-        data query_close(query_id: String) -> () = $crate::commands::query::query_close;
+        data (owner = window) query_close(query_id: String) -> () = $crate::commands::query::query_close;
         data query_get_snapshot(query_id: String) -> Option<$crate::query_runtime::QuerySnapshot> = $crate::commands::query::query_get_snapshot;
         data query_get_read_model_snapshot(query_id: String, limit: Option<u32>) -> Option<$crate::query_runtime::QueryReadModelSnapshot> = $crate::commands::query::query_get_read_model_snapshot;
             // --- utility (crates/notecore/src/commands/utility.rs) ---

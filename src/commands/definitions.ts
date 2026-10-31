@@ -1031,8 +1031,8 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
       category: 'window',
       shortcuts: keybindsStore.getShortcuts('close-all-windows'),
       execute: () => {
-        import('@/composables/useDeckWindow').then(({ closeAllSubWindows }) => {
-          closeAllSubWindows()
+        import('@/composables/useDeckWindow').then(({ closeOwnSubWindows }) => {
+          closeOwnSubWindows({ graceful: true })
         })
       },
     })

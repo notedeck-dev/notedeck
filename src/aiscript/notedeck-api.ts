@@ -17,6 +17,7 @@ import type { Principal } from '@/permissions/principal'
 import { PERMISSION_KEYS } from '@/permissions/schema'
 import { makeRegistrationId } from '@/plugins/registrationId'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { useRepresentative } from '@/windows/roles'
 import { version as appVersion } from '../../package.json'
 import {
   type NoteDeckEventName,
@@ -220,6 +221,10 @@ export function createNoteDeckEnv(
     const unsubscribe = subscribeNoteDeckEvent(eventName, (payload) => {
       const interp = ctx.interpreter
       if (!interp) return
+      // 無人の副作用の起点は代表窓だけ (#1131 §7)。登録は受けるが、ミラー /
+      // ポップアウトでは配送しない (プラグインはデッキ画面を描く窓ごとに動くので、
+      // 配送すると窓の数だけ走る)
+      if (!useRepresentative().isRepresentative.value) return
       try {
         interp.execFn(handler, [utils.jsToVal(payload)])
       } catch (e) {

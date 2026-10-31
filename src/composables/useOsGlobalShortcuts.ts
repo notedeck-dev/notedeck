@@ -1,6 +1,7 @@
 import { useDebounceFn } from '@vueuse/core'
 import { onUnmounted, watch } from 'vue'
 import { useCommandStore } from '@/commands/registry'
+import { useRepresentative } from '@/composables/useRepresentative'
 import { i18n } from '@/i18n'
 import { collectOsGlobalBindings } from '@/services/osGlobalShortcuts'
 import { useKeybindsStore } from '@/stores/keybinds'
@@ -24,14 +25,14 @@ export function useOsGlobalShortcuts() {
   const commandStore = useCommandStore()
   const keybindsStore = useKeybindsStore()
 
+  const { isRepresentative } = useRepresentative()
   let generation = 0
 
   async function apply(): Promise<void> {
     if (!uiStore.isDesktop) return
-    // OS への登録はプロセスに 1 つ。サブウィンドウが同じキーを登録すると衝突するので
-    // main ウィンドウだけが持つ (useTrayMenu と同じ判定)
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    if (getCurrentWindow().label !== 'main') return
+    // OS への登録はプロセスに 1 つ。他の窓が同じキーを登録すると衝突するので
+    // 代表窓だけが持つ (#1131)
+    if (!isRepresentative.value) return
     const gen = ++generation
     const { register, unregisterAll } = await import(
       '@tauri-apps/plugin-global-shortcut'
@@ -104,12 +105,15 @@ export function useOsGlobalShortcuts() {
     }, 200)
     watch(() => keybindsStore.overrides, reapply, { deep: true })
     watch(() => commandStore.commands, reapply)
+    // 役が移ってきたら (メインが閉じてミラーが代表になった) この窓が登録する
+    watch(isRepresentative, (now) => {
+      if (now) reapply()
+    })
   }
 
   async function cleanup(): Promise<void> {
     if (!uiStore.isDesktop) return
-    const { getCurrentWindow } = await import('@tauri-apps/api/window')
-    if (getCurrentWindow().label !== 'main') return
+    if (!isRepresentative.value) return
     generation++
     try {
       const { unregisterAll } = await import(

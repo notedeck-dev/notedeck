@@ -1,6 +1,6 @@
 import type { Ref } from 'vue'
 import { onMounted, onUnmounted, watch } from 'vue'
-import { commands, events } from '@/bindings'
+import { events } from '@/bindings'
 import { loadCliCommands } from '@/commands/cliParser'
 import {
   registerDefaultCommands,
@@ -11,16 +11,16 @@ import { useAppBackground } from '@/composables/useAppBackground'
 import { useDeckResume } from '@/composables/useDeckResume'
 import {
   listenDeckWindowEvents,
-  saveCurrentWindowLayout,
+  restoreWindowsOnStartup,
 } from '@/composables/useDeckWindow'
 import { handleDeepLink } from '@/composables/useDeepLink'
 import { useMainStreamKeeper } from '@/composables/useMainStreamKeeper'
 import { useNotificationPermissionPrompt } from '@/composables/useNotificationPermissionPrompt'
 import { initOgpListener } from '@/composables/useOgpPreview'
 import { useOsGlobalShortcuts } from '@/composables/useOsGlobalShortcuts'
+import { isRepresentativeNow } from '@/composables/useRepresentative'
 import { destroyApiBridge, initApiBridge } from '@/core/apiBridge'
 import { reattachQueryDeltaListener } from '@/core/queryDeltaBus'
-import { useAccountsStore } from '@/stores/accounts'
 import { useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePluginsStore } from '@/stores/plugins'
@@ -28,11 +28,11 @@ import { usePostFormStore } from '@/stores/postForm'
 import { useRealtimeModeStore } from '@/stores/realtimeMode'
 import { useTasksStore } from '@/stores/tasks'
 import { useUiStore } from '@/stores/ui'
+import { listenAddressed } from '@/utils/addressedEvents'
 import {
   initDesktopNotifications,
   onNotificationAction,
 } from '@/utils/desktopNotification'
-import { isMainDeckWindow } from '@/utils/settingsFs'
 import { logStartupSummary, markStartup } from '@/utils/startupTrace'
 
 export function useDeckInit(options: {
@@ -48,7 +48,6 @@ export function useDeckInit(options: {
     toggleFirstAccountMenu(): void
     handleResize(): void
   } | null>
-  checkForUpdate: () => void
 }) {
   const deckStore = useDeckStore()
   const pluginsStore = usePluginsStore()
@@ -87,8 +86,6 @@ export function useDeckInit(options: {
     },
   )
 
-  let updateCheckHandle: { cancel: () => void } | undefined
-
   onMounted(() => {
     uiStore.deckMounted = true
     // 計測はマークの発生源で直接打つ (#985)。App.vue の splash watch 経由に
@@ -100,19 +97,6 @@ export function useDeckInit(options: {
     window.addEventListener('resize', handleResizeRef)
     document.addEventListener('visibilitychange', onVisibilityChange)
     window.addEventListener('pagehide', onPageHide)
-
-    // 永続化されたリアルタイムモードをバックエンドへ適用する (#1004)。
-    // UI 表示は settings から復元されるが、バックエンドは適用を受けるまで
-    // 常に realtime で動く。アカウント一覧が要るのでロード完了後に呼ぶ
-    // (loadAccounts は冪等で、main.ts が開始済みの Promise を返すだけ)
-    void useAccountsStore()
-      .loadAccounts()
-      .then(() => useRealtimeModeStore().applyPersistedMode())
-      .catch((e) => {
-        // モード適用に失敗してもアプリ起動は続行する (次回起動で矯正される)。
-        // ここで握らないと unhandled rejection になる
-        console.warn('[realtime-mode] failed to apply persisted mode:', e)
-      })
 
     void usePostFormStore().init()
 
@@ -128,22 +112,19 @@ export function useDeckInit(options: {
         options.navbarRef.value?.toggleFirstAccountMenu(),
     })
 
-    // プロセスに 1 つでよい仕事は main の窓だけが持つ (暫定ガード、#1297)。
-    // 以前はデッキ画面を描く全窓 (ミラー / ポップアウト) で走り、外部からの問い合わせ
-    // への応答や通知クリックの遷移が窓の数だけ実行されていた。役の置き場は #1131
-    // (代表窓) で決め直す
-    const isMain = isMainDeckWindow()
+    // 外部からの問い合わせ / 通知クリック / deep link / トレイの切替は宛先付きで届く
+    // (#1131)。Rust が見ている窓か代表窓の 1 つに振り分けるので、どの窓も購読する
+    // だけでよく、窓の種別で分岐しない
 
     // Defer non-critical initialization to after first paint
     requestAnimationFrame(() => {
       osGlobalShortcuts.init()
-      if (isMain) initApiBridge()
+      initApiBridge()
       initDesktopNotifications()
       initOgpListener()
       loadCliCommands()
       startTaskCommandSync()
       void useTasksStore().init()
-      if (!isMain) return
       // OS 通知クリックの遷移先解決 (#754)。noteId 優先、なければ userId。
       // どちらもない (要約通知・システム通知) 場合はフォーカスのみで何もしない。
       const navigateFromNotification = (ctx: {
@@ -159,39 +140,18 @@ export function useDeckInit(options: {
       }
       // JS 経路 (sendDesktopNotification + Android onAction)
       onNotificationAction(navigateFromNotification)
-      // Rust 経路 (Linux/Windows の user-notify クリック)
-      events.notificationClicked
-        .listen((e) => navigateFromNotification(e.payload))
+      // Rust 経路 (Linux/Windows の user-notify クリック、Windows の toast)。見ている窓
+      // 1 つに届く。冷えた起動で購読前に届いた分は Rust が預かり、名乗りの時点で流す
+      listenAddressed(events.notificationClickAddressed, ({ click }) =>
+        navigateFromNotification(click),
+      )
         .then((fn) => {
           unlistenNotificationClick = fn
         })
         .catch(() => {
           // Non-Tauri environment (vitest / ブラウザ)
         })
-      // Windows cold start (#754): アプリ終了後の Action Center クリックは
-      // protocol 起動になり、リスナー登録前に Rust 側へ届いている。
-      // pending を取り出して遷移する (Windows 以外は常に null)
-      commands
-        .notificationTakePendingClick()
-        .then((ctx) => {
-          if (ctx) navigateFromNotification(ctx)
-        })
-        .catch(() => {
-          // Non-Tauri environment (vitest / ブラウザ)
-        })
     })
-
-    // Update check: アイドル時に確認（旧: 固定 5000ms 遅延）。
-    // 起動直後のネットワーク負荷を避けつつ、idle で即実行されるので結果確認が速い。
-    if (window.requestIdleCallback) {
-      const id = window.requestIdleCallback(options.checkForUpdate, {
-        timeout: 3000,
-      })
-      updateCheckHandle = { cancel: () => window.cancelIdleCallback(id) }
-    } else {
-      const id = setTimeout(options.checkForUpdate, 2000)
-      updateCheckHandle = { cancel: () => clearTimeout(id) }
-    }
 
     // Plugins — defer to idle since AiScript is not on the critical startup path.
     // requestIdleCallback 未実装環境でも体感遅延が出ないよう 50ms に短縮（旧: 500ms）
@@ -210,42 +170,38 @@ export function useDeckInit(options: {
 
     // Deep link (notedeck://)。モバイルでも登録する — Android の
     // NotificationWorker 通知クリックがこの経路で通知カラムを開く (#754)。
-    // 受け手は main だけ (暫定ガード、#1297)
-    if (isMain) {
-      import('@/utils/tauriEvents').then(({ listenTauri }) => {
-        listenTauri('nd:deep-link', (url) => {
-          handleDeepLink(url)
-        }).then((fn) => {
-          unlistenDeepLink = fn
-        })
+    // 見ている窓 1 つに届く (#1131)
+    listenAddressed(events.addressedDeepLink, ({ url }) => {
+      handleDeepLink(url)
+    })
+      .then((fn) => {
+        unlistenDeepLink = fn
       })
-    }
+      .catch(() => {
+        // Non-Tauri environment (vitest / ブラウザ)
+      })
 
     if (uiStore.isDesktop) {
-      // トレイからの切替。受け手は main だけ (暫定ガード、#1297)。以前は全窓が
-      // 受けて反転が窓の数だけ走っていた
-      if (isMain) {
-        import('@/utils/tauriEvents').then(({ listenTauri }) => {
-          listenTauri('nd:toggle-offline-mode', () => {
-            useOfflineModeStore().toggle()
-          })
-          listenTauri('nd:toggle-realtime-mode', () => {
-            useRealtimeModeStore().toggle()
-          })
-        })
-      }
+      // トレイからの切替。代表窓 1 つに届く (#1131)。以前は全窓が受けて反転が
+      // 窓の数だけ走っていた。HEARTBEAT / 常駐の切替は useTrayMenu が受ける
+      void listenAddressed(events.trayToggle, ({ which }) => {
+        if (which === 'offline') useOfflineModeStore().toggle()
+        else if (which === 'realtime') useRealtimeModeStore().toggle()
+      }).catch(() => {
+        // Non-Tauri environment (vitest / ブラウザ)
+      })
 
-      // Cross-window event listeners (all windows listen for IPC events)
+      // Cross-window event listeners (all deck-screen windows listen)。
+      // 子窓のジオメトリは Rust が記録して親に届けるので、beforeunload での保存は
+      // 要らなくなった (#1131 段 4)
       listenDeckWindowEvents().then((fn) => {
         unlistenWindowEvents = fn
       })
 
-      // サブウィンドウは beforeunload でレイアウトをプロファイルに保存する。
-      // `immediate` で debounce を飛ばし、webview が消える前にファイルへの
-      // 書込を始める (保存先は localStorage ではなくプロファイルのファイル)
-      if (deckStore.currentWindowId) {
-        window.addEventListener('beforeunload', () => {
-          saveCurrentWindowLayout({ immediate: true })
+      // 起動時のポップアウトの復元 (#1131 §6)。デッキ窓のうち代表窓が 1 回だけ
+      if (!deckStore.currentWindowId) {
+        void isRepresentativeNow().then((rep) => {
+          if (rep) return restoreWindowsOnStartup()
         })
       }
     }
@@ -261,7 +217,6 @@ export function useDeckInit(options: {
     document.removeEventListener('visibilitychange', onVisibilityChange)
     window.removeEventListener('pagehide', onPageHide)
     unlistenDeepLink?.()
-    updateCheckHandle?.cancel()
     unlistenWindowEvents?.()
     unlistenNotificationClick?.()
   })

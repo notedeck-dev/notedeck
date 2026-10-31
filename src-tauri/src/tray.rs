@@ -6,7 +6,9 @@
 //! 切り替え自体はフロントの store が行う (オフライン / リアルタイムと同じ経路)。
 
 use tauri::menu::{CheckMenuItem, Menu, MenuItem};
-use tauri::{AppHandle, Emitter, Runtime};
+use tauri::{AppHandle, Runtime};
+
+use crate::commands::TrayToggleKind;
 
 /// フロントから届くメニューの表示状態
 #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, specta::Type)]
@@ -87,6 +89,12 @@ impl<R: Runtime> TrayMenu<R> {
         Ok(())
     }
 
+    fn toggle(app: &AppHandle<R>, which: TrayToggleKind) {
+        if let Some(roles) = tauri::Manager::try_state::<crate::commands::WindowRoleState>(app) {
+            roles.deliver_tray_toggle(app, which);
+        }
+    }
+
     /// メニュー項目のクリック。切り替えはフロントに任せる
     pub fn on_menu_event(app: &AppHandle<R>, id: &str) {
         match id {
@@ -96,18 +104,11 @@ impl<R: Runtime> TrayMenu<R> {
                     let _ = w.set_focus();
                 }
             }
-            "offline" => {
-                let _ = app.emit("nd:toggle-offline-mode", ());
-            }
-            "realtime" => {
-                let _ = app.emit("nd:toggle-realtime-mode", ());
-            }
-            "heartbeat" => {
-                let _ = app.emit("nd:toggle-heartbeat", ());
-            }
-            "resident" => {
-                let _ = app.emit("nd:toggle-ai-resident", ());
-            }
+            // 切替の実行はプロセスに 1 回。代表窓だけに届ける (#1131)
+            "offline" => Self::toggle(app, TrayToggleKind::Offline),
+            "realtime" => Self::toggle(app, TrayToggleKind::Realtime),
+            "heartbeat" => Self::toggle(app, TrayToggleKind::Heartbeat),
+            "resident" => Self::toggle(app, TrayToggleKind::AiResident),
             "quit" => {
                 app.exit(0);
             }

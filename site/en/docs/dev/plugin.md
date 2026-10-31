@@ -1,5 +1,5 @@
 ---
-sourceHash: cb4fd9250a85
+sourceHash: e912a858e23d
 ---
 
 # Plugins
@@ -55,6 +55,8 @@ Command palette commands are added not with a hook but with `Nd:register_command
 | `Plugin:open_url(url)` | Open a URL in the default browser |
 
 Events you can subscribe to with `Nd:on` are notes arriving, notifications arriving, columns being added or removed, streaming connection state, memos being created, updated or deleted, skills being edited, and themes being applied.
+
+Handlers run once per app process: even with several windows open, an event reaches only one representative window. Note display hooks run in every window, so keep side effects out of them.
 
 A command added with `Nd:register_command` can be called from the command palette, keybindings, the AI's tools and the local API. When called from the AI or the local API, the effective permissions are "the caller's permissions ∩ the plugin's permissions".
 

@@ -2,12 +2,24 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('@/windows/roles', () => ({
+  announceWindow: async () => undefined,
+  isRepresentativeNow: async () => true,
+  whenRepresentative: async () => undefined,
+  useRepresentative: () => ({
+    isRepresentative: { value: true },
+    isViewing: { value: true },
+    representative: { value: 'main' },
+    viewing: { value: 'main' },
+  }),
+}))
+
 vi.mock('@/utils/settingsFs', async () => {
   const actual =
     await vi.importActual<typeof import('@/utils/settingsFs')>(
       '@/utils/settingsFs',
     )
-  return { ...actual, isTauri: true, isMainDeckWindow: () => true }
+  return { ...actual, isTauri: true }
 })
 
 vi.mock('@/utils/historyFs', () => ({

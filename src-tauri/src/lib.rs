@@ -38,6 +38,7 @@ mod ipc_index;
 #[cfg(target_os = "android")]
 mod notify_cursor_file;
 mod os_notify;
+mod pending_inbox;
 mod push_flow;
 mod push_store_file;
 mod query_bridge;
@@ -45,6 +46,8 @@ mod streaming;
 mod system_state;
 mod ui_lang;
 mod win_chrome;
+mod window_events;
+mod window_registry;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -138,10 +141,9 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             tracing::info!("[single-instance] second launch forwarded: {argv:?}");
-            if let Some(w) = app.get_webview_window("main") {
-                let _ = w.show();
-                let _ = w.unminimize();
-                let _ = w.set_focus();
+            // 前に出すのは利用者が見ている窓 (#1131)
+            if let Some(roles) = app.try_state::<commands::WindowRoleState>() {
+                roles.bring_to_front(app);
             }
         }));
     }
@@ -257,12 +259,17 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         os_notify::init(&app.handle().clone());
 
-        // Windows cold start (#754) の通知クリックをフロントへ渡すバッファ。
-        // コマンド (notification_take_pending_click) は全プラットフォームに
-        // 生えるので state も無条件に用意する (Windows 以外は常に None)。
-        app.manage(os_notify::PendingNotificationClick::default());
         // 見えている通知カラムの口座 (#330 §3.3)。ストリーミングの emitter が抑止に読む
         app.manage(os_notify::VisibleNotificationScopes::process().clone());
+        // 窓の名簿と役 (代表窓 / 見ている窓、#1131)。起動時の窓は Tauri が作るので
+        // ここで名乗らせる。他の窓は自分で deck_window_announce を呼ぶ
+        app.manage(commands::WindowRoleState::default());
+        app.manage(window_events::GeometryTracker::default());
+        app.state::<commands::WindowRoleState>().announce(
+            &app.handle().clone(),
+            "main",
+            window_registry::WindowKind::Main,
+        );
 
         // ══════════════════════════════════════════════════════════
         // Phase 1: Lightweight init (< 50ms) — window shows immediately after this
@@ -500,9 +507,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             });
         }
 
-        // HEARTBEAT scheduler (#411): per-AI-column tokio interval task。
-        // フロントの useHeartbeatScheduler から configure / trigger される。
-        app.manage(std::sync::Arc::new(commands::HeartbeatScheduler::new()));
+        // HEARTBEAT の timer (#411 / #1131): in-process 構成では notemaid の HeartbeatTimer
+        // をこのプロセスが持つ。組むのは Phase 2 (設定が読める) 以降
+        app.manage(commands::HeartbeatTimerState::default());
+        // 更新の状態 (#1131): 確認・ダウンロードは Rust が 1 回、窓は写しを描く
+        app.manage(commands::UpdaterState::default());
 
         // Initialize event bus (SSE broadcasting)
         let event_bus = std::sync::Arc::new(notecli::event_bus::EventBus::new());
@@ -685,8 +694,24 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // 開いてから閉じる
             {
                 let core: commands::AppState = app_state.inner().clone();
+                let heartbeat_app = app_handle.clone();
                 tauri::async_runtime::spawn(async move {
                     notecore::stream_mode::apply(&core, true).await;
+                    // 掃き出し設定もコアが自分で読んで適用する (#1131)。以前は全窓が
+                    // 起動のたびに送っていた
+                    if let Err(e) =
+                        notecore::commands::admin::apply_eviction_from_settings(&core).await
+                    {
+                        tracing::warn!("[cache-eviction] apply on startup failed: {e}");
+                    }
+                    // HEARTBEAT の timer を ai.json5 から組む (#1131)
+                    commands::sync_heartbeat_timer(&heartbeat_app);
+                    // 更新確認は起動の山を越えてから 1 回 (#1131)。以前は窓ごとに確認していた
+                    let updater_app = heartbeat_app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(8)).await;
+                        commands::check(&updater_app, false).await;
+                    });
                     if let Err(e) = notecore::commands::streaming::stream_subscribe_main_all(&core).await {
                         tracing::warn!("[stream] main for all accounts at boot: {e}");
                     }
@@ -812,49 +837,43 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(url) = urls.first() {
                     let url_str = url.as_str().to_string();
                     tracing::info!("[deep-link] received: {url_str}");
-                    // show/set_focus はモバイルの WebviewWindow に存在しない
-                    // (Android は intent で既に前面化されている)
+                    let roles = deep_link_handle.state::<commands::WindowRoleState>();
+                    // 前に出すのは利用者が見ている窓 (#1131)。show/set_focus はモバイルの
+                    // WebviewWindow に存在しない (Android は intent で既に前面化されている)
                     #[cfg(desktop)]
-                    if let Some(w) = deep_link_handle.get_webview_window("main") {
-                        let _ = w.show();
-                        let _ = w.set_focus();
-                    }
+                    roles.bring_to_front(&deep_link_handle);
                     // Windows の通知 toast クリック (#754): アプリ起動中は
                     // 第 2 インスタンス → single-instance 転送でここに届く。
-                    // 復元して既存の NotificationClicked 経路に流す (他 OS で
-                    // このスキームが届くことはない — 届いても遷移させず無視)
+                    // 復元して通知クリックの経路に流す (他 OS でこのスキームが届く
+                    // ことはない — 届いても遷移させず無視)
                     if url.scheme() == os_notify::NOTIFICATION_PROTOCOL {
                         #[cfg(target_os = "windows")]
                         if let Some(ctx) = os_notify::decode_protocol_url(&url_str) {
-                            use tauri_specta::Event;
-                            if let Err(e) = ctx.emit(&deep_link_handle) {
-                                tracing::warn!("[notification] click emit failed: {e}");
-                            }
+                            roles.deliver_notification_click(&deep_link_handle, ctx);
                         }
                         return;
                     }
-                    let _ = tauri::Emitter::emit(&deep_link_handle, "nd:deep-link", &url_str);
+                    // 見ている窓 1 つに届ける。デッキ窓がまだ無ければ預ける
+                    roles.deliver_deep_link(&deep_link_handle, url_str);
                 }
             });
 
-            // Windows cold start (#754): アプリ終了後の Action Center クリックは
-            // protocol 起動になり、起動引数の URL は on_open_url には流れない
-            // (get_current でしか取れない)。ここで復元して pending に積み、
-            // フロントがデッキ初期化時に取り出して遷移する。
-            #[cfg(target_os = "windows")]
+            // 冷えた起動 (#754 / #1131): 起動引数の URL は on_open_url には流れない
+            // (deep-link プラグインがアプリの登録より前に emit する) ので get_current
+            // で拾う。デッキ窓はまだ名乗っていないので、通知クリックも notedeck:// も
+            // 預かり箱に入り、最初の名乗りで見ている窓へ流れる
+            #[cfg(any(target_os = "windows", target_os = "linux"))]
             if let Ok(Some(urls)) = app.deep_link().get_current() {
+                let roles = app.state::<commands::WindowRoleState>();
                 for url in urls {
-                    if url.scheme() != os_notify::NOTIFICATION_PROTOCOL {
+                    if url.scheme() == os_notify::NOTIFICATION_PROTOCOL {
+                        #[cfg(target_os = "windows")]
+                        if let Some(ctx) = os_notify::decode_protocol_url(url.as_str()) {
+                            roles.deliver_notification_click(&app.handle().clone(), ctx);
+                        }
                         continue;
                     }
-                    if let Some(ctx) = os_notify::decode_protocol_url(url.as_str()) {
-                        let state = app.state::<os_notify::PendingNotificationClick>();
-                        // 末尾式だと scrutinee の一時値 (Result<MutexGuard>) が
-                        // state より長生きして E0597 になるため文にする
-                        if let Ok(mut pending) = state.0.lock() {
-                            pending.replace(ctx);
-                        };
-                    }
+                    roles.deliver_deep_link(&app.handle().clone(), url.to_string());
                 }
             }
         }
@@ -942,37 +961,14 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     });
 
-    // ウィンドウ単位の後始末をここにまとめる (on_window_event は複数登録できるが、
-    // 散らすと Destroyed / CloseRequested の規則が追えなくなる)
+    // 窓のイベントは 1 本の dispatcher (#1131 段 4)。CloseRequested / Destroyed /
+    // Focused / Moved / Resized の規則は window_events.rs に集める
     {
         #[cfg(not(mobile))]
         let has_tray = has_tray.clone();
-        builder = builder.on_window_event(move |window, event| {
-            use tauri::Manager;
-            // 閉じたウィンドウで見えていた通知カラムの口座を外す (#330 §3.3)。別の
-            // デッキウィンドウの分だけが残る
-            if let tauri::WindowEvent::Destroyed = event {
-                if let Some(scopes) = window
-                    .app_handle()
-                    .try_state::<os_notify::VisibleNotificationScopes>()
-                {
-                    scopes.remove_window(window.label());
-                }
-            }
-            // Hide to tray on close (desktop only, requires tray icon)。
-            // 対象はメインだけ (#1131)。以前はラベルを見ずに全窓を隠していたため、
-            // ポップアウト / PiP の × が破棄にならず WebView が残り、
-            // `tauri://destroyed` も来ないのでカラムの回収や復元が壊れていた
-            #[cfg(not(mobile))]
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" && has_tray.load(Ordering::Relaxed) {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
-            }
-            #[cfg(mobile)]
-            let _ = window;
-        });
+        #[cfg(mobile)]
+        let has_tray = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        builder = builder.on_window_event(window_events::handler(has_tray));
     }
 
     let app = builder.build(tauri::generate_context!())?;
@@ -994,8 +990,8 @@ fn begin_shutdown(app: &tauri::AppHandle) {
     if let Some(s) = app.try_state::<std::sync::Arc<notecore::shutdown::Shutdown>>() {
         s.trigger();
     }
-    if let Some(h) = app.try_state::<std::sync::Arc<commands::HeartbeatScheduler>>() {
-        h.unregister();
+    if let Some(t) = app.try_state::<commands::HeartbeatTimerState>() {
+        t.stop();
     }
     notemaid::ai_chat_service::abort_all_streams();
     notemaid::ai_turn::abort_all_turns();
@@ -1028,6 +1024,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::clear_account_cache,
             commands::clear_all_cache,
             commands::apply_eviction_config,
+            commands::apply_eviction_from_settings,
             commands::default_eviction_config,
             commands::chat_cache_stats,
             commands::chat_cache_count,
@@ -1238,8 +1235,17 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             ui_lang::set_ui_language,
             commands::get_openapi_spec,
             commands::open_devtools,
-            commands::notification_take_pending_click,
             commands::set_visible_notification_scopes,
+            commands::deck_window_announce,
+            commands::window_roles_current,
+            commands::sub_window_create,
+            commands::sub_window_close,
+            commands::sub_window_list,
+            commands::pip_return_to_deck,
+            commands::update_state_get,
+            commands::update_check,
+            commands::update_install,
+            commands::update_restart,
             commands::request_notification_permission,
             commands::notification_permission_granted,
             commands::open_os_notification_settings,
@@ -1309,11 +1315,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             // HTTP fetch (http.fetch capability / Nd:http)
             commands::http_fetch,
             // HEARTBEAT (#411 Phase 6) — per-column scheduler
-            commands::heartbeat_configure,
-            commands::heartbeat_unconfigure,
             commands::heartbeat_trigger_now,
             commands::heartbeat_notices_since,
-            commands::heartbeat_status,
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,
             client_layer::client_layer_state,
@@ -1368,11 +1371,20 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             streaming::StreamChatMessageUnreacted,
             streaming::StreamEmojiChanged,
             streaming::StreamNewChatMessage,
-            os_notify::NotificationClicked,
             commands::ExportProgressEvent,
             commands::SettingsFileChangedEvent,
             commands::HeartbeatEventWire,
             system_state::SystemState,
+            commands::WindowRolesChanged,
+            commands::AddressedDeepLink,
+            commands::NotificationClickAddressed,
+            commands::TrayToggle,
+            commands::QueryRequest,
+            commands::UpdateState,
+            commands::ChildClosed,
+            commands::ChildGeometry,
+            commands::PipReturnRequested,
+            commands::SubWindowsChanged,
         ])
 }
 

@@ -1,68 +1,80 @@
-import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { nextTick } from 'vue'
-import type { DeckWindowLayout } from '@/stores/deck'
+import type { WindowGeometry } from '@/bindings'
+import { commands, events } from '@/bindings'
+import { isColumnType } from '@/columns/registry'
+import { i18n } from '@/i18n'
+import type { DeckColumn, DeckWindowLayout } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { useToast } from '@/stores/toast'
 import { MOBILE_WINDOW_SIZE } from '@/stores/ui'
+import { listenAddressed } from '@/utils/addressedEvents'
+import { currentWindowLabel, isTauri } from '@/utils/settingsFs'
+import {
+  getStorageString,
+  STORAGE_KEYS,
+  setStorageString,
+} from '@/utils/storage'
 import { emitTauri, listenTauri } from '@/utils/tauriEvents'
+import { unwrap } from '@/utils/tauriInvoke'
 import { withViewTransition } from '@/utils/viewTransition'
+import { createSubWindow, type SubWindowOrigin } from '@/windows/subWindow'
 
 let windowCounter = 0
 
+/** ポップアウトの label = プロファイルの `windows[].id`。形式は Rust が検証する */
 function genWindowId(): string {
   return `deck-${Date.now()}-${++windowCounter}`
 }
 
-const openWindows = new Map<string, WebviewWindow>()
+const POPOUT_LABEL = /^deck-\d+-\d+$/
+
+const POPOUT_MIN = { minWidth: 300, minHeight: 300 }
+// Match the main window defaults (tauri.conf.json) so a new window opens at
+// the same size instead of a smaller one.
+const MIRROR_SIZE = { width: 1200, height: 800, minWidth: 360, minHeight: 640 }
 
 /**
  * Open a new deck sub-window for a popped-out column.
  * Uses the same profile as the current window, filtered by windowId.
+ * 窓は Rust が作り、閉じたら親に `ChildClosed` が届く (#1131 段 4)
  */
 export async function openColumnWindow(
   profileId: string,
   windowId: string,
+  origin: SubWindowOrigin,
   options?: Partial<{ width: number; height: number; x: number; y: number }>,
 ): Promise<string | null> {
-  const url = `/?profile=${profileId}&window=${windowId}`
-
+  const deckStore = useDeckStore()
+  // 開くまでデッキ窓で描かない (開けなかったと確定したらバッジで描く)
+  deckStore.markWindowPending(windowId)
   try {
-    const win = new WebviewWindow(windowId, {
-      url,
-      title: 'NoteDeck',
-      width: options?.width ?? 500,
-      height: options?.height ?? 700,
-      x: options?.x,
-      y: options?.y,
-      minWidth: 300,
-      minHeight: 300,
-      decorations: false,
-      resizable: true,
-      visible: false,
-      dragDropEnabled: true,
-    })
+    const label = await createSubWindow(
+      { kind: 'popout', profileId, windowId },
+      origin,
+      {
+        width: options?.width ?? 500,
+        height: options?.height ?? 700,
+        x: options?.x ?? null,
+        y: options?.y ?? null,
+        ...POPOUT_MIN,
+      },
+    )
+    // `SubWindowsChanged` より先に名簿へ足し、デッキ窓に一瞬現れないようにする
+    if (label) deckStore.addLiveWindowId(label)
+    return label
+  } finally {
+    deckStore.clearWindowPending(windowId)
+  }
+}
 
-    await new Promise<void>((resolve, reject) => {
-      win.once('tauri://created', () => resolve())
-      win.once('tauri://error', (e) => reject(new Error(String(e.payload))))
-    })
-    openWindows.set(windowId, win)
-
-    // When sub-window closes, recall its columns back to main
-    win.once('tauri://destroyed', () => {
-      openWindows.delete(windowId)
-      const deckStore = useDeckStore()
-      deckStore.recallColumnsFromWindow(windowId)
-      deckStore.removeWindowLayout(windowId)
-      // Notify other windows
-      emitTauri('deck:window-closed', { windowId }).catch((e) => {
-        if (import.meta.env.DEV) console.debug('[deck-window] emit failed:', e)
-      })
-    })
-
-    return windowId
+/** 名簿 (開いている窓) の写しを Rust から取り直す */
+async function syncLiveWindows(): Promise<void> {
+  if (!isTauri) return
+  try {
+    const live = unwrap(await commands.subWindowList())
+    useDeckStore().setLiveWindowIds(live.map((w) => w.label))
   } catch (e) {
-    console.warn('[deck-window] failed to open column window:', e)
-    return null
+    console.warn('[deck-window] failed to read window list:', e)
   }
 }
 
@@ -72,44 +84,11 @@ export async function openColumnWindow(
 export async function openDeckWindow(
   profileId: string,
 ): Promise<string | null> {
-  const windowId = genWindowId()
-  const url = `/?profile=${profileId}`
-
-  try {
-    const win = new WebviewWindow(windowId, {
-      url,
-      title: 'NoteDeck',
-      // Match the main window defaults (tauri.conf.json) so a new window
-      // opens at the same size instead of a smaller one.
-      width: 1200,
-      height: 800,
-      minWidth: 360,
-      minHeight: 640,
-      decorations: false,
-      resizable: true,
-      visible: false,
-      dragDropEnabled: true,
-    })
-
-    await new Promise<void>((resolve, reject) => {
-      win.once('tauri://created', () => resolve())
-      win.once('tauri://error', (e) => reject(new Error(String(e.payload))))
-    })
-    openWindows.set(windowId, win)
-
-    win.once('tauri://destroyed', () => {
-      openWindows.delete(windowId)
-    })
-
-    return windowId
-  } catch (e) {
-    console.warn('[deck-window] failed to open:', e)
-    return null
-  }
-}
-
-export function getOpenDeckWindows(): ReadonlyMap<string, WebviewWindow> {
-  return openWindows
+  return createSubWindow({ kind: 'mirror', profileId }, 'user', {
+    ...MIRROR_SIZE,
+    x: null,
+    y: null,
+  })
 }
 
 /**
@@ -131,10 +110,15 @@ export async function popOutColumnToWindow(
   // ポップアウト先はモバイルサイズ表示で使うので、タイトルバーの「モバイル
   // サイズ」ボタンと同じ寸法で開く (同じスマホ表示なのに窓の大きさが違うと
   // 見比べられない)
-  const result = await openColumnWindow(deckStore.windowProfileId, windowId, {
-    width: MOBILE_WINDOW_SIZE.width,
-    height: MOBILE_WINDOW_SIZE.height,
-  })
+  const result = await openColumnWindow(
+    deckStore.windowProfileId,
+    windowId,
+    'user',
+    {
+      width: MOBILE_WINDOW_SIZE.width,
+      height: MOBILE_WINDOW_SIZE.height,
+    },
+  )
 
   if (!result) {
     // Failed to open — recall column back
@@ -146,71 +130,99 @@ export async function popOutColumnToWindow(
 }
 
 /**
- * Save the current window's position and size to the profile.
- * Pass `{ immediate: true }` from beforeunload so the persist isn't lost
- * to the debounce timer that wouldn't fire before the window closes.
+ * Rust が記録した子窓の位置と大きさをプロファイルに書く。payload は検証してから
+ * 使う (label がポップアウトの形で、数値が有限であること)
  */
-export async function saveCurrentWindowLayout(opts?: {
-  immediate?: boolean
-}): Promise<void> {
-  const deckStore = useDeckStore()
-  if (!deckStore.currentWindowId) return
-
-  try {
-    const { getCurrentWindow, currentMonitor } = await import(
-      '@tauri-apps/api/window'
-    )
-    const win = getCurrentWindow()
-    const [pos, size, monitor, factor] = await Promise.all([
-      win.outerPosition(),
-      win.outerSize(),
-      currentMonitor(),
-      win.scaleFactor(),
-    ])
-
-    // WebviewWindow の生成オプション (x/y/width/height) は論理px なので、
-    // 物理px で返る outerPosition/outerSize を論理px に正規化して保存する (#721)
-    const layout: DeckWindowLayout = {
-      id: deckStore.currentWindowId,
-      x: Math.round(pos.x / factor),
-      y: Math.round(pos.y / factor),
-      width: Math.round(size.width / factor),
-      height: Math.round(size.height / factor),
-      monitor: monitor?.name ?? undefined,
-    }
-    deckStore.saveWindowLayout(layout, opts)
-  } catch {
-    // Ignore — may fail on non-Tauri environment
+function saveChildGeometry(label: string, g: WindowGeometry): void {
+  if (!POPOUT_LABEL.test(label)) return
+  if (![g.x, g.y, g.width, g.height].every(Number.isFinite)) return
+  const layout: DeckWindowLayout = {
+    id: label,
+    x: g.x,
+    y: g.y,
+    width: g.width,
+    height: g.height,
+    monitor: g.monitor ?? undefined,
   }
+  useDeckStore().saveWindowLayout(layout)
 }
 
 /**
- * Listen for cross-window events (column moves, window closes).
- * Call from main window to handle sub-window lifecycle.
+ * Listen for cross-window events (column moves, child windows closing).
+ * デッキ画面を描く窓 (デッキ窓とポップアウト) が張る。親宛ての知らせ
+ * (`ChildClosed` / `ChildGeometry` / `PipReturnRequested`) は Rust が宛先を決め、
+ * 自分宛てだけ受ける
  */
 export async function listenDeckWindowEvents(): Promise<() => void> {
   const cleanups: (() => void)[] = []
 
-  // When a sub-window closes, its columns are recalled (handled in openColumnWindow)
-  // But we also need to listen for cross-window column moves
+  // 開いている窓の名簿。windowId 付きのカラムをこの窓で描くかの材料 (#1131 §6)
+  const unlistenLive = await events.subWindowsChanged.listen((e) => {
+    useDeckStore().setLiveWindowIds(e.payload.labels)
+  })
+  cleanups.push(unlistenLive)
+  void syncLiveWindows()
+
+  // Cross-window column moves
   const unlisten1 = await listenTauri('deck:move-column', (payload) => {
     const deckStore = useDeckStore()
     deckStore.moveColumnToWindow(payload.columnId, payload.targetWindowId)
   })
   cleanups.push(unlisten1)
 
-  const unlisten2 = await listenTauri('deck:window-closed', () => {
-    // Sub-window already handles recall in its destroyed handler
-    // This event is for UI refresh in other windows
+  // 子のポップアウトが閉じた。× で閉じた (user) ときだけカラムを回収する。
+  // lost (終了 / destroy) は回収せず、次回起動で開き直す (#1131 §6)
+  const unlistenClosed = await listenAddressed(
+    events.childClosed,
+    async (p) => {
+      if (p.kind !== 'popout') return
+      // 名簿に居る label の知らせは偽物 (first-party JS の emit)。聞き直して確かめる
+      const live = unwrap(await commands.subWindowList())
+      if (live.some((w) => w.label === p.label)) return
+      const deckStore = useDeckStore()
+      if (p.reason === 'user') {
+        deckStore.recallColumnsFromWindow(p.label)
+        deckStore.removeWindowLayout(p.label)
+      } else if (p.geometry) {
+        saveChildGeometry(p.label, p.geometry)
+      }
+    },
+  )
+  cleanups.push(unlistenClosed)
+
+  // 子のポップアウトが動いた / 大きさが変わった (Rust が debounce 済み)
+  const unlistenGeometry = await listenAddressed(events.childGeometry, (p) => {
+    saveChildGeometry(p.label, p.geometry)
   })
-  cleanups.push(unlisten2)
+  cleanups.push(unlistenGeometry)
+
+  // PiP の「デッキに戻す」。Rust が最も近いデッキ画面を描く祖先に届けるので、
+  // 受けた窓は自分の windowId を付けて足す (ポップアウトならそのポップアウトに現れる)
+  const unlistenPip = await listenAddressed(
+    events.pipReturnRequested,
+    async (p) => {
+      const column = p.column as Partial<DeckColumn> | null
+      if (!column || typeof column !== 'object' || !isColumnType(column.type)) {
+        return
+      }
+      const deckStore = useDeckStore()
+      const { id: _, ...rest } = column as DeckColumn
+      deckStore.addColumn({
+        ...rest,
+        windowId: deckStore.currentWindowId ?? undefined,
+      })
+      const { getCurrentWindow } = await import('@tauri-apps/api/window')
+      await getCurrentWindow().setFocus()
+    },
+  )
+  cleanups.push(unlistenPip)
 
   // Cross-window drag: show overlay when another window starts dragging
   const unlisten3 = await listenTauri('deck:drag-start', (payload) => {
     const deckStore = useDeckStore()
-    const myWindowId = deckStore.currentWindowId ?? '__main__'
+    const me = currentWindowLabel() ?? '__main__'
     // Only show overlay if this is NOT the source window
-    if (payload.sourceWindowId !== myWindowId) {
+    if (payload.sourceWindowId !== me) {
       deckStore.crossWindowDragColumnId = payload.columnId
     }
   })
@@ -219,8 +231,8 @@ export async function listenDeckWindowEvents(): Promise<() => void> {
   // Cross-window drag: dismiss overlay when drag ends
   const unlisten4 = await listenTauri('deck:drag-end', (payload) => {
     const deckStore = useDeckStore()
-    const myWindowId = deckStore.currentWindowId ?? '__main__'
-    if (payload.sourceWindowId !== myWindowId) {
+    const me = currentWindowLabel() ?? '__main__'
+    if (payload.sourceWindowId !== me) {
       deckStore.crossWindowDragColumnId = null
     }
   })
@@ -252,33 +264,44 @@ export async function requestMoveColumn(
   }
 }
 
-/**
- * Close all sub-windows opened from the main window.
- *
- * `close()` の解決は「閉じる要求を送った」までで、窓が消えた保証ではない。
- * 直後に同じラベルで開き直す (プロファイル切替の復元) と
- * WindowLabelAlreadyExists になるので、`tauri://destroyed` を待つ (#1131)。
- * 消えない窓で固まらないよう上限時間を置く。
- */
-export async function closeAllSubWindows(): Promise<void> {
-  const promises: Promise<void>[] = []
-  for (const [, win] of openWindows) {
-    promises.push(
-      new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, 3000)
-        const done = () => {
-          clearTimeout(timer)
-          resolve()
-        }
-        win
-          .once('tauri://destroyed', done)
-          .then(() => win.close())
-          .catch(done)
-      }),
+/** 名簿から label が消えるまで待つ (destroy は非同期に反映される) */
+async function waitUntilGone(labels: string[]): Promise<void> {
+  const deadline = Date.now() + 3000
+  let remaining = new Set(labels)
+  while (remaining.size > 0 && Date.now() < deadline) {
+    const live = unwrap(await commands.subWindowList())
+    remaining = new Set(
+      [...remaining].filter((l) => live.some((w) => w.label === l)),
     )
+    if (remaining.size === 0) break
+    await new Promise((r) => setTimeout(r, 50))
   }
-  await Promise.allSettled(promises)
-  openWindows.clear()
+}
+
+/**
+ * この窓の子のポップアウトを閉じる。
+ * - `graceful` (「すべてのウィンドウを閉じる」): `close()` で理由は user、カラムは回収される
+ * - 既定 (プロファイル切替の前処理): `destroy()` で lost。カラムは回収されず、
+ *   旧プロファイルの windowId は残って切り戻しで復元される
+ */
+export async function closeOwnSubWindows(opts?: {
+  graceful?: boolean
+}): Promise<void> {
+  const me = currentWindowLabel()
+  if (!me) return
+  const graceful = opts?.graceful ?? false
+  try {
+    const live = unwrap(await commands.subWindowList())
+    const mine = live
+      .filter((w) => w.kind === 'popout' && w.parent === me)
+      .map((w) => w.label)
+    await Promise.allSettled(
+      mine.map((l) => commands.subWindowClose(l, graceful)),
+    )
+    await waitUntilGone(mine)
+  } catch (e) {
+    console.warn('[deck-window] failed to close sub-windows:', e)
+  }
 }
 
 /**
@@ -341,17 +364,100 @@ async function resolveWindowPosition(
   return { x: wl.x, y: wl.y }
 }
 
+/** プロファイルの `windows[]` のうち、カラムが割り当てられているもの */
+function savedWindowsWithColumns(): DeckWindowLayout[] {
+  const deckStore = useDeckStore()
+  return deckStore
+    .getWindowLayouts()
+    .filter((wl) => deckStore.columns.some((c) => c.windowId === wl.id))
+}
+
+/**
+ * 保存された窓を開き直す (プロファイル切替と起動時の共通経路)。自動の経路なので
+ * 上限に達していれば開かず、開けなかった窓のカラムはデッキ窓にバッジつきで現れる。
+ * 拒まれたことは受信トレイに 1 件残す
+ */
+async function restoreSavedWindows(): Promise<void> {
+  const deckStore = useDeckStore()
+  const saved = savedWindowsWithColumns()
+  if (!saved.length || !deckStore.windowProfileId) return
+  // 開く予定のものは、開けるまでデッキ窓で描かない
+  for (const wl of saved) deckStore.markWindowPending(wl.id)
+  let rejected = 0
+  for (const [i, wl] of saved.entries()) {
+    if (rejected > 0) {
+      // 上限で拒まれたら残りも拒まれる
+      deckStore.clearWindowPending(wl.id)
+      rejected++
+      continue
+    }
+    const pos = await resolveWindowPosition(wl)
+    const opened = await openColumnWindow(
+      deckStore.windowProfileId,
+      wl.id,
+      'automatic',
+      { width: wl.width, height: wl.height, x: pos.x, y: pos.y },
+    )
+    if (!opened) rejected = saved.length - i
+  }
+  if (rejected > 0) {
+    useToast().show(
+      i18n.tsx._deckWindow.restoreLimited({ count: rejected }),
+      'warning',
+    )
+  }
+}
+
+/**
+ * 起動時にポップアウトを開き直す (#1131 §6。VS Code の `window.restoreWindows` と同じ)。
+ * 代表窓が 1 回呼ぶ。先に `windows[]` に無い窓のカラムを回収する (掃除)。
+ * この機能を含む版への更新後の初回だけは自動で開かず、バッジだけ出して次回から開く
+ * (閉じても隠れるだけだった版が `windows[]` に書いた名残で、身に覚えのない窓が
+ * 一斉に開かないように)
+ */
+export async function restoreWindowsOnStartup(): Promise<void> {
+  if (!isTauri) return
+  const deckStore = useDeckStore()
+  deckStore.recallOrphanWindowColumns()
+  if (!savedWindowsWithColumns().length) return
+  if (getStorageString(STORAGE_KEYS.windowRestoreArmed) === null) {
+    setStorageString(STORAGE_KEYS.windowRestoreArmed, '1')
+    return
+  }
+  await restoreSavedWindows()
+}
+
+/**
+ * 「別ウィンドウのカラム」のバッジから開き直す (人の操作)。保存された位置があれば
+ * そこへ、無ければ既定の大きさで開く
+ */
+export async function reopenColumnWindow(windowId: string): Promise<void> {
+  const deckStore = useDeckStore()
+  if (!deckStore.windowProfileId) return
+  const wl = deckStore.getWindowLayouts().find((w) => w.id === windowId)
+  const pos = wl ? await resolveWindowPosition(wl) : null
+  await openColumnWindow(
+    deckStore.windowProfileId,
+    windowId,
+    'user',
+    wl && pos
+      ? { width: wl.width, height: wl.height, x: pos.x, y: pos.y }
+      : { width: MOBILE_WINDOW_SIZE.width, height: MOBILE_WINDOW_SIZE.height },
+  )
+}
+
 /**
  * Switch profile with window layout restoration.
- * Closes existing sub-windows, applies the profile, then opens saved windows.
+ * この窓の子を閉じ、プロファイルを適用し、保存された窓を開き直す (自動の経路なので
+ * 上限に達していれば開かない。開けなかったカラムはデッキ窓にバッジつきで現れる)
  */
 export async function switchProfileWithWindows(
   profileId: string,
 ): Promise<void> {
   const deckStore = useDeckStore()
 
-  // 1. Close all sub-windows (this recalls columns via destroyed handler)
-  await closeAllSubWindows()
+  // 1. Close this window's popouts (lost: columns keep their windowId)
+  await closeOwnSubWindows()
 
   // 2. Apply the profile (loads columns with saved windowIds)
   //    カラム一式が入れ替わるのでクロスフェードでフラッシュを抑える。
@@ -362,21 +468,5 @@ export async function switchProfileWithWindows(
   })
 
   // 3. Restore sub-windows from saved layouts
-  const savedWindows = deckStore.getWindowLayouts()
-  if (!savedWindows.length || !deckStore.windowProfileId) return
-
-  for (const wl of savedWindows) {
-    // Check if any columns are assigned to this window
-    const hasColumns = deckStore.columns.some((c) => c.windowId === wl.id)
-    if (!hasColumns) continue
-
-    const pos = await resolveWindowPosition(wl)
-
-    await openColumnWindow(deckStore.windowProfileId, wl.id, {
-      width: wl.width,
-      height: wl.height,
-      x: pos.x,
-      y: pos.y,
-    })
-  }
+  await restoreSavedWindows()
 }

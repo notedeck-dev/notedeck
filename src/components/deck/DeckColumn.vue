@@ -26,6 +26,7 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useToast } from '@/stores/toast'
 import { useUiStore } from '@/stores/ui'
 import { openSafeUrl } from '@/utils/url'
+import { isPipWindow } from '@/windows/kind'
 
 const props = defineProps<{
   columnId: string
@@ -55,7 +56,7 @@ const { isPulling, isPulledEnough, isRefreshing, displayHeight } =
 
 const showPullFrame = computed(() => !!props.pullRefresh && isPulling.value)
 
-const isPipMode = window.location.pathname === '/pip'
+const isPipMode = isPipWindow()
 const pipColumnConfig = inject<(() => DeckColumnType | null) | undefined>(
   'pipColumnConfig',
   undefined,
@@ -99,10 +100,30 @@ const shouldShowAccountNotFound = computed(
     !columnAccount.value,
 )
 
-/** Whether this column can be popped out (desktop + main window only) */
+/** Whether this column can be popped out (desktop + deck windows only) */
 const canPopOut = computed(() => isDesktop && !deckStore.currentWindowId)
-/** Whether this column is in a sub-window and can be returned to main */
+/** Whether this column is in a popout and can be returned to the deck */
 const canRecall = computed(() => isDesktop && !!deckStore.currentWindowId)
+/**
+ * 別ウィンドウに割り当てられているが、その窓が開いていない (#1131 §6)。デッキ窓で
+ * バッジつきで描き、押すと開き直す。配置は触らないので、戻したいときはメニューから
+ */
+const isDetached = computed(() =>
+  deckStore.isColumnDetachedHere(props.columnId),
+)
+
+function reopenWindow() {
+  const windowId = columnConfig.value?.windowId
+  if (!windowId) return
+  import('@/composables/useDeckWindow').then(({ reopenColumnWindow }) =>
+    reopenColumnWindow(windowId),
+  )
+}
+
+function recallHere() {
+  closeMenu()
+  deckStore.recallColumn(props.columnId)
+}
 const hasWallpaper = computed(() => deckStore.wallpaper != null)
 
 const showMenu = ref(false)
@@ -186,10 +207,8 @@ async function returnToDeck() {
   const config = pipColumnConfig?.()
   if (!config) return
   const { id: _, ...rest } = config
-  const { emitTauri } = await import('@/utils/tauriEvents')
-  await emitTauri('pip:return-to-deck', rest)
-  const { getCurrentWindow } = await import('@tauri-apps/api/window')
-  await getCurrentWindow().close()
+  const { returnPipColumnToDeck } = await import('@/windows/pip')
+  await returnPipColumnToDeck(rest)
 }
 
 /** 縦分割グループの一員かどうか (分割を解除できるのはこのときだけ) */
@@ -317,6 +336,18 @@ function openAsPip() {
         <slot name="header-meta" />
       </template>
 
+      <!-- 別ウィンドウのカラム (窓が開いていない)。押すと開き直す (#1131 §6) -->
+      <button
+        v-if="isDetached"
+        :class="[$style.headerBtn, $style.headerBtnActive]"
+        class="_button"
+        :title="i18n.ts._deckColumn.reopenWindow"
+        @pointerdown.stop
+        @click.stop="reopenWindow"
+      >
+        <i class="ti ti-app-window" />
+      </button>
+
       <!-- Mute toggle (resident: sound settings are used far more often than the other menu items) -->
       <button
         v-if="soundEnabled"
@@ -413,6 +444,10 @@ function openAsPip() {
         <button v-if="canRecall" class="_popupItem" @click="recallToMain">
           <i class="ti ti-arrow-back" />
           <span>{{ i18n.ts._deckColumn.recallToMain }}</span>
+        </button>
+        <button v-if="isDetached" class="_popupItem" @click="recallHere">
+          <i class="ti ti-arrow-back" />
+          <span>{{ i18n.ts._deckColumn.recallHere }}</span>
         </button>
         <slot name="menu-items" :close-menu="closeMenu" />
         <div class="_popupDivider" />

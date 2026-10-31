@@ -11,10 +11,10 @@ use std::time::{Duration, Instant};
 use notecore::context::Core;
 use serde_json::json;
 
-use crate::daemon::heartbeat_timer::HeartbeatTimer;
 use crate::daemon::rpc_server::{new_secret, RpcServer, SessionBridge, Sessions};
 use crate::daemon::sinks::{self, Events};
 use crate::daemon::{exit, lock, logging, RunArgs};
+use crate::heartbeat_timer::HeartbeatTimer;
 
 pub fn run(args: RunArgs) -> i32 {
     let Some(data_dir) = args

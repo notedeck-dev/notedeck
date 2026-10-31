@@ -12,7 +12,12 @@
 //!
 //! 属性検査 [`check`] は型付き経路 (Tauri ラッパー) でも JSON 経路でも本体を呼ぶ前に通る。
 //!
-//! 行の形: `<種別> [(window = main)] <名前>(<引数>: <型>, ...) -> <戻り型> [| <エラー型>] = $crate::<本体>;`
+//! 行の形: `<種別> [(window = app) | (owner = window)] <名前>(<引数>: <型>, ...) -> <戻り型> [| <エラー型>] = $crate::<本体>;`
+//!
+//! - `(window = app)` は検査: Tauri の窓から呼ばれたことを要求する (Vault 系)
+//! - `(owner = window)` は注入: 検査はせず、呼び元の窓の label (無ければ None) を本体の
+//!   第 2 引数 `owner: Option<String>` に渡す (クエリ購読の所有者、#1131 段 5)
+//!
 //! 型はこの表の外 (アプリ側) でも解決できるよう完全修飾で書く。エラー型を省くと
 //! NoteDeckError。独自エラー型 (Vault) は型付き経路ではそのまま返り、JSON 経路では
 //! 文字列化して NoteDeckError::InvalidInput に包む。
@@ -181,6 +186,8 @@ pub struct CommandMeta {
     pub kind: CommandKind,
     /// 呼び出し元の窓への要求。None なら窓の有無を問わない
     pub window: Option<WindowReq>,
+    /// `(owner = window)`: 本体が呼び元の窓の label を所有者として受け取る
+    pub owner: bool,
 }
 
 /// 呼び出し文脈。属性検査の材料で、principal は含めない (§4.1)。
@@ -276,6 +283,33 @@ macro_rules! __nd_command_window {
     (window = $w:ident) => {
         Some($crate::commands::WindowReq::Label(stringify!($w)))
     };
+    // 注入の属性。検査は無い
+    (owner = window) => {
+        None
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __nd_command_owner {
+    (owner = window) => {
+        true
+    };
+    ($($other:tt)*) => {
+        false
+    };
+}
+
+/// 本体の呼び方。`(owner = window)` の行だけ呼び元の窓の label を第 2 引数に渡す
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __nd_command_call {
+    ([owner = window] $path:path, $core:expr, $ctx:expr, [$($arg:expr),*]) => {
+        $path($core, $ctx.window.clone(), $($arg,)*)
+    };
+    ([$($attr:tt)*] $path:path, $core:expr, $ctx:expr, [$($arg:expr),*]) => {
+        $path($core, $($arg,)*)
+    };
 }
 
 /// JSON 経路のエラー変換: 既定 (NoteDeckError) はそのまま、独自エラー型は文字列化して包む。
@@ -314,6 +348,7 @@ macro_rules! define_command_table {
                         name: stringify!($name),
                         kind: $crate::__nd_command_kind!($kind),
                         window: $crate::__nd_command_window!($( $($attr)* )?),
+                        owner: $crate::__nd_command_owner!($( $($attr)* )?),
                     }, )*
                 }
             }
@@ -352,7 +387,7 @@ macro_rules! define_command_table {
                     struct Params { $( $arg: $ty, )* }
                     #[allow(unused_variables)]
                     let p: Params = ::serde_json::from_value(params).map_err(|e| $crate::commands::invalid_params(name, e))?;
-                    let out = $path(core, $( p.$arg, )*)
+                    let out = $crate::__nd_command_call!([$( $($attr)* )?] $path, core, ctx, [$( p.$arg ),*])
                         .await
                         .map_err(|e| $crate::__nd_command_json_err!(e, $($err)?))?;
                     Ok(::serde_json::to_value(out)?)
@@ -386,6 +421,7 @@ mod tests {
             name: "probe",
             kind: CommandKind::Data,
             window,
+            owner: false,
         }
     }
 

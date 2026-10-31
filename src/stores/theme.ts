@@ -38,6 +38,7 @@ import {
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import { notifyWarningToast } from '@/utils/toastNotify'
 import { withViewTransition } from '@/utils/viewTransition'
+import { isRepresentativeNow } from '@/windows/roles'
 
 export type { ThemeItem } from '@/services/distributableCodecs/themeCodec'
 export { misskeyThemeOf } from '@/services/distributableCodecs/themeCodec'
@@ -737,7 +738,8 @@ export const useThemeStore = defineStore('theme', () => {
     // ファイルが揃ったので選択中のテーマを当てる (読込前は組込で潰さず待っていた)
     applyCurrentTheme()
     scheduleScopeMigration()
-    if (!settingsFs.isMainDeckWindow()) return
+    // drop-in の取り込みは代表窓だけが行う (#1131)
+    if (!(await isRepresentativeNow())) return
     const adopted = await themeFileSync
       .adoptDropIns(base.items.value)
       .catch((e) => {

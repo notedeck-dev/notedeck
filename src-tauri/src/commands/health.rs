@@ -5,11 +5,9 @@
 //! (backend ready / cache / HEARTBEAT / ログ場所) を足して 1 つの [`HealthReport`]
 //! に集約する。About ウィンドウの healthcheck ダイアログがこれを表示する。
 
-use std::sync::Arc;
-
 use tauri::{Manager, State};
 
-use super::{AppState, HeartbeatScheduler, Result};
+use super::{AppState, HeartbeatTimerState, Result};
 
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -20,7 +18,7 @@ pub struct HealthReport {
     pub backend_ready: bool,
     pub note_cache_count: i64,
     pub db_size_bytes: i64,
-    /// HEARTBEAT scheduler の現在 interval (分)。未登録なら null。
+    /// in-process の HEARTBEAT timer の現在 interval (分)。止まっているか常駐構成なら null。
     pub heartbeat_interval_minutes: Option<u32>,
     /// notedeck.log を含むログディレクトリ (#644)。解決できなければ null。
     pub log_dir: Option<String>,
@@ -138,9 +136,8 @@ pub async fn notemaid_status(app: &tauri::AppHandle) -> serde_json::Value {
 pub async fn run_healthcheck(
     app: tauri::AppHandle,
     app_state: State<'_, AppState>,
-    scheduler: State<'_, Arc<HeartbeatScheduler>>,
 ) -> Result<HealthReport> {
-    build_health_report(&app, &app_state, &scheduler).await
+    build_health_report(&app, &app_state).await
 }
 
 /// [`run_healthcheck`] の本体。HTTP API (`GET /api/health`, #709) と Tauri
@@ -148,7 +145,6 @@ pub async fn run_healthcheck(
 pub async fn build_health_report(
     app: &tauri::AppHandle,
     app_state: &AppState,
-    scheduler: &HeartbeatScheduler,
 ) -> Result<HealthReport> {
     // doctor とキャッシュの統計は notecore の担当 (データ面は常にこのプロセス)
     let core = notecore::commands::health::health_core(app_state).await?;
@@ -165,7 +161,9 @@ pub async fn build_health_report(
         backend_ready,
         note_cache_count: core.note_cache_count,
         db_size_bytes: core.db_size_bytes,
-        heartbeat_interval_minutes: scheduler.current_interval(),
+        heartbeat_interval_minutes: app
+            .try_state::<HeartbeatTimerState>()
+            .and_then(|t| t.interval_minutes()),
         log_dir,
         last_panic,
         notemaid,

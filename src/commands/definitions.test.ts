@@ -12,7 +12,7 @@ vi.mock('@/composables/useDeckWindow', () => ({
   switchProfileWithWindows: vi.fn(),
   popOutColumnToWindow: vi.fn(),
   openDeckWindow: vi.fn(),
-  closeAllSubWindows: vi.fn(),
+  closeOwnSubWindows: vi.fn(),
 }))
 vi.mock('@/stores/accounts', () => ({
   getAccountAvatarUrl: vi.fn(() => null),

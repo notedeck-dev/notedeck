@@ -30,6 +30,7 @@ import {
   setStorageString,
 } from '@/utils/storage'
 import { notifyWarningToast } from '@/utils/toastNotify'
+import { useRepresentative } from '@/windows/roles'
 
 /**
  * ウィジェット本体のプール。
@@ -204,7 +205,9 @@ export const useWidgetsStore = defineStore('widgets', () => {
    * 4. サイドバーの並びから不在の本体を外す
    */
   function migrateLoaded(items: WidgetItem[]): WidgetItem[] {
-    const effects = settingsFs.isMainDeckWindow()
+    // 副作用 (削除 / Mk:save の移動 / 配置の書換) は代表窓だけが行う (#1131)。
+    // 名乗りは起動の並列ロードで済んでいる (main.ts) ので同期で読める
+    const effects = useRepresentative().isRepresentative.value
     const changed = new Set<WidgetItem>()
     const rewrites: WidgetPlacementRewrite[] = []
     items.sort((a, b) => a.createdAt - b.createdAt)

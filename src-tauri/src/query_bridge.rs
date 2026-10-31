@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Listener, Manager};
+use tauri::{AppHandle, Listener, Manager};
 
 use notecore::frontend_bridge::{ArchiveSearchRequest, BridgeFuture, FrontendBridge};
 
@@ -20,32 +20,46 @@ pub async fn query_frontend_with_timeout(
     params: Value,
     timeout: Duration,
 ) -> Result<Value, String> {
+    // 答える窓は 1 つ (#1131)。窓ごとに値が違う問いと確認を出し得る問いは見ている窓、
+    // 他は代表窓。デッキ窓が無ければ待たずに返す
+    let roles = app.state::<crate::commands::WindowRoleState>();
+    let Some(to) = roles.query_target(query_type) else {
+        return Err("No deck window to answer the query".to_string());
+    };
+
     let id = uuid::Uuid::new_v4().to_string();
     let (tx, rx) = tokio::sync::oneshot::channel::<Value>();
     let tx = Mutex::new(Some(tx));
 
     let response_event = format!("nd:query-response-{id}");
-    let _listener = app.once(response_event, move |event| {
+    let listener = app.once(response_event, move |event| {
         if let Some(tx) = tx.lock().unwrap().take() {
             let data = serde_json::from_str(event.payload()).unwrap_or(Value::Null);
             let _ = tx.send(data);
         }
     });
 
-    app.emit(
-        "nd:query-request",
-        serde_json::json!({
-            "id": id,
-            "type": query_type,
-            "params": params,
-        }),
-    )
-    .map_err(|e| e.to_string())?;
+    {
+        use tauri_specta::Event;
+        crate::commands::QueryRequest {
+            to,
+            id,
+            query_type: query_type.to_string(),
+            params,
+        }
+        .emit(app)
+        .map_err(|e| e.to_string())?;
+    }
 
-    tokio::time::timeout(timeout, rx)
-        .await
-        .map_err(|_| "Query timed out".to_string())?
-        .map_err(|_| "Channel closed".to_string())
+    match tokio::time::timeout(timeout, rx).await {
+        Ok(Ok(v)) => Ok(v),
+        Ok(Err(_)) => Err("Channel closed".to_string()),
+        Err(_) => {
+            // 待ちきれなかった once リスナーは外す (溜めない)
+            app.unlisten(listener);
+            Err("Query timed out".to_string())
+        }
+    }
 }
 
 /// 手元の索引の検索を自分の Core で答える。in-process の notemaid は `TauriBridge` から、
@@ -110,8 +124,7 @@ impl FrontendBridge for TauriBridge {
         Box::pin(async move {
             let app = &self.0;
             let app_state = app.state::<crate::commands::AppState>();
-            let scheduler = app.state::<Arc<crate::commands::HeartbeatScheduler>>();
-            let report = crate::commands::build_health_report(app, &app_state, &scheduler)
+            let report = crate::commands::build_health_report(app, &app_state)
                 .await
                 .map_err(|e| e.to_string())?;
             serde_json::to_value(&report).map_err(|e| e.to_string())
