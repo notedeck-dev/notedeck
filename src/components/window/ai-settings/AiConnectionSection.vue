@@ -11,7 +11,11 @@ import {
   useAiHarnesses,
 } from '@/composables/useAiHarnesses'
 import { useVault } from '@/composables/useVault'
-import { BUILTIN_TEMPLATES, faviconUrl } from '@/data/connectionTemplates'
+import {
+  BUILTIN_TEMPLATES,
+  connectionIconUrl,
+  faviconUrl,
+} from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
 import { useWindowsStore } from '@/stores/windows'
 import AiSettingsSection from './AiSettingsSection.vue'
@@ -128,7 +132,7 @@ function openConnectionsWindow(): void {
         :label="conn.name"
         :active="config.activeConnectionId === conn.id"
         :title="conn.baseUrl"
-        :icon-url="failedIcons.has(conn.id) ? null : faviconUrl(conn.baseUrl)"
+        :icon-url="failedIcons.has(conn.id) ? null : connectionIconUrl(conn.baseUrl)"
         icon="plug-connected"
         @icon-error="failedIcons.add(conn.id)"
         @click="selectConnection(conn.id)"

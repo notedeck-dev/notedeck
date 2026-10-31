@@ -73,6 +73,19 @@ export function faviconUrl(baseUrl: string): string | null {
   }
 }
 
+/**
+ * 接続カードに出すブランドアイコンの URL。
+ *
+ * baseUrl のホストが内蔵テンプレに一致し、そのテンプレが `iconUrl` を宣言して
+ * いればそれ (プロキシ経由)。無ければ `faviconUrl` の導出。テンプレから作った
+ * 接続も手動追加もホストで引くので、同じサービスなら同じアイコンになる。
+ */
+export function connectionIconUrl(baseUrl: string): string | null {
+  const iconUrl = matchTemplateByUrl(baseUrl)?.iconUrl
+  if (iconUrl) return proxyUrl(iconUrl) ?? null
+  return faviconUrl(baseUrl)
+}
+
 /** 貼り付けられた URL の host から一致するテンプレートを探す。 */
 export function matchTemplateByUrl(rawUrl: string): ConnectionTemplate | null {
   let host: string

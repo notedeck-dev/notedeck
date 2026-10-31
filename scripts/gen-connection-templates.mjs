@@ -86,6 +86,8 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       (typeof t.affinityHeader !== 'string' || !HEADER_NAME_RE.test(t.affinityHeader))
     )
       throw new Error(`${where}: affinityHeader は小文字のヘッダー名`)
+    if (t.iconUrl !== undefined && !/^https:\/\/\S+$/.test(t.iconUrl))
+      throw new Error(`${where}: iconUrl は https の URL`)
     const known = new Set([
       'id',
       'name',
@@ -99,6 +101,7 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       'protocol',
       'defaultModel',
       'affinityHeader',
+      'iconUrl',
     ])
     for (const key of Object.keys(t)) {
       if (!known.has(key)) throw new Error(`${where}: 未知の項目 ${key}`)
@@ -116,6 +119,7 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       protocol: t.protocol,
       defaultModel: t.defaultModel,
       affinityHeader: t.affinityHeader,
+      iconUrl: t.iconUrl,
     })
   }
   return out
@@ -180,6 +184,12 @@ export function renderTs(decls) {
     '   * 宛先ホストで判定するので、フロントは表示にしか使わない。',
     '   */',
     '  affinityHeader?: string',
+    '  /**',
+    '   * ブランドアイコンの URL (https、画像プロキシ経由で表示)。無ければ baseUrl の',
+    '   * ホストから favicon を導出する (`faviconUrl`)。API ホストがサービス本体の',
+    '   * ドメインと違う / favicon サービスに登録が無いサービスだけ持つ。',
+    '   */',
+    '  iconUrl?: string',
     '}',
     '',
     'export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [',
@@ -201,6 +211,9 @@ export function renderTs(decls) {
     }
     if (t.affinityHeader !== undefined) {
       lines.push(`    affinityHeader: ${ts(t.affinityHeader)},`)
+    }
+    if (t.iconUrl !== undefined) {
+      lines.push(`    iconUrl: ${ts(t.iconUrl)},`)
     }
     lines.push('  },')
   }

@@ -22,6 +22,9 @@
 //     TS の ConnectionTemplate と同じ (説明は生成された interface のコメント)
 //   secretLabel      secret 入力欄のラベル。文字列か `{ i18n: '<key>' }`
 //                    (辞書の `_connectionTemplates.<key>`)
+//   iconUrl          ブランドアイコンの URL (https)。無ければ baseUrl のホストから
+//                    favicon を導出する (`faviconUrl`) ので、API ホストがサービス本体の
+//                    ドメインと違う / favicon サービスに登録が無いサービスだけ書く
 //   protocol         LLM プロトコル。あれば AI プロバイダー接続として扱う
 //   defaultModel     AI 設定で接続を選んだときに初期表示するモデル名 (protocol とセット)
 //   affinityHeader   会話アフィニティ ID (接続 + 会話から導出する UUID) を載せる
@@ -76,6 +79,7 @@
     id: 'builtin:google@1',
     name: 'Google',
     icon: 'brand-google',
+    iconUrl: 'https://www.google.com/favicon.ico',
     // Gemini API (AI Studio 系) の、ネイティブ形式ではなく OpenAI 互換
     // レイヤーの baseUrl。Vertex AI は別経路なのでこのテンプレでは扱わない。
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
@@ -132,6 +136,7 @@
     id: 'builtin:deepl@1',
     name: 'DeepL',
     icon: 'language',
+    iconUrl: 'https://www.deepl.com/favicon.ico',
     // 無料枠と Pro でホストが分かれる。Pro 契約なら baseUrl を api.deepl.com に変える
     baseUrl: 'https://api-free.deepl.com',
     // 認証スキームが Bearer ではなく DeepL-Auth-Key なので、ヘッダ値ごと秘匿する
@@ -232,6 +237,8 @@
     id: 'builtin:chunirec@1',
     name: 'chunirec',
     icon: 'music',
+    // サービス自身の favicon ではなく CHUNITHM 公式サイトのアイコン (利用者の認知はこちら)
+    iconUrl: 'https://chunithm.sega.jp/$site/images/icon.png',
     baseUrl: 'https://api.chunirec.net',
     // GET はクエリ、それ以外は body にトークンを含める仕様。Vault からは GET のみ使う
     authType: { kind: 'query', param: 'token' },
@@ -245,6 +252,7 @@
     id: 'builtin:shodan@1',
     name: 'Shodan',
     icon: 'shield-search',
+    iconUrl: 'https://www.shodan.io/static/img/favicon.png',
     baseUrl: 'https://api.shodan.io',
     authType: { kind: 'query', param: 'key' },
     allowedHosts: ['api.shodan.io'],
@@ -298,6 +306,7 @@
     id: 'builtin:vrchat@1',
     name: 'VRChat',
     icon: 'headset',
+    iconUrl: 'https://hello.vrchat.com/favicon.ico',
     baseUrl: 'https://api.vrchat.cloud',
     authType: { kind: 'header', name: 'Cookie' },
     allowedHosts: ['api.vrchat.cloud'],
