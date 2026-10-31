@@ -49,6 +49,9 @@ pub type QueryHook = Arc<
         + Sync,
 >;
 
+// 中継 (別プロセスの notemaid) はデスクトップだけ。モバイルは常に in-process で、
+// `relay()` が None を返す以外は使われない (#1300)
+#[cfg_attr(not(desktop), allow(dead_code))]
 pub struct RelayClient {
     /// 繋ぐ先。子プロセス ⇄ 常駐の切り替えで差し替わる
     endpoint: Mutex<Endpoint>,
@@ -86,6 +89,7 @@ pub fn relay() -> Option<&'static Arc<RelayClient>> {
 
 /// 中継をやめて in-process に退避する (子プロセスが起動直後に死んだ / 答えなかった)。
 /// 状態面には理由を残す。再有効化はしない (次の起動でまた試す)
+#[cfg(desktop)]
 pub fn disable(reason: &str) {
     ENABLED.store(false, std::sync::atomic::Ordering::Relaxed);
     if let Some(r) = RELAY.get() {
@@ -108,6 +112,7 @@ pub fn state() -> ClientLayerState {
 }
 
 /// 常駐構成で起動: 接続を始め、以後の AI 系コマンドは中継に流れる
+#[cfg(desktop)]
 pub fn start(
     endpoint: Endpoint,
     on_event: EventHook,
@@ -130,6 +135,7 @@ fn unavailable(message: &str) -> RpcError {
     }
 }
 
+#[cfg_attr(not(desktop), allow(dead_code))]
 impl RelayClient {
     pub fn new(
         endpoint: Endpoint,

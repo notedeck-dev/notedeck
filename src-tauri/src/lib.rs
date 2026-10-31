@@ -706,12 +706,16 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     // HEARTBEAT の timer を ai.json5 から組む (#1131)
                     commands::sync_heartbeat_timer(&heartbeat_app);
-                    // 更新確認は起動の山を越えてから 1 回 (#1131)。以前は窓ごとに確認していた
-                    let updater_app = heartbeat_app.clone();
-                    tauri::async_runtime::spawn(async move {
-                        tokio::time::sleep(std::time::Duration::from_secs(8)).await;
-                        commands::check(&updater_app, false).await;
-                    });
+                    // 更新確認は起動の山を越えてから 1 回 (#1131)。以前は窓ごとに確認していた。
+                    // updater プラグインはデスクトップだけ
+                    #[cfg(desktop)]
+                    {
+                        let updater_app = heartbeat_app.clone();
+                        tauri::async_runtime::spawn(async move {
+                            tokio::time::sleep(std::time::Duration::from_secs(8)).await;
+                            commands::check(&updater_app, false).await;
+                        });
+                    }
                     if let Err(e) = notecore::commands::streaming::stream_subscribe_main_all(&core).await {
                         tracing::warn!("[stream] main for all accounts at boot: {e}");
                     }

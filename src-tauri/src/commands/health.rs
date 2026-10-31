@@ -51,6 +51,8 @@ pub struct NotemaidDiagnostics {
 }
 
 async fn notemaid_diagnostics(app_state: &AppState) -> NotemaidDiagnostics {
+    // 中継の情報を足すのはデスクトップだけ
+    #[cfg_attr(not(desktop), allow(unused_mut))]
     let mut d = NotemaidDiagnostics {
         mode: "in-process".into(),
         heartbeat: notemaid::heartbeat::status_json(),

@@ -7,6 +7,11 @@
 //!
 //! 起動後に少し待って 1 回確認する。オフラインモード中は確認しない (#461)。
 //! モバイルと `desktop` feature 無しのビルドでは何もしない。
+//!
+//! updater プラグインはデスクトップでしか登録しない (`lib.rs`、`cfg(not(mobile))`)。Android の
+//! ビルドも Cargo の default feature `desktop` は付くので、feature だけで分けると
+//! `app.updater()` が未登録の state を引いて panic する (v1.99.0 の Android smoke test)。
+//! 分岐は `all(desktop, feature = "desktop")` で見る
 
 use std::sync::Mutex;
 
@@ -44,11 +49,13 @@ pub struct UpdateState {
     pub error: Option<String>,
 }
 
+// モバイルでは updater が無いので、確認・ダウンロードの口は読まれない
+#[cfg_attr(not(desktop), allow(dead_code))]
 pub struct UpdaterState {
     state: Mutex<UpdateState>,
     /// 一度確認したか (強制でなければ 2 回目は確認しない)
     checked: std::sync::atomic::AtomicBool,
-    #[cfg(feature = "desktop")]
+    #[cfg(all(desktop, feature = "desktop"))]
     pending: Mutex<Option<tauri_plugin_updater::Update>>,
 }
 
@@ -57,12 +64,13 @@ impl Default for UpdaterState {
         Self {
             state: Mutex::new(UpdateState::default()),
             checked: std::sync::atomic::AtomicBool::new(false),
-            #[cfg(feature = "desktop")]
+            #[cfg(all(desktop, feature = "desktop"))]
             pending: Mutex::new(None),
         }
     }
 }
 
+#[cfg_attr(not(desktop), allow(dead_code))]
 impl UpdaterState {
     pub fn snapshot(&self) -> UpdateState {
         self.state.lock().unwrap_or_else(|p| p.into_inner()).clone()
@@ -80,6 +88,7 @@ impl UpdaterState {
     }
 }
 
+#[cfg_attr(not(desktop), allow(dead_code))]
 fn offline_enabled(app: &tauri::AppHandle) -> bool {
     use tauri::Manager;
     let Some(core) = app.try_state::<super::AppState>() else {
@@ -97,7 +106,7 @@ fn offline_enabled(app: &tauri::AppHandle) -> bool {
 pub async fn check(app: &tauri::AppHandle, force: bool) -> UpdateState {
     use tauri::Manager;
     let state = app.state::<UpdaterState>();
-    #[cfg(feature = "desktop")]
+    #[cfg(all(desktop, feature = "desktop"))]
     {
         use std::sync::atomic::Ordering;
         if offline_enabled(app) {
@@ -135,7 +144,7 @@ pub async fn check(app: &tauri::AppHandle, force: bool) -> UpdateState {
             }
         }
     }
-    #[cfg(not(feature = "desktop"))]
+    #[cfg(not(all(desktop, feature = "desktop")))]
     {
         let _ = (force, offline_enabled(app));
     }
@@ -146,7 +155,7 @@ pub async fn check(app: &tauri::AppHandle, force: bool) -> UpdateState {
 pub async fn install(app: &tauri::AppHandle) -> Result<()> {
     use tauri::Manager;
     let state = app.state::<UpdaterState>();
-    #[cfg(feature = "desktop")]
+    #[cfg(all(desktop, feature = "desktop"))]
     {
         let Some(update) = state
             .pending
@@ -202,7 +211,7 @@ pub async fn install(app: &tauri::AppHandle) -> Result<()> {
         }
         Ok(())
     }
-    #[cfg(not(feature = "desktop"))]
+    #[cfg(not(all(desktop, feature = "desktop")))]
     {
         let _ = state;
         Err(notecli::error::NoteDeckError::InvalidInput(
