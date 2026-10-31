@@ -51,7 +51,7 @@
     "check:dist": "node scripts/check-dist-budget.mjs",
     "fmt": "cargo fmt --all",
     "changelog": "git log $(git describe --tags --abbrev=0 2>/dev/null || echo '')..HEAD --pretty=format:'- %s' --no-merges",
-    "icons": "tauri icon src-tauri/icons/icon.svg -o src-tauri/icons && node scripts/gen-android-foreground.mjs",
+    "icons": "tauri icon src-tauri/icons/icon.svg -o src-tauri/icons && node scripts/gen-android-foreground.mjs && node scripts/gen-ios-icons.mjs",
     "clean": "rm -rf dist target",
     "clean:incremental": "rm -rf target/debug/incremental"
   },
