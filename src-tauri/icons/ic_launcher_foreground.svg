@@ -24,11 +24,11 @@
     </linearGradient>
   </defs>
 
-  <!-- Android Adaptive Icon: 108dp canvas, 66% safe zone (18dp inset) -->
-  <!-- Logo scaled to fit within safe zone with additional padding -->
-  <g transform="translate(54,54) scale(0.15) translate(-242,-236)">
-    <!-- Logo bbox is x:44-440 y:56-416, so (242,236) is its true center -->
-    <!-- scale 0.15 → ~59dp wide, stays inside the 66dp safe zone circle -->
+  <!-- Android Adaptive Icon: 108dp canvas, 66dp safe zone circle -->
+  <!-- The logo's minimum enclosing circle (center (237.4,230), r 260.2,
+       pinned by the leaf tip and the bottom-right corner of column 3) is
+       scaled to the safe zone: 33 / 260.2 = 0.1268 -->
+  <g transform="translate(54,54) scale(0.1268) translate(-237.4,-230)">
     <!-- Columns -->
     <rect x="72" y="136" width="100" height="280" rx="36" fill="url(#col1)"/>
     <rect x="206" y="136" width="100" height="280" rx="36" fill="url(#col2)"/>
