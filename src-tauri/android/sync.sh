@@ -28,6 +28,19 @@ cp "$SCRIPT_DIR/network_security_config_debug.xml" "$GEN_DIR/../debug/res/xml/ne
 cp "$SCRIPT_DIR/backup_rules.xml" "$GEN_DIR/res/xml/backup_rules.xml"
 cp "$SCRIPT_DIR/data_extraction_rules.xml" "$GEN_DIR/res/xml/data_extraction_rules.xml"
 
+# adaptive icon。`tauri icon` の foreground はロゴを 108dp キャンバス全面に
+# 置くため丸マスクで大きく見切れ、背景も白になる。セーフゾーンに収めた
+# foreground (scripts/gen-android-foreground.mjs) と背景色で上書きする。
+# legacy の ic_launcher.png は `tauri icon` の出力のまま使う
+ICONS_DIR="$SCRIPT_DIR/../icons/android"
+for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+    mkdir -p "$GEN_DIR/res/mipmap-$density"
+    cp "$ICONS_DIR/mipmap-$density/ic_launcher_foreground.png" "$GEN_DIR/res/mipmap-$density/ic_launcher_foreground.png"
+done
+mkdir -p "$GEN_DIR/res/mipmap-anydpi-v26" "$GEN_DIR/res/values"
+cp "$ICONS_DIR/mipmap-anydpi-v26/ic_launcher.xml" "$GEN_DIR/res/mipmap-anydpi-v26/ic_launcher.xml"
+cp "$ICONS_DIR/values/ic_launcher_background.xml" "$GEN_DIR/res/values/ic_launcher_background.xml"
+
 # Rust から JNI で呼ぶメソッドを release の R8 から守る。build.gradle.kts は
 # app 直下の *.pro を全部読むので置くだけで効く
 cp "$SCRIPT_DIR/proguard-jni.pro" "$SCRIPT_DIR/../gen/android/app/proguard-jni.pro"

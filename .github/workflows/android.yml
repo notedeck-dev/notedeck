@@ -77,11 +77,13 @@ jobs:
       - name: Init Android project
         run: npx tauri android init
 
-      - name: Sync custom Android files
-        run: ./src-tauri/android/sync.sh
-
+      # sync.sh より前に置く: sync.sh が adaptive icon の foreground と背景色を
+      # リポジトリの版で上書きする (`tauri icon` の版はロゴが見切れる)
       - name: Generate app icons
         run: npx tauri icon src-tauri/icons/icon.png
+
+      - name: Sync custom Android files
+        run: ./src-tauri/android/sync.sh
 
       # ABI ごとに APK を分ける。universal 1 本だと利用者は自分の端末に不要な
       # ABI まで落とすことになり、実測で 97MB のうち 97% が 4 ABI 分の Rust
