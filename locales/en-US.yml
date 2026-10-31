@@ -2054,7 +2054,7 @@ _deckColumn:
   unstack: "Unstack"
   popOut: "Open in new window"
   openAsPip: "Open as PiP window"
-  recallToMain: "Return to main window"
+  recallToMain: "Return to deck"
   deleteTitle: "Delete column"
   deleteConfirm: "Delete this column?"
   deleted: "Column deleted"

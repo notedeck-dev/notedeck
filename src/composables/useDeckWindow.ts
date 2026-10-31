@@ -254,16 +254,27 @@ export async function requestMoveColumn(
 
 /**
  * Close all sub-windows opened from the main window.
+ *
+ * `close()` の解決は「閉じる要求を送った」までで、窓が消えた保証ではない。
+ * 直後に同じラベルで開き直す (プロファイル切替の復元) と
+ * WindowLabelAlreadyExists になるので、`tauri://destroyed` を待つ (#1131)。
+ * 消えない窓で固まらないよう上限時間を置く。
  */
 export async function closeAllSubWindows(): Promise<void> {
   const promises: Promise<void>[] = []
   for (const [, win] of openWindows) {
-    // Timeout to prevent hanging on stale window references
     promises.push(
-      Promise.race([
-        win.close(),
-        new Promise<void>((resolve) => setTimeout(resolve, 3000)),
-      ]),
+      new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 3000)
+        const done = () => {
+          clearTimeout(timer)
+          resolve()
+        }
+        win
+          .once('tauri://destroyed', done)
+          .then(() => win.close())
+          .catch(done)
+      }),
     )
   }
   await Promise.allSettled(promises)

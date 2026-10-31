@@ -71,7 +71,7 @@ pub fn collect_table_locations(
         else {
             continue;
         };
-        // 属性 `(window = main)` があれば飛ばす
+        // 属性 `(window = app)` などがあれば飛ばす
         let rest = match rest.trim_start().strip_prefix('(') {
             Some(after) => after.split_once(')').map(|(_, r)| r).unwrap_or(""),
             None => rest,

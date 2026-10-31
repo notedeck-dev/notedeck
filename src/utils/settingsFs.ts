@@ -7,14 +7,33 @@ export const isTauri =
   ('__TAURI_INTERNALS__' in window || '__TAURI__' in window)
 
 /**
- * このウィンドウがメインウィンドウか (#913 マイグレーションの実行主体判定)。
- * サブウィンドウ (カラム分離・ミラーデッキ) は `?profile=` / `?window=` を
- * 付けて開かれる (useDeckWindow.ts)。
+ * この WebView の Tauri window label。Tauri 外 (ブラウザの Dev Dashboard /
+ * vitest) では null。`@tauri-apps/api` の `getCurrentWindow()` と同じ場所を
+ * 同期で読む (import を増やさない)。
+ */
+export function currentWindowLabel(): string | null {
+  if (!isTauri) return null
+  const internals = (
+    window as {
+      __TAURI_INTERNALS__?: {
+        metadata?: { currentWindow?: { label?: string } }
+      }
+    }
+  ).__TAURI_INTERNALS__
+  return internals?.metadata?.currentWindow?.label ?? null
+}
+
+/**
+ * このウィンドウがメインウィンドウか (#913 マイグレーションの実行主体判定、
+ * 設定ファイルの移行や配布物の書き戻しはメインだけが行う)。
+ *
+ * 判定は Tauri の window label (#1131)。以前は URL に `?profile=` / `?window=`
+ * が無いことで判定していたが、PiP (`/pip?col=`) はどちらも持たないため
+ * メインを自称し、移行や書き戻しがメインと競合していた。Tauri 外は常に true。
  */
 export function isMainDeckWindow(): boolean {
-  if (typeof window === 'undefined') return true
-  const params = new URLSearchParams(window.location.search)
-  return !params.has('profile') && !params.has('window')
+  if (!isTauri) return true
+  return currentWindowLabel() === 'main'
 }
 
 /** Characters not allowed in filenames (Windows + Unix safety). */

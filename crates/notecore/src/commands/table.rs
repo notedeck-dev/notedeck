@@ -265,21 +265,21 @@ macro_rules! with_command_table {
         data write_notedeck_json(content: String, expected: Option<String>) -> String = $crate::commands::settings::write_notedeck_json;
         data update_performance_config(config: $crate::perf_config::PerformanceConfig) -> () = $crate::commands::settings::update_performance_config;
         data get_performance_config() -> $crate::perf_config::PerformanceConfig = $crate::commands::settings::get_performance_config;
-            // --- vault (crates/notecore/src/commands/vault.rs) — main ウィンドウ限定、エラーは VaultError (`| 型` で宣言) ---
-        data (window = main) vault_list_connections() -> Vec<$crate::vault::Connection> | $crate::vault::VaultError = $crate::commands::vault::vault_list_connections;
-        data (window = main) vault_get_connection(id: String) -> Option<$crate::vault::Connection> | $crate::vault::VaultError = $crate::commands::vault::vault_get_connection;
-        data (window = main) vault_get_secret_status(id: String) -> $crate::vault::connections_service::SecretStatus | $crate::vault::VaultError = $crate::commands::vault::vault_get_secret_status;
-        data (window = main) vault_fetch(id: String, request: $crate::vault::fetch::VaultFetchRequest) -> $crate::vault::fetch::VaultFetchResponse | $crate::vault::VaultError = $crate::commands::vault::vault_fetch;
-        data (window = main) vault_test_connection(id: String, test_path: Option<String>) -> $crate::vault::connections_service::VaultTestResult | $crate::vault::VaultError = $crate::commands::vault::vault_test_connection;
-        authz (window = main) vault_upsert_connection(input: $crate::vault::connections_service::ConnectionUpsert) -> $crate::vault::Connection | $crate::vault::VaultError = $crate::commands::vault::vault_upsert_connection;
-        authz (window = main) vault_upsert_connection_with_secret(input: $crate::vault::connections_service::ConnectionUpsert, slot: String, secret: String) -> $crate::vault::Connection | $crate::vault::VaultError = $crate::commands::vault::vault_upsert_connection_with_secret;
-        authz (window = main) vault_set_secret(id: String, slot: String, secret: String) -> $crate::vault::Connection | $crate::vault::VaultError = $crate::commands::vault::vault_set_secret;
-        authz (window = main) vault_delete_secret(id: String, slot: String) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_delete_secret;
-        authz (window = main) vault_delete_connection(id: String) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_delete_connection;
-        authz (window = main) vault_set_exposed(id: String, principal_class: $crate::vault::model::PrincipalClass, exposed: bool) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_set_exposed;
-        authz (window = main) vault_set_trusted(id: String, principal_class: $crate::vault::model::PrincipalClass, trusted: bool) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_set_trusted;
-        authz (window = main) vault_set_trusted_plugin(id: String, plugin_id: String, name: Option<String>, trusted: bool) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_set_trusted_plugin;
-        authz (window = main) ai_migrate_provider_to_vault(provider: String, name: String, base_url: String, protocol: $crate::vault::ConnectionProtocol) -> Option<$crate::vault::Connection> | $crate::vault::VaultError = $crate::commands::vault::ai_migrate_provider_to_vault;
+            // --- vault (crates/notecore/src/commands/vault.rs) — Tauri の窓からのみ (JSON 経路は不可、label は問わない #1297)、エラーは VaultError (`| 型` で宣言) ---
+        data (window = app) vault_list_connections() -> Vec<$crate::vault::Connection> | $crate::vault::VaultError = $crate::commands::vault::vault_list_connections;
+        data (window = app) vault_get_connection(id: String) -> Option<$crate::vault::Connection> | $crate::vault::VaultError = $crate::commands::vault::vault_get_connection;
+        data (window = app) vault_get_secret_status(id: String) -> $crate::vault::connections_service::SecretStatus | $crate::vault::VaultError = $crate::commands::vault::vault_get_secret_status;
+        data (window = app) vault_fetch(id: String, request: $crate::vault::fetch::VaultFetchRequest) -> $crate::vault::fetch::VaultFetchResponse | $crate::vault::VaultError = $crate::commands::vault::vault_fetch;
+        data (window = app) vault_test_connection(id: String, test_path: Option<String>) -> $crate::vault::connections_service::VaultTestResult | $crate::vault::VaultError = $crate::commands::vault::vault_test_connection;
+        authz (window = app) vault_upsert_connection(input: $crate::vault::connections_service::ConnectionUpsert) -> $crate::vault::Connection | $crate::vault::VaultError = $crate::commands::vault::vault_upsert_connection;
+        authz (window = app) vault_upsert_connection_with_secret(input: $crate::vault::connections_service::ConnectionUpsert, slot: String, secret: String) -> $crate::vault::Connection | $crate::vault::VaultError = $crate::commands::vault::vault_upsert_connection_with_secret;
+        authz (window = app) vault_set_secret(id: String, slot: String, secret: String) -> $crate::vault::Connection | $crate::vault::VaultError = $crate::commands::vault::vault_set_secret;
+        authz (window = app) vault_delete_secret(id: String, slot: String) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_delete_secret;
+        authz (window = app) vault_delete_connection(id: String) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_delete_connection;
+        authz (window = app) vault_set_exposed(id: String, principal_class: $crate::vault::model::PrincipalClass, exposed: bool) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_set_exposed;
+        authz (window = app) vault_set_trusted(id: String, principal_class: $crate::vault::model::PrincipalClass, trusted: bool) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_set_trusted;
+        authz (window = app) vault_set_trusted_plugin(id: String, plugin_id: String, name: Option<String>, trusted: bool) -> () | $crate::vault::VaultError = $crate::commands::vault::vault_set_trusted_plugin;
+        authz (window = app) ai_migrate_provider_to_vault(provider: String, name: String, base_url: String, protocol: $crate::vault::ConnectionProtocol) -> Option<$crate::vault::Connection> | $crate::vault::VaultError = $crate::commands::vault::ai_migrate_provider_to_vault;
         authz auth_complete_and_save(session: notecli::models::AuthSession, software: String) -> notecli::models::AccountPublic = $crate::commands::auth::auth_complete_and_save;
         authz delete_account(id: String) -> () = $crate::commands::admin::delete_account;
         authz logout_account(id: String) -> () = $crate::commands::admin::logout_account;

@@ -10,6 +10,8 @@ import {
 import { useRoute } from 'vue-router'
 import type { DriveFolder } from '@/adapters/types'
 import { COLUMN_LABELS } from '@/columns/registry'
+import AppConfirm from '@/components/common/AppConfirm.vue'
+import AppPrompt from '@/components/common/AppPrompt.vue'
 import AppToast from '@/components/common/AppToast.vue'
 import AppTooltip from '@/components/common/AppTooltip.vue'
 import AddColumnDialog from '@/components/deck/AddColumnDialog.vue'
@@ -470,6 +472,10 @@ onMounted(async () => {
     </template>
 
     <AppToast />
+    <!-- 確認 / 入力のホスト。無いと PiP 内の確認が要る操作 (フォロー解除、ノート削除、
+         プラグインの http.fetch) が人の手で解決できない (#1297) -->
+    <AppConfirm />
+    <AppPrompt />
     <AppTooltip />
   </div>
 </template>

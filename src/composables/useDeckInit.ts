@@ -32,6 +32,7 @@ import {
   initDesktopNotifications,
   onNotificationAction,
 } from '@/utils/desktopNotification'
+import { isMainDeckWindow } from '@/utils/settingsFs'
 import { logStartupSummary, markStartup } from '@/utils/startupTrace'
 
 export function useDeckInit(options: {
@@ -127,15 +128,22 @@ export function useDeckInit(options: {
         options.navbarRef.value?.toggleFirstAccountMenu(),
     })
 
+    // プロセスに 1 つでよい仕事は main の窓だけが持つ (暫定ガード、#1297)。
+    // 以前はデッキ画面を描く全窓 (ミラー / ポップアウト) で走り、外部からの問い合わせ
+    // への応答や通知クリックの遷移が窓の数だけ実行されていた。役の置き場は #1131
+    // (代表窓) で決め直す
+    const isMain = isMainDeckWindow()
+
     // Defer non-critical initialization to after first paint
     requestAnimationFrame(() => {
       osGlobalShortcuts.init()
-      initApiBridge()
+      if (isMain) initApiBridge()
       initDesktopNotifications()
       initOgpListener()
       loadCliCommands()
       startTaskCommandSync()
       void useTasksStore().init()
+      if (!isMain) return
       // OS 通知クリックの遷移先解決 (#754)。noteId 優先、なければ userId。
       // どちらもない (要約通知・システム通知) 場合はフォーカスのみで何もしない。
       const navigateFromNotification = (ctx: {
@@ -201,34 +209,40 @@ export function useDeckInit(options: {
     })
 
     // Deep link (notedeck://)。モバイルでも登録する — Android の
-    // NotificationWorker 通知クリックがこの経路で通知カラムを開く (#754)
-    import('@/utils/tauriEvents').then(({ listenTauri }) => {
-      listenTauri('nd:deep-link', (url) => {
-        handleDeepLink(url)
-      }).then((fn) => {
-        unlistenDeepLink = fn
-      })
-    })
-
-    // Quick Note: global hotkey (Ctrl+Alt+N)
-    if (uiStore.isDesktop) {
+    // NotificationWorker 通知クリックがこの経路で通知カラムを開く (#754)。
+    // 受け手は main だけ (暫定ガード、#1297)
+    if (isMain) {
       import('@/utils/tauriEvents').then(({ listenTauri }) => {
-        listenTauri('nd:toggle-offline-mode', () => {
-          useOfflineModeStore().toggle()
-        })
-        listenTauri('nd:toggle-realtime-mode', () => {
-          useRealtimeModeStore().toggle()
+        listenTauri('nd:deep-link', (url) => {
+          handleDeepLink(url)
+        }).then((fn) => {
+          unlistenDeepLink = fn
         })
       })
+    }
+
+    if (uiStore.isDesktop) {
+      // トレイからの切替。受け手は main だけ (暫定ガード、#1297)。以前は全窓が
+      // 受けて反転が窓の数だけ走っていた
+      if (isMain) {
+        import('@/utils/tauriEvents').then(({ listenTauri }) => {
+          listenTauri('nd:toggle-offline-mode', () => {
+            useOfflineModeStore().toggle()
+          })
+          listenTauri('nd:toggle-realtime-mode', () => {
+            useRealtimeModeStore().toggle()
+          })
+        })
+      }
 
       // Cross-window event listeners (all windows listen for IPC events)
       listenDeckWindowEvents().then((fn) => {
         unlistenWindowEvents = fn
       })
 
-      // Sub-windows save their layout on beforeunload.
-      // `immediate` bypasses the resize-debounce so the write hits localStorage
-      // synchronously before the webview tears down.
+      // サブウィンドウは beforeunload でレイアウトをプロファイルに保存する。
+      // `immediate` で debounce を飛ばし、webview が消える前にファイルへの
+      // 書込を始める (保存先は localStorage ではなくプロファイルのファイル)
       if (deckStore.currentWindowId) {
         window.addEventListener('beforeunload', () => {
           saveCurrentWindowLayout({ immediate: true })

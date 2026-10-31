@@ -166,12 +166,21 @@ pub enum CommandKind {
     Authz,
 }
 
+/// 表の `(window = …)` 属性。呼び出し元の窓に対する要求
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WindowReq {
+    /// `(window = app)`: Tauri の窓から呼ばれたこと (JSON 経路 = 窓なしは不可)。label は問わない
+    Any,
+    /// `(window = <label>)`: その label の窓からしか呼べない
+    Label(&'static str),
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CommandMeta {
     pub name: &'static str,
     pub kind: CommandKind,
-    /// 許可ウィンドウ (label)。Some なら、その label のウィンドウからしか呼べない
-    pub window: Option<&'static str>,
+    /// 呼び出し元の窓への要求。None なら窓の有無を問わない
+    pub window: Option<WindowReq>,
 }
 
 /// 呼び出し文脈。属性検査の材料で、principal は含めない (§4.1)。
@@ -192,12 +201,23 @@ impl CallContext {
 /// 本体を呼ぶ前の属性検査。型付き経路と JSON 経路で同じものを通す。表ごとに
 /// 生成される `check(id, ctx)` はここに委ねる (notecore の表も notemaid の表も同じ規則)。
 pub fn check_meta(meta: &CommandMeta, ctx: &CallContext) -> Result<()> {
-    if let Some(required) = meta.window {
-        if ctx.window.as_deref() != Some(required) {
-            return Err(NoteDeckError::InvalidInput(format!(
-                "{} is restricted to the {required} window",
-                meta.name
-            )));
+    match meta.window {
+        None => {}
+        Some(WindowReq::Any) => {
+            if ctx.window.is_none() {
+                return Err(NoteDeckError::InvalidInput(format!(
+                    "{} can only be called from an app window",
+                    meta.name
+                )));
+            }
+        }
+        Some(WindowReq::Label(required)) => {
+            if ctx.window.as_deref() != Some(required) {
+                return Err(NoteDeckError::InvalidInput(format!(
+                    "{} is restricted to the {required} window",
+                    meta.name
+                )));
+            }
         }
     }
     Ok(())
@@ -248,8 +268,13 @@ macro_rules! __nd_command_window {
     () => {
         None
     };
+    // `app` は「Tauri の窓から呼ばれたこと」(label は問わない)。先に受けないと
+    // 下の ident の腕が `Label("app")` にしてしまう
+    (window = app) => {
+        Some($crate::commands::WindowReq::Any)
+    };
     (window = $w:ident) => {
-        Some(stringify!($w))
+        Some($crate::commands::WindowReq::Label(stringify!($w)))
     };
 }
 
@@ -355,6 +380,33 @@ crate::with_command_table!(define_command_table);
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn meta(window: Option<WindowReq>) -> CommandMeta {
+        CommandMeta {
+            name: "probe",
+            kind: CommandKind::Data,
+            window,
+        }
+    }
+
+    #[test]
+    fn window_app_requires_some_window_but_not_a_particular_label() {
+        // #1297 (M): Vault 系は「Tauri の窓から呼ばれたこと」だけを要求し label は問わない
+        let m = meta(Some(WindowReq::Any));
+        assert!(check_meta(&m, &CallContext::window("main")).is_ok());
+        assert!(check_meta(&m, &CallContext::window("deck-1700000000000-1")).is_ok());
+        assert!(check_meta(&m, &CallContext::window("pip-1700000000000-1")).is_ok());
+        assert!(check_meta(&m, &CallContext::default()).is_err());
+    }
+
+    #[test]
+    fn window_label_still_restricts_to_that_label() {
+        let m = meta(Some(WindowReq::Label("main")));
+        assert!(check_meta(&m, &CallContext::window("main")).is_ok());
+        assert!(check_meta(&m, &CallContext::window("deck-1")).is_err());
+        assert!(check_meta(&m, &CallContext::default()).is_err());
+        assert!(check_meta(&meta(None), &CallContext::default()).is_ok());
+    }
     use crate::context::test_support::temp_core;
     use serde_json::Value;
 

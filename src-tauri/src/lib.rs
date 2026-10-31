@@ -942,7 +942,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     });
 
-    // on_window_event は 1 つしか登録できないので、ウィンドウ単位の後始末をまとめる
+    // ウィンドウ単位の後始末をここにまとめる (on_window_event は複数登録できるが、
+    // 散らすと Destroyed / CloseRequested の規則が追えなくなる)
     {
         #[cfg(not(mobile))]
         let has_tray = has_tray.clone();
@@ -958,10 +959,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     scopes.remove_window(window.label());
                 }
             }
-            // Hide to tray on close (desktop only, requires tray icon)
+            // Hide to tray on close (desktop only, requires tray icon)。
+            // 対象はメインだけ (#1131)。以前はラベルを見ずに全窓を隠していたため、
+            // ポップアウト / PiP の × が破棄にならず WebView が残り、
+            // `tauri://destroyed` も来ないのでカラムの回収や復元が壊れていた
             #[cfg(not(mobile))]
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                if has_tray.load(Ordering::Relaxed) {
+                if window.label() == "main" && has_tray.load(Ordering::Relaxed) {
                     api.prevent_close();
                     let _ = window.hide();
                 }
