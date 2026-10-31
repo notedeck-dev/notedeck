@@ -220,9 +220,9 @@ export async function listenDeckWindowEvents(): Promise<() => void> {
   // Cross-window drag: show overlay when another window starts dragging
   const unlisten3 = await listenTauri('deck:drag-start', (payload) => {
     const deckStore = useDeckStore()
-    const myWindowId = deckStore.currentWindowId ?? '__main__'
+    const me = currentWindowLabel() ?? '__main__'
     // Only show overlay if this is NOT the source window
-    if (payload.sourceWindowId !== myWindowId) {
+    if (payload.sourceWindowId !== me) {
       deckStore.crossWindowDragColumnId = payload.columnId
     }
   })
@@ -231,8 +231,8 @@ export async function listenDeckWindowEvents(): Promise<() => void> {
   // Cross-window drag: dismiss overlay when drag ends
   const unlisten4 = await listenTauri('deck:drag-end', (payload) => {
     const deckStore = useDeckStore()
-    const myWindowId = deckStore.currentWindowId ?? '__main__'
-    if (payload.sourceWindowId !== myWindowId) {
+    const me = currentWindowLabel() ?? '__main__'
+    if (payload.sourceWindowId !== me) {
       deckStore.crossWindowDragColumnId = null
     }
   })

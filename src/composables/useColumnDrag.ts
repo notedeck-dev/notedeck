@@ -3,6 +3,7 @@ import { isInsertNoop, toGlobalInsertIndex } from '@/services/deckLayout'
 import type { useDeckStore } from '@/stores/deck'
 import { hapticLight, hapticMedium } from '@/utils/haptics'
 import { prefersReducedMotion } from '@/utils/motion'
+import { currentWindowLabel } from '@/utils/settingsFs'
 import { emitTauri } from '@/utils/tauriEvents'
 
 type DeckStore = ReturnType<typeof useDeckStore>
@@ -479,7 +480,8 @@ export function useColumnDrag(
     if (!columnId) return
     emitTauri(event, {
       columnId,
-      sourceWindowId: deckStore.currentWindowId ?? '__main__',
+      // 窓の識別は label (ミラーとメインを '__main__' で同一視しない。#1131)
+      sourceWindowId: currentWindowLabel() ?? '__main__',
     }).catch((e) => {
       // Not running in Tauri (browser dev mode) — expected
       if (import.meta.env.DEV) console.debug('[column-drag] emit failed:', e)

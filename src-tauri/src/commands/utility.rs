@@ -279,8 +279,10 @@ pub async fn save_image_to_file(
 
 /// 未読合計を OS へ反映する (#748):
 /// - macOS Dock / Linux ランチャー: バッジ件数
-/// - Windows: タスクバーのオーバーレイドット
+/// - Windows: タスクバーのオーバーレイドット (窓ごとなので、デッキ窓すべてに付ける。#1131 §2)
 /// - トレイ: tooltip の件数表記 + アイコン右上の未読ドット
+///
+/// 件数を送るのは代表窓だけ (`useOsUnreadBadge`)。付ける先は窓の種別で決める
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
@@ -292,7 +294,21 @@ pub fn set_unread_badge(app: tauri::AppHandle, count: u32) {
     {
         use tauri::Manager;
 
-        if let Some(window) = app.get_webview_window("main") {
+        let deck_labels: Vec<String> = app
+            .try_state::<super::WindowRoleState>()
+            .map(|roles| {
+                roles
+                    .entries()
+                    .into_iter()
+                    .filter(|e| e.kind.is_deck())
+                    .map(|e| e.label)
+                    .collect()
+            })
+            .unwrap_or_else(|| vec!["main".to_string()]);
+        for label in deck_labels {
+            let Some(window) = app.get_webview_window(&label) else {
+                continue;
+            };
             #[cfg(target_os = "windows")]
             {
                 let scale = window.scale_factor().unwrap_or(1.0);

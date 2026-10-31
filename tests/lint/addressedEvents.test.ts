@@ -24,6 +24,9 @@ const ADDRESSED_EVENTS = [
   'addressedDeepLink',
   'notificationClickAddressed',
   'trayToggle',
+  'childClosed',
+  'childGeometry',
+  'pipReturnRequested',
 ]
 
 const sourceFiles = collect(SRC, ['.vue', '.ts']).filter(

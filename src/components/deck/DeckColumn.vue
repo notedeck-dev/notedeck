@@ -100,9 +100,9 @@ const shouldShowAccountNotFound = computed(
     !columnAccount.value,
 )
 
-/** Whether this column can be popped out (desktop + main window only) */
+/** Whether this column can be popped out (desktop + deck windows only) */
 const canPopOut = computed(() => isDesktop && !deckStore.currentWindowId)
-/** Whether this column is in a sub-window and can be returned to main */
+/** Whether this column is in a popout and can be returned to the deck */
 const canRecall = computed(() => isDesktop && !!deckStore.currentWindowId)
 /**
  * 別ウィンドウに割り当てられているが、その窓が開いていない (#1131 §6)。デッキ窓で

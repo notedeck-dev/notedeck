@@ -2183,8 +2183,10 @@ async pushAttention() : Promise<Result<string[], { code: string; message: string
 /**
  * 未読合計を OS へ反映する (#748):
  * - macOS Dock / Linux ランチャー: バッジ件数
- * - Windows: タスクバーのオーバーレイドット
+ * - Windows: タスクバーのオーバーレイドット (窓ごとなので、デッキ窓すべてに付ける。#1131 §2)
  * - トレイ: tooltip の件数表記 + アイコン右上の未読ドット
+ * 
+ * 件数を送るのは代表窓だけ (`useOsUnreadBadge`)。付ける先は窓の種別で決める
  *
  * @see src-tauri/src/commands/utility.rs
  */
