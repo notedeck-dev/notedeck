@@ -18,6 +18,7 @@ import {
 } from '@/utils/historyFs'
 import * as settingsFs from '@/utils/settingsFs'
 import { getStorageJson, setStorageJson } from '@/utils/storage'
+import { isRepresentativeNow } from '@/windows/roles'
 
 /**
  * 配布物 5 種 (plugin / widget / query / skill / theme) の store の共通層
@@ -178,8 +179,8 @@ export function createDistributableStore<
       }
       runMigration()
 
-      // ファイルの移行はメインウィンドウだけが行う。冪等
-      if (settingsFs.isMainDeckWindow()) {
+      // ファイルの移行は代表窓だけが行う (#1131)。冪等
+      if (await isRepresentativeNow()) {
         // 規約外名の copy-adopt 正規化 (#913)
         await decl.files.migrateItems(items.value)
         // on-disk の揃え (#1202 段階 0): 旧形式を今の projection で書き戻す。

@@ -3,21 +3,17 @@ import { computed, onMounted, ref, watch } from 'vue'
 import FormNumber from '@/components/common/form/FormNumber.vue'
 import FormSelect from '@/components/common/form/FormSelect.vue'
 import {
-  applyEvictionConfig,
+  applyEvictionFromSettings,
   clearAllNoteCache,
   clearImageCache,
   imageCacheStats,
   noteCacheStats,
 } from '@/composables/cacheMaintenance'
 import { i18n } from '@/i18n'
-import {
-  type EvictionPreset,
-  resolveEvictionConfig,
-} from '@/services/cacheEvictionConfig'
 import { useConfirm } from '@/stores/confirm'
 import { usePerformanceStore } from '@/stores/performance'
 import { useSettingsStore } from '@/stores/settings'
-import { PRESET_OPTIONS } from '@/utils/cacheEviction'
+import { type EvictionPreset, PRESET_OPTIONS } from '@/utils/cacheEviction'
 import { formatBytes } from '@/utils/format'
 
 const { confirm } = useConfirm()
@@ -176,8 +172,9 @@ const TTL_OPTIONS: ReadonlyArray<{ value: number | null; label: string }> = [
 async function applyAndPersist() {
   errorMessage.value = ''
   try {
-    const config = resolveEvictionConfig(settingsStore.settings)
-    await applyEvictionConfig(config)
+    // Rust は settings.json5 を読んで解くので、debounce 中の変更を先に書き切る
+    await settingsStore.flush()
+    await applyEvictionFromSettings()
     await refreshStats()
   } catch (e) {
     errorMessage.value = e instanceof Error ? e.message : String(e)

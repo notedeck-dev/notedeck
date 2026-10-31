@@ -19,13 +19,13 @@ import {
   serializeLocaleSetting,
 } from '@/services/localeSetting'
 import {
-  isMainDeckWindow,
   isTauri,
   readLocaleSettingFile,
   writeLocaleSettingFile,
 } from '@/utils/settingsFs'
 import { emitTauri, listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
+import { isRepresentativeNow } from '@/windows/roles'
 
 const WINDOW_SOURCE_ID = crypto.randomUUID()
 const preference = ref<LocalePreference>('auto')
@@ -45,8 +45,8 @@ async function readSetting(): Promise<LocaleSetting> {
   // #1034 はアカウントのロードを待つが、言語は mount 前に要るので使えない)
   const hasSettings = unwrap(await commands.readNotedeckJson()).trim() !== ''
   const initial = initialLocaleSetting(hasSettings)
-  // サブウィンドウはメインが書いた後に開くので、書くのはメインだけ
-  if (isMainDeckWindow())
+  // seed を書くのは代表窓だけ (#1131)。他の窓は書かれた後に開く
+  if (await isRepresentativeNow())
     await writeLocaleSettingFile(serializeLocaleSetting(initial))
   return initial
 }

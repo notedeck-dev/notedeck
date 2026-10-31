@@ -1110,7 +1110,7 @@ notecore 側のファイルは AI (notemaid) とデバイスの両方が書く�
 
 認可境界の操作 (認証の保存 / アカウントの削除・ログアウト / Vault の secret と信頼の書込 / ルート設定ファイルの書込) も本体は notecore にあり、コマンド表では種別 `authz` の行になる。lint は表の行の種別を名前で固定する (`tests/lint/rustCommandKinds.test.ts` の `TABLE_AUTHZ`)。公開 API 面の永続トークン (external principal) を RPC 面の秘密として出しても通らないことは notemaid の smoke テスト (`crates/notemaid/tests/smoke.rs`) が golden として押さえる。
 
-healthcheck は doctor とキャッシュ統計を notecore の `health_core` から取り、ログ場所や直近の panic は手元で足す。HEARTBEAT の手動実行は notemaid の `run_once` を呼ぶ表の行で、別プロセスの notemaid に繋いでいるときは timer も notemaid が持つ (ai.json5 から組み、変更通知で組み直す) ので `heartbeat_configure` は何もしない。
+healthcheck は doctor とキャッシュ統計を notecore の `health_core` から取り、ログ場所や直近の panic は手元で足す。HEARTBEAT の手動実行は notemaid の `run_once` を呼ぶ表の行。timer は in-process でも常駐でも notemaid の `HeartbeatTimer` で、別プロセスの notemaid に繋いでいるときは手元の timer は組まない。
 
 #### ストリームの生イベントと未読
 
@@ -1571,11 +1571,11 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 
 ```
 ┌─ 手元側 ──────────────────────────────────────────────┐
-│  [Tauri] HeartbeatScheduler (Option<ScheduledTask>)    │
-│    heartbeat_configure / unconfigure / trigger_now     │
-│    tick → notemaid::heartbeat::run_once(&core, source) │
-│  [JS] useHeartbeatDaemon (App.vue で 1 mount)          │
-│    設定 (enabled / interval) → timer                    │
+│  [Tauri] notemaid の HeartbeatTimer を in-process で持つ  │
+│    ai.json5 / settings.json5 の変更通知で組み直す        │
+│    (オフライン中は止める)。手動は heartbeat_trigger_now  │
+│    tick → notemaid::heartbeat::run_due(&core, due)      │
+│  [JS] useHeartbeatDaemon (代表窓だけが mount, #1131)    │
 │    'nd:ai-heartbeat-event' → セッション写しの読み直し / │
 │      アプリの通知 / OS 通知 / ペットの活動表示           │
 │    起動時: 閉じている間の報告を 1 件にまとめて通知       │
@@ -1599,8 +1599,8 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 |---------|------|
 | `crates/notemaid/src/heartbeat.rs` | daemon 本体。skill 選択 / cheap check / 日次上限 / system prompt / ターン / 応答契約 / 報告先の解決と書込 / タイトル生成 / 失敗の数え方と自動停止 / 観測用の状態 |
 | `crates/notemaid/src/ai_config.rs` | ai.json5 の読取断面 (HEARTBEAT / 接続 / 生成の値、正規化はデバイスの `useAiConfig` と同じ規則) と `heartbeat.enabled` の書換 |
-| `src-tauri/src/commands/heartbeat.rs` | timer (global single scheduler)。tick で notemaid を呼ぶ。`HeartbeatSink` は notemaid の `sinks.rs` が Core の EventSink に写す |
-| `src/composables/useHeartbeatDaemon.ts` | 設定を timer に伝え、notemaid の出来事をデバイスに反映する |
+| `crates/notemaid/src/heartbeat_timer.rs` | timer。ai.json5 を自分で読んで組み、常駐バイナリと in-process の Tauri (`src-tauri/src/commands/heartbeat.rs` が設定ファイルの変更通知で組み直し、オフライン中は止める) の両方が使う。`HeartbeatSink` は notemaid の `sinks.rs` が Core の EventSink に写す |
+| `src/composables/useHeartbeatDaemon.ts` | notemaid の出来事をデバイスに反映する (代表窓だけが mount する、#1131)。timer の構成は Rust が持つ |
 | `src/composables/useAiConfig.ts` | `HeartbeatConfig` の正本 (デバイス側)。notemaid が ai.json5 を書いたら変更通知で読み直す |
 
 #### Skill 駆動

@@ -87,7 +87,7 @@ const activeColumnIndex = computed(() => {
   const idx = deckStore.windowLayout.findIndex((g) => g.includes(id))
   return idx >= 0 ? idx : 0
 })
-const { updateAvailable, checkForUpdate } = useUpdater()
+const { updateAvailable } = useUpdater()
 useStreamInspectorStore().startWatching()
 const { ripples, remove: removeRipple } = useRippleEffect()
 
@@ -253,7 +253,6 @@ useDeckInit({
   navigateToUser,
   toggleAddMenu,
   navbarRef,
-  checkForUpdate,
 })
 
 // Preload heavy chunks during idle time so first open is instant (production only —

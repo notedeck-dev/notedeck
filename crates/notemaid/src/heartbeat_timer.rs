@@ -1,5 +1,7 @@
-//! HEARTBEAT の timer (Tauri の HeartbeatScheduler に相当)。設定は ai.json5 から読み、
-//! 変更通知で組み直す。刻み方 (実時計の期限 / スリープからの復帰) は `heartbeat_schedule`。
+//! HEARTBEAT の timer。設定は ai.json5 から読み、変更通知で組み直す。刻み方 (実時計の
+//! 期限 / スリープからの復帰) は `heartbeat_schedule`。常駐バイナリ (daemon) と、in-process
+//! 構成の Tauri アプリ (`src-tauri/src/commands/heartbeat.rs`) が同じものを使う (#1131)。
+//! daemon feature の外に置くのはそのため。
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;

@@ -1,4 +1,5 @@
 import { emit } from '@tauri-apps/api/event'
+import { events } from '@/bindings'
 import {
   dispatchCapability,
   previewConfirmation,
@@ -24,8 +25,8 @@ import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useLogsStore } from '@/stores/logs'
 import { useStreamInspectorStore } from '@/stores/streamInspector'
+import { listenAddressed } from '@/utils/addressedEvents'
 import { getStartupEntries, getWebviewFixedCost } from '@/utils/startupTrace'
-import { listenTauri } from '@/utils/tauriEvents'
 
 export interface QueryRequest {
   id: string
@@ -314,11 +315,18 @@ let unlisten: (() => void) | null = null
 export async function initApiBridge() {
   if (unlisten) return
 
-  const unlistenFn = await listenTauri(
-    'nd:query-request',
-    async ({ id, type, params }) => {
+  // 問いは宛先付きで届く (#1131)。窓ごとに値が違う問いと確認を出し得る問いは
+  // 見ている窓、他は代表窓に Rust が振り分ける。自分宛てでなければここに来ない
+  const unlistenFn = await listenAddressed(
+    events.queryRequest,
+    async ({ id, queryType: type, params }) => {
       const started = performance.now()
-      const result = await handleQuery(type, params)
+      // Rust 側の params は JSON 値 (null や配列も型上は来る)。handler はオブジェクト前提
+      const record =
+        params !== null && typeof params === 'object' && !Array.isArray(params)
+          ? (params as Record<string, unknown>)
+          : {}
+      const result = await handleQuery(type, record)
       recordQueryTrace(type, performance.now() - started, result)
 
       // 動的イベント名なので TauriEventPayloads の対象外 (型付け不可)

@@ -5,9 +5,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 /** インメモリ疑似 FS (skills/ ディレクトリ相当)。 */
 const files = new Map<string, string>()
 
+vi.mock('@/windows/roles', () => ({
+  announceWindow: async () => undefined,
+  isRepresentativeNow: async () => true,
+  whenRepresentative: async () => undefined,
+  useRepresentative: () => ({
+    isRepresentative: { value: true },
+    isViewing: { value: true },
+    representative: { value: 'main' },
+    viewing: { value: 'main' },
+  }),
+}))
+
 vi.mock('@/utils/settingsFs', () => ({
   isTauri: true,
-  isMainDeckWindow: () => true,
   SKILL_EXT: '.md',
   PROFILE_EXT: '.ndprofile.json5',
   listSkillDirFiles: async () => Array.from(files.keys()),

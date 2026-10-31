@@ -153,6 +153,7 @@ macro_rules! with_command_table {
         data clear_account_cache(account_id: String) -> u64 = $crate::commands::admin::clear_account_cache;
         data clear_all_cache() -> u64 = $crate::commands::admin::clear_all_cache;
         data apply_eviction_config(config: notecli::db::EvictionConfig) -> u64 = $crate::commands::admin::apply_eviction_config;
+        data apply_eviction_from_settings() -> u64 = $crate::commands::admin::apply_eviction_from_settings;
         data default_eviction_config() -> notecli::db::EvictionConfig = $crate::commands::admin::default_eviction_config;
         data chat_cache_stats() -> $crate::commands::admin::ChatCacheStats = $crate::commands::admin::chat_cache_stats;
         data chat_cache_count(account_id: String) -> i64 = $crate::commands::admin::chat_cache_count;
