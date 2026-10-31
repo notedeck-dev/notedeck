@@ -54,6 +54,8 @@ pub enum SubWindowOrigin {
 /// 描画知識 (論理 px)。JS が決める
 #[derive(Debug, Clone, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
+// モバイルでは窓を作らないので読まれない (command 自体は bindings のために残る)
+#[cfg_attr(not(desktop), allow(dead_code))]
 pub struct SubWindowSize {
     pub width: f64,
     pub height: f64,
@@ -65,6 +67,7 @@ pub struct SubWindowSize {
 
 #[derive(Debug, Clone, Serialize, Type)]
 #[serde(tag = "status", rename_all = "camelCase")]
+#[cfg_attr(not(desktop), allow(dead_code))]
 pub enum SubWindowCreateResult {
     /// 開いた。`over_limit` なら呼び元が警告を出す (枚数つき)
     Created {
@@ -264,34 +267,45 @@ pub async fn sub_window_create(
         );
         return Ok(SubWindowCreateResult::Rejected { open_count });
     }
-    state.begin_create(&label);
 
-    let parent = (kind != WindowKind::Mirror).then_some(caller.as_str());
-    let built = build_window(&app, &label, kind, &url, &size);
-    match built {
-        Ok(win) => {
-            state.register(&app, &label, kind, parent);
-            if kind == WindowKind::Pip {
-                // Windows ではビルダーの always_on_top が効かないことがあるので掛け直す
-                let _ = win.set_always_on_top(true);
-            } else {
-                crate::window_events::arm_show_fuse(&app, &label);
+    // 窓の生成と操作 (ビルダーの size / always_on_top、set_always_on_top) は tauri では
+    // desktop 限定の API。モバイルは窓が 1 つなので頼まれない (Android の check で検出)
+    #[cfg(not(desktop))]
+    {
+        let _ = (&state, &app, &caller, &kind, &url, &size);
+        Err(invalid("sub windows are desktop only"))
+    }
+    #[cfg(desktop)]
+    {
+        state.begin_create(&label);
+        let parent = (kind != WindowKind::Mirror).then_some(caller.as_str());
+        let built = build_window(&app, &label, kind, &url, &size);
+        match built {
+            Ok(win) => {
+                state.register(&app, &label, kind, parent);
+                if kind == WindowKind::Pip {
+                    // Windows ではビルダーの always_on_top が効かないことがあるので掛け直す
+                    let _ = win.set_always_on_top(true);
+                } else {
+                    crate::window_events::arm_show_fuse(&app, &label);
+                }
+                let (open_count, over_limit) = state.limit_check();
+                Ok(SubWindowCreateResult::Created {
+                    label,
+                    open_count,
+                    over_limit,
+                })
             }
-            let (open_count, over_limit) = state.limit_check();
-            Ok(SubWindowCreateResult::Created {
-                label,
-                open_count,
-                over_limit,
-            })
-        }
-        Err(e) => {
-            state.end_create(&label);
-            tracing::warn!(label, "[sub-window] create failed: {e}");
-            Err(invalid(format!("failed to create window: {e}")))
+            Err(e) => {
+                state.end_create(&label);
+                tracing::warn!(label, "[sub-window] create failed: {e}");
+                Err(invalid(format!("failed to create window: {e}")))
+            }
         }
     }
 }
 
+#[cfg(desktop)]
 fn build_window(
     app: &tauri::AppHandle,
     label: &str,
@@ -340,11 +354,19 @@ pub async fn sub_window_close(
     if kind == WindowKind::Main {
         return Err(invalid("main window cannot be closed this way"));
     }
-    if let Some(w) = webview.app_handle().get_webview_window(&label) {
-        let r = if graceful { w.close() } else { w.destroy() };
-        r.map_err(|e| invalid(format!("failed to close {label}: {e}")))?;
+    #[cfg(not(desktop))]
+    {
+        let _ = (&webview, graceful);
+        Err(invalid("sub windows are desktop only"))
     }
-    Ok(())
+    #[cfg(desktop)]
+    {
+        if let Some(w) = webview.app_handle().get_webview_window(&label) {
+            let r = if graceful { w.close() } else { w.destroy() };
+            r.map_err(|e| invalid(format!("failed to close {label}: {e}")))?;
+        }
+        Ok(())
+    }
 }
 
 /// 名簿 (全窓)。受けた知らせの label が居ないことの確認や、自分の子の列挙に使う

@@ -26,7 +26,9 @@ use crate::window_registry::WindowKind;
 const GEOMETRY_DEBOUNCE: Duration = Duration::from_millis(500);
 
 /// 子窓の起動フューズ。mount に失敗して不可視のまま残った窓を上限に数え続けない
+#[cfg(desktop)]
 const SHOW_FUSE_POLL: Duration = Duration::from_millis(500);
+#[cfg(desktop)]
 const SHOW_FUSE_POLLS: u32 = 20;
 
 /// 窓ごとの最新のジオメトリと、debounce の世代
@@ -128,6 +130,10 @@ pub fn handler(
                     .try_state::<GeometryTracker>()
                     .and_then(|t| t.take(label));
                 let orphans = roles.on_destroyed(app, label, geometry);
+                // destroy は desktop 限定の API (モバイルは窓が 1 つで孤児は出ない)
+                #[cfg(not(desktop))]
+                let _ = orphans;
+                #[cfg(desktop)]
                 if !orphans.is_empty() {
                     // イベントハンドラの中から別の窓を destroy しない (Windows で deadlock)
                     let app = app.clone();
@@ -192,30 +198,26 @@ pub fn handler(
 
 /// 子窓の起動フューズ。`visible: false` で作った窓が期限まで一度も可視にならなければ
 /// show する (起動時の窓と同じ保険。mount の失敗で不可視の窓が上限を食い続けないため)
+#[cfg(desktop)]
 pub fn arm_show_fuse(app: &tauri::AppHandle, label: &str) {
-    #[cfg(desktop)]
-    {
-        let app = app.clone();
-        let label = label.to_string();
-        std::thread::spawn(move || {
-            for _ in 0..SHOW_FUSE_POLLS {
-                std::thread::sleep(SHOW_FUSE_POLL);
-                let Some(w) = app.get_webview_window(&label) else {
-                    return;
-                };
-                if w.is_visible().unwrap_or(true) {
-                    return;
-                }
+    let app = app.clone();
+    let label = label.to_string();
+    std::thread::spawn(move || {
+        for _ in 0..SHOW_FUSE_POLLS {
+            std::thread::sleep(SHOW_FUSE_POLL);
+            let Some(w) = app.get_webview_window(&label) else {
+                return;
+            };
+            if w.is_visible().unwrap_or(true) {
+                return;
             }
-            if let Some(w) = app.get_webview_window(&label) {
-                tracing::warn!(
-                    label,
-                    "[window-events] child window never became visible; forcing show"
-                );
-                let _ = w.show();
-            }
-        });
-    }
-    #[cfg(not(desktop))]
-    let _ = (app, label);
+        }
+        if let Some(w) = app.get_webview_window(&label) {
+            tracing::warn!(
+                label,
+                "[window-events] child window never became visible; forcing show"
+            );
+            let _ = w.show();
+        }
+    });
 }

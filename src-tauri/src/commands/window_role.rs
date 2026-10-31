@@ -26,6 +26,7 @@ use crate::window_registry::{
 
 /// 冷えた起動のあいだに預かる遷移。遷移系だけ (トレイの切替や問い合わせは預けない)
 #[derive(Debug, Clone)]
+#[cfg_attr(not(desktop), allow(dead_code))]
 pub enum PendingNavigation {
     DeepLink(String),
     NotificationClick(NotificationClicked),
@@ -49,6 +50,8 @@ impl Default for WindowRoleState {
     }
 }
 
+// モバイルでは窓が 1 つなので、子窓の生成・冷えた起動の預かりに関わる口は呼ばれない
+#[cfg_attr(not(desktop), allow(dead_code))]
 impl WindowRoleState {
     fn with<R>(&self, f: impl FnOnce(&mut WindowRegistry) -> R) -> R {
         let mut guard = self.registry.lock().unwrap_or_else(|p| p.into_inner());

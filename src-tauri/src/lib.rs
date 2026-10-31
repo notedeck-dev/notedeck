@@ -967,7 +967,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(not(mobile))]
         let has_tray = has_tray.clone();
         #[cfg(mobile)]
-        let has_tray = Arc::new(AtomicBool::new(false));
+        let has_tray = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         builder = builder.on_window_event(window_events::handler(has_tray));
     }
 
