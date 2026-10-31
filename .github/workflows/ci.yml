@@ -231,6 +231,11 @@ jobs:
           shared-key: rust-android
           save-if: ${{ github.event_name == 'push' }}
 
+      # rust-toolchain.toml が channel を固定していると、上の action の `targets` は
+      # その toolchain に入らず `can't find crate for std` になる。使う toolchain に足す
+      - name: Add Android target
+        run: rustup target add aarch64-linux-android
+
       - name: Clippy (app, Android)
         run: |
           set -euo pipefail
