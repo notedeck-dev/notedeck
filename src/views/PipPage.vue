@@ -17,6 +17,7 @@ import AppTooltip from '@/components/common/AppTooltip.vue'
 import AddColumnDialog from '@/components/deck/AddColumnDialog.vue'
 import ColumnTombstone from '@/components/deck/ColumnTombstone.vue'
 import { COLUMN_COMPONENTS } from '@/components/deck/columnComponents'
+import { useDeckResume } from '@/composables/useDeckResume'
 import { usePipAlwaysOnTop } from '@/composables/usePipAlwaysOnTop'
 import { i18n } from '@/i18n'
 import { useAccountsStore } from '@/stores/accounts'
@@ -178,6 +179,9 @@ const selectedColumn = ref<DeckColumn | null>(null)
 const windowPayload = ref<WindowPayload | null>(null)
 
 const { alwaysOnTop, toggle: toggleAlwaysOnTop } = usePipAlwaysOnTop()
+// 復帰検知 (可視化 / スリープ復帰 / 回線復帰)。デッキ窓と同じ信号でカラムが
+// 再接続と catch-up をする。以前は PiP だけ無かった (#1131 §6)
+useDeckResume()
 
 const themeVars = computed(() => {
   const accountId =

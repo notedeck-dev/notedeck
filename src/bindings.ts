@@ -3150,6 +3150,7 @@ streamEnvelope: StreamEnvelope,
 streamNewChatMessage: StreamNewChatMessage,
 streamStatus: StreamStatus,
 streamUnread: StreamUnread,
+subWindowsChanged: SubWindowsChanged,
 systemState: SystemState,
 trayToggle: TrayToggle,
 updateState: UpdateState,
@@ -3173,6 +3174,7 @@ streamEnvelope: "stream-envelope",
 streamNewChatMessage: "stream-new-chat-message",
 streamStatus: "stream-status",
 streamUnread: "stream-unread",
+subWindowsChanged: "sub-windows-changed",
 systemState: "system-state",
 trayToggle: "tray-toggle",
 updateState: "update-state",
@@ -4682,6 +4684,11 @@ export type SubWindowRequest =
  * 描画知識 (論理 px)。JS が決める
  */
 export type SubWindowSize = { width: number; height: number; minWidth: number; minHeight: number; x: number | null; y: number | null }
+/**
+ * 名簿の label が増減した。全窓へ流す (宛先付きではない)。デッキ窓は「その窓が
+ * 生きているか」で windowId 付きのカラムを描くかを決める (#1131 §6)
+ */
+export type SubWindowsChanged = { labels: string[] }
 export type SummaryData = { title: string | null; description: string | null; icon: string | null; sitename: string | null; thumbnail: string | null; medias: string[]; player: Player | null; url: string; sensitive: boolean }
 /**
  * OS 状態のスナップショット。`None` = その項目をこのプラットフォームでは

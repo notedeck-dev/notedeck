@@ -104,6 +104,26 @@ const shouldShowAccountNotFound = computed(
 const canPopOut = computed(() => isDesktop && !deckStore.currentWindowId)
 /** Whether this column is in a sub-window and can be returned to main */
 const canRecall = computed(() => isDesktop && !!deckStore.currentWindowId)
+/**
+ * 別ウィンドウに割り当てられているが、その窓が開いていない (#1131 §6)。デッキ窓で
+ * バッジつきで描き、押すと開き直す。配置は触らないので、戻したいときはメニューから
+ */
+const isDetached = computed(() =>
+  deckStore.isColumnDetachedHere(props.columnId),
+)
+
+function reopenWindow() {
+  const windowId = columnConfig.value?.windowId
+  if (!windowId) return
+  import('@/composables/useDeckWindow').then(({ reopenColumnWindow }) =>
+    reopenColumnWindow(windowId),
+  )
+}
+
+function recallHere() {
+  closeMenu()
+  deckStore.recallColumn(props.columnId)
+}
 const hasWallpaper = computed(() => deckStore.wallpaper != null)
 
 const showMenu = ref(false)
@@ -316,6 +336,18 @@ function openAsPip() {
         <slot name="header-meta" />
       </template>
 
+      <!-- 別ウィンドウのカラム (窓が開いていない)。押すと開き直す (#1131 §6) -->
+      <button
+        v-if="isDetached"
+        :class="[$style.headerBtn, $style.headerBtnActive]"
+        class="_button"
+        :title="i18n.ts._deckColumn.reopenWindow"
+        @pointerdown.stop
+        @click.stop="reopenWindow"
+      >
+        <i class="ti ti-app-window" />
+      </button>
+
       <!-- Mute toggle (resident: sound settings are used far more often than the other menu items) -->
       <button
         v-if="soundEnabled"
@@ -412,6 +444,10 @@ function openAsPip() {
         <button v-if="canRecall" class="_popupItem" @click="recallToMain">
           <i class="ti ti-arrow-back" />
           <span>{{ i18n.ts._deckColumn.recallToMain }}</span>
+        </button>
+        <button v-if="isDetached" class="_popupItem" @click="recallHere">
+          <i class="ti ti-arrow-back" />
+          <span>{{ i18n.ts._deckColumn.recallHere }}</span>
         </button>
         <slot name="menu-items" :close-menu="closeMenu" />
         <div class="_popupDivider" />

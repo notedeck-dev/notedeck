@@ -114,6 +114,9 @@ impl WindowRoleState {
         if let Some(changed) = roles {
             emit_changed(app, changed);
         }
+        if closed.is_some() {
+            self.emit_labels(app);
+        }
         if let Some(c) = closed {
             match c.to {
                 Some(to) => emit_event(
@@ -146,6 +149,12 @@ impl WindowRoleState {
         if let Some(changed) = self.with(|r| r.register(label, kind, parent)) {
             emit_changed(app, changed);
         }
+        self.emit_labels(app);
+    }
+
+    fn emit_labels<R: tauri::Runtime>(&self, app: &tauri::AppHandle<R>) {
+        let labels = self.with(|r| r.entries().iter().map(|e| e.label.clone()).collect());
+        emit_event(app, super::SubWindowsChanged { labels });
     }
 
     pub fn begin_create(&self, label: &str) {

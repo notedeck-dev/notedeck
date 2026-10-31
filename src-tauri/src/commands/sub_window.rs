@@ -131,6 +131,14 @@ pub struct PipReturnRequested {
     pub column: serde_json::Value,
 }
 
+/// 名簿の label が増減した。全窓へ流す (宛先付きではない)。デッキ窓は「その窓が
+/// 生きているか」で windowId 付きのカラムを描くかを決める (#1131 §6)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Type, Event)]
+#[serde(rename_all = "camelCase")]
+pub struct SubWindowsChanged {
+    pub labels: Vec<String>,
+}
+
 static LABEL_SEQ: AtomicU64 = AtomicU64::new(0);
 
 fn gen_label(prefix: &str) -> String {

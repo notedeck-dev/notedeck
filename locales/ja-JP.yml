@@ -1803,6 +1803,8 @@ _deckColumn:
   openWebUi: "Web UI で開く"
   unstack: "分割を解除"
   popOut: "別ウィンドウで開く"
+  reopenWindow: "別ウィンドウのカラムです。押すとウィンドウを開き直します"
+  recallHere: "このウィンドウに戻す"
   openAsPip: "PiP ウィンドウとして開く"
   recallToMain: "デッキに戻す"
   deleteTitle: "カラムを削除"
@@ -2318,6 +2320,7 @@ _deckWidgetColumn:
 _deckWindow:
   openInWebUi: "Web UI で開く"
   tooManyWindows: "ウィンドウが {count} 枚開いています。多すぎると動作が重くなります"
+  restoreLimited: "ウィンドウが多すぎるため、{count} 枚のウィンドウを開き直しませんでした。カラムはデッキに表示しています"
   openInDefaultEditor: "OS のデフォルトエディターで {name} を開く"
   minimize: "最小化"
   maximize: "最大化"

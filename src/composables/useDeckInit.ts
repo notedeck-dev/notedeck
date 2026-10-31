@@ -9,12 +9,16 @@ import {
 import { startTaskCommandSync } from '@/commands/taskCommands'
 import { useAppBackground } from '@/composables/useAppBackground'
 import { useDeckResume } from '@/composables/useDeckResume'
-import { listenDeckWindowEvents } from '@/composables/useDeckWindow'
+import {
+  listenDeckWindowEvents,
+  restoreWindowsOnStartup,
+} from '@/composables/useDeckWindow'
 import { handleDeepLink } from '@/composables/useDeepLink'
 import { useMainStreamKeeper } from '@/composables/useMainStreamKeeper'
 import { useNotificationPermissionPrompt } from '@/composables/useNotificationPermissionPrompt'
 import { initOgpListener } from '@/composables/useOgpPreview'
 import { useOsGlobalShortcuts } from '@/composables/useOsGlobalShortcuts'
+import { isRepresentativeNow } from '@/composables/useRepresentative'
 import { destroyApiBridge, initApiBridge } from '@/core/apiBridge'
 import { reattachQueryDeltaListener } from '@/core/queryDeltaBus'
 import { useDeckStore } from '@/stores/deck'
@@ -193,6 +197,13 @@ export function useDeckInit(options: {
       listenDeckWindowEvents().then((fn) => {
         unlistenWindowEvents = fn
       })
+
+      // 起動時のポップアウトの復元 (#1131 §6)。デッキ窓のうち代表窓が 1 回だけ
+      if (!deckStore.currentWindowId) {
+        void isRepresentativeNow().then((rep) => {
+          if (rep) return restoreWindowsOnStartup()
+        })
+      }
     }
   })
 

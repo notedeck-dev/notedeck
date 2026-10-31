@@ -2053,6 +2053,8 @@ _deckColumn:
   openWebUi: "Open in Web UI"
   unstack: "Unstack"
   popOut: "Open in new window"
+  reopenWindow: "This column belongs to another window. Click to reopen the window"
+  recallHere: "Bring back to this window"
   openAsPip: "Open as PiP window"
   recallToMain: "Return to deck"
   deleteTitle: "Delete column"
@@ -2587,6 +2589,7 @@ _deckWidgetColumn:
 _deckWindow:
   openInWebUi: "Open in Web UI"
   tooManyWindows: "{count} windows are open. Too many may slow things down"
+  restoreLimited: "Too many windows: {count} window(s) were not reopened. Their columns are shown in the deck"
   openInDefaultEditor: "Open {name} in the OS's default editor"
   minimize: "Minimize"
   maximize: "Maximize"

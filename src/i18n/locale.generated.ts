@@ -3300,6 +3300,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "unstack": string
     /** 別ウィンドウで開く */
     readonly "popOut": string
+    /** 別ウィンドウのカラムです。押すとウィンドウを開き直します */
+    readonly "reopenWindow": string
+    /** このウィンドウに戻す */
+    readonly "recallHere": string
     /** PiP ウィンドウとして開く */
     readonly "openAsPip": string
     /** デッキに戻す */
@@ -4189,6 +4193,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "openInWebUi": string
     /** ウィンドウが {count} 枚開いています。多すぎると動作が重くなります */
     readonly "tooManyWindows": ParameterizedString<'count'>
+    /** ウィンドウが多すぎるため、{count} 枚のウィンドウを開き直しませんでした。カラムはデッキに表示しています */
+    readonly "restoreLimited": ParameterizedString<'count'>
     /** OS のデフォルトエディターで {name} を開く */
     readonly "openInDefaultEditor": ParameterizedString<'name'>
     /** 最小化 */

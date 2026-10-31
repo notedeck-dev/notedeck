@@ -1384,6 +1384,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ChildClosed,
             commands::ChildGeometry,
             commands::PipReturnRequested,
+            commands::SubWindowsChanged,
         ])
 }
 

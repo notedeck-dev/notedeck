@@ -2,11 +2,18 @@ import { nextTick } from 'vue'
 import type { WindowGeometry } from '@/bindings'
 import { commands, events } from '@/bindings'
 import { isColumnType } from '@/columns/registry'
+import { i18n } from '@/i18n'
 import type { DeckColumn, DeckWindowLayout } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
+import { useToast } from '@/stores/toast'
 import { MOBILE_WINDOW_SIZE } from '@/stores/ui'
 import { listenAddressed } from '@/utils/addressedEvents'
-import { currentWindowLabel } from '@/utils/settingsFs'
+import { currentWindowLabel, isTauri } from '@/utils/settingsFs'
+import {
+  getStorageString,
+  STORAGE_KEYS,
+  setStorageString,
+} from '@/utils/storage'
 import { emitTauri, listenTauri } from '@/utils/tauriEvents'
 import { unwrap } from '@/utils/tauriInvoke'
 import { withViewTransition } from '@/utils/viewTransition'
@@ -37,13 +44,38 @@ export async function openColumnWindow(
   origin: SubWindowOrigin,
   options?: Partial<{ width: number; height: number; x: number; y: number }>,
 ): Promise<string | null> {
-  return createSubWindow({ kind: 'popout', profileId, windowId }, origin, {
-    width: options?.width ?? 500,
-    height: options?.height ?? 700,
-    x: options?.x ?? null,
-    y: options?.y ?? null,
-    ...POPOUT_MIN,
-  })
+  const deckStore = useDeckStore()
+  // 開くまでデッキ窓で描かない (開けなかったと確定したらバッジで描く)
+  deckStore.markWindowPending(windowId)
+  try {
+    const label = await createSubWindow(
+      { kind: 'popout', profileId, windowId },
+      origin,
+      {
+        width: options?.width ?? 500,
+        height: options?.height ?? 700,
+        x: options?.x ?? null,
+        y: options?.y ?? null,
+        ...POPOUT_MIN,
+      },
+    )
+    // `SubWindowsChanged` より先に名簿へ足し、デッキ窓に一瞬現れないようにする
+    if (label) deckStore.addLiveWindowId(label)
+    return label
+  } finally {
+    deckStore.clearWindowPending(windowId)
+  }
+}
+
+/** 名簿 (開いている窓) の写しを Rust から取り直す */
+async function syncLiveWindows(): Promise<void> {
+  if (!isTauri) return
+  try {
+    const live = unwrap(await commands.subWindowList())
+    useDeckStore().setLiveWindowIds(live.map((w) => w.label))
+  } catch (e) {
+    console.warn('[deck-window] failed to read window list:', e)
+  }
 }
 
 /**
@@ -123,6 +155,13 @@ function saveChildGeometry(label: string, g: WindowGeometry): void {
  */
 export async function listenDeckWindowEvents(): Promise<() => void> {
   const cleanups: (() => void)[] = []
+
+  // 開いている窓の名簿。windowId 付きのカラムをこの窓で描くかの材料 (#1131 §6)
+  const unlistenLive = await events.subWindowsChanged.listen((e) => {
+    useDeckStore().setLiveWindowIds(e.payload.labels)
+  })
+  cleanups.push(unlistenLive)
+  void syncLiveWindows()
 
   // Cross-window column moves
   const unlisten1 = await listenTauri('deck:move-column', (payload) => {
@@ -325,10 +364,92 @@ async function resolveWindowPosition(
   return { x: wl.x, y: wl.y }
 }
 
+/** プロファイルの `windows[]` のうち、カラムが割り当てられているもの */
+function savedWindowsWithColumns(): DeckWindowLayout[] {
+  const deckStore = useDeckStore()
+  return deckStore
+    .getWindowLayouts()
+    .filter((wl) => deckStore.columns.some((c) => c.windowId === wl.id))
+}
+
+/**
+ * 保存された窓を開き直す (プロファイル切替と起動時の共通経路)。自動の経路なので
+ * 上限に達していれば開かず、開けなかった窓のカラムはデッキ窓にバッジつきで現れる。
+ * 拒まれたことは受信トレイに 1 件残す
+ */
+async function restoreSavedWindows(): Promise<void> {
+  const deckStore = useDeckStore()
+  const saved = savedWindowsWithColumns()
+  if (!saved.length || !deckStore.windowProfileId) return
+  // 開く予定のものは、開けるまでデッキ窓で描かない
+  for (const wl of saved) deckStore.markWindowPending(wl.id)
+  let rejected = 0
+  for (const [i, wl] of saved.entries()) {
+    if (rejected > 0) {
+      // 上限で拒まれたら残りも拒まれる
+      deckStore.clearWindowPending(wl.id)
+      rejected++
+      continue
+    }
+    const pos = await resolveWindowPosition(wl)
+    const opened = await openColumnWindow(
+      deckStore.windowProfileId,
+      wl.id,
+      'automatic',
+      { width: wl.width, height: wl.height, x: pos.x, y: pos.y },
+    )
+    if (!opened) rejected = saved.length - i
+  }
+  if (rejected > 0) {
+    useToast().show(
+      i18n.tsx._deckWindow.restoreLimited({ count: rejected }),
+      'warning',
+    )
+  }
+}
+
+/**
+ * 起動時にポップアウトを開き直す (#1131 §6。VS Code の `window.restoreWindows` と同じ)。
+ * 代表窓が 1 回呼ぶ。先に `windows[]` に無い窓のカラムを回収する (掃除)。
+ * この機能を含む版への更新後の初回だけは自動で開かず、バッジだけ出して次回から開く
+ * (閉じても隠れるだけだった版が `windows[]` に書いた名残で、身に覚えのない窓が
+ * 一斉に開かないように)
+ */
+export async function restoreWindowsOnStartup(): Promise<void> {
+  if (!isTauri) return
+  const deckStore = useDeckStore()
+  deckStore.recallOrphanWindowColumns()
+  if (!savedWindowsWithColumns().length) return
+  if (getStorageString(STORAGE_KEYS.windowRestoreArmed) === null) {
+    setStorageString(STORAGE_KEYS.windowRestoreArmed, '1')
+    return
+  }
+  await restoreSavedWindows()
+}
+
+/**
+ * 「別ウィンドウのカラム」のバッジから開き直す (人の操作)。保存された位置があれば
+ * そこへ、無ければ既定の大きさで開く
+ */
+export async function reopenColumnWindow(windowId: string): Promise<void> {
+  const deckStore = useDeckStore()
+  if (!deckStore.windowProfileId) return
+  const wl = deckStore.getWindowLayouts().find((w) => w.id === windowId)
+  const pos = wl ? await resolveWindowPosition(wl) : null
+  await openColumnWindow(
+    deckStore.windowProfileId,
+    windowId,
+    'user',
+    wl && pos
+      ? { width: wl.width, height: wl.height, x: pos.x, y: pos.y }
+      : { width: MOBILE_WINDOW_SIZE.width, height: MOBILE_WINDOW_SIZE.height },
+  )
+}
+
 /**
  * Switch profile with window layout restoration.
  * この窓の子を閉じ、プロファイルを適用し、保存された窓を開き直す (自動の経路なので
- * 上限に達していれば開かない。開けなかったカラムの見せ方は #1131 §6)
+ * 上限に達していれば開かない。開けなかったカラムはデッキ窓にバッジつきで現れる)
  */
 export async function switchProfileWithWindows(
   profileId: string,
@@ -347,28 +468,5 @@ export async function switchProfileWithWindows(
   })
 
   // 3. Restore sub-windows from saved layouts
-  const savedWindows = deckStore.getWindowLayouts()
-  if (!savedWindows.length || !deckStore.windowProfileId) return
-
-  for (const wl of savedWindows) {
-    // Check if any columns are assigned to this window
-    const hasColumns = deckStore.columns.some((c) => c.windowId === wl.id)
-    if (!hasColumns) continue
-
-    const pos = await resolveWindowPosition(wl)
-
-    const opened = await openColumnWindow(
-      deckStore.windowProfileId,
-      wl.id,
-      'automatic',
-      {
-        width: wl.width,
-        height: wl.height,
-        x: pos.x,
-        y: pos.y,
-      },
-    )
-    // 上限で拒まれたら残りも拒まれる
-    if (!opened) break
-  }
+  await restoreSavedWindows()
 }
