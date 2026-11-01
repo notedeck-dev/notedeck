@@ -547,6 +547,26 @@ describe('withPluginAccountContext (#821)', () => {
     expect(calls).toEqual(['acc-1', 'acc-2'])
   })
 
+  it('最初の await より前の同期的な入れ子呼び出しもキューに並び、外側のスロットを上書きしない', async () => {
+    const calls: string[] = []
+    apiRequestMock.mockImplementation(async (accountId, _endpoint, params) => {
+      calls.push(`${accountId}:${(params as { noteId: string }).noteId}`)
+      return { status: 'ok', data: null }
+    })
+    const plugin = await installAndLaunch(SRC)
+    const handler = getPluginHandlers('note_action')[0]?.handler
+    let inner: Promise<unknown> | undefined
+    await withPluginAccountContext(plugin.id, 'acc-1', async () => {
+      // 外側の実行が始まった直後 (await を挟まず) に同じプラグインへ入れ子で呼ぶ
+      inner = withPluginAccountContext(plugin.id, 'acc-2', () =>
+        handler?.({ id: 'n2' }),
+      )
+      await handler?.({ id: 'n1' })
+    })
+    await inner
+    expect(calls).toEqual(['acc-1:n1', 'acc-2:n2'])
+  })
+
   it('起動していないプラグイン (文脈なし) でも fn 自体は実行される', async () => {
     const result = await withPluginAccountContext(
       'nonexistent',

@@ -685,7 +685,10 @@ export async function withPluginAccountContext<T>(
     }
   }
   const prev = pluginContextQueues.get(installId)
-  const next = prev ? prev.then(run) : run()
+  // キューへ登録してから走らせる (run は必ず microtask に送る)。run を同期的に
+  // 始めてから登録すると、最初の await より前の入れ子呼び出しが登録前の
+  // キューを見て素通りし、外側のスロットを上書きする
+  const next = (prev ?? Promise.resolve()).then(run)
   const settled = next.then(
     () => undefined,
     () => undefined,
