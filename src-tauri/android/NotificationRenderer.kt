@@ -30,9 +30,12 @@ import kotlin.math.roundToInt
  * 配置はデスクトップ (user-notify) と揃える:
  *   avatarPath -> large icon   (アクターのアバター。Windows の appLogoOverride)
  *   imagePath  -> big picture  (リアクションのカスタム絵文字。Windows のインライン画像)
+ *   small icon -> ロゴの型抜き (ic_stat_notify、#1195)。Android は small icon の alpha
+ *                 だけを形にして単色で塗るので、ランチャーのアイコンを渡すと白い丸になる
  *
  * 画像は Rust 側が ImageCache (ディスクキャッシュ・サイズ上限・negative cache) を
- * 通してローカルファイル化済み。ここではネットワークに触れず decode するだけ。
+ * 通してローカルファイル化済みで、揃ってから 1 回だけ呼ばれる (締切は Rust 側、#1195)。
+ * ここではネットワークに触れず decode するだけ。
  * decode は inSampleSize で寸法を抑える (上限なしの原寸デコードは
  * OutOfMemoryError でプロセスごと落ちる)。
  *
@@ -58,6 +61,13 @@ object NotificationRenderer {
 
   /** 絵文字 (big picture) の decode 上限。カンバス幅の 728px を賄える値 */
   private const val EMOJI_MAX_DIM = 1024
+
+  /**
+   * 通知の色 = UI のアクセント色 (global.css の --nd-accent)。通知シェードの見出しと、
+   * 大きいアイコンが無い通知で small icon の背景になる丸に効く (Android 12 以降は
+   * small icon の色にも)。ステータスバーの色とタイトル / 本文の文字色は変わらない
+   */
+  private const val ACCENT_COLOR = 0xFF86B300.toInt()
 
   @Volatile
   private var appContext: Context? = null
@@ -167,7 +177,8 @@ object NotificationRenderer {
     Thread {
       try {
         val builder = NotificationCompat.Builder(context, channelId)
-          .setSmallIcon(R.mipmap.ic_launcher)
+          .setSmallIcon(R.drawable.ic_stat_notify)
+          .setColor(ACCENT_COLOR)
           .setContentTitle(title)
           .setPriority(NotificationCompat.PRIORITY_DEFAULT)
           .setAutoCancel(true)

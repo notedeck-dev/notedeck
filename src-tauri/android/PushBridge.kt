@@ -60,7 +60,8 @@ object PushBridge {
 
   /**
    * PushService から呼ぶ。描画には画像の取得があるので別スレッドで Rust に入る。
-   * 本文は先に出るので、配送時の前面猶予の内に通知が出る
+   * 画像は締切 (Rust の image_deadline::PUSH、配送の猶予より短い) まで待って 1 回で
+   * 描く (#1195)。締切後も取得は共有の runtime で続き、次の配送では待たない
    */
   @JvmStatic
   fun deliver(context: Context, instance: String, payload: String) {

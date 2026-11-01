@@ -33,6 +33,20 @@ static BRIDGE: OnceLock<Bridge> = OnceLock::new();
 /// 足りる幅 (静止画のみ縮小、アニメーションは原本素通し)。ストリーミングとワーカーで共有
 pub const AVATAR_MAX_WIDTH: u32 = 256;
 
+/// 画像 (アバター / 絵文字) を待つ締切 (#1195)。締切は描く時刻を決めるだけで、取得は
+/// 締切後も続いてキャッシュに入る (次の通知からは待たない)。締切を過ぎたら手元にある
+/// 画像だけで必ず描き、遅れて届いた画像で描き直さない。実機で調整する初期値
+pub mod image_deadline {
+    use std::time::Duration;
+    /// push: 配送の猶予の内に出す (本文を先に出す経路は廃止した)
+    pub const PUSH: Duration = Duration::from_secs(3);
+    /// 起動中 (ストリーミング)。以前は上限なしで、2 枚を順に待つと再試行込みで
+    /// 数十秒かかりえた
+    pub const FOREGROUND: Duration = Duration::from_secs(5);
+    /// 巡回: 1 件ごとではなく 1 回の巡回の合計。超えたら残りは手元の画像だけで描く
+    pub const WORKER_TOTAL: Duration = Duration::from_secs(30);
+}
+
 /// Activity が前面にあるか (onStart / onStop)。プロセスが死ねば消える静的な状態
 static FOREGROUND: AtomicBool = AtomicBool::new(false);
 

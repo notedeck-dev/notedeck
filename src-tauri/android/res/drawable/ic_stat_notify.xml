@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通知の small icon (ロゴの型抜き)。Android は small icon のアルファだけを使い単色で
+     塗るので、背景つきの ic_launcher を渡すと白い丸になる。絵柄は icons/icon.svg の
+     ロゴと同じ座標 (rect は角丸の path に直した)。ロゴの外接矩形 (44..440 × 56..416) を
+     476 四方の中央に置き、余白を 24dp 中の 2dp ほどにしている -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="476"
+    android:viewportHeight="476">
+  <group
+      android:translateX="-4"
+      android:translateY="2">
+    <!-- 柱 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M108,136 H136 A36,36 0 0 1 172,172 V380 A36,36 0 0 1 136,416 H108 A36,36 0 0 1 72,380 V172 A36,36 0 0 1 108,136 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M242,136 H270 A36,36 0 0 1 306,172 V380 A36,36 0 0 1 270,416 H242 A36,36 0 0 1 206,380 V172 A36,36 0 0 1 242,136 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M376,136 H404 A36,36 0 0 1 440,172 V380 A36,36 0 0 1 404,416 H376 A36,36 0 0 1 340,380 V172 A36,36 0 0 1 376,136 Z" />
+    <!-- V 字の橋 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M136,136 L168,200 Q189,236 210,200 L242,136 Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M270,136 L302,200 Q323,236 344,200 L376,136 Z" />
+    <!-- 芽 -->
+    <path
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="7"
+        android:strokeLineCap="round"
+        android:pathData="M122,140 L120,118" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M120,118 Q148,60 44,56 Q80,118 120,118 Z" />
+  </group>
+</vector>

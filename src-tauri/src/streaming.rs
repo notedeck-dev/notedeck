@@ -198,7 +198,8 @@ fn show_os_notification<R: tauri::Runtime>(
     // していたが、キャッシュ・サイズ上限・失敗学習が一切効かず、巨大画像の
     // OutOfMemoryError (Kotlin の catch (Exception) では捕まえられない) で
     // プロセスごと落ちる経路だった。取得は emitter (WS 読みループ) を
-    // 塞がないよう spawn したタスクで行う。
+    // 塞がないよう spawn したタスクで行う。待つのは締切まで (#1195。以前は
+    // 上限なしで 2 枚を順に待っていた)。取得は締切後も続いてキャッシュに入る
     #[cfg(target_os = "android")]
     {
         // 遷移先は純関数が組んだ deep link で渡る。context はデスクトップのクリック用
@@ -219,30 +220,23 @@ fn show_os_notification<R: tauri::Runtime>(
             let cache = app
                 .try_state::<std::sync::Arc<notecore::image_cache::ImageCache>>()
                 .map(|s| s.inner().clone());
-            let (icon_path, image_path) = match cache {
+            let prepared = match cache {
                 Some(cache) => {
-                    let icon = match icon_url {
-                        Some(u) => {
-                            notecore::notify_media::ensure_local_file(
-                                &cache,
-                                &u,
-                                Some(crate::android_notify::AVATAR_MAX_WIDTH),
-                            )
-                            .await
-                        }
-                        None => None,
-                    };
                     // 絵文字はアニメーション保持のため変換なし (原本)。decode の
                     // メモリ安全は Kotlin 側の inSampleSize が担保する
-                    let image = match image_url {
-                        Some(u) => {
-                            notecore::notify_media::ensure_local_file(&cache, &u, None).await
-                        }
-                        None => None,
-                    };
-                    (icon, image)
+                    let deadline = tokio::time::Instant::now()
+                        + crate::android_notify::image_deadline::FOREGROUND;
+                    let (prepared, _jobs) = notecore::notify_media::prepare_images(
+                        cache,
+                        icon_url,
+                        image_url,
+                        Some(crate::android_notify::AVATAR_MAX_WIDTH),
+                        deadline,
+                    )
+                    .await;
+                    prepared
                 }
-                None => (None, None),
+                None => notecore::notify_media::PreparedImages::default(),
             };
             crate::android_notify::show(
                 &key.tag,
@@ -251,8 +245,8 @@ fn show_os_notification<R: tauri::Runtime>(
                 &title,
                 body.as_deref(),
                 deep_link.as_deref(),
-                icon_path.as_deref().and_then(|p| p.to_str()),
-                image_path.as_deref().and_then(|p| p.to_str()),
+                prepared.icon.as_deref().and_then(|p| p.to_str()),
+                prepared.image.as_deref().and_then(|p| p.to_str()),
             );
         });
     }
