@@ -45,6 +45,11 @@ export interface AiScriptSandboxOptions {
   accountId?: string | null | (() => string | null)
   /** Mk:api の実装の差し替え (テスト用)。未指定なら accountId で apiRequest する */
   api?: AiScriptEnvOptions['api']
+  /**
+   * アプリ側から入る handler の実行を包む (Nd:on / パレット / capability、#1306)。
+   * アカウント文脈が実行の合間に変わるプラグインだけが渡す
+   */
+  runWithAccount?: NoteDeckEnvContext['runWithAccount']
   /** localStorage のキー prefix (Mk:save / Mk:load) */
   storagePrefix?: string
   /** 名前空間化の前の prefix (Mk:load の fallback、ウィジェットだけ) */
@@ -144,6 +149,9 @@ export function createAiScriptSandbox(
     disposers: [],
     callers,
     getAccountId,
+    ...(options.runWithAccount
+      ? { runWithAccount: options.runWithAccount }
+      : {}),
   }
   const ndEnv = createNoteDeckEnv(ndCtx)
   const uiEnv = options.ui ? createAiScriptUiLib(options.ui) : {}

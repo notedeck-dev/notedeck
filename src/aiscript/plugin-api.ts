@@ -543,6 +543,10 @@ export async function launchPlugin(plugin: PluginItem): Promise<void> {
     // Mk:api と Nd:call は同じアカウント文脈 (withPluginAccountContext) を
     // 呼び出しのたびに参照する (#821)。handler の外では fail-closed
     accountId: () => ctx.accountId,
+    // Nd:on / パレット / capability から入る実行も同じ直列化キューに乗せ、渡された
+    // アカウント (無ければ null) でだけ走らせる (#1306)
+    runWithAccount: (accountId, fn) =>
+      withPluginAccountContext(plugin.id, accountId, fn),
     storagePrefix: `plugin:${plugin.id}`,
     globals: { LOCALE: i18n.lang },
     // onToast 未指定だと Mk:toast が無言の no-op になり、プラグインからの
@@ -658,11 +662,12 @@ const pluginContextQueues = new Map<string, Promise<unknown>>()
  * 保証する — これが直列化キューを残す理由。実行中だけ ctx.accountId を設定し、
  * 完了時に必ず null へ戻す。
  *
- * 入口は UI 起点の handler (呼び出し側が accountId を渡す) と、handler が
+ * 入口は UI 起点の handler (呼び出し側が accountId を渡す)、handler が
  * 仕込んだ Async:timeout / Async:interval のコールバック (仕込んだ時点の文脈を
- * bindDetachedCallbacks が閉じ込めて渡す, #1301)。accountId が null なら
- * その実行は fail-closed (文脈の外で仕込んだコールバックが、たまたま走っていた
- * 別の handler のアカウントを拾うことは無い)。
+ * bindDetachedCallbacks が閉じ込めて渡す, #1301)、アプリ側から入る Nd:on /
+ * コマンドパレット / capability の実行 (NoteDeckEnvContext.runWithAccount 経由、
+ * #1306)。accountId が null ならその実行は fail-closed (文脈を持たない実行が、
+ * たまたま走っていた別の handler のアカウントを拾うことは無い)。
  */
 export async function withPluginAccountContext<T>(
   installId: string,

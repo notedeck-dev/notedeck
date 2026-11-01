@@ -561,6 +561,28 @@ describe('Nd:on', () => {
     expect(unsub).toHaveBeenCalledTimes(1)
     expect(stores.ctx.disposers).toHaveLength(0)
   })
+
+  it('handler の実行は runWithAccount で包み、payload の accountId (無ければ null) を渡す (#1306)', async () => {
+    let fire: ((payload: Record<string, unknown>) => void) | undefined
+    subscribeMock.mockImplementation((_name, handler) => {
+      fire = handler
+      return noop
+    })
+    const stores = makeFakeStores()
+    const seen: Array<string | null> = []
+    stores.ctx.runWithAccount = async (accountId, fn) => {
+      seen.push(accountId)
+      return fn()
+    }
+    stores.ctx.interpreter = {
+      execFn: vi.fn(async () => values.NULL),
+    } as unknown as Interpreter
+    const env = createNoteDeckEnv(stores.ctx)
+    await callNative(env, 'Nd:on', [values.STR('column:added'), dummyHandler])
+    fire?.({ id: 'c1', accountId: 'acc-1' })
+    fire?.({ id: 'm1' })
+    expect(seen).toEqual(['acc-1', null])
+  })
 })
 
 describe('cleanupNoteDeckEnv', () => {
@@ -851,6 +873,42 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
     const { cap } = await registerOne(stores)
     await cap.execute({ x: 1 }, { principal: { kind: 'user' } })
     expect(seen).toEqual([])
+  })
+
+  it('dispatcher 経由の実行は runWithAccount に呼び出し文脈のアカウントで包まれる (#1306)', async () => {
+    const stores = makeFakeStores()
+    stores.ctx.interpreter = fakeInterpreter(noop)
+    const seen: Array<string | null> = []
+    stores.ctx.runWithAccount = async (accountId, fn) => {
+      seen.push(accountId)
+      return fn()
+    }
+    const { cap, cmd } = await registerOne(stores)
+    await cap.execute(
+      { x: 1 },
+      { principal: { kind: 'ai.chat' }, accountId: 'acc-1' },
+    )
+    await cmd.execute()
+    expect(seen).toEqual(['acc-1', null])
+  })
+
+  it('自分の handler からの Nd:call (連鎖に自分が居る) は runWithAccount を通さず走る (#1306)', async () => {
+    const stores = makeFakeStores()
+    stores.ctx.interpreter = fakeInterpreter(noop)
+    const wrapped = vi.fn(
+      async (_accountId: string | null, fn: () => Promise<unknown>) => fn(),
+    )
+    stores.ctx.runWithAccount = wrapped as NoteDeckEnvContext['runWithAccount']
+    const { cap } = await registerOne(stores)
+    const result = await cap.execute(
+      { x: 1 },
+      {
+        principal: { kind: 'ai.chat' },
+        onBehalfOf: [{ kind: 'plugin', pluginId: 'test-plugin' }],
+      },
+    )
+    expect(result).toBe('done')
+    expect(wrapped).not.toHaveBeenCalled()
   })
 
   it('UI コマンドパレット (ctx なし) は fire-and-forget のまま', async () => {
