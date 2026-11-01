@@ -550,6 +550,97 @@ describe('withPluginAccountContext (#821)', () => {
   })
 })
 
+describe('detach したコールバックのアカウント文脈 (#1301)', () => {
+  // note_action の handler は遅延して Mk:api を呼ぶ (handler 自体は即終了)。
+  // user_action の handler は遅い Mk:api を待つ (この実行中に timer が発火する)
+  const SRC = [
+    'Plugin:register_note_action("delay", @(note) { Async:timeout(5, @() { Mk:api("notes/show", { noteId: note.id }) }) })',
+    'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }) })',
+  ].join('\n')
+
+  function slowUsersShow(): string[] {
+    const calls: string[] = []
+    apiRequestMock.mockImplementation(async (accountId, endpoint) => {
+      calls.push(`${accountId}:${endpoint}`)
+      if (endpoint === 'users/show') {
+        await new Promise((r) => setTimeout(r, 40))
+      }
+      return { status: 'ok', data: null }
+    })
+    return calls
+  }
+
+  it('handler A が仕込んだ Async:timeout は handler B の実行中に発火しても A のアカウントで Mk:api を呼ぶ', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(SRC)
+    const delay = getPluginHandlers('note_action')[0]?.handler
+    const slow = getPluginHandlers('user_action')[0]?.handler
+    await withPluginAccountContext(plugin.id, 'acc-a', () =>
+      delay?.({ id: 'n1' }),
+    )
+    await withPluginAccountContext(plugin.id, 'acc-b', () =>
+      slow?.({ id: 'u1' }),
+    )
+    await vi.waitFor(() => {
+      expect(calls.some((c) => c.endsWith(':notes/show'))).toBe(true)
+    })
+    expect(calls).toContain('acc-a:notes/show')
+    expect(calls).not.toContain('acc-b:notes/show')
+  })
+
+  it('文脈の外 (top-level) で仕込んだ Async:timeout は handler B の実行中に発火しても fail-closed のまま', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }) })',
+        'Async:timeout(5, @() { Mk:api("notes/show", { noteId: "n1" }) })',
+      ].join('\n'),
+    )
+    const slow = getPluginHandlers('user_action')[0]?.handler
+    await withPluginAccountContext(plugin.id, 'acc-b', () =>
+      slow?.({ id: 'u1' }),
+    )
+    await vi.waitFor(() => {
+      const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
+      expect(
+        entries.some(
+          (e) =>
+            e.level === 'error' && e.message.includes('no account context'),
+        ),
+      ).toBe(true)
+    })
+    expect(calls.filter((c) => c.endsWith(':notes/show'))).toEqual([])
+  })
+
+  it('Async:interval の各 tick も仕込んだ handler のアカウントを持ち続ける', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        'var stop = null',
+        'var n = 0',
+        'Plugin:register_note_action("poll", @(note) { stop = Async:interval(5, @() { n += 1; Mk:api("notes/show", { noteId: note.id }); if n >= 2 { stop() } }) })',
+        'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }) })',
+      ].join('\n'),
+    )
+    const poll = getPluginHandlers('note_action')[0]?.handler
+    const slow = getPluginHandlers('user_action')[0]?.handler
+    await withPluginAccountContext(plugin.id, 'acc-a', () =>
+      poll?.({ id: 'n1' }),
+    )
+    await withPluginAccountContext(plugin.id, 'acc-b', () =>
+      slow?.({ id: 'u1' }),
+    )
+    await vi.waitFor(() => {
+      expect(
+        calls.filter((c) => c.endsWith(':notes/show')).length,
+      ).toBeGreaterThanOrEqual(2)
+    })
+    // B の実行中に積まれた tick も含め、すべて A のアカウント
+    const ticks = calls.filter((c) => c.endsWith(':notes/show'))
+    expect(ticks.every((c) => c === 'acc-a:notes/show')).toBe(true)
+  })
+})
+
 describe('abort / launchAll', () => {
   it("abortPlugin removes only that plugin's handlers", async () => {
     const a = await installAndLaunch(
