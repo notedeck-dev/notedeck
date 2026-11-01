@@ -4,7 +4,10 @@ import type { PrincipalClass } from '@/bindings'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
 import { useVault } from '@/composables/useVault'
-import { BUILTIN_TEMPLATES, faviconUrl } from '@/data/connectionTemplates'
+import {
+  BUILTIN_TEMPLATES,
+  connectionIconUrl,
+} from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
 import { resolveForProfiled } from '@/permissions/store'
 import { useWindowsStore } from '@/stores/windows'
@@ -61,7 +64,7 @@ function classBadge(
         v-for="tpl in BUILTIN_TEMPLATES"
         :key="tpl.id"
         :label="tpl.name"
-        :icon-url="failedIcons.has(tpl.id) ? null : faviconUrl(tpl.baseUrl)"
+        :icon-url="failedIcons.has(tpl.id) ? null : connectionIconUrl(tpl.baseUrl)"
         :icon="tpl.icon"
         @icon-error="failedIcons.add(tpl.id)"
         @click="openEdit({ templateId: tpl.id })"
@@ -78,7 +81,7 @@ function classBadge(
           v-for="conn in connections"
           :key="conn.id"
           :label="conn.name"
-          :icon-url="failedIcons.has(conn.id) ? null : faviconUrl(conn.baseUrl)"
+          :icon-url="failedIcons.has(conn.id) ? null : connectionIconUrl(conn.baseUrl)"
           icon="plug-connected"
           @icon-error="failedIcons.add(conn.id)"
           @click="openEdit({ connectionId: conn.id })"

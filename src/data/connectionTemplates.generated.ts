@@ -41,6 +41,12 @@ export interface ConnectionTemplateDecl {
    * 宛先ホストで判定するので、フロントは表示にしか使わない。
    */
   affinityHeader?: string
+  /**
+   * ブランドアイコンの URL (https、画像プロキシ経由で表示)。無ければ baseUrl の
+   * ホストから favicon を導出する (`faviconUrl`)。API ホストがサービス本体の
+   * ドメインと違う / favicon サービスに登録が無いサービスだけ持つ。
+   */
+  iconUrl?: string
 }
 
 export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [
@@ -95,6 +101,7 @@ export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [
     secretHelpUrl: "https://aistudio.google.com/apikey",
     protocol: "openai-compat",
     defaultModel: "gemini-3.7-flash",
+    iconUrl: "https://www.google.com/favicon.ico",
   },
   {
     id: "builtin:openrouter@1",
@@ -133,6 +140,7 @@ export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [
     testPath: "/v2/usage",
     secretLabel: {"i18n":"deeplAuthHeader"},
     secretHelpUrl: "https://www.deepl.com/your-account/keys",
+    iconUrl: "https://www.deepl.com/favicon.ico",
   },
   {
     id: "builtin:saucenao@1",
@@ -221,6 +229,7 @@ export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [
     testPath: "/2.0/users/show.json",
     secretLabel: {"i18n":"apiToken"},
     secretHelpUrl: "https://developer.chunirec.net/",
+    iconUrl: "https://chunithm.sega.jp/$site/images/icon.png",
   },
   {
     id: "builtin:shodan@1",
@@ -232,6 +241,7 @@ export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [
     testPath: "/api-info",
     secretLabel: "API Key",
     secretHelpUrl: "https://account.shodan.io/",
+    iconUrl: "https://www.shodan.io/static/img/favicon.png",
   },
   {
     id: "builtin:habitica@1",
@@ -276,5 +286,6 @@ export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [
     testPath: "/api/1/auth/user",
     secretLabel: {"i18n":"vrchatAuthCookie"},
     secretHelpUrl: "https://store.notedeck.io/plugins/vrc-in-here",
+    iconUrl: "https://hello.vrchat.com/favicon.ico",
   },
 ]

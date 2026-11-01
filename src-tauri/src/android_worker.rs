@@ -17,16 +17,20 @@
 //! (`notify_cursor_file`) より新しい通知を取って 1 件ずつ描く → 位置を進める。
 //! 位置が無い初めての巡回は新しい 1 件だけ描く (`notify_cursor::FIRST_RUN_NOTIFY`)。
 //! 未読 0 なら出ている通知を tag ごと消す (他端末で読んだ分)。画像 (アバター /
-//! 絵文字) は本文を先に出してから取り、取れたら同じ (tag, id) で描き直す (#330 §4.1)。
+//! 絵文字) は起動中と同じく揃ってから 1 回で描く (#1195。以前は本文を先に出して描き直して
+//! いた)。待つのは 1 回の巡回の合計で `image_deadline::WORKER_TOTAL` まで、超えたら手元の
+//! 画像だけで描く。取得は締切後も続き、巡回はそれがキャッシュに書き終わるのを待って終える。
 //!
-//! runtime / HTTP クライアント / 画像キャッシュはこの巡回の中で作って捨てる。Tauri の
-//! runtime (`tauri::async_runtime`) には触らない: 未初期化のまま触ると既定の runtime が
-//! 立ち、後から Activity が起動したときの `async_runtime::set` が panic (= abort) する。
-//! reqwest のクライアントは作った runtime に縛られるので、アプリ側のものも借りない。
+//! runtime / HTTP クライアント / 画像キャッシュは巡回と push で共有する 1 組 (`background`)
+//! で、入口ごとに作り直さない (作り直すと締切後の取得も失敗の記憶も入口と一緒に消える)。
+//! Tauri の runtime (`tauri::async_runtime`) には触らない: 未初期化のまま触ると既定の
+//! runtime が立ち、後から Activity が起動したときの `async_runtime::set` が panic (= abort)
+//! する。reqwest のクライアントは作った runtime に縛られるので、アプリ側のものも借りない。
 //! 画像キャッシュはアプリと同じディスク領域を指す (同じ URL を同時に取ったときだけ
-//! 同じ中身を 2 回書く)。
+//! 同じ中身を 2 回書く) が、メモリ層は持たない (背景プロセスの常駐メモリを増やさない)。
 
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, OnceLock};
 
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::jint;
@@ -35,7 +39,10 @@ use notecli::api::MisskeyClient;
 use notecli::error::NoteDeckError;
 use notecli::models::{Account, ChatMessage, NormalizedNotification, TimelineOptions};
 use notecore::image_cache::ImageCache;
+use notecore::notify_media::{self, ImageJob};
 use notecore::notify_plan::{self, notify_tag, NotifyKind, NotifyPlan};
+
+use crate::android_notify::image_deadline;
 
 /// Kotlin への戻り値。`Result.success()`
 const RESULT_SUCCESS: jint = 0;
@@ -77,20 +84,46 @@ pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_runWorker(
         tracing::warn!("[worker] keychain unavailable: {e}");
         return RESULT_SUCCESS;
     }
-    let runtime = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => rt,
-        Err(e) => {
-            tracing::warn!("[worker] runtime: {e}");
-            return RESULT_SUCCESS;
-        }
+    let Some(background) = background(&app_dir) else {
+        return RESULT_SUCCESS;
     };
-    runtime.block_on(run(&app_dir))
+    background.runtime.block_on(run(&app_dir, background))
 }
 
-async fn run(app_dir: &Path) -> jint {
+/// 巡回と push が共有する非同期の土台 (#1195)。プロセスに 1 組
+pub(crate) struct Background {
+    pub(crate) runtime: tokio::runtime::Runtime,
+    /// 作れなければ None (画像なしで描く)
+    pub(crate) images: Option<Arc<ImageCache>>,
+}
+
+static BACKGROUND: OnceLock<Option<Background>> = OnceLock::new();
+
+/// 初回の入口で作り、以後は同じものを返す。runtime を作れなければ None
+pub(crate) fn background(app_dir: &Path) -> Option<&'static Background> {
+    BACKGROUND
+        .get_or_init(|| {
+            // push の配送は複数のスレッドから同時に来るので、どのスレッドからも
+            // block_on できる multi-thread にする。仕事は軽いので worker は 1 本
+            let runtime = match tokio::runtime::Builder::new_multi_thread()
+                .worker_threads(1)
+                .enable_all()
+                .build()
+            {
+                Ok(rt) => rt,
+                Err(e) => {
+                    tracing::warn!("[worker] runtime: {e}");
+                    return None;
+                }
+            };
+            // クライアントは使う runtime の中で作る (作った runtime に縛られる)
+            let images = runtime.block_on(async { image_cache(app_dir).map(Arc::new) });
+            Some(Background { runtime, images })
+        })
+        .as_ref()
+}
+
+async fn run(app_dir: &Path, background: &Background) -> jint {
     let accounts = match notecli::db::Database::open_read_only(&app_dir.join("notecli.db"))
         .and_then(|db| db.load_accounts())
     {
@@ -122,8 +155,10 @@ async fn run(app_dir: &Path) -> jint {
         now_ms: crate::push_flow::now_ms(),
     };
     crate::push_flow::reconcile(&push_ctx, &push_accounts, false).await;
-    // 作れなければ画像なしで描く
-    let images = image_cache(app_dir);
+    let images = background.images.as_ref();
+    // 画像を待つのは巡回の合計で締切まで。仕掛かりの取得は巡回を終える前に待つ
+    let deadline = tokio::time::Instant::now() + image_deadline::WORKER_TOTAL;
+    let mut pending: Vec<ImageJob> = Vec::new();
     let mut attempted = 0;
     let mut network_failures = 0;
     for account in &accounts {
@@ -132,7 +167,18 @@ async fn run(app_dir: &Path) -> jint {
             continue;
         };
         attempted += 1;
-        match poll_account(&client, images.as_ref(), account, &token, &lang, app_dir).await {
+        match poll_account(
+            &client,
+            images,
+            account,
+            &token,
+            &lang,
+            app_dir,
+            deadline,
+            &mut pending,
+        )
+        .await
+        {
             Ok(()) => {}
             Err(NoteDeckError::Network(e)) => {
                 network_failures += 1;
@@ -142,6 +188,10 @@ async fn run(app_dir: &Path) -> jint {
         }
     }
     // 全口座がネットワークで落ちたときだけ WorkManager に再試行を頼む (圏外など)
+    // 締切に間に合わなかった画像もキャッシュに入れてから終える (次の巡回で待たない)
+    for job in &mut pending {
+        job.finish().await;
+    }
     if attempted > 0 && network_failures == attempted {
         RESULT_RETRY
     } else {
@@ -159,13 +209,16 @@ pub(crate) fn token_for(account: &Account) -> Option<String> {
     from_keychain.or_else(|| (!account.token.is_empty()).then(|| account.token.clone()))
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn poll_account(
     client: &MisskeyClient,
-    images: Option<&ImageCache>,
+    images: Option<&Arc<ImageCache>>,
     account: &Account,
     token: &str,
     lang: &str,
     app_dir: &Path,
+    deadline: tokio::time::Instant,
+    pending: &mut Vec<ImageJob>,
 ) -> Result<(), NoteDeckError> {
     let me = client.get_self(&account.host, token).await?;
     let unread = me
@@ -203,7 +256,7 @@ async fn poll_account(
                 continue;
             }
             if let Some(plan) = notify_plan::plan(n, lang) {
-                show(images, &plan).await;
+                pending.extend(show(images, &plan, deadline).await);
             }
         }
         // 位置は最後にまとめて進める。途中で落ちても、次の巡回で出し直す分は (tag, id) が
@@ -240,7 +293,8 @@ async fn poll_account(
     let fresh = cursor.newer_than(&account.id, NotifyKind::Message, unread_messages, |m| &m.id);
     let silent = cursor.silent_prefix(&account.id, NotifyKind::Message, fresh.len());
     for m in fresh.iter().skip(silent) {
-        show(images, &notify_plan::plan_chat(m, &account.host, lang)).await;
+        let plan = notify_plan::plan_chat(m, &account.host, lang);
+        pending.extend(show(images, &plan, deadline).await);
     }
     if let Some(newest) = fresh.last() {
         crate::notify_cursor_file::advance(app_dir, &account.id, NotifyKind::Message, &newest.id);
@@ -258,8 +312,9 @@ fn observe_push(app_dir: &Path, account_id: &str, fresh: &[NormalizedNotificatio
     crate::push_store_file::update(app_dir, |s| s.worker_observed(account_id, &created, now));
 }
 
-/// この巡回で使う画像キャッシュ (アプリと同じディスク領域)。クライアントを作れなければ None
-pub(crate) fn image_cache(app_dir: &Path) -> Option<ImageCache> {
+/// 巡回 / push の画像キャッシュ (アプリと同じディスク領域、メモリ層なし)。クライアントを
+/// 作れなければ None
+fn image_cache(app_dir: &Path) -> Option<ImageCache> {
     // SSRF の防御はアプリの共有クライアントと同じ: リダイレクト先の検証と、名前解決の
     // 結果を接続前に確かめる resolver (private / loopback に解決される公開ホスト名を
     // 弾く、#857)。通知の画像の URL は他人が書いたものなので省かない
@@ -269,42 +324,41 @@ pub(crate) fn image_cache(app_dir: &Path) -> Option<ImageCache> {
         .dns_resolver(std::sync::Arc::new(notecore::ssrf::ValidatingResolver))
         .build()
         .ok()?;
-    let perf = std::sync::Arc::new(tokio::sync::RwLock::new(
-        notecore::perf_config::PerformanceConfig::default(),
+    let perf = Arc::new(tokio::sync::RwLock::new(
+        notecore::perf_config::PerformanceConfig {
+            memory_cache_max_total: 0,
+            ..notecore::perf_config::PerformanceConfig::default()
+        },
     ));
     Some(ImageCache::with_client(app_dir, http, perf))
 }
 
-/// 本文を先に描き、画像 (アバター / リアクションの絵文字) が取れたら同じ (tag, id) で
-/// 描き直す。描き直しは OS が音を鳴らし直さない (NotificationRenderer の onlyAlertOnce)
-pub(crate) async fn show(images: Option<&ImageCache>, plan: &NotifyPlan) {
-    draw(plan, None, None);
+/// 画像 (アバター / リアクションの絵文字) を締切まで待ってから 1 回で描く (#1195)。
+/// 締切を過ぎたら手元にある画像だけで描き、遅れて届いた画像では描き直さない。取得は
+/// 締切後も続くので、返した job を待てばキャッシュに書き終わる (巡回はそれを待って終える)
+pub(crate) async fn show(
+    images: Option<&Arc<ImageCache>>,
+    plan: &NotifyPlan,
+    deadline: tokio::time::Instant,
+) -> Vec<ImageJob> {
     let Some(cache) = images else {
-        return;
+        draw(plan, None, None);
+        return Vec::new();
     };
-    let icon = match plan.icon_url.as_deref() {
-        Some(url) => {
-            notecore::notify_media::ensure_local_file(
-                cache,
-                url,
-                Some(crate::android_notify::AVATAR_MAX_WIDTH),
-            )
-            .await
-        }
-        None => None,
-    };
-    // 絵文字はアニメーション保持のため変換なし (原本)。decode の上限は Kotlin 側
-    let image = match plan.image_url.as_deref() {
-        Some(url) => notecore::notify_media::ensure_local_file(cache, url, None).await,
-        None => None,
-    };
-    if icon.is_some() || image.is_some() {
-        draw(
-            plan,
-            icon.as_deref().and_then(|p| p.to_str()),
-            image.as_deref().and_then(|p| p.to_str()),
-        );
-    }
+    let (prepared, jobs) = notify_media::prepare_images(
+        cache.clone(),
+        plan.icon_url.clone(),
+        plan.image_url.clone(),
+        Some(crate::android_notify::AVATAR_MAX_WIDTH),
+        deadline,
+    )
+    .await;
+    draw(
+        plan,
+        prepared.icon.as_deref().and_then(|p| p.to_str()),
+        prepared.image.as_deref().and_then(|p| p.to_str()),
+    );
+    jobs
 }
 
 fn draw(plan: &NotifyPlan, avatar_path: Option<&str>, image_path: Option<&str>) {

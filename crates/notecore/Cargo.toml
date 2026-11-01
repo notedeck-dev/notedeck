@@ -48,5 +48,7 @@ test-support = ["dep:tempfile"]
 
 [dev-dependencies]
 tempfile = "3"
+# 画像待ちの締切のテストで時計を止める (start_paused)
+tokio = { version = "1", features = ["test-util"] }
 # axum Router に直接リクエストを流して middleware を検査するため (oneshot)
 tower = { version = "0.5", features = ["util"] }

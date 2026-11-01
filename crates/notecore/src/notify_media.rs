@@ -10,7 +10,12 @@
 //! decode やプレゼンテーション変換 (円形クロップ・カンバス正規化) は
 //! 各プラットフォームのデコーダに残す (アニメーション対応形式が違うため)。
 
+use std::future::Future;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+
+use tokio::task::JoinHandle;
+use tokio::time::Instant;
 
 use crate::image_cache::ImageCache;
 use crate::media_proxy::MediaRequest;
@@ -53,6 +58,106 @@ pub async fn ensure_local_file(cache: &ImageCache, url: &str, w: Option<u32>) ->
     // ensure_media_inner は変換の要不要によらず必ず cache_key で永続化する
     // ので、直後の lookup はヒットする
     cache.check_cache_only(&key).await.map(|entry| entry.path)
+}
+
+/// 通知画像 1 枚の取得 (#1195)。結果は締切に関係なく slot に置かれ、取得は締切後も
+/// 走り続けてキャッシュを温める (次の通知からは待たない)。
+pub struct ImageJob {
+    slot: Arc<Mutex<Option<PathBuf>>>,
+    handle: Option<JoinHandle<()>>,
+}
+
+impl ImageJob {
+    /// 今の時点で揃っている結果
+    pub fn take(&self) -> Option<PathBuf> {
+        self.slot.lock().ok().and_then(|s| s.clone())
+    }
+
+    /// 取得の完了まで待つ (巡回が終わる前にキャッシュへ書き終えるため)
+    pub async fn finish(&mut self) {
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.await;
+        }
+    }
+}
+
+/// 取得を runtime の task として始める。呼び出し側の future が締切で捨てられても続く
+pub fn spawn_image_job<F>(fetch: F) -> ImageJob
+where
+    F: Future<Output = Option<PathBuf>> + Send + 'static,
+{
+    let slot = Arc::new(Mutex::new(None));
+    let writer = slot.clone();
+    let handle = tokio::spawn(async move {
+        let result = fetch.await;
+        if let Ok(mut s) = writer.lock() {
+            *s = result;
+        }
+    });
+    ImageJob {
+        slot,
+        handle: Some(handle),
+    }
+}
+
+/// 締切まで取得の完了を待つ。全部終わればそこで返り、締切を過ぎたら揃った分だけで
+/// 返る (描く時刻を決めるだけで、取得は打ち切らない)
+pub async fn wait_until(deadline: Instant, jobs: &mut [ImageJob]) {
+    let _ = tokio::time::timeout_at(deadline, async {
+        for job in jobs.iter_mut() {
+            if let Some(handle) = job.handle.as_mut() {
+                let _ = handle.await;
+                job.handle = None;
+            }
+        }
+    })
+    .await;
+}
+
+/// 締切までに揃った通知画像
+#[derive(Debug, Default)]
+pub struct PreparedImages {
+    /// 大きいアイコン (アバター) のローカルファイル
+    pub icon: Option<PathBuf>,
+    /// 広げたときの画像 (リアクションのカスタム絵文字) のローカルファイル
+    pub image: Option<PathBuf>,
+}
+
+/// 通知の画像 (アバター / 絵文字) を同時に取り、締切までに揃った分を返す (#1195)。
+/// 3 つの届き方 (起動中 / 巡回 / push) が共通で使う。取得は締切後も続くので、
+/// 返した job は呼び出し側が完了を待てる (巡回) し、捨ててもよい (起動中 / push)。
+/// `icon_w` はアバターの縮小幅 (静止画のみ)。絵文字はアニメーション保持のため原本
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+pub async fn prepare_images(
+    cache: Arc<ImageCache>,
+    icon_url: Option<String>,
+    image_url: Option<String>,
+    icon_w: Option<u32>,
+    deadline: Instant,
+) -> (PreparedImages, Vec<ImageJob>) {
+    let mut jobs = Vec::new();
+    let mut icon_job = None;
+    let mut image_job = None;
+    if let Some(url) = icon_url {
+        let cache = cache.clone();
+        icon_job = Some(jobs.len());
+        jobs.push(spawn_image_job(async move {
+            ensure_local_file(&cache, &url, icon_w).await
+        }));
+    }
+    if let Some(url) = image_url {
+        let cache = cache.clone();
+        image_job = Some(jobs.len());
+        jobs.push(spawn_image_job(async move {
+            ensure_local_file(&cache, &url, None).await
+        }));
+    }
+    wait_until(deadline, &mut jobs).await;
+    let prepared = PreparedImages {
+        icon: icon_job.and_then(|i| jobs[i].take()),
+        image: image_job.and_then(|i| jobs[i].take()),
+    };
+    (prepared, jobs)
 }
 
 /// url を ImageCache 経由で取得し、バイト列で返す (デスクトップの PNG
@@ -142,6 +247,65 @@ mod tests {
             .expect("original path");
         assert!(original.exists());
         assert_ne!(variant, original);
+    }
+
+    /// 締切は「描く時刻」を決めるだけで、取得は打ち切らない (#1195)。
+    /// 速い方は締切内に揃い、遅い方は締切後も続いて最後まで完了する
+    #[tokio::test(start_paused = true)]
+    async fn wait_until_returns_at_deadline_and_keeps_slow_jobs_running() {
+        let fast = spawn_image_job(async { Some(PathBuf::from("/fast")) });
+        let slow = spawn_image_job(async {
+            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+            Some(PathBuf::from("/slow"))
+        });
+        let mut jobs = vec![fast, slow];
+        let started = tokio::time::Instant::now();
+        wait_until(started + std::time::Duration::from_secs(3), &mut jobs).await;
+        assert_eq!(started.elapsed(), std::time::Duration::from_secs(3));
+        assert_eq!(
+            jobs[0].take().as_deref(),
+            Some(std::path::Path::new("/fast"))
+        );
+        assert_eq!(jobs[1].take(), None, "締切に間に合わない画像は無しで描く");
+
+        // 取得は続く: 完了を待てば遅い方も揃う (キャッシュが温まる)
+        for job in &mut jobs {
+            job.finish().await;
+        }
+        assert_eq!(
+            jobs[1].take().as_deref(),
+            Some(std::path::Path::new("/slow"))
+        );
+    }
+
+    /// 全部が締切前に終われば締切まで待たない
+    #[tokio::test(start_paused = true)]
+    async fn wait_until_returns_early_when_all_jobs_finish() {
+        let mut jobs = vec![spawn_image_job(async { None })];
+        let started = tokio::time::Instant::now();
+        wait_until(started + std::time::Duration::from_secs(3), &mut jobs).await;
+        assert!(started.elapsed() < std::time::Duration::from_secs(1));
+    }
+
+    /// 取得できない URL は締切を待たずに無しで返る
+    #[tokio::test]
+    async fn prepare_images_fails_closed_without_waiting_for_the_deadline() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = std::sync::Arc::new(ImageCache::new(dir.path()));
+        let started = std::time::Instant::now();
+        let (prepared, jobs) = prepare_images(
+            cache,
+            Some("https://localhost/a.png".to_string()),
+            Some("https://localhost/e.webp".to_string()),
+            Some(64),
+            tokio::time::Instant::now() + std::time::Duration::from_secs(5),
+        )
+        .await;
+        assert!(prepared.icon.is_none() && prepared.image.is_none());
+        assert!(started.elapsed() < std::time::Duration::from_secs(2));
+        for mut job in jobs {
+            job.finish().await;
+        }
     }
 
     #[tokio::test]

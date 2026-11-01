@@ -41,6 +41,11 @@ mkdir -p "$GEN_DIR/res/mipmap-anydpi-v26" "$GEN_DIR/res/values"
 cp "$ICONS_DIR/mipmap-anydpi-v26/ic_launcher.xml" "$GEN_DIR/res/mipmap-anydpi-v26/ic_launcher.xml"
 cp "$ICONS_DIR/values/ic_launcher_background.xml" "$GEN_DIR/res/values/ic_launcher_background.xml"
 
+# 通知の small icon (ロゴの型抜き、#1195)。生成プロジェクトにだけ置くと CI (tauri android
+# init から始める) で消えるので、リポジトリ側から写す
+mkdir -p "$GEN_DIR/res/drawable"
+cp "$SCRIPT_DIR/res/drawable/"*.xml "$GEN_DIR/res/drawable/"
+
 # Rust から JNI で呼ぶメソッドを release の R8 から守る。build.gradle.kts は
 # app 直下の *.pro を全部読むので置くだけで効く
 cp "$SCRIPT_DIR/proguard-jni.pro" "$SCRIPT_DIR/../gen/android/app/proguard-jni.pro"

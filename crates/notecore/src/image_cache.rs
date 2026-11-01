@@ -392,6 +392,11 @@ impl ImageCache {
 
     async fn insert_mem_cache(&self, hash: &str, data: &Arc<Vec<u8>>, content_type: &str) {
         let max_total = self.perf.read().await.memory_cache_max_total;
+        // 0 はメモリ層なし (Android の巡回 / push 側、#1195)。LRU の追い出しだけだと
+        // 最後の 1 件が残る
+        if max_total == 0 {
+            return;
+        }
         let mut state = self.mem_cache.write().await;
         // LRU eviction: pop least-recently-used until there is room
         while state.total_size + data.len() > max_total && !state.entries.is_empty() {
