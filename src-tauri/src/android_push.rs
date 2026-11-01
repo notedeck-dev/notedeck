@@ -58,20 +58,28 @@ pub extern "system" fn Java_com_notedeck_desktop_PushBridge_onMessage(
         tracing::warn!("[push] keychain unavailable: {e}");
         return;
     }
-    let runtime = match tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-    {
-        Ok(rt) => rt,
-        Err(e) => {
-            tracing::warn!("[push] runtime: {e}");
-            return;
-        }
+    // 巡回と共有の土台 (#1195)。締切後の取得と失敗の記憶が配送をまたいで残る
+    let Some(background) = crate::android_worker::background(&app_dir) else {
+        return;
     };
-    runtime.block_on(deliver(&app_dir, &account_id, generation, &payload));
+    background.runtime.block_on(deliver(
+        &app_dir,
+        &account_id,
+        generation,
+        &payload,
+        background,
+    ));
 }
 
-async fn deliver(app_dir: &Path, account_id: &str, generation: u32, payload: &str) {
+async fn deliver(
+    app_dir: &Path,
+    account_id: &str,
+    generation: u32,
+    payload: &str,
+    background: &crate::android_worker::Background,
+) {
+    // 画像は配送の到着から締切まで待つ。取得は締切後も共有の runtime で続く
+    let deadline = tokio::time::Instant::now() + crate::android_notify::image_deadline::PUSH;
     let Some(user_id) = push_payload::payload_user_id(payload) else {
         return;
     };
@@ -121,7 +129,7 @@ async fn deliver(app_dir: &Path, account_id: &str, generation: u32, payload: &st
                         &serde_json::json!({ "user": format!("@{}", account.username) }),
                     );
                     plan.body = None;
-                    crate::android_worker::show(None, &plan).await;
+                    crate::android_worker::show(None, &plan, deadline).await;
                 }
                 return;
             }
@@ -135,8 +143,7 @@ async fn deliver(app_dir: &Path, account_id: &str, generation: u32, payload: &st
                 return;
             }
             if let Some(plan) = notify_plan::plan(&n, &lang) {
-                let images = crate::android_worker::image_cache(app_dir);
-                crate::android_worker::show(images.as_ref(), &plan).await;
+                crate::android_worker::show(background.images.as_ref(), &plan, deadline).await;
             }
             crate::notify_cursor_file::advance(
                 app_dir,
@@ -152,8 +159,7 @@ async fn deliver(app_dir: &Path, account_id: &str, generation: u32, payload: &st
                 return;
             }
             let plan = notify_plan::plan_chat(&m, &account.host, &lang);
-            let images = crate::android_worker::image_cache(app_dir);
-            crate::android_worker::show(images.as_ref(), &plan).await;
+            crate::android_worker::show(background.images.as_ref(), &plan, deadline).await;
             crate::notify_cursor_file::advance(app_dir, &account.id, NotifyKind::Message, &m.id);
         }
         PushEvent::Ignored => {}
