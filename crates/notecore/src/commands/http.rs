@@ -19,6 +19,12 @@
 //! - ホスト名解決後に loopback / private / link-local / multicast / 未指定
 //!   アドレスへの接続を deny
 //! - `.local` / `.internal` / `.localhost` の reserved TLD を deny
+//! - ブラウザが繋がないポート (SMTP / SSH 等) には最初の URL でも redirect の
+//!   各 hop でも繋がない
+//! - redirect の各 hop の host も一次検査と同じ規則で検査する (名前解決を
+//!   通らない IP literal の飛び先は resolver では止まらないため、#1308)
+//! - 環境変数のプロキシは使わない (プロキシ経由だと名前解決の検査が効かない)。
+//!   Referer は送らない
 //!
 //! # 制限
 //! - response body は 10 MB まで (超過は status 0 + error)
@@ -38,7 +44,9 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::ssrf::{validate_external_url, PinningResolver};
+use crate::ssrf::{
+    check_port_safe, external_redirect_policy, validate_external_url, PinningResolver,
+};
 
 use crate::context::Core;
 use crate::error::Result;
@@ -87,10 +95,37 @@ impl HttpFetchResponse {
     }
 }
 
+/// 外向き fetch の client。fetch ごとに 1 つ作る (resolver の pin が fetch 単位)。
+///
+/// - DNS pinning resolver: 名前解決後の IP を check_ip_safe で検証してから接続する。
+///   validate_external_url の host 文字列検査だけでは、A レコードが loopback /
+///   private / メタデータ (169.254.169.254) を指す公開ホスト名や DNS rebinding を
+///   防げない
+/// - redirect の各 hop は external_redirect_policy で host と port を一次検査と同じ
+///   規則で検査する。resolver は名前解決を通らない IP literal の飛び先を見ないので、
+///   `Policy::limited` のままだと `Location: http://127.0.0.1/...` が通る (#1308)
+/// - no_proxy: 環境変数のプロキシに流れると、対象 host をこちらで名前解決しないので
+///   resolver の検査そのものが効かない (vault の外向き fetch と同じ)
+/// - referer(false): プラグインが組んだ URL (query を含む) を飛び先に漏らさない
+fn build_client(timeout: Duration) -> std::result::Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .timeout(timeout)
+        .redirect(external_redirect_policy(5))
+        .dns_resolver(Arc::new(PinningResolver::new()))
+        .no_proxy()
+        .referer(false)
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))
+}
+
 async fn http_fetch_inner(
     request: HttpFetchRequest,
 ) -> std::result::Result<HttpFetchResponse, String> {
     validate_external_url(&request.url)?;
+    // validate_external_url が通った URL は解析できる。最初の URL のポートも
+    // redirect の各 hop と同じ規則で検査する
+    let parsed = reqwest::Url::parse(&request.url).map_err(|e| format!("invalid URL: {e}"))?;
+    check_port_safe(parsed.port())?;
 
     let method = parse_method(request.method.as_deref())?;
 
@@ -105,18 +140,7 @@ async fn http_fetch_inner(
         ));
     }
 
-    // DNS pinning resolver: 名前解決後の IP を check_ip_safe で検証してから
-    // 接続する。validate_external_url の host 文字列検査だけでは、A レコードが
-    // loopback / private / メタデータ (169.254.169.254) を指す公開ホスト名や
-    // DNS rebinding を防げない。vault の外向き fetch と同じ防御を共有する。
-    // resolver は redirect の各 hop でも呼ばれるため、リダイレクト先の内部宛ても
-    // 同様に弾かれる。
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(timeout_secs))
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .dns_resolver(Arc::new(PinningResolver::new()))
-        .build()
-        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let client = build_client(Duration::from_secs(timeout_secs))?;
 
     let mut req = client.request(method, &request.url);
     let mut has_ua = false;
@@ -242,6 +266,43 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .starts_with("request failed: "));
+    }
+
+    /// 最初の URL のポートも、ブラウザが繋がないポート (SMTP 等) なら Err (#1308)
+    #[tokio::test]
+    async fn bad_port_in_first_url_is_an_error() {
+        let err = http_fetch_inner(HttpFetchRequest {
+            url: "https://example.com:25/".into(),
+            ..Default::default()
+        })
+        .await
+        .expect_err("bad port must be rejected before any request");
+        assert!(err.contains("port"), "{err}");
+    }
+
+    /// 名前解決を通らない IP literal の飛び先は resolver では止まらない。
+    /// client のリダイレクト方針で各 hop を検査する (#1308)
+    #[tokio::test]
+    async fn client_refuses_redirect_to_ip_literal() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = axum::Router::new()
+            .route(
+                "/r",
+                axum::routing::get(move || async move {
+                    axum::response::Redirect::temporary(&format!("http://{addr}/ok"))
+                }),
+            )
+            .route("/ok", axum::routing::get(|| async { "internal" }));
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let client = build_client(Duration::from_secs(5)).unwrap();
+        let err = client
+            .get(format!("http://{addr}/r"))
+            .send()
+            .await
+            .expect_err("redirect to a loopback literal must not be followed");
+        assert!(err.is_redirect(), "{err:#}");
     }
 
     /// 要求の形の誤り (method / timeout の範囲 / SSRF) は従来どおり Err
