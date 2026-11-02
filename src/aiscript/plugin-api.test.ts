@@ -643,6 +643,30 @@ describe('detach したコールバックのアカウント文脈 (#1301)', () =
     expect(calls.filter((c) => c.endsWith(':notes/show'))).toEqual([])
   })
 
+  it('別の handler の間にキューで待っていた interval の tick は、その間に stopper が呼ばれたら走らない', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        'var stop = null',
+        'Plugin:register_note_action("poll", @(note) { stop = Async:interval(5, @() { Mk:api("notes/show", { noteId: note.id }) }) })',
+        'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }); stop() })',
+      ].join('\n'),
+    )
+    const poll = getPluginHandlers('note_action')[0]?.handler
+    const slow = getPluginHandlers('user_action')[0]?.handler
+    await withPluginAccountContext(plugin.id, 'acc-a', () =>
+      poll?.({ id: 'n1' }),
+    )
+    // slow の 40ms の間に tick が 1 つキューで待ち、slow は最後に stop() を呼ぶ
+    await withPluginAccountContext(plugin.id, 'acc-b', () =>
+      slow?.({ id: 'u1' }),
+    )
+    await new Promise((r) => setTimeout(r, 30))
+    // slow が実際に走った (= 試験が空振りしていない) ことも確かめる
+    expect(calls).toContain('acc-b:users/show')
+    expect(calls.filter((c) => c.endsWith(':notes/show'))).toEqual([])
+  })
+
   it('Async:interval の各 tick も仕込んだ handler のアカウントを持ち続ける', async () => {
     const calls = slowUsersShow()
     const plugin = await installAndLaunch(
@@ -718,6 +742,22 @@ describe('直列化の外から入る実行のアカウント文脈 (#1306)', ()
         ),
       ).toBe(true)
     })
+  })
+
+  it('別の handler の間にキューで待っていた Nd:on の handler は、その間に解除されたら走らない', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        'var off = Nd:on("memo:created", @(m) { Mk:api("notes/show", { noteId: m.id }) })',
+        'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }); off() })',
+      ].join('\n'),
+    )
+    const { running } = await startSlow(plugin.id)
+    emitNoteDeckEvent('memo:created', { id: 'm1', accountId: 'acc-a' })
+    await running
+    await new Promise((r) => setTimeout(r, 20))
+    expect(calls).toContain('acc-b:users/show')
+    expect(notesShowCalls(calls)).toEqual([])
   })
 
   it('コマンドパレットからの Nd:register_command は別の handler の実行中でも fail-closed', async () => {

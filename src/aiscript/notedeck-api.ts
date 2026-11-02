@@ -248,6 +248,7 @@ export function createNoteDeckEnv(
       )
     }
     const handler = handlerVal as VFn
+    let active = true
     const unsubscribe = subscribeNoteDeckEvent(eventName, (payload) => {
       const interp = ctx.interpreter
       if (!interp) return
@@ -259,18 +260,25 @@ export function createNoteDeckEnv(
       // 通知) はそのアカウント、無いイベント (メモ / skill / テーマ) は null
       const accountId =
         typeof payload.accountId === 'string' ? payload.accountId : null
-      runWithAccount(accountId, () =>
-        interp.execFn(handler, [utils.jsToVal(payload)]),
-      ).catch((e) => {
+      runWithAccount(accountId, async () => {
+        // キューで待っている間に解除された購読は走らせない (解除は以後の配送を
+        // 止めるだけで、積み済みの 1 件は取り消せない)
+        if (!active) return
+        await interp.execFn(handler, [utils.jsToVal(payload)])
+      }).catch((e) => {
         console.warn('[Nd:on]', eventName, e)
       })
     })
-    ctx.disposers.push(unsubscribe)
+    const stop = (): void => {
+      active = false
+      unsubscribe()
+    }
+    ctx.disposers.push(stop)
 
     // AiScript 側に返す unsubscribe 関数
     return values.FN_NATIVE(() => {
-      unsubscribe()
-      const idx = ctx.disposers.indexOf(unsubscribe)
+      stop()
+      const idx = ctx.disposers.indexOf(stop)
       if (idx >= 0) ctx.disposers.splice(idx, 1)
     })
   })

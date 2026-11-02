@@ -629,15 +629,32 @@ function bindDetachedCallbacks(
       // interval の tick は、別の handler が長く走っている間に積み上がって終了後に
       // 連発しないよう、キューで待っている tick が 1 つあれば次を捨てる
       let waiting = false
+      let stopped = false
       const bound = values.FN_NATIVE((cbArgs, cbOpts) => {
         if (waiting) return
         waiting = name === 'Async:interval'
         return withPluginAccountContext(installId, captured, () => {
           waiting = false
+          // キューで待っている間に stopper が呼ばれた分は走らせない (std の
+          // stopper は timer を止めるだけで、積み済みの発火は取り消せない)
+          if (stopped) return values.NULL
           return cbOpts.topCall(callback, cbArgs as Value[])
         })
       })
-      return original.native([first, bound, ...rest], opts)
+      // std の stopper を包み、呼ばれたら積み済みの発火も止める。std の Async:* は
+      // async な native で stopper を Promise で返すので、その形のまま包む
+      const wrapStopper = (stopper: Value | undefined): Value => {
+        const native = stopper?.type === 'fn' ? stopper.native : undefined
+        if (!native) return stopper ?? values.NULL
+        return values.FN_NATIVE((stopArgs, stopOpts) => {
+          stopped = true
+          return native(stopArgs, stopOpts)
+        })
+      }
+      const result = original.native([first, bound, ...rest], opts)
+      return result instanceof Promise
+        ? result.then(wrapStopper)
+        : wrapStopper(result ?? undefined)
     })
   }
   const vars = interp.scope.getAll()
