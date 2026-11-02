@@ -29,7 +29,7 @@ function account(id: string, hasToken = true): Account {
 
 async function mountWith(
   accounts: Account[],
-  sync: (accountId: string, host: string, startedAt: number) => Promise<void>,
+  sync: (accountId: string, host: string, startSeq: number) => Promise<void>,
   onResume?: () => void,
 ) {
   useAccountsStore().accounts = accounts
@@ -73,31 +73,38 @@ describe('useAccountSync: アカウントごとの起動時同期と再試行 (#
     const sync = vi.fn(async () => undefined)
     await mountWith([account('a'), account('guest', false)], sync)
     expect(sync).toHaveBeenCalledTimes(1)
-    expect(sync).toHaveBeenCalledWith('a', 'example.test', NOW)
+    expect(sync).toHaveBeenCalledWith('a', 'example.test', expect.any(Number))
     vi.setSystemTime(NOW + RESYNC_MIN_INTERVAL_MS - 1)
     await resume()
     expect(sync).toHaveBeenCalledTimes(1)
   })
 
-  it('同期済みのアカウントも間隔が空いた復帰で取り込み直す (始めた時刻つき、#1268)', async () => {
-    const sync = vi.fn(async () => undefined)
+  it('同期済みのアカウントも間隔が空いた復帰で取り込み直す (始めた順の採番つき、#1268)', async () => {
+    const sync = vi.fn<
+      (id: string, host: string, seq: number) => Promise<void>
+    >(async () => undefined)
     await mountWith([account('a')], sync)
     vi.setSystemTime(NOW + RESYNC_MIN_INTERVAL_MS)
     await resume()
     expect(sync).toHaveBeenCalledTimes(2)
-    expect(sync).toHaveBeenLastCalledWith(
-      'a',
-      'example.test',
-      NOW + RESYNC_MIN_INTERVAL_MS,
-    )
+    const [first, second] = sync.mock.calls.map((c) => c[2])
+    expect(second).toBeGreaterThan(first as number)
     // 直後の復帰では取り直さない
+    await resume()
+    expect(sync).toHaveBeenCalledTimes(2)
+  })
+
+  it('時計が戻った復帰では間隔を待たずに取り込み直す', async () => {
+    const sync = vi.fn(async () => undefined)
+    await mountWith([account('a')], sync)
+    vi.setSystemTime(NOW - 60 * 60_000)
     await resume()
     expect(sync).toHaveBeenCalledTimes(2)
   })
 
   it('取り込み直しが失敗しても、間隔が空いた次の復帰で取り直す', async () => {
     const sync = vi
-      .fn<(id: string, host: string, startedAt: number) => Promise<void>>()
+      .fn<(id: string, host: string, startSeq: number) => Promise<void>>()
       .mockImplementation(async () => {
         if (sync.mock.calls.length === 2) throw new AppError('NETWORK', 'x')
       })

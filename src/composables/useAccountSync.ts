@@ -1,5 +1,6 @@
 import { watch } from 'vue'
 import {
+  nextOpSeq,
   type SyncFailure,
   shouldResync,
   shouldRetrySync,
@@ -20,13 +21,14 @@ import { catchLog } from '@/utils/logger'
  *   (起動中に他クライアントで付けた / 外したものを反映する、#1268)。失敗したら
  *   手元の状態はそのままで、間隔が空いた次の復帰で取り直す
  *
- * `sync` には取り込みを始めた時刻を渡す。取り込み先はそれより後の手元の操作を
- * 結果で上書きしない (規則は services/muteExpiry の reconcile*)。
+ * `sync` には取り込みを始めたときの採番 (`nextOpSeq()`) を渡す。取り込み先は
+ * それより後の手元の操作を結果で上書きしない (規則は services/muteExpiry の
+ * reconcile*)。前後関係だけが要るので壁時計ではなく採番で比べる。
  * `onResume` は復帰信号のたびに呼ぶ (期限切れの掃除など)。
  */
 export function useAccountSync(
   tag: string,
-  sync: (accountId: string, host: string, startedAt: number) => Promise<void>,
+  sync: (accountId: string, host: string, startSeq: number) => Promise<void>,
   onResume?: () => void,
 ) {
   const accountsStore = useAccountsStore()
@@ -41,8 +43,9 @@ export function useAccountSync(
     if (!resync && synced.has(accountId)) return
     inFlight.add(accountId)
     const startedAt = Date.now()
+    const startSeq = nextOpSeq()
     try {
-      await sync(accountId, host, startedAt)
+      await sync(accountId, host, startSeq)
       synced.add(accountId)
       lastSyncedAt.set(accountId, startedAt)
       failures.delete(accountId)

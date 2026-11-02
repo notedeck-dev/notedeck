@@ -4,6 +4,7 @@ import {
   type LocalMuteOp,
   MAX_TIMEOUT_MS,
   nextExpiryDelay,
+  nextOpSeq,
   parseMutingExpiry,
   partitionMutings,
   RESYNC_MIN_INTERVAL_MS,
@@ -90,6 +91,10 @@ describe('shouldRetrySync: 失敗した同期の再試行', () => {
   it('失敗の記録が無ければ打つ', () => {
     expect(shouldRetrySync(undefined, NOW)).toBe(true)
   })
+
+  it('時計が戻っていたら (失敗の時刻が未来なら) 打つ', () => {
+    expect(shouldRetrySync({ at: NOW + DAY, auth: false }, NOW)).toBe(true)
+  })
 })
 
 describe('shouldResync: 同期済みアカウントの取り込み直し (#1268)', () => {
@@ -97,10 +102,22 @@ describe('shouldResync: 同期済みアカウントの取り込み直し (#1268)
     expect(shouldResync(NOW, NOW + RESYNC_MIN_INTERVAL_MS - 1)).toBe(false)
     expect(shouldResync(NOW, NOW + RESYNC_MIN_INTERVAL_MS)).toBe(true)
   })
+
+  it('時計が戻っていたら (最後の取り込みが未来なら) 取り直す', () => {
+    expect(shouldResync(NOW + 1, NOW)).toBe(true)
+  })
+})
+
+describe('nextOpSeq: 操作と取り込み開始の前後関係を決める採番 (#1268)', () => {
+  it('呼ぶたびに増える (壁時計に依らない)', () => {
+    const a = nextOpSeq()
+    const b = nextOpSeq()
+    expect(b).toBeGreaterThan(a)
+  })
 })
 
 describe('reconcileMutedUsers: 取り込み結果に手元の操作を重ねる (#1268)', () => {
-  const started = NOW
+  const started = 100
   const ops = (
     entries: Record<string, LocalMuteOp>,
   ): ReadonlyMap<string, LocalMuteOp> => new Map(Object.entries(entries))
@@ -113,8 +130,8 @@ describe('reconcileMutedUsers: 取り込み結果に手元の操作を重ねる 
     const r = reconcileMutedUsers(
       server,
       ops({
-        unmutedLocally: { kind: 'unmute', at: started + 1 },
-        mutedLocally: { kind: 'mute', at: started + 2, expiresAt: NOW + DAY },
+        unmutedLocally: { kind: 'unmute', seq: started + 1 },
+        mutedLocally: { kind: 'mute', seq: started + 2, expiresAt: NOW + DAY },
       }),
       started,
     )
@@ -130,8 +147,8 @@ describe('reconcileMutedUsers: 取り込み結果に手元の操作を重ねる 
     const r = reconcileMutedUsers(
       [{ userId: 'u', expiresAt: null }],
       ops({
-        u: { kind: 'unmute', at: started - 1 },
-        v: { kind: 'mute', at: started - 1, expiresAt: null },
+        u: { kind: 'unmute', seq: started - 1 },
+        v: { kind: 'mute', seq: started - 1, expiresAt: null },
       }),
       started,
     )
@@ -143,8 +160,8 @@ describe('reconcileMutedUsers: 取り込み結果に手元の操作を重ねる 
     const r = reconcileMutedUsers(
       [{ userId: 'known', expiresAt: NOW + DAY }],
       ops({
-        known: { kind: 'mute', at: started + 1 },
-        onlyLocal: { kind: 'mute', at: started + 1 },
+        known: { kind: 'mute', seq: started + 1 },
+        onlyLocal: { kind: 'mute', seq: started + 1 },
       }),
       started,
     )
@@ -161,11 +178,11 @@ describe('reconcileIds: 期限の無い集合 (リノートミュート) の同�
     const r = reconcileIds(
       ['a', 'b'],
       new Map<string, LocalMuteOp>([
-        ['b', { kind: 'unmute', at: NOW + 1 }],
-        ['c', { kind: 'mute', at: NOW + 1 }],
-        ['d', { kind: 'mute', at: NOW - 1 }],
+        ['b', { kind: 'unmute', seq: 101 }],
+        ['c', { kind: 'mute', seq: 101 }],
+        ['d', { kind: 'mute', seq: 99 }],
       ]),
-      NOW,
+      100,
     )
     expect(r.ids).toEqual(['a', 'c'])
     expect(r.staleOps).toEqual(['d'])

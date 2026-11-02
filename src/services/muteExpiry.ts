@@ -97,6 +97,8 @@ export function shouldRetrySync(
 ): boolean {
   if (!failure) return true
   if (failure.auth) return false
+  // 時計が戻って記録が未来になっていたら、追いつくのを待たずに打つ
+  if (now < failure.at) return true
   return now - failure.at >= SYNC_RETRY_MIN_INTERVAL_MS
 }
 
@@ -106,26 +108,39 @@ export function shouldResync(
   now: number,
 ): boolean {
   if (lastSyncedAt === undefined) return true
+  if (now < lastSyncedAt) return true
   return now - lastSyncedAt >= RESYNC_MIN_INTERVAL_MS
+}
+
+let opSeq = 0
+
+/**
+ * 手元の操作と取り込みの開始に振る、プロセス内で単調に増える採番 (#1268)。
+ * 前後関係だけが要るので壁時計は使わない (NTP 補正などで時計が戻っても
+ * 「取り込み後の操作」が「取り込み前」に化けない)
+ */
+export function nextOpSeq(): number {
+  opSeq += 1
+  return opSeq
 }
 
 /**
  * 手元で行ったミュート操作の記録 (取り込みとの競合判定用、#1268)。
- * `mute` の `expiresAt` は数値が期限、null が無期限、undefined が「期限が分からない」
- * (ALREADY_MUTING で手元だけ合わせたとき)
+ * `seq` は `nextOpSeq()` の採番。`mute` の `expiresAt` は数値が期限、null が無期限、
+ * undefined が「期限が分からない」(ALREADY_MUTING で手元だけ合わせたとき)
  */
 export interface LocalMuteOp {
   kind: 'mute' | 'unmute'
-  at: number
+  seq: number
   expiresAt?: number | null
 }
 
 /**
  * 取り込み結果に手元の操作を重ねる (#1268)。規則は「手で押した方が勝つ」:
- * 取り込みを始めた時刻より後の操作は取り込み結果で上書きしない (解除した相手は
- * 結果に居ても戻さず、付けた相手は結果に無くても期限ごと残す)。始めた時刻以前の
- * 操作はサーバーに反映済みなので捨てる (`staleOps`)。手元の操作は API が成功した
- * 後に記録されるので、同じ時刻の操作は反映済みとみなす。
+ * 取り込みを始めた採番 (`startSeq`) より後の操作は取り込み結果で上書きしない
+ * (解除した相手は結果に居ても戻さず、付けた相手は結果に無くても期限ごと残す)。
+ * 始める前の操作はサーバーに反映済みなので捨てる (`staleOps`)。手元の操作は
+ * API が成功した後に記録される。
  *
  * 期限が分からない手元のミュートは、サーバーが知っていればその期限、知らなければ
  * 無期限として入れて `unknownExpiry` に印を付ける
@@ -133,12 +148,12 @@ export interface LocalMuteOp {
 export function reconcileMutedUsers(
   server: readonly MutedUser[],
   localOps: ReadonlyMap<string, LocalMuteOp>,
-  startedAt: number,
+  startSeq: number,
 ): { entries: MutedUser[]; unknownExpiry: string[]; staleOps: string[] } {
   const staleOps: string[] = []
   const recent = new Map<string, LocalMuteOp>()
   for (const [userId, op] of localOps) {
-    if (op.at <= startedAt) staleOps.push(userId)
+    if (op.seq < startSeq) staleOps.push(userId)
     else recent.set(userId, op)
   }
   const entries: MutedUser[] = []
@@ -173,12 +188,12 @@ export function reconcileMutedUsers(
 export function reconcileIds(
   server: readonly string[],
   localOps: ReadonlyMap<string, LocalMuteOp>,
-  startedAt: number,
+  startSeq: number,
 ): { ids: string[]; staleOps: string[] } {
   const staleOps: string[] = []
   const recent = new Map<string, LocalMuteOp>()
   for (const [id, op] of localOps) {
-    if (op.at <= startedAt) staleOps.push(id)
+    if (op.seq < startSeq) staleOps.push(id)
     else recent.set(id, op)
   }
   const ids: string[] = []

@@ -6,6 +6,7 @@ import {
   type LocalMuteOp,
   type MutedUser,
   nextExpiryDelay,
+  nextOpSeq,
   partitionMutings,
   reconcileIds,
   reconcileMutedUsers,
@@ -198,7 +199,7 @@ export const useMutesStore = defineStore('mutes', () => {
     }
     recordOp(localUserOps, accountId, userId, {
       kind: 'mute',
-      at: Date.now(),
+      seq: nextOpSeq(),
       expiresAt,
     })
   }
@@ -210,7 +211,7 @@ export const useMutesStore = defineStore('mutes', () => {
     users.remove(accountId, userId)
     recordOp(localUserOps, accountId, userId, {
       kind: 'unmute',
-      at: Date.now(),
+      seq: nextOpSeq(),
     })
   }
 
@@ -253,16 +254,16 @@ export const useMutesStore = defineStore('mutes', () => {
 
   /**
    * サーバ同期 (mute/list)。アカウントの集合を置き換え、古い予約を捨てて期限つきを
-   * 予約し直す。期限が過ぎているものは入れない (#1260)。`startedAt` (取り込みを
-   * 始めた時刻) より後の手元の操作は結果で上書きしない (#1268)
+   * 予約し直す。期限が過ぎているものは入れない (#1260)。`startSeq` (取り込みを
+   * 始めたときの `nextOpSeq()`) より後の手元の操作は結果で上書きしない (#1268)
    */
   function setMutedUsers(
     accountId: string,
     entries: readonly MutedUser[],
-    startedAt: number = Date.now(),
+    startSeq: number = nextOpSeq(),
   ) {
     const ops = localUserOps.get(accountId) ?? new Map<string, LocalMuteOp>()
-    const r = reconcileMutedUsers(entries, ops, startedAt)
+    const r = reconcileMutedUsers(entries, ops, startSeq)
     for (const id of r.staleOps) ops.delete(id)
     clearAccountExpiry(accountId)
     for (const id of r.unknownExpiry) {
@@ -280,7 +281,7 @@ export const useMutesStore = defineStore('mutes', () => {
     renoters.add(accountId, userId)
     recordOp(localRenoteOps, accountId, userId, {
       kind: 'mute',
-      at: Date.now(),
+      seq: nextOpSeq(),
     })
   }
 
@@ -288,7 +289,7 @@ export const useMutesStore = defineStore('mutes', () => {
     renoters.remove(accountId, userId)
     recordOp(localRenoteOps, accountId, userId, {
       kind: 'unmute',
-      at: Date.now(),
+      seq: nextOpSeq(),
     })
   }
 
@@ -296,10 +297,10 @@ export const useMutesStore = defineStore('mutes', () => {
   function setMutedRenoters(
     accountId: string,
     ids: readonly string[],
-    startedAt: number = Date.now(),
+    startSeq: number = nextOpSeq(),
   ) {
     const ops = localRenoteOps.get(accountId) ?? new Map<string, LocalMuteOp>()
-    const r = reconcileIds(ids, ops, startedAt)
+    const r = reconcileIds(ids, ops, startSeq)
     for (const id of r.staleOps) ops.delete(id)
     renoters.replace(accountId, r.ids)
   }

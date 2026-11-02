@@ -18,12 +18,12 @@ export function useMuteSync() {
   const mutesStore = useMutesStore()
   useAccountSync(
     'mute-sync',
-    async (accountId, host, startedAt) => {
+    async (accountId, host, startSeq) => {
       const { adapter } = await initAdapterFor(host, accountId)
       mutesStore.setMutedUsers(
         accountId,
         await adapter.api.getMutedUsers(),
-        startedAt,
+        startSeq,
       )
     },
     () => mutesStore.sweepExpired(),

@@ -8,12 +8,12 @@ import { useAccountSync } from './useAccountSync'
  */
 export function useRenoteMuteSync() {
   const mutesStore = useMutesStore()
-  useAccountSync('renote-mute-sync', async (accountId, host, startedAt) => {
+  useAccountSync('renote-mute-sync', async (accountId, host, startSeq) => {
     const { adapter } = await initAdapterFor(host, accountId)
     mutesStore.setMutedRenoters(
       accountId,
       await adapter.api.getRenoteMutedUsers(),
-      startedAt,
+      startSeq,
     )
   })
 }
