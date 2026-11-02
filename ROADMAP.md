@@ -714,8 +714,8 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
     raw 公開せず、ファサードで payload subset を整形して情報漏洩リスクから
     plugin を切り離す
   - `Nd:http(url, options?)` — 外部 HTTP/HTTPS API (CORS なし)。Rust 側で
-    SSRF 防御 (loopback / private / link-local / multicast / NoteDeck 自身の
-    `localhost:19820` / `.local` / `.internal` / `.localhost` を deny)、
+    SSRF 防御 (loopback (NoteDeck 自身の HTTP API を含む) / private / link-local /
+    multicast / `.local` / `.internal` / `.localhost` を deny、redirect の各 hop も検査)、
     timeout 1〜120s、response 10MB 上限。実体は `http.fetch` capability で、
     `Nd:call('http.fetch', ...)` でも呼べる。`requiresConfirmation: true` で
     呼び出し都度に URL を確認させる。通信断 (名前解決の失敗 / 接続拒否 /

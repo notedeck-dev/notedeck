@@ -67,6 +67,33 @@ export interface NoteDeckEnvContext {
    * 未指定 = アカウント文脈なし (Nd:call は accountId を渡さない)。
    */
   getAccountId?: () => string | null
+  /**
+   * アプリ側から入る handler の実行 (Nd:on のイベント / コマンドパレット /
+   * dispatcher 経由の capability) をアカウント文脈で包む (#1306)。これらは
+   * 別の handler が Mk:api を await している最中にも発火するので、包まずに
+   * 走らせるとその handler のアカウントを拾う。プラグインは
+   * withPluginAccountContext (直列化 + スロット設定) を渡し、渡された
+   * accountId (無ければ null = fail-closed) でだけ走らせる。未指定なら
+   * そのまま走る (widget / Play / Page はアカウント固定のクロージャで、
+   * 文脈が実行の合間に変わることが無い)。
+   */
+  runWithAccount?: <T>(
+    accountId: string | null,
+    fn: () => Promise<T>,
+  ) => Promise<T>
+}
+
+/**
+ * 呼び出し元の連鎖にこの env 自身が居るか (#1306)。handler の中から Nd:call で
+ * 自分の capability を呼んだ形で、その実行は今走っている handler の一部なので
+ * runWithAccount に乗せると自分の完了を待って止まる。plugin 以外の principal は
+ * runWithAccount を渡さないので比較は plugin だけでよい
+ */
+function isSelfCall(chain: readonly Principal[], self: Principal): boolean {
+  return (
+    self.kind === 'plugin' &&
+    chain.some((p) => p.kind === 'plugin' && p.pluginId === self.pluginId)
+  )
 }
 
 export function createNoteDeckEnv(
@@ -74,6 +101,9 @@ export function createNoteDeckEnv(
 ): Record<string, Value> {
   const { commandStore } = ctx
   const consts: Record<string, Value> = {}
+  const runWithAccount =
+    ctx.runWithAccount ??
+    (<T>(_accountId: string | null, fn: () => Promise<T>) => fn())
 
   // --- Feature detection ---
   consts.NOTEDECK = values.TRUE
@@ -218,6 +248,7 @@ export function createNoteDeckEnv(
       )
     }
     const handler = handlerVal as VFn
+    let active = true
     const unsubscribe = subscribeNoteDeckEvent(eventName, (payload) => {
       const interp = ctx.interpreter
       if (!interp) return
@@ -225,18 +256,29 @@ export function createNoteDeckEnv(
       // ポップアウトでは配送しない (プラグインはデッキ画面を描く窓ごとに動くので、
       // 配送すると窓の数だけ走る)
       if (!useRepresentative().isRepresentative.value) return
-      try {
-        interp.execFn(handler, [utils.jsToVal(payload)])
-      } catch (e) {
+      // payload にアカウントがあるイベント (カラム / ストリーミング / ノート /
+      // 通知) はそのアカウント、無いイベント (メモ / skill / テーマ) は null
+      const accountId =
+        typeof payload.accountId === 'string' ? payload.accountId : null
+      runWithAccount(accountId, async () => {
+        // キューで待っている間に解除された購読は走らせない (解除は以後の配送を
+        // 止めるだけで、積み済みの 1 件は取り消せない)
+        if (!active) return
+        await interp.execFn(handler, [utils.jsToVal(payload)])
+      }).catch((e) => {
         console.warn('[Nd:on]', eventName, e)
-      }
+      })
     })
-    ctx.disposers.push(unsubscribe)
+    const stop = (): void => {
+      active = false
+      unsubscribe()
+    }
+    ctx.disposers.push(stop)
 
     // AiScript 側に返す unsubscribe 関数
     return values.FN_NATIVE(() => {
-      unsubscribe()
-      const idx = ctx.disposers.indexOf(unsubscribe)
+      stop()
+      const idx = ctx.disposers.indexOf(stop)
       if (idx >= 0) ctx.disposers.splice(idx, 1)
     })
   })
@@ -282,12 +324,11 @@ export function createNoteDeckEnv(
             console.warn('[Nd:register_command] interpreter not available')
             return
           }
-          try {
-            interp.execFn(handler, [])
-          } catch (e) {
+          // パレットにはアカウントの文脈が無い (#941)。null で包むのは、別の
+          // handler の実行中に押されてもそのアカウントを拾わないため (#1306)
+          runWithAccount(null, () => interp.execFn(handler, [])).catch((e) => {
             console.warn('[Nd:register_command]', e)
-            throw e
-          }
+          })
         },
       }
       commandStore.register(command)
@@ -311,13 +352,13 @@ export function createNoteDeckEnv(
             return
           }
           const caller = capCtx?.principal
+          const accountId = capCtx?.accountId ?? null
           if (!caller) {
-            try {
-              interp.execFn(handler, [])
-            } catch (e) {
-              console.warn('[Nd:register_command]', e)
-              throw e
-            }
+            runWithAccount(accountId, () => interp.execFn(handler, [])).catch(
+              (e) => {
+                console.warn('[Nd:register_command]', e)
+              },
+            )
             return
           }
           // dispatcher 経由 (AI tool / HTTP API / 他プラグイン): 呼び出し元を
@@ -331,22 +372,31 @@ export function createNoteDeckEnv(
               : []
           // 呼び出し元の連鎖ごと積む (AI → 別 plugin の command → この command
           // のように多段でも、上流全員の AND になる)。user は積まない
-          const tracked = [...(capCtx.onBehalfOf ?? []), caller].filter(
-            (p) => p.kind !== 'user',
-          )
-          ctx.callers.push(...tracked)
-          try {
-            const result = await interp.execFnSimple(handler, args)
-            return utils.valToJs(result)
-          } catch (e) {
-            console.warn('[Nd:register_command]', e)
-            throw e
-          } finally {
-            for (const p of tracked) {
-              const idx = ctx.callers.lastIndexOf(p)
-              if (idx >= 0) ctx.callers.splice(idx, 1)
+          const chain = [...(capCtx.onBehalfOf ?? []), caller]
+          const tracked = chain.filter((p) => p.kind !== 'user')
+          // 呼び出し元の積み下ろしは実際に走るときに行う (キューで待つ間に
+          // 他の実行の Nd:call が写し取る連鎖へ混ざらないように)
+          const run = async () => {
+            ctx.callers.push(...tracked)
+            try {
+              const result = await interp.execFnSimple(handler, args)
+              return utils.valToJs(result)
+            } catch (e) {
+              console.warn('[Nd:register_command]', e)
+              throw e
+            } finally {
+              for (const p of tracked) {
+                const idx = ctx.callers.lastIndexOf(p)
+                if (idx >= 0) ctx.callers.splice(idx, 1)
+              }
             }
           }
+          // 自分の handler の中からの Nd:call はその handler の実行の一部。
+          // 文脈はすでにその handler のもので、キューに乗せると自分を待って
+          // 止まるので、そのまま走らせる (#1306)
+          return isSelfCall(chain, ctx.principal)
+            ? run()
+            : runWithAccount(accountId, run)
         },
       }
       if (parsed.permissions) capability.permissions = parsed.permissions
