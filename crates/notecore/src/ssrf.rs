@@ -17,8 +17,10 @@ use std::sync::{Arc, Mutex};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
 /// URL が外部公開向けに安全か検証する。host 名が IP 直書きならその IP を、
-/// hostname なら reserved TLD を弾く (= 一次防御)。DNS 解決後の IP 検証は
+/// hostname なら reserved TLD を弾き、ポートはブラウザが繋がないもの
+/// ([`check_port_safe`]) を弾く (= 一次防御)。DNS 解決後の IP 検証は
 /// http_fetch が注入する PinningResolver が担う (二次防御・rebinding 対策)。
+/// redirect の各 hop は [`external_redirect_policy`] が同じ規則で検査する。
 pub fn validate_external_url(url_str: &str) -> Result<(), String> {
     let url = reqwest::Url::parse(url_str).map_err(|e| format!("invalid URL: {e}"))?;
     let scheme = url.scheme();
@@ -31,7 +33,9 @@ pub fn validate_external_url(url_str: &str) -> Result<(), String> {
         .host_str()
         .filter(|h| !h.is_empty())
         .ok_or_else(|| "URL missing host".to_string())?;
-    validate_external_host(host)
+    validate_external_host(host)?;
+    // 最初の URL のポートも redirect の各 hop と同じ規則で検査する (#1308)
+    check_port_safe(url.port())
 }
 
 /// host 文字列単体の検証。Misskey 用の `commands::validate_host` とは
@@ -85,6 +89,26 @@ pub fn check_port_safe(port: Option<u16>) -> Result<(), String> {
         Some(p) if BAD_PORTS.contains(&p) => Err(format!("port {p} not allowed")),
         _ => Ok(()),
     }
+}
+
+/// 外向きの単発 fetch (汎用 `http_fetch` / export の添付取得) の client の土台。
+/// fetch ごとに 1 つ作る (resolver の pin が fetch 単位、#857)。呼び出し側は
+/// timeout 等を足して build する。
+///
+/// - redirect の各 hop は [`external_redirect_policy`] で host と port を一次検査と
+///   同じ規則で検査する。resolver は名前解決を通らない IP literal の飛び先を見ない
+///   ので、`Policy::limited` のままだと `Location: http://127.0.0.1/...` が通る (#1308)
+/// - [`PinningResolver`]: 名前解決後の IP を検証してから接続し、redirect を跨いで
+///   同じ結果を使う (rebinding 防御)
+/// - `no_proxy`: 環境変数のプロキシに流れると、対象 host をこちらで名前解決しない
+///   ので resolver の検査そのものが効かない (vault の外向き fetch と同じ)
+/// - `referer(false)`: 呼び出し側が組んだ URL (query を含む) を飛び先に漏らさない
+pub fn external_fetch_builder() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .redirect(external_redirect_policy(5))
+        .dns_resolver(Arc::new(PinningResolver::new()))
+        .no_proxy()
+        .referer(false)
 }
 
 /// 外部へ取りに行く client のリダイレクト方針。各 hop の host も
@@ -310,6 +334,41 @@ mod tests {
             .send()
             .await
             .expect_err("redirect to a loopback literal must not be followed");
+        assert!(err.is_redirect(), "{err:#}");
+    }
+
+    /// 一次検査は最初の URL のポートも見る。redirect の各 hop と同じ規則 (#1308)
+    #[test]
+    fn validate_external_url_rejects_bad_ports() {
+        let err = validate_external_url("https://example.com:25/").unwrap_err();
+        assert!(err.contains("port"), "{err}");
+        assert!(validate_external_url("https://example.com:8443/").is_ok());
+        assert!(validate_external_url("https://example.com/").is_ok());
+    }
+
+    /// 飛び先の host が公開名でも、ブラウザが繋がないポート (SMTP 等) なら
+    /// 名前解決も通信もせずに拒む
+    #[tokio::test]
+    async fn external_redirect_policy_refuses_bad_port_hops() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = axum::Router::new().route(
+            "/r",
+            axum::routing::get(|| async {
+                axum::response::Redirect::temporary("http://example.com:25/")
+            }),
+        );
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let client = reqwest::Client::builder()
+            .redirect(external_redirect_policy(5))
+            .build()
+            .unwrap();
+        let err = client
+            .get(format!("http://{addr}/r"))
+            .send()
+            .await
+            .expect_err("redirect to a bad port must not be followed");
         assert!(err.is_redirect(), "{err:#}");
     }
 

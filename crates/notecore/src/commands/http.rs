@@ -19,6 +19,12 @@
 //! - ホスト名解決後に loopback / private / link-local / multicast / 未指定
 //!   アドレスへの接続を deny
 //! - `.local` / `.internal` / `.localhost` の reserved TLD を deny
+//! - ブラウザが繋がないポート (SMTP / SSH 等) には最初の URL でも redirect の
+//!   各 hop でも繋がない
+//! - redirect の各 hop の host も一次検査と同じ規則で検査する (名前解決を
+//!   通らない IP literal の飛び先は resolver では止まらないため、#1308)
+//! - 環境変数のプロキシは使わない (プロキシ経由だと名前解決の検査が効かない)。
+//!   Referer は送らない
 //!
 //! # 制限
 //! - response body は 10 MB まで (超過は status 0 + error)
@@ -32,13 +38,12 @@
 //!   値で返すので、try/catch の無い AiScript (ウィジェット) でも分岐できる
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::ssrf::{validate_external_url, PinningResolver};
+use crate::ssrf::{external_fetch_builder, validate_external_url};
 
 use crate::context::Core;
 use crate::error::Result;
@@ -87,9 +92,20 @@ impl HttpFetchResponse {
     }
 }
 
+/// 外向き fetch の client。SSRF 防御の土台は `ssrf::external_fetch_builder`
+/// (redirect の各 hop の検査 / DNS pinning / no_proxy / referer なし) と共有し、
+/// fetch ごとに 1 つ作る
+fn build_client(timeout: Duration) -> std::result::Result<reqwest::Client, String> {
+    external_fetch_builder()
+        .timeout(timeout)
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))
+}
+
 async fn http_fetch_inner(
     request: HttpFetchRequest,
 ) -> std::result::Result<HttpFetchResponse, String> {
+    // scheme / host / port の一次検査 (ポートも redirect の各 hop と同じ規則、#1308)
     validate_external_url(&request.url)?;
 
     let method = parse_method(request.method.as_deref())?;
@@ -105,18 +121,7 @@ async fn http_fetch_inner(
         ));
     }
 
-    // DNS pinning resolver: 名前解決後の IP を check_ip_safe で検証してから
-    // 接続する。validate_external_url の host 文字列検査だけでは、A レコードが
-    // loopback / private / メタデータ (169.254.169.254) を指す公開ホスト名や
-    // DNS rebinding を防げない。vault の外向き fetch と同じ防御を共有する。
-    // resolver は redirect の各 hop でも呼ばれるため、リダイレクト先の内部宛ても
-    // 同様に弾かれる。
-    let client = reqwest::Client::builder()
-        .timeout(Duration::from_secs(timeout_secs))
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .dns_resolver(Arc::new(PinningResolver::new()))
-        .build()
-        .map_err(|e| format!("failed to build HTTP client: {e}"))?;
+    let client = build_client(Duration::from_secs(timeout_secs))?;
 
     let mut req = client.request(method, &request.url);
     let mut has_ua = false;
@@ -242,6 +247,43 @@ mod tests {
             .as_deref()
             .unwrap_or("")
             .starts_with("request failed: "));
+    }
+
+    /// 最初の URL のポートも、ブラウザが繋がないポート (SMTP 等) なら Err (#1308)
+    #[tokio::test]
+    async fn bad_port_in_first_url_is_an_error() {
+        let err = http_fetch_inner(HttpFetchRequest {
+            url: "https://example.com:25/".into(),
+            ..Default::default()
+        })
+        .await
+        .expect_err("bad port must be rejected before any request");
+        assert!(err.contains("port"), "{err}");
+    }
+
+    /// 名前解決を通らない IP literal の飛び先は resolver では止まらない。
+    /// client のリダイレクト方針で各 hop を検査する (#1308)
+    #[tokio::test]
+    async fn client_refuses_redirect_to_ip_literal() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = axum::Router::new()
+            .route(
+                "/r",
+                axum::routing::get(move || async move {
+                    axum::response::Redirect::temporary(&format!("http://{addr}/ok"))
+                }),
+            )
+            .route("/ok", axum::routing::get(|| async { "internal" }));
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let client = build_client(Duration::from_secs(5)).unwrap();
+        let err = client
+            .get(format!("http://{addr}/r"))
+            .send()
+            .await
+            .expect_err("redirect to a loopback literal must not be followed");
+        assert!(err.is_redirect(), "{err:#}");
     }
 
     /// 要求の形の誤り (method / timeout の範囲 / SSRF) は従来どおり Err

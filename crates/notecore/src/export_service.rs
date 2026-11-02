@@ -24,8 +24,8 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::ssrf::external_fetch_builder;
 use crate::ssrf::validate_external_url;
-use crate::ssrf::PinningResolver;
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// chunk 間の無通信タイムアウト。総時間の上限は設けない (大きい動画を殺さない)
@@ -126,11 +126,12 @@ fn emit(
     });
 }
 
+/// 添付の URL はリモート由来の非信頼値。SSRF 防御の土台 (redirect の各 hop の
+/// 検査 / DNS pinning / no_proxy / referer なし) は `ssrf::external_fetch_builder`
+/// と共有する (#1308)
 fn build_client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
+    external_fetch_builder()
         .connect_timeout(CONNECT_TIMEOUT)
-        .redirect(reqwest::redirect::Policy::limited(5))
-        .dns_resolver(Arc::new(PinningResolver::new()))
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))
 }
@@ -370,6 +371,31 @@ fn save_index(dir: &Path, index: &HashMap<String, String>) {
 
 #[cfg(test)]
 mod tests {
+    /// 添付の URL はリモート由来の非信頼値。IP literal への redirect は
+    /// resolver では止まらないので、client のリダイレクト方針で拒む (#1308)
+    #[tokio::test]
+    async fn client_refuses_redirect_to_ip_literal() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let app = axum::Router::new()
+            .route(
+                "/r",
+                axum::routing::get(move || async move {
+                    axum::response::Redirect::temporary(&format!("http://{addr}/ok"))
+                }),
+            )
+            .route("/ok", axum::routing::get(|| async { "internal" }));
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let client = super::build_client().unwrap();
+        let err = client
+            .get(format!("http://{addr}/r"))
+            .send()
+            .await
+            .expect_err("redirect to a loopback literal must not be followed");
+        assert!(err.is_redirect(), "{err:#}");
+    }
+
     use super::*;
 
     #[test]
