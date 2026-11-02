@@ -151,8 +151,11 @@ flowchart LR
 
 - **実装**: `src/capabilities/builtins/http.ts` + Rust 側 `http_fetch` (`crates/notecore/src/commands/http.rs`)
 - **deny ルール** (上記 SSRF ホスト検証に加えて):
-  - NoteDeck 自身: `localhost:19820` を明示 deny
+  - NoteDeck 自身の HTTP API は名指しでは deny していない。loopback 全体の deny で止まっている (loopback を同意で開ける #1293 では、自アプリのポートを定数で deny する)
   - ドメインサフィックス: `.local` / `.internal` / `.localhost` を deny
+  - ブラウザが繋がないポート (SMTP / SSH / IRC 等) は最初の URL でも redirect の各 hop でも deny
+  - redirect の各 hop の host も一次検査と同じ規則で deny する。名前解決を通らない IP literal の飛び先 (`Location: http://127.0.0.1/...`) は resolver では止まらないため (#1308)
+  - 環境変数のプロキシは使わない (プロキシ経由だと名前解決の検査が効かない)。Referer は送らない
 - **制限**:
   - timeout: **1〜120 秒** (デフォルト 30 秒、user configurable)
   - response size: **10 MB 上限**
