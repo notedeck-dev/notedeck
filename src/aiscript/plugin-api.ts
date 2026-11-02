@@ -2,10 +2,17 @@ import {
   type Ast,
   type Interpreter,
   Parser,
+  Scope,
   utils,
   values,
 } from '@syuilo/aiscript'
-import type { Value, VFn } from '@syuilo/aiscript/interpreter/value.js'
+import { std } from '@syuilo/aiscript/interpreter/lib/std.js'
+import type {
+  Value,
+  VFn,
+  VNativeFn,
+} from '@syuilo/aiscript/interpreter/value.js'
+import { Variable } from '@syuilo/aiscript/interpreter/variable.js'
 import { i18n } from '@/i18n'
 import { isInScope } from '@/services/distributable'
 import type {
@@ -536,6 +543,10 @@ export async function launchPlugin(plugin: PluginItem): Promise<void> {
     // Mk:api と Nd:call は同じアカウント文脈 (withPluginAccountContext) を
     // 呼び出しのたびに参照する (#821)。handler の外では fail-closed
     accountId: () => ctx.accountId,
+    // Nd:on / パレット / capability から入る実行も同じ直列化キューに乗せ、渡された
+    // アカウント (無ければ null) でだけ走らせる (#1306)
+    runWithAccount: (accountId, fn) =>
+      withPluginAccountContext(plugin.id, accountId, fn),
     storagePrefix: `plugin:${plugin.id}`,
     globals: { LOCALE: i18n.lang },
     // onToast 未指定だと Mk:toast が無言の no-op になり、プラグインからの
@@ -560,6 +571,7 @@ export async function launchPlugin(plugin: PluginItem): Promise<void> {
     abortOnError: false,
   })
   pluginNdContexts.set(plugin.id, sandbox.ndCtx)
+  bindDetachedCallbacks(sandbox.interpreter, plugin.id, ctx)
   try {
     await sandbox.exec(ast)
     runLog.system('run completed')
@@ -589,23 +601,94 @@ export function abortPlugin(installId: string): void {
   removePluginHandlers(installId)
 }
 
+/**
+ * Async:timeout / Async:interval を、呼んだ時点のアカウント文脈を閉じ込めた版に
+ * 差し替える (#1301)。std の実装はコールバックを interpreter の topCall で呼ぶ
+ * ため直列化の外に出て、別の handler の実行中に発火するとその handler の
+ * アカウントを拾っていた。差し替え版はコールバックの発火を
+ * withPluginAccountContext に乗せ、仕込んだ handler のアカウント (文脈の外で
+ * 仕込んだなら null = fail-closed) で走らせる。timer の管理 (abort / pause /
+ * stopper) は std の実装にそのまま任せる。
+ *
+ * interpreter は env より std を優先して束ねる ({...consts, ...std}) ので env
+ * では上書きできない。exec の前にルートスコープを組み直して差し替える
+ * (exec / execFn は常に this.scope を見るので、以後に定義される関数は
+ * すべて差し替え後のスコープを閉じ込む)。
+ */
+function bindDetachedCallbacks(
+  interp: Interpreter,
+  installId: string,
+  ctx: PluginRunContext,
+): void {
+  const bind = (name: 'Async:timeout' | 'Async:interval'): Value => {
+    const original = std[name] as VNativeFn
+    return values.FN_NATIVE((args, opts) => {
+      const [first, callback, ...rest] = args
+      utils.assertFunction(callback)
+      const captured = ctx.accountId
+      // interval の tick は、別の handler が長く走っている間に積み上がって終了後に
+      // 連発しないよう、キューで待っている tick が 1 つあれば次を捨てる
+      let waiting = false
+      let stopped = false
+      const bound = values.FN_NATIVE((cbArgs, cbOpts) => {
+        if (waiting) return
+        waiting = name === 'Async:interval'
+        return withPluginAccountContext(installId, captured, () => {
+          waiting = false
+          // キューで待っている間に stopper が呼ばれた分は走らせない (std の
+          // stopper は timer を止めるだけで、積み済みの発火は取り消せない)
+          if (stopped) return values.NULL
+          return cbOpts.topCall(callback, cbArgs as Value[])
+        })
+      })
+      // std の stopper を包み、呼ばれたら積み済みの発火も止める。std の Async:* は
+      // async な native で stopper を Promise で返すので、その形のまま包む
+      const wrapStopper = (stopper: Value | undefined): Value => {
+        const native = stopper?.type === 'fn' ? stopper.native : undefined
+        if (!native) return stopper ?? values.NULL
+        return values.FN_NATIVE((stopArgs, stopOpts) => {
+          stopped = true
+          return native(stopArgs, stopOpts)
+        })
+      }
+      const result = original.native([first, bound, ...rest], opts)
+      return result instanceof Promise
+        ? result.then(wrapStopper)
+        : wrapStopper(result ?? undefined)
+    })
+  }
+  const vars = interp.scope.getAll()
+  vars.set('Async:timeout', Variable.const(bind('Async:timeout')))
+  vars.set('Async:interval', Variable.const(bind('Async:interval')))
+  const scope = new Scope([vars])
+  scope.opts = interp.scope.opts
+  interp.scope = scope
+}
+
 // installId ごとの実行キュー。エントリが存在する間 = handler 実行中。
 const pluginContextQueues = new Map<string, Promise<unknown>>()
 
 /**
- * プラグイン handler をアカウント文脈付きで実行する (#821)。
+ * プラグインの AiScript をアカウント文脈付きで実行する (#821)。
  *
- * installId 単位で直列化し、実行中だけ ctx.accountId を設定して完了時に
- * 必ず null へ戻す。非同期 handler の実行中に別のノート/ユーザー操作が
- * 文脈を上書きする race を構造的に防ぐ。Mk:api (クロージャ) と Nd:call
- * (NoteDeckEnvContext.getAccountId) の両方がこの文脈を参照する。
+ * 文脈は installId ごとの 1 スロット (ctx.accountId) で、Mk:api (クロージャ) と
+ * Nd:call (NoteDeckEnvContext.getAccountId) が呼び出しのたびに読む。
+ * interpreter には実行ごとの文脈を渡す口が無い (native fn が受け取る opts は
+ * call / topCall だけ) ため、スロットをやめて実行に束ねることはできない。
+ * 代わりに installId 単位で直列化し、1 つの実行だけがスロットを持つことを
+ * 保証する — これが直列化キューを残す理由。実行中だけ ctx.accountId を設定し、
+ * 完了時に必ず null へ戻す。
  *
- * handler 起点で detach された非同期処理 (Async:timeout 等) は文脈保証外
- * — 完了後の Mk:api は「no account context」で fail-closed になる。
+ * 入口は UI 起点の handler (呼び出し側が accountId を渡す)、handler が
+ * 仕込んだ Async:timeout / Async:interval のコールバック (仕込んだ時点の文脈を
+ * bindDetachedCallbacks が閉じ込めて渡す, #1301)、アプリ側から入る Nd:on /
+ * コマンドパレット / capability の実行 (NoteDeckEnvContext.runWithAccount 経由、
+ * #1306)。accountId が null ならその実行は fail-closed (文脈を持たない実行が、
+ * たまたま走っていた別の handler のアカウントを拾うことは無い)。
  */
 export async function withPluginAccountContext<T>(
   installId: string,
-  accountId: string,
+  accountId: string | null,
   fn: () => T | Promise<T>,
 ): Promise<T> {
   const run = async (): Promise<T> => {
@@ -619,12 +702,10 @@ export async function withPluginAccountContext<T>(
     }
   }
   const prev = pluginContextQueues.get(installId)
-  if (prev) {
-    console.warn(
-      `[plugin] ${installId}: handler queued behind a running handler`,
-    )
-  }
-  const next = prev ? prev.then(run) : run()
+  // キューへ登録してから走らせる (run は必ず microtask に送る)。run を同期的に
+  // 始めてから登録すると、最初の await より前の入れ子呼び出しが登録前の
+  // キューを見て素通りし、外側のスロットを上書きする
+  const next = (prev ?? Promise.resolve()).then(run)
   const settled = next.then(
     () => undefined,
     () => undefined,

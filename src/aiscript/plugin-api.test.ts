@@ -5,6 +5,7 @@ import {
   registerCapability,
 } from '@/capabilities/registry'
 import type { Capability } from '@/capabilities/types'
+import { useCommandStore } from '@/commands/registry'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
@@ -12,6 +13,7 @@ import { type PluginItem, usePluginsStore } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { commands } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
+import { emitNoteDeckEvent } from './events'
 import {
   abortAllPlugins,
   abortPlugin,
@@ -483,14 +485,19 @@ describe('Mk:api account context bridging', () => {
     const { listCapabilities } = await import('@/capabilities/registry')
     const cap = listCapabilities().find((c) => c.id.endsWith(':call'))
     expect(cap).toBeDefined()
-    await withPluginAccountContext(plugin.id, 'acc-9', () =>
-      cap?.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
+    // アカウント文脈は dispatcher が capCtx.accountId で渡す (#1306)
+    await cap?.execute(
+      { x: 1 },
+      { principal: { kind: 'ai.chat' }, accountId: 'acc-9' },
     )
     expect(gateMock).toHaveBeenCalledWith(
       { kind: 'plugin', pluginId: plugin.id, name: plugin.name },
       'notes/show',
       { onBehalfOf: [{ kind: 'ai.chat' }] },
     )
+    expect(apiRequestMock).toHaveBeenCalledWith('acc-9', 'notes/show', {
+      noteId: 'n1',
+    })
   })
 })
 
@@ -540,6 +547,26 @@ describe('withPluginAccountContext (#821)', () => {
     expect(calls).toEqual(['acc-1', 'acc-2'])
   })
 
+  it('最初の await より前の同期的な入れ子呼び出しもキューに並び、外側のスロットを上書きしない', async () => {
+    const calls: string[] = []
+    apiRequestMock.mockImplementation(async (accountId, _endpoint, params) => {
+      calls.push(`${accountId}:${(params as { noteId: string }).noteId}`)
+      return { status: 'ok', data: null }
+    })
+    const plugin = await installAndLaunch(SRC)
+    const handler = getPluginHandlers('note_action')[0]?.handler
+    let inner: Promise<unknown> | undefined
+    await withPluginAccountContext(plugin.id, 'acc-1', async () => {
+      // 外側の実行が始まった直後 (await を挟まず) に同じプラグインへ入れ子で呼ぶ
+      inner = withPluginAccountContext(plugin.id, 'acc-2', () =>
+        handler?.({ id: 'n2' }),
+      )
+      await handler?.({ id: 'n1' })
+    })
+    await inner
+    expect(calls).toEqual(['acc-1:n1', 'acc-2:n2'])
+  })
+
   it('起動していないプラグイン (文脈なし) でも fn 自体は実行される', async () => {
     const result = await withPluginAccountContext(
       'nonexistent',
@@ -547,6 +574,260 @@ describe('withPluginAccountContext (#821)', () => {
       () => 42,
     )
     expect(result).toBe(42)
+  })
+})
+
+/**
+ * Mk:api の呼び出しを `<accountId>:<endpoint>` で記録し、users/show だけ遅くする。
+ * 遅い handler の実行中に別の実行が割り込む状況を作るための共通の仕込み
+ */
+function slowUsersShow(): string[] {
+  const calls: string[] = []
+  apiRequestMock.mockImplementation(async (accountId, endpoint) => {
+    calls.push(`${accountId}:${endpoint}`)
+    if (endpoint === 'users/show') {
+      await new Promise((r) => setTimeout(r, 40))
+    }
+    return { status: 'ok', data: null }
+  })
+  return calls
+}
+
+describe('detach したコールバックのアカウント文脈 (#1301)', () => {
+  // note_action の handler は遅延して Mk:api を呼ぶ (handler 自体は即終了)。
+  // user_action の handler は遅い Mk:api を待つ (この実行中に timer が発火する)
+  const SRC = [
+    'Plugin:register_note_action("delay", @(note) { Async:timeout(5, @() { Mk:api("notes/show", { noteId: note.id }) }) })',
+    'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }) })',
+  ].join('\n')
+
+  it('handler A が仕込んだ Async:timeout は handler B の実行中に発火しても A のアカウントで Mk:api を呼ぶ', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(SRC)
+    const delay = getPluginHandlers('note_action')[0]?.handler
+    const slow = getPluginHandlers('user_action')[0]?.handler
+    await withPluginAccountContext(plugin.id, 'acc-a', () =>
+      delay?.({ id: 'n1' }),
+    )
+    await withPluginAccountContext(plugin.id, 'acc-b', () =>
+      slow?.({ id: 'u1' }),
+    )
+    await vi.waitFor(() => {
+      expect(calls.some((c) => c.endsWith(':notes/show'))).toBe(true)
+    })
+    expect(calls).toContain('acc-a:notes/show')
+    expect(calls).not.toContain('acc-b:notes/show')
+  })
+
+  it('文脈の外 (top-level) で仕込んだ Async:timeout は handler B の実行中に発火しても fail-closed のまま', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }) })',
+        'Async:timeout(5, @() { Mk:api("notes/show", { noteId: "n1" }) })',
+      ].join('\n'),
+    )
+    const slow = getPluginHandlers('user_action')[0]?.handler
+    await withPluginAccountContext(plugin.id, 'acc-b', () =>
+      slow?.({ id: 'u1' }),
+    )
+    await vi.waitFor(() => {
+      const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
+      expect(
+        entries.some(
+          (e) =>
+            e.level === 'error' && e.message.includes('no account context'),
+        ),
+      ).toBe(true)
+    })
+    expect(calls.filter((c) => c.endsWith(':notes/show'))).toEqual([])
+  })
+
+  it('別の handler の間にキューで待っていた interval の tick は、その間に stopper が呼ばれたら走らない', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        'var stop = null',
+        'Plugin:register_note_action("poll", @(note) { stop = Async:interval(5, @() { Mk:api("notes/show", { noteId: note.id }) }) })',
+        'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }); stop() })',
+      ].join('\n'),
+    )
+    const poll = getPluginHandlers('note_action')[0]?.handler
+    const slow = getPluginHandlers('user_action')[0]?.handler
+    await withPluginAccountContext(plugin.id, 'acc-a', () =>
+      poll?.({ id: 'n1' }),
+    )
+    // slow の 40ms の間に tick が 1 つキューで待ち、slow は最後に stop() を呼ぶ
+    await withPluginAccountContext(plugin.id, 'acc-b', () =>
+      slow?.({ id: 'u1' }),
+    )
+    await new Promise((r) => setTimeout(r, 30))
+    // slow が実際に走った (= 試験が空振りしていない) ことも確かめる
+    expect(calls).toContain('acc-b:users/show')
+    expect(calls.filter((c) => c.endsWith(':notes/show'))).toEqual([])
+  })
+
+  it('Async:interval の各 tick も仕込んだ handler のアカウントを持ち続ける', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        'var stop = null',
+        'var n = 0',
+        'Plugin:register_note_action("poll", @(note) { stop = Async:interval(5, @() { n += 1; Mk:api("notes/show", { noteId: note.id }); if n >= 2 { stop() } }) })',
+        'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }) })',
+      ].join('\n'),
+    )
+    const poll = getPluginHandlers('note_action')[0]?.handler
+    const slow = getPluginHandlers('user_action')[0]?.handler
+    await withPluginAccountContext(plugin.id, 'acc-a', () =>
+      poll?.({ id: 'n1' }),
+    )
+    await withPluginAccountContext(plugin.id, 'acc-b', () =>
+      slow?.({ id: 'u1' }),
+    )
+    await vi.waitFor(() => {
+      expect(
+        calls.filter((c) => c.endsWith(':notes/show')).length,
+      ).toBeGreaterThanOrEqual(2)
+    })
+    // B の実行中に積まれた tick も含め、すべて A のアカウント
+    const ticks = calls.filter((c) => c.endsWith(':notes/show'))
+    expect(ticks.every((c) => c === 'acc-a:notes/show')).toBe(true)
+  })
+})
+
+describe('直列化の外から入る実行のアカウント文脈 (#1306)', () => {
+  const SLOW =
+    'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }) })'
+
+  /**
+   * handler B を走らせ、Mk:api を await している最中 (5ms 後) に戻る。
+   * async 関数が Promise を return すると平坦化されて B の完了を待ってしまうので
+   * オブジェクトに包んで返す
+   */
+  async function startSlow(
+    pluginId: string,
+  ): Promise<{ running: Promise<unknown> }> {
+    const slow = getPluginHandlers('user_action')[0]?.handler
+    const running = withPluginAccountContext(pluginId, 'acc-b', () =>
+      slow?.({ id: 'u1' }),
+    )
+    await new Promise((r) => setTimeout(r, 5))
+    return { running }
+  }
+
+  function notesShowCalls(calls: string[]): string[] {
+    return calls.filter((c) => c.endsWith(':notes/show'))
+  }
+
+  it('Nd:on の handler は payload のアカウントで走り、無ければ別の handler の実行中でも fail-closed', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        SLOW,
+        'Nd:on("memo:created", @(m) { Mk:api("notes/show", { noteId: m.id }) })',
+      ].join('\n'),
+    )
+    const { running } = await startSlow(plugin.id)
+    emitNoteDeckEvent('memo:created', { id: 'm1', accountId: 'acc-a' })
+    emitNoteDeckEvent('memo:created', { id: 'm2' })
+    await running
+    await vi.waitFor(() => {
+      expect(notesShowCalls(calls)).toEqual(['acc-a:notes/show'])
+      const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
+      expect(
+        entries.some(
+          (e) =>
+            e.level === 'error' && e.message.includes('no account context'),
+        ),
+      ).toBe(true)
+    })
+  })
+
+  it('別の handler の間にキューで待っていた Nd:on の handler は、その間に解除されたら走らない', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        'var off = Nd:on("memo:created", @(m) { Mk:api("notes/show", { noteId: m.id }) })',
+        'Plugin:register_user_action("slow", @(user) { Mk:api("users/show", { userId: user.id }); off() })',
+      ].join('\n'),
+    )
+    const { running } = await startSlow(plugin.id)
+    emitNoteDeckEvent('memo:created', { id: 'm1', accountId: 'acc-a' })
+    await running
+    await new Promise((r) => setTimeout(r, 20))
+    expect(calls).toContain('acc-b:users/show')
+    expect(notesShowCalls(calls)).toEqual([])
+  })
+
+  it('コマンドパレットからの Nd:register_command は別の handler の実行中でも fail-closed', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        SLOW,
+        'Nd:register_command("cmd", "Cmd", "ti-x", @() { Mk:api("notes/show", { noteId: "n1" }) })',
+      ].join('\n'),
+    )
+    const command = [...useCommandStore().commands.values()].find((c) =>
+      c.id.endsWith(':cmd'),
+    )
+    expect(command).toBeDefined()
+    const { running } = await startSlow(plugin.id)
+    await command?.execute()
+    await running
+    await vi.waitFor(() => {
+      const entries = useAiScriptLogsStore().entriesFor('plugin', plugin.id)
+      expect(
+        entries.some(
+          (e) =>
+            e.level === 'error' && e.message.includes('no account context'),
+        ),
+      ).toBe(true)
+    })
+    expect(notesShowCalls(calls)).toEqual([])
+  })
+
+  it('capability 経由の実行は呼び出し文脈のアカウントで走り、別の handler のアカウントを拾わない', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        SLOW,
+        'Nd:register_command("cap", "Cap", "ti-x", @(p) { Mk:api("notes/show", { noteId: "n1" }) }, { aiTool: true, signature: { description: "d" } })',
+      ].join('\n'),
+    )
+    const { listCapabilities } = await import('@/capabilities/registry')
+    const cap = listCapabilities().find((c) => c.id.endsWith(':cap'))
+    expect(cap).toBeDefined()
+    const { running } = await startSlow(plugin.id)
+    const executed = cap?.execute(
+      { x: 1 },
+      { principal: { kind: 'ai.chat' }, accountId: 'acc-a' },
+    )
+    await running
+    await executed
+    expect(notesShowCalls(calls)).toEqual(['acc-a:notes/show'])
+  })
+
+  it('handler の中から Nd:call で自分の capability を呼んでも止まらず、handler のアカウントで走る', async () => {
+    const calls = slowUsersShow()
+    const plugin = await installAndLaunch(
+      [
+        'Nd:register_command("inner", "Inner", "ti-x", @(p) { Mk:api("notes/show", { noteId: "n1" }) }, { aiTool: true, signature: { description: "d" } })',
+        'Plugin:register_note_action("outer", @(note) { Nd:call(note.id, { x: 1 }) })',
+      ].join('\n'),
+    )
+    const { listCapabilities } = await import('@/capabilities/registry')
+    const inner = listCapabilities().find((c) => c.id.endsWith(':inner'))
+    expect(inner).toBeDefined()
+    const outer = getPluginHandlers('note_action')[0]?.handler
+    const done = withPluginAccountContext(plugin.id, 'acc-a', () =>
+      outer?.({ id: inner?.id }),
+    )
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('deadlock')), 1000),
+    )
+    await expect(Promise.race([done, timeout])).resolves.toBeUndefined()
+    expect(notesShowCalls(calls)).toEqual(['acc-a:notes/show'])
   })
 })
 
