@@ -17,8 +17,10 @@ use std::sync::{Arc, Mutex};
 use reqwest::dns::{Addrs, Name, Resolve, Resolving};
 
 /// URL が外部公開向けに安全か検証する。host 名が IP 直書きならその IP を、
-/// hostname なら reserved TLD を弾く (= 一次防御)。DNS 解決後の IP 検証は
+/// hostname なら reserved TLD を弾き、ポートはブラウザが繋がないもの
+/// ([`check_port_safe`]) を弾く (= 一次防御)。DNS 解決後の IP 検証は
 /// http_fetch が注入する PinningResolver が担う (二次防御・rebinding 対策)。
+/// redirect の各 hop は [`external_redirect_policy`] が同じ規則で検査する。
 pub fn validate_external_url(url_str: &str) -> Result<(), String> {
     let url = reqwest::Url::parse(url_str).map_err(|e| format!("invalid URL: {e}"))?;
     let scheme = url.scheme();
@@ -31,7 +33,9 @@ pub fn validate_external_url(url_str: &str) -> Result<(), String> {
         .host_str()
         .filter(|h| !h.is_empty())
         .ok_or_else(|| "URL missing host".to_string())?;
-    validate_external_host(host)
+    validate_external_host(host)?;
+    // 最初の URL のポートも redirect の各 hop と同じ規則で検査する (#1308)
+    check_port_safe(url.port())
 }
 
 /// host 文字列単体の検証。Misskey 用の `commands::validate_host` とは
@@ -331,6 +335,15 @@ mod tests {
             .await
             .expect_err("redirect to a loopback literal must not be followed");
         assert!(err.is_redirect(), "{err:#}");
+    }
+
+    /// 一次検査は最初の URL のポートも見る。redirect の各 hop と同じ規則 (#1308)
+    #[test]
+    fn validate_external_url_rejects_bad_ports() {
+        let err = validate_external_url("https://example.com:25/").unwrap_err();
+        assert!(err.contains("port"), "{err}");
+        assert!(validate_external_url("https://example.com:8443/").is_ok());
+        assert!(validate_external_url("https://example.com/").is_ok());
     }
 
     /// 飛び先の host が公開名でも、ブラウザが繋がないポート (SMTP 等) なら

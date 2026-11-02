@@ -43,7 +43,7 @@ use std::time::Duration;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::ssrf::{check_port_safe, external_fetch_builder, validate_external_url};
+use crate::ssrf::{external_fetch_builder, validate_external_url};
 
 use crate::context::Core;
 use crate::error::Result;
@@ -105,11 +105,8 @@ fn build_client(timeout: Duration) -> std::result::Result<reqwest::Client, Strin
 async fn http_fetch_inner(
     request: HttpFetchRequest,
 ) -> std::result::Result<HttpFetchResponse, String> {
+    // scheme / host / port の一次検査 (ポートも redirect の各 hop と同じ規則、#1308)
     validate_external_url(&request.url)?;
-    // validate_external_url が通った URL は解析できる。最初の URL のポートも
-    // redirect の各 hop と同じ規則で検査する
-    let parsed = reqwest::Url::parse(&request.url).map_err(|e| format!("invalid URL: {e}"))?;
-    check_port_safe(parsed.port())?;
 
     let method = parse_method(request.method.as_deref())?;
 
