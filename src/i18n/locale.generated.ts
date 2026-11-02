@@ -1874,6 +1874,8 @@ export interface Locale {
     readonly "unmuted": string
     /** ミュート解除 ({date}まで) */
     readonly "unmuteUntil": ParameterizedString<'date'>
+    /** ミュート解除 (期限は不明) */
+    readonly "unmuteExpiryUnknown": string
     /** すでにミュート中です */
     readonly "alreadyMuted": string
     /** ミュート解除に失敗しました ({code}) */

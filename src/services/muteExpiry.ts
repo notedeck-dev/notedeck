@@ -12,6 +12,12 @@ export const MAX_TIMEOUT_MS = 2 ** 31 - 1
 /** 失敗した同期を復帰信号で打ち直すまでの最短間隔 (アカウント単位) */
 export const SYNC_RETRY_MIN_INTERVAL_MS = 60_000
 
+/**
+ * 同期済みのアカウントを復帰信号で取り込み直すまでの最短間隔 (#1268)。
+ * 復帰のたび (alt-tab のたび) に全ページ取得にならないよう間を空ける
+ */
+export const RESYNC_MIN_INTERVAL_MS = 5 * 60_000
+
 /** 同期 (mute/list) で取り込む 1 件。期限は UNIX ms、無期限は null */
 export interface MutedUser {
   userId: string
@@ -92,4 +98,98 @@ export function shouldRetrySync(
   if (!failure) return true
   if (failure.auth) return false
   return now - failure.at >= SYNC_RETRY_MIN_INTERVAL_MS
+}
+
+/** 同期済みのアカウントを取り込み直してよいか (最後の取り込みから間隔が空いたか) */
+export function shouldResync(
+  lastSyncedAt: number | undefined,
+  now: number,
+): boolean {
+  if (lastSyncedAt === undefined) return true
+  return now - lastSyncedAt >= RESYNC_MIN_INTERVAL_MS
+}
+
+/**
+ * 手元で行ったミュート操作の記録 (取り込みとの競合判定用、#1268)。
+ * `mute` の `expiresAt` は数値が期限、null が無期限、undefined が「期限が分からない」
+ * (ALREADY_MUTING で手元だけ合わせたとき)
+ */
+export interface LocalMuteOp {
+  kind: 'mute' | 'unmute'
+  at: number
+  expiresAt?: number | null
+}
+
+/**
+ * 取り込み結果に手元の操作を重ねる (#1268)。規則は「手で押した方が勝つ」:
+ * 取り込みを始めた時刻より後の操作は取り込み結果で上書きしない (解除した相手は
+ * 結果に居ても戻さず、付けた相手は結果に無くても期限ごと残す)。始めた時刻以前の
+ * 操作はサーバーに反映済みなので捨てる (`staleOps`)。手元の操作は API が成功した
+ * 後に記録されるので、同じ時刻の操作は反映済みとみなす。
+ *
+ * 期限が分からない手元のミュートは、サーバーが知っていればその期限、知らなければ
+ * 無期限として入れて `unknownExpiry` に印を付ける
+ */
+export function reconcileMutedUsers(
+  server: readonly MutedUser[],
+  localOps: ReadonlyMap<string, LocalMuteOp>,
+  startedAt: number,
+): { entries: MutedUser[]; unknownExpiry: string[]; staleOps: string[] } {
+  const staleOps: string[] = []
+  const recent = new Map<string, LocalMuteOp>()
+  for (const [userId, op] of localOps) {
+    if (op.at <= startedAt) staleOps.push(userId)
+    else recent.set(userId, op)
+  }
+  const entries: MutedUser[] = []
+  const unknownExpiry: string[] = []
+  for (const e of server) {
+    const op = recent.get(e.userId)
+    if (op?.kind === 'unmute') continue
+    if (op?.kind === 'mute') {
+      recent.delete(e.userId)
+      entries.push(
+        op.expiresAt === undefined
+          ? e
+          : { userId: e.userId, expiresAt: op.expiresAt },
+      )
+      continue
+    }
+    entries.push(e)
+  }
+  for (const [userId, op] of recent) {
+    if (op.kind !== 'mute') continue
+    if (op.expiresAt === undefined) {
+      entries.push({ userId, expiresAt: null })
+      unknownExpiry.push(userId)
+    } else {
+      entries.push({ userId, expiresAt: op.expiresAt })
+    }
+  }
+  return { entries, unknownExpiry, staleOps }
+}
+
+/** 期限の無い集合 (リノートミュート) への同じ規則 */
+export function reconcileIds(
+  server: readonly string[],
+  localOps: ReadonlyMap<string, LocalMuteOp>,
+  startedAt: number,
+): { ids: string[]; staleOps: string[] } {
+  const staleOps: string[] = []
+  const recent = new Map<string, LocalMuteOp>()
+  for (const [id, op] of localOps) {
+    if (op.at <= startedAt) staleOps.push(id)
+    else recent.set(id, op)
+  }
+  const ids: string[] = []
+  for (const id of server) {
+    const op = recent.get(id)
+    if (op?.kind === 'unmute') continue
+    recent.delete(id)
+    ids.push(id)
+  }
+  for (const [id, op] of recent) {
+    if (op.kind === 'mute') ids.push(id)
+  }
+  return { ids, staleOps }
 }

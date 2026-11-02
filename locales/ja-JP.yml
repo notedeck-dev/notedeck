@@ -1029,6 +1029,7 @@ _userProfileMenu:
   muteFailed: "ミュートに失敗しました ({code})"
   unmuted: "ミュートを解除しました"
   unmuteUntil: "ミュート解除 ({date}まで)"
+  unmuteExpiryUnknown: "ミュート解除 (期限は不明)"
   alreadyMuted: "すでにミュート中です"
   unmuteFailed: "ミュート解除に失敗しました ({code})"
   blocked: "ブロックしました"

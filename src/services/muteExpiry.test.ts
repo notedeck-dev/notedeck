@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   expiredKeys,
+  type LocalMuteOp,
   MAX_TIMEOUT_MS,
   nextExpiryDelay,
   parseMutingExpiry,
   partitionMutings,
+  RESYNC_MIN_INTERVAL_MS,
+  reconcileIds,
+  reconcileMutedUsers,
   SYNC_RETRY_MIN_INTERVAL_MS,
+  shouldResync,
   shouldRetrySync,
 } from './muteExpiry'
 
@@ -84,5 +89,85 @@ describe('shouldRetrySync: 失敗した同期の再試行', () => {
 
   it('失敗の記録が無ければ打つ', () => {
     expect(shouldRetrySync(undefined, NOW)).toBe(true)
+  })
+})
+
+describe('shouldResync: 同期済みアカウントの取り込み直し (#1268)', () => {
+  it('最後の取り込みから間隔が空くまで取り直さない', () => {
+    expect(shouldResync(NOW, NOW + RESYNC_MIN_INTERVAL_MS - 1)).toBe(false)
+    expect(shouldResync(NOW, NOW + RESYNC_MIN_INTERVAL_MS)).toBe(true)
+  })
+})
+
+describe('reconcileMutedUsers: 取り込み結果に手元の操作を重ねる (#1268)', () => {
+  const started = NOW
+  const ops = (
+    entries: Record<string, LocalMuteOp>,
+  ): ReadonlyMap<string, LocalMuteOp> => new Map(Object.entries(entries))
+
+  it('取り込みを始めた後の操作が勝つ (解除は戻さず、ミュートは期限ごと残す)', () => {
+    const server = [
+      { userId: 'still', expiresAt: null },
+      { userId: 'unmutedLocally', expiresAt: null },
+    ]
+    const r = reconcileMutedUsers(
+      server,
+      ops({
+        unmutedLocally: { kind: 'unmute', at: started + 1 },
+        mutedLocally: { kind: 'mute', at: started + 2, expiresAt: NOW + DAY },
+      }),
+      started,
+    )
+    expect(r.entries).toEqual([
+      { userId: 'still', expiresAt: null },
+      { userId: 'mutedLocally', expiresAt: NOW + DAY },
+    ])
+    expect(r.unknownExpiry).toEqual([])
+    expect(r.staleOps).toEqual([])
+  })
+
+  it('取り込みを始める前の操作は捨て、サーバーの結果に従う', () => {
+    const r = reconcileMutedUsers(
+      [{ userId: 'u', expiresAt: null }],
+      ops({
+        u: { kind: 'unmute', at: started - 1 },
+        v: { kind: 'mute', at: started - 1, expiresAt: null },
+      }),
+      started,
+    )
+    expect(r.entries).toEqual([{ userId: 'u', expiresAt: null }])
+    expect(r.staleOps).toEqual(['u', 'v'])
+  })
+
+  it('期限が分からない手元のミュートは unknown として残し、サーバーが知っていればそちら', () => {
+    const r = reconcileMutedUsers(
+      [{ userId: 'known', expiresAt: NOW + DAY }],
+      ops({
+        known: { kind: 'mute', at: started + 1 },
+        onlyLocal: { kind: 'mute', at: started + 1 },
+      }),
+      started,
+    )
+    expect(r.entries).toEqual([
+      { userId: 'known', expiresAt: NOW + DAY },
+      { userId: 'onlyLocal', expiresAt: null },
+    ])
+    expect(r.unknownExpiry).toEqual(['onlyLocal'])
+  })
+})
+
+describe('reconcileIds: 期限の無い集合 (リノートミュート) の同じ規則', () => {
+  it('取り込み後の解除は戻さず、取り込み後のミュートは残し、前の操作は捨てる', () => {
+    const r = reconcileIds(
+      ['a', 'b'],
+      new Map<string, LocalMuteOp>([
+        ['b', { kind: 'unmute', at: NOW + 1 }],
+        ['c', { kind: 'mute', at: NOW + 1 }],
+        ['d', { kind: 'mute', at: NOW - 1 }],
+      ]),
+      NOW,
+    )
+    expect(r.ids).toEqual(['a', 'c'])
+    expect(r.staleOps).toEqual(['d'])
   })
 })

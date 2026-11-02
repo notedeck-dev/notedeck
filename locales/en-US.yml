@@ -1265,6 +1265,7 @@ _userProfileMenu:
   muteFailed: "Couldn’t mute ({code})"
   unmuted: "Unmuted"
   unmuteUntil: "Unmute (until {date})"
+  unmuteExpiryUnknown: "Unmute (expiry unknown)"
   alreadyMuted: "Already muted"
   unmuteFailed: "Couldn’t unmute ({code})"
   blocked: "Blocked"
