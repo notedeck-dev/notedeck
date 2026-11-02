@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { nextOpSeq } from '@/services/muteExpiry'
 import { useMutesStore } from './mutes'
 
 const DAY = 86_400_000
@@ -151,5 +152,81 @@ describe('同期で取り込んだ期限つきミュート (#1260)', () => {
     expect(m.isInstanceMuted('a', 'bad.example')).toBe(false)
     expect(m.matchesSoftWord('a', 'spam')).toBe(false)
     expect(m.matchesHardWord('a', 'worse')).toBe(false)
+  })
+})
+
+describe('取り込み直しと手元の操作の競合 (#1268)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.UTC(2026, 9, 18, 6, 0, 0))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('取り込みを始めた後に解除した相手は、取り込み結果に居ても戻さない', () => {
+    const m = useMutesStore()
+    m.setMutedUsers('a', [{ userId: 'u', expiresAt: null }])
+    const started = nextOpSeq()
+    m.unmuteUser('a', 'u')
+    m.setMutedUsers('a', [{ userId: 'u', expiresAt: null }], started)
+    expect(m.isUserMuted('a', 'u')).toBe(false)
+  })
+
+  it('取り込み中に時計が戻っても、取り込み後の解除は戻さない (前後関係は壁時計に依らない)', () => {
+    const m = useMutesStore()
+    m.setMutedUsers('a', [{ userId: 'u', expiresAt: null }])
+    const started = nextOpSeq()
+    vi.setSystemTime(Date.now() - 60_000) // NTP 補正などで時計が戻る
+    m.unmuteUser('a', 'u')
+    m.setMutedUsers('a', [{ userId: 'u', expiresAt: null }], started)
+    expect(m.isUserMuted('a', 'u')).toBe(false)
+  })
+
+  it('取り込みを始めた後に付けたミュートは、取り込み結果に無くても期限ごと残る', () => {
+    const m = useMutesStore()
+    const started = nextOpSeq()
+    const until = Date.now() + DAY
+    m.muteUser('a', 'u', until)
+    m.setMutedUsers('a', [], started)
+    expect(m.isUserMuted('a', 'u')).toBe(true)
+    expect(m.mutedUntil('a', 'u')).toBe(until)
+    vi.advanceTimersByTime(DAY)
+    expect(m.isUserMuted('a', 'u')).toBe(false)
+  })
+
+  it('取り込みを始める前の操作は取り込み結果で上書きされ、次の取り込みにも持ち越さない', () => {
+    const m = useMutesStore()
+    m.unmuteUser('a', 'u')
+    const started = nextOpSeq()
+    m.setMutedUsers('a', [{ userId: 'u', expiresAt: null }], started)
+    expect(m.isUserMuted('a', 'u')).toBe(true)
+  })
+
+  it('muteExpiryKind は無期限と期限不明を区別し、取り込みで不明が解消する', () => {
+    const m = useMutesStore()
+    m.muteUser('a', 'known', null)
+    m.muteUser('a', 'unknown')
+    m.muteUser('a', 'timed', Date.now() + DAY)
+    expect(m.muteExpiryKind('a', 'known')).toBe('indefinite')
+    expect(m.muteExpiryKind('a', 'unknown')).toBe('unknown')
+    expect(m.muteExpiryKind('a', 'timed')).toBe('until')
+    expect(m.muteExpiryKind('a', 'none')).toBeNull()
+    const started = nextOpSeq()
+    m.setMutedUsers('a', [{ userId: 'unknown', expiresAt: null }], started)
+    expect(m.muteExpiryKind('a', 'unknown')).toBe('indefinite')
+  })
+
+  it('リノートミュートも同じ規則で手元の操作が勝つ', () => {
+    const m = useMutesStore()
+    m.setMutedRenoters('a', ['r1', 'r2'])
+    const started = nextOpSeq()
+    m.unmuteRenote('a', 'r1')
+    m.muteRenote('a', 'r3')
+    m.setMutedRenoters('a', ['r1', 'r2'], started)
+    expect(m.isRenoteMuted('a', 'r1')).toBe(false)
+    expect(m.isRenoteMuted('a', 'r2')).toBe(true)
+    expect(m.isRenoteMuted('a', 'r3')).toBe(true)
   })
 })

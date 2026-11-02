@@ -3,9 +3,13 @@ import { shallowRef, triggerRef } from 'vue'
 import type { MutedWord } from '@/bindings'
 import {
   expiredKeys,
+  type LocalMuteOp,
   type MutedUser,
   nextExpiryDelay,
+  nextOpSeq,
   partitionMutings,
+  reconcileIds,
+  reconcileMutedUsers,
 } from '@/services/muteExpiry'
 import { matchMutedWords } from '@/services/wordMuteMatch'
 
@@ -147,16 +151,68 @@ export const useMutesStore = defineStore('mutes', () => {
     triggerRef(expiry)
   }
 
-  /** `expiresAt` (UNIX ms) を渡すと、その時刻に手元のミュートも外す */
-  function muteUser(accountId: string, userId: string, expiresAt?: number) {
-    clearExpiry(expiryKey(accountId, userId))
+  // 手元で行った操作の記録 (アカウント × ユーザー、#1268)。取り込み結果と
+  // 競合したとき「取り込みを始めた後の操作」を勝たせる判定に使う。純ロジックは
+  // services/muteExpiry の reconcile*、ここは記録と反映だけ
+  const localUserOps = new Map<string, Map<string, LocalMuteOp>>()
+  const localRenoteOps = new Map<string, Map<string, LocalMuteOp>>()
+
+  function recordOp(
+    ops: Map<string, Map<string, LocalMuteOp>>,
+    accountId: string,
+    id: string,
+    op: LocalMuteOp,
+  ) {
+    let m = ops.get(accountId)
+    if (!m) {
+      m = new Map()
+      ops.set(accountId, m)
+    }
+    m.set(id, op)
+  }
+
+  // 期限が分からない手元のミュート (ALREADY_MUTING で手元だけ合わせたもの)。
+  // 取り込みでサーバーの期限が分かれば外れる
+  const unknownExpiry = shallowRef(new Set<string>())
+
+  function setUnknownExpiry(key: string, unknown: boolean) {
+    if (unknown) unknownExpiry.value.add(key)
+    else unknownExpiry.value.delete(key)
+    triggerRef(unknownExpiry)
+  }
+
+  /**
+   * `expiresAt`: 数値 (UNIX ms) ならその時刻に手元のミュートも外す。null は無期限、
+   * undefined は「期限が分からない」(サーバーが既にミュート中と答えたとき)
+   */
+  function muteUser(
+    accountId: string,
+    userId: string,
+    expiresAt?: number | null,
+  ) {
+    const key = expiryKey(accountId, userId)
+    clearExpiry(key)
+    setUnknownExpiry(key, expiresAt === undefined)
     users.add(accountId, userId)
-    if (expiresAt !== undefined) scheduleExpiry(accountId, userId, expiresAt)
+    if (typeof expiresAt === 'number') {
+      scheduleExpiry(accountId, userId, expiresAt)
+    }
+    recordOp(localUserOps, accountId, userId, {
+      kind: 'mute',
+      seq: nextOpSeq(),
+      expiresAt,
+    })
   }
 
   function unmuteUser(accountId: string, userId: string) {
-    clearExpiry(expiryKey(accountId, userId))
+    const key = expiryKey(accountId, userId)
+    clearExpiry(key)
+    setUnknownExpiry(key, false)
     users.remove(accountId, userId)
+    recordOp(localUserOps, accountId, userId, {
+      kind: 'unmute',
+      seq: nextOpSeq(),
+    })
   }
 
   /** 手元で知っている期限 (UNIX ms)。無期限・未知・期限切れは null */
@@ -164,6 +220,21 @@ export const useMutesStore = defineStore('mutes', () => {
     const at = expiry.value.get(expiryKey(accountId, userId))?.expiresAt
     if (at === undefined || at <= Date.now()) return null
     return at
+  }
+
+  /**
+   * ミュート中の相手の期限の種類 (#1268)。`until` は期限つき (mutedUntil が値を
+   * 返す)、`indefinite` は無期限と分かっている、`unknown` は期限が分からない。
+   * ミュート中でなければ null
+   */
+  function muteExpiryKind(
+    accountId: string,
+    userId: string,
+  ): 'until' | 'indefinite' | 'unknown' | null {
+    if (!users.has(accountId, userId)) return null
+    const key = expiryKey(accountId, userId)
+    if (unknownExpiry.value.has(key)) return 'unknown'
+    return mutedUntil(accountId, userId) === null ? 'indefinite' : 'until'
   }
 
   function clearAccountExpiry(accountId: string) {
@@ -175,17 +246,63 @@ export const useMutesStore = defineStore('mutes', () => {
       }
     }
     triggerRef(expiry)
+    for (const key of unknownExpiry.value) {
+      if (key.startsWith(prefix)) unknownExpiry.value.delete(key)
+    }
+    triggerRef(unknownExpiry)
   }
 
   /**
-   * サーバ同期 (mute/list)。アカウントの集合を丸ごと置き換え、古い予約を捨てて
-   * 期限つきを予約し直す。期限が過ぎているものは入れない (#1260)。
+   * サーバ同期 (mute/list)。アカウントの集合を置き換え、古い予約を捨てて期限つきを
+   * 予約し直す。期限が過ぎているものは入れない (#1260)。`startSeq` (取り込みを
+   * 始めたときの `nextOpSeq()`) より後の手元の操作は結果で上書きしない (#1268)
    */
-  function setMutedUsers(accountId: string, entries: readonly MutedUser[]) {
+  function setMutedUsers(
+    accountId: string,
+    entries: readonly MutedUser[],
+    startSeq: number = nextOpSeq(),
+  ) {
+    const ops = localUserOps.get(accountId) ?? new Map<string, LocalMuteOp>()
+    const r = reconcileMutedUsers(entries, ops, startSeq)
+    for (const id of r.staleOps) ops.delete(id)
     clearAccountExpiry(accountId)
-    const { active, expiring } = partitionMutings(entries, Date.now())
+    for (const id of r.unknownExpiry) {
+      unknownExpiry.value.add(expiryKey(accountId, id))
+    }
+    triggerRef(unknownExpiry)
+    const { active, expiring } = partitionMutings(r.entries, Date.now())
     users.replace(accountId, active)
     for (const e of expiring) scheduleExpiry(accountId, e.userId, e.expiresAt)
+  }
+
+  // --- renote mute (#614) ---
+
+  function muteRenote(accountId: string, userId: string) {
+    renoters.add(accountId, userId)
+    recordOp(localRenoteOps, accountId, userId, {
+      kind: 'mute',
+      seq: nextOpSeq(),
+    })
+  }
+
+  function unmuteRenote(accountId: string, userId: string) {
+    renoters.remove(accountId, userId)
+    recordOp(localRenoteOps, accountId, userId, {
+      kind: 'unmute',
+      seq: nextOpSeq(),
+    })
+  }
+
+  /** サーバ同期 (renote-mute/list)。規則は setMutedUsers と同じ (#1268) */
+  function setMutedRenoters(
+    accountId: string,
+    ids: readonly string[],
+    startSeq: number = nextOpSeq(),
+  ) {
+    const ops = localRenoteOps.get(accountId) ?? new Map<string, LocalMuteOp>()
+    const r = reconcileIds(ids, ops, startSeq)
+    for (const id of r.staleOps) ops.delete(id)
+    renoters.replace(accountId, r.ids)
   }
 
   /**
@@ -217,6 +334,8 @@ export const useMutesStore = defineStore('mutes', () => {
   /** アカウント削除時にそのアカウントのミュート状態 (全種) と予約を捨てる */
   function purgeAccount(accountId: string) {
     clearAccountExpiry(accountId)
+    localUserOps.delete(accountId)
+    localRenoteOps.delete(accountId)
     users.replace(accountId, [])
     renoters.replace(accountId, [])
     instances.replace(accountId, [])
@@ -230,6 +349,7 @@ export const useMutesStore = defineStore('mutes', () => {
     muteUser,
     unmuteUser,
     mutedUntil,
+    muteExpiryKind,
     setMutedUsers,
     sweepExpired,
     purgeAccount,
@@ -237,9 +357,9 @@ export const useMutesStore = defineStore('mutes', () => {
     mutedUsersRemovalVersion: users.removalVersion,
     // renote mute
     isRenoteMuted: renoters.has,
-    muteRenote: renoters.add,
-    unmuteRenote: renoters.remove,
-    setMutedRenoters: renoters.replace,
+    muteRenote,
+    unmuteRenote,
+    setMutedRenoters,
     // instance mute
     isInstanceMuted: instances.has,
     setMutedInstances: instances.replace,

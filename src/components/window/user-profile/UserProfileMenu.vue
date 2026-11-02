@@ -100,15 +100,27 @@ function open(event: MouseEvent) {
   userMenuRef.value?.open(event)
 }
 
-/** ミュート中の項目のラベル。手元で期限を知っていれば「(〜まで)」を添える (#1260) */
+/**
+ * ミュート中の項目のラベル。手元で期限を知っていれば「(〜まで)」を添え (#1260)、
+ * 期限が分からない (サーバーが既にミュート中と答えただけ) なら「(期限は不明)」(#1268)
+ */
 const muteItemLabel = computed(() => {
   if (!userRelation.value?.isMuted) return i18n.ts._common.mute
-  const until = props.user
-    ? mutesStore.mutedUntil(props.accountId, props.user.id)
-    : null
-  return until === null
-    ? i18n.ts._common.unmute
-    : i18n.tsx._userProfileMenu.unmuteUntil({ date: formatMuteExpiry(until) })
+  if (!props.user) return i18n.ts._common.unmute
+  switch (mutesStore.muteExpiryKind(props.accountId, props.user.id)) {
+    case 'until': {
+      const until = mutesStore.mutedUntil(props.accountId, props.user.id)
+      return until === null
+        ? i18n.ts._common.unmute
+        : i18n.tsx._userProfileMenu.unmuteUntil({
+            date: formatMuteExpiry(until),
+          })
+    }
+    case 'unknown':
+      return i18n.ts._userProfileMenu.unmuteExpiryUnknown
+    default:
+      return i18n.ts._common.unmute
+  }
 })
 
 defineExpose({ open })
@@ -162,8 +174,8 @@ async function handleMuteUser(periodMs: number | null) {
   try {
     await props.adapter.api.muteUser(props.user.id, expiresAt)
     // 過去ノートをリロード無しで即時非表示にする（#574）。表示述語が reactive に再評価。
-    // 期限つきは手元の非表示も期限で戻る
-    mutesStore.muteUser(props.accountId, props.user.id, expiresAt)
+    // 期限つきは手元の非表示も期限で戻る。無期限は null (期限が分かっている)
+    mutesStore.muteUser(props.accountId, props.user.id, expiresAt ?? null)
     toast.show(i18n.ts._userProfileMenu.muted)
     void refreshUserRelation()
     closeUserMenu()
@@ -171,7 +183,7 @@ async function handleMuteUser(periodMs: number | null) {
     const err = AppError.from(e)
     if (err.apiCode === 'ALREADY_MUTING') {
       // relation が古かった (開いた後に他クライアントでミュートした等)。
-      // 手元もミュート中にして表示を直す。期限は分からないので無期限扱い
+      // 手元もミュート中にして表示を直す。期限は分からない (次の取り込みで分かる)
       mutesStore.muteUser(props.accountId, props.user.id)
       toast.show(i18n.ts._userProfileMenu.alreadyMuted)
       void refreshUserRelation()

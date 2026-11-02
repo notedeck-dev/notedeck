@@ -2,7 +2,10 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { type App, createApp, defineComponent, nextTick } from 'vue'
-import { SYNC_RETRY_MIN_INTERVAL_MS } from '@/services/muteExpiry'
+import {
+  RESYNC_MIN_INTERVAL_MS,
+  SYNC_RETRY_MIN_INTERVAL_MS,
+} from '@/services/muteExpiry'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
@@ -26,7 +29,7 @@ function account(id: string, hasToken = true): Account {
 
 async function mountWith(
   accounts: Account[],
-  sync: (accountId: string, host: string) => Promise<void>,
+  sync: (accountId: string, host: string, startSeq: number) => Promise<void>,
   onResume?: () => void,
 ) {
   useAccountsStore().accounts = accounts
@@ -66,13 +69,52 @@ afterEach(() => {
 })
 
 describe('useAccountSync: アカウントごとの起動時同期と再試行 (#1260)', () => {
-  it('認証済みのアカウントだけ 1 回同期し、復帰しても取り直さない', async () => {
+  it('認証済みのアカウントだけ 1 回同期し、間隔内の復帰では取り直さない', async () => {
     const sync = vi.fn(async () => undefined)
     await mountWith([account('a'), account('guest', false)], sync)
     expect(sync).toHaveBeenCalledTimes(1)
-    expect(sync).toHaveBeenCalledWith('a', 'example.test')
+    expect(sync).toHaveBeenCalledWith('a', 'example.test', expect.any(Number))
+    vi.setSystemTime(NOW + RESYNC_MIN_INTERVAL_MS - 1)
     await resume()
     expect(sync).toHaveBeenCalledTimes(1)
+  })
+
+  it('同期済みのアカウントも間隔が空いた復帰で取り込み直す (始めた順の採番つき、#1268)', async () => {
+    const sync = vi.fn<
+      (id: string, host: string, seq: number) => Promise<void>
+    >(async () => undefined)
+    await mountWith([account('a')], sync)
+    vi.setSystemTime(NOW + RESYNC_MIN_INTERVAL_MS)
+    await resume()
+    expect(sync).toHaveBeenCalledTimes(2)
+    const [first, second] = sync.mock.calls.map((c) => c[2])
+    expect(second).toBeGreaterThan(first as number)
+    // 直後の復帰では取り直さない
+    await resume()
+    expect(sync).toHaveBeenCalledTimes(2)
+  })
+
+  it('時計が戻った復帰では間隔を待たずに取り込み直す', async () => {
+    const sync = vi.fn(async () => undefined)
+    await mountWith([account('a')], sync)
+    vi.setSystemTime(NOW - 60 * 60_000)
+    await resume()
+    expect(sync).toHaveBeenCalledTimes(2)
+  })
+
+  it('取り込み直しが失敗しても、間隔が空いた次の復帰で取り直す', async () => {
+    const sync = vi
+      .fn<(id: string, host: string, startSeq: number) => Promise<void>>()
+      .mockImplementation(async () => {
+        if (sync.mock.calls.length === 2) throw new AppError('NETWORK', 'x')
+      })
+    await mountWith([account('a')], sync)
+    vi.setSystemTime(NOW + RESYNC_MIN_INTERVAL_MS)
+    await resume()
+    expect(sync).toHaveBeenCalledTimes(2)
+    vi.setSystemTime(NOW + RESYNC_MIN_INTERVAL_MS + SYNC_RETRY_MIN_INTERVAL_MS)
+    await resume()
+    expect(sync).toHaveBeenCalledTimes(3)
   })
 
   it('失敗したら間隔が空いたあとの復帰信号で取り直す (アカウント単位)', async () => {
@@ -93,7 +135,11 @@ describe('useAccountSync: アカウントごとの起動時同期と再試行 (#
     vi.setSystemTime(NOW + SYNC_RETRY_MIN_INTERVAL_MS)
     await resume()
     expect(sync).toHaveBeenCalledTimes(3)
-    expect(sync).toHaveBeenLastCalledWith('b', 'example.test')
+    expect(sync).toHaveBeenLastCalledWith(
+      'b',
+      'example.test',
+      expect.any(Number),
+    )
   })
 
   it('認証エラーは復帰信号で取り直さない', async () => {
