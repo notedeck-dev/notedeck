@@ -38,15 +38,12 @@
 //!   値で返すので、try/catch の無い AiScript (ウィジェット) でも分岐できる
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::ssrf::{
-    check_port_safe, external_redirect_policy, validate_external_url, PinningResolver,
-};
+use crate::ssrf::{check_port_safe, external_fetch_builder, validate_external_url};
 
 use crate::context::Core;
 use crate::error::Result;
@@ -95,25 +92,12 @@ impl HttpFetchResponse {
     }
 }
 
-/// 外向き fetch の client。fetch ごとに 1 つ作る (resolver の pin が fetch 単位)。
-///
-/// - DNS pinning resolver: 名前解決後の IP を check_ip_safe で検証してから接続する。
-///   validate_external_url の host 文字列検査だけでは、A レコードが loopback /
-///   private / メタデータ (169.254.169.254) を指す公開ホスト名や DNS rebinding を
-///   防げない
-/// - redirect の各 hop は external_redirect_policy で host と port を一次検査と同じ
-///   規則で検査する。resolver は名前解決を通らない IP literal の飛び先を見ないので、
-///   `Policy::limited` のままだと `Location: http://127.0.0.1/...` が通る (#1308)
-/// - no_proxy: 環境変数のプロキシに流れると、対象 host をこちらで名前解決しないので
-///   resolver の検査そのものが効かない (vault の外向き fetch と同じ)
-/// - referer(false): プラグインが組んだ URL (query を含む) を飛び先に漏らさない
+/// 外向き fetch の client。SSRF 防御の土台は `ssrf::external_fetch_builder`
+/// (redirect の各 hop の検査 / DNS pinning / no_proxy / referer なし) と共有し、
+/// fetch ごとに 1 つ作る
 fn build_client(timeout: Duration) -> std::result::Result<reqwest::Client, String> {
-    reqwest::Client::builder()
+    external_fetch_builder()
         .timeout(timeout)
-        .redirect(external_redirect_policy(5))
-        .dns_resolver(Arc::new(PinningResolver::new()))
-        .no_proxy()
-        .referer(false)
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))
 }

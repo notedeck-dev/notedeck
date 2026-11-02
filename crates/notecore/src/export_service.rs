@@ -24,8 +24,8 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
+use crate::ssrf::external_fetch_builder;
 use crate::ssrf::validate_external_url;
-use crate::ssrf::{external_redirect_policy, PinningResolver};
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 /// chunk 間の無通信タイムアウト。総時間の上限は設けない (大きい動画を殺さない)
@@ -126,16 +126,12 @@ fn emit(
     });
 }
 
-/// 添付の URL はリモート由来の非信頼値。redirect の各 hop も一次検査と同じ規則で
-/// 検査し (IP literal の飛び先は resolver では止まらない、#1308)、プロキシと
-/// Referer は使わない
+/// 添付の URL はリモート由来の非信頼値。SSRF 防御の土台 (redirect の各 hop の
+/// 検査 / DNS pinning / no_proxy / referer なし) は `ssrf::external_fetch_builder`
+/// と共有する (#1308)
 fn build_client() -> Result<reqwest::Client, String> {
-    reqwest::Client::builder()
+    external_fetch_builder()
         .connect_timeout(CONNECT_TIMEOUT)
-        .redirect(external_redirect_policy(5))
-        .dns_resolver(Arc::new(PinningResolver::new()))
-        .no_proxy()
-        .referer(false)
         .build()
         .map_err(|e| format!("failed to build HTTP client: {e}"))
 }
