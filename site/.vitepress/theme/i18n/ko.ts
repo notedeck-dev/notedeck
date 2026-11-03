@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: f889684ddb6a
+// sourceHash: e5e7ac119222
 
 import type { Messages } from './ja'
 
@@ -18,7 +18,7 @@ const ko: Messages = {
     released: (tag: string) => `${tag} 릴리스`,
   },
   hero: {
-    desc: 'Misskey 헤비 유저를 위한 비공식 클라이언트.',
+    desc: '당신의 Misskey가 깃드는 덱.',
     download: '다운로드',
     tryGuest: '로그인 없이 써 보기',
     screenshotAlt: 'NoteDeck의 덱 화면 — 칼럼을 가로로 나란히 배치한 레이아웃',
