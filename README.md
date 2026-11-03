@@ -4,73 +4,37 @@
 
 # NoteDeck
 
-**Misskey Pro — Misskey廃人のための Misskey 統合デッキ環境 (IDE: Integrated Deck Environment)**
+**あなたの Misskey が棲む、デッキ。**
 
-[![CI](https://github.com/notedeck-dev/notedeck/actions/workflows/ci.yml/badge.svg)](https://github.com/notedeck-dev/notedeck/actions/workflows/ci.yml)
-[![GitHub Release](https://img.shields.io/github/v/release/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/releases/latest)
-[![winget](https://img.shields.io/badge/winget-NotedeckDev.NoteDeck-blue?style=flat-square&logo=windows)](https://github.com/microsoft/winget-pkgs/tree/master/manifests/n/NotedeckDev/NoteDeck)
-[![AUR](https://img.shields.io/aur/version/misskey-notedeck-bin?style=flat-square&logo=archlinux&label=AUR)](https://aur.archlinux.org/packages/misskey-notedeck-bin)
-[![Obtainium](https://img.shields.io/badge/Obtainium-Android-3ddc84?style=flat-square&logo=android&logoColor=white)](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.notedeck.desktop%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fnotedeck-dev%2Fnotedeck%22%2C%22author%22%3A%22notedeck-dev%22%2C%22name%22%3A%22NoteDeck%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Afalse%2C%5C%22versionDetection%5C%22%3Atrue%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22autoApkFilterByArch%5C%22%3Atrue%2C%5C%22appName%5C%22%3A%5C%22NoteDeck%5C%22%2C%5C%22appAuthor%5C%22%3A%5C%22notedeck-dev%5C%22%7D%22%7D)
-[![Nix Flake](https://img.shields.io/badge/nix-flake-blue?style=flat-square&logo=nixos)](https://github.com/notedeck-dev/notedeck)
-[![License](https://img.shields.io/github/license/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/blob/main/LICENSE)
-[![GitHub Stars](https://img.shields.io/github/stars/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/stargazers)
-[![GitHub Downloads](https://img.shields.io/github/downloads/notedeck-dev/notedeck/total?style=flat-square)](https://github.com/notedeck-dev/notedeck/releases)
-[![GitHub last commit](https://img.shields.io/github/last-commit/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/commits)
-[![GitHub Issues](https://img.shields.io/github/issues/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/issues)
-[![Made with Tauri](https://img.shields.io/badge/Made%20with-Tauri-ffc131?style=flat-square&logo=tauri)](https://tauri.app)
-[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square)](https://github.com/notedeck-dev/notedeck/pulls)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/notedeck-dev/notedeck)
-[![GitGem](https://gitgem.org/api/badge/github/notedeck-dev/notedeck.svg)](https://gitgem.org/github/notedeck-dev/notedeck)
-[![misskey.io](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fmisskey.io%2Fusers%2Fanl48t0qf1ns05tf%2Ffollowers&query=%24.totalItems&logo=misskey&logoColor=fff&label=misskey.io&color=86b300)](https://misskey.io/@notedeck)
+Misskey Pro — Misskey廃人のための統合デッキ環境。
 
-[Download](https://github.com/notedeck-dev/notedeck/releases/latest) ·
-[Issues](https://github.com/notedeck-dev/notedeck/issues) ·
-[Roadmap](ROADMAP.md) ·
-[Strategy](STRATEGY.md) ·
-[Architecture](ARCHITECTURE.md) ·
-[Design](DESIGN.md) ·
-[Development](DEVELOPMENT.md) ·
-[Performance](PERFORMANCE.md) ·
-[Contributing](CONTRIBUTING.md) ·
-[Security](SECURITY.md) ·
-[Code of Conduct](CODE_OF_CONDUCT.md)
+[![Release](https://img.shields.io/github/v/release/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/releases/latest)
+[![CI](https://github.com/notedeck-dev/notedeck/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/notedeck-dev/notedeck/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/notedeck-dev/notedeck?style=flat-square)](LICENSE)
+
+**[ダウンロード](https://github.com/notedeck-dev/notedeck/releases/latest)** · [notedeck.io](https://notedeck.io) · [Issues](https://github.com/notedeck-dev/notedeck/issues)
 
 </div>
 
-<img width="2376" height="1706" alt="image" src="https://github.com/user-attachments/assets/610f1403-471b-4298-abd9-a1f92cc5942d" />
+<img width="2376" height="1706" alt="NoteDeck のデッキ画面" src="https://github.com/user-attachments/assets/610f1403-471b-4298-abd9-a1f92cc5942d" />
 
 ## Install
 
-| Windows | macOS | Linux | Android |
-|---|---|---|---|
-| `.exe` | `.dmg` (Universal) | `.deb` / `.AppImage` | `.apk` |
-
-**Windows (winget)**
-
-```
-winget install NotedeckDev.NoteDeck
-```
-
-**Arch Linux (AUR)**
+Windows / macOS / Linux / Android の各ビルドは [Releases](https://github.com/notedeck-dev/notedeck/releases/latest) から。
 
 ```bash
-yay -S misskey-notedeck-bin
+winget install NotedeckDev.NoteDeck   # Windows
+yay -S misskey-notedeck-bin           # Arch Linux
 ```
 
-**Android (Obtainium)**
-
-[<img src="site/public/badge_obtainium.png" alt="Get it on Obtainium" height="48" />](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.notedeck.desktop%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fnotedeck-dev%2Fnotedeck%22%2C%22author%22%3A%22notedeck-dev%22%2C%22name%22%3A%22NoteDeck%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Afalse%2C%5C%22versionDetection%5C%22%3Atrue%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22autoApkFilterByArch%5C%22%3Atrue%2C%5C%22appName%5C%22%3A%5C%22NoteDeck%5C%22%2C%5C%22appAuthor%5C%22%3A%5C%22notedeck-dev%5C%22%7D%22%7D)
+Android は [Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.notedeck.desktop%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fnotedeck-dev%2Fnotedeck%22%2C%22author%22%3A%22notedeck-dev%22%2C%22name%22%3A%22NoteDeck%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Afalse%2C%5C%22versionDetection%5C%22%3Atrue%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22autoApkFilterByArch%5C%22%3Atrue%2C%5C%22appName%5C%22%3A%5C%22NoteDeck%5C%22%2C%5C%22appAuthor%5C%22%3A%5C%22notedeck-dev%5C%22%7D%22%7D) で自動更新できます。
 
 ## 不具合・要望
 
-- GitHub アカウントがあれば [Issues](https://github.com/notedeck-dev/notedeck/issues) へ。アプリの「バージョン情報 → バグを報告」から環境情報入りで開けます
-- 無ければ Misskey で [@notedeck@misskey.io](https://misskey.io/@notedeck) にメンションしてください。アプリの「バージョン情報 → Misskey で報告」から下書きを開けます
-- 質問や雑談は [Discussions](https://github.com/notedeck-dev/notedeck/discussions)
+[Issues](https://github.com/notedeck-dev/notedeck/issues) か、Misskey で [@notedeck@misskey.io](https://misskey.io/@notedeck) にメンション。どちらもアプリの「バージョン情報」から環境情報つきで開けます。
 
-## 貢献する
+## 開発
 
-PR を歓迎します。詳しくは [CONTRIBUTING.md](CONTRIBUTING.md) を参照してください。
-
-## ライセンス
+[DEVELOPMENT.md](DEVELOPMENT.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
 
 [AGPL-3.0](LICENSE)
