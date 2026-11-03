@@ -80,7 +80,19 @@ export interface NoteDeckEnvContext {
   runWithAccount?: <T>(
     accountId: string | null,
     fn: () => Promise<T>,
+    origin?: 'ui' | 'other',
   ) => Promise<T>
+  /**
+   * 動かしている本文の hash (#1293、プラグインだけ)。起動時に Rust が計算し、
+   * `http.fetch` の実行要求に添える (loopback 同意の「動かしている本文 =
+   * ディスクの本文」の検査)
+   */
+  getBodyHash?: () => string | null
+  /**
+   * 今走っている実行の起点 (#1293、プラグインだけ)。`'ui'` = 人が押した入口の中。
+   * loopback の同意ダイアログを出すかを決めるだけで、認可の境界ではない
+   */
+  getOrigin?: () => 'ui' | 'other'
 }
 
 /**
@@ -104,6 +116,14 @@ export function createNoteDeckEnv(
   const runWithAccount =
     ctx.runWithAccount ??
     (<T>(_accountId: string | null, fn: () => Promise<T>) => fn())
+  /** plugin の dispatch に添える起点と本文の hash (#1293) */
+  const loopbackContext = () => {
+    const bodyHash = ctx.getBodyHash?.()
+    return {
+      origin: ctx.getOrigin?.() ?? ('other' as const),
+      ...(bodyHash ? { pluginBodyHash: bodyHash } : {}),
+    }
+  }
 
   // --- Feature detection ---
   consts.NOTEDECK = values.TRUE
@@ -214,6 +234,7 @@ export function createNoteDeckEnv(
     const result = await dispatchCapability('http.fetch', params, {
       principal: ctx.principal,
       ...(onBehalfOf.length > 0 ? { onBehalfOf } : {}),
+      ...loopbackContext(),
     })
     if (!result.ok) {
       throw new Error(`Nd:http (${result.code}): ${result.error}`)
@@ -394,9 +415,12 @@ export function createNoteDeckEnv(
           // 自分の handler の中からの Nd:call はその handler の実行の一部。
           // 文脈はすでにその handler のもので、キューに乗せると自分を待って
           // 止まるので、そのまま走らせる (#1306)
+          // 起点 (#1293): 本人がパレットから押した (caller が user) なら 'ui'、
+          // AI / 外部トークン / 別のプラグイン経由は 'other'
+          const origin = caller.kind === 'user' ? 'ui' : 'other'
           return isSelfCall(chain, ctx.principal)
             ? run()
-            : runWithAccount(accountId, run)
+            : runWithAccount(accountId, run, origin)
         },
       }
       if (parsed.permissions) capability.permissions = parsed.permissions

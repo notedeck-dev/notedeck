@@ -364,15 +364,14 @@ function runPostFormAction(action: PluginHandler) {
         }
       },
     )
-  if (activeAccountId.value) {
-    void withPluginAccountContext(
-      action.pluginInstallId,
-      activeAccountId.value,
-      invoke,
-    )
-  } else {
-    invoke()
-  }
+  // アカウントが無いときも null の文脈で包む: 人が押した入口 (#1293 の起点 'ui')
+  // であることはアカウントの有無と関係ない
+  void withPluginAccountContext(
+    action.pluginInstallId,
+    activeAccountId.value ?? null,
+    invoke,
+    'ui',
+  )
 }
 
 // --- MFM menu ---

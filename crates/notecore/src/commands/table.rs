@@ -288,6 +288,13 @@ macro_rules! with_command_table {
 
             // --- http (crates/notecore/src/commands/http.rs) ---
         data http_fetch(request: $crate::commands::http::HttpFetchRequest) -> $crate::commands::http::HttpFetchResponse = $crate::commands::http::http_fetch;
+            // --- loopback consent (crates/notecore/src/commands/loopback.rs, #1293) ---
+        authz (window = app) loopback_consent_status(plugin_id: String) -> $crate::loopback_consent::LoopbackConsentStatus = $crate::commands::loopback::loopback_consent_status;
+        authz (window = app) loopback_consent_list() -> Vec<$crate::loopback_consent::LoopbackConsentRow> = $crate::commands::loopback::loopback_consent_list;
+        authz (window = app) loopback_consent_grant(plugin_id: String, port: u16, expected_hash: String) -> () = $crate::commands::loopback::loopback_consent_grant;
+        authz (window = app) loopback_consent_revoke(plugin_id: String, port: u16) -> () = $crate::commands::loopback::loopback_consent_revoke;
+        authz (window = app) http_loopback_classify(url: String, plugin_id: String, body_hash: String) -> $crate::loopback_consent::LoopbackClassification = $crate::commands::loopback::http_loopback_classify;
+        authz (window = app) plugin_body_hash(content: String) -> String = $crate::commands::loopback::plugin_body_hash;
         }
     };
 }

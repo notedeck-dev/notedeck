@@ -19,6 +19,7 @@ import { reactive } from 'vue'
 import { i18n } from '@/i18n'
 import { PERMISSION_LABELS } from '@/permissions/labels'
 import type { PermissionKey } from '@/permissions/schema'
+import type { LoopbackDenialReason } from '@/services/loopbackPorts'
 import { useToast } from '@/stores/toast'
 
 export interface PluginDenialEntry {
@@ -27,6 +28,12 @@ export interface PluginDenialEntry {
   /** 直近拒否の必要キー (permission_denied の denied keys) */
   lastKeys: string[]
   count: number
+  /**
+   * 手元のポートへの接続 (#1293) の拒否理由。権限の拒否 (lastKeys) ではなく
+   * 連鎖 / 宣言 / 同意 / 本文の鮮度で止まったときに入る。バッジは理由を出し、
+   * 押した先はプラグイン詳細
+   */
+  reason?: LoopbackDenialReason
 }
 
 const _denials = reactive(new Map<string, PluginDenialEntry>())
@@ -36,19 +43,67 @@ export function recordPluginDenial(
   pluginId: string,
   target: string,
   keys: readonly string[],
+  reason?: LoopbackDenialReason,
 ): void {
   const existing = _denials.get(pluginId)
   if (existing) {
     existing.lastTarget = target
     existing.lastKeys = [...keys]
     existing.count += 1
+    if (reason) existing.reason = reason
+    else delete existing.reason
   } else {
     _denials.set(pluginId, {
       lastTarget: target,
       lastKeys: [...keys],
       count: 1,
+      ...(reason ? { reason } : {}),
     })
   }
+}
+
+/** 拒否理由の表示 (キーは静的に引く — 辞書の死にキー検査のため) */
+export function loopbackReasonLabel(reason: LoopbackDenialReason): string {
+  switch (reason) {
+    case 'chain':
+      return i18n.ts._pluginDenials._loopbackReason.chain
+    case 'notEligible':
+      return i18n.ts._pluginDenials._loopbackReason.notEligible
+    case 'selfPort':
+      return i18n.ts._pluginDenials._loopbackReason.selfPort
+    case 'undeclared':
+      return i18n.ts._pluginDenials._loopbackReason.undeclared
+    case 'stale':
+      return i18n.ts._pluginDenials._loopbackReason.stale
+    case 'notGranted':
+      return i18n.ts._pluginDenials._loopbackReason.notGranted
+  }
+}
+
+/**
+ * UI 操作起点の loopback 拒否 (#1293) をその場で toast する。押した先は
+ * プラグイン詳細 (同意はそこの「許可」から)
+ */
+export function notifyLoopbackDenialInteraction(
+  pluginId: string,
+  pluginName: string | undefined,
+  reason: LoopbackDenialReason,
+): void {
+  const name = pluginName ?? i18n.ts._pluginDenials.defaultName
+  useToast().show(
+    i18n.tsx._pluginDenials.loopbackDenied({
+      name,
+      reason: loopbackReasonLabel(reason),
+    }),
+    'error',
+    {
+      onClick: () => {
+        void import('@/stores/windows').then((m) =>
+          m.useWindowsStore().open('plugins', { initialPluginId: pluginId }),
+        )
+      },
+    },
+  )
 }
 
 /**

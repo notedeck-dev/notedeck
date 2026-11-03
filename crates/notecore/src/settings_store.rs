@@ -891,6 +891,22 @@ mod tests {
         assert!(validate_subdir("notemaid").is_err());
     }
 
+    /// プラグインの loopback 同意 (#1293) は端末固有: バックアップに含めず、汎用の
+    /// 読み書きからも触れない
+    #[test]
+    fn loopback_consent_stays_out_of_the_bundle_and_the_allowlist() {
+        let src = tempfile::tempdir().unwrap();
+        let dir = src.path().join(crate::loopback_consent::DIR);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("consent.json"), "{}").unwrap();
+        let bundle = export_bundle(src.path()).unwrap();
+        assert!(!bundle
+            .keys()
+            .any(|k| k.starts_with(crate::loopback_consent::DIR)));
+        assert!(validate_subdir(crate::loopback_consent::DIR).is_err());
+        assert!(root_file("loopback/consent.json").is_none());
+    }
+
     #[test]
     fn reserved_skill_files_cannot_be_renamed_or_deleted_through_the_generic_path() {
         let dir = tempfile::tempdir().unwrap();

@@ -60,6 +60,9 @@ pub struct ExecContext {
     /// principal が external のときの永続トークンの id / 名前 (#1292、メモの著者)
     pub token_id: Option<String>,
     pub token_name: Option<String>,
+    /// principal が plugin のとき、動かしている本文の hash (#1293)。loopback 同意の
+    /// 判定が「動かしている本文 = ディスクの本文 = 同意した本文」を確かめるのに使う
+    pub body_hash: Option<String>,
 }
 
 impl ExecContext {
@@ -372,7 +375,7 @@ async fn execute_value(core: &Core, id: &str, params: Value, ctx: &ExecContext) 
         // --- HEARTBEAT の応答契約 ---
         "heartbeat.report" => crate::heartbeat::report_tool(p, ctx),
         // --- 外部ネットワーク ---
-        "http.fetch" => net::http_fetch(core, p).await,
+        "http.fetch" => net::http_fetch(core, p, ctx).await,
         "misstore.search" => net::misstore_search(core, p).await,
         other => Err(NoteDeckError::Internal(format!(
             "declared as exec: core but has no implementation: {other}"
@@ -585,6 +588,7 @@ mod tests {
             plugin_id: None,
             token_id: None,
             token_name: None,
+            body_hash: None,
         };
         assert_eq!(
             resolve_account_id(&serde_json::json!({"accountId": " p "}), &ctx).unwrap(),

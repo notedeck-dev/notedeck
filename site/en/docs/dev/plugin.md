@@ -1,5 +1,5 @@
 ---
-sourceHash: e912a858e23d
+sourceHash: c03e13b34be6
 ---
 
 # Plugins
@@ -69,6 +69,22 @@ A command added with `Nd:register_command` can be called from the command palett
 What plugins can do is decided by the "Plugins" row of the [permission settings](/en/docs/guide/ai#permissions). The default is a safe, mostly read-only range plus requests to the outside; writes such as posting are allowed individually. `Nd:call` / `Nd:http` / `Mk:api` are all judged by this setting, and rejected operations show up as a rejection badge in the Plugins column. Operations that amount to writing skills or instructing the AI are always rejected regardless of the setting.
 
 `permissions` in the meta header is a declaration used when updating from the store: it shows "newly requested permissions" and asks for your consent again.
+
+### Connecting to a port on this device
+
+`Nd:http` refuses connections to this device (`localhost` / `127.0.0.1` / `[::1]`) by default. To call a process running on your machine, such as your own translation server or a query endpoint of a local database, declare the port in the `loopback` key of the meta header.
+
+```is
+### {
+  name: "Local translate"
+  version: "1.0.0"
+  loopback: [8080]
+}
+```
+
+On the first request to a declared port, NoteDeck asks the user whether to allow this plugin to connect to that port (only inside an action a person triggered from a note or user menu, the post form, or the command palette; startup code, `Nd:on` events and timers are refused without asking, and the port can be allowed from the plugin's settings). The consent is tied to the plugin body, so after an update or an edit the next request asks again. Per-request confirmation stays as it is.
+
+While the plugin runs on behalf of the AI, another plugin, or an external app, it cannot reach a local port even with consent. Widgets, Play and Pages have no place for the declaration and are excluded. NoteDeck's own ports are never reachable, declared or not. The response is a single round trip of text and is treated as untrusted, like anyone else's post.
 
 ## Where they are stored
 

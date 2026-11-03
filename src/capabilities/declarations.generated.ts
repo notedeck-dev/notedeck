@@ -1522,7 +1522,7 @@ export const CAPABILITY_DECLARATIONS: Record<CapabilityId, CapabilityDeclaration
     unattendedDeny: false,
     destinations: ["url"],
     exec: "core",
-    description: "外部 HTTP/HTTPS API にリクエストを送信する。Misskey 以外の API (翻訳・天気・RSS など) との連携に使う。loopback / private / link-local アドレスへの接続は SSRF 防御のため拒否される。",
+    description: "外部 HTTP/HTTPS API にリクエストを送信する。Misskey 以外の API (翻訳・天気・RSS など) との連携に使う。loopback / private / link-local アドレスへの接続は SSRF 防御のため拒否される。例外は、プラグインがヘッダーの `loopback` で宣言し利用者がそのプラグインに許可した手元のポート (localhost / 127.0.0.1 / [::1]) だけで、NoteDeck 自身のポートは許可に関係なく拒否される (#1293)。",
     params: {"url":{"type":"string","description":"リクエスト先 URL (http または https のみ)"},"method":{"type":"string","description":"HTTP メソッド (default: GET)","optional":true,"enum":["GET","POST","PUT","DELETE","PATCH","HEAD","OPTIONS"]},"headers":{"type":"object","description":"リクエストヘッダ ({ key: string, value: string })","optional":true},"body":{"type":"string","description":"リクエストボディ (文字列)","optional":true},"timeoutMs":{"type":"number","description":"タイムアウト ms (1000〜120000, default 30000)","optional":true}},
     returns: {"type":"object","description":"{ status: number, headers: object, body: string, error?: string }。通信断 (名前解決の失敗 / 接続拒否 / タイムアウト) は失敗ではなく status 0 で返り、理由が error に入る"},
   },
