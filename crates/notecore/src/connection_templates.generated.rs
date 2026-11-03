@@ -35,6 +35,11 @@ pub static CONNECTION_TEMPLATES: &[ConnectionTemplateDecl] = &[
         affinity_header: Some("x-opencode-session"),
     },
     ConnectionTemplateDecl {
+        id: "builtin:ollama@1",
+        allowed_hosts: &["127.0.0.1"],
+        affinity_header: None,
+    },
+    ConnectionTemplateDecl {
         id: "builtin:deepl@1",
         allowed_hosts: &["api-free.deepl.com", "api.deepl.com"],
         affinity_header: None,

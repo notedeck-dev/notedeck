@@ -35,6 +35,7 @@ const SECRET_LABELS = {
   apiTokenRaw: () => i18n.ts._connectionTemplates.apiTokenRaw,
   deeplAuthHeader: () => i18n.ts._connectionTemplates.deeplAuthHeader,
   vrchatAuthCookie: () => i18n.ts._connectionTemplates.vrchatAuthCookie,
+  optionalApiKey: () => i18n.ts._connectionTemplates.optionalApiKey,
 } satisfies Record<SecretLabelKey, () => string>
 
 export const BUILTIN_TEMPLATES: ConnectionTemplate[] =
@@ -90,7 +91,9 @@ export function connectionIconUrl(baseUrl: string): string | null {
 export function matchTemplateByUrl(rawUrl: string): ConnectionTemplate | null {
   let host: string
   try {
-    host = new URL(rawUrl).host.toLowerCase()
+    // allowedHosts はポートを持たないので hostname で比べる (ローカル接続の
+    // http://127.0.0.1:11434 も Ollama のテンプレに当たる、#880)
+    host = new URL(rawUrl).hostname.toLowerCase()
   } catch {
     return null
   }

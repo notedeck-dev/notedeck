@@ -87,6 +87,14 @@ function classBadge(
           @click="openEdit({ connectionId: conn.id })"
         >
           <template #badge>
+            <!-- この端末の中で動くサービス (ローカル接続、#880) -->
+            <span
+              v-if="conn.local"
+              :class="$style.cls_local"
+              :title="i18n.ts._connectionsContent.localBadge"
+            >
+              <i class="ti ti-device-desktop" />
+            </span>
             <span
               v-if="classBadge(conn, 'ai') !== 'hidden'"
               :class="$style[`cls_${classBadge(conn, 'ai')}`]"
@@ -151,6 +159,11 @@ function classBadge(
 
 .cls_active {
   color: var(--nd-success, var(--nd-link));
+}
+
+// この端末の中で動くサービス (ローカル接続)
+.cls_local {
+  color: var(--nd-accent);
 }
 
 // 開示はされているが実効的にまだ見えない (vault.use 無効 / secret 未設定)

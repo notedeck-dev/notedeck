@@ -13,6 +13,10 @@ import { useVault } from '@/composables/useVault'
 import { BUILTIN_TEMPLATES } from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
 import { resolveForProfiled, usePermissionsConfig } from '@/permissions/store'
+import {
+  isLoopbackUrl,
+  isLoopbackUrlMissingPort,
+} from '@/services/localConnection'
 import { useConfirm } from '@/stores/confirm'
 
 const props = defineProps<{
@@ -85,6 +89,10 @@ const secretLabel = ref('Secret / API Key')
 const secretHelpUrl = ref('')
 
 const isNew = computed(() => !props.connectionId)
+// この端末の中で動くサービス (#880)。URL が loopback の 3 表記ならローカル接続として
+// 保存する。利用者が選ぶのではなく URL から決まり、Rust 側も両向きに検査する。
+// ローカル接続は secret 任意で、AI / プラグイン / 外部アプリへの開示はできない
+const isLocal = computed(() => isLoopbackUrl(baseUrl.value))
 const saving = ref(false)
 const errorMessage = ref('')
 const testResult = ref<VaultTestResult | null>(null)
@@ -184,6 +192,7 @@ function buildUpsert(): ConnectionUpsert {
     // 無条件上書きされるため、ロード時の値をそのまま渡して消失を防ぐ。
     origin: null,
     externalSource: externalSource.value,
+    local: isLocal.value,
   }
 }
 
@@ -197,13 +206,15 @@ const fieldErrors = computed(() => {
     secretInput.value.length < 16
   )
     secret = i18n.ts._connectionEditContent.secretTooShort
-  else if (isNew.value && !secretInput.value)
+  else if (isNew.value && !secretInput.value && !isLocal.value)
     secret = i18n.ts._connectionEditContent.secretRequired
   return {
     name: name.value.trim() ? '' : i18n.ts._connectionEditContent.nameRequired,
-    baseUrl: baseUrl.value.trim()
-      ? ''
-      : i18n.ts._connectionEditContent.urlRequired,
+    baseUrl: !baseUrl.value.trim()
+      ? i18n.ts._connectionEditContent.urlRequired
+      : isLoopbackUrlMissingPort(baseUrl.value)
+        ? i18n.ts._connectionEditContent.localPortRequired
+        : '',
     headerName:
       authKind.value === 'header' && !headerName.value.trim()
         ? i18n.ts._connectionEditContent.headerNameRequired
@@ -238,7 +249,11 @@ async function save() {
     const upsert = buildUpsert()
     let connId = props.connectionId
 
-    if (isNew.value) {
+    if (isNew.value && !secretInput.value) {
+      // 新規のローカル接続 (#880) は secret 無し = 認証なし。メタデータだけ作る
+      const conn = await vault.upsertConnection(upsert)
+      connId = conn.id
+    } else if (isNew.value) {
       // 新規: メタデータ + secret を 1 トランザクションで作成。
       const conn = await vault.upsertConnectionWithSecret(
         upsert,
@@ -257,7 +272,8 @@ async function save() {
 
     // 開示先クラスを反映 (新規・更新どちらも)。信頼は開示が前提 —
     // OFF のときは必ず false に倒す (Rust 側でも開示 OFF で trust を外す)。
-    if (connId) {
+    // ローカル接続は開示できない (Rust が拒む) ので触らない
+    if (connId && !isLocal.value) {
       await vault.setExposed(connId, 'ai', exposedAi.value)
       await vault.setTrusted(connId, 'ai', exposedAi.value && trustedAi.value)
       // plugin の trust (個体単位) は確認ダイアログ側で積まれる。開示 OFF に
@@ -341,10 +357,15 @@ function formatError(e: unknown): string {
 const testResultText = computed(() => {
   const r = testResult.value
   if (!r) return ''
-  if (r.ok)
-    return i18n.tsx._connectionEditContent.testSuccess({
+  if (r.ok) {
+    const ok = i18n.tsx._connectionEditContent.testSuccess({
       status: String(r.status),
     })
+    // モデル一覧が読めたら件数を添える (AI 設定でそのまま選べる、#880)
+    return r.models
+      ? `${ok} · ${i18n.tsx._connectionEditContent.testModels({ count: String(r.models.length) })}`
+      : ok
+  }
   // 失敗には実際に叩いた URL を添える (#1319: baseUrl のパスが落ちていた事故を追えるように)
   const where = r.url ? ` · GET ${r.url}` : ''
   if (r.status != null) return `✗ HTTP ${r.status}${where}`
@@ -371,7 +392,16 @@ const testResultText = computed(() => {
         />
       </label>
 
-      <div :class="$style.field">
+      <!-- この端末の中で動くサービス (#880): URL から決まる。認証方式は意味を持たない -->
+      <div v-if="isLocal" :class="$style.localBox">
+        <i class="ti ti-device-desktop" />
+        <span>
+          <span :class="$style.toggleLabel">{{ i18n.ts._connectionEditContent.localTitle }}</span>
+          <span :class="$style.toggleHint">{{ i18n.ts._connectionEditContent.localHint }}</span>
+        </span>
+      </div>
+
+      <div v-if="!isLocal" :class="$style.field">
         <span :class="$style.label">{{ i18n.ts._connectionEditContent.authMethod }}</span>
         <div :class="$style.radioGroup">
           <label :class="$style.radio">
@@ -474,7 +504,7 @@ const testResultText = computed(() => {
       </button>
       <CollapseBox :open="advancedOpen" keep-alive>
         <div :class="$style.section">
-          <label :class="$style.field">
+          <label v-if="!isLocal" :class="$style.field">
             <span :class="$style.label">{{ i18n.ts._connectionEditContent.allowedHosts }}</span>
             <FormInput
               v-model="allowedHostsText"
@@ -490,6 +520,8 @@ const testResultText = computed(() => {
               :placeholder="i18n.ts._connectionEditContent.notesPlaceholder"
             />
           </label>
+          <!-- ローカル接続は誰にも開示できない (vault.fetch の宛先にしない、#880) -->
+          <template v-if="!isLocal">
           <label :class="$style.toggleRow">
             <input v-model="exposedAi" type="checkbox" />
             <span>
@@ -571,6 +603,7 @@ const testResultText = computed(() => {
               </span>
             </span>
           </label>
+          </template>
         </div>
       </CollapseBox>
     </div>
@@ -794,6 +827,29 @@ const testResultText = computed(() => {
 }
 
 // 二段 gate の受動表示 chip (#712 §6.3)
+.localBox {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--nd-panelHighlight, rgba(127, 127, 127, 0.08));
+  font-size: var(--nd-font-sm);
+  color: var(--nd-fg);
+
+  > i {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--nd-accent);
+  }
+
+  > span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+}
+
 .gateChip {
   display: flex;
   align-items: center;

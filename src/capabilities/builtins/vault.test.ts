@@ -49,6 +49,7 @@ function makeConnection(overrides: Partial<Connection> = {}): Connection {
     name: 'Habitica',
     baseUrl: 'https://habitica.com/api/v3',
     authType: { kind: 'bearer' },
+    local: false,
     exposedTo: ['ai'],
     trustedFor: [],
     slots: ['primary'],

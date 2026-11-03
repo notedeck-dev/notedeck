@@ -1095,6 +1095,11 @@ _tutorialContent:
   next: "Next →"
 
 _aiConnectionSection:
+  localBadge: "On this device"
+  localHint: "Inference runs on this device. Where the AI’s actions go is still governed by permissions, and Ollama’s own traffic (such as pulling models) is outside NoteDeck’s control"
+  modelCandidates: "Models available on this connection"
+  modelCandidatesLoading: "Asking for models..."
+  modelCandidatesFailed: "Couldn’t list models. Type the model name directly"
   title: "Connection"
   acpTitle: "ACP"
   notSelected: "Not selected"
@@ -1358,6 +1363,7 @@ _clipDetailContent:
   favoriteFailed: "Couldn’t update favorites ({code})"
 
 _connectionsContent:
+  localBadge: "Runs on this device (local connection)"
   chooseService: "Choose a service to connect"
   addConnection: "Add connection"
   addManually: "Add manually"
@@ -1747,6 +1753,10 @@ _columnQueryEditorContent:
   saved: "Query saved"
 
 _connectionEditContent:
+  localTitle: "A service running on this device"
+  localHint: "The URL points at localhost / 127.0.0.1 / [::1], so this is saved as a local connection. Inference runs on this device and the API key is optional. It can’t be exposed to AI, plugins or external apps (never a vault.fetch destination). Whether the AI can use other connections is unchanged"
+  localPortRequired: "A service on this device needs an explicit port (e.g. http://127.0.0.1:11434/v1)"
+  testModels: "{count} models"
   name: "Name"
   authMethod: "Authentication"
   customHeader: "Custom header"
@@ -3358,6 +3368,7 @@ _streamHealth:
     other: "for {count} seconds"
 
 _connectionTemplates:
+  optionalApiKey: "API key (optional; Ollama ignores it)"
   deeplAuthHeader: "Authorization header value (DeepL-Auth-Key <API key>)"
   apiToken: "API token"
   apiTokenRaw: "API token (raw value)"

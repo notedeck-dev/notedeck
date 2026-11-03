@@ -859,6 +859,11 @@ _tutorialContent:
   next: "次へ →"
 
 _aiConnectionSection:
+  localBadge: "この端末の中"
+  localHint: "モデルの推論はこの端末の中で行われます。AI が呼ぶ操作の宛先は権限の設定どおりで、Ollama 自身の通信 (モデルの取得など) は NoteDeck の管理外です"
+  modelCandidates: "この接続で使えるモデル"
+  modelCandidatesLoading: "モデルを問い合わせています..."
+  modelCandidatesFailed: "モデル一覧を取得できませんでした。モデル名を直接入力してください"
   title: "接続"
   acpTitle: "ACP"
   notSelected: "未選択"
@@ -1121,6 +1126,7 @@ _clipDetailContent:
   favoriteFailed: "お気に入り操作に失敗しました ({code})"
 
 _connectionsContent:
+  localBadge: "この端末の中で動くサービス (ローカル接続)"
   chooseService: "接続したいサービスを選んでください"
   addConnection: "接続を追加"
   addManually: "手動で追加"
@@ -1500,6 +1506,10 @@ _columnQueryEditorContent:
   saved: "クエリを保存しました"
 
 _connectionEditContent:
+  localTitle: "この端末の中で動くサービス"
+  localHint: "URL が localhost / 127.0.0.1 / [::1] なので、ローカル接続として保存します。モデルの推論はこの端末の中で行われ、API キーは任意です。AI / プラグイン / 外部アプリへの開示はできません (vault.fetch の宛先にしない)。他の接続を AI が使えるかは変わりません"
+  localPortRequired: "この端末の中のサービスはポートを明示してください (例: http://127.0.0.1:11434/v1)"
+  testModels: "モデル {count} 件"
   name: "名前"
   authMethod: "認証方式"
   customHeader: "任意ヘッダー"
@@ -3078,6 +3088,7 @@ _streamHealth:
     other: "{count} 秒前から"
 
 _connectionTemplates:
+  optionalApiKey: "API キー (任意。Ollama は見ません)"
   deeplAuthHeader: "Authorization ヘッダー値 (DeepL-Auth-Key <API キー>)"
   apiToken: "API トークン"
   apiTokenRaw: "API トークン (生の値)"
@@ -3579,7 +3590,7 @@ _native:
     errorContentAfter: "{partial}\n\n⚠️ {error}"
     roundLimit: "{partial}\n\n⚠️ tool 呼び出しが上限 ({max} 回) に達しました。"
     redirectNotFollowed: "AI プロバイダーがリダイレクト (HTTP {status}) を返しました。{host} へは追従しません。接続の URL を最終的な宛先に直してください"
-    endpointDenied: "AI 接続の URL ({host}) へは送れません: {reason}。内部アドレスやブラウザが繋がないポートは AI プロバイダーの宛先に使えません"
+    endpointDenied: "AI 接続の URL ({host}) へは送れません: {reason}。内部アドレスやブラウザーが繋がないポートは AI プロバイダーの宛先に使えません"
     hostNotAllowed: "AI 接続の URL の host ({host}) が、この接続の許可ホストに入っていません。接続の設定で許可ホストに加えてください"
   backup:
     skippedSame: "スキップ (既存と内容が同じ): {items}"

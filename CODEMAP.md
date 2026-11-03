@@ -183,6 +183,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/idFreeze.ts`](src/services/idFreeze.ts) | [`src/services/idFreeze.test.ts`](src/services/idFreeze.test.ts) |
 | [`src/services/identityId.ts`](src/services/identityId.ts) | [`src/services/identityId.test.ts`](src/services/identityId.test.ts) |
 | [`src/services/imageMemory.ts`](src/services/imageMemory.ts) | [`src/services/imageMemory.test.ts`](src/services/imageMemory.test.ts) |
+| [`src/services/localConnection.ts`](src/services/localConnection.ts) | [`src/services/localConnection.test.ts`](src/services/localConnection.test.ts) |
 | [`src/services/localeSetting.ts`](src/services/localeSetting.ts) | [`src/services/localeSetting.test.ts`](src/services/localeSetting.test.ts) |
 | [`src/services/mapEviction.ts`](src/services/mapEviction.ts) | [`src/services/mapEviction.test.ts`](src/services/mapEviction.test.ts) |
 | [`src/services/mediaTime.ts`](src/services/mediaTime.ts) | [`src/services/mediaTime.test.ts`](src/services/mediaTime.test.ts) |

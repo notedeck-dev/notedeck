@@ -5,7 +5,7 @@
 import type { AuthType, ConnectionProtocol } from '@/bindings'
 
 /** secret 入力欄のラベルに使う辞書キー (`_connectionTemplates.<key>`) */
-export type SecretLabelKey = "apiKey" | "apiKeyMewk" | "apiToken" | "apiTokenRaw" | "deeplAuthHeader" | "vrchatAuthCookie"
+export type SecretLabelKey = "apiKey" | "apiKeyMewk" | "apiToken" | "apiTokenRaw" | "deeplAuthHeader" | "optionalApiKey" | "vrchatAuthCookie"
 
 export interface ConnectionTemplateDecl {
   /** `builtin:<id>@<version>` 形式の識別子。 */
@@ -47,6 +47,11 @@ export interface ConnectionTemplateDecl {
    * ドメインと違う / favicon サービスに登録が無いサービスだけ持つ。
    */
   iconUrl?: string
+  /**
+   * この端末の中で動くサービス (#880)。テンプレから作る接続はローカル接続になり、
+   * secret は任意、モデルは疎通の /models から選ぶ (defaultModel を持たない)。
+   */
+  local?: true
 }
 
 export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [
@@ -129,6 +134,20 @@ export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [
     protocol: "openai-compat",
     defaultModel: "kimi-k3",
     affinityHeader: "x-opencode-session",
+  },
+  {
+    id: "builtin:ollama@1",
+    name: "Ollama",
+    icon: "cpu",
+    baseUrl: "http://127.0.0.1:11434/v1",
+    authType: {"kind":"bearer"},
+    allowedHosts: ["127.0.0.1"],
+    testPath: "/models",
+    secretLabel: {"i18n":"optionalApiKey"},
+    secretHelpUrl: "https://docs.ollama.com/openai",
+    protocol: "openai-compat",
+    local: true,
+    iconUrl: "https://icons.duckduckgo.com/ip3/ollama.com.ico",
   },
   {
     id: "builtin:deepl@1",

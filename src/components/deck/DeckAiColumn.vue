@@ -326,7 +326,9 @@ function checkProvider(): void {
     (resolved.kind === 'harness'
       ? (resolved.harness?.available ?? false)
       : resolved.model.length > 0 &&
-        (resolved.connection.slots?.length ?? 0) > 0)
+        // ローカル接続 (#880) は secret 無し (認証なし) で繋がる
+        ((resolved.connection.slots?.length ?? 0) > 0 ||
+          resolved.connection.local === true))
   providerStatus.value = ready ? 'connected' : 'disconnected'
   // 設定が済んだら導線は用済み
   if (ready) needsAiSetup.value = false

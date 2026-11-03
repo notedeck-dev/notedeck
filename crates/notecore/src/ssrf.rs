@@ -91,6 +91,49 @@ pub fn check_port_safe(port: Option<u16>) -> Result<(), String> {
     }
 }
 
+/// 自アプリが listen するポート。この端末の中のサービスへの到達を許す経路 (ローカル接続
+/// #880、プラグインの loopback 同意 #1293) でも、ここへは設定に依らず常に繋がない。
+/// `http_server::PORT` は cfg で変わるので、release / debug の両方と Dev Dashboard
+/// (`pnpm tauri:dev` の Vite) を literal で並べる
+pub const SELF_PORTS: &[u16] = &[19820, 19821, 5173];
+
+/// URL がこの端末の中 (loopback) を指すなら、正規化した URL を返す (#880 / #1293 共用)。
+///
+/// - 受ける表記は `localhost` / `127.0.0.1` / `[::1]` の 3 つだけ。`localhost` は名前解決
+///   せず `127.0.0.1` に書き換える (resolver は緩めない。実行時は IP literal だけになる)
+/// - それ以外の host は `Ok(None)` (loopback 帯の別 IP や `.local` も含む。それらは
+///   [`validate_external_url`] が外向きの宛先として別に拒む)
+/// - loopback なら scheme は http / https、ポートは明示必須、[`SELF_PORTS`] と
+///   ブラウザが繋がないポート ([`check_port_safe`]) は拒む
+pub fn normalize_loopback_url(raw: &str) -> Result<Option<String>, String> {
+    let mut url = reqwest::Url::parse(raw).map_err(|e| format!("invalid URL: {e}"))?;
+    let host = match url.host_str() {
+        Some(h) => h.to_ascii_lowercase(),
+        None => return Ok(None),
+    };
+    if !matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]") {
+        return Ok(None);
+    }
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err(format!(
+            "only http / https schemes are allowed (got {})",
+            url.scheme()
+        ));
+    }
+    let port = url
+        .port()
+        .ok_or_else(|| "a loopback URL must name its port explicitly".to_string())?;
+    if SELF_PORTS.contains(&port) {
+        return Err(format!("port {port} belongs to NoteDeck itself"));
+    }
+    check_port_safe(Some(port))?;
+    if host == "localhost" {
+        url.set_host(Some("127.0.0.1"))
+            .map_err(|e| format!("cannot normalize localhost: {e}"))?;
+    }
+    Ok(Some(url.to_string()))
+}
+
 /// 外向きの単発 fetch (汎用 `http_fetch` / export の添付取得) の client の土台。
 /// fetch ごとに 1 つ作る (resolver の pin が fetch 単位、#857)。呼び出し側は
 /// timeout 等を足して build する。
@@ -513,5 +556,70 @@ mod tests {
         // validate_external_host should refuse it.
         assert!(validate_external_host("").is_err());
         assert!(validate_external_host("   ").is_err());
+    }
+}
+
+#[cfg(test)]
+mod loopback_tests {
+    use super::*;
+
+    /// この端末の中で動くサービス (ローカル接続、#880) の宛先。3 表記だけを受け、
+    /// `localhost` は名前解決せず 127.0.0.1 に正規化する (#1293 と同じ規則)
+    #[test]
+    fn loopback_urls_are_recognized_and_localhost_is_normalized() {
+        assert_eq!(
+            normalize_loopback_url("http://localhost:11434/v1").unwrap(),
+            Some("http://127.0.0.1:11434/v1".to_string())
+        );
+        assert_eq!(
+            normalize_loopback_url("http://127.0.0.1:11434/v1").unwrap(),
+            Some("http://127.0.0.1:11434/v1".to_string())
+        );
+        assert_eq!(
+            normalize_loopback_url("http://[::1]:11434").unwrap(),
+            Some("http://[::1]:11434/".to_string())
+        );
+        assert_eq!(
+            normalize_loopback_url("http://LOCALHOST:1234/").unwrap(),
+            Some("http://127.0.0.1:1234/".to_string())
+        );
+    }
+
+    #[test]
+    fn non_loopback_urls_are_not_classified_as_loopback() {
+        assert_eq!(
+            normalize_loopback_url("https://api.openai.com/v1").unwrap(),
+            None
+        );
+        // 3 表記以外の loopback 帯や未解決の名前は「ローカル」とは見なさない
+        // (一次検査 validate_external_url が loopback として別に拒む)
+        assert_eq!(
+            normalize_loopback_url("http://127.0.0.2:11434").unwrap(),
+            None
+        );
+        assert_eq!(
+            normalize_loopback_url("http://ollama.local:11434").unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn loopback_urls_require_an_explicit_port_and_http_scheme() {
+        assert!(normalize_loopback_url("http://127.0.0.1/v1").is_err());
+        assert!(normalize_loopback_url("http://localhost").is_err());
+        assert!(normalize_loopback_url("ftp://127.0.0.1:21").is_err());
+        assert!(normalize_loopback_url("not a url").is_err());
+    }
+
+    /// 自アプリのポート (内蔵 HTTP API の release / debug、Dev Dashboard) とブラウザが
+    /// 繋がないポートは、設定に依らず常に拒む
+    #[test]
+    fn loopback_urls_to_our_own_ports_or_bad_ports_are_rejected() {
+        for port in SELF_PORTS {
+            let err = normalize_loopback_url(&format!("http://127.0.0.1:{port}/v1"))
+                .expect_err("self port");
+            assert!(err.contains(&port.to_string()), "{err}");
+        }
+        assert!(normalize_loopback_url("http://127.0.0.1:25").is_err());
     }
 }

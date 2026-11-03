@@ -446,6 +446,26 @@ fn check_endpoint(base_url: &str, allowed_hosts: &[String]) -> Result<()> {
     Ok(())
 }
 
+/// ローカル接続 (この端末の中で動くサービス、#880) の宛先検査。保存時に正規化済みの
+/// loopback の IP literal (ポート明示、自アプリのポート以外) だけを通す。許可ホストは
+/// 見ない (宛先は URL の host:port そのもの)。名前解決は起きないので resolver も関与しない
+fn check_local_endpoint(base_url: &str) -> Result<()> {
+    let host = reqwest::Url::parse(base_url)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_string))
+        .unwrap_or_default();
+    let reason = match notecore::ssrf::normalize_loopback_url(base_url) {
+        Ok(Some(_)) => return Ok(()),
+        Ok(None) => "a local connection must point at this device".to_string(),
+        Err(reason) => reason,
+    };
+    Err(notecore::i18n::error(
+        "INVALID_INPUT",
+        "_native.ai.endpointDenied",
+        json!({ "host": host, "reason": reason }),
+    ))
+}
+
 /// AI プロバイダーの Vault 接続を解決する。
 pub fn resolve_connection(app_dir: &Path, connection_id: &str) -> Result<ResolvedConnection> {
     let file = notecore::vault::connections_store::load(app_dir)
@@ -461,20 +481,32 @@ pub fn resolve_connection(app_dir: &Path, connection_id: &str) -> Result<Resolve
     let protocol = connection.protocol.ok_or_else(|| {
         notecore::i18n::error("INVALID_INPUT", "_native.ai.notAiProvider", json!({}))
     })?;
-    // キーを開く前に宛先を検査する。内部アドレスや許可外のホストへは秘密を持ち出さない (#1315)
-    check_endpoint(&connection.base_url, &connection.allowed_hosts)?;
+    // キーを開く前に宛先を検査する。内部アドレスや許可外のホストへは秘密を持ち出さない (#1315)。
+    // ローカル接続 (#880) だけは loopback を、保存時に正規化された形に限って通す
+    if connection.local {
+        check_local_endpoint(&connection.base_url)?;
+    } else {
+        check_endpoint(&connection.base_url, &connection.allowed_hosts)?;
+    }
     let api_key = {
         use notecore::vault::SecretBackend as _;
-        notecore::vault::KeychainBackend
-            .load(connection_id, "primary")
-            .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?
-            .map(|s| {
+        match notecore::vault::KeychainBackend.load(connection_id, "primary") {
+            Ok(Some(s)) => {
                 use secrecy::ExposeSecret as _;
                 s.expose_secret().to_string()
-            })
-            .unwrap_or_default()
+            }
+            Ok(None) => String::new(),
+            // ローカル接続 (#880) は secret 任意なので、キーチェーンが使えない環境
+            // (secret service の無い Linux 等) でも止めない
+            Err(e) if connection.local => {
+                tracing::debug!("keychain unavailable for local connection {connection_id}: {e}");
+                String::new()
+            }
+            Err(e) => return Err(NoteDeckError::InvalidInput(e.to_string())),
+        }
     };
-    if api_key.is_empty() {
+    // ローカル接続は認証なし (secret 無し) でよい (#880)。Ollama は認証ヘッダーを見ない
+    if api_key.is_empty() && !connection.local {
         return Err(notecore::i18n::error(
             "AUTH_CREDENTIAL_MISSING",
             "_native.ai.apiKeyMissing",
@@ -784,9 +816,12 @@ async fn run_anthropic_attempt(
 
     let mut request = streaming_client(resolve_read_timeout(req))
         .post(&url)
-        .header("x-api-key", api_key)
         .header("anthropic-version", ANTHROPIC_VERSION)
         .header("content-type", "application/json");
+    // 認証なしのローカル接続 (#880) では空の x-api-key を送らない (OpenAI 互換側と同じ)
+    if !api_key.is_empty() {
+        request = request.header("x-api-key", api_key);
+    }
     if let Some((name, value)) = affinity_header(req, endpoint) {
         request = request.header(name, value);
     }
@@ -1300,6 +1335,28 @@ mod tests {
         assert!(err.to_string().contains("api.example.com"), "{err}");
     }
 
+    /// ローカル接続 (#880) は正規化済みの loopback だけを通し、公開ホストや自アプリの
+    /// ポートは拒む。文言は同じ endpointDenied (host と理由つき)
+    #[test]
+    fn check_local_endpoint_accepts_only_normalized_loopback_targets() {
+        assert!(check_local_endpoint("http://127.0.0.1:11434/v1").is_ok());
+        assert!(check_local_endpoint("http://[::1]:11434").is_ok());
+        for url in [
+            "https://api.example.com/v1",
+            "http://127.0.0.1:19820/v1",
+            "http://127.0.0.1/v1",
+        ] {
+            let err = check_local_endpoint(url).expect_err(url);
+            assert_eq!(
+                err.i18n()
+                    .and_then(|v| v.get("key"))
+                    .and_then(Value::as_str),
+                Some("_native.ai.endpointDenied"),
+                "{url}"
+            );
+        }
+    }
+
     #[test]
     fn check_endpoint_matches_allowed_hosts_case_insensitively() {
         assert!(check_endpoint("https://API.Example.com", &["api.example.com".into()]).is_ok());
@@ -1701,6 +1758,25 @@ mod tests {
             String::from_utf8_lossy(&buf).to_string()
         });
         (format!("http://{addr}"), handle)
+    }
+
+    /// 認証なしのローカル接続 (#880): 空のキーでは x-api-key を送らない
+    #[tokio::test]
+    async fn anthropic_requests_without_a_key_carry_no_api_key_header() {
+        let (endpoint, server) = one_shot_server(
+            "HTTP/1.1 307 Temporary Redirect\r\nLocation: https://other.example/v1/messages\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        )
+        .await;
+        struct Nop;
+        impl AiChatSink for Nop {
+            fn emit(&self, _event: AiChatEvent) {}
+        }
+        let req = opencode_request("s", None);
+        let _ = run_anthropic(&req, &endpoint, "", &Nop).await;
+        let received = server.await.unwrap().to_ascii_lowercase();
+        assert!(received.starts_with("post /v1/messages"), "{received}");
+        assert!(!received.contains("x-api-key"), "{received}");
+        assert!(received.contains("anthropic-version"), "{received}");
     }
 
     #[tokio::test]
