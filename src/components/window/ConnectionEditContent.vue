@@ -345,8 +345,10 @@ const testResultText = computed(() => {
     return i18n.tsx._connectionEditContent.testSuccess({
       status: String(r.status),
     })
-  if (r.status != null) return `✗ HTTP ${r.status}`
-  return `✗ ${r.error ?? i18n.ts._connectionEditContent.testFailed}`
+  // 失敗には実際に叩いた URL を添える (#1319: baseUrl のパスが落ちていた事故を追えるように)
+  const where = r.url ? ` · GET ${r.url}` : ''
+  if (r.status != null) return `✗ HTTP ${r.status}${where}`
+  return `✗ ${r.error ?? i18n.ts._connectionEditContent.testFailed}${where}`
 })
 </script>
 
