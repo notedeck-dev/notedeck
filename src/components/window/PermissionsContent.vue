@@ -3,7 +3,7 @@ import { json } from '@codemirror/lang-json'
 import { type Diagnostic, linter } from '@codemirror/lint'
 import JSON5 from 'json5'
 import { computed, onMounted, ref, shallowRef, watch } from 'vue'
-import type { ApiTokenMeta } from '@/bindings'
+import type { ApiTokenMeta, LoopbackConsentRow } from '@/bindings'
 import { getCapability } from '@/capabilities/registry'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
@@ -18,6 +18,7 @@ import {
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback'
 import { useDoubleConfirm } from '@/composables/useDoubleConfirm'
 import { useEditorTabs } from '@/composables/useEditorTabs'
+import { useLoopbackConsent } from '@/composables/useLoopbackConsent'
 import { useVault } from '@/composables/useVault'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { i18n } from '@/i18n'
@@ -167,6 +168,24 @@ watch(rawJson, (v) => {
     }
   }, 500)
 })
+
+// --- 手元のポートへの接続 (#1293) の一覧・取り消し ---
+// 記録は Rust (loopback_consent) にあり、ここは status の写しを出すだけ。
+// 一覧と取り消しは開発者モードを要求しない (一般側)
+const loopbackConsent = useLoopbackConsent()
+const loopbackRows = ref<LoopbackConsentRow[]>([])
+async function loadLoopbackRows() {
+  try {
+    loopbackRows.value = await loopbackConsent.list()
+  } catch {
+    loopbackRows.value = []
+  }
+}
+onMounted(() => void loadLoopbackRows())
+async function revokeLoopback(pluginId: string, port: number) {
+  await loopbackConsent.revoke(pluginId, port)
+  await loadLoopbackRows()
+}
 
 const expanded = ref<ProfiledPrincipalId | null>(null)
 function toggleRow(id: ProfiledPrincipalId) {
@@ -627,6 +646,36 @@ function handleReset() {
                   <i class="ti ti-x" />
                 </button>
               </div>
+            </div>
+          </div>
+
+          <!-- AiScript 行: プラグイン単位で許可した手元のポートへの接続 (#1293) -->
+          <div v-if="row.id === 'plugin' && loopbackRows.length > 0" :class="$style.tokenSection">
+            <div :class="$style.tokenSectionLabel">{{ i18n.ts._permissionsContent.loopbackTitle }}</div>
+            <div :class="$style.hint">
+              {{ i18n.ts._permissionsContent.loopbackHint }}
+            </div>
+            <div :class="$style.tokenList">
+              <template v-for="r in loopbackRows" :key="r.pluginId">
+                <div
+                  v-for="port in r.granted"
+                  :key="r.pluginId + ':' + port"
+                  :class="$style.tokenRow"
+                >
+                  <i class="ti ti-plug" :class="$style.tokenIcon" />
+                  <span :class="$style.tokenName">{{ r.name }}</span>
+                  <span :class="$style.skipOwner">{{ i18n.tsx._permissionsContent.loopbackPort({ port: String(port) }) }}</span>
+                  <span :class="$style.tokenDate">{{ r.stale ? i18n.ts._permissionsContent.loopbackStale : i18n.ts._permissionsContent.loopbackActive }}</span>
+                  <button
+                    class="_button"
+                    :class="$style.tokenRevoke"
+                    :title="i18n.ts._permissionsContent.revoke"
+                    @click="revokeLoopback(r.pluginId, port)"
+                  >
+                    <i class="ti ti-x" />
+                  </button>
+                </div>
+              </template>
             </div>
           </div>
 

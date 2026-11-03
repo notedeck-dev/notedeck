@@ -2256,7 +2256,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &["url"],
         exec: Exec::Core,
-        description: "外部 HTTP/HTTPS API にリクエストを送信する。Misskey 以外の API (翻訳・天気・RSS など) との連携に使う。loopback / private / link-local アドレスへの接続は SSRF 防御のため拒否される。",
+        description: "外部 HTTP/HTTPS API にリクエストを送信する。Misskey 以外の API (翻訳・天気・RSS など) との連携に使う。loopback / private / link-local アドレスへの接続は SSRF 防御のため拒否される。例外は、プラグインがヘッダーの `loopback` で宣言し利用者がそのプラグインに許可した手元のポート (localhost / 127.0.0.1 / [::1]) だけで、NoteDeck 自身のポートは許可に関係なく拒否される (#1293)。",
         params: &[
             ParamDecl {
                 name: "url",

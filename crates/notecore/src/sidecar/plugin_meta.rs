@@ -15,6 +15,35 @@ pub struct ParsedPluginMeta {
     pub permissions: Option<Vec<String>>,
     /// `config` (キー順は JSON の読み込み順に依らずソートされる)
     pub config: Option<Map<String, Value>>,
+    /// 手元のポートの宣言 (`loopback: [8080, …]`、#1293)。正規化済み
+    /// ([`normalize_loopback_ports`])。キーが無い / 配列でない / 正規化で空に
+    /// なったときは None (宣言なし)
+    pub loopback: Option<Vec<u16>>,
+}
+
+/// `loopback` に宣言できるポートの個数の上限 (TS と共有、golden の `maxPorts`)
+pub const MAX_LOOPBACK_PORTS: usize = 8;
+
+/// `loopback` の生の配列を正規化する: 整数で 1〜65535 のものだけ、重複は最初の
+/// 出現、常に拒否するポート ([`crate::ssrf::is_always_denied_loopback_port`]) は
+/// 捨て、[`MAX_LOOPBACK_PORTS`] で切る。TS の `normalizeLoopbackPorts` と同じ規則
+pub fn normalize_loopback_ports(raw: &[Value]) -> Vec<u16> {
+    let mut out: Vec<u16> = Vec::new();
+    for v in raw {
+        let Some(n) = v.as_u64() else { continue };
+        let Ok(port) = u16::try_from(n) else { continue };
+        if port == 0 || crate::ssrf::is_always_denied_loopback_port(port) {
+            continue;
+        }
+        if out.contains(&port) {
+            continue;
+        }
+        out.push(port);
+        if out.len() >= MAX_LOOPBACK_PORTS {
+            break;
+        }
+    }
+    out
 }
 
 static LANG_VERSION: LazyLock<Regex> =
@@ -120,6 +149,12 @@ pub fn parse_plugin_meta(code: &str) -> Option<ParsedPluginMeta> {
     if let Some(Value::Object(c)) = obj.get("config") {
         meta.config = Some(c.clone());
     }
+    if let Some(Value::Array(ports)) = obj.get("loopback") {
+        let ports = normalize_loopback_ports(ports);
+        if !ports.is_empty() {
+            meta.loopback = Some(ports);
+        }
+    }
     Some(meta)
 }
 
@@ -178,5 +213,24 @@ mod tests {
     fn keeps_only_string_permissions() {
         let m = parse_plugin_meta("/// @ 0.19.0\n### {\n  name: \"A\"\n  version: \"1\"\n  permissions: [\"a\", 1, true]\n}\n").unwrap();
         assert_eq!(m.permissions, Some(vec!["a".to_string()]));
+    }
+
+    /// `loopback` の正規化は TS (`parsePluginMeta`) と同じ golden を通す (#1293)
+    #[test]
+    fn loopback_header_matches_shared_golden() {
+        let golden: Value = serde_json::from_str(include_str!(
+            "../../../../src/aiscript/golden/loopbackHeader.json"
+        ))
+        .unwrap();
+        assert_eq!(
+            golden["maxPorts"].as_u64().unwrap() as usize,
+            MAX_LOOPBACK_PORTS
+        );
+        for v in golden["vectors"].as_array().unwrap() {
+            let name = v["name"].as_str().unwrap();
+            let meta = parse_plugin_meta(v["source"].as_str().unwrap()).unwrap();
+            let expected: Option<Vec<u16>> = serde_json::from_value(v["expected"].clone()).unwrap();
+            assert_eq!(meta.loopback, expected, "{name}");
+        }
     }
 }

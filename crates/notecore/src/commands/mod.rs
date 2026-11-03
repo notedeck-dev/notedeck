@@ -34,6 +34,7 @@ pub mod federation;
 pub mod health;
 pub mod http;
 pub mod lists;
+pub mod loopback;
 pub mod messaging;
 pub mod pet;
 pub mod query;

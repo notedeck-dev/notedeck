@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { parsePluginMeta } from '@/aiscript/plugin-api'
+import {
+  launchPlugin,
+  parsePluginMeta,
+  runningPluginBodyHash,
+} from '@/aiscript/plugin-api'
+import type { LoopbackConsentStatus } from '@/bindings'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import FormSwitch from '@/components/common/form/FormSwitch.vue'
 import AiScriptEditor from '@/components/deck/widgets/AiScriptEditor.vue'
@@ -14,6 +19,7 @@ import {
 } from '@/composables/useEditHistoryWindow'
 import { useEditorTabs } from '@/composables/useEditorTabs'
 import { useExternalEditSync } from '@/composables/useExternalEditSync'
+import { useLoopbackConsent } from '@/composables/useLoopbackConsent'
 import { useWindowExternalFile } from '@/composables/useWindowExternalFile'
 import { i18n } from '@/i18n'
 import { type ScopeTarget, withScopeTarget } from '@/services/distributable'
@@ -53,6 +59,72 @@ const pluginLogs = computed(() =>
 // 新規インストールモード
 const isNewInstall = computed(() => !plugin.value)
 
+// --- 手元のポートへの接続 (#1293) ---
+// 宣言と同意の状態は Rust の command が答える (TS の解析結果は使わない)。
+// 本文が変わると同意は失効するので、本文の変更のたびに読み直す
+const loopbackConsent = useLoopbackConsent()
+const loopbackStatus = ref<LoopbackConsentStatus | null>(null)
+async function loadLoopbackStatus() {
+  const id = editingPluginId.value
+  if (!id) {
+    loopbackStatus.value = null
+    return
+  }
+  try {
+    loopbackStatus.value = await loopbackConsent.status(id)
+  } catch {
+    loopbackStatus.value = null
+  }
+}
+watch(
+  () => [editingPluginId.value, plugin.value?.content] as const,
+  () => void loadLoopbackStatus(),
+  { immediate: true },
+)
+const loopbackDeclared = computed(
+  () => (loopbackStatus.value?.declared.length ?? 0) > 0,
+)
+/** 動作中の本文が保存されているものと違う (同意の判定は保存されている本文で行う) */
+const loopbackRunningStale = computed(() => {
+  const st = loopbackStatus.value
+  if (!st || !plugin.value) return false
+  const running = runningPluginBodyHash(plugin.value.id)
+  return running !== null && running !== st.hash
+})
+function loopbackState(port: number): 'granted' | 'stale' | 'none' {
+  const st = loopbackStatus.value
+  if (!st || !st.granted.includes(port)) return 'none'
+  return st.stale ? 'stale' : 'granted'
+}
+async function grantLoopback(port: number) {
+  const id = editingPluginId.value
+  const st = loopbackStatus.value
+  if (!id || !st) return
+  try {
+    await loopbackConsent.grant(id, port, st.hash)
+  } catch (e) {
+    useToast().show(e instanceof Error ? e.message : String(e), 'error')
+  }
+  await loadLoopbackStatus()
+}
+async function revokeLoopback(port: number) {
+  const id = editingPluginId.value
+  if (!id) return
+  await loopbackConsent.revoke(id, port)
+  await loadLoopbackStatus()
+}
+function restartPlugin() {
+  if (plugin.value) void launchPlugin(plugin.value)
+}
+/** 設定タブを出す条件: config があるか、loopback の宣言があるか */
+const hasSettingsTab = computed(() => {
+  const config = plugin.value?.extra.config
+  return (
+    (config !== undefined && Object.keys(config).length > 0) ||
+    loopbackDeclared.value
+  )
+})
+
 // --- Tabs ---
 /**
  * プラグインのソースを見せてよいか (#1034)。配布物は「カラムは一般 /
@@ -71,8 +143,7 @@ const tabOptions = computed<readonly ('config' | 'code' | 'logs')[]>(() => {
   const tabs: ('config' | 'code' | 'logs')[] = codeExposed.value
     ? ['code', 'logs']
     : ['logs']
-  const config = plugin.value?.extra.config
-  if (config && Object.keys(config).length > 0) {
+  if (hasSettingsTab.value) {
     tabs.unshift('config')
   }
   return tabs
@@ -81,8 +152,7 @@ const tabOptions = computed<readonly ('config' | 'code' | 'logs')[]>(() => {
 const defaultTab = computed(() => {
   if (isNewInstall.value) return 'code'
   if (props.initialTab === 'code' && codeExposed.value) return 'code'
-  const config = plugin.value?.extra.config
-  if (config && Object.keys(config).length > 0) return 'config'
+  if (hasSettingsTab.value) return 'config'
   return codeExposed.value ? 'code' : 'logs'
 })
 
@@ -448,8 +518,8 @@ async function importPlugin() {
     />
 
     <!-- Config tab -->
-    <div v-if="!isNewInstall && tab === 'config' && plugin?.extra.config" :class="$style.configPanel">
-      <div :class="$style.configList">
+    <div v-if="!isNewInstall && tab === 'config' && plugin" :class="$style.configPanel">
+      <div v-if="plugin.extra.config" :class="$style.configList">
         <div
           v-for="(def, key) in plugin.extra.config"
           :key="key"
@@ -504,6 +574,52 @@ async function importPlugin() {
         <i class="ti ti-restore" />
         {{ confirmingResetConfig ? i18n.ts._common.confirmReset : i18n.ts._common.resetAllToDefault }}
       </button>
+
+      <!-- 手元のポートへの接続 (#1293): 宣言があれば出す。許可 / 取り消しはここと権限ウィンドウ -->
+      <div v-if="loopbackDeclared && loopbackStatus" :class="$style.loopbackSection">
+        <div :class="$style.configLabel">{{ i18n.ts._pluginsContent.loopbackTitle }}</div>
+        <p :class="$style.configDesc">{{ i18n.ts._pluginsContent.loopbackHint }}</p>
+        <div v-if="loopbackRunningStale" :class="$style.loopbackStale">
+          <span>{{ i18n.ts._pluginsContent.loopbackRestartHint }}</span>
+          <button class="_button" :class="$style.loopbackBtn" @click="restartPlugin">
+            <i class="ti ti-refresh" />
+            {{ i18n.ts._pluginsContent.loopbackRestart }}
+          </button>
+        </div>
+        <div
+          v-for="port in loopbackStatus.declared"
+          :key="port"
+          :class="$style.loopbackRow"
+        >
+          <i class="ti ti-plug" />
+          <span :class="$style.loopbackPort">{{ i18n.tsx._pluginsContent.loopbackPort({ port: String(port) }) }}</span>
+          <span :class="[$style.loopbackState, { [$style.loopbackStateOn]: loopbackState(port) === 'granted' }]">
+            {{
+              loopbackState(port) === 'granted'
+                ? i18n.ts._pluginsContent.loopbackGranted
+                : loopbackState(port) === 'stale'
+                  ? i18n.ts._pluginsContent.loopbackStale
+                  : i18n.ts._pluginsContent.loopbackNotGranted
+            }}
+          </span>
+          <button
+            v-if="loopbackState(port) === 'granted'"
+            class="_button"
+            :class="$style.loopbackBtn"
+            @click="revokeLoopback(port)"
+          >
+            {{ i18n.ts._pluginsContent.loopbackRevoke }}
+          </button>
+          <button
+            v-else
+            class="_button"
+            :class="[$style.loopbackBtn, $style.loopbackBtnPrimary]"
+            @click="grantLoopback(port)"
+          >
+            {{ i18n.ts._pluginsContent.loopbackAllow }}
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- Code tab -->
@@ -696,6 +812,70 @@ async function importPlugin() {
   color: var(--nd-fg);
   opacity: 0.45;
   margin-top: 2px;
+}
+
+// --- 手元のポートへの接続 (#1293) ---
+.loopbackSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--nd-divider);
+}
+
+.loopbackRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--nd-font-md);
+}
+
+.loopbackPort {
+  flex: 1;
+  min-width: 0;
+}
+
+.loopbackState {
+  font-size: var(--nd-font-sm);
+  opacity: 0.6;
+}
+
+.loopbackStateOn {
+  color: var(--nd-accentText);
+  opacity: 1;
+}
+
+.loopbackStale {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--nd-font-sm);
+  color: var(--nd-warn);
+}
+
+.loopbackBtn {
+  @include nd-interactive;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--nd-radius-sm);
+  border: 1px solid var(--nd-divider);
+  font-size: var(--nd-font-sm);
+
+  &:hover {
+    background: var(--nd-buttonHoverBg);
+  }
+}
+
+.loopbackBtnPrimary {
+  background: var(--nd-accent);
+  color: var(--nd-fgOnAccent);
+  border-color: transparent;
+
+  &:hover {
+    background: var(--nd-accentDarken);
+  }
 }
 
 // --- Config tab ---

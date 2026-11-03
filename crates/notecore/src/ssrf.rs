@@ -97,6 +97,31 @@ pub fn check_port_safe(port: Option<u16>) -> Result<(), String> {
 /// (`pnpm tauri:dev` の Vite) を literal で並べる
 pub const SELF_PORTS: &[u16] = &[19820, 19821, 5173];
 
+/// 同意があっても繋がない、この端末の中の危険なサービス (#1293): Docker API
+/// (2375 / 2376)、Chrome DevTools Protocol (9222)、Node inspector (9229)。
+/// いずれも認証無しで任意のコード実行に届く
+pub const DANGEROUS_LOCAL_PORTS: &[u16] = &[2375, 2376, 9222, 9229];
+
+/// プラグインの loopback 同意 (#1293) で「宣言しても同意しても通さない」ポート:
+/// 自アプリ ([`SELF_PORTS`]) / ブラウザが繋がないポート ([`check_port_safe`]) /
+/// 危険なローカルサービス ([`DANGEROUS_LOCAL_PORTS`])。宣言の正規化と fetch の
+/// 両方がこれで捨てる
+pub fn is_always_denied_loopback_port(port: u16) -> bool {
+    SELF_PORTS.contains(&port) || BAD_PORTS.contains(&port) || DANGEROUS_LOCAL_PORTS.contains(&port)
+}
+
+/// URL の host が loopback の 3 表記 (`localhost` / `127.0.0.1` / `[::1]`) に
+/// 完全一致するなら、そのポート (既定ポートなら scheme の既定) を返す (#1293)。
+/// `localhost.` / `0.0.0.0` / `127.0.0.2` / IPv4 射影表記 / `*.nip.io` は None
+/// (それらは外向きの宛先として [`validate_external_url`] が別に拒む)
+pub fn loopback_port(url: &reqwest::Url) -> Option<u16> {
+    let host = url.host_str()?.to_ascii_lowercase();
+    if !matches!(host.as_str(), "localhost" | "127.0.0.1" | "[::1]") {
+        return None;
+    }
+    url.port_or_known_default()
+}
+
 /// URL がこの端末の中 (loopback) を指すなら、正規化した URL を返す (#880 / #1293 共用)。
 ///
 /// - 受ける表記は `localhost` / `127.0.0.1` / `[::1]` の 3 つだけ。`localhost` は名前解決
@@ -621,5 +646,38 @@ mod loopback_tests {
             assert!(err.contains(&port.to_string()), "{err}");
         }
         assert!(normalize_loopback_url("http://127.0.0.1:25").is_err());
+    }
+
+    #[test]
+    fn loopback_port_accepts_only_the_three_spellings() {
+        let p = |u: &str| loopback_port(&reqwest::Url::parse(u).unwrap());
+        assert_eq!(p("http://localhost:8080/x"), Some(8080));
+        assert_eq!(p("http://LOCALHOST:8080/x"), Some(8080));
+        assert_eq!(p("http://127.0.0.1:3000/"), Some(3000));
+        assert_eq!(p("http://[::1]:3000/"), Some(3000));
+        // 既定ポートは scheme から
+        assert_eq!(p("http://localhost/"), Some(80));
+        assert_eq!(p("https://127.0.0.1/"), Some(443));
+        for other in [
+            "http://localhost./",
+            "http://0.0.0.0:80/",
+            "http://[::]:80/",
+            "http://127.0.0.2:80/",
+            "http://[::ffff:127.0.0.1]:80/",
+            "http://127.0.0.1.nip.io:80/",
+            "https://example.com/",
+        ] {
+            assert_eq!(p(other), None, "{other}");
+        }
+    }
+
+    #[test]
+    fn always_denied_loopback_ports_cover_self_bad_and_dangerous() {
+        for port in [19820u16, 19821, 5173, 25, 22, 2375, 2376, 9222, 9229] {
+            assert!(is_always_denied_loopback_port(port), "{port}");
+        }
+        for port in [8080u16, 3000, 11434, 1234] {
+            assert!(!is_always_denied_loopback_port(port), "{port}");
+        }
     }
 }

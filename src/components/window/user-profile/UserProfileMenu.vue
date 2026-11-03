@@ -615,7 +615,7 @@ async function addToAntenna(antenna: Antenna) {
           v-for="action in userActions"
           :key="action.pluginInstallId + action.title"
           class="_popupItem"
-          @click="withPluginAccountContext(action.pluginInstallId, accountId, () => action.handler(user)); closeUserMenu()"
+          @click="withPluginAccountContext(action.pluginInstallId, accountId, () => action.handler(user), 'ui'); closeUserMenu()"
         >
           <i class="ti ti-plug" />
           {{ action.title }}

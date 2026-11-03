@@ -116,6 +116,12 @@ export interface CapabilityContext {
    * tainted にする
    */
   markTainted?: () => void
+  /**
+   * principal が plugin のとき、動かしている本文の hash (#1293)。起動時に Rust が
+   * 計算したものを dispatcher が写し、`exec: core` の実行要求に添える (loopback
+   * 同意の「動かしている本文 = ディスクの本文」の検査)
+   */
+  pluginBodyHash?: string
 }
 
 /** capability / Command が属する分類 (パレットのグループと AI 向けの一覧で共用) */

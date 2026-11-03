@@ -54,6 +54,8 @@ const ALLOWED: Record<string, string> = {
   'src/services/boundedCache.ts:registry':
     'lifecycle: WeakRef 保持 — 参照切れは登録時と一覧読み取り時に掃除 (#977 観測レジストリ)',
   'src/utils/dedup.ts:inflight': 'lifecycle: finally で削除',
+  'src/capabilities/loopbackGate.ts:inflight':
+    'lifecycle: 同意ダイアログが閉じたら finally で削除 (プラグイン × ポートごとに同時 1 枚、#1293)',
   'src/services/userDetailCache.ts:pending':
     'lifecycle: users/show の完了 (finally) で削除 (#1212)',
   'src/composables/aiTurnExecutions.ts:controllers':

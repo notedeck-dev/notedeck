@@ -2298,6 +2298,26 @@ export interface Locale {
     readonly "summary": string
   }
   readonly "_pluginsContent": {
+    /** 手元のポートへの接続 */
+    readonly "loopbackTitle": string
+    /** このプラグインはヘッダーの loopback で、この端末の中で動くサービスへの接続を求めています。許可すると、そのポートへ任意の要求を送れるようになります (要求ごとの確認は従来どおり)。本文が変わると許可は無効になります。 */
+    readonly "loopbackHint": string
+    /** 手元のポート {port} に接続 */
+    readonly "loopbackPort": ParameterizedString<'port'>
+    /** 許可済み */
+    readonly "loopbackGranted": string
+    /** 未許可 */
+    readonly "loopbackNotGranted": string
+    /** 本文が変わったため再許可が必要 */
+    readonly "loopbackStale": string
+    /** 許可 */
+    readonly "loopbackAllow": string
+    /** 取り消す */
+    readonly "loopbackRevoke": string
+    /** プラグインを再起動 */
+    readonly "loopbackRestart": string
+    /** 動作中の本文が保存されているものと違います。再起動すると新しい本文で動き、許可の判定もそれに合わせます。 */
+    readonly "loopbackRestartHint": string
     /** 有効 */
     readonly "enabled": string
     /** AiScript プラグインコードを貼り付けてインストール */
@@ -2928,6 +2948,16 @@ export interface Locale {
     readonly "jsonParseError": string
   }
   readonly "_permissionsContent": {
+    /** 手元のポートへの接続 */
+    readonly "loopbackTitle": string
+    /** プラグイン単位で許可した、この端末の中のポートへの接続。取り消すと次の使用時にまた聞かれます。本文が変わった許可は次の使用時に聞き直します。 */
+    readonly "loopbackHint": string
+    /** 有効 */
+    readonly "loopbackActive": string
+    /** 本文が変わったため再許可が必要 */
+    readonly "loopbackStale": string
+    /** ポート {port} */
+    readonly "loopbackPort": ParameterizedString<'port'>
     /** 開示された接続がまだありません — */
     readonly "noExposedConnections": string
     /** 接続一覧を開く */
@@ -4257,6 +4287,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "controlPanel": string
   }
   readonly "_pluginCard": {
+    /** 手元のポートへの接続を拒否しました ({count} 回): {reason}。クリックでプラグイン詳細を開く */
+    readonly "loopbackDenied_plural": PluralString<'count' | 'reason'>
     /** 非対応 */
     readonly "incompatible": string
     /** 権限がないため拒否されました: {target} (要求: {keys} / {count} 回)。クリックでプラグイン権限を開く */
@@ -4871,6 +4903,22 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "customGranted": ParameterizedString<'granted' | 'total'>
   }
   readonly "_pluginDenials": {
+    /** 「{name}」: 手元のポートへの接続を拒否しました — {reason} */
+    readonly "loopbackDenied": ParameterizedString<'name' | 'reason'>
+    readonly "_loopbackReason": {
+      /** AI や別のプラグインからの呼び出しでは手元のポートに接続できません */
+      readonly "chain": string
+      /** ウィジェット / Play / ページは手元のポートに接続できません */
+      readonly "notEligible": string
+      /** NoteDeck 自身のポートか、繋いではいけないポートです */
+      readonly "selfPort": string
+      /** ヘッダーの loopback にポートの宣言がありません */
+      readonly "undeclared": string
+      /** 動作中の本文が古いので、プラグインを再起動してください */
+      readonly "stale": string
+      /** まだ許可されていません (プラグイン詳細の設定から許可できます) */
+      readonly "notGranted": string
+    }
     /** 、 */
     readonly "separator": string
     /** プラグイン */
@@ -5416,6 +5464,18 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "cancel": string
   }
   readonly "_dispatcher": {
+    /** 「{name}」が手元のポート {port} (127.0.0.1) に接続しようとしています */
+    readonly "loopbackConsentTitle": ParameterizedString<'name' | 'port'>
+    /** 作者: {author} / 配布元: {origin} / ID: {id} */
+    readonly "loopbackConsentOrigin": ParameterizedString<'author' | 'id' | 'origin'>
+    /** ローカル */
+    readonly "loopbackConsentLocal": string
+    /** 不明 */
+    readonly "loopbackConsentUnknownAuthor": string
+    /** 許可すると、このプラグインはこのポートへ任意の method / path / header / body を送れるようになります。このプラグインは外部とも通信できます。 */
+    readonly "loopbackConsentWarning": string
+    /** 接続を許可 */
+    readonly "loopbackConsentOk": string
     /** {actor}が{label}カラムを追加しました */
     readonly "columnAdded": ParameterizedString<'actor' | 'label'>
     /** {actor}が{label}カラムをサイドバーに開きました */
@@ -6021,6 +6081,18 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "in1Week": string
   }
   readonly "_native": {
+    readonly "loopback": {
+      /** ウィジェット / Play / ページは手元のポート ({port}) に接続できません。接続できるのはプラグインだけです */
+      readonly "notEligible": ParameterizedString<'port'>
+      /** ポート {port} は NoteDeck 自身のものか、繋いではいけないポートです。宣言や同意に関係なく接続できません */
+      readonly "selfPort": ParameterizedString<'port'>
+      /** このプラグインはヘッダーの loopback にポート {port} を宣言していません */
+      readonly "undeclared": ParameterizedString<'port'>
+      /** 動作中のプラグインの本文が保存されているものと違います。プラグインを再起動してください (ポート {port}) */
+      readonly "stale": ParameterizedString<'port'>
+      /** ポート {port} への接続はまだ許可されていません。プラグイン詳細の設定から許可できます */
+      readonly "notGranted": ParameterizedString<'port'>
+    }
     readonly "acp": {
       readonly "permission": {
         /** {harness} が {tool} を実行しようとしています */

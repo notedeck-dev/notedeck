@@ -19,6 +19,7 @@ import type {
   PluginConfigDef,
   PluginItem,
 } from '@/services/distributableCodecs/pluginCodec'
+import { normalizeLoopbackPorts } from '@/services/loopbackPorts'
 import { accountScopeKey, useAccountsStore } from '@/stores/accounts'
 import {
   type AiScriptRunLogger,
@@ -27,6 +28,7 @@ import {
 import { usePluginsStore } from '@/stores/plugins'
 import { useToast } from '@/stores/toast'
 import { readSafeMode } from '@/utils/safeMode'
+import { commands, unwrap } from '@/utils/tauriInvoke'
 import { openSafeUrl } from '@/utils/url'
 import { useRepresentative } from '@/windows/roles'
 import { cleanupNoteDeckEnv, type NoteDeckEnvContext } from './notedeck-api'
@@ -44,6 +46,12 @@ export interface ParsedPluginMeta {
   description?: string
   permissions?: string[]
   config?: Record<string, PluginConfigDef>
+  /**
+   * 手元のポートの宣言 (`loopback: [8080, …]`、#1293)。正規化済み
+   * (`normalizeLoopbackPorts`)。宣言が無い / 正規化で空なら undefined。
+   * 判定に使うのは Rust (実行時にソースを解析する) で、ここは表示と検査用
+   */
+  loopback?: number[]
 }
 
 /**
@@ -92,6 +100,10 @@ export function parsePluginMeta(code: string): ParsedPluginMeta | null {
     }
     if (obj.config && typeof obj.config === 'object') {
       meta.config = obj.config as Record<string, PluginConfigDef>
+    }
+    if (Array.isArray(obj.loopback)) {
+      const ports = normalizeLoopbackPorts(obj.loopback)
+      if (ports.length > 0) meta.loopback = ports
     }
     return meta
   } catch {
@@ -183,6 +195,10 @@ const pluginAccountContext = new Map<string, PluginRunContext>()
 interface PluginRunContext {
   accountId: string | null
   lastError: string | null
+  /** 動かしている本文の hash (#1293)。Rust が計算する。取れなければ null */
+  bodyHash: string | null
+  /** 今走っている実行の起点 (#1293)。handler の外では 'other' */
+  origin: 'ui' | 'other'
 }
 const pluginNdContexts = new Map<string, NoteDeckEnvContext>()
 
@@ -477,6 +493,23 @@ export function applyNotePostInterruptors<T>(
 // Launch / Abort
 // ---------------------------------------------------------------------------
 
+/**
+ * 動かしている本文の hash (#1293)。TS は計算せず Rust に聞く (同意の記録と同じ
+ * 算法)。取れなければ null = loopback 宛の要求は「本文が古い」として拒まれる
+ */
+async function bodyHashOf(content: string): Promise<string | null> {
+  try {
+    return unwrap(await commands.pluginBodyHash(content))
+  } catch {
+    return null
+  }
+}
+
+/** 動いているプラグインの本文の hash。動いていなければ null (プラグイン詳細が見る) */
+export function runningPluginBodyHash(installId: string): string | null {
+  return pluginAccountContext.get(installId)?.bodyHash ?? null
+}
+
 // 実行ログは useAiScriptLogsStore に集約する (#710)。実行中の書き込み口を
 // installId ごとに保持し、abort 時の system イベント記録に使う。
 const pluginRunLoggers = new Map<string, AiScriptRunLogger>()
@@ -501,7 +534,12 @@ export async function launchPlugin(plugin: PluginItem): Promise<void> {
   )
   pluginRunLoggers.set(plugin.id, runLog)
 
-  const ctx: PluginRunContext = { accountId: null, lastError: null }
+  const ctx: PluginRunContext = {
+    accountId: null,
+    lastError: null,
+    bodyHash: await bodyHashOf(plugin.content),
+    origin: 'other',
+  }
   pluginAccountContext.set(plugin.id, ctx)
   // 起動時の top-level の実行中か (uiAllowed が見る)
   let inTopLevel = true
@@ -545,8 +583,10 @@ export async function launchPlugin(plugin: PluginItem): Promise<void> {
     accountId: () => ctx.accountId,
     // Nd:on / パレット / capability から入る実行も同じ直列化キューに乗せ、渡された
     // アカウント (無ければ null) でだけ走らせる (#1306)
-    runWithAccount: (accountId, fn) =>
-      withPluginAccountContext(plugin.id, accountId, fn),
+    runWithAccount: (accountId, fn, origin) =>
+      withPluginAccountContext(plugin.id, accountId, fn, origin),
+    getBodyHash: () => ctx.bodyHash,
+    getOrigin: () => ctx.origin,
     storagePrefix: `plugin:${plugin.id}`,
     globals: { LOCALE: i18n.lang },
     // onToast 未指定だと Mk:toast が無言の no-op になり、プラグインからの
@@ -690,15 +730,18 @@ export async function withPluginAccountContext<T>(
   installId: string,
   accountId: string | null,
   fn: () => T | Promise<T>,
+  origin: 'ui' | 'other' = 'other',
 ): Promise<T> {
   const run = async (): Promise<T> => {
     const ctx = pluginAccountContext.get(installId)
     if (!ctx) return await fn()
     ctx.accountId = accountId
+    ctx.origin = origin
     try {
       return await fn()
     } finally {
       ctx.accountId = null
+      ctx.origin = 'other'
     }
   }
   const prev = pluginContextQueues.get(installId)

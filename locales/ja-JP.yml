@@ -1268,6 +1268,16 @@ _playEditContent:
   summary: "概要"
 
 _pluginsContent:
+  loopbackTitle: "手元のポートへの接続"
+  loopbackHint: "このプラグインはヘッダーの loopback で、この端末の中で動くサービスへの接続を求めています。許可すると、そのポートへ任意の要求を送れるようになります (要求ごとの確認は従来どおり)。本文が変わると許可は無効になります。"
+  loopbackPort: "手元のポート {port} に接続"
+  loopbackGranted: "許可済み"
+  loopbackNotGranted: "未許可"
+  loopbackStale: "本文が変わったため再許可が必要"
+  loopbackAllow: "許可"
+  loopbackRevoke: "取り消す"
+  loopbackRestart: "プラグインを再起動"
+  loopbackRestartHint: "動作中の本文が保存されているものと違います。再起動すると新しい本文で動き、許可の判定もそれに合わせます。"
   enabled: "有効"
   installHint: "AiScript プラグインコードを貼り付けてインストール"
   codeHint: "プラグインの AiScript ソースコード — 編集後「保存して再起動」で反映"
@@ -1610,6 +1620,11 @@ _performanceEditorContent:
   jsonParseError: "JSON 解析エラー"
 
 _permissionsContent:
+  loopbackTitle: "手元のポートへの接続"
+  loopbackHint: "プラグイン単位で許可した、この端末の中のポートへの接続。取り消すと次の使用時にまた聞かれます。本文が変わった許可は次の使用時に聞き直します。"
+  loopbackActive: "有効"
+  loopbackStale: "本文が変わったため再許可が必要"
+  loopbackPort: "ポート {port}"
   noExposedConnections: "開示された接続がまだありません —"
   openConnections: "接続一覧を開く"
   confirmSkipTitle: "確認なしで実行できる操作"
@@ -2355,6 +2370,8 @@ _navAccountMenu:
   controlPanel: "コントロールパネル"
 
 _pluginCard:
+  loopbackDenied_plural:
+    other: "手元のポートへの接続を拒否しました ({count} 回): {reason}。クリックでプラグイン詳細を開く"
   incompatible: "非対応"
   denied_plural:
     other: "権限がないため拒否されました: {target} (要求: {keys} / {count} 回)。クリックでプラグイン権限を開く"
@@ -2671,6 +2688,14 @@ _labels:
   customGranted: "カスタム — 許可 {granted} / {total}"
 
 _pluginDenials:
+  loopbackDenied: "「{name}」: 手元のポートへの接続を拒否しました — {reason}"
+  _loopbackReason:
+    chain: "AI や別のプラグインからの呼び出しでは手元のポートに接続できません"
+    notEligible: "ウィジェット / Play / ページは手元のポートに接続できません"
+    selfPort: "NoteDeck 自身のポートか、繋いではいけないポートです"
+    undeclared: "ヘッダーの loopback にポートの宣言がありません"
+    stale: "動作中の本文が古いので、プラグインを再起動してください"
+    notGranted: "まだ許可されていません (プラグイン詳細の設定から許可できます)"
   separator: "、"
   defaultName: "プラグイン"
   denied: "「{name}」: 権限「{permissions}」が未許可です"
@@ -2993,6 +3018,12 @@ _windowsCapability:
   cancel: "キャンセル"
 
 _dispatcher:
+  loopbackConsentTitle: "「{name}」が手元のポート {port} (127.0.0.1) に接続しようとしています"
+  loopbackConsentOrigin: "作者: {author} / 配布元: {origin} / ID: {id}"
+  loopbackConsentLocal: "ローカル"
+  loopbackConsentUnknownAuthor: "不明"
+  loopbackConsentWarning: "許可すると、このプラグインはこのポートへ任意の method / path / header / body を送れるようになります。このプラグインは外部とも通信できます。"
+  loopbackConsentOk: "接続を許可"
   columnAdded: "{actor}が{label}カラムを追加しました"
   columnOpenedInSidebar: "{actor}が{label}カラムをサイドバーに開きました"
   columnRemoved: "{actor}がカラムを削除しました"
@@ -3336,6 +3367,12 @@ _scheduleFormat:
 
 # Rust (notecore / src-tauri) が描く文言。この節は Rust に埋め込まれる (#135 段 4)
 _native:
+  loopback:
+    notEligible: "ウィジェット / Play / ページは手元のポート ({port}) に接続できません。接続できるのはプラグインだけです"
+    selfPort: "ポート {port} は NoteDeck 自身のものか、繋いではいけないポートです。宣言や同意に関係なく接続できません"
+    undeclared: "このプラグインはヘッダーの loopback にポート {port} を宣言していません"
+    stale: "動作中のプラグインの本文が保存されているものと違います。プラグインを再起動してください (ポート {port})"
+    notGranted: "ポート {port} への接続はまだ許可されていません。プラグイン詳細の設定から許可できます"
   acp:
     permission:
       title: "{harness} が {tool} を実行しようとしています"

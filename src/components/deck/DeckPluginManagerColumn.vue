@@ -272,7 +272,7 @@ function openPermissionSettings(): void {
         @toggle="toggleActive(plugin)"
         @detach="detachFromScope(plugin)"
         @settings="openPluginDetail(plugin.id)"
-        @denied-click="openPermissionSettings()"
+        @denied-click="getPluginDenial(plugin.id)?.reason ? openPluginDetail(plugin.id) : openPermissionSettings()"
       />
       <PluginCard
         v-else

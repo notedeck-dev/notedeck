@@ -129,6 +129,7 @@ export function implementCore(
                 pluginIdOf(ctx),
                 tokenIdOf(ctx),
                 tokenNameOf(ctx),
+                ctx?.pluginBodyHash ?? null,
               ),
             ) as ConfirmOptions | null) ?? null,
         }
@@ -144,6 +145,7 @@ export function implementCore(
           pluginIdOf(ctx),
           tokenIdOf(ctx),
           tokenNameOf(ctx),
+          ctx?.pluginBodyHash ?? null,
         ),
       )
       // notecore が「ラベル付き (tainted) の内容を返した」と申告したら呼び出し元へ

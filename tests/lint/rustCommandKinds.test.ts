@@ -72,6 +72,14 @@ const TABLE_AUTHZ = [
   'logout_account',
   // ルート設定ファイル (permissions.json5 を含む) の書き換え (#712)
   'write_root_settings_file',
+  // プラグインの loopback 同意の記録 (#1293)。status / list / classify / hash は読むだけだが、
+  // 同意の記録と同じ面なので揃えて authz にする
+  'loopback_consent_status',
+  'loopback_consent_list',
+  'loopback_consent_grant',
+  'loopback_consent_revoke',
+  'http_loopback_classify',
+  'plugin_body_hash',
 ]
 
 /** `#[tauri::command]` を文字列やマクロ内に持つだけで、実体のコマンドは持たないファイル */
