@@ -1,11 +1,13 @@
 <div align="center">
 <a href="https://notedeck.io">
-	<img src="./site/public/icon-512.png" alt="NoteDeck logo" style="border-radius:50%" width="200"/>
+	<img src="./site/public/icon-512.png" alt="NoteDeck logo" width="120"/>
 </a>
 
-**🌎 **NoteDeck** は、あなたの Misskey が棲む、デッキ。オープンソースで、ずっと無料！ 🚀**
+# NoteDeck
 
-[詳しく見る](https://notedeck.io)
+**The deck your Misskey lives in. Open source, free forever.**
+
+[Learn more](https://notedeck.io)
 
 ---
 
@@ -32,19 +34,19 @@
 
 ## Thanks
 
-<a href="https://misskey-hub.net/"><img src="https://img.shields.io/badge/Misskey-86b300?style=for-the-badge&logo=misskey&logoColor=fff" height="30" alt="Misskey" /></a>
+<a href="https://misskey-hub.net/"><img src="https://raw.githubusercontent.com/misskey-dev/misskey/develop/assets/title_float.svg" height="30" alt="Misskey" /></a>
 
-Thanks to [Misskey](https://misskey-hub.net/) and its community for the platform NoteDeck lives on.
+Thanks to [Misskey](https://misskey-hub.net/) and its community for the platform NoteDeck is built for.
 
-<a href="https://tauri.app/"><img src="https://img.shields.io/badge/Tauri-ffc131?style=for-the-badge&logo=tauri&logoColor=000" height="30" alt="Tauri" /></a>
+<a href="https://tauri.app/"><img src="https://raw.githubusercontent.com/tauri-apps/tauri/dev/.github/icon.png" height="30" alt="Tauri" /></a>
 
-Thanks to [Tauri](https://tauri.app/) for providing the app framework that lets NoteDeck run on every platform from one codebase.
+Thanks to [Tauri](https://tauri.app/) for providing the app framework that lets NoteDeck ship to every platform from one codebase.
 
 ---
 
 <div align="center">
-	
-⭐ で応援してください！
+
+Support us with a ⭐ !
 
 [![Star History Chart](https://api.star-history.com/svg?repos=notedeck-dev/notedeck&type=Date)](https://star-history.com/#notedeck-dev/notedeck&Date)
 
