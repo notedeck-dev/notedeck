@@ -640,7 +640,7 @@ function handleReset() {
               <div v-for="t in externalTokens" :key="t.id" :class="$style.tokenRow">
                 <i class="ti ti-key" :class="$style.tokenIcon" />
                 <span :class="$style.tokenName">{{ t.name }}</span>
-                <span :class="$style.tokenScopeChip" :title="i18n.ts._permissionsContent.tokenScope">{{ scopeChipLabel(t.scope) }}</span>
+                <span :class="$style.tokenScopeChip" :title="i18n.ts._permissionsContent.tokenScopeHint">{{ scopeChipLabel(t.scope) }}</span>
                 <span :class="$style.tokenDate" :title="formatTokenDate(t)">{{ tokenLastUsed(t) }}</span>
                 <button
                   class="_button"

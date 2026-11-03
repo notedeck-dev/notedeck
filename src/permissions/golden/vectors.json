@@ -700,6 +700,28 @@
         "themes.read",
         "widgets.read"
       ]
+    },
+    {
+      "name": "external-token-scope-not-an-object-is-readonly",
+      "principal": "external",
+      "file": "{ principals: { external: { preset: 'full' } } }",
+      "tokenScope": "'full'",
+      "granted": [
+        "account.read",
+        "ai.sessions.read",
+        "clips.read",
+        "deck.read",
+        "drafts.read",
+        "drive.read",
+        "logs.read",
+        "memos.read",
+        "notes.read",
+        "plugins.read",
+        "queries.read",
+        "skills.read",
+        "themes.read",
+        "widgets.read"
+      ]
     }
   ]
 }

@@ -190,8 +190,14 @@ export function normalizeProfile(
  * 同名の読み方と golden で一致検査する
  */
 export function parseTokenScope(raw: unknown): PermissionsConfig | null {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return null
+  if (raw === null || raw === undefined) return null
+  // 形になっていない scope は「scope 無し (絞らない)」ではなく readonly に倒す
+  // (Rust の normalize_profile と同じ: preset が読めなければ readonly)
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return normalizeProfile(
+      { preset: 'readonly', custom: {} as never },
+      'external',
+    )
   }
   return normalizeProfile(raw as PermissionsConfig, 'external')
 }

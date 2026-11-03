@@ -186,8 +186,10 @@ impl ApiTokenStore {
         entries.retain(|e| e.id != id);
         let removed = entries.len() != before;
         if removed {
-            self.save(&entries)?;
+            // 通知は保存の成否に関わらず出す: メモリからは消えているので、開いている
+            // ストリームも同時に切れないと「verify は拒むのに流れ続ける」になる
             self.revoked.send_modify(|gen| *gen += 1);
+            self.save(&entries)?;
         }
         Ok(removed)
     }
@@ -236,15 +238,12 @@ impl ApiTokenStore {
         }
     }
 
+    /// 一時ファイル + rename の原子的な書込 (settings_store と同じ)。最終使用の記録で
+    /// 書く回数が増えたので、途中で落ちて空のトークン一覧から始まることが無いように
     fn save(&self, entries: &[ApiTokenEntry]) -> std::io::Result<()> {
         let json = serde_json::to_string_pretty(entries).expect("serialize api tokens");
-        std::fs::write(&self.path, json)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&self.path, std::fs::Permissions::from_mode(0o600))?;
-        }
-        Ok(())
+        crate::settings_store::atomic_write(&self.path, &json, Some(0o600))
+            .map_err(|e| std::io::Error::other(e.to_string()))
     }
 }
 
@@ -378,6 +377,29 @@ mod tests {
             .unwrap();
         // 既に無いトークンは即時に解決する
         store.until_revoked("missing").await;
+    }
+
+    /// 保存に失敗しても (メモリからは消えているので) 失効の通知は出す
+    #[tokio::test]
+    async fn revocation_is_notified_even_if_saving_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = std::sync::Arc::new(ApiTokenStore::load(dir.path()));
+        let (a, raw) = store.create("a", ApiTokenKind::External, None).unwrap();
+        let waiter = {
+            let store = store.clone();
+            let id = a.id.clone();
+            tokio::spawn(async move { store.until_revoked(&id).await })
+        };
+        tokio::task::yield_now().await;
+        // 保存先をディレクトリにして書けなくする
+        std::fs::remove_file(dir.path().join(TOKENS_FILE)).unwrap();
+        std::fs::create_dir(dir.path().join(TOKENS_FILE)).unwrap();
+        assert!(store.revoke(&a.id).is_err());
+        assert_eq!(store.verify(&raw), None);
+        tokio::time::timeout(std::time::Duration::from_secs(2), waiter)
+            .await
+            .expect("stream waiter wakes up")
+            .unwrap();
     }
 
     #[test]

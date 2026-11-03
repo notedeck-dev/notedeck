@@ -330,10 +330,7 @@ pub fn revert(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let next = staged::take_or("memos.revert", &key, &cur.data.text, || body.clone())?;
     let mut data = cur.data.clone();
     data.text = next;
-    let mut by = json!({ "kind": ctx.principal });
-    if let Some(pid) = ctx.plugin_id.as_deref().filter(|s| !s.is_empty()) {
-        by["pluginId"] = Value::String(pid.to_string());
-    }
+    let by = ctx.attribution_by();
     let attribution = Attribution {
         by: Some(by),
         reason: pick_string(p, "reason"),

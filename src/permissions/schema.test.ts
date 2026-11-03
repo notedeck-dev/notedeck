@@ -230,9 +230,11 @@ describe('parseTokenScope — トークンの scope の正規化 (#1292)', () =>
     expect(custom?.custom['deck.read']).toBe(false)
   })
 
-  it('object でない / 語彙外の preset は readonly に倒す', () => {
+  it('null / undefined は scope 無し、object でない / 語彙外の preset は readonly に倒す (Rust と同じ)', () => {
     expect(parseTokenScope(null)).toBeNull()
-    expect(parseTokenScope('full')).toBeNull()
+    expect(parseTokenScope(undefined)).toBeNull()
+    expect(parseTokenScope('full')?.preset).toBe('readonly')
+    expect(parseTokenScope(['full'])?.preset).toBe('readonly')
     expect(parseTokenScope({ preset: 'admin' })?.preset).toBe('readonly')
   })
 })
