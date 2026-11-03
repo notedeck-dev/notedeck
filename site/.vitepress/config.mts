@@ -41,6 +41,7 @@ const JA_SIDEBAR: DefaultTheme.Sidebar = {
         { text: 'AI と使う', link: '/docs/guide/ai' },
         { text: '環境を育てる', link: '/docs/guide/grow' },
         { text: 'リンクで開く', link: '/docs/guide/links' },
+        { text: '他のアプリから使う', link: '/docs/guide/integrations' },
         { text: '通知を受け取る', link: '/docs/guide/notifications' },
       ],
     },
@@ -109,6 +110,7 @@ const EN_SIDEBAR: DefaultTheme.Sidebar = {
         { text: 'Using AI', link: '/en/docs/guide/ai' },
         { text: 'Growing your environment', link: '/en/docs/guide/grow' },
         { text: 'Opening from links', link: '/en/docs/guide/links' },
+        { text: 'Using from other apps', link: '/en/docs/guide/integrations' },
         { text: 'Receiving notifications', link: '/en/docs/guide/notifications' },
       ],
     },
@@ -173,6 +175,7 @@ const ZH_SIDEBAR: DefaultTheme.Sidebar = {
         { text: '与 AI 一起使用', link: '/zh/docs/guide/ai' },
         { text: '培养你的环境', link: '/zh/docs/guide/grow' },
         { text: '通过链接打开', link: '/zh/docs/guide/links' },
+        { text: '从其他应用使用', link: '/zh/docs/guide/integrations' },
       ],
     },
     {
@@ -238,6 +241,7 @@ const KO_SIDEBAR: DefaultTheme.Sidebar = {
         { text: 'AI와 함께 쓰기', link: '/ko/docs/guide/ai' },
         { text: '환경 키우기', link: '/ko/docs/guide/grow' },
         { text: '링크로 열기', link: '/ko/docs/guide/links' },
+        { text: '다른 앱에서 쓰기', link: '/ko/docs/guide/integrations' },
       ],
     },
     {
