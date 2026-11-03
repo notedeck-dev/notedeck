@@ -1450,6 +1450,7 @@ AiScript / AI / プラグインが**任意の外部サービス** (GitHub / Line
 - **SSRF**: HTTP/1.1 only、`path` は baseUrl 相対のみ (絶対 URL / protocol-relative 拒否。baseUrl のパスの下に足し、`..` で外へ出る path は拒否、#1319)、redirect 各 hop で URL/IP/allowedHosts 再検証、DNS resolver は fetch スコープで共有 (rebinding 防御)、IP deny rules (private/loopback/link-local/multicast、`ssrf.rs` を共用)、`no_proxy()`
 - **redaction**: 注入した secret を literal memmem で `<vault-redacted-<nonce>>` に置換 (per-fetch nonce で confuse 攻撃を防ぐ)、`Set-Cookie` / `Authorization` 等の機密ヘッダー drop、レスポンス body は 500 KiB でストリーミング打ち切り
 - **型安全**: secret は `secrecy::SecretString` で扱い、`Connection` (メタデータのみ、secret なし) と分離
+- **ローカル接続 (#880)**: `Connection::local` の接続 (URL が loopback の 3 表記。`upsert_metadata` が `ssrf::normalize_loopback_url` で両向きに検査・正規化し、開示と信頼を空にする) は `vault_fetch` の入口で `LocalConnectionNotFetchable` として拒む (principal を問わない。`apply_exposed` / `apply_trusted*` も拒む)。疎通は `probe_local_connection` (secret 任意、パスは `models_path_for(protocol)` 固定、redirect なし) で、応答の `data[].id` を `VaultTestResult::models` に載せる (インターネットの接続でも `/models` の形なら同じく載せ、AI 設定のモデル候補になる、#1020)
 
 #### AI 統合
 
@@ -1484,7 +1485,7 @@ file lock / rate limit / `vault.manage` 権限 / error 3 値正規化 / latency 
 
 endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` から Rust 側で取得する。フロントは決してキー本体を持たない (詳細は [AI Credentials](#ai-credentials))。
 
-**宛先の検査 (#1315)**: `resolve_connection` はキーを開く前に `baseUrl` を `ssrf::validate_external_url` (scheme / host の一次検査 / bad port) に通し、接続の `allowedHosts` が空でなければ host がその中に居ることを求める (空なら `baseUrl` の host だけ、`Connection::allowed_hosts` の規約)。止めたときは `_native.ai.endpointDenied` (host と理由) / `_native.ai.hostNotAllowed` (host) の文言で返す。ストリーミング client は長寿命なので DNS を pin せず、解決のたびに検証する `ssrf::ValidatingResolver` (メディアプロキシと同じ) と `no_proxy` を載せる。redirect は追わない (下記)。`vault_fetch` との差は「pin か都度検証か」と「redirect を追うか追わないか」だけで、拒む規則は同じ。副作用として loopback / private の宛先 (ローカル LLM) は AI 接続にできない (#880 は接続単位の同意を前提にする)。
+**宛先の検査 (#1315)**: `resolve_connection` はキーを開く前に `baseUrl` を `ssrf::validate_external_url` (scheme / host の一次検査 / bad port) に通し、接続の `allowedHosts` が空でなければ host がその中に居ることを求める (空なら `baseUrl` の host だけ、`Connection::allowed_hosts` の規約)。止めたときは `_native.ai.endpointDenied` (host と理由) / `_native.ai.hostNotAllowed` (host) の文言で返す。ストリーミング client は長寿命なので DNS を pin せず、解決のたびに検証する `ssrf::ValidatingResolver` (メディアプロキシと同じ) と `no_proxy` を載せる。redirect は追わない (下記)。`vault_fetch` との差は「pin か都度検証か」と「redirect を追うか追わないか」だけで、拒む規則は同じ。ローカル接続 (`Connection::local`、#880) だけは `check_local_endpoint` (= `ssrf::normalize_loopback_url` が Some) で通し、許可ホストは見ず、secret 無しも許す (`api_key` は空文字。Anthropic 互換側も空なら `x-api-key` を送らない)。
 
 **会話アフィニティ ID (#1160)**: 「会話ごとに安定した ID」を要求するプロバイダー (OpenCode の `x-opencode-session`。無いと 400 `MissingSessionID`) のために、1 リクエストは「どの会話の一部か」(`AiChatRequest::affinity`、`ai_affinity::ConversationKey`) を持つ。値を決めるのは会話を知っている層で、チャットのターン (round / 透過リトライ / continuation / チェックポイント再開 / タイトル生成を含む) は session ID、HEARTBEAT は接続ごとに固定、1 往復の `ai_chat_send` は呼び出しごとの stream ID。送る値は接続 ID + 鍵から導出した UUID v5 で生の session ID は出ず、フロント / 外部からは指定できない (wire に無い)。**どのヘッダーに載せるかは宛先ホストで決める**: 接続の `baseUrl` のホストが `connection_templates.json5` の `allowedHosts` に一致するテンプレの `affinityHeader` を使う (テンプレ id では引かない。既存の接続・手動追加・同じホストの別 API にもアップデートだけで効く)。AI ストリーミングの HTTP client は **redirect を追わない** (ホストをまたぐ redirect で API キーと会話 ID が持ち越されるため)。3xx はリダイレクト先ホストを含む明示エラー (`_native.ai.redirectNotFollowed`) になる。
 

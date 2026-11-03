@@ -96,7 +96,7 @@ impl VaultFetchResponse {
 /// 通信断の理由を人向けの文にする。reqwest のエラー文は要求 URL を含み
 /// (`... for url (https://host/path?param=...)`)、Query 認証では secret が
 /// URL に注入されているので、落としてから表に出す (`error` は secret を含まない)
-fn transport_error_message(e: reqwest::Error) -> String {
+pub(super) fn transport_error_message(e: reqwest::Error) -> String {
     if e.is_timeout() {
         VaultError::Timeout.to_string()
     } else {
@@ -189,6 +189,11 @@ pub async fn vault_fetch(
         .find(|c| c.id == connection_id)
         .ok_or(VaultError::ConnectionNotFound)?
         .clone();
+    // この端末の中のサービス (#880) は任意パスの fetch に使わせない (踏み台防止)。
+    // 開示 (exposedTo) の判定は WebView 側だけなので、ここで principal を問わず閉じる
+    if connection.local {
+        return Err(VaultError::LocalConnectionNotFetchable);
+    }
 
     // secret を読む。
     let slot = request.slot.as_deref().unwrap_or("primary");
@@ -392,5 +397,43 @@ mod tests {
     fn parse_method_rejects_connect() {
         assert!(parse_method(Some("CONNECT")).is_err());
         assert_eq!(parse_method(None).unwrap(), reqwest::Method::GET);
+    }
+
+    /// この端末の中のサービス (#880) は、secret を読む前に vault_fetch で拒む
+    #[tokio::test]
+    async fn local_connections_are_rejected_before_touching_secrets() {
+        let dir = tempfile::tempdir().unwrap();
+        let c = super::super::connections_service::upsert_metadata(
+            dir.path(),
+            super::super::connections_service::ConnectionUpsert {
+                id: None,
+                name: "ollama".into(),
+                base_url: "http://127.0.0.1:11434/v1".into(),
+                auth_type: super::super::model::AuthType::Bearer,
+                allowed_hosts: vec![],
+                account_scope: None,
+                notes: None,
+                template_id: None,
+                protocol: None,
+                origin: None,
+                external_source: None,
+                local: true,
+            },
+        )
+        .unwrap();
+        let err = vault_fetch(
+            dir.path(),
+            &c.id,
+            VaultFetchRequest {
+                path: "/models".into(),
+                ..Default::default()
+            },
+        )
+        .await
+        .expect_err("local connections are not fetchable");
+        assert!(
+            matches!(err, VaultError::LocalConnectionNotFetchable),
+            "{err}"
+        );
     }
 }

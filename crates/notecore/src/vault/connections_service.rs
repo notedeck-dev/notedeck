@@ -94,6 +94,10 @@ pub struct ConnectionUpsert {
     /// `origin = External` の詳細 (`ai-provider` 等)。
     #[serde(default)]
     pub external_source: Option<String>,
+    /// この端末の中で動くサービスへの接続 (#880)。true なら base_url は loopback の
+    /// 3 表記でポート明示が必須、false なら loopback の URL は拒む (両向きに検査)
+    #[serde(default)]
+    pub local: bool,
 }
 
 /// secret slot の設定状況。
@@ -125,6 +129,10 @@ pub struct VaultTestResult {
     /// 接続が見つからないなど URL を組めなかったときは None
     #[serde(default)]
     pub url: Option<String>,
+    /// 応答から読めたモデル名の候補 (OpenAI / Anthropic 互換の `/models` の `data[].id`、
+    /// #880)。モデル一覧の形でない応答なら None
+    #[serde(default)]
+    pub models: Option<Vec<String>>,
 }
 
 /// 「load → find(id) → mutate → save」の共通形。mutate 後に updated_at を更新する。
@@ -150,7 +158,14 @@ pub fn update_connection<T>(
 
 /// 開示先クラスの切替。開示を外したクラスは trust も意味を失うので同時に外す。
 /// Plugin クラスは個体 trust (`trusted_plugins`) も全消しする (#712 §6.1)。
-pub fn apply_exposed(connection: &mut Connection, class: PrincipalClass, exposed: bool) {
+pub fn apply_exposed(
+    connection: &mut Connection,
+    class: PrincipalClass,
+    exposed: bool,
+) -> VaultResult<()> {
+    if exposed && connection.local {
+        return Err(local_not_exposable());
+    }
     if exposed {
         if !connection.exposed_to.contains(&class) {
             connection.exposed_to.push(class);
@@ -162,10 +177,27 @@ pub fn apply_exposed(connection: &mut Connection, class: PrincipalClass, exposed
             connection.trusted_plugins.clear();
         }
     }
+    Ok(())
+}
+
+/// ローカル接続 (#880) は AI / プラグイン / 外部アプリに開示できない
+fn local_not_exposable() -> VaultError {
+    VaultError::InvalidInput {
+        message:
+            "a local connection (this device) cannot be exposed to AI, plugins or external apps"
+                .to_string(),
+    }
 }
 
 /// クラス単位の trust 切替 (#712 §6.2)。
-pub fn apply_trusted(connection: &mut Connection, class: PrincipalClass, trusted: bool) {
+pub fn apply_trusted(
+    connection: &mut Connection,
+    class: PrincipalClass,
+    trusted: bool,
+) -> VaultResult<()> {
+    if trusted && connection.local {
+        return Err(local_not_exposable());
+    }
     if trusted {
         if !connection.trusted_for.contains(&class) {
             connection.trusted_for.push(class);
@@ -173,6 +205,7 @@ pub fn apply_trusted(connection: &mut Connection, class: PrincipalClass, trusted
     } else {
         connection.trusted_for.retain(|c| *c != class);
     }
+    Ok(())
 }
 
 /// プラグイン個体単位の trust 切替。1 個体の同意が他へ波及しない。
@@ -182,7 +215,10 @@ pub fn apply_trusted_plugin(
     plugin_id: String,
     name: Option<String>,
     trusted: bool,
-) {
+) -> VaultResult<()> {
+    if trusted && connection.local {
+        return Err(local_not_exposable());
+    }
     connection.trusted_plugins.retain(|p| p.id != plugin_id);
     if trusted {
         connection.trusted_plugins.push(TrustedPlugin {
@@ -190,6 +226,7 @@ pub fn apply_trusted_plugin(
             name,
         });
     }
+    Ok(())
 }
 
 // --- 手続き ---
@@ -197,13 +234,34 @@ pub fn apply_trusted_plugin(
 /// メタデータを upsert する。secret は触らない。
 pub fn upsert_metadata(app_dir: &Path, input: ConnectionUpsert) -> VaultResult<Connection> {
     validate_base_url(&input.base_url)?;
+    // loopback の URL ⇔ ローカル接続 を両向きに検査する (#880)。ローカルなら
+    // `localhost` を 127.0.0.1 に正規化して保存し、実行時は IP literal だけになる
+    let loopback = crate::ssrf::normalize_loopback_url(&input.base_url)
+        .map_err(|message| VaultError::InvalidInput { message })?;
+    let base_url = match (input.local, loopback) {
+        (true, Some(normalized)) => normalized,
+        (true, None) => {
+            return Err(VaultError::InvalidInput {
+                message: "a local connection must point at this device \
+                          (localhost / 127.0.0.1 / [::1] with an explicit port)"
+                    .to_string(),
+            })
+        }
+        (false, Some(_)) => {
+            return Err(VaultError::InvalidInput {
+                message: "a loopback URL must be saved as a local connection".to_string(),
+            })
+        }
+        (false, None) => input.base_url,
+    };
 
     let mut file = connections_store::load(app_dir)?;
     connections_store::check_schema_version(&file)?;
 
-    // allowedHosts が空なら baseUrl の host を自動投入する。
-    let allowed_hosts = if input.allowed_hosts.is_empty() {
-        host_of(&input.base_url).into_iter().collect()
+    // allowedHosts が空なら baseUrl の host を自動投入する。ローカル接続の宛先は
+    // base_url の host:port そのものなので、許可ホスト欄は使わず host だけを持つ
+    let allowed_hosts = if input.local || input.allowed_hosts.is_empty() {
+        host_of(&base_url).into_iter().collect()
     } else {
         input.allowed_hosts
     };
@@ -219,7 +277,14 @@ pub fn upsert_metadata(app_dir: &Path, input: ConnectionUpsert) -> VaultResult<C
                 .find(|c| &c.id == id)
                 .ok_or(VaultError::ConnectionNotFound)?;
             existing.name = input.name;
-            existing.base_url = input.base_url;
+            existing.base_url = base_url;
+            existing.local = input.local;
+            if input.local {
+                // ローカル接続は誰にも開示しない (vault.fetch は入口で拒むが、表示も揃える)
+                existing.exposed_to.clear();
+                existing.trusted_for.clear();
+                existing.trusted_plugins.clear();
+            }
             existing.auth_type = input.auth_type;
             existing.allowed_hosts = allowed_hosts;
             existing.account_scope = input.account_scope;
@@ -237,7 +302,7 @@ pub fn upsert_metadata(app_dir: &Path, input: ConnectionUpsert) -> VaultResult<C
             let connection = Connection {
                 id: ulid::Ulid::new().to_string(),
                 name: input.name,
-                base_url: input.base_url,
+                base_url,
                 kind: ConnectionKind::Outbound,
                 auth_type: input.auth_type,
                 allowed_hosts,
@@ -246,6 +311,7 @@ pub fn upsert_metadata(app_dir: &Path, input: ConnectionUpsert) -> VaultResult<C
                 external_source: input.external_source,
                 template_id: input.template_id,
                 protocol: input.protocol,
+                local: input.local,
                 exposed_to: vec![],
                 trusted_for: vec![],
                 trusted_plugins: vec![],
@@ -387,13 +453,20 @@ pub async fn test_connection(
     test_path: Option<String>,
 ) -> VaultResult<VaultTestResult> {
     validate_connection_id(id)?;
+    let connection = connections_store::load(app_dir)?
+        .connections
+        .into_iter()
+        .find(|c| c.id == id)
+        .ok_or(VaultError::ConnectionNotFound)?;
+    // この端末の中のサービス (#880) は vault_fetch を通さない専用の経路で疎通する
+    if connection.local {
+        return probe_local_connection(&connection).await;
+    }
 
     let path = test_path.unwrap_or_else(|| "/".to_string());
     // 実際に叩く URL を結果に添える (#1319)。vault_fetch と同じ結合規則
-    let url = connections_store::load(app_dir)
+    let url = fetch::resolve_url(&connection.base_url, &path)
         .ok()
-        .and_then(|file| file.connections.into_iter().find(|c| c.id == id))
-        .and_then(|c| fetch::resolve_url(&c.base_url, &path).ok())
         .map(|u| u.to_string());
 
     let request = VaultFetchRequest {
@@ -413,20 +486,108 @@ pub async fn test_connection(
             ok: false,
             error: resp.error,
             url,
+            models: None,
         }),
         Ok(resp) => Ok(VaultTestResult {
             status: Some(resp.status),
             ok: (200..400).contains(&resp.status),
             error: None,
             url,
+            // AI プロバイダーの疎通先は `/models` なので、応答がその形ならモデルの候補にする
+            models: if (200..300).contains(&resp.status) {
+                parse_model_ids(&resp.body)
+            } else {
+                None
+            },
         }),
         Err(e) => Ok(VaultTestResult {
             status: None,
             ok: false,
             error: Some(e.to_string()),
             url,
+            models: None,
         }),
     }
+}
+
+/// この端末の中のサービス (ローカル接続、#880) の疎通。`vault_fetch` (secret 必須 /
+/// 外向きの SSRF 検査 / 任意パス) は通さず、protocol から決まるモデル一覧のパスだけを
+/// secret 任意で GET する。redirect は追わない。宛先は保存時に正規化した loopback の
+/// IP literal なので名前解決は起きない
+async fn probe_local_connection(connection: &Connection) -> VaultResult<VaultTestResult> {
+    let base = crate::ssrf::normalize_loopback_url(&connection.base_url)
+        .map_err(|message| VaultError::InvalidInput { message })?
+        .ok_or_else(|| VaultError::InvalidInput {
+            message: "a local connection must point at this device".to_string(),
+        })?;
+    let url = format!(
+        "{}{}",
+        base.trim_end_matches('/'),
+        models_path_for(connection.protocol)
+    );
+    let client = reqwest::Client::builder()
+        .http1_only()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .timeout(std::time::Duration::from_secs(10))
+        .pool_max_idle_per_host(0)
+        .build()
+        .map_err(|e| VaultError::RequestFailed {
+            message: format!("failed to build client: {e}"),
+        })?;
+    let mut req = client.get(&url).header("user-agent", "NoteDeck");
+    // secret があれば従来どおり注入する (Ollama は無視する。認証を有効にしたローカル
+    // サーバーのため)。無ければ付けない = 認証なし
+    if let Ok(Some(secret)) = KeychainBackend.load(&connection.id, "primary") {
+        req = super::auth_inject::inject_auth(req, &connection.auth_type, &secret);
+    }
+    let resp = match req.send().await {
+        Ok(r) => r,
+        Err(e) => {
+            return Ok(VaultTestResult {
+                status: None,
+                ok: false,
+                error: Some(fetch::transport_error_message(e)),
+                url: Some(url),
+                models: None,
+            })
+        }
+    };
+    let status = resp.status().as_u16();
+    let body = resp.text().await.unwrap_or_default();
+    Ok(VaultTestResult {
+        status: Some(status),
+        ok: (200..400).contains(&status),
+        error: None,
+        url: Some(url),
+        models: if (200..300).contains(&status) {
+            parse_model_ids(&body)
+        } else {
+            None
+        },
+    })
+}
+
+/// protocol ごとのモデル一覧のパス (baseUrl の下)。OpenAI 互換の baseUrl は `/v1` を
+/// 含むので `/models`、Anthropic 互換の baseUrl は含まないので `/v1/models`
+pub fn models_path_for(protocol: Option<ConnectionProtocol>) -> &'static str {
+    match protocol {
+        Some(ConnectionProtocol::OpenaiCompat) => "/models",
+        Some(ConnectionProtocol::Anthropic) => "/v1/models",
+        None => "/",
+    }
+}
+
+/// モデル一覧の応答 (`{ data: [{ id }] }`、OpenAI / Anthropic 互換で同じ形) から
+/// モデル名を読む。その形でなければ None
+pub fn parse_model_ids(body: &str) -> Option<Vec<String>> {
+    let v: serde_json::Value = serde_json::from_str(body).ok()?;
+    let data = v.get("data")?.as_array()?;
+    Some(
+        data.iter()
+            .filter_map(|m| m.get("id")?.as_str().map(str::to_string))
+            .collect(),
+    )
 }
 
 /// AI プロバイダーの API キーを Vault 接続へ移行する (#564 後続)。
@@ -473,6 +634,7 @@ pub fn migrate_ai_provider(
             protocol: Some(protocol),
             origin: Some(ConnectionOrigin::External),
             external_source: Some("ai-provider".to_string()),
+            local: false,
         },
     )?;
 
@@ -510,6 +672,7 @@ mod tests {
             external_source: None,
             template_id: None,
             protocol: None,
+            local: false,
             exposed_to: vec![],
             trusted_for: vec![],
             trusted_plugins: vec![],
@@ -540,13 +703,13 @@ mod tests {
     #[test]
     fn unexpose_revokes_class_trust() {
         let mut c = conn();
-        apply_exposed(&mut c, PrincipalClass::Ai, true);
-        apply_trusted(&mut c, PrincipalClass::Ai, true);
+        apply_exposed(&mut c, PrincipalClass::Ai, true).unwrap();
+        apply_trusted(&mut c, PrincipalClass::Ai, true).unwrap();
         assert!(c.exposed_to.contains(&PrincipalClass::Ai));
         assert!(c.trusted_for.contains(&PrincipalClass::Ai));
 
         // 開示を外すと trust も同時に剥がれる (#712 §6.1 の不変条件)
-        apply_exposed(&mut c, PrincipalClass::Ai, false);
+        apply_exposed(&mut c, PrincipalClass::Ai, false).unwrap();
         assert!(!c.exposed_to.contains(&PrincipalClass::Ai));
         assert!(!c.trusted_for.contains(&PrincipalClass::Ai));
     }
@@ -554,36 +717,129 @@ mod tests {
     #[test]
     fn unexpose_plugin_clears_individual_trusts() {
         let mut c = conn();
-        apply_exposed(&mut c, PrincipalClass::Plugin, true);
-        apply_trusted_plugin(&mut c, "plg-1".into(), Some("Widget".into()), true);
-        apply_trusted_plugin(&mut c, "plg-2".into(), None, true);
+        apply_exposed(&mut c, PrincipalClass::Plugin, true).unwrap();
+        apply_trusted_plugin(&mut c, "plg-1".into(), Some("Widget".into()), true).unwrap();
+        apply_trusted_plugin(&mut c, "plg-2".into(), None, true).unwrap();
         assert_eq!(c.trusted_plugins.len(), 2);
 
-        apply_exposed(&mut c, PrincipalClass::Plugin, false);
+        apply_exposed(&mut c, PrincipalClass::Plugin, false).unwrap();
         assert!(c.trusted_plugins.is_empty());
     }
 
     #[test]
     fn expose_and_trust_are_idempotent() {
         let mut c = conn();
-        apply_exposed(&mut c, PrincipalClass::Ai, true);
-        apply_exposed(&mut c, PrincipalClass::Ai, true);
+        apply_exposed(&mut c, PrincipalClass::Ai, true).unwrap();
+        apply_exposed(&mut c, PrincipalClass::Ai, true).unwrap();
         assert_eq!(c.exposed_to.len(), 1);
 
-        apply_trusted(&mut c, PrincipalClass::Ai, true);
-        apply_trusted(&mut c, PrincipalClass::Ai, true);
+        apply_trusted(&mut c, PrincipalClass::Ai, true).unwrap();
+        apply_trusted(&mut c, PrincipalClass::Ai, true).unwrap();
         assert_eq!(c.trusted_for.len(), 1);
     }
 
     #[test]
     fn retrust_plugin_updates_name_snapshot() {
         let mut c = conn();
-        apply_trusted_plugin(&mut c, "plg-1".into(), Some("旧名".into()), true);
-        apply_trusted_plugin(&mut c, "plg-1".into(), Some("新名".into()), true);
+        apply_trusted_plugin(&mut c, "plg-1".into(), Some("旧名".into()), true).unwrap();
+        apply_trusted_plugin(&mut c, "plg-1".into(), Some("新名".into()), true).unwrap();
         assert_eq!(c.trusted_plugins.len(), 1);
         assert_eq!(c.trusted_plugins[0].name.as_deref(), Some("新名"));
 
-        apply_trusted_plugin(&mut c, "plg-1".into(), None, false);
+        apply_trusted_plugin(&mut c, "plg-1".into(), None, false).unwrap();
         assert!(c.trusted_plugins.is_empty());
+    }
+
+    fn upsert_input(base_url: &str, local: bool) -> ConnectionUpsert {
+        ConnectionUpsert {
+            id: None,
+            name: "ollama".into(),
+            base_url: base_url.into(),
+            auth_type: AuthType::Bearer,
+            allowed_hosts: vec![],
+            account_scope: None,
+            notes: None,
+            template_id: None,
+            protocol: Some(ConnectionProtocol::OpenaiCompat),
+            origin: None,
+            external_source: None,
+            local,
+        }
+    }
+
+    /// ローカル接続 (#880) は URL を正規化して保存し、誰にも開示できない
+    #[test]
+    fn local_connection_is_normalized_and_never_exposed() {
+        let dir = tempfile::tempdir().unwrap();
+        let c =
+            upsert_metadata(dir.path(), upsert_input("http://localhost:11434/v1", true)).unwrap();
+        assert!(c.local);
+        assert_eq!(c.base_url, "http://127.0.0.1:11434/v1");
+        assert_eq!(c.allowed_hosts, vec!["127.0.0.1".to_string()]);
+        let mut c2 = c.clone();
+        assert!(apply_exposed(&mut c2, PrincipalClass::Ai, true).is_err());
+        assert!(apply_trusted(&mut c2, PrincipalClass::Ai, true).is_err());
+        assert!(apply_trusted_plugin(&mut c2, "p".into(), None, true).is_err());
+        assert!(apply_exposed(&mut c2, PrincipalClass::Ai, false).is_ok());
+        assert!(c2.exposed_to.is_empty());
+    }
+
+    /// loopback の URL ⇔ ローカル接続 は両向きに検査する。自アプリのポートは拒む
+    #[test]
+    fn loopback_url_and_local_flag_must_agree() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(
+            upsert_metadata(dir.path(), upsert_input("http://127.0.0.1:11434/v1", false)).is_err()
+        );
+        assert!(
+            upsert_metadata(dir.path(), upsert_input("https://api.example.com/v1", true)).is_err()
+        );
+        assert!(
+            upsert_metadata(dir.path(), upsert_input("http://127.0.0.1:19820/v1", true)).is_err()
+        );
+        assert!(upsert_metadata(dir.path(), upsert_input("http://127.0.0.1/v1", true)).is_err());
+    }
+
+    #[test]
+    fn switching_an_exposed_connection_to_local_clears_its_exposure() {
+        let dir = tempfile::tempdir().unwrap();
+        let c = upsert_metadata(
+            dir.path(),
+            upsert_input("https://api.example.com/v1", false),
+        )
+        .unwrap();
+        update_connection(dir.path(), &c.id, |c| {
+            apply_exposed(c, PrincipalClass::Plugin, true)
+        })
+        .unwrap()
+        .unwrap();
+        let mut input = upsert_input("http://127.0.0.1:11434/v1", true);
+        input.id = Some(c.id.clone());
+        let c = upsert_metadata(dir.path(), input).unwrap();
+        assert!(c.local);
+        assert!(c.exposed_to.is_empty());
+        assert!(c.trusted_plugins.is_empty());
+    }
+
+    #[test]
+    fn model_ids_are_read_from_a_models_list() {
+        assert_eq!(
+            parse_model_ids(r#"{"object":"list","data":[{"id":"qwen2.5:0.5b"},{"id":"x"}]}"#),
+            Some(vec!["qwen2.5:0.5b".to_string(), "x".to_string()])
+        );
+        assert_eq!(
+            parse_model_ids(r#"{"object":"list","data":[]}"#),
+            Some(vec![])
+        );
+        assert_eq!(parse_model_ids("not json"), None);
+        assert_eq!(parse_model_ids(r#"{"error":"x"}"#), None);
+        assert_eq!(
+            models_path_for(Some(ConnectionProtocol::OpenaiCompat)),
+            "/models"
+        );
+        assert_eq!(
+            models_path_for(Some(ConnectionProtocol::Anthropic)),
+            "/v1/models"
+        );
     }
 }

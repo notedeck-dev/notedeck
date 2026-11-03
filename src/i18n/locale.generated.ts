@@ -1560,6 +1560,16 @@ export interface Locale {
     readonly "next": string
   }
   readonly "_aiConnectionSection": {
+    /** この端末の中 */
+    readonly "localBadge": string
+    /** モデルの推論はこの端末の中で行われます。AI が呼ぶ操作の宛先は権限の設定どおりで、Ollama 自身の通信 (モデルの取得など) は NoteDeck の管理外です */
+    readonly "localHint": string
+    /** この接続で使えるモデル */
+    readonly "modelCandidates": string
+    /** モデルを問い合わせています... */
+    readonly "modelCandidatesLoading": string
+    /** モデル一覧を取得できませんでした。モデル名を直接入力してください */
+    readonly "modelCandidatesFailed": string
     /** 接続 */
     readonly "title": string
     /** ACP */
@@ -2042,6 +2052,8 @@ export interface Locale {
     readonly "favoriteFailed": ParameterizedString<'code'>
   }
   readonly "_connectionsContent": {
+    /** この端末の中で動くサービス (ローカル接続) */
+    readonly "localBadge": string
     /** 接続したいサービスを選んでください */
     readonly "chooseService": string
     /** 接続を追加 */
@@ -2716,6 +2728,14 @@ export interface Locale {
     readonly "saved": string
   }
   readonly "_connectionEditContent": {
+    /** この端末の中で動くサービス */
+    readonly "localTitle": string
+    /** URL が localhost / 127.0.0.1 / [::1] なので、ローカル接続として保存します。モデルの推論はこの端末の中で行われ、API キーは任意です。AI / プラグイン / 外部アプリへの開示はできません (vault.fetch の宛先にしない)。他の接続を AI が使えるかは変わりません */
+    readonly "localHint": string
+    /** この端末の中のサービスはポートを明示してください (例: http://127.0.0.1:11434/v1) */
+    readonly "localPortRequired": string
+    /** モデル {count} 件 */
+    readonly "testModels": ParameterizedString<'count'>
     /** 名前 */
     readonly "name": string
     /** 認証方式 */
@@ -5564,6 +5584,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "sinceSeconds_plural": PluralString<'count'>
   }
   readonly "_connectionTemplates": {
+    /** API キー (任意。Ollama は見ません) */
+    readonly "optionalApiKey": string
     /** Authorization ヘッダー値 (DeepL-Auth-Key <API キー>) */
     readonly "deeplAuthHeader": string
     /** API トークン */
