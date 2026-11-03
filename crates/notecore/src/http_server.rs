@@ -284,23 +284,49 @@ async fn persistent_token_middleware(
         .get(AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "));
-    if let Some(token) = presented {
-        if let Some(kind) = state.store.verify(token) {
-            let bridged = format!("Bearer {}", state.api_token);
-            if let Ok(value) = axum::http::HeaderValue::from_str(&bridged) {
-                req.headers_mut().insert(AUTHORIZATION, value);
-            }
-            // 永続トークン由来の目印 (#712 §5.3)。gate はこの extension が付いた
-            // リクエストのみ、トークンの種別が決める principal (外部アプリ用は
-            // external、手元の CLI 用は ai.chat、#1188) で enforce する —
-            // ephemeral 直用 (notecli CLI 等) は local trust として免除
-            req.extensions_mut()
-                .insert(crate::permissions_gate::PersistentTokenMarker {
-                    principal: kind.principal(),
-                });
-        }
+    let verified = presented.and_then(|token| state.store.verify(token));
+    let Some(verified) = verified else {
+        return next.run(req).await;
+    };
+    let bridged = format!("Bearer {}", state.api_token);
+    if let Ok(value) = axum::http::HeaderValue::from_str(&bridged) {
+        req.headers_mut().insert(AUTHORIZATION, value);
     }
-    next.run(req).await
+    // 永続トークン由来の目印 (#712 §5.3)。gate はこの extension が付いた
+    // リクエストのみ、トークンの種別が決める principal (外部アプリ用は
+    // external、手元の CLI 用は ai.chat、#1188) とトークンの scope (#1292) で
+    // enforce する — ephemeral 直用 (notecli CLI 等) は local trust として免除
+    let token_id = verified.id.clone();
+    req.extensions_mut()
+        .insert(crate::permissions_gate::PersistentTokenMarker::new(
+            verified,
+        ));
+    let response = next.run(req).await;
+    // 失効は即時 (#1292): 接続時にだけ検証していた張りっぱなしの応答 (SSE) も、
+    // トークンが失効したら本文を打ち切る
+    let store = state.store.clone();
+    end_stream_on(
+        response,
+        async move { store.until_revoked(&token_id).await },
+    )
+}
+
+/// イベントストリームの応答本文を `until` の解決で打ち切る。通常の応答
+/// (本文の長さが決まっているもの) は触らない
+fn end_stream_on(
+    response: Response,
+    until: impl std::future::Future<Output = ()> + Send + 'static,
+) -> Response {
+    use futures_util::StreamExt;
+    let is_event_stream = response
+        .headers()
+        .get(CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|ct| ct.starts_with("text/event-stream"));
+    if !is_event_stream {
+        return response;
+    }
+    response.map(|body| Body::from_stream(body.into_data_stream().take_until(until)))
 }
 
 /// Phase 2: attach routes and start serving. Requires DB/client.
@@ -857,6 +883,7 @@ async fn execute_capability(
                 "capabilityId": capability_id,
                 "params": params,
                 "principal": token_principal(token.as_deref()).as_str(),
+                "token": token_json(token.as_deref()),
             }),
             CAPABILITY_EXECUTE_TIMEOUT,
         )
@@ -911,6 +938,12 @@ fn token_principal(
     })
 }
 
+/// 永続トークン由来ならそのトークンの正体 (id / name / scope、#1292)。
+/// ephemeral 直用は Null
+fn token_json(token: Option<&crate::permissions_gate::PersistentTokenMarker>) -> Value {
+    token.map_or(Value::Null, |m| m.token_json())
+}
+
 // --- MCP (#555): 外部の AI エージェントが capability を tool として呼ぶ面 ---
 
 #[derive(Clone)]
@@ -952,6 +985,7 @@ async fn mcp_post(
     match crate::mcp::handle_body(
         state.deck.bridge.as_ref(),
         token_principal(token.as_deref()),
+        &token_json(token.as_deref()),
         parsed,
         app_version,
     )
@@ -1008,7 +1042,7 @@ async fn get_health(
     // self-diagnosis の summary 部 (backendReady / frontendReady 等) は返す
     let may_read_streams = match token.as_deref() {
         None => true,
-        Some(m) => crate::permissions_gate::may_read_deck(m.principal).await,
+        Some(m) => crate::permissions_gate::may_read_deck(m).await,
     };
 
     if let Value::Object(map) = &mut body {
@@ -1398,6 +1432,39 @@ mod tests {
             .body(Body::empty())
             .unwrap();
         app.oneshot(req).await.expect("router should respond")
+    }
+
+    /// 失効の即時化 (#1292): イベントストリームの本文は `until` の解決で終わる。
+    /// 長さの決まった通常の応答は触らない
+    #[tokio::test]
+    async fn event_stream_body_ends_when_the_token_is_revoked() {
+        use futures_util::stream;
+        let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+        let endless = Body::from_stream(stream::pending::<Result<bytes::Bytes, axum::Error>>());
+        let response = Response::builder()
+            .header(CONTENT_TYPE, "text/event-stream")
+            .body(endless)
+            .unwrap();
+        let response = end_stream_on(response, async move {
+            let _ = rx.await;
+        });
+        tx.send(()).unwrap();
+        let bytes = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            axum::body::to_bytes(response.into_body(), 1024),
+        )
+        .await
+        .expect("stream ends after revocation")
+        .unwrap();
+        assert!(bytes.is_empty());
+
+        let plain = Response::builder()
+            .header(CONTENT_TYPE, "application/json")
+            .body(Body::from("{}"))
+            .unwrap();
+        let plain = end_stream_on(plain, std::future::pending());
+        let bytes = axum::body::to_bytes(plain.into_body(), 1024).await.unwrap();
+        assert_eq!(&bytes[..], b"{}");
     }
 
     #[tokio::test]

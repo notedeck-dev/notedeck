@@ -57,6 +57,29 @@ pub struct ExecContext {
     pub tainted: bool,
     /// principal が plugin のときの id (編集履歴の帰属に残す)
     pub plugin_id: Option<String>,
+    /// principal が external のときの永続トークンの id / 名前 (#1292、メモの著者)
+    pub token_id: Option<String>,
+    pub token_name: Option<String>,
+}
+
+impl ExecContext {
+    /// 編集履歴の帰属 `by` (`{ kind, pluginId?, tokenId?, tokenName? }`)。TS 側の
+    /// `principalForRecord` と同じ形 (plugin の id、外部トークンの id / 名前、#1292)
+    pub fn attribution_by(&self) -> Value {
+        let mut by = serde_json::json!({ "kind": self.principal });
+        if let Some(pid) = self.plugin_id.as_deref().filter(|s| !s.is_empty()) {
+            by["pluginId"] = Value::String(pid.to_string());
+        }
+        if self.principal == "external" {
+            if let Some(id) = self.token_id.as_deref().filter(|s| !s.is_empty()) {
+                by["tokenId"] = Value::String(id.to_string());
+            }
+            if let Some(name) = self.token_name.as_deref().filter(|s| !s.trim().is_empty()) {
+                by["tokenName"] = Value::String(name.to_string());
+            }
+        }
+        by
+    }
 }
 
 /// 実行結果。`tainted` は「ラベル付きの内容を返した」の申告 (呼び出し元の
@@ -498,6 +521,38 @@ const HAS_BODY: &[&str] = &[
 
 #[cfg(test)]
 mod tests {
+    /// 帰属 `by` は plugin の id と外部トークンの id / 名前を持つ (#1292)
+    #[test]
+    fn attribution_by_carries_plugin_and_token_identity() {
+        let tok = ExecContext {
+            principal: "external".into(),
+            token_id: Some("t1".into()),
+            token_name: Some("Raycast".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            tok.attribution_by(),
+            serde_json::json!({ "kind": "external", "tokenId": "t1", "tokenName": "Raycast" })
+        );
+        let pl = ExecContext {
+            principal: "plugin".into(),
+            plugin_id: Some("widget:clock".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            pl.attribution_by(),
+            serde_json::json!({ "kind": "plugin", "pluginId": "widget:clock" })
+        );
+        assert_eq!(
+            ExecContext {
+                principal: "ai.chat".into(),
+                ..Default::default()
+            }
+            .attribution_by(),
+            serde_json::json!({ "kind": "ai.chat" })
+        );
+    }
+
     use super::*;
 
     #[test]
@@ -528,6 +583,8 @@ mod tests {
             account_id: Some("ctx".into()),
             tainted: false,
             plugin_id: None,
+            token_id: None,
+            token_name: None,
         };
         assert_eq!(
             resolve_account_id(&serde_json::json!({"accountId": " p "}), &ctx).unwrap(),

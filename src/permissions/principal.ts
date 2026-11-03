@@ -7,6 +7,7 @@
  */
 
 import { i18n } from '@/i18n'
+import { type PermissionsConfig, parseTokenScope } from './schema'
 
 export type Principal =
   /** ユーザー本人の直接操作 (権限プロファイルを持たず常時許可) */
@@ -24,10 +25,17 @@ export type Principal =
    */
   | { kind: 'plugin'; pluginId: string; name?: string }
   /**
-   * HTTP API (port 19820) の永続トークン経路。tokenId は将来の per-token
-   * scope PR で配管する (型にだけ存在、現状は未使用)。
+   * HTTP API (port 19820) の永続トークン経路 (#1292)。tokenId / tokenName は
+   * 帰属表示とメモの著者に使う。tokenScope はそのトークンの scope で、実効権限は
+   * 外部アプリの権限との AND (resolveFor)。無いのは scope 無しのトークン
+   * (種別導入前に発行したもの) と、起動毎の ephemeral トークン直用 (local trust)
    */
-  | { kind: 'external'; tokenId?: string }
+  | {
+      kind: 'external'
+      tokenId?: string
+      tokenName?: string
+      tokenScope?: PermissionsConfig | null
+    }
   /**
    * スクラッチパッドカラムで本人がその場で書いて実行するコード (#1099)。
    * 以前は `user` (全許可) だったが、全許可は本人の UI 操作にだけ配り、
@@ -43,6 +51,33 @@ export type ProfiledPrincipalId =
   | 'plugin'
   | 'external'
   | 'scratchpad'
+
+/**
+ * HTTP API の実行要求に同送されたトークンの正体 (`{ id, name, scope }`、Rust の
+ * `PersistentTokenMarker::token_json`) から external principal を組む (#1292)。
+ * 正体が無い (ephemeral トークン直用 = local trust) ときは素の external
+ */
+export function externalTokenPrincipal(token: unknown): Principal {
+  if (typeof token !== 'object' || token === null) return { kind: 'external' }
+  const t = token as { id?: unknown; name?: unknown; scope?: unknown }
+  if (typeof t.id !== 'string') return { kind: 'external' }
+  return {
+    kind: 'external',
+    tokenId: t.id,
+    tokenName: typeof t.name === 'string' && t.name ? t.name : undefined,
+    tokenScope: parseTokenScope(t.scope),
+  }
+}
+
+/**
+ * 編集履歴などに保存する形 (#1292): scope は実行時の判定にしか要らず、保存すると
+ * 発行時の権限表が履歴に残り続けるだけなので落とす
+ */
+export function principalForRecord(principal: Principal): Principal {
+  if (principal.kind !== 'external') return principal
+  const { tokenScope: _scope, ...rest } = principal
+  return rest
+}
 
 /**
  * 確認ダイアログ / Spotlight の帰属表示に使う actor ラベル。
@@ -73,7 +108,9 @@ export function principalActorLabel(principal: Principal): string | null {
       return actor({ name: display })
     }
     case 'external':
-      return i18n.ts._principal.externalApp
+      return principal.tokenName
+        ? i18n.tsx._principal.externalToken({ name: principal.tokenName })
+        : i18n.ts._principal.externalApp
     case 'scratchpad':
       return i18n.ts._columns.aiscript
   }
@@ -90,6 +127,8 @@ export function principalAuthorId(principal: Principal): string | null {
       return null
     case 'plugin':
       return `plugin:${principal.pluginId}`
+    case 'external':
+      return principal.tokenId ? `token:${principal.tokenId}` : 'external'
     default:
       return principal.kind
   }
@@ -110,6 +149,10 @@ export function memoAuthorDisplayName(author: {
       principalActorLabel({ kind: 'plugin', pluginId: id.slice(7) }) ??
       author.displayName
     )
+  }
+  // 外部トークン (#1292): 保存された表示名はトークン名
+  if (id.startsWith('token:')) {
+    return i18n.tsx._principal.externalToken({ name: author.displayName })
   }
   switch (id) {
     case 'ai.chat':

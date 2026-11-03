@@ -18,10 +18,7 @@ fn s<'a>(p: &'a Value, k: &str) -> &'a str {
 }
 
 fn attribution(ctx: &ExecContext, p: &Value) -> Attribution {
-    let mut by = json!({ "kind": ctx.principal });
-    if let Some(pid) = ctx.plugin_id.as_deref().filter(|s| !s.is_empty()) {
-        by["pluginId"] = Value::String(pid.to_string());
-    }
+    let by = ctx.attribution_by();
     Attribution {
         by: Some(by),
         reason: Some(s(p, "reason").trim().to_string()).filter(|r| !r.is_empty()),

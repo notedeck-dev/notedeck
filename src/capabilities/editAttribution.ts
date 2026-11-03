@@ -1,3 +1,4 @@
+import { principalForRecord } from '@/permissions/principal'
 import type { EditAttribution } from '@/utils/historyFs'
 import type { CapabilityContext } from './types'
 
@@ -19,7 +20,10 @@ export function editAttribution(
   if (!ctx?.principal) return undefined
   const raw = params?.reason
   const reason = typeof raw === 'string' ? raw.trim() : ''
-  return { by: ctx.principal, ...(reason ? { reason } : {}) }
+  return {
+    by: principalForRecord(ctx.principal),
+    ...(reason ? { reason } : {}),
+  }
 }
 
 /** write 系 capability の signature に共通で載せる `reason` の型情報 (#1052)。 */

@@ -81,7 +81,7 @@ pub async fn answer_archive_search(
 pub fn issue_harness_token(app: &AppHandle, name: &str) -> Result<Value, String> {
     let store = app.state::<Arc<notecore::api_tokens::ApiTokenStore>>();
     let (meta, token) = store
-        .create(name, notecore::api_tokens::ApiTokenKind::Harness)
+        .create(name, notecore::api_tokens::ApiTokenKind::Harness, None)
         .map_err(|e| e.to_string())?;
     Ok(serde_json::json!({ "id": meta.id, "token": token }))
 }

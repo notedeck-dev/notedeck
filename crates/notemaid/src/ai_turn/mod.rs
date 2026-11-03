@@ -1546,6 +1546,8 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                             account_id: state.req.account_id.clone(),
                             tainted: labels,
                             plugin_id: None,
+                            token_id: None,
+                            token_name: None,
                         };
                         match core.preview(&capability_id, p.input.clone(), ctx).await {
                             Ok(None) => {
@@ -1646,6 +1648,8 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                 account_id: state.req.account_id.clone(),
                 tainted: labels,
                 plugin_id: None,
+                token_id: None,
+                token_name: None,
             };
             match executor
                 .execute(

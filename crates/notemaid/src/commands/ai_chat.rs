@@ -68,6 +68,8 @@ pub async fn ai_confirm_shown(_core: &Core, request_id: String) -> Result<()> {
 /// `exec: core` な capability を notecore で実行する (本人操作 / plugin / 外部の
 /// dispatcher からの RPC、#1133 縦切り 4)。認可は呼び出し側の dispatcher が
 /// 済ませている。AI のターンはこの経路を通らず、ターン実行器が直接呼ぶ。
+// 引数の形はコマンド表 (commands/table.rs) が決める平らな並び
+#[allow(clippy::too_many_arguments)]
 pub async fn capability_execute(
     core: &Core,
     id: String,
@@ -76,12 +78,16 @@ pub async fn capability_execute(
     account_id: Option<String>,
     tainted: bool,
     plugin_id: Option<String>,
+    token_id: Option<String>,
+    token_name: Option<String>,
 ) -> Result<crate::exec::ExecOutcome> {
     let ctx = crate::exec::ExecContext {
         principal,
         account_id,
         tainted,
         plugin_id,
+        token_id,
+        token_name,
     };
     crate::exec::execute(core, &id, params, &ctx).await
 }
@@ -89,6 +95,8 @@ pub async fn capability_execute(
 /// `exec: core` な capability の確認内容 (プレビュー) を組む。要否の判定は
 /// 呼び出し側 (ターン実行器 / デバイスの dispatcher) が済ませ、ここは表示内容
 /// だけを返す。None = この引数なら確認は要らない。
+// 引数の形はコマンド表 (commands/table.rs) が決める平らな並び
+#[allow(clippy::too_many_arguments)]
 pub async fn capability_preview(
     core: &Core,
     id: String,
@@ -97,12 +105,16 @@ pub async fn capability_preview(
     account_id: Option<String>,
     tainted: bool,
     plugin_id: Option<String>,
+    token_id: Option<String>,
+    token_name: Option<String>,
 ) -> Result<Option<serde_json::Value>> {
     let ctx = crate::exec::ExecContext {
         principal,
         account_id,
         tainted,
         plugin_id,
+        token_id,
+        token_name,
     };
     crate::exec::preview(core, &id, params, &ctx).await
 }
