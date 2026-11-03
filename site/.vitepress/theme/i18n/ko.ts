@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: d3fb3914e19f
+// sourceHash: f889684ddb6a
 
 import type { Messages } from './ja'
 
@@ -242,7 +242,7 @@ const ko: Messages = {
     api: {
       title: '외부에서도 움직일 수 있습니다',
       strong: '물리 버튼도 CLI도 AI도 같은 입구로. ',
-      body: '로컬 API로 덱을 통째로 조작합니다 — 게시도, 타임라인 가져오기도, 칼럼 조작도. Raycast, Obsidian, Stream Deck부터 AI 에이전트까지, 한 번 쓰면 어디서든 호출할 수 있습니다.',
+      body: '로컬 API로 덱을 통째로 조작합니다 — 게시도, 타임라인 가져오기도, 칼럼 조작도. 브라우저, Raycast, Obsidian, Stream Deck부터 AI 에이전트까지, 한 번 쓰면 어디서든 호출할 수 있습니다.',
     },
   },
   developers: {

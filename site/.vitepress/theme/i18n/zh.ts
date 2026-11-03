@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: d3fb3914e19f
+// sourceHash: f889684ddb6a
 
 import type { Messages } from './ja'
 
@@ -238,7 +238,7 @@ const zh: Messages = {
     api: {
       title: '也能从外部操控',
       strong: '实体按键、CLI 和 AI，都走同一个入口。',
-      body: '通过本地 API 操控整个 Deck — 发帖、获取时间线、管理列都可以。写一次，就能从 Raycast、Obsidian、Stream Deck 乃至 AI 智能体中随处调用。',
+      body: '通过本地 API 操控整个 Deck — 发帖、获取时间线、管理列都可以。写一次，就能从浏览器、Raycast、Obsidian、Stream Deck 乃至 AI 智能体中随处调用。',
     },
   },
   developers: {

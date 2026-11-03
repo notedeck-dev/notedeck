@@ -1,31 +1,32 @@
 ---
-sourceHash: 7949c17317a2
+sourceHash: 9e7e04168016
 ---
 
-# Using NoteDeck from other apps (Raycast / Stream Deck / Obsidian)
+# Using NoteDeck from other apps (browser / Raycast / Stream Deck / Obsidian)
 
 While it runs, the desktop version of NoteDeck keeps a local HTTP API open on `127.0.0.1:19820`, and it registers the `notedeck://` link scheme with the OS at install time. Those two entry points let other apps drive NoteDeck.
 
-There are three official integrations. None of them adds anything to NoteDeck itself; each lives in its own repository. You can write your own against the same API.
+There are four official integrations. None of them adds anything to NoteDeck itself; each lives in its own repository. You can write your own against the same API.
 
 | Integration | Good for | Repository |
 |---|---|---|
+| Browser extension (Chromium) | Sending the page or selection you are looking at to the post form; opening Misskey note and user links in NoteDeck | [notedeck-browser](https://github.com/notedeck-dev/notedeck-browser) |
 | Raycast extension | Posting, searching and jumping between columns from a launcher | [notedeck-raycast](https://github.com/notedeck-dev/notedeck-raycast) |
 | Stream Deck plugin | Posting, switching columns and a boss key from physical keys | [notedeck-streamdeck](https://github.com/notedeck-dev/notedeck-streamdeck) |
 | Obsidian plugin | Clipping notes into a vault, posting from Obsidian, a timeline in the sidebar | [notedeck-obsidian](https://github.com/notedeck-dev/notedeck-obsidian) |
 
 ::: warning Not in the stores yet
-None of the three is listed in the Raycast Store, the Stream Deck Marketplace or Obsidian's community plugins. Build and install them following the README of each repository. They have not been tested much on real machines either, so open an issue if something does not work.
+None of the four is listed in the Chrome Web Store, the Raycast Store, the Stream Deck Marketplace or Obsidian's community plugins. Build and install them following the README of each repository. They have not been tested much on real machines either, so open an issue if something does not work.
 :::
 
 ## What they have in common
 
-All three use the same two entry points. Once you have set up one, the others work the same way.
+All four use the same two entry points. Once you have set up one, the others work the same way.
 
 **Operations that need a token** — anything that calls NoteDeck's API (posting, searching, listing accounts, fetching a timeline) needs a persistent API token.
 
 1. Issue a token under Settings → Permissions (設定 → 権限) → "Persistent API tokens" and paste it into the integration's settings
-2. Issue a separate token per integration and give it a name (`raycast`, `streamdeck`, `obsidian`, …). The name shows up in confirmation dialogs and in the record of what was done, so you can tell which integration did what
+2. Issue a separate token per integration and give it a name (`browser`, `raycast`, `streamdeck`, `obsidian`, …). The name shows up in confirmation dialogs and in the record of what was done, so you can tell which integration did what
 3. When issuing, pick what the token may do. The default is read-only; writes such as posting are allowed individually. The ceiling is the "External apps" permission on the same screen, and what actually applies is the intersection of both
 4. Writes such as posting are always confirmed in the NoteDeck window before they run. The integration waits until you answer in NoteDeck
 
@@ -36,6 +37,19 @@ Token permissions exist to prevent accidents in well-behaved integrations and to
 :::
 
 Every integration only works while NoteDeck is running on the same machine. A development build of NoteDeck (`pnpm tauri:dev`) uses a different API port, so change the API URL in the integration's settings.
+
+## Browser (Chromium)
+
+Sends what you are looking at in Chrome / Edge / Brave / Vivaldi / Arc and other Chromium browsers to NoteDeck. Almost everything works through `notedeck://` links, so you can start without a token.
+
+| Where | What it does | Needs |
+|---|---|---|
+| Right-click (page / selection / link / image) | "Post via NoteDeck": opens NoteDeck's post form with the title and URL (the selection and URL, or the link / image URL). Sending is up to you | nothing |
+| Right-click on a Misskey note link or page | "Open in NoteDeck": opens that note's window in NoteDeck | nothing |
+| Right-click on a Misskey user link or page | "Open in NoteDeck": opens that user's window. The API is used to turn the username into an id | token (the read-only default is enough) |
+| Toolbar button | Edit the text (page title and URL, or the selection), then open the post form or post directly with account, visibility and CW | token + `notes.write` for direct posting |
+| Type `nd` in the address bar | Opens the post form with whatever you type after it | nothing |
+| Keyboard shortcut (default Alt+Shift+N) | Opens the post form with the current page | nothing |
 
 ## Raycast
 
@@ -92,7 +106,7 @@ Clip a note by URL only accepts note URLs on servers you are logged in to in Not
 
 ## Writing your own
 
-All the three integrations do is send HTTP requests with a Bearer token to `127.0.0.1:19820` and open `notedeck://` links. Any language can do the same.
+All the four integrations do is send HTTP requests with a Bearer token to `127.0.0.1:19820` and open `notedeck://` links. Any language can do the same.
 
 - The API reference is the "API docs" column (API ドキュメント) in [developer mode](/en/docs/#developer-mode). Capabilities are called with `POST /api/capabilities/<id>/execute`, and `GET /api/capabilities` lists every capability with its parameters and permissions
 - To receive new notes and notifications as they arrive, subscribe to the Server-Sent Events at `GET /api/events`
