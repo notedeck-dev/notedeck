@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: f889684ddb6a
+// sourceHash: e5e7ac119222
 
 import type { Messages } from './ja'
 
@@ -18,7 +18,7 @@ const zh: Messages = {
     released: (tag: string) => `${tag} 已发布`,
   },
   hero: {
-    desc: '面向 Misskey 重度用户的非官方客户端。',
+    desc: '你的 Misskey 栖身的 Deck。',
     download: '下载',
     tryGuest: '不登录试用',
     screenshotAlt: 'NoteDeck 的 Deck 界面 — 多个列横向排列的布局',

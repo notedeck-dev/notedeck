@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: f889684ddb6a
+// sourceHash: e5e7ac119222
 
 import type { Messages } from './ja'
 
@@ -18,7 +18,7 @@ const en: Messages = {
     released: (tag: string) => `${tag} is out`,
   },
   hero: {
-    desc: 'The unofficial client for Misskey power users.',
+    desc: 'The deck your Misskey lives in.',
     download: 'Download',
     tryGuest: 'Try without logging in',
     screenshotAlt: 'The NoteDeck deck — columns laid out side by side',
