@@ -124,7 +124,7 @@ fn parse_method(method: Option<&str>) -> VaultResult<reqwest::Method> {
 /// `path` を baseUrl と結合して最終 URL を作る。
 ///
 /// 絶対 URL / protocol-relative / host 変更を拒否する。
-fn resolve_url(base_url: &str, path: &str) -> VaultResult<reqwest::Url> {
+pub(super) fn resolve_url(base_url: &str, path: &str) -> VaultResult<reqwest::Url> {
     if path.contains("://") {
         return Err(VaultError::InvalidPath {
             message: "absolute URLs are not allowed in path".to_string(),
@@ -138,9 +138,27 @@ fn resolve_url(base_url: &str, path: &str) -> VaultResult<reqwest::Url> {
     let base = reqwest::Url::parse(base_url).map_err(|e| VaultError::InvalidInput {
         message: format!("baseUrl parse error: {e}"),
     })?;
-    let joined = base.join(path).map_err(|e| VaultError::InvalidPath {
-        message: format!("path join error: {e}"),
-    })?;
+    // path は baseUrl のパスの下に足す (#1319)。`Url::join` の絶対パスの規則だと
+    // `/v1` + `/models` が `/models` になり、OpenAI 互換テンプレの疎通が 404 になる。
+    // 先頭の `/` の有無で意味を変えない (AI 経路の文字列結合と同じ規則)
+    let base_path = base.path().trim_end_matches('/').to_string();
+    let rel = path.trim_start_matches('/');
+    let (rel_path, query) = match rel.split_once('?') {
+        Some((p, q)) => (p, Some(q)),
+        None => (rel, None),
+    };
+    let mut joined = base.clone();
+    joined.set_path(&format!("{base_path}/{rel_path}"));
+    joined.set_query(query);
+    joined.set_fragment(None);
+    // `..` で baseUrl のパスの外へ出ない (set_path が dot segment を解決した結果で見る)
+    let inside_base =
+        joined.path() == base_path || joined.path().starts_with(&format!("{base_path}/"));
+    if !inside_base {
+        return Err(VaultError::InvalidPath {
+            message: "path must stay under the baseUrl path".to_string(),
+        });
+    }
     // defense in depth: join 後に host が変わっていないこと。
     if joined.host_str() != base.host_str() {
         return Err(VaultError::InvalidPath {
@@ -332,6 +350,28 @@ mod tests {
         // path が host を変えようとしても base host を維持する。
         let u = resolve_url("https://api.github.com/v3", "repos/foo").unwrap();
         assert_eq!(u.host_str(), Some("api.github.com"));
+    }
+
+    /// baseUrl のパス (`/v1` 等) は path を足しても残る (#1319)。絶対パスの規則で
+    /// 置き換えると OpenAI 互換テンプレの疎通が `/models` を叩いて 404 になる
+    #[test]
+    fn resolve_url_keeps_base_path_for_leading_slash_and_relative_paths() {
+        let u = resolve_url("https://api.openai.com/v1", "/models").unwrap();
+        assert_eq!(u.as_str(), "https://api.openai.com/v1/models");
+        let u = resolve_url("https://api.openai.com/v1/", "/models").unwrap();
+        assert_eq!(u.as_str(), "https://api.openai.com/v1/models");
+        let u = resolve_url("https://api.github.com/v3", "repos/foo").unwrap();
+        assert_eq!(u.as_str(), "https://api.github.com/v3/repos/foo");
+        let u = resolve_url("https://api.openai.com/v1", "/models?limit=1").unwrap();
+        assert_eq!(u.as_str(), "https://api.openai.com/v1/models?limit=1");
+    }
+
+    /// `..` で baseUrl のパスの外へ出る path は拒む
+    #[test]
+    fn resolve_url_rejects_paths_escaping_the_base_path() {
+        assert!(resolve_url("https://api.openai.com/v1", "/../admin").is_err());
+        assert!(resolve_url("https://api.openai.com/v1", "../admin").is_err());
+        assert!(resolve_url("https://api.openai.com/v1", "/models/../../admin").is_err());
     }
 
     /// Query 認証の secret は URL に乗る。通信断の理由にその URL を残さない
