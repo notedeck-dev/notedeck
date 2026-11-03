@@ -12,11 +12,12 @@ import {
 import { emitSpotlightFromCapability } from '@/capabilities/dispatcher'
 import { listCapabilities } from '@/capabilities/registry'
 import type { ChatMessage } from '@/composables/useAiChat'
+import { i18n } from '@/i18n'
 import { nativeError } from '@/i18n/native'
+import { invokeErrorText } from '@/services/aiInvokeError'
 import { messageFromWire } from '@/services/aiSessionCodec'
 import { useAiActivity } from '@/stores/aiActivity'
 import type { ConfirmOptions } from '@/stores/confirm'
-import { extractErrorMessage } from '@/utils/errors'
 import { listenTauri } from '@/utils/tauriEvents'
 import { commands, unwrap } from '@/utils/tauriInvoke'
 import {
@@ -548,7 +549,8 @@ export function useAiTurn(deps: AiTurnDeps) {
         .catch((e) => {
           if (!activeTurnId) return // 既に settle 済み (中断など)
           console.error('[ai-turn] invoke error raw:', e)
-          const message = extractErrorMessage(e)
+          // 本文の無い reject (null / {} 等) は「不明なエラー」にする (#1317)
+          const message = invokeErrorText(e) ?? i18n.ts._common.unknownError
           activity.pulse('failed')
           replaceLast((last) => ({ ...last, content: `⚠️ ${message}` }))
           recordRetry()
