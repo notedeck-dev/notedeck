@@ -124,6 +124,13 @@ pub struct Connection {
     /// 通常の vault 接続は `None`。
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub protocol: Option<ConnectionProtocol>,
+    /// この端末の中で動くサービス (loopback) への接続 (#880)。利用者の保存操作だけで
+    /// 決まり、`base_url` は `localhost` / `127.0.0.1` / `[::1]` のうち IP literal に正規化
+    /// 済み。使えるのは AI チャット / HEARTBEAT と疎通テストだけで、`vault.fetch` と
+    /// 開示 (`exposed_to`) は常に拒む。無ければ false (旧版のファイルも、旧版が新しい
+    /// ファイルを読むときも安全側)
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub local: bool,
     /// 開示先クラス (#712 §6.1)。空 = どこにも開示しない (default)。
     /// External は誰も自動付与しない — 外部アプリへの開示は必ず明示 opt-in。
     #[serde(default)]
@@ -268,6 +275,7 @@ mod tests {
             external_source: None,
             template_id: None,
             protocol: None,
+            local: false,
             exposed_to: vec![PrincipalClass::Ai],
             trusted_for: vec![PrincipalClass::Ai],
             trusted_plugins: vec![TrustedPlugin {

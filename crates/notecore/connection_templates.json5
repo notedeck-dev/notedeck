@@ -127,6 +127,25 @@
     // ホストは同じなので手動追加した Zen の接続にもこの宣言が効く
     affinityHeader: 'x-opencode-session',
   },
+  {
+    // この端末の中で動くローカル LLM (#880)。接続はローカル接続 (local) になり、
+    // API キーは任意 (Ollama は認証ヘッダーを見ない)、モデルは疎通の /models から選ぶ。
+    // LM Studio は既定ポートの根拠が弱く、host が重なってテンプレを URL で引けないので
+    // 載せない (手動登録はできる)
+    id: 'builtin:ollama@1',
+    name: 'Ollama',
+    icon: 'cpu',
+    // 127.0.0.1 からは favicon を導けないので、提供元サイトのものを使う
+    iconUrl: 'https://icons.duckduckgo.com/ip3/ollama.com.ico',
+    baseUrl: 'http://127.0.0.1:11434/v1',
+    authType: { kind: 'bearer' },
+    allowedHosts: ['127.0.0.1'],
+    testPath: '/models',
+    secretLabel: { i18n: 'optionalApiKey' },
+    secretHelpUrl: 'https://docs.ollama.com/openai',
+    protocol: 'openai-compat',
+    local: true,
+  },
 
   // ── MisStore 配布のプラグイン / ウィジェットが要求する外部サービス ──
   // AI プロバイダーではないので protocol は持たず、AI 設定のピッカーには出ない。

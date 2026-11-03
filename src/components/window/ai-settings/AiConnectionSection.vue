@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import type { HarnessInfo } from '@/bindings'
+import { computed, onMounted, ref, watch } from 'vue'
+import type { Connection, HarnessInfo } from '@/bindings'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
 import FormNumber from '@/components/common/form/FormNumber.vue'
@@ -17,6 +17,7 @@ import {
   faviconUrl,
 } from '@/data/connectionTemplates'
 import { i18n } from '@/i18n'
+import { modelsPathFor } from '@/services/localConnection'
 import { useWindowsStore } from '@/stores/windows'
 import AiSettingsSection from './AiSettingsSection.vue'
 
@@ -111,6 +112,49 @@ function selectConnection(id: string): void {
 function openConnectionsWindow(): void {
   windowsStore.open('connections')
 }
+
+// 選択中の接続で使えるモデルの候補 (#880 / #1020)。疎通テストが `/models` の応答から
+// 読んだ `data[].id`。取れないプロバイダーや失敗時は自由入力だけになる
+const modelCandidates = ref<string[] | null>(null)
+const modelCandidatesState = ref<'idle' | 'loading' | 'failed'>('idle')
+
+async function loadModelCandidates(conn: Connection): Promise<void> {
+  modelCandidatesState.value = 'loading'
+  modelCandidates.value = null
+  try {
+    const tpl = conn.templateId
+      ? BUILTIN_TEMPLATES.find((t) => t.id === conn.templateId)
+      : undefined
+    const r = await vault.testConnection(
+      conn.id,
+      tpl?.testPath ?? modelsPathFor(conn.protocol ?? null),
+    )
+    // 選択が切り替わっていたら捨てる
+    if (config.value.activeConnectionId !== conn.id) return
+    if (r.ok && r.models) {
+      modelCandidates.value = r.models
+      modelCandidatesState.value = 'idle'
+    } else {
+      modelCandidatesState.value = 'failed'
+    }
+  } catch {
+    if (config.value.activeConnectionId === conn.id)
+      modelCandidatesState.value = 'failed'
+  }
+}
+
+watch(
+  () => currentConnection.value?.id,
+  () => {
+    const conn = currentConnection.value
+    if (conn) void loadModelCandidates(conn)
+    else {
+      modelCandidates.value = null
+      modelCandidatesState.value = 'idle'
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -136,8 +180,19 @@ function openConnectionsWindow(): void {
         icon="plug-connected"
         @icon-error="failedIcons.add(conn.id)"
         @click="selectConnection(conn.id)"
-      />
+      >
+        <template #badge>
+          <!-- この端末の中で動くサービス (ローカル接続、#880) -->
+          <span v-if="conn.local" :class="$style.localBadge" :title="i18n.ts._aiConnectionSection.localBadge">
+            <i class="ti ti-device-desktop" />
+          </span>
+        </template>
+      </ChoiceCard>
     </ChoiceCardGrid>
+    <div v-if="currentConnection?.local" :class="$style.connEmpty">
+      <i class="ti ti-device-desktop" />
+      <span>{{ i18n.ts._aiConnectionSection.localHint }}</span>
+    </div>
     <div v-else :class="$style.connEmpty">
       <i class="ti ti-info-circle" />
       <span>
@@ -204,6 +259,27 @@ function openConnectionsWindow(): void {
   </AiSettingsSection>
 
   <AiSettingsSection v-if="currentConnection" icon="ti-cube" :title="i18n.ts._aiConnectionSection.model">
+    <!-- 接続が返したモデルの候補 (#880 / #1020)。打ち込むのではなく選ぶ。自由入力は下に残す -->
+    <p v-if="modelCandidatesState === 'loading'" :class="$style.fieldHint">
+      {{ i18n.ts._aiConnectionSection.modelCandidatesLoading }}
+    </p>
+    <template v-else-if="modelCandidates && modelCandidates.length > 0">
+      <p :class="$style.fieldHint">{{ i18n.ts._aiConnectionSection.modelCandidates }}</p>
+      <ChoiceCardGrid>
+        <ChoiceCard
+          v-for="m in modelCandidates"
+          :key="m"
+          :label="m"
+          :active="currentModel === m"
+          :title="m"
+          icon="cube"
+          @click="currentModel = m"
+        />
+      </ChoiceCardGrid>
+    </template>
+    <p v-else-if="modelCandidatesState === 'failed'" :class="$style.fieldHint">
+      {{ i18n.ts._aiConnectionSection.modelCandidatesFailed }}
+    </p>
     <input
       v-model="currentModel"
       :class="$style.input"
@@ -274,6 +350,11 @@ function openConnectionsWindow(): void {
 }
 
 .cellStateOk {
+  color: var(--nd-accentText);
+}
+
+// この端末の中で動くサービス (ローカル接続)
+.localBadge {
   color: var(--nd-accentText);
 }
 

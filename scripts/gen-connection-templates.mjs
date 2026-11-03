@@ -79,7 +79,21 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       throw new Error(`${where}: secretLabel は文字列か { i18n: '<key>' }`)
     if (t.protocol !== undefined && !PROTOCOLS.has(t.protocol))
       throw new Error(`${where}: protocol は ${[...PROTOCOLS].join(' / ')}`)
-    if ((t.protocol === undefined) !== (t.defaultModel === undefined))
+    if (t.local !== undefined && t.local !== true)
+      throw new Error(`${where}: local は true だけ (無ければインターネットの接続)`)
+    if (t.local) {
+      // この端末の中で動くサービス (#880)。保存時の正規化と同じ形 (IP literal + ポート) で宣言する
+      const u = new URL(t.baseUrl)
+      if (u.hostname !== '127.0.0.1' || u.port === '')
+        throw new Error(`${where}: local の baseUrl は http://127.0.0.1:<port>/... で宣言する`)
+      if (t.protocol === undefined)
+        throw new Error(`${where}: local は AI プロバイダー (protocol) だけ`)
+    }
+    // モデルは AI プロバイダーだけが持つ。ローカル (Ollama) は入っているモデルが
+    // 利用者ごとに違うので既定を持たず、疎通の /models から選ぶ
+    if (t.protocol === undefined && t.defaultModel !== undefined)
+      throw new Error(`${where}: defaultModel は protocol とセット`)
+    if (t.protocol !== undefined && t.defaultModel === undefined && !t.local)
       throw new Error(`${where}: protocol と defaultModel はセット`)
     if (
       t.affinityHeader !== undefined &&
@@ -102,6 +116,7 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       'defaultModel',
       'affinityHeader',
       'iconUrl',
+      'local',
     ])
     for (const key of Object.keys(t)) {
       if (!known.has(key)) throw new Error(`${where}: 未知の項目 ${key}`)
@@ -120,6 +135,7 @@ export function loadDeclarations(text = readFileSync(DECLARATIONS_PATH, 'utf8'))
       defaultModel: t.defaultModel,
       affinityHeader: t.affinityHeader,
       iconUrl: t.iconUrl,
+      local: t.local,
     })
   }
   return out
@@ -190,6 +206,11 @@ export function renderTs(decls) {
     '   * ドメインと違う / favicon サービスに登録が無いサービスだけ持つ。',
     '   */',
     '  iconUrl?: string',
+    '  /**',
+    '   * この端末の中で動くサービス (#880)。テンプレから作る接続はローカル接続になり、',
+    '   * secret は任意、モデルは疎通の /models から選ぶ (defaultModel を持たない)。',
+    '   */',
+    '  local?: true',
     '}',
     '',
     'export const BUILTIN_TEMPLATE_DECLS: readonly ConnectionTemplateDecl[] = [',
@@ -207,8 +228,9 @@ export function renderTs(decls) {
     lines.push(`    secretHelpUrl: ${ts(t.secretHelpUrl)},`)
     if (t.protocol !== undefined) {
       lines.push(`    protocol: ${ts(t.protocol)},`)
-      lines.push(`    defaultModel: ${ts(t.defaultModel)},`)
+      if (t.defaultModel !== undefined) lines.push(`    defaultModel: ${ts(t.defaultModel)},`)
     }
+    if (t.local) lines.push('    local: true,')
     if (t.affinityHeader !== undefined) {
       lines.push(`    affinityHeader: ${ts(t.affinityHeader)},`)
     }

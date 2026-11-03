@@ -249,7 +249,9 @@ AI プロバイダーの API キーを含む外部サービスのシークレッ
 | 実行モデル | `vault_fetch` が Rust 側で認証情報を注入し、レスポンスから secret を redaction して返す |
 | 開示制御 | `exposedTo` で principal クラス (ai / plugin / external) 別に開示。default は非開示 |
 
-AI チャットは `connection_id` から endpoint / キー / protocol を Rust 側で解決するため、キー本体はフロントにも AI にも渡らない。SSRF・redaction の詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault"。
+AI チャットは `connection_id` から endpoint / キー / protocol を Rust 側で解決するため、キー本体はフロントにも AI にも渡らない。Vault の外向き fetch (`vault_fetch`) の SSRF・redaction の詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault"。**AI プロバイダーへのリクエストは `vault_fetch` とは別の client を使うが、宛先の検査は同じ規則に揃えてある (#1315)**: キーを開く前に接続の URL を一次検査 (http / https のみ、loopback / private / reserved TLD / IP literal と bad port を拒む) し、接続に許可ホストがあればその中に居ることを求め、名前解決後の IP は接続のたびに検証する resolver (メディアプロキシと同じ) で弾く。redirect は追わず 3xx はリダイレクト先ホストを含むエラーにする (#1160)。環境変数のプロキシは使わない (使うと宛先をこちらで解決せず検査が効かない)。止めたときの文言は host と理由を含む。この端末の中のサービス (Ollama 等) だけは、次の「ローカル接続」として別の規則で通す。
+
+**この端末の中で動くサービスへの接続 (ローカル接続、#880)**: URL の host が `localhost` / `127.0.0.1` / `[::1]` の接続は、保存時にローカル接続になる (利用者が選ぶのではなく URL から決まり、「loopback の URL ⇔ ローカル接続」を Rust が両向きに検査する)。`localhost` は名前解決せず 127.0.0.1 に正規化して保存し、ポートの明示を必須にし、NoteDeck 自身のポート (内蔵 HTTP API の release / debug、Dev Dashboard) とブラウザが繋がないポートは拒む。分類は `ssrf::normalize_loopback_url` の 1 関数で、保存・AI 経路・疎通の 3 箇所がそれだけを呼ぶ (#1293 のプラグイン向け loopback 同意と同じ規則)。ローカル接続が使えるのは AI チャット / HEARTBEAT (protocol で決まる固定パス) と疎通テスト (protocol で決まるモデル一覧のパスだけ。`vault_fetch` を通らない専用の経路) で、**`vault.fetch` は principal を問わず入口で拒み、AI / プラグイン / 外部アプリへの開示 (`exposedTo`) もできない** (loopback のサービスには守りが無く、Ollama の API にはモデルの削除や取得があるため。ローカルに切り替える保存は開示と信頼を空にする)。secret は任意で、無ければ認証なし (Ollama は認証ヘッダーを見ない)。**ローカル LLM で動く AI が他の Vault 接続を `vault.fetch` で使えるかは、この制限とは無関係で、接続ごとの開示と権限で決まる (変わらない)**。アプリが約束するのは「モデルの推論はこの端末の中で行う」だけで、AI が呼ぶ操作の宛先は権限どおり、Ollama 自身の通信 (モデルの取得など) は管理外。LAN の別端末 (private 帯) は採らない: 認証が無く平文で、private 帯の例外は新しい SSRF 面になり、この約束も成り立たない。
 
 ### 保存前の秘匿化 ([#1164](https://github.com/notedeck-dev/notedeck/issues/1164))
 

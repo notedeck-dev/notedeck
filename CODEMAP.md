@@ -128,6 +128,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/accountScope.ts`](src/services/accountScope.ts) | — |
 | [`src/services/achievements.ts`](src/services/achievements.ts) | [`src/services/achievements.test.ts`](src/services/achievements.test.ts) |
 | [`src/services/acpPreapproval.ts`](src/services/acpPreapproval.ts) | [`src/services/acpPreapproval.test.ts`](src/services/acpPreapproval.test.ts) |
+| [`src/services/aiInvokeError.ts`](src/services/aiInvokeError.ts) | [`src/services/aiInvokeError.test.ts`](src/services/aiInvokeError.test.ts) |
 | [`src/services/aiSessionCodec.ts`](src/services/aiSessionCodec.ts) | [`src/services/aiSessionCodec.test.ts`](src/services/aiSessionCodec.test.ts) |
 | [`src/services/aiSessionId.ts`](src/services/aiSessionId.ts) | [`src/services/aiSessionId.test.ts`](src/services/aiSessionId.test.ts) |
 | [`src/services/aiToolSummary.ts`](src/services/aiToolSummary.ts) | [`src/services/aiToolSummary.test.ts`](src/services/aiToolSummary.test.ts) |
@@ -183,6 +184,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/idFreeze.ts`](src/services/idFreeze.ts) | [`src/services/idFreeze.test.ts`](src/services/idFreeze.test.ts) |
 | [`src/services/identityId.ts`](src/services/identityId.ts) | [`src/services/identityId.test.ts`](src/services/identityId.test.ts) |
 | [`src/services/imageMemory.ts`](src/services/imageMemory.ts) | [`src/services/imageMemory.test.ts`](src/services/imageMemory.test.ts) |
+| [`src/services/localConnection.ts`](src/services/localConnection.ts) | [`src/services/localConnection.test.ts`](src/services/localConnection.test.ts) |
 | [`src/services/localeSetting.ts`](src/services/localeSetting.ts) | [`src/services/localeSetting.test.ts`](src/services/localeSetting.test.ts) |
 | [`src/services/mapEviction.ts`](src/services/mapEviction.ts) | [`src/services/mapEviction.test.ts`](src/services/mapEviction.test.ts) |
 | [`src/services/mediaTime.ts`](src/services/mediaTime.ts) | [`src/services/mediaTime.test.ts`](src/services/mediaTime.test.ts) |

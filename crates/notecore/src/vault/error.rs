@@ -30,6 +30,8 @@ pub enum VaultError {
     HostNotAllowed { host: String },
     /// SSRF 検証で拒否された (loopback / private / 名前解決失敗など)。
     SsrfDenied { reason: String },
+    /// この端末の中のサービスへの接続 (local) は vault.fetch で使えない (#880)
+    LocalConnectionNotFetchable,
     /// リクエストがタイムアウトした。
     Timeout,
     /// リクエストの送信に失敗した (DNS / TLS / 接続エラー)。
@@ -50,6 +52,10 @@ impl std::fmt::Display for VaultError {
             VaultError::InvalidPath { message } => write!(f, "invalid path: {message}"),
             VaultError::HostNotAllowed { host } => write!(f, "host not allowed: {host}"),
             VaultError::SsrfDenied { reason } => write!(f, "ssrf denied: {reason}"),
+            VaultError::LocalConnectionNotFetchable => write!(
+                f,
+                "a local connection (this device) cannot be used with vault.fetch"
+            ),
             VaultError::Timeout => write!(f, "request timed out"),
             VaultError::RequestFailed { message } => write!(f, "request failed: {message}"),
         }

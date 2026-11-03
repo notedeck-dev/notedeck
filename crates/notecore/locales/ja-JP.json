@@ -324,7 +324,9 @@
       "errorContent": "⚠️ {error}",
       "errorContentAfter": "{partial}\n\n⚠️ {error}",
       "roundLimit": "{partial}\n\n⚠️ tool 呼び出しが上限 ({max} 回) に達しました。",
-      "redirectNotFollowed": "AI プロバイダーがリダイレクト (HTTP {status}) を返しました。{host} へは追従しません。接続の URL を最終的な宛先に直してください"
+      "redirectNotFollowed": "AI プロバイダーがリダイレクト (HTTP {status}) を返しました。{host} へは追従しません。接続の URL を最終的な宛先に直してください",
+      "endpointDenied": "AI 接続の URL ({host}) へは送れません: {reason}。内部アドレスやブラウザーが繋がないポートは AI プロバイダーの宛先に使えません",
+      "hostNotAllowed": "AI 接続の URL の host ({host}) が、この接続の許可ホストに入っていません。接続の設定で許可ホストに加えてください"
     },
     "backup": {
       "skippedSame": "スキップ (既存と内容が同じ): {items}",

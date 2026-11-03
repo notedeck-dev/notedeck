@@ -3530,6 +3530,14 @@ templateId?: string | null;
  */
 protocol?: ConnectionProtocol | null; 
 /**
+ * この端末の中で動くサービス (loopback) への接続 (#880)。利用者の保存操作だけで
+ * 決まり、`base_url` は `localhost` / `127.0.0.1` / `[::1]` のうち IP literal に正規化
+ * 済み。使えるのは AI チャット / HEARTBEAT と疎通テストだけで、`vault.fetch` と
+ * 開示 (`exposed_to`) は常に拒む。無ければ false (旧版のファイルも、旧版が新しい
+ * ファイルを読むときも安全側)
+ */
+local: boolean; 
+/**
  * 開示先クラス (#712 §6.1)。空 = どこにも開示しない (default)。
  * External は誰も自動付与しない — 外部アプリへの開示は必ず明示 opt-in。
  */
@@ -3599,7 +3607,12 @@ origin?: ConnectionOrigin | null;
 /**
  * `origin = External` の詳細 (`ai-provider` 等)。
  */
-externalSource?: string | null }
+externalSource?: string | null; 
+/**
+ * この端末の中で動くサービスへの接続 (#880)。true なら base_url は loopback の
+ * 3 表記でポート明示が必須、false なら loopback の URL は拒む (両向きに検査)
+ */
+local?: boolean }
 export type CoreHealth = { 
 /**
  * notecli doctor の結果 (database / keychain / accounts / network / auth)
@@ -4899,6 +4912,10 @@ export type VaultError =
  */
 { code: "ssrf_denied"; reason: string } | 
 /**
+ * この端末の中のサービスへの接続 (local) は vault.fetch で使えない (#880)
+ */
+{ code: "local_connection_not_fetchable" } | 
+/**
  * リクエストがタイムアウトした。
  */
 { code: "timeout" } | 
@@ -4978,7 +4995,17 @@ ok: boolean;
 /**
  * 失敗時の理由 (SSRF / timeout / DNS など)。secret は含まない。
  */
-error: string | null }
+error: string | null; 
+/**
+ * 実際に叩いた URL (baseUrl + testPath、#1319)。失敗の原因を追えるように返す。
+ * 接続が見つからないなど URL を組めなかったときは None
+ */
+url?: string | null; 
+/**
+ * 応答から読めたモデル名の候補 (OpenAI / Anthropic 互換の `/models` の `data[].id`、
+ * #880)。モデル一覧の形でない応答なら None
+ */
+models?: string[] | null }
 /**
  * `api_verify_notes` の結果。
  */

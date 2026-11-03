@@ -124,7 +124,7 @@ pub async fn vault_set_exposed(
 ) -> VaultResult<()> {
     service::update_connection(dir(core)?, &id, |c| {
         service::apply_exposed(c, principal_class, exposed)
-    })
+    })?
 }
 
 pub async fn vault_set_trusted(
@@ -135,7 +135,7 @@ pub async fn vault_set_trusted(
 ) -> VaultResult<()> {
     service::update_connection(dir(core)?, &id, |c| {
         service::apply_trusted(c, principal_class, trusted)
-    })
+    })?
 }
 
 pub async fn vault_set_trusted_plugin(
@@ -147,7 +147,7 @@ pub async fn vault_set_trusted_plugin(
 ) -> VaultResult<()> {
     service::update_connection(dir(core)?, &id, |c| {
         service::apply_trusted_plugin(c, plugin_id, name, trusted)
-    })
+    })?
 }
 
 pub async fn ai_migrate_provider_to_vault(
