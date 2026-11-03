@@ -17,7 +17,7 @@ const ja = {
     released: (tag: string) => `${tag} をリリースしました`,
   },
   hero: {
-    desc: 'Misskey廃人のための 非公式クライアント。',
+    desc: 'あなたの Misskey が棲む、デッキ。',
     download: 'ダウンロード',
     tryGuest: 'ログインせずに試す',
     screenshotAlt: 'NoteDeck のデッキ画面 — カラムを横に並べたレイアウト',
