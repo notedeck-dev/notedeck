@@ -1,40 +1,51 @@
 <div align="center">
+<a href="https://notedeck.io">
+	<img src="./site/public/icon-512.png" alt="NoteDeck logo" style="border-radius:50%" width="200"/>
+</a>
 
-<img src="src-tauri/icons/128x128@2x.png" alt="NoteDeck" width="96" />
+**🌎 **NoteDeck** は、あなたの Misskey が棲む、デッキ。オープンソースで、ずっと無料！ 🚀**
 
-# NoteDeck
+[詳しく見る](https://notedeck.io)
 
-**あなたの Misskey が棲む、デッキ。**
+---
 
-Misskey Pro — Misskey廃人のための統合デッキ環境。
+<a href="https://github.com/notedeck-dev/notedeck/releases/latest">
+		<img src="https://custom-icon-badges.herokuapp.com/badge/download_the-app-acea31?logoColor=acea31&style=for-the-badge&logo=download&labelColor=363B40" alt="download the app"/></a>
 
-[![Release](https://img.shields.io/github/v/release/notedeck-dev/notedeck?style=flat-square)](https://github.com/notedeck-dev/notedeck/releases/latest)
-[![CI](https://github.com/notedeck-dev/notedeck/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/notedeck-dev/notedeck/actions/workflows/ci.yml)
-[![License](https://img.shields.io/github/license/notedeck-dev/notedeck?style=flat-square)](LICENSE)
+<a href="https://notedeck.io/docs/">
+		<img src="https://custom-icon-badges.herokuapp.com/badge/read_the-docs-FBD53C?logoColor=FBD53C&style=for-the-badge&logo=book&labelColor=363B40" alt="read the docs"/></a>
 
-**[ダウンロード](https://github.com/notedeck-dev/notedeck/releases/latest)** · [notedeck.io](https://notedeck.io) · [Issues](https://github.com/notedeck-dev/notedeck/issues)
+<a href="./CONTRIBUTING.md">
+		<img src="https://custom-icon-badges.herokuapp.com/badge/become_a-contributor-A371F7?logoColor=A371F7&style=for-the-badge&logo=git-merge&labelColor=363B40" alt="become a contributor"/></a>
+
+<a href="https://misskey.io/@notedeck">
+		<img src="https://custom-icon-badges.herokuapp.com/badge/follow_on-misskey-86b300?logoColor=86b300&style=for-the-badge&logo=misskey&labelColor=363B40" alt="follow on misskey"/></a>
+
+<a href="https://github.com/notedeck-dev/notedeck/discussions">
+		<img src="https://custom-icon-badges.herokuapp.com/badge/join_the-discussion-5865F2?logoColor=5865F2&style=for-the-badge&logo=comment-discussion&labelColor=363B40" alt="join the discussion"/></a>
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/notedeck-dev/notedeck)
+
+<a href="https://gitgem.org/github/notedeck-dev/notedeck" target="_blank"><img src="https://gitgem.org/api/badge/github/notedeck-dev/notedeck.svg" height="24px"/></a>
 
 </div>
 
-<img width="2376" height="1706" alt="NoteDeck のデッキ画面" src="https://github.com/user-attachments/assets/610f1403-471b-4298-abd9-a1f92cc5942d" />
+## Thanks
 
-## Install
+<a href="https://misskey-hub.net/"><img src="https://img.shields.io/badge/Misskey-86b300?style=for-the-badge&logo=misskey&logoColor=fff" height="30" alt="Misskey" /></a>
 
-Windows / macOS / Linux / Android の各ビルドは [Releases](https://github.com/notedeck-dev/notedeck/releases/latest) から。
+Thanks to [Misskey](https://misskey-hub.net/) and its community for the platform NoteDeck lives on.
 
-```bash
-winget install NotedeckDev.NoteDeck   # Windows
-yay -S misskey-notedeck-bin           # Arch Linux
-```
+<a href="https://tauri.app/"><img src="https://img.shields.io/badge/Tauri-ffc131?style=for-the-badge&logo=tauri&logoColor=000" height="30" alt="Tauri" /></a>
 
-Android は [Obtainium](https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.notedeck.desktop%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fnotedeck-dev%2Fnotedeck%22%2C%22author%22%3A%22notedeck-dev%22%2C%22name%22%3A%22NoteDeck%22%2C%22additionalSettings%22%3A%22%7B%5C%22includePrereleases%5C%22%3Afalse%2C%5C%22fallbackToOlderReleases%5C%22%3Afalse%2C%5C%22versionDetection%5C%22%3Atrue%2C%5C%22apkFilterRegEx%5C%22%3A%5C%22%5C%22%2C%5C%22autoApkFilterByArch%5C%22%3Atrue%2C%5C%22appName%5C%22%3A%5C%22NoteDeck%5C%22%2C%5C%22appAuthor%5C%22%3A%5C%22notedeck-dev%5C%22%7D%22%7D) で自動更新できます。
+Thanks to [Tauri](https://tauri.app/) for providing the app framework that lets NoteDeck run on every platform from one codebase.
 
-## 不具合・要望
+---
 
-[Issues](https://github.com/notedeck-dev/notedeck/issues) か、Misskey で [@notedeck@misskey.io](https://misskey.io/@notedeck) にメンション。どちらもアプリの「バージョン情報」から環境情報つきで開けます。
+<div align="center">
+	
+⭐ で応援してください！
 
-## 開発
+[![Star History Chart](https://api.star-history.com/svg?repos=notedeck-dev/notedeck&type=Date)](https://star-history.com/#notedeck-dev/notedeck&Date)
 
-[DEVELOPMENT.md](DEVELOPMENT.md) · [ARCHITECTURE.md](ARCHITECTURE.md) · [CONTRIBUTING.md](CONTRIBUTING.md)
-
-[AGPL-3.0](LICENSE)
+</div>
