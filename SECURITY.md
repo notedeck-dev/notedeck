@@ -249,7 +249,7 @@ AI プロバイダーの API キーを含む外部サービスのシークレッ
 | 実行モデル | `vault_fetch` が Rust 側で認証情報を注入し、レスポンスから secret を redaction して返す |
 | 開示制御 | `exposedTo` で principal クラス (ai / plugin / external) 別に開示。default は非開示 |
 
-AI チャットは `connection_id` から endpoint / キー / protocol を Rust 側で解決するため、キー本体はフロントにも AI にも渡らない。SSRF・redaction の詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault"。
+AI チャットは `connection_id` から endpoint / キー / protocol を Rust 側で解決するため、キー本体はフロントにも AI にも渡らない。Vault の外向き fetch (`vault_fetch`) の SSRF・redaction の詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault"。**AI プロバイダーへのリクエストはこの fetch 経路を通らない**: 現状の防御は redirect を追わないこと (3xx はリダイレクト先ホストを含むエラーにする、#1160) だけで、SSRF 検査と許可ホストの照合は共有していない。揃える作業は #1315。
 
 ### 保存前の秘匿化 ([#1164](https://github.com/notedeck-dev/notedeck/issues/1164))
 
