@@ -682,6 +682,7 @@ function handleReset() {
               </button>
             </div>
             <div v-if="showScopeEditor" :class="$style.tokenScopeEditor">
+              <div :class="$style.tokenSectionLabel">{{ i18n.ts._permissionsContent.tokenScope }}</div>
               <div :class="$style.hint">{{ i18n.ts._permissionsContent.tokenScopeHint }}</div>
               <PermissionProfileFields
                 v-model="newTokenScope"
