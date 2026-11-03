@@ -3871,6 +3871,8 @@ _native:
     errorContentAfter: "{partial}\n\n⚠️ {error}"
     roundLimit: "{partial}\n\n⚠️ Reached the limit of {max} tool calls."
     redirectNotFollowed: "The AI provider returned a redirect (HTTP {status}). Not following it to {host}. Point the connection’s URL at the final destination"
+    endpointDenied: "Can’t send to the AI connection’s URL ({host}): {reason}. Internal addresses and ports a browser won’t connect to can’t be AI provider destinations"
+    hostNotAllowed: "The AI connection’s URL host ({host}) is not in this connection’s allowed hosts. Add it in the connection settings"
   backup:
     skippedSame: "Skipped (same as existing): {items}"
     restoredRenamed: "Restored under another name (conflicts with existing): {items} → {renamed}"

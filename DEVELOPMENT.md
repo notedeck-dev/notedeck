@@ -1484,6 +1484,8 @@ file lock / rate limit / `vault.manage` 権限 / error 3 値正規化 / latency 
 
 endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` から Rust 側で取得する。フロントは決してキー本体を持たない (詳細は [AI Credentials](#ai-credentials))。
 
+**宛先の検査 (#1315)**: `resolve_connection` はキーを開く前に `baseUrl` を `ssrf::validate_external_url` (scheme / host の一次検査 / bad port) に通し、接続の `allowedHosts` が空でなければ host がその中に居ることを求める (空なら `baseUrl` の host だけ、`Connection::allowed_hosts` の規約)。止めたときは `_native.ai.endpointDenied` (host と理由) / `_native.ai.hostNotAllowed` (host) の文言で返す。ストリーミング client は長寿命なので DNS を pin せず、解決のたびに検証する `ssrf::ValidatingResolver` (メディアプロキシと同じ) と `no_proxy` を載せる。redirect は追わない (下記)。`vault_fetch` との差は「pin か都度検証か」と「redirect を追うか追わないか」だけで、拒む規則は同じ。副作用として loopback / private の宛先 (ローカル LLM) は AI 接続にできない (#880 は接続単位の同意を前提にする)。
+
 **会話アフィニティ ID (#1160)**: 「会話ごとに安定した ID」を要求するプロバイダー (OpenCode の `x-opencode-session`。無いと 400 `MissingSessionID`) のために、1 リクエストは「どの会話の一部か」(`AiChatRequest::affinity`、`ai_affinity::ConversationKey`) を持つ。値を決めるのは会話を知っている層で、チャットのターン (round / 透過リトライ / continuation / チェックポイント再開 / タイトル生成を含む) は session ID、HEARTBEAT は接続ごとに固定、1 往復の `ai_chat_send` は呼び出しごとの stream ID。送る値は接続 ID + 鍵から導出した UUID v5 で生の session ID は出ず、フロント / 外部からは指定できない (wire に無い)。**どのヘッダーに載せるかは宛先ホストで決める**: 接続の `baseUrl` のホストが `connection_templates.json5` の `allowedHosts` に一致するテンプレの `affinityHeader` を使う (テンプレ id では引かない。既存の接続・手動追加・同じホストの別 API にもアップデートだけで効く)。AI ストリーミングの HTTP client は **redirect を追わない** (ホストをまたぐ redirect で API キーと会話 ID が持ち越されるため)。3xx はリダイレクト先ホストを含む明示エラー (`_native.ai.redirectNotFollowed`) になる。
 
 #### ターンのフロー
