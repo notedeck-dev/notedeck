@@ -3,6 +3,7 @@ import { ALL_COLUMN_TYPES, COLUMN_REGISTRY } from '@/columns/registry'
 import { type ColumnSource, normalizeSources } from '@/services/columnSource'
 import { parseVariantKey } from '@/services/noteKey'
 import { externalQueryPatch } from '@/services/searchFilter'
+import type { WidgetPlacement } from '@/services/widgetPlacement'
 import { useAccountsStore } from '@/stores/accounts'
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import type { ColumnType, DeckColumn } from '@/stores/deck'
@@ -16,14 +17,15 @@ import { implement } from '../declare'
  * 足すたびに更新漏れが起き (実際に role が抜けていた)、実行時登録された
  * プラグイン定義カラムは原理的に載せられない。
  *
- * 除外するのは「先に中身を作る」固有フローを持つ種別 (customAddFlow) だけ。
+ * 中身を持つ種別 (widget / aiscript / play / page) も、中身を params
+ * (`widgets` / `aiscriptCode` / `flashId` / `pageId`) で受けて作れる (#1242)。
  */
 function isString(v: unknown): v is string {
   return typeof v === 'string'
 }
 
 function addableColumnTypes(): readonly ColumnType[] {
-  return ALL_COLUMN_TYPES.filter((t) => !COLUMN_REGISTRY[t]?.customAddFlow)
+  return ALL_COLUMN_TYPES
 }
 
 /**
@@ -56,6 +58,15 @@ function columnSettings(c: DeckColumn) {
     ...(c.flashId ? { flashId: c.flashId } : {}),
     ...(c.pageId ? { pageId: c.pageId } : {}),
     ...(c.noteQueryRefs?.length ? { queryIds: c.noteQueryRefs } : {}),
+    ...(c.widgetRefs?.length
+      ? {
+          widgets: c.widgetRefs.map((r) => ({
+            installId: r.id,
+            ...(r.accountKey ? { accountKey: r.accountKey } : {}),
+          })),
+        }
+      : {}),
+    ...(c.aiscriptCode ? { aiscriptCode: c.aiscriptCode } : {}),
   }
 }
 
@@ -128,6 +139,27 @@ function parseSources(raw: unknown): ColumnSource[] {
   return out
 }
 
+/**
+ * `widgets` の生の値を widget カラムの配置に読む (#1242)。`installId` は本体、
+ * `accountKey` は実行アカウント (`accountScopeKey`、省略 = カラムのアカウント)。
+ * 形が違う要素は捨てる
+ */
+export function parseWidgetPlacements(raw: unknown): WidgetPlacement[] {
+  if (!Array.isArray(raw)) return []
+  const out: WidgetPlacement[] = []
+  for (const item of raw) {
+    if (typeof item !== 'object' || item === null) continue
+    const { installId, accountKey } = item as Record<string, unknown>
+    if (typeof installId !== 'string') continue
+    out.push(
+      typeof accountKey === 'string'
+        ? { id: installId, accountKey }
+        : { id: installId },
+    )
+  }
+  return out
+}
+
 export const columnAddCapability = implement('column.add', {
   // 実行時登録された種別 (plugin 由来) も AI に見せる
   enumOf: { type: addableColumnTypes },
@@ -165,6 +197,13 @@ export const columnAddCapability = implement('column.add', {
     }
     if (typeof params?.tl === 'string') partial.tl = params.tl
     if (typeof params?.query === 'string') partial.query = params.query
+    if (typeof params?.flashId === 'string') partial.flashId = params.flashId
+    if (typeof params?.pageId === 'string') partial.pageId = params.pageId
+    if (typeof params?.aiscriptCode === 'string') {
+      partial.aiscriptCode = params.aiscriptCode
+    }
+    const widgets = parseWidgetPlacements(params?.widgets)
+    if (widgets.length > 0) partial.widgetRefs = widgets
     if (accountId) {
       for (const idKey of [
         'listId',
