@@ -4978,7 +4978,12 @@ ok: boolean;
 /**
  * 失敗時の理由 (SSRF / timeout / DNS など)。secret は含まない。
  */
-error: string | null }
+error: string | null; 
+/**
+ * 実際に叩いた URL (baseUrl + testPath、#1319)。失敗の原因を追えるように返す。
+ * 接続が見つからないなど URL を組めなかったときは None
+ */
+url?: string | null }
 /**
  * `api_verify_notes` の結果。
  */

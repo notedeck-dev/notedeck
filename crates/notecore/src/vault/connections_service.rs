@@ -121,6 +121,10 @@ pub struct VaultTestResult {
     pub ok: bool,
     /// 失敗時の理由 (SSRF / timeout / DNS など)。secret は含まない。
     pub error: Option<String>,
+    /// 実際に叩いた URL (baseUrl + testPath、#1319)。失敗の原因を追えるように返す。
+    /// 接続が見つからないなど URL を組めなかったときは None
+    #[serde(default)]
+    pub url: Option<String>,
 }
 
 /// 「load → find(id) → mutate → save」の共通形。mutate 後に updated_at を更新する。
@@ -384,8 +388,16 @@ pub async fn test_connection(
 ) -> VaultResult<VaultTestResult> {
     validate_connection_id(id)?;
 
+    let path = test_path.unwrap_or_else(|| "/".to_string());
+    // 実際に叩く URL を結果に添える (#1319)。vault_fetch と同じ結合規則
+    let url = connections_store::load(app_dir)
+        .ok()
+        .and_then(|file| file.connections.into_iter().find(|c| c.id == id))
+        .and_then(|c| fetch::resolve_url(&c.base_url, &path).ok())
+        .map(|u| u.to_string());
+
     let request = VaultFetchRequest {
-        path: test_path.unwrap_or_else(|| "/".to_string()),
+        path,
         method: Some("GET".to_string()),
         headers: None,
         body: None,
@@ -400,16 +412,19 @@ pub async fn test_connection(
             status: None,
             ok: false,
             error: resp.error,
+            url,
         }),
         Ok(resp) => Ok(VaultTestResult {
             status: Some(resp.status),
             ok: (200..400).contains(&resp.status),
             error: None,
+            url,
         }),
         Err(e) => Ok(VaultTestResult {
             status: None,
             ok: false,
             error: Some(e.to_string()),
+            url,
         }),
     }
 }
