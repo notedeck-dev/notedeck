@@ -355,7 +355,7 @@ watch(
 
 // この端末の中で動くサービス (ローカル接続)
 .localBadge {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 .field { @include field; }

@@ -832,7 +832,7 @@ const testResultText = computed(() => {
   align-items: flex-start;
   gap: 8px;
   padding: 10px;
-  border-radius: 8px;
+  border-radius: var(--nd-radius-sm);
   background: var(--nd-panelHighlight, rgba(127, 127, 127, 0.08));
   font-size: var(--nd-font-sm);
   color: var(--nd-fg);
@@ -840,7 +840,7 @@ const testResultText = computed(() => {
   > i {
     flex-shrink: 0;
     margin-top: 2px;
-    color: var(--nd-accent);
+    color: var(--nd-accentText);
   }
 
   > span {

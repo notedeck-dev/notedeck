@@ -163,7 +163,7 @@ function classBadge(
 
 // この端末の中で動くサービス (ローカル接続)
 .cls_local {
-  color: var(--nd-accent);
+  color: var(--nd-accentText);
 }
 
 // 開示はされているが実効的にまだ見えない (vault.use 無効 / secret 未設定)
