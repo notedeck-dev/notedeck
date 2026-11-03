@@ -367,6 +367,9 @@ mod tests {
             let id = a.id.clone();
             tokio::spawn(async move { store.until_revoked(&id).await })
         };
+        while store.revoked.receiver_count() == 0 {
+            tokio::task::yield_now().await;
+        }
         store.revoke(&b.id).unwrap();
         tokio::task::yield_now().await;
         assert!(!waiter.is_finished(), "他のトークンの失効では切れない");
@@ -390,7 +393,10 @@ mod tests {
             let id = a.id.clone();
             tokio::spawn(async move { store.until_revoked(&id).await })
         };
-        tokio::task::yield_now().await;
+        // until_revoked が購読するまで待つ (yield 1 回では実行順序が保証されない)
+        while store.revoked.receiver_count() == 0 {
+            tokio::task::yield_now().await;
+        }
         // 保存先をディレクトリにして書けなくする
         std::fs::remove_file(dir.path().join(TOKENS_FILE)).unwrap();
         std::fs::create_dir(dir.path().join(TOKENS_FILE)).unwrap();
