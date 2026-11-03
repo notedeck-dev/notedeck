@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { i18n } from '@/i18n'
+import { loopbackReasonLabel } from '@/permissions/pluginDenials'
+import type { LoopbackDenialReason } from '@/services/loopbackPorts'
 import { readOnlyHint } from '@/services/sidecarFileCollection'
 import { formatDate } from '@/utils/format'
 import { isProxiable, proxyCssUrl } from '@/utils/mediaProxy'
@@ -35,7 +37,13 @@ const props = defineProps<{
    * 権限拒否バッジ (#712 §8.4)。plugin principal の permission_denied が
    * 記録されているとき表示し、クリックで権限編集 UI へ誘導する。
    */
-  deniedBadge?: { lastTarget: string; lastKeys: string[]; count: number } | null
+  deniedBadge?: {
+    lastTarget: string
+    lastKeys: string[]
+    count: number
+    /** 手元のポートへの接続の拒否 (#1293)。理由を出し、押した先はプラグイン詳細 */
+    reason?: LoopbackDenialReason
+  } | null
   /** ソース欠損の読取専用個体 (#913 / #1111)。変更は保存できない */
   readOnly?: boolean
 }>()
@@ -116,7 +124,9 @@ const updateTitle = computed(() => {
           v-if="deniedBadge"
           class="_button"
           :class="$style.deniedBadge"
-          :title="i18n.tsx._pluginCard.denied_plural({ target: deniedBadge.lastTarget, keys: deniedBadge.lastKeys.join(', '), count: deniedBadge.count })"
+          :title="deniedBadge.reason
+            ? i18n.tsx._pluginCard.loopbackDenied_plural({ reason: loopbackReasonLabel(deniedBadge.reason), count: deniedBadge.count })
+            : i18n.tsx._pluginCard.denied_plural({ target: deniedBadge.lastTarget, keys: deniedBadge.lastKeys.join(', '), count: deniedBadge.count })"
           @click.stop="emit('denied-click')"
         >
           <i class="ti ti-shield-x" />

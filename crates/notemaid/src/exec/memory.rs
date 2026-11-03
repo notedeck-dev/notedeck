@@ -237,6 +237,7 @@ mod tests {
             plugin_id: None,
             token_id: None,
             token_name: None,
+            body_hash: None,
         }
     }
 

@@ -80,6 +80,7 @@ pub async fn capability_execute(
     plugin_id: Option<String>,
     token_id: Option<String>,
     token_name: Option<String>,
+    body_hash: Option<String>,
 ) -> Result<crate::exec::ExecOutcome> {
     let ctx = crate::exec::ExecContext {
         principal,
@@ -88,6 +89,7 @@ pub async fn capability_execute(
         plugin_id,
         token_id,
         token_name,
+        body_hash,
     };
     crate::exec::execute(core, &id, params, &ctx).await
 }
@@ -107,6 +109,7 @@ pub async fn capability_preview(
     plugin_id: Option<String>,
     token_id: Option<String>,
     token_name: Option<String>,
+    body_hash: Option<String>,
 ) -> Result<Option<serde_json::Value>> {
     let ctx = crate::exec::ExecContext {
         principal,
@@ -115,6 +118,7 @@ pub async fn capability_preview(
         plugin_id,
         token_id,
         token_name,
+        body_hash,
     };
     crate::exec::preview(core, &id, params, &ctx).await
 }

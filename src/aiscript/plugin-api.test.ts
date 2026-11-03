@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import loopbackGolden from '@/aiscript/golden/loopbackHeader.json'
 import {
   _clearCapabilitiesForTest,
   registerCapability,
@@ -164,6 +165,14 @@ afterEach(() => {
 })
 
 describe('parsePluginMeta', () => {
+  it('loopback の宣言は Rust と同じ golden を通す (#1293)', () => {
+    for (const v of loopbackGolden.vectors) {
+      const meta = parsePluginMeta(v.source)
+      expect(meta, v.name).not.toBeNull()
+      expect(meta?.loopback ?? null, v.name).toEqual(v.expected)
+    }
+  })
+
   it('parses a full metadata header including nested config', () => {
     const meta = parsePluginMeta(`/// @ 1.2.1
 ### {

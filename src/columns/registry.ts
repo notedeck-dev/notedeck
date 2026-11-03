@@ -55,12 +55,6 @@ export interface ColumnSpec {
   /** list/antenna/channel/clip/user のような選択式タイプ */
   selectable?: SelectableSpec
   /**
-   * 固有の生成フローを持つため汎用の追加経路 (`column.add` capability) からは
-   * 作れない。ウィジェット / AiScript / Play / ページのように「先に中身を
-   * 作る」種別が該当する。
-   */
-  customAddFlow?: boolean
-  /**
    * 追加導線に出す条件 (#1034)。既定 (未指定) は 'general' で常に出る。
    * 'developer' は開発者モードが有効なときだけ追加導線に現れる — デッキに
    * 既に置かれたカラムの描画は止めない。
@@ -466,7 +460,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     icon: 'player-play',
     group: 'server',
     guestAllowed: true,
-    customAddFlow: true,
   },
   page: {
     get label() {
@@ -475,7 +468,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     icon: 'note',
     group: 'server',
     guestAllowed: true,
-    customAddFlow: true,
   },
   user: {
     get label() {
@@ -550,7 +542,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     // (themeManager / pluginManager と同じ semantics)。実行アカウントは配置
     // (`widgetRefs[].accountKey`) が持ち、置くときに選ばせる (#1061)。
     crossAccount: true,
-    customAddFlow: true,
     defaultProps: { widgets: [] },
   },
   queryManager: {
@@ -618,7 +609,6 @@ const BUILTIN_COLUMN_REGISTRY: Record<BuiltinColumnType, ColumnSpec> = {
     exposure: 'developer',
     guestAllowed: true,
     accountOptional: true,
-    customAddFlow: true,
     defaultProps: { aiscriptCode: '<: "Hello, AiScript!"' },
   },
   apiConsole: {

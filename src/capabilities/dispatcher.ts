@@ -24,6 +24,8 @@ import {
 } from '@/composables/useSpotlight'
 import { i18n } from '@/i18n'
 import {
+  loopbackReasonLabel,
+  notifyLoopbackDenialInteraction,
   notifyPluginDenialInteraction,
   recordPluginDenial,
 } from '@/permissions/pluginDenials'
@@ -41,6 +43,10 @@ import { isReadOnlyPermissions } from '@/services/petActivity'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useAiActivity } from '@/stores/aiActivity'
 import {
+  logSourceOfPrincipal,
+  useAiScriptLogsStore,
+} from '@/stores/aiscriptLogs'
+import {
   type ConfirmDecision,
   type ConfirmOptions,
   useConfirm,
@@ -50,6 +56,11 @@ import { useWindowsStore } from '@/stores/windows'
 import { WINDOW_LABELS } from '@/windows/registry'
 import { pickAccountId } from './accountContext'
 import { sanitizeToolName } from './identifier'
+import {
+  gateLoopbackFetch,
+  loopbackReasonFromCode,
+  loopbackRequestLine,
+} from './loopbackGate'
 import { getCapability, listCapabilities } from './registry'
 import type { CapabilityContext } from './types'
 
@@ -127,6 +138,14 @@ export interface DispatchContext {
    * が要る (user はプロファイルを持たないので無視される)。
    */
   onBehalfOf?: readonly Principal[]
+  /**
+   * 実行の起点 (#1293)。`'ui'` = 人が押した入口 (ノート / ユーザー / 投稿フォームの
+   * アクション、コマンドパレット) の中、それ以外は `'other'`。手元のポートへの
+   * 同意ダイアログを出すか決めるだけで、認可の境界ではない
+   */
+  origin?: 'ui' | 'other'
+  /** principal が plugin のとき、動かしている本文の hash (#1293) */
+  pluginBodyHash?: string
 }
 
 /** エラー文用: 実行体と (あれば) 呼び出し元を並べる。 */
@@ -244,18 +263,60 @@ export async function dispatchCapability(
     ...(ctx.onBehalfOf?.length ? { onBehalfOf: ctx.onBehalfOf } : {}),
     ...(options?.tainted ? { tainted: true } : {}),
     ...(options?.markTainted ? { markTainted: options.markTainted } : {}),
+    ...(ctx.pluginBodyHash ? { pluginBodyHash: ctx.pluginBodyHash } : {}),
   }
+  // 手元のポートへの要求 (#1293): プラグインの http.fetch が loopback を指すときだけ
+  // 宣言 / 同意 / 本文の鮮度を見る。同意ダイアログで承認された要求は、その承認が
+  // 確認を兼ねる。拒否はバッジ (理由つき) と運用ログに残す
+  const loopback =
+    cap.id === 'http.fetch' && ctx.principal.kind === 'plugin'
+      ? await gateLoopbackFetch(params, ctx, {
+          preConfirmed: options?.preConfirmed === true,
+          confirmFn: options?.confirmFn,
+        })
+      : null
+  if (loopback?.kind === 'denied' && ctx.principal.kind === 'plugin') {
+    const reason = loopback.reason
+    recordPluginDenial(ctx.principal.pluginId, cap.id, [], reason)
+    logLoopback(ctx.principal, params, `denied: ${reason}`)
+    if (ctx.origin === 'ui') {
+      notifyLoopbackDenialInteraction(
+        ctx.principal.pluginId,
+        ctx.principal.name,
+        reason,
+      )
+    }
+    return {
+      ok: false,
+      code: 'permission_denied',
+      error: `Loopback access denied for ${capabilityId} (port ${loopback.port}): ${loopbackReasonLabel(reason)}`,
+    }
+  }
+  if (loopback?.kind === 'cancelled') {
+    logLoopback(ctx.principal, params, 'cancelled')
+    return {
+      ok: false,
+      code: 'user_cancelled',
+      error: `User cancelled loopback access for ${capabilityId}`,
+    }
+  }
+  const loopbackPort =
+    loopback && loopback.kind !== 'pass'
+      ? loopback.port
+      : (loopback?.port ?? null)
   // 確認ダイアログ (write 系などで requiresConfirmation: true)。
   // クロスアカウント実行は requiresConfirmation 未宣言でも必ず確認する。
-  // notecore が既に許可を得ている実行 (#1133) では出さない。
-  const prepared = options?.preConfirmed
-    ? null
-    : await prepareConfirmation(cap, params, capCtx, ctx, {
-        crossAccount,
-        crossAccountId,
-        force: options?.forceConfirm === true,
-        note: options?.confirmNote,
-      })
+  // notecore が既に許可を得ている実行 (#1133) と、同意ダイアログで承認された
+  // loopback 宛の要求では出さない。
+  const prepared =
+    options?.preConfirmed || loopback?.kind === 'consented'
+      ? null
+      : await prepareConfirmation(cap, params, capCtx, ctx, {
+          crossAccount,
+          crossAccountId,
+          force: options?.forceConfirm === true,
+          note: options?.confirmNote,
+        })
   if (prepared) {
     const { confirmOpts, skipScope } = prepared
     // 無人実行 (HEARTBEAT) は承認を待たない (#1106 §4.8)。従来は誰も見ていない
@@ -309,6 +370,10 @@ export async function dispatchCapability(
     : null
   try {
     const result = await cap.execute(params, capCtx)
+    if (loopbackPort !== null) {
+      const status = (result as { status?: unknown } | null)?.status
+      logLoopback(ctx.principal, params, `status ${String(status ?? '?')}`)
+    }
     // AI 操作の可視化: 成功時のみ、対応する UI 要素を一時的に光らせる。
     // DOM 更新後 (navbar に新 item が反映されてから) に highlight する。
     // 防御: spotlight 副作用が万一失敗しても本体 (AI flow) に影響しないよう
@@ -324,6 +389,23 @@ export async function dispatchCapability(
     })
     return { ok: true, result }
   } catch (e) {
+    // Rust が理由つきで拒んだ loopback 宛の要求 (#1293) はバッジに写す
+    const reason = loopbackReasonFromCode(
+      (e as { code?: unknown } | null)?.code,
+    )
+    if (reason && ctx.principal.kind === 'plugin') {
+      recordPluginDenial(ctx.principal.pluginId, cap.id, [], reason)
+      logLoopback(ctx.principal, params, `denied: ${reason}`)
+      if (ctx.origin === 'ui') {
+        notifyLoopbackDenialInteraction(
+          ctx.principal.pluginId,
+          ctx.principal.name,
+          reason,
+        )
+      }
+    } else if (loopbackPort !== null) {
+      logLoopback(ctx.principal, params, 'failed')
+    }
     return {
       ok: false,
       code: 'execute_failed',
@@ -332,6 +414,26 @@ export async function dispatchCapability(
   } finally {
     endExecute?.()
   }
+}
+
+/**
+ * loopback 宛の要求は結果にかかわらずプラグインの運用ログに 1 行残す (#1293):
+ * method / path (query 無し) / status または拒否の理由。runId 0 = 実行の外
+ */
+function logLoopback(
+  principal: Principal,
+  params: Record<string, unknown> | undefined,
+  outcome: string,
+): void {
+  const { source, sourceId, name } = logSourceOfPrincipal(principal)
+  useAiScriptLogsStore().record(
+    source,
+    sourceId,
+    name,
+    0,
+    'system',
+    `loopback ${loopbackRequestLine(params)} -> ${outcome}`,
+  )
 }
 
 function isAiPrincipal(principal: Principal): boolean {

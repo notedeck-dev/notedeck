@@ -50,6 +50,9 @@ export interface AiScriptSandboxOptions {
    * アカウント文脈が実行の合間に変わるプラグインだけが渡す
    */
   runWithAccount?: NoteDeckEnvContext['runWithAccount']
+  /** 動かしている本文の hash と実行の起点 (#1293、プラグインだけ) */
+  getBodyHash?: NoteDeckEnvContext['getBodyHash']
+  getOrigin?: NoteDeckEnvContext['getOrigin']
   /** localStorage のキー prefix (Mk:save / Mk:load) */
   storagePrefix?: string
   /** 名前空間化の前の prefix (Mk:load の fallback、ウィジェットだけ) */
@@ -152,6 +155,8 @@ export function createAiScriptSandbox(
     ...(options.runWithAccount
       ? { runWithAccount: options.runWithAccount }
       : {}),
+    ...(options.getBodyHash ? { getBodyHash: options.getBodyHash } : {}),
+    ...(options.getOrigin ? { getOrigin: options.getOrigin } : {}),
   }
   const ndEnv = createNoteDeckEnv(ndCtx)
   const uiEnv = options.ui ? createAiScriptUiLib(options.ui) : {}

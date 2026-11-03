@@ -1548,6 +1548,7 @@ async fn collect_previews(rt: &TurnRuntime, state: &mut TurnState) -> Vec<Value>
                             plugin_id: None,
                             token_id: None,
                             token_name: None,
+                            body_hash: None,
                         };
                         match core.preview(&capability_id, p.input.clone(), ctx).await {
                             Ok(None) => {
@@ -1650,6 +1651,7 @@ async fn execute_pending(rt: &TurnRuntime, state: &mut TurnState) {
                 plugin_id: None,
                 token_id: None,
                 token_name: None,
+                body_hash: None,
             };
             match executor
                 .execute(

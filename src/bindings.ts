@@ -2664,18 +2664,18 @@ async maidTurnSystem(turnId: string) : Promise<Result<JsonValue | null, { code: 
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null, tokenId: string | null, tokenName: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null, tokenId: string | null, tokenName: string | null, bodyHash: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted, pluginId, tokenId, tokenName }) };
+    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted, pluginId, tokenId, tokenName, bodyHash }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null, tokenId: string | null, tokenName: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null, tokenId: string | null, tokenName: string | null, bodyHash: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted, pluginId, tokenId, tokenName }) };
+    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted, pluginId, tokenId, tokenName, bodyHash }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2757,6 +2757,60 @@ async aiSessionDelete(id: string) : Promise<Result<null, { code: string; message
 async httpFetch(request: HttpFetchRequest) : Promise<Result<HttpFetchResponse, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("http_fetch", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/loopback.rs */
+async loopbackConsentStatus(pluginId: string) : Promise<Result<LoopbackConsentStatus, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("loopback_consent_status", { pluginId }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/loopback.rs */
+async loopbackConsentList() : Promise<Result<LoopbackConsentRow[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("loopback_consent_list") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/loopback.rs */
+async loopbackConsentGrant(pluginId: string, port: number, expectedHash: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("loopback_consent_grant", { pluginId, port, expectedHash }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/loopback.rs */
+async loopbackConsentRevoke(pluginId: string, port: number) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("loopback_consent_revoke", { pluginId, port }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/loopback.rs */
+async httpLoopbackClassify(url: string, pluginId: string, bodyHash: string) : Promise<Result<LoopbackClassification, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("http_loopback_classify", { url, pluginId, bodyHash }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/loopback.rs */
+async pluginBodyHash(content: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("plugin_body_hash", { content }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -3866,6 +3920,70 @@ resident: ResidentStatus }
  * の形で、TS は `nativeField(line, 'text')` で表示言語の文にする
  */
 export type LocalizedLine = { text: string; i18n: JsonValue }
+/**
+ * `http.fetch` の URL の分類 (WebView の dispatcher が確認の要否を決める材料)
+ */
+export type LoopbackClassification = { 
+/**
+ * URL の host が loopback の 3 表記か。false なら他の欄は意味を持たない
+ */
+loopback: boolean; port: number | null; 
+/**
+ * 常に拒否するポート (自アプリ / ブラウザが繋がない / 危険なローカルサービス)
+ */
+alwaysDenied: boolean; 
+/**
+ * 今のソースの宣言にそのポートがある
+ */
+declared: boolean; 
+/**
+ * 同意済み (ディスクの hash と同意の hash が一致し、ポートが同意にある)
+ */
+granted: boolean; 
+/**
+ * 動かしている本文がディスクの本文と違う (再起動が要る)
+ */
+stale: boolean }
+/**
+ * 権限ウィンドウの一覧の 1 行 (実在する個体だけ)
+ */
+export type LoopbackConsentRow = ({ 
+/**
+ * 今のソースの宣言 (正規化済み)。個体が無ければ空
+ */
+declared: number[]; 
+/**
+ * ディスク上の本文の hash (grant の `expected_hash` に渡す)
+ */
+hash: string; 
+/**
+ * 同意済みのポート (宣言にあるものだけ)。stale のときは同意した当時のもの
+ */
+granted: number[]; 
+/**
+ * 同意はあるが本文が変わっていて、次の使用時に再同意になる
+ */
+stale: boolean }) & { pluginId: string; name: string }
+/**
+ * プラグイン 1 個体の宣言と同意の状態 (プラグイン詳細 / 権限ウィンドウ用)
+ */
+export type LoopbackConsentStatus = { 
+/**
+ * 今のソースの宣言 (正規化済み)。個体が無ければ空
+ */
+declared: number[]; 
+/**
+ * ディスク上の本文の hash (grant の `expected_hash` に渡す)
+ */
+hash: string; 
+/**
+ * 同意済みのポート (宣言にあるものだけ)。stale のときは同意した当時のもの
+ */
+granted: number[]; 
+/**
+ * 同意はあるが本文が変わっていて、次の使用時に再同意になる
+ */
+stale: boolean }
 /**
  * Misskey の `mutedWords` / `hardMutedWords` の 1 要素。
  * 文字列配列なら AND 語群（全語含むとマッチ）、文字列なら `/regex/flags` 形式の正規表現。

@@ -38,6 +38,7 @@ pub mod i18n;
 pub mod image_cache;
 pub mod json5_out;
 pub mod keybinds;
+pub mod loopback_consent;
 pub mod mcp;
 pub mod media_proxy;
 pub mod media_stream;

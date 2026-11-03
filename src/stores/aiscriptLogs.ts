@@ -160,5 +160,5 @@ export const useAiScriptLogsStore = defineStore('aiscriptLogs', () => {
     rings.value = new Map()
   }
 
-  return { beginRun, entriesFor, recent, clear }
+  return { record, beginRun, entriesFor, recent, clear }
 })

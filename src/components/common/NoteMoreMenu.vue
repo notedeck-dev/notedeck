@@ -542,7 +542,7 @@ defineExpose({ open })
           v-for="action in noteActions"
           :key="action.pluginInstallId + action.title"
           class="_popupItem"
-          @click="withPluginAccountContext(action.pluginInstallId, note._accountId, () => action.handler(note)); close()"
+          @click="withPluginAccountContext(action.pluginInstallId, note._accountId, () => action.handler(note), 'ui'); close()"
         >
           <i class="ti ti-plug" />
           {{ action.title }}

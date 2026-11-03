@@ -37,13 +37,14 @@
 //!   body 上限超過) → Ok で `status: 0` + `error`。HTTP の 4xx / 5xx と同じく
 //!   値で返すので、try/catch の無い AiScript (ウィジェット) でも分岐できる
 
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use specta::Type;
 
-use crate::ssrf::{external_fetch_builder, validate_external_url};
+use crate::ssrf::{external_fetch_builder, loopback_port, validate_external_url};
 
 use crate::context::Core;
 use crate::error::Result;
@@ -78,6 +79,17 @@ pub struct HttpFetchResponse {
     pub error: Option<String>,
 }
 
+/// 1 回の fetch に許す例外 (#1293)。要求の形 ([`HttpFetchRequest`]) とは分けて
+/// 持ち、呼び出し側 (notemaid の exec) が同意の記録から組む。params から来る
+/// 構造体には載せない (プラグインが `Nd:call('http.fetch', …)` で直接組めるため)。
+/// Deserialize / specta は付けず、コマンド表にも載せない
+#[derive(Debug, Default, Clone)]
+pub struct FetchPolicy {
+    /// この端末の中 (loopback の 3 表記) で繋いでよいポート。空なら従来どおり
+    /// loopback は一次検査で拒む
+    pub loopback_ports: BTreeSet<u16>,
+}
+
 impl HttpFetchResponse {
     /// 通信断を表す応答。要求の形は正しかったが相手に届かなかった /
     /// 応答が使えなかったときに返す。AiScript には try/catch が無いので、
@@ -102,11 +114,75 @@ fn build_client(timeout: Duration) -> std::result::Result<reqwest::Client, Strin
         .map_err(|e| format!("failed to build HTTP client: {e}"))
 }
 
+/// 同意済みの loopback 宛 (#1293) の client。外向きの client と違い名前解決は
+/// 起きない (`localhost` は 127.0.0.1 の 1 つに固定する。::1 も渡すとダイアログの
+/// 表示と違うソケットに繋がりうる) ので resolver は付けない。redirect は最初の
+/// 要求と同じ host:port の loopback 宛だけ追う (外から loopback へも、loopback から
+/// 外へも、境界をまたぐ hop は拒む)
+fn build_loopback_client(
+    timeout: Duration,
+    host: &str,
+    port: u16,
+) -> std::result::Result<reqwest::Client, String> {
+    let host = host.to_ascii_lowercase();
+    reqwest::Client::builder()
+        .redirect(loopback_redirect_policy(5, host.clone(), port))
+        .resolve(
+            "localhost",
+            SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port),
+        )
+        .no_proxy()
+        .referer(false)
+        .timeout(timeout)
+        .build()
+        .map_err(|e| format!("failed to build HTTP client: {e}"))
+}
+
+fn loopback_redirect_policy(max: usize, host: String, port: u16) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        if attempt.previous().len() >= max {
+            return attempt.error("too many redirects");
+        }
+        let url = attempt.url();
+        let same_target = url
+            .host_str()
+            .map(|h| h.eq_ignore_ascii_case(&host))
+            .unwrap_or(false)
+            && loopback_port(url) == Some(port);
+        if same_target {
+            attempt.follow()
+        } else {
+            attempt.error("redirect leaves the consented loopback target")
+        }
+    })
+}
+
+/// 同意済みの loopback 宛なら `Some((host, port))`。それ以外 (外向き、または
+/// 同意の無い loopback) は None で、従来の一次検査に進む
+fn consented_loopback(url_str: &str, policy: &FetchPolicy) -> Option<(String, u16)> {
+    if policy.loopback_ports.is_empty() {
+        return None;
+    }
+    let url = reqwest::Url::parse(url_str).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    let port = loopback_port(&url)?;
+    if !policy.loopback_ports.contains(&port) {
+        return None;
+    }
+    Some((url.host_str()?.to_string(), port))
+}
+
 async fn http_fetch_inner(
     request: HttpFetchRequest,
+    policy: &FetchPolicy,
 ) -> std::result::Result<HttpFetchResponse, String> {
-    // scheme / host / port の一次検査 (ポートも redirect の各 hop と同じ規則、#1308)
-    validate_external_url(&request.url)?;
+    let loopback = consented_loopback(&request.url, policy);
+    if loopback.is_none() {
+        // scheme / host / port の一次検査 (ポートも redirect の各 hop と同じ規則、#1308)
+        validate_external_url(&request.url)?;
+    }
 
     let method = parse_method(request.method.as_deref())?;
 
@@ -121,7 +197,11 @@ async fn http_fetch_inner(
         ));
     }
 
-    let client = build_client(Duration::from_secs(timeout_secs))?;
+    let timeout = Duration::from_secs(timeout_secs);
+    let client = match &loopback {
+        Some((host, port)) => build_loopback_client(timeout, host, *port)?,
+        None => build_client(timeout)?,
+    };
 
     let mut req = client.request(method, &request.url);
     let mut has_ua = false;
@@ -197,7 +277,16 @@ fn parse_method(method: Option<&str>) -> std::result::Result<reqwest::Method, St
 /// 検証 → reqwest 構築 → 送信 → response 整形 の単線。
 /// `http.fetch` のコマンド面。エラー文字列は NoteDeckError::InvalidInput に包む (表の規約)。
 pub async fn http_fetch(_core: &Core, request: HttpFetchRequest) -> Result<HttpFetchResponse> {
-    http_fetch_inner(request)
+    http_fetch_with(request, &FetchPolicy::default()).await
+}
+
+/// 例外つきの fetch (#1293)。同意済みの loopback 宛 (`policy.loopback_ports`) だけ
+/// 一次検査の loopback 拒否を通し、それ以外は [`http_fetch`] と同じ
+pub async fn http_fetch_with(
+    request: HttpFetchRequest,
+    policy: &FetchPolicy,
+) -> Result<HttpFetchResponse> {
+    http_fetch_inner(request, policy)
         .await
         .map_err(notecli::error::NoteDeckError::InvalidInput)
 }
@@ -229,14 +318,17 @@ mod tests {
     /// ウィジェットが「通信できません」を描けない (#1294)
     #[tokio::test]
     async fn transport_failure_is_a_status_zero_response() {
-        let res = http_fetch_inner(HttpFetchRequest {
-            // RFC 6761 の予約 TLD: 名前解決が必ず失敗する
-            url: "https://nonexistent.invalid/".into(),
-            method: None,
-            headers: None,
-            body: None,
-            timeout_ms: Some(2_000),
-        })
+        let res = http_fetch_inner(
+            HttpFetchRequest {
+                // RFC 6761 の予約 TLD: 名前解決が必ず失敗する
+                url: "https://nonexistent.invalid/".into(),
+                method: None,
+                headers: None,
+                body: None,
+                timeout_ms: Some(2_000),
+            },
+            &FetchPolicy::default(),
+        )
         .await
         .expect("transport failure must not be Err");
         assert_eq!(res.status, 0);
@@ -252,10 +344,13 @@ mod tests {
     /// 最初の URL のポートも、ブラウザが繋がないポート (SMTP 等) なら Err (#1308)
     #[tokio::test]
     async fn bad_port_in_first_url_is_an_error() {
-        let err = http_fetch_inner(HttpFetchRequest {
-            url: "https://example.com:25/".into(),
-            ..Default::default()
-        })
+        let err = http_fetch_inner(
+            HttpFetchRequest {
+                url: "https://example.com:25/".into(),
+                ..Default::default()
+            },
+            &FetchPolicy::default(),
+        )
         .await
         .expect_err("bad port must be rejected before any request");
         assert!(err.contains("port"), "{err}");
@@ -289,14 +384,107 @@ mod tests {
     /// 要求の形の誤り (method / timeout の範囲 / SSRF) は従来どおり Err
     #[tokio::test]
     async fn invalid_request_shape_is_still_an_error() {
-        let res = http_fetch_inner(HttpFetchRequest {
-            url: "http://127.0.0.1/".into(),
-            method: None,
-            headers: None,
-            body: None,
-            timeout_ms: None,
-        })
+        let res = http_fetch_inner(
+            HttpFetchRequest {
+                url: "http://127.0.0.1/".into(),
+                method: None,
+                headers: None,
+                body: None,
+                timeout_ms: None,
+            },
+            &FetchPolicy::default(),
+        )
         .await;
         assert!(res.is_err());
+    }
+
+    /// loopback に待ち受けるテスト用サーバー。`/ok` は本文、`/out` は外部へ、
+    /// `/same` は同じ host:port の `/ok` へ、`/other` は別表記の loopback へ飛ばす
+    async fn loopback_server() -> SocketAddr {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let port = addr.port();
+        let app = axum::Router::new()
+            .route("/ok", axum::routing::get(|| async { "local" }))
+            .route(
+                "/same",
+                axum::routing::get(move || async move {
+                    axum::response::Redirect::temporary(&format!("http://127.0.0.1:{port}/ok"))
+                }),
+            )
+            .route(
+                "/other",
+                axum::routing::get(move || async move {
+                    axum::response::Redirect::temporary(&format!("http://localhost:{port}/ok"))
+                }),
+            )
+            .route(
+                "/out",
+                axum::routing::get(|| async {
+                    axum::response::Redirect::temporary("https://example.com/")
+                }),
+            );
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        addr
+    }
+
+    fn policy_for(port: u16) -> FetchPolicy {
+        FetchPolicy {
+            loopback_ports: BTreeSet::from([port]),
+        }
+    }
+
+    fn req(url: String) -> HttpFetchRequest {
+        HttpFetchRequest {
+            url,
+            timeout_ms: Some(5_000),
+            ..Default::default()
+        }
+    }
+
+    /// 同意済みのポートなら loopback の 3 表記のどれでも届く (#1293)。`localhost`
+    /// は名前解決せず 127.0.0.1 に固定される
+    #[tokio::test]
+    async fn consented_loopback_port_is_reachable_by_all_three_spellings() {
+        let addr = loopback_server().await;
+        let policy = policy_for(addr.port());
+        for host in ["127.0.0.1", "localhost"] {
+            let res = http_fetch_inner(req(format!("http://{host}:{}/ok", addr.port())), &policy)
+                .await
+                .unwrap();
+            assert_eq!(res.status, 200, "{host}");
+            assert_eq!(res.body, "local");
+        }
+    }
+
+    /// 同意の無いポート / 同意が空なら従来どおり一次検査で Err
+    #[tokio::test]
+    async fn loopback_without_consent_is_still_rejected() {
+        let addr = loopback_server().await;
+        let url = format!("http://127.0.0.1:{}/ok", addr.port());
+        assert!(http_fetch_inner(req(url.clone()), &FetchPolicy::default())
+            .await
+            .is_err());
+        assert!(http_fetch_inner(req(url), &policy_for(addr.port() ^ 1))
+            .await
+            .is_err());
+    }
+
+    /// redirect は同じ host:port の loopback 宛だけ追う。外へも別表記へも出ない
+    #[tokio::test]
+    async fn loopback_redirects_stay_on_the_consented_target() {
+        let addr = loopback_server().await;
+        let policy = policy_for(addr.port());
+        let base = format!("http://127.0.0.1:{}", addr.port());
+        let same = http_fetch_inner(req(format!("{base}/same")), &policy)
+            .await
+            .unwrap();
+        assert_eq!(same.body, "local");
+        for path in ["/out", "/other"] {
+            let res = http_fetch_inner(req(format!("{base}{path}")), &policy)
+                .await
+                .unwrap();
+            assert_eq!(res.status, 0, "{path} must not be followed");
+        }
     }
 }

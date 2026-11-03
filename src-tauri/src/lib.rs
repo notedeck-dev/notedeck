@@ -1318,6 +1318,12 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::ai_session_delete,
             // HTTP fetch (http.fetch capability / Nd:http)
             commands::http_fetch,
+            commands::loopback_consent_status,
+            commands::loopback_consent_list,
+            commands::loopback_consent_grant,
+            commands::loopback_consent_revoke,
+            commands::http_loopback_classify,
+            commands::plugin_body_hash,
             // HEARTBEAT (#411 Phase 6) — per-column scheduler
             commands::heartbeat_trigger_now,
             commands::heartbeat_notices_since,

@@ -151,7 +151,8 @@ flowchart LR
 
 - **実装**: `src/capabilities/builtins/http.ts` + Rust 側 `http_fetch` (`crates/notecore/src/commands/http.rs`)
 - **deny ルール** (上記 SSRF ホスト検証に加えて):
-  - NoteDeck 自身の HTTP API は名指しでは deny していない。loopback 全体の deny で止まっている (loopback を同意で開ける #1293 では、自アプリのポートを定数で deny する)
+  - loopback の例外はプラグインの同意だけ (#1293): プラグインがヘッダーの `loopback` でポートを宣言し、利用者がそのプラグインに (初回使用時のダイアログか、プラグイン詳細の設定で) 許可したポートにだけ、`localhost` / `127.0.0.1` / `[::1]` 宛を通す。同意は本文の hash に結び、本文が変わると失効する。記録は `notedeck/loopback/consent.json` (端末固有、バックアップ対象外)。判定は Rust (`crates/notecore/src/loopback_consent.rs`) が要求ごとにディスクの宣言と記録を読み、「動かしている本文 = ディスクの本文 = 同意した本文」のときだけ通す。呼び出し元の連鎖に AI / 別のプラグイン / 外部トークンが居る要求と、ウィジェット / Play / Page からの要求は同意があっても拒む。同意済みのポート宛でも要求ごとの確認は従来どおり
+  - **NoteDeck 自身のポート (内蔵 HTTP API の release / debug、Dev Dashboard) と、ブラウザが繋がないポート、危険なローカルサービス (Docker API / Chrome DevTools / Node inspector) は、宣言と同意に関係なく拒否する** (`ssrf::is_always_denied_loopback_port`)。同意済みの loopback 宛は `localhost` を名前解決せず 127.0.0.1 に固定し、redirect は同じ host:port の loopback 宛だけ追う (外へも別表記へも出ない)
   - ドメインサフィックス: `.local` / `.internal` / `.localhost` を deny
   - ブラウザが繋がないポート (SMTP / SSH / IRC 等) は最初の URL でも redirect の各 hop でも deny
   - redirect の各 hop の host も一次検査と同じ規則で deny する。名前解決を通らない IP literal の飛び先 (`Location: http://127.0.0.1/...`) は resolver では止まらないため (#1308)

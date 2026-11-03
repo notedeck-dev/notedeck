@@ -1,0 +1,46 @@
+{
+  "note": "プラグインヘッダーの `loopback` (手元のポートの宣言、#1293) の正規化。TS (parsePluginMeta) と Rust (parse_plugin_meta) が同じ入出力を通す。expected が null は宣言なし",
+  "maxPorts": 8,
+  "vectors": [
+    {
+      "name": "宣言なし",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n}\n",
+      "expected": null
+    },
+    {
+      "name": "整数の配列はそのまま",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  loopback: [8080, 11434]\n}\n",
+      "expected": [8080, 11434]
+    },
+    {
+      "name": "重複は 1 つにし、順は最初の出現",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  loopback: [3000, 8080, 3000]\n}\n",
+      "expected": [3000, 8080]
+    },
+    {
+      "name": "整数でない要素・範囲外は捨てる",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  loopback: [\"8080\", 80.5, 0, 65536, -1, true, null, 4000]\n}\n",
+      "expected": [4000]
+    },
+    {
+      "name": "自アプリ / ブラウザが繋がない / 危険なローカルサービスのポートは捨てる",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  loopback: [19820, 19821, 5173, 25, 2375, 2376, 9222, 9229, 8000]\n}\n",
+      "expected": [8000]
+    },
+    {
+      "name": "個数の上限を超えた分は捨てる",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  loopback: [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008, 8009, 8010]\n}\n",
+      "expected": [8001, 8002, 8003, 8004, 8005, 8006, 8007, 8008]
+    },
+    {
+      "name": "配列でない値は宣言なし",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  loopback: 8080\n}\n",
+      "expected": null
+    },
+    {
+      "name": "空の配列は宣言なし",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  loopback: []\n}\n",
+      "expected": null
+    }
+  ]
+}
