@@ -193,7 +193,9 @@ watch(
       <i class="ti ti-device-desktop" />
       <span>{{ i18n.ts._aiConnectionSection.localHint }}</span>
     </div>
-    <div v-else :class="$style.connEmpty">
+    <!-- 「接続がありません」は AI プロバイダー接続が 1 つも無いときだけ (#1329)。
+         選んだ接続がローカルでない、は「無い」ではない -->
+    <div v-else-if="aiConnections.length === 0" :class="$style.connEmpty">
       <i class="ti ti-info-circle" />
       <span>
         {{ i18n.ts._aiConnectionSection.noConnections }}
