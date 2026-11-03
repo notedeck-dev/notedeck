@@ -125,14 +125,14 @@ export const userMuteCapability = implement('user.mute', {
       await api.muteUser(userId, expiresAt)
     } catch (e) {
       // 既にミュート中 (手元が知らなかっただけ)。手元もミュート中にして成功扱い
-      // (#1260、手動メニューと同じ)。期限は分からないので無期限扱い
+      // (#1260、手動メニューと同じ)。期限は分からない (次の取り込みで分かる)
       if (AppError.from(e).apiCode !== 'ALREADY_MUTING') throw e
       useMutesStore().muteUser(accountId, userId)
       return { muted: true, userId, alreadyMuted: true }
     }
     // 過去ノートを即時非表示に（#574）。UserProfileContent と同じ楽観反映。
-    // 期限つきは手元の非表示も期限で戻す
-    useMutesStore().muteUser(accountId, userId, expiresAt)
+    // 期限つきは手元の非表示も期限で戻す。無期限は null (期限が分かっている)
+    useMutesStore().muteUser(accountId, userId, expiresAt ?? null)
     return expiresAt === undefined
       ? { muted: true, userId }
       : { muted: true, userId, expiresAt: new Date(expiresAt).toISOString() }

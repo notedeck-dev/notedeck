@@ -1,15 +1,14 @@
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import JSON5 from 'json5'
 import { describe, expect, it } from 'vitest'
-
 import type { ProfiledPrincipalId } from '@/permissions/principal'
-import { PERMISSION_KEYS } from '@/permissions/schema'
+import { PERMISSION_KEYS, parseTokenScope } from '@/permissions/schema'
 import {
   defaultPermissionsFile,
   parsePermissionsFile,
   resolveProfiledIn,
 } from '@/permissions/store'
-
 import golden from './golden/vectors.json'
 
 /**
@@ -22,19 +21,28 @@ import golden from './golden/vectors.json'
  *
  * 期待値の正本は JS 側。`UPDATE_GOLDEN_PERMISSIONS=1` で採取して書き戻す
  * (`pnpm gen:golden-permissions`)。
+ *
+ * `tokenScope` (#1292) は外部トークンの scope の本文。省略 / null は scope 無し。
  */
 
 interface GoldenCase {
   name: string
   principal: ProfiledPrincipalId
   file: string | null
+  tokenScope?: string | null
   granted: string[]
 }
 
-function grantedKeys(file: string | null, id: ProfiledPrincipalId): string[] {
+function grantedKeys(
+  file: string | null,
+  id: ProfiledPrincipalId,
+  tokenScope: string | null | undefined,
+): string[] {
   const parsed =
     file === null ? defaultPermissionsFile() : parsePermissionsFile(file).file
-  const map = resolveProfiledIn(parsed, id)
+  const scope =
+    tokenScope == null ? null : parseTokenScope(JSON5.parse(tokenScope))
+  const map = resolveProfiledIn(parsed, id, scope)
   return PERMISSION_KEYS.filter((k) => map[k]).sort()
 }
 
@@ -55,7 +63,7 @@ describe('golden vectors × permissions resolve (#1099)', () => {
 
   it.each(cases.map((c) => [c.name, c] as const))('%s', (_name, c) => {
     if (UPDATE) return
-    expect(grantedKeys(c.file, c.principal)).toEqual(c.granted)
+    expect(grantedKeys(c.file, c.principal, c.tokenScope)).toEqual(c.granted)
   })
 
   it('UPDATE_GOLDEN_PERMISSIONS=1 で期待値を書き戻す', () => {
@@ -65,7 +73,7 @@ describe('golden vectors × permissions resolve (#1099)', () => {
       keys: [...PERMISSION_KEYS],
       cases: cases.map((c) => ({
         ...c,
-        granted: grantedKeys(c.file, c.principal),
+        granted: grantedKeys(c.file, c.principal, c.tokenScope),
       })),
     }
     writeFileSync(

@@ -13,7 +13,10 @@ import {
 } from '@/composables/aiTurnExecutions'
 import { reloadAiConfig } from '@/composables/useAiConfig'
 import { listStreamHealth } from '@/core/streamHealth'
-import type { ProfiledPrincipalId } from '@/permissions/principal'
+import {
+  externalTokenPrincipal,
+  type ProfiledPrincipalId,
+} from '@/permissions/principal'
 import { PERMISSION_KEYS } from '@/permissions/schema'
 import {
   reloadPermissionsConfig,
@@ -180,11 +183,17 @@ const handlers: Record<string, QueryHandler> = {
     // 記録が無ければ従来どおり実行時に確認する
     const preConfirmed =
       kind === 'ai.chat' && consumePreapproval(capabilityId, capParams)
+    // どのトークンか (#1292): Rust が検証したトークンの id / 名前 / scope。
+    // 外部アプリの実効権限はこの scope との交差になり、帰属表示と著者に名前が出る
+    const principal =
+      kind === 'external'
+        ? externalTokenPrincipal(params.token)
+        : ({ kind } as const)
     return await dispatchCapability(
       capabilityId,
       // body 省略時に Rust 側から null が来る → capability には undefined で渡す
       capParams,
-      { principal: { kind } },
+      { principal },
       preConfirmed ? { preConfirmed: true } : undefined,
     )
   },

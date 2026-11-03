@@ -127,6 +127,8 @@ export function implementCore(
                 ctx?.accountId ?? null,
                 ctx?.tainted === true,
                 pluginIdOf(ctx),
+                tokenIdOf(ctx),
+                tokenNameOf(ctx),
               ),
             ) as ConfirmOptions | null) ?? null,
         }
@@ -140,6 +142,8 @@ export function implementCore(
           ctx?.accountId ?? null,
           ctx?.tainted === true,
           pluginIdOf(ctx),
+          tokenIdOf(ctx),
+          tokenNameOf(ctx),
         ),
       )
       // notecore が「ラベル付き (tainted) の内容を返した」と申告したら呼び出し元へ
@@ -155,6 +159,16 @@ export function implementCore(
 function pluginIdOf(ctx: CapabilityContext | undefined): string | null {
   const p = ctx?.principal
   return p?.kind === 'plugin' ? p.pluginId : null
+}
+
+/** principal が外部トークンのときの id / 名前 (メモの著者、#1292)。それ以外は null */
+function tokenIdOf(ctx: CapabilityContext | undefined): string | null {
+  const p = ctx?.principal
+  return p?.kind === 'external' ? (p.tokenId ?? null) : null
+}
+function tokenNameOf(ctx: CapabilityContext | undefined): string | null {
+  const p = ctx?.principal
+  return p?.kind === 'external' ? (p.tokenName ?? null) : null
 }
 
 const CORE_DELEGATES = new WeakSet<Capability>()

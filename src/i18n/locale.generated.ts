@@ -1874,6 +1874,8 @@ export interface Locale {
     readonly "unmuted": string
     /** ミュート解除 ({date}まで) */
     readonly "unmuteUntil": ParameterizedString<'date'>
+    /** ミュート解除 (期限は不明) */
+    readonly "unmuteExpiryUnknown": string
     /** すでにミュート中です */
     readonly "alreadyMuted": string
     /** ミュート解除に失敗しました ({code}) */
@@ -2928,7 +2930,19 @@ export interface Locale {
     readonly "issueToken": string
     /** 「{name}」のトークン — この表示を閉じると再表示できません */
     readonly "createdTokenNotice": ParameterizedString<'name'>
-    /** MCP: Claude Code などの AI エージェントからこのトークンで NoteDeck の capability を tool として呼べます (権限は上の「外部アプリ」に従います)。Claude Code なら次のコマンドで登録できます。 */
+    /** トークンの権限 */
+    readonly "tokenScope": string
+    /** このトークンでできる操作。外部アプリの権限で許可している範囲の中から選びます (実効権限は両方の交差)。確認ダイアログとメモの著者にはトークン名が出ます。 */
+    readonly "tokenScopeHint": string
+    /** 外部アプリの権限に従う */
+    readonly "tokenScopeInherited": string
+    /** 外部アプリの権限で許可していないため、トークンにも許可できません */
+    readonly "scopeCeilingReason": string
+    /** 最終使用 {date} */
+    readonly "tokenLastUsed": ParameterizedString<'date'>
+    /** 未使用 */
+    readonly "tokenNeverUsed": string
+    /** MCP: Claude Code などの AI エージェントからこのトークンで NoteDeck の capability を tool として呼べます (権限はこのトークンの権限と「外部アプリ」の権限の交差)。Claude Code なら次のコマンドで登録できます。 */
     readonly "mcpHint": string
     /** Claude Desktop や Cline のように stdio で MCP サーバーを起動するアプリには、次の JSON を設定ファイル (Claude Desktop なら claude_desktop_config.json) に貼ります。同梱の notemaid が子プロセスになり、起動中の NoteDeck に転送します。 */
     readonly "mcpStdioHint": string
@@ -2938,7 +2952,7 @@ export interface Locale {
     readonly "instructionRuleReason": string
     /** タスクは本人と AI のみが実行できます */
     readonly "tasksRuleReason": string
-    /** 共有プロファイルでは Misskey の read は常に許可 — 遮断するにはトークンを失効 */
+    /** 外部アプリの権限では Misskey の read は常に許可 — 絞るにはトークンの権限で外す、または失効 */
     readonly "externalFloorReason": string
     /** AI チャット */
     readonly "aiChat": string
@@ -4855,6 +4869,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "plugin": ParameterizedString<'name'>
     /** 外部アプリ */
     readonly "externalApp": string
+    /** 外部アプリ「{name}」 */
+    readonly "externalToken": ParameterizedString<'name'>
   }
   readonly "_store": {
     /** 権限設定を読み込めなかったため、安全のため最小権限で起動しました。設定から権限を確認してください。 */

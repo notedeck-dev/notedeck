@@ -7,6 +7,7 @@ import {
   PERMISSION_KEYS,
   PERMISSION_PRESETS,
   type PermissionsConfig,
+  parseTokenScope,
   presetFromMap,
   resolvePermissions,
   setPermissionPreset,
@@ -211,5 +212,29 @@ describe('deck.write (#1098: デッキ / ウィンドウ構成の変更を無条
       false,
     )
     expect(normalizeProfile(saved, 'external').custom['deck.write']).toBe(false)
+  })
+})
+
+describe('parseTokenScope — トークンの scope の正規化 (#1292)', () => {
+  it('preset と custom を外部アプリと同じ規則で正規化し、欠損キーは false', () => {
+    expect(parseTokenScope({ preset: 'readonly' })).toEqual(
+      normalizeProfile({ preset: 'readonly', custom: {} as never }, 'external'),
+    )
+    const custom = parseTokenScope({
+      preset: 'custom',
+      custom: { 'notes.write': true, 'notes.read': 'yes' },
+    })
+    expect(custom?.preset).toBe('custom')
+    expect(custom?.custom['notes.write']).toBe(true)
+    expect(custom?.custom['notes.read']).toBe(false)
+    expect(custom?.custom['deck.read']).toBe(false)
+  })
+
+  it('null / undefined は scope 無し、object でない / 語彙外の preset は readonly に倒す (Rust と同じ)', () => {
+    expect(parseTokenScope(null)).toBeNull()
+    expect(parseTokenScope(undefined)).toBeNull()
+    expect(parseTokenScope('full')?.preset).toBe('readonly')
+    expect(parseTokenScope(['full'])?.preset).toBe('readonly')
+    expect(parseTokenScope({ preset: 'admin' })?.preset).toBe('readonly')
   })
 })

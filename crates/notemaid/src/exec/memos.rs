@@ -52,12 +52,22 @@ fn invalid(msg: String) -> NoteDeckError {
 
 // --- author ---
 
-/// `authorFromPrincipal`: user は author なし、plugin は `plugin:<id>`、他は kind。
+/// `authorFromPrincipal`: user は author なし、plugin は `plugin:<id>`、外部
+/// トークンは `token:<id>` (表示名はトークン名、#1292)、他は kind。
 /// 表示名は英語の正本で、表示するときにデバイスが id から組み直す (#135)。
 fn author_from_principal(ctx: &ExecContext) -> Option<MemoAuthor> {
     let kind = ctx.principal.as_str();
     match kind {
         "user" | "" => None,
+        "external" if ctx.token_id.is_some() => Some(MemoAuthor {
+            id: format!("token:{}", ctx.token_id.as_deref().unwrap_or_default()),
+            display_name: ctx
+                .token_name
+                .clone()
+                .filter(|n| !n.trim().is_empty())
+                .unwrap_or_else(|| "External app".to_string()),
+            avatar_url: None,
+        }),
         "plugin" => {
             let raw = ctx.plugin_id.clone().unwrap_or_default();
             let (noun, bare) = if let Some(r) = raw.strip_prefix("widget:") {
@@ -320,10 +330,7 @@ pub fn revert(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> {
     let next = staged::take_or("memos.revert", &key, &cur.data.text, || body.clone())?;
     let mut data = cur.data.clone();
     data.text = next;
-    let mut by = json!({ "kind": ctx.principal });
-    if let Some(pid) = ctx.plugin_id.as_deref().filter(|s| !s.is_empty()) {
-        by["pluginId"] = Value::String(pid.to_string());
-    }
+    let by = ctx.attribution_by();
     let attribution = Attribution {
         by: Some(by),
         reason: pick_string(p, "reason"),
@@ -407,6 +414,21 @@ mod tests {
         let a = author_from_principal(&pl).unwrap();
         assert_eq!(a.id, "plugin:widget:clock");
         assert_eq!(a.display_name, "Widget \"clock\"");
+        // 外部トークン (#1292) はトークン単位の著者。トークン無し (ephemeral 直用) は従来どおり
+        let tok = ExecContext {
+            principal: "external".into(),
+            token_id: Some("t1".into()),
+            token_name: Some("Raycast".into()),
+            ..Default::default()
+        };
+        let a = author_from_principal(&tok).unwrap();
+        assert_eq!(a.id, "token:t1");
+        assert_eq!(a.display_name, "Raycast");
+        let ext = ExecContext {
+            principal: "external".into(),
+            ..Default::default()
+        };
+        assert_eq!(author_from_principal(&ext).unwrap().id, "external");
         assert_eq!(clamp_limit(&json!({})), 10);
         assert_eq!(clamp_limit(&json!({"limit": 500})), 50);
         assert_eq!(clamp_limit(&json!({"limit": 0})), 1);

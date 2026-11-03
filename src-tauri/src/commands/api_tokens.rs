@@ -30,6 +30,7 @@ pub fn list_api_tokens(store: State<'_, Arc<ApiTokenStore>>) -> Vec<ApiTokenMeta
 pub fn create_api_token(
     store: State<'_, Arc<ApiTokenStore>>,
     name: String,
+    scope: serde_json::Value,
 ) -> Result<CreatedApiToken> {
     if name.trim().is_empty() {
         return Err(notecore::i18n::error(
@@ -38,10 +39,17 @@ pub fn create_api_token(
             serde_json::json!({}),
         ));
     }
+    // scope (#1292) は PermissionsConfig と同じ形。正規化は解決時 (permissions_profile)
+    // にするが、形になっていないものは保存しない
+    if !notecore::permissions_profile::is_profile_shaped(&scope) {
+        return Err(NoteDeckError::InvalidInput(
+            "token scope must be { preset, custom? }".into(),
+        ));
+    }
     // 権限ウィンドウで発行するのは外部アプリ用 (external principal)。手元の CLI 用の
     // harness 種別は notemaid が橋 (`api-token/issue`) で発行する
     let (meta, token) = store
-        .create(&name, ApiTokenKind::External)
+        .create(&name, ApiTokenKind::External, Some(scope))
         .map_err(|e| NoteDeckError::InvalidInput(format!("failed to save token: {e}")))?;
     Ok(CreatedApiToken { meta, token })
 }
