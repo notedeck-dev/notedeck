@@ -919,7 +919,8 @@ MCP は需要が出た時点で CLI / API の薄いラッパーとして追加�
 
 **Step 5: ローカル AI モード** — privacy-first
 - [ ] **Ollama / llama.cpp 統合** — ローカル LLM 経路を選んだとき、外部送信が無いため
-  データソース制限を自動で緩める。HEARTBEAT (Step 4) と相性抜群 (定期送信のコスト・プライバシー懸念が消える)
+  データソース制限を自動で緩める。HEARTBEAT (Step 4) と相性抜群 (定期送信のコスト・プライバシー懸念が消える)。
+  前提: AI 接続の宛先は Vault の fetch と同じ SSRF 検査を通る (#1315) ので、loopback / private 宛ては接続単位の明示的な同意を足さないと通らない (#880)
 - [ ] **F-Droid 版との統合** — オフラインモード親和、外部 AI 不使用での完全動作
 
 ### Nd:* API の最小化 — capability registry 統合で大半を吸収

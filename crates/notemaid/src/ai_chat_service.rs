@@ -306,6 +306,12 @@ fn streaming_client(read_timeout: Duration) -> reqwest::Client {
                 .connect_timeout(CONNECT_TIMEOUT)
                 .read_timeout(read_timeout)
                 .user_agent("notedeck-ai-streaming")
+                // 名前解決の結果を接続前に検査する (#1315)。この client は長寿命なので
+                // pin せず解決のたびに検証する (メディアプロキシと同じ `ValidatingResolver`)。
+                // 環境変数のプロキシに流れると宛先をこちらで解決しなくなり検査が効かない
+                // ので `no_proxy` (Vault の外向き fetch と同じ)
+                .dns_resolver(Arc::new(notecore::ssrf::ValidatingResolver))
+                .no_proxy()
                 // redirect は追わない (#1160): ホストをまたぐ redirect で API キーと会話
                 // ID が持ち越され、「宛先ホストで決める」が崩れる。3xx は明示エラーにする
                 // ([`reject_redirect`])
@@ -413,6 +419,33 @@ impl std::fmt::Debug for ResolvedConnection {
     }
 }
 
+/// 接続の URL を Vault の外向き fetch (`vault_fetch`) と同じ規則で検査する (#1315)。
+/// scheme は http / https、host は SSRF の一次検査 (loopback / private / reserved TLD /
+/// IP literal)、ポートはブラウザが繋がないものを拒む。許可ホストが設定されていれば
+/// その中に居ることも求める (空なら接続の URL の host だけ、`Connection::allowed_hosts`
+/// の規約どおり)。名前解決後の IP は [`streaming_client`] の resolver が接続のたびに検査する。
+fn check_endpoint(base_url: &str, allowed_hosts: &[String]) -> Result<()> {
+    let host = reqwest::Url::parse(base_url)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_string))
+        .unwrap_or_default();
+    notecore::ssrf::validate_external_url(base_url).map_err(|reason| {
+        notecore::i18n::error(
+            "INVALID_INPUT",
+            "_native.ai.endpointDenied",
+            json!({ "host": host, "reason": reason }),
+        )
+    })?;
+    if !allowed_hosts.is_empty() && !notecore::ssrf::host_in_allowed(&host, allowed_hosts) {
+        return Err(notecore::i18n::error(
+            "INVALID_INPUT",
+            "_native.ai.hostNotAllowed",
+            json!({ "host": host }),
+        ));
+    }
+    Ok(())
+}
+
 /// AI プロバイダーの Vault 接続を解決する。
 pub fn resolve_connection(app_dir: &Path, connection_id: &str) -> Result<ResolvedConnection> {
     let file = notecore::vault::connections_store::load(app_dir)
@@ -428,6 +461,8 @@ pub fn resolve_connection(app_dir: &Path, connection_id: &str) -> Result<Resolve
     let protocol = connection.protocol.ok_or_else(|| {
         notecore::i18n::error("INVALID_INPUT", "_native.ai.notAiProvider", json!({}))
     })?;
+    // キーを開く前に宛先を検査する。内部アドレスや許可外のホストへは秘密を持ち出さない (#1315)
+    check_endpoint(&connection.base_url, &connection.allowed_hosts)?;
     let api_key = {
         use notecore::vault::SecretBackend as _;
         notecore::vault::KeychainBackend
@@ -1215,6 +1250,60 @@ mod tests {
 
     use super::*;
     use serde_json::json;
+
+    /// 接続の URL が Vault の fetch と同じ SSRF 検査と許可ホストの照合を通る (#1315)
+    #[test]
+    fn check_endpoint_accepts_public_host_in_allowed_hosts() {
+        assert!(check_endpoint("https://api.example.com/v1", &["api.example.com".into()]).is_ok());
+    }
+
+    #[test]
+    fn check_endpoint_treats_empty_allowed_hosts_as_base_host_only() {
+        assert!(check_endpoint("https://api.example.com", &[]).is_ok());
+    }
+
+    #[test]
+    fn check_endpoint_rejects_loopback_and_private_hosts_with_reason() {
+        for url in [
+            "http://localhost:11434",
+            "http://127.0.0.1:11434",
+            "http://10.0.0.5",
+            "http://[::1]",
+        ] {
+            let err = check_endpoint(url, &[]).expect_err(url);
+            assert_eq!(
+                err.i18n()
+                    .and_then(|v| v.get("key"))
+                    .and_then(Value::as_str),
+                Some("_native.ai.endpointDenied"),
+                "{url}"
+            );
+        }
+    }
+
+    #[test]
+    fn check_endpoint_rejects_bad_port_and_non_http_scheme() {
+        assert!(check_endpoint("https://api.example.com:25", &[]).is_err());
+        assert!(check_endpoint("ftp://api.example.com", &[]).is_err());
+    }
+
+    #[test]
+    fn check_endpoint_rejects_host_outside_allowed_hosts_and_names_it() {
+        let err = check_endpoint("https://api.example.com", &["other.example".into()])
+            .expect_err("must fail");
+        assert_eq!(
+            err.i18n()
+                .and_then(|v| v.get("key"))
+                .and_then(Value::as_str),
+            Some("_native.ai.hostNotAllowed")
+        );
+        assert!(err.to_string().contains("api.example.com"), "{err}");
+    }
+
+    #[test]
+    fn check_endpoint_matches_allowed_hosts_case_insensitively() {
+        assert!(check_endpoint("https://API.Example.com", &["api.example.com".into()]).is_ok());
+    }
 
     fn text_message(role: AiChatRole, content: &str) -> AiChatMessage {
         AiChatMessage {
