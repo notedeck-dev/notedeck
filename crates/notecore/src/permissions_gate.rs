@@ -32,17 +32,39 @@ use axum::http::{Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use serde_json::json;
+use serde_json::{json, Value};
 
+use crate::api_tokens::VerifiedToken;
 use crate::permissions_profile::{self, Granted, PrincipalId};
 
 /// 永続トークンで認証されたリクエストに付く marker (request extension)。
 /// プロセス外から付与できないため「inbound ヘッダーの strip 忘れ」という
 /// 脆弱性クラス自体が存在しない (#712 §7.2 と同じ理由で extension 方式)。
 /// `principal` はそのトークンの種別から決まる (`ApiTokenKind::principal`)。
-#[derive(Clone, Copy, Debug)]
+/// `token` はどのトークンか (#1292): gate は scope を principal の権限に重ね、
+/// dispatcher への実行要求には id / name / scope を同送する (帰属表示と著者)
+#[derive(Clone, Debug)]
 pub struct PersistentTokenMarker {
     pub principal: PrincipalId,
+    pub token: VerifiedToken,
+}
+
+impl PersistentTokenMarker {
+    pub fn new(token: VerifiedToken) -> Self {
+        Self {
+            principal: token.kind.principal(),
+            token,
+        }
+    }
+
+    /// dispatcher への実行要求 (`capabilities/execute`) に同送するトークンの正体
+    pub fn token_json(&self) -> Value {
+        json!({
+            "id": self.token.id,
+            "name": self.token.name,
+            "scope": self.token.scope,
+        })
+    }
 }
 
 const PERMISSIONS_FILE_NAME: &str = "permissions.json5";
@@ -58,13 +80,27 @@ pub fn init(settings_dir: &Path) {
 
 /// ファイル読取結果 → principal の実効 granted。NotFound は「ファイル無し」
 /// (既定プロファイル)、その他の IO エラーは破損と同じ readonly に倒す。
-fn granted_from_read(result: std::io::Result<String>, id: PrincipalId) -> Granted {
+/// `scope` はトークン単位の scope (#1292、あれば交差)
+fn granted_from_read(
+    result: std::io::Result<String>,
+    id: PrincipalId,
+    scope: Option<&Value>,
+) -> Granted {
     match result {
-        Ok(content) => permissions_profile::resolve(Some(&content), id),
+        Ok(content) => permissions_profile::resolve_scoped(Some(&content), id, scope),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            permissions_profile::resolve(None, id)
+            permissions_profile::resolve_scoped(None, id, scope)
         }
-        Err(_) => permissions_profile::resolve_fallback(id),
+        Err(_) => {
+            let mut g = permissions_profile::resolve_fallback(id);
+            if let Some(scope) = scope {
+                g = g
+                    .intersection(&permissions_profile::resolve_scoped(None, id, Some(scope)))
+                    .copied()
+                    .collect();
+            }
+            g
+        }
     }
 }
 
@@ -74,8 +110,22 @@ fn granted_from_read(result: std::io::Result<String>, id: PrincipalId) -> Grante
 /// AI ループ (#1133) は tool 一覧の組み立てと tool 呼び出しごとの認可に使う。
 pub async fn granted_for(id: PrincipalId) -> Granted {
     match PERMISSIONS_PATH.get() {
-        Some(path) => granted_from_read(tokio::fs::read_to_string(path).await, id),
+        Some(path) => granted_from_read(tokio::fs::read_to_string(path).await, id, None),
         None => permissions_profile::resolve(None, id),
+    }
+}
+
+/// 永続トークン由来のリクエストの実効 granted (#1292): トークンの principal の
+/// 権限 ∩ トークンの scope
+pub async fn granted_for_marker(marker: &PersistentTokenMarker) -> Granted {
+    let scope = marker.token.scope.as_ref();
+    match PERMISSIONS_PATH.get() {
+        Some(path) => granted_from_read(
+            tokio::fs::read_to_string(path).await,
+            marker.principal,
+            scope,
+        ),
+        None => permissions_profile::resolve_scoped(None, marker.principal, scope),
     }
 }
 
@@ -256,13 +306,13 @@ fn forbidden(principal: PrincipalId, required: &[&str]) -> Response {
 /// 永続トークン gate middleware。`PersistentTokenMarker` が付いたリクエスト
 /// (= 永続トークン由来) のみ、そのトークンの principal で enforce する。
 pub async fn persistent_token_gate_middleware(req: Request, next: Next) -> Response {
-    let Some(marker) = req.extensions().get::<PersistentTokenMarker>().copied() else {
+    let Some(marker) = req.extensions().get::<PersistentTokenMarker>().cloned() else {
         return next.run(req).await;
     };
     match route_rule(req.method(), req.uri().path()) {
         RouteRule::Exempt => next.run(req).await,
         RouteRule::Keys(keys) => {
-            let granted = granted_for(marker.principal).await;
+            let granted = granted_for_marker(&marker).await;
             let denied: Vec<&str> = keys
                 .iter()
                 .filter(|k| !granted.contains(*k))
@@ -280,8 +330,8 @@ pub async fn persistent_token_gate_middleware(req: Request, next: Next) -> Respo
 
 /// health ハンドラ用: 永続トークン由来のリクエストで streams 詳細
 /// (接続先 host 等のローカルデータ) を返してよいか。
-pub async fn may_read_deck(principal: PrincipalId) -> bool {
-    granted_for(principal).await.contains("deck.read")
+pub async fn may_read_deck(marker: &PersistentTokenMarker) -> bool {
+    granted_for_marker(marker).await.contains("deck.read")
 }
 
 #[cfg(test)]
@@ -397,6 +447,7 @@ mod tests {
         let g = granted_from_read(
             Err(std::io::Error::from(std::io::ErrorKind::NotFound)),
             PrincipalId::External,
+            None,
         );
         assert!(g.contains("notes.read"));
         assert!(g.contains("account.read"));
@@ -414,6 +465,7 @@ mod tests {
                 .to_string(),
             ),
             PrincipalId::External,
+            None,
         );
         assert!(g.contains("notes.write"));
         assert!(!g.contains("deck.read"));
@@ -427,6 +479,7 @@ mod tests {
         let g = granted_from_read(
             Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied)),
             PrincipalId::External,
+            None,
         );
         assert!(!g.contains("notes.write"));
         assert!(!g.contains("notifications"));
@@ -442,6 +495,7 @@ mod tests {
         let g = granted_from_read(
             tokio::fs::read_to_string(&path).await,
             PrincipalId::External,
+            None,
         );
         assert!(g.contains("notes.write"));
         assert!(
@@ -456,7 +510,39 @@ mod tests {
         let g = granted_from_read(
             tokio::fs::read_to_string(&path).await,
             PrincipalId::External,
+            None,
         );
         assert!(!g.contains("notes.write"));
+    }
+
+    /// トークン単位の scope (#1292) は読んだプロファイルに交差する。ファイルが
+    /// 読めないときの readonly fallback にも scope は掛かる (広がらない)
+    #[tokio::test]
+    async fn token_scope_narrows_the_profile_read_from_disk() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(PERMISSIONS_FILE_NAME);
+        std::fs::write(&path, "{ principals: { external: { preset: 'full' } } }").unwrap();
+        let scope = json!({ "preset": "custom", "custom": { "notes.write": true } });
+        let g = granted_from_read(
+            tokio::fs::read_to_string(&path).await,
+            PrincipalId::External,
+            Some(&scope),
+        );
+        assert_eq!(g.into_iter().collect::<Vec<_>>(), vec!["notes.write"]);
+        let g = granted_from_read(
+            Err(std::io::Error::other("unreadable")),
+            PrincipalId::External,
+            Some(&scope),
+        );
+        assert!(g.is_empty(), "fallback の readonly に scope を重ねると空");
+        let marker = PersistentTokenMarker::new(VerifiedToken {
+            id: "t".into(),
+            name: "bot".into(),
+            kind: crate::api_tokens::ApiTokenKind::External,
+            scope: Some(scope.clone()),
+        });
+        assert_eq!(marker.principal, PrincipalId::External);
+        assert_eq!(marker.token_json()["name"], "bot");
+        assert_eq!(marker.token_json()["scope"], scope);
     }
 }

@@ -1,5 +1,5 @@
 ---
-sourceHash: eb9f64031606
+sourceHash: 366896fe656e
 ---
 
 # 与 AI 一起使用
@@ -93,7 +93,7 @@ HEARTBEAT 会定期调用 API。请先确定间隔和权限再启用。也可以
 反过来，也可以让 Claude Code、Claude Desktop 等外部 AI 智能体把 NoteDeck 当作工具使用。NoteDeck 内置了 MCP（Model Context Protocol）服务器，会把搜索帖子、发帖等与 AI 聊天相同的 capability 作为 tool 提供。
 
 1. 在设置 → 权限 →“永久 API 令牌”（永続 API トークン）中签发令牌。签发后的界面会显示 Claude Code 用的注册命令和 Claude Desktop 用的配置 JSON，复制所需的那一个
-2. 外部可使用的范围，由同一界面中“外部应用”（外部アプリ）的权限决定。默认只能读取，发帖等写入操作需要逐项允许
-3. 写入操作一定会先在 NoteDeck 的界面上确认后才执行。外部 AI 不会擅自发帖
+2. 签发时选择该令牌可以执行的操作（令牌的权限）。默认只能读取，发帖等写入操作需要逐项允许。上限是同一界面中“外部应用”（外部アプリ）的权限，实际生效的是两者的交集。为每个集成分别签发令牌，权限和归属（确认对话框中显示的名称）就会按集成分开
+3. 写入操作一定会先在 NoteDeck 的界面上确认后才执行，确认时会显示令牌名称。不过，这并不是针对以同一 OS 用户运行的程序的安全边界（同一用户的程序可以获得与 NoteDeck 本体相同的权限）。令牌的权限用于防止行为规范的集成出现事故，以及分辨是谁做了什么
 
 像 Claude Code 这样通过 HTTP 连接的应用，直接连接 `http://127.0.0.1:19820/mcp`。像 Claude Desktop、Cline 这样通过 stdio 启动服务器的应用，把内置的 `notemaid` 作为 `notemaid mcp` 交给它们，就会转发到正在运行的 NoteDeck。两种方式都只在 NoteDeck 运行期间可用。

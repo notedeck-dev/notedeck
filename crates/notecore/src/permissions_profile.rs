@@ -181,6 +181,22 @@ pub fn resolve(content: Option<&str>, id: PrincipalId) -> Granted {
     }
 }
 
+/// [`resolve`] に外部トークンの scope (#1292) を重ねる: 実効 granted =
+/// principal の実効権限 ∩ scope。上限は principal 側のままで、clamp も principal
+/// 側だけに掛ける — read 下限は scope で外せる (post-only のトークンを発行できる)
+/// が、恒久 deny は principal 側で既に落ちているので scope で開くことはない。
+/// scope は PermissionsConfig と同じ形で、外部アプリと同じ規則で正規化する
+/// (欠損キーは false)。`None` は scope 無し (= [`resolve`] と同じ)。
+/// JS 側 `resolveProfiledIn(file, id, tokenScope)` と golden で一致検査する
+pub fn resolve_scoped(content: Option<&str>, id: PrincipalId, scope: Option<&Value>) -> Granted {
+    let mut granted = resolve(content, id);
+    if let Some(scope) = scope {
+        let scope = normalize_profile(scope, PrincipalId::External);
+        granted.retain(|k| scope.contains(k));
+    }
+    granted
+}
+
 /// principal の preset 名 (store.ts `normalizeProfile` と同じ規則: 不明 / 欠損は
 /// readonly、ファイル無しは既定プロファイルの名前、破損は readonly)。
 /// `meta.permissions` が返す表示用の値で、実効 granted は [`resolve`] が決める。
@@ -208,6 +224,26 @@ pub fn preset_of(content: Option<&str>, id: PrincipalId) -> &'static str {
             .find(|v| *v == name)
             .unwrap_or("readonly"),
         None => "readonly",
+    }
+}
+
+/// トークンの scope (#1292) として保存してよい形か: object で preset が語彙内
+/// (custom なら custom は object か省略)。値の正規化は [`resolve_scoped`] が行う
+pub fn is_profile_shaped(value: &Value) -> bool {
+    const VALID: &[&str] = &["readonly", "safe", "full", "custom"];
+    let Some(obj) = value.as_object() else {
+        return false;
+    };
+    let Some(preset) = obj.get("preset").and_then(Value::as_str) else {
+        return false;
+    };
+    if !VALID.contains(&preset) {
+        return false;
+    }
+    match obj.get("custom") {
+        None | Some(Value::Null) => preset != "custom",
+        Some(Value::Object(_)) => true,
+        Some(_) => false,
     }
 }
 
@@ -294,6 +330,47 @@ mod tests {
         assert!(!g.contains("notes.write"));
     }
 
+    /// 外部トークンの scope (#1292) は external の実効権限との交差。read 下限は
+    /// scope で外せ、恒久 deny は scope で開かない
+    #[test]
+    fn token_scope_intersects_with_external_profile() {
+        let file = "{ principals: { external: { preset: 'full' } } }";
+        let scope = json5::from_str::<Value>(
+            "{ preset: 'custom', custom: { 'notes.write': true, 'skills.write': true } }",
+        )
+        .unwrap();
+        let g = resolve_scoped(Some(file), PrincipalId::External, Some(&scope));
+        assert!(g.contains("notes.write"));
+        assert!(
+            !g.contains("notes.read"),
+            "read 下限は scope に持ち込まない"
+        );
+        assert!(!g.contains("skills.write"), "恒久 deny は scope で開かない");
+        // scope 無しは resolve と同じ
+        assert_eq!(
+            resolve_scoped(Some(file), PrincipalId::External, None),
+            resolve(Some(file), PrincipalId::External)
+        );
+        // 外部アプリ側で許していないものは scope で開けない
+        let narrow = "{ principals: { external: { preset: 'readonly' } } }";
+        let full = json5::from_str::<Value>("{ preset: 'full' }").unwrap();
+        assert!(
+            !resolve_scoped(Some(narrow), PrincipalId::External, Some(&full))
+                .contains("notes.write")
+        );
+    }
+
+    #[test]
+    fn is_profile_shaped_accepts_preset_and_optional_custom_map() {
+        let ok = |t: &str| is_profile_shaped(&json5::from_str::<Value>(t).unwrap());
+        assert!(ok("{ preset: 'readonly' }"));
+        assert!(ok("{ preset: 'custom', custom: { 'notes.write': true } }"));
+        assert!(!ok("{ preset: 'custom' }"), "custom には map が要る");
+        assert!(!ok("{ preset: 'admin' }"));
+        assert!(!ok("{ preset: 'full', custom: [] }"));
+        assert!(!ok("'full'"));
+    }
+
     #[test]
     fn corrupted_file_falls_back_to_readonly() {
         let g = resolve(Some("{ principals: {"), PrincipalId::Plugin);
@@ -309,6 +386,8 @@ mod tests {
             name: String,
             principal: String,
             file: Option<String>,
+            #[serde(default, rename = "tokenScope")]
+            token_scope: Option<String>,
             granted: Vec<String>,
         }
         #[derive(serde::Deserialize)]
@@ -331,7 +410,12 @@ mod tests {
         for case in &golden.cases {
             let id = PrincipalId::parse(&case.principal)
                 .unwrap_or_else(|| panic!("unknown principal in golden case `{}`", case.name));
-            let got: Vec<String> = resolve(case.file.as_deref(), id)
+            let scope = case.token_scope.as_deref().map(|text| {
+                json5::from_str::<Value>(text).unwrap_or_else(|e| {
+                    panic!("bad tokenScope in golden case `{}`: {e}", case.name)
+                })
+            });
+            let got: Vec<String> = resolve_scoped(case.file.as_deref(), id, scope.as_ref())
                 .into_iter()
                 .map(String::from)
                 .collect();

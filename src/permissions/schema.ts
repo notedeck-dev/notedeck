@@ -184,6 +184,19 @@ export function normalizeProfile(
 }
 
 /**
+ * 外部トークンの scope (#1292) の正規化。形は PermissionsConfig と同じで、
+ * 外部アプリと同じ規則 (`normalizeProfile(_, 'external')`) で読む — 欠損キーは
+ * false。object でなければ null (= scope 無し)。Rust 側 `permissions_profile` の
+ * 同名の読み方と golden で一致検査する
+ */
+export function parseTokenScope(raw: unknown): PermissionsConfig | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return null
+  }
+  return normalizeProfile(raw as PermissionsConfig, 'external')
+}
+
+/**
  * granted map が既存 preset のいずれかと一致すればその preset に正規化して
  * 返す (heartbeat の AND 初期化結果の表示を「custom」にしないため #712 §4.4)。
  */

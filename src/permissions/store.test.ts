@@ -14,6 +14,7 @@ import {
   migrateLegacyPermissions,
   normalizePermissionsFile,
   removeConfirmSkip,
+  resolveFor,
   resolveForProfiled,
   usePermissionsConfig,
 } from './store'
@@ -282,6 +283,62 @@ describe('resolveForProfiled — principal 別 clamp (#712 PR 1c)', () => {
     expect(resolveForProfiled('ai.chat')['skills.write']).toBe(true)
     expect(resolveForProfiled('ai.chat')['tasks.run']).toBe(true)
     expect(resolveForProfiled('ai.heartbeat')['skills.write']).toBe(true)
+    _resetPermissionsForTest()
+  })
+})
+
+describe('resolveFor — トークン単位の scope (#1292)', () => {
+  const allOn = Object.fromEntries(
+    PERMISSION_KEYS.map((k) => [k, true]),
+  ) as PermissionsConfig['custom']
+
+  it('external の実効権限は「外部アプリの権限 ∩ トークンの scope」', () => {
+    const { file } = usePermissionsConfig()
+    file.value.principals.external = {
+      preset: 'custom',
+      custom: { ...customOf('readonly'), 'notes.write': true },
+    }
+    const resolved = resolveFor({
+      kind: 'external',
+      tokenId: 't1',
+      tokenScope: {
+        preset: 'custom',
+        custom: { ...allOn, 'notes.write': false, 'notes.react': true },
+      },
+    })
+    expect(resolved?.['notes.read']).toBe(true)
+    // scope が落としたものは外部アプリ側で許していても通らない
+    expect(resolved?.['notes.write']).toBe(false)
+    // 外部アプリ側で許していないものは scope で開けない (上限は external)
+    expect(resolved?.['notes.react']).toBe(false)
+    _resetPermissionsForTest()
+  })
+
+  it('read 下限は scope には持ち込まない (post-only のトークンを発行できる)、恒久 deny は scope でも開かない', () => {
+    const { file } = usePermissionsConfig()
+    file.value.principals.external = { preset: 'full', custom: {} as never }
+    const resolved = resolveFor({
+      kind: 'external',
+      tokenId: 't1',
+      tokenScope: {
+        preset: 'custom',
+        custom: { ...allOn, 'notes.read': false },
+      },
+    })
+    expect(resolved?.['notes.read']).toBe(false)
+    expect(resolved?.['notes.write']).toBe(true)
+    for (const key of THIRD_PARTY_DENY_KEYS) {
+      expect(resolved?.[key], key).toBe(false)
+    }
+    _resetPermissionsForTest()
+  })
+
+  it('scope の無いトークン (種別導入前のものなど) は外部アプリの権限のまま', () => {
+    const { file } = usePermissionsConfig()
+    file.value.principals.external = { preset: 'full', custom: {} as never }
+    const a = resolveFor({ kind: 'external', tokenId: 'legacy' })
+    const b = resolveForProfiled('external')
+    expect(a).toEqual(b)
     _resetPermissionsForTest()
   })
 })

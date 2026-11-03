@@ -283,6 +283,7 @@ AI セッション (`sessions/`) はバックアップと同期の対象にな�
 - API トークンは CSPRNG で 256-bit 生成（`rand` クレート）
 - 不正トークンには 401 Unauthorized を返却 + tracing でログ記録
 - 永続トークン (外部アプリ向け) は external principal gate (`permissions_gate.rs`) を通る。必要権限は Rust が `permissions.json5` をリクエストごとに直接読んで解決し、WebView (JS) の状態には依存しない (#1099)
+- 外部アプリ用のトークンは **トークン単位の scope と名前** を持つ ([#1292](https://github.com/notedeck-dev/notedeck/issues/1292)、GitHub の PAT 式)。実効権限は「外部アプリの権限 ∩ トークンの scope」で、上限は外部アプリの権限のまま。判定は HTTP の per-route gate と WebView の dispatcher の両方に入り、同じ golden vector で一致を検査する。トークンの正体 (id / 名前 / scope) は Rust が検証して request extension と実行要求に載せるので、外部から名乗れない。確認ダイアログ / Spotlight / メモの著者にはトークン名が出る。失効は即時で、接続時にだけ検証していた張りっぱなしの `/api/events` もトークンの失効で切れる
 - 画像・動画プロキシ (`/proxy/image` / `/proxy/media`) も無認証ではない (#1099)。`<img src>` は Authorization ヘッダーを付けられないため、起動毎に生成するプロキシ専用トークンを query `t` で要求する。WebView は `get_media_proxy_token` command で受け取り、同一マシンの他ブラウザで開いたページは値を知り得ない。ephemeral API トークン (全権) を画像 URL に置かないために分けている
 - CORS は許可リスト (WebView の origin と `localhost:5173` の dev サーバー) のみ。以前の permissive は「認証は別途あるが無認証の面を作らない」原則に反していた (#1099)
 
@@ -521,7 +522,7 @@ AI チャット・自律エージェント (HEARTBEAT) / プラグインから�
 - 各プロファイルは preset (`readonly` / `safe` / `full` / `custom`) + 個別 toggle。権限キーの語彙は `crates/notecore/capabilities.json5` の `permissions` 節が正本で、TS (`src/permissions/keys.generated.ts`) と Rust (`crates/notecore/src/permissions_keys.generated.rs`) はそこから生成する (`pnpm gen:capabilities`、#1133)
 - capability の `permissions: PermissionKey[]` と principal のプロファイルを **AND 照合**で評価。不一致なら `permission_denied` を tool_result に返す (AI には実行されない)
 - **恒久 deny floor**: 第三者 principal (plugin / external) には保存値に関わらず OFF に clamp されるキーがある。skill / persona / 記憶 (`ai.memory.write`) の書込は AI の system prompt への注入経路 (confused deputy) 、`tasks.run` は per-key gate の迂回路、`backup.create` はローカルキャッシュ全量の書き出しになるため、`full` preset を選んでも通らない
-- **external の read 下限**: HTTP API トークンの発行自体を Misskey コンテンツ read への同意とみなし、その範囲は常時 ON に clamp。逆に PKM メモ・下書き・AI 会話履歴などローカル私的データの read は external のデフォルトから外してある
+- **external の read 下限は外部アプリの権限 (上限側) にだけ掛かる**: 外部アプリの権限では Misskey コンテンツ read の範囲を常時 ON に clamp する。トークン単位の scope (#1292) にはこの下限を持ち込まない — 最小権限のトークン (投稿だけの bot など) を発行できることが PAT 式の要点で、read を含めるかはトークンごとに選ぶ。逆に PKM メモ・下書き・AI 会話履歴などローカル私的データの read は external のデフォルトから外してある
 - 権限キー追加時は `backfillValue()` で principal ごとの既定値を宣言する。欠損キーは拒否扱い
 - 設定変更は dispatch 直前に再読込されるため、外部エディタや設定 UI からの変更が **再起動なしで即反映**される
 - **`tasks.run` は endpoint ごとに検査される** (#1099)。ユーザー定義タスクの action が叩く Misskey endpoint を、plugin の `Mk:api` と同じ対応表 (`src/permissions/misskeyApiGate.ts`) で呼び出し元 principal の権限に照らす。`tasks.run` は「タスクを起動してよい」であって「任意の endpoint に届いてよい」ではないので、`safe` preset が `notes.write: false` と `tasks.run: true` を同時に持つのは矛盾ではない
@@ -585,6 +586,7 @@ skill / widget / plugin / theme の write 系 capability は、かつて `aiTool
 | 項目 | 備考 |
 |------|------|
 | 同一 OS ユーザーの他プロセス | OS キーチェーンは別ユーザー・リモートからの窃取を防ぐが、同一ユーザー権限のプロセス (同一アカウント上のマルウェア等) からの読み取りは OS の責務。高い脅威環境ではフルディスク暗号化・信頼できるソフトウェアのみの実行を併用する |
+| external principal は同一 OS ユーザーのプロセスに対する安全境界ではない | 本体は起動ごとの全権トークンをデータディレクトリに置き、それを読めるローカルプロセスを本人と同格に扱う (local trust)。OS キーチェーンと notemaid の socket も同一ユーザーなら触れる。したがって外部アプリの権限とトークン単位の scope ([#1292](https://github.com/notedeck-dev/notedeck/issues/1292)) の価値は、**行儀のよい連携の事故防止と、誰が何をしたかの可視化**にある。悪意あるプロセスを同一ユーザーで動かした時点でユーザー権限は渡る。信頼の単位は「利用者が自分でトークンを発行した」こと (VS Code / ブラウザ拡張と同じ) |
 | CSP `unsafe-eval` | AiScript エンジンが必要とするため除去不可 |
 | Tor (.onion) 非対応 | HTTPS 強制の緩和はセキュリティ劣化を招き、SOCKS5 対応も VPN には不要。`.onion` Misskey インスタンスの需要もないため対応しない |
 | HEARTBEAT 暴走時の rate limit | Cheap Check First + 連続失敗 disable で防御。capability 単位の rate limit は設けていない |

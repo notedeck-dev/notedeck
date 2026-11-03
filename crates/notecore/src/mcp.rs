@@ -75,10 +75,12 @@ fn tool_result(text: String, is_error: bool) -> Value {
 }
 
 /// JSON-RPC のメッセージを 1 つ処理する。通知 (id なし) は None (応答を返さない)。
-/// `principal` は tools/call を dispatcher に渡すときの呼び手 (トークンの種別から決まる)
+/// `principal` は tools/call を dispatcher に渡すときの呼び手 (トークンの種別から決まる)。
+/// `token` はどのトークンか (id / name / scope、#1292。ephemeral 直用は Null)
 pub async fn handle(
     bridge: &dyn FrontendBridge,
     principal: PrincipalId,
+    token: &Value,
     message: Value,
     app_version: &str,
 ) -> Option<Value> {
@@ -133,7 +135,10 @@ pub async fn handle(
                 ));
             }
             let arguments = params.get("arguments").cloned().unwrap_or(Value::Null);
-            rpc_result(id, call(bridge, principal, &capability_id, arguments).await)
+            rpc_result(
+                id,
+                call(bridge, principal, token, &capability_id, arguments).await,
+            )
         }
         other => rpc_error(id, METHOD_NOT_FOUND, format!("unknown method: {other}")),
     })
@@ -144,6 +149,7 @@ pub async fn handle(
 async fn call(
     bridge: &dyn FrontendBridge,
     principal: PrincipalId,
+    token: &Value,
     capability_id: &str,
     arguments: Value,
 ) -> Value {
@@ -154,6 +160,7 @@ async fn call(
                 "capabilityId": capability_id,
                 "params": arguments,
                 "principal": principal.as_str(),
+                "token": token,
             }),
             EXECUTE_TIMEOUT,
         )
@@ -191,6 +198,7 @@ async fn call(
 pub async fn handle_body(
     bridge: &dyn FrontendBridge,
     principal: PrincipalId,
+    token: &Value,
     body: Value,
     app_version: &str,
 ) -> Result<Option<Value>, Value> {
@@ -201,13 +209,13 @@ pub async fn handle_body(
             }
             let mut out = Vec::new();
             for item in items {
-                if let Some(r) = handle(bridge, principal, item, app_version).await {
+                if let Some(r) = handle(bridge, principal, token, item, app_version).await {
                     out.push(r);
                 }
             }
             Ok((!out.is_empty()).then_some(Value::Array(out)))
         }
-        Value::Object(_) => Ok(handle(bridge, principal, body, app_version).await),
+        Value::Object(_) => Ok(handle(bridge, principal, token, body, app_version).await),
         _ => Err(rpc_error(
             Value::Null,
             PARSE_ERROR,
@@ -265,6 +273,7 @@ mod tests {
         let r = handle(
             &b,
             PrincipalId::External,
+            &Value::Null,
             req(1, "initialize", json!({ "protocolVersion": "2025-03-26" })),
             "1.2.3",
         )
@@ -275,6 +284,7 @@ mod tests {
         let r = handle(
             &b,
             PrincipalId::External,
+            &Value::Null,
             req(2, "initialize", json!({ "protocolVersion": "1999-01-01" })),
             "1",
         )
@@ -290,6 +300,7 @@ mod tests {
         assert!(handle(
             &b,
             PrincipalId::External,
+            &Value::Null,
             json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
             "1"
         )
@@ -298,15 +309,22 @@ mod tests {
         let r = handle(
             &b,
             PrincipalId::External,
+            &Value::Null,
             req(3, "resources/list", json!({})),
             "1",
         )
         .await
         .unwrap();
         assert_eq!(r["error"]["code"], METHOD_NOT_FOUND);
-        let r = handle(&b, PrincipalId::External, req(4, "ping", json!({})), "1")
-            .await
-            .unwrap();
+        let r = handle(
+            &b,
+            PrincipalId::External,
+            &Value::Null,
+            req(4, "ping", json!({})),
+            "1",
+        )
+        .await
+        .unwrap();
         assert_eq!(r["result"], json!({}));
     }
 
@@ -316,6 +334,7 @@ mod tests {
         let r = handle(
             &b,
             PrincipalId::External,
+            &Value::Null,
             req(5, "tools/list", json!({})),
             "1",
         )
@@ -347,6 +366,7 @@ mod tests {
         let r = handle(
             &ok,
             PrincipalId::External,
+            &Value::Null,
             req(
                 6,
                 "tools/call",
@@ -374,6 +394,7 @@ mod tests {
         let r = handle(
             &denied,
             PrincipalId::External,
+            &Value::Null,
             req(
                 7,
                 "tools/call",
@@ -393,6 +414,7 @@ mod tests {
         let r = handle(
             &gone,
             PrincipalId::External,
+            &Value::Null,
             req(8, "tools/call", json!({ "name": "time_now" })),
             "1",
         )
@@ -404,6 +426,7 @@ mod tests {
         let r = handle(
             &ok,
             PrincipalId::External,
+            &Value::Null,
             req(9, "tools/call", json!({ "name": "no_such_tool" })),
             "1",
         )
@@ -420,7 +443,7 @@ mod tests {
         let ok = fake(Ok(json!({ "ok": true, "result": null })));
         let r = handle(
             &ok,
-            PrincipalId::AiChat,
+            PrincipalId::AiChat, &Value::Null,
             req(
                 10,
                 "tools/call",
@@ -436,12 +459,36 @@ mod tests {
         assert_eq!(calls[0]["principal"], "ai.chat");
     }
 
+    /// どのトークンか (#1292) を dispatcher への実行要求に同送する
+    #[tokio::test]
+    async fn tools_call_forwards_the_token_identity() {
+        let ok = fake(Ok(json!({ "ok": true, "result": null })));
+        let token = json!({ "id": "t1", "name": "Raycast", "scope": { "preset": "readonly" } });
+        handle(
+            &ok,
+            PrincipalId::External,
+            &token,
+            req(
+                1,
+                "tools/call",
+                json!({ "name": "notes_search", "arguments": {} }),
+            ),
+            "1",
+        )
+        .await
+        .unwrap();
+        let calls = ok.calls.lock().unwrap();
+        assert_eq!(calls[0]["token"], token);
+        assert_eq!(calls[0]["principal"], "external");
+    }
+
     #[tokio::test]
     async fn batches_collect_responses_and_drop_notifications() {
         let b = fake(Ok(Value::Null));
         let out = handle_body(
             &b,
             PrincipalId::External,
+            &Value::Null,
             json!([
                 { "jsonrpc": "2.0", "method": "notifications/initialized" },
                 req(1, "ping", json!({}))
@@ -455,14 +502,17 @@ mod tests {
         assert!(handle_body(
             &b,
             PrincipalId::External,
+            &Value::Null,
             json!([{ "jsonrpc": "2.0", "method": "notifications/x" }]),
             "1"
         )
         .await
         .unwrap()
         .is_none());
-        assert!(handle_body(&b, PrincipalId::External, json!("nope"), "1")
-            .await
-            .is_err());
+        assert!(
+            handle_body(&b, PrincipalId::External, &Value::Null, json!("nope"), "1")
+                .await
+                .is_err()
+        );
     }
 }

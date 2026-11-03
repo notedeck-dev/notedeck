@@ -2664,18 +2664,18 @@ async maidTurnSystem(turnId: string) : Promise<Result<JsonValue | null, { code: 
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async capabilityExecute(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null, tokenId: string | null, tokenName: string | null) : Promise<Result<ExecOutcome, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted, pluginId }) };
+    return { status: "ok", data: await TAURI_INVOKE("capability_execute", { id, params, principal, accountId, tainted, pluginId, tokenId, tokenName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
 },
 /** @see crates/notemaid/src/commands/ai_chat.rs */
-async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async capabilityPreview(id: string, params: JsonValue, principal: string, accountId: string | null, tainted: boolean, pluginId: string | null, tokenId: string | null, tokenName: string | null) : Promise<Result<JsonValue | null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted, pluginId }) };
+    return { status: "ok", data: await TAURI_INVOKE("capability_preview", { id, params, principal, accountId, tainted, pluginId, tokenId, tokenName }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -2859,9 +2859,9 @@ async listApiTokens() : Promise<ApiTokenMeta[]> {
     return await TAURI_INVOKE("list_api_tokens");
 },
 /** @see src-tauri/src/commands/api_tokens.rs */
-async createApiToken(name: string) : Promise<Result<CreatedApiToken, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+async createApiToken(name: string, scope: JsonValue) : Promise<Result<CreatedApiToken, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("create_api_token", { name }) };
+    return { status: "ok", data: await TAURI_INVOKE("create_api_token", { name, scope }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
@@ -3323,9 +3323,23 @@ users?: string[]; keywords?: string[][]; excludeKeywords?: string[][]; caseSensi
  */
 export type ApRequestChart = { deliverSucceeded: number[]; deliverFailed: number[]; inboxReceived: number[] }
 /**
+ * トークンの種別 = 提示されたとき誰として扱うか。
+ */
+export type ApiTokenKind = 
+/**
+ * 権限ウィンドウで発行した外部アプリ用。external principal (第三者) で解決する
+ */
+"external" | 
+/**
+ * NoteDeck が AI として起動した手元の CLI (ACP、#1104) に MCP サーバーを渡すための
+ * もの。CLI は利用者が選んだ AI 本人なので ai.chat principal で解決する (#1188)。
+ * 第三者向けの恒久 deny (記憶 / skill / persona の書込など) を受けない
+ */
+"harness"
+/**
  * フロントに見せるメタデータ (ハッシュは含めない)。
  */
-export type ApiTokenMeta = { id: string; name: string; createdAtMs: number }
+export type ApiTokenMeta = { id: string; name: string; createdAtMs: number; kind: ApiTokenKind; scope: JsonValue | null; lastUsedAtMs: number | null }
 export type AuthSession = { sessionId: string; url: string; host: string }
 /**
  * 認証方式。Rust 側で secret を注入する際の形を判別共用体で表現する。

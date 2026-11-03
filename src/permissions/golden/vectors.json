@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "description": "principal 別権限プロファイルの解決 golden vector (#1099)。JS (src/permissions/store.ts resolveProfiledIn) と Rust (src-tauri/src/permissions_profile.rs resolve) は同じ permissions.json5 本文から同じ granted 集合を導かなければならない。file は permissions.json5 の本文 (null = ファイル無し)、granted は true になるキーの一覧 (ソート済)。期待値の正本は JS 側で、`pnpm gen:golden-permissions` が採取して書き戻す。キーを追加したら keys と granted の差分を確認してコミットする。",
+  "description": "principal 別権限プロファイルの解決 golden vector (#1099)。JS (src/permissions/store.ts resolveProfiledIn) と Rust (src-tauri/src/permissions_profile.rs resolve) は同じ permissions.json5 本文から同じ granted 集合を導かなければならない。file は permissions.json5 の本文 (null = ファイル無し)、granted は true になるキーの一覧 (ソート済)。期待値の正本は JS 側で、`pnpm gen:golden-permissions` が採取して書き戻す。キーを追加したら keys と granted の差分を確認してコミットする。 tokenScope (#1292) は external のトークン scope の本文 (省略 / null = scope 無し) で、granted は external の実効権限との交差になる。",
   "keys": [
     "notes.read",
     "notes.readArchive",
@@ -643,6 +643,62 @@
       "granted": [
         "deck.read",
         "notes.write"
+      ]
+    },
+    {
+      "name": "external-token-scope-readonly-over-default",
+      "principal": "external",
+      "file": null,
+      "tokenScope": "{ preset: 'readonly' }",
+      "granted": [
+        "account.read",
+        "clips.read",
+        "drive.read",
+        "notes.read"
+      ]
+    },
+    {
+      "name": "external-token-scope-drops-read-floor-and-keeps-deny",
+      "principal": "external",
+      "file": "{ principals: { external: { preset: 'full' } } }",
+      "tokenScope": "{ preset: 'custom', custom: { 'notes.write': true, 'notes.react': true, 'tasks.run': true, 'skills.write': true } }",
+      "granted": [
+        "notes.react",
+        "notes.write"
+      ]
+    },
+    {
+      "name": "external-token-scope-cannot-exceed-external",
+      "principal": "external",
+      "file": "{ principals: { external: { preset: 'custom', custom: { 'notes.read': true, 'notes.write': false } } } }",
+      "tokenScope": "{ preset: 'full' }",
+      "granted": [
+        "account.read",
+        "clips.read",
+        "drive.read",
+        "notes.read"
+      ]
+    },
+    {
+      "name": "external-token-scope-unknown-preset-is-readonly",
+      "principal": "external",
+      "file": "{ principals: { external: { preset: 'full' } } }",
+      "tokenScope": "{ preset: 'admin' }",
+      "granted": [
+        "account.read",
+        "ai.sessions.read",
+        "clips.read",
+        "deck.read",
+        "drafts.read",
+        "drive.read",
+        "logs.read",
+        "memos.read",
+        "notes.read",
+        "plugins.read",
+        "queries.read",
+        "skills.read",
+        "themes.read",
+        "widgets.read"
       ]
     }
   ]

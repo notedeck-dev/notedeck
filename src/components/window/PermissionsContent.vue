@@ -2,13 +2,14 @@
 import { json } from '@codemirror/lang-json'
 import { type Diagnostic, linter } from '@codemirror/lint'
 import JSON5 from 'json5'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import type { ApiTokenMeta } from '@/bindings'
 import { getCapability } from '@/capabilities/registry'
 import CollapseBox from '@/components/common/CollapseBox.vue'
 import EditorTabs from '@/components/common/EditorTabs.vue'
 import CodeEditor from '@/components/deck/widgets/CodeEditor.vue'
 import PermissionProfileEditor from '@/components/window/PermissionProfileEditor.vue'
+import PermissionProfileFields from '@/components/window/PermissionProfileFields.vue'
 import {
   createApiToken,
   listApiTokens,
@@ -27,9 +28,14 @@ import {
 } from '@/permissions/principal'
 import {
   AI_INSTRUCTION_KEYS,
+  EXTERNAL_DEFAULT_PROFILE,
   EXTERNAL_READ_FLOOR,
+  PERMISSION_KEYS,
+  type PermissionKey,
   type PermissionsConfig,
   type PermissionsFileConfig,
+  parseTokenScope,
+  resolvePermissions,
 } from '@/permissions/schema'
 import {
   defaultPermissionsFile,
@@ -198,6 +204,8 @@ const EXTERNAL_FLOOR_RULE = {
   },
   fixedValue: true,
 } as const
+/** トークンの scope で開けないキー: 恒久 deny に加え、外部アプリの権限で許していないもの (#1292) */
+const SCOPE_DENY_RULES = [INSTRUCTION_RULE, TASKS_RULE]
 
 const PLUGIN_DISABLED = [INSTRUCTION_RULE, TASKS_RULE]
 const EXTERNAL_DISABLED = [INSTRUCTION_RULE, TASKS_RULE, EXTERNAL_FLOOR_RULE]
@@ -232,11 +240,58 @@ function openConnections() {
 // 「触ればわかる」にする要。「read を遮断したい」の正解 (トークン失効) が
 // chip の指す先すぐ下にある。
 
-const apiTokens = ref<ApiTokenMeta[]>([])
+// shallowRef: scope (JsonValue) の再帰型を ref が深く展開しないように
+const apiTokens = shallowRef<ApiTokenMeta[]>([])
+// 一覧に出すのは外部アプリ用だけ。手元の CLI 用 (harness) は notemaid が発行・失効する
+const externalTokens = computed(() =>
+  apiTokens.value.filter((t) => t.kind === 'external'),
+)
 const newTokenName = ref('')
 const createdToken = ref<{ name: string; token: string } | null>(null)
 const tokenError = ref('')
 const copied = ref(false)
+
+// --- トークンの scope (#1292、GitHub の PAT 式) ---
+// 既定は外部アプリの既定と同じ (Misskey read のみ)。実効権限は外部アプリの権限との
+// 交差なので、外部アプリ側で許していないキーは disabled + 理由で見せ、表示値も交差
+const newTokenScope = ref<PermissionsConfig>({
+  preset: 'custom',
+  custom: { ...EXTERNAL_DEFAULT_PROFILE.custom },
+})
+const showScopeEditor = ref(false)
+const externalResolved = computed(() => {
+  void permissionsFile.value
+  return resolveForProfiled('external')
+})
+const scopeDisabledKeys = computed(() => {
+  const ceiling = PERMISSION_KEYS.filter((k) => !externalResolved.value[k])
+  return [
+    ...SCOPE_DENY_RULES,
+    {
+      keys: ceiling as readonly PermissionKey[],
+      reason: i18n.ts._permissionsContent.scopeCeilingReason,
+      fixedValue: false,
+    },
+  ]
+})
+const scopeResolved = computed(() => {
+  const own = resolvePermissions(newTokenScope.value)
+  for (const k of PERMISSION_KEYS) own[k] = own[k] && externalResolved.value[k]
+  return own
+})
+function scopeChipLabel(scope: unknown): string {
+  const parsed = parseTokenScope(scope)
+  return parsed
+    ? presetChipLabel(parsed)
+    : i18n.ts._permissionsContent.tokenScopeInherited
+}
+function tokenLastUsed(t: ApiTokenMeta): string {
+  return t.lastUsedAtMs
+    ? i18n.tsx._permissionsContent.tokenLastUsed({
+        date: new Date(t.lastUsedAtMs).toLocaleDateString(i18n.lang),
+      })
+    : i18n.ts._permissionsContent.tokenNeverUsed
+}
 
 async function refreshApiTokens(): Promise<void> {
   try {
@@ -251,9 +306,10 @@ async function createToken(): Promise<void> {
   if (!name) return
   tokenError.value = ''
   try {
-    const created = await createApiToken(name)
+    const created = await createApiToken(name, newTokenScope.value)
     createdToken.value = { name: created.meta.name, token: created.token }
     newTokenName.value = ''
+    showScopeEditor.value = false
     await refreshApiTokens()
   } catch (e) {
     tokenError.value = e instanceof Error ? e.message : String(e)
@@ -580,11 +636,12 @@ function handleReset() {
             <div :class="$style.hint">
               {{ i18n.ts._permissionsContent.apiTokensHint }}
             </div>
-            <div v-if="apiTokens.length > 0" :class="$style.tokenList">
-              <div v-for="t in apiTokens" :key="t.id" :class="$style.tokenRow">
+            <div v-if="externalTokens.length > 0" :class="$style.tokenList">
+              <div v-for="t in externalTokens" :key="t.id" :class="$style.tokenRow">
                 <i class="ti ti-key" :class="$style.tokenIcon" />
                 <span :class="$style.tokenName">{{ t.name }}</span>
-                <span :class="$style.tokenDate">{{ formatTokenDate(t) }}</span>
+                <span :class="$style.tokenScopeChip" :title="i18n.ts._permissionsContent.tokenScope">{{ scopeChipLabel(t.scope) }}</span>
+                <span :class="$style.tokenDate" :title="formatTokenDate(t)">{{ tokenLastUsed(t) }}</span>
                 <button
                   class="_button"
                   :class="$style.tokenRevoke"
@@ -603,6 +660,17 @@ function handleReset() {
                 :placeholder="i18n.ts._permissionsContent.tokenNamePlaceholder"
                 @keydown.enter="createToken"
               />
+              <!-- トークンの権限 (#1292): 既定は Misskey read のみ。押すと下に編集面が開く -->
+              <button
+                class="_button"
+                :class="[$style.tokenCreateButton, { [$style.tokenScopeToggleOpen]: showScopeEditor }]"
+                :title="i18n.ts._permissionsContent.tokenScopeHint"
+                @click="showScopeEditor = !showScopeEditor"
+              >
+                <i class="ti ti-shield-lock" />
+                {{ presetChipLabel(newTokenScope) }}
+                <i :class="['ti', showScopeEditor ? 'ti-chevron-up' : 'ti-chevron-down']" />
+              </button>
               <button
                 class="_button"
                 :class="$style.tokenCreateButton"
@@ -612,6 +680,14 @@ function handleReset() {
               >
                 {{ i18n.ts._permissionsContent.issueToken }}
               </button>
+            </div>
+            <div v-if="showScopeEditor" :class="$style.tokenScopeEditor">
+              <div :class="$style.hint">{{ i18n.ts._permissionsContent.tokenScopeHint }}</div>
+              <PermissionProfileFields
+                v-model="newTokenScope"
+                :resolved="scopeResolved"
+                :disabled-keys="scopeDisabledKeys"
+              />
             </div>
             <div v-if="createdToken" :class="$style.tokenCreated">
               <div :class="$style.hint">
@@ -896,6 +972,32 @@ function handleReset() {
   color: var(--nd-fg);
   opacity: 0.5;
   font-size: var(--nd-font-body);
+  white-space: nowrap;
+}
+
+.tokenScopeChip {
+  flex-shrink: 0;
+  max-width: 40%;
+  padding: 1px 6px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-sm);
+  color: var(--nd-fg);
+  opacity: 0.7;
+  font-size: var(--nd-font-2xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tokenScopeToggleOpen {
+  background: var(--nd-buttonHoverBg);
+}
+
+.tokenScopeEditor {
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px solid var(--nd-divider);
+  border-radius: var(--nd-radius-sm);
 }
 
 .skipOwner {

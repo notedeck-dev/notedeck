@@ -235,6 +235,8 @@ mod tests {
             account_id: None,
             tainted: false,
             plugin_id: None,
+            token_id: None,
+            token_name: None,
         }
     }
 

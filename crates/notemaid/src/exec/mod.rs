@@ -57,6 +57,9 @@ pub struct ExecContext {
     pub tainted: bool,
     /// principal が plugin のときの id (編集履歴の帰属に残す)
     pub plugin_id: Option<String>,
+    /// principal が external のときの永続トークンの id / 名前 (#1292、メモの著者)
+    pub token_id: Option<String>,
+    pub token_name: Option<String>,
 }
 
 /// 実行結果。`tainted` は「ラベル付きの内容を返した」の申告 (呼び出し元の
@@ -528,6 +531,8 @@ mod tests {
             account_id: Some("ctx".into()),
             tainted: false,
             plugin_id: None,
+            token_id: None,
+            token_name: None,
         };
         assert_eq!(
             resolve_account_id(&serde_json::json!({"accountId": " p "}), &ctx).unwrap(),

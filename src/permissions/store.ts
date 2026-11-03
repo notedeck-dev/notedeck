@@ -464,6 +464,10 @@ export function resolveFor(
 ): Record<PermissionKey, boolean> | null {
   const id = principalProfileId(principal)
   if (!id) return null
+  if (principal.kind === 'external' && principal.tokenScope) {
+    usePermissionsConfig()
+    return resolveProfiledIn(_file.value, id, principal.tokenScope)
+  }
   return resolveForProfiled(id)
 }
 
@@ -481,13 +485,25 @@ export function resolveForProfiled(
 /**
  * ファイル構造 → principal の実効 granted map (純関数)。Rust 側
  * `permissions_profile::resolve` と同じ意味論 (#1099、golden で一致検査)。
+ *
+ * `tokenScope` (#1292) は外部トークンの scope。あれば principal の実効権限との
+ * AND になる (上限は principal 側のまま)。clamp は principal 側だけに掛ける —
+ * read 下限は scope で外せる (post-only のトークンを発行できる) が、恒久 deny は
+ * principal 側で既に false なので scope で開くことはない
  */
 export function resolveProfiledIn(
   file: PermissionsFileConfig,
   id: ProfiledPrincipalId,
+  tokenScope?: PermissionsConfig | null,
 ): Record<PermissionKey, boolean> {
   const profile = file.principals[id] ?? normalizeProfile(READONLY_PROFILE, id)
-  return clampForPrincipal(resolvePermissions(profile), id)
+  const resolved = clampForPrincipal(resolvePermissions(profile), id)
+  if (!tokenScope) return resolved
+  const scope = resolvePermissions(tokenScope)
+  for (const key of PERMISSION_KEYS) {
+    resolved[key] = resolved[key] && scope[key] === true
+  }
+  return resolved
 }
 
 // --- 「今後確認しない」の記憶 (#714) ---
