@@ -1,27 +1,28 @@
-# 他のアプリから使う（Raycast / Stream Deck / Obsidian）
+# 他のアプリから使う（ブラウザ / Raycast / Stream Deck / Obsidian）
 
 デスクトップ版の NoteDeck は、起動中ずっと手元の HTTP API（`127.0.0.1:19820`）を開いていて、インストール時に `notedeck://` リンクを OS に登録しています。この 2 つを使うと、他のアプリから NoteDeck を操作できます。
 
-公式の連携は 3 つあり、どれも NoteDeck 本体には何も足さず、別のリポジトリで配っています。同じ API を使って自分で書くこともできます。
+公式の連携は 4 つあり、どれも NoteDeck 本体には何も足さず、別のリポジトリで配っています。同じ API を使って自分で書くこともできます。
 
 | 連携 | 向いていること | リポジトリ |
 |---|---|---|
+| ブラウザ拡張（Chromium） | 見ているページや選択範囲を投稿フォームへ。Misskey のノートやユーザーのリンクを NoteDeck で開く | [notedeck-browser](https://github.com/notedeck-dev/notedeck-browser) |
 | Raycast 拡張 | ランチャーから投稿・検索・カラム移動 | [notedeck-raycast](https://github.com/notedeck-dev/notedeck-raycast) |
 | Stream Deck プラグイン | 物理キーで投稿・カラム切替・ボスキー | [notedeck-streamdeck](https://github.com/notedeck-dev/notedeck-streamdeck) |
 | Obsidian プラグイン | ノートを vault に取り込む、Obsidian から投稿、サイドバーのタイムライン | [notedeck-obsidian](https://github.com/notedeck-dev/notedeck-obsidian) |
 
 ::: warning まだストアには出していません
-3 つとも Raycast Store / Stream Deck Marketplace / Obsidian のコミュニティプラグインには未掲載です。各リポジトリの README にある手順でビルドして入れます。実機での確認も十分ではないので、動かないときは issue で知らせてください。
+4 つとも Chrome Web Store / Raycast Store / Stream Deck Marketplace / Obsidian のコミュニティプラグインには未掲載です。各リポジトリの README にある手順でビルドして入れます。実機での確認も十分ではないので、動かないときは issue で知らせてください。
 :::
 
 ## 共通の仕組み
 
-3 つの連携は同じ 2 つの入口を使います。どれか 1 つの設定を覚えれば、残りも同じです。
+4 つの連携は同じ 2 つの入口を使います。どれか 1 つの設定を覚えれば、残りも同じです。
 
 **トークンが要る操作** — NoteDeck の API を呼ぶ操作（投稿、検索、アカウント一覧、タイムラインの取得など）には永続 API トークンが要ります。
 
 1. 設定 → 権限 → 「永続 API トークン」でトークンを発行し、連携の設定に貼ります
-2. 連携ごとに別のトークンを発行し、名前（`raycast` `streamdeck` `obsidian` など）を付けておくと、確認ダイアログや操作の記録にその名前が出て、どの連携がやったことか分かります
+2. 連携ごとに別のトークンを発行し、名前（`browser` `raycast` `streamdeck` `obsidian` など）を付けておくと、確認ダイアログや操作の記録にその名前が出て、どの連携がやったことか分かります
 3. 発行時にそのトークンでできる操作を選びます。既定は読み取りだけで、投稿などの書き込みは個別に許可します。上限は同じ画面の「外部アプリ」の権限で、実際に効くのは両方の交差です
 4. 投稿などの書き込みは、必ず NoteDeck の画面で確認してから実行されます。連携側は、あなたが NoteDeck で答えるまで待ちます
 
@@ -32,6 +33,19 @@
 :::
 
 どの連携も、NoteDeck が同じ端末で起動している間だけ動きます。開発版の NoteDeck（`pnpm tauri:dev`）は API のポートが違うので、連携側の設定で API の URL を変えます。
+
+## ブラウザ（Chromium）
+
+Chrome / Edge / Brave / Vivaldi / Arc などの Chromium 系ブラウザから、見ているものを NoteDeck に送ります。ほとんどの操作は `notedeck://` リンクだけで動くので、トークンなしで使い始められます。
+
+| 場所 | 何をするか | 要るもの |
+|---|---|---|
+| 右クリック（ページ / 選択範囲 / リンク / 画像） | 「NoteDeck で投稿」: タイトルと URL（選択範囲があればそれと URL、リンクや画像ならその URL）を入れて NoteDeck の投稿フォームを開く。送信は自分で押す | なし |
+| Misskey のノートのリンクやページで右クリック | 「NoteDeck で開く」: そのノートのウィンドウを NoteDeck で開く | なし |
+| Misskey のユーザーのリンクやページで右クリック | 「NoteDeck で開く」: そのユーザーのウィンドウを開く。ユーザー名から id を引くのに API を使う | トークン（読み取りの既定で足りる） |
+| ツールバーのボタン | 本文（ページのタイトルと URL、または選択範囲）を直して、投稿フォームを開くか、アカウント・公開範囲・CW を選んで直接投稿する | 直接投稿にはトークン + `notes.write` |
+| アドレスバーで `nd` と入力 | 続けて書いた文を入れて投稿フォームを開く | なし |
+| キーボードショートカット（既定 Alt+Shift+N） | 今のページを入れて投稿フォームを開く | なし |
 
 ## Raycast
 
@@ -88,7 +102,7 @@ Clip a note by URL が受け付けるのは、NoteDeck でログインしてい�
 
 ## 自分で書く
 
-3 つの連携がやっていることは、`127.0.0.1:19820` に Bearer トークンつきで HTTP を送ることと、`notedeck://` リンクを開くことだけです。同じことはどの言語からでもできます。
+4 つの連携がやっていることは、`127.0.0.1:19820` に Bearer トークンつきで HTTP を送ることと、`notedeck://` リンクを開くことだけです。同じことはどの言語からでもできます。
 
 - API の一覧は、[開発者モード](/docs/#開発者モード)の「API ドキュメント」カラムで見られます。capability は `POST /api/capabilities/<id>/execute` で呼び、`GET /api/capabilities` にすべての capability とその引数・権限の宣言があります
 - 新しいノートや通知をその場で受け取るには `GET /api/events` の Server-Sent Events を購読します

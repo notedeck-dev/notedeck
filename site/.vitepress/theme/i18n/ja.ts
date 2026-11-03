@@ -242,7 +242,7 @@ const ja = {
     api: {
       title: '外部からも動かせる',
       strong: '物理ボタンも CLI も AI も、同じ入口から。',
-      body: 'ローカル API でデッキを丸ごと操作 — 投稿もタイムライン取得もカラム操作も。Raycast・Obsidian・Stream Deck から AI エージェントまで、一度書けばどこからでも呼べます。',
+      body: 'ローカル API でデッキを丸ごと操作 — 投稿もタイムライン取得もカラム操作も。ブラウザ・Raycast・Obsidian・Stream Deck から AI エージェントまで、一度書けばどこからでも呼べます。',
     },
   },
   developers: {

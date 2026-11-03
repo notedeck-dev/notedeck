@@ -1,31 +1,32 @@
 ---
-sourceHash: 7949c17317a2
+sourceHash: 9e7e04168016
 ---
 
-# 从其他应用使用（Raycast / Stream Deck / Obsidian）
+# 从其他应用使用（浏览器 / Raycast / Stream Deck / Obsidian）
 
 桌面版 NoteDeck 在运行期间始终在本机开放 HTTP API（`127.0.0.1:19820`），并在安装时向操作系统注册 `notedeck://` 链接。借助这两个入口，其他应用可以操作 NoteDeck。
 
-官方集成有 3 个，它们都不向 NoteDeck 本体添加任何东西，各自放在独立的仓库里发布。你也可以基于同一套 API 自己编写。
+官方集成有 4 个，它们都不向 NoteDeck 本体添加任何东西，各自放在独立的仓库里发布。你也可以基于同一套 API 自己编写。
 
 | 集成 | 适合的用途 | 仓库 |
 |---|---|---|
+| 浏览器扩展（Chromium） | 把正在看的页面或选中文本送到发帖表单；在 NoteDeck 中打开 Misskey 的帖子和用户链接 | [notedeck-browser](https://github.com/notedeck-dev/notedeck-browser) |
 | Raycast 扩展 | 从启动器发帖、搜索、跳转到列 | [notedeck-raycast](https://github.com/notedeck-dev/notedeck-raycast) |
 | Stream Deck 插件 | 用实体按键发帖、切换列、老板键 | [notedeck-streamdeck](https://github.com/notedeck-dev/notedeck-streamdeck) |
 | Obsidian 插件 | 把帖子收进 vault、从 Obsidian 发帖、侧边栏时间线 | [notedeck-obsidian](https://github.com/notedeck-dev/notedeck-obsidian) |
 
 ::: warning 尚未上架商店
-这 3 个都还没有登上 Raycast Store / Stream Deck Marketplace / Obsidian 社区插件。请按各仓库 README 中的步骤自行构建安装。实机验证也还不充分，遇到不能用的情况请通过 issue 告诉我们。
+这 4 个都还没有登上 Chrome Web Store / Raycast Store / Stream Deck Marketplace / Obsidian 社区插件。请按各仓库 README 中的步骤自行构建安装。实机验证也还不充分，遇到不能用的情况请通过 issue 告诉我们。
 :::
 
 ## 共同的机制
 
-3 个集成使用相同的两个入口。记住其中一个的设置方法，其余的也一样。
+4 个集成使用相同的两个入口。记住其中一个的设置方法，其余的也一样。
 
 **需要令牌的操作** — 调用 NoteDeck API 的操作（发帖、搜索、账号列表、获取时间线等）需要持久 API 令牌。
 
 1. 在 设置 → 权限 → 「持久 API 令牌」签发令牌，粘贴到集成的设置里
-2. 为每个集成分别签发令牌并命名（如 `raycast` `streamdeck` `obsidian`），确认对话框和操作记录里会显示这个名字，可以分辨是哪个集成做的
+2. 为每个集成分别签发令牌并命名（如 `browser` `raycast` `streamdeck` `obsidian`），确认对话框和操作记录里会显示这个名字，可以分辨是哪个集成做的
 3. 签发时选择该令牌可以做的操作。默认只读，发帖等写入需要逐项允许。上限是同一界面里「外部应用」的权限，实际生效的是两者的交集
 4. 发帖等写入一定会先在 NoteDeck 的界面上确认再执行。集成一侧会等到你在 NoteDeck 里作答
 
@@ -36,6 +37,19 @@ sourceHash: 7949c17317a2
 :::
 
 所有集成都只在 NoteDeck 于同一台机器上运行时才能工作。开发版 NoteDeck（`pnpm tauri:dev`）的 API 端口不同，需要在集成的设置里修改 API URL。
+
+## 浏览器（Chromium）
+
+从 Chrome / Edge / Brave / Vivaldi / Arc 等 Chromium 系浏览器把正在看的内容送到 NoteDeck。几乎所有操作都只靠 `notedeck://` 链接，没有令牌也能开始用。
+
+| 位置 | 做什么 | 需要 |
+|---|---|---|
+| 右键（页面 / 选中文本 / 链接 / 图片） | 「通过 NoteDeck 发帖」：填入标题和 URL（有选中文本时是选中文本和 URL，链接或图片则是其 URL）打开 NoteDeck 的发帖表单。发送由你自己按下 | 无 |
+| 在 Misskey 帖子的链接或页面上右键 | 「在 NoteDeck 中打开」：在 NoteDeck 中打开该帖子的窗口 | 无 |
+| 在 Misskey 用户的链接或页面上右键 | 「在 NoteDeck 中打开」：打开该用户的窗口。用 API 把用户名换成 id | 令牌（默认的只读即可） |
+| 工具栏按钮 | 修改正文（页面标题和 URL，或选中文本）后打开发帖表单，或选择账号、可见范围、CW 直接发帖 | 直接发帖需要令牌 + `notes.write` |
+| 在地址栏输入 `nd` | 把后面输入的文字填入发帖表单并打开 | 无 |
+| 键盘快捷键（默认 Alt+Shift+N） | 填入当前页面并打开发帖表单 | 无 |
 
 ## Raycast
 
@@ -92,7 +106,7 @@ Clip a note by URL 只接受你在 NoteDeck 中登录过的服务器上的帖子
 
 ## 自己编写
 
-3 个集成做的事只有两件：向 `127.0.0.1:19820` 发送带 Bearer 令牌的 HTTP 请求，以及打开 `notedeck://` 链接。任何语言都能做到同样的事。
+4 个集成做的事只有两件：向 `127.0.0.1:19820` 发送带 Bearer 令牌的 HTTP 请求，以及打开 `notedeck://` 链接。任何语言都能做到同样的事。
 
 - API 一览在[开发者模式](/zh/docs/#开发者模式)的「API 文档」列中查看。capability 通过 `POST /api/capabilities/<id>/execute` 调用，`GET /api/capabilities` 列出全部 capability 及其参数和权限的声明
 - 要即时接收新帖子和通知，订阅 `GET /api/events` 的 Server-Sent Events

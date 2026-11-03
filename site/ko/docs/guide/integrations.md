@@ -1,31 +1,32 @@
 ---
-sourceHash: 7949c17317a2
+sourceHash: 9e7e04168016
 ---
 
-# 다른 앱에서 쓰기 (Raycast / Stream Deck / Obsidian)
+# 다른 앱에서 쓰기 (브라우저 / Raycast / Stream Deck / Obsidian)
 
 데스크톱판 NoteDeck은 실행 중 내내 로컬 HTTP API(`127.0.0.1:19820`)를 열어 두고, 설치할 때 `notedeck://` 링크를 OS에 등록합니다. 이 두 입구를 쓰면 다른 앱에서 NoteDeck을 조작할 수 있습니다.
 
-공식 연동은 3가지이며, 모두 NoteDeck 본체에는 아무것도 추가하지 않고 별도의 저장소에서 배포합니다. 같은 API로 직접 만들 수도 있습니다.
+공식 연동은 4가지이며, 모두 NoteDeck 본체에는 아무것도 추가하지 않고 별도의 저장소에서 배포합니다. 같은 API로 직접 만들 수도 있습니다.
 
 | 연동 | 어울리는 용도 | 저장소 |
 |---|---|---|
+| 브라우저 확장 (Chromium) | 보고 있는 페이지나 선택 범위를 게시 폼으로 보내기, Misskey의 노트·사용자 링크를 NoteDeck에서 열기 | [notedeck-browser](https://github.com/notedeck-dev/notedeck-browser) |
 | Raycast 확장 | 런처에서 게시·검색·칼럼 이동 | [notedeck-raycast](https://github.com/notedeck-dev/notedeck-raycast) |
 | Stream Deck 플러그인 | 물리 키로 게시·칼럼 전환·보스 키 | [notedeck-streamdeck](https://github.com/notedeck-dev/notedeck-streamdeck) |
 | Obsidian 플러그인 | 노트를 vault로 가져오기, Obsidian에서 게시, 사이드바 타임라인 | [notedeck-obsidian](https://github.com/notedeck-dev/notedeck-obsidian) |
 
 ::: warning 아직 스토어에는 올리지 않았습니다
-3가지 모두 Raycast Store / Stream Deck Marketplace / Obsidian 커뮤니티 플러그인에 미등록입니다. 각 저장소 README의 절차대로 빌드해서 넣습니다. 실기기 확인도 충분하지 않으니, 동작하지 않으면 issue로 알려 주세요.
+4가지 모두 Chrome Web Store / Raycast Store / Stream Deck Marketplace / Obsidian 커뮤니티 플러그인에 미등록입니다. 각 저장소 README의 절차대로 빌드해서 넣습니다. 실기기 확인도 충분하지 않으니, 동작하지 않으면 issue로 알려 주세요.
 :::
 
 ## 공통 구조
 
-3가지 연동은 같은 두 입구를 씁니다. 하나의 설정을 익히면 나머지도 같습니다.
+4가지 연동은 같은 두 입구를 씁니다. 하나의 설정을 익히면 나머지도 같습니다.
 
 **토큰이 필요한 조작** — NoteDeck의 API를 부르는 조작(게시, 검색, 계정 목록, 타임라인 가져오기 등)에는 영구 API 토큰이 필요합니다.
 
 1. 설정 → 권한 → 「영구 API 토큰」에서 토큰을 발급해 연동의 설정에 붙여 넣습니다
-2. 연동마다 별도의 토큰을 발급하고 이름(`raycast` `streamdeck` `obsidian` 등)을 붙여 두면, 확인 대화 상자와 조작 기록에 그 이름이 나와 어느 연동이 한 일인지 알 수 있습니다
+2. 연동마다 별도의 토큰을 발급하고 이름(`browser` `raycast` `streamdeck` `obsidian` 등)을 붙여 두면, 확인 대화 상자와 조작 기록에 그 이름이 나와 어느 연동이 한 일인지 알 수 있습니다
 3. 발급할 때 그 토큰으로 할 수 있는 조작을 고릅니다. 기본은 읽기만이며, 게시 같은 쓰기는 개별로 허용합니다. 상한은 같은 화면의 「외부 앱」 권한이고, 실제로 적용되는 것은 둘의 교집합입니다
 4. 게시 같은 쓰기는 반드시 NoteDeck 화면에서 확인한 뒤 실행됩니다. 연동 쪽은 NoteDeck에서 답할 때까지 기다립니다
 
@@ -36,6 +37,19 @@ sourceHash: 7949c17317a2
 :::
 
 어느 연동이든 NoteDeck이 같은 기기에서 실행 중인 동안만 동작합니다. 개발판 NoteDeck(`pnpm tauri:dev`)은 API 포트가 다르므로 연동 쪽 설정에서 API URL을 바꿉니다.
+
+## 브라우저 (Chromium)
+
+Chrome / Edge / Brave / Vivaldi / Arc 등 Chromium 계열 브라우저에서 보고 있는 것을 NoteDeck으로 보냅니다. 거의 모든 조작이 `notedeck://` 링크만으로 동작하므로 토큰 없이 쓰기 시작할 수 있습니다.
+
+| 위치 | 하는 일 | 필요한 것 |
+|---|---|---|
+| 오른쪽 클릭 (페이지 / 선택 범위 / 링크 / 이미지) | 「NoteDeck으로 게시」: 제목과 URL(선택 범위가 있으면 그것과 URL, 링크나 이미지면 그 URL)을 넣어 NoteDeck의 게시 폼을 엽니다. 전송은 직접 누릅니다 | 없음 |
+| Misskey 노트의 링크나 페이지에서 오른쪽 클릭 | 「NoteDeck에서 열기」: 그 노트의 창을 NoteDeck에서 엽니다 | 없음 |
+| Misskey 사용자의 링크나 페이지에서 오른쪽 클릭 | 「NoteDeck에서 열기」: 그 사용자의 창을 엽니다. 사용자 이름을 id로 바꾸는 데 API를 씁니다 | 토큰(읽기 기본값으로 충분) |
+| 툴바 버튼 | 본문(페이지 제목과 URL, 또는 선택 범위)을 고쳐서 게시 폼을 열거나, 계정·공개 범위·CW를 골라 바로 게시합니다 | 바로 게시에는 토큰 + `notes.write` |
+| 주소창에 `nd` 입력 | 이어서 쓴 글을 넣어 게시 폼을 엽니다 | 없음 |
+| 키보드 단축키 (기본 Alt+Shift+N) | 지금 페이지를 넣어 게시 폼을 엽니다 | 없음 |
 
 ## Raycast
 
@@ -92,7 +106,7 @@ Clip a note by URL이 받는 것은 NoteDeck에 로그인한 서버의 노트 UR
 
 ## 직접 만들기
 
-3가지 연동이 하는 일은 `127.0.0.1:19820`에 Bearer 토큰을 붙여 HTTP를 보내는 것과 `notedeck://` 링크를 여는 것뿐입니다. 같은 일을 어느 언어에서든 할 수 있습니다.
+4가지 연동이 하는 일은 `127.0.0.1:19820`에 Bearer 토큰을 붙여 HTTP를 보내는 것과 `notedeck://` 링크를 여는 것뿐입니다. 같은 일을 어느 언어에서든 할 수 있습니다.
 
 - API 목록은 [개발자 모드](/ko/docs/#개발자-모드)의 「API 문서」 칼럼에서 볼 수 있습니다. capability는 `POST /api/capabilities/<id>/execute`로 부르고, `GET /api/capabilities`에 모든 capability와 그 인자·권한의 선언이 있습니다
 - 새 노트와 알림을 바로 받으려면 `GET /api/events`의 Server-Sent Events를 구독합니다

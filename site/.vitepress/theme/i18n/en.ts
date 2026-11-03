@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: d3fb3914e19f
+// sourceHash: f889684ddb6a
 
 import type { Messages } from './ja'
 
@@ -242,7 +242,7 @@ const en: Messages = {
     api: {
       title: 'Drive it from outside',
       strong: 'Hardware buttons, CLIs and AI, all through one entrance. ',
-      body: 'Control the whole deck through the local API — posting, fetching timelines, managing columns. Write it once and call it from Raycast, Obsidian, Stream Deck or an AI agent.',
+      body: 'Control the whole deck through the local API — posting, fetching timelines, managing columns. Write it once and call it from your browser, Raycast, Obsidian, Stream Deck or an AI agent.',
     },
   },
   developers: {
