@@ -1,5 +1,5 @@
 ---
-sourceHash: 58deeb8c3b37
+sourceHash: 7a98c84bc547
 ---
 
 # 制作扩展
@@ -24,7 +24,7 @@ NoteDeck 不只能使用已有的功能，还可以自己添加功能。可以�
 
 **让 AI 来做** — 最快的方法。先从 [MisStore](https://store.notedeck.io) 安装作者技能（插件 / 小工具 / 主题 / 查询 / 技能各自的 author 技能，连同 AiScript 语法参考等配套技能一起），然后在 AI 列中提出“做一个能某某的插件”，AI 就会编写、验证后保存。即使不懂写法，也能得到能运行的东西。要让它制作主题，需要先在[权限](/zh/docs/guide/ai#权限)中允许写入主题（默认关闭）。
 
-**手动编写** — 通过“文件 → 打开设置文件夹”（ファイル → 設定フォルダを開く）打开设置文件夹，用文本编辑器直接编写。在开发者模式下也可以在应用内的编辑器中编辑。
+**手动编写** — 通过“文件 → 打开设置文件夹”（ファイル → 設定フォルダを開く）打开设置文件夹，用文本编辑器直接编写。在开发者模式下也可以在应用内的编辑器中编辑。如果使用 VS Code，[notedeck-vscode](https://github.com/notedeck-dev/notedeck-vscode) 可以在 VS Code 中打开设置文件夹、通过 NoteDeck 验证、把编辑推送到正在运行的 NoteDeck、执行 capability（AiScript 的高亮请安装官方的 [aiscript-vscode](https://github.com/aiscript-dev/aiscript-vscode)）。
 
 **从商店安装后改造** — 从[商店](/zh/docs/guide/store)安装的内容可以直接编辑。以已经能运行的东西为起点，比从零开始写更可靠。编辑过的内容会留下历史记录，可以回退到之前的版本。
 
