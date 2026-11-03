@@ -1,5 +1,5 @@
 ---
-sourceHash: 58deeb8c3b37
+sourceHash: 7a98c84bc547
 ---
 
 # Build extensions
@@ -24,7 +24,7 @@ For all 5 kinds, anyone can install from the store, turn them on or off and dele
 
 **Have the AI make it** — the fastest way. First install the author skills from [MisStore](https://store.notedeck.io) (the author skill for each of plugins / widgets / themes / queries / skills, together with the companion skills such as the AiScript syntax reference), then ask an AI column "make a plugin that does X": the AI writes it, checks it and saves it. You get something that works without knowing how to write it. To let it make themes, allow theme writes in the [permissions](/en/docs/guide/ai#permissions) (off by default).
 
-**Write it by hand** — open the settings folder with "File → Open settings folder" (ファイル → 設定フォルダを開く) and write directly in a text editor. In developer mode you can also edit from the editor inside the app.
+**Write it by hand** — open the settings folder with "File → Open settings folder" (ファイル → 設定フォルダを開く) and write directly in a text editor. In developer mode you can also edit from the editor inside the app. If you use VS Code, [notedeck-vscode](https://github.com/notedeck-dev/notedeck-vscode) opens the settings folder, validates through NoteDeck, pushes edits into the running NoteDeck and runs capabilities from VS Code (install the official [aiscript-vscode](https://github.com/aiscript-dev/aiscript-vscode) for AiScript highlighting).
 
 **Install from the store and modify it** — anything installed from the [store](/en/docs/guide/store) can be edited as is. Starting from something that already works is more reliable than writing from scratch. Edits keep a history, so you can go back to a previous version.
 
