@@ -6495,7 +6495,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "roundLimit": ParameterizedString<'max' | 'partial'>
       /** AI プロバイダーがリダイレクト (HTTP {status}) を返しました。{host} へは追従しません。接続の URL を最終的な宛先に直してください */
       readonly "redirectNotFollowed": ParameterizedString<'host' | 'status'>
-      /** AI 接続の URL ({host}) へは送れません: {reason}。内部アドレスやブラウザが繋がないポートは AI プロバイダーの宛先に使えません */
+      /** AI 接続の URL ({host}) へは送れません: {reason}。内部アドレスやブラウザーが繋がないポートは AI プロバイダーの宛先に使えません */
       readonly "endpointDenied": ParameterizedString<'host' | 'reason'>
       /** AI 接続の URL の host ({host}) が、この接続の許可ホストに入っていません。接続の設定で許可ホストに加えてください */
       readonly "hostNotAllowed": ParameterizedString<'host'>
