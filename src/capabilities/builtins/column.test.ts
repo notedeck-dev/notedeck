@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   ALL_COLUMN_TYPES,
-  COLUMN_REGISTRY,
   registerColumnType,
   unregisterColumnType,
 } from '@/columns/registry'
@@ -10,6 +9,7 @@ import {
   columnAddCapability,
   columnListCapability,
   columnRemoveCapability,
+  parseWidgetPlacements,
 } from './column'
 
 // Note: 実 deckStore が profileStore に深く依存するため、execute() の挙動を
@@ -136,19 +136,16 @@ describe('addable な種別はレジストリ由来 (#794 W2)', () => {
     unregisterColumnType('x:demo')
   })
 
-  it('固有の生成フローを持つ種別だけを除外する', () => {
+  it('中身を持つ種別 (widget / aiscript / play / page) も載る (#1242)', () => {
     for (const t of ['widget', 'aiscript', 'play', 'page']) {
-      expect(enumTypes()).not.toContain(t)
+      expect(enumTypes()).toContain(t)
     }
     // 手書きリスト時代に取りこぼしていた role も lookup ID 付きで追加できる
     expect(enumTypes()).toContain('role')
   })
 
-  it('レジストリの全種別 (除外分を除く) が enum に載る', () => {
-    const expected = ALL_COLUMN_TYPES.filter(
-      (t) => !COLUMN_REGISTRY[t]?.customAddFlow,
-    )
-    expect([...enumTypes()].sort()).toEqual([...expected].sort())
+  it('レジストリの全種別が enum に載る', () => {
+    expect([...enumTypes()].sort()).toEqual([...ALL_COLUMN_TYPES].sort())
   })
 
   it('実行時登録した種別が enum に載る', () => {
@@ -188,5 +185,36 @@ describe('addable な種別はレジストリ由来 (#794 W2)', () => {
         { principal: { kind: 'user' } },
       ),
     ).toThrow(/roleId/)
+  })
+})
+
+describe('中身を持つ種別の引数 (#1242)', () => {
+  it('widget の配置は { installId, accountKey? } の配列で受け、形が違う要素は捨てる', () => {
+    expect(
+      parseWidgetPlacements([
+        { installId: 'w1' },
+        { installId: 'w2', accountKey: 'misskey.io:u1' },
+        { installId: 3 },
+        'w4',
+        null,
+        { accountKey: 'misskey.io:u1' },
+      ]),
+    ).toEqual([{ id: 'w1' }, { id: 'w2', accountKey: 'misskey.io:u1' }])
+    expect(parseWidgetPlacements(undefined)).toEqual([])
+    expect(parseWidgetPlacements('w1')).toEqual([])
+  })
+
+  it('widget / aiscript / play / page の中身の params を宣言している', () => {
+    const params = columnAddCapability.signature?.params ?? {}
+    for (const key of ['widgets', 'aiscriptCode', 'flashId', 'pageId']) {
+      expect(params[key]?.optional).toBe(true)
+    }
+    expect(params.widgets?.type).toBe('array')
+  })
+
+  it('column.list は widget の配置と AiScript の本文を返すと宣言している', () => {
+    const desc = columnListCapability.signature?.returns?.description ?? ''
+    expect(desc).toContain('widgets')
+    expect(desc).toContain('aiscriptCode')
   })
 })

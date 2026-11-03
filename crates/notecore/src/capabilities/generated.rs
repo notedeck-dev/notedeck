@@ -1099,7 +1099,7 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Device,
-        description: "新しいカラムをデッキに追加する。type で種別を指定する。 list / antenna / channel / clip / user は対応する lookup ID (`listId` / `antennaId` / `channelId` / `clipId` / `userId`) が必要。",
+        description: "新しいカラムをデッキに追加する。type で種別を指定する。 list / antenna / channel / clip / role / user は対応する lookup ID (`listId` / `antennaId` / `channelId` / `clipId` / `roleId` / `userId`) が必要 (全アカウントなら代わりに `sources`)。 widget / aiscript / play / page は中身を `widgets` / `aiscriptCode` / `flashId` / `pageId` で渡す (省略時は空のカラム)。 column.list が返す設定をそのまま渡せば同じカラムを作り直せる。",
         params: &[
             ParamDecl {
                 name: "type",
@@ -1178,6 +1178,48 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
                 optional: true,
                 enum_values: None,
             },
+            ParamDecl {
+                name: "roleId",
+                ty: ParamType::String,
+                description: "type=role のとき必須",
+                optional: true,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "sources",
+                ty: ParamType::Array,
+                description: "全アカウント (accountId 省略) で lookup ID を選ぶ種別が束ねる組 [{ accountId, id, name? }] (#1017)",
+                optional: true,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "widgets",
+                ty: ParamType::Array,
+                description: "type=widget のときの配置 [{ installId, accountKey? }]。installId は導入済みウィジェットの id、accountKey は実行アカウント (`host:userId`、省略 = カラムのアカウント)",
+                optional: true,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "aiscriptCode",
+                ty: ParamType::String,
+                description: "type=aiscript のときのスクリプト本文",
+                optional: true,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "flashId",
+                ty: ParamType::String,
+                description: "type=play のとき最初に開く Play の ID",
+                optional: true,
+                enum_values: None,
+            },
+            ParamDecl {
+                name: "pageId",
+                ty: ParamType::String,
+                description: "type=page のとき最初に開くページの ID",
+                optional: true,
+                enum_values: None,
+            },
         ],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
@@ -1227,11 +1269,11 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Device,
-        description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 queryIds は適用中のカラムクエリの id。 カラムの種類と取得元を作り直す材料にはなるが、検索の絞り込み・ウィジェットの配置・カラム内のスクリプトなどは含まないので、構成をそのまま復元できるとは限らない。",
+        description: "現在開かれているカラムを配列で返す。各要素は `{ id, type, name, accountId, accountHost }` と、設定されているカラム設定 (width / tl / query / listId / antennaId / channelId / clipId / userId / roleId / sources / flashId / pageId / queryIds / widgets / aiscriptCode) を含む。 accountHost を見れば「どれが misskey.io のカラムか」を account.list を呼ばずに判定できる。 queryIds は適用中のカラムクエリの id、widgets はウィジェットの配置 [{ installId, accountKey? }]。 これらを column.add に渡せば同じカラムを作り直せる (検索の絞り込みは含まない)。",
         params: &[],
         returns: Some(ReturnDecl {
             ty: ReturnType::Array,
-            description: Some("DeckColumn projection の配列 (id / type / name / accountId / accountHost / width と、設定されているときだけ tl / query / listId / antennaId / channelId / clipId / userId / roleId / flashId / pageId / queryIds)"),
+            description: Some("DeckColumn projection の配列 (id / type / name / accountId / accountHost / width と、設定されているときだけ tl / query / listId / antennaId / channelId / clipId / userId / roleId / sources / flashId / pageId / queryIds / widgets / aiscriptCode)"),
         }),
     },
     CapabilityDecl {
