@@ -218,6 +218,51 @@ Mk:toast("hi")
     expect(meta).toMatchObject({ name: 'C', version: '2' })
   })
 
+  it('does not treat // inside string literals as a comment (#1340)', () => {
+    const meta = parsePluginMeta(`/// @ 1.2.1
+### {
+  name: "Repro"
+  version: "1.0.0"
+  description: "see https://example.com/docs // not a comment"
+  config: {
+    url: {
+      type: "string"
+      label: "URL"
+      default: "https://example.com" // trailing comment
+    }
+  }
+}
+`)
+    expect(meta).not.toBeNull()
+    expect(meta?.description).toBe(
+      'see https://example.com/docs // not a comment',
+    )
+    expect(meta?.config?.url).toMatchObject({
+      type: 'string',
+      label: 'URL',
+      default: 'https://example.com',
+    })
+  })
+
+  it('quotes keys of inline objects, not only at line starts (#1340)', () => {
+    const meta = parsePluginMeta(`/// @ 1.2.1
+### {
+  name: "Inline"
+  version: "1.0.0"
+  config: {
+    url: { type: "string", label: "URL", default: "https://example.com" }
+    n: { type: "number", default: 3 }
+  }
+}
+`)
+    expect(meta?.config?.url).toEqual({
+      type: 'string',
+      label: 'URL',
+      default: 'https://example.com',
+    })
+    expect(meta?.config?.n).toEqual({ type: 'number', default: 3 })
+  })
+
   it('returns null when the ### header is missing', () => {
     expect(parsePluginMeta('/// @ 1.2.1\nMk:toast("no header")')).toBeNull()
   })
