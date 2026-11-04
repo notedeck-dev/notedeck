@@ -218,6 +218,32 @@ Mk:toast("hi")
     expect(meta).toMatchObject({ name: 'C', version: '2' })
   })
 
+  it('does not treat // inside string literals as a comment (#1340)', () => {
+    const meta = parsePluginMeta(`/// @ 1.2.1
+### {
+  name: "Repro"
+  version: "1.0.0"
+  description: "see https://example.com/docs // not a comment"
+  config: {
+    url: {
+      type: "string"
+      label: "URL"
+      default: "https://example.com" // trailing comment
+    }
+  }
+}
+`)
+    expect(meta).not.toBeNull()
+    expect(meta?.description).toBe(
+      'see https://example.com/docs // not a comment',
+    )
+    expect(meta?.config?.url).toMatchObject({
+      type: 'string',
+      label: 'URL',
+      default: 'https://example.com',
+    })
+  })
+
   it('returns null when the ### header is missing', () => {
     expect(parsePluginMeta('/// @ 1.2.1\nMk:toast("no header")')).toBeNull()
   })

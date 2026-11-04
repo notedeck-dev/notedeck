@@ -49,7 +49,6 @@ pub fn normalize_loopback_ports(raw: &[Value]) -> Vec<u16> {
 static LANG_VERSION: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?is)^\s*///\s*@\s*([A-Z0-9_.-]+)(?:[\r\n].*)?$").unwrap());
 static META_START: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[^\n]*###\s*\{").unwrap());
-static LINE_COMMENT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"//[^\n]*").unwrap());
 static UNQUOTED_KEY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^\s*(\w+)\s*:").unwrap());
 static MISSING_COMMA: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?m)("|\d+|true|false|null|\]|\})\s*$"#).unwrap());
@@ -94,8 +93,45 @@ fn extract_meta_block(code: &str) -> Option<&str> {
     Some(&code[open..i - 1])
 }
 
+/// `// …` の行コメントを落とす。文字列リテラルの中の `//` (`"https://…"`) は
+/// 残す (#1340)。
+fn strip_line_comments(body: &str) -> String {
+    let mut out = String::with_capacity(body.len());
+    let mut quote: Option<char> = None;
+    let mut chars = body.chars().peekable();
+    while let Some(c) = chars.next() {
+        if let Some(q) = quote {
+            out.push(c);
+            if c == '\\' {
+                if let Some(next) = chars.next() {
+                    out.push(next);
+                }
+            } else if c == q {
+                quote = None;
+            }
+            continue;
+        }
+        if c == '"' || c == '\'' {
+            quote = Some(c);
+            out.push(c);
+            continue;
+        }
+        if c == '/' && chars.peek() == Some(&'/') {
+            for d in chars.by_ref() {
+                if d == '\n' {
+                    out.push('\n');
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
 fn parse_meta_block(body: &str) -> Option<Map<String, Value>> {
-    let stripped = LINE_COMMENT.replace_all(body, "");
+    let stripped = strip_line_comments(body);
     let wrapped = format!("{{{stripped}}}");
     let s = UNQUOTED_KEY.replace_all(&wrapped, "\"$1\":");
     let s = s.replace('\'', "\"");
@@ -188,6 +224,22 @@ mod tests {
             parse_plugin_meta("/// @ 0.19.0\n### {\n  // c\n  name: 'N' // x\n  version: '2'\n}\n")
                 .unwrap();
         assert_eq!(m.name, "N");
+    }
+
+    #[test]
+    fn keeps_double_slash_inside_strings() {
+        let m = parse_plugin_meta(
+            "/// @ 1.2.1\n### {\n  name: \"R\"\n  version: \"1\"\n  description: \"see https://example.com // not a comment\"\n  config: {\n    url: {\n      type: \"string\"\n      default: \"https://example.com\" // trailing\n    }\n  }\n}\n",
+        )
+        .unwrap();
+        assert_eq!(
+            m.description.as_deref(),
+            Some("see https://example.com // not a comment")
+        );
+        assert_eq!(
+            m.config.unwrap()["url"]["default"],
+            json!("https://example.com")
+        );
     }
 
     #[test]
