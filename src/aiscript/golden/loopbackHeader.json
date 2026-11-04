@@ -38,6 +38,16 @@
       "expected": null
     },
     {
+      "name": "文字列の中の // はコメントではない (#1340)",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  description: \"see https://example.com\"\n  loopback: [8080] // comment\n}\n",
+      "expected": [8080]
+    },
+    {
+      "name": "1 行形式のオブジェクトのキーも読む (#1340)",
+      "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  config: { url: { type: \"string\", default: \"https://example.com\" } }\n  loopback: [8080]\n}\n",
+      "expected": [8080]
+    },
+    {
       "name": "空の配列は宣言なし",
       "source": "/// @ 1.2.1\n### {\n  name: \"A\"\n  version: \"1\"\n  loopback: []\n}\n",
       "expected": null
