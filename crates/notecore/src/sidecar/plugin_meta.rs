@@ -49,7 +49,6 @@ pub fn normalize_loopback_ports(raw: &[Value]) -> Vec<u16> {
 static LANG_VERSION: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?is)^\s*///\s*@\s*([A-Z0-9_.-]+)(?:[\r\n].*)?$").unwrap());
 static META_START: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^[^\n]*###\s*\{").unwrap());
-static UNQUOTED_KEY: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?m)^\s*(\w+)\s*:").unwrap());
 static MISSING_COMMA: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r#"(?m)("|\d+|true|false|null|\]|\})\s*$"#).unwrap());
 static TRAILING_COMMA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?s),\s*([}\]])").unwrap());
@@ -93,19 +92,25 @@ fn extract_meta_block(code: &str) -> Option<&str> {
     Some(&code[open..i - 1])
 }
 
-/// `// …` の行コメントを落とす。文字列リテラルの中の `//` (`"https://…"`) は
-/// 残す (#1340)。
-fn strip_line_comments(body: &str) -> String {
+/// JSON に寄せる前処理: `// …` の行コメントを落とし、引用符の無いキーを
+/// `"key":` にする。どちらも文字列リテラルの外でだけ判定するので、
+/// `default: "https://…"` の `//` は残り、1 行形式のオブジェクト
+/// (`{ type: "string", label: "URL" }`) のキーも引用符で包まれる (#1340)。
+fn normalize_meta_body(body: &str) -> String {
+    let chars: Vec<char> = body.chars().collect();
     let mut out = String::with_capacity(body.len());
     let mut quote: Option<char> = None;
-    let mut chars = body.chars().peekable();
-    while let Some(c) = chars.next() {
+    // キーが始まりうる位置: 先頭 / `{` / `,` / 改行の後
+    let mut key_pos = true;
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
         if let Some(q) = quote {
             out.push(c);
-            if c == '\\' {
-                if let Some(next) = chars.next() {
-                    out.push(next);
-                }
+            i += 1;
+            if c == '\\' && i < chars.len() {
+                out.push(chars[i]);
+                i += 1;
             } else if c == q {
                 quote = None;
             }
@@ -113,28 +118,52 @@ fn strip_line_comments(body: &str) -> String {
         }
         if c == '"' || c == '\'' {
             quote = Some(c);
+            key_pos = false;
             out.push(c);
+            i += 1;
             continue;
         }
-        if c == '/' && chars.peek() == Some(&'/') {
-            for d in chars.by_ref() {
-                if d == '\n' {
-                    out.push('\n');
-                    break;
-                }
+        if c == '/' && chars.get(i + 1) == Some(&'/') {
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
             }
             continue;
         }
+        if c.is_whitespace() {
+            if c == '\n' {
+                key_pos = true;
+            }
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        if key_pos {
+            let mut j = i;
+            while j < chars.len() && (chars[j].is_alphanumeric() || chars[j] == '_') {
+                j += 1;
+            }
+            let mut k = j;
+            while k < chars.len() && chars[k].is_whitespace() {
+                k += 1;
+            }
+            if j > i && chars.get(k) == Some(&':') {
+                out.push('"');
+                out.extend(&chars[i..j]);
+                out.push_str("\":");
+                i = k + 1;
+                key_pos = false;
+                continue;
+            }
+        }
+        key_pos = c == '{' || c == ',';
         out.push(c);
+        i += 1;
     }
     out
 }
 
 fn parse_meta_block(body: &str) -> Option<Map<String, Value>> {
-    let stripped = strip_line_comments(body);
-    let wrapped = format!("{{{stripped}}}");
-    let s = UNQUOTED_KEY.replace_all(&wrapped, "\"$1\":");
-    let s = s.replace('\'', "\"");
+    let s = format!("{{{}}}", normalize_meta_body(body)).replace('\'', "\"");
     let s = MISSING_COMMA.replace_all(&s, "$1,");
     let s = TRAILING_COMMA.replace_all(&s, "$1");
     let s = END_COMMA.replace(&s, "");
@@ -240,6 +269,20 @@ mod tests {
             m.config.unwrap()["url"]["default"],
             json!("https://example.com")
         );
+    }
+
+    #[test]
+    fn quotes_keys_of_inline_objects() {
+        let m = parse_plugin_meta(
+            "/// @ 1.2.1\n### {\n  name: \"I\"\n  version: \"1\"\n  config: {\n    url: { type: \"string\", label: \"URL\", default: \"https://example.com\" }\n    n: { type: \"number\", default: 3 }\n  }\n}\n",
+        )
+        .unwrap();
+        let config = m.config.unwrap();
+        assert_eq!(
+            config["url"],
+            json!({ "type": "string", "label": "URL", "default": "https://example.com" })
+        );
+        assert_eq!(config["n"], json!({ "type": "number", "default": 3 }));
     }
 
     #[test]

@@ -138,11 +138,8 @@ function extractMetaBlock(code: string): string | null {
  */
 function parseMetaBlock(body: string): Record<string, unknown> | null {
   try {
-    const stripped = stripLineComments(body)
     // Wrap in braces and try JSON parse with relaxed quoting
-    const jsonish = `{${stripped}}`
-      // Add quotes around unquoted keys
-      .replace(/^\s*([\w]+)\s*:/gm, '"$1":')
+    const jsonish = `{${normalizeMetaBody(body)}}`
       // Replace single quotes with double quotes
       .replace(/'/g, '"')
       // Add missing commas between values on separate lines
@@ -165,18 +162,25 @@ function parseMetaBlock(body: string): Record<string, unknown> | null {
 }
 
 /**
- * Strip `// ...` line comments, leaving `//` inside string literals intact
- * (e.g. `default: "https://example.com"`, #1340).
+ * Normalize the meta body towards JSON: strip `// ...` line comments and
+ * quote unquoted keys. Both are decided outside string literals, so
+ * `default: "https://example.com"` keeps its `//` and keys inside an inline
+ * object (`{ type: "string", label: "URL" }`) are quoted too (#1340).
  */
-function stripLineComments(body: string): string {
+function normalizeMetaBody(body: string): string {
+  const KEY = /(\w+)\s*:/y
   let out = ''
   let quote: '"' | "'" | null = null
-  for (let i = 0; i < body.length; i++) {
+  // A key may start here: at the beginning, after `{`, `,` or a newline
+  let keyPos = true
+  let i = 0
+  while (i < body.length) {
     const c = body[i] as string
     if (quote) {
       out += c
-      if (c === '\\' && i + 1 < body.length) {
-        out += body[++i]
+      i++
+      if (c === '\\' && i < body.length) {
+        out += body[i++]
       } else if (c === quote) {
         quote = null
       }
@@ -184,16 +188,36 @@ function stripLineComments(body: string): string {
     }
     if (c === '"' || c === "'") {
       quote = c
+      keyPos = false
       out += c
+      i++
       continue
     }
     if (c === '/' && body[i + 1] === '/') {
       const nl = body.indexOf('\n', i)
       if (nl === -1) break
-      i = nl - 1
+      i = nl
       continue
     }
+    if (/\s/.test(c)) {
+      if (c === '\n') keyPos = true
+      out += c
+      i++
+      continue
+    }
+    if (keyPos) {
+      KEY.lastIndex = i
+      const m = KEY.exec(body)
+      if (m) {
+        out += `"${m[1]}":`
+        i += m[0].length
+        keyPos = false
+        continue
+      }
+    }
+    keyPos = c === '{' || c === ','
     out += c
+    i++
   }
   return out
 }
