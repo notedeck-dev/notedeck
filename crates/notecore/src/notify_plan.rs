@@ -122,6 +122,9 @@ pub fn notify_id(misskey_id: &str) -> i32 {
 pub struct NotifyPlan {
     pub title: String,
     pub body: Option<String>,
+    /// 送信元ユーザーの表示名 (無ければ username)。見出しは種別の文に埋め込まれる
+    /// ので、複数件をまとめるときの名前の列挙はこちらを使う。システム通知は None
+    pub actor_name: Option<String>,
     pub click: Option<ClickTarget>,
     pub channel: Channel,
     /// OS 通知の (tag, id)。後着が上書きし、既読は tag 単位で消す
@@ -147,43 +150,62 @@ pub fn plan(n: &NormalizedNotification, lang: &str) -> Option<NotifyPlan> {
             .unwrap_or_else(|| label("_native.notification.someone"))
     };
 
-    // 本家 (packages/sw/src/scripts/create-notification.ts) に合わせ、アクター系
-    // (見出し = ユーザー) と自己 / システム通知 (見出し = 固定) を分ける
+    let named = |key: &str| i18n::render(lang, key, &json!({ "name": actor_name() }));
+    // ノートに触れる通知は、何のノートについたか本文で分かるようにする
+    let digest = || n.note.as_ref().and_then(note_digest);
+
+    // 本家 (packages/sw/src/scripts/create-notification.ts) と同じ形式: アクター系は
+    // 見出しに「誰が何をしたか」、本文に対象ノートの本文。フォロー系は見出しが固定文
+    // で本文が相手の名前。自己 / システム通知は見出しが固定
     let (title, body): (String, Option<String>) = match n.notification_type.as_str() {
         "reaction" => {
-            let body = n
+            // カスタム絵文字 `:name@host:` はコロンとホストを外して名前だけ (本家 sw)
+            let reaction = n
                 .reaction
                 .as_deref()
                 .map(|r| {
-                    i18n::render(
-                        lang,
-                        "_native.notification.reactionWith",
-                        &json!({ "reaction": r }),
-                    )
+                    r.strip_prefix(':')
+                        .and_then(|r| r.strip_suffix(':'))
+                        .map(|name| name.split('@').next().unwrap_or(name))
+                        .unwrap_or(r)
                 })
-                .unwrap_or_else(|| label("_native.notification.reaction"));
-            (actor_name(), Some(body))
+                .unwrap_or("");
+            let title = format!("{reaction} {}", actor_name())
+                .trim_start()
+                .to_string();
+            (title, digest())
         }
-        "reply" => (actor_name(), Some(label("_native.notification.reply"))),
-        "renote" => (actor_name(), Some(label("_native.notification.renote"))),
-        "quote" => (actor_name(), Some(label("_native.notification.quote"))),
-        "mention" => (actor_name(), Some(label("_native.notification.mention"))),
-        "note" => (actor_name(), Some(label("_native.notification.note"))),
-        "follow" => (actor_name(), Some(label("_native.notification.follow"))),
+        "reply" => (named("_native.notification.youGotReply"), digest()),
+        "quote" => (named("_native.notification.youGotQuote"), digest()),
+        "mention" => (named("_native.notification.youGotMention"), digest()),
+        "note" => (named("_native.notification.newNote"), digest()),
+        // 通知の note はリノート側なので、本文は元ノート (自分の投稿) から
+        "renote" => {
+            let body = n
+                .note
+                .as_ref()
+                .and_then(|note| note.renote.as_deref().or(Some(note)))
+                .and_then(note_digest);
+            (named("_native.notification.youRenoted"), body)
+        }
+        "follow" => (
+            label("_native.notification.youWereFollowed"),
+            Some(actor_name()),
+        ),
         "followRequestAccepted" => (
-            actor_name(),
-            Some(label("_native.notification.followRequestAccepted")),
+            label("_native.notification.yourFollowRequestAccepted"),
+            Some(actor_name()),
         ),
         "receiveFollowRequest" => (
-            actor_name(),
-            Some(label("_native.notification.receiveFollowRequest")),
+            label("_native.notification.youReceivedFollowRequest"),
+            Some(actor_name()),
         ),
         "achievementEarned" => {
             let body = n.achievement.as_deref().map(|a| achievement_label(lang, a));
             (label("_native.notification.achievementEarned"), body)
         }
         "login" => (label("_native.notification.login"), None),
-        "pollEnded" => (label("_native.notification.pollEnded"), None),
+        "pollEnded" => (label("_native.notification.pollEnded"), digest()),
         // 外部アプリ (notifications/create) 由来。header があれば title=header /
         // body=body、無ければ body を title に繰り上げる (本家 sw と同じ)
         "app" => match (n.header.as_deref(), n.body.as_deref()) {
@@ -229,6 +251,7 @@ pub fn plan(n: &NormalizedNotification, lang: &str) -> Option<NotifyPlan> {
     Some(NotifyPlan {
         title,
         body,
+        actor_name: n.user.as_ref().map(|_| actor_name()),
         click,
         channel,
         tag: notify_tag(&n.account_id, NotifyKind::Notification),
@@ -237,6 +260,23 @@ pub fn plan(n: &NormalizedNotification, lang: &str) -> Option<NotifyPlan> {
         image_url,
         deep_link,
     })
+}
+
+/// 通知の本文に載せるノートのダイジェスト。CW があれば本文ではなく注釈 (ロック画面に
+/// 伏せた本文を出さない。本家 sw は CW を見ないがここは見る)。本家 Web は CW が
+/// 空白だけでも `cw != null` で本文を隠すので、CW が空でも本文には落とさない。
+/// サーバーが隠した本文 (isHidden) と空文は無し
+fn note_digest(note: &notecli::models::NormalizedNote) -> Option<String> {
+    if note.content_hidden {
+        return None;
+    }
+    let shown = match &note.cw {
+        Some(cw) => cw.as_str(),
+        None => note.text.as_deref()?,
+    };
+    Some(shown.trim())
+        .filter(|t| !t.is_empty())
+        .map(str::to_string)
 }
 
 /// メッセージ (チャット) の新着を OS 通知の内容に組み立てる。見出しは送信者
@@ -273,6 +313,7 @@ pub fn plan_chat(m: &ChatMessage, server_host: &str, lang: &str) -> NotifyPlan {
     NotifyPlan {
         title,
         body,
+        actor_name: None,
         click: Some(ClickTarget {
             account_id: m.account_id.clone(),
             note_id: None,
@@ -320,6 +361,7 @@ mod tests {
                 "_serverHost": "misskey.example",
                 "createdAt": "2026-01-01T00:00:00.000Z",
                 "user": { "id": "u9", "username": "me" },
+                "text": "今日のごはん",
                 "visibility": "public",
                 "renoteCount": 0,
                 "repliesCount": 0
@@ -328,13 +370,139 @@ mod tests {
         .expect("fixture should deserialize")
     }
 
-    /// アクター系は見出しが送信元ユーザー、本文が種別の文。遷移先はノート、画像は
-    /// アバター + カスタム絵文字 (本家 sw の icon / badge と同じ配置)
+    /// 種別 + ノートの JSON から通知を組む (ノートは `note` にそのまま載せる)
+    fn with_note(kind: &str, note: serde_json::Value) -> NormalizedNotification {
+        serde_json::from_value(json!({
+            "id": "x1",
+            "_accountId": "acct-1",
+            "_serverHost": "misskey.example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "type": kind,
+            "user": { "id": "u1", "username": "alice", "name": "アリス" },
+            "note": note,
+        }))
+        .expect("fixture should deserialize")
+    }
+
+    fn note(id: &str, text: Option<&str>, cw: Option<&str>) -> serde_json::Value {
+        json!({
+            "id": id,
+            "_accountId": "acct-1",
+            "_serverHost": "misskey.example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "user": { "id": "u1", "username": "alice" },
+            "text": text,
+            "cw": cw,
+            "visibility": "public",
+            "renoteCount": 0,
+            "repliesCount": 0
+        })
+    }
+
+    /// Unicode 絵文字の見出しは「絵文字 名前」。表示名があれば表示名
+    #[test]
+    fn unicode_reaction_title_puts_emoji_before_name() {
+        let n = with_note("reaction", note("note-1", Some("hello"), None));
+        let n = NormalizedNotification {
+            reaction: Some("👍".into()),
+            ..n
+        };
+        let p = plan(&n, "ja-JP").unwrap();
+        assert_eq!(p.title, "👍 アリス");
+        assert_eq!(p.body.as_deref(), Some("hello"));
+    }
+
+    /// メンション / リプライ / 引用 / 投稿は本家の文言で見出し、本文はノート本文。
+    /// 言語で見出しが変わる
+    #[test]
+    fn mention_like_notifications_carry_note_text_as_body() {
+        let cases = [
+            ("mention", "アリスからのメンション", "アリス mentioned you"),
+            ("reply", "アリスからのリプライ", "アリス replied to you"),
+            ("quote", "アリスによる引用", "アリス quoted you"),
+            ("note", "新しい投稿: アリス", "New note: アリス"),
+        ];
+        for (kind, ja, en) in cases {
+            let n = with_note(kind, note("note-1", Some("本文です"), None));
+            let p = plan(&n, "ja-JP").unwrap();
+            assert_eq!(p.title, ja, "{kind}");
+            assert_eq!(p.body.as_deref(), Some("本文です"), "{kind}");
+            assert_eq!(p.actor_name.as_deref(), Some("アリス"));
+            assert_eq!(plan(&n, "en-US").unwrap().title, en, "{kind}");
+        }
+    }
+
+    /// リノートは通知の note がリノート側なので、本文はリノートされた元ノート
+    /// (自分の投稿) の本文
+    #[test]
+    fn renote_body_is_the_renoted_note_text() {
+        let mut renoting = note("rn-1", None, None);
+        renoting["renoteId"] = json!("note-1");
+        renoting["renote"] = note("note-1", Some("元の投稿"), None);
+        let p = plan(&with_note("renote", renoting), "ja-JP").unwrap();
+        assert_eq!(p.title, "アリスがリノートしました");
+        assert_eq!(p.body.as_deref(), Some("元の投稿"));
+    }
+
+    /// CW 付きは本文ではなく注釈を出す (ロック画面に伏せた本文を出さない)。CW が
+    /// 空白だけでも本家 Web は本文を隠す (`cw != null`) ので、本文へ落とさず本文無し。
+    /// 本文も注釈も無い (画像だけ) なら本文無し。サーバーが隠した本文も出さない
+    #[test]
+    fn digest_prefers_cw_and_skips_empty_or_hidden() {
+        let p = plan(
+            &with_note(
+                "mention",
+                note("note-1", Some("伏せた本文"), Some("ネタバレ")),
+            ),
+            "ja-JP",
+        )
+        .unwrap();
+        assert_eq!(p.body.as_deref(), Some("ネタバレ"));
+        let p = plan(
+            &with_note("mention", note("note-1", Some("伏せた本文"), Some("  "))),
+            "ja-JP",
+        )
+        .unwrap();
+        assert!(p.body.is_none(), "空白だけの CW でも本文は出さない");
+        let p = plan(
+            &with_note("mention", note("note-1", Some("  "), None)),
+            "ja-JP",
+        )
+        .unwrap();
+        assert!(p.body.is_none());
+        let mut hidden = note("note-1", Some("秘密"), None);
+        hidden["contentHidden"] = json!(true);
+        let p = plan(&with_note("mention", hidden), "ja-JP").unwrap();
+        assert!(p.body.is_none());
+    }
+
+    /// フォロー系は見出しが固定文、本文が相手の名前 (本家 sw と同じ)
+    #[test]
+    fn follow_notifications_put_actor_in_body() {
+        let follow: NormalizedNotification = serde_json::from_value(json!({
+            "id": "f1",
+            "_accountId": "acct-1",
+            "_serverHost": "misskey.example",
+            "createdAt": "2026-01-01T00:00:00.000Z",
+            "type": "follow",
+            "user": { "id": "u1", "username": "alice" },
+        }))
+        .unwrap();
+        let p = plan(&follow, "ja-JP").unwrap();
+        assert_eq!(p.title, "フォローされました");
+        assert_eq!(p.body.as_deref(), Some("alice"));
+        assert_eq!(p.channel, Channel::Follows);
+    }
+
+    /// リアクションは本家 sw と同じく見出しが「絵文字名 ユーザー」(カスタム絵文字は
+    /// コロンとホストを外す)、本文がリアクションされたノートの本文。遷移先はノート、
+    /// 画像はアバター + カスタム絵文字 (本家 sw の icon / badge と同じ配置)
     #[test]
     fn actor_notification_builds_title_click_and_media() {
         let p = plan(&reaction("n1", ":igyo@.:"), "ja-JP").expect("reaction is shown");
-        assert_eq!(p.title, "alice");
-        assert_eq!(p.body.as_deref(), Some("リアクション :igyo@.:"));
+        assert_eq!(p.title, "igyo alice");
+        assert_eq!(p.actor_name.as_deref(), Some("alice"));
+        assert_eq!(p.body.as_deref(), Some("今日のごはん"));
         let click = p.click.expect("actor notification carries click target");
         assert_eq!(click.account_id, "acct-1");
         assert_eq!(click.note_id.as_deref(), Some("note-1"));
@@ -353,14 +521,12 @@ mod tests {
         );
     }
 
-    /// Unicode 絵文字は本文に出るので画像なし。言語を変えると本文が変わる
+    /// Unicode 絵文字は見出しに出るので画像なし
     #[test]
-    fn unicode_reaction_has_no_image_and_follows_language() {
+    fn unicode_reaction_has_no_image() {
         let ja = plan(&reaction("n2", "👍"), "ja-JP").unwrap();
         assert!(ja.image_url.is_none());
         assert!(ja.icon_url.is_some());
-        let en = plan(&reaction("n2", "👍"), "en-US").unwrap();
-        assert_ne!(ja.body, en.body);
     }
 
     /// 外部アプリの通知は header / body / icon をそのまま載せ、header が無ければ
@@ -424,7 +590,8 @@ mod tests {
         .unwrap();
         let p = plan(&post, "ja-JP").expect("投稿通知は出す");
         assert_eq!(p.channel, Channel::Posts);
-        assert_eq!(p.body.as_deref(), Some("投稿"));
+        assert_eq!(p.title, "新しい投稿: alice");
+        assert!(p.body.is_none(), "ノートが欠けていれば本文無し");
         assert_eq!(Channel::Mentions.label("ja-JP"), "メンション・返信");
         assert!(Channel::Messages.important() && !Channel::Other.important());
         assert_eq!(Channel::ALL.len(), 7);

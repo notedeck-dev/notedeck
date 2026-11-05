@@ -110,7 +110,8 @@ mod tests {
         assert_eq!(n.account_id, "acct-1");
         assert_eq!(n.server_host, "misskey.example");
         let plan = notify_plan::plan(&n, "ja-JP").expect("リアクションは出す");
-        assert_eq!(plan.title, "alice");
+        assert_eq!(plan.title, "👍 alice");
+        assert_eq!(plan.body.as_deref(), Some("要約"));
         assert_eq!(plan.tag, "notif:acct-1");
         assert_eq!(plan.id, notify_plan::notify_id("n1"));
         assert_eq!(
