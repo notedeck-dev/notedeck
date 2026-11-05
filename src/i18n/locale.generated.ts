@@ -6617,24 +6617,22 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "notification": {
       /** 誰か */
       readonly "someone": string
-      /** リアクション */
-      readonly "reaction": string
-      /** リアクション {reaction} */
-      readonly "reactionWith": ParameterizedString<'reaction'>
-      /** リプライ */
-      readonly "reply": string
-      /** リノート */
-      readonly "renote": string
-      /** 引用 */
-      readonly "quote": string
-      /** メンション */
-      readonly "mention": string
-      /** フォロー */
-      readonly "follow": string
-      /** フォローリクエスト承認 */
-      readonly "followRequestAccepted": string
-      /** フォローリクエスト */
-      readonly "receiveFollowRequest": string
+      /** {name}からのメンション */
+      readonly "youGotMention": ParameterizedString<'name'>
+      /** {name}からのリプライ */
+      readonly "youGotReply": ParameterizedString<'name'>
+      /** {name}による引用 */
+      readonly "youGotQuote": ParameterizedString<'name'>
+      /** {name}がリノートしました */
+      readonly "youRenoted": ParameterizedString<'name'>
+      /** 新しい投稿: {name} */
+      readonly "newNote": ParameterizedString<'name'>
+      /** フォローされました */
+      readonly "youWereFollowed": string
+      /** フォローリクエストが来ました */
+      readonly "youReceivedFollowRequest": string
+      /** フォローリクエストが承認されました */
+      readonly "yourFollowRequestAccepted": string
       /** 実績獲得 */
       readonly "achievementEarned": string
       /** ログイン検知 */
@@ -6651,8 +6649,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "groupOthers": ParameterizedString<'names'>
       /** 、 */
       readonly "listSeparator": string
-      /** 投稿 */
-      readonly "note": string
       /** ファイルを送信しました */
       readonly "chatFile": string
       /** {sender} ({room}) */

@@ -184,15 +184,21 @@ object NotificationRenderer {
           .setAutoCancel(true)
           .setOnlyAlertOnce(true)
           .setContentIntent(buildContentIntent(context, id, deepLink))
-        if (body != null) builder.setContentText(body)
+        // 本文はノートの本文 (ダイジェスト) なので、展開したら折り返して全文読める
+        // ようにする。絵文字画像があるときは BigPictureStyle の summary に載せる
+        // (style は 1 つしか持てない)
+        if (body != null) {
+          builder.setContentText(body)
+          builder.setStyle(NotificationCompat.BigTextStyle().bigText(body))
+        }
 
         avatarPath?.let { decodeBounded(it, AVATAR_MAX_DIM) }?.let {
           builder.setLargeIcon(circleCrop(it))
         }
         imagePath?.let { decodeBounded(it, EMOJI_MAX_DIM) }?.let {
-          builder.setStyle(
-            NotificationCompat.BigPictureStyle().bigPicture(normalizeEmojiHeight(it))
-          )
+          val picture = NotificationCompat.BigPictureStyle().bigPicture(normalizeEmojiHeight(it))
+          if (body != null) picture.setSummaryText(body)
+          builder.setStyle(picture)
         }
 
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE)
