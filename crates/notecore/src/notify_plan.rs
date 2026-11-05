@@ -263,17 +263,18 @@ pub fn plan(n: &NormalizedNotification, lang: &str) -> Option<NotifyPlan> {
 }
 
 /// 通知の本文に載せるノートのダイジェスト。CW があれば本文ではなく注釈 (ロック画面に
-/// 伏せた本文を出さない。本家 sw は CW を見ないがここは見る)、サーバーが隠した本文
-/// (isHidden) と空文は無し
+/// 伏せた本文を出さない。本家 sw は CW を見ないがここは見る)。本家 Web は CW が
+/// 空白だけでも `cw != null` で本文を隠すので、CW が空でも本文には落とさない。
+/// サーバーが隠した本文 (isHidden) と空文は無し
 fn note_digest(note: &notecli::models::NormalizedNote) -> Option<String> {
     if note.content_hidden {
         return None;
     }
-    note.cw
-        .as_deref()
-        .filter(|cw| !cw.trim().is_empty())
-        .or(note.text.as_deref())
-        .map(str::trim)
+    let shown = match &note.cw {
+        Some(cw) => cw.as_str(),
+        None => note.text.as_deref()?,
+    };
+    Some(shown.trim())
         .filter(|t| !t.is_empty())
         .map(str::to_string)
 }
@@ -443,7 +444,8 @@ mod tests {
         assert_eq!(p.body.as_deref(), Some("元の投稿"));
     }
 
-    /// CW 付きは本文ではなく注釈を出す (ロック画面に伏せた本文を出さない)。
+    /// CW 付きは本文ではなく注釈を出す (ロック画面に伏せた本文を出さない)。CW が
+    /// 空白だけでも本家 Web は本文を隠す (`cw != null`) ので、本文へ落とさず本文無し。
     /// 本文も注釈も無い (画像だけ) なら本文無し。サーバーが隠した本文も出さない
     #[test]
     fn digest_prefers_cw_and_skips_empty_or_hidden() {
@@ -456,6 +458,12 @@ mod tests {
         )
         .unwrap();
         assert_eq!(p.body.as_deref(), Some("ネタバレ"));
+        let p = plan(
+            &with_note("mention", note("note-1", Some("伏せた本文"), Some("  "))),
+            "ja-JP",
+        )
+        .unwrap();
+        assert!(p.body.is_none(), "空白だけの CW でも本文は出さない");
         let p = plan(
             &with_note("mention", note("note-1", Some("  "), None)),
             "ja-JP",

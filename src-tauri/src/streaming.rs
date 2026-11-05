@@ -1135,6 +1135,27 @@ mod tests {
         );
     }
 
+    /// 通知元名の列挙と dedup は見出しではなく actor_name で行う (見出しは
+    /// 「👍 アリス」「アリスからのリプライ」のように種別ごとに違う)
+    #[test]
+    fn summarize_group_dedups_by_actor_name_not_title() {
+        crate::ui_lang::set_for_tests("ja-JP");
+        let item = |title: &str, actor: &str| PendingOsNotification {
+            title: title.to_string(),
+            body: None,
+            actor_name: Some(actor.to_string()),
+            context: None,
+            media: None,
+        };
+        let items = vec![
+            item("👍 アリス", "アリス"),
+            item("アリスからのリプライ", "アリス"),
+            item("ボブがリノートしました", "ボブ"),
+        ];
+        let summary = summarize_group(&items).expect("items should flush");
+        assert_eq!(summary.body.as_deref(), Some("アリス、ボブ"));
+    }
+
     /// 複数件は「新着通知 N 件」+ 通知元名の dedup 列挙に要約される。
     /// 要約は単一の遷移先を持たないため context は落ちる。
     #[test]
