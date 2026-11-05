@@ -552,6 +552,8 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         // channel 経由で OS が行う)
         #[cfg(target_os = "android")]
         {
+            // 要約しないので名前の列挙には使わない
+            let _ = actor_name;
             OsNotifPlan::ShowNow {
                 title,
                 body: body_opt,
