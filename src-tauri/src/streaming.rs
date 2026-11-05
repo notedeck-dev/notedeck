@@ -64,11 +64,13 @@ const GROUP_WINDOW: Duration = Duration::from_secs(2);
 #[cfg(not(target_os = "android"))]
 const GROUP_MAX_NAMES: usize = 3;
 
-/// バッファ中の OS 通知 1 件分。title はアクター系なら送信元ユーザー名。
+/// バッファ中の OS 通知 1 件分。見出し / 本文は notecore の notify_plan が組んだもの。
 #[cfg(not(target_os = "android"))]
 struct PendingOsNotification {
     title: String,
     body: Option<String>,
+    /// 送信元の名前 (要約の名前列挙用)。無ければ title を名前とみなす
+    actor_name: Option<String>,
     /// クリック時の遷移コンテキスト (#754)。要約通知になると失われる。
     context: Option<NotificationClicked>,
     /// アバター/絵文字画像 (#754)。要約通知になると失われる。
@@ -118,14 +120,16 @@ fn summarize_group(items: &[PendingOsNotification]) -> Option<PendingOsNotificat
         [single] => Some(PendingOsNotification {
             title: single.title.clone(),
             body: single.body.clone(),
+            actor_name: single.actor_name.clone(),
             context: single.context.clone(),
             media: single.media.clone(),
         }),
         _ => {
             let mut names: Vec<&str> = Vec::new();
             for item in items {
-                if !names.contains(&item.title.as_str()) {
-                    names.push(&item.title);
+                let name = item.actor_name.as_deref().unwrap_or(&item.title);
+                if !names.contains(&name) {
+                    names.push(name);
                 }
             }
             let sep = crate::ui_lang::t("_native.notification.listSeparator", json!({}));
@@ -143,6 +147,7 @@ fn summarize_group(items: &[PendingOsNotification]) -> Option<PendingOsNotificat
                     json!({ "count": items.len() }),
                 ),
                 body: Some(body),
+                actor_name: None,
                 context: None,
                 media: None,
             })
@@ -353,6 +358,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         let notecore::notify_plan::NotifyPlan {
             title,
             body,
+            actor_name: _,
             click,
             icon_url,
             image_url,
@@ -511,6 +517,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         let notecore::notify_plan::NotifyPlan {
             title,
             body: body_opt,
+            actor_name,
             click,
             icon_url,
             image_url,
@@ -545,6 +552,8 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
         // channel 経由で OS が行う)
         #[cfg(target_os = "android")]
         {
+            // 要約しないので名前の列挙には使わない
+            let _ = actor_name;
             OsNotifPlan::ShowNow {
                 title,
                 body: body_opt,
@@ -578,6 +587,7 @@ impl<R: tauri::Runtime> TauriEmitter<R> {
             pending.push(PendingOsNotification {
                 title,
                 body: body_opt,
+                actor_name,
                 context,
                 media,
             });
@@ -1046,6 +1056,7 @@ mod tests {
         PendingOsNotification {
             title: title.to_string(),
             body: body.map(str::to_string),
+            actor_name: None,
             context: Some(NotificationClicked {
                 account_id: "acct-1".into(),
                 note_id: Some(format!("note-of-{title}")),
@@ -1122,6 +1133,27 @@ mod tests {
             summary.media.is_some(),
             "1 件のみの flush はアバター画像を維持するはず"
         );
+    }
+
+    /// 通知元名の列挙と dedup は見出しではなく actor_name で行う (見出しは
+    /// 「👍 アリス」「アリスからのリプライ」のように種別ごとに違う)
+    #[test]
+    fn summarize_group_dedups_by_actor_name_not_title() {
+        crate::ui_lang::set_for_tests("ja-JP");
+        let item = |title: &str, actor: &str| PendingOsNotification {
+            title: title.to_string(),
+            body: None,
+            actor_name: Some(actor.to_string()),
+            context: None,
+            media: None,
+        };
+        let items = vec![
+            item("👍 アリス", "アリス"),
+            item("アリスからのリプライ", "アリス"),
+            item("ボブがリノートしました", "ボブ"),
+        ];
+        let summary = summarize_group(&items).expect("items should flush");
+        assert_eq!(summary.body.as_deref(), Some("アリス、ボブ"));
     }
 
     /// 複数件は「新着通知 N 件」+ 通知元名の dedup 列挙に要約される。
