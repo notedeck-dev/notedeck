@@ -3033,11 +3033,11 @@ pub static CAPABILITIES: &[CapabilityDecl] = &[
         unattended_deny: false,
         destinations: &[],
         exec: Exec::Core,
-        description: "HEARTBEAT daemon の現在設定 (enabled / intervalMinutes / target / dailyMaxAiRuns / onDailyLimit / desktopNotification / cheapCheck) を読み取り専用で返す。AI 自身の起動条件を理解するため。**編集は塞がれている** (AI が自分の interval を変えると暴走するため)。",
+        description: "HEARTBEAT daemon の現在設定 (enabled / intervalMinutes / target / dailyMaxAiRuns / onDailyLimit / desktopNotification / cheapCheck) と、巡回に使う AI (protocol / model / local。接続 id は含まない) を読み取り専用で返す。AI 自身の起動条件を理解するため。**編集は塞がれている** (AI が自分の interval を変えると暴走するため)。",
         params: &[],
         returns: Some(ReturnDecl {
             ty: ReturnType::Object,
-            description: Some("{ enabled, intervalMinutes, target, dailyMaxAiRuns, onDailyLimit, desktopNotification, cheapCheck: { enabled, maxSkipHours }, permissionsPreset }"),
+            description: Some("{ provider: { protocol, model, local } | null, enabled, intervalMinutes, target, dailyMaxAiRuns, onDailyLimit, desktopNotification, cheapCheck: { enabled, maxSkipHours }, permissionsPreset }"),
         }),
     },
     CapabilityDecl {

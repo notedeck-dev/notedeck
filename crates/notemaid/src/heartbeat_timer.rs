@@ -27,6 +27,7 @@ impl HeartbeatTimer {
                 h.abort();
                 tracing::info!("[heartbeat] timer stopped");
             }
+            crate::heartbeat::set_next_tick_at(None);
             return;
         }
         if slot.as_ref().map(|(m, _)| *m) == Some(interval) {
@@ -50,6 +51,7 @@ impl HeartbeatTimer {
         if let Some((_, h)) = self.inner.lock().unwrap_or_else(|e| e.into_inner()).take() {
             h.abort();
         }
+        crate::heartbeat::set_next_tick_at(None);
     }
 
     pub fn interval_minutes(&self) -> Option<u32> {

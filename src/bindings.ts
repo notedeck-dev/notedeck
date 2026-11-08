@@ -2826,6 +2826,24 @@ async heartbeatTriggerNow() : Promise<Result<null, { code: string; message: stri
 }
 },
 /** @see crates/notemaid/src/commands/heartbeat.rs */
+async heartbeatProbe() : Promise<Result<HeartbeatProbeResult, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("heartbeat_probe") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notemaid/src/commands/heartbeat.rs */
+async heartbeatStatus() : Promise<Result<HeartbeatStatus, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("heartbeat_status") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notemaid/src/commands/heartbeat.rs */
 async heartbeatNoticesSince(since: number) : Promise<Result<HeartbeatNotice[], { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("heartbeat_notices_since", { since }) };
@@ -3362,7 +3380,13 @@ tool_param_enums: JsonValue | null; device_tools: DeviceTool[];
  * デバイスが組んだ文脈に他人の内容 (可視ノートなど) が含まれる。
  * true ならこのセッションはこのターンから tainted
  */
-context_untrusted?: boolean }
+context_untrusted?: boolean; 
+/**
+ * 試走 (#1321): `heartbeat.report` 以外の tool を執行しない (モデルには「試走では
+ * 実行しない」の結果を返す)。書込意図にもせず、確認要求も出さない。執行の抑止で
+ * あって権限の緩和ではない (どの経路から立てても「tool を執行しない turn」になるだけ)
+ */
+dry_run?: boolean }
 export type Antenna = { id: string; name: string; 
 /**
  * 'home' | 'all' | 'users' | 'list' | 'users_blacklist'
@@ -3754,6 +3778,7 @@ status: string; error: string | null;
  */
 done: number; total: number }
 export type ExportProgressEvent = ExportProgress
+export type FailureRecord = { at: number; source: string; signature: string; message: string }
 /**
  * `charts/federation`
  */
@@ -3869,6 +3894,72 @@ export type HeartbeatNotice = { at: number;
  * 報告先のセッション。報告先が「なし」なら None
  */
 sessionId: string | null }
+/**
+ * 「この接続を試す」の結果。`outcome` は `ok` (report tool を呼べた) / `no_tool` (呼ばなかった) /
+ * `unreachable` / `no_provider` / `error`。`message` は英語の正本文、`i18n` は手がかり
+ * (`{ message: { key, params } }`、無ければ生のエラー文)
+ */
+export type HeartbeatProbeResult = { outcome: string; message?: string | null; i18n?: JsonValue | null; usage?: HeartbeatTickUsage | null; provider?: HeartbeatProviderView | null; 
+/**
+ * `error` のときの送信時の失敗の種別 (`timeout` なら一文添える)
+ */
+errorKind?: string | null }
+/**
+ * 直近の tick で使った provider の表示用の断面 (#1321)。接続 id は含めない
+ * (`vault.fetch` の引数になる id は AI にも HTTP にも出さない)
+ */
+export type HeartbeatProviderView = { name: string; model: string; 
+/**
+ * この端末の中で動くサービス (#880)
+ */
+local: boolean; protocol: ConnectionProtocol }
+/**
+ * 観測用の値 (AI 設定の「最後の巡回」/ About / DevDashboard / `/api/heartbeat/status`)。
+ * WebView は `heartbeat_status` command で、HTTP は `status_json` で、同じ型を読む (#1321)
+ */
+export type HeartbeatStatus = { 
+/**
+ * 常に true (HTTP の `/api/heartbeat/status` が「回しているプロセスが居る」の印に使う)
+ */
+mounted: boolean; running: boolean; lastTickAt: number | null; lastTickSource: string | null; lastOutcome: string | null; consecutiveFailures: number; dailyCount: number; 
+/**
+ * 直近の実行で読んだ設定の断面 (未実行なら None)
+ */
+config: JsonValue | null; 
+/**
+ * 直近の失敗 (状態ファイルの写し)
+ */
+recentFailures: FailureRecord[]; 
+/**
+ * 直近の tick で使った provider の表示用の断面 (#1321)
+ */
+provider: HeartbeatProviderView | null; 
+/**
+ * 直近の tick の最初のラウンドの usage と送った量の推定 (#1321)
+ */
+usage: HeartbeatTickUsage | null; 
+/**
+ * 直近の `error` の送信時の失敗の種別 (#1321)
+ */
+lastErrorKind: string | null; 
+/**
+ * 待機中 (provider 無し / 到達不能、#1321)
+ */
+waiting: HeartbeatWaiting | null; 
+/**
+ * 次の定期の巡回の予定時刻 (timer が組まれているときだけ、#1321)
+ */
+nextTickAt: number | null }
+/**
+ * 直近の tick の最初のラウンドの usage (provider の実測があるときだけ) と送った量の推定 (#1321)。
+ * ローカル接続で入力が推定を大きく下回れば、context の切り詰めの可能性
+ */
+export type HeartbeatTickUsage = { inputTokens: number; estimatedInputTokens: number }
+/**
+ * 待機中 (#1321)。`kind` は `no-provider` | `unreachable`。`message` は英語の正本文、
+ * `i18n` は `{ message: { key, params } }` (デバイスは `localizeNative` で描き直す)
+ */
+export type HeartbeatWaiting = { kind: string; since: number; message: string; i18n: JsonValue }
 /**
  * Serialize / Default はコマンド表のフィクスチャ用。
  */

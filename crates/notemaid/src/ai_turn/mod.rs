@@ -144,6 +144,11 @@ pub struct AiTurnRequest {
     /// true ならこのセッションはこのターンから tainted
     #[serde(default)]
     pub context_untrusted: bool,
+    /// 試走 (#1321): `heartbeat.report` 以外の tool を執行しない (モデルには「試走では
+    /// 実行しない」の結果を返す)。書込意図にもせず、確認要求も出さない。執行の抑止で
+    /// あって権限の緩和ではない (どの経路から立てても「tool を執行しない turn」になるだけ)
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 /// `nd:ai-turn-event` の wire 形。specta 用に flat。
@@ -151,7 +156,8 @@ pub struct AiTurnRequest {
 pub struct AiTurnEvent {
     pub turn_id: String,
     /// `"delta" | "tool_use" | "tool_result" | "done" | "error" | "title" | "intent"
-    /// | "confirm_request" | "confirm_closed"`
+    /// | "confirm_request" | "confirm_closed" | "usage"` (usage はラウンドごとの実測。
+    /// provider が返さなければ流れない、#1321)
     pub kind: String,
     /// delta: 追記テキスト / tool_use: その assistant メッセージの本文 (ラウンド
     /// 先頭の tool_use だけ非空) / done: 最終テキスト / title: タイトル
@@ -169,6 +175,11 @@ pub struct AiTurnEvent {
     /// (実行済み = 継続モードで再試行する)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phase: Option<String>,
+    /// error: 送信時の失敗の種別 (`"transport"` 到達不能 | `"timeout"` 応答待ちの時間切れ |
+    /// `"blocked"` 名前解決の結果を拒んだ)。`phase` とは直交。HTTP の失敗や受信途中の
+    /// 切断には付かない (#1321)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<String>,
     /// done: `"end"` | `"tool_round_limit"`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<String>,
@@ -203,7 +214,7 @@ pub struct AiTurnEvent {
 }
 
 impl AiTurnEvent {
-    fn new(turn_id: &str, kind: &str) -> Self {
+    pub(crate) fn new(turn_id: &str, kind: &str) -> Self {
         Self {
             turn_id: turn_id.to_string(),
             kind: kind.to_string(),
@@ -212,6 +223,7 @@ impl AiTurnEvent {
             error_i18n: None,
             text_i18n: None,
             phase: None,
+            error_kind: None,
             stop_reason: None,
             tool_use_id: None,
             tool_use_name: None,
@@ -1359,6 +1371,16 @@ async fn prepare_pending(
         };
         match authorize(&p.name, index, &granted) {
             Err(text) => p.deny = Some(text),
+            Ok(tool)
+                if req.dry_run && tool.capability_id != crate::heartbeat::REPORT_CAPABILITY =>
+            {
+                // 試走 (#1321): 応答契約の tool 以外は執行しない。書込意図にもしない
+                p.capability_id = Some(tool.capability_id.clone());
+                p.deny = Some(format!(
+                    "Skipped (dry_run): this is a probe run; {} is not executed. Only heartbeat_report is honored",
+                    tool.capability_id
+                ));
+            }
             Ok(tool) => {
                 p.capability_id = Some(tool.capability_id.clone());
                 p.untrusted = tool.untrusted;
@@ -1820,6 +1842,7 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                     let err = ai_chat_service::RoundError {
                         message: format!("Error (budget_exceeded): {exceeded}"),
                         i18n: Some(exceeded.text().i18n),
+                        kind: None,
                     };
                     persist(
                         &rt,
@@ -1870,6 +1893,13 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                     ai_sessions::now_ms(),
                 );
             }
+            // ラウンドごとの実測 (推定は流さない)。HEARTBEAT が最初のラウンドの入力 token を
+            // 送った量の推定と比べ、切り詰めの可能性を見る (#1321)
+            if !round_usage.estimated {
+                let mut e = AiTurnEvent::new(&turn_id, "usage");
+                e.usage = Some(round_usage);
+                rt.sink.emit(e);
+            }
             if let Err(err) = run_result {
                 // mid-stream の切断: 途中までの応答は温存して ⚠️ を添える
                 let partial = round_sink.take().0;
@@ -1881,6 +1911,7 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                 let mut e = AiTurnEvent::new(&turn_id, "error");
                 e.error = Some(err.message);
                 e.error_i18n = err.i18n;
+                e.error_kind = err.kind.map(|k| k.as_str().to_string());
                 e.phase = Some(
                     if state.tool_executed {
                         "after_tool"
@@ -3994,5 +4025,110 @@ mod tests {
             conversation_key(&req),
             ConversationKey::Turn(req.turn_id.clone())
         );
+    }
+
+    // --- 試走 (#1321) ---
+
+    #[tokio::test]
+    async fn dry_run_executes_only_the_report_tool_and_asks_nothing() {
+        // 確認が要る書込 (notes.create) と応答契約の tool (heartbeat.report) を同じラウンドで:
+        // 試走では report だけが執行され、他は「試走では実行しない」の結果で確認も書込意図も出ない
+        let provider = ScriptedProvider::new(vec![
+            vec![
+                tool_use("tu1", "notes_create", json!({"text": "hello"})),
+                tool_use(
+                    "tu2",
+                    "heartbeat_report",
+                    json!({"body": "probe", "notify": false}),
+                ),
+            ],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": {"recorded": true}}));
+        let h = harness(provider, &["notes.write"], device.clone());
+        let mut req = request();
+        req.principal = "ai.heartbeat".into();
+        req.session_id = None;
+        req.dry_run = true;
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        assert!(h.sink.find("confirm_request").is_none());
+        assert!(h.sink.find("intent").is_none());
+        let executed: Vec<String> = device
+            .executes()
+            .iter()
+            .map(|e| e["capabilityId"].as_str().unwrap_or("").to_string())
+            .collect();
+        assert_eq!(executed, vec!["heartbeat.report".to_string()]);
+        let results: Vec<AiTurnEvent> = h
+            .sink
+            .all()
+            .into_iter()
+            .filter(|e| e.kind == "tool_result")
+            .collect();
+        assert_eq!(results.len(), 2);
+        let skipped = results
+            .iter()
+            .find(|r| r.tool_use_id.as_deref() == Some("tu1"))
+            .unwrap();
+        assert_eq!(skipped.is_error, Some(true));
+        assert!(skipped.text.as_deref().unwrap().contains("dry_run"));
+        assert_eq!(h.sink.last().kind, "done");
+    }
+
+    #[tokio::test]
+    async fn dry_run_does_not_widen_permissions() {
+        // 権限の無い tool は試走でも拒否のまま (執行の抑止であって権限の緩和ではない)
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "notes_create", json!({"text": "hello"}))],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true}));
+        let h = harness(provider, &[], device.clone());
+        let mut req = request();
+        req.dry_run = true;
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        assert!(device.executes().is_empty());
+        let r = h.sink.find("tool_result").unwrap();
+        assert_eq!(r.is_error, Some(true));
+        assert!(
+            !r.text.as_deref().unwrap().contains("dry_run"),
+            "{:?}",
+            r.text
+        );
+    }
+
+    // --- ラウンドごとの usage (#1321) ---
+
+    #[tokio::test]
+    async fn measured_round_usage_is_emitted_and_estimates_are_not() {
+        let mut measured = delta("");
+        measured.kind = "usage".into();
+        measured.usage = Some(crate::ai_budget::TokenUsage {
+            input_tokens: 1234,
+            output_tokens: 5,
+            estimated: false,
+        });
+        let provider = ScriptedProvider::new(vec![
+            vec![
+                measured,
+                tool_use("tu1", "notes_show", json!({"noteId": "n1"})),
+            ],
+            // 2 ラウンド目は実測が無い → 推定なので流れない
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "note"}));
+        let h = harness(provider, &["notes.read"], device);
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        let usages: Vec<AiTurnEvent> = h
+            .sink
+            .all()
+            .into_iter()
+            .filter(|e| e.kind == "usage")
+            .collect();
+        assert_eq!(usages.len(), 1);
+        assert_eq!(usages[0].usage.unwrap().input_tokens, 1234);
+        // done の usage は累計 (推定の 2 ラウンド目も足す)
+        let done = h.sink.find("done").unwrap();
+        assert!(done.usage.unwrap().input_tokens >= 1234);
     }
 }

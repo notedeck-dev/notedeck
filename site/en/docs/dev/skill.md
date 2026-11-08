@@ -1,5 +1,5 @@
 ---
-sourceHash: e53405b52499
+sourceHash: b43ea0278cf4
 ---
 
 # Skills
@@ -65,7 +65,7 @@ List "what to watch" (cheap, read-only capabilities such as the notification lis
 
 If you watch something that changes on every run (such as the current time), it is always judged as changed and nothing is skipped. Choose based on what should wake it up.
 
-Permissions during HEARTBEAT are a separate row from chat (read-only by default), and you can also cap how many times a day the AI is started. HEARTBEAT does not run on a connection where a local CLI is the AI.
+Permissions during HEARTBEAT are a separate row from chat (read-only by default), and you can also cap how many times a day the AI is started. When a local CLI is the AI, choose another connection under "AI for the rounds" in HEARTBEAT (the rounds do not run on a CLI).
 
 ## Handling secrets
 

@@ -11,9 +11,22 @@
 //!    tool を呼ばない応答は legacy の ack (`HEARTBEAT_OK`) として抑制する
 //! 6. 報告を target session に書き、デバイスへ通知 (OS 通知 / 表示の追従)
 //!
-//! 状態 (日次カウンタ / cheap check の前回値 / 連続失敗) は `ai-turns/heartbeat.json`。
+//! 状態 (日次カウンタ / cheap check の前回値 / 連続失敗 / 最後の巡回) は `ai-turns/heartbeat.json`。
 //! デバイスに要るもの (メモ等の文脈、ローカル時刻の刻印) は橋で聞き、無ければ
 //! 無しで進む (端末が繋がっていない notemaid)。
+//!
+//! 巡回の接続 (#1321) は `ai.json5` の `heartbeat.connectionId` (空ならチャットの接続に
+//! 追従) で、解決は [`AiConfigLite::heartbeat_provider`] の 1 関数。tick の結果は 4 種:
+//!
+//! | 種類 | outcome | 連続失敗 | 日次 | cheap check の前回値 |
+//! |---|---|---|---|---|
+//! | provider 無し (未選択 / 手元の CLI / モデル未設定 / 鍵無し / 宛先の検査) | `skip:no-provider` | 数えない | 消費しない | 更新しない |
+//! | 到達不能 (何も受け取る前の接続の失敗) | `skip:unreachable` | 数えない | 消費しない | 更新しない |
+//! | 推論の失敗 (HTTP / 時間切れ / 受信途中の切断 / 予算超過) | `error` | 数える | 消費する | 更新しない |
+//! | 応答あり | `reported` / `suppressed` / `queued` | 0 に戻す | 消費する | 更新する |
+//!
+//! 1 と 2 は失敗の記録に入れず、状態の `waiting` に置く (About / DevDashboard が「失敗」と
+//! して見せないため)。知らせは signature の初回だけ toast。
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -25,7 +38,7 @@ use serde_json::{json, Value};
 use specta::Type;
 
 use crate::ai_chat_service::{self, AiChatMessage, AiChatRequest, AiChatRole, AiChatSink};
-use crate::ai_config::{self, AiConfigLite};
+use crate::ai_config::{self, AiConfigLite, HeartbeatProvider};
 use crate::ai_sessions::{self, AiSessionCreate, SessionMessage};
 use crate::ai_turn::{self, AiTurnEvent, AiTurnRequest, AiTurnSink};
 use crate::exec::ExecContext;
@@ -39,6 +52,7 @@ use notecore::error::Result;
 use notecore::i18n;
 use notecore::permissions_gate;
 use notecore::permissions_profile::PrincipalId;
+use notecore::vault::ConnectionProtocol;
 
 pub const REPORT_CAPABILITY: &str = "heartbeat.report";
 pub const OK_TOKEN: &str = "HEARTBEAT_OK";
@@ -47,6 +61,13 @@ pub const ACK_MAX_CHARS: usize = 300;
 pub const MAX_CONSECUTIVE_FAILURES: u32 = 3;
 const STATE_FILE: &str = "heartbeat.json";
 const TURN_HARD_LIMIT: Duration = Duration::from_secs(30 * 60);
+/// 試走 (#1321) の待ちの上限は応答待ちの時間 × これ (tick の `max_tool_rounds` 由来の上限は使わない)
+const PROBE_TIMEOUT_FACTOR: u64 = 3;
+/// 試走で AI に出す固定の指示 (英語。応答契約の tool を必ず呼ばせる)
+pub const PROBE_INSTRUCTION: &str = "This is a probe run to verify that this model can complete a HEARTBEAT round. Regardless of the steps above, you MUST call the heartbeat_report tool exactly once with body \"probe\" and notify false. Do not call any other tool.";
+/// 切り詰めの注記 (#1321): 最初のラウンドの入力 token が送った量の推定のこの割合を下回ったら
+/// 「切り詰められた可能性」。推定は文字数ベースで言語により揺れるので保守的に取る
+pub const TRUNCATION_RATIO: f64 = 0.5;
 
 pub const INSTRUCTION: &str = "You are being called as HEARTBEAT (a periodic check).
 Follow HEARTBEAT.md and the other heartbeat instructions given in the user message, when provided.
@@ -150,6 +171,80 @@ pub struct PersistedState {
     /// 開いている間と同じ基準で数えるため。報告先が「なし」の報告も残す (#1227)
     #[serde(default)]
     pub notices: Vec<HeartbeatNotice>,
+    /// 最後の巡回 (再起動後も「最後の巡回」が出るように、#1321)
+    #[serde(default)]
+    pub last_tick: Option<HeartbeatLastTick>,
+    /// 待機中 (provider 無し / 到達不能)。応答が返ったら消える (#1321)
+    #[serde(default)]
+    pub waiting: Option<HeartbeatWaiting>,
+}
+
+/// 直近の tick で使った provider の表示用の断面 (#1321)。接続 id は含めない
+/// (`vault.fetch` の引数になる id は AI にも HTTP にも出さない)
+#[derive(Clone, Debug, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatProviderView {
+    pub name: String,
+    pub model: String,
+    /// この端末の中で動くサービス (#880)
+    pub local: bool,
+    pub protocol: ConnectionProtocol,
+}
+
+/// 直近の tick の最初のラウンドの usage (provider の実測があるときだけ) と送った量の推定 (#1321)。
+/// ローカル接続で入力が推定を大きく下回れば、context の切り詰めの可能性
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Type, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatTickUsage {
+    pub input_tokens: u64,
+    pub estimated_input_tokens: u64,
+}
+
+impl HeartbeatTickUsage {
+    /// 入力が送った量の推定を大きく下回る (切り詰めの可能性)。確定ではない
+    pub fn looks_truncated(&self) -> bool {
+        self.estimated_input_tokens > 0
+            && (self.input_tokens as f64) < (self.estimated_input_tokens as f64) * TRUNCATION_RATIO
+    }
+}
+
+/// 最後の巡回 (#1321)。試走は書かない
+#[derive(Clone, Debug, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatLastTick {
+    pub at: u64,
+    pub source: String,
+    pub outcome: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<HeartbeatProviderView>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<HeartbeatTickUsage>,
+    /// `error` のときの送信時の失敗の種別 (`timeout` なら状態行に一文添える)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<String>,
+}
+
+/// 待機中 (#1321)。`kind` は `no-provider` | `unreachable`。`message` は英語の正本文、
+/// `i18n` は `{ message: { key, params } }` (デバイスは `localizeNative` で描き直す)
+#[derive(Clone, Debug, Serialize, Deserialize, Type, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatWaiting {
+    pub kind: String,
+    pub since: u64,
+    pub message: String,
+    #[serde(rename = "i18n")]
+    pub i18n: Value,
+}
+
+impl HeartbeatWaiting {
+    fn new(kind: &str, since: u64, text: i18n::Text) -> Self {
+        Self {
+            kind: kind.into(),
+            since,
+            message: text.text,
+            i18n: json!({ "message": text.i18n }),
+        }
+    }
 }
 
 /// 知らせた報告の記録。本文は報告先のセッションが正本なので持たない
@@ -161,7 +256,7 @@ pub struct HeartbeatNotice {
     pub session_id: Option<String>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FailureRecord {
     pub at: u64,
@@ -240,6 +335,23 @@ pub fn record_failure(state: &mut PersistedState, source: &str, message: &str, n
         },
     );
     state.failures.truncate(FAILURES_LIMIT);
+    note_signature(state, signature, now)
+}
+
+/// 待機 (provider 無し / 到達不能、#1321) に入る。失敗の記録には入れず `waiting` に置き、
+/// 初めて見る signature なら通知する (`true`)。既に同じ理由で待機中なら `since` は保つ
+pub fn enter_waiting(state: &mut PersistedState, kind: &str, text: i18n::Text, now: u64) -> bool {
+    let signature = failure_signature(&format!("waiting {kind} {}", text.text));
+    let since = match &state.waiting {
+        Some(w) if w.kind == kind && w.message == text.text => w.since,
+        _ => now,
+    };
+    state.waiting = Some(HeartbeatWaiting::new(kind, since, text));
+    note_signature(state, signature, now)
+}
+
+/// signature を「通知済み」に記録し、初めてなら `true`
+fn note_signature(state: &mut PersistedState, signature: String, now: u64) -> bool {
     let first = !state.notified_signatures.contains_key(&signature);
     state.notified_signatures.insert(signature, now);
     while state.notified_signatures.len() > NOTIFIED_LIMIT {
@@ -282,10 +394,13 @@ fn save_state(app_dir: &Path, st: &PersistedState) {
     }
 }
 
-/// 観測用の値 (DevDashboard / HTTP API)。
-#[derive(Clone, Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Status {
+/// 観測用の値 (AI 設定の「最後の巡回」/ About / DevDashboard / `/api/heartbeat/status`)。
+/// WebView は `heartbeat_status` command で、HTTP は `status_json` で、同じ型を読む (#1321)
+#[derive(Clone, Debug, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase", default)]
+pub struct HeartbeatStatus {
+    /// 常に true (HTTP の `/api/heartbeat/status` が「回しているプロセスが居る」の印に使う)
+    pub mounted: bool,
     pub running: bool,
     pub last_tick_at: Option<u64>,
     pub last_tick_source: Option<String>,
@@ -296,44 +411,88 @@ pub struct Status {
     pub config: Option<Value>,
     /// 直近の失敗 (状態ファイルの写し)
     pub recent_failures: Vec<FailureRecord>,
+    /// 直近の tick で使った provider の表示用の断面 (#1321)
+    pub provider: Option<HeartbeatProviderView>,
+    /// 直近の tick の最初のラウンドの usage と送った量の推定 (#1321)
+    pub usage: Option<HeartbeatTickUsage>,
+    /// 直近の `error` の送信時の失敗の種別 (#1321)
+    pub last_error_kind: Option<String>,
+    /// 待機中 (provider 無し / 到達不能、#1321)
+    pub waiting: Option<HeartbeatWaiting>,
+    /// 次の定期の巡回の予定時刻 (timer が組まれているときだけ、#1321)
+    pub next_tick_at: Option<u64>,
 }
 
-fn status_slot() -> &'static Mutex<Status> {
-    static S: OnceLock<Mutex<Status>> = OnceLock::new();
-    S.get_or_init(|| Mutex::new(Status::default()))
+impl Default for HeartbeatStatus {
+    fn default() -> Self {
+        Self {
+            mounted: true,
+            running: false,
+            last_tick_at: None,
+            last_tick_source: None,
+            last_outcome: None,
+            consecutive_failures: 0,
+            daily_count: 0,
+            config: None,
+            recent_failures: Vec::new(),
+            provider: None,
+            usage: None,
+            last_error_kind: None,
+            waiting: None,
+            next_tick_at: None,
+        }
+    }
 }
 
-/// 起動時に状態ファイルから観測値を戻す (再起動直後も直近の失敗が見える)。
+fn status_slot() -> &'static Mutex<HeartbeatStatus> {
+    static S: OnceLock<Mutex<HeartbeatStatus>> = OnceLock::new();
+    S.get_or_init(|| Mutex::new(HeartbeatStatus::default()))
+}
+
+/// 起動時に状態ファイルから観測値を戻す (再起動直後も直近の失敗と最後の巡回が見える)。
 pub fn restore_status(app_dir: &Path) {
     let st = load_state(app_dir);
-    with_status(|s| {
-        s.consecutive_failures = st.consecutive_failures;
-        s.daily_count = st.daily_count;
-        s.recent_failures = st.failures;
-    });
+    with_status(|s| s.absorb(&st));
 }
 
-fn with_status(f: impl FnOnce(&mut Status)) {
+impl HeartbeatStatus {
+    /// 状態ファイルの写しを観測値に反映する
+    fn absorb(&mut self, st: &PersistedState) {
+        self.consecutive_failures = st.consecutive_failures;
+        self.daily_count = st.daily_count;
+        self.recent_failures = st.failures.clone();
+        self.waiting = st.waiting.clone();
+        if let Some(t) = &st.last_tick {
+            self.last_tick_at = Some(t.at);
+            self.last_tick_source = Some(t.source.clone());
+            self.last_outcome = Some(t.outcome.clone());
+            self.provider = t.provider.clone();
+            self.usage = t.usage;
+            self.last_error_kind = t.error_kind.clone();
+        }
+    }
+}
+
+fn with_status(f: impl FnOnce(&mut HeartbeatStatus)) {
     if let Ok(mut s) = status_slot().lock() {
         f(&mut s);
     }
 }
 
-/// DevDashboard / `/api/heartbeat/status` 向けの snapshot。設定は直近の実行で
-/// 読んだ断面 (HTTP 面は Core を持たないので、ここに写しを置く)。
+/// timer が次の定期の巡回の予定時刻を知らせる (止めたら None)
+pub fn set_next_tick_at(at: Option<u64>) {
+    with_status(|s| s.next_tick_at = at);
+}
+
+/// 観測値の snapshot (`heartbeat_status` command)
+pub fn status() -> HeartbeatStatus {
+    status_slot().lock().map(|s| s.clone()).unwrap_or_default()
+}
+
+/// DevDashboard / `/api/heartbeat/status` 向けの snapshot (同じ型を JSON にしたもの)。設定は
+/// 直近の実行で読んだ断面 (HTTP 面は Core を持たないので、ここに写しを置く)
 pub fn status_json() -> Value {
-    let st = status_slot().lock().map(|s| s.clone()).unwrap_or_default();
-    json!({
-        "mounted": true,
-        "running": st.running,
-        "lastTickAt": st.last_tick_at,
-        "lastTickSource": st.last_tick_source,
-        "lastOutcome": st.last_outcome,
-        "consecutiveFailures": st.consecutive_failures,
-        "dailyCount": st.daily_count,
-        "config": st.config.unwrap_or(Value::Null),
-        "recentFailures": st.recent_failures,
-    })
+    serde_json::to_value(status()).unwrap_or(Value::Null)
 }
 
 fn config_snapshot(c: &AiConfigLite) -> Value {
@@ -342,7 +501,20 @@ fn config_snapshot(c: &AiConfigLite) -> Value {
         "intervalMinutes": c.heartbeat.interval_minutes,
         "target": c.heartbeat.target,
         "dailyMaxAiRuns": c.heartbeat.daily_max_ai_runs,
+        // 巡回の接続がチャットと別か (id は出さない、#1321)
+        "separateConnection": !c.heartbeat.connection_id.is_empty(),
     })
+}
+
+/// 巡回の接続の候補 (Vault の接続一覧)。読めなければ空 (= 接続が無い)
+fn load_connections(app_dir: &Path) -> Vec<notecore::vault::Connection> {
+    match notecore::vault::connections_store::load(app_dir) {
+        Ok(file) => file.connections,
+        Err(e) => {
+            tracing::warn!("heartbeat: connections.json unreadable: {e}");
+            Vec::new()
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -480,6 +652,31 @@ fn running_flag() -> &'static Mutex<bool> {
     R.get_or_init(|| Mutex::new(false))
 }
 
+/// 実行中の印。timer の tick / 手動 / 試走が共有し、同時に 2 本走らせない (ローカル推論は
+/// 直列なので、重なると本番の tick が時間切れで失敗に数えられる)。drop で下ろす
+pub struct RunGuard(());
+
+impl Drop for RunGuard {
+    fn drop(&mut self) {
+        if let Ok(mut r) = running_flag().lock() {
+            *r = false;
+        }
+        with_status(|s| s.running = false);
+    }
+}
+
+/// 実行中の印を取る。既に走っていれば None
+pub fn try_begin() -> Option<RunGuard> {
+    let mut r = running_flag().lock().ok()?;
+    if *r {
+        return None;
+    }
+    *r = true;
+    drop(r);
+    with_status(|s| s.running = true);
+    Some(RunGuard(()))
+}
+
 /// tick を 1 回処理する。実行中なら捨てる (後で実行し直さない)。
 pub async fn run_once(core: &Core, source: &str) {
     run_once_with_gap(core, source, None).await
@@ -491,48 +688,80 @@ pub async fn run_due(core: &Core, due: crate::heartbeat_schedule::Due) {
 }
 
 async fn run_once_with_gap(core: &Core, source: &str, gap: Option<Duration>) {
+    let Some(guard) = try_begin() else {
+        tracing::debug!(source, "heartbeat skip (already running)");
+        with_status(|s| s.last_outcome = Some("skip:already-running".into()));
+        return;
+    };
+    run_guarded(core, source, gap, guard).await;
+}
+
+/// 「今すぐ巡回する」(#1321): 無効でも走り、cheap check を飛ばし、連続失敗と日次に数えない。
+/// それ以外 (報告先への書込 / 通知 / 受信箱カード / 予算) は通常の tick と同じ。
+/// 実行中の印は呼び出し側が先に取る (command が同期的に取って即返すため)
+pub async fn run_manual(core: &Core, guard: RunGuard) {
+    run_guarded(core, "manual", None, guard).await;
+}
+
+/// 1 回の実行の結果 (観測値に写す分)
+struct TickResult {
+    outcome: String,
+    provider: Option<HeartbeatProviderView>,
+    usage: Option<HeartbeatTickUsage>,
+    error_kind: Option<String>,
+}
+
+impl TickResult {
+    fn skip(outcome: &str) -> Self {
+        Self {
+            outcome: outcome.into(),
+            provider: None,
+            usage: None,
+            error_kind: None,
+        }
+    }
+}
+
+async fn run_guarded(core: &Core, source: &str, gap: Option<Duration>, guard: RunGuard) {
     let now = ai_sessions::now_ms();
     with_status(|s| {
         s.last_tick_at = Some(now);
         s.last_tick_source = Some(source.to_string());
     });
-    {
-        let Ok(mut r) = running_flag().lock() else {
-            return;
-        };
-        if *r {
-            tracing::debug!(source, "heartbeat skip (already running)");
-            with_status(|s| s.last_outcome = Some("skip:already-running".into()));
-            return;
-        }
-        *r = true;
-    }
-    with_status(|s| s.running = true);
     let mut ev = HeartbeatEvent::new("started");
     ev.source = Some(source.to_string());
     emit(core, ev);
-    let outcome = match run_body(core, source, now, gap).await {
-        Ok(o) => o,
+    let result = match run_body(core, source, now, gap).await {
+        Ok(r) => r,
         Err(e) => {
             tracing::warn!("heartbeat daemon error: {e}");
-            "error".to_string()
+            TickResult::skip("error")
         }
     };
-    with_status(|s| {
-        s.running = false;
-        s.last_outcome = Some(outcome.clone());
-        if let Ok(dir) = core.app_dir() {
-            let st = load_state(dir);
-            s.consecutive_failures = st.consecutive_failures;
-            s.daily_count = st.daily_count;
-            s.recent_failures = st.failures;
-        }
-    });
-    if let Ok(mut r) = running_flag().lock() {
-        *r = false;
+    // 最後の巡回を状態ファイルに残す (再起動後も出す)
+    if let Ok(dir) = core.app_dir() {
+        let mut st = load_state(dir);
+        st.last_tick = Some(HeartbeatLastTick {
+            at: now,
+            source: source.to_string(),
+            outcome: result.outcome.clone(),
+            provider: result.provider.clone(),
+            usage: result.usage,
+            error_kind: result.error_kind.clone(),
+        });
+        save_state(dir, &st);
+        with_status(|s| s.absorb(&st));
+    } else {
+        with_status(|s| {
+            s.last_outcome = Some(result.outcome.clone());
+            s.provider = result.provider.clone();
+            s.usage = result.usage;
+            s.last_error_kind = result.error_kind.clone();
+        });
     }
+    drop(guard);
     let mut ev = HeartbeatEvent::new("finished");
-    ev.outcome = Some(outcome);
+    ev.outcome = Some(result.outcome);
     emit(core, ev);
 }
 
@@ -544,25 +773,31 @@ fn toast(core: &Core, level: &str, message: i18n::Text) {
     emit(core, ev);
 }
 
-async fn run_body(core: &Core, source: &str, now: u64, gap: Option<Duration>) -> Result<String> {
+async fn run_body(
+    core: &Core,
+    source: &str,
+    now: u64,
+    gap: Option<Duration>,
+) -> Result<TickResult> {
+    let manual = source == "manual";
     let app_dir = core.app_dir()?.to_path_buf();
     let cfg = ai_config::load(core)?;
     let snapshot = config_snapshot(&cfg);
     with_status(|s| s.config = Some(snapshot));
-    if !cfg.heartbeat.enabled {
-        return Ok("skip:disabled".into());
+    if !cfg.heartbeat.enabled && !manual {
+        return Ok(TickResult::skip("skip:disabled"));
     }
     let accounts = notecore::account_service::list_public_from(&*core.accounts()?)?;
     if !accounts.iter().any(|a| a.has_token) {
         tracing::debug!("heartbeat: no active account, skip");
-        return Ok("skip:no-account".into());
+        return Ok(TickResult::skip("skip:no-account"));
     }
     let heartbeat_skills: Vec<SkillMeta> = skills::list(core)?
         .into_iter()
         .filter(|s| s.mode == "heartbeat")
         .collect();
     if heartbeat_skills.is_empty() {
-        return Ok("skip:no-skills".into());
+        return Ok(TickResult::skip("skip:no-skills"));
     }
     // 実質空 (コメントと見出しだけ) の手順は無いのと同じ。全部空なら巡回しない
     // (OpenClaw の empty-heartbeat-file。無人の予算のため NoteDeck は走らせない)
@@ -572,35 +807,58 @@ async fn run_body(core: &Core, source: &str, now: u64, gap: Option<Duration>) ->
         .map(|s| format!("# Skill: {}\n\n{}", s.name, s.body.trim()))
         .collect();
     if skill_bodies.is_empty() {
-        return Ok("skip:no-skills".into());
+        return Ok(TickResult::skip("skip:no-skills"));
     }
 
-    // cheap check
+    // 巡回の provider (#1321)。鍵を開かずに決め、無ければ cheap check より前に待機へ
     let mut state = load_state(&app_dir);
-    let new_hashes = collect_cheap_results(core, &heartbeat_skills).await;
-    let (run_ai, reason) = decide_cheap_check(
-        &new_hashes,
-        &state,
-        cfg.heartbeat.cheap_check.enabled,
-        cfg.heartbeat.cheap_check.max_skip_hours,
-        now,
-    );
-    if !run_ai {
-        state.last_results_hash.extend(new_hashes);
-        save_state(&app_dir, &state);
-        return Ok(format!("skip:cheap-check:{reason}"));
+    let provider = match cfg.heartbeat_provider(&load_connections(&app_dir)) {
+        Ok(p) => p,
+        Err(reason) => {
+            tracing::debug!(?reason, "heartbeat: no provider, waiting");
+            wait(
+                core,
+                &mut state,
+                &app_dir,
+                "no-provider",
+                i18n::text(reason.i18n_key(), json!({})),
+                now,
+            );
+            return Ok(TickResult::skip("skip:no-provider"));
+        }
+    };
+
+    // cheap check (手動は飛ばす)
+    let new_hashes = if manual {
+        HashMap::new()
+    } else {
+        collect_cheap_results(core, &heartbeat_skills).await
+    };
+    if !manual {
+        let (run_ai, reason) = decide_cheap_check(
+            &new_hashes,
+            &state,
+            cfg.heartbeat.cheap_check.enabled,
+            cfg.heartbeat.cheap_check.max_skip_hours,
+            now,
+        );
+        if !run_ai {
+            state.last_results_hash.extend(new_hashes);
+            save_state(&app_dir, &state);
+            return Ok(TickResult::skip(&format!("skip:cheap-check:{reason}")));
+        }
     }
 
-    // 日次上限
+    // 日次上限: 「次で超えるか」を推論の前に判定し、加算は結果が出てから (推論の失敗と
+    // 応答ありのときだけ。provider 無し / 到達不能は消費しない)。手動は上限の外
     let today = epoch_days(now);
     if state.daily_date != today {
         state.daily_date = today;
         state.daily_count = 0;
+        save_state(&app_dir, &state);
     }
-    state.daily_count += 1;
-    save_state(&app_dir, &state);
     let limit = cfg.heartbeat.daily_max_ai_runs;
-    if state.daily_count > limit {
+    if !manual && state.daily_count >= limit {
         if cfg.heartbeat.on_daily_limit == "disable" {
             ai_config::set_heartbeat_enabled(core, false)?;
             toast(
@@ -611,9 +869,9 @@ async fn run_body(core: &Core, source: &str, now: u64, gap: Option<Duration>) ->
                     json!({ "limit": limit }),
                 ),
             );
-            return Ok("skip:daily-limit-disable".into());
+            return Ok(TickResult::skip("skip:daily-limit-disable"));
         }
-        if state.daily_count == limit + 1 {
+        if state.daily_count == limit {
             toast(
                 core,
                 "warning",
@@ -626,10 +884,24 @@ async fn run_body(core: &Core, source: &str, now: u64, gap: Option<Duration>) ->
     }
 
     // AI
-    let inference = run_inference(core, &cfg, &heartbeat_skills, &skill_bodies, now, gap).await;
+    let inference = run_inference(
+        core,
+        &cfg,
+        &provider,
+        &heartbeat_skills,
+        &skill_bodies,
+        now,
+        gap,
+    )
+    .await;
+    let view = Some(provider.view());
     let report = match inference {
         Ok(r) => {
+            state.waiting = None;
             state.consecutive_failures = 0;
+            if !manual {
+                state.daily_count += 1;
+            }
             for id in new_hashes.keys() {
                 state.last_ai_run_at.insert(id.clone(), now);
             }
@@ -637,23 +909,47 @@ async fn run_body(core: &Core, source: &str, now: u64, gap: Option<Duration>) ->
             save_state(&app_dir, &state);
             r
         }
-        Err(e) => {
-            // 復帰直後はネットワークが戻っていないことがあるので、連続失敗 (自動停止) には数えない
-            if source != "resumed" {
+        Err(TickFailure::NoProvider(text)) => {
+            wait(core, &mut state, &app_dir, "no-provider", text, now);
+            return Ok(TickResult::skip("skip:no-provider"));
+        }
+        Err(TickFailure::Unreachable(detail)) => {
+            wait(
+                core,
+                &mut state,
+                &app_dir,
+                "unreachable",
+                i18n::text(
+                    "_native.heartbeat.waitingUnreachable",
+                    json!({ "detail": detail }),
+                ),
+                now,
+            );
+            return Ok(TickResult::skip("skip:unreachable"));
+        }
+        Err(TickFailure::Failed { message, kind }) => {
+            if !manual {
+                state.daily_count += 1;
+            }
+            // 復帰直後はネットワークが戻っていないことがあるので、連続失敗 (自動停止) には
+            // 数えない。手動も数えない (#1321)
+            if source != "resumed" && !manual {
                 state.consecutive_failures += 1;
             }
             let n = state.consecutive_failures;
-            tracing::warn!("heartbeat inference failed ({n}/{MAX_CONSECUTIVE_FAILURES}): {e}");
+            tracing::warn!(
+                "heartbeat inference failed ({n}/{MAX_CONSECUTIVE_FAILURES}): {message}"
+            );
             // 理由を永続化し、同じ signature は初回だけ通知する
-            if record_failure(&mut state, source, &e.to_string(), now) {
-                let short: String = e.to_string().chars().take(120).collect();
+            if record_failure(&mut state, source, &message, now) {
+                let short: String = message.chars().take(120).collect();
                 toast(
                     core,
                     "warning",
                     i18n::text("_native.heartbeat.failed", json!({ "error": short })),
                 );
             }
-            append_error(core, &cfg, source, &e.to_string(), now).await;
+            append_error(core, &cfg, source, &message, now).await;
             if n >= MAX_CONSECUTIVE_FAILURES {
                 state.consecutive_failures = 0;
                 save_state(&app_dir, &state);
@@ -669,18 +965,48 @@ async fn run_body(core: &Core, source: &str, now: u64, gap: Option<Duration>) ->
             } else {
                 save_state(&app_dir, &state);
             }
-            return Ok("error".into());
+            return Ok(TickResult {
+                outcome: "error".into(),
+                provider: view,
+                usage: None,
+                error_kind: kind,
+            });
         }
     };
-    let Some(report) = report else {
-        return Ok("skip:no-response".into());
+    let usage = report.usage;
+    let outcome = if report.body.is_none() && report.intents.is_empty() {
+        "suppressed"
+    } else {
+        let reported = report.body.is_some();
+        deliver(core, &cfg, &provider, report, now).await?;
+        if reported {
+            "reported"
+        } else {
+            "queued"
+        }
     };
-    if report.body.is_none() && report.intents.is_empty() {
-        return Ok("suppressed".into());
+    Ok(TickResult {
+        outcome: outcome.into(),
+        provider: view,
+        usage,
+        error_kind: None,
+    })
+}
+
+/// 待機 (provider 無し / 到達不能) に入り、初めての理由なら toast で知らせる
+fn wait(
+    core: &Core,
+    state: &mut PersistedState,
+    app_dir: &Path,
+    kind: &str,
+    text: i18n::Text,
+    now: u64,
+) {
+    let first = enter_waiting(state, kind, text.clone(), now);
+    save_state(app_dir, state);
+    if first {
+        toast(core, "warning", text);
     }
-    let reported = report.body.is_some();
-    deliver(core, &cfg, report, now).await?;
-    Ok(if reported { "reported" } else { "queued" }.into())
 }
 
 /// cheap check: notecore 単独で実行できる cheap な capability だけ。
@@ -741,6 +1067,89 @@ struct Report {
     intents: Vec<Intent>,
     local_stamp: Option<String>,
     local_title_time: Option<String>,
+    /// 最初のラウンドの usage (実測があるときだけ) と送った量の推定 (#1321)
+    usage: Option<HeartbeatTickUsage>,
+}
+
+/// 推論の失敗の種類 (#1321)。`run_body` が数え方を変える
+enum TickFailure {
+    /// provider 無し (推論の入口で分かったもの: 接続が消えた / AI プロバイダーでない /
+    /// 鍵が無い / 宛先の検査で拒まれた)
+    NoProvider(i18n::Text),
+    /// 到達不能 (何も受け取る前の接続の失敗)
+    Unreachable(String),
+    /// 推論の失敗 (数える)。`kind` は送信時の失敗の種別 (`timeout` 等)
+    Failed {
+        message: String,
+        kind: Option<String>,
+    },
+}
+
+/// 推論の入口 (`resolve_connection`) の Err のうち「provider 無し」に落とすもの。文字列では
+/// なく手がかりのキーで見分ける
+const NO_PROVIDER_KEYS: &[&str] = &[
+    "_native.ai.connectionNotFound",
+    "_native.ai.notAiProvider",
+    "_native.ai.apiKeyMissing",
+    "_native.ai.endpointDenied",
+    "_native.ai.hostNotAllowed",
+];
+
+fn classify_start_error(e: NoteDeckError) -> TickFailure {
+    let key = e
+        .i18n()
+        .and_then(|v| v.get("key"))
+        .and_then(Value::as_str)
+        .map(str::to_string);
+    match (key, e.i18n().cloned()) {
+        (Some(k), Some(hint)) if NO_PROVIDER_KEYS.contains(&k.as_str()) => {
+            TickFailure::NoProvider(i18n::Text {
+                text: e.to_string(),
+                i18n: hint,
+            })
+        }
+        _ => TickFailure::Failed {
+            message: e.to_string(),
+            kind: None,
+        },
+    }
+}
+
+/// ターンの `error` イベントを失敗の種類に落とす。到達不能は `transport` だけ (応答待ちの
+/// 時間切れと受信途中の切断は数える)。resolver の拒否 (`blocked`) は設定の誤りなので provider 無し
+fn classify_turn_error(e: &AiTurnEvent) -> TickFailure {
+    let message = e.error.clone().unwrap_or_else(|| "turn failed".into());
+    match e.error_kind.as_deref() {
+        Some("transport") => TickFailure::Unreachable(message),
+        Some("blocked") => TickFailure::NoProvider(i18n::text(
+            "_native.heartbeat.waitingBlocked",
+            json!({ "detail": message }),
+        )),
+        kind => TickFailure::Failed {
+            message,
+            kind: kind.map(str::to_string),
+        },
+    }
+}
+
+/// 送った量の推定 (token)。system は turn の開始時に notemaid が組んだもの
+fn estimated_input_tokens(turn_id: &str, user_message: &str) -> u64 {
+    let system_chars = ai_turn::recent_system(turn_id)
+        .map(|s| s.chars().count())
+        .unwrap_or(0);
+    crate::ai_budget::estimate_tokens(system_chars + user_message.chars().count())
+}
+
+/// 最初のラウンドの実測 (無ければ None)
+fn first_round_usage(events: &[AiTurnEvent], estimated: u64) -> Option<HeartbeatTickUsage> {
+    events
+        .iter()
+        .find(|e| e.kind == "usage")
+        .and_then(|e| e.usage)
+        .map(|u| HeartbeatTickUsage {
+            input_tokens: u.input_tokens,
+            estimated_input_tokens: estimated,
+        })
 }
 
 /// ターンのイベントを集め、done / error で起こす sink。
@@ -805,36 +1214,32 @@ fn tick_message(now: u64, gap: Option<Duration>) -> String {
     }
 }
 
-async fn run_inference(
-    core: &Core,
+/// 巡回のターン要求を組む (tick と試走で同じ組み立て。試走は `dry_run` と固定の指示を足す)
+fn turn_request(
     cfg: &AiConfigLite,
+    provider: &HeartbeatProvider,
     hb_skills: &[SkillMeta],
-    skill_bodies: &[String],
-    now: u64,
-    gap: Option<Duration>,
-) -> Result<Option<Report>> {
-    let Some(model) = cfg.model_for_active() else {
-        tracing::debug!("heartbeat: AI provider not configured, skip");
-        return Ok(None);
-    };
+    user_message: String,
+    turn_id: String,
+    dry_run: bool,
+) -> AiTurnRequest {
     // system (SOUL / キャラクター / USER / MEMORY / AGENTS / always skill) は notemaid が
     // 組む (#1162)。HEARTBEAT.md と heartbeat skill の本文は OpenClaw の scratch と同じく
     // user 側のメッセージに付け、固定の INSTRUCTION を system の末尾に置く。
     // デバイスへの問い合わせ (橋 heartbeat/context) は無い
     let context_untrusted = hb_skills.iter().any(|s| s.tainted == Some(true));
-    let turn_id = format!("hb-{now}-{}", &utc_stamp(now)[8..]);
-    let req = AiTurnRequest {
-        turn_id: turn_id.clone(),
+    AiTurnRequest {
+        turn_id,
         session_id: None,
         principal: "ai.heartbeat".into(),
         account_id: None,
-        connection_id: cfg.active_connection_id.clone(),
-        model,
+        connection_id: provider.connection_id.clone(),
+        model: provider.model.clone(),
         device_context: Some(INSTRUCTION.to_string()),
         trigger_skill_ids: Vec::new(),
         messages: vec![AiChatMessage {
             role: AiChatRole::User,
-            content: heartbeat_user_message(now, gap, skill_bodies),
+            content: user_message,
             tool_use_id: None,
             tool_use_name: None,
             tool_use_input: None,
@@ -842,43 +1247,89 @@ async fn run_inference(
         }],
         max_tokens: Some(cfg.generation.max_tokens),
         read_timeout_ms: Some(u64::from(cfg.generation.read_timeout_seconds) * 1000),
-        max_tool_rounds: Some(cfg.generation.max_tool_rounds),
+        max_tool_rounds: Some(if dry_run {
+            1
+        } else {
+            cfg.generation.max_tool_rounds
+        }),
         continuation: false,
         generate_title: false,
         title_max_tokens: None,
         tool_param_enums: None,
         device_tools: Vec::new(),
         context_untrusted,
-    };
+        dry_run,
+    }
+}
+
+/// ターンを走らせて done / error まで待ち、集めたイベントを返す
+async fn run_turn_collect(
+    core: &Core,
+    req: AiTurnRequest,
+    wait_limit: Duration,
+) -> std::result::Result<Vec<AiTurnEvent>, TickFailure> {
+    let turn_id = req.turn_id.clone();
     let sink = Arc::new(CollectSink {
         events: Mutex::new(Vec::new()),
         done: tokio::sync::Notify::new(),
     });
-    ai_turn::start_turn_with_sink(core, req, sink.clone()).await?;
+    ai_turn::start_turn_with_sink(core, req, sink.clone())
+        .await
+        .map_err(classify_start_error)?;
+    if tokio::time::timeout(wait_limit, sink.done.notified())
+        .await
+        .is_err()
+    {
+        ai_turn::cancel_turn(&turn_id);
+        return Err(TickFailure::Failed {
+            message: "heartbeat turn timed out".into(),
+            kind: Some("timeout".into()),
+        });
+    }
+    let events = sink.events.lock().map(|v| v.clone()).unwrap_or_default();
+    if let Some(e) = events.iter().find(|e| e.kind == "error") {
+        return Err(classify_turn_error(e));
+    }
+    Ok(events)
+}
+
+/// 応答契約の tool の最後の入力
+fn report_tool_input(events: &[AiTurnEvent]) -> Option<Value> {
+    let report_tool_name = capabilities::tool_name(REPORT_CAPABILITY);
+    events
+        .iter()
+        .filter(|e| e.kind == "tool_use" && e.tool_use_name.as_deref() == Some(&report_tool_name))
+        .filter_map(|e| e.tool_use_input.clone())
+        .next_back()
+}
+
+async fn run_inference(
+    core: &Core,
+    cfg: &AiConfigLite,
+    provider: &HeartbeatProvider,
+    hb_skills: &[SkillMeta],
+    skill_bodies: &[String],
+    now: u64,
+    gap: Option<Duration>,
+) -> std::result::Result<Report, TickFailure> {
+    let turn_id = format!("hb-{now}-{}", &utc_stamp(now)[8..]);
+    let user_message = heartbeat_user_message(now, gap, skill_bodies);
+    let req = turn_request(
+        cfg,
+        provider,
+        hb_skills,
+        user_message.clone(),
+        turn_id.clone(),
+        false,
+    );
     let budget = Duration::from_secs(
         u64::from(cfg.generation.read_timeout_seconds)
             * u64::from(cfg.generation.max_tool_rounds + 2),
     )
     .min(TURN_HARD_LIMIT);
-    if tokio::time::timeout(budget, sink.done.notified())
-        .await
-        .is_err()
-    {
-        ai_turn::cancel_turn(&turn_id);
-        return Err(NoteDeckError::Internal("heartbeat turn timed out".into()));
-    }
-    let events = sink.events.lock().map(|v| v.clone()).unwrap_or_default();
-    if let Some(e) = events.iter().find(|e| e.kind == "error") {
-        return Err(NoteDeckError::Internal(
-            e.error.clone().unwrap_or_else(|| "turn failed".into()),
-        ));
-    }
-    let report_tool_name = capabilities::tool_name(REPORT_CAPABILITY);
-    let tool_report = events
-        .iter()
-        .filter(|e| e.kind == "tool_use" && e.tool_use_name.as_deref() == Some(&report_tool_name))
-        .filter_map(|e| e.tool_use_input.clone())
-        .next_back();
+    let events = run_turn_collect(core, req, budget).await?;
+    let usage = first_round_usage(&events, estimated_input_tokens(&turn_id, &user_message));
+    let tool_report = report_tool_input(&events);
     let intents: Vec<Intent> = events
         .iter()
         .filter(|e| e.kind == "intent")
@@ -899,13 +1350,130 @@ async fn run_inference(
         .find(|e| e.kind == "done")
         .and_then(|e| e.text.clone());
     let (body, notify) = report_contract(tool_report.as_ref(), final_text.as_deref());
-    Ok(Some(Report {
+    Ok(Report {
         body,
         notify,
         intents,
         local_stamp,
         local_title_time,
-    }))
+        usage,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// 試走 (#1321)
+// ---------------------------------------------------------------------------
+
+/// 「この接続を試す」の結果。`outcome` は `ok` (report tool を呼べた) / `no_tool` (呼ばなかった) /
+/// `unreachable` / `no_provider` / `error`。`message` は英語の正本文、`i18n` は手がかり
+/// (`{ message: { key, params } }`、無ければ生のエラー文)
+#[derive(Clone, Debug, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct HeartbeatProbeResult {
+    pub outcome: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(default, rename = "i18n", skip_serializing_if = "Option::is_none")]
+    pub i18n: Option<Value>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<HeartbeatTickUsage>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<HeartbeatProviderView>,
+    /// `error` のときの送信時の失敗の種別 (`timeout` なら一文添える)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<String>,
+}
+
+impl HeartbeatProbeResult {
+    fn outcome(outcome: &str) -> Self {
+        Self {
+            outcome: outcome.into(),
+            message: None,
+            i18n: None,
+            usage: None,
+            provider: None,
+            error_kind: None,
+        }
+    }
+    fn with_text(mut self, t: i18n::Text) -> Self {
+        self.message = Some(t.text);
+        self.i18n = Some(json!({ "message": t.i18n }));
+        self
+    }
+}
+
+/// 試走: 通常の tick と同じ組み立ての prompt に固定の指示を足して 1 巡だけ回す。report tool
+/// 以外は執行せず (`dry_run`)、報告先への書込 / 通知 / 受信箱カードは起きず、`HeartbeatStatus` の
+/// 最後の巡回も書かない。予算は消費する。実行中の印は timer の tick と共有する
+pub async fn probe(core: &Core) -> Result<HeartbeatProbeResult> {
+    let Some(_guard) = try_begin() else {
+        return Err(NoteDeckError::InvalidInput(
+            "HEARTBEAT is already running".into(),
+        ));
+    };
+    let app_dir = core.app_dir()?.to_path_buf();
+    let cfg = ai_config::load(core)?;
+    let provider = match cfg.heartbeat_provider(&load_connections(&app_dir)) {
+        Ok(p) => p,
+        Err(reason) => {
+            return Ok(HeartbeatProbeResult::outcome("no_provider")
+                .with_text(i18n::text(reason.i18n_key(), json!({}))));
+        }
+    };
+    let hb_skills: Vec<SkillMeta> = skills::list(core)?
+        .into_iter()
+        .filter(|s| s.mode == "heartbeat")
+        .collect();
+    let skill_bodies: Vec<String> = hb_skills
+        .iter()
+        .filter(|s| !crate::workspace::is_effectively_empty(&s.body))
+        .map(|s| format!("# Skill: {}\n\n{}", s.name, s.body.trim()))
+        .collect();
+    let now = ai_sessions::now_ms();
+    let turn_id = format!("hb-probe-{now}");
+    let user_message = format!(
+        "{}\n\n{PROBE_INSTRUCTION}",
+        heartbeat_user_message(now, None, &skill_bodies)
+    );
+    let req = turn_request(
+        &cfg,
+        &provider,
+        &hb_skills,
+        user_message.clone(),
+        turn_id.clone(),
+        true,
+    );
+    let wait_limit =
+        Duration::from_secs(u64::from(cfg.generation.read_timeout_seconds) * PROBE_TIMEOUT_FACTOR);
+    let view = Some(provider.view());
+    let mut out = match run_turn_collect(core, req, wait_limit).await {
+        Ok(events) => {
+            let usage = first_round_usage(&events, estimated_input_tokens(&turn_id, &user_message));
+            let mut r = HeartbeatProbeResult::outcome(if report_tool_input(&events).is_some() {
+                "ok"
+            } else {
+                "no_tool"
+            });
+            r.usage = usage;
+            r
+        }
+        Err(TickFailure::NoProvider(text)) => {
+            HeartbeatProbeResult::outcome("no_provider").with_text(text)
+        }
+        Err(TickFailure::Unreachable(detail)) => HeartbeatProbeResult::outcome("unreachable")
+            .with_text(i18n::text(
+                "_native.heartbeat.waitingUnreachable",
+                json!({ "detail": detail }),
+            )),
+        Err(TickFailure::Failed { message, kind }) => {
+            let mut r = HeartbeatProbeResult::outcome("error");
+            r.message = Some(message);
+            r.error_kind = kind;
+            r
+        }
+    };
+    out.provider = view;
+    Ok(out)
 }
 
 /// 応答契約: (報告の本文, 知らせるか)。`heartbeat.report` tool の入力があればそれに従う。
@@ -933,6 +1501,7 @@ fn report_contract(tool_input: Option<&Value>, final_text: Option<&str>) -> (Opt
 async fn resolve_target(
     core: &Core,
     cfg: &AiConfigLite,
+    provider: Option<&HeartbeatProvider>,
     local_stamp: Option<String>,
     local_title_time: Option<String>,
     now: u64,
@@ -966,8 +1535,11 @@ async fn resolve_target(
                     id,
                     kind: "heartbeat".into(),
                     title: title.text,
-                    model: cfg.model_for_active().unwrap_or_default(),
-                    connection_id: cfg.active_connection_id.clone(),
+                    // 報告先セッションの snapshot は巡回の接続 (#1321)
+                    model: provider.map(|p| p.model.clone()).unwrap_or_default(),
+                    connection_id: provider
+                        .map(|p| p.connection_id.clone())
+                        .unwrap_or_default(),
                     persona_skill_id: None,
                     i18n: Some(json!({ "title": title.i18n })),
                 },
@@ -1080,9 +1652,22 @@ async fn intent_message(core: &Core, intent: &Intent, now: u64, index: usize) ->
     msg
 }
 
-async fn deliver(core: &Core, cfg: &AiConfigLite, report: Report, now: u64) -> Result<()> {
-    let target =
-        resolve_target(core, cfg, report.local_stamp, report.local_title_time, now).await?;
+async fn deliver(
+    core: &Core,
+    cfg: &AiConfigLite,
+    provider: &HeartbeatProvider,
+    report: Report,
+    now: u64,
+) -> Result<()> {
+    let target = resolve_target(
+        core,
+        cfg,
+        Some(provider),
+        report.local_stamp,
+        report.local_title_time,
+        now,
+    )
+    .await?;
     let base = settings_base_dir(core)?;
     match &target {
         Some((session_id, _)) => {
@@ -1126,7 +1711,7 @@ async fn deliver(core: &Core, cfg: &AiConfigLite, report: Report, now: u64) -> R
         return Ok(());
     };
     if created {
-        if let Some(title) = generate_title(core, cfg, visible).await {
+        if let Some(title) = generate_title(core, cfg, provider, visible).await {
             if ai_sessions::rename(&base, &session_id, &title).is_ok() {
                 let mut ev = HeartbeatEvent::new("titled");
                 ev.session_id = Some(session_id);
@@ -1178,7 +1763,8 @@ async fn append_error(core: &Core, cfg: &AiConfigLite, source: &str, err: &str, 
     if cfg.heartbeat.target == "none" {
         return;
     }
-    let Ok(Some((session_id, created))) = resolve_target(core, cfg, None, None, now).await else {
+    let Ok(Some((session_id, created))) = resolve_target(core, cfg, None, None, None, now).await
+    else {
         return;
     };
     let Ok(base) = settings_base_dir(core) else {
@@ -1234,13 +1820,19 @@ impl AiChatSink for TextSink {
     }
 }
 
-async fn generate_title(core: &Core, cfg: &AiConfigLite, report: &str) -> Option<String> {
+async fn generate_title(
+    core: &Core,
+    cfg: &AiConfigLite,
+    provider: &HeartbeatProvider,
+    report: &str,
+) -> Option<String> {
     let app_dir = core.app_dir().ok()?;
-    let conn = ai_chat_service::resolve_connection(app_dir, &cfg.active_connection_id).ok()?;
+    // タイトル生成も巡回の接続 (#1321)
+    let conn = ai_chat_service::resolve_connection(app_dir, &provider.connection_id).ok()?;
     let req = AiChatRequest {
         stream_id: "heartbeat-title".into(),
-        connection_id: cfg.active_connection_id.clone(),
-        model: cfg.model_for_active()?,
+        connection_id: provider.connection_id.clone(),
+        model: provider.model.clone(),
         messages: vec![AiChatMessage {
             role: AiChatRole::User,
             content: format!(
@@ -1259,13 +1851,13 @@ async fn generate_title(core: &Core, cfg: &AiConfigLite, report: &str) -> Option
         affinity: Some(crate::ai_affinity::ConversationKey::Heartbeat),
     };
     // タイトル生成も接続の token 予算に数える (超過なら呼ばない)
-    let budget = cfg.daily_budget_for(&cfg.active_connection_id);
+    let budget = cfg.daily_budget_for(&provider.connection_id);
     let store_dir = ai_turn::checkpoint::dir(app_dir);
     let chars = TITLE_SYSTEM.chars().count() + req.messages[0].content.chars().count();
     if let Some(daily) = budget {
         if let Err(exceeded) = crate::ai_budget::check(
             &store_dir,
-            &cfg.active_connection_id,
+            &provider.connection_id,
             daily,
             crate::ai_budget::estimate_tokens(chars),
             crate::ai_sessions::now_ms(),
@@ -1294,7 +1886,7 @@ async fn generate_title(core: &Core, cfg: &AiConfigLite, report: &str) -> Option
             });
         crate::ai_budget::settle(
             &store_dir,
-            &cfg.active_connection_id,
+            &provider.connection_id,
             usage,
             crate::ai_sessions::now_ms(),
         );
@@ -1583,5 +2175,177 @@ mod tests {
             load_state(std::path::Path::new("/nonexistent")),
             PersistedState::default()
         );
+    }
+
+    // --- 巡回の接続と tick の結果の種類 (#1321) ---
+
+    fn turn_error(kind: Option<&str>) -> AiTurnEvent {
+        let mut e = AiTurnEvent::new("t", "error");
+        e.error = Some("boom".into());
+        e.error_kind = kind.map(str::to_string);
+        e
+    }
+
+    #[test]
+    fn turn_errors_are_classified_by_kind_not_by_text() {
+        // 到達不能は transport だけ。時間切れ / 受信途中の切断 / HTTP は数える失敗
+        assert!(matches!(
+            classify_turn_error(&turn_error(Some("transport"))),
+            TickFailure::Unreachable(m) if m == "boom"
+        ));
+        assert!(matches!(
+            classify_turn_error(&turn_error(Some("timeout"))),
+            TickFailure::Failed { kind: Some(k), .. } if k == "timeout"
+        ));
+        assert!(matches!(
+            classify_turn_error(&turn_error(None)),
+            TickFailure::Failed { kind: None, .. }
+        ));
+        // resolver の拒否 (名前解決の結果が内部) は設定の誤り = provider 無し
+        match classify_turn_error(&turn_error(Some("blocked"))) {
+            TickFailure::NoProvider(t) => {
+                assert_eq!(t.i18n["key"], "_native.heartbeat.waitingBlocked");
+                assert!(t.text.contains("boom"), "{}", t.text);
+            }
+            _ => panic!("blocked must be no-provider"),
+        }
+    }
+
+    #[test]
+    fn start_errors_fall_to_no_provider_only_for_connection_keys() {
+        let e = i18n::error("INVALID_INPUT", "_native.ai.connectionNotFound", json!({}));
+        assert!(matches!(
+            classify_start_error(e),
+            TickFailure::NoProvider(_)
+        ));
+        let e = i18n::error(
+            "AUTH_CREDENTIAL_MISSING",
+            "_native.ai.apiKeyMissing",
+            json!({ "name": "x" }),
+        );
+        assert!(matches!(
+            classify_start_error(e),
+            TickFailure::NoProvider(_)
+        ));
+        let e = i18n::error(
+            "INVALID_INPUT",
+            "_native.ai.endpointDenied",
+            json!({ "host": "h", "reason": "r" }),
+        );
+        assert!(matches!(
+            classify_start_error(e),
+            TickFailure::NoProvider(_)
+        ));
+        // 要求の検証エラー (サイズ超過) や未知の harness は数える失敗
+        let e = i18n::error(
+            "INVALID_INPUT",
+            "_native.ai.requestTooLarge",
+            json!({ "size": 1, "max": 1 }),
+        );
+        assert!(matches!(
+            classify_start_error(e),
+            TickFailure::Failed { .. }
+        ));
+        let e = NoteDeckError::InvalidInput("unknown CLI harness: x".into());
+        assert!(matches!(
+            classify_start_error(e),
+            TickFailure::Failed { .. }
+        ));
+    }
+
+    #[test]
+    fn truncation_is_only_suspected_when_input_is_far_below_the_estimate() {
+        let u = |input, est| HeartbeatTickUsage {
+            input_tokens: input,
+            estimated_input_tokens: est,
+        };
+        assert!(u(1_000, 4_000).looks_truncated());
+        assert!(!u(3_000, 4_000).looks_truncated());
+        assert!(!u(5_000, 4_000).looks_truncated());
+        // 推定が無ければ判断しない
+        assert!(!u(10, 0).looks_truncated());
+    }
+
+    #[test]
+    fn waiting_notifies_once_per_reason_and_keeps_since() {
+        let mut st = PersistedState::default();
+        let t = || {
+            i18n::text(
+                "_native.heartbeat.waitingUnreachable",
+                json!({ "detail": "refused" }),
+            )
+        };
+        assert!(enter_waiting(&mut st, "unreachable", t(), 10));
+        assert_eq!(st.waiting.as_ref().unwrap().since, 10);
+        // 同じ理由で待機し続けても通知しない。since は最初のまま
+        assert!(!enter_waiting(&mut st, "unreachable", t(), 20));
+        assert_eq!(st.waiting.as_ref().unwrap().since, 10);
+        // 別の理由 (provider 無し) に変われば通知し、since も進む
+        let np = i18n::text("_native.heartbeat.waitingNotConfigured", json!({}));
+        assert!(enter_waiting(&mut st, "no-provider", np, 30));
+        let w = st.waiting.as_ref().unwrap();
+        assert_eq!((w.kind.as_str(), w.since), ("no-provider", 30));
+        assert_eq!(
+            w.i18n["message"]["key"],
+            "_native.heartbeat.waitingNotConfigured"
+        );
+        // 待機は失敗の記録には入らない
+        assert!(st.failures.is_empty());
+    }
+
+    #[test]
+    fn last_tick_and_waiting_survive_a_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        let view = HeartbeatProviderView {
+            name: "Ollama".into(),
+            model: "qwen".into(),
+            local: true,
+            protocol: ConnectionProtocol::OpenaiCompat,
+        };
+        let st = PersistedState {
+            last_tick: Some(HeartbeatLastTick {
+                at: 5,
+                source: "scheduled".into(),
+                outcome: "suppressed".into(),
+                provider: Some(view.clone()),
+                usage: Some(HeartbeatTickUsage {
+                    input_tokens: 100,
+                    estimated_input_tokens: 400,
+                }),
+                error_kind: None,
+            }),
+            waiting: Some(HeartbeatWaiting::new(
+                "unreachable",
+                3,
+                i18n::text(
+                    "_native.heartbeat.waitingUnreachable",
+                    json!({ "detail": "x" }),
+                ),
+            )),
+            ..Default::default()
+        };
+        save_state(dir.path(), &st);
+        assert_eq!(load_state(dir.path()), st);
+        let mut status = HeartbeatStatus::default();
+        status.absorb(&load_state(dir.path()));
+        assert_eq!(status.last_tick_at, Some(5));
+        assert_eq!(status.last_outcome.as_deref(), Some("suppressed"));
+        assert_eq!(status.provider, Some(view));
+        assert!(status.usage.unwrap().looks_truncated());
+        assert_eq!(status.waiting.as_ref().unwrap().kind, "unreachable");
+        assert!(status.mounted);
+        // HTTP 面の JSON も同じ型 (接続 id は出ない)
+        let json = serde_json::to_value(&status).unwrap();
+        assert_eq!(json["mounted"], true);
+        assert_eq!(json["provider"]["model"], "qwen");
+        assert!(json["provider"].get("connectionId").is_none());
+    }
+
+    #[test]
+    fn run_guard_is_exclusive_and_released_on_drop() {
+        let g = try_begin().expect("free");
+        assert!(try_begin().is_none());
+        drop(g);
+        assert!(try_begin().is_some());
     }
 }

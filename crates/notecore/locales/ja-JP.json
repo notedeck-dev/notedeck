@@ -315,7 +315,13 @@
       "sessionTitle": "{time} の HEARTBEAT",
       "intentProposed": "「{label}」の実行を提案しました",
       "draftNeedsAccount": "accountId が無いので下書きにできません",
-      "failedMessage": "⚠ HEARTBEAT に失敗しました (source={source}): {error}"
+      "failedMessage": "⚠ HEARTBEAT に失敗しました (source={source}): {error}",
+      "waitingNotConfigured": "HEARTBEAT の接続が設定されていません",
+      "waitingHarness": "チャットは手元の CLI なので HEARTBEAT は動きません。HEARTBEAT には別の接続を選んでください",
+      "waitingConnectionMissing": "HEARTBEAT の接続が見つかりません",
+      "waitingNotAiProvider": "HEARTBEAT の接続は AI プロバイダーではありません",
+      "waitingUnreachable": "HEARTBEAT の接続先の起動を待っています (起動すれば次の巡回で再開します): {detail}",
+      "waitingBlocked": "HEARTBEAT の接続先の名前解決が内部アドレスを返したので送れません。接続の URL を確認してください: {detail}"
     },
     "ai": {
       "httpUnauthorized": "API キーが無効です (HTTP {status}){detail}",

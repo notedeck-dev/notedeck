@@ -185,6 +185,31 @@ struct AttemptError {
     /// 表示言語で描き直す手がかり (#135)。定型のエラーにだけ付く
     i18n: Option<Value>,
     retryable: bool,
+    /// 失敗の種別 (#1321)。送信時の reqwest のエラーにだけ付く
+    kind: Option<ErrorKind>,
+}
+
+/// 失敗の種別 (#1321)。HEARTBEAT が「到達不能 (待機)」「応答待ちの時間切れ」「宛先の検査で
+/// 拒まれた (設定の誤り)」を見分けるために運ぶ。`retryable` (再送判定) とは別で、
+/// 受信途中の切断や HTTP の失敗には付かない
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ErrorKind {
+    /// 何も受け取る前の接続の失敗 (接続拒否 / 名前解決の失敗 / 接続確立の時間切れ)
+    Transport,
+    /// 応答待ちの時間切れ (ヘッダーが届く前も含む)
+    Timeout,
+    /// 名前解決の結果が内部アドレスで resolver が拒んだ (設定の誤り)
+    Blocked,
+}
+
+impl ErrorKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Transport => "transport",
+            Self::Timeout => "timeout",
+            Self::Blocked => "blocked",
+        }
+    }
 }
 
 impl AttemptError {
@@ -193,6 +218,7 @@ impl AttemptError {
             message,
             i18n: None,
             retryable: true,
+            kind: None,
         }
     }
     fn localized(t: notecore::i18n::Text) -> Self {
@@ -200,16 +226,40 @@ impl AttemptError {
             message: t.text,
             i18n: Some(t.i18n),
             retryable: false,
+            kind: None,
+        }
+    }
+    /// 送信 (`send()`) の失敗。reqwest の種別を見て `kind` を立てる (#1321)。判定順は
+    /// resolver の拒否 → `is_connect()` → `is_timeout()` (接続確立の時間切れは connect と
+    /// timeout の両方が true になり、到達不能側が正しい)
+    fn send_failed(e: reqwest::Error) -> Self {
+        let kind = if notecore::ssrf::blocked_address_in(&e).is_some() {
+            Some(ErrorKind::Blocked)
+        } else if e.is_connect() {
+            Some(ErrorKind::Transport)
+        } else if e.is_timeout() {
+            Some(ErrorKind::Timeout)
+        } else {
+            None
+        };
+        Self {
+            message: describe_send_error(&e),
+            i18n: None,
+            // 宛先の検査で拒まれたものは再送しても同じ
+            retryable: kind != Some(ErrorKind::Blocked),
+            kind,
         }
     }
 }
 
 /// 1 ラウンドの失敗。`message` は英語の正本文 (定型でないエラーはプロバイダー等の
-/// 文そのまま)、`i18n` はデバイスが表示言語で描き直す手がかり (#135)
+/// 文そのまま)、`i18n` はデバイスが表示言語で描き直す手がかり (#135)、`kind` は
+/// 送信時の失敗の種別 (#1321、無ければ None)
 #[derive(Debug, Clone, PartialEq)]
 pub struct RoundError {
     pub message: String,
     pub i18n: Option<Value>,
+    pub kind: Option<ErrorKind>,
 }
 
 impl RoundError {
@@ -226,6 +276,7 @@ impl From<String> for RoundError {
         Self {
             message,
             i18n: None,
+            kind: None,
         }
     }
 }
@@ -235,6 +286,7 @@ impl From<AttemptError> for RoundError {
         Self {
             message: e.message,
             i18n: e.i18n,
+            kind: e.kind,
         }
     }
 }
@@ -335,6 +387,19 @@ fn resolve_read_timeout(req: &AiChatRequest) -> Duration {
 /// reqwest::Error の Display は短すぎて診断に使えない (例:
 /// "error decoding response body" だけで原因不明)。`std::error::Error::source`
 /// を辿って full chain を `⇐` 区切りで連結する。
+/// 送信時の失敗 (接続拒否 / 名前解決 / 時間切れ)。原因の連鎖を `describe_stream_error` と
+/// 同じ形で添える (reqwest の Display だけでは「error sending request」で原因が消える)
+fn describe_send_error(e: &reqwest::Error) -> String {
+    use std::fmt::Write as _;
+    let mut details = format!("network error: {e}");
+    let mut source: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(e);
+    while let Some(s) = source {
+        let _ = write!(details, " ⇐ {s}");
+        source = s.source();
+    }
+    details
+}
+
 fn describe_stream_error(e: &reqwest::Error) -> String {
     use std::fmt::Write as _;
     let mut details = format!("stream error: {e}");
@@ -408,6 +473,9 @@ pub struct ResolvedConnection {
     pub protocol: notecore::vault::ConnectionProtocol,
     pub endpoint: String,
     pub api_key: String,
+    /// この端末の中で動くサービス (#880)。OpenAI 互換の要求に usage を返す指定
+    /// (`stream_options.include_usage`) を送るのはローカル接続だけ (#1321)
+    pub local: bool,
 }
 
 impl std::fmt::Debug for ResolvedConnection {
@@ -519,6 +587,7 @@ pub fn resolve_connection(app_dir: &Path, connection_id: &str) -> Result<Resolve
         protocol,
         endpoint: connection.base_url.clone(),
         api_key,
+        local: connection.local,
     })
 }
 
@@ -534,7 +603,7 @@ pub async fn run_round(
             run_anthropic(req, &conn.endpoint, &conn.api_key, sink).await
         }
         notecore::vault::ConnectionProtocol::OpenaiCompat => {
-            run_openai_compat(req, &conn.endpoint, &conn.api_key, sink).await
+            run_openai_compat(req, &conn.endpoint, &conn.api_key, conn.local, sink).await
         }
     }
 }
@@ -829,7 +898,7 @@ async fn run_anthropic_attempt(
         .json(&body)
         .send()
         .await
-        .map_err(|e| AttemptError::retryable(format!("network error: {e}")))?;
+        .map_err(AttemptError::send_failed)?;
 
     if let Some(e) = reject_redirect(&resp, &url) {
         return Err(e);
@@ -1010,7 +1079,10 @@ fn anthropic_body(req: &AiChatRequest) -> serde_json::Value {
 }
 
 /// OpenAI Chat Completions 互換のリクエスト body。
-fn openai_body(req: &AiChatRequest) -> serde_json::Value {
+/// OpenAI 互換の要求本文。`include_usage` はローカル接続 (#880) だけ true: usage を
+/// 最終チャンクに載せる指定 (`stream_options.include_usage`) は厳格な互換サーバーが
+/// 拒むので非ローカルには送らず、Ollama 等のローカルには送って切り詰めの検知に使う (#1321)
+fn openai_body(req: &AiChatRequest, include_usage: bool) -> serde_json::Value {
     use serde_json::json;
 
     let mut messages: Vec<serde_json::Value> = Vec::new();
@@ -1025,6 +1097,9 @@ fn openai_body(req: &AiChatRequest) -> serde_json::Value {
         "messages": messages,
         "stream": true,
     });
+    if include_usage {
+        body["stream_options"] = json!({ "include_usage": true });
+    }
     if let Some(mt) = req.max_tokens {
         body["max_tokens"] = json!(mt);
     }
@@ -1046,12 +1121,14 @@ async fn run_openai_compat(
     req: &AiChatRequest,
     endpoint: &str,
     api_key: &str,
+    local: bool,
     sink: &dyn AiChatSink,
 ) -> std::result::Result<(), RoundError> {
     let mut has_emitted = false;
     let mut attempt: u32 = 0;
     loop {
-        match run_openai_compat_attempt(req, endpoint, api_key, sink, &mut has_emitted).await {
+        match run_openai_compat_attempt(req, endpoint, api_key, local, sink, &mut has_emitted).await
+        {
             Ok(()) => return Ok(()),
             Err(e) => {
                 if has_emitted || !e.retryable || attempt >= MAX_TRANSPARENT_RETRIES {
@@ -1073,11 +1150,12 @@ async fn run_openai_compat_attempt(
     req: &AiChatRequest,
     endpoint: &str,
     api_key: &str,
+    local: bool,
     sink: &dyn AiChatSink,
     has_emitted: &mut bool,
 ) -> std::result::Result<(), AttemptError> {
     let url = format!("{}/chat/completions", endpoint.trim_end_matches('/'));
-    let body = openai_body(req);
+    let body = openai_body(req, local);
 
     let mut request = streaming_client(resolve_read_timeout(req))
         .post(&url)
@@ -1089,10 +1167,7 @@ async fn run_openai_compat_attempt(
     if let Some((name, value)) = affinity_header(req, endpoint) {
         request = request.header(name, value);
     }
-    let resp = request
-        .send()
-        .await
-        .map_err(|e| AttemptError::retryable(format!("network error: {e}")))?;
+    let resp = request.send().await.map_err(AttemptError::send_failed)?;
 
     if let Some(e) = reject_redirect(&resp, &url) {
         return Err(e);
@@ -1602,7 +1677,7 @@ mod tests {
     #[test]
     fn openai_body_passes_tools_and_allows_parallel_tool_calls() {
         let tools = json!([{"type": "function", "function": {"name": "notes.create"}}]);
-        let body = openai_body(&request_with_tools(Some(tools.clone())));
+        let body = openai_body(&request_with_tools(Some(tools.clone())), false);
         assert_eq!(body["tools"], tools);
         assert!(body.get("parallel_tool_calls").is_none());
     }
@@ -1610,7 +1685,7 @@ mod tests {
     #[test]
     fn openai_body_omits_tools_when_empty() {
         for tools in [None, Some(json!([]))] {
-            let body = openai_body(&request_with_tools(tools));
+            let body = openai_body(&request_with_tools(tools), false);
             assert!(body.get("tools").is_none());
         }
     }
@@ -1790,9 +1865,11 @@ mod tests {
             fn emit(&self, _event: AiChatEvent) {}
         }
         let req = opencode_request("s", None);
-        let err = run_openai_compat(&req, &endpoint, "key", &Nop)
+        let err = run_openai_compat(&req, &endpoint, "key", false, &Nop)
             .await
             .expect_err("redirect must fail");
+        // 3xx は HTTP の応答が返った失敗なので種別は付かない
+        assert_eq!(err.kind, None);
         assert!(err.message.contains("other.example"), "{}", err.message);
         assert!(err.message.contains("307"), "{}", err.message);
         assert_eq!(
@@ -1806,5 +1883,34 @@ mod tests {
         assert!(received.starts_with("POST /chat/completions"), "{received}");
         // 宛先は opencode.ai ではないので会話 ID のヘッダーは付かない
         assert!(!received.to_ascii_lowercase().contains("x-opencode-session"));
+    }
+
+    #[test]
+    fn openai_body_requests_usage_only_for_local_connections() {
+        // ローカル接続 (#880) だけ stream_options.include_usage を送る (#1321)。非ローカルは
+        // 厳格な互換サーバーが拒むので送らない
+        let local = openai_body(&request_with_tools(None), true);
+        assert_eq!(local["stream_options"]["include_usage"], json!(true));
+        let remote = openai_body(&request_with_tools(None), false);
+        assert!(remote.get("stream_options").is_none(), "{remote}");
+    }
+
+    #[tokio::test]
+    async fn connection_refused_is_reported_as_transport() {
+        // 誰も listen していないポートへ送る → 何も受け取る前の接続の失敗 = transport (#1321)。
+        // 再送は従来どおり (数秒で終わる)
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        drop(listener);
+        struct Nop;
+        impl AiChatSink for Nop {
+            fn emit(&self, _event: AiChatEvent) {}
+        }
+        let req = opencode_request("s", None);
+        let err = run_openai_compat(&req, &format!("http://127.0.0.1:{port}/v1"), "", true, &Nop)
+            .await
+            .expect_err("nobody listens");
+        assert_eq!(err.kind, Some(ErrorKind::Transport), "{}", err.message);
+        assert!(err.message.starts_with("network error:"), "{}", err.message);
     }
 }

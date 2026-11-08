@@ -175,6 +175,13 @@ export interface HeartbeatConfig {
    * - default: true (= 重要発見があれば即気付ける = HEARTBEAT 本来の意義)
    */
   desktopNotification: boolean
+  /**
+   * 巡回に使う Vault 接続の id (#1321)。空 = チャットの接続 (`activeConnectionId`) に
+   * 動的に追従する (複製ではない)。モデルは接続ごとの `models[接続 id]` をそのまま使う
+   * (巡回専用のモデルキーは持たない。同じ provider で安いモデルだけ変えたいときは
+   * 同じ鍵で接続をもう 1 つ作る)。手元の CLI は選べない
+   */
+  connectionId: string
 }
 
 /**
@@ -273,7 +280,46 @@ export function resolveAiConnection(
   connections: readonly Connection[],
   harnesses: readonly HarnessInfo[] = [],
 ): ResolvedAiConnection | null {
-  const id = cfg.activeConnectionId
+  return resolveConnectionId(
+    cfg.activeConnectionId,
+    cfg,
+    connections,
+    harnesses,
+  )
+}
+
+/**
+ * 巡回 (HEARTBEAT) が使う接続の id (#1321): `heartbeat.connectionId` が空でなければそれ、
+ * 空ならチャットの接続。Rust の `AiConfigLite::heartbeat_connection_id` と同じ規則
+ */
+export function heartbeatConnectionId(cfg: AiConfig): string {
+  return cfg.heartbeat.connectionId || cfg.activeConnectionId
+}
+
+/**
+ * 巡回の接続を解決する (#1321)。チャットの解決と同じ規則で、見る id だけが違う。
+ * 手元の CLI (`harness:`) も `kind: 'harness'` で返るが、巡回の provider にはならない
+ * (無人実行の provider にしない規則は Rust が守る。UI は「動きません」と出す)
+ */
+export function resolveHeartbeatConnection(
+  cfg: AiConfig,
+  connections: readonly Connection[],
+  harnesses: readonly HarnessInfo[] = [],
+): ResolvedAiConnection | null {
+  return resolveConnectionId(
+    heartbeatConnectionId(cfg),
+    cfg,
+    connections,
+    harnesses,
+  )
+}
+
+function resolveConnectionId(
+  id: string,
+  cfg: AiConfig,
+  connections: readonly Connection[],
+  harnesses: readonly HarnessInfo[],
+): ResolvedAiConnection | null {
   if (isHarnessConnectionId(id)) {
     const harness = harnesses.find((h) => `harness:${h.id}` === id) ?? null
     return { kind: 'harness', connectionId: id, harness, model: '' }
@@ -287,6 +333,24 @@ export function resolveAiConnection(
     model: cfg.models[connection.id] ?? '',
     protocol: connection.protocol,
   }
+}
+
+/**
+ * 接続を選んだときの `models` (#1321 で接続セクションと HEARTBEAT セクションの共通ヘルパーに):
+ * モデル未設定の接続は内蔵テンプレートの `defaultModel` で初期化する。内蔵テンプレから
+ * 作った接続は選ぶだけで書き込み無しに動き出せる。設定済みなら触らない
+ */
+export function modelsAfterSelecting(
+  models: Record<string, string>,
+  connection: Pick<Connection, 'id' | 'templateId'> | undefined,
+  defaultModelOf: (templateId: string) => string | undefined,
+): Record<string, string> {
+  if (!connection || models[connection.id]) return models
+  const defaultModel = connection.templateId
+    ? defaultModelOf(connection.templateId)
+    : undefined
+  if (!defaultModel) return models
+  return { ...models, [connection.id]: defaultModel }
 }
 
 // --- Preset definitions ---
@@ -366,6 +430,7 @@ export function defaultConfig(): AiConfig {
       dailyMaxAiRuns: defaultFileConfig.heartbeat.dailyMaxAiRuns,
       onDailyLimit: defaultFileConfig.heartbeat.onDailyLimit,
       desktopNotification: defaultFileConfig.heartbeat.desktopNotification,
+      connectionId: defaultFileConfig.heartbeat.connectionId ?? '',
     },
     generation: normalizeGenerationConfig(defaultFileConfig.generation),
     userMemory: defaultFileConfig.userMemory !== false,
@@ -389,6 +454,7 @@ function clampInt(
  * - intervalMinutes / cheapCheck.maxSkipHours / dailyMaxAiRuns を MIN〜MAX に clamp
  * - target は文字列なら何でも受け取る (空 / null は 'auto' にフォールバック)
  * - onDailyLimit は 'warn' / 'disable' 以外なら 'warn' にフォールバック
+ * - connectionId は文字列でなければ空 (= チャットの接続に追従、#1321)
  */
 export function normalizeHeartbeatConfig(
   cfg: HeartbeatConfig,
@@ -428,6 +494,7 @@ export function normalizeHeartbeatConfig(
     dailyMaxAiRuns,
     onDailyLimit,
     desktopNotification: cfg.desktopNotification !== false, // default true
+    connectionId: typeof cfg.connectionId === 'string' ? cfg.connectionId : '',
   }
 }
 
@@ -495,6 +562,7 @@ function mergeHeartbeat(
     onDailyLimit: partial?.onDailyLimit ?? base.onDailyLimit,
     desktopNotification:
       partial?.desktopNotification ?? base.desktopNotification,
+    connectionId: partial?.connectionId ?? base.connectionId,
   })
 }
 
