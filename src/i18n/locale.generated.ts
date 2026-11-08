@@ -1800,6 +1800,10 @@ export interface Locale {
     readonly "budgetForHeartbeat": string
     /** 説明を見る */
     readonly "docsLink": string
+    /** モデルが設定されていません。モデルを選ぶか入力するまで巡回は待機します */
+    readonly "modelMissing": string
+    /** 設定を保存できなかったので実行しません */
+    readonly "saveFailed": string
   }
   readonly "_aiPersonalitySection": {
     /** ペルソナ */
@@ -6641,6 +6645,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "failedMessage": ParameterizedString<'error' | 'source'>
       /** HEARTBEAT の接続が設定されていません */
       readonly "waitingNotConfigured": string
+      /** HEARTBEAT の接続のモデルが設定されていません */
+      readonly "waitingNoModel": string
       /** チャットは手元の CLI なので HEARTBEAT は動きません。HEARTBEAT には別の接続を選んでください */
       readonly "waitingHarness": string
       /** HEARTBEAT の接続が見つかりません */

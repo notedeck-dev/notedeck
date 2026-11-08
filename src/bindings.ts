@@ -3862,7 +3862,8 @@ notemaid: NotemaidDiagnostics }
 /**
  * デバイスへ流す出来事 (flat。Tauri は `nd:ai-heartbeat-event`)。
  * kind: `started` (source) / `finished` (outcome) / `report` (session_id, created, pending) /
- * `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text)
+ * `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text) /
+ * `scheduled` (timer が組み直された。欄は無し、#1321)
  * 
  * `notify` は AI が「通知して」とした報告ごとに流す (アプリの通知の受信トレイに残す, #1165)。
  * 報告先が「なし」なら session_id は無く、`report` も流さない (#1227)。

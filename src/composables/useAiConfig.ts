@@ -808,22 +808,30 @@ export function useAiConfig() {
     }
   }
 
-  function save(): void {
-    writeAiSettings(`${JSON5.stringify(_config.value, null, 2)}\n`, _version)
-      .then((v) => {
-        _version = v
-      })
-      .catch(async (e) => {
-        if (isConflictError(e)) {
-          // notecore (HEARTBEAT の自動停止など) が先に書いた: 最新に揃える
-          console.warn(
-            '[ai-settings] ai.json5 changed by another writer; reloading',
-          )
-          await reloadAiConfig()
-          return
-        }
-        console.warn('[ai-settings] failed to write ai.json5:', e)
-      })
+  /**
+   * 書き戻す。書けた (または先に書いた側に揃え直した) とき true、書けなかったとき false。
+   * notemaid に今の設定で動いてほしい操作 (試走 / 今すぐ巡回、#1321) は、これを待ってから
+   * 呼ぶ (保存の debounce より前に送ると前の接続で走る)
+   */
+  async function save(): Promise<boolean> {
+    try {
+      _version = await writeAiSettings(
+        `${JSON5.stringify(_config.value, null, 2)}\n`,
+        _version,
+      )
+      return true
+    } catch (e) {
+      if (isConflictError(e)) {
+        // notecore (HEARTBEAT の自動停止など) が先に書いた: 最新に揃える
+        console.warn(
+          '[ai-settings] ai.json5 changed by another writer; reloading',
+        )
+        await reloadAiConfig()
+        return true
+      }
+      console.warn('[ai-settings] failed to write ai.json5:', e)
+      return false
+    }
   }
 
   return {

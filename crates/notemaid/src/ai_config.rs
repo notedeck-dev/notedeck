@@ -129,10 +129,11 @@ impl AiConfigLite {
         let protocol = connection
             .protocol
             .ok_or(NoHeartbeatProvider::NotAiProvider)?;
+        // 空白だけも未設定 (`validate_request` と同じ判定。失敗として数えさせない)
         let model = self
             .models
             .get(id)
-            .filter(|m| !m.is_empty())
+            .filter(|m| !m.trim().is_empty())
             .cloned()
             .ok_or(NoHeartbeatProvider::NoModel)?;
         Ok(HeartbeatProvider {
@@ -189,7 +190,8 @@ impl NoHeartbeatProvider {
     /// 状態行 / toast の文言の手がかり (`_native.heartbeat.*`)
     pub fn i18n_key(self) -> &'static str {
         match self {
-            Self::NotSelected | Self::NoModel => "_native.heartbeat.waitingNotConfigured",
+            Self::NotSelected => "_native.heartbeat.waitingNotConfigured",
+            Self::NoModel => "_native.heartbeat.waitingNoModel",
             Self::Harness => "_native.heartbeat.waitingHarness",
             Self::ConnectionMissing => "_native.heartbeat.waitingConnectionMissing",
             Self::NotAiProvider => "_native.heartbeat.waitingNotAiProvider",
@@ -551,9 +553,14 @@ mod tests {
                 .heartbeat_provider(&conns),
             Err(NoHeartbeatProvider::NotAiProvider)
         );
-        // 無し: モデル未設定
+        // 無し: モデル未設定 (空白だけも)
         assert_eq!(
             from_document(&json!({ "activeConnectionId": "local" })).heartbeat_provider(&conns),
+            Err(NoHeartbeatProvider::NoModel)
+        );
+        assert_eq!(
+            from_document(&json!({ "activeConnectionId": "local", "models": { "local": "  " } }))
+                .heartbeat_provider(&conns),
             Err(NoHeartbeatProvider::NoModel)
         );
     }

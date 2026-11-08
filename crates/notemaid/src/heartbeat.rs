@@ -81,7 +81,8 @@ If there is nothing to report, do not call any tool and return only the single l
 
 /// デバイスへ流す出来事 (flat。Tauri は `nd:ai-heartbeat-event`)。
 /// kind: `started` (source) / `finished` (outcome) / `report` (session_id, created, pending) /
-/// `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text)
+/// `titled` (session_id, title) / `notify` (session_id, title, body, desktop) / `toast` (level, text) /
+/// `scheduled` (timer が組み直された。欄は無し、#1321)
 ///
 /// `notify` は AI が「通知して」とした報告ごとに流す (アプリの通知の受信トレイに残す, #1165)。
 /// 報告先が「なし」なら session_id は無く、`report` も流さない (#1227)。
@@ -484,9 +485,17 @@ pub fn set_next_tick_at(at: Option<u64>) {
     with_status(|s| s.next_tick_at = at);
 }
 
-/// 観測値の snapshot (`heartbeat_status` command)
+/// 観測値の snapshot (`heartbeat_status` command)。`running` は実行中の印そのもの
 pub fn status() -> HeartbeatStatus {
-    status_slot().lock().map(|s| s.clone()).unwrap_or_default()
+    let mut st = status_slot().lock().map(|s| s.clone()).unwrap_or_default();
+    st.running = running_flag().lock().map(|r| *r).unwrap_or(false);
+    st
+}
+
+/// timer が組み直された (次回の予定時刻が変わった) ことをデバイスに知らせる (#1321)。
+/// デバイスは状態を読み直す
+pub fn emit_scheduled(core: &Core) {
+    emit(core, HeartbeatEvent::new("scheduled"));
 }
 
 /// DevDashboard / `/api/heartbeat/status` 向けの snapshot (同じ型を JSON にしたもの)。設定は
@@ -577,12 +586,12 @@ pub fn epoch_days(ms: u64) -> u64 {
 }
 
 /// 日次上限の判定 (#1321)。推論の前に「次で超えるか」を見るだけで、加算はしない
-/// (加算は結果が出てから: 推論の失敗と応答ありのときだけ。provider 無し / 到達不能は消費しない)
+/// (加算は結果が出てから: 推論の失敗と応答ありのときだけ。provider 無し / 到達不能は消費しない)。
+/// `warn` の警告も加算のとき ([`daily_consume`]) に出す。前段で出すと、到達不能が続く間
+/// tick ごとに同じ警告が繰り返される
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DailyGate {
     Proceed,
-    /// 上限に達した最初の 1 回だけ警告し、続ける (`onDailyLimit: warn`)
-    WarnThenProceed,
     /// 上限で自動停止する (`onDailyLimit: disable`)
     Stop,
 }
@@ -600,17 +609,20 @@ pub fn daily_gate(
         state.daily_date = today;
         state.daily_count = 0;
     }
-    if manual || state.daily_count < limit {
-        return DailyGate::Proceed;
-    }
-    if stop_at_limit {
+    if !manual && stop_at_limit && state.daily_count >= limit {
         return DailyGate::Stop;
     }
-    if state.daily_count == limit {
-        DailyGate::WarnThenProceed
-    } else {
-        DailyGate::Proceed
+    DailyGate::Proceed
+}
+
+/// 結果が出た (推論の失敗 / 応答あり) ので日次を 1 消費する。手動は消費しない。
+/// 戻り値は「この消費で上限を超えた」(`warn` の警告を 1 回だけ出す)
+pub fn daily_consume(state: &mut PersistedState, limit: u32, manual: bool) -> bool {
+    if manual {
+        return false;
     }
+    state.daily_count += 1;
+    state.daily_count == limit + 1
 }
 
 /// UTC の `YYYYMMDDhhmmss` (デバイスがローカル時刻の刻印を返さないときの代替)。
@@ -698,19 +710,17 @@ impl Drop for RunGuard {
         if let Ok(mut r) = running_flag().lock() {
             *r = false;
         }
-        with_status(|s| s.running = false);
     }
 }
 
-/// 実行中の印を取る。既に走っていれば None
+/// 実行中の印を取る。既に走っていれば None。観測値の `running` はこの印から読む
+/// (`status()`) ので、印と表示がずれる瞬間は無い
 pub fn try_begin() -> Option<RunGuard> {
     let mut r = running_flag().lock().ok()?;
     if *r {
         return None;
     }
     *r = true;
-    drop(r);
-    with_status(|s| s.running = true);
     Some(RunGuard(()))
 }
 
@@ -889,38 +899,36 @@ async fn run_body(
     // 日次上限: 「次で超えるか」を推論の前に判定し、加算は結果が出てから (推論の失敗と
     // 応答ありのときだけ。provider 無し / 到達不能は消費しない)。手動は上限の外
     let limit = cfg.heartbeat.daily_max_ai_runs;
-    match daily_gate(
+    if daily_gate(
         &mut state,
         now,
         limit,
         cfg.heartbeat.on_daily_limit == "disable",
         manual,
-    ) {
-        DailyGate::Proceed => {}
-        DailyGate::Stop => {
-            save_state(&app_dir, &state);
-            ai_config::set_heartbeat_enabled(core, false)?;
-            toast(
-                core,
-                "warning",
-                i18n::text(
-                    "_native.heartbeat.stoppedDailyLimit",
-                    json!({ "limit": limit }),
-                ),
-            );
-            return Ok(TickResult::skip("skip:daily-limit-disable"));
-        }
-        DailyGate::WarnThenProceed => {
-            toast(
-                core,
-                "warning",
-                i18n::text(
-                    "_native.heartbeat.overDailyLimit",
-                    json!({ "limit": limit }),
-                ),
-            );
-        }
+    ) == DailyGate::Stop
+    {
+        save_state(&app_dir, &state);
+        ai_config::set_heartbeat_enabled(core, false)?;
+        toast(
+            core,
+            "warning",
+            i18n::text(
+                "_native.heartbeat.stoppedDailyLimit",
+                json!({ "limit": limit }),
+            ),
+        );
+        return Ok(TickResult::skip("skip:daily-limit-disable"));
     }
+    let over_limit_toast = |core: &Core| {
+        toast(
+            core,
+            "warning",
+            i18n::text(
+                "_native.heartbeat.overDailyLimit",
+                json!({ "limit": limit }),
+            ),
+        );
+    };
 
     // AI
     let inference = run_inference(
@@ -938,8 +946,8 @@ async fn run_body(
         Ok(r) => {
             state.waiting = None;
             state.consecutive_failures = 0;
-            if !manual {
-                state.daily_count += 1;
+            if daily_consume(&mut state, limit, manual) {
+                over_limit_toast(core);
             }
             for id in new_hashes.keys() {
                 state.last_ai_run_at.insert(id.clone(), now);
@@ -969,8 +977,8 @@ async fn run_body(
         Err(TickFailure::Failed { message, kind }) => {
             // 何かは受け取った (HTTP の応答 / 時間切れ / 切断) ので待機ではない
             state.waiting = None;
-            if !manual {
-                state.daily_count += 1;
+            if daily_consume(&mut state, limit, manual) {
+                over_limit_toast(core);
             }
             // 復帰直後はネットワークが戻っていないことがあるので、連続失敗 (自動停止) には
             // 数えない。手動も数えない (#1321)
@@ -1043,6 +1051,11 @@ fn wait(
     text: i18n::Text,
     now: u64,
 ) {
+    // 状態ファイルと状態 API に残るので秘匿化してから (#1164)
+    let text = i18n::Text {
+        text: crate::redact::text(&text.text).into_owned(),
+        i18n: crate::redact::value(text.i18n),
+    };
     let first = enter_waiting(state, kind, text.clone(), now);
     save_state(app_dir, state);
     if first {
@@ -1161,7 +1174,11 @@ fn classify_start_error(e: NoteDeckError) -> TickFailure {
 fn classify_turn_error(e: &AiTurnEvent) -> TickFailure {
     let message = e.error.clone().unwrap_or_else(|| "turn failed".into());
     match e.error_kind.as_deref() {
-        Some("transport") => TickFailure::Unreachable(message),
+        // tool を実行した後のラウンドで繋がらなくなったのは「何も受け取る前」ではない
+        // (この tick は仕事をしている)。数える失敗にする
+        Some("transport") if e.phase.as_deref() != Some("after_tool") => {
+            TickFailure::Unreachable(message)
+        }
         Some("blocked") => TickFailure::NoProvider(i18n::text(
             "_native.heartbeat.waitingBlocked",
             json!({ "detail": message }),
@@ -1181,11 +1198,17 @@ fn estimated_input_tokens(turn_id: &str, user_message: &str) -> u64 {
     crate::ai_budget::estimate_tokens(system_chars + user_message.chars().count())
 }
 
-/// 最初のラウンドの実測 (無ければ None)
+/// 最初のラウンドの実測 (無ければ None)。後のラウンドの実測は見ない (推定は最初の
+/// ラウンドの送った量なので、比べる相手が違う)
 fn first_round_usage(events: &[AiTurnEvent], estimated: u64) -> Option<HeartbeatTickUsage> {
     events
         .iter()
-        .find(|e| e.kind == "usage")
+        .find(|e| {
+            e.kind == "usage"
+                && e.message_id
+                    .as_deref()
+                    .is_some_and(|id| id.ends_with("-a0"))
+        })
         .and_then(|e| e.usage)
         .map(|u| HeartbeatTickUsage {
             input_tokens: u.input_tokens,
@@ -1317,21 +1340,54 @@ async fn run_turn_collect(
     ai_turn::start_turn_with_sink(core, req, sink.clone())
         .await
         .map_err(classify_start_error)?;
+    // この待ちが途中で捨てられたら (timer の組み直しで tick の future が abort された等)、
+    // 子のターンも止める。実行中の印だけ下りてターンが走り続け、次の tick と重なるのを防ぐ
+    let mut abort = CancelOnDrop(Some(turn_id.clone()));
     if tokio::time::timeout(wait_limit, sink.done.notified())
         .await
         .is_err()
     {
+        abort.0.take();
         ai_turn::cancel_turn(&turn_id);
         return Err(TickFailure::Failed {
             message: "heartbeat turn timed out".into(),
             kind: Some("timeout".into()),
         });
     }
+    abort.0.take();
     let events = sink.events.lock().map(|v| v.clone()).unwrap_or_default();
     if let Some(e) = events.iter().find(|e| e.kind == "error") {
         return Err(classify_turn_error(e));
     }
     Ok(events)
+}
+
+/// 捨てられたら子のターンを止める印 (`None` にすれば何もしない)
+struct CancelOnDrop(Option<String>);
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        if let Some(turn_id) = self.0.take() {
+            tracing::warn!(turn_id, "heartbeat collector dropped; cancelling the turn");
+            ai_turn::cancel_turn(&turn_id);
+        }
+    }
+}
+
+/// 応答契約の tool が呼ばれ、その実行が成功した (空の body は tool 側が拒む) か
+fn report_tool_succeeded(events: &[AiTurnEvent]) -> bool {
+    let report_tool_name = capabilities::tool_name(REPORT_CAPABILITY);
+    events
+        .iter()
+        .filter(|e| e.kind == "tool_use" && e.tool_use_name.as_deref() == Some(&report_tool_name))
+        .filter_map(|e| e.tool_use_id.as_deref())
+        .any(|id| {
+            events.iter().any(|r| {
+                r.kind == "tool_result"
+                    && r.tool_use_id.as_deref() == Some(id)
+                    && r.is_error != Some(true)
+            })
+        })
 }
 
 /// 応答契約の tool の最後の入力
@@ -1487,10 +1543,14 @@ pub async fn probe(core: &Core) -> Result<HeartbeatProbeResult> {
     let wait_limit =
         Duration::from_secs(u64::from(cfg.generation.read_timeout_seconds) * PROBE_TIMEOUT_FACTOR);
     let view = Some(provider.view());
+    // 他の窓にも実行中が伝わるように tick と同じ出来事を流す (結果は `probe:<outcome>`)
+    let mut ev = HeartbeatEvent::new("started");
+    ev.source = Some("probe".into());
+    emit(core, ev);
     let mut out = match run_turn_collect(core, req, wait_limit).await {
         Ok(events) => {
             let usage = first_round_usage(&events, estimated_input_tokens(&turn_id, &user_message));
-            let mut r = HeartbeatProbeResult::outcome(if report_tool_input(&events).is_some() {
+            let mut r = HeartbeatProbeResult::outcome(if report_tool_succeeded(&events) {
                 "ok"
             } else {
                 "no_tool"
@@ -1514,6 +1574,9 @@ pub async fn probe(core: &Core) -> Result<HeartbeatProbeResult> {
         }
     };
     out.provider = view;
+    let mut ev = HeartbeatEvent::new("finished");
+    ev.outcome = Some(format!("probe:{}", out.outcome));
+    emit(core, ev);
     Ok(out)
 }
 
@@ -2383,7 +2446,7 @@ mod tests {
     }
 
     #[test]
-    fn daily_gate_checks_before_and_never_counts() {
+    fn daily_gate_checks_before_and_counts_after() {
         // 「次で超えるか」の判定だけで、加算は結果が出てから (推論の前に加算しない)
         let mut st = PersistedState::default();
         let day = 86_400_000 * 10;
@@ -2392,27 +2455,21 @@ mod tests {
             DailyGate::Proceed
         );
         assert_eq!(st.daily_count, 0);
-        st.daily_count = 1;
-        assert_eq!(
-            daily_gate(&mut st, day, 2, false, false),
-            DailyGate::Proceed
-        );
-        // 上限に達した最初の 1 回だけ警告 (warn)、以後は黙って続ける
+        // warn: 上限に達しても止めない。警告は消費のときに、超えた最初の 1 回だけ
         st.daily_count = 2;
         assert_eq!(
             daily_gate(&mut st, day, 2, false, false),
-            DailyGate::WarnThenProceed
-        );
-        st.daily_count = 3;
-        assert_eq!(
-            daily_gate(&mut st, day, 2, false, false),
             DailyGate::Proceed
         );
+        assert!(daily_consume(&mut st, 2, false));
+        assert_eq!(st.daily_count, 3);
+        assert!(!daily_consume(&mut st, 2, false));
         // disable なら上限で止める
         st.daily_count = 2;
         assert_eq!(daily_gate(&mut st, day, 2, true, false), DailyGate::Stop);
-        // 手動は上限の外
+        // 手動は上限の外で、消費もしない
         assert_eq!(daily_gate(&mut st, day, 2, true, true), DailyGate::Proceed);
+        assert!(!daily_consume(&mut st, 2, true));
         assert_eq!(st.daily_count, 2);
         // 日付が変われば数え直す
         assert_eq!(
@@ -2420,6 +2477,56 @@ mod tests {
             DailyGate::Proceed
         );
         assert_eq!((st.daily_date, st.daily_count), (11, 0));
+    }
+
+    #[test]
+    fn transport_failure_after_a_tool_round_is_counted() {
+        let mut e = turn_error(Some("transport"));
+        e.phase = Some("after_tool".into());
+        assert!(matches!(
+            classify_turn_error(&e),
+            TickFailure::Failed { kind: Some(k), .. } if k == "transport"
+        ));
+        e.phase = Some("before_tool".into());
+        assert!(matches!(
+            classify_turn_error(&e),
+            TickFailure::Unreachable(_)
+        ));
+    }
+
+    #[test]
+    fn first_round_usage_ignores_later_rounds_and_probe_needs_a_successful_report() {
+        let usage = |round: u32, input: u64| {
+            let mut e = AiTurnEvent::new("t", "usage");
+            e.message_id = Some(format!("t-a{round}"));
+            e.usage = Some(crate::ai_budget::TokenUsage {
+                input_tokens: input,
+                output_tokens: 1,
+                estimated: false,
+            });
+            e
+        };
+        // 2 ラウンド目にだけ実測があっても、最初のラウンドの推定とは比べない
+        assert_eq!(first_round_usage(&[usage(1, 50)], 400), None);
+        assert_eq!(
+            first_round_usage(&[usage(0, 100), usage(1, 50)], 400).map(|u| u.input_tokens),
+            Some(100)
+        );
+        // 試走の成功は report tool の実行が成功したときだけ (空の body は tool 側が拒む)
+        let name = capabilities::tool_name(REPORT_CAPABILITY);
+        let mut call = AiTurnEvent::new("t", "tool_use");
+        call.tool_use_id = Some("tu1".into());
+        call.tool_use_name = Some(name);
+        call.tool_use_input = Some(json!({ "body": "" }));
+        let mut failed = AiTurnEvent::new("t", "tool_result");
+        failed.tool_use_id = Some("tu1".into());
+        failed.is_error = Some(true);
+        assert!(report_tool_input(&[call.clone(), failed.clone()]).is_some());
+        assert!(!report_tool_succeeded(&[call.clone(), failed]));
+        let mut ok = AiTurnEvent::new("t", "tool_result");
+        ok.tool_use_id = Some("tu1".into());
+        ok.is_error = Some(false);
+        assert!(report_tool_succeeded(&[call, ok]));
     }
 
     #[test]

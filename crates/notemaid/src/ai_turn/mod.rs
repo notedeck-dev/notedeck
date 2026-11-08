@@ -1871,34 +1871,49 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
             // 続く本文 / エラーの id をそれに合わせる
             state.rounds += round_sink.close_external();
             let message_id = assistant_message_id(&turn_id, state.rounds);
-            // 精算: 実測が無ければ推定 (入力は要求の文字数、出力は応答の文字数)
-            let round_usage = round_sink.usage().unwrap_or_else(|| {
-                let out_chars = round_sink
-                    .live
-                    .lock()
-                    .map(|l| l.text.chars().count())
-                    .unwrap_or(0);
-                crate::ai_budget::TokenUsage {
-                    input_tokens: crate::ai_budget::estimate_tokens(request_chars),
-                    output_tokens: crate::ai_budget::estimate_tokens(out_chars),
-                    estimated: true,
+            // 何も送れていない失敗 (到達不能 / 宛先の検査で拒まれた) は精算しない (#1321)。
+            // 予算付きの接続が止まっている間の待機で推定が積み上がり、復旧後に予算超過で
+            // 自動停止するのを防ぐ
+            let nothing_sent = matches!(
+                &run_result,
+                Err(e) if matches!(
+                    e.kind,
+                    Some(ai_chat_service::ErrorKind::Transport)
+                        | Some(ai_chat_service::ErrorKind::Blocked)
+                )
+            );
+            if !nothing_sent {
+                // 精算: 実測が無ければ推定 (入力は要求の文字数、出力は応答の文字数)
+                let round_usage = round_sink.usage().unwrap_or_else(|| {
+                    let out_chars = round_sink
+                        .live
+                        .lock()
+                        .map(|l| l.text.chars().count())
+                        .unwrap_or(0);
+                    crate::ai_budget::TokenUsage {
+                        input_tokens: crate::ai_budget::estimate_tokens(request_chars),
+                        output_tokens: crate::ai_budget::estimate_tokens(out_chars),
+                        estimated: true,
+                    }
+                });
+                state.usage.add(round_usage);
+                if rt.budget.is_some() {
+                    crate::ai_budget::settle(
+                        &rt.store_dir,
+                        &state.req.connection_id,
+                        round_usage,
+                        ai_sessions::now_ms(),
+                    );
                 }
-            });
-            state.usage.add(round_usage);
-            if rt.budget.is_some() {
-                crate::ai_budget::settle(
-                    &rt.store_dir,
-                    &state.req.connection_id,
-                    round_usage,
-                    ai_sessions::now_ms(),
-                );
-            }
-            // ラウンドごとの実測 (推定は流さない)。HEARTBEAT が最初のラウンドの入力 token を
-            // 送った量の推定と比べ、切り詰めの可能性を見る (#1321)
-            if !round_usage.estimated {
-                let mut e = AiTurnEvent::new(&turn_id, "usage");
-                e.usage = Some(round_usage);
-                rt.sink.emit(e);
+                // ラウンドごとの実測 (推定は流さない)。HEARTBEAT が最初のラウンドの入力 token を
+                // 送った量の推定と比べ、切り詰めの可能性を見る (#1321)。どのラウンドかは
+                // message_id (`<turn>-a<round>`) で分かる
+                if !round_usage.estimated {
+                    let mut e = AiTurnEvent::new(&turn_id, "usage");
+                    e.usage = Some(round_usage);
+                    e.message_id = Some(message_id.clone());
+                    rt.sink.emit(e);
+                }
             }
             if let Err(err) = run_result {
                 // mid-stream の切断: 途中までの応答は温存して ⚠️ を添える
@@ -1980,6 +1995,11 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
         execute_pending(&rt, &mut state).await;
         state.pending.clear();
         state.round_text.clear();
+        if state.req.dry_run {
+            // 試走 (#1321) は最初の tool のラウンドで終わる。tool の結果を渡してもう一度
+            // 推論させない (その失敗や予算超過で試走が失敗に見えるのを防ぐ)
+            break "end";
+        }
     };
 
     let final_id = assistant_message_id(&turn_id, state.rounds);
@@ -2111,6 +2131,12 @@ pub async fn start_turn_with_sink(
         }
         None => None,
     };
+    if harness.is_some() && req.dry_run {
+        // 手元の CLI は自分で tool を回すので「執行しない」を保証できない (#1321)
+        return Err(NoteDeckError::InvalidInput(
+            "dry_run is not supported for a CLI harness".into(),
+        ));
+    }
     // system prompt は notemaid が組む (#1162)。persona はセッションの snapshot
     // (無人 = session 無しなら ai.json5)、trigger はデバイスの申告とセッションの累積の和
     let cfg = ai_config::load_from_app_dir(app_dir);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onScopeDispose, ref } from 'vue'
+import { computed, onMounted, onScopeDispose, ref, watch } from 'vue'
 import type { HeartbeatProbeResult } from '@/bindings'
 import ChoiceCard from '@/components/common/ChoiceCard.vue'
 import ChoiceCardGrid from '@/components/common/ChoiceCardGrid.vue'
@@ -12,6 +12,7 @@ import {
   HEARTBEAT_INTERVAL_MIN_MINUTES,
   HEARTBEAT_MAX_SKIP_HOURS_MAX,
   HEARTBEAT_MAX_SKIP_HOURS_MIN,
+  heartbeatConnectionId,
   modelsAfterSelecting,
   resolveAiConnection,
   resolveHeartbeatConnection,
@@ -51,7 +52,7 @@ defineProps<{
 /** 利用者向けの説明 (ローカル接続の context の上げ方はここ) */
 const DOCS_URL = 'https://notedeck.io/docs/guide/ai'
 
-const { config } = useAiConfig()
+const { config, save: saveConfig } = useAiConfig()
 const windowsStore = useWindowsStore()
 const skillsStore = useSkillsStore()
 skillsStore.ensureLoaded()
@@ -170,6 +171,11 @@ async function runNow(): Promise<void> {
   runNowBusy.value = true
   runNowError.value = ''
   try {
+    // 保存の debounce を待たずに今の設定で走らせる (notemaid は ai.json5 を読む)
+    if (!(await saveConfig())) {
+      runNowError.value = i18n.ts._aiHeartbeatSection.saveFailed
+      return
+    }
     await triggerHeartbeatNow()
   } catch (e) {
     runNowError.value = i18n.tsx._aiHeartbeatSection.runNowFailed({
@@ -289,6 +295,10 @@ const heartbeatModel = computed<string>({
     if (id) config.value.models = { ...config.value.models, [id]: value }
   },
 })
+/** 接続はあるがモデルが未設定 (空白だけも)。巡回は待機し、試走もできない */
+const modelMissing = computed(
+  () => heartbeatVault.value != null && heartbeatModel.value.trim() === '',
+)
 
 // 「この接続を試す」: 通常の tick と同じ組み立ての prompt で 1 巡だけ回し、報告の tool を
 // 呼べるかだけを見る。報告先への書込 / 通知は起きない。予算は消費する
@@ -300,10 +310,22 @@ const canProbe = computed(
   () =>
     !probing.value &&
     !(status.value?.running ?? false) &&
-    heartbeatVault.value != null,
+    heartbeatVault.value != null &&
+    !modelMissing.value,
+)
+/** 試走の世代。接続やモデルが変わったら進め、前の世代の結果は捨てる */
+let probeGeneration = 0
+watch(
+  () => `${heartbeatConnectionId(config.value)}\n${heartbeatModel.value}`,
+  () => {
+    probeGeneration += 1
+    probeResult.value = null
+    probeError.value = ''
+  },
 )
 async function probe(): Promise<void> {
   if (!canProbe.value) return
+  const mine = ++probeGeneration
   probing.value = true
   probeSeconds.value = 0
   probeResult.value = null
@@ -313,9 +335,15 @@ async function probe(): Promise<void> {
     probeSeconds.value = Math.floor((Date.now() - started) / 1000)
   }, 1000)
   try {
-    probeResult.value = await probeHeartbeat()
+    // 保存の debounce を待たずに今の接続で試す (前の接続に巡回の内容を送らない)
+    if (!(await saveConfig())) {
+      probeError.value = i18n.ts._aiHeartbeatSection.saveFailed
+      return
+    }
+    const r = await probeHeartbeat()
+    if (mine === probeGeneration) probeResult.value = r
   } catch (e) {
-    probeError.value = errorText(e)
+    if (mine === probeGeneration) probeError.value = errorText(e)
   } finally {
     clearInterval(tick)
     probing.value = false
@@ -483,6 +511,10 @@ function openPermissionsWindow(): void {
         <button class="_button" :class="$style.inlineLink" @click="selectSameAsChat">
           {{ i18n.ts._aiHeartbeatSection.resetToChat }}
         </button>
+      </p>
+      <p v-if="modelMissing" :class="$style.warn">
+        <i class="ti ti-alert-triangle" />
+        <span>{{ i18n.ts._aiHeartbeatSection.modelMissing }}</span>
       </p>
       <!-- 試走: カードの直下。結果は 1 行 -->
       <div :class="$style.probeRow">

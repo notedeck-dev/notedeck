@@ -16,16 +16,20 @@ const _status: Ref<HeartbeatStatus | null> = ref(null)
 const _loading = ref(false)
 let _started = false
 let _unlisten: UnlistenFn | null = null
+/** 最後に出した読取の番号。古い読取が後から返っても捨てる (開始と終了の読取が入れ替わらない) */
+let _seq = 0
 
 async function refresh(): Promise<void> {
   if (!isTauri) return
+  const seq = ++_seq
   _loading.value = true
   try {
-    _status.value = unwrap(await commands.heartbeatStatus())
+    const next = unwrap(await commands.heartbeatStatus())
+    if (seq === _seq) _status.value = next
   } catch (e) {
     console.warn('[heartbeat] status read failed:', e)
   } finally {
-    _loading.value = false
+    if (seq === _seq) _loading.value = false
   }
 }
 
@@ -56,7 +60,13 @@ export function useHeartbeatStatus() {
     void refresh()
     if (isTauri) {
       void listenTauri('nd:ai-heartbeat-event', (ev) => {
-        if (ev.kind === 'started' || ev.kind === 'finished') void refresh()
+        // 試走も started / finished を流す。scheduled は timer の組み直し (次回の予定時刻)
+        if (
+          ev.kind === 'started' ||
+          ev.kind === 'finished' ||
+          ev.kind === 'scheduled'
+        )
+          void refresh()
       }).then((un) => {
         _unlisten = un
       })

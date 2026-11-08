@@ -982,6 +982,8 @@ _aiHeartbeatSection:
   modelForHeartbeat: "巡回のモデル"
   budgetForHeartbeat: "巡回の接続の 1 日の token 予算"
   docsLink: "説明を見る"
+  modelMissing: "モデルが設定されていません。モデルを選ぶか入力するまで巡回は待機します"
+  saveFailed: "設定を保存できなかったので実行しません"
 
 _aiPersonalitySection:
   title: "ペルソナ"
@@ -3655,6 +3657,7 @@ _native:
     draftNeedsAccount: "accountId が無いので下書きにできません"
     failedMessage: "⚠ HEARTBEAT に失敗しました (source={source}): {error}"
     waitingNotConfigured: "HEARTBEAT の接続が設定されていません"
+    waitingNoModel: "HEARTBEAT の接続のモデルが設定されていません"
     waitingHarness: "チャットは手元の CLI なので HEARTBEAT は動きません。HEARTBEAT には別の接続を選んでください"
     waitingConnectionMissing: "HEARTBEAT の接続が見つかりません"
     waitingNotAiProvider: "HEARTBEAT の接続は AI プロバイダーではありません"

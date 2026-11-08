@@ -16,8 +16,11 @@ export function useAiModelCandidates(connection: Ref<Connection | null>) {
   const vault = useVault()
   const candidates = ref<string[] | null>(null)
   const state = ref<ModelCandidatesState>('idle')
+  /** 最後に出した問い合わせの番号。古い問い合わせが後から返っても捨てる */
+  let seq = 0
 
   async function load(conn: Connection): Promise<void> {
+    const mine = ++seq
     state.value = 'loading'
     candidates.value = null
     try {
@@ -28,8 +31,8 @@ export function useAiModelCandidates(connection: Ref<Connection | null>) {
         conn.id,
         tpl?.testPath ?? modelsPathFor(conn.protocol ?? null),
       )
-      // 選択が切り替わっていたら捨てる
-      if (connection.value?.id !== conn.id) return
+      // 選択や接続先が切り替わっていたら捨てる
+      if (mine !== seq) return
       if (r.ok && r.models) {
         candidates.value = r.models
         state.value = 'idle'
@@ -37,12 +40,17 @@ export function useAiModelCandidates(connection: Ref<Connection | null>) {
         state.value = 'failed'
       }
     } catch {
-      if (connection.value?.id === conn.id) state.value = 'failed'
+      if (mine === seq) state.value = 'failed'
     }
   }
 
+  // 接続の id だけでなく宛先 (baseUrl / protocol) が変わっても引き直す (「接続」ウィンドウで
+  // URL を書き換えた直後に古いサーバーの候補が残らないように)
   watch(
-    () => connection.value?.id,
+    () => {
+      const c = connection.value
+      return c ? `${c.id}\n${c.baseUrl}\n${c.protocol ?? ''}` : ''
+    },
     () => {
       const conn = connection.value
       if (conn) void load(conn)

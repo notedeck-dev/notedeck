@@ -1218,6 +1218,8 @@ _aiHeartbeatSection:
   modelForHeartbeat: "Model for the rounds"
   budgetForHeartbeat: "Daily token budget of the rounds' connection"
   docsLink: "Read more"
+  modelMissing: "No model is set. Rounds wait until you pick or enter one"
+  saveFailed: "Settings could not be saved, so nothing was run"
 
 _aiPersonalitySection:
   rules: "Rules"
@@ -3910,6 +3912,7 @@ _native:
     draftNeedsAccount: "Can’t make a draft without an accountId"
     failedMessage: "⚠ HEARTBEAT failed (source={source}): {error}"
     waitingNotConfigured: "No connection is set for HEARTBEAT"
+    waitingNoModel: "No model is set for the HEARTBEAT connection"
     waitingHarness: "Chat uses a local CLI, so HEARTBEAT cannot run. Choose another connection for HEARTBEAT"
     waitingConnectionMissing: "The HEARTBEAT connection was not found"
     waitingNotAiProvider: "The HEARTBEAT connection is not an AI provider"

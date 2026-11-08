@@ -326,6 +326,7 @@
       "draftNeedsAccount": "Can’t make a draft without an accountId",
       "failedMessage": "⚠ HEARTBEAT failed (source={source}): {error}",
       "waitingNotConfigured": "No connection is set for HEARTBEAT",
+      "waitingNoModel": "No model is set for the HEARTBEAT connection",
       "waitingHarness": "Chat uses a local CLI, so HEARTBEAT cannot run. Choose another connection for HEARTBEAT",
       "waitingConnectionMissing": "The HEARTBEAT connection was not found",
       "waitingNotAiProvider": "The HEARTBEAT connection is not an AI provider",

@@ -317,6 +317,7 @@
       "draftNeedsAccount": "accountId が無いので下書きにできません",
       "failedMessage": "⚠ HEARTBEAT に失敗しました (source={source}): {error}",
       "waitingNotConfigured": "HEARTBEAT の接続が設定されていません",
+      "waitingNoModel": "HEARTBEAT の接続のモデルが設定されていません",
       "waitingHarness": "チャットは手元の CLI なので HEARTBEAT は動きません。HEARTBEAT には別の接続を選んでください",
       "waitingConnectionMissing": "HEARTBEAT の接続が見つかりません",
       "waitingNotAiProvider": "HEARTBEAT の接続は AI プロバイダーではありません",

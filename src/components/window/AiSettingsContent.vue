@@ -91,7 +91,7 @@ watch(
   () => {
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(() => {
-      saveConfig()
+      void saveConfig()
       // form 経由保存後、JSON タブの表示も最新化する
       rawJson.value = formatRaw(config.value)
     }, 300)
@@ -219,7 +219,7 @@ async function importConfig() {
       return
     }
     config.value = mergeConfig(defaultConfig(), parsed as Partial<AiConfig>)
-    saveConfig()
+    void saveConfig()
     showImported()
   } catch {
     showImportError()
@@ -234,7 +234,7 @@ const { confirming: confirmingReset, trigger: triggerReset } =
 function handleReset() {
   triggerReset(() => {
     config.value = defaultConfig()
-    saveConfig()
+    void saveConfig()
   })
 }
 </script>
