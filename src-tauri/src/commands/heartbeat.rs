@@ -36,6 +36,8 @@ pub fn sync_heartbeat_timer(app: &tauri::AppHandle) {
     let core: super::AppState = core.inner().clone();
     if offline_enabled(&core) {
         timer.stop();
+        // 次回の予定時刻が消えたことを窓に知らせる (AI 設定の状態行、#1321)
+        notemaid::heartbeat::emit_scheduled(&core);
         tracing::info!("[heartbeat] offline mode: timer stopped");
         return;
     }

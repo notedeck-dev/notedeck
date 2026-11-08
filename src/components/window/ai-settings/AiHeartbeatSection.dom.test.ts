@@ -193,6 +193,23 @@ describe('AiHeartbeatSection — 巡回に使う AI (#1321)', () => {
     expect(w.text()).not.toContain('失敗しました')
   })
 
+  it('接続はあるがモデルが未設定なら警告し、試走は押せない', async () => {
+    useAiConfig().config.value.heartbeat.connectionId = 'ollama'
+    useAiConfig().config.value.models = { ollama: '  ' }
+    const w = mountSection()
+    await flushPromises()
+    expect(w.text()).toContain(i18n.ts._aiHeartbeatSection.modelMissing)
+    const probe = w
+      .findAll('button')
+      .find((b) => b.text() === i18n.ts._aiHeartbeatSection.probe)
+    expect(probe?.attributes('disabled')).toBeDefined()
+    // モデルを入れれば押せる
+    useAiConfig().config.value.models = { ollama: 'qwen' }
+    await flushPromises()
+    expect(w.text()).not.toContain(i18n.ts._aiHeartbeatSection.modelMissing)
+    expect(probe?.attributes('disabled')).toBeUndefined()
+  })
+
   it('最初の巡回の前は「未実行」', async () => {
     const w = mountSection()
     await flushPromises()
