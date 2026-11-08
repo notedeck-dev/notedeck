@@ -1,5 +1,5 @@
 ---
-sourceHash: fa31d7938d08
+sourceHash: 65158e79f029
 ---
 
 # AI와 함께 쓰기
@@ -20,6 +20,14 @@ Anthropic, OpenAI, xAI, Google, OpenRouter, OpenCode Go는 템플릿이 내장�
 지원하는 형식은 **Anthropic Messages 호환**과 **OpenAI Chat Completions 호환** 두 가지입니다. 템플릿에 없는 서비스라도, 직접 운영하는 LLM 게이트웨이 등 둘 중 하나의 형식을 쓴다면 직접 등록해서 연결할 수 있습니다.
 
 API 키는 OS 키체인에 보관됩니다. 설정 파일에는 쓰이지 않으며, 플러그인이나 AI 자신도 그 내용을 읽을 수 없습니다.
+
+### 로컬 Ollama 사용하기
+
+연결의 URL이 `http://127.0.0.1:11434/v1`처럼 자신의 기기를 가리키면 그 연결은 "이 기기 안"의 로컬 연결이 되고, 모델의 추론은 기기 밖으로 나가지 않습니다 (인증이 필요 없고 API 키도 필요 없습니다). 연결의 내장 템플릿에 Ollama가 있습니다.
+
+- 작은 모델은 tool을 지원하지 않을 수 있으며, 그런 연결에서는 AI가 채팅에서 조작을 하거나 HEARTBEAT 순회를 보고할 수 없습니다
+- 입력이 길면 모델의 context를 넘어 앞부분부터 잘려 지시가 사라질 수 있습니다. Ollama의 context 상한은 환경 변수 `OLLAMA_CONTEXT_LENGTH`나 모델의 `num_ctx`로 올릴 수 있습니다
+- 로컬 연결과 잘 맞는 것은 뒤에서 설명할 HEARTBEAT입니다. 채팅은 클라우드의 똑똑한 모델로 두고 순회만 로컬에서 돌릴 수 있습니다
 
 ### 손안의 CLI를 AI로 쓰기
 

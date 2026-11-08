@@ -17,6 +17,14 @@ Anthropic、OpenAI、xAI、Google、OpenRouter、OpenCode Go はテンプレー�
 
 API キーは OS のキーチェーンに保管されます。設定ファイルには書かれず、プラグインや AI 自身から中身を読むことはできません。
 
+### 手元の Ollama を使う
+
+接続の URL が `http://127.0.0.1:11434/v1` のように自分の端末を指していれば、その接続は「この端末の中」のローカル接続になり、モデルの推論は端末の外に出ません（認証なしでよく、API キーは要りません）。接続の内蔵テンプレートに Ollama があります。
+
+- 小さなモデルは tool に対応していないことがあり、その接続では AI チャットの操作や HEARTBEAT の報告ができません
+- 入力が長いとモデルの context を超え、先頭から切り詰められて指示が消えることがあります。Ollama の context の上限は環境変数 `OLLAMA_CONTEXT_LENGTH` か、モデルの `num_ctx` で上げられます
+- ローカル接続との相性がよいのは後述の HEARTBEAT です。チャットはクラウドの賢いモデルのまま、巡回だけ手元で回せます
+
 ### 手元の CLI を AI にする
 
 API キーの代わりに、手元にインストール済みでログイン済みの AI の CLI（Claude Agent (Claude Code) / Codex / OpenCode / Hermes Agent / Grok Build）をそのまま AI として使えます。接続で「手元の CLI」を選ぶと、見つかった CLI が出ます。

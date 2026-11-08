@@ -1,5 +1,5 @@
 ---
-sourceHash: fa31d7938d08
+sourceHash: 65158e79f029
 ---
 
 # 与 AI 一起使用
@@ -20,6 +20,14 @@ Anthropic、OpenAI、xAI、Google、OpenRouter 和 OpenCode Go 已内置模板�
 支持 **Anthropic Messages 兼容**和 **OpenAI Chat Completions 兼容**两种格式。即使是模板中没有的服务，比如自建的 LLM 网关，只要使用其中一种格式，就可以手动登记并接入。
 
 API 密钥保存在操作系统的钥匙串中。它不会写入设置文件，插件和 AI 本身也无法读取其内容。
+
+### 使用本地的 Ollama
+
+如果连接的 URL 指向你自己的设备（例如 `http://127.0.0.1:11434/v1`），该连接就会成为“本设备内”的本地连接，模型推理不会离开设备（无需认证，也不需要 API 密钥）。连接的内置模板中有 Ollama。
+
+- 小模型可能不支持 tool，在这样的连接上 AI 无法在聊天中执行操作，也无法报告 HEARTBEAT 巡查
+- 输入过长会超出模型的 context，从开头被截断而丢失指令。Ollama 的 context 上限可以用环境变量 `OLLAMA_CONTEXT_LENGTH` 或模型的 `num_ctx` 调高
+- 与本地连接最搭配的是后文的 HEARTBEAT：聊天继续用云端的强模型，只把巡查放在本地运行
 
 ### 把本地 CLI 用作 AI
 

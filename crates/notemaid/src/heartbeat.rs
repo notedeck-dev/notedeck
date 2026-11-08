@@ -576,6 +576,43 @@ pub fn epoch_days(ms: u64) -> u64 {
     ms / 86_400_000
 }
 
+/// 日次上限の判定 (#1321)。推論の前に「次で超えるか」を見るだけで、加算はしない
+/// (加算は結果が出てから: 推論の失敗と応答ありのときだけ。provider 無し / 到達不能は消費しない)
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DailyGate {
+    Proceed,
+    /// 上限に達した最初の 1 回だけ警告し、続ける (`onDailyLimit: warn`)
+    WarnThenProceed,
+    /// 上限で自動停止する (`onDailyLimit: disable`)
+    Stop,
+}
+
+/// 日付が変われば数え直し、上限との関係を返す。手動は上限の外 (数えもしない)
+pub fn daily_gate(
+    state: &mut PersistedState,
+    now: u64,
+    limit: u32,
+    stop_at_limit: bool,
+    manual: bool,
+) -> DailyGate {
+    let today = epoch_days(now);
+    if state.daily_date != today {
+        state.daily_date = today;
+        state.daily_count = 0;
+    }
+    if manual || state.daily_count < limit {
+        return DailyGate::Proceed;
+    }
+    if stop_at_limit {
+        return DailyGate::Stop;
+    }
+    if state.daily_count == limit {
+        DailyGate::WarnThenProceed
+    } else {
+        DailyGate::Proceed
+    }
+}
+
 /// UTC の `YYYYMMDDhhmmss` (デバイスがローカル時刻の刻印を返さないときの代替)。
 pub fn utc_stamp(ms: u64) -> String {
     let (y, mo, d, h, mi, s) = civil_from_ms(ms);
@@ -851,15 +888,17 @@ async fn run_body(
 
     // 日次上限: 「次で超えるか」を推論の前に判定し、加算は結果が出てから (推論の失敗と
     // 応答ありのときだけ。provider 無し / 到達不能は消費しない)。手動は上限の外
-    let today = epoch_days(now);
-    if state.daily_date != today {
-        state.daily_date = today;
-        state.daily_count = 0;
-        save_state(&app_dir, &state);
-    }
     let limit = cfg.heartbeat.daily_max_ai_runs;
-    if !manual && state.daily_count >= limit {
-        if cfg.heartbeat.on_daily_limit == "disable" {
+    match daily_gate(
+        &mut state,
+        now,
+        limit,
+        cfg.heartbeat.on_daily_limit == "disable",
+        manual,
+    ) {
+        DailyGate::Proceed => {}
+        DailyGate::Stop => {
+            save_state(&app_dir, &state);
             ai_config::set_heartbeat_enabled(core, false)?;
             toast(
                 core,
@@ -871,7 +910,7 @@ async fn run_body(
             );
             return Ok(TickResult::skip("skip:daily-limit-disable"));
         }
-        if state.daily_count == limit {
+        DailyGate::WarnThenProceed => {
             toast(
                 core,
                 "warning",
@@ -928,6 +967,8 @@ async fn run_body(
             return Ok(TickResult::skip("skip:unreachable"));
         }
         Err(TickFailure::Failed { message, kind }) => {
+            // 何かは受け取った (HTTP の応答 / 時間切れ / 切断) ので待機ではない
+            state.waiting = None;
             if !manual {
                 state.daily_count += 1;
             }
@@ -2339,6 +2380,46 @@ mod tests {
         assert_eq!(json["mounted"], true);
         assert_eq!(json["provider"]["model"], "qwen");
         assert!(json["provider"].get("connectionId").is_none());
+    }
+
+    #[test]
+    fn daily_gate_checks_before_and_never_counts() {
+        // 「次で超えるか」の判定だけで、加算は結果が出てから (推論の前に加算しない)
+        let mut st = PersistedState::default();
+        let day = 86_400_000 * 10;
+        assert_eq!(
+            daily_gate(&mut st, day, 2, false, false),
+            DailyGate::Proceed
+        );
+        assert_eq!(st.daily_count, 0);
+        st.daily_count = 1;
+        assert_eq!(
+            daily_gate(&mut st, day, 2, false, false),
+            DailyGate::Proceed
+        );
+        // 上限に達した最初の 1 回だけ警告 (warn)、以後は黙って続ける
+        st.daily_count = 2;
+        assert_eq!(
+            daily_gate(&mut st, day, 2, false, false),
+            DailyGate::WarnThenProceed
+        );
+        st.daily_count = 3;
+        assert_eq!(
+            daily_gate(&mut st, day, 2, false, false),
+            DailyGate::Proceed
+        );
+        // disable なら上限で止める
+        st.daily_count = 2;
+        assert_eq!(daily_gate(&mut st, day, 2, true, false), DailyGate::Stop);
+        // 手動は上限の外
+        assert_eq!(daily_gate(&mut st, day, 2, true, true), DailyGate::Proceed);
+        assert_eq!(st.daily_count, 2);
+        // 日付が変われば数え直す
+        assert_eq!(
+            daily_gate(&mut st, day + 86_400_000, 2, true, false),
+            DailyGate::Proceed
+        );
+        assert_eq!((st.daily_date, st.daily_count), (11, 0));
     }
 
     #[test]

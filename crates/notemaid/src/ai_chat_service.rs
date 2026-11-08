@@ -213,20 +213,22 @@ impl ErrorKind {
 }
 
 impl AttemptError {
-    fn retryable(message: String) -> Self {
-        Self {
-            message,
-            i18n: None,
-            retryable: true,
-            kind: None,
-        }
-    }
     fn localized(t: notecore::i18n::Text) -> Self {
         Self {
             message: t.text,
             i18n: Some(t.i18n),
             retryable: false,
             kind: None,
+        }
+    }
+    /// 受信途中 (`bytes_stream()` の chunk) の失敗。切断は種別無し (予算を消費済みの失敗として
+    /// 数える) だが、応答待ちの時間切れだけは `timeout` を立てる (状態行の一文のため、#1321)
+    fn stream_failed(e: reqwest::Error) -> Self {
+        Self {
+            message: describe_stream_error(&e),
+            i18n: None,
+            retryable: true,
+            kind: e.is_timeout().then_some(ErrorKind::Timeout),
         }
     }
     /// 送信 (`send()`) の失敗。reqwest の種別を見て `kind` を立てる (#1321)。判定順は
@@ -915,7 +917,7 @@ async fn run_anthropic_attempt(
     // fresh な builder で始まる) ので、incomplete な tool_use_id が確定することはない。
     let mut tool_builder: Option<AnthropicToolUseBuilder> = None;
     while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(|e| AttemptError::retryable(describe_stream_error(&e)))?;
+        let bytes = chunk.map_err(AttemptError::stream_failed)?;
         buf.push_str(&String::from_utf8_lossy(&bytes));
         for block in parse_sse_blocks(&mut buf) {
             handle_anthropic_block(&block, sink, &req.stream_id, &mut tool_builder, has_emitted);
@@ -1185,7 +1187,7 @@ async fn run_openai_compat_attempt(
     // Vec のままにしておくと将来複数対応への拡張が容易。
     let mut tool_builders: Vec<OpenAiToolCallBuilder> = Vec::new();
     'outer: while let Some(chunk) = stream.next().await {
-        let bytes = chunk.map_err(|e| AttemptError::retryable(describe_stream_error(&e)))?;
+        let bytes = chunk.map_err(AttemptError::stream_failed)?;
         buf.push_str(&String::from_utf8_lossy(&bytes));
         for block in parse_sse_blocks(&mut buf) {
             for line in block.lines() {
@@ -1912,5 +1914,56 @@ mod tests {
             .expect_err("nobody listens");
         assert_eq!(err.kind, Some(ErrorKind::Transport), "{}", err.message);
         assert!(err.message.starts_with("network error:"), "{}", err.message);
+    }
+
+    #[tokio::test]
+    async fn header_wait_timeout_is_reported_as_timeout_not_transport() {
+        // 接続は受け付けるが何も返さない相手 (ローカルの CPU 推論がモデル読込中、など)。
+        // 接続は確立しているので到達不能ではなく、応答待ちの時間切れ = timeout (#1321)
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let hold = tokio::spawn(async move {
+            let (sock, _) = listener.accept().await.unwrap();
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            drop(sock);
+        });
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_millis(200))
+            .build()
+            .unwrap();
+        let err = client
+            .post(format!("http://{addr}/v1/chat/completions"))
+            .send()
+            .await
+            .expect_err("must time out");
+        let attempt = AttemptError::send_failed(err);
+        assert_eq!(
+            attempt.kind,
+            Some(ErrorKind::Timeout),
+            "{}",
+            attempt.message
+        );
+        assert!(attempt.retryable);
+        hold.abort();
+    }
+
+    #[tokio::test]
+    async fn mid_stream_disconnect_carries_no_kind() {
+        // ヘッダーは返したが本文の途中で切れた: 受信途中の切断は種別無し (数える失敗、#1321)
+        let (endpoint, server) = one_shot_server(
+            "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: 1000\r\n\r\ndata: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n",
+        )
+        .await;
+        struct Nop;
+        impl AiChatSink for Nop {
+            fn emit(&self, _event: AiChatEvent) {}
+        }
+        let req = opencode_request("s", None);
+        let err = run_openai_compat(&req, &endpoint, "key", false, &Nop)
+            .await
+            .expect_err("body is shorter than Content-Length");
+        assert_eq!(err.kind, None, "{}", err.message);
+        assert!(err.message.starts_with("stream error:"), "{}", err.message);
+        server.await.unwrap();
     }
 }

@@ -37,6 +37,7 @@ import { isHeartbeatStepsEmpty } from '@/services/heartbeatSteps'
 import { useSkillsStore } from '@/stores/skills'
 import { useWindowsStore } from '@/stores/windows'
 import { formatAbsoluteTime, formatTime } from '@/utils/formatTime'
+import { openSafeUrl } from '@/utils/url'
 import AiBudgetField from './AiBudgetField.vue'
 import AiHeartbeatResidentRow from './AiHeartbeatResidentRow.vue'
 import AiModelField from './AiModelField.vue'
@@ -46,6 +47,9 @@ defineProps<{
   /** 値が変わるたびにこの節を開く (アプリの通知から, #1165) */
   reveal?: number
 }>()
+
+/** 利用者向けの説明 (ローカル接続の context の上げ方はここ) */
+const DOCS_URL = 'https://notedeck.io/docs/guide/ai'
 
 const { config } = useAiConfig()
 const windowsStore = useWindowsStore()
@@ -381,7 +385,12 @@ function openPermissionsWindow(): void {
           <span v-if="nextTickLine" :class="$style.statusNext">· {{ nextTickLine }}</span>
         </p>
         <p v-if="timeoutHint" :class="$style.hint">{{ i18n.ts._aiHeartbeatSection.outcomeTimeoutHint }}</p>
-        <p v-if="truncationNote" :class="$style.hint">{{ truncationNote }}</p>
+        <p v-if="truncationNote" :class="$style.hint">
+          <span>{{ truncationNote }}</span>
+          <button type="button" class="_button" :class="$style.inlineLink" @click="openSafeUrl(DOCS_URL)">
+            {{ i18n.ts._aiHeartbeatSection.docsLink }}
+          </button>
+        </p>
         <p v-if="runNowError" :class="$style.warn">
           <i class="ti ti-alert-triangle" />
           <span>{{ runNowError }}</span>
@@ -391,13 +400,14 @@ function openPermissionsWindow(): void {
         class="_button"
         :class="$style.actionBtn"
         :disabled="runNowBusy || (status?.running ?? false)"
-        :title="i18n.ts._aiHeartbeatSection.runNowHint"
         @click="runNow"
       >
         <i class="ti ti-player-play" />
         {{ i18n.ts._aiHeartbeatSection.runNow }}
       </button>
     </div>
+    <!-- ボタンの注記は tooltip ではなく見える文で (タッチでは tooltip に届かない、#975) -->
+    <p :class="$style.hint">{{ i18n.ts._aiHeartbeatSection.runNowHint }}</p>
 
     <!-- 有効化 (TL フィルターと同じトグル) -->
     <FormSwitchRow
@@ -480,7 +490,6 @@ function openPermissionsWindow(): void {
           class="_button"
           :class="$style.actionBtn"
           :disabled="!canProbe"
-          :title="i18n.ts._aiHeartbeatSection.probeBudgetNote"
           @click="probe"
         >
           <i class="ti" :class="probing ? 'ti-loader-2' : 'ti-test-pipe'" />
@@ -492,6 +501,7 @@ function openPermissionsWindow(): void {
         </span>
       </div>
       <p v-if="probeTimeout" :class="$style.hint">{{ i18n.ts._aiHeartbeatSection.outcomeTimeoutHint }}</p>
+      <p :class="$style.hint">{{ i18n.ts._aiHeartbeatSection.probeBudgetNote }}</p>
       <!-- 開示の一文 (折りたたまない) -->
       <p :class="$style.hint">
         <i class="ti ti-info-circle" />

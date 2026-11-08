@@ -981,6 +981,7 @@ _aiHeartbeatSection:
   disclosureLeavesDevice: "巡回の内容はこの端末の外に出ます。"
   modelForHeartbeat: "巡回のモデル"
   budgetForHeartbeat: "巡回の接続の 1 日の token 予算"
+  docsLink: "説明を見る"
 
 _aiPersonalitySection:
   title: "ペルソナ"

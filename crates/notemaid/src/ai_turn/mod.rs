@@ -2263,6 +2263,8 @@ mod tests {
         rounds: Mutex<Vec<Vec<AiChatEvent>>>,
         requests: Mutex<Vec<AiChatRequest>>,
         fail_at: Option<usize>,
+        /// 失敗の種別 (送信時の到達不能など、#1321)
+        fail_kind: Option<ai_chat_service::ErrorKind>,
     }
 
     impl ScriptedProvider {
@@ -2271,6 +2273,7 @@ mod tests {
                 rounds: Mutex::new(rounds),
                 requests: Mutex::new(Vec::new()),
                 fail_at: None,
+                fail_kind: None,
             })
         }
         fn failing_at(rounds: Vec<Vec<AiChatEvent>>, at: usize) -> Arc<Self> {
@@ -2278,6 +2281,15 @@ mod tests {
                 rounds: Mutex::new(rounds),
                 requests: Mutex::new(Vec::new()),
                 fail_at: Some(at),
+                fail_kind: None,
+            })
+        }
+        fn failing_with(at: usize, kind: ai_chat_service::ErrorKind) -> Arc<Self> {
+            Arc::new(Self {
+                rounds: Mutex::new(Vec::new()),
+                requests: Mutex::new(Vec::new()),
+                fail_at: Some(at),
+                fail_kind: Some(kind),
             })
         }
     }
@@ -2351,7 +2363,11 @@ mod tests {
                     reqs.len() - 1
                 };
                 if self.fail_at == Some(n) {
-                    return Err("connection dropped".to_string().into());
+                    return Err(ai_chat_service::RoundError {
+                        message: "connection dropped".into(),
+                        i18n: None,
+                        kind: self.fail_kind,
+                    });
                 }
                 let events = {
                     let mut rounds = self.rounds.lock().unwrap();
@@ -4130,5 +4146,24 @@ mod tests {
         // done の usage は累計 (推定の 2 ラウンド目も足す)
         let done = h.sink.find("done").unwrap();
         assert!(done.usage.unwrap().input_tokens >= 1234);
+    }
+
+    #[tokio::test]
+    async fn transport_failures_carry_their_kind_on_the_error_event() {
+        // 送信側の種別 (到達不能) はラウンドのエラーを経てイベントの error_kind に届く (#1321)。
+        // HEARTBEAT はこれで「待機」と「数える失敗」を見分ける
+        let provider = ScriptedProvider::failing_with(0, ai_chat_service::ErrorKind::Transport);
+        let device = FakeDevice::new(json!({"ok": true}));
+        let h = harness(provider, &[], device);
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        let e = h.sink.find("error").unwrap();
+        assert_eq!(e.error_kind.as_deref(), Some("transport"));
+        assert_eq!(e.phase.as_deref(), Some("before_tool"));
+        // 種別の無い失敗 (受信途中の切断 / HTTP) には付かない
+        let provider = ScriptedProvider::failing_at(Vec::new(), 0);
+        let device = FakeDevice::new(json!({"ok": true}));
+        let h = harness(provider, &[], device);
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        assert_eq!(h.sink.find("error").unwrap().error_kind, None);
     }
 }

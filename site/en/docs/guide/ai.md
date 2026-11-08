@@ -1,5 +1,5 @@
 ---
-sourceHash: fa31d7938d08
+sourceHash: 65158e79f029
 ---
 
 # Using AI
@@ -20,6 +20,14 @@ Templates are built in for Anthropic, OpenAI, xAI, Google, OpenRouter and OpenCo
 Two formats are supported: **Anthropic Messages compatible** and **OpenAI Chat Completions compatible**. Even a service without a template — your own LLM gateway, for example — can be registered by hand as long as it speaks one of them.
 
 API keys are stored in the OS keychain. They are never written into settings files, and neither plugins nor the AI itself can read them.
+
+### Using a local Ollama
+
+If a connection's URL points at your own device, such as `http://127.0.0.1:11434/v1`, it becomes a local connection ("on this device") and the model's inference never leaves the device (no authentication or API key needed). The built-in connection templates include Ollama.
+
+- Small models may not support tools; on such a connection the AI cannot perform operations in chat or report HEARTBEAT rounds
+- Long input can exceed the model's context and get truncated from the start, dropping the instructions. Raise Ollama's context limit with the `OLLAMA_CONTEXT_LENGTH` environment variable or the model's `num_ctx`
+- Local connections pair well with HEARTBEAT (below): keep chat on a capable cloud model and run only the rounds locally
 
 ### Making a local CLI the AI
 

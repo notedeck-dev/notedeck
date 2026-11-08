@@ -1798,6 +1798,8 @@ export interface Locale {
     readonly "modelForHeartbeat": string
     /** 巡回の接続の 1 日の token 予算 */
     readonly "budgetForHeartbeat": string
+    /** 説明を見る */
+    readonly "docsLink": string
   }
   readonly "_aiPersonalitySection": {
     /** ペルソナ */

@@ -1217,6 +1217,7 @@ _aiHeartbeatSection:
   disclosureLeavesDevice: "The rounds' content leaves this device."
   modelForHeartbeat: "Model for the rounds"
   budgetForHeartbeat: "Daily token budget of the rounds' connection"
+  docsLink: "Read more"
 
 _aiPersonalitySection:
   rules: "Rules"
