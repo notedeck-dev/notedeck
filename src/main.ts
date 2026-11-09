@@ -18,6 +18,7 @@ import { usePerformanceStore } from './stores/performance'
 import { useServersStore } from './stores/servers'
 import { useSettingsStore } from './stores/settings'
 import { useThemeStore } from './stores/theme'
+import { useUiStateStore } from './stores/uiState'
 import { disableMediaProxy, setMediaProxyToken } from './utils/mediaProxy'
 import { printSelfXssWarning } from './utils/selfXssWarning'
 import { isTauri } from './utils/settingsFs'
@@ -162,6 +163,8 @@ if (isTauri) {
   markStartup('settings-await')
   await Promise.all([
     settingsStore.load(),
+    // この機械の UI の状態 (state/ui.json5、#1333 §3)。ズームは初回描画前に当てる
+    useUiStateStore().load(),
     // 窓の名簿に名乗る (#1131)。代表窓かどうかを後続の移行・seed が読む
     announceWindow(),
     // 表示言語の辞書 (#135)。以降の初期化が出す toast も辞書を引くので先に揃える

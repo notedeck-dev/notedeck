@@ -31,6 +31,7 @@ import { usePetStore } from '@/stores/pet'
 import { useSettingsStore } from '@/stores/settings'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useIsCompactLayout } from '@/stores/ui'
+import { useUiStateStore } from '@/stores/uiState'
 
 const DEFAULT_MARGIN = 16
 /** コンパクト時の既定の下端。DeckLayout の FAB (56px, ナビ上 12px) を避ける */
@@ -39,6 +40,8 @@ const DRAG_THRESHOLD = 4
 
 const pet = usePetStore()
 const settings = useSettingsStore()
+// 位置はこの機械の状態 (state/ui.json5、#1333 §3)
+const uiState = useUiStateStore()
 const systemState = useSystemStateStore()
 const isCompact = useIsCompactLayout()
 const { petState, pulse } = useAiActivity()
@@ -54,11 +57,11 @@ const cellH = computed(() => Math.round(PET_FRAME_HEIGHT * scale.value))
 // bottom はモバイルナビの上端からの距離 (デスクトップではナビ高 0 = 画面下端)
 const defaultBottom = () =>
   isCompact.value ? COMPACT_DEFAULT_BOTTOM : DEFAULT_MARGIN
-const right = ref(settings.get('pet.right') ?? DEFAULT_MARGIN)
-const bottom = ref(settings.get('pet.bottom') ?? defaultBottom())
+const right = ref(uiState.get('pet.right') ?? DEFAULT_MARGIN)
+const bottom = ref(uiState.get('pet.bottom') ?? defaultBottom())
 // コードタブ・外部エディタ・別ウィンドウからの変更も位置に反映する
 watch(
-  () => [settings.get('pet.right'), settings.get('pet.bottom')] as const,
+  () => [uiState.get('pet.right'), uiState.get('pet.bottom')] as const,
   ([nextRight, nextBottom]) => {
     right.value = nextRight ?? DEFAULT_MARGIN
     bottom.value = nextBottom ?? defaultBottom()
@@ -91,7 +94,7 @@ watch(scale, clamp)
 watch(
   isCompact,
   () => {
-    if (settings.get('pet.bottom') === undefined) bottom.value = defaultBottom()
+    if (uiState.get('pet.bottom') === undefined) bottom.value = defaultBottom()
     void nextTick(clamp)
   },
   { immediate: true },
@@ -142,8 +145,8 @@ function onPointerUp() {
   dragStart = null
   if (moved) {
     dragging.value = false
-    settings.set('pet.right', right.value)
-    settings.set('pet.bottom', bottom.value)
+    uiState.set('pet.right', right.value)
+    uiState.set('pet.bottom', bottom.value)
   } else {
     // 触ると手を振る
     pulse('waving')

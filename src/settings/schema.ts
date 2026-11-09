@@ -1,6 +1,7 @@
 import JSON5 from 'json5'
 
 import { stringifyJson5 } from '@/services/json5Document'
+import { isUiStateKey } from '@/services/uiState'
 
 /**
  * settings.json の型定義。VSCode `settings.json` と同じく、トップレベルは
@@ -35,12 +36,7 @@ export interface NotedeckSettings {
   'deck.navWidth'?: number
 
   // --- UI zoom (#704) ---
-  /**
-   * webview の拡大率 (1 = 等倍)。Ctrl+± / メニューで変えた値を保存し、
-   * 全ウィンドウに当てる。許容範囲は `services/uiZoom.ts` が正本で、
-   * 範囲外の手編集は読み込み時に丸める
-   */
-  'ui.zoom'?: number
+  // `ui.zoom` はこの機械の状態 (`state/ui.json5`、`services/uiState.ts`) へ移した (#1333 §3)
 
   // --- Pet (#1080) ---
   /**
@@ -48,12 +44,7 @@ export interface NotedeckSettings {
    * 本体 (スプライト) はキャッシュ扱いで設定には入らない (`pet_store`)。
    */
   'pet.slug'?: string | null
-  /**
-   * ペットの位置 (右端からの px / 下端からの px)。下端はコンパクト時は
-   * モバイルナビの上端が基準。ドラッグで動かした値だけ保存する
-   */
-  'pet.right'?: number
-  'pet.bottom'?: number
+  // `pet.right` / `pet.bottom` (ドラッグ位置) はこの機械の状態 (`state/ui.json5`) へ移した (#1333 §3)
   /**
    * ペットの表示倍率 (元のコマ 192×208 に対する比)。既定は 0.75 (144×156)。
    * 許容範囲はアピアランス設定のスライダーが正本で、範囲外は表示時に丸める
@@ -121,11 +112,8 @@ export interface NotedeckSettings {
    * なので、記憶も per-account でないとアカウント切替時に意図しない値が適用される)。
    */
   'postForm.rememberVisibility'?: boolean
-  'postForm.lastUsedVisibilityByAccount'?: Record<
-    string,
-    'public' | 'public_non_ltl' | 'home' | 'followers' | 'specified' | 'private'
-  >
-  'postForm.lastUsedLocalOnlyByAccount'?: Record<string, boolean>
+  // `postForm.lastUsed*ByAccount` (投稿のたびに書く前回値) はこの機械の状態
+  // (`state/ui.json5`) へ移した (#1333 §3)
 
   // --- Lists ---
   /**
@@ -259,10 +247,16 @@ export function parseSettings(raw: unknown): NotedeckSettings {
     return { ...DEFAULT_SETTINGS }
   }
   const r = raw as RawSettings
-  // 分離済みキーを除去（ai.json5, keybinds.json5, performance.json5 に移行済み）
+  // 分離済みキーを除去（ai.json5, keybinds.json5, performance.json5 に移行済み。
+  // UI の状態は state/ui.json5 へ、#1333 §3）
   const cleaned: RawSettings = {}
   for (const [key, value] of Object.entries(r)) {
-    if (key === 'ai' || key === 'keybinds' || key.startsWith('performance.')) {
+    if (
+      key === 'ai' ||
+      key === 'keybinds' ||
+      key.startsWith('performance.') ||
+      isUiStateKey(key)
+    ) {
       continue
     }
     cleaned[key] = value

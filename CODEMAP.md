@@ -114,6 +114,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | `tasks` | [`src/stores/tasks.ts`](src/stores/tasks.ts) |
 | `theme` | [`src/stores/theme.ts`](src/stores/theme.ts) |
 | `ui` | [`src/stores/ui.ts`](src/stores/ui.ts) |
+| `uiState` | [`src/stores/uiState.ts`](src/stores/uiState.ts) |
 | `widgets` | [`src/stores/widgets.ts`](src/stores/widgets.ts) |
 | `windows` | [`src/stores/windows.ts`](src/stores/windows.ts) |
 
@@ -158,6 +159,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/deckLayout.ts`](src/services/deckLayout.ts) | [`src/services/deckLayout.test.ts`](src/services/deckLayout.test.ts) |
 | [`src/services/deckProfileCodec.ts`](src/services/deckProfileCodec.ts) | [`src/services/deckProfileCodec.test.ts`](src/services/deckProfileCodec.test.ts) |
 | [`src/services/deckProfileFiles.ts`](src/services/deckProfileFiles.ts) | — |
+| [`src/services/deckProfileState.ts`](src/services/deckProfileState.ts) | [`src/services/deckProfileState.test.ts`](src/services/deckProfileState.test.ts) |
 | [`src/services/defaultDeck.ts`](src/services/defaultDeck.ts) | [`src/services/defaultDeck.test.ts`](src/services/defaultDeck.test.ts) |
 | [`src/services/developerMode.ts`](src/services/developerMode.ts) | [`src/services/developerMode.test.ts`](src/services/developerMode.test.ts) |
 | [`src/services/distributable.ts`](src/services/distributable.ts) | — |
@@ -242,6 +244,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/tutorialNotifications.ts`](src/services/tutorialNotifications.ts) | [`src/services/tutorialNotifications.test.ts`](src/services/tutorialNotifications.test.ts) |
 | [`src/services/tutorialProgress.ts`](src/services/tutorialProgress.ts) | [`src/services/tutorialProgress.test.ts`](src/services/tutorialProgress.test.ts) |
 | [`src/services/twemoji.ts`](src/services/twemoji.ts) | [`src/services/twemoji.test.ts`](src/services/twemoji.test.ts) |
+| [`src/services/uiState.ts`](src/services/uiState.ts) | — |
 | [`src/services/uiZoom.ts`](src/services/uiZoom.ts) | [`src/services/uiZoom.test.ts`](src/services/uiZoom.test.ts) |
 | [`src/services/userDetailCache.ts`](src/services/userDetailCache.ts) | [`src/services/userDetailCache.test.ts`](src/services/userDetailCache.test.ts) |
 | [`src/services/userLookupResult.ts`](src/services/userLookupResult.ts) | [`src/services/userLookupResult.test.ts`](src/services/userLookupResult.test.ts) |
@@ -275,6 +278,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | `client.json5` | config | — | ✓ |
 | `connections.json` | config | ✓ | — |
 | `permissions-meta.json5` | state | — | ✓ |
+| `ui.json5` | state | — | ✓ |
 
 | サブディレクトリ | area | バックアップ | ipc |
 |---|---|---|---|
@@ -287,6 +291,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | `queries/` | config | ✓ | ✓ |
 | `memos/` | data | ✓ | ✓ |
 | `sessions/` | data | ✓ | — |
+| `deck-state/` | state | — | ✓ |
 
 ## 生成済みの一覧 (ここには写さない)
 

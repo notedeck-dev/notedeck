@@ -48,6 +48,7 @@ import { useConfirm } from '@/stores/confirm'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
+import { useUiStateStore } from '@/stores/uiState'
 import { detectAvailableTimelines } from '@/utils/customTimelines'
 import { AppError } from '@/utils/errors'
 import { commands, unwrap } from '@/utils/tauriInvoke'
@@ -82,6 +83,8 @@ export function usePostFormState(
   const memoMode = options.memoMode === true
   const accountsStore = useAccountsStore()
   const settingsStore = useSettingsStore()
+  // 前回の公開範囲はこの機械の状態 (state/ui.json5、#1333 §3)
+  const uiState = useUiStateStore()
   const themeStore = useThemeStore()
 
   const text = ref('')
@@ -453,7 +456,7 @@ export function usePostFormState(
     const isContextual =
       replyId.value || props.editNote || memoMode || channelId.value
     if (!isContextual && settingsStore.get('postForm.rememberVisibility')) {
-      const lastMap = settingsStore.get('postForm.lastUsedVisibilityByAccount')
+      const lastMap = uiState.get('postForm.lastUsedVisibilityByAccount')
       const last = lastMap?.[activeAccountId.value]
       if (
         last &&
@@ -461,9 +464,7 @@ export function usePostFormState(
       ) {
         visibility.value = last as FormVisibility
       }
-      const lastLocalMap = settingsStore.get(
-        'postForm.lastUsedLocalOnlyByAccount',
-      )
+      const lastLocalMap = uiState.get('postForm.lastUsedLocalOnlyByAccount')
       const lastLocal = lastLocalMap?.[activeAccountId.value]
       if (typeof lastLocal === 'boolean') {
         localOnly.value = lastLocal
@@ -644,15 +645,13 @@ export function usePostFormState(
       settingsStore.get('postForm.rememberVisibility')
     ) {
       const accId = activeAccountId.value
-      const prevVis =
-        settingsStore.get('postForm.lastUsedVisibilityByAccount') ?? {}
-      settingsStore.set('postForm.lastUsedVisibilityByAccount', {
+      const prevVis = uiState.get('postForm.lastUsedVisibilityByAccount') ?? {}
+      uiState.set('postForm.lastUsedVisibilityByAccount', {
         ...prevVis,
         [accId]: visibility.value,
       })
-      const prevLocal =
-        settingsStore.get('postForm.lastUsedLocalOnlyByAccount') ?? {}
-      settingsStore.set('postForm.lastUsedLocalOnlyByAccount', {
+      const prevLocal = uiState.get('postForm.lastUsedLocalOnlyByAccount') ?? {}
+      uiState.set('postForm.lastUsedLocalOnlyByAccount', {
         ...prevLocal,
         [accId]: localOnly.value,
       })

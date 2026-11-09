@@ -27,6 +27,15 @@ const accountsState: { accounts: Account[] } = { accounts: [] }
 vi.mock('@/stores/accounts', () => ({
   useAccountsStore: () => accountsState,
 }))
+vi.mock('@/stores/uiState', () => ({
+  useUiStateStore: () => ({
+    get: (key: string) => settingsData[key],
+    set: (key: string, value: unknown) => {
+      settingsData[key] = value
+      settingsSetMock(key, value)
+    },
+  }),
+}))
 vi.mock('@/stores/settings', () => ({
   useSettingsStore: () => ({
     get: (key: string) => settingsData[key],

@@ -5,7 +5,18 @@ import { migrateWidgetColumns } from '@/services/deckProfileCodec'
 import {
   createProfileFiles,
   drainProfileLoadByproducts,
+  serializeProfileConfig,
 } from '@/services/deckProfileFiles'
+import {
+  allocateStateFileName,
+  DECK_STATE_EXT,
+  type DeckProfileState,
+  isEmptyState,
+  mergeProfileState,
+  parseDeckProfileState,
+  serializeDeckProfileState,
+  splitProfile,
+} from '@/services/deckProfileState'
 import type { WidgetItem } from '@/services/distributableCodecs/widgetCodec'
 import { migrateSearchColumns } from '@/services/searchFilter'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
@@ -30,6 +41,105 @@ import { notifyWarningToast } from '@/utils/toastNotify'
 import { isRepresentativeNow } from '@/windows/roles'
 
 const profileFiles = createProfileFiles(notifyWarningToast)
+
+// --- この機械の状態 `state/deck/<id>.json5` (#1333 §3) ---
+//
+// 窓の配置 (`windows[]`) とカラムの一時入力 (`windowId` / `aiCurrentSessionId` /
+// `query` / `mfmText` / `aiscriptCode` / `aiInitialInput`) は設定 (profiles/) と
+// 別のファイルに置く。メモリ上のプロファイルは両方を重ねた形で、保存は変わった側
+// だけ書く (窓を動かすたびに設定側を書かない)
+
+/** 状態ファイル名 → プロファイル id */
+const stateFiles = new Map<string, string>()
+/** 最後に書いた (読んだ) 本文。同じなら書かない */
+const lastWritten = new Map<string, { config: string; state: string }>()
+
+function noteWritten(id: string, part: 'config' | 'state', text: string) {
+  const prev = lastWritten.get(id) ?? { config: '', state: '' }
+  lastWritten.set(id, { ...prev, [part]: text })
+}
+
+function stateFileNameOf(id: string): string | undefined {
+  for (const [name, owner] of stateFiles) if (owner === id) return name
+  return undefined
+}
+
+/** state/deck/ を全部読む (id → 状態)。同じ id は先勝ち */
+async function loadStateFiles(): Promise<Map<string, DeckProfileState>> {
+  const byId = new Map<string, DeckProfileState>()
+  stateFiles.clear()
+  const names = (await settingsFs.listDeckStateFiles())
+    .filter((n) => n.endsWith(DECK_STATE_EXT))
+    .sort()
+  for (const name of names) {
+    try {
+      const text = await settingsFs.readDeckState(name)
+      const st = parseDeckProfileState(text)
+      if (!st) continue
+      if (byId.has(st.id)) {
+        console.warn(
+          `[deckProfile] duplicate state for "${st.id}" in ${name} — skipped`,
+        )
+        continue
+      }
+      byId.set(st.id, st)
+      stateFiles.set(name, st.id)
+      noteWritten(st.id, 'state', text)
+    } catch (e) {
+      console.warn(`[deckProfile] failed to read ${name}:`, e)
+    }
+  }
+  return byId
+}
+
+async function readStateFor(id: string): Promise<DeckProfileState | undefined> {
+  const name = stateFileNameOf(id)
+  if (!name) return undefined
+  try {
+    return (
+      parseDeckProfileState(await settingsFs.readDeckState(name)) ?? undefined
+    )
+  } catch {
+    return undefined
+  }
+}
+
+/** 設定側が変わっていれば profiles/ へ書く */
+async function persistConfigIfChanged(
+  live: DeckProfile,
+  all: readonly DeckProfile[],
+): Promise<void> {
+  const text = serializeProfileConfig(live)
+  if (lastWritten.get(live.id)?.config === text) return
+  await profileFiles.persistItem(live, all)
+  noteWritten(live.id, 'config', text)
+}
+
+/** 状態側が変わっていれば state/deck/ へ書く (空なら消す) */
+async function persistStateIfChanged(live: DeckProfile): Promise<void> {
+  const { state } = splitProfile(live)
+  const text = isEmptyState(state) ? '' : serializeDeckProfileState(state)
+  if (lastWritten.get(live.id)?.state === text) return
+  const name = allocateStateFileName(live.id, stateFiles)
+  if (text === '') {
+    if (stateFiles.has(name)) {
+      await settingsFs.deleteDeckState(name)
+      stateFiles.delete(name)
+    }
+  } else {
+    await settingsFs.writeDeckState(name, text)
+    stateFiles.set(name, live.id)
+  }
+  noteWritten(live.id, 'state', text)
+}
+
+async function deleteStateFor(id: string): Promise<void> {
+  const name = stateFileNameOf(id)
+  lastWritten.delete(id)
+  if (!name) return
+  stateFiles.delete(name)
+  await settingsFs.deleteDeckState(name)
+}
 
 /** Deep-clone reactive state into a plain object safe for serialization.
  *  structuredClone strips Vue Proxy wrappers without the overhead of
@@ -199,7 +309,8 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
         // 直近の状態を参照する (別ウィンドウの変更通知でオブジェクトが入れ替わる)
         const live = profilesData.value.find((p) => p.id === profileId)
         if (!live) return // 既に削除された
-        await profileFiles.persistItem(live, profilesData.value)
+        await persistConfigIfChanged(live, profilesData.value)
+        await persistStateIfChanged(live)
         profileVersion.value++
       })
       .catch((e) => console.warn('[deckProfile] failed to persist profile:', e))
@@ -211,7 +322,8 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     void ready
       .then(async () => {
         for (const p of profilesData.value) {
-          await profileFiles.persistItem(p, profilesData.value)
+          await persistConfigIfChanged(p, profilesData.value)
+          await persistStateIfChanged(p)
         }
         profileVersion.value++
       })
@@ -256,13 +368,20 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       if (!removed) return
       profilesData.value = profilesData.value.filter((p) => p !== removed)
     } else {
-      const next = await profileFiles.loadOne(change.name)
+      const loaded = await profileFiles.loadOne(change.name)
       // widget 抽出などの副産物は書いた側が処理済み。ここでは捨てる
       drainProfileLoadByproducts()
-      if (!next) return
+      if (!loaded) return
       const prev = profilesData.value.find(
-        (p) => p.id === next.id || p.fileBase === fileBase,
+        (p) => p.id === loaded.id || p.fileBase === fileBase,
       )
+      // 設定側だけが届いたので、この機械の状態 (窓の配置 / 一時入力) を重ね直す。
+      // 状態ファイルが無ければ今の写しの状態を保つ
+      noteWritten(loaded.id, 'config', serializeProfileConfig(loaded))
+      const state =
+        (await readStateFor(loaded.id)) ??
+        (prev ? splitProfile(prev).state : undefined)
+      const next = mergeProfileState(loaded, state)
       profilesData.value = prev
         ? profilesData.value.map((p) => (p === prev ? next : p))
         : [...profilesData.value, next]
@@ -277,6 +396,32 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       windowProfileId.value = activeProfileId.value
     }
     refreshProfileName()
+  })
+
+  // 別のウィンドウが状態 (窓の配置 / 一時入力) を書いた → 該当プロファイルに重ね直す
+  registerSettingsFileHandler('deck-state', async (change) => {
+    if (!change.name.endsWith(DECK_STATE_EXT)) return
+    await ready
+    if (change.op === 'delete') {
+      stateFiles.delete(change.name)
+      return
+    }
+    let text: string
+    try {
+      text = await settingsFs.readDeckState(change.name)
+    } catch (e) {
+      console.warn('[deckProfile] failed to read the deck state:', e)
+      return
+    }
+    const state = parseDeckProfileState(text)
+    if (!state) return
+    stateFiles.set(change.name, state.id)
+    noteWritten(state.id, 'state', text)
+    const prev = profilesData.value.find((p) => p.id === state.id)
+    if (!prev) return
+    const next = mergeProfileState(splitProfile(prev).config, state)
+    profilesData.value = profilesData.value.map((p) => (p === prev ? next : p))
+    profileVersion.value++
   })
 
   // --- Internal helpers ---
@@ -464,7 +609,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
     if (removed && settingsFs.isTauri && !fileLoadFailed) {
       void ready
-        .then(() => profileFiles.deleteItemFiles(removed))
+        .then(async () => {
+          await profileFiles.deleteItemFiles(removed)
+          await deleteStateFor(removed.id)
+        })
         .catch((e) => console.warn('[deckProfile] failed to delete file:', e))
     }
 
@@ -561,7 +709,17 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
   async function preloadFiles(): Promise<void> {
     if (!settingsFs.isTauri) return
     try {
-      const { items } = await profileFiles.loadAll()
+      const { items: loaded } = await profileFiles.loadAll()
+      const states = await loadStateFiles()
+      // 状態ファイルがあれば重ねる (設定側に残った旧形の一時入力より優先)。
+      // 設定側の本文を覚えておき、変わっていなければ書き直さない
+      const items = loaded.map((item) => {
+        noteWritten(item.id, 'config', serializeProfileConfig(item))
+        return mergeProfileState(
+          states.has(item.id) ? splitProfile(item).config : item,
+          states.get(item.id),
+        )
+      })
       const byproducts = drainProfileLoadByproducts()
       pendingConsoleMigrationCount += byproducts.droppedConsoleCount
       if (byproducts.migratedSearchColumns > 0) {
@@ -642,6 +800,8 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       // 不変なので、activeProfileId / `?profile=` はファイル名が変わっても
       // 無追随で整合する
       await profileFiles.migrateItems(profilesData.value)
+      // 旧形 (状態が設定側に同居) を分ける / 持ち主の無い状態ファイルを消す (#1333 §3)
+      await splitInlineStateAndSweep()
     }
     // このウィンドウの表示対象 (`?profile=`) が無ければアクティブへ退避する
     if (
@@ -665,6 +825,25 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
       pendingWidgetExtractionDirty = false
       pendingSearchMigrationDirty = false
       persistAllProfilesToFiles()
+    }
+  }
+
+  async function splitInlineStateAndSweep(): Promise<void> {
+    try {
+      for (const p of profilesData.value) {
+        if (isEmptyState(splitProfile(p).state) || stateFileNameOf(p.id))
+          continue
+        await persistStateIfChanged(p)
+        await persistConfigIfChanged(p, profilesData.value)
+      }
+      const ids = new Set(profilesData.value.map((p) => p.id))
+      for (const [name, id] of [...stateFiles]) {
+        if (ids.has(id)) continue
+        stateFiles.delete(name)
+        await settingsFs.deleteDeckState(name)
+      }
+    } catch (e) {
+      console.warn('[deckProfile] failed to split the deck state:', e)
     }
   }
 

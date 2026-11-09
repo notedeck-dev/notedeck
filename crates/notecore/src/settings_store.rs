@@ -47,6 +47,8 @@ impl Area {
 pub struct Subdir {
     pub name: &'static str,
     pub area: Area,
+    /// 領域の中の物理ディレクトリ名 (論理名と違うときだけ別の値)
+    pub dir: &'static str,
     pub backup: bool,
     pub ipc: bool,
 }
@@ -55,6 +57,7 @@ const fn config_dir(name: &'static str) -> Subdir {
     Subdir {
         name,
         area: Area::Config,
+        dir: name,
         backup: true,
         ipc: true,
     }
@@ -73,6 +76,7 @@ pub const SUBDIRS: &[Subdir] = &[
     Subdir {
         name: "memos",
         area: Area::Data,
+        dir: "memos",
         backup: true,
         ipc: true,
     },
@@ -81,8 +85,19 @@ pub const SUBDIRS: &[Subdir] = &[
     Subdir {
         name: "sessions",
         area: Area::Data,
+        dir: "sessions",
         backup: true,
         ipc: false,
+    },
+    // デッキプロファイルの、この機械の状態 (#1333 §3): 窓の配置 (`windows[]`) と
+    // カラムの一時入力 (`windowId` / `aiCurrentSessionId` / `query` / `mfmText` /
+    // `aiscriptCode` / `aiInitialInput`)。`state/deck/<profile id>.json5`
+    Subdir {
+        name: "deck-state",
+        area: Area::State,
+        dir: "deck",
+        backup: false,
+        ipc: true,
     },
 ];
 
@@ -165,6 +180,14 @@ pub const ROOT_FILES: &[RootFile] = &[
         backup: false,
         ipc: true,
     },
+    // この機械の UI の状態 (#1333 §3): ペットの位置 / ズーム / 投稿フォームの前回値。
+    // 窓を動かすたび・投稿のたびに変わる値は設定 (settings.json5) に書かない
+    RootFile {
+        name: "ui.json5",
+        area: Area::State,
+        backup: false,
+        ipc: true,
+    },
 ];
 
 /// Vault の接続一覧のファイル名 (`vault::connections_store` と共有)
@@ -222,7 +245,7 @@ pub fn validate_ipc_root_file(name: &str) -> Result<&'static RootFile> {
 /// 論理 subdir の物理ディレクトリ
 pub fn subdir_path(layout: &Layout, name: &str) -> Result<PathBuf> {
     let s = validate_subdir(name)?;
-    Ok(s.area.dir(layout).join(s.name))
+    Ok(s.area.dir(layout).join(s.dir))
 }
 
 /// Validate a filename to prevent path traversal.
@@ -1237,6 +1260,17 @@ mod tests {
         assert!(validate_subdir("queries").is_ok());
         // memos は settingsFs にラッパーがあるので漏れを防ぐ
         assert!(validate_subdir("memos").is_ok());
+        // デッキの状態 (#1333 §3) は state/deck/ に置く
+        assert!(validate_subdir("deck-state").is_ok());
+        let l = Layout::from_root(std::path::Path::new("/r"));
+        assert_eq!(
+            subdir_path(&l, "deck-state").unwrap(),
+            std::path::Path::new("/r/state/deck")
+        );
+        assert_eq!(
+            resolve_root_file(&l, "ui.json5").unwrap(),
+            std::path::Path::new("/r/state/ui.json5")
+        );
     }
 
     #[test]

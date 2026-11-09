@@ -113,7 +113,7 @@ function settingsFiles() {
   const subdirBody = src.match(/pub const SUBDIRS[^=]*=\s*&\[([\s\S]*?)\n\];/)[1]
   const subdirs = []
   for (const m of subdirBody.matchAll(
-    /config_dir\("([^"]+)"\)|name:\s*"([^"]+)",\s*area:\s*Area::(\w+),\s*backup:\s*(\w+),\s*ipc:\s*(\w+)/g,
+    /config_dir\("([^"]+)"\)|name:\s*"([^"]+)",\s*area:\s*Area::(\w+),\s*dir:\s*"[^"]*",\s*backup:\s*(\w+),\s*ipc:\s*(\w+)/g,
   )) {
     if (m[1]) subdirs.push(`| ${code(`${m[1]}/`)} | config | ✓ | ✓ |`)
     else subdirs.push(`| ${code(`${m[2]}/`)} | ${m[3].toLowerCase()} | ${mark(m[4])} | ${mark(m[5])} |`)

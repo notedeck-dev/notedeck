@@ -39,6 +39,7 @@ import {
   parseTutorialProgress,
   serializeTutorialProgress,
 } from '@/services/tutorialProgress'
+import { parseUiState, serializeUiState } from '@/services/uiState'
 import { parseSettingsText, serializeSettings } from '@/settings/schema'
 import { parseTasks, serializeTasks } from '@/tasks/schema'
 
@@ -135,6 +136,14 @@ const CODECS: Record<string, Codec> = {
     parse: parseClientConfig,
     serialize: (v) => serializeClientConfig(v as never),
     samples: ['', "{ backend: 'resident' }"],
+  },
+  'ui.json5': {
+    parse: parseUiState,
+    serialize: (v) => serializeUiState(v as never),
+    samples: [
+      '',
+      "{ 'pet.bottom': 40, 'ui.zoom': 1.25, 'postForm.lastUsedVisibilityByAccount': { a: 'home' }, unknown: 1 }",
+    ],
   },
 }
 

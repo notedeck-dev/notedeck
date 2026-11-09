@@ -49,7 +49,11 @@ export const SETTINGS_FS_SOURCE_ID = `${Date.now()}-${Math.random().toString(36)
  * 自分の sourceId を捨てて残りを notecore 発と同じ配線表に配る。これが
  * ウィンドウ間同期の唯一の経路で、localStorage のミラーはもう使わない
  */
-function announce(subdir: string, name: string, op: SettingsChange['op']) {
+function announce(
+  subdir: string | null,
+  name: string,
+  op: SettingsChange['op'],
+) {
   emitTauri('nd:settings-file-written', {
     sourceId: SETTINGS_FS_SOURCE_ID,
     change: { subdir, name, op },
@@ -175,6 +179,42 @@ export async function renameProfile(
   newFilename: string,
 ): Promise<void> {
   return renameSettingsFile(PROFILES_DIR, oldFilename, newFilename)
+}
+
+// --- この機械の状態 (#1333 §3) ---
+
+/** デッキプロファイルの状態 `state/deck/` (論理 subdir `deck-state`) */
+const DECK_STATE_DIR = 'deck-state'
+
+export async function listDeckStateFiles(): Promise<string[]> {
+  return listSettingsFiles(DECK_STATE_DIR)
+}
+
+export async function readDeckState(filename: string): Promise<string> {
+  return readSettingsFile(DECK_STATE_DIR, filename)
+}
+
+export async function writeDeckState(
+  filename: string,
+  content: string,
+): Promise<void> {
+  return writeSettingsFile(DECK_STATE_DIR, filename, content)
+}
+
+export async function deleteDeckState(filename: string): Promise<void> {
+  return deleteSettingsFile(DECK_STATE_DIR, filename)
+}
+
+/** UI の状態 `state/ui.json5`。root 配下だが、状態は窓間で揃えるので書込を知らせる */
+const UI_STATE_FILE = 'ui.json5'
+
+export async function readUiState(): Promise<string> {
+  return readRootSettingsFile(UI_STATE_FILE)
+}
+
+export async function writeUiState(content: string): Promise<void> {
+  await writeRootSettingsFile(UI_STATE_FILE, content)
+  announce(null, UI_STATE_FILE, 'write')
 }
 
 // --- Root-level file operations ---

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** インメモリ疑似 FS (profiles/ ディレクトリ相当)。 */
 const files = new Map<string, string>()
+const stateFiles = new Map<string, string>()
 /** true の間は一覧の取得が失敗する (読み込みごと失敗する状況の再現) */
 let listFails = false
 
@@ -49,6 +50,19 @@ vi.mock('@/utils/settingsFs', () => ({
     files.set(b, files.get(a) as string)
     files.delete(a)
   },
+  // この機械の状態 (state/deck/、#1333 §3)
+  listDeckStateFiles: async () => Array.from(stateFiles.keys()),
+  readDeckState: async (f: string) => {
+    const c = stateFiles.get(f)
+    if (c === undefined) throw new Error(`not found: ${f}`)
+    return c
+  },
+  writeDeckState: async (f: string, c: string) => {
+    stateFiles.set(f, c)
+  },
+  deleteDeckState: async (f: string) => {
+    stateFiles.delete(f)
+  },
 }))
 
 import { dispatchSettingsChange } from '@/services/settingsFileSync'
@@ -80,6 +94,7 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     files.clear()
+    stateFiles.clear()
     listFails = false
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   })
@@ -260,6 +275,90 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     expect(files.get(`main${EXT}`)).not.toContain('fileBase')
   })
 
+  it('窓の配置と一時入力は state/deck/ に書き、設定側 (profiles/) は変わらない (#1333 §3)', async () => {
+    files.set(
+      `main${EXT}`,
+      profileFile({
+        id: 'm',
+        name: 'メイン',
+        columns: [{ id: 'c1', type: 'home', width: 320 }],
+        layout: [['c1']],
+        createdAt: 1,
+      }),
+    )
+    const store = await initStore()
+    store.initWindowProfile('m')
+    const before = files.get(`main${EXT}`)
+    // 窓を動かす・検索語を入れる → 状態だけ
+    store.saveWindowLayout({ id: 'w1', x: 1, y: 2, width: 300, height: 400 })
+    store.flushPersist()
+    await vi.waitFor(() => {
+      expect(stateFiles.get('m.json5')).toContain('w1')
+    })
+    expect(files.get(`main${EXT}`)).toBe(before)
+    expect(stateFiles.get('m.json5')).toContain("id: 'm'")
+    // 設定側を変えると profiles/ が書かれ、そこに状態は混ざらない
+    store.setColumns([
+      {
+        id: 'c1',
+        type: 'home',
+        width: 320,
+        windowId: 'w1',
+        query: 'cats',
+      } as unknown as DeckColumn,
+    ])
+    store.flushPersist()
+    await vi.waitFor(() => {
+      expect(stateFiles.get('m.json5')).toContain('cats')
+    })
+    expect(files.get(`main${EXT}`)).toBe(before)
+    store.setColumns([
+      {
+        id: 'c1',
+        type: 'home',
+        width: 400,
+        windowId: 'w1',
+        query: 'cats',
+      } as unknown as DeckColumn,
+    ])
+    store.flushPersist()
+    await vi.waitFor(() => {
+      expect(files.get(`main${EXT}`)).toContain('width: 400')
+    })
+    expect(files.get(`main${EXT}`)).not.toContain('windowId')
+    expect(files.get(`main${EXT}`)).not.toContain('cats')
+    expect(files.get(`main${EXT}`)).not.toContain('windows')
+    // メモリ上は重なったまま
+    expect(store.getProfiles()[0]?.columns[0]?.windowId).toBe('w1')
+    expect(store.getProfiles()[0]?.windows?.[0]?.id).toBe('w1')
+  })
+
+  it('旧形 (状態が設定側に同居) は読める。状態ファイルがあればそちらが勝つ', async () => {
+    files.set(
+      `main${EXT}`,
+      profileFile({
+        id: 'm',
+        name: 'メイン',
+        columns: [{ id: 'c1', type: 'home', width: 320, windowId: 'old' }],
+        layout: [['c1']],
+        createdAt: 1,
+        windows: [{ id: 'old', x: 0, y: 0, width: 1, height: 1 }],
+      }),
+    )
+    const store = await initStore()
+    expect(store.getProfiles()[0]?.columns[0]?.windowId).toBe('old')
+    expect(store.getProfiles()[0]?.windows?.[0]?.id).toBe('old')
+
+    setActivePinia(createPinia())
+    stateFiles.set(
+      'm.json5',
+      "{ id: 'm', windows: [{ id: 'new', x: 0, y: 0, width: 1, height: 1 }], columns: { c1: { windowId: 'new' } } }\n",
+    )
+    const store2 = await initStore()
+    expect(store2.getProfiles()[0]?.columns[0]?.windowId).toBe('new')
+    expect(store2.getProfiles()[0]?.windows?.[0]?.id).toBe('new')
+  })
+
   it('別ウィンドウのリネーム通知で対応表を揃え、保存が新しいファイル名へ届く', async () => {
     files.set(
       `main${EXT}`,
@@ -385,6 +484,7 @@ describe('useDeckProfileStore — 読み込みに失敗したとき', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     files.clear()
+    stateFiles.clear()
     listFails = false
     vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   })

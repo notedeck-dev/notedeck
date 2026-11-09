@@ -11,14 +11,17 @@
  * - 不正値や IO エラーは defaults にフォールバック (起動不能を避ける)
  */
 
+import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
+import { pickUiState } from '@/services/uiState'
 import {
   DEFAULT_SETTINGS,
   type NotedeckSettings,
   parseSettingsText,
   serializeSettings,
 } from '@/settings/schema'
+import { useUiStateStore } from '@/stores/uiState'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri } from '@/utils/settingsFs'
 import { emitTauri, listenTauri } from '@/utils/tauriEvents'
@@ -83,6 +86,10 @@ export const useSettingsStore = defineStore('settings', () => {
       )
       settings.value = fromRaw(raw)
       version = v
+      // 旧 settings.json5 に残っている UI の状態を state/ui.json5 へ一度だけ持ち越す
+      // (#1333 §3)。parseSettings はもう剥がしているので、次の書込で設定側から消える。
+      // 初回の書込 (initDeveloperMode 等) より前に済ませる
+      await carryOverUiState(raw)
     } catch (e) {
       console.warn(
         '[settings] failed to load settings.json5, using defaults:',
@@ -151,6 +158,23 @@ export const useSettingsStore = defineStore('settings', () => {
   const dirtyKeys = new Set<keyof NotedeckSettings>()
 
   const fromRaw = parseSettingsText
+
+  async function carryOverUiState(raw: string): Promise<void> {
+    if (raw.length === 0) return
+    let parsed: unknown
+    try {
+      parsed = JSON5.parse(raw)
+    } catch {
+      return
+    }
+    const legacy = pickUiState(parsed)
+    if (Object.keys(legacy).length === 0) return
+    try {
+      await useUiStateStore().carryOver(legacy)
+    } catch (e) {
+      console.warn('[settings] failed to carry over the UI state:', e)
+    }
+  }
 
   const serialize = serializeSettings
 
