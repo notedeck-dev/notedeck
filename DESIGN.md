@@ -192,7 +192,14 @@ NoteDeck はユーザーのデータ主権を尊重する。ユーザーが意�
 ```
 appDataDir/
 ├── notecli.db          # SQLite（アカウント/サーバー情報・ノートキャッシュ）
-└── notedeck/
+├── state/              # この機械の状態（#1333）。同期・バックアップの対象外
+│   ├── ui.json5                # ペットの位置 / ズーム / 投稿フォームの前回値
+│   ├── deck/<profile id>.json5 # 窓の配置（windows[]）とカラムの一時入力（windowId / query / …）
+│   ├── connections-meta.json   # 接続の同意（開示・信頼・loopback）/ 鍵の有無 / 時刻
+│   ├── permissions-meta.json5  # 「今後確認しない」の記憶と前回起動時の実効権限の写し
+│   └── loopback-consent.json   # プラグインの loopback 同意（#1293）
+└── notedeck/           # 設定（持ち出す単位。Git / dotfiles マネージャで管理できる）
+    ├── .gitignore          # 雛形（無ければ書く。設定ではないものを除外、#1333）
     ├── settings.json5      # スカラー preferences（後述）
     ├── locale.json5        # 表示言語（端末ごとの値なので settings.json5 と分ける、#135）
     ├── keybinds.json5      # キーバインド
@@ -201,11 +208,11 @@ appDataDir/
     ├── postform.json5      # 投稿フォーム構成
     ├── ai.json5            # AI 設定（使用する Vault 接続とモデル名。キー本体は持たない）
     ├── tasks.json5         # タスク定義
-    ├── permissions.json5   # principal 別の認可（#712）
+    ├── permissions.json5   # principal 別の認可の方針（#712。確認の結果は state/ 側）
     ├── custom.css          # カスタム CSS
     ├── tutorial.json5      # チュートリアルの達成記録と独自実績（#1029）
     ├── client.json5        # この端末の構成（notemaid の起動方法、#1106。バックアップ対象外）
-    ├── connections.json    # Secret Vault の接続メタデータ（Rust が source of truth。バックアップ対象外）
+    ├── connections.json    # Secret Vault の接続の定義（Rust が source of truth。同意と鍵の有無は state/ 側）
     ├── profiles/           # *.ndprofile.json5
     ├── theme-dropins.json5 # themes/ の素の .json5 を取り込んだ記録（元ファイル名 → 採用 ID）
     ├── themes/             # *.ndtheme.json5（素の *.json5 は起動時に一回きりコピーして採用）
@@ -219,7 +226,9 @@ appDataDir/
     └── notemaid/           # AI の人格と記憶（SOUL.md / USER.md / MEMORY.md / BOOTSTRAP.md、#1162）
 ```
 
-いずれもテキストエディタで直接編集でき、アプリ内の対応する編集ウィンドウからも編集できる。許可されるサブディレクトリ名とルートファイル名は `crates/notecore/src/settings_store.rs` の allowlist が正本で、設定バックアップの対象もここで決まる (`ROOT_FILES` は `backup: true` のものだけ)。例外が 2 つある。`connections.json` は Vault の持ち物で allowlist に載らない。`notemaid/` は汎用の読み書きが allowlist だけで通り上限・承認・汚染の規則を素通りするので allowlist に足さず、バックアップは SOUL / USER / MEMORY を名指しで含める (詳細は DEVELOPMENT.md の「AI の人格と記憶」)。
+いずれもテキストエディタで直接編集でき、アプリ内の対応する編集ウィンドウからも編集できる。許可されるサブディレクトリ名とルートファイル名は `crates/notecore/src/settings_store.rs` の allowlist が正本で、設定バックアップの対象もここで決まる (`backup: true` のものだけ)。各エントリは置き場 (`area`: 設定 / 人の記録 / この機械の状態。物理的な場所は `app_dir.rs` の `Layout` が決める) と、汎用の読み書きで触れるか (`ipc`) を持つ。`connections.json` は allowlist に載るが `ipc: false` で、変更口は Vault のコマンドだけ。`notemaid/` は汎用の読み書きが allowlist だけで通り上限・承認・汚染の規則を素通りするので allowlist に足さず、バックアップは SOUL / USER / MEMORY を名指しで含める (詳細は DEVELOPMENT.md の「AI の人格と記憶」)。ドットで始まるエントリ (`.git` / `.gitignore` / 書込中の一時ファイル) は allowlist・汎用の読み書き・バックアップのすべてで無視する。
+
+**設定と状態の境界 (#1333)**: 「別の機械で消えたら驚くか」で引く。消えて驚くもの (カラム幅、ナビバー幅、いつも使うモデル) は設定で `notedeck/` に、その機械でその時に許した事実 (同意、鍵の有無、確認スキップ) とその機械の見え方 (窓の位置、ズーム、ペットの位置、投稿フォームの前回値) は状態で `state/` に置く。設定ファイルの書込は決定的 (同じ内容を読んで書けば同じバイト列。`src/services/json5Document.ts` と `json5_out::stringify` が整形の正本) で、読んだだけでは書かない。コメントは保持しない — アプリが再保存するとコメントは消える (JSON5 を AST で編集する実装は大きいので採らない)。
 
 **appDataDir の場所:**
 
@@ -270,7 +279,7 @@ NoteDeck のスカラー設定 (選択・トグル・ユーザー preferences) �
 | `keybinds.json5` / `performance.json5` / `navbar.json5` / `postform.json5` / `tasks.json5` / `ai.json5` | スカラーではなく構造を持つ定義。それぞれ専用の編集ウィンドウがあり、単体でエクスポート・共有できる |
 | `permissions.json5` | principal 別の認可 (#712)。capability から書き換えられない場所に隔離する必要がある |
 | `custom.css` | CSS は JSON ではない。テキストエディタで直接編集 |
-| `connections.json` | Secret Vault のメタデータ。Rust が source of truth |
+| `connections.json` | Secret Vault の接続の定義。Rust が source of truth。同意 / 鍵の有無 / 時刻は `state/connections-meta.json` (#1333) |
 | アカウント情報・トークン | `notecli.db` と OS キーチェーン |
 
 **設計原則の背景**: VSCode の `settings.json` は「設定全体」ではなく**スカラー preferences/toggles/selections** の集合。テーマ本体は extension フォルダに、keybindings は `keybindings.json` に、snippets は `.vscode/snippets/` に別置き。NoteDeck もこの構造に倣い、構造を持つ定義と Misskey 互換性が要件となる部分 (themes/plugins) は別ファイルのまま残す。
@@ -375,6 +384,14 @@ NoteDeck のデータは大きく2種類に分かれる:
 1. **ディレクトリコピー** — `appDataDir/` 以下をそのままコピー（最も確実）
 2. **個別ファイル編集** — テキストエディタで JSON5/CSS を直接編集し、再起動で反映
 
+### 設定フォルダを Git / dotfiles マネージャで管理する (#1333)
+
+`notedeck/` はそのまま `git init` して管理できる。起動時に `.gitignore` の雛形を (無ければ) 置き、設定ではないもの (編集履歴のサイドカー、この機械の記録、AI セッションとメモ、人格と記憶、一時ファイル) を除外する。状態は `state/` に分かれていて `notedeck/` には無い。
+
+- **設定ファイルは「持ち出す単位」であって「公開してよい」ではない。** アカウントの紐付け (`user@host`、監視対象の ID)、外部サービスの URL、実行されるコード (plugins / widgets / skills)、権限の方針が入る。公開リポジトリに置かない
+- **`git pull` や外部エディタでの変更はアプリと常駐 notemaid を閉じてから。** 設定ファイルの外部変更を拾う watcher は無く、開いたまま pull すると次の操作で写しが書き戻して pull 分が消える (HEARTBEAT の `ai.json5` 書き戻しも同じ)。watcher は後続
+- **別の機械で clone して起動したとき**: 接続は定義だけが立ち、鍵と同意は無い (使おうとした時に設定画面が求める)。カラムとアカウントの結び付けは `account: user@host` でその機械のアカウントに再結合する (#1332)
+
 ### 端末間同期（シンボリックリンク方式）
 
 アプリ側にカスタムディレクトリ設定は実装しない。ユーザーがシンボリックリンクで保存先をクラウドストレージに向ける:
@@ -395,7 +412,7 @@ ln -s ~/Dropbox/notedeck/profiles ~/.local/share/com.notedeck.desktop/notedeck/p
 設定の保存先が変わったときは、旧レイアウトを起動時に自動で引き継ぐ。
 
 - **localStorage → ファイル**: 起動時にファイルが 0 件かつ localStorage にデータがあれば、テキストファイルとして書き出す。以降はファイルが source of truth (localStorage はキャッシュとして残す)
-- **ファイル配置・拡張子の変更**: `run_fs()` (`crates/notecore/src/migrations.rs`) が DB を開く前に実行する。設定ファイルの `notedeck/` サブディレクトリへの移動、`.json` → `.json5` へのリネーム等
+- **ファイル配置・拡張子の変更**: `run_fs()` (`crates/notecore/src/migrations.rs`) が DB を開く前に実行する。設定ファイルの `notedeck/` サブディレクトリへの移動、`.json` → `.json5` へのリネーム、loopback 同意の `state/` への移動等。設定に同居していた状態 (接続の同意、確認スキップ、プロファイルの窓の配置) は、それぞれの読み手が最初の読込で `state/` へ分ける (#1333)
 - **DB トークン → OS キーチェーン**: `run_db()` が DB 初期化後に実行する
 
 各マイグレーションは前提条件を自分で確認する冪等な関数として書き、`run_fs()` / `run_db()` の末尾に追加する。再実行しても壊れないことが要件。

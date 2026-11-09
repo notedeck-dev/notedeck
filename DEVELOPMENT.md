@@ -715,10 +715,10 @@ Profile B ──→ デッキ窓（プロファイル切り替え時）
 | ウィンドウ | 保存先 | 復元 | 内容 |
 |---|---|---|---|
 | **main** | `tauri-plugin-window-state`（Rust 側、ラベル → ジオメトリのグローバル map。`src-tauri/src/lib.rs`） | 初回描画前。クラッシュやトレイからの Quit でも保存される | サイズ・位置・最大化・フルスクリーン。可視状態は除外（close → トレイ hide → Quit で不可視が保存されると次回起動が見えなくなる）、装飾も除外（`decorations: false` 固定） |
-| **デッキ派生**（カラムのポップアウト。`?profile=&window=<id>`） | プロファイル内の `windows[]`（per-profile。Rust が子窓の Moved / Resized を論理 px で記録し、debounce して親の窓に `ChildGeometry` で届ける。親が `saveWindowLayout` でプロファイルに書く。#1131） | プロファイル適用時に、カラムが割り当てられているものだけ開き直す。保存モニタが無ければ primary の中央、はみ出していれば境界に clamp | 位置・サイズ・モニタ名。最大化状態は持たない（現状） |
+| **デッキ派生**（カラムのポップアウト。`?profile=&window=<id>`） | プロファイルの状態 `state/deck/<profile id>.json5` の `windows[]`（per-profile。Rust が子窓の Moved / Resized を論理 px で記録し、debounce して親の窓に `ChildGeometry` で届ける。親が `saveWindowLayout` でプロファイルに書き、保存時に設定側と分ける。#1131 / #1333） | プロファイル適用時に、カラムが割り当てられているものだけ開き直す。保存モニタが無ければ primary の中央、はみ出していれば境界に clamp | 位置・サイズ・モニタ名。最大化状態は持たない（現状） |
 | **ミラー**（`?profile=` のみ、windowId なし）/ **PiP**（`pip-<時刻>-<連番>`） | 非永続 | 都度、既定サイズで開く | — |
 
-- **Rust プラグインに寄せない理由**: 派生ウィンドウのジオメトリはプロファイル切替でウィンドウ構成ごと復元される per-profile データで、プラグインのグローバル map にはプロファイルを載せる場所がない。どのウィンドウを作るかはアプリロジックなので、生成時にジオメトリを渡す現行の形が最も atomic。プロファイルは持ち出せる単位なので、ジオメトリだけ別ファイルに分けるとバックアップ・エクスポートの整合が壊れる
+- **Rust プラグインに寄せない理由**: 派生ウィンドウのジオメトリはプロファイル切替でウィンドウ構成ごと復元される per-profile データで、プラグインのグローバル map にはプロファイルを載せる場所がない。どのウィンドウを作るかはアプリロジックなので、生成時にジオメトリを渡す現行の形が最も atomic。ジオメトリはこの機械の状態なので持ち出す単位 (プロファイル) には書かず、`state/deck/` に対の `columns[].windowId` と一緒に置く (片方だけ動かすとポップアウトカラムが復元不能扱いになる。#1333 §3)。メモリ上のプロファイルは両方を重ねた形で、保存は変わった側だけ書く
 - **フロント側に寄せない理由**: 描画前の復元とクラッシュ時・トレイ Quit 時の保存は Rust 側でフックしているから成立している。フロントに移すと復元は JS ブート後（見えてから跳ぶ）になり、プラグインが解決済みのクロスプラットフォームの罠を再実装することになる。派生ウィンドウの保存点も同じ理由で Rust 側の窓イベント（`window_events.rs`）にあり、フロントの beforeunload には頼らない
 - **動的ラベルのウィンドウをプラグインの対象から外す理由**: 復元先が二度と一致せず、state ファイルにゴミが溜まり続ける。ラベルを安定化しても、プロファイル削除時に同じ問題が形を変えて再発する
 - どちらも他方の上位互換ではない。プラグインは現存モニタと交差しなければ OS に配置を任せるオフスクリーンガードと最大化・フルスクリーンを持ち、フロント側はモニタ名一致・境界 clamp・primary 中央寄せ・論理 px 正規化を持つ
@@ -1112,7 +1112,7 @@ notecore 側のファイルは AI (notemaid) とデバイスの両方が書く�
 
 #### 設定ファイルの置き場と帰属
 
-アプリデータディレクトリの解決は notecore (`app_dir.rs`、bundle identifier の定数と `NOTEDECK_APP_DIR` の上書き) に 1 つ置き、アプリの Tauri 経路と identifier が一致することをテストで保証する (notemaid も同じ関数で同じ場所を開く)。ルート直下の設定ファイルの allowlist は属性表 (`settings_store.rs` の `ROOT_FILES`: 手元側 / notecore 側の `side`、バックアップに含めるかの `backup`) になっている。この端末の構成 (`client.json5`、`backend: auto | embedded | resident`、codec は `client_config.rs` と `services/clientConfig.ts`) は手元側でバックアップに含めない。
+アプリデータディレクトリの解決は notecore (`app_dir.rs`、bundle identifier の定数と `NOTEDECK_APP_DIR` の上書き) に 1 つ置き、アプリの Tauri 経路と identifier が一致することをテストで保証する (notemaid も同じ関数で同じ場所を開く)。アプリデータディレクトリの中の配置 (設定 `notedeck/` / 人の記録 / この機械の状態 `state/` / キャッシュ) は同じ `app_dir.rs` の値型 `Layout` だけが知り、他のコードは `Core::layout()` か `Layout::from_root()` から受け取る (`join("notedeck")` の散在は `tests/lint/rustSettingsDir.test.ts` が禁止、#1333)。ルート直下とサブディレクトリの allowlist は属性表 (`settings_store.rs` の `ROOT_FILES` / `SUBDIRS`: 置き場の `area`、バックアップに含めるかの `backup`、汎用の読み書きで触れるかの `ipc`) になっている。この端末の構成 (`client.json5`、`backend: auto | embedded | resident`、codec は `client_config.rs` と `services/clientConfig.ts`) はバックアップに含めない。設定ファイルの書込は決定的で、各ルートファイルのコーデックは `src/services/settingsFileCodecs.test.ts` に登録する (allowlist にあって登録の無いファイルは落ちる)。
 
 #### デバイスなしで AI のターンを回す (notemaid のプロセス)
 
@@ -1146,7 +1146,7 @@ healthcheck は doctor とキャッシュ統計を notecore の `health_core` �
 - dispatcher で逆引きするため AI / プラグイン作者は意識不要
 
 **確認ダイアログの「今後確認しない」(#714):**
-- `requiresConfirmation` な capability の確認で「今後この操作を確認しない」を ON にして許可すると、scope × capability 単位で `permissions.json5` の `confirmSkips` に記憶され、次回以降の確認をスキップする (保存先は権限プロファイルと同じく capability から書き換え不能)
+- `requiresConfirmation` な capability の確認で「今後この操作を確認しない」を ON にして許可すると、scope × capability 単位で `state/permissions-meta.json5` の `confirmSkips` に記憶され、次回以降の確認をスキップする (確認の結果はこの機械の状態で、方針の `permissions.json5` とは別。どちらも capability から書き換え不能、#1333)
 - scope は `ai.chat` と `plugin:<pluginId>` (プラグイン / ウィジェット個体単位) のみ。user (本人操作の confirm は削らない) / `ai.heartbeat` (無人実行 — チャットの同意の波及も heartbeat 自身での記憶も不可) / `external` は対象外で常に確認される (同意すり替え防止 #712 §3.3)
 - 記憶の一覧・取り消しは権限ウィンドウの該当 principal 行内「確認なしで実行できる操作」
 - capability 固有の remember (`onConfirmRemember` — vault.fetch の接続単位信頼) を持つ capability は汎用スキップの対象外
