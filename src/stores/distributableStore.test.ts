@@ -89,9 +89,6 @@ function fakeFiles(initial: Item[] = [], outdated: Item[] = []) {
     migrateItems: async () => {
       calls.push('migrate')
     },
-    sweepHistory: async () => {
-      calls.push('sweep')
-    },
   }
   return { files, persisted, deleted, renamed, calls }
 }
@@ -148,7 +145,6 @@ describe('初回読込', () => {
     expect(store.items.value.map((i) => i.id)).toEqual(['a', 'gen-1'])
     // メインウィンドウは対応表の移行と履歴 sweep を回す
     expect(f.calls).toContain('migrate')
-    expect(f.calls).toContain('sweep')
   })
 
   it('on-disk が古い個体はメインウィンドウが一度だけ書き戻す', async () => {

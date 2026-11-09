@@ -46,6 +46,8 @@ export interface SingleFileCollectionConfig<T extends SingleItemFile, P> {
   read(filename: string): Promise<string>
   write(filename: string, content: string): Promise<void>
   remove(filename: string): Promise<void>
+  /** 履歴サイドカー (state/history/、#1334 段階 2) の削除。種別に履歴が無ければ省略 */
+  removeHistory?(base: string): Promise<void>
   rename(oldFilename: string, newFilename: string): Promise<void>
   /** 生内容のパース。throw = パース不能 (読込スキップ・正規化対象外) */
   parse(raw: string): P
@@ -286,39 +288,27 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
     // 履歴サイドカーも削除 (残すと同名の新規アイテムが削除済みアイテムの
     // 履歴リングを継承する)。remove は missing = no-op 意味論。
     await cfg.remove(base + cfg.ext)
-    await cfg.remove(base + HISTORY_SUFFIX)
+    // 履歴サイドカー (state/history/、#1334 段階 2) も消す。残すと同名の新規アイテムが
+    // 削除済みアイテムの履歴リングを継承する
+    await cfg.removeHistory?.(base)
   }
 
   /**
-   * 主ファイル → history の順で rename する。不在は skip (ensure-dest)。
-   * 履歴サイドカーの失敗は警告のみで飲む — 主ファイルが移った後に throw すると
-   * 対応表 (fileBase) が旧名のまま残り、実ファイルとずれる (#913 の不変条件)。
+   * 主ファイルを rename する。不在は skip (ensure-dest)。履歴サイドカーは Rust の
+   * rename が basename の変化に追随させる (#1334 段階 2)
    */
   async function renameFileSet(from: string, to: string): Promise<void> {
     const files = new Set(await cfg.list())
-    for (const ext of [cfg.ext, HISTORY_SUFFIX]) {
-      const oldFile = from + ext
-      const newFile = to + ext
-      if (!files.has(oldFile)) continue
-      if (files.has(newFile)) {
-        console.warn(
-          `[${cfg.logTag}] rename target already exists, skipped: ${newFile}`,
-        )
-        continue
-      }
-      if (ext === HISTORY_SUFFIX) {
-        try {
-          await cfg.rename(oldFile, newFile)
-        } catch (e) {
-          console.warn(
-            `[${cfg.logTag}] failed to rename history sidecar ${oldFile}:`,
-            e,
-          )
-        }
-        continue
-      }
-      await cfg.rename(oldFile, newFile)
+    const oldFile = from + cfg.ext
+    const newFile = to + cfg.ext
+    if (!files.has(oldFile)) return
+    if (files.has(newFile)) {
+      console.warn(
+        `[${cfg.logTag}] rename target already exists, skipped: ${newFile}`,
+      )
+      return
     }
+    await cfg.rename(oldFile, newFile)
   }
 
   /**
@@ -480,29 +470,6 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
     }
   }
 
-  /**
-   * 履歴 sweep: sweep 時点のディレクトリ実列挙に存在する規定拡張子付き
-   * 全主ファイル (読込採否を問わない) の basename 集合と casefold で照合し、
-   * 対応の取れない `.history.json5` を削除する。
-   */
-  async function sweepHistoryImpl(): Promise<void> {
-    const files = await cfg.list()
-    const mainBases = new Set<string>()
-    for (const f of files) {
-      if (f.endsWith(HISTORY_SUFFIX)) continue
-      if (f.endsWith(cfg.ext)) {
-        mainBases.add(casefold(f.slice(0, -cfg.ext.length)))
-      }
-    }
-    for (const f of files) {
-      if (!f.endsWith(HISTORY_SUFFIX)) continue
-      const base = casefold(f.slice(0, -HISTORY_SUFFIX.length))
-      if (!mainBases.has(base)) {
-        await cfg.remove(f)
-      }
-    }
-  }
-
   return {
     loadAll: () => enqueue(loadAllImpl),
     loadOne: (filename: string) => enqueue(() => loadOneImpl(filename)),
@@ -513,6 +480,5 @@ export function createSingleFileCollection<T extends SingleItemFile, P>(
       enqueue(() => renameItemFilesImpl(item, allItems)),
     migrateItems: (items: readonly T[]) =>
       enqueue(() => migrateItemsImpl(items)),
-    sweepHistory: () => enqueue(sweepHistoryImpl),
   }
 }

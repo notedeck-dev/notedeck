@@ -6717,6 +6717,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "skippedBadFilename": ParameterizedString<'key'>
       /** スキップ (不正なキー): {key} */
       readonly "skippedBadKey": ParameterizedString<'key'>
+      /** 編集履歴 ({count} 件) は取り込みません (この機械の状態なので、バックアップの対象外になりました) */
+      readonly "skippedHistory": ParameterizedString<'count'>
     }
     readonly "notification": {
       /** 誰か */

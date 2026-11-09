@@ -705,12 +705,14 @@ fn rename_files(core: &Core, dir: &Layout, from: &str, to: &str) -> Result<()> {
             });
         }
     }
-    let h_from = edit_history::history_file_name(from);
-    let h_to = edit_history::history_file_name(to);
-    if store::resolve_file(dir, SUBDIR, &h_from)?.exists() {
-        if store::resolve_file(dir, SUBDIR, &h_to)?.exists() {
+    // 編集履歴 (state/history/、#1334 段階 2) は本体の rename が追随させる。ここで
+    // 本体を rename していない (write + delete で移した) 経路のために、残っていれば動かす
+    let h_from = store::history_path(dir, Some(SUBDIR), from)?;
+    let h_to = store::history_path(dir, Some(SUBDIR), to)?;
+    if h_from.is_file() {
+        if h_to.exists() {
             tracing::warn!(from, to, "history rename target already exists, skipped");
-        } else if let Err(e) = store::rename_file(dir, SUBDIR, &h_from, &h_to) {
+        } else if let Err(e) = std::fs::rename(&h_from, &h_to) {
             tracing::warn!(from, to, "history rename failed: {e}");
         }
     }
@@ -881,7 +883,7 @@ pub fn remove(core: &Core, id: &str) -> Result<()> {
     reject_reserved(&item, "removed")?;
     if let Some(base) = item.file_base {
         settings_events::delete_file(core, SUBDIR, &format!("{base}{EXT}"))?;
-        settings_events::delete_file(core, SUBDIR, &edit_history::history_file_name(&base))?;
+        store::delete_history(core.layout()?, Some(SUBDIR), &base)?;
     }
     Ok(())
 }
@@ -1392,7 +1394,7 @@ mod tests {
         assert!(store::resolve_file(&base, SUBDIR, "beta.md")
             .unwrap()
             .exists());
-        assert!(store::resolve_file(&base, SUBDIR, "beta.history.json5")
+        assert!(store::history_path(&base, Some(SUBDIR), "beta")
             .unwrap()
             .exists());
         assert!(!store::resolve_file(&base, SUBDIR, "my-new-skill.md")
@@ -1412,7 +1414,7 @@ mod tests {
         assert_eq!(history(&core, &renamed).unwrap().len(), 2);
         remove(&core, "x1-abcd").unwrap();
         assert!(get(&core, "x1-abcd").unwrap().is_none());
-        assert!(!store::resolve_file(&base, SUBDIR, "beta.history.json5")
+        assert!(!store::history_path(&base, Some(SUBDIR), "beta")
             .unwrap()
             .exists());
     }

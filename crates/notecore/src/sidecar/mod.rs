@@ -220,7 +220,7 @@ pub fn write_item(core: &Core, kind: &Kind, base: &str, src: &str, meta: &J5) ->
 pub fn remove_item(core: &Core, kind: &Kind, base: &str) -> Result<()> {
     settings_events::delete_file(core, kind.subdir, &format!("{base}{META_SUFFIX}"))?;
     settings_events::delete_file(core, kind.subdir, &format!("{base}{SRC_SUFFIX}"))?;
-    settings_events::delete_file(core, kind.subdir, &edit_history::history_file_name(base))
+    store::delete_history(core.layout()?, Some(kind.subdir), base)
 }
 
 pub fn history(dir: &Layout, kind: &Kind, base: &str) -> Vec<edit_history::HistoryEntry> {

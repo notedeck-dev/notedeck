@@ -3691,6 +3691,7 @@ _native:
     workspaceMemory: "覚え書き"
     skippedBadFilename: "スキップ (不正なファイル名): {key}"
     skippedBadKey: "スキップ (不正なキー): {key}"
+    skippedHistory: "編集履歴 ({count} 件) は取り込みません (この機械の状態なので、バックアップの対象外になりました)"
   notification:
     someone: "誰か"
     youGotMention: "{name}からのメンション"

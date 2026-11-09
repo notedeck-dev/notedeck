@@ -2412,6 +2412,33 @@ async renameSettingsFile(subdir: string, oldName: string, newName: string) : Pro
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/settings.rs */
+async readHistorySidecar(subdir: string | null, base: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("read_history_sidecar", { subdir, base }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/settings.rs */
+async writeHistorySidecar(subdir: string | null, base: string, content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("write_history_sidecar", { subdir, base, content }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/settings.rs */
+async deleteHistorySidecar(subdir: string | null, base: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_history_sidecar", { subdir, base }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
  * Get the settings directory path (so users can open it in file manager).
  *

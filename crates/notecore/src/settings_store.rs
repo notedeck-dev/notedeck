@@ -146,9 +146,6 @@ pub const ROOT_FILES: &[RootFile] = &[
     // 公開しない制約はここではなく capability registry 側で担保している
     // (settingsFs の固定名ラッパーのみが本コマンドに到達する)
     root("permissions.json5"),
-    // custom.css の編集履歴サイドカー (#913 付随修正)。allowlist から漏れて
-    // いたため、フロントの履歴 read/write が一度も成功していなかった
-    root("custom.css.history.json5"),
     // themes/ の素の .json5 を取り込んだ記録 (元ファイル名 → 採用 ID、#1041)。
     // 消えると次回起動で再取り込みされて複製が出るのでバックアップに含める
     root("theme-dropins.json5"),
@@ -502,7 +499,176 @@ pub fn rename_file(layout: &Layout, subdir: &str, old_name: &str, new_name: &str
         )));
     }
     fs::rename(&old_path, &new_path)
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to rename: {e}")))
+        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to rename: {e}")))?;
+    // basename が変わる rename なら編集履歴も追随させる (無ければ skip、失敗しても
+    // 本体の rename は成功のまま。#1334 段階 2)
+    let (old_base, _) = split_compound_ext(old_name);
+    let (new_base, _) = split_compound_ext(new_name);
+    if old_base != new_base {
+        if let (Ok(from), Ok(to)) = (
+            history_path(layout, Some(subdir), old_base),
+            history_path(layout, Some(subdir), new_base),
+        ) {
+            if from.is_file() && !to.exists() {
+                if let Some(parent) = to.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                if let Err(e) = fs::rename(&from, &to) {
+                    tracing::warn!(%e, "failed to move the edit history with the rename");
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// --- 編集履歴のサイドカー (`state/history/<subdir|root>/<base>.history.json5`、#1334 段階 2) ---
+//
+// 履歴は状態 (この機械で編集した記録) なので設定の隣に置かない。バックアップにも入れない。
+// 汎用の read / write には「`.history.json5` なら別ルート」の名前分岐を入れず、ここだけが
+// 履歴の置き場を知る
+
+/// 履歴の論理 scope。`None` はルート直下のファイル (custom.css)
+pub fn history_path(layout: &Layout, subdir: Option<&str>, base: &str) -> Result<PathBuf> {
+    let dir = match subdir {
+        Some(s) => validate_subdir(s)?.name,
+        None => "root",
+    };
+    let name = crate::edit_history::history_file_name(base);
+    validate_filename(&name)?;
+    Ok(layout.history().join(dir).join(name))
+}
+
+/// 履歴を読む (無ければ空文字)
+pub fn read_history(layout: &Layout, subdir: Option<&str>, base: &str) -> Result<String> {
+    let path = history_path(layout, subdir, base)?;
+    if !path.exists() {
+        return Ok(String::new());
+    }
+    fs::read_to_string(&path)
+        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read {}: {e}", path.display())))
+}
+
+/// 履歴を書く (atomic)。変更通知は流さない (履歴の表示は都度読む)
+pub fn write_history(
+    layout: &Layout,
+    subdir: Option<&str>,
+    base: &str,
+    content: &str,
+) -> Result<()> {
+    let path = history_path(layout, subdir, base)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            NoteDeckError::InvalidInput(format!(
+                "Failed to create directory {}: {e}",
+                parent.display()
+            ))
+        })?;
+    }
+    atomic_write(&path, content, None)
+}
+
+/// 履歴を消す (無ければ no-op)
+pub fn delete_history(layout: &Layout, subdir: Option<&str>, base: &str) -> Result<()> {
+    let path = history_path(layout, subdir, base)?;
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| {
+            NoteDeckError::InvalidInput(format!("Failed to delete {}: {e}", path.display()))
+        })?;
+    }
+    Ok(())
+}
+
+/// 旧配置 (設定の隣の `<base>.history.json5` と root の `custom.css.history.json5`) の
+/// 履歴を `state/history/` へ移す。両方あれば新 (state 側) を残して旧を消す
+pub fn move_history_sidecars(layout: &Layout) {
+    let suffix = crate::edit_history::HISTORY_SUFFIX;
+    let mut moves: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for sub in SUBDIRS {
+        let dir = sub.area.dir(layout).join(sub.dir);
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else {
+                continue;
+            };
+            let Some(base) = name.strip_suffix(suffix) else {
+                continue;
+            };
+            if let Ok(to) = history_path(layout, Some(sub.name), base) {
+                moves.push((entry.path(), to));
+            }
+        }
+    }
+    let root_css = layout.config().join("custom.css.history.json5");
+    if root_css.is_file() {
+        if let Ok(to) = history_path(layout, None, "custom.css") {
+            moves.push((root_css, to));
+        }
+    }
+    for (from, to) in moves {
+        if to.exists() {
+            let _ = fs::remove_file(&from);
+            continue;
+        }
+        if let Some(parent) = to.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if let Err(e) = fs::rename(&from, &to) {
+            tracing::warn!(from = %from.display(), %e, "cannot move an edit history sidecar");
+        }
+    }
+}
+
+/// 持ち主の無い履歴 (本体が消えたもの) を消す。本体の basename は複合拡張子を剥がして比べる
+pub fn sweep_orphan_history(layout: &Layout) {
+    let suffix = crate::edit_history::HISTORY_SUFFIX;
+    let Ok(scopes) = fs::read_dir(layout.history()) else {
+        return;
+    };
+    for scope in scopes.flatten() {
+        let scope_name = scope.file_name();
+        let Some(scope_name) = scope_name.to_str() else {
+            continue;
+        };
+        let owners: std::collections::HashSet<String> = if scope_name == "root" {
+            ROOT_FILES
+                .iter()
+                .filter(|f| f.area.dir(layout).join(f.name).is_file())
+                .map(|f| f.name.to_string())
+                .collect()
+        } else {
+            let Some(sub) = subdir(scope_name) else {
+                continue;
+            };
+            fs::read_dir(sub.area.dir(layout).join(sub.dir))
+                .map(|rd| {
+                    rd.flatten()
+                        .filter_map(|e| e.file_name().to_str().map(str::to_string))
+                        .filter(|n| !n.starts_with('.'))
+                        .map(|n| split_compound_ext(&n).0.to_string())
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let Ok(files) = fs::read_dir(scope.path()) else {
+            continue;
+        };
+        for f in files.flatten() {
+            let name = f.file_name();
+            let Some(name) = name.to_str() else {
+                continue;
+            };
+            let Some(base) = name.strip_suffix(suffix) else {
+                continue;
+            };
+            if !owners.contains(base) {
+                let _ = fs::remove_file(f.path());
+            }
+        }
+    }
 }
 
 /// Read a root-level settings file (missing file returns empty string).
@@ -664,10 +830,13 @@ pub fn export_bundle(layout: &Layout) -> Result<BTreeMap<String, String>> {
                 continue;
             }
             let name = entry.file_name();
-            if name.to_string_lossy().starts_with('.') {
+            let name_str = name.to_string_lossy();
+            // 履歴は状態 (#1334 段階 2)。旧配置に残っていてもバックアップに入れない
+            if name_str.starts_with('.') || name_str.ends_with(crate::edit_history::HISTORY_SUFFIX)
+            {
                 continue;
             }
-            let key = format!("{subdir}/{}", name.to_string_lossy());
+            let key = format!("{subdir}/{name_str}");
             let content = fs::read_to_string(entry.path())
                 .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
             bundle.insert(key, content);
@@ -748,7 +917,6 @@ fn is_windows_reserved_stem(stem: &str) -> bool {
 /// 剥がして basename を得る (`.json5` は複合拡張子の suffix なので必ず最後)。
 const COMPOUND_EXTS: &[&str] = &[
     ".meta.json5",
-    ".history.json5",
     ".ndprofile.json5",
     ".ndtheme.json5",
     ".is",
@@ -977,7 +1145,26 @@ pub fn import_bundle(
             .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
     }
 
+    // 旧バンドルの編集履歴は捨てる (状態なので復元しない、#1334 段階 2)。警告は 1 行
+    let skipped_history = bundle
+        .keys()
+        .filter(|k| k.ends_with(crate::edit_history::HISTORY_SUFFIX))
+        .count();
+    if skipped_history > 0 {
+        tracing::warn!("Import: skipping {skipped_history} edit history sidecar(s)");
+        warnings.push(
+            crate::i18n::text(
+                "_native.backup.skippedHistory",
+                serde_json::json!({ "count": skipped_history }),
+            )
+            .into(),
+        );
+    }
+
     for (key, content) in bundle {
+        if key.ends_with(crate::edit_history::HISTORY_SUFFIX) {
+            continue;
+        }
         let parts: Vec<&str> = key.split('/').collect();
         match parts.as_slice() {
             [name] if root_file(name).is_some() => {
@@ -1561,22 +1748,62 @@ mod tests {
         assert_eq!(warnings.len(), 2);
     }
 
+    /// #1334 段階 2: 履歴は設定の隣ではなく state/history/ に置く。rename に追随し、
+    /// バックアップには入らず、旧配置の履歴は移される
     #[test]
-    fn custom_css_history_is_allowed_root_file() {
-        // #913 付随修正: allowlist から漏れていて履歴の read/write が常に
-        // reject されていた (フロントは settingsFs の history 系でこの名前を使う)
-        assert!(root_file("custom.css.history.json5").is_some());
+    fn edit_history_lives_under_state_and_follows_renames() {
         let dir = tempfile::tempdir().unwrap();
-        write_root_file(
-            &lay(dir.path()),
-            "custom.css.history.json5",
-            "{ entries: [] }",
-        )
-        .unwrap();
+        let l = Layout::from_root(dir.path());
+        assert!(root_file("custom.css.history.json5").is_none());
+        write_history(&l, None, "custom.css", "{ entries: [] }\n").unwrap();
         assert_eq!(
-            read_root_file(&lay(dir.path()), "custom.css.history.json5").unwrap(),
-            "{ entries: [] }"
+            history_path(&l, None, "custom.css").unwrap(),
+            l.history().join("root/custom.css.history.json5")
         );
+        assert_eq!(
+            read_history(&l, None, "custom.css").unwrap(),
+            "{ entries: [] }\n"
+        );
+        assert_eq!(read_history(&l, Some("skills"), "none").unwrap(), "");
+        assert!(history_path(&l, Some("nope"), "x").is_err());
+
+        write_file(&l, "skills", "a.md", "# a").unwrap();
+        write_history(&l, Some("skills"), "a", "{ entries: [1] }\n").unwrap();
+        rename_file(&l, "skills", "a.md", "b.md").unwrap();
+        assert_eq!(
+            read_history(&l, Some("skills"), "b").unwrap(),
+            "{ entries: [1] }\n"
+        );
+        assert_eq!(read_history(&l, Some("skills"), "a").unwrap(), "");
+        // バックアップに履歴は入らず、旧バンドルの履歴は 1 行の警告で捨てる
+        let bundle = export_bundle(&l).unwrap();
+        assert!(!bundle.keys().any(|k| k.contains("history")));
+        let mut b = BTreeMap::new();
+        b.insert("skills/x.history.json5".to_string(), "{}".to_string());
+        b.insert("custom.css.history.json5".to_string(), "{}".to_string());
+        let warnings = import_bundle(&l, &b).unwrap();
+        assert_eq!(warnings.len(), 1);
+        assert!(!l.config().join("skills/x.history.json5").exists());
+        // 旧配置の履歴は state/history/ へ、持ち主の無いものは sweep で消える
+        fs::write(l.config().join("skills/b.history.json5"), "old").unwrap();
+        fs::write(l.config().join("skills/gone.history.json5"), "orphan").unwrap();
+        fs::write(l.config().join("custom.css.history.json5"), "css").unwrap();
+        move_history_sidecars(&l);
+        assert!(!l.config().join("skills/b.history.json5").exists());
+        // 両方あったので state 側 (新) が残る
+        assert_eq!(
+            read_history(&l, Some("skills"), "b").unwrap(),
+            "{ entries: [1] }\n"
+        );
+        assert_eq!(read_history(&l, Some("skills"), "gone").unwrap(), "orphan");
+        // custom.css 本体が無いので root の履歴は持ち主なし
+        sweep_orphan_history(&l);
+        assert_eq!(read_history(&l, Some("skills"), "gone").unwrap(), "");
+        assert_eq!(
+            read_history(&l, Some("skills"), "b").unwrap(),
+            "{ entries: [1] }\n"
+        );
+        assert_eq!(read_history(&l, None, "custom.css").unwrap(), "");
     }
 
     #[test]
@@ -1803,9 +2030,10 @@ mod tests {
             split_compound_ext("clock.meta.json5"),
             ("clock", ".meta.json5")
         );
+        // 履歴は設定の隣に無い (#1334 段階 2) ので複合拡張子として扱わない
         assert_eq!(
             split_compound_ext("clock.history.json5"),
-            ("clock", ".history.json5")
+            ("clock.history", ".json5")
         );
         assert_eq!(
             split_compound_ext("p.ndprofile.json5"),

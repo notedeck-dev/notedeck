@@ -87,6 +87,7 @@ const queryFiles = sidecarCollectionFor(queryCodec, {
   read: (filename) => settingsFs.readQueryFile(filename),
   write: (filename, content) => settingsFs.writeQueryFile(filename, content),
   remove: (filename) => settingsFs.deleteQueryFile(filename),
+  removeHistory: (base) => settingsFs.deleteHistorySidecar('query', base),
   rename: (oldFilename, newFilename) =>
     settingsFs.renameQueryFile(oldFilename, newFilename),
 })

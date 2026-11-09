@@ -112,15 +112,6 @@ describe('useSkillsStore — ファイル対応表配線 (#913)', () => {
     expect(store.get('my-id')?.fileBase).toBe('my-skill')
   })
 
-  it('孤児履歴は起動時 sweep で削除される', async () => {
-    files.set('alpha.md', skillFile('alpha', 'Alpha'))
-    files.set('alpha.history.json5', '{ entries: [] }')
-    files.set('dead.history.json5', '{ entries: [] }')
-    await initStore()
-    expect(files.has('alpha.history.json5')).toBe(true)
-    expect(files.has('dead.history.json5')).toBe(false)
-  })
-
   it('新規作成は表示名 slug のファイル名で保存する (ID からではない)', async () => {
     files.set('seed.md', skillFile('seed', 'Seed'))
     const store = await initStore()
@@ -132,17 +123,14 @@ describe('useSkillsStore — ファイル対応表配線 (#913)', () => {
     expect(files.has('x1-abcd.md')).toBe(false)
   })
 
-  it('表示名の変更はファイル rename で追随する (ID 不変・履歴も追随)', async () => {
+  it('表示名の変更はファイル rename で追随する (ID 不変)', async () => {
     files.set('alpha.md', skillFile('a1', 'Alpha'))
-    files.set('alpha.history.json5', '{ entries: [] }')
     const store = await initStore()
     await store.update('a1', { name: 'Beta' })
     await vi.waitFor(() => {
       expect(files.has('beta.md')).toBe(true)
     })
     expect(files.has('alpha.md')).toBe(false)
-    expect(files.has('beta.history.json5')).toBe(true)
-    expect(files.has('alpha.history.json5')).toBe(false)
     expect(store.get('a1')?.fileBase).toBe('beta')
     expect(files.get('beta.md')).toContain('a1')
   })

@@ -36,6 +36,7 @@ export const themeFiles = singleFileCollectionFor(themeCodec, {
   read: (filename) => settingsFs.readTheme(filename),
   write: (filename, content) => settingsFs.writeTheme(filename, content),
   remove: (filename) => settingsFs.deleteTheme(filename),
+  removeHistory: (base) => settingsFs.deleteHistorySidecar('theme', base),
   rename: (oldFilename, newFilename) =>
     settingsFs.renameTheme(oldFilename, newFilename),
   accepts: (p) => !!p && typeof p === 'object' && !!p.props,

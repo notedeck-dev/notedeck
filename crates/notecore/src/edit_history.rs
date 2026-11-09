@@ -9,7 +9,6 @@ use serde_json::Value;
 use crate::app_dir::Layout;
 use crate::context::Core;
 use crate::error::Result;
-use crate::settings_events;
 use crate::settings_store as store;
 
 pub const HISTORY_SUFFIX: &str = ".history.json5";
@@ -118,17 +117,23 @@ pub fn evict(entries: Vec<HistoryEntry>, limit: usize) -> Vec<HistoryEntry> {
 
 /// 履歴を読む。無い / 壊れているときは 0 件。
 pub fn list(layout: &Layout, subdir: &str, base: &str) -> Vec<HistoryEntry> {
-    let Ok(text) = store::read_file(layout, subdir, &history_file_name(base)) else {
+    let Ok(text) = store::read_history(layout, Some(subdir), base) else {
         return Vec::new();
     };
+    if text.is_empty() {
+        return Vec::new();
+    }
     parse_entries(&text, base)
 }
 
 /// ルート直下のファイル (custom.css) の履歴を読む。
 pub fn list_root(layout: &Layout, base: &str) -> Vec<HistoryEntry> {
-    let Ok(text) = store::read_root_file(layout, &history_file_name(base)) else {
+    let Ok(text) = store::read_history(layout, None, base) else {
         return Vec::new();
     };
+    if text.is_empty() {
+        return Vec::new();
+    }
     parse_entries(&text, base)
 }
 
@@ -176,7 +181,7 @@ fn with_snapshot(
 
 /// ルート直下のファイル (custom.css) 用の `push_snapshot`。
 pub fn push_snapshot_root(
-    core: &Core,
+    _core: &Core,
     layout: &Layout,
     base: &str,
     snapshot: Value,
@@ -185,14 +190,15 @@ pub fn push_snapshot_root(
 ) -> Result<()> {
     let entries = list_root(layout, base);
     match with_snapshot(entries, snapshot, attribution, at) {
-        Some(body) => settings_events::write_root_file(core, &history_file_name(base), &body),
+        // 履歴の書込は変更通知を流さない (表示は都度読む、#1334 段階 2)
+        Some(body) => store::write_history(layout, None, base, &body),
         None => Ok(()),
     }
 }
 
 /// 編集前の snapshot を積む。まとめる条件に当たれば何もしない。
 pub fn push_snapshot(
-    core: &Core,
+    _core: &Core,
     layout: &Layout,
     subdir: &str,
     base: &str,
@@ -202,7 +208,7 @@ pub fn push_snapshot(
 ) -> Result<()> {
     let entries = list(layout, subdir, base);
     match with_snapshot(entries, snapshot, attribution, at) {
-        Some(body) => settings_events::write_file(core, subdir, &history_file_name(base), &body),
+        Some(body) => store::write_history(layout, Some(subdir), base, &body),
         None => Ok(()),
     }
 }

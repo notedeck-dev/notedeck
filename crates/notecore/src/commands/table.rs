@@ -258,6 +258,9 @@ macro_rules! with_command_table {
         data write_settings_file(subdir: String, name: String, content: String, expected: Option<String>) -> String = $crate::commands::settings::write_settings_file;
         data delete_settings_file(subdir: String, name: String) -> () = $crate::commands::settings::delete_settings_file;
         data rename_settings_file(subdir: String, old_name: String, new_name: String) -> () = $crate::commands::settings::rename_settings_file;
+        data read_history_sidecar(subdir: Option<String>, base: String) -> String = $crate::commands::settings::read_history_sidecar;
+        data write_history_sidecar(subdir: Option<String>, base: String, content: String) -> () = $crate::commands::settings::write_history_sidecar;
+        data delete_history_sidecar(subdir: Option<String>, base: String) -> () = $crate::commands::settings::delete_history_sidecar;
         data read_root_settings_file(name: String) -> String = $crate::commands::settings::read_root_settings_file;
         data read_root_settings_file_versioned(name: String) -> $crate::settings_store::VersionedText = $crate::commands::settings::read_root_settings_file_versioned;
         authz write_root_settings_file(name: String, content: String, expected: Option<String>) -> String = $crate::commands::settings::write_root_settings_file;

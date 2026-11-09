@@ -151,7 +151,6 @@ const CODECS: Record<string, Codec> = {
 const NOT_A_CODEC: Record<string, string> = {
   'AI.md': 'アプリは書かない (利用者が置く自由記述)',
   'custom.css': '自由記述のテキスト。読んだまま書く',
-  'custom.css.history.json5': '編集履歴のサイドカー (状態)。#1334 で state/ へ',
   'connections.json': 'Rust (vault::connections_store) が厳密 JSON で書く',
 }
 

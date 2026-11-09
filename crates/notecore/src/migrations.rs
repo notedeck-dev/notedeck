@@ -19,6 +19,11 @@ pub fn run_fs(app_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     remove_notecored_leftovers(app_dir, dirs::config_dir().as_deref());
     remove_stale_root_files(app_dir);
     move_loopback_consent_to_state(app_dir)?;
+    // 編集履歴のサイドカーは状態 (#1334 段階 2): 設定の隣から state/history/ へ移し、
+    // 持ち主の無いものを消す
+    let layout = crate::app_dir::Layout::from_root(app_dir);
+    crate::settings_store::move_history_sidecars(&layout);
+    crate::settings_store::sweep_orphan_history(&layout);
     Ok(())
 }
 

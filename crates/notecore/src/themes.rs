@@ -466,7 +466,7 @@ pub fn remove(core: &Core, id: &str) -> Result<bool> {
     };
     if let Some(base) = t.file_base {
         settings_events::delete_file(core, SUBDIR, &format!("{base}{EXT}"))?;
-        settings_events::delete_file(core, SUBDIR, &edit_history::history_file_name(&base))?;
+        store::delete_history(core.layout()?, Some(SUBDIR), &base)?;
     }
     Ok(true)
 }

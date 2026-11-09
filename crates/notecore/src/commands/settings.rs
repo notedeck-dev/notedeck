@@ -139,3 +139,39 @@ pub async fn update_performance_config(core: &Core, config: PerformanceConfig) -
 pub async fn get_performance_config(core: &Core) -> Result<PerformanceConfig> {
     Ok(core.perf()?.read().await.clone())
 }
+
+// --- 編集履歴のサイドカー (#1334 段階 2)。`subdir` が None ならルート直下 (custom.css) ---
+
+pub async fn read_history_sidecar(
+    core: &Core,
+    subdir: Option<String>,
+    base: String,
+) -> Result<String> {
+    if let Some(s) = &subdir {
+        ipc_subdir(s)?;
+    }
+    store::read_history(core.layout()?, subdir.as_deref(), &base)
+}
+
+pub async fn write_history_sidecar(
+    core: &Core,
+    subdir: Option<String>,
+    base: String,
+    content: String,
+) -> Result<()> {
+    if let Some(s) = &subdir {
+        ipc_subdir(s)?;
+    }
+    store::write_history(core.layout()?, subdir.as_deref(), &base, &content)
+}
+
+pub async fn delete_history_sidecar(
+    core: &Core,
+    subdir: Option<String>,
+    base: String,
+) -> Result<()> {
+    if let Some(s) = &subdir {
+        ipc_subdir(s)?;
+    }
+    store::delete_history(core.layout()?, subdir.as_deref(), &base)
+}

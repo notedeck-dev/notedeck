@@ -273,7 +273,6 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | `tasks.json5` | config | ✓ | ✓ |
 | `tutorial.json5` | config | ✓ | ✓ |
 | `permissions.json5` | config | ✓ | ✓ |
-| `custom.css.history.json5` | config | ✓ | ✓ |
 | `theme-dropins.json5` | config | ✓ | ✓ |
 | `locale.json5` | config | ✓ | ✓ |
 | `client.json5` | config | — | ✓ |

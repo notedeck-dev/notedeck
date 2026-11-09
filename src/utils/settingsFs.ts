@@ -541,12 +541,10 @@ export async function renameSkillFile(
 
 // --- Edit history sidecar helpers (skill / widget / plugin / theme) ---
 //
-// 各 kind の編集前 snapshot をリング 10 件で `<basename>.history.json5` に
-// サイドカー保存する。実装は対応する dir (skills/widgets/plugins/themes) に
-// 隣接する別ファイル。Tauri 外 (ブラウザ) では呼んでも no-op (上位で
-// localStorage fallback)。
-
-const HISTORY_EXT = '.history.json5'
+// 各 kind の編集前 snapshot をリングで `state/history/<subdir|root>/<basename>.history.json5`
+// に保存する (#1334 段階 2。設定の隣ではなく、この機械の状態)。置き場を知るのは Rust の
+// `settings_store::history_path` だけで、ここは scope (論理 subdir) と basename を渡す。
+// Tauri 外 (ブラウザ) では呼んでも no-op。
 
 export type HistoryKind =
   | 'skill'
@@ -576,8 +574,9 @@ function historyDirFor(kind: Exclude<HistoryKind, 'css'>): string {
   }
 }
 
-export function historyFilename(basename: string): string {
-  return sanitizeFilename(basename) + HISTORY_EXT
+/** 履歴の scope (論理 subdir)。css は root 直下の単一ファイルなので null */
+function historyScopeFor(kind: HistoryKind): string | null {
+  return kind === 'css' ? null : historyDirFor(kind)
 }
 
 export async function readHistorySidecar(
@@ -586,32 +585,28 @@ export async function readHistorySidecar(
 ): Promise<string | null> {
   if (!isTauri) return null
   try {
-    if (kind === 'css') {
-      return await readRootSettingsFile(historyFilename(basename))
-    }
-    return await readSettingsFile(
-      historyDirFor(kind),
-      historyFilename(basename),
+    const text = unwrap(
+      await commands.readHistorySidecar(historyScopeFor(kind), basename),
     )
+    return text.length > 0 ? text : null
   } catch {
     return null
   }
 }
 
+/** 履歴の書込。他のウィンドウには知らせない (履歴の表示は都度読む、#1334 段階 2) */
 export async function writeHistorySidecar(
   kind: HistoryKind,
   basename: string,
   content: string,
 ): Promise<void> {
   if (!isTauri) return
-  if (kind === 'css') {
-    await writeRootSettingsFile(historyFilename(basename), content)
-    return
-  }
-  return writeSettingsFile(
-    historyDirFor(kind),
-    historyFilename(basename),
-    content,
+  unwrap(
+    await commands.writeHistorySidecar(
+      historyScopeFor(kind),
+      basename,
+      content,
+    ),
   )
 }
 
@@ -621,14 +616,7 @@ export async function deleteHistorySidecar(
 ): Promise<void> {
   if (!isTauri) return
   try {
-    if (kind === 'css') {
-      // root 直下なので deleteSettingsFile は使えない。専用コマンドが
-      // 無いため write で空文字 (no-op に近い) … ではなく、現状 root file の
-      // delete コマンドは存在しないので no-op で済ませる。history file は
-      // 上書きされるだけで停滞コストは小さい。
-      return
-    }
-    await deleteSettingsFile(historyDirFor(kind), historyFilename(basename))
+    unwrap(await commands.deleteHistorySidecar(historyScopeFor(kind), basename))
   } catch {
     // 存在しないだけのときは無視
   }

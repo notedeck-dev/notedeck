@@ -336,7 +336,7 @@ pub fn delete(core: &Core, key: &str) -> Result<bool> {
         return Ok(false);
     }
     settings_events::delete_file(core, SUBDIR, &format!("{key}{EXT}"))?;
-    settings_events::delete_file(core, SUBDIR, &edit_history::history_file_name(key))?;
+    store::delete_history(core.layout()?, Some(SUBDIR), key)?;
     Ok(true)
 }
 

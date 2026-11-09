@@ -232,8 +232,10 @@ mod tests {
             "{ id: 'o', name: 'o' }",
         )
         .unwrap();
-        std::fs::write(
-            base.config().join("queries/o.history.json5"),
+        notecore::settings_store::write_history(
+            &base,
+            Some("queries"),
+            "o",
             "{\"entries\":[{\"at\":1,\"snapshot\":{\"src\":\"x\"}}]}",
         )
         .unwrap();

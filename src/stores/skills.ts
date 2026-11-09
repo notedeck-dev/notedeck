@@ -109,6 +109,7 @@ const inner = singleFileCollectionFor(skillCodec, {
   read: (filename) => settingsFs.readSkillFile(filename),
   write: (filename, content) => settingsFs.writeSkillFile(filename, content),
   remove: (filename) => settingsFs.deleteSkillFile(filename),
+  removeHistory: (base) => settingsFs.deleteHistorySidecar('skill', base),
   rename: (oldFilename, newFilename) =>
     settingsFs.renameSkillFile(oldFilename, newFilename),
   rawIdOf: (p) => p.meta.id,

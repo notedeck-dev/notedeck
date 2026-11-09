@@ -399,15 +399,17 @@ describe('persistAll', () => {
 })
 
 describe('deleteItemFiles', () => {
-  it('meta → src → 履歴サイドカーを削除する', async () => {
-    const fs = makeFakeFs({
-      'a.meta.json5': '{}',
-      'a.is': 's',
-      'a.history.json5': '{ entries: [] }',
+  it('meta → src を消し、履歴サイドカー (state/history/) の削除を頼む', async () => {
+    const fs = makeFakeFs({ 'a.meta.json5': '{}', 'a.is': 's' })
+    const removed: string[] = []
+    const col = makeCollection(fs, {
+      removeHistory: async (base: string) => {
+        removed.push(base)
+      },
     })
-    const col = makeCollection(fs)
     await col.deleteItemFiles(item({ name: 'a', fileBase: 'a' }))
     expect(fs.files.size).toBe(0)
+    expect(removed).toEqual(['a'])
   })
 
   it('履歴サイドカーが無くても失敗しない', async () => {
@@ -426,11 +428,10 @@ describe('deleteItemFiles', () => {
 })
 
 describe('renameItemFiles', () => {
-  it('src → meta → 履歴を新 slug へ rename し fileBase を更新する', async () => {
+  it('src → meta を新 slug へ rename し fileBase を更新する (履歴は Rust が追随)', async () => {
     const fs = makeFakeFs({
       'old.meta.json5': '{ installId: "p1", name: "old" }',
       'old.is': 'code',
-      'old.history.json5': '{ entries: [] }',
     })
     const col = makeCollection(fs)
     const w = item({ name: 'New Name', fileBase: 'old' })
@@ -439,7 +440,6 @@ describe('renameItemFiles', () => {
     expect(w.fileBase).toBe('new-name')
     expect(fs.files.get('new-name.is')).toBe('code')
     expect(fs.files.has('new-name.meta.json5')).toBe(true)
-    expect(fs.files.has('new-name.history.json5')).toBe(true)
     expect(fs.files.has('old.is')).toBe(false)
     expect(fs.files.has('old.meta.json5')).toBe(false)
   })
@@ -501,31 +501,6 @@ describe('renameItemFiles', () => {
     const w = item({ name: 'a' })
     await col.renameItemFiles(w, [w])
     expect(w.fileBase).toBeUndefined()
-  })
-
-  it('履歴サイドカーの rename が失敗しても主ファイルの結果を巻き戻さない', async () => {
-    const fs = makeFakeFs({
-      'old.meta.json5': '{ installId: "p1", name: "old" }',
-      'old.is': 'code',
-      'old.history.json5': '{ entries: [] }',
-    })
-    const col = makeCollection(fs, {
-      rename: async (oldFilename: string, newFilename: string) => {
-        if (oldFilename.endsWith('.history.json5')) {
-          throw new Error('EPERM')
-        }
-        await fs.rename(oldFilename, newFilename)
-      },
-    })
-    const w = item({ name: 'New Name', fileBase: 'old' })
-    await col.renameItemFiles(w, [w])
-
-    // 対応表と実ファイルが一致していること (#913 の不変条件)
-    expect(w.fileBase).toBe('new-name')
-    expect(fs.files.has('new-name.is')).toBe(true)
-    expect(fs.files.has('new-name.meta.json5')).toBe(true)
-    expect(fs.files.has('old.history.json5')).toBe(true)
-    expect(warn).toHaveBeenCalled()
   })
 
   it('case-only 2 段の 2 段目が失敗しても fileBase は実ファイルを指す', async () => {
@@ -694,44 +669,6 @@ describe('migrateItems (copy-adopt)', () => {
     await col.migrateItems(items)
     expect(items[0]?.fileBase).toBe('widget')
     expect(fs.files.has('widget.is')).toBe(true)
-  })
-})
-
-describe('sweepHistory', () => {
-  it('主ファイルと対応の取れない .history.json5 を削除する', async () => {
-    const fs = makeFakeFs({
-      'alive.meta.json5': '{ installId: "i1", name: "alive" }',
-      'alive.is': 'code',
-      'alive.history.json5': '{ entries: [] }',
-      'dead.history.json5': '{ entries: [] }',
-    })
-    const col = makeCollection(fs)
-    await col.sweepHistory()
-    expect(fs.files.has('alive.history.json5')).toBe(true)
-    expect(fs.files.has('dead.history.json5')).toBe(false)
-  })
-
-  it('パース不能・スキップ個体の主ファイルの履歴は保全する (読込採否を問わない)', async () => {
-    const fs = makeFakeFs({
-      'broken.meta.json5': '{{{ not json5',
-      'broken.history.json5': '{ entries: [] }',
-      'orphan.is': 'code',
-      'orphan.history.json5': '{ entries: [] }',
-    })
-    const col = makeCollection(fs)
-    await col.sweepHistory()
-    expect(fs.files.has('broken.history.json5')).toBe(true)
-    expect(fs.files.has('orphan.history.json5')).toBe(true)
-  })
-
-  it('照合は casefold で行う', async () => {
-    const fs = makeFakeFs({
-      'Alpha.meta.json5': '{}',
-      'alpha.history.json5': '{ entries: [] }',
-    })
-    const col = makeCollection(fs)
-    await col.sweepHistory()
-    expect(fs.files.has('alpha.history.json5')).toBe(true)
   })
 })
 

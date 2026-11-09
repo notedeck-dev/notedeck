@@ -20,6 +20,7 @@ export interface SingleFileIo<File> {
   read(filename: string): Promise<string>
   write(filename: string, content: string): Promise<void>
   remove(filename: string): Promise<void>
+  removeHistory?(base: string): Promise<void>
   rename(oldFilename: string, newFilename: string): Promise<void>
   notify?(message: string): void
   /** パース結果の生 ID (欠損判定前) */
