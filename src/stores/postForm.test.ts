@@ -58,7 +58,7 @@ describe('usePostFormStore', () => {
     vi.advanceTimersByTime(PERSIST_DEBOUNCE_MS)
     expect(writePostForm).toHaveBeenCalledTimes(1)
     expect(writePostForm).toHaveBeenCalledWith(
-      JSON5.stringify(['cw', 'emoji'], null, 2),
+      `${JSON5.stringify(['cw', 'emoji'], null, 2)}\n`,
     )
   })
 
@@ -70,7 +70,7 @@ describe('usePostFormStore', () => {
     vi.advanceTimersByTime(PERSIST_DEBOUNCE_MS)
     expect(writePostForm).toHaveBeenCalledTimes(1)
     expect(writePostForm).toHaveBeenCalledWith(
-      JSON5.stringify(['cw', 'emoji'], null, 2),
+      `${JSON5.stringify(['cw', 'emoji'], null, 2)}\n`,
     )
   })
 

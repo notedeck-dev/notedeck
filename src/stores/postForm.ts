@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import defaultPostFormJson5 from '@/defaults/postform.json5?raw'
 import { i18n } from '@/i18n'
+import { stringifyJson5 } from '@/services/json5Document'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readPostForm, writePostForm } from '@/utils/settingsFs'
 
@@ -103,8 +104,7 @@ export const usePostFormStore = defineStore('postForm', () => {
 
   function persistNow() {
     if (!isTauri) return
-    const content = JSON5.stringify(buttons.value, null, 2)
-    writePostForm(content).catch((e) =>
+    writePostForm(stringifyJson5(buttons.value)).catch((e) =>
       console.warn('[postForm] failed to persist:', e),
     )
   }

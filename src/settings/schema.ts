@@ -1,3 +1,7 @@
+import JSON5 from 'json5'
+
+import { stringifyJson5 } from '@/services/json5Document'
+
 /**
  * settings.json の型定義。VSCode `settings.json` と同じく、トップレベルは
  * フラット dot-notation キー空間 (`theme.manual`, `modes.realtime` 等)。
@@ -239,6 +243,17 @@ export type RawSettings = Record<string, unknown> & { _schema?: number }
  * 未知のキーは保持される (forward-compat)。スキーマバージョンの
  * マイグレーションはここで行う (現状は v1 のみ)。
  */
+/** ファイル本文 → 設定。空 (無い) は既定値 */
+export function parseSettingsText(raw: string): NotedeckSettings {
+  if (raw.length === 0) return { ...DEFAULT_SETTINGS }
+  return parseSettings(JSON5.parse(raw) as Record<string, unknown>)
+}
+
+/** 設定 → ファイル本文 (決定的、#1333 §2)。既定値も全部書く (今までどおり) */
+export function serializeSettings(value: NotedeckSettings): string {
+  return stringifyJson5({ ...value, _schema: CURRENT_SCHEMA_VERSION })
+}
+
 export function parseSettings(raw: unknown): NotedeckSettings {
   if (!raw || typeof raw !== 'object') {
     return { ...DEFAULT_SETTINGS }

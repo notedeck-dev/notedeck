@@ -6,6 +6,7 @@ import {
   frameTelemetry,
   type QualityLevel,
 } from '@/engine/telemetry/frameTelemetry'
+import { stringifyJson5 } from '@/services/json5Document'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { detectQualitySync } from '@/utils/adaptiveQuality'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
@@ -121,8 +122,7 @@ export const usePerformanceStore = defineStore('performance', () => {
 
   async function persist(): Promise<void> {
     if (!isTauri) return
-    const content = JSON5.stringify(overrides.value, null, 2)
-    await writePerformance(`${content}\n`)
+    await writePerformance(stringifyJson5(overrides.value))
   }
   /** Merged config: overrides on top of defaults. */
   const config = computed<PerformanceConfig>(() => ({
@@ -338,6 +338,8 @@ export const usePerformanceStore = defineStore('performance', () => {
         ;(updated as Record<string, number>)[key] = v
       }
     }
+    // 自動の品質調整は利用者の操作ではないので、変わらないなら書かない (#1333 §2)
+    if (stringifyJson5(updated) === stringifyJson5(overrides.value)) return
     overrides.value = updated
     schedulePersist()
     applySideEffects()
@@ -352,6 +354,8 @@ export const usePerformanceStore = defineStore('performance', () => {
         ;(updated as Record<string, number>)[key] = target[key]
       }
     }
+    // 自動の品質調整は利用者の操作ではないので、変わらないなら書かない (#1333 §2)
+    if (stringifyJson5(updated) === stringifyJson5(overrides.value)) return
     overrides.value = updated
     schedulePersist()
     applySideEffects()
@@ -371,6 +375,8 @@ export const usePerformanceStore = defineStore('performance', () => {
         ;(updated as Record<string, number>)[key] = value
       }
     }
+    // 自動の品質調整は利用者の操作ではないので、変わらないなら書かない (#1333 §2)
+    if (stringifyJson5(updated) === stringifyJson5(overrides.value)) return
     overrides.value = updated
     schedulePersist()
     applySideEffects()

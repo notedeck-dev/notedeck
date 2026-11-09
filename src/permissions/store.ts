@@ -18,6 +18,7 @@ import {
   type CapabilityId,
 } from '@/capabilities/declarations.generated'
 import { i18n } from '@/i18n'
+import { stringifyJson5 } from '@/services/json5Document'
 import { useToast } from '@/stores/toast'
 import {
   isTauri,
@@ -297,7 +298,7 @@ async function _initFileStorage(): Promise<void> {
         rest.heartbeat = hbRest
       }
       if ('permissions' in parsed || 'httpApi' in parsed) {
-        await writeAiSettings(`${JSON5.stringify(rest, null, 2)}\n`)
+        await writeAiSettings(stringifyJson5(rest))
       }
     }
   } catch (e) {
@@ -306,7 +307,7 @@ async function _initFileStorage(): Promise<void> {
   _file.value = migrated
   try {
     _version = await writePermissionsSettings(
-      `${JSON5.stringify(_file.value, null, 2)}\n`,
+      stringifyJson5(_file.value),
       _version,
     )
   } catch (e) {
@@ -337,7 +338,7 @@ export function usePermissionsConfig() {
 
   function save(): void {
     _pendingWrite = writePermissionsSettings(
-      `${JSON5.stringify(_file.value, null, 2)}\n`,
+      stringifyJson5(_file.value),
       _version,
     )
       .then((v) => {

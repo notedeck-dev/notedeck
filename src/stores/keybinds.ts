@@ -1,9 +1,10 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 
 import type { Shortcut } from '@/commands/registry'
 import defaultKeybindsJson5 from '@/defaults/keybindings.json5?raw'
+import { parseJson5Document, stringifyJson5 } from '@/services/json5Document'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readKeybinds, writeKeybinds } from '@/utils/settingsFs'
@@ -25,20 +26,40 @@ export const useKeybindsStore = defineStore('keybinds', () => {
 
   async function persist(): Promise<void> {
     if (!isTauri) return
-    const content = JSON5.stringify(overrides.value, null, 2)
-    await writeKeybinds(`${content}\n`)
+    await writeKeybinds(stringifyJson5(overrides.value))
   }
 
-  watch(overrides, () => schedulePersist(), { deep: true })
+  // ファイルから写しを入れている間は書き戻さない (#1333 §2)。読んだだけで書くと
+  // 起動のたびにファイルが書き換わり、利用者のコメントが消え、notemaid が書いた
+  // 形も JSON5.stringify の形に揃えられてしまう
+  let hydrating = false
+  watch(
+    overrides,
+    () => {
+      if (!hydrating) schedulePersist()
+    },
+    { deep: true },
+  )
+
+  async function hydrate(content: string): Promise<void> {
+    hydrating = true
+    try {
+      overrides.value = parseJson5Document<Record<string, Shortcut[]>>(
+        content,
+        () => ({}),
+      )
+      await nextTick()
+    } finally {
+      hydrating = false
+    }
+  }
 
   async function initFileStorage(): Promise<void> {
     const content = await readKeybinds()
-    if (content) {
-      try {
-        overrides.value = JSON5.parse(content) as Record<string, Shortcut[]>
-      } catch (e) {
-        console.warn('[keybinds] failed to parse keybinds.json5:', e)
-      }
+    try {
+      await hydrate(content)
+    } catch (e) {
+      console.warn('[keybinds] failed to parse keybinds.json5:', e)
     }
     initialized.value = true
   }
@@ -108,10 +129,7 @@ export const useKeybindsStore = defineStore('keybinds', () => {
   registerSettingsFileHandler('root', async (change) => {
     if (change.name !== 'keybinds.json5' || !isTauri) return
     try {
-      const content = await readKeybinds()
-      overrides.value = content
-        ? (JSON5.parse(content) as Record<string, Shortcut[]>)
-        : {}
+      await hydrate(await readKeybinds())
     } catch (e) {
       console.warn('[keybinds] reload failed:', e)
     }

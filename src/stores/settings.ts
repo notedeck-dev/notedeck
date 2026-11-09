@@ -11,14 +11,13 @@
  * - 不正値や IO エラーは defaults にフォールバック (起動不能を避ける)
  */
 
-import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import {
-  CURRENT_SCHEMA_VERSION,
   DEFAULT_SETTINGS,
   type NotedeckSettings,
-  parseSettings,
+  parseSettingsText,
+  serializeSettings,
 } from '@/settings/schema'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri } from '@/utils/settingsFs'
@@ -151,14 +150,9 @@ export const useSettingsStore = defineStore('settings', () => {
   /** 最後の書込以降に変えたキー (先を越されたら最新に載せ直す) */
   const dirtyKeys = new Set<keyof NotedeckSettings>()
 
-  function fromRaw(raw: string): NotedeckSettings {
-    if (raw.length === 0) return { ...DEFAULT_SETTINGS }
-    return parseSettings(JSON5.parse(raw) as Record<string, unknown>)
-  }
+  const fromRaw = parseSettingsText
 
-  function serialize(value: NotedeckSettings): string {
-    return `${JSON5.stringify({ ...value, _schema: CURRENT_SCHEMA_VERSION }, null, 2)}\n`
-  }
+  const serialize = serializeSettings
 
   const { schedule: schedulePersist, flush } = createDebouncedPersist(persist, {
     onError: (e) => {

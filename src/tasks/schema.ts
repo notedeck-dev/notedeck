@@ -1,4 +1,6 @@
 import JSON5 from 'json5'
+
+import { stringifyJson5 } from '@/services/json5Document'
 import {
   TASKS_FILE_VERSION,
   type TaskAction,
@@ -219,4 +221,9 @@ export function parseTasks(raw: string): TasksFile {
     version: TASKS_FILE_VERSION,
     tasks: enforceSingleDefault(parsed),
   }
+}
+
+/** tasks.json5 の本文 (決定的、#1333 §2)。`version` を先頭に置く */
+export function serializeTasks(file: TasksFile): string {
+  return stringifyJson5({ version: file.version, tasks: file.tasks })
 }

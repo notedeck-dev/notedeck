@@ -4,6 +4,7 @@ import type { Connection, ConnectionProtocol, HarnessInfo } from '@/bindings'
 import defaultAiJson5 from '@/defaults/ai.json5?raw'
 import { i18n } from '@/i18n'
 import type { PresetKey } from '@/permissions/schema'
+import { stringifyJson5 } from '@/services/json5Document'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
 import {
   isTauri,
@@ -742,6 +743,23 @@ const _initialized: Ref<boolean> = ref(false)
 let _initStarted = false
 /** 最後に読んだ / 書いたときの版 (条件付き書込に添える, #1106) */
 let _version: string | null = null
+/**
+ * 最後に読んだ / 書いた時点の本文 (`stringifyJson5(_config)`)。`save()` はこれと
+ * 同じなら書かない (#1333 §2): AI 設定窓の deep watch は読み直しでも発火するので、
+ * 読んだだけで書き戻す経路をここで止める
+ */
+let _savedText: string | null = null
+
+/** ai.json5 の本文 → 設定 (既定値で埋める)。空は既定値 */
+export function parseAiConfigText(text: string): AiConfig {
+  if (text.trim().length === 0) return defaultConfig()
+  return mergeConfig(defaultConfig(), JSON5.parse(text) as Partial<AiConfig>)
+}
+
+/** 設定 → ai.json5 の本文 (決定的、#1333 §2) */
+export function serializeAiConfig(config: AiConfig): string {
+  return stringifyJson5(config)
+}
 
 async function _initFileStorage(): Promise<void> {
   dropLegacyLocalStorageAiConfig()
@@ -771,7 +789,7 @@ async function _initFileStorage(): Promise<void> {
         // 次回起動以降は移行をスキップする。
         try {
           _version = await writeAiSettings(
-            `${JSON5.stringify(_config.value, null, 2)}\n`,
+            serializeAiConfig(_config.value),
             _version,
           )
         } catch (e) {
@@ -785,6 +803,7 @@ async function _initFileStorage(): Promise<void> {
   } else {
     _config.value = defaultConfig()
   }
+  _savedText = serializeAiConfig(_config.value)
   _initialized.value = true
 }
 
@@ -814,11 +833,12 @@ export function useAiConfig() {
    * 呼ぶ (保存の debounce より前に送ると前の接続で走る)
    */
   async function save(): Promise<boolean> {
+    const text = serializeAiConfig(_config.value)
+    // 読んだ / 書いた時点から変わっていないなら書かない (#1333 §2)
+    if (text === _savedText) return true
     try {
-      _version = await writeAiSettings(
-        `${JSON5.stringify(_config.value, null, 2)}\n`,
-        _version,
-      )
+      _version = await writeAiSettings(text, _version)
+      _savedText = text
       return true
     } catch (e) {
       if (isConflictError(e)) {
