@@ -261,20 +261,49 @@ impl Layout {
     }
 }
 
-/// 移行の排他を blocking で取る (#1334)。同じ root で同時に移行しない。クラッシュで自動解放
-pub fn lock_layout(root: &Path) -> std::io::Result<std::fs::File> {
+/// 移行の排他 (`lock_layout`)。落とすと解放
+pub struct LayoutLock {
+    _file: std::fs::File,
+    _in_process: std::sync::MutexGuard<'static, ()>,
+}
+
+static LAYOUT_LOCK_IN_PROCESS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// 移行の排他を blocking で取る (#1334)。同じ root で同時に移行しない。クラッシュで自動解放。
+///
+/// プロセス間はファイルロック、プロセス内は Mutex。Android の std は `File::lock` を
+/// 実装しておらず `Unsupported` ("lock() not supported") を返すので、そこではファイル
+/// ロックを掛けない (アプリ・WorkManager のワーカー・push の受信は同じプロセスなので
+/// Mutex だけで足りる)
+pub fn lock_layout(root: &Path) -> std::io::Result<LayoutLock> {
+    let in_process = LAYOUT_LOCK_IN_PROCESS
+        .lock()
+        .unwrap_or_else(|p| p.into_inner());
     let file = std::fs::OpenOptions::new()
         .create(true)
         .truncate(false)
         .read(true)
         .write(true)
         .open(root.join(LAYOUT_LOCK))?;
+    #[cfg(not(target_os = "android"))]
     file.lock()?;
-    Ok(file)
+    Ok(LayoutLock {
+        _file: file,
+        _in_process: in_process,
+    })
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn layout_lock_can_be_taken_again_after_release() {
+        let t = tempfile::tempdir().unwrap();
+        let first = lock_layout(t.path()).unwrap();
+        assert!(t.path().join(LAYOUT_LOCK).is_file());
+        drop(first);
+        lock_layout(t.path()).unwrap();
+    }
+
     use super::*;
 
     #[test]
