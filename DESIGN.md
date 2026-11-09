@@ -97,7 +97,7 @@ NoteDeck の AI は「画面の一角でチャットする機能」ではなく�
 
 ### AI セッション = カラムから独立した永続オブジェクト
 
-- セッションは `notedeck/sessions/<YYYYMMDDhhmmss>.json5` に保存され、カラムを削除しても残る
+- セッションは `data/sessions/<YYYYMMDDhhmmss>.json5` に保存され、カラムを削除しても残る
 - `AiSessionKind = 'chat' | 'command' | 'task' | 'heartbeat'` で kind 別の UI を切り替え
 - master-detail (一覧 + 詳細) で並列のチャットを CRUD。タイトルは初回応答完了後に AI が要約生成
 - HEARTBEAT 由来のセッションは **最上位 pin + 専用 icon** で常に視認できる位置に固定

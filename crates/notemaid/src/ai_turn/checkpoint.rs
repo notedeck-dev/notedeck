@@ -70,7 +70,9 @@ pub fn write(dir: &Path, state: &TurnState) -> Result<()> {
     let io = |e: std::io::Error| NoteDeckError::Internal(format!("ai turn checkpoint: {e}"));
     std::fs::create_dir_all(dir).map_err(io)?;
     let body = serde_json::to_string_pretty(state)?;
-    std::fs::write(path(dir, &state.req.turn_id), body).map_err(io)?;
+    // チェックポイントの中身はセッション同等 (他人の本文を含みうる) なので 0600 (#1334)
+    notecore::settings_store::atomic_write(&path(dir, &state.req.turn_id), &body, Some(0o600))
+        .map_err(|e| NoteDeckError::Internal(format!("ai turn checkpoint: {e}")))?;
     Ok(())
 }
 

@@ -531,6 +531,18 @@ pub fn migrate(root: &Path) -> Result<LayoutMigrationReport, Skip> {
         let _ = fs::remove_dir(&journal.shelf);
         return Err(Skip::Failed(e.to_string()));
     }
+    // チェックポイント (セッション同等の中身) は 0600 に揃える
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(entries) = fs::read_dir(Layout::v1(root).notemaid_state().join("turns")) {
+            for e in entries.flatten() {
+                if e.path().is_file() {
+                    let _ = fs::set_permissions(e.path(), fs::Permissions::from_mode(0o600));
+                }
+            }
+        }
+    }
     // 雛形のままの .gitignore は消す (再編後は除外が要らない)
     let gi = Layout::v1(root).config().join(".gitignore");
     if fs::read_to_string(&gi).ok().as_deref() == Some(store::GITIGNORE_TEMPLATE) {
@@ -547,6 +559,50 @@ pub fn migrate(root: &Path) -> Result<LayoutMigrationReport, Skip> {
         migrated: true,
         notices,
     })
+}
+
+/// 退避 (`notedeck.old-<stamp>/`) と移行前のバックアップ (`backups/pre-layout-<stamp>/`) の
+/// 保持は「次の版まで」。版の境界は配置からは分からないので、日数で近似して消す
+pub const SHELF_RETENTION_DAYS: u64 = 30;
+
+/// 古い退避と移行前のバックアップを消す (起動時、warn 止まり)
+pub fn sweep_old_shelves(root: &Path) {
+    let cutoff = std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(
+        SHELF_RETENTION_DAYS * 86_400,
+    ));
+    let Some(cutoff) = cutoff else {
+        return;
+    };
+    let mut targets: Vec<PathBuf> = Vec::new();
+    if let Ok(entries) = fs::read_dir(root) {
+        for e in entries.flatten() {
+            if e.file_name().to_string_lossy().starts_with("notedeck.old-") {
+                targets.push(e.path());
+            }
+        }
+    }
+    if let Ok(entries) = fs::read_dir(root.join("backups")) {
+        for e in entries.flatten() {
+            if e.file_name().to_string_lossy().starts_with("pre-layout-") {
+                targets.push(e.path());
+            }
+        }
+    }
+    for dir in targets {
+        let old_enough = fs::metadata(&dir)
+            .and_then(|m| m.modified())
+            .map(|t| t < cutoff)
+            .unwrap_or(false);
+        if !old_enough {
+            continue;
+        }
+        match fs::remove_dir_all(&dir) {
+            Ok(()) => tracing::info!(path = %dir.display(), "removed an old layout shelf"),
+            Err(e) => {
+                tracing::warn!(path = %dir.display(), %e, "cannot remove an old layout shelf")
+            }
+        }
+    }
 }
 
 /// 排他 (`.layout.lock`、blocking) を取って `migrate` を呼ぶ。版印があれば何もしない

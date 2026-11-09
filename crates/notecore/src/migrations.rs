@@ -24,6 +24,8 @@ pub fn run_fs(app_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let layout = crate::app_dir::Layout::from_root(app_dir);
     crate::settings_store::move_history_sidecars(&layout);
     crate::settings_store::sweep_orphan_history(&layout);
+    // 再編の退避と移行前のバックアップは保持期限を過ぎたら消す (#1334)
+    crate::layout_migration::sweep_old_shelves(app_dir);
     Ok(())
 }
 

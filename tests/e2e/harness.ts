@@ -196,11 +196,15 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
     )
   }
 
-  // 隔離プロファイル + チュートリアル抑止
+  // 隔離プロファイル + チュートリアル抑止。配置は再編後 (#1334: config/ + 版印)
   const profileDir = await mkdtemp(path.join(tmpdir(), 'notedeck-e2e-'))
-  await mkdir(path.join(profileDir, 'notedeck'), { recursive: true })
+  await mkdir(path.join(profileDir, 'config'), { recursive: true })
   await writeFile(
-    path.join(profileDir, 'notedeck', 'settings.json5'),
+    path.join(profileDir, 'layout.json5'),
+    '{\n  version: 3,\n}\n',
+  )
+  await writeFile(
+    path.join(profileDir, 'config', 'settings.json5'),
     `${JSON.stringify({ 'tutorial.completed': true }, null, 2)}\n`,
   )
   // ハーネスは「ユーザーが権限を与えた外部アプリ」として HTTP API を叩く。
@@ -209,7 +213,7 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
   // (欠損は起動時に external の backfill 値 = false で補完され、Misskey
   // read の floor は resolve 時に常時 ON)
   await writeFile(
-    path.join(profileDir, 'notedeck', 'permissions.json5'),
+    path.join(profileDir, 'config', 'permissions.json5'),
     `${JSON.stringify(
       {
         schemaVersion: 1,
