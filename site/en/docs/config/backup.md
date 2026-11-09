@@ -1,5 +1,5 @@
 ---
-sourceHash: c7c10e209653
+sourceHash: 0347f7c30fcd
 ---
 
 # Backup
@@ -27,7 +27,7 @@ Settings support export and import. Load the exported file on another machine to
 
 It covers the contents of `config/` listed in [Settings files](/en/docs/config/files#what-is-in-config) plus, from `data/`, the memos, the AI conversations and the three Markdown files of personality and memory. This PC's state (`state/`: window positions, consents, tutorial progress and so on) and the edit history are not included, nor are the values plugins and widgets keep with `Mk:save`.
 
-If you want to keep settings in step with another PC, [carrying them with Git or Dropbox](/en/docs/config/sync) suits better than backups.
+If you want to keep settings in step with another PC, [managing them with Git](/en/docs/config/sync) suits better than backups.
 
 Importing overwrites the current settings and restarts. Items with identical contents are skipped, name collisions go in under a different name, and items with invalid names are not imported. Whether to replace the personality and memory is confirmed separately.
 

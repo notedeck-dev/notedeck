@@ -62,7 +62,7 @@ const JA_SIDEBAR: DefaultTheme.Sidebar = {
       collapsed: false,
       items: [
         { text: '設定ファイル', link: '/docs/config/files' },
-        { text: 'Git や Dropbox で持ち運ぶ', link: '/docs/config/sync' },
+        { text: 'Git で管理する', link: '/docs/config/sync' },
         { text: 'バックアップ', link: '/docs/config/backup' },
       ],
     },
@@ -132,7 +132,7 @@ const EN_SIDEBAR: DefaultTheme.Sidebar = {
       collapsed: false,
       items: [
         { text: 'Settings files', link: '/en/docs/config/files' },
-        { text: 'Carry settings with Git or Dropbox', link: '/en/docs/config/sync' },
+        { text: 'Managing settings with Git', link: '/en/docs/config/sync' },
         { text: 'Backup', link: '/en/docs/config/backup' },
       ],
     },
@@ -197,7 +197,7 @@ const ZH_SIDEBAR: DefaultTheme.Sidebar = {
       collapsed: false,
       items: [
         { text: '设置文件', link: '/zh/docs/config/files' },
-        { text: '用 Git 或 Dropbox 携带设置', link: '/zh/docs/config/sync' },
+        { text: '用 Git 管理设置', link: '/zh/docs/config/sync' },
         { text: '备份', link: '/zh/docs/config/backup' },
       ],
     },
@@ -264,7 +264,7 @@ const KO_SIDEBAR: DefaultTheme.Sidebar = {
       collapsed: false,
       items: [
         { text: '설정 파일', link: '/ko/docs/config/files' },
-        { text: 'Git이나 Dropbox로 설정 옮기기', link: '/ko/docs/config/sync' },
+        { text: 'Git으로 설정 관리하기', link: '/ko/docs/config/sync' },
         { text: '백업', link: '/ko/docs/config/backup' },
       ],
     },

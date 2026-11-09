@@ -1,5 +1,5 @@
 ---
-sourceHash: 922a7353e8ee
+sourceHash: 8cc64f54e242
 ---
 
 # Settings files
@@ -28,7 +28,7 @@ The app data folder is split into four parts by how each should be treated.
 
 | Folder | What it is | Carry / sync |
 |---|---|---|
-| `config/` | **Settings.** Column layout, themes, keybindings, plugins, AI connections and so on | Yes ([Carry settings with Git or Dropbox](/en/docs/config/sync)) |
+| `config/` | **Settings.** Column layout, themes, keybindings, plugins, AI connections and so on | Yes ([Managing settings with Git](/en/docs/config/sync); sync tools only with caveats) |
 | `data/` | **Your records.** Memos, AI conversations, the AI's personality and memory | Not recommended: it contains other people's post bodies |
 | `state/` | **This PC's state.** Window positions, zoom, consents and whether keys are present, "don't ask again" memory, edit history | No |
 | `cache/` | **Disposable.** Images, emoji, pet sprites | No |
@@ -69,7 +69,7 @@ Some things are kept as folders.
 File names are slugs made from the display name (or the storeId for store items), and references use the id inside the file. If two files share the same id, the later one is skipped and a toast tells you.
 
 ::: tip API keys are not here
-Access tokens and AI API keys are in the OS keychain (on Linux without Secret Service, they fall back to an encrypted file). Even if you hand `config/` to someone as is, no keys are included. It is still not something to publish, though ([what to watch out for when carrying it](/en/docs/config/sync)).
+Access tokens and AI API keys are in the OS keychain (on Linux without Secret Service, they fall back to an encrypted file). Even if you hand `config/` to someone as is, no keys are included. It is still not something to publish, though ([what to watch out for when managing it with Git](/en/docs/config/sync)).
 :::
 
 ## What is in `data/`
