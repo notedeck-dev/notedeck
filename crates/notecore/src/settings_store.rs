@@ -426,11 +426,12 @@ pub fn write_file(layout: &Layout, subdir: &str, name: &str, content: &str) -> R
 /// 除外しない。再編 (#1334) で `notedeck/` を動かすときは `.git*` も一緒に動かし、
 /// 雛形が無編集なら消す
 pub const GITIGNORE_TEMPLATE: &str = "\
-# NoteDeck の設定フォルダ (#1333)。設定は持ち出せるが、公開前提ではない:
-# アカウントの紐付け (user@host)、外部サービスの URL、実行されるコード (plugins /
-# widgets / skills)、権限の方針が入る。
+# NoteDeck settings folder (#1333). Portable, but not meant to be public:
+# it holds account bindings (user@host), external service URLs, code that runs
+# (plugins / widgets / skills) and permission policies.
 #
-# 以下は設定ではない (この機械の記録・人の記録・一時ファイル) ので Git に乗せない。
+# The entries below are not settings (machine records, personal records,
+# temporary files), so keep them out of Git.
 *.history.json5
 tutorial.json5
 theme-dropins.json5
@@ -443,9 +444,9 @@ notemaid/
 
 /// 再編後 (#1334) の雛形: `config/` には設定しか無いので、書込中の一時ファイルだけ
 pub const GITIGNORE_TEMPLATE_V1: &str = "\
-# NoteDeck の設定フォルダ (#1333 / #1334)。設定は持ち出せるが、公開前提ではない:
-# アカウントの紐付け (user@host)、外部サービスの URL、実行されるコード (plugins /
-# widgets / skills)、権限の方針が入る。
+# NoteDeck settings folder (#1333 / #1334). Portable, but not meant to be public:
+# it holds account bindings (user@host), external service URLs, code that runs
+# (plugins / widgets / skills) and permission policies.
 .*.tmp
 ";
 
