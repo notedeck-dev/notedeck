@@ -13,7 +13,6 @@ use std::sync::Mutex;
 
 use notecore::push_state::PushStore;
 
-const FILE_NAME: &str = "push_state.json";
 const TMP_NAME: &str = "push_state.json.tmp";
 
 static LOCK: Mutex<()> = Mutex::new(());

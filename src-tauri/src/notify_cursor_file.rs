@@ -12,7 +12,6 @@ use std::sync::Mutex;
 use notecore::notify_cursor::NotifyCursor;
 use notecore::notify_plan::NotifyKind;
 
-const FILE_NAME: &str = "notify_cursor.json";
 const TMP_NAME: &str = "notify_cursor.json.tmp";
 
 static LOCK: Mutex<()> = Mutex::new(());
