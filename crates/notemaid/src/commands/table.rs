@@ -10,6 +10,8 @@ macro_rules! with_maid_command_table {
         $cb! {
             // --- heartbeat (crates/notemaid/src/commands/heartbeat.rs) ---
         data heartbeat_trigger_now() -> () = $crate::commands::heartbeat::heartbeat_trigger_now;
+        data heartbeat_probe() -> $crate::heartbeat::HeartbeatProbeResult = $crate::commands::heartbeat::heartbeat_probe;
+        data heartbeat_status() -> $crate::heartbeat::HeartbeatStatus = $crate::commands::heartbeat::heartbeat_status;
         data heartbeat_notices_since(since: u64) -> Vec<$crate::heartbeat::HeartbeatNotice> = $crate::commands::heartbeat::heartbeat_notices_since;
             // --- ai_chat (crates/notemaid/src/commands/ai_chat.rs) ---
         data ai_chat_send(req: $crate::ai_chat_service::AiChatRequest) -> () = $crate::commands::ai_chat::ai_chat_send;

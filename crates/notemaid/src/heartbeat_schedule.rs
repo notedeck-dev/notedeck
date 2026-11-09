@@ -69,6 +69,11 @@ impl Schedule {
         }
     }
 
+    /// 次の定期の巡回の期限 (実時計、ms)。復帰の待ちは含めない
+    pub fn next_due_wall(&self) -> u64 {
+        self.last_run_wall + self.interval_ms
+    }
+
     /// 1 回見に行く。巡回すべきなら理由を返し、前回の巡回時刻を今に進める
     pub fn poll(&mut self, now_wall: u64, now_mono: u64) -> Option<Due> {
         let wall_delta = now_wall.saturating_sub(self.last_poll_wall);
@@ -120,6 +125,8 @@ where
     let origin = tokio::time::Instant::now();
     let mono = move || origin.elapsed().as_millis() as u64;
     let mut schedule = Schedule::new(interval, wall_ms(), mono());
+    // 次の予定時刻を観測値に出す (AI 設定の「最後の巡回」の隣、#1321)
+    crate::heartbeat::set_next_tick_at(Some(schedule.next_due_wall()));
     let mut ticker = tokio::time::interval(POLL);
     ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     ticker.tick().await;
@@ -132,6 +139,7 @@ where
                     "[heartbeat] resumed from sleep; running one round"
                 );
             }
+            crate::heartbeat::set_next_tick_at(Some(schedule.next_due_wall()));
             tick(due).await;
         }
     }
@@ -143,6 +151,15 @@ mod tests {
 
     const MIN: u64 = 60_000;
     const S: u64 = 1_000;
+
+    #[test]
+    fn next_due_is_last_run_plus_interval() {
+        let mut s = Schedule::new(Duration::from_millis(30 * MIN), 1_000, 0);
+        assert_eq!(s.next_due_wall(), 1_000 + 30 * MIN);
+        // 期限が来て巡回したら、次の期限はそこから 1 間隔後
+        assert_eq!(s.poll(1_000 + 30 * MIN, 30 * MIN), Some(Due::Scheduled));
+        assert_eq!(s.next_due_wall(), 1_000 + 60 * MIN);
+    }
 
     /// 起きている間は実時計と単調時計が同じだけ進む
     fn awake(s: &mut Schedule, wall: &mut u64, mono: &mut u64, ms: u64) -> Vec<Due> {

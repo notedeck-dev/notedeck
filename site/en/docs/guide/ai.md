@@ -1,5 +1,5 @@
 ---
-sourceHash: 366896fe656e
+sourceHash: 65158e79f029
 ---
 
 # Using AI
@@ -21,13 +21,21 @@ Two formats are supported: **Anthropic Messages compatible** and **OpenAI Chat C
 
 API keys are stored in the OS keychain. They are never written into settings files, and neither plugins nor the AI itself can read them.
 
+### Using a local Ollama
+
+If a connection's URL points at your own device, such as `http://127.0.0.1:11434/v1`, it becomes a local connection ("on this device") and the model's inference never leaves the device (no authentication or API key needed). The built-in connection templates include Ollama.
+
+- Small models may not support tools; on such a connection the AI cannot perform operations in chat or report HEARTBEAT rounds
+- Long input can exceed the model's context and get truncated from the start, dropping the instructions. Raise Ollama's context limit with the `OLLAMA_CONTEXT_LENGTH` environment variable or the model's `num_ctx`
+- Local connections pair well with HEARTBEAT (below): keep chat on a capable cloud model and run only the rounds locally
+
 ### Making a local CLI the AI
 
 Instead of an API key, you can use an AI CLI that is already installed and logged in on your machine (Claude Agent (Claude Code) / Codex / OpenCode / Hermes Agent / Grok Build) as the AI as it is. Choose "Local CLI" (手元の CLI) under Connections and the CLIs that were found are listed.
 
 - Permission requests from the CLI appear as the chat's confirmation dialog. Permissions are decided by the "AI chat" row
 - "What it remembers about you" is passed to the CLI as well by default. If you do not want that, turn off "Also pass it to the local CLI" under "Memory" (it is sent to the CLI's provider and may end up in the CLI's own memory)
-- HEARTBEAT does not run through this route
+- HEARTBEAT does not run through this route. To keep chat on the CLI and run only the rounds on an API connection or a local Ollama, choose another connection under "AI for the rounds" in HEARTBEAT
 
 ## What it can do
 
@@ -79,6 +87,10 @@ A way to run the AI periodically. You can have it keep watch, for example "tell 
 - Turn on "Quick check first" (まず軽く確認) and the AI is not called while nothing has changed since last time
 - You can cap how many times a day the AI is started; when the cap is reached it stops automatically
 - After repeated failures it stops automatically and warns you (so it does not keep failing unnoticed)
+- When the connection is merely down (for example a local Ollama that is not running), it does not count as a failure; the rounds resume once it is up
+- Under "AI for the rounds" you can pick a connection other than chat (default: same as chat). Chat on a capable cloud model and the rounds on a local Ollama is set up here. The rounds' connection receives the same personality, what the AI remembers about you, the steps, and whatever a round reads. Follow-up conversation in the target session uses the chat connection
+- "Try this connection" sends one round with the same content and checks whether the AI can report (uses token budget). Small models may not support tools, or the input may be so long that the instructions get cut off; then it says "Cannot". Raise Ollama's context limit with `OLLAMA_CONTEXT_LENGTH` or the model's `num_ctx`
+- The "Last round" line shows when and how the last round ended and when the next one is due. "Run a round now" runs one round even while HEARTBEAT is disabled
 
 By default it runs only while the app is open. Turn on "Keep running after the app exits" and [the AI process stays resident](/en/docs/notemaid#making-it-resident); reports from while the app was closed arrive as one summary the next time you open it.
 

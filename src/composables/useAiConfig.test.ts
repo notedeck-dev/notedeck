@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { Connection } from '@/bindings'
 import {
   _internal,
   AI_MAX_TOKENS_DEFAULT,
@@ -15,10 +16,12 @@ import {
   HEARTBEAT_INTERVAL_MAX_MINUTES,
   HEARTBEAT_INTERVAL_MIN_MINUTES,
   type HeartbeatConfig,
+  heartbeatConnectionId,
   normalizeGenerationConfig,
   normalizeHarnesses,
   resolveAiConnection,
   resolveDataSources,
+  resolveHeartbeatConnection,
   setDataSourcePreset,
 } from './useAiConfig'
 
@@ -293,5 +296,78 @@ describe('local CLI harness (#1104)', () => {
       { id: 'mine', name: 'mine', command: 'my-agent', args: ['acp'] },
     ])
     expect(mergeConfig(defaultConfig(), {}).harnesses).toEqual([])
+  })
+})
+
+describe('HEARTBEAT の接続 (#1321)', () => {
+  function conn(id: string, local = false): Connection {
+    return {
+      id,
+      name: `name-${id}`,
+      baseUrl: local ? 'http://127.0.0.1:11434/v1' : 'https://api.example.com',
+      protocol: 'openai-compat',
+      local,
+    } as unknown as Connection
+  }
+
+  it('既定は空で、空ならチャットの接続に追従する', () => {
+    const cfg = { ...defaultConfig(), activeConnectionId: 'chat' }
+    expect(cfg.heartbeat.connectionId).toBe('')
+    expect(heartbeatConnectionId(cfg)).toBe('chat')
+    cfg.heartbeat.connectionId = 'local'
+    expect(heartbeatConnectionId(cfg)).toBe('local')
+  })
+
+  it('文字列でなければ空として読み、merge で残る', () => {
+    const merged = mergeConfig(defaultConfig(), {
+      activeConnectionId: 'chat',
+      heartbeat: { connectionId: 5 } as unknown as HeartbeatConfig,
+    })
+    expect(merged.heartbeat.connectionId).toBe('')
+    const kept = mergeConfig(defaultConfig(), {
+      heartbeat: { connectionId: 'local' } as unknown as HeartbeatConfig,
+    })
+    expect(kept.heartbeat.connectionId).toBe('local')
+    // 他のキーだけ書いた partial では消えない
+    expect(
+      mergeConfig(kept, {
+        heartbeat: { enabled: true } as unknown as HeartbeatConfig,
+      }).heartbeat.connectionId,
+    ).toBe('local')
+  })
+
+  it('巡回の接続はチャットと同じ規則で解決し、見る id だけが違う', () => {
+    const cfg = {
+      ...defaultConfig(),
+      activeConnectionId: 'chat',
+      models: { chat: 'claude', local: 'qwen' },
+    }
+    const conns = [conn('chat'), conn('local', true)]
+    // 追従
+    expect(resolveHeartbeatConnection(cfg, conns)).toMatchObject({
+      kind: 'vault',
+      connectionId: 'chat',
+      model: 'claude',
+    })
+    // 明示
+    cfg.heartbeat.connectionId = 'local'
+    expect(resolveHeartbeatConnection(cfg, conns)).toMatchObject({
+      kind: 'vault',
+      connectionId: 'local',
+      model: 'qwen',
+      connection: { local: true },
+    })
+    // チャット側の解決は影響を受けない
+    expect(resolveAiConnection(cfg, conns)).toMatchObject({
+      connectionId: 'chat',
+    })
+    // 消えた接続は null、手元の CLI は harness として返る (動かないのは UI が出す)
+    cfg.heartbeat.connectionId = 'gone'
+    expect(resolveHeartbeatConnection(cfg, conns)).toBeNull()
+    cfg.heartbeat.connectionId = ''
+    cfg.activeConnectionId = 'harness:codex'
+    expect(resolveHeartbeatConnection(cfg, conns)).toMatchObject({
+      kind: 'harness',
+    })
   })
 })

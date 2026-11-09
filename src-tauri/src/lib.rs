@@ -1326,6 +1326,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::plugin_body_hash,
             // HEARTBEAT (#411 Phase 6) — per-column scheduler
             commands::heartbeat_trigger_now,
+            commands::heartbeat_probe,
+            commands::heartbeat_status,
             commands::heartbeat_notices_since,
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,

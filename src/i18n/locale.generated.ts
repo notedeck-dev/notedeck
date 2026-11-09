@@ -1414,6 +1414,10 @@ export interface Locale {
     readonly "intervalAndTarget": ParameterizedString<'minutes' | 'target'>
     /** 直近の結末 */
     readonly "lastOutcome": string
+    /** 巡回に使う AI */
+    readonly "heartbeatProvider": string
+    /** 待機中 */
+    readonly "heartbeatWaiting": string
     /** 状態未取得 — アプリ接続後に自動で埋まります */
     readonly "noHeartbeatState": string
     /** キャッシュ観測 */
@@ -1590,9 +1594,9 @@ export interface Locale {
     readonly "dailyTokenBudget": string
     /** tokens / 日 */
     readonly "tokensPerDay": string
-    /** この接続でチャットと HEARTBEAT が使う合計の上限。0 で無制限。 */
+    /** この接続を使うすべての用途 (チャット / HEARTBEAT) の合計の上限。0 で無制限。 */
     readonly "dailyTokenBudgetHint": string
-    /** ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT は動きません。 */
+    /** ログイン済みの CLI をそのまま AI として使います (API キー不要)。CLI からの許可要求はチャットの確認として出ます。HEARTBEAT には別の接続を選べます。 */
     readonly "harnessHint": string
     /** 見つかりました */
     readonly "harnessFound": string
@@ -1716,6 +1720,90 @@ export interface Locale {
     readonly "stepsEmpty": string
     /** 巡回の手順を開けませんでした: {reason} */
     readonly "stepsOpenFailed": ParameterizedString<'reason'>
+    /** 最後の巡回: {time} · {result} */
+    readonly "lastTick": ParameterizedString<'result' | 'time'>
+    /** 最後の巡回: 未実行 */
+    readonly "lastTickNever": string
+    /** 次回 {time} */
+    readonly "nextTick": ParameterizedString<'time'>
+    /** 巡回中... */
+    readonly "running": string
+    /** 今すぐ巡回する */
+    readonly "runNow": string
+    /** 無効でも走り、変化の有無を見ずに AI を呼びます。報告は報告先のセッションに書かれ、連続失敗と 1 日の起動上限には数えません */
+    readonly "runNowHint": string
+    /** 巡回を開始できませんでした: {reason} */
+    readonly "runNowFailed": ParameterizedString<'reason'>
+    /** 未実行 */
+    readonly "outcomeNever": string
+    /** 報告あり */
+    readonly "outcomeReported": string
+    /** 報告なし */
+    readonly "outcomeSuppressed": string
+    /** 確認待ちの操作あり */
+    readonly "outcomeQueued": string
+    /** 待機中 */
+    readonly "outcomeWaiting": string
+    /** 失敗しました: {error} */
+    readonly "outcomeError": ParameterizedString<'error'>
+    /** 応答待ちの時間切れです。生成設定の「応答待ちの時間」を伸ばすと通ることがあります */
+    readonly "outcomeTimeoutHint": string
+    /** 飛ばした */
+    readonly "outcomeSkipped": string
+    /** 飛ばした (変化なし) */
+    readonly "outcomeSkippedNoChange": string
+    /** 飛ばした (アカウント無し) */
+    readonly "outcomeSkippedNoAccount": string
+    /** 飛ばした (手順無し) */
+    readonly "outcomeSkippedNoSkills": string
+    /** 飛ばした (無効) */
+    readonly "outcomeSkippedDisabled": string
+    /** 入力が切り詰められた可能性があります (入力 {input} token / 推定 {estimated})。巡回の手順や記憶を短くするか、モデルの context を増やしてください */
+    readonly "truncationNote": ParameterizedString<'estimated' | 'input'>
+    /** 巡回に使う AI */
+    readonly "provider": string
+    /** チャットと同じ ({name}) */
+    readonly "sameAsChat": ParameterizedString<'name'>
+    /** チャットと同じ (未選択) */
+    readonly "sameAsChatNone": string
+    /** チャットは手元の CLI なので HEARTBEAT は動きません。別の接続を選んでください */
+    readonly "harnessWarning": string
+    /** 接続が見つかりません。 */
+    readonly "connectionMissing": string
+    /** チャットと同じに戻す */
+    readonly "resetToChat": string
+    /** この接続を試す */
+    readonly "probe": string
+    /** 試しています... {seconds} 秒 */
+    readonly "probing": ParameterizedString<'seconds'>
+    /** 巡回と同じ内容を 1 回送って、報告の tool を呼べるかを見ます。token 予算を消費します */
+    readonly "probeBudgetNote": string
+    /** このモデルで巡回の報告ができます */
+    readonly "probeOk": string
+    /** できません (モデルが tool に対応していないか、入力が長すぎて指示が切れています) */
+    readonly "probeNoTool": string
+    /** 接続先の起動を待っています */
+    readonly "probeUnreachable": string
+    /** 試せません: {reason} */
+    readonly "probeNoProvider": ParameterizedString<'reason'>
+    /** 失敗しました: {error} */
+    readonly "probeError": ParameterizedString<'error'>
+    /** 入力 {input} token / 推定 {estimated} */
+    readonly "probeUsage": ParameterizedString<'estimated' | 'input'>
+    /** 巡回の接続には、チャットと同じ人格 / あなたについて覚えていること / 巡回の手順と、巡回中に読んだ内容が送られます。続きの会話はチャットの接続です。 */
+    readonly "disclosure": string
+    /** 巡回の内容はこの端末の外に出ます。 */
+    readonly "disclosureLeavesDevice": string
+    /** 巡回のモデル */
+    readonly "modelForHeartbeat": string
+    /** 巡回の接続の 1 日の token 予算 */
+    readonly "budgetForHeartbeat": string
+    /** 説明を見る */
+    readonly "docsLink": string
+    /** モデルが設定されていません。モデルを選ぶか入力するまで巡回は待機します */
+    readonly "modelMissing": string
+    /** 設定を保存できなかったので実行しません */
+    readonly "saveFailed": string
   }
   readonly "_aiPersonalitySection": {
     /** ペルソナ */
@@ -6555,6 +6643,20 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "draftNeedsAccount": string
       /** ⚠ HEARTBEAT に失敗しました (source={source}): {error} */
       readonly "failedMessage": ParameterizedString<'error' | 'source'>
+      /** HEARTBEAT の接続が設定されていません */
+      readonly "waitingNotConfigured": string
+      /** HEARTBEAT の接続のモデルが設定されていません */
+      readonly "waitingNoModel": string
+      /** チャットは手元の CLI なので HEARTBEAT は動きません。HEARTBEAT には別の接続を選んでください */
+      readonly "waitingHarness": string
+      /** HEARTBEAT の接続が見つかりません */
+      readonly "waitingConnectionMissing": string
+      /** HEARTBEAT の接続は AI プロバイダーではありません */
+      readonly "waitingNotAiProvider": string
+      /** HEARTBEAT の接続先の起動を待っています (起動すれば次の巡回で再開します): {detail} */
+      readonly "waitingUnreachable": ParameterizedString<'detail'>
+      /** HEARTBEAT の接続先の名前解決が内部アドレスを返したので送れません。接続の URL を確認してください: {detail} */
+      readonly "waitingBlocked": ParameterizedString<'detail'>
     }
     readonly "ai": {
       /** API キーが無効です (HTTP {status}){detail} */

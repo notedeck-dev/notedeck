@@ -82,6 +82,10 @@
     // アプリにフォーカスがあるときも自動抑制 (sendDesktopNotification 内で
     // document.hasFocus() を判定)。
     desktopNotification: true,
+    // 巡回に使う Vault 接続の id (#1321)。空 = チャットと同じ (チャットの接続を変えれば
+    // 追従する)。モデルは接続ごとの models[接続 id]。手元の CLI は選べない。
+    // チャットはクラウド、巡回は手元の Ollama、という構成はここで接続を分ける。
+    connectionId: '',
   },
 
   // Vault 接続ごとの 1 日の token 予算 (#1133)。{ [connectionId]: tokens }。

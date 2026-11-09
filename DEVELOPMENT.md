@@ -300,7 +300,7 @@ localhost 転送で Windows 側の同じポートも取る) 後から起動し�
 - **capability は MCP で渡す**: セッション開始時に橋 `api-token/issue` で harness 種別の永続トークンを発行し、`POST /mcp` の URL と一緒に `session/new` の `mcpServers` に載せる。CLI の tool 呼び出しは MCP サーバー (#555) を通り、認可と汚染は同じ dispatcher で効く。**principal は ai.chat** (AI 設定の権限「AI チャット」に従う): CLI は利用者が AI として選んだ本人であって第三者ではないので、外部アプリ用トークンの external principal にはしない ([#1188](https://github.com/notedeck-dev/notedeck/issues/1188)。external だと `ai.memory.write` / `skills.write` / `ai.persona.write` / `tasks.run` / `backup.create` が preset に関わらず恒久 deny になり、CLI 自身のファイル編集も下で拒否しているため記憶を書く手段が無くなる)。トークンは notemaid / アプリの終了時に橋 `api-token/revoke` で失効 (`acp::shutdown_all`)。**確認つきの capability は人の承認を待つ**ので、`/mcp` の実行待ちの上限は人のペース (`http_server::CAPABILITY_EXECUTE_TIMEOUT`) にし、CLI 側の MCP tool のタイムアウトも同じ値を環境変数 (`MCP_TOOL_TIMEOUT`、Claude Code が見る。利用者の設定があればそちら) で子プロセスに渡す。短いと CLI には失敗と返るのに NoteDeck は承認後に実行して「後から反映される」になる (#1188 の点検で判明)
 - **許可要求は確認ダイアログ**: `session/request_permission` のうち **NoteDeck の MCP tool への要求は、その段階で NoteDeck 自身に確認させる** ([#1191](https://github.com/notedeck-dev/notedeck/issues/1191)。`notedeck_capability_request`: tool 名は CLI の申告で出自の証明にならないので、`kind` が `other` / 省略で `locations` を持たないときだけ NoteDeck の tool と見なす。保護パスの拒否はそれより先に効く)。notemaid は橋 `acp/confirm` でデバイスに (capability id, 引数, ai.chat) を渡し、デバイスの dispatcher が `confirmOnly` で権限の判定と標準の確認ダイアログ (通常経路と同じプレビュー) を済ませ、承認なら `services/acpPreapproval` に記録する。直後の同じ tool 呼び出し (MCP → `capabilities/execute`) はその記録を 1 回だけ消費して `preConfirmed` で通るので 2 度聞かない。記録が無い呼び出し (CLI 側で許可要求が省かれたとき) やデバイスに届かないときは従来どおり実行時に確認する。人の承認を MCP tool のタイムアウトの内側で待たないための形 (以前は実行時にだけ確認していて、CLI には timed out と返るのに承認後に反映されていた)。CLI 自身の tool (ファイル編集 / コマンド実行など) への要求は `confirm::live_register` で即答型の確認要求 (チェックポイント無し、`capabilityId: acp.permission`) としてフロントの `confirm_request` に出す。見た目は通常経路の汎用プレビュー (`exec::preview::generic`) に揃え、「<CLI> が <tool> を実行しようとしています」+ 引数の JSON + 「実行」ボタン (文言は `_native.acp.permission`)。答えは ACP の `optionId` (allow / reject) に写像する。人格 / 記憶のファイルに触る要求 (rawInput の文字列の途中に埋まったパスも含む) は聞かずに拒否し、失敗した tool_result として残す。ターン中断で `session/cancel`
 - **規約で線を引いたもの (2026-09-30 調査)**: Gemini CLI は選べない (`blocked`)。個人の Google ログインは 2026-06-18 に廃止され、Gemini CLI の OAuth を第三者ソフトから使うことは google-gemini/gemini-cli の規約文書が違反と明記している。Claude Code の表示名は「Claude Agent」 (Anthropic は Agent SDK 製の製品が "Claude Code" を名乗ることを認めていない。接続 id `harness:claude-code` は保存済みなので変えない)。OpenCode / Hermes Agent を選んだときだけ「Claude はこの経路でなく Claude Agent で」と一文出す (中で Claude のサブスクへ繋ぐのは Anthropic の規約違反)。トークンに触れない・無人で回さないのは全社共通の線
-- **やらないこと**: HEARTBEAT はこの経路で回さない (`model_for_active` が harness を返さない)。モバイルは対象外。CLI のセッション読み込み (`session/load`) と fs / terminal の提供は未 (-32601)。実機での確認は `cargo test -p notemaid acp::client::live -- --ignored` (CLI の契約を 1 リクエスト使う)
+- **やらないこと**: HEARTBEAT はこの経路で回さない (`AiConfigLite::heartbeat_provider` が `harness:` を「provider 無し」にする。巡回だけ別の接続を選べる、#1321)。モバイルは対象外。CLI のセッション読み込み (`session/load`) と fs / terminal の提供は未 (-32601)。実機での確認は `cargo test -p notemaid acp::client::live -- --ignored` (CLI の契約を 1 リクエスト使う)
 
 
 ## AI の人格と記憶 — ワークスペースファイル ([#1162](https://github.com/notedeck-dev/notedeck/issues/1162))
@@ -1384,7 +1384,7 @@ NoteDeck はトークンを持たないユーザーでも公開タイムライ�
 
 ### AI Credentials
 
-AI プロバイダー (Anthropic / OpenAI / OpenAI 互換) の API キーは **Secret Vault ([#564](#secret-vault-564))** に統合されています。AI 設定は「どの Vault 接続を使うか」(`activeConnectionId`) と「接続ごとのモデル名」(`models`) だけを `ai.json5` に持ち、endpoint / API キー / protocol は Vault 接続から Rust 側で解決します。フロントエンド・AI はキー本体に**触れません** (credential proxy モデル)。
+AI プロバイダー (Anthropic / OpenAI / OpenAI 互換) の API キーは **Secret Vault ([#564](#secret-vault-564))** に統合されています。AI 設定は「どの Vault 接続を使うか」(`activeConnectionId`、巡回だけ別にするなら `heartbeat.connectionId`、#1321) と「接続ごとのモデル名」(`models`) だけを `ai.json5` に持ち、endpoint / API キー / protocol は Vault 接続から Rust 側で解決します。フロントエンド・AI はキー本体に**触れません** (credential proxy モデル)。
 
 #### データの所在
 
@@ -1606,7 +1606,8 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 └────────────────────────────────────────────────────────┘
 ┌─ notemaid ─────────────────────────────────────────────┐
 │  run_once: 設定 (ai.json5) → skill (mode: heartbeat、   │
-│    実質空なら skip) → cheap check (core の cheap な      │
+│    実質空なら skip) → 巡回の provider (鍵を開かずに決める。│
+│    無ければ待機) → cheap check (core の cheap な         │
 │    capability だけ) → 日次上限 → ターン (session 無し。  │
 │    system は SOUL / キャラクター / USER / MEMORY /       │
 │    AGENTS の上に固定 INSTRUCTION、手順は user 側)        │
@@ -1622,10 +1623,19 @@ OpenClaw の HEARTBEAT の発想 ([docs.openclaw.ai/gateway/heartbeat](https://d
 | ファイル | 役割 |
 |---------|------|
 | `crates/notemaid/src/heartbeat.rs` | daemon 本体。skill 選択 / cheap check / 日次上限 / system prompt / ターン / 応答契約 / 報告先の解決と書込 / タイトル生成 / 失敗の数え方と自動停止 / 観測用の状態 |
-| `crates/notemaid/src/ai_config.rs` | ai.json5 の読取断面 (HEARTBEAT / 接続 / 生成の値、正規化はデバイスの `useAiConfig` と同じ規則) と `heartbeat.enabled` の書換 |
+| `crates/notemaid/src/ai_config.rs` | ai.json5 の読取断面 (HEARTBEAT / 接続 / 生成の値、正規化はデバイスの `useAiConfig` と同じ規則) と `heartbeat.enabled` の書換。巡回の provider の解決 (`heartbeat_provider`) もここ |
+| `src/composables/useHeartbeatStatus.ts` / `src/services/heartbeatStatus.ts` | 「最後の巡回」の写し (`heartbeat_status`、tick の開始 / 終了で読み直す) と、outcome の文字列を表示の種別に落とす純関数 |
 | `crates/notemaid/src/heartbeat_timer.rs` | timer。ai.json5 を自分で読んで組み、常駐バイナリと in-process の Tauri (`src-tauri/src/commands/heartbeat.rs` が設定ファイルの変更通知で組み直し、オフライン中は止める) の両方が使う。`HeartbeatSink` は notemaid の `sinks.rs` が Core の EventSink に写す |
 | `src/composables/useHeartbeatDaemon.ts` | notemaid の出来事をデバイスに反映する (代表窓だけが mount する、#1131)。timer の構成は Rust が持つ |
 | `src/composables/useAiConfig.ts` | `HeartbeatConfig` の正本 (デバイス側)。notemaid が ai.json5 を書いたら変更通知で読み直す |
+
+#### 巡回の接続 ([#1321](https://github.com/notedeck-dev/notedeck/issues/1321))
+
+巡回に使う接続は `ai.json5` の `heartbeat.connectionId`。空 = チャットの接続 (`activeConnectionId`) に動的に追従する (複製ではない)。選ぶのは接続だけで、モデルは接続ごとの `models[接続 id]` をそのまま使う (巡回専用のモデルキーは持たない。同じ provider で安いモデルだけ変えたいときは同じ鍵で接続をもう 1 つ作る)。解決は `AiConfigLite::heartbeat_provider` の 1 関数で、`heartbeat.rs` が接続を使う箇所 (推論 / 報告先セッションの snapshot / タイトル生成 / 予算) はすべてこれを通す。「無し」= 接続 id が空 / 手元の CLI (`harness:`、models があっても) / その id の接続が無い / `protocol` が無い / `models[id]` が空、の順で判定し、鍵は開かない (鍵は推論のときに `resolve_connection` が 1 回だけ開く)。TS 側は同じ規則を `resolveHeartbeatConnection` に置く。予算は `AiTurnRequest.connection_id` 経由で巡回の接続の勘定に付く (接続 id ごと。同じ鍵の接続どうしでも合算しない)。
+
+tick の結果は 4 種で数え方が違う (表は `heartbeat.rs` のモジュール doc): **provider 無し** (`skip:no-provider`) と **到達不能** (`skip:unreachable`、何も受け取る前の接続の失敗。送信側が reqwest の `is_connect()` のときだけ `error_kind: transport` を立て、`AttemptError` → `RoundError` → `AiTurnEvent.error_kind` で運ぶ。`retryable` で代用しない: 応答待ちの時間切れとストリームの切断も true になり、ローカル推論の時間切れが永久に待機になる) は連続失敗に数えず、日次も消費せず、失敗の記録にも入れずに状態の `waiting` に置く (toast は signature の初回だけ)。resolver が名前解決の結果を拒んだ (`blocked`、`ssrf::BlockedAddress` を `source()` の連鎖から取り出す) は設定の誤りなので provider 無し。**推論の失敗** (`error`: HTTP / 時間切れ / 受信途中の切断 / 予算超過) だけ数える。日次カウントは「次で超えるか」を推論の前に判定し、加算は結果が出てから。`resumed` / `manual` / `probe` は連続失敗に数えない。
+
+検証手段: 「今すぐ巡回する」(`heartbeat_trigger_now`、無効でも走り cheap check を飛ばし、連続失敗と日次に数えない。実行中の印を同期的に取って spawn し即返す) / 「この接続を試す」(`heartbeat_probe`、通常の tick と同じ組み立ての prompt に固定の指示を足して 1 巡だけ回す。`AiTurnRequest.dry_run` で report tool 以外は執行せず、報告先への書込 / 通知 / 状態の最後の巡回も書かない。予算は消費する。結果は report tool を呼べたかだけ) / 「最後の巡回」(`heartbeat_status`、`HeartbeatStatus` は specta 型で `/api/heartbeat/status` と About の JSON も同じ型。provider は表示用の断面だけで接続 id は出さない)。実行中の印 (`try_begin`) は timer の tick / 手動 / 試走が共有し、同時に 2 本走らせない。切り詰めの注記は、ローカル接続だけ OpenAI 互換の要求に `stream_options.include_usage` を送って最初のラウンドの実測 (`usage` イベント) を取り、送った量の推定を大きく下回るときに可能性として出す (ローカルに限るのは prompt caching のある provider が cache の分を usage に含めず誤検知するため)。
 
 #### Skill 駆動
 
@@ -1647,7 +1657,7 @@ HEARTBEAT の知らせはアプリの通知 (通知カード + 受信トレイ) 
 
 #### 停止条件と失敗 (token 予算 / 失敗の永続化)
 
-- **token 予算** (`crates/notemaid/src/ai_budget.rs`): Vault 接続ごとの日次 token 予算を ai.json5 の `budgets` に持ち (0 / 無し = 無制限)、台帳は `notemaid/turns/budget.json` (日境界は UTC)。チャットも HEARTBEAT も同じ勘定。ラウンドの前に「使用済み + 見込み (要求の文字数からの推定)」が予算を超えるなら provider を呼ばずに `budget_exceeded` のエラーで止め、ラウンドの後に応答の usage (Anthropic は message_start / message_delta、OpenAI 互換は最終チャンクの usage。来なければ文字数からの推定) で精算する。OpenAI 互換に usage を返させる指定は送らない (厳格な互換サーバーが拒むため。来たときだけ読む)。ターンの `done` に累計の usage を載せる
+- **token 予算** (`crates/notemaid/src/ai_budget.rs`): Vault 接続ごとの日次 token 予算を ai.json5 の `budgets` に持ち (0 / 無し = 無制限)、台帳は `notemaid/turns/budget.json` (日境界は UTC)。チャットも HEARTBEAT も同じ勘定。ラウンドの前に「使用済み + 見込み (要求の文字数からの推定)」が予算を超えるなら provider を呼ばずに `budget_exceeded` のエラーで止め、ラウンドの後に応答の usage (Anthropic は message_start / message_delta、OpenAI 互換は最終チャンクの usage。来なければ文字数からの推定) で精算する。OpenAI 互換に usage を返させる指定 (`stream_options.include_usage`) はローカル接続にだけ送る (厳格な互換サーバーが拒むため非ローカルには送らず、来たときだけ読む。#1321)。ターンの `done` に累計の usage を載せる
 - **失敗の永続化**: HEARTBEAT の失敗は理由を状態ファイルに残し (上限つき)、数字と空白の揺れを潰した signature が初めてのときだけ toast で知らせる (同じ原因の連続失敗で通知を繰り返さない)。連続 3 回で自動停止するのは従来どおり。直近の失敗は DevDashboard の HEARTBEAT 面 (`/api/heartbeat/status`) に出る
 
 #### 無人の書込意図 (受信箱カード / 下書き)

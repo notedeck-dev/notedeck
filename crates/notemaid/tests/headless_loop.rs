@@ -228,6 +228,7 @@ fn request(turn_id: &str, session_id: Option<&str>, principal: &str, text: &str)
         tool_param_enums: None,
         device_tools: Vec::new(),
         context_untrusted: false,
+        dry_run: false,
     }
 }
 
