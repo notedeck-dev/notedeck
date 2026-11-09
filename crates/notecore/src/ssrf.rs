@@ -262,15 +262,50 @@ async fn resolve_and_validate(
 
     for ip in &resolved {
         if let Err(reason) = check_ip_safe(*ip) {
-            return Err(Box::from(format!(
-                "host {host} resolved to a blocked address: {reason}"
-            )));
+            return Err(Box::new(BlockedAddress {
+                host: host.to_string(),
+                reason,
+            }));
         }
     }
     if resolved.is_empty() {
         return Err(Box::from(format!("host {host} did not resolve")));
     }
     Ok(resolved)
+}
+
+/// 名前解決の結果が内部アドレスだった (設定の誤り、#1321)。reqwest は接続エラーとして
+/// 包むので、呼び出し側は [`blocked_address_in`] で `source()` の連鎖から取り出す
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BlockedAddress {
+    pub host: String,
+    pub reason: String,
+}
+
+impl std::fmt::Display for BlockedAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "host {} resolved to a blocked address: {}",
+            self.host, self.reason
+        )
+    }
+}
+
+impl std::error::Error for BlockedAddress {}
+
+/// `err` の `source()` の連鎖に [`BlockedAddress`] があればそれ
+pub fn blocked_address_in<'a>(
+    err: &'a (dyn std::error::Error + 'static),
+) -> Option<&'a BlockedAddress> {
+    let mut cur: Option<&(dyn std::error::Error + 'static)> = Some(err);
+    while let Some(e) = cur {
+        if let Some(b) = e.downcast_ref::<BlockedAddress>() {
+            return Some(b);
+        }
+        cur = e.source();
+    }
+    None
 }
 
 /// 1 回の fetch スコープで DNS を pin する resolver。
@@ -465,6 +500,9 @@ mod tests {
         // 接続前に弾けることの検証 (#857)
         let err = resolve_and_validate("localhost").await.unwrap_err();
         assert!(err.to_string().contains("blocked address"), "{err}");
+        // 型で取り出せる (reqwest の source() の連鎖から見分けるため、#1321)
+        let blocked = blocked_address_in(err.as_ref()).expect("typed");
+        assert_eq!(blocked.host, "localhost");
     }
 
     #[tokio::test]

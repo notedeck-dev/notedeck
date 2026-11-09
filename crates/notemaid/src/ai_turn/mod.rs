@@ -144,6 +144,11 @@ pub struct AiTurnRequest {
     /// true ならこのセッションはこのターンから tainted
     #[serde(default)]
     pub context_untrusted: bool,
+    /// 試走 (#1321): `heartbeat.report` 以外の tool を執行しない (モデルには「試走では
+    /// 実行しない」の結果を返す)。書込意図にもせず、確認要求も出さない。執行の抑止で
+    /// あって権限の緩和ではない (どの経路から立てても「tool を執行しない turn」になるだけ)
+    #[serde(default)]
+    pub dry_run: bool,
 }
 
 /// `nd:ai-turn-event` の wire 形。specta 用に flat。
@@ -151,7 +156,8 @@ pub struct AiTurnRequest {
 pub struct AiTurnEvent {
     pub turn_id: String,
     /// `"delta" | "tool_use" | "tool_result" | "done" | "error" | "title" | "intent"
-    /// | "confirm_request" | "confirm_closed"`
+    /// | "confirm_request" | "confirm_closed" | "usage"` (usage はラウンドごとの実測。
+    /// provider が返さなければ流れない、#1321)
     pub kind: String,
     /// delta: 追記テキスト / tool_use: その assistant メッセージの本文 (ラウンド
     /// 先頭の tool_use だけ非空) / done: 最終テキスト / title: タイトル
@@ -169,6 +175,11 @@ pub struct AiTurnEvent {
     /// (実行済み = 継続モードで再試行する)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub phase: Option<String>,
+    /// error: 送信時の失敗の種別 (`"transport"` 到達不能 | `"timeout"` 応答待ちの時間切れ |
+    /// `"blocked"` 名前解決の結果を拒んだ)。`phase` とは直交。HTTP の失敗や受信途中の
+    /// 切断には付かない (#1321)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_kind: Option<String>,
     /// done: `"end"` | `"tool_round_limit"`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stop_reason: Option<String>,
@@ -203,7 +214,7 @@ pub struct AiTurnEvent {
 }
 
 impl AiTurnEvent {
-    fn new(turn_id: &str, kind: &str) -> Self {
+    pub(crate) fn new(turn_id: &str, kind: &str) -> Self {
         Self {
             turn_id: turn_id.to_string(),
             kind: kind.to_string(),
@@ -212,6 +223,7 @@ impl AiTurnEvent {
             error_i18n: None,
             text_i18n: None,
             phase: None,
+            error_kind: None,
             stop_reason: None,
             tool_use_id: None,
             tool_use_name: None,
@@ -1359,6 +1371,16 @@ async fn prepare_pending(
         };
         match authorize(&p.name, index, &granted) {
             Err(text) => p.deny = Some(text),
+            Ok(tool)
+                if req.dry_run && tool.capability_id != crate::heartbeat::REPORT_CAPABILITY =>
+            {
+                // 試走 (#1321): 応答契約の tool 以外は執行しない。書込意図にもしない
+                p.capability_id = Some(tool.capability_id.clone());
+                p.deny = Some(format!(
+                    "Skipped (dry_run): this is a probe run; {} is not executed. Only heartbeat_report is honored",
+                    tool.capability_id
+                ));
+            }
             Ok(tool) => {
                 p.capability_id = Some(tool.capability_id.clone());
                 p.untrusted = tool.untrusted;
@@ -1820,6 +1842,7 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                     let err = ai_chat_service::RoundError {
                         message: format!("Error (budget_exceeded): {exceeded}"),
                         i18n: Some(exceeded.text().i18n),
+                        kind: None,
                     };
                     persist(
                         &rt,
@@ -1848,27 +1871,49 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
             // 続く本文 / エラーの id をそれに合わせる
             state.rounds += round_sink.close_external();
             let message_id = assistant_message_id(&turn_id, state.rounds);
-            // 精算: 実測が無ければ推定 (入力は要求の文字数、出力は応答の文字数)
-            let round_usage = round_sink.usage().unwrap_or_else(|| {
-                let out_chars = round_sink
-                    .live
-                    .lock()
-                    .map(|l| l.text.chars().count())
-                    .unwrap_or(0);
-                crate::ai_budget::TokenUsage {
-                    input_tokens: crate::ai_budget::estimate_tokens(request_chars),
-                    output_tokens: crate::ai_budget::estimate_tokens(out_chars),
-                    estimated: true,
+            // 何も送れていない失敗 (到達不能 / 宛先の検査で拒まれた) は精算しない (#1321)。
+            // 予算付きの接続が止まっている間の待機で推定が積み上がり、復旧後に予算超過で
+            // 自動停止するのを防ぐ
+            let nothing_sent = matches!(
+                &run_result,
+                Err(e) if matches!(
+                    e.kind,
+                    Some(ai_chat_service::ErrorKind::Transport)
+                        | Some(ai_chat_service::ErrorKind::Blocked)
+                )
+            );
+            if !nothing_sent {
+                // 精算: 実測が無ければ推定 (入力は要求の文字数、出力は応答の文字数)
+                let round_usage = round_sink.usage().unwrap_or_else(|| {
+                    let out_chars = round_sink
+                        .live
+                        .lock()
+                        .map(|l| l.text.chars().count())
+                        .unwrap_or(0);
+                    crate::ai_budget::TokenUsage {
+                        input_tokens: crate::ai_budget::estimate_tokens(request_chars),
+                        output_tokens: crate::ai_budget::estimate_tokens(out_chars),
+                        estimated: true,
+                    }
+                });
+                state.usage.add(round_usage);
+                if rt.budget.is_some() {
+                    crate::ai_budget::settle(
+                        &rt.store_dir,
+                        &state.req.connection_id,
+                        round_usage,
+                        ai_sessions::now_ms(),
+                    );
                 }
-            });
-            state.usage.add(round_usage);
-            if rt.budget.is_some() {
-                crate::ai_budget::settle(
-                    &rt.store_dir,
-                    &state.req.connection_id,
-                    round_usage,
-                    ai_sessions::now_ms(),
-                );
+                // ラウンドごとの実測 (推定は流さない)。HEARTBEAT が最初のラウンドの入力 token を
+                // 送った量の推定と比べ、切り詰めの可能性を見る (#1321)。どのラウンドかは
+                // message_id (`<turn>-a<round>`) で分かる
+                if !round_usage.estimated {
+                    let mut e = AiTurnEvent::new(&turn_id, "usage");
+                    e.usage = Some(round_usage);
+                    e.message_id = Some(message_id.clone());
+                    rt.sink.emit(e);
+                }
             }
             if let Err(err) = run_result {
                 // mid-stream の切断: 途中までの応答は温存して ⚠️ を添える
@@ -1881,6 +1926,7 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
                 let mut e = AiTurnEvent::new(&turn_id, "error");
                 e.error = Some(err.message);
                 e.error_i18n = err.i18n;
+                e.error_kind = err.kind.map(|k| k.as_str().to_string());
                 e.phase = Some(
                     if state.tool_executed {
                         "after_tool"
@@ -1949,6 +1995,11 @@ pub async fn drive(rt: Arc<TurnRuntime>, mut state: TurnState) {
         execute_pending(&rt, &mut state).await;
         state.pending.clear();
         state.round_text.clear();
+        if state.req.dry_run {
+            // 試走 (#1321) は最初の tool のラウンドで終わる。tool の結果を渡してもう一度
+            // 推論させない (その失敗や予算超過で試走が失敗に見えるのを防ぐ)
+            break "end";
+        }
     };
 
     let final_id = assistant_message_id(&turn_id, state.rounds);
@@ -2080,6 +2131,12 @@ pub async fn start_turn_with_sink(
         }
         None => None,
     };
+    if harness.is_some() && req.dry_run {
+        // 手元の CLI は自分で tool を回すので「執行しない」を保証できない (#1321)
+        return Err(NoteDeckError::InvalidInput(
+            "dry_run is not supported for a CLI harness".into(),
+        ));
+    }
     // system prompt は notemaid が組む (#1162)。persona はセッションの snapshot
     // (無人 = session 無しなら ai.json5)、trigger はデバイスの申告とセッションの累積の和
     let cfg = ai_config::load_from_app_dir(app_dir);
@@ -2232,6 +2289,8 @@ mod tests {
         rounds: Mutex<Vec<Vec<AiChatEvent>>>,
         requests: Mutex<Vec<AiChatRequest>>,
         fail_at: Option<usize>,
+        /// 失敗の種別 (送信時の到達不能など、#1321)
+        fail_kind: Option<ai_chat_service::ErrorKind>,
     }
 
     impl ScriptedProvider {
@@ -2240,6 +2299,7 @@ mod tests {
                 rounds: Mutex::new(rounds),
                 requests: Mutex::new(Vec::new()),
                 fail_at: None,
+                fail_kind: None,
             })
         }
         fn failing_at(rounds: Vec<Vec<AiChatEvent>>, at: usize) -> Arc<Self> {
@@ -2247,6 +2307,15 @@ mod tests {
                 rounds: Mutex::new(rounds),
                 requests: Mutex::new(Vec::new()),
                 fail_at: Some(at),
+                fail_kind: None,
+            })
+        }
+        fn failing_with(at: usize, kind: ai_chat_service::ErrorKind) -> Arc<Self> {
+            Arc::new(Self {
+                rounds: Mutex::new(Vec::new()),
+                requests: Mutex::new(Vec::new()),
+                fail_at: Some(at),
+                fail_kind: Some(kind),
             })
         }
     }
@@ -2320,7 +2389,11 @@ mod tests {
                     reqs.len() - 1
                 };
                 if self.fail_at == Some(n) {
-                    return Err("connection dropped".to_string().into());
+                    return Err(ai_chat_service::RoundError {
+                        message: "connection dropped".into(),
+                        i18n: None,
+                        kind: self.fail_kind,
+                    });
                 }
                 let events = {
                     let mut rounds = self.rounds.lock().unwrap();
@@ -3994,5 +4067,129 @@ mod tests {
             conversation_key(&req),
             ConversationKey::Turn(req.turn_id.clone())
         );
+    }
+
+    // --- 試走 (#1321) ---
+
+    #[tokio::test]
+    async fn dry_run_executes_only_the_report_tool_and_asks_nothing() {
+        // 確認が要る書込 (notes.create) と応答契約の tool (heartbeat.report) を同じラウンドで:
+        // 試走では report だけが執行され、他は「試走では実行しない」の結果で確認も書込意図も出ない
+        let provider = ScriptedProvider::new(vec![
+            vec![
+                tool_use("tu1", "notes_create", json!({"text": "hello"})),
+                tool_use(
+                    "tu2",
+                    "heartbeat_report",
+                    json!({"body": "probe", "notify": false}),
+                ),
+            ],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": {"recorded": true}}));
+        let h = harness(provider, &["notes.write"], device.clone());
+        let mut req = request();
+        req.principal = "ai.heartbeat".into();
+        req.session_id = None;
+        req.dry_run = true;
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        assert!(h.sink.find("confirm_request").is_none());
+        assert!(h.sink.find("intent").is_none());
+        let executed: Vec<String> = device
+            .executes()
+            .iter()
+            .map(|e| e["capabilityId"].as_str().unwrap_or("").to_string())
+            .collect();
+        assert_eq!(executed, vec!["heartbeat.report".to_string()]);
+        let results: Vec<AiTurnEvent> = h
+            .sink
+            .all()
+            .into_iter()
+            .filter(|e| e.kind == "tool_result")
+            .collect();
+        assert_eq!(results.len(), 2);
+        let skipped = results
+            .iter()
+            .find(|r| r.tool_use_id.as_deref() == Some("tu1"))
+            .unwrap();
+        assert_eq!(skipped.is_error, Some(true));
+        assert!(skipped.text.as_deref().unwrap().contains("dry_run"));
+        assert_eq!(h.sink.last().kind, "done");
+    }
+
+    #[tokio::test]
+    async fn dry_run_does_not_widen_permissions() {
+        // 権限の無い tool は試走でも拒否のまま (執行の抑止であって権限の緩和ではない)
+        let provider = ScriptedProvider::new(vec![
+            vec![tool_use("tu1", "notes_create", json!({"text": "hello"}))],
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true}));
+        let h = harness(provider, &[], device.clone());
+        let mut req = request();
+        req.dry_run = true;
+        drive(h.rt.clone(), TurnState::new(req)).await;
+        assert!(device.executes().is_empty());
+        let r = h.sink.find("tool_result").unwrap();
+        assert_eq!(r.is_error, Some(true));
+        assert!(
+            !r.text.as_deref().unwrap().contains("dry_run"),
+            "{:?}",
+            r.text
+        );
+    }
+
+    // --- ラウンドごとの usage (#1321) ---
+
+    #[tokio::test]
+    async fn measured_round_usage_is_emitted_and_estimates_are_not() {
+        let mut measured = delta("");
+        measured.kind = "usage".into();
+        measured.usage = Some(crate::ai_budget::TokenUsage {
+            input_tokens: 1234,
+            output_tokens: 5,
+            estimated: false,
+        });
+        let provider = ScriptedProvider::new(vec![
+            vec![
+                measured,
+                tool_use("tu1", "notes_show", json!({"noteId": "n1"})),
+            ],
+            // 2 ラウンド目は実測が無い → 推定なので流れない
+            vec![delta("done")],
+        ]);
+        let device = FakeDevice::new(json!({"ok": true, "result": "note"}));
+        let h = harness(provider, &["notes.read"], device);
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        let usages: Vec<AiTurnEvent> = h
+            .sink
+            .all()
+            .into_iter()
+            .filter(|e| e.kind == "usage")
+            .collect();
+        assert_eq!(usages.len(), 1);
+        assert_eq!(usages[0].usage.unwrap().input_tokens, 1234);
+        // done の usage は累計 (推定の 2 ラウンド目も足す)
+        let done = h.sink.find("done").unwrap();
+        assert!(done.usage.unwrap().input_tokens >= 1234);
+    }
+
+    #[tokio::test]
+    async fn transport_failures_carry_their_kind_on_the_error_event() {
+        // 送信側の種別 (到達不能) はラウンドのエラーを経てイベントの error_kind に届く (#1321)。
+        // HEARTBEAT はこれで「待機」と「数える失敗」を見分ける
+        let provider = ScriptedProvider::failing_with(0, ai_chat_service::ErrorKind::Transport);
+        let device = FakeDevice::new(json!({"ok": true}));
+        let h = harness(provider, &[], device);
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        let e = h.sink.find("error").unwrap();
+        assert_eq!(e.error_kind.as_deref(), Some("transport"));
+        assert_eq!(e.phase.as_deref(), Some("before_tool"));
+        // 種別の無い失敗 (受信途中の切断 / HTTP) には付かない
+        let provider = ScriptedProvider::failing_at(Vec::new(), 0);
+        let device = FakeDevice::new(json!({"ok": true}));
+        let h = harness(provider, &[], device);
+        drive(h.rt.clone(), TurnState::new(request())).await;
+        assert_eq!(h.sink.find("error").unwrap().error_kind, None);
     }
 }

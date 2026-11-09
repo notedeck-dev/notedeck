@@ -30,6 +30,9 @@ pub struct HeartbeatConfig {
     /// `warn` / `disable`
     pub on_daily_limit: String,
     pub desktop_notification: bool,
+    /// 巡回に使う Vault 接続の id (#1321)。空 = チャットの接続 (`activeConnectionId`) に
+    /// 動的に追従する (複製ではない)
+    pub connection_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -77,11 +80,12 @@ impl AiConfigLite {
         self.budgets.get(connection_id).copied().filter(|n| *n > 0)
     }
 
+    /// チャットの接続のモデル (`meta.config` 用)。接続 id が空 / 手元の CLI / モデル
+    /// 未設定なら None。HEARTBEAT はこれを使わず [`Self::heartbeat_provider`] を通す (#1321)
     pub fn model_for_active(&self) -> Option<String> {
         if self.active_connection_id.is_empty() {
             return None;
         }
-        // 手元の CLI (#1104) は無人実行 (HEARTBEAT) の provider にしない
         if crate::acp::harness_id(&self.active_connection_id).is_some() {
             return None;
         }
@@ -89,6 +93,109 @@ impl AiConfigLite {
             .get(&self.active_connection_id)
             .filter(|m| !m.is_empty())
             .cloned()
+    }
+
+    /// 巡回 (HEARTBEAT) が使う接続の id: `heartbeat.connectionId` が空でなければそれ、
+    /// 空ならチャットの接続 (#1321)
+    pub fn heartbeat_connection_id(&self) -> &str {
+        if self.heartbeat.connection_id.is_empty() {
+            &self.active_connection_id
+        } else {
+            &self.heartbeat.connection_id
+        }
+    }
+
+    /// 巡回の provider を 1 関数で決める (#1321)。`heartbeat.rs` が接続を使う箇所
+    /// (推論 / 報告先セッションの snapshot / タイトル生成 / 予算) はすべてこれを通す。
+    /// 鍵は開かない (ai.json5 と接続一覧の属性だけで決まる)。判定順はテストで固定:
+    /// 空 → 手元の CLI (models があっても無し) → 接続が無い → AI プロバイダーでない →
+    /// モデル未設定
+    pub fn heartbeat_provider(
+        &self,
+        connections: &[notecore::vault::Connection],
+    ) -> std::result::Result<HeartbeatProvider, NoHeartbeatProvider> {
+        let id = self.heartbeat_connection_id();
+        if id.is_empty() {
+            return Err(NoHeartbeatProvider::NotSelected);
+        }
+        // 手元の CLI (#1104) は無人実行 (HEARTBEAT) の provider にしない
+        if crate::acp::harness_id(id).is_some() {
+            return Err(NoHeartbeatProvider::Harness);
+        }
+        let connection = connections
+            .iter()
+            .find(|c| c.id == id)
+            .ok_or(NoHeartbeatProvider::ConnectionMissing)?;
+        let protocol = connection
+            .protocol
+            .ok_or(NoHeartbeatProvider::NotAiProvider)?;
+        // 空白だけも未設定 (`validate_request` と同じ判定。失敗として数えさせない)
+        let model = self
+            .models
+            .get(id)
+            .filter(|m| !m.trim().is_empty())
+            .cloned()
+            .ok_or(NoHeartbeatProvider::NoModel)?;
+        Ok(HeartbeatProvider {
+            connection_id: id.to_string(),
+            model,
+            name: connection.name.clone(),
+            local: connection.local,
+            protocol,
+        })
+    }
+}
+
+/// 巡回の provider (#1321)。`connection_id` は AI にも HTTP にも出さない
+#[derive(Clone, Debug, PartialEq)]
+pub struct HeartbeatProvider {
+    pub connection_id: String,
+    pub model: String,
+    /// 接続の表示名
+    pub name: String,
+    /// この端末の中で動くサービス (#880)
+    pub local: bool,
+    pub protocol: notecore::vault::ConnectionProtocol,
+}
+
+impl HeartbeatProvider {
+    /// 表示用の断面 (`HeartbeatStatus.provider` / `meta.heartbeat`)。接続 id は含めない
+    pub fn view(&self) -> crate::heartbeat::HeartbeatProviderView {
+        crate::heartbeat::HeartbeatProviderView {
+            name: self.name.clone(),
+            model: self.model.clone(),
+            local: self.local,
+            protocol: self.protocol,
+        }
+    }
+}
+
+/// 巡回の provider が無い理由 (#1321)。どれも tick の結果は `skip:no-provider` で、
+/// 失敗には数えない
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NoHeartbeatProvider {
+    /// 接続が選ばれていない
+    NotSelected,
+    /// 手元の CLI (無人実行の provider にしない)
+    Harness,
+    /// 選んだ接続が消えている
+    ConnectionMissing,
+    /// `protocol` の無い接続 (AI プロバイダーでない)
+    NotAiProvider,
+    /// `models[接続 id]` が空
+    NoModel,
+}
+
+impl NoHeartbeatProvider {
+    /// 状態行 / toast の文言の手がかり (`_native.heartbeat.*`)
+    pub fn i18n_key(self) -> &'static str {
+        match self {
+            Self::NotSelected => "_native.heartbeat.waitingNotConfigured",
+            Self::NoModel => "_native.heartbeat.waitingNoModel",
+            Self::Harness => "_native.heartbeat.waitingHarness",
+            Self::ConnectionMissing => "_native.heartbeat.waitingConnectionMissing",
+            Self::NotAiProvider => "_native.heartbeat.waitingNotAiProvider",
+        }
     }
 }
 
@@ -184,6 +291,11 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
                 "warn".into()
             },
             desktop_notification: hb("desktopNotification").and_then(Value::as_bool) != Some(false),
+            // 文字列でなければ空 (チャットに追従) として読む (#1321)
+            connection_id: hb("connectionId")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string(),
         },
         budgets: doc
             .get("budgets")
@@ -323,6 +435,8 @@ mod tests {
             "heartbeat": {"enabled": true, "intervalMinutes": 99999, "target": "", "onDailyLimit": "disable", "cheapCheck": {"enabled": false}}
         }));
         assert_eq!(c.model_for_active().as_deref(), Some("m"));
+        assert_eq!(c.heartbeat.connection_id, "");
+        assert_eq!(c.heartbeat_connection_id(), "c1");
         assert_eq!(c.daily_budget_for("c1"), Some(5000));
         assert_eq!(c.daily_budget_for("c2"), None);
         assert_eq!(c.daily_budget_for("c3"), None);
@@ -332,12 +446,123 @@ mod tests {
             "harnesses": [{"id": "mine", "command": "my-agent", "args": ["acp"]}, {"id": ""}]
         }));
         assert_eq!(h.model_for_active(), None);
+        assert_eq!(h.heartbeat_provider(&[]), Err(NoHeartbeatProvider::Harness));
         assert_eq!(h.harnesses.len(), 1);
         assert_eq!(h.harnesses[0].id, "mine");
         assert_eq!(c.heartbeat.interval_minutes, 1440);
         assert_eq!(c.heartbeat.target, "auto");
         assert_eq!(c.heartbeat.on_daily_limit, "disable");
         assert!(!c.heartbeat.cheap_check.enabled);
+    }
+
+    fn conn(
+        id: &str,
+        protocol: Option<notecore::vault::ConnectionProtocol>,
+        local: bool,
+    ) -> notecore::vault::Connection {
+        notecore::vault::Connection {
+            id: id.into(),
+            name: format!("name-{id}"),
+            base_url: "https://api.example.com".into(),
+            kind: Default::default(),
+            auth_type: Default::default(),
+            allowed_hosts: Vec::new(),
+            account_scope: None,
+            origin: Default::default(),
+            external_source: None,
+            template_id: None,
+            protocol,
+            local,
+            exposed_to: Vec::new(),
+            trusted_for: Vec::new(),
+            trusted_plugins: Vec::new(),
+            legacy_ai_visible: None,
+            legacy_ai_trusted: None,
+            slots: Vec::new(),
+            last_used_at: None,
+            last_secret_updated_at: None,
+            display_name: None,
+            icon: None,
+            notes: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    /// 巡回の接続の解決規則 (#1321): 空 = チャットに追従、判定順は
+    /// 空 → 手元の CLI → 接続が無い → AI プロバイダーでない → モデル未設定
+    #[test]
+    fn heartbeat_provider_follows_chat_unless_set_and_rejects_in_fixed_order() {
+        use notecore::vault::ConnectionProtocol as P;
+        let conns = [
+            conn("chat", Some(P::Anthropic), false),
+            conn("local", Some(P::OpenaiCompat), true),
+            conn("plain", None, false),
+        ];
+        let base = json!({
+            "activeConnectionId": "chat",
+            "models": { "chat": "claude", "local": "qwen", "harness:codex": "x" },
+        });
+        // 空 = チャットの接続に追従する
+        let c = from_document(&base);
+        let p = c.heartbeat_provider(&conns).unwrap();
+        assert_eq!(
+            (p.connection_id.as_str(), p.model.as_str(), p.local),
+            ("chat", "claude", false)
+        );
+        assert_eq!(p.name, "name-chat");
+        assert_eq!(p.protocol, P::Anthropic);
+        // 明示した接続はそれを使い、チャットを変えても動かない
+        let mut doc = base.clone();
+        doc["heartbeat"] = json!({ "connectionId": "local" });
+        doc["activeConnectionId"] = json!("harness:codex");
+        let c = from_document(&doc);
+        let p = c.heartbeat_provider(&conns).unwrap();
+        assert_eq!(
+            (p.connection_id.as_str(), p.model.as_str(), p.local),
+            ("local", "qwen", true)
+        );
+        // 文字列でなければ空として読む
+        doc["heartbeat"] = json!({ "connectionId": 5 });
+        assert_eq!(from_document(&doc).heartbeat.connection_id, "");
+        // 無し: 空
+        assert_eq!(
+            from_document(&json!({})).heartbeat_provider(&conns),
+            Err(NoHeartbeatProvider::NotSelected)
+        );
+        // 無し: 手元の CLI は models があっても無し (追従でも明示でも)
+        assert_eq!(
+            from_document(&json!({ "activeConnectionId": "harness:codex", "models": { "harness:codex": "x" } }))
+                .heartbeat_provider(&conns),
+            Err(NoHeartbeatProvider::Harness)
+        );
+        assert_eq!(
+            from_document(&json!({ "activeConnectionId": "chat", "heartbeat": { "connectionId": "harness:codex" } }))
+                .heartbeat_provider(&conns),
+            Err(NoHeartbeatProvider::Harness)
+        );
+        // 無し: 選んだ接続が消えた (models があっても)
+        assert_eq!(
+            from_document(&json!({ "activeConnectionId": "gone", "models": { "gone": "m" } }))
+                .heartbeat_provider(&conns),
+            Err(NoHeartbeatProvider::ConnectionMissing)
+        );
+        // 無し: AI プロバイダーでない
+        assert_eq!(
+            from_document(&json!({ "activeConnectionId": "plain", "models": { "plain": "m" } }))
+                .heartbeat_provider(&conns),
+            Err(NoHeartbeatProvider::NotAiProvider)
+        );
+        // 無し: モデル未設定 (空白だけも)
+        assert_eq!(
+            from_document(&json!({ "activeConnectionId": "local" })).heartbeat_provider(&conns),
+            Err(NoHeartbeatProvider::NoModel)
+        );
+        assert_eq!(
+            from_document(&json!({ "activeConnectionId": "local", "models": { "local": "  " } }))
+                .heartbeat_provider(&conns),
+            Err(NoHeartbeatProvider::NoModel)
+        );
     }
 
     #[test]

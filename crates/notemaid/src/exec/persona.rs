@@ -122,9 +122,25 @@ pub fn meta_config(core: &Core) -> Result<Value> {
 
 /// `meta.heartbeat`: HEARTBEAT の設定の断面 (編集は塞ぐ)。権限は preset 名だけ
 pub async fn meta_heartbeat(core: &Core) -> Result<Value> {
-    let hb = ai_config::load(core)?.heartbeat;
+    let cfg = ai_config::load(core)?;
+    // 巡回の provider の表示用の断面 (#1321)。接続 id は返さない。無ければ null
+    let provider = core
+        .app_dir()
+        .ok()
+        .and_then(|dir| notecore::vault::connections_store::load(dir).ok())
+        .and_then(|file| cfg.heartbeat_provider(&file.connections).ok())
+        .map(|p| {
+            json!({
+                "protocol": serde_json::to_value(p.protocol).unwrap_or(Value::Null),
+                "model": p.model,
+                "local": p.local,
+            })
+        })
+        .unwrap_or(Value::Null);
+    let hb = cfg.heartbeat;
     let (preset, _) = permissions_gate::profile_for(PrincipalId::AiHeartbeat).await;
     Ok(json!({
+        "provider": provider,
         "enabled": hb.enabled,
         "intervalMinutes": hb.interval_minutes,
         "target": hb.target,

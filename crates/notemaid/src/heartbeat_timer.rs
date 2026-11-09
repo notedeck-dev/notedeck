@@ -27,6 +27,8 @@ impl HeartbeatTimer {
                 h.abort();
                 tracing::info!("[heartbeat] timer stopped");
             }
+            crate::heartbeat::set_next_tick_at(None);
+            crate::heartbeat::emit_scheduled(&core);
             return;
         }
         if slot.as_ref().map(|(m, _)| *m) == Some(interval) {
@@ -35,8 +37,15 @@ impl HeartbeatTimer {
         if let Some((_, h)) = slot.take() {
             h.abort();
         }
+        // 次回の予定時刻は spawn を待たずにここで出す (起動の時点を前回の巡回とみなす、
+        // `Schedule::new` と同じ) → デバイスが読み直せるように知らせる (#1321)
+        let interval_ms = u64::from(interval) * 60_000;
+        crate::heartbeat::set_next_tick_at(Some(
+            crate::heartbeat_schedule::wall_ms() + interval_ms,
+        ));
+        crate::heartbeat::emit_scheduled(&core);
         let handle = tokio::spawn(async move {
-            crate::heartbeat_schedule::run(Duration::from_secs(u64::from(interval) * 60), |due| {
+            crate::heartbeat_schedule::run(Duration::from_millis(interval_ms), |due| {
                 let core = core.clone();
                 async move { crate::heartbeat::run_due(&core, due).await }
             })
@@ -50,6 +59,7 @@ impl HeartbeatTimer {
         if let Some((_, h)) = self.inner.lock().unwrap_or_else(|e| e.into_inner()).take() {
             h.abort();
         }
+        crate::heartbeat::set_next_tick_at(None);
     }
 
     pub fn interval_minutes(&self) -> Option<u32> {

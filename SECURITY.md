@@ -248,7 +248,7 @@ AI プロバイダーの API キーを含む外部サービスのシークレッ
 | メタデータ | `<configDir>/notedeck/connections.json` (Rust が source of truth、atomic write)。secret は含まない |
 | フロント側 | キー本体には触れず、接続 ID と `status` (bool) のみ扱う |
 | 実行モデル | `vault_fetch` が Rust 側で認証情報を注入し、レスポンスから secret を redaction して返す |
-| 開示制御 | `exposedTo` で principal クラス (ai / plugin / external) 別に開示。default は非開示 |
+| 開示制御 | `exposedTo` で principal クラス (ai / plugin / external) 別に開示。default は非開示。AI プロバイダー接続 (`protocol` 付き) を AI 設定で選ぶこと自体が使用の許可で、`exposedTo` は AI の推論経路 (チャット / HEARTBEAT) には関与しない |
 
 AI チャットは `connection_id` から endpoint / キー / protocol を Rust 側で解決するため、キー本体はフロントにも AI にも渡らない。Vault の外向き fetch (`vault_fetch`) の SSRF・redaction の詳細は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault"。**AI プロバイダーへのリクエストは `vault_fetch` とは別の client を使うが、宛先の検査は同じ規則に揃えてある (#1315)**: キーを開く前に接続の URL を一次検査 (http / https のみ、loopback / private / reserved TLD / IP literal と bad port を拒む) し、接続に許可ホストがあればその中に居ることを求め、名前解決後の IP は接続のたびに検証する resolver (メディアプロキシと同じ) で弾く。redirect は追わず 3xx はリダイレクト先ホストを含むエラーにする (#1160)。環境変数のプロキシは使わない (使うと宛先をこちらで解決せず検査が効かない)。止めたときの文言は host と理由を含む。この端末の中のサービス (Ollama 等) だけは、次の「ローカル接続」として別の規則で通す。
 

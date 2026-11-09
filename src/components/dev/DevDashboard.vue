@@ -7,8 +7,10 @@ import {
   onUnmounted,
   ref,
 } from 'vue'
+import type { HeartbeatStatus } from '@/bindings'
 import FormSelect from '@/components/common/form/FormSelect.vue'
 import { i18n } from '@/i18n'
+import { nativeField } from '@/i18n/native'
 import { formatTime } from '@/utils/formatTime'
 
 /**
@@ -286,22 +288,12 @@ async function fetchStartup() {
 // --- HEARTBEAT 状態 (#411) ---
 // daemon の silent fail 防止機構 (連続失敗 auto-disable) の観測面
 
-interface HeartbeatStatusView {
-  mounted: boolean
-  running: boolean
-  lastTickAt: number | null
-  lastTickSource: string | null
-  lastOutcome: string | null
-  consecutiveFailures: number
-  dailyCount: number
-  /** 失敗の記録 (古い順、notemaid が永続化している) */
-  recentFailures?: {
-    at: number
-    source: string
-    signature: string
-    message: string
-  }[]
-  /** 直近の実行で notemaid が読んだ設定の断面 (未実行なら null) */
+/**
+ * `/api/heartbeat/status` は notemaid の `HeartbeatStatus` (specta 型) をそのまま返す (#1321)。
+ * WebView の `heartbeat_status` command と同じ型なので、投影を 2 つ持たない
+ */
+type HeartbeatStatusView = Omit<HeartbeatStatus, 'config'> & {
+  /** 直近の実行で notemaid が読んだ設定の断面 (未実行なら null)。Rust では JSON のまま */
   config: {
     enabled: boolean
     intervalMinutes: number
@@ -1429,6 +1421,19 @@ onUnmounted(() => {
                     <tr>
                       <td>{{ i18n.ts._devDashboard.lastOutcome }}</td>
                       <td :class="$style.mono">{{ heartbeat.lastOutcome ?? '—' }}</td>
+                    </tr>
+                    <!-- 巡回に使う AI (#1321)。表示用の断面だけで接続 id は来ない -->
+                    <tr>
+                      <td>{{ i18n.ts._devDashboard.heartbeatProvider }}</td>
+                      <td :class="$style.mono">{{ heartbeat.provider ? `${heartbeat.provider.name} · ${heartbeat.provider.model}${heartbeat.provider.local ? ' · local' : ''}` : '—' }}</td>
+                    </tr>
+                    <tr v-if="heartbeat.waiting">
+                      <td>{{ i18n.ts._devDashboard.heartbeatWaiting }}</td>
+                      <td :class="$style.mono">{{ nativeField(heartbeat.waiting, 'message') }}</td>
+                    </tr>
+                    <tr v-if="heartbeat.usage">
+                      <td>usage</td>
+                      <td :class="$style.mono">{{ heartbeat.usage.inputTokens }} / ~{{ heartbeat.usage.estimatedInputTokens }}</td>
                     </tr>
                   </tbody>
                 </table>
