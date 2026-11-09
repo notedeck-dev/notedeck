@@ -30,9 +30,11 @@ use crate::sidecar::plugin_meta::parse_plugin_meta;
 use crate::sidecar::plugins::{self, PluginView};
 use crate::ssrf::{is_always_denied_loopback_port, loopback_port};
 
-/// `notedeck/` 直下のディレクトリ名。`settings_store::ALLOWED_SUBDIRS` に入れない
+/// 旧: `notedeck/loopback/consent.json`。同意はこの機械の状態なので `state/` へ移した
+/// (#1333 §4、移動は `migrations::run_fs`)。allowlist (`settings_store::SUBDIRS`) に入れない
 pub const DIR: &str = "loopback";
-const FILE: &str = "consent.json";
+/// 今の所在: `state/loopback-consent.json`
+pub const FILE: &str = "loopback-consent.json";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 struct Entry {
@@ -44,7 +46,7 @@ struct Entry {
 type File = BTreeMap<String, Entry>;
 
 fn path(core: &Core) -> Result<PathBuf> {
-    Ok(crate::sidecar::base_dir(core)?.join(DIR).join(FILE))
+    Ok(core.layout()?.state().join(FILE))
 }
 
 /// 壊れていれば空 (同意なし) として読む

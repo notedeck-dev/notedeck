@@ -14,6 +14,7 @@ fn backup_root(app: &tauri::AppHandle) -> Result<PathBuf> {
         .path()
         .download_dir()
         .map_err(|e| NoteDeckError::InvalidInput(format!("download dir unavailable: {e}")))?;
+    // nd-layout-ignore: ~/Downloads/notedeck は書き出し先。設定ディレクトリではない
     Ok(dl.join("notedeck").join(BACKUP_SUBDIR))
 }
 

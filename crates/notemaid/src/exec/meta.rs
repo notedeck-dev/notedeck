@@ -6,14 +6,13 @@ use serde_json::{json, Value};
 use super::ExecContext;
 use crate::ai_sessions::{self, AiSession};
 use notecli::error::NoteDeckError;
-use notecore::commands::settings::settings_base_dir;
 use notecore::context::Core;
 use notecore::error::Result;
 use notecore::permissions_gate;
 use notecore::permissions_profile::PrincipalId;
 
 fn sessions_sorted(core: &Core) -> Result<Vec<AiSession>> {
-    let mut all = ai_sessions::load_all(&settings_base_dir(core)?)?;
+    let mut all = ai_sessions::load_all(core.layout()?)?;
     all.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
     Ok(all)
 }
@@ -43,13 +42,13 @@ pub fn ai_sessions_read(core: &Core, params: &Value) -> Result<Value> {
         .and_then(Value::as_str)
         .filter(|s| !s.is_empty())
         .ok_or_else(|| NoteDeckError::InvalidInput("ai.sessions.read: id is required".into()))?;
-    let base = settings_base_dir(core)?;
-    if !ai_sessions::exists(&base, id) {
+    let base = core.layout()?;
+    if !ai_sessions::exists(base, id) {
         return Err(NoteDeckError::InvalidInput(format!(
             "ai.sessions.read: session \"{id}\" not found"
         )));
     }
-    let s = ai_sessions::get(&base, id)?;
+    let s = ai_sessions::get(base, id)?;
     Ok(json!({
         "id": s.id,
         "kind": s.kind,

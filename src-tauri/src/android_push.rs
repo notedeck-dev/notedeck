@@ -51,6 +51,7 @@ pub extern "system" fn Java_com_notedeck_desktop_PushBridge_onMessage(
         return;
     };
     let app_dir = PathBuf::from(dir);
+    crate::android_worker::prepare_layout(&app_dir);
     crate::ui_lang::init_if_unset(&app_dir);
     crate::android_notify::register_bridge(&mut env);
     // 「トークンを持つ口座宛て」だけ扱うのでトークンの有無を見る

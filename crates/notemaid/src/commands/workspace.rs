@@ -106,9 +106,8 @@ async fn seed_reserved_skill(
     which: workspace::Reserved,
 ) -> Result<crate::skills::SkillMeta> {
     let app_dir = core.app_dir()?;
-    let settings_dir = notecore::commands::settings::settings_base_dir(core)?;
     crate::skills::seed_reserved(
-        &settings_dir,
+        core.layout()?,
         which,
         &workspace::language(app_dir),
         crate::skills::now_ms(),

@@ -5033,6 +5033,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "loadFailedMinimal": string
     /** 権限の保存に失敗しました。変更は反映されていません。 */
     readonly "saveFailed": string
+    /** 前回の起動より権限が広がっています ({changes})。permissions.json5 を外から変えた覚えがなければ、設定の権限を確認してください。 */
+    readonly "permissionsWidened": ParameterizedString<'changes'>
   }
   readonly "_widgetCapabilities": {
     /** 要アップデート */
@@ -5832,6 +5834,18 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "completeTitle": string
     /** これで NoteDeck を使い始められます。あとは自由に触ってみてください。 */
     readonly "completeDescription": string
+  }
+  readonly "_layoutMigration": {
+    /** データの配置を変えるとき、旧配置と新配置の両方にあったもの ({count} 件) を {dir} に退避しました。中身を確かめてから消してください */
+    readonly "shelved": ParameterizedString<'count' | 'dir'>
+    /** 設定フォルダ (notedeck/) がシンボリックリンクなので、新しい配置 (config / data / state) への移行を見送りました。同期先に向けたリンクを config/ と data/ に張り直してから再起動してください */
+    readonly "symlinkedSettings": string
+    /** データの配置を変えるため、常駐の AI を止めました。常駐を更新するまで巡回 (HEARTBEAT) は続きません */
+    readonly "standaloneStopped": string
+    /** 常駐の AI を止められなかったので、データの配置の移行を見送りました。常駐を止めてから再起動してください */
+    readonly "residentAlive": string
+    /** データの配置の移行に失敗したので、元の配置に戻して続けます: {message} */
+    readonly "failed": ParameterizedString<'message'>
   }
   readonly "_main": {
     /** バックエンドの初期化に失敗しました: {error} */
@@ -6715,6 +6729,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "skippedBadFilename": ParameterizedString<'key'>
       /** スキップ (不正なキー): {key} */
       readonly "skippedBadKey": ParameterizedString<'key'>
+      /** 編集履歴 ({count} 件) は取り込みません (この機械の状態なので、バックアップの対象外になりました) */
+      readonly "skippedHistory": ParameterizedString<'count'>
     }
     readonly "notification": {
       /** 誰か */

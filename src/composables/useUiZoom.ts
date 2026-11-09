@@ -1,16 +1,16 @@
 import { getCurrentWebview } from '@tauri-apps/api/webview'
 import { computed, watch } from 'vue'
 import { clampUiZoom, stepUiZoom } from '@/services/uiZoom'
-import { useSettingsStore } from '@/stores/settings'
+import { useUiStateStore } from '@/stores/uiState'
 import { isTauri } from '@/utils/settingsFs'
 
 /**
- * UI ズーム (#704)。値は settings.json5 の `ui.zoom` が正本で、拡大・縮小・
- * 等倍はそこへ書くだけ。webview への適用は `applyUiZoom` が設定を見て行うので、
- * 他のウィンドウの操作も設定の同期で追従する。
+ * UI ズーム (#704)。値はこの機械の状態 `state/ui.json5` の `ui.zoom` が正本で
+ * (#1333 §3)、拡大・縮小・等倍はそこへ書くだけ。webview への適用は `applyUiZoom`
+ * が状態を見て行うので、他のウィンドウの操作も状態の同期で追従する。
  */
 export function useUiZoom() {
-  const settings = useSettingsStore()
+  const settings = useUiStateStore()
   const zoom = computed(() => clampUiZoom(settings.get('ui.zoom')))
 
   function set(value: number) {
@@ -25,7 +25,7 @@ export function useUiZoom() {
   }
 }
 
-/** 自分の webview に設定の拡大率を当て続ける。各ウィンドウで 1 回呼ぶ */
+/** 自分の webview に保存された拡大率を当て続ける。各ウィンドウで 1 回呼ぶ */
 export function applyUiZoom(): void {
   if (!isTauri) return
   const { zoom } = useUiZoom()

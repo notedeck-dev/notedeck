@@ -2412,8 +2412,45 @@ async renameSettingsFile(subdir: string, oldName: string, newName: string) : Pro
     else return { status: "error", error: e  as any };
 }
 },
+/** @see crates/notecore/src/commands/settings.rs */
+async readHistorySidecar(subdir: string | null, base: string) : Promise<Result<string, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("read_history_sidecar", { subdir, base }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/settings.rs */
+async writeHistorySidecar(subdir: string | null, base: string, content: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("write_history_sidecar", { subdir, base, content }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/** @see crates/notecore/src/commands/settings.rs */
+async deleteHistorySidecar(subdir: string | null, base: string) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("delete_history_sidecar", { subdir, base }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 /**
- * Get the settings directory path (so users can open it in file manager).
+ * この起動での再編の結果 (フロントは起動時に 1 回読んで、操作が要る人にだけ知らせる)
+ *
+ * @see src-tauri/src/layout_boot.rs
+ */
+async layoutMigrationReport() : Promise<LayoutMigrationReport> {
+    return await TAURI_INVOKE("layout_migration_report");
+},
+/**
+ * 「設定フォルダを開く」の先。再編後 (#1334) は root (config / data / state が見える)
+ * を開く。2 本に分けると AI の持ち物 (skills / ai.json5 は config、SOUL / sessions は
+ * data) が割れて迷うため。旧配置なら従来どおり `notedeck/`
  *
  * @see src-tauri/src/commands/settings.rs
  */
@@ -3634,7 +3671,12 @@ trustedPlugins?: TrustedPlugin[];
 /**
  * secret が設定済みの slot 名一覧。keychain 列挙 API がないため metadata 側が source of truth。
  */
-slots?: string[]; lastUsedAt?: string | null; lastSecretUpdatedAt?: string | null; displayName?: string | null; icon?: string | null; notes?: string | null; createdAt: string; updatedAt: string }
+slots?: string[]; lastUsedAt?: string | null; lastSecretUpdatedAt?: string | null; displayName?: string | null; icon?: string | null; notes?: string | null; createdAt: string; 
+/**
+ * 設定側のファイルには書かない (state 側の値。`connections_store::load` が重ね、
+ * 無ければ `created_at`。#1333 §4)
+ */
+updatedAt: string }
 /**
  * 接続種別。v2 で `inbound` (webhook receiver) を追加する余地を残す。
  */
@@ -3858,7 +3900,11 @@ lastPanic: PanicReport | null;
 /**
  * AI (notemaid) がどこでどう動いているか (#1106)。繋がらない / 起動しない理由も含む
  */
-notemaid: NotemaidDiagnostics }
+notemaid: NotemaidDiagnostics; 
+/**
+ * データディレクトリの配置 (#1334)。開発者モードの About に出す
+ */
+layout: LayoutPaths }
 /**
  * デバイスへ流す出来事 (flat。Tauri は `nd:ai-heartbeat-event`)。
  * kind: `started` (source) / `finished` (outcome) / `report` (session_id, created, pending) /
@@ -4007,6 +4053,43 @@ childExited: boolean; childExitCode: number | null;
  * 常駐 (ログイン時タスク) の登録状態
  */
 resident: ResidentStatus }
+export type LayoutMigrationReport = { 
+/**
+ * この起動で再編した
+ */
+migrated: boolean; notices: LayoutNotice[] }
+/**
+ * 利用者に知らせること (操作が要る人だけ)
+ */
+export type LayoutNotice = 
+/**
+ * 旧配置と新配置の両方にあったものを退避した
+ */
+{ kind: "shelved"; dir: string; count: number } | 
+/**
+ * `notedeck/` がリンクなので移行しなかった
+ */
+{ kind: "symlinkedSettings" } | 
+/**
+ * 常駐 notemaid を止めた (更新するまで HEARTBEAT の継続が切れる)
+ */
+{ kind: "standaloneStopped" } | 
+/**
+ * 常駐 notemaid を止められず、移行しなかった
+ */
+{ kind: "residentAlive" } | 
+/**
+ * 失敗して旧配置のまま
+ */
+{ kind: "failed"; message: string }
+/**
+ * データディレクトリの各領域の場所
+ */
+export type LayoutPaths = { 
+/**
+ * 配置の版。`legacy` は再編前
+ */
+version: string; root: string; config: string; data: string; state: string; cache: string }
 /**
  * 表示言語で描き直せる 1 行 (一覧で返す警告など)。`i18n` は `{ text: { key, params } }`
  * の形で、TS は `nativeField(line, 'text')` で表示言語の文にする

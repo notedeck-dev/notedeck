@@ -27,6 +27,8 @@ vi.mock('@/utils/settingsFs', () => ({
   readAiSettings: () => Promise.resolve(''),
   writeAiSettings: () => Promise.resolve(),
   writePermissionsSettings: () => Promise.reject(new Error('disk full')),
+  readPermissionsMeta: () => Promise.resolve(''),
+  writePermissionsMeta: () => Promise.resolve(),
 }))
 
 describe('save() の失敗 (#1099)', () => {

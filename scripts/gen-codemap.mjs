@@ -109,23 +109,33 @@ function services() {
 
 function settingsFiles() {
   const src = read('crates/notecore/src/settings_store.rs')
-  const subdirs = [...src.match(/ALLOWED_SUBDIRS[^=]*=\s*&\[([\s\S]*?)\];/)[1].matchAll(/"([^"]+)"/g)].map(
-    ([, d]) => `${code(`${d}/`)}`,
-  )
+  const mark = (b) => (b === 'true' ? '✓' : '—')
+  const subdirBody = src.match(/pub const SUBDIRS[^=]*=\s*&\[([\s\S]*?)\n\];/)[1]
+  const subdirs = []
+  for (const m of subdirBody.matchAll(
+    /config_dir\("([^"]+)"\)|name:\s*"([^"]+)",\s*area:\s*Area::(\w+),\s*dir:\s*"[^"]*",\s*backup:\s*(\w+),\s*ipc:\s*(\w+)/g,
+  )) {
+    if (m[1]) subdirs.push(`| ${code(`${m[1]}/`)} | config | ✓ | ✓ |`)
+    else subdirs.push(`| ${code(`${m[2]}/`)} | ${m[3].toLowerCase()} | ${mark(m[4])} | ${mark(m[5])} |`)
+  }
   const body = src.match(/pub const ROOT_FILES[^=]*=\s*&\[([\s\S]*?)\n\];/)[1]
   const rows = []
-  for (const m of body.matchAll(/(core|device)\("([^"]+)"\)|name:\s*"([^"]+)",\s*side:\s*Side::(\w+),\s*backup:\s*(\w+)/g)) {
-    if (m[1]) rows.push(`| ${code(m[2])} | ${m[1] === 'core' ? 'Core' : 'Device'} | ✓ |`)
-    else rows.push(`| ${code(m[3])} | ${m[4]} | ${m[5] === 'true' ? '✓' : '—'} |`)
+  for (const m of body.matchAll(
+    /root\("([^"]+)"\)|name:\s*(?:"([^"]+)"|(CONNECTIONS_FILE)),\s*area:\s*Area::(\w+),\s*backup:\s*(\w+),\s*ipc:\s*(\w+)/g,
+  )) {
+    if (m[1]) rows.push(`| ${code(m[1])} | config | ✓ | ✓ |`)
+    else rows.push(`| ${code(m[2] ?? 'connections.json')} | ${m[4].toLowerCase()} | ${mark(m[5])} | ${mark(m[6])} |`)
   }
-  return section('設定ファイル', link('crates/notecore/src/settings_store.rs') + ' の `ROOT_FILES` / `ALLOWED_SUBDIRS`', [
-    '`side` は「デバイスが 1 台も繋がっていなくても意味を持つか」(Core) か手元側 (Device) か。バックアップの例外 (`notemaid/` の人格と記憶、Vault の `connections.json`) は DESIGN.md の「ファイル構造」を参照。',
+  return section('設定ファイル', link('crates/notecore/src/settings_store.rs') + ' の `ROOT_FILES` / `SUBDIRS`', [
+    '`area` は置き場 (config = 持ち出す単位 / data = 人の記録 / state = この機械の状態。物理的な場所は `app_dir.rs` の `Layout` が決める)。`ipc` は汎用の list / read / write / delete / rename で触れるか (— のものは専用の構造化操作だけが書く)。バックアップの例外 (`notemaid/` の人格と記憶) は DESIGN.md の「ファイル構造」を参照。',
     '',
-    '| ルートファイル | side | バックアップ |',
-    '|---|---|---|',
+    '| ルートファイル | area | バックアップ | ipc |',
+    '|---|---|---|---|',
     ...rows,
     '',
-    `サブディレクトリ: ${subdirs.join(' / ')}`,
+    '| サブディレクトリ | area | バックアップ | ipc |',
+    '|---|---|---|---|',
+    ...subdirs,
   ])
 }
 

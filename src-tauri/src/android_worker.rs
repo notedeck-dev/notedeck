@@ -77,6 +77,7 @@ pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_runWorker(
             return RESULT_SUCCESS;
         }
     };
+    prepare_layout(&app_dir);
     // 表示言語 → 入口 (初回登録時にチャネルを作るので言語が先)
     crate::ui_lang::init_if_unset(&app_dir);
     crate::android_notify::register_bridge(&mut env);
@@ -88,6 +89,20 @@ pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_runWorker(
         return RESULT_SUCCESS;
     };
     background.runtime.block_on(run(&app_dir, background))
+}
+
+/// 配置の移行 (#1334) と旧来の小さな移行。アプリ更新の後、アプリを開く前に worker / push の
+/// 入口が走りうるので、どの入口も同じ順で通す。Android に daemon は無いので probe は要らず、
+/// `.layout.lock` を待つだけ (WorkManager の実行時間を少し食う)
+pub(crate) fn prepare_layout(app_dir: &Path) {
+    match notecore::layout_migration::run_locked(app_dir) {
+        Ok(r) if r.migrated => tracing::info!("[worker] migrated the data directory layout"),
+        Ok(_) | Err(notecore::layout_migration::Skip::AlreadyDone) => {}
+        Err(e) => tracing::warn!("[worker] layout migration skipped: {e:?}"),
+    }
+    if let Err(e) = notecore::migrations::run_fs(app_dir) {
+        tracing::warn!("[worker] filesystem migration failed: {e}");
+    }
 }
 
 /// 巡回と push が共有する非同期の土台 (#1195)。プロセスに 1 組

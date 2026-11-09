@@ -79,8 +79,7 @@ pub async fn apply_eviction_config(core: &Core, config: EvictionConfig) -> Resul
 /// settings.json5 の掃き出し設定 (`cache.evictionPreset` 等) を解いて適用する (#1131)。
 /// 起動時はコアが自分で呼び、設定画面からの変更も同じ経路を通る (端末に表を持たない)
 pub async fn apply_eviction_from_settings(core: &Core) -> Result<u64> {
-    let base = super::settings::settings_base_dir(core)?;
-    let text = crate::settings_store::read_settings_json(&base).unwrap_or_default();
+    let text = crate::settings_store::read_settings_json(core.layout()?).unwrap_or_default();
     let config = crate::eviction_preset::resolve(&text);
     apply_eviction_config(core, config).await
 }

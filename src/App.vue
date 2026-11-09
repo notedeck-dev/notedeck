@@ -117,7 +117,7 @@ const { isRepresentative } = useRepresentative()
 // 出す。PiP ウィンドウも自分の document を持つので両方で mount する。
 useCodeScheme()
 
-// UI ズーム (#704)。settings.json5 の値を各ウィンドウの webview に当てる
+// UI ズーム (#704)。state/ui.json5 の値を各ウィンドウの webview に当てる
 applyUiZoom()
 
 // notecore が書いた設定ファイルの写しを読み直す購読 (#1133)。全ウィンドウで

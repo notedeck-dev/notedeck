@@ -55,6 +55,8 @@ export interface SidecarCollectionConfig<T extends SidecarItemFile, M> {
   read(filename: string): Promise<string>
   write(filename: string, content: string): Promise<void>
   remove(filename: string): Promise<void>
+  /** 履歴サイドカー (state/history/、#1334 段階 2) の削除。種別に履歴が無ければ省略 */
+  removeHistory?(base: string): Promise<void>
   rename(oldFilename: string, newFilename: string): Promise<void>
   idOf(item: T): string
   /** 表示名 (slug の元)。空なら kindFallback に落ちる */
@@ -319,17 +321,17 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     // remove は missing = no-op 意味論 (settings_store.rs 側)。
     await cfg.remove(base + META_SUFFIX)
     await cfg.remove(base + SRC_SUFFIX)
-    await cfg.remove(base + HISTORY_SUFFIX)
+    // 履歴サイドカー (state/history/、#1334 段階 2) も消す
+    await cfg.removeHistory?.(base)
   }
 
   /**
-   * src → meta → history の順で rename する。不在は skip (ensure-dest)。
-   * 履歴サイドカーの失敗は警告のみで飲む — 主ファイルが移った後に throw すると
-   * 対応表 (fileBase) が旧名のまま残り、実ファイルとずれる (#913 の不変条件)。
+   * src → meta の順で rename する。不在は skip (ensure-dest)。履歴サイドカーは Rust の
+   * rename が basename の変化に追随させる (#1334 段階 2)
    */
   async function renameFileSet(from: string, to: string): Promise<void> {
     const files = new Set(await cfg.list())
-    for (const ext of [SRC_SUFFIX, META_SUFFIX, HISTORY_SUFFIX]) {
+    for (const ext of [SRC_SUFFIX, META_SUFFIX]) {
       const oldFile = from + ext
       const newFile = to + ext
       if (!files.has(oldFile)) continue
@@ -337,17 +339,6 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
         console.warn(
           `[${cfg.logTag}] rename target already exists, skipped: ${newFile}`,
         )
-        continue
-      }
-      if (ext === HISTORY_SUFFIX) {
-        try {
-          await cfg.rename(oldFile, newFile)
-        } catch (e) {
-          console.warn(
-            `[${cfg.logTag}] failed to rename history sidecar ${oldFile}:`,
-            e,
-          )
-        }
         continue
       }
       await cfg.rename(oldFile, newFile)
@@ -539,31 +530,6 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
     }
   }
 
-  /**
-   * 履歴 sweep: sweep 時点のディレクトリ実列挙に存在する規定拡張子付き
-   * 全主ファイル (読込採否を問わない) の basename 集合と casefold で照合し、
-   * 対応の取れない `.history.json5` を削除する。
-   */
-  async function sweepHistoryImpl(): Promise<void> {
-    const files = await cfg.list()
-    const mainBases = new Set<string>()
-    for (const f of files) {
-      if (f.endsWith(HISTORY_SUFFIX)) continue
-      if (f.endsWith(META_SUFFIX)) {
-        mainBases.add(casefold(f.slice(0, -META_SUFFIX.length)))
-      } else if (f.endsWith(SRC_SUFFIX)) {
-        mainBases.add(casefold(f.slice(0, -SRC_SUFFIX.length)))
-      }
-    }
-    for (const f of files) {
-      if (!f.endsWith(HISTORY_SUFFIX)) continue
-      const base = casefold(f.slice(0, -HISTORY_SUFFIX.length))
-      if (!mainBases.has(base)) {
-        await cfg.remove(f)
-      }
-    }
-  }
-
   return {
     loadAll: () => enqueue(loadAllImpl),
     loadOne: (metaFile: string) => enqueue(() => loadOneImpl(metaFile)),
@@ -576,6 +542,5 @@ export function createSidecarCollection<T extends SidecarItemFile, M>(
       enqueue(() => renameItemFilesImpl(item, allItems)),
     migrateItems: (items: readonly T[]) =>
       enqueue(() => migrateItemsImpl(items)),
-    sweepHistory: () => enqueue(sweepHistoryImpl),
   }
 }

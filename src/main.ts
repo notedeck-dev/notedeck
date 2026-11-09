@@ -4,6 +4,7 @@ import { initDeveloperMode } from '@/composables/useDeveloperMode'
 import { initLocale } from '@/composables/useLocale'
 import { announceWindow } from '@/composables/useRepresentative'
 import { i18n } from '@/i18n'
+import { whenPermissionsReady } from '@/permissions/store'
 import App from './App.vue'
 import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
@@ -18,6 +19,7 @@ import { usePerformanceStore } from './stores/performance'
 import { useServersStore } from './stores/servers'
 import { useSettingsStore } from './stores/settings'
 import { useThemeStore } from './stores/theme'
+import { useUiStateStore } from './stores/uiState'
 import { disableMediaProxy, setMediaProxyToken } from './utils/mediaProxy'
 import { printSelfXssWarning } from './utils/selfXssWarning'
 import { isTauri } from './utils/settingsFs'
@@ -162,6 +164,8 @@ if (isTauri) {
   markStartup('settings-await')
   await Promise.all([
     settingsStore.load(),
+    // この機械の UI の状態 (state/ui.json5、#1333 §3)。ズームは初回描画前に当てる
+    useUiStateStore().load(),
     // 窓の名簿に名乗る (#1131)。代表窓かどうかを後続の移行・seed が読む
     announceWindow(),
     // 表示言語の辞書 (#135)。以降の初期化が出す toast も辞書を引くので先に揃える
@@ -199,6 +203,52 @@ if (isTauri) {
   // 開発者モードの初期値を一度だけ確定させる (#1034)。アカウントのロードを
   // 待つので fire-and-forget。既存インストールは on、新規は off。
   void initDeveloperMode()
+
+  // 権限ファイルの読込を起動時に始める (#1333 §4)。旧形 (確認スキップが同居) は最初の
+  // 読込で state 側へ分かれるので、最初の確認ダイアログまで待たない
+  void whenPermissionsReady()
+
+  // データディレクトリの再編 (#1334) で操作が要る人にだけ知らせる。結果は Rust が
+  // 1 回だけ返す (複数の窓で重ねて出さない)
+  void (async () => {
+    try {
+      const { commands } = await import('./utils/tauriInvoke')
+      const report = await commands.layoutMigrationReport()
+      if (report.notices.length === 0) return
+      const { useToast } = await import('./stores/toast')
+      await localeReady
+      for (const n of report.notices) {
+        switch (n.kind) {
+          case 'shelved':
+            useToast().show(
+              i18n.tsx._layoutMigration.shelved({ count: n.count, dir: n.dir }),
+              'warning',
+            )
+            break
+          case 'symlinkedSettings':
+            useToast().show(
+              i18n.ts._layoutMigration.symlinkedSettings,
+              'warning',
+            )
+            break
+          case 'standaloneStopped':
+            useToast().show(i18n.ts._layoutMigration.standaloneStopped, 'info')
+            break
+          case 'residentAlive':
+            useToast().show(i18n.ts._layoutMigration.residentAlive, 'warning')
+            break
+          case 'failed':
+            useToast().show(
+              i18n.tsx._layoutMigration.failed({ message: n.message }),
+              'error',
+            )
+            break
+        }
+      }
+    } catch (e) {
+      console.warn('[layout] migration report unavailable:', e)
+    }
+  })()
 
   // Pre-load server info from DB so ColumnBadges can show icons immediately
   useServersStore().loadCachedServers()

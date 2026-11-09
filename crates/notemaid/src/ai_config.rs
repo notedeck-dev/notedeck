@@ -5,9 +5,10 @@
 
 use serde_json::Value;
 
-use notecore::commands::settings::settings_base_dir;
+use notecore::app_dir::Layout;
 use notecore::context::Core;
 use notecore::error::Result;
+use notecore::json5_out::{self, J5};
 use notecore::settings_events;
 use notecore::settings_store as store;
 
@@ -330,17 +331,17 @@ pub fn from_document(doc: &Value) -> AiConfigLite {
 }
 
 fn read_document(core: &Core) -> Result<Value> {
-    read_document_in(&settings_base_dir(core)?)
+    read_document_in(core.layout()?)
 }
 
-/// 設定ディレクトリ (`<app dir>/notedeck`) から読む (Core を持たない呼び出し元用)。
+/// 設定ディレクトリから読む (Core を持たない呼び出し元用)。
 pub fn load_from_app_dir(app_dir: &std::path::Path) -> AiConfigLite {
-    let base = app_dir.join(notecore::commands::settings::SETTINGS_DIR);
-    from_document(&read_document_in(&base).unwrap_or(Value::Object(Default::default())))
+    let layout = Layout::from_root(app_dir);
+    from_document(&read_document_in(&layout).unwrap_or(Value::Object(Default::default())))
 }
 
-fn read_document_in(base: &std::path::Path) -> Result<Value> {
-    match store::read_root_file(base, FILE_NAME) {
+fn read_document_in(layout: &Layout) -> Result<Value> {
+    match store::read_root_file(layout, FILE_NAME) {
         Ok(text) if !text.trim().is_empty() => {
             Ok(json5::from_str::<Value>(&text).unwrap_or_else(|e| {
                 tracing::warn!("ai.json5 parse failed, using defaults: {e}");
@@ -355,50 +356,72 @@ pub fn load(core: &Core) -> Result<AiConfigLite> {
     Ok(from_document(&read_document(core)?))
 }
 
-/// `heartbeat.enabled` だけを書き換える (他のキーは保つ)。書けたら変更通知。
-/// persona の切替 (`ai.setPersona`)。空文字 = persona なし。
-pub fn set_persona_skill_id(core: &Core, skill_id: &str) -> Result<()> {
-    let mut doc = read_document(core)?;
-    if !doc.is_object() {
-        doc = Value::Object(Default::default());
-    }
-    doc.as_object_mut()
-        .expect("object")
-        .insert("personaSkillId".into(), Value::String(skill_id.to_string()));
-    let text = serde_json::to_string_pretty(&doc)? + "\n";
+/// ai.json5 を「読んだ順のまま 1 か所だけ変えて書き戻す」。
+///
+/// フロント (JSON5.stringify) と同じ整形 (`json5_out::stringify`) で、キー順はファイルの
+/// 順を保つ。全キー辞書順の `serde_json::to_string_pretty` だと、notemaid が書くたびに
+/// ファイルの形が入れ替わり Git の差分が汚れる (#1333 §2)
+fn update_document(core: &Core, f: impl FnOnce(&mut Vec<(String, J5)>)) -> Result<()> {
+    let text = store::read_root_file(core.layout()?, FILE_NAME).unwrap_or_default();
+    let mut doc = if text.trim().is_empty() {
+        Vec::new()
+    } else {
+        match json5::from_str::<J5>(&text) {
+            Ok(J5::Obj(entries)) => entries,
+            Ok(_) => Vec::new(),
+            Err(e) => {
+                tracing::warn!("ai.json5 parse failed, rewriting from defaults: {e}");
+                Vec::new()
+            }
+        }
+    };
+    f(&mut doc);
+    let text = json5_out::stringify(&J5::Obj(doc)) + "\n";
     settings_events::write_root_file(core, FILE_NAME, &text)
+}
+
+/// 順序つきオブジェクトのキーを置く (あれば差し替え、無ければ末尾に足す)
+fn put(entries: &mut Vec<(String, J5)>, key: &str, value: J5) {
+    match entries.iter_mut().find(|(k, _)| k == key) {
+        Some(slot) => slot.1 = value,
+        None => entries.push((key.to_string(), value)),
+    }
+}
+
+/// persona の切替 (`ai.setPersona`)。空文字 = persona なし。他のキーは保つ
+pub fn set_persona_skill_id(core: &Core, skill_id: &str) -> Result<()> {
+    update_document(core, |doc| {
+        put(doc, "personaSkillId", J5::Str(skill_id.to_string()));
+    })
 }
 
 /// 「あなたのことを覚える」(USER.md の注入と書込、#1162)
 pub fn set_user_memory(core: &Core, enabled: bool) -> Result<()> {
-    let mut doc = read_document(core)?;
-    if !doc.is_object() {
-        doc = Value::Object(Default::default());
-    }
-    doc.as_object_mut()
-        .expect("object")
-        .insert("userMemory".into(), Value::Bool(enabled));
-    let text = serde_json::to_string_pretty(&doc)? + "\n";
-    settings_events::write_root_file(core, FILE_NAME, &text)
+    update_document(core, |doc| put(doc, "userMemory", J5::Bool(enabled)))
 }
 
+/// `heartbeat.enabled` だけを書き換える (他のキーは保つ)。書けたら変更通知
 pub fn set_heartbeat_enabled(core: &Core, enabled: bool) -> Result<()> {
-    let mut doc = read_document(core)?;
-    if !doc.is_object() {
-        doc = Value::Object(Default::default());
-    }
-    let obj = doc.as_object_mut().expect("object");
-    let hb = obj
-        .entry("heartbeat")
-        .or_insert_with(|| Value::Object(Default::default()));
-    if !hb.is_object() {
-        *hb = Value::Object(Default::default());
-    }
-    hb.as_object_mut()
-        .expect("object")
-        .insert("enabled".into(), Value::Bool(enabled));
-    let text = serde_json::to_string_pretty(&doc)? + "\n";
-    settings_events::write_root_file(core, FILE_NAME, &text)
+    update_document(core, |doc| {
+        let hb = match doc.iter_mut().find(|(k, _)| k == "heartbeat") {
+            Some((_, J5::Obj(hb))) => hb,
+            Some(slot) => {
+                slot.1 = J5::Obj(Vec::new());
+                match &mut slot.1 {
+                    J5::Obj(hb) => hb,
+                    _ => unreachable!(),
+                }
+            }
+            None => {
+                doc.push(("heartbeat".to_string(), J5::Obj(Vec::new())));
+                match &mut doc.last_mut().expect("just pushed").1 {
+                    J5::Obj(hb) => hb,
+                    _ => unreachable!(),
+                }
+            }
+        };
+        put(hb, "enabled", J5::Bool(enabled));
+    })
 }
 
 #[cfg(test)]
@@ -570,8 +593,8 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
-        let base = settings_base_dir(&core).unwrap();
-        std::fs::create_dir_all(&base).unwrap();
+        let base = core.layout().unwrap().clone();
+        std::fs::create_dir_all(base.config()).unwrap();
         store::write_root_file(
             &base,
             FILE_NAME,
@@ -583,5 +606,42 @@ mod tests {
         assert!(!c.heartbeat.enabled);
         assert_eq!(c.heartbeat.interval_minutes, 5);
         assert_eq!(c.active_connection_id, "c");
+    }
+
+    /// #1333 §2: notemaid が書いてもファイルの形 (キー順・クォート) はフロントの
+    /// JSON5.stringify と同じで、同じ内容を書き直せば byte 一致する
+    #[test]
+    fn writes_keep_the_file_order_and_are_deterministic() {
+        let dir = tempfile::tempdir().unwrap();
+        let core = Core::new();
+        core.set_app_dir(dir.path().to_path_buf());
+        let base = core.layout().unwrap().clone();
+        std::fs::create_dir_all(base.config()).unwrap();
+        store::write_root_file(
+            &base,
+            FILE_NAME,
+            "{\n  models: {\n    c: 'm',\n  },\n  activeConnectionId: 'c',\n  heartbeat: {\n    intervalMinutes: 5,\n    enabled: true,\n  },\n}\n",
+        )
+        .unwrap();
+        set_heartbeat_enabled(&core, false).unwrap();
+        let first = store::read_root_file(&base, FILE_NAME).unwrap();
+        assert_eq!(
+            first,
+            "{\n  models: {\n    c: 'm',\n  },\n  activeConnectionId: 'c',\n  heartbeat: {\n    intervalMinutes: 5,\n    enabled: false,\n  },\n}\n"
+        );
+        // 同じ値をもう一度書いても変わらない
+        set_heartbeat_enabled(&core, false).unwrap();
+        assert_eq!(store::read_root_file(&base, FILE_NAME).unwrap(), first);
+        // 無いキーは末尾に足す。空ファイルからも書ける
+        set_persona_skill_id(&core, "p").unwrap();
+        assert!(store::read_root_file(&base, FILE_NAME)
+            .unwrap()
+            .ends_with("  personaSkillId: 'p',\n}\n"));
+        store::write_root_file(&base, FILE_NAME, "").unwrap();
+        set_user_memory(&core, true).unwrap();
+        assert_eq!(
+            store::read_root_file(&base, FILE_NAME).unwrap(),
+            "{\n  userMemory: true,\n}\n"
+        );
     }
 }

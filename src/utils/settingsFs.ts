@@ -49,7 +49,11 @@ export const SETTINGS_FS_SOURCE_ID = `${Date.now()}-${Math.random().toString(36)
  * 自分の sourceId を捨てて残りを notecore 発と同じ配線表に配る。これが
  * ウィンドウ間同期の唯一の経路で、localStorage のミラーはもう使わない
  */
-function announce(subdir: string, name: string, op: SettingsChange['op']) {
+function announce(
+  subdir: string | null,
+  name: string,
+  op: SettingsChange['op'],
+) {
   emitTauri('nd:settings-file-written', {
     sourceId: SETTINGS_FS_SOURCE_ID,
     change: { subdir, name, op },
@@ -177,6 +181,42 @@ export async function renameProfile(
   return renameSettingsFile(PROFILES_DIR, oldFilename, newFilename)
 }
 
+// --- この機械の状態 (#1333 §3) ---
+
+/** デッキプロファイルの状態 `state/deck/` (論理 subdir `deck-state`) */
+const DECK_STATE_DIR = 'deck-state'
+
+export async function listDeckStateFiles(): Promise<string[]> {
+  return listSettingsFiles(DECK_STATE_DIR)
+}
+
+export async function readDeckState(filename: string): Promise<string> {
+  return readSettingsFile(DECK_STATE_DIR, filename)
+}
+
+export async function writeDeckState(
+  filename: string,
+  content: string,
+): Promise<void> {
+  return writeSettingsFile(DECK_STATE_DIR, filename, content)
+}
+
+export async function deleteDeckState(filename: string): Promise<void> {
+  return deleteSettingsFile(DECK_STATE_DIR, filename)
+}
+
+/** UI の状態 `state/ui.json5`。root 配下だが、状態は窓間で揃えるので書込を知らせる */
+const UI_STATE_FILE = 'ui.json5'
+
+export async function readUiState(): Promise<string> {
+  return readRootSettingsFile(UI_STATE_FILE)
+}
+
+export async function writeUiState(content: string): Promise<void> {
+  await writeRootSettingsFile(UI_STATE_FILE, content)
+  announce(null, UI_STATE_FILE, 'write')
+}
+
 // --- Root-level file operations ---
 
 async function readRootSettingsFile(name: string): Promise<string> {
@@ -282,6 +322,15 @@ export async function writePermissionsSettings(
   expected: string | null = null,
 ): Promise<string> {
   return writeRootSettingsFile('permissions.json5', content, expected)
+}
+
+/** この機械の権限の状態 (`state/permissions-meta.json5`、#1333 §4) */
+export async function readPermissionsMeta(): Promise<string> {
+  return readRootSettingsFile('permissions-meta.json5')
+}
+
+export async function writePermissionsMeta(content: string): Promise<void> {
+  await writeRootSettingsFile('permissions-meta.json5', content)
 }
 
 // --- Tasks helpers ---
@@ -492,12 +541,10 @@ export async function renameSkillFile(
 
 // --- Edit history sidecar helpers (skill / widget / plugin / theme) ---
 //
-// 各 kind の編集前 snapshot をリング 10 件で `<basename>.history.json5` に
-// サイドカー保存する。実装は対応する dir (skills/widgets/plugins/themes) に
-// 隣接する別ファイル。Tauri 外 (ブラウザ) では呼んでも no-op (上位で
-// localStorage fallback)。
-
-const HISTORY_EXT = '.history.json5'
+// 各 kind の編集前 snapshot をリングで `state/history/<subdir|root>/<basename>.history.json5`
+// に保存する (#1334 段階 2。設定の隣ではなく、この機械の状態)。置き場を知るのは Rust の
+// `settings_store::history_path` だけで、ここは scope (論理 subdir) と basename を渡す。
+// Tauri 外 (ブラウザ) では呼んでも no-op。
 
 export type HistoryKind =
   | 'skill'
@@ -527,8 +574,9 @@ function historyDirFor(kind: Exclude<HistoryKind, 'css'>): string {
   }
 }
 
-export function historyFilename(basename: string): string {
-  return sanitizeFilename(basename) + HISTORY_EXT
+/** 履歴の scope (論理 subdir)。css は root 直下の単一ファイルなので null */
+function historyScopeFor(kind: HistoryKind): string | null {
+  return kind === 'css' ? null : historyDirFor(kind)
 }
 
 export async function readHistorySidecar(
@@ -537,32 +585,28 @@ export async function readHistorySidecar(
 ): Promise<string | null> {
   if (!isTauri) return null
   try {
-    if (kind === 'css') {
-      return await readRootSettingsFile(historyFilename(basename))
-    }
-    return await readSettingsFile(
-      historyDirFor(kind),
-      historyFilename(basename),
+    const text = unwrap(
+      await commands.readHistorySidecar(historyScopeFor(kind), basename),
     )
+    return text.length > 0 ? text : null
   } catch {
     return null
   }
 }
 
+/** 履歴の書込。他のウィンドウには知らせない (履歴の表示は都度読む、#1334 段階 2) */
 export async function writeHistorySidecar(
   kind: HistoryKind,
   basename: string,
   content: string,
 ): Promise<void> {
   if (!isTauri) return
-  if (kind === 'css') {
-    await writeRootSettingsFile(historyFilename(basename), content)
-    return
-  }
-  return writeSettingsFile(
-    historyDirFor(kind),
-    historyFilename(basename),
-    content,
+  unwrap(
+    await commands.writeHistorySidecar(
+      historyScopeFor(kind),
+      basename,
+      content,
+    ),
   )
 }
 
@@ -572,14 +616,7 @@ export async function deleteHistorySidecar(
 ): Promise<void> {
   if (!isTauri) return
   try {
-    if (kind === 'css') {
-      // root 直下なので deleteSettingsFile は使えない。専用コマンドが
-      // 無いため write で空文字 (no-op に近い) … ではなく、現状 root file の
-      // delete コマンドは存在しないので no-op で済ませる。history file は
-      // 上書きされるだけで停滞コストは小さい。
-      return
-    }
-    await deleteSettingsFile(historyDirFor(kind), historyFilename(basename))
+    unwrap(await commands.deleteHistorySidecar(historyScopeFor(kind), basename))
   } catch {
     // 存在しないだけのときは無視
   }

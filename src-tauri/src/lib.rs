@@ -35,6 +35,7 @@ mod android_worker;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
 mod ipc_index;
+mod layout_boot;
 #[cfg(target_os = "android")]
 mod notify_cursor_file;
 mod os_notify;
@@ -283,12 +284,23 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         if let Err(e) = notecli::keychain::init_store() {
             tracing::warn!("keychain unavailable ({e})");
         }
+        // データディレクトリの再編 (#1334)。旧配置の書き手 (常駐 notemaid) を止めてから、
+        // 排他を取って config / data / state / cache に分ける。失敗したら旧配置のまま
+        let layout_report = layout_boot::prepare(&app_dir);
+        app.manage(layout_boot::LayoutReport(std::sync::Mutex::new(layout_report)));
         notecore::migrations::run_fs(&app_dir)?;
+        // 旧形の connections.json (同意と鍵の有無が同居) は最初の読込で state 側へ分かれる。
+        // Vault を使うまで待たず、起動時に 1 回読んで分けておく (#1333 §4)
+        if let Err(e) = notecore::vault::connections_store::load(&app_dir) {
+            tracing::warn!("[startup] connections.json could not be read: {e}");
+        }
         // この端末の構成 (client.json5): AI 系コマンドを in-process で回すか notemaid に中継するか
-        let configured_backend =
-            notecore::client_config::load(&app_dir.join(commands::SETTINGS_DIR)).backend;
+        let layout = notecore::app_dir::Layout::from_root(&app_dir);
+        // 設定フォルダを Git で管理する人のための .gitignore の雛形 (無ければ書く、#1333 §5)
+        notecore::settings_store::ensure_gitignore(&layout);
+        let configured_backend = notecore::client_config::load(&layout).backend;
         // external gate が permissions.json5 を直接読むための所在 (#1099)
-        notecore::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
+        notecore::permissions_gate::init(&layout);
         // 前回、確認待ちのまま残った AI ターンを閉じる (#1133)
         notemaid::ai_turn::recover(&app_dir);
         // HEARTBEAT の観測値 (直近の失敗など) を状態ファイルから戻す
@@ -1279,6 +1291,10 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::write_settings_file,
             commands::delete_settings_file,
             commands::rename_settings_file,
+            commands::read_history_sidecar,
+            commands::write_history_sidecar,
+            commands::delete_history_sidecar,
+            layout_boot::layout_migration_report,
             commands::get_settings_dir,
             commands::get_media_proxy_token,
             commands::get_log_dir,

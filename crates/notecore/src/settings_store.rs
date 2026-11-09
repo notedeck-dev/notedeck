@@ -2,7 +2,7 @@
 //!
 //! commands/settings.rs から検証・atomic 書込・export/import バンドル収集を
 //! 吸い上げ、コマンドハンドラを「パス解決 + service 呼び出し」の薄い層にする。
-//! `base_dir` を引数に取り AppHandle に依存しないため、temp dir で直接
+//! `Layout` を引数に取り AppHandle に依存しないため、temp dir で直接
 //! ユニットテストできる (従来はテスト側が export/import ロジックを再実装していた)。
 
 use std::collections::BTreeMap;
@@ -14,83 +14,203 @@ use notecli::error::NoteDeckError;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::app_dir::Layout;
 use crate::error::Result;
 
-/// Allowed subdirectory names for settings files. Also the set included in settings backup.
-pub const ALLOWED_SUBDIRS: &[&str] = &[
-    "profiles", "themes", "plugins", "snippets", "memos", "widgets", "skills", "sessions",
-    // カラムクエリ (#783 Phase 1.5)。settingsFs の QUERIES_DIR に対応
-    "queries",
-];
-
-/// ルート直下の設定ファイルの属性 (#1106 §4.2 / §4.5)。
-/// `side` は「デバイスが 1 台も繋がっていなくても意味を持つか」で、Core なら
-/// notecore (notemaid) 側の束、Device なら手元側 (入力・画面・端末性能に依存) の束。
-/// `backup` は設定バックアップ (export / import) に含めるか。
+/// 設定ディレクトリの中の領域 (#1333 §1)。物理的な場所は `Layout` が決める
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Side {
-    Core,
-    Device,
+pub enum Area {
+    /// 持ち出す単位 (設定)
+    Config,
+    /// 人の記録 (メモ / AI セッション / 人格と記憶)
+    Data,
+    /// この機械の状態。同期しない
+    State,
+    /// この機械の記録だが、再編前は設定の隣にあったもの (tutorial / theme-dropins /
+    /// client)。再編 (#1334) で `state/` へ移る。旧配置のままの機械では設定の隣から読む
+    StateFromV1,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct RootFile {
-    pub name: &'static str,
-    pub side: Side,
-    pub backup: bool,
-}
-
-const fn core(name: &'static str) -> RootFile {
-    RootFile {
-        name,
-        side: Side::Core,
-        backup: true,
+impl Area {
+    pub fn dir(self, layout: &Layout) -> &Path {
+        match self {
+            Area::Config => layout.config(),
+            Area::Data => layout.data(),
+            Area::State => layout.state(),
+            Area::StateFromV1 => {
+                if layout.is_legacy() {
+                    layout.config()
+                } else {
+                    layout.state()
+                }
+            }
+        }
     }
 }
 
-const fn device(name: &'static str) -> RootFile {
+/// 論理 subdir (IPC / バックアップのキーに出る名前) → 置き場と属性の写像 (#1333 §1)。
+///
+/// - `backup`: 設定バックアップ (export / import) に含めるか
+/// - `ipc`: 汎用の list / read / write / delete / rename (コマンド) で到達できるか。
+///   false のものは専用の構造化操作だけが触る
+#[derive(Clone, Copy, Debug)]
+pub struct Subdir {
+    pub name: &'static str,
+    pub area: Area,
+    /// 領域の中の物理ディレクトリ名 (論理名と違うときだけ別の値)
+    pub dir: &'static str,
+    pub backup: bool,
+    pub ipc: bool,
+}
+
+const fn config_dir(name: &'static str) -> Subdir {
+    Subdir {
+        name,
+        area: Area::Config,
+        dir: name,
+        backup: true,
+        ipc: true,
+    }
+}
+
+pub const SUBDIRS: &[Subdir] = &[
+    config_dir("profiles"),
+    config_dir("themes"),
+    config_dir("plugins"),
+    config_dir("snippets"),
+    config_dir("widgets"),
+    config_dir("skills"),
+    // カラムクエリ (#783 Phase 1.5)。settingsFs の QUERIES_DIR に対応
+    config_dir("queries"),
+    // メモは人の記録 (AI も書く)
+    Subdir {
+        name: "memos",
+        area: Area::Data,
+        dir: "memos",
+        backup: true,
+        ipc: true,
+    },
+    // AI セッションは notemaid が単一の書き手 (#1133)。汎用のファイル操作では触らせず、
+    // `ai_session_*` の構造化された操作に限る
+    Subdir {
+        name: "sessions",
+        area: Area::Data,
+        dir: "sessions",
+        backup: true,
+        ipc: false,
+    },
+    // デッキプロファイルの、この機械の状態 (#1333 §3): 窓の配置 (`windows[]`) と
+    // カラムの一時入力 (`windowId` / `aiCurrentSessionId` / `query` / `mfmText` /
+    // `aiscriptCode` / `aiInitialInput`)。`state/deck/<profile id>.json5`
+    Subdir {
+        name: "deck-state",
+        area: Area::State,
+        dir: "deck",
+        backup: false,
+        ipc: true,
+    },
+];
+
+/// 論理 subdir の名前だけ (バックアップの列挙やメッセージ用)
+pub fn subdir_names() -> impl Iterator<Item = &'static str> {
+    SUBDIRS.iter().map(|s| s.name)
+}
+
+pub fn subdir(name: &str) -> Option<&'static Subdir> {
+    SUBDIRS.iter().find(|s| s.name == name)
+}
+
+/// ルート直下の設定ファイルの属性 (#1333 §1)。`backup` / `ipc` は `Subdir` と同じ意味
+#[derive(Clone, Copy, Debug)]
+pub struct RootFile {
+    pub name: &'static str,
+    pub area: Area,
+    pub backup: bool,
+    pub ipc: bool,
+}
+
+const fn root(name: &'static str) -> RootFile {
     RootFile {
         name,
-        side: Side::Device,
+        area: Area::Config,
         backup: true,
+        ipc: true,
     }
 }
 
 /// Allowed root-level filenames (no subdirectory) と属性。
 pub const ROOT_FILES: &[RootFile] = &[
-    device("custom.css"),
-    device("keybinds.json5"),
-    core("ai.json5"),
-    core("AI.md"),
-    device("performance.json5"),
-    device("navbar.json5"),
-    device("postform.json5"),
-    core("settings.json5"),
-    core("tasks.json5"),
-    // チュートリアルの達成記録 + NoteDeck 独自実績 (#1029)。プロファイル・
-    // アカウントから独立 (アプリ操作の習熟はアカウントに紐づかない)
-    device("tutorial.json5"),
+    root("custom.css"),
+    root("keybinds.json5"),
+    root("ai.json5"),
+    root("AI.md"),
+    root("performance.json5"),
+    root("navbar.json5"),
+    root("postform.json5"),
+    root("settings.json5"),
+    root("tasks.json5"),
+    // チュートリアルの達成記録 + NoteDeck 独自実績 (#1029)。達成判定は `resetAt` と
+    // 機械の状態からの導出で、持ち込んだ先で食い違うので状態 (再編で state/ へ。実績が
+    // バックアップから落ちる代償は利用者が了承、#1334)
+    RootFile {
+        name: "tutorial.json5",
+        area: Area::StateFromV1,
+        backup: false,
+        ipc: true,
+    },
     // principal 別権限 + 確認スキップ (#712 / #714)。capability 層に write を
     // 公開しない制約はここではなく capability registry 側で担保している
     // (settingsFs の固定名ラッパーのみが本コマンドに到達する)
-    core("permissions.json5"),
-    // custom.css の編集履歴サイドカー (#913 付随修正)。allowlist から漏れて
-    // いたため、フロントの履歴 read/write が一度も成功していなかった
-    device("custom.css.history.json5"),
-    // themes/ の素の .json5 を取り込んだ記録 (元ファイル名 → 採用 ID、#1041)。
-    // 消えると次回起動で再取り込みされて複製が出るのでバックアップに含める
-    core("theme-dropins.json5"),
-    // 表示言語 (#135)。端末ごとの値 (#1106 の手元側) なので settings.json5
-    // (notecore 側) に混ぜない。リモート構成で言語の違う端末が奪い合うため
-    device("locale.json5"),
+    root("permissions.json5"),
+    // themes/ の素の .json5 を取り込んだ記録 (元ファイル名 → 採用 ID、#1041)。この機械の
+    // 記録 (再編で state/ へ、#1334)。記録の無い機械で再採用して複製が出ないよう、採用した
+    // コピー側に `dropInSource` (元の本文の hash) を持たせる
+    RootFile {
+        name: "theme-dropins.json5",
+        area: Area::StateFromV1,
+        backup: false,
+        ipc: true,
+    },
+    // 表示言語 (#135)。端末ごとの値だが持ち出して困らない
+    root("locale.json5"),
     // この端末の構成 (embedded / resident、#1106 段階 3a)。復元先で存在しない
     // 常駐を探さないよう、バックアップに含めない
     RootFile {
         name: "client.json5",
-        side: Side::Device,
+        area: Area::StateFromV1,
         backup: false,
+        ipc: true,
+    },
+    // Vault の接続一覧 (#564)。接続 id は ai.json5 から参照されるので復元先で宙に
+    // 浮かないようバックアップに含める。変更口は `vault_upsert_connection` 系だけで、
+    // 汎用の読み書きには出さない (#1333 §1)。同意 / 鍵の有無 / 時刻は state 側の
+    // `connections-meta.json` (Rust だけが書く。allowlist には載せない)
+    RootFile {
+        name: CONNECTIONS_FILE,
+        area: Area::Config,
+        backup: true,
+        ipc: false,
+    },
+    // この機械の権限の状態 (#1333 §4): 「今後確認しない」の記憶と、前回起動時の
+    // 実効 granted の写し。方針 (`permissions.json5` の principals) とは別に置く
+    RootFile {
+        name: "permissions-meta.json5",
+        area: Area::State,
+        backup: false,
+        ipc: true,
+    },
+    // この機械の UI の状態 (#1333 §3): ペットの位置 / ズーム / 投稿フォームの前回値。
+    // 窓を動かすたび・投稿のたびに変わる値は設定 (settings.json5) に書かない
+    RootFile {
+        name: "ui.json5",
+        area: Area::State,
+        backup: false,
+        ipc: true,
     },
 ];
+
+/// Vault の接続一覧のファイル名 (`vault::connections_store` と共有)
+pub const CONNECTIONS_FILE: &str = "connections.json";
 
 pub fn root_file(name: &str) -> Option<&'static RootFile> {
     ROOT_FILES.iter().find(|f| f.name == name)
@@ -105,14 +225,46 @@ fn root_file_names() -> String {
 }
 
 /// Validate a subdirectory name against the whitelist.
-pub fn validate_subdir(subdir: &str) -> Result<()> {
-    if !ALLOWED_SUBDIRS.contains(&subdir) {
+pub fn validate_subdir(name: &str) -> Result<&'static Subdir> {
+    subdir(name).ok_or_else(|| {
+        NoteDeckError::InvalidInput(format!(
+            "Invalid subdirectory: {name}. Allowed: {}",
+            subdir_names().collect::<Vec<_>>().join(", ")
+        ))
+    })
+}
+
+/// 汎用の IPC (list / read / write / delete / rename) から触ってよい subdir か
+pub fn validate_ipc_subdir(name: &str) -> Result<&'static Subdir> {
+    let s = validate_subdir(name)?;
+    if !s.ipc {
         return Err(NoteDeckError::InvalidInput(format!(
-            "Invalid subdirectory: {subdir}. Allowed: {}",
-            ALLOWED_SUBDIRS.join(", ")
+            "{name} is not reachable through the generic file commands"
         )));
     }
-    Ok(())
+    Ok(s)
+}
+
+/// 汎用の IPC から触ってよいルート直下のファイルか
+pub fn validate_ipc_root_file(name: &str) -> Result<&'static RootFile> {
+    let f = root_file(name).ok_or_else(|| {
+        NoteDeckError::InvalidInput(format!(
+            "Invalid root file: {name}. Allowed: {}",
+            root_file_names()
+        ))
+    })?;
+    if !f.ipc {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "{name} is not reachable through the generic file commands"
+        )));
+    }
+    Ok(f)
+}
+
+/// 論理 subdir の物理ディレクトリ
+pub fn subdir_path(layout: &Layout, name: &str) -> Result<PathBuf> {
+    let s = validate_subdir(name)?;
+    Ok(s.area.dir(layout).join(s.dir))
 }
 
 /// Validate a filename to prevent path traversal.
@@ -125,6 +277,14 @@ pub fn validate_filename(name: &str) -> Result<()> {
     if name.contains("..") || name.contains('/') || name.contains('\\') {
         return Err(NoteDeckError::InvalidInput(format!(
             "Invalid filename: {name}"
+        )));
+    }
+    // ドット始まりは設定ではない (`.git` / `.gitignore` / 書込中の一時ファイル)。利用者が
+    // 設定フォルダを `git init` した瞬間に `.git/config` が射程に入らないよう、allowlist /
+    // 汎用 IPC / バックアップのすべてで無視する (#1333 原則 5)
+    if name.starts_with('.') {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "Filename must not start with a dot: {name}"
         )));
     }
     // Reject Windows reserved characters
@@ -141,23 +301,23 @@ pub fn validate_filename(name: &str) -> Result<()> {
     Ok(())
 }
 
-/// Resolve the full path for a settings file under `base_dir`.
-pub fn resolve_file(base_dir: &Path, subdir: &str, name: &str) -> Result<PathBuf> {
-    validate_subdir(subdir)?;
+/// Resolve the full path for a settings file.
+pub fn resolve_file(layout: &Layout, subdir: &str, name: &str) -> Result<PathBuf> {
+    let dir = subdir_path(layout, subdir)?;
     validate_filename(name)?;
-    Ok(base_dir.join(subdir).join(name))
+    Ok(dir.join(name))
 }
 
-/// Resolve the full path for a root-level settings file under `base_dir`.
-pub fn resolve_root_file(base_dir: &Path, name: &str) -> Result<PathBuf> {
-    if root_file(name).is_none() {
+/// Resolve the full path for a root-level settings file.
+pub fn resolve_root_file(layout: &Layout, name: &str) -> Result<PathBuf> {
+    let Some(f) = root_file(name) else {
         return Err(NoteDeckError::InvalidInput(format!(
             "Invalid root file: {name}. Allowed: {}",
             root_file_names()
         )));
-    }
+    };
     validate_filename(name)?;
-    Ok(base_dir.join(name))
+    Ok(f.area.dir(layout).join(f.name))
 }
 
 /// 設定ファイルを原子的に書き込む (#719)。同ディレクトリの一時ファイルへ
@@ -169,6 +329,20 @@ pub fn resolve_root_file(base_dir: &Path, name: &str) -> Result<PathBuf> {
 /// `mode` 指定時は rename 前に一時ファイルへ適用する (機密ファイルが一瞬でも
 /// 緩い権限で見えないように)。
 pub fn atomic_write(path: &Path, content: &str, mode: Option<u32>) -> Result<()> {
+    // リンクなら向き先に書く (rename でリンクそのものを実体に置き換えない)。dotfiles
+    // マネージャがファイル単位で張ったリンクを最初の保存で壊さないため (#1333)
+    let resolved;
+    let path = if fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        resolved = fs::canonicalize(path).map_err(|e| {
+            NoteDeckError::InvalidInput(format!("Failed to resolve link {}: {e}", path.display()))
+        })?;
+        resolved.as_path()
+    } else {
+        path
+    };
     let parent = path.parent().ok_or_else(|| {
         NoteDeckError::InvalidInput(format!("path has no parent: {}", path.display()))
     })?;
@@ -208,9 +382,8 @@ pub fn atomic_write(path: &Path, content: &str, mode: Option<u32>) -> Result<()>
 }
 
 /// List files in a settings subdirectory (sorted).
-pub fn list_files(base_dir: &Path, subdir: &str) -> Result<Vec<String>> {
-    validate_subdir(subdir)?;
-    let dir = base_dir.join(subdir);
+pub fn list_files(layout: &Layout, subdir: &str) -> Result<Vec<String>> {
+    let dir = subdir_path(layout, subdir)?;
     if !dir.exists() {
         return Ok(vec![]);
     }
@@ -218,8 +391,12 @@ pub fn list_files(base_dir: &Path, subdir: &str) -> Result<Vec<String>> {
     let entries = fs::read_dir(&dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
     for entry in entries {
         let entry = entry.map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-        if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+        // リンクは辿る (dotfiles マネージャがファイル単位で張るリンクも設定として扱う、#1333)
+        if entry.path().is_file() {
             if let Some(name) = entry.file_name().to_str() {
+                if name.starts_with('.') {
+                    continue;
+                }
                 names.push(name.to_string());
             }
         }
@@ -229,16 +406,16 @@ pub fn list_files(base_dir: &Path, subdir: &str) -> Result<Vec<String>> {
 }
 
 /// Read a settings file as a UTF-8 string.
-pub fn read_file(base_dir: &Path, subdir: &str, name: &str) -> Result<String> {
-    let path = resolve_file(base_dir, subdir, name)?;
+pub fn read_file(layout: &Layout, subdir: &str, name: &str) -> Result<String> {
+    let path = resolve_file(layout, subdir, name)?;
     fs::read_to_string(&path)
         .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read {}: {e}", path.display())))
 }
 
 /// Write a settings file (creates parent directories if needed).
 /// `sessions/` は AI 会話内容 (prompt に誤入力された秘密を含みうる) のため 0o600。
-pub fn write_file(base_dir: &Path, subdir: &str, name: &str, content: &str) -> Result<()> {
-    let path = resolve_file(base_dir, subdir, name)?;
+pub fn write_file(layout: &Layout, subdir: &str, name: &str, content: &str) -> Result<()> {
+    let path = resolve_file(layout, subdir, name)?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| {
             NoteDeckError::InvalidInput(format!(
@@ -253,6 +430,59 @@ pub fn write_file(base_dir: &Path, subdir: &str, name: &str, content: &str) -> R
         None
     };
     atomic_write(&path, content, mode)
+}
+
+/// 設定フォルダを Git で管理する人のための `.gitignore` の雛形 (#1333 §5)。
+///
+/// 無ければ書く (利用者の編集を決定的書込で潰さない)。除外するのは設定ではないもの:
+/// 編集履歴のサイドカー、この機械の記録 (tutorial / theme-dropins / client)、人の記録
+/// (sessions / memos / notemaid の人格と記憶)、書込中の一時ファイル。接続の同意と鍵の
+/// 有無、確認の結果は §4 で `state/` に出たので connections.json / permissions.json5 は
+/// 除外しない。再編 (#1334) で `notedeck/` を動かすときは `.git*` も一緒に動かし、
+/// 雛形が無編集なら消す
+pub const GITIGNORE_TEMPLATE: &str = "\
+# NoteDeck settings folder (#1333). Portable, but not meant to be public:
+# it holds account bindings (user@host), external service URLs, code that runs
+# (plugins / widgets / skills) and permission policies.
+#
+# The entries below are not settings (machine records, personal records,
+# temporary files), so keep them out of Git.
+*.history.json5
+tutorial.json5
+theme-dropins.json5
+client.json5
+sessions/
+memos/
+notemaid/
+.*.tmp
+";
+
+/// 再編後 (#1334) の雛形: `config/` には設定しか無いので、書込中の一時ファイルだけ
+pub const GITIGNORE_TEMPLATE_V1: &str = "\
+# NoteDeck settings folder (#1333 / #1334). Portable, but not meant to be public:
+# it holds account bindings (user@host), external service URLs, code that runs
+# (plugins / widgets / skills) and permission policies.
+.*.tmp
+";
+
+/// `.gitignore` が無ければ雛形を置く。あれば触らない。失敗は warn 止まり
+pub fn ensure_gitignore(layout: &Layout) {
+    let path = layout.config().join(".gitignore");
+    if path.exists() {
+        return;
+    }
+    let template = if layout.is_legacy() {
+        GITIGNORE_TEMPLATE
+    } else {
+        GITIGNORE_TEMPLATE_V1
+    };
+    if let Err(e) = fs::create_dir_all(layout.config()) {
+        tracing::warn!(%e, "cannot create the settings dir for .gitignore");
+        return;
+    }
+    if let Err(e) = atomic_write(&path, template, None) {
+        tracing::warn!(%e, "cannot write the .gitignore template");
+    }
 }
 
 /// AI の人格と記憶のファイル (#1162)。`notemaid/` は allowlist (汎用の読み書き) には
@@ -290,9 +520,9 @@ fn reject_reserved(subdir: &str, name: &str) -> Result<()> {
 }
 
 /// Delete a settings file (missing file is a no-op).
-pub fn delete_file(base_dir: &Path, subdir: &str, name: &str) -> Result<()> {
+pub fn delete_file(layout: &Layout, subdir: &str, name: &str) -> Result<()> {
     reject_reserved(subdir, name)?;
-    let path = resolve_file(base_dir, subdir, name)?;
+    let path = resolve_file(layout, subdir, name)?;
     if path.exists() {
         fs::remove_file(&path).map_err(|e| {
             NoteDeckError::InvalidInput(format!("Failed to delete {}: {e}", path.display()))
@@ -302,11 +532,11 @@ pub fn delete_file(base_dir: &Path, subdir: &str, name: &str) -> Result<()> {
 }
 
 /// Rename a settings file within the same subdirectory.
-pub fn rename_file(base_dir: &Path, subdir: &str, old_name: &str, new_name: &str) -> Result<()> {
+pub fn rename_file(layout: &Layout, subdir: &str, old_name: &str, new_name: &str) -> Result<()> {
     reject_reserved(subdir, old_name)?;
     reject_reserved(subdir, new_name)?;
-    let old_path = resolve_file(base_dir, subdir, old_name)?;
-    let new_path = resolve_file(base_dir, subdir, new_name)?;
+    let old_path = resolve_file(layout, subdir, old_name)?;
+    let new_path = resolve_file(layout, subdir, new_name)?;
     if !old_path.exists() {
         return Err(NoteDeckError::InvalidInput(format!(
             "File not found: {}",
@@ -320,12 +550,181 @@ pub fn rename_file(base_dir: &Path, subdir: &str, old_name: &str, new_name: &str
         )));
     }
     fs::rename(&old_path, &new_path)
-        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to rename: {e}")))
+        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to rename: {e}")))?;
+    // basename が変わる rename なら編集履歴も追随させる (無ければ skip、失敗しても
+    // 本体の rename は成功のまま。#1334 段階 2)
+    let (old_base, _) = split_compound_ext(old_name);
+    let (new_base, _) = split_compound_ext(new_name);
+    if old_base != new_base {
+        if let (Ok(from), Ok(to)) = (
+            history_path(layout, Some(subdir), old_base),
+            history_path(layout, Some(subdir), new_base),
+        ) {
+            if from.is_file() && !to.exists() {
+                if let Some(parent) = to.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+                if let Err(e) = fs::rename(&from, &to) {
+                    tracing::warn!(%e, "failed to move the edit history with the rename");
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+// --- 編集履歴のサイドカー (`state/history/<subdir|root>/<base>.history.json5`、#1334 段階 2) ---
+//
+// 履歴は状態 (この機械で編集した記録) なので設定の隣に置かない。バックアップにも入れない。
+// 汎用の read / write には「`.history.json5` なら別ルート」の名前分岐を入れず、ここだけが
+// 履歴の置き場を知る
+
+/// 履歴の論理 scope。`None` はルート直下のファイル (custom.css)
+pub fn history_path(layout: &Layout, subdir: Option<&str>, base: &str) -> Result<PathBuf> {
+    let dir = match subdir {
+        Some(s) => validate_subdir(s)?.name,
+        None => "root",
+    };
+    let name = crate::edit_history::history_file_name(base);
+    validate_filename(&name)?;
+    Ok(layout.history().join(dir).join(name))
+}
+
+/// 履歴を読む (無ければ空文字)
+pub fn read_history(layout: &Layout, subdir: Option<&str>, base: &str) -> Result<String> {
+    let path = history_path(layout, subdir, base)?;
+    if !path.exists() {
+        return Ok(String::new());
+    }
+    fs::read_to_string(&path)
+        .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to read {}: {e}", path.display())))
+}
+
+/// 履歴を書く (atomic)。変更通知は流さない (履歴の表示は都度読む)
+pub fn write_history(
+    layout: &Layout,
+    subdir: Option<&str>,
+    base: &str,
+    content: &str,
+) -> Result<()> {
+    let path = history_path(layout, subdir, base)?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| {
+            NoteDeckError::InvalidInput(format!(
+                "Failed to create directory {}: {e}",
+                parent.display()
+            ))
+        })?;
+    }
+    atomic_write(&path, content, None)
+}
+
+/// 履歴を消す (無ければ no-op)
+pub fn delete_history(layout: &Layout, subdir: Option<&str>, base: &str) -> Result<()> {
+    let path = history_path(layout, subdir, base)?;
+    if path.exists() {
+        fs::remove_file(&path).map_err(|e| {
+            NoteDeckError::InvalidInput(format!("Failed to delete {}: {e}", path.display()))
+        })?;
+    }
+    Ok(())
+}
+
+/// 旧配置 (設定の隣の `<base>.history.json5` と root の `custom.css.history.json5`) の
+/// 履歴を `state/history/` へ移す。両方あれば新 (state 側) を残して旧を消す
+pub fn move_history_sidecars(layout: &Layout) {
+    let suffix = crate::edit_history::HISTORY_SUFFIX;
+    let mut moves: Vec<(PathBuf, PathBuf)> = Vec::new();
+    for sub in SUBDIRS {
+        let dir = sub.area.dir(layout).join(sub.dir);
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else {
+                continue;
+            };
+            let Some(base) = name.strip_suffix(suffix) else {
+                continue;
+            };
+            if let Ok(to) = history_path(layout, Some(sub.name), base) {
+                moves.push((entry.path(), to));
+            }
+        }
+    }
+    let root_css = layout.config().join("custom.css.history.json5");
+    if root_css.is_file() {
+        if let Ok(to) = history_path(layout, None, "custom.css") {
+            moves.push((root_css, to));
+        }
+    }
+    for (from, to) in moves {
+        if to.exists() {
+            let _ = fs::remove_file(&from);
+            continue;
+        }
+        if let Some(parent) = to.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        if let Err(e) = fs::rename(&from, &to) {
+            tracing::warn!(from = %from.display(), %e, "cannot move an edit history sidecar");
+        }
+    }
+}
+
+/// 持ち主の無い履歴 (本体が消えたもの) を消す。本体の basename は複合拡張子を剥がして比べる
+pub fn sweep_orphan_history(layout: &Layout) {
+    let suffix = crate::edit_history::HISTORY_SUFFIX;
+    let Ok(scopes) = fs::read_dir(layout.history()) else {
+        return;
+    };
+    for scope in scopes.flatten() {
+        let scope_name = scope.file_name();
+        let Some(scope_name) = scope_name.to_str() else {
+            continue;
+        };
+        let owners: std::collections::HashSet<String> = if scope_name == "root" {
+            ROOT_FILES
+                .iter()
+                .filter(|f| f.area.dir(layout).join(f.name).is_file())
+                .map(|f| f.name.to_string())
+                .collect()
+        } else {
+            let Some(sub) = subdir(scope_name) else {
+                continue;
+            };
+            fs::read_dir(sub.area.dir(layout).join(sub.dir))
+                .map(|rd| {
+                    rd.flatten()
+                        .filter_map(|e| e.file_name().to_str().map(str::to_string))
+                        .filter(|n| !n.starts_with('.'))
+                        .map(|n| split_compound_ext(&n).0.to_string())
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let Ok(files) = fs::read_dir(scope.path()) else {
+            continue;
+        };
+        for f in files.flatten() {
+            let name = f.file_name();
+            let Some(name) = name.to_str() else {
+                continue;
+            };
+            let Some(base) = name.strip_suffix(suffix) else {
+                continue;
+            };
+            if !owners.contains(base) {
+                let _ = fs::remove_file(f.path());
+            }
+        }
+    }
 }
 
 /// Read a root-level settings file (missing file returns empty string).
-pub fn read_root_file(base_dir: &Path, name: &str) -> Result<String> {
-    let path = resolve_root_file(base_dir, name)?;
+pub fn read_root_file(layout: &Layout, name: &str) -> Result<String> {
+    let path = resolve_root_file(layout, name)?;
     if !path.exists() {
         return Ok(String::new());
     }
@@ -334,8 +733,8 @@ pub fn read_root_file(base_dir: &Path, name: &str) -> Result<String> {
 }
 
 /// Write a root-level settings file (atomic).
-pub fn write_root_file(base_dir: &Path, name: &str, content: &str) -> Result<()> {
-    let path = resolve_root_file(base_dir, name)?;
+pub fn write_root_file(layout: &Layout, name: &str, content: &str) -> Result<()> {
+    let path = resolve_root_file(layout, name)?;
     atomic_write(&path, content, None)
 }
 
@@ -394,51 +793,55 @@ fn ensure_version(path: &Path, expected: Option<&str>) -> Result<()> {
 
 /// 条件付きの `write_file`。戻り値は書いた後の版
 pub fn write_file_if(
-    base_dir: &Path,
+    layout: &Layout,
     subdir: &str,
     name: &str,
     content: &str,
     expected: Option<&str>,
 ) -> Result<String> {
-    ensure_version(&resolve_file(base_dir, subdir, name)?, expected)?;
-    write_file(base_dir, subdir, name, content)?;
+    ensure_version(&resolve_file(layout, subdir, name)?, expected)?;
+    write_file(layout, subdir, name, content)?;
     Ok(content_version(content))
 }
 
 /// 条件付きの `write_root_file`。戻り値は書いた後の版
 pub fn write_root_file_if(
-    base_dir: &Path,
+    layout: &Layout,
     name: &str,
     content: &str,
     expected: Option<&str>,
 ) -> Result<String> {
-    ensure_version(&resolve_root_file(base_dir, name)?, expected)?;
-    write_root_file(base_dir, name, content)?;
+    ensure_version(&resolve_root_file(layout, name)?, expected)?;
+    write_root_file(layout, name, content)?;
     Ok(content_version(content))
 }
 
 /// 条件付きの `write_settings_json`。戻り値は書いた後の版
 pub fn write_settings_json_if(
-    base_dir: &Path,
+    layout: &Layout,
     content: &str,
     expected: Option<&str>,
 ) -> Result<String> {
-    ensure_version(&base_dir.join("settings.json5"), expected)?;
-    write_settings_json(base_dir, content)?;
+    ensure_version(&settings_json_path(layout), expected)?;
+    write_settings_json(layout, content)?;
     Ok(content_version(content))
 }
 
-pub fn read_root_file_versioned(base_dir: &Path, name: &str) -> Result<VersionedText> {
-    read_root_file(base_dir, name).map(VersionedText::of)
+pub fn read_root_file_versioned(layout: &Layout, name: &str) -> Result<VersionedText> {
+    read_root_file(layout, name).map(VersionedText::of)
 }
 
-pub fn read_settings_json_versioned(base_dir: &Path) -> Result<VersionedText> {
-    read_settings_json(base_dir).map(VersionedText::of)
+pub fn read_settings_json_versioned(layout: &Layout) -> Result<VersionedText> {
+    read_settings_json(layout).map(VersionedText::of)
 }
 
 /// Read `settings.json5` (missing file returns empty string — first run).
-pub fn read_settings_json(base_dir: &Path) -> Result<String> {
-    let path = base_dir.join("settings.json5");
+fn settings_json_path(layout: &Layout) -> PathBuf {
+    layout.config().join("settings.json5")
+}
+
+pub fn read_settings_json(layout: &Layout) -> Result<String> {
+    let path = settings_json_path(layout);
     if !path.exists() {
         return Ok(String::new());
     }
@@ -448,8 +851,8 @@ pub fn read_settings_json(base_dir: &Path) -> Result<String> {
 
 /// Write `settings.json5`. Creates the settings directory if missing.
 /// 他の設定ファイルと同じく atomic write (#719 — 従来ここだけ非 atomic だった)。
-pub fn write_settings_json(base_dir: &Path, content: &str) -> Result<()> {
-    let path = base_dir.join("settings.json5");
+pub fn write_settings_json(layout: &Layout, content: &str) -> Result<()> {
+    let path = settings_json_path(layout);
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| {
             NoteDeckError::InvalidInput(format!(
@@ -462,22 +865,29 @@ pub fn write_settings_json(base_dir: &Path, content: &str) -> Result<()> {
 }
 
 /// 全設定ファイルをバックアップバンドル (相対パス → 内容) に収集する。
-pub fn export_bundle(base_dir: &Path) -> Result<BTreeMap<String, String>> {
+pub fn export_bundle(layout: &Layout) -> Result<BTreeMap<String, String>> {
     let mut bundle: BTreeMap<String, String> = BTreeMap::new();
 
-    for subdir in ALLOWED_SUBDIRS {
-        let dir = base_dir.join(subdir);
+    for sub in SUBDIRS.iter().filter(|s| s.backup) {
+        let subdir = sub.name;
+        let dir = sub.area.dir(layout).join(subdir);
         if !dir.exists() {
             continue;
         }
         let entries = fs::read_dir(&dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
         for entry in entries {
             let entry = entry.map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-            if !entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+            if !entry.path().is_file() {
                 continue;
             }
             let name = entry.file_name();
-            let key = format!("{subdir}/{}", name.to_string_lossy());
+            let name_str = name.to_string_lossy();
+            // 履歴は状態 (#1334 段階 2)。旧配置に残っていてもバックアップに入れない
+            if name_str.starts_with('.') || name_str.ends_with(crate::edit_history::HISTORY_SUFFIX)
+            {
+                continue;
+            }
+            let key = format!("{subdir}/{name_str}");
             let content = fs::read_to_string(entry.path())
                 .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
             bundle.insert(key, content);
@@ -485,7 +895,7 @@ pub fn export_bundle(base_dir: &Path) -> Result<BTreeMap<String, String>> {
     }
 
     for f in ROOT_FILES.iter().filter(|f| f.backup) {
-        let path = base_dir.join(f.name);
+        let path = f.area.dir(layout).join(f.name);
         if path.exists() {
             let content = fs::read_to_string(&path)
                 .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
@@ -495,7 +905,7 @@ pub fn export_bundle(base_dir: &Path) -> Result<BTreeMap<String, String>> {
 
     // AI の人格と記憶 (#1162): 名指しの 3 ファイルだけ (BOOTSTRAP / turns / workspace は端末の都合)
     for name in WORKSPACE_FILES {
-        let path = base_dir.join(WORKSPACE_DIR).join(name);
+        let path = layout.data().join(WORKSPACE_DIR).join(name);
         if path.is_file() {
             let content = fs::read_to_string(&path)
                 .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
@@ -558,7 +968,6 @@ fn is_windows_reserved_stem(stem: &str) -> bool {
 /// 剥がして basename を得る (`.json5` は複合拡張子の suffix なので必ず最後)。
 const COMPOUND_EXTS: &[&str] = &[
     ".meta.json5",
-    ".history.json5",
     ".ndprofile.json5",
     ".ndtheme.json5",
     ".is",
@@ -627,12 +1036,12 @@ fn release_reserved(dir: &Path, names: &[String]) {
 /// 単位でばらすとペア種別のソースとメタが別名に分裂し、既存の孤児ソースと
 /// 誤ペアリングしたり履歴だけが別アイテムのリングに結合する。
 fn import_group(
-    base_dir: &Path,
+    layout: &Layout,
     subdir: &str,
     members: &[(String, String)],
     warnings: &mut Vec<crate::i18n::LocalizedLine>,
 ) -> Result<()> {
-    let dir = base_dir.join(subdir);
+    let dir = subdir_path(layout, subdir)?;
     fs::create_dir_all(&dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
     // sessions/ は AI 会話内容のため 0o600 を維持 (write_file と同じ流儀)
     let mode = if subdir == "sessions" {
@@ -643,7 +1052,7 @@ fn import_group(
 
     // 書込直前の実列挙 + ASCII casefold の事前スクリーニング (case-sensitive FS
     // でも「大文字小文字のみ異なる既存名は占有」の規則を守る)
-    let existing = list_files(base_dir, subdir)?;
+    let existing = list_files(layout, subdir)?;
     let collides = |name: &str| -> bool {
         let folded = name.to_ascii_lowercase();
         existing.iter().any(|e| e.to_ascii_lowercase() == folded)
@@ -775,7 +1184,7 @@ fn import_group(
 ///
 /// 戻り値はスキップ / 別名退避したエントリの警告リスト。
 pub fn import_bundle(
-    base_dir: &Path,
+    layout: &Layout,
     bundle: &BTreeMap<String, String>,
 ) -> Result<Vec<crate::i18n::LocalizedLine>> {
     let mut warnings: Vec<crate::i18n::LocalizedLine> = Vec::new();
@@ -783,19 +1192,58 @@ pub fn import_bundle(
     let mut groups: BTreeMap<(String, String), Vec<(String, String)>> = BTreeMap::new();
 
     if !bundle.is_empty() {
-        fs::create_dir_all(base_dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+        fs::create_dir_all(layout.config())
+            .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+    }
+
+    // 旧バンドルの編集履歴は捨てる (状態なので復元しない、#1334 段階 2)。警告は 1 行
+    let skipped_history = bundle
+        .keys()
+        .filter(|k| k.ends_with(crate::edit_history::HISTORY_SUFFIX))
+        .count();
+    if skipped_history > 0 {
+        tracing::warn!("Import: skipping {skipped_history} edit history sidecar(s)");
+        warnings.push(
+            crate::i18n::text(
+                "_native.backup.skippedHistory",
+                serde_json::json!({ "count": skipped_history }),
+            )
+            .into(),
+        );
     }
 
     for (key, content) in bundle {
+        if key.ends_with(crate::edit_history::HISTORY_SUFFIX) {
+            continue;
+        }
         let parts: Vec<&str> = key.split('/').collect();
         match parts.as_slice() {
             [name] if root_file(name).is_some() => {
-                if !root_file(name).map(|f| f.backup).unwrap_or(false) {
+                let f = root_file(name).expect("checked by the guard");
+                if !f.backup {
                     // この端末の構成など、復元先に持ち込まないファイル
                     tracing::warn!("Import: skipping device-only file: {key}");
                     continue;
                 }
-                atomic_write(&base_dir.join(name), content, None)?;
+                // 接続一覧は構造を持つ厳密 JSON。壊れた内容を置くと Vault が立たなくなる
+                // ので、パースできるときだけ受ける (#1333 §1)
+                if f.name == CONNECTIONS_FILE
+                    && serde_json::from_str::<crate::vault::model::ConnectionsFile>(content)
+                        .is_err()
+                {
+                    tracing::warn!("Import: skipping unparsable connections file: {key}");
+                    warnings.push(
+                        crate::i18n::text(
+                            "_native.backup.skippedBadKey",
+                            serde_json::json!({ "key": key }),
+                        )
+                        .into(),
+                    );
+                    continue;
+                }
+                let dir = f.area.dir(layout);
+                fs::create_dir_all(dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
+                atomic_write(&dir.join(name), content, None)?;
             }
             [dir, name] if *dir == WORKSPACE_DIR => {
                 // 人格 / 記憶 (#1162): 名指しの 3 ファイルだけ、そのまま置く (上限超過は
@@ -811,12 +1259,12 @@ pub fn import_bundle(
                     );
                     continue;
                 }
-                let dir_path = base_dir.join(WORKSPACE_DIR);
+                let dir_path = layout.data().join(WORKSPACE_DIR);
                 fs::create_dir_all(&dir_path)
                     .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
                 atomic_write(&dir_path.join(name), content, None)?;
             }
-            [subdir, name] if ALLOWED_SUBDIRS.contains(subdir) => {
+            [subdir, name] if self::subdir(subdir).is_some_and(|s| s.backup) => {
                 if let Err(e) = validate_import_filename(name) {
                     tracing::warn!("Import: skipping invalid filename: {key}: {e}");
                     warnings.push(
@@ -848,7 +1296,7 @@ pub fn import_bundle(
     }
 
     for ((subdir, _), members) in &groups {
-        import_group(base_dir, subdir, members, &mut warnings)?;
+        import_group(layout, subdir, members, &mut warnings)?;
     }
 
     Ok(warnings)
@@ -857,6 +1305,11 @@ pub fn import_bundle(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// temp dir をそのまま設定ディレクトリとして扱う
+    fn lay(dir: &Path) -> Layout {
+        Layout::single_dir(dir)
+    }
 
     #[test]
     fn workspace_files_round_trip_through_the_bundle_but_stay_out_of_the_allowlist() {
@@ -867,7 +1320,7 @@ mod tests {
         fs::write(ws.join("USER.md"), "# USER\n- Always call them Taka\n").unwrap();
         fs::write(ws.join("BOOTSTRAP.md"), "ritual").unwrap();
         fs::write(ws.join("turns/taint.json"), "{}").unwrap();
-        let bundle = export_bundle(src.path()).unwrap();
+        let bundle = export_bundle(&lay(src.path())).unwrap();
         assert!(bundle.contains_key("notemaid/SOUL.md"));
         assert!(bundle.contains_key("notemaid/USER.md"));
         assert!(!bundle.contains_key("notemaid/MEMORY.md"));
@@ -879,7 +1332,7 @@ mod tests {
         let mut b = bundle.clone();
         b.insert("notemaid/BOOTSTRAP.md".into(), "x".into());
         b.insert("notemaid/MEMORY.md".into(), "zero\u{200B}width".into());
-        let warnings = import_bundle(dst.path(), &b).unwrap();
+        let warnings = import_bundle(&lay(dst.path()), &b).unwrap();
         assert_eq!(
             fs::read_to_string(dst.path().join("notemaid/USER.md")).unwrap(),
             "# USER\n- Always call them Taka\n"
@@ -889,6 +1342,10 @@ mod tests {
         assert_eq!(warnings.len(), 2);
         // 汎用の読み書きは受け付けない
         assert!(validate_subdir("notemaid").is_err());
+        // AI セッションは allowlist にあるが汎用 IPC からは触れない (#1333 §1)
+        assert!(validate_subdir("sessions").is_ok());
+        assert!(validate_ipc_subdir("sessions").is_err());
+        assert!(validate_ipc_subdir("skills").is_ok());
     }
 
     /// プラグインの loopback 同意 (#1293) は端末固有: バックアップに含めず、汎用の
@@ -899,7 +1356,7 @@ mod tests {
         let dir = src.path().join(crate::loopback_consent::DIR);
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("consent.json"), "{}").unwrap();
-        let bundle = export_bundle(src.path()).unwrap();
+        let bundle = export_bundle(&lay(src.path())).unwrap();
         assert!(!bundle
             .keys()
             .any(|k| k.starts_with(crate::loopback_consent::DIR)));
@@ -910,16 +1367,16 @@ mod tests {
     #[test]
     fn reserved_skill_files_cannot_be_renamed_or_deleted_through_the_generic_path() {
         let dir = tempfile::tempdir().unwrap();
-        write_file(dir.path(), "skills", "AGENTS.md", "# AGENTS").unwrap();
-        assert!(delete_file(dir.path(), "skills", "AGENTS.md").is_err());
-        assert!(rename_file(dir.path(), "skills", "AGENTS.md", "rules.md").is_err());
-        assert!(rename_file(dir.path(), "skills", "other.md", "HEARTBEAT.md").is_err());
+        write_file(&lay(dir.path()), "skills", "AGENTS.md", "# AGENTS").unwrap();
+        assert!(delete_file(&lay(dir.path()), "skills", "AGENTS.md").is_err());
+        assert!(rename_file(&lay(dir.path()), "skills", "AGENTS.md", "rules.md").is_err());
+        assert!(rename_file(&lay(dir.path()), "skills", "other.md", "HEARTBEAT.md").is_err());
         assert!(dir.path().join("skills/AGENTS.md").exists());
         // 他の skill と、他のディレクトリの同名は従来どおり
-        write_file(dir.path(), "skills", "other.md", "x").unwrap();
-        assert!(delete_file(dir.path(), "skills", "other.md").is_ok());
-        write_file(dir.path(), "memos", "AGENTS.md", "x").unwrap();
-        assert!(delete_file(dir.path(), "memos", "AGENTS.md").is_ok());
+        write_file(&lay(dir.path()), "skills", "other.md", "x").unwrap();
+        assert!(delete_file(&lay(dir.path()), "skills", "other.md").is_ok());
+        write_file(&lay(dir.path()), "memos", "AGENTS.md", "x").unwrap();
+        assert!(delete_file(&lay(dir.path()), "memos", "AGENTS.md").is_ok());
     }
 
     #[test]
@@ -940,38 +1397,52 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path();
         // 無いファイルは空文字の版
-        let first = read_root_file_versioned(base, "tasks.json5").unwrap();
+        let first = read_root_file_versioned(&lay(base), "tasks.json5").unwrap();
         assert_eq!(first.content, "");
         assert_eq!(first.version, content_version(""));
-        let v1 = write_root_file_if(base, "tasks.json5", "{ a: 1 }", Some(&first.version)).unwrap();
+        let v1 = write_root_file_if(&lay(base), "tasks.json5", "{ a: 1 }", Some(&first.version))
+            .unwrap();
         assert_eq!(v1, content_version("{ a: 1 }"));
         // 古い版で書くと CONFLICT
-        let stale = write_root_file_if(base, "tasks.json5", "{ a: 2 }", Some(&first.version));
+        let stale = write_root_file_if(&lay(base), "tasks.json5", "{ a: 2 }", Some(&first.version));
         assert_eq!(stale.unwrap_err().code(), "CONFLICT");
         assert_eq!(
             fs::read_to_string(base.join("tasks.json5")).unwrap(),
             "{ a: 1 }"
         );
         // 今の版なら通り、無条件 (None) も通る
-        write_root_file_if(base, "tasks.json5", "{ a: 2 }", Some(&v1)).unwrap();
-        write_root_file_if(base, "tasks.json5", "{ a: 3 }", None).unwrap();
+        write_root_file_if(&lay(base), "tasks.json5", "{ a: 2 }", Some(&v1)).unwrap();
+        write_root_file_if(&lay(base), "tasks.json5", "{ a: 3 }", None).unwrap();
         // settings.json5 と subdir も同じ
-        let s = read_settings_json_versioned(base).unwrap();
-        write_settings_json_if(base, "{ x: 1 }", Some(&s.version)).unwrap();
+        let s = read_settings_json_versioned(&lay(base)).unwrap();
+        write_settings_json_if(&lay(base), "{ x: 1 }", Some(&s.version)).unwrap();
         assert_eq!(
-            write_settings_json_if(base, "{ x: 2 }", Some(&s.version))
+            write_settings_json_if(&lay(base), "{ x: 2 }", Some(&s.version))
                 .unwrap_err()
                 .code(),
             "CONFLICT"
         );
-        let v = write_file_if(base, "skills", "a.md", "hello", Some(&content_version(""))).unwrap();
+        let v = write_file_if(
+            &lay(base),
+            "skills",
+            "a.md",
+            "hello",
+            Some(&content_version("")),
+        )
+        .unwrap();
         assert_eq!(
-            write_file_if(base, "skills", "a.md", "bye", Some(&content_version("")))
-                .unwrap_err()
-                .code(),
+            write_file_if(
+                &lay(base),
+                "skills",
+                "a.md",
+                "bye",
+                Some(&content_version(""))
+            )
+            .unwrap_err()
+            .code(),
             "CONFLICT"
         );
-        write_file_if(base, "skills", "a.md", "bye", Some(&v)).unwrap();
+        write_file_if(&lay(base), "skills", "a.md", "bye", Some(&v)).unwrap();
     }
 
     #[test]
@@ -1006,7 +1477,7 @@ mod tests {
     fn write_file_applies_sessions_mode() {
         use std::os::unix::fs::PermissionsExt;
         let dir = tempfile::tempdir().unwrap();
-        write_file(dir.path(), "sessions", "20260722.json5", "{}").unwrap();
+        write_file(&lay(dir.path()), "sessions", "20260722.json5", "{}").unwrap();
         let mode = fs::metadata(dir.path().join("sessions/20260722.json5"))
             .unwrap()
             .permissions()
@@ -1027,6 +1498,17 @@ mod tests {
         assert!(validate_subdir("queries").is_ok());
         // memos は settingsFs にラッパーがあるので漏れを防ぐ
         assert!(validate_subdir("memos").is_ok());
+        // デッキの状態 (#1333 §3) は state/deck/ に置く
+        assert!(validate_subdir("deck-state").is_ok());
+        let l = Layout::from_root(std::path::Path::new("/r"));
+        assert_eq!(
+            subdir_path(&l, "deck-state").unwrap(),
+            std::path::Path::new("/r/state/deck")
+        );
+        assert_eq!(
+            resolve_root_file(&l, "ui.json5").unwrap(),
+            std::path::Path::new("/r/state/ui.json5")
+        );
     }
 
     #[test]
@@ -1058,15 +1540,15 @@ mod tests {
     }
 
     #[test]
-    fn client_json5_is_device_side_and_never_backed_up() {
+    fn client_json5_is_never_backed_up() {
         // #1106 段階 3a: この端末の構成。復元先で存在しない常駐を探さない
         let f = root_file("client.json5").unwrap();
-        assert_eq!(f.side, Side::Device);
+        assert_eq!(f.area, Area::StateFromV1);
         assert!(!f.backup);
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("client.json5"), "{ backend: 'resident' }").unwrap();
         fs::write(dir.path().join("locale.json5"), "{ locale: 'auto' }").unwrap();
-        let bundle = export_bundle(dir.path()).unwrap();
+        let bundle = export_bundle(&lay(dir.path())).unwrap();
         assert!(!bundle.contains_key("client.json5"));
         assert!(bundle.contains_key("locale.json5"));
         let restore = tempfile::tempdir().unwrap();
@@ -1075,46 +1557,116 @@ mod tests {
             "client.json5".to_string(),
             "{ backend: 'resident' }".to_string(),
         );
-        import_bundle(restore.path(), &b).unwrap();
+        import_bundle(&lay(restore.path()), &b).unwrap();
         assert!(!restore.path().join("client.json5").exists());
     }
 
+    /// dotfiles マネージャ (GNU stow 等) はファイル単位でリンクを張る。リンクは設定として
+    /// 列挙し、保存はリンクの向き先に書く (リンクを実体に置き換えない、#1333)
     #[cfg(unix)]
     #[test]
-    fn list_files_skips_symlinks() {
-        // #1041: themes/ の drop-in はシンボリックリンクを対象にしない
-        // (採用コピーの元として追いかけない)。列挙の段階で落ちることを固定する
+    fn symlinked_files_are_listed_and_written_through() {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path();
         let themes = base.join("themes");
         fs::create_dir_all(&themes).unwrap();
         fs::write(themes.join("real.json5"), "{}").unwrap();
-        let outside = base.join("outside.json5");
+        let store = tempfile::tempdir().unwrap();
+        let outside = store.path().join("outside.json5");
         fs::write(&outside, "{}").unwrap();
         std::os::unix::fs::symlink(&outside, themes.join("link.json5")).unwrap();
+        // 向き先の無いリンクは出さない
+        std::os::unix::fs::symlink(store.path().join("gone"), themes.join("dangling.json5"))
+            .unwrap();
 
-        assert_eq!(list_files(base, "themes").unwrap(), vec!["real.json5"]);
+        assert_eq!(
+            list_files(&lay(base), "themes").unwrap(),
+            vec!["link.json5", "real.json5"]
+        );
+        write_file(&lay(base), "themes", "link.json5", "{ a: 1 }").unwrap();
+        assert!(fs::symlink_metadata(themes.join("link.json5"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "{ a: 1 }");
+        assert!(export_bundle(&lay(base))
+            .unwrap()
+            .contains_key("themes/link.json5"));
+    }
+
+    /// #1334: 達成記録はこの機械の状態 (resetAt からの導出で他の機械と食い違う) なので
+    /// バックアップに入れない。旧配置では設定の隣、再編後は state/ から読む
+    #[test]
+    fn tutorial_json5_is_machine_state() {
+        let f = root_file("tutorial.json5").unwrap();
+        assert!(!f.backup);
+        assert_eq!(f.area, Area::StateFromV1);
+        let dir = tempfile::tempdir().unwrap();
+        let legacy = Layout::legacy(dir.path());
+        assert_eq!(
+            resolve_root_file(&legacy, "tutorial.json5").unwrap(),
+            legacy.config().join("tutorial.json5")
+        );
+        let v1 = Layout::v1(dir.path());
+        assert_eq!(
+            resolve_root_file(&v1, "tutorial.json5").unwrap(),
+            v1.state().join("tutorial.json5")
+        );
     }
 
     #[test]
-    fn tutorial_json5_is_backed_up() {
-        // #1029: 達成記録はユーザーの習熟の記録なので、設定のバックアップに含める
+    fn dot_entries_are_invisible_to_the_generic_paths() {
         let dir = tempfile::tempdir().unwrap();
-        let base = dir.path();
-        write_root_file(base, "tutorial.json5", r#"{ version: 1 }"#).unwrap();
+        let l = lay(dir.path());
+        fs::create_dir_all(dir.path().join("skills")).unwrap();
+        fs::write(dir.path().join("skills/.hidden.md"), "x").unwrap();
+        fs::write(dir.path().join("skills/real.md"), "y").unwrap();
+        fs::write(dir.path().join(".gitignore"), "sessions/\n").unwrap();
+        assert_eq!(list_files(&l, "skills").unwrap(), vec!["real.md"]);
+        assert!(read_file(&l, "skills", ".hidden.md").is_err());
+        assert!(write_file(&l, "skills", ".git", "x").is_err());
+        assert!(resolve_root_file(&l, ".gitignore").is_err());
+        let bundle = export_bundle(&l).unwrap();
+        assert!(!bundle
+            .keys()
+            .any(|k| k.contains("/.") || k.starts_with('.')));
+        assert!(bundle.contains_key("skills/real.md"));
+    }
 
-        let bundle = export_bundle(base).unwrap();
-        assert_eq!(
-            bundle.get("tutorial.json5").map(String::as_str),
-            Some(r#"{ version: 1 }"#)
-        );
-
-        fs::remove_file(base.join("tutorial.json5")).unwrap();
-        import_bundle(base, &bundle).unwrap();
-        assert_eq!(
-            read_root_file(base, "tutorial.json5").unwrap(),
-            r#"{ version: 1 }"#
-        );
+    #[test]
+    fn gitignore_template_is_written_once_and_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let l = Layout::from_root(dir.path());
+        ensure_gitignore(&l);
+        let path = l.config().join(".gitignore");
+        assert_eq!(fs::read_to_string(&path).unwrap(), GITIGNORE_TEMPLATE);
+        fs::write(&path, "mine\n").unwrap();
+        ensure_gitignore(&l);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "mine\n");
+        // 雛形は設定ではないものだけを除外し、設定ファイルは除外しない
+        for kept in [
+            "settings.json5",
+            "connections.json",
+            "permissions.json5",
+            "profiles/",
+        ] {
+            assert!(
+                !GITIGNORE_TEMPLATE.contains(kept),
+                "{kept} must not be ignored"
+            );
+        }
+        for ignored in [
+            "sessions/",
+            "memos/",
+            "notemaid/",
+            "*.history.json5",
+            ".*.tmp",
+        ] {
+            assert!(
+                GITIGNORE_TEMPLATE.contains(ignored),
+                "{ignored} must be ignored"
+            );
+        }
     }
 
     #[test]
@@ -1159,11 +1711,11 @@ mod tests {
     #[test]
     fn write_settings_json_is_atomic_and_roundtrips() {
         let dir = tempfile::tempdir().unwrap();
-        write_settings_json(dir.path(), "{ a: 1 }").unwrap();
-        assert_eq!(read_settings_json(dir.path()).unwrap(), "{ a: 1 }");
+        write_settings_json(&lay(dir.path()), "{ a: 1 }").unwrap();
+        assert_eq!(read_settings_json(&lay(dir.path())).unwrap(), "{ a: 1 }");
         // 存在しない場合は空文字 (first run)
         let empty = tempfile::tempdir().unwrap();
-        assert_eq!(read_settings_json(empty.path()).unwrap(), "");
+        assert_eq!(read_settings_json(&lay(empty.path())).unwrap(), "");
     }
 
     // export_bundle / import_bundle を「実物の service 関数で」round-trip 検証する。
@@ -1174,17 +1726,23 @@ mod tests {
         let base = dir.path();
 
         write_file(
-            base,
+            &lay(base),
             "profiles",
             "test.ndprofile.json5",
             r#"{ name: "test" }"#,
         )
         .unwrap();
-        write_file(base, "themes", "dark.ndtheme.json5", r#"{ name: "dark" }"#).unwrap();
-        write_root_file(base, "custom.css", "body { color: red; }").unwrap();
-        write_root_file(base, "keybinds.json5", r#"{ "search": [] }"#).unwrap();
+        write_file(
+            &lay(base),
+            "themes",
+            "dark.ndtheme.json5",
+            r#"{ name: "dark" }"#,
+        )
+        .unwrap();
+        write_root_file(&lay(base), "custom.css", "body { color: red; }").unwrap();
+        write_root_file(&lay(base), "keybinds.json5", r#"{ "search": [] }"#).unwrap();
 
-        let bundle = export_bundle(base).unwrap();
+        let bundle = export_bundle(&lay(base)).unwrap();
         assert_eq!(bundle.len(), 4);
 
         // 元ファイルを消してから import で復元
@@ -1193,22 +1751,22 @@ mod tests {
         fs::remove_file(base.join("custom.css")).unwrap();
         fs::remove_file(base.join("keybinds.json5")).unwrap();
 
-        import_bundle(base, &bundle).unwrap();
+        import_bundle(&lay(base), &bundle).unwrap();
 
         assert_eq!(
-            read_file(base, "profiles", "test.ndprofile.json5").unwrap(),
+            read_file(&lay(base), "profiles", "test.ndprofile.json5").unwrap(),
             r#"{ name: "test" }"#
         );
         assert_eq!(
-            read_file(base, "themes", "dark.ndtheme.json5").unwrap(),
+            read_file(&lay(base), "themes", "dark.ndtheme.json5").unwrap(),
             r#"{ name: "dark" }"#
         );
         assert_eq!(
-            read_root_file(base, "custom.css").unwrap(),
+            read_root_file(&lay(base), "custom.css").unwrap(),
             "body { color: red; }"
         );
         assert_eq!(
-            read_root_file(base, "keybinds.json5").unwrap(),
+            read_root_file(&lay(base), "keybinds.json5").unwrap(),
             r#"{ "search": [] }"#
         );
     }
@@ -1223,7 +1781,7 @@ mod tests {
         bundle.insert("../../../etc/passwd".to_string(), "evil".to_string());
         bundle.insert("profiles/good.json5".to_string(), "ok".to_string());
 
-        import_bundle(&base, &bundle).unwrap();
+        import_bundle(&lay(&base), &bundle).unwrap();
 
         assert!(!dir.path().join("etc/passwd").exists());
         assert_eq!(
@@ -1243,7 +1801,7 @@ mod tests {
         bundle.insert("secret.txt".to_string(), "secret".to_string());
         bundle.insert("config/bad.json".to_string(), "bad".to_string());
 
-        let warnings = import_bundle(&base, &bundle).unwrap();
+        let warnings = import_bundle(&lay(&base), &bundle).unwrap();
 
         assert!(base.join("custom.css").exists());
         assert!(!base.join("secret.txt").exists());
@@ -1252,17 +1810,62 @@ mod tests {
         assert_eq!(warnings.len(), 2);
     }
 
+    /// #1334 段階 2: 履歴は設定の隣ではなく state/history/ に置く。rename に追随し、
+    /// バックアップには入らず、旧配置の履歴は移される
     #[test]
-    fn custom_css_history_is_allowed_root_file() {
-        // #913 付随修正: allowlist から漏れていて履歴の read/write が常に
-        // reject されていた (フロントは settingsFs の history 系でこの名前を使う)
-        assert!(root_file("custom.css.history.json5").is_some());
+    fn edit_history_lives_under_state_and_follows_renames() {
         let dir = tempfile::tempdir().unwrap();
-        write_root_file(dir.path(), "custom.css.history.json5", "{ entries: [] }").unwrap();
+        let l = Layout::from_root(dir.path());
+        assert!(root_file("custom.css.history.json5").is_none());
+        write_history(&l, None, "custom.css", "{ entries: [] }\n").unwrap();
         assert_eq!(
-            read_root_file(dir.path(), "custom.css.history.json5").unwrap(),
-            "{ entries: [] }"
+            history_path(&l, None, "custom.css").unwrap(),
+            l.history().join("root/custom.css.history.json5")
         );
+        assert_eq!(
+            read_history(&l, None, "custom.css").unwrap(),
+            "{ entries: [] }\n"
+        );
+        assert_eq!(read_history(&l, Some("skills"), "none").unwrap(), "");
+        assert!(history_path(&l, Some("nope"), "x").is_err());
+
+        write_file(&l, "skills", "a.md", "# a").unwrap();
+        write_history(&l, Some("skills"), "a", "{ entries: [1] }\n").unwrap();
+        rename_file(&l, "skills", "a.md", "b.md").unwrap();
+        assert_eq!(
+            read_history(&l, Some("skills"), "b").unwrap(),
+            "{ entries: [1] }\n"
+        );
+        assert_eq!(read_history(&l, Some("skills"), "a").unwrap(), "");
+        // バックアップに履歴は入らず、旧バンドルの履歴は 1 行の警告で捨てる
+        let bundle = export_bundle(&l).unwrap();
+        assert!(!bundle.keys().any(|k| k.contains("history")));
+        let mut b = BTreeMap::new();
+        b.insert("skills/x.history.json5".to_string(), "{}".to_string());
+        b.insert("custom.css.history.json5".to_string(), "{}".to_string());
+        let warnings = import_bundle(&l, &b).unwrap();
+        assert_eq!(warnings.len(), 1);
+        assert!(!l.config().join("skills/x.history.json5").exists());
+        // 旧配置の履歴は state/history/ へ、持ち主の無いものは sweep で消える
+        fs::write(l.config().join("skills/b.history.json5"), "old").unwrap();
+        fs::write(l.config().join("skills/gone.history.json5"), "orphan").unwrap();
+        fs::write(l.config().join("custom.css.history.json5"), "css").unwrap();
+        move_history_sidecars(&l);
+        assert!(!l.config().join("skills/b.history.json5").exists());
+        // 両方あったので state 側 (新) が残る
+        assert_eq!(
+            read_history(&l, Some("skills"), "b").unwrap(),
+            "{ entries: [1] }\n"
+        );
+        assert_eq!(read_history(&l, Some("skills"), "gone").unwrap(), "orphan");
+        // custom.css 本体が無いので root の履歴は持ち主なし
+        sweep_orphan_history(&l);
+        assert_eq!(read_history(&l, Some("skills"), "gone").unwrap(), "");
+        assert_eq!(
+            read_history(&l, Some("skills"), "b").unwrap(),
+            "{ entries: [1] }\n"
+        );
+        assert_eq!(read_history(&l, None, "custom.css").unwrap(), "");
     }
 
     #[test]
@@ -1275,7 +1878,7 @@ mod tests {
         let mut bundle = BTreeMap::new();
         bundle.insert("themes/deep/evil.json5".to_string(), "x".to_string());
 
-        let warnings = import_bundle(base, &bundle).unwrap();
+        let warnings = import_bundle(&lay(base), &bundle).unwrap();
         assert!(!base.join("themes/deep/evil.json5").exists());
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].text.contains("themes/deep/evil.json5"));
@@ -1295,10 +1898,16 @@ mod tests {
         bundle.insert("skills/.hidden.md".to_string(), "x".to_string());
         bundle.insert("skills/trail .md ".to_string(), "x".to_string());
 
-        let warnings = import_bundle(base, &bundle).unwrap();
+        let warnings = import_bundle(&lay(base), &bundle).unwrap();
         assert_eq!(warnings.len(), 5);
-        assert_eq!(list_files(base, "themes").unwrap(), Vec::<String>::new());
-        assert_eq!(list_files(base, "skills").unwrap(), Vec::<String>::new());
+        assert_eq!(
+            list_files(&lay(base), "themes").unwrap(),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            list_files(&lay(base), "skills").unwrap(),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
@@ -1313,10 +1922,10 @@ mod tests {
             "{ id: 't1' }".to_string(),
         );
 
-        let warnings = import_bundle(base, &bundle).unwrap();
+        let warnings = import_bundle(&lay(base), &bundle).unwrap();
         assert!(warnings.is_empty());
         assert_eq!(
-            read_file(base, "themes", "天気テーマ.ndtheme.json5").unwrap(),
+            read_file(&lay(base), "themes", "天気テーマ.ndtheme.json5").unwrap(),
             "{ id: 't1' }"
         );
     }
@@ -1327,15 +1936,18 @@ mod tests {
         // no-op 収束)
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path();
-        write_file(base, "skills", "weather.md", "# weather").unwrap();
+        write_file(&lay(base), "skills", "weather.md", "# weather").unwrap();
 
         let mut bundle = BTreeMap::new();
         bundle.insert("skills/weather.md".to_string(), "# weather".to_string());
 
-        let warnings = import_bundle(base, &bundle).unwrap();
+        let warnings = import_bundle(&lay(base), &bundle).unwrap();
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].text.contains("skills/weather.md"));
-        assert_eq!(list_files(base, "skills").unwrap(), vec!["weather.md"]);
+        assert_eq!(
+            list_files(&lay(base), "skills").unwrap(),
+            vec!["weather.md"]
+        );
     }
 
     #[test]
@@ -1344,7 +1956,7 @@ mod tests {
         // ペア種別 (ソース + メタ) はメタが非衝突でも分裂させない
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path();
-        write_file(base, "widgets", "clock.is", "local code").unwrap();
+        write_file(&lay(base), "widgets", "clock.is", "local code").unwrap();
 
         let mut bundle = BTreeMap::new();
         bundle.insert("widgets/clock.is".to_string(), "backup code".to_string());
@@ -1353,20 +1965,20 @@ mod tests {
             "{ id: 'w1' }".to_string(),
         );
 
-        let warnings = import_bundle(base, &bundle).unwrap();
+        let warnings = import_bundle(&lay(base), &bundle).unwrap();
         assert_eq!(warnings.len(), 1);
 
         // 既存はそのまま、バックアップ側は -2 で並置 (suffix は複合拡張子の前)
         assert_eq!(
-            read_file(base, "widgets", "clock.is").unwrap(),
+            read_file(&lay(base), "widgets", "clock.is").unwrap(),
             "local code"
         );
         assert_eq!(
-            read_file(base, "widgets", "clock-2.is").unwrap(),
+            read_file(&lay(base), "widgets", "clock-2.is").unwrap(),
             "backup code"
         );
         assert_eq!(
-            read_file(base, "widgets", "clock-2.meta.json5").unwrap(),
+            read_file(&lay(base), "widgets", "clock-2.meta.json5").unwrap(),
             "{ id: 'w1' }"
         );
         assert!(!base.join("widgets/clock.meta.json5").exists());
@@ -1378,15 +1990,21 @@ mod tests {
         // case-sensitive FS でも Windows/macOS と挙動を揃える
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path();
-        write_file(base, "skills", "Weather.md", "local").unwrap();
+        write_file(&lay(base), "skills", "Weather.md", "local").unwrap();
 
         let mut bundle = BTreeMap::new();
         bundle.insert("skills/weather.md".to_string(), "backup".to_string());
 
-        let warnings = import_bundle(base, &bundle).unwrap();
+        let warnings = import_bundle(&lay(base), &bundle).unwrap();
         assert_eq!(warnings.len(), 1);
-        assert_eq!(read_file(base, "skills", "Weather.md").unwrap(), "local");
-        assert_eq!(read_file(base, "skills", "weather-2.md").unwrap(), "backup");
+        assert_eq!(
+            read_file(&lay(base), "skills", "Weather.md").unwrap(),
+            "local"
+        );
+        assert_eq!(
+            read_file(&lay(base), "skills", "weather-2.md").unwrap(),
+            "backup"
+        );
     }
 
     #[test]
@@ -1394,16 +2012,22 @@ mod tests {
         // -2 が占有済みなら全構成が同時に空く次の番号へ
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path();
-        write_file(base, "skills", "weather.md", "local").unwrap();
-        write_file(base, "skills", "weather-2.md", "taken").unwrap();
+        write_file(&lay(base), "skills", "weather.md", "local").unwrap();
+        write_file(&lay(base), "skills", "weather-2.md", "taken").unwrap();
 
         let mut bundle = BTreeMap::new();
         bundle.insert("skills/weather.md".to_string(), "backup".to_string());
 
-        let warnings = import_bundle(base, &bundle).unwrap();
+        let warnings = import_bundle(&lay(base), &bundle).unwrap();
         assert_eq!(warnings.len(), 1);
-        assert_eq!(read_file(base, "skills", "weather-3.md").unwrap(), "backup");
-        assert_eq!(read_file(base, "skills", "weather-2.md").unwrap(), "taken");
+        assert_eq!(
+            read_file(&lay(base), "skills", "weather-3.md").unwrap(),
+            "backup"
+        );
+        assert_eq!(
+            read_file(&lay(base), "skills", "weather-2.md").unwrap(),
+            "taken"
+        );
     }
 
     #[test]
@@ -1412,14 +2036,14 @@ mod tests {
         // 衝突分岐は適用しない — suffix 先は allowlist 外で二度と読まれない)
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path();
-        write_root_file(base, "custom.css", "old {}").unwrap();
+        write_root_file(&lay(base), "custom.css", "old {}").unwrap();
 
         let mut bundle = BTreeMap::new();
         bundle.insert("custom.css".to_string(), "new {}".to_string());
 
-        let warnings = import_bundle(base, &bundle).unwrap();
+        let warnings = import_bundle(&lay(base), &bundle).unwrap();
         assert!(warnings.is_empty());
-        assert_eq!(read_root_file(base, "custom.css").unwrap(), "new {}");
+        assert_eq!(read_root_file(&lay(base), "custom.css").unwrap(), "new {}");
     }
 
     #[cfg(unix)]
@@ -1432,7 +2056,7 @@ mod tests {
         let mut bundle = BTreeMap::new();
         bundle.insert("sessions/20260722.json5".to_string(), "{}".to_string());
 
-        import_bundle(base, &bundle).unwrap();
+        import_bundle(&lay(base), &bundle).unwrap();
         let mode = fs::metadata(base.join("sessions/20260722.json5"))
             .unwrap()
             .permissions()
@@ -1445,18 +2069,21 @@ mod tests {
         // 排他予約 (create_new) + atomic_write 後に空ファイルや .tmp が残らない
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path();
-        write_file(base, "skills", "weather.md", "local").unwrap();
+        write_file(&lay(base), "skills", "weather.md", "local").unwrap();
 
         let mut bundle = BTreeMap::new();
         bundle.insert("skills/weather.md".to_string(), "backup".to_string());
         bundle.insert("skills/fresh.md".to_string(), "fresh".to_string());
 
-        import_bundle(base, &bundle).unwrap();
+        import_bundle(&lay(base), &bundle).unwrap();
         assert_eq!(
-            list_files(base, "skills").unwrap(),
+            list_files(&lay(base), "skills").unwrap(),
             vec!["fresh.md", "weather-2.md", "weather.md"]
         );
-        assert_eq!(read_file(base, "skills", "fresh.md").unwrap(), "fresh");
+        assert_eq!(
+            read_file(&lay(base), "skills", "fresh.md").unwrap(),
+            "fresh"
+        );
     }
 
     #[test]
@@ -1465,9 +2092,10 @@ mod tests {
             split_compound_ext("clock.meta.json5"),
             ("clock", ".meta.json5")
         );
+        // 履歴は設定の隣に無い (#1334 段階 2) ので複合拡張子として扱わない
         assert_eq!(
             split_compound_ext("clock.history.json5"),
-            ("clock", ".history.json5")
+            ("clock.history", ".json5")
         );
         assert_eq!(
             split_compound_ext("p.ndprofile.json5"),

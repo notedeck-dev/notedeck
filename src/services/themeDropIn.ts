@@ -126,3 +126,12 @@ export function serializeDropInRecord(record: DropInRecord): string {
     JSON5.stringify({ adopted: record }, null, 2),
   ].join('\n')}\n`
 }
+
+/** 元の本文の sha-256 (hex)。採用したコピーの `dropInSource` に書く */
+export async function dropInSourceHash(raw: string): Promise<string> {
+  const data = new TextEncoder().encode(raw)
+  const digest = await crypto.subtle.digest('SHA-256', data)
+  return [...new Uint8Array(digest)]
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}

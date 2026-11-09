@@ -382,7 +382,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 ### 移行・バックアップ・RPC
 
 - `ai-turns/` → `notemaid/turns/`、`ai-workspace/` → `notemaid/workspace/` の rename は `notemaid::migrations::run_fs` (notemaid クレート)。daemon は lock 取得後、アプリは in-process のときだけ呼ぶ。sidecar / 常駐時は transport の `Hello` に `fs_layout` を足し、不一致なら `restart_resident()` で古い daemon を先に止める。失敗しても起動は止めず、新パスに無ければ旧パスを読む
-- バックアップ: `ALLOWED_SUBDIRS` に `notemaid` を**足さない** (汎用 list / read / write / delete / rename が allowlist だけで通り、上限・承認・汚染規則を素通りする)。`export_bundle` に SOUL / USER / MEMORY を明示列挙。import は専用分岐で名指しの 3 ファイルだけを置き、見えない文字を含むものは外す (上限超過は読む側の「注入しない」で受ける)。アプリの import は人格 / 記憶が入っていれば置き換える前に一覧つきで 1 回聞き、断られたらその分だけ外して残りを入れる。notemaid は毎 turn ファイルを読むので reload 通知は要らない
+- バックアップ: `SUBDIRS` (allowlist) に `notemaid` を**足さない** (汎用 list / read / write / delete / rename が allowlist だけで通り、上限・承認・汚染規則を素通りする)。`export_bundle` に SOUL / USER / MEMORY を明示列挙。import は専用分岐で名指しの 3 ファイルだけを置き、見えない文字を含むものは外す (上限超過は読む側の「注入しない」で受ける)。アプリの import は人格 / 記憶が入っていれば置き換える前に一覧つきで 1 回聞き、断られたらその分だけ外して残りを入れる。notemaid は毎 turn ファイルを読むので reload 通知は要らない
 - UI 編集の RPC (`data` 級、notemaid 経由): `maid_workspace_list()` / `maid_workspace_write(kind, body)` / `maid_user_memory_set(enabled)`。変更通知は `SettingsChange { subdir: "notemaid" }` を relay し、`settingsFileSync` に `notemaid` 用ハンドラを 1 つ足す
 
 ### 製品判断として確定したもの (2026-09-30)
@@ -683,7 +683,7 @@ Profile B ──→ デッキ窓（プロファイル切り替え時）
 | 分類 | UI | 用途 | 永続性 |
 |------|-----|------|--------|
 | **ストリーム** | カラム | 継続的なデータフィード（TL、通知、検索、チャット等） | プロファイルに永続化 |
-| **IDE ツール** | カラム | 開発・デバッグ支援（Stream Inspector 等）、MFM エディター（デッキと同じ `MkMfm` で確かめながら書き、投稿フォームへ送る。本文はカラム設定 `mfmText`）、ローカル PKM（メモ — `notedeck/memos/*.md` を Obsidian vault としても開ける。サーバーへ送らずローカルで完結し、同じくアカウントなしの AI カラムから参照されるため **アカウントに紐づかない**（#1018）。他のテキストと同じ編集履歴を持つ） | プロファイルに永続化 |
+| **IDE ツール** | カラム | 開発・デバッグ支援（Stream Inspector 等）、MFM エディター（デッキと同じ `MkMfm` で確かめながら書き、投稿フォームへ送る。本文はカラム設定 `mfmText`）、ローカル PKM（メモ — `data/memos/*.md` を Obsidian vault としても開ける。サーバーへ送らずローカルで完結し、同じくアカウントなしの AI カラムから参照されるため **アカウントに紐づかない**（#1018）。他のテキストと同じ編集履歴を持つ） | プロファイルに永続化 |
 | **詳細** | ウィンドウ | 特定アイテムの一時的な表示（ノート詳細、プロフィール、フォローリスト） | セッション限り |
 | **インスペクタ** | ウィンドウ | Raw JSON 表示・デバッグ（ノート/通知インスペクタ、settings.json5 エディタ） | セッション限り |
 | **ツール** | ウィンドウ | アプリ設定・管理（ログイン、エディタ群、プラグイン、about） | セッション限り |
@@ -715,10 +715,10 @@ Profile B ──→ デッキ窓（プロファイル切り替え時）
 | ウィンドウ | 保存先 | 復元 | 内容 |
 |---|---|---|---|
 | **main** | `tauri-plugin-window-state`（Rust 側、ラベル → ジオメトリのグローバル map。`src-tauri/src/lib.rs`） | 初回描画前。クラッシュやトレイからの Quit でも保存される | サイズ・位置・最大化・フルスクリーン。可視状態は除外（close → トレイ hide → Quit で不可視が保存されると次回起動が見えなくなる）、装飾も除外（`decorations: false` 固定） |
-| **デッキ派生**（カラムのポップアウト。`?profile=&window=<id>`） | プロファイル内の `windows[]`（per-profile。Rust が子窓の Moved / Resized を論理 px で記録し、debounce して親の窓に `ChildGeometry` で届ける。親が `saveWindowLayout` でプロファイルに書く。#1131） | プロファイル適用時に、カラムが割り当てられているものだけ開き直す。保存モニタが無ければ primary の中央、はみ出していれば境界に clamp | 位置・サイズ・モニタ名。最大化状態は持たない（現状） |
+| **デッキ派生**（カラムのポップアウト。`?profile=&window=<id>`） | プロファイルの状態 `state/deck/<profile id>.json5` の `windows[]`（per-profile。Rust が子窓の Moved / Resized を論理 px で記録し、debounce して親の窓に `ChildGeometry` で届ける。親が `saveWindowLayout` でプロファイルに書き、保存時に設定側と分ける。#1131 / #1333） | プロファイル適用時に、カラムが割り当てられているものだけ開き直す。保存モニタが無ければ primary の中央、はみ出していれば境界に clamp | 位置・サイズ・モニタ名。最大化状態は持たない（現状） |
 | **ミラー**（`?profile=` のみ、windowId なし）/ **PiP**（`pip-<時刻>-<連番>`） | 非永続 | 都度、既定サイズで開く | — |
 
-- **Rust プラグインに寄せない理由**: 派生ウィンドウのジオメトリはプロファイル切替でウィンドウ構成ごと復元される per-profile データで、プラグインのグローバル map にはプロファイルを載せる場所がない。どのウィンドウを作るかはアプリロジックなので、生成時にジオメトリを渡す現行の形が最も atomic。プロファイルは持ち出せる単位なので、ジオメトリだけ別ファイルに分けるとバックアップ・エクスポートの整合が壊れる
+- **Rust プラグインに寄せない理由**: 派生ウィンドウのジオメトリはプロファイル切替でウィンドウ構成ごと復元される per-profile データで、プラグインのグローバル map にはプロファイルを載せる場所がない。どのウィンドウを作るかはアプリロジックなので、生成時にジオメトリを渡す現行の形が最も atomic。ジオメトリはこの機械の状態なので持ち出す単位 (プロファイル) には書かず、`state/deck/` に対の `columns[].windowId` と一緒に置く (片方だけ動かすとポップアウトカラムが復元不能扱いになる。#1333 §3)。メモリ上のプロファイルは両方を重ねた形で、保存は変わった側だけ書く
 - **フロント側に寄せない理由**: 描画前の復元とクラッシュ時・トレイ Quit 時の保存は Rust 側でフックしているから成立している。フロントに移すと復元は JS ブート後（見えてから跳ぶ）になり、プラグインが解決済みのクロスプラットフォームの罠を再実装することになる。派生ウィンドウの保存点も同じ理由で Rust 側の窓イベント（`window_events.rs`）にあり、フロントの beforeunload には頼らない
 - **動的ラベルのウィンドウをプラグインの対象から外す理由**: 復元先が二度と一致せず、state ファイルにゴミが溜まり続ける。ラベルを安定化しても、プロファイル削除時に同じ問題が形を変えて再発する
 - どちらも他方の上位互換ではない。プラグインは現存モニタと交差しなければ OS に配置を任せるオフスクリーンガードと最大化・フルスクリーンを持ち、フロント側はモニタ名一致・境界 clamp・primary 中央寄せ・論理 px 正規化を持つ
@@ -1112,7 +1112,7 @@ notecore 側のファイルは AI (notemaid) とデバイスの両方が書く�
 
 #### 設定ファイルの置き場と帰属
 
-アプリデータディレクトリの解決は notecore (`app_dir.rs`、bundle identifier の定数と `NOTEDECK_APP_DIR` の上書き) に 1 つ置き、アプリの Tauri 経路と identifier が一致することをテストで保証する (notemaid も同じ関数で同じ場所を開く)。ルート直下の設定ファイルの allowlist は属性表 (`settings_store.rs` の `ROOT_FILES`: 手元側 / notecore 側の `side`、バックアップに含めるかの `backup`) になっている。この端末の構成 (`client.json5`、`backend: auto | embedded | resident`、codec は `client_config.rs` と `services/clientConfig.ts`) は手元側でバックアップに含めない。
+アプリデータディレクトリの解決は notecore (`app_dir.rs`、bundle identifier の定数と `NOTEDECK_APP_DIR` の上書き) に 1 つ置き、アプリの Tauri 経路と identifier が一致することをテストで保証する (notemaid も同じ関数で同じ場所を開く)。アプリデータディレクトリの中の配置 (設定 `config/` / 人の記録 `data/` / この機械の状態 `state/` / キャッシュ `cache/`。再編前は `notedeck/` に同居し、版印 `layout.json5` の有無で `Layout::legacy` / `Layout::v1` を選ぶ、#1334) は同じ `app_dir.rs` の値型 `Layout` だけが知り、他のコードは `Core::layout()` か `Layout::from_root()` から受け取る (`join("notedeck")` の散在は `tests/lint/rustSettingsDir.test.ts` が禁止、#1333)。ルート直下とサブディレクトリの allowlist は属性表 (`settings_store.rs` の `ROOT_FILES` / `SUBDIRS`: 置き場の `area`、バックアップに含めるかの `backup`、汎用の読み書きで触れるかの `ipc`) になっている。この端末の構成 (`client.json5`、`backend: auto | embedded | resident`、codec は `client_config.rs` と `services/clientConfig.ts`) はバックアップに含めない。設定ファイルの書込は決定的で、各ルートファイルのコーデックは `src/services/settingsFileCodecs.test.ts` に登録する (allowlist にあって登録の無いファイルは落ちる)。
 
 #### デバイスなしで AI のターンを回す (notemaid のプロセス)
 
@@ -1146,7 +1146,7 @@ healthcheck は doctor とキャッシュ統計を notecore の `health_core` �
 - dispatcher で逆引きするため AI / プラグイン作者は意識不要
 
 **確認ダイアログの「今後確認しない」(#714):**
-- `requiresConfirmation` な capability の確認で「今後この操作を確認しない」を ON にして許可すると、scope × capability 単位で `permissions.json5` の `confirmSkips` に記憶され、次回以降の確認をスキップする (保存先は権限プロファイルと同じく capability から書き換え不能)
+- `requiresConfirmation` な capability の確認で「今後この操作を確認しない」を ON にして許可すると、scope × capability 単位で `state/permissions-meta.json5` の `confirmSkips` に記憶され、次回以降の確認をスキップする (確認の結果はこの機械の状態で、方針の `permissions.json5` とは別。どちらも capability から書き換え不能、#1333)
 - scope は `ai.chat` と `plugin:<pluginId>` (プラグイン / ウィジェット個体単位) のみ。user (本人操作の confirm は削らない) / `ai.heartbeat` (無人実行 — チャットの同意の波及も heartbeat 自身での記憶も不可) / `external` は対象外で常に確認される (同意すり替え防止 #712 §3.3)
 - 記憶の一覧・取り消しは権限ウィンドウの該当 principal 行内「確認なしで実行できる操作」
 - capability 固有の remember (`onConfirmRemember` — vault.fetch の接続単位信頼) を持つ capability は汎用スキップの対象外
@@ -1541,7 +1541,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 
 - **1 ラウンドの複数 tool_use は全部順に実行する** (以前の JS ループは先頭以外を捨てていたので provider 側で並列を禁止していた。今は禁止しない)
 - **認可は notemaid で決める**: tool 一覧の絞り込みと呼び出しごとの権限検査は Rust。デバイス側の dispatcher は同じ判定を写しとして二重に通す (golden で一致を検査)
-- **確認要求は notemaid 発** (`ai_turn/confirm.rs`): 要否 (宣言の `confirm` / クロスアカウント / `confirmSkips` の記憶) は Rust が決め、表示内容は capability の実装がデバイスで組む。1 ラウンドの複数の呼び出しは 1 枚の要求に束ね、決定は全項目に効く。要求を出したループは turn を**チェックポイント** (`<app dir>/notedeck/notemaid/turns/`、notemaid 専有で生ファイル書込の対象外) に書いて解放し、応答で読み戻して再開する。表示してからの TTL と生成してからの絶対 TTL のどちらかを超えると拒否して理由を記録し、応答は compare-and-set で最初の 1 つだけが効く (遅れた応答は明示エラー)。起動時に停止中のまま残った turn は「再起動」の理由で閉じる。無人 HEARTBEAT は確認が要る呼び出しを聞かずに拒否する
+- **確認要求は notemaid 発** (`ai_turn/confirm.rs`): 要否 (宣言の `confirm` / クロスアカウント / `confirmSkips` の記憶) は Rust が決め、表示内容は capability の実装がデバイスで組む。1 ラウンドの複数の呼び出しは 1 枚の要求に束ね、決定は全項目に効く。要求を出したループは turn を**チェックポイント** (`<app dir>/state/notemaid/turns/`、0600、notemaid 専有で生ファイル書込の対象外) に書いて解放し、応答で読み戻して再開する。表示してからの TTL と生成してからの絶対 TTL のどちらかを超えると拒否して理由を記録し、応答は compare-and-set で最初の 1 つだけが効く (遅れた応答は明示エラー)。起動時に停止中のまま残った turn は「再起動」の理由で閉じる。無人 HEARTBEAT は確認が要る呼び出しを聞かずに拒否する
 - **セッションは notemaid が単一の書き手** (`ai_sessions.rs`): ターン実行器がユーザー入力 / tool_use / tool_result / 最終応答 / 失敗の partial をその場で書く。メッセージ id は turn id から決定的に振り (ユーザー入力は `<turn>-u`)、イベントの `message_id` でデバイスが写しを揃える。デバイスの表示用 placeholder はローカルだけで、ターンの終わりに読み直す。HEARTBEAT の使い捨て履歴は `session_id` 無しで書かない
 - **汚染 (taint)** (`ai_turn/taint.rs`、#1103 Phase 1): 宣言 `untrusted: true` の capability (他人の投稿 / プロフィール / 通知 / fetch 結果を返す読取) の結果を読んだセッションと、デバイスが「文脈に他人の内容 (可視ノート) を入れた」と申告したターンのセッションは以後 tainted (`<app dir>/notedeck/notemaid/turns/taint.json`、生ファイル書込の対象外)。tainted なセッションの書き込みは「次から確認しない」を無視して必ず確認する。**宛先の出所**: 宣言 `destinations` の引数 (返信先 / 対象ユーザー / URL など) の値がどこに出てきたかを 3 値で判定する (ユーザー入力 / 信頼済みの結果 / untrusted な本文の中だけ。どこにも無い値も 3 番目に倒す)。3 番目なら確認に「宛先は AI が読んだ他人の内容に由来します」と一文添え (旗は足さない)、記憶の対象外にし、無人実行は聞かずに拒否して理由を記録する。**メモ / skill のラベル**: tainted なセッションからの書込 (実行要求の `tainted`) で作った / 更新したメモと skill には `tainted: true` の frontmatter が付き (一度付いたら外れない)、それを返す読取 capability は `ctx.markTainted()` で申告して読んだセッションを tainted にし、system prompt に注入するときはデバイスが文脈の申告 (`contextUntrusted`) に含める。[#1162](https://github.com/notedeck-dev/notedeck/issues/1162) で turn 内の汚染 2 ビットと「人が承認した人格 / 記憶ファイルへの書込にはラベルを付けない」例外を足す (設計確定、実装中。詳細は「AI の人格と記憶」)
 - **中断** (`ai_turn_cancel`): Rust の task を止め、確認待ちなら要求を cancelled で閉じて (デバイス側はダイアログを畳む)、デバイスが待っている実行要求の確認 (保険の経路) も `AbortSignal` で閉じる。途中までの応答は notemaid がセッションに書いて返し、デバイスは写しに載せる
@@ -1561,7 +1561,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 | `src/capabilities/deviceTools.ts` | 宣言表に無い AI tool (plugin 由来) と実行時 enum をターン要求に同梱する |
 | `src/composables/useAiChat.ts` | `sendMessage(opts)` で 1 往復の chat 呼び出し (tool なし)。`currentText` ref が delta で更新される。`cancel()` で進行中 stream を中断 (Rust 側 `ai_chat_cancel` 経由) |
 | `src/composables/useAiConversation.ts` | 指定 sessionId のメッセージ配列に対する reactive な参照を返す薄いラッパー。本文の永続化と debounce は `useAiSessionsStore` 側で集中管理 |
-| `src/stores/aiSessions.ts` | AI セッション (`notedeck/sessions/<YYYYMMDDhhmmss>.json5`) のデバイス側の写し。書き手は notemaid (`crates/notemaid/src/ai_sessions.rs`、#1133) で、ストアは「作成 / メッセージ追加 / メッセージ削除 / 改名 / trigger skill の累積 / 削除」の構造化された操作を送って写しを揃える (楽観的更新)。進行中のターンの表示は `setLocalMessages` (notemaid には書かない)。汎用の設定ファイル操作は `sessions` を受け付けない |
+| `src/stores/aiSessions.ts` | AI セッション (`data/sessions/<YYYYMMDDhhmmss>.json5`) のデバイス側の写し。書き手は notemaid (`crates/notemaid/src/ai_sessions.rs`、#1133) で、ストアは「作成 / メッセージ追加 / メッセージ削除 / 改名 / trigger skill の累積 / 削除」の構造化された操作を送って写しを揃える (楽観的更新)。進行中のターンの表示は `setLocalMessages` (notemaid には書かない)。汎用の設定ファイル操作は `sessions` を受け付けない |
 | `crates/notemaid/src/ai_turn/compose.rs` | system prompt の組み立て (#1162)。SOUL → キャラクター (persona) → USER → BOOTSTRAP → MEMORY → NoteDeck の運用規約 (固定の文) → AGENTS → 他の `mode: 'always'` / active な `mode: 'manual'` / セッションに累積した trigger skill → デバイス文脈。デバイスは `device_context` (`<notedeck-context>`) と trigger skill の id だけを送り、trigger マッチは `triggerMatchingSkillIds(text)` (`src/stores/skills.ts`) が user 入力を部分一致検索して算出 |
 | `src/services/aiSessionId.ts` | Zettelkasten ID (`YYYYMMDDhhmmss`) 生成。同一秒衝突は `a`, `b`, `c`, ... サフィックスで回避 |
 | `src/services/sessionTitle.ts` | `timestampTitle(now, suffix)` 初期プレースホルダー / `generateSessionTitle()` 決定論的フォールバック。i18n の既定接尾辞を足す包みが `src/utils/aiSessionTitle.ts` |

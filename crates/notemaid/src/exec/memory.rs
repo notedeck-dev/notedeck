@@ -328,7 +328,7 @@ mod tests {
         let p = json!({"action": "add", "target": "memory", "content": "x"});
         assert!(update(&core, &p, &ctx("ai.heartbeat")).is_err());
         assert!(propose_soul(&core, &json!({"body": "# SOUL"}), &ctx("ai.heartbeat")).is_err());
-        std::fs::create_dir_all(dir.path().join("notedeck")).unwrap();
+        std::fs::create_dir_all(notecore::app_dir::Layout::from_root(dir.path()).config()).unwrap();
         std::fs::write(
             dir.path().join("notedeck/ai.json5"),
             "{ userMemory: false }",

@@ -3,7 +3,6 @@
 //! 解除はデバイスが変更通知を受けて行う。
 
 use serde_json::{json, Value};
-use std::path::Path;
 
 use super::{Item, Kind};
 use crate::context::Core;
@@ -140,7 +139,7 @@ pub fn get(core: &Core, id: &str) -> Result<Option<Item>> {
     Ok(list(core)?.into_iter().find(|q| q.id == id))
 }
 
-pub fn history(dir: &Path, item: &Item) -> Vec<HistoryEntry> {
+pub fn history(dir: &crate::app_dir::Layout, item: &Item) -> Vec<HistoryEntry> {
     super::history(dir, &KIND, &item.file_base)
 }
 
@@ -181,8 +180,8 @@ mod tests {
     #[test]
     fn update_src_keeps_flags_and_pushes_history() {
         let (_d, core, base) = temp_core();
-        std::fs::write(base.join("queries/a.meta.json5"), "{ id: 'a', name: 'a', description: 'd', scoped: true, global: true, disabled: false, createdAt: 1, updatedAt: 1 }").unwrap();
-        std::fs::write(base.join("queries/a.is"), "old").unwrap();
+        std::fs::write(base.config().join("queries/a.meta.json5"), "{ id: 'a', name: 'a', description: 'd', scoped: true, global: true, disabled: false, createdAt: 1, updatedAt: 1 }").unwrap();
+        std::fs::write(base.config().join("queries/a.is"), "old").unwrap();
         let mut q = get(&core, "a").unwrap().unwrap();
         update_src(&core, &mut q, "new", None).unwrap();
         let h = history(&base, &q);
@@ -190,17 +189,17 @@ mod tests {
             h[0].snapshot,
             json!({ "src": "old", "name": "a", "description": "d" })
         );
-        let raw = std::fs::read_to_string(base.join("queries/a.meta.json5")).unwrap();
+        let raw = std::fs::read_to_string(base.config().join("queries/a.meta.json5")).unwrap();
         // 旧 `disabled: false` は `active: true` として常に書く (#1202 段階 0)
         assert!(raw.starts_with("{\n  id: 'a',\n  name: 'a',\n  description: 'd',\n  global: true,\n  scoped: true,\n  active: true,\n  createdAt: 1,\n  updatedAt: "));
         assert!(!raw.contains("disabled"));
         // 旧 `disabled: true` は `active: false`
         std::fs::write(
-            base.join("queries/b.meta.json5"),
+            base.config().join("queries/b.meta.json5"),
             "{ id: 'b', name: 'b', disabled: true, createdAt: 1, updatedAt: 1 }",
         )
         .unwrap();
-        std::fs::write(base.join("queries/b.is"), "").unwrap();
+        std::fs::write(base.config().join("queries/b.is"), "").unwrap();
         let b = get(&core, "b").unwrap().unwrap();
         assert!(!is_active(&b));
         let out = crate::json5_out::stringify(&normalize_meta_at(&b, 0.0));

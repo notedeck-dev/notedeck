@@ -208,6 +208,4 @@ export interface DistributableFileCollection<Item> {
   renameItemFiles(item: Item, allItems: readonly Item[]): Promise<void>
   /** 規約外名の copy-adopt (#913)。メインウィンドウだけが呼ぶ */
   migrateItems(items: readonly Item[]): Promise<void>
-  /** 主ファイルと対応の取れない履歴サイドカーの掃除 */
-  sweepHistory(): Promise<void>
 }

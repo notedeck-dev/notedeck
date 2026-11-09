@@ -14,12 +14,14 @@
 import JSON5 from 'json5'
 import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
+import { pickUiState } from '@/services/uiState'
 import {
-  CURRENT_SCHEMA_VERSION,
   DEFAULT_SETTINGS,
   type NotedeckSettings,
-  parseSettings,
+  parseSettingsText,
+  serializeSettings,
 } from '@/settings/schema'
+import { useUiStateStore } from '@/stores/uiState'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri } from '@/utils/settingsFs'
 import { emitTauri, listenTauri } from '@/utils/tauriEvents'
@@ -84,6 +86,10 @@ export const useSettingsStore = defineStore('settings', () => {
       )
       settings.value = fromRaw(raw)
       version = v
+      // 旧 settings.json5 に残っている UI の状態を state/ui.json5 へ一度だけ持ち越す
+      // (#1333 §3)。parseSettings はもう剥がしているので、次の書込で設定側から消える。
+      // 初回の書込 (initDeveloperMode 等) より前に済ませる
+      await carryOverUiState(raw)
     } catch (e) {
       console.warn(
         '[settings] failed to load settings.json5, using defaults:',
@@ -151,14 +157,26 @@ export const useSettingsStore = defineStore('settings', () => {
   /** 最後の書込以降に変えたキー (先を越されたら最新に載せ直す) */
   const dirtyKeys = new Set<keyof NotedeckSettings>()
 
-  function fromRaw(raw: string): NotedeckSettings {
-    if (raw.length === 0) return { ...DEFAULT_SETTINGS }
-    return parseSettings(JSON5.parse(raw) as Record<string, unknown>)
+  const fromRaw = parseSettingsText
+
+  async function carryOverUiState(raw: string): Promise<void> {
+    if (raw.length === 0) return
+    let parsed: unknown
+    try {
+      parsed = JSON5.parse(raw)
+    } catch {
+      return
+    }
+    const legacy = pickUiState(parsed)
+    if (Object.keys(legacy).length === 0) return
+    try {
+      await useUiStateStore().carryOver(legacy)
+    } catch (e) {
+      console.warn('[settings] failed to carry over the UI state:', e)
+    }
   }
 
-  function serialize(value: NotedeckSettings): string {
-    return `${JSON5.stringify({ ...value, _schema: CURRENT_SCHEMA_VERSION }, null, 2)}\n`
-  }
+  const serialize = serializeSettings
 
   const { schedule: schedulePersist, flush } = createDebouncedPersist(persist, {
     onError: (e) => {

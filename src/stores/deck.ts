@@ -13,6 +13,7 @@ import {
   type DefaultDeckColumn,
   expandDefaultDeckColumns,
 } from '@/services/defaultDeck'
+import { stringifyJson5 } from '@/services/json5Document'
 import type { VariantKey } from '@/services/noteKey'
 import { externalQueryPatch, type SearchFilter } from '@/services/searchFilter'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
@@ -281,8 +282,7 @@ export const useDeckStore = defineStore('deck', () => {
 
   const { schedule: scheduleNavPersist } = createDebouncedPersist(() => {
     if (!isTauri) return
-    const content = JSON5.stringify(navItems.value, null, 2)
-    writeNavbar(content).catch((e) =>
+    writeNavbar(stringifyJson5(navItems.value)).catch((e) =>
       console.warn('[deck] failed to persist navbar:', e),
     )
   })

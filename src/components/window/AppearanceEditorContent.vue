@@ -129,14 +129,19 @@ function serializeOverrides(): string {
   return `${JSON.stringify(settingsStore.overrides, null, 2)}\n`
 }
 
-// Sync from store → editor (when store changes externally, e.g. other store writes)
+// Sync from store → editor (when store changes externally, e.g. other store writes).
+// store 由来の更新は書き戻さない (#1333 §2): 読み直しや別窓の書込でこの窓が
+// settings.json5 を書き直すと、別の書き手の変更を自分の写しで潰す
+let syncingFromStore = false
 watch(
   () => settingsStore.settings,
   () => {
     // Only sync if the editor isn't currently being edited (avoid overwriting user typing)
-    if (!dirty.value) {
-      jsonCode.value = serializeOverrides()
-    }
+    if (dirty.value) return
+    const next = serializeOverrides()
+    if (next === jsonCode.value) return
+    syncingFromStore = true
+    jsonCode.value = next
   },
 )
 
@@ -147,6 +152,10 @@ const saved = ref(false)
 let saveTimer: ReturnType<typeof setTimeout> | null = null
 
 watch(jsonCode, (code) => {
+  if (syncingFromStore) {
+    syncingFromStore = false
+    return
+  }
   dirty.value = true
   saved.value = false
   error.value = null

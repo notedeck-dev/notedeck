@@ -175,11 +175,11 @@ mod tests {
     fn revert_restores_src_and_records_history() {
         let (_d, core, base) = temp_core();
         std::fs::write(
-            base.join("queries/a.meta.json5"),
+            base.config().join("queries/a.meta.json5"),
             "{ id: 'a', name: 'a', createdAt: 1, updatedAt: 1 }",
         )
         .unwrap();
-        std::fs::write(base.join("queries/a.is"), "before").unwrap();
+        std::fs::write(base.config().join("queries/a.is"), "before").unwrap();
         let ctx = ExecContext {
             principal: "user".into(),
             ..Default::default()
@@ -215,7 +215,7 @@ mod tests {
         assert_eq!(rv["reverted"], true);
         assert_eq!(rv["id"], "a");
         assert_eq!(
-            std::fs::read_to_string(base.join("queries/a.is")).unwrap(),
+            std::fs::read_to_string(base.config().join("queries/a.is")).unwrap(),
             "before"
         );
         assert_eq!(
@@ -227,9 +227,15 @@ mod tests {
             1
         ); // 本人 (user) の 60 秒以内の連続保存は 1 件にまとまる
            // 読取専用は拒否
-        std::fs::write(base.join("queries/o.meta.json5"), "{ id: 'o', name: 'o' }").unwrap();
         std::fs::write(
-            base.join("queries/o.history.json5"),
+            base.config().join("queries/o.meta.json5"),
+            "{ id: 'o', name: 'o' }",
+        )
+        .unwrap();
+        notecore::settings_store::write_history(
+            &base,
+            Some("queries"),
+            "o",
             "{\"entries\":[{\"at\":1,\"snapshot\":{\"src\":\"x\"}}]}",
         )
         .unwrap();
@@ -243,11 +249,11 @@ mod tests {
     fn list_read_and_delete() {
         let (_d, core, base) = temp_core();
         std::fs::write(
-            base.join("queries/a.meta.json5"),
+            base.config().join("queries/a.meta.json5"),
             "{ id: 'a', name: 'A', description: 'd', active: false, createdAt: 1, updatedAt: 1 }",
         )
         .unwrap();
-        std::fs::write(base.join("queries/a.is"), "note.text != null").unwrap();
+        std::fs::write(base.config().join("queries/a.is"), "note.text != null").unwrap();
         let ctx = ExecContext {
             principal: "user".into(),
             ..Default::default()
@@ -273,8 +279,8 @@ mod tests {
             .unwrap()
             .is_none());
         assert_eq!(delete(&core, &json!({"id": "a"})).unwrap()["removed"], true);
-        assert!(!base.join("queries/a.is").exists());
-        assert!(!base.join("queries/a.meta.json5").exists());
+        assert!(!base.config().join("queries/a.is").exists());
+        assert!(!base.config().join("queries/a.meta.json5").exists());
         assert_eq!(
             delete(&core, &json!({"id": "a"})).unwrap()["removed"],
             false

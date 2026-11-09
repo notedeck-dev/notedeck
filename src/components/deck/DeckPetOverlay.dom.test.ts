@@ -4,7 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick, ref } from 'vue'
 import { usePetStore } from '@/stores/pet'
-import { useSettingsStore } from '@/stores/settings'
+import { useUiStateStore } from '@/stores/uiState'
 import DeckPetOverlay from './DeckPetOverlay.vue'
 
 /** コンパクト (スマホ幅) でもペットを出す (#1080 残件「モバイルでの表示」) */
@@ -87,7 +87,7 @@ describe('DeckPetOverlay — コンパクトレイアウト', () => {
     // ナビは DeckPetOverlay より後にマウントされて高さを公開する。
     // 初期化時の clamp はナビ高 0 で走るので、そのままだと上にはみ出す
     isCompact.value = true
-    useSettingsStore().set('pet.bottom', 10000)
+    useUiStateStore().set('pet.bottom', 10000)
     const wrapper = mountPet()
     document.body.style.setProperty('--nd-mobileNavHeight', '60px')
     await nextTick()
@@ -99,7 +99,7 @@ describe('DeckPetOverlay — コンパクトレイアウト', () => {
 
   it('保存済みの位置はコンパクトでもそのまま使う (ナビ上端基準に載せるだけ)', async () => {
     isCompact.value = true
-    useSettingsStore().set('pet.bottom', 40)
+    useUiStateStore().set('pet.bottom', 40)
     const wrapper = mountPet()
     await nextTick()
     const style = petEl(wrapper)?.getAttribute('style') ?? ''

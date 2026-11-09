@@ -33,7 +33,7 @@ pub fn run(args: RunArgs) -> i32 {
     tracing::info!(data_dir = %data_dir.display(), version = env!("CARGO_PKG_VERSION"), "notemaid starting");
 
     // ロック: 同じ data-dir で notemaid を動かすのは 1 プロセスだけ (アプリとは併存する)
-    let _lock = match lock::acquire(&data_dir) {
+    let _lock = match lock::acquire(&notecore::app_dir::Layout::from_root(&data_dir)) {
         Ok(l) => l,
         Err(lock::LockError::Held) => {
             tracing::error!("another notemaid is running on this data directory");
@@ -46,6 +46,19 @@ pub fn run(args: RunArgs) -> i32 {
     };
 
     // RPC 面の場所
+    // 配置の移行 (#1334) は lock を取った後、secret store を開く前に。daemon は自分では
+    // 再編しない (旧版アプリの不在を確認できない) が、版印に従って `Layout` を選ぶため
+    // 旧来の小さな移行 (rename 等) はここで回す
+    if let Err(e) = notecore::migrations::run_fs(&data_dir) {
+        tracing::error!("filesystem migration failed: {e}");
+        return exit::FAILURE;
+    }
+    // notemaid の持ち物の配置 (#1162)。lock を取ったこのプロセスだけが動かす。失敗しても
+    // 読む側は旧パスに fallback するので起動は止めない
+    if let Err(e) = crate::migrations::run_fs(&data_dir) {
+        tracing::warn!("notemaid layout migration failed: {e}");
+    }
+
     let Some(socket) = args
         .socket
         .socket
@@ -111,16 +124,6 @@ pub fn run(args: RunArgs) -> i32 {
         None
     };
 
-    if let Err(e) = notecore::migrations::run_fs(&data_dir) {
-        tracing::error!("filesystem migration failed: {e}");
-        return exit::FAILURE;
-    }
-    // notemaid の持ち物の配置 (#1162)。lock を取ったこのプロセスだけが動かす。失敗しても
-    // 読む側は旧パスに fallback するので起動は止めない
-    if let Err(e) = crate::migrations::run_fs(&data_dir) {
-        tracing::warn!("notemaid layout migration failed: {e}");
-    }
-
     let runtime = match tokio::runtime::Builder::new_multi_thread()
         .worker_threads(4)
         .enable_all()
@@ -141,8 +144,11 @@ async fn serve(
     parent_gone: Option<tokio::sync::oneshot::Receiver<()>>,
 ) -> i32 {
     let started = Instant::now();
-    notecore::crash_report::install_panic_hook(data_dir.join("logs"));
-    notecore::permissions_gate::init(&data_dir.join(notecore::commands::settings::SETTINGS_DIR));
+    notecore::crash_report::install_panic_hook_as(
+        data_dir.join("logs"),
+        notecore::crash_report::NOTEMAID_PANIC_FILE,
+    );
+    notecore::permissions_gate::init(&notecore::app_dir::Layout::from_root(&data_dir));
     crate::ai_turn::recover(&data_dir);
     crate::heartbeat::restore_status(&data_dir);
 

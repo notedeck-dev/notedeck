@@ -1,5 +1,5 @@
 ---
-sourceHash: 6eeb0e41637a
+sourceHash: 0347f7c30fcd
 ---
 
 # Backup
@@ -10,8 +10,8 @@ The data NoteDeck holds falls into two parts.
 
 | | Contents | Where |
 |---|---|---|
-| **Settings** | Column layout, themes, keybindings, plugins, memos, the AI's personality and memory and so on | [Settings folder](/en/docs/config/files#where-settings-live) |
-| **Note cache** | Accumulated notes that flowed past, account information | `notecli.db` in the parent of the settings folder |
+| **Settings and records** | Column layout, themes, keybindings, plugins, memos, the AI's personality and memory and so on | [`config/` and `data/`](/en/docs/config/files#where-settings-live) in the app data folder |
+| **Note cache** | Accumulated notes that flowed past, account information | `notecli.db` directly in the app data folder |
 
 Access tokens and AI API keys are in neither (they are in the OS keychain). You need to log in again on the new machine.
 
@@ -25,7 +25,9 @@ You can ask the AI to do the same (the capability `backup.create`; because of it
 
 Settings support export and import. Load the exported file on another machine to reproduce the same environment.
 
-It covers the files and folders listed in [Settings files](/en/docs/config/files#what-is-written-where) except `client.json5` (per-device configuration). From `notemaid/`, only the three Markdown files of personality and memory are included. The values plugins and widgets keep with `Mk:save` are not.
+It covers the contents of `config/` listed in [Settings files](/en/docs/config/files#what-is-in-config) plus, from `data/`, the memos, the AI conversations and the three Markdown files of personality and memory. This PC's state (`state/`: window positions, consents, tutorial progress and so on) and the edit history are not included, nor are the values plugins and widgets keep with `Mk:save`.
+
+If you want to keep settings in step with another PC, [managing them with Git](/en/docs/config/sync) suits better than backups.
 
 Importing overwrites the current settings and restarts. Items with identical contents are skipped, name collisions go in under a different name, and items with invalid names are not imported. Whether to replace the personality and memory is confirmed separately.
 

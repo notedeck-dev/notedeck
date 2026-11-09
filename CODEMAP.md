@@ -114,6 +114,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | `tasks` | [`src/stores/tasks.ts`](src/stores/tasks.ts) |
 | `theme` | [`src/stores/theme.ts`](src/stores/theme.ts) |
 | `ui` | [`src/stores/ui.ts`](src/stores/ui.ts) |
+| `uiState` | [`src/stores/uiState.ts`](src/stores/uiState.ts) |
 | `widgets` | [`src/stores/widgets.ts`](src/stores/widgets.ts) |
 | `windows` | [`src/stores/windows.ts`](src/stores/windows.ts) |
 
@@ -125,6 +126,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 
 | service | テスト |
 |---|---|
+| [`src/services/accountRebind.ts`](src/services/accountRebind.ts) | [`src/services/accountRebind.test.ts`](src/services/accountRebind.test.ts) |
 | [`src/services/accountScope.ts`](src/services/accountScope.ts) | — |
 | [`src/services/achievements.ts`](src/services/achievements.ts) | [`src/services/achievements.test.ts`](src/services/achievements.test.ts) |
 | [`src/services/acpPreapproval.ts`](src/services/acpPreapproval.ts) | [`src/services/acpPreapproval.test.ts`](src/services/acpPreapproval.test.ts) |
@@ -158,6 +160,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/deckLayout.ts`](src/services/deckLayout.ts) | [`src/services/deckLayout.test.ts`](src/services/deckLayout.test.ts) |
 | [`src/services/deckProfileCodec.ts`](src/services/deckProfileCodec.ts) | [`src/services/deckProfileCodec.test.ts`](src/services/deckProfileCodec.test.ts) |
 | [`src/services/deckProfileFiles.ts`](src/services/deckProfileFiles.ts) | — |
+| [`src/services/deckProfileState.ts`](src/services/deckProfileState.ts) | [`src/services/deckProfileState.test.ts`](src/services/deckProfileState.test.ts) |
 | [`src/services/defaultDeck.ts`](src/services/defaultDeck.ts) | [`src/services/defaultDeck.test.ts`](src/services/defaultDeck.test.ts) |
 | [`src/services/developerMode.ts`](src/services/developerMode.ts) | [`src/services/developerMode.test.ts`](src/services/developerMode.test.ts) |
 | [`src/services/distributable.ts`](src/services/distributable.ts) | — |
@@ -185,6 +188,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/idFreeze.ts`](src/services/idFreeze.ts) | [`src/services/idFreeze.test.ts`](src/services/idFreeze.test.ts) |
 | [`src/services/identityId.ts`](src/services/identityId.ts) | [`src/services/identityId.test.ts`](src/services/identityId.test.ts) |
 | [`src/services/imageMemory.ts`](src/services/imageMemory.ts) | [`src/services/imageMemory.test.ts`](src/services/imageMemory.test.ts) |
+| [`src/services/json5Document.ts`](src/services/json5Document.ts) | — |
 | [`src/services/localConnection.ts`](src/services/localConnection.ts) | [`src/services/localConnection.test.ts`](src/services/localConnection.test.ts) |
 | [`src/services/localeSetting.ts`](src/services/localeSetting.ts) | [`src/services/localeSetting.test.ts`](src/services/localeSetting.test.ts) |
 | [`src/services/loopbackPorts.ts`](src/services/loopbackPorts.ts) | [`src/services/loopbackPorts.test.ts`](src/services/loopbackPorts.test.ts) |
@@ -241,6 +245,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | [`src/services/tutorialNotifications.ts`](src/services/tutorialNotifications.ts) | [`src/services/tutorialNotifications.test.ts`](src/services/tutorialNotifications.test.ts) |
 | [`src/services/tutorialProgress.ts`](src/services/tutorialProgress.ts) | [`src/services/tutorialProgress.test.ts`](src/services/tutorialProgress.test.ts) |
 | [`src/services/twemoji.ts`](src/services/twemoji.ts) | [`src/services/twemoji.test.ts`](src/services/twemoji.test.ts) |
+| [`src/services/uiState.ts`](src/services/uiState.ts) | — |
 | [`src/services/uiZoom.ts`](src/services/uiZoom.ts) | [`src/services/uiZoom.test.ts`](src/services/uiZoom.test.ts) |
 | [`src/services/userDetailCache.ts`](src/services/userDetailCache.ts) | [`src/services/userDetailCache.test.ts`](src/services/userDetailCache.test.ts) |
 | [`src/services/userLookupResult.ts`](src/services/userLookupResult.ts) | [`src/services/userLookupResult.test.ts`](src/services/userLookupResult.test.ts) |
@@ -251,29 +256,42 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 
 ## 設定ファイル
 
-正本: [`crates/notecore/src/settings_store.rs`](crates/notecore/src/settings_store.rs) の `ROOT_FILES` / `ALLOWED_SUBDIRS`
+正本: [`crates/notecore/src/settings_store.rs`](crates/notecore/src/settings_store.rs) の `ROOT_FILES` / `SUBDIRS`
 
-`side` は「デバイスが 1 台も繋がっていなくても意味を持つか」(Core) か手元側 (Device) か。バックアップの例外 (`notemaid/` の人格と記憶、Vault の `connections.json`) は DESIGN.md の「ファイル構造」を参照。
+`area` は置き場 (config = 持ち出す単位 / data = 人の記録 / state = この機械の状態。物理的な場所は `app_dir.rs` の `Layout` が決める)。`ipc` は汎用の list / read / write / delete / rename で触れるか (— のものは専用の構造化操作だけが書く)。バックアップの例外 (`notemaid/` の人格と記憶) は DESIGN.md の「ファイル構造」を参照。
 
-| ルートファイル | side | バックアップ |
-|---|---|---|
-| `custom.css` | Device | ✓ |
-| `keybinds.json5` | Device | ✓ |
-| `ai.json5` | Core | ✓ |
-| `AI.md` | Core | ✓ |
-| `performance.json5` | Device | ✓ |
-| `navbar.json5` | Device | ✓ |
-| `postform.json5` | Device | ✓ |
-| `settings.json5` | Core | ✓ |
-| `tasks.json5` | Core | ✓ |
-| `tutorial.json5` | Device | ✓ |
-| `permissions.json5` | Core | ✓ |
-| `custom.css.history.json5` | Device | ✓ |
-| `theme-dropins.json5` | Core | ✓ |
-| `locale.json5` | Device | ✓ |
-| `client.json5` | Device | — |
+| ルートファイル | area | バックアップ | ipc |
+|---|---|---|---|
+| `custom.css` | config | ✓ | ✓ |
+| `keybinds.json5` | config | ✓ | ✓ |
+| `ai.json5` | config | ✓ | ✓ |
+| `AI.md` | config | ✓ | ✓ |
+| `performance.json5` | config | ✓ | ✓ |
+| `navbar.json5` | config | ✓ | ✓ |
+| `postform.json5` | config | ✓ | ✓ |
+| `settings.json5` | config | ✓ | ✓ |
+| `tasks.json5` | config | ✓ | ✓ |
+| `tutorial.json5` | statefromv1 | — | ✓ |
+| `permissions.json5` | config | ✓ | ✓ |
+| `theme-dropins.json5` | statefromv1 | — | ✓ |
+| `locale.json5` | config | ✓ | ✓ |
+| `client.json5` | statefromv1 | — | ✓ |
+| `connections.json` | config | ✓ | — |
+| `permissions-meta.json5` | state | — | ✓ |
+| `ui.json5` | state | — | ✓ |
 
-サブディレクトリ: `profiles/` / `themes/` / `plugins/` / `snippets/` / `memos/` / `widgets/` / `skills/` / `sessions/` / `queries/`
+| サブディレクトリ | area | バックアップ | ipc |
+|---|---|---|---|
+| `profiles/` | config | ✓ | ✓ |
+| `themes/` | config | ✓ | ✓ |
+| `plugins/` | config | ✓ | ✓ |
+| `snippets/` | config | ✓ | ✓ |
+| `widgets/` | config | ✓ | ✓ |
+| `skills/` | config | ✓ | ✓ |
+| `queries/` | config | ✓ | ✓ |
+| `memos/` | data | ✓ | ✓ |
+| `sessions/` | data | ✓ | — |
+| `deck-state/` | state | — | ✓ |
 
 ## 生成済みの一覧 (ここには写さない)
 

@@ -27,6 +27,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
+#[cfg(test)]
 const TOKENS_FILE: &str = "api-tokens.json";
 /// raw トークンの接頭辞。ログ等で見かけたとき種別を識別できるようにする。
 const TOKEN_PREFIX: &str = "ndp_";
@@ -125,7 +126,7 @@ impl ApiTokenStore {
     /// `app_dir/api-tokens.json` を読み込む。無ければ空で開始。
     /// 壊れたファイルは warn を出して空扱い (発行し直せば上書きで復旧)。
     pub fn load(app_dir: &Path) -> Self {
-        let path = app_dir.join(TOKENS_FILE);
+        let path = crate::app_dir::Layout::from_root(app_dir).api_tokens_file();
         let entries = match std::fs::read_to_string(&path) {
             Ok(text) => serde_json::from_str(&text).unwrap_or_else(|e| {
                 tracing::warn!(%e, "api-tokens.json is corrupt; starting empty");

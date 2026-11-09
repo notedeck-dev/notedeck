@@ -45,10 +45,10 @@ pub fn sync_heartbeat_timer(app: &tauri::AppHandle) {
 }
 
 fn offline_enabled(core: &notecore::context::Core) -> bool {
-    let Ok(base) = notecore::commands::settings::settings_base_dir(core) else {
+    let Ok(layout) = core.layout() else {
         return false;
     };
-    let text = notecore::settings_store::read_settings_json(&base).unwrap_or_default();
+    let text = notecore::settings_store::read_settings_json(layout).unwrap_or_default();
     notecore::stream_mode::offline_enabled(&text)
 }
 

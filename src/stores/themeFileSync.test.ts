@@ -101,15 +101,29 @@ describe('themeFileSync.adoptDropIns — themes/ の素の .json5 を取り込�
     expect(files.size).toBe(1)
   })
 
-  it('元ファイルが消えたら記録を落とし、再 drop したら採用し直す', async () => {
+  it('元ファイルが消えたら記録を落とし、同じ本文の再 drop は既存のコピーに結び直す (#1334)', async () => {
     files.set('sakura.json5', COMMUNITY)
     const [first] = await adoptDropIns([])
     if (!first) throw new Error('not adopted')
+    // 採用したコピーは元の本文の hash を持つ (記録の無い機械で複製しないため)
+    expect(first.extra?.dropInSource).toMatch(/^[0-9a-f]{64}$/)
     files.delete('sakura.json5')
     await adoptDropIns([first])
     expect(record).not.toContain('sakura.json5')
 
+    // 同じ本文を再 drop: 複製せず記録だけ揃える
     files.set('sakura.json5', COMMUNITY)
+    expect(await adoptDropIns([first])).toEqual([])
+    expect(record).toContain('sakura.json5')
+    expect(record).toContain(first.id)
+
+    // 本文が変わっていれば別物として採用する
+    files.delete('sakura.json5')
+    await adoptDropIns([first])
+    files.set(
+      'sakura.json5',
+      COMMUNITY.replace('props: {', 'props: { bg: "#000", '),
+    )
     const [second] = await adoptDropIns([first])
     expect(second?.id).not.toBe(first.id)
     expect(second?.fileBase).toBe('sakura-2')

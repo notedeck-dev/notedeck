@@ -4,47 +4,35 @@
 //! 設定ファイル系コマンドのデータ面。実体は `crate::settings_store` (#782)。
 //! dialog / OS 統合 / 認可境界 (ルート設定ファイルの書込) は src-tauri 側に残る。
 
-use std::path::PathBuf;
-
 use crate::perf_config::PerformanceConfig;
 use crate::settings_store as store;
 
 use crate::context::Core;
 use crate::error::Result;
-use notecli::error::NoteDeckError;
 
-/// Settings subdirectory name under app_data_dir.
-/// AI セッションの置き場 (設定ディレクトリ直下)。書き手は notemaid だけで、
-/// notecore は設定ファイルの列挙から除くためだけに名前を知る
+/// AI セッションの論理 subdir。書き手は notemaid だけで (#1133)、汎用のファイル操作
+/// からは `Subdir::ipc = false` で外れている (#1333 §1)
 pub const AI_SESSIONS_SUBDIR: &str = "sessions";
 
-pub const SETTINGS_DIR: &str = "notedeck";
-
-/// Resolve the settings base directory: `app_data_dir/notedeck/`.
-pub fn settings_base_dir(core: &Core) -> Result<PathBuf> {
-    Ok(core.app_dir()?.join(SETTINGS_DIR))
+/// 汎用の IPC で触れる subdir か (`ipc: false` の sessions などを拒む)
+fn ipc_subdir(subdir: &str) -> Result<()> {
+    store::validate_ipc_subdir(subdir).map(|_| ())
 }
 
-/// AI セッションは notecore が単一の書き手 (#1133)。汎用のファイル操作では
-/// 触らせず、`ai_session_*` の構造化された操作に限る。
-fn reject_sessions(subdir: &str) -> Result<()> {
-    if subdir == AI_SESSIONS_SUBDIR {
-        return Err(NoteDeckError::InvalidInput(
-            "sessions are written by notecore (use ai_session_*)".into(),
-        ));
-    }
-    Ok(())
+/// 汎用の IPC で触れるルート直下のファイルか (`ipc: false` の connections.json を拒む)
+fn ipc_root_file(name: &str) -> Result<()> {
+    store::validate_ipc_root_file(name).map(|_| ())
 }
 
 pub async fn list_settings_files(core: &Core, subdir: String) -> Result<Vec<String>> {
-    reject_sessions(&subdir)?;
-    store::list_files(&settings_base_dir(core)?, &subdir)
+    ipc_subdir(&subdir)?;
+    store::list_files(core.layout()?, &subdir)
 }
 
 /// Read a settings file as a UTF-8 string.
 pub async fn read_settings_file(core: &Core, subdir: String, name: String) -> Result<String> {
-    reject_sessions(&subdir)?;
-    store::read_file(&settings_base_dir(core)?, &subdir, &name)
+    ipc_subdir(&subdir)?;
+    store::read_file(core.layout()?, &subdir, &name)
 }
 
 /// Write a settings file (creates parent directories if needed).
@@ -56,9 +44,9 @@ pub async fn write_settings_file(
     content: String,
     expected: Option<String>,
 ) -> Result<String> {
-    reject_sessions(&subdir)?;
+    ipc_subdir(&subdir)?;
     store::write_file_if(
-        &settings_base_dir(core)?,
+        core.layout()?,
         &subdir,
         &name,
         &content,
@@ -68,8 +56,8 @@ pub async fn write_settings_file(
 
 /// Delete a settings file.
 pub async fn delete_settings_file(core: &Core, subdir: String, name: String) -> Result<()> {
-    reject_sessions(&subdir)?;
-    store::delete_file(&settings_base_dir(core)?, &subdir, &name)
+    ipc_subdir(&subdir)?;
+    store::delete_file(core.layout()?, &subdir, &name)
 }
 
 /// Rename a settings file within the same subdirectory.
@@ -79,13 +67,14 @@ pub async fn rename_settings_file(
     old_name: String,
     new_name: String,
 ) -> Result<()> {
-    reject_sessions(&subdir)?;
-    store::rename_file(&settings_base_dir(core)?, &subdir, &old_name, &new_name)
+    ipc_subdir(&subdir)?;
+    store::rename_file(core.layout()?, &subdir, &old_name, &new_name)
 }
 
 /// Read a root-level settings file as a UTF-8 string.
 pub async fn read_root_settings_file(core: &Core, name: String) -> Result<String> {
-    store::read_root_file(&settings_base_dir(core)?, &name)
+    ipc_root_file(&name)?;
+    store::read_root_file(core.layout()?, &name)
 }
 
 /// ルート直下のファイルを版つきで読む (丸ごと書き戻す store 向け)
@@ -93,7 +82,8 @@ pub async fn read_root_settings_file_versioned(
     core: &Core,
     name: String,
 ) -> Result<store::VersionedText> {
-    store::read_root_file_versioned(&settings_base_dir(core)?, &name)
+    ipc_root_file(&name)?;
+    store::read_root_file_versioned(core.layout()?, &name)
 }
 
 /// ルート直下のファイルを書く。`expected` があれば条件付き。戻り値は書いた後の版
@@ -103,16 +93,12 @@ pub async fn write_root_settings_file(
     content: String,
     expected: Option<String>,
 ) -> Result<String> {
-    store::write_root_file_if(
-        &settings_base_dir(core)?,
-        &name,
-        &content,
-        expected.as_deref(),
-    )
+    ipc_root_file(&name)?;
+    store::write_root_file_if(core.layout()?, &name, &content, expected.as_deref())
 }
 
 pub async fn read_notedeck_json_versioned(core: &Core) -> Result<store::VersionedText> {
-    store::read_settings_json_versioned(&settings_base_dir(core)?)
+    store::read_settings_json_versioned(core.layout()?)
 }
 
 /// Read `settings.json5` (VSCode `settings.json` equivalent — single source of truth
@@ -122,7 +108,7 @@ pub async fn read_notedeck_json_versioned(core: &Core) -> Result<store::Versione
 /// bindings. The file on disk is `settings.json5` to avoid collision with the export
 /// bundle filename `notedeck.json`.
 pub async fn read_notedeck_json(core: &Core) -> Result<String> {
-    store::read_settings_json(&settings_base_dir(core)?)
+    store::read_settings_json(core.layout()?)
 }
 
 /// Write `settings.json5`. Creates the settings directory if missing.
@@ -131,8 +117,7 @@ pub async fn write_notedeck_json(
     content: String,
     expected: Option<String>,
 ) -> Result<String> {
-    let version =
-        store::write_settings_json_if(&settings_base_dir(core)?, &content, expected.as_deref())?;
+    let version = store::write_settings_json_if(core.layout()?, &content, expected.as_deref())?;
     // デバイスは自分の写しを自分で更新しているので受け手が無いが、notemaid は
     // これで接続モード (modes.realtime) を適用し直す (#1106)
     core.notify_settings_change(crate::settings_events::SettingsChange {
@@ -153,4 +138,40 @@ pub async fn update_performance_config(core: &Core, config: PerformanceConfig) -
 /// Tauri command: get current performance config.
 pub async fn get_performance_config(core: &Core) -> Result<PerformanceConfig> {
     Ok(core.perf()?.read().await.clone())
+}
+
+// --- 編集履歴のサイドカー (#1334 段階 2)。`subdir` が None ならルート直下 (custom.css) ---
+
+pub async fn read_history_sidecar(
+    core: &Core,
+    subdir: Option<String>,
+    base: String,
+) -> Result<String> {
+    if let Some(s) = &subdir {
+        ipc_subdir(s)?;
+    }
+    store::read_history(core.layout()?, subdir.as_deref(), &base)
+}
+
+pub async fn write_history_sidecar(
+    core: &Core,
+    subdir: Option<String>,
+    base: String,
+    content: String,
+) -> Result<()> {
+    if let Some(s) = &subdir {
+        ipc_subdir(s)?;
+    }
+    store::write_history(core.layout()?, subdir.as_deref(), &base, &content)
+}
+
+pub async fn delete_history_sidecar(
+    core: &Core,
+    subdir: Option<String>,
+    base: String,
+) -> Result<()> {
+    if let Some(s) = &subdir {
+        ipc_subdir(s)?;
+    }
+    store::delete_history(core.layout()?, subdir.as_deref(), &base)
 }

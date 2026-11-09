@@ -10,11 +10,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use specta::Type;
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
 use notecli::error::NoteDeckError;
-use notecore::commands::settings::settings_base_dir;
+use notecore::app_dir::Layout;
 use notecore::context::Core;
 use notecore::edit_history::{self, Attribution, HISTORY_SUFFIX};
 use notecore::error::Result;
@@ -393,7 +392,7 @@ fn reject_reserved(item: &SkillMeta, what: &str) -> Result<()> {
 /// 予約 skill をテンプレから置く (無いときだけ)。AGENTS は最初の組み立てで、
 /// HEARTBEAT は「巡回の手順を編集」で初めて置く。戻り値は置いたか
 pub fn seed_reserved(
-    base_dir: &Path,
+    base_dir: &Layout,
     which: crate::workspace::Reserved,
     lang: &str,
     now: u64,
@@ -422,7 +421,7 @@ pub fn seed_reserved(
 /// 予約 skill の本文が古いテンプレのまま (利用者が手を付けていない) なら、今のテンプレに
 /// 置き換える。frontmatter はそのまま (updatedAt だけ進める)。戻り値は置き換えたか
 pub fn replace_untouched_reserved(
-    base_dir: &Path,
+    base_dir: &Layout,
     which: crate::workspace::Reserved,
     legacy_bodies: &[&str],
     lang: &str,
@@ -511,7 +510,7 @@ fn is_valid_id(v: Option<&FmValue>) -> bool {
     matches!(v, Some(FmValue::Str(s)) if !s.is_empty() && s.len() <= 256)
 }
 
-fn main_files(base_dir: &Path) -> Vec<String> {
+fn main_files(base_dir: &Layout) -> Vec<String> {
     store::list_files(base_dir, SUBDIR)
         .unwrap_or_default()
         .into_iter()
@@ -519,7 +518,7 @@ fn main_files(base_dir: &Path) -> Vec<String> {
         .collect()
 }
 
-fn all_bases(base_dir: &Path) -> Vec<String> {
+fn all_bases(base_dir: &Layout) -> Vec<String> {
     store::list_files(base_dir, SUBDIR)
         .unwrap_or_default()
         .into_iter()
@@ -533,7 +532,7 @@ fn all_bases(base_dir: &Path) -> Vec<String> {
 
 /// 全件を読む。id が無い / 不正なファイルはファイル名 stem を id として凍結して
 /// 書き戻し、重複 id は読み飛ばす。createdAt 昇順 (安定)。
-pub fn load_all(base_dir: &Path, now: u64) -> Loaded {
+pub fn load_all(base_dir: &Layout, now: u64) -> Loaded {
     let mut items: Vec<SkillMeta> = Vec::new();
     let mut duplicates = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
@@ -578,8 +577,8 @@ pub fn now_ms() -> u64 {
     crate::ai_sessions::now_ms()
 }
 
-fn base_dir(core: &Core) -> Result<PathBuf> {
-    settings_base_dir(core)
+fn base_dir(core: &Core) -> Result<Layout> {
+    core.layout().cloned()
 }
 
 pub fn list(core: &Core) -> Result<Vec<SkillMeta>> {
@@ -611,7 +610,7 @@ fn write_item(core: &Core, item: &SkillMeta) -> Result<()> {
 /// 新規のファイル名を割り当てる (`persistItem`)。占有集合はディレクトリの
 /// 全 base + 他 item の file_base + 他 item の id (casefold)。候補は storeId →
 /// (builtIn なら id) → 表示名の slug。
-fn allocate_base(base_dir: &Path, item: &SkillMeta, others: &[SkillMeta]) -> String {
+fn allocate_base(base_dir: &Layout, item: &SkillMeta, others: &[SkillMeta]) -> String {
     let mut taken: HashSet<String> = all_bases(base_dir).iter().map(|b| casefold(b)).collect();
     for o in others {
         if let Some(b) = &o.file_base {
@@ -686,7 +685,7 @@ pub struct SkillPatch {
     pub store_version: Option<String>,
 }
 
-fn rename_files(core: &Core, dir: &Path, from: &str, to: &str) -> Result<()> {
+fn rename_files(core: &Core, dir: &Layout, from: &str, to: &str) -> Result<()> {
     let main_from = format!("{from}{EXT}");
     let main_to = format!("{to}{EXT}");
     if store::resolve_file(dir, SUBDIR, &main_from)?.exists() {
@@ -706,12 +705,14 @@ fn rename_files(core: &Core, dir: &Path, from: &str, to: &str) -> Result<()> {
             });
         }
     }
-    let h_from = edit_history::history_file_name(from);
-    let h_to = edit_history::history_file_name(to);
-    if store::resolve_file(dir, SUBDIR, &h_from)?.exists() {
-        if store::resolve_file(dir, SUBDIR, &h_to)?.exists() {
+    // 編集履歴 (state/history/、#1334 段階 2) は本体の rename が追随させる。ここで
+    // 本体を rename していない (write + delete で移した) 経路のために、残っていれば動かす
+    let h_from = store::history_path(dir, Some(SUBDIR), from)?;
+    let h_to = store::history_path(dir, Some(SUBDIR), to)?;
+    if h_from.is_file() {
+        if h_to.exists() {
             tracing::warn!(from, to, "history rename target already exists, skipped");
-        } else if let Err(e) = store::rename_file(dir, SUBDIR, &h_from, &h_to) {
+        } else if let Err(e) = std::fs::rename(&h_from, &h_to) {
             tracing::warn!(from, to, "history rename failed: {e}");
         }
     }
@@ -719,7 +720,7 @@ fn rename_files(core: &Core, dir: &Path, from: &str, to: &str) -> Result<()> {
 }
 
 /// 表示名の変更にファイル名を追随させる (`renameItemFiles`)。
-fn rename_for(core: &Core, dir: &Path, item: &mut SkillMeta, others: &[SkillMeta]) -> Result<()> {
+fn rename_for(core: &Core, dir: &Layout, item: &mut SkillMeta, others: &[SkillMeta]) -> Result<()> {
     let Some(old) = item.file_base.clone() else {
         return Ok(());
     };
@@ -882,7 +883,7 @@ pub fn remove(core: &Core, id: &str) -> Result<()> {
     reject_reserved(&item, "removed")?;
     if let Some(base) = item.file_base {
         settings_events::delete_file(core, SUBDIR, &format!("{base}{EXT}"))?;
-        settings_events::delete_file(core, SUBDIR, &edit_history::history_file_name(&base))?;
+        store::delete_history(core.layout()?, Some(SUBDIR), &base)?;
     }
     Ok(())
 }
@@ -945,7 +946,7 @@ pub fn replace_markdown_section(body: &str, heading: &str, new_content: &str) ->
 mod tests {
     use super::*;
 
-    fn core_in(dir: &Path) -> Core {
+    fn core_in(dir: &std::path::Path) -> Core {
         let core = Core::new();
         core.set_app_dir(dir.to_path_buf());
         core
@@ -986,11 +987,11 @@ mod tests {
     fn reserved_skills_keep_their_mode_and_refuse_rename_toggle_and_removal() {
         let dir = tempfile::tempdir().unwrap();
         let core = core_in(dir.path());
-        let base = settings_base_dir(&core).unwrap();
+        let base = base_dir(&core).unwrap();
         assert!(seed_reserved(&base, crate::workspace::Reserved::Agents, "ja", 1).unwrap());
         assert!(!seed_reserved(&base, crate::workspace::Reserved::Agents, "ja", 2).unwrap());
         // 人が mode を書き換えても読取で戻る
-        let p = base.join("skills/AGENTS.md");
+        let p = base.config().join("skills/AGENTS.md");
         let raw = std::fs::read_to_string(&p)
             .unwrap()
             .replace("mode: always", "mode: manual");
@@ -1393,7 +1394,7 @@ mod tests {
         assert!(store::resolve_file(&base, SUBDIR, "beta.md")
             .unwrap()
             .exists());
-        assert!(store::resolve_file(&base, SUBDIR, "beta.history.json5")
+        assert!(store::history_path(&base, Some(SUBDIR), "beta")
             .unwrap()
             .exists());
         assert!(!store::resolve_file(&base, SUBDIR, "my-new-skill.md")
@@ -1413,7 +1414,7 @@ mod tests {
         assert_eq!(history(&core, &renamed).unwrap().len(), 2);
         remove(&core, "x1-abcd").unwrap();
         assert!(get(&core, "x1-abcd").unwrap().is_none());
-        assert!(!store::resolve_file(&base, SUBDIR, "beta.history.json5")
+        assert!(!store::history_path(&base, Some(SUBDIR), "beta")
             .unwrap()
             .exists());
     }

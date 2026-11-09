@@ -254,8 +254,7 @@ pub async fn create(core: &Core, p: &Value, ctx: &ExecContext) -> Result<Value> 
     if ctx.tainted {
         data.tainted = Some(true);
     }
-    let base = notecore::commands::settings::settings_base_dir(core)?;
-    let key = memos::generate_key(&base);
+    let key = memos::generate_key(core.layout()?);
     let stored = memos::save(core, &key, data, None)?;
     Ok(project_result(&stored))
 }

@@ -193,10 +193,7 @@ export function createDistributableStore<
               console.warn(`${tag} failed to align on-disk format:`, e),
             )
         }
-        // 履歴 sweep: 主ファイルと対応の取れない履歴サイドカーを削除
-        await decl.files
-          .sweepHistory()
-          .catch((e) => console.warn(`${tag} history sweep failed:`, e))
+        // 持ち主の無い履歴サイドカーの掃除は Rust が起動時に行う (state/history/、#1334 段階 2)
       }
     } catch (e) {
       loadFailed = true

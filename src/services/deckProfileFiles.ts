@@ -13,9 +13,12 @@
  */
 
 import JSON5 from 'json5'
+import { stripMachineAccountIds } from '@/services/accountRebind'
 import { parseProfileFile, toFileFormat } from '@/services/deckProfileCodec'
+import { splitProfile } from '@/services/deckProfileState'
 import type { WidgetItem } from '@/services/distributableCodecs/widgetCodec'
 import { injectJson5Id } from '@/services/idFreeze'
+import { stringifyJson5 } from '@/services/json5Document'
 import { createSingleFileCollection } from '@/services/singleFileCollection'
 import type { WidgetPlacement } from '@/services/widgetPlacement'
 import type { DeckProfile } from '@/stores/deck'
@@ -92,6 +95,21 @@ export function createProfileFiles(notify: (message: string) => void) {
     displayNameOf: (p) => (typeof p.name === 'string' ? p.name : ''),
     idOf: (p) => p.id,
     nameOf: (p) => p.name,
-    serialize: (p) => JSON5.stringify(toFileFormat(p), null, 2),
+    serialize: (p) => serializeProfileConfig(p),
   })
+}
+
+/**
+ * プロファイルの設定側だけを本文にする (#1333 §3)。窓の配置とカラムの一時入力は
+ * `state/deck/` へ分けるので書かない。整形は他の設定ファイルと同じ (決定的)
+ */
+export function serializeProfileConfig(profile: DeckProfile): string {
+  const { config } = splitProfile(profile)
+  // この機械の UUID (`accountId`) は portable な `account` がある列には書かない (#1332)
+  return stringifyJson5(
+    toFileFormat({
+      ...config,
+      columns: stripMachineAccountIds(config.columns),
+    }),
+  )
 }

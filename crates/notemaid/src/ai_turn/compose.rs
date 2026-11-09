@@ -77,11 +77,9 @@ pub fn compose(input: Input<'_>) -> Composed {
     if let Err(e) = workspace::seed(input.app_dir, input.lang) {
         tracing::warn!("cannot seed the workspace files: {e}");
     }
-    let settings_dir = input
-        .app_dir
-        .join(notecore::commands::settings::SETTINGS_DIR);
+    let layout = notecore::app_dir::Layout::from_root(input.app_dir);
     if let Err(e) = skills::seed_reserved(
-        &settings_dir,
+        &layout,
         workspace::Reserved::Agents,
         input.lang,
         skills::now_ms(),
@@ -89,7 +87,7 @@ pub fn compose(input: Input<'_>) -> Composed {
         tracing::warn!("cannot seed AGENTS.md: {e}");
     }
     if let Err(e) = skills::replace_untouched_reserved(
-        &settings_dir,
+        &layout,
         workspace::Reserved::Agents,
         &[LEGACY_AGENTS_TEMPLATE_JA, LEGACY_AGENTS_TEMPLATE_EN],
         input.lang,
@@ -116,7 +114,7 @@ pub fn compose(input: Input<'_>) -> Composed {
 
     push_ws(Kind::Soul, &mut parts, &mut out);
 
-    let all = skills::load_all(&settings_dir, skills::now_ms()).items;
+    let all = skills::load_all(&layout, skills::now_ms()).items;
     let persona = input
         .persona_skill_id
         .and_then(|id| all.iter().find(|s| s.id == id && s.is_persona));
@@ -199,7 +197,9 @@ mod tests {
     use std::fs;
 
     fn put_skill(app_dir: &Path, base: &str, fm: &str, body: &str) {
-        let dir = app_dir.join("notedeck").join("skills");
+        let dir = notecore::app_dir::Layout::from_root(app_dir)
+            .config()
+            .join("skills");
         fs::create_dir_all(&dir).unwrap();
         fs::write(
             dir.join(format!("{base}.md")),

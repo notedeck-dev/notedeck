@@ -43,8 +43,8 @@ pub struct Cached {
 
 fn path_for(app_dir: &Path, host: &str) -> PathBuf {
     // host はサーバー由来の文字列なのでファイル名に直接使わない
-    app_dir
-        .join(EMOJI_CACHE_DIR)
+    crate::app_dir::Layout::from_root(app_dir)
+        .emoji_cache()
         .join(format!("{}.json", crate::image_cache::hex_hash(host)))
 }
 

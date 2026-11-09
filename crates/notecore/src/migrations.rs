@@ -17,7 +17,76 @@ pub fn run_fs(app_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     rename_performance_json_to_json5(app_dir)?;
     rename_ai_json_to_json5(app_dir)?;
     remove_notecored_leftovers(app_dir, dirs::config_dir().as_deref());
+    remove_stale_root_files(app_dir);
+    move_loopback_consent_to_state(app_dir)?;
+    // 編集履歴のサイドカーは状態 (#1334 段階 2): 設定の隣から state/history/ へ移し、
+    // 持ち主の無いものを消す
+    let layout = crate::app_dir::Layout::from_root(app_dir);
+    crate::settings_store::move_history_sidecars(&layout);
+    crate::settings_store::sweep_orphan_history(&layout);
+    // 再編の退避と移行前のバックアップは保持期限を過ぎたら消す (#1334)
+    crate::layout_migration::sweep_old_shelves(app_dir);
     Ok(())
+}
+
+/// #1333 §4: loopback 同意 (#1293) は同意 = この機械の状態なので、設定ディレクトリの
+/// `loopback/consent.json` から `state/loopback-consent.json` へ移す
+fn move_loopback_consent_to_state(app_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let layout = crate::app_dir::Layout::from_root(app_dir);
+    let old_dir = layout.config().join(crate::loopback_consent::DIR);
+    let old = old_dir.join("consent.json");
+    let new = layout.state().join(crate::loopback_consent::FILE);
+    if old.is_file() && !new.exists() {
+        fs::create_dir_all(layout.state())?;
+        fs::rename(&old, &new)?;
+    }
+    if old_dir.is_dir() {
+        let _ = fs::remove_dir(&old_dir);
+    }
+    Ok(())
+}
+
+/// 旧バージョンが app_data_dir 直下に残したゴミを消す (#1333 §1)。
+/// `notecore.lock` (旧 notecored のロック) / `notemaid.db*` (notemaid が SQLite を開いていた
+/// 頃の DB) / `poll_accounts.json` (旧巡回の口座写し) / `logs/notecored.log.*`。
+/// 今の持ち物 (`notemaid.lock` / `notemaid-accounts.json` / `logs/notemaid.log*`) は触らない。
+/// 消せなくても warn 止まりで起動は止めない
+fn remove_stale_root_files(app_dir: &Path) {
+    let mut targets: Vec<std::path::PathBuf> = ["notecore.lock", "poll_accounts.json"]
+        .iter()
+        .map(|n| app_dir.join(n))
+        .collect();
+    for (dir, prefix) in [
+        (app_dir.to_path_buf(), "notemaid.db"),
+        (app_dir.join("logs"), "notecored.log"),
+    ] {
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else {
+                continue;
+            };
+            if name == prefix
+                || name.starts_with(&format!("{prefix}."))
+                || name.starts_with(&format!("{prefix}-"))
+            {
+                targets.push(entry.path());
+            }
+        }
+    }
+    for path in targets {
+        if !path.is_file() {
+            continue;
+        }
+        match fs::remove_file(&path) {
+            Ok(()) => {
+                tracing::info!(path = %path.display(), "removed a stale file of an old version")
+            }
+            Err(e) => tracing::warn!(path = %path.display(), %e, "cannot remove a stale file"),
+        }
+    }
 }
 
 /// v1.74 で削除した notecored (データ面の常駐、#1106) が Linux に残した secret の
@@ -142,6 +211,70 @@ fn move_settings_to_subdir(app_dir: &Path) -> Result<(), Box<dyn std::error::Err
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn loopback_consent_moves_into_the_state_dir() {
+        let t = tempfile::tempdir().unwrap();
+        let layout = crate::app_dir::Layout::from_root(t.path());
+        let old_dir = layout.config().join("loopback");
+        fs::create_dir_all(&old_dir).unwrap();
+        fs::write(old_dir.join("consent.json"), "{}").unwrap();
+        move_loopback_consent_to_state(t.path()).unwrap();
+        assert_eq!(
+            fs::read_to_string(layout.state().join("loopback-consent.json")).unwrap(),
+            "{}"
+        );
+        assert!(!old_dir.exists());
+        // 冪等
+        move_loopback_consent_to_state(t.path()).unwrap();
+    }
+
+    #[test]
+    fn stale_files_of_old_versions_are_removed_and_current_ones_are_kept() {
+        let data = tempfile::tempdir().unwrap();
+        let d = data.path();
+        fs::create_dir_all(d.join("logs")).unwrap();
+        for n in [
+            "notecore.lock",
+            "notemaid.db",
+            "notemaid.db-wal",
+            "notemaid.db-shm",
+            "poll_accounts.json",
+            "logs/notecored.log.2026-01-01",
+        ] {
+            fs::write(d.join(n), b"x").unwrap();
+        }
+        for n in [
+            "notemaid.lock",
+            "notemaid-accounts.json",
+            "notecli.db",
+            "logs/notemaid.log",
+            "logs/notemaid.log.2026-01-01",
+        ] {
+            fs::write(d.join(n), b"keep").unwrap();
+        }
+        remove_stale_root_files(d);
+        remove_stale_root_files(d); // 冪等
+        for n in [
+            "notecore.lock",
+            "notemaid.db",
+            "notemaid.db-wal",
+            "notemaid.db-shm",
+            "poll_accounts.json",
+            "logs/notecored.log.2026-01-01",
+        ] {
+            assert!(!d.join(n).exists(), "{n} should be removed");
+        }
+        for n in [
+            "notemaid.lock",
+            "notemaid-accounts.json",
+            "notecli.db",
+            "logs/notemaid.log",
+            "logs/notemaid.log.2026-01-01",
+        ] {
+            assert!(d.join(n).exists(), "{n} should be kept");
+        }
+    }
 
     #[test]
     fn notecored_leftovers_are_removed_from_both_dirs_and_nothing_else() {

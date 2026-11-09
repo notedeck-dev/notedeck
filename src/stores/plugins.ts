@@ -56,6 +56,7 @@ const pluginFiles = sidecarCollectionFor(pluginCodec, {
   read: (filename) => settingsFs.readPluginFile(filename),
   write: (filename, content) => settingsFs.writePluginFile(filename, content),
   remove: (filename) => settingsFs.deletePluginFile(filename),
+  removeHistory: (base) => settingsFs.deleteHistorySidecar('plugin', base),
   rename: (oldFilename, newFilename) =>
     settingsFs.renamePluginFile(oldFilename, newFilename),
 })

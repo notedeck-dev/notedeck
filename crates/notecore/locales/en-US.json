@@ -360,7 +360,8 @@
       "workspaceUser": "What it remembers about you",
       "workspaceMemory": "Notes",
       "skippedBadFilename": "Skipped (invalid file name): {key}",
-      "skippedBadKey": "Skipped (invalid key): {key}"
+      "skippedBadKey": "Skipped (invalid key): {key}",
+      "skippedHistory": "Edit history ({count} files) was not imported (it is this machine's state and is no longer part of backups)"
     },
     "notification": {
       "someone": "Someone",

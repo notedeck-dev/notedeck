@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import defaultTasksJson5 from '@/defaults/tasks.json5?raw'
 import { useToast } from '@/stores/toast'
-import { parseTasks, TasksParseError } from '@/tasks/schema'
+import { parseTasks, serializeTasks, TasksParseError } from '@/tasks/schema'
 import { TASKS_FILE_VERSION, type TaskDefinition } from '@/tasks/types'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { isTauri, readTasksVersioned, writeTasks } from '@/utils/settingsFs'
@@ -23,13 +23,12 @@ export const useTasksStore = defineStore('tasks', () => {
 
   async function persist(): Promise<void> {
     if (!isTauri) return
-    const payload = {
+    const content = serializeTasks({
       version: TASKS_FILE_VERSION,
       tasks: definitions.value,
-    }
-    const content = JSON5.stringify(payload, null, 2)
+    })
     try {
-      fileVersion = await writeTasks(`${content}\n`, fileVersion)
+      fileVersion = await writeTasks(content, fileVersion)
     } catch (e) {
       if (!isConflictError(e)) throw e
       // 別の書き手 (生ファイル編集タブや notecore) が先に書いた: 最新に揃える

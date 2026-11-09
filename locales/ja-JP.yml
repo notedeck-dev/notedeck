@@ -2755,6 +2755,7 @@ _principal:
 _store:
   loadFailedMinimal: "権限設定を読み込めなかったため、安全のため最小権限で起動しました。設定から権限を確認してください。"
   saveFailed: "権限の保存に失敗しました。変更は反映されていません。"
+  permissionsWidened: "前回の起動より権限が広がっています ({changes})。permissions.json5 を外から変えた覚えがなければ、設定の権限を確認してください。"
 
 
 _widgetCapabilities:
@@ -3214,6 +3215,13 @@ _tutorialSteps:
   aiColumnDescription: "ナビバーの AI ボタン (光っています) から AI カラムを開いてみましょう。ここで AI と対話できます。"
   completeTitle: "セットアップ完了"
   completeDescription: "これで NoteDeck を使い始められます。あとは自由に触ってみてください。"
+
+_layoutMigration:
+  shelved: "データの配置を変えるとき、旧配置と新配置の両方にあったもの ({count} 件) を {dir} に退避しました。中身を確かめてから消してください"
+  symlinkedSettings: "設定フォルダ (notedeck/) がシンボリックリンクなので、新しい配置 (config / data / state) への移行を見送りました。同期先に向けたリンクを config/ と data/ に張り直してから再起動してください"
+  standaloneStopped: "データの配置を変えるため、常駐の AI を止めました。常駐を更新するまで巡回 (HEARTBEAT) は続きません"
+  residentAlive: "常駐の AI を止められなかったので、データの配置の移行を見送りました。常駐を止めてから再起動してください"
+  failed: "データの配置の移行に失敗したので、元の配置に戻して続けます: {message}"
 
 _main:
   backendInitFailed: "バックエンドの初期化に失敗しました: {error}"
@@ -3690,6 +3698,7 @@ _native:
     workspaceMemory: "覚え書き"
     skippedBadFilename: "スキップ (不正なファイル名): {key}"
     skippedBadKey: "スキップ (不正なキー): {key}"
+    skippedHistory: "編集履歴 ({count} 件) は取り込みません (この機械の状態なので、バックアップの対象外になりました)"
   notification:
     someone: "誰か"
     youGotMention: "{name}からのメンション"

@@ -59,6 +59,7 @@ const widgetFiles = sidecarCollectionFor(widgetCodec, {
   read: (filename) => settingsFs.readWidgetFile(filename),
   write: (filename, content) => settingsFs.writeWidgetFile(filename, content),
   remove: (filename) => settingsFs.deleteWidgetFile(filename),
+  removeHistory: (base) => settingsFs.deleteHistorySidecar('widget', base),
   rename: (oldFilename, newFilename) =>
     settingsFs.renameWidgetFile(oldFilename, newFilename),
 })

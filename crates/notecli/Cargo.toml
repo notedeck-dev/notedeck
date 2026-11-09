@@ -9,8 +9,8 @@ license = "MIT"
 [dependencies]
 futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "stream"] }
-rusqlite = { version = "0.35", features = ["bundled"] }
-refinery = { version = "0.9", features = ["rusqlite"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
+refinery = { version = "0.10", features = ["rusqlite"] }
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 url = "2"

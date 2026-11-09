@@ -3,7 +3,6 @@
 //! 変更通知を受けて行う。
 
 use serde_json::{json, Value};
-use std::path::Path;
 
 use super::{Item, Kind};
 use crate::context::Core;
@@ -201,7 +200,7 @@ fn write(core: &Core, item: &mut Item) -> Result<()> {
     )
 }
 
-pub fn history(dir: &Path, item: &Item) -> Vec<HistoryEntry> {
+pub fn history(dir: &crate::app_dir::Layout, item: &Item) -> Vec<HistoryEntry> {
     super::history(dir, &KIND, &item.file_base)
 }
 
@@ -379,10 +378,11 @@ pub fn install_new(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_dir::Layout;
     use crate::sidecar::test_support::temp_core;
 
-    fn put(base: &Path, name: &str, body: &str) {
-        std::fs::write(base.join("plugins").join(name), body).unwrap();
+    fn put(base: &Layout, name: &str, body: &str) {
+        std::fs::write(base.config().join("plugins").join(name), body).unwrap();
     }
 
     #[test]
@@ -397,7 +397,7 @@ mod tests {
         assert!(p.global());
         assert_eq!(p.config_data(), json!({ "greet": "hi" }));
         set_active(&core, &mut p, true).unwrap();
-        let raw = std::fs::read_to_string(base.join("plugins/p.meta.json5")).unwrap();
+        let raw = std::fs::read_to_string(base.config().join("plugins/p.meta.json5")).unwrap();
         // 時刻の無い旧個体は書くときに createdAt / updatedAt を埋める (#1202 段階 0)。
         // 未知のキーはその後ろに残る
         assert!(raw.starts_with(
@@ -433,12 +433,12 @@ mod tests {
             json!({ "src": "old", "name": "P", "version": "1", "permissions": ["a"], "active": true })
         );
         assert_eq!(
-            std::fs::read_to_string(base.join("plugins/p.is")).unwrap(),
+            std::fs::read_to_string(base.config().join("plugins/p.is")).unwrap(),
             "new"
         );
         remove(&core, &p).unwrap();
         assert!(get(&core, "p").unwrap().is_none());
-        assert!(!base.join("plugins/p.history.json5").exists());
+        assert!(!base.config().join("plugins/p.history.json5").exists());
     }
 
     #[test]
@@ -507,7 +507,8 @@ mod tests {
         assert_eq!(item.file_base, "hello-2");
         assert!(item.active() && item.global());
         assert_eq!(item.config_data(), json!({ "msg": "hi" }));
-        let raw = std::fs::read_to_string(base.join("plugins/hello-2.meta.json5")).unwrap();
+        let raw =
+            std::fs::read_to_string(base.config().join("plugins/hello-2.meta.json5")).unwrap();
         assert!(raw.starts_with("{\n  installId: 'hello-2',\n  name: 'Hello',\n  version: '1.0.0',\n  author: 'alice',\n  config: {"));
         assert!(raw.contains("storeId: 'hello',\n  storeSha512: 'hash',\n  storeVersion: '1.0.0',\n  iconUrl: 'https://i',\n  createdAt: "));
         assert!(raw.ends_with(",\n}"));

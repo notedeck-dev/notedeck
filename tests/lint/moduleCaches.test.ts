@@ -31,6 +31,10 @@ const SRC = join(ROOT, 'src')
  */
 const ALLOWED: Record<string, string> = {
   // bounded — 上限つき
+  'src/stores/deckProfile.ts:stateFiles':
+    'bounded: state/deck/ のファイル数 (= プロファイル数)。削除で消える',
+  'src/stores/deckProfile.ts:lastWritten':
+    'bounded: プロファイル数。削除で消える',
   'src/utils/dedup.ts:responseCache': 'bounded: TTL + 閾値超過で期限切れを掃除',
   'src/utils/mediaProxy.ts:proxyUrlCache': 'bounded: imageProxyCacheMax',
   'src/utils/mfm.ts:parseCache': 'bounded: mfmCacheMax',

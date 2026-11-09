@@ -3000,6 +3000,7 @@ _principal:
 _store:
   loadFailedMinimal: "Could not load the permission settings, so NoteDeck started with minimal permissions for safety. Check the permissions in settings."
   saveFailed: "Failed to save permissions. Your changes were not applied."
+  permissionsWidened: "Permissions are wider than at the last start ({changes}). If you did not change permissions.json5 from outside, review the permissions in settings."
 
 
 _widgetCapabilities:
@@ -3463,6 +3464,13 @@ _tutorialSteps:
   aiColumnDescription: "Open the AI column from the AI button on the navbar (it is glowing). You can talk with the AI there."
   completeTitle: "Setup complete"
   completeDescription: "You are ready to use NoteDeck. Feel free to explore."
+
+_layoutMigration:
+  shelved: "While reorganizing the data directory, {count} items that existed in both the old and the new layout were set aside in {dir}. Check them before deleting"
+  symlinkedSettings: "The settings folder (notedeck/) is a symbolic link, so the move to the new layout (config / data / state) was skipped. Point links at config/ and data/ instead, then restart"
+  standaloneStopped: "The resident AI was stopped to reorganize the data directory. Heartbeat runs will not continue until the resident is updated"
+  residentAlive: "The resident AI could not be stopped, so the data directory was not reorganized. Stop it and restart"
+  failed: "Reorganizing the data directory failed; the previous layout was restored: {message}"
 
 _main:
   backendInitFailed: "Failed to initialize the backend: {error}"
@@ -3945,6 +3953,7 @@ _native:
     workspaceMemory: "Notes"
     skippedBadFilename: "Skipped (invalid file name): {key}"
     skippedBadKey: "Skipped (invalid key): {key}"
+    skippedHistory: "Edit history ({count} files) was not imported (it is this machine's state and is no longer part of backups)"
   notification:
     someone: "Someone"
     youGotMention: "{name} mentioned you"
