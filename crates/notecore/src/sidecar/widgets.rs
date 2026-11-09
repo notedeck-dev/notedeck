@@ -7,7 +7,6 @@
 //! 実行アカウントはデバイスの配置が持つので、ここには無い。
 
 use serde_json::{json, Value};
-use std::path::Path;
 
 use super::{Item, Kind};
 use crate::context::Core;
@@ -171,7 +170,7 @@ fn write(core: &Core, item: &mut Item) -> Result<()> {
     )
 }
 
-pub fn history(dir: &Path, item: &Item) -> Vec<HistoryEntry> {
+pub fn history(dir: &crate::app_dir::Layout, item: &Item) -> Vec<HistoryEntry> {
     super::history(dir, &KIND, &item.file_base)
 }
 
@@ -308,10 +307,11 @@ pub fn install_new(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app_dir::Layout;
     use crate::sidecar::test_support::temp_core;
 
-    fn put(base: &Path, name: &str, body: &str) {
-        std::fs::write(base.join("widgets").join(name), body).unwrap();
+    fn put(base: &Layout, name: &str, body: &str) {
+        std::fs::write(base.config().join("widgets").join(name), body).unwrap();
     }
 
     #[test]
@@ -338,7 +338,7 @@ mod tests {
         assert!(!a.global());
         assert_eq!(a.installed_for(), vec!["h:u"]);
         set_auto_run(&core, &mut a, false).unwrap();
-        let raw = std::fs::read_to_string(base.join("widgets/a.meta.json5")).unwrap();
+        let raw = std::fs::read_to_string(base.config().join("widgets/a.meta.json5")).unwrap();
         assert!(raw.starts_with("{\n  installId: 'a',\n  name: 'A',\n  autoRun: false,\n  global: false,\n  installedFor: [\n    'h:u',\n  ],\n  createdAt: 20,\n  updatedAt: "));
         assert!(!raw.contains("accountId"));
         assert!(!raw.contains("accountKey"));
@@ -346,7 +346,7 @@ mod tests {
         let mut b = get(&core, "b").unwrap().unwrap();
         assert!(!b.global());
         update_src(&core, &mut b, "x", None).unwrap();
-        let raw = std::fs::read_to_string(base.join("widgets/b.meta.json5")).unwrap();
+        let raw = std::fs::read_to_string(base.config().join("widgets/b.meta.json5")).unwrap();
         assert!(raw.contains("global: false"));
         assert!(raw.contains("accountId: 'uuid'"));
         assert_eq!(
@@ -389,7 +389,7 @@ mod tests {
         link_account(&core, &mut item, "h:w").unwrap();
         link_account(&core, &mut item, "h:w").unwrap();
         assert_eq!(item.installed_for(), vec!["h:v", "h:w"]);
-        let raw = std::fs::read_to_string(base.join("widgets/clock.meta.json5")).unwrap();
+        let raw = std::fs::read_to_string(base.config().join("widgets/clock.meta.json5")).unwrap();
         assert!(raw.contains("installedFor: [\n    'h:v',\n    'h:w',\n  ],"));
     }
 }

@@ -24,7 +24,7 @@
 //! - **ファイルが無ければ既定プロファイル、壊れていれば readonly** — フロントと
 //!   同じ倒し方 (golden で一致検査)。読取エラーも readonly 側に倒す。
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::OnceLock;
 
 use axum::extract::Request;
@@ -74,8 +74,8 @@ static PERMISSIONS_PATH: OnceLock<PathBuf> = OnceLock::new();
 
 /// 設定ディレクトリ (`<app dir>/notedeck`) を登録する。HTTP サーバー起動前
 /// (setup) に呼ぶ。
-pub fn init(settings_dir: &Path) {
-    let _ = PERMISSIONS_PATH.set(settings_dir.join(PERMISSIONS_FILE_NAME));
+pub fn init(layout: &crate::app_dir::Layout) {
+    let _ = PERMISSIONS_PATH.set(layout.config().join(PERMISSIONS_FILE_NAME));
 }
 
 /// ファイル読取結果 → principal の実効 granted。NotFound は「ファイル無し」

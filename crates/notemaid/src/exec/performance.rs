@@ -211,8 +211,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
-        std::fs::create_dir_all(notecore::commands::settings::settings_base_dir(&core).unwrap())
-            .unwrap();
+        std::fs::create_dir_all(core.layout().unwrap().config()).unwrap();
         let ctx = ExecContext::default();
         assert!(set(&core, &json!({}))
             .unwrap_err()

@@ -46,9 +46,9 @@ async fn answering(endpoint: &Endpoint) -> bool {
 
 /// この端末の構成 (`client.json5`) を書く。常駐トグルの結果を次回起動に残す
 fn write_backend(app_dir: &Path, backend: Backend) {
-    let base = app_dir.join(notecore::commands::settings::SETTINGS_DIR);
+    let layout = notecore::app_dir::Layout::from_root(app_dir);
     let cfg = notecore::client_config::ClientConfig { backend };
-    if let Err(e) = notecore::client_config::save(&base, &cfg) {
+    if let Err(e) = notecore::client_config::save(&layout, &cfg) {
         tracing::warn!("[notemaid] could not write client.json5: {e}");
     }
 }

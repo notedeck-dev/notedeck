@@ -68,6 +68,8 @@ pub struct Core {
     hints: OnceLock<Arc<dyn HintSink>>,
     /// アプリデータディレクトリ (notecli.db / notedeck/ 設定 / キャッシュの置き場)
     app_dir: OnceLock<PathBuf>,
+    /// その中の配置 (`set_app_dir` で派生、#1333)
+    layout: OnceLock<crate::app_dir::Layout>,
     /// 埋め込む側のバージョン (OpenAPI の info.version / `/api` が返す)
     app_version: OnceLock<String>,
     /// 共有 HTTP クライアント (SSRF 検証 resolver つき)
@@ -118,6 +120,7 @@ impl Core {
             hints: OnceLock::new(),
             stream_observation: Arc::default(),
             app_dir: OnceLock::new(),
+            layout: OnceLock::new(),
             app_version: OnceLock::new(),
             http: OnceLock::new(),
             image_cache: OnceLock::new(),
@@ -195,7 +198,16 @@ impl Core {
 
     /// アプリデータディレクトリを差す (起動時 1 回)。
     pub fn set_app_dir(&self, dir: PathBuf) {
+        let _ = self.layout.set(crate::app_dir::Layout::from_root(&dir));
         let _ = self.app_dir.set(dir);
+    }
+
+    /// アプリデータディレクトリの中の配置 (設定 / 記録 / 状態 / キャッシュ)。
+    /// 未設定なら Err
+    pub fn layout(&self) -> Result<&crate::app_dir::Layout> {
+        self.layout
+            .get()
+            .ok_or_else(|| notecli::error::NoteDeckError::Internal("app dir is not set".into()))
     }
 
     /// アプリデータディレクトリ。未設定なら Err (テストや初期化順の誤りを黙らせない)。

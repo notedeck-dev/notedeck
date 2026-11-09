@@ -33,8 +33,8 @@ fn set(lang: &str) {
 
 /// `locale.json5` の設定 (`auto` か言語コード)。無い / 読めないなら None
 fn read_preference(app_dir: &std::path::Path) -> Option<String> {
-    let dir = app_dir.join(crate::commands::SETTINGS_DIR);
-    let text = notecore::settings_store::read_root_file(&dir, "locale.json5").ok()?;
+    let layout = notecore::app_dir::Layout::from_root(app_dir);
+    let text = notecore::settings_store::read_root_file(&layout, "locale.json5").ok()?;
     let value: serde_json::Value = json5::from_str(&text).ok()?;
     value.get("locale")?.as_str().map(str::to_string)
 }

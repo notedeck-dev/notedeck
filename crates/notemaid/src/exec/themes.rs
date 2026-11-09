@@ -528,8 +528,7 @@ mod tests {
     fn core_in(dir: &std::path::Path) -> Core {
         let core = Core::new();
         core.set_app_dir(dir.to_path_buf());
-        std::fs::create_dir_all(notecore::commands::settings::settings_base_dir(&core).unwrap())
-            .unwrap();
+        std::fs::create_dir_all(core.layout().unwrap().config()).unwrap();
         core
     }
 

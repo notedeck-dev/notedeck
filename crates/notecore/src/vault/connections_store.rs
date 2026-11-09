@@ -4,12 +4,10 @@ use std::path::{Path, PathBuf};
 use super::error::{VaultError, VaultResult};
 use super::model::{ConnectionsFile, PrincipalClass, SCHEMA_VERSION};
 
-/// 設定ディレクトリ名 (`commands::settings` と同じ `notedeck` サブディレクトリ)。
-const SETTINGS_DIR: &str = "notedeck";
-
 /// メタデータファイル名。`settings.json5` (フロントが JSON5 パース) とは別系統で、
-/// Rust が source of truth として読み書きするため厳密 JSON とする。
-const CONNECTIONS_FILE: &str = "connections.json";
+/// Rust が source of truth として読み書きするため厳密 JSON とする。allowlist
+/// (`settings_store::ROOT_FILES`) にも同じ名前で載り、バックアップに入る (#1333 §1)
+const CONNECTIONS_FILE: &str = crate::settings_store::CONNECTIONS_FILE;
 
 fn io_err(e: impl std::fmt::Display) -> VaultError {
     VaultError::StoreIo {
@@ -19,7 +17,9 @@ fn io_err(e: impl std::fmt::Display) -> VaultError {
 
 /// `connections.json` の絶対パスを解決する (`app_dir` はアプリデータディレクトリ)。
 fn connections_path(app_dir: &Path) -> PathBuf {
-    app_dir.join(SETTINGS_DIR).join(CONNECTIONS_FILE)
+    crate::app_dir::Layout::from_root(app_dir)
+        .config()
+        .join(CONNECTIONS_FILE)
 }
 
 /// `connections.json` を読み込む。ファイルが無ければ空の [`ConnectionsFile`]。

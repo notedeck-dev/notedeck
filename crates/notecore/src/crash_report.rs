@@ -15,7 +15,11 @@
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// アプリ本体の panic の記録
 const PANIC_FILE: &str = "last_panic.txt";
+/// notemaid の panic の記録。Linux では Tauri の `app_log_dir()` が app_data_dir の
+/// `logs/` と一致し、同じ名前だとアプリと常駐が上書きし合うので分ける (#1333 §1)
+pub const NOTEMAID_PANIC_FILE: &str = "last_panic.notemaid.txt";
 
 /// 記録された panic。診断レポートに載せてコピーできる形で渡す。
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
@@ -37,6 +41,11 @@ fn now_ms() -> u64 {
 /// panic をファイルに書き出すフックを入れる。既定のフックも呼ぶ
 /// (stderr / logcat への出力は残す)。
 pub fn install_panic_hook(dir: PathBuf) {
+    install_panic_hook_as(dir, PANIC_FILE);
+}
+
+/// `install_panic_hook` の記録ファイル名を指定する版 (notemaid 用)
+pub fn install_panic_hook_as(dir: PathBuf, file_name: &'static str) {
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         // Display は "panicked at <location>: <payload>" を含む
@@ -47,7 +56,7 @@ pub fn install_panic_hook(dir: PathBuf) {
         // 置き換える (fs::write は truncate 後に書くので混ざりうる)。
         let _ = std::fs::create_dir_all(&dir);
         let _ = crate::settings_store::atomic_write(
-            &dir.join(PANIC_FILE),
+            &dir.join(file_name),
             &format!("{}\n{body}", now_ms()),
             None,
         );

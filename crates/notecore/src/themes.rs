@@ -4,14 +4,13 @@
 //! 画面への適用 (CSS 変数 / adoptedStyleSheets / OS の明暗) はデバイスに残る。
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use specta::Type;
 
-use crate::commands::settings::settings_base_dir;
+use crate::app_dir::Layout;
 use crate::context::Core;
 use crate::edit_history::{self, Attribution, HISTORY_SUFFIX};
 use crate::error::Result;
@@ -297,15 +296,15 @@ fn snapshot_of(t: &Theme) -> Value {
 // collection
 // ---------------------------------------------------------------------------
 
-fn base_dir(core: &Core) -> Result<PathBuf> {
-    settings_base_dir(core)
+fn base_dir(core: &Core) -> Result<Layout> {
+    core.layout().cloned()
 }
 
 fn is_valid_id(v: Option<&Value>) -> bool {
     matches!(v, Some(Value::String(s)) if !s.is_empty() && s.len() <= 256)
 }
 
-fn all_bases(dir: &Path) -> Vec<String> {
+fn all_bases(dir: &Layout) -> Vec<String> {
     store::list_files(dir, SUBDIR)
         .unwrap_or_default()
         .into_iter()
@@ -319,7 +318,7 @@ fn all_bases(dir: &Path) -> Vec<String> {
 
 /// 全件 (バイト順)。id が無ければ `custom-<ファイル名>` を凍結して書き戻し、
 /// props が無いものと重複 id は読み飛ばす。
-pub fn load_all(dir: &Path) -> Vec<Theme> {
+pub fn load_all(dir: &Layout) -> Vec<Theme> {
     let mut out: Vec<Theme> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     for name in store::list_files(dir, SUBDIR).unwrap_or_default() {
@@ -370,7 +369,7 @@ pub fn get(core: &Core, id: &str) -> Result<Option<Theme>> {
     Ok(list(core)?.into_iter().find(|t| t.id == id))
 }
 
-fn allocate_base(dir: &Path, item: &Theme, others: &[Theme]) -> String {
+fn allocate_base(dir: &Layout, item: &Theme, others: &[Theme]) -> String {
     let mut taken: HashSet<String> = all_bases(dir).iter().map(|b| casefold(b)).collect();
     for o in others {
         if let Some(b) = &o.file_base {
@@ -535,11 +534,11 @@ mod tests {
         assert_eq!(t.props["b"], "1");
     }
 
-    fn core_in(dir: &Path) -> Core {
+    fn core_in(dir: &std::path::Path) -> Core {
         let core = Core::new();
         core.set_app_dir(dir.to_path_buf());
-        let base = settings_base_dir(&core).unwrap();
-        std::fs::create_dir_all(&base).unwrap();
+        let base = core.layout().unwrap().clone();
+        std::fs::create_dir_all(base.config()).unwrap();
         core
     }
 

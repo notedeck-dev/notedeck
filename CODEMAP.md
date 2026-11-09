@@ -251,29 +251,40 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 
 ## 設定ファイル
 
-正本: [`crates/notecore/src/settings_store.rs`](crates/notecore/src/settings_store.rs) の `ROOT_FILES` / `ALLOWED_SUBDIRS`
+正本: [`crates/notecore/src/settings_store.rs`](crates/notecore/src/settings_store.rs) の `ROOT_FILES` / `SUBDIRS`
 
-`side` は「デバイスが 1 台も繋がっていなくても意味を持つか」(Core) か手元側 (Device) か。バックアップの例外 (`notemaid/` の人格と記憶、Vault の `connections.json`) は DESIGN.md の「ファイル構造」を参照。
+`area` は置き場 (config = 持ち出す単位 / data = 人の記録 / state = この機械の状態。物理的な場所は `app_dir.rs` の `Layout` が決める)。`ipc` は汎用の list / read / write / delete / rename で触れるか (— のものは専用の構造化操作だけが書く)。バックアップの例外 (`notemaid/` の人格と記憶) は DESIGN.md の「ファイル構造」を参照。
 
-| ルートファイル | side | バックアップ |
-|---|---|---|
-| `custom.css` | Device | ✓ |
-| `keybinds.json5` | Device | ✓ |
-| `ai.json5` | Core | ✓ |
-| `AI.md` | Core | ✓ |
-| `performance.json5` | Device | ✓ |
-| `navbar.json5` | Device | ✓ |
-| `postform.json5` | Device | ✓ |
-| `settings.json5` | Core | ✓ |
-| `tasks.json5` | Core | ✓ |
-| `tutorial.json5` | Device | ✓ |
-| `permissions.json5` | Core | ✓ |
-| `custom.css.history.json5` | Device | ✓ |
-| `theme-dropins.json5` | Core | ✓ |
-| `locale.json5` | Device | ✓ |
-| `client.json5` | Device | — |
+| ルートファイル | area | バックアップ | ipc |
+|---|---|---|---|
+| `custom.css` | config | ✓ | ✓ |
+| `keybinds.json5` | config | ✓ | ✓ |
+| `ai.json5` | config | ✓ | ✓ |
+| `AI.md` | config | ✓ | ✓ |
+| `performance.json5` | config | ✓ | ✓ |
+| `navbar.json5` | config | ✓ | ✓ |
+| `postform.json5` | config | ✓ | ✓ |
+| `settings.json5` | config | ✓ | ✓ |
+| `tasks.json5` | config | ✓ | ✓ |
+| `tutorial.json5` | config | ✓ | ✓ |
+| `permissions.json5` | config | ✓ | ✓ |
+| `custom.css.history.json5` | config | ✓ | ✓ |
+| `theme-dropins.json5` | config | ✓ | ✓ |
+| `locale.json5` | config | ✓ | ✓ |
+| `client.json5` | config | — | ✓ |
+| `connections.json` | config | ✓ | — |
 
-サブディレクトリ: `profiles/` / `themes/` / `plugins/` / `snippets/` / `memos/` / `widgets/` / `skills/` / `sessions/` / `queries/`
+| サブディレクトリ | area | バックアップ | ipc |
+|---|---|---|---|
+| `profiles/` | config | ✓ | ✓ |
+| `themes/` | config | ✓ | ✓ |
+| `plugins/` | config | ✓ | ✓ |
+| `snippets/` | config | ✓ | ✓ |
+| `widgets/` | config | ✓ | ✓ |
+| `skills/` | config | ✓ | ✓ |
+| `queries/` | config | ✓ | ✓ |
+| `memos/` | data | ✓ | ✓ |
+| `sessions/` | data | ✓ | — |
 
 ## 生成済みの一覧 (ここには写さない)
 

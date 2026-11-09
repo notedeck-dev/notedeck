@@ -16,9 +16,8 @@ pub mod queries;
 pub mod widgets;
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 
-use crate::commands::settings::settings_base_dir;
+use crate::app_dir::Layout;
 use crate::context::Core;
 use crate::edit_history::{self, Attribution, HISTORY_SUFFIX};
 use crate::error::Result;
@@ -88,8 +87,8 @@ impl Item {
     }
 }
 
-pub fn base_dir(core: &Core) -> Result<PathBuf> {
-    settings_base_dir(core)
+pub fn base_dir(core: &Core) -> Result<Layout> {
+    core.layout().cloned()
 }
 
 fn is_valid_id(v: Option<&J5>) -> bool {
@@ -103,7 +102,7 @@ fn strip_known_ext(name: &str) -> Option<&str> {
 }
 
 /// 全件 (メタファイル名のバイト順)。ID 凍結・重複 ID の読み飛ばし・readOnly 判定。
-pub fn load_all(dir: &Path, kind: &Kind) -> Vec<Item> {
+pub fn load_all(dir: &Layout, kind: &Kind) -> Vec<Item> {
     let files = store::list_files(dir, kind.subdir).unwrap_or_default();
     let file_set: HashSet<&str> = files.iter().map(String::as_str).collect();
     let mut out = Vec::new();
@@ -183,7 +182,7 @@ pub fn load_all(dir: &Path, kind: &Kind) -> Vec<Item> {
 /// ∪ 他の個体の fileBase ∪ 他の個体の ID (casefold)。候補は storeId (規約に合えば)、
 /// 無ければ表示名の slug。
 pub fn allocate_base(
-    dir: &Path,
+    dir: &Layout,
     kind: &Kind,
     name: &str,
     preferred: Option<&str>,
@@ -224,13 +223,13 @@ pub fn remove_item(core: &Core, kind: &Kind, base: &str) -> Result<()> {
     settings_events::delete_file(core, kind.subdir, &edit_history::history_file_name(base))
 }
 
-pub fn history(dir: &Path, kind: &Kind, base: &str) -> Vec<edit_history::HistoryEntry> {
+pub fn history(dir: &Layout, kind: &Kind, base: &str) -> Vec<edit_history::HistoryEntry> {
     edit_history::list(dir, kind.subdir, base)
 }
 
 pub fn push_snapshot(
     core: &Core,
-    dir: &Path,
+    dir: &Layout,
     kind: &Kind,
     base: &str,
     snapshot: serde_json::Value,
@@ -279,14 +278,14 @@ pub fn generate_id(prefix: &str) -> String {
 pub mod test_support {
     use super::*;
 
-    pub fn temp_core() -> (tempfile::TempDir, Core, PathBuf) {
+    pub fn temp_core() -> (tempfile::TempDir, Core, Layout) {
         let dir = tempfile::tempdir().unwrap();
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
         let base = base_dir(&core).unwrap();
-        std::fs::create_dir_all(base.join("plugins")).unwrap();
-        std::fs::create_dir_all(base.join("widgets")).unwrap();
-        std::fs::create_dir_all(base.join("queries")).unwrap();
+        std::fs::create_dir_all(base.config().join("plugins")).unwrap();
+        std::fs::create_dir_all(base.config().join("widgets")).unwrap();
+        std::fs::create_dir_all(base.config().join("queries")).unwrap();
         (dir, core, base)
     }
 }
@@ -302,8 +301,8 @@ mod tests {
         fallback: "widget",
     };
 
-    fn put(base: &Path, name: &str, body: &str) {
-        std::fs::write(base.join("widgets").join(name), body).unwrap();
+    fn put(base: &Layout, name: &str, body: &str) {
+        std::fs::write(base.config().join("widgets").join(name), body).unwrap();
     }
 
     #[test]
@@ -320,13 +319,14 @@ mod tests {
         assert_eq!(items[0].id, "My Widget.meta.json5");
         assert_eq!(items[0].file_base, "My Widget");
         assert!(!items[0].read_only);
-        let raw = std::fs::read_to_string(base.join("widgets/My Widget.meta.json5")).unwrap();
+        let raw =
+            std::fs::read_to_string(base.config().join("widgets/My Widget.meta.json5")).unwrap();
         assert!(raw.contains("// handwritten"));
         assert!(raw.contains("installId: 'My Widget.meta.json5'"));
         // 2 回目は変わらない
         load_all(&base, &WIDGETS);
         assert_eq!(
-            std::fs::read_to_string(base.join("widgets/My Widget.meta.json5")).unwrap(),
+            std::fs::read_to_string(base.config().join("widgets/My Widget.meta.json5")).unwrap(),
             raw
         );
         // 空 / 数値 / 257 文字も凍結、制御文字入りは凍結しない
@@ -378,7 +378,7 @@ mod tests {
         let orphan = items.iter().find(|i| i.id == "orphan").unwrap();
         assert!(orphan.read_only);
         assert_eq!(orphan.src, "");
-        assert!(!base.join("widgets/orphan.is").exists());
+        assert!(!base.config().join("widgets/orphan.is").exists());
         assert!(orphan
             .ensure_writable("x")
             .unwrap_err()
@@ -440,16 +440,16 @@ mod tests {
         ]);
         write_item(&core, &WIDGETS, "w", "<: 1", &meta).unwrap();
         assert_eq!(
-            std::fs::read_to_string(base.join("widgets/w.meta.json5")).unwrap(),
+            std::fs::read_to_string(base.config().join("widgets/w.meta.json5")).unwrap(),
             "{\n  installId: 'w',\n  name: 'W',\n  autoRun: false,\n}"
         );
         assert_eq!(
-            std::fs::read_to_string(base.join("widgets/w.is")).unwrap(),
+            std::fs::read_to_string(base.config().join("widgets/w.is")).unwrap(),
             "<: 1"
         );
         remove_item(&core, &WIDGETS, "w").unwrap();
-        assert!(!base.join("widgets/w.meta.json5").exists());
-        assert!(!base.join("widgets/w.is").exists());
+        assert!(!base.config().join("widgets/w.meta.json5").exists());
+        assert!(!base.config().join("widgets/w.is").exists());
         // 履歴が無くても成功する
         remove_item(&core, &WIDGETS, "w").unwrap();
     }

@@ -44,27 +44,27 @@ pub trait SettingsSink: Send + Sync + 'static {
 
 /// notecore が書き手として設定ファイルを書く。書けたら通知する。
 pub fn write_file(core: &Core, subdir: &str, name: &str, content: &str) -> Result<()> {
-    store::write_file(&base(core)?, subdir, name, content)?;
+    store::write_file(base(core)?, subdir, name, content)?;
     notify(core, Some(subdir), name, SettingsChangeOp::Write);
     Ok(())
 }
 
 /// notecore が書き手として設定ファイルを消す。消せたら通知する。
 pub fn delete_file(core: &Core, subdir: &str, name: &str) -> Result<()> {
-    store::delete_file(&base(core)?, subdir, name)?;
+    store::delete_file(base(core)?, subdir, name)?;
     notify(core, Some(subdir), name, SettingsChangeOp::Delete);
     Ok(())
 }
 
 /// notecore が書き手としてルート直下の設定ファイルを書く。
 pub fn write_root_file(core: &Core, name: &str, content: &str) -> Result<()> {
-    store::write_root_file(&base(core)?, name, content)?;
+    store::write_root_file(base(core)?, name, content)?;
     notify(core, None, name, SettingsChangeOp::Write);
     Ok(())
 }
 
-fn base(core: &Core) -> Result<std::path::PathBuf> {
-    crate::commands::settings::settings_base_dir(core)
+fn base(core: &Core) -> Result<&crate::app_dir::Layout> {
+    core.layout()
 }
 
 fn notify(core: &Core, subdir: Option<&str>, name: &str, op: SettingsChangeOp) {
@@ -104,7 +104,7 @@ mod tests {
         write_root_file(&core, "keybinds.json5", "{}").unwrap();
         delete_file(&core, "skills", "a.md").unwrap();
         // デバイス発の汎用書込は通知しない
-        store::write_file(&base(&core).unwrap(), "skills", "b.md", "# b").unwrap();
+        store::write_file(base(&core).unwrap(), "skills", "b.md", "# b").unwrap();
 
         let got = sink.0.lock().unwrap().clone();
         assert_eq!(
@@ -136,7 +136,7 @@ mod tests {
         core.set_app_dir(dir.path().to_path_buf());
         write_file(&core, "skills", "a.md", "# a").unwrap();
         assert_eq!(
-            store::read_file(&base(&core).unwrap(), "skills", "a.md").unwrap(),
+            store::read_file(base(&core).unwrap(), "skills", "a.md").unwrap(),
             "# a"
         );
     }

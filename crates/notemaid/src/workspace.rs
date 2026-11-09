@@ -97,8 +97,8 @@ impl Reserved {
 }
 
 pub fn dir(app_dir: &Path) -> PathBuf {
-    app_dir
-        .join(notecore::commands::settings::SETTINGS_DIR)
+    notecore::app_dir::Layout::from_root(app_dir)
+        .data()
         .join(DIR)
 }
 
@@ -148,8 +148,8 @@ fn is_template(kind: Kind, body: &str) -> bool {
 /// 表示言語。`locale.json5` の `locale` が明示ならそれ、`auto` / 無しなら OS の言語
 pub fn language(app_dir: &Path) -> String {
     let pref = fs::read_to_string(
-        app_dir
-            .join(notecore::commands::settings::SETTINGS_DIR)
+        notecore::app_dir::Layout::from_root(app_dir)
+            .config()
             .join("locale.json5"),
     )
     .ok()

@@ -6,7 +6,6 @@
 use serde_json::{json, Value};
 use std::sync::LazyLock;
 
-use crate::commands::settings::settings_base_dir;
 use crate::context::Core;
 use crate::error::Result;
 use crate::json5_out::J5;
@@ -33,7 +32,7 @@ pub fn defaults() -> &'static [Value] {
 
 /// 現在の構成。ファイルが空 / 無い / 壊れている / 空配列なら既定。
 pub fn load(core: &Core) -> Result<Vec<Value>> {
-    let text = store::read_root_file(&settings_base_dir(core)?, FILE_NAME).unwrap_or_default();
+    let text = store::read_root_file(core.layout()?, FILE_NAME).unwrap_or_default();
     if text.trim().is_empty() {
         return Ok(DEFAULTS.clone());
     }
@@ -80,7 +79,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
-        let base = settings_base_dir(&core).unwrap();
+        let base = core.layout().unwrap().config().to_path_buf();
         std::fs::create_dir_all(&base).unwrap();
         assert!(!defaults().is_empty());
         assert_eq!(load(&core).unwrap(), defaults());

@@ -46,7 +46,6 @@ use crate::sinks::CoreMaidExt;
 use crate::skills::{self, SkillMeta};
 use notecli::error::NoteDeckError;
 use notecore::capabilities;
-use notecore::commands::settings::settings_base_dir;
 use notecore::context::Core;
 use notecore::error::Result;
 use notecore::i18n;
@@ -1610,7 +1609,7 @@ async fn resolve_target(
     local_title_time: Option<String>,
     now: u64,
 ) -> Result<Option<(String, bool)>> {
-    let base = settings_base_dir(core)?;
+    let base = core.layout()?.clone();
     match cfg.heartbeat.target.as_str() {
         "none" => Ok(None),
         "auto" => {
@@ -1772,7 +1771,7 @@ async fn deliver(
         now,
     )
     .await?;
-    let base = settings_base_dir(core)?;
+    let base = core.layout()?.clone();
     match &target {
         Some((session_id, _)) => {
             let mut messages = Vec::new();
@@ -1871,7 +1870,7 @@ async fn append_error(core: &Core, cfg: &AiConfigLite, source: &str, err: &str, 
     else {
         return;
     };
-    let Ok(base) = settings_base_dir(core) else {
+    let Ok(base) = core.layout().cloned() else {
         return;
     };
     let msg = hb_text_message(

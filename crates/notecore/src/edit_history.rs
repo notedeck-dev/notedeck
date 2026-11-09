@@ -5,8 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::path::Path;
 
+use crate::app_dir::Layout;
 use crate::context::Core;
 use crate::error::Result;
 use crate::settings_events;
@@ -117,16 +117,16 @@ pub fn evict(entries: Vec<HistoryEntry>, limit: usize) -> Vec<HistoryEntry> {
 }
 
 /// 履歴を読む。無い / 壊れているときは 0 件。
-pub fn list(base_dir: &Path, subdir: &str, base: &str) -> Vec<HistoryEntry> {
-    let Ok(text) = store::read_file(base_dir, subdir, &history_file_name(base)) else {
+pub fn list(layout: &Layout, subdir: &str, base: &str) -> Vec<HistoryEntry> {
+    let Ok(text) = store::read_file(layout, subdir, &history_file_name(base)) else {
         return Vec::new();
     };
     parse_entries(&text, base)
 }
 
 /// ルート直下のファイル (custom.css) の履歴を読む。
-pub fn list_root(base_dir: &Path, base: &str) -> Vec<HistoryEntry> {
-    let Ok(text) = store::read_root_file(base_dir, &history_file_name(base)) else {
+pub fn list_root(layout: &Layout, base: &str) -> Vec<HistoryEntry> {
+    let Ok(text) = store::read_root_file(layout, &history_file_name(base)) else {
         return Vec::new();
     };
     parse_entries(&text, base)
@@ -177,13 +177,13 @@ fn with_snapshot(
 /// ルート直下のファイル (custom.css) 用の `push_snapshot`。
 pub fn push_snapshot_root(
     core: &Core,
-    base_dir: &Path,
+    layout: &Layout,
     base: &str,
     snapshot: Value,
     attribution: Option<&Attribution>,
     at: u64,
 ) -> Result<()> {
-    let entries = list_root(base_dir, base);
+    let entries = list_root(layout, base);
     match with_snapshot(entries, snapshot, attribution, at) {
         Some(body) => settings_events::write_root_file(core, &history_file_name(base), &body),
         None => Ok(()),
@@ -193,14 +193,14 @@ pub fn push_snapshot_root(
 /// 編集前の snapshot を積む。まとめる条件に当たれば何もしない。
 pub fn push_snapshot(
     core: &Core,
-    base_dir: &Path,
+    layout: &Layout,
     subdir: &str,
     base: &str,
     snapshot: Value,
     attribution: Option<&Attribution>,
     at: u64,
 ) -> Result<()> {
-    let entries = list(base_dir, subdir, base);
+    let entries = list(layout, subdir, base);
     match with_snapshot(entries, snapshot, attribution, at) {
         Some(body) => settings_events::write_file(core, subdir, &history_file_name(base), &body),
         None => Ok(()),
@@ -270,7 +270,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
-        let base_dir = crate::commands::settings::settings_base_dir(&core).unwrap();
+        let base_dir = core.layout().unwrap().clone();
         let attr = Attribution {
             by: Some(json!({"kind": "ai.chat"})),
             reason: Some("r".into()),

@@ -399,8 +399,8 @@ mod tests {
     use super::*;
     use notecore::sidecar::test_support::temp_core;
 
-    fn put(base: &std::path::Path, name: &str, body: &str) {
-        std::fs::write(base.join("plugins").join(name), body).unwrap();
+    fn put(base: &notecore::app_dir::Layout, name: &str, body: &str) {
+        std::fs::write(base.config().join("plugins").join(name), body).unwrap();
     }
 
     #[tokio::test]
@@ -559,6 +559,6 @@ mod tests {
                 .to_string()
                 .contains(notecore::sidecar::READ_ONLY_REASON)
         );
-        assert!(!base.join("plugins/o.is").exists());
+        assert!(!base.config().join("plugins/o.is").exists());
     }
 }

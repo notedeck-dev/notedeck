@@ -2,20 +2,19 @@
 //! notecore が単一の書き手で、デバイスはここを通してだけ書く。
 
 use crate::ai_sessions::{self, AiSession, AiSessionCreate, SessionMessage};
-use notecore::commands::settings::settings_base_dir;
 use notecore::context::Core;
 use notecore::error::Result;
 
 pub async fn ai_sessions_load_all(core: &Core) -> Result<Vec<AiSession>> {
-    ai_sessions::load_all(&settings_base_dir(core)?)
+    ai_sessions::load_all(core.layout()?)
 }
 
 pub async fn ai_session_get(core: &Core, id: String) -> Result<AiSession> {
-    ai_sessions::get(&settings_base_dir(core)?, &id)
+    ai_sessions::get(core.layout()?, &id)
 }
 
 pub async fn ai_session_create(core: &Core, req: AiSessionCreate) -> Result<AiSession> {
-    ai_sessions::create(&settings_base_dir(core)?, req)
+    ai_sessions::create(core.layout()?, req)
 }
 
 pub async fn ai_session_append(
@@ -23,7 +22,7 @@ pub async fn ai_session_append(
     id: String,
     messages: Vec<SessionMessage>,
 ) -> Result<AiSession> {
-    ai_sessions::append(&settings_base_dir(core)?, &id, messages)
+    ai_sessions::append(core.layout()?, &id, messages)
 }
 
 pub async fn ai_session_remove_messages(
@@ -31,11 +30,11 @@ pub async fn ai_session_remove_messages(
     id: String,
     message_ids: Vec<String>,
 ) -> Result<AiSession> {
-    ai_sessions::remove_messages(&settings_base_dir(core)?, &id, &message_ids)
+    ai_sessions::remove_messages(core.layout()?, &id, &message_ids)
 }
 
 pub async fn ai_session_rename(core: &Core, id: String, title: String) -> Result<AiSession> {
-    ai_sessions::rename(&settings_base_dir(core)?, &id, &title)
+    ai_sessions::rename(core.layout()?, &id, &title)
 }
 
 pub async fn ai_session_add_triggered_skills(
@@ -43,11 +42,11 @@ pub async fn ai_session_add_triggered_skills(
     id: String,
     skill_ids: Vec<String>,
 ) -> Result<AiSession> {
-    ai_sessions::add_triggered_skills(&settings_base_dir(core)?, &id, &skill_ids)
+    ai_sessions::add_triggered_skills(core.layout()?, &id, &skill_ids)
 }
 
 pub async fn ai_session_delete(core: &Core, id: String) -> Result<()> {
-    ai_sessions::delete(&settings_base_dir(core)?, &id)?;
+    ai_sessions::delete(core.layout()?, &id)?;
     crate::ai_turn::taint::forget(core.app_dir()?, &id);
     Ok(())
 }

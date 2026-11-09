@@ -260,7 +260,7 @@ pub trait SessionSink: Send + Sync + 'static {
 }
 
 /// `notedeck/sessions/` に書く本番実装。
-pub struct FileSessions(pub PathBuf);
+pub struct FileSessions(pub notecore::app_dir::Layout);
 
 impl SessionSink for FileSessions {
     fn append(&self, session_id: &str, messages: Vec<SessionMessage>) -> Result<()> {
@@ -2140,11 +2140,11 @@ pub async fn start_turn_with_sink(
     // system prompt は notemaid が組む (#1162)。persona はセッションの snapshot
     // (無人 = session 無しなら ai.json5)、trigger はデバイスの申告とセッションの累積の和
     let cfg = ai_config::load_from_app_dir(app_dir);
-    let settings_dir = app_dir.join(notecore::commands::settings::SETTINGS_DIR);
+    let layout = notecore::app_dir::Layout::from_root(app_dir);
     let session = req
         .session_id
         .as_deref()
-        .and_then(|sid| crate::ai_sessions::get(&settings_dir, sid).ok());
+        .and_then(|sid| crate::ai_sessions::get(&layout, sid).ok());
     let persona_skill_id: Option<String> = match &session {
         Some(s) => s.persona_skill_id.clone().filter(|p| !p.is_empty()),
         None => Some(cfg.persona_skill_id.clone()).filter(|p| !p.is_empty()),
@@ -2198,9 +2198,7 @@ pub async fn start_turn_with_sink(
         sink,
         store_dir: checkpoint::dir(app_dir),
         policy: confirm::ConfirmPolicy::default(),
-        sessions: Arc::new(FileSessions(
-            app_dir.join(notecore::commands::settings::SETTINGS_DIR),
-        )),
+        sessions: Arc::new(FileSessions(layout)),
         taint: Arc::new(taint::FileTaint::new(app_dir)),
         core: Some(shared),
         budget: cfg.daily_budget_for(&req.connection_id),

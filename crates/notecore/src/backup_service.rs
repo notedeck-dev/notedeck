@@ -115,8 +115,7 @@ pub async fn create(
 
     // 設定バンドル (テキストのみ。localStorage は対象外)
     let settings_files = if include_settings {
-        let settings_base = core.app_dir()?.join("notedeck");
-        let bundle = store::export_bundle(&settings_base)?;
+        let bundle = store::export_bundle(core.layout()?)?;
         let json = serde_json::to_string_pretty(&bundle)
             .map_err(|e| NoteDeckError::InvalidInput(format!("failed to serialize: {e}")))?;
         std::fs::write(dir.join(SETTINGS_FILE), json)

@@ -368,7 +368,7 @@ NoteDeck のデータは大きく2種類に分かれる:
 - DB インポート: SQLite マジックバイト（`SQLite format 3\0`）を検証。WAL/SHM ファイルも自動クリーンアップ
 - 設定インポート: `..` や絶対パスを含むエントリを拒否。許可されたディレクトリ/ファイル名のみ展開
 
-バックアップ対象は `settings_store.rs` の `ALLOWED_SUBDIRS` / `ROOT_FILES` (`backup: true` のもの) に、名指しで含める `notemaid/` の SOUL / USER / MEMORY を足したもの。設定ファイルを追加するときは、この allowlist に載せないとバックアップから漏れる。
+バックアップ対象は `settings_store.rs` の `SUBDIRS` / `ROOT_FILES` (`backup: true` のもの) に、名指しで含める `notemaid/` の SOUL / USER / MEMORY を足したもの。設定ファイルを追加するときは、この allowlist に載せないとバックアップから漏れる。allowlist の各エントリは置き場 (`area`: config / data / state、物理的な場所は `app_dir.rs` の `Layout` が決める) と `ipc` (汎用の list / read / write / delete / rename で触れるか。AI セッションと Vault の `connections.json` は false で、専用の構造化操作だけが書く) も持つ (#1333)。
 
 ### 手動バックアップ
 

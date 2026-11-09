@@ -141,8 +141,11 @@ async fn serve(
     parent_gone: Option<tokio::sync::oneshot::Receiver<()>>,
 ) -> i32 {
     let started = Instant::now();
-    notecore::crash_report::install_panic_hook(data_dir.join("logs"));
-    notecore::permissions_gate::init(&data_dir.join(notecore::commands::settings::SETTINGS_DIR));
+    notecore::crash_report::install_panic_hook_as(
+        data_dir.join("logs"),
+        notecore::crash_report::NOTEMAID_PANIC_FILE,
+    );
+    notecore::permissions_gate::init(&notecore::app_dir::Layout::from_root(&data_dir));
     crate::ai_turn::recover(&data_dir);
     crate::heartbeat::restore_status(&data_dir);
 

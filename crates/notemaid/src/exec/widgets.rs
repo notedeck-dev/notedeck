@@ -419,8 +419,8 @@ mod tests {
     use super::*;
     use notecore::sidecar::test_support::temp_core;
 
-    fn put(base: &std::path::Path, name: &str, body: &str) {
-        std::fs::write(base.join("widgets").join(name), body).unwrap();
+    fn put(base: &notecore::app_dir::Layout, name: &str, body: &str) {
+        std::fs::write(base.config().join("widgets").join(name), body).unwrap();
     }
 
     #[tokio::test]

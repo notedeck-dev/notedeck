@@ -17,7 +17,51 @@ pub fn run_fs(app_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     rename_performance_json_to_json5(app_dir)?;
     rename_ai_json_to_json5(app_dir)?;
     remove_notecored_leftovers(app_dir, dirs::config_dir().as_deref());
+    remove_stale_root_files(app_dir);
     Ok(())
+}
+
+/// 旧バージョンが app_data_dir 直下に残したゴミを消す (#1333 §1)。
+/// `notecore.lock` (旧 notecored のロック) / `notemaid.db*` (notemaid が SQLite を開いていた
+/// 頃の DB) / `poll_accounts.json` (旧巡回の口座写し) / `logs/notecored.log.*`。
+/// 今の持ち物 (`notemaid.lock` / `notemaid-accounts.json` / `logs/notemaid.log*`) は触らない。
+/// 消せなくても warn 止まりで起動は止めない
+fn remove_stale_root_files(app_dir: &Path) {
+    let mut targets: Vec<std::path::PathBuf> = ["notecore.lock", "poll_accounts.json"]
+        .iter()
+        .map(|n| app_dir.join(n))
+        .collect();
+    for (dir, prefix) in [
+        (app_dir.to_path_buf(), "notemaid.db"),
+        (app_dir.join("logs"), "notecored.log"),
+    ] {
+        let Ok(entries) = fs::read_dir(&dir) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let Some(name) = name.to_str() else {
+                continue;
+            };
+            if name == prefix
+                || name.starts_with(&format!("{prefix}."))
+                || name.starts_with(&format!("{prefix}-"))
+            {
+                targets.push(entry.path());
+            }
+        }
+    }
+    for path in targets {
+        if !path.is_file() {
+            continue;
+        }
+        match fs::remove_file(&path) {
+            Ok(()) => {
+                tracing::info!(path = %path.display(), "removed a stale file of an old version")
+            }
+            Err(e) => tracing::warn!(path = %path.display(), %e, "cannot remove a stale file"),
+        }
+    }
 }
 
 /// v1.74 で削除した notecored (データ面の常駐、#1106) が Linux に残した secret の
@@ -142,6 +186,53 @@ fn move_settings_to_subdir(app_dir: &Path) -> Result<(), Box<dyn std::error::Err
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_files_of_old_versions_are_removed_and_current_ones_are_kept() {
+        let data = tempfile::tempdir().unwrap();
+        let d = data.path();
+        fs::create_dir_all(d.join("logs")).unwrap();
+        for n in [
+            "notecore.lock",
+            "notemaid.db",
+            "notemaid.db-wal",
+            "notemaid.db-shm",
+            "poll_accounts.json",
+            "logs/notecored.log.2026-01-01",
+        ] {
+            fs::write(d.join(n), b"x").unwrap();
+        }
+        for n in [
+            "notemaid.lock",
+            "notemaid-accounts.json",
+            "notecli.db",
+            "logs/notemaid.log",
+            "logs/notemaid.log.2026-01-01",
+        ] {
+            fs::write(d.join(n), b"keep").unwrap();
+        }
+        remove_stale_root_files(d);
+        remove_stale_root_files(d); // 冪等
+        for n in [
+            "notecore.lock",
+            "notemaid.db",
+            "notemaid.db-wal",
+            "notemaid.db-shm",
+            "poll_accounts.json",
+            "logs/notecored.log.2026-01-01",
+        ] {
+            assert!(!d.join(n).exists(), "{n} should be removed");
+        }
+        for n in [
+            "notemaid.lock",
+            "notemaid-accounts.json",
+            "notecli.db",
+            "logs/notemaid.log",
+            "logs/notemaid.log.2026-01-01",
+        ] {
+            assert!(d.join(n).exists(), "{n} should be kept");
+        }
+    }
 
     #[test]
     fn notecored_leftovers_are_removed_from_both_dirs_and_nothing_else() {

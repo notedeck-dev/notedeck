@@ -194,7 +194,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
-        let base = notecore::commands::settings::settings_base_dir(&core).unwrap();
+        let base = core.layout().unwrap().config().to_path_buf();
         std::fs::create_dir_all(&base).unwrap();
         put_skill(&base, "p.md", "---\nid: p\nname: Persona P\nversion: '1'\nmode: manual\nisPersona: true\n---\nhello\n");
         put_skill(

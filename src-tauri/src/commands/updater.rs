@@ -94,10 +94,10 @@ fn offline_enabled(app: &tauri::AppHandle) -> bool {
     let Some(core) = app.try_state::<super::AppState>() else {
         return false;
     };
-    let Ok(base) = notecore::commands::settings::settings_base_dir(&core) else {
+    let Ok(layout) = core.layout() else {
         return false;
     };
-    let text = notecore::settings_store::read_settings_json(&base).unwrap_or_default();
+    let text = notecore::settings_store::read_settings_json(layout).unwrap_or_default();
     notecore::stream_mode::offline_enabled(&text)
 }
 

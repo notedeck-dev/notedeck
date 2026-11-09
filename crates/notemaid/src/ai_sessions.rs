@@ -10,13 +10,14 @@
 //! 固定順、未知フィールドは保持する。読込は寛容 (型が違えば既定値に倒す)。
 //! 空 content で tool_use を持たない assistant (中断の残骸) は読込時に落とす。
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use specta::Type;
 
 use notecli::error::NoteDeckError;
+use notecore::app_dir::Layout;
 use notecore::error::Result;
 use notecore::settings_store as store;
 
@@ -329,18 +330,18 @@ impl SessionFile {
     }
 }
 
-fn load(base: &Path, id: &str) -> Result<SessionFile> {
+fn load(base: &Layout, id: &str) -> Result<SessionFile> {
     validate_id(id)?;
     let text = store::read_file(base, SUBDIR, &file_name(id))?;
     parse(&text).ok_or_else(|| NoteDeckError::InvalidInput(format!("cannot read session {id}")))
 }
 
-fn save(base: &Path, file: &SessionFile) -> Result<()> {
+fn save(base: &Layout, file: &SessionFile) -> Result<()> {
     let body = format!("{}\n", serde_json::to_string_pretty(file)?);
     store::write_file(base, SUBDIR, &file_name(&file.id), &body)
 }
 
-fn mutate<F>(base: &Path, id: &str, f: F) -> Result<AiSession>
+fn mutate<F>(base: &Layout, id: &str, f: F) -> Result<AiSession>
 where
     F: FnOnce(&mut SessionFile),
 {
@@ -352,7 +353,7 @@ where
 }
 
 /// 全セッションを読む (壊れたファイルは飛ばす。同じ id は先勝ち)。
-pub fn load_all(base: &Path) -> Result<Vec<AiSession>> {
+pub fn load_all(base: &Layout) -> Result<Vec<AiSession>> {
     let mut out: Vec<AiSession> = Vec::new();
     let names = match store::list_files(base, SUBDIR) {
         Ok(n) => n,
@@ -376,18 +377,18 @@ pub fn load_all(base: &Path) -> Result<Vec<AiSession>> {
     Ok(out)
 }
 
-pub fn get(base: &Path, id: &str) -> Result<AiSession> {
+pub fn get(base: &Layout, id: &str) -> Result<AiSession> {
     Ok(load(base, id)?.to_wire())
 }
 
-pub fn exists(base: &Path, id: &str) -> bool {
+pub fn exists(base: &Layout, id: &str) -> bool {
     validate_id(id).is_ok()
         && store::resolve_file(base, SUBDIR, &file_name(id))
             .map(|p| p.exists())
             .unwrap_or(false)
 }
 
-pub fn create(base: &Path, req: AiSessionCreate) -> Result<AiSession> {
+pub fn create(base: &Layout, req: AiSessionCreate) -> Result<AiSession> {
     validate_id(&req.id)?;
     if exists(base, &req.id) {
         return Err(NoteDeckError::InvalidInput(format!(
@@ -420,7 +421,7 @@ pub fn create(base: &Path, req: AiSessionCreate) -> Result<AiSession> {
 }
 
 /// メッセージを末尾に足す。同じ id が既にあれば差し替える (再送の冪等性)。
-pub fn append(base: &Path, id: &str, messages: Vec<SessionMessage>) -> Result<AiSession> {
+pub fn append(base: &Layout, id: &str, messages: Vec<SessionMessage>) -> Result<AiSession> {
     mutate(base, id, |file| {
         for m in messages {
             // 保存前の秘匿化 (#1164)。書き手が誰でもここを通る
@@ -437,13 +438,13 @@ pub fn append(base: &Path, id: &str, messages: Vec<SessionMessage>) -> Result<Ai
     })
 }
 
-pub fn remove_messages(base: &Path, id: &str, ids: &[String]) -> Result<AiSession> {
+pub fn remove_messages(base: &Layout, id: &str, ids: &[String]) -> Result<AiSession> {
     mutate(base, id, |file| {
         file.messages.retain(|m| !ids.contains(&m.wire.id));
     })
 }
 
-pub fn rename(base: &Path, id: &str, title: &str) -> Result<AiSession> {
+pub fn rename(base: &Layout, id: &str, title: &str) -> Result<AiSession> {
     // 利用者が付けた名前なので、定型タイトルの手がかりは捨てる (#135)
     mutate(base, id, |file| {
         file.title = crate::redact::text(title).into_owned();
@@ -452,7 +453,7 @@ pub fn rename(base: &Path, id: &str, title: &str) -> Result<AiSession> {
 }
 
 /// trigger skill の id を初出順で累積する (#725)。
-pub fn add_triggered_skills(base: &Path, id: &str, skill_ids: &[String]) -> Result<AiSession> {
+pub fn add_triggered_skills(base: &Layout, id: &str, skill_ids: &[String]) -> Result<AiSession> {
     mutate(base, id, |file| {
         for s in skill_ids {
             if !s.is_empty() && !file.triggered_skill_ids.contains(s) {
@@ -462,13 +463,13 @@ pub fn add_triggered_skills(base: &Path, id: &str, skill_ids: &[String]) -> Resu
     })
 }
 
-pub fn delete(base: &Path, id: &str) -> Result<()> {
+pub fn delete(base: &Layout, id: &str) -> Result<()> {
     validate_id(id)?;
     store::delete_file(base, SUBDIR, &file_name(id))
 }
 
-pub fn dir(base: &Path) -> PathBuf {
-    base.join(SUBDIR)
+pub fn dir(base: &Layout) -> PathBuf {
+    store::subdir_path(base, SUBDIR).expect("sessions is in the allowlist")
 }
 
 #[cfg(test)]
@@ -492,9 +493,10 @@ mod tests {
         req.title = "HEARTBEAT 2026".into();
         req.i18n =
             Some(serde_json::json!({ "title": { "key": "_native.heartbeat.sessionTitle" } }));
-        let created = create(dir.path(), req).unwrap();
+        let layout = Layout::single_dir(dir.path());
+        let created = create(&layout, req).unwrap();
         assert!(created.i18n.is_some());
-        let renamed = rename(dir.path(), &created.id, "mine").unwrap();
+        let renamed = rename(&layout, &created.id, "mine").unwrap();
         assert_eq!(renamed.title, "mine");
         assert!(renamed.i18n.is_none());
     }
@@ -514,7 +516,8 @@ mod tests {
     #[test]
     fn create_append_rename_remove_delete_round_trip() {
         let tmp = tempfile::tempdir().unwrap();
-        let base = tmp.path();
+        let layout = Layout::single_dir(tmp.path());
+        let base = &layout;
         let s = create(base, create_req("20260924120000")).unwrap();
         assert_eq!(s.kind, "chat");
         assert_eq!(s.message_count, 0);
@@ -558,7 +561,8 @@ mod tests {
     #[test]
     fn file_keeps_field_order_unknown_fields_and_trailing_newline() {
         let tmp = tempfile::tempdir().unwrap();
-        let base = tmp.path();
+        let layout = Layout::single_dir(tmp.path());
+        let base = &layout;
         std::fs::create_dir_all(dir(base)).unwrap();
         let raw = r#"{
   "schemaVersion": 1,

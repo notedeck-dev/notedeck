@@ -285,10 +285,10 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         }
         notecore::migrations::run_fs(&app_dir)?;
         // この端末の構成 (client.json5): AI 系コマンドを in-process で回すか notemaid に中継するか
-        let configured_backend =
-            notecore::client_config::load(&app_dir.join(commands::SETTINGS_DIR)).backend;
+        let layout = notecore::app_dir::Layout::from_root(&app_dir);
+        let configured_backend = notecore::client_config::load(&layout).backend;
         // external gate が permissions.json5 を直接読むための所在 (#1099)
-        notecore::permissions_gate::init(&app_dir.join(commands::SETTINGS_DIR));
+        notecore::permissions_gate::init(&layout);
         // 前回、確認待ちのまま残った AI ターンを閉じる (#1133)
         notemaid::ai_turn::recover(&app_dir);
         // HEARTBEAT の観測値 (直近の失敗など) を状態ファイルから戻す

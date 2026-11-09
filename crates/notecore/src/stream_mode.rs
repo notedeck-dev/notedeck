@@ -45,10 +45,10 @@ pub fn polling_interval_ms(core: &Core) -> u64 {
 /// 設定どおりのモードを全アカウントへ送る。`at_boot` のときは polling だけ送る
 /// (realtime は接続の既定で、端末の購読で張られる。アプリの起動時の適用と同じ規則)
 pub async fn apply(core: &Core, at_boot: bool) {
-    let Ok(base) = commands::settings::settings_base_dir(core) else {
+    let Ok(layout) = core.layout() else {
         return;
     };
-    let text = crate::settings_store::read_settings_json(&base).unwrap_or_default();
+    let text = crate::settings_store::read_settings_json(layout).unwrap_or_default();
     if offline_enabled(&text) {
         // オフラインモード中は輸送路を開かない。解除は端末の操作で、そのときに
         // 保存されたモードを適用し直す

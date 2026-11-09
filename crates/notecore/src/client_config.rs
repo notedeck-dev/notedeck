@@ -6,10 +6,9 @@
 //! 子プロセスは起動しない)。データ面は構成に関わらず常にアプリの中。手元側のファイル
 //! なので設定バックアップに含めず、capability からも書けない。無い / 壊れているときは `auto`。
 
-use std::path::Path;
-
 use serde::{Deserialize, Serialize};
 
+use crate::app_dir::Layout;
 use crate::error::Result;
 use crate::settings_store as store;
 
@@ -54,15 +53,15 @@ pub fn serialize(cfg: &ClientConfig) -> String {
 }
 
 /// 設定ディレクトリから読む。無ければ既定
-pub fn load(base_dir: &Path) -> ClientConfig {
-    match store::read_root_file(base_dir, FILE_NAME) {
+pub fn load(layout: &Layout) -> ClientConfig {
+    match store::read_root_file(layout, FILE_NAME) {
         Ok(raw) => parse(&raw),
         Err(_) => ClientConfig::default(),
     }
 }
 
-pub fn save(base_dir: &Path, cfg: &ClientConfig) -> Result<()> {
-    store::write_root_file(base_dir, FILE_NAME, &serialize(cfg))
+pub fn save(layout: &Layout, cfg: &ClientConfig) -> Result<()> {
+    store::write_root_file(layout, FILE_NAME, &serialize(cfg))
 }
 
 #[cfg(test)]
@@ -82,14 +81,15 @@ mod tests {
     #[test]
     fn round_trips_through_the_file() {
         let dir = tempfile::tempdir().unwrap();
-        assert_eq!(load(dir.path()).backend, Backend::Auto);
+        let layout = Layout::single_dir(dir.path());
+        assert_eq!(load(&layout).backend, Backend::Auto);
         let cfg = ClientConfig {
             backend: Backend::Resident,
         };
-        save(dir.path(), &cfg).unwrap();
+        save(&layout, &cfg).unwrap();
         let raw = std::fs::read_to_string(dir.path().join(FILE_NAME)).unwrap();
         assert!(raw.contains("backend: 'resident'"));
-        assert_eq!(load(dir.path()), cfg);
+        assert_eq!(load(&layout), cfg);
         assert_eq!(
             parse(&serialize(&ClientConfig::default())).backend,
             Backend::Auto

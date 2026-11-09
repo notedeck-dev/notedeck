@@ -8,15 +8,13 @@
 //! LF を 1 つ除き、書くときは前に LF を、末尾には無ければ LF を足す (デバイスと
 //! 同じ規則。往復で末尾の LF は高々 1 つ)。
 
-use std::path::Path;
-
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use specta::Type;
 use std::sync::OnceLock;
 
-use notecore::commands::settings::settings_base_dir;
+use notecore::app_dir::Layout;
 use notecore::context::Core;
 use notecore::edit_history::{self, Attribution};
 use notecore::error::Result;
@@ -234,12 +232,12 @@ pub fn now_iso() -> String {
     chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
 }
 
-fn base_dir(core: &Core) -> Result<std::path::PathBuf> {
-    settings_base_dir(core)
+fn base_dir(core: &Core) -> Result<Layout> {
+    core.layout().cloned()
 }
 
 /// 全件 (ファイルの並び = バイト順。デバイスの `Object.entries` と同じ)。
-pub fn load_all(base_dir: &Path) -> Vec<StoredMemo> {
+pub fn load_all(base_dir: &Layout) -> Vec<StoredMemo> {
     let now = now_iso();
     store::list_files(base_dir, SUBDIR)
         .unwrap_or_default()
@@ -278,7 +276,7 @@ pub fn local_stamp(t: chrono::DateTime<chrono::Local>) -> String {
 }
 
 /// 新しい key (`generateMemoKey`): 占有されていれば 1 秒ずつ先へずらす。
-pub fn generate_key(base_dir: &Path) -> String {
+pub fn generate_key(base_dir: &Layout) -> String {
     let now = chrono::Local::now();
     let mut attempt: i64 = 0;
     loop {
@@ -372,7 +370,7 @@ pub fn is_zettelkasten_key(s: &str) -> bool {
 mod tests {
     use super::*;
 
-    fn core_in(dir: &Path) -> Core {
+    fn core_in(dir: &std::path::Path) -> Core {
         let core = Core::new();
         core.set_app_dir(dir.to_path_buf());
         core

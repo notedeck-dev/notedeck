@@ -23,7 +23,10 @@ pub const TURNS: &str = "turns";
 pub const WORKSPACE: &str = "workspace";
 
 pub fn run_fs(app_dir: &Path) -> std::io::Result<()> {
-    let settings = app_dir.join(notecore::commands::settings::SETTINGS_DIR);
+    // 旧 `ai-turns/` / `ai-workspace/` は設定ディレクトリの直下にあった
+    let settings = notecore::app_dir::Layout::from_root(app_dir)
+        .config()
+        .to_path_buf();
     let base = workspace::dir(app_dir);
     move_turns(&settings.join(OLD_TURNS), &base.join(TURNS))?;
     move_dir_if_absent(&settings.join(OLD_WORKSPACE), &base.join(WORKSPACE))?;
@@ -105,8 +108,8 @@ pub fn turns_dir(app_dir: &Path) -> std::path::PathBuf {
     if new.exists() {
         return new;
     }
-    let old = app_dir
-        .join(notecore::commands::settings::SETTINGS_DIR)
+    let old = notecore::app_dir::Layout::from_root(app_dir)
+        .config()
         .join(OLD_TURNS);
     if old.exists() {
         return old;
@@ -130,7 +133,9 @@ mod tests {
     #[test]
     fn moves_the_old_state_dirs_under_notemaid_and_is_idempotent() {
         let t = tempfile::tempdir().unwrap();
-        let settings = t.path().join("notedeck");
+        let settings = notecore::app_dir::Layout::from_root(t.path())
+            .config()
+            .to_path_buf();
         write(&settings.join("ai-turns/budget.json"), "{\"b\":1}");
         write(&settings.join("ai-turns/heartbeat.json"), "{}");
         write(&settings.join("ai-turns/t-1.json"), "{}");
@@ -156,7 +161,9 @@ mod tests {
     #[test]
     fn taint_records_are_merged_as_a_union_when_both_exist() {
         let t = tempfile::tempdir().unwrap();
-        let settings = t.path().join("notedeck");
+        let settings = notecore::app_dir::Layout::from_root(t.path())
+            .config()
+            .to_path_buf();
         write(
             &settings.join("ai-turns/taint.json"),
             r#"{"s1":{"sinceMs":10,"sources":["notes.show"]},"s2":{"sinceMs":5,"sources":["context"]}}"#,

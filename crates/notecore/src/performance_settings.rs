@@ -8,7 +8,6 @@
 use serde_json::Value;
 use std::sync::LazyLock;
 
-use crate::commands::settings::settings_base_dir;
 use crate::context::Core;
 use crate::error::Result;
 use crate::json5_out::{self, J5};
@@ -102,7 +101,7 @@ pub fn field(key: &str) -> Option<&'static Field> {
 
 /// 上書きマップ (ファイル順)。無い / 壊れているときは空。
 pub fn load_overrides(core: &Core) -> Result<J5> {
-    let text = store::read_root_file(&settings_base_dir(core)?, FILE_NAME).unwrap_or_default();
+    let text = store::read_root_file(core.layout()?, FILE_NAME).unwrap_or_default();
     Ok(match json5::from_str::<J5>(&text) {
         Ok(v @ J5::Obj(_)) => v,
         _ => J5::Obj(vec![]),
@@ -182,7 +181,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
-        let base = settings_base_dir(&core).unwrap();
+        let base = core.layout().unwrap().config().to_path_buf();
         std::fs::create_dir_all(&base).unwrap();
         let f = field("emojiCacheHosts").unwrap();
         assert_eq!(set(&core, f, 1000.0).unwrap(), 200.0);

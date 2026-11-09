@@ -8,7 +8,6 @@ mod push;
 mod query;
 mod resident;
 mod settings;
-pub(crate) use settings::SETTINGS_DIR;
 mod sub_window;
 mod system_state;
 mod table;

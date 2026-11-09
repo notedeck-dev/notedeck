@@ -44,7 +44,7 @@ struct Entry {
 type File = BTreeMap<String, Entry>;
 
 fn path(core: &Core) -> Result<PathBuf> {
-    Ok(crate::sidecar::base_dir(core)?.join(DIR).join(FILE))
+    Ok(core.layout()?.config().join(DIR).join(FILE))
 }
 
 /// 壊れていれば空 (同意なし) として読む

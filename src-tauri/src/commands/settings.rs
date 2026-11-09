@@ -3,23 +3,20 @@
 //! 委譲) のみ。
 
 use std::fs;
-use std::path::PathBuf;
 
 use notecli::error::NoteDeckError;
 use tauri::Manager;
 
+use notecore::app_dir::Layout;
 use notecore::settings_store as store;
 
 use super::Result;
 
-/// Settings subdirectory name under app_data_dir.
-pub(crate) const SETTINGS_DIR: &str = "notedeck";
-
-/// Resolve the settings base directory: `app_data_dir/notedeck/`.
-fn settings_base_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
+/// アプリデータディレクトリの中の配置 (#1333)
+fn layout(app: &tauri::AppHandle) -> Result<Layout> {
     let app_dir = crate::app_dir::resolve_app_dir(app)
         .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-    Ok(app_dir.join(SETTINGS_DIR))
+    Ok(Layout::from_root(&app_dir))
 }
 
 /// Get the settings directory path (so users can open it in file manager).
@@ -27,7 +24,7 @@ fn settings_base_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
 #[tauri::command]
 #[specta::specta]
 pub fn get_settings_dir(app: tauri::AppHandle) -> Result<String> {
-    Ok(settings_base_dir(&app)?.to_string_lossy().to_string())
+    Ok(layout(&app)?.config().to_string_lossy().to_string())
 }
 
 /// Get the log directory path (`app_log_dir`, holds `notedeck.log` — #644).
@@ -95,10 +92,10 @@ pub fn open_settings_file_in_editor(
     subdir: Option<String>,
     name: String,
 ) -> Result<()> {
-    let base = settings_base_dir(&app)?;
+    let layout = layout(&app)?;
     let path = match subdir.as_deref() {
-        Some(s) => store::resolve_file(&base, s, &name)?,
-        None => store::resolve_root_file(&base, &name)?,
+        Some(s) => store::resolve_file(&layout, s, &name)?,
+        None => store::resolve_root_file(&layout, &name)?,
     };
     if !path.exists() {
         return Err(NoteDeckError::InvalidInput(format!(
@@ -123,7 +120,7 @@ pub fn open_settings_file_in_editor(
 pub async fn export_settings_json(app: tauri::AppHandle) -> Result<bool> {
     use tauri_plugin_dialog::DialogExt;
 
-    let base_dir = settings_base_dir(&app)?;
+    let layout = layout(&app)?;
 
     let dest = app
         .dialog()
@@ -140,7 +137,7 @@ pub async fn export_settings_json(app: tauri::AppHandle) -> Result<bool> {
         .as_path()
         .ok_or_else(|| NoteDeckError::InvalidInput("Invalid destination path".to_string()))?;
 
-    let bundle = store::export_bundle(&base_dir)?;
+    let bundle = store::export_bundle(&layout)?;
     let json = serde_json::to_string_pretty(&bundle)
         .map_err(|e| NoteDeckError::InvalidInput(format!("Failed to serialize: {e}")))?;
     fs::write(dest_path, json)
@@ -167,7 +164,7 @@ pub async fn import_settings_json(app: tauri::AppHandle) -> Result<ImportSetting
     use std::collections::BTreeMap;
     use tauri_plugin_dialog::DialogExt;
 
-    let base_dir = settings_base_dir(&app)?;
+    let layout = layout(&app)?;
 
     let src = app
         .dialog()
@@ -227,7 +224,7 @@ pub async fn import_settings_json(app: tauri::AppHandle) -> Result<ImportSetting
         }
     }
 
-    let warnings = store::import_bundle(&base_dir, &bundle)?;
+    let warnings = store::import_bundle(&layout, &bundle)?;
 
     Ok(ImportSettingsResult {
         imported: true,

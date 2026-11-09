@@ -24,6 +24,7 @@ fn export_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .path()
         .download_dir()
         .map_err(|e| format!("download dir unavailable: {e}"))?;
+    // nd-layout-ignore: ~/Downloads/notedeck は書き出し先。設定ディレクトリではない
     Ok(dl.join("notedeck"))
 }
 

@@ -166,8 +166,12 @@ struct Headless {
     rt: Arc<TurnRuntime>,
 }
 
+fn layout(app_dir: &Path) -> notecore::app_dir::Layout {
+    notecore::app_dir::Layout::from_root(app_dir)
+}
+
 fn settings_dir(app_dir: &Path) -> PathBuf {
-    app_dir.join(notecore::commands::settings::SETTINGS_DIR)
+    layout(app_dir).config().to_path_buf()
 }
 
 fn headless(rounds: Vec<Vec<AiChatEvent>>) -> Headless {
@@ -187,7 +191,7 @@ fn headless(rounds: Vec<Vec<AiChatEvent>>) -> Headless {
         sink: sink.clone(),
         store_dir: checkpoint::dir(&app_dir),
         policy: confirm::ConfirmPolicy::default(),
-        sessions: Arc::new(FileSessions(settings_dir(&app_dir))),
+        sessions: Arc::new(FileSessions(layout(&app_dir))),
         taint: Arc::new(taint::FileTaint::new(&app_dir)),
         core: Some(core),
         budget: None,
@@ -234,7 +238,7 @@ fn request(turn_id: &str, session_id: Option<&str>, principal: &str, text: &str)
 
 fn create_session(h: &Headless, id: &str) {
     ai_sessions::create(
-        &settings_dir(&h.app_dir),
+        &layout(&h.app_dir),
         AiSessionCreate {
             id: id.into(),
             kind: "chat".into(),
@@ -313,7 +317,7 @@ async fn reads_across_the_core_capabilities_need_no_device() {
     // 読取だけなら設定ファイルは何も書かれない
     assert!(h.changes.0.lock().unwrap().is_empty());
     // セッションにはユーザー入力と最終応答が書かれている
-    let session = ai_sessions::get(&settings_dir(&h.app_dir), "20260927120000").unwrap();
+    let session = ai_sessions::get(&layout(&h.app_dir), "20260927120000").unwrap();
     let roles: Vec<&str> = session.messages.iter().map(|m| m.role.as_str()).collect();
     assert_eq!(roles.first(), Some(&"user"));
     assert_eq!(session.messages.last().unwrap().content, "done");
@@ -392,10 +396,7 @@ async fn confirmed_writes_are_previewed_and_written_by_notecore() {
     let keybinds =
         std::fs::read_to_string(settings_dir(&h.app_dir).join("keybinds.json5")).unwrap();
     assert!(keybinds.contains("search"));
-    assert_eq!(
-        notemaid::memos::load_all(&settings_dir(&h.app_dir)).len(),
-        1
-    );
+    assert_eq!(notemaid::memos::load_all(&layout(&h.app_dir)).len(), 1);
 }
 
 /// 無人 (HEARTBEAT) は確認を待たず、確認の要る書込は意図として残す。
