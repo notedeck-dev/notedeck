@@ -13,6 +13,7 @@
  */
 
 import JSON5 from 'json5'
+import { stripMachineAccountIds } from '@/services/accountRebind'
 import { parseProfileFile, toFileFormat } from '@/services/deckProfileCodec'
 import { splitProfile } from '@/services/deckProfileState'
 import type { WidgetItem } from '@/services/distributableCodecs/widgetCodec'
@@ -103,5 +104,12 @@ export function createProfileFiles(notify: (message: string) => void) {
  * `state/deck/` へ分けるので書かない。整形は他の設定ファイルと同じ (決定的)
  */
 export function serializeProfileConfig(profile: DeckProfile): string {
-  return stringifyJson5(toFileFormat(splitProfile(profile).config))
+  const { config } = splitProfile(profile)
+  // この機械の UUID (`accountId`) は portable な `account` がある列には書かない (#1332)
+  return stringifyJson5(
+    toFileFormat({
+      ...config,
+      columns: stripMachineAccountIds(config.columns),
+    }),
+  )
 }

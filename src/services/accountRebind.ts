@@ -84,3 +84,39 @@ export function rebindColumns<C extends RebindableColumn>(
   })
   return { columns: out, changed, unbound }
 }
+
+/** この機械に無いアカウントを指す列の `accountId` の印 (`unbound:<user@host>`) */
+export const UNBOUND_PREFIX = 'unbound:'
+
+export function isUnboundAccountId(id: string | null | undefined): boolean {
+  return typeof id === 'string' && id.startsWith(UNBOUND_PREFIX)
+}
+
+/**
+ * ファイルに書く形: portable な `account` がある列は `accountId` (この機械の UUID) を
+ * 書かない。2 台で同じファイルを共有したとき、起動のたびにお互いの UUID で書き直して
+ * 差分が止まらなくなるのを防ぐ。`accountId: null` (全アカウント) とゲストはそのまま
+ */
+export function stripMachineAccountIds<C extends RebindableColumn>(
+  columns: readonly C[],
+): C[] {
+  return columns.map((col) => {
+    if (typeof col.accountId !== 'string' || !col.account) return col
+    const { accountId: _machine, ...rest } = col
+    return rest as unknown as C
+  })
+}
+
+/**
+ * ファイルから読んだ形を整える: `account` があって `accountId` が無い列は、この機械の
+ * アカウントが揃うまで `unbound:<user@host>` を置く (`undefined` のままだと全アカウントの
+ * 列と見分けがつかない)。再結合 (`rebindColumns`) がこの機械の UUID に置き換える
+ */
+export function placeholderAccountIds<C extends RebindableColumn>(
+  columns: readonly C[],
+): C[] {
+  return columns.map((col) => {
+    if (col.accountId !== undefined || !col.account) return col
+    return { ...col, accountId: `${UNBOUND_PREFIX}${col.account}` }
+  })
+}

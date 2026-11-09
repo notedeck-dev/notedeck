@@ -404,14 +404,23 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     await vi.waitFor(() => {
       expect(store.getProfiles()[0]?.columns[0]?.accountId).toBe('local-a')
     })
-    // 一致の無い列はアカウント未接続のまま残す
+    // 結び直せなかった列はそのまま残す (カラムは消さない。旧形のファイルは別の機械の
+    // UUID のまま、新形なら読んだときに unbound: の印)
     expect(store.getProfiles()[0]?.columns[1]?.accountId).toBe('other-machine')
+    // 結び直しだけではファイルは書き直さない (portable な形では同じ内容)。次に設定側が
+    // 変わったとき、ファイルには account だけを書き、この機械の UUID は書かない
+    // (2 台で共有したとき、お互いの UUID で書き直し続けないため)
+    store.initWindowProfile('m')
+    const cols = store.getProfiles()[0]?.columns ?? []
+    store.setColumns(cols.map((c) => ({ ...c, width: 400 })))
+    store.flushPersist()
     await vi.waitFor(() => {
-      expect(files.get(`main${EXT}`)).toContain("accountId: 'local-a'")
+      expect(files.get(`main${EXT}`)).toContain('width: 400')
     })
-    expect(files.get(`main${EXT}`)).toContain(
-      "account: 'alice@misskey.example'",
-    )
+    const text = files.get(`main${EXT}`) ?? ''
+    expect(text).toContain("account: 'alice@misskey.example'")
+    expect(text).not.toContain('local-a')
+    expect(text).not.toContain('other-machine')
   })
 
   it('別ウィンドウのリネーム通知で対応表を揃え、保存が新しいファイル名へ届く', async () => {

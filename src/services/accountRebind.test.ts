@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  isUnboundAccountId,
+  placeholderAccountIds,
   portableAccountId,
   type RebindableAccount,
   type RebindableColumn,
   rebindColumns,
+  stripMachineAccountIds,
 } from './accountRebind'
 
 const alice: RebindableAccount = {
@@ -54,6 +57,23 @@ describe('accountRebind (#1332)', () => {
     expect(r.columns[2]).toEqual(cols[2])
     expect(r.unbound).toEqual(['c3'])
     expect(r.columns[3]).toBe(cols[3])
+  })
+
+  it('ファイルには account だけを書き、読むときは unbound: の印を置く', () => {
+    const cols: RebindableColumn[] = [
+      { id: 'c1', accountId: 'uuid-a', account: 'alice@misskey.example' },
+      { id: 'c2', accountId: null },
+      { id: 'c3', accountId: 'uuid-g' },
+    ]
+    const written = stripMachineAccountIds(cols)
+    expect(written[0]).toEqual({ id: 'c1', account: 'alice@misskey.example' })
+    expect(written[1]).toEqual({ id: 'c2', accountId: null })
+    expect(written[2]).toEqual({ id: 'c3', accountId: 'uuid-g' })
+    const read = placeholderAccountIds(written)
+    expect(read[0]?.accountId).toBe('unbound:alice@misskey.example')
+    expect(isUnboundAccountId(read[0]?.accountId)).toBe(true)
+    // 再結合でこの機械の UUID に置き換わる
+    expect(rebindColumns(read, [alice]).columns[0]?.accountId).toBe('uuid-a')
   })
 
   it('何も変わらなければ changed は false で、入力は変えない', () => {

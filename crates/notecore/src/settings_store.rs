@@ -329,6 +329,20 @@ pub fn resolve_root_file(layout: &Layout, name: &str) -> Result<PathBuf> {
 /// `mode` 指定時は rename 前に一時ファイルへ適用する (機密ファイルが一瞬でも
 /// 緩い権限で見えないように)。
 pub fn atomic_write(path: &Path, content: &str, mode: Option<u32>) -> Result<()> {
+    // リンクなら向き先に書く (rename でリンクそのものを実体に置き換えない)。dotfiles
+    // マネージャがファイル単位で張ったリンクを最初の保存で壊さないため (#1333)
+    let resolved;
+    let path = if fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        resolved = fs::canonicalize(path).map_err(|e| {
+            NoteDeckError::InvalidInput(format!("Failed to resolve link {}: {e}", path.display()))
+        })?;
+        resolved.as_path()
+    } else {
+        path
+    };
     let parent = path.parent().ok_or_else(|| {
         NoteDeckError::InvalidInput(format!("path has no parent: {}", path.display()))
     })?;
@@ -377,7 +391,8 @@ pub fn list_files(layout: &Layout, subdir: &str) -> Result<Vec<String>> {
     let entries = fs::read_dir(&dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
     for entry in entries {
         let entry = entry.map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-        if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+        // リンクは辿る (dotfiles マネージャがファイル単位で張るリンクも設定として扱う、#1333)
+        if entry.path().is_file() {
             if let Some(name) = entry.file_name().to_str() {
                 if name.starts_with('.') {
                     continue;
@@ -862,7 +877,7 @@ pub fn export_bundle(layout: &Layout) -> Result<BTreeMap<String, String>> {
         let entries = fs::read_dir(&dir).map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
         for entry in entries {
             let entry = entry.map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
-            if !entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
+            if !entry.path().is_file() {
                 continue;
             }
             let name = entry.file_name();
@@ -1546,24 +1561,37 @@ mod tests {
         assert!(!restore.path().join("client.json5").exists());
     }
 
+    /// dotfiles マネージャ (GNU stow 等) はファイル単位でリンクを張る。リンクは設定として
+    /// 列挙し、保存はリンクの向き先に書く (リンクを実体に置き換えない、#1333)
     #[cfg(unix)]
     #[test]
-    fn list_files_skips_symlinks() {
-        // #1041: themes/ の drop-in はシンボリックリンクを対象にしない
-        // (採用コピーの元として追いかけない)。列挙の段階で落ちることを固定する
+    fn symlinked_files_are_listed_and_written_through() {
         let dir = tempfile::tempdir().unwrap();
         let base = dir.path();
         let themes = base.join("themes");
         fs::create_dir_all(&themes).unwrap();
         fs::write(themes.join("real.json5"), "{}").unwrap();
-        let outside = base.join("outside.json5");
+        let store = tempfile::tempdir().unwrap();
+        let outside = store.path().join("outside.json5");
         fs::write(&outside, "{}").unwrap();
         std::os::unix::fs::symlink(&outside, themes.join("link.json5")).unwrap();
+        // 向き先の無いリンクは出さない
+        std::os::unix::fs::symlink(store.path().join("gone"), themes.join("dangling.json5"))
+            .unwrap();
 
         assert_eq!(
             list_files(&lay(base), "themes").unwrap(),
-            vec!["real.json5"]
+            vec!["link.json5", "real.json5"]
         );
+        write_file(&lay(base), "themes", "link.json5", "{ a: 1 }").unwrap();
+        assert!(fs::symlink_metadata(themes.join("link.json5"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "{ a: 1 }");
+        assert!(export_bundle(&lay(base))
+            .unwrap()
+            .contains_key("themes/link.json5"));
     }
 
     /// #1334: 達成記録はこの機械の状態 (resetAt からの導出で他の機械と食い違う) なので

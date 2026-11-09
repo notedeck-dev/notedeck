@@ -283,6 +283,17 @@ pub fn save(app_dir: &Path, file: &ConnectionsFile) -> VaultResult<()> {
 }
 
 fn write_atomic(path: &Path, json: &str) -> VaultResult<()> {
+    // リンクなら向き先に書く (dotfiles マネージャのリンクを壊さない、#1333)
+    let resolved;
+    let path = if fs::symlink_metadata(path)
+        .map(|m| m.file_type().is_symlink())
+        .unwrap_or(false)
+    {
+        resolved = fs::canonicalize(path).map_err(io_err)?;
+        resolved.as_path()
+    } else {
+        path
+    };
     let dir = path
         .parent()
         .ok_or_else(|| io_err("connections file has no parent directory"))?;

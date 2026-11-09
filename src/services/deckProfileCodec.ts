@@ -8,6 +8,7 @@
  */
 
 import { COLUMN_LABELS_BY_TYPE } from '@/i18n/locale.generated'
+import { placeholderAccountIds } from '@/services/accountRebind'
 import type { WidgetItem } from '@/services/distributableCodecs/widgetCodec'
 import { migrateSearchColumns } from '@/services/searchFilter'
 import {
@@ -144,7 +145,11 @@ export function parseProfileFile(
   id: string,
   filename: string,
 ): ParsedProfileFile {
-  const rawColumns = (data.columns as DeckColumn[]) || []
+  // `account` (user@host) だけでアカウントを指す列 (別の機械で書かれた、#1332) は、
+  // この機械のアカウントに結び直すまで `unbound:` の印を置く
+  const rawColumns = placeholderAccountIds(
+    ((data.columns as DeckColumn[]) || []).map((c) => c),
+  )
   const {
     columns: widgetMigrated,
     droppedConsoleCount,
