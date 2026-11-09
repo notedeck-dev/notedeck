@@ -285,6 +285,9 @@ const notemaidFactsText = computed(() => {
       ? `heartbeat: lastTick=${hb.lastTickAt ? new Date(hb.lastTickAt).toISOString() : '-'} outcome=${hb.lastOutcome ?? '-'} failures=${hb.consecutiveFailures ?? 0}`
       : null,
     n.logDir ? `log: ${n.logDir}` : null,
+    health.value?.layout
+      ? `layout: ${health.value.layout.version} root=${health.value.layout.root} config=${health.value.layout.config} data=${health.value.layout.data} state=${health.value.layout.state} cache=${health.value.layout.cache}`
+      : null,
   ]
   return lines.filter((l): l is string => l != null).join('\n')
 })

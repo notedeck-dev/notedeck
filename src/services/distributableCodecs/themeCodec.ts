@@ -26,6 +26,12 @@ export interface ThemeNotedeckMeta {
   storeSha512?: string
   storeVersion?: string
   installedFor?: string[]
+  /**
+   * themes/ の素の .json5 から取り込んだコピーの、元の本文の sha-256 (#1041 / #1334)。
+   * 採用の記録 (theme-dropins.json5) はこの機械の状態になったので、記録の無い機械で
+   * 同じ元ファイルを再採用して複製が出ないよう、コピー側にも印を持つ
+   */
+  dropInSource?: string
   createdAt: number
   updatedAt: number
 }
@@ -48,7 +54,10 @@ export interface ThemeContent {
   props: Record<string, string>
 }
 
-export type ThemeItem = DistributableMeta<ThemeContent, Record<string, never>>
+export type ThemeItem = DistributableMeta<
+  ThemeContent,
+  { dropInSource?: string }
+>
 
 /** ID 凍結の欠損判定 (single-file collection と同じ規則) */
 export function isValidThemeId(v: unknown): v is string {
@@ -100,7 +109,7 @@ function fromFile(file: ThemeFileInput, ctx: FileContext): ThemeItem {
       base: file.base === 'light' ? 'light' : 'dark',
       props: file.props ?? {},
     },
-    extra: {},
+    extra: nd.dropInSource ? { dropInSource: nd.dropInSource } : {},
   }
 }
 
@@ -117,6 +126,9 @@ function toFile(item: ThemeItem): ThemeFile {
       ...(item.store?.sha512 ? { storeSha512: item.store.sha512 } : {}),
       ...(item.store?.version ? { storeVersion: item.store.version } : {}),
       ...(installedFor.length > 0 ? { installedFor } : {}),
+      ...(item.extra?.dropInSource
+        ? { dropInSource: item.extra.dropInSource }
+        : {}),
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     },

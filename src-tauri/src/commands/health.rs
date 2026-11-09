@@ -27,6 +27,39 @@ pub struct HealthReport {
     pub last_panic: Option<notecore::crash_report::PanicReport>,
     /// AI (notemaid) がどこでどう動いているか (#1106)。繋がらない / 起動しない理由も含む
     pub notemaid: NotemaidDiagnostics,
+    /// データディレクトリの配置 (#1334)。開発者モードの About に出す
+    pub layout: LayoutPaths,
+}
+
+/// データディレクトリの各領域の場所
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct LayoutPaths {
+    /// 配置の版。`legacy` は再編前
+    pub version: String,
+    pub root: String,
+    pub config: String,
+    pub data: String,
+    pub state: String,
+    pub cache: String,
+}
+
+impl LayoutPaths {
+    fn of(layout: &notecore::app_dir::Layout) -> Self {
+        let s = |p: &std::path::Path| p.to_string_lossy().into_owned();
+        Self {
+            version: if layout.is_legacy() {
+                "legacy".into()
+            } else {
+                format!("v{}", notecore::app_dir::FS_LAYOUT)
+            },
+            root: s(layout.root()),
+            config: s(layout.config()),
+            data: s(layout.data()),
+            state: s(layout.state()),
+            cache: s(layout.cache()),
+        }
+    }
 }
 
 /// AI の別プロセス (notemaid) の自己診断。事実だけを集め、判定は表示側が行う
@@ -158,6 +191,7 @@ pub async fn build_health_report(
     let log_dir = log_dir_path.map(|p| p.to_string_lossy().into_owned());
 
     let notemaid = notemaid_diagnostics(app_state).await;
+    let layout = LayoutPaths::of(app_state.layout()?);
     Ok(HealthReport {
         doctor: core.doctor,
         backend_ready,
@@ -169,5 +203,6 @@ pub async fn build_health_report(
         log_dir,
         last_panic,
         notemaid,
+        layout,
     })
 }

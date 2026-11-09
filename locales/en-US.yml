@@ -3465,6 +3465,13 @@ _tutorialSteps:
   completeTitle: "Setup complete"
   completeDescription: "You are ready to use NoteDeck. Feel free to explore."
 
+_layoutMigration:
+  shelved: "While reorganizing the data directory, {count} items that existed in both the old and the new layout were set aside in {dir}. Check them before deleting"
+  symlinkedSettings: "The settings folder (notedeck/) is a symbolic link, so the move to the new layout (config / data / state) was skipped. Point links at config/ and data/ instead, then restart"
+  standaloneStopped: "The resident AI was stopped to reorganize the data directory. Heartbeat runs will not continue until the resident is updated"
+  residentAlive: "The resident AI could not be stopped, so the data directory was not reorganized. Stop it and restart"
+  failed: "Reorganizing the data directory failed; the previous layout was restored: {message}"
+
 _main:
   backendInitFailed: "Failed to initialize the backend: {error}"
   httpRelayUnavailable: "Another app is using port {port}, so the image relay and external integrations (HTTP API) are unavailable. Images are loaded directly from their servers. Quit that app and restart NoteDeck"

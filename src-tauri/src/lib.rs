@@ -35,6 +35,7 @@ mod android_worker;
 #[cfg(target_os = "windows")]
 mod hwheel_hook;
 mod ipc_index;
+mod layout_boot;
 #[cfg(target_os = "android")]
 mod notify_cursor_file;
 mod os_notify;
@@ -283,6 +284,10 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         if let Err(e) = notecli::keychain::init_store() {
             tracing::warn!("keychain unavailable ({e})");
         }
+        // データディレクトリの再編 (#1334)。旧配置の書き手 (常駐 notemaid) を止めてから、
+        // 排他を取って config / data / state / cache に分ける。失敗したら旧配置のまま
+        let layout_report = layout_boot::prepare(&app_dir);
+        app.manage(layout_boot::LayoutReport(std::sync::Mutex::new(layout_report)));
         notecore::migrations::run_fs(&app_dir)?;
         // この端末の構成 (client.json5): AI 系コマンドを in-process で回すか notemaid に中継するか
         let layout = notecore::app_dir::Layout::from_root(&app_dir);
@@ -1284,6 +1289,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::read_history_sidecar,
             commands::write_history_sidecar,
             commands::delete_history_sidecar,
+            layout_boot::layout_migration_report,
             commands::get_settings_dir,
             commands::get_media_proxy_token,
             commands::get_log_dir,

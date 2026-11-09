@@ -203,6 +203,48 @@ if (isTauri) {
   // 待つので fire-and-forget。既存インストールは on、新規は off。
   void initDeveloperMode()
 
+  // データディレクトリの再編 (#1334) で操作が要る人にだけ知らせる。結果は Rust が
+  // 1 回だけ返す (複数の窓で重ねて出さない)
+  void (async () => {
+    try {
+      const { commands } = await import('./utils/tauriInvoke')
+      const report = await commands.layoutMigrationReport()
+      if (report.notices.length === 0) return
+      const { useToast } = await import('./stores/toast')
+      await localeReady
+      for (const n of report.notices) {
+        switch (n.kind) {
+          case 'shelved':
+            useToast().show(
+              i18n.tsx._layoutMigration.shelved({ count: n.count, dir: n.dir }),
+              'warning',
+            )
+            break
+          case 'symlinkedSettings':
+            useToast().show(
+              i18n.ts._layoutMigration.symlinkedSettings,
+              'warning',
+            )
+            break
+          case 'standaloneStopped':
+            useToast().show(i18n.ts._layoutMigration.standaloneStopped, 'info')
+            break
+          case 'residentAlive':
+            useToast().show(i18n.ts._layoutMigration.residentAlive, 'warning')
+            break
+          case 'failed':
+            useToast().show(
+              i18n.tsx._layoutMigration.failed({ message: n.message }),
+              'error',
+            )
+            break
+        }
+      }
+    } catch (e) {
+      console.warn('[layout] migration report unavailable:', e)
+    }
+  })()
+
   // Pre-load server info from DB so ColumnBadges can show icons immediately
   useServersStore().loadCachedServers()
 }

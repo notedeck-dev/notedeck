@@ -271,11 +271,11 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | `postform.json5` | config | ✓ | ✓ |
 | `settings.json5` | config | ✓ | ✓ |
 | `tasks.json5` | config | ✓ | ✓ |
-| `tutorial.json5` | config | ✓ | ✓ |
+| `tutorial.json5` | statefromv1 | — | ✓ |
 | `permissions.json5` | config | ✓ | ✓ |
-| `theme-dropins.json5` | config | ✓ | ✓ |
+| `theme-dropins.json5` | statefromv1 | — | ✓ |
 | `locale.json5` | config | ✓ | ✓ |
-| `client.json5` | config | — | ✓ |
+| `client.json5` | statefromv1 | — | ✓ |
 | `connections.json` | config | ✓ | — |
 | `permissions-meta.json5` | state | — | ✓ |
 | `ui.json5` | state | — | ✓ |

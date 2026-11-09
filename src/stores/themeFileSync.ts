@@ -6,6 +6,7 @@ import {
 import { injectJson5Id } from '@/services/idFreeze'
 import { casefold } from '@/services/settingsSlug'
 import {
+  dropInSourceHash,
   nextDropInId,
   parseDropInRecord,
   parseDropInTheme,
@@ -61,15 +62,45 @@ export async function adoptDropIns(
   let changed = Object.keys(record).length !== Object.keys(before).length
   const all = [...installed]
   const adopted: ThemeItem[] = []
+  // 採用済みのコピーが持つ元の本文の hash (記録の無い機械でも再採用しない、#1334)
+  const knownSources = new Set(
+    all.map((t) => t.extra?.dropInSource).filter((h): h is string => !!h),
+  )
+  // 記録はあるがコピーに印が無い (印を足す前に採用した) ものは、元の本文で印を埋める
+  for (const [key, id] of Object.entries(record)) {
+    const theme = all.find((t) => t.id === id)
+    const filename = files.find((f) => casefold(f) === key)
+    if (!theme || theme.extra?.dropInSource || !filename) continue
+    try {
+      const hash = await dropInSourceHash(await settingsFs.readTheme(filename))
+      theme.extra = { ...theme.extra, dropInSource: hash }
+      knownSources.add(hash)
+      await themeFiles.persistItem(theme, all)
+    } catch (e) {
+      console.warn('[theme] drop-in source hash backfill failed:', filename, e)
+    }
+  }
   for (const filename of pickPendingDropIns(files, record)) {
     let body: ReturnType<typeof parseDropInTheme>
+    let hash: string
     try {
-      body = parseDropInTheme(await settingsFs.readTheme(filename), filename)
+      const raw = await settingsFs.readTheme(filename)
+      body = parseDropInTheme(raw, filename)
+      hash = await dropInSourceHash(raw)
     } catch (e) {
       console.warn('[theme] drop-in read failed:', filename, e)
       continue
     }
     if (!body) continue
+    if (knownSources.has(hash)) {
+      // 別の機械 (記録の無い機械) で既に採用した元ファイル: 複製せず記録だけ揃える
+      const owner = all.find((t) => t.extra?.dropInSource === hash)
+      if (owner) {
+        record[casefold(filename)] = owner.id
+        changed = true
+      }
+      continue
+    }
     const now = Date.now()
     const theme: ThemeItem = {
       id: nextDropInId(new Set(all.map((t) => t.id))),
@@ -79,7 +110,7 @@ export async function adoptDropIns(
       // 外部由来のファイルにストア紐付き / per-account 紐付きを持ち込まない
       scope: { kind: 'shared', global: false, installedFor: [] },
       content: { base: body.base ?? 'dark', props: body.props },
-      extra: {},
+      extra: { dropInSource: hash },
     }
     try {
       await themeFiles.persistItem(theme, all)
@@ -89,6 +120,7 @@ export async function adoptDropIns(
     }
     all.push(theme)
     adopted.push(theme)
+    knownSources.add(hash)
     record[casefold(filename)] = theme.id
     changed = true
   }

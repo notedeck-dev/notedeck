@@ -3216,6 +3216,13 @@ _tutorialSteps:
   completeTitle: "セットアップ完了"
   completeDescription: "これで NoteDeck を使い始められます。あとは自由に触ってみてください。"
 
+_layoutMigration:
+  shelved: "データの配置を変えるとき、旧配置と新配置の両方にあったもの ({count} 件) を {dir} に退避しました。中身を確かめてから消してください"
+  symlinkedSettings: "設定フォルダ (notedeck/) がシンボリックリンクなので、新しい配置 (config / data / state) への移行を見送りました。同期先に向けたリンクを config/ と data/ に張り直してから再起動してください"
+  standaloneStopped: "データの配置を変えるため、常駐の AI を止めました。常駐を更新するまで巡回 (HEARTBEAT) は続きません"
+  residentAlive: "常駐の AI を止められなかったので、データの配置の移行を見送りました。常駐を止めてから再起動してください"
+  failed: "データの配置の移行に失敗したので、元の配置に戻して続けます: {message}"
+
 _main:
   backendInitFailed: "バックエンドの初期化に失敗しました: {error}"
   httpRelayUnavailable: "ポート {port} を別のアプリが使っているため、画像の中継と外部連携 (HTTP API) を使えません。画像は元のサーバーから直接読みます。そのアプリを止めてから NoteDeck を再起動してください"

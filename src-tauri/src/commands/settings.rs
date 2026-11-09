@@ -19,12 +19,20 @@ fn layout(app: &tauri::AppHandle) -> Result<Layout> {
     Ok(Layout::from_root(&app_dir))
 }
 
-/// Get the settings directory path (so users can open it in file manager).
+/// 「設定フォルダを開く」の先。再編後 (#1334) は root (config / data / state が見える)
+/// を開く。2 本に分けると AI の持ち物 (skills / ai.json5 は config、SOUL / sessions は
+/// data) が割れて迷うため。旧配置なら従来どおり `notedeck/`
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
 pub fn get_settings_dir(app: tauri::AppHandle) -> Result<String> {
-    Ok(layout(&app)?.config().to_string_lossy().to_string())
+    let layout = layout(&app)?;
+    let dir = if layout.is_legacy() {
+        layout.config()
+    } else {
+        layout.root()
+    };
+    Ok(dir.to_string_lossy().to_string())
 }
 
 /// Get the log directory path (`app_log_dir`, holds `notedeck.log` — #644).

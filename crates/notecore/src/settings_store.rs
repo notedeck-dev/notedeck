@@ -26,6 +26,9 @@ pub enum Area {
     Data,
     /// この機械の状態。同期しない
     State,
+    /// この機械の記録だが、再編前は設定の隣にあったもの (tutorial / theme-dropins /
+    /// client)。再編 (#1334) で `state/` へ移る。旧配置のままの機械では設定の隣から読む
+    StateFromV1,
 }
 
 impl Area {
@@ -34,6 +37,13 @@ impl Area {
             Area::Config => layout.config(),
             Area::Data => layout.data(),
             Area::State => layout.state(),
+            Area::StateFromV1 => {
+                if layout.is_legacy() {
+                    layout.config()
+                } else {
+                    layout.state()
+                }
+            }
         }
     }
 }
@@ -139,23 +149,35 @@ pub const ROOT_FILES: &[RootFile] = &[
     root("postform.json5"),
     root("settings.json5"),
     root("tasks.json5"),
-    // チュートリアルの達成記録 + NoteDeck 独自実績 (#1029)。プロファイル・
-    // アカウントから独立 (アプリ操作の習熟はアカウントに紐づかない)
-    root("tutorial.json5"),
+    // チュートリアルの達成記録 + NoteDeck 独自実績 (#1029)。達成判定は `resetAt` と
+    // 機械の状態からの導出で、持ち込んだ先で食い違うので状態 (再編で state/ へ。実績が
+    // バックアップから落ちる代償は利用者が了承、#1334)
+    RootFile {
+        name: "tutorial.json5",
+        area: Area::StateFromV1,
+        backup: false,
+        ipc: true,
+    },
     // principal 別権限 + 確認スキップ (#712 / #714)。capability 層に write を
     // 公開しない制約はここではなく capability registry 側で担保している
     // (settingsFs の固定名ラッパーのみが本コマンドに到達する)
     root("permissions.json5"),
-    // themes/ の素の .json5 を取り込んだ記録 (元ファイル名 → 採用 ID、#1041)。
-    // 消えると次回起動で再取り込みされて複製が出るのでバックアップに含める
-    root("theme-dropins.json5"),
+    // themes/ の素の .json5 を取り込んだ記録 (元ファイル名 → 採用 ID、#1041)。この機械の
+    // 記録 (再編で state/ へ、#1334)。記録の無い機械で再採用して複製が出ないよう、採用した
+    // コピー側に `dropInSource` (元の本文の hash) を持たせる
+    RootFile {
+        name: "theme-dropins.json5",
+        area: Area::StateFromV1,
+        backup: false,
+        ipc: true,
+    },
     // 表示言語 (#135)。端末ごとの値だが持ち出して困らない
     root("locale.json5"),
     // この端末の構成 (embedded / resident、#1106 段階 3a)。復元先で存在しない
     // 常駐を探さないよう、バックアップに含めない
     RootFile {
         name: "client.json5",
-        area: Area::Config,
+        area: Area::StateFromV1,
         backup: false,
         ipc: true,
     },
@@ -419,17 +441,30 @@ notemaid/
 .*.tmp
 ";
 
+/// 再編後 (#1334) の雛形: `config/` には設定しか無いので、書込中の一時ファイルだけ
+pub const GITIGNORE_TEMPLATE_V1: &str = "\
+# NoteDeck の設定フォルダ (#1333 / #1334)。設定は持ち出せるが、公開前提ではない:
+# アカウントの紐付け (user@host)、外部サービスの URL、実行されるコード (plugins /
+# widgets / skills)、権限の方針が入る。
+.*.tmp
+";
+
 /// `.gitignore` が無ければ雛形を置く。あれば触らない。失敗は warn 止まり
 pub fn ensure_gitignore(layout: &Layout) {
     let path = layout.config().join(".gitignore");
     if path.exists() {
         return;
     }
+    let template = if layout.is_legacy() {
+        GITIGNORE_TEMPLATE
+    } else {
+        GITIGNORE_TEMPLATE_V1
+    };
     if let Err(e) = fs::create_dir_all(layout.config()) {
         tracing::warn!(%e, "cannot create the settings dir for .gitignore");
         return;
     }
-    if let Err(e) = atomic_write(&path, GITIGNORE_TEMPLATE, None) {
+    if let Err(e) = atomic_write(&path, template, None) {
         tracing::warn!(%e, "cannot write the .gitignore template");
     }
 }
@@ -1492,7 +1527,7 @@ mod tests {
     fn client_json5_is_never_backed_up() {
         // #1106 段階 3a: この端末の構成。復元先で存在しない常駐を探さない
         let f = root_file("client.json5").unwrap();
-        assert_eq!(f.area, Area::Config);
+        assert_eq!(f.area, Area::StateFromV1);
         assert!(!f.backup);
         let dir = tempfile::tempdir().unwrap();
         fs::write(dir.path().join("client.json5"), "{ backend: 'resident' }").unwrap();
@@ -1530,28 +1565,26 @@ mod tests {
         );
     }
 
+    /// #1334: 達成記録はこの機械の状態 (resetAt からの導出で他の機械と食い違う) なので
+    /// バックアップに入れない。旧配置では設定の隣、再編後は state/ から読む
     #[test]
-    fn tutorial_json5_is_backed_up() {
-        // #1029: 達成記録はユーザーの習熟の記録なので、設定のバックアップに含める
+    fn tutorial_json5_is_machine_state() {
+        let f = root_file("tutorial.json5").unwrap();
+        assert!(!f.backup);
+        assert_eq!(f.area, Area::StateFromV1);
         let dir = tempfile::tempdir().unwrap();
-        let base = dir.path();
-        write_root_file(&lay(base), "tutorial.json5", r#"{ version: 1 }"#).unwrap();
-
-        let bundle = export_bundle(&lay(base)).unwrap();
+        let legacy = Layout::legacy(dir.path());
         assert_eq!(
-            bundle.get("tutorial.json5").map(String::as_str),
-            Some(r#"{ version: 1 }"#)
+            resolve_root_file(&legacy, "tutorial.json5").unwrap(),
+            legacy.config().join("tutorial.json5")
         );
-
-        fs::remove_file(base.join("tutorial.json5")).unwrap();
-        import_bundle(&lay(base), &bundle).unwrap();
+        let v1 = Layout::v1(dir.path());
         assert_eq!(
-            read_root_file(&lay(base), "tutorial.json5").unwrap(),
-            r#"{ version: 1 }"#
+            resolve_root_file(&v1, "tutorial.json5").unwrap(),
+            v1.state().join("tutorial.json5")
         );
     }
 
-    /// ドット始まりは allowlist / 汎用 IPC / バックアップのすべてで無視する (#1333 原則 5)
     #[test]
     fn dot_entries_are_invisible_to_the_generic_paths() {
         let dir = tempfile::tempdir().unwrap();
