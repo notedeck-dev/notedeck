@@ -77,6 +77,11 @@ pub extern "system" fn Java_com_notedeck_desktop_NotificationBridge_runWorker(
             return RESULT_SUCCESS;
         }
     };
+    // 配置の移行 (#1334)。アプリ更新の後、アプリを開く前に worker が走りうる。
+    // Android に daemon は無いので probe は要らない
+    if let Err(e) = notecore::migrations::run_fs(&app_dir) {
+        tracing::warn!("[worker] filesystem migration failed: {e}");
+    }
     // 表示言語 → 入口 (初回登録時にチャネルを作るので言語が先)
     crate::ui_lang::init_if_unset(&app_dir);
     crate::android_notify::register_bridge(&mut env);

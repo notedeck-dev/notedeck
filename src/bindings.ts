@@ -3634,7 +3634,12 @@ trustedPlugins?: TrustedPlugin[];
 /**
  * secret が設定済みの slot 名一覧。keychain 列挙 API がないため metadata 側が source of truth。
  */
-slots?: string[]; lastUsedAt?: string | null; lastSecretUpdatedAt?: string | null; displayName?: string | null; icon?: string | null; notes?: string | null; createdAt: string; updatedAt: string }
+slots?: string[]; lastUsedAt?: string | null; lastSecretUpdatedAt?: string | null; displayName?: string | null; icon?: string | null; notes?: string | null; createdAt: string; 
+/**
+ * 設定側のファイルには書かない (state 側の値。`connections_store::load` が重ね、
+ * 無ければ `created_at`。#1333 §4)
+ */
+updatedAt: string }
 /**
  * 接続種別。v2 で `inbound` (webhook receiver) を追加する余地を残す。
  */

@@ -254,7 +254,7 @@ impl ImageCache {
         http_client: reqwest::Client,
         perf: SharedPerfConfig,
     ) -> Self {
-        let cache_dir = app_dir.join("image_cache");
+        let cache_dir = crate::app_dir::Layout::from_root(app_dir).image_cache();
         std::fs::create_dir_all(&cache_dir).ok();
         let max_total = DEFAULT_MEMORY_CACHE_MAX_TOTAL;
         let max_item = DEFAULT_MEMORY_CACHE_MAX_ITEM;

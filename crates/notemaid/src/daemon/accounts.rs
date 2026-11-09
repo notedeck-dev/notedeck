@@ -18,7 +18,7 @@ pub struct SyncedAccounts {
 
 impl SyncedAccounts {
     pub fn load(data_dir: &Path) -> Self {
-        let path = data_dir.join(FILE_NAME);
+        let path = notecore::app_dir::Layout::from_root(data_dir).notemaid_accounts_file();
         let rows = std::fs::read(&path)
             .ok()
             .and_then(|b| serde_json::from_slice::<Vec<Account>>(&b).ok())

@@ -157,24 +157,37 @@ fn read_json<T: serde::de::DeserializeOwned>(path: &Path, what: &str) -> VaultRe
 /// - clone 先 (設定だけがある) では同意も鍵も無い接続として立つ。使おうとした時に
 ///   設定画面が鍵を求める
 pub fn load(app_dir: &Path) -> VaultResult<ConnectionsFile> {
-    let Some(mut parsed) =
-        read_json::<ConnectionsFile>(&connections_path(app_dir), CONNECTIONS_FILE)?
+    let Some(mut raw) =
+        read_json::<serde_json::Value>(&connections_path(app_dir), CONNECTIONS_FILE)?
     else {
         return Ok(ConnectionsFile::default());
     };
     let meta: Option<MetaFile> = read_json(&meta_path(app_dir), META_FILE)?;
-    let mut needs_save = migrate_legacy_exposure(&mut parsed);
     // 旧形の判定: 設定側に state のキーが残っているか
-    let raw: serde_json::Value =
-        serde_json::from_str(&fs::read_to_string(connections_path(app_dir)).map_err(io_err)?)
-            .map_err(io_err)?;
-    let legacy_inline = raw
-        .get("connections")
-        .and_then(|v| v.as_array())
-        .is_some_and(|arr| {
-            arr.iter()
-                .any(|c| META_KEYS.iter().any(|k| c.get(k).is_some()))
-        });
+    let mut legacy_inline = false;
+    if let Some(arr) = raw.get_mut("connections").and_then(|v| v.as_array_mut()) {
+        for c in arr.iter_mut() {
+            let Some(obj) = c.as_object_mut() else {
+                continue;
+            };
+            if META_KEYS.iter().any(|k| obj.contains_key(*k)) {
+                legacy_inline = true;
+            }
+            // `updatedAt` は設定側に無い (state 側か created_at)。wire 型では必須のまま
+            if !obj.contains_key("updatedAt") {
+                let created = obj
+                    .get("createdAt")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::String(String::new()));
+                obj.insert("updatedAt".into(), created);
+            }
+        }
+    }
+    let mut parsed: ConnectionsFile =
+        serde_json::from_value(raw).map_err(|e| VaultError::StoreIo {
+            message: format!("{CONNECTIONS_FILE} parse error: {e}"),
+        })?;
+    let mut needs_save = migrate_legacy_exposure(&mut parsed);
     for conn in &mut parsed.connections {
         match meta.as_ref().and_then(|m| m.connections.get(&conn.id)) {
             Some(entry) => apply_meta(conn, entry),

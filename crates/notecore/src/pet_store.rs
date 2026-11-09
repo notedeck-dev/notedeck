@@ -300,7 +300,9 @@ async fn read_bounded(resp: reqwest::Response) -> Result<Vec<u8>, String> {
 }
 
 pub fn pet_dir(app_dir: &Path, slug: &str) -> PathBuf {
-    app_dir.join(PET_CACHE_DIR).join(slug)
+    crate::app_dir::Layout::from_root(app_dir)
+        .pet_cache()
+        .join(slug)
 }
 
 /// スプライトを検査して保存し、他の slug のキャッシュを消す
@@ -350,7 +352,7 @@ pub fn load(app_dir: &Path, slug: &str) -> Result<Option<(PetInfo, Vec<u8>)>, St
 
 /// `keep` 以外の slug ディレクトリを消す。None で全部消す
 pub fn prune_except(app_dir: &Path, keep: Option<&str>) -> Result<(), String> {
-    let root = app_dir.join(PET_CACHE_DIR);
+    let root = crate::app_dir::Layout::from_root(app_dir).pet_cache();
     let entries = match std::fs::read_dir(&root) {
         Ok(e) => e,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),

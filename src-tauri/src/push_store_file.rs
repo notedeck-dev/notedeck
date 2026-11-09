@@ -19,7 +19,7 @@ const TMP_NAME: &str = "push_state.json.tmp";
 static LOCK: Mutex<()> = Mutex::new(());
 
 fn path(app_dir: &Path) -> PathBuf {
-    app_dir.join(FILE_NAME)
+    notecore::app_dir::Layout::from_root(app_dir).push_state_file()
 }
 
 fn read(app_dir: &Path) -> PushStore {

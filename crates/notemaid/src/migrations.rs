@@ -11,11 +11,10 @@ use std::fs;
 use std::path::Path;
 
 use crate::ai_turn::taint::TaintRecord;
-use crate::workspace;
 
 /// ファイル配置の版。transport の Hello で照合し、違えば古い常駐を起動し直す
-/// (capability の manifest が同じでも配置だけ変わる版があるため)
-pub const FS_LAYOUT: u32 = 2;
+/// (capability の manifest が同じでも配置だけ変わる版があるため)。正本は notecore (#1334)
+pub use notecore::app_dir::FS_LAYOUT;
 
 const OLD_TURNS: &str = "ai-turns";
 const OLD_WORKSPACE: &str = "ai-workspace";
@@ -24,10 +23,13 @@ pub const WORKSPACE: &str = "workspace";
 
 pub fn run_fs(app_dir: &Path) -> std::io::Result<()> {
     // 旧 `ai-turns/` / `ai-workspace/` は設定ディレクトリの直下にあった
-    let settings = notecore::app_dir::Layout::from_root(app_dir)
-        .config()
-        .to_path_buf();
-    let base = workspace::dir(app_dir);
+    let layout = notecore::app_dir::Layout::from_root(app_dir);
+    if !layout.is_legacy() {
+        // 再編後の配置 (#1334) では旧々パスは無い (移行が運んでいる)
+        return Ok(());
+    }
+    let settings = layout.config().to_path_buf();
+    let base = layout.notemaid_state();
     move_turns(&settings.join(OLD_TURNS), &base.join(TURNS))?;
     move_dir_if_absent(&settings.join(OLD_WORKSPACE), &base.join(WORKSPACE))?;
     Ok(())
@@ -102,15 +104,16 @@ fn read_taint(path: &Path) -> BTreeMap<String, TaintRecord> {
         .unwrap_or_default()
 }
 
-/// 旧パスに残っていて新パスに無いものを読む側の fallback (移行が失敗したとき用)
+/// notemaid のこの機械の状態 (turns)。配置は `Layout::notemaid_state` (旧配置では
+/// 人格と記憶と同じ `notedeck/notemaid/`、再編後は `state/notemaid/`)。旧配置で
+/// 新パスに無く旧々パス (`ai-turns/`) にあれば、読む側の fallback としてそちら
 pub fn turns_dir(app_dir: &Path) -> std::path::PathBuf {
-    let new = workspace::dir(app_dir).join(TURNS);
-    if new.exists() {
+    let layout = notecore::app_dir::Layout::from_root(app_dir);
+    let new = layout.notemaid_state().join(TURNS);
+    if new.exists() || !layout.is_legacy() {
         return new;
     }
-    let old = notecore::app_dir::Layout::from_root(app_dir)
-        .config()
-        .join(OLD_TURNS);
+    let old = layout.config().join(OLD_TURNS);
     if old.exists() {
         return old;
     }
@@ -118,7 +121,9 @@ pub fn turns_dir(app_dir: &Path) -> std::path::PathBuf {
 }
 
 pub fn workspace_dir(app_dir: &Path) -> std::path::PathBuf {
-    workspace::dir(app_dir).join(WORKSPACE)
+    notecore::app_dir::Layout::from_root(app_dir)
+        .notemaid_state()
+        .join(WORKSPACE)
 }
 
 #[cfg(test)]
