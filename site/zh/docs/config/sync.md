@@ -1,0 +1,65 @@
+---
+sourceHash: 7fc596d4bb8f
+---
+
+# 用 Git 或 Dropbox 携带设置
+
+NoteDeck 的设置全部集中在应用数据文件夹里的 **`config/`**。这一个文件夹就是"携带的单位"。用 Git 保留历史、用 Dropbox 等与另一台电脑保持一致、用 dotfiles 管理器管理，都可以。
+
+`config/` 之外的东西（帖子缓存、AI 的对话、窗口位置、同意与密钥是否存在）不是用来携带的，请不要纳入同步。什么放在哪里见[设置文件](/zh/docs/config/files#设置在哪里)。
+
+::: warning 请不要公开
+`config/` 里包含每个列看的是哪个账号（`user@host`）、外部服务的 URL、会被执行的代码（插件 / 小工具 / 技能），以及允许 AI 和插件进行的操作。API 密钥和访问令牌不在其中，但**它不是为公开仓库准备的形式**。放进 Git 的话请用私有仓库。
+:::
+
+## 前提
+
+- **先退出应用和常驻的 AI，再从外部改动。** `git pull`、用外部编辑器编辑、同步软件的回写，都请在关闭应用的时候完成。应用不会监视设置文件的外部变化，开着应用改动的话，下一次操作时应用这边的副本会覆盖掉你的改动。如果常驻的 AI（notemaid）在运行，它可能回写 `ai.json5`，也请停掉。
+- **重新保存后注释会消失。** 设置文件是 JSON5，可以写注释，但应用重新保存时不会保留注释。
+- **写入是确定性的。** 内容相同就得到相同的字节序列，只是启动或读取不会重写文件。不会出现"什么都没碰，Git 差异却在增加"。
+
+## 用 Git 管理
+
+```bash
+cd ~/.local/share/com.notedeck.desktop/config   # macOS / Windows 的位置见「设置文件」
+git init
+git add .
+git commit -m "NoteDeck 设置"
+```
+
+`.gitignore` 由 NoteDeck 放置（如果没有）。`config/` 里只有设置，所以排除的只有写入途中的临时文件。
+
+### 在另一台电脑上使用
+
+1. 在新电脑上启动一次 NoteDeck 然后退出（会生成应用数据文件夹）。
+2. 清空 `config/`，把仓库 clone 到那里（或者把 clone 下来的文件夹以 `config` 为名放进去）。
+3. 启动 NoteDeck，用同样的账号登录。
+
+列以 `user@host` 指向账号，所以登录的那一刻就会重新绑定到这台电脑的账号。尚未登录的账号的列会保留为"账号未连接"，登录后就会连上。
+
+到外部服务的连接（AI 提供商等）只携带**定义**。API 密钥和"给 AI 看 / 给外部应用看"的同意是那台电脑的状态，要用的时候设置界面会要求。
+
+### dotfiles 管理器
+
+- 像 **chezmoi** 那样**复制**文件来部署的工具可以直接使用。
+- 像 **GNU stow** 那样按文件建立**符号链接**的工具也可以使用。NoteDeck 把链接当作设置来读，保存时写到链接指向的目标（不会把链接替换成普通文件）。
+
+## 放进 Dropbox 等同步文件夹
+
+把整个 `config/`，或者 `config/profiles/` 这样的一部分移到同步文件夹，再用符号链接放回原处。
+
+```bash
+# 例：只把配置文件同步到 Dropbox
+mv ~/.local/share/com.notedeck.desktop/config/profiles ~/Dropbox/notedeck-profiles
+ln -s ~/Dropbox/notedeck-profiles ~/.local/share/com.notedeck.desktop/config/profiles
+```
+
+- **同一时间只有一台电脑在写。** 两台电脑同时打开 NoteDeck 写同一个文件夹，后写的会获胜。同步软件生成"冲突副本"时，会出现两个相同 id 的文件，NoteDeck 会跳过排在后面的那个并用提示告知。请决定保留哪个，删掉另一个。
+- **不要把 `data/`（AI 的对话和备忘）指向同步文件夹。** 里面有别人的帖子正文（包括仅关注者可见和私信）、未发布的草稿、AI 记住的关于你的事。这些不该放在未加密的云端。
+- **不要同步 `state/` `cache/` `notecli.db`。** 它们是这台电脑的状态和缓存。`notecli.db` 是 SQLite，写入途中被同步会损坏。
+
+## 从旧版本更新后
+
+以前设置放在名为 `notedeck/` 的文件夹里。更新后首次启动时，NoteDeck 会把它拆成 `config/` `data/` `state/` `cache/`。迁移前的内容会在应用数据文件夹的 `backups/pre-layout-<日期时间>/` 留一份副本（过一段时间会删除）。
+
+如果你把 `notedeck/` 本身做成符号链接来同步，NoteDeck 不会把里面的内容抽走（否则会从同步目标消失，连带还在用旧版本的另一台电脑的设置一起消失）。启动时会出现相应的提示，请把同步目标里的内容分成 `config` 和 `data`，重新建立到 `config/` 和 `data/` 的链接后再启动。
