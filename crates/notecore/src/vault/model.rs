@@ -167,6 +167,8 @@ pub struct Connection {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
     pub created_at: String,
+    /// 設定側には書かない (state 側の値、無ければ `created_at`。#1333 §4)
+    #[serde(default)]
     pub updated_at: String,
 }
 

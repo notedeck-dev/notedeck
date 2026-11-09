@@ -18,6 +18,24 @@ pub fn run_fs(app_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     rename_ai_json_to_json5(app_dir)?;
     remove_notecored_leftovers(app_dir, dirs::config_dir().as_deref());
     remove_stale_root_files(app_dir);
+    move_loopback_consent_to_state(app_dir)?;
+    Ok(())
+}
+
+/// #1333 §4: loopback 同意 (#1293) は同意 = この機械の状態なので、設定ディレクトリの
+/// `loopback/consent.json` から `state/loopback-consent.json` へ移す
+fn move_loopback_consent_to_state(app_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let layout = crate::app_dir::Layout::from_root(app_dir);
+    let old_dir = layout.config().join(crate::loopback_consent::DIR);
+    let old = old_dir.join("consent.json");
+    let new = layout.state().join(crate::loopback_consent::FILE);
+    if old.is_file() && !new.exists() {
+        fs::create_dir_all(layout.state())?;
+        fs::rename(&old, &new)?;
+    }
+    if old_dir.is_dir() {
+        let _ = fs::remove_dir(&old_dir);
+    }
     Ok(())
 }
 
@@ -186,6 +204,23 @@ fn move_settings_to_subdir(app_dir: &Path) -> Result<(), Box<dyn std::error::Err
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn loopback_consent_moves_into_the_state_dir() {
+        let t = tempfile::tempdir().unwrap();
+        let layout = crate::app_dir::Layout::from_root(t.path());
+        let old_dir = layout.config().join("loopback");
+        fs::create_dir_all(&old_dir).unwrap();
+        fs::write(old_dir.join("consent.json"), "{}").unwrap();
+        move_loopback_consent_to_state(t.path()).unwrap();
+        assert_eq!(
+            fs::read_to_string(layout.state().join("loopback-consent.json")).unwrap(),
+            "{}"
+        );
+        assert!(!old_dir.exists());
+        // 冪等
+        move_loopback_consent_to_state(t.path()).unwrap();
+    }
 
     #[test]
     fn stale_files_of_old_versions_are_removed_and_current_ones_are_kept() {

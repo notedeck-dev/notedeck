@@ -149,12 +149,21 @@ pub const ROOT_FILES: &[RootFile] = &[
     },
     // Vault の接続一覧 (#564)。接続 id は ai.json5 から参照されるので復元先で宙に
     // 浮かないようバックアップに含める。変更口は `vault_upsert_connection` 系だけで、
-    // 汎用の読み書きには出さない (#1333 §1)
+    // 汎用の読み書きには出さない (#1333 §1)。同意 / 鍵の有無 / 時刻は state 側の
+    // `connections-meta.json` (Rust だけが書く。allowlist には載せない)
     RootFile {
         name: CONNECTIONS_FILE,
         area: Area::Config,
         backup: true,
         ipc: false,
+    },
+    // この機械の権限の状態 (#1333 §4): 「今後確認しない」の記憶と、前回起動時の
+    // 実効 granted の写し。方針 (`permissions.json5` の principals) とは別に置く
+    RootFile {
+        name: "permissions-meta.json5",
+        area: Area::State,
+        backup: false,
+        ipc: true,
     },
 ];
 
@@ -226,6 +235,14 @@ pub fn validate_filename(name: &str) -> Result<()> {
     if name.contains("..") || name.contains('/') || name.contains('\\') {
         return Err(NoteDeckError::InvalidInput(format!(
             "Invalid filename: {name}"
+        )));
+    }
+    // ドット始まりは設定ではない (`.git` / `.gitignore` / 書込中の一時ファイル)。利用者が
+    // 設定フォルダを `git init` した瞬間に `.git/config` が射程に入らないよう、allowlist /
+    // 汎用 IPC / バックアップのすべてで無視する (#1333 原則 5)
+    if name.starts_with('.') {
+        return Err(NoteDeckError::InvalidInput(format!(
+            "Filename must not start with a dot: {name}"
         )));
     }
     // Reject Windows reserved characters
@@ -320,6 +337,9 @@ pub fn list_files(layout: &Layout, subdir: &str) -> Result<Vec<String>> {
         let entry = entry.map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
         if entry.file_type().map(|ft| ft.is_file()).unwrap_or(false) {
             if let Some(name) = entry.file_name().to_str() {
+                if name.starts_with('.') {
+                    continue;
+                }
                 names.push(name.to_string());
             }
         }
@@ -353,6 +373,45 @@ pub fn write_file(layout: &Layout, subdir: &str, name: &str, content: &str) -> R
         None
     };
     atomic_write(&path, content, mode)
+}
+
+/// 設定フォルダを Git で管理する人のための `.gitignore` の雛形 (#1333 §5)。
+///
+/// 無ければ書く (利用者の編集を決定的書込で潰さない)。除外するのは設定ではないもの:
+/// 編集履歴のサイドカー、この機械の記録 (tutorial / theme-dropins / client)、人の記録
+/// (sessions / memos / notemaid の人格と記憶)、書込中の一時ファイル。接続の同意と鍵の
+/// 有無、確認の結果は §4 で `state/` に出たので connections.json / permissions.json5 は
+/// 除外しない。再編 (#1334) で `notedeck/` を動かすときは `.git*` も一緒に動かし、
+/// 雛形が無編集なら消す
+pub const GITIGNORE_TEMPLATE: &str = "\
+# NoteDeck の設定フォルダ (#1333)。設定は持ち出せるが、公開前提ではない:
+# アカウントの紐付け (user@host)、外部サービスの URL、実行されるコード (plugins /
+# widgets / skills)、権限の方針が入る。
+#
+# 以下は設定ではない (この機械の記録・人の記録・一時ファイル) ので Git に乗せない。
+*.history.json5
+tutorial.json5
+theme-dropins.json5
+client.json5
+sessions/
+memos/
+notemaid/
+.*.tmp
+";
+
+/// `.gitignore` が無ければ雛形を置く。あれば触らない。失敗は warn 止まり
+pub fn ensure_gitignore(layout: &Layout) {
+    let path = layout.config().join(".gitignore");
+    if path.exists() {
+        return;
+    }
+    if let Err(e) = fs::create_dir_all(layout.config()) {
+        tracing::warn!(%e, "cannot create the settings dir for .gitignore");
+        return;
+    }
+    if let Err(e) = atomic_write(&path, GITIGNORE_TEMPLATE, None) {
+        tracing::warn!(%e, "cannot write the .gitignore template");
+    }
 }
 
 /// AI の人格と記憶のファイル (#1162)。`notemaid/` は allowlist (汎用の読み書き) には
@@ -582,6 +641,9 @@ pub fn export_bundle(layout: &Layout) -> Result<BTreeMap<String, String>> {
                 continue;
             }
             let name = entry.file_name();
+            if name.to_string_lossy().starts_with('.') {
+                continue;
+            }
             let key = format!("{subdir}/{}", name.to_string_lossy());
             let content = fs::read_to_string(entry.path())
                 .map_err(|e| NoteDeckError::InvalidInput(e.to_string()))?;
@@ -1266,6 +1328,62 @@ mod tests {
             read_root_file(&lay(base), "tutorial.json5").unwrap(),
             r#"{ version: 1 }"#
         );
+    }
+
+    /// ドット始まりは allowlist / 汎用 IPC / バックアップのすべてで無視する (#1333 原則 5)
+    #[test]
+    fn dot_entries_are_invisible_to_the_generic_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let l = lay(dir.path());
+        fs::create_dir_all(dir.path().join("skills")).unwrap();
+        fs::write(dir.path().join("skills/.hidden.md"), "x").unwrap();
+        fs::write(dir.path().join("skills/real.md"), "y").unwrap();
+        fs::write(dir.path().join(".gitignore"), "sessions/\n").unwrap();
+        assert_eq!(list_files(&l, "skills").unwrap(), vec!["real.md"]);
+        assert!(read_file(&l, "skills", ".hidden.md").is_err());
+        assert!(write_file(&l, "skills", ".git", "x").is_err());
+        assert!(resolve_root_file(&l, ".gitignore").is_err());
+        let bundle = export_bundle(&l).unwrap();
+        assert!(!bundle
+            .keys()
+            .any(|k| k.contains("/.") || k.starts_with('.')));
+        assert!(bundle.contains_key("skills/real.md"));
+    }
+
+    #[test]
+    fn gitignore_template_is_written_once_and_never_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let l = Layout::from_root(dir.path());
+        ensure_gitignore(&l);
+        let path = l.config().join(".gitignore");
+        assert_eq!(fs::read_to_string(&path).unwrap(), GITIGNORE_TEMPLATE);
+        fs::write(&path, "mine\n").unwrap();
+        ensure_gitignore(&l);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "mine\n");
+        // 雛形は設定ではないものだけを除外し、設定ファイルは除外しない
+        for kept in [
+            "settings.json5",
+            "connections.json",
+            "permissions.json5",
+            "profiles/",
+        ] {
+            assert!(
+                !GITIGNORE_TEMPLATE.contains(kept),
+                "{kept} must not be ignored"
+            );
+        }
+        for ignored in [
+            "sessions/",
+            "memos/",
+            "notemaid/",
+            "*.history.json5",
+            ".*.tmp",
+        ] {
+            assert!(
+                GITIGNORE_TEMPLATE.contains(ignored),
+                "{ignored} must be ignored"
+            );
+        }
     }
 
     #[test]

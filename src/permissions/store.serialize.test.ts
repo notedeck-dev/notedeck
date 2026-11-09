@@ -23,6 +23,8 @@ vi.mock('@/utils/settingsFs', () => ({
     new Promise<void>((resolve) => {
       resolveWrite = resolve
     }),
+  readPermissionsMeta: () => Promise.resolve(''),
+  writePermissionsMeta: () => Promise.resolve(),
 }))
 
 describe('save → reload 直列化 (#716)', () => {

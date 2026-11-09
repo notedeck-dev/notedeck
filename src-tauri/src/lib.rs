@@ -286,6 +286,8 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         notecore::migrations::run_fs(&app_dir)?;
         // この端末の構成 (client.json5): AI 系コマンドを in-process で回すか notemaid に中継するか
         let layout = notecore::app_dir::Layout::from_root(&app_dir);
+        // 設定フォルダを Git で管理する人のための .gitignore の雛形 (無ければ書く、#1333 §5)
+        notecore::settings_store::ensure_gitignore(&layout);
         let configured_backend = notecore::client_config::load(&layout).backend;
         // external gate が permissions.json5 を直接読むための所在 (#1099)
         notecore::permissions_gate::init(&layout);

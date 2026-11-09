@@ -5033,6 +5033,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "loadFailedMinimal": string
     /** 権限の保存に失敗しました。変更は反映されていません。 */
     readonly "saveFailed": string
+    /** 前回の起動より権限が広がっています ({changes})。permissions.json5 を外から変えた覚えがなければ、設定の権限を確認してください。 */
+    readonly "permissionsWidened": ParameterizedString<'changes'>
   }
   readonly "_widgetCapabilities": {
     /** 要アップデート */

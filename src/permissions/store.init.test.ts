@@ -17,6 +17,8 @@ vi.mock('@/utils/settingsFs', () => ({
   readAiSettings: () => Promise.resolve(''),
   writeAiSettings: () => Promise.resolve(),
   writePermissionsSettings: () => Promise.resolve(),
+  readPermissionsMeta: () => Promise.resolve(''),
+  writePermissionsMeta: () => Promise.resolve(),
 }))
 
 describe('whenPermissionsReady (#716)', () => {

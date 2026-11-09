@@ -2755,6 +2755,7 @@ _principal:
 _store:
   loadFailedMinimal: "権限設定を読み込めなかったため、安全のため最小権限で起動しました。設定から権限を確認してください。"
   saveFailed: "権限の保存に失敗しました。変更は反映されていません。"
+  permissionsWidened: "前回の起動より権限が広がっています ({changes})。permissions.json5 を外から変えた覚えがなければ、設定の権限を確認してください。"
 
 
 _widgetCapabilities:

@@ -3000,6 +3000,7 @@ _principal:
 _store:
   loadFailedMinimal: "Could not load the permission settings, so NoteDeck started with minimal permissions for safety. Check the permissions in settings."
   saveFailed: "Failed to save permissions. Your changes were not applied."
+  permissionsWidened: "Permissions are wider than at the last start ({changes}). If you did not change permissions.json5 from outside, review the permissions in settings."
 
 
 _widgetCapabilities:

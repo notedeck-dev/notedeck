@@ -23,11 +23,22 @@ import { useToast } from '@/stores/toast'
 import {
   isTauri,
   readAiSettings,
+  readPermissionsMeta,
   readPermissionsSettingsVersioned,
   writeAiSettings,
+  writePermissionsMeta,
   writePermissionsSettings,
 } from '@/utils/settingsFs'
 import { isConflictError } from '@/utils/tauriInvoke'
+import {
+  grantedSnapshot,
+  normalizeConfirmSkips,
+  parsePermissionsMeta,
+  sameSnapshot,
+  serializePermissionsFile,
+  serializePermissionsMeta,
+  widenedKeys,
+} from './meta'
 import type { Principal, ProfiledPrincipalId } from './principal'
 import {
   EXTERNAL_DEFAULT_PROFILE,
@@ -109,26 +120,6 @@ export function defaultPermissionsFile(): PermissionsFileConfig {
     },
     confirmSkips: {},
   }
-}
-
-/**
- * confirmSkips (#714) の読み込み時正規化: 有効な scope (`ai.chat` /
- * `plugin:<id>`) のみ保持し、capability id の重複・非文字列を落とす。
- * ai.heartbeat / external / 未知キーは (外部エディタで書かれても) 破棄 —
- * 無人実行と外部アプリの確認スキップは構造的に成立させない。
- */
-function normalizeConfirmSkips(raw: unknown): Record<string, string[]> {
-  const out: Record<string, string[]> = {}
-  if (!raw || typeof raw !== 'object') return out
-  for (const [scope, ids] of Object.entries(raw as Record<string, unknown>)) {
-    if (scope !== 'ai.chat' && !scope.startsWith('plugin:')) continue
-    if (!Array.isArray(ids)) continue
-    const clean = [
-      ...new Set(ids.filter((v): v is string => typeof v === 'string')),
-    ]
-    if (clean.length > 0) out[scope] = clean
-  }
-  return out
 }
 
 /**
@@ -269,13 +260,13 @@ async function _initFileStorage(): Promise<void> {
   _version = version
   if (content) {
     const { file, error } = parsePermissionsFile(content)
-    _file.value = file
     if (error !== null) {
       // 破損時はデフォルト (plugin=safe) でなく最小権限へ倒す (#719)
       console.warn('[permissions] failed to parse permissions.json5:', error)
       // 無言で権限を狭めない (#722): ユーザーに最小権限起動を知らせる
       useToast().show(i18n.ts._store.loadFailedMinimal, 'warning')
     }
+    await _applyMeta(file, error === null)
     _initialized.value = true
     return
   }
@@ -307,13 +298,85 @@ async function _initFileStorage(): Promise<void> {
   _file.value = migrated
   try {
     _version = await writePermissionsSettings(
-      stringifyJson5(_file.value),
+      serializePermissionsFile(_file.value),
       _version,
     )
   } catch (e) {
     console.warn('[permissions] failed to write permissions.json5:', e)
   }
+  await _applyMeta(_file.value, true)
   _initialized.value = true
+}
+
+/**
+ * この機械の状態 (`permissions-meta.json5`、#1333 §4) を方針に重ねる。
+ *
+ * - `confirmSkips` は状態側が正本。旧形 (permissions.json5 に同居) なら状態側へ
+ *   移して permissions.json5 を書き直す
+ * - 前回起動時の external / plugin の実効 granted と比べ、広がっていれば 1 回知らせる
+ *   (`git pull` や dotfiles マネージャの apply で権限が広がったことに気づけるように)
+ */
+async function _applyMeta(
+  file: PermissionsFileConfig,
+  fileIsHealthy: boolean,
+): Promise<void> {
+  let metaText = ''
+  try {
+    metaText = await readPermissionsMeta()
+  } catch (e) {
+    console.warn('[permissions] failed to read permissions-meta.json5:', e)
+  }
+  const meta = parsePermissionsMeta(metaText)
+  const inlineSkips = Object.keys(file.confirmSkips).length > 0
+  const migrateInline = metaText.trim().length === 0 && inlineSkips
+  _file.value = {
+    ...file,
+    confirmSkips: migrateInline ? file.confirmSkips : meta.confirmSkips,
+  }
+  if (!fileIsHealthy) return
+
+  const snapshot = grantedSnapshot(_file.value)
+  if (meta.granted) {
+    const widened = widenedKeys(meta.granted, snapshot)
+    const lines = Object.entries(widened).map(
+      ([id, keys]) => `${id}: ${keys.join(', ')}`,
+    )
+    if (lines.length > 0) {
+      useToast().show(
+        i18n.tsx._store.permissionsWidened({ changes: lines.join(' / ') }),
+        'warning',
+      )
+    }
+  }
+  if (migrateInline || !meta.granted || !sameSnapshot(meta.granted, snapshot)) {
+    await _writeMeta().catch((e) =>
+      console.warn('[permissions] failed to write permissions-meta.json5:', e),
+    )
+  }
+  if (migrateInline) {
+    // 同居していた確認の結果を permissions.json5 から外す。初期化は待たない
+    // (reload は _pendingWrite を待つので読み戻しの順序は保たれる)
+    _pendingWrite = writePermissionsSettings(
+      serializePermissionsFile(_file.value),
+      _version,
+    )
+      .then((v) => {
+        _version = v
+      })
+      .catch((e) => {
+        console.warn('[permissions] failed to rewrite permissions.json5:', e)
+      })
+  }
+}
+
+/** 状態 (確認スキップ + 実効 granted の写し) を書く。最後に書いた者勝ち */
+function _writeMeta(): Promise<void> {
+  return writePermissionsMeta(
+    serializePermissionsMeta({
+      confirmSkips: _file.value.confirmSkips,
+      granted: grantedSnapshot(_file.value),
+    }),
+  )
 }
 
 /**
@@ -338,11 +401,18 @@ export function usePermissionsConfig() {
 
   function save(): void {
     _pendingWrite = writePermissionsSettings(
-      stringifyJson5(_file.value),
+      serializePermissionsFile(_file.value),
       _version,
     )
-      .then((v) => {
+      .then(async (v) => {
         _version = v
+        // 方針が変わると実効 granted の写しも変わる
+        await _writeMeta().catch((e) =>
+          console.warn(
+            '[permissions] failed to write permissions-meta.json5:',
+            e,
+          ),
+        )
       })
       .catch(async (e: unknown) => {
         if (isConflictError(e)) {
@@ -360,7 +430,13 @@ export function usePermissionsConfig() {
         try {
           const { content, version } = await readPermissionsSettingsVersioned()
           _version = version
-          if (content) _file.value = parsePermissionsFile(content).file
+          if (content) {
+            const skips = _file.value.confirmSkips
+            _file.value = {
+              ...parsePermissionsFile(content).file,
+              confirmSkips: skips,
+            }
+          }
         } catch (e2) {
           console.warn('[permissions] failed to reload after write error:', e2)
         }
@@ -368,9 +444,17 @@ export function usePermissionsConfig() {
       })
   }
 
+  /** 確認の結果だけを書く (方針は触らない) */
+  function saveMeta(): void {
+    _pendingWrite = _writeMeta().catch((e) => {
+      console.warn('[permissions] failed to write permissions-meta.json5:', e)
+    })
+  }
+
   return {
     file: _file,
     save,
+    saveMeta,
     initialized: _initialized,
   }
 }
@@ -570,20 +654,20 @@ export function isConfirmSkipped(scope: string, capabilityId: string): boolean {
 
 /** 「今後確認しない」を記憶して永続化する。 */
 export function addConfirmSkip(scope: string, capabilityId: string): void {
-  const { file, save } = usePermissionsConfig()
+  const { file, saveMeta } = usePermissionsConfig()
   const list = file.value.confirmSkips[scope] ?? []
   if (list.includes(capabilityId)) return
   file.value.confirmSkips[scope] = [...list, capabilityId]
-  save()
+  saveMeta()
 }
 
 /** 記憶した「今後確認しない」を取り消して永続化する (権限ウィンドウの導線)。 */
 export function removeConfirmSkip(scope: string, capabilityId: string): void {
-  const { file, save } = usePermissionsConfig()
+  const { file, saveMeta } = usePermissionsConfig()
   const next = (file.value.confirmSkips[scope] ?? []).filter(
     (id) => id !== capabilityId,
   )
   if (next.length > 0) file.value.confirmSkips[scope] = next
   else delete file.value.confirmSkips[scope]
-  save()
+  saveMeta()
 }

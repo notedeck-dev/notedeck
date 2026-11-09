@@ -71,11 +71,15 @@ const PERMISSIONS_FILE_NAME: &str = "permissions.json5";
 
 /// `<settings dir>/permissions.json5`。起動時に `init` で 1 回だけ決まる。
 static PERMISSIONS_PATH: OnceLock<PathBuf> = OnceLock::new();
+/// 「今後確認しない」の記憶の所在 (`state/permissions-meta.json5`、#1333 §4)
+static PERMISSIONS_META_PATH: OnceLock<PathBuf> = OnceLock::new();
+const PERMISSIONS_META_FILE_NAME: &str = "permissions-meta.json5";
 
 /// 設定ディレクトリ (`<app dir>/notedeck`) を登録する。HTTP サーバー起動前
 /// (setup) に呼ぶ。
 pub fn init(layout: &crate::app_dir::Layout) {
     let _ = PERMISSIONS_PATH.set(layout.config().join(PERMISSIONS_FILE_NAME));
+    let _ = PERMISSIONS_META_PATH.set(layout.state().join(PERMISSIONS_META_FILE_NAME));
 }
 
 /// ファイル読取結果 → principal の実効 granted。NotFound は「ファイル無し」
@@ -151,11 +155,12 @@ pub async fn profile_for(id: PrincipalId) -> (&'static str, Granted) {
     }
 }
 
-/// 「次から確認しない」(#714) の記憶を permissions.json5 の `confirmSkips`
-/// から引く。AI ループ (#1133) が確認の要否を決めるときに使う。読めない /
-/// 壊れている / `init` 前は「記憶なし」(= 確認する側に倒す)。
+/// 「次から確認しない」(#714) の記憶を `state/permissions-meta.json5` の
+/// `confirmSkips` から引く (#1333 §4 で permissions.json5 から出た)。AI ループ (#1133)
+/// が確認の要否を決めるときに使う。読めない / 壊れている / `init` 前は「記憶なし」
+/// (= 確認する側に倒す)。
 pub async fn confirm_skipped(scope: &str, capability_id: &str) -> bool {
-    let Some(path) = PERMISSIONS_PATH.get() else {
+    let Some(path) = PERMISSIONS_META_PATH.get() else {
         return false;
     };
     match tokio::fs::read_to_string(path).await {

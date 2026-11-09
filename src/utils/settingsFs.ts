@@ -284,6 +284,15 @@ export async function writePermissionsSettings(
   return writeRootSettingsFile('permissions.json5', content, expected)
 }
 
+/** この機械の権限の状態 (`state/permissions-meta.json5`、#1333 §4) */
+export async function readPermissionsMeta(): Promise<string> {
+  return readRootSettingsFile('permissions-meta.json5')
+}
+
+export async function writePermissionsMeta(content: string): Promise<void> {
+  await writeRootSettingsFile('permissions-meta.json5', content)
+}
+
 // --- Tasks helpers ---
 
 export async function readTasks(): Promise<string> {

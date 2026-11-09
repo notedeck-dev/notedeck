@@ -16,6 +16,11 @@ import defaultNavbarJson5 from '@/defaults/navbar.json5?raw'
 import defaultPerformanceJson5 from '@/defaults/performance.json5?raw'
 import defaultPostFormJson5 from '@/defaults/postform.json5?raw'
 import defaultTasksJson5 from '@/defaults/tasks.json5?raw'
+import {
+  parsePermissionsMeta,
+  serializePermissionsFile,
+  serializePermissionsMeta,
+} from '@/permissions/meta'
 import { parsePermissionsFile } from '@/permissions/store'
 import {
   parseClientConfig,
@@ -90,10 +95,18 @@ const CODECS: Record<string, Codec> = {
   },
   'permissions.json5': {
     parse: (t) => parsePermissionsFile(t).file,
-    serialize: stringifyJson5,
+    serialize: (v) => serializePermissionsFile(v as never),
     samples: [
       '{}',
       "{ schemaVersion: 1, principals: { 'ai.chat': { preset: 'readonly' } }, confirmSkips: { 'ai.chat': ['notes.create'] } }",
+    ],
+  },
+  'permissions-meta.json5': {
+    parse: parsePermissionsMeta,
+    serialize: (v) => serializePermissionsMeta(v as never),
+    samples: [
+      '',
+      "{ confirmSkips: { 'ai.chat': ['notes.create'], 'plugin:x': ['a.b', 'a.b'] }, granted: { external: ['notes.read'], plugin: [] } }",
     ],
   },
   'tutorial.json5': {

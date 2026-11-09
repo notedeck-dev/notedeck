@@ -274,6 +274,7 @@ store は「購読 + キャッシュ + UI 状態」だけを持つ。純ロジ�
 | `locale.json5` | config | ✓ | ✓ |
 | `client.json5` | config | — | ✓ |
 | `connections.json` | config | ✓ | — |
+| `permissions-meta.json5` | state | — | ✓ |
 
 | サブディレクトリ | area | バックアップ | ipc |
 |---|---|---|---|
