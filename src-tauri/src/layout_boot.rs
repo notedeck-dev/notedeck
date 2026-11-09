@@ -8,6 +8,7 @@
 
 use std::path::Path;
 use std::sync::Mutex;
+#[cfg(desktop)]
 use std::time::Duration;
 
 use notecore::layout_migration::{self, LayoutMigrationReport, LayoutNotice, Skip};
