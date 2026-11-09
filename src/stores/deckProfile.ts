@@ -879,7 +879,10 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
         if (isEmptyState(splitProfile(p).state) || stateFileNameOf(p.id))
           continue
         await persistStateIfChanged(p)
-        await persistConfigIfChanged(p, profilesData.value)
+        // 設定側のファイルには状態が同居したままなので、portable な形の本文が同じでも
+        // 書き直して外す
+        await profileFiles.persistItem(p, profilesData.value)
+        noteWritten(p.id, 'config', serializeProfileConfig(p))
       }
       const ids = new Set(profilesData.value.map((p) => p.id))
       for (const [name, id] of [...stateFiles]) {

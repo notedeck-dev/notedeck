@@ -195,16 +195,32 @@ fn plan(root: &Path) -> Vec<Move> {
             }
         }
     }
-    // Git の持ち物は設定と一緒に動かす (ドット始まりを無視する規則の例外)
+    // Git の持ち物は設定と一緒に動かす (ドット始まりを無視する規則の例外)。root の編集履歴
+    // (`custom.css.history.json5` 等) は state/history/root/ へ (#1334 段階 2)
     if let Ok(entries) = fs::read_dir(settings) {
         for e in entries.flatten() {
             let name = e.file_name().to_string_lossy().into_owned();
             if name.starts_with(".git") {
                 known.insert(name.clone());
                 push(e.path(), new.config().join(&name), Merge::KeepNew);
+            } else if let Some(base) = name.strip_suffix(crate::edit_history::HISTORY_SUFFIX) {
+                if let Ok(to) = store::history_path(&new, None, base) {
+                    known.insert(name.clone());
+                    push(e.path(), to, Merge::KeepNew);
+                }
             }
         }
     }
+    // loopback 同意 (#1293) は状態: 旧 `loopback/consent.json` → `state/loopback-consent.json`
+    let consent = settings
+        .join(crate::loopback_consent::DIR)
+        .join("consent.json");
+    known.insert(crate::loopback_consent::DIR.to_string());
+    push(
+        consent,
+        new.state().join(crate::loopback_consent::FILE),
+        Merge::KeepNew,
+    );
     // root 直下の平置き
     push(old.image_cache(), new.image_cache(), Merge::KeepNew);
     push(old.emoji_cache(), new.emoji_cache(), Merge::KeepNew);
@@ -236,8 +252,10 @@ fn unknown_entries(root: &Path, moves: &[Move]) -> Vec<PathBuf> {
             if planned.contains(&p) {
                 continue;
             }
-            // notemaid/ の中は個別に計画している
-            if p == settings.join(store::WORKSPACE_DIR) {
+            // notemaid/ と loopback/ の中は個別に計画している
+            if p == settings.join(store::WORKSPACE_DIR)
+                || p == settings.join(crate::loopback_consent::DIR)
+            {
                 continue;
             }
             out.push(p);
@@ -478,8 +496,9 @@ pub fn migrate(root: &Path) -> Result<LayoutMigrationReport, Skip> {
             fs::create_dir_all(&d).map_err(|e| Skip::Failed(e.to_string()))?;
         }
         write_marker(root).map_err(|e| Skip::Failed(e.to_string()))?;
+        // 何も動かしていないので「移行した」とは言わない
         return Ok(LayoutMigrationReport {
-            migrated: true,
+            migrated: false,
             notices: Vec::new(),
         });
     }
@@ -520,8 +539,9 @@ pub fn migrate(root: &Path) -> Result<LayoutMigrationReport, Skip> {
             journal.mkdirs(&secrets)?;
             let _ = fs::set_permissions(&secrets, fs::Permissions::from_mode(0o700));
         }
-        // 空になった旧ディレクトリを消す (notemaid/ は子を個別に動かしたので先に)
+        // 空になった旧ディレクトリを消す (notemaid/ と loopback/ は子を個別に動かしたので先に)
         let _ = fs::remove_dir(legacy.config().join(store::WORKSPACE_DIR));
+        let _ = fs::remove_dir(legacy.config().join(crate::loopback_consent::DIR));
         let _ = fs::remove_dir(legacy.config());
         write_marker(root)
     })();
@@ -635,7 +655,7 @@ mod tests {
     fn a_fresh_install_starts_in_the_new_layout() {
         let t = tempfile::tempdir().unwrap();
         let r = migrate(t.path()).unwrap();
-        assert!(r.migrated && r.notices.is_empty());
+        assert!(!r.migrated && r.notices.is_empty());
         let l = Layout::from_root(t.path());
         assert!(!l.is_legacy());
         assert!(l.config().is_dir() && l.state().is_dir());
@@ -664,6 +684,11 @@ mod tests {
         write(&old.config().join("notemaid/workspace/.keep"), "");
         write(&old.config().join(".gitignore"), store::GITIGNORE_TEMPLATE);
         write(&old.config().join("unknown.txt"), "???");
+        write(
+            &old.config().join("custom.css.history.json5"),
+            "{ entries: [] }",
+        );
+        write(&old.config().join("loopback/consent.json"), "{}");
         write(&old.image_cache().join("x.bin"), "img");
         write(&old.api_tokens_file(), "[]");
         write(&root.join("notecli.db"), "db");
@@ -688,6 +713,11 @@ mod tests {
         assert!(new.notemaid_state().join("workspace").is_dir());
         assert!(new.image_cache().join("x.bin").is_file());
         assert!(new.api_tokens_file().is_file());
+        assert!(new
+            .state()
+            .join("history/root/custom.css.history.json5")
+            .is_file());
+        assert!(new.state().join("loopback-consent.json").is_file());
         // 動かさないもの
         assert!(root.join("notecli.db").is_file());
         assert!(root.join("notemaid.lock").is_file());

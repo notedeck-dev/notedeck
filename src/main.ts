@@ -4,6 +4,7 @@ import { initDeveloperMode } from '@/composables/useDeveloperMode'
 import { initLocale } from '@/composables/useLocale'
 import { announceWindow } from '@/composables/useRepresentative'
 import { i18n } from '@/i18n'
+import { whenPermissionsReady } from '@/permissions/store'
 import App from './App.vue'
 import { ALL_BUILTIN_CAPABILITIES } from './capabilities/builtins'
 import { registerCapability } from './capabilities/registry'
@@ -202,6 +203,10 @@ if (isTauri) {
   // 開発者モードの初期値を一度だけ確定させる (#1034)。アカウントのロードを
   // 待つので fire-and-forget。既存インストールは on、新規は off。
   void initDeveloperMode()
+
+  // 権限ファイルの読込を起動時に始める (#1333 §4)。旧形 (確認スキップが同居) は最初の
+  // 読込で state 側へ分かれるので、最初の確認ダイアログまで待たない
+  void whenPermissionsReady()
 
   // データディレクトリの再編 (#1334) で操作が要る人にだけ知らせる。結果は Rust が
   // 1 回だけ返す (複数の窓で重ねて出さない)

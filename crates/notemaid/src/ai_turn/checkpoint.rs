@@ -35,6 +35,14 @@ enum Stored {
     Closed(ClosedTurn),
 }
 
+/// turns/ に同居する、チェックポイント以外の状態ファイル。`recover` の掃除対象から外す
+const SIBLING_STATE_FILES: &[&str] = &[
+    "taint.json",
+    "budget.json",
+    "heartbeat.json",
+    "workspace-hashes.json",
+];
+
 /// turn の状態の置き場 (`notedeck/notemaid/turns/`。移行前の `ai-turns/` に fallback、#1162)
 pub fn dir(app_dir: &Path) -> PathBuf {
     crate::migrations::turns_dir(app_dir)
@@ -123,6 +131,14 @@ pub fn recover(dir: &Path) -> Vec<String> {
         if p.extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
         }
+        // 同じディレクトリに同居する他の状態ファイル (汚染の記憶 / 予算 / HEARTBEAT /
+        // workspace の hash) はチェックポイントではない。「読めない記録」として消さない
+        if p.file_name()
+            .and_then(|n| n.to_str())
+            .is_some_and(|n| SIBLING_STATE_FILES.contains(&n))
+        {
+            continue;
+        }
         let Ok(text) = std::fs::read_to_string(&p) else {
             continue;
         };
@@ -197,5 +213,31 @@ mod tests {
         assert!(!path(&d, "junk").exists());
         // 復旧は冪等
         assert!(recover(&d).is_empty());
+    }
+
+    /// turns/ に同居する taint.json 等は「読めないチェックポイント」として消さない
+    /// (再起動のたびに汚染の記憶と HEARTBEAT の状態が消えていた)
+    #[test]
+    fn recover_leaves_sibling_state_files_alone() {
+        let d = tempfile::tempdir().unwrap();
+        std::fs::write(
+            d.path().join("taint.json"),
+            r#"{"s1":{"sinceMs":1,"sources":["x"]}}"#,
+        )
+        .unwrap();
+        std::fs::write(d.path().join("heartbeat.json"), "{}").unwrap();
+        std::fs::write(d.path().join("budget.json"), "{}").unwrap();
+        std::fs::write(d.path().join("workspace-hashes.json"), "{}").unwrap();
+        std::fs::write(d.path().join("junk.json"), "not json").unwrap();
+        recover(d.path());
+        for keep in [
+            "taint.json",
+            "heartbeat.json",
+            "budget.json",
+            "workspace-hashes.json",
+        ] {
+            assert!(d.path().join(keep).exists(), "{keep} must survive recover");
+        }
+        assert!(!d.path().join("junk.json").exists());
     }
 }

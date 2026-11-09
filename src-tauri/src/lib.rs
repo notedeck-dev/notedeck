@@ -289,6 +289,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         let layout_report = layout_boot::prepare(&app_dir);
         app.manage(layout_boot::LayoutReport(std::sync::Mutex::new(layout_report)));
         notecore::migrations::run_fs(&app_dir)?;
+        // 旧形の connections.json (同意と鍵の有無が同居) は最初の読込で state 側へ分かれる。
+        // Vault を使うまで待たず、起動時に 1 回読んで分けておく (#1333 §4)
+        if let Err(e) = notecore::vault::connections_store::load(&app_dir) {
+            tracing::warn!("[startup] connections.json could not be read: {e}");
+        }
         // この端末の構成 (client.json5): AI 系コマンドを in-process で回すか notemaid に中継するか
         let layout = notecore::app_dir::Layout::from_root(&app_dir);
         // 設定フォルダを Git で管理する人のための .gitignore の雛形 (無ければ書く、#1333 §5)

@@ -51,7 +51,15 @@ pub fn prepare(app_dir: &Path) -> LayoutMigrationReport {
 fn finish(app_dir: &Path, mut notices: Vec<LayoutNotice>) -> LayoutMigrationReport {
     match layout_migration::run_locked(app_dir) {
         Ok(mut r) => {
-            tracing::info!("[layout] migrated the data directory to config / data / state / cache");
+            if r.migrated {
+                tracing::info!(
+                    "[layout] migrated the data directory to config / data / state / cache"
+                );
+            } else {
+                tracing::info!(
+                    "[layout] fresh install: starting in the config / data / state / cache layout"
+                );
+            }
             notices.append(&mut r.notices);
             LayoutMigrationReport {
                 migrated: r.migrated,
