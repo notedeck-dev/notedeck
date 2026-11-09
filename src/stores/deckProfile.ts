@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
-import { computed, ref, shallowRef } from 'vue'
+import { computed, ref, shallowRef, watch } from 'vue'
 import { i18n } from '@/i18n'
+import { rebindColumns } from '@/services/accountRebind'
 import { migrateWidgetColumns } from '@/services/deckProfileCodec'
 import {
   createProfileFiles,
@@ -26,6 +27,7 @@ import {
   slugifyName,
 } from '@/services/settingsSlug'
 import type { WidgetPlacement } from '@/services/widgetPlacement'
+import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn, DeckProfile, DeckWindowLayout } from '@/stores/deck'
 import { useWidgetsStore } from '@/stores/widgets'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
@@ -109,6 +111,9 @@ async function persistConfigIfChanged(
   live: DeckProfile,
   all: readonly DeckProfile[],
 ): Promise<void> {
+  // 保存時は accountId と portable な account (user@host) の両方を書く (#1332)
+  const filled = rebindColumns(live.columns, useAccountsStore().accounts)
+  if (filled.changed) live.columns = filled.columns
   const text = serializeProfileConfig(live)
   if (lastWritten.get(live.id)?.config === text) return
   await profileFiles.persistItem(live, all)
@@ -423,6 +428,45 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
     profilesData.value = profilesData.value.map((p) => (p === prev ? next : p))
     profileVersion.value++
   })
+
+  // --- アカウントの再結合 (#1332) ---
+  //
+  // 別の機械から持ち込んだプロファイルのカラムは accountId (機械ごとの UUID) が
+  // この機械に無い。`account: user@host` が一致するアカウントに付け替える。
+  // 一致が無い列は「アカウント未接続」のまま残し、ログインで一致したら結ぶ
+  const accountsStore = useAccountsStore()
+  async function rebindAccounts(): Promise<void> {
+    if (!accountsStore.isLoaded || !initialized.value) return
+    const accounts = accountsStore.accounts
+    let touched = false
+    const changedIds: string[] = []
+    profilesData.value = profilesData.value.map((p) => {
+      const r = rebindColumns(p.columns, accounts)
+      if (!r.changed) return p
+      touched = true
+      changedIds.push(p.id)
+      return { ...p, columns: r.columns }
+    })
+    if (!touched) return
+    profileVersion.value++
+    // ファイルへの書戻しは代表窓だけ (他の窓は写しだけ揃える)
+    if (
+      settingsFs.isTauri &&
+      !fileLoadFailed &&
+      (await isRepresentativeNow())
+    ) {
+      for (const id of changedIds) persistProfileToFile(id)
+    }
+  }
+  watch(
+    () =>
+      `${accountsStore.isLoaded}:${initialized.value}:${accountsStore.accounts
+        .map((a) => a.id)
+        .join(',')}`,
+    () => {
+      void rebindAccounts()
+    },
+  )
 
   // --- Internal helpers ---
 
@@ -814,6 +858,7 @@ export const useDeckProfileStore = defineStore('deckProfile', () => {
 
     initialized.value = true
     flushConsoleMigrationNotice()
+    void rebindAccounts()
 
     // Rewrite files with migrated content so the next load is clean
     if (

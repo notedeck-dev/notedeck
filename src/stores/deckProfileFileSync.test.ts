@@ -66,6 +66,7 @@ vi.mock('@/utils/settingsFs', () => ({
 }))
 
 import { dispatchSettingsChange } from '@/services/settingsFileSync'
+import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn } from '@/stores/deck'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { STORAGE_KEYS, setStorageString } from '@/utils/storage'
@@ -357,6 +358,60 @@ describe('useDeckProfileStore — ファイル対応表配線 (#913)', () => {
     const store2 = await initStore()
     expect(store2.getProfiles()[0]?.columns[0]?.windowId).toBe('new')
     expect(store2.getProfiles()[0]?.windows?.[0]?.id).toBe('new')
+  })
+
+  it('別の機械の accountId は account (user@host) でこの機械のアカウントに結び直す (#1332)', async () => {
+    files.set(
+      `main${EXT}`,
+      profileFile({
+        id: 'm',
+        name: 'メイン',
+        columns: [
+          {
+            id: 'c1',
+            type: 'home',
+            width: 320,
+            accountId: 'other-machine',
+            account: 'alice@misskey.example',
+          },
+          {
+            id: 'c2',
+            type: 'home',
+            width: 320,
+            accountId: 'other-machine',
+            account: 'bob@misskey.example',
+          },
+        ],
+        layout: [['c1', 'c2']],
+        createdAt: 1,
+      }),
+    )
+    const store = await initStore()
+    const accounts = useAccountsStore()
+    accounts.accounts = [
+      {
+        id: 'local-a',
+        host: 'misskey.example',
+        userId: 'u1',
+        username: 'alice',
+        displayName: null,
+        avatarUrl: null,
+        software: 'misskey',
+        hasToken: true,
+      } as unknown as (typeof accounts.accounts)[number],
+    ]
+    accounts.isLoaded = true
+    await vi.waitFor(() => {
+      expect(store.getProfiles()[0]?.columns[0]?.accountId).toBe('local-a')
+    })
+    // 一致の無い列はアカウント未接続のまま残す
+    expect(store.getProfiles()[0]?.columns[1]?.accountId).toBe('other-machine')
+    await vi.waitFor(() => {
+      expect(files.get(`main${EXT}`)).toContain("accountId: 'local-a'")
+    })
+    expect(files.get(`main${EXT}`)).toContain(
+      "account: 'alice@misskey.example'",
+    )
   })
 
   it('別ウィンドウのリネーム通知で対応表を揃え、保存が新しいファイル名へ届く', async () => {
