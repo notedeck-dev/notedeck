@@ -8,7 +8,11 @@ vi.mock('@/stores/settings', () => ({
   }),
 }))
 
-import { exposedColumnTypes, isColumnExposed } from '@/columns/exposure'
+import {
+  exposedColumnTypes,
+  isColumnExposed,
+  launchPadColumnTypes,
+} from '@/columns/exposure'
 import {
   COLUMN_REGISTRY,
   registerColumnType,
@@ -103,5 +107,40 @@ describe('isColumnExposed', () => {
   it('未登録の種別は既存カラムの描画を壊さないよう true', () => {
     devMode = false
     expect(isColumnExposed('unknown-type')).toBe(true)
+  })
+})
+
+describe('launchPadColumnTypes (ナビバーの「もっと」)', () => {
+  it('アカウント「なし」で開ける種別 (accountOptional) も出す', () => {
+    devMode = true
+    expect(launchPadColumnTypes(new Set())).toContain('aiscript')
+  })
+
+  it('開発者モード off では developer タグの種別を出さない', () => {
+    devMode = false
+    const types = launchPadColumnTypes(new Set())
+    for (const type of DEVELOPER_COLUMNS) expect(types).not.toContain(type)
+  })
+
+  it('全アカウント / アカウント無しで開けて ID 選択が要らない種別を漏れなく出す', () => {
+    devMode = true
+    const expected = Object.entries(COLUMN_REGISTRY)
+      .filter(
+        ([, spec]) =>
+          !spec.selectable &&
+          (spec.crossAccount ||
+            spec.accountIndependent ||
+            spec.accountOptional),
+      )
+      .map(([type]) => type)
+    expect(launchPadColumnTypes(new Set())).toEqual(expected)
+  })
+
+  it('ナビバーにある種別、ID 選択が要る種別、アカウントが要る種別は出さない', () => {
+    devMode = true
+    const types = launchPadColumnTypes(new Set(['favorites']))
+    expect(types).not.toContain('favorites')
+    expect(types).not.toContain('list')
+    expect(types).not.toContain('drive')
   })
 })

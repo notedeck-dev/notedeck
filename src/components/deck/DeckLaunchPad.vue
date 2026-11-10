@@ -1,14 +1,8 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia'
 import { computed, nextTick, ref, useCssModule, watch } from 'vue'
-import { exposedColumnTypes } from '@/columns/exposure'
-import {
-  ACCOUNT_INDEPENDENT_TYPES,
-  COLUMN_ICONS,
-  COLUMN_LABELS,
-  COLUMN_REGISTRY,
-  CROSS_ACCOUNT_TYPES,
-} from '@/columns/registry'
+import { launchPadColumnTypes } from '@/columns/exposure'
+import { COLUMN_ICONS, COLUMN_LABELS } from '@/columns/registry'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { type ColumnType, isNavDivider, useDeckStore } from '@/stores/deck'
@@ -54,14 +48,7 @@ const navTypes = computed<Set<string>>(() => {
   return set
 })
 
-const items = computed<ColumnType[]>(() =>
-  exposedColumnTypes().filter((t) => {
-    if (navTypes.value.has(t)) return false
-    const spec = COLUMN_REGISTRY[t]
-    if (spec?.selectable) return false
-    return CROSS_ACCOUNT_TYPES.has(t) || ACCOUNT_INDEPENDENT_TYPES.has(t)
-  }),
-)
+const items = computed<ColumnType[]>(() => launchPadColumnTypes(navTypes.value))
 
 const contentClass = computed(() => {
   if (isCompact.value) {
