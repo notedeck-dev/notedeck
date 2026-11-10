@@ -69,7 +69,7 @@ AiScript には try / catch がありません。API が失敗すると、その
 | API | 失敗したとき |
 |---|---|
 | `Nd:http` | 止まらない。通信の結果 (4xx / 5xx、通信断) は値で返る |
-| `Mk:api` | 止まる |
+| `Mk:api` | 止まらない。サーバーのエラー応答と通信断は error 値 (`request_failed`) で返る。Misskey 本体と同じ |
 | `Nd:call` | 止まる。確認ダイアログのキャンセルだけは止まらず、error 値が返る |
 
 権限が無いとき、引数が誤っているときは、どの API でも止まります。
@@ -83,7 +83,20 @@ if Core:type(res) == "error" && res.name == "user_cancelled" {
 }
 ```
 
-Misskey 本体の `Mk:api` は、失敗しても止まらずに error 値 (`request_failed`) を返します。両方で動かすプラグインは `Core:type(res) == "error"` の分岐を残しておいてください。NoteDeck の `Mk:api` も、本体と同じ返し方に揃える予定です。
+`Mk:api` の error 値は `res.info.code` に Misskey のエラーコード (`NO_SUCH_NOTE` など) が入ります。サーバーが応答しなかったとき (通信断など) は `NETWORK` などの NoteDeck の種別が入ります。`res.info.message` は理由の文です。
+
+```
+let res = Mk:api("notes/create", { text: "hello" })
+if Core:type(res) == "error" {
+  Mk:toast(`投稿できませんでした ({res.info.code})`)
+} else {
+  Mk:toast("投稿しました")
+}
+```
+
+止まらない API は、結果を見ないと失敗しても先へ進みます。**書き込みのあとは必ず `Core:type(res) == "error"` を確かめてから**、成功を表示してください。見落とした失敗も実行ログには残ります。
+
+サーバーごとの差 (その API が無い、など) を自分の画面で扱いたいときは、`Nd:call` ではなく `Mk:api` を使ってください。`Nd:call` は失敗すると止まります。
 
 ## Misskey 互換 API
 

@@ -864,6 +864,39 @@ describe('Nd:register_command — 呼び出し元の伝播 (#1099)', () => {
     expect(stores.ctx.callers).toEqual([])
   })
 
+  // Mk:api は失敗を error 値で返す (#1249)。handler がそれをそのまま戻すと、
+  // 値の変換で「Unrecognized value type: error」になり、呼び出し元 (AI など) に
+  // 理由が届かない。元の理由つきの失敗にする
+  it('handler が error 値を戻したら、理由つきの失敗として返す', async () => {
+    const stores = makeFakeStores()
+    stores.ctx.interpreter = {
+      execFnSimple: vi.fn(async () =>
+        values.ERROR(
+          'request_failed',
+          utils.jsToVal({ code: 'NO_SUCH_NOTE', message: 'gone' }),
+        ),
+      ),
+    } as unknown as Interpreter
+    const { cap } = await registerOne(stores)
+    await expect(
+      cap.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
+    ).rejects.toThrow('request_failed (NO_SUCH_NOTE): gone')
+    expect(stores.ctx.callers).toEqual([])
+  })
+
+  it('handler が中身の無い error 値を戻しても失敗として返す', async () => {
+    const stores = makeFakeStores()
+    stores.ctx.interpreter = {
+      execFnSimple: vi.fn(async () =>
+        values.ERROR('user_cancelled', values.STR('cancelled by user')),
+      ),
+    } as unknown as Interpreter
+    const { cap } = await registerOne(stores)
+    await expect(
+      cap.execute({ x: 1 }, { principal: { kind: 'ai.chat' } }),
+    ).rejects.toThrow('user_cancelled: cancelled by user')
+  })
+
   it('user の呼び出しは積まない (プロファイルを持たない)', async () => {
     const stores = makeFakeStores()
     let seen: Principal[] = []

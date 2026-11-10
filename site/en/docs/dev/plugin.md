@@ -1,5 +1,5 @@
 ---
-sourceHash: 5f622afd95af
+sourceHash: 513124caaf99
 ---
 
 # Plugins
@@ -73,7 +73,7 @@ The user sees the stop in one of these ways.
 | API | When it fails |
 |---|---|
 | `Nd:http` | Does not stop. The outcome of the request (4xx / 5xx, connection failure) comes back as a value |
-| `Mk:api` | Stops |
+| `Mk:api` | Does not stop. A server error response or a connection failure comes back as an error value (`request_failed`), the same as in Misskey itself |
 | `Nd:call` | Stops. Only a cancelled confirmation dialog does not stop; it returns an error value |
 
 When permission is missing or the arguments are wrong, every API stops.
@@ -87,7 +87,20 @@ if Core:type(res) == "error" && res.name == "user_cancelled" {
 }
 ```
 
-In Misskey itself, `Mk:api` does not stop on failure; it returns an error value (`request_failed`). If your plugin runs on both, keep the `Core:type(res) == "error"` branch. NoteDeck's `Mk:api` is planned to return failures the same way.
+For an `Mk:api` error value, `res.info.code` holds the Misskey error code (such as `NO_SUCH_NOTE`). When the server did not answer (a connection failure, for example), it holds a NoteDeck kind such as `NETWORK`. `res.info.message` is the reason text.
+
+```
+let res = Mk:api("notes/create", { text: "hello" })
+if Core:type(res) == "error" {
+  Mk:toast(`Could not post ({res.info.code})`)
+} else {
+  Mk:toast("Posted")
+}
+```
+
+An API that does not stop lets your code continue after a failure if you do not look at the result. **After a write, always check `Core:type(res) == "error"` before** you report success. A failure you missed is still recorded in the run log.
+
+To handle differences between servers (an API that does not exist, for example) in your own UI, use `Mk:api`, not `Nd:call`. `Nd:call` stops when it fails.
 
 ## Misskey-compatible APIs
 

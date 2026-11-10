@@ -134,6 +134,7 @@ export function createAiScriptSandbox(
       principal,
       getCallers: () => callers,
       api,
+      onRequestFailed: options.io.onNotice,
       storagePrefix: options.storagePrefix,
       legacyStoragePrefix: options.legacyStoragePrefix,
       uiAllowed: options.uiAllowed,

@@ -1,5 +1,5 @@
 ---
-sourceHash: 5f622afd95af
+sourceHash: 513124caaf99
 ---
 
 # 플러그인
@@ -73,7 +73,7 @@ AiScript에는 try / catch가 없습니다. API 호출이 실패하면 그 처�
 | API | 실패했을 때 |
 |---|---|
 | `Nd:http` | 멈추지 않습니다. 통신 결과(4xx / 5xx, 연결 실패)는 값으로 돌아옵니다 |
-| `Mk:api` | 멈춥니다 |
+| `Mk:api` | 멈추지 않습니다. 서버의 오류 응답과 연결 실패는 error 값(`request_failed`)으로 돌아옵니다. Misskey 본체와 같습니다 |
 | `Nd:call` | 멈춥니다. 확인 대화 상자가 취소된 경우에만 멈추지 않고 error 값이 돌아옵니다 |
 
 권한이 없거나 인수가 잘못된 경우에는 어떤 API든 멈춥니다.
@@ -87,7 +87,20 @@ if Core:type(res) == "error" && res.name == "user_cancelled" {
 }
 ```
 
-Misskey 본체의 `Mk:api`는 실패해도 멈추지 않고 error 값(`request_failed`)을 돌려줍니다. 양쪽에서 동작하는 플러그인은 `Core:type(res) == "error"` 분기를 남겨 두세요. NoteDeck의 `Mk:api`도 본체와 같은 방식으로 맞출 예정입니다.
+`Mk:api`의 error 값에서 `res.info.code`에는 Misskey의 오류 코드(`NO_SUCH_NOTE` 등)가 들어갑니다. 서버가 응답하지 않은 경우(연결 실패 등)에는 `NETWORK` 같은 NoteDeck의 종류가 들어갑니다. `res.info.message`는 이유를 나타내는 문장입니다.
+
+```
+let res = Mk:api("notes/create", { text: "hello" })
+if Core:type(res) == "error" {
+  Mk:toast(`게시하지 못했습니다 ({res.info.code})`)
+} else {
+  Mk:toast("게시했습니다")
+}
+```
+
+멈추지 않는 API는 결과를 확인하지 않으면 실패해도 그대로 진행됩니다. **쓰기 후에는 반드시 `Core:type(res) == "error"`를 확인한 다음** 성공을 표시하세요. 놓친 실패도 실행 로그에는 남습니다.
+
+서버마다의 차이(해당 API가 없는 경우 등)를 자신의 화면에서 다루고 싶을 때는 `Nd:call`이 아니라 `Mk:api`를 사용하세요. `Nd:call`은 실패하면 멈춥니다.
 
 ## Misskey 호환 API
 

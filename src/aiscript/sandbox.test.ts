@@ -152,4 +152,46 @@ describe('createAiScriptSandbox', () => {
     expect(abort).toHaveBeenCalled()
     expect(disposer).toHaveBeenCalled()
   })
+
+  // 本家向けに書かれたプラグインの定型 (`Core:type(res) == "error"` と
+  // `res.info.code`) が、そのまま動くこと (#1249)
+  it('Mk:api の失敗は止まらず、スクリプトが error 値として見分けられる', async () => {
+    vi.mocked(commands.apiRequest).mockResolvedValueOnce({
+      status: 'error',
+      error: {
+        code: 'API',
+        apiCode: 'NO_SUCH_NOTE',
+        message: 'notes/show: NO_SUCH_NOTE: No such note.',
+      },
+    } as never)
+    const out: string[] = []
+    const notices: string[] = []
+    const errors: string[] = []
+    const sandbox = createAiScriptSandbox({
+      principal: pluginPrincipal,
+      accountId: 'acc-1',
+      io: {
+        onOutput: (t) => out.push(t),
+        onError: (e) => errors.push(e.message),
+        onNotice: (t) => notices.push(t),
+      },
+    })
+    await sandbox.exec(
+      new Parser().parse(
+        [
+          'let res = Mk:api("notes/show", { noteId: "x" })',
+          'if Core:type(res) == "error" {',
+          '  <: res.name',
+          '  <: res.info.code',
+          '}',
+          '<: "after"',
+        ].join('\n'),
+      ),
+    )
+    expect(errors).toEqual([])
+    expect(out).toEqual(['request_failed', 'NO_SUCH_NOTE', 'after'])
+    expect(notices).toEqual([
+      'Mk:api notes/show (NO_SUCH_NOTE): notes/show: NO_SUCH_NOTE: No such note.',
+    ])
+  })
 })

@@ -273,6 +273,7 @@ async function run() {
         output.value.push({ text: err.message, isError: true })
         runLog.error(err.message)
       },
+      onNotice: (text) => runLog.system(text),
     },
   })
   currentSandbox = sandbox

@@ -162,6 +162,78 @@ describe('Mk:api', () => {
   })
 })
 
+/**
+ * Misskey 本体の Mk:api は、API の失敗を throw せず error 値 (request_failed) で返す。
+ * AiScript に try/catch は無いので、止まると作者は失敗を自分の UI で扱えない (#1249)。
+ * 相手まで要求を出した結果の失敗は値、呼べなかったものは throw
+ */
+describe('Mk:api の失敗の返し方 (#1249)', () => {
+  it('サーバーのエラー応答は request_failed の error 値で返す (code は Misskey のコード)', async () => {
+    const api = vi.fn(async () => {
+      throw {
+        code: 'API',
+        apiCode: 'NO_SUCH_NOTE',
+        message: 'notes/show: NO_SUCH_NOTE: No such note.',
+      }
+    })
+    const env = makeEnv({ api })
+    const result = await callNative(env, 'Mk:api', [values.STR('notes/show')])
+    expect(result).toMatchObject({ type: 'error', value: 'request_failed' })
+    expect(utils.valToJs((result as { info: Value }).info)).toEqual({
+      code: 'NO_SUCH_NOTE',
+      message: 'notes/show: NO_SUCH_NOTE: No such note.',
+    })
+  })
+
+  it('通信断とレート制限も error 値 (code は NoteDeck の種別)', async () => {
+    for (const code of ['NETWORK', 'CONNECTION_CLOSED', 'RATE_LIMITED']) {
+      const env = makeEnv({
+        api: async () => {
+          throw { code, message: 'failed' }
+        },
+      })
+      const result = await callNative(env, 'Mk:api', [values.STR('meta')])
+      expect(result).toMatchObject({ type: 'error', value: 'request_failed' })
+      expect(utils.valToJs((result as { info: Value }).info)).toMatchObject({
+        code,
+      })
+    }
+  })
+
+  it('アカウントが無い・要求の形の誤り・内部の失敗は throw のまま', async () => {
+    const failures: unknown[] = [
+      new Error('Mk:api: no account context available'),
+      { code: 'INVALID_INPUT', message: 'Invalid input: bad endpoint' },
+      { code: 'ACCOUNT_NOT_FOUND', message: 'Account not found: a' },
+      { code: 'INTERNAL', message: 'Internal error' },
+    ]
+    for (const failure of failures) {
+      const env = makeEnv({
+        api: async () => {
+          throw failure
+        },
+      })
+      await expect(
+        callNative(env, 'Mk:api', [values.STR('meta')]),
+      ).rejects.toBe(failure)
+    }
+  })
+
+  it('error 値で返した失敗も、実行ログに 1 行残す', async () => {
+    const onRequestFailed = vi.fn()
+    const env = makeEnv({
+      api: async () => {
+        throw { code: 'API', apiCode: 'NO_SUCH_NOTE', message: 'gone' }
+      },
+      onRequestFailed,
+    })
+    await callNative(env, 'Mk:api', [values.STR('notes/show')])
+    expect(onRequestFailed).toHaveBeenCalledWith(
+      'Mk:api notes/show (NO_SUCH_NOTE): gone',
+    )
+  })
+})
+
 describe('Mk:save / Mk:load / Mk:remove', () => {
   it('Mk:save writes JSON under the prefixed storage key', async () => {
     const env = makeEnv({ storagePrefix: 'plugin:p1' })
