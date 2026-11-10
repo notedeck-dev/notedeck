@@ -2,6 +2,7 @@ import { utils, values } from '@syuilo/aiscript'
 import type { Value } from '@syuilo/aiscript/interpreter/value.js'
 import { assertMisskeyApiAllowed } from '@/permissions/misskeyApiGate'
 import type { Principal } from '@/permissions/principal'
+import { remoteFailure } from '@/services/capabilityFailure'
 import { nyaize } from '@/services/nyaize'
 import { useConfirm } from '@/stores/confirm'
 import {
@@ -25,6 +26,8 @@ export interface AiScriptEnvOptions {
   getCallers?: () => readonly Principal[]
   /** Mk:api の実装。未設定なら Mk:api は使用不可エラー */
   api?: (endpoint: string, params: Record<string, unknown>) => Promise<unknown>
+  /** Mk:api が error 値で返した失敗の記録先 (実行ログ)。#1249 */
+  onRequestFailed?: (text: string) => void
   /** localStorage のキー prefix（Mk:save/Mk:load 用） */
   storagePrefix?: string
   /**
@@ -135,8 +138,21 @@ export function createAiScriptEnv(
       paramsVal?.type === 'obj'
         ? (utils.valToJs(paramsVal) as Record<string, unknown>)
         : {}
-    const result = await options.api(endpoint, params)
-    return utils.jsToVal(result)
+    try {
+      return utils.jsToVal(await options.api(endpoint, params))
+    } catch (e) {
+      // 相手まで要求を出した結果の失敗 (エラー応答 / 通信断) は、Misskey 本体と
+      // 同じく error 値で返す (#1249)。AiScript に try/catch は無く、止めると
+      // 作者は失敗を自分の UI で扱えない。呼べなかったもの (アカウントが無い等)
+      // は止める
+      const failure = remoteFailure(e)
+      if (!failure) throw e
+      // 止まらない分、作者が結果を見落としても痕跡が残るようにする
+      options.onRequestFailed?.(
+        `Mk:api ${endpoint} (${failure.code}): ${failure.message}`,
+      )
+      return values.ERROR('request_failed', utils.jsToVal(failure))
+    }
   })
 
   // --- Mk:save ---

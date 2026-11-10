@@ -8,6 +8,11 @@ import {
 export interface AiScriptIOCallbacks {
   onOutput: (text: string) => void
   onError: (error: Error) => void
+  /**
+   * 止まらずに値で返した失敗の記録 (Mk:api の request_failed、#1249)。エラー表示
+   * にはせず、実行ログに残す
+   */
+  onNotice?: (text: string) => void
 }
 
 /**

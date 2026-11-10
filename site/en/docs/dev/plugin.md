@@ -1,5 +1,5 @@
 ---
-sourceHash: c03e13b34be6
+sourceHash: edb09c917e46
 ---
 
 # Plugins
@@ -59,6 +59,48 @@ Events you can subscribe to with `Nd:on` are notes arriving, notifications arriv
 Handlers run once per app process: even with several windows open, an event reaches only one representative window. Note display hooks run in every window, so keep side effects out of them.
 
 A command added with `Nd:register_command` can be called from the command palette, keybindings, the AI's tools and the local API. When called from the AI or the local API, the effective permissions are "the caller's permissions ∩ the plugin's permissions".
+
+## When a call fails
+
+AiScript has no try / catch. When an API call fails, that piece of work (the handler) stops there. The plugin itself keeps running, and the next action or event still works.
+
+The user sees the stop in one of these ways.
+
+- Work started by a note, user, or post-form action: the first line of the error appears in a toast
+- Widgets: the error appears in the widget frame. It goes away the next time the widget redraws
+- Work started by a command-palette command, an event, or a timer: it is only recorded in the run log
+
+| API | When it fails |
+|---|---|
+| `Nd:http` | The outcome of the request (4xx / 5xx, connection failure) comes back as a value and does not stop. It stops when the request could not be sent, such as an unsupported method or a destination that is not allowed |
+| `Mk:api` | Does not stop. A server error response or a connection failure comes back as an error value (`request_failed`), the same as in Misskey itself |
+| `Nd:call` | Stops. Only a cancelled confirmation dialog does not stop; it returns an error value |
+
+When permission is missing, every API stops. The denial shows up as a badge on the plugin card, and sometimes as a toast.
+
+`Nd:call` may return more kinds of error values in the future. Check the name to tell whether it was a cancellation.
+
+```
+let res = Nd:call("notes.create", { text: "hello" })
+if Core:type(res) == "error" && res.name == "user_cancelled" {
+  // cancelled
+}
+```
+
+For an `Mk:api` error value, `res.info.code` holds the Misskey error code (such as `NO_SUCH_NOTE`). When the server did not answer (a connection failure, for example), it holds a NoteDeck kind such as `NETWORK`. `res.info.message` is the reason text.
+
+```
+let res = Mk:api("notes/create", { text: "hello" })
+if Core:type(res) == "error" {
+  Mk:toast(`Could not post ({res.info.code})`)
+} else {
+  Mk:toast("Posted")
+}
+```
+
+An API that does not stop lets your code continue after a failure if you do not look at the result. **After a write, always check `Core:type(res) == "error"` before** you report success. A failure you missed is still recorded in the run log.
+
+To handle differences between servers (an API that does not exist, for example) in your own UI, use `Mk:api`, not `Nd:call`. `Nd:call` stops when it fails.
 
 ## Misskey-compatible APIs
 

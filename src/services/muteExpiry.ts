@@ -87,7 +87,7 @@ export function expiredKeys(
 /** 直前の同期失敗の記録 */
 export interface SyncFailure {
   at: number
-  /** 認証エラー (トークン失効など)。再ログインしない限り直らないので再試行しない */
+  /** 認証エラー (トークン失効、権限不足など)。再ログインしない限り直らないので再試行しない */
   auth: boolean
 }
 

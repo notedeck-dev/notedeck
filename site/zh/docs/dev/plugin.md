@@ -1,5 +1,5 @@
 ---
-sourceHash: c03e13b34be6
+sourceHash: edb09c917e46
 ---
 
 # 插件
@@ -59,6 +59,48 @@ sourceHash: c03e13b34be6
 处理函数在应用进程中只会被调用一次（即使打开了多个窗口，事件也只会送达一个代表窗口）。帖子的显示钩子会在每个窗口中被调用，所以不要在钩子里写副作用。
 
 用 `Nd:register_command` 添加的命令，可以从命令面板、键位绑定、AI 的工具、本地 API 中的任何地方调用。被 AI 或本地 API 调用时的实际权限是“调用方的权限 ∩ 插件的权限”。
+
+## 调用失败时
+
+AiScript 没有 try / catch。API 调用失败时，那一段处理（handler）会在那里停下。插件本身不会停止，之后的操作和事件仍然有效。
+
+停下之后，用户会以下面的方式看到。
+
+- 由帖子、用户、发帖表单的操作开始的处理：错误的第一行显示在提示中
+- 小工具：错误显示在小工具的框内，下次重新绘制画面后消失
+- 由命令面板的命令、事件或定时器开始的处理：只记录在运行日志中
+
+| API | 失败时 |
+|---|---|
+| `Nd:http` | 通信的结果（4xx / 5xx、连接失败）以值返回，不会停下。不支持的方法、不被允许的连接目标等无法发出请求的情况会停下 |
+| `Mk:api` | 不会停下。服务器的错误响应和连接失败以 error 值（`request_failed`）返回，与 Misskey 本身相同 |
+| `Nd:call` | 停下。只有确认对话框被取消时不会停下，而是返回 error 值 |
+
+没有权限时，任何 API 都会停下。被拒绝的情况会显示在插件卡片的标记上，有时也会显示提示。
+
+`Nd:call` 返回的 error 值的种类今后可能增加。是否为取消，请按名称判断。
+
+```
+let res = Nd:call("notes.create", { text: "hello" })
+if Core:type(res) == "error" && res.name == "user_cancelled" {
+  // 已取消
+}
+```
+
+`Mk:api` 的 error 值中，`res.info.code` 是 Misskey 的错误代码（如 `NO_SUCH_NOTE`）。服务器没有响应时（如连接失败），则是 `NETWORK` 等 NoteDeck 的类别。`res.info.message` 是原因的文字。
+
+```
+let res = Mk:api("notes/create", { text: "hello" })
+if Core:type(res) == "error" {
+  Mk:toast(`发帖失败 ({res.info.code})`)
+} else {
+  Mk:toast("已发帖")
+}
+```
+
+不会停下的 API，如果不查看结果，失败后也会继续往下执行。**写入之后，请务必先确认 `Core:type(res) == "error"`**，再显示成功。漏看的失败也会记录在运行日志中。
+
+如果想在自己的界面中处理服务器之间的差异（例如没有某个 API），请使用 `Mk:api`，而不是 `Nd:call`。`Nd:call` 失败时会停下。
 
 ## Misskey 兼容 API
 

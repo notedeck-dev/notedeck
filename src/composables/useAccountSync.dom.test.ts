@@ -11,6 +11,11 @@ import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { useAccountSync } from './useAccountSync'
 
+const { showPermissionReloginPrompt } = vi.hoisted(() => ({
+  showPermissionReloginPrompt: vi.fn(),
+}))
+vi.mock('@/composables/useLoginPrompt', () => ({ showPermissionReloginPrompt }))
+
 const NOW = new Date('2026-10-18T06:00:00.000Z').getTime()
 let app: App | null = null
 
@@ -150,6 +155,37 @@ describe('useAccountSync: アカウントごとの起動時同期と再試行 (#
     vi.setSystemTime(NOW + 2 * SYNC_RETRY_MIN_INTERVAL_MS)
     await resume()
     expect(sync).toHaveBeenCalledTimes(1)
+  })
+
+  // 権限 (read:mutes など) は後から要求に足したので、以前のトークンのままの口座は
+  // 何度打っても通らない (#1359)
+  it('権限不足は復帰信号で取り直さず、再ログインを 1 回案内する', async () => {
+    showPermissionReloginPrompt.mockClear()
+    const sync = vi.fn(async () => {
+      throw new AppError('API', 'denied', 'PERMISSION_DENIED')
+    })
+    await mountWith([account('a')], sync)
+    expect(showPermissionReloginPrompt).toHaveBeenCalledWith(
+      'a',
+      expect.stringContaining('ミュートの同期'),
+    )
+    vi.setSystemTime(NOW + 2 * SYNC_RETRY_MIN_INTERVAL_MS)
+    await resume()
+    expect(sync).toHaveBeenCalledTimes(1)
+    expect(showPermissionReloginPrompt).toHaveBeenCalledTimes(1)
+  })
+
+  it('権限不足のあとログインし直したら取り直す', async () => {
+    let denied = true
+    const sync = vi.fn(async () => {
+      if (denied) throw new AppError('API', 'denied', 'PERMISSION_DENIED')
+    })
+    await mountWith([account('a')], sync)
+    denied = false
+    // ログインし直すと同じ口座の行が新しいトークンのもので置き換わる
+    useAccountsStore().accounts[0] = account('a')
+    await flush()
+    expect(sync).toHaveBeenCalledTimes(2)
   })
 
   it('復帰信号で onResume を呼ぶ', async () => {

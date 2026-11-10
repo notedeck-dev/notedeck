@@ -401,6 +401,11 @@ export function createNoteDeckEnv(
             ctx.callers.push(...tracked)
             try {
               const result = await interp.execFnSimple(handler, args)
+              // handler が error 値 (Mk:api の request_failed 等) をそのまま
+              // 戻した: 値の変換で理由が潰れる前に、理由つきの失敗にする (#1249)
+              if (result.type === 'error') {
+                throw new Error(describeErrorValue(result))
+              }
               return utils.valToJs(result)
             } catch (e) {
               console.warn('[Nd:register_command]', e)
@@ -520,4 +525,16 @@ function parseRegisterCommandOptions(
     out.signature = signature
   }
   return out
+}
+
+/** error 値を「種類 (コード): 理由」の 1 行にする */
+function describeErrorValue(v: Extract<Value, { type: 'error' }>): string {
+  const info = v.info ? utils.valToJs(v.info) : null
+  if (typeof info === 'string') return `${v.value}: ${info}`
+  if (typeof info === 'object' && info !== null) {
+    const { code, message } = info as { code?: unknown; message?: unknown }
+    const head = typeof code === 'string' ? `${v.value} (${code})` : v.value
+    return typeof message === 'string' ? `${head}: ${message}` : head
+  }
+  return v.value
 }

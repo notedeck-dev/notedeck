@@ -108,6 +108,7 @@ export function useAiScriptRunner() {
           runError.value = err.message
           runLog.error(err.message)
         },
+        onNotice: (text) => runLog.system(text),
       },
       legacy,
     })

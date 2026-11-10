@@ -215,6 +215,9 @@ async function run() {
     ui: {
       onRender: (components) => {
         uiComponents.value = components
+        // 描き直せた = 立ち直った。前の tick の失敗の帯を残すと、直ったのに
+        // 壊れて見える (帯は再実行するまで消えなかった、#1255)
+        error.value = null
       },
     },
     io: {
@@ -227,6 +230,7 @@ async function run() {
         pushOutput({ text: err.message, isError: true })
         runLog.error(err.message)
       },
+      onNotice: (text) => runLog.system(text),
     },
     // ウィジェットもプラグインと同じく長寿命の interpreter 1 つに Async:interval /
     // Ui の handler を登録する構造。共通値の abortOnError: true だと Nd:http の

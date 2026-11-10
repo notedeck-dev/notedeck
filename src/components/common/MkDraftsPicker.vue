@@ -25,6 +25,7 @@ import { useConfirm } from '@/stores/confirm'
 import { useServersStore } from '@/stores/servers'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
+import { AppError } from '@/utils/errors'
 import {
   formatScheduleAbsolute,
   formatScheduleRelative,
@@ -139,8 +140,15 @@ watch(
   () => props.accountId,
   async (id) => {
     loaded.value = false
-    await refreshDrafts(id)
-    loaded.value = true
+    try {
+      await refreshDrafts(id)
+    } catch (e) {
+      // 下書き API の無いサーバーや通信断。投稿フォームでは前回の一覧 (無ければ空)
+      // を見せれば足りる
+      console.warn('[drafts] list failed:', AppError.from(e).message)
+    } finally {
+      loaded.value = true
+    }
   },
   { immediate: true },
 )

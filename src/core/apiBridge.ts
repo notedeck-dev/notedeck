@@ -24,6 +24,7 @@ import {
 } from '@/permissions/store'
 import { consumePreapproval, grantPreapproval } from '@/services/acpPreapproval'
 import { listBoundedCacheStats } from '@/services/boundedCache'
+import { failureMessage } from '@/services/capabilityFailure'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
 import { useLogsStore } from '@/stores/logs'
@@ -315,7 +316,7 @@ export async function handleQuery(
   try {
     return await handler(params)
   } catch (e) {
-    return { error: e instanceof Error ? e.message : String(e) }
+    return { error: failureMessage(e) }
   }
 }
 

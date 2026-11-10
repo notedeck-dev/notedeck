@@ -18,6 +18,12 @@ vi.mock('@/bindings', () => ({
   commands: { notificationPermissionGranted },
 }))
 
+const { openSafeUrl } = vi.hoisted(() => ({ openSafeUrl: vi.fn() }))
+vi.mock('@/utils/url', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/url')>()),
+  openSafeUrl,
+}))
+
 const buttonWith = (text: string) =>
   [...document.querySelectorAll('button')].find((b) =>
     b.textContent?.includes(text),
@@ -46,14 +52,14 @@ const account: Account = {
 let app: App | null = null
 let container: HTMLElement | null = null
 
-function mountMenu() {
+function mountMenu(target: Account = account) {
   container = document.createElement('div')
   document.body.appendChild(container)
   app = createApp({
     render: () =>
       h(NavAccountMenu, {
         show: true,
-        account,
+        account: target,
         modes: {},
         togglingMode: false,
         modeError: null,
@@ -98,5 +104,28 @@ describe('NavAccountMenu の通知まわり', () => {
     await flush()
     expect(notificationPermissionGranted).toHaveBeenCalled()
     expect(buttonWith('OS の通知設定を開く')).toBeDefined()
+  })
+})
+
+/**
+ * ミュート / ブロックの一覧は本体に持たず、本家 Web の該当ページへ直接送る (#1267)。
+ * パスを確かめてあるのは対応しているソフトウェアだけ
+ */
+describe('NavAccountMenu のミュートとブロック', () => {
+  it('本家 Web のミュートとブロックのページを直接開く', async () => {
+    notificationPermissionGranted.mockResolvedValue(true)
+    mountMenu()
+    await flush()
+    buttonWith('ミュートとブロック')?.click()
+    expect(openSafeUrl).toHaveBeenCalledWith(
+      'https://misskey.example/settings/mute-block',
+    )
+  })
+
+  it('対応していないソフトウェアでは出さない', async () => {
+    notificationPermissionGranted.mockResolvedValue(true)
+    mountMenu({ ...account, software: 'iceshrimp/iceshrimp' })
+    await flush()
+    expect(buttonWith('ミュートとブロック')).toBeUndefined()
   })
 })

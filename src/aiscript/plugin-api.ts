@@ -661,6 +661,7 @@ export async function launchPlugin(plugin: PluginItem): Promise<void> {
         runLog.error(err.message)
         ctx.lastError = err.message
       },
+      onNotice: (text) => runLog.system(text),
     },
     // プラグインは長寿命の interpreter 1 つに handler を登録する構造。共通値の
     // abortOnError: true だと handler が 1 回エラーを出しただけで interpreter が

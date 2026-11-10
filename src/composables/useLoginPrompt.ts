@@ -47,7 +47,10 @@ export function showReloginPrompt(accountId?: string): void {
  * トークンのままの口座には再ログインしてもらう (例: `write:notifications` の
  * 「全部既読」)。失効ではないので、同じ口座への表示は失効の案内と同じく抑止する
  */
-export function showPermissionReloginPrompt(accountId: string): void {
+export function showPermissionReloginPrompt(
+  accountId: string,
+  message: string = i18n.ts._useLoginPrompt.permissionMissing,
+): void {
   const now = Date.now()
   const last = reloginPromptShownAt.get(accountId)
   if (last !== undefined && now - last < RELOGIN_PROMPT_DEDUPE_MS) return
@@ -56,7 +59,7 @@ export function showPermissionReloginPrompt(accountId: string): void {
   const account = useAccountsStore().accounts.find((a) => a.id === accountId)
   if (!account) return
   const { relogin } = useAccountActions()
-  toast.show(i18n.ts._useLoginPrompt.permissionMissing, 'warning', {
+  toast.show(message, 'warning', {
     action: {
       label: i18n.ts._common.relogin,
       onClick: () => relogin(account),

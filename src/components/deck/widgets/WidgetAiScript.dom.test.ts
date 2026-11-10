@@ -70,6 +70,32 @@ describe('WidgetAiScript の handler エラー (#1294)', () => {
     )
   })
 
+  // 帯は「今うまくいっていない」の印。1 回の通信断で出た帯が、次の tick が成功して
+  // 描き直した後も残ると、直ったのに壊れて見える (#1255)
+  it('エラーの帯は、次に画面を描き直せたら消える', async () => {
+    wrapper = mount(WidgetAiScript, {
+      props: {
+        widget: makeWidget(
+          [
+            'var n = 0',
+            'Async:interval(5, @() {',
+            '  n += 1',
+            '  if n == 1 { Core:add(1, "a") }',
+            '  Ui:render([Ui:C:text({ text: `tick{n}` })])',
+            '})',
+          ].join('\n'),
+        ),
+        columnId: 'col-1',
+        accountId: null,
+      },
+    })
+    await vi.waitFor(() => expect(wrapper?.text()).toContain('tick3'), {
+      timeout: 1000,
+      interval: 10,
+    })
+    expect(wrapper?.find('[class*="appError"]').exists()).toBe(false)
+  })
+
   it('handler のエラーが続いても出力の行数は上限で止まる', async () => {
     // interpreter を止めなくなった分、失敗し続ける interval がエラー行を
     // 積み続ける。上限を超えた分は古い行から捨てる (#987 の不変条件)

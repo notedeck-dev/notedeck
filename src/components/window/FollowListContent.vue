@@ -52,6 +52,10 @@ useWindowExternalLink(() => {
 const isGuest = account ? isGuestAccount(account) : false
 let adapter: ServerAdapter | null = null
 
+// 次のページの起点。本家は「フォロー関係の記録」の id で前後を絞るので、行に
+// 置き換えたユーザーの id ではなく、取得した末尾の記録の id を覚えておく (#1360)
+let lastRelationId: string | undefined
+
 const {
   items: users,
   isLoading,
@@ -66,6 +70,7 @@ const {
         ? adapter.api.getFollowing.bind(adapter.api)
         : adapter.api.getFollowers.bind(adapter.api)
     const result = await fetchFn(props.userId, { limit: 30, untilId })
+    lastRelationId = result.at(-1)?.id
     const fetched = result
       .map((r: FollowRelation) =>
         activeTab.value === 'following' ? r.followee : r.follower,
@@ -84,6 +89,7 @@ const {
     }
     return fetched
   },
+  cursor: () => lastRelationId,
   onError: (e) => {
     const err = AppError.from(e)
     console.error('[follow:load]', err.code, err.message)
