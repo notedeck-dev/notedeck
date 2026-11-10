@@ -1,5 +1,5 @@
 ---
-sourceHash: f15f549f8981
+sourceHash: edb09c917e46
 ---
 
 # 插件
@@ -73,7 +73,7 @@ AiScript 没有 try / catch。API 调用失败时，那一段处理（handler）
 | API | 失败时 |
 |---|---|
 | `Nd:http` | 通信的结果（4xx / 5xx、连接失败）以值返回，不会停下。不支持的方法、不被允许的连接目标等无法发出请求的情况会停下 |
-| `Mk:api` | 停下 |
+| `Mk:api` | 不会停下。服务器的错误响应和连接失败以 error 值（`request_failed`）返回，与 Misskey 本身相同 |
 | `Nd:call` | 停下。只有确认对话框被取消时不会停下，而是返回 error 值 |
 
 没有权限时，任何 API 都会停下。被拒绝的情况会显示在插件卡片的标记上，有时也会显示提示。
@@ -87,7 +87,20 @@ if Core:type(res) == "error" && res.name == "user_cancelled" {
 }
 ```
 
-Misskey 本身的 `Mk:api` 在失败时不会停下，而是返回 error 值（`request_failed`）。如果插件要在两边运行，请保留 `Core:type(res) == "error"` 的分支。NoteDeck 的 `Mk:api` 也计划改为与 Misskey 相同的返回方式。
+`Mk:api` 的 error 值中，`res.info.code` 是 Misskey 的错误代码（如 `NO_SUCH_NOTE`）。服务器没有响应时（如连接失败），则是 `NETWORK` 等 NoteDeck 的类别。`res.info.message` 是原因的文字。
+
+```
+let res = Mk:api("notes/create", { text: "hello" })
+if Core:type(res) == "error" {
+  Mk:toast(`发帖失败 ({res.info.code})`)
+} else {
+  Mk:toast("已发帖")
+}
+```
+
+不会停下的 API，如果不查看结果，失败后也会继续往下执行。**写入之后，请务必先确认 `Core:type(res) == "error"`**，再显示成功。漏看的失败也会记录在运行日志中。
+
+如果想在自己的界面中处理服务器之间的差异（例如没有某个 API），请使用 `Mk:api`，而不是 `Nd:call`。`Nd:call` 失败时会停下。
 
 ## Misskey 兼容 API
 

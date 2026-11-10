@@ -23,3 +23,31 @@ const HOME_DIR =
 export function failureMessage(e: unknown): string {
   return extractErrorMessage(e).replace(HOME_DIR, '~')
 }
+
+/** 相手のサーバーまで要求を出した結果の失敗 (エラー応答 / レート制限 / 通信断) */
+const REMOTE_CODES = new Set([
+  'API',
+  'RATE_LIMITED',
+  'NETWORK',
+  'CONNECTION_CLOSED',
+  'JSON',
+])
+
+/**
+ * 失敗が「相手まで要求を出した結果」なら `{ code, message }`、呼べなかったもの
+ * (要求の形の誤り / アカウントが無い / 内部の失敗 / 素の Error) なら null (#1249)。
+ *
+ * `code` は Misskey のエラーコードがあればそれ (本家向けに書かれた `info.code` の
+ * 判定がそのまま動く)、無いとき (通信断など) は NoteDeck の種別
+ */
+export function remoteFailure(
+  e: unknown,
+): { code: string; message: string } | null {
+  if (typeof e !== 'object' || e === null) return null
+  const { code, apiCode } = e as { code?: unknown; apiCode?: unknown }
+  if (typeof code !== 'string' || !REMOTE_CODES.has(code)) return null
+  return {
+    code: typeof apiCode === 'string' ? apiCode : code,
+    message: failureMessage(e),
+  }
+}

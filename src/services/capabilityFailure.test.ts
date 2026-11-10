@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { failureMessage } from './capabilityFailure'
+import { failureMessage, remoteFailure } from './capabilityFailure'
 
 describe('failureMessage: capability の失敗を、外へ返す文言にする', () => {
   it('Error はその message', () => {
@@ -71,5 +71,40 @@ describe('failureMessage: capability の失敗を、外へ返す文言にする'
     expect(failureMessage({ unexpected: true })).not.toContain(
       '[object Object]',
     )
+  })
+})
+
+describe('remoteFailure: 相手まで要求を出した結果の失敗か', () => {
+  it('サーバーのエラー応答は Misskey のコードで返す', () => {
+    expect(
+      remoteFailure({
+        code: 'API',
+        apiCode: 'UNKNOWN_API_ENDPOINT',
+        message: 'notes/drafts/list: UNKNOWN_API_ENDPOINT',
+      }),
+    ).toEqual({
+      code: 'UNKNOWN_API_ENDPOINT',
+      message: 'notes/drafts/list: UNKNOWN_API_ENDPOINT',
+    })
+  })
+
+  it('Misskey のコードが無い失敗 (通信断など) は NoteDeck の種別で返す', () => {
+    expect(
+      remoteFailure({ code: 'NETWORK', message: 'Network error' }),
+    ).toEqual({ code: 'NETWORK', message: 'Network error' })
+    expect(remoteFailure({ code: 'API', message: 'meta (502)' })).toEqual({
+      code: 'API',
+      message: 'meta (502)',
+    })
+  })
+
+  it('呼べなかったもの (形の誤り / アカウント / 内部) と素の Error は null', () => {
+    expect(remoteFailure(new Error('boom'))).toBeNull()
+    expect(remoteFailure({ code: 'INVALID_INPUT', message: 'x' })).toBeNull()
+    expect(
+      remoteFailure({ code: 'ACCOUNT_NOT_FOUND', message: 'x' }),
+    ).toBeNull()
+    expect(remoteFailure({ code: 'INTERNAL', message: 'x' })).toBeNull()
+    expect(remoteFailure('string')).toBeNull()
   })
 })

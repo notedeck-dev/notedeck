@@ -230,6 +230,7 @@ async function run() {
         pushOutput({ text: err.message, isError: true })
         runLog.error(err.message)
       },
+      onNotice: (text) => runLog.system(text),
     },
     // ウィジェットもプラグインと同じく長寿命の interpreter 1 つに Async:interval /
     // Ui の handler を登録する構造。共通値の abortOnError: true だと Nd:http の
