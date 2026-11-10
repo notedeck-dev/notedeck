@@ -1,5 +1,5 @@
 ---
-sourceHash: 5f622afd95af
+sourceHash: 64744d8b9f75
 ---
 
 # Plugins
@@ -66,9 +66,9 @@ AiScript has no try / catch. When an API call fails, that piece of work (the han
 
 The user sees the stop in one of these ways.
 
-- Work started by a user action (a note menu, a button): the first line of the error appears in a toast
+- Work started by a note, user, or post-form action: the first line of the error appears in a toast
 - Widgets: the error appears in the widget frame. It goes away the next time the widget redraws
-- Work started by an event or a timer: it is only recorded in the run log
+- Work started by a command-palette command, an event, or a timer: it is only recorded in the run log
 
 | API | When it fails |
 |---|---|
@@ -76,7 +76,7 @@ The user sees the stop in one of these ways.
 | `Mk:api` | Stops |
 | `Nd:call` | Stops. Only a cancelled confirmation dialog does not stop; it returns an error value |
 
-When permission is missing or the arguments are wrong, every API stops.
+When permission is missing, every API stops.
 
 `Nd:call` may return more kinds of error values in the future. Check the name to tell whether it was a cancellation.
 
