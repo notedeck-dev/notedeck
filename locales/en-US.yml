@@ -2666,7 +2666,6 @@ _logoutDialog:
 
 _navAccountMenu:
   controlPanel: "Control panel"
-  muteAndBlock: "Mute and block"
 
 _pluginCard:
   incompatible: "Incompatible"

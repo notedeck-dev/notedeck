@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed, ref, toRef, watch } from 'vue'
-import { isSupportedSoftware } from '@/adapters/registry'
 import { useNativeDialog } from '@/composables/useNativeDialog'
 import { useNavigation } from '@/composables/useNavigation'
 import { useNotificationPermissionState } from '@/composables/useNotificationPermissionState'
@@ -114,10 +113,6 @@ const hasUpperSection = computed(
         <div :class="$style.navAccountMenuDivider" />
         <button class="_button" :class="$style.navAccountMenuItem" @click="openSafeUrl(webUiUrl(account.host, '/settings'))">
           <span>{{ i18n.ts._common.settings }}</span>
-          <i class="ti ti-external-link" />
-        </button>
-        <button v-if="isSupportedSoftware(account.software)" class="_button" :class="$style.navAccountMenuItem" @click="openSafeUrl(webUiUrl(account.host, '/settings/mute-block'))">
-          <span>{{ i18n.ts._navAccountMenu.muteAndBlock }}</span>
           <i class="ti ti-external-link" />
         </button>
       </template>
