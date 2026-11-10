@@ -4373,6 +4373,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_navAccountMenu": {
     /** コントロールパネル */
     readonly "controlPanel": string
+    /** ミュートとブロック */
+    readonly "muteAndBlock": string
   }
   readonly "_pluginCard": {
     /** 手元のポートへの接続を拒否しました ({count} 回): {reason}。クリックでプラグイン詳細を開く */
