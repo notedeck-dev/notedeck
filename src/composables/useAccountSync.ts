@@ -1,4 +1,6 @@
 import { watch } from 'vue'
+import { showPermissionReloginPrompt } from '@/composables/useLoginPrompt'
+import { i18n } from '@/i18n'
 import {
   nextOpSeq,
   type SyncFailure,
@@ -14,7 +16,7 @@ import { catchLog } from '@/utils/logger'
  * 認証済みアカウントごとに 1 回だけ走る起動時同期の共通部 (#574 / #610 / #614 / #1260)。
  *
  * - 起動時 / アカウント追加時に未同期のアカウントを同期する
- * - 失敗したら復帰信号 (スリープ復帰 / 表示復帰) で取り直す。認証エラーは
+ * - 失敗したら復帰信号 (スリープ復帰 / 表示復帰) で取り直す。認証エラーと権限不足は
  *   再ログインしないと直らないので取り直さない。アカウント単位で間隔を空ける
  * - ログアウト → 再ログイン (hasToken が false → true) で取り直す
  * - 同期済みアカウントも、最後の取り込みから間隔が空いた復帰信号で取り込み直す
@@ -50,10 +52,22 @@ export function useAccountSync(
       lastSyncedAt.set(accountId, startedAt)
       failures.delete(accountId)
     } catch (e) {
+      const err = AppError.from(e)
+      // 権限不足: 要求する権限を後から足したので、以前のトークンのままの口座は
+      // 何度打っても通らない (#1359)。認証エラーと同じく取り直さず、ログインし
+      // 直してもらう (口座の行が置き換わるので、そこで取り直す)
+      const permissionDenied = err.apiCode === 'PERMISSION_DENIED'
       failures.set(accountId, {
         at: Date.now(),
-        auth: AppError.from(e).isAuth,
+        auth: err.isAuth || permissionDenied,
       })
+      if (permissionDenied) {
+        // 利用者の操作ではなく裏の同期なので、何に要るのかを言う
+        showPermissionReloginPrompt(
+          accountId,
+          i18n.ts._useLoginPrompt.permissionMissingMuteSync,
+        )
+      }
       catchLog(tag)(e)
     } finally {
       inFlight.delete(accountId)
