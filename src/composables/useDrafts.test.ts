@@ -31,4 +31,20 @@ describe('refreshDrafts の失敗', () => {
     })
     expect(loadAllDrafts('a')).toEqual({})
   })
+
+  it('失敗しても、前に取得した一覧は残す', async () => {
+    apiGetDrafts.mockResolvedValueOnce({
+      status: 'ok',
+      data: [
+        { id: 'd1', text: 'hello', createdAt: '2026-11-01T00:00:00.000Z' },
+      ],
+    })
+    await refreshDrafts('b')
+    apiGetDrafts.mockResolvedValueOnce({
+      status: 'error',
+      error: { code: 'NETWORK', message: 'Network error' },
+    })
+    await expect(refreshDrafts('b')).rejects.toMatchObject({ code: 'NETWORK' })
+    expect(Object.keys(loadAllDrafts('b'))).toEqual(['d1'])
+  })
 })
