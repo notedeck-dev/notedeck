@@ -3279,17 +3279,18 @@ _pluginsCapability:
   updateMessageActive: "Replaces the AiScript of {name} ({from} → {to} characters). It is active, so it restarts with the new code right after saving."
 
 _userCapability:
+  whoById: "userId `{userId}`"
   muteTitle: "Mute notes + notifications"
-  muteMessage: "Mutes notes and notifications from userId `{userId}` (they are not notified)."
-  muteMessageUntil: "Mutes notes and notifications from userId `{userId}` until {date} (they are not notified)."
+  muteMessage: "Mutes notes and notifications from {who} (they are not notified)."
+  muteMessageUntil: "Mutes notes and notifications from {who} until {date} (they are not notified)."
   unmuteTitle: "Unmute notes + notifications"
-  unmuteMessage: "Unmutes notes and notifications from userId `{userId}` (they are not notified)."
+  unmuteMessage: "Unmutes notes and notifications from {who} (they are not notified)."
   unmuteOk: "Unmute"
   renoteMuteTitle: "Mute renotes only"
-  renoteMuteMessage: "Mutes only the renotes from userId `{userId}` (they are not notified)."
+  renoteMuteMessage: "Mutes only the renotes from {who} (they are not notified)."
   renoteMuteOk: "Mute renotes"
   unrenoteMuteTitle: "Unmute renotes"
-  unrenoteMuteMessage: "Unmutes the renotes from userId `{userId}` (they are not notified)."
+  unrenoteMuteMessage: "Unmutes the renotes from {who} (they are not notified)."
   unrenoteMuteOk: "Unmute renotes"
 
 _vaultCapability:

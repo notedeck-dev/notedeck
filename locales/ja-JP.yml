@@ -3027,17 +3027,18 @@ _pluginsCapability:
   updateMessageActive: "{name} の AiScript を {from} → {to} 文字に置換します。アクティブなため、保存後すぐ新しいコードで再起動されます。"
 
 _userCapability:
+  whoById: "userId `{userId}`"
   muteTitle: "ノート + 通知をミュート"
-  muteMessage: "userId `{userId}` を ノート + 通知ミュートします (相手に通知は飛びません)。"
-  muteMessageUntil: "userId `{userId}` を {date} まで ノート + 通知ミュートします (相手に通知は飛びません)。"
+  muteMessage: "{who} を ノート + 通知ミュートします (相手に通知は飛びません)。"
+  muteMessageUntil: "{who} を {date} まで ノート + 通知ミュートします (相手に通知は飛びません)。"
   unmuteTitle: "ノート + 通知を解除"
-  unmuteMessage: "userId `{userId}` を ノート + 通知解除します (相手に通知は飛びません)。"
+  unmuteMessage: "{who} を ノート + 通知解除します (相手に通知は飛びません)。"
   unmuteOk: "解除"
   renoteMuteTitle: "リノートだけをリノートミュート"
-  renoteMuteMessage: "userId `{userId}` を リノートだけリノートミュートします (相手に通知は飛びません)。"
+  renoteMuteMessage: "{who} を リノートだけリノートミュートします (相手に通知は飛びません)。"
   renoteMuteOk: "リノートミュート"
   unrenoteMuteTitle: "リノートだけをリノートミュート解除"
-  unrenoteMuteMessage: "userId `{userId}` を リノートだけリノートミュート解除します (相手に通知は飛びません)。"
+  unrenoteMuteMessage: "{who} を リノートだけリノートミュート解除します (相手に通知は飛びません)。"
   unrenoteMuteOk: "リノートミュート解除"
 
 _vaultCapability:

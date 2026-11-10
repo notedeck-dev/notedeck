@@ -5490,28 +5490,30 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "updateMessageActive": ParameterizedString<'from' | 'name' | 'to'>
   }
   readonly "_userCapability": {
+    /** userId `{userId}` */
+    readonly "whoById": ParameterizedString<'userId'>
     /** ノート + 通知をミュート */
     readonly "muteTitle": string
-    /** userId `{userId}` を ノート + 通知ミュートします (相手に通知は飛びません)。 */
-    readonly "muteMessage": ParameterizedString<'userId'>
-    /** userId `{userId}` を {date} まで ノート + 通知ミュートします (相手に通知は飛びません)。 */
-    readonly "muteMessageUntil": ParameterizedString<'date' | 'userId'>
+    /** {who} を ノート + 通知ミュートします (相手に通知は飛びません)。 */
+    readonly "muteMessage": ParameterizedString<'who'>
+    /** {who} を {date} まで ノート + 通知ミュートします (相手に通知は飛びません)。 */
+    readonly "muteMessageUntil": ParameterizedString<'date' | 'who'>
     /** ノート + 通知を解除 */
     readonly "unmuteTitle": string
-    /** userId `{userId}` を ノート + 通知解除します (相手に通知は飛びません)。 */
-    readonly "unmuteMessage": ParameterizedString<'userId'>
+    /** {who} を ノート + 通知解除します (相手に通知は飛びません)。 */
+    readonly "unmuteMessage": ParameterizedString<'who'>
     /** 解除 */
     readonly "unmuteOk": string
     /** リノートだけをリノートミュート */
     readonly "renoteMuteTitle": string
-    /** userId `{userId}` を リノートだけリノートミュートします (相手に通知は飛びません)。 */
-    readonly "renoteMuteMessage": ParameterizedString<'userId'>
+    /** {who} を リノートだけリノートミュートします (相手に通知は飛びません)。 */
+    readonly "renoteMuteMessage": ParameterizedString<'who'>
     /** リノートミュート */
     readonly "renoteMuteOk": string
     /** リノートだけをリノートミュート解除 */
     readonly "unrenoteMuteTitle": string
-    /** userId `{userId}` を リノートだけリノートミュート解除します (相手に通知は飛びません)。 */
-    readonly "unrenoteMuteMessage": ParameterizedString<'userId'>
+    /** {who} を リノートだけリノートミュート解除します (相手に通知は飛びません)。 */
+    readonly "unrenoteMuteMessage": ParameterizedString<'who'>
     /** リノートミュート解除 */
     readonly "unrenoteMuteOk": string
   }

@@ -1,5 +1,7 @@
-import type { Capability } from '@/capabilities/types'
+import type { Capability, CapabilityContext } from '@/capabilities/types'
 import { i18n } from '@/i18n'
+import { acctOf } from '@/services/userRef'
+import { useAccountsStore } from '@/stores/accounts'
 import { useMutesStore } from '@/stores/mutes'
 import { AppError } from '@/utils/errors'
 import { formatMuteExpiry } from '@/utils/formatTime'
@@ -37,7 +39,7 @@ export const userSearchCapability = implementCore('user.search')
  */
 function muteConfirm(
   text: (
-    userId: string,
+    who: string,
     params: Record<string, unknown> | undefined,
   ) => {
     title: string
@@ -45,13 +47,36 @@ function muteConfirm(
     okLabel: string
   },
 ) {
-  return (params: Record<string, unknown> | undefined) => {
-    const userId = typeof params?.userId === 'string' ? params.userId : ''
-    return {
-      ...text(userId, params),
-      cancelLabel: i18n.ts._common.cancel,
-      type: 'normal' as const,
-    }
+  return async (
+    params: Record<string, unknown> | undefined,
+    ctx: CapabilityContext,
+  ) => ({
+    ...text(await describeUser(params, ctx), params),
+    cancelLabel: i18n.ts._common.cancel,
+    type: 'normal' as const,
+  })
+}
+
+/**
+ * 確認に出す相手 (#1358)。承認する人が誰のことか読めるよう、表示名と acct を
+ * 引く。引けないとき (アカウントが決まらない / 相手が居ない / 通信の失敗) は
+ * ID のまま出す — 確認そのものは止めない
+ */
+async function describeUser(
+  params: Record<string, unknown> | undefined,
+  ctx: CapabilityContext,
+): Promise<string> {
+  const userId = typeof params?.userId === 'string' ? params.userId : ''
+  try {
+    const accountId = resolveAccountId(params?.accountId, ctx)
+    const host = useAccountsStore().accountMap.get(accountId)?.host
+    if (!host) throw new Error('account not found')
+    const api = await getApiAdapter(accountId, ctx)
+    const user = await api.getUser(userId)
+    const acct = `@${acctOf(user, host)}`
+    return user.name ? `${user.name} (${acct})` : acct
+  } catch {
+    return i18n.tsx._userCapability.whoById({ userId })
   }
 }
 
@@ -105,14 +130,14 @@ export function parseMuteExpiresAt(v: unknown): number | undefined {
 }
 
 export const userMuteCapability = implement('user.mute', {
-  requiresConfirmation: muteConfirm((userId, params) => {
+  requiresConfirmation: muteConfirm((who, params) => {
     const date = muteExpiryForConfirm(params)
     return {
       title: i18n.ts._userCapability.muteTitle,
       message:
         date === null
-          ? i18n.tsx._userCapability.muteMessage({ userId })
-          : i18n.tsx._userCapability.muteMessageUntil({ userId, date }),
+          ? i18n.tsx._userCapability.muteMessage({ who })
+          : i18n.tsx._userCapability.muteMessageUntil({ who, date }),
       okLabel: i18n.ts._common.mute,
     }
   }),
@@ -140,9 +165,9 @@ export const userMuteCapability = implement('user.mute', {
 })
 
 export const userUnmuteCapability = implement('user.unmute', {
-  requiresConfirmation: muteConfirm((userId) => ({
+  requiresConfirmation: muteConfirm((who) => ({
     title: i18n.ts._userCapability.unmuteTitle,
-    message: i18n.tsx._userCapability.unmuteMessage({ userId }),
+    message: i18n.tsx._userCapability.unmuteMessage({ who }),
     okLabel: i18n.ts._userCapability.unmuteOk,
   })),
   execute: async (params, ctx) => {
@@ -166,9 +191,9 @@ export const userUnmuteCapability = implement('user.unmute', {
 })
 
 export const userRenoteMuteCapability = implement('user.renoteMute', {
-  requiresConfirmation: muteConfirm((userId) => ({
+  requiresConfirmation: muteConfirm((who) => ({
     title: i18n.ts._userCapability.renoteMuteTitle,
-    message: i18n.tsx._userCapability.renoteMuteMessage({ userId }),
+    message: i18n.tsx._userCapability.renoteMuteMessage({ who }),
     okLabel: i18n.ts._userCapability.renoteMuteOk,
   })),
   execute: async (params, ctx) => {
@@ -183,9 +208,9 @@ export const userRenoteMuteCapability = implement('user.renoteMute', {
 })
 
 export const userUnrenoteMuteCapability = implement('user.unrenoteMute', {
-  requiresConfirmation: muteConfirm((userId) => ({
+  requiresConfirmation: muteConfirm((who) => ({
     title: i18n.ts._userCapability.unrenoteMuteTitle,
-    message: i18n.tsx._userCapability.unrenoteMuteMessage({ userId }),
+    message: i18n.tsx._userCapability.unrenoteMuteMessage({ who }),
     okLabel: i18n.ts._userCapability.unrenoteMuteOk,
   })),
   execute: async (params, ctx) => {
