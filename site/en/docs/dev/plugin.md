@@ -1,5 +1,5 @@
 ---
-sourceHash: 64744d8b9f75
+sourceHash: f15f549f8981
 ---
 
 # Plugins
@@ -72,11 +72,11 @@ The user sees the stop in one of these ways.
 
 | API | When it fails |
 |---|---|
-| `Nd:http` | Does not stop. The outcome of the request (4xx / 5xx, connection failure) comes back as a value |
+| `Nd:http` | The outcome of the request (4xx / 5xx, connection failure) comes back as a value and does not stop. It stops when the request could not be sent, such as an unsupported method or a destination that is not allowed |
 | `Mk:api` | Stops |
 | `Nd:call` | Stops. Only a cancelled confirmation dialog does not stop; it returns an error value |
 
-When permission is missing, every API stops.
+When permission is missing, every API stops. The denial shows up as a badge on the plugin card, and sometimes as a toast.
 
 `Nd:call` may return more kinds of error values in the future. Check the name to tell whether it was a cancellation.
 
