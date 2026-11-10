@@ -39,6 +39,7 @@ import {
   resolveFor,
   whenPermissionsReady,
 } from '@/permissions/store'
+import { failureMessage } from '@/services/capabilityFailure'
 import { isReadOnlyPermissions } from '@/services/petActivity'
 import { getAccountLabel, useAccountsStore } from '@/stores/accounts'
 import { useAiActivity } from '@/stores/aiActivity'
@@ -409,7 +410,7 @@ export async function dispatchCapability(
     return {
       ok: false,
       code: 'execute_failed',
-      error: e instanceof Error ? e.message : String(e),
+      error: failureMessage(e),
     }
   } finally {
     endExecute?.()

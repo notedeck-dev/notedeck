@@ -215,6 +215,9 @@ async function run() {
     ui: {
       onRender: (components) => {
         uiComponents.value = components
+        // 描き直せた = 立ち直った。前の tick の失敗の帯を残すと、直ったのに
+        // 壊れて見える (帯は再実行するまで消えなかった、#1255)
+        error.value = null
       },
     },
     io: {

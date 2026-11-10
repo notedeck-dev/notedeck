@@ -102,6 +102,11 @@ function buildParams(data: DraftData, ctx: DraftContext): JsonValue {
   }
 }
 
+/**
+ * サーバーの下書きを取り直す。失敗 (下書き API の無いサーバー = Misskey 2025.6 未満、
+ * 通信断) は握り潰さずに投げる — 「0 件」にすると AI やウィジェットが失敗と区別
+ * できない (#1255)。手元の一覧は前回のまま残す。空として見せるかは呼ぶ側が決める
+ */
 export async function refreshDrafts(accountId: string): Promise<void> {
   draftsLoading.value = true
   try {
@@ -112,10 +117,6 @@ export async function refreshDrafts(accountId: string): Promise<void> {
     }
     cache[accountId] = map
     draftsVersion.value++
-  } catch (e) {
-    // notes/drafts/* は Misskey 2025.6+。未対応サーバーは空扱い
-    cache[accountId] = cache[accountId] ?? {}
-    console.warn('[drafts] list failed:', AppError.from(e).message)
   } finally {
     draftsLoading.value = false
   }
