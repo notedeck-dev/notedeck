@@ -5348,6 +5348,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "sessionExpiredUseMenu": string
     /** この操作には新しい権限が要ります。再ログインすると使えます。 */
     readonly "permissionMissing": string
+    /** ミュートの同期に新しい権限が要ります。再ログインすると使えます。 */
+    readonly "permissionMissingMuteSync": string
   }
   readonly "_useHeartbeatDaemon": {
     /** 確認待ちの操作が {count} 件あります */
