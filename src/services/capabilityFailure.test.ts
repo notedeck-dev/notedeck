@@ -50,12 +50,17 @@ describe('failureMessage: capability の失敗を、外へ返す文言にする'
     ).toBe('Failed to read ~\\AppData\\x.json5')
   })
 
-  it('空白を含む Windows のユーザー名も、JSON にした後のパスも伏せる', () => {
+  it('空白を含むユーザー名 (Windows / macOS) も、JSON にした後のパスも伏せる', () => {
     expect(
       failureMessage(
         new Error('Failed to read C:\\Users\\John Smith\\AppData\\x.json5'),
       ),
     ).toBe('Failed to read ~\\AppData\\x.json5')
+    expect(
+      failureMessage(
+        new Error('Failed to read /Users/John Smith/Library/x.json5: denied'),
+      ),
+    ).toBe('Failed to read ~/Library/x.json5: denied')
     const viaJson = failureMessage({
       unexpected: 'C:\\Users\\carol\\AppData\\x.json5',
     })
