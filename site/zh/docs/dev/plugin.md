@@ -1,5 +1,5 @@
 ---
-sourceHash: c03e13b34be6
+sourceHash: 5f622afd95af
 ---
 
 # 插件
@@ -59,6 +59,35 @@ sourceHash: c03e13b34be6
 处理函数在应用进程中只会被调用一次（即使打开了多个窗口，事件也只会送达一个代表窗口）。帖子的显示钩子会在每个窗口中被调用，所以不要在钩子里写副作用。
 
 用 `Nd:register_command` 添加的命令，可以从命令面板、键位绑定、AI 的工具、本地 API 中的任何地方调用。被 AI 或本地 API 调用时的实际权限是“调用方的权限 ∩ 插件的权限”。
+
+## 调用失败时
+
+AiScript 没有 try / catch。API 调用失败时，那一段处理（handler）会在那里停下。插件本身不会停止，之后的操作和事件仍然有效。
+
+停下之后，用户会以下面的方式看到。
+
+- 由用户操作（帖子菜单、按钮等）开始的处理：错误的第一行显示在提示中
+- 小工具：错误显示在小工具的框内，下次重新绘制画面后消失
+- 由事件或定时器开始的处理：只记录在运行日志中
+
+| API | 失败时 |
+|---|---|
+| `Nd:http` | 不会停下。通信的结果（4xx / 5xx、连接失败）以值返回 |
+| `Mk:api` | 停下 |
+| `Nd:call` | 停下。只有确认对话框被取消时不会停下，而是返回 error 值 |
+
+没有权限或参数有误时，任何 API 都会停下。
+
+`Nd:call` 返回的 error 值的种类今后可能增加。是否为取消，请按名称判断。
+
+```
+let res = Nd:call("notes.create", { text: "hello" })
+if Core:type(res) == "error" && res.name == "user_cancelled" {
+  // 已取消
+}
+```
+
+Misskey 本身的 `Mk:api` 在失败时不会停下，而是返回 error 值（`request_failed`）。如果插件要在两边运行，请保留 `Core:type(res) == "error"` 的分支。NoteDeck 的 `Mk:api` 也计划改为与 Misskey 相同的返回方式。
 
 ## Misskey 兼容 API
 

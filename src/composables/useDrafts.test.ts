@@ -1,0 +1,34 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { apiGetDrafts } = vi.hoisted(() => ({ apiGetDrafts: vi.fn() }))
+vi.mock('@/utils/tauriInvoke', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/tauriInvoke')>()),
+  commands: { apiGetDrafts },
+}))
+
+import { loadAllDrafts, refreshDrafts } from './useDrafts'
+
+beforeEach(() => {
+  apiGetDrafts.mockReset()
+})
+
+/**
+ * 下書き API の無いサーバーや通信断を「0 件」にすると、AI やウィジェットは
+ * 失敗と区別できない (#1255)。失敗は呼んだ側へ伝える
+ */
+describe('refreshDrafts の失敗', () => {
+  it('取得に失敗したら握り潰さずに投げる', async () => {
+    apiGetDrafts.mockResolvedValue({
+      status: 'error',
+      error: {
+        code: 'API',
+        message: 'notes/drafts/list: UNKNOWN_API_ENDPOINT',
+        apiCode: 'UNKNOWN_API_ENDPOINT',
+      },
+    })
+    await expect(refreshDrafts('a')).rejects.toMatchObject({
+      apiCode: 'UNKNOWN_API_ENDPOINT',
+    })
+    expect(loadAllDrafts('a')).toEqual({})
+  })
+})

@@ -1,0 +1,58 @@
+import { describe, expect, it } from 'vitest'
+import { failureMessage } from './capabilityFailure'
+
+describe('failureMessage: capability の失敗を、外へ返す文言にする', () => {
+  it('Error はその message', () => {
+    expect(failureMessage(new Error('drafts.create: text is required'))).toBe(
+      'drafts.create: text is required',
+    )
+  })
+
+  it('Rust 由来の失敗 (code と message を持つ object) は message を取り出す', () => {
+    const e = {
+      code: 'API',
+      message: 'notes/drafts/list: UNKNOWN_API_ENDPOINT: Unknown API endpoint.',
+      apiCode: 'UNKNOWN_API_ENDPOINT',
+    }
+    expect(failureMessage(e)).toBe(
+      'notes/drafts/list: UNKNOWN_API_ENDPOINT: Unknown API endpoint.',
+    )
+  })
+
+  it('表示言語に描き直さず、英語の正本文のまま返す (AI・外部が読む)', () => {
+    const e = {
+      code: 'INVALID_INPUT',
+      message: 'Reserved skill cannot be renamed',
+      i18n: { key: '_native.error.reservedSkill', params: {} },
+    }
+    expect(failureMessage(e)).toBe('Reserved skill cannot be renamed')
+  })
+
+  it('ホームディレクトリは ~ にして、OS のユーザー名を外へ出さない', () => {
+    expect(
+      failureMessage({
+        code: 'INVALID_INPUT',
+        message:
+          'Invalid input: Failed to read /home/alice/.config/notedeck/config/ai.json5: No such file',
+      }),
+    ).toBe(
+      'Invalid input: Failed to read ~/.config/notedeck/config/ai.json5: No such file',
+    )
+    expect(
+      failureMessage(
+        new Error('Failed to write /Users/bob/Library/x.json5: denied'),
+      ),
+    ).toBe('Failed to write ~/Library/x.json5: denied')
+    expect(
+      failureMessage(
+        new Error('Failed to read C:\\Users\\carol\\AppData\\x.json5'),
+      ),
+    ).toBe('Failed to read ~\\AppData\\x.json5')
+  })
+
+  it('文字列でも object でもない値でも [object Object] にしない', () => {
+    expect(failureMessage({ unexpected: true })).not.toContain(
+      '[object Object]',
+    )
+  })
+})

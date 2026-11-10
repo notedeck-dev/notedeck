@@ -1,5 +1,5 @@
 ---
-sourceHash: c03e13b34be6
+sourceHash: 5f622afd95af
 ---
 
 # Plugins
@@ -59,6 +59,35 @@ Events you can subscribe to with `Nd:on` are notes arriving, notifications arriv
 Handlers run once per app process: even with several windows open, an event reaches only one representative window. Note display hooks run in every window, so keep side effects out of them.
 
 A command added with `Nd:register_command` can be called from the command palette, keybindings, the AI's tools and the local API. When called from the AI or the local API, the effective permissions are "the caller's permissions ∩ the plugin's permissions".
+
+## When a call fails
+
+AiScript has no try / catch. When an API call fails, that piece of work (the handler) stops there. The plugin itself keeps running, and the next action or event still works.
+
+The user sees the stop in one of these ways.
+
+- Work started by a user action (a note menu, a button): the first line of the error appears in a toast
+- Widgets: the error appears in the widget frame. It goes away the next time the widget redraws
+- Work started by an event or a timer: it is only recorded in the run log
+
+| API | When it fails |
+|---|---|
+| `Nd:http` | Does not stop. The outcome of the request (4xx / 5xx, connection failure) comes back as a value |
+| `Mk:api` | Stops |
+| `Nd:call` | Stops. Only a cancelled confirmation dialog does not stop; it returns an error value |
+
+When permission is missing or the arguments are wrong, every API stops.
+
+`Nd:call` may return more kinds of error values in the future. Check the name to tell whether it was a cancellation.
+
+```
+let res = Nd:call("notes.create", { text: "hello" })
+if Core:type(res) == "error" && res.name == "user_cancelled" {
+  // cancelled
+}
+```
+
+In Misskey itself, `Mk:api` does not stop on failure; it returns an error value (`request_failed`). If your plugin runs on both, keep the `Core:type(res) == "error"` branch. NoteDeck's `Mk:api` is planned to return failures the same way.
 
 ## Misskey-compatible APIs
 

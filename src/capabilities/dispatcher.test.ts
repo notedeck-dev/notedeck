@@ -225,6 +225,33 @@ describe('dispatchCapability', () => {
     }
   })
 
+  // Rust 由来の失敗は Error ではなく code / message を持つ object で投げられる。
+  // String() で潰すと [object Object] になり、AI・外部に理由が届かない (#1255)
+  it('Rust 由来の失敗 (object) も理由を文字列で返す', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'unsupported',
+        execute: () => {
+          throw {
+            code: 'API',
+            message: 'notes/drafts/list: UNKNOWN_API_ENDPOINT',
+            apiCode: 'UNKNOWN_API_ENDPOINT',
+          }
+        },
+      }),
+    )
+    const r = await dispatchCapability(
+      'unsupported',
+      undefined,
+      ctxWithPreset('full'),
+    )
+    expect(r.ok).toBe(false)
+    if (!r.ok) {
+      expect(r.code).toBe('execute_failed')
+      expect(r.error).toBe('notes/drafts/list: UNKNOWN_API_ENDPOINT')
+    }
+  })
+
   it('forwards params to execute and supports async execute', async () => {
     let received: unknown = null
     registerCapability(
