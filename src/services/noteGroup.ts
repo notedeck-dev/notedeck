@@ -24,6 +24,7 @@ import {
   type CanonicalReactionKey,
   canonicalReactionKey,
 } from '@/services/reactionKey'
+import { isRenoteOnly } from '@/utils/noteViewModel'
 
 export interface NoteGroup {
   /** 仮想スクローラの行キー。正規 group は identity、不整合 variant は variant key */
@@ -266,6 +267,10 @@ export function isGroupHidden(
   ctx: NoteGroupContext,
 ): boolean {
   if (ctx.isDeletedAtOrigin(group.identity)) return true
+  // 元ノートが消えた純 Renote (#1353)。tombstone はセッション揮発なので、再起動後の
+  // キャッシュ行と取り直した行は「renoteId があるのに renote 本体が無い」形で届く。
+  // 本体を持つ variant が残っていればそれが主ビューになるので隠さない
+  if (group.variants.every((v) => isRenoteOnly(v) && !v.renote)) return true
   for (const v of group.variants) {
     if (ctx.isUserHidden(v)) return true
     if (v._isOrigin && ctx.isSuspended(v)) return true
