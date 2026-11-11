@@ -195,7 +195,12 @@ const handlers: Record<string, QueryHandler> = {
       // body 省略時に Rust 側から null が来る → capability には undefined で渡す
       capParams,
       { principal },
-      preConfirmed ? { preConfirmed: true } : undefined,
+      // 手元の CLI からの記憶 / 人格への書込は、記憶を見ずに必ず確認する (#1351)
+      preConfirmed
+        ? { preConfirmed: true }
+        : kind === 'ai.chat'
+          ? { viaHarness: true }
+          : undefined,
     )
   },
 
@@ -219,7 +224,7 @@ const handlers: Record<string, QueryHandler> = {
       capabilityId,
       capParams,
       { principal: { kind: 'ai.chat' } },
-      { confirmOnly: true },
+      { confirmOnly: true, viaHarness: true },
     )
     if (result.ok) grantPreapproval(capabilityId, capParams)
     return result
