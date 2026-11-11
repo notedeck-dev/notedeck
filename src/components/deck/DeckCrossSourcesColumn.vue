@@ -77,11 +77,15 @@ const sources = computed(() => normalizeSources(props.column.sources))
 // 手元に無いアカウントの組は取りに行けない。黙って空に見せず、どのアカウントかを出す
 // (設定を別の機械に持ち込んだとき、#1354)
 const accountsStore = useAccountsStore()
-const missingAccountsLabel = computed(() =>
-  missingSourceAccounts(sources.value, (id) => accountsStore.accountMap.has(id))
+const missingAccountsLabel = computed(() => {
+  // アカウント一覧を読み終えるまでは、全部が「無い」に見えるので出さない
+  if (!accountsStore.isLoaded) return ''
+  return missingSourceAccounts(sources.value, (id) =>
+    accountsStore.accountMap.has(id),
+  )
     .map((a) => a ?? i18n.ts._deckCrossSourcesColumn.unknownAccount)
-    .join(i18n.ts._deckCrossSourcesColumn.accountSeparator),
-)
+    .join(i18n.ts._deckCrossSourcesColumn.accountSeparator)
+})
 
 const {
   columnThemeVars,
