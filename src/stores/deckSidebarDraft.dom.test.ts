@@ -37,4 +37,14 @@ describe('サイドバーのカラムの下書き', () => {
     deck.toggleSidebarColumn('mfmEditor', null)
     expect(sidebar()?.mfmText).toBe('**a**')
   })
+
+  it('閉じて開き直した AI カラムは、開いていたセッションに戻る (#1371)', () => {
+    const deck = useDeckStore()
+    deck.load()
+    useUiStateStore().set('deck.sidebarDrafts', {
+      aiCurrentSessionId: '20261111000000',
+    })
+    deck.toggleSidebarColumn('ai', null)
+    expect(sidebar()?.aiCurrentSessionId).toBe('20261111000000')
+  })
 })

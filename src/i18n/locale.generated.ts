@@ -3332,6 +3332,12 @@ help */
     readonly "noMatchingSessions": string
     /** 無題のチャット */
     readonly "untitledChat": string
+    /** 応答中 */
+    readonly "sessionRunning": string
+    /** AI の応答が終わりました: {title} */
+    readonly "turnDoneNotice": ParameterizedString<'title'>
+    /** AI の応答が失敗しました: {title} */
+    readonly "turnFailedNotice": ParameterizedString<'title'>
     /** 質問するか /help でコマンド一覧 */
     readonly "inputPlaceholder": string
     /** /help でコマンド一覧 (API キー未設定) */

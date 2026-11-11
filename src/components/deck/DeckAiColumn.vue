@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onUnmounted,
+  ref,
+  useTemplateRef,
+  watch,
+} from 'vue'
 import type { CapabilityId } from '@/capabilities/declarations.generated'
 import { CAPABILITY_DECLARATIONS } from '@/capabilities/declarations.generated'
 import { dispatchCapability } from '@/capabilities/dispatcher'
@@ -19,7 +26,7 @@ import {
   projectRecentConversation,
   projectVisibleItems,
 } from '@/composables/useAiSystemContext'
-import { useAiTurn } from '@/composables/useAiTurn'
+import { isAiTurnRunning, useAiTurn } from '@/composables/useAiTurn'
 import { useBootstrapPending } from '@/composables/useAiWorkspace'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
@@ -42,6 +49,7 @@ import {
 import { usePrompt } from '@/stores/prompt'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
+import { useUiStateStore } from '@/stores/uiState'
 import { useWindowsStore } from '@/stores/windows'
 import { generateSessionTitle, timestampTitle } from '@/utils/aiSessionTitle'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
@@ -115,6 +123,35 @@ const turn = useAiTurn({
   },
 })
 const isGenerating = turn.isRunning
+
+// セッションを開いたとき: 消えていれば一覧へ戻し、あれば notemaid の内容に揃える。
+// 別のウィンドウや閉じたウィンドウで進んだ応答の結果もここで見える (#1371)。
+// この窓で応答が進行中のセッションは、投影が写しを持っているので読み直さない
+watch(
+  [currentSessionId, () => sessionsStore.metaLoaded],
+  async ([id, loaded]) => {
+    if (!id || !loaded || isAiTurnRunning(id)) return
+    if (!sessionsStore.get(id)) {
+      deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
+      return
+    }
+    await sessionsStore.settled(id)
+    if (currentSessionId.value !== id || isAiTurnRunning(id)) return
+    await sessionsStore.reload(id)
+  },
+  { immediate: true },
+)
+
+// サイドバーのカラムは閉じると消えるので、開いていたセッションを残して
+// 開き直したときに戻す (一覧に戻ってから閉じたなら一覧から)
+const uiStateStore = useUiStateStore()
+onUnmounted(() => {
+  if (!props.column.sidebar) return
+  uiStateStore.set('deck.sidebarDrafts', {
+    ...uiStateStore.get('deck.sidebarDrafts'),
+    aiCurrentSessionId: props.column.aiCurrentSessionId ?? undefined,
+  })
+})
 
 // HEARTBEAT (#411): App-level singleton daemon が tick / runner を担当する。
 // AI カラムからは何も呼ばない (heartbeat session を見たければ session 一覧の
@@ -558,6 +595,20 @@ async function sendMessage(
     contextUntrusted: () => visibleItems.length > 0,
     triggerSkillIds: sessionTriggerIds,
     generateTitle: true,
+    // 見ていない間に終わったら、アプリの通知に残して押せばこのセッションを開く。
+    // このカラムが閉じられた後に呼ばれうるので、store だけを触る
+    onFinishUnseen: (outcome) => {
+      const title =
+        sessionsStore.get(sessionId)?.title ||
+        i18n.ts._deckAiColumn.untitledChat
+      toast.show(
+        outcome.status === 'error'
+          ? i18n.tsx._deckAiColumn.turnFailedNotice({ title })
+          : i18n.tsx._deckAiColumn.turnDoneNotice({ title }),
+        outcome.status === 'error' ? 'warning' : 'info',
+        { source: 'AI', onClick: () => deckStore.openAiSession(sessionId) },
+      )
+    },
     onTitle: (title) => {
       const cur = sessionsStore.get(sessionId)
       if (cur && cur.title === titleBefore)
@@ -1000,6 +1051,12 @@ function onKeydown(e: KeyboardEvent) {
           >
             <div :class="$style.rowAvatar">
               <i
+                v-if="isAiTurnRunning(session.id)"
+                class="ti ti-loader-2 nd-spin"
+                :title="i18n.ts._deckAiColumn.sessionRunning"
+              />
+              <i
+                v-else
                 :class="['ti', sessionKindIcon(session.kind)]"
                 aria-hidden="true"
               />

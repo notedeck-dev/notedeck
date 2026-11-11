@@ -38,14 +38,16 @@ export interface UiState {
   'postForm.lastUsedVisibilityByAccount'?: Record<string, UiStateVisibility>
   'postForm.lastUsedLocalOnlyByAccount'?: Record<string, boolean>
   /**
-   * サイドバーで開いたスクラッチパッド / MFM エディタの本文。サイドバーのカラムは
-   * 閉じると消えるので、本文だけここに残して開き直すときに戻す (キーはカラムの
-   * プロパティ名)
+   * サイドバーで開いたスクラッチパッド / MFM エディタの本文と、AI カラムで開いて
+   * いたセッション。サイドバーのカラムは閉じると消えるので、ここに残して開き直す
+   * ときに戻す (キーはカラムのプロパティ名)
    */
   'deck.sidebarDrafts'?: SidebarDrafts
 }
 
-export type SidebarDrafts = Partial<Record<'aiscriptCode' | 'mfmText', string>>
+export type SidebarDrafts = Partial<
+  Record<'aiscriptCode' | 'mfmText' | 'aiCurrentSessionId', string>
+>
 
 export type UiStateKey = keyof UiState
 

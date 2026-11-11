@@ -255,10 +255,11 @@ export type NavItem =
       columnProps?: Partial<DeckColumn>
     }
 
-/** サイドバーで閉じても本文を残す種別 → 本文を持つカラムのプロパティ */
+/** サイドバーで閉じても続きを残す種別 → それを持つカラムのプロパティ */
 const SIDEBAR_DRAFT_KEYS: Partial<Record<ColumnType, keyof SidebarDrafts>> = {
   aiscript: 'aiscriptCode',
   mfmEditor: 'mfmText',
+  ai: 'aiCurrentSessionId',
 }
 
 export const DEFAULT_NAV_ITEMS: NavItem[] = JSON5.parse(defaultNavbarJson5)
@@ -630,7 +631,7 @@ export const useDeckStore = defineStore('deck', () => {
       removeColumn(existing.id)
       return
     }
-    // 閉じる前に残した本文 (スクラッチパッド / MFM エディタ) を戻す
+    // 閉じる前に残したもの (スクラッチパッド / MFM エディタの本文、AI のセッション) を戻す
     const draftKey = SIDEBAR_DRAFT_KEYS[type]
     const draft = draftKey
       ? useUiStateStore().get('deck.sidebarDrafts')?.[draftKey]

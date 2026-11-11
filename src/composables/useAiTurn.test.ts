@@ -5,6 +5,7 @@ import type { ChatMessage } from './useAiChat'
 import {
   type AiTurnEventPayload,
   type AiTurnSessionPort,
+  isAiTurnRunning,
   resetAiTurnsForTest,
   useAiTurn,
 } from './useAiTurn'
@@ -508,6 +509,89 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
 
     emit({ kind: 'done', text: '' })
     await outcome
+  })
+
+  it('文脈を組んでいる間 (buildSystem) も、そのセッションは応答中として見える', async () => {
+    const sessions = memorySessions()
+    const turn = useAiTurn({ sessions })
+    let release: (v: string) => void = () => undefined
+    const outcome = turn.run({
+      ...baseRequest(),
+      buildSystem: () => new Promise<string>((r) => (release = r)),
+    })
+    expect(isAiTurnRunning('s1')).toBe(true)
+    expect(isAiTurnRunning('s2')).toBe(false)
+    release('SYSTEM')
+    await flush()
+    emit({ kind: 'done', text: 'ok' })
+    await outcome
+    expect(isAiTurnRunning('s1')).toBe(false)
+  })
+
+  it('文脈を組んでいる間に止めたら、何も送らずに終わる', async () => {
+    const sessions = memorySessions()
+    const turn = useAiTurn({ sessions })
+    let release: (v: string) => void = () => undefined
+    const outcome = turn.run({
+      ...baseRequest(),
+      buildSystem: () => new Promise<string>((r) => (release = r)),
+    })
+    await turn.cancel()
+    release('SYSTEM')
+    expect((await outcome).status).toBe('cancelled')
+    expect(aiTurnRun).not.toHaveBeenCalled()
+    expect(aiTurnCancel).not.toHaveBeenCalled()
+    expect(sessions.messages()).toEqual([])
+    expect(isAiTurnRunning('s1')).toBe(false)
+  })
+
+  it('buildSystem が失敗したら応答中のまま残さない', async () => {
+    const turn = useAiTurn({ sessions: memorySessions() })
+    await expect(
+      turn.run({
+        ...baseRequest(),
+        buildSystem: () => Promise.reject(new Error('boom')),
+      }),
+    ).rejects.toThrow('boom')
+    expect(isAiTurnRunning('s1')).toBe(false)
+  })
+
+  it('誰もそのセッションを見ていないときに終わったら onFinishUnseen で知らせる (#1371)', async () => {
+    const sessions = memorySessions()
+    const onFinishUnseen = vi.fn()
+
+    // 見ている画面がある: 知らせない
+    const scope = effectScope()
+    const turn = scope.run(() =>
+      useAiTurn({ sessions, sessionId: () => 's1', onUpdate: () => undefined }),
+    )
+    if (!turn) throw new Error('scope.run returned undefined')
+    let outcome = turn.run({ ...baseRequest(), onFinishUnseen })
+    await flush()
+    emit({ kind: 'done', text: 'ok' })
+    await outcome
+    expect(onFinishUnseen).not.toHaveBeenCalled()
+
+    // 画面を閉じてから終わった: 知らせる
+    aiTurnRun.mockClear()
+    outcome = turn.run({ ...baseRequest(), onFinishUnseen })
+    await flush()
+    scope.stop()
+    emit({ kind: 'done', text: 'ok' })
+    await outcome
+    expect(onFinishUnseen).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'done' }),
+    )
+
+    // 自分で止めたものは知らせない
+    onFinishUnseen.mockClear()
+    aiTurnRun.mockClear()
+    const turn2 = useAiTurn({ sessions })
+    outcome = turn2.run({ ...baseRequest(), onFinishUnseen })
+    await flush()
+    await turn2.cancel()
+    await outcome
+    expect(onFinishUnseen).not.toHaveBeenCalled()
   })
 
   it('invoke 自体の失敗 (接続未設定など) はエラーとして placeholder に残る', async () => {

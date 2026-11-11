@@ -117,6 +117,11 @@ export interface AiTurnRunRequest {
   /** 初回応答のセッションならタイトルを生成させ、届いたら onTitle に渡す */
   generateTitle?: boolean
   onTitle?(title: string): void
+  /**
+   * 応答が終わった (done / error) とき、そのセッションを表示している画面が無いか
+   * アプリが隠れていたら呼ばれる。利用者が止めたターンでは呼ばれない (#1371)
+   */
+  onFinishUnseen?(outcome: AiTurnOutcome): void
 }
 
 export type AiTurnOutcome =
@@ -234,8 +239,10 @@ export function toWireMessage(m: ChatMessage): AiChatMessage {
 interface ActiveTurn {
   turnId: string
   unlisten: UnlistenFn | null
-  /** 中断の後始末 (partial を写しに載せて終わらせる) */
+  /** 中断の後始末 (partial を写しに載せて終わらせる)。notecore に投げる前は null */
   settle: ((partial: ChatMessage | null) => void) | null
+  /** notecore に投げる前 (文脈を組んでいる間) に止められた */
+  stopped?: boolean
   endActivity: (() => void) | null
 }
 
@@ -253,6 +260,20 @@ function notifyUpdate(sessionId: string): void {
   for (const hook of viewHooks) {
     if (hook.sessionId() === sessionId) hook.onUpdate()
   }
+}
+
+/** そのセッションで応答が進行中か (セッション一覧の表示用、reactive) */
+export function isAiTurnRunning(sessionId: string): boolean {
+  return activeTurns.has(sessionId)
+}
+
+/** そのセッションを利用者が今見ているか (表示している画面があり、アプリが隠れていない) */
+function isSessionSeen(sessionId: string): boolean {
+  if (typeof document !== 'undefined' && document.hidden) return false
+  for (const hook of viewHooks) {
+    if (hook.sessionId() === sessionId) return true
+  }
+  return false
 }
 
 export function resetAiTurnsForTest(): void {
@@ -308,6 +329,10 @@ export function useAiTurn(deps: AiTurnDeps) {
   ): Promise<void> {
     const active = sessionId !== null ? activeTurns.get(sessionId) : undefined
     if (!active) return
+    if (!active.settle) {
+      active.stopped = true
+      return
+    }
     const id = active.turnId
     cancelTurnExecutions(id)
     closeConfirmRequestsForTurn(id)
@@ -334,6 +359,15 @@ export function useAiTurn(deps: AiTurnDeps) {
     const before = deps.sessions.get(req.sessionId)
     if (!before) return { status: 'aborted' }
     const turnId = generateTurnId()
+
+    // 文脈を組む前から「応答中」にする (その間に写しを読み直されないように)
+    const active: ActiveTurn = {
+      turnId,
+      unlisten: null,
+      settle: null,
+      endActivity: null,
+    }
+    activeTurns.set(req.sessionId, active)
 
     // ユーザー入力は notecore が書く (id は両側で同じ規則)。写しには先に出す
     let userMsgId: string | undefined
@@ -365,7 +399,10 @@ export function useAiTurn(deps: AiTurnDeps) {
       timestamp: now,
     }
     const afterUser = deps.sessions.get(req.sessionId)
-    if (!afterUser) return { status: 'aborted' }
+    if (!afterUser) {
+      cleanup(req.sessionId)
+      return { status: 'aborted' }
+    }
     deps.sessions.setLocalMessages(req.sessionId, [
       ...afterUser.messages,
       placeholder,
@@ -376,16 +413,23 @@ export function useAiTurn(deps: AiTurnDeps) {
     const history = (deps.sessions.get(req.sessionId)?.messages ?? []).filter(
       (m) => m.role !== 'system' && m.id !== placeholder.id && !m.heartbeat,
     )
-    const system = await req.buildSystem(history)
+    let system: string | undefined
+    try {
+      system = await req.buildSystem(history)
+    } catch (e) {
+      cleanup(req.sessionId)
+      throw e
+    }
+    if (active.stopped) {
+      // まだ何も送っていない。写しに先出しした user / placeholder を戻して終わる
+      cleanup(req.sessionId)
+      deps.sessions.setLocalMessages(req.sessionId, before.messages)
+      onUpdate()
+      return { status: 'cancelled', wasFirstRound }
+    }
     const caps = listCapabilities()
 
-    const active: ActiveTurn = {
-      turnId,
-      unlisten: null,
-      settle: null,
-      endActivity: activity.begin('running'),
-    }
-    activeTurns.set(req.sessionId, active)
+    active.endActivity = activity.begin('running')
     activity.pulse('jumping')
     const isActive = () => activeTurns.get(req.sessionId)?.turnId === turnId
 
@@ -428,6 +472,12 @@ export function useAiTurn(deps: AiTurnDeps) {
         onUpdate()
         // 確定分は notecore が書いているので、写しを読み直して揃える
         if (req.persist !== false) void deps.sessions.reload(req.sessionId)
+        if (
+          (outcome.status === 'done' || outcome.status === 'error') &&
+          !isSessionSeen(req.sessionId)
+        ) {
+          req.onFinishUnseen?.(outcome)
+        }
         resolve(outcome)
       }
       // ユーザー中断: notecore が書いた partial を写しに載せ、空 placeholder は
