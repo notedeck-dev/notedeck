@@ -738,7 +738,8 @@ pub fn notedeck_capability_request(params: &Value) -> Option<(String, Value)> {
 }
 
 /// 許可要求が人格 / 記憶のファイル (`persona_dir` の中) か、notemaid の状態 (作業場所の
-/// 隣、`workspace/` 以外) に触るか。rawInput の文字列値と locations のパスを見る。
+/// 隣、`workspace/` 以外) に触るか。rawInput の文字列値と locations のパスを見る
+/// (字面の一致に加えて、相対パスとシンボリックリンクを解いた先も)。
 /// 再編後の配置 (#1334) では 2 つは別の場所なので、作業場所から人格の場所を導かない (#1351)
 pub fn touches_protected_paths(
     params: &Value,
@@ -773,13 +774,95 @@ pub fn touches_protected_paths(
     }
     // パスは文字列の途中にも埋まる (`echo x > <dir>/USER.md` のようなコマンド) ので、
     // 保護された場所が現れる位置ごとに見る
-    candidates.iter().any(|c| {
+    let literal = candidates.iter().any(|c| {
         let p = c.replace('\\', "/");
         protected.iter().any(|dir| {
             p.match_indices(dir.as_str())
                 .any(|(i, _)| !p[i..].starts_with(&workspace))
         })
+    });
+    if literal {
+        return true;
+    }
+
+    // 字面に現れない届き方 (#1351): 作業場所からの相対パス、`..` を挟んだパス、`cd` 先、
+    // `~/`、シンボリックリンク越し。文字列をパスらしい一片に割り、作業場所を起点に解いて
+    // 実体の場所で見る。コマンドが実行時に組み立てるパスまでは追えない (その分は
+    // 「外部で変更されました」の検知が受ける)
+    let guarded_dirs: Vec<PathBuf> = std::iter::once(persona_dir)
+        .chain(workspace_dir.parent())
+        .flat_map(|d| [d.to_path_buf(), real_path(d)])
+        .collect();
+    let workspaces = [workspace_dir.to_path_buf(), real_path(workspace_dir)];
+    let guarded = |p: &std::path::Path| {
+        guarded_dirs.iter().any(|d| p.starts_with(d))
+            && !workspaces.iter().any(|w| p.starts_with(w))
+    };
+    // `dirs` は daemon feature の依存で、アプリに組み込むライブラリには無い
+    let home = std::env::home_dir();
+    let is_separator = |ch: char| {
+        ch.is_whitespace()
+            || matches!(
+                ch,
+                '\'' | '"' | '`' | ';' | '|' | '&' | '<' | '>' | '(' | ')' | '=' | ','
+            )
+    };
+    candidates.iter().any(|c| {
+        std::iter::once(c.as_str())
+            .chain(c.split(is_separator))
+            .filter_map(|t| resolve_token(t, workspace_dir, home.as_deref()))
+            .any(|p| guarded(&p) || guarded(&real_path(&p)))
     })
+}
+
+/// 文字列の一片をパスとして解く。パスらしくなければ None。相対は `cwd` (CLI の作業場所)
+/// から、`~/` はホームから。`.` と `..` は字面で畳む
+fn resolve_token(
+    token: &str,
+    cwd: &std::path::Path,
+    home: Option<&std::path::Path>,
+) -> Option<PathBuf> {
+    use std::path::Component;
+    let t = token.replace('\\', "/");
+    if t.contains("://") || !(t.contains('/') || t == ".." || t == "~") {
+        return None;
+    }
+    let joined = match (t.strip_prefix("~/").or((t == "~").then_some("")), home) {
+        (Some(rest), Some(home)) => home.join(rest),
+        _ => cwd.join(&t),
+    };
+    let mut out = PathBuf::new();
+    for c in joined.components() {
+        match c {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                out.pop();
+            }
+            other => out.push(other),
+        }
+    }
+    Some(out)
+}
+
+/// シンボリックリンクを解いた実体のパス。まだ無いファイルは、在るところまで解いて残りを足す
+fn real_path(path: &std::path::Path) -> PathBuf {
+    let mut existing = path.to_path_buf();
+    let mut tail = Vec::new();
+    while !existing.exists() {
+        match (
+            existing.file_name().map(|n| n.to_os_string()),
+            existing.parent(),
+        ) {
+            (Some(name), Some(parent)) => {
+                tail.push(name);
+                existing = parent.to_path_buf();
+            }
+            _ => return path.to_path_buf(),
+        }
+    }
+    let mut out = existing.canonicalize().unwrap_or(existing);
+    out.extend(tail.into_iter().rev());
+    out
 }
 
 /// 許可要求を確認ダイアログに写し、答えを待つ (期限切れは拒否)
@@ -859,6 +942,89 @@ mod tests {
         let elsewhere =
             json!({ "toolCall": { "rawInput": { "command": "ls /data/notedeck/skills" } } });
         assert!(!touches_protected_paths(&elsewhere, ws));
+    }
+
+    /// 作業場所からの相対パス・`..` を挟んだパス・`cd` 先・シンボリックリンク越しでも
+    /// 拾う (#1351)。判定は文字列からの推定で、コマンドが組み立てるパスまでは追えない
+    #[test]
+    fn protected_paths_are_found_through_relative_paths_and_symlinks() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(notecore::app_dir::Layout::marker_path(root.path()), "{}").unwrap();
+        let persona = crate::workspace::dir(root.path());
+        let ws = crate::acp::workspace(root.path());
+        std::fs::create_dir_all(&persona).unwrap();
+        std::fs::create_dir_all(&ws).unwrap();
+        let hit = |input: Value| {
+            touches_protected_paths(&json!({ "toolCall": { "rawInput": input } }), &persona, &ws)
+        };
+        let rel = pathdiff(&persona, &ws);
+        assert!(rel.starts_with(".."), "{rel}");
+
+        assert!(hit(json!({ "path": format!("{rel}/SOUL.md") })));
+        assert!(hit(
+            json!({ "command": format!("cat a.txt >> {rel}/USER.md") })
+        ));
+        assert!(hit(
+            json!({ "command": format!("cd {rel} && echo hi > MEMORY.md") })
+        ));
+        assert!(hit(json!({ "command": format!("cd '{rel}'; ls") })));
+        let dotted = format!(
+            "{}/../{}/SOUL.md",
+            ws.display(),
+            pathdiff(&persona, ws.parent().unwrap())
+        );
+        assert!(hit(json!({ "path": dotted })));
+        // 作業場所の隣 (notemaid の状態) も相対で届く
+        assert!(hit(json!({ "path": "../turns/a.json" })));
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&persona, ws.join("link")).unwrap();
+            assert!(hit(json!({ "path": "link/SOUL.md" })));
+            assert!(hit(
+                json!({ "path": ws.join("link/new.md").to_string_lossy() })
+            ));
+        }
+
+        // 作業場所の中と、パスでない文字列は通す
+        assert!(!hit(json!({ "path": "notes.txt" })));
+        assert!(!hit(json!({ "path": "./a/../b.txt" })));
+        assert!(!hit(
+            json!({ "command": "echo hello > out/log.txt && cat out/log.txt" })
+        ));
+        assert!(!hit(json!({ "url": "https://example.com/a/../../b" })));
+        assert!(!hit(json!({ "command": "ls /usr/../etc" })));
+    }
+
+    #[test]
+    fn a_home_relative_path_is_resolved() {
+        let home = std::path::Path::new("/home/u");
+        let cwd = std::path::Path::new("/home/u/app/state/notemaid/workspace");
+        assert_eq!(
+            resolve_token("~/app/data/notemaid/SOUL.md", cwd, Some(home)),
+            Some(std::path::PathBuf::from(
+                "/home/u/app/data/notemaid/SOUL.md"
+            ))
+        );
+        assert_eq!(
+            resolve_token("../x/./y", cwd, Some(home)),
+            Some(std::path::PathBuf::from("/home/u/app/state/notemaid/x/y"))
+        );
+        assert_eq!(resolve_token("plain", cwd, Some(home)), None);
+    }
+
+    /// `to` を `from` からの相対パスで書く (テスト用。共通の祖先まで `..` で上がる)
+    fn pathdiff(to: &std::path::Path, from: &std::path::Path) -> String {
+        let to: Vec<_> = to.components().collect();
+        let from: Vec<_> = from.components().collect();
+        let common = to.iter().zip(&from).take_while(|(a, b)| a == b).count();
+        let mut out: Vec<String> = vec!["..".into(); from.len() - common];
+        out.extend(
+            to[common..]
+                .iter()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned()),
+        );
+        out.join("/")
     }
 
     /// 再編後の配置 (#1334) では作業場所は `state/` の下、人格と記憶は `data/` の下で、
