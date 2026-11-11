@@ -85,6 +85,9 @@ mod tests {
         let v1 = Layout::v1(root);
         targets.push(v1.state().to_path_buf());
         targets.push(v1.cache().to_path_buf());
+        targets.push(v1.logs());
+        // 移行前の退避 (`layout_migration` の `pre_layout_backup`)。旧配置の写し
+        targets.push(root.join("backups"));
 
         for (name, section) in [
             ("backup_rules.xml", old.as_str()),

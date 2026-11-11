@@ -10,6 +10,8 @@
         <exclude domain="root" path="push_state.json.tmp" />
         <exclude domain="root" path="state" />
         <exclude domain="root" path="cache" />
+        <exclude domain="root" path="logs" />
+        <exclude domain="root" path="backups" />
         <exclude domain="sharedpref" path="notedeck_push.xml" />
         <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
         <exclude domain="database" path="unifiedpush-connector" />
@@ -23,6 +25,8 @@
         <exclude domain="root" path="push_state.json.tmp" />
         <exclude domain="root" path="state" />
         <exclude domain="root" path="cache" />
+        <exclude domain="root" path="logs" />
+        <exclude domain="root" path="backups" />
         <exclude domain="sharedpref" path="notedeck_push.xml" />
         <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
         <exclude domain="database" path="unifiedpush-connector" />
