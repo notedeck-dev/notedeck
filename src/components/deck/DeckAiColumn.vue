@@ -103,9 +103,12 @@ const messages = conversation.messages
 
 // ターンの投影 (#1133): ループ本体は notecore のターン実行器。ここは session
 // store への投影 / 中断 / 再試行コンテキストだけ。tool の実行要求は apiBridge
-// の `ai/execute-capability` が受けて dispatcher (確認 UI 込み) を走らせる
+// の `ai/execute-capability` が受けて dispatcher (確認 UI 込み) を走らせる。
+// 進行中のターンはセッション単位でアプリが持つので、このカラムを閉じても
+// セッションを切り替えても止まらず、開き直せば続きが見える (#1371)
 const turn = useAiTurn({
   sessions: sessionsStore,
+  sessionId: () => currentSessionId.value,
   // 生成ストリーミング中、ユーザーが上へスクロールして読んでいる間は追従しない
   onUpdate: () => {
     if (isNearBottom()) followBottom()
@@ -235,16 +238,10 @@ const headerTitle = computed(() => {
 // --- ナビゲーション ---
 
 function openSession(sessionId: string): void {
-  if (turn.isRunning.value) {
-    void turn.cancel()
-  }
   deckStore.updateColumn(props.column.id, { aiCurrentSessionId: sessionId })
 }
 
 function backToSessions(): void {
-  if (turn.isRunning.value) {
-    void turn.cancel()
-  }
   deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
   input.value = ''
 }
@@ -290,11 +287,10 @@ async function onDeleteSession(
     type: 'danger',
   })
   if (!ok) return
+  // 消すセッションで応答が進行中なら止める (開いていないセッションでも)
+  void turn.forget(sessionId)
   // 削除対象が現在開いているセッションなら一覧画面に戻す
   if (currentSessionId.value === sessionId) {
-    if (turn.isRunning.value) {
-      void turn.cancel()
-    }
     deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
   }
   await sessionsStore.deleteSession(sessionId)

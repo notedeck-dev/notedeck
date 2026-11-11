@@ -5,6 +5,7 @@ import type { ChatMessage } from './useAiChat'
 import {
   type AiTurnEventPayload,
   type AiTurnSessionPort,
+  resetAiTurnsForTest,
   useAiTurn,
 } from './useAiTurn'
 
@@ -109,6 +110,7 @@ function baseRequest(sessionId = 's1') {
 }
 
 beforeEach(() => {
+  resetAiTurnsForTest()
   listeners.length = 0
   aiTurnRun.mockClear()
   aiTurnCancel.mockClear()
@@ -406,16 +408,106 @@ describe('useAiTurn (#1133 縦切り 1: ターンの投影)', () => {
     expect(sessions2.messages().map((m) => m.role)).toEqual(['user'])
   })
 
-  it('scope dispose でも進行中のターンを中断する', async () => {
+  it('scope dispose (カラムを閉じる) では中断せず、投影を続ける (#1371)', async () => {
     const sessions = memorySessions()
     const scope = effectScope()
     const turn = scope.run(() => useAiTurn({ sessions }))
     if (!turn) throw new Error('scope.run returned undefined')
     const outcome = turn.run(baseRequest())
     await flush()
+    emit({ kind: 'delta', text: 'こん' })
     scope.stop()
+    expect(aiTurnCancel).not.toHaveBeenCalled()
+
+    emit({ kind: 'delta', text: 'にちは' })
+    expect(sessions.messages().at(-1)?.content).toBe('こんにちは')
+    emit({ kind: 'done', text: 'こんにちは', message_id: 'm-final' })
+    expect((await outcome).status).toBe('done')
+    expect(sessions.reloads).toBe(1)
+  })
+
+  it('開き直した画面 (別の instance) から、進行中のターンが見えて止められる (#1371)', async () => {
+    const sessions = memorySessions()
+    const first = effectScope()
+    const turn = first.run(() => useAiTurn({ sessions, sessionId: () => 's1' }))
+    if (!turn) throw new Error('scope.run returned undefined')
+    const outcome = turn.run(baseRequest())
+    await flush()
+    first.stop()
+
+    const onUpdate = vi.fn()
+    const reopened = useAiTurn({ sessions, sessionId: () => 's1', onUpdate })
+    const other = useAiTurn({ sessions, sessionId: () => 's2' })
+    expect(reopened.isRunning.value).toBe(true)
+    expect(other.isRunning.value).toBe(false)
+    // 追従 (スクロール) は今そのセッションを表示している画面に届く
+    emit({ kind: 'delta', text: 'a' })
+    expect(onUpdate).toHaveBeenCalled()
+
+    await reopened.cancel()
     expect((await outcome).status).toBe('cancelled')
     expect(aiTurnCancel).toHaveBeenCalledOnce()
+    expect(reopened.isRunning.value).toBe(false)
+    expect(reopened.retryContext.value?.mode).toBe('resend')
+
+    // セッションを消すときは再試行コンテキストも捨てる
+    await reopened.forget('s1')
+    expect(reopened.retryContext.value).toBeNull()
+  })
+
+  it('別のセッションのターンは並行して走る (セッションを切り替えても止めない)', async () => {
+    const sessions = memorySessions()
+    const turn = useAiTurn({ sessions })
+    void turn.run(baseRequest())
+    await flush()
+    await expect(turn.run(baseRequest())).rejects.toThrow()
+    // s2 は port に無いので aborted だが、s1 が走っていることでは弾かれない
+    expect(await turn.run(baseRequest('s2'))).toEqual({ status: 'aborted' })
+  })
+
+  it('写しが読み直されて placeholder が消えても、確定分と重複させずに投影を続ける', async () => {
+    const sessions = memorySessions()
+    const turn = useAiTurn({ sessions })
+    const outcome = turn.run(baseRequest())
+    await flush()
+    emit({ kind: 'delta', text: '調べ' })
+    // 読み直し: notecore が持つ確定分 (user) だけになる
+    sessions.setLocalMessages(
+      's1',
+      sessions.messages().filter((m) => m.role === 'user'),
+    )
+    emit({ kind: 'delta', text: 'ます' })
+    expect(sessions.messages().at(-1)).toMatchObject({
+      role: 'assistant',
+      content: '調べます',
+    })
+
+    // 読み直した写しが、確定済みの tool_use を既に持っている場合
+    const confirmed: ChatMessage = {
+      id: 'm-use',
+      role: 'assistant',
+      content: '調べます',
+      timestamp: 1,
+      toolUseId: 'tu1',
+      toolUseName: 'time_now',
+      toolUseInput: {},
+    }
+    sessions.setLocalMessages('s1', [
+      ...sessions.messages().filter((m) => m.role === 'user'),
+      confirmed,
+    ])
+    emit({
+      kind: 'tool_use',
+      text: '調べます',
+      tool_use_id: 'tu1',
+      tool_use_name: 'time_now',
+      tool_use_input: {},
+      message_id: 'm-use',
+    })
+    expect(sessions.messages().filter((m) => m.id === 'm-use')).toHaveLength(1)
+
+    emit({ kind: 'done', text: '' })
+    await outcome
   })
 
   it('invoke 自体の失敗 (接続未設定など) はエラーとして placeholder に残る', async () => {
