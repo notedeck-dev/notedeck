@@ -11,6 +11,10 @@
  */
 
 import { nextTick } from 'vue'
+import {
+  CAPABILITY_DECLARATIONS,
+  type CapabilityId,
+} from '@/capabilities/declarations.generated'
 import type { Capability } from '@/capabilities/types'
 import { COLUMN_LABELS } from '@/columns/registry'
 import { useAiConfig } from '@/composables/useAiConfig'
@@ -107,6 +111,12 @@ export interface DispatchOptions {
    * 拒否 / 権限なし / preflight 失敗は通常の実行と同じエラー
    */
   confirmOnly?: boolean
+  /**
+   * 手元の CLI (ACP) からの呼び出し (#1351)。CLI が何を読んだかは追えないので、
+   * 他人の本文を読んだ後のセッションと同じに扱い、記憶と人格への書込は「次から
+   * 確認しない」の記憶を見ずに必ず確認する
+   */
+  viaHarness?: boolean
 }
 
 /** notecore の確認要求に同梱する内容 (`ai/confirm-preview` の応答) */
@@ -315,7 +325,9 @@ export async function dispatchCapability(
       : await prepareConfirmation(cap, params, capCtx, ctx, {
           crossAccount,
           crossAccountId,
-          force: options?.forceConfirm === true,
+          force:
+            options?.forceConfirm === true ||
+            (options?.viaHarness === true && writesPersonaOrMemory(cap)),
           note: options?.confirmNote,
         })
   if (prepared) {
@@ -641,6 +653,20 @@ interface PreparedConfirmation {
  * 確認ダイアログの内容を組み立てる (dispatcher と notecore の確認要求で共通)。
  * null = この呼び出しでは確認しない (宣言なし / no-op / 記憶済み)。
  */
+function declaredAlwaysConfirm(capabilityId: string): boolean {
+  return (
+    CAPABILITY_DECLARATIONS[capabilityId as CapabilityId]?.alwaysConfirm ===
+    true
+  )
+}
+
+/** AI の記憶 (USER / MEMORY) か人格 (SOUL) を書く capability か */
+function writesPersonaOrMemory(cap: Capability): boolean {
+  return (cap.permissions ?? []).some(
+    (p) => p === 'ai.memory.write' || p === 'ai.persona.write',
+  )
+}
+
 async function prepareConfirmation(
   cap: Capability,
   params: Record<string, unknown> | undefined,
@@ -671,8 +697,10 @@ async function prepareConfirmation(
   // 返し、常に確認される。
   // クロスアカウント実行 (#777) には「今後確認しない」記憶を適用しない —
   // 同一アカウント操作への同意を別アカウントでの実行に波及させない。
+  // 宣言で「常に確認」(`alwaysConfirm`、人格の書換) の capability も記憶を見ない・
+  // 出さない (#1351。notemaid のターン実行器の `remember_blocked` と同じ規則)
   const rawScope =
-    cap.onConfirmRemember || cross.force
+    cap.onConfirmRemember || cross.force || declaredAlwaysConfirm(cap.id)
       ? null
       : confirmSkipScope(ctx.principal)
   if (

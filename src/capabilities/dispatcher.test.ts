@@ -2177,6 +2177,99 @@ describe('notecore 発の確認要求 (#1133 縦切り 2)', () => {
     ).toBe(true)
   })
 
+  it('宣言で「常に確認」の capability は、記憶があっても確認し、remember を出さない (#1351)', async () => {
+    const execute = vi.fn(() => 'ok')
+    registerCapability(
+      makeCapability({
+        id: 'soul.propose',
+        permissions: ['ai.persona.write'],
+        requiresConfirmation: true,
+        execute,
+      }),
+    )
+    addConfirmSkip('ai.chat', 'soul.propose')
+    const confirmFn = vi.fn(async (_opts: unknown) => ({
+      accepted: true,
+      remember: false,
+    }))
+    const res = await dispatchCapability(
+      'soul.propose',
+      { content: 'x' },
+      ctxWithPreset('full'),
+      { confirmFn },
+    )
+    expect(res.ok).toBe(true)
+    expect(confirmFn).toHaveBeenCalledTimes(1)
+    expect(
+      (confirmFn.mock.calls[0]?.[0] as { rememberLabel?: string })
+        .rememberLabel,
+    ).toBeUndefined()
+    const preview = await previewConfirmation(
+      'soul.propose',
+      { content: 'x' },
+      ctxWithPreset('full'),
+      { crossAccount: false },
+    )
+    expect(preview).toMatchObject({
+      needsConfirmation: true,
+      allowRemember: false,
+    })
+    removeConfirmSkip('ai.chat', 'soul.propose')
+  })
+
+  it('手元の CLI 経由の記憶 / 人格への書込は、記憶があっても確認する。それ以外は記憶を尊重する (#1351)', async () => {
+    registerCapability(
+      makeCapability({
+        id: 'memory.update',
+        permissions: ['ai.memory.write'],
+        requiresConfirmation: true,
+      }),
+    )
+    registerCapability(
+      makeCapability({ id: 'other.write', requiresConfirmation: true }),
+    )
+    const memoryKey = 'memory.update?target=user'
+    addConfirmSkip('ai.chat', memoryKey)
+    addConfirmSkip('ai.chat', 'other.write')
+    const ctx = ctxWithPreset('full')
+    const params = { target: 'user', content: 'x' }
+
+    // notemaid のターン実行器と同じ principal でも、CLI 経由でなければ記憶が効く
+    const direct = vi.fn(async (_opts: unknown) => ({
+      accepted: true,
+      remember: false,
+    }))
+    await dispatchCapability('memory.update', params, ctx, {
+      confirmFn: direct,
+    })
+    expect(direct).not.toHaveBeenCalled()
+
+    const viaCli = vi.fn(async (_opts: unknown) => ({
+      accepted: true,
+      remember: false,
+    }))
+    await dispatchCapability('memory.update', params, ctx, {
+      confirmFn: viaCli,
+      viaHarness: true,
+    })
+    expect(viaCli).toHaveBeenCalledTimes(1)
+    expect(
+      (viaCli.mock.calls[0]?.[0] as { rememberLabel?: string }).rememberLabel,
+    ).toBeUndefined()
+
+    const other = vi.fn(async (_opts: unknown) => ({
+      accepted: true,
+      remember: false,
+    }))
+    await dispatchCapability('other.write', undefined, ctx, {
+      confirmFn: other,
+      viaHarness: true,
+    })
+    expect(other).not.toHaveBeenCalled()
+    removeConfirmSkip('ai.chat', memoryKey)
+    removeConfirmSkip('ai.chat', 'other.write')
+  })
+
   it('previewConfirmation: クロスアカウントは記憶を無視し、remember を出さず、実行アカウントを添える', async () => {
     registerCapability(
       makeCapability({

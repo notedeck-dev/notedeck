@@ -36,7 +36,7 @@ pub const USER_MEMORY_OFF: &str =
 pub struct Composed {
     pub system: Option<String>,
     /// 出所判定で trusted に数える本文 (store 由来でない skill の本文)。
-    /// ワークスペースファイルと store 由来 skill は入れない
+    /// ワークスペースファイルと予約 skill の AGENTS.md と store 由来 skill は入れない
     pub trusted_skill_bodies: Vec<String>,
     /// 文脈に store 由来 (`store_id` 付き) の skill がある
     pub store_skill_in_context: bool,
@@ -180,7 +180,9 @@ pub fn compose(input: Input<'_>) -> Composed {
 fn note_skill(s: &SkillMeta, out: &mut Composed) {
     if s.store_id.is_some() {
         out.store_skill_in_context = true;
-    } else {
+    } else if s.file_base.as_deref() != Some(AGENTS_FILE_BASE) {
+        // AGENTS.md はワークスペースと同じ扱いで trusted に数えない (#1162 の v4、#1351)。
+        // AI が `skills.append` で書けるので、そこにしか無い宛先は untrusted に倒す
         let body = s.body.trim();
         if !body.is_empty() {
             out.trusted_skill_bodies.push(body.to_string());
@@ -312,8 +314,9 @@ mod tests {
         assert!(c.workspace_hashes.contains_key(&Kind::Soul));
         assert!(c.workspace_hashes.contains_key(&Kind::User));
         assert!(!c.store_skill_in_context && !c.tainted_skill_in_context);
-        // trusted に数えるのは skill の本文だけ (ワークスペースは入れない)
-        assert!(c.trusted_skill_bodies.contains(&"Rule one.".to_string()));
+        // trusted に数えるのは skill の本文だけ (ワークスペースと AGENTS.md は入れない)
+        assert!(c.trusted_skill_bodies.contains(&"Always one.".to_string()));
+        assert!(!c.trusted_skill_bodies.contains(&"Rule one.".to_string()));
         assert!(c
             .trusted_skill_bodies
             .contains(&"Speak softly.".to_string()));
