@@ -5728,6 +5728,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "noSources": string
     /** フィルター / クエリですべて除外されています */
     readonly "allExcluded": string
+    /** ログインしていないアカウントの項目は表示していません: {accounts} */
+    readonly "missingAccounts": ParameterizedString<'accounts'>
+    /** 不明なアカウント */
+    readonly "unknownAccount": string
+    /** 、 */
+    readonly "accountSeparator": string
   }
   readonly "_accountScope": {
     /** サーバー単位の面のため、アカウントをまたぐ意味がありません */

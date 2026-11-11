@@ -5,6 +5,7 @@ import {
   portableAccountId,
   type RebindableAccount,
   type RebindableColumn,
+  type RebindableSource,
   rebindColumns,
   stripMachineAccountIds,
 } from './accountRebind'
@@ -84,5 +85,82 @@ describe('accountRebind (#1332)', () => {
     expect(r.changed).toBe(false)
     expect(r.columns[0]).toBe(cols[0])
     expect(r.unbound).toEqual([])
+  })
+
+  describe('全アカウントのカラムの組 (sources、#1354)', () => {
+    type Source = RebindableSource & { id: string; name?: string }
+    const col = (sources: Source[]): RebindableColumn => ({
+      id: 'c',
+      accountId: null,
+      sources,
+    })
+
+    it('この機械にある組には account を埋め、無ければ account で付け替える', () => {
+      const r = rebindColumns(
+        [
+          col([
+            { accountId: 'uuid-a', id: 'l1', name: 'L1' },
+            {
+              accountId: 'other-machine',
+              account: 'alice@misskey.example',
+              id: 'l2',
+            },
+            {
+              accountId: 'other-machine',
+              account: 'bob@misskey.example',
+              id: 'l3',
+            },
+          ]),
+        ],
+        [alice],
+      )
+      expect(r.changed).toBe(true)
+      expect(r.columns[0]?.sources).toEqual([
+        {
+          accountId: 'uuid-a',
+          account: 'alice@misskey.example',
+          id: 'l1',
+          name: 'L1',
+        },
+        { accountId: 'uuid-a', account: 'alice@misskey.example', id: 'l2' },
+        // 一致が無い組はそのまま残す
+        {
+          accountId: 'other-machine',
+          account: 'bob@misskey.example',
+          id: 'l3',
+        },
+      ])
+      // 全アカウントのカラム自体は未接続に数えない
+      expect(r.unbound).toEqual([])
+    })
+
+    it('ファイルには組の account だけを書き、読むときは unbound: の印を置く', () => {
+      const written = stripMachineAccountIds([
+        col([
+          { accountId: 'uuid-a', account: 'alice@misskey.example', id: 'l1' },
+        ]),
+      ])
+      expect(written[0]?.sources).toEqual([
+        { account: 'alice@misskey.example', id: 'l1' },
+      ])
+      const read = placeholderAccountIds(written)
+      expect(read[0]?.sources?.[0]?.accountId).toBe(
+        'unbound:alice@misskey.example',
+      )
+      expect(
+        rebindColumns(read, [alice]).columns[0]?.sources?.[0]?.accountId,
+      ).toBe('uuid-a')
+    })
+
+    it('組が揃っていれば changed は false で、入力は変えない', () => {
+      const cols = [
+        col([
+          { accountId: 'uuid-a', account: 'alice@misskey.example', id: 'l1' },
+        ]),
+      ]
+      const r = rebindColumns(cols, [alice])
+      expect(r.changed).toBe(false)
+      expect(r.columns[0]).toBe(cols[0])
+    })
   })
 })
