@@ -9,10 +9,13 @@
 import { isExposed } from '@/settings/exposure'
 import type { ColumnType } from '@/stores/deck'
 import {
+  ACCOUNT_INDEPENDENT_TYPES,
+  ACCOUNT_OPTIONAL_TYPES,
   ALL_COLUMN_TYPES,
   COLUMN_REGISTRY,
   COLUMN_TYPE_GROUPS,
   type ColumnGroupInfo,
+  CROSS_ACCOUNT_TYPES,
 } from './registry'
 
 /**
@@ -28,6 +31,25 @@ export function isColumnExposed(type: ColumnType): boolean {
 /** 追加導線が列挙するカラム種別 (registry 宣言順) */
 export function exposedColumnTypes(): ColumnType[] {
   return ALL_COLUMN_TYPES.filter(isColumnExposed)
+}
+
+/**
+ * ナビバーの「もっと」(LaunchPad) に並べる種別。ひと押しで accountId: null のまま
+ * 開けるものだけ — 全アカウント / アカウント非依存 / アカウント「なし」を選べる種別で、
+ * ID 選択 (selectable) が要らず、ナビバーに無いもの。
+ */
+export function launchPadColumnTypes(
+  navTypes: ReadonlySet<string>,
+): ColumnType[] {
+  return exposedColumnTypes().filter((t) => {
+    if (navTypes.has(t)) return false
+    if (COLUMN_REGISTRY[t]?.selectable) return false
+    return (
+      CROSS_ACCOUNT_TYPES.has(t) ||
+      ACCOUNT_INDEPENDENT_TYPES.has(t) ||
+      ACCOUNT_OPTIONAL_TYPES.has(t)
+    )
+  })
 }
 
 /**

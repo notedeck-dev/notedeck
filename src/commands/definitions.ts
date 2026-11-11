@@ -1,4 +1,3 @@
-import { isSupportedSoftware } from '@/adapters/registry'
 import { useCommandStore } from '@/commands/registry'
 import { useAccountActions } from '@/composables/useAccountActions'
 import { useAccountPicker } from '@/composables/useAccountPicker'
@@ -297,17 +296,6 @@ export function registerDefaultCommands(handlers: CommandHandlers) {
                     actions.openSettings(acc)
                   },
                 })
-                if (isSupportedSoftware(acc.software)) {
-                  items.push({
-                    id: `${acc.id}-mute-block`,
-                    label: i18n.ts._navAccountMenu.muteAndBlock,
-                    icon: 'external-link',
-                    action: () => {
-                      commandStore.close()
-                      actions.openMuteBlock(acc)
-                    },
-                  })
-                }
               }
               if (acc.hasToken) {
                 items.push({

@@ -3332,6 +3332,12 @@ help */
     readonly "noMatchingSessions": string
     /** 無題のチャット */
     readonly "untitledChat": string
+    /** 応答中 */
+    readonly "sessionRunning": string
+    /** AI の応答が終わりました: {title} */
+    readonly "turnDoneNotice": ParameterizedString<'title'>
+    /** AI の応答が失敗しました: {title} */
+    readonly "turnFailedNotice": ParameterizedString<'title'>
     /** 質問するか /help でコマンド一覧 */
     readonly "inputPlaceholder": string
     /** /help でコマンド一覧 (API キー未設定) */
@@ -4373,8 +4379,6 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_navAccountMenu": {
     /** コントロールパネル */
     readonly "controlPanel": string
-    /** ミュートとブロック */
-    readonly "muteAndBlock": string
   }
   readonly "_pluginCard": {
     /** 手元のポートへの接続を拒否しました ({count} 回): {reason}。クリックでプラグイン詳細を開く */

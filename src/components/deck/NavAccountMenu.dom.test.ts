@@ -108,23 +108,12 @@ describe('NavAccountMenu の通知まわり', () => {
 })
 
 /**
- * ミュート / ブロックの一覧は本体に持たず、本家 Web の該当ページへ直接送る (#1267)。
- * パスを確かめてあるのは対応しているソフトウェアだけ
+ * ミュート / ブロックの一覧は本体に持たない (#1267)。本家 Web の該当ページへの導線も置かない
  */
 describe('NavAccountMenu のミュートとブロック', () => {
-  it('本家 Web のミュートとブロックのページを直接開く', async () => {
+  it('導線を出さない', async () => {
     notificationPermissionGranted.mockResolvedValue(true)
     mountMenu()
-    await flush()
-    buttonWith('ミュートとブロック')?.click()
-    expect(openSafeUrl).toHaveBeenCalledWith(
-      'https://misskey.example/settings/mute-block',
-    )
-  })
-
-  it('対応していないソフトウェアでは出さない', async () => {
-    notificationPermissionGranted.mockResolvedValue(true)
-    mountMenu({ ...account, software: 'iceshrimp/iceshrimp' })
     await flush()
     expect(buttonWith('ミュートとブロック')).toBeUndefined()
   })

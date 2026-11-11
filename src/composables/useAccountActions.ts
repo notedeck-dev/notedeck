@@ -37,11 +37,6 @@ export function useAccountActions() {
     openSafeUrl(webUiUrl(acc.host, '/settings'))
   }
 
-  /** ミュート / ブロックの一覧は本体に持たず、本家 Web の該当ページへ送る (#1267) */
-  function openMuteBlock(acc: Account) {
-    openSafeUrl(webUiUrl(acc.host, '/settings/mute-block'))
-  }
-
   function openAdmin(acc: Account) {
     openSafeUrl(webUiUrl(acc.host, '/admin'))
   }
@@ -162,7 +157,6 @@ export function useAccountActions() {
   return {
     openProfile,
     openSettings,
-    openMuteBlock,
     openAdmin,
     logoutKeepData,
     deleteAccountData,

@@ -199,7 +199,7 @@ pub const ROOT_FILES: &[RootFile] = &[
         backup: false,
         ipc: true,
     },
-    // この機械の UI の状態 (#1333 §3): ペットの位置 / ズーム / 投稿フォームの前回値。
+    // この機械の UI の状態 (#1333 §3): ペットの位置 / ズーム / 投稿フォームの前回値 / サイドバーで閉じたカラムの本文と AI のセッション。
     // 窓を動かすたび・投稿のたびに変わる値は設定 (settings.json5) に書かない
     RootFile {
         name: "ui.json5",

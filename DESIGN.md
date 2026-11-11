@@ -221,7 +221,7 @@ appDataDir/
 │   ├── sessions/           # AI セッション（0600）
 │   └── notemaid/           # AI の人格と記憶（SOUL.md / USER.md / MEMORY.md / BOOTSTRAP.md、#1162）
 ├── state/              # この機械の状態。同期・バックアップの対象外
-│   ├── ui.json5                # ペットの位置 / ズーム / 投稿フォームの前回値（#1333）
+│   ├── ui.json5                # ペットの位置 / ズーム / 投稿フォームの前回値 / サイドバーで閉じたカラムの本文と AI のセッション（#1333）
 │   ├── deck/<profile id>.json5 # 窓の配置（windows[]）とカラムの一時入力（windowId / query / …）
 │   ├── connections-meta.json   # 接続の同意（開示・信頼・loopback）/ 鍵の有無 / 時刻
 │   ├── permissions-meta.json5  # 「今後確認しない」の記憶と前回起動時の実効権限の写し

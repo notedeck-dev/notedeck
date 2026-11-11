@@ -1,5 +1,5 @@
 import type { UnlistenFn } from '@tauri-apps/api/event'
-import { onScopeDispose, ref } from 'vue'
+import { computed, onScopeDispose, reactive, ref } from 'vue'
 import type { AiChatMessage, JsonValue } from '@/bindings'
 import {
   CAPABILITY_DECLARATIONS,
@@ -37,6 +37,10 @@ import { cancelTurnExecutions } from './aiTurnExecutions'
  * - `nd:ai-turn-event` をセッション store へ投影する (placeholder の管理)
  * - 中断と、失敗ターンの再試行コンテキスト (#508 / #646 / #737)
  *
+ * 進行中のターンは画面 (AI カラム) ではなくアプリが持つ (#1371): 状態はセッション
+ * 単位でモジュールに置き、カラムを閉じても投影を続ける。止めるのは `cancel` だけ。
+ * 開き直した画面は同じセッションの状態をそのまま見る。
+ *
  * tool の実行要求は apiBridge の `ai/execute-capability` が受けて既存の
  * dispatcher (確認 UI 込み) を走らせる。
  */
@@ -62,7 +66,9 @@ export interface AiTurnSessionPort {
 
 export interface AiTurnDeps {
   sessions: AiTurnSessionPort
-  /** session 更新のたびに呼ばれる view hook (scroll 等) */
+  /** この画面が表示しているセッション。省略時は最後に `run` したセッション */
+  sessionId?(): string | null
+  /** 表示中のセッションが更新されるたびに呼ばれる view hook (scroll 等) */
   onUpdate?(): void
 }
 
@@ -111,6 +117,11 @@ export interface AiTurnRunRequest {
   /** 初回応答のセッションならタイトルを生成させ、届いたら onTitle に渡す */
   generateTitle?: boolean
   onTitle?(title: string): void
+  /**
+   * 応答が終わった (done / error) とき、そのセッションを表示している画面が無いか
+   * アプリが隠れていたら呼ばれる。利用者が止めたターンでは呼ばれない (#1371)
+   */
+  onFinishUnseen?(outcome: AiTurnOutcome): void
 }
 
 export type AiTurnOutcome =
@@ -225,38 +236,104 @@ export function toWireMessage(m: ChatMessage): AiChatMessage {
   return wire
 }
 
+interface ActiveTurn {
+  turnId: string
+  unlisten: UnlistenFn | null
+  /** 中断の後始末 (partial を写しに載せて終わらせる)。notecore に投げる前は null */
+  settle: ((partial: ChatMessage | null) => void) | null
+  /** notecore に投げる前 (文脈を組んでいる間) に止められた */
+  stopped?: boolean
+  endActivity: (() => void) | null
+}
+
+/** 進行中のターン (セッション id → ターン)。画面の生死と独立 */
+const activeTurns = reactive(new Map<string, ActiveTurn>())
+/**
+ * 失敗 / 中断したターンの再試行コンテキスト (セッション id →)。そのセッションの
+ * 次のターン / 再試行 / セッションの削除 (`forget`) で消える
+ */
+const retryContexts = reactive(new Map<string, AiRetryContext>())
+/** いま開いている画面の view hook */
+const viewHooks = new Set<{ sessionId(): string | null; onUpdate(): void }>()
+
+function notifyUpdate(sessionId: string): void {
+  for (const hook of viewHooks) {
+    if (hook.sessionId() === sessionId) hook.onUpdate()
+  }
+}
+
+/** そのセッションで応答が進行中か (セッション一覧の表示用、reactive) */
+export function isAiTurnRunning(sessionId: string): boolean {
+  return activeTurns.has(sessionId)
+}
+
+/** そのセッションを利用者が今見ているか (表示している画面があり、アプリが隠れていない) */
+function isSessionSeen(sessionId: string): boolean {
+  if (typeof document !== 'undefined' && document.hidden) return false
+  for (const hook of viewHooks) {
+    if (hook.sessionId() === sessionId) return true
+  }
+  return false
+}
+
+export function resetAiTurnsForTest(): void {
+  activeTurns.clear()
+  retryContexts.clear()
+  viewHooks.clear()
+}
+
 export function useAiTurn(deps: AiTurnDeps) {
-  const isRunning = ref(false)
-  const retryContext = ref<AiRetryContext | null>(null)
   const activity = useAiActivity()
+  const lastRunSessionId = ref<string | null>(null)
+  const viewSessionId = (): string | null =>
+    deps.sessionId ? deps.sessionId() : lastRunSessionId.value
 
-  let activeTurnId: string | null = null
-  let activeUnlisten: UnlistenFn | null = null
-  let activeCancel: ((partial: ChatMessage | null) => void) | null = null
-  let endActivity: (() => void) | null = null
+  const isRunning = computed(() => {
+    const id = viewSessionId()
+    return id !== null && activeTurns.has(id)
+  })
+  const retryContext = computed<AiRetryContext | null>({
+    get: () => {
+      const id = viewSessionId()
+      return (id !== null && retryContexts.get(id)) || null
+    },
+    set: (value) => {
+      const id = value?.sessionId ?? viewSessionId()
+      if (id === null) return
+      if (value) retryContexts.set(id, value)
+      else retryContexts.delete(id)
+    },
+  })
 
-  function cleanup() {
-    endActivity?.()
-    endActivity = null
-    activeUnlisten?.()
-    activeUnlisten = null
-    activeTurnId = null
-    activeCancel = null
-    isRunning.value = false
+  if (deps.onUpdate) {
+    const hook = { sessionId: viewSessionId, onUpdate: deps.onUpdate }
+    viewHooks.add(hook)
+    // 画面を閉じても進行中のターンは止めない (#1371)。外すのは view hook だけ
+    onScopeDispose(() => viewHooks.delete(hook), true)
   }
 
-  onScopeDispose(() => {
-    void cancel()
-  })
+  function cleanup(sessionId: string) {
+    const active = activeTurns.get(sessionId)
+    active?.endActivity?.()
+    active?.unlisten?.()
+    activeTurns.delete(sessionId)
+  }
 
   /**
    * 進行中のターンを中断する (#770)。Rust 側の task を止め、このターンのために
    * デバイスが待っている確認を閉じ、session の掃除を走らせる。
+   * 対象は指定したセッション (省略時は表示中のセッション)。
    */
-  async function cancel(): Promise<void> {
-    const id = activeTurnId
-    const settle = activeCancel
-    if (!id) return
+  async function cancel(
+    sessionId: string | null = viewSessionId(),
+  ): Promise<void> {
+    const active = sessionId !== null ? activeTurns.get(sessionId) : undefined
+    if (!active) return
+    if (!active.settle) {
+      active.stopped = true
+      return
+    }
+    const id = active.turnId
     cancelTurnExecutions(id)
     closeConfirmRequestsForTurn(id)
     // notecore が途中までの応答をセッションに書いて返す。それを写しに反映して
@@ -268,18 +345,29 @@ export function useAiTurn(deps: AiTurnDeps) {
     } catch (e) {
       console.warn('[ai-turn] cancel failed:', e)
     }
-    settle?.(partial)
+    active.settle?.(partial)
   }
 
   async function run(req: AiTurnRunRequest): Promise<AiTurnOutcome> {
-    if (isRunning.value)
+    if (activeTurns.has(req.sessionId))
       throw new Error('a response is already being generated')
-    retryContext.value = null
+    lastRunSessionId.value = req.sessionId
+    retryContexts.delete(req.sessionId)
+    const onUpdate = () => notifyUpdate(req.sessionId)
 
     const now = Date.now()
     const before = deps.sessions.get(req.sessionId)
     if (!before) return { status: 'aborted' }
     const turnId = generateTurnId()
+
+    // 文脈を組む前から「応答中」にする (その間に写しを読み直されないように)
+    const active: ActiveTurn = {
+      turnId,
+      unlisten: null,
+      settle: null,
+      endActivity: null,
+    }
+    activeTurns.set(req.sessionId, active)
 
     // ユーザー入力は notecore が書く (id は両側で同じ規則)。写しには先に出す
     let userMsgId: string | undefined
@@ -295,7 +383,7 @@ export function useAiTurn(deps: AiTurnDeps) {
         ...before.messages,
         userMsg,
       ])
-      deps.onUpdate?.()
+      onUpdate()
     }
 
     // このターンが assistant 応答のない初回かどうか (AI 生成タイトル用)。
@@ -311,26 +399,43 @@ export function useAiTurn(deps: AiTurnDeps) {
       timestamp: now,
     }
     const afterUser = deps.sessions.get(req.sessionId)
-    if (!afterUser) return { status: 'aborted' }
+    if (!afterUser) {
+      cleanup(req.sessionId)
+      return { status: 'aborted' }
+    }
     deps.sessions.setLocalMessages(req.sessionId, [
       ...afterUser.messages,
       placeholder,
     ])
-    deps.onUpdate?.()
+    onUpdate()
 
     // wire history: placeholder / system / heartbeat 由来を除く (#411)
     const history = (deps.sessions.get(req.sessionId)?.messages ?? []).filter(
       (m) => m.role !== 'system' && m.id !== placeholder.id && !m.heartbeat,
     )
-    const system = await req.buildSystem(history)
+    let system: string | undefined
+    try {
+      system = await req.buildSystem(history)
+    } catch (e) {
+      cleanup(req.sessionId)
+      throw e
+    }
+    if (active.stopped) {
+      // まだ何も送っていない。写しに先出しした user / placeholder を戻して終わる
+      cleanup(req.sessionId)
+      deps.sessions.setLocalMessages(req.sessionId, before.messages)
+      onUpdate()
+      return { status: 'cancelled', wasFirstRound }
+    }
     const caps = listCapabilities()
 
-    isRunning.value = true
-    endActivity = activity.begin('running')
+    active.endActivity = activity.begin('running')
     activity.pulse('jumping')
+    const isActive = () => activeTurns.get(req.sessionId)?.turnId === turnId
 
-    activeTurnId = turnId
-    let placeholderId = placeholder.id
+    // 生成中の assistant メッセージ。写しが読み直されて消えても (開き直した画面 /
+    // 別経路の書込) ここから戻せるよう、写しとは別に持つ
+    let pending: ChatMessage = placeholder
     let toolExecuted = req.continuation === true
 
     const getSession = () => deps.sessions.get(req.sessionId)
@@ -339,37 +444,45 @@ export function useAiTurn(deps: AiTurnDeps) {
     ): void => {
       const cur = getSession()
       if (!cur) return
-      const last = cur.messages[cur.messages.length - 1]
-      if (last?.role !== 'assistant' || last.id !== placeholderId) return
-      const next = patch(last)
-      if (next) placeholderId = next.id
-      deps.sessions.setLocalMessages(
-        req.sessionId,
-        next ? [...cur.messages.slice(0, -1), next] : cur.messages.slice(0, -1),
-      )
-      deps.onUpdate?.()
+      const next = patch(pending)
+      // 読み直した写しが確定分 (同じ id) を既に持っていれば、それと置き換える
+      const stale = (m: ChatMessage) => m.id === pending.id || m.id === next?.id
+      const at = cur.messages.findIndex(stale)
+      const rest = cur.messages.filter((m) => !stale(m))
+      if (next) {
+        rest.splice(at < 0 ? rest.length : at, 0, next)
+        pending = next
+      }
+      deps.sessions.setLocalMessages(req.sessionId, rest)
+      onUpdate()
     }
     const recordRetry = () => {
-      retryContext.value = {
+      retryContexts.set(req.sessionId, {
         sessionId: req.sessionId,
         userMsgId,
-        placeholderId,
+        placeholderId: pending.id,
         userText: req.text,
         mode: toolExecuted ? 'continue' : 'resend',
-      }
+      })
     }
 
     return new Promise<AiTurnOutcome>((resolve) => {
       const finish = (outcome: AiTurnOutcome) => {
-        cleanup()
-        deps.onUpdate?.()
+        cleanup(req.sessionId)
+        onUpdate()
         // 確定分は notecore が書いているので、写しを読み直して揃える
         if (req.persist !== false) void deps.sessions.reload(req.sessionId)
+        if (
+          (outcome.status === 'done' || outcome.status === 'error') &&
+          !isSessionSeen(req.sessionId)
+        ) {
+          req.onFinishUnseen?.(outcome)
+        }
         resolve(outcome)
       }
       // ユーザー中断: notecore が書いた partial を写しに載せ、空 placeholder は
       // 残骸として残さない
-      activeCancel = (partial) => {
+      active.settle = (partial) => {
         replaceLast((last) =>
           partial
             ? { ...last, id: partial.id, content: partial.content }
@@ -382,7 +495,7 @@ export function useAiTurn(deps: AiTurnDeps) {
       }
 
       const onEvent = (p: AiTurnEventPayload) => {
-        if (p.turn_id !== turnId) return
+        if (p.turn_id !== turnId || !isActive()) return
         switch (p.kind) {
           case 'delta': {
             if (!p.text) return
@@ -421,25 +534,25 @@ export function useAiTurn(deps: AiTurnDeps) {
               }
             }
             const ts = Date.now()
-            const nextPlaceholderId = `${turnId}-placeholder-${ts}`
+            const result: ChatMessage = {
+              id: p.message_id ?? `${turnId}-r-${ts}`,
+              role: 'user',
+              content: p.text ?? '',
+              timestamp: ts,
+              toolResultFor: p.tool_use_id,
+            }
+            pending = {
+              id: `${turnId}-placeholder-${ts}`,
+              role: 'assistant',
+              content: '',
+              timestamp: ts,
+            }
             deps.sessions.setLocalMessages(req.sessionId, [
-              ...cur.messages,
-              {
-                id: p.message_id ?? `${turnId}-r-${ts}`,
-                role: 'user',
-                content: p.text ?? '',
-                timestamp: ts,
-                toolResultFor: p.tool_use_id,
-              },
-              {
-                id: nextPlaceholderId,
-                role: 'assistant',
-                content: '',
-                timestamp: ts,
-              },
+              ...cur.messages.filter((m) => m.id !== result.id),
+              result,
+              pending,
             ])
-            placeholderId = nextPlaceholderId
-            deps.onUpdate?.()
+            onUpdate()
             return
           }
           case 'done': {
@@ -512,7 +625,11 @@ export function useAiTurn(deps: AiTurnDeps) {
       // Subscribe BEFORE invoking, so we never miss the first delta.
       listenTauri('nd:ai-turn-event', onEvent)
         .then(async (un) => {
-          activeUnlisten = un
+          if (!isActive()) {
+            un()
+            return undefined
+          }
+          active.unlisten = un
           // 作成 / 改名が notecore に届く前にターンが書き始めないよう待つ
           // (別プロセスの notemaid では要求ごとに task が分かれ、順序が保証されない)
           await deps.sessions.settled?.(req.sessionId)
@@ -544,10 +661,10 @@ export function useAiTurn(deps: AiTurnDeps) {
           })
         })
         .then((res) => {
-          unwrap(res)
+          if (res) unwrap(res)
         })
         .catch((e) => {
-          if (!activeTurnId) return // 既に settle 済み (中断など)
+          if (!isActive()) return // 既に settle 済み (中断など)
           console.error('[ai-turn] invoke error raw:', e)
           // 本文の無い reject (null / {} 等) は「不明なエラー」にする (#1317)
           const message = invokeErrorText(e) ?? i18n.ts._common.unknownError
@@ -564,10 +681,9 @@ export function useAiTurn(deps: AiTurnDeps) {
    * コンテキスト無し) では null を返し、状態を変えない。
    */
   function prepareRetry(currentSessionId: string | null): AiRetryPlan | null {
-    const r = retryContext.value
-    if (!r || isRunning.value) return null
-    if (r.sessionId !== currentSessionId) return null
-    retryContext.value = null
+    const r = currentSessionId ? retryContexts.get(currentSessionId) : undefined
+    if (!r || activeTurns.has(r.sessionId)) return null
+    retryContexts.delete(r.sessionId)
     const cur = deps.sessions.get(r.sessionId)
     if (!cur) return null
     const removeIds = (
@@ -578,7 +694,13 @@ export function useAiTurn(deps: AiTurnDeps) {
     return { mode: r.mode, text: r.userText }
   }
 
-  return { run, cancel, isRunning, retryContext, prepareRetry }
+  /** セッションを消すとき: 進行中のターンを止め、再試行コンテキストも捨てる */
+  async function forget(sessionId: string): Promise<void> {
+    await cancel(sessionId)
+    retryContexts.delete(sessionId)
+  }
+
+  return { run, cancel, forget, isRunning, retryContext, prepareRetry }
 }
 
 /** core で実行された tool の結果を dispatcher と同じ Spotlight hook に渡す */

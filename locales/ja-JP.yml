@@ -1817,6 +1817,9 @@ _deckAiColumn:
   noSessions: "セッションはまだありません"
   noMatchingSessions: "一致するセッションがありません"
   untitledChat: "無題のチャット"
+  sessionRunning: "応答中"
+  turnDoneNotice: "AI の応答が終わりました: {title}"
+  turnFailedNotice: "AI の応答が失敗しました: {title}"
   inputPlaceholder: "質問するか /help でコマンド一覧"
   inputPlaceholderNoApiKey: "/help でコマンド一覧 (API キー未設定)"
   apiKeyRequired: "AI に質問するには API キーの設定が必要です (/help などのコマンドはそのまま使えます)"
@@ -2412,7 +2415,6 @@ _logoutDialog:
 
 _navAccountMenu:
   controlPanel: "コントロールパネル"
-  muteAndBlock: "ミュートとブロック"
 
 _pluginCard:
   loopbackDenied_plural:

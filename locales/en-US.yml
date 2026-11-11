@@ -2050,6 +2050,9 @@ _deckAiColumn:
   noSessions: "No sessions yet"
   noMatchingSessions: "No matching sessions"
   untitledChat: "Untitled chat"
+  sessionRunning: "Responding"
+  turnDoneNotice: "AI finished responding: {title}"
+  turnFailedNotice: "AI response failed: {title}"
   inputPlaceholder: "Ask a question, or /help for commands"
   inputPlaceholderNoApiKey: "/help for commands (no API key set)"
   apiKeyRequired: "Asking the AI requires an API key (commands such as /help still work)"
@@ -2666,7 +2669,6 @@ _logoutDialog:
 
 _navAccountMenu:
   controlPanel: "Control panel"
-  muteAndBlock: "Mute and block"
 
 _pluginCard:
   incompatible: "Incompatible"

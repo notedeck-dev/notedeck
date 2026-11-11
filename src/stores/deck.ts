@@ -17,6 +17,7 @@ import { stringifyJson5 } from '@/services/json5Document'
 import type { VariantKey } from '@/services/noteKey'
 import { externalQueryPatch, type SearchFilter } from '@/services/searchFilter'
 import { registerSettingsFileHandler } from '@/services/settingsFileSync'
+import type { SidebarDrafts } from '@/services/uiState'
 import {
   rewritePlacements,
   samePlacement,
@@ -26,6 +27,7 @@ import { useAccountsStore } from '@/stores/accounts'
 import { useDeckProfileStore } from '@/stores/deckProfile'
 import { useDeckWallpaperStore } from '@/stores/deckWallpaper'
 import * as snapshotStore from '@/stores/snapshots'
+import { useUiStateStore } from '@/stores/uiState'
 import { useWidgetsStore } from '@/stores/widgets'
 import { createDebouncedPersist } from '@/utils/debouncedPersist'
 import { hapticMedium } from '@/utils/haptics'
@@ -252,6 +254,13 @@ export type NavItem =
       /** Extra column properties (e.g. channelId, userId) */
       columnProps?: Partial<DeckColumn>
     }
+
+/** サイドバーで閉じても続きを残す種別 → それを持つカラムのプロパティ */
+const SIDEBAR_DRAFT_KEYS: Partial<Record<ColumnType, keyof SidebarDrafts>> = {
+  aiscript: 'aiscriptCode',
+  mfmEditor: 'mfmText',
+  ai: 'aiCurrentSessionId',
+}
 
 export const DEFAULT_NAV_ITEMS: NavItem[] = JSON5.parse(defaultNavbarJson5)
 
@@ -621,6 +630,14 @@ export const useDeckStore = defineStore('deck', () => {
     if (existing && existing.type === type) {
       removeColumn(existing.id)
       return
+    }
+    // 閉じる前に残したもの (スクラッチパッド / MFM エディタの本文、AI のセッション) を戻す
+    const draftKey = SIDEBAR_DRAFT_KEYS[type]
+    const draft = draftKey
+      ? useUiStateStore().get('deck.sidebarDrafts')?.[draftKey]
+      : undefined
+    if (draftKey && draft !== undefined) {
+      extraProps = { [draftKey]: draft, ...extraProps }
     }
     if (existing) {
       // In-place update: swap type without destroying DOM / layout.

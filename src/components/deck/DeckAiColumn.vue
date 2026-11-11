@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
+import {
+  computed,
+  nextTick,
+  onUnmounted,
+  ref,
+  useTemplateRef,
+  watch,
+} from 'vue'
 import type { CapabilityId } from '@/capabilities/declarations.generated'
 import { CAPABILITY_DECLARATIONS } from '@/capabilities/declarations.generated'
 import { dispatchCapability } from '@/capabilities/dispatcher'
@@ -19,7 +26,7 @@ import {
   projectRecentConversation,
   projectVisibleItems,
 } from '@/composables/useAiSystemContext'
-import { useAiTurn } from '@/composables/useAiTurn'
+import { isAiTurnRunning, useAiTurn } from '@/composables/useAiTurn'
 import { useBootstrapPending } from '@/composables/useAiWorkspace'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { isSlashCommand, runSlashCommand } from '@/composables/useSlashCommand'
@@ -42,6 +49,7 @@ import {
 import { usePrompt } from '@/stores/prompt'
 import { useSkillsStore } from '@/stores/skills'
 import { useToast } from '@/stores/toast'
+import { useUiStateStore } from '@/stores/uiState'
 import { useWindowsStore } from '@/stores/windows'
 import { generateSessionTitle, timestampTitle } from '@/utils/aiSessionTitle'
 import { highlightCode, highlightRevision } from '@/utils/highlight'
@@ -103,15 +111,47 @@ const messages = conversation.messages
 
 // ターンの投影 (#1133): ループ本体は notecore のターン実行器。ここは session
 // store への投影 / 中断 / 再試行コンテキストだけ。tool の実行要求は apiBridge
-// の `ai/execute-capability` が受けて dispatcher (確認 UI 込み) を走らせる
+// の `ai/execute-capability` が受けて dispatcher (確認 UI 込み) を走らせる。
+// 進行中のターンはセッション単位でアプリが持つので、このカラムを閉じても
+// セッションを切り替えても止まらず、開き直せば続きが見える (#1371)
 const turn = useAiTurn({
   sessions: sessionsStore,
+  sessionId: () => currentSessionId.value,
   // 生成ストリーミング中、ユーザーが上へスクロールして読んでいる間は追従しない
   onUpdate: () => {
     if (isNearBottom()) followBottom()
   },
 })
 const isGenerating = turn.isRunning
+
+// セッションを開いたとき: 消えていれば一覧へ戻し、あれば notemaid の内容に揃える。
+// 別のウィンドウや閉じたウィンドウで進んだ応答の結果もここで見える (#1371)。
+// この窓で応答が進行中のセッションは、投影が写しを持っているので読み直さない
+watch(
+  [currentSessionId, () => sessionsStore.metaLoaded],
+  async ([id, loaded]) => {
+    if (!id || !loaded || isAiTurnRunning(id)) return
+    if (!sessionsStore.get(id)) {
+      deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
+      return
+    }
+    await sessionsStore.settled(id)
+    if (currentSessionId.value !== id || isAiTurnRunning(id)) return
+    await sessionsStore.reload(id)
+  },
+  { immediate: true },
+)
+
+// サイドバーのカラムは閉じると消えるので、開いていたセッションを残して
+// 開き直したときに戻す (一覧に戻ってから閉じたなら一覧から)
+const uiStateStore = useUiStateStore()
+onUnmounted(() => {
+  if (!props.column.sidebar) return
+  uiStateStore.set('deck.sidebarDrafts', {
+    ...uiStateStore.get('deck.sidebarDrafts'),
+    aiCurrentSessionId: props.column.aiCurrentSessionId ?? undefined,
+  })
+})
 
 // HEARTBEAT (#411): App-level singleton daemon が tick / runner を担当する。
 // AI カラムからは何も呼ばない (heartbeat session を見たければ session 一覧の
@@ -235,16 +275,10 @@ const headerTitle = computed(() => {
 // --- ナビゲーション ---
 
 function openSession(sessionId: string): void {
-  if (turn.isRunning.value) {
-    void turn.cancel()
-  }
   deckStore.updateColumn(props.column.id, { aiCurrentSessionId: sessionId })
 }
 
 function backToSessions(): void {
-  if (turn.isRunning.value) {
-    void turn.cancel()
-  }
   deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
   input.value = ''
 }
@@ -290,11 +324,10 @@ async function onDeleteSession(
     type: 'danger',
   })
   if (!ok) return
+  // 消すセッションで応答が進行中なら止める (開いていないセッションでも)
+  void turn.forget(sessionId)
   // 削除対象が現在開いているセッションなら一覧画面に戻す
   if (currentSessionId.value === sessionId) {
-    if (turn.isRunning.value) {
-      void turn.cancel()
-    }
     deckStore.updateColumn(props.column.id, { aiCurrentSessionId: null })
   }
   await sessionsStore.deleteSession(sessionId)
@@ -562,6 +595,20 @@ async function sendMessage(
     contextUntrusted: () => visibleItems.length > 0,
     triggerSkillIds: sessionTriggerIds,
     generateTitle: true,
+    // 見ていない間に終わったら、アプリの通知に残して押せばこのセッションを開く。
+    // このカラムが閉じられた後に呼ばれうるので、store だけを触る
+    onFinishUnseen: (outcome) => {
+      const title =
+        sessionsStore.get(sessionId)?.title ||
+        i18n.ts._deckAiColumn.untitledChat
+      toast.show(
+        outcome.status === 'error'
+          ? i18n.tsx._deckAiColumn.turnFailedNotice({ title })
+          : i18n.tsx._deckAiColumn.turnDoneNotice({ title }),
+        outcome.status === 'error' ? 'warning' : 'info',
+        { source: 'AI', onClick: () => deckStore.openAiSession(sessionId) },
+      )
+    },
     onTitle: (title) => {
       const cur = sessionsStore.get(sessionId)
       if (cur && cur.title === titleBefore)
@@ -1004,6 +1051,12 @@ function onKeydown(e: KeyboardEvent) {
           >
             <div :class="$style.rowAvatar">
               <i
+                v-if="isAiTurnRunning(session.id)"
+                class="ti ti-loader-2 nd-spin"
+                :title="i18n.ts._deckAiColumn.sessionRunning"
+              />
+              <i
+                v-else
                 :class="['ti', sessionKindIcon(session.kind)]"
                 aria-hidden="true"
               />

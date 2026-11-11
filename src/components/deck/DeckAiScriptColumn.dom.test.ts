@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useColumnSetup } from '@/composables/useColumnSetup'
+import { useUiStateStore } from '@/stores/uiState'
 import { bindings, makeColumn, mountColumn, setupStores } from './columnTestKit'
 import DeckAiScriptColumn from './DeckAiScriptColumn.vue'
 
@@ -37,5 +38,19 @@ describe('DeckAiScriptColumn (共通基盤)', () => {
     expect(bindings.calls).toHaveLength(0)
     expect(wrapper.find('[data-deck-column]').exists()).toBe(true)
     wrapper.unmount()
+  })
+
+  it('サイドバーのカラムは、閉じるときにコードを下書きとして残す', async () => {
+    const column = makeColumn({ type: 'aiscript', sidebar: true })
+    const wrapper = await mountColumn(DeckAiScriptColumn, column, stubs)
+    // 500ms の保存を待たずに閉じても、最後の入力まで残る
+    wrapper
+      .findComponent({ name: 'AiScriptEditor' })
+      .vm.$emit('update:modelValue', '<: "edited"')
+    await wrapper.vm.$nextTick()
+    wrapper.unmount()
+    expect(useUiStateStore().get('deck.sidebarDrafts')?.aiscriptCode).toBe(
+      '<: "edited"',
+    )
   })
 })
