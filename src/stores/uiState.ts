@@ -13,7 +13,7 @@ import { isTauri, readUiState, writeUiState } from '@/utils/settingsFs'
 /**
  * この機械の UI の状態 (`state/ui.json5`、#1333 §3)。
  *
- * settings.json5 から出した値 (ペットの位置 / ズーム / 投稿フォームの前回値) の
+ * settings.json5 から出した値 (ペットの位置 / ズーム / 投稿フォームの前回値) と、サイドバーで閉じたカラムの本文の
  * 写し。最後に書いた者勝ちで、別のウィンドウの書込は変更通知で読み直す。
  */
 export const useUiStateStore = defineStore('uiState', () => {

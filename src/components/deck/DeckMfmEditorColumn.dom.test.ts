@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useColumnSetup } from '@/composables/useColumnSetup'
 import { useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
+import { useUiStateStore } from '@/stores/uiState'
 import {
   bindings,
   flush,
@@ -69,6 +70,30 @@ describe('DeckMfmEditorColumn', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('サイドバーのカラムは、閉じるときに本文を下書きとして残す', async () => {
+    const column = makeColumn({
+      type: 'mfmEditor',
+      accountId: null,
+      sidebar: true,
+    })
+    const wrapper = await mountColumn(DeckMfmEditorColumn, column, stubs)
+    await wrapper.find('textarea').setValue('$[tada b]')
+    await flush()
+    // 500ms の保存を待たずに閉じても、最後の入力まで残る
+    wrapper.unmount()
+    expect(useUiStateStore().get('deck.sidebarDrafts')?.mfmText).toBe(
+      '$[tada b]',
+    )
+  })
+
+  it('デッキに置いたカラムは下書きを残さない (本文はカラム設定が持つ)', async () => {
+    const column = makeColumn({ type: 'mfmEditor', accountId: null })
+    const wrapper = await mountColumn(DeckMfmEditorColumn, column, stubs)
+    await wrapper.find('textarea').setValue('$[tada b]')
+    wrapper.unmount()
+    expect(useUiStateStore().get('deck.sidebarDrafts')).toBeUndefined()
   })
 
   it('「投稿フォームへ」は本文で投稿フォームを開く要求を出す', async () => {

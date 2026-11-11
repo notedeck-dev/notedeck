@@ -14,6 +14,7 @@ import { isExposed } from '@/settings/exposure'
 import { useAccountsStore } from '@/stores/accounts'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
 import { useUiStore } from '@/stores/ui'
+import { useUiStateStore } from '@/stores/uiState'
 import { parseTokens } from '@/utils/mfm'
 import DeckColumn from './DeckColumn.vue'
 
@@ -35,6 +36,7 @@ const { columnThemeVars, scroller, scrollToTop } = useColumnSetup(
 const deckStore = useDeckStore()
 const accountsStore = useAccountsStore()
 const uiStore = useUiStore()
+const uiStateStore = useUiStateStore()
 
 const CodeEditor = defineAsyncComponent(
   () => import('@/components/deck/widgets/CodeEditor.vue'),
@@ -55,7 +57,16 @@ watch(text, () => {
   if (saveTimer) clearTimeout(saveTimer)
   saveTimer = setTimeout(persist, 500)
 })
-onUnmounted(persist)
+onUnmounted(() => {
+  persist()
+  // サイドバーのカラムは閉じると消えるので、本文は下書きとして残す
+  if (props.column.sidebar) {
+    uiStateStore.set('deck.sidebarDrafts', {
+      ...uiStateStore.get('deck.sidebarDrafts'),
+      mfmText: text.value,
+    })
+  }
+})
 
 const account = computed(
   () => accountsStore.fallbackAccount ?? accountsStore.accounts[0],

@@ -37,7 +37,15 @@ export interface UiState {
   /** rememberVisibility ON のとき、アカウントごとに最後に使った公開範囲 */
   'postForm.lastUsedVisibilityByAccount'?: Record<string, UiStateVisibility>
   'postForm.lastUsedLocalOnlyByAccount'?: Record<string, boolean>
+  /**
+   * サイドバーで開いたスクラッチパッド / MFM エディタの本文。サイドバーのカラムは
+   * 閉じると消えるので、本文だけここに残して開き直すときに戻す (キーはカラムの
+   * プロパティ名)
+   */
+  'deck.sidebarDrafts'?: SidebarDrafts
 }
+
+export type SidebarDrafts = Partial<Record<'aiscriptCode' | 'mfmText', string>>
 
 export type UiStateKey = keyof UiState
 
@@ -48,6 +56,7 @@ export const UI_STATE_KEYS: readonly UiStateKey[] = [
   'pet.bottom',
   'postForm.lastUsedVisibilityByAccount',
   'postForm.lastUsedLocalOnlyByAccount',
+  'deck.sidebarDrafts',
 ] as const
 
 export function isUiStateKey(key: string): key is UiStateKey {

@@ -21,6 +21,7 @@ import { useVerticalResize } from '@/composables/useVerticalResize'
 import { i18n } from '@/i18n'
 import { useAiScriptLogsStore } from '@/stores/aiscriptLogs'
 import { useToast } from '@/stores/toast'
+import { useUiStateStore } from '@/stores/uiState'
 
 const MkPostForm = defineAsyncComponent(
   () => import('@/components/common/MkPostForm.vue'),
@@ -39,6 +40,7 @@ const props = defineProps<{
 }>()
 
 const deckStore = useDeckStore()
+const uiStateStore = useUiStateStore()
 
 const { account, columnThemeVars, scroller, scrollToTop } = useColumnSetup(
   () => props.column,
@@ -258,6 +260,13 @@ function onKeydown(e: KeyboardEvent) {
 
 onUnmounted(() => {
   if (saveTimer) clearTimeout(saveTimer)
+  // サイドバーのカラムは閉じると消えるので、コードは下書きとして残す
+  if (props.column.sidebar) {
+    uiStateStore.set('deck.sidebarDrafts', {
+      ...uiStateStore.get('deck.sidebarDrafts'),
+      aiscriptCode: code.value,
+    })
+  }
   stopResize()
   currentSandbox?.dispose()
 })
