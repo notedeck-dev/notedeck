@@ -86,6 +86,8 @@ pub struct AcpProvider {
     pub bridge: Arc<dyn FrontendBridge>,
     /// エージェントの作業ディレクトリ (設定フォルダの中の専用の場所)
     pub workspace: PathBuf,
+    /// 人格と記憶の置き場。CLI からの書込要求は自動で拒否する
+    pub persona_dir: PathBuf,
     /// NoteDeck の MCP サーバーの URL (`None` = 渡さない)
     pub mcp_url: Option<String>,
 }
@@ -666,7 +668,7 @@ impl crate::ai_turn::ProviderRound for AcpProvider {
                             Ok(Some(Incoming::Permission { params, reply: permission_reply })) => {
                                 let tool = params.get("toolCall").cloned().unwrap_or(Value::Null);
                                 // 保護パスの拒否は tool 名に関わらず最初に効かせる (名前は CLI の申告)
-                                let accepted = if touches_protected_paths(&params, &self.workspace) {
+                                let accepted = if touches_protected_paths(&params, &self.persona_dir, &self.workspace) {
                                     // 人格 / 記憶のファイルは CLI からは書かせない (認可と汚染規則を
                                     // 通らないため)。人に聞かずに拒否し、tool の結果として残す (#1162)
                                     let call = tool_call_shown(&tool);
@@ -735,14 +737,20 @@ pub fn notedeck_capability_request(params: &Value) -> Option<(String, Value)> {
     Some((notecore::capabilities::id_from_tool_name(&name), input))
 }
 
-/// 許可要求が人格 / 記憶のファイル (`notemaid/` の中、`workspace/` 以外) に触るか。
-/// rawInput の文字列値と locations のパスを見る
-pub fn touches_protected_paths(params: &Value, workspace_dir: &std::path::Path) -> bool {
-    let Some(protected) = workspace_dir.parent() else {
-        return false;
-    };
-    let protected = protected.to_string_lossy().replace('\\', "/");
-    let workspace = workspace_dir.to_string_lossy().replace('\\', "/");
+/// 許可要求が人格 / 記憶のファイル (`persona_dir` の中) か、notemaid の状態 (作業場所の
+/// 隣、`workspace/` 以外) に触るか。rawInput の文字列値と locations のパスを見る。
+/// 再編後の配置 (#1334) では 2 つは別の場所なので、作業場所から人格の場所を導かない (#1351)
+pub fn touches_protected_paths(
+    params: &Value,
+    persona_dir: &std::path::Path,
+    workspace_dir: &std::path::Path,
+) -> bool {
+    let norm = |p: &std::path::Path| p.to_string_lossy().replace('\\', "/");
+    let mut protected = vec![norm(persona_dir)];
+    if let Some(state) = workspace_dir.parent() {
+        protected.push(norm(state));
+    }
+    let workspace = norm(workspace_dir);
     let mut candidates: Vec<String> = Vec::new();
     let tool = params.get("toolCall").cloned().unwrap_or(Value::Null);
     if let Some(locs) = tool.get("locations").and_then(Value::as_array) {
@@ -767,8 +775,10 @@ pub fn touches_protected_paths(params: &Value, workspace_dir: &std::path::Path) 
     // 保護された場所が現れる位置ごとに見る
     candidates.iter().any(|c| {
         let p = c.replace('\\', "/");
-        p.match_indices(&protected)
-            .any(|(i, _)| !p[i..].starts_with(&workspace))
+        protected.iter().any(|dir| {
+            p.match_indices(dir.as_str())
+                .any(|(i, _)| !p[i..].starts_with(&workspace))
+        })
     })
 }
 
@@ -829,6 +839,9 @@ mod tests {
     #[test]
     fn protected_paths_are_the_workspace_parent_except_the_cli_workspace() {
         let ws = std::path::Path::new("/data/notedeck/notemaid/workspace");
+        let persona = std::path::Path::new("/data/notedeck/notemaid");
+        let touches_protected_paths =
+            |params: &Value, ws: &std::path::Path| touches_protected_paths(params, persona, ws);
         let hit =
             json!({ "toolCall": { "rawInput": { "path": "/data/notedeck/notemaid/USER.md" } } });
         assert!(touches_protected_paths(&hit, ws));
@@ -846,6 +859,37 @@ mod tests {
         let elsewhere =
             json!({ "toolCall": { "rawInput": { "command": "ls /data/notedeck/skills" } } });
         assert!(!touches_protected_paths(&elsewhere, ws));
+    }
+
+    /// 再編後の配置 (#1334) では作業場所は `state/` の下、人格と記憶は `data/` の下で、
+    /// 親子ではない。保護対象は配置の正本から求める (#1351)
+    #[test]
+    fn protected_paths_follow_the_layout_after_the_reorganisation() {
+        let root = tempfile::tempdir().unwrap();
+        std::fs::write(notecore::app_dir::Layout::marker_path(root.path()), "{}").unwrap();
+        let persona = crate::workspace::dir(root.path());
+        let ws = crate::acp::workspace(root.path());
+        assert!(!ws.starts_with(&persona) && !persona.starts_with(ws.parent().unwrap()));
+        let at = |p: std::path::PathBuf| p.to_string_lossy().into_owned();
+
+        for kind in [
+            crate::workspace::Kind::Soul,
+            crate::workspace::Kind::User,
+            crate::workspace::Kind::Memory,
+            crate::workspace::Kind::Bootstrap,
+        ] {
+            let file = at(crate::workspace::path(root.path(), kind));
+            let direct = json!({ "toolCall": { "rawInput": { "path": file } } });
+            assert!(touches_protected_paths(&direct, &persona, &ws), "{file}");
+            let embedded =
+                json!({ "toolCall": { "rawInput": { "command": format!("echo hi > {file}") } } });
+            assert!(touches_protected_paths(&embedded, &persona, &ws), "{file}");
+        }
+        // 作業場所の隣 (turns など notemaid の状態) は今までどおり守る
+        let state = json!({ "toolCall": { "rawInput": { "path": at(ws.parent().unwrap().join("turns/a.json")) } } });
+        assert!(touches_protected_paths(&state, &persona, &ws));
+        let inside = json!({ "toolCall": { "rawInput": { "path": at(ws.join("notes.txt")) } } });
+        assert!(!touches_protected_paths(&inside, &persona, &ws));
     }
 
     fn msg(role: AiChatRole, content: &str) -> AiChatMessage {

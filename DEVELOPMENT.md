@@ -326,7 +326,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 - ディレクトリ名は種類名の複数形 (`memos` / `skills`) ではなく所有者名 `notemaid` (「1 つの名前 = ディレクトリ = パッケージ = バイナリ」)。`<config dir>/notemaid/` (secret の鍵) とは別物
 - HEARTBEAT.md / AGENTS.md は `skills/` の**予約 skill**。既存の capability / 認可 (`skills.write`) / 汚染ラベル / バックアップ / skill UI がそのまま効き、ローダーが 2 系統にならない。予約の強制は notemaid の `skills.rs` と、notecore の汎用設定ファイル書込 (該当名の rename / delete 拒否。notecore はファイル名の定数を知るだけ) の 2 か所
 - OpenClaw の TOOLS.md は AGENTS.md に書けばよい (専用の節は置かない)。IDENTITY.md は SOUL / キャラクター (persona) に内包 (Hermes と同じ)。日次ログは作らない (メモ + セッション)
-- **手元の CLI の cwd を人格ファイルと同じ場所にしない (不採用)**: cwd を `notemaid/` にすると Codex / Claude Code が AGENTS.md を自動で読む利点があるが、CLI は自前のファイル操作を持つので認可と汚染規則を通さず書き換えられる。`notemaid/` に AGENTS.md を置かないので祖先探索でも拾わない。CLI の fs 書込要求が `notemaid/` 配下 (`workspace/` 以外) なら ACP の permission 中継で人に聞かず自動拒否し、notemaid は自分の書込ごとに人格・記憶ファイルの hash を記録して turn 開始時に不一致なら「外部で変更されました」を 1 行出す
+- **手元の CLI の cwd を人格ファイルと同じ場所にしない (不採用)**: cwd を `notemaid/` にすると Codex / Claude Code が AGENTS.md を自動で読む利点があるが、CLI は自前のファイル操作を持つので認可と汚染規則を通さず書き換えられる。`notemaid/` に AGENTS.md を置かないので祖先探索でも拾わない。CLI の fs 書込要求が人格と記憶の場所 (`data/notemaid/`) か notemaid の状態 (`state/notemaid/` の `workspace/` 以外) に触るなら ACP の permission 中継で人に聞かず自動拒否し (2 つは再編後は別の場所なので、作業場所からは導かず配置の正本 `Layout` から求める、#1351)、notemaid は自分の書込ごとに人格・記憶ファイルの hash を記録して turn 開始時に不一致なら「外部で変更されました」を 1 行出す
 
 ### 注入の契約
 
