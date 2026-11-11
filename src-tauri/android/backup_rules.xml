@@ -13,7 +13,13 @@
        移動先、接続の同意、確認スキップ、secrets) とキャッシュ。旧配置の平置きの行も、
        移行前の端末のために残す。配置と揃っていることは push_store_file.rs のテストが見る
      - logs/ backups/: notemaid のログと、再編の移行前の退避 (`pre-layout-<日時>`)。
-       退避は旧配置の写しなので、載せると上で外した状態が退避経由で戻る -->
+       退避は旧配置の写しなので、載せると上で外した状態が退避経由で戻る
+     - notecli.db (wal / shm): アカウント情報とノートのキャッシュ (#1374)。トークンは上で
+       外してあり、戻しても再ログインが要る。設定のアカウントは再ログインで結び直す
+       (#1332)。他人の本文を含み、大きさでバックアップ全体を止めうる
+     - data/: メモ / AI セッション / AI の人格と記憶 (#1374)。他人の本文を含むので
+       クラウドには載せない。端末間の直接移行には載せたいが、この規則 (Android 11 以下)
+       は 2 つを分けられないので外す。12 以上は data_extraction_rules.xml で分ける -->
 <full-backup-content>
     <exclude domain="sharedpref" path="keyring-default.xml" />
     <exclude domain="root" path="notify_cursor.json" />
@@ -24,6 +30,10 @@
     <exclude domain="root" path="cache" />
     <exclude domain="root" path="logs" />
     <exclude domain="root" path="backups" />
+    <exclude domain="root" path="notecli.db" />
+    <exclude domain="root" path="notecli.db-wal" />
+    <exclude domain="root" path="notecli.db-shm" />
+    <exclude domain="root" path="data" />
     <exclude domain="sharedpref" path="notedeck_push.xml" />
     <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
     <exclude domain="database" path="unifiedpush-connector" />

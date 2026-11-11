@@ -89,6 +89,32 @@ mod tests {
         // 移行前の退避 (`layout_migration` の `pre_layout_backup`)。旧配置の写し
         targets.push(root.join("backups"));
 
+        // アカウント情報とノートのキャッシュ。トークンは別に外してあり、戻しても再ログインが
+        // 要る。大きさでバックアップ全体を止めうる (#1374)
+        for name in ["notecli.db", "notecli.db-wal", "notecli.db-shm"] {
+            targets.push(root.join(name));
+        }
+
+        // 人の記録 (他人の本文を含む) はクラウドに載せず、端末間の直接移行にだけ載せる。
+        // Android 11 以下の規則は 2 つを分けられないので外す (#1374)
+        let data = v1.data().strip_prefix(root).unwrap();
+        for (name, section, excluded) in [
+            ("backup_rules.xml", old.as_str(), true),
+            ("data_extraction_rules.xml <cloud-backup>", cloud, true),
+            (
+                "data_extraction_rules.xml <device-transfer>",
+                transfer,
+                false,
+            ),
+        ] {
+            assert_eq!(
+                root_excludes(section).iter().any(|e| data.starts_with(e)),
+                excluded,
+                "{name} の {} の扱いが違う",
+                data.display()
+            );
+        }
+
         for (name, section) in [
             ("backup_rules.xml", old.as_str()),
             ("data_extraction_rules.xml <cloud-backup>", cloud),
