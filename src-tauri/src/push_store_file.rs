@@ -1,7 +1,7 @@
 //! push の状態ファイル (#330)。本体 (遷移) は `notecore::push_state`、ここは読み書きと
 //! 直列化だけ。
 //!
-//! 置き場はアプリデータディレクトリ直下 (`notify_cursor.json` と同じ)。端末ごとの状態で
+//! 置き場は `Layout::push_state_file` (`notify_cursor.json` と同じ並び)。端末ごとの状態で
 //! 秘密は置かない (三つ組は keychain)。端末外バックアップからは外す (backup_rules.xml /
 //! data_extraction_rules.xml)。アプリのコマンド・push の受信・ワーカーは同じプロセスで
 //! 同時に進めうるので、読み → 変更 → 書き を 1 つのロックで直列化する。
@@ -49,4 +49,57 @@ pub fn update<R>(app_dir: &Path, change: impl FnOnce(&mut PushStore) -> R) -> R 
         }
     }
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use notecore::app_dir::Layout;
+    use std::path::Path;
+
+    /// 規則 1 節ぶんの `domain="root"` の除外パス
+    fn root_excludes(section: &str) -> Vec<&str> {
+        section
+            .split("<exclude domain=\"root\" path=\"")
+            .skip(1)
+            .filter_map(|rest| rest.split('"').next())
+            .collect()
+    }
+
+    /// 端末ごとの状態が、配置の新旧どちらでも端末外バックアップと端末間の移行から
+    /// 外れている (#1356)。配置 (`Layout`) を変えたら除外規則も変える
+    #[test]
+    fn android_backup_rules_exclude_device_state() {
+        let android = Path::new(env!("CARGO_MANIFEST_DIR")).join("android");
+        let old = std::fs::read_to_string(android.join("backup_rules.xml")).unwrap();
+        let new = std::fs::read_to_string(android.join("data_extraction_rules.xml")).unwrap();
+        let (cloud, transfer) = new.split_once("<device-transfer>").unwrap();
+
+        let root = Path::new("/app");
+        let mut targets = Vec::new();
+        for layout in [Layout::legacy(root), Layout::v1(root)] {
+            for file in [layout.notify_cursor_file(), layout.push_state_file()] {
+                targets.push(file.with_extension("json.tmp"));
+                targets.push(file);
+            }
+        }
+        let v1 = Layout::v1(root);
+        targets.push(v1.state().to_path_buf());
+        targets.push(v1.cache().to_path_buf());
+
+        for (name, section) in [
+            ("backup_rules.xml", old.as_str()),
+            ("data_extraction_rules.xml <cloud-backup>", cloud),
+            ("data_extraction_rules.xml <device-transfer>", transfer),
+        ] {
+            let excludes = root_excludes(section);
+            for target in &targets {
+                let rel = target.strip_prefix(root).unwrap();
+                assert!(
+                    excludes.iter().any(|e| rel.starts_with(e)),
+                    "{name} が {} を除外していない",
+                    rel.display()
+                );
+            }
+        }
+    }
 }

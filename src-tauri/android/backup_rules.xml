@@ -8,13 +8,18 @@
      - notedeck_push / unifiedpush.connector / unifiedpush-connector (DB): push の
        エンドポイントと復号鍵 (#330 §5)。配送アプリへの登録は端末ごと
      - push_state.json: 口座ごとの push の状態と後始末のキュー。端末の登録と組でしか
-       意味を持たない -->
+       意味を持たない
+     - state/ cache/ (#1334 / #1356): 再編後の配置での、この端末だけの状態 (上の 2 つの
+       移動先、接続の同意、確認スキップ、secrets) とキャッシュ。旧配置の平置きの行も、
+       移行前の端末のために残す。配置と揃っていることは push_store_file.rs のテストが見る -->
 <full-backup-content>
     <exclude domain="sharedpref" path="keyring-default.xml" />
     <exclude domain="root" path="notify_cursor.json" />
     <exclude domain="root" path="notify_cursor.json.tmp" />
     <exclude domain="root" path="push_state.json" />
     <exclude domain="root" path="push_state.json.tmp" />
+    <exclude domain="root" path="state" />
+    <exclude domain="root" path="cache" />
     <exclude domain="sharedpref" path="notedeck_push.xml" />
     <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
     <exclude domain="database" path="unifiedpush-connector" />
