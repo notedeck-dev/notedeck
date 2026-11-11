@@ -313,6 +313,39 @@ describe('isGroupHidden (設計 §5.5)', () => {
     })
     expect(isGroupHidden(firstGroup(groups), deleted)).toBe(true)
   })
+
+  it('元ノートが消えた純 Renote (renoteId あり + renote 本体なし) の group は隠れる (#1353)', () => {
+    const orphan = { text: null, renoteId: 'gone' }
+    const groups = buildNoteGroups(
+      [remoteVariant('acc-a', 'a.example', orphan), originVariant(orphan)],
+      ctx,
+    )
+    expect(isGroupHidden(firstGroup(groups), ctx)).toBe(true)
+  })
+
+  it('renote 本体を持つ variant が 1 つでもあれば隠さない (#1353)', () => {
+    const target = makeNote({
+      id: 'target',
+      _accountId: 'acc-o',
+      _serverHost: 'origin.example',
+    })
+    const groups = buildNoteGroups(
+      [
+        remoteVariant('acc-a', 'a.example', { text: null, renoteId: 'gone' }),
+        originVariant({ text: null, renoteId: 'target', renote: target }),
+      ],
+      ctx,
+    )
+    expect(isGroupHidden(firstGroup(groups), ctx)).toBe(false)
+  })
+
+  it('元ノートが消えた引用 (本文か添付が残る) は隠さない (#1353)', () => {
+    const groups = buildNoteGroups(
+      [originVariant({ text: 'quote', renoteId: 'gone' })],
+      ctx,
+    )
+    expect(isGroupHidden(firstGroup(groups), ctx)).toBe(false)
+  })
 })
 
 describe('clusterByIdentity / truncateByGroups', () => {
