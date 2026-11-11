@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   accountSource,
+  missingSourceAccounts,
   normalizeSources,
   parseSourceKey,
   sameSource,
@@ -57,5 +58,34 @@ describe('columnSource (#1017 案 2)', () => {
         'a',
       ),
     ).toEqual([{ accountId: 'b', id: '1' }])
+  })
+})
+
+describe('missingSourceAccounts (#1354)', () => {
+  const has = (id: string) => id === 'here'
+
+  it('手元に無いアカウントの組を user@host で返す (重複は 1 つ)', () => {
+    expect(
+      missingSourceAccounts(
+        [
+          { accountId: 'here', account: 'a@x.example', id: '1' },
+          { accountId: 'unbound:b@y.example', account: 'b@y.example', id: '2' },
+          { accountId: 'unbound:b@y.example', account: 'b@y.example', id: '3' },
+        ],
+        has,
+      ),
+    ).toEqual(['b@y.example'])
+  })
+
+  it('account を持たない古い組は null (名前が分からない) で返す', () => {
+    expect(
+      missingSourceAccounts([{ accountId: 'other-machine', id: '1' }], has),
+    ).toEqual([null])
+  })
+
+  it('全部手元にあれば空', () => {
+    expect(
+      missingSourceAccounts([{ accountId: 'here', id: '1' }], has),
+    ).toEqual([])
   })
 })

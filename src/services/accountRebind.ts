@@ -19,12 +19,21 @@ export interface RebindableAccount {
   hasToken: boolean
 }
 
+/** 全アカウントのカラムが束ねる組 (`ColumnSource`) のうち、再結合が見る部分 */
+export interface RebindableSource {
+  accountId: string
+  /** portable な識別子 `user@host` */
+  account?: string
+}
+
 export interface RebindableColumn {
   id: string
-  /** null = 全アカウント (再結合の対象外) */
+  /** null = 全アカウント (カラム自体は再結合の対象外。組は `sources` で結び直す) */
   accountId: string | null
   /** portable な識別子 `user@host` */
   account?: string
+  /** 全アカウントのカラムがアカウントごとに選んだ組 (#1017 案 2、#1354) */
+  sources?: readonly RebindableSource[]
 }
 
 const GUEST_USER_ID = '__guest__'
@@ -63,24 +72,33 @@ export function rebindColumns<C extends RebindableColumn>(
   }
   let changed = false
   const unbound: string[] = []
-  const out = columns.map((col) => {
-    if (col.accountId == null) return col
-    const local = byId.get(col.accountId)
+  /** 1 つの参照を揃える。変わらなければ同じオブジェクト、一致が無ければ null */
+  function rebindRef<R extends RebindableSource>(ref: R): R | null {
+    const local = byId.get(ref.accountId)
     if (local) {
       const key = portableAccountId(local)
-      if (key && col.account !== key) {
-        changed = true
-        return { ...col, account: key }
+      return key && ref.account !== key ? { ...ref, account: key } : ref
+    }
+    const target = ref.account ? byPortable.get(ref.account) : undefined
+    return target ? { ...ref, accountId: target.id } : null
+  }
+  const out = columns.map((col) => {
+    let next = col
+    if (col.sources) {
+      const sources = col.sources.map((s) => rebindRef(s) ?? s)
+      if (sources.some((s, i) => s !== col.sources?.[i])) {
+        next = { ...next, sources }
       }
-      return col
     }
-    const target = col.account ? byPortable.get(col.account) : undefined
-    if (target) {
-      changed = true
-      return { ...col, accountId: target.id }
+    if (col.accountId != null) {
+      const ref = rebindRef({ accountId: col.accountId, account: col.account })
+      if (!ref) unbound.push(col.id)
+      else if (ref.accountId !== col.accountId || ref.account !== col.account) {
+        next = { ...next, accountId: ref.accountId, account: ref.account }
+      }
     }
-    unbound.push(col.id)
-    return col
+    if (next !== col) changed = true
+    return next
   })
   return { columns: out, changed, unbound }
 }
@@ -101,8 +119,19 @@ export function stripMachineAccountIds<C extends RebindableColumn>(
   columns: readonly C[],
 ): C[] {
   return columns.map((col) => {
-    if (typeof col.accountId !== 'string' || !col.account) return col
-    const { accountId: _machine, ...rest } = col
+    let next = col
+    if (col.sources?.some((s) => s.account)) {
+      next = {
+        ...next,
+        sources: col.sources.map((s) => {
+          if (!s.account) return s
+          const { accountId: _machine, ...rest } = s
+          return rest as unknown as RebindableSource
+        }),
+      }
+    }
+    if (typeof next.accountId !== 'string' || !next.account) return next
+    const { accountId: _machine, ...rest } = next
     return rest as unknown as C
   })
 }
@@ -116,7 +145,18 @@ export function placeholderAccountIds<C extends RebindableColumn>(
   columns: readonly C[],
 ): C[] {
   return columns.map((col) => {
-    if (col.accountId !== undefined || !col.account) return col
-    return { ...col, accountId: `${UNBOUND_PREFIX}${col.account}` }
+    let next = col
+    if (col.sources?.some((s) => s.accountId === undefined && s.account)) {
+      next = {
+        ...next,
+        sources: col.sources.map((s) =>
+          s.accountId !== undefined || !s.account
+            ? s
+            : { ...s, accountId: `${UNBOUND_PREFIX}${s.account}` },
+        ),
+      }
+    }
+    if (next.accountId !== undefined || !next.account) return next
+    return { ...next, accountId: `${UNBOUND_PREFIX}${next.account}` }
   })
 }
