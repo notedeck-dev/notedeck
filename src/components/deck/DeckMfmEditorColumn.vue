@@ -41,6 +41,10 @@ const uiStateStore = useUiStateStore()
 const CodeEditor = defineAsyncComponent(
   () => import('@/components/deck/widgets/CodeEditor.vue'),
 )
+// 色付きの入力欄 (#1392)。CodeMirror を含むので、開いたときに読み込む
+const MfmSourceEditor = defineAsyncComponent(
+  () => import('@/components/common/MfmSourceEditor.vue'),
+)
 const jsonLanguage = jsonLang()
 
 // 本文はカラム設定に持つ。スクラッチパッドと同じく入力を 500ms まとめて書く
@@ -205,12 +209,11 @@ const sampleLabels = computed<Record<MfmPlaygroundSample['id'], string>>(
 
     <div ref="scroller" :class="$style.colBody">
       <div :class="$style.editorPanel" :style="{ flex: `${editorRatio} 0 0` }">
-        <textarea
+        <MfmSourceEditor
           v-model="text"
           :class="$style.editor"
           :aria-label="i18n.ts._mfmPlayground.editorLabel"
           placeholder="MFM..."
-          spellcheck="false"
         />
       </div>
 
@@ -301,20 +304,6 @@ const sampleLabels = computed<Record<MfmPlaygroundSample['id'], string>>(
   flex: 1;
   min-height: 0;
   width: 100%;
-  padding: 10px 12px;
-  border: none;
-  outline: none;
-  resize: none;
-  background: transparent;
-  color: var(--nd-fg);
-  font-family: var(--nd-font-mono);
-  font-size: var(--nd-font-sm);
-  line-height: 1.6;
-
-  &::placeholder {
-    color: var(--nd-fg);
-    opacity: 0.4;
-  }
 }
 
 .resizeHandle {
