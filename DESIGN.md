@@ -229,6 +229,7 @@ appDataDir/
 │   ├── client.json5            # この端末の構成（notemaid の起動方法、#1106）
 │   ├── tutorial.json5          # チュートリアルの達成記録（#1029。resetAt からの導出で機械ごと）
 │   ├── theme-dropins.json5     # themes/ の素の .json5 を取り込んだ記録（元ファイル名 → 採用 ID）
+│   ├── offline.json            # 手動のオフラインモード（この機械だけ。書くのは Rust だけ、#1350）
 │   ├── notify_cursor.json / push_state.json  # Android の通知の処理位置と push の状態
 │   ├── history/<subdir|root>/<base>.history.json5  # 編集前 snapshot のサイドカー
 │   ├── notemaid/               # notemaid の状態（turns/ チェックポイント、workspace/ 手元の CLI の cwd）
@@ -276,7 +277,7 @@ NoteDeck のスカラー設定 (選択・トグル・ユーザー preferences) �
 | カテゴリ | キー例 | 備考 |
 |---|---|---|
 | テーマ選択状態 | `theme.manual`, `theme.selectedDarkThemeId` | テーマ **定義** は `themes/*.ndtheme.json5` に別置き |
-| モード | `modes.realtime`, `modes.offline` | |
+| モード | `modes.realtime` | オフラインモードは設定ではなくこの機械の状態 (`state/offline.json`、#1350) |
 | デック | `deck.wallpaper` | プロファイル **定義** は `profiles/*.ndprofile.json5` に別置き。アクティブプロファイルはウィンドウごとに切り替わるためファイルに持たない |
 | ミュート | `mute.emojis` 等 | ワード / インスタンスミュートはサーバー側設定 |
 | 投稿フォームの挙動 | `postForm.preview`, `postForm.rememberVisibility` 等 | ボタン構成そのものは `postform.json5` |

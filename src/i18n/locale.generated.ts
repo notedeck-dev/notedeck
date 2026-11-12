@@ -6029,6 +6029,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     /** ソースファイルが見つかりません。ソースを置き直せば次回起動で復帰します。ストア配布物はストアから再導入、不要なら削除してください */
     readonly "readOnlyHint": string
   }
+  readonly "_offlineMode": {
+    /** オフラインモードを切り替えられませんでした: {error} */
+    readonly "switchFailed": ParameterizedString<'error'>
+  }
   readonly "_systemAdaptation": {
     /** 回線が切れたため、オフラインモードに入りました。戻ると自動で再接続します */
     readonly "linkOffline": string

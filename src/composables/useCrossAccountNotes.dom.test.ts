@@ -21,7 +21,6 @@ import type { DeckColumn } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePerformanceStore } from '@/stores/performance'
-import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
 import {
   type CrossAccountNotesOptions,
@@ -1177,7 +1176,7 @@ describe('useCrossAccountNotes: 組を束ねる面の復帰と到達点 (#1017�
 describe('useCrossAccountNotes: オフラインモードと復帰 (#461)', () => {
   it('オフラインモード中に接続した列は取りに行かず、解除で接続からやり直して購読を張る', async () => {
     addAccount('acc-a')
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     const fetchFor = vi.fn(() => [note('a50')])
     const column = ref<Partial<DeckColumn>>({})
     const { api } = mountCross({

@@ -49,7 +49,7 @@ pub async fn apply(core: &Core, at_boot: bool) {
         return;
     };
     let text = crate::settings_store::read_settings_json(layout).unwrap_or_default();
-    if offline_enabled(&text) {
+    if crate::offline::manual(layout) {
         // オフラインモード中は輸送路を開かない。解除は端末の操作で、そのときに
         // 保存されたモードを適用し直す
         tracing::info!("[stream] connection mode: offline, not applied");
