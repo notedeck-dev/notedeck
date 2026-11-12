@@ -75,12 +75,24 @@ pub fn set(layout: &Layout, offline: bool) -> Result<()> {
     crate::settings_store::atomic_write(&path(layout), &text, Some(0o600))
 }
 
-/// 今までの設定の値を、状態のファイルへ 1 回だけ移す (アプリの起動時)。既に在れば何もしない
+/// 今までの設定の値を、状態のファイルへ 1 回だけ移す (アプリの起動時)。既に在れば何もしない。
+///
+/// 設定が在るのに読めない / 解釈できないときは移さずに Err を返す (次の起動でやり直す)。
+/// ここで「オフラインでない」と保存すると、以後は状態のファイルが優先され、元の
+/// オフラインが黙って解除される。設定が無い (初回の起動) ときだけ既定を保存する
 pub fn migrate(layout: &Layout) -> Result<()> {
     if path(layout).exists() {
         return Ok(());
     }
-    set(layout, legacy(layout))
+    let text = crate::settings_store::read_settings_json(layout)?;
+    if !text.trim().is_empty() {
+        json5::from_str::<serde_json::Value>(&text).map_err(|e| {
+            notecli::error::NoteDeckError::InvalidInput(format!(
+                "settings.json5 cannot be parsed, the offline flag is not moved: {e}"
+            ))
+        })?;
+    }
+    set(layout, crate::stream_mode::offline_enabled(&text))
 }
 
 #[cfg(test)]
@@ -149,5 +161,22 @@ mod tests {
         assert!(!manual(&layout));
         migrate(&layout).unwrap();
         assert!(!manual(&layout));
+    }
+
+    #[test]
+    fn migrate_does_not_record_online_when_the_old_value_cannot_be_read() {
+        // 設定が壊れている / 読めないときに「オフラインでない」と保存すると、以後は状態の
+        // ファイルが優先されて、元のオフラインが黙って解除される。移さずに次の起動へ回す
+        let (_d, broken) = layout_with(Some("{ 'modes.offline': tr"), None);
+        assert!(migrate(&broken).is_err());
+        assert!(!path(&broken).exists());
+
+        // 設定が無いのは初回の起動。既定 (オンライン) を保存してよい
+        let (_d, first_run) = layout_with(None, None);
+        migrate(&first_run).unwrap();
+        assert_eq!(
+            std::fs::read_to_string(path(&first_run)).unwrap(),
+            r#"{"offline":false}"#
+        );
     }
 }

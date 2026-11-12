@@ -49,7 +49,13 @@ export const useOfflineModeStore = defineStore('offlineMode', () => {
       const initial = unwrap(await commands.offlineModeGet())
       if (before === eventGeneration) manual.value = initial
     } catch (e) {
+      // 保存されている値が分からない。分からないまま通信を始めないよう、オフラインと
+      // して扱う (画面にもオフラインと出るので、解除すれば状態が書き直される)。
+      // 購読も外しておき、呼び直せば読み直せるようにする
       console.warn('[offline] cannot read the manual flag:', e)
+      manual.value = true
+      unlisten?.()
+      unlisten = null
     }
   }
 
@@ -65,8 +71,11 @@ export const useOfflineModeStore = defineStore('offlineMode', () => {
       return true
     }
     try {
+      const before = eventGeneration
       unwrap(await commands.offlineModeSet(next))
-      manual.value = next
+      // 応答を待つ間に切替の知らせが届いていたら、そちらが新しい (この窓の知らせか、
+      // 別の窓の後からの切替)。古い応答で上書きしない
+      if (before === eventGeneration) manual.value = next
       return true
     } catch (e) {
       useToast().show(

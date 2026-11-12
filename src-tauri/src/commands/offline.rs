@@ -37,15 +37,16 @@ pub async fn offline_mode_set(
     app_state: State<'_, AppState>,
     offline: bool,
 ) -> Result<()> {
+    // 書く → 切る → 知らせる、を 1 つずつ通す。待ちを挟むので、直列にしないと 2 つの窓の
+    // 切替が入れ子になり、古い切替の知らせが新しい状態の後に届く
+    static SWITCHING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _switching = SWITCHING.lock().await;
+
     notecore::offline::set(app_state.layout()?, offline)?;
     if offline {
-        if let (Ok(streaming), Ok(accounts)) = (
-            app_state.streaming(),
-            notecore::commands::admin::load_accounts(&app_state).await,
-        ) {
-            for account in accounts {
-                streaming.disconnect(&account.id).await;
-            }
+        // 管理役がまだ無い (起動の途中) なら、張っている接続も無い
+        if let Ok(streaming) = app_state.streaming() {
+            streaming.disconnect_all().await;
         }
     }
     // in-process の HEARTBEAT の timer を今の状態で組み直す

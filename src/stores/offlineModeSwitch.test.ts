@@ -11,6 +11,8 @@ import { useOfflineModeStore } from '@/stores/offlineMode'
 const h = vi.hoisted(() => ({
   stored: false,
   failSet: false,
+  failGet: false,
+  beforeSetReturns: null as (() => void) | null,
   set: vi.fn(),
   updateCheck: vi.fn(),
   toast: vi.fn(),
@@ -28,6 +30,12 @@ vi.mock('@/bindings', () => ({
       get: (_t, name: string) => {
         return (...args: unknown[]) => {
           if (name === 'offlineModeGet') {
+            if (h.failGet) {
+              return Promise.resolve({
+                status: 'error',
+                error: { code: 'INTERNAL', message: 'not ready' },
+              })
+            }
             return Promise.resolve({ status: 'ok', data: h.stored })
           }
           if (name === 'updateCheck') h.updateCheck(...args)
@@ -40,6 +48,7 @@ vi.mock('@/bindings', () => ({
               })
             }
             h.stored = args[0] as boolean
+            h.beforeSetReturns?.()
           }
           return Promise.resolve({ status: 'ok', data: null })
         }
@@ -65,6 +74,8 @@ beforeEach(() => {
   setActivePinia(createPinia())
   h.stored = false
   h.failSet = false
+  h.failGet = false
+  h.beforeSetReturns = null
   h.set.mockReset()
   h.updateCheck.mockReset()
   h.toast.mockReset()
@@ -108,6 +119,29 @@ describe('手動のオフラインモードの切替 (#1350)', () => {
     expect(h.updateCheck).not.toHaveBeenCalled()
     await store.disable()
     expect(h.updateCheck).toHaveBeenCalledWith(false)
+  })
+
+  it('起動時に状態を取得できなければオフラインとして扱い、後で読み直せる', async () => {
+    h.failGet = true
+    const store = useOfflineModeStore()
+    await store.load()
+    // 保存されている値が分からないまま通信を始めない
+    expect(store.isManualOffline).toBe(true)
+
+    h.failGet = false
+    await store.load()
+    expect(store.isManualOffline).toBe(false)
+  })
+
+  it('切替の応答を待つ間に別の窓の切替が届いたら、古い応答で上書きしない', async () => {
+    const store = useOfflineModeStore()
+    await store.load()
+    // この窓の「解除」の応答が遅れている間に、別の窓が「オフライン」にした
+    h.beforeSetReturns = () => {
+      for (const fn of h.listeners) fn({ payload: { offline: true } })
+    }
+    await store.disable()
+    expect(store.isManualOffline).toBe(true)
   })
 
   it('別の窓での切替が届いたら追従する', async () => {
