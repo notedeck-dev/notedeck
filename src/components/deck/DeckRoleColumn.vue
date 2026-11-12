@@ -104,7 +104,6 @@ const noteColumnConfig: NoteColumnConfig = {
     :title="i18n.ts._columns.role"
     icon="ti-badge"
     :web-ui-path="column.roleId ? `/roles/${column.roleId}` : undefined"
-    sound-enabled
     :note-column-config="noteColumnConfig"
     :filter-keys="['withRenotes', 'withReplies', 'withFiles', 'withBots']"
   />

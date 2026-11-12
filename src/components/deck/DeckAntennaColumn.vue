@@ -110,7 +110,6 @@ const { rename, deleteEntity, config } = useEntityCrud(
     :title="i18n.ts._columns.antenna"
     icon="ti-antenna-bars-5"
     :web-ui-path="column.antennaId ? `/my/antennas/${column.antennaId}` : undefined"
-    sound-enabled
     :note-column-config="noteColumnConfig"
     :filter-keys="['withRenotes', 'withReplies', 'withFiles', 'withBots']"
   >
