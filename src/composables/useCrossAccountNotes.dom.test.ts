@@ -1209,4 +1209,29 @@ describe('useCrossAccountNotes: オフラインモードと復帰 (#461)', () =>
     await flushFrames()
     expect(fetchFor).toHaveBeenCalledTimes(before)
   })
+
+  it('オフライン中にキャッシュの末尾まで読んでも、解除後は続きをサーバーから読める (#1350)', async () => {
+    addAccount('acc-a')
+    const fetchFor = vi.fn((_id: string, o?: { untilId?: string }) =>
+      o?.untilId ? [note('a10')] : [note('a50')],
+    )
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({ column, paging: 'horizon', fetchFor })
+    await flushFrames()
+    expect(ids(api)).toEqual(['a50'])
+
+    // オフライン中の追加読み込みはキャッシュ (空) で終わる。これを「サーバーにも
+    // もう無い」と覚えてはいけない
+    await useOfflineModeStore().enable()
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(fetchFor.mock.calls.some((c) => c[1]?.untilId)).toBe(false)
+
+    await useOfflineModeStore().disable()
+    await flushFrames()
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(fetchFor.mock.calls.some((c) => c[1]?.untilId)).toBe(true)
+    expect(ids(api)).toContain('a10')
+  })
 })

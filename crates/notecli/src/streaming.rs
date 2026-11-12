@@ -515,6 +515,9 @@ impl StreamingManager {
         }
 
         let mut conns = self.connections.lock().await;
+        // ロックを待つ間に門が閉じた (オフラインモードに入った) なら張らない。全部切る側も
+        // 同じロックで一覧を取るので、ここを過ぎて登録した接続は必ず切られる
+        self.api_client.gate().check()?;
         if let Some(handle) = conns.get(account_id) {
             // 冪等 return でも現在の実状態を emit する。フロントは復帰時に
             // リスナーを張り直してから connect を呼び直すため、背景化中に

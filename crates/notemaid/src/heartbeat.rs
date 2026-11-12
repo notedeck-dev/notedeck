@@ -972,6 +972,14 @@ async fn run_body(
         );
     };
 
+    // 巡回の途中 (事前の確認を待つ間など) でオフラインモードに入ったら、AI を呼ばずに
+    // 見送る。AI の呼び出しは Misskey の門を通らないので、ここで止める (#1350)
+    if !manual && notecore::offline::manual(core.layout()?) {
+        apply_offline(&mut state, true, now);
+        save_state(&app_dir, &state);
+        return Ok(TickResult::skip("skip:offline"));
+    }
+
     // AI
     let inference = run_inference(
         core,
