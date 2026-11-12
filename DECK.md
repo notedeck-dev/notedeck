@@ -239,7 +239,7 @@ plugin / widget / query / skill / theme の 5 種は on-disk の形が違う（s
 - `src/stores/theme.ts` — `manualMode` (`'light' | 'dark' | null`) + `isCurrentDark` の合流点
 - `src/capabilities/builtins/theme.ts` — theme.* capability 群
 
-**per-account 紐付け:** `themes.create` は作成時に当該 account の `installedFor` に自動追加。プロファイル切替で適用範囲が切り替わる (詳細は [DESIGN.md] の「per-account 設定」)。
+**per-account 紐付け:** `themes.create` は作成時に当該 account の `installedFor` に自動追加。プロファイル切替で適用範囲が切り替わる (詳細は [DESIGN.md](DESIGN.md) の「per-account 設定」)。
 
 **自動モード切替:** `themes.apply(id, mode?)` は明示 mode 指定がない場合でも、テーマの base (`light` / `dark`) に応じて `manualMode` を自動切替し、画面が即時更新される。AI が theme 作成 → apply のフローで「画面が変わる」体験を成立させるための仕組み。
 

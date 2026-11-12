@@ -73,7 +73,7 @@ API クライアントの実体は `crates/notecli` (同じリポジトリの wo
 
 1. リポジトリをフォーク
 2. ブランチを作成（`git checkout -b feat/your-feature`）。名前は `feat/*` / `fix/*` / `refactor/*` / `chore/*` / `docs/*`
-3. 上の「最短の手順」で動かし、変更する
+3. 上の「最短の手順」で動かし、変更する（clone するのは自分のフォーク。URL の `notedeck-dev` を自分のアカウント名に読み替える）
 4. `pnpm lint` と `pnpm test` を通す（`src-tauri/` や `crates/` の Rust を触ったら `pnpm fmt` と `pnpm lint:rust` も）
 5. Pull Request を作成。コミットは Conventional Commits 形式
 

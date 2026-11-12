@@ -172,18 +172,18 @@ graph LR
 
 ### Adaptive Quality — CSS 品質の自動調整
 
-Jank（33ms 超のフレーム）を検出し、CSS 描画プロパティ（blur, shadow, animation speed）のみを動的に調整する。キャッシュサイズやノート保持数などフレームパフォーマンスと無関係な設定は変更しない。
+Jank（リフレッシュレートから決まる 1 フレームの時間予算の 2 倍を超えたフレーム）を検出し、CSS 描画プロパティ（blur, shadow, animation speed）のみを動的に調整する。キャッシュサイズやノート保持数などフレームパフォーマンスと無関係な設定は変更しない。
 
 ```mermaid
 graph LR
     MEASURE["毎フレーム計測<br/>FPS (EMA) / P95 / Jank count"] --> EVAL["毎秒評価"]
-    EVAL -->|jankCount &gt; 5| DOWN["CSS 品質 1段階下げ<br/>high → balanced → low"]
-    EVAL -->|jankCount == 0<br/>10秒継続| UP["CSS 品質 1段階上げ試行"]
+    EVAL -->|jankCount が閾値超| DOWN["CSS 品質 1段階下げ<br/>high → balanced → low"]
+    EVAL -->|jankCount == 0 が<br/>一定秒数継続| UP["CSS 品質 1段階上げ試行"]
     DOWN --> CSS["cssBlurLevel / cssAnimationScale<br/>cssShadowLevel を動的変更"]
     UP --> CSS
 ```
 
-- `src/engine/telemetry/frameTelemetry.ts` — P95 計測、自動品質調整（low/balanced/high）
+- `src/engine/telemetry/frameTelemetry.ts` — P95 計測、自動品質調整（low/balanced/high）。下げる閾値と上げるまでの秒数の正本はここ（閾値はパフォーマンス設定で変えられる）
 - `src/utils/adaptiveQuality.ts` — デバイス検出（CPU, RAM, prefers-reduced-motion）
 - 開発時のみ `DevFrameOverlay`（Ctrl+Shift+F）で FPS/フレーム時間を可視化
 
