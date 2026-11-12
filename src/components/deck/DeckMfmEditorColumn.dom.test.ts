@@ -26,6 +26,13 @@ const stubs = {
   MkMfm: true,
   MfmFunctionTable: true,
   CodeEditor: true,
+  // 色付きの入力欄 (CodeMirror) は素の入力欄に置き換えて、本文の読み書きだけを見る
+  MfmSourceEditor: {
+    props: ['modelValue'],
+    emits: ['update:modelValue'],
+    template:
+      '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+  },
 }
 
 beforeEach(() => {
