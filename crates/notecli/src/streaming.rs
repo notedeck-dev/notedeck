@@ -617,6 +617,18 @@ impl StreamingManager {
         Ok(())
     }
 
+    /// 管理中の接続 (WebSocket と polling) をすべて切る。口座の一覧に頼らない:
+    /// 一覧を取れなかったときに、切らずに済ませてしまわないため
+    pub async fn disconnect_all(&self) {
+        let mut ids: Vec<String> = self.connections.lock().await.keys().cloned().collect();
+        ids.extend(self.poll_connections.lock().await.keys().cloned());
+        ids.sort();
+        ids.dedup();
+        for id in ids {
+            self.disconnect(&id).await;
+        }
+    }
+
     pub async fn disconnect(&self, account_id: &str) {
         // Stop WebSocket connection if any
         let mut conns = self.connections.lock().await;
@@ -2839,6 +2851,16 @@ mod tests {
             main_kinds_delivered(&manager, &full_id).await,
             vec!["stream-notification", "followed", "newChatMessage"]
         );
+    }
+
+    /// 口座の一覧に頼らず、管理中の接続をすべて切る (オフラインモードに入るとき、#1350)
+    #[tokio::test]
+    async fn disconnect_all_stops_every_managed_connection() {
+        let (_dir, manager, _rx) = manager_with_dead_connection(&["acc-1", "acc-2"]).await;
+        assert_eq!(manager.connections.lock().await.len(), 2);
+        manager.disconnect_all().await;
+        assert!(manager.connections.lock().await.is_empty());
+        assert!(manager.poll_connections.lock().await.is_empty());
     }
 
     #[tokio::test]

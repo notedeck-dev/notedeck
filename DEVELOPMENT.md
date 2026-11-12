@@ -1731,6 +1731,8 @@ session 一覧では `AiSessionKind` 別の icon 統一 (`chat` → `ti-message-
 
 **オフラインモード中に止まる要求** (手動 / 自動とも同じ。#461 の棚卸し):
 
+手動のオフラインの正本は、この機械の状態 `state/offline.json` (#1350)。書くのは Rust だけで、切替は専用の command (`offline_mode_set`) が状態を書き、張っているストリーミングの接続を切り、全窓へ `OfflineModeChanged` を流す。フロントの `offlineMode` store はその写し。判定は `notecore::offline::manual` の 1 関数で、アプリも別プロセスの notemaid も呼ぶたびにファイルを読む。状態が在るのに読めないときはオフラインとして扱う (画面にもオフラインと出るので、解除すれば書き直されて直る)。持ち運ぶ設定 (`settings.json5`) には置かない: 別の機械で入れたオフラインが、同期した先の巡回を止めたり、同期で解除されたりするため。
+
 | 要求 | 止め方 |
 |---|---|
 | ストリーミング (WS / polling の輸送路) | 入るときに `disconnectAll`。抜けるときに `applyPersistedMode` で輸送路を戻す |

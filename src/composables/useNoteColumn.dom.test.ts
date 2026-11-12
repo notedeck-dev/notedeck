@@ -19,7 +19,6 @@ import { type Account, useAccountsStore } from '@/stores/accounts'
 import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
-import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
 import type { FramePriority } from './useFrameScheduler'
 import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
@@ -1830,7 +1829,7 @@ describe('useNoteColumn: レート制限 (#1271)', () => {
 describe('useNoteColumn: オフラインモードと復帰 (#461)', () => {
   it('オフラインモード中にマウントした列は adapter を持たず、解除で接続からやり直す', async () => {
     addAccount('acc-off')
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     const fetchImpl = vi.fn().mockResolvedValue([note('h01')])
     const { api } = mountColumn({
       accountId: 'acc-off',

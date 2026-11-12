@@ -64,8 +64,8 @@ describe('回線断による自動オフライン (#461)', () => {
     expect(offline.isOfflineMode).toBe(true)
     expect(offline.isAutoOffline).toBe(true)
     expect(spy.streamDisconnect).toHaveBeenCalledWith('acc1')
-    // 設定ファイルの手動フラグは触らない
-    expect(useSettingsStore().get('modes.offline')).toBeFalsy()
+    // 手動のフラグは触らない
+    expect(offline.isManualOffline).toBe(false)
 
     system.online = true
     await nextTick()

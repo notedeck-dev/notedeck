@@ -3325,6 +3325,9 @@ _sidecarFileCollection:
   readOnlyReason: "ソースファイルが見つからないため変更できません"
   readOnlyHint: "ソースファイルが見つかりません。ソースを置き直せば次回起動で復帰します。ストア配布物はストアから再導入、不要なら削除してください"
 
+_offlineMode:
+  switchFailed: "オフラインモードを切り替えられませんでした: {error}"
+
 _systemAdaptation:
   linkOffline: "回線が切れたため、オフラインモードに入りました。戻ると自動で再接続します"
   meteredDeferMedia: "従量制回線のため、画像・動画はタップで読み込む表示にしました"

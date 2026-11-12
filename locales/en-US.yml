@@ -3574,6 +3574,9 @@ _sidecarFileCollection:
   readOnlyReason: "Cannot change this because its source file was not found"
   readOnlyHint: "The source file was not found. Put the source back and it will recover on the next launch. Reinstall store items from the store, or delete it if you do not need it"
 
+_offlineMode:
+  switchFailed: "Couldn't switch offline mode: {error}"
+
 _systemAdaptation:
   linkOffline: "Network is down, so offline mode is on. Reconnects automatically when it returns"
   meteredDeferMedia: "On a metered connection, so images and videos now load when tapped"

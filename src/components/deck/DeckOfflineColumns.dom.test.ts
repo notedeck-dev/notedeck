@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAccountsStore } from '@/stores/accounts'
-import { useSettingsStore } from '@/stores/settings'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import {
   bindings,
   flush,
@@ -50,7 +50,7 @@ beforeEach(() => {
 describe('オフライン中のカラムはサーバーへ取りに行かない (#1350)', () => {
   it('通知カラム: 開いても取得せず購読も張らず、解除したら繋ぐ', async () => {
     setupStores()
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     await mountColumn(
       DeckNotificationColumn,
       makeColumn({ type: 'notifications' }),
@@ -58,7 +58,7 @@ describe('オフライン中のカラムはサーバーへ取りに行かない 
     )
     expect(networkCalls()).toEqual([])
 
-    useSettingsStore().set('modes.offline', false)
+    void useOfflineModeStore().disable()
     await flush()
     expect(networkCalls()).toContain('apiGetNotifications')
   })
@@ -75,14 +75,14 @@ describe('オフライン中のカラムはサーバーへ取りに行かない 
 
   it('チャットカラム: 開いてもキャッシュだけ読み、解除したら取りに行く', async () => {
     setupStores()
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     await mountColumn(DeckChatColumn, makeColumn({ type: 'chat' }), {})
     expect(bindings.callsOf('apiGetCachedChatHistory').length).toBeGreaterThan(
       0,
     )
     expect(networkCalls()).toEqual([])
 
-    useSettingsStore().set('modes.offline', false)
+    void useOfflineModeStore().disable()
     await flush()
     expect(networkCalls()).toContain('apiGetChatHistory')
   })
@@ -95,7 +95,7 @@ describe('オフライン中のカラムはサーバーへ取りに行かない 
 
   it('通知カラム (全アカウント): オフライン中に口座が増えても取りに行かない', async () => {
     setupStores()
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     await mountColumn(
       DeckNotificationColumn,
       makeColumn({ type: 'notifications', accountId: null }),
@@ -114,14 +114,14 @@ describe('オフライン中のカラムはサーバーへ取りに行かない 
     setupStores()
     // キャッシュを読んでいる間にオフラインへ切り替わる
     bindings.responses.apiGetCachedChatHistory = () => {
-      useSettingsStore().set('modes.offline', true)
+      void useOfflineModeStore().enable()
       return []
     }
     await mountColumn(DeckChatColumn, makeColumn({ type: 'chat' }), {})
     expect(networkCalls()).toEqual([])
 
     bindings.responses.apiGetCachedChatHistory = []
-    useSettingsStore().set('modes.offline', false)
+    void useOfflineModeStore().disable()
     await flush()
     expect(networkCalls()).toContain('apiGetChatHistory')
   })
