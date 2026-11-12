@@ -4020,6 +4020,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "chartsDisabled": string
   }
   readonly "_deckChatColumn": {
+    /** ルーム */
+    readonly "room": string
     /** 検索を閉じる */
     readonly "closeSearch": string
     /** メッセージを検索 */
@@ -5728,6 +5730,12 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "noSources": string
     /** フィルター / クエリですべて除外されています */
     readonly "allExcluded": string
+    /** ログインしていないアカウントの項目は表示していません: {accounts} */
+    readonly "missingAccounts": ParameterizedString<'accounts'>
+    /** 不明なアカウント */
+    readonly "unknownAccount": string
+    /** 、 */
+    readonly "accountSeparator": string
   }
   readonly "_accountScope": {
     /** サーバー単位の面のため、アカウントをまたぐ意味がありません */
@@ -6815,7 +6823,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "registered": ParameterizedString<'user'>
       /** {user} には登録待ちがありません。{targets} に切り替えて ▶ を押してください */
       readonly "noPending": ParameterizedString<'targets' | 'user'>
-      /** 登録待ちを確かめられませんでした。NoteDeck で「やり直す」を押してください */
+      /** 登録待ちを確かめられませんでした。NoteDeck でプッシュ通知をいったんオフにしてから、もう一度オンにしてください */
       readonly "cannotConfirm": string
       /** {user} のプッシュ通知が届くようになりました */
       readonly "confirmed": ParameterizedString<'user'>

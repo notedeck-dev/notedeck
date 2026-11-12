@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 端末外バックアップと端末間移行から外すもの (Android 12 以上、#330 §4.3)。
-     理由は backup_rules.xml (Android 11 以下) と同じで、両方に同じものを書く -->
+     理由は backup_rules.xml (Android 11 以下) と同じで、両方に同じものを書く。
+     違いは data/ だけ: クラウドには載せず、端末間の直接移行には載せる (#1374) -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="keyring-default.xml" />
@@ -8,6 +9,14 @@
         <exclude domain="root" path="notify_cursor.json.tmp" />
         <exclude domain="root" path="push_state.json" />
         <exclude domain="root" path="push_state.json.tmp" />
+        <exclude domain="root" path="state" />
+        <exclude domain="root" path="cache" />
+        <exclude domain="root" path="logs" />
+        <exclude domain="root" path="backups" />
+        <exclude domain="root" path="notecli.db" />
+        <exclude domain="root" path="notecli.db-wal" />
+        <exclude domain="root" path="notecli.db-shm" />
+        <exclude domain="root" path="data" />
         <exclude domain="sharedpref" path="notedeck_push.xml" />
         <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
         <exclude domain="database" path="unifiedpush-connector" />
@@ -19,6 +28,13 @@
         <exclude domain="root" path="notify_cursor.json.tmp" />
         <exclude domain="root" path="push_state.json" />
         <exclude domain="root" path="push_state.json.tmp" />
+        <exclude domain="root" path="state" />
+        <exclude domain="root" path="cache" />
+        <exclude domain="root" path="logs" />
+        <exclude domain="root" path="backups" />
+        <exclude domain="root" path="notecli.db" />
+        <exclude domain="root" path="notecli.db-wal" />
+        <exclude domain="root" path="notecli.db-shm" />
         <exclude domain="sharedpref" path="notedeck_push.xml" />
         <exclude domain="sharedpref" path="unifiedpush.connector.xml" />
         <exclude domain="database" path="unifiedpush-connector" />

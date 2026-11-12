@@ -44,7 +44,7 @@ Linux でログアウト後も動かし続けるには `loginctl enable-linger` 
 
 ## notemaid の持ち物
 
-notemaid が書くのは設定フォルダの中の自分の持ち物だけです: AI の人格と記憶 (`notemaid/`)、AI セッション (`sessions/`)、メモ (`memos/`)、スキル (`skills/`)、AI 設定 (`ai.json5`)。アプリのデータベースは開きません。アプリから写されたアカウントの一覧 (`notemaid-accounts.json`、トークンは含まない) はアプリデータフォルダに置きます。Linux で Secret Service が無い環境では、トークンの退避先として暗号化ファイルと鍵も書きます。
+notemaid が書くのはアプリデータフォルダの中の自分の持ち物だけです: AI の人格と記憶 (`data/notemaid/`)、AI セッション (`data/sessions/`)、メモ (`data/memos/`)、スキル (`config/skills/`)、AI 設定 (`config/ai.json5`)。アプリのデータベースは開きません。アプリから写されたアカウントの一覧 (`notemaid-accounts.json`。トークンは OS キーチェーンにあり、キーチェーンが使えない環境ではこのファイルにトークンも入ります。読めるのは所有者だけです) は `state/secrets/` に置きます。Linux で Secret Service が無い環境では、トークンの退避先として暗号化ファイルと鍵も書きます。
 
 人格と記憶の中身はエージェント設定の「ペルソナ」と「メモリー」で読み書きできます (人格の本文 SOUL.md だけは開発者モードのタブか外部エディタで)。ファイルの一覧は[設定ファイル](/docs/config/files)にあります。
 

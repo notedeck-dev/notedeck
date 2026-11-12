@@ -1,5 +1,5 @@
 ---
-sourceHash: bdb9cc5cbe62
+sourceHash: 7fb0ea52ad43
 ---
 
 # The AI process (notemaid)
@@ -48,7 +48,7 @@ If you only want to connect to the resident one (never start a child process), s
 
 ## What notemaid owns
 
-notemaid writes only its own things inside the settings folder: the AI's personality and memory (`notemaid/`), AI sessions (`sessions/`), memos (`memos/`), skills (`skills/`) and the AI settings (`ai.json5`). It never opens the app database. The list of accounts copied over from the app (`notemaid-accounts.json`, without tokens) goes in the app data folder. On Linux without Secret Service it also writes an encrypted file and a key as the fallback store for tokens.
+notemaid writes only its own things inside the app data folder: the AI's personality and memory (`data/notemaid/`), AI sessions (`data/sessions/`), memos (`data/memos/`), skills (`config/skills/`) and the AI settings (`config/ai.json5`). It never opens the app database. The list of accounts copied over from the app (`notemaid-accounts.json`; tokens live in the OS keychain, and where no keychain is available this file holds the tokens too — it is readable only by its owner) goes in `state/secrets/`. On Linux without Secret Service it also writes an encrypted file and a key as the fallback store for tokens.
 
 You read and edit the personality and memory under "Persona" (ペルソナ) and "Memory" (メモリー) in the Agent settings (only the personality text itself, SOUL.md, is edited in a developer-mode tab or an external editor). The file list is in [Settings files](/en/docs/config/files).
 

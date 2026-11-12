@@ -3362,7 +3362,7 @@ dependencies = [
 
 [[package]]
 name = "notedeck"
-version = "1.106.1"
+version = "1.106.2"
 dependencies = [
  "async-trait",
  "axum",
@@ -3430,7 +3430,7 @@ dependencies = [
 
 [[package]]
 name = "notemaid"
-version = "1.106.1"
+version = "1.106.2"
 dependencies = [
  "chrono",
  "clap",

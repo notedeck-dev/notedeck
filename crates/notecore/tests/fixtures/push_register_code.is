@@ -98,7 +98,7 @@ eval {
 			Mk:dialog(TITLE, '{user} には登録待ちがありません。{targets} に切り替えて ▶ を押してください'.replace('{user}', user).replace('{targets}', names), 'warning')
 			return null
 		}
-		Mk:dialog(TITLE, '登録待ちを確かめられませんでした。NoteDeck で「やり直す」を押してください', 'error')
+		Mk:dialog(TITLE, '登録待ちを確かめられませんでした。NoteDeck でプッシュ通知をいったんオフにしてから、もう一度オンにしてください', 'error')
 	}
 	run()
 }

@@ -2208,6 +2208,7 @@ _deckChartsColumn:
   chartsDisabled: "このサーバーはチャート API を無効にしています"
 
 _deckChatColumn:
+  room: "ルーム"
   closeSearch: "検索を閉じる"
   searchMessages: "メッセージを検索"
   searchChatsPlaceholder: "会話を検索..."
@@ -3155,6 +3156,9 @@ _deckCrossSourcesColumn:
   empty: "ノートはありません"
   noSources: "束ねる項目がありません。カラムを作り直してください"
   allExcluded: "フィルター / クエリですべて除外されています"
+  missingAccounts: "ログインしていないアカウントの項目は表示していません: {accounts}"
+  unknownAccount: "不明なアカウント"
+  accountSeparator: "、"
 
 _accountScope:
   server: "サーバー単位の面のため、アカウントをまたぐ意味がありません"
@@ -3742,7 +3746,7 @@ _native:
     oldCode: "古いコードです。NoteDeck から貼り替えてください"
     registered: "{user} は登録済みです。NoteDeck で届くのを待っています"
     noPending: "{user} には登録待ちがありません。{targets} に切り替えて ▶ を押してください"
-    cannotConfirm: "登録待ちを確かめられませんでした。NoteDeck で「やり直す」を押してください"
+    cannotConfirm: "登録待ちを確かめられませんでした。NoteDeck でプッシュ通知をいったんオフにしてから、もう一度オンにしてください"
     confirmed: "{user} のプッシュ通知が届くようになりました"
   tray:
     unread_plural:

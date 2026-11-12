@@ -25,8 +25,13 @@ import { useCrossAccountNotes } from '@/composables/useCrossAccountNotes'
 import { provideNoteFrame } from '@/composables/useNoteFrame'
 import type { VisibilityOpts } from '@/composables/useNoteVisibility'
 import { i18n } from '@/i18n'
-import { type ColumnSource, normalizeSources } from '@/services/columnSource'
+import {
+  type ColumnSource,
+  missingSourceAccounts,
+  normalizeSources,
+} from '@/services/columnSource'
 import { matchesFilter } from '@/services/timelineFilter'
+import { useAccountsStore } from '@/stores/accounts'
 import type { DeckColumn as DeckColumnType } from '@/stores/deck'
 import { useDeckStore } from '@/stores/deck'
 import ColumnCrossPostForm from './ColumnCrossPostForm.vue'
@@ -68,6 +73,19 @@ const isCrossAccount = computed(() => props.column.accountId == null)
 provideNoteFrame(isCrossAccount)
 
 const sources = computed(() => normalizeSources(props.column.sources))
+
+// 手元に無いアカウントの組は取りに行けない。黙って空に見せず、どのアカウントかを出す
+// (設定を別の機械に持ち込んだとき、#1354)
+const accountsStore = useAccountsStore()
+const missingAccountsLabel = computed(() => {
+  // アカウント一覧を読み終えるまでは、全部が「無い」に見えるので出さない
+  if (!accountsStore.isLoaded) return ''
+  return missingSourceAccounts(sources.value, (id) =>
+    accountsStore.accountMap.has(id),
+  )
+    .map((a) => a ?? i18n.ts._deckCrossSourcesColumn.unknownAccount)
+    .join(i18n.ts._deckCrossSourcesColumn.accountSeparator)
+})
 
 const {
   columnThemeVars,
@@ -193,6 +211,10 @@ const {
         @resume="resumeSuspendedQueries"
         @drop-missing="dropMissingQueryRefs"
       />
+      <div v-if="missingAccountsLabel" :class="$style.missingAccountsNotice">
+        <i class="ti ti-user-off" />
+        <span>{{ i18n.tsx._deckCrossSourcesColumn.missingAccounts({ accounts: missingAccountsLabel }) }}</span>
+      </div>
       <!-- 組が無いカラム (アカウントを消して空になった等) は取りに行く先が無い -->
       <ColumnEmptyState
         v-if="sources.length === 0"
@@ -253,6 +275,20 @@ const {
 
 <style lang="scss" module>
 @use './column-common.module.scss';
+
+/* ログインしていないアカウントの組がある (#1354)。アカウント名が並んで長くなるので、
+   浮かせる帯 (statusBanner) ではなく折り返せる行として本体の先頭に置く */
+.missingAccountsNotice {
+  flex-shrink: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: var(--nd-font-sm);
+  overflow-wrap: anywhere;
+  background: color-mix(in srgb, var(--nd-warn) 18%, transparent);
+  border-bottom: 1px solid var(--nd-divider);
+}
 
 /* 全アカウント面のサブヘッダ (DeckTimelineColumn と同じ行構成) */
 .subHeaderRow {

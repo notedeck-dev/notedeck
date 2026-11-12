@@ -126,8 +126,20 @@ describe('notedeck://<host>/chat/user/<id>', () => {
     )
   })
 
-  it('ルームはまだ会話単位で開けないのでメッセージのカラムを開く', async () => {
-    await handleDeepLink('notedeck://example.com/chat/room/r1')
+  it('ルームはその口座でルームの会話を開く (#1357)', async () => {
+    await handleDeepLink('notedeck://example.com/chat/room/r1?account=u-b')
+    expect(openChatWith).toHaveBeenCalledWith({
+      accountId: 'acc-b',
+      roomId: 'r1',
+      name: '',
+      avatarUrl: null,
+      serverHost: 'example.com',
+    })
+    expect(apiGetUser).not.toHaveBeenCalled()
+  })
+
+  it('会話の指定が無ければメッセージのカラムを開く', async () => {
+    await handleDeepLink('notedeck://example.com/chat')
     expect(addColumn).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'chat', accountId: 'acc-a' }),
     )

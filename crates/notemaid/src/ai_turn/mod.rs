@@ -2183,6 +2183,7 @@ pub async fn start_turn_with_sink(
             registry: crate::acp::registry(),
             bridge: bridge.clone(),
             workspace: crate::acp::workspace(app_dir),
+            persona_dir: crate::workspace::dir(app_dir),
             mcp_url: Some(notecore::http_server::mcp_url()),
         }),
         None => Arc::new(VaultProvider(ai_chat_service::resolve_connection(

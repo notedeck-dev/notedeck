@@ -2458,6 +2458,7 @@ _deckChartsColumn:
   chartsDisabled: "This server has disabled the charts API"
 
 _deckChatColumn:
+  room: "Room"
   closeSearch: "Close search"
   searchMessages: "Search messages"
   searchChatsPlaceholder: "Search conversations..."
@@ -3998,7 +3999,7 @@ _native:
     oldCode: "This is an old code. Paste the new one from NoteDeck"
     registered: "{user} is already registered. NoteDeck is waiting for the first notification"
     noPending: "{user} has nothing waiting to register. Switch to {targets} and press ▶"
-    cannotConfirm: "Couldn't confirm what to register. Press \"Start over\" in NoteDeck"
+    cannotConfirm: "Couldn't confirm what to register. Turn push notifications off and then on again in NoteDeck"
     confirmed: "Push notifications for {user} now arrive"
   tray:
     unread_plural:

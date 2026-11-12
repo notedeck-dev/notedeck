@@ -11,9 +11,11 @@
 //!    tool を呼ばない応答は legacy の ack (`HEARTBEAT_OK`) として抑制する
 //! 6. 報告を target session に書き、デバイスへ通知 (OS 通知 / 表示の追従)
 //!
-//! 状態 (日次カウンタ / cheap check の前回値 / 連続失敗 / 最後の巡回) は `ai-turns/heartbeat.json`。
-//! デバイスに要るもの (メモ等の文脈、ローカル時刻の刻印) は橋で聞き、無ければ
-//! 無しで進む (端末が繋がっていない notemaid)。
+//! 状態 (日次カウンタ / cheap check の前回値 / 連続失敗 / 最後の巡回) は turns の置き場
+//! (`ai_turn::checkpoint::dir`、再編後は `state/notemaid/turns/`) の `heartbeat.json`。
+//! system は notemaid が組み、ローカル時刻も notemaid が刻むので、デバイスには何も
+//! 聞かない (端末が繋がっていない notemaid でも同じに動く。橋 `heartbeat/context` は
+//! #1162 で廃止)。
 //!
 //! 巡回の接続 (#1321) は `ai.json5` の `heartbeat.connectionId` (空ならチャットの接続に
 //! 追従) で、解決は [`AiConfigLite::heartbeat_provider`] の 1 関数。tick の結果は 4 種:

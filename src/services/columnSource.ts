@@ -14,6 +14,8 @@
 export interface ColumnSource {
   /** 取得元アカウント (per-account カラムの `accountId` と同じ内部 ID) */
   accountId: string
+  /** portable な識別子 `user@host`。別の機械で `accountId` を結び直す鍵 (#1354) */
+  account?: string
   /** サーバーに閉じたリソースの ID。アカウント単位の面では空文字 */
   id: string
   /** 表示用の写し (リスト名など)。正本はサーバーで、同一性には使わない */
@@ -73,4 +75,20 @@ export function withoutAccountSources(
   accountId: string,
 ): ColumnSource[] {
   return sources.filter((s) => s.accountId !== accountId)
+}
+
+/**
+ * 手元に無いアカウントの組の、アカウントの名前 (`user@host`、重複なし)。設定を別の
+ * 機械に持ち込んだカラムが、理由なしに空に見えないようにする (#1354)。`account` を
+ * 持たない古い組は名前が分からないので null
+ */
+export function missingSourceAccounts(
+  sources: readonly ColumnSource[],
+  hasAccount: (accountId: string) => boolean,
+): (string | null)[] {
+  const out = new Set<string | null>()
+  for (const s of sources) {
+    if (!hasAccount(s.accountId)) out.add(s.account ?? null)
+  }
+  return [...out]
 }
