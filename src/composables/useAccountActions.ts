@@ -144,7 +144,8 @@ export function useAccountActions() {
       okLabel: i18n.ts._common.logout,
       type: 'danger',
     })
-    if (ok) logoutKeepData(acc)
+    // 確認を待つ間にオフラインモードに入っていたら始めない
+    if (ok && !(await blockedByOfflineMode())) logoutKeepData(acc)
   }
 
   /** データ全削除確認ダイアログを表示し実行する */
@@ -159,7 +160,9 @@ export function useAccountActions() {
       okLabel: i18n.ts._common.delete,
       type: 'danger',
     })
-    if (ok) deleteAccountData(acc)
+    if (!ok) return
+    if (!isGuestAccount(acc) && (await blockedByOfflineMode())) return
+    deleteAccountData(acc)
   }
 
   function relogin(acc: Account) {

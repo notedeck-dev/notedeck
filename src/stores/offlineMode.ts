@@ -76,6 +76,9 @@ export const useOfflineModeStore = defineStore('offlineMode', () => {
       // 応答を待つ間に切替の知らせが届いていたら、そちらが新しい (この窓の知らせか、
       // 別の窓の後からの切替)。古い応答で上書きしない
       if (before === eventGeneration) manual.value = next
+      // 起動時の読み込みに失敗して購読を外したままなら、ここで張り直す
+      // (別の窓の切替に追従できるように)
+      if (!unlisten) void load()
       return true
     } catch (e) {
       useToast().show(

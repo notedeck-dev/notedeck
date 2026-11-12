@@ -21,7 +21,9 @@ pub async fn health_core(core: &Core) -> Result<CoreHealth> {
     // doctor のチェックを丸ごと再利用 (account_spec = None で全アカウント対象)。
     // diagnose は notecli の async 関数で DB も中で触る (自己診断の 1 回きり)
     let db = core.db().await;
-    let mut doctor = notecli::commands::doctor::diagnose(db.as_ref(), &db_path, None).await?;
+    // 口座ごとの確認は Misskey に問い合わせる。手動のオフラインモード中は門で止める (#1350)
+    let gate = crate::offline::Gate::for_app_dir(core.app_dir()?);
+    let mut doctor = notecli::commands::doctor::diagnose(db.as_ref(), &db_path, None, gate).await?;
     drop(db);
     let accounts = core
         .blocking(|db| db.load_accounts())

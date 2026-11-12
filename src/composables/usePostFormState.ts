@@ -666,6 +666,14 @@ export function usePostFormState(
       })
     }
 
+    // 確認ダイアログを待つ間にオフラインモードに入っていたら、閉じずに止める (#1350)。
+    // 閉じてから送ると、退避先の下書きもサーバーなので本文を失う
+    if (useOfflineModeStore().isManualOffline) {
+      useToast().show(i18n.ts._errors.offlineMode, 'warning')
+      isPosting.value = false
+      return
+    }
+
     // Close form optimistically before awaiting API
     posted.value = true
     isPosting.value = false

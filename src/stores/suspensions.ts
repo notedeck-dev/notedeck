@@ -291,6 +291,13 @@ export const useSuspensionsStore = defineStore('suspensions', () => {
         pending.delete(accountId)
         const ids = [...set]
         for (let i = 0; i < ids.length; i += PROBE_CHUNK) {
+          // 途中で止められたら、まだ問い合わせていない分を戻して終わる (再開で流す)
+          if (paused) {
+            const rest = pending.get(accountId) ?? new Set<string>()
+            for (const id of ids.slice(i)) rest.add(id)
+            pending.set(accountId, rest)
+            return
+          }
           await probeChunk(accountId, ids.slice(i, i + PROBE_CHUNK))
         }
       }

@@ -601,6 +601,29 @@ describe('post: 新規ノート', () => {
     offlineState.isManualOffline = false
   })
 
+  it('送る直前にオフラインモードに入っていたら、フォームを閉じずに止める (#1350)', async () => {
+    const form = mount()
+    await form.initAdapter()
+    form.text.value = '消えてはいけない'
+    // 入口の判定は通り、フォームを閉じる直前の判定で止まる (確認ダイアログを待つ間に
+    // 別の窓でオフラインに切り替えた場合に当たる)
+    let reads = 0
+    Object.defineProperty(offlineState, 'isManualOffline', {
+      configurable: true,
+      get: () => ++reads > 1,
+    })
+    await form.post()
+    Object.defineProperty(offlineState, 'isManualOffline', {
+      configurable: true,
+      writable: true,
+      value: false,
+    })
+    expect(createNoteMock).not.toHaveBeenCalled()
+    expect(onPostedMock).not.toHaveBeenCalled()
+    expect(form.text.value).toBe('消えてはいけない')
+    expect(form.posted.value).toBe(false)
+  })
+
   it('トークン無しアカウントはログインプロンプトを出して入力を保持する', async () => {
     accountsState.accounts = [makeAccount({ hasToken: false })]
     const form = mount()

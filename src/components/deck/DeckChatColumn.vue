@@ -461,6 +461,8 @@ async function connectPerAccount() {
       )
     }
   } catch (e) {
+    // 取得の途中でオフラインモードに入って止まった。解除で取り直す (#1350)
+    if (offlineModeStore.isOfflineMode) connectSkippedOffline.value = true
     // キャッシュで既に hydrate 済みならエラー表示しない (B-1 fallback と同じ判断)。
     // 「オフライン」表示は DeckColumn の offlineBanner に任せる。
     if (chatHistoryKeys.value.length === 0) {
@@ -583,6 +585,12 @@ async function connectCrossAccount() {
       isRoom: e.isRoom,
       targetId: tid,
     })
+  }
+  // 取得の途中でオフラインモードに入ると、各口座はキャッシュに落ちて終わる。解除で
+  // 取り直す (#1350)
+  if (offlineModeStore.isOfflineMode) {
+    connectSkippedOffline.value = true
+    return
   }
   void prefetchThreads(prefetchTargets)
 }
