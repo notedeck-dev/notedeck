@@ -7,6 +7,7 @@ import {
   SYNC_RETRY_MIN_INTERVAL_MS,
 } from '@/services/muteExpiry'
 import { type Account, useAccountsStore } from '@/stores/accounts'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { useAccountSync } from './useAccountSync'
@@ -205,5 +206,18 @@ describe('useAccountSync: アカウントごとの起動時同期と再試行 (#
     acc.hasToken = true
     await flush()
     expect(sync).toHaveBeenCalledTimes(2)
+  })
+
+  it('オフラインモード中は同期を見送り、解除で取りに行く (#1350)', async () => {
+    const sync = vi.fn(async () => undefined)
+    const offline = useOfflineModeStore()
+    await offline.enable()
+    await mountWith([account('a')], sync)
+    expect(sync).not.toHaveBeenCalled()
+
+    // 解除は復帰の信号を出す
+    await offline.disable()
+    await flush()
+    expect(sync).toHaveBeenCalledTimes(1)
   })
 })

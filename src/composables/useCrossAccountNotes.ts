@@ -1036,7 +1036,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
     const gen = generation
     try {
       let raw: NormalizedNote[] = []
-      if (acc.hasToken) {
+      // オフラインモード中はログアウト中と同じくキャッシュを遡る (#1350)
+      if (acc.hasToken && !useOfflineModeStore().isOfflineMode) {
         const adapter = await multiAdapters.getOrCreate(acc.id)
         if (!adapter) throw new Error(`no adapter for ${acc.id}`)
         ensureSubscribed(source, adapter, gen)
@@ -1106,7 +1107,8 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
               .reverse()
               .find((n) => n._accountId === s.accountId)
 
-          if (acc.hasToken) {
+          // オフラインモード中はログアウト中と同じくキャッシュを遡る (#1350)
+          if (acc.hasToken && !useOfflineModeStore().isOfflineMode) {
             const adapter = await multiAdapters.getOrCreate(acc.id)
             if (!adapter) return []
             try {

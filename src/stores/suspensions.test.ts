@@ -188,4 +188,18 @@ describe('useSuspensionsStore: probe 供給の 1 点フック (#828)', () => {
     const userIds = api.probeSuspended.mock.calls[0]?.[1] as string[]
     expect([...userIds].sort()).toEqual(['author-1', 'author-2'])
   })
+
+  it('止められている間 (オフラインモード中) は問い合わせず、再開で溜まった分を流す (#1350)', async () => {
+    store.setPaused(true)
+    api.probeSuspended.mockResolvedValue(ok([]))
+    store.probe('acc1', ['u1'])
+    store.reverifyTick()
+    await settle()
+    expect(api.probeSuspended).not.toHaveBeenCalled()
+
+    store.setPaused(false)
+    await settle()
+    expect(api.probeSuspended).toHaveBeenCalledTimes(1)
+    expect(api.probeSuspended.mock.calls[0]?.[1]).toEqual(['u1'])
+  })
 })

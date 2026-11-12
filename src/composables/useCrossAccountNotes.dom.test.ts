@@ -1195,4 +1195,19 @@ describe('useCrossAccountNotes: オフラインモードと復帰 (#461)', () =>
     expect(fetchFor).toHaveBeenCalled()
     expect(ids(api)).toEqual(['a50'])
   })
+
+  it('繋がった後でオフラインモードに入った列の追加読み込みは、サーバーへ行かない (#1350)', async () => {
+    addAccount('acc-a')
+    const fetchFor = vi.fn(() => [note('a50')])
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({ column, fetchFor })
+    await flushFrames()
+    const before = fetchFor.mock.calls.length
+    expect(before).toBeGreaterThan(0)
+
+    await useOfflineModeStore().enable()
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(fetchFor).toHaveBeenCalledTimes(before)
+  })
 })

@@ -8,6 +8,7 @@ import {
   shouldRetrySync,
 } from '@/services/muteExpiry'
 import { useAccountsStore } from '@/stores/accounts'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
 import { catchLog } from '@/utils/logger'
@@ -41,6 +42,9 @@ export function useAccountSync(
   const lastSyncedAt = new Map<string, number>()
 
   async function syncAccount(accountId: string, host: string, resync = false) {
+    // オフラインモード中は見送る (#1350)。synced に入れないので、解除の復帰の
+    // 信号で取りに行く
+    if (useOfflineModeStore().isOfflineMode) return
     if (inFlight.has(accountId)) return
     if (!resync && synced.has(accountId)) return
     inFlight.add(accountId)
