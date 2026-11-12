@@ -1236,7 +1236,20 @@ async function connectCrossAccount(useCache = false) {
   }
 }
 
+/** オフライン中に接続を見送った。解除されたら繋ぎ直す */
+let connectSkippedOffline = false
+
 async function connect(useCache = false) {
+  // オフライン中はキャッシュだけ見せ、取得も購読もしない (#1350)
+  if (offlineModeStore.isOfflineMode) {
+    connectSkippedOffline = true
+    const aliveAccountIds = new Set(accountsStore.accounts.map((a) => a.id))
+    const cached = loadCache().filter((n) => aliveAccountIds.has(n._accountId))
+    if (cached.length > 0) notifications.value = cached
+    isLoading.value = false
+    return
+  }
+  connectSkippedOffline = false
   if (isCrossAccount.value) {
     await connectCrossAccount(useCache)
   } else {
@@ -1452,6 +1465,7 @@ function handleScroll() {
 }
 
 async function pullRefresh() {
+  if (offlineModeStore.isOfflineMode) return
   if (isCrossAccount.value) {
     await connectCrossAccount()
     scrollToTop()
@@ -1470,6 +1484,12 @@ async function pullRefresh() {
 const uiStoreForResume = useUiStore()
 let lastResumeBackfill = 0
 async function resumeBackfill() {
+  if (offlineModeStore.isOfflineMode) return
+  // オフライン中に開いたカラムは購読も張っていないので、補填ではなく繋ぎ直す (#1350)
+  if (connectSkippedOffline) {
+    await connect(true)
+    return
+  }
   if (Date.now() - lastResumeBackfill < 3000) return
   lastResumeBackfill = Date.now()
   try {

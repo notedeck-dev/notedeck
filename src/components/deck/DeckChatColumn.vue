@@ -68,6 +68,7 @@ import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useChatMessageStore } from '@/stores/chatMessageStore'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
@@ -99,6 +100,7 @@ const {
 
 const accountsStore = useAccountsStore()
 const deckStore = useDeckStore()
+const offlineModeStore = useOfflineModeStore()
 const multiAdapters = useMultiAccountAdapters()
 
 /**
@@ -361,9 +363,13 @@ const activeServerHost = computed(() => {
   return account.value?.host ?? null
 })
 
+/** オフライン中に履歴の取得を見送った。解除されたら取り直す */
+let connectSkippedOffline = false
+
 async function connect() {
   error.value = null
   isLoading.value = true
+  connectSkippedOffline = offlineModeStore.isOfflineMode
 
   if (isCrossAccount.value) {
     await connectCrossAccount()
@@ -403,8 +409,8 @@ async function connectPerAccount() {
   }
 
   // ログアウト中はキャッシュだけで終わり (B-1)。「ログアウト中」バナーは
-  // DeckColumn が自動表示する。
-  if (!account.value.hasToken) {
+  // DeckColumn が自動表示する。オフライン中も同じ (#1350)
+  if (!account.value.hasToken || offlineModeStore.isOfflineMode) {
     isLoading.value = false
     return
   }
@@ -491,6 +497,12 @@ async function connectCrossAccount() {
       getUserIdForAccount,
     )
     isLoading.value = false
+  }
+
+  // オフライン中はキャッシュだけで終わり (取得も先読みもしない、#1350)
+  if (offlineModeStore.isOfflineMode) {
+    isLoading.value = false
+    return
   }
 
   // 2. 並行で API fetch して reconcile。ログイン中アカウントは fresh、
@@ -671,7 +683,8 @@ async function openConversation(
 
   try {
     const outcome = await thread.open(entryAccountId, target, {
-      loggedOut: isLoggedOut,
+      // オフライン中もログアウト中と同じくキャッシュだけで開く (#1350)
+      loggedOut: isLoggedOut || offlineModeStore.isOfflineMode,
       // cache hydrate できた時点で即表示する (B-2)
       onHydrated: () => {
         viewMode.value = 'conversation'
@@ -783,8 +796,11 @@ const newChatMessages = useNewChatMessages((accountId, received) => {
 })
 // 全アカウントのカラムは、開いた後に追加 / 再ログインしたアカウントの新着も受ける (#1223)
 if (isCrossAccount.value) {
+  // オフラインの間は張らない。解除で一覧が戻り、張り直される (#1350)
   newChatMessages.follow(() =>
-    accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id),
+    offlineModeStore.isOfflineMode
+      ? []
+      : accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id),
   )
 }
 
@@ -1031,7 +1047,9 @@ async function loadOlder() {
   isLoading.value = true
   try {
     const prevFirstId = filteredMessages.value[0]?.id
-    const added = await thread.loadOlder(accId, { loggedOut: isLoggedOut })
+    const added = await thread.loadOlder(accId, {
+      loggedOut: isLoggedOut || offlineModeStore.isOfflineMode,
+    })
     // Restore scroll position to the previously first message after prepend
     if (added && prevFirstId) {
       await nextTick()
@@ -1118,6 +1136,16 @@ watch(
   () => {
     if (isCrossAccount.value && viewMode.value === 'history') {
       void connectCrossAccount()
+    }
+  },
+)
+
+// オフライン中に開いて履歴の取得を見送ったら、解除されたときに取り直す (#1350)
+watch(
+  () => offlineModeStore.isOfflineMode,
+  (offline) => {
+    if (!offline && connectSkippedOffline && viewMode.value === 'history') {
+      void connect()
     }
   },
 )

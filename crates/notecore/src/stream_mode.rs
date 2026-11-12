@@ -42,6 +42,15 @@ pub fn polling_interval_ms(core: &Core) -> u64 {
     (secs * 1000.0) as u64
 }
 
+/// 設定で (手動の) オフラインモードが有効か。起動時に main チャンネルを張るかの判断に使う
+/// (#1350)。回線断による自動のオフラインは設定に書かない一時状態で、ここでは分からない
+pub fn offline(core: &Core) -> bool {
+    core.layout()
+        .ok()
+        .map(|layout| crate::settings_store::read_settings_json(layout).unwrap_or_default())
+        .is_some_and(|text| offline_enabled(&text))
+}
+
 /// 設定どおりのモードを全アカウントへ送る。`at_boot` のときは polling だけ送る
 /// (realtime は接続の既定で、端末の購読で張られる。アプリの起動時の適用と同じ規則)
 pub async fn apply(core: &Core, at_boot: bool) {
