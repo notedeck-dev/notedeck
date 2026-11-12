@@ -2,6 +2,7 @@ pub mod api;
 pub mod cli;
 pub mod commands;
 pub mod db;
+pub mod egress;
 pub mod error;
 pub mod event_bus;
 #[cfg(all(feature = "keyring", target_os = "linux"))]

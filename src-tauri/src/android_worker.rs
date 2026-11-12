@@ -149,7 +149,8 @@ async fn run(app_dir: &Path, background: &Background) -> jint {
             return RESULT_SUCCESS;
         }
     };
-    let client = match MisskeyClient::new() {
+    // 門 (#1350): 手動のオフラインモード中は、背景の確認も Misskey へ送らない
+    let client = match MisskeyClient::new(notecore::offline::Gate::for_app_dir(app_dir)) {
         Ok(client) => client,
         Err(e) => {
             tracing::warn!("[worker] http client: {e}");

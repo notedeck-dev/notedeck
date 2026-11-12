@@ -1875,6 +1875,7 @@ _cssEditorContent:
   cssParseError: "CSS parse error"
 
 _loginContent:
+  leaveOfflineMode: "Turn off offline mode"
   checking: "Checking..."
   serverReachable: "Server is reachable"
   connectToServer: "Connect to a Misskey server"
@@ -2175,7 +2176,7 @@ _deckNavbar:
   disableOfflineTitle: "Turn off offline mode"
   enableOfflineTitle: "Switch to offline mode"
   disableOfflineMessage: "Reconnects to the servers."
-  enableOfflineMessage: "Stops all network traffic and shows only cached data."
+  enableOfflineMessage: "Stops talking to Misskey servers and shows only cached data. AI chat and image loading keep working."
   turnOff: "Turn off"
   pollingTitle: "Switch to polling mode"
   realtimeTitle: "Switch to realtime mode"
@@ -3108,6 +3109,7 @@ _postFormConstants:
   specified: "Direct"
 
 _useAccountActions:
+  offlineBlocked: "You can't log out or delete account data while offline mode is on (the server-side cleanup can't run). Turn offline mode off and try again"
   deleteAccountFailed: "Failed to delete the account: {error}"
   deleteVaultFailed: "Failed to delete Vault connections: {error}"
   deleteGuestTitle: "Remove guest"
@@ -3655,6 +3657,7 @@ _useVault:
   authBasic: "Basic auth ({username})"
 
 _errors:
+  offlineMode: "Offline mode is on"
   authRequired: "You need to log in. Log in again from the account menu."
 
 _restrictedAccess:
@@ -3680,6 +3683,8 @@ _scheduleFormat:
   in1Week: "In 1 week"
 
 _native:
+  offline:
+    modeOn: "Offline mode is on"
   acp:
     permission:
       title: "{harness} wants to run {tool}"

@@ -280,7 +280,7 @@ mod tests {
         let _env = ENV_LOCK.lock().await;
         let (_server, host) = mock_misskey().await;
         let (_dir, db) = temp_db();
-        let client = Arc::new(MisskeyClient::new().unwrap());
+        let client = Arc::new(MisskeyClient::new(Arc::new(crate::egress::AllowAll)).unwrap());
         let svc = ServerInfoService::new(Arc::clone(&db), client);
 
         // miss: ネットワーク検出して保存
@@ -344,7 +344,10 @@ mod tests {
             .await;
 
         let (_dir, db) = temp_db();
-        let svc = ServerInfoService::new(db, Arc::new(MisskeyClient::new().unwrap()));
+        let svc = ServerInfoService::new(
+            db,
+            Arc::new(MisskeyClient::new(Arc::new(crate::egress::AllowAll)).unwrap()),
+        );
         let det = svc.detect_and_store(&host).await.unwrap();
         assert_eq!(det.software_name, "misskey");
         assert_eq!(det.meta_json, "{}");
@@ -353,7 +356,9 @@ mod tests {
 
     #[test]
     fn in_memory_store_round_trips_without_a_database() {
-        let svc = ServerInfoService::new_in_memory(Arc::new(MisskeyClient::new().unwrap()));
+        let svc = ServerInfoService::new_in_memory(Arc::new(
+            MisskeyClient::new(Arc::new(crate::egress::AllowAll)).unwrap(),
+        ));
         let host = "mem.example".to_string();
         assert!(svc.load(&host).unwrap().is_none());
         let mut det = sample(now_ms());

@@ -106,7 +106,7 @@ pub async fn diagnose(
         }
     }
 
-    let client = MisskeyClient::new()?;
+    let client = MisskeyClient::new(std::sync::Arc::new(crate::egress::AllowAll))?;
     for a in &targets {
         check_account(&client, a, &mut checks).await;
     }

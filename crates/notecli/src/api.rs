@@ -72,7 +72,10 @@ fn retry_after_ms(retry_after_header: Option<&str>, reset_ms: Option<u64>) -> Op
 }
 
 pub struct MisskeyClient {
+    /// 送信には直接使わない。[`MisskeyClient::http`] 経由で取る (門を通すため)
     client: Client,
+    /// 送信の直前の検査。要求を出すたびに通す
+    gate: std::sync::Arc<dyn crate::egress::EgressGate>,
     /// Override base URL for testing (e.g. "http://127.0.0.1:PORT").
     /// When set, requests use `{base_url}/api/{endpoint}` instead of `https://{host}/api/{endpoint}`.
     #[cfg(test)]
@@ -80,8 +83,10 @@ pub struct MisskeyClient {
 }
 
 impl MisskeyClient {
-    pub fn new() -> Result<Self, NoteDeckError> {
+    /// `gate` は送信の直前の検査。必ず渡す (検査が要らなければ `egress::AllowAll`)
+    pub fn new(gate: std::sync::Arc<dyn crate::egress::EgressGate>) -> Result<Self, NoteDeckError> {
         Ok(Self {
+            gate,
             client: Client::builder()
                 .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
                 .timeout(Duration::from_secs(30))
@@ -93,9 +98,29 @@ impl MisskeyClient {
         })
     }
 
+    /// 要求を出すための HTTP クライアント。取るたびに門を通す。送信はすべてここを経由する
+    fn http(&self) -> Result<&Client, NoteDeckError> {
+        self.gate.check()?;
+        Ok(&self.client)
+    }
+
+    /// このクライアントの門 (ストリーミングの接続が同じ検査を通すため)
+    pub fn gate(&self) -> &std::sync::Arc<dyn crate::egress::EgressGate> {
+        &self.gate
+    }
+
     #[cfg(test)]
     pub(crate) fn with_base_url(base_url: &str) -> Self {
+        Self::with_base_url_and_gate(base_url, std::sync::Arc::new(crate::egress::AllowAll))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_base_url_and_gate(
+        base_url: &str,
+        gate: std::sync::Arc<dyn crate::egress::EgressGate>,
+    ) -> Self {
         Self {
+            gate,
             client: Client::new(),
             base_url: Some(base_url.to_string()),
         }
@@ -164,7 +189,7 @@ impl MisskeyClient {
         }
 
         let res = self
-            .client
+            .http()?
             .post(self.api_url(host, endpoint))
             .json(&params)
             .send()
@@ -747,7 +772,7 @@ impl MisskeyClient {
         }
 
         let url = self.api_url(host, "drive/files/create");
-        let resp = self.client.post(&url).multipart(form).send().await?;
+        let resp = self.http()?.post(&url).multipart(form).send().await?;
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();
@@ -1036,7 +1061,7 @@ impl MisskeyClient {
         session_id: &str,
     ) -> Result<AuthResult, NoteDeckError> {
         let res = self
-            .client
+            .http()?
             .post(self.api_url(host, &format!("miauth/{session_id}/check")))
             .json(&json!({}))
             .send()
@@ -1440,7 +1465,7 @@ impl MisskeyClient {
         endpoint: &str,
     ) -> Result<Vec<String>, NoteDeckError> {
         let res = self
-            .client
+            .http()?
             .post(self.api_url(host, "endpoint"))
             .json(&json!({ "endpoint": endpoint }))
             .send()
@@ -1486,7 +1511,7 @@ impl MisskeyClient {
     /// Fetch available API endpoints (public, no auth required).
     pub async fn get_endpoints(&self, host: &str) -> Result<Vec<String>, NoteDeckError> {
         let res = self
-            .client
+            .http()?
             .post(self.api_url(host, "endpoints"))
             .json(&json!({}))
             .send()
@@ -2344,7 +2369,7 @@ impl MisskeyClient {
         let scheme = crate::insecure::http_scheme(host);
         let well_known_url = format!("{scheme}://{host}/.well-known/nodeinfo");
         let res = self
-            .client
+            .http()?
             .get(&well_known_url)
             .timeout(Duration::from_secs(10))
             .send()
@@ -2391,7 +2416,7 @@ impl MisskeyClient {
         }
 
         let res = self
-            .client
+            .http()?
             .get(&nodeinfo_url)
             .timeout(Duration::from_secs(10))
             .send()
@@ -2780,7 +2805,7 @@ impl MisskeyClient {
     pub async fn fetch_server_meta(&self, host: &str) -> Result<Value, NoteDeckError> {
         let url = self.api_url(host, "meta");
         let res = self
-            .client
+            .http()?
             .post(&url)
             .json(&json!({ "detail": true }))
             .timeout(Duration::from_secs(10))
@@ -2805,6 +2830,51 @@ mod tests {
     use super::*;
     use wiremock::matchers::{body_partial_json, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// 常に断る門
+    struct DenyAll;
+    impl crate::egress::EgressGate for DenyAll {
+        fn check(&self) -> Result<(), NoteDeckError> {
+            Err(NoteDeckError::InvalidInput("gate closed".into()))
+        }
+    }
+
+    /// 門が断ったら、どの種類の要求もサーバーへ出ない (#1350)。
+    /// API の要求 / 独自の POST / GET (nodeinfo) の 3 つの形で確かめる
+    #[tokio::test]
+    async fn a_closed_gate_stops_every_kind_of_request_before_it_is_sent() {
+        let server = MockServer::start().await;
+        let client =
+            MisskeyClient::with_base_url_and_gate(&server.uri(), std::sync::Arc::new(DenyAll));
+        let closed = |e: NoteDeckError| e.to_string().contains("gate closed");
+
+        assert!(closed(
+            client
+                .request("example.test", "token", "i", json!({}))
+                .await
+                .unwrap_err()
+        ));
+        assert!(closed(
+            client.get_endpoints("example.test").await.unwrap_err()
+        ));
+        assert!(closed(
+            client.fetch_nodeinfo("example.test").await.unwrap_err()
+        ));
+        assert!(server.received_requests().await.unwrap().is_empty());
+    }
+
+    /// 送信は `http()` を通る 1 か所だけ。HTTP クライアントを直に使う送信を足すと、
+    /// 門を通らない要求ができる
+    #[test]
+    fn the_http_client_is_only_reached_through_the_gate() {
+        let source = include_str!("api.rs");
+        let main = source.split("#[cfg(test)]\nmod tests").next().unwrap();
+        let direct: Vec<&str> = main
+            .lines()
+            .filter(|l| l.contains("self.client") || l.trim() == ".client")
+            .collect();
+        assert_eq!(direct, vec!["        Ok(&self.client)"]);
+    }
 
     fn raw_note_json(id: &str, text: &str) -> Value {
         json!({

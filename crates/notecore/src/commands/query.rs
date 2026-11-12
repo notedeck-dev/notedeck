@@ -16,6 +16,22 @@ use crate::error::Result;
 // 裏口になる上、フロント呼び出しもゼロだった。復活させる場合は
 // TimelineKey::parse による検証を必須とすること (issue notecli#30 仕様 v5 §6-5)。
 
+/// 照会の前にストリームを繋ぐ。手動のオフラインモード (門が断る) の間は繋がず、
+/// `false` を返す: 照会はキャッシュだけで開き、購読は張らない (#1350)。解除後に同じ
+/// 照会を開き直すと、購読が無いのでそこで繋いで張る
+async fn connect_unless_offline(
+    streaming: &notecli::streaming::StreamingManager,
+    account_id: &str,
+    host: &str,
+    token: &str,
+) -> Result<bool> {
+    match streaming.connect(account_id, host, token).await {
+        Ok(()) => Ok(true),
+        Err(e) if e.code() == crate::offline::ERROR_CODE => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
 pub async fn query_subscribe_timeline(
     core: &Core,
     owner: Option<String>,
@@ -26,7 +42,7 @@ pub async fn query_subscribe_timeline(
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
     let (host, token) = core.credentials(&account_id)?;
-    streaming.connect(&account_id, &host, &token).await?;
+    let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
     // 境界アダプタ: ('user-list', listId) → canonical キー合成 (api_get_timeline と同規約)
     let tl_key = if timeline_type == "user-list" {
@@ -48,7 +64,7 @@ pub async fn query_subscribe_timeline(
         key: tl_key.as_canonical(),
     };
     let opened = runtime.open(key, owner.as_deref())?;
-    if opened.source_subscription_id.is_some() {
+    if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
 
@@ -65,7 +81,7 @@ pub async fn query_subscribe_antenna(
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
     let (host, token) = core.credentials(&account_id)?;
-    streaming.connect(&account_id, &host, &token).await?;
+    let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
     let tl_key = TimelineKey::Antenna {
         antenna_id: antenna_id.clone(),
@@ -77,7 +93,7 @@ pub async fn query_subscribe_antenna(
         },
         owner.as_deref(),
     )?;
-    if opened.source_subscription_id.is_some() {
+    if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
 
@@ -94,7 +110,7 @@ pub async fn query_subscribe_channel(
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
     let (host, token) = core.credentials(&account_id)?;
-    streaming.connect(&account_id, &host, &token).await?;
+    let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
     let tl_key = TimelineKey::Channel {
         channel_id: channel_id.clone(),
@@ -106,7 +122,7 @@ pub async fn query_subscribe_channel(
         },
         owner.as_deref(),
     )?;
-    if opened.source_subscription_id.is_some() {
+    if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
 
@@ -123,7 +139,7 @@ pub async fn query_subscribe_role(
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
     let (host, token) = core.credentials(&account_id)?;
-    streaming.connect(&account_id, &host, &token).await?;
+    let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
     let tl_key = TimelineKey::Role {
         role_id: role_id.clone(),
@@ -135,7 +151,7 @@ pub async fn query_subscribe_role(
         },
         owner.as_deref(),
     )?;
-    if opened.source_subscription_id.is_some() {
+    if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
 
@@ -151,7 +167,7 @@ pub async fn query_subscribe_mentions(
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
     let (host, token) = core.credentials(&account_id)?;
-    streaming.connect(&account_id, &host, &token).await?;
+    let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
     // mentions は QueryKey 識別子としてのみ Timeline に折り畳む。
     // 購読は従来どおり main チャンネル経由 (ws_channel を持たない種別)。
@@ -162,7 +178,7 @@ pub async fn query_subscribe_mentions(
         },
         owner.as_deref(),
     )?;
-    if opened.source_subscription_id.is_some() {
+    if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
 
@@ -180,7 +196,7 @@ pub async fn query_subscribe_notifications(
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
     let (host, token) = core.credentials(&account_id)?;
-    streaming.connect(&account_id, &host, &token).await?;
+    let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
     let opened = runtime.open(
         QueryKey::Notifications {
@@ -188,7 +204,7 @@ pub async fn query_subscribe_notifications(
         },
         owner.as_deref(),
     )?;
-    if opened.source_subscription_id.is_some() {
+    if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
 
@@ -207,7 +223,7 @@ pub async fn query_subscribe_chat_user(
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
     let (host, token) = core.credentials(&account_id)?;
-    streaming.connect(&account_id, &host, &token).await?;
+    let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
     let opened = runtime.open(
         QueryKey::ChatUser {
@@ -216,7 +232,7 @@ pub async fn query_subscribe_chat_user(
         },
         owner.as_deref(),
     )?;
-    if opened.source_subscription_id.is_some() {
+    if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
 
@@ -235,7 +251,7 @@ pub async fn query_subscribe_chat_room(
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
     let (host, token) = core.credentials(&account_id)?;
-    streaming.connect(&account_id, &host, &token).await?;
+    let online = connect_unless_offline(streaming, &account_id, &host, &token).await?;
 
     let opened = runtime.open(
         QueryKey::ChatRoom {
@@ -244,7 +260,7 @@ pub async fn query_subscribe_chat_room(
         },
         owner.as_deref(),
     )?;
-    if opened.source_subscription_id.is_some() {
+    if opened.source_subscription_id.is_some() || !online {
         return Ok(opened);
     }
 

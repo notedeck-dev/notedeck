@@ -614,7 +614,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // Parallel: DB open + MisskeyClient init + HTTP bind (all independent)
             let db_path = app_dir_bg.join("notecli.db");
             let db_handle = std::thread::spawn(move || notecli::db::Database::open(&db_path));
-            let client_handle = std::thread::spawn(notecli::api::MisskeyClient::new);
+            // 門 (#1350): 手動のオフラインモード中は Misskey へ送らない
+            let gate = notecore::offline::Gate::for_app_dir(&app_dir_bg);
+            let client_gate = gate.clone();
+            let client_handle =
+                std::thread::spawn(move || notecli::api::MisskeyClient::new(client_gate));
             let http_handle = std::thread::spawn(|| {
                 tauri::async_runtime::block_on(http_server::bind())
             });
@@ -696,6 +700,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 emitter,
                 event_bus.clone(),
                 db.clone(),
+                gate.clone(),
             ));
             app_handle.manage(streaming.clone());
             app_state.set_streaming(streaming);

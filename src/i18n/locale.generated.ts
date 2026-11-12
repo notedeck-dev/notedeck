@@ -2988,6 +2988,8 @@ export interface Locale {
     readonly "cssParseError": string
   }
   readonly "_loginContent": {
+    /** オフラインモードを解除 */
+    readonly "leaveOfflineMode": string
     /** 確認中... */
     readonly "checking": string
     /** サーバーに接続できます */
@@ -3542,7 +3544,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "enableOfflineTitle": string
     /** サーバーに再接続します。 */
     readonly "disableOfflineMessage": string
-    /** すべての通信を停止し、キャッシュ済みデータのみ表示します。 */
+    /** Misskey サーバーとの通信を止め、キャッシュ済みのデータだけを表示します。AI チャットと画像の読み込みは続きます。 */
     readonly "enableOfflineMessage": string
     /** 解除 */
     readonly "turnOff": string
@@ -5221,6 +5223,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "specified": string
   }
   readonly "_useAccountActions": {
+    /** オフラインモード中は、ログアウトとデータの削除ができません (サーバー側の後始末が通らないため)。オフラインモードを解除してからやり直してください */
+    readonly "offlineBlocked": string
     /** アカウント削除に失敗しました: {error} */
     readonly "deleteAccountFailed": ParameterizedString<'error'>
     /** Vault 接続の削除に失敗しました: {error} */
@@ -6161,6 +6165,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "authBasic": ParameterizedString<'username'>
   }
   readonly "_errors": {
+    /** オフラインモード中です */
+    readonly "offlineMode": string
     /** ログインが必要です。アカウントメニューから再ログインしてください。 */
     readonly "authRequired": string
   }
@@ -6205,6 +6211,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "in1Week": string
   }
   readonly "_native": {
+    readonly "offline": {
+      /** オフラインモード中です */
+      readonly "modeOn": string
+    }
     readonly "loopback": {
       /** ウィジェット / Play / ページは手元のポート ({port}) に接続できません。接続できるのはプラグインだけです */
       readonly "notEligible": ParameterizedString<'port'>

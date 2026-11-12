@@ -75,6 +75,38 @@ pub fn set(layout: &Layout, offline: bool) -> Result<()> {
     crate::settings_store::atomic_write(&path(layout), &text, Some(0o600))
 }
 
+/// 門が断るときのエラー。画面には共通の「オフラインモード中です」として出る
+pub fn error() -> notecli::error::NoteDeckError {
+    crate::i18n::error(ERROR_CODE, "_native.offline.modeOn", serde_json::json!({}))
+}
+
+/// Misskey への送信の直前の検査 (`notecli::egress`)。手動のオフラインモードのとき断る。
+///
+/// 呼ぶ側 (フロントの見送りや巡回の先頭の判定) が欠けても、ここで止まる。クライアントを
+/// 作るすべてのプロセス (アプリ / notemaid / Android の背景 worker) が渡す
+pub struct Gate {
+    app_dir: PathBuf,
+}
+
+impl Gate {
+    pub fn for_app_dir(
+        app_dir: &std::path::Path,
+    ) -> std::sync::Arc<dyn notecli::egress::EgressGate> {
+        std::sync::Arc::new(Self {
+            app_dir: app_dir.to_path_buf(),
+        })
+    }
+}
+
+impl notecli::egress::EgressGate for Gate {
+    fn check(&self) -> std::result::Result<(), notecli::error::NoteDeckError> {
+        if manual(&Layout::from_root(&self.app_dir)) {
+            return Err(error());
+        }
+        Ok(())
+    }
+}
+
 /// 今までの設定の値を、状態のファイルへ 1 回だけ移す (アプリの起動時)。既に在れば何もしない。
 ///
 /// 設定が在るのに読めない / 解釈できないときは移さずに Err を返す (次の起動でやり直す)。
@@ -146,6 +178,24 @@ mod tests {
         assert!(!manual(&off));
         let (_d, first_run) = layout_with(None, None);
         assert!(!manual(&first_run));
+    }
+
+    #[test]
+    fn the_gate_refuses_while_offline_and_follows_the_switch() {
+        let dir = tempfile::tempdir().unwrap();
+        // 再編後の配置にする (版印)
+        std::fs::write(Layout::marker_path(dir.path()), "{}").unwrap();
+        let layout = Layout::from_root(dir.path());
+        let gate = Gate::for_app_dir(dir.path());
+        assert!(gate.check().is_ok());
+
+        // 切り替えた直後の要求から断る (門は値を持たず、毎回読む)
+        set(&layout, true).unwrap();
+        let err = gate.check().unwrap_err();
+        assert_eq!(err.code(), ERROR_CODE);
+
+        set(&layout, false).unwrap();
+        assert!(gate.check().is_ok());
     }
 
     #[test]

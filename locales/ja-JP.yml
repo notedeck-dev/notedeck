@@ -1638,6 +1638,7 @@ _cssEditorContent:
   cssParseError: "CSS パースエラー"
 
 _loginContent:
+  leaveOfflineMode: "オフラインモードを解除"
   checking: "確認中..."
   serverReachable: "サーバーに接続できます"
   connectToServer: "Misskey サーバーに接続"
@@ -1933,7 +1934,7 @@ _deckNavbar:
   disableOfflineTitle: "オフラインモードを解除"
   enableOfflineTitle: "オフラインモードに切り替え"
   disableOfflineMessage: "サーバーに再接続します。"
-  enableOfflineMessage: "すべての通信を停止し、キャッシュ済みデータのみ表示します。"
+  enableOfflineMessage: "Misskey サーバーとの通信を止め、キャッシュ済みのデータだけを表示します。AI チャットと画像の読み込みは続きます。"
   turnOff: "解除"
   pollingTitle: "ポーリングモードに切り替え"
   realtimeTitle: "リアルタイムモードに切り替え"
@@ -2862,6 +2863,7 @@ _postFormConstants:
   specified: "ダイレクト"
 
 _useAccountActions:
+  offlineBlocked: "オフラインモード中は、ログアウトとデータの削除ができません (サーバー側の後始末が通らないため)。オフラインモードを解除してからやり直してください"
   deleteAccountFailed: "アカウント削除に失敗しました: {error}"
   deleteVaultFailed: "Vault 接続の削除に失敗しました: {error}"
   deleteGuestTitle: "ゲストを削除"
@@ -3405,6 +3407,7 @@ _useVault:
   authBasic: "Basic 認証 ({username})"
 
 _errors:
+  offlineMode: "オフラインモード中です"
   authRequired: "ログインが必要です。アカウントメニューから再ログインしてください。"
 
 _restrictedAccess:
@@ -3431,6 +3434,8 @@ _scheduleFormat:
 
 # Rust (notecore / src-tauri) が描く文言。この節は Rust に埋め込まれる (#135 段 4)
 _native:
+  offline:
+    modeOn: "オフラインモード中です"
   loopback:
     notEligible: "ウィジェット / Play / ページは手元のポート ({port}) に接続できません。接続できるのはプラグインだけです"
     selfPort: "ポート {port} は NoteDeck 自身のものか、繋いではいけないポートです。宣言や同意に関係なく接続できません"

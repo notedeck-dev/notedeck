@@ -72,7 +72,7 @@ fn login_host(input: &str) -> String {
 pub async fn run_login(db: &Database, host: &str, fmt: OutputFormat) -> Result<(), NoteDeckError> {
     let host = login_host(host);
     let host = host.as_str();
-    let client = MisskeyClient::new()?;
+    let client = MisskeyClient::new(std::sync::Arc::new(crate::egress::AllowAll))?;
 
     let session_id = uuid::Uuid::new_v4().to_string();
     let permissions = [

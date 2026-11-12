@@ -1,5 +1,8 @@
 {
   "_native": {
+    "offline": {
+      "modeOn": "Offline mode is on"
+    },
     "loopback": {
       "notEligible": "ウィジェット / Play / ページは手元のポート ({port}) に接続できません。接続できるのはプラグインだけです",
       "selfPort": "ポート {port} は NoteDeck 自身のものか、繋いではいけないポートです。宣言や同意に関係なく接続できません",
