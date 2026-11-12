@@ -6687,6 +6687,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "waitingNotAiProvider": string
       /** HEARTBEAT の接続先の起動を待っています (起動すれば次の巡回で再開します): {detail} */
       readonly "waitingUnreachable": ParameterizedString<'detail'>
+      /** オフラインモード中なので HEARTBEAT は巡回していません (解除すると次の巡回から再開します) */
+      readonly "waitingOffline": string
+      /** オフラインモード中は巡回できません */
+      readonly "offlineNoRun": string
       /** HEARTBEAT の接続先の名前解決が内部アドレスを返したので送れません。接続の URL を確認してください: {detail} */
       readonly "waitingBlocked": ParameterizedString<'detail'>
     }

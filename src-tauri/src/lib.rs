@@ -730,7 +730,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     // オフラインモードのまま起動したら張らない (#1350)。解除したときに
                     // フロントの復帰の信号が張る (`useMainStreamKeeper`)
-                    if notecore::stream_mode::offline(&core) {
+                    if core.layout().is_ok_and(notecore::offline::manual) {
                         tracing::info!("[stream] offline at boot, main channels not subscribed");
                     } else if let Err(e) = notecore::commands::streaming::stream_subscribe_main_all(&core).await {
                         tracing::warn!("[stream] main for all accounts at boot: {e}");

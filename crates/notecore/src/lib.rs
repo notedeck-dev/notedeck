@@ -51,6 +51,7 @@ pub mod navbar;
 pub mod notify_cursor;
 pub mod notify_media;
 pub mod notify_plan;
+pub mod offline;
 pub mod ogp;
 pub mod perf_config;
 pub mod performance_settings;

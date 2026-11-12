@@ -34,7 +34,7 @@ pub fn sync_heartbeat_timer(app: &tauri::AppHandle) {
         return;
     };
     let core: super::AppState = core.inner().clone();
-    if offline_enabled(&core) {
+    if core.layout().is_ok_and(notecore::offline::manual) {
         timer.stop();
         // 次回の予定時刻が消えたことを窓に知らせる (AI 設定の状態行、#1321)
         notemaid::heartbeat::emit_scheduled(&core);
@@ -42,14 +42,6 @@ pub fn sync_heartbeat_timer(app: &tauri::AppHandle) {
         return;
     }
     timer.reconfigure(core);
-}
-
-fn offline_enabled(core: &notecore::context::Core) -> bool {
-    let Ok(layout) = core.layout() else {
-        return false;
-    };
-    let text = notecore::settings_store::read_settings_json(layout).unwrap_or_default();
-    notecore::stream_mode::offline_enabled(&text)
 }
 
 /// 設定ファイルの変更が timer に関わるものか (ai.json5 と settings.json5 のどちらか)

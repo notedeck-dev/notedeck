@@ -4003,7 +4003,7 @@ nextTickAt: number | null }
  */
 export type HeartbeatTickUsage = { inputTokens: number; estimatedInputTokens: number }
 /**
- * 待機中 (#1321)。`kind` は `no-provider` | `unreachable`。`message` は英語の正本文、
+ * 待機中 (#1321)。`kind` は `no-provider` | `unreachable` | `offline` (#1350)。`message` は英語の正本文、
  * `i18n` は `{ message: { key, params } }` (デバイスは `localizeNative` で描き直す)
  */
 export type HeartbeatWaiting = { kind: string; since: number; message: string; i18n: JsonValue }
