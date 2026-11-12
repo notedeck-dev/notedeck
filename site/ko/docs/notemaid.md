@@ -1,5 +1,5 @@
 ---
-sourceHash: bdb9cc5cbe62
+sourceHash: 7fb0ea52ad43
 ---
 
 # AI 별도 프로세스 (notemaid)
@@ -48,7 +48,7 @@ Linux에서 로그아웃 후에도 계속 동작시키려면 `loginctl enable-li
 
 ## notemaid가 소유하는 것
 
-notemaid가 쓰는 것은 설정 폴더 안의 자기 소유물뿐입니다: AI의 인격과 기억 (`notemaid/`), AI 세션 (`sessions/`), 메모 (`memos/`), 스킬 (`skills/`), AI 설정 (`ai.json5`). 앱의 데이터베이스는 열지 않습니다. 앱에서 복사해 온 계정 목록 (`notemaid-accounts.json`, 토큰은 포함하지 않음)은 앱 데이터 폴더에 둡니다. Linux에서 Secret Service가 없는 환경에서는 토큰의 대피처로 암호화 파일과 키도 씁니다.
+notemaid가 쓰는 것은 앱 데이터 폴더 안의 자기 소유물뿐입니다: AI의 인격과 기억 (`data/notemaid/`), AI 세션 (`data/sessions/`), 메모 (`data/memos/`), 스킬 (`config/skills/`), AI 설정 (`config/ai.json5`). 앱의 데이터베이스는 열지 않습니다. 앱에서 복사해 온 계정 목록 (`notemaid-accounts.json`. 토큰은 OS 키체인에 있으며, 키체인을 쓸 수 없는 환경에서는 이 파일에 토큰도 들어갑니다. 소유자만 읽을 수 있습니다)은 `state/secrets/`에 둡니다. Linux에서 Secret Service가 없는 환경에서는 토큰의 대피처로 암호화 파일과 키도 씁니다.
 
 인격과 기억의 내용은 에이전트 설정의 "페르소나" (ペルソナ)와 "메모리" (メモリー)에서 읽고 쓸 수 있습니다 (인격의 본문 SOUL.md만은 개발자 모드의 탭이나 외부 에디터에서). 파일 목록은 [설정 파일](/ko/docs/config/files)에 있습니다.
 

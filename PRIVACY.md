@@ -37,21 +37,24 @@ Linux の暗号化ファイルは、同じ OS ユーザーの他プロセスか�
 | ファイル / フォルダ | 内容 |
 |---|---|
 | `notecli.db` (SQLite) | 接続中アカウント一覧 (トークン本体はキーチェーン)、ノート・通知・ユーザー情報のキャッシュ、FTS5 全文検索インデックス、チャットキャッシュ |
-| `image_cache/` | 表示画像・効果音のキャッシュ |
-| `notedeck/settings.json5` | テーマ選択・モード等のユーザー設定 |
-| `notedeck/` の各設定ファイル | キーバインド・ナビバー・パフォーマンス・投稿フォーム・タスク・権限・カスタム CSS・AI 設定 (機密以外) |
-| `notedeck/connections.json` | 外部サービス接続の定義 (シークレット本体はキーチェーン) |
-| `notedeck/profiles/` | デッキプロファイル (カラム配置等) |
-| `notedeck/themes/` | ユーザー作成テーマ |
-| `notedeck/plugins/` | プラグイン本体・設定 |
-| `notedeck/widgets/` | ウィジェット |
-| `notedeck/skills/` | AI スキル |
-| `notedeck/snippets/` | スニペット |
-| `notedeck/queries/` | カラムクエリ |
-| `notedeck/memos/` | AI メモ |
-| `notedeck/sessions/` | AI チャットセッション履歴 |
-| `notedeck/notemaid/` | AI の人格と記憶 (SOUL.md / USER.md / MEMORY.md 等) |
-| `notify_cursor.json` (Android) | OS 通知にした最後の通知の位置 (口座ごと)。同じ通知を 2 度知らせないため。端末外バックアップから除外 |
+| `config/settings.json5` | テーマ選択・モード等のユーザー設定 |
+| `config/` の各設定ファイル | キーバインド・ナビバー・パフォーマンス・投稿フォーム・タスク・権限・カスタム CSS・AI 設定 (機密以外) |
+| `config/connections.json` | 外部サービス接続の定義 (シークレット本体はキーチェーン) |
+| `config/profiles/` | デッキプロファイル (カラム配置等) |
+| `config/themes/` | ユーザー作成テーマ |
+| `config/plugins/` | プラグイン本体・設定 |
+| `config/widgets/` | ウィジェット |
+| `config/skills/` | AI スキル |
+| `config/snippets/` | スニペット |
+| `config/queries/` | カラムクエリ |
+| `data/memos/` | AI メモ |
+| `data/sessions/` | AI チャットセッション履歴 |
+| `data/notemaid/` | AI の人格と記憶 (SOUL.md / USER.md / MEMORY.md 等) |
+| `state/` | この端末だけの状態 (窓の配置・接続の同意・確認の省略・編集履歴・AI の実行途中の記録など) |
+| `state/notify_cursor.json` (Android) | OS 通知にした最後の通知の位置 (口座ごと)。同じ通知を 2 度知らせないため。端末外バックアップから除外 |
+| `cache/` | 表示画像・効果音・絵文字のキャッシュ |
+
+`config/` は設定、`data/` は利用者の記録 (他人の投稿の本文を含みうる)、`state/` はこの端末だけの状態、`cache/` は消してよいものです。以前の版から更新した直後は、初回起動時にこの配置へ移すまで、設定と記録が `notedeck/` の下に同居しています。
 
 このほか、OS のログフォルダに日次ローテーションのアプリケーションログが、アプリがクラッシュした場合はその情報がローカルに記録されます。いずれも自動送信されません。
 
@@ -110,3 +113,5 @@ NoteDeck は AGPL-3.0 ライセンスで公開されています。ソースコ�
 - 2026-07-31: ローカル保存データの一覧を現在のファイル構成に合わせて更新
 - 2026-10-09: ローカル保存データの一覧に AI の人格と記憶 (`notedeck/notemaid/`) を追加
 - 2026-10-21: AI セッション履歴とログに秘密を平文で残さないことを追記
+- 2026-11-11: Android の OS バックアップに載るものを追記
+- 2026-11-12: ローカル保存データの一覧を、設定 / 記録 / 状態 / キャッシュに分けた現在の配置に合わせて更新
