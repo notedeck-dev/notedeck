@@ -16,6 +16,10 @@ NoteDeck — マルチサーバー対応 Misskey デッキクライアントの�
 - [ノートキャッシュ・キューアーキテクチャ](#ノートキャッシュキューアーキテクチャ)
 - [チャットキャッシュ・アーキテクチャ](#チャットキャッシュアーキテクチャ)
 - [レンダリングパフォーマンス](#レンダリングパフォーマンス)
+- [Cargo workspace の構成](#cargo-workspace-の構成)
+  - [目指す構成の詳細: 置き場の規則と経緯](#目指す構成の詳細-置き場の規則と経緯-1106)
+- [Boot Sequence](#boot-sequence)
+- [OS の状態への自動適応](#os-の状態への自動適応-931--935--928--986--461)
 - [採用状況マトリクス](#採用状況マトリクス)
 
 ---
@@ -157,6 +161,7 @@ iOS / Android と sidecar が無い開発時は in-process の transport (コマ
 - 切替点は手元の Rust のクライアント層 1 箇所。データ系コマンドはコマンド表を通って常に in-process の notecore へ、AI 系コマンドは notemaid の表を通って常に socket / named pipe で notemaid のプロセスへ (iOS / Android と sidecar が無い開発時は in-process transport。`src-tauri/src/client_layer.rs`)。フロントは違いを知らず、接続 / 互換の状態面だけを知る
 - データ面の notecore はデバイスに 1 つ (アプリの中) だけで、notemaid は notes DB を開かない。Misskey は notecli で直接叩き、アプリが生きていれば socket でアプリ側の notecore にキャッシュを聞く。同一端末では設定ディレクトリを共有し、書くのは自分の持ち物 (セッション / メモ / skill / AI 設定) だけ。トークンは OS キーチェーンを読み、アカウント一覧は接続時にアプリから受け取る。メイドの持ち物 (セッション / メモ / skill / AI 設定) は同じ設定ディレクトリのファイルで、端末はそれを編集する
 - 認証、イベント面、状態の所在は #1106 の仕様コメントが正本 (2026-09-29 のコメントで AI 面に縮めた後の読み方が優先)
+- 置き場の規則 (どのドメインをどのクレートに置くか、command の種別、検査) と経緯は「[目指す構成の詳細](#目指す構成の詳細-置き場の規則と経緯-1106)」
 
 ---
 
@@ -1376,9 +1381,358 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 
 仮想スクロールは TanStack vue-virtual（NoteScroller）で対応済み。
 
-詳細は **[DEVELOPMENT.md — レンダリングパフォーマンス](DEVELOPMENT.md#レンダリングパフォーマンス)** を参照。
+詳細は **[PERFORMANCE.md — レンダリングパフォーマンス](PERFORMANCE.md#レンダリングパフォーマンス)** を参照。
 
 ---
+
+## Cargo workspace の構成
+
+NoteDeck は 1 つのリポジトリ (Cargo workspace) で、`crates/notecli` (Misskey クライアント + CLI)、`crates/notecore` / `crates/notemaid` (下記「目指す構成」) と `src-tauri` (アプリの Rust) を持ちます (notecli は 2026-09-23 に別リポジトリから取り込んだ、[#1106](https://github.com/notedeck-dev/notedeck/issues/1106))。
+
+### notecli (`crates/notecli`)
+
+Tauri に依存しない Misskey ヘッドレスクライアント。Rust ライブラリ兼 CLI。
+
+- Misskey HTTP API クライアント、WebSocket ストリーミング、SQLite DB、REST API サーバー
+- 単体の daemon モード（`localhost:19820` の HTTP API）は撤去した（#1106）。HTTP API サーバーはアプリが notecore の `http_server.rs` で立てる
+- アプリの Rust (`src-tauri`) がパス依存で利用する。CLI バイナリはリリースの成果物として同じタグから出す
+
+### notedeck (このリポジトリ)
+
+notecli の上に Tauri v2 + Vue 3 の GUI を載せたクライアント。
+対象プラットフォームは Windows / macOS / Linux / Android。
+
+### 目指す構成の詳細: 置き場の規則と経緯 ([#1106](https://github.com/notedeck-dev/notedeck/issues/1106))
+
+要約は上の「[目指す構成: notecore と notemaid](#目指す構成-notecore-と-notemaid1106)」。ここは、どのドメインをどのクレートに置くかの規則、command の種別、検査、ここに至った経緯。
+
+`src-tauri/` には Tauri に依存しないドメイン (Vault / クエリランタイム / 画像キャッシュ / 設定ファイル store / 認可解決) が同居していた。これを **notecore** (notedeck リポジトリ内の同名クレート、2026-09-23 に切り出し済み) に集める。AI が所有するもの (エージェントループ / HEARTBEAT / capability の実行 / セッション / skill / メモ / AI 設定) は **notemaid** (lib + bin の 1 クレート、notecli と同形) に置く (2026-09-29 に切り出し済み)。**notemaid は常に別プロセス**で、アプリは AI 系コマンドを socket (Windows は named pipe) で送る。違うのは誰が起動するかだけ: アプリが同梱の sidecar を子プロセスとして起動し終了時に落とす (既定、デスクトップ、設定ゼロ) / ログイン時のユーザー権限タスクとして常駐 (任意のトグル 1 つ。systemd user unit / LaunchAgent / Run キー ONLOGON、Hermes / OpenClaw と同じレシピで管理者権限も Service も不要)。別の端末やサーバーで動く notemaid に繋ぐ構成 (リモート) は採用しない (2026-09-29、理由は ROADMAP)。in-process は iOS / Android と sidecar の無い開発時の transport (コマンド面は同じ)。常駐の対象は notemaid だけで、データ面は常に手元で動く。
+
+2026-09-29 までは「notecore 全体を notecored として自分のサーバーで常駐させる」構成 (データ面の常駐) を目指し、同一ホスト版まで出荷したが、#1106 で中止した (不採用の理由: 購読がセッション所有なのでアプリを閉じている間の蓄積が無く、中継の直列化の税だけが残った / SNS クライアントに daemon 形態の前例が無く、常駐状態はサーバー側が持っている / データ面を含めても AI 面だけでも、届く層は自前サーバー派だけで維持税だけが違う)。旧 `crates/notecored` は notemaid の bin (`daemon` feature、`src/main.rs` + `src/daemon/`) に統合して削除した。
+
+```
+フロントエンド (Vue)                WebView は常に手元の Rust とだけ話す
+      │ IPC
+┌─ アプリ (Tauri、手元) ────────┐   AI 系コマンド    ┌─ notemaid (常に別プロセス) ───────────────────┐
+│ OS 統合 + クライアント層     │ ───────────────▶ │ メイド (ループ / HEARTBEAT / 配送)           │
+│  notecore (データ面、常に手元)│  socket /        │  notecore (共有基盤: Vault / 認可 / 設定だけ。│
+│  notecli                     │  named pipe      │            notes DB は開かない)              │
+└──────────────────────────────┘                  │  notecli                                     │
+                                                  └──────────────────────────────────────────────┘
+誰が notemaid を起動するか: アプリが sidecar を子プロセスで (既定、設定ゼロ) / ログイン時のユーザータスク (任意、常駐)。別の端末やサーバーで動く notemaid に繋ぐ構成 (リモート) は採用しない (2026-09-29、理由は ROADMAP)
+iOS / Android は in-process の transport (コマンド面は同じ)
+```
+
+- **切る基準**: 「その処理はデバイスが 1 台も繋がっていない状態で意味を持つか」。持つなら notecore、持たないなら手元 (ウィンドウ / トレイ / OS 通知 / クリップボード / dialog / OS キーチェーン)。AI が所有するものは notemaid
+- **notecore と notemaid の関係は、クレートでは「上に載る」、プロセスでは「並列」**。クレートの依存は notecli ← notecore ← notemaid ← アプリの一方向で、notemaid が notecore から借りるのは共有基盤 (Vault / principal の認可 / 設定ディレクトリと設定ファイルの store / アカウント情報 / i18n) だけ。データ面 (notes DB / ストリーミング / クエリランタイム) には依存しない。依存先が共有基盤に限ると確かめられたら、それを notecore の下層に割ってデータ面と AI 面を並列にしてもよい。notecore は AI を知らない。capability の**宣言表** (語彙) は認可と HTTP API 面も参照するので notecore、**実行**は notemaid。**データ面の notecore はデバイスに 1 つ (アプリの中) だけで、notemaid は notes DB を開かない** (2 プロセスで同じ DB を触ると、常駐タスクの notemaid がアプリ更新後に古い版のまま新しいスキーマを開く事故と排他ロックが戻ってくる)。Misskey は notecli で直接叩き、アプリが生きていれば socket でアプリ側の notecore にキャッシュを聞く。HEARTBEAT の cheap check も API で足りる。同一端末では設定ディレクトリを共有し、書くのは自分の持ち物 (セッション / メモ / skill / AI 設定) だけ。トークンは同じユーザーセッションの OS キーチェーンを読み、アカウント一覧は接続時にアプリから受け取る (secret の file backend は、キーチェーンの無い環境で `notemaid run --secrets file` を手で使うときだけ)。メイドの持ち物 (セッション / メモ / skill / AI 設定) は同じ設定ディレクトリのファイルで、端末はそれを編集する
+- **クライアント層**は手元の Rust の中の切替点 1 箇所。データ系コマンドはコマンド表 (型付き関数 + JSON アダプタを 1 つの宣言から生成) を通り、常に in-process の埋め込み notecore を呼ぶ。AI 系コマンドは notemaid 側の表を通り、`client.json5` の `backend` が `auto` (既定) なら `maid_launcher` が起動時にまず既定の場所 (`notemaid::transport::default_endpoint`) を叩き、居れば繋ぎ (常駐)、居なければ同梱の sidecar を親 pid 入りの場所で子プロセスとして起動して繋ぐ。sidecar が無い (`NOTEDECK_NOTEMAID` で差し替え可) / iOS / Android は in-process。**開発時もアプリの実行ファイルの隣 (`target/debug/notemaid`) があれば sidecar として使う**ので、`pnpm tauri:dev` は起動前に `cargo build -p notemaid` で作り直す (`tauri dev` は notemaid を作らず、古いバイナリが黙って使われていた。旧版の挙動が戻ったように見えたらまずこれを疑う)。起動中に notemaid を変えたら作り直してアプリを再起動する。`embedded` は常に in-process、`resident` は常駐にだけ繋ぐ。子は `--exit-on-stdin-close` で親の stdin の EOF を待ち (全 OS)、Linux は PDEATHSIG も掛ける。子も常駐も OS キーチェーン (`--secrets keychain`)、サーバー (headless) だけ暗号化ファイル。AI 設定のHEARTBEAT の「アプリを終了しても続ける」(`AiHeartbeatResidentRow`) の常駐トグルは `maid_launcher::set_resident` で、子プロセスを止めてログイン時タスク (`notemaid service install/enable`: systemd user unit / LaunchAgent / Run キー) を登録し、中継の繋ぎ先を再起動なしに付け替える (`RelayClient::switch_to`)。デッキ描画は notemaid の起動を待たず、AI 系の要求だけが接続を上限つきで待つ。版は sidecar なら常に同じ、常駐は指紋照合でずれを検知する。表に載っていないデータ系コマンドはどの構成でも存在しない
+- **AI エージェントループは Rust で notemaid に置く** (`crates/notemaid`、2026-09-29 に切り出し済み) ([#1133](https://github.com/notedeck-dev/notedeck/issues/1133))。WebView に残るのは UI、確認ダイアログ、UI 系 capability、AiScript (plugin / widget / scratchpad) の実行。チャット 1 ターンの状態機械 (ターン実行器)、確認要求、セッションの書込 (単一の書き手) と汚染の記録は移設済み。純データ系の capability (ノート / ユーザー / 通知 / アンテナ / チャンネル / ロール / リスト / クリップ / ドライブ / お気に入り / チャット / registry / アナウンス / Pages / Play / ギャラリー / 連合 / 外部 HTTP / MisStore の読取と書込、AI セッションの読取、principal の権限解決、skill / メモ / テーマ / カスタム CSS / プラグイン / ウィジェット / クエリの読み書き (AiScript の構文検証が要る作成・更新はデバイス)、キーバインド / ナビバー / パフォーマンス設定の読み書き (ナビバーの全置換はカラム種別の実行時レジストリで検証するのでデバイス)、persona の切替と AI の自己参照 (`meta.*`)。正本は宣言表の `exec` 属性) は `exec: core` で notemaid が直接実行し、確認内容の組み立て (プレビュー) も Rust 側 (`crates/notemaid/src/exec/preview.rs`)。デバイスの状態に触るもの (UI / ミュート / Vault / 下書き / 設定系) はデバイスへの実行要求 (詳細は [AI Chat Streaming](AI.md#ai-chat-streaming))。設定系の `exec: core` 化 (#1098 の services が前提) / HEARTBEAT の無人契約は後続
+- notecli の役割 (Misskey 通信・DB・ストリーミング) は変えない。notecore はその消費者。**notecli は notedeck の workspace に取り込む** (リポジトリは 1 つ、クレートは notecli / notecore / notemaid / アプリの 4 つ。`notecli` の CLI と `notemaid` の daemon はクレートからバイナリとして出し、notemaid の daemon 専用依存は `daemon` feature の裏に置いてアプリには乗せない)
+- 段階と受け入れ条件、認証・イベント面・状態の所在の仕様は #1106 の仕様コメントが正本 (2026-09-29 のコメントで AI 面に縮めた後の読み方が優先)。子プロセスが既定で、常駐は同じ端末のログイン時タスク。リモートは採用しない
+
+**今すぐ守ること (段階 0a、機械検査あり)**:
+
+- notecore 側のモジュールは `crates/notecore` に置く (2026-09-23 にクレート化済み)。notecore は `tauri` を参照せず、Cargo.toml に tauri 系を足さない (`tests/lint/rustCoreBoundary.test.ts`)。手元側 (WebView / managed state / OS 統合) が要る処理は trait (`FrontendBridge` / `AiChatSink`) で受け取り、Tauri 側 (`src-tauri/`) が実装を渡す。app dir のような値は `&Path` で受ける
+- **データ系コマンドは notecore のコマンド表に載せる** (`crates/notecore/src/commands/table.rs`、#1106 §4.1。2026-09-23 に既存のデータ系は全件移行済み。跨り (mixed) も「データ側は notecore の関数 (`export_service` / `backup_service` / `commands::admin` 等)、手元側は dialog や保存先の解決だけの薄い包み」に分けたので、`src-tauri/src/commands/` に `#[tauri::command]` で残るのは local と authz だけ)。本体は `&Core` と引数を取る関数として `crates/notecore/src/commands/<module>.rs` に書き、表に 1 行足す。表から Tauri ラッパー (`src-tauri/src/commands/table.rs`)、JSON アダプタ (`dispatch`)、フィクスチャが生成され、属性検査 (`(window = app)`: Tauri の窓から呼ばれたこと) は型付き経路でも JSON 経路でも本体の前に通る。注入の属性 `(owner = window)` は検査ではなく、呼び元の窓の label (JSON 経路では None) を本体の第 2 引数 `owner` に渡す (クエリ購読の所有者。窓が消えたら Rust が `close_owner` でその窓の購読だけ閉じる、#1131)。全コマンドを JSON 経路で往復させるテストが notecore にあり、引数の型は `Default` を要求する。手元側 (OS 統合) と認可境界のコマンドは従来どおり `#[tauri::command]` で書く
+- **DB の読み書きはすべて `Core::blocking` / `with_archive` / `spawn_archive_write` を通す** (notecli の Database は同期の rusqlite なので、async の本体から直接呼ぶと tokio の worker を塞ぐ)。生のハンドル (`Core::db()` / `try_db()`) は notecore の中だけで、コマンド本体やアプリ側からは取れない (#1098 §7、2026-10-27)。資格情報は `Core::credentials` / `credentials_or_anon` (口座の所在をキャッシュ越しに引く。miss 時の 1 行読みだけ worker で許容)。notecli に async API を足す案は不採用: 接続が writer / reader 1 本ずつの設計では中身が spawn_blocking になるだけで並行度が上がらず、CLI に runtime を持ち込む。プール化するなら notes キャッシュ再設計 (notecli#30) の中で、この境界の裏で差し替える
+- 表に載らない `#[tauri::command]` は直前の行に種別マーカー `// nd-command: <kind>` を持つ (`tests/lint/rustCommandKinds.test.ts`)。種別は `data` (データ系、notecore で実行できる) / `local` (OS 統合、手元に残る) / `authz` (認可境界を動かす操作: 権限ファイル / 信頼設定 / 公開 API トークン / Vault secret / アカウント資格情報。) / `mixed` (data と local が同居、段階 0b で分割)。優先順位は authz > mixed > local > data。認可境界に触れる本体は denylist で二重に検査され、authz 以外なら落ちる
+- Kotlin から直接呼ぶ Rust の入口 (JNI の `extern "system" fn Java_…`、Android の通知ブリッジやワーカーが使う) は `#[tauri::command]` ではないので、直前の行に `// nd-entry: local` を持つ (同じ lint)。OS 統合なので種別は local 固定。入口の中は release の `panic = "abort"` を前提に Result 一本で書き、`ndk_context` に触らない (#330 §4.1)
+- 逆向き (Rust から JNI で Kotlin を呼ぶ) のメソッドは、Kotlin からは誰も呼ばないので release の R8 に消される。**呼び先を足したら `src-tauri/android/proguard-jni.pro` にも足す** (`sync.sh` が gen の app 直下に置く)。debug ビルドは縮小しないので手元では動き、release 版だけで静かに壊れる (v1.92.0〜v1.95.1 は OS 通知の描画・push・ステータスバーの明暗が release で動いていなかった)。`tests/lint/androidJniKeep.test.ts` が Rust 側の呼び先と突き合わせる
+- **Android の閉じている間の通知はワーカーも Rust が本体** (`src-tauri/src/android_worker.rs`、#330 段階 C)。Kotlin の `NotificationWorker` は「ライブラリの読込 → 描画ヘルパーの初期化 → OS の通知許可の確認 → `NotificationBridge.runWorker`」だけで、口座の読取 (`Database::open_read_only`) / トークン (keychain は Kotlin から渡された application Context で開く `init_store_with_android_context`) / Misskey への問い合わせ / 文言 (`notecore::notify_plan`、ストリーミングと同じ) / 描画 (`android_notify`) は Rust。「ここまで OS 通知にした」は口座 × 種別の処理位置 (`notecore::notify_cursor`、ファイルは `notify_cursor_file`) で、ストリーミングとワーカーの両方が進める。文言を Kotlin の文字列リソースで二重に持つことはしない (`_native.android` は廃止)
+- **Android の push (#330) は口座ごとのオプトインで、ワーカーを速くするだけ**。配送アプリ (UnifiedPush の distributor) への登録 / 解除とエンドポイント・鍵の保持は Kotlin (`PushBridge` / `NotedeckPushService`)。設定の窓は設定メニューの「プッシュ通知」1 つで全アカウントを扱う (配送アプリの選択は端末で 1 つ、オン / オフは口座ごと、Scratchpad のコードはサーバーごと)。手順の本体は `src-tauri/src/push_flow.rs` で、本家 / 配送アプリ / keychain を trait で受け (実物は notecli と `android_push.rs` の JNI)、偽物で単体テストする。状態の遷移は `notecore::push_state` の純関数、状態ファイルは `push_store_file` (アプリデータ直下、秘密を置かない、端末外バックアップから除外)。本家の `sw/register` はネイティブトークン限定でアプリからは呼べないので、利用者に Web UI の Scratchpad で 1 回 ▶ してもらう。**秘密 (送り先と鍵) はコードに入れない**: NoteDeck が自分のトークンでレジストリ (scope `notedeck/push`、domain = アプリのトークン) に登録待ちを書き、`notecore::push_register` が組む定型のコードは合言葉 (サーバー単位の試行ごと) と対象の口座の一覧だけを持つ。コードが進むのは「生きている domain の登録待ちがちょうど 1 件、済み / 取り消し済みの印が 0 件」のときだけで、成功したら項目を秘密の無い「済み」で上書きしてテスト通知を送る。前の項目は消さずに取り消し済みにする (消すと合言葉を知る第三者の偽の登録待ちが「ちょうど 1 件」になる)。応答の貼り戻しは無く、**確定は届いた push** (受信の入口で、前面の抑止・処理位置・描画より前に書く。確定に使ったテスト通知は専用の文言で出し、ワーカーとストリーミングは出さない)。配送アプリへの登録は「口座 ID + 世代」(`push_state::instance_name`)、三つ組は keychain の `push-subscription:<口座 ID>:<世代>` で、新しい世代の送り先を受け取ってから古い世代を外す (connector は最後の登録を外すと選んだ配送アプリも忘れる)。解除・印の取り消し・取り外しは状態ファイルの後始末のキューに積み、起動時 / 復帰時 (`push_attention`) とワーカーの巡回で再試行する。登録し直しが要る口座 (送り先や鍵の変化・サーバーの鍵の変化 / Web Push の停止・ワーカーが続けて見つけた未着・v1.94.0 のサーバー単位の登録からの移行) は受信トレイに出す。組んだコードは golden (`crates/notecore/tests/fixtures/push_register_code.is`) に書き出し、本家の AiScript (現行と、古い版のサーバーに残る版の両方) で実際に動かすテストが読む。遷移は開始の状態 × 事象の表を golden (`crates/notecore/tests/fixtures/push_state_transitions.txt`) に固定し、変えたら表の差分で確かめる。受信の中身は `notecore::push_payload` が解釈して `notify_plan` で描く (本家が切り詰めて落とすノートの投稿者は補って読む)。可視カラムの抑止は JNI の入口からも同じ集合を見る (`VisibleNotificationScopes::process`)
+
+```
+src/                        # Vue 3 frontend
+├── adapters/               # Server API adapters (Misskey, forks)
+│   ├── types.ts            # Shared interfaces (ServerAdapter, ApiAdapter, StreamAdapter)
+│   ├── registry.ts         # Adapter factory
+│   └── misskey/            # Misskey implementation (IPC via invoke/listen)
+├── aiscript/               # AiScript runtime & Misskey Play API
+├── commands/               # Command registry, definitions, CLI handlers
+├── components/             # Vue components
+│   ├── common/             # MkNote, MkPostForm, MkEmoji, CommandPalette, etc.
+│   └── deck/               # DeckLayout, DeckColumn, column types
+├── composables/            # Vue composables (useNoteFocus, useTimeMachine, etc.)
+├── core/                   # Business logic (server detection)
+│   ├── queryDeltaBus.ts    # query-delta の単一リスナー多重化・復帰時再アタッチ
+│   ├── queryRegistry.ts    # プラグイン fan-out 用の queryId refcount レジストリ
+│   └── streamHealth.ts     # 生のストリーム接続状態台帳 (#698)
+├── data/                   # Static data & constants
+├── router/                 # Vue Router definitions
+├── services/               # 純ロジック (正規化 / マイグレーション / マージ規則 / codec / 述語)。store・Vue・Tauri に依存せず、テストは隣に置く (#782 / #1098 §5)
+├── stores/                 # Pinia stores (accounts, deck, servers, emojis, theme, etc.) — 購読 + キャッシュ + UI 状態
+├── styles/                 # Global CSS (CSS variables)
+├── theme/                  # Misskey-compatible theme compiler & applier
+├── utils/                  # Tauri / DOM / localStorage の薄いラッパーと UI 向けヘルパー (i18n を引くもの)。純ロジックは services へ
+└── views/                  # Page components (NoteDetail, UserProfile)
+
+crates/notecore/src/        # notecore (Tauri 非依存のデータ領域、#1106)。AI を知らない
+├── lib.rs                  # モジュール一覧と境界の説明
+├── error.rs                # Result alias (エラー型は notecli の NoteDeckError)
+├── context.rs              # Core: 実行文脈 (DB / Misskey クライアント / OGP、二段階初期化)。旧 AppState
+├── commands/               # コマンド表 (table.rs) とデータ系コマンドの本体 (timeline.rs, ...)
+├── permissions_gate.rs # external principal gate (#712) — 永続トークンの per-route 権限判定
+├── permissions_profile.rs # permissions.json5 → 実効権限の解決 (#1099) — JS と golden vector で一致検査
+├── image_cache.rs      # 3-tier image cache (memory → disk → network)。host 単位の 429 throttle 窓と half-open circuit breaker で一時失敗を <img> のエラーにしない
+├── emoji_cache_store.rs # サーバー絵文字辞書のディスクキャッシュ (host 単位、鮮度内なら起動時の全件取得を省く)
+├── media_warm.rs       # メディア先行取得キュー (辞書到着時に絵文字 variant を低優先で温める)
+├── ogp/                # OGP metadata extraction & cache
+├── ssrf.rs             # SSRF 防御 (URL / IP の一次検証 + DNS pinning)。汎用 fetch / 画像 / Vault / エクスポートが共用
+├── settings_store.rs   # 設定ファイル store (allowlist が正本、export / import)
+├── credentials.rs      # アカウント資格情報の解決 (メモリキャッシュ → keychain → DB)
+├── shutdown.rs         # 終了時のタスク所有。tokio Handle を受け取る
+├── query_runtime.rs    # クエリランタイム本体 (購読台帳 / 差分バッファ / 読み取りモデル)。コマンドと flusher は commands/query.rs
+├── vault/              # Secret Vault (#564)。app dir を &Path で受け、Tauri を知らない
+├── http_server.rs      # Axum HTTP API server (localhost:19820)。手元側への問い合わせは FrontendBridge 経由
+├── frontend_bridge.rs  # HTTP API → 手元側 (WebView / managed state) の問い合わせ口 trait
+├── perf_config.rs      # パフォーマンス設定 (Rust 側)
+├── clock.rs            # now_ms (notemaid のセッション / メモと notecore のテーマ / サイドカーが同じ時計を使う)
+├── capabilities/       # capability の宣言表 (generated.rs、認可と HTTP API が参照する語彙)。実行は notemaid
+
+crates/notemaid/src/        # notemaid (AI、#1106)。notecore の上に載り、データ面 (notes DB / ストリーミング) には依存しない
+├── lib.rs                  # モジュール一覧
+├── main.rs                 # バイナリの入口 (`daemon` feature): run / status / service / secrets
+├── daemon/                 # 別プロセスの本体: run (Core の組み立て / HEARTBEAT timer / RPC 面)、rpc_server、sinks、service (systemd)、lock、logging、exit
+├── transport.rs            # アプリ ⇄ notemaid の経路 (Unix socket / Windows named pipe)、既定の場所と子プロセスの場所
+├── sinks.rs                # CoreMaidExt: Core の EventSink (名前 + JSON、notecore の型) を AI 側の 3 つの sink の形で引く薄い変換
+├── commands/               # AI 系のコマンド表 (table.rs) と本体 (ai_chat.rs / ai_sessions.rs / heartbeat.rs)。生成器は notecore の define_command_table!
+├── ai_turn/                # ターン実行器 (#1133): ラウンドの反復 / 確認 / 汚染 / チェックポイント
+├── exec/                   # `exec: core` な capability の本体と確認プレビュー
+├── heartbeat.rs            # HEARTBEAT の本体 (tick ごとの skill 実行、報告、失敗停止)
+├── ai_chat_service.rs      # AI SSE クライアント (Anthropic / OpenAI 互換)
+├── ai_sessions.rs / ai_budget.rs / ai_config.rs  # セッションの単一書き手 / 日次 token 予算 / ai.json5
+└── skills.rs / memos.rs    # skill とメモ (AI の持ち物)
+
+crates/notecli/             # Misskey クライアントライブラリ + CLI (Misskey 通信 / DB / ストリーミング)
+
+src-tauri/src/              # Rust backend (Tauri 固有部分 = 手元側)
+├── lib.rs                  # App setup (tray, plugins, state)
+├── commands/               # Tauri IPC command handlers: データ系は表から生成、残りは手元側 (local / authz / mixed)
+│   ├── mod.rs              # 再公開と Tauri 側の sink (OGP ヒント等)
+│   ├── table.rs            # notecore のコマンド表から Tauri ラッパーを生成 (#1106)。データ系コマンドはすべてここ経由
+│   ├── api_tokens.rs       # 認可境界 (公開 API トークン)。資格情報 / secret / 信頼設定の本体は notecore の commands/ (admin.rs / auth.rs / vault.rs) で、表の authz 行
+│   ├── settings.rs / backup.rs / export.rs / utility.rs  # dialog / OS 統合 / 端末のファイル (local / mixed)
+│   ├── heartbeat.rs / health.rs / system_state.rs  # 手元のランタイム (HEARTBEAT scheduler / 診断 / OS 状態)
+│   ├── query.rs            # クエリランタイムの delta flusher と Tauri イベント
+│   └── ai_chat.rs          # AI チャットのイベント sink
+├── client_layer.rs         # AI 系コマンドを別プロセスの notemaid に中継する口 (接続 / 再接続 / AI イベント転送 / 橋の問い合わせ / 状態面)
+├── maid_launcher.rs        # notemaid の起動役: 常駐が居れば繋ぎ、居なければ同梱の sidecar を子プロセスで起動 (親の死で一緒に終わる)
+├── streaming.rs            # TauriEmitter adapter (FrontendEmitter trait impl)
+├── query_bridge.rs         # FrontendBridge の Tauri 実装 (Tauri イベントで Pinia store に問い合わせる)
+└── main.rs                 # Entry point
+```
+
+**層の依存方向** (#1098、`tests/lint/layerImports.test.ts` が検査する):
+
+```
+components → composables → stores → services → adapters → bindings
+```
+
+services は store / composables / components / Vue / Pinia を runtime import しない (純ロジック)。stores は composables を、adapters は stores を import しない。components は IPC (`tauriInvoke` / `bindings`) と adapter の factory を直接叩かず composable を通す (#1258 で凍結ゼロ): Misskey の API は adapter (`ApiAdapter` に無いメソッドは足す) をカラムなら `useColumnSetup` / `useNoteColumn` の `initAdapter`、ウィンドウやポップアップなら `useMultiAccountAdapters` の `forView` / `apiFor` で引き、クエリ購読やキャッシュ・バックアップ・画像などの手元の command は `src/composables/` の用途別の小さなモジュール (`querySubscriptions` / `archiveSearch` / `cacheMaintenance` / `backupFiles` / `imageFiles` / `httpApiServer` / `appDiagnostics` / `login` / `chatStream`) を通す。adapters の factory は stores を知らず、サーバー情報の取得と絵文字 / ピン留めの温めは起動時に `wireAdapterFactory` (stores 側) で注入する。services がアカウントを要るときは引数で受ける (`resolveNoteUriFor`)。層依存と循環 import の凍結は 2026-10-27 にすべて解消した (offlineMode ↔ realtimeMode は、輸送路の再適用を streaming store に置いて一方向にした)。`import type` は依存に数えない。
+
+Misskey API クライアント・DB・モデル・ストリーミングコアは `notecli` クレートにある。`src-tauri/` が抱えていた Tauri に依存しないドメイン (OGP 抽出とサイト別プラグイン / Secret Vault / クエリランタイム / 画像キャッシュ / HTTP API サーバー / カラムクエリの QIR 評価器) は notecore に、AI SSE クライアントは notemaid に移した (上のツリー)。
+
+置き場の規則 (#782):
+
+- `commands/*.rs` は IPC アダプタ。State の取り出しとパス解決だけを行い、薄く保つ
+- トップレベルの `*_service.rs` / `*_store.rs` / サブモジュールは、引数を取って単体テストできるサービス。`AppHandle` や `State` を直接受けない
+- Misskey の API / DB / ストリーミングに関わる共通処理は notecli に足す (フォークやスタンドアロン CLI からも使えるように)
+
+この規則は一部のモジュールにしか適用されておらず (notecore の column_query / http は commands/ にドメインを持つ)、ドメインをクレートに切り出すかも含めて #1098 で扱う。終了時のタスク所有は `shutdown.rs` に一元化されている。
+
+## Boot Sequence
+
+NoteDeck は **UI 表示までの時間を最小化** するため、バックエンドの重い初期化をバックグラウンドで行いながらフロントエンドを先行起動する設計になっている。
+
+### 全体フロー
+
+Rust バックエンドとフロントエンドが並列に動作し、イベントで連携する。
+
+```mermaid
+sequenceDiagram
+    participant R as Rust (Tauri)
+    participant W as WebView
+    participant V as Vue (Frontend)
+
+    Note over R: Phase 1 — 軽量初期化 (< 50ms)
+    R->>R: Tokio ランタイム作成 (workers=4)
+    R->>R: Tauri プラグイン登録
+    R->>R: setup(): データディレクトリ / キーチェーン / マイグレーション
+    R->>R: AppState を empty で登録
+    R->>R: PerfConfig / HTTP Client / EventBus 初期化
+    R->>W: WebView ロード開始
+
+    Note over W: スプラッシュ画面表示 (#nd-splash)
+
+    par Phase 2 — バックグラウンド重初期化
+        R->>R: [Thread 1] DB open
+        R->>R: [Thread 2] MisskeyClient init
+        R->>R: [Thread 3] HTTP server bind
+    end
+
+    W->>V: main.ts 実行開始
+    V->>V: initEarlyAccountListener() (nd:accounts-early を同期登録)
+    V->>V: Tauri API / DeckPage 事前フェッチ
+    V->>V: createApp → Pinia → Router
+    V->>V: themeStore.init() (localStorage 復元)
+    V->>V: keybinds / performance init
+    V->>V: accountsStore.loadAccounts() (fire-and-forget)
+    V->>V: app.mount('#app')
+    V->>V: App.vue: window.show()
+
+    Note over R: Stage 1 — DB 準備完了
+    R->>R: DB マイグレーション
+    R->>R: app_state.initialize_db(db)
+
+    par アカウント取り込み（どちらか先着で populate）
+        R-->>V: nd:accounts-early イベント → 事前登録 listener が即時 apply
+        V->>R: invoke('load_accounts') (safety net)
+        R-->>V: IPC レスポンス → 未 populate なら apply
+    end
+
+    R->>R: StreamingManager 初期化
+
+    Note over R: Stage 2 — 完全準備完了
+    R->>R: app_state.initialize(db, client)
+    R->>R: HTTP サーバー起動 + OGP/画像キャッシュ
+    R-->>V: nd:backend-ready イベント
+
+    V->>V: DeckLayout mount
+    V-->>V: nd:deck-mounted → スプラッシュ解除
+    V->>V: deckStore.startSync() (ストリーミング接続)
+    V->>V: registerDefaultCommands()
+
+    Note over V: requestAnimationFrame (defer)
+    V->>V: ApiBridge / Notifications / OGP / CLI commands
+
+    Note over V: requestIdleCallback (defer)
+    V->>V: KaTeX CSS
+```
+
+### Two-stage AppState
+
+バックエンドの初期化を 2 段階に分けて、DB が準備できた時点で一部のコマンドを先行アンロックする仕組み（`crates/notecore/src/context.rs` の `Core`。旧 AppState）。
+
+```mermaid
+stateDiagram-v2
+    [*] --> Empty : AppState new()
+    Empty --> DB_Ready : initialize_db(db)
+    DB_Ready --> Fully_Ready : initialize(db, client)
+
+    Empty : 全コマンド待機
+    DB_Ready : DB専用コマンドがアンロック
+    DB_Ready : (load_accounts 等)
+    Fully_Ready : 全コマンドがアンロック
+```
+
+内部的には `tokio::sync::watch::channel` を 2 本持ち、`db()` は DB チャネルのみ、`client()` はフルチャネルを待機する。これにより `load_accounts` のようなDB専用コマンドは MisskeyClient の初期化を待たずに応答できる。
+
+### スプラッシュ画面
+
+`index.html` にインラインで定義された `#nd-splash`（ハートビートアニメーション付きロゴ）。
+
+- **表示**: WebView ロード直後（Vue マウント前から表示済み）
+- **解除**: `uiStore.deckMounted`（DeckLayout のマウント完了）を `App.vue` が watch して解除
+- **フォールバック**: タイムアウトで強制解除（時間は `App.vue` の splashTimeout が正本）
+- **アニメーション**: `opacity: 0` トランジション → `transitionend` で DOM 削除
+- **計測**: 起動フェーズは `src/utils/startupTrace.ts` の performance.mark で記録し、About ウィンドウの「起動パフォーマンス」に表示（#985）
+
+データ（ノート等）のロード完了は待たず、カラムフレームの描画が完了した時点でスプラッシュを解除する。
+
+### 起動時の最適化テクニック
+
+| テクニック | 実装箇所 | 効果 |
+|-----------|---------|------|
+| Two-stage AppState | notecore `context.rs` | DB 準備次第でアカウント読み込み開始 |
+| 早期アカウントイベント | `lib.rs` → `nd:accounts-early` | IPC 往復を待たずにフロントへ通知 |
+| 事前登録 listener | `stores/accounts.ts:initEarlyAccountListener` | `main.ts` 最上部で `listen()` を同期登録し、Rust 側 emit を取りこぼさない（Pinia 初期化前でも module-scope バッファに保存） |
+| 未ロード時の空状態ガード | `DeckColumn.vue` `requireAccount` prop | カラム本体スロットを `accountsStore.isLoaded` まで抑制し「アカウントが見つかりません」の一瞬のチラつきを防止 |
+| 動的 import 事前フェッチ | `main.ts` | DeckPage / カラムチャンクを並列ダウンロード |
+| テーマ localStorage 復元 | `themeStore.init()` | ネットワーク不要で FOUC 防止 |
+| 3 スレッド並列初期化 | `lib.rs` Phase 2 | DB / Client / HTTP bind を同時実行 |
+| 非クリティカル処理の defer | `useDeckInit` | rAF / rIC で初回描画を優先 |
+
+## OS の状態への自動適応 ([#931](https://github.com/notedeck-dev/notedeck/issues/931) / [#935](https://github.com/notedeck-dev/notedeck/issues/935) / [#928](https://github.com/notedeck-dev/notedeck/issues/928) / [#986](https://github.com/notedeck-dev/notedeck/issues/986) / [#461](https://github.com/notedeck-dev/notedeck/issues/461))
+
+バッテリー駆動・省電力モード・従量制回線・集中モードを OS から読み、ウィンドウが隠れていることをフロントで検知して、アプリの挙動を自動で落とす。前者は Web API では取れない領域 (Battery Status API は WebKit に無く、従量制と集中モードは API 自体が無い) なので観測は Rust が担う。
+
+| 層 | ファイル | 役割 |
+|---|---|---|
+| 観測 (OS) | `src-tauri/src/system_state.rs` | OS ごとのプローブを定期ポーリングし、変化時だけ `SystemState` event を emit。取れない項目は `null` |
+| 観測 (ウィンドウ) | `src/composables/useAppBackground.ts` | `document.hidden` が猶予を超えて続いたら `uiStore.isBackground`。`useDeckResume` (復帰) の対になる離脱の発生源 |
+| 観測 (回線) | `src/stores/systemState.ts` | WebView の `navigator.onLine` と `online` / `offline` イベント。OS ごとの到達性 API は持たない (#791 の時刻ジャンプ検知と同じく JS 1 実装) |
+| IPC | `src-tauri/src/commands/system_state.rs` | 起動時の初期値取得 (`system_state_get`) |
+| 判断 | `src/services/systemAdaptation.ts` | 状態 → 「何を落とすか」の純ロジック (`deriveAdaptation`) と、入るときの通知文言 |
+| 購読 | `src/stores/systemState.ts` | event 購読 + 現在値 + `adaptation` computed。`App.vue` が各ウィンドウで `start()` |
+
+**落とすもの** (正本は `deriveAdaptation`):
+
+- バッテリー駆動 / 省電力モード → 画像の先読み (`useImagePrefetch`) を止め、カスタム絵文字を `static=1` で 1 フレーム目に潰す (`proxyEmojiUrl` / `media_proxy.rs`)
+- 従量制回線 → 先読みを止め、添付画像・動画は `MkMediaGrid` でタップするまで読まない。ストリーミングは維持する (切ると通知が届かなくなる)
+- 集中モード → 自前再生の通知音 (`useNoteSound.play`) を鳴らさない。通知はカラムに積まれ、解除後に鳴らし直さない。OS 通知は OS 側が抑制するので触らない
+- 回線が無い (#461) → アプリのオフラインモードに自動で入り (`goOffline`)、戻ったら自動で抜けて復帰信号で再接続する。手動で入れたオフラインモード (`modes.offline`) は回線が戻っても抜けない。自動で入っている間に利用者が解除したら、次に回線が切れるまで自動を抑止する (回線検知の誤りで閉じ込めない)。実効値 = 手動 or 自動で、副作用 (ストリーム切断 / 輸送路の再適用 / 復帰信号) は `offlineMode` store の watcher 1 箇所。カラムのバナーは自動のとき「回線なし」と出す
+- ウィンドウが隠れている (#986) → タイムラインカラムの購読を warm に落とす (`useNoteColumn` / `useCrossAccountNotes` の可視性 watch に合流)。カラム単位の不可視と同じ経路で Rust 側が `suspend_subscription` する。**WS 接続と main チャネルは残す**ので OS 通知は届き続ける (main は notecli が suspend を no-op にしている)。復帰は `useDeckResume` → 各カラムの `onResume()` (gap 検知つき差分埋め) がそのまま担う。未読ポーリングは元から hidden で止まる
+
+**オフラインモード** ([#461](https://github.com/notedeck-dev/notedeck/issues/461) / [#1350](https://github.com/notedeck-dev/notedeck/issues/1350)):
+
+手動と自動で扱いを分ける。**手動のオフライン** (利用者が切り替える。回線はある) は、漏れた要求が実際に外へ出るので確実に止める。約束するのは「Misskey サーバーへの要求 (API とストリーミング) を止める」ことで、画像の読み込みと AI チャットは続く。**自動のオフライン** (回線が無いと WebView が判断して入る一時状態) は要求が即座に失敗するだけなので、Rust にも notemaid にも伝えず、失敗しても害が無いことだけを保つ。
+
+手動のオフラインの正本は、この機械の状態 `state/offline.json`。書くのは Rust だけで、切替は専用の command (`offline_mode_set`) が状態を書き、張っているストリーミングの接続を切り、全窓へ `OfflineModeChanged` を流す。フロントの `offlineMode` store はその写し。判定は `notecore::offline::manual` の 1 関数で、アプリも別プロセスの notemaid も呼ぶたびにファイルを読む。状態が在るのに読めないときはオフラインとして扱う (画面にもオフラインと出るので、解除すれば書き直されて直る)。持ち運ぶ設定 (`settings.json5`) には置かない: 別の機械で入れたオフラインが、同期した先の巡回を止めたり、同期で解除されたりするため。
+
+**保証は門で行う。** 門は Misskey への送信の直前の検査 (`notecli::egress::EgressGate`、判定は `notecore::offline::Gate`)。notecli のクライアントは要求を出すたびに通し、ストリーミングの接続も同じ検査を通す。クライアントを作るときに必ず渡す (渡さなければ常に通す、という既定は無い)。フロントの要求も、巡回の中の操作も、外部アプリ経由の操作も、ここで止まる。門が断るエラーの種類は `OFFLINE_MODE` で、再ログインの案内にも、再試行できる通信エラーにも当たらない。
+
+フロントで先に見送る処理 (`isOfflineMode` を読む各所) は、保証ではなく見え方を整える層: 背景の要求は黙って見送り、利用者が押した操作は「オフラインモード中です」と見せる。欠けても通信は出ない。
+
+| 門で止まるもの (手動のオフライン) | フロントでの見え方 |
+|---|---|
+| Misskey の API (取得・書込のすべて) | 背景の要求 (ミュート同期 / ナビバーのオンライン状態 / 凍結アカウントの再確認 / 未読のポーリング / 復帰の取り直し) は黙って見送り、解除の復帰信号で取り直す |
+| ストリーミング (WS / polling の輸送路) | 入るときに切替の command が全接続を切る。抜けるときに `applyPersistedMode` で輸送路を戻し、復帰信号で張り直す |
+| 起動時の main チャンネル | オフラインのまま起動したら張らない |
+| カラムの接続・手動更新・追加読み込み | キャッシュだけ表示する (ノート系 / 通知 / チャット)。オフライン中に開いたカラムは解除で繋ぎ直す |
+| 投稿 | 送らずに「オフラインモード中です」と見せ、入力をフォームに残す (送信は楽観的にフォームを閉じてから行い、失敗時の退避先の下書きもサーバーなので、送ってから失敗させると本文を失う) |
+| リアクション / リノート / 削除 / ブックマークなど | 「オフラインモード中です」と見せる (`useColumnSetup.checkOffline`) |
+| ログイン | 失敗する。ログインの失敗の表示に「オフラインモードを解除」を出す (口座が無いと、ほかの解除の入口に届かない) |
+| ログアウト / 口座のデータの削除 | 始める前に止めて理由を見せる (サーバー側の後始末が通らないまま手元のトークンを消すと、後から後始末できない) |
+| 絵文字の辞書の取り直し | 古くてもキャッシュを返す |
+| 巡回 (HEARTBEAT) の中の Misskey の操作 | 巡回そのものを先頭で見送る (下の表) |
+
+| 門とは別に、押していないのに出る通信を止めるもの (手動のオフライン) | 止め方 |
+|---|---|
+| HEARTBEAT | 巡回の先頭で `notecore::offline::manual` を見て見送る (`skip:offline`。連続失敗に数えず、日次も消費しない)。timer を誰が持つか (アプリ / 子プロセスの notemaid / 常駐) に関わらず効き、アプリを閉じた常駐も巡回しない。待機の理由「オフライン」を AI 設定に出し、知らせは出さない。「今すぐ巡回」は始めずに理由を返す |
+| 更新確認 | 確認しない。解除したときに確認する |
+| リンクのプレビュー (OGP) | `useOgpPreview` が取りに行かず、失敗としても覚えない |
+| ストアの索引 | `misstore.fetchIndex` がエラー表示だけ |
+
+**門を通さない例外**: notecli のコマンドラインの道具 (利用者が自分で打つ別の道具。`egress::AllowAll` を明示して渡す)。
+
+**止めないもの** (理由ごと):
+
+- **AI チャット** — 利用者が押した操作で、相手は Misskey ではない。オフラインにして AI にメモを触らせる使い方を残す。AI が Misskey の操作をしようとした分は門で止まり、エラーが AI と利用者に見える
+- **画像の中継とキャッシュ、WebView が直接出す通信** (画像の直取得、埋め込み、カスタム CSS の外部の読み込み) — 門の外にある。止めるなら、キャッシュに無い画像が欠けたときの見え方を先に決める。約束を「Misskey サーバーへの要求」に留めているのはこのため
+- **手元の CLI が自分で行う通信** — 止める手段が無い
+- **自動のオフラインでの失敗** — 回線が無いときの要求は即座に失敗するだけ。巡回は、接続先に届かなかった巡回を失敗に数えない扱い (#1321) に任せる。回線なしで起動したときのストリーミングの再接続も止めない: 間隔を伸ばしながら続き、回線が戻れば自力で復帰する (回線の検知が誤っていたときの保険にもなる)
+
+**採らなかった形**:
+
+- 自動のオフラインを Rust や notemaid に伝える (窓が回線の状態を送る / Rust が OS の機能で観測する) — 解けるのは「回線なしで起動したときの再接続」と「解除が窓ごと」で、どちらも止める価値が無い。窓から送る形は、送る窓が止まると古い「オフライン」が残り、常駐では解除する者がいない
+- 呼ぶ側が毎回確かめるだけで保証する — 確かめ忘れた経路が黙って漏れる (投稿、外部アプリ経由の操作、別プロセスの巡回がそうだった)
+- オフライン中の AI チャットを止める — 上のとおり
+
+**設定は 1 つだけ**: `settings.json5` の `system.autoAdapt` (既定 ON、パフォーマンス設定の先頭トグル)。どの状態で何を落とすかは選ばせない。細かく決めたい場合は手動のパフォーマンス設定を使う。集中モードの消音はこの設定に依らず常に効く (#928: OS が静かにしろと言っているなら黙る)。
+
+**適応は一時的な上書き**であり `performance.json5` には書かない (auto quality が override を永続化してしまうのとは違う層)。自動で落ちたことに気付けないと不具合に見えるため、入るときだけ info トーストで知らせ、抜けるときは黙る。
+
+**取得手段は OS ごとに違う** (表は `system_state.rs` の冒頭コメントが正本)。取れないプラットフォームでは `null` = 通常どおりで、代替トグルは作らない。特に集中モードは macOS (private な DB ファイル) / Windows (未公開 WNF) とも公式 API が無く、OS 更新で黙って取れなくなり得る。Android / iOS は全項目未対応。
+
+**採用しなかったもの**:
+
+- HEARTBEAT を background で止める (#986 の候補) — 離席中に AI が働く daemon なので、隠している間こそ動く必要がある。止めると foreground 専用機能に退化する
+- Rust 常駐タスクの間隔を background で伸ばす (#986 の候補) — 対象は OS 状態監視と期限切れ資格情報の掃除だけで、どちらも数十秒〜数分に 1 回の軽い処理。pause 機構を足すコストに見合わない
+- チャットカラムの購読を background で落とす — 購読ハンドルがチャットスレッド側にあり `useColumnSetup` の runtime state を通っていない。通知カラムは main 共有なのでそもそも落ちない
+- OS のウィンドウイベント (`WindowEvent::Focused` / `is_minimized`) で離脱を検知する — 非表示・最小化・トレイ格納はいずれも WebView を不可視にするので `document.hidden` で一様に取れ、既存の復帰検知と同じシグナルで済む
+- 残量低下時のストリーミング再接続間隔の延長 (#931 の表にある項目) — バックオフは notecli 側の定数で、外から変える口が無い。notecli に API を足してから
+- 電源・回線の状態変更を OS のイベントで受ける — ポーリングで十分な即応性が得られ、OS ごとの購読 API を 3 系統配線するより単純
+- `navigator.connection.saveData` / `getBattery()` — WebKit に無い。フォールバックとしても採用しない
 
 ## 採用状況マトリクス
 
@@ -1393,7 +1747,7 @@ DB::open_with_eviction(path, notes_cfg, chat_cfg)
 | キャッシュ | A-5 3層画像 / A-6 OGP / A-8 オフラインファースト |
 | チャットキャッシュ | [チャットキャッシュ・アーキテクチャ](#チャットキャッシュアーキテクチャ) `chat_messages_cache`（Phase A + B-1〜B-6 実装済み [#460](https://github.com/notedeck-dev/notedeck/issues/460)） |
 | DOM管理 | A-10 上限付き積み上げ（デフォルト200件/カラム、設定で可変） |
-| レンダリングパフォーマンス | [DEVELOPMENT.md](DEVELOPMENT.md#レンダリングパフォーマンス) に詳細 |
+| レンダリングパフォーマンス | [PERFORMANCE.md](PERFORMANCE.md#レンダリングパフォーマンス) に詳細 |
 | OS統合 | A-7 トレイ/ショートカット |
 | DB管理 | B-4 refinery マイグレーション |
 | テスト | Rust (`cargo test`、notecli / notecore / notemaid / アプリ) + vitest (`pnpm test`) |

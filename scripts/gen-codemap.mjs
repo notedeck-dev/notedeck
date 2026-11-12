@@ -4,7 +4,7 @@
 // 構造の一覧 (種別・ストア・設定ファイル等) は手で書くと書いた瞬間から腐る。
 // 正本はすでにコードにあるので、ここで読んで並べるだけにする。数は書かない
 // (並べれば数えられる)。人が書く価値のある「なぜ」は ARCHITECTURE.md /
-// DEVELOPMENT.md に置く。
+// DECK.md / AI.md に置く。
 //
 //   node scripts/gen-codemap.mjs          CODEMAP.md を書き直す
 //   docs-lint は renderCodemap() と CODEMAP.md を突き合わせ、ずれていれば落とす
@@ -155,7 +155,7 @@ export function renderCodemap() {
   '',
   '<!-- このファイルは scripts/gen-codemap.mjs の生成物。手で編集せず `pnpm gen:codemap` で作り直す -->',
   '',
-  'リポジトリの構造の一覧。正本のファイルから生成していて、構造が変わると `pnpm lint:docs` が再生成を求める。設計の理由は [ARCHITECTURE.md](ARCHITECTURE.md) と [DEVELOPMENT.md](DEVELOPMENT.md) を読む。',
+  'リポジトリの構造の一覧。正本のファイルから生成していて、構造が変わると `pnpm lint:docs` が再生成を求める。設計の理由は [ARCHITECTURE.md](ARCHITECTURE.md) / [DECK.md](DECK.md) / [AI.md](AI.md) を読む。',
   '',
   crates(),
   columnTypes(),

@@ -115,3 +115,84 @@ NoteDeck に入っている最適化と、検討したうえで採用しない�
 - **Snowflake ID**: 時間ソート可能 64bit ID。ID 比較のみで時系列クエリ実現
 - **Manhattan/Memcache マルチティア**: ホットデータの読み取りオーバーヘッド最小化
 - **TweetDeck 高速スクロール**: スクロール速度に応じたアダプティブプリフェッチ
+
+---
+
+## パフォーマンス設定
+
+NoteDeck のパフォーマンス関連パラメータはすべてユーザーが調整可能。設定エディタ UI とファイルベースのバックアップに対応している。
+
+| ファイル | 役割 |
+|---------|------|
+| `src/stores/performance.ts` | Pinia ストア（`PerformanceConfig` 型定義・Rust 同期） |
+| `src/components/window/PerformanceEditorContent.vue` | 設定エディタ UI |
+| `src/defaults/performance.json5` | デフォルト値（スライダー中央値と一致） |
+| `src/utils/settingsFs.ts` | Tauri ファイル I/O |
+
+**カテゴリ:** 絵文字キャッシュ / ノート / パースキャッシュ / リアルタイム / バックエンド（Rust）
+
+**操作モデル:** 両端「省メモリ ↔ 高性能」の **スライダー** で線形補間する。固定プリセット名 (preset 列挙) は持たない。中央値が `src/defaults/performance.json5` と同値。
+
+**永続化:**
+- 設定は `performance.json5` に独立ファイルとして保存する（`usePerformanceStore` が single source of truth）。`settings.json5` のスカラーハブとは分けている（構造を持つ定義は専用ファイル、の規則）
+- デフォルト値と同じキーはオーバーライドに含めない（差分のみ保存）
+- バックエンド（Rust）側のパラメータは `invoke('update_performance_config')` で即時同期
+
+## レンダリングパフォーマンス
+
+SNS クライアントに必要な3つのパフォーマンス基盤を実装済み。
+
+### CSS レンダリング規約
+
+- **Compositor-only アニメーション**: `transform`, `opacity`, `translate`, `scale`, `rotate` のみ。`width`/`height`/`top`/`left` 等は禁止（`tests/lint/cssTransitions.test.ts` が `transition` 宣言を検査。残存分は同テストの ALLOWED に凍結）
+  - タブインジケータ: `left`/`width` → `translate`/`scale`（`useTabIndicator.ts`）
+  - 投票バー: `width` → `scaleX` + CSS 変数（`MkPoll.vue`）
+  - カラムドラッグ: `style.left`/`top` → `translate` + 幅キャッシュ（`useColumnDrag.ts`）
+- **Layout Thrashing 回避**: DOM 読み取り（`offsetHeight` 等）と書き込みを交互に行わない
+- **CSS Containment**: スクロール内アイテムに `contain: layout style paint` + `content-visibility: auto`（24+ コンポーネントで適用済み）
+- **ペイント誘発プロパティ**: `box-shadow`/`border-radius`/`clip-path`/`backdrop-filter` のアニメーション禁止（静的使用は可。同じく `cssTransitions.test.ts` が検査）
+- **CSS Custom Properties 優先**: JS から直接 `style.top` 等を操作せず `setProperty('--nd-offset', ...)` 経由
+- **デザイントークン (#704)**: 文字サイズ (em) ・太さ・角丸は `src/styles/global.css` の `--nd-font-*` / `--nd-weight-*` / `--nd-radius-*` を使い、直書きしない。余白は偶数 px。px / rem の文字サイズは固定寸法の部品 (アイコン・IDE 面) 用。`tests/lint/designTokens.test.ts` が検査する (残存分は同テストの ALLOWED に理由つきで凍結)
+
+### Frame Scheduler — DOM read/write バッチング
+
+fastdom と同じ考え方で、DOM 読み取りと書き込みをフェーズ別に分離して Layout Thrashing を回避する。ワークがないフレームではループを停止し、CPU ウェイクアップを避ける（常時ループではなくイベント駆動）。
+
+```mermaid
+graph LR
+    START["rAF 開始"] --> READ["DOM read<br/>batched reads"]
+    READ --> WRITE["DOM write<br/>batched writes"]
+    WRITE --> IDLE["Idle<br/>残余時間で低優先度処理"]
+    IDLE --> END["計測 → Telemetry"]
+```
+
+- `src/engine/frameEngine.ts` — 5フェーズ RAF ループ、フレーム予算管理、Jank 検出
+- `src/composables/useFrameScheduler.ts` — Vue composable ラッパー
+- 使用例: `useTabIndicator`（read/write 分離）、`useStreamingBatch`（write フェーズでノートバッチ投入）
+
+### Adaptive Quality — CSS 品質の自動調整
+
+Jank（33ms 超のフレーム）を検出し、CSS 描画プロパティ（blur, shadow, animation speed）のみを動的に調整する。キャッシュサイズやノート保持数などフレームパフォーマンスと無関係な設定は変更しない。
+
+```mermaid
+graph LR
+    MEASURE["毎フレーム計測<br/>FPS (EMA) / P95 / Jank count"] --> EVAL["毎秒評価"]
+    EVAL -->|jankCount &gt; 5| DOWN["CSS 品質 1段階下げ<br/>high → balanced → low"]
+    EVAL -->|jankCount == 0<br/>10秒継続| UP["CSS 品質 1段階上げ試行"]
+    DOWN --> CSS["cssBlurLevel / cssAnimationScale<br/>cssShadowLevel を動的変更"]
+    UP --> CSS
+```
+
+- `src/engine/telemetry/frameTelemetry.ts` — P95 計測、自動品質調整（low/balanced/high）
+- `src/utils/adaptiveQuality.ts` — デバイス検出（CPU, RAM, prefers-reduced-motion）
+- 開発時のみ `DevFrameOverlay`（Ctrl+Shift+F）で FPS/フレーム時間を可視化
+
+### ディレクトリ構成
+
+```
+src/engine/
+├── index.ts                    # エクスポート
+├── frameEngine.ts              # DOM read/write バッチスケジューラ
+└── telemetry/
+    └── frameTelemetry.ts       # フレーム監視・品質自動調整
+```

@@ -1,6 +1,6 @@
 # NoteDeck Design Document
 
-設計思想と方針をまとめたドキュメント。実装詳細は [DEVELOPMENT.md](DEVELOPMENT.md) を参照。
+設計思想と方針をまとめたドキュメント。実装の詳細は分野ごとの文書 ([ARCHITECTURE.md](ARCHITECTURE.md) / [DECK.md](DECK.md) / [AI.md](AI.md))、日々の手引きは [DEVELOPMENT.md](DEVELOPMENT.md) を参照。
 
 ## 設計原則
 
@@ -117,7 +117,7 @@ NoteDeck の AI は「画面の一角でチャットする機能」ではなく�
 
 タイムライン系カラムでは既読位置に **"ここまで読みました" 区切り線** を表示し、読み戻し / 新着検知の認知負荷を下げる。Apple 式直感 UI 原則 (説明書なしで触ればわかる) に従い、設定で隠す選択肢は提供しない。
 
-詳細実装は [DEVELOPMENT.md](DEVELOPMENT.md) の "AI Chat Streaming" / "HEARTBEAT Daemon" / "AI Capability Registry"、capability 一覧は [SKILLS.md](SKILLS.md) §4。
+詳細実装は [AI.md](AI.md) の "AI Chat Streaming" / "HEARTBEAT Daemon" / "AI Capability Registry"、capability 一覧は [SKILLS.md](SKILLS.md) §4。
 
 ## 依存ライブラリ選定方針
 
@@ -242,7 +242,7 @@ appDataDir/
 
 **置き場の判断** (#1334): 「別の機械に持っていって意味があるか (config)」「人の記録か (data)」「この機械・この起動の状態か (state)」「消しても作り直せるか (cache)」の順で問い、迷ったら state。config の中には config しか無い (除外リストが要らない状態を保つ)。DB はどこにも同期させず、持ち出しはバックアップ経由。`notemaid/secrets.enc` (Linux の常駐の file secrets) だけは notemaid の secrets モジュールが場所を持つので再編の対象外。配置を知るのは `crates/notecore/src/app_dir.rs` の `Layout` だけで、版印に従って旧配置 / 再編後を選ぶ。
 
-いずれもテキストエディタで直接編集でき、アプリ内の対応する編集ウィンドウからも編集できる。許可されるサブディレクトリ名とルートファイル名は `crates/notecore/src/settings_store.rs` の allowlist が正本で、設定バックアップの対象もここで決まる (`backup: true` のものだけ)。各エントリは置き場 (`area`: 設定 / 人の記録 / この機械の状態。物理的な場所は `app_dir.rs` の `Layout` が決める) と、汎用の読み書きで触れるか (`ipc`) を持つ。`connections.json` は allowlist に載るが `ipc: false` で、変更口は Vault のコマンドだけ。`notemaid/` は汎用の読み書きが allowlist だけで通り上限・承認・汚染の規則を素通りするので allowlist に足さず、バックアップは SOUL / USER / MEMORY を名指しで含める (詳細は DEVELOPMENT.md の「AI の人格と記憶」)。ドットで始まるエントリ (`.git` / `.gitignore` / 書込中の一時ファイル) は allowlist・汎用の読み書き・バックアップのすべてで無視する。
+いずれもテキストエディタで直接編集でき、アプリ内の対応する編集ウィンドウからも編集できる。許可されるサブディレクトリ名とルートファイル名は `crates/notecore/src/settings_store.rs` の allowlist が正本で、設定バックアップの対象もここで決まる (`backup: true` のものだけ)。各エントリは置き場 (`area`: 設定 / 人の記録 / この機械の状態。物理的な場所は `app_dir.rs` の `Layout` が決める) と、汎用の読み書きで触れるか (`ipc`) を持つ。`connections.json` は allowlist に載るが `ipc: false` で、変更口は Vault のコマンドだけ。`notemaid/` は汎用の読み書きが allowlist だけで通り上限・承認・汚染の規則を素通りするので allowlist に足さず、バックアップは SOUL / USER / MEMORY を名指しで含める (詳細は AI.md の「AI の人格と記憶」)。ドットで始まるエントリ (`.git` / `.gitignore` / 書込中の一時ファイル) は allowlist・汎用の読み書き・バックアップのすべてで無視する。
 
 **設定と状態の境界 (#1333)**: 「別の機械で消えたら驚くか」で引く。消えて驚くもの (カラム幅、ナビバー幅、いつも使うモデル) は設定で `notedeck/` に、その機械でその時に許した事実 (同意、鍵の有無、確認スキップ) とその機械の見え方 (窓の位置、ズーム、ペットの位置、投稿フォームの前回値) は状態で `state/` に置く。設定ファイルの書込は決定的 (同じ内容を読んで書けば同じバイト列。`src/services/json5Document.ts` と `json5_out::stringify` が整形の正本) で、読んだだけでは書かない。コメントは保持しない — アプリが再保存するとコメントは消える (JSON5 を AST で編集する実装は大きいので採らない)。
 
