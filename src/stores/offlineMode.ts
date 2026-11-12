@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useAccountsStore } from '@/stores/accounts'
 import { useSettingsStore } from '@/stores/settings'
 import { useStreamingStore } from '@/stores/streaming'
+import { useSuspensionsStore } from '@/stores/suspensions'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useUiStore } from '@/stores/ui'
 import { useRepresentative } from '@/windows/roles'
@@ -69,6 +70,13 @@ export const useOfflineModeStore = defineStore('offlineMode', () => {
     },
     { flush: 'sync' },
   )
+
+  // 凍結アカウントの問い合わせを止める / 再開する (#1350)。起動時にオフラインの
+  // 場合もあるので immediate。suspensions はこの store を読めない (輪になる) ので、
+  // こちらから伝える
+  watch(isOfflineMode, (now) => useSuspensionsStore().setPaused(now), {
+    immediate: true,
+  })
 
   async function enable(): Promise<void> {
     isManualOffline.value = true

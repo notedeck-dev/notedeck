@@ -180,9 +180,12 @@ function closeDrawerAndDo(fn: () => void) {
 const accountsStore = useAccountsStore()
 const streamingStore = useStreamingStore()
 
+// オフラインモード中は取りに行かず、解除されたら取り直す (#1350)。
+// 口座の数だけを見ていると、見送った分が再起動まで出ない
 watch(
-  () => accountsStore.accounts.length,
+  [() => accountsStore.accounts.length, () => offlineModeStore.isOfflineMode],
   () => {
+    if (offlineModeStore.isOfflineMode) return
     for (const acc of accountsStore.accounts) {
       if (acc.hasToken) {
         streamingStore.fetchOnlineStatus(acc.id, acc.userId)

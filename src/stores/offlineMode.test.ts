@@ -4,6 +4,7 @@ import { nextTick } from 'vue'
 import { type Account, useAccountsStore } from '@/stores/accounts'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useSettingsStore } from '@/stores/settings'
+import { useSuspensionsStore } from '@/stores/suspensions'
 import { useSystemStateStore } from '@/stores/systemState'
 import { useUiStore } from '@/stores/ui'
 
@@ -138,5 +139,20 @@ describe('回線断による自動オフライン (#461)', () => {
     await nextTick()
     expect(offline.isOfflineMode).toBe(false)
     expect(ui.deckResumeSignal).toBe(1)
+  })
+
+  it('オフラインモードの出入りで、凍結アカウントの問い合わせを止めて再開する (#1350)', async () => {
+    const setPaused = vi.spyOn(useSuspensionsStore(), 'setPaused')
+    const store = useOfflineModeStore()
+    // 起動時の状態もそのまま伝える
+    expect(setPaused).toHaveBeenLastCalledWith(false)
+
+    await store.enable()
+    await nextTick()
+    expect(setPaused).toHaveBeenLastCalledWith(true)
+
+    await store.disable()
+    await nextTick()
+    expect(setPaused).toHaveBeenLastCalledWith(false)
   })
 })

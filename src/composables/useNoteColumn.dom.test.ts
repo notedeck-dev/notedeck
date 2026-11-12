@@ -1848,6 +1848,22 @@ describe('useNoteColumn: オフラインモードと復帰 (#461)', () => {
     expect(api.isOffline.value).toBe(false)
   })
 
+  it('繋がった後でオフラインモードに入ったカラムの追加読み込みは、サーバーへ行かない (#1350)', async () => {
+    addAccount('acc-off3')
+    const fetchImpl = vi.fn().mockResolvedValue([note('h02'), note('h01')])
+    const { api } = mountColumn({
+      accountId: 'acc-off3',
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+
+    await useOfflineModeStore().enable()
+    await api.loadMore()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+  })
+
   it('オフラインモード中は復帰信号でも REST を叩かない', async () => {
     addAccount('acc-off2')
     const fetchImpl = vi.fn().mockResolvedValue([note('h01')])
