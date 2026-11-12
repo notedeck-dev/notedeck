@@ -45,6 +45,7 @@ import { i18n } from '@/i18n'
 import { modeIcon } from '@/services/timelinePolicy'
 import { useAccountsStore } from '@/stores/accounts'
 import { useConfirm } from '@/stores/confirm'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useSettingsStore } from '@/stores/settings'
 import { useThemeStore } from '@/stores/theme'
 import { useToast } from '@/stores/toast'
@@ -513,6 +514,14 @@ export function usePostFormState(
     }
 
     if (!adapter || !canPost.value) return
+
+    // 手動のオフラインモード中は送らず、入力をフォームに残す (#1350)。送信は楽観的に
+    // フォームを閉じてから行い、失敗時の退避先 (下書き) もサーバーなので、送ってから
+    // 失敗させると本文を失う
+    if (useOfflineModeStore().isManualOffline) {
+      useToast().show(i18n.ts._errors.offlineMode, 'warning')
+      return
+    }
 
     // ログアウト済み (トークン無し) アカウントは API 到達前に止める (#693)。
     // 素通しすると生の "No token found" エラーが出た上、救済のサーバー

@@ -72,7 +72,7 @@ pub async fn run_cli(
 
     let account = resolve_account(&db, account_spec)?;
     let (host, token) = crate::get_credentials(&db, &account.id)?;
-    let client = MisskeyClient::new()?;
+    let client = MisskeyClient::new(std::sync::Arc::new(crate::egress::AllowAll))?;
     let ctx = CmdContext {
         client,
         host,

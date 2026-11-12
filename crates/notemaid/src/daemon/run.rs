@@ -201,13 +201,16 @@ async fn serve(
     ));
 
     // Misskey クライアントと口座の写し (SQLite は開かない)
-    let client = match notecli::api::MisskeyClient::new() {
-        Ok(c) => Arc::new(c),
-        Err(e) => {
-            tracing::error!("misskey client: {e}");
-            return exit::FAILURE;
-        }
-    };
+    // 門 (#1350): 手動のオフラインモード中は Misskey へ送らない。巡回の中の操作も、巡回の
+    // 外から頼まれた操作も、ここで止まる
+    let client =
+        match notecli::api::MisskeyClient::new(notecore::offline::Gate::for_app_dir(&data_dir)) {
+            Ok(c) => Arc::new(c),
+            Err(e) => {
+                tracing::error!("misskey client: {e}");
+                return exit::FAILURE;
+            }
+        };
     let accounts = Arc::new(crate::daemon::accounts::SyncedAccounts::load(&data_dir));
     core.set_account_store(accounts.clone());
     core.initialize_client(client);

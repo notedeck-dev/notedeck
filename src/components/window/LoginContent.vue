@@ -12,6 +12,7 @@ import { useServerPreview } from '@/composables/useServerPreview'
 import { useVaporTransitionSwitch } from '@/composables/useVaporTransition'
 import { detectServer } from '@/core/server'
 import { i18n } from '@/i18n'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useServersStore } from '@/stores/servers'
 import { useIsCompactLayout } from '@/stores/ui'
 import { AppError } from '@/utils/errors'
@@ -109,6 +110,12 @@ async function startGuest() {
     step.value = 'error'
     errorMessage.value = AppError.from(e).message
   }
+}
+
+const offlineModeStore = useOfflineModeStore()
+async function leaveOfflineMode() {
+  await offlineModeStore.disable()
+  if (!offlineModeStore.isManualOffline) reset()
 }
 
 function reset() {
@@ -256,6 +263,15 @@ onMounted(() => {
       <p :class="$style.errorText">{{ errorMessage }}</p>
 
       <div :class="$style.actions">
+        <!-- オフラインモード中はログインできない。口座が 1 つも無いと、解除の入口
+             (ナビバー) にも届かないので、ここから解除できるようにする (#1350) -->
+        <button
+          v-if="offlineModeStore.isManualOffline"
+          :class="$style.btnLogin"
+          @click="leaveOfflineMode"
+        >
+          {{ i18n.ts._loginContent.leaveOfflineMode }}
+        </button>
         <button :class="$style.btnLogin" @click="reset">
           {{ i18n.ts._loginContent.startOver }}
         </button>

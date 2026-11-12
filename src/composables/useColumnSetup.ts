@@ -249,8 +249,14 @@ export function useColumnSetup(
   )
 
   function checkOffline(): boolean {
-    if (useOfflineModeStore().isOfflineMode || options?.isOffline?.()) {
+    const offlineMode = useOfflineModeStore()
+    if (offlineMode.isOfflineMode || options?.isOffline?.()) {
       console.warn('[offline] Write operation blocked')
+      // 利用者が自分で入れたオフラインモードなら、押した操作が通らない理由を見せる
+      // (#1350)。回線断のとき (自動) は今までどおり黙って見送る
+      if (offlineMode.isManualOffline) {
+        toast.show(i18n.ts._errors.offlineMode, 'warning')
+      }
       return true
     }
     return false

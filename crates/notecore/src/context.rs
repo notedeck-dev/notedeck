@@ -522,7 +522,9 @@ mod tests {
     async fn client_only_core_never_waits_for_a_database() {
         let core = Core::new_shared();
         core.set_account_store(Arc::new(OneAccount));
-        core.initialize_client(Arc::new(MisskeyClient::new().unwrap()));
+        core.initialize_client(Arc::new(
+            MisskeyClient::new(Arc::new(notecli::egress::AllowAll)).unwrap(),
+        ));
         assert!(core.is_ready());
         assert!(!core.has_db());
         assert!(core.try_db().is_none());
@@ -543,7 +545,7 @@ pub mod test_support {
     pub fn temp_core() -> (tempfile::TempDir, Core) {
         let dir = tempfile::tempdir().unwrap();
         let db = Arc::new(Database::open(&dir.path().join("test.db")).unwrap());
-        let client = Arc::new(MisskeyClient::new().unwrap());
+        let client = Arc::new(MisskeyClient::new(Arc::new(notecli::egress::AllowAll)).unwrap());
         let core = Core::new();
         core.set_app_dir(dir.path().to_path_buf());
         core.set_http(reqwest::Client::new());
