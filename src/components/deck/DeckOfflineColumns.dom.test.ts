@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAccountsStore } from '@/stores/accounts'
 import { useSettingsStore } from '@/stores/settings'
 import {
   bindings,
   flush,
+  makeAccount,
   makeColumn,
   mountColumn,
   setupStores,
@@ -88,6 +90,39 @@ describe('オフライン中のカラムはサーバーへ取りに行かない 
   it('チャットカラム: オンラインなら開いたときに履歴を取る', async () => {
     setupStores()
     await mountColumn(DeckChatColumn, makeColumn({ type: 'chat' }), {})
+    expect(networkCalls()).toContain('apiGetChatHistory')
+  })
+
+  it('通知カラム (全アカウント): オフライン中に口座が増えても取りに行かない', async () => {
+    setupStores()
+    useSettingsStore().set('modes.offline', true)
+    await mountColumn(
+      DeckNotificationColumn,
+      makeColumn({ type: 'notifications', accountId: null }),
+      {},
+    )
+    const accounts = useAccountsStore()
+    accounts.accounts = [
+      ...accounts.accounts,
+      makeAccount({ id: 'acc-2', userId: 'uid-2', username: 'bob' }),
+    ]
+    await flush()
+    expect(networkCalls()).toEqual([])
+  })
+
+  it('チャットカラム: 読み込みの途中でオフラインに入っても、解除で取り直す', async () => {
+    setupStores()
+    // キャッシュを読んでいる間にオフラインへ切り替わる
+    bindings.responses.apiGetCachedChatHistory = () => {
+      useSettingsStore().set('modes.offline', true)
+      return []
+    }
+    await mountColumn(DeckChatColumn, makeColumn({ type: 'chat' }), {})
+    expect(networkCalls()).toEqual([])
+
+    bindings.responses.apiGetCachedChatHistory = []
+    useSettingsStore().set('modes.offline', false)
+    await flush()
     expect(networkCalls()).toContain('apiGetChatHistory')
   })
 })

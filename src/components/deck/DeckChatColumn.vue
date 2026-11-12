@@ -363,13 +363,23 @@ const activeServerHost = computed(() => {
   return account.value?.host ?? null
 })
 
-/** オフライン中に履歴の取得を見送った。解除されたら取り直す */
-let connectSkippedOffline = false
+/**
+ * オフラインで履歴の取得を見送った。解除されたら (会話を開いていたなら履歴に
+ * 戻ったときに) 取り直す。見送ったその場で立てる: 読み込みの途中でオフラインに
+ * 入ることがある
+ */
+const connectSkippedOffline = ref(false)
+/** オフライン中にキャッシュだけで開いた会話。解除されたら開き直して購読を張る */
+let conversationOpenedOffline:
+  | HistoryEntry
+  | PerAccountHistoryEntry
+  | ConversationTarget
+  | null = null
 
 async function connect() {
   error.value = null
   isLoading.value = true
-  connectSkippedOffline = offlineModeStore.isOfflineMode
+  connectSkippedOffline.value = false
 
   if (isCrossAccount.value) {
     await connectCrossAccount()
@@ -411,6 +421,7 @@ async function connectPerAccount() {
   // ログアウト中はキャッシュだけで終わり (B-1)。「ログアウト中」バナーは
   // DeckColumn が自動表示する。オフライン中も同じ (#1350)
   if (!account.value.hasToken || offlineModeStore.isOfflineMode) {
+    if (offlineModeStore.isOfflineMode) connectSkippedOffline.value = true
     isLoading.value = false
     return
   }
@@ -501,6 +512,7 @@ async function connectCrossAccount() {
 
   // オフライン中はキャッシュだけで終わり (取得も先読みもしない、#1350)
   if (offlineModeStore.isOfflineMode) {
+    connectSkippedOffline.value = true
     isLoading.value = false
     return
   }
@@ -681,6 +693,7 @@ async function openConversation(
               : '',
       }
 
+  conversationOpenedOffline = offlineModeStore.isOfflineMode ? entry : null
   try {
     const outcome = await thread.open(entryAccountId, target, {
       // オフライン中もログアウト中と同じくキャッシュだけで開く (#1350)
@@ -724,6 +737,7 @@ function onNewMessage(msg: ChatMessage) {
 function goBack() {
   reflectLatestIntoHistory()
   thread.close()
+  conversationOpenedOffline = null
   viewMode.value = 'history'
   conversationAccountId.value = null
   conversationServerHost.value = null
@@ -1140,12 +1154,23 @@ watch(
   },
 )
 
-// オフライン中に開いて履歴の取得を見送ったら、解除されたときに取り直す (#1350)
+// オフラインが解除されたら、見送った分を取り直す (#1350)。
+// - 履歴: 見送っていたら取り直す。会話を開いている間は、履歴に戻ったときに取り直す
+// - 会話: キャッシュだけで開いていたら開き直す (購読を張り、新しい分を取る)
 watch(
-  () => offlineModeStore.isOfflineMode,
-  (offline) => {
-    if (!offline && connectSkippedOffline && viewMode.value === 'history') {
+  [
+    () => offlineModeStore.isOfflineMode,
+    viewMode,
+    connectSkippedOffline,
+  ] as const,
+  ([offline, mode, skipped]) => {
+    if (offline) return
+    if (mode === 'history' && skipped) {
       void connect()
+    } else if (mode === 'conversation' && conversationOpenedOffline) {
+      const entry = conversationOpenedOffline
+      conversationOpenedOffline = null
+      void openConversation(entry)
     }
   },
 )

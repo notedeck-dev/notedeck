@@ -1004,7 +1004,8 @@ watch(
       .join(','),
   () => {
     if (!isCrossAccount.value) return
-    void connectCrossAccount(true)
+    // connect を通す: オフライン中は取得も購読もしない (#1350)
+    void connect(true)
   },
 )
 
