@@ -331,6 +331,8 @@
       "waitingConnectionMissing": "The HEARTBEAT connection was not found",
       "waitingNotAiProvider": "The HEARTBEAT connection is not an AI provider",
       "waitingUnreachable": "Waiting for the HEARTBEAT connection to come up (rounds resume once it does): {detail}",
+      "waitingOffline": "HEARTBEAT is paused while offline mode is on (rounds resume once you turn it off)",
+      "offlineNoRun": "HEARTBEAT can't run while offline mode is on",
       "waitingBlocked": "The HEARTBEAT connection resolved to an internal address, so nothing was sent. Check the connection URL: {detail}"
     },
     "ai": {

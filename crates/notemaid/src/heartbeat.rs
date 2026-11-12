@@ -24,6 +24,7 @@
 //! |---|---|---|---|---|
 //! | provider 無し (未選択 / 手元の CLI / モデル未設定 / 鍵無し / 宛先の検査) | `skip:no-provider` | 数えない | 消費しない | 更新しない |
 //! | 到達不能 (何も受け取る前の接続の失敗) | `skip:unreachable` | 数えない | 消費しない | 更新しない |
+//! | 手動のオフラインモード (#1350) | `skip:offline` | 数えない | 消費しない | 更新しない |
 //! | 推論の失敗 (HTTP / 時間切れ / 受信途中の切断 / 予算超過) | `error` | 数える | 消費する | 更新しない |
 //! | 応答あり | `reported` / `suppressed` / `queued` | 0 に戻す | 消費する | 更新する |
 //!
@@ -226,7 +227,7 @@ pub struct HeartbeatLastTick {
     pub error_kind: Option<String>,
 }
 
-/// 待機中 (#1321)。`kind` は `no-provider` | `unreachable`。`message` は英語の正本文、
+/// 待機中 (#1321)。`kind` は `no-provider` | `unreachable` | `offline` (#1350)。`message` は英語の正本文、
 /// `i18n` は `{ message: { key, params } }` (デバイスは `localizeNative` で描き直す)
 #[derive(Clone, Debug, Serialize, Deserialize, Type, PartialEq)]
 #[serde(rename_all = "camelCase")]
@@ -350,6 +351,31 @@ pub fn enter_waiting(state: &mut PersistedState, kind: &str, text: i18n::Text, n
     };
     state.waiting = Some(HeartbeatWaiting::new(kind, since, text));
     note_signature(state, signature, now)
+}
+
+/// 手動のオフラインモードの出入りを待機に写す (#1350)。戻り値は「この巡回を見送るか」。
+///
+/// - オフライン: 待機に理由を置いて見送る。失敗ではないので連続失敗にも日次にも触らず、
+///   知らせも出さない (利用者が自分で切り替えた状態)
+/// - オフラインでない: オフラインの待機が残っていれば消す (ほかの理由の待機は触らない)
+pub fn apply_offline(state: &mut PersistedState, offline: bool, now: u64) -> bool {
+    const KIND: &str = "offline";
+    if offline {
+        let since = match &state.waiting {
+            Some(w) if w.kind == KIND => w.since,
+            _ => now,
+        };
+        state.waiting = Some(HeartbeatWaiting::new(
+            KIND,
+            since,
+            i18n::text("_native.heartbeat.waitingOffline", json!({})),
+        ));
+        return true;
+    }
+    if state.waiting.as_ref().is_some_and(|w| w.kind == KIND) {
+        state.waiting = None;
+    }
+    false
 }
 
 /// signature を「通知済み」に記録し、初めてなら `true`
@@ -834,6 +860,21 @@ async fn run_body(
     with_status(|s| s.config = Some(snapshot));
     if !cfg.heartbeat.enabled && !manual {
         return Ok(TickResult::skip("skip:disabled"));
+    }
+    // 手動のオフラインモード中は巡回しない (#1350)。timer を誰が持つか (アプリ / 子プロセス /
+    // 常駐) に関わらず、巡回の先頭で設定を見る。アプリを閉じた常駐でも同じに効く
+    {
+        let offline = notecore::offline::manual(core.layout()?);
+        let mut state = load_state(&app_dir);
+        let before = state.waiting.clone();
+        let parked = apply_offline(&mut state, offline, now);
+        if state.waiting != before {
+            save_state(&app_dir, &state);
+        }
+        if parked {
+            tracing::debug!("heartbeat: offline mode, skip");
+            return Ok(TickResult::skip("skip:offline"));
+        }
     }
     let accounts = notecore::account_service::list_public_from(&*core.accounts()?)?;
     if !accounts.iter().any(|a| a.has_token) {
@@ -2396,6 +2437,38 @@ mod tests {
         );
         // 待機は失敗の記録には入らない
         assert!(st.failures.is_empty());
+    }
+
+    #[test]
+    fn offline_mode_parks_the_round_without_a_toast_and_clears_itself() {
+        let mut st = PersistedState {
+            consecutive_failures: 2,
+            ..Default::default()
+        };
+        // オフラインに入った巡回: 見送り、待機に理由を置く。連続失敗も通知済みの印も触らない
+        assert!(apply_offline(&mut st, true, 10));
+        let w = st.waiting.clone().unwrap();
+        assert_eq!((w.kind.as_str(), w.since), ("offline", 10));
+        assert_eq!(st.consecutive_failures, 2);
+        assert!(st.notified_signatures.is_empty());
+        // 続く巡回でも since は保つ
+        assert!(apply_offline(&mut st, true, 20));
+        assert_eq!(st.waiting.as_ref().unwrap().since, 10);
+        // オフラインでなくなった最初の巡回で待機を消す
+        assert!(!apply_offline(&mut st, false, 30));
+        assert!(st.waiting.is_none());
+        // ほかの理由の待機は消さない
+        enter_waiting(
+            &mut st,
+            "unreachable",
+            i18n::text(
+                "_native.heartbeat.waitingUnreachable",
+                json!({ "detail": "x" }),
+            ),
+            40,
+        );
+        assert!(!apply_offline(&mut st, false, 50));
+        assert_eq!(st.waiting.as_ref().unwrap().kind, "unreachable");
     }
 
     #[test]

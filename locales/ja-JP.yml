@@ -3679,6 +3679,8 @@ _native:
     waitingConnectionMissing: "HEARTBEAT の接続が見つかりません"
     waitingNotAiProvider: "HEARTBEAT の接続は AI プロバイダーではありません"
     waitingUnreachable: "HEARTBEAT の接続先の起動を待っています (起動すれば次の巡回で再開します): {detail}"
+    waitingOffline: "オフラインモード中なので HEARTBEAT は巡回していません (解除すると次の巡回から再開します)"
+    offlineNoRun: "オフラインモード中は巡回できません"
     waitingBlocked: "HEARTBEAT の接続先の名前解決が内部アドレスを返したので送れません。接続の URL を確認してください: {detail}"
   ai:
     httpUnauthorized: "API キーが無効です (HTTP {status}){detail}"
