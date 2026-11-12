@@ -1,6 +1,6 @@
 // 「アニメーションは compositor-only」を機械検査に落とす (#1098)。
 //
-// DEVELOPMENT.md の "CSS レンダリング規約" は transform / opacity / translate /
+// PERFORMANCE.md の "CSS レンダリング規約" は transform / opacity / translate /
 // scale / rotate 以外の transition を禁止し、box-shadow / border-radius /
 // clip-path / backdrop-filter はペイント誘発として同じく禁止している。文書は
 // 「全コンポーネント監査済み」と書いていたが、監査時点で layout / paint

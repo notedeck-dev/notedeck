@@ -26,6 +26,7 @@ import {
 } from '@/composables/useNoteColumnCache'
 import { useNoteList } from '@/composables/useNoteList'
 import { useNoteScrollerRef } from '@/composables/useNoteScrollerRef'
+import { useNoteSound } from '@/composables/useNoteSound'
 import type { VisibilityOpts } from '@/composables/useNoteVisibility'
 import { usePullToRefresh } from '@/composables/usePullToRefresh'
 import { useStreamingBatch } from '@/composables/useStreamingBatch'
@@ -124,6 +125,8 @@ export interface CrossAccountNotesOptions {
     columnId: string
     /** Stream Inspector に出すカラム種別 (購読はアカウントごとに 1 行) */
     columnType: string
+    /** カラムの音声ミュート。新着の音を鳴らす前に見る (未指定は鳴らす) */
+    soundMuted?: () => boolean
     subscribe: (
       accountId: string,
       adapter: ServerAdapter,
@@ -392,6 +395,9 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
 
   // --- ライブ更新: アカウント別購読 × N → 1 つの batch に合流 (#1059) ---
   const streaming = options.streaming
+  // 全アカウント面はカラムにアカウントが無いので、既定の出所は持たない (鳴らすときに渡す)
+  const noteSound = useNoteSound(() => undefined)
+  const myNoteSound = useNoteSound(() => undefined, 'syuilo/n-cea-4va')
   const streamingBatch = streaming
     ? useStreamingBatch({
         notes: rawNotes,
@@ -401,6 +407,20 @@ export function useCrossAccountNotes(options: CrossAccountNotesOptions) {
         insertSilently: list.insertSilently,
         identityOf: (n) => (n._identityTrusted ? n._identity : variantKeyOf(n)),
         countsNote: horizonPaging ? aboveHorizon : undefined,
+        // 新着の音 (アカウントごとの TL と同じ規則、#1388)。鳴らす音の出所は、届いた
+        // ノートの取得元アカウントのサーバー。自分のノートは自分のノート用の音にする
+        onNewNotes: (batch) => {
+          if (streaming.soundMuted?.()) return
+          const accountOf = (n: NormalizedNote) =>
+            accountsStore.accountMap.get(n._accountId)
+          const mine = batch.find((n) => accountOf(n)?.userId === n.user.id)
+          if (mine) {
+            myNoteSound.play(accountOf(mine)?.host)
+            return
+          }
+          const first = batch[0]
+          if (first) noteSound.play(accountOf(first)?.host)
+        },
         onOverflow: () => {
           toast.show(i18n.ts._useCrossAccountNotes.overflowSkipped, 'warning')
         },

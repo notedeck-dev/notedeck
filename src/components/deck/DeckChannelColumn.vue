@@ -115,7 +115,6 @@ const noteColumnConfig: NoteColumnConfig = {
     :title="i18n.ts._columns.channel"
     icon="ti-device-tv"
     :web-ui-path="column.channelId ? `/channels/${column.channelId}` : undefined"
-    sound-enabled
     hide-channel-badge
     :note-column-config="noteColumnConfig"
     :filter-keys="['withRenotes', 'withReplies', 'withFiles', 'withBots']"

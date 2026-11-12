@@ -294,6 +294,7 @@ usePortal(postPortalRef)
     require-account
     @header-click="activeTab === 'notes' ? scrollToTop() : undefined"
     @refresh="refresh"
+    sound-enabled
   >
     <template #header-icon>
       <i class="ti ti-compass" :class="$style.tlHeaderIcon" />

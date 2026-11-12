@@ -175,7 +175,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         </div>
 
         <div v-if="user.description" :class="$style.popupDesc">
-          <MkMfm :text="user.description" :server-host="account?.host" />
+          <!-- リモートユーザーの絵文字は相手のサーバーのもの。ユーザー情報に付いてくる
+               対応表を渡さないと、自分のサーバーの辞書で引いて見つからない (#1386) -->
+          <MkMfm :text="user.description" :emojis="user.emojis" :server-host="account?.host" />
         </div>
 
         <div class="user-stats" :class="$style.popupStats" :data-own="isOwnUser">

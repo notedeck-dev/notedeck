@@ -59,6 +59,18 @@ vi.mock('@/bindings', () => ({
 
 // streaming batch の flush は frameEngine の RAF ループに乗る。テストではループが
 // 起動していないので、scheduler をマイクロタスク実行に差し替えて決定的にする
+const sound = vi.hoisted(() => ({
+  plays: [] as { type: string; host: string | undefined }[],
+}))
+vi.mock('@/composables/useNoteSound', () => ({
+  useNoteSound: (
+    _getHost: () => string | undefined,
+    type = 'syuilo/n-aec',
+  ) => ({
+    play: (host?: string) => sound.plays.push({ type, host }),
+    warmup: () => undefined,
+  }),
+}))
 vi.mock('@/composables/useFrameScheduler', () => ({
   useFrameScheduler: () => ({
     schedule: (fn: () => void) => queueMicrotask(fn),
@@ -255,6 +267,7 @@ function mountCross(opts: {
     source?: ColumnSource,
   ) => NormalizedNote[] | Promise<NormalizedNote[]>
   streaming?: boolean
+  soundMuted?: () => boolean
   paging?: 'horizon'
   cursorOf?: CrossAccountNotesOptions['cursorOf']
   /** 組を束ねる面 (#1017 案 2)。未指定は全アカウントを 1 回ずつ */
@@ -303,6 +316,7 @@ function mountCross(opts: {
           ? {
               columnId: 'col-cross',
               columnType: 'timeline',
+              soundMuted: opts.soundMuted,
               subscribe: (accountId, _adapter, enqueue, callbacks, source) => {
                 live.set(source.id ? `${accountId}/${source.id}` : accountId, {
                   enqueue: (n) => enqueue(stamp(n, accountId)),
@@ -1233,5 +1247,64 @@ describe('useCrossAccountNotes: オフラインモードと復帰 (#461)', () =>
     await flushFrames()
     expect(fetchFor.mock.calls.some((c) => c[1]?.untilId)).toBe(true)
     expect(ids(api)).toContain('a10')
+  })
+})
+
+describe('useCrossAccountNotes: 新着の音 (#1388)', () => {
+  beforeEach(() => {
+    sound.plays.length = 0
+  })
+
+  it('新着が流れてきたら、届いたアカウントのサーバーの音を鳴らす (アカウントごとの TL と同じ)', async () => {
+    addAccount('acc-a', 'a.example')
+    addAccount('acc-b', 'b.example')
+    const column = ref<Partial<DeckColumn>>({})
+    const { live } = mountCross({
+      column,
+      streaming: true,
+      fetchFor: () => [],
+    })
+    await flushFrames()
+    expect(sound.plays).toEqual([])
+
+    live.get('acc-b')?.enqueue(note('b60'))
+    await flushFrames()
+    expect(sound.plays).toEqual([{ type: 'syuilo/n-aec', host: 'b.example' }])
+  })
+
+  it('自分のノートは、自分のノート用の音にする', async () => {
+    addAccount('acc-a', 'a.example')
+    const column = ref<Partial<DeckColumn>>({})
+    const { live } = mountCross({
+      column,
+      streaming: true,
+      fetchFor: () => [],
+    })
+    await flushFrames()
+
+    live
+      .get('acc-a')
+      ?.enqueue(
+        note('a60', { user: { id: 'uid-acc-a', username: 'me' } } as never),
+      )
+    await flushFrames()
+    expect(sound.plays).toEqual([
+      { type: 'syuilo/n-cea-4va', host: 'a.example' },
+    ])
+  })
+
+  it('カラムをミュートしていたら鳴らさない', async () => {
+    addAccount('acc-a', 'a.example')
+    const column = ref<Partial<DeckColumn>>({})
+    const { live } = mountCross({
+      column,
+      streaming: true,
+      soundMuted: () => true,
+      fetchFor: () => [],
+    })
+    await flushFrames()
+    live.get('acc-a')?.enqueue(note('a60'))
+    await flushFrames()
+    expect(sound.plays).toEqual([])
   })
 })

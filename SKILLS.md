@@ -621,7 +621,8 @@ skill / plugin / query / widget は 0 個でも成立する (無ければ何も�
 ## 12. 関連ドキュメント
 
 - [DESIGN.md](DESIGN.md) — NoteDeck の設計判断 / アーキテクチャ
-- [DEVELOPMENT.md](DEVELOPMENT.md) — 開発者向けガイド
+- [AI.md](AI.md) — AI まわりの設計 (capability / チャット / HEARTBEAT / 資格情報)
+- [DEVELOPMENT.md](DEVELOPMENT.md) — 開発の手引きと規約
 - [#408](https://github.com/notedeck-dev/notedeck/issues/408) — Capability Registry 設計議論
 
 外部:

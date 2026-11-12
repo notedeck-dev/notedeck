@@ -327,6 +327,7 @@ const {
   streaming: {
     columnId: props.column.id,
     columnType: 'timeline',
+    soundMuted: () => props.column.soundMuted === true,
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
       createQuerySubscription({
         open: async () => openTimelineQuery(accountId, tlType.value, null),
@@ -676,6 +677,7 @@ onMounted(async () => {
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
     @refresh="connectCrossAccount"
+    sound-enabled
   >
     <template #header-icon>
       <i :class="['ti ti-' + currentTlIcon, $style.tlHeaderIcon]" />
@@ -791,7 +793,6 @@ onMounted(async () => {
     :column="column"
     :title="i18n.ts._columns.timeline"
     icon="ti-home"
-    sound-enabled
     :note-column-config="noteColumnConfig"
     :filter-keys="availableFilterKeys"
   >
