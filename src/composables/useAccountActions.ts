@@ -12,6 +12,7 @@ import {
 import { useColumnQueriesStore } from '@/stores/columnQueries'
 import { useConfirm } from '@/stores/confirm'
 import { useDeckStore } from '@/stores/deck'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePluginsStore } from '@/stores/plugins'
 import { useStreamingStore } from '@/stores/streaming'
 import { useThemeStore } from '@/stores/theme'
@@ -110,6 +111,18 @@ export function useAccountActions() {
     }
   }
 
+  /**
+   * 手動のオフラインモード中は、ログアウトとデータの削除を始めない (#1350)。サーバー側の
+   * 後始末 (プッシュ通知の登録の解除など) が通らないまま手元のトークンを消すと、後から
+   * 後始末できなくなる。止めたら true
+   */
+  async function blockedByOfflineMode(): Promise<boolean> {
+    if (!useOfflineModeStore().isManualOffline) return false
+    const { useToast } = await import('@/stores/toast')
+    useToast().show(i18n.ts._useAccountActions.offlineBlocked, 'warning')
+    return true
+  }
+
   /** ログアウト確認ダイアログを表示し実行する */
   async function logout(acc: Account) {
     if (isGuestAccount(acc)) {
@@ -122,6 +135,7 @@ export function useAccountActions() {
       if (ok) deleteAccountData(acc)
       return
     }
+    if (await blockedByOfflineMode()) return
     const ok = await confirm({
       title: i18n.ts._common.logout,
       message: i18n.tsx._useAccountActions.confirmLogout({
@@ -130,11 +144,14 @@ export function useAccountActions() {
       okLabel: i18n.ts._common.logout,
       type: 'danger',
     })
-    if (ok) logoutKeepData(acc)
+    // 確認を待つ間にオフラインモードに入っていたら始めない
+    if (ok && !(await blockedByOfflineMode())) logoutKeepData(acc)
   }
 
   /** データ全削除確認ダイアログを表示し実行する */
   async function deleteAccount(acc: Account) {
+    // ゲスト (サーバーに何も持たない) は手元だけで済むので止めない
+    if (!isGuestAccount(acc) && (await blockedByOfflineMode())) return
     const ok = await confirm({
       title: i18n.ts._common.deleteData,
       message: i18n.tsx._useAccountActions.confirmDeleteData({
@@ -143,7 +160,9 @@ export function useAccountActions() {
       okLabel: i18n.ts._common.delete,
       type: 'danger',
     })
-    if (ok) deleteAccountData(acc)
+    if (!ok) return
+    if (!isGuestAccount(acc) && (await blockedByOfflineMode())) return
+    deleteAccountData(acc)
   }
 
   function relogin(acc: Account) {

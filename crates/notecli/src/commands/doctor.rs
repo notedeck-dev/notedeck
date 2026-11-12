@@ -72,6 +72,7 @@ pub async fn diagnose(
     db: &Database,
     db_path: &Path,
     account_spec: Option<&str>,
+    gate: std::sync::Arc<dyn crate::egress::EgressGate>,
 ) -> Result<Report, NoteDeckError> {
     let mut checks = vec![check_database(db, db_path), check_keychain()];
 
@@ -106,7 +107,8 @@ pub async fn diagnose(
         }
     }
 
-    let client = MisskeyClient::new()?;
+    // 門は呼び出し側が決める (アプリの状態確認はオフラインの門を、コマンドラインは通す門を渡す)
+    let client = MisskeyClient::new(gate)?;
     for a in &targets {
         check_account(&client, a, &mut checks).await;
     }
@@ -121,7 +123,14 @@ pub async fn run_doctor(
     account_spec: Option<&str>,
     fmt: OutputFormat,
 ) -> Result<(), NoteDeckError> {
-    let report = diagnose(db, db_path, account_spec).await?;
+    // 利用者が自分で打つ道具なので、門は通す
+    let report = diagnose(
+        db,
+        db_path,
+        account_spec,
+        std::sync::Arc::new(crate::egress::AllowAll),
+    )
+    .await?;
     print_report(&report, fmt);
 
     // 出力は済んでいるので、fail があればここで終了コード 1 を返す

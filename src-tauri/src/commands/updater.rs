@@ -94,11 +94,7 @@ fn offline_enabled(app: &tauri::AppHandle) -> bool {
     let Some(core) = app.try_state::<super::AppState>() else {
         return false;
     };
-    let Ok(layout) = core.layout() else {
-        return false;
-    };
-    let text = notecore::settings_store::read_settings_json(layout).unwrap_or_default();
-    notecore::stream_mode::offline_enabled(&text)
+    core.layout().is_ok_and(notecore::offline::manual)
 }
 
 /// 更新を確認する。`force` でなければプロセスで 1 回だけ。オフライン中は確認せず

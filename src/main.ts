@@ -15,6 +15,7 @@ import { wireAdapterFactory } from './stores/adapterFactoryDeps'
 import { useDeckStore } from './stores/deck'
 import { useDeckProfileStore } from './stores/deckProfile'
 import { useKeybindsStore } from './stores/keybinds'
+import { useOfflineModeStore } from './stores/offlineMode'
 import { usePerformanceStore } from './stores/performance'
 import { useServersStore } from './stores/servers'
 import { useSettingsStore } from './stores/settings'
@@ -166,6 +167,9 @@ if (isTauri) {
     settingsStore.load(),
     // この機械の UI の状態 (state/ui.json5、#1333 §3)。ズームは初回描画前に当てる
     useUiStateStore().load(),
+    // 手動のオフラインモード (Rust が持つこの機械の状態、#1350)。カラムが繋ぎに行く
+    // 前に揃える (遅れると、オフラインのまま起動したのにカラムが取りに行く)
+    useOfflineModeStore().load(),
     // 窓の名簿に名乗る (#1131)。代表窓かどうかを後続の移行・seed が読む
     announceWindow(),
     // 表示言語の辞書 (#135)。以降の初期化が出す toast も辞書を引くので先に揃える

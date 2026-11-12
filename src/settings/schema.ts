@@ -53,7 +53,6 @@ export interface NotedeckSettings {
 
   // --- Modes (PoC 移行済み) ---
   'modes.realtime'?: boolean
-  'modes.offline'?: boolean
 
   // --- Note view ---
   /**
@@ -199,7 +198,6 @@ export const DEFAULT_SETTINGS: NotedeckSettings = {
   // 既存 realtimeMode ストアのデフォルトが true なので追従 (既存ユーザーの
   // 体験を変えない)
   'modes.realtime': true,
-  'modes.offline': false,
   // 本家 Web UI と同じ表示を基準にするため default ON (#763)
   'note.nyaize': true,
   'mfm.advanced': true,

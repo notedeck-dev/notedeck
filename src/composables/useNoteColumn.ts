@@ -918,8 +918,9 @@ export function useNoteColumn(config: NoteColumnConfig) {
     if (config.validate && !config.validate()) return
     if (inRateLimit()) return
 
-    // Offline: load from cache instead
-    if (isOffline.value) {
+    // Offline: load from cache instead。繋がった後でオフラインモードに入った
+    // カラムは isOffline が立っていないので、モードも見る (#1350)
+    if (isOffline.value || useOfflineModeStore().isOfflineMode) {
       await loadMoreFromCache()
       return
     }

@@ -23,9 +23,13 @@ const settingsSetMock = vi.fn()
 
 const settingsData: Record<string, unknown> = {}
 const accountsState: { accounts: Account[] } = { accounts: [] }
+const offlineState = { isManualOffline: false }
 
 vi.mock('@/stores/accounts', () => ({
   useAccountsStore: () => accountsState,
+}))
+vi.mock('@/stores/offlineMode', () => ({
+  useOfflineModeStore: () => offlineState,
 }))
 vi.mock('@/stores/uiState', () => ({
   useUiStateStore: () => ({
@@ -580,6 +584,44 @@ describe('post: 新規ノート', () => {
     form.posted.value = false
     await form.post() // canPost false
     expect(createNoteMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('手動のオフラインモード中は送信せず、理由を見せて入力を保持する (#1350)', async () => {
+    offlineState.isManualOffline = true
+    const form = mount()
+    await form.initAdapter()
+    form.text.value = '消えてはいけない'
+    await form.post()
+    // 失敗時の下書きはサーバーに保存するので、閉じてから失敗させると本文を失う
+    expect(createNoteMock).not.toHaveBeenCalled()
+    expect(onPostedMock).not.toHaveBeenCalled()
+    expect(toastShowMock).toHaveBeenCalledTimes(1)
+    expect(form.text.value).toBe('消えてはいけない')
+    expect(form.posted.value).toBe(false)
+    offlineState.isManualOffline = false
+  })
+
+  it('送る直前にオフラインモードに入っていたら、フォームを閉じずに止める (#1350)', async () => {
+    const form = mount()
+    await form.initAdapter()
+    form.text.value = '消えてはいけない'
+    // 入口の判定は通り、フォームを閉じる直前の判定で止まる (確認ダイアログを待つ間に
+    // 別の窓でオフラインに切り替えた場合に当たる)
+    let reads = 0
+    Object.defineProperty(offlineState, 'isManualOffline', {
+      configurable: true,
+      get: () => ++reads > 1,
+    })
+    await form.post()
+    Object.defineProperty(offlineState, 'isManualOffline', {
+      configurable: true,
+      writable: true,
+      value: false,
+    })
+    expect(createNoteMock).not.toHaveBeenCalled()
+    expect(onPostedMock).not.toHaveBeenCalled()
+    expect(form.text.value).toBe('消えてはいけない')
+    expect(form.posted.value).toBe(false)
   })
 
   it('トークン無しアカウントはログインプロンプトを出して入力を保持する', async () => {

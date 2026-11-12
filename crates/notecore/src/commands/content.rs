@@ -124,6 +124,7 @@ pub async fn api_get_server_emojis(
             .unwrap_or(0)
     };
 
+    let mut stale = None;
     if !refresh {
         // host の解決は DB (Stage 1) だけで済ませ、命中時は full-ready を待たない
         let host = core.credentials_or_anon(&account_id)?.0;
@@ -136,11 +137,20 @@ pub async fn api_get_server_emojis(
             if cache::is_fresh(cached.fetched_at_ms, now_ms()) {
                 return Ok(cached.emojis);
             }
+            stale = Some(cached.emojis);
         }
     }
 
     let (client, host, token) = core.authed_or_anon(&account_id).await?;
-    let emojis = client.get_server_emojis(&host, &token).await?;
+    let emojis = match client.get_server_emojis(&host, &token).await {
+        Ok(emojis) => emojis,
+        // 手動のオフラインモード中は取り直せない。古くてもキャッシュを返す (#1350)
+        Err(e) if e.code() == crate::offline::ERROR_CODE => match stale {
+            Some(emojis) => return Ok(emojis),
+            None => return Err(e),
+        },
+        Err(e) => return Err(e),
+    };
     let snapshot = emojis.clone();
     let fetched_at_ms = now_ms();
     tokio::task::spawn_blocking(move || {

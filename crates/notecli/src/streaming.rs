@@ -475,6 +475,7 @@ impl StreamingManager {
         emitter: Arc<dyn FrontendEmitter>,
         event_bus: Arc<EventBus>,
         db: Arc<Database>,
+        gate: Arc<dyn crate::egress::EgressGate>,
     ) -> Self {
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
@@ -484,7 +485,7 @@ impl StreamingManager {
             emitter,
             event_bus,
             db,
-            api_client: Arc::new(MisskeyClient::new().expect("failed to create HTTP client")),
+            api_client: Arc::new(MisskeyClient::new(gate).expect("failed to create HTTP client")),
         }
     }
 
@@ -494,6 +495,8 @@ impl StreamingManager {
         host: &str,
         token: &str,
     ) -> Result<(), NoteDeckError> {
+        // 門: 断られたら WebSocket も張らない (HTTP の要求と同じ検査)
+        self.api_client.gate().check()?;
         // polling がこのアカウントのストリームを供給中なら WS を張らない。
         // connect は「ストリームを現在のモードで確保する」であって「WS を
         // 強制する」ではない。カラムのマウントや復帰は connect を無条件に
@@ -512,6 +515,9 @@ impl StreamingManager {
         }
 
         let mut conns = self.connections.lock().await;
+        // ロックを待つ間に門が閉じた (オフラインモードに入った) なら張らない。全部切る側も
+        // 同じロックで一覧を取るので、ここを過ぎて登録した接続は必ず切られる
+        self.api_client.gate().check()?;
         if let Some(handle) = conns.get(account_id) {
             // 冪等 return でも現在の実状態を emit する。フロントは復帰時に
             // リスナーを張り直してから connect を呼び直すため、背景化中に
@@ -615,6 +621,18 @@ impl StreamingManager {
             })));
 
         Ok(())
+    }
+
+    /// 管理中の接続 (WebSocket と polling) をすべて切る。口座の一覧に頼らない:
+    /// 一覧を取れなかったときに、切らずに済ませてしまわないため
+    pub async fn disconnect_all(&self) {
+        let mut ids: Vec<String> = self.connections.lock().await.keys().cloned().collect();
+        ids.extend(self.poll_connections.lock().await.keys().cloned());
+        ids.sort();
+        ids.dedup();
+        for id in ids {
+            self.disconnect(&id).await;
+        }
     }
 
     pub async fn disconnect(&self, account_id: &str) {
@@ -1237,6 +1255,12 @@ async fn connection_task(
 
         if shutdown_during_wait {
             return;
+        }
+
+        // 門が断っている間は繋ぎに行かず、次の待ちへ回る。入るときに接続は切られる
+        // ので、ここは取りこぼしたときの控え
+        if api_client.gate().check().is_err() {
+            continue;
         }
 
         // Attempt reconnection (with timeout)
@@ -2605,7 +2629,7 @@ mod tests {
         // 境界で死に、typed StreamEvent だけが出ていくこと。
         let dir = tempfile::tempdir().unwrap();
         let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
-        let api = Arc::new(MisskeyClient::new().unwrap());
+        let api = Arc::new(MisskeyClient::new(Arc::new(crate::egress::AllowAll)).unwrap());
         let (tx, mut rx) = mpsc::unbounded_channel();
         let emitter = ChannelEmitter(tx);
         let event_bus = EventBus::new();
@@ -2683,8 +2707,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
         let (tx, _rx) = mpsc::unbounded_channel();
-        let manager =
-            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        let manager = StreamingManager::new(
+            Arc::new(ChannelEmitter(tx)),
+            Arc::new(EventBus::new()),
+            db,
+            Arc::new(crate::egress::AllowAll),
+        );
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         manager.connections.lock().await.insert(
             "acc-1".to_string(),
@@ -2841,6 +2869,42 @@ mod tests {
         );
     }
 
+    /// 口座の一覧に頼らず、管理中の接続をすべて切る (オフラインモードに入るとき、#1350)
+    #[tokio::test]
+    async fn disconnect_all_stops_every_managed_connection() {
+        let (_dir, manager, _rx) = manager_with_dead_connection(&["acc-1", "acc-2"]).await;
+        assert_eq!(manager.connections.lock().await.len(), 2);
+        manager.disconnect_all().await;
+        assert!(manager.connections.lock().await.is_empty());
+        assert!(manager.poll_connections.lock().await.is_empty());
+    }
+
+    /// 門が断っている間は WebSocket も張らない。再接続ループにも入れない (#1350)
+    #[tokio::test]
+    async fn a_closed_gate_refuses_to_connect_and_leaves_no_reconnect_loop() {
+        struct DenyAll;
+        impl crate::egress::EgressGate for DenyAll {
+            fn check(&self) -> Result<(), NoteDeckError> {
+                Err(NoteDeckError::InvalidInput("gate closed".into()))
+            }
+        }
+        let dir = tempfile::tempdir().unwrap();
+        let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let manager = StreamingManager::new(
+            Arc::new(ChannelEmitter(tx)),
+            Arc::new(EventBus::new()),
+            db,
+            Arc::new(DenyAll),
+        );
+        let err = manager
+            .connect("acc-1", "127.0.0.1:1", "token")
+            .await
+            .unwrap_err();
+        assert!(err.to_string().contains("gate closed"));
+        assert!(manager.connections.lock().await.is_empty());
+    }
+
     #[tokio::test]
     async fn connect_failure_hands_off_to_reconnect_loop() {
         // 初回接続に失敗しても Err にせず、再接続ループ入りのハンドルを
@@ -2849,8 +2913,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let manager =
-            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        let manager = StreamingManager::new(
+            Arc::new(ChannelEmitter(tx)),
+            Arc::new(EventBus::new()),
+            db,
+            Arc::new(crate::egress::AllowAll),
+        );
 
         // 127.0.0.1:1 は即 connection refused になる
         manager
@@ -2899,8 +2967,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
         let (tx, rx) = mpsc::unbounded_channel();
-        let manager =
-            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        let manager = StreamingManager::new(
+            Arc::new(ChannelEmitter(tx)),
+            Arc::new(EventBus::new()),
+            db,
+            Arc::new(crate::egress::AllowAll),
+        );
         for account_id in accounts {
             // 127.0.0.1:1 は即 connection refused
             manager
@@ -2950,8 +3022,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
         let (tx, _rx) = mpsc::unbounded_channel();
-        let manager =
-            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        let manager = StreamingManager::new(
+            Arc::new(ChannelEmitter(tx)),
+            Arc::new(EventBus::new()),
+            db,
+            Arc::new(crate::egress::AllowAll),
+        );
 
         let err = manager
             .subscribe_notes("acc-1", TimelineKey::parse("home").unwrap(), None)
@@ -3325,8 +3401,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut manager =
-            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        let mut manager = StreamingManager::new(
+            Arc::new(ChannelEmitter(tx)),
+            Arc::new(EventBus::new()),
+            db,
+            Arc::new(crate::egress::AllowAll),
+        );
         manager.api_client = Arc::new(MisskeyClient::with_base_url(&server.uri()));
 
         manager
@@ -3387,8 +3467,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
         let (tx, _rx) = mpsc::unbounded_channel();
-        let mut manager =
-            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        let mut manager = StreamingManager::new(
+            Arc::new(ChannelEmitter(tx)),
+            Arc::new(EventBus::new()),
+            db,
+            Arc::new(crate::egress::AllowAll),
+        );
         manager.api_client = Arc::new(MisskeyClient::with_base_url(&server.uri()));
 
         manager
@@ -3463,8 +3547,12 @@ mod tests {
         })
         .unwrap();
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut manager =
-            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        let mut manager = StreamingManager::new(
+            Arc::new(ChannelEmitter(tx)),
+            Arc::new(EventBus::new()),
+            db,
+            Arc::new(crate::egress::AllowAll),
+        );
         manager.api_client = Arc::new(MisskeyClient::with_base_url(&server.uri()));
 
         manager
@@ -3551,8 +3639,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let db = Arc::new(crate::db::Database::open(&dir.path().join("test.db")).unwrap());
         let (tx, mut rx) = mpsc::unbounded_channel();
-        let mut manager =
-            StreamingManager::new(Arc::new(ChannelEmitter(tx)), Arc::new(EventBus::new()), db);
+        let mut manager = StreamingManager::new(
+            Arc::new(ChannelEmitter(tx)),
+            Arc::new(EventBus::new()),
+            db,
+            Arc::new(crate::egress::AllowAll),
+        );
         manager.api_client = Arc::new(MisskeyClient::with_base_url(&server.uri()));
 
         manager

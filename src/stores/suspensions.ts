@@ -265,7 +265,21 @@ export const useSuspensionsStore = defineStore('suspensions', () => {
     applyProbeResult(accountId, { suspended, cleared })
   }
 
+  /**
+   * 問い合わせを止める / 再開する。オフラインモードの出入りで `offlineMode` store が
+   * 呼ぶ。この store が `offlineMode` を読むと accounts → suspensions → offlineMode →
+   * accounts の輪になるので、向きを逆にして受け取る
+   */
+  let paused = false
+  function setPaused(next: boolean): void {
+    paused = next
+    if (!next && pending.size > 0) void flush()
+  }
+
   async function flush(): Promise<void> {
+    // 止められている間 (オフラインモード中) は問い合わせない (#1350)。溜まった分は
+    // 残し、再開のときに流す
+    if (paused) return
     if (flushing) return
     flushing = true
     try {
@@ -277,6 +291,13 @@ export const useSuspensionsStore = defineStore('suspensions', () => {
         pending.delete(accountId)
         const ids = [...set]
         for (let i = 0; i < ids.length; i += PROBE_CHUNK) {
+          // 途中で止められたら、まだ問い合わせていない分を戻して終わる (再開で流す)
+          if (paused) {
+            const rest = pending.get(accountId) ?? new Set<string>()
+            for (const id of ids.slice(i)) rest.add(id)
+            pending.set(accountId, rest)
+            return
+          }
           await probeChunk(accountId, ids.slice(i, i + PROBE_CHUNK))
         }
       }
@@ -338,5 +359,6 @@ export const useSuspensionsStore = defineStore('suspensions', () => {
     purgeAccount,
     reverifyTick,
     stopReverifyCycle,
+    setPaused,
   }
 })

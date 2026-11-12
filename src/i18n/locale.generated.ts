@@ -2988,6 +2988,8 @@ export interface Locale {
     readonly "cssParseError": string
   }
   readonly "_loginContent": {
+    /** オフラインモードを解除 */
+    readonly "leaveOfflineMode": string
     /** 確認中... */
     readonly "checking": string
     /** サーバーに接続できます */
@@ -3542,7 +3544,7 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "enableOfflineTitle": string
     /** サーバーに再接続します。 */
     readonly "disableOfflineMessage": string
-    /** すべての通信を停止し、キャッシュ済みデータのみ表示します。 */
+    /** Misskey サーバーとの通信を止め、キャッシュ済みのデータだけを表示します。AI チャットと画像の読み込みは続きます。 */
     readonly "enableOfflineMessage": string
     /** 解除 */
     readonly "turnOff": string
@@ -5221,6 +5223,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "specified": string
   }
   readonly "_useAccountActions": {
+    /** オフラインモード中は、ログアウトとデータの削除ができません (サーバー側の後始末が通らないため)。オフラインモードを解除してからやり直してください */
+    readonly "offlineBlocked": string
     /** アカウント削除に失敗しました: {error} */
     readonly "deleteAccountFailed": ParameterizedString<'error'>
     /** Vault 接続の削除に失敗しました: {error} */
@@ -6029,6 +6033,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     /** ソースファイルが見つかりません。ソースを置き直せば次回起動で復帰します。ストア配布物はストアから再導入、不要なら削除してください */
     readonly "readOnlyHint": string
   }
+  readonly "_offlineMode": {
+    /** オフラインモードを切り替えられませんでした: {error} */
+    readonly "switchFailed": ParameterizedString<'error'>
+  }
   readonly "_systemAdaptation": {
     /** 回線が切れたため、オフラインモードに入りました。戻ると自動で再接続します */
     readonly "linkOffline": string
@@ -6157,6 +6165,8 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "authBasic": ParameterizedString<'username'>
   }
   readonly "_errors": {
+    /** オフラインモード中です */
+    readonly "offlineMode": string
     /** ログインが必要です。アカウントメニューから再ログインしてください。 */
     readonly "authRequired": string
   }
@@ -6201,6 +6211,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
     readonly "in1Week": string
   }
   readonly "_native": {
+    readonly "offline": {
+      /** オフラインモード中です */
+      readonly "modeOn": string
+    }
     readonly "loopback": {
       /** ウィジェット / Play / ページは手元のポート ({port}) に接続できません。接続できるのはプラグインだけです */
       readonly "notEligible": ParameterizedString<'port'>
@@ -6687,6 +6701,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
       readonly "waitingNotAiProvider": string
       /** HEARTBEAT の接続先の起動を待っています (起動すれば次の巡回で再開します): {detail} */
       readonly "waitingUnreachable": ParameterizedString<'detail'>
+      /** オフラインモード中なので HEARTBEAT は巡回していません (解除すると次の巡回から再開します) */
+      readonly "waitingOffline": string
+      /** オフラインモード中は巡回できません */
+      readonly "offlineNoRun": string
       /** HEARTBEAT の接続先の名前解決が内部アドレスを返したので送れません。接続の URL を確認してください: {detail} */
       readonly "waitingBlocked": ParameterizedString<'detail'>
     }

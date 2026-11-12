@@ -18,6 +18,9 @@ export type ErrorCode =
   | 'API'
   | 'RATE_LIMITED'
   | AuthErrorCode
+  // 手動のオフラインモード中に Misskey への送信を断った (#1350)。認証エラーにも
+  // 通信エラーにも数えない (再ログインの案内も、自動の再試行もしない)
+  | 'OFFLINE_MODE'
   | 'NO_CONNECTION'
   | 'CONNECTION_CLOSED'
   | 'INVALID_INPUT'

@@ -43,7 +43,7 @@ describe('parseSettings', () => {
     expect(parsed['theme.manual']).toBe('dark')
     expect(parsed['modes.realtime']).toBe(false)
     // Default-preserved key
-    expect(parsed['modes.offline']).toBe(false)
+    expect(parsed['note.nyaize']).toBe(true)
   })
 
   it('preserves unknown keys for forward compatibility', () => {
@@ -87,7 +87,6 @@ describe('useSettingsStore', () => {
 
     expect(store.initialized).toBe(true)
     expect(store.get('modes.realtime')).toBe(DEFAULT_SETTINGS['modes.realtime'])
-    expect(store.get('modes.offline')).toBe(DEFAULT_SETTINGS['modes.offline'])
   })
 
   it('load() parses existing settings.json content', async () => {

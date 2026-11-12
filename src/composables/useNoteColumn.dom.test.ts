@@ -19,7 +19,6 @@ import { type Account, useAccountsStore } from '@/stores/accounts'
 import { type QueryItem, useColumnQueriesStore } from '@/stores/columnQueries'
 import { type DeckColumn, useDeckStore } from '@/stores/deck'
 import { useOfflineModeStore } from '@/stores/offlineMode'
-import { useSettingsStore } from '@/stores/settings'
 import { useUiStore } from '@/stores/ui'
 import type { FramePriority } from './useFrameScheduler'
 import { type NoteColumnConfig, useNoteColumn } from './useNoteColumn'
@@ -1830,7 +1829,7 @@ describe('useNoteColumn: レート制限 (#1271)', () => {
 describe('useNoteColumn: オフラインモードと復帰 (#461)', () => {
   it('オフラインモード中にマウントした列は adapter を持たず、解除で接続からやり直す', async () => {
     addAccount('acc-off')
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     const fetchImpl = vi.fn().mockResolvedValue([note('h01')])
     const { api } = mountColumn({
       accountId: 'acc-off',
@@ -1846,6 +1845,22 @@ describe('useNoteColumn: オフラインモードと復帰 (#461)', () => {
     expect(fetchImpl).toHaveBeenCalled()
     expect(ids(api)).toEqual(['h01'])
     expect(api.isOffline.value).toBe(false)
+  })
+
+  it('繋がった後でオフラインモードに入ったカラムの追加読み込みは、サーバーへ行かない (#1350)', async () => {
+    addAccount('acc-off3')
+    const fetchImpl = vi.fn().mockResolvedValue([note('h02'), note('h01')])
+    const { api } = mountColumn({
+      accountId: 'acc-off3',
+      fetch: () => fetchImpl(),
+    })
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+
+    await useOfflineModeStore().enable()
+    await api.loadMore()
+    await flush()
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 
   it('オフラインモード中は復帰信号でも REST を叩かない', async () => {

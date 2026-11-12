@@ -2898,6 +2898,33 @@ async systemStateGet() : Promise<Result<SystemState, { code: string; message: st
     else return { status: "error", error: e  as any };
 }
 },
+/**
+ * 手動のオフラインモードか。状態が在るのに読めないときは true (`notecore::offline::manual`)
+ *
+ * @see src-tauri/src/commands/offline.rs
+ */
+async offlineModeGet() : Promise<Result<boolean, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("offline_mode_get") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * 手動のオフラインモードを切り替える。入るときは、張っているストリーミングの接続を
+ * すべて切る (フロントの切断に頼らない。窓が 1 つも無くても切れる)
+ *
+ * @see src-tauri/src/commands/offline.rs
+ */
+async offlineModeSet(offline: boolean) : Promise<Result<null, { code: string; message: string; apiCode: string | null; i18n: JsonValue | null; retryAfterMs: number | null }>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("offline_mode_set", { offline }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
 async clientLayerState() : Promise<ClientLayerState> {
     return await TAURI_INVOKE("client_layer_state");
 },
@@ -3251,6 +3278,7 @@ ndAiHeartbeatEvent: HeartbeatEventWire,
 ndSettingsFileChanged: SettingsFileChangedEvent,
 noteCaptureBatch: NoteCaptureBatchEvent,
 notificationClickAddressed: NotificationClickAddressed,
+offlineModeChanged: OfflineModeChanged,
 pipReturnRequested: PipReturnRequested,
 queryDelta: QueryDeltaEvent,
 queryRequest: QueryRequest,
@@ -3275,6 +3303,7 @@ ndAiHeartbeatEvent: "nd:ai-heartbeat-event",
 ndSettingsFileChanged: "nd:settings-file-changed",
 noteCaptureBatch: "note-capture-batch",
 notificationClickAddressed: "notification-click-addressed",
+offlineModeChanged: "offline-mode-changed",
 pipReturnRequested: "pip-return-requested",
 queryDelta: "query-delta",
 queryRequest: "query-request",
@@ -4003,7 +4032,7 @@ nextTickAt: number | null }
  */
 export type HeartbeatTickUsage = { inputTokens: number; estimatedInputTokens: number }
 /**
- * 待機中 (#1321)。`kind` は `no-provider` | `unreachable`。`message` は英語の正本文、
+ * 待機中 (#1321)。`kind` は `no-provider` | `unreachable` | `offline` (#1350)。`message` は英語の正本文、
  * `i18n` は `{ message: { key, params } }` (デバイスは `localizeNative` で描き直す)
  */
 export type HeartbeatWaiting = { kind: string; since: number; message: string; i18n: JsonValue }
@@ -4371,6 +4400,10 @@ export type NotificationClickAddressed = { to: string; click: NotificationClicke
  * 配送は宛先付きの `NotificationClickAddressed` (見ている窓 1 つへ、#1131)
  */
 export type NotificationClicked = { accountId: string; noteId: string | null; userId: string | null }
+/**
+ * 手動のオフラインモードが切り替わった。全窓へ流す (切り替えた窓にも届く)
+ */
+export type OfflineModeChanged = { offline: boolean }
 /**
  * `users/pages` / `pages/show` の 1 件分。本家 packages/backend/src/models/Page.ts。
  * プロフィール一覧で使うのは title / summary / createdAt のみだが、

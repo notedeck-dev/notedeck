@@ -21,7 +21,6 @@ import type { DeckColumn } from '@/stores/deck'
 import { useNoteStore } from '@/stores/notes'
 import { useOfflineModeStore } from '@/stores/offlineMode'
 import { usePerformanceStore } from '@/stores/performance'
-import { useSettingsStore } from '@/stores/settings'
 import { useToast } from '@/stores/toast'
 import {
   type CrossAccountNotesOptions,
@@ -1177,7 +1176,7 @@ describe('useCrossAccountNotes: 組を束ねる面の復帰と到達点 (#1017�
 describe('useCrossAccountNotes: オフラインモードと復帰 (#461)', () => {
   it('オフラインモード中に接続した列は取りに行かず、解除で接続からやり直して購読を張る', async () => {
     addAccount('acc-a')
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     const fetchFor = vi.fn(() => [note('a50')])
     const column = ref<Partial<DeckColumn>>({})
     const { api } = mountCross({
@@ -1194,5 +1193,45 @@ describe('useCrossAccountNotes: オフラインモードと復帰 (#461)', () =>
     await flushFrames()
     expect(fetchFor).toHaveBeenCalled()
     expect(ids(api)).toEqual(['a50'])
+  })
+
+  it('繋がった後でオフラインモードに入った列の追加読み込みは、サーバーへ行かない (#1350)', async () => {
+    addAccount('acc-a')
+    const fetchFor = vi.fn(() => [note('a50')])
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({ column, fetchFor })
+    await flushFrames()
+    const before = fetchFor.mock.calls.length
+    expect(before).toBeGreaterThan(0)
+
+    await useOfflineModeStore().enable()
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(fetchFor).toHaveBeenCalledTimes(before)
+  })
+
+  it('オフライン中にキャッシュの末尾まで読んでも、解除後は続きをサーバーから読める (#1350)', async () => {
+    addAccount('acc-a')
+    const fetchFor = vi.fn((_id: string, o?: { untilId?: string }) =>
+      o?.untilId ? [note('a10')] : [note('a50')],
+    )
+    const column = ref<Partial<DeckColumn>>({})
+    const { api } = mountCross({ column, paging: 'horizon', fetchFor })
+    await flushFrames()
+    expect(ids(api)).toEqual(['a50'])
+
+    // オフライン中の追加読み込みはキャッシュ (空) で終わる。これを「サーバーにも
+    // もう無い」と覚えてはいけない
+    await useOfflineModeStore().enable()
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(fetchFor.mock.calls.some((c) => c[1]?.untilId)).toBe(false)
+
+    await useOfflineModeStore().disable()
+    await flushFrames()
+    await api.loadMoreCrossAccount()
+    await flushFrames()
+    expect(fetchFor.mock.calls.some((c) => c[1]?.untilId)).toBe(true)
+    expect(ids(api)).toContain('a10')
   })
 })

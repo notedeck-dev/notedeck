@@ -159,6 +159,7 @@ mod tests {
             Arc::new(NoopEmitter),
             Arc::new(EventBus::new()),
             db.clone(),
+            Arc::new(notecli::egress::AllowAll),
         )));
 
         let done = super::stream_subscribe_main_all(&core).await.unwrap();

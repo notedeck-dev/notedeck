@@ -8,8 +8,16 @@ use notecore::error::Result;
 
 /// 「今すぐ巡回する」(#1321): 無効でも走り、cheap check を飛ばし、連続失敗と日次に数えない。
 /// 実行中の印を同期的に取ってから background で走らせ、即返す (結果は event と
-/// `heartbeat_status` で見る)。実行中なら Err
+/// `heartbeat_status` で見る)。実行中 / 手動のオフラインモード中なら Err
 pub async fn heartbeat_trigger_now(core: &Core) -> Result<()> {
+    // 手動のオフラインモード中は始めず、理由を返す (#1350)。巡回はサーバーの内容を読む前提
+    if notecore::offline::manual(core.layout()?) {
+        return Err(notecore::i18n::error(
+            notecore::offline::ERROR_CODE,
+            "_native.heartbeat.offlineNoRun",
+            serde_json::json!({}),
+        ));
+    }
     let guard = crate::heartbeat::try_begin()
         .ok_or_else(|| NoteDeckError::InvalidInput("HEARTBEAT is already running".into()))?;
     let core = core.shared()?;

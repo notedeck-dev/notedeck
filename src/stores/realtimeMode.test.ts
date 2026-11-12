@@ -71,7 +71,7 @@ describe('applyPersistedMode', () => {
 
   it('オフラインモード中はネットワークを起こさない', () => {
     useSettingsStore().set('modes.realtime', false)
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     useAccountsStore().addAccount(account('acc1'))
 
     useRealtimeModeStore().applyPersistedMode()
@@ -83,7 +83,7 @@ describe('applyPersistedMode', () => {
 describe('オフラインモード解除', () => {
   it('polling モードなら輸送路を polling で再開する', async () => {
     useSettingsStore().set('modes.realtime', false)
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     useAccountsStore().addAccount(account('acc1'))
 
     await useOfflineModeStore().disable()
@@ -97,7 +97,7 @@ describe('オフラインモード解除', () => {
   })
 
   it('realtime モードなら何も送らない (復帰は deck-resume 経由の connect に委ねる)', async () => {
-    useSettingsStore().set('modes.offline', true)
+    void useOfflineModeStore().enable()
     useAccountsStore().addAccount(account('acc1'))
 
     await useOfflineModeStore().disable()

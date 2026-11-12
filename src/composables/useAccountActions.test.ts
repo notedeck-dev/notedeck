@@ -2,7 +2,11 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
-  accountsStore: { removeAccount: vi.fn(async () => undefined) },
+  accountsStore: {
+    removeAccount: vi.fn(async () => undefined),
+    logoutAccount: vi.fn(async () => undefined),
+  },
+  offline: { isManualOffline: false },
   deckStore: {
     columns: [] as { id: string; accountId: string | null }[],
     removeColumn: vi.fn(),
@@ -24,6 +28,9 @@ vi.mock('@/stores/accounts', async (importOriginal) => ({
   useAccountsStore: () => h.accountsStore,
 }))
 vi.mock('@/stores/deck', () => ({ useDeckStore: () => h.deckStore }))
+vi.mock('@/stores/offlineMode', () => ({
+  useOfflineModeStore: () => h.offline,
+}))
 vi.mock('@/stores/streaming', () => ({
   useStreamingStore: () => h.streamingStore,
 }))
@@ -172,5 +179,33 @@ describe('アカウント削除で Secret Vault のアカウント専用接続�
       expect.stringContaining('keychain locked'),
       'warning',
     )
+  })
+})
+
+describe('手動のオフラインモード中のログアウトとデータの削除 (#1350)', () => {
+  beforeEach(() => {
+    h.offline.isManualOffline = false
+    h.confirm.mockClear()
+    h.toast.show.mockClear()
+    h.accountsStore.removeAccount.mockClear()
+    h.accountsStore.logoutAccount.mockClear()
+  })
+
+  it('オフライン中は確認も出さずに止め、理由を見せる (サーバー側の後始末が通らない)', async () => {
+    h.offline.isManualOffline = true
+    const actions = useAccountActions()
+    await actions.logout(acc)
+    await actions.deleteAccount(acc)
+    expect(h.confirm).not.toHaveBeenCalled()
+    expect(h.accountsStore.logoutAccount).not.toHaveBeenCalled()
+    expect(h.accountsStore.removeAccount).not.toHaveBeenCalled()
+    expect(h.toast.show).toHaveBeenCalledTimes(2)
+  })
+
+  it('オフラインでなければ今までどおり確認してログアウトする', async () => {
+    const actions = useAccountActions()
+    await actions.logout(acc)
+    expect(h.confirm).toHaveBeenCalledTimes(1)
+    expect(h.accountsStore.logoutAccount).toHaveBeenCalledWith(acc.id)
   })
 })

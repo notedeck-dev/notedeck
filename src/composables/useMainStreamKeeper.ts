@@ -1,5 +1,6 @@
 import { watch } from 'vue'
 import { useRepresentative } from '@/composables/useRepresentative'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { commands } from '@/utils/tauriInvoke'
 
@@ -18,6 +19,9 @@ export function useMainStreamKeeper(): void {
     () => uiStore.deckResumeSignal,
     () => {
       if (!isRepresentative.value) return
+      // オフラインの間は張らせない (スリープ復帰などの信号は来る)。解除は
+      // 復帰の信号を出すので、そのときに張り直す (#1350)
+      if (useOfflineModeStore().isOfflineMode) return
       commands.streamSubscribeMainAll().catch(() => {
         // Rust 側の再接続ループに委ねる。失敗しても次の復帰で頼み直す
       })

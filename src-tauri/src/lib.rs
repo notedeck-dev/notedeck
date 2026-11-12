@@ -288,6 +288,13 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
         // 排他を取って config / data / state / cache に分ける。失敗したら旧配置のまま
         let layout_report = layout_boot::prepare(&app_dir);
         app.manage(layout_boot::LayoutReport(std::sync::Mutex::new(layout_report)));
+        // 手動のオフラインモードを、持ち運ぶ設定からこの機械の状態へ 1 回だけ移す (#1350)。
+        // 失敗しても起動は止めない (状態が無い間は今までの設定を読む)
+        if let Err(e) =
+            notecore::offline::migrate(&notecore::app_dir::Layout::from_root(&app_dir))
+        {
+            tracing::warn!("[offline] cannot move the manual flag to state/: {e}");
+        }
         notecore::migrations::run_fs(&app_dir)?;
         // 旧形の connections.json (同意と鍵の有無が同居) は最初の読込で state 側へ分かれる。
         // Vault を使うまで待たず、起動時に 1 回読んで分けておく (#1333 §4)
@@ -607,7 +614,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
             // Parallel: DB open + MisskeyClient init + HTTP bind (all independent)
             let db_path = app_dir_bg.join("notecli.db");
             let db_handle = std::thread::spawn(move || notecli::db::Database::open(&db_path));
-            let client_handle = std::thread::spawn(notecli::api::MisskeyClient::new);
+            // 門 (#1350): 手動のオフラインモード中は Misskey へ送らない
+            let gate = notecore::offline::Gate::for_app_dir(&app_dir_bg);
+            let client_gate = gate.clone();
+            let client_handle =
+                std::thread::spawn(move || notecli::api::MisskeyClient::new(client_gate));
             let http_handle = std::thread::spawn(|| {
                 tauri::async_runtime::block_on(http_server::bind())
             });
@@ -689,6 +700,7 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                 emitter,
                 event_bus.clone(),
                 db.clone(),
+                gate.clone(),
             ));
             app_handle.manage(streaming.clone());
             app_state.set_streaming(streaming);
@@ -728,7 +740,11 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
                             commands::check(&updater_app, false).await;
                         });
                     }
-                    if let Err(e) = notecore::commands::streaming::stream_subscribe_main_all(&core).await {
+                    // オフラインモードのまま起動したら張らない (#1350)。解除したときに
+                    // フロントの復帰の信号が張る (`useMainStreamKeeper`)
+                    if core.layout().is_ok_and(notecore::offline::manual) {
+                        tracing::info!("[stream] offline at boot, main channels not subscribed");
+                    } else if let Err(e) = notecore::commands::streaming::stream_subscribe_main_all(&core).await {
                         tracing::warn!("[stream] main for all accounts at boot: {e}");
                     }
                 });
@@ -1347,6 +1363,8 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::heartbeat_notices_since,
             // OS 状態 (#931 / #935 / #928)
             commands::system_state_get,
+            commands::offline_mode_get,
+            commands::offline_mode_set,
             client_layer::client_layer_state,
             commands::core_resident_status,
             commands::core_set_resident,
@@ -1403,6 +1421,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::SettingsFileChangedEvent,
             commands::HeartbeatEventWire,
             system_state::SystemState,
+            commands::OfflineModeChanged,
             commands::WindowRolesChanged,
             commands::AddressedDeepLink,
             commands::NotificationClickAddressed,

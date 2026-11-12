@@ -2,6 +2,7 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, defineComponent, nextTick } from 'vue'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useUiStore } from '@/stores/ui'
 import { useMainStreamKeeper } from './useMainStreamKeeper'
 
@@ -46,6 +47,31 @@ describe('useMainStreamKeeper', () => {
     useUiStore().emitDeckResume()
     await nextTick()
     expect(streamSubscribeMainAll).toHaveBeenCalledTimes(2)
+    app.unmount()
+  })
+
+  it('オフライン中の復帰では張り直さず、解除で張り直す (#1350)', async () => {
+    const Host = defineComponent({
+      setup() {
+        useMainStreamKeeper()
+        return () => null
+      },
+    })
+    const app = createApp(Host)
+    app.mount(document.createElement('div'))
+    const offline = useOfflineModeStore()
+    await offline.enable()
+    await nextTick()
+
+    // スリープからの復帰など。オフラインの間は WebSocket を張らせない
+    useUiStore().emitDeckResume()
+    await nextTick()
+    expect(streamSubscribeMainAll).not.toHaveBeenCalled()
+
+    // 解除は復帰の信号を出す
+    await offline.disable()
+    await nextTick()
+    expect(streamSubscribeMainAll).toHaveBeenCalledTimes(1)
     app.unmount()
   })
 })
