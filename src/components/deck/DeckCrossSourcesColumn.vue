@@ -149,6 +149,7 @@ const {
     ? {
         columnId: props.column.id,
         columnType: props.columnType,
+        soundMuted: () => props.column.soundMuted === true,
         subscribe: (accountId, _adapter, enqueue, callbacks, source) =>
           subscribeSource(accountId, source, enqueue, callbacks),
       }

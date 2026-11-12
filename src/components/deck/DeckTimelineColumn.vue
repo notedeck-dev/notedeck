@@ -327,6 +327,7 @@ const {
   streaming: {
     columnId: props.column.id,
     columnType: 'timeline',
+    soundMuted: () => props.column.soundMuted === true,
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
       createQuerySubscription({
         open: async () => openTimelineQuery(accountId, tlType.value, null),

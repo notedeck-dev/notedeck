@@ -128,6 +128,7 @@ const {
   streaming: {
     columnId: props.column.id,
     columnType: 'mentions',
+    soundMuted: () => props.column.soundMuted === true,
     subscribe: (accountId, _adapter, enqueue, callbacks) =>
       createQuerySubscription({
         open: async () => openMentionsQuery(accountId),
