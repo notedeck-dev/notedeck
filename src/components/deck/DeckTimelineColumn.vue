@@ -676,6 +676,7 @@ onMounted(async () => {
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
     @refresh="connectCrossAccount"
+    sound-enabled
   >
     <template #header-icon>
       <i :class="['ti ti-' + currentTlIcon, $style.tlHeaderIcon]" />
@@ -791,7 +792,6 @@ onMounted(async () => {
     :column="column"
     :title="i18n.ts._columns.timeline"
     icon="ti-home"
-    sound-enabled
     :note-column-config="noteColumnConfig"
     :filter-keys="availableFilterKeys"
   >

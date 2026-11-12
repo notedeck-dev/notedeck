@@ -481,6 +481,7 @@ onMounted(async () => {
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
     @refresh="search('explicit')"
+    sound-enabled
   >
     <template #header-icon>
       <i :class="$style.tlHeaderIcon" class="ti ti-archive" />

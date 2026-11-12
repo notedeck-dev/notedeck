@@ -56,7 +56,6 @@ const props = withDefaults(
     title: string
     icon: string
     webUiPath?: string
-    soundEnabled?: boolean
     showInlinePostForm?: boolean
     noteColumnConfig: NoteColumnConfig
     /** 空状態のメッセージ（デフォルト: まだノートがありません） */
@@ -208,7 +207,7 @@ defineExpose({
     :title="column.name || title"
     :theme-vars="columnThemeVars"
     :web-ui-url="webUiUrl"
-    :sound-enabled="soundEnabled"
+    sound-enabled
     require-account
     @header-click="scrollToTop()"
     @refresh="refresh"

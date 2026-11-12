@@ -124,7 +124,6 @@ const { rename, deleteEntity, config } = useEntityCrud(
     :title="i18n.ts._columns.list"
     icon="ti-list"
     :web-ui-path="column.listId ? `/my/lists/${column.listId}` : undefined"
-    sound-enabled
     :note-column-config="noteColumnConfig"
     :filter-keys="['withRenotes', 'withReplies', 'withFiles', 'withBots']"
   >

@@ -163,6 +163,7 @@ const {
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
     @refresh="connectCrossAccount"
+    sound-enabled
   >
     <template #header-icon>
       <i :class="['ti', icon, $style.tlHeaderIcon]" />

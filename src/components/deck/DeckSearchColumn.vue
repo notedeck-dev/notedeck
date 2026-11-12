@@ -955,6 +955,7 @@ onUnmounted(() => {
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
+    sound-enabled
   >
     <template #header-icon>
       <i :class="$style.tlHeaderIcon" class="ti ti-search" />

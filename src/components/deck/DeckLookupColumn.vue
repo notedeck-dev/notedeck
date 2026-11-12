@@ -659,6 +659,7 @@ async function handlePosted(editedNoteId?: string) {
     :theme-vars="columnThemeVars"
     require-account
     @header-click="scrollToTop"
+    sound-enabled
   >
     <template #header-icon>
       <i class="ti ti-world-search" :class="$style.tlHeaderIcon" />

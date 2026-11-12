@@ -158,6 +158,7 @@ const {
     :theme-vars="columnThemeVars"
     @header-click="scrollToTop"
     @refresh="connectCrossAccount"
+    sound-enabled
   >
     <template #header-icon>
       <i :class="['ti', config.icon, $style.tlHeaderIcon]" />
@@ -231,7 +232,6 @@ const {
     :column="column"
     :title="config.title"
     :icon="config.icon"
-    sound-enabled
     :note-column-config="noteColumnConfig"
   />
   <ColumnCrossPostForm v-if="isCrossAccount" :post-form="postForm" @posted="postForm.close" />
