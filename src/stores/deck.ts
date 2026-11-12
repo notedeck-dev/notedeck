@@ -155,14 +155,17 @@ export interface DeckProfile {
   fileBase?: string
 }
 
-/** sidebar チャットカラムで開く DM 会話のターゲット (永続化しない transient 値)。 */
-export interface ChatConversationTarget {
+/**
+ * sidebar チャットカラムで開く会話のターゲット (永続化しない transient 値)。
+ * 相手との DM (`userId`) かルーム (`roomId`)。ルームは名前を引く口が無いので
+ * `name` は空でよく、カラムが会話のメッセージから埋める
+ */
+export type ChatConversationTarget = {
   accountId: string
-  userId: string
   name: string
   avatarUrl: string | null
   serverHost: string | null
-}
+} & ({ userId: string } | { roomId: string })
 
 export interface DeckColumn {
   id: string
@@ -505,11 +508,11 @@ export const useDeckStore = defineStore('deck', () => {
     return col
   }
 
-  // チャットカラムへ「特定ユーザーとの会話を開け」と伝える transient な合図。
+  // チャットカラムへ「この会話 (相手 / ルーム) を開け」と伝える transient な合図。
   // カラムには永続化せず、sidebar チャットカラムが consume したら null に戻す。
   const pendingChatTarget = ref<ChatConversationTarget | null>(null)
 
-  /** ユーザープロフィール等から特定ユーザーとの DM を開く。 */
+  /** ユーザープロフィールや通知から、特定の相手との DM かルームの会話を開く。 */
   function openChatWith(target: ChatConversationTarget) {
     pendingChatTarget.value = target
     const existing = columns.value.find((c) => c.sidebar)

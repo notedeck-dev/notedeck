@@ -53,7 +53,7 @@ const NOTE_VISIBILITIES: ReadonlyArray<PostVisibility> = [
  *   notedeck://<host>/direct
  *   notedeck://<host>/chat
  *   notedeck://<host>/chat/user/<userId>   (その相手との会話を開く)
- *   notedeck://<host>/chat/room/<roomId>   (今はメッセージのカラムを開くだけ)
+ *   notedeck://<host>/chat/room/<roomId>   (そのルームの会話を開く)
  *   notedeck://<host>/announcements
  *   notedeck://<host>/drive
  *   notedeck://<host>/gallery
@@ -224,8 +224,16 @@ export async function handleDeepLink(rawUrl: string): Promise<void> {
     case 'chat':
       if (rest[0] === 'user' && rest[1] && accountId) {
         await handleOpenChatWith(accountId, host, rest[1])
+      } else if (rest[0] === 'room' && rest[1] && accountId) {
+        // ルームの名前を引く口は無い。カラムが会話のメッセージから埋める (#1357)
+        useDeckStore().openChatWith({
+          accountId,
+          roomId: rest[1],
+          name: '',
+          avatarUrl: null,
+          serverHost: host,
+        })
       } else {
-        // ルーム単位 (chat/room/<id>) はまだ会話を直接開く口が無いのでカラムを開く
         handleAddColumn('chat', accountId)
       }
       break
