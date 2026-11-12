@@ -1,5 +1,5 @@
 ---
-sourceHash: 13647898f338
+sourceHash: 7fb0ea52ad43
 ---
 
 # AI 的独立进程 (notemaid)
@@ -48,7 +48,7 @@ notemaid service enable                       # 注册并启动
 
 ## notemaid 管理的文件
 
-notemaid 只写入应用数据文件夹中属于自己的内容：AI 的人格与记忆（`data/notemaid/`）、AI 会话（`data/sessions/`）、备忘（`data/memos/`）、技能（`config/skills/`）以及 AI 设置（`config/ai.json5`）。它不会打开应用的数据库。从应用复制过来的账户列表（`notemaid-accounts.json`，不含令牌）放在 `state/secrets/` 中。在没有 Secret Service 的 Linux 环境下，还会写入作为令牌转存位置的加密文件和密钥。
+notemaid 只写入应用数据文件夹中属于自己的内容：AI 的人格与记忆（`data/notemaid/`）、AI 会话（`data/sessions/`）、备忘（`data/memos/`）、技能（`config/skills/`）以及 AI 设置（`config/ai.json5`）。它不会打开应用的数据库。从应用复制过来的账户列表（`notemaid-accounts.json`。令牌保存在操作系统的钥匙串中；在无法使用钥匙串的环境下，此文件也会包含令牌，且仅所有者可读）放在 `state/secrets/` 中。在没有 Secret Service 的 Linux 环境下，还会写入作为令牌转存位置的加密文件和密钥。
 
 人格与记忆的内容可以在智能体设置的“人格设定”（ペルソナ）和“记忆”（メモリー）中读写（只有人格的正文 SOUL.md 要在开发者模式的标签页或外部编辑器中编辑）。文件列表请参阅[设置文件](/zh/docs/config/files)。
 
