@@ -564,18 +564,16 @@ async function connectCrossAccount() {
 }
 
 /**
- * 履歴を経由せず直接ユーザー会話を開くための軽量ターゲット
- * (プロフィールからの DM 起動など)。`message` を持たないため
- * `openConversation` 内の `entry.message` 参照は `'message' in entry` でガードする。
+ * 履歴を経由せず直接会話を開くための軽量ターゲット (プロフィールからの DM 起動、
+ * 通知からのルーム)。`message` を持たないため `openConversation` 内の
+ * `entry.message` 参照は `'message' in entry` でガードする。
  */
-interface ConversationTarget {
-  isRoom: false
+type ConversationTarget = {
   name: string
   avatarUrl?: string
   accountId: string
   serverHost: string | null
-  otherId: string
-}
+} & ({ isRoom: false; otherId: string } | { isRoom: true; roomId: string })
 
 const perAccountHistoryEntries = computed<PerAccountHistoryEntry[]>(() =>
   buildPerAccountHistoryEntries(chatHistory.value, myUserId.value),
@@ -627,7 +625,8 @@ async function openConversation(
       variantKeyOf(entry.message),
     )
   }
-  conversationTitle.value = entry.name
+  // 通知から開いたルームは名前を持たない。開いた後で会話のメッセージから埋める (#1357)
+  conversationTitle.value = entry.name || i18n.ts._deckChatColumn.room
   conversationOtherAvatarUrl.value = entry.avatarUrl ?? null
   isLoading.value = true
   error.value = null
@@ -681,6 +680,10 @@ async function openConversation(
       },
     })
     if (outcome === 'aborted') return
+    if (!entry.name) {
+      const roomName = messages.value.find((m) => m.toRoom?.name)?.toRoom?.name
+      if (roomName) conversationTitle.value = roomName
+    }
     viewMode.value = 'conversation'
     scrollToBottom()
   } catch (e) {
@@ -1085,7 +1088,7 @@ async function subscribeReactionEvents() {
   reactionUnlisteners.push(await listenChatReactionEvents(chatMessageStore))
 }
 
-// プロフィール等から DM 起動の合図が来たら会話を開く。sidebar チャットカラムのみ
+// プロフィールや通知から会話 (DM / ルーム) を開く合図が来たら開く。sidebar チャットカラムのみ
 // が consume する (singleton)。immediate で「合図 → カラム生成」順にも対応する。
 watch(
   () => deckStore.pendingChatTarget,
@@ -1093,14 +1096,17 @@ watch(
     if (!t || !props.column.sidebar) return
     const target = deckStore.consumePendingChatTarget()
     if (!target) return
-    void openConversation({
-      isRoom: false,
+    const base = {
       name: target.name,
       avatarUrl: target.avatarUrl ?? undefined,
       accountId: target.accountId,
       serverHost: target.serverHost,
-      otherId: target.userId,
-    })
+    }
+    void openConversation(
+      'roomId' in target
+        ? { ...base, isRoom: true, roomId: target.roomId }
+        : { ...base, isRoom: false, otherId: target.userId },
+    )
   },
   { immediate: true },
 )

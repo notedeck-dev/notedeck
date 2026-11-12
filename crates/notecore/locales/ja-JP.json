@@ -395,7 +395,7 @@
       "oldCode": "古いコードです。NoteDeck から貼り替えてください",
       "registered": "{user} は登録済みです。NoteDeck で届くのを待っています",
       "noPending": "{user} には登録待ちがありません。{targets} に切り替えて ▶ を押してください",
-      "cannotConfirm": "登録待ちを確かめられませんでした。NoteDeck で「やり直す」を押してください",
+      "cannotConfirm": "登録待ちを確かめられませんでした。NoteDeck でプッシュ通知をいったんオフにしてから、もう一度オンにしてください",
       "confirmed": "{user} のプッシュ通知が届くようになりました"
     },
     "tray": {
