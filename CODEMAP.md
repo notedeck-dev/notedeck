@@ -2,7 +2,7 @@
 
 <!-- このファイルは scripts/gen-codemap.mjs の生成物。手で編集せず `pnpm gen:codemap` で作り直す -->
 
-リポジトリの構造の一覧。正本のファイルから生成していて、構造が変わると `pnpm lint:docs` が再生成を求める。設計の理由は [ARCHITECTURE.md](ARCHITECTURE.md) と [DEVELOPMENT.md](DEVELOPMENT.md) を読む。
+リポジトリの構造の一覧。正本のファイルから生成していて、構造が変わると `pnpm lint:docs` が再生成を求める。設計の理由は [ARCHITECTURE.md](ARCHITECTURE.md) / [DECK.md](DECK.md) / [AI.md](AI.md) を読む。
 
 ## クレート
 

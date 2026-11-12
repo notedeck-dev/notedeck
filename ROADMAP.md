@@ -380,7 +380,7 @@ Tauri 非依存のドメインを notecore に集め (切り出し済み)、AI �
   アプリが自前で再生している通知音を鳴らさない。#747 で通知制御を OS へ委譲する判断をしたが、
   自前再生の音は OS 側で止まらないため委譲先に穴が空いている。追加する設定項目はゼロ。
   取得は Linux (通知デーモン / GNOME 設定) / macOS (private な DB) / Windows (未公開 WNF) で、
-  取れない環境では従来どおり鳴る (DEVELOPMENT.md「OS の状態への自動適応」)
+  取れない環境では従来どおり鳴る (ARCHITECTURE.md「OS の状態への自動適応」)
 - [ ] **ファイルのドラッグアウト** (#929) — ノートの添付画像・動画・ドライブファイル・ギャラリーの画像を
   掴んで他アプリやデスクトップへ持ち出す。現在は受け取り（OS からのドロップ）のみで、
   出す方向が空いている。#926 のデスクトップ側にあたる。ドラッグ開始時に実体ファイルを
@@ -781,7 +781,7 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
   MEMORY.md (覚え書き) / BOOTSTRAP.md (初回の儀式)、`skills/` に予約 skill AGENTS.md / HEARTBEAT.md。
   組み立ては notemaid 一本、turn 単位のスナップショット、Hermes 同形の `memory.update`、tainted からの
   書込は確認強制 (承認後はラベル無し)・無人は拒否。4 視点 × 2 巡の敵対的レビューで 2026-09-30 に
-  設計確定 (正本は issue の v4 コメント、要約は DEVELOPMENT.md「AI の人格と記憶」)。2026-10-01 に段階 1〜6 を
+  設計確定 (正本は issue の v4 コメント、要約は AI.md「AI の人格と記憶」)。2026-10-01 に段階 1〜6 を
   develop に入れた (AI 設定「AI の人格と記憶」の 3 枚、予約 skill、初回の挨拶、バックアップ、手元の CLI の境界)。実機確認は未
 - [x] **手元の CLI を AI にする (ACP)** (#1104) — ログイン済みの Claude Agent (Claude Code) / Codex /
   OpenCode / Hermes Agent / Grok Build を notemaid が ACP の子プロセスとして抱え、AI カラムの provider にする。
@@ -813,7 +813,7 @@ Tauri invoke の代わりに HTTP API を叩くアダプタ層を書けば、理
     + URL ペースト推論。テンプレ一覧は `crates/notecore/connection_templates.json5` が正本。
     ここに無いサービスは手動登録できる
   - OAuth 2 フロー / Webhook (inbound) / MCP 連携 / dynamic capability は v2 以降。
-    詳細仕様は [DEVELOPMENT.md](DEVELOPMENT.md) の "Secret Vault" 節
+    詳細仕様は [AI.md](AI.md) の "Secret Vault" 節
 
 ### 未完了: AI 統合 — v1.0.0 以降
 

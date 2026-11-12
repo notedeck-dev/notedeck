@@ -123,7 +123,7 @@ export interface NoteColumnConfig {
   /**
    * 表示述語の面別 opt-out（#606）。既定（未指定）は全適用。
    * お気に入り・自分のクリップは `ignoreSuspension`、プロフィールは
-   * `ignoreSubject`（面別マトリクスは DEVELOPMENT.md 参照）。
+   * `ignoreSubject`（面別マトリクスは DECK.md 参照）。
    */
   visibility?: VisibilityOpts
 }

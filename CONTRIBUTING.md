@@ -1,5 +1,33 @@
 # Contributing to NoteDeck
 
+NoteDeck に貢献するための入口。ここには、最短で動かす手順と PR の流れだけを書く。
+詳しい手引きと規約は [DEVELOPMENT.md](DEVELOPMENT.md)、設計の解説は分野ごとの文書にある (一覧は [DEVELOPMENT.md の「文書の地図」](DEVELOPMENT.md#文書の地図))。
+
+## 最短の手順
+
+```bash
+git clone https://github.com/notedeck-dev/notedeck.git
+cd notedeck
+nix develop        # 開発環境に入る (direnv なら cd するだけ)
+pnpm install
+pnpm tauri:dev     # アプリが起動する
+```
+
+- Nix を使わない場合は [DEVELOPMENT.md — Prerequisites](DEVELOPMENT.md#prerequisites) の手動セットアップ
+- うまく動かないときは `pnpm doctor` (ツールチェーンとシステム依存の欠落を検査し、対処コマンドを出す)
+- PR を出す前に `pnpm lint` / `pnpm test` / `pnpm typecheck` を通す。Rust (`src-tauri/` や `crates/`) を触ったら `pnpm fmt` と `pnpm lint:rust` も
+
+## 何を読めばよいか
+
+| やりたいこと | 読むもの |
+|---|---|
+| どのファイルに何があるかを知りたい | [CODEMAP.md](CODEMAP.md) |
+| コードを書くときの決まりを知りたい (Vue の制約、文言、スタイル、キーボード操作) | [DEVELOPMENT.md — コーディング規約](DEVELOPMENT.md#コーディング規約) |
+| フォークの固有機能に対応したい | 下の「フォーク対応の追加」と [DEVELOPMENT.md — Fork support](DEVELOPMENT.md#fork-support) |
+| 画面 (カラムやウィンドウ) を足したい / 直したい | [DECK.md](DECK.md) と [DESIGN.md](DESIGN.md) |
+| AI まわりを触りたい | [AI.md](AI.md) |
+| 全体の仕組みを知りたい | [ARCHITECTURE.md](ARCHITECTURE.md) |
+
 ## 貢献の方法
 
 ### バグ報告・機能提案
@@ -44,15 +72,11 @@ API クライアントの実体は `crates/notecli` (同じリポジトリの wo
 ### コードの貢献
 
 1. リポジトリをフォーク
-2. ブランチを作成（`git checkout -b feat/your-feature`）
-3. 開発環境に入る（Nix flake で管理しているので `nix develop`、direnv なら `cd` するだけ。Nix を使わない手順は [DEVELOPMENT.md — Prerequisites](DEVELOPMENT.md#prerequisites)）
+2. ブランチを作成（`git checkout -b feat/your-feature`）。名前は `feat/*` / `fix/*` / `refactor/*` / `chore/*` / `docs/*`
+3. 上の「最短の手順」で動かし、変更する（clone するのは自分のフォーク。URL の `notedeck-dev` を自分のアカウント名に読み替える）
 4. `pnpm lint` と `pnpm test` を通す（`src-tauri/` や `crates/` の Rust を触ったら `pnpm fmt` と `pnpm lint:rust` も）
-5. Pull Request を作成
+5. Pull Request を作成。コミットは Conventional Commits 形式
 
-どこに何があるかは [CODEMAP.md](CODEMAP.md) (カラム種別・ウィンドウ種別・ストア・service・設定ファイルの一覧) から辿れます。正本のファイルから生成しているので、構造を変えたら `pnpm gen:codemap` で作り直してください (`pnpm lint:docs` が検出します)。純ロジックの挙動は、`src/services/` の隣にあるテストがそのまま仕様書です。
-
-環境がうまく動かないときは `pnpm doctor` を実行してください。
-ツールチェーン・システム依存の欠落を検査し、対処コマンドを提示します。
 エディタの補完・デバッグ構成は [DEVELOPMENT.md — エディタ / 言語サーバー](DEVELOPMENT.md#エディタ--言語サーバー) を参照してください。
 
 開発コマンド (`pnpm dev` / `pnpm tauri:dev` / `pnpm test` / `pnpm lint` / `pnpm typecheck`) とリリース手順 (バージョン同期・タグ push) は [CLAUDE.md](CLAUDE.md#開発コマンド) を参照してください。
