@@ -68,6 +68,7 @@ import { type VariantKey, variantKeyOf } from '@/services/noteKey'
 import { getAccountAvatarUrl, useAccountsStore } from '@/stores/accounts'
 import { useChatMessageStore } from '@/stores/chatMessageStore'
 import { type DeckColumn as DeckColumnType, useDeckStore } from '@/stores/deck'
+import { useOfflineModeStore } from '@/stores/offlineMode'
 import { useServersStore } from '@/stores/servers'
 import { AppError } from '@/utils/errors'
 import { isImeComposing } from '@/utils/ime'
@@ -99,6 +100,7 @@ const {
 
 const accountsStore = useAccountsStore()
 const deckStore = useDeckStore()
+const offlineModeStore = useOfflineModeStore()
 const multiAdapters = useMultiAccountAdapters()
 
 /**
@@ -361,9 +363,23 @@ const activeServerHost = computed(() => {
   return account.value?.host ?? null
 })
 
+/**
+ * オフラインで履歴の取得を見送った。解除されたら (会話を開いていたなら履歴に
+ * 戻ったときに) 取り直す。見送ったその場で立てる: 読み込みの途中でオフラインに
+ * 入ることがある
+ */
+const connectSkippedOffline = ref(false)
+/** オフライン中にキャッシュだけで開いた会話。解除されたら開き直して購読を張る */
+let conversationOpenedOffline:
+  | HistoryEntry
+  | PerAccountHistoryEntry
+  | ConversationTarget
+  | null = null
+
 async function connect() {
   error.value = null
   isLoading.value = true
+  connectSkippedOffline.value = false
 
   if (isCrossAccount.value) {
     await connectCrossAccount()
@@ -403,8 +419,9 @@ async function connectPerAccount() {
   }
 
   // ログアウト中はキャッシュだけで終わり (B-1)。「ログアウト中」バナーは
-  // DeckColumn が自動表示する。
-  if (!account.value.hasToken) {
+  // DeckColumn が自動表示する。オフライン中も同じ (#1350)
+  if (!account.value.hasToken || offlineModeStore.isOfflineMode) {
+    if (offlineModeStore.isOfflineMode) connectSkippedOffline.value = true
     isLoading.value = false
     return
   }
@@ -491,6 +508,13 @@ async function connectCrossAccount() {
       getUserIdForAccount,
     )
     isLoading.value = false
+  }
+
+  // オフライン中はキャッシュだけで終わり (取得も先読みもしない、#1350)
+  if (offlineModeStore.isOfflineMode) {
+    connectSkippedOffline.value = true
+    isLoading.value = false
+    return
   }
 
   // 2. 並行で API fetch して reconcile。ログイン中アカウントは fresh、
@@ -669,9 +693,11 @@ async function openConversation(
               : '',
       }
 
+  conversationOpenedOffline = offlineModeStore.isOfflineMode ? entry : null
   try {
     const outcome = await thread.open(entryAccountId, target, {
-      loggedOut: isLoggedOut,
+      // オフライン中もログアウト中と同じくキャッシュだけで開く (#1350)
+      loggedOut: isLoggedOut || offlineModeStore.isOfflineMode,
       // cache hydrate できた時点で即表示する (B-2)
       onHydrated: () => {
         viewMode.value = 'conversation'
@@ -711,6 +737,7 @@ function onNewMessage(msg: ChatMessage) {
 function goBack() {
   reflectLatestIntoHistory()
   thread.close()
+  conversationOpenedOffline = null
   viewMode.value = 'history'
   conversationAccountId.value = null
   conversationServerHost.value = null
@@ -783,8 +810,11 @@ const newChatMessages = useNewChatMessages((accountId, received) => {
 })
 // 全アカウントのカラムは、開いた後に追加 / 再ログインしたアカウントの新着も受ける (#1223)
 if (isCrossAccount.value) {
+  // オフラインの間は張らない。解除で一覧が戻り、張り直される (#1350)
   newChatMessages.follow(() =>
-    accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id),
+    offlineModeStore.isOfflineMode
+      ? []
+      : accountsStore.accounts.filter((a) => a.hasToken).map((a) => a.id),
   )
 }
 
@@ -1031,7 +1061,9 @@ async function loadOlder() {
   isLoading.value = true
   try {
     const prevFirstId = filteredMessages.value[0]?.id
-    const added = await thread.loadOlder(accId, { loggedOut: isLoggedOut })
+    const added = await thread.loadOlder(accId, {
+      loggedOut: isLoggedOut || offlineModeStore.isOfflineMode,
+    })
     // Restore scroll position to the previously first message after prepend
     if (added && prevFirstId) {
       await nextTick()
@@ -1118,6 +1150,27 @@ watch(
   () => {
     if (isCrossAccount.value && viewMode.value === 'history') {
       void connectCrossAccount()
+    }
+  },
+)
+
+// オフラインが解除されたら、見送った分を取り直す (#1350)。
+// - 履歴: 見送っていたら取り直す。会話を開いている間は、履歴に戻ったときに取り直す
+// - 会話: キャッシュだけで開いていたら開き直す (購読を張り、新しい分を取る)
+watch(
+  [
+    () => offlineModeStore.isOfflineMode,
+    viewMode,
+    connectSkippedOffline,
+  ] as const,
+  ([offline, mode, skipped]) => {
+    if (offline) return
+    if (mode === 'history' && skipped) {
+      void connect()
+    } else if (mode === 'conversation' && conversationOpenedOffline) {
+      const entry = conversationOpenedOffline
+      conversationOpenedOffline = null
+      void openConversation(entry)
     }
   },
 )

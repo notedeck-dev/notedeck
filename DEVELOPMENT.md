@@ -1736,11 +1736,14 @@ session 一覧では `AiSessionKind` 別の icon 統一 (`chat` → `ti-message-
 | ストリーミング (WS / polling の輸送路) | 入るときに `disconnectAll`。抜けるときに `applyPersistedMode` で輸送路を戻す |
 | 復帰信号に乗るもの (ストリーム再接続 / カラムの catch-up / ミュート同期の取り直し / 通知カラムの backfill) | `useDeckResume` がオフライン中は信号を出さない。解除時に `offlineMode` store が 1 回出す |
 | ノート系カラムの接続・手動更新・pull-to-refresh | `useNoteColumn` / `useCrossAccountNotes` がキャッシュだけ表示 |
+| 通知カラムの接続・pull-to-refresh・復帰の補填 | `DeckNotificationColumn` がキャッシュだけ表示し、購読も張らない。オフライン中に開いたカラムは解除の復帰信号で繋ぎ直す (#1350) |
+| チャットカラムの履歴取得・スレッドの先読み・会話を開く・新着の購読 | `DeckChatColumn` がキャッシュだけ読む (会話はログアウト中と同じ経路)。解除で履歴を取り直す (#1350) |
+| 通知を配る main チャンネル | 起動時は Rust が `modes.offline` を見て張らない (`stream_mode::offline`、手動だけ)。復帰信号での張り直しは `useMainStreamKeeper` がオフライン中は頼まない (手動 / 自動とも)。回線なしで起動したときの再接続は止まらない (#1350) |
 | 書込 (リアクション / リノート / 返信 / 削除 / 編集 / ブックマーク) | `useColumnSetup.checkOffline` |
 | 未読ポーリング (通知 / チャット) | `useUnreadCounter.fetchAll` が空振り |
-| HEARTBEAT | `useHeartbeatDaemon` が timer を unconfigure (届かない AI 呼び出しが連続失敗 → 自動停止に至るのを防ぐ)。解除で再構成 |
+| HEARTBEAT | Rust の `commands/heartbeat.rs` が `settings.json5` の `modes.offline` を読んで timer を組まない (届かない AI 呼び出しが連続失敗 → 自動停止に至るのを防ぐ)。解除で再構成。**止まるのは手動だけ**: 自動のオフラインは設定に書かない一時状態で Rust に伝わらない。常駐の notemaid の timer はどちらも見ない ([#1350](https://github.com/notedeck-dev/notedeck/issues/1350)) |
 | OGP | `useOgpPreview` が取りに行かず、失敗としても覚えない |
-| 更新チェック | `useUpdater` が確認せず、起動 1 回の `checked` も立てない |
+| 更新チェック | Rust の `commands/updater.rs` が `modes.offline` を読んで確認しない。**止まるのは手動だけ** (自動のオフラインでは起動後の 1 回を失敗で使い切る、#1350) |
 | MisStore の索引 | `misstore.fetchIndex` がエラー表示だけ |
 
 **止めないもの** (理由ごと): 絵文字辞書の miss 駆動リフレッシュ (`emojis` store が `offlineMode` を読むと accounts → adapters/factory → emojis の import 循環になる。失敗はホスト単位のバックオフで吸収され 1 回で済む) / ドライブ・ギャラリー・チャット送信・投稿 (利用者が明示的に押す操作。失敗を見せる方が、押せない理由を探させるより分かる) / 画像の中継とキャッシュ (Rust 側。回線が無ければ即失敗し 5 秒の負キャッシュに乗る)。
