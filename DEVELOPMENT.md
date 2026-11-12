@@ -311,18 +311,21 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 ### ファイルと置き場
 
 ```
-<app data>/notedeck/
-  notemaid/                 # notemaid の持ち物。書き手は notemaid だけ (UI の編集も notemaid の RPC 経由)
+<app data>/
+  data/notemaid/            # 人格と記憶。書き手は notemaid だけ (UI の編集も notemaid の RPC 経由)
     SOUL.md                 # 人格の核 (キャラクターを切り替えても変わらない)
     USER.md                 # 相手について。OpenClaw user-model の形式。上限つき
     MEMORY.md               # AI の覚え書き: 小さな耐久事実と決定 (索引ではない)。上限つき
     BOOTSTRAP.md            # 初回だけ (OpenClaw と同じ)。条件を満たしたら notemaid が消す
-    turns/                  # ← ai-turns/ (checkpoint, taint.json, budget.json, heartbeat.json)
-    workspace/              # ← ai-workspace/ (手元の CLI の cwd)
-  skills/
+  state/notemaid/           # notemaid のこの機械の状態 (同期・バックアップの対象外)
+    turns/                  # checkpoint, taint.json, budget.json, heartbeat.json
+    workspace/              # 手元の CLI の cwd
+  config/skills/
     AGENTS.md               # 予約 skill: id / ファイル名 / mode: always 固定、削除・改名・toggle 拒否。notemaid が案内のコメントだけのテンプレで seed
     HEARTBEAT.md            # 予約 skill: mode: heartbeat 固定。既定では置かず「巡回の手順を編集」で初めて seed
 ```
+
+配置はデータディレクトリの再編 ([#1334](https://github.com/notedeck-dev/notedeck/issues/1334)) 後のもの。再編前は 3 つとも `notedeck/` の下 (`notedeck/notemaid/` に人格と記憶と `turns/` `workspace/` が同居) で、場所を知るのは `Layout` だけ (人格と記憶は `notemaid::workspace::dir`、状態は `Layout::notemaid_state`)。
 
 - ディレクトリ名は種類名の複数形 (`memos` / `skills`) ではなく所有者名 `notemaid` (「1 つの名前 = ディレクトリ = パッケージ = バイナリ」)。`<config dir>/notemaid/` (secret の鍵) とは別物
 - HEARTBEAT.md / AGENTS.md は `skills/` の**予約 skill**。既存の capability / 認可 (`skills.write`) / 汚染ラベル / バックアップ / skill UI がそのまま効き、ローダーが 2 系統にならない。予約の強制は notemaid の `skills.rs` と、notecore の汎用設定ファイル書込 (該当名の rename / delete 拒否。notecore はファイル名の定数を知るだけ) の 2 か所
@@ -333,7 +336,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 
 - **組み立ての所有者は notemaid 一本。** デバイスが送るのは `device_context` (`<notedeck-context>`) と、その turn で新しく発火した trigger skill の id だけ。persona (session ファイルの `personaSkillId`、HEARTBEAT は ai.json5) / active な manual skill / 累積の trigger は notemaid が読み、`<persona>` ブロックも notemaid が書く
 - notemaid が組んだ system は `TurnState` に保持し、ラウンドの再送 / `ProvenanceCorpus` / 予算見積り / checkpoint はそこを読む。**スナップショットの単位は turn run** (turn 開始時に読み、tool 反復 / 継続 / 再開では同じ文字列)。OpenClaw の「毎 run 再構築」と同じで、Hermes の「プロセス寿命の凍結」はセッションが無期限に再開される NoteDeck には持ち込まない。例外は手元の CLI (ACP セッション作成時に畳んだものが続く)
-- 順番: SOUL → キャラクター (persona) → USER → MEMORY → NoteDeck の運用規約 (固定の文) → AGENTS → 他の always / trigger skill → device_context。Hermes 寄り (SOUL が先頭。OpenClaw は AGENTS が先頭)
+- 順番: SOUL → キャラクター (persona) → USER → BOOTSTRAP (残っている間だけ) → MEMORY → NoteDeck の運用規約 (固定の文) → AGENTS → 他の always / trigger skill → device_context。Hermes 寄り (SOUL が先頭。OpenClaw は AGENTS が先頭)
 - 使用率ヘッダは Hermes と同じく凍結ブロックの中に入れる (内容から決まるので prefix cache は壊れない)
 - `ProvenanceCorpus` には workspace 部分 (SOUL / USER / MEMORY / AGENTS) と store 由来の skill を**入れない** (trusted にも user にも)。そこにしか無い宛先は untrusted に倒れる (tainted な turn で承認された記憶の宛先が、次の turn で trusted になり無人の宛先検査を素通りする経路を塞ぐ)
 - HEARTBEAT: system は SOUL → キャラクター → USER → MEMORY → AGENTS → 固定 INSTRUCTION、**HEARTBEAT.md の本文は user 側の heartbeat メッセージ**に付ける (OpenClaw が scratch を user message に置くのと同じ)。device_context は無し。橋 `heartbeat/context` は廃止 (時刻は notemaid、口座は SyncedAccounts)。固定 INSTRUCTION は OpenClaw の既定に合わせる (「HEARTBEAT.md があればそれに従う / 過去のチャットから古い仕事を推測・反復しない / 何も無ければ `heartbeat.report` を呼ばない / 通知本文に USER の内容を書かない」)。**HEARTBEAT.md が無い、または heartbeat mode の skill 本文がすべて実質空なら tick を skip** (実質空 = OpenClaw の `empty-heartbeat-file` の定義: 空行 / コメント / 見出し / fence / 空のチェックリスト + frontmatter)。OpenClaw は scratch が無くても走ってモデルに任せるが、NoteDeck は無人の予算のため skip する (逸脱)。有効なのに空のときは HEARTBEAT セクションと heartbeat session に「巡回の手順が空です」を出し、予算で見送った tick は「巡回を見送りました (予算)」を 1 行
@@ -382,7 +385,7 @@ notemaid の売りは人格なので、人格と記憶は OpenClaw / Hermes Agen
 
 ### 移行・バックアップ・RPC
 
-- `ai-turns/` → `notemaid/turns/`、`ai-workspace/` → `notemaid/workspace/` の rename は `notemaid::migrations::run_fs` (notemaid クレート)。daemon は lock 取得後、アプリは in-process のときだけ呼ぶ。sidecar / 常駐時は transport の `Hello` に `fs_layout` を足し、不一致なら `restart_resident()` で古い daemon を先に止める。失敗しても起動は止めず、新パスに無ければ旧パスを読む
+- `ai-turns/` → `notemaid/turns/`、`ai-workspace/` → `notemaid/workspace/` の rename (再編前の配置の中での移動。再編後は `state/notemaid/` の下) は `notemaid::migrations::run_fs` (notemaid クレート)。daemon は lock 取得後、アプリは in-process のときだけ呼ぶ。sidecar / 常駐時は transport の `Hello` に `fs_layout` を足し、不一致なら `restart_resident()` で古い daemon を先に止める。失敗しても起動は止めず、新パスに無ければ旧パスを読む
 - バックアップ: `SUBDIRS` (allowlist) に `notemaid` を**足さない** (汎用 list / read / write / delete / rename が allowlist だけで通り、上限・承認・汚染規則を素通りする)。`export_bundle` に SOUL / USER / MEMORY を明示列挙。import は専用分岐で名指しの 3 ファイルだけを置き、見えない文字を含むものは外す (上限超過は読む側の「注入しない」で受ける)。アプリの import は人格 / 記憶が入っていれば置き換える前に一覧つきで 1 回聞き、断られたらその分だけ外して残りを入れる。notemaid は毎 turn ファイルを読むので reload 通知は要らない
 - UI 編集の RPC (`data` 級、notemaid 経由): `maid_workspace_list()` / `maid_workspace_write(kind, body)` / `maid_user_memory_set(enabled)`。変更通知は `SettingsChange { subdir: "notemaid" }` を relay し、`settingsFileSync` に `notemaid` 用ハンドラを 1 つ足す
 
@@ -1544,7 +1547,7 @@ endpoint は接続の `baseUrl`、API キーは Vault の secret slot `primary` 
 - **認可は notemaid で決める**: tool 一覧の絞り込みと呼び出しごとの権限検査は Rust。デバイス側の dispatcher は同じ判定を写しとして二重に通す (golden で一致を検査)
 - **確認要求は notemaid 発** (`ai_turn/confirm.rs`): 要否 (宣言の `confirm` / クロスアカウント / `confirmSkips` の記憶) は Rust が決め、表示内容は capability の実装がデバイスで組む。1 ラウンドの複数の呼び出しは 1 枚の要求に束ね、決定は全項目に効く。要求を出したループは turn を**チェックポイント** (`<app dir>/state/notemaid/turns/`、0600、notemaid 専有で生ファイル書込の対象外) に書いて解放し、応答で読み戻して再開する。表示してからの TTL と生成してからの絶対 TTL のどちらかを超えると拒否して理由を記録し、応答は compare-and-set で最初の 1 つだけが効く (遅れた応答は明示エラー)。起動時に停止中のまま残った turn は「再起動」の理由で閉じる。無人 HEARTBEAT は確認が要る呼び出しを聞かずに拒否する
 - **セッションは notemaid が単一の書き手** (`ai_sessions.rs`): ターン実行器がユーザー入力 / tool_use / tool_result / 最終応答 / 失敗の partial をその場で書く。メッセージ id は turn id から決定的に振り (ユーザー入力は `<turn>-u`)、イベントの `message_id` でデバイスが写しを揃える。デバイスの表示用 placeholder はローカルだけで、ターンの終わりに読み直す。HEARTBEAT の使い捨て履歴は `session_id` 無しで書かない
-- **汚染 (taint)** (`ai_turn/taint.rs`、#1103 Phase 1): 宣言 `untrusted: true` の capability (他人の投稿 / プロフィール / 通知 / fetch 結果を返す読取) の結果を読んだセッションと、デバイスが「文脈に他人の内容 (可視ノート) を入れた」と申告したターンのセッションは以後 tainted (`<app dir>/notedeck/notemaid/turns/taint.json`、生ファイル書込の対象外)。tainted なセッションの書き込みは「次から確認しない」を無視して必ず確認する。**宛先の出所**: 宣言 `destinations` の引数 (返信先 / 対象ユーザー / URL など) の値がどこに出てきたかを 3 値で判定する (ユーザー入力 / 信頼済みの結果 / untrusted な本文の中だけ。どこにも無い値も 3 番目に倒す)。3 番目なら確認に「宛先は AI が読んだ他人の内容に由来します」と一文添え (旗は足さない)、記憶の対象外にし、無人実行は聞かずに拒否して理由を記録する。**メモ / skill のラベル**: tainted なセッションからの書込 (実行要求の `tainted`) で作った / 更新したメモと skill には `tainted: true` の frontmatter が付き (一度付いたら外れない)、それを返す読取 capability は `ctx.markTainted()` で申告して読んだセッションを tainted にし、system prompt に注入するときはデバイスが文脈の申告 (`contextUntrusted`) に含める。[#1162](https://github.com/notedeck-dev/notedeck/issues/1162) で turn 内の汚染 2 ビットと「人が承認した人格 / 記憶ファイルへの書込にはラベルを付けない」例外を足す (設計確定、実装中。詳細は「AI の人格と記憶」)
+- **汚染 (taint)** (`ai_turn/taint.rs`、#1103 Phase 1): 宣言 `untrusted: true` の capability (他人の投稿 / プロフィール / 通知 / fetch 結果を返す読取) の結果を読んだセッションと、デバイスが「文脈に他人の内容 (可視ノート) を入れた」と申告したターンのセッションは以後 tainted (`state/notemaid/turns/taint.json`、生ファイル書込の対象外)。tainted なセッションの書き込みは「次から確認しない」を無視して必ず確認する。**宛先の出所**: 宣言 `destinations` の引数 (返信先 / 対象ユーザー / URL など) の値がどこに出てきたかを 3 値で判定する (ユーザー入力 / 信頼済みの結果 / untrusted な本文の中だけ。どこにも無い値も 3 番目に倒す)。3 番目なら確認に「宛先は AI が読んだ他人の内容に由来します」と一文添え (旗は足さない)、記憶の対象外にし、無人実行は聞かずに拒否して理由を記録する。**メモ / skill のラベル**: tainted なセッションからの書込 (実行要求の `tainted`) で作った / 更新したメモと skill には `tainted: true` の frontmatter が付き (一度付いたら外れない)、それを返す読取 capability は `ctx.markTainted()` で申告して読んだセッションを tainted にし、system prompt に注入するときはデバイスが文脈の申告 (`contextUntrusted`) に含める。[#1162](https://github.com/notedeck-dev/notedeck/issues/1162) で turn 内の汚染 2 ビットと「人が承認した人格 / 記憶ファイルへの書込にはラベルを付けない」例外を足した (詳細は「AI の人格と記憶」)
 - **中断** (`ai_turn_cancel`): Rust の task を止め、確認待ちなら要求を cancelled で閉じて (デバイス側はダイアログを畳む)、デバイスが待っている実行要求の確認 (保険の経路) も `AbortSignal` で閉じる。途中までの応答は notemaid がセッションに書いて返し、デバイスは写しに載せる。**中断するのは利用者の「停止」とセッションの削除だけ**: 進行中のターンの状態 (投影 / 再試行コンテキスト) はセッション単位でモジュールが持ち、AI カラムを閉じてもセッションを切り替えても投影は続く。開き直したカラムは同じセッションの状態をそのまま見る (#1371)。写しが読み直されて placeholder が消えても、生成中のメッセージは投影の側が持っていて戻す。応答中のセッションは一覧にスピナーで出し (`isAiTurnRunning`)、そのセッションを表示している画面が無い / アプリが隠れている間に終わった応答 (done / error) はアプリの通知に残して押せばセッションを開く (`onFinishUnseen`)。投影はターンを始めたウィンドウが持つので、そのウィンドウを閉じると途中経過は他のウィンドウに出ない (notemaid は走り続けて結果をセッションに書く)。AI カラムはセッションを開くたびに notemaid から読み直すので、結果はそこで見える
 - **失敗の段階**: `before_tool` (tool 未実行) なら user + placeholder を外して再送、`after_tool` (実行済み) なら placeholder だけ外して継続モード (`continuation: true`、system 末尾に切断通知)。実行済み write capability を二重実行する経路は構造的に無い (#737)
 - **デバイス文脈はスナップショット**: 可視ノート / vault の開示状態はターン開始時に 1 回だけ組む (以前はラウンドごと)
