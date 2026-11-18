@@ -2198,7 +2198,6 @@ _deckApiConsoleColumn:
   invalidParamsJson: "パラメーターの JSON が不正です"
 
 _deckBottomBar:
-  deckSettings: "デッキ設定"
   restoreWindow: "{title} を元に戻す"
 
 _deckChartsColumn:

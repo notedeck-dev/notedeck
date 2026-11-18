@@ -70,10 +70,6 @@ const statusT = useVaporTransition(
 // 他のウィンドウの背後に回ると戻す手段が無くなる。ここに並べて戻せるようにする
 const windowsStore = useWindowsStore()
 
-function onSettingsClick() {
-  commandStore.openWithInput('*')
-}
-
 function onAddColumnClick() {
   commandStore.openWithInput('+')
 }
@@ -175,14 +171,6 @@ const {
       >
         <i :class="shownStatus.type === 'success' ? 'ti ti-check' : 'ti ti-info-circle'" />
         <span :class="$style.statusText" role="status">{{ shownStatus.text }}</span>
-      </button>
-      <button
-        class="_button"
-        :class="[$style.actionBtn, $style.settingsBtn]"
-        :title="i18n.ts._deckBottomBar.deckSettings"
-        @click="onSettingsClick()"
-      >
-        <i class="ti ti-settings" />
       </button>
       <NotificationBell />
     </div>
@@ -364,27 +352,6 @@ const {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.actionBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--bar-item-size);
-  height: var(--bar-item-size);
-  font-size: 16px;
-  color: var(--nd-fg);
-  opacity: 0.5;
-  transition: opacity var(--nd-duration-base), background var(--nd-duration-base);
-
-  &:hover {
-    opacity: 1;
-    background: var(--nd-buttonHoverBg);
-  }
-}
-
-.settingsBtn {
-  position: relative;
 }
 
 .status {
