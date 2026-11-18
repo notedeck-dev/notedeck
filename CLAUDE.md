@@ -102,6 +102,7 @@ bash scripts/bump-version.sh X.Y.Z
 
 - develop → main の PR を作成（タイトル例: `Release vX.Y.Z`）
 - `pnpm changelog` で変更一覧を PR 本文に記載
+- `pnpm unverified` で実機確認待ち (`verify:<os>` ラベルの issue) の一覧を PR 本文に記載 (#1064。件数では止めない)
 - CI（lint, typecheck, test, openapi_snapshot）が通ることを確認
 - マージ
 
