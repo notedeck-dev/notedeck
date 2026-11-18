@@ -36,6 +36,52 @@ afterAll(async () => {
   await mock?.close()
 })
 
+/** note をモックから配信し、SSE (/api/events) まで届くかを返す */
+async function deliveredToSse(noteText: string): Promise<boolean> {
+  // SSE を購読してから push する (取りこぼし防止)
+  const controller = new AbortController()
+  const res = await fetch(`${app.base}/api/events?type=note`, {
+    headers: { Authorization: `Bearer ${app.token}` },
+    signal: controller.signal,
+  })
+  expect(res.ok).toBe(true)
+  const body = res.body
+  if (!body) throw new Error('SSE body missing')
+  const reader = body.getReader()
+  const decoder = new TextDecoder()
+
+  // 再接続直後は購読が一瞬空になる (WS churn) ため、配信できるまで
+  // 同じ note を push し続ける (重複配信は同一 id なので無害)
+  const note = makeNote(mock.account, mock.host, noteText)
+  await waitFor(
+    async () => mock.pushNote('homeTimeline', note) > 0,
+    'note delivery to a live subscription',
+    30_000,
+    500,
+  )
+
+  const deadline = Date.now() + 30_000
+  let buffer = ''
+  let found = false
+  try {
+    while (Date.now() < deadline && !found) {
+      const remaining = deadline - Date.now()
+      const chunk = await Promise.race([
+        reader.read(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('SSE read timeout')), remaining),
+        ),
+      ])
+      if (chunk.done) break
+      buffer += decoder.decode(chunk.value, { stream: true })
+      if (buffer.includes(noteText)) found = true
+    }
+  } finally {
+    controller.abort()
+  }
+  return found
+}
+
 describe.skipIf(isAttachMode)('mock Misskey 接続', () => {
   it('seed したアカウントが accounts に載る (token は露出しない)', async () => {
     const res = await app.get('/api/accounts')
@@ -108,48 +154,36 @@ describe.skipIf(isAttachMode)('ストリーミング切断/再接続 (#506 回�
   })
 
   it('再接続後に配信した note が SSE (/api/events) まで届く', async () => {
-    // SSE を購読してから push する (取りこぼし防止)
-    const controller = new AbortController()
-    const res = await fetch(`${app.base}/api/events?type=note`, {
-      headers: { Authorization: `Bearer ${app.token}` },
-      signal: controller.signal,
-    })
-    expect(res.ok).toBe(true)
-    const body = res.body
-    if (!body) throw new Error('SSE body missing')
-    const reader = body.getReader()
-    const decoder = new TextDecoder()
-
-    // 再接続直後は購読が一瞬空になる (WS churn) ため、配信できるまで
-    // 同じ note を push し続ける (重複配信は同一 id なので無害)
     const noteText = `e2e-note-${process.hrtime.bigint()}`
-    const note = makeNote(mock.account, mock.host, noteText)
+    expect(await deliveredToSse(noteText)).toBe(true)
+  })
+})
+
+// 手動のオフラインモードは口座の購読をすべて消す。解除したら、開いたままの
+// カラムに新着が戻ること (#1399。直す前は購読が張り直されなかった)
+describe.skipIf(isAttachMode)('オフラインモードの解除 (#1399 回帰)', () => {
+  it('入ると接続が切れ、解除すると開いていたカラムの購読が戻る', async () => {
+    expect(mock.subscribedChannels()).toContain('homeTimeline')
+
+    await app.runCommand('toggle-offline-mode')
     await waitFor(
-      async () => mock.pushNote('homeTimeline', note) > 0,
-      'note delivery to a live subscription',
+      async () => mock.wsConnectionCount() === 0,
+      'WS disconnect on entering offline mode',
       30_000,
       500,
     )
 
-    const deadline = Date.now() + 30_000
-    let buffer = ''
-    let found = false
-    try {
-      while (Date.now() < deadline && !found) {
-        const remaining = deadline - Date.now()
-        const chunk = await Promise.race([
-          reader.read(),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('SSE read timeout')), remaining),
-          ),
-        ])
-        if (chunk.done) break
-        buffer += decoder.decode(chunk.value, { stream: true })
-        if (buffer.includes(noteText)) found = true
-      }
-    } finally {
-      controller.abort()
-    }
-    expect(found).toBe(true)
+    await app.runCommand('toggle-offline-mode')
+    await waitFor(
+      async () => mock.subscribedChannels().includes('homeTimeline'),
+      'homeTimeline subscription after leaving offline mode',
+      30_000,
+      500,
+    )
+  })
+
+  it('解除後に配信した note が SSE (/api/events) まで届く', async () => {
+    const noteText = `e2e-offline-note-${process.hrtime.bigint()}`
+    expect(await deliveredToSse(noteText)).toBe(true)
   })
 })

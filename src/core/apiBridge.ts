@@ -307,6 +307,22 @@ const handlers: Record<string, QueryHandler> = {
   },
 }
 
+// E2E の操作口 (#1064)。HTTP に口の無い操作を、利用者がコマンドパレットから選ぶのと
+// 同じ経路で起こす。開発ビルドにだけ入り、Rust 側のルートもデバッグビルド +
+// `NOTEDECK_E2E_CONTROL=1` でしか開かない (crates/notecore/src/http_server.rs)
+if (import.meta.env.DEV) {
+  handlers['e2e/run-command'] = async (params) => {
+    const id = typeof params.id === 'string' ? params.id : ''
+    const command = useCommandStore().commands.get(id)
+    if (!command) throw new Error(`unknown command: ${id}`)
+    if (command.enabled?.() === false) {
+      throw new Error(`command is disabled: ${id}`)
+    }
+    await command.execute()
+    return { ok: true }
+  }
+}
+
 /**
  * Query type からハンドラを引いて実行する。HTTP API (query_bridge) と
  * テストの共通入口。ハンドラ throw は構造化エラーに変換して返す
