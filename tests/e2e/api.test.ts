@@ -3,12 +3,34 @@
  * 実アプリを隔離プロファイルで起動し、外部アプリと同じ経路で駆動する。
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { type E2eApp, launchApp } from './harness'
+import { type E2eApp, isAttachMode, launchApp } from './harness'
+
+// 権限ウィンドウで発行する代わりに、発行済みの外部トークンを起動前に仕込む (#1292)。
+// ハーネスの external principal が許すのは deck.write だけ
+const DECK_BOT = {
+  id: 'tok-deck',
+  name: 'e2e deck bot',
+  token: 'ndp_e2e_deck',
+  scope: { preset: 'custom', custom: { 'deck.write': true } },
+}
+const EMPTY_BOT = {
+  id: 'tok-empty',
+  name: 'e2e empty bot',
+  token: 'ndp_e2e_empty',
+  scope: { preset: 'custom', custom: {} },
+}
+/** external が許していない権限を scope で名乗る */
+const GREEDY_BOT = {
+  id: 'tok-greedy',
+  name: 'e2e greedy bot',
+  token: 'ndp_e2e_greedy',
+  scope: { preset: 'custom', custom: { 'notes.write': true } },
+}
 
 let app: E2eApp
 
 beforeAll(async () => {
-  app = await launchApp()
+  app = await launchApp({ seedApiTokens: [DECK_BOT, EMPTY_BOT, GREEDY_BOT] })
 })
 
 afterAll(async () => {
@@ -107,5 +129,54 @@ describe('deck', () => {
 
     const after = await (await app.get('/api/deck/columns')).json()
     expect(after.some((c: { id: string }) => c.id === id)).toBe(false)
+  })
+})
+
+// 実効の権限 = external principal の権限 ∩ トークンの scope (#1292 / #1409)。
+// 仕込みは起動前のファイル配置なので、起動済みのアプリに繋ぐ attach モードでは走らせない
+describe.skipIf(isAttachMode)('token scope', () => {
+  it('発行していないトークンは 401', async () => {
+    const res = await app.as('ndp_e2e_unknown').get('/api/health')
+    expect(res.status).toBe(401)
+  })
+
+  it('scope にある権限の操作は通る', async () => {
+    const bot = app.as(DECK_BOT.token)
+    const created = await bot.post('/api/capabilities/column.add/execute', {
+      type: 'notifications',
+      name: 'e2e-scope-column',
+    })
+    expect(created.status).toBe(200)
+    const { result } = await created.json()
+    const removed = await bot.post('/api/capabilities/column.remove/execute', {
+      id: (result as { id: string }).id,
+    })
+    expect(removed.status).toBe(200)
+  })
+
+  it('scope に無い権限の操作は、external が許していても 403', async () => {
+    const res = await app
+      .as(EMPTY_BOT.token)
+      .post('/api/capabilities/column.add/execute', {
+        type: 'notifications',
+        name: 'e2e-denied-column',
+      })
+    expect(res.status).toBe(403)
+    expect((await res.json()).code).toBe('permission_denied')
+  })
+
+  it('権限の要らない操作は、scope が空でも通る', async () => {
+    const res = await app
+      .as(EMPTY_BOT.token)
+      .post('/api/capabilities/time.now/execute')
+    expect(res.status).toBe(200)
+  })
+
+  it('external が許していない権限は、scope にあっても 403 (scope は広げない)', async () => {
+    const res = await app
+      .as(GREEDY_BOT.token)
+      .post('/api/capabilities/notes.create/execute', { text: 'x' })
+    expect(res.status).toBe(403)
+    expect((await res.json()).code).toBe('permission_denied')
   })
 })
