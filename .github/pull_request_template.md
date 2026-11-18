@@ -23,7 +23,7 @@
 
 - [ ] `pnpm test` パス
 - [ ] `pnpm typecheck` パス
-- [ ] 手動確認済み <!-- 未確認なら、どの OS で何を確かめるべきかを書く (#1064) -->
+- [ ] 手動確認済み <!-- 未確認なら `verify:<os>` ラベルの issue を立てて番号を書く (DEVELOPMENT.md「実機確認の宣言」、#1064) -->
 
 ## Screenshots
 

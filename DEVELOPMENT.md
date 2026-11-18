@@ -204,6 +204,26 @@ NOTEDECK_E2E_ATTACH=1 NOTEDECK_E2E_TOKEN=$TOKEN pnpm test:e2e
 attach モードはデバイス側アプリを終了させず、デッキ操作系テストは実際に
 カラムを追加/削除する（テスト用プロファイルのデバイスで実行すること）。
 
+### 実機確認の宣言（[#1064](https://github.com/notedeck-dev/notedeck/issues/1064)）
+
+実機で確かめていない変更は、黙って積まずに issue で宣言する。PR を通らない変更 (develop への直接コミット) も同じ。
+
+- **宣言**: 面ごとに issue を 1 つ立て、確かめる項目をチェックリストで書き、確認が要る OS の `verify:<os>` ラベル (`linux` / `windows` / `macos` / `android` / `ios`) を付ける。OS に依存しない変更は、手元で見られる OS を 1 つ付ければ足りる
+- **確認したら**: その issue に「版 / OS / 結果」をコメントして、その OS のラベルを外す。ラベルが無くなったら閉じる。確認する手段が無い項目は、その旨を書いて外す
+- **一覧**: `pnpm unverified` (古い順)。Release PR の本文に必ず載せる
+- **止めるもの**: 件数では何も止めない (リリースを止める関門は置かない、fix-forward)。v2.0.0 だけは、デスクトップの `verify:*` をゼロにするか、残りを既知の未確認としてリリースノートに書く ([#1176](https://github.com/notedeck-dev/notedeck/issues/1176))
+
+実機確認が要るのは CI で保証できない面:
+
+- OS 統合 (通知 / トレイ / キーチェーン / 常駐 / 更新 / 共有)
+- 窓とプロセス (サブウィンドウ / PiP / sidecar の起動)
+- WebView に依存する描画と入出力 (メディア / クリップボード / ドラッグ&ドロップ)
+- 接続のライフサイクル (再接続 / スリープ復帰 / オフライン)
+- モバイルのライフサイクル
+- 既存データの移行
+
+要らないのは、単体テストで覆われた純ロジックと service 層、挙動を変えないリファクタ、文書、E2E が通る経路。実機確認で見つけた不具合のうち、HTTP API か mock サーバーで再現できるものは E2E に足す。
+
 ## Dev Dashboard（[#977](https://github.com/notedeck-dev/notedeck/issues/977)）
 
 `pnpm tauri:dev` 中にブラウザで http://localhost:5173/ を開くと、実行中の

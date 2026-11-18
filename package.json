@@ -50,6 +50,7 @@
     "lint:i18n": "node scripts/i18n-lint.ts",
     "check:dist": "node scripts/check-dist-budget.mjs",
     "fmt": "cargo fmt --all",
+    "unverified": "bash scripts/unverified.sh",
     "changelog": "git log $(git describe --tags --abbrev=0 2>/dev/null || echo '')..HEAD --pretty=format:'- %s' --no-merges",
     "icons": "tauri icon src-tauri/icons/icon.svg -o src-tauri/icons && node scripts/gen-android-foreground.mjs && node scripts/gen-ios-icons.mjs",
     "clean": "rm -rf dist target",
