@@ -819,6 +819,53 @@ impl StreamingManager {
         .await
     }
 
+    /// `disconnect` で消えた購読を、同じ id で張り直す (#1399)。id を握っている側
+    /// (照会、フロントの既読送信や Stream Inspector の絞り込み) を古くしないため
+    pub async fn restore_notes(
+        &self,
+        account_id: &str,
+        subscription_id: &str,
+        key: TimelineKey,
+    ) -> Result<(), NoteDeckError> {
+        self.restore(account_id, subscription_id, SubscriptionTarget::Notes(key))
+            .await
+    }
+
+    pub async fn restore_chat_user(
+        &self,
+        account_id: &str,
+        subscription_id: &str,
+        other_id: &str,
+    ) -> Result<(), NoteDeckError> {
+        let target = SubscriptionTarget::ChatUser {
+            other_id: other_id.to_string(),
+        };
+        self.restore(account_id, subscription_id, target).await
+    }
+
+    pub async fn restore_chat_room(
+        &self,
+        account_id: &str,
+        subscription_id: &str,
+        room_id: &str,
+    ) -> Result<(), NoteDeckError> {
+        let target = SubscriptionTarget::ChatRoom {
+            room_id: room_id.to_string(),
+        };
+        self.restore(account_id, subscription_id, target).await
+    }
+
+    async fn restore(
+        &self,
+        account_id: &str,
+        subscription_id: &str,
+        target: SubscriptionTarget,
+    ) -> Result<(), NoteDeckError> {
+        self.subscribe_target_as(account_id, subscription_id.to_string(), target, None, false)
+            .await
+            .map(|_| ())
+    }
+
     pub async fn subscribe_main(&self, account_id: &str) -> Result<String, NoteDeckError> {
         self.subscribe_target_inner(account_id, SubscriptionTarget::Main, None, false)
             .await
@@ -850,6 +897,18 @@ impl StreamingManager {
         chat_only: bool,
     ) -> Result<String, NoteDeckError> {
         let sub_id = uuid::Uuid::new_v4().to_string();
+        self.subscribe_target_as(account_id, sub_id, target, extra_params, chat_only)
+            .await
+    }
+
+    async fn subscribe_target_as(
+        &self,
+        account_id: &str,
+        sub_id: String,
+        target: SubscriptionTarget,
+        extra_params: Option<Value>,
+        chat_only: bool,
+    ) -> Result<String, NoteDeckError> {
         let host = self.get_host(account_id).await?;
         let info = SubscriptionInfo {
             account_id: account_id.to_string(),

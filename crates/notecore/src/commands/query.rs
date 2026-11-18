@@ -32,6 +32,11 @@ async fn connect_unless_offline(
     }
 }
 
+/// 照会と、その購読 (管理役の表) を一緒に動かす操作を 1 つずつ通す。張り直しの途中で
+/// 照会が閉じたり状態が変わったりすると、持ち主の無い購読や、表示中なのに止まった
+/// 購読が残る
+static SUBSCRIPTION_SYNC: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// 購読が消えた照会に張り直す (#1399)。`disconnect` (オフラインモードに入る) は口座の
 /// 購読をすべて消すが、開いたままのカラムの照会は残り、フロントは開き直さない。
 /// 接続のたびに呼ぶ。購読をまだ持たない照会 (開いている途中 / オフライン中に開いた)
@@ -40,57 +45,52 @@ pub(crate) async fn reattach_lost_subscriptions(
     streaming: &notecli::streaming::StreamingManager,
     runtime: &crate::query_runtime::QueryRuntime,
     account_id: &str,
-) -> Result<()> {
-    // 復帰の信号でカラムの数だけ同時に呼ばれる。直列にしないと同じ照会に 2 本張る
-    static REATTACHING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
-    let _reattaching = REATTACHING.lock().await;
+) {
+    // 復帰の信号でカラムの数だけ同時に呼ばれる
+    let _sync = SUBSCRIPTION_SYNC.lock().await;
 
-    for (query_id, key, lost, state) in runtime.stream_subscriptions_of(account_id)? {
+    let Ok(queries) = runtime.stream_subscriptions_of(account_id) else {
+        return;
+    };
+    for (query_id, key, lost, state) in queries {
         if streaming.has_subscription(&lost).await {
             continue;
         }
         let mentions = TimelineKey::Mentions.as_canonical();
-        // 通知とメンションは main (口座に 1 本の共有チャンネル) に乗る
-        let (subscribed, shared) = match &key {
-            QueryKey::Notifications { .. } => (streaming.subscribe_main(account_id).await, true),
-            QueryKey::Timeline { key, .. } if *key == mentions => {
-                (streaming.subscribe_main(account_id).await, true)
-            }
-            QueryKey::Timeline { key, .. } => (
-                streaming
-                    .subscribe_notes(account_id, TimelineKey::parse(key)?, None)
-                    .await,
-                false,
-            ),
-            QueryKey::ChatUser { other_id, .. } => (
-                streaming.subscribe_chat_user(account_id, other_id).await,
-                false,
-            ),
-            QueryKey::ChatRoom { room_id, .. } => (
-                streaming.subscribe_chat_room(account_id, room_id).await,
-                false,
-            ),
+        let restored = match &key {
+            // 通知とメンションは main (口座に 1 本の共有チャンネル) に乗る。配送は
+            // (口座, 種別) で引くので、照会には今の main の id を写すだけ
+            QueryKey::Notifications { .. } => Err(()),
+            QueryKey::Timeline { key, .. } if *key == mentions => Err(()),
+            // それ以外は同じ id で張り直す: 照会もフロントもその id を握っている
+            QueryKey::Timeline { key, .. } => Ok(match TimelineKey::parse(key) {
+                Ok(key) => streaming.restore_notes(account_id, &lost, key).await,
+                Err(e) => Err(e),
+            }),
+            QueryKey::ChatUser { other_id, .. } => Ok(streaming
+                .restore_chat_user(account_id, &lost, other_id)
+                .await),
+            QueryKey::ChatRoom { room_id, .. } => Ok(streaming
+                .restore_chat_room(account_id, &lost, room_id)
+                .await),
         };
-        let subscription_id = match subscribed {
-            Ok(id) => id,
-            Err(e) => {
-                tracing::warn!(account_id, query_id, "[query] cannot resubscribe: {e}");
-                continue;
+        let result = match restored {
+            Err(()) => match streaming.subscribe_main(account_id).await {
+                Ok(main) => runtime
+                    .attach_shared_stream_subscription(&query_id, main)
+                    .map(|_| ()),
+                Err(e) => Err(e),
+            },
+            // 隠れているカラムの照会は、止めたまま張る
+            Ok(Ok(())) if state == QueryRuntimeState::Suspended => {
+                streaming.suspend_subscription(account_id, &lost).await
             }
+            Ok(result) => result,
         };
-        if shared {
-            runtime.attach_shared_stream_subscription(&query_id, subscription_id)?;
-            continue;
-        }
-        runtime.attach_stream_subscription(&query_id, subscription_id.clone())?;
-        // 隠れているカラムの照会は、止めたまま張る
-        if state == QueryRuntimeState::Suspended {
-            streaming
-                .suspend_subscription(account_id, &subscription_id)
-                .await?;
+        if let Err(e) = result {
+            tracing::warn!(account_id, query_id, "[query] cannot resubscribe: {e}");
         }
     }
-    Ok(())
 }
 
 pub async fn query_subscribe_timeline(
@@ -336,6 +336,7 @@ pub async fn query_set_runtime_state(
 ) -> Result<QuerySnapshot> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
+    let _sync = SUBSCRIPTION_SYNC.lock().await;
     let result = runtime.set_runtime_state(&query_id, state)?;
     let stream_target = runtime.stream_subscription_for(&query_id)?;
 
@@ -366,6 +367,7 @@ pub async fn query_set_runtime_state(
                 let query_id_owned = query_id.clone();
                 let handle = tokio::spawn(async move {
                     tokio::time::sleep(WARM_GRACE).await;
+                    let _sync = SUBSCRIPTION_SYNC.lock().await;
                     // この時点で Warm のままなら Suspended に escalate
                     let snap = match runtime_task.snapshot(&query_id_owned).ok().flatten() {
                         Some(s) => s,
@@ -394,6 +396,7 @@ pub async fn query_set_runtime_state(
 pub async fn query_close(core: &Core, owner: Option<String>, query_id: String) -> Result<()> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
+    let _sync = SUBSCRIPTION_SYNC.lock().await;
     if let Some((account_id, subscription_id)) = runtime.close(&query_id, owner.as_deref())? {
         runtime.cancel_warm_timer(&query_id);
         streaming.unsubscribe(&account_id, &subscription_id).await?;
@@ -406,6 +409,7 @@ pub async fn query_close(core: &Core, owner: Option<String>, query_id: String) -
 pub async fn query_close_owner(core: &Core, owner: &str) -> Result<()> {
     let streaming = core.streaming()?;
     let runtime = core.query_runtime()?;
+    let _sync = SUBSCRIPTION_SYNC.lock().await;
     for (account_id, subscription_id) in runtime.close_owner(owner)? {
         if let Err(e) = streaming.unsubscribe(&account_id, &subscription_id).await {
             tracing::warn!(owner, "[query] unsubscribe after window closed failed: {e}");

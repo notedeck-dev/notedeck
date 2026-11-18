@@ -20,7 +20,7 @@ async fn ensure_stream_connected(
     streaming.connect(account_id, &host, &token).await?;
     // 切断で購読を失った照会があれば張り直す (#1399)。照会を持たないプロセスでは何もしない
     if let Ok(runtime) = core.query_runtime() {
-        super::query::reattach_lost_subscriptions(streaming, runtime, account_id).await?;
+        super::query::reattach_lost_subscriptions(streaming, runtime, account_id).await;
     }
     Ok(())
 }
@@ -201,19 +201,15 @@ mod tests {
         streaming.disconnect_all().await;
         super::stream_connect(&core, "acc".into()).await.unwrap();
 
-        let after = runtime
-            .snapshot(&opened.query_id)
-            .unwrap()
-            .unwrap()
-            .source_subscription_id
-            .unwrap();
-        assert_ne!(after, before, "消えた購読の id を持ち続けない");
+        // 同じ id で張り直す: フロントはこの id で既読を送り、Stream Inspector を絞る
+        let after = runtime.snapshot(&opened.query_id).unwrap().unwrap();
+        assert_eq!(after.source_subscription_id, Some(before.clone()));
         // 管理役の表に載っている購読だけが再開できる
-        streaming.resume_subscription("acc", &after).await.unwrap();
+        streaming.resume_subscription("acc", &before).await.unwrap();
 
         // 生きている購読は張り替えない
         super::stream_connect(&core, "acc".into()).await.unwrap();
         let again = runtime.snapshot(&opened.query_id).unwrap().unwrap();
-        assert_eq!(again.source_subscription_id, Some(after));
+        assert_eq!(again.source_subscription_id, Some(before));
     }
 }
