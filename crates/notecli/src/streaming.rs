@@ -894,6 +894,14 @@ impl StreamingManager {
         Ok(sub_id)
     }
 
+    /// 購読が管理役の表に残っているか。`disconnect` は口座の購読をすべて消す
+    pub async fn has_subscription(&self, subscription_id: &str) -> bool {
+        self.subscriptions
+            .read()
+            .await
+            .contains_key(subscription_id)
+    }
+
     pub async fn unsubscribe(
         &self,
         account_id: &str,

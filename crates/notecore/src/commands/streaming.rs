@@ -17,7 +17,12 @@ async fn ensure_stream_connected(
     account_id: &str,
 ) -> Result<()> {
     let (host, token) = core.credentials(account_id)?;
-    streaming.connect(account_id, &host, &token).await
+    streaming.connect(account_id, &host, &token).await?;
+    // 切断で購読を失った照会があれば張り直す (#1399)。照会を持たないプロセスでは何もしない
+    if let Ok(runtime) = core.query_runtime() {
+        super::query::reattach_lost_subscriptions(streaming, runtime, account_id).await?;
+    }
+    Ok(())
 }
 
 pub async fn stream_connect(core: &Core, account_id: String) -> Result<()> {
@@ -164,5 +169,51 @@ mod tests {
 
         let done = super::stream_subscribe_main_all(&core).await.unwrap();
         assert_eq!(done, vec!["with-token".to_string()]);
+    }
+
+    /// 切断 (オフラインモードに入る) は口座の購読をすべて消す。開いたままの照会は
+    /// 次の接続で購読を張り直す。張り直さないと、解除後もカラムに新着が流れない (#1399)
+    #[tokio::test]
+    async fn connect_reattaches_open_queries_after_disconnect() {
+        let (_dir, core) = temp_core();
+        let db = core.db().await;
+        db.upsert_account(&account("acc", "tok")).unwrap();
+        let streaming = Arc::new(StreamingManager::new(
+            Arc::new(NoopEmitter),
+            Arc::new(EventBus::new()),
+            db.clone(),
+            Arc::new(notecli::egress::AllowAll),
+        ));
+        core.set_streaming(streaming.clone());
+        let runtime = core.query_runtime().unwrap().clone();
+
+        let opened = crate::commands::query::query_subscribe_timeline(
+            &core,
+            None,
+            "acc".into(),
+            "home".into(),
+            None,
+        )
+        .await
+        .unwrap();
+        let before = opened.source_subscription_id.clone().unwrap();
+
+        streaming.disconnect_all().await;
+        super::stream_connect(&core, "acc".into()).await.unwrap();
+
+        let after = runtime
+            .snapshot(&opened.query_id)
+            .unwrap()
+            .unwrap()
+            .source_subscription_id
+            .unwrap();
+        assert_ne!(after, before, "消えた購読の id を持ち続けない");
+        // 管理役の表に載っている購読だけが再開できる
+        streaming.resume_subscription("acc", &after).await.unwrap();
+
+        // 生きている購読は張り替えない
+        super::stream_connect(&core, "acc".into()).await.unwrap();
+        let again = runtime.snapshot(&opened.query_id).unwrap().unwrap();
+        assert_eq!(again.source_subscription_id, Some(after));
     }
 }

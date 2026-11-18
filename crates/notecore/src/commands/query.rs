@@ -32,6 +32,67 @@ async fn connect_unless_offline(
     }
 }
 
+/// 購読が消えた照会に張り直す (#1399)。`disconnect` (オフラインモードに入る) は口座の
+/// 購読をすべて消すが、開いたままのカラムの照会は残り、フロントは開き直さない。
+/// 接続のたびに呼ぶ。購読をまだ持たない照会 (開いている途中 / オフライン中に開いた)
+/// は触らない: 開いた側が張る
+pub(crate) async fn reattach_lost_subscriptions(
+    streaming: &notecli::streaming::StreamingManager,
+    runtime: &crate::query_runtime::QueryRuntime,
+    account_id: &str,
+) -> Result<()> {
+    // 復帰の信号でカラムの数だけ同時に呼ばれる。直列にしないと同じ照会に 2 本張る
+    static REATTACHING: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+    let _reattaching = REATTACHING.lock().await;
+
+    for (query_id, key, lost, state) in runtime.stream_subscriptions_of(account_id)? {
+        if streaming.has_subscription(&lost).await {
+            continue;
+        }
+        let mentions = TimelineKey::Mentions.as_canonical();
+        // 通知とメンションは main (口座に 1 本の共有チャンネル) に乗る
+        let (subscribed, shared) = match &key {
+            QueryKey::Notifications { .. } => (streaming.subscribe_main(account_id).await, true),
+            QueryKey::Timeline { key, .. } if *key == mentions => {
+                (streaming.subscribe_main(account_id).await, true)
+            }
+            QueryKey::Timeline { key, .. } => (
+                streaming
+                    .subscribe_notes(account_id, TimelineKey::parse(key)?, None)
+                    .await,
+                false,
+            ),
+            QueryKey::ChatUser { other_id, .. } => (
+                streaming.subscribe_chat_user(account_id, other_id).await,
+                false,
+            ),
+            QueryKey::ChatRoom { room_id, .. } => (
+                streaming.subscribe_chat_room(account_id, room_id).await,
+                false,
+            ),
+        };
+        let subscription_id = match subscribed {
+            Ok(id) => id,
+            Err(e) => {
+                tracing::warn!(account_id, query_id, "[query] cannot resubscribe: {e}");
+                continue;
+            }
+        };
+        if shared {
+            runtime.attach_shared_stream_subscription(&query_id, subscription_id)?;
+            continue;
+        }
+        runtime.attach_stream_subscription(&query_id, subscription_id.clone())?;
+        // 隠れているカラムの照会は、止めたまま張る
+        if state == QueryRuntimeState::Suspended {
+            streaming
+                .suspend_subscription(account_id, &subscription_id)
+                .await?;
+        }
+    }
+    Ok(())
+}
+
 pub async fn query_subscribe_timeline(
     core: &Core,
     owner: Option<String>,
