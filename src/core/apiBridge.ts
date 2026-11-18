@@ -311,7 +311,7 @@ const handlers: Record<string, QueryHandler> = {
 // 同じ経路で起こす。開発ビルドにだけ入り、Rust 側のルートもデバッグビルド +
 // `NOTEDECK_E2E_CONTROL=1` でしか開かない (crates/notecore/src/http_server.rs)
 if (import.meta.env.DEV) {
-  handlers['e2e/run-command'] = async (params) => {
+  handlers['commands/run'] = async (params) => {
     const id = typeof params.id === 'string' ? params.id : ''
     const command = useCommandStore().commands.get(id)
     if (!command) throw new Error(`unknown command: ${id}`)

@@ -107,7 +107,9 @@ async function seedApiTokens(
 
 /** E2E の操作口 (`NOTEDECK_E2E_CONTROL=1` で起動したデバッグビルドにだけある) */
 async function runCommand(token: string, id: string): Promise<void> {
-  const res = await client(token).post(`/api/e2e/commands/${id}`)
+  const res = await client(token).post(
+    `/api/e2e/commands/${encodeURIComponent(id)}`,
+  )
   const body = (await res.json().catch(() => null)) as {
     ok?: boolean
     error?: string

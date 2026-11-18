@@ -720,23 +720,21 @@ fn e2e_control_routes(state: DeckState) -> Option<Router> {
     )
 }
 
-/// コマンドパレットのコマンドを id で実行する (利用者がパレットから選ぶのと同じ経路)
+/// コマンドパレットのコマンドを id で実行する (利用者がパレットから選ぶのと同じ経路)。
+/// 問い合わせの種別を `commands/` にしているのは、見ている窓に届けるため: コマンドは
+/// 実行した窓の状態 (アクティブなカラムなど) に作用する
 #[cfg(debug_assertions)]
 async fn e2e_run_command(
     State(state): State<DeckState>,
     Path(id): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
-    let data = frontend_bridge::query(
-        state.bridge.as_ref(),
-        "e2e/run-command",
-        json!({ "id": id }),
-    )
-    .await
-    .map_err(|e| ApiError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        code: "QUERY_FAILED".to_string(),
-        message: e,
-    })?;
+    let data = frontend_bridge::query(state.bridge.as_ref(), "commands/run", json!({ "id": id }))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
     Ok(Json(data))
 }
 

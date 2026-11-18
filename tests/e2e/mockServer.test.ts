@@ -40,31 +40,31 @@ afterAll(async () => {
 async function deliveredToSse(noteText: string): Promise<boolean> {
   // SSE を購読してから push する (取りこぼし防止)
   const controller = new AbortController()
-  const res = await fetch(`${app.base}/api/events?type=note`, {
-    headers: { Authorization: `Bearer ${app.token}` },
-    signal: controller.signal,
-  })
-  expect(res.ok).toBe(true)
-  const body = res.body
-  if (!body) throw new Error('SSE body missing')
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-
-  // 再接続直後は購読が一瞬空になる (WS churn) ため、配信できるまで
-  // 同じ note を push し続ける (重複配信は同一 id なので無害)
-  const note = makeNote(mock.account, mock.host, noteText)
-  await waitFor(
-    async () => mock.pushNote('homeTimeline', note) > 0,
-    'note delivery to a live subscription',
-    30_000,
-    500,
-  )
-
-  const deadline = Date.now() + 30_000
-  let buffer = ''
-  let found = false
+  // 途中で失敗しても SSE を開いたままにしない
   try {
-    while (Date.now() < deadline && !found) {
+    const res = await fetch(`${app.base}/api/events?type=note`, {
+      headers: { Authorization: `Bearer ${app.token}` },
+      signal: controller.signal,
+    })
+    expect(res.ok).toBe(true)
+    const body = res.body
+    if (!body) throw new Error('SSE body missing')
+    const reader = body.getReader()
+    const decoder = new TextDecoder()
+
+    // 再接続直後は購読が一瞬空になる (WS churn) ため、配信できるまで
+    // 同じ note を push し続ける (重複配信は同一 id なので無害)
+    const note = makeNote(mock.account, mock.host, noteText)
+    await waitFor(
+      async () => mock.pushNote('homeTimeline', note) > 0,
+      'note delivery to a live subscription',
+      30_000,
+      500,
+    )
+
+    const deadline = Date.now() + 30_000
+    let buffer = ''
+    while (Date.now() < deadline) {
       const remaining = deadline - Date.now()
       const chunk = await Promise.race([
         reader.read(),
@@ -74,12 +74,12 @@ async function deliveredToSse(noteText: string): Promise<boolean> {
       ])
       if (chunk.done) break
       buffer += decoder.decode(chunk.value, { stream: true })
-      if (buffer.includes(noteText)) found = true
+      if (buffer.includes(noteText)) return true
     }
+    return false
   } finally {
     controller.abort()
   }
-  return found
 }
 
 describe.skipIf(isAttachMode)('mock Misskey 接続', () => {
