@@ -338,6 +338,11 @@ $menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
   left: 100%;
   top: 0;
   min-width: 180px;
+  // 設定の種類は多い。窓が低い / 拡大表示のときに画面の下へはみ出すと、ページは
+  // スクロールしないので末尾を選べなくなる。32px はパネルの上端 (タイトルバーの高さ)
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-radius: 0;
   box-shadow: var(--nd-shadow-m);
   font-size: 14px;
