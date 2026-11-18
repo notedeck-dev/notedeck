@@ -307,6 +307,27 @@ impl QueryRuntime {
         Ok(snapshot(entry))
     }
 
+    /// 口座の照会のうち購読を持つもの (query_id, key, subscription_id, 状態)
+    pub fn stream_subscriptions_of(
+        &self,
+        account: &str,
+    ) -> Result<Vec<(String, QueryKey, String, QueryRuntimeState)>, NoteDeckError> {
+        let inner = self.lock()?;
+        Ok(inner
+            .entries
+            .values()
+            .filter(|entry| account_id(&entry.key) == account)
+            .filter_map(|entry| {
+                Some((
+                    entry.query_id.clone(),
+                    entry.key.clone(),
+                    entry.source_subscription_id.clone()?,
+                    entry.runtime_state,
+                ))
+            })
+            .collect())
+    }
+
     pub fn stream_subscription_for(
         &self,
         query_id: &str,
