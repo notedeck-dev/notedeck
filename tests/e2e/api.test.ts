@@ -130,6 +130,49 @@ describe('deck', () => {
     const after = await (await app.get('/api/deck/columns')).json()
     expect(after.some((c: { id: string }) => c.id === id)).toBe(false)
   })
+
+  // column.add は中身を持つ種別の中身も受ける (#1242 / #1406)。バックアップから
+  // デッキを復元する経路で、列だけ出来て中身が空にならないこと
+  it('widget の配置と AiScript の本文を持つカラムを追加でき、一覧に中身が載る', async () => {
+    const add = async (params: Record<string, unknown>) => {
+      const res = await app.post('/api/capabilities/column.add/execute', params)
+      expect(res.status).toBe(200)
+      return ((await res.json()).result as { id: string }).id
+    }
+    const widgetId = await add({
+      type: 'widget',
+      name: 'e2e-widget',
+      // 形が違う要素は捨てる
+      widgets: [{ installId: 'e2e-widget-1' }, 'broken', { accountKey: 'x' }],
+    })
+    const scriptId = await add({
+      type: 'aiscript',
+      name: 'e2e-aiscript',
+      aiscriptCode: '<: "e2e"',
+    })
+
+    const listed = await app.get('/api/deck/columns')
+    expect(listed.status).toBe(200)
+    const columns = (await listed.json()) as Array<{
+      id: string
+      /** デッキの生の形。column.add の `widgets[].installId` がここの `id` になる */
+      widgetRefs?: Array<{ id: string }>
+      aiscriptCode?: string
+    }>
+    expect(columns.find((c) => c.id === widgetId)?.widgetRefs).toEqual([
+      { id: 'e2e-widget-1' },
+    ])
+    expect(columns.find((c) => c.id === scriptId)?.aiscriptCode).toBe(
+      '<: "e2e"',
+    )
+
+    for (const id of [widgetId, scriptId]) {
+      const res = await app.post('/api/capabilities/column.remove/execute', {
+        id,
+      })
+      expect(res.status).toBe(200)
+    }
+  })
 })
 
 // 実効の権限 = external principal の権限 ∩ トークンの scope (#1292 / #1409)。
