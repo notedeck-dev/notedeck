@@ -52,6 +52,7 @@ GPG 署名（`-s`）が失敗したら、まずこのシェルで直接リトラ
 - `gh run watch` で release.yml の進行を確認
 - draft Release が作成されたら内容（アーティファクト: AppImage / DMG / NSIS / latest.json / SHA256SUMS.txt 等）を報告
 - publish の判断はユーザーに委ねる
+- v2.0.0 では、`pnpm unverified` に残っているデスクトップの項目を、既知の未確認として Release のノートに追記する（#1176。ノートは自動生成で PR 本文を含まない）
 
 ## 後始末
 
