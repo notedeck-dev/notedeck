@@ -41,6 +41,13 @@ ignore = [
   { id = "RUSTSEC-2026-0368", reason = "推移的依存 (tauri-plugin-updater)。Windows の署名済み更新物の展開だけ。tauri 2.12 への版上げ待ち (#1312)" },
   { id = "RUSTSEC-2026-0369", reason = "推移的依存 (tauri-plugin-updater)。Windows の署名済み更新物の展開だけ。tauri 2.12 への版上げ待ち (#1312)" },
   { id = "RUSTSEC-2026-0429", reason = "推移的依存 (tauri-plugin-updater)。Windows の署名済み更新物の展開だけ。tauri 2.12 への版上げ待ち (#1312)" },
+  # 同じ経路の zip で、使っていない機能の 2 件。updater は zip を既定機能なしで入れる
+  # (AES の展開は含まれない) うえ、展開は ZipArchive で ZipStreamReader を通らない
+  { id = "RUSTSEC-2026-0545", reason = "推移的依存 (tauri-plugin-updater)。AES 暗号化エントリの展開は使っていない。tauri 2.12 への版上げ待ち (#1312)" },
+  { id = "RUSTSEC-2026-0548", reason = "推移的依存 (tauri-plugin-updater)。ZipStreamReader は使っていない (ZipArchive で展開する)。tauri 2.12 への版上げ待ち (#1312)" },
+  # chrono が保守されなくなった (脆弱性ではない)。使うのは notemaid の時刻の整形と
+  # ローカル時刻だけ。別のライブラリへ移したら外す (#1429)
+  { id = "RUSTSEC-2026-0543", reason = "直接依存 (notemaid)。unmaintained で脆弱性ではない。別の時刻ライブラリへの移行待ち (#1429)" },
 ]
 
 [licenses]
