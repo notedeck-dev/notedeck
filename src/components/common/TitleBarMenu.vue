@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { disable, enable, isEnabled } from '@tauri-apps/plugin-autostart'
 import { revealItemInDir } from '@tauri-apps/plugin-opener'
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
+import type { QuickPickItem } from '@/commands/quickPick'
+import { getSettingsItems } from '@/commands/quickPickProviders'
 import { useCommandStore } from '@/commands/registry'
 import { backupDirPath, exportDirPath } from '@/composables/backupFiles'
 import { usePortal } from '@/composables/usePortal'
@@ -154,6 +156,15 @@ function zoomShortcut(id: string): string {
   return s ? shortcutLabel(s) : ''
 }
 
+// 設定の種類。定義元はコマンドパレットの設定の一覧と同じ (SETTINGS_SECTIONS、#1035)。
+// 露出 (開発者モード) と端末の条件で変わるので、開くたびに引く
+const settingsItems = computed(() => (menuOpen.value ? getSettingsItems() : []))
+
+function openSetting(item: QuickPickItem) {
+  closeMenu()
+  item.action?.()
+}
+
 function reloadApp() {
   closeMenu()
   window.location.reload()
@@ -170,6 +181,30 @@ defineExpose({ toggleMenu })
     @click="closeMenu"
   >
     <div ref="menuPanelRef" :class="$style.panel" @click.stop @mousemove="onMenuMouseMove">
+      <!-- アプリの設定の入口 (ボトムバーの右端は知らせだけにした)。コマンドパレットへ
+           飛ばさず、ここで設定の種類を選んでそのウィンドウを開く -->
+      <div
+        :class="$style.categoryItem"
+        @mouseenter="onCategoryEnter('settings')"
+        @click="onCategoryEnter('settings')"
+      >
+        <button class="_popupItem" :class="[activeCategory === 'settings' && $style.itemActive]">
+          <i class="ti ti-settings" />
+          <span>{{ i18n.ts._common.settings }}</span>
+          <i class="ti ti-chevron-right" :class="$style.chevron" />
+        </button>
+        <div v-if="activeCategory === 'settings'" :class="$style.sub">
+          <button
+            v-for="item in settingsItems"
+            :key="item.id"
+            class="_popupItem"
+            @click="openSetting(item)"
+          >
+            <i :class="'ti ti-' + item.icon" />
+            <span>{{ item.label }}</span>
+          </button>
+        </div>
+      </div>
       <div
         :class="$style.categoryItem"
         @mouseenter="onCategoryEnter('file')"
@@ -303,6 +338,11 @@ $menu-bg: color-mix(in srgb, var(--nd-navBg) 50%, var(--nd-deckBg));
   left: 100%;
   top: 0;
   min-width: 180px;
+  // 設定の種類は多い。窓が低い / 拡大表示のときに画面の下へはみ出すと、ページは
+  // スクロールしないので末尾を選べなくなる。32px はパネルの上端 (タイトルバーの高さ)
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   border-radius: 0;
   box-shadow: var(--nd-shadow-m);
   font-size: 14px;
