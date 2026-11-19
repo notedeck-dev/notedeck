@@ -371,6 +371,8 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
     };
 
     let deck_state_for_mcp = deck_state.clone();
+    #[cfg(debug_assertions)]
+    let deck_state_for_e2e = deck_state.clone();
 
     // Authenticated NoteDeck-specific routes (deck, commands)
     let deck_routes = deck_openapi_router()
@@ -446,9 +448,13 @@ pub async fn serve(config: ServeConfig, ready_tx: tokio::sync::oneshot::Sender<(
     // Rate limiter for upstream Misskey API requests
     let rate_limiter = RateLimiter::new(config.perf);
 
-    let app = Router::new()
-        .merge(api_router)
-        .merge(mcp_routes)
+    let app = Router::new().merge(api_router).merge(mcp_routes);
+    #[cfg(debug_assertions)]
+    let app = match e2e_control_routes(deck_state_for_e2e) {
+        Some(routes) => app.merge(routes),
+        None => app,
+    };
+    let app = app
         // 永続トークン gate (#712 §5.3): 永続トークン由来のリクエストを
         // per-route 対応表で enforce する。persistent_token_middleware (外側)
         // が付けた marker を見るため、その内側に置く
@@ -671,6 +677,58 @@ async fn get_deck_active(State(state): State<DeckState>) -> Result<Json<Value>, 
 )]
 async fn list_commands(State(state): State<DeckState>) -> Result<Json<Value>, ApiError> {
     let data = frontend_bridge::query(state.bridge.as_ref(), "commands/list", json!({}))
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            code: "QUERY_FAILED".to_string(),
+            message: e,
+        })?;
+    Ok(Json(data))
+}
+
+// --- E2E の操作口 (#1064) ---
+// E2E ハーネス (tests/e2e) が、HTTP に口の無い操作 (オフラインモードの切替など) を
+// 起こすためのもの。デバッグビルドにだけコンパイルされ、さらに環境変数
+// `NOTEDECK_E2E_CONTROL=1` で起動したときだけルートを足す。配布版には存在しない。
+// OpenAPI には載せない。永続トークン (外部アプリ / 手元の CLI) には、対応表に無い
+// ルートとして permissions_gate が既定の Deny を返す。
+
+/// E2E の操作口を開くか。デバッグビルドでも、明示されなければ開かない
+#[cfg(debug_assertions)]
+fn e2e_control_enabled() -> bool {
+    std::env::var("NOTEDECK_E2E_CONTROL").as_deref() == Ok("1")
+}
+
+#[cfg(debug_assertions)]
+fn e2e_control_routes(state: DeckState) -> Option<Router> {
+    if !e2e_control_enabled() {
+        return None;
+    }
+    tracing::warn!("[e2e] control routes are enabled (NOTEDECK_E2E_CONTROL=1)");
+    Some(
+        Router::new()
+            .route(
+                "/api/e2e/commands/{id}",
+                axum::routing::post(e2e_run_command),
+            )
+            .layer(middleware::from_fn_with_state(
+                state.clone(),
+                deck_auth_middleware,
+            ))
+            .layer(cors_layer())
+            .with_state(state),
+    )
+}
+
+/// コマンドパレットのコマンドを id で実行する (利用者がパレットから選ぶのと同じ経路)。
+/// 問い合わせの種別を `commands/` にしているのは、見ている窓に届けるため: コマンドは
+/// 実行した窓の状態 (アクティブなカラムなど) に作用する
+#[cfg(debug_assertions)]
+async fn e2e_run_command(
+    State(state): State<DeckState>,
+    Path(id): Path<String>,
+) -> Result<Json<Value>, ApiError> {
+    let data = frontend_bridge::query(state.bridge.as_ref(), "commands/run", json!({ "id": id }))
         .await
         .map_err(|e| ApiError {
             status: StatusCode::INTERNAL_SERVER_ERROR,

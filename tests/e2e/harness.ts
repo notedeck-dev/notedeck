@@ -14,6 +14,7 @@
  * teardown はプロセス SIGTERM + 一時プロファイル削除。
  */
 import { type ChildProcess, spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -41,7 +42,24 @@ export interface E2eApp {
   get(apiPath: string): Promise<Response>
   post(apiPath: string, body?: unknown): Promise<Response>
   del(apiPath: string): Promise<Response>
+  /**
+   * コマンドパレットのコマンドを id で実行する。HTTP に口の無い操作 (オフライン
+   * モードの切替など) を起こすための、デバッグビルド限定の操作口
+   */
+  runCommand(id: string): Promise<void>
+  /** 別のトークン (seedApiTokens で仕込んだもの) で叩く */
+  as(token: string): Pick<E2eApp, 'get' | 'post' | 'del'>
   stop(): Promise<void>
+}
+
+/** 権限ウィンドウで発行した外部トークンの代わりに、起動前に仕込むもの (#1292) */
+export interface SeedApiToken {
+  id: string
+  name: string
+  /** 提示する生のトークン。`ndp_` で始める (それ以外は照合の前に弾かれる) */
+  token: string
+  /** トークン単位の scope。permissions.json5 の principal と同じ形 */
+  scope?: { preset: string; custom?: Record<string, boolean> }
 }
 
 export interface SeedAccount {
@@ -59,6 +77,70 @@ export interface LaunchOptions {
   env?: Record<string, string>
   /** 起動前に notecli.db へアカウントを seed する (モックサーバー接続用) */
   seedAccount?: SeedAccount
+  /** 起動前に発行済みの外部トークンを仕込む */
+  seedApiTokens?: SeedApiToken[]
+}
+
+/**
+ * 発行済みトークンの表 (`state/secrets/api-tokens.json`) を作る。アプリが持つのは
+ * 生のトークンではなく SHA-256 の hex (crates/notecore/src/api_tokens.rs)
+ */
+async function seedApiTokens(
+  profileDir: string,
+  tokens: SeedApiToken[],
+): Promise<void> {
+  const dir = path.join(profileDir, 'state', 'secrets')
+  await mkdir(dir, { recursive: true })
+  const entries = tokens.map((t) => ({
+    id: t.id,
+    name: t.name,
+    token_hash: createHash('sha256').update(t.token).digest('hex'),
+    created_at_ms: Date.now(),
+    kind: 'external',
+    ...(t.scope ? { scope: t.scope } : {}),
+  }))
+  await writeFile(
+    path.join(dir, 'api-tokens.json'),
+    `${JSON.stringify(entries, null, 2)}\n`,
+  )
+}
+
+/** E2E の操作口 (`NOTEDECK_E2E_CONTROL=1` で起動したデバッグビルドにだけある) */
+async function runCommand(token: string, id: string): Promise<void> {
+  const res = await client(token).post(
+    `/api/e2e/commands/${encodeURIComponent(id)}`,
+  )
+  const body = (await res.json().catch(() => null)) as {
+    ok?: boolean
+    error?: string
+  } | null
+  if (!res.ok || body?.ok !== true) {
+    throw new Error(
+      `command "${id}" failed: ${res.status} ${body?.error ?? ''}`.trim(),
+    )
+  }
+}
+
+/** HTTP の口。トークンごとに作る */
+function client(token: string): Pick<E2eApp, 'get' | 'post' | 'del'> {
+  const headers = { Authorization: `Bearer ${token}` }
+  return {
+    get: (apiPath) => fetch(`${API_BASE}${apiPath}`, { headers }),
+    // body なしのとき Content-Type を付けない (axum の Option<Json> は
+    // 「JSON ヘッダあり + 空 body」を 400 にする)
+    post: (apiPath, body) =>
+      fetch(`${API_BASE}${apiPath}`, {
+        method: 'POST',
+        ...(body === undefined
+          ? { headers }
+          : {
+              headers: { ...headers, 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+            }),
+      }),
+    del: (apiPath) =>
+      fetch(`${API_BASE}${apiPath}`, { method: 'DELETE', headers }),
+  }
 }
 
 /**
@@ -148,24 +230,13 @@ async function attachApp(): Promise<E2eApp> {
     `attached HTTP API (${API_PORT})`,
     30_000,
   )
-  const headers = { Authorization: `Bearer ${token}` }
   return {
     base: API_BASE,
     token,
     profileDir: '',
-    get: (apiPath) => fetch(`${API_BASE}${apiPath}`, { headers }),
-    post: (apiPath, body) =>
-      fetch(`${API_BASE}${apiPath}`, {
-        method: 'POST',
-        ...(body === undefined
-          ? { headers }
-          : {
-              headers: { ...headers, 'Content-Type': 'application/json' },
-              body: JSON.stringify(body),
-            }),
-      }),
-    del: (apiPath) =>
-      fetch(`${API_BASE}${apiPath}`, { method: 'DELETE', headers }),
+    ...client(token),
+    as: client,
+    runCommand: (id) => runCommand(token, id),
     stop: async () => {
       // attach モードではデバイス側アプリを殺さない
     },
@@ -229,6 +300,9 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
   if (options.seedAccount) {
     seedAccountDb(profileDir, options.seedAccount)
   }
+  if (options.seedApiTokens) {
+    await seedApiTokens(profileDir, options.seedApiTokens)
+  }
 
   // デバッグビルドは devUrl (vite) から frontend を読む。
   // 既に vite が居ればそれを再利用し、いなければ自前で起動する。
@@ -252,7 +326,13 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
   // しか観測できず、死因がログに残らないため CI では常時有効にする
   const verbose = process.env.NOTEDECK_E2E_VERBOSE === '1'
   const appProc = spawn(binary, [], {
-    env: { ...process.env, NOTEDECK_APP_DIR: profileDir, ...options.env },
+    env: {
+      ...process.env,
+      NOTEDECK_APP_DIR: profileDir,
+      // E2E の操作口を開く (デバッグビルドでも、これが無ければルートごと存在しない)
+      NOTEDECK_E2E_CONTROL: '1',
+      ...options.env,
+    },
     stdio: verbose ? ['ignore', 'inherit', 'inherit'] : 'ignore',
   })
   appProc.once('exit', (code, signal) => {
@@ -301,21 +381,9 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
       base: API_BASE,
       token,
       profileDir,
-      get: (apiPath) => fetch(`${API_BASE}${apiPath}`, { headers }),
-      // body なしのとき Content-Type を付けない (axum の Option<Json> は
-      // 「JSON ヘッダあり + 空 body」を 400 にする)
-      post: (apiPath, body) =>
-        fetch(`${API_BASE}${apiPath}`, {
-          method: 'POST',
-          ...(body === undefined
-            ? { headers }
-            : {
-                headers: { ...headers, 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-              }),
-        }),
-      del: (apiPath) =>
-        fetch(`${API_BASE}${apiPath}`, { method: 'DELETE', headers }),
+      ...client(token),
+      as: client,
+      runCommand: (id) => runCommand(token, id),
       stop: cleanup,
     }
   } catch (e) {

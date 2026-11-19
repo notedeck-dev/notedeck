@@ -2448,7 +2448,6 @@ _deckApiConsoleColumn:
   invalidParamsJson: "The parameters are not valid JSON"
 
 _deckBottomBar:
-  deckSettings: "Deck settings"
   restoreWindow: "Restore {title}"
 
 _deckChartsColumn:

@@ -445,6 +445,11 @@ mod tests {
             RouteRule::Deny
         );
         assert_eq!(route_rule(&Method::GET, "/api/unknown"), RouteRule::Deny);
+        // E2E の操作口 (デバッグビルド限定) は対応表に載せない = 永続トークンには閉
+        assert_eq!(
+            route_rule(&Method::POST, "/api/e2e/commands/toggle-offline-mode"),
+            RouteRule::Deny
+        );
     }
 
     #[test]

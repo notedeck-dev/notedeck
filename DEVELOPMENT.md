@@ -179,6 +179,12 @@ nix develop -c pnpm test:e2e           # WSL2 では nix develop 必須 (EGL 対
   切断/再接続/購読 replay を決定論的にテストする。接続には
   `NOTECLI_INSECURE_HOSTS` / `NOTEDECK_E2E_ALLOW_HOSTS`（デバッグビルド限定の
   http/ws 許可）を使う
+- HTTP に口の無い操作（オフラインモードの切替など）は、E2E の操作口
+  `POST /api/e2e/commands/{id}` でコマンドパレットのコマンドを実行して起こす
+  （ハーネスの `app.runCommand(id)`）。デバッグビルドにだけコンパイルされ、
+  `NOTEDECK_E2E_CONTROL=1` で起動したときだけルートが足される。配布版には無い。
+  永続トークン（外部アプリ）からは使えない
+- 権限ウィンドウで発行する外部トークンは、起動前に仕込む（`seedApiTokens`）
 - CI では `xvfb-run` で実行する。視覚スモーク（`NOTEDECK_E2E_SCREENSHOT=1`
   でスクリーンショットをアーティファクト保存）は develop / main への push の
   ときだけ有効にしている。GPU なしランナーではソフトウェアレンダリングを
@@ -203,6 +209,26 @@ NOTEDECK_E2E_ATTACH=1 NOTEDECK_E2E_TOKEN=$TOKEN pnpm test:e2e
 
 attach モードはデバイス側アプリを終了させず、デッキ操作系テストは実際に
 カラムを追加/削除する（テスト用プロファイルのデバイスで実行すること）。
+
+### 実機確認の宣言（[#1064](https://github.com/notedeck-dev/notedeck/issues/1064)）
+
+実機で確かめていない変更は、黙って積まずに issue で宣言する。PR を通らない変更 (develop への直接コミット) も同じ。
+
+- **宣言**: 面ごとに issue を 1 つ立て、確かめる項目をチェックリストで書き、確認が要る OS の `verify:<os>` ラベル (`linux` / `windows` / `macos` / `android` / `ios`) を付ける。OS に依存しない変更は、手元で見られる OS を 1 つ付ければ足りる
+- **確認したら**: その issue に「版 / OS / 結果」をコメントして、その OS のラベルを外す。ラベルが無くなったら閉じる。確認する手段が無い項目は、その旨を書いて外す (一覧からは消える。確かめられなかったという記録は issue に残る。一覧に載せるのは、これから確かめられるものだけ)
+- **一覧**: `pnpm unverified` (古い順)。Release PR の本文に必ず載せる
+- **止めるもの**: 件数では何も止めない (リリースを止める関門は置かない、fix-forward)。v2.0.0 だけは、デスクトップの `verify:*` をゼロにするか、残りを既知の未確認としてリリースノートに書く ([#1176](https://github.com/notedeck-dev/notedeck/issues/1176))。リリースノートは自動生成で PR 本文を含まないので、公開された Release のノートに追記する
+
+実機確認が要るのは CI で保証できない面:
+
+- OS 統合 (通知 / トレイ / キーチェーン / 常駐 / 更新 / 共有)
+- 窓とプロセス (サブウィンドウ / PiP / sidecar の起動)
+- WebView に依存する描画と入出力 (メディア / クリップボード / ドラッグ&ドロップ)
+- 接続のライフサイクル (再接続 / スリープ復帰 / オフライン)
+- モバイルのライフサイクル
+- 既存データの移行
+
+要らないのは、単体テストで覆われた純ロジックと service 層、挙動を変えないリファクタ、文書、E2E が保証する挙動だけに関わる変更。上に挙げた面に触れる変更は、E2E が通っても宣言する (E2E は HTTP API 経由で、描画や入出力は見ない)。実機確認で見つけた不具合のうち、HTTP API か mock サーバーで再現できるものは E2E に足す。
 
 ## Dev Dashboard（[#977](https://github.com/notedeck-dev/notedeck/issues/977)）
 

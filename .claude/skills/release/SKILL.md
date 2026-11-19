@@ -30,9 +30,10 @@ allowed-tools: Bash(git *), Bash(gh *), Bash(bash scripts/*), Bash(pnpm *), Read
 ## 2. PR 作成・マージ
 
 1. `pnpm changelog` で変更一覧を生成
-2. develop → main の PR を作成（タイトル: `Release vX.Y.Z`、本文に changelog）
-3. `gh pr checks --watch` で CI（lint / typecheck / test / openapi_snapshot）が全部通るのを確認
-4. マージ方法は既存の Release PR に倣う。**マージ前にユーザーへ確認する**
+2. `pnpm unverified` で実機確認待ちの一覧を生成（#1064。件数では止めない、載せるだけ）
+3. develop → main の PR を作成（タイトル: `Release vX.Y.Z`、本文に changelog と「実機確認待ち」の一覧）
+4. `gh pr checks --watch` で CI（lint / typecheck / test / openapi_snapshot）が全部通るのを確認
+5. マージ方法は既存の Release PR に倣う。**マージ前にユーザーへ確認する**
 
 ## 3. タグ作成・push（CI トリガー）
 
@@ -51,6 +52,7 @@ GPG 署名（`-s`）が失敗したら、まずこのシェルで直接リトラ
 - `gh run watch` で release.yml の進行を確認
 - draft Release が作成されたら内容（アーティファクト: AppImage / DMG / NSIS / latest.json / SHA256SUMS.txt 等）を報告
 - publish の判断はユーザーに委ねる
+- v2.0.0 では、`pnpm unverified` に残っているデスクトップの項目を、既知の未確認として Release のノートに追記する（#1176。ノートは自動生成で PR 本文を含まない）
 
 ## 後始末
 
