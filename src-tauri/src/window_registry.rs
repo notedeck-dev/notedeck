@@ -510,6 +510,8 @@ mod tests {
             "health/streams",
             "acp/confirm",
             "capabilities/execute",
+            // E2E の操作口 (デバッグビルド限定)。コマンドは実行した窓に作用する
+            "commands/run",
         ] {
             assert_eq!(r.query_target(q).as_deref(), Some("deck-a"), "{q}");
         }

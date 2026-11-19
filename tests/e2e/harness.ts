@@ -42,6 +42,11 @@ export interface E2eApp {
   get(apiPath: string): Promise<Response>
   post(apiPath: string, body?: unknown): Promise<Response>
   del(apiPath: string): Promise<Response>
+  /**
+   * コマンドパレットのコマンドを id で実行する。HTTP に口の無い操作 (オフライン
+   * モードの切替など) を起こすための、デバッグビルド限定の操作口
+   */
+  runCommand(id: string): Promise<void>
   /** 別のトークン (seedApiTokens で仕込んだもの) で叩く */
   as(token: string): Pick<E2eApp, 'get' | 'post' | 'del'>
   stop(): Promise<void>
@@ -98,6 +103,22 @@ async function seedApiTokens(
     path.join(dir, 'api-tokens.json'),
     `${JSON.stringify(entries, null, 2)}\n`,
   )
+}
+
+/** E2E の操作口 (`NOTEDECK_E2E_CONTROL=1` で起動したデバッグビルドにだけある) */
+async function runCommand(token: string, id: string): Promise<void> {
+  const res = await client(token).post(
+    `/api/e2e/commands/${encodeURIComponent(id)}`,
+  )
+  const body = (await res.json().catch(() => null)) as {
+    ok?: boolean
+    error?: string
+  } | null
+  if (!res.ok || body?.ok !== true) {
+    throw new Error(
+      `command "${id}" failed: ${res.status} ${body?.error ?? ''}`.trim(),
+    )
+  }
 }
 
 /** HTTP の口。トークンごとに作る */
@@ -215,6 +236,7 @@ async function attachApp(): Promise<E2eApp> {
     profileDir: '',
     ...client(token),
     as: client,
+    runCommand: (id) => runCommand(token, id),
     stop: async () => {
       // attach モードではデバイス側アプリを殺さない
     },
@@ -304,7 +326,13 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
   // しか観測できず、死因がログに残らないため CI では常時有効にする
   const verbose = process.env.NOTEDECK_E2E_VERBOSE === '1'
   const appProc = spawn(binary, [], {
-    env: { ...process.env, NOTEDECK_APP_DIR: profileDir, ...options.env },
+    env: {
+      ...process.env,
+      NOTEDECK_APP_DIR: profileDir,
+      // E2E の操作口を開く (デバッグビルドでも、これが無ければルートごと存在しない)
+      NOTEDECK_E2E_CONTROL: '1',
+      ...options.env,
+    },
     stdio: verbose ? ['ignore', 'inherit', 'inherit'] : 'ignore',
   })
   appProc.once('exit', (code, signal) => {
@@ -355,6 +383,7 @@ export async function launchApp(options: LaunchOptions = {}): Promise<E2eApp> {
       profileDir,
       ...client(token),
       as: client,
+      runCommand: (id) => runCommand(token, id),
       stop: cleanup,
     }
   } catch (e) {

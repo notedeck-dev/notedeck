@@ -179,6 +179,12 @@ nix develop -c pnpm test:e2e           # WSL2 では nix develop 必須 (EGL 対
   切断/再接続/購読 replay を決定論的にテストする。接続には
   `NOTECLI_INSECURE_HOSTS` / `NOTEDECK_E2E_ALLOW_HOSTS`（デバッグビルド限定の
   http/ws 許可）を使う
+- HTTP に口の無い操作（オフラインモードの切替など）は、E2E の操作口
+  `POST /api/e2e/commands/{id}` でコマンドパレットのコマンドを実行して起こす
+  （ハーネスの `app.runCommand(id)`）。デバッグビルドにだけコンパイルされ、
+  `NOTEDECK_E2E_CONTROL=1` で起動したときだけルートが足される。配布版には無い。
+  永続トークン（外部アプリ）からは使えない
+- 権限ウィンドウで発行する外部トークンは、起動前に仕込む（`seedApiTokens`）
 - CI では `xvfb-run` で実行する。視覚スモーク（`NOTEDECK_E2E_SCREENSHOT=1`
   でスクリーンショットをアーティファクト保存）は develop / main への push の
   ときだけ有効にしている。GPU なしランナーではソフトウェアレンダリングを
