@@ -21,8 +21,13 @@
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:usesCleartextTraffic="${usesCleartextTraffic}">
+        <!-- configChanges は SDK が持つ種類を全部並べる (#1432)。ここに無い種類の設定変更が
+             起きると Android は Activity を作り直すが、tao は onCreate のたびに Rust の入口
+             (run) を呼ぶので、同じプロセスで 2 回目の run が runtime の二重登録で abort する。
+             表示は WebView が自分で組み直すので、作り直してもらう必要は無い。
+             compileSdk を上げて種類が増えたら足す (一覧は SDK の attrs_manifest.xml)。 -->
         <activity
-            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode"
+            android:configChanges="mcc|mnc|locale|touchscreen|keyboard|keyboardHidden|navigation|orientation|screenLayout|uiMode|screenSize|smallestScreenSize|density|layoutDirection|colorMode|grammaticalGender|fontScale|fontWeightAdjustment|assetsPaths"
             android:launchMode="singleTask"
             android:label="@string/main_activity_title"
             android:name=".MainActivity"

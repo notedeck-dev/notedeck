@@ -72,7 +72,7 @@ if [ -z "$PID" ]; then
   # crash の印 (tombstone の "F DEBUG" / Java の AndroidRuntime / Rust の panic) で絞る
   adb logcat -d > /tmp/logcat-all.txt || true
   echo "--- app / crash lines ---"
-  grep -iE 'notedeck|com\.notedeck|F DEBUG|AndroidRuntime|panicked|RustStdoutStderr|Fatal signal' /tmp/logcat-all.txt | tail -150 || true
+  grep -iE 'notedeck|com\.notedeck|F DEBUG|AndroidRuntime|panicked|RustStdoutStderr|Fatal signal|Config changes|relaunch' /tmp/logcat-all.txt | tail -150 || true
   echo "--- raw tail ---"
   tail -60 /tmp/logcat-all.txt || true
   exit 1
