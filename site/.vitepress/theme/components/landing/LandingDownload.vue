@@ -79,6 +79,7 @@ onUnmounted(() => clearTimeout(resetTimer))
       <p class="unsigned-note" data-fade>
         {{ t.download.unsigned }}
         <a href="#store-distribution">{{ t.download.unsignedLink }}</a>
+        <a href="/en/docs/code-signing-policy">Code signing policy</a>
       </p>
 
       <div class="install-alt acrylic" data-fade>

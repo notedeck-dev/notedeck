@@ -1,5 +1,5 @@
 ---
-sourceHash: e5cbbdfad684
+sourceHash: 93ace0fd3134
 ---
 
 # Installation
@@ -48,7 +48,7 @@ The Windows and macOS builds are not code-signed yet, so you will see an "unknow
 
 The missing signature is a matter of cost and review, not malicious code. Releases are built by GitHub Actions from the source in the public repository, and you can verify the hashes of the `.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` with `SHA256SUMS.txt`.
 
-Removing the warning requires passing review for free open-source code signing from [SignPath Foundation](https://signpath.org/) on Windows, and notarization through the Apple Developer Program on macOS. SignPath Foundation will not sign code nobody knows about and looks at real-world usage, so [stars on GitHub](https://github.com/notedeck-dev/notedeck) and download counts count directly. If you can help, see [the section at the bottom of the download page](/en/#store-distribution).
+Removing the warning requires passing review for free open-source code signing from [SignPath Foundation](https://signpath.org/) on Windows, and notarization through the Apple Developer Program on macOS. SignPath Foundation will not sign code nobody knows about and looks at real-world usage, so [stars on GitHub](https://github.com/notedeck-dev/notedeck) and download counts count directly. If you can help, see [the section at the bottom of the download page](/en/#store-distribution). How signing is handled is described in the [Code signing policy](/en/docs/code-signing-policy).
 
 ## Mobile
 
