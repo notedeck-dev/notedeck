@@ -15,6 +15,7 @@ const JA_SIDEBAR: DefaultTheme.Sidebar = {
       items: [
         { text: 'NoteDeck とは', link: '/docs/' },
         { text: 'インストール', link: '/docs/install' },
+        { text: 'Code signing policy', link: '/docs/code-signing-policy' },
         { text: 'AI の別プロセス (notemaid)', link: '/docs/notemaid' },
         { text: '最初のセットアップ', link: '/docs/first-run' },
         { text: 'ログインせずに試す', link: '/docs/guest' },
@@ -85,6 +86,7 @@ const EN_SIDEBAR: DefaultTheme.Sidebar = {
       items: [
         { text: 'What is NoteDeck', link: '/en/docs/' },
         { text: 'Installation', link: '/en/docs/install' },
+        { text: 'Code signing policy', link: '/en/docs/code-signing-policy' },
         { text: 'The AI process (notemaid)', link: '/en/docs/notemaid' },
         { text: 'First-run setup', link: '/en/docs/first-run' },
         { text: 'Try without logging in', link: '/en/docs/guest' },

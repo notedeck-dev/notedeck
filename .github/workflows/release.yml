@@ -14,6 +14,15 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+        with:
+          # 下の祖先検査に main までの履歴が要る
+          fetch-depth: 0
+
+      # main に取り込んでいないコミットからは配布物を作らない。リリース手順はタグを main に
+      # 付けるが、v* タグならどのコミットでもこの workflow は起動する。後続のジョブはすべて
+      # check に依存するので、ここで止めれば何も作られない (Code signing policy の前提)
+      - name: Verify the tagged commit is on main
+        run: git merge-base --is-ancestor HEAD origin/main
 
       - name: Install pnpm
         # バージョンは package.json の packageManager に従う
