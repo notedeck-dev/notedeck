@@ -1,5 +1,5 @@
 ---
-sourceHash: 93a1fdd04990
+sourceHash: 1bc828dac332
 ---
 
 # Code signing policy
@@ -7,10 +7,8 @@ sourceHash: 93a1fdd04990
 This page describes how the Windows builds of NoteDeck are code-signed.
 
 ::: warning Current status
-Our application to SignPath Foundation is pending. Until it is approved, the Windows builds are distributed unsigned (see [Warning on first launch](/en/docs/install#warning-on-first-launch)). Releases after approval will be signed as described below.
+The Windows builds are distributed unsigned (see [Warning on first launch](/en/docs/install#warning-on-first-launch)). We applied to SignPath Foundation for free open-source code signing in November 2026 and were turned down because the project is not yet visible enough. As another way to deliver the app without the warning, we are considering distribution through the Microsoft Store. What follows is the policy we will keep to when signing is introduced.
 :::
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
 ## What is signed
 
@@ -44,4 +42,4 @@ The complete list of destinations is in the [privacy policy](/en/docs/privacy).
 
 ## Reporting problems
 
-If you find a problem with a signed build, tell us through [GitHub issues](https://github.com/notedeck-dev/notedeck/issues). For vulnerabilities, please use a [private report](https://github.com/notedeck-dev/notedeck/security/advisories/new) instead of a public issue.
+If you find a problem with a build, tell us through [GitHub issues](https://github.com/notedeck-dev/notedeck/issues). For vulnerabilities, please use a [private report](https://github.com/notedeck-dev/notedeck/security/advisories/new) instead of a public issue.

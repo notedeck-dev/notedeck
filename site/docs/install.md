@@ -44,7 +44,7 @@ Windows / macOS 版はまだコード署名なしで配布しているため、�
 
 署名がないのはコストと審査の問題で、悪意のあるコードが入っているわけではありません。配布物は GitHub Actions が公開リポジトリのソースからビルドしており、`.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` は `SHA256SUMS.txt` でハッシュを検証できます。
 
-警告をなくすには、Windows は OSS 向け無料コード署名（[SignPath Foundation](https://signpath.org/)）の審査を通すこと、macOS は Apple Developer Program での公証（notarization）が必要です。SignPath Foundation は「誰も知らないソースコードには署名できない」として実際に使われている実績を見るため、[GitHub の Star](https://github.com/notedeck-dev/notedeck) とダウンロード数がそのまま材料になります。協力できる方は[ダウンロードページ下部の案内](/#store-distribution)を見てください。署名の方針は [Code signing policy](/docs/code-signing-policy) にまとめています。
+警告をなくすには、Windows はコード署名、macOS は Apple Developer Program での公証（notarization）が必要です。Windows は OSS 向け無料コード署名（[SignPath Foundation](https://signpath.org/)）に 2026 年 11 月に申請しましたが、プロジェクトの認知度がまだ足りないとして見送りになりました。審査で見られるのは [GitHub の Star](https://github.com/notedeck-dev/notedeck) や fork、外部での紹介や言及で、認知が広がれば再申請できます。協力できる方は[ダウンロードページ下部の案内](/#store-distribution)を見てください。署名の方針は [Code signing policy](/docs/code-signing-policy) にまとめています。
 
 ## モバイル
 

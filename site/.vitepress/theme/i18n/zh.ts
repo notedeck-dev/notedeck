@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: e5e7ac119222
+// sourceHash: 1424a3da86f5
 
 import type { Messages } from './ja'
 
@@ -281,7 +281,7 @@ const zh: Messages = {
       '无论是桌面版的“未知发布者”警告，还是在 Google Play / App Store 上的正式发布，剩下的障碍都不是技术，而是手续：项目需要被人知道，开发者账户也需要费用。我们希望和社区一起跨越这些障碍。',
     star: {
       title: '在 GitHub 上点 Star',
-      body: '为 Windows 开源软件提供免费代码签名的 SignPath Foundation 以“无法为无人知晓的源代码签名”为由，会在审核中查看实际使用情况。Star 数和下载量会直接成为依据。点一下就能完成，是最轻松的支持方式。',
+      body: '面向 Windows 开源软件的免费代码签名（SignPath Foundation）我们已在 2026 年 11 月申请，但因项目的知名度尚不足而未获通过。审核看的是 GitHub 的 Star、fork 以及外部的介绍和讨论，知名度提高后可以重新申请。点一下就能完成，是最轻松的支持方式。',
       button: '在 GitHub 上 Star',
     },
     beta: {

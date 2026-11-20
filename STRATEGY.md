@@ -259,7 +259,7 @@ OSSアプリは署名なしだと「危険なアプリ」警告が表示され�
 
 | プラットフォーム | 課題 | 対策 |
 |---|---|---|
-| Windows | SmartScreen が未署名アプリをブロック | SignPath Foundation（OSS向け無料EV署名） |
+| Windows | SmartScreen が未署名アプリをブロック | Microsoft Store で配布する (Store が署名する、#849)。SignPath Foundation（OSS向け無料署名）は 2026-11-20 に認知度を理由に不承認、認知が広がれば再申請 (#882) |
 | macOS | Gatekeeper 警告 | 対応見送り（$99/年の Apple Developer Program 必須） |
 | Linux | 問題なし | パッケージマネージャ経由で信頼される |
 | Android | Google Play は $25 必要 | F-Droid（無料、OSS審査あり） |

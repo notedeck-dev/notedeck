@@ -1,5 +1,5 @@
 ---
-sourceHash: 93ace0fd3134
+sourceHash: 2568fffa2f56
 ---
 
 # 安装
@@ -48,7 +48,7 @@ Windows / macOS 版目前尚未进行代码签名，首次启动时会出现“�
 
 没有签名是成本和审核的问题，并不是因为包含恶意代码。发布的文件由 GitHub Actions 从公开仓库的源代码构建，`.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz` 可以用 `SHA256SUMS.txt` 校验哈希值。
 
-要消除警告，Windows 需要通过面向开源软件的免费代码签名（[SignPath Foundation](https://signpath.org/)）的审核，macOS 需要通过 Apple Developer Program 进行公证（notarization）。SignPath Foundation 以“无法为无人知晓的源代码签名”为由，会查看实际的使用情况，因此 [GitHub 上的 Star](https://github.com/notedeck-dev/notedeck) 数和下载量会直接成为依据。如果你愿意帮忙，请查看[下载页面底部的说明](/zh/#store-distribution)。签名的方针见 [Code signing policy](/en/docs/code-signing-policy)（英文）。
+要消除警告，Windows 需要代码签名，macOS 需要通过 Apple Developer Program 进行公证（notarization）。Windows 方面，我们已在 2026 年 11 月申请面向开源软件的免费代码签名（[SignPath Foundation](https://signpath.org/)），但因项目的知名度尚不足而未获通过。审核看的是 [GitHub 上的 Star](https://github.com/notedeck-dev/notedeck)、fork 以及外部的介绍和讨论，知名度提高后可以重新申请。如果你愿意帮忙，请查看[下载页面底部的说明](/zh/#store-distribution)。签名的方针见 [Code signing policy](/en/docs/code-signing-policy)（英文）。
 
 ## 移动端
 

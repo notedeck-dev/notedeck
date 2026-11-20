@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: e5e7ac119222
+// sourceHash: 1424a3da86f5
 
 import type { Messages } from './ja'
 
@@ -285,7 +285,7 @@ const ko: Messages = {
       '데스크톱 버전의 "알 수 없는 게시자" 경고도, Google Play / App Store 정식 배포도, 남아 있는 것은 기술이 아니라 절차의 벽입니다. 프로젝트가 알려져 있어야 하고, 개발자 계정 비용이 듭니다. 커뮤니티 여러분과 함께 넘고 싶습니다.',
     star: {
       title: 'GitHub에서 Star 누르기',
-      body: 'Windows용 OSS 무료 코드 서명 (SignPath Foundation)은 "아무도 모르는 소스 코드에는 서명할 수 없다"며 실제로 쓰이고 있는 실적을 심사합니다. Star와 다운로드 수가 그대로 근거가 됩니다. 클릭 한 번으로 할 수 있는 가장 손쉬운 응원입니다.',
+      body: 'Windows용 OSS 무료 코드 서명 (SignPath Foundation)에 2026년 11월에 신청했지만, 프로젝트의 인지도가 아직 부족하다는 이유로 보류되었습니다. 심사에서 보는 것은 GitHub의 Star와 fork, 외부의 소개나 언급이며, 인지도가 넓어지면 다시 신청할 수 있습니다. 클릭 한 번으로 할 수 있는 가장 손쉬운 응원입니다.',
       button: 'GitHub에서 Star',
     },
     beta: {
