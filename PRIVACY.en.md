@@ -1,4 +1,4 @@
-<!-- sourceHash: 9eefd66493ca -->
+<!-- sourceHash: 6e3d92014588 -->
 # Privacy Policy
 
 NoteDeck is an integrated environment (IDE) for Misskey and other decentralized social networks. It runs on desktop (Windows / macOS / Linux) and Android. This document states how NoteDeck handles user data.
@@ -15,7 +15,9 @@ What the developers publish is the official site (`notedeck.io`) and the store f
 
 ## Credentials stored in the OS keychain
 
-Sensitive credentials are stored in the operating system's keychain. They are not stored in settings files or in the SQLite database.
+Sensitive credentials are stored in the operating system's keychain. Where a keychain is available, they are not stored in settings files or in the SQLite database.
+
+**Exception where no keychain is available**: in environments where the OS has no keychain, or where its contents are lost on reboot (for example on Linux when neither Secret Service nor the encrypted file described below can be used), Misskey access tokens are also kept unencrypted in files on the device (`notecli.db` and `state/secrets/`) so that you stay logged in. These files are made readable by their owner only.
 
 - **Misskey access tokens** (per server / per account)
 - **AI provider API keys** (through the Secret Vault, stored per connection)
@@ -106,8 +108,9 @@ When you use AI chat, the messages you enter and the context you allowed through
 
 ## Deleting data
 
-- **Per account**: account menu → Log out → "Delete everything" removes the cache, the token and related data
-- **Everything**: delete the settings folder
+- **Per account**: account menu → Log out → "Delete everything" removes the cache, the token and related data. That account's token in the OS keychain is removed as well
+- **AI API keys and secrets of external services**: deleting a connection also removes its secret from the OS keychain
+- **Everything**: delete the settings folder and its parent, the app data folder. **Credentials in the OS keychain live outside these folders, so this alone does not remove them.** Either do the two steps above first (log out of the accounts and delete the connections), or delete the `notedeck` entries in your OS's keychain manager. If the encrypted file is in use on Linux, also delete `~/.local/share/notecli/secrets.enc` and `~/.config/notecli/secret.key`
 - **Uninstalling**: follow the OS procedure for removing apps (on desktop, the settings folder is left for the user to delete separately)
 - **Android**: uninstalling the app, or clearing the app's storage in the OS settings, removes all data on the device
 - **Data on Misskey servers**: posts and the accounts themselves are held by each Misskey server. The developers of NoteDeck do not have them and cannot delete them. Use that server's own features to delete them
