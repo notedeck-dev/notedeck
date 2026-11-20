@@ -136,6 +136,54 @@ jobs:
           name: android-apk
           path: src-tauri/gen/android/app/build/outputs/apk/
 
+      # Google Play 提出用の AAB (#868)。Play は端末ごとの APK を自分で切り出すので、
+      # APK と違って ABI で分けず全 ABI を 1 本に入れる。APK の署名より後に置く:
+      # 上の glob が拾う outputs/apk を触らせないため。
+      #
+      # ここで付けるのはアップロード鍵の署名で、APK と同じ keystore を使う。
+      # 利用者に届く APK の署名は Play App Signing 側の鍵になる。
+      - name: Build AAB (Google Play)
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        run: npx tauri android build --aab --target aarch64 armv7 x86_64
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.0.12077973
+
+      - name: Sign AAB
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        run: |
+          set -euo pipefail
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > /tmp/release.keystore
+          OUT=src-tauri/gen/android/app/build/outputs/bundle
+
+          shopt -s nullglob
+          AABS=("$OUT"/*Release/*.aab)
+          if [ ${#AABS[@]} -ne 1 ]; then
+            echo "ERROR: expected exactly one AAB under $OUT, found ${#AABS[@]}" >&2
+            find "$OUT" -name '*.aab' >&2 || true
+            exit 1
+          fi
+
+          VERSION=$(node -p "require('./package.json').version")
+          SIGNED="NoteDeck-${VERSION}-android.aab"
+          # AAB は apksigner ではなく jarsigner で署名する (v1 署名。Play が受け取る形式)
+          jarsigner -keystore /tmp/release.keystore \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -keypass:env ANDROID_KEY_PASSWORD \
+            -sigalg SHA256withRSA -digestalg SHA-256 \
+            -signedjar "$SIGNED" "${AABS[0]}" "${ANDROID_KEY_ALIAS}"
+          jarsigner -verify "$SIGNED"
+          rm /tmp/release.keystore
+          ls -lh "$SIGNED"
+
+      # リリースには載せない: AAB は利用者が直接入れられず、Play Console に上げるためのもの
+      - name: Upload AAB artifact
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: android-aab
+          path: NoteDeck-*-android.aab
+          if-no-files-found: error
+
   # 起動即クラッシュの検出 (#858)。v1.33.0 は windowing 層の更新で Android が
   # 起動した瞬間に落ちる状態のまま公開されてしまった。ネイティブ初期化の
   # 失敗はアプリ内の診断ログにも残らないため、実際に起動させるしかない。
