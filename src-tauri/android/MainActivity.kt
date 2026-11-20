@@ -3,6 +3,8 @@ package com.notedeck.desktop
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.view.ViewGroup
@@ -22,10 +24,25 @@ import java.util.concurrent.TimeUnit
 class MainActivity : TauriActivity() {
   companion object {
     private const val NOTIFICATION_PERMISSION_CODE = 42
+    private const val UI_PREFS = "nd_ui"
+    private const val KEY_THEME_BG = "theme_bg"
+    // src/styles/global.css の --nd-bg の既定値。テーマをまだ覚えていない初回だけ使う
+    private val DEFAULT_THEME_BG = Color.rgb(0x23, 0x23, 0x23)
+    private val RGB_PATTERN = Regex("""rgba?\((\d+),\s*(\d+),\s*(\d+)""")
+    // --nd-bg を「rgb(r, g, b)」の形で読む。変数が無ければ空文字 (前景色を拾わないため)
+    private const val READ_THEME_BG_JS =
+      "(function(){var r=document.documentElement;" +
+        "if(!getComputedStyle(r).getPropertyValue('--nd-bg').trim())return '';" +
+        "var d=document.createElement('div');d.style.color='var(--nd-bg)';r.appendChild(d);" +
+        "var c=getComputedStyle(d).color;d.remove();return c})()"
   }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()
+    // 起動時の明滅を防ぐ (#1433)。ウィンドウと WebView (onWebViewCreate) を、最初の描画が
+    // 出る前から前回のテーマの背景色で塗っておく。指定しないと OS の配色と WebView の
+    // 既定色が先に見えて、アプリの色と合わない瞬間ができる
+    window.setBackgroundDrawable(ColorDrawable(launchBackground()))
     super.onCreate(savedInstanceState)
     // OS 通知の描画を Activity から切り離す (#330 §4.1)。application Context を
     // 預け、Rust に JavaVM とクラス参照を渡す (ネイティブライブラリは super が読み込み済み)
@@ -51,7 +68,29 @@ class MainActivity : TauriActivity() {
 
   override fun onStop() {
     NotificationBridge.setForeground(false)
+    rememberThemeBackground()
     super.onStop()
+  }
+
+  override fun onWebViewCreate(webView: WebView) {
+    webView.setBackgroundColor(launchBackground())
+  }
+
+  private fun launchBackground(): Int =
+    getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE).getInt(KEY_THEME_BG, DEFAULT_THEME_BG)
+
+  /**
+   * 今のテーマの背景色を次の起動のために覚える (#1433)。起動直後は WebView もフロントも
+   * まだ無いので、アプリを離れるときに読んでおく。rgb 以外の書式で返ってきたら覚え直さない
+   */
+  private fun rememberThemeBackground() {
+    val root = window?.decorView?.rootView as? ViewGroup ?: return
+    findWebView(root)?.evaluateJavascript(READ_THEME_BG_JS) { value ->
+      val (r, g, b) = RGB_PATTERN.find(value ?: "")?.destructured ?: return@evaluateJavascript
+      getSharedPreferences(UI_PREFS, Context.MODE_PRIVATE).edit()
+        .putInt(KEY_THEME_BG, Color.rgb(r.toInt(), g.toInt(), b.toInt()))
+        .apply()
+    }
   }
 
   /**
