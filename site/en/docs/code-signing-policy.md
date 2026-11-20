@@ -1,5 +1,5 @@
 ---
-sourceHash: 47c328bd9c67
+sourceHash: b517bd57b5e7
 ---
 
 # Code signing policy
@@ -15,7 +15,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 ## What is signed
 
 - Only Windows artifacts built from the source in this [public repository](https://github.com/notedeck-dev/notedeck) are signed: the installer, the application itself, the bundled `notemaid`, and the standalone `notecli`
-- Builds are produced by the GitHub Actions release workflow ([`release.yml`](https://github.com/notedeck-dev/notedeck/blob/main/.github/workflows/release.yml)) from a version tag on `main`. Binaries built on a developer's machine are never signed
+- Builds are produced by the GitHub Actions release workflow ([`release.yml`](https://github.com/notedeck-dev/notedeck/blob/main/.github/workflows/release.yml)) from a version tag. Following the release procedure, tags are placed on commits that have been merged into `main`. Binaries built on a developer's machine are never signed
 - We never sign binaries made by third parties under this project's name
 - Every signing request is checked and approved by an approver listed below, once per release
 
@@ -33,6 +33,7 @@ Only the members above can write to the repository. Changes from anyone else arr
 NoteDeck sends no usage statistics, crash reports or advertising traffic. It communicates with other systems only in these cases:
 
 - With the Misskey servers the user has logged in to
+- To fetch images and other media contained in notes and profiles (from the servers that host them)
 - With the AI providers the user has configured (only when AI features are used)
 - To check for updates (GitHub Releases)
 - To fetch previews of URLs contained in notes (can be turned off in settings)

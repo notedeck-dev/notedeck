@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import type { PlatformKey } from '../../composables/useLatestRelease'
 
@@ -9,7 +9,12 @@ const props = defineProps<{
   releasesLatest: string
 }>()
 
-const { t } = useI18n()
+const { t, localePath } = useI18n()
+
+/** 訳があるのは ja と en だけ。ほかの言語は en へ送る */
+const policyHref = computed(() =>
+  localePath('') === '' ? '/docs/code-signing-policy' : '/en/docs/code-signing-policy',
+)
 
 /** リリースアセットが引けていればその直リンク、駄目なら /releases/latest へ。 */
 function hrefFor(platform: PlatformKey) {
@@ -79,7 +84,7 @@ onUnmounted(() => clearTimeout(resetTimer))
       <p class="unsigned-note" data-fade>
         {{ t.download.unsigned }}
         <a href="#store-distribution">{{ t.download.unsignedLink }}</a>
-        <a href="/en/docs/code-signing-policy">Code signing policy</a>
+        <a :href="policyHref">Code signing policy</a>
       </p>
 
       <div class="install-alt acrylic" data-fade>

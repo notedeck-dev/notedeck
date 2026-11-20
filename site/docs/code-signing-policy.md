@@ -11,7 +11,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 ## 署名するもの
 
 - 署名するのは、この[公開リポジトリ](https://github.com/notedeck-dev/notedeck)のソースから作った Windows 向けの成果物だけです（インストーラ、アプリ本体、同梱する `notemaid`、単体配布の `notecli`）
-- ビルドは GitHub Actions のリリース用ワークフロー（[`release.yml`](https://github.com/notedeck-dev/notedeck/blob/main/.github/workflows/release.yml)）が、`main` に付けたバージョンタグから行います。開発者の手元で作ったバイナリには署名しません
+- ビルドは GitHub Actions のリリース用ワークフロー（[`release.yml`](https://github.com/notedeck-dev/notedeck/blob/main/.github/workflows/release.yml)）が、バージョンタグから行います。タグはリリース手順に従って `main` に取り込んだコミットに付けます。開発者の手元で作ったバイナリには署名しません
 - 第三者が作ったバイナリに、このプロジェクトの名前で署名することはありません
 - 署名の要求は、リリースのたびに下記の承認者が内容を確かめて承認します
 
@@ -29,6 +29,7 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 NoteDeck は利用統計・クラッシュレポート・広告のための通信を行いません。外部と通信するのは次の場合だけです。
 
 - 利用者がログインした Misskey サーバーとの通信
+- ノートやプロフィールに含まれる画像などのメディアの取得（そのメディアを置いているサーバーへ）
 - 利用者が設定した AI プロバイダーとの通信（AI 機能を使うときだけ）
 - 更新の確認（GitHub Releases）
 - ノートに含まれる URL のプレビュー取得（設定で無効にできます）
