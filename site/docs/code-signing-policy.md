@@ -26,15 +26,17 @@ Free code signing provided by [SignPath.io](https://about.signpath.io), certific
 
 ## プライバシー
 
-NoteDeck は利用統計・クラッシュレポート・広告のための通信を行いません。外部と通信するのは次の場合だけです。
+NoteDeck は利用統計・クラッシュレポート・広告のための通信を行いません。開発者が利用者のデータを受け取る経路もありません。外部との通信は、主に次のものです。
 
 - 利用者がログインした Misskey サーバーとの通信
 - ノートやプロフィールに含まれる画像などのメディアの取得（そのメディアを置いているサーバーへ）
-- 利用者が設定した AI プロバイダーとの通信（AI 機能を使うときだけ）
+- 利用者が設定した AI プロバイダーや外部サービスとの通信（その機能を使うときだけ）
 - 更新の確認（GitHub Releases）
 - ノートに含まれる URL のプレビュー取得（設定で無効にできます）
+- ストアの一覧と配布物の取得（`store.notedeck.io`）、ペットの取得（`petdex.dev`）、アイコンや Web フォントの取得
+- 利用者が入れたプラグインやウィジェットが行う通信
 
-全体は[プライバシーポリシー](https://github.com/notedeck-dev/notedeck/blob/main/PRIVACY.md)にあります。
+通信先の全体は[プライバシーポリシー](https://github.com/notedeck-dev/notedeck/blob/main/PRIVACY.md)にあります。
 
 ## 問題の報告
 

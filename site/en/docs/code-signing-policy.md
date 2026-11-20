@@ -1,5 +1,5 @@
 ---
-sourceHash: b517bd57b5e7
+sourceHash: 5233e6001ed7
 ---
 
 # Code signing policy
@@ -30,15 +30,17 @@ Only the members above can write to the repository. Changes from anyone else arr
 
 ## Privacy
 
-NoteDeck sends no usage statistics, crash reports or advertising traffic. It communicates with other systems only in these cases:
+NoteDeck sends no usage statistics, crash reports or advertising traffic, and there is no path by which the developers receive users' data. Its communication with other systems is mainly the following:
 
 - With the Misskey servers the user has logged in to
 - To fetch images and other media contained in notes and profiles (from the servers that host them)
-- With the AI providers the user has configured (only when AI features are used)
+- With the AI providers and external services the user has configured (only when those features are used)
 - To check for updates (GitHub Releases)
 - To fetch previews of URLs contained in notes (can be turned off in settings)
+- To fetch the store listing and items (`store.notedeck.io`), pets (`petdex.dev`), icons and web fonts
+- Communication performed by plugins and widgets the user has installed
 
-The full text is in the [privacy policy](https://github.com/notedeck-dev/notedeck/blob/main/PRIVACY.md) (in Japanese).
+The complete list of destinations is in the [privacy policy](https://github.com/notedeck-dev/notedeck/blob/main/PRIVACY.md) (in Japanese).
 
 ## Reporting problems
 
