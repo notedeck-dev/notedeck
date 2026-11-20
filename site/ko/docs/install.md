@@ -1,5 +1,5 @@
 ---
-sourceHash: 93ace0fd3134
+sourceHash: 5ff74554eb20
 ---
 
 # 설치
@@ -48,7 +48,7 @@ Windows / macOS 버전은 아직 코드 서명 없이 배포하고 있어, 처�
 
 서명이 없는 것은 비용과 심사의 문제이며, 악성 코드가 들어 있어서가 아닙니다. 배포물은 GitHub Actions가 공개 저장소의 소스에서 빌드하며, `.exe` / `.dmg` / `.deb` / `.AppImage` / `.tar.gz`는 `SHA256SUMS.txt`로 해시를 검증할 수 있습니다.
 
-경고를 없애려면 Windows는 OSS용 무료 코드 서명 ([SignPath Foundation](https://signpath.org/)) 심사를 통과해야 하고, macOS는 Apple Developer Program을 통한 공증 (notarization)이 필요합니다. SignPath Foundation은 "아무도 모르는 소스 코드에는 서명할 수 없다"며 실제로 쓰이고 있는 실적을 보기 때문에, [GitHub의 Star](https://github.com/notedeck-dev/notedeck)와 다운로드 수가 그대로 근거가 됩니다. 도와주실 수 있는 분은 [다운로드 페이지 아래쪽의 안내](/ko/#store-distribution)를 봐 주세요. 서명 방침은 [Code signing policy](/en/docs/code-signing-policy)(영문)에 정리되어 있습니다.
+경고 없이 전하려면 Windows는 코드 서명이나 Microsoft Store를 통한 배포가, macOS는 Apple Developer Program을 통한 공증 (notarization)이 필요합니다. Windows는 OSS용 무료 코드 서명 ([SignPath Foundation](https://signpath.org/))에 2026년 11월에 신청했지만, 프로젝트의 인지도가 아직 부족하다는 이유로 승인되지 않았습니다. 심사에서 보는 것은 [GitHub의 Star](https://github.com/notedeck-dev/notedeck)와 fork, 외부의 소개나 언급이며, 인지도가 넓어지면 다시 신청할 수 있습니다. 도와주실 수 있는 분은 [다운로드 페이지 아래쪽의 안내](/ko/#store-distribution)를 봐 주세요. 서명 방침은 [Code signing policy](/en/docs/code-signing-policy)(영문)에 정리되어 있습니다.
 
 ## 모바일
 

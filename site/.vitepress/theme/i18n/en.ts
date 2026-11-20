@@ -1,5 +1,5 @@
 // 原文 ja.ts から訳した時点のハッシュ。docs-lint が訳の置き去りを検出する (#1145)
-// sourceHash: e5e7ac119222
+// sourceHash: 1424a3da86f5
 
 import type { Messages } from './ja'
 
@@ -285,7 +285,7 @@ const en: Messages = {
       'Both the “unknown publisher” warning on desktop and official releases on Google Play and the App Store are blocked by paperwork, not technology: the project needs to be known, and developer accounts cost money. We would like to get over these with the community.',
     star: {
       title: 'Star us on GitHub',
-      body: 'SignPath Foundation, which offers free code signing for open source on Windows, will not sign code nobody knows about — its review looks at real-world usage. Stars and download counts count directly. It is the easiest boost, one click away.',
+      body: 'We applied to SignPath Foundation, which offers free code signing for open source on Windows, in November 2026, and were turned down because the project is not yet visible enough. What the review looks at is GitHub stars and forks and independent mentions elsewhere, and we can reapply once the project is better known. A star is the easiest boost, one click away.',
       button: 'Star on GitHub',
     },
     beta: {

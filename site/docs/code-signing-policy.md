@@ -3,10 +3,8 @@
 Windows 版のコード署名についての方針です。この内容は [English](/en/docs/code-signing-policy) でも読めます。
 
 ::: warning 現在の状態
-SignPath Foundation に申請中です。承認されるまで、Windows 版は未署名のまま配布しています（[初回起動時の警告](/docs/install#初回起動時の警告)）。承認後のリリースから下記のとおり署名します。
+Windows 版は未署名のまま配布しています（[初回起動時の警告](/docs/install#初回起動時の警告)）。OSS 向け無料コード署名（SignPath Foundation）には 2026 年 11 月に申請しましたが、プロジェクトの認知度がまだ足りないとして見送りになりました。警告なしで届ける別の経路として、Microsoft Store での配布を検討しています。以下は、署名を入れるときに守る方針です。
 :::
-
-Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org).
 
 ## 署名するもの
 
@@ -40,4 +38,4 @@ NoteDeck は利用統計・クラッシュレポート・広告のための通�
 
 ## 問題の報告
 
-署名された配布物に問題を見つけたら、[GitHub の issue](https://github.com/notedeck-dev/notedeck/issues) で知らせてください。脆弱性は公開の issue ではなく[非公開の報告](https://github.com/notedeck-dev/notedeck/security/advisories/new)でお願いします。
+配布物に問題を見つけたら、[GitHub の issue](https://github.com/notedeck-dev/notedeck/issues) で知らせてください。脆弱性は公開の issue ではなく[非公開の報告](https://github.com/notedeck-dev/notedeck/security/advisories/new)でお願いします。
