@@ -1,5 +1,5 @@
 ---
-sourceHash: 5233e6001ed7
+sourceHash: 93a1fdd04990
 ---
 
 # Code signing policy
@@ -40,7 +40,7 @@ NoteDeck sends no usage statistics, crash reports or advertising traffic, and th
 - To fetch the store listing and items (`store.notedeck.io`), pets (`petdex.dev`), icons and web fonts
 - Communication performed by plugins and widgets the user has installed
 
-The complete list of destinations is in the [privacy policy](https://github.com/notedeck-dev/notedeck/blob/main/PRIVACY.md) (in Japanese).
+The complete list of destinations is in the [privacy policy](/en/docs/privacy).
 
 ## Reporting problems
 

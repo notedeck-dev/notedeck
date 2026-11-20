@@ -36,7 +36,7 @@ NoteDeck は利用統計・クラッシュレポート・広告のための通�
 - ストアの一覧と配布物の取得（`store.notedeck.io`）、ペットの取得（`petdex.dev`）、アイコンや Web フォントの取得
 - 利用者が入れたプラグインやウィジェットが行う通信
 
-通信先の全体は[プライバシーポリシー](https://github.com/notedeck-dev/notedeck/blob/main/PRIVACY.md)にあります。
+通信先の全体は[プライバシーポリシー](/docs/privacy)にあります。
 
 ## 問題の報告
 
