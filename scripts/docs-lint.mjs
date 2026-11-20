@@ -173,6 +173,8 @@ for (const file of files) {
 const SITE = join(ROOT, 'site')
 // 訳の置き場所 → 原文の置き場所。言語を足すときはここに並べる
 const TRANSLATIONS = [
+  // サイトの外にある訳。ストアの申請で英語の公開 URL が要る (#868 / #882)
+  { dir: join(ROOT, 'PRIVACY.en.md'), source: join(ROOT, 'PRIVACY.md') },
   { dir: join(SITE, 'en'), source: SITE },
   {
     dir: join(SITE, '.vitepress/theme/i18n/en.ts'),
