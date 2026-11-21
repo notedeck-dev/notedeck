@@ -105,12 +105,18 @@ jobs:
           Write-Host "== processes"
           Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Select-Object Name, Id, Path | Format-Table -AutoSize | Out-String -Width 220
           Write-Host "== resident registration from inside the package"
-          & (Join-Path $pkg.InstallLocation 'notemaid.exe') service install
-          Write-Host "exit: $LASTEXITCODE"
+          # パッケージの中の exe は外から直接は起動できない (Access is denied)。パッケージの文脈で走らせる
+          try {
+            Invoke-CommandInDesktopPackage -PackageFamilyName $pfn -AppId App -Command (Join-Path $pkg.InstallLocation 'notemaid.exe') -Args 'service install'
+            Start-Sleep 5
+            Invoke-CommandInDesktopPackage -PackageFamilyName $pfn -AppId App -Command 'cmd.exe' -Args "/c reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run > `"$PWD\inside-run-key.txt`" 2>&1"
+            Start-Sleep 5
+          } catch { Write-Host "in-package command failed: $_" }
           Write-Host "-- real HKCU Run key as seen from outside the package:"
-          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run' /v 'NoteDeck notemaid'
-          Write-Host "-- as seen by the packaged notemaid:"
-          & (Join-Path $pkg.InstallLocation 'notemaid.exe') service status
+          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
+          Write-Host "(exit $LASTEXITCODE)"; $global:LASTEXITCODE = 0
+          Write-Host "-- Run key as seen from inside the package:"
+          if (Test-Path inside-run-key.txt) { Get-Content inside-run-key.txt } else { Write-Host "(no output file)" }
           Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Sleep 3
           Write-Host "== real Roaming: files written AFTER the packaged run started (in-place writes to the unpackaged data)"
@@ -135,9 +141,13 @@ jobs:
           Start-Process "shell:AppsFolder\$pfn!App"
           Start-Sleep 25
           Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Select-Object Name, Id, Path | Format-Table -AutoSize | Out-String -Width 220
-          & (Join-Path $pkg.InstallLocation 'notemaid.exe') service install
+          try {
+            Invoke-CommandInDesktopPackage -PackageFamilyName $pfn -AppId App -Command (Join-Path $pkg.InstallLocation 'notemaid.exe') -Args 'service install'
+            Start-Sleep 5
+          } catch { Write-Host "in-package command failed: $_" }
           Write-Host "-- real HKCU Run key as seen from outside the package:"
-          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run' /v 'NoteDeck notemaid'
+          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
+          Write-Host "(exit $LASTEXITCODE)"; $global:LASTEXITCODE = 0
           Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Sleep 3
           Write-Host "== real Roaming: files written after this run started"
