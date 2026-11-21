@@ -39,20 +39,33 @@ $realRoaming = Join-Path $env:APPDATA $id
 $realLocal = Join-Path $env:LOCALAPPDATA $id
 Start-Process (Join-Path (Resolve-Path $InputDir) 'notedeck.exe')
 Start-Sleep 25
+
+# --- 併用: 直接配布版が動いている間に Store 版を開く。単一起動の名前が同じなので Store 版は
+#     起動せず、直接配布版が「もう一方の版が開かれた」と気づいて利用者に知らせる
+Add-AppxPackage -Path $Msix
+$pkg = Get-AppxPackage | Where-Object { $_.Name -like 'NotedeckDev.NoteDeck*' } | Select-Object -First 1
+if (-not $pkg) { throw 'the package was not installed' }
+$pfn = $pkg.PackageFamilyName
+Start-Process "shell:AppsFolder\$pfn!App"
+Start-Sleep 15
+$running = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'notedeck.exe' }
+Check (-not ($running | Where-Object { $_.ExecutablePath -like '*\WindowsApps\*' })) 'while the direct version runs, the Store version does not start a second instance'
+
 Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 3
 $directLog = Get-ChildItem (Join-Path $realLocal 'logs') -Filter 'notedeck.log*' -ErrorAction SilentlyContinue |
   ForEach-Object { Get-Content $_.FullName -Raw } | Out-String
 Check ($directLog -match [regex]::Escape('[packaged] Outside')) 'outside a package, the app sees itself as the direct version'
+Check ($directLog -match [regex]::Escape('the other distribution was opened: MicrosoftStore')) 'the direct version notices that the Store version was opened'
 Check (Test-Path (Join-Path $realRoaming 'notecli.db')) 'the direct version keeps its data in the real AppData'
-# 直接配布版は起動時にスキームを登録する。Store 版の確認の前に消しておく
-Remove-Item 'HKCU:\Software\Classes\notedeck', 'HKCU:\Software\Classes\notedeck-notification' -Recurse -Force -ErrorAction SilentlyContinue
+# 直接配布版は起動時に、スキームの起動先として自分のコマンドを書く。Store 版が書いていない
+# ことを後で見るために、コマンドだけ消しておく (キー自体は、パッケージを入れたときに OS が
+# 作ったものかもしれないので残す)
+foreach ($scheme in 'notedeck', 'notedeck-notification') {
+  Remove-Item "HKCU:\Software\Classes\$scheme\shell" -Recurse -Force -ErrorAction SilentlyContinue
+}
 $packagedStart = Get-Date
 
-Add-AppxPackage -Path $Msix
-$pkg = Get-AppxPackage | Where-Object { $_.Name -like 'NotedeckDev.NoteDeck*' } | Select-Object -First 1
-if (-not $pkg) { throw 'the package was not installed' }
-$pfn = $pkg.PackageFamilyName
 $priv = Join-Path $env:LOCALAPPDATA "Packages\$pfn\LocalCache"
 $privData = Join-Path $priv "Roaming\$id"
 $privLocal = Join-Path $priv "Local\$id"

@@ -1801,6 +1801,8 @@
   "_logoutDialog.removeGuest": "c01b06981441",
   "_main.backendInitFailed": "bc131fbdcb1b",
   "_main.httpRelayUnavailable": "da5d0f88637d",
+  "_main.openedDirectWhileStoreRuns": "74765138c89f",
+  "_main.openedStoreWhileDirectRuns": "dc2a2aa02f5c",
   "_memoCard.chars_plural": "fd0b19aa06ee",
   "_memoCard.showMore": "926b7c73cf72",
   "_memoEditorContent.deleteMessage": "f7a72534bca5",

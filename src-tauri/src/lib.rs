@@ -125,6 +125,10 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
     // 作る前) で向ける。資格情報の名前は最初の読み書きより前に決める
     if let Some(dirs) = packaged::dirs() {
         std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", &dirs.local);
+    }
+    // 資格情報の名前は、場所が組めたかどうかではなくパッケージの中かどうかで決める。
+    // 子の notemaid に渡す名前 (maid_launcher) と同じ条件にしないと、親子で名前空間が割れる
+    if !packaged::current().shares_direct_data() {
         notecli::keychain::set_service(packaged::KEYCHAIN_SERVICE);
     }
 
@@ -149,6 +153,19 @@ fn run_inner() -> Result<(), Box<dyn std::error::Error>> {
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             tracing::info!("[single-instance] second launch forwarded: {argv:?}");
+            // 直接配布版と Store 版を両方入れた端末では、後から開いた版は起動せずこちらが前に出る
+            // (#849)。データは別なので、開こうとした版ではないことを知らせる。リンクや通知からの
+            // 起動 (引数に URL が付く) は、動いている版が受け取るのが正しいので知らせない
+            if let [second_exe] = argv.as_slice() {
+                if let Some(other) =
+                    packaged::opened_other_distribution(second_exe, packaged::current())
+                {
+                    tracing::info!(
+                        "[single-instance] the other distribution was opened: {other:?}"
+                    );
+                    let _ = tauri::Emitter::emit(app, "nd:other-distribution-opened", other);
+                }
+            }
             // 前に出すのは利用者が見ている窓 (#1131)
             if let Some(roles) = app.try_state::<commands::WindowRoleState>() {
                 roles.bring_to_front(app);

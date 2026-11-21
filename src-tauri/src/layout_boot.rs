@@ -25,9 +25,10 @@ pub fn prepare(app_dir: &Path) -> LayoutMigrationReport {
     }
     let mut notices = Vec::new();
     // Microsoft Store 版は常駐を使わない (#849)。既定の pipe に居るのは直接配布版の常駐で、
-    // データも別なので、止める理由が無い
+    // データも別なので、止める理由が無い。直接配布版と同じデータを使う場合 (見分けが不明の
+    // ときを含む) は、今までどおり止めてから再編する
     let endpoint =
-        transport::default_endpoint().filter(|_| crate::packaged::current().manages_itself());
+        transport::default_endpoint().filter(|_| crate::packaged::current().shares_direct_data());
     if let Some(endpoint) = endpoint {
         let stopped = tauri::async_runtime::block_on(stop_resident(&endpoint));
         match stopped {

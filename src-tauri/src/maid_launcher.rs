@@ -55,7 +55,7 @@ fn write_backend(app_dir: &Path, backend: Backend) {
 
 /// 構成に従って繋ぐ先を決める。None = in-process で回す
 pub async fn launch(app_dir: &Path, backend: Backend) -> Option<Launched> {
-    match effective_backend(backend, crate::packaged::current().manages_itself()) {
+    match effective_backend(backend, crate::packaged::current().shares_direct_data()) {
         Backend::Embedded => None,
         Backend::Resident => {
             // 常駐にだけ繋ぐ構成。ログイン時タスクが無い (外した / 古い構成ファイルが残った) なら
@@ -79,10 +79,11 @@ pub async fn launch(app_dir: &Path, backend: Backend) -> Option<Launched> {
 
 /// Microsoft Store 版は常駐を使わない (#849): ログイン時の起動を登録する手段がまだ無く、
 /// 既定の pipe に居る常駐は直接配布版のもの (データも資格情報も別)。構成が常駐を指していても
-/// 子プロセスで動かす
-fn effective_backend(backend: Backend, manages_itself: bool) -> Backend {
+/// 子プロセスで動かす。直接配布版と同じデータを使う場合 (見分けが不明のときを含む) は、
+/// そのデータを握っている常駐に今までどおり繋ぐ
+fn effective_backend(backend: Backend, shares_direct_data: bool) -> Backend {
     match backend {
-        Backend::Resident if !manages_itself => Backend::Auto,
+        Backend::Resident if !shares_direct_data => Backend::Auto,
         other => other,
     }
 }
@@ -92,7 +93,7 @@ async fn launch_auto(app_dir: &Path) -> Option<Launched> {
     {
         {
             let resident = transport::default_endpoint()
-                .filter(|_| crate::packaged::current().manages_itself());
+                .filter(|_| crate::packaged::current().shares_direct_data());
             if let Some(endpoint) = resident {
                 if answering(&endpoint).await {
                     tracing::info!(%endpoint, "[notemaid] resident notemaid is answering");
@@ -129,9 +130,11 @@ async fn launch_auto(app_dir: &Path) -> Option<Launched> {
 /// Microsoft Store 版は資格情報の名前空間が別 (#849)。子にも同じ名前を渡さないと、子は
 /// 既定の名前空間 (直接配布版) を読みにいく
 fn keychain_service_args(packaging: &crate::packaged::Packaging) -> Vec<&'static str> {
-    match packaging.family_name() {
-        Some(_) => vec!["--keychain-service", crate::packaged::KEYCHAIN_SERVICE],
-        None => Vec::new(),
+    // アプリ自身が名前を差し替える条件 (lib.rs) と同じにする
+    if packaging.shares_direct_data() {
+        Vec::new()
+    } else {
+        vec!["--keychain-service", crate::packaged::KEYCHAIN_SERVICE]
     }
 }
 
@@ -474,7 +477,9 @@ mod tests {
     }
 
     #[test]
-    fn direct_version_keeps_the_configured_backend() {
+    fn an_app_sharing_the_direct_data_keeps_the_configured_backend() {
+        // 直接配布版と、見分けが不明のとき。同じデータを握っている常駐に繋がないと、
+        // 子がロックを取れずに終わり、in-process の AI が同じデータを同時に触る
         assert_eq!(
             effective_backend(Backend::Resident, true),
             Backend::Resident

@@ -45,6 +45,43 @@ impl Packaging {
             _ => None,
         }
     }
+
+    /// 直接配布版と同じデータ (既定の場所・既定の資格情報) を使うか。不明のときは専用の場所を
+    /// 組めないので、こちらに入る。同じデータを使うなら、そのデータを握っている常駐にも
+    /// 今までどおり繋ぐ (繋がずに子を起こすと、同じデータのロックを取り合う)
+    pub fn shares_direct_data(&self) -> bool {
+        !matches!(self, Packaging::Inside { .. })
+    }
+}
+
+/// パッケージの中の exe のパスか。パッケージの置き場は `…\WindowsApps\<パッケージ>\`。
+/// 実行エイリアスの置き場 (`…\Microsoft\WindowsApps\`) は利用者が書ける別の場所なので除く
+// 2 個目の起動を受けるのはデスクトップだけ (単一起動のプラグイン)
+#[cfg_attr(mobile, allow(dead_code))]
+fn is_package_exe_path(path: &str) -> bool {
+    let p = path.to_ascii_lowercase().replace('/', "\\");
+    p.contains("\\windowsapps\\") && !p.contains("\\microsoft\\windowsapps\\")
+}
+
+/// 2 個目の起動が、もう一方の配布形態 (直接配布版 ↔ Store 版) の exe から来たか。
+/// 両方入れた端末では、単一起動の名前が同じなので、後から開いた版は起動せずこちらが前に出る。
+/// 利用者には「開こうとした版ではない」ことが見えないので、知らせるために見分ける。
+/// 戻り値は開こうとされた側。こちらの形態が不明なら判断しない
+#[cfg_attr(mobile, allow(dead_code))]
+pub fn opened_other_distribution(second_exe: &str, this: &Packaging) -> Option<OtherDistribution> {
+    match (this, is_package_exe_path(second_exe)) {
+        (Packaging::Outside, true) => Some(OtherDistribution::MicrosoftStore),
+        (Packaging::Inside { .. }, false) => Some(OtherDistribution::Direct),
+        _ => None,
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+#[cfg_attr(mobile, allow(dead_code))]
+pub enum OtherDistribution {
+    Direct,
+    MicrosoftStore,
 }
 
 /// OS の答えを 3 つの状態に直す
@@ -182,6 +219,52 @@ mod tests {
             assert!(!p.manages_itself());
             assert_eq!(p.family_name(), None);
         }
+    }
+
+    #[test]
+    fn only_a_packaged_app_has_its_own_data() {
+        assert!(Packaging::Outside.shares_direct_data());
+        // 不明は専用の場所を組めないので、直接配布版と同じデータを使う
+        assert!(Packaging::Unknown.shares_direct_data());
+        assert!(!Packaging::Inside {
+            family_name: "Fam_1".into()
+        }
+        .shares_direct_data());
+    }
+
+    #[test]
+    fn tells_when_the_other_distribution_was_opened() {
+        let store_exe =
+            r"C:\Program Files\WindowsApps\NotedeckDev.NoteDeck_1.0.0.0_x64__abc\notedeck.exe";
+        let direct_exe = r"C:\Users\a\AppData\Local\NoteDeck\notedeck.exe";
+        let inside = Packaging::Inside {
+            family_name: "Fam_1".into(),
+        };
+        assert_eq!(
+            opened_other_distribution(store_exe, &Packaging::Outside),
+            Some(OtherDistribution::MicrosoftStore)
+        );
+        assert_eq!(
+            opened_other_distribution(direct_exe, &inside),
+            Some(OtherDistribution::Direct)
+        );
+        // 同じ形態の 2 個目は、ただの多重起動
+        assert_eq!(
+            opened_other_distribution(direct_exe, &Packaging::Outside),
+            None
+        );
+        assert_eq!(opened_other_distribution(store_exe, &inside), None);
+        // こちらの形態が分からないときは判断しない
+        assert_eq!(
+            opened_other_distribution(store_exe, &Packaging::Unknown),
+            None
+        );
+    }
+
+    #[test]
+    fn an_execution_alias_folder_is_not_a_package() {
+        let alias = r"C:\Users\a\AppData\Local\Microsoft\WindowsApps\notedeck.exe";
+        assert_eq!(opened_other_distribution(alias, &Packaging::Outside), None);
     }
 
     #[test]

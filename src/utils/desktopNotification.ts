@@ -1,5 +1,5 @@
 import { commands } from '@/bindings'
-import { useAppDistribution } from '@/composables/useAppDistribution'
+import { resolveAppDistribution } from '@/composables/useAppDistribution'
 
 export type NotificationContext = {
   noteId?: string
@@ -67,28 +67,32 @@ export function sendDesktopNotification(
   if (document.hasFocus()) return
 
   // Microsoft Store 版は通知プラグインが名乗る識別子では出せない (#849)。Rust 側の経路で出す。
-  // クリックはそちらの経路 (NotificationClicked) で届くので、ここでは覚えない
-  if (useAppDistribution().isMicrosoftStore.value) {
-    void commands.showOsNotification(
-      title,
-      body,
-      context
-        ? {
-            accountId: context.accountId,
-            noteId: context.noteId ?? null,
-            userId: context.userId ?? null,
-          }
-        : null,
-    )
-    return
-  }
-
-  if (context) {
-    const id = nextId++
-    pendingContexts.set(id, context)
-    notificationModule.sendNotification({ id, title, body })
-    setTimeout(() => pendingContexts.delete(id), 300_000)
-  } else {
-    notificationModule.sendNotification({ title, body })
-  }
+  // どちらの形態かの答えを待ってから経路を選ぶ: 起動直後は答えがまだ届いておらず、待たずに
+  // 選ぶと Store 版の最初の通知がプラグインへ行って出ない
+  const mod = notificationModule
+  void resolveAppDistribution().then((distribution) => {
+    if (distribution === 'microsoftStore') {
+      // クリックは Rust 側の経路 (NotificationClicked) で届くので、ここでは覚えない
+      void commands.showOsNotification(
+        title,
+        body,
+        context
+          ? {
+              accountId: context.accountId,
+              noteId: context.noteId ?? null,
+              userId: context.userId ?? null,
+            }
+          : null,
+      )
+      return
+    }
+    if (context) {
+      const id = nextId++
+      pendingContexts.set(id, context)
+      mod.sendNotification({ id, title, body })
+      setTimeout(() => pendingContexts.delete(id), 300_000)
+    } else {
+      mod.sendNotification({ title, body })
+    }
+  })
 }
