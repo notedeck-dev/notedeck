@@ -18,6 +18,16 @@ $failures = [System.Collections.Generic.List[string]]::new()
 function Check($ok, $what) {
   if ($ok) { Write-Host "ok   $what" } else { Write-Host "FAIL $what"; $failures.Add($what) }
 }
+# ログは日ごとのファイルに追記される。名前順につないだ全文を返す
+function Read-Logs($dir) {
+  (Get-ChildItem $dir -Filter 'notedeck.log*' -ErrorAction SilentlyContinue | Sort-Object Name |
+    ForEach-Object { Get-Content $_.FullName -Raw }) -join ''
+}
+# ある時点より後に書かれた分だけ。以前の起動のログに同じ文字列があっても、今回の検査が
+# それで通ってしまわないようにする
+function Since([string]$text, [int]$offset) {
+  if ($offset -ge $text.Length) { '' } else { $text.Substring($offset) }
+}
 
 # --- 署名して入れる
 $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
@@ -37,6 +47,8 @@ if ($LASTEXITCODE -ne 0) { throw 'signtool failed' }
 #     (2) 直接配布版のデータが残っている端末を再現すること
 $realRoaming = Join-Path $env:APPDATA $id
 $realLocal = Join-Path $env:LOCALAPPDATA $id
+$directLogDir = Join-Path $realLocal 'logs'
+$beforeDirect = (Read-Logs $directLogDir).Length
 Start-Process (Join-Path (Resolve-Path $InputDir) 'notedeck.exe')
 Start-Sleep 25
 
@@ -46,17 +58,22 @@ Add-AppxPackage -Path $Msix
 $pkg = Get-AppxPackage | Where-Object { $_.Name -like 'NotedeckDev.NoteDeck*' } | Select-Object -First 1
 if (-not $pkg) { throw 'the package was not installed' }
 $pfn = $pkg.PackageFamilyName
+$beforeStore = (Read-Logs $directLogDir).Length
 Start-Process "shell:AppsFolder\$pfn!App"
 Start-Sleep 15
 $running = Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'notedeck.exe' }
-Check (-not ($running | Where-Object { $_.ExecutablePath -like '*\WindowsApps\*' })) 'while the direct version runs, the Store version does not start a second instance'
 
 Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
 Start-Sleep 3
-$directLog = Get-ChildItem (Join-Path $realLocal 'logs') -Filter 'notedeck.log*' -ErrorAction SilentlyContinue |
-  ForEach-Object { Get-Content $_.FullName -Raw } | Out-String
-Check ($directLog -match [regex]::Escape('[packaged] Outside')) 'outside a package, the app sees itself as the direct version'
-Check ($directLog -match [regex]::Escape('the other distribution was opened: MicrosoftStore')) 'the direct version notices that the Store version was opened'
+$directLog = Read-Logs $directLogDir
+$thisRun = Since $directLog $beforeDirect
+$afterStore = Since $directLog $beforeStore
+Check ($thisRun -match [regex]::Escape('[packaged] Outside')) 'outside a package, the app sees itself as the direct version'
+# Store 版の exe は起動されるが、動いている直接配布版へ起動を渡してすぐ終わる。「2 つ目が
+# 残っていない」だけでは起動されなかった場合と区別できないので、渡された記録も見る
+Check ($afterStore -match 'second launch forwarded: \["[^"]*WindowsApps') 'the Store version hands its launch over to the running direct version'
+Check (-not ($running | Where-Object { $_.ExecutablePath -like '*\WindowsApps\*' })) 'and does not stay as a second instance'
+Check ($afterStore -match [regex]::Escape('the other distribution was opened: MicrosoftStore')) 'the direct version notices that the Store version was opened'
 Check (Test-Path (Join-Path $realRoaming 'notecli.db')) 'the direct version keeps its data in the real AppData'
 # 直接配布版は起動時に、スキームの起動先として自分のコマンドを書く。Store 版が書いていない
 # ことを後で見るために、コマンドだけ消しておく (キー自体は、パッケージを入れたときに OS が
