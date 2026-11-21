@@ -194,6 +194,25 @@ pub fn dirs() -> Option<PackagedDirs> {
     Some(dirs_for(&dirs::data_local_dir()?, family_name))
 }
 
+/// データやログの置き場を決める: `Ok(None)` は今までどおりの場所 (外・不明)。
+/// パッケージの中なのに専用の場所を組めないときは Err にして、既定の場所へ戻さない:
+/// 戻すと、資格情報は Store 版の名前空間のまま、データだけ直接配布版のものを使ってしまう
+pub fn dirs_or_refuse() -> std::io::Result<Option<PackagedDirs>> {
+    refuse_if_unresolved(current(), dirs())
+}
+
+fn refuse_if_unresolved(
+    packaging: &Packaging,
+    dirs: Option<PackagedDirs>,
+) -> std::io::Result<Option<PackagedDirs>> {
+    match (packaging.shares_direct_data(), dirs) {
+        (false, None) => Err(std::io::Error::other(
+            "the package data folder could not be resolved; refusing to fall back to the direct version's data",
+        )),
+        (_, dirs) => Ok(dirs),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -219,6 +238,28 @@ mod tests {
             assert!(!p.manages_itself());
             assert_eq!(p.family_name(), None);
         }
+    }
+
+    #[test]
+    fn a_packaged_app_never_falls_back_to_the_direct_data() {
+        let inside = Packaging::Inside {
+            family_name: "Fam_1".into(),
+        };
+        assert!(refuse_if_unresolved(&inside, None).is_err());
+        let dirs = dirs_for(Path::new("/l"), "Fam_1");
+        assert_eq!(
+            refuse_if_unresolved(&inside, Some(dirs.clone())).unwrap(),
+            Some(dirs)
+        );
+        // 外と不明は、今までどおりの場所を使う
+        assert_eq!(
+            refuse_if_unresolved(&Packaging::Outside, None).unwrap(),
+            None
+        );
+        assert_eq!(
+            refuse_if_unresolved(&Packaging::Unknown, None).unwrap(),
+            None
+        );
     }
 
     #[test]
