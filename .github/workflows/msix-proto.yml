@@ -62,85 +62,50 @@ jobs:
           & "$bin\signtool.exe" sign /fd SHA256 /f proto.pfx /p proto NoteDeck.msix | Select-Object -Last 1
           if ($LASTEXITCODE -ne 0) { throw "signtool failed" }
 
-      # 直接配布版のデータが残っている端末を再現する
-      - name: Seed real AppData with the unpackaged build
+      # 併用 (#1437 のレビュー): 直接配布版が動いている状態で Store 版を開くとどうなるか、
+      # 両方が登録されているとき URL スキームはどちらに届くか
+      - name: Coexistence
         shell: pwsh
         run: |
-          Start-Process "$PWD\stage\notedeck.exe"
-          Start-Sleep 30
-          Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
-          Start-Sleep 3
-          Write-Host "real Roaming exists: $(Test-Path "$env:APPDATA\com.notedeck.desktop\notecli.db")"
-          Write-Host "real Local EBWebView exists: $(Test-Path "$env:LOCALAPPDATA\com.notedeck.desktop\EBWebView")"
-          Write-Host "== protocol registered by the unpackaged run:"
-          reg query 'HKCU\Software\Classes\notedeck\shell\open\command' 2>&1 | Out-String
-          $global:LASTEXITCODE = 0
-
-      - name: Measure inside the virtualized package
-        shell: pwsh
-        run: |
-          function InPkg($cmdline) {
-            try { Invoke-CommandInDesktopPackage -PackageFamilyName $script:pfn -AppId App -Command 'cmd.exe' -Args "/c $cmdline"; Start-Sleep 4 } catch { Write-Host "in-package command failed: $_" }
-          }
+          function Procs { Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'notedeck.exe' } | ForEach-Object { "  pid=$($_.ProcessId) $($_.ExecutablePath)" } }
+          function DirectLog { Get-ChildItem "$env:LOCALAPPDATA\com.notedeck.desktop\logs" -Filter 'notedeck.log*' -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName } }
           Add-AppxPackage -Path NoteDeck.msix
           $pkg = Get-AppxPackage -Name NotedeckDev.NoteDeck
-          $script:pfn = $pkg.PackageFamilyName
-          $priv = "$env:LOCALAPPDATA\Packages\$pfn\LocalCache"
+          $pfn = $pkg.PackageFamilyName
 
-          Write-Host "===== A. new files under EXISTING real folders (written by cmd.exe in the package context)"
-          InPkg "echo x> `"%APPDATA%\com.notedeck.desktop\new-file.txt`" & mkdir `"%APPDATA%\com.notedeck.desktop\newdir`" & echo y> `"%APPDATA%\com.notedeck.desktop\newdir\inner.txt`" & echo l> `"%LOCALAPPDATA%\com.notedeck.desktop\new-local.txt`" & mkdir `"%APPDATA%\brand-new-app`" & echo z> `"%APPDATA%\brand-new-app\f.txt`""
-          foreach ($f in 'Roaming\com.notedeck.desktop\new-file.txt','Roaming\com.notedeck.desktop\newdir\inner.txt','Local\com.notedeck.desktop\new-local.txt','Roaming\brand-new-app\f.txt') {
-            $real = Join-Path (Split-Path $env:APPDATA) $f
-            Write-Host ("{0,-55} real={1,-5} private={2}" -f $f, (Test-Path $real), (Test-Path (Join-Path $priv $f)))
-          }
-
-          Write-Host "===== B. HKCU write from the package context"
-          InPkg "reg add HKCU\Software\NoteDeckProtoTest /v probe /t REG_SZ /d 1 /f & reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v NoteDeckProtoRun /t REG_SZ /d x /f"
-          reg query 'HKCU\Software\NoteDeckProtoTest' /v probe 2>&1 | Out-String
-          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run' /v NoteDeckProtoRun 2>&1 | Out-String
-          $global:LASTEXITCODE = 0
-
-          Write-Host "===== C. credential written from the package context"
-          InPkg "cmdkey /generic:notedeck-proto-test /user:probe /pass:probe"
-          Write-Host "-- seen from outside the package:"
-          cmdkey /list:notedeck-proto-test | Out-String
-
-          Write-Host "===== D. launch the app (existing unpackaged data present) and look at where IT writes"
-          $t0 = Get-Date
+          Write-Host "===== 1. direct version first, then open the Store version"
+          Start-Process "$PWD\stage\notedeck.exe"
+          Start-Sleep 25
+          Write-Host "-- running after the direct version started:"; Procs
+          Write-Host "-- HKCU scheme commands (the direct version registers at startup):"
+          foreach ($sch in 'notedeck','notedeck-notification') { Write-Host ("  {0}: {1}" -f $sch, (Get-ItemProperty "HKCU:\Software\Classes\$sch\shell\open\command" -ErrorAction SilentlyContinue).'(default)') }
           Start-Process "shell:AppsFolder\$pfn!App"
-          Start-Sleep 30
-          Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Select-Object Name, Id | Format-Table -AutoSize | Out-String
-          Write-Host "-- protocol command in the real HKCU after the packaged app started (the app calls register() at startup):"
-          reg query 'HKCU\Software\Classes\notedeck\shell\open\command' 2>&1 | Out-String
-          $global:LASTEXITCODE = 0
+          Start-Sleep 20
+          Write-Host "-- running after opening the Store version:"; Procs
+          Write-Host "-- forwarded launches seen by the direct version:"
+          DirectLog | Select-String 'single-instance' | Select-Object -Last 3 | ForEach-Object { "  $($_.Line)" }
 
-          Write-Host "===== E. protocol activation while running"
-          try { Start-Process 'notedeck://proto-test/hello' } catch { Write-Host "protocol launch failed: $_" }
-          Start-Sleep 10
-          Get-Process notedeck -ErrorAction SilentlyContinue | Select-Object Name, Id, StartTime | Format-Table -AutoSize | Out-String
+          Write-Host "===== 2. both registered: who receives the schemes (direct version still running)"
+          Start-Process 'notedeck://coexist/one'
+          Start-Sleep 8
+          Start-Process 'notedeck-notification://coexist/__default__'
+          Start-Sleep 8
+          DirectLog | Select-String 'coexist' | Select-Object -Last 6 | ForEach-Object { "  $($_.Line)" }
+
+          Write-Host "===== 3. Store version first, then open the direct version"
           Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Sleep 3
-          $logs = Get-ChildItem "$env:LOCALAPPDATA\com.notedeck.desktop\logs", "$priv\Local\com.notedeck.desktop\logs" -Filter *.log* -ErrorAction SilentlyContinue
-          foreach ($l in $logs) {
-            Write-Host "-- $($l.FullName) (written after start: $($l.LastWriteTime -gt $t0))"
-            Select-String -Path $l.FullName -Pattern 'single-instance|deep-link|proto-test|user-notify|toast|notif' | Select-Object -Last 12 | ForEach-Object { $_.Line }
-          }
-
-          Write-Host "===== F. files the packaged app wrote"
-          Write-Host "-- real Roaming, modified after start:"
-          Get-ChildItem "$env:APPDATA\com.notedeck.desktop" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $t0 } | ForEach-Object { $_.FullName.Replace($env:APPDATA, '') }
-          Write-Host "-- real Local (EBWebView), files modified after start: $((Get-ChildItem "$env:LOCALAPPDATA\com.notedeck.desktop" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $t0 }).Count)"
-          Write-Host "-- private Roaming files: $((Get-ChildItem "$priv\Roaming" -Recurse -File -ErrorAction SilentlyContinue).Count)"
-          Write-Host "-- private Local files:   $((Get-ChildItem "$priv\Local" -Recurse -File -ErrorAction SilentlyContinue).Count)"
-          Get-ChildItem "$priv\Local" -Depth 1 -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName.Replace($priv, '') }
-
-          Write-Host "===== G. after uninstall"
-          Remove-AppxPackage -Package $pkg.PackageFullName
-          Write-Host "private data dir remains: $(Test-Path "$env:LOCALAPPDATA\Packages\$pfn")"
-          Write-Host "-- credential:"
-          cmdkey /list:notedeck-proto-test | Out-String
-          Write-Host "-- HKCU probe / Run value / protocol command:"
-          reg query 'HKCU\Software\NoteDeckProtoTest' /v probe 2>&1 | Out-String
-          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run' /v NoteDeckProtoRun 2>&1 | Out-String
-          reg query 'HKCU\Software\Classes\notedeck\shell\open\command' 2>&1 | Out-String
-          $global:LASTEXITCODE = 0
+          Start-Process "shell:AppsFolder\$pfn!App"
+          Start-Sleep 25
+          Write-Host "-- running after the Store version started:"; Procs
+          Start-Process "$PWD\stage\notedeck.exe"
+          Start-Sleep 20
+          Write-Host "-- running after opening the direct version:"; Procs
+          Write-Host "-- HKCU scheme commands now:"
+          foreach ($sch in 'notedeck','notedeck-notification') { Write-Host ("  {0}: {1}" -f $sch, (Get-ItemProperty "HKCU:\Software\Classes\$sch\shell\open\command" -ErrorAction SilentlyContinue).'(default)') }
+          Start-Process 'notedeck://coexist/two'
+          Start-Sleep 8
+          Write-Host "-- which exe Windows launched for the scheme (argv[0] of the forwarded launch), from either log:"
+          $pkgLogs = Get-ChildItem "$env:LOCALAPPDATA\Packages\$pfn\LocalCache\Local\com.notedeck.desktop\logs" -Filter 'notedeck.log*' -ErrorAction SilentlyContinue | ForEach-Object { Get-Content $_.FullName }
+          (@(DirectLog) + @($pkgLogs)) | Select-String 'coexist/two' | ForEach-Object { "  $($_.Line)" }
+          Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
