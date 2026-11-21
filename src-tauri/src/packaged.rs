@@ -81,6 +81,8 @@ pub const KEYCHAIN_SERVICE: &str = "notedeck-msstore";
 
 /// OS 通知を出すときに名乗る識別子。パッケージの中では OS が決めた自分の識別子でないと
 /// 通知の口を作れない (作れないと通知ライブラリは黙って何も出さなくなる)
+// 呼ぶのは user-notify の経路がある OS だけ (os_notify.rs の desktop)
+#[cfg_attr(not(any(target_os = "linux", target_os = "windows")), allow(dead_code))]
 pub fn notification_app_id(default: String) -> String {
     #[cfg(windows)]
     if current().family_name().is_some() {

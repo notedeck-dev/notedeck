@@ -1920,6 +1920,16 @@ async getCliCommands() : Promise<Result<CliCommandInfo[], { code: string; messag
 async appDistribution() : Promise<AppDistribution> {
     return await TAURI_INVOKE("app_distribution");
 },
+/**
+ * フロントが出す OS 通知 (HEARTBEAT の知らせなど) を、Rust 側の経路で出す (#849)。
+ * 通知プラグインは bundle identifier を名乗るが、Microsoft Store 版はパッケージ自身の識別子で
+ * ないと出せず、プラグインに差し替える口が無い。Store 版のフロントはこちらを呼ぶ
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async showOsNotification(title: string, body: string, context: NotificationClicked | null) : Promise<void> {
+    await TAURI_INVOKE("show_os_notification", { title, body, context });
+},
 /** @see src-tauri/src/commands/utility.rs */
 async getRustcVersion() : Promise<string> {
     return await TAURI_INVOKE("get_rustc_version");

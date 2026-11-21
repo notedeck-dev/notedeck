@@ -1,3 +1,6 @@
+import { commands } from '@/bindings'
+import { useAppDistribution } from '@/composables/useAppDistribution'
+
 export type NotificationContext = {
   noteId?: string
   userId?: string
@@ -62,6 +65,23 @@ export function sendDesktopNotification(
 ): void {
   if (!granted || !notificationModule) return
   if (document.hasFocus()) return
+
+  // Microsoft Store 版は通知プラグインが名乗る識別子では出せない (#849)。Rust 側の経路で出す。
+  // クリックはそちらの経路 (NotificationClicked) で届くので、ここでは覚えない
+  if (useAppDistribution().isMicrosoftStore.value) {
+    void commands.showOsNotification(
+      title,
+      body,
+      context
+        ? {
+            accountId: context.accountId,
+            noteId: context.noteId ?? null,
+            userId: context.userId ?? null,
+          }
+        : null,
+    )
+    return
+  }
 
   if (context) {
     const id = nextId++

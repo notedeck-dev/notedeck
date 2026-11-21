@@ -1278,6 +1278,7 @@ pub fn build_specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             commands::fetch_image_bytes,
             commands::get_cli_commands,
             commands::app_distribution,
+            commands::show_os_notification,
             commands::get_rustc_version,
             ui_lang::set_ui_language,
             commands::get_openapi_spec,

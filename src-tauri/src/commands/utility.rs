@@ -47,6 +47,23 @@ pub fn app_distribution() -> AppDistribution {
     }
 }
 
+/// フロントが出す OS 通知 (HEARTBEAT の知らせなど) を、Rust 側の経路で出す (#849)。
+/// 通知プラグインは bundle identifier を名乗るが、Microsoft Store 版はパッケージ自身の識別子で
+/// ないと出せず、プラグインに差し替える口が無い。Store 版のフロントはこちらを呼ぶ
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub fn show_os_notification(
+    title: String,
+    body: String,
+    context: Option<crate::os_notify::NotificationClicked>,
+) {
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    crate::os_notify::show(&title, Some(&body), context.as_ref(), None, None);
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    let _ = (title, body, context);
+}
+
 // nd-command: local
 #[tauri::command]
 #[specta::specta]
