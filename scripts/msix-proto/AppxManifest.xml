@@ -20,6 +20,14 @@
     <Application Id="App" Executable="notedeck.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements DisplayName="NoteDeck" Description="NoteDeck" BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="notedeck" />
+        </uap:Extension>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="notedeck-notification" />
+        </uap:Extension>
+      </Extensions>
     </Application>
   </Applications>
   <Capabilities>

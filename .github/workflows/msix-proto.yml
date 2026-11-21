@@ -1,4 +1,4 @@
-# #849 の試作。公開済みの Windows 版を MSIX に包み、runner に入れて起動できるかを確かめる。
+# #849 の試作。公開済みの Windows 版を MSIX に包み、振り替えの挙動をサーバー OS とクライアント OS で測る。
 # このブランチ専用で、main には入れない。
 name: MSIX prototype (#849)
 
@@ -8,201 +8,139 @@ on:
 
 jobs:
   proto:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ github.token }}
       VERSION: 1.109.1
     steps:
       - uses: actions/checkout@v6
 
-      - name: Download the released installer
+      - name: OS
+        shell: pwsh
+        run: |
+          Get-ComputerInfo | Select-Object OsName, OsVersion, OsBuildNumber, OsArchitecture | Format-List
+          Get-ItemProperty 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}' -ErrorAction SilentlyContinue | Select-Object pv
+
+      - name: Stage the released build
         shell: pwsh
         run: |
           gh release download "v$env:VERSION" -p "NoteDeck-$env:VERSION-windows-x64-setup.exe" -D dl
-          Get-ChildItem dl
-
-      # NSIS の中身 (notedeck.exe と sidecar の notemaid.exe) を取り出すために、一度ふつうに入れる
-      - name: Install silently and stage the files
-        shell: pwsh
-        run: |
           $setup = (Get-ChildItem dl\*.exe)[0].FullName
           Start-Process $setup -ArgumentList '/S' -Wait
           $exe = Get-ChildItem "$env:LOCALAPPDATA","$env:ProgramFiles" -Recurse -Filter notedeck.exe -ErrorAction SilentlyContinue | Select-Object -First 1
           if (-not $exe) { throw "installed notedeck.exe not found" }
           $dir = $exe.DirectoryName
-          Write-Host "installed at: $dir"
-          Get-ChildItem $dir | Format-Table Name, Length
           New-Item -ItemType Directory stage | Out-Null
           Copy-Item "$dir\*" stage -Recurse -Exclude 'uninstall.exe'
           New-Item -ItemType Directory stage\Assets | Out-Null
           Copy-Item src-tauri\icons\StoreLogo.png, src-tauri\icons\Square150x150Logo.png, src-tauri\icons\Square44x44Logo.png stage\Assets
           (Get-Content scripts\msix-proto\AppxManifest.xml -Raw).Replace('__VERSION__', $env:VERSION) | Set-Content stage\AppxManifest.xml -Encoding utf8
-          # 直接配布版を消して、以後は MSIX 版だけが動くようにする
           $un = Join-Path $dir 'uninstall.exe'
           if (Test-Path $un) { Start-Process $un -ArgumentList '/S' -Wait }
-          Get-ChildItem stage -Recurse | Format-Table FullName, Length
+          Start-Sleep 3
+          Write-Host "== NSIS-registered protocol after uninstall (should be gone):"
+          reg query 'HKCU\Software\Classes\notedeck\shell\open\command' 2>&1 | Out-String
+          $global:LASTEXITCODE = 0
 
       - name: Pack and sign (self-signed, test only)
         shell: pwsh
         run: |
-          $kit = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory | Where-Object { Test-Path "$($_.FullName)\x64\makeappx.exe" } | Sort-Object Name -Descending | Select-Object -First 1
-          $bin = "$($kit.FullName)\x64"
+          $mk = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter makeappx.exe | Sort-Object FullName -Descending | Select-Object -First 1
+          $bin = $mk.DirectoryName
           Write-Host "SDK: $bin"
-          & "$bin\makeappx.exe" pack /d stage /p NoteDeck.msix /o
+          & "$bin\makeappx.exe" pack /d stage /p NoteDeck.msix /o | Select-Object -Last 2
           if ($LASTEXITCODE -ne 0) { throw "makeappx failed" }
           $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=NoteDeckProto' -KeyUsage DigitalSignature -FriendlyName 'NoteDeck proto' -CertStoreLocation 'Cert:\CurrentUser\My' -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')
           $pwd = ConvertTo-SecureString -String 'proto' -Force -AsPlainText
           Export-PfxCertificate -Cert $cert -FilePath proto.pfx -Password $pwd | Out-Null
           Export-Certificate -Cert $cert -FilePath proto.cer | Out-Null
           Import-Certificate -FilePath proto.cer -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
-          & "$bin\signtool.exe" sign /fd SHA256 /f proto.pfx /p proto NoteDeck.msix
+          & "$bin\signtool.exe" sign /fd SHA256 /f proto.pfx /p proto NoteDeck.msix | Select-Object -Last 1
           if ($LASTEXITCODE -ne 0) { throw "signtool failed" }
-          Get-Item NoteDeck.msix | Format-List Name, Length
 
-      # 直接配布版のデータが残っている端末を再現する: 包む前の exe をそのまま 25 秒動かして、
-      # 本来の AppData にデータを作らせる
+      # 直接配布版のデータが残っている端末を再現する
       - name: Seed real AppData with the unpackaged build
         shell: pwsh
         run: |
-          $p = Start-Process "$PWD\stage\notedeck.exe" -PassThru
-          Start-Sleep 25
+          Start-Process "$PWD\stage\notedeck.exe"
+          Start-Sleep 30
           Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Sleep 3
-          "seed" | Set-Content "$env:APPDATA\com.notedeck.desktop\seed-marker.txt"
-          Write-Host "== real Roaming after the unpackaged run"
-          Get-ChildItem "$env:APPDATA\com.notedeck.desktop" -Recurse -File -ErrorAction SilentlyContinue | Select-Object @{n='Path';e={$_.FullName.Replace($env:APPDATA,'')}}, Length, LastWriteTime | Format-Table -AutoSize | Out-String -Width 220
-          Write-Host "== real Local (top level)"
-          Get-ChildItem "$env:LOCALAPPDATA\com.notedeck.desktop" -ErrorAction SilentlyContinue | Select-Object Name, LastWriteTime | Format-Table -AutoSize | Out-String -Width 220
-          (Get-Date).ToString('o') | Set-Content seeded-at.txt
+          Write-Host "real Roaming exists: $(Test-Path "$env:APPDATA\com.notedeck.desktop\notecli.db")"
+          Write-Host "real Local EBWebView exists: $(Test-Path "$env:LOCALAPPDATA\com.notedeck.desktop\EBWebView")"
+          Write-Host "== protocol registered by the unpackaged run:"
+          reg query 'HKCU\Software\Classes\notedeck\shell\open\command' 2>&1 | Out-String
+          $global:LASTEXITCODE = 0
 
-      - name: Pack a second package with file virtualization disabled
+      - name: Measure inside the virtualized package
         shell: pwsh
         run: |
-          $kit = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory | Where-Object { Test-Path "$($_.FullName)\x64\makeappx.exe" } | Sort-Object Name -Descending | Select-Object -First 1
-          $bin = "$($kit.FullName)\x64"
-          Copy-Item stage stage2 -Recurse
-          $m = Get-Content stage2\AppxManifest.xml -Raw
-          $m = $m.Replace('Name="NotedeckDev.NoteDeck"', 'Name="NotedeckDev.NoteDeckUnvirt"')
-          $m = $m.Replace('IgnorableNamespaces="uap rescap"', 'xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6" IgnorableNamespaces="uap rescap desktop6"')
-          $m = $m.Replace('</Properties>', '  <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>' + "`n" + '    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>' + "`n" + '  </Properties>')
-          $m = $m.Replace('<rescap:Capability Name="runFullTrust" />', '<rescap:Capability Name="runFullTrust" />' + "`n" + '    <rescap:Capability Name="unvirtualizedResources" />')
-          $m | Set-Content stage2\AppxManifest.xml -Encoding utf8
-          Get-Content stage2\AppxManifest.xml
-          & "$bin\makeappx.exe" pack /d stage2 /p NoteDeckUnvirt.msix /o
-          if ($LASTEXITCODE -ne 0) { throw "makeappx (unvirt) failed" }
-          & "$bin\signtool.exe" sign /fd SHA256 /f proto.pfx /p proto NoteDeckUnvirt.msix
-          if ($LASTEXITCODE -ne 0) { throw "signtool (unvirt) failed" }
-
-      - name: "Experiment 1: virtualized package over existing data"
-        shell: pwsh
-        run: |
-          $seeded = [datetime](Get-Content seeded-at.txt)
+          function InPkg($cmdline) {
+            try { Invoke-CommandInDesktopPackage -PackageFamilyName $script:pfn -AppId App -Command 'cmd.exe' -Args "/c $cmdline"; Start-Sleep 4 } catch { Write-Host "in-package command failed: $_" }
+          }
           Add-AppxPackage -Path NoteDeck.msix
           $pkg = Get-AppxPackage -Name NotedeckDev.NoteDeck
-          $pfn = $pkg.PackageFamilyName
-          Start-Process "shell:AppsFolder\$pfn!App"
-          Start-Sleep 25
-          Write-Host "== processes"
-          Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Select-Object Name, Id, Path | Format-Table -AutoSize | Out-String -Width 220
-          Write-Host "== resident registration from inside the package"
-          # パッケージの中の exe は外から直接は起動できない (Access is denied)。パッケージの文脈で走らせる
-          try {
-            Invoke-CommandInDesktopPackage -PackageFamilyName $pfn -AppId App -Command (Join-Path $pkg.InstallLocation 'notemaid.exe') -Args 'service install'
-            Start-Sleep 5
-            Invoke-CommandInDesktopPackage -PackageFamilyName $pfn -AppId App -Command 'cmd.exe' -Args "/c reg query HKCU\Software\Microsoft\Windows\CurrentVersion\Run > `"$PWD\inside-run-key.txt`" 2>&1"
-            Start-Sleep 5
-          } catch { Write-Host "in-package command failed: $_" }
-          Write-Host "-- real HKCU Run key as seen from outside the package:"
-          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
-          Write-Host "(exit $LASTEXITCODE)"; $global:LASTEXITCODE = 0
-          Write-Host "-- Run key as seen from inside the package:"
-          if (Test-Path inside-run-key.txt) { Get-Content inside-run-key.txt } else { Write-Host "(no output file)" }
-          Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
-          Start-Sleep 3
-          Write-Host "== real Roaming: files written AFTER the packaged run started (in-place writes to the unpackaged data)"
-          Get-ChildItem "$env:APPDATA\com.notedeck.desktop" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $seeded } | Select-Object @{n='Path';e={$_.FullName.Replace($env:APPDATA,'')}}, Length, LastWriteTime | Format-Table -AutoSize | Out-String -Width 220
-          Write-Host "== package-private Roaming (redirected new files)"
-          Get-ChildItem "$env:LOCALAPPDATA\Packages\$pfn\LocalCache\Roaming" -Recurse -File -ErrorAction SilentlyContinue | Select-Object @{n='Path';e={$_.FullName.Replace("$env:LOCALAPPDATA\Packages\$pfn",'')}}, Length, LastWriteTime | Format-Table -AutoSize | Out-String -Width 220
-          Write-Host "== package-private Local (top two levels)"
-          Get-ChildItem "$env:LOCALAPPDATA\Packages\$pfn\LocalCache\Local" -Depth 1 -ErrorAction SilentlyContinue | Select-Object @{n='Path';e={$_.FullName.Replace("$env:LOCALAPPDATA\Packages\$pfn",'')}} | Format-Table -AutoSize | Out-String -Width 220
-          Write-Host "== new file / new folder created from inside the package under the EXISTING real data dir"
-          try {
-            Invoke-CommandInDesktopPackage -PackageFamilyName $pfn -AppId App -Command 'cmd.exe' -Args "/c echo x> `"%APPDATA%\com.notedeck.desktop\new-from-package.txt`" & mkdir `"%APPDATA%\com.notedeck.desktop\newdir`" & echo y> `"%APPDATA%\com.notedeck.desktop\newdir\inner.txt`" & echo z> `"%APPDATA%\brand-new-app\f.txt`" & mkdir `"%APPDATA%\brand-new-app`" & echo z> `"%APPDATA%\brand-new-app\f.txt`""
-            Start-Sleep 5
-          } catch { Write-Host "in-package command failed: $_" }
-          Write-Host "-- real location:"
-          foreach ($f in 'com.notedeck.desktop\new-from-package.txt','com.notedeck.desktop\newdir\inner.txt','brand-new-app\f.txt') { Write-Host ("{0} : {1}" -f $f, (Test-Path "$env:APPDATA\$f")) }
-          Write-Host "-- package-private location:"
-          foreach ($f in 'com.notedeck.desktop\new-from-package.txt','com.notedeck.desktop\newdir\inner.txt','brand-new-app\f.txt') { Write-Host ("{0} : {1}" -f $f, (Test-Path "$env:LOCALAPPDATA\Packages\$pfn\LocalCache\Roaming\$f")) }
-          Remove-AppxPackage -Package $pkg.PackageFullName
-          Write-Host "== after uninstall: does the private data remain?"
-          Test-Path "$env:LOCALAPPDATA\Packages\$pfn"
-          (Get-Date).ToString('o') | Set-Content exp1-done.txt
+          $script:pfn = $pkg.PackageFamilyName
+          $priv = "$env:LOCALAPPDATA\Packages\$pfn\LocalCache"
 
-      - name: "Experiment 2: virtualization disabled"
-        shell: pwsh
-        run: |
-          # まっさらな端末を再現する: 直接配布版のデータを消してから入れる
-          Remove-Item "$env:APPDATA\com.notedeck.desktop","$env:LOCALAPPDATA\com.notedeck.desktop","$env:APPDATA\brand-new-app" -Recurse -Force -ErrorAction SilentlyContinue
-          reg delete 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run' /v 'NoteDeck notemaid' /f
+          Write-Host "===== A. new files under EXISTING real folders (written by cmd.exe in the package context)"
+          InPkg "echo x> `"%APPDATA%\com.notedeck.desktop\new-file.txt`" & mkdir `"%APPDATA%\com.notedeck.desktop\newdir`" & echo y> `"%APPDATA%\com.notedeck.desktop\newdir\inner.txt`" & echo l> `"%LOCALAPPDATA%\com.notedeck.desktop\new-local.txt`" & mkdir `"%APPDATA%\brand-new-app`" & echo z> `"%APPDATA%\brand-new-app\f.txt`""
+          foreach ($f in 'Roaming\com.notedeck.desktop\new-file.txt','Roaming\com.notedeck.desktop\newdir\inner.txt','Local\com.notedeck.desktop\new-local.txt','Roaming\brand-new-app\f.txt') {
+            $real = Join-Path (Split-Path $env:APPDATA) $f
+            Write-Host ("{0,-55} real={1,-5} private={2}" -f $f, (Test-Path $real), (Test-Path (Join-Path $priv $f)))
+          }
+
+          Write-Host "===== B. HKCU write from the package context"
+          InPkg "reg add HKCU\Software\NoteDeckProtoTest /v probe /t REG_SZ /d 1 /f & reg add HKCU\Software\Microsoft\Windows\CurrentVersion\Run /v NoteDeckProtoRun /t REG_SZ /d x /f"
+          reg query 'HKCU\Software\NoteDeckProtoTest' /v probe 2>&1 | Out-String
+          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run' /v NoteDeckProtoRun 2>&1 | Out-String
           $global:LASTEXITCODE = 0
+
+          Write-Host "===== C. credential written from the package context"
+          InPkg "cmdkey /generic:notedeck-proto-test /user:probe /pass:probe"
+          Write-Host "-- seen from outside the package:"
+          cmdkey /list:notedeck-proto-test | Out-String
+
+          Write-Host "===== D. launch the app (existing unpackaged data present) and look at where IT writes"
           $t0 = Get-Date
-          Add-AppxPackage -Path NoteDeckUnvirt.msix
-          $pkg = Get-AppxPackage -Name NotedeckDev.NoteDeckUnvirt
-          $pfn = $pkg.PackageFamilyName
-          $pkg | Format-List Name, PackageFamilyName, SignatureKind
           Start-Process "shell:AppsFolder\$pfn!App"
-          Start-Sleep 25
-          Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Select-Object Name, Id, Path | Format-Table -AutoSize | Out-String -Width 220
-          try {
-            Invoke-CommandInDesktopPackage -PackageFamilyName $pfn -AppId App -Command (Join-Path $pkg.InstallLocation 'notemaid.exe') -Args 'service install'
-            Start-Sleep 5
-          } catch { Write-Host "in-package command failed: $_" }
-          Write-Host "-- real HKCU Run key as seen from outside the package:"
-          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
-          Write-Host "(exit $LASTEXITCODE)"; $global:LASTEXITCODE = 0
+          Start-Sleep 30
+          Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Select-Object Name, Id | Format-Table -AutoSize | Out-String
+          Write-Host "-- protocol command in the real HKCU after the packaged app started (the app calls register() at startup):"
+          reg query 'HKCU\Software\Classes\notedeck\shell\open\command' 2>&1 | Out-String
+          $global:LASTEXITCODE = 0
+
+          Write-Host "===== E. protocol activation while running"
+          try { Start-Process 'notedeck://proto-test/hello' } catch { Write-Host "protocol launch failed: $_" }
+          Start-Sleep 10
+          Get-Process notedeck -ErrorAction SilentlyContinue | Select-Object Name, Id, StartTime | Format-Table -AutoSize | Out-String
           Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Sleep 3
-          Write-Host "== real Roaming: files written after this run started"
-          Get-ChildItem "$env:APPDATA\com.notedeck.desktop" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $t0 } | Select-Object @{n='Path';e={$_.FullName.Replace($env:APPDATA,'')}}, Length, LastWriteTime | Format-Table -AutoSize | Out-String -Width 220
-          Write-Host "== package-private Roaming"
-          Get-ChildItem "$env:LOCALAPPDATA\Packages\$pfn\LocalCache\Roaming" -Recurse -File -ErrorAction SilentlyContinue | Select-Object @{n='Path';e={$_.FullName.Replace("$env:LOCALAPPDATA\Packages\$pfn",'')}} | Format-Table -AutoSize | Out-String -Width 220
+          $logs = Get-ChildItem "$env:LOCALAPPDATA\com.notedeck.desktop\logs", "$priv\Local\com.notedeck.desktop\logs" -Filter *.log* -ErrorAction SilentlyContinue
+          foreach ($l in $logs) {
+            Write-Host "-- $($l.FullName) (written after start: $($l.LastWriteTime -gt $t0))"
+            Select-String -Path $l.FullName -Pattern 'single-instance|deep-link|proto-test|user-notify|toast|notif' | Select-Object -Last 12 | ForEach-Object { $_.Line }
+          }
 
-      # 実行エイリアス: パッケージの中の notemaid を、版に依らない安定したパスで外から起動できるか
-      - name: "Experiment 3: app execution alias for notemaid"
-        continue-on-error: true
-        shell: pwsh
-        run: |
-          Get-AppxPackage -Name 'NotedeckDev.NoteDeck*' | Remove-AppxPackage
-          Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
-          $kit = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory | Where-Object { Test-Path "$($_.FullName)\x64\makeappx.exe" } | Sort-Object Name -Descending | Select-Object -First 1
-          $bin = "$($kit.FullName)\x64"
-          Copy-Item stage stage3 -Recurse
-          $m = Get-Content stage3\AppxManifest.xml -Raw
-          $m = $m.Replace('Name="NotedeckDev.NoteDeck"', 'Name="NotedeckDev.NoteDeckAlias"')
-          $m = $m.Replace('IgnorableNamespaces="uap rescap"', 'xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3" xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10" IgnorableNamespaces="uap rescap uap3 desktop"')
-          $ext = @"
-            <Extensions>
-              <uap3:Extension Category="windows.appExecutionAlias" Executable="notemaid.exe" EntryPoint="Windows.FullTrustApplication">
-                <uap3:AppExecutionAlias>
-                  <desktop:ExecutionAlias Alias="notemaid.exe" />
-                </uap3:AppExecutionAlias>
-              </uap3:Extension>
-            </Extensions>
-          </Application>
-          "@
-          $m = $m.Replace('</Application>', $ext)
-          $m | Set-Content stage3\AppxManifest.xml -Encoding utf8
-          & "$bin\makeappx.exe" pack /d stage3 /p NoteDeckAlias.msix /o
-          if ($LASTEXITCODE -ne 0) { throw "makeappx (alias) failed" }
-          & "$bin\signtool.exe" sign /fd SHA256 /f proto.pfx /p proto NoteDeckAlias.msix
-          Add-AppxPackage -Path NoteDeckAlias.msix
-          $alias = "$env:LOCALAPPDATA\Microsoft\WindowsApps\notemaid.exe"
-          Write-Host "alias exists: $(Test-Path $alias)"
-          Write-Host "== run the alias from OUTSIDE the package"
-          & $alias service status
-          Write-Host "(exit $LASTEXITCODE)"
-          & $alias service install
-          Write-Host "(exit $LASTEXITCODE)"
-          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
+          Write-Host "===== F. files the packaged app wrote"
+          Write-Host "-- real Roaming, modified after start:"
+          Get-ChildItem "$env:APPDATA\com.notedeck.desktop" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $t0 } | ForEach-Object { $_.FullName.Replace($env:APPDATA, '') }
+          Write-Host "-- real Local (EBWebView), files modified after start: $((Get-ChildItem "$env:LOCALAPPDATA\com.notedeck.desktop" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $t0 }).Count)"
+          Write-Host "-- private Roaming files: $((Get-ChildItem "$priv\Roaming" -Recurse -File -ErrorAction SilentlyContinue).Count)"
+          Write-Host "-- private Local files:   $((Get-ChildItem "$priv\Local" -Recurse -File -ErrorAction SilentlyContinue).Count)"
+          Get-ChildItem "$priv\Local" -Depth 1 -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName.Replace($priv, '') }
+
+          Write-Host "===== G. after uninstall"
+          Remove-AppxPackage -Package $pkg.PackageFullName
+          Write-Host "private data dir remains: $(Test-Path "$env:LOCALAPPDATA\Packages\$pfn")"
+          Write-Host "-- credential:"
+          cmdkey /list:notedeck-proto-test | Out-String
+          Write-Host "-- HKCU probe / Run value / protocol command:"
+          reg query 'HKCU\Software\NoteDeckProtoTest' /v probe 2>&1 | Out-String
+          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run' /v NoteDeckProtoRun 2>&1 | Out-String
+          reg query 'HKCU\Software\Classes\notedeck\shell\open\command' 2>&1 | Out-String
           $global:LASTEXITCODE = 0
