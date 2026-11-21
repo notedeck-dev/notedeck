@@ -70,7 +70,11 @@ try {
   $log = Get-ChildItem (Join-Path $privLocal 'logs') -Filter 'notedeck.log*' -ErrorAction SilentlyContinue |
     ForEach-Object { Get-Content $_.FullName -Raw } | Out-String
   Check ($log -match [regex]::Escape('[deep-link] received: notedeck://msix-check/hello')) 'notedeck:// reaches the running app'
-  Check (-not (Test-Path 'HKCU:\Software\Classes\notedeck')) 'the app did not register the scheme at runtime'
+  # アプリが実行時に登録すると、起動先のコマンドに自分の exe のパスが書かれる。キー自体は、
+  # OS がマニフェストの宣言を反映して作ることがあるので、有無では見ない
+  $command = (Get-ItemProperty 'HKCU:\Software\Classes\notedeck\shell\open\command' -ErrorAction SilentlyContinue).'(default)'
+  Write-Host "     HKCU notedeck open command: $(if ($command) { $command } else { '(none)' })"
+  Check (-not $command) 'the app did not register the scheme at runtime'
 
   # 通知: 自分の識別子で、通知を出す準備ができている (実際に表示されるかは実機で見る)
   Check ($log -notmatch 'failed to get toast notifier') 'the notification manager was created'
