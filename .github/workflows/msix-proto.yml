@@ -125,6 +125,15 @@ jobs:
           Get-ChildItem "$env:LOCALAPPDATA\Packages\$pfn\LocalCache\Roaming" -Recurse -File -ErrorAction SilentlyContinue | Select-Object @{n='Path';e={$_.FullName.Replace("$env:LOCALAPPDATA\Packages\$pfn",'')}}, Length, LastWriteTime | Format-Table -AutoSize | Out-String -Width 220
           Write-Host "== package-private Local (top two levels)"
           Get-ChildItem "$env:LOCALAPPDATA\Packages\$pfn\LocalCache\Local" -Depth 1 -ErrorAction SilentlyContinue | Select-Object @{n='Path';e={$_.FullName.Replace("$env:LOCALAPPDATA\Packages\$pfn",'')}} | Format-Table -AutoSize | Out-String -Width 220
+          Write-Host "== new file / new folder created from inside the package under the EXISTING real data dir"
+          try {
+            Invoke-CommandInDesktopPackage -PackageFamilyName $pfn -AppId App -Command 'cmd.exe' -Args "/c echo x> `"%APPDATA%\com.notedeck.desktop\new-from-package.txt`" & mkdir `"%APPDATA%\com.notedeck.desktop\newdir`" & echo y> `"%APPDATA%\com.notedeck.desktop\newdir\inner.txt`" & echo z> `"%APPDATA%\brand-new-app\f.txt`" & mkdir `"%APPDATA%\brand-new-app`" & echo z> `"%APPDATA%\brand-new-app\f.txt`""
+            Start-Sleep 5
+          } catch { Write-Host "in-package command failed: $_" }
+          Write-Host "-- real location:"
+          foreach ($f in 'com.notedeck.desktop\new-from-package.txt','com.notedeck.desktop\newdir\inner.txt','brand-new-app\f.txt') { Write-Host ("{0} : {1}" -f $f, (Test-Path "$env:APPDATA\$f")) }
+          Write-Host "-- package-private location:"
+          foreach ($f in 'com.notedeck.desktop\new-from-package.txt','com.notedeck.desktop\newdir\inner.txt','brand-new-app\f.txt') { Write-Host ("{0} : {1}" -f $f, (Test-Path "$env:LOCALAPPDATA\Packages\$pfn\LocalCache\Roaming\$f")) }
           Remove-AppxPackage -Package $pkg.PackageFullName
           Write-Host "== after uninstall: does the private data remain?"
           Test-Path "$env:LOCALAPPDATA\Packages\$pfn"
@@ -133,7 +142,11 @@ jobs:
       - name: "Experiment 2: virtualization disabled"
         shell: pwsh
         run: |
-          $t0 = [datetime](Get-Content exp1-done.txt)
+          # まっさらな端末を再現する: 直接配布版のデータを消してから入れる
+          Remove-Item "$env:APPDATA\com.notedeck.desktop","$env:LOCALAPPDATA\com.notedeck.desktop","$env:APPDATA\brand-new-app" -Recurse -Force -ErrorAction SilentlyContinue
+          reg delete 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run' /v 'NoteDeck notemaid' /f
+          $global:LASTEXITCODE = 0
+          $t0 = Get-Date
           Add-AppxPackage -Path NoteDeckUnvirt.msix
           $pkg = Get-AppxPackage -Name NotedeckDev.NoteDeckUnvirt
           $pfn = $pkg.PackageFamilyName
@@ -154,3 +167,42 @@ jobs:
           Get-ChildItem "$env:APPDATA\com.notedeck.desktop" -Recurse -File -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -gt $t0 } | Select-Object @{n='Path';e={$_.FullName.Replace($env:APPDATA,'')}}, Length, LastWriteTime | Format-Table -AutoSize | Out-String -Width 220
           Write-Host "== package-private Roaming"
           Get-ChildItem "$env:LOCALAPPDATA\Packages\$pfn\LocalCache\Roaming" -Recurse -File -ErrorAction SilentlyContinue | Select-Object @{n='Path';e={$_.FullName.Replace("$env:LOCALAPPDATA\Packages\$pfn",'')}} | Format-Table -AutoSize | Out-String -Width 220
+
+      # 実行エイリアス: パッケージの中の notemaid を、版に依らない安定したパスで外から起動できるか
+      - name: "Experiment 3: app execution alias for notemaid"
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          Get-AppxPackage -Name 'NotedeckDev.NoteDeck*' | Remove-AppxPackage
+          Get-Process notedeck, notemaid -ErrorAction SilentlyContinue | Stop-Process -Force
+          $kit = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Directory | Where-Object { Test-Path "$($_.FullName)\x64\makeappx.exe" } | Sort-Object Name -Descending | Select-Object -First 1
+          $bin = "$($kit.FullName)\x64"
+          Copy-Item stage stage3 -Recurse
+          $m = Get-Content stage3\AppxManifest.xml -Raw
+          $m = $m.Replace('Name="NotedeckDev.NoteDeck"', 'Name="NotedeckDev.NoteDeckAlias"')
+          $m = $m.Replace('IgnorableNamespaces="uap rescap"', 'xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3" xmlns:desktop="http://schemas.microsoft.com/appx/manifest/desktop/windows10" IgnorableNamespaces="uap rescap uap3 desktop"')
+          $ext = @"
+            <Extensions>
+              <uap3:Extension Category="windows.appExecutionAlias" Executable="notemaid.exe" EntryPoint="Windows.FullTrustApplication">
+                <uap3:AppExecutionAlias>
+                  <desktop:ExecutionAlias Alias="notemaid.exe" />
+                </uap3:AppExecutionAlias>
+              </uap3:Extension>
+            </Extensions>
+          </Application>
+          "@
+          $m = $m.Replace('</Application>', $ext)
+          $m | Set-Content stage3\AppxManifest.xml -Encoding utf8
+          & "$bin\makeappx.exe" pack /d stage3 /p NoteDeckAlias.msix /o
+          if ($LASTEXITCODE -ne 0) { throw "makeappx (alias) failed" }
+          & "$bin\signtool.exe" sign /fd SHA256 /f proto.pfx /p proto NoteDeckAlias.msix
+          Add-AppxPackage -Path NoteDeckAlias.msix
+          $alias = "$env:LOCALAPPDATA\Microsoft\WindowsApps\notemaid.exe"
+          Write-Host "alias exists: $(Test-Path $alias)"
+          Write-Host "== run the alias from OUTSIDE the package"
+          & $alias service status
+          Write-Host "(exit $LASTEXITCODE)"
+          & $alias service install
+          Write-Host "(exit $LASTEXITCODE)"
+          reg query 'HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
+          $global:LASTEXITCODE = 0
