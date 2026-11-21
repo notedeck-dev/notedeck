@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Microsoft Store 版 (MSIX) のマニフェストの雛形 (#849)。scripts/build-msix.ps1 が版を埋めて包む。
+
+     Identity の Name と Publisher、PublisherDisplayName は Partner Center が発行する値
+     (製品の「製品 ID」の画面に出る公開値) で、一致しないと提出できない。発行されるまでは仮の値。
+
+     full trust の Win32 アプリ (runFullTrust)。ファイルの振り替え (仮想化) は外さない:
+     データの場所はアプリが専用の場所を明示する (src-tauri/src/packaged.rs)。
+     プロトコルはここで宣言し、アプリは実行時に登録しない。 -->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+  <Identity Name="NotedeckDev.NoteDeck" Publisher="CN=00000000-0000-0000-0000-000000000000" Version="__VERSION__.0" ProcessorArchitecture="x64" />
+  <Properties>
+    <DisplayName>NoteDeck</DisplayName>
+    <PublisherDisplayName>NoteDeck</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.17763.0" MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="ja-JP" />
+    <Resource Language="en-US" />
+  </Resources>
+  <Applications>
+    <Application Id="App" Executable="notedeck.exe" EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements DisplayName="NoteDeck" Description="NoteDeck" BackgroundColor="transparent"
+        Square150x150Logo="Assets\Square150x150Logo.png" Square44x44Logo="Assets\Square44x44Logo.png" />
+      <Extensions>
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="notedeck" />
+        </uap:Extension>
+        <!-- Windows の通知のクリックは、このスキームの起動として届く (os_notify.rs) -->
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="notedeck-notification" />
+        </uap:Extension>
+      </Extensions>
+    </Application>
+  </Applications>
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

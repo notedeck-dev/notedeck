@@ -52,6 +52,9 @@ pub struct RunArgs {
     /// keychain = OS のキーチェーン (アプリが子プロセスとして起動するときはこちら)
     #[arg(long, value_enum, default_value_t = SecretsBackend::File)]
     pub secrets: SecretsBackend,
+    /// キーチェーンの service 名。アプリが既定と別の名前空間を使うとき (Microsoft Store 版) に渡す
+    #[arg(long)]
+    pub keychain_service: Option<String>,
     /// 標準入力が閉じたら終了する。アプリが子プロセスとして起動し、親が死んだら
     /// 一緒に終わるための口 (親は stdin の書き口を持ったまま生きる)
     #[arg(long)]

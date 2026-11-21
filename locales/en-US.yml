@@ -1641,6 +1641,7 @@ _aboutContent:
   upToDate: "Up to date"
   update: "Update"
   updateReady: "Update ready to install"
+  updatedByStore: "Updated through the Microsoft Store"
   downloading: "Downloading v{version}"
   restart: "Restart"
   developerMode: "Developer mode"
@@ -3480,6 +3481,8 @@ _layoutMigration:
   failed: "Reorganizing the data directory failed; the previous layout was restored: {message}"
 
 _main:
+  openedStoreWhileDirectRuns: "You tried to open the Microsoft Store version, but the installer version is already running, so this one is shown. The two versions keep separate data. To use the Microsoft Store version, quit this app and open it again."
+  openedDirectWhileStoreRuns: "You tried to open the installer version, but the Microsoft Store version is already running, so this one is shown. The two versions keep separate data. To use the installer version, quit this app and open it again."
   backendInitFailed: "Failed to initialize the backend: {error}"
   httpRelayUnavailable: "Another app is using port {port}, so the image relay and external integrations (HTTP API) are unavailable. Images are loaded directly from their servers. Quit that app and restart NoteDeck"
 

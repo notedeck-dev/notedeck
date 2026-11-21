@@ -108,7 +108,7 @@ mod desktop {
         // ハンドラで decode)。アプリ終了後の Action Center クリックでも
         // single-instance / deep-link 経由でアプリを起こせる。
         let manager = user_notify::get_notification_manager(
-            app.config().identifier.clone(),
+            crate::packaged::notification_app_id(app.config().identifier.clone()),
             Some(super::NOTIFICATION_PROTOCOL.to_string()),
         );
         let handle = app.clone();

@@ -1917,6 +1917,20 @@ async getCliCommands() : Promise<Result<CliCommandInfo[], { code: string; messag
 }
 },
 /** @see src-tauri/src/commands/utility.rs */
+async appDistribution() : Promise<AppDistribution> {
+    return await TAURI_INVOKE("app_distribution");
+},
+/**
+ * フロントが出す OS 通知 (HEARTBEAT の知らせなど) を、Rust 側の経路で出す (#849)。
+ * 通知プラグインは bundle identifier を名乗るが、Microsoft Store 版はパッケージ自身の識別子で
+ * ないと出せず、プラグインに差し替える口が無い。Store 版のフロントはこちらを呼ぶ
+ *
+ * @see src-tauri/src/commands/utility.rs
+ */
+async showOsNotification(title: string, body: string, context: NotificationClicked | null) : Promise<void> {
+    await TAURI_INVOKE("show_os_notification", { title, body, context });
+},
+/** @see src-tauri/src/commands/utility.rs */
 async getRustcVersion() : Promise<string> {
     return await TAURI_INVOKE("get_rustc_version");
 },
@@ -3484,6 +3498,23 @@ export type ApiTokenKind =
  * フロントに見せるメタデータ (ハッシュは含めない)。
  */
 export type ApiTokenMeta = { id: string; name: string; createdAtMs: number; kind: ApiTokenKind; scope: JsonValue | null; lastUsedAtMs: number | null }
+/**
+ * このアプリがどの経路で配られたものか (#849)。フロントが、自分で自分を更新・登録する
+ * 操作 (更新の確認、自動起動) を出すかどうかを決めるのに使う
+ */
+export type AppDistribution = 
+/**
+ * 直接配布 (インストーラ / パッケージマネージャ)
+ */
+"direct" | 
+/**
+ * Microsoft Store (MSIX)。更新は Store が行う
+ */
+"microsoftStore" | 
+/**
+ * 見分けられなかった。自分で更新・登録する操作は出さない
+ */
+"unknown"
 export type AuthSession = { sessionId: string; url: string; host: string }
 /**
  * 認証方式。Rust 側で secret を注入する際の形を判別共用体で表現する。

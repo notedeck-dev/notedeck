@@ -9,6 +9,7 @@ import {
   runHealthcheck as runHealthcheckCommand,
   rustcVersion,
 } from '@/composables/appDiagnostics'
+import { useAppDistribution } from '@/composables/useAppDistribution'
 import { useDeveloperMode } from '@/composables/useDeveloperMode'
 import { useUpdater } from '@/composables/useUpdater'
 import {
@@ -372,6 +373,7 @@ const {
   installUpdate,
   restartToUpdate,
 } = useUpdater()
+const { managesItself, isMicrosoftStore } = useAppDistribution()
 
 const showUpdateSection = computed(
   () => updateAvailable.value || isInstalling.value || updateReady.value,
@@ -845,7 +847,7 @@ function reportViaMisskey() {
            アクションを更新セクションに一本化するので、ここは表示だけに戻す
            (モバイルも表示のみ) -->
       <button
-        v-if="!uiStore.isMobilePlatform && !showUpdateSection"
+        v-if="!uiStore.isMobilePlatform && !showUpdateSection && managesItself"
         type="button"
         class="_button"
         :class="[$style.aboutVersion, isUpToDate && $style.versionOk]"
@@ -863,6 +865,9 @@ function reportViaMisskey() {
         <span v-if="isUpToDate">{{ i18n.ts._aboutContent.upToDate }}</span>
       </button>
       <div v-else :class="$style.aboutVersion">v{{ appVersion }}</div>
+      <div v-if="isMicrosoftStore" :class="$style.aboutVersion">
+        {{ i18n.ts._aboutContent.updatedByStore }}
+      </div>
     </div>
 
     <!-- アップデートは hero から切り離した独立セクション (VSCode の

@@ -72,6 +72,20 @@ if (isTauri) {
     useToast().show(i18n.tsx._main.httpRelayUnavailable({ port }), 'warning')
   })
 
+  // 直接配布版と Microsoft Store 版を両方入れた端末で、もう一方を開こうとした (#849)。
+  // 後から開いた版は起動せずこの版が前に出るが、2 つはデータが別なので、開こうとした版では
+  // ないことを知らせる
+  void listenTauri('nd:other-distribution-opened', async (other) => {
+    const { useToast } = await import('./stores/toast')
+    await localeReady
+    useToast().show(
+      other === 'microsoftStore'
+        ? i18n.ts._main.openedStoreWhileDirectRuns
+        : i18n.ts._main.openedDirectWhileStoreRuns,
+      'warning',
+    )
+  })
+
   // Pre-warm Tauri API module (critical path in App.vue onMounted)
   import('@tauri-apps/api/window')
 

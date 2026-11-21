@@ -6,6 +6,7 @@ import type { QuickPickItem } from '@/commands/quickPick'
 import { getSettingsItems } from '@/commands/quickPickProviders'
 import { useCommandStore } from '@/commands/registry'
 import { backupDirPath, exportDirPath } from '@/composables/backupFiles'
+import { useAppDistribution } from '@/composables/useAppDistribution'
 import { usePortal } from '@/composables/usePortal'
 import { useVaporTransition } from '@/composables/useVaporTransition'
 import { i18n } from '@/i18n'
@@ -89,6 +90,8 @@ function clearConeGuard() {
 }
 
 // ── Autostart ──
+// Microsoft Store 版はログイン時の起動をまだ登録できないので出さない (#849)
+const { managesItself } = useAppDistribution()
 const autostartEnabled = ref(false)
 
 onMounted(async () => {
@@ -232,8 +235,8 @@ defineExpose({ toggleMenu })
             <i class="ti ti-database-export" />
             <span>{{ i18n.ts._titleBarMenu.openBackupFolder }}</span>
           </button>
-          <div class="_popupDivider" />
-          <button class="_popupItem" @click="toggleAutostart">
+          <div v-if="managesItself" class="_popupDivider" />
+          <button v-if="managesItself" class="_popupItem" @click="toggleAutostart">
             <i class="ti ti-power" />
             <span>{{ i18n.ts._titleBarMenu.launchAtStartup }}</span>
             <i :class="[autostartEnabled ? 'ti ti-check' : 'ti ti-minus', $style.kbd]" />

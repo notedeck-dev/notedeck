@@ -2566,6 +2566,8 @@ export interface Locale {
     readonly "update": string
     /** 更新の準備ができました */
     readonly "updateReady": string
+    /** Microsoft Store から更新されます */
+    readonly "updatedByStore": string
     /** v{version} をダウンロード中 */
     readonly "downloading": ParameterizedString<'version'>
     /** 再起動 */
@@ -5870,6 +5872,10 @@ AI プロバイダーの API キーを登録すると使えるようになりま
   readonly "_main": {
     /** バックエンドの初期化に失敗しました: {error} */
     readonly "backendInitFailed": ParameterizedString<'error'>
+    /** Microsoft Store 版を開こうとしましたが、インストーラ版が動いているため、こちらが表示されています。2 つの版はデータが別です。Microsoft Store 版を使うには、このアプリを終了してから開き直してください。 */
+    readonly "openedStoreWhileDirectRuns": string
+    /** インストーラ版を開こうとしましたが、Microsoft Store 版が動いているため、こちらが表示されています。2 つの版はデータが別です。インストーラ版を使うには、このアプリを終了してから開き直してください。 */
+    readonly "openedDirectWhileStoreRuns": string
     /** ポート {port} を別のアプリが使っているため、画像の中継と外部連携 (HTTP API) を使えません。画像は元のサーバーから直接読みます。そのアプリを止めてから NoteDeck を再起動してください */
     readonly "httpRelayUnavailable": ParameterizedString<'port'>
   }

@@ -23,6 +23,47 @@ pub fn get_media_proxy_token(
     Some(token.0.clone())
 }
 
+/// このアプリがどの経路で配られたものか (#849)。フロントが、自分で自分を更新・登録する
+/// 操作 (更新の確認、自動起動) を出すかどうかを決めるのに使う
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AppDistribution {
+    /// 直接配布 (インストーラ / パッケージマネージャ)
+    Direct,
+    /// Microsoft Store (MSIX)。更新は Store が行う
+    MicrosoftStore,
+    /// 見分けられなかった。自分で更新・登録する操作は出さない
+    Unknown,
+}
+
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub fn app_distribution() -> AppDistribution {
+    match crate::packaged::current() {
+        crate::packaged::Packaging::Outside => AppDistribution::Direct,
+        crate::packaged::Packaging::Inside { .. } => AppDistribution::MicrosoftStore,
+        crate::packaged::Packaging::Unknown => AppDistribution::Unknown,
+    }
+}
+
+/// フロントが出す OS 通知 (HEARTBEAT の知らせなど) を、Rust 側の経路で出す (#849)。
+/// 通知プラグインは bundle identifier を名乗るが、Microsoft Store 版はパッケージ自身の識別子で
+/// ないと出せず、プラグインに差し替える口が無い。Store 版のフロントはこちらを呼ぶ
+// nd-command: local
+#[tauri::command]
+#[specta::specta]
+pub fn show_os_notification(
+    title: String,
+    body: String,
+    context: Option<crate::os_notify::NotificationClicked>,
+) {
+    #[cfg(any(target_os = "linux", target_os = "windows"))]
+    crate::os_notify::show(&title, Some(&body), context.as_ref(), None, None);
+    #[cfg(not(any(target_os = "linux", target_os = "windows")))]
+    let _ = (title, body, context);
+}
+
 // nd-command: local
 #[tauri::command]
 #[specta::specta]

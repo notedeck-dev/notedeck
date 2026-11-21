@@ -18,5 +18,20 @@ pub fn resolve_app_dir<M: Manager<tauri::Wry>>(app: &M) -> tauri::Result<PathBuf
     if let Some(dir) = notecore::app_dir::override_from_env() {
         return Ok(dir);
     }
+    // Microsoft Store 版はパッケージ専用の場所 (#849)。子の notemaid には引数で渡るので、
+    // notecore の既定 (直接配布版と同じ場所) とは別になる
+    if let Some(dirs) = crate::packaged::dirs_or_refuse()? {
+        return Ok(dirs.data);
+    }
     app.path().app_data_dir()
+}
+
+/// ログの場所。Tauri の `app_log_dir()` を直接呼ばずここを通す: Store 版では専用の場所に
+/// 向ける (#849)。「ログフォルダを開く」はパッケージの外のエクスプローラーに渡すので、
+/// 実体のパスである必要もある
+pub fn resolve_log_dir<M: Manager<tauri::Wry>>(app: &M) -> tauri::Result<PathBuf> {
+    if let Some(dirs) = crate::packaged::dirs_or_refuse()? {
+        return Ok(dirs.logs());
+    }
+    app.path().app_log_dir()
 }
